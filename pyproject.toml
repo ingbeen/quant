@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "quant"
+version = "0.1.0"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pandas = "^2.2.2"
+yfinance = "^0.2.43"
+duckdb = "^1.0.0"
+pyarrow = "^17.0.0"
+matplotlib = "^3.9.0"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[tool.poetry.scripts]
+quant = "cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

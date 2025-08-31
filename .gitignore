@@ -1,0 +1,15 @@
+# caches & artifacts
+.cache/
+**/*.parquet
+**/*.duckdb
+**/__pycache__/
+**/*.log
+reports/
+
+# venv
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
