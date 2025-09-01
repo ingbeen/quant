@@ -1,22 +1,37 @@
 [tool.poetry]
-name = "quant"
+name = "quant-backtest"
 version = "0.1.0"
-package-mode = false
+description = "Stock backtesting framework with DuckDB and CSV data management"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pandas = "^2.2.2"
-yfinance = "^0.2.43"
-duckdb = "^1.0.0"
-pyarrow = "^17.0.0"
-matplotlib = "^3.9.0"
+pandas = "^2.0.0"
+numpy = "^1.24.0"
+yfinance = "^0.2.0"
+duckdb = "^0.9.0"
+matplotlib = "^3.7.0"
+seaborn = "^0.12.0"
+jupyter = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
-ipykernel = "^6.29.5"
-
-[tool.poetry.scripts]
-quant = "cli:main"
+pytest = "^7.4.0"
+black = "^23.0.0"
+ruff = "^0.1.0"
+ipykernel = "^6.25.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.ruff]
+select = ["E", "F", "I"]
+line-length = 88
+target-version = "py310"
+

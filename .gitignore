@@ -1,15 +1,70 @@
-# caches & artifacts
-.cache/
-**/*.parquet
-**/*.duckdb
-**/__pycache__/
-**/*.log
-reports/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# venv
-.venv/
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# DuckDB files - 로컬 캐시, Git 추적 안함
+*.db
+*.duckdb
+cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Environment variables
+.env
+.venv
+env/
 venv/
+ENV/
+env.bak/
+venv.bak/
 
-# OS
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
 .DS_Store
+
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 큰 데이터 파일들 (필요시 git add -f 사용)
+*.parquet
+temp/
+
+# Poetry
+poetry.lock
