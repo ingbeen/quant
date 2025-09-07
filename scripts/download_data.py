@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional
 import pandas as pd
@@ -65,6 +66,12 @@ def download_stock_data(
         # 컬럼명 정리
         df.columns = [col.replace(" ", "_") for col in df.columns]
 
+        # 최근 2일(오늘 포함) 데이터 제외
+        cutoff_date = date.today() - timedelta(days=1)  # 어제까지의 데이터만 포함
+        original_count = len(df)
+        df = df[df["Date"] <= cutoff_date]
+        filtered_count = original_count - len(df)
+
         # CSV 파일로 저장
         csv_path = output_path / filename
         df.to_csv(csv_path, index=False)
@@ -74,6 +81,9 @@ def download_stock_data(
         print(f"   기간: {df['Date'].min()} ~ {df['Date'].max()}")
         print(f"   행 수: {len(df):,}")
         print(f"   컬럼: {list(df.columns)}")
+        if filtered_count > 0:
+            print(f"[FILTER] 최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
+            print(f"[FILTER] 제외 기준일: {cutoff_date} 이후 데이터")
 
         return csv_path
 
