@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
 주식 데이터 다운로드 스크립트
+Date, Open, Close, Volume 컬럼만 포함하여 다운로드
 
 Usage:
     python scripts/download_data.py QQQ
-    python scripts/download_data.py QQQ --period=5y --start=2020-01-01
+    python scripts/download_data.py QQQ --start=2020-01-01
+    python scripts/download_data.py QQQ --start=2020-01-01 --end=2023-12-31
 """
 
 import argparse
@@ -17,26 +19,22 @@ import yfinance as yf
 
 def download_stock_data(
     symbol: str,
-    period: Optional[str] = "max",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    output_dir: str = "data/raw",
 ) -> Path:
     """
-    주식 데이터를 다운로드하고 CSV로 저장
+    주식 데이터를 다운로드하고 CSV로 저장 (Date, Open, Close, Volume만 포함)
 
     Args:
         symbol: 주식 티커 (예: QQQ, SPY)
-        period: 다운로드 기간 (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
         start_date: 시작 날짜 (YYYY-MM-DD 형식)
         end_date: 종료 날짜 (YYYY-MM-DD 형식)
-        output_dir: 출력 디렉토리
 
     Returns:
         저장된 CSV 파일의 경로
     """
     # 출력 디렉토리 생성
-    output_path = Path(output_dir)
+    output_path = Path("data/raw")
     output_path.mkdir(parents=True, exist_ok=True)
 
     # yfinance Ticker 객체 생성
@@ -45,7 +43,7 @@ def download_stock_data(
     print(f"[INFO] {symbol} 데이터 다운로드 중...")
 
     try:
-        # 데이터 다운로드
+        # 데이터 다운로드 (최대 기간)
         if start_date and end_date:
             df = ticker.history(start=start_date, end=end_date)
             filename = f"{symbol}_{start_date}_{end_date}.csv"
@@ -53,8 +51,8 @@ def download_stock_data(
             df = ticker.history(start=start_date)
             filename = f"{symbol}_{start_date}_latest.csv"
         else:
-            df = ticker.history(period=period)
-            filename = f"{symbol}_{period}.csv"
+            df = ticker.history(period="max")
+            filename = f"{symbol}_max.csv"
 
         if df.empty:
             raise ValueError(f"데이터를 찾을 수 없습니다: {symbol}")
@@ -63,8 +61,9 @@ def download_stock_data(
         df.reset_index(inplace=True)
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-        # 컬럼명 정리
-        df.columns = [col.replace(" ", "_") for col in df.columns]
+        # 필요한 컬럼만 선택 (Date, Open, Close, Volume)
+        required_columns = ["Date", "Open", "Close", "Volume"]
+        df = df[required_columns]
 
         # 최근 2일(오늘 포함) 데이터 제외
         cutoff_date = date.today() - timedelta(days=1)  # 어제까지의 데이터만 포함
@@ -113,14 +112,8 @@ def get_stock_info(symbol: str) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="주식 데이터 다운로드")
     parser.add_argument("symbol", help="주식 티커 심볼 (예: QQQ, SPY)")
-    parser.add_argument(
-        "--period",
-        default="max",
-        help="다운로드 기간 (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)",
-    )
     parser.add_argument("--start", help="시작 날짜 (YYYY-MM-DD)")
     parser.add_argument("--end", help="종료 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--output", default="data/raw", help="출력 디렉토리")
     parser.add_argument("--info", action="store_true", help="주식 정보만 조회")
 
     args = parser.parse_args()
@@ -137,10 +130,8 @@ def main():
     try:
         csv_path = download_stock_data(
             symbol=symbol,
-            period=args.period,
             start_date=args.start,
             end_date=args.end,
-            output_dir=args.output,
         )
 
         print(f"\n[SUCCESS] 다운로드 완료!")
