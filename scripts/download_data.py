@@ -91,41 +91,17 @@ def download_stock_data(
         raise
 
 
-def get_stock_info(symbol: str) -> dict:
-    """주식 기본 정보 조회"""
-    ticker = yf.Ticker(symbol)
-    info = ticker.info
-
-    relevant_info = {
-        "symbol": info.get("symbol"),
-        "longName": info.get("longName"),
-        "sector": info.get("sector"),
-        "industry": info.get("industry"),
-        "marketCap": info.get("marketCap"),
-        "currency": info.get("currency"),
-        "exchange": info.get("exchange"),
-    }
-
-    return {k: v for k, v in relevant_info.items() if v is not None}
-
 
 def main():
     parser = argparse.ArgumentParser(description="주식 데이터 다운로드")
     parser.add_argument("symbol", help="주식 티커 심볼 (예: QQQ, SPY)")
     parser.add_argument("--start", help="시작 날짜 (YYYY-MM-DD)")
     parser.add_argument("--end", help="종료 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--info", action="store_true", help="주식 정보만 조회")
 
     args = parser.parse_args()
 
     symbol = args.symbol.upper()
 
-    if args.info:
-        print(f"[INFO] {symbol} 정보:")
-        info = get_stock_info(symbol)
-        for key, value in info.items():
-            print(f"   {key}: {value}")
-        return
 
     try:
         csv_path = download_stock_data(
