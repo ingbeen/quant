@@ -66,7 +66,7 @@ def download_stock_data(
         df = df[required_columns]
 
         # 최근 2일(오늘 포함) 데이터 제외
-        cutoff_date = date.today() - timedelta(days=1)  # 어제까지의 데이터만 포함
+        cutoff_date = date.today() - timedelta(days=2)  # 그저께까지의 데이터만 포함
         original_count = len(df)
         df = df[df["Date"] <= cutoff_date]
         filtered_count = original_count - len(df)
@@ -82,14 +82,15 @@ def download_stock_data(
         print(f"   컬럼: {list(df.columns)}")
         if filtered_count > 0:
             print(f"[FILTER] 최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
-            print(f"[FILTER] 제외 기준일: {cutoff_date} 이후 데이터")
+            print(
+                f"[FILTER] 포함된 마지막 날짜: {cutoff_date} ({cutoff_date} 이후 데이터 제외)"
+            )
 
         return csv_path
 
     except Exception as e:
         print(f"[ERROR] 오류 발생: {e}")
         raise
-
 
 
 def main():
@@ -101,7 +102,6 @@ def main():
     args = parser.parse_args()
 
     symbol = args.symbol.upper()
-
 
     try:
         csv_path = download_stock_data(
