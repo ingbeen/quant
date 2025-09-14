@@ -121,16 +121,16 @@ class StrategyComparator:
 
         for strategy_name, result in self.results.items():
             strategies_info[strategy_name] = {
-                'total_return_pct': result.get('total_return_pct', 0.0),
-                'num_trades': result.get('num_trades', 0),
-                'win_rate_pct': result.get('win_rate_pct', 0.0),
-                'total_commission': result.get('total_commission', 0.0),
-                'excess_return_pct': result.get('excess_return_pct', 0.0),
-                'is_benchmark': result.get('is_benchmark', False)
+                "total_return_pct": result.get("total_return_pct", 0.0),
+                "num_trades": result.get("num_trades", 0),
+                "win_rate_pct": result.get("win_rate_pct", 0.0),
+                "total_commission": result.get("total_commission", 0.0),
+                "excess_return_pct": result.get("excess_return_pct", 0.0),
+                "is_benchmark": result.get("is_benchmark", False),
             }
 
         return {
-            'benchmark_name': self.benchmark_name,
-            'num_strategies': len(self.results),
-            'strategies': strategies_info
+            "benchmark_name": self.benchmark_name,
+            "num_strategies": len(self.results),
+            "strategies": strategies_info,
         }

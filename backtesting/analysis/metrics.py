@@ -21,9 +21,9 @@ class PerformanceMetrics:
             results: 백테스팅 결과 딕셔너리
         """
         self.results = results
-        self.portfolio_values = results.get('portfolio_values', [])
-        self.daily_returns = results.get('daily_returns', [])
-        self.trades = results.get('trades', [])
+        self.portfolio_values = results.get("portfolio_values", [])
+        self.daily_returns = results.get("daily_returns", [])
+        self.trades = results.get("trades", [])
 
     # def calculate_cagr(self) -> float:
     #     """연평균 복합 수익률(CAGR) 계산"""
@@ -217,9 +217,13 @@ class PerformanceMetrics:
     def get_basic_stats(self) -> Dict[str, Any]:
         """기본 통계 정보 반환"""
         return {
-            'total_trades': len(self.trades),
-            'total_days': len(self.portfolio_values),
-            'has_returns': len(self.daily_returns) > 0,
-            'portfolio_start_value': self.portfolio_values[0] if self.portfolio_values else 0,
-            'portfolio_end_value': self.portfolio_values[-1] if self.portfolio_values else 0
+            "total_trades": len(self.trades),
+            "total_days": len(self.portfolio_values),
+            "has_returns": len(self.daily_returns) > 0,
+            "portfolio_start_value": (
+                self.portfolio_values[0] if self.portfolio_values else 0
+            ),
+            "portfolio_end_value": (
+                self.portfolio_values[-1] if self.portfolio_values else 0
+            ),
         }

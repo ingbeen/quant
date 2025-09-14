@@ -32,13 +32,13 @@ def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         # 전략 재생성 (pickle 직렬화 문제 해결)
-        strategy_class = strategy_data['strategy_class']
-        strategy_args = strategy_data.get('strategy_args', {})
+        strategy_class = strategy_data["strategy_class"]
+        strategy_args = strategy_data.get("strategy_args", {})
         strategy = strategy_class(**strategy_args)
 
         # 데이터 복사
-        data = strategy_data['data'].copy()
-        ticker = strategy_data['ticker']
+        data = strategy_data["data"].copy()
+        ticker = strategy_data["ticker"]
 
         # 백테스팅 엔진 생성 및 실행
         engine = BacktestEngine()
@@ -50,9 +50,9 @@ def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         print(f"[ERROR] 전략 실행 중 오류: {e}")
         return {
-            'strategy_name': strategy_data.get('strategy_name', 'Unknown'),
-            'error': str(e),
-            'success': False
+            "strategy_name": strategy_data.get("strategy_name", "Unknown"),
+            "error": str(e),
+            "success": False,
         }
 
 
@@ -69,8 +69,9 @@ class ParallelRunner:
         self.max_workers = max_workers or mp.cpu_count()
         print(f"[PARALLEL] 병렬 처리 워커 수: {self.max_workers}")
 
-    def run_strategies(self, strategies: List[BaseStrategy], data: pd.DataFrame,
-                      ticker: str = "QQQ") -> Dict[str, Any]:
+    def run_strategies(
+        self, strategies: List[BaseStrategy], data: pd.DataFrame, ticker: str = "QQQ"
+    ) -> Dict[str, Any]:
         """
         여러 전략을 병렬로 실행
 
@@ -92,11 +93,11 @@ class ParallelRunner:
         strategy_tasks = []
         for strategy in strategies:
             task_data = {
-                'strategy_class': strategy.__class__,
-                'strategy_args': {},  # 기본 생성자 사용
-                'strategy_name': strategy.name,
-                'data': data.copy(),  # 각 프로세스에 데이터 복사본 전달
-                'ticker': ticker
+                "strategy_class": strategy.__class__,
+                "strategy_args": {},  # 기본 생성자 사용
+                "strategy_name": strategy.name,
+                "data": data.copy(),  # 각 프로세스에 데이터 복사본 전달
+                "ticker": ticker,
             }
             strategy_tasks.append(task_data)
 
@@ -107,7 +108,7 @@ class ParallelRunner:
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             # 작업 제출
             future_to_strategy = {
-                executor.submit(run_single_strategy, task): task['strategy_name']
+                executor.submit(run_single_strategy, task): task["strategy_name"]
                 for task in strategy_tasks
             }
 
@@ -116,18 +117,19 @@ class ParallelRunner:
                 strategy_name = future_to_strategy[future]
                 try:
                     result = future.result()
-                    if result.get('success', True):  # 기본적으로 성공으로 간주
+                    if result.get("success", True):  # 기본적으로 성공으로 간주
                         results[strategy_name] = result
                     else:
-                        failed_strategies.append({
-                            'strategy': strategy_name,
-                            'error': result.get('error', 'Unknown error')
-                        })
+                        failed_strategies.append(
+                            {
+                                "strategy": strategy_name,
+                                "error": result.get("error", "Unknown error"),
+                            }
+                        )
                 except Exception as e:
-                    failed_strategies.append({
-                        'strategy': strategy_name,
-                        'error': str(e)
-                    })
+                    failed_strategies.append(
+                        {"strategy": strategy_name, "error": str(e)}
+                    )
 
         # 실패한 전략 로그
         if failed_strategies:
@@ -156,7 +158,7 @@ class ParallelRunner:
         benchmark_name = None
 
         for name, result in results.items():
-            if result.get('is_benchmark', False) or name == "BuyAndHold":
+            if result.get("is_benchmark", False) or name == "BuyAndHold":
                 benchmark_result = result
                 benchmark_name = name
                 break
@@ -165,7 +167,7 @@ class ParallelRunner:
             print("[WARNING] 벤치마크 전략(BuyAndHold)을 찾을 수 없습니다.")
             return results
 
-        benchmark_return = benchmark_result['total_return']
+        benchmark_return = benchmark_result["total_return"]
         print(f"[BENCHMARK] {benchmark_name} 수익률: {benchmark_return:.2%}")
 
         # 각 전략에 초과 수익률 추가
@@ -174,14 +176,14 @@ class ParallelRunner:
             updated_result = result.copy()
 
             if name != benchmark_name:
-                strategy_return = result['total_return']
+                strategy_return = result["total_return"]
                 excess_return = strategy_return - benchmark_return
-                updated_result['excess_return'] = round(excess_return, 4)
-                updated_result['excess_return_pct'] = round(excess_return * 100, 2)
+                updated_result["excess_return"] = round(excess_return, 4)
+                updated_result["excess_return_pct"] = round(excess_return * 100, 2)
                 print(f"[EXCESS] {name} 초과수익률: {excess_return:.2%}")
             else:
-                updated_result['excess_return'] = 0.0
-                updated_result['excess_return_pct'] = 0.0
+                updated_result["excess_return"] = 0.0
+                updated_result["excess_return_pct"] = 0.0
 
             updated_results[name] = updated_result
 
@@ -193,29 +195,30 @@ class ParallelRunner:
             print("[SUMMARY] 실행된 전략이 없습니다.")
             return
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print(" 백테스팅 결과 요약")
-        print("="*60)
+        print("=" * 60)
 
         # 벤치마크 먼저 표시
         benchmark_name = None
         for name, result in results.items():
-            if result.get('is_benchmark', False):
+            if result.get("is_benchmark", False):
                 benchmark_name = name
                 self._print_strategy_summary(name, result, is_benchmark=True)
                 break
 
-        print("-"*60)
+        print("-" * 60)
 
         # 나머지 전략들
         for name, result in results.items():
-            if not result.get('is_benchmark', False):
+            if not result.get("is_benchmark", False):
                 self._print_strategy_summary(name, result, is_benchmark=False)
 
-        print("="*60)
+        print("=" * 60)
 
-    def _print_strategy_summary(self, name: str, result: Dict[str, Any],
-                               is_benchmark: bool = False):
+    def _print_strategy_summary(
+        self, name: str, result: Dict[str, Any], is_benchmark: bool = False
+    ):
         """개별 전략 요약 출력"""
         prefix = "[벤치마크]" if is_benchmark else "[전략]"
 
@@ -225,8 +228,8 @@ class ParallelRunner:
         print(f"  승률: {result['win_rate_pct']:.1f}%")
         print(f"  총 수수료: ${result['total_commission']:.2f}")
 
-        if not is_benchmark and 'excess_return_pct' in result:
-            excess_sign = "+" if result['excess_return_pct'] >= 0 else ""
+        if not is_benchmark and "excess_return_pct" in result:
+            excess_sign = "+" if result["excess_return_pct"] >= 0 else ""
             print(f"  초과수익률: {excess_sign}{result['excess_return_pct']:.2f}%")
 
         print()

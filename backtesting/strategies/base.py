@@ -94,19 +94,26 @@ class BaseStrategy(ABC):
         stock_value = self.positions.get(ticker, 0.0) * current_price
         return self.capital + stock_value
 
-    def add_trade(self, ticker: str, action: str, date: str, price: float,
-                  quantity: float, commission: float):
+    def add_trade(
+        self,
+        ticker: str,
+        action: str,
+        date: str,
+        price: float,
+        quantity: float,
+        commission: float,
+    ):
         """거래 기록 추가"""
         trade = {
-            'ticker': ticker,
-            'action': action,
-            'date': date,
-            'price': price,
-            'quantity': quantity,
-            'amount': price * quantity,
-            'commission': commission,
-            'capital_after': self.capital,
-            'position_after': self.positions.get(ticker, 0.0)
+            "ticker": ticker,
+            "action": action,
+            "date": date,
+            "price": price,
+            "quantity": quantity,
+            "amount": price * quantity,
+            "commission": commission,
+            "capital_after": self.capital,
+            "position_after": self.positions.get(ticker, 0.0),
         }
         self.trades.append(trade)
 

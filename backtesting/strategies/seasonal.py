@@ -27,7 +27,7 @@ class SeasonalStrategy(BaseStrategy):
             bool: 매수 시즌이면 True
         """
         try:
-            date = datetime.strptime(date_str, '%Y-%m-%d')
+            date = datetime.strptime(date_str, "%Y-%m-%d")
             month = date.month
             # 11월, 12월, 1월, 2월, 3월, 4월이 매수 시즌
             return month in [11, 12, 1, 2, 3, 4]
@@ -45,7 +45,7 @@ class SeasonalStrategy(BaseStrategy):
             bool: 매도 시즌이면 True
         """
         try:
-            date = datetime.strptime(date_str, '%Y-%m-%d')
+            date = datetime.strptime(date_str, "%Y-%m-%d")
             month = date.month
             # 5월, 6월, 7월, 8월, 9월, 10월이 매도 시즌
             return month in [5, 6, 7, 8, 9, 10]
@@ -63,7 +63,7 @@ class SeasonalStrategy(BaseStrategy):
             bool: 해당 월의 첫 거래일이면 True
         """
         try:
-            date = datetime.strptime(date_str, '%Y-%m-%d')
+            date = datetime.strptime(date_str, "%Y-%m-%d")
             return date.day <= 7  # 매월 1-7일을 월초로 간주
         except (ValueError, AttributeError):
             return False
@@ -79,13 +79,15 @@ class SeasonalStrategy(BaseStrategy):
         Returns:
             bool: 매수 조건 충족 시 True
         """
-        ticker = data.get('ticker', 'QQQ')  # 기본값으로 QQQ 사용
+        ticker = data.get("ticker", "QQQ")  # 기본값으로 QQQ 사용
         current_position = self.get_current_position(ticker)
 
-        return (self._is_buy_season(current_date) and
-                self._is_month_start(current_date) and
-                current_position == 0.0 and
-                self.capital > 1000)  # 최소 $1000 이상 현금 보유 시에만 매수
+        return (
+            self._is_buy_season(current_date)
+            and self._is_month_start(current_date)
+            and current_position == 0.0
+            and self.capital > 1000
+        )  # 최소 $1000 이상 현금 보유 시에만 매수
 
     def check_sell_condition(self, data: pd.Series, current_date: str) -> bool:
         """
@@ -98,12 +100,14 @@ class SeasonalStrategy(BaseStrategy):
         Returns:
             bool: 매도 조건 충족 시 True
         """
-        ticker = data.get('ticker', 'QQQ')  # 기본값으로 QQQ 사용
+        ticker = data.get("ticker", "QQQ")  # 기본값으로 QQQ 사용
         current_position = self.get_current_position(ticker)
 
-        return (self._is_sell_season(current_date) and
-                self._is_month_start(current_date) and
-                current_position > 0.0)
+        return (
+            self._is_sell_season(current_date)
+            and self._is_month_start(current_date)
+            and current_position > 0.0
+        )
 
     def calculate_position_size(self, data: pd.Series, current_date: str) -> float:
         """
@@ -116,7 +120,7 @@ class SeasonalStrategy(BaseStrategy):
         Returns:
             float: 매수할 주식 수량
         """
-        current_price = data['close']
+        current_price = data["close"]
         # 현금의 95%로 매수 (수수료 고려)
         available_amount = self.capital * 0.95 / (1 + self.commission_rate)
         quantity = int(available_amount / current_price)

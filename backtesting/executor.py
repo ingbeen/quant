@@ -23,8 +23,14 @@ class TradeExecutor:
         """매매 실행기 초기화"""
         self.execution_log: list = []
 
-    def execute_buy(self, strategy: BaseStrategy, ticker: str, price: float,
-                    quantity: float, date: str) -> Dict[str, Any]:
+    def execute_buy(
+        self,
+        strategy: BaseStrategy,
+        ticker: str,
+        price: float,
+        quantity: float,
+        date: str,
+    ) -> Dict[str, Any]:
         """
         매수 실행
 
@@ -44,7 +50,7 @@ class TradeExecutor:
                 "error": "매수 수량은 0보다 커야 합니다.",
                 "quantity": 0,
                 "amount": 0,
-                "commission": 0
+                "commission": 0,
             }
 
         # 거래 금액 계산
@@ -63,7 +69,7 @@ class TradeExecutor:
                 "error": f"잔고 부족: 필요 ${total_required:.2f}, 보유 ${strategy.capital:.2f}",
                 "quantity": 0,
                 "amount": 0,
-                "commission": 0
+                "commission": 0,
             }
 
         # 매수 실행
@@ -78,7 +84,7 @@ class TradeExecutor:
             date=date,
             price=price,
             quantity=quantity,
-            commission=commission
+            commission=commission,
         )
 
         # 매수 실행 후 전략별 후처리
@@ -96,14 +102,20 @@ class TradeExecutor:
             "commission": commission,
             "total_cost": total_required,
             "capital_after": strategy.capital,
-            "position_after": strategy.positions.get(ticker, 0.0)
+            "position_after": strategy.positions.get(ticker, 0.0),
         }
 
         self.execution_log.append(execution_result)
         return execution_result
 
-    def execute_sell(self, strategy: BaseStrategy, ticker: str, price: float,
-                     quantity: Optional[float], date: str) -> Dict[str, Any]:
+    def execute_sell(
+        self,
+        strategy: BaseStrategy,
+        ticker: str,
+        price: float,
+        quantity: Optional[float],
+        date: str,
+    ) -> Dict[str, Any]:
         """
         매도 실행
 
@@ -125,7 +137,7 @@ class TradeExecutor:
                 "error": "매도할 주식이 없습니다.",
                 "quantity": 0,
                 "amount": 0,
-                "commission": 0
+                "commission": 0,
             }
 
         # 매도 수량 결정 (None이면 전량 매도)
@@ -140,7 +152,7 @@ class TradeExecutor:
                 "error": "매도 수량은 0보다 커야 합니다.",
                 "quantity": 0,
                 "amount": 0,
-                "commission": 0
+                "commission": 0,
             }
 
         # 거래 금액 계산
@@ -167,7 +179,7 @@ class TradeExecutor:
             date=date,
             price=price,
             quantity=sell_quantity,
-            commission=commission
+            commission=commission,
         )
 
         # 실행 로그 기록
@@ -182,7 +194,7 @@ class TradeExecutor:
             "commission": commission,
             "net_proceeds": net_proceeds,
             "capital_after": strategy.capital,
-            "position_after": strategy.positions.get(ticker, 0.0)
+            "position_after": strategy.positions.get(ticker, 0.0),
         }
 
         self.execution_log.append(execution_result)
@@ -203,7 +215,7 @@ class TradeExecutor:
                 "total_executions": 0,
                 "buy_count": 0,
                 "sell_count": 0,
-                "total_commission": 0.0
+                "total_commission": 0.0,
             }
 
         buy_count = sum(1 for log in self.execution_log if log["action"] == "BUY")
@@ -214,5 +226,5 @@ class TradeExecutor:
             "total_executions": len(self.execution_log),
             "buy_count": buy_count,
             "sell_count": sell_count,
-            "total_commission": round(total_commission, 2)
+            "total_commission": round(total_commission, 2),
         }
