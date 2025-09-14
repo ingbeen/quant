@@ -9,27 +9,6 @@
 - **라인 길이**: 88자 제한 (`line-length = 88`)
 - **타겟 버전**: Python 3.10 (`target-version = ['py310']`)
 - **포맷팅 규칙**: Black 기본 규칙 준수 (import 정렬, 문자열 쿼터 통일, 공백 규칙 등)
-- **자동 포맷팅**: VSCode에서 저장 시 자동 포맷 적용됨 (`formatOnSave: true`)
-
-### Black 포맷팅 예제:
-```python
-# 올바른 Black 포맷팅
-from qbt.core.data_loader import DataLoader
-from qbt.strategies.buyandhold import BuyAndHoldStrategy
-
-
-def main():
-    """메인 실행 함수"""
-    data_loader = DataLoader("cache/market_data.db")
-    strategy = BuyAndHoldStrategy()
-
-    # 88자 넘는 긴 줄은 자동으로 줄바꿈
-    data = data_loader.load_data(
-        ticker="QQQ", start_date="2020-01-01", end_date="2024-12-31"
-    )
-
-    return data
-```
 
 ## 프로젝트 개요
 
@@ -167,29 +146,6 @@ poetry shell
 # 패키지 관리
 poetry add pandas numpy  # 새 패키지 추가
 poetry remove requests   # 패키지 제거
-```
-
-## 코드 포맷팅 (Black 필수)
-
-### 자동 포맷팅 설정
-프로젝트에는 이미 다음 설정이 적용되어 있습니다:
-
-**`.vscode/settings.json`:**
-```json
-{
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.formatOnSave": true
-    },
-    "python.analysis.typeCheckingMode": "basic"
-}
-```
-
-**`pyproject.toml` Black 설정:**
-```toml
-[tool.black]
-line-length = 88
-target-version = ['py310']
 ```
 
 ## DBeaver SQL 분석 통합
