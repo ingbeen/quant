@@ -15,7 +15,6 @@ jupyter = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.0.0"
-ruff = "^0.1.0"
 ipykernel = "^6.25.0"
 
 [build-system]
