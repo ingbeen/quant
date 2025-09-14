@@ -81,9 +81,8 @@ class TradeExecutor:
             commission=commission
         )
 
-        # Buy & Hold 전략의 경우 매수 완료 표시
-        if hasattr(strategy, 'on_buy_executed'):
-            strategy.on_buy_executed()
+        # 매수 실행 후 전략별 후처리
+        strategy.on_buy_executed()
 
         # 실행 로그 기록
         execution_result = {

@@ -110,6 +110,14 @@ class BaseStrategy(ABC):
         }
         self.trades.append(trade)
 
+    def on_buy_executed(self):
+        """
+        매수 실행 후 호출되는 메서드
+
+        하위 클래스에서 필요한 경우 오버라이드하여 사용
+        """
+        pass
+
     def reset(self):
         """전략 상태 초기화"""
         self.capital = self.initial_capital

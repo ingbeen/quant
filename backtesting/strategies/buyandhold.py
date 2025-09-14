@@ -53,7 +53,7 @@ class BuyAndHoldStrategy(BaseStrategy):
             float: 매수할 주식 수량 (전액 매수)
         """
         if not self._initial_buy_done:
-            current_price = data['close']
+            current_price = data["close"]
             # 수수료를 제외한 금액으로 최대한 매수
             available_amount = self.capital / (1 + self.commission_rate)
             quantity = int(available_amount / current_price)
