@@ -192,18 +192,6 @@ line-length = 88
 target-version = ['py310']
 ```
 
-### 수동 포맷팅
-```bash
-# 전체 프로젝트 포맷팅
-poetry run black .
-
-# 특정 파일 포맷팅
-poetry run black src/qbt/core/engine.py
-
-# 포맷팅 미리보기 (실제 변경하지 않음)
-poetry run black --diff .
-```
-
 ## DBeaver SQL 분석 통합
 
 DuckDB 캐시 파일은 DBeaver에서 SQL 분석이 가능합니다:
