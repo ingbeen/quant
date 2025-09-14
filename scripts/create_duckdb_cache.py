@@ -53,12 +53,12 @@ class DuckDBManager:
 
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS stocks (
-            symbol VARCHAR NOT NULL,
+            ticker VARCHAR NOT NULL,
             date DATE NOT NULL,
             open DECIMAL(10,2),
             close DECIMAL(10,2),
             volume BIGINT,
-            PRIMARY KEY (symbol, date)
+            PRIMARY KEY (ticker, date)
         );
         """
 
@@ -72,10 +72,10 @@ class DuckDBManager:
         if self.conn is None:
             raise RuntimeError("Database connection not established")
 
-        # CSV 파일명에서 심볼 추출
-        symbol = csv_path.stem.split("_")[0].upper()
+        # CSV 파일명에서 티커 추출
+        ticker = csv_path.stem.split("_")[0].upper()
 
-        print(f"[IMPORT] CSV 임포트 중: {csv_path} -> {symbol}")
+        print(f"[IMPORT] CSV 임포트 중: {csv_path} -> {ticker}")
 
         # CSV 파일 읽기 및 데이터 정제
         df = pd.read_csv(csv_path)
@@ -89,11 +89,11 @@ class DuckDBManager:
         }
 
         df = df.rename(columns=column_mapping)
-        df["symbol"] = symbol
+        df["ticker"] = ticker
 
         # 필요한 컬럼만 선택
         required_columns = [
-            "symbol",
+            "ticker",
             "date",
             "open",
             "close",
@@ -105,8 +105,8 @@ class DuckDBManager:
         # 날짜 형식 변환
         df["date"] = pd.to_datetime(df["date"]).dt.date
 
-        # 중복 제거 (같은 심볼, 날짜의 기존 데이터 삭제)
-        delete_sql = f"DELETE FROM stocks WHERE symbol = '{symbol}'"
+        # 중복 제거 (같은 티커, 날짜의 기존 데이터 삭제)
+        delete_sql = f"DELETE FROM stocks WHERE ticker = '{ticker}'"
         self.conn.execute(delete_sql)
 
         # 데이터 삽입
@@ -115,9 +115,9 @@ class DuckDBManager:
         row_count = len(df)
         date_range = f"{df['date'].min()} ~ {df['date'].max()}"
 
-        print(f"[SUCCESS] {symbol} 데이터 임포트 완료: {row_count:,}행, {date_range}")
+        print(f"[SUCCESS] {ticker} 데이터 임포트 완료: {row_count:,}행, {date_range}")
 
-        return symbol
+        return ticker
 
 
 def process_csv_file(csv_path: Path, db_manager: DuckDBManager) -> bool:

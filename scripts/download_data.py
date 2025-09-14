@@ -18,7 +18,7 @@ import yfinance as yf
 
 
 def download_stock_data(
-    symbol: str,
+    ticker: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> Path:
@@ -26,7 +26,7 @@ def download_stock_data(
     주식 데이터를 다운로드하고 CSV로 저장 (Date, Open, Close, Volume만 포함)
 
     Args:
-        symbol: 주식 티커 (예: QQQ, SPY)
+        ticker: 주식 티커 (예: QQQ, SPY)
         start_date: 시작 날짜 (YYYY-MM-DD 형식)
         end_date: 종료 날짜 (YYYY-MM-DD 형식)
 
@@ -38,24 +38,24 @@ def download_stock_data(
     output_path.mkdir(parents=True, exist_ok=True)
 
     # yfinance Ticker 객체 생성
-    ticker = yf.Ticker(symbol)
+    yf_ticker = yf.Ticker(ticker)
 
-    print(f"[INFO] {symbol} 데이터 다운로드 중...")
+    print(f"[INFO] {ticker} 데이터 다운로드 중...")
 
     try:
         # 데이터 다운로드 (최대 기간)
         if start_date and end_date:
-            df = ticker.history(start=start_date, end=end_date)
-            filename = f"{symbol}_{start_date}_{end_date}.csv"
+            df = yf_ticker.history(start=start_date, end=end_date)
+            filename = f"{ticker}_{start_date}_{end_date}.csv"
         elif start_date:
-            df = ticker.history(start=start_date)
-            filename = f"{symbol}_{start_date}_latest.csv"
+            df = yf_ticker.history(start=start_date)
+            filename = f"{ticker}_{start_date}_latest.csv"
         else:
-            df = ticker.history(period="max")
-            filename = f"{symbol}_max.csv"
+            df = yf_ticker.history(period="max")
+            filename = f"{ticker}_max.csv"
 
         if df.empty:
-            raise ValueError(f"데이터를 찾을 수 없습니다: {symbol}")
+            raise ValueError(f"데이터를 찾을 수 없습니다: {ticker}")
 
         # 인덱스를 Date 컬럼으로 변환
         df.reset_index(inplace=True)
@@ -95,17 +95,17 @@ def download_stock_data(
 
 def main():
     parser = argparse.ArgumentParser(description="주식 데이터 다운로드")
-    parser.add_argument("symbol", help="주식 티커 심볼 (예: QQQ, SPY)")
+    parser.add_argument("ticker", help="주식 티커 심볼 (예: QQQ, SPY)")
     parser.add_argument("--start", help="시작 날짜 (YYYY-MM-DD)")
     parser.add_argument("--end", help="종료 날짜 (YYYY-MM-DD)")
 
     args = parser.parse_args()
 
-    symbol = args.symbol.upper()
+    ticker = args.ticker.upper()
 
     try:
         csv_path = download_stock_data(
-            symbol=symbol,
+            ticker=ticker,
             start_date=args.start,
             end_date=args.end,
         )

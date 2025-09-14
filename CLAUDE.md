@@ -98,7 +98,7 @@ DuckDB 캐시 파일은 DBeaver에서 SQL 분석이 가능합니다:
 2. **데이터베이스 파일**: `cache/market_data.db` 파일 지정
 3. **테이블 구조**:
    - 테이블명: `stocks`
-   - 컬럼: `symbol, date, open, high, low, close, adj_close, volume`
+   - 컬럼: `ticker, date, open, high, low, close, adj_close, volume`
 
 ## Git 워크플로우
 
