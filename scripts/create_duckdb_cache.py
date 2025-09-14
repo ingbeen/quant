@@ -11,7 +11,6 @@ import argparse
 from pathlib import Path
 import pandas as pd
 import duckdb
-import os
 
 
 class DuckDBManager:
