@@ -9,9 +9,9 @@ Usage:
 
 import argparse
 from pathlib import Path
-from typing import Optional
 import pandas as pd
 import duckdb
+import os
 
 
 class DuckDBManager:
@@ -25,8 +25,12 @@ class DuckDBManager:
     def connect(self):
         """데이터베이스 연결"""
         if self.conn is None:
-            self.conn = duckdb.connect(str(self.db_path))
-            print(f"[CONN] DuckDB 연결: {self.db_path}")
+            try:
+                self.conn = duckdb.connect(str(self.db_path))
+                print(f"[CONN] DuckDB 연결: {self.db_path}")
+            except duckdb.IOException as e:
+                print(f"[ERROR] DuckDB 연결 실패: {e}")
+                raise
 
     def disconnect(self):
         """데이터베이스 연결 해제"""
@@ -117,6 +121,17 @@ class DuckDBManager:
         return symbol
 
 
+def process_csv_file(csv_path: Path, db_manager: DuckDBManager) -> bool:
+    """단일 CSV 파일을 DuckDB로 처리하는 공통 함수"""
+    try:
+        db_manager.create_stocks_table()
+        db_manager.import_csv_to_table(csv_path)
+        return True
+    except Exception as e:
+        print(f"[ERROR] {csv_path} 처리 중 오류: {e}")
+        return False
+
+
 def rebuild_cache_from_csv_files(csv_dir: str = "data/raw"):
     """CSV 파일들로부터 DuckDB 캐시 재구성"""
     csv_path = Path(csv_dir)
@@ -136,13 +151,8 @@ def rebuild_cache_from_csv_files(csv_dir: str = "data/raw"):
     print(f"[INFO] 파일 수: {len(csv_files)}")
 
     with DuckDBManager() as db:
-        db.create_stocks_table()
-
         for csv_file in csv_files:
-            try:
-                db.import_csv_to_table(csv_file)
-            except Exception as e:
-                print(f"[ERROR] {csv_file} 처리 중 오류: {e}")
+            process_csv_file(csv_file, db)
 
         print(f"\n[SUCCESS] 캐시 재구성 완료!")
 
@@ -169,20 +179,13 @@ def main():
             print(f"[ERROR] CSV 파일이 존재하지 않습니다: {csv_path}")
             return 1
 
-        try:
-            with db_manager:
-                db_manager.create_stocks_table()
-                symbol = db_manager.import_csv_to_table(csv_path)
-
+        with db_manager:
+            success = process_csv_file(csv_path, db_manager)
+            if success:
                 print(f"\n[SUCCESS] 임포트 완료!")
-                print(f"DBeaver에서 확인: {db_manager.db_path}")
-                print(
-                    f"쿼리 예시: SELECT * FROM stocks WHERE symbol = '{symbol}' LIMIT 10;"
-                )
-
-        except Exception as e:
-            print(f"[ERROR] 임포트 실패: {e}")
-            return 1
+                return 0
+            else:
+                return 1
     else:
         parser.print_help()
 
