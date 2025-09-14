@@ -5,7 +5,7 @@
 """
 
 import pandas as pd
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 import sys
@@ -59,7 +59,7 @@ def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
 class ParallelRunner:
     """병렬 백테스팅 실행기"""
 
-    def __init__(self, max_workers: int = None):
+    def __init__(self, max_workers: Optional[int] = None):
         """
         병렬 실행기 초기화
 
