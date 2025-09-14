@@ -1,7 +1,7 @@
 """
-성과 분석 모듈
+QBT 분석 모듈
 
-백테스팅 결과의 성과 지표 계산 및 전략 간 비교 분석을 제공합니다.
+백테스팅 결과 분석 및 성과 지표 계산 기능을 제공합니다.
 """
 
 from .metrics import PerformanceMetrics

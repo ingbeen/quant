@@ -2,8 +2,7 @@
 name = "quant-backtest"
 version = "0.1.0"
 description = "Stock backtesting framework with DuckDB and CSV data management"
-authors = ["Your Name <your.email@example.com>"]
-packages = [{include = "scripts"}]
+packages = [{include = "qbt", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -17,6 +16,9 @@ jupyter = "^1.0.0"
 black = "^23.0.0"
 ipykernel = "^6.25.0"
 
+[tool.poetry.scripts]
+run-backtest = "qbt.cli.run_backtest:main"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
@@ -24,9 +26,3 @@ build-backend = "poetry.core.masonry.api"
 [tool.black]
 line-length = 88
 target-version = ['py310']
-
-[tool.ruff]
-select = ["E", "F", "I"]
-line-length = 88
-target-version = "py310"
-

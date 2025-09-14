@@ -11,13 +11,9 @@ import multiprocessing as mp
 import sys
 from pathlib import Path
 
-# 프로젝트 루트 경로 추가 (상대 임포트 문제 해결)
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from strategies.base import BaseStrategy
-from backtesting.data_loader import DataLoader
-from backtesting.engine import BacktestEngine
+from qbt.strategies.base import Strategy
+from qbt.core.data_loader import DataLoader
+from qbt.core.engine import BacktestEngine
 
 
 def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -70,7 +66,7 @@ class ParallelRunner:
         print(f"[PARALLEL] 병렬 처리 워커 수: {self.max_workers}")
 
     def run_strategies(
-        self, strategies: List[BaseStrategy], data: pd.DataFrame, ticker: str = "QQQ"
+        self, strategies: List[Strategy], data: pd.DataFrame, ticker: str = "QQQ"
     ) -> Dict[str, Any]:
         """
         여러 전략을 병렬로 실행

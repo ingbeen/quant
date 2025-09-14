@@ -9,11 +9,7 @@ from typing import Dict, Any, Optional
 import sys
 from pathlib import Path
 
-# 프로젝트 루트 경로 추가 (상대 임포트 문제 해결)
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from strategies.base import BaseStrategy
+from qbt.strategies.base import Strategy
 
 
 class TradeExecutor:
@@ -25,7 +21,7 @@ class TradeExecutor:
 
     def execute_buy(
         self,
-        strategy: BaseStrategy,
+        strategy: Strategy,
         ticker: str,
         price: float,
         quantity: float,
@@ -110,7 +106,7 @@ class TradeExecutor:
 
     def execute_sell(
         self,
-        strategy: BaseStrategy,
+        strategy: Strategy,
         ticker: str,
         price: float,
         quantity: Optional[float],

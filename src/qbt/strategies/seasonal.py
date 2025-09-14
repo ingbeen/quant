@@ -7,10 +7,10 @@
 
 import pandas as pd
 from datetime import datetime
-from .base import BaseStrategy
+from .base import Strategy
 
 
-class SeasonalStrategy(BaseStrategy):
+class SeasonalStrategy(Strategy):
     """계절성 전략 - 11월-4월 매수, 5월-10월 매도"""
 
     def __init__(self):

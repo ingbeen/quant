@@ -5,10 +5,10 @@ Buy & Hold 전략
 """
 
 import pandas as pd
-from .base import BaseStrategy
+from .base import Strategy
 
 
-class BuyAndHoldStrategy(BaseStrategy):
+class BuyAndHoldStrategy(Strategy):
     """Buy & Hold 전략 - 벤치마크용"""
 
     def __init__(self):

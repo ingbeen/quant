@@ -10,12 +10,8 @@ from datetime import datetime
 import sys
 from pathlib import Path
 
-# 프로젝트 루트 경로 추가 (상대 임포트 문제 해결)
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from strategies.base import BaseStrategy
-from backtesting.executor import TradeExecutor
+from qbt.strategies.base import Strategy
+from qbt.core.executor import TradeExecutor
 
 
 class BacktestEngine:
@@ -26,7 +22,7 @@ class BacktestEngine:
         self.executor = TradeExecutor()
 
     def run_backtest(
-        self, strategy: BaseStrategy, data: pd.DataFrame, ticker: str = "QQQ"
+        self, strategy: Strategy, data: pd.DataFrame, ticker: str = "QQQ"
     ) -> Dict[str, Any]:
         """
         단일 전략의 백테스트 실행
@@ -134,7 +130,7 @@ class BacktestEngine:
         return results
 
     def _calculate_results(
-        self, strategy: BaseStrategy, data: pd.DataFrame, ticker: str
+        self, strategy: Strategy, data: pd.DataFrame, ticker: str
     ) -> Dict[str, Any]:
         """백테스트 결과 계산"""
 

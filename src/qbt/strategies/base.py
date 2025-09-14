@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 
 
-class BaseStrategy(ABC):
+class Strategy(ABC):
     """모든 투자 전략의 기본 추상 클래스"""
 
     def __init__(self, name: str, initial_capital: float = 10000.0):
