@@ -72,8 +72,8 @@ class DataLoader:
         try:
             conn = self._get_connection()
 
-            # 기본 쿼리
-            query = "SELECT * FROM stocks WHERE ticker = ?"
+            # 기본 쿼리 (필요한 컬럼만 선택)
+            query = "SELECT ticker, date, open, close, volume FROM stocks WHERE ticker = ?"
             params = [ticker]
 
             # 날짜 필터 추가
@@ -96,15 +96,8 @@ class DataLoader:
             # 데이터 타입 최적화
             df["date"] = pd.to_datetime(df["date"])
 
-            # 존재하지 않는 컬럼들을 추가 (close 값으로 대체)
-            if "high" not in df.columns:
-                df["high"] = df["close"]
-            if "low" not in df.columns:
-                df["low"] = df["close"]
-            if "adj_close" not in df.columns:
-                df["adj_close"] = df["close"]
-
-            numeric_columns = ["open", "high", "low", "close", "adj_close", "volume"]
+            # 수치형 컬럼 처리
+            numeric_columns = ["open", "close", "volume"]
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")

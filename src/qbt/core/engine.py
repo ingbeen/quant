@@ -58,10 +58,7 @@ class BacktestEngine:
                     "ticker": ticker,
                     "date": current_date,
                     "open": row["open"],
-                    "high": row["high"],
-                    "low": row["low"],
                     "close": row["close"],
-                    "adj_close": row["adj_close"],
                     "volume": row["volume"],
                 }
             )
