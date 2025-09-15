@@ -73,7 +73,9 @@ class DataLoader:
             conn = self._get_connection()
 
             # 기본 쿼리 (필요한 컬럼만 선택)
-            query = "SELECT ticker, date, open, close, volume FROM stocks WHERE ticker = ?"
+            query = (
+                "SELECT ticker, date, open, close, volume FROM stocks WHERE ticker = ?"
+            )
             params = [ticker]
 
             # 날짜 필터 추가
@@ -121,35 +123,6 @@ class DataLoader:
         except Exception as e:
             print(f"[ERROR] {ticker} 데이터 로드 실패: {e}")
             raise
-
-    def get_available_tickers(self) -> list:
-        """사용 가능한 티커 목록 반환"""
-        try:
-            conn = self._get_connection()
-            result = conn.execute(
-                "SELECT DISTINCT ticker FROM stocks ORDER BY ticker"
-            ).fetchall()
-            return [row[0] for row in result]
-        except Exception as e:
-            print(f"[ERROR] 티커 목록 조회 실패: {e}")
-            return []
-
-    def get_date_range(self, ticker: str) -> tuple:
-        """특정 티커의 데이터 날짜 범위 반환"""
-        try:
-            conn = self._get_connection()
-            result = conn.execute(
-                "SELECT MIN(date), MAX(date) FROM stocks WHERE ticker = ?", [ticker]
-            ).fetchone()
-
-            if result and result[0] and result[1]:
-                return (result[0], result[1])
-            else:
-                return (None, None)
-
-        except Exception as e:
-            print(f"[ERROR] {ticker} 날짜 범위 조회 실패: {e}")
-            return (None, None)
 
     def clear_cache(self):
         """메모리 캐시 초기화"""
