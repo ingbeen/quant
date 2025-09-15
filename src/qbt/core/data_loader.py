@@ -140,12 +140,30 @@ class DataLoader:
             "memory_usage_mb": round(cache_size_mb, 2),
         }
 
+    def __enter__(self):
+        """Context Manager 진입 시 호출"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context Manager 종료 시 호출 (예외 발생해도 반드시 실행)"""
+        self.close()
+        return False  # 예외를 다시 발생시킴
+
     def close(self):
-        """연결 종료"""
-        if self._connection:
-            self._connection.close()
-            self._connection = None
-        self.clear_cache()
+        """안전한 리소스 정리"""
+        try:
+            if self._connection:
+                self._connection.close()
+                self._connection = None
+        except Exception:
+            pass  # DB 연결 정리 실패해도 캐시 정리는 계속
+
+        try:
+            self.clear_cache()
+        except Exception:
+            pass  # 캐시 정리 실패해도 계속 진행
+
+        print("[CLEANUP] DataLoader 리소스 정리 완료")
 
     def __del__(self):
         """소멸자"""
