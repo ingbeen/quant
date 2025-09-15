@@ -66,7 +66,7 @@ class DataLoader:
         # 캐시에서 먼저 확인
         if cache_key in self._cache:
             print(f"[CACHE] {ticker} 데이터를 캐시에서 로드")
-            return self._cache[cache_key]
+            return self._cache[cache_key].copy()
 
         # DuckDB에서 데이터 로드
         try:
@@ -104,8 +104,9 @@ class DataLoader:
 
             # 결측값 확인
             if df.isnull().any().any():
-                print(f"[WARNING] {ticker} 데이터에 결측값이 있습니다.")
-                df = df.dropna()
+                raise ValueError(
+                    f"[ERROR] {ticker} 데이터에 결측값이 발견되었습니다. 스크립트를 중단합니다."
+                )
 
             # 캐시에 저장
             self._cache[cache_key] = df.copy()
