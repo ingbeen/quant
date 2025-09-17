@@ -5,15 +5,20 @@
 (현재는 구조만 구현하고 실제 비교 메서드는 주석 처리)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import pandas as pd
 from .metrics import PerformanceMetrics
+from qbt.types import BacktestResultWithExcess, ComparisonResult, StrategyComparison
 
 
 class StrategyComparator:
     """전략 비교 분석 클래스"""
 
-    def __init__(self, results: Dict[object, Dict[str, Any]], benchmark_name: str = None):
+    def __init__(
+        self,
+        results: Dict[str, BacktestResultWithExcess],
+        benchmark_name: Optional[str] = None,
+    ):
         """
         전략 비교기 초기화
 
@@ -29,29 +34,24 @@ class StrategyComparator:
         else:
             self.benchmark_name = benchmark_name
 
-        self.benchmark = results.get(self.benchmark_name)
+        self.benchmark = results.get(self.benchmark_name) if self.benchmark_name else None
 
         if self.benchmark is None:
             print(f"[WARNING] 벤치마크 '{self.benchmark_name}'를 찾을 수 없습니다.")
 
-    def _find_benchmark_name(self) -> str:
+    def _find_benchmark_name(self) -> Optional[str]:
         """
         벤치마크 전략 이름을 자동으로 찾기
 
         Returns:
-            str: 벤치마크 전략 이름
+            Optional[str]: 벤치마크 전략 이름
         """
         for name, result in self.results.items():
-            if result.get("is_benchmark", False):
+            if result["is_benchmark"]:
                 return name
 
-        # 벤치마크를 찾지 못한 경우 첫 번째 전략을 반환
-        if self.results:
-            first_name = next(iter(self.results.keys()))
-            print(f"[WARNING] 벤치마크 전략을 찾지 못했습니다. '{first_name}'를 벤치마크로 사용합니다.")
-            return first_name
-
-        raise ValueError("전략 결과가 없습니다.")
+        # 벤치마크를 찾지 못한 경우 None 반환
+        return None
 
     # def compare_returns(self) -> pd.DataFrame:
     #     """전략별 수익률 비교 테이블 생성"""
@@ -140,18 +140,18 @@ class StrategyComparator:
     #     df = pd.DataFrame(risk_data)
     #     return df.sort_values('Sharpe_Ratio', ascending=False)
 
-    def get_basic_comparison(self) -> Dict[str, Any]:
+    def get_basic_comparison(self) -> ComparisonResult:
         """기본 비교 정보 반환"""
-        strategies_info = {}
+        strategies_info: Dict[str, StrategyComparison] = {}
 
         for strategy_name, result in self.results.items():
             strategies_info[strategy_name] = {
-                "total_return_pct": result.get("total_return_pct", 0.0),
-                "num_trades": result.get("num_trades", 0),
-                "win_rate_pct": result.get("win_rate_pct", 0.0),
-                "total_commission": result.get("total_commission", 0.0),
-                "excess_return_pct": result.get("excess_return_pct", 0.0),
-                "is_benchmark": result.get("is_benchmark", False),
+                "total_return_pct": result["total_return_pct"],
+                "num_trades": result["num_trades"],
+                "win_rate_pct": result["win_rate_pct"],
+                "total_commission": result["total_commission"],
+                "excess_return_pct": result["excess_return_pct"],
+                "is_benchmark": result["is_benchmark"],
             }
 
         return {

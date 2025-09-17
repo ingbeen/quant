@@ -57,11 +57,11 @@ class BuyAndHoldStrategy(Strategy):
             return super().calculate_position_size(data, current_date)
         return 0.0
 
-    def on_buy_executed(self):
+    def on_buy_executed(self) -> None:
         """매수 실행 후 호출되는 메서드"""
         self._initial_buy_done = True
 
-    def reset(self):
+    def reset(self) -> None:
         """전략 상태 초기화"""
         super().reset()
         self._initial_buy_done = False

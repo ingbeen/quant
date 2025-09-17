@@ -8,7 +8,7 @@
 import pandas as pd
 from datetime import datetime
 from .base import Strategy
-from qbt.core.position_sizer import MaxCapitalSizer
+from qbt.core.position_sizer import MaxCapitalSizer, PositionSizerProtocol
 
 
 class SeasonalStrategy(Strategy):
@@ -16,7 +16,7 @@ class SeasonalStrategy(Strategy):
 
     def __init__(self, is_benchmark: bool = False):
         # 수수료 고려한 최대치 매수 포지션 사이저 사용
-        max_sizer = MaxCapitalSizer()
+        max_sizer: PositionSizerProtocol = MaxCapitalSizer()
         super().__init__(name="Seasonal", position_sizer=max_sizer, is_benchmark=is_benchmark)
 
     def _is_buy_season(self, date_str: str) -> bool:

@@ -7,7 +7,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import pandas as pd
-from qbt.core.position_sizer import PositionSizer, MaxCapitalSizer
+from qbt.core.position_sizer import PositionSizer, MaxCapitalSizer, PositionSizerProtocol
+from qbt.types import TradeRecord, ActionType
 
 
 class Strategy(ABC):
@@ -17,7 +18,7 @@ class Strategy(ABC):
         self,
         name: str,
         initial_capital: float = 10000.0,
-        position_sizer: Optional[PositionSizer] = None,
+        position_sizer: Optional[PositionSizerProtocol] = None,
         is_benchmark: bool = False,
     ):
         """
@@ -38,7 +39,7 @@ class Strategy(ABC):
         self.position_sizer = position_sizer or MaxCapitalSizer()
 
         # 거래 기록
-        self.trades: List[Dict[str, Any]] = []
+        self.trades: List[TradeRecord] = []
 
         # 일별 포트폴리오 가치
         self.portfolio_values: List[float] = []
@@ -121,14 +122,14 @@ class Strategy(ABC):
     def add_trade(
         self,
         ticker: str,
-        action: str,
+        action: ActionType,
         date: str,
         price: float,
         quantity: float,
         commission: float,
-    ):
+    ) -> None:
         """거래 기록 추가"""
-        trade = {
+        trade: TradeRecord = {
             "ticker": ticker,
             "action": action,
             "date": date,
@@ -141,7 +142,7 @@ class Strategy(ABC):
         }
         self.trades.append(trade)
 
-    def on_buy_executed(self):
+    def on_buy_executed(self) -> None:
         """
         매수 실행 후 호출되는 메서드
 
@@ -149,7 +150,7 @@ class Strategy(ABC):
         """
         pass
 
-    def reset(self):
+    def reset(self) -> None:
         """전략 상태 초기화"""
         self.capital = self.initial_capital
         self.trades.clear()

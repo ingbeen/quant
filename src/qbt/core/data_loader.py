@@ -7,8 +7,11 @@ DuckDB에서 주식 데이터를 로드하고 메모리 캐싱을 관리합니�
 import pandas as pd
 import duckdb
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Mapping, Literal
 from datetime import datetime
+from types import TracebackType
+
+from qbt.types import CacheInfo
 
 
 class DataLoader:
@@ -124,12 +127,12 @@ class DataLoader:
             print(f"[ERROR] {ticker} 데이터 로드 실패: {e}")
             raise
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """메모리 캐시 초기화"""
         self._cache.clear()
         print("[CACHE] 메모리 캐시를 초기화했습니다.")
 
-    def get_cache_info(self) -> Dict[str, Any]:
+    def get_cache_info(self) -> CacheInfo:
         """캐시 정보 반환"""
         cache_size_mb = sum(
             df.memory_usage(deep=True).sum() for df in self._cache.values()
@@ -140,16 +143,21 @@ class DataLoader:
             "memory_usage_mb": round(cache_size_mb, 2),
         }
 
-    def __enter__(self):
+    def __enter__(self) -> "DataLoader":
         """Context Manager 진입 시 호출"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> Literal[False]:
         """Context Manager 종료 시 호출 (예외 발생해도 반드시 실행)"""
         self.close()
         return False  # 예외를 다시 발생시킴
 
-    def close(self):
+    def close(self) -> None:
         """안전한 리소스 정리"""
         try:
             if self._connection:
@@ -165,6 +173,6 @@ class DataLoader:
 
         print("[CLEANUP] DataLoader 리소스 정리 완료")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """소멸자"""
         self.close()

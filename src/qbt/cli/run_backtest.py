@@ -12,7 +12,8 @@ from qbt.strategies.seasonal import SeasonalStrategy
 from qbt.analysis.comparator import StrategyComparator
 from qbt.strategies.base import Strategy
 from datetime import datetime
-from typing import List
+from typing import List, Optional
+from qbt.types import BacktestResultWithExcess
 
 
 def validate_benchmark_strategies(strategies: List[Strategy]) -> None:
@@ -54,7 +55,7 @@ def get_benchmark_name(strategies: List[Strategy]) -> str:
     return benchmark_strategy.name
 
 
-def main():
+def main() -> None:
     """메인 실행 함수"""
     print("=" * 60)
     print(" QQQ 백테스팅 시스템")

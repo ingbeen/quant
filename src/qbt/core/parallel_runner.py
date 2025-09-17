@@ -14,9 +14,15 @@ from pathlib import Path
 from qbt.strategies.base import Strategy
 from qbt.core.data_loader import DataLoader
 from qbt.core.engine import BacktestEngine
+from qbt.types import (
+    BacktestResult,
+    BacktestResultWithExcess,
+    StrategyTaskData,
+    FailedStrategy,
+)
 
 
-def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
+def run_single_strategy(strategy_data: StrategyTaskData) -> BacktestResult:
     """
     단일 전략 실행 함수 (병렬 처리용)
 
@@ -24,7 +30,7 @@ def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
         strategy_data: 전략 실행에 필요한 데이터
 
     Returns:
-        dict: 백테스트 결과
+        BacktestResult: 백테스트 결과
     """
     try:
         # 전략 재생성 (pickle 직렬화 문제 해결)
@@ -45,11 +51,8 @@ def run_single_strategy(strategy_data: Dict[str, Any]) -> Dict[str, Any]:
 
     except Exception as e:
         print(f"[ERROR] 전략 실행 중 오류: {e}")
-        return {
-            "strategy_name": strategy_data.get("strategy_name", "Unknown"),
-            "error": str(e),
-            "success": False,
-        }
+        # 에러 발생 시 기본 BacktestResult 구조로 반환
+        raise Exception(f"Strategy execution failed: {e}")
 
 
 class ParallelRunner:
@@ -67,7 +70,7 @@ class ParallelRunner:
 
     def run_strategies(
         self, strategies: List[Strategy], data: pd.DataFrame, ticker: str = "QQQ"
-    ) -> Dict[object, Dict[str, Any]]:
+    ) -> Dict[str, BacktestResultWithExcess]:
         """
         여러 전략을 병렬로 실행
 
@@ -77,7 +80,7 @@ class ParallelRunner:
             ticker: 주식 심볼
 
         Returns:
-            dict: 전략별 백테스트 결과
+            Dict[str, BacktestResultWithExcess]: 전략별 백테스트 결과
         """
         print(f"[PARALLEL] {len(strategies)}개 전략 병렬 실행 시작...")
 
@@ -86,9 +89,9 @@ class ParallelRunner:
             raise ValueError("백테스트할 데이터가 없습니다.")
 
         # 병렬 실행을 위한 데이터 준비
-        strategy_tasks = []
+        strategy_tasks: List[StrategyTaskData] = []
         for strategy in strategies:
-            task_data = {
+            task_data: StrategyTaskData = {
                 "strategy_class": strategy.__class__,
                 "strategy_args": {"is_benchmark": strategy.is_benchmark},
                 "strategy_name": strategy.name,
@@ -98,8 +101,8 @@ class ParallelRunner:
             strategy_tasks.append(task_data)
 
         # 병렬 실행
-        results = {}
-        failed_strategies = []
+        results: Dict[str, BacktestResult] = {}
+        failed_strategies: List[FailedStrategy] = []
 
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             # 작업 제출
@@ -113,15 +116,7 @@ class ParallelRunner:
                 strategy_name = future_to_strategy[future]
                 try:
                     result = future.result()
-                    if result.get("success", True):  # 기본적으로 성공으로 간주
-                        results[strategy_name] = result
-                    else:
-                        failed_strategies.append(
-                            {
-                                "strategy": strategy_name,
-                                "error": result.get("error", "Unknown error"),
-                            }
-                        )
+                    results[strategy_name] = result
                 except Exception as e:
                     failed_strategies.append(
                         {"strategy": strategy_name, "error": str(e)}
@@ -139,7 +134,9 @@ class ParallelRunner:
         print(f"[PARALLEL] 병렬 실행 완료: {len(results)}개 전략 성공")
         return results_with_benchmark
 
-    def _calculate_excess_returns(self, results: Dict[object, Dict[str, Any]]) -> Dict[object, Dict[str, Any]]:
+    def _calculate_excess_returns(
+        self, results: Dict[str, BacktestResult]
+    ) -> Dict[str, BacktestResultWithExcess]:
         """
         벤치마크 대비 초과 수익률 계산
 
@@ -147,7 +144,7 @@ class ParallelRunner:
             results: 전략별 백테스트 결과
 
         Returns:
-            dict: 초과 수익률이 추가된 결과
+            Dict[str, BacktestResultWithExcess]: 초과 수익률이 추가된 결과
         """
         # 벤치마크 찾기
         benchmark_result = None
@@ -161,31 +158,42 @@ class ParallelRunner:
 
         if benchmark_result is None:
             print("[WARNING] 벤치마크 전략을 찾을 수 없습니다.")
-            return results
+            # 벤치마크가 없는 경우에도 excess_return 필드를 추가
+            updated_results: Dict[str, BacktestResultWithExcess] = {}
+            for name, result in results.items():
+                updated_result: BacktestResultWithExcess = {
+                    **result,
+                    "excess_return": 0.0,
+                    "excess_return_pct": 0.0,
+                }
+                updated_results[name] = updated_result
+            return updated_results
 
         benchmark_return = benchmark_result["total_return"]
         print(f"[BENCHMARK] {benchmark_name} 수익률: {benchmark_return:.2%}")
 
         # 각 전략에 초과 수익률 추가
-        updated_results = {}
+        final_results: Dict[str, BacktestResultWithExcess] = {}
         for name, result in results.items():
-            updated_result = result.copy()
+            # BacktestResult를 BacktestResultWithExcess로 변환
+            final_result: BacktestResultWithExcess = {
+                **result,  # 기존 BacktestResult 모든 필드 복사
+                "excess_return": 0.0,
+                "excess_return_pct": 0.0,
+            }
 
             if str(name) != benchmark_name:
                 strategy_return = result["total_return"]
                 excess_return = strategy_return - benchmark_return
-                updated_result["excess_return"] = round(excess_return, 4)
-                updated_result["excess_return_pct"] = round(excess_return * 100, 2)
+                final_result["excess_return"] = round(excess_return, 4)
+                final_result["excess_return_pct"] = round(excess_return * 100, 2)
                 print(f"[EXCESS] {name} 초과수익률: {excess_return:.2%}")
-            else:
-                updated_result["excess_return"] = 0.0
-                updated_result["excess_return_pct"] = 0.0
 
-            updated_results[name] = updated_result
+            final_results[name] = final_result
 
-        return updated_results
+        return final_results
 
-    def print_summary(self, results: Dict[str, Any]):
+    def print_summary(self, results: Dict[str, BacktestResultWithExcess]) -> None:
         """결과 요약 출력"""
         if not results:
             print("[SUMMARY] 실행된 전략이 없습니다.")
@@ -213,8 +221,8 @@ class ParallelRunner:
         print("=" * 60)
 
     def _print_strategy_summary(
-        self, name: str, result: Dict[str, Any], is_benchmark: bool = False
-    ):
+        self, name: str, result: BacktestResultWithExcess, is_benchmark: bool = False
+    ) -> None:
         """개별 전략 요약 출력"""
         prefix = "[벤치마크]" if is_benchmark else "[전략]"
 

@@ -5,11 +5,12 @@
 """
 
 import pandas as pd
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 import sys
 from pathlib import Path
 
 from qbt.strategies.base import Strategy
+from qbt.types import ExecutionResult, ExecutionError, ExecutionSummary, ActionType
 
 
 class TradeExecutor:
@@ -17,7 +18,7 @@ class TradeExecutor:
 
     def __init__(self) -> None:
         """매매 실행기 초기화"""
-        self.execution_log: List[Dict[str, Any]] = []
+        self.execution_log: List[ExecutionResult] = []
 
     def execute_buy(
         self,
@@ -26,7 +27,7 @@ class TradeExecutor:
         price: float,
         quantity: float,
         date: str,
-    ) -> Dict[str, Any]:
+    ) -> Union[ExecutionResult, ExecutionError]:
         """
         매수 실행
 
@@ -87,7 +88,7 @@ class TradeExecutor:
         strategy.on_buy_executed()
 
         # 실행 로그 기록
-        execution_result = {
+        execution_result: ExecutionResult = {
             "success": True,
             "action": "BUY",
             "ticker": ticker,
@@ -111,7 +112,7 @@ class TradeExecutor:
         price: float,
         quantity: Optional[float],
         date: str,
-    ) -> Dict[str, Any]:
+    ) -> Union[ExecutionResult, ExecutionError]:
         """
         매도 실행
 
@@ -179,7 +180,7 @@ class TradeExecutor:
         )
 
         # 실행 로그 기록
-        execution_result = {
+        execution_result: ExecutionResult = {
             "success": True,
             "action": "SELL",
             "ticker": ticker,
@@ -188,7 +189,7 @@ class TradeExecutor:
             "quantity": sell_quantity,
             "amount": trade_amount,
             "commission": commission,
-            "net_proceeds": net_proceeds,
+            "total_cost": net_proceeds,  # SELL의 경우 total_cost는 net_proceeds와 동일
             "capital_after": strategy.capital,
             "position_after": strategy.positions.get(ticker, 0.0),
         }
@@ -196,7 +197,7 @@ class TradeExecutor:
         self.execution_log.append(execution_result)
         return execution_result
 
-    def get_execution_log(self) -> List[Dict[str, Any]]:
+    def get_execution_log(self) -> List[ExecutionResult]:
         """실행 로그 반환"""
         return self.execution_log.copy()
 
@@ -204,7 +205,7 @@ class TradeExecutor:
         """실행 로그 초기화"""
         self.execution_log.clear()
 
-    def get_execution_summary(self) -> Dict[str, Any]:
+    def get_execution_summary(self) -> ExecutionSummary:
         """실행 요약 정보 반환"""
         if not self.execution_log:
             return {

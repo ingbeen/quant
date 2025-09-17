@@ -8,22 +8,23 @@
 from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
+from qbt.types import BacktestResult, PerformanceMetrics as PerformanceMetricsType
 
 
 class PerformanceMetrics:
     """성과 지표 계산 클래스"""
 
-    def __init__(self, results: Dict[str, Any]):
+    def __init__(self, results: BacktestResult):
         """
         성과 지표 계산기 초기화
 
         Args:
-            results: 백테스팅 결과 딕셔너리
+            results: 백테스팅 결과
         """
         self.results = results
-        self.portfolio_values = results.get("portfolio_values", [])
-        self.daily_returns = results.get("daily_returns", [])
-        self.trades = results.get("trades", [])
+        self.portfolio_values = results["portfolio_values"]
+        self.daily_returns = results["daily_returns"]
+        self.trades = results["trades"]
 
     # def calculate_cagr(self) -> float:
     #     """연평균 복합 수익률(CAGR) 계산"""
@@ -214,7 +215,7 @@ class PerformanceMetrics:
     #     profit_factor = total_profit / total_loss
     #     return profit_factor
 
-    def get_basic_stats(self) -> Dict[str, Any]:
+    def get_basic_stats(self) -> PerformanceMetricsType:
         """기본 통계 정보 반환"""
         return {
             "total_trades": len(self.trades),

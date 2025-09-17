@@ -5,8 +5,36 @@ Position Sizer 모듈
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Protocol, runtime_checkable
 import pandas as pd
+
+
+@runtime_checkable
+class PositionSizerProtocol(Protocol):
+    """포지션 사이징 프로토콜"""
+
+    def calculate_position_size(
+        self,
+        available_capital: float,
+        current_price: float,
+        commission_rate: float,
+        portfolio_value: Optional[float] = None,
+        **kwargs: Any,
+    ) -> float:
+        """
+        포지션 크기 계산
+
+        Args:
+            available_capital: 사용 가능한 자본금
+            current_price: 현재 주가
+            commission_rate: 수수료율
+            portfolio_value: 전체 포트폴리오 가치 (일부 전략에서 사용)
+            **kwargs: 추가 파라미터
+
+        Returns:
+            float: 매수할 주식 수량
+        """
+        ...
 
 
 class PositionSizer(ABC):
@@ -19,7 +47,7 @@ class PositionSizer(ABC):
         current_price: float,
         commission_rate: float,
         portfolio_value: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         포지션 크기 계산
@@ -40,13 +68,17 @@ class PositionSizer(ABC):
 class MaxCapitalSizer(PositionSizer):
     """수수료를 고려하여 최대한 매수하는 포지션 사이저"""
 
+    def __init__(self) -> None:
+        """초기화"""
+        pass
+
     def calculate_position_size(
         self,
         available_capital: float,
         current_price: float,
         commission_rate: float,
         portfolio_value: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         수수료를 고려한 최대 매수 수량 계산
@@ -73,7 +105,7 @@ class MaxCapitalSizer(PositionSizer):
 class CashPercentSizer(PositionSizer):
     """현재 현금의 일정 비율로 매수하는 포지션 사이저"""
 
-    def __init__(self, percent: float = 1.0):
+    def __init__(self, percent: float = 1.0) -> None:
         """
         초기화
 
@@ -90,7 +122,7 @@ class CashPercentSizer(PositionSizer):
         current_price: float,
         commission_rate: float,
         portfolio_value: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         현금의 일정 비율로 매수할 수량 계산
@@ -118,7 +150,7 @@ class CashPercentSizer(PositionSizer):
 class PortfolioPercentSizer(PositionSizer):
     """전체 포트폴리오 가치의 일정 비율로 매수하는 포지션 사이저"""
 
-    def __init__(self, percent: float = 1.0):
+    def __init__(self, percent: float = 1.0) -> None:
         """
         초기화
 
@@ -135,7 +167,7 @@ class PortfolioPercentSizer(PositionSizer):
         current_price: float,
         commission_rate: float,
         portfolio_value: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         포트폴리오 가치의 일정 비율로 매수할 수량 계산
@@ -171,7 +203,7 @@ class PortfolioPercentSizer(PositionSizer):
 class FixedAmountSizer(PositionSizer):
     """고정 금액으로 매수하는 포지션 사이저"""
 
-    def __init__(self, amount: float):
+    def __init__(self, amount: float) -> None:
         """
         초기화
 
@@ -188,7 +220,7 @@ class FixedAmountSizer(PositionSizer):
         current_price: float,
         commission_rate: float,
         portfolio_value: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> float:
         """
         고정 금액으로 매수할 수량 계산

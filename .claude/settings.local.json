@@ -4,7 +4,8 @@
       "Bash(python:*)",
       "Bash(rm:*)",
       "Bash(find:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(poetry lock:*)"
     ],
     "deny": [],
     "ask": []

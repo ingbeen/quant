@@ -5,19 +5,20 @@
 """
 
 import pandas as pd
-from typing import Dict, Any, Optional, List, NamedTuple
+from typing import Dict, Any, Optional, List, NamedTuple, cast
 from datetime import datetime
 import sys
 from pathlib import Path
 
 from qbt.strategies.base import Strategy
 from qbt.core.executor import TradeExecutor
+from qbt.types import BacktestResult, ExecutionSummary, ActionType
 
 
 class TradeSignal(NamedTuple):
     """거래 신호 데이터 클래스"""
 
-    action: str  # "BUY" 또는 "SELL"
+    action: ActionType  # "BUY" 또는 "SELL"
     ticker: str
     signal_date: str  # 신호 생성일 (종가 기준 판단)
     execution_date: str  # 실행일 (다음날 시가)
@@ -36,7 +37,7 @@ class BacktestEngine:
 
     def run_backtest(
         self, strategy: Strategy, data: pd.DataFrame, ticker: str = "QQQ"
-    ) -> Dict[str, Any]:
+    ) -> BacktestResult:
         """
         단일 전략의 백테스트 실행
 
@@ -142,7 +143,9 @@ class BacktestEngine:
         print(f"[ENGINE] {strategy.name} 전략 백테스트 완료")
         return results
 
-    def _get_next_trading_date(self, data: pd.DataFrame, current_idx: int) -> Optional[str]:
+    def _get_next_trading_date(
+        self, data: pd.DataFrame, current_idx: int
+    ) -> Optional[str]:
         """
         다음 거래일 반환
 
@@ -154,7 +157,10 @@ class BacktestEngine:
             str: 다음 거래일 (없으면 None)
         """
         if current_idx + 1 < len(data):
-            return data.iloc[current_idx + 1]["date"].strftime("%Y-%m-%d")
+            next_row = data.iloc[current_idx + 1]
+            next_date = cast(pd.Timestamp, next_row["date"])
+            # pandas Timestamp인 경우 strftime 메서드 사용
+            return next_date.strftime("%Y-%m-%d")
         return None
 
     def _execute_pending_signals(
@@ -214,7 +220,7 @@ class BacktestEngine:
 
     def _calculate_results(
         self, strategy: Strategy, data: pd.DataFrame, ticker: str
-    ) -> Dict[str, Any]:
+    ) -> BacktestResult:
         """백테스트 결과 계산"""
 
         # 기본 정보
@@ -268,7 +274,7 @@ class BacktestEngine:
         total_commission = sum(trade["commission"] for trade in strategy.trades)
 
         # 결과 딕셔너리 구성
-        results = {
+        results: BacktestResult = {
             "strategy_name": strategy.name,
             "ticker": ticker,
             "start_date": start_date,
@@ -291,6 +297,6 @@ class BacktestEngine:
 
         return results
 
-    def get_executor_summary(self) -> Dict[str, Any]:
+    def get_executor_summary(self) -> ExecutionSummary:
         """실행기 요약 정보 반환"""
         return self.executor.get_execution_summary()
