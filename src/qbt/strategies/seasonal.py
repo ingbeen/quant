@@ -8,13 +8,16 @@
 import pandas as pd
 from datetime import datetime
 from .base import Strategy
+from qbt.core.position_sizer import MaxCapitalSizer
 
 
 class SeasonalStrategy(Strategy):
     """계절성 전략 - 11월-4월 매수, 5월-10월 매도"""
 
-    def __init__(self):
-        super().__init__(name="Seasonal")
+    def __init__(self, is_benchmark: bool = False):
+        # 수수료 고려한 최대치 매수 포지션 사이저 사용
+        max_sizer = MaxCapitalSizer()
+        super().__init__(name="Seasonal", position_sizer=max_sizer, is_benchmark=is_benchmark)
 
     def _is_buy_season(self, date_str: str) -> bool:
         """
@@ -52,25 +55,10 @@ class SeasonalStrategy(Strategy):
         except (ValueError, AttributeError):
             return False
 
-    def _is_month_start(self, date_str: str) -> bool:
-        """
-        월초인지 확인 (매매 신호는 월 단위로 생성)
-
-        Args:
-            date_str: 날짜 문자열
-
-        Returns:
-            bool: 해당 월의 첫 거래일이면 True
-        """
-        try:
-            date = datetime.strptime(date_str, "%Y-%m-%d")
-            return date.day <= 7  # 매월 1-7일을 월초로 간주
-        except (ValueError, AttributeError):
-            return False
 
     def check_buy_condition(self, data: pd.Series, current_date: str) -> bool:
         """
-        매수 조건: 매수 시즌(11-4월)이고 월초이며 현재 포지션이 없을 때
+        매수 조건: 매수 시즌(11-4월)이고 현재 포지션이 없을 때
 
         Args:
             data: 현재 일자의 주가 데이터
@@ -84,14 +72,13 @@ class SeasonalStrategy(Strategy):
 
         return (
             self._is_buy_season(current_date)
-            and self._is_month_start(current_date)
             and current_position == 0.0
             and self.capital > 1000
         )  # 최소 $1000 이상 현금 보유 시에만 매수
 
     def check_sell_condition(self, data: pd.Series, current_date: str) -> bool:
         """
-        매도 조건: 매도 시즌(5-10월)이고 월초이며 현재 포지션이 있을 때
+        매도 조건: 매도 시즌(5-10월)이고 현재 포지션이 있을 때
 
         Args:
             data: 현재 일자의 주가 데이터
@@ -105,13 +92,12 @@ class SeasonalStrategy(Strategy):
 
         return (
             self._is_sell_season(current_date)
-            and self._is_month_start(current_date)
             and current_position > 0.0
         )
 
     def calculate_position_size(self, data: pd.Series, current_date: str) -> float:
         """
-        포지션 크기: 현재 현금의 95%로 매수 (5%는 현금으로 보유)
+        포지션 크기: 수수료 고려한 최대치 매수
 
         Args:
             data: 현재 일자의 주가 데이터
@@ -120,8 +106,5 @@ class SeasonalStrategy(Strategy):
         Returns:
             float: 매수할 주식 수량
         """
-        current_price = data["close"]
-        # 현금의 95%로 매수 (수수료 고려)
-        available_amount = self.capital * 0.95 / (1 + self.commission_rate)
-        quantity = int(available_amount / current_price)
-        return float(quantity)
+        # MaxCapitalSizer를 사용하여 포지션 크기 계산
+        return super().calculate_position_size(data, current_date)

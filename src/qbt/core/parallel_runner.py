@@ -67,7 +67,7 @@ class ParallelRunner:
 
     def run_strategies(
         self, strategies: List[Strategy], data: pd.DataFrame, ticker: str = "QQQ"
-    ) -> Dict[str, Any]:
+    ) -> Dict[object, Dict[str, Any]]:
         """
         여러 전략을 병렬로 실행
 
@@ -90,7 +90,7 @@ class ParallelRunner:
         for strategy in strategies:
             task_data = {
                 "strategy_class": strategy.__class__,
-                "strategy_args": {},  # 기본 생성자 사용
+                "strategy_args": {"is_benchmark": strategy.is_benchmark},
                 "strategy_name": strategy.name,
                 "data": data.copy(),  # 각 프로세스에 데이터 복사본 전달
                 "ticker": ticker,
@@ -139,7 +139,7 @@ class ParallelRunner:
         print(f"[PARALLEL] 병렬 실행 완료: {len(results)}개 전략 성공")
         return results_with_benchmark
 
-    def _calculate_excess_returns(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_excess_returns(self, results: Dict[object, Dict[str, Any]]) -> Dict[object, Dict[str, Any]]:
         """
         벤치마크 대비 초과 수익률 계산
 
@@ -149,18 +149,18 @@ class ParallelRunner:
         Returns:
             dict: 초과 수익률이 추가된 결과
         """
-        # 벤치마크 찾기 (BuyAndHold 전략)
+        # 벤치마크 찾기
         benchmark_result = None
         benchmark_name = None
 
         for name, result in results.items():
-            if result.get("is_benchmark", False) or name == "BuyAndHold":
+            if result.get("is_benchmark", False):
                 benchmark_result = result
-                benchmark_name = name
+                benchmark_name = str(name)
                 break
 
         if benchmark_result is None:
-            print("[WARNING] 벤치마크 전략(BuyAndHold)을 찾을 수 없습니다.")
+            print("[WARNING] 벤치마크 전략을 찾을 수 없습니다.")
             return results
 
         benchmark_return = benchmark_result["total_return"]
@@ -171,7 +171,7 @@ class ParallelRunner:
         for name, result in results.items():
             updated_result = result.copy()
 
-            if name != benchmark_name:
+            if str(name) != benchmark_name:
                 strategy_return = result["total_return"]
                 excess_return = strategy_return - benchmark_return
                 updated_result["excess_return"] = round(excess_return, 4)

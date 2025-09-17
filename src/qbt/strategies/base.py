@@ -7,22 +7,35 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 import pandas as pd
+from qbt.core.position_sizer import PositionSizer, MaxCapitalSizer
 
 
 class Strategy(ABC):
     """모든 투자 전략의 기본 추상 클래스"""
 
-    def __init__(self, name: str, initial_capital: float = 10000.0):
+    def __init__(
+        self,
+        name: str,
+        initial_capital: float = 10000.0,
+        position_sizer: Optional[PositionSizer] = None,
+        is_benchmark: bool = False,
+    ):
         """
         전략 초기화
 
         Args:
             name: 전략 이름
             initial_capital: 초기 자본금 (기본값: $10,000)
+            position_sizer: 포지션 사이저 (기본값: MaxCapitalSizer)
+            is_benchmark: 벤치마크 전략 여부 (기본값: False)
         """
         self.name = name
         self.initial_capital = initial_capital
         self.capital = initial_capital  # 현재 현금 잔고
+        self.is_benchmark = is_benchmark
+
+        # 포지션 사이저 설정 (기본값: 최대 자본 사이저)
+        self.position_sizer = position_sizer or MaxCapitalSizer()
 
         # 거래 기록
         self.trades: List[Dict[str, Any]] = []
@@ -67,10 +80,12 @@ class Strategy(ABC):
         """
         pass
 
-    @abstractmethod
     def calculate_position_size(self, data: pd.Series, current_date: str) -> float:
         """
         포지션 크기 계산 (매수할 주식 수량)
+
+        기본 구현은 PositionSizer를 사용합니다.
+        전략별로 특별한 로직이 필요한 경우 오버라이드할 수 있습니다.
 
         Args:
             data: 현재 일자의 주가 데이터
@@ -79,7 +94,16 @@ class Strategy(ABC):
         Returns:
             float: 매수할 주식 수량
         """
-        pass
+        current_price = data["close"]
+        ticker = data.get("ticker", "QQQ")
+        portfolio_value = self.get_portfolio_value(ticker, current_price)
+
+        return self.position_sizer.calculate_position_size(
+            available_capital=self.capital,
+            current_price=current_price,
+            commission_rate=self.commission_rate,
+            portfolio_value=portfolio_value,
+        )
 
     def get_current_position(self, ticker: str) -> float:
         """현재 보유 주식 수량 반환"""

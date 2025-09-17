@@ -1,7 +1,7 @@
 """
 Buy & Hold 전략
 
-첫날 전액 매수 후 보유만 하는 벤치마크 전략입니다.
+첫날 전액 매수 후 보유만 하는 전략입니다.
 """
 
 import pandas as pd
@@ -9,10 +9,10 @@ from .base import Strategy
 
 
 class BuyAndHoldStrategy(Strategy):
-    """Buy & Hold 전략 - 벤치마크용"""
+    """Buy & Hold 전략"""
 
-    def __init__(self):
-        super().__init__(name="BuyAndHold")
+    def __init__(self, is_benchmark: bool = False):
+        super().__init__(name="BuyAndHold", is_benchmark=is_benchmark)
         self._initial_buy_done = False
 
     def check_buy_condition(self, data: pd.Series, current_date: str) -> bool:
@@ -53,11 +53,8 @@ class BuyAndHoldStrategy(Strategy):
             float: 매수할 주식 수량 (전액 매수)
         """
         if not self._initial_buy_done:
-            current_price = data["close"]
-            # 수수료를 제외한 금액으로 최대한 매수
-            available_amount = self.capital / (1 + self.commission_rate)
-            quantity = int(available_amount / current_price)
-            return float(quantity)
+            # 기본 PositionSizer(MaxCapitalSizer) 사용
+            return super().calculate_position_size(data, current_date)
         return 0.0
 
     def on_buy_executed(self):

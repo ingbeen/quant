@@ -2,7 +2,7 @@
 """
 백테스팅 메인 실행 CLI 모듈
 
-QQQ 데이터로 Buy & Hold 및 Seasonal 전략을 병렬 실행하고 결과를 분석합니다.
+QQQ 데이터로 여러 투자 전략을 병렬 실행하고 결과를 분석합니다.
 """
 
 from qbt.core.data_loader import DataLoader
@@ -10,7 +10,48 @@ from qbt.core.parallel_runner import ParallelRunner
 from qbt.strategies.buyandhold import BuyAndHoldStrategy
 from qbt.strategies.seasonal import SeasonalStrategy
 from qbt.analysis.comparator import StrategyComparator
+from qbt.strategies.base import Strategy
 from datetime import datetime
+from typing import List
+
+
+def validate_benchmark_strategies(strategies: List[Strategy]) -> None:
+    """
+    벤치마크 전략 개수 검증
+
+    Args:
+        strategies: 전략 리스트
+
+    Raises:
+        ValueError: 벤치마크 전략이 0개이거나 2개 이상일 때
+    """
+    benchmark_strategies = [s for s in strategies if s.is_benchmark]
+    benchmark_count = len(benchmark_strategies)
+
+    if benchmark_count == 0:
+        raise ValueError(
+            "벤치마크 전략이 없습니다. 정확히 하나의 전략에 is_benchmark=True를 설정해주세요."
+        )
+    elif benchmark_count > 1:
+        benchmark_names = [s.name for s in benchmark_strategies]
+        raise ValueError(
+            f"벤치마크 전략이 {benchmark_count}개입니다 ({', '.join(benchmark_names)}). "
+            f"정확히 하나의 전략에만 is_benchmark=True를 설정해주세요."
+        )
+
+
+def get_benchmark_name(strategies: List[Strategy]) -> str:
+    """
+    벤치마크 전략 이름 반환
+
+    Args:
+        strategies: 전략 리스트
+
+    Returns:
+        str: 벤치마크 전략 이름
+    """
+    benchmark_strategy = next(s for s in strategies if s.is_benchmark)
+    return benchmark_strategy.name
 
 
 def main():
@@ -44,12 +85,16 @@ def main():
             # 3. 전략 생성
             print("[3] 투자 전략 생성...")
             strategies = [
-                BuyAndHoldStrategy(),  # 벤치마크
-                SeasonalStrategy(),  # 계절성 전략
+                BuyAndHoldStrategy(is_benchmark=True),
+                SeasonalStrategy(),
             ]
 
+            # 벤치마크 전략 검증
+            validate_benchmark_strategies(strategies)
+
             for strategy in strategies:
-                print(f"    - {strategy.name} 전략")
+                strategy_type = " (벤치마크)" if strategy.is_benchmark else ""
+                print(f"    - {strategy.name} 전략{strategy_type}")
 
             # 4. 병렬 실행기 초기화
             print("[4] 병렬 실행기 초기화...")
@@ -74,7 +119,8 @@ def main():
 
             # 7. 전략 비교 분석
             print("[7] 전략 비교 분석...")
-            comparator = StrategyComparator(results, benchmark_name="BuyAndHold")
+            benchmark_name = get_benchmark_name(strategies)
+            comparator = StrategyComparator(results, benchmark_name=benchmark_name)
             comparison_info = comparator.get_basic_comparison()
 
             # 8. 결과 출력

@@ -5,7 +5,7 @@
 """
 
 import pandas as pd
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import sys
 from pathlib import Path
 
@@ -15,9 +15,9 @@ from qbt.strategies.base import Strategy
 class TradeExecutor:
     """매매 실행 및 포지션 관리 클래스"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """매매 실행기 초기화"""
-        self.execution_log: list = []
+        self.execution_log: List[Dict[str, Any]] = []
 
     def execute_buy(
         self,
@@ -196,11 +196,11 @@ class TradeExecutor:
         self.execution_log.append(execution_result)
         return execution_result
 
-    def get_execution_log(self) -> list:
+    def get_execution_log(self) -> List[Dict[str, Any]]:
         """실행 로그 반환"""
         return self.execution_log.copy()
 
-    def clear_log(self):
+    def clear_log(self) -> None:
         """실행 로그 초기화"""
         self.execution_log.clear()
 

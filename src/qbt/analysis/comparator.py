@@ -13,20 +13,45 @@ from .metrics import PerformanceMetrics
 class StrategyComparator:
     """전략 비교 분석 클래스"""
 
-    def __init__(self, results: Dict[str, Any], benchmark_name: str = "BuyAndHold"):
+    def __init__(self, results: Dict[object, Dict[str, Any]], benchmark_name: str = None):
         """
         전략 비교기 초기화
 
         Args:
             results: 전략별 백테스팅 결과
-            benchmark_name: 벤치마크로 사용할 전략 이름
+            benchmark_name: 벤치마크로 사용할 전략 이름 (None이면 자동 탐지)
         """
         self.results = results
-        self.benchmark_name = benchmark_name
-        self.benchmark = results.get(benchmark_name)
+
+        # 벤치마크 이름이 제공되지 않으면 자동으로 탐지
+        if benchmark_name is None:
+            self.benchmark_name = self._find_benchmark_name()
+        else:
+            self.benchmark_name = benchmark_name
+
+        self.benchmark = results.get(self.benchmark_name)
 
         if self.benchmark is None:
-            print(f"[WARNING] 벤치마크 '{benchmark_name}'를 찾을 수 없습니다.")
+            print(f"[WARNING] 벤치마크 '{self.benchmark_name}'를 찾을 수 없습니다.")
+
+    def _find_benchmark_name(self) -> str:
+        """
+        벤치마크 전략 이름을 자동으로 찾기
+
+        Returns:
+            str: 벤치마크 전략 이름
+        """
+        for name, result in self.results.items():
+            if result.get("is_benchmark", False):
+                return name
+
+        # 벤치마크를 찾지 못한 경우 첫 번째 전략을 반환
+        if self.results:
+            first_name = next(iter(self.results.keys()))
+            print(f"[WARNING] 벤치마크 전략을 찾지 못했습니다. '{first_name}'를 벤치마크로 사용합니다.")
+            return first_name
+
+        raise ValueError("전략 결과가 없습니다.")
 
     # def compare_returns(self) -> pd.DataFrame:
     #     """전략별 수익률 비교 테이블 생성"""
