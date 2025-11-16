@@ -137,12 +137,6 @@ QBT 프로젝트는 **세 가지 로그 레벨만** 사용합니다:
 
 **INFO 레벨은 사용하지 않습니다.** 일반 정보는 DEBUG로 처리합니다.
 
-#### 사용 방법
-
-- Logger 가져오기: `from qbt.utils import get_logger`
-- 로그 레벨 제어: 환경 변수 `QBT_LOG_LEVEL` 사용 (DEBUG, WARNING, ERROR)
-- 런타임 레벨 변경: `set_log_level()` 함수 사용
-
 #### 로깅 가이드라인
 
 - **메시지는 한글로 작성**: 사용자 대상 프로젝트이므로 한글 사용

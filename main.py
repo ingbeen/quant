@@ -6,13 +6,13 @@ Main entry point for running data downloads, backtests, and other operations.
 """
 
 import argparse
-import os
 import sys
 
+from qbt.data.download import download_stock_data
 from qbt.utils import get_logger, setup_logger
 
 # Logger 초기화 (환경 변수로 레벨 제어 가능)
-log_level = os.getenv("QBT_LOG_LEVEL", "DEBUG")
+log_level = "DEBUG"
 setup_logger(name="qbt", level=log_level)
 logger = get_logger(__name__)
 
@@ -30,7 +30,6 @@ def setup_download_parser(subparsers):
 
 def handle_download(args):
     """Download 커맨드 실행"""
-    from qbt.data.download import download_stock_data
 
     ticker = args.ticker.upper()
     download_stock_data(
