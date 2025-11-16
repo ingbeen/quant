@@ -22,23 +22,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# DuckDB files - 로컬 캐시, Git 추적 안함
-*.db
-*.duckdb
-cache/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
 # Environment variables
 .env
 .venv
@@ -65,6 +48,3 @@ Desktop.ini
 # 큰 데이터 파일들 (필요시 git add -f 사용)
 *.parquet
 temp/
-
-# Poetry
-poetry.lock

@@ -6,6 +6,10 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from qbt.utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def download_stock_data(
     ticker: str,
@@ -30,7 +34,7 @@ def download_stock_data(
     # 2. yfinance Ticker 객체 생성
     yf_ticker = yf.Ticker(ticker)
 
-    print(f"[INFO] {ticker} 데이터 다운로드 중...")
+    logger.debug(f"{ticker} 데이터 다운로드 중...")
 
     try:
         # 3. 날짜 조건별 데이터 다운로드 및 파일명 생성
@@ -67,19 +71,19 @@ def download_stock_data(
         df.to_csv(csv_path, index=False)
 
         # 9. 결과 출력
-        print(f"[SUCCESS] 데이터 저장 완료: {csv_path}")
-        print(f"[DATA] 데이터 정보:")
-        print(f"   기간: {df['Date'].min()} ~ {df['Date'].max()}")
-        print(f"   행 수: {len(df):,}")
-        print(f"   컬럼: {list(df.columns)}")
+        logger.debug(f"데이터 저장 완료: {csv_path}")
+        logger.debug("데이터 정보:")
+        logger.debug(f"   기간: {df['Date'].min()} ~ {df['Date'].max()}")
+        logger.debug(f"   행 수: {len(df):,}")
+        logger.debug(f"   컬럼: {list(df.columns)}")
         if filtered_count > 0:
-            print(f"[FILTER] 최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
-            print(
-                f"[FILTER] 포함된 마지막 날짜: {cutoff_date} ({cutoff_date} 이후 데이터 제외)"
+            logger.debug(f"최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
+            logger.debug(
+                f"포함된 마지막 날짜: {cutoff_date} ({cutoff_date} 이후 데이터 제외)"
             )
 
         return csv_path
 
     except Exception as e:
-        print(f"[ERROR] 오류 발생: {e}")
+        logger.error(f"오류 발생: {e}")
         raise
