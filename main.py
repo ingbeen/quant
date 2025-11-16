@@ -28,6 +28,18 @@ def setup_download_parser(subparsers):
     return parser
 
 
+def handle_download(args):
+    """Download 커맨드 실행"""
+    from qbt.data.download import download_stock_data
+
+    ticker = args.ticker.upper()
+    download_stock_data(
+        ticker=ticker,
+        start_date=args.start,
+        end_date=args.end,
+    )
+
+
 def main():
     """CLI 진입점"""
     parser = argparse.ArgumentParser(
@@ -42,6 +54,7 @@ def main():
 
     # 향후 추가될 서브커맨드
     # setup_backtest_parser(subparsers)
+    # 핸들러 함수도 함께 추가: handle_backtest(args)
 
     args = parser.parse_args()
 
@@ -52,14 +65,7 @@ def main():
     try:
         # 명령 실행
         if args.command == "download":
-            from qbt.data.download import download_stock_data
-
-            ticker = args.ticker.upper()
-            download_stock_data(
-                ticker=ticker,
-                start_date=args.start,
-                end_date=args.end,
-            )
+            handle_download(args)
     except Exception as e:
         logger.error(f"실행 실패: {e}")
         return 1
