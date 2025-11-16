@@ -44,9 +44,9 @@ def setup_logger(
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
 
-    # 포맷 설정: 시간 - 레벨 - 함수명 - 메시지
+    # 포맷 설정
     formatter = logging.Formatter(
-        fmt="%(asctime)s - %(levelname)s - %(funcName)s - %(message)s",
+        fmt="%(asctime)s.%(msecs)03d %(levelname)s [%(funcName)s] : %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     console_handler.setFormatter(formatter)

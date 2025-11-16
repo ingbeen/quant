@@ -71,10 +71,8 @@ def download_stock_data(
 
         # 9. 결과 출력
         logger.debug(f"데이터 저장 완료: {csv_path}")
-        logger.debug("데이터 정보:")
-        logger.debug(f"   기간: {df['Date'].min()} ~ {df['Date'].max()}")
-        logger.debug(f"   행 수: {len(df):,}")
-        logger.debug(f"   컬럼: {list(df.columns)}")
+        logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
+        logger.debug(f"행 수: {len(df):,}")
         if filtered_count > 0:
             logger.debug(f"최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
             logger.debug(
