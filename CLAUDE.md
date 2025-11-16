@@ -1,205 +1,52 @@
-# CLAUDE.md
-
-이 파일은 Claude Code(claude.ai/code)가 이 저장소의 코드 작업 시 참고할 가이드를 제공합니다.
-
-## ⚠️ Claude 개발 가이드라인 (필수)
-
-- **라인 길이**: 88자 제한 (`line-length = 88`)
-- **타겟 버전**: Python 3.10 (`target-version = ['py310']`)
-- **포맷팅 규칙**: Black 기본 규칙 준수 (import 정렬, 문자열 쿼터 통일, 공백 규칙 등)
-- **사용하지 않는 함수 구현 금지**: 실제로 호출되지 않는 함수나 메서드는 구현하지 않습니다. YAGNI(You Aren't Gonna Need It) 원칙을 따라 필요한 기능만 구현합니다.
-- **코드 변경 후 타입 검사 필수**: 모든 코드 수정 후 반드시 `mypy .` 명령을 실행하여 타입 오류가 없음을 확인해야 합니다.
-- **타입 우선 설계**: 코드 작성 시 구현부보다 타입 시그니처를 먼저 정의합니다. "이 함수는 무엇을 받아서 무엇을 반환하는가?"를 명확히 한 후 구현합니다.
-- **백테스팅 안정성 우선**: 투자 결정에 영향을 주는 시스템이므로 편의성보다 안정성과 정확성을 우선합니다. 데이터 검증, 예외 처리, 에러 핸들링을 철저히 구현합니다.
-- **모든 함수에 반환 타입 명시**: `-> None`을 포함해 모든 함수의 반환 타입을 명시적으로 작성합니다.
+# Claude Code Guidelines for QBT Project
 
 ## 프로젝트 개요
 
-이 프로젝트는 **QBT (Quant BackTest)** - DuckDB를 데이터 캐싱에, CSV를 Git을 통한 데이터 공유에 사용하는 Python 퀀트 금융 주식 백테스팅 프레임워크입니다.
+QBT(Quant BackTest)는 주식 데이터 관리 및 백테스팅을 위한 Python 프레임워크입니다.
 
-### 주요 기능
-1. **주식 데이터 수집 및 관리**: Yahoo Finance API를 통한 데이터 다운로드
-2. **고성능 데이터 캐싱**: DuckDB를 활용한 빠른 데이터 접근
-3. **백테스팅 엔진**: 다양한 투자 전략의 성과 분석
-4. **병렬 처리**: 여러 전략을 동시에 실행하여 성능 비교
+## 코딩 스타일 가이드라인
 
-## 프로젝트 구조 (리팩토링됨)
+### 코드 포맷팅
 
-```
-quant/
-├── src/qbt/                    # QBT 메인 패키지 (표준 src 레이아웃)
-│   ├── __init__.py            # 패키지 진입점
-│   ├── core/                  # 백테스팅 핵심 엔진
-│   │   ├── data_loader.py     # DuckDB 데이터 로더
-│   │   ├── engine.py          # 백테스팅 실행 엔진
-│   │   ├── executor.py        # 매매 실행 및 포지션 관리
-│   │   └── parallel_runner.py # 병렬 실행 관리자
-│   ├── strategies/            # 투자 전략 모듈
-│   │   ├── base.py           # 전략 기본 추상 클래스
-│   │   ├── buyandhold.py     # Buy & Hold 전략 (벤치마크)
-│   │   └── seasonal.py       # 계절성 전략 (Sell in May)
-│   ├── analysis/             # 성과 분석 모듈
-│   │   ├── metrics.py        # 성과 지표 계산
-│   │   └── comparator.py     # 전략 비교 분석
-│   └── cli/                  # CLI 인터페이스
-│       └── run_backtest.py   # 백테스팅 실행 CLI
-├── scripts/                   # 실행 스크립트 (얇은 래퍼)
-│   ├── download_data.py      # 주식 데이터 다운로드
-│   ├── create_duckdb_cache.py # DuckDB 캐시 생성
-│   └── run_backtest.py       # 백테스팅 실행 (래퍼)
-├── data/raw/                 # CSV 주식 데이터 (Git 추적)
-├── cache/                    # DuckDB 파일들 (Git 무시, 로컬 캐시만)
-├── notebooks/                # Jupyter 노트북 (분석 및 실험용)
-└── .vscode/settings.json     # VSCode Black 자동 포맷팅 설정
-```
+- **코드 포맷터**: 이 프로젝트는 **Black** 포맷터를 사용합니다. 모든 Python 코드는 Black 스타일 가이드를 따라 작성되어야 합니다. **별도로 `black` 명령어를 실행하지 마세요**
+- **린터**: Ruff를 사용하여 코드 품질을 검사합니다
+- **라인 길이**: 88자 (Black 기본값)
+- **타겟 버전**: Python 3.10+
 
-## 백테스팅 실행 방법 (3가지)
+### 이모지 사용 금지
 
-### 1. CLI 엔트리포인트 (권장)
-```bash
-poetry run run-backtest
-```
+- 코드, 주석, 로그 메시지 등 모든 곳에서 이모지 사용을 피하세요
+- 사용자 메시지는 한글로 작성하되, 이모지는 포함하지 않습니다
 
-### 2. 모듈 방식 실행
-```bash
-poetry run python -m qbt.cli.run_backtest
-```
+### 주석 작성 규칙
 
-### 3. 기존 스크립트 방식 (호환성)
-```bash
-poetry run python scripts/run_backtest.py
-```
+- **복잡한 로직**: 여러 단계의 처리 흐름이 있을 경우 넘버링 주석으로 단계별 설명
+- **주석 업데이트**: 코드 수정 시 관련 주석도 함께 업데이트하여 불일치 방지
+- **일반적 표현 사용**: 구체적 수치 대신 일반적 표현 사용
+  - 나쁜 예: `# 5회 이상 재시도`
+  - 좋은 예: `# 임계값 초과 시 재시도`
 
-## QBT 패키지 사용법
+### 코드 구조
 
-### 프로그래밍 방식으로 사용하기
-```python
-from qbt.core.data_loader import DataLoader
-from qbt.core.parallel_runner import ParallelRunner
-from qbt.strategies.buyandhold import BuyAndHoldStrategy
-from qbt.strategies.seasonal import SeasonalStrategy
+- **패키지 구조**: `qbt/domain/module.py` 형식으로 도메인별 구분
+- **모듈 분리**: 하나의 주요 기능당 하나의 모듈
+- **CLI 로직**: 루트의 `main.py`에 위치
+- **비즈니스 로직**: `src/qbt/` 패키지 내부에 위치
 
-# 데이터 로더 초기화
-data_loader = DataLoader("cache/market_data.db")
+### 네이밍 컨벤션
 
-# 데이터 로드
-data = data_loader.load_data(
-    ticker="QQQ", start_date="2020-01-01", end_date="2024-12-31"
-)
+- **함수**: `snake_case`
+- **클래스**: `PascalCase`
+- **상수**: `UPPER_SNAKE_CASE`
+- **Private 멤버**: `_leading_underscore`
 
-# 전략 생성
-strategies = [
-    BuyAndHoldStrategy(),  # 벤치마크
-    SeasonalStrategy(),    # 계절성 전략
-]
+### 문서화
 
-# 병렬 백테스팅 실행
-parallel_runner = ParallelRunner()
-results = parallel_runner.run_strategies(strategies=strategies, data=data, ticker="QQQ")
-```
+- 모든 public 함수와 클래스에 docstring 작성
+- 사용자 메시지: 한글 사용
+- 코드 및 기술 문서: 영어 사용 가능
 
-## 데이터 관리
+### 파일 경로 처리
 
-### 주식 데이터 다운로드
-```bash
-# 특정 심볼의 최대 기간 데이터 다운로드
-poetry run python scripts/download_data.py QQQ --period=max
-
-# 여러 심볼 다운로드
-poetry run python scripts/download_data.py AAPL MSFT GOOGL --period=1y
-
-# 사용 가능한 옵션 확인
-poetry run python scripts/download_data.py --help
-```
-
-### DuckDB 캐시 관리
-```bash
-# 특정 CSV 파일을 DuckDB로 변환
-poetry run python scripts/create_duckdb_cache.py data/raw/QQQ_max.csv
-
-# 모든 CSV 파일을 DuckDB로 변환
-poetry run python scripts/create_duckdb_cache.py --rebuild-all
-
-# 도움말 확인
-poetry run python scripts/create_duckdb_cache.py --help
-```
-
-## 개발 환경 설정
-
-### 필수 의존성
-- **Python**: ^3.10
-- **pandas**: ^2.0.0 (데이터 조작 및 처리)
-- **yfinance**: ^0.2.0 (Yahoo Finance 데이터 수집)
-- **duckdb**: ^0.9.0 (고성능 로컬 데이터베이스)
-- **numpy**: ^1.24.0 (수치 연산)
-- **jupyter**: ^1.0.0 (노트북 환경)
-
-### 개발 도구
-- **black**: ^23.0.0 (코드 포매터, **필수 사용**)
-- **ipykernel**: ^6.25.0 (Jupyter 커널)
-
-### 환경 설정 명령어
-```bash
-# 의존성 설치
-poetry install
-
-# 개발 환경 활성화
-poetry shell
-
-# 패키지 관리
-poetry add pandas numpy  # 새 패키지 추가
-poetry remove requests   # 패키지 제거
-```
-
-## DBeaver SQL 분석 통합
-
-DuckDB 캐시 파일은 DBeaver에서 SQL 분석이 가능합니다:
-
-1. **연결 생성**: DBeaver에서 새 DuckDB 연결 생성
-2. **데이터베이스 파일**: `cache/market_data.db` 파일 지정
-3. **테이블 구조**:
-   - 테이블명: `stocks`
-   - 컬럼: `ticker, date, open, high, low, close, adj_close, volume`
-
-## Git 워크플로우
-
-- **CSV 파일**: `data/raw/` 디렉토리의 CSV 파일은 Git에 커밋하여 팀과 공유
-- **DuckDB 캐시**: `cache/` 디렉토리는 `.gitignore`에 포함되어 로컬 전용
-- **QBT 패키지**: `src/qbt/` 디렉토리의 모든 Python 파일은 표준 Git 워크플로우 적용
-- **스크립트**: `scripts/` 디렉토리는 얇은 래퍼로 유지
-- **데이터 업데이트**: CSV 파일 업데이트 후 팀원들은 로컬에서 캐시 재구축 필요
-
-## 백테스팅 결과 예시
-
-성공적인 백테스팅 실행 시 다음과 같은 결과를 확인할 수 있습니다:
-
-```
-============================================================
- QQQ 백테스팅 시스템
-============================================================
-[1] 데이터 로더 초기화...
-[2] QQQ 데이터 로드 중...
-    로드된 데이터: 1258개 레코드
-    기간: 2020-01-02 ~ 2024-12-31
-    캐시 상태: 1개 데이터셋, 0.1MB
-[3] 투자 전략 생성...
-    - BuyAndHold 전략
-    - Seasonal 전략
-[4] 병렬 실행기 초기화...
-[5] 병렬 백테스팅 실행...
-
-============================================================
- 백테스팅 결과 요약
-============================================================
-[벤치마크] BuyAndHold
-  수익률: 141.28%
-  거래횟수: 2회
-  승률: 100.0%
-
-[전략] Seasonal
-  수익률: 43.73%
-  거래횟수: 12회
-  승률: 66.7%
-  초과수익률: -97.55%
-============================================================
-```
+- 모든 파일 작업에 `pathlib.Path` 사용
+- 하드코딩된 경로 지양, 설정 파일 또는 프로젝트 루트 기준 사용

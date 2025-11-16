@@ -1,26 +1,16 @@
-#!/usr/bin/env python3
-"""
-주식 데이터 다운로드 스크립트
-Date, Open, Close, Volume 컬럼만 포함하여 다운로드
+"""주식 데이터 다운로드 모듈"""
 
-Usage:
-    python scripts/download_data.py QQQ
-    python scripts/download_data.py QQQ --start=2020-01-01
-    python scripts/download_data.py QQQ --start=2020-01-01 --end=2023-12-31
-"""
-
-import argparse
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional
+
 import pandas as pd
 import yfinance as yf
 
 
 def download_stock_data(
     ticker: str,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> Path:
     """
     주식 데이터를 다운로드하고 CSV로 저장 (Date, Open, Close, Volume만 포함)
@@ -33,17 +23,17 @@ def download_stock_data(
     Returns:
         저장된 CSV 파일의 경로
     """
-    # 출력 디렉토리 생성
+    # 1. 출력 디렉토리 생성
     output_path = Path("data/raw")
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # yfinance Ticker 객체 생성
+    # 2. yfinance Ticker 객체 생성
     yf_ticker = yf.Ticker(ticker)
 
     print(f"[INFO] {ticker} 데이터 다운로드 중...")
 
     try:
-        # 데이터 다운로드 (최대 기간)
+        # 3. 날짜 조건별 데이터 다운로드 및 파일명 생성
         if start_date and end_date:
             df = yf_ticker.history(start=start_date, end=end_date)
             filename = f"{ticker}_{start_date}_{end_date}.csv"
@@ -54,27 +44,29 @@ def download_stock_data(
             df = yf_ticker.history(period="max")
             filename = f"{ticker}_max.csv"
 
+        # 4. 데이터 유효성 검증
         if df.empty:
             raise ValueError(f"데이터를 찾을 수 없습니다: {ticker}")
 
-        # 인덱스를 Date 컬럼으로 변환
+        # 5. 인덱스를 Date 컬럼으로 변환
         df.reset_index(inplace=True)
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-        # 필요한 컬럼만 선택 (Date, Open, Close, Volume)
+        # 6. 필요한 컬럼만 선택 (Date, Open, Close, Volume)
         required_columns = ["Date", "Open", "Close", "Volume"]
         df = df[required_columns]
 
-        # 최근 2일(오늘 포함) 데이터 제외
-        cutoff_date = date.today() - timedelta(days=2)  # 그저께까지의 데이터만 포함
+        # 7. 최근 데이터 필터링 (오늘 포함 최근 2일 제외)
+        cutoff_date = date.today() - timedelta(days=2)
         original_count = len(df)
         df = df[df["Date"] <= cutoff_date]
         filtered_count = original_count - len(df)
 
-        # CSV 파일로 저장
+        # 8. CSV 파일로 저장
         csv_path = output_path / filename
         df.to_csv(csv_path, index=False)
 
+        # 9. 결과 출력
         print(f"[SUCCESS] 데이터 저장 완료: {csv_path}")
         print(f"[DATA] 데이터 정보:")
         print(f"   기간: {df['Date'].min()} ~ {df['Date'].max()}")
@@ -91,34 +83,3 @@ def download_stock_data(
     except Exception as e:
         print(f"[ERROR] 오류 발생: {e}")
         raise
-
-
-def main():
-    parser = argparse.ArgumentParser(description="주식 데이터 다운로드")
-    parser.add_argument("ticker", help="주식 티커 심볼 (예: QQQ, SPY)")
-    parser.add_argument("--start", help="시작 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--end", help="종료 날짜 (YYYY-MM-DD)")
-
-    args = parser.parse_args()
-
-    ticker = args.ticker.upper()
-
-    try:
-        csv_path = download_stock_data(
-            ticker=ticker,
-            start_date=args.start,
-            end_date=args.end,
-        )
-
-        print(f"\n[SUCCESS] 다운로드 완료!")
-        print(f"다음 단계: python scripts/create_duckdb_cache.py {csv_path}")
-
-    except Exception as e:
-        print(f"[ERROR] 다운로드 실패: {e}")
-        return 1
-
-    return 0
-
-
-if __name__ == "__main__":
-    exit(main())
