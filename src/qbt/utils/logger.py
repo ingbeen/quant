@@ -11,12 +11,11 @@ QBT Logging Module
 
 import logging
 import sys
-from typing import Optional
 
 
 def setup_logger(
     name: str = "qbt",
-    level: Optional[str] = None,
+    level: str | None = None,
 ) -> logging.Logger:
     """
     QBT 프로젝트용 Logger 설정

@@ -11,6 +11,9 @@ import sys
 
 from qbt.utils import get_logger, setup_logger
 
+# Logger 초기화 (환경 변수로 레벨 제어 가능)
+log_level = os.getenv("QBT_LOG_LEVEL", "DEBUG")
+setup_logger(name="qbt", level=log_level)
 logger = get_logger(__name__)
 
 
@@ -25,25 +28,8 @@ def setup_download_parser(subparsers):
     return parser
 
 
-def handle_download(args):
-    """Download 명령 처리"""
-    from qbt.data.download import download_stock_data
-
-    ticker = args.ticker.upper()
-    download_stock_data(
-        ticker=ticker,
-        start_date=args.start,
-        end_date=args.end,
-    )
-
-
 def main():
-    logger.debug("QBT 시작")
-
-    # Logger 초기화 (환경 변수로 레벨 제어 가능)
-    log_level = os.getenv("QBT_LOG_LEVEL", "DEBUG")
-    setup_logger(name="qbt", level=log_level)
-
+    """CLI 진입점"""
     parser = argparse.ArgumentParser(
         description="QBT - Quantitative Backtesting Framework",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -63,11 +49,21 @@ def main():
         parser.print_help()
         return 1
 
-    # 명령 실행
-    if args.command == "download":
-        handle_download(args)
+    try:
+        # 명령 실행
+        if args.command == "download":
+            from qbt.data.download import download_stock_data
 
-    logger.debug("QBT 종료")
+            ticker = args.ticker.upper()
+            download_stock_data(
+                ticker=ticker,
+                start_date=args.start,
+                end_date=args.end,
+            )
+    except Exception as e:
+        logger.error(f"실행 실패: {e}")
+        return 1
+
     return 0
 
 

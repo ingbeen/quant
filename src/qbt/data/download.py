@@ -27,16 +27,15 @@ def download_stock_data(
     Returns:
         저장된 CSV 파일의 경로
     """
-    # 1. 출력 디렉토리 생성
-    output_path = Path("data/raw")
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # 2. yfinance Ticker 객체 생성
-    yf_ticker = yf.Ticker(ticker)
-
-    logger.debug(f"{ticker} 데이터 다운로드 중...")
-
     try:
+
+        # 1. 출력 디렉토리 생성
+        output_path = Path("data/raw")
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # 2. yfinance Ticker 객체 생성
+        yf_ticker = yf.Ticker(ticker)
+
         # 3. 날짜 조건별 데이터 다운로드 및 파일명 생성
         if start_date and end_date:
             df = yf_ticker.history(start=start_date, end=end_date)
@@ -84,6 +83,5 @@ def download_stock_data(
 
         return csv_path
 
-    except Exception as e:
-        logger.error(f"오류 발생: {e}")
+    except Exception:
         raise
