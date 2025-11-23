@@ -1,19 +1,13 @@
 """
 QQQ 워킹 포워드 테스트 실행 스크립트
 
-5단계: 워킹 포워드 테스트
+과거 기간에서 최적 파라미터를 선택하고, 다음 기간에 적용합니다.
 """
 
 import argparse
 import sys
 
-from qbt.backtest import (
-    DataValidationError,
-    load_data,
-    run_buy_and_hold,
-    run_walkforward,
-    validate_data,
-)
+from qbt.backtest import run_buy_and_hold, run_walkforward
 from qbt.backtest.config import (
     DEFAULT_DATA_FILE,
     DEFAULT_INITIAL_CAPITAL,
@@ -22,7 +16,7 @@ from qbt.backtest.config import (
     DEFAULT_SHORT_WINDOW_LIST,
     DEFAULT_STOP_LOSS_PCT_LIST,
 )
-from qbt.utils import setup_logger
+from qbt.utils import load_and_validate_data, setup_logger
 
 # 로거 설정
 logger = setup_logger("run_walkforward", level="DEBUG")
@@ -145,21 +139,12 @@ def main() -> int:
     )
 
     try:
-        # 1. 데이터 로딩
-        logger.debug(f"데이터 파일 경로: {DEFAULT_DATA_FILE}")
-        df = load_data(DEFAULT_DATA_FILE)
+        # 1. 데이터 로딩 및 검증
+        df = load_and_validate_data(DEFAULT_DATA_FILE, logger)
+        if df is None:
+            return 1
 
-        # 2. 데이터 유효성 검증
-        validate_data(df)
-
-        # 3. 데이터 요약 정보 출력
-        logger.debug("=" * 60)
-        logger.debug("데이터 로딩 및 검증 완료")
-        logger.debug(f"총 행 수: {len(df):,}")
-        logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
-        logger.debug("=" * 60)
-
-        # 4. 워킹 포워드 테스트 실행
+        # 2. 워킹 포워드 테스트 실행
         logger.debug("\n그리드 탐색 파라미터:")
         logger.debug(f"  - short_window: {DEFAULT_SHORT_WINDOW_LIST}")
         logger.debug(f"  - long_window: {DEFAULT_LONG_WINDOW_LIST}")
@@ -178,27 +163,19 @@ def main() -> int:
             selection_metric=args.metric,
         )
 
-        # 5. Buy & Hold 벤치마크 실행
+        # 3. Buy & Hold 벤치마크 실행
         _, bh_summary = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
 
-        # 6. 결과 출력
+        # 4. 결과 출력
         print_window_results(wf_results_df)
         print_summary(wf_summary, bh_summary)
 
-        # 7. 결과 저장
+        # 5. 결과 저장
         output_path = DEFAULT_DATA_FILE.parent / "walkforward_results.csv"
         wf_results_df.to_csv(output_path, index=False)
         logger.debug(f"\n결과 저장 완료: {output_path}")
 
         return 0
-
-    except FileNotFoundError as e:
-        logger.error(f"파일 오류: {e}")
-        return 1
-
-    except DataValidationError as e:
-        logger.error(f"데이터 검증 실패: {e}")
-        return 1
 
     except ValueError as e:
         logger.error(f"값 오류: {e}")

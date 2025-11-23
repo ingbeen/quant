@@ -1,17 +1,13 @@
 """
 QQQ 파라미터 그리드 탐색 실행 스크립트
 
-4단계: 파라미터 그리드 서치
+파라미터 조합을 탐색하여 최적 전략을 찾습니다.
 """
 
 import sys
+from pathlib import Path
 
-from qbt.backtest import (
-    DataValidationError,
-    load_data,
-    run_grid_search,
-    validate_data,
-)
+from qbt.backtest import run_grid_search
 from qbt.backtest.config import (
     DEFAULT_DATA_FILE,
     DEFAULT_INITIAL_CAPITAL,
@@ -20,7 +16,7 @@ from qbt.backtest.config import (
     DEFAULT_SHORT_WINDOW_LIST,
     DEFAULT_STOP_LOSS_PCT_LIST,
 )
-from qbt.utils import setup_logger
+from qbt.utils import load_and_validate_data, setup_logger
 
 # 로거 설정
 logger = setup_logger("run_grid_search", level="DEBUG")
@@ -123,21 +119,12 @@ def main() -> int:
     logger.debug("QQQ 파라미터 그리드 탐색 시작")
 
     try:
-        # 1. 데이터 로딩
-        logger.debug(f"데이터 파일 경로: {DEFAULT_DATA_FILE}")
-        df = load_data(DEFAULT_DATA_FILE)
+        # 1. 데이터 로딩 및 검증
+        df = load_and_validate_data(DEFAULT_DATA_FILE, logger)
+        if df is None:
+            return 1
 
-        # 2. 데이터 유효성 검증
-        validate_data(df)
-
-        # 3. 데이터 요약 정보 출력
-        logger.debug("=" * 60)
-        logger.debug("데이터 로딩 및 검증 완료")
-        logger.debug(f"총 행 수: {len(df):,}")
-        logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
-        logger.debug("=" * 60)
-
-        # 4. 그리드 탐색 실행
+        # 2. 그리드 탐색 실행
         logger.debug("\n그리드 탐색 파라미터:")
         logger.debug(f"  - short_window: {DEFAULT_SHORT_WINDOW_LIST}")
         logger.debug(f"  - long_window: {DEFAULT_LONG_WINDOW_LIST}")
@@ -153,32 +140,24 @@ def main() -> int:
             initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 5. 상위 결과 출력
+        # 3. 상위 결과 출력
         print_top_results(results_df, "수익률 기준", top_n=10)
 
-        # 6. CAGR 기준 정렬 후 출력
+        # 4. CAGR 기준 정렬 후 출력
         results_by_cagr = results_df.sort_values(
             by="cagr", ascending=False
         ).reset_index(drop=True)
         print_top_results(results_by_cagr, "CAGR 기준", top_n=10)
 
-        # 7. 요약 통계 출력
+        # 5. 요약 통계 출력
         print_summary_stats(results_df)
 
-        # 8. 결과 저장 (선택적)
+        # 6. 결과 저장
         output_path = Path("data/raw/grid_results.csv")
         results_df.to_csv(output_path, index=False)
         logger.debug(f"\n결과 저장 완료: {output_path}")
 
         return 0
-
-    except FileNotFoundError as e:
-        logger.error(f"파일 오류: {e}")
-        return 1
-
-    except DataValidationError as e:
-        logger.error(f"데이터 검증 실패: {e}")
-        return 1
 
     except Exception as e:
         logger.error(f"예기치 않은 오류: {e}")

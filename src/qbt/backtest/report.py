@@ -412,11 +412,15 @@ def generate_html_report(
     images_html = ""
     equity_img = result_dir / "equity_curve.png"
     if equity_img.exists():
-        images_html += f'<img src="equity_curve.png" alt="Equity Curve" style="max-width:100%;">'
+        images_html += (
+            '<img src="equity_curve.png" alt="Equity Curve" style="max-width:100%;">'
+        )
 
     drawdown_img = result_dir / "drawdown.png"
     if drawdown_img.exists():
-        images_html += f'<img src="drawdown.png" alt="Drawdown" style="max-width:100%;">'
+        images_html += (
+            '<img src="drawdown.png" alt="Drawdown" style="max-width:100%;">'
+        )
 
     for ma_type in ["sma", "ema"]:
         heatmap_img = result_dir / f"grid_heatmap_{ma_type}.png"

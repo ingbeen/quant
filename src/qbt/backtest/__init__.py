@@ -1,17 +1,8 @@
 """백테스트 패키지"""
 
-from qbt.backtest.core import (
-    StrategyParams,
-    add_moving_averages,
-    generate_walkforward_windows,
-    load_data,
-    run_buy_and_hold,
-    run_grid_search,
-    run_strategy,
-    run_walkforward,
-    validate_data,
-)
+from qbt.backtest.data import load_data, validate_data
 from qbt.backtest.exceptions import DataValidationError
+from qbt.backtest.metrics import calculate_summary
 from qbt.backtest.report import (
     create_result_directory,
     generate_html_report,
@@ -24,11 +15,21 @@ from qbt.backtest.report import (
     save_trades,
     save_walkforward_results,
 )
+from qbt.backtest.strategy import (
+    StrategyParams,
+    add_moving_averages,
+    generate_walkforward_windows,
+    run_buy_and_hold,
+    run_grid_search,
+    run_strategy,
+    run_walkforward,
+)
 
 __all__ = [
-    # Core functions
+    # Data functions
     "load_data",
     "validate_data",
+    # Strategy functions
     "add_moving_averages",
     "run_strategy",
     "run_buy_and_hold",
@@ -36,6 +37,9 @@ __all__ = [
     "run_walkforward",
     "generate_walkforward_windows",
     "StrategyParams",
+    # Metrics functions
+    "calculate_summary",
+    # Exceptions
     "DataValidationError",
     # Report functions
     "create_result_directory",

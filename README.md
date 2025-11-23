@@ -1,6 +1,14 @@
 # QBT (Quant BackTest)
 
-주식 데이터 관리 및 백테스팅을 위한 Python 프레임워크
+주식 데이터 다운로드 및 백테스팅을 위한 Python 프레임워크
+
+## 주요 기능
+
+- Yahoo Finance에서 주식 데이터 다운로드
+- 이동평균선 교차 전략 백테스트 (SMA/EMA)
+- 파라미터 그리드 서치
+- 워킹 포워드 테스트
+- Buy & Hold 벤치마크 비교
 
 ## 설치
 
@@ -13,19 +21,19 @@ poetry install
 ### 기본 사용 (전체 기간)
 
 ```bash
-poetry run python main.py download QQQ
+poetry run python scripts/download_data.py QQQ
 ```
 
 ### 시작 날짜 지정
 
 ```bash
-poetry run python main.py download SPY --start=2020-01-01
+poetry run python scripts/download_data.py SPY --start 2020-01-01
 ```
 
 ### 기간 지정
 
 ```bash
-poetry run python main.py download AAPL --start=2020-01-01 --end=2023-12-31
+poetry run python scripts/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
 ```
 
 ## 백테스트 실행
@@ -94,14 +102,41 @@ poetry run python scripts/run_walkforward.py \
 
 ```
 quant/
-├── main.py              # CLI 진입점 (데이터 다운로드)
-├── scripts/             # 실행 스크립트
-│   ├── run_single_backtest.py  # 단일 백테스트
-│   ├── run_grid_search.py      # 그리드 서치
-│   └── run_walkforward.py      # 워킹 포워드 테스트
-├── src/qbt/             # 비즈니스 로직 패키지
-│   ├── backtest/        # 백테스트 엔진
-│   ├── data/            # 데이터 다운로드
-│   └── utils/           # 유틸리티
-└── data/raw/            # CSV 데이터 저장소
+├── scripts/                     # 실행 스크립트
+│   ├── download_data.py         # 데이터 다운로드
+│   ├── run_single_backtest.py   # 단일 백테스트
+│   ├── run_grid_search.py       # 그리드 서치
+│   └── run_walkforward.py       # 워킹 포워드 테스트
+├── src/qbt/                     # 비즈니스 로직 패키지
+│   ├── backtest/                # 백테스트 엔진
+│   │   ├── config.py            # 설정 상수
+│   │   ├── data.py              # 데이터 로딩/검증
+│   │   ├── strategy.py          # 전략 실행 로직
+│   │   ├── metrics.py           # 성과 지표 계산
+│   │   ├── report.py            # 리포트 생성
+│   │   └── exceptions.py        # 커스텀 예외
+│   └── utils/                   # 유틸리티
+│       ├── logger.py            # 로깅 설정
+│       └── cli.py               # CLI 공통 함수
+└── data/raw/                    # CSV 데이터 저장소
 ```
+
+## 전략 설명
+
+### 이동평균선 교차 전략
+
+- **골든 크로스**: 단기 이동평균이 장기 이동평균을 상향 돌파 시 매수
+- **데드 크로스**: 단기 이동평균이 장기 이동평균을 하향 돌파 시 매도
+- **손절**: 하드 스톱(진입가 기준) 또는 트레일링 스톱(최근 저점 기준) 중 높은 가격에서 손절
+
+### 거래 비용
+
+- **슬리피지**: 매수/매도 시 가격에 적용 (기본 0.3%)
+- **수수료**: 매수 가능 수량 계산 시에만 감안 (기본 0.05%)
+
+### 성과 지표
+
+- **총 수익률**: (최종 자본 - 초기 자본) / 초기 자본
+- **CAGR**: 연평균 복합 성장률
+- **MDD**: 최대 낙폭 (Maximum Drawdown)
+- **승률**: 이익 거래 / 전체 거래

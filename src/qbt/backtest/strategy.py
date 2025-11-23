@@ -1,7 +1,7 @@
-"""백테스트 핵심 로직 모듈"""
+"""전략 실행 모듈"""
 
 from dataclasses import dataclass
-from pathlib import Path
+from datetime import timedelta
 from typing import Literal
 
 import pandas as pd
@@ -10,12 +10,9 @@ from qbt.backtest.config import (
     COMMISSION_RATE,
     DEFAULT_INITIAL_CAPITAL,
     MIN_LOOKBACK_FOR_LOW,
-    PRICE_CHANGE_THRESHOLD,
-    PRICE_COLUMNS,
-    REQUIRED_COLUMNS,
-    SLIPPAGE_RATE_PER_SIDE,
+    SLIPPAGE_RATE,
 )
-from qbt.backtest.exceptions import DataValidationError
+from qbt.backtest.metrics import calculate_summary
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -30,140 +27,6 @@ class StrategyParams:
     stop_loss_pct: float = 0.10  # 최대 손실 허용 비율 (10%)
     lookback_for_low: int = MIN_LOOKBACK_FOR_LOW  # 최근 저점 탐색 기간
     initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
-
-
-def load_data(path: Path) -> pd.DataFrame:
-    """
-    CSV 파일에서 주식 데이터를 로드하고 전처리한다.
-
-    날짜 파싱, 정렬, 필수 컬럼 검증, 중복 제거를 수행한다.
-    데이터 유효성 검증(validate_data)은 별도로 호출해야 한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        전처리된 DataFrame (날짜순 정렬됨)
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-        DataValidationError: 필수 컬럼이 누락되었을 때
-    """
-    # 1. 파일 존재 여부 확인
-    if not path.exists():
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"데이터 로딩 시작: {path}")
-
-    # 2. CSV 파일 로드
-    df = pd.read_csv(path)
-    logger.debug(f"원본 데이터 행 수: {len(df):,}")
-
-    # 3. 필수 컬럼 검증
-    missing_columns = set(REQUIRED_COLUMNS) - set(df.columns)
-    if missing_columns:
-        raise DataValidationError(
-            f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}"
-        )
-
-    # 4. 날짜 컬럼 파싱
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-
-    # 5. 날짜순 정렬
-    df = df.sort_values("Date").reset_index(drop=True)
-
-    # 6. 중복 날짜 제거 (첫 번째 값 유지)
-    duplicate_count = df.duplicated(subset=["Date"]).sum()
-    if duplicate_count > 0:
-        logger.warning(f"중복 날짜 {duplicate_count}건 제거됨")
-        df = df.drop_duplicates(subset=["Date"], keep="first").reset_index(drop=True)
-
-    logger.debug(
-        f"전처리 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}"
-    )
-
-    return df
-
-
-def validate_data(df: pd.DataFrame) -> None:
-    """
-    데이터 유효성을 검증한다.
-
-    다음 항목을 검사하며, 이상 발견 시 즉시 예외를 발생시킨다:
-    - 가격 컬럼의 결측치, 0, 음수 값
-    - 전일 대비 급등락 (임계값 이상)
-
-    어떠한 형태의 보간도 수행하지 않는다.
-
-    Args:
-        df: 검증할 DataFrame (load_data로 전처리된 상태)
-
-    Raises:
-        DataValidationError: 데이터 이상이 감지되었을 때
-    """
-    logger.debug("데이터 유효성 검증 시작")
-
-    # 1. 결측치 검사
-    for col in PRICE_COLUMNS:
-        null_mask = df[col].isna()
-        if null_mask.any():
-            null_indices = df.index[null_mask].tolist()
-            null_dates = df.loc[null_mask, "Date"].tolist()
-            raise DataValidationError(
-                f"결측치 발견 - 컬럼: {col}, "
-                f"인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, "
-                f"날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
-            )
-
-    # 2. 0 값 검사
-    for col in PRICE_COLUMNS:
-        zero_mask = df[col] == 0
-        if zero_mask.any():
-            zero_indices = df.index[zero_mask].tolist()
-            zero_dates = df.loc[zero_mask, "Date"].tolist()
-            raise DataValidationError(
-                f"0 값 발견 - 컬럼: {col}, "
-                f"인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, "
-                f"날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
-            )
-
-    # 3. 음수 값 검사
-    for col in PRICE_COLUMNS:
-        negative_mask = df[col] < 0
-        if negative_mask.any():
-            negative_indices = df.index[negative_mask].tolist()
-            negative_dates = df.loc[negative_mask, "Date"].tolist()
-            raise DataValidationError(
-                f"음수 값 발견 - 컬럼: {col}, "
-                f"인덱스: {negative_indices[:5]}{'...' if len(negative_indices) > 5 else ''}, "
-                f"날짜: {negative_dates[:5]}{'...' if len(negative_dates) > 5 else ''}"
-            )
-
-    # 4. 전일 대비 급등락 검사 (Close 기준)
-    df_copy = df.copy()
-    df_copy["pct_change"] = df_copy["Close"].pct_change()
-
-    # 첫 번째 행은 NaN이므로 제외
-    extreme_mask = df_copy["pct_change"].abs() >= PRICE_CHANGE_THRESHOLD
-    extreme_mask = extreme_mask.fillna(False)
-
-    if extreme_mask.any():
-        extreme_rows = df_copy[extreme_mask]
-        for _, row in extreme_rows.iterrows():
-            pct = row["pct_change"] * 100
-            logger.warning(
-                f"급등락 감지 - 날짜: {row['Date']}, "
-                f"변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}"
-            )
-
-        first_extreme = extreme_rows.iloc[0]
-        raise DataValidationError(
-            f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - "
-            f"날짜: {first_extreme['Date']}, "
-            f"변동률: {first_extreme['pct_change'] * 100:+.2f}%"
-        )
-
-    logger.debug("데이터 유효성 검증 완료: 이상 없음")
 
 
 def add_moving_averages(
@@ -191,7 +54,8 @@ def add_moving_averages(
     # 1. 파라미터 유효성 검증
     if short_window >= long_window:
         raise ValueError(
-            f"short_window({short_window})는 long_window({long_window})보다 작아야 합니다"
+            f"short_window({short_window})는 "
+            f"long_window({long_window})보다 작아야 합니다"
         )
 
     logger.debug(f"이동평균 계산 시작: short={short_window}, long={long_window}")
@@ -293,7 +157,7 @@ def run_strategy(
             if prev_row["Close"] <= stop_price:
                 # 손절 매도 (당일 시가)
                 sell_price_raw = row["Open"]
-                sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
+                sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
                 sell_amount = position * sell_price
                 capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
@@ -335,7 +199,7 @@ def run_strategy(
         if buy_signal and position == 0 and i + 1 < len(df):
             next_row = df.iloc[i + 1]
             buy_price_raw = next_row["Open"]
-            buy_price = buy_price_raw * (1 + SLIPPAGE_RATE_PER_SIDE)
+            buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
 
             # 매수 가능 주식 수 계산 (수수료 감안하여 보수적으로 계산)
             available_capital = capital / (1 + COMMISSION_RATE)
@@ -357,7 +221,7 @@ def run_strategy(
         elif sell_signal and position > 0 and i + 1 < len(df):
             next_row = df.iloc[i + 1]
             sell_price_raw = next_row["Open"]
-            sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
+            sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
             sell_amount = position * sell_price
             capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
@@ -396,7 +260,7 @@ def run_strategy(
     # 6. 마지막 포지션 청산 (백테스트 종료 시)
     if position > 0:
         last_row = df.iloc[-1]
-        sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE_PER_SIDE)
+        sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE)
         sell_amount = position * sell_price
         capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
@@ -418,7 +282,7 @@ def run_strategy(
     equity_df = pd.DataFrame(equity_records)
 
     # 8. 요약 지표 계산
-    summary = _calculate_summary(trades_df, equity_df, params.initial_capital)
+    summary = calculate_summary(trades_df, equity_df, params.initial_capital)
     summary["ma_type"] = ma_type
     summary["short_window"] = params.short_window
     summary["long_window"] = params.long_window
@@ -455,7 +319,7 @@ def run_buy_and_hold(
 
     # 1. 첫날 시가에 매수
     buy_price_raw = df.iloc[0]["Open"]
-    buy_price = buy_price_raw * (1 + SLIPPAGE_RATE_PER_SIDE)
+    buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
     # 수수료 감안하여 보수적으로 매수 가능 수량 계산
     available_capital = initial_capital / (1 + COMMISSION_RATE)
     shares = int(available_capital / buy_price)
@@ -475,7 +339,7 @@ def run_buy_and_hold(
 
     # 3. 마지막 날 종가에 매도
     sell_price_raw = df.iloc[-1]["Close"]
-    sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
+    sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
     sell_amount = shares * sell_price
     # 슬리피지만 적용, 수수료 차감 없음
     final_capital = capital_after_buy + sell_amount
@@ -652,8 +516,6 @@ def generate_walkforward_windows(
     Returns:
         윈도우 정보 리스트 [{train_start, train_end, test_start, test_end}, ...]
     """
-    from datetime import timedelta
-
     logger.debug(f"워킹 포워드 윈도우 생성: train={train_years}년, test={test_years}년")
 
     # 날짜를 datetime으로 변환
@@ -804,9 +666,10 @@ def run_walkforward(
 
         logger.debug(
             f"윈도우 {idx + 1} 최적 파라미터: "
-            f"ma_type={best_params['ma_type']}, "
+            f"ma={best_params['ma_type']}, "
             f"short={best_params['short_window']}, long={best_params['long_window']}, "
-            f"stop_loss={best_params['stop_loss_pct']}, lookback={best_params['lookback_for_low']}, "
+            f"stop={best_params['stop_loss_pct']}, "
+            f"lookback={best_params['lookback_for_low']}, "
             f"{selection_metric}={best_params[selection_metric]:.2f}"
         )
 
@@ -944,83 +807,3 @@ def run_walkforward(
     )
 
     return walkforward_results_df, combined_equity_df, summary
-
-
-def _calculate_summary(
-    trades_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    initial_capital: float,
-) -> dict:
-    """
-    거래 내역과 자본 곡선으로 요약 지표를 계산한다.
-
-    Args:
-        trades_df: 거래 내역 DataFrame
-        equity_df: 자본 곡선 DataFrame
-        initial_capital: 초기 자본금
-
-    Returns:
-        요약 지표 딕셔너리
-    """
-    if equity_df.empty:
-        return {
-            "initial_capital": initial_capital,
-            "final_capital": initial_capital,
-            "total_return": 0.0,
-            "total_return_pct": 0.0,
-            "cagr": 0.0,
-            "mdd": 0.0,
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "win_rate": 0.0,
-        }
-
-    final_capital = equity_df.iloc[-1]["equity"]
-    total_return = final_capital - initial_capital
-    total_return_pct = (total_return / initial_capital) * 100
-
-    # 기간 계산
-    start_date = pd.to_datetime(equity_df.iloc[0]["Date"])
-    end_date = pd.to_datetime(equity_df.iloc[-1]["Date"])
-    years = (end_date - start_date).days / 365.25
-
-    # CAGR
-    if years > 0 and final_capital > 0:
-        cagr = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
-    else:
-        cagr = 0.0
-
-    # MDD 계산
-    equity_df = equity_df.copy()
-    equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df[
-        "peak"
-    ]
-    mdd = equity_df["drawdown"].min() * 100
-
-    # 거래 통계
-    total_trades = len(trades_df)
-    if total_trades > 0:
-        winning_trades = len(trades_df[trades_df["pnl"] > 0])
-        losing_trades = len(trades_df[trades_df["pnl"] <= 0])
-        win_rate = (winning_trades / total_trades) * 100
-    else:
-        winning_trades = 0
-        losing_trades = 0
-        win_rate = 0.0
-
-    return {
-        "initial_capital": initial_capital,
-        "final_capital": final_capital,
-        "total_return": total_return,
-        "total_return_pct": total_return_pct,
-        "cagr": cagr,
-        "mdd": mdd,
-        "total_trades": total_trades,
-        "winning_trades": winning_trades,
-        "losing_trades": losing_trades,
-        "win_rate": win_rate,
-        "start_date": str(equity_df.iloc[0]["Date"]),
-        "end_date": str(equity_df.iloc[-1]["Date"]),
-    }
