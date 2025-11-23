@@ -98,6 +98,50 @@ poetry run python scripts/run_walkforward.py \
 
 결과는 `data/raw/walkforward_results.csv`에 저장됩니다.
 
+## 스크립트 사용 가이드
+
+### 스크립트별 역할 및 출력물
+
+| 스크립트 | 역할 | 출력물 |
+|---------|------|--------|
+| `download_data.py` | 데이터 수집 | `data/raw/{TICKER}_max.csv` |
+| `run_single_backtest.py` | 단일 전략 검증 | 콘솔 출력 (성과 비교) |
+| `run_grid_search.py` | 파라미터 최적화 | `data/raw/grid_results.csv` |
+| `run_walkforward.py` | 실전 검증 | `data/raw/walkforward_results.csv` |
+
+### 처리 흐름 및 의존성
+
+```
+[Yahoo Finance API]
+       │
+       ▼
+┌──────────────┐
+│download_data │ ──▶ data/raw/{TICKER}_max.csv
+└──────────────┘
+       │
+       │ (CSV 파일 의존)
+       ▼
+┌──────────────────────────────────────────────────┐
+│               백테스트 스크립트                    │
+│                                                  │
+│  run_grid_search ──▶ grid_results.csv           │
+│         │            (최적 파라미터 탐색)         │
+│         ▼                                        │
+│  run_single_backtest ──▶ 콘솔 (전략 비교)         │
+│         │                (특정 파라미터 상세 분석) │
+│         ▼                                        │
+│  run_walkforward ──▶ walkforward_results.csv    │
+│                      (과적합 검증)               │
+└──────────────────────────────────────────────────┘
+```
+
+### 권장 사용 순서
+
+1. **데이터 준비**: `download_data.py`로 CSV 생성
+2. **파라미터 탐색**: `run_grid_search.py`로 최적 조합 탐색
+3. **단일 검증**: `run_single_backtest.py`로 특정 파라미터 상세 분석
+4. **실전 검증**: `run_walkforward.py`로 과적합 여부 확인
+
 ## 프로젝트 구조
 
 ```
