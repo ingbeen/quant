@@ -7,7 +7,6 @@ CLI 인자로 파라미터를 지정합니다.
 
 import argparse
 import sys
-from pathlib import Path
 
 from qbt.backtest import (
     DataValidationError,
@@ -18,16 +17,11 @@ from qbt.backtest import (
     run_strategy,
     validate_data,
 )
+from qbt.backtest.config import DEFAULT_DATA_FILE, DEFAULT_INITIAL_CAPITAL
 from qbt.utils import setup_logger
 
 # 로거 설정
 logger = setup_logger("run_single_backtest", level="DEBUG")
-
-# 데이터 파일 경로
-DATA_PATH = Path("data/raw/QQQ_max.csv")
-
-# 초기 자본금 (고정값)
-INITIAL_CAPITAL = 10_000_000.0
 
 
 def parse_args():
@@ -96,9 +90,7 @@ def print_summary(summary: dict, title: str) -> None:
     logger.debug(f"  총 거래 수: {summary['total_trades']}")
     if "win_rate" in summary:
         logger.debug(f"  승률: {summary['win_rate']:.1f}%")
-        logger.debug(
-            f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}"
-        )
+        logger.debug(f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}")
     logger.debug("=" * 60)
 
 
@@ -137,8 +129,8 @@ def main() -> int:
 
     try:
         # 1. 데이터 로딩
-        logger.debug(f"데이터 파일 경로: {DATA_PATH}")
-        df = load_data(DATA_PATH)
+        logger.debug(f"데이터 파일 경로: {DEFAULT_DATA_FILE}")
+        df = load_data(DEFAULT_DATA_FILE)
 
         # 2. 데이터 유효성 검증
         validate_data(df)
@@ -159,7 +151,7 @@ def main() -> int:
             long_window=args.long,
             stop_loss_pct=args.stop_loss,
             lookback_for_low=args.lookback,
-            initial_capital=INITIAL_CAPITAL,
+            initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
         summaries = []
@@ -185,7 +177,7 @@ def main() -> int:
         # 8. Buy & Hold 벤치마크 실행
         logger.debug("\n" + "=" * 60)
         logger.debug("Buy & Hold 벤치마크 실행")
-        _, summary_bh = run_buy_and_hold(df, initial_capital=INITIAL_CAPITAL)
+        _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
         print_summary(summary_bh, "Buy & Hold 결과")
         summaries.append(("Buy & Hold", summary_bh))
 

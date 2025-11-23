@@ -6,26 +6,19 @@ from typing import Literal
 
 import pandas as pd
 
+from qbt.backtest.config import (
+    COMMISSION_RATE,
+    DEFAULT_INITIAL_CAPITAL,
+    MIN_LOOKBACK_FOR_LOW,
+    PRICE_CHANGE_THRESHOLD,
+    PRICE_COLUMNS,
+    REQUIRED_COLUMNS,
+    SLIPPAGE_RATE_PER_SIDE,
+)
 from qbt.backtest.exceptions import DataValidationError
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
-
-# 필수 컬럼 목록
-REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
-
-# 가격 컬럼 목록 (유효성 검사 대상)
-PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
-
-# 급등락 임계값 (절대값 기준)
-PRICE_CHANGE_THRESHOLD = 0.20
-
-# 거래 비용 상수
-COMMISSION_RATE = 0.0005  # 0.05% / 체결당
-SLIPPAGE_RATE_PER_SIDE = 0.003  # 0.3% / 매수 or 매도 한 번
-
-# 손절 관련 상수
-MIN_LOOKBACK_FOR_LOW = 20  # 최근 저점 탐색 최소 기간
 
 
 @dataclass
@@ -35,8 +28,8 @@ class StrategyParams:
     short_window: int
     long_window: int
     stop_loss_pct: float = 0.10  # 최대 손실 허용 비율 (10%)
-    lookback_for_low: int = 20  # 최근 저점 탐색 기간
-    initial_capital: float = 10_000_000.0  # 초기 자본금
+    lookback_for_low: int = MIN_LOOKBACK_FOR_LOW  # 최근 저점 탐색 기간
+    initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
 
 
 def load_data(path: Path) -> pd.DataFrame:
@@ -216,7 +209,9 @@ def add_moving_averages(
 
     # 5. 유효 데이터 수 확인
     valid_rows = df["ma_long_sma"].notna().sum()
-    logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
+    logger.debug(
+        f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)"
+    )
 
     return df
 
@@ -300,8 +295,7 @@ def run_strategy(
                 sell_price_raw = row["Open"]
                 sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
                 sell_amount = position * sell_price
-                commission = sell_amount * COMMISSION_RATE
-                capital += sell_amount - commission
+                capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
                 trades.append(
                     {
@@ -310,7 +304,7 @@ def run_strategy(
                         "entry_price": entry_price,
                         "exit_price": sell_price,
                         "shares": position,
-                        "pnl": (sell_price - entry_price) * position - commission,
+                        "pnl": (sell_price - entry_price) * position,
                         "pnl_pct": (sell_price - entry_price) / entry_price,
                         "exit_reason": "stop_loss",
                     }
@@ -343,23 +337,21 @@ def run_strategy(
             buy_price_raw = next_row["Open"]
             buy_price = buy_price_raw * (1 + SLIPPAGE_RATE_PER_SIDE)
 
-            # 매수 가능 주식 수 계산 (수수료 고려)
+            # 매수 가능 주식 수 계산 (수수료 감안하여 보수적으로 계산)
             available_capital = capital / (1 + COMMISSION_RATE)
             shares = int(available_capital / buy_price)
 
             if shares > 0:
                 buy_amount = shares * buy_price
-                commission = buy_amount * COMMISSION_RATE
-                capital -= buy_amount + commission
+                # 슬리피지는 이미 buy_price에 반영됨, 수수료 차감 없음
+                capital -= buy_amount
 
                 position = shares
                 entry_price = buy_price
                 entry_date = next_row["Date"]
                 entry_idx = i + 1
 
-                logger.debug(
-                    f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}"
-                )
+                logger.debug(f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}")
 
         # 5-4. 매도 실행 (교차 신호에 의한 청산)
         elif sell_signal and position > 0 and i + 1 < len(df):
@@ -367,8 +359,7 @@ def run_strategy(
             sell_price_raw = next_row["Open"]
             sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
             sell_amount = position * sell_price
-            commission = sell_amount * COMMISSION_RATE
-            capital += sell_amount - commission
+            capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
             trades.append(
                 {
@@ -377,7 +368,7 @@ def run_strategy(
                     "entry_price": entry_price,
                     "exit_price": sell_price,
                     "shares": position,
-                    "pnl": (sell_price - entry_price) * position - commission,
+                    "pnl": (sell_price - entry_price) * position,
                     "pnl_pct": (sell_price - entry_price) / entry_price,
                     "exit_reason": "signal",
                 }
@@ -407,8 +398,7 @@ def run_strategy(
         last_row = df.iloc[-1]
         sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE_PER_SIDE)
         sell_amount = position * sell_price
-        commission = sell_amount * COMMISSION_RATE
-        capital += sell_amount - commission
+        capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
 
         trades.append(
             {
@@ -417,7 +407,7 @@ def run_strategy(
                 "entry_price": entry_price,
                 "exit_price": sell_price,
                 "shares": position,
-                "pnl": (sell_price - entry_price) * position - commission,
+                "pnl": (sell_price - entry_price) * position,
                 "pnl_pct": (sell_price - entry_price) / entry_price,
                 "exit_reason": "end_of_data",
             }
@@ -466,11 +456,12 @@ def run_buy_and_hold(
     # 1. 첫날 시가에 매수
     buy_price_raw = df.iloc[0]["Open"]
     buy_price = buy_price_raw * (1 + SLIPPAGE_RATE_PER_SIDE)
+    # 수수료 감안하여 보수적으로 매수 가능 수량 계산
     available_capital = initial_capital / (1 + COMMISSION_RATE)
     shares = int(available_capital / buy_price)
     buy_amount = shares * buy_price
-    commission_buy = buy_amount * COMMISSION_RATE
-    capital_after_buy = initial_capital - buy_amount - commission_buy
+    # 슬리피지는 이미 buy_price에 반영됨, 수수료 차감 없음
+    capital_after_buy = initial_capital - buy_amount
 
     # 2. 자본 곡선 계산
     equity_records = []
@@ -486,8 +477,8 @@ def run_buy_and_hold(
     sell_price_raw = df.iloc[-1]["Close"]
     sell_price = sell_price_raw * (1 - SLIPPAGE_RATE_PER_SIDE)
     sell_amount = shares * sell_price
-    commission_sell = sell_amount * COMMISSION_RATE
-    final_capital = capital_after_buy + sell_amount - commission_sell
+    # 슬리피지만 적용, 수수료 차감 없음
+    final_capital = capital_after_buy + sell_amount
 
     # 4. 요약 지표 계산
     total_return = final_capital - initial_capital
@@ -506,9 +497,9 @@ def run_buy_and_hold(
 
     # MDD 계산
     equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (
-        (equity_df["equity"] - equity_df["peak"]) / equity_df["peak"]
-    )
+    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df[
+        "peak"
+    ]
     mdd = equity_df["drawdown"].min() * 100
 
     summary = {
@@ -643,6 +634,318 @@ def run_grid_search(
     return results_df
 
 
+def generate_walkforward_windows(
+    df: pd.DataFrame,
+    train_years: int = 5,
+    test_years: int = 1,
+) -> list[dict]:
+    """
+    워킹 포워드 테스트를 위한 Train/Test 윈도우를 생성한다.
+
+    전체 데이터를 train_years + test_years 단위로 롤링하며 구간을 나눈다.
+
+    Args:
+        df: 주식 데이터 DataFrame (Date 컬럼 필수)
+        train_years: 학습 기간 (년)
+        test_years: 테스트 기간 (년)
+
+    Returns:
+        윈도우 정보 리스트 [{train_start, train_end, test_start, test_end}, ...]
+    """
+    from datetime import timedelta
+
+    logger.debug(f"워킹 포워드 윈도우 생성: train={train_years}년, test={test_years}년")
+
+    # 날짜를 datetime으로 변환
+    dates = pd.to_datetime(df["Date"])
+    start_date = dates.min()
+    end_date = dates.max()
+
+    windows = []
+    current_train_start = start_date
+
+    while True:
+        # Train 기간 계산
+        train_end = current_train_start + timedelta(days=train_years * 365)
+
+        # Test 기간 계산
+        test_start = train_end + timedelta(days=1)
+        test_end = test_start + timedelta(days=test_years * 365)
+
+        # 데이터 범위 초과 시 종료
+        if train_end > end_date:
+            break
+
+        # Test 기간이 데이터 범위를 초과하면 마지막 날까지로 조정
+        if test_end > end_date:
+            test_end = end_date
+
+        # Test 기간이 너무 짧으면 (최소 30일) 스킵
+        if (test_end - test_start).days < 30:
+            break
+
+        windows.append(
+            {
+                "train_start": current_train_start.date(),
+                "train_end": train_end.date(),
+                "test_start": test_start.date(),
+                "test_end": test_end.date(),
+            }
+        )
+
+        # 다음 윈도우로 이동 (test_years만큼 롤링)
+        current_train_start = current_train_start + timedelta(days=test_years * 365)
+
+    logger.debug(f"워킹 포워드 윈도우 생성 완료: {len(windows)}개 구간")
+
+    return windows
+
+
+def run_walkforward(
+    df: pd.DataFrame,
+    short_window_list: list[int],
+    long_window_list: list[int],
+    stop_loss_pct_list: list[float],
+    lookback_for_low_list: list[int],
+    train_years: int = 5,
+    test_years: int = 1,
+    initial_capital: float = 10_000_000.0,
+    selection_metric: str = "cagr",
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    워킹 포워드 테스트를 실행한다.
+
+    각 Train 구간에서 그리드 서치로 최적 파라미터를 선택하고,
+    Test 구간에 해당 파라미터로 백테스트를 실행한다.
+
+    Args:
+        df: 주식 데이터 DataFrame (load_data로 로드된 상태)
+        short_window_list: 단기 이동평균 기간 목록
+        long_window_list: 장기 이동평균 기간 목록
+        stop_loss_pct_list: 손절 비율 목록
+        lookback_for_low_list: 최근 저점 탐색 기간 목록
+        train_years: 학습 기간 (년)
+        test_years: 테스트 기간 (년)
+        initial_capital: 초기 자본금
+        selection_metric: 최적 파라미터 선택 기준 ("cagr", "total_return_pct", "mdd")
+
+    Returns:
+        tuple: (walkforward_results_df, combined_equity_df, summary)
+            - walkforward_results_df: 구간별 결과 DataFrame
+            - combined_equity_df: 연결된 자본 곡선 DataFrame
+            - summary: 전체 요약 지표
+    """
+    logger.debug(
+        f"워킹 포워드 테스트 시작: train={train_years}년, test={test_years}년, "
+        f"metric={selection_metric}"
+    )
+
+    # 1. 윈도우 생성
+    windows = generate_walkforward_windows(df, train_years, test_years)
+
+    if not windows:
+        raise ValueError(
+            "워킹 포워드 윈도우를 생성할 수 없습니다. 데이터 기간을 확인하세요."
+        )
+
+    # 날짜를 datetime.date로 변환
+    df = df.copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+
+    results = []
+    equity_segments = []
+    current_capital = initial_capital
+
+    # 2. 각 윈도우에 대해 Train/Test 실행
+    for idx, window in enumerate(windows):
+        logger.debug(
+            f"윈도우 {idx + 1}/{len(windows)}: "
+            f"Train {window['train_start']} ~ {window['train_end']}, "
+            f"Test {window['test_start']} ~ {window['test_end']}"
+        )
+
+        # 2-1. Train 데이터 추출
+        train_mask = (df["Date"] >= window["train_start"]) & (
+            df["Date"] <= window["train_end"]
+        )
+        train_df = df[train_mask].reset_index(drop=True)
+
+        if len(train_df) < 100:
+            logger.warning(f"윈도우 {idx + 1}: Train 데이터 부족 ({len(train_df)}행)")
+            continue
+
+        # 2-2. Train 구간 그리드 서치
+        try:
+            grid_results = run_grid_search(
+                train_df,
+                short_window_list,
+                long_window_list,
+                stop_loss_pct_list,
+                lookback_for_low_list,
+                initial_capital=current_capital,
+            )
+        except Exception as e:
+            logger.warning(f"윈도우 {idx + 1}: 그리드 서치 실패 - {e}")
+            continue
+
+        if grid_results.empty:
+            logger.warning(f"윈도우 {idx + 1}: 그리드 서치 결과 없음")
+            continue
+
+        # 2-3. 최적 파라미터 선택
+        if selection_metric == "mdd":
+            # MDD는 음수이므로 최대값(가장 작은 낙폭) 선택
+            best_idx = grid_results["mdd"].idxmax()
+        else:
+            # cagr, total_return_pct 등은 최대값 선택
+            best_idx = grid_results[selection_metric].idxmax()
+
+        best_params = grid_results.iloc[best_idx]
+
+        logger.debug(
+            f"윈도우 {idx + 1} 최적 파라미터: "
+            f"ma_type={best_params['ma_type']}, "
+            f"short={best_params['short_window']}, long={best_params['long_window']}, "
+            f"stop_loss={best_params['stop_loss_pct']}, lookback={best_params['lookback_for_low']}, "
+            f"{selection_metric}={best_params[selection_metric]:.2f}"
+        )
+
+        # 2-4. Test 데이터 추출
+        test_mask = (df["Date"] >= window["test_start"]) & (
+            df["Date"] <= window["test_end"]
+        )
+        test_df = df[test_mask].reset_index(drop=True)
+
+        if len(test_df) < 30:
+            logger.warning(f"윈도우 {idx + 1}: Test 데이터 부족 ({len(test_df)}행)")
+            continue
+
+        # 2-5. Test 구간 백테스트 실행
+        try:
+            test_df_with_ma = add_moving_averages(
+                test_df,
+                int(best_params["short_window"]),
+                int(best_params["long_window"]),
+            )
+
+            params = StrategyParams(
+                short_window=int(best_params["short_window"]),
+                long_window=int(best_params["long_window"]),
+                stop_loss_pct=float(best_params["stop_loss_pct"]),
+                lookback_for_low=int(best_params["lookback_for_low"]),
+                initial_capital=current_capital,
+            )
+
+            _, equity_df, test_summary = run_strategy(
+                test_df_with_ma,
+                params,
+                ma_type=best_params["ma_type"],
+            )
+        except Exception as e:
+            logger.warning(f"윈도우 {idx + 1}: Test 백테스트 실패 - {e}")
+            continue
+
+        # 2-6. 결과 기록
+        results.append(
+            {
+                "window_idx": idx + 1,
+                "train_start": window["train_start"],
+                "train_end": window["train_end"],
+                "test_start": window["test_start"],
+                "test_end": window["test_end"],
+                "best_ma_type": best_params["ma_type"],
+                "best_short_window": int(best_params["short_window"]),
+                "best_long_window": int(best_params["long_window"]),
+                "best_stop_loss_pct": float(best_params["stop_loss_pct"]),
+                "best_lookback_for_low": int(best_params["lookback_for_low"]),
+                "train_metric": float(best_params[selection_metric]),
+                "test_return_pct": test_summary["total_return_pct"],
+                "test_cagr": test_summary["cagr"],
+                "test_mdd": test_summary["mdd"],
+                "test_trades": test_summary["total_trades"],
+                "test_win_rate": test_summary["win_rate"],
+                "start_capital": current_capital,
+                "end_capital": test_summary["final_capital"],
+            }
+        )
+
+        # 2-7. 자본 곡선 연결
+        if not equity_df.empty:
+            equity_df = equity_df.copy()
+            equity_df["window_idx"] = idx + 1
+            equity_segments.append(equity_df)
+            current_capital = test_summary["final_capital"]
+
+    # 3. 결과 DataFrame 생성
+    walkforward_results_df = pd.DataFrame(results)
+
+    # 4. 자본 곡선 연결
+    if equity_segments:
+        combined_equity_df = pd.concat(equity_segments, ignore_index=True)
+    else:
+        combined_equity_df = pd.DataFrame()
+
+    # 5. 전체 요약 지표 계산
+    if not walkforward_results_df.empty:
+        final_capital = walkforward_results_df.iloc[-1]["end_capital"]
+        total_return = final_capital - initial_capital
+        total_return_pct = (total_return / initial_capital) * 100
+
+        # 기간 계산
+        first_test_start = pd.to_datetime(walkforward_results_df.iloc[0]["test_start"])
+        last_test_end = pd.to_datetime(walkforward_results_df.iloc[-1]["test_end"])
+        years = (last_test_end - first_test_start).days / 365.25
+
+        # CAGR
+        if years > 0:
+            cagr = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
+        else:
+            cagr = 0.0
+
+        # MDD (combined equity에서 계산)
+        if not combined_equity_df.empty:
+            combined_equity_df["peak"] = combined_equity_df["equity"].cummax()
+            combined_equity_df["drawdown"] = (
+                combined_equity_df["equity"] - combined_equity_df["peak"]
+            ) / combined_equity_df["peak"]
+            mdd = combined_equity_df["drawdown"].min() * 100
+        else:
+            mdd = 0.0
+
+        summary = {
+            "strategy": "walkforward",
+            "initial_capital": initial_capital,
+            "final_capital": final_capital,
+            "total_return": total_return,
+            "total_return_pct": total_return_pct,
+            "cagr": cagr,
+            "mdd": mdd,
+            "total_windows": len(walkforward_results_df),
+            "avg_test_return_pct": walkforward_results_df["test_return_pct"].mean(),
+            "selection_metric": selection_metric,
+            "train_years": train_years,
+            "test_years": test_years,
+        }
+    else:
+        summary = {
+            "strategy": "walkforward",
+            "initial_capital": initial_capital,
+            "final_capital": initial_capital,
+            "total_return": 0.0,
+            "total_return_pct": 0.0,
+            "cagr": 0.0,
+            "mdd": 0.0,
+            "total_windows": 0,
+        }
+
+    logger.debug(
+        f"워킹 포워드 테스트 완료: {len(results)}개 윈도우, "
+        f"총 수익률={summary['total_return_pct']:.2f}%"
+    )
+
+    return walkforward_results_df, combined_equity_df, summary
+
+
 def _calculate_summary(
     trades_df: pd.DataFrame,
     equity_df: pd.DataFrame,
@@ -691,9 +994,9 @@ def _calculate_summary(
     # MDD 계산
     equity_df = equity_df.copy()
     equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (
-        (equity_df["equity"] - equity_df["peak"]) / equity_df["peak"]
-    )
+    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df[
+        "peak"
+    ]
     mdd = equity_df["drawdown"].min() * 100
 
     # 거래 통계

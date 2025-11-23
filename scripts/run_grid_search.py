@@ -5,7 +5,6 @@ QQQ 파라미터 그리드 탐색 실행 스크립트
 """
 
 import sys
-from pathlib import Path
 
 from qbt.backtest import (
     DataValidationError,
@@ -13,22 +12,18 @@ from qbt.backtest import (
     run_grid_search,
     validate_data,
 )
+from qbt.backtest.config import (
+    DEFAULT_DATA_FILE,
+    DEFAULT_INITIAL_CAPITAL,
+    DEFAULT_LONG_WINDOW_LIST,
+    DEFAULT_LOOKBACK_FOR_LOW_LIST,
+    DEFAULT_SHORT_WINDOW_LIST,
+    DEFAULT_STOP_LOSS_PCT_LIST,
+)
 from qbt.utils import setup_logger
 
 # 로거 설정
 logger = setup_logger("run_grid_search", level="DEBUG")
-
-# 데이터 파일 경로
-DATA_PATH_QQQ = Path("data/raw/QQQ_max.csv")
-
-# 그리드 탐색 파라미터 (plan.md 기준)
-SHORT_WINDOW_LIST = [5, 10, 20]
-LONG_WINDOW_LIST = [50, 100, 200]
-STOP_LOSS_PCT_LIST = [0.05, 0.1]
-LOOKBACK_FOR_LOW_LIST = [20, 30, 60]
-
-# 초기 자본금
-INITIAL_CAPITAL = 10_000_000.0
 
 
 def print_top_results(results_df, title: str, top_n: int = 10) -> None:
@@ -129,8 +124,8 @@ def main() -> int:
 
     try:
         # 1. 데이터 로딩
-        logger.debug(f"데이터 파일 경로: {DATA_PATH_QQQ}")
-        df = load_data(DATA_PATH_QQQ)
+        logger.debug(f"데이터 파일 경로: {DEFAULT_DATA_FILE}")
+        df = load_data(DEFAULT_DATA_FILE)
 
         # 2. 데이터 유효성 검증
         validate_data(df)
@@ -144,18 +139,18 @@ def main() -> int:
 
         # 4. 그리드 탐색 실행
         logger.debug("\n그리드 탐색 파라미터:")
-        logger.debug(f"  - short_window: {SHORT_WINDOW_LIST}")
-        logger.debug(f"  - long_window: {LONG_WINDOW_LIST}")
-        logger.debug(f"  - stop_loss_pct: {STOP_LOSS_PCT_LIST}")
-        logger.debug(f"  - lookback_for_low: {LOOKBACK_FOR_LOW_LIST}")
+        logger.debug(f"  - short_window: {DEFAULT_SHORT_WINDOW_LIST}")
+        logger.debug(f"  - long_window: {DEFAULT_LONG_WINDOW_LIST}")
+        logger.debug(f"  - stop_loss_pct: {DEFAULT_STOP_LOSS_PCT_LIST}")
+        logger.debug(f"  - lookback_for_low: {DEFAULT_LOOKBACK_FOR_LOW_LIST}")
 
         results_df = run_grid_search(
             df=df,
-            short_window_list=SHORT_WINDOW_LIST,
-            long_window_list=LONG_WINDOW_LIST,
-            stop_loss_pct_list=STOP_LOSS_PCT_LIST,
-            lookback_for_low_list=LOOKBACK_FOR_LOW_LIST,
-            initial_capital=INITIAL_CAPITAL,
+            short_window_list=DEFAULT_SHORT_WINDOW_LIST,
+            long_window_list=DEFAULT_LONG_WINDOW_LIST,
+            stop_loss_pct_list=DEFAULT_STOP_LOSS_PCT_LIST,
+            lookback_for_low_list=DEFAULT_LOOKBACK_FOR_LOW_LIST,
+            initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
         # 5. 상위 결과 출력
