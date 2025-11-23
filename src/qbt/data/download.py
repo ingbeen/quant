@@ -17,7 +17,7 @@ def download_stock_data(
     end_date: str | None = None,
 ) -> Path:
     """
-    주식 데이터를 다운로드하고 CSV로 저장 (Date, Open, Close, Volume만 포함)
+    주식 데이터를 다운로드하고 CSV로 저장 (Date, Open, High, Low, Close, Volume 포함)
 
     Args:
         ticker: 주식 티커 (예: QQQ, SPY)
@@ -55,8 +55,8 @@ def download_stock_data(
         df.reset_index(inplace=True)
         df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
-        # 6. 필요한 컬럼만 선택 (Date, Open, Close, Volume)
-        required_columns = ["Date", "Open", "Close", "Volume"]
+        # 6. 필요한 컬럼만 선택 (Date, Open, High, Low, Close, Volume)
+        required_columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
         df = df[required_columns]
 
         # 7. 최근 데이터 필터링 (오늘 포함 최근 2일 제외)
