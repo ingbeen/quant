@@ -22,10 +22,8 @@ PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
 # 급등락 임계값 (절대값 기준, 20%)
 PRICE_CHANGE_THRESHOLD = 0.20
 
-# 거래 비용 상수
-# COMMISSION_RATE: 매수 가능 수량 계산 시에만 사용 (실제 거래 비용에서는 차감하지 않음)
-COMMISSION_RATE = 0.0005  # 0.05% / 체결당
-SLIPPAGE_RATE = 0.003  # 0.3% / 매수 or 매도 1회 (실제 가격에 적용)
+# 거래 비용 상수 (슬리피지에 수수료 포함)
+SLIPPAGE_RATE = 0.003  # 0.3% / 매수 or 매도 1회
 
 # 손절 관련 상수
 MIN_LOOKBACK_FOR_LOW = 20  # 최근 저점 탐색 최소 기간

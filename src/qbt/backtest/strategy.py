@@ -7,7 +7,6 @@ from typing import Literal
 import pandas as pd
 
 from qbt.backtest.config import (
-    COMMISSION_RATE,
     DEFAULT_INITIAL_CAPITAL,
     MIN_LOOKBACK_FOR_LOW,
     SLIPPAGE_RATE,
@@ -159,7 +158,7 @@ def run_strategy(
                 sell_price_raw = row["Open"]
                 sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
                 sell_amount = position * sell_price
-                capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
+                capital += sell_amount
 
                 trades.append(
                     {
@@ -201,13 +200,11 @@ def run_strategy(
             buy_price_raw = next_row["Open"]
             buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
 
-            # 매수 가능 주식 수 계산 (수수료 감안하여 보수적으로 계산)
-            available_capital = capital / (1 + COMMISSION_RATE)
-            shares = int(available_capital / buy_price)
+            # 매수 가능 주식 수 계산
+            shares = int(capital / buy_price)
 
             if shares > 0:
                 buy_amount = shares * buy_price
-                # 슬리피지는 이미 buy_price에 반영됨, 수수료 차감 없음
                 capital -= buy_amount
 
                 position = shares
@@ -223,7 +220,7 @@ def run_strategy(
             sell_price_raw = next_row["Open"]
             sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
             sell_amount = position * sell_price
-            capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
+            capital += sell_amount
 
             trades.append(
                 {
@@ -262,7 +259,7 @@ def run_strategy(
         last_row = df.iloc[-1]
         sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE)
         sell_amount = position * sell_price
-        capital += sell_amount  # 슬리피지만 적용, 수수료 차감 없음
+        capital += sell_amount
 
         trades.append(
             {
@@ -320,11 +317,8 @@ def run_buy_and_hold(
     # 1. 첫날 시가에 매수
     buy_price_raw = df.iloc[0]["Open"]
     buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
-    # 수수료 감안하여 보수적으로 매수 가능 수량 계산
-    available_capital = initial_capital / (1 + COMMISSION_RATE)
-    shares = int(available_capital / buy_price)
+    shares = int(initial_capital / buy_price)
     buy_amount = shares * buy_price
-    # 슬리피지는 이미 buy_price에 반영됨, 수수료 차감 없음
     capital_after_buy = initial_capital - buy_amount
 
     # 2. 자본 곡선 계산
@@ -341,7 +335,6 @@ def run_buy_and_hold(
     sell_price_raw = df.iloc[-1]["Close"]
     sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
     sell_amount = shares * sell_price
-    # 슬리피지만 적용, 수수료 차감 없음
     final_capital = capital_after_buy + sell_amount
 
     # 4. 요약 지표 계산
