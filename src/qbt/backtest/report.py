@@ -348,7 +348,7 @@ def generate_html_report(
             <tr><td>Stop Loss %</td><td>{params.get('stop_loss_pct', 0) * 100:.1f}%</td></tr>
             <tr><td>Lookback for Low</td><td>{params.get('lookback_for_low', 'N/A')}</td></tr>
         </table>
-        """
+        """  # noqa: E501
 
     # 그리드 서치 결과
     grid_html = ""
@@ -423,7 +423,7 @@ def generate_html_report(
     for ma_type in ["sma", "ema"]:
         heatmap_img = result_dir / f"grid_heatmap_{ma_type}.png"
         if heatmap_img.exists():
-            images_html += f'<img src="grid_heatmap_{ma_type}.png" alt="Grid Heatmap {ma_type.upper()}" style="max-width:100%;">'
+            images_html += f'<img src="grid_heatmap_{ma_type}.png" alt="Grid Heatmap {ma_type.upper()}" style="max-width:100%;">'  # noqa: E501
 
     html_content = f"""
 <!DOCTYPE html>
@@ -477,7 +477,7 @@ def generate_html_report(
 
 </body>
 </html>
-    """
+    """  # noqa: E501
 
     file_path = result_dir / f"report_{run_id}.html"
     with open(file_path, "w", encoding="utf-8") as f:

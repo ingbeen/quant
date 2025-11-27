@@ -17,6 +17,7 @@ from qbt.backtest.config import (
     DEFAULT_STOP_LOSS_PCT_LIST,
 )
 from qbt.utils import load_and_validate_data, setup_logger
+from qbt.utils.cli import format_cell
 
 # 로거 설정
 logger = setup_logger("run_walkforward", level="DEBUG")
@@ -61,33 +62,73 @@ def parse_args():
 
 def print_window_results(results_df) -> None:
     """구간별 결과를 출력한다."""
-    logger.debug("=" * 100)
+    # 컬럼 폭 정의
+    col_window = 8  # "윈도우" (6칸)
+    col_train = 26  # "Train 기간" (20칸)
+    col_test = 26  # "Test 기간" (18칸)
+    col_ma = 6  # "MA" (2칸)
+    col_short = 8  # "Short" (5칸)
+    col_long = 8  # "Long" (4칸)
+    col_return = 14  # "Test수익률" (20칸)
+    col_mdd = 14  # "Test MDD" (16칸)
+
+    total_width = (
+        col_window
+        + col_train
+        + col_test
+        + col_ma
+        + col_short
+        + col_long
+        + col_return
+        + col_mdd
+    )
+
+    logger.debug("=" * total_width)
     logger.debug("[구간별 워킹 포워드 결과]")
-    logger.debug("=" * 100)
+    logger.debug("=" * total_width)
 
     if results_df.empty:
         logger.debug("결과 없음")
         return
 
+    # 헤더
     header = (
-        f"{'윈도우':>6} {'Train 기간':>24} {'Test 기간':>24} "
-        f"{'MA':>4} {'Short':>6} {'Long':>6} {'Test수익률':>10} {'Test MDD':>10}"
+        format_cell("윈도우", col_window, "right")
+        + format_cell("Train 기간", col_train, "right")
+        + format_cell("Test 기간", col_test, "right")
+        + format_cell("MA", col_ma, "right")
+        + format_cell("Short", col_short, "right")
+        + format_cell("Long", col_long, "right")
+        + format_cell("Test수익률", col_return, "right")
+        + format_cell("Test MDD", col_mdd, "right")
     )
     logger.debug(header)
-    logger.debug("-" * 100)
+    logger.debug("-" * total_width)
 
+    # 데이터 행
     for _, row in results_df.iterrows():
+        window_str = str(row["window_idx"])
         train_period = f"{row['train_start']} ~ {row['train_end']}"
         test_period = f"{row['test_start']} ~ {row['test_end']}"
+        ma_str = row["best_ma_type"].upper()
+        short_str = str(row["best_short_window"])
+        long_str = str(row["best_long_window"])
+        return_str = f"{row['test_return_pct']:.2f}%"
+        mdd_str = f"{row['test_mdd']:.2f}%"
+
         line = (
-            f"{row['window_idx']:>6} {train_period:>24} {test_period:>24} "
-            f"{row['best_ma_type'].upper():>4} {row['best_short_window']:>6} "
-            f"{row['best_long_window']:>6} {row['test_return_pct']:>9.2f}% "
-            f"{row['test_mdd']:>9.2f}%"
+            format_cell(window_str, col_window, "right")
+            + format_cell(train_period, col_train, "right")
+            + format_cell(test_period, col_test, "right")
+            + format_cell(ma_str, col_ma, "right")
+            + format_cell(short_str, col_short, "right")
+            + format_cell(long_str, col_long, "right")
+            + format_cell(return_str, col_return, "right")
+            + format_cell(mdd_str, col_mdd, "right")
         )
         logger.debug(line)
 
-    logger.debug("=" * 100)
+    logger.debug("=" * total_width)
 
 
 def print_summary(wf_summary: dict, bh_summary: dict) -> None:

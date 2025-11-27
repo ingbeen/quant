@@ -9,6 +9,59 @@ from pathlib import Path
 import pandas as pd
 
 
+def get_display_width(text: str) -> int:
+    """
+    문자열의 실제 터미널 출력 폭을 계산한다.
+
+    한글, 한자 등 동아시아 문자는 2칸, 영문/숫자/기호는 1칸으로 계산한다.
+
+    Args:
+        text: 폭을 계산할 문자열
+
+    Returns:
+        터미널에서 차지하는 실제 폭 (칸 수)
+    """
+    width = 0
+    for char in text:
+        # 한글, 한자 등 동아시아 문자는 2칸
+        if ord(char) > 0x1100:
+            width += 2
+        else:
+            width += 1
+    return width
+
+
+def format_cell(text: str, width: int, align: str = "left") -> str:
+    """
+    터미널 폭을 고려하여 문자열을 정렬한다.
+
+    한글과 영문이 섞인 문자열도 올바르게 정렬한다.
+
+    Args:
+        text: 정렬할 문자열
+        width: 목표 폭 (칸 수)
+        align: 정렬 방향 ("left", "right", "center")
+
+    Returns:
+        정렬된 문자열
+    """
+    text_str = str(text)
+    current_width = get_display_width(text_str)
+    padding = width - current_width
+
+    if padding <= 0:
+        return text_str
+
+    if align == "left":
+        return text_str + " " * padding
+    elif align == "right":
+        return " " * padding + text_str
+    else:  # center
+        left_pad = padding // 2
+        right_pad = padding - left_pad
+        return " " * left_pad + text_str + " " * right_pad
+
+
 def load_and_validate_data(data_path: Path, logger: Logger) -> pd.DataFrame | None:
     """
     데이터를 로드하고 검증한다.
@@ -106,16 +159,46 @@ def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) ->
         summaries: [(전략명, summary_dict), ...] 리스트
         logger: 로거 인스턴스
     """
-    logger.debug("\n" + "=" * 60)
+    # 컬럼 폭 정의 (터미널 칸 수 기준)
+    col_strategy = 20  # "전략" (4칸) + 여유
+    col_return = 12  # "총수익률" (8칸) + 숫자
+    col_cagr = 10  # "CAGR" (4칸) + 숫자
+    col_mdd = 10  # "MDD" (6칸) + 숫자
+    col_trades = 10  # "거래수" (6칸) + 숫자
+
+    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
+    total_width = 2 + col_strategy + col_return + col_cagr + col_mdd + col_trades
+
+    logger.debug("\n" + "=" * total_width)
     logger.debug("[전략 비교 요약]")
-    logger.debug(
-        f"  {'전략':<15} {'총수익률':>10} {'CAGR':>10} {'MDD':>10} {'거래수':>8}"
+
+    # 헤더 출력
+    header = (
+        "  "
+        + format_cell("전략", col_strategy, "left")
+        + format_cell("총수익률", col_return, "right")
+        + format_cell("CAGR", col_cagr, "right")
+        + format_cell("MDD", col_mdd, "right")
+        + format_cell("거래수", col_trades, "right")
     )
-    logger.debug("-" * 60)
+    logger.debug(header)
+    logger.debug("-" * total_width)
+
+    # 데이터 행 출력
     for name, summary in summaries:
-        logger.debug(
-            f"  {name:<15} {summary['total_return_pct']:>9.2f}% "
-            f"{summary['cagr']:>9.2f}% {summary['mdd']:>9.2f}% "
-            f"{summary['total_trades']:>8}"
+        return_str = f"{summary['total_return_pct']:.2f}%"
+        cagr_str = f"{summary['cagr']:.2f}%"
+        mdd_str = f"{summary['mdd']:.2f}%"
+        trades_str = str(summary['total_trades'])
+
+        row = (
+            "  "
+            + format_cell(name, col_strategy, "left")
+            + format_cell(return_str, col_return, "right")
+            + format_cell(cagr_str, col_cagr, "right")
+            + format_cell(mdd_str, col_mdd, "right")
+            + format_cell(trades_str, col_trades, "right")
         )
-    logger.debug("=" * 60)
+        logger.debug(row)
+
+    logger.debug("=" * total_width)

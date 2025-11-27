@@ -17,6 +17,7 @@ from qbt.backtest.config import (
     DEFAULT_STOP_LOSS_PCT_LIST,
 )
 from qbt.utils import load_and_validate_data, setup_logger
+from qbt.utils.cli import format_cell
 
 # 로거 설정
 logger = setup_logger("run_grid_search", level="DEBUG")
@@ -24,41 +25,98 @@ logger = setup_logger("run_grid_search", level="DEBUG")
 
 def print_top_results(results_df, title: str, top_n: int = 10) -> None:
     """상위 결과를 출력한다."""
-    logger.debug("=" * 80)
+    # 컬럼 폭 정의
+    col_rank = 6  # "순위" (4칸)
+    col_ma = 6  # "MA" (2칸)
+    col_short = 8  # "Short" (5칸)
+    col_long = 8  # "Long" (4칸)
+    col_stop = 8  # "손절%" (6칸)
+    col_lookback = 10  # "Lookback" (8칸)
+    col_return = 12  # "수익률" (6칸)
+    col_cagr = 10  # "CAGR" (4칸)
+    col_mdd = 10  # "MDD" (6칸)
+    col_trades = 8  # "거래수" (6칸)
+    col_winrate = 8  # "승률" (4칸)
+
+    total_width = (
+        col_rank
+        + col_ma
+        + col_short
+        + col_long
+        + col_stop
+        + col_lookback
+        + col_return
+        + col_cagr
+        + col_mdd
+        + col_trades
+        + col_winrate
+    )
+
+    logger.debug("=" * total_width)
     logger.debug(f"[{title}] 상위 {top_n}개 결과")
-    logger.debug("=" * 80)
+    logger.debug("=" * total_width)
 
     if results_df.empty:
         logger.debug("결과 없음")
         return
 
+    # 헤더
     header = (
-        f"{'순위':>4} {'MA':>4} {'Short':>6} {'Long':>6} "
-        f"{'손절%':>6} {'Lookback':>8} {'수익률':>10} {'CAGR':>8} "
-        f"{'MDD':>8} {'거래수':>6} {'승률':>6}"
+        format_cell("순위", col_rank, "right")
+        + format_cell("MA", col_ma, "right")
+        + format_cell("Short", col_short, "right")
+        + format_cell("Long", col_long, "right")
+        + format_cell("손절%", col_stop, "right")
+        + format_cell("Lookback", col_lookback, "right")
+        + format_cell("수익률", col_return, "right")
+        + format_cell("CAGR", col_cagr, "right")
+        + format_cell("MDD", col_mdd, "right")
+        + format_cell("거래수", col_trades, "right")
+        + format_cell("승률", col_winrate, "right")
     )
     logger.debug(header)
-    logger.debug("-" * 80)
+    logger.debug("-" * total_width)
 
+    # 데이터 행
     for idx, row in results_df.head(top_n).iterrows():
+        rank_str = str(idx + 1)
+        ma_str = row["ma_type"].upper()
+        short_str = str(row["short_window"])
+        long_str = str(row["long_window"])
+        stop_str = f"{row['stop_loss_pct'] * 100:.0f}%"
+        lookback_str = str(row["lookback_for_low"])
+        return_str = f"{row['total_return_pct']:.2f}%"
+        cagr_str = f"{row['cagr']:.2f}%"
+        mdd_str = f"{row['mdd']:.2f}%"
+        trades_str = str(row["total_trades"])
+        winrate_str = f"{row['win_rate']:.1f}%"
+
         line = (
-            f"{idx + 1:>4} {row['ma_type'].upper():>4} "
-            f"{row['short_window']:>6} {row['long_window']:>6} "
-            f"{row['stop_loss_pct'] * 100:>5.0f}% {row['lookback_for_low']:>8} "
-            f"{row['total_return_pct']:>9.2f}% {row['cagr']:>7.2f}% "
-            f"{row['mdd']:>7.2f}% {row['total_trades']:>6} "
-            f"{row['win_rate']:>5.1f}%"
+            format_cell(rank_str, col_rank, "right")
+            + format_cell(ma_str, col_ma, "right")
+            + format_cell(short_str, col_short, "right")
+            + format_cell(long_str, col_long, "right")
+            + format_cell(stop_str, col_stop, "right")
+            + format_cell(lookback_str, col_lookback, "right")
+            + format_cell(return_str, col_return, "right")
+            + format_cell(cagr_str, col_cagr, "right")
+            + format_cell(mdd_str, col_mdd, "right")
+            + format_cell(trades_str, col_trades, "right")
+            + format_cell(winrate_str, col_winrate, "right")
         )
         logger.debug(line)
 
-    logger.debug("=" * 80)
+    logger.debug("=" * total_width)
 
 
 def print_summary_stats(results_df) -> None:
     """결과 요약 통계를 출력한다."""
-    logger.debug("\n" + "=" * 80)
+    # "요약 통계" = 8칸
+    title_width = 60
+
+    logger.debug("\n" + "=" * title_width)
     logger.debug("[요약 통계]")
-    logger.debug("=" * 80)
+    logger.debug("=" * title_width)
 
     if results_df.empty:
         logger.debug("결과 없음")
@@ -106,7 +164,7 @@ def print_summary_stats(results_df) -> None:
         f"({positive_returns / len(results_df) * 100:.1f}%)"
     )
 
-    logger.debug("=" * 80)
+    logger.debug("=" * title_width)
 
 
 def main() -> int:

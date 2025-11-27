@@ -212,7 +212,9 @@ def run_strategy(
                 entry_date = next_row["Date"]
                 entry_idx = i + 1
 
-                # logger.debug(f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}")
+                # logger.debug(
+                #     f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}"
+                # )
 
         # 5-4. 매도 실행 (교차 신호에 의한 청산)
         elif sell_signal and position > 0 and i + 1 < len(df):
@@ -235,10 +237,10 @@ def run_strategy(
                 }
             )
 
-            logger.debug(
-                f"매도: {next_row['Date']}, 가격={sell_price:.2f}, "
-                f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
-            )
+            # logger.debug(
+            #     f"매도: {next_row['Date']}, 가격={sell_price:.2f}, "
+            #     f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
+            # )
 
             position = 0
             entry_price = 0.0
