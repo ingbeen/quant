@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal
+from typing import Literal, cast
 
 import pandas as pd
 
@@ -442,7 +442,8 @@ def run_grid_search(
                     )
 
                     # 3. SMA, EMA 전략 실행
-                    for ma_type in ["sma", "ema"]:
+                    ma_types: list[Literal["sma", "ema"]] = ["sma", "ema"]
+                    for ma_type in ma_types:
                         current += 1
                         try:
                             _, _, summary = run_strategy(
@@ -650,10 +651,10 @@ def run_walkforward(
         # 2-3. 최적 파라미터 선택
         if selection_metric == "mdd":
             # MDD는 음수이므로 최대값(가장 작은 낙폭) 선택
-            best_idx = grid_results["mdd"].idxmax()
+            best_idx = int(grid_results["mdd"].idxmax())
         else:
             # cagr, total_return_pct 등은 최대값 선택
-            best_idx = grid_results[selection_metric].idxmax()
+            best_idx = int(grid_results[selection_metric].idxmax())
 
         best_params = grid_results.iloc[best_idx]
 
@@ -692,10 +693,11 @@ def run_walkforward(
                 initial_capital=current_capital,
             )
 
+            ma_type = cast(Literal["sma", "ema"], best_params["ma_type"])
             _, equity_df, test_summary = run_strategy(
                 test_df_with_ma,
                 params,
-                ma_type=best_params["ma_type"],
+                ma_type=ma_type,
             )
         except Exception as e:
             logger.warning(f"윈도우 {idx + 1}: Test 백테스트 실패 - {e}")

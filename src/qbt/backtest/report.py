@@ -274,8 +274,8 @@ def plot_grid_heatmap(
     plt.imshow(pivot.values, cmap="RdYlGn", aspect="auto")
     plt.colorbar(label=metric)
 
-    plt.xticks(range(len(pivot.columns)), pivot.columns)
-    plt.yticks(range(len(pivot.index)), pivot.index)
+    plt.xticks(range(len(pivot.columns)), pivot.columns.tolist())
+    plt.yticks(range(len(pivot.index)), pivot.index.tolist())
     plt.xlabel("Long Window")
     plt.ylabel("Short Window")
     plt.title(f"Grid Search Heatmap ({ma_type.upper()}) - {metric}")
