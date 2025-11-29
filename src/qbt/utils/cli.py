@@ -142,15 +142,59 @@ def print_trades(
         logger.debug(f"[{title}] 거래 내역 없음")
         return
 
-    logger.debug(f"[{title}] 거래 내역 (최근 {max_rows}건):")
+    # 컬럼 폭 정의 (터미널 칸 수 기준)
+    col_entry_date = 12  # "진입일" (6칸) + YYYY-MM-DD
+    col_exit_date = 12  # "청산일" (6칸) + YYYY-MM-DD
+    col_entry_price = 12  # "진입가" (6칸) + 숫자
+    col_exit_price = 12  # "청산가" (6칸) + 숫자
+    col_pnl = 14  # "손익률" (6칸) + 숫자 + %
+    col_reason = 16  # "사유" (4칸) + 텍스트
+
+    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
+    total_width = (
+        2
+        + col_entry_date
+        + col_exit_date
+        + col_entry_price
+        + col_exit_price
+        + col_pnl
+        + col_reason
+    )
+
+    logger.debug("=" * total_width)
+    logger.debug(f"[{title}] 거래 내역 (최근 {max_rows}건)")
+
+    # 헤더 출력
+    header = (
+        "  "
+        + format_cell("진입일", col_entry_date, "left")
+        + format_cell("청산일", col_exit_date, "left")
+        + format_cell("진입가", col_entry_price, "right")
+        + format_cell("청산가", col_exit_price, "right")
+        + format_cell("손익률", col_pnl, "right")
+        + format_cell("사유", col_reason, "right")
+    )
+    logger.debug(header)
+    logger.debug("-" * total_width)
+
+    # 데이터 행 출력
     for _, trade in trades_df.tail(max_rows).iterrows():
-        logger.debug(
-            f"  {trade['entry_date']} -> {trade['exit_date']} | "
-            f"진입: {trade['entry_price']:.2f} | "
-            f"청산: {trade['exit_price']:.2f} | "
-            f"손익률: {trade['pnl_pct'] * 100:+.2f}% | "
-            f"사유: {trade['exit_reason']}"
+        entry_price_str = f"{trade['entry_price']:.2f}"
+        exit_price_str = f"{trade['exit_price']:.2f}"
+        pnl_str = f"{trade['pnl_pct'] * 100:+.2f}%"
+
+        row = (
+            "  "
+            + format_cell(str(trade["entry_date"]), col_entry_date, "left")
+            + format_cell(str(trade["exit_date"]), col_exit_date, "left")
+            + format_cell(entry_price_str, col_entry_price, "right")
+            + format_cell(exit_price_str, col_exit_price, "right")
+            + format_cell(pnl_str, col_pnl, "right")
+            + format_cell(trade["exit_reason"], col_reason, "right")
         )
+        logger.debug(row)
+
+    logger.debug("=" * total_width)
 
 
 def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) -> None:
