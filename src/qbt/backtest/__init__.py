@@ -17,12 +17,10 @@ from qbt.backtest.report import (
 from qbt.backtest.strategy import (
     BufferStrategyParams,
     StrategyParams,
-    add_moving_averages,
     add_single_moving_average,
     run_buffer_strategy,
     run_buy_and_hold,
     run_grid_search,
-    run_strategy,
 )
 
 __all__ = [
@@ -30,9 +28,7 @@ __all__ = [
     "load_data",
     "validate_data",
     # Strategy functions
-    "add_moving_averages",
     "add_single_moving_average",
-    "run_strategy",
     "run_buffer_strategy",
     "run_buy_and_hold",
     "run_grid_search",

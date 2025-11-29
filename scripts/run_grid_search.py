@@ -133,7 +133,9 @@ def print_summary_stats(results_df) -> None:
 
     # 양수 수익률 비율
     positive_returns = len(results_df[results_df["total_return_pct"] > 0])
-    logger.debug(f"\n양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)")
+    logger.debug(
+        f"\n양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)"
+    )
 
     logger.debug("=" * title_width)
 

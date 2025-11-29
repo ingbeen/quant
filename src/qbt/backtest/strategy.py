@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal
 
 import pandas as pd
 
@@ -33,216 +32,6 @@ class StrategyParams:
     stop_loss_pct: float = 0.10  # 최대 손실 허용 비율 (10%)
     lookback_for_low: int = MIN_LOOKBACK_FOR_LOW  # 최근 저점 탐색 기간
     initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
-
-
-def run_strategy(
-    df: pd.DataFrame,
-    params: StrategyParams,
-    ma_type: Literal["sma", "ema"] = "sma",
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """
-    이동평균 교차 전략으로 백테스트를 실행한다.
-
-    롱 온리, 최대 1 포지션 전략을 사용한다.
-    신호 발생 다음 날 시가에 진입/청산하며, 손절 규칙과 거래 비용을 적용한다.
-
-    Args:
-        df: 이동평균이 계산된 DataFrame (add_moving_averages 적용 필수)
-        params: 전략 파라미터
-        ma_type: 이동평균 유형 ("sma" 또는 "ema")
-
-    Returns:
-        tuple: (trades_df, equity_df, summary)
-            - trades_df: 거래 내역 DataFrame
-            - equity_df: 자본 곡선 DataFrame
-            - summary: 요약 지표 딕셔너리
-    """
-    logger.debug(f"전략 실행 시작: ma_type={ma_type}, params={params}")
-
-    # 1. 이동평균 컬럼명 설정
-    ma_short_col = f"ma_short_{ma_type}"
-    ma_long_col = f"ma_long_{ma_type}"
-
-    # 2. 필수 컬럼 확인
-    required_cols = [ma_short_col, ma_long_col, "Open", "Close", "Low", "Date"]
-    missing = set(required_cols) - set(df.columns)
-    if missing:
-        raise ValueError(f"필수 컬럼 누락: {missing}")
-
-    # 3. 유효 데이터만 사용 (long_window 이후부터)
-    df = df.copy()
-    df = df[df[ma_long_col].notna()].reset_index(drop=True)
-
-    # 4. 초기화
-    capital = params.initial_capital
-    position = 0  # 보유 주식 수
-    entry_price = 0.0  # 진입 가격
-    entry_date = None  # 진입 날짜
-    entry_idx = 0  # 진입 인덱스
-
-    trades = []  # 거래 내역
-    equity_records = []  # 자본 곡선
-
-    # 손절 파라미터
-    effective_lookback = max(params.lookback_for_low, MIN_LOOKBACK_FOR_LOW)
-
-    # 5. 백테스트 루프 (인덱스 1부터 시작 - 전일 비교 필요)
-    for i in range(1, len(df)):
-        row = df.iloc[i]
-        prev_row = df.iloc[i - 1]
-        current_date = row["Date"]
-
-        # 5-1. 포지션 보유 중 손절 체크
-        if position > 0:
-            # 진입 후 경과 일수 계산
-            days_held = i - entry_idx
-
-            # 최근 저점 계산 (Low 기준)
-            lookback_start = max(entry_idx, i - effective_lookback)
-            if days_held < effective_lookback:
-                # 진입 후 경과 일수가 lookback보다 작으면 진입 이후 데이터만 사용
-                lookback_start = entry_idx
-            recent_low = df.iloc[lookback_start : i + 1]["Low"].min()
-
-            # 손절 가격 계산
-            hard_stop = entry_price * (1 - params.stop_loss_pct)
-            stop_price = max(recent_low, hard_stop)
-
-            # 전일 종가가 손절 가격 이하면 다음 날 시가에 손절
-            if prev_row["Close"] <= stop_price:
-                # 손절 매도 (당일 시가)
-                sell_price_raw = row["Open"]
-                sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
-                sell_amount = position * sell_price
-                capital += sell_amount
-
-                trades.append(
-                    {
-                        "entry_date": entry_date,
-                        "exit_date": current_date,
-                        "entry_price": entry_price,
-                        "exit_price": sell_price,
-                        "shares": position,
-                        "pnl": (sell_price - entry_price) * position,
-                        "pnl_pct": (sell_price - entry_price) / entry_price,
-                        "exit_reason": "stop_loss",
-                    }
-                )
-
-                # logger.debug(
-                #     f"손절 매도: {current_date}, 가격={sell_price:.2f}, "
-                #     f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
-                # )
-
-                position = 0
-                entry_price = 0.0
-                entry_date = None
-
-        # 5-2. 매매 신호 확인
-        prev_short = prev_row[ma_short_col]
-        prev_long = prev_row[ma_long_col]
-        curr_short = row[ma_short_col]
-        curr_long = row[ma_long_col]
-
-        # 골든 크로스 (매수 신호): 전일 short <= long, 당일 short > long
-        buy_signal = (prev_short <= prev_long) and (curr_short > curr_long)
-
-        # 데드 크로스 (매도 신호): 전일 short >= long, 당일 short < long
-        sell_signal = (prev_short >= prev_long) and (curr_short < curr_long)
-
-        # 5-3. 매수 실행 (다음 날 시가에 진입이므로, 신호 당일에 기록)
-        if buy_signal and position == 0 and i + 1 < len(df):
-            next_row = df.iloc[i + 1]
-            buy_price_raw = next_row["Open"]
-            buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
-
-            # 매수 가능 주식 수 계산
-            shares = int(capital / buy_price)
-
-            if shares > 0:
-                buy_amount = shares * buy_price
-                capital -= buy_amount
-
-                position = shares
-                entry_price = buy_price
-                entry_date = next_row["Date"]
-                entry_idx = i + 1
-
-                # logger.debug(
-                #     f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}"
-                # )
-
-        # 5-4. 매도 실행 (교차 신호에 의한 청산)
-        elif sell_signal and position > 0 and i + 1 < len(df):
-            next_row = df.iloc[i + 1]
-            sell_price_raw = next_row["Open"]
-            sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
-            sell_amount = position * sell_price
-            capital += sell_amount
-
-            trades.append(
-                {
-                    "entry_date": entry_date,
-                    "exit_date": next_row["Date"],
-                    "entry_price": entry_price,
-                    "exit_price": sell_price,
-                    "shares": position,
-                    "pnl": (sell_price - entry_price) * position,
-                    "pnl_pct": (sell_price - entry_price) / entry_price,
-                    "exit_reason": "signal",
-                }
-            )
-
-            # logger.debug(
-            #     f"매도: {next_row['Date']}, 가격={sell_price:.2f}, "
-            #     f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
-            # )
-
-            position = 0
-            entry_price = 0.0
-            entry_date = None
-
-        # 5-5. 자본 곡선 기록
-        if position > 0:
-            equity = capital + position * row["Close"]
-        else:
-            equity = capital
-
-        equity_records.append({"Date": current_date, "equity": equity, "position": position})
-
-    # 6. 마지막 포지션 청산 (백테스트 종료 시)
-    if position > 0:
-        last_row = df.iloc[-1]
-        sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE)
-        sell_amount = position * sell_price
-        capital += sell_amount
-
-        trades.append(
-            {
-                "entry_date": entry_date,
-                "exit_date": last_row["Date"],
-                "entry_price": entry_price,
-                "exit_price": sell_price,
-                "shares": position,
-                "pnl": (sell_price - entry_price) * position,
-                "pnl_pct": (sell_price - entry_price) / entry_price,
-                "exit_reason": "end_of_data",
-            }
-        )
-
-    # 7. 결과 DataFrame 생성
-    trades_df = pd.DataFrame(trades)
-    equity_df = pd.DataFrame(equity_records)
-
-    # 8. 요약 지표 계산
-    summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary["ma_type"] = ma_type
-    summary["short_window"] = params.short_window
-    summary["long_window"] = params.long_window
-
-    logger.debug(f"전략 실행 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
-
-    return trades_df, equity_df, summary
 
 
 def run_buy_and_hold(
@@ -659,7 +448,9 @@ def run_buffer_strategy(
                                     f"유지조건={current_hold_days}일"
                                 )
                             else:
-                                logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
+                                logger.debug(
+                                    f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
+                                )
                 else:
                     # 버퍼존만 모드 (hold_days = 0)
                     buy_idx = i + 1
@@ -682,7 +473,9 @@ def run_buffer_strategy(
                                 f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}, 버퍼존={current_buffer_pct:.2%}"
                             )
                         else:
-                            logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
+                            logger.debug(
+                                f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
+                            )
 
         # 5-4. 매도 신호 체크 (포지션 있을 때)
         elif position > 0 and prev_lower_band is not None:
