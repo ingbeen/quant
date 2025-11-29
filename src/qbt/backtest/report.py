@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from qbt.utils import get_logger
@@ -129,7 +130,7 @@ def plot_equity_curve(
     equity_dfs: dict[str, pd.DataFrame],
     path: Path,
     title: str = "Equity Curve",
-) -> Path | None:
+) -> Path:
     """
     자본 곡선 그래프를 생성하고 저장한다.
 
@@ -139,14 +140,8 @@ def plot_equity_curve(
         title: 그래프 제목
 
     Returns:
-        저장된 파일 경로 (matplotlib 미설치 시 None)
+        저장된 파일 경로
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        logger.warning("matplotlib이 설치되지 않아 그래프를 생성할 수 없습니다")
-        return None
-
     plt.figure(figsize=(12, 6))
 
     colors = {"SMA": "blue", "EMA": "green", "Buy&Hold": "gray", "Walkforward": "red"}
@@ -176,7 +171,7 @@ def plot_drawdown(
     equity_dfs: dict[str, pd.DataFrame],
     path: Path,
     title: str = "Drawdown",
-) -> Path | None:
+) -> Path:
     """
     드로우다운 그래프를 생성하고 저장한다.
 
@@ -186,14 +181,8 @@ def plot_drawdown(
         title: 그래프 제목
 
     Returns:
-        저장된 파일 경로 (matplotlib 미설치 시 None)
+        저장된 파일 경로
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        logger.warning("matplotlib이 설치되지 않아 그래프를 생성할 수 없습니다")
-        return None
-
     plt.figure(figsize=(12, 4))
 
     colors = {"SMA": "blue", "EMA": "green", "Buy&Hold": "gray", "Walkforward": "red"}
@@ -247,14 +236,8 @@ def plot_grid_heatmap(
         ma_type: 이동평균 유형 (sma, ema)
 
     Returns:
-        저장된 파일 경로 (matplotlib 미설치 시 None)
+        저장된 파일 경로 (데이터 없을 시 None)
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        logger.warning("matplotlib이 설치되지 않아 그래프를 생성할 수 없습니다")
-        return None
-
     # 해당 ma_type만 필터링
     df = grid_results[grid_results["ma_type"] == ma_type].copy()
 

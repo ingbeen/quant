@@ -8,6 +8,7 @@ packages = [{include = "qbt", from = "src"}]
 python = "^3.10"
 pandas = "^2.0.0"
 yfinance = "^0.2.0"
+matplotlib = "^3.7.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.0.0"
