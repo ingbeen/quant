@@ -328,24 +328,24 @@ def run_buy_and_hold(
 
 def run_grid_search(
     df: pd.DataFrame,
-    short_window_list: list[int],
-    long_window_list: list[int],
-    stop_loss_pct_list: list[float],
-    lookback_for_low_list: list[int],
+    ma_window_list: list[int],
+    buffer_zone_pct_list: list[float],
+    hold_days_list: list[int],
+    recent_months_list: list[int],
     initial_capital: float = 10_000_000.0,
 ) -> pd.DataFrame:
     """
-    파라미터 그리드 탐색을 수행한다.
+    버퍼존 전략 파라미터 그리드 탐색을 수행한다.
 
-    모든 파라미터 조합에 대해 SMA와 EMA 전략을 각각 실행하고
+    모든 파라미터 조합에 대해 EMA 기반 버퍼존 전략을 실행하고
     성과 지표를 기록한다.
 
     Args:
         df: 주식 데이터 DataFrame (load_data로 로드된 상태)
-        short_window_list: 단기 이동평균 기간 목록
-        long_window_list: 장기 이동평균 기간 목록
-        stop_loss_pct_list: 손절 비율 목록
-        lookback_for_low_list: 최근 저점 탐색 기간 목록
+        ma_window_list: 이동평균 기간 목록
+        buffer_zone_pct_list: 버퍼존 비율 목록
+        hold_days_list: 유지조건 일수 목록
+        recent_months_list: 최근 매수 기간 목록
         initial_capital: 초기 자본금
 
     Returns:
@@ -353,87 +353,67 @@ def run_grid_search(
     """
     logger.debug(
         f"그리드 탐색 시작: "
-        f"short={short_window_list}, long={long_window_list}, "
-        f"stop_loss={stop_loss_pct_list}, lookback={lookback_for_low_list}"
+        f"ma_window={ma_window_list}, buffer_zone_pct={buffer_zone_pct_list}, "
+        f"hold_days={hold_days_list}, recent_months={recent_months_list}"
     )
 
-    # 1. 모든 유니크한 윈도우에 대해 이동평균 미리 계산
+    # 1. 모든 이동평균 기간에 대해 EMA 미리 계산
     df = df.copy()
-    all_windows = set(short_window_list) | set(long_window_list)
-    logger.debug(f"이동평균 사전 계산: {sorted(all_windows)}")
+    logger.debug(f"이동평균 사전 계산 (EMA): {sorted(ma_window_list)}")
 
-    for window in all_windows:
-        df[f"sma_{window}"] = df["Close"].rolling(window=window).mean()
-        df[f"ema_{window}"] = df["Close"].ewm(span=window, adjust=False).mean()
+    for window in ma_window_list:
+        df[f"ma_{window}"] = df["Close"].ewm(span=window, adjust=False).mean()
 
     logger.debug("이동평균 사전 계산 완료")
 
     results = []
-    total_combinations = (
-        len(short_window_list)
-        * len(long_window_list)
-        * len(stop_loss_pct_list)
-        * len(lookback_for_low_list)
-        * 2  # SMA, EMA
-    )
+    total_combinations = len(ma_window_list) * len(buffer_zone_pct_list) * len(hold_days_list) * len(recent_months_list)
     current = 0
 
     # 2. 모든 파라미터 조합 순회
-    for short_window in short_window_list:
-        for long_window in long_window_list:
-            # short >= long인 경우 스킵
-            if short_window >= long_window:
-                current += len(stop_loss_pct_list) * len(lookback_for_low_list) * 2
-                continue
+    for ma_window in ma_window_list:
+        for buffer_zone_pct in buffer_zone_pct_list:
+            for hold_days in hold_days_list:
+                for recent_months in recent_months_list:
+                    current += 1
 
-            # 3. 미리 계산된 이동평균을 사용할 DataFrame 준비
-            df_with_ma = df.copy()
-            df_with_ma["ma_short_sma"] = df[f"sma_{short_window}"]
-            df_with_ma["ma_long_sma"] = df[f"sma_{long_window}"]
-            df_with_ma["ma_short_ema"] = df[f"ema_{short_window}"]
-            df_with_ma["ma_long_ema"] = df[f"ema_{long_window}"]
-
-            for stop_loss_pct in stop_loss_pct_list:
-                for lookback_for_low in lookback_for_low_list:
-                    params = StrategyParams(
-                        short_window=short_window,
-                        long_window=long_window,
-                        stop_loss_pct=stop_loss_pct,
-                        lookback_for_low=lookback_for_low,
+                    # 3. BufferStrategyParams 생성
+                    params = BufferStrategyParams(
+                        ma_window=ma_window,
+                        buffer_zone_pct=buffer_zone_pct,
+                        hold_days=hold_days,
+                        recent_months=recent_months,
                         initial_capital=initial_capital,
                     )
 
-                    # 4. SMA, EMA 전략 실행
-                    ma_types: list[Literal["sma", "ema"]] = ["sma", "ema"]
-                    for ma_type in ma_types:
-                        current += 1
-                        try:
-                            _, _, summary = run_strategy(df_with_ma, params, ma_type=ma_type)
+                    try:
+                        # 4. 버퍼존 전략 실행
+                        _, _, summary = run_buffer_strategy(df, params)
 
-                            # 5. 결과 기록
-                            results.append(
-                                {
-                                    "ma_type": ma_type,
-                                    "short_window": short_window,
-                                    "long_window": long_window,
-                                    "stop_loss_pct": stop_loss_pct,
-                                    "lookback_for_low": lookback_for_low,
-                                    "total_return_pct": summary["total_return_pct"],
-                                    "cagr": summary["cagr"],
-                                    "mdd": summary["mdd"],
-                                    "total_trades": summary["total_trades"],
-                                    "win_rate": summary["win_rate"],
-                                    "final_capital": summary["final_capital"],
-                                }
-                            )
-                        except Exception as e:
-                            logger.warning(
-                                f"전략 실행 실패: {ma_type}, short={short_window}, long={long_window}, error={e}"
-                            )
-                            continue
+                        # 5. 결과 기록
+                        results.append(
+                            {
+                                "ma_window": ma_window,
+                                "buffer_zone_pct": buffer_zone_pct,
+                                "hold_days": hold_days,
+                                "recent_months": recent_months,
+                                "total_return_pct": summary["total_return_pct"],
+                                "cagr": summary["cagr"],
+                                "mdd": summary["mdd"],
+                                "total_trades": summary["total_trades"],
+                                "win_rate": summary["win_rate"],
+                                "final_capital": summary["final_capital"],
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"전략 실행 실패: ma_window={ma_window}, buffer={buffer_zone_pct}, "
+                            f"hold={hold_days}, recent={recent_months}, error={e}"
+                        )
+                        continue
 
-                        if current % 10 == 0:
-                            logger.debug(f"그리드 탐색 진행: {current}/{total_combinations}")
+                    if current % 10 == 0:
+                        logger.debug(f"그리드 탐색 진행: {current}/{total_combinations}")
 
     # 6. 결과 DataFrame 생성
     results_df = pd.DataFrame(results)
