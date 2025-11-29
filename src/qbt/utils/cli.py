@@ -171,7 +171,7 @@ def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) ->
     # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
     total_width = 2 + col_strategy + col_return + col_cagr + col_mdd + col_trades
 
-    logger.debug("\n" + "=" * total_width)
+    logger.debug("=" * total_width)
     logger.debug("[전략 비교 요약]")
 
     # 헤더 출력

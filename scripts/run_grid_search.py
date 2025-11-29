@@ -114,7 +114,7 @@ def print_summary_stats(results_df) -> None:
     # "요약 통계" = 8칸
     title_width = 60
 
-    logger.debug("\n" + "=" * title_width)
+    logger.debug("=" * title_width)
     logger.debug("[요약 통계]")
     logger.debug("=" * title_width)
 

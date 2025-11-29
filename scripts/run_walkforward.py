@@ -133,7 +133,7 @@ def print_window_results(results_df) -> None:
 
 def print_summary(wf_summary: dict, bh_summary: dict) -> None:
     """요약 지표를 출력한다."""
-    logger.debug("\n" + "=" * 60)
+    logger.debug("=" * 60)
     logger.debug("[전체 요약]")
     logger.debug("=" * 60)
 

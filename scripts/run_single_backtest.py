@@ -111,7 +111,7 @@ def main() -> int:
         summaries = []
 
         # 4. 버퍼존 전략 실행
-        logger.debug("\n" + "=" * 60)
+        logger.debug("=" * 60)
         logger.debug("버퍼존 전략 백테스트 실행")
         trades, _, summary = run_buffer_strategy(df, params)
         print_summary(summary, "버퍼존 전략 결과", logger)
@@ -119,7 +119,7 @@ def main() -> int:
         summaries.append(("버퍼존 전략", summary))
 
         # 5. Buy & Hold 벤치마크 실행
-        logger.debug("\n" + "=" * 60)
+        logger.debug( "=" * 60)
         logger.debug("Buy & Hold 벤치마크 실행")
         _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
         print_summary(summary_bh, "Buy & Hold 결과", logger)

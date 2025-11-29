@@ -105,7 +105,7 @@ def setup_logger(
 
     # 포맷 설정 (VSCode 클릭 가능한 형식)
     formatter = ClickableFormatter(
-        fmt="%(asctime)s.%(msecs)03d %(levelname)s [%(location)s] [%(funcName)s] : %(message)s",
+        fmt="%(asctime)s.%(msecs)03d %(levelname)s [%(location)s] [%(funcName)s] : %(message)s",  # noqa: E501
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     console_handler.setFormatter(formatter)
