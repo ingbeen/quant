@@ -146,22 +146,15 @@ def print_summary_stats(results_df) -> None:
     )
 
     logger.debug("\nCAGR 통계:")
-    logger.debug(
-        f"  - 전체 평균: {results_df['cagr'].mean():.2f}%, "
-        f"최대: {results_df['cagr'].max():.2f}%"
-    )
+    logger.debug(f"  - 전체 평균: {results_df['cagr'].mean():.2f}%, 최대: {results_df['cagr'].max():.2f}%")
 
     logger.debug("\nMDD 통계:")
-    logger.debug(
-        f"  - 전체 평균: {results_df['mdd'].mean():.2f}%, "
-        f"최악: {results_df['mdd'].min():.2f}%"
-    )
+    logger.debug(f"  - 전체 평균: {results_df['mdd'].mean():.2f}%, 최악: {results_df['mdd'].min():.2f}%")
 
     # 양수 수익률 비율
     positive_returns = len(results_df[results_df["total_return_pct"] > 0])
     logger.debug(
-        f"\n양수 수익률 조합: {positive_returns}/{len(results_df)} "
-        f"({positive_returns / len(results_df) * 100:.1f}%)"
+        f"\n양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)"
     )
 
     logger.debug("=" * title_width)
@@ -202,9 +195,7 @@ def main() -> int:
         print_top_results(results_df, "수익률 기준", top_n=10)
 
         # 4. CAGR 기준 정렬 후 출력
-        results_by_cagr = results_df.sort_values(
-            by="cagr", ascending=False
-        ).reset_index(drop=True)
+        results_by_cagr = results_df.sort_values(by="cagr", ascending=False).reset_index(drop=True)
         print_top_results(results_by_cagr, "CAGR 기준", top_n=10)
 
         # 5. 요약 통계 출력

@@ -120,15 +120,11 @@ def print_summary(summary: dict, title: str, logger: Logger) -> None:
     if "win_rate" in summary:
         logger.debug(f"  승률: {summary['win_rate']:.1f}%")
         if "winning_trades" in summary:
-            logger.debug(
-                f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}"
-            )
+            logger.debug(f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}")
     logger.debug("=" * 60)
 
 
-def print_trades(
-    trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: int = 10
-) -> None:
+def print_trades(trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: int = 10) -> None:
     """
     거래 내역을 출력한다.
 
@@ -151,15 +147,7 @@ def print_trades(
     col_reason = 16  # "사유" (4칸) + 텍스트
 
     # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
-    total_width = (
-        2
-        + col_entry_date
-        + col_exit_date
-        + col_entry_price
-        + col_exit_price
-        + col_pnl
-        + col_reason
-    )
+    total_width = 2 + col_entry_date + col_exit_date + col_entry_price + col_exit_price + col_pnl + col_reason
 
     logger.debug("=" * total_width)
     logger.debug(f"[{title}] 거래 내역 (최근 {max_rows}건)")

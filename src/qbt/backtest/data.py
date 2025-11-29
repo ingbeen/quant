@@ -45,9 +45,7 @@ def load_data(path: Path) -> pd.DataFrame:
     # 3. 필수 컬럼 검증
     missing_columns = set(REQUIRED_COLUMNS) - set(df.columns)
     if missing_columns:
-        raise DataValidationError(
-            f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}"
-        )
+        raise DataValidationError(f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}")
 
     # 4. 날짜 컬럼 파싱
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
@@ -61,9 +59,7 @@ def load_data(path: Path) -> pd.DataFrame:
         logger.warning(f"중복 날짜 {duplicate_count}건 제거됨")
         df = df.drop_duplicates(subset=["Date"], keep="first").reset_index(drop=True)
 
-    logger.debug(
-        f"전처리 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}"
-    )
+    logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}")
 
     return df
 
@@ -135,10 +131,7 @@ def validate_data(df: pd.DataFrame) -> None:
         extreme_rows = df_copy[extreme_mask]
         for _, row in extreme_rows.iterrows():
             pct = row["pct_change"] * 100
-            logger.warning(
-                f"급등락 감지 - 날짜: {row['Date']}, "
-                f"변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}"
-            )
+            logger.warning(f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}")
 
         first_extreme = extreme_rows.iloc[0]
         raise DataValidationError(

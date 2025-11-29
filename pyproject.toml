@@ -20,11 +20,11 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ['py310']
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
@@ -37,7 +37,9 @@ select = [
     "C4", # flake8-comprehensions
     "UP", # pyupgrade
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long은 Black 스타일 존중
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["qbt"]

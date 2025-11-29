@@ -51,9 +51,7 @@ def calculate_summary(
     # MDD 계산
     equity_df = equity_df.copy()
     equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df[
-        "peak"
-    ]
+    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df["peak"]
     mdd = equity_df["drawdown"].min() * 100
 
     # 거래 통계

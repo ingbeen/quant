@@ -106,7 +106,7 @@ QBT는 단순한 2계층 구조를 사용합니다:
 - **코드 포맷터**: Black 사용. 모든 Python 코드는 Black 스타일을 따릅니다
   - **Black 명령어 실행 가능**: 코드 작성 후 포맷팅을 위해 `black` 명령어 실행 가능
 - **린터**: Ruff 사용 (pycodestyle, pyflakes, isort, flake8-bugbear, pyupgrade 포함)
-- **라인 길이**: 88자 (Black 기본값)
+- **라인 길이**: 120자
 - **타겟 버전**: Python 3.10+
 
 ### 네이밍 컨벤션

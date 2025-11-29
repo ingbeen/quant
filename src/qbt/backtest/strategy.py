@@ -240,7 +240,7 @@ def run_strategy(
     summary["short_window"] = params.short_window
     summary["long_window"] = params.long_window
 
-    logger.debug(f"전략 실행 완료: 총 거래={summary['total_trades']}, " f"총 수익률={summary['total_return_pct']:.2f}%")
+    logger.debug(f"전략 실행 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
 
@@ -428,7 +428,7 @@ def run_grid_search(
                             )
                         except Exception as e:
                             logger.warning(
-                                f"전략 실행 실패: {ma_type}, short={short_window}, " f"long={long_window}, error={e}"
+                                f"전략 실행 실패: {ma_type}, short={short_window}, long={long_window}, error={e}"
                             )
                             continue
 
@@ -594,7 +594,7 @@ def run_buffer_strategy(
         raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
 
     if params.buffer_zone_pct < MIN_BUFFER_ZONE_PCT:
-        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: " f"{params.buffer_zone_pct}")
+        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buffer_zone_pct}")
 
     if params.hold_days < MIN_HOLD_DAYS:
         raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
@@ -679,7 +679,7 @@ def run_buffer_strategy(
                                     f"유지조건={current_hold_days}일"
                                 )
                             else:
-                                logger.debug(f"자금 부족으로 매수 불가: {current_date}, " f"자본={capital:.0f}, 가격={buy_price:.2f}")
+                                logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
                 else:
                     # 버퍼존만 모드 (hold_days = 0)
                     buy_idx = i + 1
@@ -699,10 +699,10 @@ def run_buffer_strategy(
                             all_entry_dates.append(entry_date)
 
                             logger.debug(
-                                f"매수: {entry_date}, 가격={buy_price:.2f}, " f"수량={shares}, 버퍼존={current_buffer_pct:.2%}"
+                                f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}, 버퍼존={current_buffer_pct:.2%}"
                             )
                         else:
-                            logger.debug(f"자금 부족으로 매수 불가: {current_date}, " f"자본={capital:.0f}, 가격={buy_price:.2f}")
+                            logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
 
         # 5-4. 매도 신호 체크 (포지션 있을 때)
         elif position > 0 and prev_lower_band is not None:
@@ -802,6 +802,6 @@ def run_buffer_strategy(
     summary["buffer_zone_pct"] = params.buffer_zone_pct
     summary["hold_days"] = params.hold_days
 
-    logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, " f"총 수익률={summary['total_return_pct']:.2f}%")
+    logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
