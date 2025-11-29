@@ -1,5 +1,6 @@
 [tool.poetry]
 name = "quant-backtest"
+authors = ["Yubeen"]
 version = "0.1.0"
 description = "Stock backtesting framework with DuckDB and CSV data management"
 packages = [{include = "qbt", from = "src"}]
