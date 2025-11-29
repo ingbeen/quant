@@ -109,23 +109,6 @@ def save_grid_results(results_df: pd.DataFrame, path: Path) -> Path:
     return file_path
 
 
-def save_walkforward_results(results_df: pd.DataFrame, path: Path) -> Path:
-    """
-    워킹 포워드 결과를 CSV로 저장한다.
-
-    Args:
-        results_df: 워킹 포워드 결과 DataFrame
-        path: 저장 디렉토리 경로
-
-    Returns:
-        저장된 파일 경로
-    """
-    file_path = path / "walkforward_results.csv"
-    results_df.to_csv(file_path, index=False)
-    logger.debug(f"워킹 포워드 결과 저장: {file_path}")
-    return file_path
-
-
 def plot_equity_curve(
     equity_dfs: dict[str, pd.DataFrame],
     path: Path,

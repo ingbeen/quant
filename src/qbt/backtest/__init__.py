@@ -13,19 +13,16 @@ from qbt.backtest.report import (
     save_grid_results,
     save_summary,
     save_trades,
-    save_walkforward_results,
 )
 from qbt.backtest.strategy import (
     BufferStrategyParams,
     StrategyParams,
     add_moving_averages,
     add_single_moving_average,
-    generate_walkforward_windows,
     run_buffer_strategy,
     run_buy_and_hold,
     run_grid_search,
     run_strategy,
-    run_walkforward,
 )
 
 __all__ = [
@@ -39,8 +36,6 @@ __all__ = [
     "run_buffer_strategy",
     "run_buy_and_hold",
     "run_grid_search",
-    "run_walkforward",
-    "generate_walkforward_windows",
     "StrategyParams",
     "BufferStrategyParams",
     # Metrics functions
@@ -53,7 +48,6 @@ __all__ = [
     "save_equity",
     "save_summary",
     "save_grid_results",
-    "save_walkforward_results",
     "plot_equity_curve",
     "plot_drawdown",
     "plot_grid_heatmap",
