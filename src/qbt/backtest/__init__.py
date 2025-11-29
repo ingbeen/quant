@@ -16,9 +16,12 @@ from qbt.backtest.report import (
     save_walkforward_results,
 )
 from qbt.backtest.strategy import (
+    BufferStrategyParams,
     StrategyParams,
     add_moving_averages,
+    add_single_moving_average,
     generate_walkforward_windows,
+    run_buffer_strategy,
     run_buy_and_hold,
     run_grid_search,
     run_strategy,
@@ -31,12 +34,15 @@ __all__ = [
     "validate_data",
     # Strategy functions
     "add_moving_averages",
+    "add_single_moving_average",
     "run_strategy",
+    "run_buffer_strategy",
     "run_buy_and_hold",
     "run_grid_search",
     "run_walkforward",
     "generate_walkforward_windows",
     "StrategyParams",
+    "BufferStrategyParams",
     # Metrics functions
     "calculate_summary",
     # Exceptions

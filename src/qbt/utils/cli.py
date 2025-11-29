@@ -126,7 +126,9 @@ def print_summary(summary: dict, title: str, logger: Logger) -> None:
     logger.debug("=" * 60)
 
 
-def print_trades(trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: int = 10) -> None:
+def print_trades(
+    trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: int = 10
+) -> None:
     """
     거래 내역을 출력한다.
 
@@ -189,7 +191,7 @@ def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) ->
         return_str = f"{summary['total_return_pct']:.2f}%"
         cagr_str = f"{summary['cagr']:.2f}%"
         mdd_str = f"{summary['mdd']:.2f}%"
-        trades_str = str(summary['total_trades'])
+        trades_str = str(summary["total_trades"])
 
         row = (
             "  "

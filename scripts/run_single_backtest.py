@@ -9,11 +9,11 @@ import argparse
 import sys
 
 from qbt.backtest import (
+    BufferStrategyParams,
     DataValidationError,
-    StrategyParams,
-    add_moving_averages,
+    add_single_moving_average,
+    run_buffer_strategy,
     run_buy_and_hold,
-    run_strategy,
 )
 from qbt.backtest.config import DEFAULT_DATA_FILE, DEFAULT_INITIAL_CAPITAL
 from qbt.utils import (
@@ -31,52 +31,46 @@ logger = setup_logger("run_single_backtest", level="DEBUG")
 def parse_args():
     """CLI 인자를 파싱한다."""
     parser = argparse.ArgumentParser(
-        description="이동평균선 교차 백테스트",
+        description="버퍼존 전략 백테스트",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 예시:
-  # SMA + EMA + Buy&Hold 비교
+  # 버퍼존만 모드 (유지조건 없음)
   poetry run python scripts/run_single_backtest.py \\
-      --short 20 --long 50 --stop-loss 0.10 --lookback 20
+      --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
-  # 그리드 서치 최적 파라미터 적용
+  # 버퍼존 + 유지조건 1일
   poetry run python scripts/run_single_backtest.py \\
-      --short 20 --long 200 --stop-loss 0.05 --lookback 20
+      --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
-  # EMA 전략만 실행
+  # 200일 SMA (기본값) 대신 100일 SMA 사용
   poetry run python scripts/run_single_backtest.py \\
-      --short 20 --long 200 --stop-loss 0.05 --lookback 20 --ma-type ema
+      --ma-window 100 --buffer-zone 0.02 --hold-days 2
         """,
     )
     parser.add_argument(
-        "--short",
+        "--ma-window",
         type=int,
-        required=True,
-        help="단기 이동평균 기간",
+        default=200,
+        help="이동평균 기간 (기본값: 200)",
     )
     parser.add_argument(
-        "--long",
-        type=int,
-        required=True,
-        help="장기 이동평균 기간",
-    )
-    parser.add_argument(
-        "--stop-loss",
+        "--buffer-zone",
         type=float,
         required=True,
-        help="손절 비율 (예: 0.10)",
+        help="초기 버퍼존 비율 (예: 0.01 = 1%%)",
     )
     parser.add_argument(
-        "--lookback",
+        "--hold-days",
         type=int,
-        required=True,
-        help="최근 저점 탐색 기간",
+        default=1,
+        help="초기 유지조건 일수 (0이면 버퍼존만 모드, 기본값: 1)",
     )
     parser.add_argument(
-        "--ma-type",
-        choices=["sma", "ema"],
-        default=None,
-        help="이동평균 유형 (미지정 시 둘 다 실행)",
+        "--recent-months",
+        type=int,
+        default=6,
+        help="최근 매수 기간 (개월, 기본값: 6)",
     )
     return parser.parse_args()
 
@@ -90,11 +84,10 @@ def main() -> int:
     """
     args = parse_args()
 
-    logger.debug("QQQ 백테스트 실행 시작")
+    logger.debug("버퍼존 전략 백테스트 시작")
     logger.debug(
-        f"파라미터: short={args.short}, long={args.long}, "
-        f"stop_loss={args.stop_loss}, lookback={args.lookback}, "
-        f"ma_type={args.ma_type or 'sma+ema'}"
+        f"파라미터: ma_window={args.ma_window}, buffer_zone={args.buffer_zone}, "
+        f"hold_days={args.hold_days}, recent_months={args.recent_months}"
     )
 
     try:
@@ -104,51 +97,45 @@ def main() -> int:
             return 1
 
         # 2. 이동평균 계산
-        df = add_moving_averages(df, args.short, args.long)
+        df = add_single_moving_average(df, args.ma_window)
 
         # 3. 전략 파라미터 설정
-        params = StrategyParams(
-            short_window=args.short,
-            long_window=args.long,
-            stop_loss_pct=args.stop_loss,
-            lookback_for_low=args.lookback,
+        params = BufferStrategyParams(
+            ma_window=args.ma_window,
+            buffer_zone_pct=args.buffer_zone,
+            hold_days=args.hold_days,
+            recent_months=args.recent_months,
             initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
         summaries = []
 
-        # 4. SMA 전략 실행
-        if args.ma_type is None or args.ma_type == "sma":
-            logger.debug("\n" + "=" * 60)
-            logger.debug("SMA 전략 백테스트 실행")
-            trades_sma, _, summary_sma = run_strategy(df, params, ma_type="sma")
-            print_summary(summary_sma, "SMA 전략 결과", logger)
-            print_trades(trades_sma, "SMA 전략", logger)
-            summaries.append(("SMA", summary_sma))
+        # 4. 버퍼존 전략 실행
+        logger.debug("\n" + "=" * 60)
+        logger.debug("버퍼존 전략 백테스트 실행")
+        trades, _, summary = run_buffer_strategy(df, params)
+        print_summary(summary, "버퍼존 전략 결과", logger)
+        print_trades(trades, "버퍼존 전략", logger)
+        summaries.append(("버퍼존 전략", summary))
 
-        # 5. EMA 전략 실행
-        if args.ma_type is None or args.ma_type == "ema":
-            logger.debug("\n" + "=" * 60)
-            logger.debug("EMA 전략 백테스트 실행")
-            trades_ema, _, summary_ema = run_strategy(df, params, ma_type="ema")
-            print_summary(summary_ema, "EMA 전략 결과", logger)
-            print_trades(trades_ema, "EMA 전략", logger)
-            summaries.append(("EMA", summary_ema))
-
-        # 6. Buy & Hold 벤치마크 실행
+        # 5. Buy & Hold 벤치마크 실행
         logger.debug("\n" + "=" * 60)
         logger.debug("Buy & Hold 벤치마크 실행")
         _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
         print_summary(summary_bh, "Buy & Hold 결과", logger)
         summaries.append(("Buy & Hold", summary_bh))
 
-        # 7. 전략 비교 요약
+        # 6. 전략 비교 요약
         print_comparison_table(summaries, logger)
 
         return 0
 
     except DataValidationError as e:
         logger.error(f"데이터 검증 실패: {e}")
+        return 1
+
+    except ValueError as e:
+        logger.error(f"파라미터 검증 실패: {e}")
         return 1
 
     except Exception as e:

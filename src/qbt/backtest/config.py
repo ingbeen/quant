@@ -40,3 +40,12 @@ DEFAULT_LOOKBACK_FOR_LOW_LIST = [20, 30, 40, 50, 60]
 # 워킹 포워드 기본 설정
 DEFAULT_TRAIN_YEARS = 5
 DEFAULT_TEST_YEARS = 1
+
+# 버퍼존 전략 기본값
+DEFAULT_MA_WINDOW = 200  # 이동평균 기간
+DEFAULT_BUFFER_ZONE_PCT = 0.01  # 초기 버퍼존 (1%)
+DEFAULT_HOLD_DAYS = 1  # 초기 유지조건 (1일)
+DEFAULT_RECENT_MONTHS = 6  # 최근 매수 기간 (6개월)
+MIN_BUFFER_ZONE_PCT = 0.01  # 최소 버퍼존 (1%)
+MIN_HOLD_DAYS = 0  # 최소 유지조건 (0=버퍼존만 모드)
+MIN_VALID_ROWS = 2  # 백테스트 최소 유효 데이터 행 수
