@@ -35,54 +35,6 @@ class StrategyParams:
     initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
 
 
-def add_moving_averages(
-    df: pd.DataFrame,
-    short_window: int,
-    long_window: int,
-) -> pd.DataFrame:
-    """
-    이동평균선(SMA, EMA)을 계산하여 컬럼으로 추가한다.
-
-    동일한 윈도우 설정에 대해 SMA와 EMA를 동시에 계산한다.
-    추가되는 컬럼: ma_short_sma, ma_long_sma, ma_short_ema, ma_long_ema
-
-    Args:
-        df: 주식 데이터 DataFrame (Close 컬럼 필수)
-        short_window: 단기 이동평균 기간
-        long_window: 장기 이동평균 기간
-
-    Returns:
-        이동평균 컬럼이 추가된 DataFrame (원본 복사본)
-
-    Raises:
-        ValueError: short_window >= long_window인 경우
-    """
-    # 1. 파라미터 유효성 검증
-    if short_window >= long_window:
-        raise ValueError(
-            f"short_window({short_window})는 " f"long_window({long_window})보다 작아야 합니다"
-        )
-
-    logger.debug(f"이동평균 계산 시작: short={short_window}, long={long_window}")
-
-    # 2. DataFrame 복사 (원본 보존)
-    df = df.copy()
-
-    # 3. SMA (Simple Moving Average) 계산
-    df["ma_short_sma"] = df["Close"].rolling(window=short_window).mean()
-    df["ma_long_sma"] = df["Close"].rolling(window=long_window).mean()
-
-    # 4. EMA (Exponential Moving Average) 계산
-    df["ma_short_ema"] = df["Close"].ewm(span=short_window, adjust=False).mean()
-    df["ma_long_ema"] = df["Close"].ewm(span=long_window, adjust=False).mean()
-
-    # 5. 유효 데이터 수 확인
-    valid_rows = df["ma_long_sma"].notna().sum()
-    logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
-
-    return df
-
-
 def run_strategy(
     df: pd.DataFrame,
     params: StrategyParams,
@@ -256,9 +208,7 @@ def run_strategy(
         else:
             equity = capital
 
-        equity_records.append(
-            {"Date": current_date, "equity": equity, "position": position}
-        )
+        equity_records.append({"Date": current_date, "equity": equity, "position": position})
 
     # 6. 마지막 포지션 청산 (백테스트 종료 시)
     if position > 0:
@@ -290,10 +240,7 @@ def run_strategy(
     summary["short_window"] = params.short_window
     summary["long_window"] = params.long_window
 
-    logger.debug(
-        f"전략 실행 완료: 총 거래={summary['total_trades']}, "
-        f"총 수익률={summary['total_return_pct']:.2f}%"
-    )
+    logger.debug(f"전략 실행 완료: 총 거래={summary['total_trades']}, " f"총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
 
@@ -331,9 +278,7 @@ def run_buy_and_hold(
     equity_records = []
     for _, row in df.iterrows():
         equity = capital_after_buy + shares * row["Close"]
-        equity_records.append(
-            {"Date": row["Date"], "equity": equity, "position": shares}
-        )
+        equity_records.append({"Date": row["Date"], "equity": equity, "position": shares})
 
     equity_df = pd.DataFrame(equity_records)
 
@@ -360,9 +305,7 @@ def run_buy_and_hold(
 
     # MDD 계산
     equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df[
-        "peak"
-    ]
+    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df["peak"]
     mdd = equity_df["drawdown"].min() * 100
 
     summary = {
@@ -465,9 +408,7 @@ def run_grid_search(
                     for ma_type in ma_types:
                         current += 1
                         try:
-                            _, _, summary = run_strategy(
-                                df_with_ma, params, ma_type=ma_type
-                            )
+                            _, _, summary = run_strategy(df_with_ma, params, ma_type=ma_type)
 
                             # 5. 결과 기록
                             results.append(
@@ -487,8 +428,7 @@ def run_grid_search(
                             )
                         except Exception as e:
                             logger.warning(
-                                f"전략 실행 실패: {ma_type}, short={short_window}, "
-                                f"long={long_window}, error={e}"
+                                f"전략 실행 실패: {ma_type}, short={short_window}, " f"long={long_window}, error={e}"
                             )
                             continue
 
@@ -500,9 +440,7 @@ def run_grid_search(
 
     if not results_df.empty:
         # 7. 수익률 기준 정렬
-        results_df = results_df.sort_values(
-            by="total_return_pct", ascending=False
-        ).reset_index(drop=True)
+        results_df = results_df.sort_values(by="total_return_pct", ascending=False).reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 
@@ -656,10 +594,7 @@ def run_buffer_strategy(
         raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
 
     if params.buffer_zone_pct < MIN_BUFFER_ZONE_PCT:
-        raise ValueError(
-            f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: "
-            f"{params.buffer_zone_pct}"
-        )
+        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: " f"{params.buffer_zone_pct}")
 
     if params.hold_days < MIN_HOLD_DAYS:
         raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
@@ -701,9 +636,7 @@ def run_buffer_strategy(
         current_date = row["Date"]
 
         # 5-1. 동적 파라미터 계산
-        recent_buy_count = calculate_recent_buy_count(
-            all_entry_dates, current_date, params.recent_months
-        )
+        recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
         current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * 0.01)
         current_hold_days = params.hold_days + recent_buy_count
 
@@ -718,9 +651,7 @@ def run_buffer_strategy(
             if prev_row["Close"] <= prev_upper_band and row["Close"] > upper_band:
                 # 유지조건 체크 (hold_days > 0인 경우)
                 if current_hold_days > 0:
-                    hold_satisfied = check_hold_condition(
-                        df, i, current_hold_days, ma_col, current_buffer_pct
-                    )
+                    hold_satisfied = check_hold_condition(df, i, current_hold_days, ma_col, current_buffer_pct)
                     if not hold_satisfied:
                         # 유지조건 실패, 매수 스킵
                         pass
@@ -748,10 +679,7 @@ def run_buffer_strategy(
                                     f"유지조건={current_hold_days}일"
                                 )
                             else:
-                                logger.debug(
-                                    f"자금 부족으로 매수 불가: {current_date}, "
-                                    f"자본={capital:.0f}, 가격={buy_price:.2f}"
-                                )
+                                logger.debug(f"자금 부족으로 매수 불가: {current_date}, " f"자본={capital:.0f}, 가격={buy_price:.2f}")
                 else:
                     # 버퍼존만 모드 (hold_days = 0)
                     buy_idx = i + 1
@@ -771,14 +699,10 @@ def run_buffer_strategy(
                             all_entry_dates.append(entry_date)
 
                             logger.debug(
-                                f"매수: {entry_date}, 가격={buy_price:.2f}, "
-                                f"수량={shares}, 버퍼존={current_buffer_pct:.2%}"
+                                f"매수: {entry_date}, 가격={buy_price:.2f}, " f"수량={shares}, 버퍼존={current_buffer_pct:.2%}"
                             )
                         else:
-                            logger.debug(
-                                f"자금 부족으로 매수 불가: {current_date}, "
-                                f"자본={capital:.0f}, 가격={buy_price:.2f}"
-                            )
+                            logger.debug(f"자금 부족으로 매수 불가: {current_date}, " f"자본={capital:.0f}, 가격={buy_price:.2f}")
 
         # 5-4. 매도 신호 체크 (포지션 있을 때)
         elif position > 0 and prev_lower_band is not None:
@@ -811,7 +735,7 @@ def run_buffer_strategy(
 
                     logger.debug(
                         f"매도: {sell_row['Date']}, 가격={sell_price:.2f}, "
-                        f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"  # noqa: E501
+                        f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
                     )
 
                     position = 0
@@ -847,9 +771,7 @@ def run_buffer_strategy(
         capital += sell_amount
 
         # 마지막 동적 파라미터 계산
-        recent_buy_count = calculate_recent_buy_count(
-            all_entry_dates, last_row["Date"], params.recent_months
-        )
+        recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row["Date"], params.recent_months)
         current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * 0.01)
         current_hold_days = params.hold_days + recent_buy_count
 
@@ -880,9 +802,6 @@ def run_buffer_strategy(
     summary["buffer_zone_pct"] = params.buffer_zone_pct
     summary["hold_days"] = params.hold_days
 
-    logger.debug(
-        f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, "
-        f"총 수익률={summary['total_return_pct']:.2f}%"
-    )
+    logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, " f"총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
