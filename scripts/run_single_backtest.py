@@ -9,8 +9,6 @@ import argparse
 import logging
 import sys
 
-import pandas as pd
-
 from qbt.backtest import (
     BufferStrategyParams,
     DataValidationError,
@@ -58,18 +56,18 @@ def parse_args():
         description="버퍼존 전략 백테스트",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-예시:
-  # 버퍼존만 모드 (유지조건 없음)
-  poetry run python scripts/run_single_backtest.py \\
-      --buffer-zone 0.01 --hold-days 0 --recent-months 6
+            예시:
+            # 버퍼존만 모드 (유지조건 없음)
+            poetry run python scripts/run_single_backtest.py \\
+                --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
-  # 버퍼존 + 유지조건 1일
-  poetry run python scripts/run_single_backtest.py \\
-      --buffer-zone 0.01 --hold-days 1 --recent-months 6
+            # 버퍼존 + 유지조건 1일
+            poetry run python scripts/run_single_backtest.py \\
+                --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
-  # 200일 SMA (기본값) 대신 100일 SMA 사용
-  poetry run python scripts/run_single_backtest.py \\
-      --ma-window 100 --buffer-zone 0.02 --hold-days 2
+            # 200일 SMA (기본값) 대신 100일 SMA 사용
+            poetry run python scripts/run_single_backtest.py \\
+                --ma-window 100 --buffer-zone 0.02 --hold-days 2
         """,
     )
     parser.add_argument(
@@ -154,14 +152,16 @@ def main() -> int:
             max_rows = 10
             rows = []
             for _, trade in trades.tail(max_rows).iterrows():
-                rows.append([
-                    str(trade["entry_date"]),
-                    str(trade["exit_date"]),
-                    f"{trade['entry_price']:.2f}",
-                    f"{trade['exit_price']:.2f}",
-                    f"{trade['pnl_pct'] * 100:+.2f}%",
-                    trade["exit_reason"],
-                ])
+                rows.append(
+                    [
+                        str(trade["entry_date"]),
+                        str(trade["exit_date"]),
+                        f"{trade['entry_price']:.2f}",
+                        f"{trade['exit_price']:.2f}",
+                        f"{trade['pnl_pct'] * 100:+.2f}%",
+                        trade["exit_reason"],
+                    ]
+                )
 
             table = TableLogger(columns, logger)
             table.print_table(rows, title=f"[버퍼존 전략] 거래 내역 (최근 {max_rows}건)")
@@ -188,13 +188,15 @@ def main() -> int:
 
         rows = []
         for name, summary in summaries:
-            rows.append([
-                name,
-                f"{summary['total_return_pct']:.2f}%",
-                f"{summary['cagr']:.2f}%",
-                f"{summary['mdd']:.2f}%",
-                str(summary["total_trades"]),
-            ])
+            rows.append(
+                [
+                    name,
+                    f"{summary['total_return_pct']:.2f}%",
+                    f"{summary['cagr']:.2f}%",
+                    f"{summary['mdd']:.2f}%",
+                    str(summary["total_trades"]),
+                ]
+            )
 
         table = TableLogger(columns, logger)
         table.print_table(rows, title="[전략 비교 요약]")
