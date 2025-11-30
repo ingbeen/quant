@@ -5,9 +5,8 @@
 ## 주요 기능
 
 - Yahoo Finance에서 주식 데이터 다운로드
-- 이동평균선 교차 전략 백테스트 (SMA/EMA)
+- 버퍼존 기반 이동평균 전략 백테스트
 - 파라미터 그리드 서치
-- 워킹 포워드 테스트
 - Buy & Hold 벤치마크 비교
 
 ## 설치
@@ -40,28 +39,27 @@ poetry run python scripts/download_data.py AAPL --start 2020-01-01 --end 2023-12
 
 ### 단일 전략 백테스트
 
-지정한 파라미터로 SMA/EMA 전략과 Buy&Hold 벤치마크를 비교합니다.
+지정한 파라미터로 버퍼존 전략과 Buy&Hold 벤치마크를 비교합니다.
 
 ```bash
-# SMA + EMA + Buy&Hold 비교
+# 버퍼존만 모드 (유지조건 없음)
 poetry run python scripts/run_single_backtest.py \
-    --short 20 --long 50 --stop-loss 0.10 --lookback 20
+    --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
-# 그리드 서치 최적 파라미터 적용
+# 버퍼존 + 유지조건 1일
 poetry run python scripts/run_single_backtest.py \
-    --short 20 --long 200 --stop-loss 0.05 --lookback 20
+    --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
-# EMA 전략만 실행
+# 200일 EMA (기본값) 대신 100일 EMA 사용
 poetry run python scripts/run_single_backtest.py \
-    --short 20 --long 200 --stop-loss 0.05 --lookback 20 --ma-type ema
+    --ma-window 100 --buffer-zone 0.02 --hold-days 2 --recent-months 6
 ```
 
 **파라미터 설명:**
-- `--short`: 단기 이동평균 기간 (필수)
-- `--long`: 장기 이동평균 기간 (필수)
-- `--stop-loss`: 손절 비율 (필수, 예: 0.10 = 10%)
-- `--lookback`: 최근 저점 탐색 기간 (필수)
-- `--ma-type`: 이동평균 유형 (`sma` 또는 `ema`, 미지정 시 둘 다 실행)
+- `--ma-window`: 이동평균 기간 (기본값: 200, EMA 사용)
+- `--buffer-zone`: 초기 버퍼존 비율 (필수, 예: 0.01 = 1%)
+- `--hold-days`: 초기 유지조건 일수 (기본값: 1, 0이면 버퍼존만 모드)
+- `--recent-months`: 최근 매수 기간 (개월, 기본값: 6, 동적 조정에 사용)
 
 ### 파라미터 그리드 서치
 
@@ -73,31 +71,6 @@ poetry run python scripts/run_grid_search.py
 
 결과는 `data/raw/grid_results.csv`에 저장됩니다.
 
-### 워킹 포워드 테스트
-
-과거 기간에서 최적 파라미터를 선택하고, 다음 기간에 적용하는 워킹 포워드 테스트를 실행합니다.
-
-```bash
-# 기본 설정 (5년 학습, 1년 테스트, CAGR 기준)
-poetry run python scripts/run_walkforward.py \
-    --train 5 --test 1 --metric cagr
-
-# 3년 학습, 1년 테스트, MDD 기준 최적화
-poetry run python scripts/run_walkforward.py \
-    --train 3 --test 1 --metric mdd
-
-# 수익률 기준 최적화
-poetry run python scripts/run_walkforward.py \
-    --train 5 --test 1 --metric total_return_pct
-```
-
-**파라미터 설명:**
-- `--train`: 학습 기간 (년, 필수)
-- `--test`: 테스트 기간 (년, 필수)
-- `--metric`: 최적 파라미터 선택 기준 (필수, `cagr`, `total_return_pct`, `mdd` 중 선택)
-
-결과는 `data/raw/walkforward_results.csv`에 저장됩니다.
-
 ## 스크립트 사용 가이드
 
 ### 스크립트별 역할 및 출력물
@@ -107,7 +80,6 @@ poetry run python scripts/run_walkforward.py \
 | `download_data.py` | 데이터 수집 | `data/raw/{TICKER}_max.csv` |
 | `run_single_backtest.py` | 단일 전략 검증 | 콘솔 출력 (성과 비교) |
 | `run_grid_search.py` | 파라미터 최적화 | `data/raw/grid_results.csv` |
-| `run_walkforward.py` | 실전 검증 | `data/raw/walkforward_results.csv` |
 
 ### 처리 흐름 및 의존성
 
@@ -121,18 +93,15 @@ poetry run python scripts/run_walkforward.py \
        │
        │ (CSV 파일 의존)
        ▼
-┌──────────────────────────────────────────────────┐
-│               백테스트 스크립트                    │
-│                                                  │
-│  run_grid_search ──▶ grid_results.csv           │
-│         │            (최적 파라미터 탐색)         │
-│         ▼                                        │
-│  run_single_backtest ──▶ 콘솔 (전략 비교)         │
-│         │                (특정 파라미터 상세 분석) │
-│         ▼                                        │
-│  run_walkforward ──▶ walkforward_results.csv    │
-│                      (과적합 검증)               │
-└──────────────────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│          백테스트 스크립트                   │
+│                                            │
+│  run_grid_search ──▶ grid_results.csv     │
+│         │            (최적 파라미터 탐색)   │
+│         ▼                                  │
+│  run_single_backtest ──▶ 콘솔 (전략 비교)  │
+│                (특정 파라미터 상세 분석)    │
+└────────────────────────────────────────────┘
 ```
 
 ### 권장 사용 순서
@@ -140,7 +109,6 @@ poetry run python scripts/run_walkforward.py \
 1. **데이터 준비**: `download_data.py`로 CSV 생성
 2. **파라미터 탐색**: `run_grid_search.py`로 최적 조합 탐색
 3. **단일 검증**: `run_single_backtest.py`로 특정 파라미터 상세 분석
-4. **실전 검증**: `run_walkforward.py`로 과적합 여부 확인
 
 ## 프로젝트 구조
 
@@ -149,8 +117,7 @@ quant/
 ├── scripts/                     # 실행 스크립트
 │   ├── download_data.py         # 데이터 다운로드
 │   ├── run_single_backtest.py   # 단일 백테스트
-│   ├── run_grid_search.py       # 그리드 서치
-│   └── run_walkforward.py       # 워킹 포워드 테스트
+│   └── run_grid_search.py       # 그리드 서치
 ├── src/qbt/                     # 비즈니스 로직 패키지
 │   ├── backtest/                # 백테스트 엔진
 │   │   ├── config.py            # 설정 상수
@@ -167,15 +134,34 @@ quant/
 
 ## 전략 설명
 
-### 이동평균선 교차 전략
+### 버퍼존 전략
 
-- **골든 크로스**: 단기 이동평균이 장기 이동평균을 상향 돌파 시 매수
-- **데드 크로스**: 단기 이동평균이 장기 이동평균을 하향 돌파 시 매도
-- **손절**: 하드 스톱(진입가 기준) 또는 트레일링 스톱(최근 저점 기준) 중 높은 가격에서 손절
+이동평균선을 중심으로 상하 버퍼존을 설정하여 매매 신호를 생성하는 전략입니다.
 
-### 거래 비용
+**버퍼존 밴드:**
+- 상단 밴드 = 이동평균 × (1 + 버퍼존 비율)
+- 하단 밴드 = 이동평균 × (1 - 버퍼존 비율)
 
-- **슬리피지**: 매수/매도 시 가격에 적용 (기본 0.3%, 수수료 포함)
+**매수 신호:**
+- 조건: 종가가 상단 밴드를 상향 돌파 (전일 ≤ 상단 AND 당일 > 상단)
+- 유지조건: hold_days > 0이면 돌파 후 N일간 상단 밴드 위 유지 필요
+- 익일 시가에 매수 실행
+
+**매도 신호:**
+- 조건: 종가가 하단 밴드를 하향 돌파 (전일 ≥ 하단 AND 당일 < 하단)
+- 익일 시가에 매도 실행
+
+**동적 파라미터 조정:**
+- 최근 N개월 내 매수 횟수에 따라 버퍼존과 유지조건을 자동 증가
+- 매수 1회당: 버퍼존 +1%, 유지조건 +1일
+- 목적: 과도한 거래 빈도 방지 및 신호 품질 향상
+
+### 거래 규칙
+
+- **롱 온리**: 매수만 가능, 공매도 불가
+- **최대 1 포지션**: 한 번에 하나의 포지션만 보유
+- **익일 시가 진입/청산**: 신호 발생 다음 날 시가에 거래 실행
+- **거래 비용**: 슬리피지 0.3% (매수 +0.3%, 매도 -0.3%, 수수료 포함)
 
 ### 성과 지표
 
