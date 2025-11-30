@@ -3,10 +3,19 @@
 스크립트에서 공통으로 사용하는 데이터 로딩, 출력 포맷팅 함수를 제공한다.
 """
 
+from enum import Enum
 from logging import Logger
 from pathlib import Path
 
 import pandas as pd
+
+
+class Align(Enum):
+    """텍스트 정렬 방향을 나타내는 열거형"""
+
+    LEFT = "left"
+    RIGHT = "right"
+    CENTER = "center"
 
 
 def get_display_width(text: str) -> int:
@@ -31,7 +40,7 @@ def get_display_width(text: str) -> int:
     return width
 
 
-def format_cell(text: str, width: int, align: str = "left") -> str:
+def format_cell(text: str, width: int, align: Align | str = "left") -> str:
     """
     터미널 폭을 고려하여 문자열을 정렬한다.
 
@@ -40,26 +49,48 @@ def format_cell(text: str, width: int, align: str = "left") -> str:
     Args:
         text: 정렬할 문자열
         width: 목표 폭 (칸 수)
-        align: 정렬 방향 ("left", "right", "center")
+        align: 정렬 방향 (Align enum 또는 "left", "right", "center" 문자열)
 
     Returns:
         정렬된 문자열
     """
-    text_str = str(text)
-    current_width = get_display_width(text_str)
-    padding = width - current_width
+    content = str(text)
+    content_width = get_display_width(content)
+    available_padding = width - content_width
 
-    if padding <= 0:
-        return text_str
+    # 폭이 부족한 경우 원본 반환
+    if available_padding <= 0:
+        return content
 
-    if align == "left":
-        return text_str + " " * padding
-    elif align == "right":
-        return " " * padding + text_str
-    else:  # center
-        left_pad = padding // 2
-        right_pad = padding - left_pad
-        return " " * left_pad + text_str + " " * right_pad
+    # 문자열을 Enum으로 정규화 (하위 호환성 유지)
+    alignment = align if isinstance(align, Align) else Align(align)
+
+    # 정렬 방향에 따라 패딩 적용
+    if alignment == Align.LEFT:
+        return content + " " * available_padding
+
+    if alignment == Align.RIGHT:
+        return " " * available_padding + content
+
+    # CENTER: 좌우 균등 분배
+    left_padding = available_padding // 2
+    right_padding = available_padding - left_padding
+    return " " * left_padding + content + " " * right_padding
+
+
+def format_row(cells: list[tuple[str, int, Align | str]], indent: int = 2) -> str:
+    """
+    여러 셀을 한 번에 포맷팅하여 행을 생성한다.
+
+    Args:
+        cells: [(텍스트, 폭, 정렬), ...] 튜플 리스트
+        indent: 들여쓰기 칸 수
+
+    Returns:
+        포맷팅된 행 문자열
+    """
+    formatted_cells = [format_cell(text, width, align) for text, width, align in cells]
+    return " " * indent + "".join(formatted_cells)
 
 
 def load_and_validate_data(data_path: Path, logger: Logger) -> pd.DataFrame | None:
@@ -153,14 +184,15 @@ def print_trades(trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: 
     logger.debug(f"[{title}] 거래 내역 (최근 {max_rows}건)")
 
     # 헤더 출력
-    header = (
-        "  "
-        + format_cell("진입일", col_entry_date, "left")
-        + format_cell("청산일", col_exit_date, "left")
-        + format_cell("진입가", col_entry_price, "right")
-        + format_cell("청산가", col_exit_price, "right")
-        + format_cell("손익률", col_pnl, "right")
-        + format_cell("사유", col_reason, "right")
+    header = format_row(
+        [
+            ("진입일", col_entry_date, Align.LEFT),
+            ("청산일", col_exit_date, Align.LEFT),
+            ("진입가", col_entry_price, Align.RIGHT),
+            ("청산가", col_exit_price, Align.RIGHT),
+            ("손익률", col_pnl, Align.RIGHT),
+            ("사유", col_reason, Align.RIGHT),
+        ]
     )
     logger.debug(header)
     logger.debug("-" * total_width)
@@ -171,14 +203,15 @@ def print_trades(trades_df: pd.DataFrame, title: str, logger: Logger, max_rows: 
         exit_price_str = f"{trade['exit_price']:.2f}"
         pnl_str = f"{trade['pnl_pct'] * 100:+.2f}%"
 
-        row = (
-            "  "
-            + format_cell(str(trade["entry_date"]), col_entry_date, "left")
-            + format_cell(str(trade["exit_date"]), col_exit_date, "left")
-            + format_cell(entry_price_str, col_entry_price, "right")
-            + format_cell(exit_price_str, col_exit_price, "right")
-            + format_cell(pnl_str, col_pnl, "right")
-            + format_cell(trade["exit_reason"], col_reason, "right")
+        row = format_row(
+            [
+                (str(trade["entry_date"]), col_entry_date, Align.LEFT),
+                (str(trade["exit_date"]), col_exit_date, Align.LEFT),
+                (entry_price_str, col_entry_price, Align.RIGHT),
+                (exit_price_str, col_exit_price, Align.RIGHT),
+                (pnl_str, col_pnl, Align.RIGHT),
+                (trade["exit_reason"], col_reason, Align.RIGHT),
+            ]
         )
         logger.debug(row)
 
@@ -207,13 +240,14 @@ def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) ->
     logger.debug("[전략 비교 요약]")
 
     # 헤더 출력
-    header = (
-        "  "
-        + format_cell("전략", col_strategy, "left")
-        + format_cell("총수익률", col_return, "right")
-        + format_cell("CAGR", col_cagr, "right")
-        + format_cell("MDD", col_mdd, "right")
-        + format_cell("거래수", col_trades, "right")
+    header = format_row(
+        [
+            ("전략", col_strategy, Align.LEFT),
+            ("총수익률", col_return, Align.RIGHT),
+            ("CAGR", col_cagr, Align.RIGHT),
+            ("MDD", col_mdd, Align.RIGHT),
+            ("거래수", col_trades, Align.RIGHT),
+        ]
     )
     logger.debug(header)
     logger.debug("-" * total_width)
@@ -225,13 +259,14 @@ def print_comparison_table(summaries: list[tuple[str, dict]], logger: Logger) ->
         mdd_str = f"{summary['mdd']:.2f}%"
         trades_str = str(summary["total_trades"])
 
-        row = (
-            "  "
-            + format_cell(name, col_strategy, "left")
-            + format_cell(return_str, col_return, "right")
-            + format_cell(cagr_str, col_cagr, "right")
-            + format_cell(mdd_str, col_mdd, "right")
-            + format_cell(trades_str, col_trades, "right")
+        row = format_row(
+            [
+                (name, col_strategy, Align.LEFT),
+                (return_str, col_return, Align.RIGHT),
+                (cagr_str, col_cagr, Align.RIGHT),
+                (mdd_str, col_mdd, Align.RIGHT),
+                (trades_str, col_trades, Align.RIGHT),
+            ]
         )
         logger.debug(row)
 
