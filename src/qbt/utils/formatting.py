@@ -36,7 +36,7 @@ def get_display_width(text: str) -> int:
     return width
 
 
-def format_cell(text: str, width: int, align: Align | str = "left") -> str:
+def format_cell(text: str, width: int, align: Align = Align.LEFT) -> str:
     """
     터미널 폭을 고려하여 문자열을 정렬한다.
 
@@ -45,7 +45,7 @@ def format_cell(text: str, width: int, align: Align | str = "left") -> str:
     Args:
         text: 정렬할 문자열
         width: 목표 폭 (칸 수)
-        align: 정렬 방향 (Align enum 또는 "left", "right", "center" 문자열)
+        align: 정렬 방향 (Align enum)
 
     Returns:
         정렬된 문자열
@@ -58,14 +58,11 @@ def format_cell(text: str, width: int, align: Align | str = "left") -> str:
     if available_padding <= 0:
         return content
 
-    # 문자열을 Enum으로 정규화 (하위 호환성 유지)
-    alignment = align if isinstance(align, Align) else Align(align)
-
     # 정렬 방향에 따라 패딩 적용
-    if alignment == Align.LEFT:
+    if align == Align.LEFT:
         return content + " " * available_padding
 
-    if alignment == Align.RIGHT:
+    if align == Align.RIGHT:
         return " " * available_padding + content
 
     # CENTER: 좌우 균등 분배
@@ -74,7 +71,7 @@ def format_cell(text: str, width: int, align: Align | str = "left") -> str:
     return " " * left_padding + content + " " * right_padding
 
 
-def format_row(cells: list[tuple[str, int, Align | str]], indent: int = 2) -> str:
+def format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
     """
     여러 셀을 한 번에 포맷팅하여 행을 생성한다.
 
