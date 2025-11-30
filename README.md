@@ -128,7 +128,8 @@ quant/
 │   │   └── exceptions.py        # 커스텀 예외
 │   └── utils/                   # 유틸리티
 │       ├── logger.py            # 로깅 설정
-│       └── cli.py               # CLI 공통 함수
+│       ├── formatting.py        # 테이블 출력 포맷팅
+│       └── data_loader.py       # 데이터 로딩 공통 함수
 └── data/raw/                    # CSV 데이터 저장소
 ```
 
