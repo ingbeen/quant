@@ -21,7 +21,7 @@ from qbt.backtest import (
 from qbt.backtest.config import DEFAULT_DATA_FILE, DEFAULT_INITIAL_CAPITAL
 from qbt.utils import setup_logger
 from qbt.utils.data_loader import load_and_validate_data
-from qbt.utils.formatting import Align, format_row
+from qbt.utils.formatting import Align, TableLogger
 
 # 로거 설정
 logger = setup_logger("run_single_backtest", level="DEBUG")
@@ -50,124 +50,6 @@ def print_summary(summary: dict, title: str, logger: logging.Logger) -> None:
         if "winning_trades" in summary:
             logger.debug(f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}")
     logger.debug("=" * 60)
-
-
-def print_trades(trades_df: pd.DataFrame, title: str, logger: logging.Logger, max_rows: int = 10) -> None:
-    """
-    거래 내역을 출력한다.
-
-    Args:
-        trades_df: 거래 내역 DataFrame
-        title: 출력 제목
-        logger: 로거 인스턴스
-        max_rows: 최대 출력 행 수
-    """
-    if trades_df.empty:
-        logger.debug(f"[{title}] 거래 내역 없음")
-        return
-
-    # 컬럼 폭 정의 (터미널 칸 수 기준)
-    col_entry_date = 12  # "진입일" (6칸) + YYYY-MM-DD
-    col_exit_date = 12  # "청산일" (6칸) + YYYY-MM-DD
-    col_entry_price = 12  # "진입가" (6칸) + 숫자
-    col_exit_price = 12  # "청산가" (6칸) + 숫자
-    col_pnl = 14  # "손익률" (6칸) + 숫자 + %
-    col_reason = 16  # "사유" (4칸) + 텍스트
-
-    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
-    total_width = 2 + col_entry_date + col_exit_date + col_entry_price + col_exit_price + col_pnl + col_reason
-
-    logger.debug("=" * total_width)
-    logger.debug(f"[{title}] 거래 내역 (최근 {max_rows}건)")
-
-    # 헤더 출력
-    header = format_row(
-        [
-            ("진입일", col_entry_date, Align.LEFT),
-            ("청산일", col_exit_date, Align.LEFT),
-            ("진입가", col_entry_price, Align.RIGHT),
-            ("청산가", col_exit_price, Align.RIGHT),
-            ("손익률", col_pnl, Align.RIGHT),
-            ("사유", col_reason, Align.RIGHT),
-        ]
-    )
-    logger.debug(header)
-    logger.debug("-" * total_width)
-
-    # 데이터 행 출력
-    for _, trade in trades_df.tail(max_rows).iterrows():
-        entry_price_str = f"{trade['entry_price']:.2f}"
-        exit_price_str = f"{trade['exit_price']:.2f}"
-        pnl_str = f"{trade['pnl_pct'] * 100:+.2f}%"
-
-        row = format_row(
-            [
-                (str(trade["entry_date"]), col_entry_date, Align.LEFT),
-                (str(trade["exit_date"]), col_exit_date, Align.LEFT),
-                (entry_price_str, col_entry_price, Align.RIGHT),
-                (exit_price_str, col_exit_price, Align.RIGHT),
-                (pnl_str, col_pnl, Align.RIGHT),
-                (trade["exit_reason"], col_reason, Align.RIGHT),
-            ]
-        )
-        logger.debug(row)
-
-    logger.debug("=" * total_width)
-
-
-def print_comparison_table(summaries: list[tuple[str, dict]], logger: logging.Logger) -> None:
-    """
-    전략 비교 테이블을 출력한다.
-
-    Args:
-        summaries: [(전략명, summary_dict), ...] 리스트
-        logger: 로거 인스턴스
-    """
-    # 컬럼 폭 정의 (터미널 칸 수 기준)
-    col_strategy = 20  # "전략" (4칸) + 여유
-    col_return = 12  # "총수익률" (8칸) + 숫자
-    col_cagr = 10  # "CAGR" (4칸) + 숫자
-    col_mdd = 10  # "MDD" (6칸) + 숫자
-    col_trades = 10  # "거래수" (6칸) + 숫자
-
-    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
-    total_width = 2 + col_strategy + col_return + col_cagr + col_mdd + col_trades
-
-    logger.debug("=" * total_width)
-    logger.debug("[전략 비교 요약]")
-
-    # 헤더 출력
-    header = format_row(
-        [
-            ("전략", col_strategy, Align.LEFT),
-            ("총수익률", col_return, Align.RIGHT),
-            ("CAGR", col_cagr, Align.RIGHT),
-            ("MDD", col_mdd, Align.RIGHT),
-            ("거래수", col_trades, Align.RIGHT),
-        ]
-    )
-    logger.debug(header)
-    logger.debug("-" * total_width)
-
-    # 데이터 행 출력
-    for name, summary in summaries:
-        return_str = f"{summary['total_return_pct']:.2f}%"
-        cagr_str = f"{summary['cagr']:.2f}%"
-        mdd_str = f"{summary['mdd']:.2f}%"
-        trades_str = str(summary["total_trades"])
-
-        row = format_row(
-            [
-                (name, col_strategy, Align.LEFT),
-                (return_str, col_return, Align.RIGHT),
-                (cagr_str, col_cagr, Align.RIGHT),
-                (mdd_str, col_mdd, Align.RIGHT),
-                (trades_str, col_trades, Align.RIGHT),
-            ]
-        )
-        logger.debug(row)
-
-    logger.debug("=" * total_width)
 
 
 def parse_args():
@@ -257,7 +139,35 @@ def main() -> int:
         logger.debug("버퍼존 전략 백테스트 실행")
         trades, _, summary = run_buffer_strategy(df, params)
         print_summary(summary, "버퍼존 전략 결과", logger)
-        print_trades(trades, "버퍼존 전략", logger)
+
+        # 거래 내역 출력
+        if not trades.empty:
+            columns = [
+                ("진입일", 12, Align.LEFT),
+                ("청산일", 12, Align.LEFT),
+                ("진입가", 12, Align.RIGHT),
+                ("청산가", 12, Align.RIGHT),
+                ("손익률", 14, Align.RIGHT),
+                ("사유", 16, Align.RIGHT),
+            ]
+
+            max_rows = 10
+            rows = []
+            for _, trade in trades.tail(max_rows).iterrows():
+                rows.append([
+                    str(trade["entry_date"]),
+                    str(trade["exit_date"]),
+                    f"{trade['entry_price']:.2f}",
+                    f"{trade['exit_price']:.2f}",
+                    f"{trade['pnl_pct'] * 100:+.2f}%",
+                    trade["exit_reason"],
+                ])
+
+            table = TableLogger(columns, logger)
+            table.print_table(rows, title=f"[버퍼존 전략] 거래 내역 (최근 {max_rows}건)")
+        else:
+            logger.debug("[버퍼존 전략] 거래 내역 없음")
+
         summaries.append(("버퍼존 전략", summary))
 
         # 5. Buy & Hold 벤치마크 실행
@@ -268,7 +178,26 @@ def main() -> int:
         summaries.append(("Buy & Hold", summary_bh))
 
         # 6. 전략 비교 요약
-        print_comparison_table(summaries, logger)
+        columns = [
+            ("전략", 20, Align.LEFT),
+            ("총수익률", 12, Align.RIGHT),
+            ("CAGR", 10, Align.RIGHT),
+            ("MDD", 10, Align.RIGHT),
+            ("거래수", 10, Align.RIGHT),
+        ]
+
+        rows = []
+        for name, summary in summaries:
+            rows.append([
+                name,
+                f"{summary['total_return_pct']:.2f}%",
+                f"{summary['cagr']:.2f}%",
+                f"{summary['mdd']:.2f}%",
+                str(summary["total_trades"]),
+            ])
+
+        table = TableLogger(columns, logger)
+        table.print_table(rows, title="[전략 비교 요약]")
 
         return 0
 

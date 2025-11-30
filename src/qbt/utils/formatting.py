@@ -3,6 +3,7 @@
 한글/영문 혼용 시 터미널 폭을 정확히 계산하여 정렬한다.
 """
 
+import logging
 from enum import Enum
 
 
@@ -84,3 +85,108 @@ def format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
     """
     formatted_cells = [format_cell(text, width, align) for text, width, align in cells]
     return " " * indent + "".join(formatted_cells)
+
+
+class TableLogger:
+    """테이블 형식으로 로그를 출력하는 클래스
+
+    컬럼 정의를 받아서 테이블 구조를 설정하고, 헤더/데이터/푸터를 출력합니다.
+    한글/영문 혼용 시 터미널 폭을 정확히 계산하여 정렬합니다.
+
+    Examples:
+        >>> columns = [
+        ...     ("날짜", 12, Align.LEFT),
+        ...     ("가격", 12, Align.RIGHT),
+        ...     ("변동률", 10, Align.RIGHT),
+        ... ]
+        >>> table = TableLogger(columns, logger)
+        >>> rows = [
+        ...     ["2024-01-01", "100.50", "+2.5%"],
+        ...     ["2024-01-02", "102.00", "+1.5%"],
+        ... ]
+        >>> table.print_table(rows, title="가격 변동 내역")
+    """
+
+    def __init__(
+        self,
+        columns: list[tuple[str, int, Align]],
+        logger: logging.Logger,
+        indent: int = 2
+    ) -> None:
+        """
+        TableLogger를 초기화한다.
+
+        Args:
+            columns: [(컬럼명, 폭, 정렬), ...] 튜플 리스트
+            logger: 로거 인스턴스
+            indent: 들여쓰기 칸 수
+        """
+        self.columns = columns
+        self.logger = logger
+        self.indent = indent
+        self._total_width = indent + sum(width for _, width, _ in columns)
+
+    def print_header(self, title: str | None = None) -> None:
+        """
+        테이블 헤더를 출력한다.
+
+        상단 구분선, 제목(선택), 컬럼 헤더, 구분선을 출력합니다.
+
+        Args:
+            title: 테이블 제목 (None이면 제목 없음)
+        """
+        # 상단 구분선
+        self.logger.debug("=" * self._total_width)
+
+        # 제목 (있는 경우)
+        if title:
+            self.logger.debug(title)
+
+        # 컬럼 헤더
+        header_cells = [(name, width, align) for name, width, align in self.columns]
+        header_line = format_row(header_cells, self.indent)
+        self.logger.debug(header_line)
+
+        # 헤더 하단 구분선
+        self.logger.debug("-" * self._total_width)
+
+    def print_row(self, data: list) -> None:
+        """
+        데이터 행을 출력한다.
+
+        Args:
+            data: 컬럼 순서대로 정렬된 데이터 리스트
+
+        Raises:
+            ValueError: 데이터 길이가 컬럼 수와 일치하지 않는 경우
+        """
+        if len(data) != len(self.columns):
+            raise ValueError(
+                f"데이터 길이({len(data)})가 컬럼 수({len(self.columns)})와 일치하지 않습니다"
+            )
+
+        cells = [
+            (str(value), width, align)
+            for value, (_, width, align) in zip(data, self.columns)
+        ]
+        row_line = format_row(cells, self.indent)
+        self.logger.debug(row_line)
+
+    def print_footer(self) -> None:
+        """테이블 푸터(하단 구분선)를 출력한다."""
+        self.logger.debug("=" * self._total_width)
+
+    def print_table(self, rows: list, title: str | None = None) -> None:
+        """
+        전체 테이블을 출력한다.
+
+        헤더, 모든 데이터 행, 푸터를 한 번에 출력합니다.
+
+        Args:
+            rows: 데이터 행 리스트 (각 행은 컬럼 순서대로 정렬된 리스트)
+            title: 테이블 제목 (None이면 제목 없음)
+        """
+        self.print_header(title)
+        for row in rows:
+            self.print_row(row)
+        self.print_footer()

@@ -18,97 +18,10 @@ from qbt.backtest.config import (
 )
 from qbt.utils import setup_logger
 from qbt.utils.data_loader import load_and_validate_data
-from qbt.utils.formatting import Align, format_row
+from qbt.utils.formatting import Align, TableLogger
 
 # 로거 설정
 logger = setup_logger("run_grid_search", level="DEBUG")
-
-
-def print_top_results(results_df, title: str, top_n: int = 10) -> None:
-    """상위 결과를 출력한다."""
-    # 컬럼 폭 정의
-    col_rank = 6  # "순위"
-    col_window = 8  # "Window"
-    col_buffer = 10  # "Buffer%"
-    col_hold = 8  # "Hold일"
-    col_recent = 10  # "Recent월"
-    col_return = 12  # "수익률"
-    col_cagr = 10  # "CAGR"
-    col_mdd = 10  # "MDD"
-    col_trades = 8  # "거래수"
-    col_winrate = 8  # "승률"
-
-    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
-    total_width = (
-        2
-        + col_rank
-        + col_window
-        + col_buffer
-        + col_hold
-        + col_recent
-        + col_return
-        + col_cagr
-        + col_mdd
-        + col_trades
-        + col_winrate
-    )
-
-    logger.debug("=" * total_width)
-    logger.debug(f"[{title}] 상위 {top_n}개 결과")
-    logger.debug("=" * total_width)
-
-    if results_df.empty:
-        logger.debug("결과 없음")
-        return
-
-    # 헤더 출력
-    header = format_row(
-        [
-            ("순위", col_rank, Align.RIGHT),
-            ("Window", col_window, Align.RIGHT),
-            ("Buffer%", col_buffer, Align.RIGHT),
-            ("Hold일", col_hold, Align.RIGHT),
-            ("Recent월", col_recent, Align.RIGHT),
-            ("수익률", col_return, Align.RIGHT),
-            ("CAGR", col_cagr, Align.RIGHT),
-            ("MDD", col_mdd, Align.RIGHT),
-            ("거래수", col_trades, Align.RIGHT),
-            ("승률", col_winrate, Align.RIGHT),
-        ]
-    )
-    logger.debug(header)
-    logger.debug("-" * total_width)
-
-    # 데이터 행 출력
-    for idx, row in results_df.head(top_n).iterrows():
-        rank_str = str(idx + 1)
-        window_str = str(row["ma_window"])
-        buffer_str = f"{row['buffer_zone_pct'] * 100:.1f}%"
-        hold_str = f"{row['hold_days']}일"
-        recent_str = f"{row['recent_months']}월"
-        return_str = f"{row['total_return_pct']:.2f}%"
-        cagr_str = f"{row['cagr']:.2f}%"
-        mdd_str = f"{row['mdd']:.2f}%"
-        trades_str = str(row["total_trades"])
-        winrate_str = f"{row['win_rate']:.1f}%"
-
-        line = format_row(
-            [
-                (rank_str, col_rank, Align.RIGHT),
-                (window_str, col_window, Align.RIGHT),
-                (buffer_str, col_buffer, Align.RIGHT),
-                (hold_str, col_hold, Align.RIGHT),
-                (recent_str, col_recent, Align.RIGHT),
-                (return_str, col_return, Align.RIGHT),
-                (cagr_str, col_cagr, Align.RIGHT),
-                (mdd_str, col_mdd, Align.RIGHT),
-                (trades_str, col_trades, Align.RIGHT),
-                (winrate_str, col_winrate, Align.RIGHT),
-            ]
-        )
-        logger.debug(line)
-
-    logger.debug("=" * total_width)
 
 
 def print_summary_stats(results_df) -> None:
@@ -178,12 +91,59 @@ def main() -> int:
             initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 3. 상위 결과 출력
-        print_top_results(results_df, "수익률 기준", top_n=10)
+        # 3. 상위 결과 출력 (수익률 기준)
+        columns = [
+            ("순위", 6, Align.RIGHT),
+            ("Window", 8, Align.RIGHT),
+            ("Buffer%", 10, Align.RIGHT),
+            ("Hold일", 8, Align.RIGHT),
+            ("Recent월", 10, Align.RIGHT),
+            ("수익률", 12, Align.RIGHT),
+            ("CAGR", 10, Align.RIGHT),
+            ("MDD", 10, Align.RIGHT),
+            ("거래수", 8, Align.RIGHT),
+            ("승률", 8, Align.RIGHT),
+        ]
+
+        top_n = 10
+        rows = []
+        for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
+            rows.append([
+                str(rank),
+                str(row["ma_window"]),
+                f"{row['buffer_zone_pct'] * 100:.1f}%",
+                f"{row['hold_days']}일",
+                f"{row['recent_months']}월",
+                f"{row['total_return_pct']:.2f}%",
+                f"{row['cagr']:.2f}%",
+                f"{row['mdd']:.2f}%",
+                str(row["total_trades"]),
+                f"{row['win_rate']:.1f}%",
+            ])
+
+        table = TableLogger(columns, logger)
+        table.print_table(rows, title=f"[수익률 기준] 상위 {top_n}개 결과")
 
         # 4. CAGR 기준 정렬 후 출력
         results_by_cagr = results_df.sort_values(by="cagr", ascending=False).reset_index(drop=True)
-        print_top_results(results_by_cagr, "CAGR 기준", top_n=10)
+
+        rows = []
+        for rank, (_, row) in enumerate(results_by_cagr.head(top_n).iterrows(), start=1):
+            rows.append([
+                str(rank),
+                str(row["ma_window"]),
+                f"{row['buffer_zone_pct'] * 100:.1f}%",
+                f"{row['hold_days']}일",
+                f"{row['recent_months']}월",
+                f"{row['total_return_pct']:.2f}%",
+                f"{row['cagr']:.2f}%",
+                f"{row['mdd']:.2f}%",
+                str(row["total_trades"]),
+                f"{row['win_rate']:.1f}%",
+            ])
+
+        table = TableLogger(columns, logger)
+        table.print_table(rows, title=f"[CAGR 기준] 상위 {top_n}개 결과")
 
         # 5. 요약 통계 출력
         print_summary_stats(results_df)
