@@ -17,6 +17,7 @@ from qbt.backtest.config import (
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
+from qbt.backtest.data import add_single_moving_average
 from qbt.backtest.metrics import calculate_summary
 from qbt.utils import get_logger
 
@@ -151,7 +152,7 @@ def run_grid_search(
     logger.debug(f"이동평균 사전 계산 (EMA): {sorted(ma_window_list)}")
 
     for window in ma_window_list:
-        df[f"ma_{window}"] = df["Close"].ewm(span=window, adjust=False).mean()
+        df = add_single_moving_average(df, window, ma_type="ema")
 
     logger.debug("이동평균 사전 계산 완료")
 
@@ -225,51 +226,6 @@ class BufferStrategyParams:
     hold_days: int = DEFAULT_HOLD_DAYS  # 초기 유지조건 (1일)
     recent_months: int = DEFAULT_RECENT_MONTHS  # 최근 매수 기간 (6개월)
     initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
-
-
-def add_single_moving_average(
-    df: pd.DataFrame,
-    window: int,
-    ma_type: str = "sma",
-) -> pd.DataFrame:
-    """
-    지정된 기간의 이동평균을 계산하여 컬럼으로 추가한다.
-
-    Args:
-        df: 주식 데이터 DataFrame (Close 컬럼 필수)
-        window: 이동평균 기간
-        ma_type: 이동평균 유형 ("sma" 또는 "ema", 기본값: "sma")
-
-    Returns:
-        이동평균 컬럼이 추가된 DataFrame (원본 복사본)
-
-    Raises:
-        ValueError: window < 1인 경우
-    """
-    if window < 1:
-        raise ValueError(f"window는 1 이상이어야 합니다: {window}")
-
-    logger.debug(f"이동평균 계산: window={window}, type={ma_type}")
-
-    # DataFrame 복사 (원본 보존)
-    df = df.copy()
-
-    # 컬럼명 설정
-    col_name = f"ma_{window}"
-
-    # 이동평균 계산
-    if ma_type == "sma":
-        df[col_name] = df["Close"].rolling(window=window).mean()
-    elif ma_type == "ema":
-        df[col_name] = df["Close"].ewm(span=window, adjust=False).mean()
-    else:
-        raise ValueError(f"지원하지 않는 ma_type: {ma_type}")
-
-    # 유효 데이터 수 확인
-    valid_rows = df[col_name].notna().sum()
-    logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
-
-    return df
 
 
 def calculate_recent_buy_count(
