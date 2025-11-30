@@ -16,8 +16,9 @@ from qbt.backtest.config import (
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
 )
-from qbt.utils import load_and_validate_data, setup_logger
-from qbt.utils.cli import format_cell
+from qbt.utils import setup_logger
+from qbt.utils.data_loader import load_and_validate_data
+from qbt.utils.formatting import Align, format_row
 
 # 로거 설정
 logger = setup_logger("run_grid_search", level="DEBUG")
@@ -37,8 +38,10 @@ def print_top_results(results_df, title: str, top_n: int = 10) -> None:
     col_trades = 8  # "거래수"
     col_winrate = 8  # "승률"
 
+    # 전체 테이블 폭 계산 (들여쓰기 2칸 + 컬럼들)
     total_width = (
-        col_rank
+        2
+        + col_rank
         + col_window
         + col_buffer
         + col_hold
@@ -58,23 +61,25 @@ def print_top_results(results_df, title: str, top_n: int = 10) -> None:
         logger.debug("결과 없음")
         return
 
-    # 헤더
-    header = (
-        format_cell("순위", col_rank, "right")
-        + format_cell("Window", col_window, "right")
-        + format_cell("Buffer%", col_buffer, "right")
-        + format_cell("Hold일", col_hold, "right")
-        + format_cell("Recent월", col_recent, "right")
-        + format_cell("수익률", col_return, "right")
-        + format_cell("CAGR", col_cagr, "right")
-        + format_cell("MDD", col_mdd, "right")
-        + format_cell("거래수", col_trades, "right")
-        + format_cell("승률", col_winrate, "right")
+    # 헤더 출력
+    header = format_row(
+        [
+            ("순위", col_rank, Align.RIGHT),
+            ("Window", col_window, Align.RIGHT),
+            ("Buffer%", col_buffer, Align.RIGHT),
+            ("Hold일", col_hold, Align.RIGHT),
+            ("Recent월", col_recent, Align.RIGHT),
+            ("수익률", col_return, Align.RIGHT),
+            ("CAGR", col_cagr, Align.RIGHT),
+            ("MDD", col_mdd, Align.RIGHT),
+            ("거래수", col_trades, Align.RIGHT),
+            ("승률", col_winrate, Align.RIGHT),
+        ]
     )
     logger.debug(header)
     logger.debug("-" * total_width)
 
-    # 데이터 행
+    # 데이터 행 출력
     for idx, row in results_df.head(top_n).iterrows():
         rank_str = str(idx + 1)
         window_str = str(row["ma_window"])
@@ -87,17 +92,19 @@ def print_top_results(results_df, title: str, top_n: int = 10) -> None:
         trades_str = str(row["total_trades"])
         winrate_str = f"{row['win_rate']:.1f}%"
 
-        line = (
-            format_cell(rank_str, col_rank, "right")
-            + format_cell(window_str, col_window, "right")
-            + format_cell(buffer_str, col_buffer, "right")
-            + format_cell(hold_str, col_hold, "right")
-            + format_cell(recent_str, col_recent, "right")
-            + format_cell(return_str, col_return, "right")
-            + format_cell(cagr_str, col_cagr, "right")
-            + format_cell(mdd_str, col_mdd, "right")
-            + format_cell(trades_str, col_trades, "right")
-            + format_cell(winrate_str, col_winrate, "right")
+        line = format_row(
+            [
+                (rank_str, col_rank, Align.RIGHT),
+                (window_str, col_window, Align.RIGHT),
+                (buffer_str, col_buffer, Align.RIGHT),
+                (hold_str, col_hold, Align.RIGHT),
+                (recent_str, col_recent, Align.RIGHT),
+                (return_str, col_return, Align.RIGHT),
+                (cagr_str, col_cagr, Align.RIGHT),
+                (mdd_str, col_mdd, Align.RIGHT),
+                (trades_str, col_trades, Align.RIGHT),
+                (winrate_str, col_winrate, Align.RIGHT),
+            ]
         )
         logger.debug(line)
 
