@@ -428,12 +428,8 @@ def generate_daily_comparison_csv(
     overlap_dates = sorted(overlap_dates)
 
     # 겹치는 기간의 데이터만 추출
-    sim_overlap = (
-        simulated_df[simulated_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-    )
-    actual_overlap = (
-        actual_df[actual_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-    )
+    sim_overlap = simulated_df[simulated_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    actual_overlap = actual_df[actual_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
 
     # 2. 기본 데이터 준비
     comparison_data = {

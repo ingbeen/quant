@@ -108,18 +108,20 @@ def main() -> int:
         top_n = 10
         rows = []
         for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
-            rows.append([
-                str(rank),
-                str(row["ma_window"]),
-                f"{row['buffer_zone_pct'] * 100:.1f}%",
-                f"{row['hold_days']}일",
-                f"{row['recent_months']}월",
-                f"{row['total_return_pct']:.2f}%",
-                f"{row['cagr']:.2f}%",
-                f"{row['mdd']:.2f}%",
-                str(row["total_trades"]),
-                f"{row['win_rate']:.1f}%",
-            ])
+            rows.append(
+                [
+                    str(rank),
+                    str(row["ma_window"]),
+                    f"{row['buffer_zone_pct'] * 100:.1f}%",
+                    f"{row['hold_days']}일",
+                    f"{row['recent_months']}월",
+                    f"{row['total_return_pct']:.2f}%",
+                    f"{row['cagr']:.2f}%",
+                    f"{row['mdd']:.2f}%",
+                    str(row["total_trades"]),
+                    f"{row['win_rate']:.1f}%",
+                ]
+            )
 
         table = TableLogger(columns, logger)
         table.print_table(rows, title=f"[수익률 기준] 상위 {top_n}개 결과")
@@ -129,18 +131,20 @@ def main() -> int:
 
         rows = []
         for rank, (_, row) in enumerate(results_by_cagr.head(top_n).iterrows(), start=1):
-            rows.append([
-                str(rank),
-                str(row["ma_window"]),
-                f"{row['buffer_zone_pct'] * 100:.1f}%",
-                f"{row['hold_days']}일",
-                f"{row['recent_months']}월",
-                f"{row['total_return_pct']:.2f}%",
-                f"{row['cagr']:.2f}%",
-                f"{row['mdd']:.2f}%",
-                str(row["total_trades"]),
-                f"{row['win_rate']:.1f}%",
-            ])
+            rows.append(
+                [
+                    str(rank),
+                    str(row["ma_window"]),
+                    f"{row['buffer_zone_pct'] * 100:.1f}%",
+                    f"{row['hold_days']}일",
+                    f"{row['recent_months']}월",
+                    f"{row['total_return_pct']:.2f}%",
+                    f"{row['cagr']:.2f}%",
+                    f"{row['mdd']:.2f}%",
+                    str(row["total_trades"]),
+                    f"{row['win_rate']:.1f}%",
+                ]
+            )
 
         table = TableLogger(columns, logger)
         table.print_table(rows, title=f"[CAGR 기준] 상위 {top_n}개 결과")
