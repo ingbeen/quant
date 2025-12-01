@@ -11,7 +11,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.synth import find_optimal_multiplier, simulate_leveraged_etf, validate_simulation
+from qbt.synth import (
+    find_optimal_multiplier,
+    generate_daily_comparison_csv,
+    simulate_leveraged_etf,
+    validate_simulation,
+)
 from qbt.utils import setup_logger
 from qbt.utils.formatting import Align, TableLogger
 
@@ -187,6 +192,21 @@ def main() -> int:
             actual_df=tqqq_overlap,
         )
 
+        # 4-1. 일별 비교 CSV 생성
+        results_dir = Path("results")
+        results_dir.mkdir(exist_ok=True)
+
+        daily_csv_path = results_dir / "tqqq_daily_comparison.csv"
+        logger.debug(f"일별 비교 CSV 생성: {daily_csv_path}")
+        generate_daily_comparison_csv(
+            simulated_df=simulated_df,
+            actual_df=tqqq_overlap,
+            output_path=daily_csv_path,
+        )
+
+        daily_df = pd.read_csv(daily_csv_path)
+        logger.debug(f"일별 비교 CSV 저장 완료: {len(daily_df):,}행")
+
         # 5. 결과 출력 (터미널)
         logger.debug("=" * 64)
         logger.debug("TQQQ 시뮬레이션 검증")
@@ -238,13 +258,34 @@ def main() -> int:
         logger.debug("-" * 64)
         logger.debug("검증 지표")
         logger.debug("-" * 64)
-        logger.debug(f"  일일 수익률 상관계수: {validation_results['correlation']:.4f}")
-        logger.debug(f"  일일 수익률 차이 (평균): {validation_results['mean_return_diff_abs']*100:.4f}%")
-        logger.debug(f"  일일 수익률 차이 (최대): {validation_results['max_return_diff_abs']*100:.4f}%")
-        logger.debug(f"  일별 가격 차이 (평균): {validation_results['mean_price_diff_pct']:.4f}%")
-        logger.debug(f"  일별 가격 차이 (최대): {validation_results['max_price_diff_pct']:.4f}%")
-        logger.debug(f"  최종 가격 차이: {validation_results['final_price_diff_pct']:+.2f}%")
-        logger.debug("=" * 64)
+
+        # 일일 수익률 관련
+        logger.debug("  [일일 수익률]")
+        logger.debug(f"    상관계수: {validation_results['correlation']:.4f}")
+        logger.debug(f"    평균 차이: {validation_results['mean_return_diff']*100:.4f}%")
+        logger.debug(f"    MAE: {validation_results['mean_return_diff_abs']*100:.4f}%")
+        logger.debug(f"    최대 오차: {validation_results['max_return_diff_abs']*100:.4f}%")
+        logger.debug(f"    MSE: {validation_results['mse_daily_return']:.8f}")
+        logger.debug(f"    RMSE: {validation_results['rmse_daily_return']*100:.4f}%")
+
+        # 로그가격 관련
+        logger.debug("  [로그가격]")
+        logger.debug(f"    RMSE: {validation_results['rmse_log_price']:.6f}")
+        logger.debug(f"    최대 오차: {validation_results['max_error_log_price']:.6f}")
+
+        # 누적수익률 관련
+        logger.debug("  [누적수익률]")
+        logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
+        logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
+        logger.debug(f"    차이: {validation_results['cumulative_return_diff_pct']:+.1f}%p")
+        logger.debug(f"    RMSE: {validation_results['rmse_cumulative_return']*100:.4f}%")
+        logger.debug(f"    최대 오차: {validation_results['max_error_cumulative_return']*100:.4f}%")
+
+        # 가격 관련
+        logger.debug("  [가격]")
+        logger.debug(f"    최종 가격 차이: {validation_results['final_price_diff_pct']:+.2f}%")
+        logger.debug(f"    일별 평균 차이: {validation_results['mean_price_diff_pct']:.4f}%")
+        logger.debug(f"    일별 최대 차이: {validation_results['max_price_diff_pct']:.4f}%")
 
         # 품질 검증
         if validation_results["correlation"] < 0.95:
@@ -260,29 +301,81 @@ def main() -> int:
                 f"최종 가격 차이가 큽니다: {validation_results['final_price_diff_pct']:+.2f}% (권장: ±10% 이내)"
             )
 
-        # 6. 결과 저장 (CSV)
-        results_dir = Path("results")
-        results_dir.mkdir(exist_ok=True)
+        # 일별 비교 요약 통계
+        logger.debug("-" * 64)
+        logger.debug("일별 비교 요약 통계")
+        logger.debug("-" * 64)
 
+        columns = [
+            ("지표", 30, Align.LEFT),
+            ("평균", 12, Align.RIGHT),
+            ("최대", 12, Align.RIGHT),
+            ("최소", 12, Align.RIGHT),
+        ]
+        summary_table = TableLogger(columns, logger, indent=2)
+
+        rows = [
+            [
+                "일일수익률 차이 절대값 (%)",
+                f"{daily_df['일일수익률_차이_절대값'].mean():.4f}",
+                f"{daily_df['일일수익률_차이_절대값'].max():.4f}",
+                f"{daily_df['일일수익률_차이_절대값'].min():.4f}",
+            ],
+            [
+                "가격 차이 비율 (%)",
+                f"{daily_df['가격_차이_비율'].abs().mean():.4f}",
+                f"{daily_df['가격_차이_비율'].abs().max():.4f}",
+                f"{daily_df['가격_차이_비율'].abs().min():.4f}",
+            ],
+            [
+                "로그가격 차이",
+                f"{daily_df['로그가격_차이'].abs().mean():.6f}",
+                f"{daily_df['로그가격_차이'].abs().max():.6f}",
+                f"{daily_df['로그가격_차이'].abs().min():.6f}",
+            ],
+            [
+                "누적수익률 차이 (%)",
+                f"{daily_df['누적수익률_차이'].abs().mean():.2f}",
+                f"{daily_df['누적수익률_차이'].abs().max():.2f}",
+                f"{daily_df['누적수익률_차이'].abs().min():.2f}",
+            ],
+        ]
+
+        summary_table.print_table(rows)
+
+        logger.debug("=" * 64)
+
+        # 6. 결과 저장 (CSV)
         results_csv_path = results_dir / "tqqq_validation.csv"
         results_data = {
+            # 기본 정보
             "검증일": [pd.Timestamp.now().date()],
             "검증기간_시작": [validation_results["overlap_start"]],
             "검증기간_종료": [validation_results["overlap_end"]],
             "총일수": [validation_results["overlap_days"]],
             "최적_multiplier": [round(optimal_multiplier, 4)],
             "expense_ratio": [round(args.expense_ratio, 6)],
+            # 일일 수익률 지표
             "일일수익률_상관계수": [round(validation_results["correlation"], 6)],
             "일일수익률_평균차이_pct": [round(validation_results["mean_return_diff"] * 100, 4)],
-            "일일수익률_평균차이절대값_pct": [round(validation_results["mean_return_diff_abs"] * 100, 4)],
-            "일일수익률_최대차이절대값_pct": [round(validation_results["max_return_diff_abs"] * 100, 4)],
             "일일수익률_표준편차차이_pct": [round(validation_results["std_return_diff"] * 100, 4)],
-            "일별가격_평균차이_pct": [round(validation_results["mean_price_diff_pct"], 4)],
-            "일별가격_최대차이_pct": [round(validation_results["max_price_diff_pct"], 4)],
+            "일일수익률_MAE_pct": [round(validation_results["mean_return_diff_abs"] * 100, 4)],
+            "일일수익률_최대오차_pct": [round(validation_results["max_return_diff_abs"] * 100, 4)],
+            "일일수익률_MSE": [round(validation_results["mse_daily_return"], 8)],
+            "일일수익률_RMSE_pct": [round(validation_results["rmse_daily_return"] * 100, 4)],
+            # 로그가격 지표
+            "로그가격_RMSE": [round(validation_results["rmse_log_price"], 6)],
+            "로그가격_최대오차": [round(validation_results["max_error_log_price"], 6)],
+            # 누적수익률 지표
             "누적수익률_실제_pct": [round(validation_results["cumulative_return_actual"] * 100, 2)],
             "누적수익률_시뮬레이션_pct": [round(validation_results["cumulative_return_simulated"] * 100, 2)],
             "누적수익률_차이_pct": [round(validation_results["cumulative_return_diff_pct"], 2)],
+            "누적수익률_RMSE_pct": [round(validation_results["rmse_cumulative_return"] * 100, 4)],
+            "누적수익률_최대오차_pct": [round(validation_results["max_error_cumulative_return"] * 100, 4)],
+            # 가격 지표
             "최종가격_차이_pct": [round(validation_results["final_price_diff_pct"], 4)],
+            "일별가격_평균차이_pct": [round(validation_results["mean_price_diff_pct"], 4)],
+            "일별가격_최대차이_pct": [round(validation_results["max_price_diff_pct"], 4)],
         }
 
         results_df = pd.DataFrame(results_data)

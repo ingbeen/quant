@@ -59,31 +59,39 @@ scripts/
 
 **3. `validate_simulation()`**
 - 시뮬레이션 결과 검증
-- 다양한 통계 지표 계산:
-  - 일일 수익률 상관계수
-  - 일일 수익률 차이 (평균, 최대)
-  - 일별 가격 차이 (평균, 최대)
-  - 누적 수익률 비교
-  - 최종 가격 차이
+- 18개 통계 지표 계산:
+  - **기간 정보**: 시작일, 종료일, 총 일수
+  - **일일 수익률**: 상관계수, 평균차이, 표준편차차이, MAE, 최대오차, MSE, RMSE
+  - **로그가격**: RMSE, 최대오차
+  - **누적수익률**: 실제, 시뮬, 차이, RMSE, 최대오차
+  - **가격**: 최종차이, 일별평균차이, 일별최대차이
+
+**4. `generate_daily_comparison_csv()`**
+- 일별 상세 비교 CSV 생성
+- 17개 컬럼 데이터 출력 (한글 컬럼명)
+- Excel 호환 인코딩 (utf-8-sig)
 
 #### `scripts/validate_tqqq_simulation.py`
 
 **목적**: 2010-02-11 이후 QQQ로부터 TQQQ 시뮬레이션 후 실제 TQQQ와 비교
 
 **주요 기능**:
-1. QQQ, TQQQ 데이터 로드
+1. QQQ, TQQQ, FFR 데이터 로드
 2. 최적 multiplier 탐색 (기본: 2.8~3.2 범위)
 3. 최적 multiplier로 시뮬레이션 재실행
-4. 검증 지표 계산 및 출력 (터미널 테이블 + CSV)
+4. 검증 지표 계산 (18개 지표)
+5. 일별 비교 CSV 생성 (`results/tqqq_daily_comparison.csv`)
+6. 요약 검증 CSV 생성 (`results/tqqq_validation.csv`)
+7. 터미널 출력 (테이블 + 요약 통계)
 
 **출력 예시**:
 ```
 ================================================================
 TQQQ 시뮬레이션 검증
 ================================================================
-검증 기간: 2010-02-11 ~ 2025-11-28
+검증 기간: 2010-02-11 ~ 2025-12-01
 총 일수: 3,975일
-최적 multiplier: 2.52
+최적 multiplier: 3.03
 ----------------------------------------------------------------
 수익률 비교
 ----------------------------------------------------------------
@@ -94,12 +102,37 @@ TQQQ 시뮬레이션 검증
 ----------------------------------------------------------------
 검증 지표
 ----------------------------------------------------------------
-  일일 수익률 상관계수: 0.9989
-  일일 수익률 차이 (평균): 0.0234%
-  일일 수익률 차이 (최대): 1.2345%
-  일별 가격 차이 (평균): 0.5678%
-  일별 가격 차이 (최대): 12.3456%
-  최종 가격 차이: -0.01%
+  [일일 수익률]
+    상관계수: 0.9989
+    평균 차이: -0.0234%
+    MAE: 0.0234%
+    최대 오차: 1.2345%
+    MSE: 0.00000123
+    RMSE: 0.0351%
+
+  [로그가격]
+    RMSE: 0.123456
+    최대 오차: 0.567890
+
+  [누적수익률]
+    실제: +26283.6%
+    시뮬: +26281.0%
+    차이: -2.6%p
+    RMSE: 1.2345%
+    최대 오차: 5.6789%
+
+  [가격]
+    최종 가격 차이: -0.01%
+    일별 평균 차이: 0.5678%
+    일별 최대 차이: 12.3456%
+----------------------------------------------------------------
+일별 비교 요약 통계
+----------------------------------------------------------------
+  지표                           평균         최대         최소
+  일일수익률 차이 절대값 (%)     0.0234      1.2345       0.0000
+  가격 차이 비율 (%)             0.5678     12.3456       0.0001
+  로그가격 차이                  0.001234    0.056789     0.000001
+  누적수익률 차이 (%)            2.34       56.78         0.01
 ================================================================
 ```
 
@@ -184,19 +217,53 @@ poetry run python scripts/run_single_backtest.py \
 
 ### 3.4 검증 지표 설계
 
-**핵심 지표**:
-1. **일일 수익률 상관계수**: 시뮬레이션 품질의 핵심 지표 (목표: 0.95 이상)
-2. **일일 수익률 차이**: 평균 및 최대 절대값
-3. **일별 가격 차이**: 평균 및 최대 비율
-4. **누적 수익률 비교**: 장기 성과 비교
-5. **최종 가격 차이**: 마지막 날 가격 차이
+**핵심 지표 (18개)**:
 
-**CSV 포맷**:
-- 적절한 소수점 자릿수로 반올림
-- multiplier: 4자리
-- 상관계수: 6자리
-- 수익률: 4자리 (%)
-- 누적 수익률: 2자리 (%)
+**기간 정보 (3개)**:
+- 검증 시작일, 종료일, 총 일수
+
+**일일 수익률 지표 (7개)**:
+1. **상관계수**: 시뮬레이션 품질의 핵심 지표 (목표: 0.95 이상)
+2. **평균 차이**: 일일 수익률 평균 차이
+3. **표준편차 차이**: 일일 수익률 변동성 차이
+4. **MAE (Mean Absolute Error)**: 평균 절대 오차
+5. **최대 오차**: 일일 수익률 최대 차이
+6. **MSE (Mean Squared Error)**: 평균 제곱 오차
+7. **RMSE (Root Mean Squared Error)**: MSE의 제곱근
+
+**로그가격 지표 (2개)**:
+8. **RMSE**: 로그가격 경로 추종 정확도
+9. **최대 오차**: 로그가격 최대 차이
+
+**누적수익률 지표 (5개)**:
+10. **실제 누적수익률**: 실제 TQQQ 누적 수익률
+11. **시뮬 누적수익률**: 시뮬레이션 누적 수익률
+12. **차이**: 누적 수익률 차이
+13. **RMSE**: 누적수익률 경로 추종 정확도
+14. **최대 오차**: 누적수익률 최대 차이
+
+**가격 지표 (3개)**:
+15. **최종 가격 차이**: 마지막 날 가격 차이
+16. **일별 평균 차이**: 일별 가격 차이 평균
+17. **일별 최대 차이**: 일별 가격 차이 최대값
+
+**CSV 출력 파일**:
+
+1. **요약 검증 CSV** (`results/tqqq_validation.csv`):
+   - 1행 × 24개 컬럼
+   - 적절한 소수점 자릿수로 반올림
+   - multiplier: 4자리
+   - 상관계수: 6자리
+   - 수익률: 4자리 (%)
+   - 누적 수익률: 2자리 (%)
+   - MSE: 8자리
+   - 로그가격: 6자리
+
+2. **일별 비교 CSV** (`results/tqqq_daily_comparison.csv`):
+   - N행 × 17개 컬럼 (N = 검증 기간 일수)
+   - 한글 컬럼명
+   - Excel 호환 인코딩 (utf-8-sig)
+   - 컬럼: 날짜, 실제_종가, 시뮬_종가, 일일수익률, 가격차이, 로그가격, 누적수익률, 오차제곱 등
 
 ---
 
@@ -339,17 +406,41 @@ actual_returns = actual_df['Close'].pct_change().dropna()
 correlation = sim_returns.corr(actual_returns)
 
 # 4. 일일 수익률 차이
-mean_return_diff_abs = abs(sim_returns - actual_returns).mean()
+mean_return_diff = sim_returns.mean() - actual_returns.mean()
+std_return_diff = sim_returns.std() - actual_returns.std()
+mean_return_diff_abs = abs(sim_returns - actual_returns).mean()  # MAE
 max_return_diff_abs = abs(sim_returns - actual_returns).max()
 
-# 5. 일별 가격 차이
+# 5. 일일 수익률 MSE, RMSE
+return_errors = actual_returns - sim_returns
+mse_daily_return = (return_errors ** 2).mean()
+rmse_daily_return = sqrt(mse_daily_return)
+
+# 6. 로그가격 RMSE, 최대오차
+sim_log_prices = log(sim_df['Close'])
+actual_log_prices = log(actual_df['Close'])
+log_price_diff = actual_log_prices - sim_log_prices
+rmse_log_price = sqrt((log_price_diff ** 2).mean())
+max_error_log_price = abs(log_price_diff).max()
+
+# 7. 누적수익률 RMSE, 최대오차
+sim_cumulative_series = sim_df['Close'] / sim_df.iloc[0]['Close'] - 1
+actual_cumulative_series = actual_df['Close'] / actual_df.iloc[0]['Close'] - 1
+cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
+rmse_cumulative_return = sqrt((cumulative_return_diff_series ** 2).mean())
+max_error_cumulative_return = abs(cumulative_return_diff_series).max()
+
+# 8. 일별 가격 차이
 price_diff_pct = abs((sim_close - actual_close) / actual_close * 100)
 mean_price_diff_pct = price_diff_pct.mean()
 max_price_diff_pct = price_diff_pct.max()
 
-# 6. 누적 수익률
+# 9. 누적 수익률 (전체)
 sim_cumulative = (1 + sim_returns).prod() - 1
 actual_cumulative = (1 + actual_returns).prod() - 1
+
+# 10. 최종 가격 차이
+final_price_diff_pct = (sim_final - actual_final) / actual_final * 100
 ```
 
 ---
@@ -557,4 +648,4 @@ actual_cumulative = (1 + actual_returns).prod() - 1
 
 **최종 수정일**: 2025-12-01
 **작성자**: Claude (Anthropic)
-**버전**: 2.0
+**버전**: 3.0

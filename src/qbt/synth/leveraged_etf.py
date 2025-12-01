@@ -5,6 +5,7 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 """
 
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -272,16 +273,35 @@ def validate_simulation(
 
     Returns:
         검증 결과 딕셔너리: {
+            # 기간 정보
             'overlap_start': 겹치는 기간 시작일,
             'overlap_end': 겹치는 기간 종료일,
             'overlap_days': 겹치는 일수,
+
+            # 일일 수익률 지표
             'correlation': 일일 수익률 상관계수,
             'mean_return_diff': 일일 수익률 평균 차이,
             'std_return_diff': 일일 수익률 표준편차 차이,
+            'mean_return_diff_abs': 일일 수익률 MAE,
+            'max_return_diff_abs': 일일 수익률 최대 오차,
+            'mse_daily_return': 일일 수익률 MSE,
+            'rmse_daily_return': 일일 수익률 RMSE,
+
+            # 로그가격 지표
+            'rmse_log_price': 로그가격 RMSE,
+            'max_error_log_price': 로그가격 최대 오차,
+
+            # 누적수익률 지표
             'cumulative_return_simulated': 시뮬레이션 누적 수익률,
             'cumulative_return_actual': 실제 누적 수익률,
             'cumulative_return_diff_pct': 누적 수익률 차이 (%),
-            'final_price_diff_pct': 최종 가격 차이 (%)
+            'rmse_cumulative_return': 누적수익률 RMSE,
+            'max_error_cumulative_return': 누적수익률 최대 오차,
+
+            # 가격 지표
+            'final_price_diff_pct': 최종 가격 차이 (%),
+            'max_price_diff_pct': 일별 가격 최대 차이 (%),
+            'mean_price_diff_pct': 일별 가격 평균 차이 (%)
         }
 
     Raises:
@@ -334,6 +354,25 @@ def validate_simulation(
     mean_return_diff_abs = float(return_diff_abs.mean())
     max_return_diff_abs = float(return_diff_abs.max())
 
+    # 7-1. 일일 수익률 MSE, RMSE (지표1)
+    return_errors = actual_returns - sim_returns
+    mse_daily_return = float((return_errors**2).mean())
+    rmse_daily_return = float(np.sqrt(mse_daily_return))
+
+    # 7-2. 로그가격 기준 RMSE, MaxError (지표3)
+    sim_log_prices = np.log(sim_overlap["Close"])
+    actual_log_prices = np.log(actual_overlap["Close"])
+    log_price_diff = actual_log_prices - sim_log_prices
+    rmse_log_price = float(np.sqrt((log_price_diff**2).mean()))
+    max_error_log_price = float(np.abs(log_price_diff).max())
+
+    # 7-3. 누적수익률 기준 RMSE, MaxError (지표3)
+    sim_cumulative_series = sim_overlap["Close"] / sim_overlap.iloc[0]["Close"] - 1
+    actual_cumulative_series = actual_overlap["Close"] / actual_overlap.iloc[0]["Close"] - 1
+    cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
+    rmse_cumulative_return = float(np.sqrt((cumulative_return_diff_series**2).mean()))
+    max_error_cumulative_return = float(np.abs(cumulative_return_diff_series).max())
+
     return {
         "overlap_start": overlap_dates[0],
         "overlap_end": overlap_dates[-1],
@@ -349,4 +388,102 @@ def validate_simulation(
         "final_price_diff_pct": final_price_diff_pct,
         "max_price_diff_pct": max_price_diff_pct,
         "mean_price_diff_pct": mean_price_diff_pct,
+        "mse_daily_return": mse_daily_return,
+        "rmse_daily_return": rmse_daily_return,
+        "rmse_log_price": rmse_log_price,
+        "max_error_log_price": max_error_log_price,
+        "rmse_cumulative_return": rmse_cumulative_return,
+        "max_error_cumulative_return": max_error_cumulative_return,
     }
+
+
+def generate_daily_comparison_csv(
+    simulated_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    """
+    일별 상세 비교 CSV를 생성한다.
+
+    시뮬레이션 결과와 실제 데이터를 날짜별로 비교하여
+    각종 지표를 계산하고 CSV 파일로 저장한다.
+
+    Args:
+        simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
+        actual_df: 실제 DataFrame (Date, Close 컬럼 필수)
+        output_path: CSV 저장 경로 (pathlib.Path)
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+    """
+    # 1. 겹치는 기간 추출
+    sim_dates = set(simulated_df["Date"])
+    actual_dates = set(actual_df["Date"])
+    overlap_dates = sim_dates & actual_dates
+
+    if not overlap_dates:
+        raise ValueError("시뮬레이션과 실제 데이터 간 겹치는 기간이 없습니다")
+
+    # 날짜순 정렬
+    overlap_dates = sorted(overlap_dates)
+
+    # 겹치는 기간의 데이터만 추출
+    sim_overlap = (
+        simulated_df[simulated_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    )
+    actual_overlap = (
+        actual_df[actual_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    )
+
+    # 2. 기본 데이터 준비
+    comparison_data = {
+        "날짜": actual_overlap["Date"],
+        "실제_종가": actual_overlap["Close"],
+        "시뮬_종가": sim_overlap["Close"],
+    }
+
+    # 3. 일일 수익률 계산
+    actual_returns = actual_overlap["Close"].pct_change() * 100  # %
+    sim_returns = sim_overlap["Close"].pct_change() * 100  # %
+
+    comparison_data["실제_일일수익률"] = actual_returns
+    comparison_data["시뮬_일일수익률"] = sim_returns
+    comparison_data["일일수익률_차이"] = actual_returns - sim_returns
+    comparison_data["일일수익률_차이_절대값"] = (actual_returns - sim_returns).abs()
+
+    # 4. 가격 차이
+    price_diff = sim_overlap["Close"] - actual_overlap["Close"]
+    price_diff_pct = (price_diff / actual_overlap["Close"]) * 100
+
+    comparison_data["가격_차이"] = price_diff
+    comparison_data["가격_차이_비율"] = price_diff_pct
+
+    # 5. 로그가격
+    actual_log_price = actual_overlap["Close"].apply(np.log)
+    sim_log_price = sim_overlap["Close"].apply(np.log)
+
+    comparison_data["실제_로그가격"] = actual_log_price
+    comparison_data["시뮬_로그가격"] = sim_log_price
+    comparison_data["로그가격_차이"] = actual_log_price - sim_log_price
+
+    # 6. 누적수익률
+    initial_actual = float(actual_overlap.iloc[0]["Close"])
+    initial_sim = float(sim_overlap.iloc[0]["Close"])
+
+    actual_cumulative = (actual_overlap["Close"] / initial_actual - 1) * 100  # %
+    sim_cumulative = (sim_overlap["Close"] / initial_sim - 1) * 100  # %
+
+    comparison_data["실제_누적수익률"] = actual_cumulative
+    comparison_data["시뮬_누적수익률"] = sim_cumulative
+    comparison_data["누적수익률_차이"] = actual_cumulative - sim_cumulative
+
+    # 7. 오차 제곱 (분석용)
+    return_error = (actual_returns - sim_returns) / 100  # % → 소수
+    log_price_diff = actual_log_price - sim_log_price
+
+    comparison_data["일일수익률_오차제곱"] = return_error**2
+    comparison_data["로그가격_오차제곱"] = log_price_diff**2
+
+    # 8. DataFrame 생성 및 저장
+    comparison_df = pd.DataFrame(comparison_data)
+    comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")
