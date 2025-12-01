@@ -4,8 +4,56 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 일일 리밸런싱 기반의 3배 레버리지 ETF 동작을 재현한다.
 """
 
+from datetime import date
+
 import numpy as np
 import pandas as pd
+
+
+def calculate_daily_cost(
+    date_value: date,
+    ffr_df: pd.DataFrame,
+    expense_ratio: float,
+) -> float:
+    """
+    특정 날짜의 일일 비용률을 계산한다.
+
+    Args:
+        date_value: 계산 대상 날짜
+        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        expense_ratio: 연간 expense ratio (예: 0.009 = 0.9%)
+
+    Returns:
+        일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
+    """
+    # 1. 해당 월의 FFR 조회 (Year-Month 기준)
+    year_month = pd.Timestamp(year=date_value.year, month=date_value.month, day=1)
+    ffr_row = ffr_df[ffr_df["DATE"] == year_month]
+
+    if ffr_row.empty:
+        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용
+        previous_dates = ffr_df[ffr_df["DATE"] < year_month]
+        if not previous_dates.empty:
+            ffr = float(previous_dates.iloc[-1]["FFR"])
+        else:
+            # 그것도 없으면 첫 번째 값 사용
+            ffr = float(ffr_df.iloc[0]["FFR"])
+    else:
+        ffr = float(ffr_row.iloc[0]["FFR"])
+
+    # 2. All-in funding rate 계산
+    funding_rate = (ffr + 0.6) / 100  # % → 소수
+
+    # 3. 레버리지 비용 (2배만 - 3배 중 빌린 돈만)
+    leverage_cost = funding_rate * 2
+
+    # 4. 총 연간 비용
+    annual_cost = leverage_cost + expense_ratio
+
+    # 5. 일별 비용 (252 영업일 가정)
+    daily_cost = annual_cost / 252
+
+    return daily_cost
 
 
 def simulate_leveraged_etf(
@@ -13,19 +61,21 @@ def simulate_leveraged_etf(
     leverage: float,
     expense_ratio: float,
     initial_price: float,
+    ffr_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     기초 자산 데이터로부터 레버리지 ETF를 시뮬레이션한다.
 
     일일 리밸런싱을 가정하여 각 거래일마다 기초 자산 수익률의
-    레버리지 배수만큼 움직이도록 계산한다. Expense ratio를 일일 비용으로
-    환산하여 차감한다.
+    레버리지 배수만큼 움직이도록 계산한다. 스왑비용은 연방기금금리와
+    스프레드를 기반으로 동적으로 계산하며, expense ratio를 추가한다.
 
     Args:
         underlying_df: 기초 자산 DataFrame (Date, Close 컬럼 필수)
         leverage: 레버리지 배수 (예: 3.0)
-        expense_ratio: 연간 비용 비율 (예: 0.0095 = 0.95%)
+        expense_ratio: 연간 비용 비율 (예: 0.009 = 0.9%)
         initial_price: 시작 가격
+        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
 
     Returns:
         시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
@@ -59,27 +109,31 @@ def simulate_leveraged_etf(
     # 4. 일일 수익률 계산
     df["underlying_return"] = df["Close"].pct_change()
 
-    # 5. 일일 비용 계산 (연간 비용 / 거래일 수)
-    daily_expense = expense_ratio / 252
-
-    # 6. 레버리지 ETF 수익률 계산
-    # leveraged_return = underlying_return * leverage - daily_expense
-    df["leveraged_return"] = df["underlying_return"] * leverage - daily_expense
-
-    # 7. 레버리지 ETF 가격 계산 (복리)
+    # 5. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
     # 첫 날은 initial_price, 이후는 전일 가격 * (1 + 수익률)
     leveraged_prices = [initial_price]
-    for ret in df["leveraged_return"].iloc[1:]:
-        if pd.isna(ret):
+
+    for i in range(1, len(df)):
+        underlying_return = df.iloc[i]["underlying_return"]
+
+        if pd.isna(underlying_return):
             # 첫 번째 행의 경우 수익률이 NaN이므로 initial_price 유지
             leveraged_prices.append(initial_price)
         else:
-            new_price = leveraged_prices[-1] * (1 + ret)
+            # 동적 비용 계산
+            current_date = df.iloc[i]["Date"]
+            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio)
+
+            # 레버리지 수익률
+            leveraged_return = underlying_return * leverage - daily_cost
+
+            # 가격 업데이트
+            new_price = leveraged_prices[-1] * (1 + leveraged_return)
             leveraged_prices.append(new_price)
 
     df["Close"] = leveraged_prices
 
-    # 8. OHLV 데이터 구성
+    # 6. OHLV 데이터 구성
     # Open: 전일 Close (첫날은 initial_price)
     df["Open"] = df["Close"].shift(1).fillna(initial_price)
 
@@ -88,7 +142,7 @@ def simulate_leveraged_etf(
     df["Low"] = 0.0
     df["Volume"] = 0
 
-    # 9. 불필요한 컬럼 제거 및 순서 정렬
+    # 7. 불필요한 컬럼 제거 및 순서 정렬
     result_df = df[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
 
     return result_df
@@ -97,7 +151,8 @@ def simulate_leveraged_etf(
 def find_optimal_multiplier(
     underlying_df: pd.DataFrame,
     actual_leveraged_df: pd.DataFrame,
-    expense_ratio: float = 0.0095,
+    ffr_df: pd.DataFrame,
+    expense_ratio: float = 0.009,
     search_range: tuple[float, float] = (2.8, 3.2),
     search_step: float = 0.01,
 ) -> tuple[float | None, dict | None]:
@@ -110,7 +165,8 @@ def find_optimal_multiplier(
     Args:
         underlying_df: 기초 자산 DataFrame (QQQ)
         actual_leveraged_df: 실제 레버리지 ETF DataFrame (TQQQ)
-        expense_ratio: 연간 비용 비율
+        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        expense_ratio: 연간 비용 비율 (예: 0.009 = 0.9%)
         search_range: 탐색 범위 (min, max)
         search_step: 탐색 간격
 
@@ -162,6 +218,7 @@ def find_optimal_multiplier(
             leverage=multiplier,
             expense_ratio=expense_ratio,
             initial_price=initial_price,
+            ffr_df=ffr_df,
         )
 
         # 평가 지표 계산

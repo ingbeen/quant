@@ -43,6 +43,32 @@ def load_csv_data(path: Path) -> pd.DataFrame:
     return df
 
 
+def load_ffr_data(path: Path) -> pd.DataFrame:
+    """
+    연방기금금리 월별 데이터를 로드한다.
+
+    Args:
+        path: CSV 파일 경로
+
+    Returns:
+        FFR DataFrame (DATE: Timestamp, FFR: float)
+
+    Raises:
+        FileNotFoundError: 파일이 존재하지 않을 때
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"FFR 파일을 찾을 수 없습니다: {path}")
+
+    logger.debug(f"FFR 데이터 로딩: {path}")
+    df = pd.read_csv(path)
+    df["DATE"] = pd.to_datetime(df["DATE"])
+    df.rename(columns={"VALUE": "FFR"}, inplace=True)
+
+    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df['DATE'].min()} ~ {df['DATE'].max()}")
+
+    return df
+
+
 def main() -> int:
     """
     메인 실행 함수.
@@ -87,8 +113,14 @@ def main() -> int:
     parser.add_argument(
         "--expense-ratio",
         type=float,
-        default=0.0095,
-        help="연간 비용 비율 (기본값: 0.0095 = 0.95%%)",
+        default=0.009,
+        help="연간 비용 비율 (기본값: 0.009 = 0.9%%)",
+    )
+    parser.add_argument(
+        "--ffr-path",
+        type=Path,
+        default=Path("data/raw/federal_funds_rate_monthly.csv"),
+        help="연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)",
     )
     parser.add_argument(
         "--initial-price",
@@ -118,8 +150,9 @@ def main() -> int:
         )
         logger.debug(f"시작 날짜: {start_date}")
 
-        # 2. QQQ 데이터 로드
+        # 2. QQQ 및 FFR 데이터 로드
         qqq_df = load_csv_data(args.qqq_path)
+        ffr_df = load_ffr_data(args.ffr_path)
 
         # 3. 시작 날짜 이후 데이터만 필터링
         qqq_filtered = qqq_df[qqq_df["Date"] >= start_date].copy()
@@ -140,6 +173,7 @@ def main() -> int:
             leverage=args.multiplier,
             expense_ratio=args.expense_ratio,
             initial_price=args.initial_price,
+            ffr_df=ffr_df,
         )
 
         logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
