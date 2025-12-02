@@ -70,11 +70,15 @@ def download_stock_data(
     df = df[df["Date"] <= cutoff_date]
     filtered_count = original_count - len(df)
 
-    # 8. CSV 파일로 저장
+    # 8. 가격 컬럼을 소수점 6자리로 라운딩
+    price_columns = ["Open", "High", "Low", "Close"]
+    df[price_columns] = df[price_columns].round(6)
+
+    # 9. CSV 파일로 저장
     csv_path = output_path / filename
     df.to_csv(csv_path, index=False)
 
-    # 9. 결과 출력
+    # 10. 결과 출력
     logger.debug(f"데이터 저장 완료: {csv_path}")
     logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
     logger.debug(f"행 수: {len(df):,}")
@@ -90,12 +94,12 @@ def parse_args():
         description="Yahoo Finance에서 주식 데이터 다운로드",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-사용 예시:
-  # 전체 기간 다운로드
-  poetry run python scripts/download_data.py QQQ
+            사용 예시:
+            # 전체 기간 다운로드
+            poetry run python scripts/download_data.py QQQ
 
-  # 기간 지정 다운로드
-  poetry run python scripts/download_data.py SPY --start 2020-01-01 --end 2023-12-31
+            # 기간 지정 다운로드
+            poetry run python scripts/download_data.py SPY --start 2020-01-01 --end 2023-12-31
         """,
     )
     parser.add_argument("ticker", help="주식 티커 심볼 (예: QQQ, SPY)")
