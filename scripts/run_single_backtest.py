@@ -17,12 +17,11 @@ from qbt.backtest import (
     run_buy_and_hold,
 )
 from qbt.backtest.config import DEFAULT_DATA_FILE, DEFAULT_INITIAL_CAPITAL
-from qbt.utils import setup_logger
+from qbt.utils import get_logger
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
 
-# 로거 설정
-logger = setup_logger("run_single_backtest", level="DEBUG")
+logger = get_logger(__name__)
 
 
 def print_summary(summary: dict, title: str, logger: logging.Logger) -> None:

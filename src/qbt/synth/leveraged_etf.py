@@ -4,14 +4,15 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 일일 리밸런싱 기반의 3배 레버리지 ETF 동작을 재현한다.
 """
 
-import logging
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from qbt.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def calculate_daily_cost(

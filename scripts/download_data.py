@@ -12,10 +12,9 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from qbt.utils import setup_logger
+from qbt.utils import get_logger
 
-# 로거 설정
-logger = setup_logger("download_data", level="DEBUG")
+logger = get_logger(__name__)
 
 
 def download_stock_data(

@@ -13,10 +13,9 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.synth import simulate_leveraged_etf
-from qbt.utils import setup_logger
+from qbt.utils import get_logger
 
-# 로거 설정
-logger = setup_logger("generate_synthetic_tqqq", level="DEBUG")
+logger = get_logger(__name__)
 
 
 def load_csv_data(path: Path) -> pd.DataFrame:

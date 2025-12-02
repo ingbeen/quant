@@ -16,12 +16,11 @@ from qbt.backtest.config import (
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
 )
-from qbt.utils import setup_logger
+from qbt.utils import get_logger
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
 
-# 로거 설정
-logger = setup_logger("run_grid_search", level="DEBUG")
+logger = get_logger(__name__)
 
 
 def print_summary_stats(results_df) -> None:

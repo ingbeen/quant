@@ -17,11 +17,10 @@ from qbt.synth import (
     simulate_leveraged_etf,
     validate_simulation,
 )
-from qbt.utils import setup_logger
+from qbt.utils import get_logger
 from qbt.utils.formatting import Align, TableLogger
 
-# 로거 설정
-logger = setup_logger("validate_tqqq_simulation", level="DEBUG")
+logger = get_logger(__name__)
 
 
 def load_csv_data(path: Path) -> pd.DataFrame:
@@ -132,7 +131,7 @@ def main() -> int:
     parser.add_argument(
         "--spread-step",
         type=float,
-        default=0.01,
+        default=0.02,
         help="funding spread 탐색 간격",
     )
     parser.add_argument(
@@ -150,7 +149,7 @@ def main() -> int:
     parser.add_argument(
         "--expense-step",
         type=float,
-        default=0.0001,
+        default=0.0002,
         help="expense ratio 탐색 간격",
     )
 
