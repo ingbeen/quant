@@ -131,7 +131,7 @@ def main() -> int:
     parser.add_argument(
         "--spread-step",
         type=float,
-        default=0.02,
+        default=0.05,
         help="funding spread 탐색 간격",
     )
     parser.add_argument(
@@ -149,7 +149,7 @@ def main() -> int:
     parser.add_argument(
         "--expense-step",
         type=float,
-        default=0.0002,
+        default=0.001,
         help="expense ratio 탐색 간격",
     )
 

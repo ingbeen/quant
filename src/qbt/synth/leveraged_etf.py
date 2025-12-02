@@ -410,7 +410,7 @@ def find_optimal_cost_model(
 
     # 5. 최고 전략과 상위 10개 전략 반환
     best_strategy = candidates[0]
-    top_strategies = candidates[:10]
+    top_strategies = candidates[:50]
 
     return best_strategy, top_strategies
 
