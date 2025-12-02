@@ -4,11 +4,14 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 일일 리밸런싱 기반의 3배 레버리지 ETF 동작을 재현한다.
 """
 
+import logging
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_daily_cost(
@@ -359,10 +362,22 @@ def find_optimal_cost_model(
     spread_values = np.arange(spread_range[0], spread_range[1] + 1e-12, spread_step)
     expense_values = np.arange(expense_range[0], expense_range[1] + 1e-12, expense_step)
 
+    # 전체 경우의 수 계산
+    total_cases = len(spread_values) * len(expense_values)
+    logger.debug(f"Grid search 시작 - 전체 경우의 수: {total_cases:,}")
+
     candidates = []
+    current_case = 0
 
     for spread in spread_values:
         for expense in expense_values:
+            current_case += 1
+
+            # 진행도 로그 (매 10케이스마다 출력)
+            if current_case % 10 == 0 or current_case == 1:
+                progress_pct = (current_case / total_cases) * 100
+                logger.debug(f"진행도: {current_case:,}/{total_cases:,} ({progress_pct:.1f}%)")
+
             # 시뮬레이션 실행
             sim_df = simulate_leveraged_etf(
                 underlying_overlap,
