@@ -81,13 +81,18 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             사용 예시:
-            # 기본 파라미터로 생성
-            poetry run python scripts/generate_synthetic_tqqq.py --start-date 2001-01-01 --multiplier 2.96
+            # 기본 파라미터로 생성 (start-date=2001-01-01, multiplier=3.0, spread=0.5%%, expense=0.9%%)
+            poetry run python scripts/generate_synthetic_tqqq.py
+
+            # 일부 파라미터만 지정
+            poetry run python scripts/generate_synthetic_tqqq.py --start-date 2010-01-01
 
             # 모든 파라미터 지정
             poetry run python scripts/generate_synthetic_tqqq.py \\
                 --start-date 2001-01-01 \\
-                --multiplier 2.96 \\
+                --multiplier 3.0 \\
+                --funding-spread 0.5 \\
+                --expense-ratio 0.009 \\
                 --initial-price 100.0 \\
                 --output data/raw/TQQQ_synthetic_2001-01-01_max.csv
         """,
@@ -101,20 +106,26 @@ def main() -> int:
     parser.add_argument(
         "--start-date",
         type=str,
-        required=True,
-        help="시작 날짜 (YYYY-MM-DD 형식, 예: 2001-01-01)",
+        default="2001-01-01",
+        help="시작 날짜 (YYYY-MM-DD 형식, 기본값: 2001-01-01)",
     )
     parser.add_argument(
         "--multiplier",
         type=float,
-        required=True,
-        help="레버리지 배수 (예: 2.96)",
+        default=3.0,
+        help="레버리지 배수 (기본값: 3.0)",
     )
     parser.add_argument(
         "--expense-ratio",
         type=float,
         default=0.009,
         help="연간 비용 비율 (기본값: 0.009 = 0.9%%)",
+    )
+    parser.add_argument(
+        "--funding-spread",
+        type=float,
+        default=0.5,
+        help="파이낸싱 스프레드 (기본값: 0.5 = 0.5%%)",
     )
     parser.add_argument(
         "--ffr-path",
@@ -125,8 +136,8 @@ def main() -> int:
     parser.add_argument(
         "--initial-price",
         type=float,
-        default=100.0,
-        help="초기 가격 (기본값: 100.0)",
+        default=200.0,
+        help="초기 가격 (기본값: 200.0)",
     )
     parser.add_argument(
         "--output",
@@ -146,7 +157,8 @@ def main() -> int:
 
         logger.debug("합성 TQQQ 데이터 생성 시작")
         logger.debug(
-            f"파라미터: multiplier={args.multiplier}, expense_ratio={args.expense_ratio}, initial_price={args.initial_price}"
+            f"파라미터: multiplier={args.multiplier}, expense_ratio={args.expense_ratio}, "
+            f"funding_spread={args.funding_spread}, initial_price={args.initial_price}"
         )
         logger.debug(f"시작 날짜: {start_date}")
 
@@ -174,6 +186,7 @@ def main() -> int:
             expense_ratio=args.expense_ratio,
             initial_price=args.initial_price,
             ffr_df=ffr_df,
+            funding_spread=args.funding_spread,
         )
 
         logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
@@ -188,6 +201,8 @@ def main() -> int:
         logger.debug(f"행 수: {len(synthetic_tqqq):,}")
         logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0]['Close']:.2f}")
         logger.debug(f"최종 가격: {synthetic_tqqq.iloc[-1]['Close']:.2f}")
+        logger.debug(f"최소가: {synthetic_tqqq['Close'].min():.2f}")
+        logger.debug(f"최대가: {synthetic_tqqq['Close'].max():.2f}")
 
         # 7. 누적 수익률 계산
         initial_close = synthetic_tqqq.iloc[0]["Close"]

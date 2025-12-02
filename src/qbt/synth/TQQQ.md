@@ -379,7 +379,7 @@ def calculate_daily_cost(
 
 ```python
 # 1. 탐색 범위 설정 (2D)
-funding_spreads = [0.40, 0.41, ..., 0.80]  # 0.01 step
+funding_spreads = [0.40, 0.45, ..., 0.80]  # 0.05 step
 expense_ratios = [0.0075, 0.0080, ..., 0.0105]  # 0.0005 step
 
 # 2. 2D Grid Search

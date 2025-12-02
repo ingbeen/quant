@@ -132,8 +132,8 @@ def main() -> int:
     parser.add_argument(
         "--spread-step",
         type=float,
-        default=0.01,
-        help="funding spread 탐색 간격 (기본값: 0.01%%)",
+        default=0.05,
+        help="funding spread 탐색 간격 (기본값: 0.05%%)",
     )
     parser.add_argument(
         "--expense-min",
