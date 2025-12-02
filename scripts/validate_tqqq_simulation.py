@@ -115,43 +115,43 @@ def main() -> int:
         "--leverage",
         type=float,
         default=3.0,
-        help="레버리지 배수 (기본값: 3.0)",
+        help="레버리지 배수",
     )
     parser.add_argument(
         "--spread-min",
         type=float,
         default=0.4,
-        help="funding spread 탐색 최소값 (기본값: 0.4%%)",
+        help="funding spread 탐색 최소값",
     )
     parser.add_argument(
         "--spread-max",
         type=float,
-        default=0.8,
-        help="funding spread 탐색 최대값 (기본값: 0.8%%)",
+        default=0.9,
+        help="funding spread 탐색 최대값",
     )
     parser.add_argument(
         "--spread-step",
         type=float,
-        default=0.05,
-        help="funding spread 탐색 간격 (기본값: 0.05%%)",
+        default=0.01,
+        help="funding spread 탐색 간격",
     )
     parser.add_argument(
         "--expense-min",
         type=float,
-        default=0.0075,
-        help="expense ratio 탐색 최소값 (기본값: 0.0075 = 0.75%%)",
+        default=0.007,
+        help="expense ratio 탐색 최소값",
     )
     parser.add_argument(
         "--expense-max",
         type=float,
-        default=0.0105,
-        help="expense ratio 탐색 최대값 (기본값: 0.0105 = 1.05%%)",
+        default=0.011,
+        help="expense ratio 탐색 최대값",
     )
     parser.add_argument(
         "--expense-step",
         type=float,
-        default=0.0005,
-        help="expense ratio 탐색 간격 (기본값: 0.0005 = 0.05%%)",
+        default=0.0001,
+        help="expense ratio 탐색 간격",
     )
 
     args = parser.parse_args()

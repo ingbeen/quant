@@ -2,7 +2,7 @@
 합성 TQQQ 데이터 생성 스크립트
 
 QQQ 데이터로부터 TQQQ 데이터를 시뮬레이션하여 생성한다.
-검증 스크립트에서 찾은 최적 multiplier를 사용하여 2001년부터의 데이터를 생성한다.
+검증 스크립트에서 찾은 최적 multiplier를 사용하여 1999년부터의 데이터를 생성한다.
 """
 
 import argparse
@@ -81,7 +81,7 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             사용 예시:
-            # 기본 파라미터로 생성 (start-date=2001-01-01, multiplier=3.0, spread=0.5%%, expense=0.9%%)
+            # 기본 파라미터로 생성 (start-date=1999-03-10, multiplier=3.0, spread=0.5%%, expense=0.9%%)
             poetry run python scripts/generate_synthetic_tqqq.py
 
             # 일부 파라미터만 지정
@@ -89,49 +89,49 @@ def main() -> int:
 
             # 모든 파라미터 지정
             poetry run python scripts/generate_synthetic_tqqq.py \\
-                --start-date 2001-01-01 \\
+                --start-date 1999-03-10 \\
                 --multiplier 3.0 \\
                 --funding-spread 0.5 \\
                 --expense-ratio 0.009 \\
                 --initial-price 100.0 \\
-                --output data/raw/TQQQ_synthetic_2001-01-01_max.csv
+                --output data/raw/TQQQ_synthetic_1999-03-10_max.csv
         """,
     )
     parser.add_argument(
         "--qqq-path",
         type=Path,
         default=Path("data/raw/QQQ_max.csv"),
-        help="QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)",
+        help="QQQ CSV 파일 경로",
     )
     parser.add_argument(
         "--start-date",
         type=str,
-        default="2001-01-01",
-        help="시작 날짜 (YYYY-MM-DD 형식, 기본값: 2001-01-01)",
+        default="1999-03-10",
+        help="시작 날짜 (YYYY-MM-DD 형식)",
     )
     parser.add_argument(
         "--multiplier",
         type=float,
         default=3.0,
-        help="레버리지 배수 (기본값: 3.0)",
+        help="레버리지 배수",
     )
     parser.add_argument(
         "--expense-ratio",
         type=float,
         default=0.009,
-        help="연간 비용 비율 (기본값: 0.009 = 0.9%%)",
+        help="연간 비용 비율",
     )
     parser.add_argument(
         "--funding-spread",
         type=float,
         default=0.5,
-        help="파이낸싱 스프레드 (기본값: 0.5 = 0.5%%)",
+        help="파이낸싱 스프레드",
     )
     parser.add_argument(
         "--ffr-path",
         type=Path,
         default=Path("data/raw/federal_funds_rate_monthly.csv"),
-        help="연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)",
+        help="연방기금금리 CSV 파일 경로",
     )
     parser.add_argument(
         "--initial-price",
@@ -142,8 +142,8 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/raw/TQQQ_synthetic_2001-01-01_max.csv"),
-        help="출력 CSV 파일 경로 (기본값: data/raw/TQQQ_synthetic_2001-01-01_max.csv)",
+        default=Path("data/raw/TQQQ_synthetic_max.csv"),
+        help="출력 CSV 파일 경로",
     )
 
     args = parser.parse_args()
@@ -194,7 +194,12 @@ def main() -> int:
         # 5. 출력 디렉토리 생성
         args.output.parent.mkdir(parents=True, exist_ok=True)
 
-        # 6. CSV 저장
+        # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
+        price_cols = ["Open", "High", "Low", "Close"]
+        for col in price_cols:
+            if col in synthetic_tqqq.columns:
+                synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
+
         synthetic_tqqq.to_csv(args.output, index=False)
         logger.debug(f"합성 TQQQ 데이터 저장 완료: {args.output}")
         logger.debug(f"기간: {synthetic_tqqq['Date'].min()} ~ {synthetic_tqqq['Date'].max()}")
