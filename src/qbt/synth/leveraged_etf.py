@@ -15,6 +15,7 @@ def calculate_daily_cost(
     date_value: date,
     ffr_df: pd.DataFrame,
     expense_ratio: float,
+    funding_spread: float = 0.6,
 ) -> float:
     """
     특정 날짜의 일일 비용률을 계산한다.
@@ -23,6 +24,7 @@ def calculate_daily_cost(
         date_value: 계산 대상 날짜
         ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
         expense_ratio: 연간 expense ratio (예: 0.009 = 0.9%)
+        funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
 
     Returns:
         일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
@@ -43,7 +45,7 @@ def calculate_daily_cost(
         ffr = float(ffr_row.iloc[0]["FFR"])
 
     # 2. All-in funding rate 계산
-    funding_rate = (ffr + 0.6) / 100  # % → 소수
+    funding_rate = (ffr + funding_spread) / 100  # % → 소수
 
     # 3. 레버리지 비용 (2배만 - 3배 중 빌린 돈만)
     leverage_cost = funding_rate * 2
@@ -63,6 +65,7 @@ def simulate_leveraged_etf(
     expense_ratio: float,
     initial_price: float,
     ffr_df: pd.DataFrame,
+    funding_spread: float = 0.6,
 ) -> pd.DataFrame:
     """
     기초 자산 데이터로부터 레버리지 ETF를 시뮬레이션한다.
@@ -77,6 +80,7 @@ def simulate_leveraged_etf(
         expense_ratio: 연간 비용 비율 (예: 0.009 = 0.9%)
         initial_price: 시작 가격
         ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
 
     Returns:
         시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
@@ -123,7 +127,7 @@ def simulate_leveraged_etf(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i]["Date"]
-            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio)
+            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio, funding_spread)
 
             # 레버리지 수익률
             leveraged_return = underlying_return * leverage - daily_cost
@@ -260,6 +264,141 @@ def find_optimal_multiplier(
     return best_multiplier, best_metrics
 
 
+def _compute_strategy_score(
+    metrics: dict,
+    actual_overlap: pd.DataFrame,
+) -> float:
+    """
+    검증 지표를 가중합하여 종합 점수를 계산한다.
+
+    Args:
+        metrics: validate_simulation()이 반환한 검증 지표 딕셔너리
+        actual_overlap: 실제 데이터 DataFrame (Close 컬럼 필수)
+
+    Returns:
+        종합 점수 (높을수록 좋음)
+    """
+    # 1. 지표 추출
+    corr = metrics["correlation"]
+    rmse_daily = metrics["rmse_daily_return"]
+    final_price_diff_pct = abs(metrics["final_price_diff_pct"])
+    rel_cum_diff_pct = metrics["cumulative_return_relative_diff_pct"]
+
+    # 2. 실제 변동성 계산
+    actual_returns = actual_overlap["Close"].pct_change().dropna()
+    std_actual = float(actual_returns.std())
+
+    # 3. 정규화
+    rmse_rel = rmse_daily / (std_actual + 1e-12)
+    final_diff_norm = final_price_diff_pct / 10.0
+    rel_cum_norm = rel_cum_diff_pct / 20.0
+
+    # 4. 가중합
+    score = 0.6 * corr - 0.25 * rmse_rel - 0.10 * final_diff_norm - 0.05 * rel_cum_norm
+
+    return float(score)
+
+
+def find_optimal_cost_model(
+    underlying_df: pd.DataFrame,
+    actual_leveraged_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    leverage: float = 3.0,
+    spread_range: tuple[float, float] = (0.4, 0.8),
+    spread_step: float = 0.01,
+    expense_range: tuple[float, float] = (0.0075, 0.0105),
+    expense_step: float = 0.0005,
+) -> tuple[dict, list[dict]]:
+    """
+    multiplier를 고정하고 비용 모델 파라미터를 2D grid search로 캘리브레이션한다.
+
+    funding_spread와 expense_ratio의 조합을 탐색하여 실제 레버리지 ETF와
+    가장 유사한 시뮬레이션을 생성하는 최적 비용 모델을 찾는다.
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (QQQ)
+        actual_leveraged_df: 실제 레버리지 ETF DataFrame (TQQQ)
+        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        leverage: 레버리지 배수 (기본값: 3.0)
+        spread_range: funding spread 탐색 범위 (min, max) (%)
+        spread_step: funding spread 탐색 간격 (%)
+        expense_range: expense ratio 탐색 범위 (min, max) (소수)
+        expense_step: expense ratio 탐색 간격 (소수)
+
+    Returns:
+        (best_strategy, top_strategies)
+        - best_strategy: 최고 점수 전략 딕셔너리
+        - top_strategies: score 기준 상위 10개 전략 리스트
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+    """
+    # 1. 겹치는 기간 추출
+    underlying_dates = set(underlying_df["Date"])
+    actual_dates = set(actual_leveraged_df["Date"])
+    overlap_dates = underlying_dates & actual_dates
+
+    if not overlap_dates:
+        raise ValueError("기초 자산과 레버리지 ETF 간 겹치는 기간이 없습니다")
+
+    # 날짜순 정렬
+    overlap_dates = sorted(overlap_dates)
+
+    # 겹치는 기간의 데이터만 추출
+    underlying_overlap = (
+        underlying_df[underlying_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    )
+    actual_overlap = (
+        actual_leveraged_df[actual_leveraged_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    )
+
+    # 2. 실제 TQQQ 첫날 가격을 initial_price로 사용
+    initial_price = float(actual_overlap.iloc[0]["Close"])
+
+    # 3. 2D Grid search
+    spread_values = np.arange(spread_range[0], spread_range[1] + 1e-12, spread_step)
+    expense_values = np.arange(expense_range[0], expense_range[1] + 1e-12, expense_step)
+
+    candidates = []
+
+    for spread in spread_values:
+        for expense in expense_values:
+            # 시뮬레이션 실행
+            sim_df = simulate_leveraged_etf(
+                underlying_overlap,
+                leverage=leverage,
+                expense_ratio=expense,
+                initial_price=initial_price,
+                ffr_df=ffr_df,
+                funding_spread=spread,
+            )
+
+            # 검증 지표 계산
+            metrics = validate_simulation(sim_df, actual_overlap)
+
+            # 종합 점수 계산
+            score = _compute_strategy_score(metrics, actual_overlap)
+
+            # candidate 딕셔너리 생성
+            candidate = {
+                "leverage": leverage,
+                "funding_spread": spread,
+                "expense_ratio": expense,
+                "score": score,
+                **metrics,
+            }
+            candidates.append(candidate)
+
+    # 4. score 기준 내림차순 정렬
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    # 5. 최고 전략과 상위 10개 전략 반환
+    best_strategy = candidates[0]
+    top_strategies = candidates[:10]
+
+    return best_strategy, top_strategies
+
+
 def validate_simulation(
     simulated_df: pd.DataFrame,
     actual_df: pd.DataFrame,
@@ -295,6 +434,7 @@ def validate_simulation(
             'cumulative_return_simulated': 시뮬레이션 누적 수익률,
             'cumulative_return_actual': 실제 누적 수익률,
             'cumulative_return_diff_pct': 누적 수익률 차이 (%),
+            'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (%),
             'rmse_cumulative_return': 누적수익률 RMSE,
             'max_error_cumulative_return': 누적수익률 최대 오차,
 
@@ -338,6 +478,11 @@ def validate_simulation(
     actual_cumulative = float(actual_prod) - 1.0  # type: ignore[arg-type]
     cumulative_return_diff_pct = (sim_cumulative - actual_cumulative) * 100
 
+    # 4-1. 누적 수익률 상대 오차 계산
+    cumulative_return_relative_diff_pct = (
+        abs(sim_cumulative - actual_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
+    )
+
     # 5. 최종 가격 차이
     final_sim_price = float(sim_overlap.iloc[-1]["Close"])
     final_actual_price = float(actual_overlap.iloc[-1]["Close"])
@@ -354,10 +499,9 @@ def validate_simulation(
     mean_return_diff_abs = float(return_diff_abs.mean())
     max_return_diff_abs = float(return_diff_abs.max())
 
-    # 7-1. 일일 수익률 MSE, RMSE (지표1)
+    # 7-1. 일일 수익률 RMSE
     return_errors = actual_returns - sim_returns
-    mse_daily_return = float((return_errors**2).mean())
-    rmse_daily_return = float(np.sqrt(mse_daily_return))
+    rmse_daily_return = float(np.sqrt((return_errors**2).mean()))
 
     # 7-2. 로그가격 기준 RMSE, MaxError (지표3)
     sim_log_prices = np.log(sim_overlap["Close"])
@@ -385,10 +529,10 @@ def validate_simulation(
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
         "cumulative_return_diff_pct": cumulative_return_diff_pct,
+        "cumulative_return_relative_diff_pct": cumulative_return_relative_diff_pct,
         "final_price_diff_pct": final_price_diff_pct,
         "max_price_diff_pct": max_price_diff_pct,
         "mean_price_diff_pct": mean_price_diff_pct,
-        "mse_daily_return": mse_daily_return,
         "rmse_daily_return": rmse_daily_return,
         "rmse_log_price": rmse_log_price,
         "max_error_log_price": max_error_log_price,
@@ -445,24 +589,12 @@ def generate_daily_comparison_csv(
     comparison_data["실제_일일수익률"] = actual_returns
     comparison_data["시뮬_일일수익률"] = sim_returns
     comparison_data["일일수익률_차이"] = actual_returns - sim_returns
-    comparison_data["일일수익률_차이_절대값"] = (actual_returns - sim_returns).abs()
 
-    # 4. 가격 차이
-    price_diff = sim_overlap["Close"] - actual_overlap["Close"]
-    price_diff_pct = (price_diff / actual_overlap["Close"]) * 100
-
-    comparison_data["가격_차이"] = price_diff
+    # 4. 가격 차이 비율
+    price_diff_pct = (sim_overlap["Close"] - actual_overlap["Close"]) / actual_overlap["Close"] * 100
     comparison_data["가격_차이_비율"] = price_diff_pct
 
-    # 5. 로그가격
-    actual_log_price = actual_overlap["Close"].apply(np.log)
-    sim_log_price = sim_overlap["Close"].apply(np.log)
-
-    comparison_data["실제_로그가격"] = actual_log_price
-    comparison_data["시뮬_로그가격"] = sim_log_price
-    comparison_data["로그가격_차이"] = actual_log_price - sim_log_price
-
-    # 6. 누적수익률
+    # 5. 누적수익률
     initial_actual = float(actual_overlap.iloc[0]["Close"])
     initial_sim = float(sim_overlap.iloc[0]["Close"])
 
@@ -473,13 +605,10 @@ def generate_daily_comparison_csv(
     comparison_data["시뮬_누적수익률"] = sim_cumulative
     comparison_data["누적수익률_차이"] = actual_cumulative - sim_cumulative
 
-    # 7. 오차 제곱 (분석용)
-    return_error = (actual_returns - sim_returns) / 100  # % → 소수
-    log_price_diff = actual_log_price - sim_log_price
-
-    comparison_data["일일수익률_오차제곱"] = return_error**2
-    comparison_data["로그가격_오차제곱"] = log_price_diff**2
-
-    # 8. DataFrame 생성 및 저장
+    # 6. DataFrame 생성 및 반올림
     comparison_df = pd.DataFrame(comparison_data)
+    num_cols = [c for c in comparison_df.columns if c != "날짜"]
+    comparison_df[num_cols] = comparison_df[num_cols].round(4)
+
+    # 7. CSV 저장
     comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")
