@@ -191,7 +191,7 @@ def main() -> int:
 
         # 3. 상위 10개 전략 테이블 출력
         logger.debug("=" * 120)
-        logger.debug("상위 10개 전략")
+        logger.debug("상위 전략")
         logger.debug("=" * 120)
 
         columns = [
