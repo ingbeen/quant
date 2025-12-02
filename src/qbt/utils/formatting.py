@@ -107,12 +107,7 @@ class TableLogger:
         >>> table.print_table(rows, title="가격 변동 내역")
     """
 
-    def __init__(
-        self,
-        columns: list[tuple[str, int, Align]],
-        logger: logging.Logger,
-        indent: int = 2
-    ) -> None:
+    def __init__(self, columns: list[tuple[str, int, Align]], logger: logging.Logger, indent: int = 2) -> None:
         """
         TableLogger를 초기화한다.
 
@@ -161,16 +156,12 @@ class TableLogger:
             ValueError: 데이터 길이가 컬럼 수와 일치하지 않는 경우
         """
         if len(data) != len(self.columns):
-            raise ValueError(
-                f"데이터 길이({len(data)})가 컬럼 수({len(self.columns)})와 일치하지 않습니다"
-            )
+            raise ValueError(f"데이터 길이({len(data)})가 컬럼 수({len(self.columns)})와 일치하지 않습니다")
 
-        cells = [
-            (str(value), width, align)
-            for value, (_, width, align) in zip(data, self.columns)
-        ]
+        cells = [(str(value), width, align) for value, (_, width, align) in zip(data, self.columns, strict=True)]
         row_line = format_row(cells, self.indent)
-        self.logger.debug(row_line)
+        # print_header와 함수 이름 길이 차이를 보정하기 위해 공백 2칸 추가
+        self.logger.debug("  " + row_line)
 
     def print_footer(self) -> None:
         """테이블 푸터(하단 구분선)를 출력한다."""

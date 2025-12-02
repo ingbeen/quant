@@ -58,16 +58,13 @@ def parse_args():
         epilog="""
             예시:
             # 버퍼존만 모드 (유지조건 없음)
-            poetry run python scripts/run_single_backtest.py \\
-                --buffer-zone 0.01 --hold-days 0 --recent-months 6
+            poetry run python scripts/run_single_backtest.py --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
             # 버퍼존 + 유지조건 1일
-            poetry run python scripts/run_single_backtest.py \\
-                --buffer-zone 0.01 --hold-days 1 --recent-months 6
+            poetry run python scripts/run_single_backtest.py --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
             # 200일 SMA (기본값) 대신 100일 SMA 사용
-            poetry run python scripts/run_single_backtest.py \\
-                --ma-window 100 --buffer-zone 0.02 --hold-days 2
+            poetry run python scripts/run_single_backtest.py --ma-window 100 --buffer-zone 0.02 --hold-days 2
         """,
     )
     parser.add_argument(
