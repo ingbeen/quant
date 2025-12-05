@@ -268,41 +268,6 @@ def find_optimal_multiplier(
     return best_multiplier, best_metrics
 
 
-def _compute_strategy_score(
-    metrics: dict,
-    actual_overlap: pd.DataFrame,
-) -> float:
-    """
-    검증 지표를 가중합하여 종합 점수를 계산한다.
-
-    Args:
-        metrics: validate_simulation()이 반환한 검증 지표 딕셔너리
-        actual_overlap: 실제 데이터 DataFrame (Close 컬럼 필수)
-
-    Returns:
-        종합 점수 (높을수록 좋음)
-    """
-    # 1. 지표 추출
-    corr = metrics["correlation"]
-    rmse_daily = metrics["rmse_daily_return"]
-    final_price_diff_pct = abs(metrics["final_price_diff_pct"])
-    rel_cum_diff_pct = metrics["cumulative_return_relative_diff_pct"]
-
-    # 2. 실제 변동성 계산
-    actual_returns = actual_overlap["Close"].pct_change().dropna()
-    std_actual = float(actual_returns.std())
-
-    # 3. 정규화
-    rmse_rel = rmse_daily / (std_actual + 1e-12)
-    final_diff_norm = final_price_diff_pct / 10.0
-    rel_cum_norm = rel_cum_diff_pct / 20.0
-
-    # 4. 가중합
-    score = 0.6 * corr - 0.25 * rmse_rel - 0.10 * final_diff_norm - 0.05 * rel_cum_norm
-
-    return float(score)
-
-
 def find_optimal_cost_model(
     underlying_df: pd.DataFrame,
     actual_leveraged_df: pd.DataFrame,
@@ -392,23 +357,19 @@ def find_optimal_cost_model(
             # 검증 지표 계산
             metrics = validate_simulation(sim_df, actual_overlap)
 
-            # 종합 점수 계산
-            score = _compute_strategy_score(metrics, actual_overlap)
-
             # candidate 딕셔너리 생성
             candidate = {
                 "leverage": leverage,
                 "funding_spread": spread,
                 "expense_ratio": expense,
-                "score": score,
                 **metrics,
             }
             candidates.append(candidate)
 
-    # 4. score 기준 내림차순 정렬
-    candidates.sort(key=lambda x: x["score"], reverse=True)
+    # 4. 누적수익률_상대차이_pct 기준 오름차순 정렬
+    candidates.sort(key=lambda x: x["cumulative_return_relative_diff_pct"])
 
-    # 5. 최고 전략과 상위 10개 전략 반환
+    # 5. 최고 전략과 상위 전략 반환
     best_strategy = candidates[0]
     top_strategies = candidates[:50]
 
@@ -433,31 +394,20 @@ def validate_simulation(
             'overlap_end': 겹치는 기간 종료일,
             'overlap_days': 겹치는 일수,
 
-            # 일일 수익률 지표
-            'correlation': 일일 수익률 상관계수,
-            'mean_return_diff': 일일 수익률 평균 차이,
-            'std_return_diff': 일일 수익률 표준편차 차이,
-            'mean_return_diff_abs': 일일 수익률 MAE,
-            'max_return_diff_abs': 일일 수익률 최대 오차,
-            'mse_daily_return': 일일 수익률 MSE,
-            'rmse_daily_return': 일일 수익률 RMSE,
-
-            # 로그가격 지표
-            'rmse_log_price': 로그가격 RMSE,
-            'max_error_log_price': 로그가격 최대 오차,
-
-            # 누적수익률 지표
+            # 누적 수익률
             'cumulative_return_simulated': 시뮬레이션 누적 수익률,
             'cumulative_return_actual': 실제 누적 수익률,
-            'cumulative_return_diff_pct': 누적 수익률 차이 (%),
             'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (%),
             'rmse_cumulative_return': 누적수익률 RMSE,
             'max_error_cumulative_return': 누적수익률 최대 오차,
 
-            # 가격 지표
-            'final_price_diff_pct': 최종 가격 차이 (%),
+            # 가격
             'max_price_diff_pct': 일별 가격 최대 차이 (%),
-            'mean_price_diff_pct': 일별 가격 평균 차이 (%)
+            'mean_price_diff_pct': 일별 가격 평균 차이 (%),
+
+            # 일일 수익률
+            'max_return_diff_abs': 일일 수익률 최대 오차,
+            'rmse_daily_return': 일일 수익률 RMSE,
         }
 
     Raises:
@@ -482,51 +432,31 @@ def validate_simulation(
     sim_returns = sim_overlap["Close"].pct_change().dropna()
     actual_returns = actual_overlap["Close"].pct_change().dropna()
 
-    # 3. 검증 지표 계산
-    correlation = float(sim_returns.corr(actual_returns))
-    mean_return_diff = float(sim_returns.mean() - actual_returns.mean())
-    std_return_diff = float(sim_returns.std() - actual_returns.std())
-
-    # 4. 누적 수익률 계산
+    # 3. 누적 수익률 계산
     sim_prod = (1 + sim_returns).prod()
     actual_prod = (1 + actual_returns).prod()
     sim_cumulative = float(sim_prod) - 1.0  # type: ignore[arg-type]
     actual_cumulative = float(actual_prod) - 1.0  # type: ignore[arg-type]
-    cumulative_return_diff_pct = (sim_cumulative - actual_cumulative) * 100
 
-    # 4-1. 누적 수익률 상대 오차 계산
+    # 3-1. 누적 수익률 상대 오차 계산
     cumulative_return_relative_diff_pct = (
         abs(sim_cumulative - actual_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
     )
 
-    # 5. 최종 가격 차이
-    final_sim_price = float(sim_overlap.iloc[-1]["Close"])
-    final_actual_price = float(actual_overlap.iloc[-1]["Close"])
-    final_price_diff_pct = float((final_sim_price - final_actual_price) / final_actual_price * 100)
-
-    # 6. 일별 가격 차이 분석
-    # 각 날짜마다 시뮬레이션 가격과 실제 가격의 차이를 계산
+    # 4. 일별 가격 차이 분석
     price_diff_pct = ((sim_overlap["Close"] - actual_overlap["Close"]) / actual_overlap["Close"] * 100).abs()
     max_price_diff_pct = float(price_diff_pct.max())
     mean_price_diff_pct = float(price_diff_pct.mean())
 
-    # 7. 일별 수익률 차이 분석
+    # 5. 일별 수익률 차이 분석
     return_diff_abs = (sim_returns - actual_returns).abs()
-    mean_return_diff_abs = float(return_diff_abs.mean())
     max_return_diff_abs = float(return_diff_abs.max())
 
-    # 7-1. 일일 수익률 RMSE
+    # 5-1. 일일 수익률 RMSE
     return_errors = actual_returns - sim_returns
     rmse_daily_return = float(np.sqrt((return_errors**2).mean()))
 
-    # 7-2. 로그가격 기준 RMSE, MaxError (지표3)
-    sim_log_prices = np.log(sim_overlap["Close"])
-    actual_log_prices = np.log(actual_overlap["Close"])
-    log_price_diff = actual_log_prices - sim_log_prices
-    rmse_log_price = float(np.sqrt((log_price_diff**2).mean()))
-    max_error_log_price = float(np.abs(log_price_diff).max())
-
-    # 7-3. 누적수익률 기준 RMSE, MaxError (지표3)
+    # 5-2. 누적수익률 기준 RMSE, MaxError
     sim_cumulative_series = sim_overlap["Close"] / sim_overlap.iloc[0]["Close"] - 1
     actual_cumulative_series = actual_overlap["Close"] / actual_overlap.iloc[0]["Close"] - 1
     cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
@@ -534,26 +464,22 @@ def validate_simulation(
     max_error_cumulative_return = float(np.abs(cumulative_return_diff_series).max())
 
     return {
+        # 기간 정보
         "overlap_start": overlap_dates[0],
         "overlap_end": overlap_dates[-1],
         "overlap_days": len(overlap_dates),
-        "correlation": correlation,
-        "mean_return_diff": mean_return_diff,
-        "std_return_diff": std_return_diff,
-        "mean_return_diff_abs": mean_return_diff_abs,
-        "max_return_diff_abs": max_return_diff_abs,
+        # 누적 수익률
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
-        "cumulative_return_diff_pct": cumulative_return_diff_pct,
         "cumulative_return_relative_diff_pct": cumulative_return_relative_diff_pct,
-        "final_price_diff_pct": final_price_diff_pct,
-        "max_price_diff_pct": max_price_diff_pct,
-        "mean_price_diff_pct": mean_price_diff_pct,
-        "rmse_daily_return": rmse_daily_return,
-        "rmse_log_price": rmse_log_price,
-        "max_error_log_price": max_error_log_price,
         "rmse_cumulative_return": rmse_cumulative_return,
         "max_error_cumulative_return": max_error_cumulative_return,
+        # 가격
+        "max_price_diff_pct": max_price_diff_pct,
+        "mean_price_diff_pct": mean_price_diff_pct,
+        # 일일 수익률
+        "max_return_diff_abs": max_return_diff_abs,
+        "rmse_daily_return": rmse_daily_return,
     }
 
 

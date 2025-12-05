@@ -186,7 +186,7 @@ def main() -> int:
             f"최적 전략 발견: "
             f"spread={best_strategy['funding_spread']:.2f}%, "
             f"expense={best_strategy['expense_ratio']*100:.2f}%, "
-            f"score={best_strategy['score']:.6f}"
+            f"누적수익률상대차이={best_strategy['cumulative_return_relative_diff_pct']:.4f}%"
         )
 
         # 3. 상위 10개 전략 테이블 출력
@@ -198,11 +198,9 @@ def main() -> int:
             ("Rank", 6, Align.RIGHT),
             ("Spread(%)", 12, Align.RIGHT),
             ("Expense(%)", 12, Align.RIGHT),
-            ("Score", 10, Align.RIGHT),
-            ("상관계수", 12, Align.RIGHT),
-            ("RMSE(%)", 10, Align.RIGHT),
-            ("최종가격차이(%)", 16, Align.RIGHT),
-            ("누적수익률차이(%)", 18, Align.RIGHT),
+            ("누적수익률상대차이(%)", 22, Align.RIGHT),
+            ("일일수익률RMSE(%)", 18, Align.RIGHT),
+            ("누적수익률RMSE(%)", 18, Align.RIGHT),
         ]
         table = TableLogger(columns, logger, indent=2)
 
@@ -212,11 +210,9 @@ def main() -> int:
                 str(rank),
                 f"{strategy['funding_spread']:.2f}",
                 f"{strategy['expense_ratio']*100:.2f}",
-                f"{strategy['score']:.6f}",
-                f"{strategy['correlation']:.6f}",
-                f"{strategy['rmse_daily_return']*100:.4f}",
-                f"{strategy['final_price_diff_pct']:+.4f}",
                 f"{strategy['cumulative_return_relative_diff_pct']:.4f}",
+                f"{strategy['rmse_daily_return']*100:.4f}",
+                f"{strategy['rmse_cumulative_return']*100:.4f}",
             ]
             rows.append(row)
 
@@ -277,7 +273,6 @@ def main() -> int:
         logger.debug(f"레버리지: {best_strategy['leverage']:.1f}배")
         logger.debug(f"Funding Spread: {best_strategy['funding_spread']:.2f}%")
         logger.debug(f"Expense Ratio: {best_strategy['expense_ratio']*100:.2f}%")
-        logger.debug(f"전략 Score: {best_strategy['score']:.6f}")
         logger.debug("-" * 64)
 
         # 수익률 비교 테이블
@@ -309,12 +304,6 @@ def main() -> int:
                 f"{sim_daily_returns.mean()*100:.2f}%",
                 f"{sim_daily_returns.std()*100:.2f}%",
             ],
-            [
-                "차이",
-                f"{validation_results['cumulative_return_diff_pct']:+.1f}%p",
-                f"{validation_results['mean_return_diff']*100:+.2f}%p",
-                f"{validation_results['std_return_diff']*100:+.2f}%p",
-            ],
         ]
 
         table.print_table(rows)
@@ -325,46 +314,26 @@ def main() -> int:
 
         # 일일 수익률 관련
         logger.debug("  [일일 수익률]")
-        logger.debug(f"    상관계수: {validation_results['correlation']:.4f}")
-        logger.debug(f"    평균 차이: {validation_results['mean_return_diff']*100:.4f}%")
-        logger.debug(f"    MAE: {validation_results['mean_return_diff_abs']*100:.4f}%")
         logger.debug(f"    최대 오차: {validation_results['max_return_diff_abs']*100:.4f}%")
         logger.debug(f"    RMSE: {validation_results['rmse_daily_return']*100:.4f}%")
-
-        # 로그가격 관련
-        logger.debug("  [로그가격]")
-        logger.debug(f"    RMSE: {validation_results['rmse_log_price']:.6f}")
-        logger.debug(f"    최대 오차: {validation_results['max_error_log_price']:.6f}")
 
         # 누적수익률 관련
         logger.debug("  [누적수익률]")
         logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
         logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-        logger.debug(
-            f"    차이: {validation_results['cumulative_return_diff_pct']:+.1f}%p "
-            f"(실제 대비 {validation_results['cumulative_return_relative_diff_pct']:.2f}% 상대 차이)"
-        )
+        logger.debug(f"    상대 차이: {validation_results['cumulative_return_relative_diff_pct']:.2f}%")
         logger.debug(f"    RMSE: {validation_results['rmse_cumulative_return']*100:.4f}%")
         logger.debug(f"    최대 오차: {validation_results['max_error_cumulative_return']*100:.4f}%")
 
         # 가격 관련
         logger.debug("  [가격]")
-        logger.debug(f"    최종 가격 차이: {validation_results['final_price_diff_pct']:+.2f}%")
         logger.debug(f"    일별 평균 차이: {validation_results['mean_price_diff_pct']:.4f}%")
         logger.debug(f"    일별 최대 차이: {validation_results['max_price_diff_pct']:.4f}%")
 
-        # 품질 검증 (상대 오차 기준)
-        if validation_results["correlation"] < 0.95:
-            logger.warning(f"상관계수가 낮습니다: {validation_results['correlation']:.4f} (권장: 0.95 이상)")
-
+        # 품질 검증
         cum_rel_diff_pct = validation_results["cumulative_return_relative_diff_pct"]
         if cum_rel_diff_pct > 20:
             logger.warning(f"누적 수익률 상대 차이가 큽니다: {cum_rel_diff_pct:.2f}% (권장: ±20% 이내)")
-
-        if abs(validation_results["final_price_diff_pct"]) > 10:
-            logger.warning(
-                f"최종 가격 차이가 큽니다: {validation_results['final_price_diff_pct']:+.2f}% (권장: ±10% 이내)"
-            )
 
         # 일별 비교 요약 통계
         logger.debug("-" * 64)
@@ -403,34 +372,10 @@ def main() -> int:
         logger.debug("[요약]")
         logger.debug("-" * 64)
 
-        corr = validation_results["correlation"]
         rmse_pct = validation_results["rmse_daily_return"] * 100
-        final_diff = validation_results["final_price_diff_pct"]
         rel_cum_diff = validation_results["cumulative_return_relative_diff_pct"]
-        years = validation_results["overlap_days"] / 252
 
-        # 상관계수 해석
-        if corr >= 0.999:
-            corr_desc = "거의 완벽하게 따라갑니다"
-        elif corr >= 0.99:
-            corr_desc = "매우 정확하게 추종합니다"
-        elif corr >= 0.95:
-            corr_desc = "양호하게 추종합니다"
-        else:
-            corr_desc = "추종 정확도가 다소 낮습니다"
-
-        logger.debug(f"- 일일 수익률 상관계수 {corr:.4f}로, 실제 TQQQ의 일간 움직임을 {corr_desc}.")
         logger.debug(f"- 일일 수익률 RMSE는 {rmse_pct:.2f}%입니다.")
-
-        # 최종 가격 차이 해석
-        if abs(final_diff) < 1:
-            final_desc = "거의 동일한 수준"
-        elif abs(final_diff) < 5:
-            final_desc = "매우 근접한 수준"
-        else:
-            final_desc = "양호한 수준"
-
-        logger.debug(f"- 최종 가격 차이는 {final_diff:+.2f}%로, {years:.1f}년 이상 기간 동안 {final_desc}입니다.")
 
         # 누적 수익률 상대 차이 해석
         if rel_cum_diff < 1:
@@ -453,38 +398,26 @@ def main() -> int:
         rows = []
         for rank, strategy in enumerate(top_strategies, start=1):
             row = {
-                # 기본 정보
+                # 메타 정보 (7개)
                 "rank": rank,
-                "검증일": pd.Timestamp.now().date(),
                 "검증기간_시작": strategy["overlap_start"],
                 "검증기간_종료": strategy["overlap_end"],
                 "총일수": strategy["overlap_days"],
-                # 전략 파라미터
                 "leverage": round(strategy["leverage"], 2),
                 "funding_spread": round(strategy["funding_spread"], 2),
                 "expense_ratio": round(strategy["expense_ratio"], 6),
-                "strategy_score": round(strategy["score"], 6),
-                # 일일 수익률 지표
-                "일일수익률_상관계수": round(strategy["correlation"], 6),
-                "일일수익률_평균차이_pct": round(strategy["mean_return_diff"] * 100, 4),
-                "일일수익률_표준편차차이_pct": round(strategy["std_return_diff"] * 100, 4),
-                "일일수익률_MAE_pct": round(strategy["mean_return_diff_abs"] * 100, 4),
-                "일일수익률_최대오차_pct": round(strategy["max_return_diff_abs"] * 100, 4),
-                "일일수익률_RMSE_pct": round(strategy["rmse_daily_return"] * 100, 4),
-                # 로그가격 지표
-                "로그가격_RMSE": round(strategy["rmse_log_price"], 6),
-                "로그가격_최대오차": round(strategy["max_error_log_price"], 6),
-                # 누적수익률 지표
+                # 누적수익률/성과 (5개)
                 "누적수익률_실제_pct": round(strategy["cumulative_return_actual"] * 100, 2),
                 "누적수익률_시뮬레이션_pct": round(strategy["cumulative_return_simulated"] * 100, 2),
-                "누적수익률_차이_pct": round(strategy["cumulative_return_diff_pct"], 2),
                 "누적수익률_상대차이_pct": round(strategy["cumulative_return_relative_diff_pct"], 4),
                 "누적수익률_RMSE_pct": round(strategy["rmse_cumulative_return"] * 100, 4),
                 "누적수익률_최대오차_pct": round(strategy["max_error_cumulative_return"] * 100, 4),
-                # 가격 지표
-                "최종가격_차이_pct": round(strategy["final_price_diff_pct"], 4),
+                # 일별 가격 (2개)
                 "일별가격_평균차이_pct": round(strategy["mean_price_diff_pct"], 4),
                 "일별가격_최대차이_pct": round(strategy["max_price_diff_pct"], 4),
+                # 일일 수익률 (2개)
+                "일일수익률_RMSE_pct": round(strategy["rmse_daily_return"] * 100, 4),
+                "일일수익률_최대오차_pct": round(strategy["max_return_diff_abs"] * 100, 4),
             }
             rows.append(row)
 
