@@ -1,8 +1,9 @@
 """
-TQQQ 시뮬레이션 검증 스크립트
+TQQQ 시뮬레이션 파라미터 그리드 서치 스크립트
 
-QQQ 데이터로부터 TQQQ를 시뮬레이션하고 실제 TQQQ 데이터와 비교하여
-최적 파라미터를 탐색하고 검증 지표를 출력한다.
+비용 모델 파라미터(funding spread, expense ratio)의 다양한 조합을 탐색하여
+실제 TQQQ 데이터와 가장 유사한 시뮬레이션을 생성하는 최적 파라미터를 찾는다.
+상위 전략을 CSV로 저장한다.
 """
 
 import argparse
@@ -11,12 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.synth import (
-    find_optimal_cost_model,
-    generate_daily_comparison_csv,
-    simulate_leveraged_etf,
-    validate_simulation,
-)
+from qbt.synth import find_optimal_cost_model
 from qbt.utils import get_logger
 from qbt.utils.formatting import Align, TableLogger
 
@@ -81,15 +77,17 @@ def main() -> int:
         종료 코드 (0: 성공, 1: 실패)
     """
     parser = argparse.ArgumentParser(
-        description="TQQQ 시뮬레이션 검증 및 최적 파라미터 탐색",
+        description="TQQQ 시뮬레이션 파라미터 그리드 서치",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             사용 예시:
-            # 기본 파라미터로 검증
+            # 기본 범위로 그리드 서치
             poetry run python scripts/validate_tqqq_simulation.py
 
-            # 탐색 범위 지정
-            poetry run python scripts/validate_tqqq_simulation.py --search-min 2.9 --search-max 3.1
+            # 탐색 범위 좁히기
+            poetry run python scripts/validate_tqqq_simulation.py \\
+              --spread-min 0.6 --spread-max 0.7 \\
+              --expense-min 0.008 --expense-max 0.010
         """,
     )
     parser.add_argument(
@@ -189,10 +187,9 @@ def main() -> int:
             f"누적수익률상대차이={best_strategy['cumulative_return_relative_diff_pct']:.4f}%"
         )
 
-        # 3. 상위 10개 전략 테이블 출력
+        # 3. 상위 전략 테이블 출력
         logger.debug("=" * 120)
         logger.debug("상위 전략")
-        logger.debug("=" * 120)
 
         columns = [
             ("Rank", 6, Align.RIGHT),
@@ -218,181 +215,9 @@ def main() -> int:
 
         table.print_table(rows)
 
-        logger.debug("=" * 120)
-
-        # 4. best_strategy로 시뮬레이션 재실행
-        logger.debug("최적 전략으로 전체 기간 시뮬레이션 실행")
-
-        # 겹치는 기간 추출
-        qqq_dates = set(qqq_df["Date"])
-        tqqq_dates = set(tqqq_df["Date"])
-        overlap_dates = sorted(qqq_dates & tqqq_dates)
-
-        qqq_overlap = qqq_df[qqq_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-        tqqq_overlap = tqqq_df[tqqq_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-
-        initial_price = float(tqqq_overlap.iloc[0]["Close"])
-
-        simulated_df = simulate_leveraged_etf(
-            underlying_df=qqq_overlap,
-            leverage=best_strategy["leverage"],
-            expense_ratio=best_strategy["expense_ratio"],
-            initial_price=initial_price,
-            ffr_df=ffr_df,
-            funding_spread=best_strategy["funding_spread"],
-        )
-
-        # 5. 검증 지표 계산
-        logger.debug("검증 지표 계산")
-        validation_results = validate_simulation(
-            simulated_df=simulated_df,
-            actual_df=tqqq_overlap,
-        )
-
-        # 4-1. 일별 비교 CSV 생성
+        # 4. 결과 저장 (CSV) - 상위 전략
         results_dir = Path("results")
         results_dir.mkdir(exist_ok=True)
-
-        daily_csv_path = results_dir / "tqqq_daily_comparison.csv"
-        logger.debug(f"일별 비교 CSV 생성: {daily_csv_path}")
-        generate_daily_comparison_csv(
-            simulated_df=simulated_df,
-            actual_df=tqqq_overlap,
-            output_path=daily_csv_path,
-        )
-
-        daily_df = pd.read_csv(daily_csv_path)
-        logger.debug(f"일별 비교 CSV 저장 완료: {len(daily_df):,}행")
-
-        # 5. 결과 출력 (터미널)
-        logger.debug("=" * 64)
-        logger.debug("TQQQ 시뮬레이션 검증")
-        logger.debug("=" * 64)
-        logger.debug(f"검증 기간: {validation_results['overlap_start']} ~ {validation_results['overlap_end']}")
-        logger.debug(f"총 일수: {validation_results['overlap_days']:,}일")
-        logger.debug(f"레버리지: {best_strategy['leverage']:.1f}배")
-        logger.debug(f"Funding Spread: {best_strategy['funding_spread']:.2f}%")
-        logger.debug(f"Expense Ratio: {best_strategy['expense_ratio']*100:.2f}%")
-        logger.debug("-" * 64)
-
-        # 수익률 비교 테이블
-        logger.debug("수익률 비교")
-        logger.debug("-" * 64)
-
-        # 일일 수익률 계산
-        sim_daily_returns = simulated_df["Close"].pct_change().dropna()
-        actual_daily_returns = tqqq_overlap["Close"].pct_change().dropna()
-
-        columns = [
-            ("구분", 20, Align.LEFT),
-            ("누적 수익률", 16, Align.RIGHT),
-            ("일일 평균", 14, Align.RIGHT),
-            ("일일 표준편차", 16, Align.RIGHT),
-        ]
-        table = TableLogger(columns, logger, indent=2)
-
-        rows = [
-            [
-                "실제 TQQQ",
-                f"+{validation_results['cumulative_return_actual']*100:.1f}%",
-                f"{actual_daily_returns.mean()*100:.2f}%",
-                f"{actual_daily_returns.std()*100:.2f}%",
-            ],
-            [
-                "시뮬레이션",
-                f"+{validation_results['cumulative_return_simulated']*100:.1f}%",
-                f"{sim_daily_returns.mean()*100:.2f}%",
-                f"{sim_daily_returns.std()*100:.2f}%",
-            ],
-        ]
-
-        table.print_table(rows)
-
-        logger.debug("-" * 64)
-        logger.debug("검증 지표")
-        logger.debug("-" * 64)
-
-        # 일일 수익률 관련
-        logger.debug("  [일일 수익률]")
-        logger.debug(f"    최대 오차: {validation_results['max_return_diff_abs']*100:.4f}%")
-        logger.debug(f"    RMSE: {validation_results['rmse_daily_return']*100:.4f}%")
-
-        # 누적수익률 관련
-        logger.debug("  [누적수익률]")
-        logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
-        logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-        logger.debug(f"    상대 차이: {validation_results['cumulative_return_relative_diff_pct']:.2f}%")
-        logger.debug(f"    RMSE: {validation_results['rmse_cumulative_return']*100:.4f}%")
-        logger.debug(f"    최대 오차: {validation_results['max_error_cumulative_return']*100:.4f}%")
-
-        # 가격 관련
-        logger.debug("  [가격]")
-        logger.debug(f"    일별 평균 차이: {validation_results['mean_price_diff_pct']:.4f}%")
-        logger.debug(f"    일별 최대 차이: {validation_results['max_price_diff_pct']:.4f}%")
-
-        # 품질 검증
-        cum_rel_diff_pct = validation_results["cumulative_return_relative_diff_pct"]
-        if cum_rel_diff_pct > 20:
-            logger.warning(f"누적 수익률 상대 차이가 큽니다: {cum_rel_diff_pct:.2f}% (권장: ±20% 이내)")
-
-        # 일별 비교 요약 통계
-        logger.debug("-" * 64)
-        logger.debug("일별 비교 요약 통계")
-        logger.debug("-" * 64)
-
-        columns = [
-            ("지표", 30, Align.LEFT),
-            ("평균", 12, Align.RIGHT),
-            ("최대", 12, Align.RIGHT),
-        ]
-        summary_table = TableLogger(columns, logger, indent=2)
-
-        rows = [
-            [
-                "일일수익률 차이 절대값 (%)",
-                f"{daily_df['일일수익률_차이'].abs().mean():.4f}",
-                f"{daily_df['일일수익률_차이'].abs().max():.4f}",
-            ],
-            [
-                "가격 차이 비율 (%)",
-                f"{daily_df['가격_차이_비율'].abs().mean():.4f}",
-                f"{daily_df['가격_차이_비율'].abs().max():.4f}",
-            ],
-            [
-                "누적수익률 차이 (%)",
-                f"{daily_df['누적수익률_차이'].abs().mean():.2f}",
-                f"{daily_df['누적수익률_차이'].abs().max():.2f}",
-            ],
-        ]
-
-        summary_table.print_table(rows)
-
-        # 문장형 요약
-        logger.debug("-" * 64)
-        logger.debug("[요약]")
-        logger.debug("-" * 64)
-
-        rmse_pct = validation_results["rmse_daily_return"] * 100
-        rel_cum_diff = validation_results["cumulative_return_relative_diff_pct"]
-
-        logger.debug(f"- 일일 수익률 RMSE는 {rmse_pct:.2f}%입니다.")
-
-        # 누적 수익률 상대 차이 해석
-        if rel_cum_diff < 1:
-            cum_desc = "거의 완전히 일치"
-        elif rel_cum_diff < 5:
-            cum_desc = "매우 근접"
-        elif rel_cum_diff < 20:
-            cum_desc = "양호하게 일치"
-        else:
-            cum_desc = "다소 차이 존재"
-
-        logger.debug(f"- 누적 수익률 상대 차이는 {rel_cum_diff:.2f}%로, 장기 성과도 {cum_desc}합니다.")
-        logger.debug("-" * 64)
-
-        logger.debug("=" * 64)
-
-        # 6. 결과 저장 (CSV) - 상위 10개 전략
         results_csv_path = results_dir / "tqqq_validation.csv"
 
         rows = []
