@@ -105,7 +105,7 @@ def main():
         """
     )
     price_chart = create_price_comparison_chart(df)
-    st.plotly_chart(price_chart, width="stretch", config={"scrollZoom": False})
+    st.plotly_chart(price_chart, width="stretch")
 
     st.divider()
 
@@ -118,7 +118,7 @@ def main():
         """
     )
     histogram = create_daily_return_diff_histogram(df)
-    st.plotly_chart(histogram, width="stretch", config={"scrollZoom": False})
+    st.plotly_chart(histogram, width="stretch")
 
     st.divider()
 
@@ -131,7 +131,7 @@ def main():
         """
     )
     cumulative_chart = create_cumulative_return_diff_chart(df)
-    st.plotly_chart(cumulative_chart, width="stretch", config={"scrollZoom": False})
+    st.plotly_chart(cumulative_chart, width="stretch")
 
     st.divider()
 

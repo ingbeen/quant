@@ -89,12 +89,11 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         height=500,
-        dragmode="pan",  # 드래그로 패닝 (사각형 범위 지정 제거)
     )
 
-    # x축과 y축을 개별적으로 업데이트
-    fig.update_xaxes(fixedrange=False)  # x축 줌 가능
-    fig.update_yaxes(autorange=True, fixedrange=False)  # y축 자동 조정
+    fig.update_xaxes(
+        tickformat="%Y-%m-%d",
+    )
 
     return fig
 
@@ -130,6 +129,24 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
         )
     )
 
+    # Rug plot 추가 (개별 데이터 포인트)
+    fig.add_trace(
+        go.Scatter(
+            x=daily_diff,
+            y=[0] * len(daily_diff),
+            mode="markers",
+            name="개별 관측값",
+            marker={
+                "color": "rgba(0, 0, 0, 0.3)",
+                "size": 8,
+                "symbol": "line-ns-open",
+                "line": {"width": 2},
+            },
+            hovertemplate="<b>차이</b>: %{x:.2f}%<br>" + "<extra></extra>",
+            yaxis="y2",
+        )
+    )
+
     # 평균선 추가
     fig.add_vline(x=mean_diff, line_dash="dash", line_color="red", annotation_text=f"평균: {mean_diff:.2f}%")
 
@@ -137,6 +154,13 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
         title=f"일일수익률 차이 분포 (평균: {mean_diff:.2f}%, 표준편차: {std_diff:.2f}%, 범위: [{min_diff:.2f}%, {max_diff:.2f}%])",
         xaxis_title="일일수익률 차이 (%)",
         yaxis_title="빈도",
+        yaxis2={
+            "overlaying": "y",
+            "side": "left",
+            "showgrid": False,
+            "showticklabels": False,
+            "range": [0, 1],
+        },
         height=500,
     )
 
@@ -176,11 +200,10 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
         yaxis_title="누적수익률 차이 (%)",
         hovermode="x unified",
         height=500,
-        dragmode="pan",  # 드래그로 패닝 (사각형 범위 지정 제거)
     )
 
-    # x축과 y축을 개별적으로 업데이트
-    fig.update_xaxes(fixedrange=False)  # x축 줌 가능
-    fig.update_yaxes(autorange=True, fixedrange=False)  # y축 자동 조정
+    fig.update_xaxes(
+        tickformat="%Y-%m-%d",
+    )
 
     return fig
