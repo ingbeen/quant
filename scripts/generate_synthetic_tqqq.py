@@ -117,14 +117,14 @@ def main() -> int:
     parser.add_argument(
         "--expense-ratio",
         type=float,
-        default=0.009,
+        default=0.008,
         help="연간 비용 비율",
     )
     parser.add_argument(
         "--funding-spread",
         type=float,
         default=0.5,
-        help="파이낸싱 스프레드",
+        help="펀딩 스프레드 (%%)",
     )
     parser.add_argument(
         "--ffr-path",

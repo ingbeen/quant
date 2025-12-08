@@ -120,13 +120,13 @@ def main() -> int:
     parser.add_argument(
         "--funding-spread",
         type=float,
-        default=0.65,
+        default=0.5,
         help="펀딩 스프레드 (%%)",
     )
     parser.add_argument(
         "--expense-ratio",
         type=float,
-        default=0.009,
+        default=0.008,
         help="연간 비용 비율",
     )
     parser.add_argument(
@@ -206,49 +206,10 @@ def main() -> int:
         logger.debug(f"레버리지: {args.leverage:.1f}배")
         logger.debug(f"Funding Spread: {args.funding_spread:.2f}%")
         logger.debug(f"Expense Ratio: {args.expense_ratio*100:.2f}%")
-        logger.debug("-" * 64)
-
-        # 수익률 비교 테이블
-        logger.debug("수익률 비교")
-        logger.debug("-" * 64)
-
-        # 일일 수익률 계산
-        sim_daily_returns = simulated_df["Close"].pct_change().dropna()
-        actual_daily_returns = tqqq_overlap["Close"].pct_change().dropna()
-
-        columns = [
-            ("구분", 20, Align.LEFT),
-            ("누적 수익률", 16, Align.RIGHT),
-            ("일일 평균", 14, Align.RIGHT),
-            ("일일 표준편차", 16, Align.RIGHT),
-        ]
-        table = TableLogger(columns, logger, indent=2)
-
-        rows = [
-            [
-                "실제 TQQQ",
-                f"+{validation_results['cumulative_return_actual']*100:.1f}%",
-                f"{actual_daily_returns.mean()*100:.2f}%",
-                f"{actual_daily_returns.std()*100:.2f}%",
-            ],
-            [
-                "시뮬레이션",
-                f"+{validation_results['cumulative_return_simulated']*100:.1f}%",
-                f"{sim_daily_returns.mean()*100:.2f}%",
-                f"{sim_daily_returns.std()*100:.2f}%",
-            ],
-        ]
-
-        table.print_table(rows)
 
         logger.debug("-" * 64)
         logger.debug("검증 지표")
         logger.debug("-" * 64)
-
-        # 일일 수익률 관련
-        logger.debug("  [일일 수익률]")
-        logger.debug(f"    최대 오차: {validation_results['max_return_diff_abs']*100:.4f}%")
-        logger.debug(f"    RMSE: {validation_results['rmse_daily_return']*100:.4f}%")
 
         # 누적수익률 관련
         logger.debug("  [누적수익률]")
@@ -295,10 +256,7 @@ def main() -> int:
         logger.debug("[요약]")
         logger.debug("-" * 64)
 
-        rmse_pct = validation_results["rmse_daily_return"] * 100
         rel_cum_diff = validation_results["cumulative_return_relative_diff_pct"]
-
-        logger.debug(f"- 일일 수익률 RMSE는 {rmse_pct:.2f}%입니다.")
 
         # 누적 수익률 상대 차이 해석
         if rel_cum_diff < 1:
