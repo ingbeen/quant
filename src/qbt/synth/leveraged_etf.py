@@ -277,7 +277,7 @@ def find_optimal_cost_model(
     spread_step: float = 0.01,
     expense_range: tuple[float, float] = (0.0075, 0.0105),
     expense_step: float = 0.0005,
-) -> tuple[dict, list[dict]]:
+) -> list[dict]:
     """
     multiplier를 고정하고 비용 모델 파라미터를 2D grid search로 캘리브레이션한다.
 
@@ -295,9 +295,7 @@ def find_optimal_cost_model(
         expense_step: expense ratio 탐색 간격 (소수)
 
     Returns:
-        (best_strategy, top_strategies)
-        - best_strategy: 최고 점수 전략 딕셔너리
-        - top_strategies: score 기준 상위 10개 전략 리스트
+        top_strategies: 누적수익률 상대차이 기준 상위 50개 전략 리스트
 
     Raises:
         ValueError: 겹치는 기간이 없을 때
@@ -369,11 +367,10 @@ def find_optimal_cost_model(
     # 4. 누적수익률_상대차이_pct 기준 오름차순 정렬
     candidates.sort(key=lambda x: x["cumulative_return_relative_diff_pct"])
 
-    # 5. 최고 전략과 상위 전략 반환
-    best_strategy = candidates[0]
+    # 5. 상위 50개 전략 반환
     top_strategies = candidates[:50]
 
-    return best_strategy, top_strategies
+    return top_strategies
 
 
 def validate_simulation(
@@ -404,10 +401,6 @@ def validate_simulation(
             # 가격
             'max_price_diff_pct': 일별 가격 최대 차이 (%),
             'mean_price_diff_pct': 일별 가격 평균 차이 (%),
-
-            # 일일 수익률
-            'max_return_diff_abs': 일일 수익률 최대 오차,
-            'rmse_daily_return': 일일 수익률 RMSE,
         }
 
     Raises:
@@ -448,15 +441,7 @@ def validate_simulation(
     max_price_diff_pct = float(price_diff_pct.max())
     mean_price_diff_pct = float(price_diff_pct.mean())
 
-    # 5. 일별 수익률 차이 분석
-    return_diff_abs = (sim_returns - actual_returns).abs()
-    max_return_diff_abs = float(return_diff_abs.max())
-
-    # 5-1. 일일 수익률 RMSE
-    return_errors = actual_returns - sim_returns
-    rmse_daily_return = float(np.sqrt((return_errors**2).mean()))
-
-    # 5-2. 누적수익률 기준 RMSE, MaxError
+    # 5. 누적수익률 기준 RMSE, MaxError
     sim_cumulative_series = sim_overlap["Close"] / sim_overlap.iloc[0]["Close"] - 1
     actual_cumulative_series = actual_overlap["Close"] / actual_overlap.iloc[0]["Close"] - 1
     cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
@@ -477,9 +462,6 @@ def validate_simulation(
         # 가격
         "max_price_diff_pct": max_price_diff_pct,
         "mean_price_diff_pct": mean_price_diff_pct,
-        # 일일 수익률
-        "max_return_diff_abs": max_return_diff_abs,
-        "rmse_daily_return": rmse_daily_return,
     }
 
 

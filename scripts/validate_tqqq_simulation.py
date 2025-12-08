@@ -169,7 +169,7 @@ def main() -> int:
             f"(step={args.expense_step*100:.2f}%)"
         )
 
-        best_strategy, top_strategies = find_optimal_cost_model(
+        top_strategies = find_optimal_cost_model(
             underlying_df=qqq_df,
             actual_leveraged_df=tqqq_df,
             ffr_df=ffr_df,
@@ -178,13 +178,6 @@ def main() -> int:
             spread_step=args.spread_step,
             expense_range=(args.expense_min, args.expense_max),
             expense_step=args.expense_step,
-        )
-
-        logger.debug(
-            f"최적 전략 발견: "
-            f"spread={best_strategy['funding_spread']:.2f}%, "
-            f"expense={best_strategy['expense_ratio']*100:.2f}%, "
-            f"누적수익률상대차이={best_strategy['cumulative_return_relative_diff_pct']:.4f}%"
         )
 
         # 3. 상위 전략 테이블 출력
@@ -196,7 +189,6 @@ def main() -> int:
             ("Spread(%)", 12, Align.RIGHT),
             ("Expense(%)", 12, Align.RIGHT),
             ("누적수익률상대차이(%)", 22, Align.RIGHT),
-            ("일일수익률RMSE(%)", 18, Align.RIGHT),
             ("누적수익률RMSE(%)", 18, Align.RIGHT),
         ]
         table = TableLogger(columns, logger, indent=2)
@@ -208,7 +200,6 @@ def main() -> int:
                 f"{strategy['funding_spread']:.2f}",
                 f"{strategy['expense_ratio']*100:.2f}",
                 f"{strategy['cumulative_return_relative_diff_pct']:.4f}",
-                f"{strategy['rmse_daily_return']*100:.4f}",
                 f"{strategy['rmse_cumulative_return']*100:.4f}",
             ]
             rows.append(row)
@@ -240,9 +231,6 @@ def main() -> int:
                 # 일별 가격 (2개)
                 "일별가격_평균차이_pct": round(strategy["mean_price_diff_pct"], 4),
                 "일별가격_최대차이_pct": round(strategy["max_price_diff_pct"], 4),
-                # 일일 수익률 (2개)
-                "일일수익률_RMSE_pct": round(strategy["rmse_daily_return"] * 100, 4),
-                "일일수익률_최대오차_pct": round(strategy["max_return_diff_abs"] * 100, 4),
             }
             rows.append(row)
 
