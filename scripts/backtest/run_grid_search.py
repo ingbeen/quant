@@ -5,17 +5,16 @@
 """
 
 import sys
-from pathlib import Path
 
 from qbt.backtest import run_grid_search
 from qbt.backtest.config import (
     DEFAULT_BUFFER_ZONE_PCT_LIST,
-    DEFAULT_DATA_FILE,
     DEFAULT_HOLD_DAYS_LIST,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
 )
+from qbt.config import GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
@@ -70,7 +69,7 @@ def main() -> int:
 
     try:
         # 1. 데이터 로딩 및 검증
-        df = load_and_validate_data(DEFAULT_DATA_FILE, logger)
+        df = load_and_validate_data(QQQ_DATA_PATH, logger)
         if df is None:
             return 1
 
@@ -152,9 +151,9 @@ def main() -> int:
         print_summary_stats(results_df)
 
         # 6. 결과 저장
-        output_path = Path("data/raw/grid_results.csv")
-        results_df.to_csv(output_path, index=False)
-        logger.debug(f"\n결과 저장 완료: {output_path}")
+        GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        results_df.to_csv(GRID_RESULTS_PATH, index=False)
+        logger.debug(f"\n결과 저장 완료: {GRID_RESULTS_PATH}")
 
         return 0
 

@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from qbt.config import DATA_DIR
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ def download_stock_data(
         저장된 CSV 파일의 경로
     """
     # 1. 출력 디렉토리 생성
-    output_path = Path("data/raw")
+    output_path = DATA_DIR
     output_path.mkdir(parents=True, exist_ok=True)
 
     # 2. yfinance Ticker 객체 생성
@@ -95,10 +96,10 @@ def parse_args():
         epilog="""
             사용 예시:
             # 전체 기간 다운로드
-            poetry run python scripts/download_data.py QQQ
+            poetry run python scripts/data/download_data.py QQQ
 
             # 기간 지정 다운로드
-            poetry run python scripts/download_data.py SPY --start 2020-01-01 --end 2023-12-31
+            poetry run python scripts/data/download_data.py SPY --start 2020-01-01 --end 2023-12-31
         """,
     )
     parser.add_argument("ticker", help="주식 티커 심볼 (예: QQQ, SPY)")

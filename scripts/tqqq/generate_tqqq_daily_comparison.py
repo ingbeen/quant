@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_DAILY_COMPARISON_PATH, TQQQ_DATA_PATH
 from qbt.synth import generate_daily_comparison_csv, simulate_leveraged_etf, validate_simulation
 from qbt.utils import get_logger
 from qbt.utils.formatting import Align, TableLogger
@@ -81,35 +82,35 @@ def main() -> int:
         epilog="""
             사용 예시:
             # 기본 파라미터로 일별 비교 생성
-            poetry run python scripts/generate_tqqq_daily_comparison.py
+            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 
             # 특정 파라미터로 일별 비교 생성
-            poetry run python scripts/generate_tqqq_daily_comparison.py \\
+            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \\
               --funding-spread 0.65 \\
               --expense-ratio 0.009
 
             # 출력 파일 경로 지정
-            poetry run python scripts/generate_tqqq_daily_comparison.py \\
+            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \\
               --output results/tqqq_daily_custom.csv
         """,
     )
     parser.add_argument(
         "--qqq-path",
         type=Path,
-        default=Path("data/raw/QQQ_max.csv"),
-        help="QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)",
+        default=QQQ_DATA_PATH,
+        help="QQQ CSV 파일 경로",
     )
     parser.add_argument(
         "--tqqq-path",
         type=Path,
-        default=Path("data/raw/TQQQ_max.csv"),
-        help="TQQQ CSV 파일 경로 (기본값: data/raw/TQQQ_max.csv)",
+        default=TQQQ_DATA_PATH,
+        help="TQQQ CSV 파일 경로",
     )
     parser.add_argument(
         "--ffr-path",
         type=Path,
-        default=Path("data/raw/federal_funds_rate_monthly.csv"),
-        help="연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)",
+        default=FFR_DATA_PATH,
+        help="연방기금금리 CSV 파일 경로",
     )
     parser.add_argument(
         "--leverage",
@@ -132,8 +133,8 @@ def main() -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("results/tqqq_daily_comparison.csv"),
-        help="출력 CSV 파일 경로 (기본값: results/tqqq_daily_comparison.csv)",
+        default=TQQQ_DAILY_COMPARISON_PATH,
+        help="출력 CSV 파일 경로",
     )
 
     args = parser.parse_args()

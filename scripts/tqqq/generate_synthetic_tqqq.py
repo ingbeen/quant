@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
 from qbt.synth import simulate_leveraged_etf
 from qbt.utils import get_logger
 
@@ -80,14 +81,14 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             사용 예시:
-            # 기본 파라미터로 생성 (start-date=1999-03-10, multiplier=3.0, spread=0.5%%, expense=0.9%%)
-            poetry run python scripts/generate_synthetic_tqqq.py
+            # 기본 파라미터로 생성 (start-date=1999-03-10, multiplier=3.0, spread=0.5%%, expense=0.8%%)
+            poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 
             # 일부 파라미터만 지정
-            poetry run python scripts/generate_synthetic_tqqq.py --start-date 2010-01-01
+            poetry run python scripts/tqqq/generate_synthetic_tqqq.py --start-date 2010-01-01
 
             # 모든 파라미터 지정
-            poetry run python scripts/generate_synthetic_tqqq.py \\
+            poetry run python scripts/tqqq/generate_synthetic_tqqq.py \\
                 --start-date 1999-03-10 \\
                 --multiplier 3.0 \\
                 --funding-spread 0.5 \\
@@ -99,7 +100,7 @@ def main() -> int:
     parser.add_argument(
         "--qqq-path",
         type=Path,
-        default=Path("data/raw/QQQ_max.csv"),
+        default=QQQ_DATA_PATH,
         help="QQQ CSV 파일 경로",
     )
     parser.add_argument(
@@ -129,19 +130,19 @@ def main() -> int:
     parser.add_argument(
         "--ffr-path",
         type=Path,
-        default=Path("data/raw/federal_funds_rate_monthly.csv"),
+        default=FFR_DATA_PATH,
         help="연방기금금리 CSV 파일 경로",
     )
     parser.add_argument(
         "--initial-price",
         type=float,
         default=200.0,
-        help="초기 가격 (기본값: 200.0)",
+        help="초기 가격",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/raw/TQQQ_synthetic_max.csv"),
+        default=TQQQ_SYNTHETIC_PATH,
         help="출력 CSV 파일 경로",
     )
 

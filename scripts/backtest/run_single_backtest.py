@@ -16,7 +16,8 @@ from qbt.backtest import (
     run_buffer_strategy,
     run_buy_and_hold,
 )
-from qbt.backtest.config import DEFAULT_DATA_FILE, DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.config import DEFAULT_INITIAL_CAPITAL
+from qbt.config import QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
@@ -57,20 +58,20 @@ def parse_args():
         epilog="""
             예시:
             # 버퍼존만 모드 (유지조건 없음)
-            poetry run python scripts/run_single_backtest.py --buffer-zone 0.01 --hold-days 0 --recent-months 6
+            poetry run python scripts/backtest/run_single_backtest.py --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
             # 버퍼존 + 유지조건 1일
-            poetry run python scripts/run_single_backtest.py --buffer-zone 0.01 --hold-days 1 --recent-months 6
+            poetry run python scripts/backtest/run_single_backtest.py --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
             # 200일 SMA (기본값) 대신 100일 SMA 사용
-            poetry run python scripts/run_single_backtest.py --ma-window 100 --buffer-zone 0.02 --hold-days 2
+            poetry run python scripts/backtest/run_single_backtest.py --ma-window 100 --buffer-zone 0.02 --hold-days 2
         """,
     )
     parser.add_argument(
         "--ma-window",
         type=int,
         default=200,
-        help="이동평균 기간 (기본값: 200)",
+        help="이동평균 기간",
     )
     parser.add_argument(
         "--buffer-zone",
@@ -82,13 +83,13 @@ def parse_args():
         "--hold-days",
         type=int,
         default=1,
-        help="초기 유지조건 일수 (0이면 버퍼존만 모드, 기본값: 1)",
+        help="초기 유지조건 일수 (0이면 버퍼존만 모드)",
     )
     parser.add_argument(
         "--recent-months",
         type=int,
         default=6,
-        help="최근 매수 기간 (개월, 기본값: 6)",
+        help="최근 매수 기간 (개월)",
     )
     return parser.parse_args()
 
@@ -110,7 +111,7 @@ def main() -> int:
 
     try:
         # 1. 데이터 로딩 및 검증
-        df = load_and_validate_data(DEFAULT_DATA_FILE, logger)
+        df = load_and_validate_data(QQQ_DATA_PATH, logger)
         if df is None:
             return 1
 

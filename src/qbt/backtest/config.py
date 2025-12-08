@@ -1,17 +1,8 @@
 """
-백테스트 공용 상수 및 설정
+백테스트 전용 상수 및 설정
 
-여러 모듈에서 공통으로 사용하는 상수를 정의한다.
+백테스트 도메인에서만 사용하는 전략 파라미터와 검증 임계값을 정의한다.
 """
-
-from pathlib import Path
-
-# 데이터 경로
-DATA_DIR = Path("data/raw")
-RESULTS_DIR = Path("results")
-
-# 기본 데이터 파일
-DEFAULT_DATA_FILE = DATA_DIR / "QQQ_max.csv"
 
 # 필수 컬럼 목록
 REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]

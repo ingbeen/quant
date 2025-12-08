@@ -15,30 +15,34 @@ QBT(Quant BackTest)는 주식 데이터 다운로드 및 백테스팅을 위한 
 
 ```
 quant/
-├── scripts/                            # CLI 실행 스크립트
-│   ├── download_data.py                # 데이터 다운로드
-│   ├── run_single_backtest.py         # 단일 백테스트
-│   ├── run_grid_search.py              # 그리드 서치
-│   ├── generate_synthetic_tqqq.py      # 합성 레버리지 ETF 생성
-│   ├── validate_tqqq_simulation.py     # 시뮬레이션 검증
-│   ├── generate_tqqq_daily_comparison.py  # 일별 비교 데이터 생성
-│   └── streamlit_app.py                # 웹 대시보드 실행
+├── scripts/                            # CLI 실행 스크립트 (도메인별 분리)
+│   ├── data/
+│   │   └── download_data.py            # 데이터 다운로드
+│   ├── backtest/
+│   │   ├── run_single_backtest.py      # 단일 백테스트
+│   │   └── run_grid_search.py          # 그리드 서치
+│   └── tqqq/
+│       ├── generate_synthetic_tqqq.py  # 합성 레버리지 ETF 생성
+│       ├── validate_tqqq_simulation.py # 시뮬레이션 검증
+│       ├── generate_tqqq_daily_comparison.py  # 일별 비교 데이터 생성
+│       └── streamlit_app.py            # 웹 대시보드 실행
 ├── src/qbt/                            # 비즈니스 로직 패키지
-│   ├── backtest/                      # 백테스트 도메인
-│   │   ├── config.py                  # 설정 상수
-│   │   ├── data.py                    # 데이터 로딩/검증
-│   │   ├── strategy.py                # 전략 실행 로직
-│   │   ├── metrics.py                 # 성과 지표 계산
-│   │   ├── report.py                  # 리포트 생성
-│   │   └── exceptions.py              # 커스텀 예외
-│   ├── synth/                         # 합성 데이터 생성 도메인
-│   │   └── leveraged_etf.py           # 레버리지 ETF 시뮬레이션
-│   ├── visualization/                 # 시각화 도메인
-│   │   └── tqqq_dashboard.py          # 대시보드 컴포넌트
-│   └── utils/                         # 유틸리티
-│       ├── logger.py                  # 로깅 설정
-│       ├── formatting.py              # 테이블 출력 포맷팅
-│       └── data_loader.py             # 데이터 로딩 공통 함수
+│   ├── config.py                       # 전역 설정 (경로 상수)
+│   ├── backtest/                       # 백테스트 도메인
+│   │   ├── config.py                   # 백테스트 전용 설정
+│   │   ├── data.py                     # 데이터 로딩/검증
+│   │   ├── strategy.py                 # 전략 실행 로직
+│   │   ├── metrics.py                  # 성과 지표 계산
+│   │   ├── report.py                   # 리포트 생성
+│   │   └── exceptions.py               # 커스텀 예외
+│   ├── synth/                          # 합성 데이터 생성 도메인
+│   │   └── leveraged_etf.py            # 레버리지 ETF 시뮬레이션
+│   ├── visualization/                  # 시각화 도메인
+│   │   └── tqqq_dashboard.py           # 대시보드 컴포넌트
+│   └── utils/                          # 유틸리티
+│       ├── logger.py                   # 로깅 설정
+│       ├── formatting.py               # 테이블 출력 포맷팅
+│       └── data_loader.py              # 데이터 로딩 공통 함수
 ├── data/raw/                           # CSV 데이터 저장소
 ├── results/                            # 분석 결과 저장소
 └── pyproject.toml                      # Poetry 프로젝트 설정
@@ -85,10 +89,10 @@ QBT는 단순한 2계층 구조를 사용합니다:
 ### 도메인 모듈 구조
 
 #### 백테스트 도메인 (backtest/)
+- **config.py**: 백테스트 전용 전략 파라미터 및 검증 임계값
 - **data.py**: 데이터 로딩 및 검증
 - **strategy.py**: 전략 실행 (버퍼존 전략, 그리드 서치)
 - **metrics.py**: 성과 지표 계산 (수익률, CAGR, MDD 등)
-- **config.py**: 공용 상수 및 기본값 정의
 - **report.py**: 결과 저장 및 리포트 생성
 - **exceptions.py**: 커스텀 예외 정의
 
@@ -97,6 +101,38 @@ QBT는 단순한 2계층 구조를 사용합니다:
 
 #### 시각화 도메인 (visualization/)
 - **tqqq_dashboard.py**: 대시보드 차트 컴포넌트 (Plotly 기반)
+
+## 설정 관리
+
+QBT 프로젝트는 2계층 config 구조를 사용합니다.
+
+### 전역 Config (`src/qbt/config.py`)
+
+모든 도메인에서 공통으로 사용하는 경로 상수를 정의합니다.
+
+**포함 항목**:
+- 디렉토리 경로 (`DATA_DIR`, `RESULTS_DIR`)
+- 데이터 파일 경로 (`QQQ_DATA_PATH`, `TQQQ_DATA_PATH`, `FFR_DATA_PATH` 등)
+- 결과 파일 경로 (`GRID_RESULTS_PATH`, `TQQQ_VALIDATION_PATH` 등)
+
+### 도메인별 Config
+
+도메인 특화 설정은 각 도메인의 `config.py`에 정의합니다.
+
+#### 백테스트 Config (`src/qbt/backtest/config.py`)
+
+백테스트 전략 파라미터와 검증 임계값을 정의합니다.
+
+**포함 항목**:
+- 데이터 검증 상수 (`REQUIRED_COLUMNS`, `PRICE_CHANGE_THRESHOLD`)
+- 거래 비용 상수 (`SLIPPAGE_RATE`)
+- 전략 기본 파라미터 (`DEFAULT_MA_WINDOW`, `DEFAULT_BUFFER_ZONE_PCT` 등)
+- 그리드 서치 범위 (`DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUFFER_ZONE_PCT_LIST` 등)
+
+**설계 원칙**:
+- 경로 상수는 전역 config에만 정의
+- 도메인별 비즈니스 로직 상수만 도메인 config에 정의
+- 상수 중복 금지
 
 ## 코딩 규칙
 

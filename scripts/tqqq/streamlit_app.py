@@ -7,6 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from qbt.config import TQQQ_DAILY_COMPARISON_PATH
 from qbt.visualization import (
     create_cumulative_return_diff_chart,
     create_daily_return_diff_histogram,
@@ -49,7 +50,7 @@ def main():
     )
 
     # 데이터 로드
-    csv_path = Path("results/tqqq_daily_comparison.csv")
+    csv_path = TQQQ_DAILY_COMPARISON_PATH
 
     try:
         df = load_data(csv_path)
@@ -58,7 +59,7 @@ def main():
         st.info(
             "먼저 다음 명령어를 실행하여 일별 비교 데이터를 생성하세요:\n\n"
             "```bash\n"
-            "poetry run python scripts/generate_tqqq_daily_comparison.py\n"
+            "poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py\n"
             "```"
         )
         return

@@ -12,6 +12,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from qbt.config import (
+    FFR_DATA_PATH,
+    QQQ_DATA_PATH,
+    RESULTS_DIR,
+    TQQQ_DATA_PATH,
+    TQQQ_VALIDATION_PATH,
+)
 from qbt.synth import find_optimal_cost_model
 from qbt.utils import get_logger
 from qbt.utils.formatting import Align, TableLogger
@@ -82,10 +89,10 @@ def main() -> int:
         epilog="""
             사용 예시:
             # 기본 범위로 그리드 서치
-            poetry run python scripts/validate_tqqq_simulation.py
+            poetry run python scripts/tqqq/validate_tqqq_simulation.py
 
             # 탐색 범위 좁히기
-            poetry run python scripts/validate_tqqq_simulation.py \\
+            poetry run python scripts/tqqq/validate_tqqq_simulation.py \\
               --spread-min 0.6 --spread-max 0.7 \\
               --expense-min 0.008 --expense-max 0.010
         """,
@@ -93,20 +100,20 @@ def main() -> int:
     parser.add_argument(
         "--qqq-path",
         type=Path,
-        default=Path("data/raw/QQQ_max.csv"),
-        help="QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)",
+        default=QQQ_DATA_PATH,
+        help="QQQ CSV 파일 경로",
     )
     parser.add_argument(
         "--tqqq-path",
         type=Path,
-        default=Path("data/raw/TQQQ_max.csv"),
-        help="TQQQ CSV 파일 경로 (기본값: data/raw/TQQQ_max.csv)",
+        default=TQQQ_DATA_PATH,
+        help="TQQQ CSV 파일 경로",
     )
     parser.add_argument(
         "--ffr-path",
         type=Path,
-        default=Path("data/raw/federal_funds_rate_monthly.csv"),
-        help="연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)",
+        default=FFR_DATA_PATH,
+        help="연방기금금리 CSV 파일 경로",
     )
     parser.add_argument(
         "--leverage",
@@ -207,9 +214,8 @@ def main() -> int:
         table.print_table(rows)
 
         # 4. 결과 저장 (CSV) - 상위 전략
-        results_dir = Path("results")
-        results_dir.mkdir(exist_ok=True)
-        results_csv_path = results_dir / "tqqq_validation.csv"
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        results_csv_path = TQQQ_VALIDATION_PATH
 
         rows = []
         for rank, strategy in enumerate(top_strategies, start=1):

@@ -20,13 +20,13 @@ Yahoo Finance에서 주식 데이터를 다운로드합니다.
 **실행 명령어:**
 ```bash
 # 전체 기간 다운로드
-poetry run python scripts/download_data.py QQQ
+poetry run python scripts/data/download_data.py QQQ
 
 # 시작 날짜 지정
-poetry run python scripts/download_data.py SPY --start 2020-01-01
+poetry run python scripts/data/download_data.py SPY --start 2020-01-01
 
 # 기간 지정
-poetry run python scripts/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
+poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
 ```
 
 **파라미터:**
@@ -50,15 +50,15 @@ poetry run python scripts/download_data.py AAPL --start 2020-01-01 --end 2023-12
 **실행 명령어:**
 ```bash
 # 버퍼존만 모드 (유지조건 없음)
-poetry run python scripts/run_single_backtest.py \
+poetry run python scripts/backtest/run_single_backtest.py \
     --buffer-zone 0.01 --hold-days 0 --recent-months 6
 
 # 버퍼존 + 유지조건 1일
-poetry run python scripts/run_single_backtest.py \
+poetry run python scripts/backtest/run_single_backtest.py \
     --buffer-zone 0.01 --hold-days 1 --recent-months 6
 
 # 100일 이동평균 사용
-poetry run python scripts/run_single_backtest.py \
+poetry run python scripts/backtest/run_single_backtest.py \
     --ma-window 100 --buffer-zone 0.02 --hold-days 2 --recent-months 6
 ```
 
@@ -80,7 +80,7 @@ poetry run python scripts/run_single_backtest.py \
 
 **실행 명령어:**
 ```bash
-poetry run python scripts/run_grid_search.py
+poetry run python scripts/backtest/run_grid_search.py
 ```
 
 **파라미터:** 없음 (코드 내부 상수 사용)
@@ -100,10 +100,10 @@ poetry run python scripts/run_grid_search.py
 **실행 명령어:**
 ```bash
 # 기본 범위로 그리드 서치
-poetry run python scripts/validate_tqqq_simulation.py
+poetry run python scripts/tqqq/validate_tqqq_simulation.py
 
 # 탐색 범위 좁히기
-poetry run python scripts/validate_tqqq_simulation.py \
+poetry run python scripts/tqqq/validate_tqqq_simulation.py \
     --spread-min 0.6 --spread-max 0.7 \
     --expense-min 0.008 --expense-max 0.010
 ```
@@ -134,13 +134,13 @@ QQQ 데이터로부터 TQQQ를 시뮬레이션합니다.
 **실행 명령어:**
 ```bash
 # 기본 파라미터로 생성
-poetry run python scripts/generate_synthetic_tqqq.py
+poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 
 # 시작 날짜 지정
-poetry run python scripts/generate_synthetic_tqqq.py --start-date 2010-01-01
+poetry run python scripts/tqqq/generate_synthetic_tqqq.py --start-date 2010-01-01
 
 # 모든 파라미터 지정
-poetry run python scripts/generate_synthetic_tqqq.py \
+poetry run python scripts/tqqq/generate_synthetic_tqqq.py \
     --start-date 1999-03-10 \
     --multiplier 3.0 \
     --funding-spread 0.5 \
@@ -174,15 +174,15 @@ poetry run python scripts/generate_synthetic_tqqq.py \
 **실행 명령어:**
 ```bash
 # 기본 파라미터로 일별 비교 생성
-poetry run python scripts/generate_tqqq_daily_comparison.py
+poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 
 # 특정 파라미터로 생성
-poetry run python scripts/generate_tqqq_daily_comparison.py \
+poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \
     --funding-spread 0.65 \
     --expense-ratio 0.009
 
 # 출력 파일 경로 지정
-poetry run python scripts/generate_tqqq_daily_comparison.py \
+poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \
     --output results/tqqq_daily_custom.csv
 ```
 
@@ -210,7 +210,7 @@ poetry run python scripts/generate_tqqq_daily_comparison.py \
 
 **실행 명령어:**
 ```bash
-poetry run streamlit run scripts/streamlit_app.py
+poetry run streamlit run scripts/tqqq/streamlit_app.py
 ```
 
 **파라미터:** 없음
