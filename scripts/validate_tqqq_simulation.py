@@ -223,14 +223,11 @@ def main() -> int:
                 "funding_spread": round(strategy["funding_spread"], 2),
                 "expense_ratio": round(strategy["expense_ratio"], 6),
                 # 누적수익률/성과 (5개)
-                "누적수익률_실제_pct": round(strategy["cumulative_return_actual"] * 100, 2),
-                "누적수익률_시뮬레이션_pct": round(strategy["cumulative_return_simulated"] * 100, 2),
-                "누적수익률_상대차이_pct": round(strategy["cumulative_return_relative_diff_pct"], 4),
-                "누적수익률_RMSE_pct": round(strategy["rmse_cumulative_return"] * 100, 4),
-                "누적수익률_최대오차_pct": round(strategy["max_error_cumulative_return"] * 100, 4),
-                # 일별 가격 (2개)
-                "일별가격_평균차이_pct": round(strategy["mean_price_diff_pct"], 4),
-                "일별가격_최대차이_pct": round(strategy["max_price_diff_pct"], 4),
+                "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
+                "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
+                "누적수익률_상대차이(%)": round(strategy["cumulative_return_relative_diff_pct"], 4),
+                "누적수익률_RMSE(%)": round(strategy["rmse_cumulative_return"] * 100, 4),
+                "누적수익률_최대오차(%)": round(strategy["max_error_cumulative_return"] * 100, 4),
             }
             rows.append(row)
 

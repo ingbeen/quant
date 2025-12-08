@@ -397,10 +397,6 @@ def validate_simulation(
             'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (%),
             'rmse_cumulative_return': 누적수익률 RMSE,
             'max_error_cumulative_return': 누적수익률 최대 오차,
-
-            # 가격
-            'max_price_diff_pct': 일별 가격 최대 차이 (%),
-            'mean_price_diff_pct': 일별 가격 평균 차이 (%),
         }
 
     Raises:
@@ -436,12 +432,7 @@ def validate_simulation(
         abs(sim_cumulative - actual_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
     )
 
-    # 4. 일별 가격 차이 분석
-    price_diff_pct = ((sim_overlap["Close"] - actual_overlap["Close"]) / actual_overlap["Close"] * 100).abs()
-    max_price_diff_pct = float(price_diff_pct.max())
-    mean_price_diff_pct = float(price_diff_pct.mean())
-
-    # 5. 누적수익률 기준 RMSE, MaxError
+    # 4. 누적수익률 기준 RMSE, MaxError
     sim_cumulative_series = sim_overlap["Close"] / sim_overlap.iloc[0]["Close"] - 1
     actual_cumulative_series = actual_overlap["Close"] / actual_overlap.iloc[0]["Close"] - 1
     cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
@@ -459,9 +450,6 @@ def validate_simulation(
         "cumulative_return_relative_diff_pct": cumulative_return_relative_diff_pct,
         "rmse_cumulative_return": rmse_cumulative_return,
         "max_error_cumulative_return": max_error_cumulative_return,
-        # 가격
-        "max_price_diff_pct": max_price_diff_pct,
-        "mean_price_diff_pct": mean_price_diff_pct,
     }
 
 
@@ -512,13 +500,9 @@ def generate_daily_comparison_csv(
 
     comparison_data["실제_일일수익률"] = actual_returns
     comparison_data["시뮬_일일수익률"] = sim_returns
-    comparison_data["일일수익률_차이"] = actual_returns - sim_returns
+    comparison_data["일일수익률_차이"] = (actual_returns - sim_returns).abs()
 
-    # 4. 가격 차이 비율
-    price_diff_pct = (sim_overlap["Close"] - actual_overlap["Close"]) / actual_overlap["Close"] * 100
-    comparison_data["가격_차이_비율"] = price_diff_pct
-
-    # 5. 누적수익률
+    # 4. 누적수익률
     initial_actual = float(actual_overlap.iloc[0]["Close"])
     initial_sim = float(sim_overlap.iloc[0]["Close"])
 

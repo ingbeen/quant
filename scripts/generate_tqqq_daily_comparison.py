@@ -258,11 +258,6 @@ def main() -> int:
         logger.debug(f"    RMSE: {validation_results['rmse_cumulative_return']*100:.4f}%")
         logger.debug(f"    최대 오차: {validation_results['max_error_cumulative_return']*100:.4f}%")
 
-        # 가격 관련
-        logger.debug("  [가격]")
-        logger.debug(f"    일별 평균 차이: {validation_results['mean_price_diff_pct']:.4f}%")
-        logger.debug(f"    일별 최대 차이: {validation_results['max_price_diff_pct']:.4f}%")
-
         # 품질 검증
         cum_rel_diff_pct = validation_results["cumulative_return_relative_diff_pct"]
         if cum_rel_diff_pct > 20:
@@ -282,14 +277,9 @@ def main() -> int:
 
         rows = [
             [
-                "일일수익률 차이 절대값 (%)",
-                f"{daily_df['일일수익률_차이'].abs().mean():.4f}",
-                f"{daily_df['일일수익률_차이'].abs().max():.4f}",
-            ],
-            [
-                "가격 차이 비율 (%)",
-                f"{daily_df['가격_차이_비율'].abs().mean():.4f}",
-                f"{daily_df['가격_차이_비율'].abs().max():.4f}",
+                "일일수익률 차이 (%)",
+                f"{daily_df['일일수익률_차이'].mean():.4f}",
+                f"{daily_df['일일수익률_차이'].max():.4f}",
             ],
             [
                 "누적수익률 차이 (%)",
