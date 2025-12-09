@@ -15,6 +15,7 @@ import pandas as pd
 from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
 from qbt.synth import simulate_leveraged_etf
 from qbt.utils import get_logger
+from qbt.utils.cli_helpers import cli_exception_handler
 
 logger = get_logger(__name__)
 
@@ -68,6 +69,7 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
     return df
 
 
+@cli_exception_handler
 def main() -> int:
     """
     메인 실행 함수.
@@ -147,87 +149,74 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # 1. 시작 날짜 파싱
     try:
-        # 1. 시작 날짜 파싱
-        try:
-            start_date = datetime.strptime(args.start_date, "%Y-%m-%d").date()
-        except ValueError as e:
-            raise ValueError(f"날짜 형식이 올바르지 않습니다 (YYYY-MM-DD 필요): {args.start_date}") from e
-
-        logger.debug("합성 TQQQ 데이터 생성 시작")
-        logger.debug(
-            f"파라미터: multiplier={args.multiplier}, expense_ratio={args.expense_ratio}, "
-            f"funding_spread={args.funding_spread}, initial_price={args.initial_price}"
-        )
-        logger.debug(f"시작 날짜: {start_date}")
-
-        # 2. QQQ 및 FFR 데이터 로드
-        qqq_df = load_csv_data(args.qqq_path)
-        ffr_df = load_ffr_data(args.ffr_path)
-
-        # 3. 시작 날짜 이후 데이터만 필터링
-        qqq_filtered = qqq_df[qqq_df["Date"] >= start_date].copy()
-
-        if qqq_filtered.empty:
-            raise ValueError(
-                f"시작 날짜 {start_date} 이후의 QQQ 데이터가 없습니다. QQQ 데이터 범위: {qqq_df['Date'].min()} ~ {qqq_df['Date'].max()}"
-            )
-
-        logger.debug(
-            f"QQQ 데이터 필터링: {len(qqq_filtered):,}행 ({qqq_filtered['Date'].min()} ~ {qqq_filtered['Date'].max()})"
-        )
-
-        # 4. TQQQ 시뮬레이션 실행
-        logger.debug("TQQQ 시뮬레이션 실행 중...")
-        synthetic_tqqq = simulate_leveraged_etf(
-            underlying_df=qqq_filtered,
-            leverage=args.multiplier,
-            expense_ratio=args.expense_ratio,
-            initial_price=args.initial_price,
-            ffr_df=ffr_df,
-            funding_spread=args.funding_spread,
-        )
-
-        logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
-
-        # 5. 출력 디렉토리 생성
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-
-        # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
-        price_cols = ["Open", "High", "Low", "Close"]
-        for col in price_cols:
-            if col in synthetic_tqqq.columns:
-                synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
-
-        synthetic_tqqq.to_csv(args.output, index=False)
-        logger.debug(f"합성 TQQQ 데이터 저장 완료: {args.output}")
-        logger.debug(f"기간: {synthetic_tqqq['Date'].min()} ~ {synthetic_tqqq['Date'].max()}")
-        logger.debug(f"행 수: {len(synthetic_tqqq):,}")
-        logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0]['Close']:.2f}")
-        logger.debug(f"최종 가격: {synthetic_tqqq.iloc[-1]['Close']:.2f}")
-        logger.debug(f"최소가: {synthetic_tqqq['Close'].min():.2f}")
-        logger.debug(f"최대가: {synthetic_tqqq['Close'].max():.2f}")
-
-        # 7. 누적 수익률 계산
-        initial_close = synthetic_tqqq.iloc[0]["Close"]
-        final_close = synthetic_tqqq.iloc[-1]["Close"]
-        cumulative_return = (final_close / initial_close - 1) * 100
-
-        logger.debug(f"누적 수익률: {cumulative_return:+.2f}%")
-
-        return 0
-
-    except FileNotFoundError as e:
-        logger.error(f"파일 오류: {e}")
-        return 1
-
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d").date()
     except ValueError as e:
-        logger.error(f"입력값 오류: {e}")
-        return 1
+        raise ValueError(f"날짜 형식이 올바르지 않습니다 (YYYY-MM-DD 필요): {args.start_date}") from e
 
-    except Exception as e:
-        logger.error(f"예기치 않은 오류: {e}")
-        return 1
+    logger.debug("합성 TQQQ 데이터 생성 시작")
+    logger.debug(
+        f"파라미터: multiplier={args.multiplier}, expense_ratio={args.expense_ratio}, "
+        f"funding_spread={args.funding_spread}, initial_price={args.initial_price}"
+    )
+    logger.debug(f"시작 날짜: {start_date}")
+
+    # 2. QQQ 및 FFR 데이터 로드
+    qqq_df = load_csv_data(args.qqq_path)
+    ffr_df = load_ffr_data(args.ffr_path)
+
+    # 3. 시작 날짜 이후 데이터만 필터링
+    qqq_filtered = qqq_df[qqq_df["Date"] >= start_date].copy()
+
+    if qqq_filtered.empty:
+        raise ValueError(
+            f"시작 날짜 {start_date} 이후의 QQQ 데이터가 없습니다. QQQ 데이터 범위: {qqq_df['Date'].min()} ~ {qqq_df['Date'].max()}"
+        )
+
+    logger.debug(
+        f"QQQ 데이터 필터링: {len(qqq_filtered):,}행 ({qqq_filtered['Date'].min()} ~ {qqq_filtered['Date'].max()})"
+    )
+
+    # 4. TQQQ 시뮬레이션 실행
+    logger.debug("TQQQ 시뮬레이션 실행 중...")
+    synthetic_tqqq = simulate_leveraged_etf(
+        underlying_df=qqq_filtered,
+        leverage=args.multiplier,
+        expense_ratio=args.expense_ratio,
+        initial_price=args.initial_price,
+        ffr_df=ffr_df,
+        funding_spread=args.funding_spread,
+    )
+
+    logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
+
+    # 5. 출력 디렉토리 생성
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+
+    # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
+    price_cols = ["Open", "High", "Low", "Close"]
+    for col in price_cols:
+        if col in synthetic_tqqq.columns:
+            synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
+
+    synthetic_tqqq.to_csv(args.output, index=False)
+    logger.debug(f"합성 TQQQ 데이터 저장 완료: {args.output}")
+    logger.debug(f"기간: {synthetic_tqqq['Date'].min()} ~ {synthetic_tqqq['Date'].max()}")
+    logger.debug(f"행 수: {len(synthetic_tqqq):,}")
+    logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0]['Close']:.2f}")
+    logger.debug(f"최종 가격: {synthetic_tqqq.iloc[-1]['Close']:.2f}")
+    logger.debug(f"최소가: {synthetic_tqqq['Close'].min():.2f}")
+    logger.debug(f"최대가: {synthetic_tqqq['Close'].max():.2f}")
+
+    # 7. 누적 수익률 계산
+    initial_close = synthetic_tqqq.iloc[0]["Close"]
+    final_close = synthetic_tqqq.iloc[-1]["Close"]
+    cumulative_return = (final_close / initial_close - 1) * 100
+
+    logger.debug(f"누적 수익률: {cumulative_return:+.2f}%")
+
+    return 0
 
 
 if __name__ == "__main__":

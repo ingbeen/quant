@@ -16,6 +16,7 @@ from qbt.backtest.config import (
 )
 from qbt.config import GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
+from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
 
@@ -58,6 +59,7 @@ def print_summary_stats(results_df) -> None:
     logger.debug("=" * title_width)
 
 
+@cli_exception_handler
 def main() -> int:
     """
     메인 실행 함수.
@@ -67,99 +69,92 @@ def main() -> int:
     """
     logger.debug("QQQ 파라미터 그리드 탐색 시작")
 
-    try:
-        # 1. 데이터 로딩 및 검증
-        df = load_and_validate_data(QQQ_DATA_PATH, logger)
-        if df is None:
-            return 1
+    # 1. 데이터 로딩 및 검증
+    df = load_and_validate_data(QQQ_DATA_PATH, logger)
 
-        # 2. 그리드 탐색 실행
-        logger.debug("\n그리드 탐색 파라미터:")
-        logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
-        logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
-        logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")
-        logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
+    # 2. 그리드 탐색 실행
+    logger.debug("\n그리드 탐색 파라미터:")
+    logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
+    logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
+    logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")
+    logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
 
-        results_df = run_grid_search(
-            df=df,
-            ma_window_list=DEFAULT_MA_WINDOW_LIST,
-            buffer_zone_pct_list=DEFAULT_BUFFER_ZONE_PCT_LIST,
-            hold_days_list=DEFAULT_HOLD_DAYS_LIST,
-            recent_months_list=DEFAULT_RECENT_MONTHS_LIST,
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
+    results_df = run_grid_search(
+        df=df,
+        ma_window_list=DEFAULT_MA_WINDOW_LIST,
+        buffer_zone_pct_list=DEFAULT_BUFFER_ZONE_PCT_LIST,
+        hold_days_list=DEFAULT_HOLD_DAYS_LIST,
+        recent_months_list=DEFAULT_RECENT_MONTHS_LIST,
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
+    )
+
+    # 3. 상위 결과 출력 (수익률 기준)
+    columns = [
+        ("순위", 6, Align.RIGHT),
+        ("Window", 8, Align.RIGHT),
+        ("Buffer%", 10, Align.RIGHT),
+        ("Hold일", 8, Align.RIGHT),
+        ("Recent월", 10, Align.RIGHT),
+        ("수익률", 12, Align.RIGHT),
+        ("CAGR", 10, Align.RIGHT),
+        ("MDD", 10, Align.RIGHT),
+        ("거래수", 8, Align.RIGHT),
+        ("승률", 8, Align.RIGHT),
+    ]
+
+    top_n = 10
+    rows = []
+    for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
+        rows.append(
+            [
+                str(rank),
+                str(row["ma_window"]),
+                f"{row['buffer_zone_pct'] * 100:.1f}%",
+                f"{row['hold_days']}일",
+                f"{row['recent_months']}월",
+                f"{row['total_return_pct']:.2f}%",
+                f"{row['cagr']:.2f}%",
+                f"{row['mdd']:.2f}%",
+                str(row["total_trades"]),
+                f"{row['win_rate']:.1f}%",
+            ]
         )
 
-        # 3. 상위 결과 출력 (수익률 기준)
-        columns = [
-            ("순위", 6, Align.RIGHT),
-            ("Window", 8, Align.RIGHT),
-            ("Buffer%", 10, Align.RIGHT),
-            ("Hold일", 8, Align.RIGHT),
-            ("Recent월", 10, Align.RIGHT),
-            ("수익률", 12, Align.RIGHT),
-            ("CAGR", 10, Align.RIGHT),
-            ("MDD", 10, Align.RIGHT),
-            ("거래수", 8, Align.RIGHT),
-            ("승률", 8, Align.RIGHT),
-        ]
+    table = TableLogger(columns, logger)
+    table.print_table(rows, title=f"[수익률 기준] 상위 {top_n}개 결과")
 
-        top_n = 10
-        rows = []
-        for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
-            rows.append(
-                [
-                    str(rank),
-                    str(row["ma_window"]),
-                    f"{row['buffer_zone_pct'] * 100:.1f}%",
-                    f"{row['hold_days']}일",
-                    f"{row['recent_months']}월",
-                    f"{row['total_return_pct']:.2f}%",
-                    f"{row['cagr']:.2f}%",
-                    f"{row['mdd']:.2f}%",
-                    str(row["total_trades"]),
-                    f"{row['win_rate']:.1f}%",
-                ]
-            )
+    # 4. CAGR 기준 정렬 후 출력
+    results_by_cagr = results_df.sort_values(by="cagr", ascending=False).reset_index(drop=True)
 
-        table = TableLogger(columns, logger)
-        table.print_table(rows, title=f"[수익률 기준] 상위 {top_n}개 결과")
+    rows = []
+    for rank, (_, row) in enumerate(results_by_cagr.head(top_n).iterrows(), start=1):
+        rows.append(
+            [
+                str(rank),
+                str(row["ma_window"]),
+                f"{row['buffer_zone_pct'] * 100:.1f}%",
+                f"{row['hold_days']}일",
+                f"{row['recent_months']}월",
+                f"{row['total_return_pct']:.2f}%",
+                f"{row['cagr']:.2f}%",
+                f"{row['mdd']:.2f}%",
+                str(row["total_trades"]),
+                f"{row['win_rate']:.1f}%",
+            ]
+        )
 
-        # 4. CAGR 기준 정렬 후 출력
-        results_by_cagr = results_df.sort_values(by="cagr", ascending=False).reset_index(drop=True)
+    table = TableLogger(columns, logger)
+    table.print_table(rows, title=f"[CAGR 기준] 상위 {top_n}개 결과")
 
-        rows = []
-        for rank, (_, row) in enumerate(results_by_cagr.head(top_n).iterrows(), start=1):
-            rows.append(
-                [
-                    str(rank),
-                    str(row["ma_window"]),
-                    f"{row['buffer_zone_pct'] * 100:.1f}%",
-                    f"{row['hold_days']}일",
-                    f"{row['recent_months']}월",
-                    f"{row['total_return_pct']:.2f}%",
-                    f"{row['cagr']:.2f}%",
-                    f"{row['mdd']:.2f}%",
-                    str(row["total_trades"]),
-                    f"{row['win_rate']:.1f}%",
-                ]
-            )
+    # 5. 요약 통계 출력
+    print_summary_stats(results_df)
 
-        table = TableLogger(columns, logger)
-        table.print_table(rows, title=f"[CAGR 기준] 상위 {top_n}개 결과")
+    # 6. 결과 저장
+    GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    results_df.to_csv(GRID_RESULTS_PATH, index=False)
+    logger.debug(f"\n결과 저장 완료: {GRID_RESULTS_PATH}")
 
-        # 5. 요약 통계 출력
-        print_summary_stats(results_df)
-
-        # 6. 결과 저장
-        GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        results_df.to_csv(GRID_RESULTS_PATH, index=False)
-        logger.debug(f"\n결과 저장 완료: {GRID_RESULTS_PATH}")
-
-        return 0
-
-    except Exception as e:
-        logger.error(f"예기치 않은 오류: {e}")
-        return 1
+    return 0
 
 
 if __name__ == "__main__":

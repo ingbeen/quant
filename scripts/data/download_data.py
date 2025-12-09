@@ -14,6 +14,7 @@ import yfinance as yf
 
 from qbt.config import DATA_DIR
 from qbt.utils import get_logger
+from qbt.utils.cli_helpers import cli_exception_handler
 
 logger = get_logger(__name__)
 
@@ -109,6 +110,7 @@ def parse_args():
     return parser.parse_args()
 
 
+@cli_exception_handler
 def main() -> int:
     """
     메인 실행 함수.
@@ -121,22 +123,13 @@ def main() -> int:
 
     logger.debug(f"데이터 다운로드 시작: {ticker}")
 
-    try:
-        csv_path = download_stock_data(
-            ticker=ticker,
-            start_date=args.start,
-            end_date=args.end,
-        )
-        logger.debug(f"다운로드 완료: {csv_path}")
-        return 0
-
-    except ValueError as e:
-        logger.error(f"데이터 오류: {e}")
-        return 1
-
-    except Exception as e:
-        logger.error(f"예기치 않은 오류: {e}")
-        return 1
+    csv_path = download_stock_data(
+        ticker=ticker,
+        start_date=args.start,
+        end_date=args.end,
+    )
+    logger.debug(f"다운로드 완료: {csv_path}")
+    return 0
 
 
 if __name__ == "__main__":

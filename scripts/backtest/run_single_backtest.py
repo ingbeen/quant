@@ -19,6 +19,7 @@ from qbt.backtest import (
 from qbt.backtest.config import DEFAULT_INITIAL_CAPITAL
 from qbt.config import QQQ_DATA_PATH
 from qbt.utils import get_logger
+from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_and_validate_data
 from qbt.utils.formatting import Align, TableLogger
 
@@ -94,6 +95,7 @@ def parse_args():
     return parser.parse_args()
 
 
+@cli_exception_handler
 def main() -> int:
     """
     메인 실행 함수.
@@ -109,108 +111,93 @@ def main() -> int:
         f"hold_days={args.hold_days}, recent_months={args.recent_months}"
     )
 
-    try:
-        # 1. 데이터 로딩 및 검증
-        df = load_and_validate_data(QQQ_DATA_PATH, logger)
-        if df is None:
-            return 1
+    # 1. 데이터 로딩 및 검증
+    df = load_and_validate_data(QQQ_DATA_PATH, logger)
 
-        # 2. 이동평균 계산
-        df = add_single_moving_average(df, args.ma_window)
+    # 2. 이동평균 계산
+    df = add_single_moving_average(df, args.ma_window)
 
-        # 3. 전략 파라미터 설정
-        params = BufferStrategyParams(
-            ma_window=args.ma_window,
-            buffer_zone_pct=args.buffer_zone,
-            hold_days=args.hold_days,
-            recent_months=args.recent_months,
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-        )
+    # 3. 전략 파라미터 설정
+    params = BufferStrategyParams(
+        ma_window=args.ma_window,
+        buffer_zone_pct=args.buffer_zone,
+        hold_days=args.hold_days,
+        recent_months=args.recent_months,
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
+    )
 
-        summaries = []
+    summaries = []
 
-        # 4. 버퍼존 전략 실행
-        logger.debug("=" * 60)
-        logger.debug("버퍼존 전략 백테스트 실행")
-        trades, _, summary = run_buffer_strategy(df, params)
-        print_summary(summary, "버퍼존 전략 결과", logger)
+    # 4. 버퍼존 전략 실행
+    logger.debug("=" * 60)
+    logger.debug("버퍼존 전략 백테스트 실행")
+    trades, _, summary = run_buffer_strategy(df, params)
+    print_summary(summary, "버퍼존 전략 결과", logger)
 
-        # 거래 내역 출력
-        if not trades.empty:
-            columns = [
-                ("진입일", 12, Align.LEFT),
-                ("청산일", 12, Align.LEFT),
-                ("진입가", 12, Align.RIGHT),
-                ("청산가", 12, Align.RIGHT),
-                ("손익률", 14, Align.RIGHT),
-                ("사유", 16, Align.RIGHT),
-            ]
-
-            max_rows = 10
-            rows = []
-            for _, trade in trades.tail(max_rows).iterrows():
-                rows.append(
-                    [
-                        str(trade["entry_date"]),
-                        str(trade["exit_date"]),
-                        f"{trade['entry_price']:.2f}",
-                        f"{trade['exit_price']:.2f}",
-                        f"{trade['pnl_pct'] * 100:+.2f}%",
-                        trade["exit_reason"],
-                    ]
-                )
-
-            table = TableLogger(columns, logger)
-            table.print_table(rows, title=f"[버퍼존 전략] 거래 내역 (최근 {max_rows}건)")
-        else:
-            logger.debug("[버퍼존 전략] 거래 내역 없음")
-
-        summaries.append(("버퍼존 전략", summary))
-
-        # 5. Buy & Hold 벤치마크 실행
-        logger.debug("=" * 60)
-        logger.debug("Buy & Hold 벤치마크 실행")
-        _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
-        print_summary(summary_bh, "Buy & Hold 결과", logger)
-        summaries.append(("Buy & Hold", summary_bh))
-
-        # 6. 전략 비교 요약
+    # 거래 내역 출력
+    if not trades.empty:
         columns = [
-            ("전략", 20, Align.LEFT),
-            ("총수익률", 12, Align.RIGHT),
-            ("CAGR", 10, Align.RIGHT),
-            ("MDD", 10, Align.RIGHT),
-            ("거래수", 10, Align.RIGHT),
+            ("진입일", 12, Align.LEFT),
+            ("청산일", 12, Align.LEFT),
+            ("진입가", 12, Align.RIGHT),
+            ("청산가", 12, Align.RIGHT),
+            ("손익률", 14, Align.RIGHT),
+            ("사유", 16, Align.RIGHT),
         ]
 
+        max_rows = 10
         rows = []
-        for name, summary in summaries:
+        for _, trade in trades.tail(max_rows).iterrows():
             rows.append(
                 [
-                    name,
-                    f"{summary['total_return_pct']:.2f}%",
-                    f"{summary['cagr']:.2f}%",
-                    f"{summary['mdd']:.2f}%",
-                    str(summary["total_trades"]),
+                    str(trade["entry_date"]),
+                    str(trade["exit_date"]),
+                    f"{trade['entry_price']:.2f}",
+                    f"{trade['exit_price']:.2f}",
+                    f"{trade['pnl_pct'] * 100:+.2f}%",
+                    trade["exit_reason"],
                 ]
             )
 
         table = TableLogger(columns, logger)
-        table.print_table(rows, title="[전략 비교 요약]")
+        table.print_table(rows, title=f"[버퍼존 전략] 거래 내역 (최근 {max_rows}건)")
+    else:
+        logger.debug("[버퍼존 전략] 거래 내역 없음")
 
-        return 0
+    summaries.append(("버퍼존 전략", summary))
 
-    except DataValidationError as e:
-        logger.error(f"데이터 검증 실패: {e}")
-        return 1
+    # 5. Buy & Hold 벤치마크 실행
+    logger.debug("=" * 60)
+    logger.debug("Buy & Hold 벤치마크 실행")
+    _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
+    print_summary(summary_bh, "Buy & Hold 결과", logger)
+    summaries.append(("Buy & Hold", summary_bh))
 
-    except ValueError as e:
-        logger.error(f"파라미터 검증 실패: {e}")
-        return 1
+    # 6. 전략 비교 요약
+    columns = [
+        ("전략", 20, Align.LEFT),
+        ("총수익률", 12, Align.RIGHT),
+        ("CAGR", 10, Align.RIGHT),
+        ("MDD", 10, Align.RIGHT),
+        ("거래수", 10, Align.RIGHT),
+    ]
 
-    except Exception as e:
-        logger.error(f"예기치 않은 오류: {e}")
-        return 1
+    rows = []
+    for name, summary in summaries:
+        rows.append(
+            [
+                name,
+                f"{summary['total_return_pct']:.2f}%",
+                f"{summary['cagr']:.2f}%",
+                f"{summary['mdd']:.2f}%",
+                str(summary["total_trades"]),
+            ]
+        )
+
+    table = TableLogger(columns, logger)
+    table.print_table(rows, title="[전략 비교 요약]")
+
+    return 0
 
 
 if __name__ == "__main__":

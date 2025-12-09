@@ -21,6 +21,7 @@ from qbt.config import (
 )
 from qbt.synth import find_optimal_cost_model
 from qbt.utils import get_logger
+from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
@@ -75,6 +76,7 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
     return df
 
 
+@cli_exception_handler
 def main() -> int:
     """
     메인 실행 함수.
@@ -159,100 +161,87 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    try:
-        # 1. 데이터 로드
-        logger.debug("QQQ, TQQQ 및 FFR 데이터 로딩 시작")
-        qqq_df = load_csv_data(args.qqq_path)
-        tqqq_df = load_csv_data(args.tqqq_path)
-        ffr_df = load_ffr_data(args.ffr_path)
+    # 1. 데이터 로드
+    logger.debug("QQQ, TQQQ 및 FFR 데이터 로딩 시작")
+    qqq_df = load_csv_data(args.qqq_path)
+    tqqq_df = load_csv_data(args.tqqq_path)
+    ffr_df = load_ffr_data(args.ffr_path)
 
-        # 2. 비용 모델 캘리브레이션
-        logger.debug(
-            f"비용 모델 캘리브레이션 시작: "
-            f"leverage={args.leverage}, "
-            f"spread={args.spread_min}~{args.spread_max}% (step={args.spread_step}%), "
-            f"expense={args.expense_min*100:.2f}~{args.expense_max*100:.2f}% "
-            f"(step={args.expense_step*100:.2f}%)"
-        )
+    # 2. 비용 모델 캘리브레이션
+    logger.debug(
+        f"비용 모델 캘리브레이션 시작: "
+        f"leverage={args.leverage}, "
+        f"spread={args.spread_min}~{args.spread_max}% (step={args.spread_step}%), "
+        f"expense={args.expense_min*100:.2f}~{args.expense_max*100:.2f}% "
+        f"(step={args.expense_step*100:.2f}%)"
+    )
 
-        top_strategies = find_optimal_cost_model(
-            underlying_df=qqq_df,
-            actual_leveraged_df=tqqq_df,
-            ffr_df=ffr_df,
-            leverage=args.leverage,
-            spread_range=(args.spread_min, args.spread_max),
-            spread_step=args.spread_step,
-            expense_range=(args.expense_min, args.expense_max),
-            expense_step=args.expense_step,
-        )
+    top_strategies = find_optimal_cost_model(
+        underlying_df=qqq_df,
+        actual_leveraged_df=tqqq_df,
+        ffr_df=ffr_df,
+        leverage=args.leverage,
+        spread_range=(args.spread_min, args.spread_max),
+        spread_step=args.spread_step,
+        expense_range=(args.expense_min, args.expense_max),
+        expense_step=args.expense_step,
+    )
 
-        # 3. 상위 전략 테이블 출력
-        logger.debug("=" * 120)
-        logger.debug("상위 전략")
+    # 3. 상위 전략 테이블 출력
+    logger.debug("=" * 120)
+    logger.debug("상위 전략")
 
-        columns = [
-            ("Rank", 6, Align.RIGHT),
-            ("Spread(%)", 12, Align.RIGHT),
-            ("Expense(%)", 12, Align.RIGHT),
-            ("누적수익률상대차이(%)", 22, Align.RIGHT),
-            ("누적수익률RMSE(%)", 18, Align.RIGHT),
+    columns = [
+        ("Rank", 6, Align.RIGHT),
+        ("Spread(%)", 12, Align.RIGHT),
+        ("Expense(%)", 12, Align.RIGHT),
+        ("누적수익률상대차이(%)", 22, Align.RIGHT),
+        ("누적수익률RMSE(%)", 18, Align.RIGHT),
+    ]
+    table = TableLogger(columns, logger, indent=2)
+
+    rows = []
+    for rank, strategy in enumerate(top_strategies, start=1):
+        row = [
+            str(rank),
+            f"{strategy['funding_spread']:.2f}",
+            f"{strategy['expense_ratio']*100:.2f}",
+            f"{strategy['cumulative_return_relative_diff_pct']:.4f}",
+            f"{strategy['rmse_cumulative_return']*100:.4f}",
         ]
-        table = TableLogger(columns, logger, indent=2)
+        rows.append(row)
 
-        rows = []
-        for rank, strategy in enumerate(top_strategies, start=1):
-            row = [
-                str(rank),
-                f"{strategy['funding_spread']:.2f}",
-                f"{strategy['expense_ratio']*100:.2f}",
-                f"{strategy['cumulative_return_relative_diff_pct']:.4f}",
-                f"{strategy['rmse_cumulative_return']*100:.4f}",
-            ]
-            rows.append(row)
+    table.print_table(rows)
 
-        table.print_table(rows)
+    # 4. 결과 저장 (CSV) - 상위 전략
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    results_csv_path = TQQQ_VALIDATION_PATH
 
-        # 4. 결과 저장 (CSV) - 상위 전략
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        results_csv_path = TQQQ_VALIDATION_PATH
+    rows = []
+    for rank, strategy in enumerate(top_strategies, start=1):
+        row = {
+            # 메타 정보 (7개)
+            "rank": rank,
+            "검증기간_시작": strategy["overlap_start"],
+            "검증기간_종료": strategy["overlap_end"],
+            "총일수": strategy["overlap_days"],
+            "leverage": round(strategy["leverage"], 2),
+            "funding_spread": round(strategy["funding_spread"], 2),
+            "expense_ratio": round(strategy["expense_ratio"], 6),
+            # 누적수익률/성과 (5개)
+            "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
+            "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
+            "누적수익률_상대차이(%)": round(strategy["cumulative_return_relative_diff_pct"], 4),
+            "누적수익률_RMSE(%)": round(strategy["rmse_cumulative_return"] * 100, 4),
+            "누적수익률_최대오차(%)": round(strategy["max_error_cumulative_return"] * 100, 4),
+        }
+        rows.append(row)
 
-        rows = []
-        for rank, strategy in enumerate(top_strategies, start=1):
-            row = {
-                # 메타 정보 (7개)
-                "rank": rank,
-                "검증기간_시작": strategy["overlap_start"],
-                "검증기간_종료": strategy["overlap_end"],
-                "총일수": strategy["overlap_days"],
-                "leverage": round(strategy["leverage"], 2),
-                "funding_spread": round(strategy["funding_spread"], 2),
-                "expense_ratio": round(strategy["expense_ratio"], 6),
-                # 누적수익률/성과 (5개)
-                "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
-                "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
-                "누적수익률_상대차이(%)": round(strategy["cumulative_return_relative_diff_pct"], 4),
-                "누적수익률_RMSE(%)": round(strategy["rmse_cumulative_return"] * 100, 4),
-                "누적수익률_최대오차(%)": round(strategy["max_error_cumulative_return"] * 100, 4),
-            }
-            rows.append(row)
+    results_df = pd.DataFrame(rows)
+    results_df.to_csv(results_csv_path, index=False, encoding="utf-8-sig")
+    logger.debug(f"검증 결과 저장: {results_csv_path} ({len(rows)}행)")
 
-        results_df = pd.DataFrame(rows)
-        results_df.to_csv(results_csv_path, index=False, encoding="utf-8-sig")
-        logger.debug(f"검증 결과 저장: {results_csv_path} ({len(rows)}행)")
-
-        return 0
-
-    except FileNotFoundError as e:
-        logger.error(f"파일 오류: {e}")
-        return 1
-
-    except ValueError as e:
-        logger.error(f"입력값 오류: {e}")
-        return 1
-
-    except Exception as e:
-        logger.error(f"예기치 않은 오류: {e}", exc_info=True)
-        return 1
+    return 0
 
 
 if __name__ == "__main__":
