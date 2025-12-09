@@ -56,14 +56,8 @@ def calculate_daily_cost(
                 )
 
             ffr = float(previous_dates.iloc[-1]["FFR"])
-            logger.debug(
-                f"{year_month_str} FFR 데이터 없음. "
-                f"{closest_date_str} 데이터 사용 (FFR: {ffr:.4f}%)"
-            )
         else:
-            raise ValueError(
-                f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다."
-            )
+            raise ValueError(f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다.")
     else:
         ffr = float(ffr_row.iloc[0]["FFR"])
 
