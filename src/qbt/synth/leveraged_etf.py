@@ -26,25 +26,44 @@ def calculate_daily_cost(
 
     Args:
         date_value: 계산 대상 날짜
-        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float)
         expense_ratio: 연간 expense ratio (예: 0.009 = 0.9%)
         funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
 
     Returns:
         일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
     """
-    # 1. 해당 월의 FFR 조회 (Year-Month 기준)
-    year_month = pd.Timestamp(year=date_value.year, month=date_value.month, day=1)
-    ffr_row = ffr_df[ffr_df["DATE"] == year_month]
+    # 1. 해당 월의 FFR 조회 (Year-Month 기준, 문자열 형식)
+    year_month_str = f"{date_value.year:04d}-{date_value.month:02d}"
+    ffr_row = ffr_df[ffr_df["DATE"] == year_month_str]
 
     if ffr_row.empty:
-        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용
-        previous_dates = ffr_df[ffr_df["DATE"] < year_month]
+        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용 (최대 2개월 전까지)
+        previous_dates = ffr_df[ffr_df["DATE"] < year_month_str]
         if not previous_dates.empty:
+            closest_date_str = previous_dates.iloc[-1]["DATE"]
+
+            # 월 차이 계산 (yyyy-mm 문자열 파싱)
+            current_year, current_month = date_value.year, date_value.month
+            closest_year, closest_month = map(int, closest_date_str.split("-"))
+            total_months = (current_year - closest_year) * 12 + (current_month - closest_month)
+
+            if total_months > 2:
+                raise ValueError(
+                    f"FFR 데이터 부족: {year_month_str}의 FFR 데이터가 없으며, "
+                    f"가장 가까운 이전 데이터는 {closest_date_str} ({total_months}개월 전)입니다. "
+                    f"최대 2개월 이내의 데이터만 사용 가능합니다."
+                )
+
             ffr = float(previous_dates.iloc[-1]["FFR"])
+            logger.debug(
+                f"{year_month_str} FFR 데이터 없음. "
+                f"{closest_date_str} 데이터 사용 (FFR: {ffr:.4f}%)"
+            )
         else:
-            # 그것도 없으면 첫 번째 값 사용
-            ffr = float(ffr_df.iloc[0]["FFR"])
+            raise ValueError(
+                f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다."
+            )
     else:
         ffr = float(ffr_row.iloc[0]["FFR"])
 
