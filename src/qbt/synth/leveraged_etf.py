@@ -224,7 +224,7 @@ def find_optimal_multiplier(
         # 시뮬레이션 실행
         sim_df = simulate_leveraged_etf(
             underlying_overlap,
-            leverage=multiplier,
+            leverage=float(multiplier),
             expense_ratio=expense_ratio,
             initial_price=initial_price,
             ffr_df=ffr_df,
@@ -256,9 +256,9 @@ def find_optimal_multiplier(
         # 최고 점수 업데이트
         if score > best_score:
             best_score = score
-            best_multiplier = multiplier
+            best_multiplier = float(multiplier)
             best_metrics = {
-                "multiplier": multiplier,
+                "multiplier": float(multiplier),
                 "correlation": correlation,
                 "rmse": rmse,
                 "final_price_diff_pct": final_price_diff_pct,
@@ -346,10 +346,10 @@ def find_optimal_cost_model(
             sim_df = simulate_leveraged_etf(
                 underlying_overlap,
                 leverage=leverage,
-                expense_ratio=expense,
+                expense_ratio=float(expense),
                 initial_price=initial_price,
                 ffr_df=ffr_df,
-                funding_spread=spread,
+                funding_spread=float(spread),
             )
 
             # 검증 지표 계산
