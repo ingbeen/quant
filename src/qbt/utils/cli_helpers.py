@@ -5,8 +5,8 @@ CLI 스크립트에서 공통으로 사용하는 예외 처리 데코레이터�
 
 import inspect
 import logging
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 from qbt.backtest.exceptions import DataValidationError
 
