@@ -51,7 +51,7 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
         path: CSV 파일 경로
 
     Returns:
-        FFR DataFrame (DATE: Timestamp, FFR: float)
+        FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
@@ -61,7 +61,6 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
 
     logger.debug(f"FFR 데이터 로딩: {path}")
     df = pd.read_csv(path)
-    df["DATE"] = pd.to_datetime(df["DATE"])
     df.rename(columns={"VALUE": "FFR"}, inplace=True)
 
     logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df['DATE'].min()} ~ {df['DATE'].max()}")
