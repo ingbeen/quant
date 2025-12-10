@@ -12,7 +12,6 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from qbt.backtest.exceptions import DataValidationError
 from qbt.config import DATA_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -39,7 +38,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         df: 검증할 DataFrame
 
     Raises:
-        DataValidationError: 데이터 이상이 감지되었을 때
+        ValueError: 데이터 이상이 감지되었을 때
     """
     logger.debug("데이터 유효성 검증 시작")
 
@@ -49,7 +48,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         if null_mask.any():
             null_indices = df.index[null_mask].tolist()
             null_dates = df.loc[null_mask, "Date"].tolist()
-            raise DataValidationError(
+            raise ValueError(
                 f"결측치 발견 - 컬럼: {col}, "
                 f"인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, "
                 f"날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
@@ -61,7 +60,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         if zero_mask.any():
             zero_indices = df.index[zero_mask].tolist()
             zero_dates = df.loc[zero_mask, "Date"].tolist()
-            raise DataValidationError(
+            raise ValueError(
                 f"0 값 발견 - 컬럼: {col}, "
                 f"인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, "
                 f"날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
@@ -74,7 +73,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
             negative_indices = df.index[negative_mask].tolist()
             negative_dates = df.loc[negative_mask, "Date"].tolist()
             ellipsis = "..." if len(negative_indices) > 5 else ""
-            raise DataValidationError(
+            raise ValueError(
                 f"음수 값 발견 - 컬럼: {col}, "
                 f"인덱스: {negative_indices[:5]}{ellipsis}, "
                 f"날짜: {negative_dates[:5]}{ellipsis}"
@@ -95,7 +94,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
             logger.warning(f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}")
 
         first_extreme = extreme_rows.iloc[0]
-        raise DataValidationError(
+        raise ValueError(
             f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - "
             f"날짜: {first_extreme['Date']}, "
             f"변동률: {first_extreme['pct_change'] * 100:+.2f}%"

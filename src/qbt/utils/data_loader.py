@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.backtest.exceptions import DataValidationError
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +26,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
-        DataValidationError: 필수 컬럼이 누락되었을 때
+        ValueError: 필수 컬럼이 누락되었을 때
     """
     # 필수 컬럼 목록
     REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
@@ -45,7 +44,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     # 3. 필수 컬럼 검증
     missing_columns = set(REQUIRED_COLUMNS) - set(df.columns)
     if missing_columns:
-        raise DataValidationError(f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}")
+        raise ValueError(f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}")
 
     # 4. 날짜 컬럼 파싱
     df["Date"] = pd.to_datetime(df["Date"]).dt.date

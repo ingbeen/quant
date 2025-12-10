@@ -1,7 +1,6 @@
 """백테스트 패키지"""
 
 from qbt.backtest.data import add_single_moving_average
-from qbt.backtest.exceptions import DataValidationError
 from qbt.backtest.metrics import calculate_summary
 from qbt.backtest.report import (
     create_result_directory,
@@ -33,8 +32,6 @@ __all__ = [
     "BufferStrategyParams",
     # Metrics functions
     "calculate_summary",
-    # Exceptions
-    "DataValidationError",
     # Report functions
     "create_result_directory",
     "save_trades",

@@ -8,11 +8,8 @@ import logging
 from collections.abc import Callable
 from functools import wraps
 
-from qbt.backtest.exceptions import DataValidationError
-
 # 예외 타입 목록 (모든 예외에 스택 트레이스 포함)
 EXCEPTION_HANDLERS = [
-    DataValidationError,
     FileNotFoundError,
     ValueError,
     Exception,
