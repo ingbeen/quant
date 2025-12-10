@@ -12,11 +12,98 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from qbt.backtest.exceptions import DataValidationError
 from qbt.config import DATA_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 
 logger = get_logger(__name__)
+
+# 데이터 검증 관련 상수
+REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
+PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
+PRICE_CHANGE_THRESHOLD = 0.20  # 20%
+
+
+def validate_stock_data(df: pd.DataFrame) -> None:
+    """
+    데이터 유효성을 검증한다.
+
+    다음 항목을 검사하며, 이상 발견 시 즉시 예외를 발생시킨다:
+    - 가격 컬럼의 결측치, 0, 음수 값
+    - 전일 대비 급등락 (임계값 이상)
+
+    어떠한 형태의 보간도 수행하지 않는다.
+
+    Args:
+        df: 검증할 DataFrame
+
+    Raises:
+        DataValidationError: 데이터 이상이 감지되었을 때
+    """
+    logger.debug("데이터 유효성 검증 시작")
+
+    # 1. 결측치 검사
+    for col in PRICE_COLUMNS:
+        null_mask = df[col].isna()
+        if null_mask.any():
+            null_indices = df.index[null_mask].tolist()
+            null_dates = df.loc[null_mask, "Date"].tolist()
+            raise DataValidationError(
+                f"결측치 발견 - 컬럼: {col}, "
+                f"인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, "
+                f"날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
+            )
+
+    # 2. 0 값 검사
+    for col in PRICE_COLUMNS:
+        zero_mask = df[col] == 0
+        if zero_mask.any():
+            zero_indices = df.index[zero_mask].tolist()
+            zero_dates = df.loc[zero_mask, "Date"].tolist()
+            raise DataValidationError(
+                f"0 값 발견 - 컬럼: {col}, "
+                f"인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, "
+                f"날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
+            )
+
+    # 3. 음수 값 검사
+    for col in PRICE_COLUMNS:
+        negative_mask = df[col] < 0
+        if negative_mask.any():
+            negative_indices = df.index[negative_mask].tolist()
+            negative_dates = df.loc[negative_mask, "Date"].tolist()
+            ellipsis = "..." if len(negative_indices) > 5 else ""
+            raise DataValidationError(
+                f"음수 값 발견 - 컬럼: {col}, "
+                f"인덱스: {negative_indices[:5]}{ellipsis}, "
+                f"날짜: {negative_dates[:5]}{ellipsis}"
+            )
+
+    # 4. 전일 대비 급등락 검사 (Close 기준)
+    df_copy = df.copy()
+    df_copy["pct_change"] = df_copy["Close"].pct_change()
+
+    # 첫 번째 행은 NaN이므로 제외
+    extreme_mask = df_copy["pct_change"].abs() >= PRICE_CHANGE_THRESHOLD
+    extreme_mask = extreme_mask.fillna(False)
+
+    if extreme_mask.any():
+        extreme_rows = df_copy[extreme_mask]
+        for _, row in extreme_rows.iterrows():
+            pct = row["pct_change"] * 100
+            logger.warning(
+                f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}"
+            )
+
+        first_extreme = extreme_rows.iloc[0]
+        raise DataValidationError(
+            f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - "
+            f"날짜: {first_extreme['Date']}, "
+            f"변동률: {first_extreme['pct_change'] * 100:+.2f}%"
+        )
+
+    logger.debug("데이터 유효성 검증 완료: 이상 없음")
 
 
 def download_stock_data(
@@ -75,11 +162,14 @@ def download_stock_data(
     price_columns = ["Open", "High", "Low", "Close"]
     df[price_columns] = df[price_columns].round(6)
 
-    # 9. CSV 파일로 저장
+    # 9. 데이터 유효성 검증
+    validate_stock_data(df)
+
+    # 10. CSV 파일로 저장 (검증 통과 시에만 실행)
     csv_path = output_path / filename
     df.to_csv(csv_path, index=False)
 
-    # 10. 결과 출력
+    # 11. 결과 출력
     logger.debug(f"데이터 저장 완료: {csv_path}")
     logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
     logger.debug(f"행 수: {len(df):,}")

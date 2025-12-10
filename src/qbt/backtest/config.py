@@ -1,17 +1,8 @@
 """
 백테스트 전용 상수 및 설정
 
-백테스트 도메인에서만 사용하는 전략 파라미터와 검증 임계값을 정의한다.
+백테스트 도메인에서만 사용하는 전략 파라미터를 정의한다.
 """
-
-# 필수 컬럼 목록
-REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
-
-# 가격 컬럼 목록 (유효성 검사 대상)
-PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
-
-# 급등락 임계값 (절대값 기준, 20%)
-PRICE_CHANGE_THRESHOLD = 0.20
 
 # 거래 비용 상수 (슬리피지에 수수료 포함)
 SLIPPAGE_RATE = 0.003  # 0.3% / 매수 or 매도 1회
