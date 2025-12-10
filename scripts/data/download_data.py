@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 # 데이터 검증 관련 상수
 REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
 PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
-PRICE_CHANGE_THRESHOLD = 0.20  # 20%
+PRICE_CHANGE_THRESHOLD = 0.50
 
 
 def validate_stock_data(df: pd.DataFrame) -> None:
@@ -92,9 +92,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         extreme_rows = df_copy[extreme_mask]
         for _, row in extreme_rows.iterrows():
             pct = row["pct_change"] * 100
-            logger.warning(
-                f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}"
-            )
+            logger.warning(f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}")
 
         first_extreme = extreme_rows.iloc[0]
         raise DataValidationError(
