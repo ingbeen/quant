@@ -10,34 +10,23 @@ from functools import wraps
 
 from qbt.backtest.exceptions import DataValidationError
 
-# 예외 타입별 로깅 설정 (모든 예외에 exc_info=True 적용)
-EXCEPTION_HANDLERS = {
-    DataValidationError: {
-        "message_format": "데이터 검증 실패: {error}",
-        "exc_info": True,
-    },
-    FileNotFoundError: {
-        "message_format": "파일 오류: {error}",
-        "exc_info": True,
-    },
-    ValueError: {
-        "message_format": "입력값 오류: {error}",
-        "exc_info": True,
-    },
-    Exception: {
-        "message_format": "예기치 않은 오류: {error}",
-        "exc_info": True,
-    },
-}
+# 예외 타입 목록 (모든 예외에 스택 트레이스 포함)
+EXCEPTION_HANDLERS = [
+    DataValidationError,
+    FileNotFoundError,
+    ValueError,
+    Exception,
+]
 
 
 def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
     """
     CLI main() 함수의 예외를 일관되게 처리하는 데코레이터.
 
-    모든 예외를 캐치하여 적절한 에러 로그를 남기고 실패 코드(1)를 반환한다.
+    모든 예외를 캐치하여 스택 트레이스를 포함한 에러 로그를 남기고 실패 코드(1)를 반환한다.
     로거는 함수가 정의된 모듈의 최상위 'logger' 변수를 자동으로 감지한다.
-    모든 예외 타입에 대해 스택 트레이스(exc_info=True)를 포함하여 로깅한다.
+
+    예외 메시지는 스택 트레이스에 포함되므로 별도로 출력하지 않아 중복을 방지한다.
 
     사용 예시:
         @cli_exception_handler
@@ -69,17 +58,16 @@ def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
 
         except Exception as e:
             # 3. 예외 타입별 핸들러 검색 (가장 구체적인 타입부터)
-            for exc_type, handler_config in EXCEPTION_HANDLERS.items():
+            for exc_type in EXCEPTION_HANDLERS:
                 if isinstance(e, exc_type):
-                    # 4. 에러 로깅
-                    message = handler_config["message_format"].format(error=e)
-                    logger.error(message, exc_info=handler_config["exc_info"])
+                    # 4. 에러 로깅 (스택 트레이스에 예외 타입과 메시지 포함)
+                    logger.error("예외 발생", exc_info=True)
 
                     # 5. 실패 코드 반환
                     return 1
 
             # 6. 폴백 (도달하지 않아야 함)
-            logger.error(f"처리되지 않은 예외: {e}", exc_info=True)
+            logger.error("예외 발생", exc_info=True)
             return 1
 
     return wrapper
