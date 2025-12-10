@@ -8,11 +8,11 @@ from pathlib import Path
 import streamlit as st
 
 from qbt.config import TQQQ_DAILY_COMPARISON_PATH
+from qbt.utils.data_loader import load_comparison_data
 from qbt.visualization import (
     create_cumulative_return_diff_chart,
     create_daily_return_diff_histogram,
     create_price_comparison_chart,
-    load_comparison_data,
 )
 
 

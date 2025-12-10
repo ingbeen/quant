@@ -11,16 +11,15 @@ import sys
 
 from qbt.backtest import (
     BufferStrategyParams,
-    DataValidationError,
     add_single_moving_average,
     run_buffer_strategy,
     run_buy_and_hold,
 )
-from qbt.backtest.config import DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.config import DEFAULT_INITIAL_CAPITAL, PRICE_CHANGE_THRESHOLD, PRICE_COLUMNS
 from qbt.config import QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_and_validate_data
+from qbt.utils.data_loader import load_stock_data, validate_stock_data
 from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
@@ -112,7 +111,15 @@ def main() -> int:
     )
 
     # 1. 데이터 로딩 및 검증
-    df = load_and_validate_data(QQQ_DATA_PATH, logger)
+    logger.debug(f"데이터 파일 경로: {QQQ_DATA_PATH}")
+    df = load_stock_data(QQQ_DATA_PATH)
+    validate_stock_data(df, PRICE_COLUMNS, PRICE_CHANGE_THRESHOLD)
+
+    logger.debug("=" * 60)
+    logger.debug("데이터 로딩 및 검증 완료")
+    logger.debug(f"총 행 수: {len(df):,}")
+    logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
+    logger.debug("=" * 60)
 
     # 2. 이동평균 계산
     df = add_single_moving_average(df, args.ma_window)

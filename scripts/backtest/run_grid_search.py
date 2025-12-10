@@ -13,11 +13,13 @@ from qbt.backtest.config import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
+    PRICE_CHANGE_THRESHOLD,
+    PRICE_COLUMNS,
 )
 from qbt.config import GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_and_validate_data
+from qbt.utils.data_loader import load_stock_data, validate_stock_data
 from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
@@ -70,7 +72,15 @@ def main() -> int:
     logger.debug("QQQ 파라미터 그리드 탐색 시작")
 
     # 1. 데이터 로딩 및 검증
-    df = load_and_validate_data(QQQ_DATA_PATH, logger)
+    logger.debug(f"데이터 파일 경로: {QQQ_DATA_PATH}")
+    df = load_stock_data(QQQ_DATA_PATH)
+    validate_stock_data(df, PRICE_COLUMNS, PRICE_CHANGE_THRESHOLD)
+
+    logger.debug("=" * 60)
+    logger.debug("데이터 로딩 및 검증 완료")
+    logger.debug(f"총 행 수: {len(df):,}")
+    logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
+    logger.debug("=" * 60)
 
     # 2. 그리드 탐색 실행
     logger.debug("\n그리드 탐색 파라미터:")

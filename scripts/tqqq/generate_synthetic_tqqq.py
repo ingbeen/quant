@@ -10,63 +10,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
-
 from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
 from qbt.synth import simulate_leveraged_etf
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
+from qbt.utils.data_loader import load_ffr_data, load_stock_data
 
 logger = get_logger(__name__)
-
-
-def load_csv_data(path: Path) -> pd.DataFrame:
-    """
-    CSV 파일을 로드하고 Date 컬럼을 date 타입으로 변환한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        로드된 DataFrame
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"데이터 로딩: {path}")
-    df = pd.read_csv(path)
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    logger.debug(f"로드 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}")
-
-    return df
-
-
-def load_ffr_data(path: Path) -> pd.DataFrame:
-    """
-    연방기금금리 월별 데이터를 로드한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"FFR 파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"FFR 데이터 로딩: {path}")
-    df = pd.read_csv(path)
-    df.rename(columns={"VALUE": "FFR"}, inplace=True)
-
-    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df['DATE'].min()} ~ {df['DATE'].max()}")
-
-    return df
 
 
 @cli_exception_handler
@@ -163,7 +113,7 @@ def main() -> int:
     logger.debug(f"시작 날짜: {start_date}")
 
     # 2. QQQ 및 FFR 데이터 로드
-    qqq_df = load_csv_data(args.qqq_path)
+    qqq_df = load_stock_data(args.qqq_path)
     ffr_df = load_ffr_data(args.ffr_path)
 
     # 3. 시작 날짜 이후 데이터만 필터링

@@ -9,43 +9,6 @@ import pandas as pd
 import plotly.graph_objects as go
 
 
-def load_comparison_data(csv_path: Path) -> pd.DataFrame:
-    """
-    일별 비교 CSV 파일을 로드하고 검증한다.
-
-    Args:
-        csv_path: CSV 파일 경로
-
-    Returns:
-        로드된 DataFrame
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-        ValueError: 필수 컬럼이 누락되었을 때
-    """
-    if not csv_path.exists():
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {csv_path}")
-
-    df = pd.read_csv(csv_path)
-
-    # 필수 컬럼 검증
-    required_columns = [
-        "날짜",
-        "실제_종가",
-        "시뮬_종가",
-        "일일수익률_차이",
-        "누적수익률_차이",
-    ]
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
-
-    # 날짜 컬럼을 datetime으로 변환
-    df["날짜"] = pd.to_datetime(df["날짜"])
-
-    return df
-
-
 def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
     """
     실제 종가 vs 시뮬레이션 종가 비교 라인 차트를 생성한다.

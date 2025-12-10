@@ -22,58 +22,10 @@ from qbt.config import (
 from qbt.synth import find_optimal_cost_model
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
+from qbt.utils.data_loader import load_ffr_data, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
-
-
-def load_csv_data(path: Path) -> pd.DataFrame:
-    """
-    CSV 파일을 로드하고 Date 컬럼을 date 타입으로 변환한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        로드된 DataFrame
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"데이터 로딩: {path}")
-    df = pd.read_csv(path)
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
-    logger.debug(f"로드 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}")
-
-    return df
-
-
-def load_ffr_data(path: Path) -> pd.DataFrame:
-    """
-    연방기금금리 월별 데이터를 로드한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"FFR 파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"FFR 데이터 로딩: {path}")
-    df = pd.read_csv(path)
-    df.rename(columns={"VALUE": "FFR"}, inplace=True)
-
-    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df['DATE'].min()} ~ {df['DATE'].max()}")
-
-    return df
 
 
 @cli_exception_handler
@@ -163,8 +115,8 @@ def main() -> int:
 
     # 1. 데이터 로드
     logger.debug("QQQ, TQQQ 및 FFR 데이터 로딩 시작")
-    qqq_df = load_csv_data(args.qqq_path)
-    tqqq_df = load_csv_data(args.tqqq_path)
+    qqq_df = load_stock_data(args.qqq_path)
+    tqqq_df = load_stock_data(args.tqqq_path)
     ffr_df = load_ffr_data(args.ffr_path)
 
     # 2. 비용 모델 캘리브레이션
