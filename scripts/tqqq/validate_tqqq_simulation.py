@@ -110,6 +110,12 @@ def main() -> int:
         default=0.001,
         help="expense ratio 탐색 간격",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="병렬 처리 워커 수 (기본값: CPU 코어 수 - 1)",
+    )
 
     args = parser.parse_args()
 
@@ -137,6 +143,7 @@ def main() -> int:
         spread_step=args.spread_step,
         expense_range=(args.expense_min, args.expense_max),
         expense_step=args.expense_step,
+        max_workers=args.workers,
     )
 
     # 3. 상위 전략 테이블 출력

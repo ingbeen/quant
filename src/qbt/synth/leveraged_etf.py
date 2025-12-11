@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from qbt.utils import get_logger
+from qbt.utils import execute_parallel, get_logger
 
 logger = get_logger(__name__)
 
@@ -281,6 +281,50 @@ def find_optimal_multiplier(
     return best_multiplier, best_metrics
 
 
+def _evaluate_single_params(params: dict) -> dict:
+    """
+    단일 파라미터 조합에 대해 시뮬레이션을 실행하고 평가한다.
+
+    병렬 실행을 위한 헬퍼 함수. pickle 가능하도록 최상위 레벨에 정의한다.
+
+    Args:
+        params: 파라미터 딕셔너리 {
+            "underlying_overlap": 기초 자산 DataFrame,
+            "actual_overlap": 실제 레버리지 ETF DataFrame,
+            "ffr_df": 연방기금금리 DataFrame,
+            "leverage": 레버리지 배수,
+            "spread": funding spread 값,
+            "expense": expense ratio 값,
+            "initial_price": 초기 가격,
+        }
+
+    Returns:
+        평가 결과 딕셔너리
+    """
+    # 시뮬레이션 실행
+    sim_df = simulate_leveraged_etf(
+        params["underlying_overlap"],
+        leverage=params["leverage"],
+        expense_ratio=params["expense"],
+        initial_price=params["initial_price"],
+        ffr_df=params["ffr_df"],
+        funding_spread=params["spread"],
+    )
+
+    # 검증 지표 계산
+    metrics = validate_simulation(sim_df, params["actual_overlap"])
+
+    # candidate 딕셔너리 생성
+    candidate = {
+        "leverage": params["leverage"],
+        "funding_spread": params["spread"],
+        "expense_ratio": params["expense"],
+        **metrics,
+    }
+
+    return candidate
+
+
 def find_optimal_cost_model(
     underlying_df: pd.DataFrame,
     actual_leveraged_df: pd.DataFrame,
@@ -290,12 +334,15 @@ def find_optimal_cost_model(
     spread_step: float = 0.01,
     expense_range: tuple[float, float] = (0.0075, 0.0105),
     expense_step: float = 0.0005,
+    max_workers: int | None = None,
 ) -> list[dict]:
     """
     multiplier를 고정하고 비용 모델 파라미터를 2D grid search로 캘리브레이션한다.
 
     funding_spread와 expense_ratio의 조합을 탐색하여 실제 레버리지 ETF와
     가장 유사한 시뮬레이션을 생성하는 최적 비용 모델을 찾는다.
+
+    ProcessPoolExecutor를 사용하여 병렬로 실행된다.
 
     Args:
         underlying_df: 기초 자산 DataFrame (QQQ)
@@ -306,6 +353,7 @@ def find_optimal_cost_model(
         spread_step: funding spread 탐색 간격 (%)
         expense_range: expense ratio 탐색 범위 (min, max) (소수)
         expense_step: expense ratio 탐색 간격 (소수)
+        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
 
     Returns:
         top_strategies: 누적수익률 상대차이 기준 상위 50개 전략 리스트
@@ -335,52 +383,33 @@ def find_optimal_cost_model(
     # 2. 실제 TQQQ 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0]["Close"])
 
-    # 3. 2D Grid search
+    # 3. 2D Grid search를 위한 파라미터 조합 생성
     spread_values = np.arange(spread_range[0], spread_range[1] + 1e-12, spread_step)
     expense_values = np.arange(expense_range[0], expense_range[1] + 1e-12, expense_step)
 
-    # 전체 경우의 수 계산
-    total_cases = len(spread_values) * len(expense_values)
-    logger.debug(f"Grid search 시작 - 전체 경우의 수: {total_cases:,}")
-
-    candidates = []
-    current_case = 0
-
+    # 모든 파라미터 조합 리스트 생성
+    param_combinations = []
     for spread in spread_values:
         for expense in expense_values:
-            current_case += 1
-
-            # 진행도 로그 (매 10케이스마다 출력)
-            if current_case % 10 == 0 or current_case == 1:
-                progress_pct = (current_case / total_cases) * 100
-                logger.debug(f"진행도: {current_case:,}/{total_cases:,} ({progress_pct:.1f}%)")
-
-            # 시뮬레이션 실행
-            sim_df = simulate_leveraged_etf(
-                underlying_overlap,
-                leverage=leverage,
-                expense_ratio=float(expense),
-                initial_price=initial_price,
-                ffr_df=ffr_df,
-                funding_spread=float(spread),
+            param_combinations.append(
+                {
+                    "underlying_overlap": underlying_overlap,
+                    "actual_overlap": actual_overlap,
+                    "ffr_df": ffr_df,
+                    "leverage": leverage,
+                    "spread": float(spread),
+                    "expense": float(expense),
+                    "initial_price": initial_price,
+                }
             )
 
-            # 검증 지표 계산
-            metrics = validate_simulation(sim_df, actual_overlap)
+    # 4. 병렬 실행
+    candidates = execute_parallel(_evaluate_single_params, param_combinations, max_workers=max_workers)
 
-            # candidate 딕셔너리 생성
-            candidate = {
-                "leverage": leverage,
-                "funding_spread": spread,
-                "expense_ratio": expense,
-                **metrics,
-            }
-            candidates.append(candidate)
-
-    # 4. 누적수익률_상대차이_pct 기준 오름차순 정렬
+    # 5. 누적수익률_상대차이_pct 기준 오름차순 정렬
     candidates.sort(key=lambda x: x["cumulative_return_relative_diff_pct"])
 
-    # 5. 상위 50개 전략 반환
+    # 6. 상위 50개 전략 반환
     top_strategies = candidates[:50]
 
     return top_strategies
