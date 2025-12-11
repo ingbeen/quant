@@ -5,8 +5,7 @@ from datetime import timedelta
 
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
-from qbt.backtest.config import (
+from qbt.backtest.constants import (
     DEFAULT_BUFFER_ZONE_PCT,
     DEFAULT_HOLD_DAYS,
     DEFAULT_INITIAL_CAPITAL,
@@ -19,6 +18,7 @@ from qbt.backtest.config import (
 )
 from qbt.backtest.data import add_single_moving_average
 from qbt.backtest.metrics import calculate_summary
+from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -74,7 +74,7 @@ def run_buy_and_hold(
     # 기간 계산 (연 단위)
     start_date = pd.to_datetime(df.iloc[0][COL_DATE])
     end_date = pd.to_datetime(df.iloc[-1][COL_DATE])
-    years = (end_date - start_date).days / 365.25
+    years = (end_date - start_date).days / ANNUAL_DAYS
 
     # CAGR
     if years > 0:

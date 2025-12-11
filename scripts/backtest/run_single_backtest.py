@@ -15,7 +15,7 @@ from qbt.backtest import (
     run_buffer_strategy,
     run_buy_and_hold,
 )
-from qbt.backtest.config import DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.config import QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler

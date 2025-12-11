@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE, REQUIRED_COLUMNS
+from qbt.common_constants import (
+    COL_DATE,
+    COL_DATE_KR,
+    COMPARISON_COLUMNS,
+    REQUIRED_COLUMNS,
+)
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -106,18 +111,11 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
 
     # 필수 컬럼 검증
-    required_columns = [
-        "날짜",
-        "실제_종가",
-        "시뮬_종가",
-        "일일수익률_차이",
-        "누적수익률_차이",
-    ]
-    missing_columns = [col for col in required_columns if col not in df.columns]
+    missing_columns = [col for col in COMPARISON_COLUMNS if col not in df.columns]
     if missing_columns:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
 
     # 날짜 컬럼을 datetime으로 변환
-    df["날짜"] = pd.to_datetime(df["날짜"])
+    df[COL_DATE_KR] = pd.to_datetime(df[COL_DATE_KR])
 
     return df

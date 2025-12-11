@@ -3,10 +3,17 @@
 일별 비교 CSV 데이터를 Plotly 차트로 시각화한다.
 """
 
-from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+
+from qbt.common_constants import (
+    COL_ACTUAL_CLOSE,
+    COL_CUMUL_RETURN_DIFF,
+    COL_DAILY_RETURN_DIFF,
+    COL_DATE_KR,
+    COL_SIMUL_CLOSE,
+)
 
 
 def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
@@ -24,8 +31,8 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
     # 실제 종가
     fig.add_trace(
         go.Scatter(
-            x=df["날짜"],
-            y=df["실제_종가"],
+            x=df[COL_DATE_KR],
+            y=df[COL_ACTUAL_CLOSE],
             mode="lines",
             name="실제 TQQQ",
             line={"color": "#1f77b4", "width": 2},
@@ -36,8 +43,8 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
     # 시뮬레이션 종가
     fig.add_trace(
         go.Scatter(
-            x=df["날짜"],
-            y=df["시뮬_종가"],
+            x=df[COL_DATE_KR],
+            y=df[COL_SIMUL_CLOSE],
             mode="lines",
             name="시뮬레이션 TQQQ",
             line={"color": "#ff7f0e", "width": 2, "dash": "dash"},
@@ -72,7 +79,7 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
         Plotly Figure 객체
     """
     # 결측치 제거
-    daily_diff = df["일일수익률_차이"].dropna()
+    daily_diff = df[COL_DAILY_RETURN_DIFF].dropna()
 
     # 통계 계산
     mean_diff = daily_diff.mean()
@@ -144,8 +151,8 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
 
     fig.add_trace(
         go.Scatter(
-            x=df["날짜"],
-            y=df["누적수익률_차이"],
+            x=df[COL_DATE_KR],
+            y=df[COL_CUMUL_RETURN_DIFF],
             mode="lines",
             name="누적수익률 차이",
             line={"color": "#d62728", "width": 2},

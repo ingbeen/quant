@@ -10,7 +10,27 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, REQUIRED_COLUMNS
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    COL_VOLUME,
+    REQUIRED_COLUMNS,
+    TRADING_DAYS_PER_YEAR,
+)
+from qbt.synth.constants import (
+    DEFAULT_EXPENSE_RANGE,
+    DEFAULT_EXPENSE_STEP,
+    DEFAULT_FUNDING_SPREAD,
+    DEFAULT_LEVERAGE_MULTIPLIER,
+    DEFAULT_SPREAD_RANGE,
+    DEFAULT_SPREAD_STEP,
+    MAX_EXPENSE_RATIO,
+    MAX_FFR_MONTHS_DIFF,
+    MAX_TOP_STRATEGIES,
+)
 from qbt.utils import execute_parallel, get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +40,7 @@ def calculate_daily_cost(
     date_value: date,
     ffr_df: pd.DataFrame,
     expense_ratio: float,
-    funding_spread: float = 0.6,
+    funding_spread: float = DEFAULT_FUNDING_SPREAD,
 ) -> float:
     """
     특정 날짜의 일일 비용률을 계산한다.
@@ -49,11 +69,11 @@ def calculate_daily_cost(
             closest_year, closest_month = map(int, closest_date_str.split("-"))
             total_months = (current_year - closest_year) * 12 + (current_month - closest_month)
 
-            if total_months > 2:
+            if total_months > MAX_FFR_MONTHS_DIFF:
                 raise ValueError(
                     f"FFR 데이터 부족: {year_month_str}의 FFR 데이터가 없으며, "
                     f"가장 가까운 이전 데이터는 {closest_date_str} ({total_months}개월 전)입니다. "
-                    f"최대 2개월 이내의 데이터만 사용 가능합니다."
+                    f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다."
                 )
 
             ffr = float(previous_dates.iloc[-1]["FFR"])
@@ -71,8 +91,8 @@ def calculate_daily_cost(
     # 4. 총 연간 비용
     annual_cost = leverage_cost + expense_ratio
 
-    # 5. 일별 비용 (252 영업일 가정)
-    daily_cost = annual_cost / 252
+    # 5. 일별 비용 (연간 거래일 수로 환산)
+    daily_cost = annual_cost / TRADING_DAYS_PER_YEAR
 
     return daily_cost
 
@@ -83,7 +103,7 @@ def simulate_leveraged_etf(
     expense_ratio: float,
     initial_price: float,
     ffr_df: pd.DataFrame,
-    funding_spread: float = 0.6,
+    funding_spread: float = DEFAULT_FUNDING_SPREAD,
 ) -> pd.DataFrame:
     """
     기초 자산 데이터로부터 레버리지 ETF를 시뮬레이션한다.
@@ -111,8 +131,8 @@ def simulate_leveraged_etf(
     if leverage <= 0:
         raise ValueError(f"leverage는 양수여야 합니다: {leverage}")
 
-    if expense_ratio < 0 or expense_ratio > 0.1:
-        raise ValueError(f"expense_ratio는 0~10% 범위여야 합니다: {expense_ratio}")
+    if expense_ratio < 0 or expense_ratio > MAX_EXPENSE_RATIO:
+        raise ValueError(f"expense_ratio는 0~{MAX_EXPENSE_RATIO*100}% 범위여야 합니다: {expense_ratio}")
 
     if initial_price <= 0:
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
@@ -219,11 +239,11 @@ def find_optimal_cost_model(
     underlying_df: pd.DataFrame,
     actual_leveraged_df: pd.DataFrame,
     ffr_df: pd.DataFrame,
-    leverage: float = 3.0,
-    spread_range: tuple[float, float] = (0.4, 0.8),
-    spread_step: float = 0.01,
-    expense_range: tuple[float, float] = (0.0075, 0.0105),
-    expense_step: float = 0.0005,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+    spread_range: tuple[float, float] = DEFAULT_SPREAD_RANGE,
+    spread_step: float = DEFAULT_SPREAD_STEP,
+    expense_range: tuple[float, float] = DEFAULT_EXPENSE_RANGE,
+    expense_step: float = DEFAULT_EXPENSE_STEP,
     max_workers: int | None = None,
 ) -> list[dict]:
     """
@@ -246,7 +266,7 @@ def find_optimal_cost_model(
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
 
     Returns:
-        top_strategies: 누적수익률 상대차이 기준 상위 50개 전략 리스트
+        top_strategies: 누적수익률 상대차이 기준 상위 전략 리스트
 
     Raises:
         ValueError: 겹치는 기간이 없을 때
@@ -299,8 +319,8 @@ def find_optimal_cost_model(
     # 5. 누적수익률_상대차이_pct 기준 오름차순 정렬
     candidates.sort(key=lambda x: x["cumulative_return_relative_diff_pct"])
 
-    # 6. 상위 50개 전략 반환
-    top_strategies = candidates[:50]
+    # 6. 상위 전략 반환
+    top_strategies = candidates[:MAX_TOP_STRATEGIES]
 
     return top_strategies
 

@@ -7,7 +7,7 @@
 import sys
 
 from qbt.backtest import run_grid_search
-from qbt.backtest.config import (
+from qbt.backtest.constants import (
     DEFAULT_BUFFER_ZONE_PCT_LIST,
     DEFAULT_HOLD_DAYS_LIST,
     DEFAULT_INITIAL_CAPITAL,

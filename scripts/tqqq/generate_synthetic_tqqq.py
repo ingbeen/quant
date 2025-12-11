@@ -13,6 +13,12 @@ from pathlib import Path
 from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS
 from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
 from qbt.synth import simulate_leveraged_etf
+from qbt.synth.constants import (
+    DEFAULT_EXPENSE_RATIO,
+    DEFAULT_FUNDING_SPREAD,
+    DEFAULT_LEVERAGE_MULTIPLIER,
+    DEFAULT_SYNTHETIC_INITIAL_PRICE,
+)
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data
@@ -64,19 +70,19 @@ def main() -> int:
     parser.add_argument(
         "--multiplier",
         type=float,
-        default=3.0,
+        default=DEFAULT_LEVERAGE_MULTIPLIER,
         help="레버리지 배수",
     )
     parser.add_argument(
         "--expense-ratio",
         type=float,
-        default=0.008,
+        default=DEFAULT_EXPENSE_RATIO,
         help="연간 비용 비율",
     )
     parser.add_argument(
         "--funding-spread",
         type=float,
-        default=0.5,
+        default=DEFAULT_FUNDING_SPREAD,
         help="펀딩 스프레드 (%%)",
     )
     parser.add_argument(
@@ -88,7 +94,7 @@ def main() -> int:
     parser.add_argument(
         "--initial-price",
         type=float,
-        default=200.0,
+        default=DEFAULT_SYNTHETIC_INITIAL_PRICE,
         help="초기 가격",
     )
     parser.add_argument(

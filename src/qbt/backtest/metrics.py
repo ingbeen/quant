@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE
+from qbt.common_constants import ANNUAL_DAYS, COL_DATE
 
 
 def calculate_summary(
@@ -42,7 +42,7 @@ def calculate_summary(
     # 기간 계산
     start_date = pd.to_datetime(equity_df.iloc[0][COL_DATE])
     end_date = pd.to_datetime(equity_df.iloc[-1][COL_DATE])
-    years = (end_date - start_date).days / 365.25
+    years = (end_date - start_date).days / ANNUAL_DAYS
 
     # CAGR
     if years > 0 and final_capital > 0:
