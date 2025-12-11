@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_DAILY_COMPARISON_PATH, TQQQ_DATA_PATH
+from qbt.common_constants import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_DAILY_COMPARISON_PATH, TQQQ_DATA_PATH
 from qbt.synth import generate_daily_comparison_csv, simulate_leveraged_etf, validate_simulation
 from qbt.synth.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger

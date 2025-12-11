@@ -10,8 +10,14 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS
-from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    FFR_DATA_PATH,
+    PRICE_COLUMNS,
+    QQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_PATH,
+)
 from qbt.synth import simulate_leveraged_etf
 from qbt.synth.constants import (
     DEFAULT_EXPENSE_RATIO,

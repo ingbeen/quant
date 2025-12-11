@@ -12,8 +12,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
-from qbt.config import DATA_DIR
+from qbt.common_constants import COL_CLOSE, COL_DATE, DATA_DIR, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 

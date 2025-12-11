@@ -14,7 +14,7 @@ from qbt.backtest.constants import (
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
 )
-from qbt.config import GRID_RESULTS_PATH, QQQ_DATA_PATH
+from qbt.common_constants import GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data

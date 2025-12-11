@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from qbt.config import TQQQ_DAILY_COMPARISON_PATH
+from qbt.common_constants import TQQQ_DAILY_COMPARISON_PATH
 from qbt.utils.data_loader import load_comparison_data
 from qbt.visualization import (
     create_cumulative_return_diff_chart,

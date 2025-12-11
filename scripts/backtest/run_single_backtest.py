@@ -16,7 +16,7 @@ from qbt.backtest import (
     run_buy_and_hold,
 )
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.config import QQQ_DATA_PATH
+from qbt.common_constants import QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data

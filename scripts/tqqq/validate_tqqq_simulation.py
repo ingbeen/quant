@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.config import (
+from qbt.common_constants import (
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
     RESULTS_DIR,

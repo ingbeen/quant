@@ -26,19 +26,21 @@ quant/
 │   ├── backtest/      # 백테스트 실행
 │   └── tqqq/          # 레버리지 ETF 관련
 ├── src/qbt/           # 비즈니스 로직
-│   ├── config.py      # 전역 설정 (경로 상수)
+│   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
-│   │   ├── config.py  # 도메인별 설정
+│   │   ├── constants.py  # 백테스트 전용 상수
 │   │   ├── data.py
 │   │   ├── strategy.py
 │   │   └── metrics.py
 │   ├── synth/         # 합성 데이터 생성
+│   │   └── constants.py  # 시뮬레이션 전용 상수
 │   ├── visualization/ # 시각화
 │   └── utils/         # 공통 유틸리티
 │       ├── logger.py
 │       ├── formatting.py
-│       ├── data_loader.py    # CSV 로딩 통합
-│       └── cli_helpers.py    # 예외 처리 데코레이터
+│       ├── data_loader.py       # CSV 로딩 통합
+│       ├── cli_helpers.py       # 예외 처리 데코레이터
+│       └── parallel_executor.py # 병렬 처리
 ├── data/raw/          # CSV 저장소
 └── results/           # 분석 결과
 ```
@@ -62,11 +64,15 @@ quant/
 - **ERROR 로그 금지** (CLI에서만 로깅)
 - 예외는 `raise`로 전파
 
-### 2. 설정 관리 (2계층)
+### 2. 상수 관리 (2계층)
 
-- **전역 config**: 경로 상수만 정의
-- **도메인 config**: 도메인별 비즈니스 로직 상수
-- 상수 중복 금지
+- **공통 constants** (`common_constants.py`): 모든 도메인에서 공유하는 공통 상수
+  - 경로 상수 (디렉토리, 데이터 파일, 결과 파일)
+  - 데이터 상수 (컬럼명, 연간 영업일 수 등)
+- **도메인 constants** (`도메인/constants.py`): 각 도메인 전용 비즈니스 로직 상수
+  - 백테스트 파라미터 (초기 자본, 슬리피지, 그리드 서치 범위 등)
+  - 시뮬레이션 기본값 (레버리지 배율, 비용 모델 파라미터 등)
+- 상수 중복 금지 - 계층 간 중복 정의 시 즉시 통합
 
 ### 3. 핵심 패턴
 
@@ -88,6 +94,14 @@ quant/
 - 다운로드 시 엄격한 검증 (결측치, 0값, 음수, 급등락)
 - **보간 금지**: 이상 발견 시 즉시 예외
 - 검증 통과 후에만 저장
+
+#### 병렬 처리
+
+- **중앙 집중식**: `utils/parallel_executor.py` 모듈 사용
+- ProcessPoolExecutor 기반 CPU 집약적 작업 병렬화
+- 입력 순서 보장된 결과 반환
+- 단일 인자 함수용, 키워드 인자 함수용 두 가지 제공
+- Windows 환경 대응 (pickle 가능한 함수만 사용)
 
 ## 코딩 규칙
 
