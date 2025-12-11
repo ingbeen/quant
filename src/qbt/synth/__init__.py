@@ -5,7 +5,6 @@
 
 from qbt.synth.leveraged_etf import (
     find_optimal_cost_model,
-    find_optimal_multiplier,
     generate_daily_comparison_csv,
     simulate_leveraged_etf,
     validate_simulation,
@@ -13,7 +12,6 @@ from qbt.synth.leveraged_etf import (
 
 __all__ = [
     "simulate_leveraged_etf",
-    "find_optimal_multiplier",
     "find_optimal_cost_model",
     "validate_simulation",
     "generate_daily_comparison_csv",

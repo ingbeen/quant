@@ -13,7 +13,6 @@ from qbt.backtest.config import (
     DEFAULT_RECENT_MONTHS,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
-    MIN_LOOKBACK_FOR_LOW,
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
@@ -22,17 +21,6 @@ from qbt.backtest.metrics import calculate_summary
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class StrategyParams:
-    """전략 파라미터를 담는 데이터 클래스."""
-
-    short_window: int
-    long_window: int
-    stop_loss_pct: float = 0.10  # 최대 손실 허용 비율 (10%)
-    lookback_for_low: int = MIN_LOOKBACK_FOR_LOW  # 최근 저점 탐색 기간
-    initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
 
 
 def run_buy_and_hold(
