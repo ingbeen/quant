@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from qbt.common_constants import COL_DATE, REQUIRED_COLUMNS
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -28,9 +29,6 @@ def load_stock_data(path: Path) -> pd.DataFrame:
         FileNotFoundError: 파일이 존재하지 않을 때
         ValueError: 필수 컬럼이 누락되었을 때
     """
-    # 필수 컬럼 목록
-    REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
-
     # 1. 파일 존재 여부 확인
     if not path.exists():
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
@@ -47,18 +45,18 @@ def load_stock_data(path: Path) -> pd.DataFrame:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {sorted(missing_columns)}")
 
     # 4. 날짜 컬럼 파싱
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
 
     # 5. 날짜순 정렬
-    df = df.sort_values("Date").reset_index(drop=True)
+    df = df.sort_values(COL_DATE).reset_index(drop=True)
 
     # 6. 중복 날짜 제거 (첫 번째 값 유지)
-    duplicate_count = df.duplicated(subset=["Date"]).sum()
+    duplicate_count = df.duplicated(subset=[COL_DATE]).sum()
     if duplicate_count > 0:
         logger.warning(f"중복 날짜 {duplicate_count}건 제거됨")
-        df = df.drop_duplicates(subset=["Date"], keep="first").reset_index(drop=True)
+        df = df.drop_duplicates(subset=[COL_DATE], keep="first").reset_index(drop=True)
 
-    logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df['Date'].min()} ~ {df['Date'].max()}")
+    logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
 
     return df
 

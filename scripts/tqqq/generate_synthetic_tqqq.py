@@ -10,6 +10,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS
 from qbt.config import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_PATH
 from qbt.synth import simulate_leveraged_etf
 from qbt.utils import get_logger
@@ -117,15 +118,15 @@ def main() -> int:
     ffr_df = load_ffr_data(args.ffr_path)
 
     # 3. 시작 날짜 이후 데이터만 필터링
-    qqq_filtered = qqq_df[qqq_df["Date"] >= start_date].copy()
+    qqq_filtered = qqq_df[qqq_df[COL_DATE] >= start_date].copy()
 
     if qqq_filtered.empty:
         raise ValueError(
-            f"시작 날짜 {start_date} 이후의 QQQ 데이터가 없습니다. QQQ 데이터 범위: {qqq_df['Date'].min()} ~ {qqq_df['Date'].max()}"
+            f"시작 날짜 {start_date} 이후의 QQQ 데이터가 없습니다. QQQ 데이터 범위: {qqq_df[COL_DATE].min()} ~ {qqq_df[COL_DATE].max()}"
         )
 
     logger.debug(
-        f"QQQ 데이터 필터링: {len(qqq_filtered):,}행 ({qqq_filtered['Date'].min()} ~ {qqq_filtered['Date'].max()})"
+        f"QQQ 데이터 필터링: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})"
     )
 
     # 4. TQQQ 시뮬레이션 실행
@@ -145,23 +146,22 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
 
     # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
-    price_cols = ["Open", "High", "Low", "Close"]
-    for col in price_cols:
+    for col in PRICE_COLUMNS:
         if col in synthetic_tqqq.columns:
             synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
 
     synthetic_tqqq.to_csv(args.output, index=False)
     logger.debug(f"합성 TQQQ 데이터 저장 완료: {args.output}")
-    logger.debug(f"기간: {synthetic_tqqq['Date'].min()} ~ {synthetic_tqqq['Date'].max()}")
+    logger.debug(f"기간: {synthetic_tqqq[COL_DATE].min()} ~ {synthetic_tqqq[COL_DATE].max()}")
     logger.debug(f"행 수: {len(synthetic_tqqq):,}")
-    logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0]['Close']:.2f}")
-    logger.debug(f"최종 가격: {synthetic_tqqq.iloc[-1]['Close']:.2f}")
-    logger.debug(f"최소가: {synthetic_tqqq['Close'].min():.2f}")
-    logger.debug(f"최대가: {synthetic_tqqq['Close'].max():.2f}")
+    logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0][COL_CLOSE]:.2f}")
+    logger.debug(f"최종 가격: {synthetic_tqqq.iloc[-1][COL_CLOSE]:.2f}")
+    logger.debug(f"최소가: {synthetic_tqqq[COL_CLOSE].min():.2f}")
+    logger.debug(f"최대가: {synthetic_tqqq[COL_CLOSE].max():.2f}")
 
     # 7. 누적 수익률 계산
-    initial_close = synthetic_tqqq.iloc[0]["Close"]
-    final_close = synthetic_tqqq.iloc[-1]["Close"]
+    initial_close = synthetic_tqqq.iloc[0][COL_CLOSE]
+    final_close = synthetic_tqqq.iloc[-1][COL_CLOSE]
     cumulative_return = (final_close / initial_close - 1) * 100
 
     logger.debug(f"누적 수익률: {cumulative_return:+.2f}%")

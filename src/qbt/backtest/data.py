@@ -2,6 +2,7 @@
 
 import pandas as pd
 
+from qbt.common_constants import COL_CLOSE
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -39,9 +40,9 @@ def add_single_moving_average(
 
     # 이동평균 계산
     if ma_type == "sma":
-        df[col_name] = df["Close"].rolling(window=window).mean()
+        df[col_name] = df[COL_CLOSE].rolling(window=window).mean()
     elif ma_type == "ema":
-        df[col_name] = df["Close"].ewm(span=window, adjust=False).mean()
+        df[col_name] = df[COL_CLOSE].ewm(span=window, adjust=False).mean()
     else:
         raise ValueError(f"지원하지 않는 ma_type: {ma_type}")
 

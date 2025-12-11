@@ -2,6 +2,8 @@
 
 import pandas as pd
 
+from qbt.common_constants import COL_DATE
+
 
 def calculate_summary(
     trades_df: pd.DataFrame,
@@ -38,8 +40,8 @@ def calculate_summary(
     total_return_pct = (total_return / initial_capital) * 100
 
     # 기간 계산
-    start_date = pd.to_datetime(equity_df.iloc[0]["Date"])
-    end_date = pd.to_datetime(equity_df.iloc[-1]["Date"])
+    start_date = pd.to_datetime(equity_df.iloc[0][COL_DATE])
+    end_date = pd.to_datetime(equity_df.iloc[-1][COL_DATE])
     years = (end_date - start_date).days / 365.25
 
     # CAGR
@@ -76,6 +78,6 @@ def calculate_summary(
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,
         "win_rate": win_rate,
-        "start_date": str(equity_df.iloc[0]["Date"]),
-        "end_date": str(equity_df.iloc[-1]["Date"]),
+        "start_date": str(equity_df.iloc[0][COL_DATE]),
+        "end_date": str(equity_df.iloc[-1][COL_DATE]),
     }

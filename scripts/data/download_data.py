@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.config import DATA_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -19,8 +20,6 @@ from qbt.utils.cli_helpers import cli_exception_handler
 logger = get_logger(__name__)
 
 # 데이터 검증 관련 상수
-REQUIRED_COLUMNS = ["Date", "Open", "High", "Low", "Close", "Volume"]
-PRICE_COLUMNS = ["Open", "High", "Low", "Close"]
 PRICE_CHANGE_THRESHOLD = 0.50
 
 
@@ -47,7 +46,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         null_mask = df[col].isna()
         if null_mask.any():
             null_indices = df.index[null_mask].tolist()
-            null_dates = df.loc[null_mask, "Date"].tolist()
+            null_dates = df.loc[null_mask, COL_DATE].tolist()
             raise ValueError(
                 f"결측치 발견 - 컬럼: {col}, "
                 f"인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, "
@@ -59,7 +58,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         zero_mask = df[col] == 0
         if zero_mask.any():
             zero_indices = df.index[zero_mask].tolist()
-            zero_dates = df.loc[zero_mask, "Date"].tolist()
+            zero_dates = df.loc[zero_mask, COL_DATE].tolist()
             raise ValueError(
                 f"0 값 발견 - 컬럼: {col}, "
                 f"인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, "
@@ -71,7 +70,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         negative_mask = df[col] < 0
         if negative_mask.any():
             negative_indices = df.index[negative_mask].tolist()
-            negative_dates = df.loc[negative_mask, "Date"].tolist()
+            negative_dates = df.loc[negative_mask, COL_DATE].tolist()
             ellipsis = "..." if len(negative_indices) > 5 else ""
             raise ValueError(
                 f"음수 값 발견 - 컬럼: {col}, "
@@ -81,7 +80,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
 
     # 4. 전일 대비 급등락 검사 (Close 기준)
     df_copy = df.copy()
-    df_copy["pct_change"] = df_copy["Close"].pct_change()
+    df_copy["pct_change"] = df_copy[COL_CLOSE].pct_change()
 
     # 첫 번째 행은 NaN이므로 제외
     extreme_mask = df_copy["pct_change"].abs() >= PRICE_CHANGE_THRESHOLD
@@ -91,12 +90,12 @@ def validate_stock_data(df: pd.DataFrame) -> None:
         extreme_rows = df_copy[extreme_mask]
         for _, row in extreme_rows.iterrows():
             pct = row["pct_change"] * 100
-            logger.warning(f"급등락 감지 - 날짜: {row['Date']}, 변동률: {pct:+.2f}%, 종가: {row['Close']:.2f}")
+            logger.warning(f"급등락 감지 - 날짜: {row[COL_DATE]}, 변동률: {pct:+.2f}%, 종가: {row[COL_CLOSE]:.2f}")
 
         first_extreme = extreme_rows.iloc[0]
         raise ValueError(
             f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - "
-            f"날짜: {first_extreme['Date']}, "
+            f"날짜: {first_extreme[COL_DATE]}, "
             f"변동률: {first_extreme['pct_change'] * 100:+.2f}%"
         )
 
@@ -143,21 +142,19 @@ def download_stock_data(
 
     # 5. 인덱스를 Date 컬럼으로 변환
     df.reset_index(inplace=True)
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
 
     # 6. 필요한 컬럼만 선택 (Date, Open, High, Low, Close, Volume)
-    required_columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
-    df = df[required_columns]
+    df = df[REQUIRED_COLUMNS]
 
     # 7. 최근 데이터 필터링 (오늘 포함 최근 2일 제외)
     cutoff_date = date.today() - timedelta(days=2)
     original_count = len(df)
-    df = df[df["Date"] <= cutoff_date]
+    df = df[df[COL_DATE] <= cutoff_date]
     filtered_count = original_count - len(df)
 
     # 8. 가격 컬럼을 소수점 6자리로 라운딩
-    price_columns = ["Open", "High", "Low", "Close"]
-    df[price_columns] = df[price_columns].round(6)
+    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(6)
 
     # 9. 데이터 유효성 검증
     validate_stock_data(df)
@@ -168,7 +165,7 @@ def download_stock_data(
 
     # 11. 결과 출력
     logger.debug(f"데이터 저장 완료: {csv_path}")
-    logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
+    logger.debug(f"기간: {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
     logger.debug(f"행 수: {len(df):,}")
     if filtered_count > 0:
         logger.debug(f"최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")

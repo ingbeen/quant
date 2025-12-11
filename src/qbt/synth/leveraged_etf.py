@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, REQUIRED_COLUMNS
 from qbt.utils import execute_parallel, get_logger
 
 logger = get_logger(__name__)
@@ -117,7 +118,7 @@ def simulate_leveraged_etf(
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
 
     # 2. 필수 컬럼 검증
-    required_cols = {"Date", "Close"}
+    required_cols = {COL_DATE, COL_CLOSE}
     missing_cols = required_cols - set(underlying_df.columns)
     if missing_cols:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_cols}")
@@ -126,10 +127,10 @@ def simulate_leveraged_etf(
         raise ValueError("underlying_df가 비어있습니다")
 
     # 3. 데이터 복사 (원본 보존)
-    df = underlying_df[["Date", "Close"]].copy()
+    df = underlying_df[[COL_DATE, COL_CLOSE]].copy()
 
     # 4. 일일 수익률 계산
-    df["underlying_return"] = df["Close"].pct_change()
+    df["underlying_return"] = df[COL_CLOSE].pct_change()
 
     # 5. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
     # 첫 날은 initial_price, 이후는 전일 가격 * (1 + 수익률)
@@ -143,7 +144,7 @@ def simulate_leveraged_etf(
             leveraged_prices.append(initial_price)
         else:
             # 동적 비용 계산
-            current_date = df.iloc[i]["Date"]
+            current_date = df.iloc[i][COL_DATE]
             daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio, funding_spread)
 
             # 레버리지 수익률
@@ -153,19 +154,19 @@ def simulate_leveraged_etf(
             new_price = leveraged_prices[-1] * (1 + leveraged_return)
             leveraged_prices.append(new_price)
 
-    df["Close"] = leveraged_prices
+    df[COL_CLOSE] = leveraged_prices
 
     # 6. OHLV 데이터 구성
     # Open: 전일 Close (첫날은 initial_price)
-    df["Open"] = df["Close"].shift(1).fillna(initial_price)
+    df[COL_OPEN] = df[COL_CLOSE].shift(1).fillna(initial_price)
 
     # High, Low, Volume: 0 (합성 데이터이므로 사용하지 않음)
-    df["High"] = 0.0
-    df["Low"] = 0.0
-    df["Volume"] = 0
+    df[COL_HIGH] = 0.0
+    df[COL_LOW] = 0.0
+    df[COL_VOLUME] = 0
 
     # 7. 불필요한 컬럼 제거 및 순서 정렬
-    result_df = df[["Date", "Open", "High", "Low", "Close", "Volume"]].copy()
+    result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
 
@@ -251,8 +252,8 @@ def find_optimal_cost_model(
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    underlying_dates = set(underlying_df["Date"])
-    actual_dates = set(actual_leveraged_df["Date"])
+    underlying_dates = set(underlying_df[COL_DATE])
+    actual_dates = set(actual_leveraged_df[COL_DATE])
     overlap_dates = underlying_dates & actual_dates
 
     if not overlap_dates:
@@ -263,14 +264,14 @@ def find_optimal_cost_model(
 
     # 겹치는 기간의 데이터만 추출
     underlying_overlap = (
-        underlying_df[underlying_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+        underlying_df[underlying_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
     )
     actual_overlap = (
-        actual_leveraged_df[actual_leveraged_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+        actual_leveraged_df[actual_leveraged_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
     )
 
     # 2. 실제 TQQQ 첫날 가격을 initial_price로 사용
-    initial_price = float(actual_overlap.iloc[0]["Close"])
+    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
     # 3. 2D Grid search를 위한 파라미터 조합 생성
     spread_values = np.arange(spread_range[0], spread_range[1] + 1e-12, spread_step)
@@ -334,8 +335,8 @@ def validate_simulation(
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    sim_dates = set(simulated_df["Date"])
-    actual_dates = set(actual_df["Date"])
+    sim_dates = set(simulated_df[COL_DATE])
+    actual_dates = set(actual_df[COL_DATE])
     overlap_dates = sim_dates & actual_dates
 
     if not overlap_dates:
@@ -345,12 +346,12 @@ def validate_simulation(
     overlap_dates = sorted(overlap_dates)
 
     # 겹치는 기간의 데이터만 추출
-    sim_overlap = simulated_df[simulated_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-    actual_overlap = actual_df[actual_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    sim_overlap = simulated_df[simulated_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+    actual_overlap = actual_df[actual_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
     # 2. 일일 수익률 계산
-    sim_returns = sim_overlap["Close"].pct_change().dropna()
-    actual_returns = actual_overlap["Close"].pct_change().dropna()
+    sim_returns = sim_overlap[COL_CLOSE].pct_change().dropna()
+    actual_returns = actual_overlap[COL_CLOSE].pct_change().dropna()
 
     # 3. 누적 수익률 계산
     sim_prod = (1 + sim_returns).prod()
@@ -364,8 +365,8 @@ def validate_simulation(
     )
 
     # 4. 누적수익률 기준 RMSE, MaxError
-    sim_cumulative_series = sim_overlap["Close"] / sim_overlap.iloc[0]["Close"] - 1
-    actual_cumulative_series = actual_overlap["Close"] / actual_overlap.iloc[0]["Close"] - 1
+    sim_cumulative_series = sim_overlap[COL_CLOSE] / sim_overlap.iloc[0][COL_CLOSE] - 1
+    actual_cumulative_series = actual_overlap[COL_CLOSE] / actual_overlap.iloc[0][COL_CLOSE] - 1
     cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
     rmse_cumulative_return = float(np.sqrt((cumulative_return_diff_series**2).mean()))
     max_error_cumulative_return = float(np.abs(cumulative_return_diff_series).max())
@@ -404,8 +405,8 @@ def generate_daily_comparison_csv(
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    sim_dates = set(simulated_df["Date"])
-    actual_dates = set(actual_df["Date"])
+    sim_dates = set(simulated_df[COL_DATE])
+    actual_dates = set(actual_df[COL_DATE])
     overlap_dates = sim_dates & actual_dates
 
     if not overlap_dates:
@@ -415,30 +416,30 @@ def generate_daily_comparison_csv(
     overlap_dates = sorted(overlap_dates)
 
     # 겹치는 기간의 데이터만 추출
-    sim_overlap = simulated_df[simulated_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-    actual_overlap = actual_df[actual_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    sim_overlap = simulated_df[simulated_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+    actual_overlap = actual_df[actual_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
     # 2. 기본 데이터 준비
     comparison_data = {
-        "날짜": actual_overlap["Date"],
-        "실제_종가": actual_overlap["Close"],
-        "시뮬_종가": sim_overlap["Close"],
+        "날짜": actual_overlap[COL_DATE],
+        "실제_종가": actual_overlap[COL_CLOSE],
+        "시뮬_종가": sim_overlap[COL_CLOSE],
     }
 
     # 3. 일일 수익률 계산
-    actual_returns = actual_overlap["Close"].pct_change() * 100  # %
-    sim_returns = sim_overlap["Close"].pct_change() * 100  # %
+    actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
+    sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
 
     comparison_data["실제_일일수익률"] = actual_returns
     comparison_data["시뮬_일일수익률"] = sim_returns
     comparison_data["일일수익률_차이"] = (actual_returns - sim_returns).abs()
 
     # 4. 누적수익률
-    initial_actual = float(actual_overlap.iloc[0]["Close"])
-    initial_sim = float(sim_overlap.iloc[0]["Close"])
+    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
+    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
 
-    actual_cumulative = (actual_overlap["Close"] / initial_actual - 1) * 100  # %
-    sim_cumulative = (sim_overlap["Close"] / initial_sim - 1) * 100  # %
+    actual_cumulative = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100  # %
+    sim_cumulative = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100  # %
 
     comparison_data["실제_누적수익률"] = actual_cumulative
     comparison_data["시뮬_누적수익률"] = sim_cumulative

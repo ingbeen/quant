@@ -5,6 +5,7 @@ from datetime import timedelta
 
 import pandas as pd
 
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.backtest.config import (
     DEFAULT_BUFFER_ZONE_PCT,
     DEFAULT_HOLD_DAYS,
@@ -46,7 +47,7 @@ def run_buy_and_hold(
     df = df.copy()
 
     # 1. 첫날 시가에 매수
-    buy_price_raw = df.iloc[0]["Open"]
+    buy_price_raw = df.iloc[0][COL_OPEN]
     buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
     shares = int(initial_capital / buy_price)
     buy_amount = shares * buy_price
@@ -55,13 +56,13 @@ def run_buy_and_hold(
     # 2. 자본 곡선 계산
     equity_records = []
     for _, row in df.iterrows():
-        equity = capital_after_buy + shares * row["Close"]
-        equity_records.append({"Date": row["Date"], "equity": equity, "position": shares})
+        equity = capital_after_buy + shares * row[COL_CLOSE]
+        equity_records.append({COL_DATE: row[COL_DATE], "equity": equity, "position": shares})
 
     equity_df = pd.DataFrame(equity_records)
 
     # 3. 마지막 날 종가에 매도
-    sell_price_raw = df.iloc[-1]["Close"]
+    sell_price_raw = df.iloc[-1][COL_CLOSE]
     sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
     sell_amount = shares * sell_price
     final_capital = capital_after_buy + sell_amount
@@ -71,8 +72,8 @@ def run_buy_and_hold(
     total_return_pct = (total_return / initial_capital) * 100
 
     # 기간 계산 (연 단위)
-    start_date = pd.to_datetime(df.iloc[0]["Date"])
-    end_date = pd.to_datetime(df.iloc[-1]["Date"])
+    start_date = pd.to_datetime(df.iloc[0][COL_DATE])
+    end_date = pd.to_datetime(df.iloc[-1][COL_DATE])
     years = (end_date - start_date).days / 365.25
 
     # CAGR
@@ -95,8 +96,8 @@ def run_buy_and_hold(
         "cagr": cagr,
         "mdd": mdd,
         "total_trades": 1,
-        "start_date": str(df.iloc[0]["Date"]),
-        "end_date": str(df.iloc[-1]["Date"]),
+        "start_date": str(df.iloc[0][COL_DATE]),
+        "end_date": str(df.iloc[-1][COL_DATE]),
     }
 
     logger.debug(f"Buy & Hold 완료: 총 수익률={total_return_pct:.2f}%, CAGR={cagr:.2f}%")
@@ -271,7 +272,7 @@ def check_hold_condition(
         row = df.iloc[i]
         upper_band = row[ma_col] * (1 + buffer_pct)
 
-        if row["Close"] <= upper_band:
+        if row[COL_CLOSE] <= upper_band:
             return False  # 유지 실패
 
     return True  # 모든 날 유지 성공
@@ -317,7 +318,7 @@ def run_buffer_strategy(
 
     # 2. 필수 컬럼 확인
     ma_col = f"ma_{params.ma_window}"
-    required_cols = [ma_col, "Open", "Close", "Date"]
+    required_cols = [ma_col, COL_OPEN, COL_CLOSE, COL_DATE]
     missing = set(required_cols) - set(df.columns)
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
@@ -346,7 +347,7 @@ def run_buffer_strategy(
     for i in range(1, len(df)):
         row = df.iloc[i]
         prev_row = df.iloc[i - 1]
-        current_date = row["Date"]
+        current_date = row[COL_DATE]
 
         # 5-1. 동적 파라미터 계산
         recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
@@ -361,7 +362,7 @@ def run_buffer_strategy(
         # 5-3. 매수 신호 체크 (포지션 없을 때)
         if position == 0 and prev_upper_band is not None:
             # 전일 종가 <= 상단 & 당일 종가 > 상단 (상향돌파)
-            if prev_row["Close"] <= prev_upper_band and row["Close"] > upper_band:
+            if prev_row[COL_CLOSE] <= prev_upper_band and row[COL_CLOSE] > upper_band:
                 # 유지조건 체크 (hold_days > 0인 경우)
                 if current_hold_days > 0:
                     hold_satisfied = check_hold_condition(df, i, current_hold_days, ma_col, current_buffer_pct)
@@ -373,7 +374,7 @@ def run_buffer_strategy(
                         buy_idx = i + current_hold_days + 1
                         if buy_idx < len(df):
                             buy_row = df.iloc[buy_idx]
-                            buy_price_raw = buy_row["Open"]
+                            buy_price_raw = buy_row[COL_OPEN]
                             buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
                             shares = int(capital / buy_price)
 
@@ -383,7 +384,7 @@ def run_buffer_strategy(
 
                                 position = shares
                                 entry_price = buy_price
-                                entry_date = buy_row["Date"]
+                                entry_date = buy_row[COL_DATE]
                                 all_entry_dates.append(entry_date)
 
                                 logger.debug(
@@ -400,7 +401,7 @@ def run_buffer_strategy(
                     buy_idx = i + 1
                     if buy_idx < len(df):
                         buy_row = df.iloc[buy_idx]
-                        buy_price_raw = buy_row["Open"]
+                        buy_price_raw = buy_row[COL_OPEN]
                         buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
                         shares = int(capital / buy_price)
 
@@ -410,7 +411,7 @@ def run_buffer_strategy(
 
                             position = shares
                             entry_price = buy_price
-                            entry_date = buy_row["Date"]
+                            entry_date = buy_row[COL_DATE]
                             all_entry_dates.append(entry_date)
 
                             logger.debug(
@@ -424,12 +425,12 @@ def run_buffer_strategy(
         # 5-4. 매도 신호 체크 (포지션 있을 때)
         elif position > 0 and prev_lower_band is not None:
             # 전일 종가 >= 하단 & 당일 종가 < 하단 (하향돌파)
-            if prev_row["Close"] >= prev_lower_band and row["Close"] < lower_band:
+            if prev_row[COL_CLOSE] >= prev_lower_band and row[COL_CLOSE] < lower_band:
                 # 매도 실행 (다음 날 시가)
                 sell_idx = i + 1
                 if sell_idx < len(df):
                     sell_row = df.iloc[sell_idx]
-                    sell_price_raw = sell_row["Open"]
+                    sell_price_raw = sell_row[COL_OPEN]
                     sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
                     sell_amount = position * sell_price
                     capital += sell_amount
@@ -437,7 +438,7 @@ def run_buffer_strategy(
                     trades.append(
                         {
                             "entry_date": entry_date,
-                            "exit_date": sell_row["Date"],
+                            "exit_date": sell_row[COL_DATE],
                             "entry_price": entry_price,
                             "exit_price": sell_price,
                             "shares": position,
@@ -451,7 +452,7 @@ def run_buffer_strategy(
                     )
 
                     logger.debug(
-                        f"매도: {sell_row['Date']}, 가격={sell_price:.2f}, "
+                        f"매도: {sell_row[COL_DATE]}, 가격={sell_price:.2f}, "
                         f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
                     )
 
@@ -461,13 +462,13 @@ def run_buffer_strategy(
 
         # 5-5. 자본 곡선 기록
         if position > 0:
-            equity = capital + position * row["Close"]
+            equity = capital + position * row[COL_CLOSE]
         else:
             equity = capital
 
         equity_records.append(
             {
-                "Date": current_date,
+                COL_DATE: current_date,
                 "equity": equity,
                 "position": position,
                 "buffer_zone_pct": current_buffer_pct,
@@ -483,19 +484,19 @@ def run_buffer_strategy(
     # 6. 마지막 포지션 청산 (백테스트 종료 시)
     if position > 0:
         last_row = df.iloc[-1]
-        sell_price = last_row["Close"] * (1 - SLIPPAGE_RATE)
+        sell_price = last_row[COL_CLOSE] * (1 - SLIPPAGE_RATE)
         sell_amount = position * sell_price
         capital += sell_amount
 
         # 마지막 동적 파라미터 계산
-        recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row["Date"], params.recent_months)
+        recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row[COL_DATE], params.recent_months)
         current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * 0.01)
         current_hold_days = params.hold_days + recent_buy_count
 
         trades.append(
             {
                 "entry_date": entry_date,
-                "exit_date": last_row["Date"],
+                "exit_date": last_row[COL_DATE],
                 "entry_price": entry_price,
                 "exit_price": sell_price,
                 "shares": position,
