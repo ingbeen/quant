@@ -39,6 +39,11 @@ COL_LOW = "Low"
 COL_CLOSE = "Close"
 COL_VOLUME = "Volume"
 
+# FFR (Federal Funds Rate) 데이터 컬럼명
+COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼 (대문자)
+COL_FFR_VALUE_RAW = "VALUE"  # FFR CSV의 원본 금리 값 컬럼
+COL_FFR = "FFR"  # 변환 후 금리 컬럼명
+
 # 컬럼 그룹
 REQUIRED_COLUMNS = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, COL_VOLUME]
 PRICE_COLUMNS = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]

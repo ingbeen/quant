@@ -16,7 +16,7 @@ from qbt.backtest import (
     run_buy_and_hold,
 )
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.common_constants import QQQ_DATA_PATH
+from qbt.common_constants import COL_DATE, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -117,7 +117,7 @@ def main() -> int:
     logger.debug("=" * 60)
     logger.debug("데이터 로딩 완료")
     logger.debug(f"총 행 수: {len(df):,}")
-    logger.debug(f"기간: {df['Date'].min()} ~ {df['Date'].max()}")
+    logger.debug(f"기간: {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
     logger.debug("=" * 60)
 
     # 2. 이동평균 계산

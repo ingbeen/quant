@@ -12,7 +12,10 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.common_constants import (
+    COL_CLOSE,
     COL_CUMUL_RETURN_DIFF,
+    COL_DAILY_RETURN_DIFF,
+    COL_DATE,
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
@@ -107,15 +110,15 @@ def main() -> int:
 
     # 2. 겹치는 기간 추출
     logger.debug("겹치는 기간 추출")
-    qqq_dates = set(qqq_df["Date"])
-    tqqq_dates = set(tqqq_df["Date"])
+    qqq_dates = set(qqq_df[COL_DATE])
+    tqqq_dates = set(tqqq_df[COL_DATE])
     overlap_dates = sorted(qqq_dates & tqqq_dates)
 
     if not overlap_dates:
         raise ValueError("QQQ와 TQQQ 간 겹치는 기간이 없습니다")
 
-    qqq_overlap = qqq_df[qqq_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
-    tqqq_overlap = tqqq_df[tqqq_df["Date"].isin(overlap_dates)].sort_values("Date").reset_index(drop=True)
+    qqq_overlap = qqq_df[qqq_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+    tqqq_overlap = tqqq_df[tqqq_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
     logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
 
@@ -126,7 +129,7 @@ def main() -> int:
         f"expense_ratio={args.expense_ratio*100:.2f}%"
     )
 
-    initial_price = float(tqqq_overlap.iloc[0]["Close"])
+    initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
     simulated_df = simulate_leveraged_etf(
         underlying_df=qqq_overlap,
         leverage=args.leverage,
@@ -199,8 +202,8 @@ def main() -> int:
     rows = [
         [
             "일일수익률 차이 (%)",
-            f"{daily_df['일일수익률_차이'].mean():.4f}",
-            f"{daily_df['일일수익률_차이'].max():.4f}",
+            f"{daily_df[COL_DAILY_RETURN_DIFF].mean():.4f}",
+            f"{daily_df[COL_DAILY_RETURN_DIFF].max():.4f}",
         ],
         [
             "누적수익률 상대차이 (실제값 기준, %)",

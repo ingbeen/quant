@@ -16,6 +16,8 @@ from qbt.common_constants import (
     COL_CLOSE,
     COL_CUMUL_RETURN_DIFF,
     COL_DATE,
+    COL_FFR,
+    COL_FFR_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
@@ -61,13 +63,13 @@ def calculate_daily_cost(
     """
     # 1. 해당 월의 FFR 조회 (Year-Month 기준, 문자열 형식)
     year_month_str = f"{date_value.year:04d}-{date_value.month:02d}"
-    ffr_row = ffr_df[ffr_df["DATE"] == year_month_str]
+    ffr_row = ffr_df[ffr_df[COL_FFR_DATE] == year_month_str]
 
     if ffr_row.empty:
         # FFR 데이터 없으면 가장 가까운 이전 월 값 사용 (최대 2개월 전까지)
-        previous_dates = ffr_df[ffr_df["DATE"] < year_month_str]
+        previous_dates = ffr_df[ffr_df[COL_FFR_DATE] < year_month_str]
         if not previous_dates.empty:
-            closest_date_str = previous_dates.iloc[-1]["DATE"]
+            closest_date_str = previous_dates.iloc[-1][COL_FFR_DATE]
 
             # 월 차이 계산 (yyyy-mm 문자열 파싱)
             current_year, current_month = date_value.year, date_value.month
@@ -81,11 +83,11 @@ def calculate_daily_cost(
                     f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다."
                 )
 
-            ffr = float(previous_dates.iloc[-1]["FFR"])
+            ffr = float(previous_dates.iloc[-1][COL_FFR])
         else:
             raise ValueError(f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다.")
     else:
-        ffr = float(ffr_row.iloc[0]["FFR"])
+        ffr = float(ffr_row.iloc[0][COL_FFR])
 
     # 2. All-in funding rate 계산
     funding_rate = (ffr + funding_spread) / 100  # % → 소수

@@ -7,7 +7,13 @@ from pathlib import Path
 
 import streamlit as st
 
-from qbt.common_constants import TQQQ_DAILY_COMPARISON_PATH
+from qbt.common_constants import (
+    COL_ACTUAL_CLOSE,
+    COL_CUMUL_RETURN_DIFF,
+    COL_DATE_KR,
+    COL_SIMUL_CLOSE,
+    TQQQ_DAILY_COMPARISON_PATH,
+)
 from qbt.utils.data_loader import load_comparison_data
 from qbt.visualization import (
     create_cumulative_return_diff_chart,
@@ -79,12 +85,12 @@ def main():
         st.metric(
             label="검증 기간",
             value=f"{len(df):,}일",
-            delta=f"{df['날짜'].min().strftime('%Y-%m-%d')} ~ {df['날짜'].max().strftime('%Y-%m-%d')}",
+            delta=f"{df[COL_DATE_KR].min().strftime('%Y-%m-%d')} ~ {df[COL_DATE_KR].max().strftime('%Y-%m-%d')}",
         )
 
     with col2:
-        final_actual = df["실제_종가"].iloc[-1]
-        final_simul = df["시뮬_종가"].iloc[-1]
+        final_actual = df[COL_ACTUAL_CLOSE].iloc[-1]
+        final_simul = df[COL_SIMUL_CLOSE].iloc[-1]
         price_diff_pct = ((final_simul - final_actual) / final_actual) * 100
         st.metric(label="최종 종가 (실제)", value=f"${final_actual:.2f}", delta=None)
 
@@ -92,7 +98,7 @@ def main():
         st.metric(label="최종 종가 (시뮬)", value=f"${final_simul:.2f}", delta=f"{price_diff_pct:+.2f}%")
 
     with col4:
-        final_cum_diff = df["누적수익률_차이"].iloc[-1]
+        final_cum_diff = df[COL_CUMUL_RETURN_DIFF].iloc[-1]
         st.metric(label="최종 누적수익률 차이", value=f"{final_cum_diff:.2f}%")
 
     st.divider()

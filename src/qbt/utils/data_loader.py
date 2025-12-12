@@ -10,6 +10,9 @@ import pandas as pd
 from qbt.common_constants import (
     COL_DATE,
     COL_DATE_KR,
+    COL_FFR,
+    COL_FFR_DATE,
+    COL_FFR_VALUE_RAW,
     COMPARISON_COLUMNS,
     REQUIRED_COLUMNS,
 )
@@ -84,9 +87,9 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
 
     logger.debug(f"FFR 데이터 로딩: {path}")
     df = pd.read_csv(path)
-    df.rename(columns={"VALUE": "FFR"}, inplace=True)
+    df.rename(columns={COL_FFR_VALUE_RAW: COL_FFR}, inplace=True)
 
-    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df['DATE'].min()} ~ {df['DATE'].max()}")
+    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df[COL_FFR_DATE].min()} ~ {df[COL_FFR_DATE].max()}")
 
     return df
 
