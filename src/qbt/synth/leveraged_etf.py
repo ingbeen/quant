@@ -11,11 +11,16 @@ import numpy as np
 import pandas as pd
 
 from qbt.common_constants import (
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_ACTUAL_DAILY_RETURN,
     COL_CLOSE,
+    COL_CUMUL_RETURN_DIFF,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_SIMUL_DAILY_RETURN,
     COL_VOLUME,
     REQUIRED_COLUMNS,
     TRADING_DAYS_PER_YEAR,
@@ -346,7 +351,7 @@ def validate_simulation(
             # 누적 수익률
             'cumulative_return_simulated': 시뮬레이션 누적 수익률,
             'cumulative_return_actual': 실제 누적 수익률,
-            'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (%),
+            'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (실제값 기준, 절대값, %),
             'rmse_cumulative_return': 누적수익률 RMSE,
             'max_error_cumulative_return': 누적수익률 최대 오차,
         }
@@ -379,9 +384,9 @@ def validate_simulation(
     sim_cumulative = float(sim_prod) - 1.0  # type: ignore[arg-type]
     actual_cumulative = float(actual_prod) - 1.0  # type: ignore[arg-type]
 
-    # 3-1. 누적 수익률 상대 오차 계산
+    # 3-1. 누적 수익률 상대 차이 계산 (실제값 기준, 절대값, %)
     cumulative_return_relative_diff_pct = (
-        abs(sim_cumulative - actual_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
+        abs(actual_cumulative - sim_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
     )
 
     # 4. 누적수익률 기준 RMSE, MaxError
@@ -450,20 +455,22 @@ def generate_daily_comparison_csv(
     actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
     sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
 
-    comparison_data["실제_일일수익률"] = actual_returns
-    comparison_data["시뮬_일일수익률"] = sim_returns
+    comparison_data[COL_ACTUAL_DAILY_RETURN] = actual_returns
+    comparison_data[COL_SIMUL_DAILY_RETURN] = sim_returns
     comparison_data["일일수익률_차이"] = (actual_returns - sim_returns).abs()
 
-    # 4. 누적수익률
+    # 4. 누적수익률 (실제, 시뮬, 상대 차이)
     initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
     initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
 
     actual_cumulative = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100  # %
     sim_cumulative = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100  # %
 
-    comparison_data["실제_누적수익률"] = actual_cumulative
-    comparison_data["시뮬_누적수익률"] = sim_cumulative
-    comparison_data["누적수익률_차이"] = actual_cumulative - sim_cumulative
+    comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
+    comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
+    comparison_data[COL_CUMUL_RETURN_DIFF] = (
+        (actual_cumulative - sim_cumulative) / (actual_cumulative + 1e-12) * 100.0
+    )
 
     # 6. DataFrame 생성 및 반올림
     comparison_df = pd.DataFrame(comparison_data)

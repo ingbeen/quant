@@ -11,7 +11,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import FFR_DATA_PATH, QQQ_DATA_PATH, TQQQ_DAILY_COMPARISON_PATH, TQQQ_DATA_PATH
+from qbt.common_constants import (
+    COL_CUMUL_RETURN_DIFF,
+    FFR_DATA_PATH,
+    QQQ_DATA_PATH,
+    TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_DATA_PATH,
+)
 from qbt.synth import generate_daily_comparison_csv, simulate_leveraged_etf, validate_simulation
 from qbt.synth.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
@@ -197,9 +203,9 @@ def main() -> int:
             f"{daily_df['일일수익률_차이'].max():.4f}",
         ],
         [
-            "누적수익률 차이 (%)",
-            f"{daily_df['누적수익률_차이'].abs().mean():.2f}",
-            f"{daily_df['누적수익률_차이'].abs().max():.2f}",
+            "누적수익률 상대차이 (실제값 기준, %)",
+            f"{daily_df[COL_CUMUL_RETURN_DIFF].mean():.2f}",
+            f"{daily_df[COL_CUMUL_RETURN_DIFF].max():.2f}",
         ],
     ]
 
