@@ -11,16 +11,20 @@ import numpy as np
 import pandas as pd
 
 from qbt.common_constants import (
+    COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
     COL_CLOSE,
     COL_CUMUL_RETURN_DIFF,
+    COL_DAILY_RETURN_DIFF,
     COL_DATE,
+    COL_DATE_KR,
     COL_FFR,
     COL_FFR_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
     COL_VOLUME,
@@ -448,9 +452,9 @@ def generate_daily_comparison_csv(
 
     # 2. 기본 데이터 준비
     comparison_data = {
-        "날짜": actual_overlap[COL_DATE],
-        "실제_종가": actual_overlap[COL_CLOSE],
-        "시뮬_종가": sim_overlap[COL_CLOSE],
+        COL_DATE_KR: actual_overlap[COL_DATE],
+        COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
+        COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
     }
 
     # 3. 일일 수익률 계산
@@ -459,7 +463,7 @@ def generate_daily_comparison_csv(
 
     comparison_data[COL_ACTUAL_DAILY_RETURN] = actual_returns
     comparison_data[COL_SIMUL_DAILY_RETURN] = sim_returns
-    comparison_data["일일수익률_차이"] = (actual_returns - sim_returns).abs()
+    comparison_data[COL_DAILY_RETURN_DIFF] = (actual_returns - sim_returns).abs()
 
     # 4. 누적수익률 (실제, 시뮬, 상대 차이)
     initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])

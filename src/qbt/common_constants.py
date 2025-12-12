@@ -65,7 +65,7 @@ COL_DAILY_RETURN_DIFF = "일일수익률_차이"
 # 누적수익률
 COL_ACTUAL_CUMUL_RETURN = "실제_누적수익률"
 COL_SIMUL_CUMUL_RETURN = "시뮬_누적수익률"
-COL_CUMUL_RETURN_DIFF = "누적수익률_차이"
+COL_CUMUL_RETURN_DIFF = "누적수익률_상대차이"
 
 # 일별 비교 필수 컬럼 그룹
 COMPARISON_COLUMNS = [
