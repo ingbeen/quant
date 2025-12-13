@@ -341,8 +341,8 @@ def run_buffer_strategy(
     if params.hold_days < MIN_HOLD_DAYS:
         raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
 
-    if params.recent_months < 1:
-        raise ValueError(f"recent_months는 1 이상이어야 합니다: {params.recent_months}")
+    if params.recent_months < 0:
+        raise ValueError(f"recent_months는 0 이상이어야 합니다: {params.recent_months}")
 
     # 2. 필수 컬럼 확인
     ma_col = f"ma_{params.ma_window}"
@@ -380,9 +380,18 @@ def run_buffer_strategy(
         # 5-1. 동적 파라미터 계산
         # 최근 N개월 내 매수 횟수를 기반으로 버퍼존과 유지조건을 동적으로 조정한다.
         # 매수 빈도가 높을수록 더 엄격한 진입 조건을 적용하여 과도한 거래를 방지한다.
-        recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
-        current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
-        current_hold_days = params.hold_days + recent_buy_count
+        # - recent_months=0: 동적 조정 비활성화
+        # - hold_days=0: 유지조건 증가 금지, 버퍼존만 증가
+        if params.recent_months > 0:
+            recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
+            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
+            if params.hold_days > 0:
+                current_hold_days = params.hold_days + recent_buy_count
+            else:
+                current_hold_days = params.hold_days
+        else:
+            current_buffer_pct = params.buffer_zone_pct
+            current_hold_days = params.hold_days
 
         # 5-2. 버퍼존 밴드 계산
         ma_value = row[ma_col]
@@ -522,10 +531,18 @@ def run_buffer_strategy(
         sell_amount = position * sell_price
         capital += sell_amount
 
-        # 마지막 동적 파라미터 계산
-        recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row[COL_DATE], params.recent_months)
-        current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
-        current_hold_days = params.hold_days + recent_buy_count
+        # 마지막 동적 파라미터 계산 (매매 신호 로직과 동일)
+        if params.recent_months > 0:
+            recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row[COL_DATE], params.recent_months)
+            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
+            if params.hold_days > 0:
+                current_hold_days = params.hold_days + recent_buy_count
+            else:
+                current_hold_days = params.hold_days
+        else:
+            current_buffer_pct = params.buffer_zone_pct
+            current_hold_days = params.hold_days
+            recent_buy_count = 0
 
         trades.append(
             {
