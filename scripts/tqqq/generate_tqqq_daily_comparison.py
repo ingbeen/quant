@@ -108,9 +108,7 @@ def main() -> int:
     ffr_df = load_ffr_data(args.ffr_path)
 
     # 2. 겹치는 기간 추출 및 시뮬레이션 실행
-    logger.debug("겹치는 기간 추출 및 시뮬레이션 실행")
-    overlap_dates, qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
-    logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
+    qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
 
     # 3. 시뮬레이션 실행
     logger.debug(

@@ -254,7 +254,7 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
 def extract_overlap_period(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
-) -> tuple[list[date], pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     두 DataFrame의 겹치는 기간을 추출한다.
 
@@ -263,8 +263,7 @@ def extract_overlap_period(
         df2: 두 번째 DataFrame (Date 컬럼 필수)
 
     Returns:
-        (overlap_dates, df1_overlap, df2_overlap) 튜플
-            - overlap_dates: 날짜순 정렬된 겹치는 날짜 리스트
+        (df1_overlap, df2_overlap) 튜플
             - df1_overlap: 겹치는 기간의 df1 (reset_index 완료)
             - df2_overlap: 겹치는 기간의 df2 (reset_index 완료)
 
@@ -282,11 +281,14 @@ def extract_overlap_period(
     # 2. 날짜순 정렬
     overlap_dates = sorted(overlap_dates)
 
-    # 3. 겹치는 기간 데이터 추출
+    # 3. 디버그 로그 출력
+    logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
+
+    # 4. 겹치는 기간 데이터 추출
     df1_overlap = df1[df1[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
     df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
-    return overlap_dates, df1_overlap, df2_overlap
+    return df1_overlap, df2_overlap
 
 
 def _calculate_cumulative_return_relative_diff(
@@ -440,7 +442,7 @@ def calculate_validation_metrics(
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    overlap_dates, sim_overlap, actual_overlap = extract_overlap_period(simulated_df, actual_df)
+    sim_overlap, actual_overlap = extract_overlap_period(simulated_df, actual_df)
 
     # 2. 일일 수익률 계산 (검증 지표용)
     sim_returns = sim_overlap[COL_CLOSE].pct_change().dropna()
@@ -471,9 +473,9 @@ def calculate_validation_metrics(
     # 7. 검증 결과 반환
     return {
         # 기간 정보
-        "overlap_start": overlap_dates[0],
-        "overlap_end": overlap_dates[-1],
-        "overlap_days": len(overlap_dates),
+        "overlap_start": sim_overlap[COL_DATE].iloc[0],
+        "overlap_end": sim_overlap[COL_DATE].iloc[-1],
+        "overlap_days": len(sim_overlap),
         # 누적 수익률
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
@@ -521,8 +523,7 @@ def find_optimal_cost_model(
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    overlap_dates, underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
-    logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
     # 2. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
