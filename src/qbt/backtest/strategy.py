@@ -126,12 +126,12 @@ def run_buy_and_hold(
     return equity_df, summary
 
 
-def _run_single_combination(
+def _run_buffer_strategy_for_grid(
     df: pd.DataFrame,
     params: BufferStrategyParams,
 ) -> dict | None:
     """
-    단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
+    그리드 서치를 위해 단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
 
     병렬 실행을 위한 헬퍼 함수. 예외 발생 시 None을 반환한다.
 
@@ -225,7 +225,7 @@ def run_grid_search(
 
     # 3. 병렬 실행
     results = execute_parallel_with_kwargs(
-        func=_run_single_combination,
+        func=_run_buffer_strategy_for_grid,
         inputs=param_combinations,
         max_workers=None,  # CPU 코어 수 - 1 (자동)
     )
