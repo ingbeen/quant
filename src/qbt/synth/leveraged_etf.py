@@ -203,11 +203,11 @@ def simulate_leveraged_etf(
     return result_df
 
 
-def _evaluate_single_params(params: dict) -> dict:
+def _evaluate_cost_model_candidate(params: dict) -> dict:
     """
-    단일 파라미터 조합에 대해 시뮬레이션을 실행하고 평가한다.
+    단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다.
 
-    병렬 실행을 위한 헬퍼 함수. pickle 가능하도록 최상위 레벨에 정의한다.
+    그리드 서치에서 병렬 실행을 위한 헬퍼 함수. pickle 가능하도록 최상위 레벨에 정의한다.
 
     Args:
         params: 파라미터 딕셔너리 {
@@ -221,7 +221,7 @@ def _evaluate_single_params(params: dict) -> dict:
         }
 
     Returns:
-        평가 결과 딕셔너리
+        후보 평가 결과 딕셔너리
     """
     # 시뮬레이션 실행
     sim_df = simulate_leveraged_etf(
@@ -233,8 +233,8 @@ def _evaluate_single_params(params: dict) -> dict:
         funding_spread=params["spread"],
     )
 
-    # 검증 지표 계산 (새 통합 함수 사용)
-    metrics = validate_and_generate_comparison(
+    # 검증 지표 계산
+    metrics = calculate_validation_metrics(
         simulated_df=sim_df,
         actual_df=params["actual_overlap"],
         output_path=None,  # CSV 저장 안 함
@@ -289,13 +289,13 @@ def extract_overlap_period(
     return overlap_dates, df1_overlap, df2_overlap
 
 
-def _calculate_asset_multiple_relative_diff(
+def _calculate_cumulative_return_relative_diff(
     actual_prices: pd.Series,
     simulated_prices: pd.Series,
     rolling_window: int = TRADING_DAYS_PER_YEAR,
 ) -> pd.Series:
     """
-    자산배수 기반 상대차이를 계산한다.
+    자산배수(Asset Multiple) 기반 상대차이를 계산한다.
 
     [초반 252일] 첫날 기준 고정 자산배수
       - 실제 자산배수 = 실제 종가 / 첫날 실제 종가
@@ -307,7 +307,8 @@ def _calculate_asset_multiple_relative_diff(
       - 시뮬 자산배수 = 시뮬 종가 / 252일 전 시뮬 종가
       - 상대차이 = |(실제 - 시뮬)| / |실제| * 100 (%)
 
-    목적: 장기간 누적 오차가 아닌, 최근 1년 기준 상대적 성과 차이를 측정
+    목적: 장기간 누적 차이가 아닌, 최근 1년 기준 상대적 성과 차이를 측정
+    자산배수(multiple = price / base_price)를 사용하여 초반 구간의 상대차이 폭발 방지
 
     Args:
         actual_prices: 실제 가격 시계열
@@ -325,30 +326,26 @@ def _calculate_asset_multiple_relative_diff(
             f"가격 시계열 길이가 일치하지 않습니다: " f"actual={len(actual_prices)}, simulated={len(simulated_prices)}"
         )
 
-    # 1. 초반 기간: 첫날 기준 고정 자산배수
+    # 1. 초반 기간: 첫날 기준 자산배수
     initial_actual = float(actual_prices.iloc[0])
     initial_sim = float(simulated_prices.iloc[0])
 
-    actual_asset_multiple_early = actual_prices / initial_actual
-    sim_asset_multiple_early = simulated_prices / initial_sim
+    actual_multiple_early = actual_prices / initial_actual
+    sim_multiple_early = simulated_prices / initial_sim
 
     early_period_diff = (
-        (actual_asset_multiple_early - sim_asset_multiple_early).abs()
-        / (actual_asset_multiple_early.abs() + 1e-12)
-        * 100.0
+        (actual_multiple_early - sim_multiple_early).abs() / (actual_multiple_early.abs() + 1e-12) * 100.0
     )
 
     # 2. 중후반 기간: 롤링 window 기준 자산배수
     rolling_actual_base = actual_prices.shift(rolling_window)
     rolling_sim_base = simulated_prices.shift(rolling_window)
 
-    actual_asset_multiple_rolling = actual_prices / (rolling_actual_base + 1e-12)
-    sim_asset_multiple_rolling = simulated_prices / (rolling_sim_base + 1e-12)
+    actual_multiple_rolling = actual_prices / (rolling_actual_base + 1e-12)
+    sim_multiple_rolling = simulated_prices / (rolling_sim_base + 1e-12)
 
     rolling_diff = (
-        (actual_asset_multiple_rolling - sim_asset_multiple_rolling).abs()
-        / (actual_asset_multiple_rolling.abs() + 1e-12)
-        * 100.0
+        (actual_multiple_rolling - sim_multiple_rolling).abs() / (actual_multiple_rolling.abs() + 1e-12) * 100.0
     )
 
     # 3. 병합: rolling_window 이전은 고정 기준, 이후는 롤링 기준
@@ -360,19 +357,19 @@ def _calculate_asset_multiple_relative_diff(
 def _save_daily_comparison_csv(
     sim_overlap: pd.DataFrame,
     actual_overlap: pd.DataFrame,
-    asset_multiple_diff_series: pd.Series,
+    asset_multiple_rel_diff_series: pd.Series,
     output_path: Path,
 ) -> None:
     """
     일별 비교 CSV를 저장한다.
 
-    validate_and_generate_comparison()의 헬퍼 함수.
+    calculate_validation_metrics()의 헬퍼 함수.
     자산배수 상대차이는 이미 계산된 값을 받아서 사용한다.
 
     Args:
         sim_overlap: 겹치는 기간의 시뮬레이션 DataFrame
         actual_overlap: 겹치는 기간의 실제 DataFrame
-        asset_multiple_diff_series: 자산배수 상대차이 시계열 (이미 계산됨)
+        asset_multiple_rel_diff_series: 자산배수 상대차이 시계열 (이미 계산됨)
         output_path: CSV 저장 경로
     """
     # 1. 기본 데이터 준비
@@ -400,8 +397,8 @@ def _save_daily_comparison_csv(
     comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
     comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
 
-    # 4. 자산배수 상대차이
-    comparison_data[COL_ASSET_MULTIPLE_REL_DIFF] = asset_multiple_diff_series
+    # 4. 자산배수 상대차이 (롤링 기준)
+    comparison_data[COL_ASSET_MULTIPLE_REL_DIFF] = asset_multiple_rel_diff_series
 
     # 5. DataFrame 생성 및 반올림
     comparison_df = pd.DataFrame(comparison_data)
@@ -412,16 +409,15 @@ def _save_daily_comparison_csv(
     comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")
 
 
-def validate_and_generate_comparison(
+def calculate_validation_metrics(
     simulated_df: pd.DataFrame,
     actual_df: pd.DataFrame,
     output_path: Path | None = None,
 ) -> dict:
     """
-    시뮬레이션 결과를 실제 데이터와 비교하고, 선택적으로 일별 비교 CSV를 생성한다.
+    시뮬레이션 검증 지표를 계산하고, 선택적으로 일별 비교 CSV를 생성한다.
 
-    기존 validate_simulation()과 generate_daily_comparison_csv()를 통합하여
-    자산배수 상대차이를 한 번만 계산하고 두 용도로 활용한다.
+    자산배수 상대차이를 한 번만 계산하고 검증 지표와 CSV 생성에 활용한다.
 
     Args:
         simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
@@ -435,9 +431,9 @@ def validate_and_generate_comparison(
             'overlap_days': int,
             'cumulative_return_simulated': float,
             'cumulative_return_actual': float,
-            'asset_multiple_mean_error_pct': float,
-            'asset_multiple_rmse_pct': float,
-            'asset_multiple_max_error_pct': float,
+            'asset_multiple_mean_diff_pct': float,
+            'asset_multiple_rmse_diff_pct': float,
+            'asset_multiple_max_diff_pct': float,
         }
 
     Raises:
@@ -458,19 +454,19 @@ def validate_and_generate_comparison(
     actual_cumulative = cast(float, actual_prod) - 1.0
 
     # 4. 자산배수 상대차이 계산
-    asset_multiple_diff_series = _calculate_asset_multiple_relative_diff(
+    asset_multiple_rel_diff_series = _calculate_cumulative_return_relative_diff(
         actual_overlap[COL_CLOSE],
         sim_overlap[COL_CLOSE],
     )
 
     # 5. 검증 지표 계산
-    asset_multiple_mean_error = float(asset_multiple_diff_series.mean())
-    asset_multiple_rmse = float(np.sqrt((asset_multiple_diff_series**2).mean()))
-    asset_multiple_max_error = float(asset_multiple_diff_series.max())
+    asset_multiple_mean_diff = float(asset_multiple_rel_diff_series.mean())
+    asset_multiple_rmse_diff = float(np.sqrt((asset_multiple_rel_diff_series**2).mean()))
+    asset_multiple_max_diff = float(asset_multiple_rel_diff_series.max())
 
     # 6. 일별 비교 CSV 생성 (요청 시에만)
     if output_path is not None:
-        _save_daily_comparison_csv(sim_overlap, actual_overlap, asset_multiple_diff_series, output_path)
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, asset_multiple_rel_diff_series, output_path)
 
     # 7. 검증 결과 반환
     return {
@@ -482,9 +478,9 @@ def validate_and_generate_comparison(
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
         # 자산배수 기반 정확도 지표
-        "asset_multiple_mean_error_pct": asset_multiple_mean_error,
-        "asset_multiple_rmse_pct": asset_multiple_rmse,
-        "asset_multiple_max_error_pct": asset_multiple_max_error,
+        "asset_multiple_mean_diff_pct": asset_multiple_mean_diff,
+        "asset_multiple_rmse_diff_pct": asset_multiple_rmse_diff,
+        "asset_multiple_max_diff_pct": asset_multiple_max_diff,
     }
 
 
@@ -519,7 +515,7 @@ def find_optimal_cost_model(
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
 
     Returns:
-        top_strategies: 자산배수 평균 오차 기준 상위 전략 리스트
+        top_strategies: 자산배수 상대차이 평균 기준 상위 전략 리스트
 
     Raises:
         ValueError: 겹치는 기간이 없을 때
@@ -552,10 +548,10 @@ def find_optimal_cost_model(
             )
 
     # 4. 병렬 실행
-    candidates = execute_parallel(_evaluate_single_params, param_combinations, max_workers=max_workers)
+    candidates = execute_parallel(_evaluate_cost_model_candidate, param_combinations, max_workers=max_workers)
 
-    # 5. 자산배수 평균 오차 기준 오름차순 정렬 (낮을수록 우수)
-    candidates.sort(key=lambda x: x["asset_multiple_mean_error_pct"])
+    # 5. 자산배수 상대차이 평균 기준 오름차순 정렬 (낮을수록 우수)
+    candidates.sort(key=lambda x: x["asset_multiple_mean_diff_pct"])
 
     # 6. 상위 전략 반환
     top_strategies = candidates[:MAX_TOP_STRATEGIES]

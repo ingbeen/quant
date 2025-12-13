@@ -20,7 +20,7 @@ from qbt.common_constants import (
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.synth import extract_overlap_period, simulate_leveraged_etf, validate_and_generate_comparison
+from qbt.synth import calculate_validation_metrics, extract_overlap_period, simulate_leveraged_etf
 from qbt.synth.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -131,10 +131,10 @@ def main() -> int:
 
     logger.debug("시뮬레이션 완료")
 
-    # 4. 검증 및 일별 비교 CSV 생성 (통합 함수 사용)
+    # 4. 검증 지표 계산 및 일별 비교 CSV 생성
     args.output.parent.mkdir(exist_ok=True, parents=True)
     logger.debug(f"검증 지표 계산 및 일별 비교 CSV 생성: {args.output}")
-    validation_results = validate_and_generate_comparison(
+    validation_results = calculate_validation_metrics(
         simulated_df=simulated_df,
         actual_df=tqqq_overlap,
         output_path=args.output,
@@ -161,14 +161,14 @@ def main() -> int:
     logger.debug("  [누적수익률]")
     logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
     logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-    logger.debug(f"    평균 오차: {validation_results['asset_multiple_mean_error_pct']:.2f}%")
-    logger.debug(f"    RMSE: {validation_results['asset_multiple_rmse_pct']:.4f}%")
-    logger.debug(f"    최대 오차: {validation_results['asset_multiple_max_error_pct']:.4f}%")
+    logger.debug(f"    평균 차이: {validation_results['asset_multiple_mean_diff_pct']:.2f}%")
+    logger.debug(f"    RMSE: {validation_results['asset_multiple_rmse_diff_pct']:.4f}%")
+    logger.debug(f"    최대 차이: {validation_results['asset_multiple_max_diff_pct']:.4f}%")
 
     # 품질 검증
-    mean_error_pct = validation_results["asset_multiple_mean_error_pct"]
-    if mean_error_pct > 20:
-        logger.warning(f"자산배수 평균 오차가 큽니다: {mean_error_pct:.2f}% (권장: ±20% 이내)")
+    mean_diff_pct = validation_results["asset_multiple_mean_diff_pct"]
+    if mean_diff_pct > 20:
+        logger.warning(f"자산배수 평균 차이가 큽니다: {mean_diff_pct:.2f}% (권장: ±20% 이내)")
 
     # 일별 비교 요약 통계
     logger.debug("-" * 64)
@@ -202,19 +202,19 @@ def main() -> int:
     logger.debug("[요약]")
     logger.debug("-" * 64)
 
-    mean_error = validation_results["asset_multiple_mean_error_pct"]
+    mean_diff = validation_results["asset_multiple_mean_diff_pct"]
 
-    # 자산배수 평균 오차 해석
-    if mean_error < 1:
-        error_desc = "거의 완전히 일치"
-    elif mean_error < 5:
-        error_desc = "매우 근접"
-    elif mean_error < 20:
-        error_desc = "양호하게 일치"
+    # 자산배수 평균 차이 해석
+    if mean_diff < 1:
+        diff_desc = "거의 완전히 일치"
+    elif mean_diff < 5:
+        diff_desc = "매우 근접"
+    elif mean_diff < 20:
+        diff_desc = "양호하게 일치"
     else:
-        error_desc = "다소 차이 존재"
+        diff_desc = "다소 차이 존재"
 
-    logger.debug(f"- 자산배수 평균 오차는 {mean_error:.2f}%로, 장기 성과도 {error_desc}합니다.")
+    logger.debug(f"- 자산배수 평균 차이는 {mean_diff:.2f}%로, 장기 성과도 {diff_desc}합니다.")
     logger.debug("-" * 64)
 
     logger.debug("=" * 64)
