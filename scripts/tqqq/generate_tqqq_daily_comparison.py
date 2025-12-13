@@ -12,16 +12,15 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.common_constants import (
+    COL_ASSET_MULTIPLE_REL_DIFF,
     COL_CLOSE,
-    COL_CUMUL_RETURN_DIFF,
-    COL_DAILY_RETURN_DIFF,
-    COL_DATE,
+    COL_DAILY_RETURN_ABS_DIFF,
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.synth import generate_daily_comparison_csv, simulate_leveraged_etf, validate_simulation
+from qbt.synth import extract_overlap_period, simulate_leveraged_etf, validate_and_generate_comparison
 from qbt.synth.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -108,18 +107,9 @@ def main() -> int:
     tqqq_df = load_stock_data(args.tqqq_path)
     ffr_df = load_ffr_data(args.ffr_path)
 
-    # 2. 겹치는 기간 추출
-    logger.debug("겹치는 기간 추출")
-    qqq_dates = set(qqq_df[COL_DATE])
-    tqqq_dates = set(tqqq_df[COL_DATE])
-    overlap_dates = sorted(qqq_dates & tqqq_dates)
-
-    if not overlap_dates:
-        raise ValueError("QQQ와 TQQQ 간 겹치는 기간이 없습니다")
-
-    qqq_overlap = qqq_df[qqq_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    tqqq_overlap = tqqq_df[tqqq_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-
+    # 2. 겹치는 기간 추출 및 시뮬레이션 실행
+    logger.debug("겹치는 기간 추출 및 시뮬레이션 실행")
+    overlap_dates, qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
     logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
 
     # 3. 시뮬레이션 실행
@@ -141,17 +131,10 @@ def main() -> int:
 
     logger.debug("시뮬레이션 완료")
 
-    # 4. 검증 지표 계산
-    logger.debug("검증 지표 계산")
-    validation_results = validate_simulation(
-        simulated_df=simulated_df,
-        actual_df=tqqq_overlap,
-    )
-
-    # 5. 일별 비교 CSV 생성
+    # 4. 검증 및 일별 비교 CSV 생성 (통합 함수 사용)
     args.output.parent.mkdir(exist_ok=True, parents=True)
-    logger.debug(f"일별 비교 CSV 생성: {args.output}")
-    generate_daily_comparison_csv(
+    logger.debug(f"검증 지표 계산 및 일별 비교 CSV 생성: {args.output}")
+    validation_results = validate_and_generate_comparison(
         simulated_df=simulated_df,
         actual_df=tqqq_overlap,
         output_path=args.output,
@@ -178,14 +161,14 @@ def main() -> int:
     logger.debug("  [누적수익률]")
     logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
     logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-    logger.debug(f"    상대 차이: {validation_results['cumulative_return_relative_diff_pct']:.2f}%")
-    logger.debug(f"    RMSE: {validation_results['rmse_cumulative_return']*100:.4f}%")
-    logger.debug(f"    최대 오차: {validation_results['max_error_cumulative_return']*100:.4f}%")
+    logger.debug(f"    평균 오차: {validation_results['asset_multiple_mean_error_pct']:.2f}%")
+    logger.debug(f"    RMSE: {validation_results['asset_multiple_rmse_pct']:.4f}%")
+    logger.debug(f"    최대 오차: {validation_results['asset_multiple_max_error_pct']:.4f}%")
 
     # 품질 검증
-    cum_rel_diff_pct = validation_results["cumulative_return_relative_diff_pct"]
-    if cum_rel_diff_pct > 20:
-        logger.warning(f"누적 수익률 상대 차이가 큽니다: {cum_rel_diff_pct:.2f}% (권장: ±20% 이내)")
+    mean_error_pct = validation_results["asset_multiple_mean_error_pct"]
+    if mean_error_pct > 20:
+        logger.warning(f"자산배수 평균 오차가 큽니다: {mean_error_pct:.2f}% (권장: ±20% 이내)")
 
     # 일별 비교 요약 통계
     logger.debug("-" * 64)
@@ -201,14 +184,14 @@ def main() -> int:
 
     rows = [
         [
-            "일일수익률 차이 (%)",
-            f"{daily_df[COL_DAILY_RETURN_DIFF].mean():.4f}",
-            f"{daily_df[COL_DAILY_RETURN_DIFF].max():.4f}",
+            "일일수익률 절대차이 (%)",
+            f"{daily_df[COL_DAILY_RETURN_ABS_DIFF].mean():.4f}",
+            f"{daily_df[COL_DAILY_RETURN_ABS_DIFF].max():.4f}",
         ],
         [
-            "누적수익률 상대차이 (실제값 기준, %)",
-            f"{daily_df[COL_CUMUL_RETURN_DIFF].mean():.2f}",
-            f"{daily_df[COL_CUMUL_RETURN_DIFF].max():.2f}",
+            "자산배수 상대차이 (%)",
+            f"{daily_df[COL_ASSET_MULTIPLE_REL_DIFF].mean():.2f}",
+            f"{daily_df[COL_ASSET_MULTIPLE_REL_DIFF].max():.2f}",
         ],
     ]
 
@@ -219,19 +202,19 @@ def main() -> int:
     logger.debug("[요약]")
     logger.debug("-" * 64)
 
-    rel_cum_diff = validation_results["cumulative_return_relative_diff_pct"]
+    mean_error = validation_results["asset_multiple_mean_error_pct"]
 
-    # 누적 수익률 상대 차이 해석
-    if rel_cum_diff < 1:
-        cum_desc = "거의 완전히 일치"
-    elif rel_cum_diff < 5:
-        cum_desc = "매우 근접"
-    elif rel_cum_diff < 20:
-        cum_desc = "양호하게 일치"
+    # 자산배수 평균 오차 해석
+    if mean_error < 1:
+        error_desc = "거의 완전히 일치"
+    elif mean_error < 5:
+        error_desc = "매우 근접"
+    elif mean_error < 20:
+        error_desc = "양호하게 일치"
     else:
-        cum_desc = "다소 차이 존재"
+        error_desc = "다소 차이 존재"
 
-    logger.debug(f"- 누적 수익률 상대 차이는 {rel_cum_diff:.2f}%로, 장기 성과도 {cum_desc}합니다.")
+    logger.debug(f"- 자산배수 평균 오차는 {mean_error:.2f}%로, 장기 성과도 {error_desc}합니다.")
     logger.debug("-" * 64)
 
     logger.debug("=" * 64)

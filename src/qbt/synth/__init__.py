@@ -4,15 +4,15 @@
 """
 
 from qbt.synth.leveraged_etf import (
+    extract_overlap_period,
     find_optimal_cost_model,
-    generate_daily_comparison_csv,
     simulate_leveraged_etf,
-    validate_simulation,
+    validate_and_generate_comparison,
 )
 
 __all__ = [
     "simulate_leveraged_etf",
     "find_optimal_cost_model",
-    "validate_simulation",
-    "generate_daily_comparison_csv",
+    "extract_overlap_period",
+    "validate_and_generate_comparison",
 ]

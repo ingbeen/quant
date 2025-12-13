@@ -6,6 +6,7 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -14,9 +15,9 @@ from qbt.common_constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
+    COL_ASSET_MULTIPLE_REL_DIFF,
     COL_CLOSE,
-    COL_CUMUL_RETURN_DIFF,
-    COL_DAILY_RETURN_DIFF,
+    COL_DAILY_RETURN_ABS_DIFF,
     COL_DATE,
     COL_DATE_KR,
     COL_FFR,
@@ -232,8 +233,12 @@ def _evaluate_single_params(params: dict) -> dict:
         funding_spread=params["spread"],
     )
 
-    # 검증 지표 계산
-    metrics = validate_simulation(sim_df, params["actual_overlap"])
+    # 검증 지표 계산 (새 통합 함수 사용)
+    metrics = validate_and_generate_comparison(
+        simulated_df=sim_df,
+        actual_df=params["actual_overlap"],
+        output_path=None,  # CSV 저장 안 함
+    )
 
     # candidate 딕셔너리 생성
     candidate = {
@@ -244,6 +249,243 @@ def _evaluate_single_params(params: dict) -> dict:
     }
 
     return candidate
+
+
+def extract_overlap_period(
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+) -> tuple[list[date], pd.DataFrame, pd.DataFrame]:
+    """
+    두 DataFrame의 겹치는 기간을 추출한다.
+
+    Args:
+        df1: 첫 번째 DataFrame (Date 컬럼 필수)
+        df2: 두 번째 DataFrame (Date 컬럼 필수)
+
+    Returns:
+        (overlap_dates, df1_overlap, df2_overlap) 튜플
+            - overlap_dates: 날짜순 정렬된 겹치는 날짜 리스트
+            - df1_overlap: 겹치는 기간의 df1 (reset_index 완료)
+            - df2_overlap: 겹치는 기간의 df2 (reset_index 완료)
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+    """
+    # 1. 겹치는 날짜 추출
+    dates1 = set(df1[COL_DATE])
+    dates2 = set(df2[COL_DATE])
+    overlap_dates = dates1 & dates2
+
+    if not overlap_dates:
+        raise ValueError("두 DataFrame 간 겹치는 기간이 없습니다")
+
+    # 2. 날짜순 정렬
+    overlap_dates = sorted(overlap_dates)
+
+    # 3. 겹치는 기간 데이터 추출
+    df1_overlap = df1[df1[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+    df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+
+    return overlap_dates, df1_overlap, df2_overlap
+
+
+def _calculate_asset_multiple_relative_diff(
+    actual_prices: pd.Series,
+    simulated_prices: pd.Series,
+    rolling_window: int = TRADING_DAYS_PER_YEAR,
+) -> pd.Series:
+    """
+    자산배수 기반 상대차이를 계산한다.
+
+    [초반 252일] 첫날 기준 고정 자산배수
+      - 실제 자산배수 = 실제 종가 / 첫날 실제 종가
+      - 시뮬 자산배수 = 시뮬 종가 / 첫날 시뮬 종가
+      - 상대차이 = |(실제 - 시뮬)| / |실제| * 100 (%)
+
+    [중후반 252일~] 롤링 252일 기준 자산배수
+      - 실제 자산배수 = 실제 종가 / 252일 전 실제 종가
+      - 시뮬 자산배수 = 시뮬 종가 / 252일 전 시뮬 종가
+      - 상대차이 = |(실제 - 시뮬)| / |실제| * 100 (%)
+
+    목적: 장기간 누적 오차가 아닌, 최근 1년 기준 상대적 성과 차이를 측정
+
+    Args:
+        actual_prices: 실제 가격 시계열
+        simulated_prices: 시뮬레이션 가격 시계열
+        rolling_window: 롤링 윈도우 크기 (기본값: 252일)
+
+    Returns:
+        자산배수 상대차이 시계열 (단위: %)
+
+    Raises:
+        ValueError: 입력 시계열 길이가 다를 때
+    """
+    if len(actual_prices) != len(simulated_prices):
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: " f"actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
+
+    # 1. 초반 기간: 첫날 기준 고정 자산배수
+    initial_actual = float(actual_prices.iloc[0])
+    initial_sim = float(simulated_prices.iloc[0])
+
+    actual_asset_multiple_early = actual_prices / initial_actual
+    sim_asset_multiple_early = simulated_prices / initial_sim
+
+    early_period_diff = (
+        (actual_asset_multiple_early - sim_asset_multiple_early).abs()
+        / (actual_asset_multiple_early.abs() + 1e-12)
+        * 100.0
+    )
+
+    # 2. 중후반 기간: 롤링 window 기준 자산배수
+    rolling_actual_base = actual_prices.shift(rolling_window)
+    rolling_sim_base = simulated_prices.shift(rolling_window)
+
+    actual_asset_multiple_rolling = actual_prices / (rolling_actual_base + 1e-12)
+    sim_asset_multiple_rolling = simulated_prices / (rolling_sim_base + 1e-12)
+
+    rolling_diff = (
+        (actual_asset_multiple_rolling - sim_asset_multiple_rolling).abs()
+        / (actual_asset_multiple_rolling.abs() + 1e-12)
+        * 100.0
+    )
+
+    # 3. 병합: rolling_window 이전은 고정 기준, 이후는 롤링 기준
+    combined_diff = rolling_diff.fillna(early_period_diff)
+
+    return combined_diff
+
+
+def _save_daily_comparison_csv(
+    sim_overlap: pd.DataFrame,
+    actual_overlap: pd.DataFrame,
+    asset_multiple_diff_series: pd.Series,
+    output_path: Path,
+) -> None:
+    """
+    일별 비교 CSV를 저장한다.
+
+    validate_and_generate_comparison()의 헬퍼 함수.
+    자산배수 상대차이는 이미 계산된 값을 받아서 사용한다.
+
+    Args:
+        sim_overlap: 겹치는 기간의 시뮬레이션 DataFrame
+        actual_overlap: 겹치는 기간의 실제 DataFrame
+        asset_multiple_diff_series: 자산배수 상대차이 시계열 (이미 계산됨)
+        output_path: CSV 저장 경로
+    """
+    # 1. 기본 데이터 준비
+    comparison_data = {
+        COL_DATE_KR: actual_overlap[COL_DATE],
+        COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
+        COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
+    }
+
+    # 2. 일일 수익률 계산
+    actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
+    sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
+
+    comparison_data[COL_ACTUAL_DAILY_RETURN] = actual_returns
+    comparison_data[COL_SIMUL_DAILY_RETURN] = sim_returns
+    comparison_data[COL_DAILY_RETURN_ABS_DIFF] = (actual_returns - sim_returns).abs()
+
+    # 3. 누적수익률 (%)
+    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
+    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
+
+    actual_cumulative = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100
+    sim_cumulative = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100
+
+    comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
+    comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
+
+    # 4. 자산배수 상대차이
+    comparison_data[COL_ASSET_MULTIPLE_REL_DIFF] = asset_multiple_diff_series
+
+    # 5. DataFrame 생성 및 반올림
+    comparison_df = pd.DataFrame(comparison_data)
+    num_cols = [c for c in comparison_df.columns if c != COL_DATE_KR]
+    comparison_df[num_cols] = comparison_df[num_cols].round(4)
+
+    # 6. CSV 저장
+    comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")
+
+
+def validate_and_generate_comparison(
+    simulated_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    output_path: Path | None = None,
+) -> dict:
+    """
+    시뮬레이션 결과를 실제 데이터와 비교하고, 선택적으로 일별 비교 CSV를 생성한다.
+
+    기존 validate_simulation()과 generate_daily_comparison_csv()를 통합하여
+    자산배수 상대차이를 한 번만 계산하고 두 용도로 활용한다.
+
+    Args:
+        simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
+        actual_df: 실제 DataFrame (Date, Close 컬럼 필수)
+        output_path: CSV 저장 경로 (None이면 저장 안 함)
+
+    Returns:
+        검증 결과 딕셔너리: {
+            'overlap_start': date,
+            'overlap_end': date,
+            'overlap_days': int,
+            'cumulative_return_simulated': float,
+            'cumulative_return_actual': float,
+            'asset_multiple_mean_error_pct': float,
+            'asset_multiple_rmse_pct': float,
+            'asset_multiple_max_error_pct': float,
+        }
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+    """
+    # 1. 겹치는 기간 추출
+    overlap_dates, sim_overlap, actual_overlap = extract_overlap_period(simulated_df, actual_df)
+
+    # 2. 일일 수익률 계산 (검증 지표용)
+    sim_returns = sim_overlap[COL_CLOSE].pct_change().dropna()
+    actual_returns = actual_overlap[COL_CLOSE].pct_change().dropna()
+
+    # 3. 누적 수익률 (전통적 방식)
+    sim_prod = (1 + sim_returns).prod()
+    actual_prod = (1 + actual_returns).prod()
+    # Scalar 타입을 Python float로 안전하게 변환 (타입 캐스팅)
+    sim_cumulative = cast(float, sim_prod) - 1.0
+    actual_cumulative = cast(float, actual_prod) - 1.0
+
+    # 4. 자산배수 상대차이 계산
+    asset_multiple_diff_series = _calculate_asset_multiple_relative_diff(
+        actual_overlap[COL_CLOSE],
+        sim_overlap[COL_CLOSE],
+    )
+
+    # 5. 검증 지표 계산
+    asset_multiple_mean_error = float(asset_multiple_diff_series.mean())
+    asset_multiple_rmse = float(np.sqrt((asset_multiple_diff_series**2).mean()))
+    asset_multiple_max_error = float(asset_multiple_diff_series.max())
+
+    # 6. 일별 비교 CSV 생성 (요청 시에만)
+    if output_path is not None:
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, asset_multiple_diff_series, output_path)
+
+    # 7. 검증 결과 반환
+    return {
+        # 기간 정보
+        "overlap_start": overlap_dates[0],
+        "overlap_end": overlap_dates[-1],
+        "overlap_days": len(overlap_dates),
+        # 누적 수익률
+        "cumulative_return_simulated": sim_cumulative,
+        "cumulative_return_actual": actual_cumulative,
+        # 자산배수 기반 정확도 지표
+        "asset_multiple_mean_error_pct": asset_multiple_mean_error,
+        "asset_multiple_rmse_pct": asset_multiple_rmse,
+        "asset_multiple_max_error_pct": asset_multiple_max_error,
+    }
 
 
 def find_optimal_cost_model(
@@ -277,31 +519,16 @@ def find_optimal_cost_model(
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
 
     Returns:
-        top_strategies: 누적수익률 상대차이 기준 상위 전략 리스트
+        top_strategies: 자산배수 평균 오차 기준 상위 전략 리스트
 
     Raises:
         ValueError: 겹치는 기간이 없을 때
     """
     # 1. 겹치는 기간 추출
-    underlying_dates = set(underlying_df[COL_DATE])
-    actual_dates = set(actual_leveraged_df[COL_DATE])
-    overlap_dates = underlying_dates & actual_dates
+    overlap_dates, underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
+    logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
 
-    if not overlap_dates:
-        raise ValueError("기초 자산과 레버리지 ETF 간 겹치는 기간이 없습니다")
-
-    # 날짜순 정렬
-    overlap_dates = sorted(overlap_dates)
-
-    # 겹치는 기간의 데이터만 추출
-    underlying_overlap = (
-        underlying_df[underlying_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    )
-    actual_overlap = (
-        actual_leveraged_df[actual_leveraged_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    )
-
-    # 2. 실제 TQQQ 첫날 가격을 initial_price로 사용
+    # 2. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
     # 3. 2D Grid search를 위한 파라미터 조합 생성
@@ -327,161 +554,10 @@ def find_optimal_cost_model(
     # 4. 병렬 실행
     candidates = execute_parallel(_evaluate_single_params, param_combinations, max_workers=max_workers)
 
-    # 5. 누적수익률_상대차이_pct 기준 오름차순 정렬
-    candidates.sort(key=lambda x: x["cumulative_return_relative_diff_pct"])
+    # 5. 자산배수 평균 오차 기준 오름차순 정렬 (낮을수록 우수)
+    candidates.sort(key=lambda x: x["asset_multiple_mean_error_pct"])
 
     # 6. 상위 전략 반환
     top_strategies = candidates[:MAX_TOP_STRATEGIES]
 
     return top_strategies
-
-
-def validate_simulation(
-    simulated_df: pd.DataFrame,
-    actual_df: pd.DataFrame,
-) -> dict:
-    """
-    시뮬레이션 결과를 실제 데이터와 비교하여 검증 지표를 계산한다.
-
-    Args:
-        simulated_df: 시뮬레이션된 DataFrame
-        actual_df: 실제 DataFrame
-
-    Returns:
-        검증 결과 딕셔너리: {
-            # 기간 정보
-            'overlap_start': 겹치는 기간 시작일,
-            'overlap_end': 겹치는 기간 종료일,
-            'overlap_days': 겹치는 일수,
-
-            # 누적 수익률
-            'cumulative_return_simulated': 시뮬레이션 누적 수익률,
-            'cumulative_return_actual': 실제 누적 수익률,
-            'cumulative_return_relative_diff_pct': 누적 수익률 상대 차이 (실제값 기준, 절대값, %),
-            'rmse_cumulative_return': 누적수익률 RMSE,
-            'max_error_cumulative_return': 누적수익률 최대 오차,
-        }
-
-    Raises:
-        ValueError: 겹치는 기간이 없을 때
-    """
-    # 1. 겹치는 기간 추출
-    sim_dates = set(simulated_df[COL_DATE])
-    actual_dates = set(actual_df[COL_DATE])
-    overlap_dates = sim_dates & actual_dates
-
-    if not overlap_dates:
-        raise ValueError("시뮬레이션과 실제 데이터 간 겹치는 기간이 없습니다")
-
-    # 날짜순 정렬
-    overlap_dates = sorted(overlap_dates)
-
-    # 겹치는 기간의 데이터만 추출
-    sim_overlap = simulated_df[simulated_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    actual_overlap = actual_df[actual_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-
-    # 2. 일일 수익률 계산
-    sim_returns = sim_overlap[COL_CLOSE].pct_change().dropna()
-    actual_returns = actual_overlap[COL_CLOSE].pct_change().dropna()
-
-    # 3. 누적 수익률 계산
-    sim_prod = (1 + sim_returns).prod()
-    actual_prod = (1 + actual_returns).prod()
-    sim_cumulative = float(sim_prod) - 1.0  # type: ignore[arg-type]
-    actual_cumulative = float(actual_prod) - 1.0  # type: ignore[arg-type]
-
-    # 3-1. 누적 수익률 상대 차이 계산 (실제값 기준, 절대값, %)
-    cumulative_return_relative_diff_pct = (
-        abs(actual_cumulative - sim_cumulative) / (abs(actual_cumulative) + 1e-12) * 100.0
-    )
-
-    # 4. 누적수익률 기준 RMSE, MaxError
-    sim_cumulative_series = sim_overlap[COL_CLOSE] / sim_overlap.iloc[0][COL_CLOSE] - 1
-    actual_cumulative_series = actual_overlap[COL_CLOSE] / actual_overlap.iloc[0][COL_CLOSE] - 1
-    cumulative_return_diff_series = actual_cumulative_series - sim_cumulative_series
-    rmse_cumulative_return = float(np.sqrt((cumulative_return_diff_series**2).mean()))
-    max_error_cumulative_return = float(np.abs(cumulative_return_diff_series).max())
-
-    return {
-        # 기간 정보
-        "overlap_start": overlap_dates[0],
-        "overlap_end": overlap_dates[-1],
-        "overlap_days": len(overlap_dates),
-        # 누적 수익률
-        "cumulative_return_simulated": sim_cumulative,
-        "cumulative_return_actual": actual_cumulative,
-        "cumulative_return_relative_diff_pct": cumulative_return_relative_diff_pct,
-        "rmse_cumulative_return": rmse_cumulative_return,
-        "max_error_cumulative_return": max_error_cumulative_return,
-    }
-
-
-def generate_daily_comparison_csv(
-    simulated_df: pd.DataFrame,
-    actual_df: pd.DataFrame,
-    output_path: Path,
-) -> None:
-    """
-    일별 상세 비교 CSV를 생성한다.
-
-    시뮬레이션 결과와 실제 데이터를 날짜별로 비교하여
-    각종 지표를 계산하고 CSV 파일로 저장한다.
-
-    Args:
-        simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
-        actual_df: 실제 DataFrame (Date, Close 컬럼 필수)
-        output_path: CSV 저장 경로 (pathlib.Path)
-
-    Raises:
-        ValueError: 겹치는 기간이 없을 때
-    """
-    # 1. 겹치는 기간 추출
-    sim_dates = set(simulated_df[COL_DATE])
-    actual_dates = set(actual_df[COL_DATE])
-    overlap_dates = sim_dates & actual_dates
-
-    if not overlap_dates:
-        raise ValueError("시뮬레이션과 실제 데이터 간 겹치는 기간이 없습니다")
-
-    # 날짜순 정렬
-    overlap_dates = sorted(overlap_dates)
-
-    # 겹치는 기간의 데이터만 추출
-    sim_overlap = simulated_df[simulated_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    actual_overlap = actual_df[actual_df[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-
-    # 2. 기본 데이터 준비
-    comparison_data = {
-        COL_DATE_KR: actual_overlap[COL_DATE],
-        COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
-        COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
-    }
-
-    # 3. 일일 수익률 계산
-    actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
-    sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
-
-    comparison_data[COL_ACTUAL_DAILY_RETURN] = actual_returns
-    comparison_data[COL_SIMUL_DAILY_RETURN] = sim_returns
-    comparison_data[COL_DAILY_RETURN_DIFF] = (actual_returns - sim_returns).abs()
-
-    # 4. 누적수익률 (실제, 시뮬, 상대 차이)
-    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
-    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
-
-    actual_cumulative = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100  # %
-    sim_cumulative = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100  # %
-
-    comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
-    comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
-    comparison_data[COL_CUMUL_RETURN_DIFF] = (
-        (actual_cumulative - sim_cumulative) / (actual_cumulative + 1e-12) * 100.0
-    )
-
-    # 6. DataFrame 생성 및 반올림
-    comparison_df = pd.DataFrame(comparison_data)
-    num_cols = [c for c in comparison_df.columns if c != "날짜"]
-    comparison_df[num_cols] = comparison_df[num_cols].round(4)
-
-    # 7. CSV 저장
-    comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")

@@ -11,6 +11,7 @@ import sys
 
 from qbt.backtest import (
     BufferStrategyParams,
+    BuyAndHoldParams,
     add_single_moving_average,
     run_buffer_strategy,
     run_buy_and_hold,
@@ -175,7 +176,8 @@ def main() -> int:
     # 5. Buy & Hold 벤치마크 실행
     logger.debug("=" * 60)
     logger.debug("Buy & Hold 벤치마크 실행")
-    _, summary_bh = run_buy_and_hold(df, initial_capital=DEFAULT_INITIAL_CAPITAL)
+    params_bh = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
+    _, summary_bh = run_buy_and_hold(df, params=params_bh)
     print_summary(summary_bh, "Buy & Hold 결과", logger)
     summaries.append(("Buy & Hold", summary_bh))
 

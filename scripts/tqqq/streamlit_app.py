@@ -9,7 +9,7 @@ import streamlit as st
 
 from qbt.common_constants import (
     COL_ACTUAL_CLOSE,
-    COL_CUMUL_RETURN_DIFF,
+    COL_ASSET_MULTIPLE_REL_DIFF,
     COL_DATE_KR,
     COL_SIMUL_CLOSE,
     TQQQ_DAILY_COMPARISON_PATH,
@@ -98,8 +98,8 @@ def main():
         st.metric(label="최종 종가 (시뮬)", value=f"${final_simul:.2f}", delta=f"{price_diff_pct:+.2f}%")
 
     with col4:
-        final_cum_diff = df[COL_CUMUL_RETURN_DIFF].iloc[-1]
-        st.metric(label="최종 누적수익률 차이", value=f"{final_cum_diff:.2f}%")
+        final_asset_diff = df[COL_ASSET_MULTIPLE_REL_DIFF].iloc[-1]
+        st.metric(label="최종 자산배수 상대차이", value=f"{final_asset_diff:.2f}%")
 
     st.divider()
 

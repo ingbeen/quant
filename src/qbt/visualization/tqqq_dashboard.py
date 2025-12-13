@@ -9,8 +9,8 @@ import plotly.graph_objects as go
 
 from qbt.common_constants import (
     COL_ACTUAL_CLOSE,
-    COL_CUMUL_RETURN_DIFF,
-    COL_DAILY_RETURN_DIFF,
+    COL_ASSET_MULTIPLE_REL_DIFF,
+    COL_DAILY_RETURN_ABS_DIFF,
     COL_DATE_KR,
     COL_SIMUL_CLOSE,
 )
@@ -79,7 +79,7 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
         Plotly Figure 객체
     """
     # 결측치 제거
-    daily_diff = df[COL_DAILY_RETURN_DIFF].dropna()
+    daily_diff = df[COL_DAILY_RETURN_ABS_DIFF].dropna()
 
     # 통계 계산
     mean_diff = daily_diff.mean()
@@ -121,8 +121,8 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
     fig.add_vline(x=mean_diff, line_dash="dash", line_color="red", annotation_text=f"평균: {mean_diff:.2f}%")
 
     fig.update_layout(
-        title=f"일일수익률 차이 분포 (평균: {mean_diff:.2f}%, 표준편차: {std_diff:.2f}%, 범위: [{min_diff:.2f}%, {max_diff:.2f}%])",
-        xaxis_title="일일수익률 차이 (%)",
+        title=f"일일수익률 절대차이 분포 (평균: {mean_diff:.2f}%, 표준편차: {std_diff:.2f}%, 범위: [{min_diff:.2f}%, {max_diff:.2f}%])",
+        xaxis_title="일일수익률 절대차이 (%)",
         yaxis_title="빈도",
         yaxis2={
             "overlaying": "y",
@@ -152,9 +152,9 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_trace(
         go.Scatter(
             x=df[COL_DATE_KR],
-            y=df[COL_CUMUL_RETURN_DIFF],
+            y=df[COL_ASSET_MULTIPLE_REL_DIFF],
             mode="lines",
-            name="누적수익률 차이",
+            name="자산배수 상대차이",
             line={"color": "#d62728", "width": 2},
             fill="tozeroy",
             hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>" + "<b>차이</b>: %{y:.2f}%<br>" + "<extra></extra>",
@@ -165,9 +165,9 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="기준선 (0%)")
 
     fig.update_layout(
-        title="누적수익률 차이 추이",
+        title="자산배수 상대차이 추이",
         xaxis_title="날짜",
-        yaxis_title="누적수익률 차이 (%)",
+        yaxis_title="자산배수 상대차이 (%)",
         hovermode="x unified",
         height=500,
     )

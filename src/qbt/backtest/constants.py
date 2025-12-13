@@ -24,3 +24,8 @@ DEFAULT_RECENT_MONTHS = 6  # 최근 매수 기간 (6개월)
 MIN_BUFFER_ZONE_PCT = 0.01  # 최소 버퍼존 (1%)
 MIN_HOLD_DAYS = 0  # 최소 유지조건 (0=버퍼존만 모드)
 MIN_VALID_ROWS = 2  # 백테스트 최소 유효 데이터 행 수
+
+# 동적 조정 관련 상수
+BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (1%)
+HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (1일)
+DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
