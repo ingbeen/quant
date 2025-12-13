@@ -13,6 +13,24 @@ from qbt.utils import get_logger
 logger = get_logger(__name__)
 
 
+def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
+    """
+    (함수, kwargs 딕셔너리) 튜플을 받아 함수를 호출한다.
+
+    ProcessPoolExecutor에서 pickle 가능하도록 모듈 레벨에 정의한다.
+
+    Args:
+        args: (func, kwargs_dict) 튜플
+            - func: 호출할 함수
+            - kwargs_dict: 키워드 인자 딕셔너리
+
+    Returns:
+        함수 호출 결과
+    """
+    func, kwargs_dict = args
+    return func(**kwargs_dict)
+
+
 def execute_parallel(
     func: Callable,
     inputs: list[Any],
@@ -124,10 +142,14 @@ def execute_parallel_with_kwargs(
         >>> inputs = [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
         >>> results = execute_parallel_with_kwargs(compute, inputs, max_workers=2)
         >>> print(results)  # [3, 7]
+
+    Note:
+        - Windows 환경에서는 호출하는 스크립트에서 `if __name__ == "__main__"`으로 보호해야 함
+        - func와 inputs의 모든 객체는 pickle 가능해야 함
+        - 각 워커는 독립적인 프로세스에서 실행되므로 전역 상태를 공유하지 않음
     """
+    # (func, kwargs) 튜플 리스트 생성
+    unwrap_inputs = [(func, kwargs_dict) for kwargs_dict in inputs]
 
-    # wrapper 함수: 딕셔너리를 받아 **kwargs로 풀어서 func 호출
-    def wrapper(kwargs_dict: dict[str, Any]) -> Any:
-        return func(**kwargs_dict)
-
-    return execute_parallel(wrapper, inputs, max_workers)
+    # 모듈 레벨 _unwrap_kwargs 함수 사용 (pickle 가능)
+    return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers)

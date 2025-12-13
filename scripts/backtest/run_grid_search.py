@@ -64,6 +64,9 @@ def main() -> int:
     """
     메인 실행 함수.
 
+    사용 예시:
+    poetry run python scripts/backtest/run_grid_search.py
+
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
