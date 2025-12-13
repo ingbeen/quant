@@ -16,7 +16,13 @@ from qbt.backtest import (
     run_buffer_strategy,
     run_buy_and_hold,
 )
-from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.constants import (
+    DEFAULT_BUFFER_ZONE_PCT,
+    DEFAULT_HOLD_DAYS,
+    DEFAULT_INITIAL_CAPITAL,
+    DEFAULT_MA_WINDOW,
+    DEFAULT_RECENT_MONTHS,
+)
 from qbt.common_constants import COL_DATE, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -71,25 +77,25 @@ def parse_args():
     parser.add_argument(
         "--ma-window",
         type=int,
-        default=200,
+        default=DEFAULT_MA_WINDOW,
         help="이동평균 기간",
     )
     parser.add_argument(
         "--buffer-zone",
         type=float,
-        required=True,
-        help="초기 버퍼존 비율 (예: 0.01 = 1%%)",
+        default=DEFAULT_BUFFER_ZONE_PCT,
+        help="초기 버퍼존 비율",
     )
     parser.add_argument(
         "--hold-days",
         type=int,
-        default=1,
+        default=DEFAULT_HOLD_DAYS,
         help="초기 유지조건 일수 (0이면 버퍼존만 모드)",
     )
     parser.add_argument(
         "--recent-months",
         type=int,
-        default=6,
+        default=DEFAULT_RECENT_MONTHS,
         help="최근 매수 기간 (개월)",
     )
     return parser.parse_args()
@@ -126,11 +132,11 @@ def main() -> int:
 
     # 3. 전략 파라미터 설정
     params = BufferStrategyParams(
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
         ma_window=args.ma_window,
         buffer_zone_pct=args.buffer_zone,
         hold_days=args.hold_days,
         recent_months=args.recent_months,
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
     )
 
     summaries = []

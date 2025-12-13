@@ -8,11 +8,6 @@ import pandas as pd
 from qbt.backtest.constants import (
     BUFFER_INCREMENT_PER_BUY,
     DAYS_PER_MONTH,
-    DEFAULT_BUFFER_ZONE_PCT,
-    DEFAULT_HOLD_DAYS,
-    DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW,
-    DEFAULT_RECENT_MONTHS,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_VALID_ROWS,
@@ -28,21 +23,27 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class BufferStrategyParams:
+class BaseStrategyParams:
+    """전략 파라미터의 기본 클래스."""
+
+    initial_capital: float  # 초기 자본금
+
+
+@dataclass
+class BufferStrategyParams(BaseStrategyParams):
     """버퍼존 전략 파라미터를 담는 데이터 클래스."""
 
-    ma_window: int = DEFAULT_MA_WINDOW  # 이동평균 기간 (200일)
-    buffer_zone_pct: float = DEFAULT_BUFFER_ZONE_PCT  # 초기 버퍼존 (1%)
-    hold_days: int = DEFAULT_HOLD_DAYS  # 초기 유지조건 (1일)
-    recent_months: int = DEFAULT_RECENT_MONTHS  # 최근 매수 기간 (6개월)
-    initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
+    ma_window: int  # 이동평균 기간
+    buffer_zone_pct: float  # 초기 버퍼존
+    hold_days: int  # 초기 유지조건
+    recent_months: int  # 최근 매수 기간
 
 
 @dataclass
 class BuyAndHoldParams:
     """Buy & Hold 전략 파라미터를 담는 데이터 클래스."""
 
-    initial_capital: float = DEFAULT_INITIAL_CAPITAL  # 초기 자본금
+    initial_capital: float  # 초기 자본금
 
 
 def run_buy_and_hold(
