@@ -392,6 +392,7 @@ def run_buffer_strategy(
         else:
             current_buffer_pct = params.buffer_zone_pct
             current_hold_days = params.hold_days
+            recent_buy_count = 0
 
         # 5-2. 버퍼존 밴드 계산
         ma_value = row[ma_col]
