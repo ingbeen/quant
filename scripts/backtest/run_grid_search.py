@@ -8,30 +8,30 @@ import sys
 
 from qbt.backtest import run_grid_search
 from qbt.backtest.constants import (
+    COL_GRID_BUFFER_ZONE_PCT,
+    COL_GRID_CAGR,
+    COL_GRID_DISPLAY_BUFFER_ZONE,
+    COL_GRID_DISPLAY_CAGR,
+    COL_GRID_DISPLAY_FINAL_CAPITAL,
+    COL_GRID_DISPLAY_HOLD_DAYS,
+    COL_GRID_DISPLAY_MA_WINDOW,
+    COL_GRID_DISPLAY_MDD,
+    COL_GRID_DISPLAY_RECENT_MONTHS,
+    COL_GRID_DISPLAY_TOTAL_RETURN,
+    COL_GRID_DISPLAY_TOTAL_TRADES,
+    COL_GRID_DISPLAY_WIN_RATE,
+    COL_GRID_HOLD_DAYS,
+    COL_GRID_MA_WINDOW,
+    COL_GRID_MDD,
+    COL_GRID_RECENT_MONTHS,
+    COL_GRID_TOTAL_RETURN_PCT,
+    COL_GRID_TOTAL_TRADES,
+    COL_GRID_WIN_RATE,
     DEFAULT_BUFFER_ZONE_PCT_LIST,
     DEFAULT_HOLD_DAYS_LIST,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
-    COL_GRID_MA_WINDOW,
-    COL_GRID_BUFFER_ZONE_PCT,
-    COL_GRID_HOLD_DAYS,
-    COL_GRID_RECENT_MONTHS,
-    COL_GRID_TOTAL_RETURN_PCT,
-    COL_GRID_CAGR,
-    COL_GRID_MDD,
-    COL_GRID_TOTAL_TRADES,
-    COL_GRID_WIN_RATE,
-    COL_GRID_DISPLAY_MA_WINDOW,
-    COL_GRID_DISPLAY_BUFFER_ZONE,
-    COL_GRID_DISPLAY_HOLD_DAYS,
-    COL_GRID_DISPLAY_RECENT_MONTHS,
-    COL_GRID_DISPLAY_TOTAL_RETURN,
-    COL_GRID_DISPLAY_CAGR,
-    COL_GRID_DISPLAY_MDD,
-    COL_GRID_DISPLAY_TOTAL_TRADES,
-    COL_GRID_DISPLAY_WIN_RATE,
-    COL_GRID_DISPLAY_FINAL_CAPITAL,
     GRID_COLUMN_MAPPING,
 )
 from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH
@@ -57,18 +57,16 @@ def print_summary_stats(results_df) -> None:
 
     logger.debug(f"총 테스트 조합: {len(results_df)}개")
 
-    logger.debug("수익률 통계:")
     logger.debug(
+        "수익률 통계:"
         f"  - 평균: {results_df[COL_GRID_TOTAL_RETURN_PCT].mean():.2f}%, "
         f"최대: {results_df[COL_GRID_TOTAL_RETURN_PCT].max():.2f}%, "
         f"최소: {results_df[COL_GRID_TOTAL_RETURN_PCT].min():.2f}%"
     )
-
-    logger.debug("CAGR 통계:")
-    logger.debug(f"  - 평균: {results_df[COL_GRID_CAGR].mean():.2f}%, 최대: {results_df[COL_GRID_CAGR].max():.2f}%")
-
-    logger.debug("MDD 통계:")
-    logger.debug(f"  - 평균: {results_df[COL_GRID_MDD].mean():.2f}%, 최악: {results_df[COL_GRID_MDD].min():.2f}%")
+    logger.debug(
+        f"CAGR 통계: 평균: {results_df[COL_GRID_CAGR].mean():.2f}%, 최대: {results_df[COL_GRID_CAGR].max():.2f}%"
+    )
+    logger.debug(f"MDD 통계: 평균: {results_df[COL_GRID_MDD].mean():.2f}%, 최악: {results_df[COL_GRID_MDD].min():.2f}%")
 
     # 양수 수익률 비율
     positive_returns = len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
@@ -103,7 +101,7 @@ def main() -> int:
     logger.debug("=" * 60)
 
     # 2. 그리드 탐색 실행
-    logger.debug("\n그리드 탐색 파라미터:")
+    logger.debug("그리드 탐색 파라미터:")
     logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
     logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
     logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")

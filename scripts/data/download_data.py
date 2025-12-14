@@ -38,8 +38,6 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     Raises:
         ValueError: 데이터 이상이 감지되었을 때
     """
-    logger.debug("데이터 유효성 검증 시작")
-
     # 1. 결측치 검사
     for col in PRICE_COLUMNS:
         null_mask = df[col].isna()
