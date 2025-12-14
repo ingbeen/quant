@@ -143,7 +143,7 @@ def _run_buffer_strategy_for_grid(
         성과 지표 딕셔너리 또는 None (실패 시)
     """
     try:
-        _, _, summary = run_buffer_strategy(df, params)
+        _, _, summary = run_buffer_strategy(df, params, log_trades=False)
 
         return {
             "ma_window": params.ma_window,
@@ -309,6 +309,7 @@ def check_hold_condition(
 def run_buffer_strategy(
     df: pd.DataFrame,
     params: BufferStrategyParams,
+    log_trades: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """
     버퍼존 전략으로 백테스트를 실행한다.
@@ -319,6 +320,7 @@ def run_buffer_strategy(
     Args:
         df: 이동평균이 계산된 DataFrame (add_single_moving_average 적용 필수)
         params: 전략 파라미터
+        log_trades: 거래 로그 출력 여부 (기본값: True)
 
     Returns:
         tuple: (trades_df, equity_df, summary)
@@ -430,11 +432,12 @@ def run_buffer_strategy(
                                 entry_date = buy_row[COL_DATE]
                                 all_entry_dates.append(entry_date)
 
-                                logger.debug(
-                                    f"매수: {entry_date}, 가격={buy_price:.2f}, "
-                                    f"수량={shares}, 버퍼존={current_buffer_pct:.2%}, "
-                                    f"유지조건={current_hold_days}일"
-                                )
+                                if log_trades:
+                                    logger.debug(
+                                        f"매수: {entry_date}, 가격={buy_price:.2f}, "
+                                        f"수량={shares}, 버퍼존={current_buffer_pct:.2%}, "
+                                        f"유지조건={current_hold_days}일"
+                                    )
                             else:
                                 logger.debug(
                                     f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
@@ -458,9 +461,10 @@ def run_buffer_strategy(
                             entry_date = buy_row[COL_DATE]
                             all_entry_dates.append(entry_date)
 
-                            logger.debug(
-                                f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}, 버퍼존={current_buffer_pct:.2%}"
-                            )
+                            if log_trades:
+                                logger.debug(
+                                    f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}, 버퍼존={current_buffer_pct:.2%}"
+                                )
                         else:
                             logger.debug(
                                 f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
@@ -495,10 +499,11 @@ def run_buffer_strategy(
                         }
                     )
 
-                    logger.debug(
-                        f"매도: {sell_row[COL_DATE]}, 가격={sell_price:.2f}, "
-                        f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
-                    )
+                    if log_trades:
+                        logger.debug(
+                            f"매도: {sell_row[COL_DATE]}, 가격={sell_price:.2f}, "
+                            f"손익률={((sell_price - entry_price) / entry_price) * 100:.2f}%"
+                        )
 
                     position = 0
                     entry_price = 0.0

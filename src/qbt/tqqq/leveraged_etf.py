@@ -281,10 +281,7 @@ def extract_overlap_period(
     # 2. 날짜순 정렬
     overlap_dates = sorted(overlap_dates)
 
-    # 3. 디버그 로그 출력
-    logger.debug(f"겹치는 기간: {overlap_dates[0]} ~ {overlap_dates[-1]} ({len(overlap_dates):,}일)")
-
-    # 4. 겹치는 기간 데이터 추출
+    # 3. 겹치는 기간 데이터 추출
     df1_overlap = df1[df1[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
     df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
