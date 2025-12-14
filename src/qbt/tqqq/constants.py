@@ -6,7 +6,7 @@
 
 # 레버리지 ETF 기본값
 DEFAULT_LEVERAGE_MULTIPLIER = 3.0  # TQQQ 3배 레버리지
-DEFAULT_FUNDING_SPREAD = 0.6  # FFR 스프레드 (%)
+DEFAULT_FUNDING_SPREAD = 0.4  # FFR 스프레드 (%)
 DEFAULT_EXPENSE_RATIO = 0.008  # 연간 비용 비율 (0.8%)
 
 # 합성 데이터 초기 가격

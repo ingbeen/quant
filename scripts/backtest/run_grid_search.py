@@ -13,6 +13,26 @@ from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
+    COL_GRID_MA_WINDOW,
+    COL_GRID_BUFFER_ZONE_PCT,
+    COL_GRID_HOLD_DAYS,
+    COL_GRID_RECENT_MONTHS,
+    COL_GRID_TOTAL_RETURN_PCT,
+    COL_GRID_CAGR,
+    COL_GRID_MDD,
+    COL_GRID_TOTAL_TRADES,
+    COL_GRID_WIN_RATE,
+    COL_GRID_DISPLAY_MA_WINDOW,
+    COL_GRID_DISPLAY_BUFFER_ZONE,
+    COL_GRID_DISPLAY_HOLD_DAYS,
+    COL_GRID_DISPLAY_RECENT_MONTHS,
+    COL_GRID_DISPLAY_TOTAL_RETURN,
+    COL_GRID_DISPLAY_CAGR,
+    COL_GRID_DISPLAY_MDD,
+    COL_GRID_DISPLAY_TOTAL_TRADES,
+    COL_GRID_DISPLAY_WIN_RATE,
+    COL_GRID_DISPLAY_FINAL_CAPITAL,
+    GRID_COLUMN_MAPPING,
 )
 from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
@@ -35,25 +55,25 @@ def print_summary_stats(results_df) -> None:
         logger.debug("결과 없음")
         return
 
-    logger.debug(f"\n총 테스트 조합: {len(results_df)}개")
+    logger.debug(f"총 테스트 조합: {len(results_df)}개")
 
-    logger.debug("\n수익률 통계:")
+    logger.debug("수익률 통계:")
     logger.debug(
-        f"  - 평균: {results_df['total_return_pct'].mean():.2f}%, "
-        f"최대: {results_df['total_return_pct'].max():.2f}%, "
-        f"최소: {results_df['total_return_pct'].min():.2f}%"
+        f"  - 평균: {results_df[COL_GRID_TOTAL_RETURN_PCT].mean():.2f}%, "
+        f"최대: {results_df[COL_GRID_TOTAL_RETURN_PCT].max():.2f}%, "
+        f"최소: {results_df[COL_GRID_TOTAL_RETURN_PCT].min():.2f}%"
     )
 
-    logger.debug("\nCAGR 통계:")
-    logger.debug(f"  - 평균: {results_df['cagr'].mean():.2f}%, 최대: {results_df['cagr'].max():.2f}%")
+    logger.debug("CAGR 통계:")
+    logger.debug(f"  - 평균: {results_df[COL_GRID_CAGR].mean():.2f}%, 최대: {results_df[COL_GRID_CAGR].max():.2f}%")
 
-    logger.debug("\nMDD 통계:")
-    logger.debug(f"  - 평균: {results_df['mdd'].mean():.2f}%, 최악: {results_df['mdd'].min():.2f}%")
+    logger.debug("MDD 통계:")
+    logger.debug(f"  - 평균: {results_df[COL_GRID_MDD].mean():.2f}%, 최악: {results_df[COL_GRID_MDD].min():.2f}%")
 
     # 양수 수익률 비율
-    positive_returns = len(results_df[results_df["total_return_pct"] > 0])
+    positive_returns = len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
     logger.debug(
-        f"\n양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)"
+        f"양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)"
     )
 
     logger.debug("=" * title_width)
@@ -98,18 +118,21 @@ def main() -> int:
         initial_capital=DEFAULT_INITIAL_CAPITAL,
     )
 
-    # 3. 상위 결과 출력 (수익률 기준)
+    # 3. CAGR 기준 정렬
+    results_df = results_df.sort_values(by=COL_GRID_CAGR, ascending=False).reset_index(drop=True)
+
+    # 4. 상위 결과 출력
     columns = [
         ("순위", 6, Align.RIGHT),
-        ("Window", 8, Align.RIGHT),
-        ("Buffer%", 10, Align.RIGHT),
-        ("Hold일", 8, Align.RIGHT),
-        ("Recent월", 10, Align.RIGHT),
-        ("수익률", 12, Align.RIGHT),
-        ("CAGR", 10, Align.RIGHT),
-        ("MDD", 10, Align.RIGHT),
-        ("거래수", 8, Align.RIGHT),
-        ("승률", 8, Align.RIGHT),
+        (COL_GRID_DISPLAY_MA_WINDOW, 10, Align.RIGHT),
+        (COL_GRID_DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
+        (COL_GRID_DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
+        (COL_GRID_DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
+        (COL_GRID_DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
+        (COL_GRID_DISPLAY_CAGR, 10, Align.RIGHT),
+        (COL_GRID_DISPLAY_MDD, 10, Align.RIGHT),
+        (COL_GRID_DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
+        (COL_GRID_DISPLAY_WIN_RATE, 8, Align.RIGHT),
     ]
 
     top_n = 10
@@ -118,51 +141,42 @@ def main() -> int:
         rows.append(
             [
                 str(rank),
-                str(row["ma_window"]),
-                f"{row['buffer_zone_pct'] * 100:.1f}%",
-                f"{row['hold_days']}일",
-                f"{row['recent_months']}월",
-                f"{row['total_return_pct']:.2f}%",
-                f"{row['cagr']:.2f}%",
-                f"{row['mdd']:.2f}%",
-                str(row["total_trades"]),
-                f"{row['win_rate']:.1f}%",
+                str(row[COL_GRID_MA_WINDOW]),
+                f"{row[COL_GRID_BUFFER_ZONE_PCT] * 100:.1f}%",
+                f"{row[COL_GRID_HOLD_DAYS]}일",
+                f"{row[COL_GRID_RECENT_MONTHS]}월",
+                f"{row[COL_GRID_TOTAL_RETURN_PCT]:.2f}%",
+                f"{row[COL_GRID_CAGR]:.2f}%",
+                f"{row[COL_GRID_MDD]:.2f}%",
+                str(row[COL_GRID_TOTAL_TRADES]),
+                f"{row[COL_GRID_WIN_RATE]:.1f}%",
             ]
         )
 
     table = TableLogger(columns, logger)
-    table.print_table(rows, title=f"[수익률 기준] 상위 {top_n}개 결과")
-
-    # 4. CAGR 기준 정렬 후 출력
-    results_by_cagr = results_df.sort_values(by="cagr", ascending=False).reset_index(drop=True)
-
-    rows = []
-    for rank, (_, row) in enumerate(results_by_cagr.head(top_n).iterrows(), start=1):
-        rows.append(
-            [
-                str(rank),
-                str(row["ma_window"]),
-                f"{row['buffer_zone_pct'] * 100:.1f}%",
-                f"{row['hold_days']}일",
-                f"{row['recent_months']}월",
-                f"{row['total_return_pct']:.2f}%",
-                f"{row['cagr']:.2f}%",
-                f"{row['mdd']:.2f}%",
-                str(row["total_trades"]),
-                f"{row['win_rate']:.1f}%",
-            ]
-        )
-
-    table = TableLogger(columns, logger)
-    table.print_table(rows, title=f"[CAGR 기준] 상위 {top_n}개 결과")
+    table.print_table(rows, title=f"상위 {top_n}개 결과 (CAGR 기준)")
 
     # 5. 요약 통계 출력
     print_summary_stats(results_df)
 
     # 6. 결과 저장
     GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    results_df.to_csv(GRID_RESULTS_PATH, index=False)
-    logger.debug(f"\n결과 저장 완료: {GRID_RESULTS_PATH}")
+
+    # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
+    results_df_export = results_df.rename(columns=GRID_COLUMN_MAPPING)
+    results_df_export = results_df_export.round(
+        {
+            COL_GRID_DISPLAY_BUFFER_ZONE: 4,  # 0.0500
+            COL_GRID_DISPLAY_TOTAL_RETURN: 2,  # 1551.43
+            COL_GRID_DISPLAY_CAGR: 2,  # 11.05
+            COL_GRID_DISPLAY_MDD: 2,  # -42.83
+            COL_GRID_DISPLAY_WIN_RATE: 2,  # 80.00
+            COL_GRID_DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
+        }
+    )
+
+    results_df_export.to_csv(GRID_RESULTS_PATH, index=False)
+    logger.debug(f"결과 저장 완료: {GRID_RESULTS_PATH}")
 
     return 0
 

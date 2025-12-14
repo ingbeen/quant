@@ -330,8 +330,9 @@ def run_buffer_strategy(
 
     Raises:
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
-    """  # noqa: E501
-    logger.debug(f"버퍼존 전략 실행 시작: params={params}")
+    """
+    if log_trades:
+        logger.debug(f"버퍼존 전략 실행 시작: params={params}")
 
     # 1. 파라미터 검증
     if params.ma_window < 1:
@@ -577,6 +578,9 @@ def run_buffer_strategy(
     summary["buffer_zone_pct"] = params.buffer_zone_pct
     summary["hold_days"] = params.hold_days
 
-    logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
+    if log_trades:
+        logger.debug(
+            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
+        )
 
     return trades_df, equity_df, summary
