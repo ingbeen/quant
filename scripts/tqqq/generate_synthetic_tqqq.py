@@ -18,8 +18,8 @@ from qbt.common_constants import (
     QQQ_DATA_PATH,
     TQQQ_SYNTHETIC_PATH,
 )
-from qbt.synth import simulate_leveraged_etf
-from qbt.synth.constants import (
+from qbt.tqqq import simulate_leveraged_etf
+from qbt.tqqq.constants import (
     DEFAULT_EXPENSE_RATIO,
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,

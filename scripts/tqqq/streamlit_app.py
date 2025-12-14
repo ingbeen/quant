@@ -15,7 +15,7 @@ from qbt.common_constants import (
     TQQQ_DAILY_COMPARISON_PATH,
 )
 from qbt.utils.data_loader import load_comparison_data
-from qbt.visualization import (
+from qbt.tqqq import (
     create_cumulative_return_diff_chart,
     create_daily_return_diff_histogram,
     create_price_comparison_chart,

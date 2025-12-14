@@ -19,8 +19,8 @@ from qbt.common_constants import (
     TQQQ_DATA_PATH,
     TQQQ_VALIDATION_PATH,
 )
-from qbt.synth import find_optimal_cost_model
-from qbt.synth.constants import DEFAULT_LEVERAGE_MULTIPLIER
+from qbt.tqqq import find_optimal_cost_model
+from qbt.tqqq.constants import DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data

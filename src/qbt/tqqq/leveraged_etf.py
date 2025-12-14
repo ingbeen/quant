@@ -32,7 +32,7 @@ from qbt.common_constants import (
     REQUIRED_COLUMNS,
     TRADING_DAYS_PER_YEAR,
 )
-from qbt.synth.constants import (
+from qbt.tqqq.constants import (
     DEFAULT_EXPENSE_RANGE,
     DEFAULT_EXPENSE_STEP,
     DEFAULT_FUNDING_SPREAD,

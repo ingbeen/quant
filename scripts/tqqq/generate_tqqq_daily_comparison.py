@@ -20,8 +20,8 @@ from qbt.common_constants import (
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.synth import calculate_validation_metrics, extract_overlap_period, simulate_leveraged_etf
-from qbt.synth.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
+from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate_leveraged_etf
+from qbt.tqqq.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data
