@@ -2,13 +2,10 @@
 합성 TQQQ 데이터 생성 스크립트
 
 QQQ 데이터로부터 TQQQ 데이터를 시뮬레이션하여 생성한다.
-검증 스크립트에서 찾은 최적 multiplier를 사용하여 1999년부터의 데이터를 생성한다.
+QQQ의 가장 빠른 시작일부터 데이터를 생성하며, 모든 파라미터는 상수에서 정의됩니다.
 """
 
-import argparse
 import sys
-from datetime import datetime
-from pathlib import Path
 
 from qbt.common_constants import (
     COL_CLOSE,
@@ -40,130 +37,50 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    parser = argparse.ArgumentParser(
-        description="QQQ 데이터로부터 합성 TQQQ 데이터 생성",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-            사용 예시:
-            # 기본 파라미터로 생성 (start-date=1999-03-10, multiplier=3.0, spread=0.5%%, expense=0.8%%)
-            poetry run python scripts/tqqq/generate_synthetic_tqqq.py
-
-            # 일부 파라미터만 지정
-            poetry run python scripts/tqqq/generate_synthetic_tqqq.py --start-date 2010-01-01
-
-            # 모든 파라미터 지정
-            poetry run python scripts/tqqq/generate_synthetic_tqqq.py \\
-                --start-date 1999-03-10 \\
-                --multiplier 3.0 \\
-                --funding-spread 0.5 \\
-                --expense-ratio 0.009 \\
-                --initial-price 100.0 \\
-                --output data/raw/TQQQ_synthetic_1999-03-10_max.csv
-        """,
-    )
-    parser.add_argument(
-        "--qqq-path",
-        type=Path,
-        default=QQQ_DATA_PATH,
-        help="QQQ CSV 파일 경로",
-    )
-    parser.add_argument(
-        "--start-date",
-        type=str,
-        default="1999-03-10",
-        help="시작 날짜 (YYYY-MM-DD 형식)",
-    )
-    parser.add_argument(
-        "--multiplier",
-        type=float,
-        default=DEFAULT_LEVERAGE_MULTIPLIER,
-        help="레버리지 배수",
-    )
-    parser.add_argument(
-        "--expense-ratio",
-        type=float,
-        default=DEFAULT_EXPENSE_RATIO,
-        help="연간 비용 비율",
-    )
-    parser.add_argument(
-        "--funding-spread",
-        type=float,
-        default=DEFAULT_FUNDING_SPREAD,
-        help="펀딩 스프레드 (%%)",
-    )
-    parser.add_argument(
-        "--ffr-path",
-        type=Path,
-        default=FFR_DATA_PATH,
-        help="연방기금금리 CSV 파일 경로",
-    )
-    parser.add_argument(
-        "--initial-price",
-        type=float,
-        default=DEFAULT_SYNTHETIC_INITIAL_PRICE,
-        help="초기 가격",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=TQQQ_SYNTHETIC_PATH,
-        help="출력 CSV 파일 경로",
-    )
-
-    args = parser.parse_args()
-
-    # 1. 시작 날짜 파싱
-    try:
-        start_date = datetime.strptime(args.start_date, "%Y-%m-%d").date()
-    except ValueError as e:
-        raise ValueError(f"날짜 형식이 올바르지 않습니다 (YYYY-MM-DD 필요): {args.start_date}") from e
-
     logger.debug("합성 TQQQ 데이터 생성 시작")
     logger.debug(
-        f"파라미터: multiplier={args.multiplier}, expense_ratio={args.expense_ratio}, "
-        f"funding_spread={args.funding_spread}, initial_price={args.initial_price}"
+        f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, expense_ratio={DEFAULT_EXPENSE_RATIO}, "
+        f"funding_spread={DEFAULT_FUNDING_SPREAD}, initial_price={DEFAULT_SYNTHETIC_INITIAL_PRICE}"
     )
-    logger.debug(f"시작 날짜: {start_date}")
 
-    # 2. QQQ 및 FFR 데이터 로드
-    qqq_df = load_stock_data(args.qqq_path)
-    ffr_df = load_ffr_data(args.ffr_path)
+    # 1. QQQ 및 FFR 데이터 로드
+    qqq_df = load_stock_data(QQQ_DATA_PATH)
+    ffr_df = load_ffr_data(FFR_DATA_PATH)
 
-    # 3. 시작 날짜 이후 데이터만 필터링
-    qqq_filtered = qqq_df[qqq_df[COL_DATE] >= start_date].copy()
+    # 2. QQQ의 시작 날짜 자동 감지
+    start_date = qqq_df[COL_DATE].min()
+    logger.debug(f"QQQ 시작 날짜 자동 감지: {start_date}")
 
-    if qqq_filtered.empty:
-        raise ValueError(
-            f"시작 날짜 {start_date} 이후의 QQQ 데이터가 없습니다. QQQ 데이터 범위: {qqq_df[COL_DATE].min()} ~ {qqq_df[COL_DATE].max()}"
-        )
+    # 3. 전체 QQQ 데이터 사용
+    qqq_filtered = qqq_df.copy()
 
     logger.debug(
-        f"QQQ 데이터 필터링: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})"
+        f"QQQ 데이터: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})"
     )
 
     # 4. TQQQ 시뮬레이션 실행
     logger.debug("TQQQ 시뮬레이션 실행 중...")
     synthetic_tqqq = simulate_leveraged_etf(
         underlying_df=qqq_filtered,
-        leverage=args.multiplier,
-        expense_ratio=args.expense_ratio,
-        initial_price=args.initial_price,
+        leverage=DEFAULT_LEVERAGE_MULTIPLIER,
+        expense_ratio=DEFAULT_EXPENSE_RATIO,
+        initial_price=DEFAULT_SYNTHETIC_INITIAL_PRICE,
         ffr_df=ffr_df,
-        funding_spread=args.funding_spread,
+        funding_spread=DEFAULT_FUNDING_SPREAD,
     )
 
     logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
 
     # 5. 출력 디렉토리 생성
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    TQQQ_SYNTHETIC_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
     for col in PRICE_COLUMNS:
         if col in synthetic_tqqq.columns:
             synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
 
-    synthetic_tqqq.to_csv(args.output, index=False)
-    logger.debug(f"합성 TQQQ 데이터 저장 완료: {args.output}")
+    synthetic_tqqq.to_csv(TQQQ_SYNTHETIC_PATH, index=False)
+    logger.debug(f"합성 TQQQ 데이터 저장 완료: {TQQQ_SYNTHETIC_PATH}")
     logger.debug(f"기간: {synthetic_tqqq[COL_DATE].min()} ~ {synthetic_tqqq[COL_DATE].max()}")
     logger.debug(f"행 수: {len(synthetic_tqqq):,}")
     logger.debug(f"초기 가격: {synthetic_tqqq.iloc[0][COL_CLOSE]:.2f}")

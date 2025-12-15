@@ -2,10 +2,9 @@
 단일 백테스트 실행 스크립트
 
 이동평균선 교차 전략 백테스트 (SMA/EMA/Buy&Hold)
-CLI 인자로 파라미터를 지정합니다.
+모든 파라미터는 상수에서 정의됩니다.
 """
 
-import argparse
 import logging
 import sys
 
@@ -57,50 +56,6 @@ def print_summary(summary: dict, title: str, logger: logging.Logger) -> None:
     logger.debug("=" * 60)
 
 
-def parse_args():
-    """CLI 인자를 파싱한다."""
-    parser = argparse.ArgumentParser(
-        description="버퍼존 전략 백테스트",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-            예시:
-            # 버퍼존만 모드 (유지조건 없음)
-            poetry run python scripts/backtest/run_single_backtest.py --buffer-zone 0.01 --hold-days 0 --recent-months 6
-
-            # 버퍼존 + 유지조건 1일
-            poetry run python scripts/backtest/run_single_backtest.py --buffer-zone 0.01 --hold-days 1 --recent-months 6
-
-            # 200일 SMA (기본값) 대신 100일 SMA 사용
-            poetry run python scripts/backtest/run_single_backtest.py --ma-window 100 --buffer-zone 0.02 --hold-days 2
-        """,
-    )
-    parser.add_argument(
-        "--ma-window",
-        type=int,
-        default=DEFAULT_MA_WINDOW,
-        help="이동평균 기간",
-    )
-    parser.add_argument(
-        "--buffer-zone",
-        type=float,
-        default=DEFAULT_BUFFER_ZONE_PCT,
-        help="초기 버퍼존 비율",
-    )
-    parser.add_argument(
-        "--hold-days",
-        type=int,
-        default=DEFAULT_HOLD_DAYS,
-        help="초기 유지조건 일수 (0이면 버퍼존만 모드)",
-    )
-    parser.add_argument(
-        "--recent-months",
-        type=int,
-        default=DEFAULT_RECENT_MONTHS,
-        help="최근 매수 기간 (개월)",
-    )
-    return parser.parse_args()
-
-
 @cli_exception_handler
 def main() -> int:
     """
@@ -109,12 +64,10 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    args = parse_args()
-
     logger.debug("버퍼존 전략 백테스트 시작")
     logger.debug(
-        f"파라미터: ma_window={args.ma_window}, buffer_zone={args.buffer_zone}, "
-        f"hold_days={args.hold_days}, recent_months={args.recent_months}"
+        f"파라미터: ma_window={DEFAULT_MA_WINDOW}, buffer_zone={DEFAULT_BUFFER_ZONE_PCT}, "
+        f"hold_days={DEFAULT_HOLD_DAYS}, recent_months={DEFAULT_RECENT_MONTHS}"
     )
 
     # 1. 데이터 로딩
@@ -128,15 +81,15 @@ def main() -> int:
     logger.debug("=" * 60)
 
     # 2. 이동평균 계산
-    df = add_single_moving_average(df, args.ma_window)
+    df = add_single_moving_average(df, DEFAULT_MA_WINDOW)
 
     # 3. 전략 파라미터 설정
     params = BufferStrategyParams(
         initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=args.ma_window,
-        buffer_zone_pct=args.buffer_zone,
-        hold_days=args.hold_days,
-        recent_months=args.recent_months,
+        ma_window=DEFAULT_MA_WINDOW,
+        buffer_zone_pct=DEFAULT_BUFFER_ZONE_PCT,
+        hold_days=DEFAULT_HOLD_DAYS,
+        recent_months=DEFAULT_RECENT_MONTHS,
     )
 
     summaries = []

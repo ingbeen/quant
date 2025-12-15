@@ -10,6 +10,21 @@
 
 ---
 
+## 스크립트 실행 순서
+
+TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
+
+1. **validate_tqqq_simulation.py**: 최적 비용 모델 파라미터 탐색
+2. **generate_tqqq_daily_comparison.py**: 일별 비교 데이터 생성
+3. **generate_synthetic_tqqq.py**: 합성 데이터 생성 (QQQ 전체 기간)
+
+**중요**:
+- `generate_synthetic_tqqq.py`는 QQQ의 가장 빠른 시작일부터 자동으로 데이터를 생성
+- `generate_tqqq_daily_comparison.py`는 실제 TQQQ와 겹치는 기간만 비교
+- 모든 파라미터는 `constants.py`에서 상수로 정의됨
+
+---
+
 ## 핵심 책임
 
 ### 1. 레버리지 시뮬레이션

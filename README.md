@@ -49,24 +49,10 @@ poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 20
 
 **실행 명령어:**
 ```bash
-# 버퍼존만 모드 (유지조건 없음)
-poetry run python scripts/backtest/run_single_backtest.py \
-    --buffer-zone 0.01 --hold-days 0 --recent-months 6
-
-# 버퍼존 + 유지조건 1일
-poetry run python scripts/backtest/run_single_backtest.py \
-    --buffer-zone 0.01 --hold-days 1 --recent-months 6
-
-# 100일 이동평균 사용
-poetry run python scripts/backtest/run_single_backtest.py \
-    --ma-window 100 --buffer-zone 0.02 --hold-days 2 --recent-months 6
+poetry run python scripts/backtest/run_single_backtest.py
 ```
 
-**파라미터:**
-- `--ma-window`: 이동평균 기간 (기본값: 200)
-- `--buffer-zone` (필수): 초기 버퍼존 비율 (예: 0.01 = 1%)
-- `--hold-days`: 초기 유지조건 일수 (기본값: 1, 0이면 버퍼존만 모드)
-- `--recent-months`: 최근 매수 기간 (개월, 기본값: 6)
+**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/backtest/constants.py)에서 상수로 정의됨)
 
 **출력:** 콘솔 출력 (전략 비교 결과)
 
@@ -99,22 +85,10 @@ poetry run python scripts/backtest/run_grid_search.py
 
 **실행 명령어:**
 ```bash
-# 기본 범위로 그리드 서치
 poetry run python scripts/tqqq/validate_tqqq_simulation.py
-
-# 탐색 범위 좁히기
-poetry run python scripts/tqqq/validate_tqqq_simulation.py \
-    --spread-min 0.6 --spread-max 0.7 \
-    --expense-min 0.008 --expense-max 0.010
 ```
 
-**파라미터:**
-- `--qqq-path`: QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)
-- `--tqqq-path`: TQQQ CSV 파일 경로 (기본값: data/raw/TQQQ_max.csv)
-- `--ffr-path`: 연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)
-- `--leverage`: 레버리지 배수 (기본값: 3.0)
-- `--spread-min`, `--spread-max`, `--spread-step`: funding spread 탐색 범위
-- `--expense-min`, `--expense-max`, `--expense-step`: expense ratio 탐색 범위
+**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
 
 **출력:**
 - 콘솔: 상위 전략
@@ -127,79 +101,42 @@ poetry run python scripts/tqqq/validate_tqqq_simulation.py \
 
 ---
 
-### 5. generate_synthetic_tqqq.py - 합성 TQQQ 데이터 생성
-
-QQQ 데이터로부터 TQQQ를 시뮬레이션합니다.
-
-**실행 명령어:**
-```bash
-# 기본 파라미터로 생성
-poetry run python scripts/tqqq/generate_synthetic_tqqq.py
-
-# 시작 날짜 지정
-poetry run python scripts/tqqq/generate_synthetic_tqqq.py --start-date 2010-01-01
-
-# 모든 파라미터 지정
-poetry run python scripts/tqqq/generate_synthetic_tqqq.py \
-    --start-date 1999-03-10 \
-    --multiplier 3.0 \
-    --funding-spread 0.5 \
-    --expense-ratio 0.009 \
-    --initial-price 100.0 \
-    --output data/raw/TQQQ_synthetic_1999-03-10_max.csv
-```
-
-**파라미터:**
-- `--qqq-path`: QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)
-- `--start-date`: 시작 날짜 (기본값: 1999-03-10)
-- `--multiplier`: 레버리지 배수 (기본값: 3.0)
-- `--expense-ratio`: 연간 비용 비율 (기본값: 0.008)
-- `--funding-spread`: 펀딩 스프레드 (기본값: 0.5)
-- `--ffr-path`: 연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)
-- `--initial-price`: 초기 가격 (기본값: 200.0)
-- `--output`: 출력 CSV 파일 경로 (기본값: data/raw/TQQQ_synthetic_max.csv)
-
-**출력:** `data/raw/TQQQ_synthetic_max.csv` (또는 지정한 경로)
-
-**의존 CSV:**
-- `data/raw/QQQ_max.csv`
-- `data/raw/federal_funds_rate_monthly.csv`
-
----
-
-### 6. generate_tqqq_daily_comparison.py - TQQQ 일별 비교 CSV 생성
+### 5. generate_tqqq_daily_comparison.py - TQQQ 일별 비교 CSV 생성
 
 시뮬레이션과 실제 TQQQ를 일별로 비교합니다.
 
 **실행 명령어:**
 ```bash
-# 기본 파라미터로 일별 비교 생성
 poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
-
-# 특정 파라미터로 생성
-poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \
-    --funding-spread 0.65 \
-    --expense-ratio 0.009
-
-# 출력 파일 경로 지정
-poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \
-    --output results/tqqq_daily_custom.csv
 ```
 
-**파라미터:**
-- `--qqq-path`: QQQ CSV 파일 경로 (기본값: data/raw/QQQ_max.csv)
-- `--tqqq-path`: TQQQ CSV 파일 경로 (기본값: data/raw/TQQQ_max.csv)
-- `--ffr-path`: 연방기금금리 CSV 파일 경로 (기본값: data/raw/federal_funds_rate_monthly.csv)
-- `--leverage`: 레버리지 배수 (기본값: 3.0)
-- `--funding-spread`: 펀딩 스프레드 (기본값: 0.5)
-- `--expense-ratio`: 연간 비용 비율 (기본값: 0.008)
-- `--output`: 출력 CSV 파일 경로 (기본값: results/tqqq_daily_comparison.csv)
+**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
 
-**출력:** `results/tqqq_daily_comparison.csv` (또는 지정한 경로)
+**출력:** `results/tqqq_daily_comparison.csv`
 
 **의존 CSV:**
 - `data/raw/QQQ_max.csv`
 - `data/raw/TQQQ_max.csv`
+- `data/raw/federal_funds_rate_monthly.csv`
+
+---
+
+### 6. generate_synthetic_tqqq.py - 합성 TQQQ 데이터 생성
+
+QQQ 데이터로부터 TQQQ를 시뮬레이션합니다.
+QQQ의 가장 빠른 시작일부터 자동으로 데이터를 생성합니다.
+
+**실행 명령어:**
+```bash
+poetry run python scripts/tqqq/generate_synthetic_tqqq.py
+```
+
+**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
+
+**출력:** `data/raw/TQQQ_synthetic_max.csv`
+
+**의존 CSV:**
+- `data/raw/QQQ_max.csv`
 - `data/raw/federal_funds_rate_monthly.csv`
 
 ---
@@ -257,16 +194,16 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
 │  ┌──────────────────────┐                   │
 │  │ validate_tqqq_       │──▶ tqqq_          │
 │  │   simulation         │    validation.csv │
-│  └──────────┬───────────┘                   │
-│             │ 최적 파라미터                   │
-│             ▼                                │
-│  ┌──────────────────────┐                   │
-│  │ generate_synthetic_  │──▶ TQQQ_          │
-│  │   tqqq               │    synthetic.csv  │
 │  └──────────────────────┘                   │
 │  ┌──────────────────────┐                   │
 │  │ generate_tqqq_daily_ │──▶ tqqq_daily_    │
 │  │   comparison         │    comparison.csv │
+│  └──────────┬───────────┘                   │
+│             │                                │
+│             ▼                                │
+│  ┌──────────────────────┐                   │
+│  │ generate_synthetic_  │──▶ TQQQ_          │
+│  │   tqqq               │    synthetic.csv  │
 │  └──────────┬───────────┘                   │
 └─────────────┼────────────────────────────────┘
               │
@@ -288,6 +225,6 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
 #### TQQQ 시뮬레이션 워크플로우:
 1. `download_data.py` - QQQ, TQQQ, FFR 데이터 다운로드
 2. `validate_tqqq_simulation.py` - 최적 비용 모델 파라미터 탐색
-3. `generate_synthetic_tqqq.py` - 최적 파라미터로 합성 데이터 생성
-4. `generate_tqqq_daily_comparison.py` - 일별 비교 데이터 생성
+3. `generate_tqqq_daily_comparison.py` - 일별 비교 데이터 생성
+4. `generate_synthetic_tqqq.py` - 합성 데이터 생성 (QQQ 전체 기간)
 5. `streamlit_app.py` - 검증 결과 시각화

@@ -3,11 +3,10 @@ TQQQ 일별 비교 CSV 생성 스크립트
 
 지정된 파라미터로 TQQQ를 시뮬레이션하고 실제 TQQQ 데이터와 일별로 비교하여
 상세 검증 지표와 일별 비교 CSV를 생성한다.
+모든 파라미터는 상수에서 정의됩니다.
 """
 
-import argparse
 import sys
-from pathlib import Path
 
 import pandas as pd
 
@@ -38,107 +37,44 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    parser = argparse.ArgumentParser(
-        description="TQQQ 일별 비교 CSV 생성",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-            사용 예시:
-            # 기본 파라미터로 일별 비교 생성
-            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
-
-            # 특정 파라미터로 일별 비교 생성
-            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \\
-              --funding-spread 0.65 \\
-              --expense-ratio 0.009
-
-            # 출력 파일 경로 지정
-            poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py \\
-              --output results/tqqq_daily_custom.csv
-        """,
-    )
-    parser.add_argument(
-        "--qqq-path",
-        type=Path,
-        default=QQQ_DATA_PATH,
-        help="QQQ CSV 파일 경로",
-    )
-    parser.add_argument(
-        "--tqqq-path",
-        type=Path,
-        default=TQQQ_DATA_PATH,
-        help="TQQQ CSV 파일 경로",
-    )
-    parser.add_argument(
-        "--ffr-path",
-        type=Path,
-        default=FFR_DATA_PATH,
-        help="연방기금금리 CSV 파일 경로",
-    )
-    parser.add_argument(
-        "--leverage",
-        type=float,
-        default=DEFAULT_LEVERAGE_MULTIPLIER,
-        help="레버리지 배수",
-    )
-    parser.add_argument(
-        "--funding-spread",
-        type=float,
-        default=DEFAULT_FUNDING_SPREAD,
-        help="펀딩 스프레드 (%%)",
-    )
-    parser.add_argument(
-        "--expense-ratio",
-        type=float,
-        default=DEFAULT_EXPENSE_RATIO,
-        help="연간 비용 비율",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=TQQQ_DAILY_COMPARISON_PATH,
-        help="출력 CSV 파일 경로",
-    )
-
-    args = parser.parse_args()
-
     # 1. 데이터 로드
     logger.debug("QQQ, TQQQ 및 FFR 데이터 로딩 시작")
-    qqq_df = load_stock_data(args.qqq_path)
-    tqqq_df = load_stock_data(args.tqqq_path)
-    ffr_df = load_ffr_data(args.ffr_path)
+    qqq_df = load_stock_data(QQQ_DATA_PATH)
+    tqqq_df = load_stock_data(TQQQ_DATA_PATH)
+    ffr_df = load_ffr_data(FFR_DATA_PATH)
 
     # 2. 겹치는 기간 추출 및 시뮬레이션 실행
     qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
 
     # 3. 시뮬레이션 실행
     logger.debug(
-        f"시뮬레이션 실행: leverage={args.leverage}, "
-        f"funding_spread={args.funding_spread}%, "
-        f"expense_ratio={args.expense_ratio*100:.2f}%"
+        f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
+        f"funding_spread={DEFAULT_FUNDING_SPREAD}%, "
+        f"expense_ratio={DEFAULT_EXPENSE_RATIO*100:.2f}%"
     )
 
     initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
     simulated_df = simulate_leveraged_etf(
         underlying_df=qqq_overlap,
-        leverage=args.leverage,
-        expense_ratio=args.expense_ratio,
+        leverage=DEFAULT_LEVERAGE_MULTIPLIER,
+        expense_ratio=DEFAULT_EXPENSE_RATIO,
         initial_price=initial_price,
         ffr_df=ffr_df,
-        funding_spread=args.funding_spread,
+        funding_spread=DEFAULT_FUNDING_SPREAD,
     )
 
     logger.debug("시뮬레이션 완료")
 
     # 4. 검증 지표 계산 및 일별 비교 CSV 생성
-    args.output.parent.mkdir(exist_ok=True, parents=True)
-    logger.debug(f"검증 지표 계산 및 일별 비교 CSV 생성: {args.output}")
+    TQQQ_DAILY_COMPARISON_PATH.parent.mkdir(exist_ok=True, parents=True)
+    logger.debug(f"검증 지표 계산 및 일별 비교 CSV 생성: {TQQQ_DAILY_COMPARISON_PATH}")
     validation_results = calculate_validation_metrics(
         simulated_df=simulated_df,
         actual_df=tqqq_overlap,
-        output_path=args.output,
+        output_path=TQQQ_DAILY_COMPARISON_PATH,
     )
 
-    daily_df = pd.read_csv(args.output)
+    daily_df = pd.read_csv(TQQQ_DAILY_COMPARISON_PATH)
     logger.debug(f"일별 비교 CSV 저장 완료: {len(daily_df):,}행")
 
     # 6. 결과 출력 (터미널)
@@ -147,9 +83,9 @@ def main() -> int:
     logger.debug("=" * 64)
     logger.debug(f"검증 기간: {validation_results['overlap_start']} ~ {validation_results['overlap_end']}")
     logger.debug(f"총 일수: {validation_results['overlap_days']:,}일")
-    logger.debug(f"레버리지: {args.leverage:.1f}배")
-    logger.debug(f"Funding Spread: {args.funding_spread:.2f}%")
-    logger.debug(f"Expense Ratio: {args.expense_ratio*100:.2f}%")
+    logger.debug(f"레버리지: {DEFAULT_LEVERAGE_MULTIPLIER:.1f}배")
+    logger.debug(f"Funding Spread: {DEFAULT_FUNDING_SPREAD:.2f}%")
+    logger.debug(f"Expense Ratio: {DEFAULT_EXPENSE_RATIO*100:.2f}%")
 
     logger.debug("-" * 64)
     logger.debug("검증 지표")
@@ -216,7 +152,7 @@ def main() -> int:
     logger.debug("-" * 64)
 
     logger.debug("=" * 64)
-    logger.debug(f"일별 비교 CSV 저장 완료: {args.output}")
+    logger.debug(f"일별 비교 CSV 저장 완료: {TQQQ_DAILY_COMPARISON_PATH}")
 
     return 0
 
