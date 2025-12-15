@@ -35,9 +35,9 @@ poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 20
 - `--end`: 종료 날짜 (YYYY-MM-DD)
 
 **출력:**
-- `data/raw/{TICKER}_max.csv` (전체 기간)
-- `data/raw/{TICKER}_{START}_{END}.csv` (기간 지정)
-- `data/raw/{TICKER}_{START}_latest.csv` (시작일만 지정)
+- `storage/stock/{TICKER}_max.csv` (전체 기간)
+- `storage/stock/{TICKER}_{START}_{END}.csv` (기간 지정)
+- `storage/stock/{TICKER}_{START}_latest.csv` (시작일만 지정)
 
 **의존성:** 없음 (독립 실행)
 
@@ -56,7 +56,7 @@ poetry run python scripts/backtest/run_single_backtest.py
 
 **출력:** 콘솔 출력 (전략 비교 결과)
 
-**의존 CSV:** `data/raw/QQQ_max.csv`
+**의존 CSV:** `storage/stock/QQQ_max.csv`
 
 ---
 
@@ -73,9 +73,9 @@ poetry run python scripts/backtest/run_grid_search.py
 
 **출력:**
 - 콘솔: 상위 10개 전략 (수익률/CAGR 기준)
-- `data/raw/grid_results.csv`: 전체 결과
+- `storage/results/grid_results.csv`: 전체 결과
 
-**의존 CSV:** `data/raw/QQQ_max.csv`
+**의존 CSV:** `storage/stock/QQQ_max.csv`
 
 ---
 
@@ -92,12 +92,12 @@ poetry run python scripts/tqqq/validate_tqqq_simulation.py
 
 **출력:**
 - 콘솔: 상위 전략
-- `results/tqqq_validation.csv`: 검증 결과
+- `storage/results/tqqq_validation.csv`: 검증 결과
 
 **의존 CSV:**
-- `data/raw/QQQ_max.csv`
-- `data/raw/TQQQ_max.csv`
-- `data/raw/federal_funds_rate_monthly.csv`
+- `storage/stock/QQQ_max.csv`
+- `storage/stock/TQQQ_max.csv`
+- `storage/etc/federal_funds_rate_monthly.csv`
 
 ---
 
@@ -112,12 +112,12 @@ poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 
 **파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
 
-**출력:** `results/tqqq_daily_comparison.csv`
+**출력:** `storage/results/tqqq_daily_comparison.csv`
 
 **의존 CSV:**
-- `data/raw/QQQ_max.csv`
-- `data/raw/TQQQ_max.csv`
-- `data/raw/federal_funds_rate_monthly.csv`
+- `storage/stock/QQQ_max.csv`
+- `storage/stock/TQQQ_max.csv`
+- `storage/etc/federal_funds_rate_monthly.csv`
 
 ---
 
@@ -133,11 +133,11 @@ poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 
 **파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
 
-**출력:** `data/raw/TQQQ_synthetic_max.csv`
+**출력:** `storage/stock/TQQQ_synthetic_max.csv`
 
 **의존 CSV:**
-- `data/raw/QQQ_max.csv`
-- `data/raw/federal_funds_rate_monthly.csv`
+- `storage/stock/QQQ_max.csv`
+- `storage/etc/federal_funds_rate_monthly.csv`
 
 ---
 
@@ -154,7 +154,7 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
 
 **출력:** 웹 대시보드 (http://localhost:8501)
 
-**의존 CSV:** `results/tqqq_daily_comparison.csv`
+**의존 CSV:** `storage/results/tqqq_daily_comparison.csv`
 
 ---
 
@@ -169,12 +169,12 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
            │
            │ 생성
            ▼
-   ┌─────────────────────────────┐
-   │ data/raw/QQQ_max.csv        │
-   │ data/raw/TQQQ_max.csv       │
-   │ data/raw/federal_funds_     │
-   │   rate_monthly.csv          │
-   └──────────┬──────────────────┘
+   ┌──────────────────────────────┐
+   │ storage/stock/QQQ_max.csv    │
+   │ storage/stock/TQQQ_max.csv   │
+   │ storage/etc/federal_funds_   │
+   │   rate_monthly.csv           │
+   └──────────┬───────────────────┘
               │
               │ 사용
               ▼

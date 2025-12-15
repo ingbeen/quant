@@ -13,14 +13,18 @@ from pathlib import Path
 # ============================================================
 
 # 디렉토리 경로
-DATA_DIR = Path("data/raw")
-RESULTS_DIR = Path("results")
+STORAGE_DIR = Path("storage")
+STOCK_DIR = STORAGE_DIR / "stock"
+ETC_DIR = STORAGE_DIR / "etc"
+RESULTS_DIR = STORAGE_DIR / "results"
 
-# 데이터 파일 경로
-QQQ_DATA_PATH = DATA_DIR / "QQQ_max.csv"
-TQQQ_DATA_PATH = DATA_DIR / "TQQQ_max.csv"
-TQQQ_SYNTHETIC_PATH = DATA_DIR / "TQQQ_synthetic_max.csv"
-FFR_DATA_PATH = DATA_DIR / "federal_funds_rate_monthly.csv"
+# 주식 데이터 파일 경로
+QQQ_DATA_PATH = STOCK_DIR / "QQQ_max.csv"
+TQQQ_DATA_PATH = STOCK_DIR / "TQQQ_max.csv"
+TQQQ_SYNTHETIC_PATH = STOCK_DIR / "TQQQ_synthetic_max.csv"
+
+# 기타 데이터 파일 경로
+FFR_DATA_PATH = ETC_DIR / "federal_funds_rate_monthly.csv"
 
 # 결과 파일 경로
 GRID_RESULTS_PATH = RESULTS_DIR / "grid_results.csv"

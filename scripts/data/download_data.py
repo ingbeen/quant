@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, DATA_DIR, PRICE_COLUMNS, REQUIRED_COLUMNS
+from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS, STOCK_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 
@@ -116,7 +116,7 @@ def download_stock_data(
         저장된 CSV 파일의 경로
     """
     # 1. 출력 디렉토리 생성
-    output_path = DATA_DIR
+    output_path = STOCK_DIR
     output_path.mkdir(parents=True, exist_ok=True)
 
     # 2. yfinance Ticker 객체 생성

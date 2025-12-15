@@ -57,8 +57,10 @@ quant/
 │       ├── data_loader.py       # CSV 로딩 통합
 │       ├── cli_helpers.py       # 예외 처리 데코레이터
 │       └── parallel_executor.py # 병렬 처리
-├── data/raw/          # CSV 저장소
-└── results/           # 분석 결과
+└── storage/           # 데이터 저장소
+    ├── stock/         # 주식 데이터 CSV
+    ├── etc/           # 기타 데이터 (금리 등)
+    └── results/       # 분석 결과 CSV
 ```
 
 ---
@@ -191,12 +193,24 @@ quant/
 
 ## 데이터 처리 규칙
 
-### CSV 파일명 규칙
+### CSV 파일 저장 위치
+
+**주식 데이터** (`storage/stock/`):
 
 - `{TICKER}_max.csv`: 전체 기간
 - `{TICKER}_{START}_{END}.csv`: 기간 지정
 - `{TICKER}_{START}_latest.csv`: 시작일만
 - `{TICKER}_synthetic_max.csv`: 합성 데이터
+
+**기타 데이터** (`storage/etc/`):
+
+- `federal_funds_rate_monthly.csv`: 연방기금금리 월별 데이터
+
+**분석 결과** (`storage/results/`):
+
+- `grid_results.csv`: 백테스트 그리드 서치 결과
+- `tqqq_validation.csv`: TQQQ 시뮬레이션 검증 결과
+- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터
 
 ### 데이터 로딩 (utils/data_loader.py)
 
