@@ -18,7 +18,7 @@ from qbt.common_constants import (
     QQQ_DATA_PATH,
     TQQQ_SYNTHETIC_PATH,
 )
-from qbt.tqqq import simulate_leveraged_etf
+from qbt.tqqq import simulate
 from qbt.tqqq.constants import (
     DEFAULT_EXPENSE_RATIO,
     DEFAULT_FUNDING_SPREAD,
@@ -63,7 +63,7 @@ def main() -> int:
 
     # 4. TQQQ 시뮬레이션 실행
     logger.debug("TQQQ 시뮬레이션 실행 중...")
-    synthetic_tqqq = simulate_leveraged_etf(
+    synthetic_tqqq = simulate(
         underlying_df=qqq_filtered,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         expense_ratio=DEFAULT_EXPENSE_RATIO,

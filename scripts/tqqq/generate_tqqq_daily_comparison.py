@@ -22,7 +22,7 @@ from qbt.common_constants import (
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate_leveraged_etf
+from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate
 from qbt.tqqq.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -57,7 +57,7 @@ def main() -> int:
     )
 
     initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
-    simulated_df = simulate_leveraged_etf(
+    simulated_df = simulate(
         underlying_df=qqq_overlap,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         expense_ratio=DEFAULT_EXPENSE_RATIO,

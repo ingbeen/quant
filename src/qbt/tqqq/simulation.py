@@ -109,7 +109,7 @@ def calculate_daily_cost(
     return daily_cost
 
 
-def simulate_leveraged_etf(
+def simulate(
     underlying_df: pd.DataFrame,
     leverage: float,
     expense_ratio: float,
@@ -224,7 +224,7 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
         후보 평가 결과 딕셔너리
     """
     # 시뮬레이션 실행
-    sim_df = simulate_leveraged_etf(
+    sim_df = simulate(
         params["underlying_overlap"],
         leverage=params["leverage"],
         expense_ratio=params["expense"],

@@ -49,7 +49,7 @@ quant/
 │   │   └── metrics.py
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py  # 시뮬레이션 전용 상수
-│   │   ├── leveraged_etf.py
+│   │   ├── simulation.py
 │   │   └── dashboard.py
 │   └── utils/         # 공통 유틸리티
 │       ├── logger.py
