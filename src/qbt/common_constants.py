@@ -56,6 +56,9 @@ PRICE_COLUMNS = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]
 ANNUAL_DAYS = 365.25  # CAGR 계산용 (윤년 포함)
 TRADING_DAYS_PER_YEAR = 252  # 일일 비용 환산용 (연간 거래일 수)
 
+# 수치 안정성 상수
+EPSILON = 1e-12  # 분모 0 방지 및 로그 계산 안정성 확보
+
 # 일별 비교 컬럼명 (한글)
 COL_DATE_KR = "날짜"
 COL_ACTUAL_CLOSE = "실제_종가"
@@ -69,7 +72,7 @@ COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
 # 누적수익률
 COL_ACTUAL_CUMUL_RETURN = "누적수익률_실제(%)"
 COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬레이션(%)"
-COL_ASSET_MULTIPLE_REL_DIFF = "자산배수_상대차이(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF = "누적배수_로그차이(%)"
 
 # 일별 비교 필수 컬럼 그룹
 COMPARISON_COLUMNS = [
@@ -81,5 +84,5 @@ COMPARISON_COLUMNS = [
     COL_DAILY_RETURN_ABS_DIFF,
     COL_ACTUAL_CUMUL_RETURN,
     COL_SIMUL_CUMUL_RETURN,
-    COL_ASSET_MULTIPLE_REL_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]

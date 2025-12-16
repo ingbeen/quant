@@ -14,8 +14,8 @@ import sys
 import pandas as pd
 
 from qbt.common_constants import (
-    COL_ASSET_MULTIPLE_REL_DIFF,
     COL_CLOSE,
+    COL_CUMUL_MULTIPLE_LOG_DIFF,
     COL_DAILY_RETURN_ABS_DIFF,
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
@@ -98,14 +98,14 @@ def main() -> int:
     logger.debug("  [누적수익률]")
     logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
     logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-    logger.debug(f"    평균 차이: {validation_results['asset_multiple_mean_diff_pct']:.2f}%")
-    logger.debug(f"    RMSE: {validation_results['asset_multiple_rmse_diff_pct']:.4f}%")
-    logger.debug(f"    최대 차이: {validation_results['asset_multiple_max_diff_pct']:.4f}%")
+    logger.debug(f"    평균 로그차이: {validation_results['cumul_multiple_log_diff_mean_pct']:.2f}%")
+    logger.debug(f"    RMSE: {validation_results['cumul_multiple_log_diff_rmse_pct']:.4f}%")
+    logger.debug(f"    최대 로그차이: {validation_results['cumul_multiple_log_diff_max_pct']:.4f}%")
 
     # 품질 검증
-    mean_diff_pct = validation_results["asset_multiple_mean_diff_pct"]
-    if mean_diff_pct > 20:
-        logger.warning(f"자산배수 평균 차이가 큽니다: {mean_diff_pct:.2f}% (권장: ±20% 이내)")
+    mean_log_diff_pct = validation_results["cumul_multiple_log_diff_mean_pct"]
+    if mean_log_diff_pct > 20:
+        logger.warning(f"누적배수 로그차이 평균이 큽니다: {mean_log_diff_pct:.2f}% (권장: ±20% 이내)")
 
     # 일별 비교 요약 통계
     logger.debug("-" * 64)
@@ -126,9 +126,9 @@ def main() -> int:
             f"{daily_df[COL_DAILY_RETURN_ABS_DIFF].max():.4f}",
         ],
         [
-            "자산배수 상대차이 (%)",
-            f"{daily_df[COL_ASSET_MULTIPLE_REL_DIFF].mean():.2f}",
-            f"{daily_df[COL_ASSET_MULTIPLE_REL_DIFF].max():.2f}",
+            "누적배수 로그차이 (%)",
+            f"{daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean():.2f}",
+            f"{daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max():.2f}",
         ],
     ]
 
@@ -139,19 +139,19 @@ def main() -> int:
     logger.debug("[요약]")
     logger.debug("-" * 64)
 
-    mean_diff = validation_results["asset_multiple_mean_diff_pct"]
+    mean_log_diff = validation_results["cumul_multiple_log_diff_mean_pct"]
 
-    # 자산배수 평균 차이 해석
-    if mean_diff < 1:
+    # 누적배수 로그차이 평균 해석
+    if mean_log_diff < 1:
         diff_desc = "거의 완전히 일치"
-    elif mean_diff < 5:
+    elif mean_log_diff < 5:
         diff_desc = "매우 근접"
-    elif mean_diff < 20:
+    elif mean_log_diff < 20:
         diff_desc = "양호하게 일치"
     else:
         diff_desc = "다소 차이 존재"
 
-    logger.debug(f"- 자산배수 평균 차이는 {mean_diff:.2f}%로, 장기 성과도 {diff_desc}합니다.")
+    logger.debug(f"- 누적배수 로그차이 평균은 {mean_log_diff:.2f}%로, 장기 성과도 {diff_desc}합니다.")
     logger.debug("-" * 64)
 
     logger.debug("=" * 64)

@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 from qbt.common_constants import (
     COL_ACTUAL_CLOSE,
-    COL_ASSET_MULTIPLE_REL_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DATE_KR,
     COL_SIMUL_CLOSE,
@@ -139,7 +139,7 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
 
 def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     """
-    누적수익률 차이 라인 차트를 생성한다.
+    누적배수 로그차이 라인 차트를 생성한다.
 
     Args:
         df: 일별 비교 데이터
@@ -152,9 +152,9 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_trace(
         go.Scatter(
             x=df[COL_DATE_KR],
-            y=df[COL_ASSET_MULTIPLE_REL_DIFF],
+            y=df[COL_CUMUL_MULTIPLE_LOG_DIFF],
             mode="lines",
-            name="자산배수 상대차이",
+            name="누적배수 로그차이",
             line={"color": "#d62728", "width": 2},
             fill="tozeroy",
             hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>" + "<b>차이</b>: %{y:.2f}%<br>" + "<extra></extra>",
@@ -165,9 +165,9 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="기준선 (0%)")
 
     fig.update_layout(
-        title="자산배수 상대차이 추이",
+        title="누적배수 로그차이 추이",
         xaxis_title="날짜",
-        yaxis_title="자산배수 상대차이 (%)",
+        yaxis_title="누적배수 로그차이 (%)",
         hovermode="x unified",
         height=500,
     )

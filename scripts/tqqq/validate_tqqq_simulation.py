@@ -80,8 +80,8 @@ def main() -> int:
         ("Rank", 6, Align.RIGHT),
         ("Spread(%)", 12, Align.RIGHT),
         ("Expense(%)", 12, Align.RIGHT),
-        ("자산배수평균차이(%)", 20, Align.RIGHT),
-        ("자산배수RMSE(%)", 16, Align.RIGHT),
+        ("로그차이평균(%)", 20, Align.RIGHT),
+        ("로그차이RMSE(%)", 16, Align.RIGHT),
     ]
     table = TableLogger(columns, logger, indent=2)
 
@@ -91,8 +91,8 @@ def main() -> int:
             str(rank),
             f"{strategy['funding_spread']:.2f}",
             f"{strategy['expense_ratio']*100:.2f}",
-            f"{strategy['asset_multiple_mean_diff_pct']:.4f}",
-            f"{strategy['asset_multiple_rmse_diff_pct']:.4f}",
+            f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
+            f"{strategy['cumul_multiple_log_diff_rmse_pct']:.4f}",
         ]
         rows.append(row)
 
@@ -116,9 +116,9 @@ def main() -> int:
             # 누적수익률/성과 (5개)
             "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
             "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
-            "자산배수_평균차이(%)": round(strategy["asset_multiple_mean_diff_pct"], 4),
-            "자산배수_RMSE(%)": round(strategy["asset_multiple_rmse_diff_pct"], 4),
-            "자산배수_최대차이(%)": round(strategy["asset_multiple_max_diff_pct"], 4),
+            "누적배수로그차이_평균(%)": round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
+            "누적배수로그차이_RMSE(%)": round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
+            "누적배수로그차이_최대(%)": round(strategy["cumul_multiple_log_diff_max_pct"], 4),
         }
         rows.append(row)
 
