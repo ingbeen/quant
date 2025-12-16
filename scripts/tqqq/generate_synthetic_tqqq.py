@@ -3,6 +3,9 @@
 
 QQQ 데이터로부터 TQQQ 데이터를 시뮬레이션하여 생성한다.
 QQQ의 가장 빠른 시작일부터 데이터를 생성하며, 모든 파라미터는 상수에서 정의됩니다.
+
+실행 명령어:
+    poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 """
 
 import sys

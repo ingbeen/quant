@@ -5,6 +5,9 @@ TQQQ 시뮬레이션 파라미터 그리드 서치 스크립트
 실제 TQQQ 데이터와 가장 유사한 시뮬레이션을 생성하는 최적 파라미터를 찾는다.
 상위 전략을 CSV로 저장한다.
 모든 파라미터는 상수에서 정의됩니다.
+
+실행 명령어:
+    poetry run python scripts/tqqq/validate_tqqq_simulation.py
 """
 
 import sys

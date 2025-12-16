@@ -4,6 +4,9 @@ TQQQ 일별 비교 CSV 생성 스크립트
 지정된 파라미터로 TQQQ를 시뮬레이션하고 실제 TQQQ 데이터와 일별로 비교하여
 상세 검증 지표와 일별 비교 CSV를 생성한다.
 모든 파라미터는 상수에서 정의됩니다.
+
+실행 명령어:
+    poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 """
 
 import sys

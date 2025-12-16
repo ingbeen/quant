@@ -2,6 +2,9 @@
 버퍼존 전략 파라미터 그리드 탐색 실행 스크립트
 
 버퍼존 전략의 파라미터 조합을 탐색하여 최적 전략을 찾습니다.
+
+실행 명령어:
+    poetry run python scripts/backtest/run_grid_search.py
 """
 
 import sys
@@ -81,9 +84,6 @@ def print_summary_stats(results_df) -> None:
 def main() -> int:
     """
     메인 실행 함수.
-
-    사용 예시:
-    poetry run python scripts/backtest/run_grid_search.py
 
     Returns:
         종료 코드 (0: 성공, 1: 실패)

@@ -1,6 +1,9 @@
 """TQQQ 시뮬레이션 검증 대시보드
 
 일별 비교 CSV 데이터를 Streamlit + Plotly로 시각화한다.
+
+실행 명령어:
+    poetry run streamlit run scripts/tqqq/streamlit_app.py
 """
 
 from pathlib import Path
@@ -50,7 +53,7 @@ def main():
     st.markdown(
         """
         이 대시보드는 레버리지 ETF 시뮬레이션 결과를 실제 TQQQ 데이터와 비교하여 검증합니다.
-        - **데이터 소스**: `results/tqqq_daily_comparison.csv`
+        - **데이터 소스**: `tqqq_daily_comparison.csv`
         - **시각화**: Plotly 인터랙티브 차트 (확대/축소, 범례 토글, 툴팁 지원)
         """
     )
@@ -62,12 +65,6 @@ def main():
         df = load_data(csv_path)
     except FileNotFoundError:
         st.error(f"데이터 파일을 찾을 수 없습니다: {csv_path}")
-        st.info(
-            "먼저 다음 명령어를 실행하여 일별 비교 데이터를 생성하세요:\n\n"
-            "```bash\n"
-            "poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py\n"
-            "```"
-        )
         return
     except ValueError as e:
         st.error(f"데이터 검증 오류: {e}")

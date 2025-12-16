@@ -3,6 +3,9 @@
 
 이동평균선 교차 전략 백테스트 (SMA/EMA/Buy&Hold)
 모든 파라미터는 상수에서 정의됩니다.
+
+실행 명령어:
+    poetry run python scripts/backtest/run_single_backtest.py
 """
 
 import logging

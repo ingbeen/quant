@@ -2,6 +2,16 @@
 주식 데이터 다운로드 스크립트
 
 Yahoo Finance에서 주식 데이터를 다운로드하여 CSV로 저장한다.
+
+실행 명령어:
+    # 전체 기간 다운로드
+    poetry run python scripts/data/download_data.py QQQ
+
+    # 시작 날짜 지정
+    poetry run python scripts/data/download_data.py SPY --start 2020-01-01
+
+    # 기간 지정
+    poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
 """
 
 import argparse
