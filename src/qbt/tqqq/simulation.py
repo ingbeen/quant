@@ -412,6 +412,7 @@ def calculate_validation_metrics(
             'overlap_days': int,
             'cumulative_return_simulated': float,
             'cumulative_return_actual': float,
+            'cumulative_return_abs_diff': float,
             'cumul_multiple_log_diff_mean_pct': float,
             'cumul_multiple_log_diff_rmse_pct': float,
             'cumul_multiple_log_diff_max_pct': float,
@@ -449,7 +450,10 @@ def calculate_validation_metrics(
     if output_path is not None:
         _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_multiple_log_diff_series, output_path)
 
-    # 7. 검증 결과 반환
+    # 7. 누적수익률 절대차이 계산 (마지막 날 기준, 퍼센트포인트)
+    cumulative_return_abs_diff = abs(actual_cumulative - sim_cumulative) * 100
+
+    # 8. 검증 결과 반환
     return {
         # 기간 정보
         "overlap_start": sim_overlap[COL_DATE].iloc[0],
@@ -458,6 +462,7 @@ def calculate_validation_metrics(
         # 누적 수익률
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
+        "cumulative_return_abs_diff": cumulative_return_abs_diff,
         # 누적배수 로그차이 기반 정확도 지표
         "cumul_multiple_log_diff_mean_pct": cumul_multiple_log_diff_mean,
         "cumul_multiple_log_diff_rmse_pct": cumul_multiple_log_diff_rmse,

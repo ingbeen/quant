@@ -113,9 +113,10 @@ def main() -> int:
             "leverage": round(strategy["leverage"], 2),
             "funding_spread": round(strategy["funding_spread"], 2),
             "expense_ratio": round(strategy["expense_ratio"], 6),
-            # 누적수익률/성과 (5개)
+            # 누적수익률/성과 (6개)
             "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
             "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
+            "누적수익률_절대차이": round(strategy["cumulative_return_abs_diff"], 2),
             "누적배수로그차이_평균(%)": round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
             "누적배수로그차이_RMSE(%)": round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
             "누적배수로그차이_최대(%)": round(strategy["cumul_multiple_log_diff_max_pct"], 4),
