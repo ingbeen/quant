@@ -112,9 +112,15 @@ KEY_OVERLAP_START = "overlap_start"
 KEY_OVERLAP_END = "overlap_end"
 KEY_OVERLAP_DAYS = "overlap_days"
 
+# 종가 정보
+KEY_FINAL_CLOSE_ACTUAL = "final_close_actual"
+KEY_FINAL_CLOSE_SIMULATED = "final_close_simulated"
+KEY_FINAL_CLOSE_REL_DIFF = "final_close_rel_diff_pct"
+
 # 누적수익률
 KEY_CUMULATIVE_RETURN_ACTUAL = "cumulative_return_actual"
 KEY_CUMULATIVE_RETURN_SIMULATED = "cumulative_return_simulated"
+KEY_CUMULATIVE_RETURN_REL_DIFF = "cumulative_return_rel_diff_pct"
 
 # 검증 지표
 KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "cumul_multiple_log_diff_mean_pct"

@@ -35,6 +35,17 @@ from qbt.tqqq.constants import (
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
     FFR_DATA_PATH,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    KEY_CUMULATIVE_RETURN_ACTUAL,
+    KEY_CUMULATIVE_RETURN_REL_DIFF,
+    KEY_CUMULATIVE_RETURN_SIMULATED,
+    KEY_FINAL_CLOSE_ACTUAL,
+    KEY_FINAL_CLOSE_SIMULATED,
+    KEY_OVERLAP_DAYS,
+    KEY_OVERLAP_END,
+    KEY_OVERLAP_START,
     MAX_TOP_STRATEGIES,
     TQQQ_DATA_PATH,
     TQQQ_VALIDATION_PATH,
@@ -113,12 +124,12 @@ def main() -> int:
         row = [
             f"{strategy[COL_SPREAD]:.4f}",
             f"{strategy[COL_EXPENSE]*100:.2f}",
-            f"{strategy['final_close_actual']:.2f}",
-            f"{strategy['final_close_simulated']:.2f}",
-            f"{strategy['cumulative_return_actual']*100:.2f}",
-            f"{strategy['cumulative_return_simulated']*100:.2f}",
-            f"{strategy['cumul_multiple_log_diff_rmse_pct']:.4f}",
-            f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
+            f"{strategy[KEY_FINAL_CLOSE_ACTUAL]:.2f}",
+            f"{strategy[KEY_FINAL_CLOSE_SIMULATED]:.2f}",
+            f"{strategy[KEY_CUMULATIVE_RETURN_ACTUAL]*100:.2f}",
+            f"{strategy[KEY_CUMULATIVE_RETURN_SIMULATED]*100:.2f}",
+            f"{strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}",
+            f"{strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN]:.4f}",
         ]
         rows.append(row)
 
@@ -135,15 +146,15 @@ def main() -> int:
             COL_SPREAD: round(strategy[COL_SPREAD], 4),
             COL_EXPENSE: round(strategy[COL_EXPENSE], 6),
             # 종가 (2개)
-            COL_ACTUAL_CLOSE: round(strategy["final_close_actual"], 2),
-            COL_SIMUL_CLOSE: round(strategy["final_close_simulated"], 2),
+            COL_ACTUAL_CLOSE: round(strategy[KEY_FINAL_CLOSE_ACTUAL], 2),
+            COL_SIMUL_CLOSE: round(strategy[KEY_FINAL_CLOSE_SIMULATED], 2),
             # 누적수익률/성과 (6개)
-            COL_ACTUAL_CUMUL_RETURN: round(strategy["cumulative_return_actual"] * 100, 2),
-            COL_SIMUL_CUMUL_RETURN: round(strategy["cumulative_return_simulated"] * 100, 2),
-            COL_CUMUL_RETURN_REL_DIFF: round(strategy["cumulative_return_rel_diff_pct"], 2),
-            COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE: round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
-            COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN: round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
-            COL_CUMUL_MULTIPLE_LOG_DIFF_MAX: round(strategy["cumul_multiple_log_diff_max_pct"], 4),
+            COL_ACTUAL_CUMUL_RETURN: round(strategy[KEY_CUMULATIVE_RETURN_ACTUAL] * 100, 2),
+            COL_SIMUL_CUMUL_RETURN: round(strategy[KEY_CUMULATIVE_RETURN_SIMULATED] * 100, 2),
+            COL_CUMUL_RETURN_REL_DIFF: round(strategy[KEY_CUMULATIVE_RETURN_REL_DIFF], 2),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE: round(strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE], 4),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN: round(strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_MAX: round(strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX], 4),
         }
         rows.append(row)
 
@@ -162,16 +173,16 @@ def main() -> int:
             "max_top_strategies": MAX_TOP_STRATEGIES,
         },
         "overlap_period": {
-            "start_date": str(top_strategies[0]["overlap_start"]),
-            "end_date": str(top_strategies[0]["overlap_end"]),
-            "total_days": int(top_strategies[0]["overlap_days"]),
+            "start_date": str(top_strategies[0][KEY_OVERLAP_START]),
+            "end_date": str(top_strategies[0][KEY_OVERLAP_END]),
+            "total_days": int(top_strategies[0][KEY_OVERLAP_DAYS]),
         },
         "results_summary": {
             "top_strategy": {
                 "rank": 1,
                 COL_SPREAD: round(top_strategies[0][COL_SPREAD], 4),
                 COL_EXPENSE: round(top_strategies[0][COL_EXPENSE], 6),
-                "cumul_multiple_log_diff_mean_pct": round(top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4),
+                "cumul_multiple_log_diff_mean_pct": round(top_strategies[0][KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
             },
             "cumul_multiple_log_diff_mean_pct": {
                 "min": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN].min(), 4),

@@ -42,6 +42,18 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    KEY_CUMULATIVE_RETURN_ACTUAL,
+    KEY_CUMULATIVE_RETURN_REL_DIFF,
+    KEY_CUMULATIVE_RETURN_SIMULATED,
+    KEY_FINAL_CLOSE_ACTUAL,
+    KEY_FINAL_CLOSE_REL_DIFF,
+    KEY_FINAL_CLOSE_SIMULATED,
+    KEY_OVERLAP_DAYS,
+    KEY_OVERLAP_END,
+    KEY_OVERLAP_START,
     MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
@@ -463,21 +475,21 @@ def calculate_validation_metrics(
     # 10. 검증 결과 반환
     return {
         # 기간 정보
-        "overlap_start": sim_overlap[COL_DATE].iloc[0],
-        "overlap_end": sim_overlap[COL_DATE].iloc[-1],
-        "overlap_days": len(sim_overlap),
+        KEY_OVERLAP_START: sim_overlap[COL_DATE].iloc[0],
+        KEY_OVERLAP_END: sim_overlap[COL_DATE].iloc[-1],
+        KEY_OVERLAP_DAYS: len(sim_overlap),
         # 종가 정보
-        "final_close_actual": final_close_actual,
-        "final_close_simulated": final_close_simulated,
-        "final_close_rel_diff_pct": final_close_rel_diff_pct,
+        KEY_FINAL_CLOSE_ACTUAL: final_close_actual,
+        KEY_FINAL_CLOSE_SIMULATED: final_close_simulated,
+        KEY_FINAL_CLOSE_REL_DIFF: final_close_rel_diff_pct,
         # 누적 수익률
-        "cumulative_return_simulated": sim_cumulative,
-        "cumulative_return_actual": actual_cumulative,
-        "cumulative_return_rel_diff_pct": cumulative_return_rel_diff_pct,
+        KEY_CUMULATIVE_RETURN_SIMULATED: sim_cumulative,
+        KEY_CUMULATIVE_RETURN_ACTUAL: actual_cumulative,
+        KEY_CUMULATIVE_RETURN_REL_DIFF: cumulative_return_rel_diff_pct,
         # 누적배수 로그차이 기반 정확도 지표
-        "cumul_multiple_log_diff_mean_pct": cumul_multiple_log_diff_mean,
-        "cumul_multiple_log_diff_rmse_pct": cumul_multiple_log_diff_rmse,
-        "cumul_multiple_log_diff_max_pct": cumul_multiple_log_diff_max,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: cumul_multiple_log_diff_mean,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: cumul_multiple_log_diff_rmse,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: cumul_multiple_log_diff_max,
     }
 
 
