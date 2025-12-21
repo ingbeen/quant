@@ -448,14 +448,17 @@ def calculate_validation_metrics(
     if output_path is not None:
         _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_multiple_log_diff_series, output_path)
 
-    # 7. 누적수익률 절대차이 계산 (마지막 날 기준, 퍼센트포인트)
-    cumulative_return_abs_diff = abs(actual_cumulative - sim_cumulative) * 100
+    # 7. 누적수익률 상대차이 계산 (마지막 날 기준, 실제 기준 퍼센트)
+    cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative) / actual_cumulative) * 100
 
     # 8. 마지막 날 종가 추출
     final_close_actual = float(actual_overlap.iloc[-1][COL_CLOSE])
     final_close_simulated = float(sim_overlap.iloc[-1][COL_CLOSE])
 
-    # 9. 검증 결과 반환
+    # 9. 종가 상대차이 계산 (실제 기준 퍼센트)
+    final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
+
+    # 10. 검증 결과 반환
     return {
         # 기간 정보
         "overlap_start": sim_overlap[COL_DATE].iloc[0],
@@ -464,10 +467,11 @@ def calculate_validation_metrics(
         # 종가 정보
         "final_close_actual": final_close_actual,
         "final_close_simulated": final_close_simulated,
+        "final_close_rel_diff_pct": final_close_rel_diff_pct,
         # 누적 수익률
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
-        "cumulative_return_abs_diff": cumulative_return_abs_diff,
+        "cumulative_return_rel_diff_pct": cumulative_return_rel_diff_pct,
         # 누적배수 로그차이 기반 정확도 지표
         "cumul_multiple_log_diff_mean_pct": cumul_multiple_log_diff_mean,
         "cumul_multiple_log_diff_rmse_pct": cumul_multiple_log_diff_rmse,
