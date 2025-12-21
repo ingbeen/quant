@@ -21,8 +21,12 @@ from qbt.common_constants import (
     COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     COL_CUMUL_RETURN_REL_DIFF,
+    COL_DISPLAY_EXPENSE,
+    COL_DISPLAY_SPREAD,
+    COL_EXPENSE,
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
+    COL_SPREAD,
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
     RESULTS_DIR,
@@ -65,8 +69,8 @@ def main() -> int:
     logger.debug(
         f"비용 모델 캘리브레이션 시작: "
         f"leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"spread={DEFAULT_SPREAD_RANGE[0]}~{DEFAULT_SPREAD_RANGE[1]}% (step={DEFAULT_SPREAD_STEP}%), "
-        f"expense={DEFAULT_EXPENSE_RANGE[0]*100:.2f}~{DEFAULT_EXPENSE_RANGE[1]*100:.2f}% "
+        f"{COL_DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]}~{DEFAULT_SPREAD_RANGE[1]}% (step={DEFAULT_SPREAD_STEP}%), "
+        f"{COL_DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RANGE[0]*100:.2f}~{DEFAULT_EXPENSE_RANGE[1]*100:.2f}% "
         f"(step={DEFAULT_EXPENSE_STEP*100:.2f}%)"
     )
 
@@ -96,8 +100,8 @@ def main() -> int:
 
     # 4. 상위 전략 테이블 출력
     columns = [
-        ("Spread", 10, Align.RIGHT),
-        ("Expense(%)", 11, Align.RIGHT),
+        (COL_DISPLAY_SPREAD, 14, Align.RIGHT),
+        (COL_DISPLAY_EXPENSE, 14, Align.RIGHT),
         (COL_ACTUAL_CLOSE, 11, Align.RIGHT),
         (COL_SIMUL_CLOSE, 11, Align.RIGHT),
         (COL_ACTUAL_CUMUL_RETURN, 18, Align.RIGHT),
@@ -110,8 +114,8 @@ def main() -> int:
     rows = []
     for _, strategy in enumerate(top_strategies, start=1):
         row = [
-            f"{strategy['funding_spread']:.4f}",
-            f"{strategy['expense_ratio']*100:.2f}",
+            f"{strategy[COL_SPREAD]:.4f}",
+            f"{strategy[COL_EXPENSE]*100:.2f}",
             f"{strategy['final_close_actual']:.2f}",
             f"{strategy['final_close_simulated']:.2f}",
             f"{strategy['cumulative_return_actual']*100:.2f}",
@@ -131,8 +135,8 @@ def main() -> int:
     for _, strategy in enumerate(top_strategies, start=1):
         row = {
             # 파라미터 (2개)
-            "funding_spread": round(strategy["funding_spread"], 4),
-            "expense_ratio": round(strategy["expense_ratio"], 6),
+            COL_SPREAD: round(strategy[COL_SPREAD], 4),
+            COL_EXPENSE: round(strategy[COL_EXPENSE], 6),
             # 종가 (2개)
             COL_ACTUAL_CLOSE: round(strategy["final_close_actual"], 2),
             COL_SIMUL_CLOSE: round(strategy["final_close_simulated"], 2),
@@ -168,8 +172,8 @@ def main() -> int:
         "results_summary": {
             "top_strategy": {
                 "rank": 1,
-                "funding_spread": round(top_strategies[0]["funding_spread"], 4),
-                "expense_ratio": round(top_strategies[0]["expense_ratio"], 6),
+                COL_SPREAD: round(top_strategies[0][COL_SPREAD], 4),
+                COL_EXPENSE: round(top_strategies[0][COL_EXPENSE], 6),
                 "cumul_multiple_log_diff_mean_pct": round(top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4),
             },
             "cumul_multiple_log_diff_mean_pct": {

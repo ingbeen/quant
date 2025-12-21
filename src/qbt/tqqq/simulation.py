@@ -20,6 +20,7 @@ from qbt.common_constants import (
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DATE,
     COL_DATE_KR,
+    COL_EXPENSE,
     COL_FFR,
     COL_FFR_DATE,
     COL_HIGH,
@@ -28,6 +29,7 @@ from qbt.common_constants import (
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
+    COL_SPREAD,
     COL_VOLUME,
     EPSILON,
     REQUIRED_COLUMNS,
@@ -224,10 +226,10 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     sim_df = simulate(
         params["underlying_overlap"],
         leverage=params["leverage"],
-        expense_ratio=params["expense"],
+        expense_ratio=params[COL_EXPENSE],
         initial_price=params["initial_price"],
         ffr_df=params["ffr_df"],
-        funding_spread=params["spread"],
+        funding_spread=params[COL_SPREAD],
     )
 
     # 검증 지표 계산
@@ -240,8 +242,8 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     # candidate 딕셔너리 생성
     candidate = {
         "leverage": params["leverage"],
-        "funding_spread": params["spread"],
-        "expense_ratio": params["expense"],
+        COL_SPREAD: params[COL_SPREAD],
+        COL_EXPENSE: params[COL_EXPENSE],
         **metrics,
     }
 
@@ -535,8 +537,8 @@ def find_optimal_cost_model(
                     "actual_overlap": actual_overlap,
                     "ffr_df": ffr_df,
                     "leverage": leverage,
-                    "spread": float(spread),
-                    "expense": float(expense),
+                    COL_SPREAD: float(spread),
+                    COL_EXPENSE: float(expense),
                     "initial_price": initial_price,
                 }
             )

@@ -94,5 +94,17 @@ COMPARISON_COLUMNS = [
     COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]
 
+# ============================================================
+# TQQQ 시뮬레이션 표시 문구 및 딕셔너리 키
+# ============================================================
+
+# 컬럼/로그 표시 문구
+COL_DISPLAY_SPREAD = "Funding Spread"
+COL_DISPLAY_EXPENSE = "Expense Ratio"
+
+# 딕셔너리 키 (내부 사용)
+COL_SPREAD = "spread"
+COL_EXPENSE = "expense"
+
 # 메타데이터 관리 상수
 MAX_HISTORY_COUNT = 5  # meta.json에 유지할 최대 이력 개수
