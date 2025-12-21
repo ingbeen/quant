@@ -40,27 +40,28 @@ quant/
 │   ├── data/          # 데이터 다운로드
 │   ├── backtest/      # 백테스트 실행
 │   └── tqqq/          # 레버리지 ETF 관련
+│       └── streamlit_app.py  # 대시보드 앱
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
 │   │   ├── constants.py  # 백테스트 전용 상수
-│   │   ├── data.py
-│   │   ├── strategy.py
-│   │   └── metrics.py
+│   │   ├── analysis.py   # 이동평균 계산 및 성과 지표
+│   │   └── strategy.py   # 전략 실행 엔진
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py  # 시뮬레이션 전용 상수
-│   │   ├── simulation.py
-│   │   └── dashboard.py
+│   │   └── simulation.py # 시뮬레이션 엔진
 │   └── utils/         # 공통 유틸리티
 │       ├── logger.py
 │       ├── formatting.py
 │       ├── data_loader.py       # CSV 로딩 통합
 │       ├── cli_helpers.py       # 예외 처리 데코레이터
-│       └── parallel_executor.py # 병렬 처리
+│       ├── parallel_executor.py # 병렬 처리
+│       └── meta_manager.py      # 실행 메타데이터 관리
 └── storage/           # 데이터 저장소
     ├── stock/         # 주식 데이터 CSV
     ├── etc/           # 기타 데이터 (금리 등)
-    └── results/       # 분석 결과 CSV
+    └── results/       # 분석 결과 CSV 및 메타데이터
+        └── meta.json  # 실행 이력 메타데이터
 ```
 
 ---
@@ -212,6 +213,7 @@ quant/
 - `grid_results.csv`: 백테스트 그리드 서치 결과
 - `tqqq_validation.csv`: TQQQ 시뮬레이션 검증 결과
 - `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터
+- `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
 
 ### 데이터 로딩 (utils/data_loader.py)
 
@@ -300,6 +302,7 @@ quant/
 - CSV 데이터 로딩 통합
 - 병렬 처리 프레임워크
 - 터미널 출력 포맷팅
+- 실행 메타데이터 관리
 
 **이 패키지 작업 시**: [`src/qbt/utils/CLAUDE.md`](src/qbt/utils/CLAUDE.md) 참고
 
