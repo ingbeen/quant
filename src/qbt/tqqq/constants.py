@@ -6,6 +6,8 @@
 
 from pathlib import Path
 
+from qbt.common_constants import COL_DISPLAY_DATE
+
 # ============================================================
 # 경로 상수 (TQQQ 도메인 전용)
 # ============================================================
@@ -58,7 +60,6 @@ COL_FFR = "FFR"  # 변환 후 금리 컬럼명
 # ============================================================
 
 # 일별 비교 기본 컬럼
-COL_DATE_KR = "날짜"
 COL_ACTUAL_CLOSE = "종가_실제"
 COL_SIMUL_CLOSE = "종가_시뮬"
 
@@ -80,7 +81,7 @@ COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
 
 # 일별 비교 필수 컬럼 그룹
 COMPARISON_COLUMNS = [
-    COL_DATE_KR,
+    COL_DISPLAY_DATE,
     COL_ACTUAL_CLOSE,
     COL_SIMUL_CLOSE,
     COL_ACTUAL_DAILY_RETURN,
@@ -95,13 +96,13 @@ COMPARISON_COLUMNS = [
 # TQQQ 시뮬레이션 표시 문구 및 딕셔너리 키
 # ============================================================
 
-# 컬럼/로그 표시 문구
-COL_DISPLAY_SPREAD = "Funding Spread"
-COL_DISPLAY_EXPENSE = "Expense Ratio"
+# 로그/CSV 출력용 레이블
+DISPLAY_SPREAD = "Funding Spread"
+DISPLAY_EXPENSE = "Expense Ratio"
 
 # 딕셔너리 키 (내부 사용)
-COL_SPREAD = "spread"
-COL_EXPENSE = "expense"
+KEY_SPREAD = "spread"
+KEY_EXPENSE = "expense"
 
 # ============================================================
 # validation_results 딕셔너리 키

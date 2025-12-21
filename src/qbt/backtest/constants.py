@@ -32,7 +32,7 @@ DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
 # 그리드 서치 결과 컬럼명
 # ============================================================
 
-# DataFrame 내부 컬럼명 (영문)
+# DataFrame 내부 컬럼명
 COL_MA_WINDOW = "ma_window"
 COL_BUFFER_ZONE_PCT = "buffer_zone_pct"
 COL_HOLD_DAYS = "hold_days"
@@ -44,15 +44,14 @@ COL_TOTAL_TRADES = "total_trades"
 COL_WIN_RATE = "win_rate"
 COL_FINAL_CAPITAL = "final_capital"
 
-# 출력용 컬럼명 (한글)
-COL_DISPLAY_MA_WINDOW = "이평기간"
-COL_DISPLAY_BUFFER_ZONE = "버퍼존"
-COL_DISPLAY_HOLD_DAYS = "유지일"
-COL_DISPLAY_RECENT_MONTHS = "조정기간"
-COL_DISPLAY_TOTAL_RETURN = "수익률"
-COL_DISPLAY_CAGR = "CAGR"
-COL_DISPLAY_MDD = "MDD"
-COL_DISPLAY_TOTAL_TRADES = "거래수"
-COL_DISPLAY_WIN_RATE = "승률"
-COL_DISPLAY_FINAL_CAPITAL = "최종자본"
-
+# 출력용 레이블 (로그/CSV 출력용)
+DISPLAY_MA_WINDOW = "이평기간"
+DISPLAY_BUFFER_ZONE = "버퍼존"
+DISPLAY_HOLD_DAYS = "유지일"
+DISPLAY_RECENT_MONTHS = "조정기간"
+DISPLAY_TOTAL_RETURN = "수익률"
+DISPLAY_CAGR = "CAGR"
+DISPLAY_MDD = "MDD"
+DISPLAY_TOTAL_TRADES = "거래수"
+DISPLAY_WIN_RATE = "승률"
+DISPLAY_FINAL_CAPITAL = "최종자본"

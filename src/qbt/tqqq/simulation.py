@@ -14,6 +14,7 @@ import pandas as pd
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
+    COL_DISPLAY_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
@@ -28,14 +29,11 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
     COL_DAILY_RETURN_ABS_DIFF,
-    COL_DATE_KR,
-    COL_EXPENSE,
     COL_FFR,
     COL_FFR_DATE,
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
-    COL_SPREAD,
     DEFAULT_EXPENSE_RANGE,
     DEFAULT_EXPENSE_STEP,
     DEFAULT_FUNDING_SPREAD,
@@ -48,6 +46,8 @@ from qbt.tqqq.constants import (
     KEY_CUMULATIVE_RETURN_ACTUAL,
     KEY_CUMULATIVE_RETURN_REL_DIFF,
     KEY_CUMULATIVE_RETURN_SIMULATED,
+    KEY_EXPENSE,
+    KEY_SPREAD,
     KEY_FINAL_CLOSE_ACTUAL,
     KEY_FINAL_CLOSE_REL_DIFF,
     KEY_FINAL_CLOSE_SIMULATED,
@@ -238,10 +238,10 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     sim_df = simulate(
         params["underlying_overlap"],
         leverage=params["leverage"],
-        expense_ratio=params[COL_EXPENSE],
+        expense_ratio=params[KEY_EXPENSE],
         initial_price=params["initial_price"],
         ffr_df=params["ffr_df"],
-        funding_spread=params[COL_SPREAD],
+        funding_spread=params[KEY_SPREAD],
     )
 
     # 검증 지표 계산
@@ -254,8 +254,8 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     # candidate 딕셔너리 생성
     candidate = {
         "leverage": params["leverage"],
-        COL_SPREAD: params[COL_SPREAD],
-        COL_EXPENSE: params[COL_EXPENSE],
+        KEY_SPREAD: params[KEY_SPREAD],
+        KEY_EXPENSE: params[KEY_EXPENSE],
         **metrics,
     }
 
@@ -367,7 +367,7 @@ def _save_daily_comparison_csv(
     """
     # 1. 기본 데이터 준비
     comparison_data = {
-        COL_DATE_KR: actual_overlap[COL_DATE],
+        COL_DISPLAY_DATE: actual_overlap[COL_DATE],
         COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
         COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
     }
@@ -395,7 +395,7 @@ def _save_daily_comparison_csv(
 
     # 5. DataFrame 생성 및 반올림
     comparison_df = pd.DataFrame(comparison_data)
-    num_cols = [c for c in comparison_df.columns if c != COL_DATE_KR]
+    num_cols = [c for c in comparison_df.columns if c != COL_DISPLAY_DATE]
     comparison_df[num_cols] = comparison_df[num_cols].round(4)
 
     # 6. CSV 저장
@@ -549,8 +549,8 @@ def find_optimal_cost_model(
                     "actual_overlap": actual_overlap,
                     "ffr_df": ffr_df,
                     "leverage": leverage,
-                    COL_SPREAD: float(spread),
-                    COL_EXPENSE: float(expense),
+                    KEY_SPREAD: float(spread),
+                    KEY_EXPENSE: float(expense),
                     "initial_price": initial_price,
                 }
             )

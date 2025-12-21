@@ -13,16 +13,6 @@ from qbt.backtest import run_grid_search
 from qbt.backtest.constants import (
     COL_BUFFER_ZONE_PCT,
     COL_CAGR,
-    COL_DISPLAY_BUFFER_ZONE,
-    COL_DISPLAY_CAGR,
-    COL_DISPLAY_FINAL_CAPITAL,
-    COL_DISPLAY_HOLD_DAYS,
-    COL_DISPLAY_MA_WINDOW,
-    COL_DISPLAY_MDD,
-    COL_DISPLAY_RECENT_MONTHS,
-    COL_DISPLAY_TOTAL_RETURN,
-    COL_DISPLAY_TOTAL_TRADES,
-    COL_DISPLAY_WIN_RATE,
     COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
@@ -33,6 +23,16 @@ from qbt.backtest.constants import (
     COL_WIN_RATE,
     DEFAULT_BUFFER_ZONE_PCT_LIST,
     DEFAULT_HOLD_DAYS_LIST,
+    DISPLAY_BUFFER_ZONE,
+    DISPLAY_CAGR,
+    DISPLAY_FINAL_CAPITAL,
+    DISPLAY_HOLD_DAYS,
+    DISPLAY_MA_WINDOW,
+    DISPLAY_MDD,
+    DISPLAY_RECENT_MONTHS,
+    DISPLAY_TOTAL_RETURN,
+    DISPLAY_TOTAL_TRADES,
+    DISPLAY_WIN_RATE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
@@ -120,15 +120,15 @@ def main() -> int:
     # 4. 상위 결과 출력
     columns = [
         ("순위", 6, Align.RIGHT),
-        (COL_DISPLAY_MA_WINDOW, 10, Align.RIGHT),
-        (COL_DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
-        (COL_DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
-        (COL_DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
-        (COL_DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
-        (COL_DISPLAY_CAGR, 10, Align.RIGHT),
-        (COL_DISPLAY_MDD, 10, Align.RIGHT),
-        (COL_DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
-        (COL_DISPLAY_WIN_RATE, 8, Align.RIGHT),
+        (DISPLAY_MA_WINDOW, 10, Align.RIGHT),
+        (DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
+        (DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
+        (DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
+        (DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
+        (DISPLAY_CAGR, 10, Align.RIGHT),
+        (DISPLAY_MDD, 10, Align.RIGHT),
+        (DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
+        (DISPLAY_WIN_RATE, 8, Align.RIGHT),
     ]
 
     top_n = 10
@@ -161,26 +161,26 @@ def main() -> int:
     # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
     results_df_export = results_df.rename(
         columns={
-            COL_MA_WINDOW: COL_DISPLAY_MA_WINDOW,
-            COL_BUFFER_ZONE_PCT: COL_DISPLAY_BUFFER_ZONE,
-            COL_HOLD_DAYS: COL_DISPLAY_HOLD_DAYS,
-            COL_RECENT_MONTHS: COL_DISPLAY_RECENT_MONTHS,
-            COL_TOTAL_RETURN_PCT: COL_DISPLAY_TOTAL_RETURN,
-            COL_CAGR: COL_DISPLAY_CAGR,
-            COL_MDD: COL_DISPLAY_MDD,
-            COL_TOTAL_TRADES: COL_DISPLAY_TOTAL_TRADES,
-            COL_WIN_RATE: COL_DISPLAY_WIN_RATE,
-            COL_FINAL_CAPITAL: COL_DISPLAY_FINAL_CAPITAL,
+            COL_MA_WINDOW: DISPLAY_MA_WINDOW,
+            COL_BUFFER_ZONE_PCT: DISPLAY_BUFFER_ZONE,
+            COL_HOLD_DAYS: DISPLAY_HOLD_DAYS,
+            COL_RECENT_MONTHS: DISPLAY_RECENT_MONTHS,
+            COL_TOTAL_RETURN_PCT: DISPLAY_TOTAL_RETURN,
+            COL_CAGR: DISPLAY_CAGR,
+            COL_MDD: DISPLAY_MDD,
+            COL_TOTAL_TRADES: DISPLAY_TOTAL_TRADES,
+            COL_WIN_RATE: DISPLAY_WIN_RATE,
+            COL_FINAL_CAPITAL: DISPLAY_FINAL_CAPITAL,
         }
     )
     results_df_export = results_df_export.round(
         {
-            COL_DISPLAY_BUFFER_ZONE: 4,  # 0.0500
-            COL_DISPLAY_TOTAL_RETURN: 2,  # 1551.43
-            COL_DISPLAY_CAGR: 2,  # 11.05
-            COL_DISPLAY_MDD: 2,  # -42.83
-            COL_DISPLAY_WIN_RATE: 2,  # 80.00
-            COL_DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
+            DISPLAY_BUFFER_ZONE: 4,  # 0.0500
+            DISPLAY_TOTAL_RETURN: 2,  # 1551.43
+            DISPLAY_CAGR: 2,  # 11.05
+            DISPLAY_MDD: 2,  # -42.83
+            DISPLAY_WIN_RATE: 2,  # 80.00
+            DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
         }
     )
 

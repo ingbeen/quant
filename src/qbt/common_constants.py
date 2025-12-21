@@ -30,7 +30,8 @@ META_JSON_PATH = RESULTS_DIR / "meta.json"
 # ============================================================
 
 # CSV 파일 컬럼명
-COL_DATE = "Date"
+COL_DATE = "Date"  # 주식 데이터 CSV 날짜 컬럼 (영문)
+COL_DISPLAY_DATE = "날짜"  # 출력/비교 데이터 날짜 컬럼 (한글)
 COL_OPEN = "Open"
 COL_HIGH = "High"
 COL_LOW = "Low"

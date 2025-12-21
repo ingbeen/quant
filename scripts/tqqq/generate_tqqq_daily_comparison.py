@@ -22,12 +22,12 @@ from qbt.tqqq.constants import (
     COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     COL_DAILY_RETURN_ABS_DIFF,
-    COL_DISPLAY_EXPENSE,
-    COL_DISPLAY_SPREAD,
     COL_SIMUL_CUMUL_RETURN,
     DEFAULT_EXPENSE_RATIO,
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,
+    DISPLAY_EXPENSE,
+    DISPLAY_SPREAD,
     FFR_DATA_PATH,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
@@ -69,8 +69,8 @@ def main() -> int:
     # 3. 시뮬레이션 실행
     logger.debug(
         f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"{COL_DISPLAY_SPREAD}={DEFAULT_FUNDING_SPREAD:.4f}, "
-        f"{COL_DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RATIO*100:.2f}%"
+        f"{DISPLAY_SPREAD}={DEFAULT_FUNDING_SPREAD:.4f}, "
+        f"{DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RATIO*100:.2f}%"
     )
 
     initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
@@ -143,8 +143,8 @@ def main() -> int:
     logger.debug(f"검증 기간: {validation_results[KEY_OVERLAP_START]} ~ {validation_results[KEY_OVERLAP_END]}")
     logger.debug(f"총 일수: {validation_results[KEY_OVERLAP_DAYS]:,}일")
     logger.debug(f"레버리지: {DEFAULT_LEVERAGE_MULTIPLIER:.1f}배")
-    logger.debug(f"{COL_DISPLAY_SPREAD}: {DEFAULT_FUNDING_SPREAD:.4f}")
-    logger.debug(f"{COL_DISPLAY_EXPENSE}: {DEFAULT_EXPENSE_RATIO*100:.2f}%")
+    logger.debug(f"{DISPLAY_SPREAD}: {DEFAULT_FUNDING_SPREAD:.4f}")
+    logger.debug(f"{DISPLAY_EXPENSE}: {DEFAULT_EXPENSE_RATIO*100:.2f}%")
 
     logger.debug("-" * 64)
     logger.debug("검증 지표")
