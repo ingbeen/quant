@@ -88,30 +88,28 @@ def main() -> int:
 
     # 4. 상위 전략 테이블 출력
     columns = [
-        ("Rank", 6, Align.RIGHT),
         ("Spread", 10, Align.RIGHT),
         ("Expense(%)", 11, Align.RIGHT),
         ("종가_실제", 11, Align.RIGHT),
         ("종가_시뮬", 11, Align.RIGHT),
         ("누적수익률_실제(%)", 18, Align.RIGHT),
         ("누적수익률_시뮬(%)", 18, Align.RIGHT),
-        ("로그차이평균(%)", 16, Align.RIGHT),
         ("로그차이RMSE(%)", 16, Align.RIGHT),
+        ("로그차이평균(%)", 16, Align.RIGHT),
     ]
     table = TableLogger(columns, logger, indent=2)
 
     rows = []
     for rank, strategy in enumerate(top_strategies, start=1):
         row = [
-            str(rank),
             f"{strategy['funding_spread']:.4f}",
             f"{strategy['expense_ratio']*100:.2f}",
             f"{strategy['final_close_actual']:.2f}",
             f"{strategy['final_close_simulated']:.2f}",
             f"{strategy['cumulative_return_actual']*100:.2f}",
             f"{strategy['cumulative_return_simulated']*100:.2f}",
-            f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
             f"{strategy['cumul_multiple_log_diff_rmse_pct']:.4f}",
+            f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
         ]
         rows.append(row)
 
@@ -124,20 +122,18 @@ def main() -> int:
     rows = []
     for rank, strategy in enumerate(top_strategies, start=1):
         row = {
-            # 파라미터 (3개)
-            "rank": rank,
+            # 파라미터 (2개)
             "funding_spread": round(strategy["funding_spread"], 4),
             "expense_ratio": round(strategy["expense_ratio"], 6),
-            # 종가 (3개)
+            # 종가 (2개)
             "종가_실제": round(strategy["final_close_actual"], 2),
             "종가_시뮬": round(strategy["final_close_simulated"], 2),
-            "종가_상대차이(%)": round(strategy["final_close_rel_diff_pct"], 2),
             # 누적수익률/성과 (6개)
             "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
             "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
             "누적수익률_상대차이(%)": round(strategy["cumulative_return_rel_diff_pct"], 2),
-            "누적배수로그차이_평균(%)": round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
             "누적배수로그차이_RMSE(%)": round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
+            "누적배수로그차이_평균(%)": round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
             "누적배수로그차이_최대(%)": round(strategy["cumul_multiple_log_diff_max_pct"], 4),
         }
         rows.append(row)

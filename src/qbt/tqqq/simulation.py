@@ -544,8 +544,8 @@ def find_optimal_cost_model(
     # 4. 병렬 실행
     candidates = execute_parallel(_evaluate_cost_model_candidate, param_combinations, max_workers=max_workers)
 
-    # 5. 누적배수 로그차이 평균 기준 오름차순 정렬 (낮을수록 우수)
-    candidates.sort(key=lambda x: x["cumul_multiple_log_diff_mean_pct"])
+    # 5. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
+    candidates.sort(key=lambda x: x["cumul_multiple_log_diff_rmse_pct"])
 
     # 6. 상위 전략 반환
     top_strategies = candidates[:MAX_TOP_STRATEGIES]

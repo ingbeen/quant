@@ -92,6 +92,51 @@
         "top_strategy": {
           "rank": 1,
           "funding_spread": 0.004,
+          "expense_ratio": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7212
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6512,
+          "max": 6.31,
+          "median": 3.548
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9668,
+          "max": 6.8724,
+          "median": 3.9188
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3734
+      },
+      "timestamp": "2025-12-21T16:14:54+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "funding_spread": 0.004,
           "expense_ratio": 0.008,
           "cumul_multiple_log_diff_mean_pct": 1.6512
         },
