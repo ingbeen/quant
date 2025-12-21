@@ -91,6 +91,51 @@
       "results_summary": {
         "top_strategy": {
           "rank": 1,
+          "spread": 0.004,
+          "expense": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7212
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6512,
+          "max": 6.31,
+          "median": 3.548
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9668,
+          "max": 6.8724,
+          "median": 3.9188
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3711
+      },
+      "timestamp": "2025-12-21T20:58:26+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
           "funding_spread": 0.004,
           "expense_ratio": 0.0085,
           "cumul_multiple_log_diff_mean_pct": 1.7212
@@ -254,6 +299,146 @@
       "execution_params": {
         "leverage": 3.0,
         "funding_spread": 0.004,
+        "expense_ratio": 0.0085
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25451.59,
+        "cumulative_return_simulated_pct": 26415.33,
+        "cumul_multiple_log_diff_mean_pct": 1.7212,
+        "cumul_multiple_log_diff_rmse_pct": 1.9668,
+        "cumul_multiple_log_diff_max_pct": 6.5189
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0958,
+          "max": 6.4455
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.7212,
+          "max": 6.5189
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3985,
+        "file_size_bytes": 291586
+      },
+      "timestamp": "2025-12-21T21:17:17+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004,
+        "expense_ratio": 0.0085
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25451.59,
+        "cumulative_return_simulated_pct": 26415.33,
+        "cumul_multiple_log_diff_mean_pct": 1.7212,
+        "cumul_multiple_log_diff_rmse_pct": 1.9668,
+        "cumul_multiple_log_diff_max_pct": 6.5189
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0958,
+          "max": 6.4455
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.7212,
+          "max": 6.5189
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3985,
+        "file_size_bytes": 291586
+      },
+      "timestamp": "2025-12-21T21:06:20+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004,
+        "expense_ratio": 0.085
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25451.59,
+        "cumulative_return_simulated_pct": 7815.76,
+        "cumul_multiple_log_diff_mean_pct": 61.2102,
+        "cumul_multiple_log_diff_rmse_pct": 70.0189,
+        "cumul_multiple_log_diff_max_pct": 117.2485
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.1003,
+          "max": 6.4152
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 61.2102,
+          "max": 117.2485
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3985,
+        "file_size_bytes": 293907
+      },
+      "timestamp": "2025-12-21T21:00:21+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004,
+        "expense_ratio": 0.085
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-12",
+        "total_days": 3985
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25451.59,
+        "cumulative_return_simulated_pct": 7815.76,
+        "cumul_multiple_log_diff_mean_pct": 61.2102,
+        "cumul_multiple_log_diff_rmse_pct": 70.0189,
+        "cumul_multiple_log_diff_max_pct": 117.2485
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.1003,
+          "max": 6.4152
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 61.2102,
+          "max": 117.2485
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3985,
+        "file_size_bytes": 293907
+      },
+      "timestamp": "2025-12-21T20:57:36+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004,
         "expense_ratio": 0.085
       },
       "overlap_period": {
@@ -284,41 +469,6 @@
         "file_size_bytes": 293916
       },
       "timestamp": "2025-12-21T18:59:55+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.005,
-        "expense_ratio": 0.009
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-12",
-        "total_days": 3985
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25451.59,
-        "cumulative_return_simulated_pct": 25388.4,
-        "cumul_multiple_log_diff_mean_pct": 2.7592,
-        "cumul_multiple_log_diff_rmse_pct": 3.1614,
-        "cumul_multiple_log_diff_max_pct": 9.0364
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0958,
-          "max": 6.4445
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 2.7592,
-          "max": 9.0364
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3985,
-        "file_size_bytes": 291529
-      },
-      "timestamp": "2025-12-21T15:10:44+09:00"
     }
   ]
 }

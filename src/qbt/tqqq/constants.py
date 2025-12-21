@@ -28,14 +28,13 @@ DEFAULT_LEVERAGE_MULTIPLIER = 3.0  # TQQQ 3배 레버리지
 DEFAULT_SYNTHETIC_INITIAL_PRICE = 200.0  # 합성 데이터 초기 가격
 
 # ============================================================
-# 비용 모델 - 기본값
+# 비용 모델
 # ============================================================
+# 기본값
 DEFAULT_FUNDING_SPREAD = 0.004  # FFR 스프레드 (%)
-DEFAULT_EXPENSE_RATIO = 0.085  # 연간 비용 비율 (%)
+DEFAULT_EXPENSE_RATIO = 0.0085  # 연간 비용 비율 (%)
 
-# ============================================================
-# 비용 모델 - 그리드 서치 범위
-# ============================================================
+# 그리드 서치 범위
 DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP = 0.0005  # 스프레드 증분 (%)
 DEFAULT_EXPENSE_RANGE = (0.0075, 0.0105)  # expense ratio 범위 (%)
@@ -103,3 +102,21 @@ COL_DISPLAY_EXPENSE = "Expense Ratio"
 # 딕셔너리 키 (내부 사용)
 COL_SPREAD = "spread"
 COL_EXPENSE = "expense"
+
+# ============================================================
+# validation_results 딕셔너리 키
+# ============================================================
+
+# 겹치는 기간 정보
+KEY_OVERLAP_START = "overlap_start"
+KEY_OVERLAP_END = "overlap_end"
+KEY_OVERLAP_DAYS = "overlap_days"
+
+# 누적수익률
+KEY_CUMULATIVE_RETURN_ACTUAL = "cumulative_return_actual"
+KEY_CUMULATIVE_RETURN_SIMULATED = "cumulative_return_simulated"
+
+# 검증 지표
+KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "cumul_multiple_log_diff_mean_pct"
+KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "cumul_multiple_log_diff_rmse_pct"
+KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX = "cumul_multiple_log_diff_max_pct"

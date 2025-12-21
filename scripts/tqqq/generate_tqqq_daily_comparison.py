@@ -16,14 +16,27 @@ import pandas as pd
 from qbt.common_constants import COL_CLOSE, QQQ_DATA_PATH
 from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate
 from qbt.tqqq.constants import (
+    COL_ACTUAL_CUMUL_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DISPLAY_EXPENSE,
     COL_DISPLAY_SPREAD,
+    COL_SIMUL_CUMUL_RETURN,
     DEFAULT_EXPENSE_RATIO,
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,
     FFR_DATA_PATH,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    KEY_CUMULATIVE_RETURN_ACTUAL,
+    KEY_CUMULATIVE_RETURN_SIMULATED,
+    KEY_OVERLAP_DAYS,
+    KEY_OVERLAP_END,
+    KEY_OVERLAP_START,
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
@@ -92,16 +105,16 @@ def main() -> int:
             "expense_ratio": round(DEFAULT_EXPENSE_RATIO, 6),
         },
         "overlap_period": {
-            "start_date": str(validation_results["overlap_start"]),
-            "end_date": str(validation_results["overlap_end"]),
-            "total_days": int(validation_results["overlap_days"]),
+            "start_date": str(validation_results[KEY_OVERLAP_START]),
+            "end_date": str(validation_results[KEY_OVERLAP_END]),
+            "total_days": int(validation_results[KEY_OVERLAP_DAYS]),
         },
         "validation_metrics": {
-            "cumulative_return_actual_pct": round(validation_results["cumulative_return_actual"] * 100, 2),
-            "cumulative_return_simulated_pct": round(validation_results["cumulative_return_simulated"] * 100, 2),
-            "cumul_multiple_log_diff_mean_pct": round(validation_results["cumul_multiple_log_diff_mean_pct"], 4),
-            "cumul_multiple_log_diff_rmse_pct": round(validation_results["cumul_multiple_log_diff_rmse_pct"], 4),
-            "cumul_multiple_log_diff_max_pct": round(validation_results["cumul_multiple_log_diff_max_pct"], 4),
+            "cumulative_return_actual_pct": round(validation_results[KEY_CUMULATIVE_RETURN_ACTUAL] * 100, 2),
+            "cumulative_return_simulated_pct": round(validation_results[KEY_CUMULATIVE_RETURN_SIMULATED] * 100, 2),
+            "cumul_multiple_log_diff_mean_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
+            "cumul_multiple_log_diff_rmse_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE], 4),
+            "cumul_multiple_log_diff_max_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX], 4),
         },
         "daily_stats": {
             "daily_return_abs_diff": {
@@ -127,8 +140,8 @@ def main() -> int:
     logger.debug("=" * 64)
     logger.debug("TQQQ 시뮬레이션 검증")
     logger.debug("=" * 64)
-    logger.debug(f"검증 기간: {validation_results['overlap_start']} ~ {validation_results['overlap_end']}")
-    logger.debug(f"총 일수: {validation_results['overlap_days']:,}일")
+    logger.debug(f"검증 기간: {validation_results[KEY_OVERLAP_START]} ~ {validation_results[KEY_OVERLAP_END]}")
+    logger.debug(f"총 일수: {validation_results[KEY_OVERLAP_DAYS]:,}일")
     logger.debug(f"레버리지: {DEFAULT_LEVERAGE_MULTIPLIER:.1f}배")
     logger.debug(f"{COL_DISPLAY_SPREAD}: {DEFAULT_FUNDING_SPREAD:.4f}")
     logger.debug(f"{COL_DISPLAY_EXPENSE}: {DEFAULT_EXPENSE_RATIO*100:.2f}%")
@@ -138,17 +151,11 @@ def main() -> int:
     logger.debug("-" * 64)
 
     # 누적수익률 관련
-    logger.debug("  [누적수익률]")
-    logger.debug(f"    실제: +{validation_results['cumulative_return_actual']*100:.1f}%")
-    logger.debug(f"    시뮬: +{validation_results['cumulative_return_simulated']*100:.1f}%")
-    logger.debug(f"    평균 로그차이: {validation_results['cumul_multiple_log_diff_mean_pct']:.2f}%")
-    logger.debug(f"    RMSE: {validation_results['cumul_multiple_log_diff_rmse_pct']:.4f}%")
-    logger.debug(f"    최대 로그차이: {validation_results['cumul_multiple_log_diff_max_pct']:.4f}%")
-
-    # 품질 검증
-    mean_log_diff_pct = validation_results["cumul_multiple_log_diff_mean_pct"]
-    if mean_log_diff_pct > 20:
-        logger.warning(f"누적배수 로그차이 평균이 큽니다: {mean_log_diff_pct:.2f}% (권장: ±20% 이내)")
+    logger.debug(f"{COL_ACTUAL_CUMUL_RETURN}: +{validation_results[KEY_CUMULATIVE_RETURN_ACTUAL]*100:.1f}%")
+    logger.debug(f"{COL_SIMUL_CUMUL_RETURN}: +{validation_results[KEY_CUMULATIVE_RETURN_SIMULATED]*100:.1f}%")
+    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%")
+    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN]:.2f}%")
+    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MAX}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX]:.4f}%")
 
     # 일별 비교 요약 통계
     logger.debug("-" * 64)
@@ -177,27 +184,6 @@ def main() -> int:
 
     summary_table.print_table(rows)
 
-    # 문장형 요약
-    logger.debug("-" * 64)
-    logger.debug("[요약]")
-    logger.debug("-" * 64)
-
-    mean_log_diff = validation_results["cumul_multiple_log_diff_mean_pct"]
-
-    # 누적배수 로그차이 평균 해석
-    if mean_log_diff < 1:
-        diff_desc = "거의 완전히 일치"
-    elif mean_log_diff < 5:
-        diff_desc = "매우 근접"
-    elif mean_log_diff < 20:
-        diff_desc = "양호하게 일치"
-    else:
-        diff_desc = "다소 차이 존재"
-
-    logger.debug(f"- 누적배수 로그차이 평균은 {mean_log_diff:.2f}%로, 장기 성과도 {diff_desc}합니다.")
-    logger.debug("-" * 64)
-
-    logger.debug("=" * 64)
     logger.debug(f"일별 비교 CSV 저장 완료: {TQQQ_DAILY_COMPARISON_PATH}")
 
     return 0
