@@ -30,6 +30,7 @@ FFR_DATA_PATH = ETC_DIR / "federal_funds_rate_monthly.csv"
 GRID_RESULTS_PATH = RESULTS_DIR / "grid_results.csv"
 TQQQ_VALIDATION_PATH = RESULTS_DIR / "tqqq_validation.csv"
 TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
+META_JSON_PATH = RESULTS_DIR / "meta.json"
 
 # ============================================================
 # 데이터 관련 상수
@@ -86,3 +87,6 @@ COMPARISON_COLUMNS = [
     COL_SIMUL_CUMUL_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]
+
+# 메타데이터 관리 상수
+MAX_HISTORY_COUNT = 5  # meta.json에 유지할 최대 이력 개수

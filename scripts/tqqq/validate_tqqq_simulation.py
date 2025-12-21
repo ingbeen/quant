@@ -28,11 +28,13 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
+    MAX_TOP_STRATEGIES,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
+from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -142,6 +144,51 @@ def main() -> int:
     results_df = pd.DataFrame(rows)
     results_df.to_csv(results_csv_path, index=False, encoding="utf-8-sig")
     logger.debug(f"검증 결과 저장: {results_csv_path} ({len(rows)}행)")
+
+    # 6. 메타데이터 저장
+    metadata = {
+        "execution_params": {
+            "leverage": DEFAULT_LEVERAGE_MULTIPLIER,
+            "spread_range": list(DEFAULT_SPREAD_RANGE),
+            "spread_step": DEFAULT_SPREAD_STEP,
+            "expense_range": list(DEFAULT_EXPENSE_RANGE),
+            "expense_step": DEFAULT_EXPENSE_STEP,
+            "max_top_strategies": MAX_TOP_STRATEGIES,
+        },
+        "overlap_period": {
+            "start_date": str(top_strategies[0]["overlap_start"]),
+            "end_date": str(top_strategies[0]["overlap_end"]),
+            "total_days": int(top_strategies[0]["overlap_days"]),
+        },
+        "results_summary": {
+            "top_strategy": {
+                "rank": 1,
+                "funding_spread": float(top_strategies[0]["funding_spread"]),
+                "expense_ratio": float(top_strategies[0]["expense_ratio"]),
+                "cumul_multiple_log_diff_mean_pct": float(
+                    top_strategies[0]["cumul_multiple_log_diff_mean_pct"]
+                ),
+            },
+            "cumul_multiple_log_diff_mean_pct": {
+                "min": float(results_df["누적배수로그차이_평균(%)"].min()),
+                "max": float(results_df["누적배수로그차이_평균(%)"].max()),
+                "median": float(results_df["누적배수로그차이_평균(%)"].median()),
+            },
+            "cumul_multiple_log_diff_rmse_pct": {
+                "min": float(results_df["누적배수로그차이_RMSE(%)"].min()),
+                "max": float(results_df["누적배수로그차이_RMSE(%)"].max()),
+                "median": float(results_df["누적배수로그차이_RMSE(%)"].median()),
+            },
+        },
+        "csv_info": {
+            "path": str(results_csv_path),
+            "row_count": len(rows),
+            "file_size_bytes": results_csv_path.stat().st_size,
+        },
+    }
+
+    save_metadata("tqqq_validation", metadata)
+    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
 
     return 0
 

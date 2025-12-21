@@ -36,12 +36,14 @@ from qbt.backtest.constants import (
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
     GRID_COLUMN_MAPPING,
+    SLIPPAGE_RATE,
 )
 from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
+from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -175,6 +177,55 @@ def main() -> int:
 
     results_df_export.to_csv(GRID_RESULTS_PATH, index=False)
     logger.debug(f"결과 저장 완료: {GRID_RESULTS_PATH}")
+
+    # 7. 메타데이터 저장
+    metadata = {
+        "execution_params": {
+            "ma_window_list": DEFAULT_MA_WINDOW_LIST,
+            "buffer_zone_pct_list": DEFAULT_BUFFER_ZONE_PCT_LIST,
+            "hold_days_list": DEFAULT_HOLD_DAYS_LIST,
+            "recent_months_list": DEFAULT_RECENT_MONTHS_LIST,
+            "initial_capital": DEFAULT_INITIAL_CAPITAL,
+            "slippage_rate": SLIPPAGE_RATE,
+        },
+        "data_period": {
+            "start_date": str(df[COL_DATE].min()),
+            "end_date": str(df[COL_DATE].max()),
+            "total_days": len(df),
+        },
+        "results_summary": {
+            "total_combinations": len(results_df),
+            "positive_return_count": int(
+                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
+            ),
+            "positive_return_ratio": float(
+                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
+                / len(results_df)
+            ),
+            "total_return_pct": {
+                "mean": float(results_df[COL_GRID_TOTAL_RETURN_PCT].mean()),
+                "max": float(results_df[COL_GRID_TOTAL_RETURN_PCT].max()),
+                "min": float(results_df[COL_GRID_TOTAL_RETURN_PCT].min()),
+            },
+            "cagr": {
+                "mean": float(results_df[COL_GRID_CAGR].mean()),
+                "max": float(results_df[COL_GRID_CAGR].max()),
+                "min": float(results_df[COL_GRID_CAGR].min()),
+            },
+            "mdd": {
+                "mean": float(results_df[COL_GRID_MDD].mean()),
+                "min": float(results_df[COL_GRID_MDD].min()),
+            },
+        },
+        "csv_info": {
+            "path": str(GRID_RESULTS_PATH),
+            "row_count": len(results_df),
+            "file_size_bytes": GRID_RESULTS_PATH.stat().st_size,
+        },
+    }
+
+    save_metadata("grid_results", metadata)
+    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
 
     return 0
 

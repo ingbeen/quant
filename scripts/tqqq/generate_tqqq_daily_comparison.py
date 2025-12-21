@@ -28,6 +28,7 @@ from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
+from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -79,6 +80,55 @@ def main() -> int:
 
     daily_df = pd.read_csv(TQQQ_DAILY_COMPARISON_PATH)
     logger.debug(f"일별 비교 CSV 저장 완료: {len(daily_df):,}행")
+
+    # 5. 메타데이터 저장
+    metadata = {
+        "execution_params": {
+            "leverage": DEFAULT_LEVERAGE_MULTIPLIER,
+            "funding_spread": DEFAULT_FUNDING_SPREAD,
+            "expense_ratio": DEFAULT_EXPENSE_RATIO,
+        },
+        "overlap_period": {
+            "start_date": str(validation_results["overlap_start"]),
+            "end_date": str(validation_results["overlap_end"]),
+            "total_days": int(validation_results["overlap_days"]),
+        },
+        "validation_metrics": {
+            "cumulative_return_actual_pct": float(
+                validation_results["cumulative_return_actual"] * 100
+            ),
+            "cumulative_return_simulated_pct": float(
+                validation_results["cumulative_return_simulated"] * 100
+            ),
+            "cumul_multiple_log_diff_mean_pct": float(
+                validation_results["cumul_multiple_log_diff_mean_pct"]
+            ),
+            "cumul_multiple_log_diff_rmse_pct": float(
+                validation_results["cumul_multiple_log_diff_rmse_pct"]
+            ),
+            "cumul_multiple_log_diff_max_pct": float(
+                validation_results["cumul_multiple_log_diff_max_pct"]
+            ),
+        },
+        "daily_stats": {
+            "daily_return_abs_diff": {
+                "mean": float(daily_df[COL_DAILY_RETURN_ABS_DIFF].mean()),
+                "max": float(daily_df[COL_DAILY_RETURN_ABS_DIFF].max()),
+            },
+            "cumul_multiple_log_diff": {
+                "mean": float(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean()),
+                "max": float(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max()),
+            },
+        },
+        "csv_info": {
+            "path": str(TQQQ_DAILY_COMPARISON_PATH),
+            "row_count": len(daily_df),
+            "file_size_bytes": TQQQ_DAILY_COMPARISON_PATH.stat().st_size,
+        },
+    }
+
+    save_metadata("tqqq_daily_comparison", metadata)
+    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
 
     # 6. 결과 출력 (터미널)
     logger.debug("=" * 64)
