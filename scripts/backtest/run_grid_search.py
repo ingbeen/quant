@@ -23,6 +23,7 @@ from qbt.backtest.constants import (
     COL_DISPLAY_TOTAL_RETURN,
     COL_DISPLAY_TOTAL_TRADES,
     COL_DISPLAY_WIN_RATE,
+    COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
     COL_MDD,
@@ -35,7 +36,6 @@ from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
-    GRID_COLUMN_MAPPING,
     SLIPPAGE_RATE,
 )
 from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH
@@ -159,7 +159,20 @@ def main() -> int:
     GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
-    results_df_export = results_df.rename(columns=GRID_COLUMN_MAPPING)
+    results_df_export = results_df.rename(
+        columns={
+            COL_MA_WINDOW: COL_DISPLAY_MA_WINDOW,
+            COL_BUFFER_ZONE_PCT: COL_DISPLAY_BUFFER_ZONE,
+            COL_HOLD_DAYS: COL_DISPLAY_HOLD_DAYS,
+            COL_RECENT_MONTHS: COL_DISPLAY_RECENT_MONTHS,
+            COL_TOTAL_RETURN_PCT: COL_DISPLAY_TOTAL_RETURN,
+            COL_CAGR: COL_DISPLAY_CAGR,
+            COL_MDD: COL_DISPLAY_MDD,
+            COL_TOTAL_TRADES: COL_DISPLAY_TOTAL_TRADES,
+            COL_WIN_RATE: COL_DISPLAY_WIN_RATE,
+            COL_FINAL_CAPITAL: COL_DISPLAY_FINAL_CAPITAL,
+        }
+    )
     results_df_export = results_df_export.round(
         {
             COL_DISPLAY_BUFFER_ZONE: 4,  # 0.0500
