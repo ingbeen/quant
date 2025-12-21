@@ -11,25 +11,25 @@ import sys
 
 from qbt.backtest import run_grid_search
 from qbt.backtest.constants import (
-    COL_GRID_BUFFER_ZONE_PCT,
-    COL_GRID_CAGR,
-    COL_GRID_DISPLAY_BUFFER_ZONE,
-    COL_GRID_DISPLAY_CAGR,
-    COL_GRID_DISPLAY_FINAL_CAPITAL,
-    COL_GRID_DISPLAY_HOLD_DAYS,
-    COL_GRID_DISPLAY_MA_WINDOW,
-    COL_GRID_DISPLAY_MDD,
-    COL_GRID_DISPLAY_RECENT_MONTHS,
-    COL_GRID_DISPLAY_TOTAL_RETURN,
-    COL_GRID_DISPLAY_TOTAL_TRADES,
-    COL_GRID_DISPLAY_WIN_RATE,
-    COL_GRID_HOLD_DAYS,
-    COL_GRID_MA_WINDOW,
-    COL_GRID_MDD,
-    COL_GRID_RECENT_MONTHS,
-    COL_GRID_TOTAL_RETURN_PCT,
-    COL_GRID_TOTAL_TRADES,
-    COL_GRID_WIN_RATE,
+    COL_BUFFER_ZONE_PCT,
+    COL_CAGR,
+    COL_DISPLAY_BUFFER_ZONE,
+    COL_DISPLAY_CAGR,
+    COL_DISPLAY_FINAL_CAPITAL,
+    COL_DISPLAY_HOLD_DAYS,
+    COL_DISPLAY_MA_WINDOW,
+    COL_DISPLAY_MDD,
+    COL_DISPLAY_RECENT_MONTHS,
+    COL_DISPLAY_TOTAL_RETURN,
+    COL_DISPLAY_TOTAL_TRADES,
+    COL_DISPLAY_WIN_RATE,
+    COL_HOLD_DAYS,
+    COL_MA_WINDOW,
+    COL_MDD,
+    COL_RECENT_MONTHS,
+    COL_TOTAL_RETURN_PCT,
+    COL_TOTAL_TRADES,
+    COL_WIN_RATE,
     DEFAULT_BUFFER_ZONE_PCT_LIST,
     DEFAULT_HOLD_DAYS_LIST,
     DEFAULT_INITIAL_CAPITAL,
@@ -64,20 +64,16 @@ def print_summary_stats(results_df) -> None:
 
     logger.debug(
         "수익률 통계:"
-        f"  - 평균: {results_df[COL_GRID_TOTAL_RETURN_PCT].mean():.2f}%, "
-        f"최대: {results_df[COL_GRID_TOTAL_RETURN_PCT].max():.2f}%, "
-        f"최소: {results_df[COL_GRID_TOTAL_RETURN_PCT].min():.2f}%"
+        f"  - 평균: {results_df[COL_TOTAL_RETURN_PCT].mean():.2f}%, "
+        f"최대: {results_df[COL_TOTAL_RETURN_PCT].max():.2f}%, "
+        f"최소: {results_df[COL_TOTAL_RETURN_PCT].min():.2f}%"
     )
-    logger.debug(
-        f"CAGR 통계: 평균: {results_df[COL_GRID_CAGR].mean():.2f}%, 최대: {results_df[COL_GRID_CAGR].max():.2f}%"
-    )
-    logger.debug(f"MDD 통계: 평균: {results_df[COL_GRID_MDD].mean():.2f}%, 최악: {results_df[COL_GRID_MDD].min():.2f}%")
+    logger.debug(f"CAGR 통계: 평균: {results_df[COL_CAGR].mean():.2f}%, 최대: {results_df[COL_CAGR].max():.2f}%")
+    logger.debug(f"MDD 통계: 평균: {results_df[COL_MDD].mean():.2f}%, 최악: {results_df[COL_MDD].min():.2f}%")
 
     # 양수 수익률 비율
-    positive_returns = len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
-    logger.debug(
-        f"양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)"
-    )
+    positive_returns = len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0])
+    logger.debug(f"양수 수익률 조합: {positive_returns}/{len(results_df)} ({positive_returns / len(results_df) * 100:.1f}%)")
 
     logger.debug("=" * title_width)
 
@@ -119,20 +115,20 @@ def main() -> int:
     )
 
     # 3. CAGR 기준 정렬
-    results_df = results_df.sort_values(by=COL_GRID_CAGR, ascending=False).reset_index(drop=True)
+    results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
 
     # 4. 상위 결과 출력
     columns = [
         ("순위", 6, Align.RIGHT),
-        (COL_GRID_DISPLAY_MA_WINDOW, 10, Align.RIGHT),
-        (COL_GRID_DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
-        (COL_GRID_DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
-        (COL_GRID_DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
-        (COL_GRID_DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
-        (COL_GRID_DISPLAY_CAGR, 10, Align.RIGHT),
-        (COL_GRID_DISPLAY_MDD, 10, Align.RIGHT),
-        (COL_GRID_DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
-        (COL_GRID_DISPLAY_WIN_RATE, 8, Align.RIGHT),
+        (COL_DISPLAY_MA_WINDOW, 10, Align.RIGHT),
+        (COL_DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
+        (COL_DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
+        (COL_DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
+        (COL_DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
+        (COL_DISPLAY_CAGR, 10, Align.RIGHT),
+        (COL_DISPLAY_MDD, 10, Align.RIGHT),
+        (COL_DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
+        (COL_DISPLAY_WIN_RATE, 8, Align.RIGHT),
     ]
 
     top_n = 10
@@ -141,15 +137,15 @@ def main() -> int:
         rows.append(
             [
                 str(rank),
-                str(row[COL_GRID_MA_WINDOW]),
-                f"{row[COL_GRID_BUFFER_ZONE_PCT] * 100:.1f}%",
-                f"{row[COL_GRID_HOLD_DAYS]}일",
-                f"{row[COL_GRID_RECENT_MONTHS]}월",
-                f"{row[COL_GRID_TOTAL_RETURN_PCT]:.2f}%",
-                f"{row[COL_GRID_CAGR]:.2f}%",
-                f"{row[COL_GRID_MDD]:.2f}%",
-                str(row[COL_GRID_TOTAL_TRADES]),
-                f"{row[COL_GRID_WIN_RATE]:.1f}%",
+                str(row[COL_MA_WINDOW]),
+                f"{row[COL_BUFFER_ZONE_PCT] * 100:.1f}%",
+                f"{row[COL_HOLD_DAYS]}일",
+                f"{row[COL_RECENT_MONTHS]}월",
+                f"{row[COL_TOTAL_RETURN_PCT]:.2f}%",
+                f"{row[COL_CAGR]:.2f}%",
+                f"{row[COL_MDD]:.2f}%",
+                str(row[COL_TOTAL_TRADES]),
+                f"{row[COL_WIN_RATE]:.1f}%",
             ]
         )
 
@@ -166,12 +162,12 @@ def main() -> int:
     results_df_export = results_df.rename(columns=GRID_COLUMN_MAPPING)
     results_df_export = results_df_export.round(
         {
-            COL_GRID_DISPLAY_BUFFER_ZONE: 4,  # 0.0500
-            COL_GRID_DISPLAY_TOTAL_RETURN: 2,  # 1551.43
-            COL_GRID_DISPLAY_CAGR: 2,  # 11.05
-            COL_GRID_DISPLAY_MDD: 2,  # -42.83
-            COL_GRID_DISPLAY_WIN_RATE: 2,  # 80.00
-            COL_GRID_DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
+            COL_DISPLAY_BUFFER_ZONE: 4,  # 0.0500
+            COL_DISPLAY_TOTAL_RETURN: 2,  # 1551.43
+            COL_DISPLAY_CAGR: 2,  # 11.05
+            COL_DISPLAY_MDD: 2,  # -42.83
+            COL_DISPLAY_WIN_RATE: 2,  # 80.00
+            COL_DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
         }
     )
 
@@ -195,24 +191,24 @@ def main() -> int:
         },
         "results_summary": {
             "total_combinations": len(results_df),
-            "positive_return_count": int(len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])),
+            "positive_return_count": int(len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0])),
             "positive_return_ratio": round(
-                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0]) / len(results_df),
+                len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0]) / len(results_df),
                 4,
             ),
             "total_return_pct": {
-                "mean": round(results_df[COL_GRID_TOTAL_RETURN_PCT].mean(), 2),
-                "max": round(results_df[COL_GRID_TOTAL_RETURN_PCT].max(), 2),
-                "min": round(results_df[COL_GRID_TOTAL_RETURN_PCT].min(), 2),
+                "mean": round(results_df[COL_TOTAL_RETURN_PCT].mean(), 2),
+                "max": round(results_df[COL_TOTAL_RETURN_PCT].max(), 2),
+                "min": round(results_df[COL_TOTAL_RETURN_PCT].min(), 2),
             },
             "cagr": {
-                "mean": round(results_df[COL_GRID_CAGR].mean(), 2),
-                "max": round(results_df[COL_GRID_CAGR].max(), 2),
-                "min": round(results_df[COL_GRID_CAGR].min(), 2),
+                "mean": round(results_df[COL_CAGR].mean(), 2),
+                "max": round(results_df[COL_CAGR].max(), 2),
+                "min": round(results_df[COL_CAGR].min(), 2),
             },
             "mdd": {
-                "mean": round(results_df[COL_GRID_MDD].mean(), 2),
-                "min": round(results_df[COL_GRID_MDD].min(), 2),
+                "mean": round(results_df[COL_MDD].mean(), 2),
+                "min": round(results_df[COL_MDD].min(), 2),
             },
         },
         "csv_info": {

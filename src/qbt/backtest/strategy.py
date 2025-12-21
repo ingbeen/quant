@@ -8,6 +8,16 @@ import pandas as pd
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
     BUFFER_INCREMENT_PER_BUY,
+    COL_BUFFER_ZONE_PCT,
+    COL_CAGR,
+    COL_FINAL_CAPITAL,
+    COL_HOLD_DAYS,
+    COL_MA_WINDOW,
+    COL_MDD,
+    COL_RECENT_MONTHS,
+    COL_TOTAL_RETURN_PCT,
+    COL_TOTAL_TRADES,
+    COL_WIN_RATE,
     DAYS_PER_MONTH,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
@@ -145,16 +155,16 @@ def _run_buffer_strategy_for_grid(
         _, _, summary = run_buffer_strategy(df, params, log_trades=False)
 
         return {
-            "ma_window": params.ma_window,
-            "buffer_zone_pct": params.buffer_zone_pct,
-            "hold_days": params.hold_days,
-            "recent_months": params.recent_months,
-            "total_return_pct": summary["total_return_pct"],
-            "cagr": summary["cagr"],
-            "mdd": summary["mdd"],
-            "total_trades": summary["total_trades"],
-            "win_rate": summary["win_rate"],
-            "final_capital": summary["final_capital"],
+            COL_MA_WINDOW: params.ma_window,
+            COL_BUFFER_ZONE_PCT: params.buffer_zone_pct,
+            COL_HOLD_DAYS: params.hold_days,
+            COL_RECENT_MONTHS: params.recent_months,
+            COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
+            COL_CAGR: summary["cagr"],
+            COL_MDD: summary["mdd"],
+            COL_TOTAL_TRADES: summary["total_trades"],
+            COL_WIN_RATE: summary["win_rate"],
+            COL_FINAL_CAPITAL: summary["final_capital"],
         }
     except Exception:
         # 병렬 실행에서는 로그 생략 (프로세스 간 로거 공유 이슈)
@@ -235,7 +245,7 @@ def run_grid_search(
 
     # 5. 정렬
     if not results_df.empty:
-        results_df = results_df.sort_values(by="total_return_pct", ascending=False).reset_index(drop=True)
+        results_df = results_df.sort_values(by=COL_TOTAL_RETURN_PCT, ascending=False).reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 
@@ -439,9 +449,7 @@ def run_buffer_strategy(
                                         f"유지조건={current_hold_days}일"
                                     )
                             else:
-                                logger.debug(
-                                    f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
-                                )
+                                logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
                 else:
                     # 5-3-4. 버퍼존만 모드 (hold_days = 0)
                     # 유지조건 없이 돌파 즉시 익일 시가 매수
@@ -466,9 +474,7 @@ def run_buffer_strategy(
                                     f"매수: {entry_date}, 가격={buy_price:.2f}, 수량={shares}, 버퍼존={current_buffer_pct:.2%}"
                                 )
                         else:
-                            logger.debug(
-                                f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}"
-                            )
+                            logger.debug(f"자금 부족으로 매수 불가: {current_date}, 자본={capital:.0f}, 가격={buy_price:.2f}")
 
         # 5-4. 매도 신호 체크 (포지션 있을 때)
         elif position > 0 and prev_lower_band is not None:
@@ -578,8 +584,6 @@ def run_buffer_strategy(
     summary["hold_days"] = params.hold_days
 
     if log_trades:
-        logger.debug(
-            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
-        )
+        logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary

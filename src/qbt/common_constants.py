@@ -94,6 +94,5 @@ COMPARISON_COLUMNS = [
     COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]
 
-
 # 메타데이터 관리 상수
 MAX_HISTORY_COUNT = 5  # meta.json에 유지할 최대 이력 개수
