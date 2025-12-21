@@ -100,7 +100,7 @@ def main() -> int:
     table = TableLogger(columns, logger, indent=2)
 
     rows = []
-    for rank, strategy in enumerate(top_strategies, start=1):
+    for _, strategy in enumerate(top_strategies, start=1):
         row = [
             f"{strategy['funding_spread']:.4f}",
             f"{strategy['expense_ratio']*100:.2f}",
@@ -120,7 +120,7 @@ def main() -> int:
     results_csv_path = TQQQ_VALIDATION_PATH
 
     rows = []
-    for rank, strategy in enumerate(top_strategies, start=1):
+    for _, strategy in enumerate(top_strategies, start=1):
         row = {
             # 파라미터 (2개)
             "funding_spread": round(strategy["funding_spread"], 4),
