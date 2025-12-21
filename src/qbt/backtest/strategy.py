@@ -5,6 +5,7 @@ from datetime import timedelta
 
 import pandas as pd
 
+from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
     BUFFER_INCREMENT_PER_BUY,
     DAYS_PER_MONTH,
@@ -13,8 +14,6 @@ from qbt.backtest.constants import (
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
-from qbt.backtest.data import add_single_moving_average
-from qbt.backtest.metrics import calculate_summary
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import execute_parallel_with_kwargs
