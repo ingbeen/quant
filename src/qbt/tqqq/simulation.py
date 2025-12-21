@@ -40,7 +40,6 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
-    MAX_EXPENSE_RATIO,
     MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
@@ -96,7 +95,7 @@ def calculate_daily_cost(
         ffr = float(ffr_row.iloc[0][COL_FFR])
 
     # 2. All-in funding rate 계산
-    funding_rate = (ffr + funding_spread) / 100  # % → 소수
+    funding_rate = ffr / 100 + funding_spread  # FFR을 소수로 변환 후 funding_spread 더하기
 
     # 3. 레버리지 비용 (2배만 - 3배 중 빌린 돈만)
     leverage_cost = funding_rate * 2
@@ -143,9 +142,6 @@ def simulate(
     # 1. 파라미터 검증
     if leverage <= 0:
         raise ValueError(f"leverage는 양수여야 합니다: {leverage}")
-
-    if expense_ratio < 0 or expense_ratio > MAX_EXPENSE_RATIO:
-        raise ValueError(f"expense_ratio는 0~{MAX_EXPENSE_RATIO*100}% 범위여야 합니다: {expense_ratio}")
 
     if initial_price <= 0:
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
@@ -319,7 +315,9 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])

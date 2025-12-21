@@ -43,7 +43,7 @@ def main() -> int:
     logger.debug("합성 TQQQ 데이터 생성 시작")
     logger.debug(
         f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, expense_ratio={DEFAULT_EXPENSE_RATIO}, "
-        f"funding_spread={DEFAULT_FUNDING_SPREAD}, initial_price={DEFAULT_SYNTHETIC_INITIAL_PRICE}"
+        f"funding_spread={DEFAULT_FUNDING_SPREAD:.4f}, initial_price={DEFAULT_SYNTHETIC_INITIAL_PRICE}"
     )
 
     # 1. QQQ 및 FFR 데이터 로드

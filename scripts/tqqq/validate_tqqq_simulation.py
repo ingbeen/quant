@@ -89,7 +89,7 @@ def main() -> int:
     for rank, strategy in enumerate(top_strategies, start=1):
         row = [
             str(rank),
-            f"{strategy['funding_spread']:.2f}",
+            f"{strategy['funding_spread']:.4f}",
             f"{strategy['expense_ratio']*100:.2f}",
             f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
             f"{strategy['cumul_multiple_log_diff_rmse_pct']:.4f}",
@@ -111,7 +111,7 @@ def main() -> int:
             "검증기간_종료": strategy["overlap_end"],
             "총일수": strategy["overlap_days"],
             "leverage": round(strategy["leverage"], 2),
-            "funding_spread": round(strategy["funding_spread"], 2),
+            "funding_spread": round(strategy["funding_spread"], 4),
             "expense_ratio": round(strategy["expense_ratio"], 6),
             # 누적수익률/성과 (6개)
             "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),

@@ -52,7 +52,7 @@ def main() -> int:
     # 3. 시뮬레이션 실행
     logger.debug(
         f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"funding_spread={DEFAULT_FUNDING_SPREAD}%, "
+        f"funding_spread={DEFAULT_FUNDING_SPREAD:.4f}, "
         f"expense_ratio={DEFAULT_EXPENSE_RATIO*100:.2f}%"
     )
 
@@ -87,7 +87,7 @@ def main() -> int:
     logger.debug(f"검증 기간: {validation_results['overlap_start']} ~ {validation_results['overlap_end']}")
     logger.debug(f"총 일수: {validation_results['overlap_days']:,}일")
     logger.debug(f"레버리지: {DEFAULT_LEVERAGE_MULTIPLIER:.1f}배")
-    logger.debug(f"Funding Spread: {DEFAULT_FUNDING_SPREAD:.2f}%")
+    logger.debug(f"Funding Spread: {DEFAULT_FUNDING_SPREAD:.4f}")
     logger.debug(f"Expense Ratio: {DEFAULT_EXPENSE_RATIO*100:.2f}%")
 
     logger.debug("-" * 64)

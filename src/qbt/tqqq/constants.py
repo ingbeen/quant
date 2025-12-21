@@ -6,21 +6,20 @@
 
 # 레버리지 ETF 기본값
 DEFAULT_LEVERAGE_MULTIPLIER = 3.0  # TQQQ 3배 레버리지
-DEFAULT_FUNDING_SPREAD = 0.4  # FFR 스프레드 (%)
-DEFAULT_EXPENSE_RATIO = 0.008  # 연간 비용 비율 (0.8%)
+DEFAULT_FUNDING_SPREAD = 0.003  # FFR 스프레드 (%)
+DEFAULT_EXPENSE_RATIO = 0.005  # 연간 비용 비율 (%)
 
 # 합성 데이터 초기 가격
 DEFAULT_SYNTHETIC_INITIAL_PRICE = 200.0
 
 # 검증 임계값
-MAX_EXPENSE_RATIO = 0.1  # 최대 expense ratio (10%)
 MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이
 
 # 그리드 서치 기본 범위
-DEFAULT_SPREAD_RANGE = (0.4, 0.8)
-DEFAULT_SPREAD_STEP = 0.05
-DEFAULT_EXPENSE_RANGE = (0.0075, 0.0105)
-DEFAULT_EXPENSE_STEP = 0.0005
+DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
+DEFAULT_SPREAD_STEP = 0.0005  # 스프레드 증분 (%)
+DEFAULT_EXPENSE_RANGE = (0.0075, 0.0105)  # expense ratio 범위 (%)
+DEFAULT_EXPENSE_STEP = 0.0005  # expense ratio 증분 (%)
 
 # 결과 제한
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
