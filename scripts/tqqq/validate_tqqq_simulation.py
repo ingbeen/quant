@@ -15,6 +15,14 @@ import sys
 import pandas as pd
 
 from qbt.common_constants import (
+    COL_ACTUAL_CLOSE,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    COL_CUMUL_RETURN_REL_DIFF,
+    COL_SIMUL_CLOSE,
+    COL_SIMUL_CUMUL_RETURN,
     FFR_DATA_PATH,
     QQQ_DATA_PATH,
     RESULTS_DIR,
@@ -90,12 +98,12 @@ def main() -> int:
     columns = [
         ("Spread", 10, Align.RIGHT),
         ("Expense(%)", 11, Align.RIGHT),
-        ("종가_실제", 11, Align.RIGHT),
-        ("종가_시뮬", 11, Align.RIGHT),
-        ("누적수익률_실제(%)", 18, Align.RIGHT),
-        ("누적수익률_시뮬(%)", 18, Align.RIGHT),
-        ("로그차이RMSE(%)", 16, Align.RIGHT),
-        ("로그차이평균(%)", 16, Align.RIGHT),
+        (COL_ACTUAL_CLOSE, 11, Align.RIGHT),
+        (COL_SIMUL_CLOSE, 11, Align.RIGHT),
+        (COL_ACTUAL_CUMUL_RETURN, 18, Align.RIGHT),
+        (COL_SIMUL_CUMUL_RETURN, 18, Align.RIGHT),
+        (COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE, 24, Align.RIGHT),
+        (COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN, 24, Align.RIGHT),
     ]
     table = TableLogger(columns, logger, indent=2)
 
@@ -126,15 +134,15 @@ def main() -> int:
             "funding_spread": round(strategy["funding_spread"], 4),
             "expense_ratio": round(strategy["expense_ratio"], 6),
             # 종가 (2개)
-            "종가_실제": round(strategy["final_close_actual"], 2),
-            "종가_시뮬": round(strategy["final_close_simulated"], 2),
+            COL_ACTUAL_CLOSE: round(strategy["final_close_actual"], 2),
+            COL_SIMUL_CLOSE: round(strategy["final_close_simulated"], 2),
             # 누적수익률/성과 (6개)
-            "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
-            "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),
-            "누적수익률_상대차이(%)": round(strategy["cumulative_return_rel_diff_pct"], 2),
-            "누적배수로그차이_RMSE(%)": round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
-            "누적배수로그차이_평균(%)": round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
-            "누적배수로그차이_최대(%)": round(strategy["cumul_multiple_log_diff_max_pct"], 4),
+            COL_ACTUAL_CUMUL_RETURN: round(strategy["cumulative_return_actual"] * 100, 2),
+            COL_SIMUL_CUMUL_RETURN: round(strategy["cumulative_return_simulated"] * 100, 2),
+            COL_CUMUL_RETURN_REL_DIFF: round(strategy["cumulative_return_rel_diff_pct"], 2),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE: round(strategy["cumul_multiple_log_diff_rmse_pct"], 4),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN: round(strategy["cumul_multiple_log_diff_mean_pct"], 4),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_MAX: round(strategy["cumul_multiple_log_diff_max_pct"], 4),
         }
         rows.append(row)
 
@@ -165,14 +173,14 @@ def main() -> int:
                 "cumul_multiple_log_diff_mean_pct": round(top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4),
             },
             "cumul_multiple_log_diff_mean_pct": {
-                "min": round(results_df["누적배수로그차이_평균(%)"].min(), 4),
-                "max": round(results_df["누적배수로그차이_평균(%)"].max(), 4),
-                "median": round(results_df["누적배수로그차이_평균(%)"].median(), 4),
+                "min": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN].min(), 4),
+                "max": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN].max(), 4),
+                "median": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN].median(), 4),
             },
             "cumul_multiple_log_diff_rmse_pct": {
-                "min": round(results_df["누적배수로그차이_RMSE(%)"].min(), 4),
-                "max": round(results_df["누적배수로그차이_RMSE(%)"].max(), 4),
-                "median": round(results_df["누적배수로그차이_RMSE(%)"].median(), 4),
+                "min": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE].min(), 4),
+                "max": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE].max(), 4),
+                "median": round(results_df[COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE].median(), 4),
             },
         },
         "csv_info": {

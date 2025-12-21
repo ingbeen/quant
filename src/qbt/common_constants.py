@@ -60,7 +60,7 @@ TRADING_DAYS_PER_YEAR = 252  # 일일 비용 환산용 (연간 거래일 수)
 # 수치 안정성 상수
 EPSILON = 1e-12  # 분모 0 방지 및 로그 계산 안정성 확보
 
-# 일별 비교 컬럼명 (한글)
+# 일별 비교 컬럼명
 COL_DATE_KR = "날짜"
 COL_ACTUAL_CLOSE = "종가_실제"
 COL_SIMUL_CLOSE = "종가_시뮬"
@@ -72,8 +72,14 @@ COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
 
 # 누적수익률
 COL_ACTUAL_CUMUL_RETURN = "누적수익률_실제(%)"
-COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬레이션(%)"
+COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬(%)"
+COL_CUMUL_RETURN_REL_DIFF = "누적수익률_상대차이(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF = "누적배수_로그차이(%)"
+
+# 검증 결과 컬럼명 (TQQQ 시뮬레이션 검증용)
+COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "누적배수로그차이_RMSE(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "누적배수로그차이_평균(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
 
 # 일별 비교 필수 컬럼 그룹
 COMPARISON_COLUMNS = [
@@ -87,6 +93,7 @@ COMPARISON_COLUMNS = [
     COL_SIMUL_CUMUL_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]
+
 
 # 메타데이터 관리 상수
 MAX_HISTORY_COUNT = 5  # meta.json에 유지할 최대 이력 개수
