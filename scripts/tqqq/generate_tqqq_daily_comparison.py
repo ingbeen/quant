@@ -84,9 +84,9 @@ def main() -> int:
     # 5. 메타데이터 저장
     metadata = {
         "execution_params": {
-            "leverage": DEFAULT_LEVERAGE_MULTIPLIER,
-            "funding_spread": DEFAULT_FUNDING_SPREAD,
-            "expense_ratio": DEFAULT_EXPENSE_RATIO,
+            "leverage": round(DEFAULT_LEVERAGE_MULTIPLIER, 1),
+            "funding_spread": round(DEFAULT_FUNDING_SPREAD, 4),
+            "expense_ratio": round(DEFAULT_EXPENSE_RATIO, 6),
         },
         "overlap_period": {
             "start_date": str(validation_results["overlap_start"]),
@@ -94,30 +94,30 @@ def main() -> int:
             "total_days": int(validation_results["overlap_days"]),
         },
         "validation_metrics": {
-            "cumulative_return_actual_pct": float(
-                validation_results["cumulative_return_actual"] * 100
+            "cumulative_return_actual_pct": round(
+                validation_results["cumulative_return_actual"] * 100, 2
             ),
-            "cumulative_return_simulated_pct": float(
-                validation_results["cumulative_return_simulated"] * 100
+            "cumulative_return_simulated_pct": round(
+                validation_results["cumulative_return_simulated"] * 100, 2
             ),
-            "cumul_multiple_log_diff_mean_pct": float(
-                validation_results["cumul_multiple_log_diff_mean_pct"]
+            "cumul_multiple_log_diff_mean_pct": round(
+                validation_results["cumul_multiple_log_diff_mean_pct"], 4
             ),
-            "cumul_multiple_log_diff_rmse_pct": float(
-                validation_results["cumul_multiple_log_diff_rmse_pct"]
+            "cumul_multiple_log_diff_rmse_pct": round(
+                validation_results["cumul_multiple_log_diff_rmse_pct"], 4
             ),
-            "cumul_multiple_log_diff_max_pct": float(
-                validation_results["cumul_multiple_log_diff_max_pct"]
+            "cumul_multiple_log_diff_max_pct": round(
+                validation_results["cumul_multiple_log_diff_max_pct"], 4
             ),
         },
         "daily_stats": {
             "daily_return_abs_diff": {
-                "mean": float(daily_df[COL_DAILY_RETURN_ABS_DIFF].mean()),
-                "max": float(daily_df[COL_DAILY_RETURN_ABS_DIFF].max()),
+                "mean": round(daily_df[COL_DAILY_RETURN_ABS_DIFF].mean(), 4),
+                "max": round(daily_df[COL_DAILY_RETURN_ABS_DIFF].max(), 4),
             },
             "cumul_multiple_log_diff": {
-                "mean": float(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean()),
-                "max": float(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max()),
+                "mean": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean(), 4),
+                "max": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max(), 4),
             },
         },
         "csv_info": {

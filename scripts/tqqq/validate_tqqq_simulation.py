@@ -148,11 +148,11 @@ def main() -> int:
     # 6. 메타데이터 저장
     metadata = {
         "execution_params": {
-            "leverage": DEFAULT_LEVERAGE_MULTIPLIER,
-            "spread_range": list(DEFAULT_SPREAD_RANGE),
-            "spread_step": DEFAULT_SPREAD_STEP,
-            "expense_range": list(DEFAULT_EXPENSE_RANGE),
-            "expense_step": DEFAULT_EXPENSE_STEP,
+            "leverage": round(DEFAULT_LEVERAGE_MULTIPLIER, 1),
+            "spread_range": [round(x, 4) for x in DEFAULT_SPREAD_RANGE],
+            "spread_step": round(DEFAULT_SPREAD_STEP, 4),
+            "expense_range": [round(x, 6) for x in DEFAULT_EXPENSE_RANGE],
+            "expense_step": round(DEFAULT_EXPENSE_STEP, 6),
             "max_top_strategies": MAX_TOP_STRATEGIES,
         },
         "overlap_period": {
@@ -163,21 +163,21 @@ def main() -> int:
         "results_summary": {
             "top_strategy": {
                 "rank": 1,
-                "funding_spread": float(top_strategies[0]["funding_spread"]),
-                "expense_ratio": float(top_strategies[0]["expense_ratio"]),
-                "cumul_multiple_log_diff_mean_pct": float(
-                    top_strategies[0]["cumul_multiple_log_diff_mean_pct"]
+                "funding_spread": round(top_strategies[0]["funding_spread"], 4),
+                "expense_ratio": round(top_strategies[0]["expense_ratio"], 6),
+                "cumul_multiple_log_diff_mean_pct": round(
+                    top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4
                 ),
             },
             "cumul_multiple_log_diff_mean_pct": {
-                "min": float(results_df["누적배수로그차이_평균(%)"].min()),
-                "max": float(results_df["누적배수로그차이_평균(%)"].max()),
-                "median": float(results_df["누적배수로그차이_평균(%)"].median()),
+                "min": round(results_df["누적배수로그차이_평균(%)"].min(), 4),
+                "max": round(results_df["누적배수로그차이_평균(%)"].max(), 4),
+                "median": round(results_df["누적배수로그차이_평균(%)"].median(), 4),
             },
             "cumul_multiple_log_diff_rmse_pct": {
-                "min": float(results_df["누적배수로그차이_RMSE(%)"].min()),
-                "max": float(results_df["누적배수로그차이_RMSE(%)"].max()),
-                "median": float(results_df["누적배수로그차이_RMSE(%)"].median()),
+                "min": round(results_df["누적배수로그차이_RMSE(%)"].min(), 4),
+                "max": round(results_df["누적배수로그차이_RMSE(%)"].max(), 4),
+                "median": round(results_df["누적배수로그차이_RMSE(%)"].median(), 4),
             },
         },
         "csv_info": {

@@ -182,11 +182,11 @@ def main() -> int:
     metadata = {
         "execution_params": {
             "ma_window_list": DEFAULT_MA_WINDOW_LIST,
-            "buffer_zone_pct_list": DEFAULT_BUFFER_ZONE_PCT_LIST,
+            "buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_BUFFER_ZONE_PCT_LIST],
             "hold_days_list": DEFAULT_HOLD_DAYS_LIST,
             "recent_months_list": DEFAULT_RECENT_MONTHS_LIST,
-            "initial_capital": DEFAULT_INITIAL_CAPITAL,
-            "slippage_rate": SLIPPAGE_RATE,
+            "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
+            "slippage_rate": round(SLIPPAGE_RATE, 4),
         },
         "data_period": {
             "start_date": str(df[COL_DATE].min()),
@@ -198,23 +198,24 @@ def main() -> int:
             "positive_return_count": int(
                 len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
             ),
-            "positive_return_ratio": float(
+            "positive_return_ratio": round(
                 len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
-                / len(results_df)
+                / len(results_df),
+                4,
             ),
             "total_return_pct": {
-                "mean": float(results_df[COL_GRID_TOTAL_RETURN_PCT].mean()),
-                "max": float(results_df[COL_GRID_TOTAL_RETURN_PCT].max()),
-                "min": float(results_df[COL_GRID_TOTAL_RETURN_PCT].min()),
+                "mean": round(results_df[COL_GRID_TOTAL_RETURN_PCT].mean(), 2),
+                "max": round(results_df[COL_GRID_TOTAL_RETURN_PCT].max(), 2),
+                "min": round(results_df[COL_GRID_TOTAL_RETURN_PCT].min(), 2),
             },
             "cagr": {
-                "mean": float(results_df[COL_GRID_CAGR].mean()),
-                "max": float(results_df[COL_GRID_CAGR].max()),
-                "min": float(results_df[COL_GRID_CAGR].min()),
+                "mean": round(results_df[COL_GRID_CAGR].mean(), 2),
+                "max": round(results_df[COL_GRID_CAGR].max(), 2),
+                "min": round(results_df[COL_GRID_CAGR].min(), 2),
             },
             "mdd": {
-                "mean": float(results_df[COL_GRID_MDD].mean()),
-                "min": float(results_df[COL_GRID_MDD].min()),
+                "mean": round(results_df[COL_GRID_MDD].mean(), 2),
+                "min": round(results_df[COL_GRID_MDD].min(), 2),
             },
         },
         "csv_info": {
