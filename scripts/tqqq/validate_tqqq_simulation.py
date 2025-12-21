@@ -162,9 +162,7 @@ def main() -> int:
                 "rank": 1,
                 "funding_spread": round(top_strategies[0]["funding_spread"], 4),
                 "expense_ratio": round(top_strategies[0]["expense_ratio"], 6),
-                "cumul_multiple_log_diff_mean_pct": round(
-                    top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4
-                ),
+                "cumul_multiple_log_diff_mean_pct": round(top_strategies[0]["cumul_multiple_log_diff_mean_pct"], 4),
             },
             "cumul_multiple_log_diff_mean_pct": {
                 "min": round(results_df["누적배수로그차이_평균(%)"].min(), 4),

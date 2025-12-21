@@ -195,12 +195,9 @@ def main() -> int:
         },
         "results_summary": {
             "total_combinations": len(results_df),
-            "positive_return_count": int(
-                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
-            ),
+            "positive_return_count": int(len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])),
             "positive_return_ratio": round(
-                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0])
-                / len(results_df),
+                len(results_df[results_df[COL_GRID_TOTAL_RETURN_PCT] > 0]) / len(results_df),
                 4,
             ),
             "total_return_pct": {

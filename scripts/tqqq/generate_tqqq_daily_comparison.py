@@ -94,21 +94,11 @@ def main() -> int:
             "total_days": int(validation_results["overlap_days"]),
         },
         "validation_metrics": {
-            "cumulative_return_actual_pct": round(
-                validation_results["cumulative_return_actual"] * 100, 2
-            ),
-            "cumulative_return_simulated_pct": round(
-                validation_results["cumulative_return_simulated"] * 100, 2
-            ),
-            "cumul_multiple_log_diff_mean_pct": round(
-                validation_results["cumul_multiple_log_diff_mean_pct"], 4
-            ),
-            "cumul_multiple_log_diff_rmse_pct": round(
-                validation_results["cumul_multiple_log_diff_rmse_pct"], 4
-            ),
-            "cumul_multiple_log_diff_max_pct": round(
-                validation_results["cumul_multiple_log_diff_max_pct"], 4
-            ),
+            "cumulative_return_actual_pct": round(validation_results["cumulative_return_actual"] * 100, 2),
+            "cumulative_return_simulated_pct": round(validation_results["cumulative_return_simulated"] * 100, 2),
+            "cumul_multiple_log_diff_mean_pct": round(validation_results["cumul_multiple_log_diff_mean_pct"], 4),
+            "cumul_multiple_log_diff_rmse_pct": round(validation_results["cumul_multiple_log_diff_rmse_pct"], 4),
+            "cumul_multiple_log_diff_max_pct": round(validation_results["cumul_multiple_log_diff_max_pct"], 4),
         },
         "daily_stats": {
             "daily_return_abs_diff": {

@@ -92,9 +92,7 @@ def save_metadata(csv_type: str, metadata: MetaDict) -> None:
     """
     # 1. csv_type 검증
     if csv_type not in VALID_CSV_TYPES:
-        raise ValueError(
-            f"유효하지 않은 csv_type: {csv_type}. " f"허용된 값: {VALID_CSV_TYPES}"
-        )
+        raise ValueError(f"유효하지 않은 csv_type: {csv_type}. " f"허용된 값: {VALID_CSV_TYPES}")
 
     # 2. 기존 meta.json 로드
     full_meta = _load_full_metadata()
@@ -115,5 +113,3 @@ def save_metadata(csv_type: str, metadata: MetaDict) -> None:
     META_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
     with META_JSON_PATH.open("w", encoding="utf-8") as f:
         json.dump(full_meta, f, indent=2, ensure_ascii=False)
-
-
