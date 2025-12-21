@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import (
+from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
     COL_DAILY_RETURN_ABS_DIFF,

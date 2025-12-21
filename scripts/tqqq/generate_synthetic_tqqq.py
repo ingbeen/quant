@@ -13,10 +13,8 @@ import sys
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    FFR_DATA_PATH,
     PRICE_COLUMNS,
     QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_PATH,
 )
 from qbt.tqqq import simulate
 from qbt.tqqq.constants import (
@@ -24,6 +22,8 @@ from qbt.tqqq.constants import (
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SYNTHETIC_INITIAL_PRICE,
+    FFR_DATA_PATH,
+    TQQQ_SYNTHETIC_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler

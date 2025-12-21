@@ -13,19 +13,20 @@ import sys
 
 import pandas as pd
 
-from qbt.common_constants import (
-    COL_CLOSE,
+from qbt.common_constants import COL_CLOSE, QQQ_DATA_PATH
+from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate
+from qbt.tqqq.constants import (
     COL_CUMUL_MULTIPLE_LOG_DIFF,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DISPLAY_EXPENSE,
     COL_DISPLAY_SPREAD,
+    DEFAULT_EXPENSE_RATIO,
+    DEFAULT_FUNDING_SPREAD,
+    DEFAULT_LEVERAGE_MULTIPLIER,
     FFR_DATA_PATH,
-    QQQ_DATA_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate
-from qbt.tqqq.constants import DEFAULT_EXPENSE_RATIO, DEFAULT_FUNDING_SPREAD, DEFAULT_LEVERAGE_MULTIPLIER
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data

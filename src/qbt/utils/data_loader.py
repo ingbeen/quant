@@ -7,14 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import (
-    COL_DATE,
+from qbt.common_constants import COL_DATE, REQUIRED_COLUMNS
+from qbt.tqqq.constants import (
     COL_DATE_KR,
     COL_FFR,
     COL_FFR_DATE,
     COL_FFR_VALUE_RAW,
     COMPARISON_COLUMNS,
-    REQUIRED_COLUMNS,
 )
 from qbt.utils import get_logger
 

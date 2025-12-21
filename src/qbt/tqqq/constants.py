@@ -4,6 +4,23 @@
 레버리지 ETF 시뮬레이션에서 사용하는 기본값과 검증 임계값을 정의한다.
 """
 
+from pathlib import Path
+
+# ============================================================
+# 경로 상수 (TQQQ 도메인 전용)
+# ============================================================
+
+# TQQQ 관련 데이터 파일 경로
+TQQQ_DATA_PATH = Path("storage/stock/TQQQ_max.csv")
+TQQQ_SYNTHETIC_PATH = Path("storage/stock/TQQQ_synthetic_max.csv")
+
+# FFR (Federal Funds Rate) 데이터 파일 경로
+FFR_DATA_PATH = Path("storage/etc/federal_funds_rate_monthly.csv")
+
+# 결과 파일 경로
+TQQQ_VALIDATION_PATH = Path("storage/results/tqqq_validation.csv")
+TQQQ_DAILY_COMPARISON_PATH = Path("storage/results/tqqq_daily_comparison.csv")
+
 # ============================================================
 # 레버리지 상품 스펙
 # ============================================================
@@ -29,3 +46,60 @@ MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이
 
 # 결과 제한
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
+
+# ============================================================
+# FFR (Federal Funds Rate) 데이터 컬럼명
+# ============================================================
+COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼 (대문자)
+COL_FFR_VALUE_RAW = "VALUE"  # FFR CSV의 원본 금리 값 컬럼
+COL_FFR = "FFR"  # 변환 후 금리 컬럼명
+
+# ============================================================
+# 일별 비교 데이터 컬럼명
+# ============================================================
+
+# 일별 비교 기본 컬럼
+COL_DATE_KR = "날짜"
+COL_ACTUAL_CLOSE = "종가_실제"
+COL_SIMUL_CLOSE = "종가_시뮬"
+
+# 일일수익률
+COL_ACTUAL_DAILY_RETURN = "일일수익률_실제"
+COL_SIMUL_DAILY_RETURN = "일일수익률_시뮬"
+COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
+
+# 누적수익률
+COL_ACTUAL_CUMUL_RETURN = "누적수익률_실제(%)"
+COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬(%)"
+COL_CUMUL_RETURN_REL_DIFF = "누적수익률_상대차이(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF = "누적배수_로그차이(%)"
+
+# 검증 결과 컬럼명 (TQQQ 시뮬레이션 검증용)
+COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "누적배수로그차이_RMSE(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "누적배수로그차이_평균(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
+
+# 일별 비교 필수 컬럼 그룹
+COMPARISON_COLUMNS = [
+    COL_DATE_KR,
+    COL_ACTUAL_CLOSE,
+    COL_SIMUL_CLOSE,
+    COL_ACTUAL_DAILY_RETURN,
+    COL_SIMUL_DAILY_RETURN,
+    COL_DAILY_RETURN_ABS_DIFF,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF,
+]
+
+# ============================================================
+# TQQQ 시뮬레이션 표시 문구 및 딕셔너리 키
+# ============================================================
+
+# 컬럼/로그 표시 문구
+COL_DISPLAY_SPREAD = "Funding Spread"
+COL_DISPLAY_EXPENSE = "Expense Ratio"
+
+# 딕셔너리 키 (내부 사용)
+COL_SPREAD = "spread"
+COL_EXPENSE = "expense"

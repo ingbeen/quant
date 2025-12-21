@@ -14,7 +14,9 @@ import sys
 
 import pandas as pd
 
-from qbt.common_constants import (
+from qbt.common_constants import QQQ_DATA_PATH, RESULTS_DIR
+from qbt.tqqq import find_optimal_cost_model
+from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
@@ -27,20 +29,15 @@ from qbt.common_constants import (
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SPREAD,
-    FFR_DATA_PATH,
-    QQQ_DATA_PATH,
-    RESULTS_DIR,
-    TQQQ_DATA_PATH,
-    TQQQ_VALIDATION_PATH,
-)
-from qbt.tqqq import find_optimal_cost_model
-from qbt.tqqq.constants import (
     DEFAULT_EXPENSE_RANGE,
     DEFAULT_EXPENSE_STEP,
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
+    FFR_DATA_PATH,
     MAX_TOP_STRATEGIES,
+    TQQQ_DATA_PATH,
+    TQQQ_VALIDATION_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
