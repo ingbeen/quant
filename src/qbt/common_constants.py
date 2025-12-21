@@ -61,12 +61,12 @@ EPSILON = 1e-12  # 분모 0 방지 및 로그 계산 안정성 확보
 
 # 일별 비교 컬럼명 (한글)
 COL_DATE_KR = "날짜"
-COL_ACTUAL_CLOSE = "실제_종가"
-COL_SIMUL_CLOSE = "시뮬_종가"
+COL_ACTUAL_CLOSE = "종가_실제"
+COL_SIMUL_CLOSE = "종가_시뮬"
 
 # 일일수익률
-COL_ACTUAL_DAILY_RETURN = "실제_일일수익률"
-COL_SIMUL_DAILY_RETURN = "시뮬_일일수익률"
+COL_ACTUAL_DAILY_RETURN = "일일수익률_실제"
+COL_SIMUL_DAILY_RETURN = "일일수익률_시뮬"
 COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
 
 # 누적수익률

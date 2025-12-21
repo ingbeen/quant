@@ -72,15 +72,28 @@ def main() -> int:
         max_workers=None,
     )
 
-    # 3. 상위 전략 테이블 출력
+    # 3. 메타 정보 헤더 출력
     logger.debug("=" * 120)
-    logger.debug("상위 전략")
+    logger.debug("비용 모델 캘리브레이션 결과")
+    logger.debug("=" * 120)
 
+    if top_strategies:
+        first_strategy = top_strategies[0]
+        logger.debug(f"검증 기간: {first_strategy['overlap_start']} ~ {first_strategy['overlap_end']}")
+        logger.debug(f"총 일수: {first_strategy['overlap_days']:,}일")
+        logger.debug(f"레버리지: {first_strategy['leverage']:.1f}배")
+        logger.debug("-" * 120)
+
+    # 4. 상위 전략 테이블 출력
     columns = [
         ("Rank", 6, Align.RIGHT),
-        ("Spread(%)", 12, Align.RIGHT),
-        ("Expense(%)", 12, Align.RIGHT),
-        ("로그차이평균(%)", 20, Align.RIGHT),
+        ("Spread", 10, Align.RIGHT),
+        ("Expense(%)", 11, Align.RIGHT),
+        ("종가_실제", 11, Align.RIGHT),
+        ("종가_시뮬", 11, Align.RIGHT),
+        ("누적수익률_실제(%)", 18, Align.RIGHT),
+        ("누적수익률_시뮬(%)", 18, Align.RIGHT),
+        ("로그차이평균(%)", 16, Align.RIGHT),
         ("로그차이RMSE(%)", 16, Align.RIGHT),
     ]
     table = TableLogger(columns, logger, indent=2)
@@ -91,6 +104,10 @@ def main() -> int:
             str(rank),
             f"{strategy['funding_spread']:.4f}",
             f"{strategy['expense_ratio']*100:.2f}",
+            f"{strategy['final_close_actual']:.2f}",
+            f"{strategy['final_close_simulated']:.2f}",
+            f"{strategy['cumulative_return_actual']*100:.2f}",
+            f"{strategy['cumulative_return_simulated']*100:.2f}",
             f"{strategy['cumul_multiple_log_diff_mean_pct']:.4f}",
             f"{strategy['cumul_multiple_log_diff_rmse_pct']:.4f}",
         ]
@@ -98,21 +115,20 @@ def main() -> int:
 
     table.print_table(rows)
 
-    # 4. 결과 저장 (CSV) - 상위 전략
+    # 5. 결과 저장 (CSV) - 상위 전략
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     results_csv_path = TQQQ_VALIDATION_PATH
 
     rows = []
     for rank, strategy in enumerate(top_strategies, start=1):
         row = {
-            # 메타 정보 (7개)
+            # 파라미터 (3개)
             "rank": rank,
-            "검증기간_시작": strategy["overlap_start"],
-            "검증기간_종료": strategy["overlap_end"],
-            "총일수": strategy["overlap_days"],
-            "leverage": round(strategy["leverage"], 2),
             "funding_spread": round(strategy["funding_spread"], 4),
             "expense_ratio": round(strategy["expense_ratio"], 6),
+            # 종가 (2개)
+            "종가_실제": round(strategy["final_close_actual"], 2),
+            "종가_시뮬": round(strategy["final_close_simulated"], 2),
             # 누적수익률/성과 (6개)
             "누적수익률_실제(%)": round(strategy["cumulative_return_actual"] * 100, 2),
             "누적수익률_시뮬레이션(%)": round(strategy["cumulative_return_simulated"] * 100, 2),

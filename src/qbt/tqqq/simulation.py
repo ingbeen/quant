@@ -451,12 +451,19 @@ def calculate_validation_metrics(
     # 7. 누적수익률 절대차이 계산 (마지막 날 기준, 퍼센트포인트)
     cumulative_return_abs_diff = abs(actual_cumulative - sim_cumulative) * 100
 
-    # 8. 검증 결과 반환
+    # 8. 마지막 날 종가 추출
+    final_close_actual = float(actual_overlap.iloc[-1][COL_CLOSE])
+    final_close_simulated = float(sim_overlap.iloc[-1][COL_CLOSE])
+
+    # 9. 검증 결과 반환
     return {
         # 기간 정보
         "overlap_start": sim_overlap[COL_DATE].iloc[0],
         "overlap_end": sim_overlap[COL_DATE].iloc[-1],
         "overlap_days": len(sim_overlap),
+        # 종가 정보
+        "final_close_actual": final_close_actual,
+        "final_close_simulated": final_close_simulated,
         # 누적 수익률
         "cumulative_return_simulated": sim_cumulative,
         "cumulative_return_actual": actual_cumulative,
