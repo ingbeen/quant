@@ -7,7 +7,7 @@ CSV 결과 파일의 메타데이터를 JSON으로 관리하고,
 
 import json
 from datetime import datetime, timezone
-from typing import Any, overload
+from typing import Any
 
 from qbt.common_constants import MAX_HISTORY_COUNT, META_JSON_PATH
 
@@ -117,28 +117,3 @@ def save_metadata(csv_type: str, metadata: MetaDict) -> None:
         json.dump(full_meta, f, indent=2, ensure_ascii=False)
 
 
-@overload
-def load_metadata(csv_type: None = None) -> FullMetaJson: ...
-
-
-@overload
-def load_metadata(csv_type: str) -> HistoryList: ...
-
-
-def load_metadata(csv_type: str | None = None) -> FullMetaJson | HistoryList:
-    """
-    meta.json에서 메타데이터를 읽어온다.
-
-    Args:
-        csv_type: 특정 CSV 타입만 조회 (None이면 전체 반환)
-
-    Returns:
-        csv_type이 None이면 전체 dict, 아니면 해당 타입의 이력 list
-    """
-    full_meta = _load_full_metadata()
-
-    # csv_type 지정 시 해당 키만 반환
-    if csv_type is not None:
-        return full_meta.get(csv_type, [])
-
-    return full_meta
