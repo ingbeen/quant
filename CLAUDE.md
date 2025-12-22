@@ -103,6 +103,13 @@ quant/
 
 **원칙**: 상수 중복 금지 - 계층 간 중복 정의 시 즉시 통합
 
+**상수 명명 규칙**:
+
+- **COL_**: DataFrame이나 테이블 형식 데이터의 컬럼명 (예: `COL_DATE`, `COL_CLOSE`)
+- **KEY_**: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_EXPENSE`)
+- **DISPLAY_**: CSV 출력이나 로그 표시용 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`)
+- 도메인 한 곳에서만 사용되는 상수는 해당 도메인의 `constants.py`에 정의
+
 ### 3. 핵심 패턴
 
 #### CSV 데이터 로딩
