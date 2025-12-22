@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE, COL_DISPLAY_DATE, REQUIRED_COLUMNS
+from qbt.common_constants import COL_DATE, DISPLAY_DATE, REQUIRED_COLUMNS
 from qbt.tqqq.constants import (
     COL_FFR,
     COL_FFR_DATE,
@@ -117,6 +117,6 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
 
     # 날짜 컬럼을 datetime으로 변환
-    df[COL_DISPLAY_DATE] = pd.to_datetime(df[COL_DISPLAY_DATE])
+    df[DISPLAY_DATE] = pd.to_datetime(df[DISPLAY_DATE])
 
     return df

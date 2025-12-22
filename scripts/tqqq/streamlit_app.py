@@ -12,7 +12,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import COL_DISPLAY_DATE
+from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_CUMUL_MULTIPLE_LOG_DIFF,
@@ -38,7 +38,7 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
     # 실제 종가
     fig.add_trace(
         go.Scatter(
-            x=df[COL_DISPLAY_DATE],
+            x=df[DISPLAY_DATE],
             y=df[COL_ACTUAL_CLOSE],
             mode="lines",
             name="실제 TQQQ",
@@ -50,7 +50,7 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
     # 시뮬레이션 종가
     fig.add_trace(
         go.Scatter(
-            x=df[COL_DISPLAY_DATE],
+            x=df[DISPLAY_DATE],
             y=df[COL_SIMUL_CLOSE],
             mode="lines",
             name="시뮬레이션 TQQQ",
@@ -158,7 +158,7 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
 
     fig.add_trace(
         go.Scatter(
-            x=df[COL_DISPLAY_DATE],
+            x=df[DISPLAY_DATE],
             y=df[COL_CUMUL_MULTIPLE_LOG_DIFF],
             mode="lines",
             name="누적배수 로그차이",
@@ -233,7 +233,7 @@ def main():
             st.metric(
                 label="검증 기간",
                 value=f"{len(df):,}일",
-                delta=f"{df[COL_DISPLAY_DATE].min().strftime('%Y-%m-%d')} ~ {df[COL_DISPLAY_DATE].max().strftime('%Y-%m-%d')}",
+                delta=f"{df[DISPLAY_DATE].min().strftime('%Y-%m-%d')} ~ {df[DISPLAY_DATE].max().strftime('%Y-%m-%d')}",
             )
 
         with col2:

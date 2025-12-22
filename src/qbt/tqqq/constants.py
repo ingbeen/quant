@@ -6,7 +6,7 @@
 
 from pathlib import Path
 
-from qbt.common_constants import COL_DISPLAY_DATE
+from qbt.common_constants import DISPLAY_DATE
 
 # ============================================================
 # 경로 상수 (TQQQ 도메인 전용)
@@ -81,7 +81,7 @@ COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
 
 # 일별 비교 필수 컬럼 그룹
 COMPARISON_COLUMNS = [
-    COL_DISPLAY_DATE,
+    DISPLAY_DATE,
     COL_ACTUAL_CLOSE,
     COL_SIMUL_CLOSE,
     COL_ACTUAL_DAILY_RETURN,

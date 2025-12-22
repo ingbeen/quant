@@ -14,7 +14,7 @@ import pandas as pd
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    COL_DISPLAY_DATE,
+    DISPLAY_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
@@ -367,7 +367,7 @@ def _save_daily_comparison_csv(
     """
     # 1. 기본 데이터 준비
     comparison_data = {
-        COL_DISPLAY_DATE: actual_overlap[COL_DATE],
+        DISPLAY_DATE: actual_overlap[COL_DATE],
         COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
         COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
     }
@@ -395,7 +395,7 @@ def _save_daily_comparison_csv(
 
     # 5. DataFrame 생성 및 반올림
     comparison_df = pd.DataFrame(comparison_data)
-    num_cols = [c for c in comparison_df.columns if c != COL_DISPLAY_DATE]
+    num_cols = [c for c in comparison_df.columns if c != DISPLAY_DATE]
     comparison_df[num_cols] = comparison_df[num_cols].round(4)
 
     # 6. CSV 저장
