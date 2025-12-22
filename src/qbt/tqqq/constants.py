@@ -2,6 +2,9 @@
 합성 데이터 생성 도메인 상수
 
 레버리지 ETF 시뮬레이션에서 사용하는 기본값과 검증 임계값을 정의한다.
+- 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
+- 비용 모델 파라미터 (기본값, 그리드 서치, 검증)
+- 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 """
 
 from pathlib import Path
@@ -9,77 +12,72 @@ from pathlib import Path
 from qbt.common_constants import DISPLAY_DATE
 
 # ============================================================
-# 경로 상수 (TQQQ 도메인 전용)
+# 경로 및 스펙 설정
 # ============================================================
 
-# TQQQ 관련 데이터 파일 경로
+# --- 데이터 파일 경로 ---
 TQQQ_DATA_PATH = Path("storage/stock/TQQQ_max.csv")
 TQQQ_SYNTHETIC_PATH = Path("storage/stock/TQQQ_synthetic_max.csv")
-
-# FFR (Federal Funds Rate) 데이터 파일 경로
 FFR_DATA_PATH = Path("storage/etc/federal_funds_rate_monthly.csv")
 
-# 결과 파일 경로
+# --- 결과 파일 경로 ---
 TQQQ_VALIDATION_PATH = Path("storage/results/tqqq_validation.csv")
 TQQQ_DAILY_COMPARISON_PATH = Path("storage/results/tqqq_daily_comparison.csv")
 
-# ============================================================
-# 레버리지 상품 스펙
-# ============================================================
+# --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER = 3.0  # TQQQ 3배 레버리지
 DEFAULT_SYNTHETIC_INITIAL_PRICE = 200.0  # 합성 데이터 초기 가격
 
 # ============================================================
-# 비용 모델
+# 비용 모델 파라미터
 # ============================================================
-# 기본값
+
+# --- 기본값 ---
 DEFAULT_FUNDING_SPREAD = 0.004  # FFR 스프레드 (%)
 DEFAULT_EXPENSE_RATIO = 0.0085  # 연간 비용 비율 (%)
 
-# 그리드 서치 범위
+# --- 그리드 서치 범위 ---
 DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP = 0.0005  # 스프레드 증분 (%)
 DEFAULT_EXPENSE_RANGE = (0.0075, 0.0105)  # expense ratio 범위 (%)
 DEFAULT_EXPENSE_STEP = 0.0005  # expense ratio 증분 (%)
 
-# 데이터 검증
+# --- 데이터 검증 및 결과 제한 ---
 MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이
-
-# 결과 제한
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 
 # ============================================================
-# FFR (Federal Funds Rate) 데이터 컬럼명
+# 데이터 컬럼 및 키 정의
 # ============================================================
+
+# --- CSV 컬럼명 (DataFrame 내부용) ---
+
+# FFR 데이터
 COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼 (대문자)
 COL_FFR_VALUE_RAW = "VALUE"  # FFR CSV의 원본 금리 값 컬럼
 COL_FFR = "FFR"  # 변환 후 금리 컬럼명
 
-# ============================================================
-# 일별 비교 데이터 컬럼명
-# ============================================================
-
-# 일별 비교 기본 컬럼
+# 일별 비교 데이터 - 종가
 COL_ACTUAL_CLOSE = "종가_실제"
 COL_SIMUL_CLOSE = "종가_시뮬"
 
-# 일일수익률
+# 일별 비교 데이터 - 일일수익률
 COL_ACTUAL_DAILY_RETURN = "일일수익률_실제"
 COL_SIMUL_DAILY_RETURN = "일일수익률_시뮬"
 COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
 
-# 누적수익률
+# 일별 비교 데이터 - 누적수익률
 COL_ACTUAL_CUMUL_RETURN = "누적수익률_실제(%)"
 COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬(%)"
 COL_CUMUL_RETURN_REL_DIFF = "누적수익률_상대차이(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF = "누적배수_로그차이(%)"
 
-# 검증 결과 컬럼명 (TQQQ 시뮬레이션 검증용)
+# 검증 결과 컬럼
 COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "누적배수로그차이_RMSE(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "누적배수로그차이_평균(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
 
-# 일별 비교 필수 컬럼 그룹
+# 컬럼 그룹
 COMPARISON_COLUMNS = [
     DISPLAY_DATE,
     COL_ACTUAL_CLOSE,
@@ -92,21 +90,15 @@ COMPARISON_COLUMNS = [
     COL_CUMUL_MULTIPLE_LOG_DIFF,
 ]
 
-# ============================================================
-# TQQQ 시뮬레이션 표시 문구 및 딕셔너리 키
-# ============================================================
-
-# 로그/CSV 출력용 레이블
+# --- 출력용 레이블 (사용자 표시용) ---
 DISPLAY_SPREAD = "Funding Spread"
 DISPLAY_EXPENSE = "Expense Ratio"
 
-# 딕셔너리 키 (내부 사용)
+# --- 딕셔너리 키 (내부 사용) ---
+
+# 비용 모델
 KEY_SPREAD = "spread"
 KEY_EXPENSE = "expense"
-
-# ============================================================
-# validation_results 딕셔너리 키
-# ============================================================
 
 # 겹치는 기간 정보
 KEY_OVERLAP_START = "overlap_start"
