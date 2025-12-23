@@ -3,6 +3,12 @@
 
 CSV 결과 파일의 메타데이터를 JSON으로 관리하고,
 최근 N개 이력을 순환 저장한다.
+
+학습 포인트:
+1. JSON: JavaScript Object Notation - 데이터를 텍스트로 저장하는 형식
+2. 타입 별칭(Type Alias): 복잡한 타입에 이름 붙이기
+3. with 문: 파일을 자동으로 닫아주는 컨텍스트 관리자
+4. .copy(): 딕셔너리 복사본 생성 (원본 보호)
 """
 
 import json
@@ -11,12 +17,18 @@ from typing import Any
 
 from qbt.common_constants import MAX_HISTORY_COUNT, META_JSON_PATH
 
-# 타입 정의
+# 타입 별칭(Type Alias): 복잡한 타입에 짧은 이름 부여
+# MetaDict: 문자열 키와 임의 값을 가진 딕셔너리
 MetaDict = dict[str, Any]
+
+# HistoryList: MetaDict의 리스트
 HistoryList = list[MetaDict]
+
+# FullMetaJson: 문자열 키와 HistoryList 값을 가진 딕셔너리
 FullMetaJson = dict[str, HistoryList]
 
 # 허용된 CSV 타입
+# set: 중복 없는 집합 자료구조, in 연산으로 빠른 검사 가능
 VALID_CSV_TYPES = {"grid_results", "tqqq_validation", "tqqq_daily_comparison"}
 
 
@@ -24,15 +36,27 @@ def _load_full_metadata() -> FullMetaJson:
     """
     meta.json 전체를 로드한다.
 
+    학습 포인트:
+    1. with 문: 파일을 자동으로 닫아주는 안전한 파일 처리
+    2. encoding="utf-8": 한글 등 유니코드 문자 처리
+    3. json.load(): JSON 텍스트를 Python 객체(dict, list 등)로 변환
+
     Returns:
         전체 메타데이터 dict (파일 없으면 빈 dict)
     """
     # 파일 없으면 빈 dict 반환
     if not META_JSON_PATH.exists():
+        # {} : 빈 딕셔너리 (키-값 쌍이 없음)
         return {}
 
     # JSON 파싱
+    # with 문: 블록이 끝나면 자동으로 파일을 닫음 (finally 불필요)
+    # .open("r", ...): 읽기 모드로 파일 열기 ("w"는 쓰기, "a"는 추가)
+    # encoding="utf-8": 한글 등 모든 문자를 올바르게 읽기
+    # as f: 파일 객체를 f 변수에 저장
     with META_JSON_PATH.open("r", encoding="utf-8") as f:
+        # json.load(파일): JSON 파일을 읽어 Python 객체로 변환
+        # JSON의 {} → dict, [] → list, "문자열" → str, 123 → int 등
         full_meta: FullMetaJson = json.load(f)
 
     return full_meta

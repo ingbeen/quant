@@ -1,6 +1,12 @@
 """병렬 처리 유틸리티 모듈
 
 ProcessPoolExecutor를 사용하여 CPU 집약적 작업을 병렬로 실행한다.
+
+학습 포인트:
+1. 병렬 처리: 여러 작업을 동시에 실행하여 성능 향상
+2. ProcessPoolExecutor: 멀티프로세싱 기반 병렬 실행 (CPU 집약적 작업용)
+3. Future 객체: 비동기 작업의 결과를 나타내는 객체
+4. pickle: Python 객체를 직렬화하여 프로세스 간 전달
 """
 
 import os
@@ -79,6 +85,13 @@ def execute_parallel(
     """
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다.
 
+    학습 포인트:
+    1. ProcessPoolExecutor: 여러 CPU 코어를 사용하여 작업 병렬 실행
+    2. enumerate(): 리스트 순회 시 (인덱스, 값) 쌍으로 가져오기
+    3. 딕셔너리 컴프리헨션: {key: value for ...} 형태로 딕셔너리 생성
+    4. lambda: 간단한 익명 함수 (예: lambda x: x[0])
+    5. 리스트 컴프리헨션: [result for _, result in ...] 형태로 리스트 생성
+
     ProcessPoolExecutor를 사용하여 함수를 병렬로 실행하고,
     모든 작업이 완료될 때까지 대기한 후 입력 순서대로 정렬된 결과를 반환한다.
 
@@ -112,7 +125,10 @@ def execute_parallel(
 
     # 2. max_workers 기본값 설정 (CPU 코어 수 - 1, 최소 1)
     if max_workers is None:
+        # os.cpu_count(): 시스템의 CPU 코어 수 반환 (None 가능)
+        # or 1: None이면 1 사용
         cpu_count = os.cpu_count() or 1
+        # max(): 두 값 중 큰 값 선택 (최소 1 보장)
         max_workers = max(1, cpu_count - 1)
 
     logger.debug(
@@ -121,18 +137,27 @@ def execute_parallel(
 
     # 3. 병렬 실행
     # (입력 인덱스, 결과) 쌍을 저장하여 나중에 순서를 복원
+    # 타입 힌트: list[tuple[int, Any]] - (정수, 임의 타입) 튜플의 리스트
     results_with_index: list[tuple[int, Any]] = []
     last_logged_percentage = 0
 
+    # with 문: ProcessPoolExecutor를 자동으로 종료
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # 각 입력에 대해 future 생성 (인덱스와 함께 제출)
+        # 딕셔너리 컴프리헨션: {key: value for ...}
+        # enumerate(inputs): (0, inputs[0]), (1, inputs[1]), ... 생성
+        # executor.submit(func, input_data): 작업 제출하고 Future 객체 반환
+        # Future 객체를 키로, 인덱스를 값으로 하는 딕셔너리 생성
         future_to_index = {executor.submit(func, input_data): idx for idx, input_data in enumerate(inputs)}
 
         # 완료되는 대로 결과 수집
+        # as_completed(): 작업이 완료되는 순서대로 Future 객체 반환
         for future in as_completed(future_to_index):
+            # 딕셔너리에서 Future에 해당하는 인덱스 가져오기
             idx = future_to_index[future]
             try:
+                # future.result(): 작업의 실제 결과 가져오기 (완료될 때까지 대기)
                 result = future.result()
+                # (인덱스, 결과) 튜플로 저장
                 results_with_index.append((idx, result))
 
                 # 진행도 로깅 (첫 번째, 마지막, 10% 경계마다)
@@ -149,7 +174,12 @@ def execute_parallel(
                 raise
 
     # 4. 입력 순서대로 정렬
+    # .sort(key=...): key 함수의 반환값을 기준으로 정렬
+    # lambda x: x[0]: 튜플의 첫 번째 요소(인덱스)를 기준으로 정렬
     results_with_index.sort(key=lambda x: x[0])
+
+    # 리스트 컴프리헨션: [표현식 for 변수 in 리스트]
+    # for _, result in results_with_index: 인덱스는 무시하고 결과만 추출
     results = [result for _, result in results_with_index]
 
     logger.debug(f"병렬 실행 완료 - 총 {len(results)}개 작업 성공")

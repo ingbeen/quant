@@ -1,4 +1,11 @@
-"""전략 실행 모듈"""
+"""전략 실행 모듈
+
+학습 포인트:
+1. @dataclass: 데이터를 담는 클래스를 간결하게 정의하는 데코레이터
+2. 백테스팅: 과거 데이터로 거래 전략을 시뮬레이션하여 성능 검증
+3. 이동평균 전략: 가격이 이동평균선을 돌파하면 매수/매도하는 전략
+4. 슬리피지: 실제 체결 가격이 예상 가격과 다른 현상 (수수료와 별도)
+"""
 
 from dataclasses import dataclass
 from datetime import timedelta
@@ -33,24 +40,38 @@ logger = get_logger(__name__)
 
 @dataclass
 class BaseStrategyParams:
-    """전략 파라미터의 기본 클래스."""
+    """전략 파라미터의 기본 클래스.
+
+    학습 포인트:
+    1. @dataclass 데코레이터: 클래스를 데이터 컨테이너로 만듦
+    2. 타입 힌트와 함께 변수 선언만 하면 __init__ 메서드 자동 생성
+    3. 클래스 상속의 기본 - 공통 속성을 부모 클래스에 정의
+    """
 
     initial_capital: float  # 초기 자본금
 
 
 @dataclass
 class BufferStrategyParams(BaseStrategyParams):
-    """버퍼존 전략 파라미터를 담는 데이터 클래스."""
+    """버퍼존 전략 파라미터를 담는 데이터 클래스.
 
-    ma_window: int  # 이동평균 기간
-    buffer_zone_pct: float  # 초기 버퍼존
-    hold_days: int  # 초기 유지조건
-    recent_months: int  # 최근 매수 기간
+    학습 포인트:
+    - 클래스 상속: (BaseStrategyParams) - 부모 클래스의 속성 상속
+    - BaseStrategyParams의 initial_capital도 사용 가능
+    """
+
+    ma_window: int  # 이동평균 기간 (예: 20일)
+    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 5.0 = 5%)
+    hold_days: int  # 최소 보유 일수 (예: 5일)
+    recent_months: int  # 최근 매수 기간 (예: 6개월)
 
 
 @dataclass
 class BuyAndHoldParams:
-    """Buy & Hold 전략 파라미터를 담는 데이터 클래스."""
+    """Buy & Hold 전략 파라미터를 담는 데이터 클래스.
+
+    Buy & Hold: 매수 후 그대로 보유하는 가장 기본적인 전략 (벤치마크용)
+    """
 
     initial_capital: float  # 초기 자본금
 

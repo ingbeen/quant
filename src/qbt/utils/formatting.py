@@ -1,6 +1,11 @@
 """터미널 출력 포맷팅 유틸리티
 
 한글/영문 혼용 시 터미널 폭을 정확히 계산하여 정렬한다.
+
+학습 포인트:
+1. Enum (열거형): 관련된 상수들을 그룹화하는 방법
+2. 한글은 터미널에서 2칸, 영문은 1칸 차지하는 것을 고려한 폭 계산
+3. 클래스 기반 설계: TableLogger로 테이블 출력 로직을 캡슐화
 """
 
 import logging
@@ -8,11 +13,18 @@ from enum import Enum
 
 
 class Align(Enum):
-    """텍스트 정렬 방향을 나타내는 열거형"""
+    """텍스트 정렬 방향을 나타내는 열거형
 
-    LEFT = "left"
-    RIGHT = "right"
-    CENTER = "center"
+    학습 포인트:
+    - Enum 상속: 관련된 상수를 그룹으로 관리
+    - 사용 예: Align.LEFT, Align.RIGHT, Align.CENTER
+    - 문자열보다 안전: 오타 방지, IDE 자동완성 지원
+    """
+
+    # 각 상수는 "이름 = 값" 형태로 정의
+    LEFT = "left"  # 왼쪽 정렬
+    RIGHT = "right"  # 오른쪽 정렬
+    CENTER = "center"  # 가운데 정렬
 
 
 def get_display_width(text: str) -> int:
@@ -21,19 +33,30 @@ def get_display_width(text: str) -> int:
 
     한글, 한자 등 동아시아 문자는 2칸, 영문/숫자/기호는 1칸으로 계산한다.
 
+    학습 포인트:
+    1. ord(문자): 문자의 유니코드 코드 포인트를 반환
+    2. 16진수 리터럴: 0x1100은 십진수 4352
+    3. for 루프로 문자열의 각 문자 순회
+
     Args:
         text: 폭을 계산할 문자열
 
     Returns:
         터미널에서 차지하는 실제 폭 (칸 수)
     """
-    width = 0
+    width = 0  # 누적 폭
+
+    # for char in text: 문자열의 각 문자를 순회
+    # 예: "안녕AB" → '안', '녕', 'A', 'B' 순서로 처리
     for char in text:
-        # 한글, 한자 등 동아시아 문자는 2칸
+        # ord(char): 문자를 유니코드 숫자로 변환
+        # 예: ord('A') = 65, ord('가') = 44032
+        # 0x1100 (십진수 4352) 이상이면 동아시아 문자로 간주
         if ord(char) > 0x1100:
-            width += 2
+            width += 2  # 한글, 한자 등은 2칸
         else:
-            width += 1
+            width += 1  # 영문, 숫자, 기호는 1칸
+
     return width
 
 
@@ -90,20 +113,30 @@ def format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
 class TableLogger:
     """테이블 형식으로 로그를 출력하는 클래스
 
+    학습 포인트:
+    1. 클래스: 관련된 데이터와 기능을 묶어 관리
+    2. __init__: 생성자 메서드 - 인스턴스 초기화
+    3. self: 인스턴스 자신을 가리키는 참조 (Java의 this와 유사)
+    4. list[tuple[str, int, Align]]: 복잡한 타입 힌트 (튜플의 리스트)
+
     컬럼 정의를 받아서 테이블 구조를 설정하고, 헤더/데이터/푸터를 출력합니다.
     한글/영문 혼용 시 터미널 폭을 정확히 계산하여 정렬합니다.
 
     Examples:
+        >>> # 컬럼 정의: (컬럼명, 폭, 정렬) 튜플의 리스트
         >>> columns = [
         ...     ("날짜", 12, Align.LEFT),
         ...     ("가격", 12, Align.RIGHT),
         ...     ("변동률", 10, Align.RIGHT),
         ... ]
+        >>> # 테이블 로거 인스턴스 생성
         >>> table = TableLogger(columns, logger)
+        >>> # 데이터 행 정의
         >>> rows = [
         ...     ["2024-01-01", "100.50", "+2.5%"],
         ...     ["2024-01-02", "102.00", "+1.5%"],
         ... ]
+        >>> # 테이블 출력
         >>> table.print_table(rows, title="가격 변동 내역")
     """
 
@@ -111,14 +144,26 @@ class TableLogger:
         """
         TableLogger를 초기화한다.
 
+        학습 포인트:
+        1. __init__: 클래스 인스턴스 생성 시 자동 호출되는 생성자
+        2. self.변수명: 인스턴스 변수 - 객체마다 독립적으로 존재
+        3. 제너레이터 표현식: sum(width for _, width, _ in columns)
+        4. 언패킹: (name, width, align) = ("날짜", 12, Align.LEFT)
+
         Args:
             columns: [(컬럼명, 폭, 정렬), ...] 튜플 리스트
             logger: 로거 인스턴스
-            indent: 들여쓰기 칸 수
+            indent: 들여쓰기 칸 수 (기본값 2)
         """
+        # self.변수: 이 인스턴스의 속성으로 저장
+        # 다른 메서드에서 self.columns로 접근 가능
         self.columns = columns
         self.logger = logger
         self.indent = indent
+
+        # 전체 테이블 폭 계산
+        # sum(제너레이터): 제너레이터에서 생성된 값들의 합계
+        # for _, width, _ in columns: 튜플에서 width만 추출 (_ 는 무시)
         self._total_width = indent + sum(width for _, width, _ in columns)
 
     def print_header(self, title: str | None = None) -> None:

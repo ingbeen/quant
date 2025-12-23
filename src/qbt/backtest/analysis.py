@@ -1,6 +1,12 @@
 """백테스트 분석 모듈
 
 이동평균 계산 및 성과 지표 계산 기능을 제공한다.
+
+학습 포인트:
+1. 이동평균(Moving Average): 일정 기간의 가격 평균을 계산하여 추세 파악
+2. SMA (Simple MA): 단순 평균, EMA (Exponential MA): 최근 데이터에 가중치
+3. CAGR: 연평균 복리 성장률 - 투자 성과를 연 단위로 환산
+4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
 import pandas as pd
@@ -19,9 +25,15 @@ def add_single_moving_average(
     """
     지정된 기간의 이동평균을 계산하여 컬럼으로 추가한다.
 
+    학습 포인트:
+    1. .rolling(window=N): N개 행의 이동 윈도우 생성
+    2. .mean(): 각 윈도우의 평균 계산
+    3. .ewm(): 지수 가중 이동평균 (최근 데이터에 더 큰 가중치)
+    4. .notna(): NaN이 아닌 값 체크 (True/False)
+
     Args:
         df: 주식 데이터 DataFrame (Close 컬럼 필수)
-        window: 이동평균 기간
+        window: 이동평균 기간 (예: 20 = 20일 이동평균)
         ma_type: 이동평균 유형 ("sma" 또는 "ema", 기본값: "sma")
 
     Returns:
@@ -36,20 +48,31 @@ def add_single_moving_average(
     logger.debug(f"이동평균 계산: window={window}, type={ma_type}")
 
     # DataFrame 복사 (원본 보존)
+    # .copy(): 원본 데이터를 변경하지 않도록 복사본 생성
     df = df.copy()
 
     # 컬럼명 설정
+    # f-string으로 동적 컬럼명 생성 (예: "ma_20", "ma_50")
     col_name = f"ma_{window}"
 
     # 이동평균 계산
     if ma_type == "sma":
+        # SMA (Simple Moving Average): 단순 이동평균
+        # .rolling(window=20): 20개 행씩 묶어 이동 윈도우 생성
+        # .mean(): 각 윈도우의 평균 계산
+        # 예: [1,2,3,4,5]에서 window=3 → [NaN, NaN, 2, 3, 4]
         df[col_name] = df[COL_CLOSE].rolling(window=window).mean()
     elif ma_type == "ema":
+        # EMA (Exponential Moving Average): 지수 이동평균
+        # .ewm(): 지수 가중 이동평균 (최근 데이터에 더 큰 가중치)
+        # span: EMA 기간, adjust=False: 표준 EMA 공식 사용
         df[col_name] = df[COL_CLOSE].ewm(span=window, adjust=False).mean()
     else:
         raise ValueError(f"지원하지 않는 ma_type: {ma_type}")
 
     # 유효 데이터 수 확인
+    # .notna(): NaN이 아닌 값 확인 (True/False Series 반환)
+    # .sum(): True를 1로 세어 합계 (유효 데이터 개수)
     valid_rows = df[col_name].notna().sum()
     logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
 
