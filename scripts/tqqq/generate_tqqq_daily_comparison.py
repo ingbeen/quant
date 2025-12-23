@@ -43,7 +43,6 @@ from qbt.tqqq.constants import (
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_ffr_data, load_stock_data
-from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
@@ -156,33 +155,10 @@ def main() -> int:
     logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%")
     logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN]:.2f}%")
     logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MAX}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX]:.4f}%")
+    logger.debug(f"일일수익률_절대차이 평균: {daily_df[COL_DAILY_RETURN_ABS_DIFF].mean():.4f}%")
+    logger.debug(f"일일수익률_절대차이 최대: {daily_df[COL_DAILY_RETURN_ABS_DIFF].max():.4f}%")
 
-    # 일별 비교 요약 통계
     logger.debug("-" * 64)
-    logger.debug("일별 비교 요약 통계")
-    logger.debug("-" * 64)
-
-    columns = [
-        ("지표", 30, Align.LEFT),
-        ("평균", 12, Align.RIGHT),
-        ("최대", 12, Align.RIGHT),
-    ]
-    summary_table = TableLogger(columns, logger, indent=2)
-
-    rows = [
-        [
-            "일일수익률 절대차이 (%)",
-            f"{daily_df[COL_DAILY_RETURN_ABS_DIFF].mean():.4f}",
-            f"{daily_df[COL_DAILY_RETURN_ABS_DIFF].max():.4f}",
-        ],
-        [
-            "누적배수 로그차이 (%)",
-            f"{daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean():.2f}",
-            f"{daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max():.2f}",
-        ],
-    ]
-
-    summary_table.print_table(rows)
 
     logger.debug(f"일별 비교 CSV 저장 완료: {TQQQ_DAILY_COMPARISON_PATH}")
 
