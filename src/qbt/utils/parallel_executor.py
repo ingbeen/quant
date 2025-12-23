@@ -31,6 +31,46 @@ def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
     return func(**kwargs_dict)
 
 
+def _should_log_progress(
+    completed_count: int,
+    total_count: int,
+    last_logged_percentage: int,
+) -> tuple[bool, int]:
+    """
+    진행도 로그 출력 여부를 결정한다.
+
+    다음 조건 중 하나라도 만족하면 로그를 출력한다:
+    1. 첫 번째 작업 완료
+    2. 마지막 작업 완료
+    3. 10% 경계를 넘었을 때 (10%, 20%, ..., 90%)
+
+    Args:
+        completed_count: 완료된 작업 수
+        total_count: 전체 작업 수
+        last_logged_percentage: 마지막으로 로그를 출력한 퍼센트 (0-100)
+
+    Returns:
+        (출력 여부, 현재 퍼센트) 튜플
+    """
+    current_percentage = int((completed_count / total_count) * 100)
+
+    # 1. 첫 번째 작업 완료
+    if completed_count == 1:
+        return (True, current_percentage)
+
+    # 2. 마지막 작업 완료
+    if completed_count == total_count:
+        return (True, current_percentage)
+
+    # 3. 10% 경계를 넘었을 때
+    last_decile = last_logged_percentage // 10
+    current_decile = current_percentage // 10
+    if current_decile > last_decile:
+        return (True, current_percentage)
+
+    return (False, current_percentage)
+
+
 def execute_parallel(
     func: Callable,
     inputs: list[Any],
@@ -82,6 +122,7 @@ def execute_parallel(
     # 3. 병렬 실행
     # (입력 인덱스, 결과) 쌍을 저장하여 나중에 순서를 복원
     results_with_index: list[tuple[int, Any]] = []
+    last_logged_percentage = 0
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # 각 입력에 대해 future 생성 (인덱스와 함께 제출)
@@ -94,11 +135,14 @@ def execute_parallel(
                 result = future.result()
                 results_with_index.append((idx, result))
 
-                # 진행도 로깅 (매 10개마다)
+                # 진행도 로깅 (첫 번째, 마지막, 10% 경계마다)
                 completed_count = len(results_with_index)
-                if completed_count % 10 == 0 or completed_count == len(inputs):
-                    progress_pct = (completed_count / len(inputs)) * 100
-                    logger.debug(f"진행도: {completed_count}/{len(inputs)} ({progress_pct:.1f}%)")
+                should_log, current_pct = _should_log_progress(
+                    completed_count, len(inputs), last_logged_percentage
+                )
+                if should_log:
+                    logger.debug(f"진행도: {completed_count}/{len(inputs)} ({current_pct}%)")
+                    last_logged_percentage = current_pct
 
             except Exception as e:
                 logger.debug(f"작업 {idx + 1}/{len(inputs)} 실패: {e}")

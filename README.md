@@ -74,25 +74,7 @@ poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 20
 
 ---
 
-### 2. run_single_backtest.py - 단일 전략 백테스트
-
-버퍼존 전략과 Buy&Hold 벤치마크를 비교합니다.
-
-**실행 명령어:**
-
-```bash
-poetry run python scripts/backtest/run_single_backtest.py
-```
-
-**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/backtest/constants.py)에서 상수로 정의됨)
-
-**출력:** 콘솔 출력 (전략 비교 결과)
-
-**의존 CSV:** `storage/stock/QQQ_max.csv`
-
----
-
-### 3. run_grid_search.py - 파라미터 그리드 서치
+### 2. run_grid_search.py - 파라미터 그리드 서치
 
 버퍼존 전략의 최적 파라미터를 탐색합니다.
 
@@ -108,6 +90,24 @@ poetry run python scripts/backtest/run_grid_search.py
 
 - 콘솔: 상위 10개 전략 (수익률/CAGR 기준)
 - `storage/results/grid_results.csv`: 전체 결과
+
+**의존 CSV:** `storage/stock/QQQ_max.csv`
+
+---
+
+### 3. run_single_backtest.py - 단일 전략 백테스트
+
+버퍼존 전략과 Buy&Hold 벤치마크를 비교합니다.
+
+**실행 명령어:**
+
+```bash
+poetry run python scripts/backtest/run_single_backtest.py
+```
+
+**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/backtest/constants.py)에서 상수로 정의됨)
+
+**출력:** 콘솔 출력 (전략 비교 결과)
 
 **의존 CSV:** `storage/stock/QQQ_max.csv`
 
