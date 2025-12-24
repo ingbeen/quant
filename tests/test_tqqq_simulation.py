@@ -524,7 +524,7 @@ class TestFindOptimalCostModel:
         # When & Then: 음수 범위는 함수가 자동으로 처리하므로 에러 안 날 수 있음
         # 단순히 함수 호출이 성공하는지만 확인
         try:
-            result = find_optimal_cost_model(
+            find_optimal_cost_model(
                 underlying_df=underlying_df,
                 actual_leveraged_df=actual_leveraged_df,
                 ffr_df=ffr_df,
