@@ -1,271 +1,240 @@
 # QBT (Quant BackTest)
 
-주식 데이터 다운로드 및 백테스팅을 위한 Python CLI 도구
+주식 백테스팅 및 레버리지 ETF 시뮬레이션을 위한 Python CLI 도구입니다.
 
-## 프로젝트 초기 설정
+## 주요 기능
 
-프로젝트를 클론한 후 다음 명령어로 환경을 구성하세요:
+- 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
+- 이동평균 기반 거래 전략 백테스트
+- 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
+- 대화형 시각화 대시보드 (Streamlit + Plotly)
+
+## 기술 스택
+
+- **언어**: Python 3.10+
+- **의존성 관리**: Poetry
+- **데이터 처리**: pandas, yfinance
+- **시각화**: Plotly, Streamlit, matplotlib
+- **코드 품질**: Black, Ruff
+- **테스트**: pytest, pytest-cov, freezegun
+
+## 빠른 시작
 
 ```bash
 # 의존성 설치
 poetry install
+
+# 테스트 실행
+./run_tests.sh
+
+# 린트 검사
+poetry run ruff check .
 ```
 
-## 코드 품질 도구
+---
 
-### Ruff (린터)
+## 워크플로우 1: 백테스트 전략 분석
 
-코드 스타일 및 잠재적 오류를 검사합니다.
+이동평균 기반 버퍼존 전략의 최적 파라미터를 탐색하고 성과를 평가합니다.
 
 ```bash
-# 전체 프로젝트 검사
+# 1. 데이터 다운로드
+poetry run python scripts/data/download_data.py QQQ
+
+# 2. 파라미터 최적화 (그리드 서치)
+poetry run python scripts/backtest/run_grid_search.py
+# 출력: storage/results/grid_results.csv
+
+# 3. 단일 전략 검증
+poetry run python scripts/backtest/run_single_backtest.py
+# 출력: 콘솔 (버퍼존 vs Buy&Hold 비교)
+```
+
+**파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
+
+---
+
+## 워크플로우 2: TQQQ 레버리지 ETF 시뮬레이션
+
+QQQ로부터 TQQQ를 시뮬레이션하고 실제 데이터와 비교하여 비용 모델을 검증합니다.
+
+```bash
+# 1. 필수 데이터 다운로드
+poetry run python scripts/data/download_data.py QQQ
+poetry run python scripts/data/download_data.py TQQQ
+poetry run python scripts/data/download_data.py FRED:DFF
+
+# 2. 비용 모델 파라미터 최적화
+poetry run python scripts/tqqq/validate_tqqq_simulation.py
+# 출력: storage/results/tqqq_validation.csv
+
+# 3. 일별 비교 데이터 생성
+poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
+# 출력: storage/results/tqqq_daily_comparison.csv
+
+# 4. 대시보드 시각화
+poetry run streamlit run scripts/tqqq/streamlit_app.py
+# 브라우저에서 http://localhost:8501 열림
+
+# 5. 합성 TQQQ 데이터 생성 (선택)
+poetry run python scripts/tqqq/generate_synthetic_tqqq.py
+# 출력: storage/stock/TQQQ_synthetic_max.csv
+```
+
+**파라미터 변경**: [src/qbt/tqqq/constants.py](src/qbt/tqqq/constants.py)
+
+---
+
+## 주요 명령어
+
+### 테스트
+
+```bash
+# 전체 테스트
+./run_tests.sh
+
+# 커버리지 확인
+./run_tests.sh cov
+
+# 특정 모듈 테스트
+./run_tests.sh strategy
+
+# HTML 커버리지 리포트
+./run_tests.sh html
+# 결과: htmlcov/index.html
+```
+
+### 코드 품질
+
+```bash
+# 린트 검사
 poetry run ruff check .
 
-# 자동 수정 가능한 오류 수정
+# 린트 자동 수정
 poetry run ruff check --fix .
-```
 
-### Black (포맷터)
-
-코드를 일관된 스타일로 자동 포맷합니다.
-
-```bash
-# 전체 프로젝트 포맷 확인 (변경 없음)
+# 포맷 확인
 poetry run black --check .
 
-# 전체 프로젝트 포맷 적용
+# 포맷 적용
 poetry run black .
 ```
 
-**참고:** 에디터에서 Format on Save 기능을 활성화하면 파일 저장 시 자동으로 Black이 적용됩니다.
+---
 
-## 스크립트 실행 가이드
-
-### 1. download_data.py - 주식 데이터 다운로드
-
-Yahoo Finance에서 주식 데이터를 다운로드합니다.
-
-**실행 명령어:**
+## 데이터 다운로드 옵션
 
 ```bash
-# 전체 기간 다운로드
-poetry run python scripts/data/download_data.py QQQ
+# 전체 기간
+poetry run python scripts/data/download_data.py TICKER
 
-# 시작 날짜 지정
-poetry run python scripts/data/download_data.py SPY --start 2020-01-01
+# 시작일 지정
+poetry run python scripts/data/download_data.py TICKER --start YYYY-MM-DD
 
 # 기간 지정
-poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
+poetry run python scripts/data/download_data.py TICKER --start YYYY-MM-DD --end YYYY-MM-DD
+
+# 예시
+poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 ```
-
-**파라미터:**
-
-- `ticker` (필수): 주식 티커 심볼 (예: QQQ, SPY)
-- `--start`: 시작 날짜 (YYYY-MM-DD)
-- `--end`: 종료 날짜 (YYYY-MM-DD)
-
-**출력:**
-
-- `storage/stock/{TICKER}_max.csv` (전체 기간)
-- `storage/stock/{TICKER}_{START}_{END}.csv` (기간 지정)
-- `storage/stock/{TICKER}_{START}_latest.csv` (시작일만 지정)
-
-**의존성:** 없음 (독립 실행)
 
 ---
 
-### 2. run_grid_search.py - 파라미터 그리드 서치
+## 프로젝트 구조
 
-버퍼존 전략의 최적 파라미터를 탐색합니다.
-
-**실행 명령어:**
-
-```bash
-poetry run python scripts/backtest/run_grid_search.py
 ```
-
-**파라미터:** 없음 (코드 내부 상수 사용)
-
-**출력:**
-
-- 콘솔: 상위 10개 전략 (수익률/CAGR 기준)
-- `storage/results/grid_results.csv`: 전체 결과
-
-**의존 CSV:** `storage/stock/QQQ_max.csv`
+quant/
+├── scripts/           # CLI 스크립트 (사용자 실행)
+│   ├── data/          # download_data.py
+│   ├── backtest/      # run_grid_search.py, run_single_backtest.py
+│   └── tqqq/          # validate_tqqq_simulation.py, generate_*.py, streamlit_app.py
+├── src/qbt/           # 비즈니스 로직
+│   ├── backtest/      # 백테스트 도메인 + constants.py
+│   ├── tqqq/          # TQQQ 시뮬레이션 + constants.py
+│   └── utils/         # 공통 유틸리티
+├── storage/           # 데이터 저장소
+│   ├── stock/         # 주식 데이터 CSV
+│   ├── etc/           # 금리 데이터
+│   └── results/       # 분석 결과 + meta.json
+└── tests/             # 테스트 코드
+```
 
 ---
 
-### 3. run_single_backtest.py - 단일 전략 백테스트
+## 주요 결과 파일
 
-버퍼존 전략과 Buy&Hold 벤치마크를 비교합니다.
+### 백테스트
 
-**실행 명령어:**
+- `storage/results/grid_results.csv`: 파라미터 그리드 서치 결과
 
-```bash
-poetry run python scripts/backtest/run_single_backtest.py
-```
+### TQQQ 시뮬레이션
 
-**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/backtest/constants.py)에서 상수로 정의됨)
-
-**출력:** 콘솔 출력 (전략 비교 결과)
-
-**의존 CSV:** `storage/stock/QQQ_max.csv`
+- `storage/results/tqqq_validation.csv`: 비용 모델 최적화 결과 (RMSE 기준 정렬)
+- `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력)
+- `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
+- `storage/results/meta.json`: 실행 이력 메타데이터
 
 ---
 
-### 4. validate_tqqq_simulation.py - TQQQ 시뮬레이션 검증
+## 문제 해결
 
-레버리지 ETF 비용 모델의 최적 파라미터를 탐색합니다.
-
-**실행 명령어:**
+### 데이터 다운로드 실패
 
 ```bash
-poetry run python scripts/tqqq/validate_tqqq_simulation.py
+# 다른 기간으로 재시도
+poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 ```
 
-**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
-
-**출력:**
-
-- 콘솔: 상위 전략
-- `storage/results/tqqq_validation.csv`: 검증 결과
-
-**의존 CSV:**
-
-- `storage/stock/QQQ_max.csv`
-- `storage/stock/TQQQ_max.csv`
-- `storage/etc/federal_funds_rate_monthly.csv`
-
----
-
-### 5. generate_tqqq_daily_comparison.py - TQQQ 일별 비교 CSV 생성
-
-시뮬레이션과 실제 TQQQ를 일별로 비교합니다.
-
-**실행 명령어:**
+### 테스트 실패
 
 ```bash
+# 린트 검사 후 재실행
+poetry run ruff check .
+./run_tests.sh
+```
+
+### 대시보드 실행 오류
+
+```bash
+# 의존 파일 먼저 생성
 poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
-```
-
-**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
-
-**출력:** `storage/results/tqqq_daily_comparison.csv`
-
-**의존 CSV:**
-
-- `storage/stock/QQQ_max.csv`
-- `storage/stock/TQQQ_max.csv`
-- `storage/etc/federal_funds_rate_monthly.csv`
-
----
-
-### 6. streamlit_app.py - TQQQ 검증 대시보드
-
-일별 비교 데이터를 시각화합니다 (Streamlit + Plotly).
-
-**실행 명령어:**
-
-```bash
 poetry run streamlit run scripts/tqqq/streamlit_app.py
 ```
 
-**파라미터:** 없음
+---
 
-**출력:** 웹 대시보드 (http://localhost:8501)
+## 개발 가이드
 
-**의존 CSV:** `storage/results/tqqq_daily_comparison.csv`
+### 파라미터 변경
+
+- **백테스트**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
+- **TQQQ 시뮬레이션**: [src/qbt/tqqq/constants.py](src/qbt/tqqq/constants.py)
+- **공통 설정**: [src/qbt/common_constants.py](src/qbt/common_constants.py)
+
+### 코딩 표준
+
+- **타입 힌트**: 모든 함수 필수 (`str | None` 문법)
+- **문서화**: Google 스타일 Docstring (한글)
+- **네이밍**: 함수/변수 `snake_case`, 클래스 `PascalCase`, 상수 `UPPER_SNAKE_CASE`
+- **로깅**: DEBUG(실행 흐름), WARNING(경고), ERROR(CLI만) / INFO 및 이모지 금지
+
+### 테스트 작성
+
+- **패턴**: Given-When-Then
+- **격리**: `tmp_path` 픽스처
+- **결정성**: `@freeze_time` 데코레이터
 
 ---
 
-### 7. generate_synthetic_tqqq.py - 합성 TQQQ 데이터 생성
+## 참고 문서
 
-QQQ 데이터로부터 TQQQ를 시뮬레이션합니다.
-QQQ의 가장 빠른 시작일부터 자동으로 데이터를 생성합니다.
+프로젝트의 상세 규칙과 아키텍처는 각 디렉토리의 `CLAUDE.md` 파일을 참고하세요:
 
-**실행 명령어:**
-
-```bash
-poetry run python scripts/tqqq/generate_synthetic_tqqq.py
-```
-
-**파라미터:** 없음 (모든 파라미터는 [constants.py](src/qbt/tqqq/constants.py)에서 상수로 정의됨)
-
-**출력:** `storage/stock/TQQQ_synthetic_max.csv`
-
-**의존 CSV:**
-
-- `storage/stock/QQQ_max.csv`
-- `storage/etc/federal_funds_rate_monthly.csv`
+- [프로젝트 가이드라인](CLAUDE.md): 전체 프로젝트 규칙
+- [테스트 가이드](tests/CLAUDE.md): 테스트 작성 규칙
+- [백테스트 도메인](src/qbt/backtest/CLAUDE.md): 백테스트 로직
+- [TQQQ 시뮬레이션](src/qbt/tqqq/CLAUDE.md): 레버리지 ETF 시뮬레이션
 
 ---
 
-## 스크립트 실행 순서 및 의존 관계
-
-```
-[1단계] 데이터 다운로드
-┌────────────────────────┐
-│ download_data.py       │
-│ (QQQ, TQQQ, FFR 등)    │
-└──────────┬─────────────┘
-           │
-           │ 생성
-           ▼
-   ┌──────────────────────────────┐
-   │ storage/stock/QQQ_max.csv    │
-   │ storage/stock/TQQQ_max.csv   │
-   │ storage/etc/federal_funds_   │
-   │   rate_monthly.csv           │
-   └──────────┬───────────────────┘
-              │
-              │ 사용
-              ▼
-┌──────────────────────────────────────────────┐
-│         [2단계] 분석 실행 (병렬 가능)           │
-├──────────────────────────────────────────────┤
-│                                              │
-│  [백테스트 영역]                               │
-│  ┌──────────────────────┐                   │
-│  │ run_single_backtest  │──▶ 콘솔 출력       │
-│  └──────────────────────┘                   │
-│  ┌──────────────────────┐                   │
-│  │ run_grid_search      │──▶ grid_results   │
-│  └──────────────────────┘     .csv          │
-│                                              │
-│  [TQQQ 시뮬레이션 영역]                        │
-│  ┌──────────────────────┐                   │
-│  │ validate_tqqq_       │──▶ tqqq_          │
-│  │   simulation         │    validation.csv │
-│  └──────────────────────┘                   │
-│  ┌──────────────────────┐                   │
-│  │ generate_tqqq_daily_ │──▶ tqqq_daily_    │
-│  │   comparison         │    comparison.csv │
-│  └──────────┬───────────┘                   │
-│             │                                │
-│             │ 사용                            │
-│             ▼                                │
-│  ┌──────────────────────┐                   │
-│  │ streamlit_app        │──▶ 웹 대시보드     │
-│  └──────────────────────┘                   │
-│  ┌──────────────────────┐                   │
-│  │ generate_synthetic_  │──▶ TQQQ_          │
-│  │   tqqq               │    synthetic.csv  │
-│  └──────────────────────┘                   │
-└──────────────────────────────────────────────┘
-```
-
-### 권장 실행 순서
-
-#### 백테스트 워크플로우:
-
-1. `download_data.py` - QQQ 데이터 다운로드
-2. `run_grid_search.py` - 최적 파라미터 탐색
-3. `run_single_backtest.py` - 특정 파라미터 검증
-
-#### TQQQ 시뮬레이션 워크플로우:
-
-1. `download_data.py` - QQQ, TQQQ, FFR 데이터 다운로드
-2. `validate_tqqq_simulation.py` - 최적 비용 모델 파라미터 탐색
-3. `generate_tqqq_daily_comparison.py` - 일별 비교 데이터 생성
-4. `streamlit_app.py` - 검증 결과 시각화
-5. `generate_synthetic_tqqq.py` - 합성 데이터 생성 (QQQ 전체 기간)
+**라이선스**: 개인 학습 및 연구 목적
