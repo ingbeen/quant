@@ -47,10 +47,7 @@ class TestCalculateDailyCost:
           - 양수 값 반환
         """
         # Given: FFR 데이터 (DATE는 yyyy-mm 문자열 형식)
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01', '2023-02'],
-            'FFR': [4.5, 4.6]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "FFR": [4.5, 4.6]})
 
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009  # 0.9%
@@ -58,10 +55,7 @@ class TestCalculateDailyCost:
 
         # When
         daily_cost = calculate_daily_cost(
-            date_value=target_date,
-            ffr_df=ffr_df,
-            expense_ratio=expense_ratio,
-            funding_spread=funding_spread
+            date_value=target_date, ffr_df=ffr_df, expense_ratio=expense_ratio, funding_spread=funding_spread
         )
 
         # Then: 비용이 양수이고 합리적인 범위
@@ -81,20 +75,14 @@ class TestCalculateDailyCost:
         Then: 1월 FFR 사용 (2개월 이내이므로 허용)
         """
         # Given: 1월 FFR만 존재 (DATE는 yyyy-mm 문자열)
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         target_date = date(2023, 3, 15)  # 1월부터 약 2개월 후
 
         # When: 2개월 이내면 fallback 허용
         try:
             daily_cost = calculate_daily_cost(
-                date_value=target_date,
-                ffr_df=ffr_df,
-                expense_ratio=0.009,
-                funding_spread=0.006
+                date_value=target_date, ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006
             )
             # fallback 사용되면 비용이 계산됨
             assert daily_cost > 0, "fallback 시에도 비용 계산됨"
@@ -116,25 +104,16 @@ class TestCalculateDailyCost:
         Then: ValueError 발생
         """
         # Given: 6개월 이상 오래된 FFR (DATE는 yyyy-mm 문자열)
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         target_date = date(2023, 7, 15)
 
         # When & Then: 너무 오래되어 에러
         with pytest.raises(ValueError) as exc_info:
-            calculate_daily_cost(
-                date_value=target_date,
-                ffr_df=ffr_df,
-                expense_ratio=0.009,
-                funding_spread=0.006
-            )
+            calculate_daily_cost(date_value=target_date, ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006)
 
         error_msg = str(exc_info.value)
-        assert "FFR" in error_msg or "데이터" in error_msg, \
-            "FFR 부재 에러 메시지"
+        assert "FFR" in error_msg or "데이터" in error_msg, "FFR 부재 에러 메시지"
 
     def test_empty_ffr_dataframe(self):
         """
@@ -147,16 +126,11 @@ class TestCalculateDailyCost:
         Then: ValueError
         """
         # Given
-        ffr_df = pd.DataFrame(columns=['DATE', 'FFR'])
+        ffr_df = pd.DataFrame(columns=["DATE", "FFR"])
 
         # When & Then
         with pytest.raises(ValueError):
-            calculate_daily_cost(
-                date_value=date(2023, 1, 15),
-                ffr_df=ffr_df,
-                expense_ratio=0.009,
-                funding_spread=0.006
-            )
+            calculate_daily_cost(date_value=date(2023, 1, 15), ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006)
 
 
 class TestSimulate:
@@ -180,15 +154,11 @@ class TestSimulate:
           - 날짜 오름차순 정렬
         """
         # Given: 간단한 QQQ 데이터
-        underlying_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+2) for i in range(5)],  # 1/2 ~ 1/6
-            'Close': [100.0, 101.0, 99.0, 102.0, 103.0]
-        })
+        underlying_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(5)], "Close": [100.0, 101.0, 99.0, 102.0, 103.0]}  # 1/2 ~ 1/6
+        )
 
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         leverage = 3.0
         expense_ratio = 0.009  # 0.9%
@@ -202,29 +172,26 @@ class TestSimulate:
             expense_ratio=expense_ratio,
             initial_price=initial_price,
             ffr_df=ffr_df,
-            funding_spread=funding_spread
+            funding_spread=funding_spread,
         )
 
         # Then: 기본 검증
         assert len(simulated_df) == 5, "입력과 같은 행 수"
-        assert 'Close' in simulated_df.columns, "Close 컬럼 존재"
+        assert "Close" in simulated_df.columns, "Close 컬럼 존재"
 
         # NaN 없음
-        assert not simulated_df['Close'].isna().any(), \
-            "시뮬레이션 결과에 NaN이 있으면 안 됩니다"
+        assert not simulated_df["Close"].isna().any(), "시뮬레이션 결과에 NaN이 있으면 안 됩니다"
 
         # 첫 가격이 initial_price 근처인지 확인 (첫날은 initial_price 유지)
-        first_price = simulated_df.iloc[0]['Close']
-        assert abs(first_price - initial_price) < 1.0, \
-            f"첫 가격은 initial_price({initial_price}) 근처여야 합니다"
+        first_price = simulated_df.iloc[0]["Close"]
+        assert abs(first_price - initial_price) < 1.0, f"첫 가격은 initial_price({initial_price}) 근처여야 합니다"
 
         # 날짜 정렬 확인
-        dates = simulated_df['Date'].tolist()
+        dates = simulated_df["Date"].tolist()
         assert dates == sorted(dates), "날짜가 정렬되어야 합니다"
 
         # 가격은 양수
-        assert (simulated_df['Close'] > 0).all(), \
-            "모든 가격은 양수여야 합니다"
+        assert (simulated_df["Close"] > 0).all(), "모든 가격은 양수여야 합니다"
 
     def test_leverage_effect(self):
         """
@@ -237,15 +204,9 @@ class TestSimulate:
         Then: TQQQ는 약 3% 상승 (비용 제외 시)
         """
         # Given: QQQ 1% 상승
-        underlying_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2), date(2023, 1, 3)],
-            'Close': [100.0, 101.0]  # +1%
-        })
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]})  # +1%
 
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [0.0]  # 비용 제거 (순수 레버리지 효과만 보기)
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [0.0]})  # 비용 제거 (순수 레버리지 효과만 보기)
 
         # When: leverage=3, 비용 0
         simulated_df = simulate(
@@ -254,16 +215,17 @@ class TestSimulate:
             expense_ratio=0.0,
             initial_price=30.0,
             ffr_df=ffr_df,
-            funding_spread=0.0
+            funding_spread=0.0,
         )
 
         # Then: QQQ +1% → TQQQ +3%
         # 30.0 * 1.03 = 30.9
-        final_price = simulated_df.iloc[1]['Close']
+        final_price = simulated_df.iloc[1]["Close"]
         expected_price = 30.0 * 1.03
 
-        assert abs(final_price - expected_price) < 0.1, \
-            f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
+        assert (
+            abs(final_price - expected_price) < 0.1
+        ), f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
 
     def test_invalid_leverage(self):
         """
@@ -276,15 +238,9 @@ class TestSimulate:
         Then: ValueError
         """
         # Given
-        underlying_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2)],
-            'Close': [100.0]
-        })
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
 
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         # When & Then: 음수
         with pytest.raises(ValueError):
@@ -294,7 +250,7 @@ class TestSimulate:
                 expense_ratio=0.009,
                 initial_price=30.0,
                 ffr_df=ffr_df,
-                funding_spread=0.006
+                funding_spread=0.006,
             )
 
         # 0
@@ -305,7 +261,7 @@ class TestSimulate:
                 expense_ratio=0.009,
                 initial_price=30.0,
                 ffr_df=ffr_df,
-                funding_spread=0.006
+                funding_spread=0.006,
             )
 
 
@@ -325,25 +281,22 @@ class TestExtractOverlapPeriod:
         Then: 2023-06-01 ~ 2023-12-31만 반환
         """
         # Given
-        simulated_df = pd.DataFrame({
-            'Date': pd.date_range(date(2023, 1, 1), date(2023, 12, 31), freq='D'),
-            'Simulated_Close': range(365)
-        })
+        simulated_df = pd.DataFrame(
+            {"Date": pd.date_range(date(2023, 1, 1), date(2023, 12, 31), freq="D"), "Simulated_Close": range(365)}
+        )
 
-        actual_df = pd.DataFrame({
-            'Date': pd.date_range(date(2023, 6, 1), date(2024, 6, 30), freq='D'),
-            'Actual_Close': range(396)
-        })
+        actual_df = pd.DataFrame(
+            {"Date": pd.date_range(date(2023, 6, 1), date(2024, 6, 30), freq="D"), "Actual_Close": range(396)}
+        )
 
         # When
         overlap_sim, overlap_actual = extract_overlap_period(simulated_df, actual_df)
 
         # Then: 2023-06-01 ~ 2023-12-31
-        assert overlap_sim['Date'].min() == pd.Timestamp(date(2023, 6, 1))
-        assert overlap_sim['Date'].max() == pd.Timestamp(date(2023, 12, 31))
+        assert overlap_sim["Date"].min() == pd.Timestamp(date(2023, 6, 1))
+        assert overlap_sim["Date"].max() == pd.Timestamp(date(2023, 12, 31))
 
-        assert len(overlap_sim) == len(overlap_actual), \
-            "중복 기간의 행 수는 같아야 합니다"
+        assert len(overlap_sim) == len(overlap_actual), "중복 기간의 행 수는 같아야 합니다"
 
     def test_no_overlap(self):
         """
@@ -356,15 +309,9 @@ class TestExtractOverlapPeriod:
         Then: ValueError
         """
         # Given
-        simulated_df = pd.DataFrame({
-            'Date': [date(2020, 1, 1), date(2020, 1, 2)],
-            'Close': [100, 101]
-        })
+        simulated_df = pd.DataFrame({"Date": [date(2020, 1, 1), date(2020, 1, 2)], "Close": [100, 101]})
 
-        actual_df = pd.DataFrame({
-            'Date': [date(2023, 1, 1), date(2023, 1, 2)],
-            'Close': [200, 201]
-        })
+        actual_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [200, 201]})
 
         # When & Then: ValueError 발생
         with pytest.raises(ValueError) as exc_info:
@@ -387,25 +334,22 @@ class TestCalculateValidationMetrics:
         Then: RMSE ≈ 0, correlation ≈ 1.0
         """
         # Given: 완전 일치
-        simulated_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+1) for i in range(5)],
-            'Close': [100.0, 101.0, 102.0, 103.0, 104.0]
-        })
+        simulated_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 1) for i in range(5)], "Close": [100.0, 101.0, 102.0, 103.0, 104.0]}
+        )
 
-        actual_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+1) for i in range(5)],
-            'Close': [100.0, 101.0, 102.0, 103.0, 104.0]
-        })
+        actual_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 1) for i in range(5)], "Close": [100.0, 101.0, 102.0, 103.0, 104.0]}
+        )
 
         # When
         metrics = calculate_validation_metrics(simulated_df, actual_df)
 
         # Then: 메트릭 키 확인
         assert isinstance(metrics, dict), "딕셔너리 반환"
-        assert 'cumul_multiple_log_diff_mean_pct' in metrics, "누적배수 로그차이 평균 존재"
+        assert "cumul_multiple_log_diff_mean_pct" in metrics, "누적배수 로그차이 평균 존재"
         # 완벽히 일치하면 로그차이는 0에 가까움
-        assert metrics['cumul_multiple_log_diff_mean_pct'] < 1.0, \
-            "완벽 일치 시 로그차이는 매우 작아야 합니다"
+        assert metrics["cumul_multiple_log_diff_mean_pct"] < 1.0, "완벽 일치 시 로그차이는 매우 작아야 합니다"
 
     def test_divergent_data(self):
         """
@@ -416,24 +360,22 @@ class TestCalculateValidationMetrics:
         Then: RMSE > 0, correlation < 1.0
         """
         # Given: 차이 있음
-        simulated_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+1) for i in range(5)],
-            'Close': [100.0, 105.0, 110.0, 115.0, 120.0]
-        })
+        simulated_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 1) for i in range(5)], "Close": [100.0, 105.0, 110.0, 115.0, 120.0]}
+        )
 
-        actual_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+1) for i in range(5)],
-            'Close': [100.0, 102.0, 108.0, 112.0, 125.0]
-        })
+        actual_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 1) for i in range(5)], "Close": [100.0, 102.0, 108.0, 112.0, 125.0]}
+        )
 
         # When
         metrics = calculate_validation_metrics(simulated_df, actual_df)
 
         # Then
         assert isinstance(metrics, dict), "딕셔너리 반환"
-        assert 'cumul_multiple_log_diff_rmse_pct' in metrics, "RMSE 메트릭 존재"
+        assert "cumul_multiple_log_diff_rmse_pct" in metrics, "RMSE 메트릭 존재"
         # 차이가 있으므로 로그차이 RMSE > 0
-        assert metrics['cumul_multiple_log_diff_rmse_pct'] > 0, "차이가 있으면 RMSE > 0"
+        assert metrics["cumul_multiple_log_diff_rmse_pct"] > 0, "차이가 있으면 RMSE > 0"
 
 
 class TestFindOptimalCostModel:
@@ -455,20 +397,15 @@ class TestFindOptimalCostModel:
           - RMSE, correlation 키 존재
         """
         # Given: 간단한 데이터
-        underlying_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+2) for i in range(10)],
-            'Close': [100.0 + i for i in range(10)]
-        })
+        underlying_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [100.0 + i for i in range(10)]}
+        )
 
-        actual_leveraged_df = pd.DataFrame({
-            'Date': [date(2023, 1, i+2) for i in range(10)],
-            'Close': [30.0 + i * 0.9 for i in range(10)]
-        })
+        actual_leveraged_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [30.0 + i * 0.9 for i in range(10)]}
+        )
 
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         # When: 최적화 (실제로는 시간이 걸릴 수 있음, 여기서는 구조 검증만)
         try:
@@ -480,7 +417,7 @@ class TestFindOptimalCostModel:
                 spread_range=(0.0, 0.01),
                 spread_step=0.005,
                 expense_range=(0.0, 0.01),
-                expense_step=0.005
+                expense_step=0.005,
             )
 
             # Then: 결과 구조 확인 (리스트 반환)
@@ -489,7 +426,7 @@ class TestFindOptimalCostModel:
                 top_strategy = result[0]
                 assert isinstance(top_strategy, dict), "딕셔너리 원소"
                 # 실제 키 확인
-                assert 'cumul_multiple_log_diff_rmse_pct' in top_strategy or 'leverage' in top_strategy
+                assert "cumul_multiple_log_diff_rmse_pct" in top_strategy or "leverage" in top_strategy
 
         except NotImplementedError:
             # 함수가 아직 구현되지 않았다면 pass
@@ -506,20 +443,11 @@ class TestFindOptimalCostModel:
         Then: ValueError
         """
         # Given
-        underlying_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2)],
-            'Close': [100.0]
-        })
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
 
-        actual_leveraged_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2)],
-            'Close': [30.0]
-        })
+        actual_leveraged_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [30.0]})
 
-        ffr_df = pd.DataFrame({
-            'DATE': ['2023-01'],
-            'FFR': [4.5]
-        })
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         # When & Then: 음수 범위는 함수가 자동으로 처리하므로 에러 안 날 수 있음
         # 단순히 함수 호출이 성공하는지만 확인
@@ -532,7 +460,7 @@ class TestFindOptimalCostModel:
                 spread_range=(0.0, 0.01),
                 spread_step=0.01,
                 expense_range=(0.0, 0.01),
-                expense_step=0.01
+                expense_step=0.01,
             )
             # 음수 레버리지는 simulate 단계에서 에러 날 수 있음
         except (ValueError, NotImplementedError):

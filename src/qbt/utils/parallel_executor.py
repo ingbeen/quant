@@ -131,9 +131,7 @@ def execute_parallel(
         # max(): 두 값 중 큰 값 선택 (최소 1 보장)
         max_workers = max(1, cpu_count - 1)
 
-    logger.debug(
-        f"병렬 실행 시작 - 작업 수: {len(inputs)}, 워커 수: {max_workers}, " f"함수: {func.__module__}.{func.__name__}"
-    )
+    logger.debug(f"병렬 실행 시작 - 작업 수: {len(inputs)}, 워커 수: {max_workers}, " f"함수: {func.__module__}.{func.__name__}")
 
     # 3. 병렬 실행
     # (입력 인덱스, 결과) 쌍을 저장하여 나중에 순서를 복원
@@ -162,9 +160,7 @@ def execute_parallel(
 
                 # 진행도 로깅 (첫 번째, 마지막, 10% 경계마다)
                 completed_count = len(results_with_index)
-                should_log, current_pct = _should_log_progress(
-                    completed_count, len(inputs), last_logged_percentage
-                )
+                should_log, current_pct = _should_log_progress(completed_count, len(inputs), last_logged_percentage)
                 if should_log:
                     logger.debug(f"진행도: {completed_count}/{len(inputs)} ({current_pct}%)")
                     last_logged_percentage = current_pct

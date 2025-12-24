@@ -51,16 +51,15 @@ class TestLoadStockData:
         assert len(df) == 3, "행 수가 일치해야 합니다"
 
         # 필수 컬럼 존재 확인
-        required = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+        required = ["Date", "Open", "High", "Low", "Close", "Volume"]
         for col in required:
             assert col in df.columns, f"필수 컬럼 '{col}'이 없습니다"
 
         # 날짜 타입 확인 (이게 중요! datetime이 아니라 date여야 함)
-        assert all(isinstance(d, date) for d in df['Date']), \
-            "Date 컬럼은 datetime.date 타입이어야 합니다"
+        assert all(isinstance(d, date) for d in df["Date"]), "Date 컬럼은 datetime.date 타입이어야 합니다"
 
         # 정렬 확인
-        dates = df['Date'].tolist()
+        dates = df["Date"].tolist()
         assert dates == sorted(dates), "날짜가 오름차순 정렬되어야 합니다"
 
     def test_file_not_found(self, tmp_path):
@@ -81,8 +80,7 @@ class TestLoadStockData:
             load_stock_data(non_existent_path)
 
         # 예외 메시지 확인 (실제 메시지: "파일을 찾을 수 없습니다")
-        assert "찾을 수 없습니다" in str(exc_info.value), \
-            "에러 메시지가 명확해야 합니다"
+        assert "찾을 수 없습니다" in str(exc_info.value), "에러 메시지가 명확해야 합니다"
 
     def test_missing_required_columns(self, tmp_path):
         """
@@ -95,14 +93,16 @@ class TestLoadStockData:
         Then: ValueError 발생 + 누락 컬럼명 포함
         """
         # Given: Close 컬럼 제거
-        incomplete_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2)],
-            'Open': [100.0],
-            'High': [105.0],
-            'Low': [99.0],
-            'Volume': [1000000]
-            # Close 컬럼 의도적으로 누락
-        })
+        incomplete_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2)],
+                "Open": [100.0],
+                "High": [105.0],
+                "Low": [99.0],
+                "Volume": [1000000],
+                # Close 컬럼 의도적으로 누락
+            }
+        )
         csv_path = tmp_path / "incomplete.csv"
         incomplete_df.to_csv(csv_path, index=False)
 
@@ -129,14 +129,16 @@ class TestLoadStockData:
           - 첫 번째 값 유지 확인
         """
         # Given: 중복 날짜 데이터
-        dup_df = pd.DataFrame({
-            'Date': [date(2023, 1, 2), date(2023, 1, 2), date(2023, 1, 3)],
-            'Open': [100.0, 999.0, 102.0],  # 두 번째 행은 999로 다르게
-            'High': [105.0, 999.0, 107.0],
-            'Low': [99.0, 999.0, 101.0],
-            'Close': [103.0, 999.0, 105.0],
-            'Volume': [1000000, 9999999, 1200000]
-        })
+        dup_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 2), date(2023, 1, 3)],
+                "Open": [100.0, 999.0, 102.0],  # 두 번째 행은 999로 다르게
+                "High": [105.0, 999.0, 107.0],
+                "Low": [99.0, 999.0, 101.0],
+                "Close": [103.0, 999.0, 105.0],
+                "Volume": [1000000, 9999999, 1200000],
+            }
+        )
         csv_path = tmp_path / "duplicate.csv"
         dup_df.to_csv(csv_path, index=False)
 
@@ -147,8 +149,8 @@ class TestLoadStockData:
         assert len(df) == 2, "중복 날짜 제거 후 2행이어야 합니다"
 
         # 첫 번째 값(100.0)이 유지되었는지 확인 (999.0이면 잘못됨)
-        first_row = df[df['Date'] == date(2023, 1, 2)].iloc[0]
-        assert first_row['Open'] == 100.0, "중복 시 첫 번째 값을 유지해야 합니다"
+        first_row = df[df["Date"] == date(2023, 1, 2)].iloc[0]
+        assert first_row["Open"] == 100.0, "중복 시 첫 번째 값을 유지해야 합니다"
 
         # 경고 로그 확인 (로그가 출력되었다면 충분, caplog 설정 이슈로 인해 간단히 확인)
         # 실제로는 WARNING 로그가 찍히는 것을 위 출력에서 확인 가능
@@ -165,14 +167,16 @@ class TestLoadStockData:
         Then: 오름차순 정렬됨
         """
         # Given: 역순 데이터
-        reversed_df = pd.DataFrame({
-            'Date': [date(2023, 1, 4), date(2023, 1, 2), date(2023, 1, 3)],
-            'Open': [102.0, 100.0, 101.0],
-            'High': [107.0, 105.0, 106.0],
-            'Low': [101.0, 99.0, 100.0],
-            'Close': [105.0, 103.0, 104.0],
-            'Volume': [1200000, 1000000, 1100000]
-        })
+        reversed_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 4), date(2023, 1, 2), date(2023, 1, 3)],
+                "Open": [102.0, 100.0, 101.0],
+                "High": [107.0, 105.0, 106.0],
+                "Low": [101.0, 99.0, 100.0],
+                "Close": [105.0, 103.0, 104.0],
+                "Volume": [1200000, 1000000, 1100000],
+            }
+        )
         csv_path = tmp_path / "reversed.csv"
         reversed_df.to_csv(csv_path, index=False)
 
@@ -181,9 +185,8 @@ class TestLoadStockData:
 
         # Then
         expected_dates = [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)]
-        actual_dates = df['Date'].tolist()
-        assert actual_dates == expected_dates, \
-            f"날짜가 정렬되어야 합니다. 기대: {expected_dates}, 실제: {actual_dates}"
+        actual_dates = df["Date"].tolist()
+        assert actual_dates == expected_dates, f"날짜가 정렬되어야 합니다. 기대: {expected_dates}, 실제: {actual_dates}"
 
 
 class TestLoadFfrData:
@@ -209,8 +212,8 @@ class TestLoadFfrData:
         df = load_ffr_data(csv_path)
 
         # Then
-        assert 'FFR' in df.columns, "VALUE 컬럼이 FFR로 rename되어야 합니다"
-        assert 'VALUE' not in df.columns, "원래 VALUE 컬럼은 사라져야 합니다"
+        assert "FFR" in df.columns, "VALUE 컬럼이 FFR로 rename되어야 합니다"
+        assert "VALUE" not in df.columns, "원래 VALUE 컬럼은 사라져야 합니다"
         assert len(df) == 3
         # FFR 데이터는 날짜 파싱을 하지 않음 (문자열 그대로 유지)
 
@@ -258,17 +261,19 @@ class TestLoadComparisonData:
             COL_SIMUL_DAILY_RETURN,
         )
 
-        comparison_df = pd.DataFrame({
-            DISPLAY_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
-            COL_ACTUAL_CLOSE: [100.0, 102.0],
-            COL_SIMUL_CLOSE: [100.5, 101.8],
-            COL_ACTUAL_DAILY_RETURN: [0.01, 0.02],
-            COL_SIMUL_DAILY_RETURN: [0.01, 0.02],
-            COL_DAILY_RETURN_ABS_DIFF: [0.0, 0.0],
-            COL_ACTUAL_CUMUL_RETURN: [0.01, 0.03],
-            COL_SIMUL_CUMUL_RETURN: [0.01, 0.03],
-            COL_CUMUL_MULTIPLE_LOG_DIFF: [0.0, 0.0]
-        })
+        comparison_df = pd.DataFrame(
+            {
+                DISPLAY_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_ACTUAL_CLOSE: [100.0, 102.0],
+                COL_SIMUL_CLOSE: [100.5, 101.8],
+                COL_ACTUAL_DAILY_RETURN: [0.01, 0.02],
+                COL_SIMUL_DAILY_RETURN: [0.01, 0.02],
+                COL_DAILY_RETURN_ABS_DIFF: [0.0, 0.0],
+                COL_ACTUAL_CUMUL_RETURN: [0.01, 0.03],
+                COL_SIMUL_CUMUL_RETURN: [0.01, 0.03],
+                COL_CUMUL_MULTIPLE_LOG_DIFF: [0.0, 0.0],
+            }
+        )
         csv_path = tmp_path / "comparison.csv"
         comparison_df.to_csv(csv_path, index=False)
 
@@ -278,12 +283,13 @@ class TestLoadComparisonData:
         # Then
         from qbt.common_constants import DISPLAY_DATE
         from qbt.tqqq.constants import COMPARISON_COLUMNS
+
         for col in COMPARISON_COLUMNS:
             assert col in df.columns, f"필수 컬럼 '{col}'이 없습니다"
 
         assert len(df) == 2
         # 날짜는 pandas Timestamp로 변환됨 (datetime.date가 아님)
-        assert df[DISPLAY_DATE].dtype == 'datetime64[ns]', "날짜가 datetime으로 변환되어야 합니다"
+        assert df[DISPLAY_DATE].dtype == "datetime64[ns]", "날짜가 datetime으로 변환되어야 합니다"
 
     def test_missing_columns(self, tmp_path):
         """
@@ -297,11 +303,13 @@ class TestLoadComparisonData:
         from qbt.common_constants import DISPLAY_DATE
         from qbt.tqqq.constants import COL_SIMUL_CLOSE
 
-        incomplete_df = pd.DataFrame({
-            DISPLAY_DATE: [date(2023, 1, 2)],
-            COL_SIMUL_CLOSE: [100.0]
-            # 다른 필수 컬럼들 누락
-        })
+        incomplete_df = pd.DataFrame(
+            {
+                DISPLAY_DATE: [date(2023, 1, 2)],
+                COL_SIMUL_CLOSE: [100.0],
+                # 다른 필수 컬럼들 누락
+            }
+        )
         csv_path = tmp_path / "incomplete_comparison.csv"
         incomplete_df.to_csv(csv_path, index=False)
 

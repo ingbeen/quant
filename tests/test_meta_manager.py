@@ -42,16 +42,11 @@ class TestSaveMetadata:
           - metadata 내용이 정확히 저장됨
         """
         # Given: mock_storage_paths 픽스처로 이미 tmp_path 설정됨
-        meta_path = mock_storage_paths['META_JSON_PATH']
+        meta_path = mock_storage_paths["META_JSON_PATH"]
         assert not meta_path.exists(), "초기 상태에서는 meta.json이 없어야 합니다"
 
         csv_type = "grid_results"
-        metadata = {
-            "ticker": "AAPL",
-            "start_date": "2020-01-01",
-            "end_date": "2023-12-31",
-            "total_combinations": 100
-        }
+        metadata = {"ticker": "AAPL", "start_date": "2020-01-01", "end_date": "2023-12-31", "total_combinations": 100}
 
         # When: 메타데이터 저장 (시간은 2023-06-15 14:30:00로 고정됨)
         save_metadata(csv_type, metadata)
@@ -60,7 +55,7 @@ class TestSaveMetadata:
         assert meta_path.exists(), "meta.json 파일이 생성되어야 합니다"
 
         # 내용 검증
-        with open(meta_path, encoding='utf-8') as f:
+        with open(meta_path, encoding="utf-8") as f:
             saved_data = json.load(f)
 
         assert csv_type in saved_data, f"'{csv_type}' 키가 있어야 합니다"
@@ -69,10 +64,9 @@ class TestSaveMetadata:
         entry = saved_data[csv_type][0]
         # 타임스탬프는 ISO 8601 형식 (예: "2023-06-15T14:30:00+09:00")
         # 타임존 변환 때문에 시간은 달라질 수 있으므로 날짜만 검증
-        assert "2023-06-15" in entry['timestamp'], \
-            "freezegun으로 고정한 날짜가 포함되어야 합니다"
-        assert entry['ticker'] == "AAPL"
-        assert entry['total_combinations'] == 100
+        assert "2023-06-15" in entry["timestamp"], "freezegun으로 고정한 날짜가 포함되어야 합니다"
+        assert entry["ticker"] == "AAPL"
+        assert entry["total_combinations"] == 100
 
     @freeze_time("2023-07-01 10:00:00")
     def test_append_to_existing_meta(self, mock_storage_paths):
@@ -86,41 +80,32 @@ class TestSaveMetadata:
         Then: 2개 항목으로 증가
         """
         # Given: 기존 데이터 생성
-        meta_path = mock_storage_paths['META_JSON_PATH']
+        meta_path = mock_storage_paths["META_JSON_PATH"]
         existing_data = {
-            "grid_results": [
-                {
-                    "timestamp": "2023-06-01 09:00:00",
-                    "ticker": "TSLA",
-                    "total_combinations": 50
-                }
-            ]
+            "grid_results": [{"timestamp": "2023-06-01 09:00:00", "ticker": "TSLA", "total_combinations": 50}]
         }
-        with open(meta_path, 'w', encoding='utf-8') as f:
+        with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(existing_data, f)
 
         # When: 새 항목 추가
-        new_metadata = {
-            "ticker": "NVDA",
-            "total_combinations": 75
-        }
+        new_metadata = {"ticker": "NVDA", "total_combinations": 75}
         save_metadata("grid_results", new_metadata)
 
         # Then: 2개 항목 확인
-        with open(meta_path, encoding='utf-8') as f:
+        with open(meta_path, encoding="utf-8") as f:
             saved_data = json.load(f)
 
         assert len(saved_data["grid_results"]) == 2, "기존 1개 + 새로 추가 1개 = 2개"
 
         # 최신 항목 검증 (prepend 방식: 최신이 맨 앞)
         latest = saved_data["grid_results"][0]
-        assert "2023-07-01" in latest['timestamp'], "최신 항목 날짜 확인"
+        assert "2023-07-01" in latest["timestamp"], "최신 항목 날짜 확인"
         # 타임존 변환으로 시간이 달라질 수 있으므로 날짜만 검증
-        assert latest['ticker'] == "NVDA"
+        assert latest["ticker"] == "NVDA"
 
         # 기존 항목 보존 확인 (뒤로 밀림)
         old = saved_data["grid_results"][1]
-        assert old['ticker'] == "TSLA"
+        assert old["ticker"] == "TSLA"
 
     @freeze_time("2023-08-01 12:00:00")
     def test_history_limit_enforcement(self, mock_storage_paths):
@@ -136,43 +121,35 @@ class TestSaveMetadata:
           - 전체 개수는 MAX_HISTORY_COUNT 유지
         """
         # Given: MAX_HISTORY_COUNT개 항목 생성 (현재 상수 값 확인 필요)
-        meta_path = mock_storage_paths['META_JSON_PATH']
+        meta_path = mock_storage_paths["META_JSON_PATH"]
 
         # 오래된 항목들 생성 (timestamp 오름차순)
         old_entries = [
-            {
-                "timestamp": f"2023-0{i+1}-01 10:00:00",
-                "ticker": f"TICKER_{i}",
-                "note": "old"
-            }
+            {"timestamp": f"2023-0{i+1}-01 10:00:00", "ticker": f"TICKER_{i}", "note": "old"}
             for i in range(MAX_HISTORY_COUNT)
         ]
         existing_data = {"grid_results": old_entries}
-        with open(meta_path, 'w', encoding='utf-8') as f:
+        with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(existing_data, f)
 
         # When: 새 항목 추가 (MAX_HISTORY_COUNT + 1번째)
-        new_metadata = {
-            "ticker": "NEW_TICKER",
-            "note": "new"
-        }
+        new_metadata = {"ticker": "NEW_TICKER", "note": "new"}
         save_metadata("grid_results", new_metadata)
 
         # Then: 여전히 MAX_HISTORY_COUNT개만 유지
-        with open(meta_path, encoding='utf-8') as f:
+        with open(meta_path, encoding="utf-8") as f:
             saved_data = json.load(f)
 
         entries = saved_data["grid_results"]
-        assert len(entries) == MAX_HISTORY_COUNT, \
-            f"최대 {MAX_HISTORY_COUNT}개만 유지해야 합니다"
+        assert len(entries) == MAX_HISTORY_COUNT, f"최대 {MAX_HISTORY_COUNT}개만 유지해야 합니다"
 
         # prepend 방식: 최신(NEW_TICKER)이 맨 앞, 가장 오래된 것(마지막)이 잘림
-        assert entries[0]['ticker'] == "NEW_TICKER", "최신 항목은 맨 앞"
-        assert "2023-08-01" in entries[0]['timestamp']
+        assert entries[0]["ticker"] == "NEW_TICKER", "최신 항목은 맨 앞"
+        assert "2023-08-01" in entries[0]["timestamp"]
 
         # 가장 오래된 항목(TICKER_4, 마지막)이 제거되었는지 확인
         # MAX_HISTORY_COUNT=5이므로 TICKER_0~4가 있었고, 새로 추가되면 TICKER_4가 제거됨
-        tickers = [e['ticker'] for e in entries]
+        tickers = [e["ticker"] for e in entries]
         assert f"TICKER_{MAX_HISTORY_COUNT-1}" not in tickers, "가장 오래된 항목(마지막)은 제거되어야 합니다"
 
     def test_invalid_csv_type(self, mock_storage_paths):
@@ -194,8 +171,7 @@ class TestSaveMetadata:
             save_metadata(invalid_type, metadata)
 
         error_msg = str(exc_info.value)
-        assert "유효하지 않은" in error_msg or "invalid" in error_msg.lower(), \
-            "csv_type이 잘못되었음을 명확히 알려야 합니다"
+        assert "유효하지 않은" in error_msg or "invalid" in error_msg.lower(), "csv_type이 잘못되었음을 명확히 알려야 합니다"
 
     @freeze_time("2023-09-01 08:00:00")
     def test_multiple_csv_types(self, mock_storage_paths):
@@ -213,8 +189,8 @@ class TestSaveMetadata:
         save_metadata("tqqq_validation", {"test": "tqqq"})
 
         # Then: 독립적인 키 확인
-        meta_path = mock_storage_paths['META_JSON_PATH']
-        with open(meta_path, encoding='utf-8') as f:
+        meta_path = mock_storage_paths["META_JSON_PATH"]
+        with open(meta_path, encoding="utf-8") as f:
             saved_data = json.load(f)
 
         assert "grid_results" in saved_data

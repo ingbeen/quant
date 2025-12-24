@@ -30,14 +30,16 @@ def sample_stock_df():
     Returns:
         pd.DataFrame: Date, Open, High, Low, Close, Volume 컬럼
     """
-    return pd.DataFrame({
-        'Date': [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-        'Open': [100.0, 101.0, 102.0],
-        'High': [105.0, 106.0, 107.0],
-        'Low': [99.0, 100.0, 101.0],
-        'Close': [103.0, 104.0, 105.0],
-        'Volume': [1000000, 1100000, 1200000]
-    })
+    return pd.DataFrame(
+        {
+            "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+            "Open": [100.0, 101.0, 102.0],
+            "High": [105.0, 106.0, 107.0],
+            "Low": [99.0, 100.0, 101.0],
+            "Close": [103.0, 104.0, 105.0],
+            "Volume": [1000000, 1100000, 1200000],
+        }
+    )
 
 
 @pytest.fixture
@@ -50,10 +52,7 @@ def sample_ffr_df():
     Returns:
         pd.DataFrame: DATE(yyyy-mm 문자열), FFR(금리 % float) 컬럼
     """
-    return pd.DataFrame({
-        'DATE': ['2023-01', '2023-02', '2023-03'],
-        'FFR': [4.5, 4.6, 4.7]
-    })
+    return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "FFR": [4.5, 4.6, 4.7]})
 
 
 @pytest.fixture
@@ -74,6 +73,7 @@ def create_csv_file(tmp_path):
     Returns:
         function: (filename, df) -> Path
     """
+
     def _create_csv(filename: str, df: pd.DataFrame) -> Path:
         """
         실제 CSV 파일 생성 함수
@@ -121,19 +121,14 @@ def mock_storage_paths(tmp_path, monkeypatch):
     from qbt import common_constants
     from qbt.utils import meta_manager
 
-    meta_json_path = results_dir / 'meta.json'
+    meta_json_path = results_dir / "meta.json"
 
-    monkeypatch.setattr(common_constants, 'STOCK_DIR', stock_dir)
-    monkeypatch.setattr(common_constants, 'ETC_DIR', etc_dir)
-    monkeypatch.setattr(common_constants, 'RESULTS_DIR', results_dir)
-    monkeypatch.setattr(common_constants, 'META_JSON_PATH', meta_json_path)
+    monkeypatch.setattr(common_constants, "STOCK_DIR", stock_dir)
+    monkeypatch.setattr(common_constants, "ETC_DIR", etc_dir)
+    monkeypatch.setattr(common_constants, "RESULTS_DIR", results_dir)
+    monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
 
     # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
-    monkeypatch.setattr(meta_manager, 'META_JSON_PATH', meta_json_path)
+    monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
 
-    return {
-        'STOCK_DIR': stock_dir,
-        'ETC_DIR': etc_dir,
-        'RESULTS_DIR': results_dir,
-        'META_JSON_PATH': meta_json_path
-    }
+    return {"STOCK_DIR": stock_dir, "ETC_DIR": etc_dir, "RESULTS_DIR": results_dir, "META_JSON_PATH": meta_json_path}

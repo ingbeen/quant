@@ -57,9 +57,7 @@ def main() -> int:
     # 3. 전체 QQQ 데이터 사용
     qqq_filtered = qqq_df.copy()
 
-    logger.debug(
-        f"QQQ 데이터: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})"
-    )
+    logger.debug(f"QQQ 데이터: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})")
 
     # 4. TQQQ 시뮬레이션 실행
     logger.debug("TQQQ 시뮬레이션 실행 중...")
