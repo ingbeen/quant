@@ -12,6 +12,35 @@
 
 ---
 
+## 도메인별 CLAUDE.md 참고 규칙
+
+**각 작업 전에 해당 도메인의 CLAUDE.md를 반드시 읽습니다**:
+
+- **docs 관련 작업**: [`docs/CLAUDE.md`](docs/CLAUDE.md) 참고
+- **tests 관련 작업**: [`tests/CLAUDE.md`](tests/CLAUDE.md) 참고
+- **CLI 계층 작업**: [`scripts/CLAUDE.md`](scripts/CLAUDE.md) 참고
+- **백테스트 도메인**: [`src/qbt/backtest/CLAUDE.md`](src/qbt/backtest/CLAUDE.md) 참고
+- **TQQQ 시뮬레이션**: [`src/qbt/tqqq/CLAUDE.md`](src/qbt/tqqq/CLAUDE.md) 참고
+- **유틸리티 패키지**: [`src/qbt/utils/CLAUDE.md`](src/qbt/utils/CLAUDE.md) 참고
+
+---
+
+## 계획서(Plan) 작성이 필요한 경우
+
+다음 조건 중 **하나라도** 해당하면 먼저 [`docs/CLAUDE.md`](docs/CLAUDE.md)를 읽고 `docs/plans/`에 계획서를 작성해야 합니다:
+
+1. **변경 범위가 여러 모듈/여러 파일에 걸침**
+2. **`storage/*` CSV 스키마, 저장 규칙, 결과 컬럼 등 불변 규칙에 영향**
+3. **백테스트/시뮬레이션 핵심 로직 변경** (수익률, 비용, 체결 규칙 등)
+4. **테스트 다수 추가가 필요**하거나 회귀 가능성이 높음
+5. **"어디까지가 완료(Done)인지"가 애매**한 경우
+
+작은 변경(오타, 주석, 단일 버그 픽스, 로그 메시지 수정 등)은 계획서 없이 바로 진행합니다.
+
+**계획서 작성 절차 및 품질 게이트**: [`docs/CLAUDE.md`](docs/CLAUDE.md)에서 상세 내용 확인
+
+---
+
 ## 프로젝트 개요
 
 QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다.
@@ -321,3 +350,4 @@ quant/
 2. **간결성**: 불필요한 추상화 지양
 3. **확장성**: 도메인별 모듈 독립성 유지
 4. **사용자 중심**: 한글 메시지, 명확한 오류 정보
+
