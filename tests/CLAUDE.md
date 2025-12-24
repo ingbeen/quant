@@ -1,31 +1,21 @@
-# tests 폴더 규칙
+# tests 폴더 가이드
 
-## 목적
+> 이 문서는 `tests/` 폴더의 테스트 작성 및 실행 규칙에 대한 상세 가이드입니다.
+> 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-이 문서는 QBT 프로젝트의 **테스트 작성 및 실행 규칙**을 정의합니다.
-AI가 테스트를 작성할 때 반드시 참고해야 하는 규칙의 소스 오브 트루스입니다.
+## 폴더 목적
 
----
+tests 폴더는 QBT 프로젝트의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
 
-## 현재 상태
+**폴더 구조**:
 
-**전체 테스트: 46개 중 46개 통과 (100%)**
-
-```bash
-poetry run pytest tests/ -v
-# ======================== 46 passed in 0.34s ========================
 ```
-
-### 모듈별 테스트 현황
-
-| 모듈 | 테스트 수 | 상태 |
-|------|----------|------|
-| test_analysis.py | 7 | ✅ 100% |
-| test_data_loader.py | 9 | ✅ 100% |
-| test_meta_manager.py | 5 | ✅ 100% |
-| test_strategy.py | 12 | ✅ 100% |
-| test_tqqq_simulation.py | 13 | ✅ 100% |
-| **합계** | **46** | **✅ 100%** |
+tests/
+├── CLAUDE.md            # tests 관련 규칙 (이 문서)
+├── conftest.py          # 공통 픽스처
+├── test_*.py            # 테스트 모듈
+└── pytest.ini           # pytest 설정
+```
 
 ---
 
@@ -84,8 +74,9 @@ poetry run black --check .
 ### 1. 핵심 로직 보호
 
 백테스트/시뮬레이션의 핵심 계산 로직은 반드시 테스트로 보호합니다:
+
 - 이동평균 계산
-- 수익률 산출 (CAGR, MDD 등)
+- 수익률 산출
 - 거래 신호 생성
 - 비용 모델
 - 레버리지 효과
@@ -119,6 +110,7 @@ def test_example(self):
 ### 3. 경계 조건 테스트
 
 정상 케이스뿐만 아니라 엣지 케이스도 테스트:
+
 - 빈 데이터
 - 극단값 (0, 음수, 매우 큰 값)
 - 경계 조건 (윈도우 크기 부족, 자본 부족 등)
@@ -135,6 +127,8 @@ def test_with_fixed_time(self):
     # 시간이 고정되어 타임스탬프가 항상 동일
     save_metadata("grid_results", {"test": "data"})
 ```
+
+**주요 기법**:
 
 - 시간 고정: `@freeze_time` 사용
 - 파일 격리: `tmp_path` 픽스처 사용
@@ -154,22 +148,14 @@ def test_with_temp_files(self, mock_storage_paths):
 ### 6. 문서화
 
 모든 테스트는 초보자도 이해할 수 있도록 주석 포함:
+
 - docstring에 목적/조건/결과 명시
 - 복잡한 로직은 인라인 주석
 - Python 기초 문법 설명 (필요시)
 
 ---
 
-## tests 폴더 구조
-
-```
-tests/
-├── conftest.py          # 공통 픽스처
-├── test_*.py            # 테스트 모듈
-└── pytest.ini           # pytest 설정
-```
-
-### 주요 픽스처 (conftest.py)
+## 주요 픽스처 (conftest.py)
 
 모든 테스트에서 사용하는 공통 설정과 테스트 데이터:
 
@@ -184,7 +170,7 @@ tests/
 
 1. **테스트 코드만 유지**: tests 폴더는 테스트 코드(.py) 중심
 2. **임시 문서는 금지**: 작업 중 생성된 임시 문서는 `docs/archive/`로
-3. **커버리지 목표**: 핵심 모듈 100%, 전체 프로젝트 80% 이상
+3. **커버리지 목표**: 핵심 모듈 최대한 높게 유지
 
 ---
 
@@ -203,31 +189,16 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 # 결과: htmlcov/index.html 브라우저로 열기
 ```
 
-### 목표
+**목표**:
 
-- **핵심 모듈**: 100% (data_loader, analysis, strategy, meta_manager)
-- **전체 프로젝트**: 80% 이상
+- 핵심 모듈: 최대한 높은 커버리지 유지
+- 전체 프로젝트: 지속적 개선
 
 ---
 
-## 문제 해결
+## 자주 발생하는 문제
 
-### 테스트 실패 시
-
-```bash
-# 상세 에러 보기
-poetry run pytest tests/test_xxx.py -vv --tb=long
-
-# 특정 테스트만 실행
-poetry run pytest tests/test_xxx.py::TestClass::test_method -s
-
-# print 디버깅 (-s 플래그로 print 출력)
-poetry run pytest tests/test_xxx.py -s
-```
-
-### 자주 발생하는 문제
-
-#### 1. 컬럼명 불일치
+### 1. 컬럼명 불일치
 
 ```python
 # 잘못된 예
@@ -239,7 +210,7 @@ df['equity']  # 소문자 (실제 프로덕션 코드 확인!)
 
 **중요**: 프로덕션 코드의 실제 컬럼명을 반드시 확인하세요.
 
-#### 2. FFR 데이터 형식
+### 2. FFR 데이터 형식
 
 ```python
 # 잘못된 예
@@ -249,7 +220,7 @@ df['equity']  # 소문자 (실제 프로덕션 코드 확인!)
 'DATE': ['2023-01']  # yyyy-mm 문자열
 ```
 
-#### 3. 파라미터 단위
+### 3. 파라미터 단위
 
 ```python
 # 잘못된 예
@@ -259,13 +230,28 @@ buffer_zone_pct=3.0  # 퍼센트
 buffer_zone_pct=0.03  # 비율 (3%)
 ```
 
-#### 4. 함수 시그니처
+### 4. 함수 시그니처
 
 프로덕션 코드가 데이터클래스를 사용하는 경우, 테스트도 동일한 구조를 사용해야 합니다.
 
-#### 5. 타임스탬프 검증
+### 5. 타임스탬프 검증
 
 ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 사용 권장).
+
+---
+
+## 테스트 작성 체크리스트
+
+테스트 작성 전 확인사항:
+
+- [ ] 프로덕션 코드의 실제 시그니처 확인
+- [ ] 실제 반환값 구조 확인
+- [ ] 실제 컬럼명 확인
+- [ ] 실제 에러 메시지 확인
+- [ ] Given-When-Then 패턴 사용
+- [ ] 엣지 케이스 포함
+- [ ] 결정적 테스트 (시간/파일 격리)
+- [ ] 명확한 주석 및 docstring
 
 ---
 
@@ -274,6 +260,7 @@ ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 
 ### 새 기능 추가 시
 
 1. **테스트 먼저 작성** (TDD)
+
    ```python
    # 1. 실패하는 테스트 작성
    def test_new_feature(self):
@@ -292,6 +279,7 @@ ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 
 ### 버그 발견 시
 
 1. **재현 테스트 작성**
+
    ```python
    def test_bug_reproduction(self):
        # 버그를 재현하는 테스트
@@ -304,43 +292,7 @@ ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 
 
 ---
 
-## 체크리스트
-
-테스트 작성 전 확인사항:
-
-- [ ] 프로덕션 코드의 실제 시그니처 확인
-- [ ] 실제 반환값 구조 확인
-- [ ] 실제 컬럼명 확인
-- [ ] 실제 에러 메시지 확인
-- [ ] Given-When-Then 패턴 사용
-- [ ] 엣지 케이스 포함
-- [ ] 결정적 테스트 (시간/파일 격리)
-- [ ] 명확한 주석 및 docstring
-
----
-
-## AI 작업 제약
-
-- **AI는 테스트 작성만 가능**, 실행은 불가
-- 사용자가 직접 실행하고 결과 피드백
-- 테스트 코드도 동일한 품질 기준 적용 (타입 힌트, docstring, 포맷 등)
-
----
-
-## 참고 문서
-
-### 프로젝트 문서
-
-- 루트 `CLAUDE.md`: 프로젝트 전체 규칙
-- `docs/CLAUDE.md`: 품질 게이트 및 작업 흐름
-
-### 외부 문서
-
-- [pytest 공식 문서](https://docs.pytest.org/)
-- [pytest fixtures](https://docs.pytest.org/en/stable/fixture.html)
-- [pytest parametrize](https://docs.pytest.org/en/stable/parametrize.html)
-
-### 사용 중인 플러그인
+**사용 중인 플러그인**:
 
 - **pytest-cov**: 코드 커버리지 측정
 - **freezegun**: 시간 고정 (결정적 테스트)
