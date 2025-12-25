@@ -13,7 +13,7 @@
 docs/
 ├── CLAUDE.md           # docs 관련 규칙(SoT) (이 문서)
 ├── plans/              # 변경 계획서 저장소
-│   ├── _template.md    # 계획서 템플릿(예시/양식)
+│   └── _template.md    # 계획서 템플릿(예시/양식)
 └── archive/            # 과거 문서 보관소(기본 무시)
 ```
 
