@@ -643,7 +643,7 @@ def run_buffer_strategy(
 
     trades = []  # 거래 내역을 담을 빈 리스트
     equity_records = []  # 자본 곡선을 담을 빈 리스트
-    pending_orders: list[PendingOrder] = []  # 예약된 주문 리스트
+    pending_order: PendingOrder | None = None  # 예약된 주문 (단일 슬롯)
 
     # 이전 날의 밴드 값 (돌파 감지용)
     # None으로 초기화하여 첫 날에는 매매하지 않도록 함
@@ -698,36 +698,34 @@ def run_buffer_strategy(
             recent_buy_count = 0
 
         # 5-2. 예약된 주문 실행 (당일 실행 대상만)
-        # 버그 수정: 신호일이 아닌 체결일에 포지션 반영
-        executed_orders = []
-        for order in pending_orders:
-            if order.execute_date == current_date:
-                if order.order_type == "buy" and position == 0:
-                    # 매수 주문 실행
-                    position, capital, entry_price, entry_date, success = _execute_buy_order(order, capital, position)
-                    if success:
-                        all_entry_dates.append(entry_date)
-                        if log_trades:
-                            logger.debug(
-                                f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
-                                f"수량={position}, 버퍼존={order.buffer_zone_pct:.2%}"
-                            )
-                    executed_orders.append(order)
-
-                elif order.order_type == "sell" and position > 0:
-                    # 매도 주문 실행
-                    assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
-                    position, capital, trade_record = _execute_sell_order(
-                        order, capital, position, entry_price, entry_date
-                    )
-                    trades.append(trade_record)
+        # 단일 슬롯: pending_order가 존재하고 실행일이 오늘이면 실행
+        if pending_order is not None and pending_order.execute_date == current_date:
+            if pending_order.order_type == "buy" and position == 0:
+                # 매수 주문 실행
+                position, capital, entry_price, entry_date, success = _execute_buy_order(
+                    pending_order, capital, position
+                )
+                if success:
+                    all_entry_dates.append(entry_date)
                     if log_trades:
-                        logger.debug(f"매도 체결: {order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%")
-                    executed_orders.append(order)
+                        logger.debug(
+                            f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
+                            f"수량={position}, 버퍼존={pending_order.buffer_zone_pct:.2%}"
+                        )
+                # 실행 완료 후 pending_order 초기화
+                pending_order = None
 
-        # 실행된 주문 제거
-        for order in executed_orders:
-            pending_orders.remove(order)
+            elif pending_order.order_type == "sell" and position > 0:
+                # 매도 주문 실행
+                assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
+                position, capital, trade_record = _execute_sell_order(
+                    pending_order, capital, position, entry_price, entry_date
+                )
+                trades.append(trade_record)
+                if log_trades:
+                    logger.debug(f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%")
+                # 실행 완료 후 pending_order 초기화
+                pending_order = None
 
         # 5-3. 버퍼존 밴드 계산
         # 학습 포인트: 이동평균을 기준으로 상하 밴드 계산
@@ -756,41 +754,53 @@ def run_buffer_strategy(
         )
 
         # 5-5. 신호 감지 및 주문 예약 (미래 체결을 위해)
-        # 버그 수정: 즉시 실행하지 않고 pending_orders에 추가
+        # Critical Invariant: pending_order 존재 중 신규 신호 발생 시 예외
         if position == 0 and prev_upper_band is not None:
             # 매수 신호 감지
             signal_detected, buy_idx = _detect_buy_signal(
                 df, i, ma_col, current_buffer_pct, current_hold_days, prev_upper_band, upper_band
             )
             if signal_detected and buy_idx is not None:
-                buy_row = df.iloc[buy_idx]
-                pending_orders.append(
-                    PendingOrder(
-                        execute_date=buy_row[COL_DATE],
-                        order_type="buy",
-                        price_raw=buy_row[COL_OPEN],
-                        signal_date=current_date,
-                        buffer_zone_pct=current_buffer_pct,
-                        hold_days_used=current_hold_days,
-                        recent_buy_count=recent_buy_count,
+                # Critical Invariant 체크: pending이 이미 존재하면 안 됨
+                if pending_order is not None:
+                    raise PendingOrderConflictError(
+                        f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
+                        f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
+                        f"존재 중 신규 매수 신호 발생(current_date={current_date})"
                     )
+
+                buy_row = df.iloc[buy_idx]
+                pending_order = PendingOrder(
+                    execute_date=buy_row[COL_DATE],
+                    order_type="buy",
+                    price_raw=buy_row[COL_OPEN],
+                    signal_date=current_date,
+                    buffer_zone_pct=current_buffer_pct,
+                    hold_days_used=current_hold_days,
+                    recent_buy_count=recent_buy_count,
                 )
 
         elif position > 0 and prev_lower_band is not None:
             # 매도 신호 감지
             signal_detected, sell_idx = _detect_sell_signal(df, i, prev_lower_band, lower_band)
             if signal_detected and sell_idx is not None:
-                sell_row = df.iloc[sell_idx]
-                pending_orders.append(
-                    PendingOrder(
-                        execute_date=sell_row[COL_DATE],
-                        order_type="sell",
-                        price_raw=sell_row[COL_OPEN],
-                        signal_date=current_date,
-                        buffer_zone_pct=current_buffer_pct,
-                        hold_days_used=current_hold_days,
-                        recent_buy_count=recent_buy_count,
+                # Critical Invariant 체크: pending이 이미 존재하면 안 됨
+                if pending_order is not None:
+                    raise PendingOrderConflictError(
+                        f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
+                        f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
+                        f"존재 중 신규 매도 신호 발생(current_date={current_date})"
                     )
+
+                sell_row = df.iloc[sell_idx]
+                pending_order = PendingOrder(
+                    execute_date=sell_row[COL_DATE],
+                    order_type="sell",
+                    price_raw=sell_row[COL_OPEN],
+                    signal_date=current_date,
+                    buffer_zone_pct=current_buffer_pct,
+                    hold_days_used=current_hold_days,
+                    recent_buy_count=recent_buy_count,
                 )
 
         # 5-6. 다음 루프를 위해 전일 밴드 저장
