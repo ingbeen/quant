@@ -38,6 +38,27 @@ from qbt.utils.parallel_executor import execute_parallel_with_kwargs
 logger = get_logger(__name__)
 
 
+class PendingOrderConflictError(Exception):
+    """Pending Order 충돌 예외
+
+    이 예외는 백테스트의 Critical Invariant 위반을 나타냅니다.
+
+    발생 조건:
+    - pending_order가 이미 존재하는 상태에서 새로운 신호가 발생하려 할 때
+
+    왜 중요한가:
+    - pending은 "신호일 종가 → 체결일 시가" 사이의 단일 예약 상태를 나타냄
+    - 이 기간에 새로운 신호가 발생하면 논리적 모순 (두 신호가 동시에 존재할 수 없음)
+    - 이는 매우 크리티컬한 버그로, 발견 즉시 백테스트를 중단해야 함
+
+    디버깅 방법:
+    - 예외 메시지에서 기존 pending 정보 및 새 신호 발생 시점 확인
+    - hold_days 로직, 신호 감지 로직에서 타이밍 문제 검토
+    """
+
+    pass
+
+
 @dataclass
 class BaseStrategyParams:
     """전략 파라미터의 기본 클래스.
