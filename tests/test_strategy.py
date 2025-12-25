@@ -813,9 +813,7 @@ class TestCoreExecutionRules:
             execution_day = equity_df.iloc[3]
 
             assert signal_day["position"] == 0, f"hold_days=0: 돌파일에는 position=0. 실제: {signal_day['position']}"
-            assert (
-                execution_day["position"] > 0
-            ), f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
+            assert execution_day["position"] > 0, f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
 
     def test_hold_days_1_timeline(self):
         """
@@ -862,9 +860,7 @@ class TestCoreExecutionRules:
 
             assert break_day["position"] == 0, f"hold_days=1: 돌파일 position=0. 실제: {break_day['position']}"
             assert confirm_day["position"] == 0, f"hold_days=1: 확정일 position=0. 실제: {confirm_day['position']}"
-            assert (
-                execution_day["position"] > 0
-            ), f"hold_days=1: 체결일 position>0. 실제: {execution_day['position']}"
+            assert execution_day["position"] > 0, f"hold_days=1: 체결일 position>0. 실제: {execution_day['position']}"
 
     def test_last_day_pending_execution(self):
         """
@@ -943,27 +939,45 @@ class TestCoreExecutionRules:
 
         절대 규칙: pending_order 존재 중 신규 신호 발생 시 PendingOrderConflictError 즉시 raise
 
-        Given: pending이 존재하는 상황에서 새로운 신호가 발생하도록 유도
-        When: 백테스트 실행
+        Given: pending_order가 이미 존재하는 상태
+        When: _check_pending_conflict 호출
         Then: PendingOrderConflictError 예외 발생
+
+        주의: 정상적인 백테스트 실행에서는 이런 상황이 발생하지 않습니다.
+        이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
+        통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
         """
-        # 참고: 현재 구현으로는 이 상황을 만들기 어려울 수 있음
-        # (정상 로직이라면 pending 중 신호 발생 불가)
-        # Phase 0에서는 이 테스트가 실패할 것 (예외 미구현)
-        # Phase 1에서 예외 처리 추가 후 통과해야 함
+        from qbt.backtest.strategy import PendingOrder, _check_pending_conflict
 
-        # 임시로 스킵 마킹 (구현 후 활성화)
-        pytest.skip("Phase 1에서 구현 후 활성화 예정 - pending 충돌 상황 생성 로직 필요")
+        # Given: 기존 pending이 존재
+        existing_pending = PendingOrder(
+            execute_date=date(2023, 1, 10),
+            order_type="sell",
+            price_raw=100.0,
+            signal_date=date(2023, 1, 9),
+            buffer_zone_pct=0.01,
+            hold_days_used=0,
+            recent_buy_count=0,
+        )
 
-        # # Given: 특수한 데이터로 pending 충돌 상황 유도
-        # # (실제 구현은 Phase 1에서)
-        # df = pd.DataFrame(...)
-        #
-        # params = BufferStrategyParams(...)
-        #
-        # # When & Then: PendingOrderConflictError 발생 확인
-        # with pytest.raises(PendingOrderConflictError) as exc_info:
-        #     run_buffer_strategy(df, params, log_trades=False)
-        #
-        # # 예외 메시지에 유용한 디버깅 정보 포함 확인
-        # assert "pending" in str(exc_info.value).lower()
+        # When & Then: 신규 매도 신호 발생 시 예외 발생
+        with pytest.raises(PendingOrderConflictError) as exc_info:
+            _check_pending_conflict(existing_pending, "sell", date(2023, 1, 9))
+
+        # 예외 메시지에 유용한 디버깅 정보 포함 확인
+        error_message = str(exc_info.value)
+        assert "pending" in error_message.lower(), "예외 메시지에 'pending' 키워드가 포함되어야 함"
+        assert "충돌" in error_message, "예외 메시지에 '충돌' 키워드가 포함되어야 함"
+        assert "sell" in error_message, "예외 메시지에 신호 타입이 포함되어야 함"
+        assert "2023-01-09" in error_message or "2023-01-10" in error_message, "예외 메시지에 날짜 정보가 포함되어야 함"
+
+        # When & Then: 신규 매수 신호 발생 시에도 예외 발생
+        with pytest.raises(PendingOrderConflictError):
+            _check_pending_conflict(existing_pending, "buy", date(2023, 1, 9))
+
+        # When: pending이 없으면 예외 발생하지 않음
+        try:
+            _check_pending_conflict(None, "buy", date(2023, 1, 9))
+            _check_pending_conflict(None, "sell", date(2023, 1, 9))
+        except PendingOrderConflictError:
+            pytest.fail("pending이 None일 때는 예외가 발생하면 안 됨")

@@ -9,6 +9,7 @@
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Literal
 
 import pandas as pd
 
@@ -36,6 +37,127 @@ from qbt.utils import get_logger
 from qbt.utils.parallel_executor import execute_parallel_with_kwargs
 
 logger = get_logger(__name__)
+
+
+# ============================================================================
+# Helper Functions for run_buffer_strategy
+# ============================================================================
+
+
+def _validate_buffer_strategy_inputs(params: "BufferStrategyParams", df: pd.DataFrame, ma_col: str) -> None:
+    """
+    버퍼존 전략의 입력 파라미터와 데이터를 검증한다.
+
+    Args:
+        params: 전략 파라미터
+        df: 검증할 DataFrame
+        ma_col: 이동평균 컬럼명
+
+    Raises:
+        ValueError: 검증 실패 시
+    """
+    # 1. 파라미터 검증
+    if params.ma_window < 1:
+        raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
+
+    if params.buffer_zone_pct < MIN_BUFFER_ZONE_PCT:
+        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buffer_zone_pct}")
+
+    if params.hold_days < MIN_HOLD_DAYS:
+        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
+
+    if params.recent_months < 0:
+        raise ValueError(f"recent_months는 0 이상이어야 합니다: {params.recent_months}")
+
+    # 2. 필수 컬럼 확인
+    required_cols = [ma_col, COL_OPEN, COL_CLOSE, COL_DATE]
+    missing = set(required_cols) - set(df.columns)
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+
+def _compute_bands(ma_value: float, buffer_zone_pct: float) -> tuple[float, float]:
+    """
+    이동평균 기준 상하단 밴드를 계산한다.
+
+    Args:
+        ma_value: 이동평균 값
+        buffer_zone_pct: 버퍼존 비율 (0~1)
+
+    Returns:
+        tuple: (upper_band, lower_band)
+            - upper_band: 상단 밴드 = ma * (1 + buffer_zone_pct)
+            - lower_band: 하단 밴드 = ma * (1 - buffer_zone_pct)
+    """
+    upper_band = ma_value * (1 + buffer_zone_pct)
+    lower_band = ma_value * (1 - buffer_zone_pct)
+    return upper_band, lower_band
+
+
+def _check_pending_conflict(
+    pending_order: "PendingOrder | None", signal_type: Literal["buy", "sell"], current_date: date
+) -> None:
+    """
+    Pending order 충돌을 검사한다 (Critical Invariant).
+
+    Args:
+        pending_order: 현재 pending order
+        signal_type: 발생한 신호 타입
+        current_date: 현재 날짜
+
+    Raises:
+        PendingOrderConflictError: pending이 이미 존재하는 경우
+    """
+    if pending_order is not None:
+        raise PendingOrderConflictError(
+            f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
+            f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
+            f"존재 중 신규 {signal_type} 신호 발생(current_date={current_date})"
+        )
+
+
+def _record_equity(
+    current_date: date,
+    capital: float,
+    position: int,
+    close_price: float,
+    current_buffer_pct: float,
+    upper_band: float | None,
+    lower_band: float | None,
+) -> dict:
+    """
+    현재 시점의 equity를 기록한다.
+
+    Args:
+        current_date: 현재 날짜
+        capital: 현재 보유 현금
+        position: 현재 포지션 수량
+        close_price: 현재 종가
+        current_buffer_pct: 현재 버퍼존 비율
+        upper_band: 상단 밴드 (첫 날은 None 가능)
+        lower_band: 하단 밴드 (첫 날은 None 가능)
+
+    Returns:
+        dict: equity 기록 딕셔너리
+    """
+    if position > 0:
+        equity = capital + position * close_price
+    else:
+        equity = capital
+
+    return {
+        COL_DATE: current_date,
+        "equity": equity,
+        "position": position,
+        "buffer_zone_pct": current_buffer_pct,
+        "upper_band": upper_band,
+        "lower_band": lower_band,
+    }
+
+
+# ============================================================================
+# Exceptions
+# ============================================================================
 
 
 class PendingOrderConflictError(Exception):
@@ -103,13 +225,16 @@ class PendingOrder:
 
     신호 발생 시점에 생성되며, 지정된 날짜에 실제 체결됩니다.
     이를 통해 신호 발생일과 체결일을 명확히 분리합니다.
+
+    타입 안정성:
+    - order_type은 Literal["buy", "sell"]로 제한하여 타입 체크 시점에 오류 방지
     """
 
     execute_date: date  # 실행할 날짜
-    order_type: str  # "buy" 또는 "sell"
+    order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
     price_raw: float  # 슬리피지 적용 전 원가격 (시가)
     signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
-    buffer_zone_pct: float  # 신호 시점의 버퍼존
+    buffer_zone_pct: float  # 신호 시점의 버퍼존 비율 (0~1)
     hold_days_used: int  # 신호 시점의 유지일수
     recent_buy_count: int  # 신호 시점의 최근 매수 횟수
 
@@ -588,6 +713,12 @@ def run_buffer_strategy(
     롱 온리, 최대 1 포지션 전략을 사용한다.
     버퍼존 상단 돌파 시 매수, 하단 돌파 시 매도하며, 동적으로 버퍼존과 유지조건을 조정한다.
 
+    핵심 실행 규칙:
+    - equity = cash + position * close (모든 시점)
+    - final_capital = 마지막 equity (평가액 포함)
+    - 신호: i일 close, 체결: i+1일 open
+    - pending_order: 단일 슬롯 (충돌 시 PendingOrderConflictError)
+
     Args:
         df: 이동평균이 계산된 DataFrame (add_single_moving_average 적용 필수)
         params: 전략 파라미터
@@ -601,29 +732,14 @@ def run_buffer_strategy(
 
     Raises:
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
+        PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
     if log_trades:
         logger.debug(f"버퍼존 전략 실행 시작: params={params}")
 
-    # 1. 파라미터 검증
-    if params.ma_window < 1:
-        raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
-
-    if params.buffer_zone_pct < MIN_BUFFER_ZONE_PCT:
-        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buffer_zone_pct}")
-
-    if params.hold_days < MIN_HOLD_DAYS:
-        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
-
-    if params.recent_months < 0:
-        raise ValueError(f"recent_months는 0 이상이어야 합니다: {params.recent_months}")
-
-    # 2. 필수 컬럼 확인
+    # 1. 파라미터 및 데이터 검증
     ma_col = f"ma_{params.ma_window}"
-    required_cols = [ma_col, COL_OPEN, COL_CLOSE, COL_DATE]
-    missing = set(required_cols) - set(df.columns)
-    if missing:
-        raise ValueError(f"필수 컬럼 누락: {missing}")
+    _validate_buffer_strategy_inputs(params, df, ma_col)
 
     # 3. 유효 데이터만 사용 (ma_window 이후부터)
     df = df.copy()
@@ -652,16 +768,10 @@ def run_buffer_strategy(
 
     # 4-1. 첫 날 에쿼티 기록 (버그 수정: 첫 날 누락 해결)
     first_row = df.iloc[0]
-    equity_records.append(
-        {
-            COL_DATE: first_row[COL_DATE],
-            "equity": params.initial_capital,
-            "position": 0,
-            "buffer_zone_pct": params.buffer_zone_pct,
-            "upper_band": None,
-            "lower_band": None,
-        }
+    first_equity_record = _record_equity(
+        first_row[COL_DATE], params.initial_capital, 0, first_row[COL_CLOSE], params.buffer_zone_pct, None, None
     )
+    equity_records.append(first_equity_record)
 
     # 5. 백테스트 루프 (인덱스 1부터 시작 - 전일 비교 필요)
     # 학습 포인트: 인덱스 1부터 시작하는 이유
@@ -728,30 +838,14 @@ def run_buffer_strategy(
                 pending_order = None
 
         # 5-3. 버퍼존 밴드 계산
-        # 학습 포인트: 이동평균을 기준으로 상하 밴드 계산
-        ma_value = row[ma_col]  # 현재 이동평균 값
-        # 상단 밴드 = 이동평균 × (1 + 버퍼존%)
-        upper_band = ma_value * (1 + current_buffer_pct)
-        # 하단 밴드 = 이동평균 × (1 - 버퍼존%)
-        lower_band = ma_value * (1 - current_buffer_pct)
+        ma_value = row[ma_col]
+        upper_band, lower_band = _compute_bands(ma_value, current_buffer_pct)
 
         # 5-4. 에쿼티 기록 (주문 실행 후 상태)
-        # 버그 수정: 체결 후 상태를 기록하므로 정확한 에쿼티 곡선 생성
-        if position > 0:
-            equity = capital + position * row[COL_CLOSE]
-        else:
-            equity = capital
-
-        equity_records.append(
-            {
-                COL_DATE: current_date,
-                "equity": equity,
-                "position": position,
-                "buffer_zone_pct": current_buffer_pct,
-                "upper_band": upper_band,
-                "lower_band": lower_band,
-            }
+        equity_record = _record_equity(
+            current_date, capital, position, row[COL_CLOSE], current_buffer_pct, upper_band, lower_band
         )
+        equity_records.append(equity_record)
 
         # 5-5. 신호 감지 및 주문 예약 (미래 체결을 위해)
         # Critical Invariant: pending_order 존재 중 신규 신호 발생 시 예외
@@ -761,13 +855,8 @@ def run_buffer_strategy(
                 df, i, ma_col, current_buffer_pct, current_hold_days, prev_upper_band, upper_band
             )
             if signal_detected and buy_idx is not None:
-                # Critical Invariant 체크: pending이 이미 존재하면 안 됨
-                if pending_order is not None:
-                    raise PendingOrderConflictError(
-                        f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
-                        f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
-                        f"존재 중 신규 매수 신호 발생(current_date={current_date})"
-                    )
+                # Critical Invariant 체크
+                _check_pending_conflict(pending_order, "buy", current_date)
 
                 buy_row = df.iloc[buy_idx]
                 pending_order = PendingOrder(
@@ -784,13 +873,8 @@ def run_buffer_strategy(
             # 매도 신호 감지
             signal_detected, sell_idx = _detect_sell_signal(df, i, prev_lower_band, lower_band)
             if signal_detected and sell_idx is not None:
-                # Critical Invariant 체크: pending이 이미 존재하면 안 됨
-                if pending_order is not None:
-                    raise PendingOrderConflictError(
-                        f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
-                        f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
-                        f"존재 중 신규 매도 신호 발생(current_date={current_date})"
-                    )
+                # Critical Invariant 체크
+                _check_pending_conflict(pending_order, "sell", current_date)
 
                 sell_row = df.iloc[sell_idx]
                 pending_order = PendingOrder(
