@@ -57,7 +57,7 @@
 
 - [ ] 기능 요구사항 충족
 - [ ] 회귀/신규 테스트 추가
-- [ ] `./run_tests.sh` 통과 (passed/failed/skipped 수 기록)
+- [ ] `./run_tests.sh` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
 - [ ] `poetry run ruff check .` 통과
 - [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
 - [ ] 필요한 문서 업데이트(README/CLAUDE/plan 등)
@@ -95,7 +95,7 @@
 **Validation**:
 
 - [ ] `poetry run ruff check .`
-- [ ] `./run_tests.sh`
+- [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
 
@@ -109,30 +109,7 @@
 **Validation**:
 
 - [ ] `poetry run ruff check .`
-- [ ] `./run_tests.sh`
-
----
-
-### 승인 요청 + Commit Messages (Phase 1) _(승인 요청이 있다면 필수)_
-
-> ✅ 승인 요청을 올리기 전, 위 Phase 체크박스를 먼저 업데이트한다.
-
-- [ ] **승인 요청**: Phase 2로 진행해도 되는지 요청
-
-**이번 Phase에서 체크된 항목 요약**:
-
-- (예) [x] A, [x] B, [x] C
-
-**Validation 결과**:
-
-- `poetry run ruff check .`: (통과/실패 + 핵심 메시지)
-- `./run_tests.sh`: (통과/실패 + passed/failed/skipped 수)
-
-#### Commit Messages (Phase 1)
-
-1. 기능명 / ...
-2. 기능명 / ...
-3. 기능명 / ...
+- [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
 
@@ -146,7 +123,7 @@
 **Validation**:
 
 - [ ] `poetry run ruff check .`
-- [ ] `./run_tests.sh`
+- [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
 
@@ -161,13 +138,15 @@
 **Validation**:
 
 - [ ] `poetry run ruff check .`
-- [ ] `./run_tests.sh`
+- [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
-#### Commit Messages (Final)
+#### Commit Messages (Final candidates) — 5개 중 1개 선택
 
-1. 기능명 / ...
-2. 기능명 / ...
-3. 기능명 / ...
+1. 기능명 / 핵심 변경 요약 (정확성/정합성/정책 반영)
+2. 기능명 / 버그 수정 + 테스트 보강 (회귀 방지)
+3. 기능명 / 정책 변경 반영 및 검증 로직 정리
+4. 기능명 / 리팩토링(동작 동일) + 린트/포맷 정리
+5. 기능명 / 문서/규칙 업데이트 + 구현 반영
 
 ## 7) 리스크(Risks)
 
@@ -183,3 +162,23 @@
 
 - YYYY-MM-DD HH:MM: ...
 - YYYY-MM-DD HH:MM: ...
+
+---
+
+<!--
+(옵션 블록 라이브러리) — 사용자가 요청한 경우에만, 특정 Phase 아래에 복사해서 사용
+
+### 승인 요청 (Optional)
+
+> ✅ 승인 요청을 올리기 전, 위 Phase 체크박스를 먼저 업데이트한다.
+
+- [ ] **승인 요청**: 다음 Phase로 진행해도 되는지 요청
+
+**이번 Phase에서 체크된 항목 요약**:
+
+- (예) [x] A, [x] B, [x] C
+
+**Validation 결과**:
+
+- `poetry run ruff check .`: (통과/실패 + 핵심 메시지)
+- `./run_tests.sh`: (통과/실패 + passed/failed/skipped 수)
