@@ -62,7 +62,6 @@ QQQ로부터 TQQQ를 시뮬레이션하고 실제 데이터와 비교하여 비�
 # 1. 필수 데이터 다운로드
 poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/data/download_data.py TQQQ
-poetry run python scripts/data/download_data.py FRED:DFF
 
 # 2. 비용 모델 파라미터 최적화
 poetry run python scripts/tqqq/validate_tqqq_simulation.py

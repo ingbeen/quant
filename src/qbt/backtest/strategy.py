@@ -27,6 +27,7 @@ from qbt.backtest.constants import (
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
     DAYS_PER_MONTH,
+    HOLD_DAYS_INCREMENT_PER_BUY,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_VALID_ROWS,
@@ -319,89 +320,54 @@ def _execute_sell_order(
 
 
 def _detect_buy_signal(
-    df: pd.DataFrame,
-    i: int,
-    ma_col: str,
-    current_buffer_pct: float,
-    current_hold_days: int,
+    prev_close: float,
+    close: float,
     prev_upper_band: float,
     upper_band: float,
-) -> tuple[bool, int | None]:
+) -> bool:
     """
-    상향돌파 신호를 감지한다.
+    상향돌파 신호를 감지한다 (상태머신 방식).
+
+    - hold_days 체크 로직 제거 (메인 루프의 상태머신으로 이동)
+    - 돌파 감지만 수행
+    - 반환값 단순화: bool만 반환
 
     Args:
-        df: 데이터프레임
-        i: 현재 인덱스
-        ma_col: 이동평균 컬럼명
-        current_buffer_pct: 현재 버퍼존 비율
-        current_hold_days: 현재 유지일수
+        prev_close: 전일 종가
+        close: 당일 종가
         prev_upper_band: 전일 상단 밴드
         upper_band: 당일 상단 밴드
 
     Returns:
-        tuple: (signal_detected, buy_idx)
-            - signal_detected: 신호 감지 여부
-            - buy_idx: 매수 실행할 인덱스 (None이면 신호 없음)
+        bool: 상향돌파 감지 여부
     """
-    row = df.iloc[i]
-    prev_row = df.iloc[i - 1]
-
     # 상향돌파 체크: 전일 종가 <= 상단밴드 AND 당일 종가 > 상단밴드
-    if not (prev_row[COL_CLOSE] <= prev_upper_band and row[COL_CLOSE] > upper_band):
-        return False, None
-
-    # 유지조건 확인
-    if current_hold_days > 0:
-        hold_satisfied = check_hold_condition(df, i, current_hold_days, ma_col, current_buffer_pct)
-        if not hold_satisfied:
-            return False, None
-        buy_idx = i + current_hold_days + 1
-    else:
-        # hold_days=0: 즉시 다음 날 시가 매수
-        buy_idx = i + 1
-
-    # 데이터 범위 체크
-    if buy_idx >= len(df):
-        return False, None
-
-    return True, buy_idx
+    return prev_close <= prev_upper_band and close > upper_band
 
 
 def _detect_sell_signal(
-    df: pd.DataFrame,
-    i: int,
+    prev_close: float,
+    close: float,
     prev_lower_band: float,
     lower_band: float,
-) -> tuple[bool, int | None]:
+) -> bool:
     """
-    하향돌파 신호를 감지한다.
+    하향돌파 신호를 감지한다 (상태머신 방식).
+
+    - 반환값 단순화: bool만 반환 (일관성 유지)
+    - 매도는 hold_days 없음 (즉시 실행)
 
     Args:
-        df: 데이터프레임
-        i: 현재 인덱스
+        prev_close: 전일 종가
+        close: 당일 종가
         prev_lower_band: 전일 하단 밴드
         lower_band: 당일 하단 밴드
 
     Returns:
-        tuple: (signal_detected, sell_idx)
-            - signal_detected: 신호 감지 여부
-            - sell_idx: 매도 실행할 인덱스 (None이면 신호 없음)
+        bool: 하향돌파 감지 여부
     """
-    row = df.iloc[i]
-    prev_row = df.iloc[i - 1]
-
     # 하향돌파 체크: 전일 종가 >= 하단밴드 AND 당일 종가 < 하단밴드
-    if not (prev_row[COL_CLOSE] >= prev_lower_band and row[COL_CLOSE] < lower_band):
-        return False, None
-
-    sell_idx = i + 1
-
-    # 데이터 범위 체크
-    if sell_idx >= len(df):
-        return False, None
-
-    return True, sell_idx
+    return prev_close >= prev_lower_band and close < lower_band
 
 
 def run_buy_and_hold(
@@ -662,44 +628,6 @@ def calculate_recent_buy_count(
     return count
 
 
-def check_hold_condition(
-    df: pd.DataFrame,
-    break_idx: int,
-    hold_days: int,
-    ma_col: str,
-    buffer_pct: float,
-) -> bool:
-    """
-    상향돌파 이후 유지조건을 확인한다.
-
-    break_idx 이후 hold_days 일 동안 종가가 상단 밴드 위에 있는지 확인한다.
-    돌파 시점의 buffer_pct를 고정하여 사용한다.
-
-    Args:
-        df: 데이터프레임
-        break_idx: 돌파 발생 인덱스
-        hold_days: 유지해야 할 일수
-        ma_col: 이동평균 컬럼명
-        buffer_pct: 버퍼존 비율 (돌파 시점 고정값)
-
-    Returns:
-        유지조건 만족 여부
-    """
-    # break_idx 다음 날부터 hold_days 일간 체크
-    start_idx = break_idx + 1
-    end_idx = start_idx + hold_days
-
-    if end_idx > len(df):
-        return False  # 데이터 부족
-
-    for i in range(start_idx, end_idx):
-        row = df.iloc[i]
-        upper_band = row[ma_col] * (1 + buffer_pct)
-
-        if row[COL_CLOSE] <= upper_band:
-            return False  # 유지 실패
-
-    return True  # 모든 날 유지 성공
 
 
 def run_buffer_strategy(
@@ -761,17 +689,35 @@ def run_buffer_strategy(
     equity_records = []  # 자본 곡선을 담을 빈 리스트
     pending_order: PendingOrder | None = None  # 예약된 주문 (단일 슬롯)
 
-    # 이전 날의 밴드 값 (돌파 감지용)
-    # None으로 초기화하여 첫 날에는 매매하지 않도록 함
-    prev_upper_band = None
-    prev_lower_band = None
+    # hold_days 상태머신 변수 추가
+    # 유지조건 추적을 위한 상태 (None = 유지조건 추적 안 함)
+    # 구조: {"start_date": date, "days_passed": int, "buffer_pct": float, "hold_days_required": int}
+    hold_state: dict | None = None
 
-    # 4-1. 첫 날 에쿼티 기록 (버그 수정: 첫 날 누락 해결)
+    # 매수 시점의 hold_days 정보 저장 (거래 기록용)
+    entry_hold_days = 0
+    entry_recent_buy_count = 0
+
+    # 4-1. 첫 날 에쿼티 기록 및 prev band 초기화
     first_row = df.iloc[0]
+    first_ma_value = first_row[ma_col]
+    first_upper_band, first_lower_band = _compute_bands(first_ma_value, params.buffer_zone_pct)
+
     first_equity_record = _record_equity(
-        first_row[COL_DATE], params.initial_capital, 0, first_row[COL_CLOSE], params.buffer_zone_pct, None, None
+        first_row[COL_DATE],
+        params.initial_capital,
+        0,
+        first_row[COL_CLOSE],
+        params.buffer_zone_pct,
+        first_upper_band,
+        first_lower_band,
     )
     equity_records.append(first_equity_record)
+
+    # 이전 날의 밴드 값 초기화 (첫 날 값으로)
+    # i=1부터 시작하므로 i=1의 prev는 i=0이 됨
+    prev_upper_band = first_upper_band
+    prev_lower_band = first_lower_band
 
     # 5. 백테스트 루프 (인덱스 1부터 시작 - 전일 비교 필요)
     # 학습 포인트: 인덱스 1부터 시작하는 이유
@@ -798,7 +744,7 @@ def run_buffer_strategy(
 
             if params.hold_days > 0:
                 # 유지조건도 증가 (더 오래 유지해야 매수)
-                current_hold_days = params.hold_days + recent_buy_count
+                current_hold_days = params.hold_days + (recent_buy_count * HOLD_DAYS_INCREMENT_PER_BUY)
             else:
                 # hold_days=0이면 유지조건 증가 안 함
                 current_hold_days = params.hold_days
@@ -817,6 +763,9 @@ def run_buffer_strategy(
                 )
                 if success:
                     all_entry_dates.append(entry_date)
+                    # 매수 시점의 hold_days 정보 저장 (거래 기록용)
+                    entry_hold_days = pending_order.hold_days_used
+                    entry_recent_buy_count = pending_order.recent_buy_count
                     if log_trades:
                         logger.debug(
                             f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
@@ -831,9 +780,14 @@ def run_buffer_strategy(
                 position, capital, trade_record = _execute_sell_order(
                     pending_order, capital, position, entry_price, entry_date
                 )
+                # 거래 기록에 매수 시점의 hold_days 정보 사용
+                trade_record["hold_days_used"] = entry_hold_days
+                trade_record["recent_buy_count"] = entry_recent_buy_count
                 trades.append(trade_record)
                 if log_trades:
-                    logger.debug(f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%")
+                    logger.debug(
+                        f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%"
+                    )
                 # 실행 완료 후 pending_order 초기화
                 pending_order = None
 
@@ -847,85 +801,111 @@ def run_buffer_strategy(
         )
         equity_records.append(equity_record)
 
-        # 5-5. 신호 감지 및 주문 예약 (미래 체결을 위해)
+        # 5-5. 신호 감지 및 주문 예약 (상태머신 방식)
         # Critical Invariant: pending_order 존재 중 신규 신호 발생 시 예외
-        if position == 0 and prev_upper_band is not None:
-            # 매수 신호 감지
-            signal_detected, buy_idx = _detect_buy_signal(
-                df, i, ma_col, current_buffer_pct, current_hold_days, prev_upper_band, upper_band
-            )
-            if signal_detected and buy_idx is not None:
-                # Critical Invariant 체크
-                _check_pending_conflict(pending_order, "buy", current_date)
+        prev_row = df.iloc[i - 1]
 
-                buy_row = df.iloc[buy_idx]
-                pending_order = PendingOrder(
-                    execute_date=buy_row[COL_DATE],
-                    order_type="buy",
-                    price_raw=buy_row[COL_OPEN],
-                    signal_date=current_date,
-                    buffer_zone_pct=current_buffer_pct,
-                    hold_days_used=current_hold_days,
-                    recent_buy_count=recent_buy_count,
+        if position == 0 and prev_upper_band is not None:
+            # 매수 로직 (상태머신)
+
+            # 5-5-1. 유지조건 체크 (hold_state가 존재하면)
+            if hold_state is not None:
+                # 유지조건 검증: 현재 종가가 상단 밴드 위에 있는가?
+                if row[COL_CLOSE] > upper_band:
+                    # 조건 통과: days_passed 증가
+                    hold_state["days_passed"] += 1
+
+                    # 유지조건 완료 확인
+                    if hold_state["days_passed"] >= hold_state["hold_days_required"]:
+                        # 유지조건 완료 -> pending_order 생성
+                        _check_pending_conflict(pending_order, "buy", current_date)
+
+                        # 다음 날 시가에 매수 예약
+                        if i + 1 < len(df):
+                            buy_row = df.iloc[i + 1]
+                            pending_order = PendingOrder(
+                                execute_date=buy_row[COL_DATE],
+                                order_type="buy",
+                                price_raw=buy_row[COL_OPEN],
+                                signal_date=current_date,
+                                buffer_zone_pct=hold_state["buffer_pct"],
+                                hold_days_used=hold_state["hold_days_required"],
+                                recent_buy_count=recent_buy_count,
+                            )
+
+                        # hold_state 초기화
+                        hold_state = None
+                else:
+                    # 조건 실패: hold_state 리셋
+                    hold_state = None
+
+            # 5-5-2. 상향돌파 감지 (hold_state가 없을 때만)
+            if hold_state is None:
+                breakout_detected = _detect_buy_signal(
+                    prev_close=prev_row[COL_CLOSE],
+                    close=row[COL_CLOSE],
+                    prev_upper_band=prev_upper_band,
+                    upper_band=upper_band,
                 )
 
+                if breakout_detected:
+                    if current_hold_days > 0:
+                        # hold_days > 0: 유지조건 추적 시작
+                        hold_state = {
+                            "start_date": current_date,
+                            "days_passed": 0,
+                            "buffer_pct": current_buffer_pct,
+                            "hold_days_required": current_hold_days,
+                        }
+                    else:
+                        # hold_days = 0: 즉시 다음 날 시가에 매수 예약
+                        _check_pending_conflict(pending_order, "buy", current_date)
+
+                        if i + 1 < len(df):
+                            buy_row = df.iloc[i + 1]
+                            pending_order = PendingOrder(
+                                execute_date=buy_row[COL_DATE],
+                                order_type="buy",
+                                price_raw=buy_row[COL_OPEN],
+                                signal_date=current_date,
+                                buffer_zone_pct=current_buffer_pct,
+                                hold_days_used=0,
+                                recent_buy_count=recent_buy_count,
+                            )
+
         elif position > 0 and prev_lower_band is not None:
-            # 매도 신호 감지
-            signal_detected, sell_idx = _detect_sell_signal(df, i, prev_lower_band, lower_band)
-            if signal_detected and sell_idx is not None:
+            # 매도 로직 (hold_days 없음, 즉시 실행)
+            breakout_detected = _detect_sell_signal(
+                prev_close=prev_row[COL_CLOSE],
+                close=row[COL_CLOSE],
+                prev_lower_band=prev_lower_band,
+                lower_band=lower_band,
+            )
+
+            if breakout_detected:
                 # Critical Invariant 체크
                 _check_pending_conflict(pending_order, "sell", current_date)
 
-                sell_row = df.iloc[sell_idx]
-                pending_order = PendingOrder(
-                    execute_date=sell_row[COL_DATE],
-                    order_type="sell",
-                    price_raw=sell_row[COL_OPEN],
-                    signal_date=current_date,
-                    buffer_zone_pct=current_buffer_pct,
-                    hold_days_used=current_hold_days,
-                    recent_buy_count=recent_buy_count,
-                )
+                # 다음 날 시가에 매도 예약
+                if i + 1 < len(df):
+                    sell_row = df.iloc[i + 1]
+                    pending_order = PendingOrder(
+                        execute_date=sell_row[COL_DATE],
+                        order_type="sell",
+                        price_raw=sell_row[COL_OPEN],
+                        signal_date=current_date,
+                        buffer_zone_pct=current_buffer_pct,
+                        hold_days_used=0,  # 매도는 hold_days 없음
+                        recent_buy_count=recent_buy_count,
+                    )
 
         # 5-6. 다음 루프를 위해 전일 밴드 저장
         prev_upper_band = upper_band
         prev_lower_band = lower_band
 
-    # 6. 마지막 포지션 청산 (백테스트 종료 시)
-    if position > 0:
-        last_row = df.iloc[-1]
-        sell_price = last_row[COL_CLOSE] * (1 - SLIPPAGE_RATE)
-        sell_amount = position * sell_price
-        capital += sell_amount
-
-        # 마지막 동적 파라미터 계산 (매매 신호 로직과 동일)
-        if params.recent_months > 0:
-            recent_buy_count = calculate_recent_buy_count(all_entry_dates, last_row[COL_DATE], params.recent_months)
-            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
-            if params.hold_days > 0:
-                current_hold_days = params.hold_days + recent_buy_count
-            else:
-                current_hold_days = params.hold_days
-        else:
-            current_buffer_pct = params.buffer_zone_pct
-            current_hold_days = params.hold_days
-            recent_buy_count = 0
-
-        trades.append(
-            {
-                "entry_date": entry_date,
-                "exit_date": last_row[COL_DATE],
-                "entry_price": entry_price,
-                "exit_price": sell_price,
-                "shares": position,
-                "pnl": (sell_price - entry_price) * position,
-                "pnl_pct": (sell_price - entry_price) / entry_price,
-                "exit_reason": "end_of_data",
-                "buffer_zone_pct": current_buffer_pct,
-                "hold_days_used": current_hold_days,
-                "recent_buy_count": recent_buy_count,
-            }
-        )
+    # 6. 백테스트 종료 (강제청산 없음)
+    # 마지막 날 포지션이 남아있어도 그대로 둠
+    # equity_df의 마지막 equity가 final_capital이 됨 (cash + position × last_close)
 
     # 7. 결과 DataFrame 생성
     trades_df = pd.DataFrame(trades)
@@ -939,6 +919,8 @@ def run_buffer_strategy(
     summary["hold_days"] = params.hold_days
 
     if log_trades:
-        logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
+        logger.debug(
+            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
+        )
 
     return trades_df, equity_df, summary

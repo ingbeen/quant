@@ -258,8 +258,15 @@
 
 **Lookahead 금지**:
 
-- i일에 i+1 ~ i+H를 미리 검사해 `pending`을 선적재하면 안 됨
-- 매일 순차적으로 유지조건 체크
+- **금지**: i일에 i+1 ~ i+H를 미리 검사해 `pending`을 선적재하는 방식
+- **필수**: 매일 순차적으로 유지조건 체크 (상태머신 방식)
+- **구현 방식**:
+  - 돌파 발생 시: hold_state 초기화 (days_passed=0)
+  - 매일: hold_state가 존재하면 유지조건 체크
+    - 조건 통과: days_passed += 1
+    - 조건 실패: hold_state = None (리셋)
+    - days_passed == hold_days_required: pending_order 생성 후 hold_state = None
+- **이유**: 미래 정보 사용 방지, 실제 거래와 동일한 순차 검증
 
 근거 위치: [strategy.py의 run_buffer_strategy 메인 루프, hold tracking 로직](strategy.py)
 
@@ -275,9 +282,14 @@
 
 - N일 종가에서 발생한 신호는 N+1일 시가가 없으므로 `pending` 생성하지 않음 (드롭/무시)
 
-**마지막 Equity**:
+**마지막 Equity 및 Final Capital**:
 
 - N일 종가 기준으로 `equity = cash + position × close[N]` 계산
+- `final_capital = equity[N]` (마지막 날 equity와 동일)
+- **강제청산 없음**: 마지막 날에 포지션이 남아있어도 강제로 매도하지 않음
+  - 이유: equity_df, trades_df, summary.final_capital 간 일관성 보장
+  - trades_df는 실제 신호에 의한 거래만 기록
+  - final_capital은 항상 "현금 + 평가액" 기준
 
 근거 위치: [strategy.py의 run_buffer_strategy 메인 루프 종료 부분](strategy.py)
 
@@ -434,6 +446,13 @@ lower_band = ma × (1 - buffer_zone_pct)
 adjusted_buffer_pct = base_buffer_pct + (recent_buy_count × BUFFER_INCREMENT_PER_BUY)
 adjusted_hold_days = base_hold_days + (recent_buy_count × HOLD_DAYS_INCREMENT_PER_BUY)
 ```
+
+**상수 사용 필수**:
+
+- `BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
+- `HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
+- **주의**: 하드코딩 금지 (`+ recent_buy_count` 대신 `+ recent_buy_count × HOLD_DAYS_INCREMENT_PER_BUY` 사용)
+- **이유**: 정책 변경 시 상수만 수정하면 되도록
 
 근거 위치: [strategy.py의 동적 조정 로직](strategy.py), [constants.py](constants.py)
 
