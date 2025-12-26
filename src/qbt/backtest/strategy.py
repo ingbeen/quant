@@ -271,6 +271,10 @@ def _execute_buy_order(
         return shares, new_capital, buy_price, order.execute_date, True
     else:
         # 자본 부족으로 매수 불가
+        logger.debug(
+            f"매수 불가 (자본 부족): 날짜={order.execute_date}, 필요가격={buy_price:.2f}, "
+            f"현재자본={capital:.2f}, 가능수량=0"
+        )
         return position, capital, 0.0, order.execute_date, False
 
 
