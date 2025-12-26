@@ -46,7 +46,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 입력: CSV 파일 경로
 - 반환: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
 - VALUE 컬럼을 FFR로 자동 rename
-- **중요**: DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
+- DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
 - 예외: FileNotFoundError (파일 부재 시)
 
 **`load_comparison_data(path: Path) -> pd.DataFrame`**:

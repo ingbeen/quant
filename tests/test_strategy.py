@@ -844,9 +844,7 @@ class TestCoreExecutionRules:
 
         # Given: 기존 pending이 존재
         existing_pending = PendingOrder(
-            execute_date=date(2023, 1, 10),
             order_type="sell",
-            price_raw=100.0,
             signal_date=date(2023, 1, 9),
             buffer_zone_pct=0.01,
             hold_days_used=0,

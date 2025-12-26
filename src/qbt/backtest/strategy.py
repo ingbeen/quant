@@ -112,7 +112,7 @@ def _check_pending_conflict(
     if pending_order is not None:
         raise PendingOrderConflictError(
             f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
-            f"signal_date={pending_order.signal_date}, execute_date={pending_order.execute_date}) "
+            f"signal_date={pending_order.signal_date}) "
             f"존재 중 신규 {signal_type} 신호 발생(current_date={current_date})"
         )
 
@@ -224,16 +224,19 @@ class BuyAndHoldParams:
 class PendingOrder:
     """예약된 주문 정보
 
-    신호 발생 시점에 생성되며, 지정된 날짜에 실제 체결됩니다.
-    이를 통해 신호 발생일과 체결일을 명확히 분리합니다.
+    신호 발생 시점에 생성되며, 다음 거래일 시가에 실제 체결됩니다.
+    이를 통해 신호 발생일과 체결일을 명확히 분리하고, 미래 데이터 참조를 방지합니다.
 
     타입 안정성:
     - order_type은 Literal["buy", "sell"]로 제한하여 타입 체크 시점에 오류 방지
+
+    중요: 미래 데이터 참조 방지
+    - execute_date, price_raw를 저장하지 않음 (look-ahead bias 방지)
+    - 다음 날 루프에서 해당 날짜의 시가를 조회하여 체결
+    - 마지막 날 신호는 자연스럽게 미체결됨 (다음 날이 없으므로)
     """
 
-    execute_date: date  # 실행할 날짜
     order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
-    price_raw: float  # 슬리피지 적용 전 원가격 (시가)
     signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
     buffer_zone_pct: float  # 신호 시점의 버퍼존 비율 (0~1)
     hold_days_used: int  # 신호 시점의 유지일수
@@ -242,6 +245,8 @@ class PendingOrder:
 
 def _execute_buy_order(
     order: PendingOrder,
+    open_price: float,
+    execute_date: date,
     capital: float,
     position: int,
 ) -> tuple[int, float, float, date, bool]:
@@ -250,6 +255,8 @@ def _execute_buy_order(
 
     Args:
         order: 실행할 매수 주문
+        open_price: 체결 날짜의 시가 (슬리피지 적용 전)
+        execute_date: 체결 날짜
         capital: 현재 보유 현금
         position: 현재 포지션 (0이어야 함)
 
@@ -262,24 +269,26 @@ def _execute_buy_order(
             - executed: 실행 여부 (자본 부족 시 False)
     """
     # 슬리피지 적용 (매수 시 +0.3%)
-    buy_price = order.price_raw * (1 + SLIPPAGE_RATE)
+    buy_price = open_price * (1 + SLIPPAGE_RATE)
     shares = int(capital / buy_price)
 
     if shares > 0:
         buy_amount = shares * buy_price
         new_capital = capital - buy_amount
-        return shares, new_capital, buy_price, order.execute_date, True
+        return shares, new_capital, buy_price, execute_date, True
     else:
         # 자본 부족으로 매수 불가
         logger.debug(
-            f"매수 불가 (자본 부족): 날짜={order.execute_date}, 필요가격={buy_price:.2f}, "
+            f"매수 불가 (자본 부족): 날짜={execute_date}, 필요가격={buy_price:.2f}, "
             f"현재자본={capital:.2f}, 가능수량=0"
         )
-        return position, capital, 0.0, order.execute_date, False
+        return position, capital, 0.0, execute_date, False
 
 
 def _execute_sell_order(
     order: PendingOrder,
+    open_price: float,
+    execute_date: date,
     capital: float,
     position: int,
     entry_price: float,
@@ -290,6 +299,8 @@ def _execute_sell_order(
 
     Args:
         order: 실행할 매도 주문
+        open_price: 체결 날짜의 시가 (슬리피지 적용 전)
+        execute_date: 체결 날짜
         capital: 현재 보유 현금
         position: 현재 포지션 수량
         entry_price: 진입 가격
@@ -302,13 +313,13 @@ def _execute_sell_order(
             - trade_record: 거래 기록 딕셔너리
     """
     # 슬리피지 적용 (매도 시 -0.3%)
-    sell_price = order.price_raw * (1 - SLIPPAGE_RATE)
+    sell_price = open_price * (1 - SLIPPAGE_RATE)
     sell_amount = position * sell_price
     new_capital = capital + sell_amount
 
     trade_record = {
         "entry_date": entry_date,
-        "exit_date": order.execute_date,
+        "exit_date": execute_date,
         "entry_price": entry_price,
         "exit_price": sell_price,
         "shares": position,
@@ -749,13 +760,13 @@ def run_buffer_strategy(
             current_hold_days = params.hold_days
             recent_buy_count = 0
 
-        # 5-2. 예약된 주문 실행 (당일 실행 대상만)
-        # 단일 슬롯: pending_order가 존재하고 실행일이 오늘이면 실행
-        if pending_order is not None and pending_order.execute_date == current_date:
+        # 5-2. 예약된 주문 실행 (오늘 시가로 체결)
+        # 단일 슬롯: pending_order가 존재하면 오늘 시가에 체결
+        if pending_order is not None:
             if pending_order.order_type == "buy" and position == 0:
-                # 매수 주문 실행
+                # 매수 주문 실행 (오늘 시가 사용)
                 position, capital, entry_price, entry_date, success = _execute_buy_order(
-                    pending_order, capital, position
+                    pending_order, row[COL_OPEN], current_date, capital, position
                 )
                 if success:
                     all_entry_dates.append(entry_date)
@@ -767,25 +778,22 @@ def run_buffer_strategy(
                             f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
                             f"수량={position}, 버퍼존={pending_order.buffer_zone_pct:.2%}"
                         )
-                # 실행 완료 후 pending_order 초기화
-                pending_order = None
 
             elif pending_order.order_type == "sell" and position > 0:
-                # 매도 주문 실행
+                # 매도 주문 실행 (오늘 시가 사용)
                 assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
                 position, capital, trade_record = _execute_sell_order(
-                    pending_order, capital, position, entry_price, entry_date
+                    pending_order, row[COL_OPEN], current_date, capital, position, entry_price, entry_date
                 )
                 # 거래 기록에 매수 시점의 hold_days 정보 사용
                 trade_record["hold_days_used"] = entry_hold_days
                 trade_record["recent_buy_count"] = entry_recent_buy_count
                 trades.append(trade_record)
                 if log_trades:
-                    logger.debug(
-                        f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%"
-                    )
-                # 실행 완료 후 pending_order 초기화
-                pending_order = None
+                    logger.debug(f"매도 체결: {current_date}, 손익률={trade_record['pnl_pct']*100:.2f}%")
+
+            # 실행 완료 후 pending_order 초기화 (buy/sell 모두 공통)
+            pending_order = None
 
         # 5-3. 버퍼존 밴드 계산
         ma_value = row[ma_col]
@@ -816,18 +824,14 @@ def run_buffer_strategy(
                         # 유지조건 완료 -> pending_order 생성
                         _check_pending_conflict(pending_order, "buy", current_date)
 
-                        # 다음 날 시가에 매수 예약
-                        if i + 1 < len(df):
-                            buy_row = df.iloc[i + 1]
-                            pending_order = PendingOrder(
-                                execute_date=buy_row[COL_DATE],
-                                order_type="buy",
-                                price_raw=buy_row[COL_OPEN],
-                                signal_date=current_date,
-                                buffer_zone_pct=hold_state["buffer_pct"],
-                                hold_days_used=hold_state["hold_days_required"],
-                                recent_buy_count=recent_buy_count,
-                            )
+                        # 다음 날 시가에 매수 예약 (미래 데이터 참조 없이 플래그만 설정)
+                        pending_order = PendingOrder(
+                            order_type="buy",
+                            signal_date=current_date,
+                            buffer_zone_pct=hold_state["buffer_pct"],
+                            hold_days_used=hold_state["hold_days_required"],
+                            recent_buy_count=recent_buy_count,
+                        )
 
                         # hold_state 초기화
                         hold_state = None
@@ -857,17 +861,14 @@ def run_buffer_strategy(
                         # hold_days = 0: 즉시 다음 날 시가에 매수 예약
                         _check_pending_conflict(pending_order, "buy", current_date)
 
-                        if i + 1 < len(df):
-                            buy_row = df.iloc[i + 1]
-                            pending_order = PendingOrder(
-                                execute_date=buy_row[COL_DATE],
-                                order_type="buy",
-                                price_raw=buy_row[COL_OPEN],
-                                signal_date=current_date,
-                                buffer_zone_pct=current_buffer_pct,
-                                hold_days_used=0,
-                                recent_buy_count=recent_buy_count,
-                            )
+                        # 다음 날 시가에 매수 예약 (미래 데이터 참조 없이 플래그만 설정)
+                        pending_order = PendingOrder(
+                            order_type="buy",
+                            signal_date=current_date,
+                            buffer_zone_pct=current_buffer_pct,
+                            hold_days_used=0,
+                            recent_buy_count=recent_buy_count,
+                        )
 
         elif position > 0 and prev_lower_band is not None:
             # 매도 로직 (hold_days 없음, 즉시 실행)
@@ -882,18 +883,14 @@ def run_buffer_strategy(
                 # Critical Invariant 체크
                 _check_pending_conflict(pending_order, "sell", current_date)
 
-                # 다음 날 시가에 매도 예약
-                if i + 1 < len(df):
-                    sell_row = df.iloc[i + 1]
-                    pending_order = PendingOrder(
-                        execute_date=sell_row[COL_DATE],
-                        order_type="sell",
-                        price_raw=sell_row[COL_OPEN],
-                        signal_date=current_date,
-                        buffer_zone_pct=current_buffer_pct,
-                        hold_days_used=0,  # 매도는 hold_days 없음
-                        recent_buy_count=recent_buy_count,
-                    )
+                # 다음 날 시가에 매도 예약 (미래 데이터 참조 없이 플래그만 설정)
+                pending_order = PendingOrder(
+                    order_type="sell",
+                    signal_date=current_date,
+                    buffer_zone_pct=current_buffer_pct,
+                    hold_days_used=0,  # 매도는 hold_days 없음
+                    recent_buy_count=recent_buy_count,
+                )
 
         # 5-6. 다음 루프를 위해 전일 밴드 저장
         prev_upper_band = upper_band
