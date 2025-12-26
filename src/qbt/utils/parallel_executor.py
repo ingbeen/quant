@@ -19,6 +19,10 @@ from qbt.utils import get_logger
 
 logger = get_logger(__name__)
 
+# 워커 프로세스별 캐시 저장소
+# 병렬 실행 시 큰 DataFrame을 작업마다 전달하지 않고, 워커당 1회만 세팅
+WORKER_CACHE: dict[str, Any] = {}
+
 
 def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
     """
@@ -82,6 +86,8 @@ def execute_parallel(
     func: Callable,
     inputs: list[Any],
     max_workers: int | None = None,
+    initializer: Callable[..., None] | None = None,
+    initargs: tuple[Any, ...] | None = None,
 ) -> list[Any]:
     """
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다.
@@ -90,7 +96,7 @@ def execute_parallel(
     1. ProcessPoolExecutor: 여러 CPU 코어를 사용하여 작업 병렬 실행
     2. enumerate(): 리스트 순회 시 (인덱스, 값) 쌍으로 가져오기
     3. 딕셔너리 컴프리헨션: {key: value for ...} 형태로 딕셔너리 생성
-    4. lambda: 간단한 익명 함수 (예: lambda x: x[0])
+    4. initializer: 워커 프로세스 시작 시 실행되는 초기화 함수 (캐시 세팅용)
     5. 리스트 컴프리헨션: [result for _, result in ...] 형태로 리스트 생성
 
     ProcessPoolExecutor를 사용하여 함수를 병렬로 실행하고,
@@ -100,6 +106,8 @@ def execute_parallel(
         func: 병렬로 실행할 함수 (단일 인자를 받아야 함)
         inputs: 함수에 전달할 입력 리스트
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
+        initargs: initializer에 전달할 인자 튜플 (cache_payload,)
 
     Returns:
         입력 순서대로 정렬된 결과 리스트
@@ -119,6 +127,7 @@ def execute_parallel(
         - Windows 환경에서는 호출하는 스크립트에서 `if __name__ == "__main__"`으로 보호해야 함
         - func는 pickle 가능해야 함 (람다 함수는 사용 불가)
         - 각 워커는 독립적인 프로세스에서 실행되므로 전역 상태를 공유하지 않음
+        - initializer를 사용하면 큰 데이터를 작업마다 전달하지 않고 워커당 1회만 세팅 가능
     """
     # 1. 입력 검증
     if not inputs:
@@ -146,7 +155,9 @@ def execute_parallel(
     # - spawn()은 새 Python 인터프리터를 시작하여 깨끗한 상태로 프로세스 생성
     # - 참고: WSL/Linux에서 기본은 fork(), Windows는 spawn() 사용
     mp_context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
+    with ProcessPoolExecutor(
+        max_workers=max_workers, mp_context=mp_context, initializer=initializer, initargs=initargs or ()
+    ) as executor:
         # 딕셔너리 컴프리헨션: {key: value for ...}
         # enumerate(inputs): (0, inputs[0]), (1, inputs[1]), ... 생성
         # executor.submit(func, input_data): 작업 제출하고 Future 객체 반환
@@ -193,6 +204,8 @@ def execute_parallel_with_kwargs(
     func: Callable,
     inputs: list[dict[str, Any]],
     max_workers: int | None = None,
+    initializer: Callable[..., None] | None = None,
+    initargs: tuple[Any, ...] | None = None,
 ) -> list[Any]:
     """
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다. (키워드 인자 지원)
@@ -204,6 +217,8 @@ def execute_parallel_with_kwargs(
         func: 병렬로 실행할 함수 (키워드 인자를 받아야 함)
         inputs: 함수에 전달할 키워드 인자 딕셔너리 리스트
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
+        initargs: initializer에 전달할 인자 튜플 (cache_payload,)
 
     Returns:
         입력 순서대로 정렬된 결과 리스트
@@ -223,9 +238,10 @@ def execute_parallel_with_kwargs(
         - Windows 환경에서는 호출하는 스크립트에서 `if __name__ == "__main__"`으로 보호해야 함
         - func와 inputs의 모든 객체는 pickle 가능해야 함
         - 각 워커는 독립적인 프로세스에서 실행되므로 전역 상태를 공유하지 않음
+        - initializer를 사용하면 큰 데이터를 작업마다 전달하지 않고 워커당 1회만 세팅 가능
     """
     # (func, kwargs) 튜플 리스트 생성
     unwrap_inputs = [(func, kwargs_dict) for kwargs_dict in inputs]
 
     # 모듈 레벨 _unwrap_kwargs 함수 사용 (pickle 가능)
-    return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers)
+    return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers, initializer, initargs)

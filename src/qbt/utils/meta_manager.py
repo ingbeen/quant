@@ -14,6 +14,7 @@ CSV 결과 파일의 메타데이터를 JSON으로 관리하고,
 import json
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from qbt.common_constants import MAX_HISTORY_COUNT, META_JSON_PATH
 
@@ -82,7 +83,7 @@ def _rotate_history(history: HistoryList, new_entry: MetaDict) -> HistoryList:
 
 def _add_timestamp(metadata: MetaDict) -> MetaDict:
     """
-    메타데이터에 ISO 8601 타임스탬프를 추가한다.
+    메타데이터에 KST(Asia/Seoul) 타임존의 ISO 8601 타임스탬프를 추가한다.
 
     Args:
         metadata: 원본 메타데이터
@@ -93,8 +94,8 @@ def _add_timestamp(metadata: MetaDict) -> MetaDict:
     # 원본 변경 방지 (복사)
     result = metadata.copy()
 
-    # KST 타임스탬프 추가
-    now = datetime.now(timezone.utc).astimezone()
+    # KST 타임스탬프 추가 (명시적으로 Asia/Seoul 타임존 지정)
+    now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Seoul"))
     result["timestamp"] = now.isoformat(timespec="seconds")
 
     return result

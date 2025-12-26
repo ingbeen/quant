@@ -35,7 +35,7 @@ from qbt.backtest.constants import (
 )
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
-from qbt.utils.parallel_executor import execute_parallel_with_kwargs
+from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs
 
 logger = get_logger(__name__)
 
@@ -473,23 +473,37 @@ def run_buy_and_hold(
     return equity_df, summary
 
 
+def _init_grid_search_worker(cache_payload: dict) -> None:
+    """
+    그리드 서치 워커 프로세스 초기화 함수.
+
+    WORKER_CACHE를 초기화하고 DataFrame을 캐싱한다.
+
+    Args:
+        cache_payload: 캐시할 데이터 딕셔너리 {"df": DataFrame}
+    """
+    WORKER_CACHE.clear()
+    WORKER_CACHE.update(cache_payload)
+
+
 def _run_buffer_strategy_for_grid(
-    df: pd.DataFrame,
     params: BufferStrategyParams,
 ) -> dict | None:
     """
     그리드 서치를 위해 단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
 
     병렬 실행을 위한 헬퍼 함수. 예외 발생 시 None을 반환한다.
+    DataFrame은 WORKER_CACHE에서 조회한다.
 
     Args:
-        df: 이동평균이 계산된 DataFrame
         params: 전략 파라미터
 
     Returns:
         성과 지표 딕셔너리 또는 None (실패 시)
     """
     try:
+        # WORKER_CACHE에서 DataFrame 조회
+        df = WORKER_CACHE["df"]
         _, _, summary = run_buffer_strategy(df, params, log_trades=False)
 
         return {
@@ -559,10 +573,9 @@ def run_grid_search(
         for buffer_zone_pct in buffer_zone_pct_list:
             for hold_days in hold_days_list:
                 for recent_months in recent_months_list:
-                    # 딕셔너리에 df와 params 객체를 담아 리스트에 추가
+                    # params만 담아 리스트에 추가 (df는 캐시에서 조회)
                     param_combinations.append(
                         {
-                            "df": df,  # 모든 조합에 동일한 DataFrame 전달
                             "params": BufferStrategyParams(  # 데이터클래스 인스턴스 생성
                                 ma_window=ma_window,
                                 buffer_zone_pct=buffer_zone_pct,
@@ -573,14 +586,16 @@ def run_grid_search(
                         }
                     )
 
-    logger.debug(f"총 {len(param_combinations)}개 조합 병렬 실행 시작")
+    logger.debug(f"총 {len(param_combinations)}개 조합 병렬 실행 시작 (DataFrame 캐시 사용)")
 
-    # 3. 병렬 실행
+    # 3. 병렬 실행 (DataFrame을 워커 캐시에 저장)
     # ProcessPoolExecutor를 사용해 CPU 병렬 처리
     results = execute_parallel_with_kwargs(
         func=_run_buffer_strategy_for_grid,  # 실행할 함수
         inputs=param_combinations,  # 각 파라미터 조합 (딕셔너리 리스트)
         max_workers=None,  # CPU 코어 수 - 1 (자동 결정)
+        initializer=_init_grid_search_worker,  # 워커 초기화 함수
+        initargs=({"df": df},),  # 캐시할 데이터
     )
 
     # 4. 실패 건 필터링

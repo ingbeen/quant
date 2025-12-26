@@ -7,22 +7,29 @@
 - 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 """
 
-from pathlib import Path
-
-from qbt.common_constants import DISPLAY_DATE
+from qbt.common_constants import (
+    DISPLAY_DATE,
+    FFR_DATA_PATH,
+    TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_PATH,
+    TQQQ_VALIDATION_PATH,
+)
 
 # ============================================================
 # 경로 및 스펙 설정
 # ============================================================
 
-# --- 데이터 파일 경로 ---
-TQQQ_DATA_PATH = Path("storage/stock/TQQQ_max.csv")
-TQQQ_SYNTHETIC_PATH = Path("storage/stock/TQQQ_synthetic_max.csv")
-FFR_DATA_PATH = Path("storage/etc/federal_funds_rate_monthly.csv")
-
-# --- 결과 파일 경로 ---
-TQQQ_VALIDATION_PATH = Path("storage/results/tqqq_validation.csv")
-TQQQ_DAILY_COMPARISON_PATH = Path("storage/results/tqqq_daily_comparison.csv")
+# --- 데이터 파일 경로 (common_constants에서 re-export) ---
+__all__ = [
+    "DISPLAY_DATE",
+    "FFR_DATA_PATH",
+    "TQQQ_DATA_PATH",
+    "TQQQ_SYNTHETIC_PATH",
+    "TQQQ_VALIDATION_PATH",
+    "TQQQ_DAILY_COMPARISON_PATH",
+    # (아래에 정의되는 상수들도 __all__에 포함)
+]
 
 # --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER = 3.0  # TQQQ 3배 레버리지

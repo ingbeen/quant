@@ -65,7 +65,8 @@ from qbt.tqqq.constants import (
     MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
-from qbt.utils import execute_parallel, get_logger
+from qbt.utils import get_logger
+from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel
 
 logger = get_logger(__name__)
 
@@ -278,17 +279,32 @@ def simulate(
     return result_df
 
 
+def _init_cost_model_worker(cache_payload: dict) -> None:
+    """
+    비용 모델 최적화 워커 프로세스 초기화 함수.
+
+    WORKER_CACHE를 초기화하고 DataFrame을 캐싱한다.
+
+    Args:
+        cache_payload: 캐시할 데이터 딕셔너리 {
+            "underlying_overlap": DataFrame,
+            "actual_overlap": DataFrame,
+            "ffr_df": DataFrame
+        }
+    """
+    WORKER_CACHE.clear()
+    WORKER_CACHE.update(cache_payload)
+
+
 def _evaluate_cost_model_candidate(params: dict) -> dict:
     """
     단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다.
 
     그리드 서치에서 병렬 실행을 위한 헬퍼 함수. pickle 가능하도록 최상위 레벨에 정의한다.
+    DataFrame들은 WORKER_CACHE에서 조회한다.
 
     Args:
         params: 파라미터 딕셔너리 {
-            "underlying_overlap": 기초 자산 DataFrame,
-            "actual_overlap": 실제 레버리지 ETF DataFrame,
-            "ffr_df": 연방기금금리 DataFrame,
             "leverage": 레버리지 배수,
             "spread": funding spread 값,
             "expense": expense ratio 값,
@@ -298,20 +314,25 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     Returns:
         후보 평가 결과 딕셔너리
     """
+    # WORKER_CACHE에서 DataFrame 조회
+    underlying_overlap = WORKER_CACHE["underlying_overlap"]
+    actual_overlap = WORKER_CACHE["actual_overlap"]
+    ffr_df = WORKER_CACHE["ffr_df"]
+
     # 시뮬레이션 실행
     sim_df = simulate(
-        params["underlying_overlap"],
+        underlying_overlap,
         leverage=params["leverage"],
         expense_ratio=params[KEY_EXPENSE],
         initial_price=params["initial_price"],
-        ffr_df=params["ffr_df"],
+        ffr_df=ffr_df,
         funding_spread=params[KEY_SPREAD],
     )
 
     # 검증 지표 계산
     metrics = calculate_validation_metrics(
         simulated_df=sim_df,
-        actual_df=params["actual_overlap"],
+        actual_df=actual_overlap,
         output_path=None,  # CSV 저장 안 함
     )
 
@@ -415,9 +436,7 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(
-            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
-        )
+        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -654,15 +673,12 @@ def find_optimal_cost_model(
     spread_values = np.arange(spread_range[0], spread_range[1] + EPSILON, spread_step)
     expense_values = np.arange(expense_range[0], expense_range[1] + EPSILON, expense_step)
 
-    # 모든 파라미터 조합 리스트 생성
+    # 모든 파라미터 조합 리스트 생성 (DataFrame은 캐시에서 조회)
     param_combinations = []
     for spread in spread_values:
         for expense in expense_values:
             param_combinations.append(
                 {
-                    "underlying_overlap": underlying_overlap,
-                    "actual_overlap": actual_overlap,
-                    "ffr_df": ffr_df,
                     "leverage": leverage,
                     KEY_SPREAD: float(spread),
                     KEY_EXPENSE: float(expense),
@@ -670,8 +686,20 @@ def find_optimal_cost_model(
                 }
             )
 
-    # 4. 병렬 실행
-    candidates = execute_parallel(_evaluate_cost_model_candidate, param_combinations, max_workers=max_workers)
+    # 4. 병렬 실행 (DataFrame들을 워커 캐시에 저장)
+    candidates = execute_parallel(
+        _evaluate_cost_model_candidate,
+        param_combinations,
+        max_workers=max_workers,
+        initializer=_init_cost_model_worker,
+        initargs=(
+            {
+                "underlying_overlap": underlying_overlap,
+                "actual_overlap": actual_overlap,
+                "ffr_df": ffr_df,
+            },
+        ),
+    )
 
     # 5. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
     candidates.sort(key=lambda x: x["cumul_multiple_log_diff_rmse_pct"])

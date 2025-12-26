@@ -4,11 +4,12 @@
 
 학습 포인트:
 1. Enum (열거형): 관련된 상수들을 그룹화하는 방법
-2. 한글은 터미널에서 2칸, 영문은 1칸 차지하는 것을 고려한 폭 계산
+2. unicodedata.east_asian_width를 사용한 정확한 문자폭 계산
 3. 클래스 기반 설계: TableLogger로 테이블 출력 로직을 캡슐화
 """
 
 import logging
+import unicodedata
 from enum import Enum
 
 
@@ -31,11 +32,13 @@ def get_display_width(text: str) -> int:
     """
     문자열의 실제 터미널 출력 폭을 계산한다.
 
-    한글, 한자 등 동아시아 문자는 2칸, 영문/숫자/기호는 1칸으로 계산한다.
+    unicodedata.east_asian_width를 사용하여 문자폭을 정확히 계산한다.
+    - W (Wide), F (Fullwidth): 2칸
+    - 나머지 (Na, H, N, A): 1칸
 
     학습 포인트:
-    1. ord(문자): 문자의 유니코드 코드 포인트를 반환
-    2. 16진수 리터럴: 0x1100은 십진수 4352
+    1. unicodedata.east_asian_width: 유니코드 문자의 동아시아 폭 속성 반환
+    2. W/F: 한글, 한자 등 전각 문자 (2칸)
     3. for 루프로 문자열의 각 문자 순회
 
     Args:
@@ -44,18 +47,16 @@ def get_display_width(text: str) -> int:
     Returns:
         터미널에서 차지하는 실제 폭 (칸 수)
     """
-    width = 0  # 누적 폭
+    width = 0
 
-    # for char in text: 문자열의 각 문자를 순회
-    # 예: "안녕AB" → '안', '녕', 'A', 'B' 순서로 처리
     for char in text:
-        # ord(char): 문자를 유니코드 숫자로 변환
-        # 예: ord('A') = 65, ord('가') = 44032
-        # 0x1100 (십진수 4352) 이상이면 동아시아 문자로 간주
-        if ord(char) > 0x1100:
-            width += 2  # 한글, 한자 등은 2칸
+        # unicodedata.east_asian_width(char): 문자의 동아시아 폭 속성 반환
+        # 반환값: 'W' (Wide), 'F' (Fullwidth), 'Na' (Narrow), 'H' (Halfwidth), 'N' (Neutral), 'A' (Ambiguous)
+        ea_width = unicodedata.east_asian_width(char)
+        if ea_width in ("W", "F"):
+            width += 2  # 전각 문자 (한글, 한자, 전각 기호 등)
         else:
-            width += 1  # 영문, 숫자, 기호는 1칸
+            width += 1  # 반각 문자 (영문, 숫자, 반각 기호 등)
 
     return width
 

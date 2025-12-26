@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.  
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft / 🔄 In Progress / ✅ Done  
+**상태**: 🟡 Draft / 🔄 In Progress / ✅ Done (이 가로 영역은 **삭제 금지 + 수정 금지**, 스킵이 남아있으면 **Done 처리/DoD 체크 금지**)
 **작성일**: YYYY-MM-DD HH:MM  
 **마지막 업데이트**: YYYY-MM-DD HH:MM  
 **관련 범위**: (예: backtest, tqqq, utils, scripts)  
@@ -21,7 +21,7 @@
 - Phase 0은 “레드(의도적 실패 테스트)” 허용, Phase 1부터는 **그린 유지**를 원칙으로 한다.
 - 이미 생성된 plan은 **체크리스트 업데이트 외 수정 금지**(바꾸고 싶으면 새 plan 작성).
 - 승인 요청을 하기 전 **반드시 plan 체크박스를 최신화**한다(체크 없이 승인 요청 금지).
-- 스킵은 가능하면 **Phase 분해로 제거**한다. 스킵이 남아있으면 **Done 처리/DoD 체크 금지**.
+- 스킵은 가능하면 **Phase 분해로 제거**한다.
 
 ---
 
