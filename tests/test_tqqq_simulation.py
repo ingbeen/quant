@@ -54,8 +54,13 @@ class TestCalculateDailyCost:
         funding_spread = 0.006  # 0.6%
 
         # When
+        leverage = 3.0  # 기본 3배 레버리지
         daily_cost = calculate_daily_cost(
-            date_value=target_date, ffr_df=ffr_df, expense_ratio=expense_ratio, funding_spread=funding_spread
+            date_value=target_date,
+            ffr_df=ffr_df,
+            expense_ratio=expense_ratio,
+            funding_spread=funding_spread,
+            leverage=leverage,
         )
 
         # Then: 비용이 양수이고 합리적인 범위
@@ -78,11 +83,16 @@ class TestCalculateDailyCost:
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         target_date = date(2023, 3, 15)  # 1월부터 약 2개월 후
+        leverage = 3.0
 
         # When: 2개월 이내면 fallback 허용
         try:
             daily_cost = calculate_daily_cost(
-                date_value=target_date, ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006
+                date_value=target_date,
+                ffr_df=ffr_df,
+                expense_ratio=0.009,
+                funding_spread=0.006,
+                leverage=leverage,
             )
             # fallback 사용되면 비용이 계산됨
             assert daily_cost > 0, "fallback 시에도 비용 계산됨"
@@ -107,10 +117,17 @@ class TestCalculateDailyCost:
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
 
         target_date = date(2023, 7, 15)
+        leverage = 3.0
 
         # When & Then: 너무 오래되어 에러
         with pytest.raises(ValueError) as exc_info:
-            calculate_daily_cost(date_value=target_date, ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006)
+            calculate_daily_cost(
+                date_value=target_date,
+                ffr_df=ffr_df,
+                expense_ratio=0.009,
+                funding_spread=0.006,
+                leverage=leverage,
+            )
 
         error_msg = str(exc_info.value)
         assert "FFR" in error_msg or "데이터" in error_msg, "FFR 부재 에러 메시지"
@@ -127,10 +144,109 @@ class TestCalculateDailyCost:
         """
         # Given
         ffr_df = pd.DataFrame(columns=["DATE", "FFR"])
+        leverage = 3.0
 
         # When & Then
         with pytest.raises(ValueError):
-            calculate_daily_cost(date_value=date(2023, 1, 15), ffr_df=ffr_df, expense_ratio=0.009, funding_spread=0.006)
+            calculate_daily_cost(
+                date_value=date(2023, 1, 15),
+                ffr_df=ffr_df,
+                expense_ratio=0.009,
+                funding_spread=0.006,
+                leverage=leverage,
+            )
+
+    def test_calculate_daily_cost_leverage_2(self):
+        """
+        레버리지 2배 비용 계산 테스트 (Phase 0 - 레드)
+
+        정책: 레버리지 비용 = funding_rate * (leverage - 1)
+        leverage=2일 때 차입 비율은 1배 (자기자본 1 + 빌린돈 1)
+
+        Given:
+          - 2023년 1월 15일
+          - FFR=4.5%, funding_spread=0.006 (0.6%)
+          - expense_ratio=0.009 (0.9%)
+          - leverage=2
+        When: calculate_daily_cost 호출
+        Then:
+          - 레버리지 비용 = (0.045 + 0.006) * 1 = 0.051
+          - 총 연간 비용 = 0.051 + 0.009 = 0.06
+          - 일일 비용 = 0.06 / 252
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        target_date = date(2023, 1, 15)
+        expense_ratio = 0.009
+        funding_spread = 0.006
+        leverage = 2.0
+
+        # When
+        daily_cost = calculate_daily_cost(
+            date_value=target_date,
+            ffr_df=ffr_df,
+            expense_ratio=expense_ratio,
+            funding_spread=funding_spread,
+            leverage=leverage,
+        )
+
+        # Then: 레버리지 비용 = funding_rate * (leverage - 1) = (0.045 + 0.006) * 1
+        # 총 연간 비용 = 0.051 + 0.009 = 0.06
+        # 일일 비용 = 0.06 / 252 ≈ 0.000238
+        expected_funding_rate = 0.045 + 0.006
+        expected_leverage_cost = expected_funding_rate * (leverage - 1)
+        expected_annual_cost = expected_leverage_cost + expense_ratio
+        expected_daily_cost = expected_annual_cost / 252
+
+        assert (
+            abs(daily_cost - expected_daily_cost) < 1e-6
+        ), f"leverage=2일 때 비용 계산: 기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
+
+    def test_calculate_daily_cost_leverage_4(self):
+        """
+        레버리지 4배 비용 계산 테스트 (Phase 0 - 레드)
+
+        정책: 레버리지 비용 = funding_rate * (leverage - 1)
+        leverage=4일 때 차입 비율은 3배 (자기자본 1 + 빌린돈 3)
+
+        Given:
+          - 2023년 1월 15일
+          - FFR=4.5%, funding_spread=0.006 (0.6%)
+          - expense_ratio=0.009 (0.9%)
+          - leverage=4
+        When: calculate_daily_cost 호출
+        Then:
+          - 레버리지 비용 = (0.045 + 0.006) * 3 = 0.153
+          - 총 연간 비용 = 0.153 + 0.009 = 0.162
+          - 일일 비용 = 0.162 / 252
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        target_date = date(2023, 1, 15)
+        expense_ratio = 0.009
+        funding_spread = 0.006
+        leverage = 4.0
+
+        # When
+        daily_cost = calculate_daily_cost(
+            date_value=target_date,
+            ffr_df=ffr_df,
+            expense_ratio=expense_ratio,
+            funding_spread=funding_spread,
+            leverage=leverage,
+        )
+
+        # Then: 레버리지 비용 = funding_rate * (leverage - 1) = (0.045 + 0.006) * 3
+        # 총 연간 비용 = 0.153 + 0.009 = 0.162
+        # 일일 비용 = 0.162 / 252 ≈ 0.000643
+        expected_funding_rate = 0.045 + 0.006
+        expected_leverage_cost = expected_funding_rate * (leverage - 1)
+        expected_annual_cost = expected_leverage_cost + expense_ratio
+        expected_daily_cost = expected_annual_cost / 252
+
+        assert (
+            abs(daily_cost - expected_daily_cost) < 1e-6
+        ), f"leverage=4일 때 비용 계산: 기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
 
 
 class TestSimulate:

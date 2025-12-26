@@ -381,9 +381,7 @@ class TestExecutionTiming:
         if len(equity_df) >= 4:
             # 신호일(3일째, 인덱스 2) - 아직 포지션 없어야 함
             signal_day_equity = equity_df.iloc[2]
-            assert (
-                signal_day_equity["position"] == 0
-            ), f"신호일에는 position=0이어야 함, 실제: {signal_day_equity['position']}"
+            assert signal_day_equity["position"] == 0, f"신호일에는 position=0이어야 함, 실제: {signal_day_equity['position']}"
 
             # 체결일(4일째, 인덱스 3) - 포지션 있어야 함
             execution_day_equity = equity_df.iloc[3]
@@ -459,9 +457,7 @@ class TestExecutionTiming:
         trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
 
         # Then: 첫 날 포함 검증
-        assert len(equity_df) == len(
-            df
-        ), f"equity_df 길이는 전체 데이터 길이와 같아야 함. 기대: {len(df)}, 실제: {len(equity_df)}"
+        assert len(equity_df) == len(df), f"equity_df 길이는 전체 데이터 길이와 같아야 함. 기대: {len(df)}, 실제: {len(equity_df)}"
 
         # 첫 날 에쿼티는 초기 자본이어야 함
         first_equity = equity_df.iloc[0]
@@ -710,9 +706,7 @@ class TestCoreExecutionRules:
             execution_day = equity_df.iloc[3]
 
             assert signal_day["position"] == 0, f"hold_days=0: 돌파일에는 position=0. 실제: {signal_day['position']}"
-            assert (
-                execution_day["position"] > 0
-            ), f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
+            assert execution_day["position"] > 0, f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
 
     def test_hold_days_1_timeline(self):
         """

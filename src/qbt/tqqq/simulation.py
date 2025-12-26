@@ -74,7 +74,8 @@ def calculate_daily_cost(
     date_value: date,  # 타입 힌트: 이 파라미터는 date 타입이어야 함
     ffr_df: pd.DataFrame,  # DataFrame: 엑셀 시트 같은 표 형태 데이터
     expense_ratio: float,  # float: 실수 (소수점 있는 숫자)
-    funding_spread: float = DEFAULT_FUNDING_SPREAD,  # 기본값 지정: 호출 시 생략 가능
+    funding_spread: float,  # float: 실수 (소수점 있는 숫자)
+    leverage: float,  # 레버리지 배율 (예: 2.0, 3.0, 4.0)
 ) -> float:  # 반환 타입: 이 함수는 float를 반환함
     """
     특정 날짜의 일일 비용률을 계산한다.
@@ -89,7 +90,8 @@ def calculate_daily_cost(
         date_value: 계산 대상 날짜
         ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float)
         expense_ratio: 연간 expense ratio (예: 0.009 = 0.9%)
-        funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
+        funding_spread: FFR에 더해지는 스프레드 (예: 0.006 = 0.6%)
+        leverage: 레버리지 배율 (예: 3.0 = 3배 레버리지)
 
     Returns:
         일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
@@ -148,9 +150,11 @@ def calculate_daily_cost(
     # FFR은 퍼센트 단위이므로 100으로 나눔 (예: 5.0 -> 0.05)
     funding_rate = ffr / 100 + funding_spread
 
-    # 3. 레버리지 비용 (2배만 - 3배 중 빌린 돈만)
-    # 3배 레버리지 = 자기 자본 1배 + 빌린 돈 2배
-    leverage_cost = funding_rate * 2
+    # 3. 레버리지 비용 (차입 비율 = leverage - 1)
+    # 레버리지 배율에 따라 빌린 돈의 비율 계산
+    # 예: 3배 레버리지 = 자기 자본 1배 + 빌린 돈 2배 → leverage - 1 = 2
+    # 예: 2배 레버리지 = 자기 자본 1배 + 빌린 돈 1배 → leverage - 1 = 1
+    leverage_cost = funding_rate * (leverage - 1)
 
     # 4. 총 연간 비용
     # 레버리지 비용 + 운용 비용
@@ -245,7 +249,7 @@ def simulate(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]
-            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio, funding_spread)
+            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio, funding_spread, leverage)
 
             # 레버리지 수익률 = 기초 자산 수익률 × 배율 - 일일 비용
             # 예: 기초 자산 +1%, 3배 레버리지 -> +3% - 비용
@@ -411,7 +415,9 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])

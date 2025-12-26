@@ -175,9 +175,10 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 **자금 조달 비용**:
 
-- 공식: `(FFR + funding_spread) × 레버리지 차입 비율 / TRADING_DAYS_PER_YEAR`
-- 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 → 2배 차입)
+- 공식: `(FFR + funding_spread) × (leverage - 1) / TRADING_DAYS_PER_YEAR`
+- 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 → 2배 차입, 2배 레버리지 → 1배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
+- 레버리지 비용은 leverage 파라미터를 명시적으로 받아 `(leverage - 1)` 배율 적용
 
 **운용 비용**:
 
@@ -187,6 +188,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 **총 비용**:
 
 - `총 일일 비용 = 일일 자금 조달 비용 + 일일 운용 비용`
+- `= [(FFR + funding_spread) × (leverage - 1) + expense_ratio] / TRADING_DAYS_PER_YEAR`
 
 근거 위치: [simulation.py의 calculate_daily_cost](simulation.py), [constants.py](constants.py)
 

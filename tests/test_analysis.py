@@ -256,3 +256,84 @@ class TestCalculateSummary:
 
         # Then
         assert summary["mdd"] == 0.0, "하락이 없으면 MDD는 0"
+
+    def test_calculate_summary_zero_initial_capital(self):
+        """
+        initial_capital=0인 경우 방어 테스트 (Phase 0 - 레드)
+
+        정책: initial_capital <= 0이면 즉시 ValueError 발생
+        이유: 수익률 계산 시 나눗셈 분모로 사용되므로 0/음수 불가
+
+        Given: initial_capital=0
+        When: calculate_summary 호출
+        Then: ValueError 발생
+        """
+        # Given
+        trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
+
+        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2021, 2, 1)], "equity": [0.0, 1000.0]})
+
+        # When & Then
+        with pytest.raises(ValueError) as exc_info:
+            calculate_summary(trades_df, equity_df, initial_capital=0.0)
+
+        error_msg = str(exc_info.value)
+        assert "initial_capital" in error_msg and "양수" in error_msg, "initial_capital 검증 에러 메시지"
+
+    def test_calculate_summary_negative_initial_capital(self):
+        """
+        initial_capital < 0인 경우 방어 테스트 (Phase 0 - 레드)
+
+        정책: initial_capital <= 0이면 즉시 ValueError 발생
+
+        Given: initial_capital=-10000
+        When: calculate_summary 호출
+        Then: ValueError 발생
+        """
+        # Given
+        trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
+
+        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2021, 2, 1)], "equity": [-10000.0, -9000.0]})
+
+        # When & Then
+        with pytest.raises(ValueError) as exc_info:
+            calculate_summary(trades_df, equity_df, initial_capital=-10000.0)
+
+        error_msg = str(exc_info.value)
+        assert "initial_capital" in error_msg and "양수" in error_msg, "initial_capital 검증 에러 메시지"
+
+    def test_calculate_summary_zero_peak(self):
+        """
+        peak=0인 경우 방어 테스트 (Phase 0 - 레드)
+
+        정책: peak가 0이면 EPSILON으로 치환하여 ZeroDivisionError 방지
+        이유: MDD 계산 시 (equity - peak) / peak 연산 수행
+
+        Given:
+          - equity curve가 모두 0 (극단적 케이스)
+          - 또는 초기에만 0이고 이후 증가
+        When: calculate_summary 호출
+        Then:
+          - ZeroDivisionError 발생하지 않음
+          - MDD가 안전하게 계산됨
+        """
+        # Given: 극단적 케이스 - equity가 모두 0
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
+
+        equity_df = pd.DataFrame(
+            {"Date": [date(2021, 1, 1), date(2021, 2, 1), date(2021, 3, 1)], "equity": [0.0, 0.0, 0.0]}
+        )
+
+        initial_capital = 10000.0
+
+        # When: peak=0 케이스에서도 크래시 없이 계산
+        # Phase 0에서는 이 테스트가 실패할 것 (아직 방어 로직 미구현)
+        # Phase 3에서 EPSILON 치환 로직 추가 후 통과 예상
+        try:
+            summary = calculate_summary(trades_df, equity_df, initial_capital)
+            # Phase 3 이후: MDD가 안전하게 계산되어야 함
+            assert "mdd" in summary, "summary에 mdd 키가 있어야 함"
+        except ZeroDivisionError:
+            # Phase 0: 아직 방어 로직이 없으므로 ZeroDivisionError 발생 가능
+            # 이 예외가 발생하면 테스트 실패로 간주 (Phase 3에서 수정)
+            pytest.fail("peak=0일 때 ZeroDivisionError 발생 - EPSILON 치환 필요")

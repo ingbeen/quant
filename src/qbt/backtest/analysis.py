@@ -11,7 +11,7 @@
 
 import pandas as pd
 
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE
+from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -95,6 +95,10 @@ def calculate_summary(
     Returns:
         요약 지표 딕셔너리
     """
+    # initial_capital 검증
+    if initial_capital <= 0:
+        raise ValueError(f"initial_capital은 양수여야 합니다: {initial_capital}")
+
     if equity_df.empty:
         return {
             "initial_capital": initial_capital,
@@ -127,7 +131,10 @@ def calculate_summary(
     # MDD 계산
     equity_df = equity_df.copy()
     equity_df["peak"] = equity_df["equity"].cummax()
-    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / equity_df["peak"]
+
+    # peak가 0인 케이스 방어 (수치 안정성)
+    safe_peak = equity_df["peak"].replace(0, EPSILON)
+    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / safe_peak
     mdd = equity_df["drawdown"].min() * 100
 
     # 거래 통계

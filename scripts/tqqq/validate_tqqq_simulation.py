@@ -99,6 +99,11 @@ def main() -> int:
     logger.debug("비용 모델 캘리브레이션 결과")
     logger.debug("=" * 120)
 
+    # 빈 결과 방어
+    if not top_strategies:
+        logger.error("비용 모델 캘리브레이션 실패: 유효한 전략을 찾을 수 없습니다.")
+        return 1
+
     if top_strategies:
         first_strategy = top_strategies[0]
         logger.debug(f"검증 기간: {first_strategy['overlap_start']} ~ {first_strategy['overlap_end']}")

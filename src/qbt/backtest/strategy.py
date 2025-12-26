@@ -628,8 +628,6 @@ def calculate_recent_buy_count(
     return count
 
 
-
-
 def run_buffer_strategy(
     df: pd.DataFrame,
     params: BufferStrategyParams,
@@ -785,9 +783,7 @@ def run_buffer_strategy(
                 trade_record["recent_buy_count"] = entry_recent_buy_count
                 trades.append(trade_record)
                 if log_trades:
-                    logger.debug(
-                        f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%"
-                    )
+                    logger.debug(f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%")
                 # 실행 완료 후 pending_order 초기화
                 pending_order = None
 
@@ -919,8 +915,6 @@ def run_buffer_strategy(
     summary["hold_days"] = params.hold_days
 
     if log_trades:
-        logger.debug(
-            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
-        )
+        logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
