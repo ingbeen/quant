@@ -1,12 +1,14 @@
 # CLI 스크립트 계층 가이드
 
-> 이 문서는 `scripts/` 디렉토리의 CLI 스크립트 계층에 대한 상세 가이드입니다.
+> **CRITICAL**: CLI 계층 작업 전에 이 문서를 반드시 읽어야 합니다.
 > 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-## 계층 목적
+## 폴더 목적
 
-CLI 스크립트 계층은 사용자와의 인터페이스를 담당하며,
-비즈니스 로직을 호출하고 실행 결과를 사용자에게 전달합니다.
+CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며,
+비즈니스 로직(`src/qbt/`)을 호출하고 실행 결과를 사용자에게 전달합니다.
+
+**계층 원칙**: 도메인 로직 구현 금지, 오직 인터페이스 제공만 담당
 
 ---
 
@@ -38,15 +40,36 @@ CLI 스크립트 계층은 사용자와의 인터페이스를 담당하며,
 
 ### 5. 메타데이터 관리
 
-- CSV 결과 생성 시 실행 정보 기록
-- `meta_manager.save_metadata()` 호출
-- 파라미터, 통계, 타임스탬프 자동 저장
+**책임**: CSV 결과 생성 시 실행 이력 자동 저장
+
+- `meta_manager.save_metadata(csv_type, metadata)` 호출
+- 자동 기록 항목:
+  - ISO 8601 타임스탬프 (KST)
+  - 실행 파라미터 (전략 설정, 그리드 범위 등)
+  - 핵심 통계 (검증 기간, 거래일 수, 오차 지표 등)
+- 순환 저장: 최근 N개만 유지 (`MAX_HISTORY_COUNT = 5`)
+- 저장 위치: `storage/results/meta.json`
+
+**지원 타입**:
+- `"grid_results"`: 백테스트 그리드 서치
+- `"tqqq_validation"`: TQQQ 검증 (최적 비용 모델 탐색)
+- `"tqqq_daily_comparison"`: TQQQ 일별 비교
+
+근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 
 ### 6. 예외 처리
 
-- 모든 예외를 캐치하여 사용자 친화적 메시지로 변환
-- 스택 트레이스 로깅
-- 적절한 종료 코드 반환
+**책임**: 모든 예외를 사용자 친화적 메시지로 변환
+
+- `@cli_exception_handler` 데코레이터 사용 (자동 예외 처리)
+- 자동 수행:
+  - 예외 캐치 및 ERROR 로그 기록
+  - 스택 트레이스 포함
+  - 종료 코드 1 반환 (실패)
+- 데코레이터가 로거 자동 감지 (모듈 레벨 `logger` 변수)
+- CLI 계층에서만 ERROR 로그 사용 가능 (비즈니스 로직에서는 금지)
+
+근거 위치: [src/qbt/utils/cli_helpers.py](../src/qbt/utils/cli_helpers.py)
 
 ---
 
@@ -144,11 +167,18 @@ CLI 스크립트 계층은 사용자와의 인터페이스를 담당하며,
 
 ### 명령행 인자
 
-**원칙**:
+**기본 원칙**: 명령행 인자 최소화
 
 - CLI 스크립트는 기본적으로 명령행 인자를 받지 않음
-- 모든 파라미터는 상수 파일에서 정의 (상수 명명 규칙은 루트 CLAUDE.md 참고)
-- 예외: 데이터 다운로드 스크립트(`download_data.py`)는 ticker와 날짜 범위를 인자로 받음
+- 모든 파라미터는 상수 파일에서 정의
+  - 공통 상수: `src/qbt/common_constants.py`
+  - 도메인 상수: 각 도메인의 `constants.py` (예: `src/qbt/backtest/constants.py`)
+  - 상수 명명 규칙: 루트 CLAUDE.md 참고
+- 예외 사례: 데이터 다운로드 스크립트(`scripts/data/download_data.py`)
+  - ticker, 시작일, 종료일을 명령행 인자로 받음
+  - 이유: 다양한 종목/기간에 대한 유연한 데이터 수집 필요
+
+근거 위치: [scripts/data/download_data.py](data/download_data.py)
 
 ### 출력 형식
 

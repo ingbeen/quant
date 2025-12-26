@@ -1,12 +1,14 @@
 # 유틸리티 패키지 가이드
 
-> 이 문서는 `src/qbt/utils/` 패키지의 공통 유틸리티에 대한 상세 가이드입니다.
+> **CRITICAL**: 유틸리티 패키지 작업 전에 이 문서를 반드시 읽어야 합니다.
 > 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../../../CLAUDE.md)를 참고하세요.
 
-## 패키지 목적
+## 폴더 목적
 
-유틸리티 패키지는 프로젝트 전반에서 공통으로 사용되는 횡단 관심사(cross-cutting concerns)를 제공합니다.
-도메인 로직과 독립적인 기술적 기능을 담당합니다.
+유틸리티 패키지(`src/qbt/utils/`)는 프로젝트 전반에서 공통으로 사용되는
+**횡단 관심사(cross-cutting concerns)** 를 제공합니다.
+
+**핵심 원칙**: 도메인 로직과 독립적인 기술적 기능만 담당
 
 ---
 
@@ -118,19 +120,32 @@
 **메타데이터 저장** (`meta_manager.py`):
 
 - CSV 결과 파일의 생성 정보를 JSON으로 관리
-- 실행 시각, 파라미터, 통계 등 메타 정보 저장
-- 최근 N개 이력만 순환 저장 (디스크 사용량 제한)
+- 순환 저장: 최근 N개만 유지 (`MAX_HISTORY_COUNT = 5`)
+- 저장 위치: `storage/results/meta.json`
 
-**지원 타입**:
+**자동 기록 항목**:
 
-- `grid_results`: 백테스트 그리드 서치 메타데이터
-- `tqqq_validation`: TQQQ 검증 메타데이터
-- `tqqq_daily_comparison`: TQQQ 일별 비교 메타데이터
+- ISO 8601 타임스탬프 (KST, `_add_timestamp` 자동 추가)
+- 실행 파라미터 (전략 설정, 그리드 범위 등)
+- 핵심 통계 (검증 기간, 거래일 수, 오차 지표 등)
+
+**지원 타입** (`VALID_CSV_TYPES`):
+
+- `"grid_results"`: 백테스트 그리드 서치
+- `"tqqq_validation"`: TQQQ 검증 (최적 비용 모델 탐색)
+- `"tqqq_daily_comparison"`: TQQQ 일별 비교
 
 **주요 함수**:
 
-- `save_metadata()`: 메타데이터를 meta.json에 저장 (자동 타임스탬프 추가)
-- `load_metadata()`: 전체 또는 특정 타입의 메타데이터 조회
+- `save_metadata(csv_type, metadata)`:
+  - 메타데이터를 `meta.json`에 저장
+  - 타임스탬프 자동 추가
+  - 순환 저장 (최근 N개만 유지)
+  - `csv_type` 검증 (`VALID_CSV_TYPES` 기준)
+- `_load_full_metadata()`: 전체 메타데이터 로드 (내부 함수)
+- `_rotate_history(history, new_entry)`: 이력 순환 관리 (내부 함수)
+
+근거 위치: [meta_manager.py](meta_manager.py), [common_constants.py](../../common_constants.py)
 
 ---
 
@@ -224,9 +239,21 @@ CSV 결과 저장 후:
 
 ### 병렬 처리
 
-- 함수는 pickle 가능해야 함 (람다 불가)
-- 전역 상태 공유 불가
-- Windows 환경에서는 `if __name__ == "__main__"` 보호 필요
+**제약 조건** (Windows pickle 제약):
+
+- 병렬 실행 함수는 pickle 가능해야 함 (람다 함수 불가)
+- 모듈 레벨 함수 또는 클래스 메서드만 사용
+- 전역 상태 공유 불가 (프로세스 간 독립 실행)
+- CLI 스크립트는 `if __name__ == "__main__"` 보호 필수
+  - 이유: Windows에서 프로세스 스폰 시 모듈 재임포트 발생 방지
+
+**제공 함수**:
+
+- `execute_parallel(func, args_list)`: 단일 인자 함수 병렬 실행
+- `execute_parallel_with_kwargs(func, kwargs_list)`: 키워드 인자 함수 병렬 실행
+  - 내부적으로 `_unwrap_kwargs` 헬퍼 사용 (pickle 가능하도록 모듈 레벨 정의)
+
+근거 위치: [parallel_executor.py](parallel_executor.py)
 
 ### 테이블 출력
 

@@ -1,27 +1,60 @@
 # tests 폴더 가이드
 
-> 이 문서는 `tests/` 폴더의 테스트 작성 및 실행 규칙에 대한 상세 가이드입니다.
+> **CRITICAL**: 테스트 작성/수정 전에 이 문서를 반드시 읽어야 합니다.
 > 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
 ## 폴더 목적
 
-tests 폴더는 QBT 프로젝트의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
+tests 폴더(`tests/`)는 QBT 프로젝트의 테스트 코드를 관리하며,
+**핵심 비즈니스 로직의 정확성을 보장**합니다.
+
+**테스트 철학**: 정책/불변조건/계약을 코드로 고정하여 회귀 방지
 
 **폴더 구조**:
 
 ```
+
 tests/
-├── CLAUDE.md            # tests 관련 규칙 (이 문서)
-├── conftest.py          # 공통 픽스처
-├── test_*.py            # 테스트 모듈
-└── pytest.ini           # pytest 설정
+├── CLAUDE.md # tests 관련 규칙 (이 문서)
+├── conftest.py # 공통 픽스처
+├── test_analysis.py # 성과 지표/분석 로직 테스트
+├── test_data_loader.py # 데이터 로더 테스트
+├── test_meta_manager.py # 메타데이터 관리 테스트
+├── test_strategy.py # 백테스트 전략 테스트
+└── test_tqqq_simulation.py # TQQQ 시뮬레이션 테스트
+
+# pytest 설정 (루트 디렉토리)
+
+../pytest.ini # pytest 기본 설정/마커 정의
+../run_tests.sh # 권장 테스트 실행 스크립트
+
 ```
+
+---
+
+# pytest 설정 (루트 디렉토리)
+
+pytest 설정은 루트의 `pytest.ini`가 **Single Source of Truth** 입니다.
+
+- 테스트 탐색 경로: `tests/`
+- 파일 패턴: `test_*.py`
+- 마커 정의:
+  - `unit`: 단위 테스트
+  - `integration`: 통합 테스트
+  - `slow`: 오래 걸리는 테스트
+
+> **중요**: 마커는 “필요할 때만” 쓰고, 의미를 일관되게 유지하세요.
+> (마커 규칙은 아래 **tests 폴더 운영 원칙** 섹션 참고)
+
+근거 위치: [../pytest.ini](../pytest.ini)
 
 ---
 
 ## 테스트 실행 방법
 
 ### 기본 실행
+
+가능하면 `./run_tests.sh`를 표준 진입점으로 사용합니다.
 
 ```bash
 # 전체 테스트 (권장)
@@ -40,7 +73,7 @@ poetry run pytest tests/test_strategy.py -v
 ./run_tests.sh html
 
 # 실패한 테스트만 재실행
-poetry run pytest --lf
+poetry run pytest --lf -v
 
 # 디버깅 모드 (print 출력 포함)
 poetry run pytest tests/test_xxx.py -s -vv
@@ -48,6 +81,22 @@ poetry run pytest tests/test_xxx.py -s -vv
 # 도움말
 ./run_tests.sh help
 ```
+
+#### 마커 기반 실행(선택)
+
+```bash
+# slow 제외
+poetry run pytest -m "not slow" -v
+
+# unit만
+poetry run pytest -m unit -v
+
+# integration만
+poetry run pytest -m integration -v
+```
+
+> **권장**: 기본 CI/로컬 기본 실행은 “slow 제외” 전략을 쓰기보다,
+> slow 테스트가 생기면 그때 `@pytest.mark.slow`를 붙이고 필요 시 제외합니다.
 
 ### 품질 게이트 커맨드
 
@@ -73,51 +122,93 @@ poetry run black --check .
 
 ### 1. 핵심 로직 보호
 
-백테스트/시뮬레이션의 핵심 계산 로직은 반드시 테스트로 보호합니다:
+**필수 테스트 대상**: 백테스트/시뮬레이션의 핵심 계산 로직(= 계약/불변조건)
 
-- 이동평균 계산
-- 수익률 산출
-- 거래 신호 생성
-- 비용 모델
-- 레버리지 효과
+- **백테스트 도메인**:
+
+  - 이동평균 계산 (`analysis.py`)
+  - 버퍼존 밴드 계산 (`strategy.py`)
+  - 거래 신호 생성 (매수/매도 조건)
+  - 체결 타이밍 규칙 (신호일 vs 체결일 분리)
+  - Pending Order 정책 (단일 슬롯, 충돌 감지)
+  - Equity 및 Final Capital 정의
+  - 성과 지표 (CAGR, MDD, 승률 등)
+  - 동적 파라미터 조정 (최근 매수 기반)
+
+- **TQQQ 시뮬레이션 도메인**:
+
+  - 일일 비용 계산 (`calculate_daily_cost`)
+  - 레버리지 수익률 적용 (`simulate`)
+  - 복리 효과 검증
+  - 누적배수 로그차이 계산 (스케일 무관 추적오차)
+  - 겹치는 기간 추출 (`extract_overlap_period`)
+  - 비용 모델 최적화 (`find_optimal_cost_model`)
+
+- **공통 유틸리티**:
+
+  - 메타데이터 저장/로드 (순환 저장 검증)
+  - 데이터 로더 (CSV 로딩 및 전처리)
+  - 병렬 처리/결과 정렬(입력 순서 보장)
+
+근거 위치:
+
+- [test_strategy.py](test_strategy.py)
+- [test_tqqq_simulation.py](test_tqqq_simulation.py)
+- [test_meta_manager.py](test_meta_manager.py)
+- [test_data_loader.py](test_data_loader.py)
+- [test_analysis.py](test_analysis.py)
+
+---
 
 ### 2. Given-When-Then 패턴
 
-모든 테스트는 명확한 3단계 구조를 따릅니다:
+모든 테스트는 명확한 3단계 구조를 따릅니다.
 
 ```python
 def test_example(self):
     """
-    테스트 설명
+    목적: 무엇을 검증하는가(불변조건/계약)
 
-    Given: 초기 조건
-    When: 실행할 동작
-    Then: 기대하는 결과
+    Given: 어떤 입력/상태를 준비했는가
+    When: 어떤 함수를 실행했는가
+    Then: 어떤 결과/부작용을 검증했는가
     """
-    # Given: 테스트 데이터 준비
-    df = pd.DataFrame({
-        'Date': [date(2023, 1, 1), date(2023, 1, 2)],
-        'Close': [100.0, 101.0]
-    })
+    # Given
+    df = ...
 
-    # When: 함수 실행
+    # When
     result = function_under_test(df)
 
-    # Then: 결과 검증
-    assert expected_condition
+    # Then
+    assert ...
 ```
+
+**규칙**:
+
+- “Then”은 되도록 **한 가지 계약**을 명확히 고정합니다.
+- 복잡한 로직은 한 테스트에 여러 assert를 넣기보다, **테스트를 쪼개서** 계약 단위로 고정하세요.
+
+---
 
 ### 3. 경계 조건 테스트
 
-정상 케이스뿐만 아니라 엣지 케이스도 테스트:
+정상 케이스뿐 아니라 엣지 케이스도 포함합니다.
 
-- 빈 데이터
+- 빈 데이터 / 최소 길이 데이터
+- 윈도우 크기 부족(이동평균 등)
+- 자본 부족/주문 불가 시나리오
 - 극단값 (0, 음수, 매우 큰 값)
-- 경계 조건 (윈도우 크기 부족, 자본 부족 등)
+- 날짜 중복/정렬 불량(필요 시 입력 정규화 계약)
+- NaN/결측치(프로덕션 정책에 따라 허용/금지 명확히)
+
+> **중요**: “엣지 케이스를 어떻게 처리해야 하는가”는 도메인 정책입니다.
+> 정책이 정해져 있다면 테스트는 그 정책을 **고정**해야 합니다.
+
+---
 
 ### 4. 결정적 테스트 (Deterministic)
 
-테스트는 항상 같은 결과를 보장해야 합니다:
+테스트는 환경/시간/순서에 상관없이 항상 같은 결과를 보장해야 합니다.
 
 ```python
 from freezegun import freeze_time
@@ -131,46 +222,144 @@ def test_with_fixed_time(self):
 **주요 기법**:
 
 - 시간 고정: `@freeze_time` 사용
-- 파일 격리: `tmp_path` 픽스처 사용
-- 랜덤성 제거: 시드 고정 또는 결정적 데이터 사용
+- 파일 격리: `tmp_path`, `mock_storage_paths` 사용
+- 랜덤성 제거: 랜덤을 쓰면 시드 고정(가능하면 랜덤 자체를 제거)
+- 순서 안정화: 결과가 리스트/딕트/DF 정렬에 민감하면 정렬 규칙을 테스트에서 명시
+
+#### 부동소수점/DF 비교 규칙(권장)
+
+수익률/누적배수/로그차이 등은 부동소수점 오차가 발생할 수 있습니다.
+
+- 스칼라: `pytest.approx(expected, abs=..., rel=...)`
+- DataFrame:
+
+  - `pd.testing.assert_frame_equal(..., rtol=..., atol=...)`
+  - 컬럼 순서/인덱스 정책을 함께 고정(필요 시 `check_like=True` 사용)
+
+> “정확히 일치”가 정책인 값(예: 라벨/컬럼명/날짜키/정렬 결과)은 `==`로 고정하고,
+> 연산 결과(부동소수점)는 `approx/rtol/atol`을 기본으로 고려하세요.
+
+---
 
 ### 5. 파일 격리
 
-테스트는 실제 파일에 영향을 주지 않아야 합니다:
+테스트는 실제 파일/실제 storage에 영향을 주지 않아야 합니다.
 
 ```python
 def test_with_temp_files(self, mock_storage_paths):
-    # tmp_path를 사용하여 테스트 후 자동 삭제
-    meta_path = mock_storage_paths['META_JSON_PATH']
-    # 테스트 실행...
+    # tmp_path 기반 임시 경로를 사용 (테스트 후 자동 삭제)
+    meta_path = mock_storage_paths["META_JSON_PATH"]
+    ...
 ```
+
+**규칙**:
+
+- 테스트에서 `storage/` 실경로(프로덕션 경로) 접근 금지
+- 파일 기반 기능은 반드시:
+
+  - `tmp_path` 또는
+  - `mock_storage_paths`(= `common_constants` 경로 패치)
+    를 통해 격리합니다.
+
+- 모듈이 import 시점에 경로 상수를 캡처할 수 있으므로,
+  필요한 경우 관련 모듈도 함께 monkeypatch 되어야 합니다.
+  (현재 `conftest.py`는 `meta_manager.META_JSON_PATH`도 패치합니다.)
+
+근거 위치: [conftest.py](conftest.py)
+
+---
 
 ### 6. 문서화
 
-모든 테스트는 초보자도 이해할 수 있도록 주석 포함:
+**테스트 가독성**: 초보자도 이해 가능하도록 작성합니다.
 
-- docstring에 목적/조건/결과 명시
-- 복잡한 로직은 인라인 주석
-- Python 기초 문법 설명 (필요시)
+- Docstring 권장(테스트가 짧아도 “무엇을 고정하는지”는 남기기)
+
+  - 테스트 목적(검증 계약)
+  - Given-When-Then 구조
+  - 예외 케이스인 경우 “왜 예외가 맞는가”
+
+- 복잡한 계산/로직: 인라인 주석으로 단계별 설명
+- 필요 시 Python 기초 문법 설명(최소한으로):
+
+  - 예: 리스트 컴프리헨션, `pytest.raises`, `@freeze_time`, `monkeypatch`
+
+**문서화 목적**: 테스트 자체가 도메인 규칙의 “실행 가능한 문서” 역할을 합니다.
 
 ---
 
 ## 주요 픽스처 (conftest.py)
 
-모든 테스트에서 사용하는 공통 설정과 테스트 데이터:
+**공통 픽스처**: 모든 테스트에서 재사용 가능한 설정과 테스트 데이터
 
-- `sample_stock_df`: 기본 주식 데이터
-- `sample_ffr_df`: FFR 금리 데이터 (yyyy-mm 문자열 형식)
-- `create_csv_file`: CSV 파일 생성 헬퍼
-- `mock_storage_paths`: 임시 경로 설정 (파일 격리)
+- `sample_stock_df`: 기본 주식 데이터(OHLCV), `Date`는 `datetime.date`
+- `sample_ffr_df`: FFR 금리 데이터
+
+  - **중요**: `DATE` 컬럼은 `date` 객체가 아닌 `"yyyy-mm"` 문자열
+  - 이유: 프로덕션 코드에서 월별 금리를 문자열 키로 처리
+
+- `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
+- `mock_storage_paths`: 임시 경로 설정 픽스처
+
+  - `tmp_path` 기반 디렉토리 생성 후 자동 삭제
+  - `common_constants.py`의 경로 상수를 임시 경로로 패치
+  - `meta_manager` 등 “import 시점에 상수를 들고 있는 모듈”도 함께 패치
+
+**픽스처 사용 시 주의사항**:
+
+- 프로덕션 코드의 실제 데이터 형식 확인 필수
+- 컬럼명 대소문자 확인 (예: `equity` vs `Equity`)
+- FFR 데이터 형식 (`date` vs `"yyyy-mm"` 문자열)
+
+근거 위치: [conftest.py](conftest.py)
 
 ---
 
 ## tests 폴더 운영 원칙
 
-1. **테스트 코드만 유지**: tests 폴더는 테스트 코드(.py) 중심
-2. **임시 문서는 금지**: 작업 중 생성된 임시 문서는 `docs/archive/`로
-3. **커버리지 목표**: 핵심 모듈 최대한 높게 유지
+**폴더 순수성**:
+
+1. **테스트 코드만 유지**: tests 폴더는 테스트 코드(`.py`)와 문서만 포함
+
+   - `conftest.py`: 공통 픽스처
+   - `test_*.py`: 도메인별 테스트 모듈
+   - 이 문서(`CLAUDE.md`): 테스트 규칙/철학
+
+2. **커버리지 목표**: 핵심 모듈 최대한 높게 유지
+
+   - 백테스트 도메인: `src/qbt/backtest/`
+   - TQQQ 시뮬레이션: `src/qbt/tqqq/`
+   - 공통 유틸리티: `src/qbt/utils/`
+
+**마커 운영 규칙(권장)**:
+
+- 기본은 마커 없이도 빠르게 돌아가는 `unit` 성격을 유지합니다.
+- 아래 조건이면 마커를 적극적으로 사용합니다.
+
+  - `@pytest.mark.integration`: 여러 모듈 결합, 파일 I/O/메타 저장까지 포함
+  - `@pytest.mark.slow`: 계산량이 크거나 시간이 명백히 긴 경우
+
+- 마커를 붙이면 실행 방법도 함께 문서화(해당 테스트 상단 주석/Docstring에 “왜 slow인가”)
+
+**외부 의존성 금지(원칙)**:
+
+- 테스트에서 네트워크/외부 API 호출 금지
+- 환경 의존(로컬 파일, 사용자 홈, OS별 경로) 금지
+- 필요하면 `monkeypatch`로 외부 호출을 스텁/대체하고,
+  테스트 데이터는 `tmp_path` + CSV/DF로 구성합니다.
+
+**예외(에러) 테스트 규칙(권장)**:
+
+- 예외 타입을 먼저 고정하고, 메시지는 정책인 경우에만 엄격하게 고정합니다.
+- 일반적으로는 핵심 키워드만 `match=`로 부분 매칭:
+
+```python
+import pytest
+
+def test_pending_order_conflict_raises(...):
+    with pytest.raises(PendingOrderConflictError, match="pending"):
+        ...
+```
 
 ---
 
@@ -192,7 +381,7 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 **목표**:
 
 - 핵심 모듈: 최대한 높은 커버리지 유지
-- 전체 프로젝트: 지속적 개선
+- 전체 프로젝트: 지속적 개선(회귀 방지가 최우선)
 
 ---
 
@@ -202,10 +391,10 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 
 ```python
 # 잘못된 예
-df['Equity']  # 대문자
+df["Equity"]  # 대문자
 
 # 올바른 예
-df['equity']  # 소문자 (실제 프로덕션 코드 확인!)
+df["equity"]  # 소문자 (실제 프로덕션 코드 확인!)
 ```
 
 **중요**: 프로덕션 코드의 실제 컬럼명을 반드시 확인하세요.
@@ -214,10 +403,10 @@ df['equity']  # 소문자 (실제 프로덕션 코드 확인!)
 
 ```python
 # 잘못된 예
-'DATE': [date(2023, 1, 1)]  # date 객체
+"DATE": [date(2023, 1, 1)]  # date 객체
 
 # 올바른 예
-'DATE': ['2023-01']  # yyyy-mm 문자열
+"DATE": ["2023-01"]  # yyyy-mm 문자열
 ```
 
 ### 3. 파라미터 단위
@@ -232,26 +421,31 @@ buffer_zone_pct=0.03  # 비율 (3%)
 
 ### 4. 함수 시그니처
 
-프로덕션 코드가 데이터클래스를 사용하는 경우, 테스트도 동일한 구조를 사용해야 합니다.
+프로덕션 코드가 데이터클래스/특정 구조를 사용하는 경우,
+테스트도 동일한 구조를 사용해야 “진짜 계약”을 고정할 수 있습니다.
+
+- 테스트에서 임의 dict를 쓰기 전에, 프로덕션 입력 타입을 먼저 확인하세요.
 
 ### 5. 타임스탬프 검증
 
-ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 사용 권장).
+- ISO 8601 형식/타임존 정책을 고려해 검증하세요.
+- 시간이 관여하면 `freezegun`을 기본으로 고려하세요.
 
 ---
 
 ## 테스트 작성 체크리스트
 
-테스트 작성 전 확인사항:
+테스트 작성 전/작성 중 확인사항:
 
-- [ ] 프로덕션 코드의 실제 시그니처 확인
-- [ ] 실제 반환값 구조 확인
-- [ ] 실제 컬럼명 확인
-- [ ] 실제 에러 메시지 확인
-- [ ] Given-When-Then 패턴 사용
-- [ ] 엣지 케이스 포함
-- [ ] 결정적 테스트 (시간/파일 격리)
-- [ ] 명확한 주석 및 docstring
+- [ ] 프로덕션 코드의 실제 시그니처/입력 타입 확인
+- [ ] 실제 반환값 구조/컬럼명/정렬 정책 확인
+- [ ] 예외 타입/정책 확인 (`pytest.raises`로 고정)
+- [ ] Given-When-Then 패턴 적용
+- [ ] 엣지 케이스 포함(최소 1개 이상)
+- [ ] 결정적 테스트(시간 고정/파일 격리/순서 안정화)
+- [ ] 부동소수점 비교는 `approx/rtol/atol` 고려
+- [ ] 네트워크/외부 의존성 없음 확인
+- [ ] 명확한 주석 및(가능하면) docstring
 
 ---
 
@@ -259,35 +453,36 @@ ISO 8601 형식을 고려하여 타임스탬프를 검증하세요 (`freezegun` 
 
 ### 새 기능 추가 시
 
-1. **테스트 먼저 작성** (TDD)
+1. **테스트 먼저 작성** (가능하면 TDD)
 
-   ```python
-   # 1. 실패하는 테스트 작성
-   def test_new_feature(self):
-       result = new_feature()
-       assert result == expected
+```python
+# 1. 실패하는 테스트 작성
+def test_new_feature(self):
+    result = new_feature()
+    assert result == expected
 
-   # 2. 기능 구현
-   # 3. 테스트 통과 확인
-   ```
+# 2. 기능 구현
+# 3. 테스트 통과 확인
+```
 
 2. **기존 테스트 실행**
-   ```bash
-   poetry run pytest tests/ -v  # 회귀 방지
-   ```
+
+```bash
+poetry run pytest tests/ -v  # 회귀 방지
+```
 
 ### 버그 발견 시
 
 1. **재현 테스트 작성**
 
-   ```python
-   def test_bug_reproduction(self):
-       # 버그를 재현하는 테스트
-       # 먼저 실패하는지 확인
-   ```
+```python
+def test_bug_reproduction(self):
+    # 버그를 재현하는 테스트
+    # 먼저 실패하는지 확인
+    ...
+```
 
 2. **버그 수정**
-
 3. **테스트 통과 확인**
 
 ---
