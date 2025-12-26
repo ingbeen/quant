@@ -38,13 +38,7 @@ pytest 설정은 루트의 `pytest.ini`가 **Single Source of Truth** 입니다.
 
 - 테스트 탐색 경로: `tests/`
 - 파일 패턴: `test_*.py`
-- 마커 정의:
-  - `unit`: 단위 테스트
-  - `integration`: 통합 테스트
-  - `slow`: 오래 걸리는 테스트
-
-> **중요**: 마커는 “필요할 때만” 쓰고, 의미를 일관되게 유지하세요.
-> (마커 규칙은 아래 **tests 폴더 운영 원칙** 섹션 참고)
+- pytest.ini의 마커 설정은 참고용이며, 테스트 실행은 기본적으로 전체 실행을 기준으로 한다.
 
 근거 위치: [../pytest.ini](../pytest.ini)
 
@@ -81,22 +75,6 @@ poetry run pytest tests/test_xxx.py -s -vv
 # 도움말
 ./run_tests.sh help
 ```
-
-#### 마커 기반 실행(선택)
-
-```bash
-# slow 제외
-poetry run pytest -m "not slow" -v
-
-# unit만
-poetry run pytest -m unit -v
-
-# integration만
-poetry run pytest -m integration -v
-```
-
-> **권장**: 기본 CI/로컬 기본 실행은 “slow 제외” 전략을 쓰기보다,
-> slow 테스트가 생기면 그때 `@pytest.mark.slow`를 붙이고 필요 시 제외합니다.
 
 ### 품질 게이트 커맨드
 
@@ -330,16 +308,6 @@ def test_with_temp_files(self, mock_storage_paths):
    - 백테스트 도메인: `src/qbt/backtest/`
    - TQQQ 시뮬레이션: `src/qbt/tqqq/`
    - 공통 유틸리티: `src/qbt/utils/`
-
-**마커 운영 규칙(권장)**:
-
-- 기본은 마커 없이도 빠르게 돌아가는 `unit` 성격을 유지합니다.
-- 아래 조건이면 마커를 적극적으로 사용합니다.
-
-  - `@pytest.mark.integration`: 여러 모듈 결합, 파일 I/O/메타 저장까지 포함
-  - `@pytest.mark.slow`: 계산량이 크거나 시간이 명백히 긴 경우
-
-- 마커를 붙이면 실행 방법도 함께 문서화(해당 테스트 상단 주석/Docstring에 “왜 slow인가”)
 
 **외부 의존성 금지(원칙)**:
 

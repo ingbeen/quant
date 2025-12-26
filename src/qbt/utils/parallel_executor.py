@@ -9,6 +9,7 @@ ProcessPoolExecutor를 사용하여 CPU 집약적 작업을 병렬로 실행한�
 4. pickle: Python 객체를 직렬화하여 프로세스 간 전달
 """
 
+import multiprocessing
 import os
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -131,7 +132,9 @@ def execute_parallel(
         # max(): 두 값 중 큰 값 선택 (최소 1 보장)
         max_workers = max(1, cpu_count - 1)
 
-    logger.debug(f"병렬 실행 시작 - 작업 수: {len(inputs)}, 워커 수: {max_workers}, " f"함수: {func.__module__}.{func.__name__}")
+    logger.debug(
+        f"병렬 실행 시작 - 작업 수: {len(inputs)}, 워커 수: {max_workers}, " f"함수: {func.__module__}.{func.__name__}"
+    )
 
     # 3. 병렬 실행
     # (입력 인덱스, 결과) 쌍을 저장하여 나중에 순서를 복원
@@ -140,7 +143,12 @@ def execute_parallel(
     last_logged_percentage = 0
 
     # with 문: ProcessPoolExecutor를 자동으로 종료
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    # spawn 컨텍스트 사용: fork() 대신 spawn() 사용하여 멀티스레드 환경에서 안정성 확보
+    # - fork()는 멀티스레드 환경에서 데드락 위험이 있음 (DeprecationWarning)
+    # - spawn()은 새 Python 인터프리터를 시작하여 깨끗한 상태로 프로세스 생성
+    # - 참고: WSL/Linux에서 기본은 fork(), Windows는 spawn() 사용
+    mp_context = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
         # 딕셔너리 컴프리헨션: {key: value for ...}
         # enumerate(inputs): (0, inputs[0]), (1, inputs[1]), ... 생성
         # executor.submit(func, input_data): 작업 제출하고 Future 객체 반환
