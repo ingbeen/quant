@@ -582,3 +582,229 @@ class TestFindOptimalCostModel:
         except (ValueError, NotImplementedError):
             # ValueError 또는 NotImplementedError 발생 가능
             pass
+
+
+class TestSimulateValidation:
+    """simulate 함수 파라미터 검증 테스트"""
+
+    def test_invalid_leverage_raises(self):
+        """
+        leverage가 0 이하일 때 예외 발생 테스트
+
+        Given: leverage <= 0
+        When: simulate 호출
+        Then: ValueError 발생
+        """
+        # Given
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When & Then: leverage = 0
+        with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=0.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=100.0,
+            )
+
+        # When & Then: leverage < 0
+        with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=-3.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=100.0,
+            )
+
+    def test_invalid_initial_price_raises(self):
+        """
+        initial_price가 0 이하일 때 예외 발생 테스트
+
+        Given: initial_price <= 0
+        When: simulate 호출
+        Then: ValueError 발생
+        """
+        # Given
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When & Then: initial_price = 0
+        with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=0.0,
+            )
+
+        # When & Then: initial_price < 0
+        with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=-100.0,
+            )
+
+    def test_missing_required_columns_raises(self):
+        """
+        필수 컬럼 누락 시 예외 발생 테스트
+
+        Given: Date 또는 Close 컬럼이 없는 DataFrame
+        When: simulate 호출
+        Then: ValueError 발생
+        """
+        # Given: Close 컬럼 누락
+        underlying_df_no_close = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)]})
+
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
+            simulate(
+                underlying_df=underlying_df_no_close,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=100.0,
+            )
+
+    def test_empty_dataframe_raises(self):
+        """
+        빈 DataFrame일 때 예외 발생 테스트
+
+        Given: 빈 underlying_df
+        When: simulate 호출
+        Then: ValueError 발생
+        """
+        # Given: 빈 DataFrame
+        underlying_df = pd.DataFrame(columns=["Date", "Close"])
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="underlying_df가 비어있습니다"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                funding_spread=0.005,
+                expense_ratio=0.009,
+                initial_price=100.0,
+            )
+
+
+class TestSaveDailyComparisonCsv:
+    """_save_daily_comparison_csv 함수 테스트"""
+
+    def test_csv_saving_and_structure(self, tmp_path):
+        """
+        CSV 저장 및 구조 검증
+
+        핵심: 일별 비교 데이터가 올바른 형식으로 저장되는지 검증
+
+        Given: 시뮬레이션과 실제 데이터
+        When: _save_daily_comparison_csv 호출
+        Then:
+          - CSV 파일 생성
+          - 한글 컬럼명 포함
+          - 누적배수 로그차이 포함
+          - 올바른 행 수
+        """
+        from qbt.tqqq.constants import (
+            COL_ACTUAL_CLOSE,
+            COL_ACTUAL_CUMUL_RETURN,
+            COL_ACTUAL_DAILY_RETURN,
+            COL_CUMUL_MULTIPLE_LOG_DIFF,
+            COL_DAILY_RETURN_ABS_DIFF,
+            COL_SIMUL_CLOSE,
+            COL_SIMUL_CUMUL_RETURN,
+            COL_SIMUL_DAILY_RETURN,
+            DISPLAY_DATE,
+        )
+        from qbt.tqqq.simulation import _save_daily_comparison_csv
+
+        # Given
+        actual_overlap = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)],
+                "Close": [100.0, 105.0, 102.0],
+            }
+        )
+
+        sim_overlap = pd.DataFrame(
+            {"Date": [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.5, 104.8, 102.2]}
+        )
+
+        cumul_log_diff = pd.Series([0.0, 0.1, 0.15])
+
+        output_path = tmp_path / "test_comparison.csv"
+
+        # When
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path)
+
+        # Then: 파일 존재
+        assert output_path.exists(), "CSV 파일이 생성되어야 함"
+
+        # 파일 읽기
+        result_df = pd.read_csv(output_path, encoding="utf-8-sig")
+
+        # 행 수 확인
+        assert len(result_df) == 3, "3행의 데이터가 저장되어야 함"
+
+        # 필수 컬럼 확인
+        required_cols = [
+            DISPLAY_DATE,
+            COL_ACTUAL_CLOSE,
+            COL_SIMUL_CLOSE,
+            COL_ACTUAL_DAILY_RETURN,
+            COL_SIMUL_DAILY_RETURN,
+            COL_DAILY_RETURN_ABS_DIFF,
+            COL_ACTUAL_CUMUL_RETURN,
+            COL_SIMUL_CUMUL_RETURN,
+            COL_CUMUL_MULTIPLE_LOG_DIFF,
+        ]
+
+        for col in required_cols:
+            assert col in result_df.columns, f"{col} 컬럼이 있어야 함"
+
+    def test_csv_numeric_precision(self, tmp_path):
+        """
+        CSV 숫자 정밀도 검증 (소수점 4자리)
+
+        Given: 시뮬레이션과 실제 데이터
+        When: _save_daily_comparison_csv 호출
+        Then: 숫자 컬럼이 소수점 4자리로 반올림됨
+        """
+        from qbt.tqqq.simulation import _save_daily_comparison_csv
+
+        # Given
+        actual_overlap = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.123456, 105.789012]})
+
+        sim_overlap = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.234567, 105.890123]})
+
+        cumul_log_diff = pd.Series([0.0123456, 0.0234567])
+
+        output_path = tmp_path / "test_precision.csv"
+
+        # When
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path)
+
+        # Then
+        result_df = pd.read_csv(output_path, encoding="utf-8-sig")
+
+        # 숫자 컬럼이 소수점 4자리 이하로 저장되었는지 확인
+        from qbt.tqqq.constants import COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE
+
+        # 실제 종가 확인 (소수점 4자리로 반올림)
+        assert abs(result_df[COL_ACTUAL_CLOSE].iloc[0] - 100.1235) < 0.0001
+        assert abs(result_df[COL_SIMUL_CLOSE].iloc[0] - 100.2346) < 0.0001

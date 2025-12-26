@@ -278,10 +278,7 @@ def _execute_buy_order(
         return shares, new_capital, buy_price, execute_date, True
     else:
         # 자본 부족으로 매수 불가
-        logger.debug(
-            f"매수 불가 (자본 부족): 날짜={execute_date}, 필요가격={buy_price:.2f}, "
-            f"현재자본={capital:.2f}, 가능수량=0"
-        )
+        logger.debug(f"매수 불가 (자본 부족): 날짜={execute_date}, 필요가격={buy_price:.2f}, " f"현재자본={capital:.2f}, 가능수량=0")
         return position, capital, 0.0, execute_date, False
 
 
@@ -912,8 +909,6 @@ def run_buffer_strategy(
     summary["hold_days"] = params.hold_days
 
     if log_trades:
-        logger.debug(
-            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
-        )
+        logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary

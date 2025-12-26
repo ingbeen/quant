@@ -96,6 +96,70 @@ class TestRunBuyAndHold:
         assert summary["total_trades"] >= 0, "에러 없이 실행됨"
         assert abs(summary["total_return_pct"]) < 1.0, "자본 부족 시 수익률 거의 0%"
 
+    def test_invalid_capital_raises(self):
+        """
+        초기 자본이 0 이하일 때 예외 발생 테스트
+
+        Given: initial_capital <= 0
+        When: run_buy_and_hold 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0], "Close": [100.0, 101.0]}
+        )
+
+        # When & Then: initial_capital = 0
+        params = BuyAndHoldParams(initial_capital=0.0)
+        with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
+            run_buy_and_hold(df, params)
+
+        # When & Then: initial_capital < 0
+        params = BuyAndHoldParams(initial_capital=-1000.0)
+        with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
+            run_buy_and_hold(df, params)
+
+    def test_missing_required_columns_raises(self):
+        """
+        필수 컬럼 누락 시 예외 발생 테스트
+
+        Given: Open 또는 Close 컬럼이 없는 DataFrame
+        When: run_buy_and_hold 호출
+        Then: ValueError 발생
+        """
+        # Given: Open 컬럼 누락
+        df_no_open = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]})
+
+        params = BuyAndHoldParams(initial_capital=10000.0)
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            run_buy_and_hold(df_no_open, params)
+
+        # Given: Close 컬럼 누락
+        df_no_close = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            run_buy_and_hold(df_no_close, params)
+
+    def test_insufficient_rows_raises(self):
+        """
+        최소 행 수 미달 시 예외 발생 테스트
+
+        Given: 1행만 있는 DataFrame
+        When: run_buy_and_hold 호출
+        Then: ValueError 발생 (최소 2행 필요)
+        """
+        # Given: 1행만
+        df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Open": [100.0], "Close": [100.0]})
+
+        params = BuyAndHoldParams(initial_capital=10000.0)
+
+        # When & Then
+        with pytest.raises(ValueError, match="유효 데이터 부족"):
+            run_buy_and_hold(df, params)
+
 
 class TestCalculateRecentBuyCount:
     """최근 매수 횟수 계산 테스트"""
@@ -258,6 +322,106 @@ class TestRunBufferStrategy:
             run_buffer_strategy(df, params, log_trades=False)
 
         assert "유효" in str(exc_info.value) or "부족" in str(exc_info.value), "유효 데이터 부족 에러"
+
+    def test_invalid_ma_window_raises(self):
+        """
+        ma_window가 1 미만일 때 예외 발생 테스트
+
+        Given: ma_window < 1
+        When: run_buffer_strategy 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
+                "Open": [100, 101],
+                "Close": [100, 101],
+                "ma_0": [100, 101],  # 존재하지만 유효하지 않은 윈도우
+            }
+        )
+
+        # When & Then
+        params = BufferStrategyParams(
+            ma_window=0, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+        )
+        with pytest.raises(ValueError, match="ma_window는 1 이상"):
+            run_buffer_strategy(df, params, log_trades=False)
+
+    def test_invalid_buffer_zone_pct_raises(self):
+        """
+        buffer_zone_pct가 MIN_BUFFER_ZONE_PCT 미만일 때 예외 발생 테스트
+
+        Given: buffer_zone_pct < MIN_BUFFER_ZONE_PCT (0.01)
+        When: run_buffer_strategy 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
+                "Open": [100, 101],
+                "Close": [100, 101],
+                "ma_5": [100, 101],
+            }
+        )
+
+        # When & Then: buffer_zone_pct = 0.005 (0.5%, MIN보다 작음)
+        params = BufferStrategyParams(
+            ma_window=5, buffer_zone_pct=0.005, hold_days=0, recent_months=0, initial_capital=10000.0
+        )
+        with pytest.raises(ValueError, match="buffer_zone_pct는.*이상"):
+            run_buffer_strategy(df, params, log_trades=False)
+
+    def test_invalid_hold_days_raises(self):
+        """
+        hold_days가 MIN_HOLD_DAYS 미만일 때 예외 발생 테스트
+
+        Given: hold_days < MIN_HOLD_DAYS (0)
+        When: run_buffer_strategy 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
+                "Open": [100, 101],
+                "Close": [100, 101],
+                "ma_5": [100, 101],
+            }
+        )
+
+        # When & Then: hold_days = -1
+        params = BufferStrategyParams(
+            ma_window=5, buffer_zone_pct=0.03, hold_days=-1, recent_months=0, initial_capital=10000.0
+        )
+        with pytest.raises(ValueError, match="hold_days는.*이상"):
+            run_buffer_strategy(df, params, log_trades=False)
+
+    def test_invalid_recent_months_raises(self):
+        """
+        recent_months가 음수일 때 예외 발생 테스트
+
+        Given: recent_months < 0
+        When: run_buffer_strategy 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
+                "Open": [100, 101],
+                "Close": [100, 101],
+                "ma_5": [100, 101],
+            }
+        )
+
+        # When & Then: recent_months = -1
+        params = BufferStrategyParams(
+            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=-1, initial_capital=10000.0
+        )
+        with pytest.raises(ValueError, match="recent_months는 0 이상"):
+            run_buffer_strategy(df, params, log_trades=False)
 
     def test_forced_liquidation_at_end(self):
         """
@@ -1081,4 +1245,199 @@ class TestBacktestAccuracy:
         # Then: 매수 신호가 감지되어야 함
         # 주의: 현재 구현에서 prev_band 초기화가 적절하지 않으면 이 테스트는 실패할 수 있음 (레드)
         assert not trades_df.empty, "첫 유효 구간에서 신호가 감지되어야 함"
-        assert summary["total_trades"] > 0, "거래가 발생해야 함"
+
+
+class TestRunGridSearch:
+    """그리드 서치 테스트"""
+
+    def test_basic_grid_search(self):
+        """
+        기본 그리드 서치 실행 테스트
+
+        핵심 기능: 파라미터 조합 탐색 및 최적화
+
+        Given: 충분한 데이터와 파라미터 조합
+        When: run_grid_search 실행
+        Then:
+          - 모든 조합 실행 완료
+          - 결과 DataFrame 반환
+          - CAGR 기준 내림차순 정렬
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.strategy import run_grid_search
+
+        # Given: 충분한 기간의 데이터
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 31)],
+                "Open": [100 + i * 0.5 for i in range(30)],
+                "Close": [100, 105, 95, 110, 90, 115, 95, 120, 100, 125] * 3,
+            }
+        )
+
+        # 그리드 서치에 필요한 모든 MA 미리 계산
+        for window in [5, 10]:
+            df = add_single_moving_average(df, window=window, ma_type="ema")
+
+        # When: 작은 그리드로 테스트
+        results_df = run_grid_search(
+            df=df,
+            initial_capital=10000.0,
+            ma_window_list=[5, 10],
+            buffer_zone_pct_list=[0.01, 0.03],
+            hold_days_list=[0, 1],
+            recent_months_list=[0],
+        )
+
+        # Then: 결과 검증
+        # 2 × 2 × 2 × 1 = 8개 조합
+        assert len(results_df) == 8, "모든 파라미터 조합이 실행되어야 함"
+
+        # 필수 컬럼 존재 확인
+        from qbt.backtest.constants import (
+            COL_BUFFER_ZONE_PCT,
+            COL_CAGR,
+            COL_HOLD_DAYS,
+            COL_MA_WINDOW,
+            COL_RECENT_MONTHS,
+            COL_TOTAL_RETURN_PCT,
+        )
+
+        required_cols = [
+            COL_MA_WINDOW,
+            COL_BUFFER_ZONE_PCT,
+            COL_HOLD_DAYS,
+            COL_RECENT_MONTHS,
+            COL_TOTAL_RETURN_PCT,
+            COL_CAGR,
+        ]
+        for col in required_cols:
+            assert col in results_df.columns, f"결과에 {col} 컬럼이 있어야 함"
+
+        # 정렬 검증: total_return_pct 기준 내림차순
+        total_returns = results_df[COL_TOTAL_RETURN_PCT].tolist()
+        assert total_returns == sorted(total_returns, reverse=True), "결과가 수익률 내림차순으로 정렬되어야 함"
+
+    def test_grid_search_parameter_combinations(self):
+        """
+        그리드 서치 파라미터 조합 생성 검증
+
+        Given: 각 파라미터 2개씩 (2×2×2×2 = 16개 조합)
+        When: run_grid_search 실행
+        Then: 정확히 16개 결과 생성
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.strategy import run_grid_search
+
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 31)],
+                "Open": [100.0] * 30,
+                "Close": [100 + i * 0.1 for i in range(30)],
+            }
+        )
+
+        # MA 계산
+        for window in [5, 10]:
+            df = add_single_moving_average(df, window=window, ma_type="ema")
+
+        # When
+        results_df = run_grid_search(
+            df=df,
+            initial_capital=10000.0,
+            ma_window_list=[5, 10],
+            buffer_zone_pct_list=[0.01, 0.02],
+            hold_days_list=[0, 1],
+            recent_months_list=[0, 3],
+        )
+
+        # Then
+        assert len(results_df) == 16, "2×2×2×2 = 16개 조합이 생성되어야 함"
+
+    def test_grid_search_parallel_execution(self):
+        """
+        그리드 서치 병렬 처리 검증
+
+        핵심: 순서 보장 및 결과 정합성
+
+        Given: 다수 파라미터 조합
+        When: run_grid_search 실행 (병렬 처리)
+        Then:
+          - 모든 조합 정상 실행
+          - 결과 개수 일치
+          - 예외 없이 완료
+        """
+        # Given: 더 큰 데이터셋 (1월 1일부터 50일)
+        from datetime import timedelta
+
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.strategy import run_grid_search
+
+        start_date = date(2023, 1, 1)
+        dates = [start_date + timedelta(days=i) for i in range(50)]
+
+        df = pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [100.0] * 50,
+                "Close": [100 + (i % 10) * 2 for i in range(50)],
+            }
+        )
+
+        # MA 계산
+        for window in [5, 10, 20]:
+            df = add_single_moving_average(df, window=window, ma_type="ema")
+
+        # When: 3×3×2×2 = 36개 조합
+        results_df = run_grid_search(
+            df=df,
+            initial_capital=10000.0,
+            ma_window_list=[5, 10, 20],
+            buffer_zone_pct_list=[0.01, 0.02, 0.03],
+            hold_days_list=[0, 1],
+            recent_months_list=[0, 3],
+        )
+
+        # Then
+        assert len(results_df) == 36, "모든 조합이 병렬 실행되어야 함"
+        assert results_df.isna().sum().sum() == 0, "결과에 NaN이 없어야 함 (모든 조합 정상 실행)"
+
+    def test_grid_search_result_sorting(self):
+        """
+        그리드 서치 결과 정렬 검증
+
+        Given: 그리드 서치 실행
+        When: 결과 DataFrame 확인
+        Then: total_return_pct 기준 내림차순 정렬 (최고 수익률이 맨 위)
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.constants import COL_TOTAL_RETURN_PCT
+        from qbt.backtest.strategy import run_grid_search
+
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 21)],
+                "Open": [100.0] * 20,
+                "Close": [100, 110, 95, 120, 90, 125, 85, 130, 95, 135] * 2,
+            }
+        )
+
+        for window in [3, 5]:
+            df = add_single_moving_average(df, window=window, ma_type="ema")
+
+        # When
+        results_df = run_grid_search(
+            df=df,
+            initial_capital=10000.0,
+            ma_window_list=[3, 5],
+            buffer_zone_pct_list=[0.02, 0.05],
+            hold_days_list=[0],
+            recent_months_list=[0],
+        )
+
+        # Then: 내림차순 확인
+        returns = results_df[COL_TOTAL_RETURN_PCT].tolist()
+        for i in range(len(returns) - 1):
+            assert returns[i] >= returns[i + 1], f"인덱스 {i}에서 정렬 오류: {returns[i]} < {returns[i+1]}"
