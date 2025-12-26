@@ -20,7 +20,7 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CLOSE,
     TQQQ_DAILY_COMPARISON_PATH,
 )
-from qbt.utils.data_loader import load_comparison_data
+from qbt.tqqq.data_loader import load_comparison_data
 
 
 def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:

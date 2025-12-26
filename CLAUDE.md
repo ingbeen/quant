@@ -27,7 +27,7 @@
 
 ## 계획서(Plan) 작성이 필요한 경우
 
-다음 조건 중 **하나라도** 해당하면 먼저 [`docs/CLAUDE.md`](docs/CLAUDE.md)를 읽고 `docs/plans/`에 계획서를 작성해야 합니다:
+다음 조건 중 **두 개 이상** 해당하면 먼저 [`docs/CLAUDE.md`](docs/CLAUDE.md)를 읽고 `docs/plans/`에 계획서를 작성해야 합니다:
 
 1. **변경 범위가 여러 모듈/여러 파일에 걸침**
 2. **`storage/*` CSV 스키마, 저장 규칙, 결과 컬럼 등 불변 규칙에 영향**

@@ -31,7 +31,40 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 ## 모듈 구성
 
-### 1. constants.py
+### 1. data_loader.py
+
+**TQQQ 도메인 전용 데이터 로딩 함수를 제공합니다** (88줄).
+
+이 모듈의 함수들은 TQQQ 시뮬레이션 및 검증에 필요한 데이터를 로딩합니다.
+프로젝트 전반의 공통 데이터 로딩 함수는 `utils/data_loader.py`를 참고하세요.
+
+#### 주요 함수
+
+**`load_ffr_data(path: Path) -> pd.DataFrame`**:
+
+- 연방기금금리(FFR) 월별 데이터 로딩
+- 입력: CSV 파일 경로
+- 반환: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+- VALUE 컬럼을 FFR로 자동 rename
+- **중요**: DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
+- 예외: FileNotFoundError (파일 부재 시)
+
+**`load_comparison_data(path: Path) -> pd.DataFrame`**:
+
+- TQQQ 일별 비교 CSV 파일 로딩 및 검증
+- 입력: CSV 파일 경로
+- 반환: 일별 비교 DataFrame (COMPARISON_COLUMNS 컬럼 포함)
+- 필수 컬럼 검증 (COMPARISON_COLUMNS 기준)
+- 날짜 컬럼을 datetime으로 자동 변환
+- 예외:
+  - FileNotFoundError (파일 부재 시)
+  - ValueError (필수 컬럼 누락 시)
+
+근거 위치: [src/qbt/tqqq/data_loader.py](data_loader.py)
+
+---
+
+### 2. constants.py
 
 **레버리지 ETF 시뮬레이션 도메인 전용 상수를 정의합니다** (공통 상수는 `common_constants.py` 참고):
 
@@ -70,7 +103,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 ---
 
-### 2. simulation.py
+### 3. simulation.py
 
 **레버리지 ETF 시뮬레이션 엔진을 제공합니다** (676줄).
 
@@ -138,7 +171,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 ---
 
-### 3. streamlit_app.py (scripts/tqqq/)
+### 4. streamlit_app.py (scripts/tqqq/)
 
 **대시보드는 별도 스크립트로 분리되어 `scripts/tqqq/streamlit_app.py`에 위치합니다** (CLI 계층).
 
