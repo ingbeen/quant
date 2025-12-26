@@ -32,20 +32,9 @@ RESULTS_DIR = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토리
 # 나스닥 100 추종 ETF 데이터 파일 경로
 QQQ_DATA_PATH = STOCK_DIR / "QQQ_max.csv"
 
-# TQQQ (3배 레버리지 ETF) 데이터 파일 경로
-TQQQ_DATA_PATH = STOCK_DIR / "TQQQ_max.csv"
-TQQQ_SYNTHETIC_PATH = STOCK_DIR / "TQQQ_synthetic_max.csv"
-
-# 연방기금금리 월별 데이터 파일 경로
-FFR_DATA_PATH = ETC_DIR / "federal_funds_rate_monthly.csv"
-
 # --- 결과 파일 경로 ---
 # 백테스트 그리드 서치 결과 저장 경로
 GRID_RESULTS_PATH = RESULTS_DIR / "grid_results.csv"
-
-# TQQQ 시뮬레이션 관련 결과 파일 경로
-TQQQ_VALIDATION_PATH = RESULTS_DIR / "tqqq_validation.csv"
-TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH = RESULTS_DIR / "meta.json"

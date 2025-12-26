@@ -9,18 +9,27 @@
 
 from qbt.common_constants import (
     DISPLAY_DATE,
-    FFR_DATA_PATH,
-    TQQQ_DAILY_COMPARISON_PATH,
-    TQQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_PATH,
-    TQQQ_VALIDATION_PATH,
+    ETC_DIR,
+    RESULTS_DIR,
+    STOCK_DIR,
 )
 
 # ============================================================
 # 경로 및 스펙 설정
 # ============================================================
 
-# --- 데이터 파일 경로 (common_constants에서 re-export) ---
+# --- 데이터 파일 경로 ---
+# TQQQ (3배 레버리지 ETF) 데이터 파일 경로
+TQQQ_DATA_PATH = STOCK_DIR / "TQQQ_max.csv"
+TQQQ_SYNTHETIC_PATH = STOCK_DIR / "TQQQ_synthetic_max.csv"
+
+# 연방기금금리 월별 데이터 파일 경로
+FFR_DATA_PATH = ETC_DIR / "federal_funds_rate_monthly.csv"
+
+# TQQQ 시뮬레이션 관련 결과 파일 경로
+TQQQ_VALIDATION_PATH = RESULTS_DIR / "tqqq_validation.csv"
+TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
+
 __all__ = [
     "DISPLAY_DATE",
     "FFR_DATA_PATH",
