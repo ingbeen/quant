@@ -24,6 +24,53 @@ logger = get_logger(__name__)
 WORKER_CACHE: dict[str, Any] = {}
 
 
+def init_worker_cache(cache_payload: dict) -> None:
+    """
+    워커 프로세스 초기화 함수.
+
+    WORKER_CACHE를 초기화하고 전달받은 데이터를 캐싱한다.
+    병렬 실행 시 큰 DataFrame을 작업마다 전달하지 않고, 워커당 1회만 세팅한다.
+
+    이 함수는 ProcessPoolExecutor의 initializer 인자로 사용되며,
+    각 워커 프로세스가 시작될 때 자동으로 호출된다.
+
+    Args:
+        cache_payload: 캐시할 데이터 딕셔너리
+            - 키: 캐시 항목 이름 (예: "df", "underlying_overlap", "ffr_df")
+            - 값: 캐시할 데이터 (주로 DataFrame)
+
+    Example:
+        >>> # backtest 그리드 서치
+        >>> cache_payload = {"df": stock_df}
+        >>> results = execute_parallel(
+        ...     worker_func,
+        ...     inputs,
+        ...     initializer=init_worker_cache,
+        ...     initargs=(cache_payload,)
+        ... )
+
+        >>> # tqqq 비용 모델 최적화
+        >>> cache_payload = {
+        ...     "underlying_overlap": qqq_overlap,
+        ...     "actual_overlap": tqqq_overlap,
+        ...     "ffr_df": ffr_df
+        ... }
+        >>> results = execute_parallel(
+        ...     worker_func,
+        ...     inputs,
+        ...     initializer=init_worker_cache,
+        ...     initargs=(cache_payload,)
+        ... )
+
+    Note:
+        - 이 함수는 pickle 가능하도록 모듈 최상위 레벨에 정의되어야 함
+        - WORKER_CACHE는 워커 프로세스 전역 변수이므로, 워커 함수에서 직접 참조 가능
+        - 워커 프로세스마다 독립적인 WORKER_CACHE를 가지므로 서로 간섭하지 않음
+    """
+    WORKER_CACHE.clear()
+    WORKER_CACHE.update(cache_payload)
+
+
 def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
     """
     (함수, kwargs 딕셔너리) 튜플을 받아 함수를 호출한다.

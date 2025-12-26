@@ -66,7 +66,7 @@ from qbt.tqqq.constants import (
     MAX_TOP_STRATEGIES,
 )
 from qbt.utils import get_logger
-from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel
+from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
 
 logger = get_logger(__name__)
 
@@ -277,23 +277,6 @@ def simulate(
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
-
-
-def _init_cost_model_worker(cache_payload: dict) -> None:
-    """
-    비용 모델 최적화 워커 프로세스 초기화 함수.
-
-    WORKER_CACHE를 초기화하고 DataFrame을 캐싱한다.
-
-    Args:
-        cache_payload: 캐시할 데이터 딕셔너리 {
-            "underlying_overlap": DataFrame,
-            "actual_overlap": DataFrame,
-            "ffr_df": DataFrame
-        }
-    """
-    WORKER_CACHE.clear()
-    WORKER_CACHE.update(cache_payload)
 
 
 def _evaluate_cost_model_candidate(params: dict) -> dict:
@@ -691,7 +674,7 @@ def find_optimal_cost_model(
         _evaluate_cost_model_candidate,
         param_combinations,
         max_workers=max_workers,
-        initializer=_init_cost_model_worker,
+        initializer=init_worker_cache,
         initargs=(
             {
                 "underlying_overlap": underlying_overlap,

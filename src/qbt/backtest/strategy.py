@@ -35,7 +35,7 @@ from qbt.backtest.constants import (
 )
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
-from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs
+from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
 
 logger = get_logger(__name__)
 
@@ -473,54 +473,40 @@ def run_buy_and_hold(
     return equity_df, summary
 
 
-def _init_grid_search_worker(cache_payload: dict) -> None:
-    """
-    그리드 서치 워커 프로세스 초기화 함수.
-
-    WORKER_CACHE를 초기화하고 DataFrame을 캐싱한다.
-
-    Args:
-        cache_payload: 캐시할 데이터 딕셔너리 {"df": DataFrame}
-    """
-    WORKER_CACHE.clear()
-    WORKER_CACHE.update(cache_payload)
-
-
 def _run_buffer_strategy_for_grid(
     params: BufferStrategyParams,
-) -> dict | None:
+) -> dict:
     """
     그리드 서치를 위해 단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
 
-    병렬 실행을 위한 헬퍼 함수. 예외 발생 시 None을 반환한다.
+    병렬 실행을 위한 헬퍼 함수. 예외 발생 시 즉시 전파한다.
     DataFrame은 WORKER_CACHE에서 조회한다.
 
     Args:
         params: 전략 파라미터
 
     Returns:
-        성과 지표 딕셔너리 또는 None (실패 시)
-    """
-    try:
-        # WORKER_CACHE에서 DataFrame 조회
-        df = WORKER_CACHE["df"]
-        _, _, summary = run_buffer_strategy(df, params, log_trades=False)
+        성과 지표 딕셔너리
 
-        return {
-            COL_MA_WINDOW: params.ma_window,
-            COL_BUFFER_ZONE_PCT: params.buffer_zone_pct,
-            COL_HOLD_DAYS: params.hold_days,
-            COL_RECENT_MONTHS: params.recent_months,
-            COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
-            COL_CAGR: summary["cagr"],
-            COL_MDD: summary["mdd"],
-            COL_TOTAL_TRADES: summary["total_trades"],
-            COL_WIN_RATE: summary["win_rate"],
-            COL_FINAL_CAPITAL: summary["final_capital"],
-        }
-    except Exception:
-        # 병렬 실행에서는 로그 생략 (프로세스 간 로거 공유 이슈)
-        return None
+    Raises:
+        예외 발생 시 즉시 전파
+    """
+    # WORKER_CACHE에서 DataFrame 조회
+    df = WORKER_CACHE["df"]
+    _, _, summary = run_buffer_strategy(df, params, log_trades=False)
+
+    return {
+        COL_MA_WINDOW: params.ma_window,
+        COL_BUFFER_ZONE_PCT: params.buffer_zone_pct,
+        COL_HOLD_DAYS: params.hold_days,
+        COL_RECENT_MONTHS: params.recent_months,
+        COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
+        COL_CAGR: summary["cagr"],
+        COL_MDD: summary["mdd"],
+        COL_TOTAL_TRADES: summary["total_trades"],
+        COL_WIN_RATE: summary["win_rate"],
+        COL_FINAL_CAPITAL: summary["final_capital"],
+    }
 
 
 def run_grid_search(
@@ -594,26 +580,19 @@ def run_grid_search(
         func=_run_buffer_strategy_for_grid,  # 실행할 함수
         inputs=param_combinations,  # 각 파라미터 조합 (딕셔너리 리스트)
         max_workers=None,  # CPU 코어 수 - 1 (자동 결정)
-        initializer=_init_grid_search_worker,  # 워커 초기화 함수
+        initializer=init_worker_cache,  # 공통 워커 초기화 함수
         initargs=({"df": df},),  # 캐시할 데이터
     )
 
-    # 4. 실패 건 필터링
-    # 학습 포인트: 리스트 컴프리헨션 with 조건
-    # [식 for 변수 in 리스트 if 조건]
-    # r이 None이 아닌 것만 선택 (성공한 결과만 유지)
-    results = [r for r in results if r is not None]
-
-    # 딕셔너리 리스트를 DataFrame으로 변환
+    # 4. 딕셔너리 리스트를 DataFrame으로 변환
     results_df = pd.DataFrame(results)
 
     # 5. 정렬
-    if not results_df.empty:  # DataFrame이 비어있지 않으면
-        # 학습 포인트: 체이닝 (메서드를 연속으로 호출)
-        # .sort_values(): 특정 컬럼 기준 정렬
-        # ascending=False: 내림차순 (큰 값이 먼저)
-        # .reset_index(drop=True): 인덱스를 0부터 다시 매김
-        results_df = results_df.sort_values(by=COL_TOTAL_RETURN_PCT, ascending=False).reset_index(drop=True)
+    # 학습 포인트: 체이닝 (메서드를 연속으로 호출)
+    # .sort_values(): 특정 컬럼 기준 정렬
+    # ascending=False: 내림차순 (큰 값이 먼저)
+    # .reset_index(drop=True): 인덱스를 0부터 다시 매김
+    results_df = results_df.sort_values(by=COL_TOTAL_RETURN_PCT, ascending=False).reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 
@@ -798,7 +777,9 @@ def run_buffer_strategy(
                 trade_record["recent_buy_count"] = entry_recent_buy_count
                 trades.append(trade_record)
                 if log_trades:
-                    logger.debug(f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%")
+                    logger.debug(
+                        f"매도 체결: {pending_order.execute_date}, " f"손익률={trade_record['pnl_pct']*100:.2f}%"
+                    )
                 # 실행 완료 후 pending_order 초기화
                 pending_order = None
 
@@ -930,6 +911,8 @@ def run_buffer_strategy(
     summary["hold_days"] = params.hold_days
 
     if log_trades:
-        logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
+        logger.debug(
+            f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%"
+        )
 
     return trades_df, equity_df, summary

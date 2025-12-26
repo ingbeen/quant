@@ -343,32 +343,6 @@
 
 근거 위치: [strategy.py의 \_validate_buffer_strategy_inputs](strategy.py), [common_constants.py](../../common_constants.py)
 
----
-
-## 구현 원칙
-
-### 1. 데이터 불변성
-
-- 원본 DataFrame을 변경하지 않음
-- 계산 시 복사본 사용 (예: `df.copy()`)
-
-### 2. 명시적 검증
-
-- 파라미터 유효성 즉시 검증
-- 유효하지 않은 입력 시 즉시 예외 발생 (ValueError)
-
-### 3. 상태 비저장
-
-- 함수는 상태를 유지하지 않음
-- 모든 입력을 파라미터로 전달
-- 순수 함수 스타일
-
-### 4. 병렬 처리 지원
-
-- 독립적인 백테스트는 병렬 실행 가능
-- 순서 보장 필요 시 중앙 병렬 처리 모듈 사용 (`utils/parallel_executor.py`)
-- pickle 가능한 함수만 사용
-
 근거 위치: [strategy.py](strategy.py), [utils/parallel_executor.py](../../utils/parallel_executor.py)
 
 ---
