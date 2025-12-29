@@ -26,6 +26,7 @@ from qbt.tqqq.constants import (
     TQQQ_SYNTHETIC_PATH,
 )
 from qbt.tqqq.data_loader import load_ffr_data
+from qbt.tqqq.simulation import _create_ffr_dict
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -51,32 +52,37 @@ def main() -> int:
     qqq_df = load_stock_data(QQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
 
-    # 2. QQQ의 시작 날짜 자동 감지
+    # 2. FFR 딕셔너리 생성 (O(1) 조회용)
+    logger.debug("FFR 딕셔너리 생성 중...")
+    ffr_dict = _create_ffr_dict(ffr_df)
+    logger.debug(f"FFR 딕셔너리 생성 완료: {len(ffr_dict)}개 월 데이터")
+
+    # 3. QQQ의 시작 날짜 자동 감지
     start_date = qqq_df[COL_DATE].min()
     logger.debug(f"QQQ 시작 날짜 자동 감지: {start_date}")
 
-    # 3. 전체 QQQ 데이터 사용
+    # 4. 전체 QQQ 데이터 사용
     qqq_filtered = qqq_df.copy()
 
     logger.debug(f"QQQ 데이터: {len(qqq_filtered):,}행 ({qqq_filtered[COL_DATE].min()} ~ {qqq_filtered[COL_DATE].max()})")
 
-    # 4. TQQQ 시뮬레이션 실행
+    # 5. TQQQ 시뮬레이션 실행
     logger.debug("TQQQ 시뮬레이션 실행 중...")
     synthetic_tqqq = simulate(
         underlying_df=qqq_filtered,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         expense_ratio=DEFAULT_EXPENSE_RATIO,
         initial_price=DEFAULT_SYNTHETIC_INITIAL_PRICE,
-        ffr_df=ffr_df,
+        ffr_dict=ffr_dict,
         funding_spread=DEFAULT_FUNDING_SPREAD,
     )
 
     logger.debug(f"시뮬레이션 완료: {len(synthetic_tqqq):,}행")
 
-    # 5. 출력 디렉토리 생성
+    # 6. 출력 디렉토리 생성
     TQQQ_SYNTHETIC_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # 6. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
+    # 7. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
     for col in PRICE_COLUMNS:
         if col in synthetic_tqqq.columns:
             synthetic_tqqq[col] = synthetic_tqqq[col].round(6)
@@ -90,7 +96,7 @@ def main() -> int:
     logger.debug(f"최소가: {synthetic_tqqq[COL_CLOSE].min():.2f}")
     logger.debug(f"최대가: {synthetic_tqqq[COL_CLOSE].max():.2f}")
 
-    # 7. 누적 수익률 계산
+    # 8. 누적 수익률 계산
     initial_close = synthetic_tqqq.iloc[0][COL_CLOSE]
     final_close = synthetic_tqqq.iloc[-1][COL_CLOSE]
     cumulative_return = (final_close / initial_close - 1) * 100

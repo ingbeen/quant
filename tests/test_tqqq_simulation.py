@@ -19,6 +19,8 @@ import pandas as pd
 import pytest
 
 from qbt.tqqq.simulation import (
+    _create_ffr_dict,
+    _lookup_ffr,
     calculate_daily_cost,
     calculate_validation_metrics,
     extract_overlap_period,
@@ -49,6 +51,7 @@ class TestCalculateDailyCost:
         """
         # Given: FFR 데이터 (DATE는 yyyy-mm 문자열 형식)
         ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "FFR": [4.5, 4.6]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009  # 0.9%
@@ -58,7 +61,7 @@ class TestCalculateDailyCost:
         leverage = 3.0  # 기본 3배 레버리지
         daily_cost = calculate_daily_cost(
             date_value=target_date,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             expense_ratio=expense_ratio,
             funding_spread=funding_spread,
             leverage=leverage,
@@ -82,6 +85,7 @@ class TestCalculateDailyCost:
         """
         # Given: 1월 FFR만 존재 (DATE는 yyyy-mm 문자열)
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         target_date = date(2023, 3, 15)  # 1월부터 약 2개월 후
         leverage = 3.0
@@ -90,7 +94,7 @@ class TestCalculateDailyCost:
         try:
             daily_cost = calculate_daily_cost(
                 date_value=target_date,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 expense_ratio=0.009,
                 funding_spread=0.006,
                 leverage=leverage,
@@ -118,9 +122,10 @@ class TestCalculateDailyCost:
 
         # When & Then
         with pytest.raises(ValueError):
+            ffr_dict = _create_ffr_dict(ffr_df)
             calculate_daily_cost(
                 date_value=date(2023, 1, 15),
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 expense_ratio=0.009,
                 funding_spread=0.006,
                 leverage=leverage,
@@ -146,6 +151,7 @@ class TestCalculateDailyCost:
         """
         # Given
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009
         funding_spread = 0.006
@@ -154,7 +160,7 @@ class TestCalculateDailyCost:
         # When
         daily_cost = calculate_daily_cost(
             date_value=target_date,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             expense_ratio=expense_ratio,
             funding_spread=funding_spread,
             leverage=leverage,
@@ -192,6 +198,7 @@ class TestCalculateDailyCost:
         """
         # Given
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009
         funding_spread = 0.006
@@ -200,7 +207,7 @@ class TestCalculateDailyCost:
         # When
         daily_cost = calculate_daily_cost(
             date_value=target_date,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             expense_ratio=expense_ratio,
             funding_spread=funding_spread,
             leverage=leverage,
@@ -245,6 +252,7 @@ class TestSimulate:
         )
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         leverage = 3.0
         expense_ratio = 0.009  # 0.9%
@@ -257,7 +265,7 @@ class TestSimulate:
             leverage=leverage,
             expense_ratio=expense_ratio,
             initial_price=initial_price,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             funding_spread=funding_spread,
         )
 
@@ -293,6 +301,7 @@ class TestSimulate:
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]})  # +1%
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [0.0]})  # 비용 제거 (순수 레버리지 효과만 보기)
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When: leverage=3, 비용 0
         simulated_df = simulate(
@@ -300,7 +309,7 @@ class TestSimulate:
             leverage=3.0,
             expense_ratio=0.0,
             initial_price=30.0,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             funding_spread=0.0,
         )
 
@@ -327,6 +336,7 @@ class TestSimulate:
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When & Then: 음수
         with pytest.raises(ValueError):
@@ -335,7 +345,7 @@ class TestSimulate:
                 leverage=-3.0,
                 expense_ratio=0.009,
                 initial_price=30.0,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 funding_spread=0.006,
             )
 
@@ -346,7 +356,7 @@ class TestSimulate:
                 leverage=0.0,
                 expense_ratio=0.009,
                 initial_price=30.0,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 funding_spread=0.006,
             )
 
@@ -683,12 +693,13 @@ class TestSimulateValidation:
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When & Then: leverage = 0
         with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=0.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -699,7 +710,7 @@ class TestSimulateValidation:
         with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=-3.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -717,12 +728,13 @@ class TestSimulateValidation:
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When & Then: initial_price = 0
         with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=3.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -733,7 +745,7 @@ class TestSimulateValidation:
         with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=3.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -752,12 +764,13 @@ class TestSimulateValidation:
         underlying_df_no_close = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)]})
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
             simulate(
                 underlying_df=underlying_df_no_close,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=3.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -775,12 +788,13 @@ class TestSimulateValidation:
         # Given: 빈 DataFrame
         underlying_df = pd.DataFrame(columns=["Date", "Close"])
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        ffr_dict = _create_ffr_dict(ffr_df)
 
         # When & Then
         with pytest.raises(ValueError, match="underlying_df가 비어있습니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
+                ffr_dict=ffr_dict,
                 leverage=3.0,
                 funding_spread=0.005,
                 expense_ratio=0.009,
@@ -1017,3 +1031,127 @@ class TestValidateFfrCoverage:
 
         # When & Then
         validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+
+class TestCreateFfrDict:
+    """FFR 딕셔너리 생성 함수 테스트 (Phase 0)"""
+
+    def test_create_ffr_dict_normal(self):
+        """
+        정상적인 FFR 딕셔너리 생성 테스트
+
+        Given: 정상적인 FFR DataFrame (중복 없음)
+        When: _create_ffr_dict 호출
+        Then: {"YYYY-MM": ffr_value} 딕셔너리 반환
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "FFR": [4.5, 4.6, 4.7]})
+
+        # When
+        result = _create_ffr_dict(ffr_df)
+
+        # Then
+        assert isinstance(result, dict)
+        assert result == {"2023-01": 4.5, "2023-02": 4.6, "2023-03": 4.7}
+
+    def test_create_ffr_dict_empty(self):
+        """
+        빈 DataFrame 입력 시 예외 발생 테스트
+
+        Given: 빈 FFR DataFrame
+        When: _create_ffr_dict 호출
+        Then: ValueError 발생
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": [], "FFR": []})
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터가 비어있습니다"):
+            _create_ffr_dict(ffr_df)
+
+    def test_create_ffr_dict_duplicate_month(self):
+        """
+        중복 월 발견 시 즉시 예외 발생 테스트 (중대 에러)
+
+        Given: 중복 월이 포함된 FFR DataFrame
+        When: _create_ffr_dict 호출
+        Then: ValueError 발생 (데이터 무결성 보장)
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-02", "2023-03"], "FFR": [4.5, 4.6, 4.65, 4.7]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 무결성 오류.*2023-02.*중복"):
+            _create_ffr_dict(ffr_df)
+
+
+class TestLookupFfr:
+    """FFR 조회 함수 테스트 (Phase 0)"""
+
+    def test_lookup_ffr_exact_match(self):
+        """
+        정확한 월 매칭 테스트
+
+        Given: FFR 딕셔너리와 딕셔너리에 존재하는 월의 날짜
+        When: _lookup_ffr 호출
+        Then: 해당 월의 FFR 값 반환
+        """
+        # Given
+        ffr_dict = {"2023-01": 4.5, "2023-02": 4.6, "2023-03": 4.7}
+        date_value = date(2023, 2, 15)
+
+        # When
+        result = _lookup_ffr(date_value, ffr_dict)
+
+        # Then
+        assert result == 4.6
+
+    def test_lookup_ffr_fallback(self):
+        """
+        이전 월 폴백 테스트
+
+        Given: FFR 딕셔너리와 딕셔너리에 없는 월의 날짜 (단, 이전 월은 존재)
+        When: _lookup_ffr 호출
+        Then: 가장 가까운 이전 월의 FFR 값 반환
+        """
+        # Given
+        ffr_dict = {"2023-01": 4.5, "2023-02": 4.6}
+        date_value = date(2023, 3, 15)  # 2023-03은 없음
+
+        # When
+        result = _lookup_ffr(date_value, ffr_dict)
+
+        # Then
+        assert result == 4.6  # 2023-02의 값
+
+    def test_lookup_ffr_no_previous_month(self):
+        """
+        이전 월도 없는 경우 예외 발생 테스트
+
+        Given: FFR 딕셔너리와 딕셔너리보다 이른 날짜
+        When: _lookup_ffr 호출
+        Then: ValueError 발생
+        """
+        # Given
+        ffr_dict = {"2023-02": 4.6, "2023-03": 4.7}
+        date_value = date(2023, 1, 15)  # 2023-01은 없고 이전 월도 없음
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-01.*이전의 FFR 데이터가 존재하지 않습니다"):
+            _lookup_ffr(date_value, ffr_dict)
+
+    def test_lookup_ffr_months_diff_exceeded(self):
+        """
+        월 차이 초과 시 예외 발생 테스트
+
+        Given: FFR 딕셔너리와 MAX_FFR_MONTHS_DIFF(2) 초과한 날짜
+        When: _lookup_ffr 호출
+        Then: ValueError 발생
+        """
+        # Given
+        ffr_dict = {"2023-01": 4.5, "2023-02": 4.6}
+        date_value = date(2023, 5, 15)  # 2023-05, 가장 가까운 이전 월은 2023-02 (3개월 차이 > MAX=2)
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-05.*최대 2개월 이내의 데이터만 사용 가능"):
+            _lookup_ffr(date_value, ffr_dict)

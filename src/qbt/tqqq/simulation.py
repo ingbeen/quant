@@ -71,6 +71,87 @@ from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_wor
 logger = get_logger(__name__)
 
 
+def _create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
+    """
+    FFR DataFrame을 딕셔너리로 변환한다 (O(1) 조회용).
+
+    Args:
+        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+
+    Returns:
+        {"YYYY-MM": ffr_value} 형태의 딕셔너리
+
+    Raises:
+        ValueError: 빈 DataFrame 또는 중복 월 발견 시
+    """
+    # 1. 빈 DataFrame 검증
+    if ffr_df.empty:
+        raise ValueError("FFR 데이터가 비어있습니다")
+
+    # 2. 딕셔너리 생성 및 중복 월 검증
+    ffr_dict: dict[str, float] = {}
+    for _, row in ffr_df.iterrows():
+        month_key = str(row[COL_FFR_DATE])
+        ffr_value = float(row[COL_FFR])
+
+        # 중복 월 발견 시 즉시 예외 (데이터 무결성 보장)
+        if month_key in ffr_dict:
+            raise ValueError(
+                f"FFR 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. " f"기존 값: {ffr_dict[month_key]}, 중복 값: {ffr_value}"
+            )
+
+        ffr_dict[month_key] = ffr_value
+
+    return ffr_dict
+
+
+def _lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
+    """
+    특정 날짜의 FFR 값을 딕셔너리에서 조회한다.
+
+    Args:
+        date_value: 조회할 날짜
+        ffr_dict: FFR 딕셔너리 ({"YYYY-MM": ffr_value})
+
+    Returns:
+        FFR 값 (퍼센트 단위, 예: 4.5)
+
+    Raises:
+        ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
+    """
+    # 1. 해당 월의 키 생성
+    year_month_str = f"{date_value.year:04d}-{date_value.month:02d}"
+
+    # 2. 딕셔너리에서 직접 조회 시도
+    if year_month_str in ffr_dict:
+        return ffr_dict[year_month_str]
+
+    # 3. 월 키가 없으면 이전 월 중 가장 가까운 값 사용
+    previous_months = [key for key in ffr_dict.keys() if key < year_month_str]
+
+    if not previous_months:
+        raise ValueError(f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다.")
+
+    # 4. 가장 가까운 이전 월 찾기
+    closest_month = max(previous_months)
+
+    # 5. 월 차이 계산
+    query_year, query_month = date_value.year, date_value.month
+    closest_year, closest_month_num = map(int, closest_month.split("-"))
+    total_months = (query_year - closest_year) * 12 + (query_month - closest_month_num)
+
+    # 6. 월 차이가 MAX_FFR_MONTHS_DIFF 초과 시 예외
+    if total_months > MAX_FFR_MONTHS_DIFF:
+        raise ValueError(
+            f"FFR 데이터 부족: 필요 월 {year_month_str}의 FFR 데이터가 없으며, "
+            f"가장 가까운 이전 데이터는 {closest_month} ({total_months}개월 전)입니다. "
+            f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다."
+        )
+
+    # 7. 가장 가까운 이전 월의 FFR 값 반환
+    return ffr_dict[closest_month]
+
+
 def validate_ffr_coverage(
     overlap_start: date,
     overlap_end: date,
@@ -94,10 +175,7 @@ def validate_ffr_coverage(
     # 2. FFR 데이터 존재 여부 확인
     ffr_dates = set(ffr_df[COL_FFR_DATE])
     if not ffr_dates:
-        raise ValueError(
-            f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 "
-            f"FFR 데이터가 전혀 존재하지 않습니다."
-        )
+        raise ValueError(f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 " f"FFR 데이터가 전혀 존재하지 않습니다.")
 
     # 3. FFR 데이터 범위 확인
     ffr_start = min(ffr_dates)
@@ -146,26 +224,20 @@ def validate_ffr_coverage(
 
 
 def calculate_daily_cost(
-    date_value: date,  # 타입 힌트: 이 파라미터는 date 타입이어야 함
-    ffr_df: pd.DataFrame,  # DataFrame: 엑셀 시트 같은 표 형태 데이터
-    expense_ratio: float,  # float: 실수 (소수점 있는 숫자)
-    funding_spread: float,  # float: 실수 (소수점 있는 숫자)
-    leverage: float,  # 레버리지 배율 (예: 2.0, 3.0, 4.0)
-) -> float:  # 반환 타입: 이 함수는 float를 반환함
+    date_value: date,
+    ffr_dict: dict[str, float],
+    expense_ratio: float,
+    funding_spread: float,
+    leverage: float,
+) -> float:
     """
     특정 날짜의 일일 비용률을 계산한다.
 
     FFR 데이터 커버리지는 호출 측에서 사전 검증되어야 한다.
 
-    학습 포인트:
-    1. f-string: f"{변수}" 형태로 문자열 안에 변수 삽입
-    2. :04d 포맷: 정수를 4자리로 표시, 부족하면 0으로 채움 (예: 24 -> 0024)
-    3. 불린 인덱싱: df[df[컬럼] == 값] - 조건에 맞는 행만 필터링
-    4. .iloc[-1]: 마지막 행 접근 (인덱스 -1은 항상 마지막 요소)
-
     Args:
         date_value: 계산 대상 날짜
-        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float)
+        ffr_dict: 연방기금금리 딕셔너리 ({"YYYY-MM": ffr_value})
         expense_ratio: 연간 expense ratio (예: 0.009 = 0.9%)
         funding_spread: FFR에 더해지는 스프레드 (예: 0.006 = 0.6%)
         leverage: 레버리지 배율 (예: 3.0 = 3배 레버리지)
@@ -176,31 +248,8 @@ def calculate_daily_cost(
     Raises:
         ValueError: FFR 데이터가 존재하지 않을 때
     """
-    # 1. 해당 월의 FFR 조회 (Year-Month 기준, 문자열 형식)
-    # f-string을 사용한 날짜 포맷팅 (예: 2024-01)
-    year_month_str = f"{date_value.year:04d}-{date_value.month:02d}"
-
-    # DataFrame 불린 인덱싱: 조건에 맞는 행만 추출
-    # ffr_df[COL_FFR_DATE] == year_month_str은 True/False 배열을 반환
-    # 이 배열을 인덱스로 사용하면 True인 행만 선택됨
-    ffr_row = ffr_df[ffr_df[COL_FFR_DATE] == year_month_str]
-
-    # .empty: DataFrame이나 Series가 비어있는지 확인하는 속성
-    # True면 데이터 없음, False면 데이터 있음
-    if ffr_row.empty:
-        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용
-        previous_dates = ffr_df[ffr_df[COL_FFR_DATE] < year_month_str]
-
-        # not 연산자: 불린값 반대로 변환 (True -> False, False -> True)
-        if not previous_dates.empty:
-            # .iloc[-1]: 마지막 행 접근 (파이썬 음수 인덱스 활용)
-            # float() 함수: 값을 실수로 변환 (타입 안정성 확보)
-            ffr = float(previous_dates.iloc[-1][COL_FFR])
-        else:
-            raise ValueError(f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다.")
-    else:
-        # .iloc[0]: 첫 번째 행 접근 (인덱스 0)
-        ffr = float(ffr_row.iloc[0][COL_FFR])
+    # 1. 해당 월의 FFR 조회 (딕셔너리 O(1) 조회)
+    ffr = _lookup_ffr(date_value, ffr_dict)
 
     # 2. All-in funding rate 계산
     # FFR은 퍼센트 단위이므로 100으로 나눔 (예: 5.0 -> 0.05)
@@ -229,7 +278,7 @@ def simulate(
     leverage: float,
     expense_ratio: float,
     initial_price: float,
-    ffr_df: pd.DataFrame,
+    ffr_dict: dict[str, float],
     funding_spread: float = DEFAULT_FUNDING_SPREAD,
 ) -> pd.DataFrame:
     """
@@ -244,7 +293,7 @@ def simulate(
         leverage: 레버리지 배수 (예: 3.0)
         expense_ratio: 연간 비용 비율 (예: 0.009 = 0.9%)
         initial_price: 시작 가격
-        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        ffr_dict: 연방기금금리 딕셔너리 ({"YYYY-MM": ffr_value})
         funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
 
     Returns:
@@ -305,7 +354,7 @@ def simulate(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]
-            daily_cost = calculate_daily_cost(current_date, ffr_df, expense_ratio, funding_spread, leverage)
+            daily_cost = calculate_daily_cost(current_date, ffr_dict, expense_ratio, funding_spread, leverage)
 
             # 레버리지 수익률 = 기초 자산 수익률 × 배율 - 일일 비용
             # 예: 기초 자산 +1%, 3배 레버리지 -> +3% - 비용
@@ -352,10 +401,10 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
     Returns:
         후보 평가 결과 딕셔너리
     """
-    # WORKER_CACHE에서 DataFrame 조회
+    # WORKER_CACHE에서 DataFrame과 FFR 딕셔너리 조회
     underlying_overlap = WORKER_CACHE["underlying_overlap"]
     actual_overlap = WORKER_CACHE["actual_overlap"]
-    ffr_df = WORKER_CACHE["ffr_df"]
+    ffr_dict = WORKER_CACHE["ffr_dict"]
 
     # 시뮬레이션 실행
     sim_df = simulate(
@@ -363,7 +412,7 @@ def _evaluate_cost_model_candidate(params: dict) -> dict:
         leverage=params["leverage"],
         expense_ratio=params[KEY_EXPENSE],
         initial_price=params["initial_price"],
-        ffr_df=ffr_df,
+        ffr_dict=ffr_dict,
         funding_spread=params[KEY_SPREAD],
     )
 
@@ -474,9 +523,7 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(
-            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
-        )
+        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -714,7 +761,10 @@ def find_optimal_cost_model(
     overlap_end = underlying_overlap[COL_DATE].iloc[-1]
     validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
-    # 3. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    # 3. FFR 딕셔너리 생성 (한 번만 전처리)
+    ffr_dict = _create_ffr_dict(ffr_df)
+
+    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
     # 4. 2D Grid search를 위한 파라미터 조합 생성
@@ -734,7 +784,7 @@ def find_optimal_cost_model(
                 }
             )
 
-    # 5. 병렬 실행 (DataFrame들을 워커 캐시에 저장)
+    # 5. 병렬 실행 (DataFrame들과 FFR 딕셔너리를 워커 캐시에 저장)
     candidates = execute_parallel(
         _evaluate_cost_model_candidate,
         param_combinations,
@@ -744,7 +794,7 @@ def find_optimal_cost_model(
             {
                 "underlying_overlap": underlying_overlap,
                 "actual_overlap": actual_overlap,
-                "ffr_df": ffr_df,
+                "ffr_dict": ffr_dict,
             },
         ),
     )

@@ -109,11 +109,28 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 #### 주요 함수
 
-**`calculate_daily_cost(date_value, ffr_df, expense_ratio, funding_spread)`**:
+**`_create_ffr_dict(ffr_df)`**:
+
+- FFR DataFrame을 O(1) 조회용 딕셔너리로 변환
+- 입력: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+- 반환: `{"YYYY-MM": ffr_value}` 딕셔너리
+- 중복 월 검증: 중복 발견 시 즉시 ValueError (데이터 무결성 보장)
+- 예외: 빈 DataFrame 또는 중복 월 발견 시
+
+**`_lookup_ffr(date_value, ffr_dict)`**:
+
+- FFR 딕셔너리에서 특정 날짜의 금리 조회
+- 입력: 날짜, FFR 딕셔너리
+- 반환: FFR 값 (float)
+- 조회 로직: 정확한 월 매칭 → 이전 월 폴백
+- FFR 데이터 검증: 최근 데이터와의 월 차이가 `MAX_FFR_MONTHS_DIFF` 초과 시 예외
+
+**`calculate_daily_cost(date_value, ffr_dict, expense_ratio, funding_spread, leverage)`**:
 
 - 특정 날짜의 일일 비용률 계산
-- 입력: 날짜, FFR DataFrame, 연간 expense ratio, funding spread
+- 입력: 날짜, FFR 딕셔너리, 연간 expense ratio, funding spread, 레버리지 배수
 - 반환: 일일 비용률 (소수)
+- 성능: FFR 조회 O(1) 딕셔너리 조회 (기존 DataFrame 필터링 대비 대폭 개선)
 - 비용 공식:
   ```
   연간 자금 조달 비용률 = (FFR + funding_spread) × 레버리지 차입 비율
@@ -121,17 +138,16 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
   일일 운용 비용 = expense_ratio / TRADING_DAYS_PER_YEAR
   총 일일 비용 = 일일 자금 조달 비용 + 일일 운용 비용
   ```
-- FFR 데이터 검증: 최근 데이터와의 월 차이가 `MAX_FFR_MONTHS_DIFF` 초과 시 예외
 
-**`simulate(underlying_df, ffr_df, leverage, funding_spread, expense_ratio, initial_price)`**:
+**`simulate(underlying_df, leverage, expense_ratio, initial_price, ffr_dict, funding_spread)`**:
 
 - 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- 입력: 기초 자산 DataFrame, FFR DataFrame, 레버리지 배수, spread, expense ratio, 초기 가격
+- 입력: 기초 자산 DataFrame, 레버리지 배수, expense ratio, 초기 가격, FFR 딕셔너리, spread
 - 반환: 시뮬레이션 결과 DataFrame (OHLCV 형식)
 - 시뮬레이션 로직:
   1. 기초 자산 일일 수익률 계산 (`pct_change()`)
   2. 각 거래일마다:
-     - 동적 비용 계산 (`calculate_daily_cost`)
+     - 동적 비용 계산 (`calculate_daily_cost`, O(1) FFR 조회)
      - 레버리지 수익률 = 기초 수익률 × 레버리지 배수 - 일일 비용
      - 가격 업데이트 (복리 효과 반영)
   3. OHLV 데이터 구성 (Open = 전일 Close, High/Low/Volume = 0)
@@ -151,12 +167,13 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 처리 흐름:
   1. 겹치는 기간 추출 (`extract_overlap_period`)
   2. FFR 커버리지 검증 (overlap 기간에 대한 FFR 데이터 충분성 확인)
-  3. 그리드 생성 (spread × expense 조합)
-  4. 병렬 실행 (`execute_parallel`)
+  3. FFR 딕셔너리 생성 (`_create_ffr_dict`) - 한 번만 전처리
+  4. 그리드 생성 (spread × expense 조합)
+  5. 병렬 실행 (`execute_parallel`, FFR 딕셔너리는 WORKER_CACHE 활용)
      - 각 조합마다 `simulate()` 실행
      - `calculate_validation_metrics()` 호출하여 오차 계산
-  5. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
-  6. 상위 전략 반환
+  6. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
+  7. 상위 전략 반환
 
 **`calculate_validation_metrics(underlying_df, simul_df, ffr_df, leverage, funding_spread, expense_ratio)`**:
 

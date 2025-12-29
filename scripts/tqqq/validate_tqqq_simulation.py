@@ -74,7 +74,7 @@ def main() -> int:
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
 
-    # 2. 비용 모델 캘리브레이션 (검증은 비즈니스 로직 내부에서 수행)
+    # 2. 비용 모델 캘리브레이션 (검증 및 FFR 딕셔너리 생성은 비즈니스 로직 내부에서 수행)
     logger.debug(
         f"비용 모델 캘리브레이션 시작: "
         f"leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
