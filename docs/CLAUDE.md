@@ -29,9 +29,8 @@ docs/
 
 계획서/코드를 작성할 때는 아래 문서를 **반드시 먼저 읽고**, 그 안에 기재된 규칙을 **전체 숙지**한 뒤 작업합니다.
 
-- 공통 규칙: `CLAUDE.md`(루트), `tests/CLAUDE.md`(테스트), `src/qbt/utils/CLAUDE.md`(유틸), `scripts/CLAUDE.md`(스크립트)
+- 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `src/qbt/utils/CLAUDE.md`(유틸), `tests/CLAUDE.md`(테스트)
 - 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
-
   - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md` 등
 
 > ⚠️ plan의 “영향받는 규칙”에는 규칙을 요약/나열하지 말고,

@@ -17,7 +17,11 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
+from qbt.tqqq.data_loader import (
+    load_comparison_data,
+    load_expense_ratio_data,
+    load_ffr_data,
+)
 
 
 class TestLoadFfrData:
@@ -48,6 +52,25 @@ class TestLoadFfrData:
         assert len(df) == 3
         # FFR 데이터는 날짜 파싱을 하지 않음 (문자열 그대로 유지)
 
+    def test_value_in_decimal_range(self, tmp_path, sample_ffr_df):
+        """
+        FFR VALUE 값이 0~1 비율 범위에 있는지 검증
+
+        Given: VALUE가 0~1 범위의 소수인 CSV
+        When: load_ffr_data 호출
+        Then: VALUE 값이 모두 0~1 사이
+        """
+        # Given
+        csv_path = tmp_path / "ffr.csv"
+        sample_ffr_df.to_csv(csv_path, index=False)
+
+        # When
+        df = load_ffr_data(csv_path)
+
+        # Then
+        assert (df["VALUE"] >= 0).all(), "VALUE 값이 0 이상이어야 합니다"
+        assert (df["VALUE"] <= 1).all(), "VALUE 값이 1 이하여야 합니다 (비율 형식)"
+
     def test_file_not_found(self, tmp_path):
         """
         FFR 파일 부재 테스트
@@ -62,6 +85,66 @@ class TestLoadFfrData:
         # When & Then
         with pytest.raises(FileNotFoundError):
             load_ffr_data(non_existent)
+
+
+class TestLoadExpenseRatioData:
+    """운용비율(Expense Ratio) 데이터 로딩 테스트"""
+
+    def test_normal_load(self, tmp_path, sample_expense_df):
+        """
+        Expense Ratio 데이터 정상 로딩 테스트
+
+        Given: DATE, VALUE 컬럼이 있는 CSV
+        When: load_expense_ratio_data 호출
+        Then:
+          - VALUE 컬럼이 그대로 유지됨
+          - 날짜 파싱 및 정렬
+        """
+        # Given
+        csv_path = tmp_path / "expense.csv"
+        sample_expense_df.to_csv(csv_path, index=False)
+
+        # When
+        df = load_expense_ratio_data(csv_path)
+
+        # Then
+        assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
+        assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
+        assert len(df) == 3
+
+    def test_value_in_decimal_range(self, tmp_path, sample_expense_df):
+        """
+        Expense Ratio VALUE 값이 0~1 비율 범위에 있는지 검증
+
+        Given: VALUE가 0~1 범위의 소수인 CSV
+        When: load_expense_ratio_data 호출
+        Then: VALUE 값이 모두 0~1 사이
+        """
+        # Given
+        csv_path = tmp_path / "expense.csv"
+        sample_expense_df.to_csv(csv_path, index=False)
+
+        # When
+        df = load_expense_ratio_data(csv_path)
+
+        # Then
+        assert (df["VALUE"] >= 0).all(), "VALUE 값이 0 이상이어야 합니다"
+        assert (df["VALUE"] <= 1).all(), "VALUE 값이 1 이하여야 합니다 (비율 형식)"
+
+    def test_file_not_found(self, tmp_path):
+        """
+        Expense Ratio 파일 부재 테스트
+
+        Given: 존재하지 않는 파일
+        When: load_expense_ratio_data 호출
+        Then: FileNotFoundError
+        """
+        # Given
+        non_existent = tmp_path / "no_expense.csv"
+
+        # When & Then
+        with pytest.raises(FileNotFoundError):
+            load_expense_ratio_data(non_existent)
 
 
 class TestLoadComparisonData:

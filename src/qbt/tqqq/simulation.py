@@ -190,7 +190,7 @@ def _lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
         ffr_dict: FFR 딕셔너리 ({"YYYY-MM": ffr_value})
 
     Returns:
-        FFR 값 (퍼센트 단위, 예: 4.5)
+        FFR 값 (0~1 비율, 예: 0.045 = 4.5%)
 
     Raises:
         ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
@@ -338,8 +338,8 @@ def calculate_daily_cost(
     expense_ratio = _lookup_expense(date_value, expense_dict)
 
     # 3. All-in funding rate 계산
-    # FFR은 퍼센트 단위이므로 100으로 나눔 (예: 5.0 -> 0.05)
-    funding_rate = ffr / 100 + funding_spread
+    # FFR은 0~1 비율이므로 직접 사용 (예: 0.05 = 5.0%)
+    funding_rate = ffr + funding_spread
 
     # 4. 레버리지 비용 (차입 비율 = leverage - 1)
     # 레버리지 배율에 따라 빌린 돈의 비율 계산

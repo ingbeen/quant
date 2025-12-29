@@ -50,9 +50,9 @@ def sample_ffr_df():
     TQQQ 시뮬레이션에서 차입 비용 계산에 사용되는 데이터입니다.
 
     Returns:
-        pd.DataFrame: DATE(yyyy-mm 문자열), VALUE(금리 % float) 컬럼
+        pd.DataFrame: DATE(yyyy-mm 문자열), VALUE(0~1 비율, 예: 0.045 = 4.5%) 컬럼
     """
-    return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "VALUE": [4.5, 4.6, 4.7]})
+    return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "VALUE": [0.045, 0.046, 0.047]})
 
 
 @pytest.fixture

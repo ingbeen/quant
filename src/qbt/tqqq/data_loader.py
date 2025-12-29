@@ -69,9 +69,7 @@ def load_expense_ratio_data(path: Path) -> pd.DataFrame:
     logger.debug(f"Expense Ratio 데이터 로딩: {path}")
     df = pd.read_csv(path)
 
-    logger.debug(
-        f"Expense Ratio 로드 완료: {len(df)}개월, 범위 {df[COL_EXPENSE_DATE].min()} ~ {df[COL_EXPENSE_DATE].max()}"
-    )
+    logger.debug(f"Expense Ratio 로드 완료: {len(df)}개월, 범위 {df[COL_EXPENSE_DATE].min()} ~ {df[COL_EXPENSE_DATE].max()}")
 
     return df
 

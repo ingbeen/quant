@@ -327,14 +327,14 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 **금리 데이터 (FFR)**:
 
 - 월별 기준 금리 (Federal Funds Rate)
-- 형식: `DATE` (yyyy-mm 문자열), `VALUE` (금리 %, 소수)
+- 형식: `DATE` (yyyy-mm 문자열), `VALUE` (0~1 비율, 예: 0.0463 = 4.63%)
 - 검증: 최근 데이터와의 시간 차이 `MAX_FFR_MONTHS_DIFF` (2개월) 이내
 - 예외 발생: 허용 갭 초과 시 `ValueError`
 
 **운용비율 데이터 (Expense Ratio)**:
 
 - 월별 TQQQ 운용비율 (Net Expense Ratio)
-- 형식: `DATE` (yyyy-mm 문자열), `VALUE` (연간 운용비율, 0~1 소수)
+- 형식: `DATE` (yyyy-mm 문자열), `VALUE` (0~1 비율, 예: 0.0095 = 0.95%)
 - 데이터 경로: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
 - 검증:
   - 중복 월 금지

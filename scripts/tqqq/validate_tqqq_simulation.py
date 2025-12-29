@@ -112,10 +112,10 @@ def main() -> int:
         (DISPLAY_SPREAD, 14, Align.RIGHT),
         (COL_ACTUAL_CLOSE, 11, Align.RIGHT),
         (COL_SIMUL_CLOSE, 11, Align.RIGHT),
-        (COL_ACTUAL_CUMUL_RETURN, 18, Align.RIGHT),
-        (COL_SIMUL_CUMUL_RETURN, 18, Align.RIGHT),
-        (COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE, 24, Align.RIGHT),
-        (COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN, 24, Align.RIGHT),
+        (COL_ACTUAL_CUMUL_RETURN, 22, Align.RIGHT),
+        (COL_SIMUL_CUMUL_RETURN, 22, Align.RIGHT),
+        (COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE, 26, Align.RIGHT),
+        (COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN, 26, Align.RIGHT),
     ]
     table = TableLogger(columns, logger, indent=2)
 
