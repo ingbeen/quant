@@ -70,13 +70,12 @@ MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 # --- CSV 컬럼명 (DataFrame 내부용) ---
 
 # FFR 데이터
-COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼 (대문자)
-COL_FFR_VALUE_RAW = "VALUE"  # FFR CSV의 원본 금리 값 컬럼
-COL_FFR = "FFR"  # 변환 후 금리 컬럼명
+COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼
+COL_FFR_VALUE = "VALUE"  # FFR CSV의 금리 값 컬럼
 
 # Expense Ratio 데이터
-COL_EXPENSE_DATE = "DATE"  # Expense Ratio CSV의 날짜 컬럼 (대문자)
-COL_EXPENSE_VALUE = "VALUE"  # Expense Ratio CSV의 값 컬럼 (0~1 비율)
+COL_EXPENSE_DATE = "DATE"  # Expense Ratio CSV의 날짜 컬럼
+COL_EXPENSE_VALUE = "VALUE"  # Expense Ratio CSV의 값 컬럼
 
 # 일별 비교 데이터 - 종가
 COL_ACTUAL_CLOSE = "종가_실제"

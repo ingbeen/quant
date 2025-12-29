@@ -17,10 +17,7 @@ import pandas as pd
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
     COL_EXPENSE_DATE,
-    COL_EXPENSE_VALUE,
-    COL_FFR,
     COL_FFR_DATE,
-    COL_FFR_VALUE_RAW,
     COMPARISON_COLUMNS,
 )
 from qbt.utils import get_logger
@@ -37,7 +34,7 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
         path: CSV 파일 경로
 
     Returns:
-        FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+        FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
@@ -47,7 +44,6 @@ def load_ffr_data(path: Path) -> pd.DataFrame:
 
     logger.debug(f"FFR 데이터 로딩: {path}")
     df = pd.read_csv(path)
-    df.rename(columns={COL_FFR_VALUE_RAW: COL_FFR}, inplace=True)
 
     logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df[COL_FFR_DATE].min()} ~ {df[COL_FFR_DATE].max()}")
 
@@ -62,11 +58,10 @@ def load_expense_ratio_data(path: Path) -> pd.DataFrame:
         path: CSV 파일 경로
 
     Returns:
-        Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
-        ValueError: 값 범위가 유효하지 않을 때 (0 < value <= 0.02)
     """
     if not path.exists():
         raise FileNotFoundError(f"Expense Ratio 파일을 찾을 수 없습니다: {path}")
@@ -74,19 +69,8 @@ def load_expense_ratio_data(path: Path) -> pd.DataFrame:
     logger.debug(f"Expense Ratio 데이터 로딩: {path}")
     df = pd.read_csv(path)
 
-    # 값 범위 검증 (0 < value <= 0.02, 즉 0~2%)
-    min_value = df[COL_EXPENSE_VALUE].min()
-    max_value = df[COL_EXPENSE_VALUE].max()
-
-    if min_value <= 0:
-        raise ValueError(f"Expense Ratio 값이 0 이하입니다: 최소값 = {min_value}")
-
-    if max_value > 0.02:
-        raise ValueError(f"Expense Ratio 값이 2%를 초과합니다: 최대값 = {max_value} (2% = 0.02)")
-
     logger.debug(
-        f"Expense Ratio 로드 완료: {len(df)}개월, 범위 {df[COL_EXPENSE_DATE].min()} ~ {df[COL_EXPENSE_DATE].max()}, "
-        f"값 범위 {min_value:.4f}~{max_value:.4f}"
+        f"Expense Ratio 로드 완료: {len(df)}개월, 범위 {df[COL_EXPENSE_DATE].min()} ~ {df[COL_EXPENSE_DATE].max()}"
     )
 
     return df

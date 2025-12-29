@@ -32,7 +32,7 @@ class TestLoadFfrData:
         Given: DATE, VALUE 컬럼이 있는 CSV
         When: load_ffr_data 호출
         Then:
-          - VALUE가 FFR로 rename됨
+          - VALUE 컬럼이 그대로 유지됨 (rename 없음)
           - 날짜 파싱 및 정렬
         """
         # Given
@@ -43,8 +43,8 @@ class TestLoadFfrData:
         df = load_ffr_data(csv_path)
 
         # Then
-        assert "FFR" in df.columns, "VALUE 컬럼이 FFR로 rename되어야 합니다"
-        assert "VALUE" not in df.columns, "원래 VALUE 컬럼은 사라져야 합니다"
+        assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
+        assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
         assert len(df) == 3
         # FFR 데이터는 날짜 파싱을 하지 않음 (문자열 그대로 유지)
 

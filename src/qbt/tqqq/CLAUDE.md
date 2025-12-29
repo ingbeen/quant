@@ -44,8 +44,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 - 연방기금금리(FFR) 월별 데이터 로딩
 - 입력: CSV 파일 경로
-- 반환: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
-- VALUE 컬럼을 FFR로 자동 rename
+- 반환: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
 - DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
 - 예외: FileNotFoundError (파일 부재 시)
 
@@ -55,10 +54,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 입력: CSV 파일 경로
 - 반환: Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
 - DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
-- 값 범위 검증: 0 < expense <= 0.02 (0~2%)
-- 예외:
-  - FileNotFoundError (파일 부재 시)
-  - ValueError (값 범위 벗어날 시)
+- 예외: FileNotFoundError (파일 부재 시)
 
 **`load_comparison_data(path: Path) -> pd.DataFrame`**:
 
@@ -106,7 +102,8 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 **컬럼 및 키 정의**:
 
-- FFR 데이터: `COL_FFR_DATE`, `COL_FFR_VALUE_RAW`, `COL_FFR`
+- FFR 데이터: `COL_FFR_DATE`, `COL_FFR_VALUE`
+- Expense Ratio 데이터: `COL_EXPENSE_DATE`, `COL_EXPENSE_VALUE`
 - 일별 비교: `COL_ACTUAL_CLOSE`, `COL_SIMUL_CLOSE`, `COL_ACTUAL_DAILY_RETURN`, `COL_SIMUL_DAILY_RETURN`, `COL_CUMUL_MULTIPLE_LOG_DIFF` 등
 - 딕셔너리 키: `KEY_SPREAD`, `KEY_EXPENSE`, `KEY_OVERLAP_START`, `KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE` 등
 
@@ -143,7 +140,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 - FFR DataFrame을 O(1) 조회용 딕셔너리로 변환
 - 내부적으로 `_create_monthly_data_dict()` 호출
-- 입력: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+- 입력: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
 - 반환: `{"YYYY-MM": ffr_value}` 딕셔너리
 
 **`_lookup_ffr(date_value, ffr_dict)`**:
@@ -342,8 +339,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 검증:
   - 중복 월 금지
   - 최근 데이터와의 시간 차이 `MAX_EXPENSE_MONTHS_DIFF` (12개월) 이내
-  - 값 범위: 0 < expense <= 0.02 (0~2%)
-- 예외 발생: 중복 월, 허용 갭 초과, 값 범위 벗어날 시 `ValueError`
+- 예외 발생: 중복 월, 허용 갭 초과 시 `ValueError`
 
 **실제 레버리지 상품 데이터**:
 

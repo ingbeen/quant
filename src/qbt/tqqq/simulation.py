@@ -39,8 +39,8 @@ from qbt.tqqq.constants import (
     COL_DAILY_RETURN_ABS_DIFF,
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
-    COL_FFR,
     COL_FFR_DATE,
+    COL_FFR_VALUE,
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
@@ -168,7 +168,7 @@ def _create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
     내부적으로 제네릭 월별 데이터 함수를 사용한다.
 
     Args:
-        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
 
     Returns:
         {"YYYY-MM": ffr_value} 형태의 딕셔너리
@@ -176,7 +176,7 @@ def _create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
     Raises:
         ValueError: 빈 DataFrame 또는 중복 월 발견 시
     """
-    return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR, "FFR")
+    return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR")
 
 
 def _lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
