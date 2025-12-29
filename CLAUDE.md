@@ -16,28 +16,27 @@
 
 **각 작업 전에 해당 도메인의 CLAUDE.md를 반드시 읽습니다**:
 
-- **docs 관련 작업**: [`docs/CLAUDE.md`](docs/CLAUDE.md) 참고
-- **tests 관련 작업**: [`tests/CLAUDE.md`](tests/CLAUDE.md) 참고
-- **CLI 계층 작업**: [`scripts/CLAUDE.md`](scripts/CLAUDE.md) 참고
-- **백테스트 도메인**: [`src/qbt/backtest/CLAUDE.md`](src/qbt/backtest/CLAUDE.md) 참고
-- **TQQQ 시뮬레이션**: [`src/qbt/tqqq/CLAUDE.md`](src/qbt/tqqq/CLAUDE.md) 참고
-- **유틸리티 패키지**: [`src/qbt/utils/CLAUDE.md`](src/qbt/utils/CLAUDE.md) 참고
+- docs 관련 작업: [`docs/CLAUDE.md`](docs/CLAUDE.md) 참고
+- tests 관련 작업: [`tests/CLAUDE.md`](tests/CLAUDE.md) 참고
+- CLI 계층 작업: [`scripts/CLAUDE.md`](scripts/CLAUDE.md) 참고
+- 백테스트 도메인: [`src/qbt/backtest/CLAUDE.md`](src/qbt/backtest/CLAUDE.md) 참고
+- TQQQ 시뮬레이션: [`src/qbt/tqqq/CLAUDE.md`](src/qbt/tqqq/CLAUDE.md) 참고
+- 유틸리티 패키지: [`src/qbt/utils/CLAUDE.md`](src/qbt/utils/CLAUDE.md) 참고
 
 ---
 
 ## 계획서(Plan) 작성이 필요한 경우
 
-다음 조건 중 **두 개 이상** 해당하면 먼저 [`docs/CLAUDE.md`](docs/CLAUDE.md)를 읽고 `docs/plans/`에 계획서를 작성해야 합니다:
+다음 조건 중 **하나 이상** 해당하면 먼저 [`docs/CLAUDE.md`](docs/CLAUDE.md)를 읽고 `docs/plans/`에 계획서를 작성해야 합니다:
 
-1. **변경 범위가 여러 모듈/여러 파일에 걸침**
-2. **`storage/*` CSV 스키마, 저장 규칙, 결과 컬럼 등 불변 규칙에 영향**
-3. **백테스트/시뮬레이션 핵심 로직 변경** (수익률, 비용, 체결 규칙 등)
-4. **테스트 다수 추가가 필요**하거나 회귀 가능성이 높음
-5. **"어디까지가 완료(Done)인지"가 애매**한 경우
+1. 변경 범위가 여러 모듈/여러 파일에 걸침
+2. `storage/*` CSV 스키마, 저장 규칙, 결과 컬럼 등 불변 규칙에 영향
+3. 비지니스/핵심 로직 변경
+4. 테스트 다수 추가가 필요하거나 회귀 가능성이 높음
 
 작은 변경(오타, 주석, 단일 버그 픽스, 로그 메시지 수정 등)은 계획서 없이 바로 진행합니다.
 
-**계획서 작성 절차 및 품질 게이트**: [`docs/CLAUDE.md`](docs/CLAUDE.md)에서 상세 내용 확인
+계획서 작성 절차 및 품질 게이트: [`docs/CLAUDE.md`](docs/CLAUDE.md)에서 상세 내용 확인
 
 ---
 
@@ -139,9 +138,9 @@ quant/
 
 **상수 명명 규칙**:
 
-- **COL\_**: DataFrame이나 테이블 형식 데이터의 컬럼명 (예: `COL_DATE`, `COL_CLOSE`)
-- **KEY\_**: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_EXPENSE`)
-- **DISPLAY\_**: CSV 출력이나 로그 표시용 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`)
+- COL\_: DataFrame이나 테이블 형식 데이터의 컬럼명 (예: `COL_DATE`, `COL_CLOSE`)
+- KEY\_: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_EXPENSE`)
+- DISPLAY\_: CSV 출력이나 로그 표시용 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`)
 - 도메인 한 곳에서만 사용되는 상수는 해당 도메인의 `constants.py`에 정의
 
 ### 3. 핵심 패턴
@@ -270,6 +269,11 @@ quant/
 - `TableLogger` 클래스 사용
 - 컬럼 정의 (이름, 폭, 정렬) → 인스턴스 생성 → 데이터 출력
 
+**요약 통계**:
+
+- 주요 지표를 간결하게 표시
+- 구분선으로 섹션 분리
+
 ### 테스트
 
 - 테스트 코드도 동일한 품질 기준 적용
@@ -328,7 +332,7 @@ quant/
 
 ## 개발 원칙
 
-1. **YAGNI**: 필요성이 확인될 때 구현
-2. **간결성**: 불필요한 추상화 지양
-3. **확장성**: 도메인별 모듈 독립성 유지
-4. **사용자 중심**: 한글 메시지, 명확한 오류 정보
+1. YAGNI: 필요성이 확인될 때 구현
+2. 간결성: 불필요한 추상화 지양
+3. 확장성: 도메인별 모듈 독립성 유지
+4. 사용자 중심: 한글 메시지, 명확한 오류 정보
