@@ -59,8 +59,8 @@ DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP = 0.0005  # 스프레드 증분 (%)
 
 # --- 데이터 검증 및 결과 제한 ---
-MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이 (비율 0.02 = 2%)
-MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (비율 0.12 = 12%)
+MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이 (개월)
+MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 
 # ============================================================
