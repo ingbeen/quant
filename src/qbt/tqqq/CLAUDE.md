@@ -139,18 +139,20 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
   총 일일 비용 = 일일 자금 조달 비용 + 일일 운용 비용
   ```
 
-**`simulate(underlying_df, leverage, expense_ratio, initial_price, ffr_dict, funding_spread)`**:
+**`simulate(underlying_df, leverage, expense_ratio, initial_price, ffr_df, funding_spread, ffr_dict=None)`**:
 
 - 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- 입력: 기초 자산 DataFrame, 레버리지 배수, expense ratio, 초기 가격, FFR 딕셔너리, spread
+- 입력: 기초 자산 DataFrame, 레버리지 배수, expense ratio, 초기 가격, FFR DataFrame, spread
+- FFR 커버리지 검증은 함수 내부에서 자동 수행됨 (ffr_df 사용 시)
 - 반환: 시뮬레이션 결과 DataFrame (OHLCV 형식)
 - 시뮬레이션 로직:
-  1. 기초 자산 일일 수익률 계산 (`pct_change()`)
-  2. 각 거래일마다:
+  1. FFR 커버리지 검증 + 딕셔너리 변환 (자동)
+  2. 기초 자산 일일 수익률 계산 (`pct_change()`)
+  3. 각 거래일마다:
      - 동적 비용 계산 (`calculate_daily_cost`, O(1) FFR 조회)
      - 레버리지 수익률 = 기초 수익률 × 레버리지 배수 - 일일 비용
      - 가격 업데이트 (복리 효과 반영)
-  3. OHLV 데이터 구성 (Open = 전일 Close, High/Low/Volume = 0)
+  4. OHLV 데이터 구성 (Open = 전일 Close, High/Low/Volume = 0)
 
 **`extract_overlap_period(underlying_df, actual_leveraged_df)`**:
 
@@ -162,15 +164,15 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 - 그리드 서치로 최적 비용 모델 파라미터 탐색
 - 입력: 기초 자산 DataFrame, 실제 레버리지 ETF DataFrame, FFR DataFrame, 레버리지 배수, 그리드 범위/증분
+- FFR 커버리지 검증 및 딕셔너리 변환은 병렬 실행 전 한 번만 수행 (성능 최적화)
 - 반환: 상위 전략 리스트 (딕셔너리, 최대 `MAX_TOP_STRATEGIES`개)
-- 검증: 내부에서 FFR 커버리지 검증 수행 (`validate_ffr_coverage`)
 - 처리 흐름:
   1. 겹치는 기간 추출 (`extract_overlap_period`)
-  2. FFR 커버리지 검증 (overlap 기간에 대한 FFR 데이터 충분성 확인)
-  3. FFR 딕셔너리 생성 (`_create_ffr_dict`) - 한 번만 전처리
+  2. FFR 커버리지 검증 (overlap 기간에 대한 FFR 데이터 충분성 확인, fail-fast)
+  3. FFR 딕셔너리 생성 (`_create_ffr_dict`) - 검증 완료 후 한 번만 전처리
   4. 그리드 생성 (spread × expense 조합)
-  5. 병렬 실행 (`execute_parallel`, FFR 딕셔너리는 WORKER_CACHE 활용)
-     - 각 조합마다 `simulate()` 실행
+  5. 병렬 실행 (`execute_parallel`, 검증된 FFR 딕셔너리는 WORKER_CACHE 활용)
+     - 각 조합마다 `simulate()` 실행 (ffr_dict 사용)
      - `calculate_validation_metrics()` 호출하여 오차 계산
   6. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
   7. 상위 전략 반환

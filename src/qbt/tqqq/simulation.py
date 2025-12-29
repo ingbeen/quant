@@ -97,7 +97,8 @@ def _create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
         # 중복 월 발견 시 즉시 예외 (데이터 무결성 보장)
         if month_key in ffr_dict:
             raise ValueError(
-                f"FFR 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. " f"기존 값: {ffr_dict[month_key]}, 중복 값: {ffr_value}"
+                f"FFR 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. "
+                f"기존 값: {ffr_dict[month_key]}, 중복 값: {ffr_value}"
             )
 
         ffr_dict[month_key] = ffr_value
@@ -175,7 +176,10 @@ def validate_ffr_coverage(
     # 2. FFR 데이터 존재 여부 확인
     ffr_dates = set(ffr_df[COL_FFR_DATE])
     if not ffr_dates:
-        raise ValueError(f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 " f"FFR 데이터가 전혀 존재하지 않습니다.")
+        raise ValueError(
+            f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 "
+            f"FFR 데이터가 전혀 존재하지 않습니다."
+        )
 
     # 3. FFR 데이터 범위 확인
     ffr_start = min(ffr_dates)
@@ -278,8 +282,9 @@ def simulate(
     leverage: float,
     expense_ratio: float,
     initial_price: float,
-    ffr_dict: dict[str, float],
+    ffr_df: pd.DataFrame | None = None,
     funding_spread: float = DEFAULT_FUNDING_SPREAD,
+    ffr_dict: dict[str, float] | None = None,
 ) -> pd.DataFrame:
     """
     기초 자산 데이터로부터 레버리지 ETF를 시뮬레이션한다.
@@ -288,13 +293,16 @@ def simulate(
     레버리지 배수만큼 움직이도록 계산한다. 스왑비용은 연방기금금리와
     스프레드를 기반으로 동적으로 계산하며, expense ratio를 추가한다.
 
+    FFR 데이터 커버리지는 함수 내부에서 자동 검증된다 (ffr_df 사용 시).
+
     Args:
         underlying_df: 기초 자산 DataFrame (Date, Close 컬럼 필수)
         leverage: 레버리지 배수 (예: 3.0)
         expense_ratio: 연간 비용 비율 (예: 0.009 = 0.9%)
         initial_price: 시작 가격
-        ffr_dict: 연방기금금리 딕셔너리 ({"YYYY-MM": ffr_value})
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float), ffr_dict와 배타적
         funding_spread: FFR에 더해지는 스프레드 (예: 0.6 = 0.6%)
+        ffr_dict: 이미 검증된 FFR 딕셔너리 (내부 사용), ffr_df와 배타적
 
     Returns:
         시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
@@ -302,6 +310,8 @@ def simulate(
     Raises:
         ValueError: 파라미터가 유효하지 않을 때
         ValueError: 필수 컬럼이 누락되었을 때
+        ValueError: FFR 데이터 커버리지가 부족할 때 (ffr_df 사용 시)
+        ValueError: ffr_df와 ffr_dict 모두 제공되거나 모두 누락된 경우
     """
     # 1. 파라미터 검증
     if leverage <= 0:
@@ -309,6 +319,10 @@ def simulate(
 
     if initial_price <= 0:
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
+
+    # ffr_df와 ffr_dict 중 정확히 하나만 제공되어야 함
+    if (ffr_df is None) == (ffr_dict is None):
+        raise ValueError("ffr_df 또는 ffr_dict 중 정확히 하나만 제공해야 합니다")
 
     # 2. 필수 컬럼 검증
     # 학습 포인트: set(집합) 자료형
@@ -322,19 +336,30 @@ def simulate(
     if underlying_df.empty:
         raise ValueError("underlying_df가 비어있습니다")
 
-    # 3. 데이터 복사 (원본 보존)
+    # 3. FFR 처리
+    if ffr_df is not None:
+        # ffr_df 제공 시: 검증 + 변환
+        start_date = underlying_df[COL_DATE].min()
+        end_date = underlying_df[COL_DATE].max()
+        validate_ffr_coverage(start_date, end_date, ffr_df)
+        ffr_dict_to_use: dict[str, float] = _create_ffr_dict(ffr_df)
+    else:
+        # ffr_dict 직접 제공 시: 이미 검증된 것으로 간주
+        ffr_dict_to_use = cast(dict[str, float], ffr_dict)
+
+    # 5. 데이터 복사 (원본 보존)
     # 학습 포인트: DataFrame 인덱싱과 복사
     # - df[[컬럼1, 컬럼2]]: 리스트로 여러 컬럼 선택
     # - .copy(): 깊은 복사 (원본 데이터 보호)
     df = underlying_df[[COL_DATE, COL_CLOSE]].copy()
 
-    # 4. 일일 수익률 계산
+    # 6. 일일 수익률 계산
     # 학습 포인트: .pct_change() - 이전 값 대비 변화율 계산
     # (오늘 값 - 어제 값) / 어제 값
     # 예: [100, 110, 105] -> [NaN, 0.1, -0.0454...]
     df["underlying_return"] = df[COL_CLOSE].pct_change()
 
-    # 5. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
+    # 7. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
     # 첫 날은 initial_price, 이후는 전일 가격 * (1 + 수익률)
     # 학습 포인트: 리스트에 값을 누적하며 계산
     leveraged_prices = [initial_price]  # 빈 리스트에 초기값 추가
@@ -354,7 +379,7 @@ def simulate(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]
-            daily_cost = calculate_daily_cost(current_date, ffr_dict, expense_ratio, funding_spread, leverage)
+            daily_cost = calculate_daily_cost(current_date, ffr_dict_to_use, expense_ratio, funding_spread, leverage)
 
             # 레버리지 수익률 = 기초 자산 수익률 × 배율 - 일일 비용
             # 예: 기초 자산 +1%, 3배 레버리지 -> +3% - 비용
@@ -368,7 +393,7 @@ def simulate(
     # 계산된 가격 리스트를 DataFrame 컬럼에 할당
     df[COL_CLOSE] = leveraged_prices
 
-    # 6. OHLV 데이터 구성
+    # 8. OHLV 데이터 구성
     # Open: 전일 Close (첫날은 initial_price)
     df[COL_OPEN] = df[COL_CLOSE].shift(1).fillna(initial_price)
 
@@ -377,7 +402,7 @@ def simulate(
     df[COL_LOW] = 0.0
     df[COL_VOLUME] = 0
 
-    # 7. 불필요한 컬럼 제거 및 순서 정렬
+    # 9. 불필요한 컬럼 제거 및 순서 정렬
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
@@ -523,7 +548,9 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -732,14 +759,12 @@ def find_optimal_cost_model(
     가장 유사한 시뮬레이션을 생성하는 최적 비용 모델을 찾는다.
 
     ProcessPoolExecutor를 사용하여 병렬로 실행된다.
-
-    내부에서 FFR 커버리지 검증을 수행하여 시뮬레이션 실행 전에
-    필요한 금리 데이터가 충분한지 확인한다.
+    FFR 커버리지 검증 및 딕셔너리 변환은 병렬 실행 전 한 번만 수행된다.
 
     Args:
         underlying_df: 기초 자산 DataFrame (QQQ)
         actual_leveraged_df: 실제 레버리지 ETF DataFrame (TQQQ)
-        ffr_df: 연방기금금리 DataFrame (DATE: Timestamp, FFR: float)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float)
         leverage: 레버리지 배수 (기본값: 3.0)
         spread_range: funding spread 탐색 범위 (min, max) (%)
         spread_step: funding spread 탐색 간격 (%)
@@ -751,23 +776,24 @@ def find_optimal_cost_model(
         top_strategies: 누적배수 로그차이 평균 기준 상위 전략 리스트
 
     Raises:
-        ValueError: 겹치는 기간이 없을 때 또는 FFR 데이터가 부족할 때
+        ValueError: 겹치는 기간이 없을 때
+        ValueError: FFR 데이터 커버리지가 부족할 때
     """
     # 1. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
-    # 2. FFR 커버리지 검증 (비즈니스 로직 내부에서 수행)
-    overlap_start = underlying_overlap[COL_DATE].iloc[0]
-    overlap_end = underlying_overlap[COL_DATE].iloc[-1]
+    # 2. FFR 커버리지 검증 (fail-fast)
+    overlap_start = underlying_overlap[COL_DATE].min()
+    overlap_end = underlying_overlap[COL_DATE].max()
     validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
-    # 3. FFR 딕셔너리 생성 (한 번만 전처리)
+    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = _create_ffr_dict(ffr_df)
 
     # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
-    # 4. 2D Grid search를 위한 파라미터 조합 생성
+    # 5. 2D Grid search를 위한 파라미터 조합 생성
     spread_values = np.arange(spread_range[0], spread_range[1] + EPSILON, spread_step)
     expense_values = np.arange(expense_range[0], expense_range[1] + EPSILON, expense_step)
 
@@ -784,7 +810,7 @@ def find_optimal_cost_model(
                 }
             )
 
-    # 5. 병렬 실행 (DataFrame들과 FFR 딕셔너리를 워커 캐시에 저장)
+    # 6. 병렬 실행 (DataFrame들과 FFR 딕셔너리를 워커 캐시에 저장)
     candidates = execute_parallel(
         _evaluate_cost_model_candidate,
         param_combinations,
@@ -799,10 +825,10 @@ def find_optimal_cost_model(
         ),
     )
 
-    # 6. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
+    # 7. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
     candidates.sort(key=lambda x: x["cumul_multiple_log_diff_rmse_pct"])
 
-    # 7. 상위 전략 반환
+    # 8. 상위 전략 반환
     top_strategies = candidates[:MAX_TOP_STRATEGIES]
 
     return top_strategies

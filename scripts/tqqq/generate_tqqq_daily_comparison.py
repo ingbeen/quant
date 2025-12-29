@@ -41,7 +41,6 @@ from qbt.tqqq.constants import (
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import load_ffr_data
-from qbt.tqqq.simulation import _create_ffr_dict
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -64,15 +63,10 @@ def main() -> int:
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
 
-    # 2. FFR 딕셔너리 생성 (O(1) 조회용)
-    logger.debug("FFR 딕셔너리 생성 중...")
-    ffr_dict = _create_ffr_dict(ffr_df)
-    logger.debug(f"FFR 딕셔너리 생성 완료: {len(ffr_dict)}개 월 데이터")
-
-    # 3. 겹치는 기간 추출
+    # 2. 겹치는 기간 추출
     qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
 
-    # 4. 시뮬레이션 실행
+    # 3. 시뮬레이션 실행
     logger.debug(
         f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
         f"{DISPLAY_SPREAD}={DEFAULT_FUNDING_SPREAD:.4f}, "
@@ -85,7 +79,7 @@ def main() -> int:
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         expense_ratio=DEFAULT_EXPENSE_RATIO,
         initial_price=initial_price,
-        ffr_dict=ffr_dict,
+        ffr_df=ffr_df,
         funding_spread=DEFAULT_FUNDING_SPREAD,
     )
 
