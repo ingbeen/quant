@@ -147,14 +147,16 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 그리드 서치로 최적 비용 모델 파라미터 탐색
 - 입력: 기초 자산 DataFrame, 실제 레버리지 ETF DataFrame, FFR DataFrame, 레버리지 배수, 그리드 범위/증분
 - 반환: 상위 전략 리스트 (딕셔너리, 최대 `MAX_TOP_STRATEGIES`개)
+- 검증: 내부에서 FFR 커버리지 검증 수행 (`validate_ffr_coverage`)
 - 처리 흐름:
   1. 겹치는 기간 추출 (`extract_overlap_period`)
-  2. 그리드 생성 (spread × expense 조합)
-  3. 병렬 실행 (`execute_parallel`)
+  2. FFR 커버리지 검증 (overlap 기간에 대한 FFR 데이터 충분성 확인)
+  3. 그리드 생성 (spread × expense 조합)
+  4. 병렬 실행 (`execute_parallel`)
      - 각 조합마다 `simulate()` 실행
      - `calculate_validation_metrics()` 호출하여 오차 계산
-  4. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
-  5. 상위 전략 반환
+  5. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
+  6. 상위 전략 반환
 
 **`calculate_validation_metrics(underlying_df, simul_df, ffr_df, leverage, funding_spread, expense_ratio)`**:
 

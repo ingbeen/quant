@@ -62,6 +62,7 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
     KEY_SPREAD,
+    MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
 from qbt.utils import get_logger
@@ -86,18 +87,23 @@ def validate_ffr_coverage(
     Raises:
         ValueError: FFR 데이터 부족 시 (필요 월 범위 미커버 또는 월 차 정책 위반)
     """
-    from qbt.tqqq.constants import COL_FFR_DATE, MAX_FFR_MONTHS_DIFF
-
     # 1. 필요한 월 범위 계산
     start_year_month = f"{overlap_start.year:04d}-{overlap_start.month:02d}"
     end_year_month = f"{overlap_end.year:04d}-{overlap_end.month:02d}"
 
-    # 2. FFR 데이터 범위 확인
+    # 2. FFR 데이터 존재 여부 확인
     ffr_dates = set(ffr_df[COL_FFR_DATE])
+    if not ffr_dates:
+        raise ValueError(
+            f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 "
+            f"FFR 데이터가 전혀 존재하지 않습니다."
+        )
+
+    # 3. FFR 데이터 범위 확인
     ffr_start = min(ffr_dates)
     ffr_end = max(ffr_dates)
 
-    # 3. overlap 기간의 모든 월 생성
+    # 4. overlap 기간의 모든 월 생성
     required_months = set()
     current = overlap_start
     while current <= overlap_end:
@@ -109,10 +115,10 @@ def validate_ffr_coverage(
         else:
             current = current.replace(month=current.month + 1)
 
-    # 4. 필요한 월 중 FFR 데이터가 없는 월 찾기
+    # 5. 필요한 월 중 FFR 데이터가 없는 월 찾기
     missing_months = required_months - ffr_dates
 
-    # 5. 누락된 월이 있으면 가장 가까운 이전 월 찾기 및 월 차 검증
+    # 6. 누락된 월이 있으면 가장 가까운 이전 월 찾기 및 월 차 검증
     if missing_months:
         for missing_month in sorted(missing_months):
             # 이전 월 찾기
@@ -468,7 +474,9 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -678,6 +686,9 @@ def find_optimal_cost_model(
 
     ProcessPoolExecutor를 사용하여 병렬로 실행된다.
 
+    내부에서 FFR 커버리지 검증을 수행하여 시뮬레이션 실행 전에
+    필요한 금리 데이터가 충분한지 확인한다.
+
     Args:
         underlying_df: 기초 자산 DataFrame (QQQ)
         actual_leveraged_df: 실제 레버리지 ETF DataFrame (TQQQ)
@@ -693,15 +704,20 @@ def find_optimal_cost_model(
         top_strategies: 누적배수 로그차이 평균 기준 상위 전략 리스트
 
     Raises:
-        ValueError: 겹치는 기간이 없을 때
+        ValueError: 겹치는 기간이 없을 때 또는 FFR 데이터가 부족할 때
     """
     # 1. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
-    # 2. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    # 2. FFR 커버리지 검증 (비즈니스 로직 내부에서 수행)
+    overlap_start = underlying_overlap[COL_DATE].iloc[0]
+    overlap_end = underlying_overlap[COL_DATE].iloc[-1]
+    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    # 3. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
-    # 3. 2D Grid search를 위한 파라미터 조합 생성
+    # 4. 2D Grid search를 위한 파라미터 조합 생성
     spread_values = np.arange(spread_range[0], spread_range[1] + EPSILON, spread_step)
     expense_values = np.arange(expense_range[0], expense_range[1] + EPSILON, expense_step)
 
@@ -718,7 +734,7 @@ def find_optimal_cost_model(
                 }
             )
 
-    # 4. 병렬 실행 (DataFrame들을 워커 캐시에 저장)
+    # 5. 병렬 실행 (DataFrame들을 워커 캐시에 저장)
     candidates = execute_parallel(
         _evaluate_cost_model_candidate,
         param_combinations,
@@ -733,10 +749,10 @@ def find_optimal_cost_model(
         ),
     )
 
-    # 5. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
+    # 6. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
     candidates.sort(key=lambda x: x["cumul_multiple_log_diff_rmse_pct"])
 
-    # 6. 상위 전략 반환
+    # 7. 상위 전략 반환
     top_strategies = candidates[:MAX_TOP_STRATEGIES]
 
     return top_strategies

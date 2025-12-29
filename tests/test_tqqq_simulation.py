@@ -553,6 +553,121 @@ class TestFindOptimalCostModel:
             # ValueError 또는 NotImplementedError 발생 가능
             pass
 
+    def test_ffr_coverage_validation_raises_on_missing_data(self):
+        """
+        FFR 데이터 완전 부재 시 예외 발생 테스트
+
+        정책: find_optimal_cost_model은 FFR 커버리지를 내부에서 검증해야 함
+
+        Given:
+          - underlying: 2023-01-02 ~ 2023-01-11
+          - actual: 2023-01-02 ~ 2023-01-11 (overlap 존재)
+          - ffr: 빈 DataFrame (FFR 데이터 없음)
+        When: find_optimal_cost_model 호출
+        Then: ValueError 발생 ("FFR 데이터 부족" 메시지 포함)
+        """
+        # Given: overlap 기간은 존재하지만 FFR 데이터 없음
+        underlying_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [100.0 + i for i in range(10)]}
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [30.0 + i * 0.9 for i in range(10)]}
+        )
+
+        # FFR 데이터 완전 부재
+        ffr_df = pd.DataFrame({"DATE": [], "FFR": []})
+
+        # When & Then: FFR 부족으로 ValueError 발생
+        with pytest.raises(ValueError, match="FFR 데이터 부족"):
+            find_optimal_cost_model(
+                underlying_df=underlying_df,
+                actual_leveraged_df=actual_leveraged_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                spread_range=(0.0, 0.01),
+                spread_step=0.01,
+                expense_range=(0.0, 0.01),
+                expense_step=0.01,
+            )
+
+    def test_ffr_coverage_validation_raises_on_gap_exceeded(self):
+        """
+        FFR 데이터 갭 초과 시 예외 발생 테스트
+
+        정책: overlap 기간과 FFR 데이터 간 월 차이가 MAX_FFR_MONTHS_DIFF 초과 시 예외
+
+        Given:
+          - underlying: 2023-05-02 ~ 2023-05-11
+          - actual: 2023-05-02 ~ 2023-05-11 (overlap: 2023-05)
+          - ffr: 2023-01만 존재 (4개월 차이, MAX_FFR_MONTHS_DIFF=2 초과)
+        When: find_optimal_cost_model 호출
+        Then: ValueError 발생 ("월 차이" 또는 "최대 2개월" 메시지 포함)
+        """
+        # Given: overlap은 2023-05, FFR은 2023-01만 존재 (4개월 차이)
+        underlying_df = pd.DataFrame(
+            {"Date": [date(2023, 5, i + 2) for i in range(10)], "Close": [100.0 + i for i in range(10)]}
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {"Date": [date(2023, 5, i + 2) for i in range(10)], "Close": [30.0 + i * 0.9 for i in range(10)]}
+        )
+
+        # FFR 데이터는 2023-01만 존재 (4개월 차이)
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When & Then: 월 차이 초과로 ValueError 발생
+        with pytest.raises(ValueError, match="최대 2개월"):
+            find_optimal_cost_model(
+                underlying_df=underlying_df,
+                actual_leveraged_df=actual_leveraged_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                spread_range=(0.0, 0.01),
+                spread_step=0.01,
+                expense_range=(0.0, 0.01),
+                expense_step=0.01,
+            )
+
+    def test_ffr_coverage_validation_passes_with_valid_data(self):
+        """
+        유효한 FFR 데이터 제공 시 정상 동작 테스트
+
+        정책: FFR 커버리지가 충분하면 검증 통과 및 정상 실행
+
+        Given:
+          - underlying: 2023-01-02 ~ 2023-01-11
+          - actual: 2023-01-02 ~ 2023-01-11 (overlap: 2023-01)
+          - ffr: 2023-01 존재 (충분)
+        When: find_optimal_cost_model 호출
+        Then: 예외 없이 정상 완료, 결과 리스트 반환
+        """
+        # Given: 충분한 FFR 데이터
+        underlying_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [100.0 + i for i in range(10)]}
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {"Date": [date(2023, 1, i + 2) for i in range(10)], "Close": [30.0 + i * 0.9 for i in range(10)]}
+        )
+
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+
+        # When: 정상 호출
+        result = find_optimal_cost_model(
+            underlying_df=underlying_df,
+            actual_leveraged_df=actual_leveraged_df,
+            ffr_df=ffr_df,
+            leverage=3.0,
+            spread_range=(0.0, 0.01),
+            spread_step=0.01,
+            expense_range=(0.0, 0.01),
+            expense_step=0.01,
+        )
+
+        # Then: 정상 결과 반환
+        assert isinstance(result, list), "리스트 반환"
+
 
 class TestSimulateValidation:
     """simulate 함수 파라미터 검증 테스트"""

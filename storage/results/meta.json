@@ -70,105 +70,187 @@
         "row_count": 50,
         "file_size_bytes": 3713
       },
+      "timestamp": "2025-12-29T12:22:30+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.004,
+          "expense": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7235
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6546,
+          "max": 6.3113,
+          "median": 3.5458
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9697,
+          "max": 6.873,
+          "median": 3.9168
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3713
+      },
+      "timestamp": "2025-12-29T12:22:07+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.004,
+          "expense": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7235
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6546,
+          "max": 6.3113,
+          "median": 3.5458
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9697,
+          "max": 6.873,
+          "median": 3.9168
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3713
+      },
+      "timestamp": "2025-12-29T12:21:39+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.004,
+          "expense": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7235
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6546,
+          "max": 6.3113,
+          "median": 3.5458
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9697,
+          "max": 6.873,
+          "median": 3.9168
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3713
+      },
+      "timestamp": "2025-12-29T12:08:06+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0005,
+        "expense_range": [
+          0.0075,
+          0.0105
+        ],
+        "expense_step": 0.0005,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.004,
+          "expense": 0.0085,
+          "cumul_multiple_log_diff_mean_pct": 1.7235
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.6546,
+          "max": 6.3113,
+          "median": 3.5458
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 1.9697,
+          "max": 6.873,
+          "median": 3.9168
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3713
+      },
       "timestamp": "2025-12-26T22:22:12+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "spread_range": [
-          0.004,
-          0.008
-        ],
-        "spread_step": 0.0005,
-        "expense_range": [
-          0.0075,
-          0.0105
-        ],
-        "expense_step": 0.0005,
-        "max_top_strategies": 50
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-19",
-        "total_days": 3990
-      },
-      "results_summary": {
-        "top_strategy": {
-          "rank": 1,
-          "spread": 0.004,
-          "expense": 0.0085,
-          "cumul_multiple_log_diff_mean_pct": 1.7235
-        },
-        "cumul_multiple_log_diff_mean_pct": {
-          "min": 1.6546,
-          "max": 6.3113,
-          "median": 3.5458
-        },
-        "cumul_multiple_log_diff_rmse_pct": {
-          "min": 1.9697,
-          "max": 6.873,
-          "median": 3.9168
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_validation.csv",
-        "row_count": 50,
-        "file_size_bytes": 3713
-      },
-      "timestamp": "2025-12-26T18:13:26+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "spread_range": [
-          0.004,
-          0.008
-        ],
-        "spread_step": 0.0005,
-        "expense_range": [
-          0.0075,
-          0.0105
-        ],
-        "expense_step": 0.0005,
-        "max_top_strategies": 50
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-19",
-        "total_days": 3990
-      },
-      "results_summary": {
-        "top_strategy": {
-          "rank": 1,
-          "spread": 0.004,
-          "expense": 0.0085,
-          "cumul_multiple_log_diff_mean_pct": 1.7235
-        },
-        "cumul_multiple_log_diff_mean_pct": {
-          "min": 1.6546,
-          "max": 6.3113,
-          "median": 3.5458
-        },
-        "cumul_multiple_log_diff_rmse_pct": {
-          "min": 1.9697,
-          "max": 6.873,
-          "median": 3.9168
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_validation.csv",
-        "row_count": 50,
-        "file_size_bytes": 3713
-      },
-      "timestamp": "2025-12-26T12:27:47+09:00"
-    },
-    {
-      "test": "tqqq",
-      "timestamp": "2023-09-01T17:00:00+09:00"
-    },
-    {
-      "test": "tqqq",
-      "timestamp": "2023-09-01T17:00:00+09:00"
     }
   ],
   "tqqq_daily_comparison": [

@@ -14,7 +14,7 @@ import sys
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE, QQQ_DATA_PATH, RESULTS_DIR
+from qbt.common_constants import QQQ_DATA_PATH, RESULTS_DIR
 from qbt.tqqq import find_optimal_cost_model
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
@@ -51,7 +51,6 @@ from qbt.tqqq.constants import (
     TQQQ_VALIDATION_PATH,
 )
 from qbt.tqqq.data_loader import load_ffr_data
-from qbt.tqqq.simulation import extract_overlap_period, validate_ffr_coverage
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -75,25 +74,13 @@ def main() -> int:
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
 
-    # 2. overlap 기간 추출 및 FFR 커버리지 사전 검증
-    underlying_overlap, actual_overlap = extract_overlap_period(qqq_df, tqqq_df)
-    overlap_start = underlying_overlap[COL_DATE].iloc[0]
-    overlap_end = underlying_overlap[COL_DATE].iloc[-1]
-
-    logger.debug(f"Overlap 기간: {overlap_start} ~ {overlap_end} ({len(underlying_overlap):,}일)")
-    logger.debug("FFR 데이터 커버리지 사전 검증 중...")
-
-    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-    logger.debug("FFR 데이터 커버리지 검증 완료")
-
-    # 3. 비용 모델 캘리브레이션
+    # 2. 비용 모델 캘리브레이션 (검증은 비즈니스 로직 내부에서 수행)
     logger.debug(
         f"비용 모델 캘리브레이션 시작: "
         f"leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"{DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} "
-        f"(ratio, 예: 0.004 = 0.4%, step={DEFAULT_SPREAD_STEP:.4f}), "
-        f"{DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RANGE[0]:.4f}~{DEFAULT_EXPENSE_RANGE[1]:.4f} "
-        f"(ratio, 예: 0.008 = 0.8%, step={DEFAULT_EXPENSE_STEP:.4f})"
+        f"{DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} (step={DEFAULT_SPREAD_STEP:.4f}), "
+        f"{DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RANGE[0]:.4f}~{DEFAULT_EXPENSE_RANGE[1]:.4f} (step={DEFAULT_EXPENSE_STEP:.4f}), "
+        f"(ratio, 예: 0.008 = 0.8%)"
     )
 
     top_strategies = find_optimal_cost_model(
