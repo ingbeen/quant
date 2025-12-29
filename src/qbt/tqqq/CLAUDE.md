@@ -49,6 +49,17 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
 - 예외: FileNotFoundError (파일 부재 시)
 
+**`load_expense_ratio_data(path: Path) -> pd.DataFrame`**:
+
+- TQQQ 운용비율(Expense Ratio) 월별 데이터 로딩
+- 입력: CSV 파일 경로
+- 반환: Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
+- DATE 컬럼은 `datetime.date` 객체가 아닌 `"yyyy-mm"` 문자열 형식
+- 값 범위 검증: 0 < expense <= 0.02 (0~2%)
+- 예외:
+  - FileNotFoundError (파일 부재 시)
+  - ValueError (값 범위 벗어날 시)
+
 **`load_comparison_data(path: Path) -> pd.DataFrame`**:
 
 - TQQQ 일별 비교 CSV 파일 로딩 및 검증
@@ -109,40 +120,72 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 #### 주요 함수
 
+**제네릭 월별 데이터 함수**:
+
+**`_create_monthly_data_dict(df, date_col, value_col, data_type)`**:
+
+- 월별 데이터 DataFrame을 O(1) 조회용 딕셔너리로 변환
+- 입력: DataFrame, 날짜 컬럼명, 값 컬럼명, 데이터 타입("FFR"/"Expense")
+- 반환: `{"YYYY-MM": value}` 딕셔너리
+- 중복 월 검증: 중복 발견 시 즉시 ValueError (데이터 무결성 보장)
+- 데이터 타입에 따라 명확한 에러 메시지 제공
+
+**`_lookup_monthly_data(date_value, data_dict, max_months_diff, data_type)`**:
+
+- 월별 데이터 딕셔너리에서 특정 날짜의 값 조회
+- 입력: 날짜, 데이터 딕셔너리, 최대 월 차이, 데이터 타입
+- 반환: 해당 값 (float)
+- 조회 로직: 정확한 월 매칭 → 이전 월 폴백
+- 데이터 검증: 최근 데이터와의 월 차이가 max_months_diff 초과 시 예외
+- 데이터 타입에 따라 명확한 에러 메시지 제공
+
 **`_create_ffr_dict(ffr_df)`**:
 
 - FFR DataFrame을 O(1) 조회용 딕셔너리로 변환
+- 내부적으로 `_create_monthly_data_dict()` 호출
 - 입력: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
 - 반환: `{"YYYY-MM": ffr_value}` 딕셔너리
-- 중복 월 검증: 중복 발견 시 즉시 ValueError (데이터 무결성 보장)
-- 예외: 빈 DataFrame 또는 중복 월 발견 시
 
 **`_lookup_ffr(date_value, ffr_dict)`**:
 
 - FFR 딕셔너리에서 특정 날짜의 금리 조회
+- 내부적으로 `_lookup_monthly_data()` 호출
 - 입력: 날짜, FFR 딕셔너리
 - 반환: FFR 값 (float)
-- 조회 로직: 정확한 월 매칭 → 이전 월 폴백
-- FFR 데이터 검증: 최근 데이터와의 월 차이가 `MAX_FFR_MONTHS_DIFF` 초과 시 예외
 
-**`calculate_daily_cost(date_value, ffr_dict, expense_ratio, funding_spread, leverage)`**:
+**`_create_expense_dict(expense_df)`**:
+
+- Expense DataFrame을 O(1) 조회용 딕셔너리로 변환
+- 내부적으로 `_create_monthly_data_dict()` 호출
+- 입력: Expense DataFrame (DATE: str (yyyy-mm), VALUE: float)
+- 반환: `{"YYYY-MM": expense_value}` 딕셔너리
+
+**`_lookup_expense(date_value, expense_dict)`**:
+
+- Expense 딕셔너리에서 특정 날짜의 운용비율 조회
+- 내부적으로 `_lookup_monthly_data()` 호출
+- 입력: 날짜, Expense 딕셔너리
+- 반환: Expense 값 (float)
+
+**`calculate_daily_cost(date_value, ffr_dict, expense_dict, funding_spread, leverage)`**:
 
 - 특정 날짜의 일일 비용률 계산
-- 입력: 날짜, FFR 딕셔너리, 연간 expense ratio, funding spread, 레버리지 배수
+- 입력: 날짜, FFR 딕셔너리, Expense 딕셔너리, funding spread, 레버리지 배수
 - 반환: 일일 비용률 (소수)
-- 성능: FFR 조회 O(1) 딕셔너리 조회 (기존 DataFrame 필터링 대비 대폭 개선)
+- 성능: FFR 및 Expense 조회 O(1) 딕셔너리 조회 (기존 DataFrame 필터링 대비 대폭 개선)
+- 동적 비용 적용: 날짜에 따라 FFR과 Expense가 동적으로 조회됨
 - 비용 공식:
   ```
-  연간 자금 조달 비용률 = (FFR + funding_spread) × 레버리지 차입 비율
+  연간 자금 조달 비용률 = (FFR(date) + funding_spread) × 레버리지 차입 비율
   일일 자금 조달 비용 = 연간 자금 조달 비용률 / TRADING_DAYS_PER_YEAR
-  일일 운용 비용 = expense_ratio / TRADING_DAYS_PER_YEAR
+  일일 운용 비용 = expense_ratio(date) / TRADING_DAYS_PER_YEAR
   총 일일 비용 = 일일 자금 조달 비용 + 일일 운용 비용
   ```
 
-**`simulate(underlying_df, leverage, expense_ratio, initial_price, ffr_df, funding_spread, ffr_dict=None)`**:
+**`simulate(underlying_df, leverage, initial_price, ffr_df, expense_df, funding_spread, ffr_dict=None, expense_dict=None)`**:
 
 - 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- 입력: 기초 자산 DataFrame, 레버리지 배수, expense ratio, 초기 가격, FFR DataFrame, spread
+- 입력: 기초 자산 DataFrame, 레버리지 배수, 초기 가격, FFR DataFrame, Expense DataFrame, spread
 - FFR 커버리지 검증은 함수 내부에서 자동 수행됨 (ffr_df 사용 시)
 - 반환: 시뮬레이션 결과 DataFrame (OHLCV 형식)
 - 시뮬레이션 로직:
@@ -160,19 +203,19 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 입력: 기초 자산 DataFrame, 실제 레버리지 ETF DataFrame
 - 반환: `(overlap_start, overlap_end, overlap_days)` 튜플
 
-**`find_optimal_cost_model(underlying_df, actual_df, ffr_df, leverage, spread_range, spread_step, expense_range, expense_step)`**:
+**`find_optimal_cost_model(underlying_df, actual_df, ffr_df, expense_df, leverage, spread_range, spread_step)`**:
 
 - 그리드 서치로 최적 비용 모델 파라미터 탐색
-- 입력: 기초 자산 DataFrame, 실제 레버리지 ETF DataFrame, FFR DataFrame, 레버리지 배수, 그리드 범위/증분
-- FFR 커버리지 검증 및 딕셔너리 변환은 병렬 실행 전 한 번만 수행 (성능 최적화)
+- 입력: 기초 자산 DataFrame, 실제 레버리지 ETF DataFrame, FFR DataFrame, Expense DataFrame, 레버리지 배수, spread 그리드 범위/증분
+- FFR/Expense 커버리지 검증 및 딕셔너리 변환은 병렬 실행 전 한 번만 수행 (성능 최적화)
 - 반환: 상위 전략 리스트 (딕셔너리, 최대 `MAX_TOP_STRATEGIES`개)
 - 처리 흐름:
   1. 겹치는 기간 추출 (`extract_overlap_period`)
   2. FFR 커버리지 검증 (overlap 기간에 대한 FFR 데이터 충분성 확인, fail-fast)
-  3. FFR 딕셔너리 생성 (`_create_ffr_dict`) - 검증 완료 후 한 번만 전처리
-  4. 그리드 생성 (spread × expense 조합)
-  5. 병렬 실행 (`execute_parallel`, 검증된 FFR 딕셔너리는 WORKER_CACHE 활용)
-     - 각 조합마다 `simulate()` 실행 (ffr_dict 사용)
+  3. FFR/Expense 딕셔너리 생성 (`_create_ffr_dict`, `_create_expense_dict`) - 검증 완료 후 한 번만 전처리
+  4. 그리드 생성 (spread만 탐색, expense는 CSV 기반으로 고정)
+  5. 병렬 실행 (`execute_parallel`, 검증된 딕셔너리는 WORKER_CACHE 활용)
+     - 각 spread 값마다 `simulate()` 실행 (ffr_dict, expense_dict 사용)
      - `calculate_validation_metrics()` 호출하여 오차 계산
   6. 결과 정렬 (누적배수 로그차이 RMSE 오름차순)
   7. 상위 전략 반환
@@ -236,15 +279,23 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 **운용 비용**:
 
-- 공식: `expense_ratio / TRADING_DAYS_PER_YEAR`
+- **데이터 소스**: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
+- **형식**: DATE (yyyy-mm), VALUE (연간 운용비율, 0~1 소수)
+- **적용 방식**: 월별로 실제 운용비율을 적용하여 시뮬레이션 정확도 향상
+- **조회 로직**:
+  - 해당 월 또는 가장 가까운 이전 월의 값 사용
+  - 최대 월 차이: 12개월 (MAX_EXPENSE_MONTHS_DIFF)
+  - 허용 갭 초과 시 ValueError
+- 공식: `expense_ratio(date) / TRADING_DAYS_PER_YEAR`
 - 연간 비율을 일별로 환산
 
 **총 비용**:
 
 - `총 일일 비용 = 일일 자금 조달 비용 + 일일 운용 비용`
-- `= [(FFR + funding_spread) × (leverage - 1) + expense_ratio] / TRADING_DAYS_PER_YEAR`
+- `= [(FFR + funding_spread) × (leverage - 1) + expense_ratio(date)] / TRADING_DAYS_PER_YEAR`
+- 운용 비용은 날짜에 따라 동적으로 조회되어 적용됨
 
-근거 위치: [simulation.py의 calculate_daily_cost](simulation.py), [constants.py](constants.py)
+근거 위치: [simulation.py의 calculate_daily_cost](simulation.py), [constants.py](constants.py), [data_loader.py의 load_expense_ratio_data](data_loader.py)
 
 ---
 
@@ -282,6 +333,17 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 형식: `DATE` (yyyy-mm 문자열), `VALUE` (금리 %, 소수)
 - 검증: 최근 데이터와의 시간 차이 `MAX_FFR_MONTHS_DIFF` (2개월) 이내
 - 예외 발생: 허용 갭 초과 시 `ValueError`
+
+**운용비율 데이터 (Expense Ratio)**:
+
+- 월별 TQQQ 운용비율 (Net Expense Ratio)
+- 형식: `DATE` (yyyy-mm 문자열), `VALUE` (연간 운용비율, 0~1 소수)
+- 데이터 경로: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
+- 검증:
+  - 중복 월 금지
+  - 최근 데이터와의 시간 차이 `MAX_EXPENSE_MONTHS_DIFF` (12개월) 이내
+  - 값 범위: 0 < expense <= 0.02 (0~2%)
+- 예외 발생: 중복 월, 허용 갭 초과, 값 범위 벗어날 시 `ValueError`
 
 **실제 레버리지 상품 데이터**:
 

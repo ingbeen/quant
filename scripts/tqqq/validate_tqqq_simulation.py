@@ -25,13 +25,11 @@ from qbt.tqqq.constants import (
     COL_CUMUL_RETURN_REL_DIFF,
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
-    DEFAULT_EXPENSE_RANGE,
-    DEFAULT_EXPENSE_STEP,
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
-    DISPLAY_EXPENSE,
     DISPLAY_SPREAD,
+    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
@@ -39,7 +37,6 @@ from qbt.tqqq.constants import (
     KEY_CUMULATIVE_RETURN_ACTUAL,
     KEY_CUMULATIVE_RETURN_REL_DIFF,
     KEY_CUMULATIVE_RETURN_SIMULATED,
-    KEY_EXPENSE,
     KEY_FINAL_CLOSE_ACTUAL,
     KEY_FINAL_CLOSE_SIMULATED,
     KEY_OVERLAP_DAYS,
@@ -50,7 +47,7 @@ from qbt.tqqq.constants import (
     TQQQ_DATA_PATH,
     TQQQ_VALIDATION_PATH,
 )
-from qbt.tqqq.data_loader import load_ffr_data
+from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -69,29 +66,27 @@ def main() -> int:
         종료 코드 (0: 성공, 1: 실패)
     """
     # 1. 데이터 로드
-    logger.debug("QQQ, TQQQ 및 FFR 데이터 로딩 시작")
+    logger.debug("QQQ, TQQQ, FFR 및 Expense Ratio 데이터 로딩 시작")
     qqq_df = load_stock_data(QQQ_DATA_PATH)
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
+    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
 
     # 2. 비용 모델 캘리브레이션
     logger.debug(
         f"비용 모델 캘리브레이션 시작: "
         f"leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"{DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} (step={DEFAULT_SPREAD_STEP:.4f}), "
-        f"{DISPLAY_EXPENSE}={DEFAULT_EXPENSE_RANGE[0]:.4f}~{DEFAULT_EXPENSE_RANGE[1]:.4f} (step={DEFAULT_EXPENSE_STEP:.4f}), "
-        f"(ratio, 예: 0.008 = 0.8%)"
+        f"{DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} (step={DEFAULT_SPREAD_STEP:.4f})"
     )
 
     top_strategies = find_optimal_cost_model(
         underlying_df=qqq_df,
         actual_leveraged_df=tqqq_df,
         ffr_df=ffr_df,
+        expense_df=expense_df,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         spread_range=DEFAULT_SPREAD_RANGE,
         spread_step=DEFAULT_SPREAD_STEP,
-        expense_range=DEFAULT_EXPENSE_RANGE,
-        expense_step=DEFAULT_EXPENSE_STEP,
         max_workers=None,
     )
 
@@ -115,7 +110,6 @@ def main() -> int:
     # 4. 상위 전략 테이블 출력
     columns = [
         (DISPLAY_SPREAD, 14, Align.RIGHT),
-        (DISPLAY_EXPENSE, 14, Align.RIGHT),
         (COL_ACTUAL_CLOSE, 11, Align.RIGHT),
         (COL_SIMUL_CLOSE, 11, Align.RIGHT),
         (COL_ACTUAL_CUMUL_RETURN, 18, Align.RIGHT),
@@ -129,7 +123,6 @@ def main() -> int:
     for _, strategy in enumerate(top_strategies, start=1):
         row = [
             f"{strategy[KEY_SPREAD]:.4f}",
-            f"{strategy[KEY_EXPENSE]*100:.2f}",
             f"{strategy[KEY_FINAL_CLOSE_ACTUAL]:.2f}",
             f"{strategy[KEY_FINAL_CLOSE_SIMULATED]:.2f}",
             f"{strategy[KEY_CUMULATIVE_RETURN_ACTUAL]*100:.2f}",
@@ -148,9 +141,8 @@ def main() -> int:
     rows = []
     for _, strategy in enumerate(top_strategies, start=1):
         row = {
-            # 파라미터 (2개)
+            # 파라미터 (1개)
             KEY_SPREAD: round(strategy[KEY_SPREAD], 4),
-            KEY_EXPENSE: round(strategy[KEY_EXPENSE], 6),
             # 종가 (2개)
             COL_ACTUAL_CLOSE: round(strategy[KEY_FINAL_CLOSE_ACTUAL], 2),
             COL_SIMUL_CLOSE: round(strategy[KEY_FINAL_CLOSE_SIMULATED], 2),
@@ -174,8 +166,6 @@ def main() -> int:
             "leverage": round(DEFAULT_LEVERAGE_MULTIPLIER, 1),
             "spread_range": [round(x, 4) for x in DEFAULT_SPREAD_RANGE],
             "spread_step": round(DEFAULT_SPREAD_STEP, 4),
-            "expense_range": [round(x, 6) for x in DEFAULT_EXPENSE_RANGE],
-            "expense_step": round(DEFAULT_EXPENSE_STEP, 6),
             "max_top_strategies": MAX_TOP_STRATEGIES,
         },
         "overlap_period": {
@@ -187,7 +177,6 @@ def main() -> int:
             "top_strategy": {
                 "rank": 1,
                 KEY_SPREAD: round(top_strategies[0][KEY_SPREAD], 4),
-                KEY_EXPENSE: round(top_strategies[0][KEY_EXPENSE], 6),
                 "cumul_multiple_log_diff_mean_pct": round(top_strategies[0][KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
             },
             "cumul_multiple_log_diff_mean_pct": {

@@ -26,6 +26,9 @@ TQQQ_SYNTHETIC_PATH = STOCK_DIR / "TQQQ_synthetic_max.csv"
 # 연방기금금리 월별 데이터 파일 경로
 FFR_DATA_PATH = ETC_DIR / "federal_funds_rate_monthly.csv"
 
+# 운용비율(Expense Ratio) 월별 데이터 파일 경로
+EXPENSE_RATIO_DATA_PATH = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
+
 # TQQQ 시뮬레이션 관련 결과 파일 경로
 TQQQ_VALIDATION_PATH = RESULTS_DIR / "tqqq_validation.csv"
 TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
@@ -50,16 +53,14 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE = 200.0  # 합성 데이터 초기 가격
 
 # --- 기본값 ---
 DEFAULT_FUNDING_SPREAD = 0.004  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
-DEFAULT_EXPENSE_RATIO = 0.0085  # 연간 비용 비율 (예시 0.0085 = 0.85%)
 
 # --- 그리드 서치 범위 ---
 DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP = 0.0005  # 스프레드 증분 (%)
-DEFAULT_EXPENSE_RANGE = (0.0075, 0.0105)  # expense ratio 범위 (%)
-DEFAULT_EXPENSE_STEP = 0.0005  # expense ratio 증분 (%)
 
 # --- 데이터 검증 및 결과 제한 ---
-MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이
+MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이 (비율 0.02 = 2%)
+MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (비율 0.12 = 12%)
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 
 # ============================================================
@@ -72,6 +73,10 @@ MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 COL_FFR_DATE = "DATE"  # FFR CSV의 날짜 컬럼 (대문자)
 COL_FFR_VALUE_RAW = "VALUE"  # FFR CSV의 원본 금리 값 컬럼
 COL_FFR = "FFR"  # 변환 후 금리 컬럼명
+
+# Expense Ratio 데이터
+COL_EXPENSE_DATE = "DATE"  # Expense Ratio CSV의 날짜 컬럼 (대문자)
+COL_EXPENSE_VALUE = "VALUE"  # Expense Ratio CSV의 값 컬럼 (0~1 비율)
 
 # 일별 비교 데이터 - 종가
 COL_ACTUAL_CLOSE = "종가_실제"
@@ -108,13 +113,11 @@ COMPARISON_COLUMNS = [
 
 # --- 출력용 레이블 (사용자 표시용) ---
 DISPLAY_SPREAD = "Funding Spread"
-DISPLAY_EXPENSE = "Expense Ratio"
 
 # --- 딕셔너리 키 (내부 사용) ---
 
 # 비용 모델
 KEY_SPREAD = "spread"
-KEY_EXPENSE = "expense"
 
 # 겹치는 기간 정보
 KEY_OVERLAP_START = "overlap_start"

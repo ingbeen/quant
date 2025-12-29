@@ -56,6 +56,19 @@ def sample_ffr_df():
 
 
 @pytest.fixture
+def sample_expense_df():
+    """
+    운용비율(Expense Ratio) 데이터 픽스처
+
+    TQQQ 시뮬레이션에서 운용비용 계산에 사용되는 데이터입니다.
+
+    Returns:
+        pd.DataFrame: DATE(yyyy-mm 문자열), VALUE(연 운용비율, 0~1 소수) 컬럼
+    """
+    return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "VALUE": [0.0095, 0.0095, 0.0088]})
+
+
+@pytest.fixture
 def create_csv_file(tmp_path):
     """
     CSV 파일 생성 헬퍼 픽스처 (팩토리 패턴)

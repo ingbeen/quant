@@ -18,14 +18,14 @@ from qbt.common_constants import (
 )
 from qbt.tqqq import simulate
 from qbt.tqqq.constants import (
-    DEFAULT_EXPENSE_RATIO,
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SYNTHETIC_INITIAL_PRICE,
+    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     TQQQ_SYNTHETIC_PATH,
 )
-from qbt.tqqq.data_loader import load_ffr_data
+from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -43,13 +43,14 @@ def main() -> int:
     """
     logger.debug("합성 TQQQ 데이터 생성 시작")
     logger.debug(
-        f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, expense_ratio={DEFAULT_EXPENSE_RATIO}, "
+        f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, "
         f"funding_spread={DEFAULT_FUNDING_SPREAD:.4f}, initial_price={DEFAULT_SYNTHETIC_INITIAL_PRICE}"
     )
 
-    # 1. QQQ 및 FFR 데이터 로드
+    # 1. QQQ, FFR 및 Expense Ratio 데이터 로드
     qqq_df = load_stock_data(QQQ_DATA_PATH)
     ffr_df = load_ffr_data(FFR_DATA_PATH)
+    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
 
     # 2. QQQ의 시작 날짜 자동 감지
     start_date = qqq_df[COL_DATE].min()
@@ -65,9 +66,9 @@ def main() -> int:
     synthetic_tqqq = simulate(
         underlying_df=qqq_filtered,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
-        expense_ratio=DEFAULT_EXPENSE_RATIO,
         initial_price=DEFAULT_SYNTHETIC_INITIAL_PRICE,
         ffr_df=ffr_df,
+        expense_df=expense_df,
         funding_spread=DEFAULT_FUNDING_SPREAD,
     )
 

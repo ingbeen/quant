@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 from qbt.tqqq.simulation import (
+    _create_expense_dict,
     _create_ffr_dict,
     _lookup_ffr,
     calculate_daily_cost,
@@ -53,8 +54,11 @@ class TestCalculateDailyCost:
         ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "FFR": [4.5, 4.6]})
         ffr_dict = _create_ffr_dict(ffr_df)
 
+        # Expense 데이터
+        expense_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "VALUE": [0.009, 0.009]})
+        expense_dict = _create_expense_dict(expense_df)
+
         target_date = date(2023, 1, 15)
-        expense_ratio = 0.009  # 0.9%
         funding_spread = 0.006  # 0.6%
 
         # When
@@ -62,7 +66,7 @@ class TestCalculateDailyCost:
         daily_cost = calculate_daily_cost(
             date_value=target_date,
             ffr_dict=ffr_dict,
-            expense_ratio=expense_ratio,
+            expense_dict=expense_dict,
             funding_spread=funding_spread,
             leverage=leverage,
         )
@@ -87,6 +91,10 @@ class TestCalculateDailyCost:
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
         ffr_dict = _create_ffr_dict(ffr_df)
 
+        # Expense 데이터
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
+        expense_dict = _create_expense_dict(expense_df)
+
         target_date = date(2023, 3, 15)  # 1월부터 약 2개월 후
         leverage = 3.0
 
@@ -95,7 +103,7 @@ class TestCalculateDailyCost:
             daily_cost = calculate_daily_cost(
                 date_value=target_date,
                 ffr_dict=ffr_dict,
-                expense_ratio=0.009,
+                expense_dict=expense_dict,
                 funding_spread=0.006,
                 leverage=leverage,
             )
@@ -118,6 +126,8 @@ class TestCalculateDailyCost:
         """
         # Given
         ffr_df = pd.DataFrame(columns=["DATE", "FFR"])
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
+        expense_dict = _create_expense_dict(expense_df)
         leverage = 3.0
 
         # When & Then
@@ -126,7 +136,7 @@ class TestCalculateDailyCost:
             calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
-                expense_ratio=0.009,
+                expense_dict=expense_dict,
                 funding_spread=0.006,
                 leverage=leverage,
             )
@@ -152,6 +162,10 @@ class TestCalculateDailyCost:
         # Given
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
         ffr_dict = _create_ffr_dict(ffr_df)
+
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
+        expense_dict = _create_expense_dict(expense_df)
+
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009
         funding_spread = 0.006
@@ -161,7 +175,7 @@ class TestCalculateDailyCost:
         daily_cost = calculate_daily_cost(
             date_value=target_date,
             ffr_dict=ffr_dict,
-            expense_ratio=expense_ratio,
+            expense_dict=expense_dict,
             funding_spread=funding_spread,
             leverage=leverage,
         )
@@ -199,6 +213,10 @@ class TestCalculateDailyCost:
         # Given
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
         ffr_dict = _create_ffr_dict(ffr_df)
+
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
+        expense_dict = _create_expense_dict(expense_df)
+
         target_date = date(2023, 1, 15)
         expense_ratio = 0.009
         funding_spread = 0.006
@@ -208,7 +226,7 @@ class TestCalculateDailyCost:
         daily_cost = calculate_daily_cost(
             date_value=target_date,
             ffr_dict=ffr_dict,
-            expense_ratio=expense_ratio,
+            expense_dict=expense_dict,
             funding_spread=funding_spread,
             leverage=leverage,
         )
@@ -252,9 +270,9 @@ class TestSimulate:
         )
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})  # 0.9%
 
         leverage = 3.0
-        expense_ratio = 0.009  # 0.9%
         initial_price = 30.0  # TQQQ 초기 가격
         funding_spread = 0.006  # 0.6%
 
@@ -262,7 +280,7 @@ class TestSimulate:
         simulated_df = simulate(
             underlying_df=underlying_df,
             leverage=leverage,
-            expense_ratio=expense_ratio,
+            expense_df=expense_df,
             initial_price=initial_price,
             ffr_df=ffr_df,
             funding_spread=funding_spread,
@@ -300,12 +318,13 @@ class TestSimulate:
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]})  # +1%
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [0.0]})  # 비용 제거 (순수 레버리지 효과만 보기)
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.0]})  # 비용 0
 
         # When: leverage=3, 비용 0
         simulated_df = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_ratio=0.0,
+            expense_df=expense_df,
             initial_price=30.0,
             ffr_df=ffr_df,
             funding_spread=0.0,
@@ -334,13 +353,14 @@ class TestSimulate:
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then: 음수
         with pytest.raises(ValueError):
             simulate(
                 underlying_df=underlying_df,
                 leverage=-3.0,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=30.0,
                 ffr_df=ffr_df,
                 funding_spread=0.006,
@@ -351,7 +371,7 @@ class TestSimulate:
             simulate(
                 underlying_df=underlying_df,
                 leverage=0.0,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=30.0,
                 ffr_df=ffr_df,
                 funding_spread=0.006,
@@ -499,6 +519,7 @@ class TestFindOptimalCostModel:
         )
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When: 최적화 (실제로는 시간이 걸릴 수 있음, 여기서는 구조 검증만)
         try:
@@ -506,11 +527,10 @@ class TestFindOptimalCostModel:
                 underlying_df=underlying_df,
                 actual_leveraged_df=actual_leveraged_df,
                 ffr_df=ffr_df,
+                expense_df=expense_df,
                 leverage=3.0,
                 spread_range=(0.0, 0.01),
                 spread_step=0.005,
-                expense_range=(0.0, 0.01),
-                expense_step=0.005,
             )
 
             # Then: 결과 구조 확인 (리스트 반환)
@@ -541,6 +561,7 @@ class TestFindOptimalCostModel:
         actual_leveraged_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [30.0]})
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then: 음수 범위는 함수가 자동으로 처리하므로 에러 안 날 수 있음
         # 단순히 함수 호출이 성공하는지만 확인
@@ -549,11 +570,10 @@ class TestFindOptimalCostModel:
                 underlying_df=underlying_df,
                 actual_leveraged_df=actual_leveraged_df,
                 ffr_df=ffr_df,
+                expense_df=expense_df,
                 leverage=-3.0,  # 음수 레버리지로 에러 발생 시도
                 spread_range=(0.0, 0.01),
                 spread_step=0.01,
-                expense_range=(0.0, 0.01),
-                expense_step=0.01,
             )
             # 음수 레버리지는 simulate 단계에서 에러 날 수 있음
         except (ValueError, NotImplementedError):
@@ -602,6 +622,7 @@ class TestFindOptimalCostModel:
 
         # FFR 데이터는 2023-01만 존재 (4개월 차이)
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then: 월 차이 초과로 ValueError 발생 (시뮬레이션 실행 중)
         with pytest.raises(ValueError, match="최대 2개월"):
@@ -609,11 +630,10 @@ class TestFindOptimalCostModel:
                 underlying_df=underlying_df,
                 actual_leveraged_df=actual_leveraged_df,
                 ffr_df=ffr_df,
+                expense_df=expense_df,
                 leverage=3.0,
                 spread_range=(0.0, 0.01),
                 spread_step=0.01,
-                expense_range=(0.0, 0.01),
-                expense_step=0.01,
             )
 
     def test_ffr_coverage_validation_passes_with_valid_data(self):
@@ -639,17 +659,17 @@ class TestFindOptimalCostModel:
         )
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When: 정상 호출
         result = find_optimal_cost_model(
             underlying_df=underlying_df,
             actual_leveraged_df=actual_leveraged_df,
             ffr_df=ffr_df,
+            expense_df=expense_df,
             leverage=3.0,
             spread_range=(0.0, 0.01),
             spread_step=0.01,
-            expense_range=(0.0, 0.01),
-            expense_step=0.01,
         )
 
         # Then: 정상 결과 반환
@@ -670,6 +690,7 @@ class TestSimulateValidation:
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then: leverage = 0
         with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
@@ -678,7 +699,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=0.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=100.0,
             )
 
@@ -689,7 +710,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=-3.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=100.0,
             )
 
@@ -704,6 +725,7 @@ class TestSimulateValidation:
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)], "Close": [100.0, 105.0]})
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then: initial_price = 0
         with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
@@ -712,7 +734,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=3.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=0.0,
             )
 
@@ -723,7 +745,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=3.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=-100.0,
             )
 
@@ -739,6 +761,7 @@ class TestSimulateValidation:
         underlying_df_no_close = pd.DataFrame({"Date": [date(2023, 1, 1), date(2023, 1, 2)]})
 
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
@@ -747,7 +770,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=3.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=100.0,
             )
 
@@ -762,6 +785,7 @@ class TestSimulateValidation:
         # Given: 빈 DataFrame
         underlying_df = pd.DataFrame(columns=["Date", "Close"])
         ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        expense_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.009]})
 
         # When & Then
         with pytest.raises(ValueError, match="underlying_df가 비어있습니다"):
@@ -770,7 +794,7 @@ class TestSimulateValidation:
                 ffr_df=ffr_df,
                 leverage=3.0,
                 funding_spread=0.005,
-                expense_ratio=0.009,
+                expense_df=expense_df,
                 initial_price=100.0,
             )
 
@@ -1128,3 +1152,156 @@ class TestLookupFfr:
         # When & Then
         with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-05.*최대 2개월 이내의 데이터만 사용 가능"):
             _lookup_ffr(date_value, ffr_dict)
+
+
+class TestExpenseRatioLoading:
+    """Expense Ratio CSV 로딩 테스트 (Phase 0)"""
+
+    def test_load_expense_ratio_data_basic(self, create_csv_file):
+        """
+        정상적인 expense ratio 데이터 로딩 테스트
+
+        Given: 유효한 expense ratio CSV 파일
+        When: load_expense_ratio_data 호출
+        Then: DATE, VALUE 컬럼을 가진 DataFrame 반환
+        """
+        # Given: expense ratio CSV 생성
+        expense_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "VALUE": [0.0095, 0.0088]})
+        csv_path = create_csv_file("expense_ratio.csv", expense_df)
+
+        # When: 로딩 (아직 구현 안 됨 - 레드)
+        from qbt.tqqq.data_loader import load_expense_ratio_data
+
+        result_df = load_expense_ratio_data(csv_path)
+
+        # Then
+        assert not result_df.empty, "결과 DataFrame이 비어있지 않아야 합니다"
+        assert "DATE" in result_df.columns, "DATE 컬럼이 존재해야 합니다"
+        assert "VALUE" in result_df.columns, "VALUE 컬럼이 존재해야 합니다"
+        assert len(result_df) == 2, "2개 행이 있어야 합니다"
+
+    def test_load_expense_ratio_data_missing_file(self):
+        """
+        파일이 존재하지 않을 때 예외 발생 테스트
+
+        Given: 존재하지 않는 파일 경로
+        When: load_expense_ratio_data 호출
+        Then: FileNotFoundError 발생
+        """
+        # Given
+        from pathlib import Path
+
+        non_existent_path = Path("/non/existent/path.csv")
+
+        # When & Then
+        from qbt.tqqq.data_loader import load_expense_ratio_data
+
+        with pytest.raises(FileNotFoundError):
+            load_expense_ratio_data(non_existent_path)
+
+
+class TestGenericMonthlyDataDict:
+    """제네릭 월별 데이터 딕셔너리 생성/조회 테스트 (Phase 0)"""
+
+    def test_create_monthly_data_dict_basic(self):
+        """
+        제네릭 딕셔너리 생성 기본 테스트
+
+        Given: 월별 데이터 DataFrame
+        When: _create_monthly_data_dict 호출
+        Then: {월: 값} 딕셔너리 반환
+        """
+        # Given
+        df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "VALUE": [0.0095, 0.0088]})
+
+        # When: 제네릭 함수 호출 (아직 구현 안 됨 - 레드)
+        from qbt.tqqq.simulation import _create_monthly_data_dict
+
+        result_dict = _create_monthly_data_dict(df, "DATE", "VALUE", "Expense")
+
+        # Then
+        assert result_dict == {"2023-01": 0.0095, "2023-02": 0.0088}
+
+    def test_create_monthly_data_dict_duplicates(self):
+        """
+        중복 월 검증 테스트
+
+        Given: 중복 월이 있는 DataFrame
+        When: _create_monthly_data_dict 호출
+        Then: ValueError 발생 (data_type 포함한 명확한 메시지)
+        """
+        # Given: 2023-01이 중복
+        df = pd.DataFrame({"DATE": ["2023-01", "2023-01", "2023-02"], "VALUE": [0.0095, 0.0096, 0.0088]})
+
+        # When & Then
+        from qbt.tqqq.simulation import _create_monthly_data_dict
+
+        with pytest.raises(ValueError, match="Expense.*2023-01.*중복"):
+            _create_monthly_data_dict(df, "DATE", "VALUE", "Expense")
+
+    def test_lookup_monthly_data_with_gap(self):
+        """
+        월 차이 검증 테스트
+
+        Given: 월별 데이터 딕셔너리와 갭이 큰 날짜
+        When: _lookup_monthly_data 호출
+        Then: max_months_diff 초과 시 ValueError 발생
+        """
+        # Given
+        data_dict = {"2023-01": 0.0095}
+        date_value = date(2024, 2, 15)  # 2024-02, 2023-01부터 13개월 차이
+
+        # When & Then: max_months_diff=12 초과
+        from qbt.tqqq.simulation import _lookup_monthly_data
+
+        with pytest.raises(ValueError, match="Expense.*데이터 부족.*2024-02.*최대 12개월"):
+            _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
+
+    def test_lookup_monthly_data_within_gap(self):
+        """
+        월 차이 허용 범위 내 조회 테스트
+
+        Given: 월별 데이터 딕셔너리와 허용 범위 내 날짜
+        When: _lookup_monthly_data 호출
+        Then: 가장 가까운 이전 월의 값 반환
+        """
+        # Given
+        data_dict = {"2023-01": 0.0095, "2023-02": 0.0088}
+        date_value = date(2023, 12, 15)  # 2023-12, 2023-02부터 10개월 차이 (12개월 이내)
+
+        # When
+        from qbt.tqqq.simulation import _lookup_monthly_data
+
+        result = _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
+
+        # Then: 2023-02 값 사용
+        assert result == pytest.approx(0.0088)
+
+
+class TestCalculateDailyCostWithDynamicExpense:
+    """동적 expense 적용 비용 계산 테스트 (Phase 0)"""
+
+    def test_calculate_daily_cost_with_expense_dict(self):
+        """
+        expense_dict를 사용한 일일 비용 계산 테스트
+
+        Given: FFR dict, expense dict, 날짜
+        When: calculate_daily_cost 호출 (expense_dict 파라미터 사용)
+        Then: 해당 날짜의 FFR과 expense를 조회하여 비용 계산
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
+        from qbt.tqqq.simulation import _create_ffr_dict
+
+        ffr_dict = _create_ffr_dict(ffr_df)
+
+        expense_dict = {"2023-01": 0.0095}  # 0.95%
+        date_value = date(2023, 1, 15)
+
+        # When: expense_dict 파라미터로 호출 (아직 시그니처 변경 안 됨 - 레드)
+        daily_cost = calculate_daily_cost(
+            date_value=date_value, ffr_dict=ffr_dict, expense_dict=expense_dict, funding_spread=0.006, leverage=3.0
+        )
+
+        # Then: 양수 비용
+        assert daily_cost > 0, "일일 비용은 양수여야 합니다"

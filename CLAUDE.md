@@ -290,6 +290,7 @@ quant/
 **기타 데이터** (`storage/etc/`):
 
 - `federal_funds_rate_monthly.csv`: 연방기금금리 월별 데이터
+- `tqqq_net_expense_ratio_monthly.csv`: TQQQ 운용비율 월별 데이터
 
 **분석 결과** (`storage/results/`):
 
