@@ -62,13 +62,81 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
     KEY_SPREAD,
-    MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
 
 logger = get_logger(__name__)
+
+
+def validate_ffr_coverage(
+    overlap_start: date,
+    overlap_end: date,
+    ffr_df: pd.DataFrame,
+) -> None:
+    """
+    overlap 기간에 필요한 FFR 데이터 커버리지를 사전 검증한다.
+
+    Args:
+        overlap_start: 겹치는 기간 시작일
+        overlap_end: 겹치는 기간 종료일
+        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
+
+    Raises:
+        ValueError: FFR 데이터 부족 시 (필요 월 범위 미커버 또는 월 차 정책 위반)
+    """
+    from qbt.tqqq.constants import COL_FFR_DATE, MAX_FFR_MONTHS_DIFF
+
+    # 1. 필요한 월 범위 계산
+    start_year_month = f"{overlap_start.year:04d}-{overlap_start.month:02d}"
+    end_year_month = f"{overlap_end.year:04d}-{overlap_end.month:02d}"
+
+    # 2. FFR 데이터 범위 확인
+    ffr_dates = set(ffr_df[COL_FFR_DATE])
+    ffr_start = min(ffr_dates)
+    ffr_end = max(ffr_dates)
+
+    # 3. overlap 기간의 모든 월 생성
+    required_months = set()
+    current = overlap_start
+    while current <= overlap_end:
+        month_str = f"{current.year:04d}-{current.month:02d}"
+        required_months.add(month_str)
+        # 다음 달로 이동
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+
+    # 4. 필요한 월 중 FFR 데이터가 없는 월 찾기
+    missing_months = required_months - ffr_dates
+
+    # 5. 누락된 월이 있으면 가장 가까운 이전 월 찾기 및 월 차 검증
+    if missing_months:
+        for missing_month in sorted(missing_months):
+            # 이전 월 찾기
+            previous_dates = [d for d in ffr_dates if d < missing_month]
+            if not previous_dates:
+                raise ValueError(
+                    f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에서 {missing_month}의 "
+                    f"FFR 데이터가 없으며, 이전 데이터도 존재하지 않습니다. "
+                    f"FFR 데이터 범위: {ffr_start}~{ffr_end}"
+                )
+
+            closest_date_str = max(previous_dates)
+            # 월 차이 계산
+            missing_year, missing_month_num = map(int, missing_month.split("-"))
+            closest_year, closest_month_num = map(int, closest_date_str.split("-"))
+            total_months = (missing_year - closest_year) * 12 + (missing_month_num - closest_month_num)
+
+            if total_months > MAX_FFR_MONTHS_DIFF:
+                raise ValueError(
+                    f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에서 {missing_month}의 "
+                    f"FFR 데이터가 없으며, 가장 가까운 이전 데이터는 {closest_date_str} ({total_months}개월 전)입니다. "
+                    f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다. "
+                    f"FFR 데이터 범위: {ffr_start}~{ffr_end}"
+                )
 
 
 def calculate_daily_cost(
@@ -80,6 +148,8 @@ def calculate_daily_cost(
 ) -> float:  # 반환 타입: 이 함수는 float를 반환함
     """
     특정 날짜의 일일 비용률을 계산한다.
+
+    FFR 데이터 커버리지는 호출 측에서 사전 검증되어야 한다.
 
     학습 포인트:
     1. f-string: f"{변수}" 형태로 문자열 안에 변수 삽입
@@ -96,6 +166,9 @@ def calculate_daily_cost(
 
     Returns:
         일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
+
+    Raises:
+        ValueError: FFR 데이터가 존재하지 않을 때
     """
     # 1. 해당 월의 FFR 조회 (Year-Month 기준, 문자열 형식)
     # f-string을 사용한 날짜 포맷팅 (예: 2024-01)
@@ -109,36 +182,12 @@ def calculate_daily_cost(
     # .empty: DataFrame이나 Series가 비어있는지 확인하는 속성
     # True면 데이터 없음, False면 데이터 있음
     if ffr_row.empty:
-        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용 (최대 2개월 전까지)
+        # FFR 데이터 없으면 가장 가까운 이전 월 값 사용
         previous_dates = ffr_df[ffr_df[COL_FFR_DATE] < year_month_str]
 
         # not 연산자: 불린값 반대로 변환 (True -> False, False -> True)
         if not previous_dates.empty:
             # .iloc[-1]: 마지막 행 접근 (파이썬 음수 인덱스 활용)
-            # [COL_FFR_DATE]: 해당 컬럼 값 추출
-            closest_date_str = previous_dates.iloc[-1][COL_FFR_DATE]
-
-            # 월 차이 계산 (yyyy-mm 문자열 파싱)
-            current_year, current_month = date_value.year, date_value.month
-
-            # map() 함수: 리스트의 각 요소에 함수를 적용
-            # "2024-01".split("-") -> ["2024", "01"]
-            # map(int, ...) -> [2024, 1]로 변환
-            closest_year, closest_month = map(int, closest_date_str.split("-"))
-
-            # 두 날짜 간 월 차이 계산
-            # (연도 차이 * 12) + 월 차이
-            total_months = (current_year - closest_year) * 12 + (current_month - closest_month)
-
-            if total_months > MAX_FFR_MONTHS_DIFF:
-                # raise: 예외를 발생시켜 프로그램 실행을 중단함
-                # ValueError: 값이 유효하지 않을 때 사용하는 예외 타입
-                raise ValueError(
-                    f"FFR 데이터 부족: {year_month_str}의 FFR 데이터가 없으며, "
-                    f"가장 가까운 이전 데이터는 {closest_date_str} ({total_months}개월 전)입니다. "
-                    f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다."
-                )
-
             # float() 함수: 값을 실수로 변환 (타입 안정성 확보)
             ffr = float(previous_dates.iloc[-1][COL_FFR])
         else:

@@ -24,6 +24,7 @@ from qbt.tqqq.simulation import (
     extract_overlap_period,
     find_optimal_cost_model,
     simulate,
+    validate_ffr_coverage,
 )
 
 
@@ -100,37 +101,6 @@ class TestCalculateDailyCost:
             # 구현이 엄격하면 에러를 낼 수도 있음
             # 이 경우 테스트는 "에러가 명확한지" 검증
             pass
-
-    def test_ffr_too_old_raises_error(self):
-        """
-        FFR이 너무 오래되면 에러 테스트
-
-        안정성: 6개월 전 FFR로 계산하는 것은 부정확하므로 거부해야 합니다.
-
-        Given:
-          - 2023년 7월 15일
-          - FFR은 2023년 1월만 존재 (6개월 이상 차이)
-        When: calculate_daily_cost
-        Then: ValueError 발생
-        """
-        # Given: 6개월 이상 오래된 FFR (DATE는 yyyy-mm 문자열)
-        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "FFR": [4.5]})
-
-        target_date = date(2023, 7, 15)
-        leverage = 3.0
-
-        # When & Then: 너무 오래되어 에러
-        with pytest.raises(ValueError) as exc_info:
-            calculate_daily_cost(
-                date_value=target_date,
-                ffr_df=ffr_df,
-                expense_ratio=0.009,
-                funding_spread=0.006,
-                leverage=leverage,
-            )
-
-        error_msg = str(exc_info.value)
-        assert "FFR" in error_msg or "데이터" in error_msg, "FFR 부재 에러 메시지"
 
     def test_empty_ffr_dataframe(self):
         """
@@ -808,3 +778,127 @@ class TestSaveDailyComparisonCsv:
         # 실제 종가 확인 (소수점 4자리로 반올림)
         assert abs(result_df[COL_ACTUAL_CLOSE].iloc[0] - 100.1235) < 0.0001
         assert abs(result_df[COL_SIMUL_CLOSE].iloc[0] - 100.2346) < 0.0001
+
+
+class TestValidateFfrCoverage:
+    """FFR 커버리지 검증 테스트"""
+
+    def test_full_coverage_passes(self):
+        """
+        FFR 데이터가 모든 필요 월을 커버하면 통과
+
+        Given: 2023-01부터 2023-12까지 모든 월의 FFR 데이터
+        When: 2023-03-15 ~ 2023-09-20 기간 검증
+        Then: 예외 없이 통과
+        """
+        # Given
+        ffr_df = pd.DataFrame(
+            {
+                "DATE": [f"2023-{m:02d}" for m in range(1, 13)],
+                "FFR": [4.5 + m * 0.1 for m in range(1, 13)],
+            }
+        )
+        overlap_start = date(2023, 3, 15)
+        overlap_end = date(2023, 9, 20)
+
+        # When & Then: 예외 없이 통과
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    def test_missing_month_within_2_months_passes(self):
+        """
+        필요 월이 누락되었지만 2개월 이내 이전 데이터가 있으면 통과
+
+        Given: 2023-01, 02, 03, 06, 07 FFR 데이터 (04, 05 누락)
+        When: 2023-04-10 ~ 2023-05-20 기간 검증
+        Then: 2개월 이내이므로 통과
+        """
+        # Given
+        ffr_df = pd.DataFrame(
+            {"DATE": ["2023-01", "2023-02", "2023-03", "2023-06", "2023-07"], "FFR": [4.5, 4.6, 4.7, 5.0, 5.1]}
+        )
+        overlap_start = date(2023, 4, 10)
+        overlap_end = date(2023, 5, 20)
+
+        # When & Then: 예외 없이 통과 (2023-03이 1~2개월 전)
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    def test_missing_month_exceeds_2_months_raises(self):
+        """
+        필요 월이 누락되고 2개월 초과 이전 데이터만 있으면 실패
+
+        Given: 2023-01, 02, 06 FFR 데이터 (03, 04, 05 누락)
+        When: 2023-05-10 ~ 2023-05-20 기간 검증
+        Then: ValueError (2023-02와 2023-05는 3개월 차이)
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-06"], "FFR": [4.5, 4.6, 5.0]})
+        overlap_start = date(2023, 5, 10)
+        overlap_end = date(2023, 5, 20)
+
+        # When & Then
+        with pytest.raises(ValueError) as exc_info:
+            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+        error_msg = str(exc_info.value)
+        assert "2023-05" in error_msg
+        assert "2023-02" in error_msg
+        assert "3개월" in error_msg
+        assert "최대 2개월" in error_msg
+
+    def test_no_previous_data_raises(self):
+        """
+        필요 월에 이전 데이터가 전혀 없으면 실패
+
+        Given: 2023-06, 07 FFR 데이터만 존재
+        When: 2023-03-10 ~ 2023-04-20 기간 검증
+        Then: ValueError (이전 데이터 없음)
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-06", "2023-07"], "FFR": [5.0, 5.1]})
+        overlap_start = date(2023, 3, 10)
+        overlap_end = date(2023, 4, 20)
+
+        # When & Then
+        with pytest.raises(ValueError) as exc_info:
+            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+        error_msg = str(exc_info.value)
+        assert "2023-03" in error_msg
+        assert "이전 데이터도 존재하지 않습니다" in error_msg
+
+    def test_single_day_period(self):
+        """
+        시작일과 종료일이 같은 경우 (단일 월)
+
+        Given: 2023-01부터 2023-12까지 FFR 데이터
+        When: 2023-05-15 ~ 2023-05-15 기간 검증
+        Then: 예외 없이 통과
+        """
+        # Given
+        ffr_df = pd.DataFrame(
+            {
+                "DATE": [f"2023-{m:02d}" for m in range(1, 13)],
+                "FFR": [4.5 + m * 0.1 for m in range(1, 13)],
+            }
+        )
+        overlap_start = date(2023, 5, 15)
+        overlap_end = date(2023, 5, 15)
+
+        # When & Then
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    def test_year_boundary_crossing(self):
+        """
+        연도 경계를 넘는 기간 검증
+
+        Given: 2023-11, 12, 2024-01, 02 FFR 데이터
+        When: 2023-11-20 ~ 2024-02-10 기간 검증
+        Then: 예외 없이 통과
+        """
+        # Given
+        ffr_df = pd.DataFrame({"DATE": ["2023-11", "2023-12", "2024-01", "2024-02"], "FFR": [5.3, 5.4, 5.5, 5.6]})
+        overlap_start = date(2023, 11, 20)
+        overlap_end = date(2024, 2, 10)
+
+        # When & Then
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
