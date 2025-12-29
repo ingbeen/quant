@@ -32,6 +32,8 @@ def _init_worker_cache(cache_payload: dict) -> None:
 def _try_modify_cache(dummy: int) -> int:
     """캐시된 df를 수정하려고 시도하는 함수 (금지됨)"""
     df = parallel_executor.WORKER_CACHE.get("df")
+    if df is None:
+        raise ValueError("WORKER_CACHE에 df가 없습니다")
     # 원본 수정 시도 (실제로는 .copy()를 사용해야 함)
     df.loc[0, "A"] = 999
     return len(df)
