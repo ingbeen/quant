@@ -46,7 +46,7 @@ class TestLoadFfrData:
         # When
         df = load_ffr_data(csv_path)
 
-        # Then
+        # Then: 원본 CSV 스키마 회귀 탐지를 위해 리터럴 유지
         assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
         assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
         assert len(df) == 3
@@ -107,7 +107,7 @@ class TestLoadExpenseRatioData:
         # When
         df = load_expense_ratio_data(csv_path)
 
-        # Then
+        # Then: 원본 CSV 스키마 회귀 탐지를 위해 리터럴 유지
         assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
         assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
         assert len(df) == 3

@@ -17,6 +17,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+
 
 @pytest.fixture
 def sample_stock_df():
@@ -32,12 +34,12 @@ def sample_stock_df():
     """
     return pd.DataFrame(
         {
-            "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-            "Open": [100.0, 101.0, 102.0],
-            "High": [105.0, 106.0, 107.0],
-            "Low": [99.0, 100.0, 101.0],
-            "Close": [103.0, 104.0, 105.0],
-            "Volume": [1000000, 1100000, 1200000],
+            COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+            COL_OPEN: [100.0, 101.0, 102.0],
+            COL_HIGH: [105.0, 106.0, 107.0],
+            COL_LOW: [99.0, 100.0, 101.0],
+            COL_CLOSE: [103.0, 104.0, 105.0],
+            COL_VOLUME: [1000000, 1100000, 1200000],
         }
     )
 
@@ -51,6 +53,8 @@ def sample_ffr_df():
 
     Returns:
         pd.DataFrame: DATE(yyyy-mm 문자열), VALUE(0~1 비율, 예: 0.045 = 4.5%) 컬럼
+
+    Note: 원본 CSV 스키마("DATE", "VALUE")를 리터럴로 유지하여 외부 데이터 형식 회귀 탐지
     """
     return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "VALUE": [0.045, 0.046, 0.047]})
 
@@ -64,6 +68,8 @@ def sample_expense_df():
 
     Returns:
         pd.DataFrame: DATE(yyyy-mm 문자열), VALUE(연 운용비율, 0~1 소수) 컬럼
+
+    Note: 원본 CSV 스키마("DATE", "VALUE")를 리터럴로 유지하여 외부 데이터 형식 회귀 탐지
     """
     return pd.DataFrame({"DATE": ["2023-01", "2023-02", "2023-03"], "VALUE": [0.0095, 0.0095, 0.0088]})
 

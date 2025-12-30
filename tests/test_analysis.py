@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary
-from qbt.common_constants import EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
 
 class TestAddSingleMovingAverage:
@@ -39,7 +39,7 @@ class TestAddSingleMovingAverage:
         """
         # Given: 간단한 데이터 (100, 110, 120, 130, 140)
         df = pd.DataFrame(
-            {"Date": [date(2023, 1, i + 1) for i in range(5)], "Close": [100.0, 110.0, 120.0, 130.0, 140.0]}
+            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 110.0, 120.0, 130.0, 140.0]}
         )
 
         # When: 3일 이동평균
@@ -74,7 +74,7 @@ class TestAddSingleMovingAverage:
         """
         # Given
         df = pd.DataFrame(
-            {"Date": [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 110.0, 120.0]}
+            {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)], COL_CLOSE: [100.0, 110.0, 120.0]}
         )
 
         # When
@@ -94,7 +94,7 @@ class TestAddSingleMovingAverage:
         Then: ValueError
         """
         # Given
-        df = pd.DataFrame({"Date": [date(2023, 1, 1)], "Close": [100.0]})
+        df = pd.DataFrame({COL_DATE: [date(2023, 1, 1)], COL_CLOSE: [100.0]})
 
         # When & Then: window=0
         with pytest.raises(ValueError):
@@ -138,7 +138,7 @@ class TestCalculateSummary:
         # Equity curve (실제 컬럼명: equity 소문자)
         equity_df = pd.DataFrame(
             {
-                "Date": [
+                COL_DATE: [
                     date(2021, 1, 1),
                     date(2021, 6, 1),  # 중간 peak
                     date(2021, 8, 1),  # drawdown
@@ -195,7 +195,9 @@ class TestCalculateSummary:
         # Given: 빈 거래 (실제 컬럼명: pnl)
         trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
 
-        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2022, 1, 1)], "equity": [10000.0, 10000.0]})  # 변화 없음
+        equity_df = pd.DataFrame(
+            {COL_DATE: [date(2021, 1, 1), date(2022, 1, 1)], "equity": [10000.0, 10000.0]}
+        )  # 변화 없음
 
         initial_capital = 10000.0
 
@@ -224,7 +226,7 @@ class TestCalculateSummary:
             }
         )
 
-        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2021, 4, 1)], "equity": [10000.0, 9650.0]})  # -350
+        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 4, 1)], "equity": [10000.0, 9650.0]})  # -350
 
         # When
         summary = calculate_summary(trades_df, equity_df, 10000.0)
@@ -246,7 +248,7 @@ class TestCalculateSummary:
 
         equity_df = pd.DataFrame(
             {
-                "Date": [date(2021, 1, 1), date(2021, 2, 1), date(2021, 3, 1)],
+                COL_DATE: [date(2021, 1, 1), date(2021, 2, 1), date(2021, 3, 1)],
                 "equity": [10000.0, 11000.0, 12000.0],  # 계속 상승
             }
         )
@@ -271,7 +273,7 @@ class TestCalculateSummary:
         # Given
         trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
 
-        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2021, 2, 1)], "equity": [0.0, 1000.0]})
+        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 2, 1)], "equity": [0.0, 1000.0]})
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
@@ -293,7 +295,7 @@ class TestCalculateSummary:
         # Given
         trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
 
-        equity_df = pd.DataFrame({"Date": [date(2021, 1, 1), date(2021, 2, 1)], "equity": [-10000.0, -9000.0]})
+        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 2, 1)], "equity": [-10000.0, -9000.0]})
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
@@ -321,7 +323,7 @@ class TestCalculateSummary:
         trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
 
         equity_df = pd.DataFrame(
-            {"Date": [date(2021, 1, 1), date(2021, 2, 1), date(2021, 3, 1)], "equity": [0.0, 0.0, 0.0]}
+            {COL_DATE: [date(2021, 1, 1), date(2021, 2, 1), date(2021, 3, 1)], "equity": [0.0, 0.0, 0.0]}
         )
 
         initial_capital = 10000.0
