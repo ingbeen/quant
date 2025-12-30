@@ -143,7 +143,7 @@ class TestCalculateDailyCost:
 
     def test_calculate_daily_cost_leverage_2(self):
         """
-        레버리지 2배 비용 계산 테스트 (Phase 0 - 레드)
+        레버리지 2배 비용 계산 테스트
 
         정책: 레버리지 비용 = funding_rate * (leverage - 1)
         leverage=2일 때 차입 비율은 1배 (자기자본 1 + 빌린돈 1)
@@ -194,7 +194,7 @@ class TestCalculateDailyCost:
 
     def test_calculate_daily_cost_leverage_4(self):
         """
-        레버리지 4배 비용 계산 테스트 (Phase 0 - 레드)
+        레버리지 4배 비용 계산 테스트
 
         정책: 레버리지 비용 = funding_rate * (leverage - 1)
         leverage=4일 때 차입 비율은 3배 (자기자본 1 + 빌린돈 3)
@@ -1039,7 +1039,7 @@ class TestValidateFfrCoverage:
 
 
 class TestCreateFfrDict:
-    """FFR 딕셔너리 생성 함수 테스트 (Phase 0)"""
+    """FFR 딕셔너리 생성 함수 테스트"""
 
     def test_create_ffr_dict_normal(self):
         """
@@ -1093,7 +1093,7 @@ class TestCreateFfrDict:
 
 
 class TestLookupFfr:
-    """FFR 조회 함수 테스트 (Phase 0)"""
+    """FFR 조회 함수 테스트"""
 
     def test_lookup_ffr_exact_match(self):
         """
@@ -1165,7 +1165,7 @@ class TestLookupFfr:
 
 
 class TestExpenseRatioLoading:
-    """Expense Ratio CSV 로딩 테스트 (Phase 0)"""
+    """Expense Ratio CSV 로딩 테스트"""
 
     def test_load_expense_ratio_data_basic(self, create_csv_file):
         """
@@ -1213,7 +1213,7 @@ class TestExpenseRatioLoading:
 
 
 class TestGenericMonthlyDataDict:
-    """제네릭 월별 데이터 딕셔너리 생성/조회 테스트 (Phase 0)"""
+    """제네릭 월별 데이터 딕셔너리 생성/조회 테스트"""
 
     def test_create_monthly_data_dict_basic(self):
         """
@@ -1291,7 +1291,7 @@ class TestGenericMonthlyDataDict:
 
 
 class TestCalculateDailyCostWithDynamicExpense:
-    """동적 expense 적용 비용 계산 테스트 (Phase 0)"""
+    """동적 expense 적용 비용 계산 테스트"""
 
     def test_calculate_daily_cost_with_expense_dict(self):
         """

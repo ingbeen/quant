@@ -64,14 +64,11 @@ class TestExecuteParallel:
 
 
 class TestWorkerCache:
-    """워커 캐시 구조 테스트 (Phase 0 - 레드)"""
+    """워커 캐시 구조 테스트"""
 
     def test_cache_initialization(self):
         """
         initializer가 WORKER_CACHE를 올바르게 세팅하는지 검증
-
-        이 테스트는 Phase 0에서 실패해야 하며,
-        Phase 3에서 구현 완료 후 통과해야 한다.
         """
 
         # 캐시 페이로드 준비
@@ -90,9 +87,6 @@ class TestWorkerCache:
     def test_cache_clear_on_reinit(self):
         """
         프로세스 풀 재사용 시 initializer가 캐시를 clear하는지 검증
-
-        이 테스트는 Phase 0에서 실패해야 하며,
-        Phase 3에서 구현 완료 후 통과해야 한다.
         """
 
         # 첫 번째 실행: df1 캐시
@@ -120,9 +114,6 @@ class TestWorkerCache:
     def test_cache_read_only(self):
         """
         워커 함수가 캐시된 DataFrame을 수정하지 않는지 검증
-
-        이 테스트는 Phase 0에서 실패해야 하며,
-        Phase 3에서 구현 완료 후 통과해야 한다.
         """
         test_df = pd.DataFrame({"A": [1, 2, 3]})
         original_value = test_df.loc[0, "A"]
