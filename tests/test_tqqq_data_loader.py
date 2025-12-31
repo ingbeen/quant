@@ -168,7 +168,8 @@ class TestLoadComparisonData:
             COL_ACTUAL_CLOSE,
             COL_ACTUAL_CUMUL_RETURN,
             COL_ACTUAL_DAILY_RETURN,
-            COL_CUMUL_MULTIPLE_LOG_DIFF,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
             COL_DAILY_RETURN_ABS_DIFF,
             COL_SIMUL_CLOSE,
             COL_SIMUL_CUMUL_RETURN,
@@ -185,7 +186,8 @@ class TestLoadComparisonData:
                 COL_DAILY_RETURN_ABS_DIFF: [0.0, 0.0],
                 COL_ACTUAL_CUMUL_RETURN: [0.01, 0.03],
                 COL_SIMUL_CUMUL_RETURN: [0.01, 0.03],
-                COL_CUMUL_MULTIPLE_LOG_DIFF: [0.0, 0.0],
+                COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: [0.0, 0.0],
+                COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: [0.0, 0.0],
             }
         )
         csv_path = tmp_path / "comparison.csv"

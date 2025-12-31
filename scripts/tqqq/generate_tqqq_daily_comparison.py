@@ -17,7 +17,7 @@ from qbt.common_constants import COL_CLOSE, QQQ_DATA_PATH
 from qbt.tqqq import calculate_validation_metrics, extract_overlap_period, simulate
 from qbt.tqqq.constants import (
     COL_ACTUAL_CUMUL_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
     COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -117,8 +117,8 @@ def main() -> int:
                 "max": round(daily_df[COL_DAILY_RETURN_ABS_DIFF].max(), 4),
             },
             "cumul_multiple_log_diff": {
-                "mean": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].mean(), 4),
-                "max": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF].max(), 4),
+                "mean": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].mean(), 4),
+                "max": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].max(), 4),
             },
         },
         "csv_info": {

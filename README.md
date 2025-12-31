@@ -75,7 +75,7 @@ poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 poetry run streamlit run scripts/tqqq/streamlit_app.py
 # 브라우저에서 http://localhost:8501 열림
 
-# 5. 합성 TQQQ 데이터 생성 (선택)
+# 5. 합성 TQQQ 데이터 생성
 poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 # 출력: storage/stock/TQQQ_synthetic_max.csv
 ```

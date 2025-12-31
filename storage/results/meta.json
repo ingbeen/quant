@@ -293,6 +293,40 @@
       },
       "overlap_period": {
         "start_date": "2010-02-11",
+        "end_date": "2025-12-29",
+        "total_days": 3995
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 26300.71,
+        "cumulative_return_simulated_pct": 27471.23,
+        "cumul_multiple_log_diff_mean_pct": 1.7238,
+        "cumul_multiple_log_diff_rmse_pct": 2.0088,
+        "cumul_multiple_log_diff_max_pct": 6.3173
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0957,
+          "max": 6.4456
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.7238,
+          "max": 6.3173
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3995,
+        "file_size_bytes": 322833
+      },
+      "timestamp": "2025-12-31T16:29:53+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.0034
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
         "end_date": "2025-12-19",
         "total_days": 3990
       },
@@ -421,41 +455,6 @@
         "file_size_bytes": 291840
       },
       "timestamp": "2025-12-29T20:47:09+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.004,
-        "expense_ratio": 0.0085
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-12",
-        "total_days": 3985
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25451.59,
-        "cumulative_return_simulated_pct": 26415.33,
-        "cumul_multiple_log_diff_mean_pct": 1.7212,
-        "cumul_multiple_log_diff_rmse_pct": 1.9668,
-        "cumul_multiple_log_diff_max_pct": 6.5189
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0958,
-          "max": 6.4455
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7212,
-          "max": 6.5189
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3985,
-        "file_size_bytes": 291586
-      },
-      "timestamp": "2025-12-23T20:17:43+09:00"
     }
   ]
 }

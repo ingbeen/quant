@@ -825,7 +825,8 @@ class TestSaveDailyComparisonCsv:
             COL_ACTUAL_CLOSE,
             COL_ACTUAL_CUMUL_RETURN,
             COL_ACTUAL_DAILY_RETURN,
-            COL_CUMUL_MULTIPLE_LOG_DIFF,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
             COL_DAILY_RETURN_ABS_DIFF,
             COL_SIMUL_CLOSE,
             COL_SIMUL_CUMUL_RETURN,
@@ -851,7 +852,8 @@ class TestSaveDailyComparisonCsv:
         output_path = tmp_path / "test_comparison.csv"
 
         # When
-        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path)
+        # 테스트 데이터는 synthetic이므로 tolerance를 크게 설정
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path, integrity_tolerance=1.0)
 
         # Then: 파일 존재
         assert output_path.exists(), "CSV 파일이 생성되어야 함"
@@ -872,7 +874,8 @@ class TestSaveDailyComparisonCsv:
             COL_DAILY_RETURN_ABS_DIFF,
             COL_ACTUAL_CUMUL_RETURN,
             COL_SIMUL_CUMUL_RETURN,
-            COL_CUMUL_MULTIPLE_LOG_DIFF,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
         ]
 
         for col in required_cols:
@@ -902,7 +905,8 @@ class TestSaveDailyComparisonCsv:
         output_path = tmp_path / "test_precision.csv"
 
         # When
-        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path)
+        # 테스트 데이터는 synthetic이므로 tolerance를 크게 설정
+        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_log_diff, output_path, integrity_tolerance=1.0)
 
         # Then
         result_df = pd.read_csv(output_path, encoding="utf-8-sig")

@@ -40,6 +40,7 @@ __all__ = [
     "TQQQ_SYNTHETIC_PATH",
     "TQQQ_VALIDATION_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
+    "INTEGRITY_TOLERANCE",
     # (아래에 정의되는 상수들도 __all__에 포함)
 ]
 
@@ -62,6 +63,11 @@ DEFAULT_SPREAD_STEP = 0.0001  # 스프레드 증분 (%)
 MAX_FFR_MONTHS_DIFF = 2  # FFR 데이터 최대 월 차이 (개월)
 MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
+
+# 무결성 체크 허용 오차 (%)
+# abs(signed)와 abs 컬럼의 최대 차이 허용값
+# 결정 근거: 실제 데이터 관측값 (max_abs_diff=4.66e-14%) + 10% 여유 → 1e-6%로 확정
+INTEGRITY_TOLERANCE = 1e-6  # 0.000001%
 
 # ============================================================
 # 데이터 컬럼 및 키 정의
@@ -90,7 +96,8 @@ COL_DAILY_RETURN_ABS_DIFF = "일일수익률_절대차이"
 COL_ACTUAL_CUMUL_RETURN = "누적수익률_실제(%)"
 COL_SIMUL_CUMUL_RETURN = "누적수익률_시뮬(%)"
 COL_CUMUL_RETURN_REL_DIFF = "누적수익률_상대차이(%)"
-COL_CUMUL_MULTIPLE_LOG_DIFF = "누적배수_로그차이(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_ABS = "누적배수_로그차이_abs(%)"
+COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED = "누적배수_로그차이_signed(%)"
 
 # 검증 결과 컬럼
 COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "누적배수로그차이_RMSE(%)"
@@ -107,7 +114,8 @@ COMPARISON_COLUMNS = [
     COL_DAILY_RETURN_ABS_DIFF,
     COL_ACTUAL_CUMUL_RETURN,
     COL_SIMUL_CUMUL_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
 ]
 
 # --- 출력용 레이블 (사용자 표시용) ---

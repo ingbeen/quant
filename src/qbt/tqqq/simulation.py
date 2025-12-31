@@ -35,7 +35,8 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
@@ -102,7 +103,8 @@ def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, d
         # 중복 월 발견 시 즉시 예외 (데이터 무결성 보장)
         if month_key in data_dict:
             raise ValueError(
-                f"{data_type} 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. " f"기존 값: {data_dict[month_key]}, 중복 값: {value}"
+                f"{data_type} 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. "
+                f"기존 값: {data_dict[month_key]}, 중복 값: {value}"
             )
 
         data_dict[month_key] = value
@@ -258,7 +260,10 @@ def validate_ffr_coverage(
     # 2. FFR 데이터 존재 여부 확인
     ffr_dates = set(ffr_df[COL_FFR_DATE])
     if not ffr_dates:
-        raise ValueError(f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 " f"FFR 데이터가 전혀 존재하지 않습니다.")
+        raise ValueError(
+            f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 "
+            f"FFR 데이터가 전혀 존재하지 않습니다."
+        )
 
     # 3. FFR 데이터 범위 확인
     ffr_start = min(ffr_dates)
@@ -649,7 +654,9 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
+        raise ValueError(
+            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
+        )
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -679,6 +686,7 @@ def _save_daily_comparison_csv(
     actual_overlap: pd.DataFrame,
     cumul_multiple_log_diff_series: pd.Series,
     output_path: Path,
+    integrity_tolerance: float | None = None,
 ) -> None:
     """
     일별 비교 CSV를 저장한다.
@@ -691,6 +699,7 @@ def _save_daily_comparison_csv(
         actual_overlap: 겹치는 기간의 실제 DataFrame
         cumul_multiple_log_diff_series: 누적배수 로그차이 시계열 (이미 계산됨)
         output_path: CSV 저장 경로
+        integrity_tolerance: 무결성 체크 허용 오차 (%, None이면 기본값 사용)
     """
     # 1. 기본 데이터 준비
     # 학습 포인트: 딕셔너리 생성
@@ -724,25 +733,51 @@ def _save_daily_comparison_csv(
     comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
     comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
 
-    # 4. 누적배수 로그차이
-    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF] = cumul_multiple_log_diff_series
+    # 4. 누적배수 로그차이 abs (기존과 동일, 컬럼명만 변경)
+    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS] = cumul_multiple_log_diff_series
 
-    # 5. DataFrame 생성 및 반올림
+    # 5. 누적배수 로그차이 signed (신규 추가)
+    # 순수 함수 호출: 누적수익률 → signed
+    from qbt.tqqq.analysis_helpers import (
+        calculate_signed_log_diff_from_cumulative_returns,
+        validate_integrity,
+    )
+
+    signed_log_diff = calculate_signed_log_diff_from_cumulative_returns(
+        cumul_return_real_pct=actual_cumulative,
+        cumul_return_sim_pct=sim_cumulative,
+    )
+    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED] = signed_log_diff
+
+    # 6. 무결성 체크: abs(signed) vs abs
+    # tolerance 확정값 사용 (실제 데이터 관측 기반)
+    # 테스트에서는 integrity_tolerance 파라미터로 조정 가능
+    if integrity_tolerance is None:
+        from qbt.tqqq.constants import INTEGRITY_TOLERANCE
+
+        integrity_tolerance = INTEGRITY_TOLERANCE
+
+    validate_integrity(
+        signed_series=signed_log_diff,
+        abs_series=cumul_multiple_log_diff_series,
+        tolerance=integrity_tolerance,
+    )
+    # 무결성 체크 통과 (ValueError 발생하지 않으면 정상)
+
+    # 7. DataFrame 생성 및 반올림
     # 딕셔너리를 DataFrame으로 변환
     comparison_df = pd.DataFrame(comparison_data)
 
     # 학습 포인트: 리스트 컴프리헨션 (List Comprehension)
     # [표현식 for 변수 in 리스트 if 조건]
     # 날짜 컬럼을 제외한 모든 숫자 컬럼 선택
-    # 예: comparison_df.columns = ["날짜", "실제종가", "시뮬종가"]
-    #     → num_cols = ["실제종가", "시뮬종가"]
     num_cols = [c for c in comparison_df.columns if c != DISPLAY_DATE]
 
     # .round(4): 소수점 4자리로 반올림
     # comparison_df[num_cols]: 여러 컬럼 동시 선택
     comparison_df[num_cols] = comparison_df[num_cols].round(4)
 
-    # 6. CSV 저장
+    # 8. CSV 저장
     # to_csv() 메서드: DataFrame을 CSV 파일로 저장
     # index=False: 행 인덱스 제외
     # encoding="utf-8-sig": 한글 엑셀 호환 (BOM 포함 UTF-8)

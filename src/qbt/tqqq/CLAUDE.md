@@ -99,19 +99,89 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 - `MAX_FFR_MONTHS_DIFF = 2` (FFR 데이터 최대 월 차이, 초과 시 예외)
 - `MAX_TOP_STRATEGIES`: find_optimal_cost_model 반환 상위 전략 수
+- `INTEGRITY_TOLERANCE = 1e-6` (0.000001%, 무결성 체크 허용 오차)
+  - abs(signed)와 abs 컬럼의 최대 차이 허용값
+  - 결정 근거: 실제 데이터 관측값 (max_abs_diff=4.66e-14%) + 10% 여유
+  - 초과 시 ValueError 발생 (fail-fast)
 
 **컬럼 및 키 정의**:
 
 - FFR 데이터: `COL_FFR_DATE`, `COL_FFR_VALUE`
 - Expense Ratio 데이터: `COL_EXPENSE_DATE`, `COL_EXPENSE_VALUE`
-- 일별 비교: `COL_ACTUAL_CLOSE`, `COL_SIMUL_CLOSE`, `COL_ACTUAL_DAILY_RETURN`, `COL_SIMUL_DAILY_RETURN`, `COL_CUMUL_MULTIPLE_LOG_DIFF` 등
+- 일별 비교: `COL_ACTUAL_CLOSE`, `COL_SIMUL_CLOSE`, `COL_ACTUAL_DAILY_RETURN`, `COL_SIMUL_DAILY_RETURN`, `COL_CUMUL_MULTIPLE_LOG_DIFF_ABS`, `COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED` 등
 - 딕셔너리 키: `KEY_SPREAD`, `KEY_EXPENSE`, `KEY_OVERLAP_START`, `KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE` 등
 
 근거 위치: [src/qbt/tqqq/constants.py](constants.py)
 
 ---
 
-### 3. simulation.py
+### 3. analysis_helpers.py
+
+**TQQQ 시뮬레이션 분석용 순수 계산 함수를 제공합니다** (412줄).
+
+금리-오차 관계 분석을 위한 계산, 집계, 검증 함수를 제공합니다.
+모든 함수는 상태를 유지하지 않으며(stateless), fail-fast 정책을 따릅니다.
+
+#### Fail-fast 정책
+
+**원칙**: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
+
+- 조용히 진행하지 않고 명확한 에러 메시지 제공
+- simulation.py와 동일한 철학
+- Streamlit 앱에서는 ValueError catch → st.error() + st.stop()
+
+**Fail-fast 대상**:
+- M_real <= 0 또는 M_sim <= 0 (누적수익률 로그 계산 불가)
+- 1 + r_real/100 <= 0 또는 1 + r_sim/100 <= 0 (일일 로그 계산 불가)
+- 필수 컬럼 누락 또는 입력 DataFrame 비어있음
+- 금리(FFR) 데이터의 월 커버리지 부족/매칭 불가
+- 무결성 체크 실패: abs(signed)와 abs 컬럼 차이가 tolerance 초과
+- 월별 집계 결과가 너무 짧아 핵심 지표 계산 불가 (예: Rolling 12M 상관)
+
+#### 주요 함수
+
+**`calculate_signed_log_diff_from_cumulative_returns(cumul_return_real_pct, cumul_return_sim_pct) -> pd.Series`**:
+
+- 누적수익률(%)로부터 signed 누적배수 로그차이를 계산
+- 수식: `signed(%) = 100 * ln((1 + r_sim/100) / (1 + r_real/100))`
+- 부호 의미:
+  - 양수: 시뮬레이션이 실제보다 높음
+  - 음수: 시뮬레이션이 실제보다 낮음
+  - 0에 가까움: 거의 일치
+- 예외: M_real <= 0 또는 M_sim <= 0 시 ValueError (fail-fast)
+
+**`calculate_daily_signed_log_diff(daily_return_real_pct, daily_return_sim_pct) -> pd.Series`**:
+
+- 일일수익률(%)로부터 일일 증분 signed 로그오차를 계산
+- "그날 시뮬레이션이 실제 대비 얼마나 더/덜 벌었는가"를 나타냄
+- 월별 집계 시 sum하여 월간 누적 오차 계산에 사용
+- 예외: 1 + r <= 0 시 ValueError (fail-fast)
+
+**`aggregate_monthly(daily_df, date_col, signed_col, ffr_df=None, min_months_for_analysis=13) -> pd.DataFrame`**:
+
+- 일별 데이터를 월별로 집계하고 금리 데이터와 매칭
+- 처리 흐름:
+  1. 날짜 기준 오름차순 정렬 (월말 값 정확성 보장)
+  2. month = 날짜.to_period("M") 생성
+  3. 월별 집계: e_m (월말 누적 signed), sum_daily_m (일일 증분 월합)
+  4. de_m: e_m의 월간 변화 (diff)
+  5. 금리 데이터 join (month 키)
+  6. rate_pct, dr_m 계산
+- 월말 값 정의: "해당 월 마지막 거래일의 레코드"
+- 예외: 필수 컬럼 누락, 금리 커버리지 부족, 월별 결과 부족 시 ValueError (fail-fast)
+
+**`validate_integrity(signed_series, abs_series, tolerance=None) -> dict`**:
+
+- abs(signed)와 abs 컬럼의 무결성 검증
+- tolerance가 None이면 관측 모드 (실제 데이터로 max/mean 로그 출력)
+- tolerance가 주어지면 검증 모드 (max_abs_diff > tolerance 시 ValueError)
+- 반올림/누적 방식 차이로 완전히 0은 아닐 수 있음
+
+근거 위치: [src/qbt/tqqq/analysis_helpers.py](analysis_helpers.py)
+
+---
+
+### 4. simulation.py
 
 **레버리지 ETF 시뮬레이션 엔진을 제공합니다** (676줄).
 
@@ -232,17 +302,56 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 ---
 
-### 4. streamlit_app.py (scripts/tqqq/)
+### 5. streamlit_app.py (scripts/tqqq/)
 
-**대시보드는 별도 스크립트로 분리되어 `scripts/tqqq/streamlit_app.py`에 위치합니다** (CLI 계층).
+**TQQQ 시뮬레이션 검증 대시보드** (CLI 계층, `scripts/tqqq/streamlit_app.py`).
 
 **주요 기능**:
 
 - 가격 비교 차트: 실제 TQQQ vs 시뮬레이션 (시계열 라인 차트, Plotly)
 - 오차 분석 차트: 히스토그램, 시계열 오차 추이, 통계 요약
 - 데이터 캐싱: Streamlit 캐시 데코레이터로 반복 로딩 방지
+- abs 기반 오차 지표 사용 (크기 중심 분석)
 
 근거 위치: [scripts/tqqq/streamlit_app.py](../../../scripts/tqqq/streamlit_app.py)
+
+---
+
+### 6. streamlit_rate_spread_lab.py (scripts/tqqq/)
+
+**TQQQ 금리-오차 관계 분석 연구용 앱** (CLI 계층, `scripts/tqqq/streamlit_rate_spread_lab.py`).
+
+**목적**: 금리 환경과 시뮬레이션 오차의 관계를 시각화하여 spread 조정 전략 수립 지원
+
+**주요 기능**:
+
+- **Level 탭**: 금리 수준 vs 월말 누적 signed 오차
+  - 산점도 + 추세선
+  - 시계열 라인 차트 (금리 vs 오차 동시 표시, 이중 y축)
+  - y축 선택: e_m (월말 누적 signed, 기본), de_m (월간 변화), sum_daily_m (일일 증분 월합)
+  - y축 의미 캡션 표시
+- **Delta 탭**: 금리 변화 vs 오차 변화
+  - 산점도 + 추세선
+  - Lag 옵션: 0/1/2 개월 (드롭다운 선택)
+  - 샘플 수(n) 표시 (lag에 따라 변함)
+  - Rolling 12개월 상관 시계열 (유효 월 수 부족 시 경고)
+  - y축 선택: de_m (기본), sum_daily_m
+- **교차검증 탭**: de_m vs sum_daily_m 차이 분석
+  - 차이 통계 (최대, 평균, 표준편차)
+  - 차이가 큰 상위 5개월 표시
+  - 히스토그램
+  - 차이 원인 설명 (반올림, 결측, 계산 방식)
+- **데이터 로딩**:
+  - mtime 기반 캐시 (최신 CSV 자동 반영)
+  - fail-fast 에러 처리 (ValueError → st.error + st.stop)
+- **차트**: Plotly 인터랙티브 (화면 표시만, 저장 금지)
+
+**실행 명령어**:
+```bash
+poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
+```
+
+근거 위치: [scripts/tqqq/streamlit_rate_spread_lab.py](../../../scripts/tqqq/streamlit_rate_spread_lab.py)
 
 ---
 
@@ -509,7 +618,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 **경로**: `storage/results/tqqq_daily_comparison.csv`
 
-**컬럼** (9개):
+**컬럼** (10개):
 
 1. `날짜`: 거래일
 2. `종가_실제`: 실제 TQQQ 종가
@@ -519,9 +628,19 @@ M_sim(t) = simul_close(t) / simul_close(0)
 6. `일일수익률_절대차이`: 일일 수익률 차이 절댓값
 7. `누적수익률_실제(%)`: 실제 누적 수익률
 8. `누적수익률_시뮬레이션(%)`: 시뮬레이션 누적 수익률
-9. `누적배수_로그차이(%)`: **스케일 무관 추적오차 지표**
+9. `누적배수_로그차이_abs(%)`: **스케일 무관 추적오차 지표 (절댓값)**
+10. `누적배수_로그차이_signed(%)`: **스케일 무관 추적오차 지표 (부호 포함, 방향성)**
 
-**용도**: 대시보드 시각화, 일별 성과 분석
+**Breaking Change (2025-12-31)**:
+- 기존 `누적배수_로그차이(%)` 컬럼명이 `누적배수_로그차이_abs(%)`로 변경됨
+- 값은 동일하게 유지 (절댓값), 컬럼명만 변경
+- `누적배수_로그차이_signed(%)` 컬럼 신규 추가 (부호 포함)
+- 외부 노트북/스크립트에서 컬럼명 참조 시 업데이트 필요
+
+**용도**:
+- 대시보드 시각화 (abs 사용)
+- 금리-오차 관계 분석 (signed 사용, 연구용 앱)
+- 일별 성과 분석
 
 근거 위치: [constants.py의 COMPARISON_COLUMNS](constants.py), [simulation.py의 calculate_validation_metrics](simulation.py)
 

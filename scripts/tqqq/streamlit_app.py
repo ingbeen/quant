@@ -15,7 +15,7 @@ import streamlit as st
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
-    COL_CUMUL_MULTIPLE_LOG_DIFF,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_SIMUL_CLOSE,
     TQQQ_DAILY_COMPARISON_PATH,
@@ -159,9 +159,9 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     fig.add_trace(
         go.Scatter(
             x=df[DISPLAY_DATE],
-            y=df[COL_CUMUL_MULTIPLE_LOG_DIFF],
+            y=df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS],
             mode="lines",
-            name="누적배수 로그차이",
+            name="누적배수 로그차이 (abs)",
             line={"color": "#d62728", "width": 2},
             fill="tozeroy",
             hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>" + "<b>차이</b>: %{y:.2f}%<br>" + "<extra></extra>",
@@ -246,8 +246,8 @@ def main():
             st.metric(label="최종 종가 (시뮬)", value=f"${final_simul:.2f}", delta=f"{price_diff_pct:+.2f}%")
 
         with col4:
-            final_log_diff = df[COL_CUMUL_MULTIPLE_LOG_DIFF].iloc[-1]
-            st.metric(label="최종 누적배수 로그차이", value=f"{final_log_diff:.2f}%")
+            final_log_diff = df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].iloc[-1]
+            st.metric(label="최종 누적배수 로그차이 (abs)", value=f"{final_log_diff:.2f}%")
 
         st.divider()
 
