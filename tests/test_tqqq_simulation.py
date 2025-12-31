@@ -1037,7 +1037,7 @@ class TestValidateFfrCoverage:
         ffr_df = pd.DataFrame(
             {
                 "DATE": ["2023-11", "2023-12", "2024-01", "2024-02"],
-                "VALUE": [0.053, 0.054000000000000006, 0.055, 0.055999999999999994],
+                "VALUE": [0.053, 0.054, 0.055, 0.056],
             }
         )
         overlap_start = date(2023, 11, 20)
@@ -1095,7 +1095,7 @@ class TestCreateFfrDict:
         ffr_df = pd.DataFrame(
             {
                 COL_FFR_DATE: ["2023-01", "2023-02", "2023-02", "2023-03"],
-                COL_FFR_VALUE: [0.045, 0.046, 0.04650000000000001, 0.047],
+                COL_FFR_VALUE: [0.045, 0.046, 0.0465, 0.047],
             }
         )
 
@@ -1191,7 +1191,7 @@ class TestExpenseRatioLoading:
         expense_df = pd.DataFrame(
             {
                 COL_EXPENSE_DATE: ["2023-01", "2023-02"],
-                COL_EXPENSE_VALUE: [9.499999999999999e-05, 8.800000000000001e-05],
+                COL_EXPENSE_VALUE: [0.0095, 0.0088],
             }
         )
         csv_path = create_csv_file("expense_ratio.csv", expense_df)

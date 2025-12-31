@@ -52,10 +52,10 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE = 200.0  # 합성 데이터 초기 가격
 # ============================================================
 
 # --- 기본값 ---
-DEFAULT_FUNDING_SPREAD = 0.004  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
+DEFAULT_FUNDING_SPREAD = 0.0034  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
 
 # --- 그리드 서치 범위 ---
-DEFAULT_SPREAD_RANGE = (0.004, 0.008)  # 스프레드 범위 (%)
+DEFAULT_SPREAD_RANGE = (0.002, 0.01)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP = 0.0001  # 스프레드 증분 (%)
 
 # --- 데이터 검증 및 결과 제한 ---

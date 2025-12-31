@@ -93,6 +93,84 @@
       "execution_params": {
         "leverage": 3.0,
         "spread_range": [
+          0.002,
+          0.01
+        ],
+        "spread_step": 0.0001,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.0034,
+          "cumul_multiple_log_diff_mean_pct": 1.7206
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.669,
+          "max": 6.1251,
+          "median": 2.3262
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 2.0043,
+          "max": 6.6678,
+          "median": 3.0382
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 50,
+        "file_size_bytes": 3372
+      },
+      "timestamp": "2025-12-31T13:43:30+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
+          0.004,
+          0.008
+        ],
+        "spread_step": 0.0001,
+        "max_top_strategies": 50
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "results_summary": {
+        "top_strategy": {
+          "rank": 1,
+          "spread": 0.004,
+          "cumul_multiple_log_diff_mean_pct": 1.9618
+        },
+        "cumul_multiple_log_diff_mean_pct": {
+          "min": 1.9618,
+          "max": 7.8643,
+          "median": 4.7027
+        },
+        "cumul_multiple_log_diff_rmse_pct": {
+          "min": 2.2682,
+          "max": 8.6054,
+          "median": 5.1238
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_validation.csv",
+        "row_count": 41,
+        "file_size_bytes": 2838
+      },
+      "timestamp": "2025-12-31T13:39:24+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "spread_range": [
           0.004,
           0.008
         ],
@@ -205,87 +283,111 @@
         "file_size_bytes": 2838
       },
       "timestamp": "2025-12-29T20:54:34+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "spread_range": [
-          0.004,
-          0.008
-        ],
-        "spread_step": 0.0005,
-        "max_top_strategies": 50
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-19",
-        "total_days": 3990
-      },
-      "results_summary": {
-        "top_strategy": {
-          "rank": 1,
-          "spread": 0.004,
-          "cumul_multiple_log_diff_mean_pct": 1.9618
-        },
-        "cumul_multiple_log_diff_mean_pct": {
-          "min": 1.9618,
-          "max": 7.8643,
-          "median": 4.7027
-        },
-        "cumul_multiple_log_diff_rmse_pct": {
-          "min": 2.2682,
-          "max": 8.6054,
-          "median": 5.1238
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_validation.csv",
-        "row_count": 9,
-        "file_size_bytes": 791
-      },
-      "timestamp": "2025-12-29T20:52:51+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "spread_range": [
-          0.004,
-          0.008
-        ],
-        "spread_step": 0.0005,
-        "max_top_strategies": 50
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-19",
-        "total_days": 3990
-      },
-      "results_summary": {
-        "top_strategy": {
-          "rank": 1,
-          "spread": 0.004,
-          "cumul_multiple_log_diff_mean_pct": 1.9618
-        },
-        "cumul_multiple_log_diff_mean_pct": {
-          "min": 1.9618,
-          "max": 7.8643,
-          "median": 4.7027
-        },
-        "cumul_multiple_log_diff_rmse_pct": {
-          "min": 2.2682,
-          "max": 8.6054,
-          "median": 5.1238
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_validation.csv",
-        "row_count": 9,
-        "file_size_bytes": 791
-      },
-      "timestamp": "2025-12-29T20:47:01+09:00"
     }
   ],
   "tqqq_daily_comparison": [
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.0034
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25790.22,
+        "cumulative_return_simulated_pct": 26916.69,
+        "cumul_multiple_log_diff_mean_pct": 1.7206,
+        "cumul_multiple_log_diff_rmse_pct": 2.0043,
+        "cumul_multiple_log_diff_max_pct": 6.3173
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0957,
+          "max": 6.4455
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.7206,
+          "max": 6.3173
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3990,
+        "file_size_bytes": 291886
+      },
+      "timestamp": "2025-12-31T13:44:32+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25790.22,
+        "cumulative_return_simulated_pct": 26408.65,
+        "cumul_multiple_log_diff_mean_pct": 1.9618,
+        "cumul_multiple_log_diff_rmse_pct": 2.2682,
+        "cumul_multiple_log_diff_max_pct": 7.5257
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0957,
+          "max": 6.445
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.9618,
+          "max": 7.5257
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3990,
+        "file_size_bytes": 291840
+      },
+      "timestamp": "2025-12-31T13:44:00+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread": 0.004
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-19",
+        "total_days": 3990
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 25790.22,
+        "cumulative_return_simulated_pct": 26408.65,
+        "cumul_multiple_log_diff_mean_pct": 1.9618,
+        "cumul_multiple_log_diff_rmse_pct": 2.2682,
+        "cumul_multiple_log_diff_max_pct": 7.5257
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0957,
+          "max": 6.445
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 1.9618,
+          "max": 7.5257
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3990,
+        "file_size_bytes": 291840
+      },
+      "timestamp": "2025-12-31T13:39:44+09:00"
+    },
     {
       "execution_params": {
         "leverage": 3.0,
@@ -354,111 +456,6 @@
         "file_size_bytes": 291586
       },
       "timestamp": "2025-12-23T20:17:43+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.004,
-        "expense_ratio": 0.0085
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-12",
-        "total_days": 3985
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25451.59,
-        "cumulative_return_simulated_pct": 26415.33,
-        "cumul_multiple_log_diff_mean_pct": 1.7212,
-        "cumul_multiple_log_diff_rmse_pct": 1.9668,
-        "cumul_multiple_log_diff_max_pct": 6.5189
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0958,
-          "max": 6.4455
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7212,
-          "max": 6.5189
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3985,
-        "file_size_bytes": 291586
-      },
-      "timestamp": "2025-12-23T20:15:40+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.004,
-        "expense_ratio": 0.0085
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-12",
-        "total_days": 3985
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25451.59,
-        "cumulative_return_simulated_pct": 26415.33,
-        "cumul_multiple_log_diff_mean_pct": 1.7212,
-        "cumul_multiple_log_diff_rmse_pct": 1.9668,
-        "cumul_multiple_log_diff_max_pct": 6.5189
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0958,
-          "max": 6.4455
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7212,
-          "max": 6.5189
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3985,
-        "file_size_bytes": 291586
-      },
-      "timestamp": "2025-12-23T20:04:55+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.004,
-        "expense_ratio": 0.0085
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-12",
-        "total_days": 3985
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25451.59,
-        "cumulative_return_simulated_pct": 26415.33,
-        "cumul_multiple_log_diff_mean_pct": 1.7212,
-        "cumul_multiple_log_diff_rmse_pct": 1.9668,
-        "cumul_multiple_log_diff_max_pct": 6.5189
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0958,
-          "max": 6.4455
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7212,
-          "max": 6.5189
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3985,
-        "file_size_bytes": 291586
-      },
-      "timestamp": "2025-12-21T21:17:17+09:00"
     }
   ]
 }
