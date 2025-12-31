@@ -131,6 +131,7 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - Streamlit 앱에서는 ValueError catch → st.error() + st.stop()
 
 **Fail-fast 대상**:
+
 - M_real <= 0 또는 M_sim <= 0 (누적수익률 로그 계산 불가)
 - 1 + r_real/100 <= 0 또는 1 + r_sim/100 <= 0 (일일 로그 계산 불가)
 - 필수 컬럼 누락 또는 입력 DataFrame 비어있음
@@ -345,11 +346,6 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
   - mtime 기반 캐시 (최신 CSV 자동 반영)
   - fail-fast 에러 처리 (ValueError → st.error + st.stop)
 - **차트**: Plotly 인터랙티브 (화면 표시만, 저장 금지)
-
-**실행 명령어**:
-```bash
-poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
-```
 
 근거 위치: [scripts/tqqq/streamlit_rate_spread_lab.py](../../../scripts/tqqq/streamlit_rate_spread_lab.py)
 
@@ -632,12 +628,14 @@ M_sim(t) = simul_close(t) / simul_close(0)
 10. `누적배수_로그차이_signed(%)`: **스케일 무관 추적오차 지표 (부호 포함, 방향성)**
 
 **Breaking Change (2025-12-31)**:
+
 - 기존 `누적배수_로그차이(%)` 컬럼명이 `누적배수_로그차이_abs(%)`로 변경됨
 - 값은 동일하게 유지 (절댓값), 컬럼명만 변경
 - `누적배수_로그차이_signed(%)` 컬럼 신규 추가 (부호 포함)
 - 외부 노트북/스크립트에서 컬럼명 참조 시 업데이트 필요
 
 **용도**:
+
 - 대시보드 시각화 (abs 사용)
 - 금리-오차 관계 분석 (signed 사용, 연구용 앱)
 - 일별 성과 분석

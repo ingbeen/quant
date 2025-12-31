@@ -31,6 +31,10 @@ from qbt.common_constants import (
     REQUIRED_COLUMNS,
     TRADING_DAYS_PER_YEAR,
 )
+from qbt.tqqq.analysis_helpers import (
+    calculate_signed_log_diff_from_cumulative_returns,
+    validate_integrity,
+)
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
@@ -49,6 +53,7 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
+    INTEGRITY_TOLERANCE,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -103,8 +108,7 @@ def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, d
         # 중복 월 발견 시 즉시 예외 (데이터 무결성 보장)
         if month_key in data_dict:
             raise ValueError(
-                f"{data_type} 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. "
-                f"기존 값: {data_dict[month_key]}, 중복 값: {value}"
+                f"{data_type} 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. " f"기존 값: {data_dict[month_key]}, 중복 값: {value}"
             )
 
         data_dict[month_key] = value
@@ -260,10 +264,7 @@ def validate_ffr_coverage(
     # 2. FFR 데이터 존재 여부 확인
     ffr_dates = set(ffr_df[COL_FFR_DATE])
     if not ffr_dates:
-        raise ValueError(
-            f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 "
-            f"FFR 데이터가 전혀 존재하지 않습니다."
-        )
+        raise ValueError(f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 " f"FFR 데이터가 전혀 존재하지 않습니다.")
 
     # 3. FFR 데이터 범위 확인
     ffr_start = min(ffr_dates)
@@ -654,9 +655,7 @@ def _calculate_cumul_multiple_log_diff(
         ValueError: 입력 시계열 길이가 다를 때
     """
     if len(actual_prices) != len(simulated_prices):
-        raise ValueError(
-            f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}"
-        )
+        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
 
     # 첫날 기준 누적배수 계산
     initial_actual = float(actual_prices.iloc[0])
@@ -685,6 +684,7 @@ def _save_daily_comparison_csv(
     sim_overlap: pd.DataFrame,
     actual_overlap: pd.DataFrame,
     cumul_multiple_log_diff_series: pd.Series,
+    signed_log_diff_series: pd.Series,
     output_path: Path,
     integrity_tolerance: float | None = None,
 ) -> None:
@@ -692,12 +692,13 @@ def _save_daily_comparison_csv(
     일별 비교 CSV를 저장한다.
 
     calculate_validation_metrics()의 헬퍼 함수.
-    누적배수 로그차이는 이미 계산된 값을 받아서 사용한다.
+    누적배수 로그차이(abs, signed)는 이미 계산된 값을 받아서 사용한다.
 
     Args:
         sim_overlap: 겹치는 기간의 시뮬레이션 DataFrame
         actual_overlap: 겹치는 기간의 실제 DataFrame
-        cumul_multiple_log_diff_series: 누적배수 로그차이 시계열 (이미 계산됨)
+        cumul_multiple_log_diff_series: 누적배수 로그차이 abs 시계열 (이미 계산됨)
+        signed_log_diff_series: 누적배수 로그차이 signed 시계열 (이미 계산됨)
         output_path: CSV 저장 경로
         integrity_tolerance: 무결성 체크 허용 오차 (%, None이면 기본값 사용)
     """
@@ -736,29 +737,17 @@ def _save_daily_comparison_csv(
     # 4. 누적배수 로그차이 abs (기존과 동일, 컬럼명만 변경)
     comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS] = cumul_multiple_log_diff_series
 
-    # 5. 누적배수 로그차이 signed (신규 추가)
-    # 순수 함수 호출: 누적수익률 → signed
-    from qbt.tqqq.analysis_helpers import (
-        calculate_signed_log_diff_from_cumulative_returns,
-        validate_integrity,
-    )
-
-    signed_log_diff = calculate_signed_log_diff_from_cumulative_returns(
-        cumul_return_real_pct=actual_cumulative,
-        cumul_return_sim_pct=sim_cumulative,
-    )
-    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED] = signed_log_diff
+    # 5. 누적배수 로그차이 signed (전달받은 값 사용)
+    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED] = signed_log_diff_series
 
     # 6. 무결성 체크: abs(signed) vs abs
     # tolerance 확정값 사용 (실제 데이터 관측 기반)
     # 테스트에서는 integrity_tolerance 파라미터로 조정 가능
     if integrity_tolerance is None:
-        from qbt.tqqq.constants import INTEGRITY_TOLERANCE
-
         integrity_tolerance = INTEGRITY_TOLERANCE
 
     validate_integrity(
-        signed_series=signed_log_diff,
+        signed_series=signed_log_diff_series,
         abs_series=cumul_multiple_log_diff_series,
         tolerance=integrity_tolerance,
     )
@@ -829,32 +818,51 @@ def calculate_validation_metrics(
     sim_cumulative = cast(float, sim_prod) - 1.0
     actual_cumulative = cast(float, actual_prod) - 1.0
 
-    # 4. 누적배수 로그차이 계산
+    # 4. 누적배수 로그차이 abs 계산
     cumul_multiple_log_diff_series = _calculate_cumul_multiple_log_diff(
         actual_overlap[COL_CLOSE],
         sim_overlap[COL_CLOSE],
     )
 
-    # 5. 검증 지표 계산
+    # 5. 누적배수 로그차이 signed 계산
+    # 초기 가격 기준 누적수익률 (시계열)
+    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
+    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
+    actual_cumulative_series = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100
+    sim_cumulative_series = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100
+
+    # signed 로그차이 계산
+    signed_log_diff_series = calculate_signed_log_diff_from_cumulative_returns(
+        cumul_return_real_pct=actual_cumulative_series,
+        cumul_return_sim_pct=sim_cumulative_series,
+    )
+
+    # 6. 검증 지표 계산
     cumul_multiple_log_diff_mean = float(cumul_multiple_log_diff_series.mean())
     cumul_multiple_log_diff_rmse = float(np.sqrt((cumul_multiple_log_diff_series**2).mean()))
     cumul_multiple_log_diff_max = float(cumul_multiple_log_diff_series.max())
 
-    # 6. 일별 비교 CSV 생성 (요청 시에만)
+    # 7. 일별 비교 CSV 생성 (요청 시에만)
     if output_path is not None:
-        _save_daily_comparison_csv(sim_overlap, actual_overlap, cumul_multiple_log_diff_series, output_path)
+        _save_daily_comparison_csv(
+            sim_overlap,
+            actual_overlap,
+            cumul_multiple_log_diff_series,
+            signed_log_diff_series,
+            output_path,
+        )
 
-    # 7. 누적수익률 상대차이 계산 (마지막 날 기준, 실제 기준 퍼센트)
+    # 8. 누적수익률 상대차이 계산 (마지막 날 기준, 실제 기준 퍼센트)
     cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative) / actual_cumulative) * 100
 
-    # 8. 마지막 날 종가 추출
+    # 9. 마지막 날 종가 추출
     final_close_actual = float(actual_overlap.iloc[-1][COL_CLOSE])
     final_close_simulated = float(sim_overlap.iloc[-1][COL_CLOSE])
 
-    # 9. 종가 상대차이 계산 (실제 기준 퍼센트)
+    # 10. 종가 상대차이 계산 (실제 기준 퍼센트)
     final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
 
-    # 10. 검증 결과 반환
+    # 11. 검증 결과 반환
     return {
         # 기간 정보
         KEY_OVERLAP_START: sim_overlap[COL_DATE].iloc[0],
