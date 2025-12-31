@@ -303,22 +303,51 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 
 ---
 
-### 5. streamlit_app.py (scripts/tqqq/)
+### 5. visualization.py
 
-**TQQQ 시뮬레이션 검증 대시보드** (CLI 계층, `scripts/tqqq/streamlit_app.py`).
+**TQQQ 시뮬레이션 시각화 모듈** (비즈니스 로직, `src/qbt/tqqq/visualization.py`).
+
+Plotly 기반 차트 생성 함수를 제공하여 대시보드 및 분석 보고서에서 사용할 수 있는 인터랙티브 차트를 생성합니다.
+
+**주요 함수**:
+
+- `create_price_comparison_chart(df)`: 실제 종가 vs 시뮬레이션 종가 라인 차트
+- `create_daily_return_diff_histogram(df)`: 일일수익률 절대차이 히스토그램 + Rug plot
+- `create_cumulative_return_diff_chart(df)`: 누적배수 로그차이 라인 차트 (signed 버전, 방향성 포함)
+
+**설계 특징**:
+
+- 모든 함수는 상태 비저장 (stateless)
+- 반환 타입: `plotly.graph_objects.Figure`
+- 결측치 자동 처리 (dropna)
+- 한글 레이블 및 툴팁 지원
+
+근거 위치: [src/qbt/tqqq/visualization.py](visualization.py), [tests/test_tqqq_visualization.py](../../../tests/test_tqqq_visualization.py)
+
+---
+
+### 6. streamlit_daily_comparison.py (scripts/tqqq/)
+
+**TQQQ 시뮬레이션 일별 비교 대시보드** (CLI 계층, `scripts/tqqq/streamlit_daily_comparison.py`).
 
 **주요 기능**:
 
 - 가격 비교 차트: 실제 TQQQ vs 시뮬레이션 (시계열 라인 차트, Plotly)
 - 오차 분석 차트: 히스토그램, 시계열 오차 추이, 통계 요약
 - 데이터 캐싱: Streamlit 캐시 데코레이터로 반복 로딩 방지
-- abs 기반 오차 지표 사용 (크기 중심 분석)
+- signed 기반 오차 지표 사용 (방향성 파악 가능)
 
-근거 위치: [scripts/tqqq/streamlit_app.py](../../../scripts/tqqq/streamlit_app.py)
+**아키텍처**:
+
+- CLI 계층으로서 비즈니스 로직(visualization 모듈) 호출
+- 차트 생성은 visualization.py에 위임
+- 데이터 로딩만 담당
+
+근거 위치: [scripts/tqqq/streamlit_daily_comparison.py](../../../scripts/tqqq/streamlit_daily_comparison.py)
 
 ---
 
-### 6. streamlit_rate_spread_lab.py (scripts/tqqq/)
+### 7. streamlit_rate_spread_lab.py (scripts/tqqq/)
 
 **TQQQ 금리-오차 관계 분석 연구용 앱** (CLI 계층, `scripts/tqqq/streamlit_rate_spread_lab.py`).
 
@@ -560,7 +589,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ---
 
-### 3. 대시보드 구현 (streamlit_app.py)
+### 3. 대시보드 구현 (streamlit_daily_comparison.py)
 
 **데이터 캐싱**:
 
@@ -569,15 +598,16 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 **차트 생성**:
 
+- visualization 모듈의 차트 생성 함수 호출
 - Plotly 기반 인터랙티브 차트
 - 상태 비저장 함수 방식
 
 **검증**:
 
 - 필수 컬럼 확인
-- 결측치 처리
+- 결측치 처리 (visualization 모듈에서 자동 처리)
 
-근거 위치: [scripts/tqqq/streamlit_app.py](../../../scripts/tqqq/streamlit_app.py)
+근거 위치: [scripts/tqqq/streamlit_daily_comparison.py](../../../scripts/tqqq/streamlit_daily_comparison.py), [src/qbt/tqqq/visualization.py](visualization.py)
 
 ---
 
@@ -758,7 +788,7 @@ comparison_df = calculate_validation_metrics(
 
 - **pandas**: 시계열 데이터 처리, DataFrame 연산
 - **numpy**: 로그 계산, 수치 안정성 (EPSILON)
-- **Plotly**: 대시보드 차트 (streamlit_app.py)
-- **Streamlit**: 대시보드 프레임워크 (streamlit_app.py)
+- **Plotly**: 대시보드 차트 (visualization.py, streamlit_daily_comparison.py)
+- **Streamlit**: 대시보드 프레임워크 (streamlit_daily_comparison.py)
 
-근거 위치: [simulation.py](simulation.py), [scripts/tqqq/streamlit_app.py](../../../scripts/tqqq/streamlit_app.py)
+근거 위치: [simulation.py](simulation.py), [visualization.py](visualization.py), [scripts/tqqq/streamlit_daily_comparison.py](../../../scripts/tqqq/streamlit_daily_comparison.py)
