@@ -92,7 +92,8 @@ def calculate_signed_log_diff_from_cumulative_returns(
     #   - 양수: M_sim > M_real, 시뮬레이션이 실제보다 높음
     #   - 음수: M_sim < M_real, 시뮬레이션이 실제보다 낮음
     #   - 0에 가까움: M_sim ≈ M_real, 거의 일치
-    signed_pct = 100.0 * np.log(M_sim / M_real)
+    ratio = M_sim / M_real
+    signed_pct = pd.Series(100.0 * np.log(ratio), index=ratio.index)
 
     return signed_pct
 
@@ -167,7 +168,8 @@ def calculate_daily_signed_log_diff(
     #   - 양수: 그날 시뮬이 실제보다 더 벌었음
     #   - 음수: 그날 시뮬이 실제보다 덜 벌었음
     # 활용: 월별로 sum하면 그 달의 누적 오차 (de_m 교차검증용)
-    daily_signed_pct = 100.0 * np.log(factor_sim / factor_real)
+    ratio = factor_sim / factor_real
+    daily_signed_pct = pd.Series(100.0 * np.log(ratio), index=ratio.index)
 
     return daily_signed_pct
 
@@ -242,7 +244,9 @@ def aggregate_monthly(
 
     # 3. month 컬럼 생성 (yyyy-mm Period 객체)
     # 예: 2023-01-15 → 2023-01
-    df_sorted["month"] = df_sorted[date_col].dt.to_period("M")
+    # pd.to_datetime으로 명시적 datetime Series 변환 (타입 체커가 dt accessor 인식)
+    date_col_data = pd.to_datetime(df_sorted[date_col])
+    df_sorted["month"] = date_col_data.dt.to_period("M")
 
     # 4. 월별 집계
     # - e_m: 월말 누적 signed (last, 해당 월 마지막 거래일 값)

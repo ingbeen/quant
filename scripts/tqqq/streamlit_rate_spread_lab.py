@@ -134,12 +134,12 @@ def prepare_monthly_data(
 
     # 4. sum_daily_m 계산 (일일 증분의 월합)
     # aggregate_monthly에서 sum_daily_m은 placeholder(NA)이므로 여기서 계산
-    daily_with_signed["month"] = daily_with_signed[DISPLAY_DATE].dt.to_period("M")
-    sum_daily_monthly = (
-        daily_with_signed.groupby("month", as_index=False)["daily_signed"]
-        .sum()
-        .rename(columns={"daily_signed": "sum_daily_m_calc"})
-    )
+    date_col_data = pd.to_datetime(daily_with_signed[DISPLAY_DATE])
+    daily_with_signed["month"] = date_col_data.dt.to_period("M")
+    sum_daily_monthly = daily_with_signed.groupby("month", as_index=False)["daily_signed"].sum()
+    # rename()의 타입 추론 문제 회피: 컬럼 직접 재할당
+    sum_daily_monthly["sum_daily_m_calc"] = sum_daily_monthly["daily_signed"]
+    sum_daily_monthly = sum_daily_monthly.drop(columns=["daily_signed"])
 
     # 5. monthly에 merge
     monthly = monthly.merge(sum_daily_monthly, on="month", how="left")
@@ -199,8 +199,8 @@ def create_level_chart(
     # 간단한 1차 다항식 근사
     import numpy as np
 
-    x = plot_df["rate_pct"].values
-    y = plot_df[y_col].values
+    x = np.asarray(plot_df["rate_pct"].values, dtype=np.float64)
+    y = np.asarray(plot_df[y_col].values, dtype=np.float64)
     if len(x) > 1:
         coef = np.polyfit(x, y, 1)
         trend_y = np.polyval(coef, x)
@@ -330,8 +330,8 @@ def create_delta_chart(
     # 추세선
     import numpy as np
 
-    x = plot_df["dr_shifted"].values
-    y = plot_df[y_col].values
+    x = np.asarray(plot_df["dr_shifted"].values, dtype=np.float64)
+    y = np.asarray(plot_df[y_col].values, dtype=np.float64)
     if len(x) > 1:
         coef = np.polyfit(x, y, 1)
         trend_y = np.polyval(coef, x)
@@ -376,7 +376,7 @@ def create_delta_chart(
         )
 
         # 0 기준선
-        fig.add_hline(y=0, line_dash="dash", line_color="gray", row=2, col=1)
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", row="2", col="1")
     else:
         # 데이터 부족 안내
         fig.add_annotation(
