@@ -314,13 +314,16 @@ Plotly 기반 차트 생성 함수를 제공하여 대시보드 및 분석 보�
 - `create_price_comparison_chart(df)`: 실제 종가 vs 시뮬레이션 종가 라인 차트
 - `create_daily_return_diff_histogram(df)`: 일일수익률 절대차이 히스토그램 + Rug plot
 - `create_cumulative_return_diff_chart(df)`: 누적배수 로그차이 라인 차트 (signed 버전, 방향성 포함)
+- `create_level_chart(monthly_df, y_col, y_label)`: 금리 수준 vs 오차 수준 산점도 + 시계열 라인 차트 (서브플롯 2개)
+- `create_delta_chart(monthly_df, y_col, y_label, lag)`: 금리 변화 vs 오차 변화 산점도 + Rolling 12M 상관 (서브플롯 2개, tuple 반환)
 
 **설계 특징**:
 
 - 모든 함수는 상태 비저장 (stateless)
-- 반환 타입: `plotly.graph_objects.Figure`
+- 반환 타입: `plotly.graph_objects.Figure` (create_delta_chart는 `tuple[go.Figure, pd.DataFrame]`)
 - 결측치 자동 처리 (dropna)
 - 한글 레이블 및 툴팁 지원
+- 추세선 (OLS 1차 다항식) 자동 계산
 
 근거 위치: [src/qbt/tqqq/visualization.py](visualization.py), [tests/test_tqqq_visualization.py](../../../tests/test_tqqq_visualization.py)
 
