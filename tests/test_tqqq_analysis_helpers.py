@@ -64,7 +64,7 @@ class TestCalculateSignedLogDiffFromCumulativeReturns:
         # M_sim = 1 + cumul_sim / 100 = [1.11, 1.21, 1.31]
         # signed = 100 * ln(M_sim / M_real)
         expected = 100 * np.log(np.array([1.11 / 1.10, 1.21 / 1.20, 1.31 / 1.30]))
-        assert np.allclose(signed.values, expected, rtol=1e-6)
+        assert np.allclose(signed.values, expected, rtol=1e-6)  # type: ignore[arg-type]
         assert (signed > 0).all(), "시뮬이 실제보다 높으므로 모두 양수여야 함"
 
     def test_sim_lower_than_real_gives_negative_signed(self):
@@ -156,7 +156,7 @@ class TestCalculateDailySignedLogDiff:
 
         # Then
         expected = 100 * np.log((1 + daily_sim / 100) / (1 + daily_real / 100))
-        assert np.allclose(signed.values, expected, rtol=1e-6)
+        assert np.allclose(signed.values, expected, rtol=1e-6)  # type: ignore[arg-type]
         assert (signed > 0).all(), "시뮬이 더 벌었으므로 모두 양수"
 
     def test_fail_fast_when_1_plus_r_real_is_zero_or_negative(self):
@@ -310,7 +310,7 @@ class TestAggregateMonthly:
         assert monthly.loc[0, "e_m"] == 2.0  # 2023-01 월말
         assert monthly.loc[1, "e_m"] == 3.0  # 2023-02 월말
         assert pd.isna(monthly.loc[0, "de_m"])  # 첫 달은 NaN
-        assert monthly.loc[1, "de_m"] == pytest.approx(1.0)  # 3.0 - 2.0
+        assert monthly.loc[1, "de_m"] == pytest.approx(1.0)  # type: ignore[unreachable]  # 3.0 - 2.0
 
     def test_sorting_enforced_for_correct_month_end(self):
         """

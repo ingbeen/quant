@@ -11,6 +11,7 @@ TQQQ 시뮬레이션 파라미터 그리드 서치 스크립트
 """
 
 import sys
+from typing import Any
 
 import pandas as pd
 
@@ -138,9 +139,9 @@ def main() -> int:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     results_csv_path = TQQQ_VALIDATION_PATH
 
-    rows = []
+    csv_rows: list[dict[str, Any]] = []
     for _, strategy in enumerate(top_strategies, start=1):
-        row = {
+        csv_row = {
             # 파라미터 (1개)
             KEY_SPREAD: round(strategy[KEY_SPREAD], 4),
             # 종가 (2개)
@@ -154,11 +155,11 @@ def main() -> int:
             COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN: round(strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
             COL_CUMUL_MULTIPLE_LOG_DIFF_MAX: round(strategy[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX], 4),
         }
-        rows.append(row)
+        csv_rows.append(csv_row)
 
-    results_df = pd.DataFrame(rows)
+    results_df = pd.DataFrame(csv_rows)
     results_df.to_csv(results_csv_path, index=False, encoding="utf-8-sig")
-    logger.debug(f"검증 결과 저장: {results_csv_path} ({len(rows)}행)")
+    logger.debug(f"검증 결과 저장: {results_csv_path} ({len(csv_rows)}행)")
 
     # 6. 메타데이터 저장
     metadata = {

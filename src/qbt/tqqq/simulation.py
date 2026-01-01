@@ -596,14 +596,14 @@ def extract_overlap_period(
     dates1 = set(df1[COL_DATE])  # df1의 모든 날짜를 집합으로
     dates2 = set(df2[COL_DATE])  # df2의 모든 날짜를 집합으로
     # & 연산자: 교집합 (두 집합 모두에 있는 요소)
-    overlap_dates = dates1 & dates2
+    overlap_dates_set = dates1 & dates2
 
-    if not overlap_dates:
+    if not overlap_dates_set:
         raise ValueError("두 DataFrame 간 겹치는 기간이 없습니다")
 
     # 2. 날짜순 정렬
     # sorted() 함수: 리스트/집합을 정렬하여 리스트로 반환
-    overlap_dates = sorted(overlap_dates)
+    overlap_dates = sorted(overlap_dates_set)
 
     # 3. 겹치는 기간 데이터 추출
     # 학습 포인트: 메서드 체이닝 - 한 줄에 여러 작업 수행

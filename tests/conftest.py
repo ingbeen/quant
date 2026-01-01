@@ -75,7 +75,7 @@ def sample_expense_df():
 
 
 @pytest.fixture
-def create_csv_file(tmp_path):
+def create_csv_file(tmp_path: Path):
     """
     CSV 파일 생성 헬퍼 픽스처 (팩토리 패턴)
 

@@ -476,5 +476,5 @@ class TestAlign:
         """
         # Given & When & Then
         assert Align.LEFT == Align.LEFT
-        assert Align.LEFT != Align.RIGHT
-        assert Align.RIGHT != Align.CENTER
+        assert Align.LEFT != Align.RIGHT  # type: ignore[comparison-overlap]
+        assert Align.RIGHT != Align.CENTER  # type: ignore[comparison-overlap]

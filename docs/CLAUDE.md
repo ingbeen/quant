@@ -55,9 +55,10 @@ docs/
 - 마지막 Phase에서 `poetry run black .`를 실행합니다.
 - `poetry run black --check .`는 사용하지 않습니다.
 
-### Ruff 실행 원칙
+### 코드 품질 체크 원칙
 
-- 각 Phase Validation에서 `poetry run ruff check .`를 실행합니다.
+- 각 Phase Validation에서 `python check_code.py`를 실행합니다.
+- 이 스크립트는 ruff(린트) + mypy(타입 체크)를 통합 실행합니다.
 - 오류가 나오면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
 
 ### 테스트 실행 원칙

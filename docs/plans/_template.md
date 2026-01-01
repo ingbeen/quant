@@ -32,7 +32,7 @@
 > 이 섹션(0)은 지워지면 안 될 뿐만 아니라 **문구가 수정되면 안 됩니다.**
 > 규칙의 상세 정의/예외는 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 따릅니다.
 
-- Validation에서 `poetry run ruff check .` 또는 `./run_tests.sh`가 실패하면 **해당 Phase에서 즉시 수정 후 재검증**한다.
+- Validation에서 `python check_code.py` 또는 `./run_tests.sh`가 실패하면 **해당 Phase에서 즉시 수정 후 재검증**한다.
 - Phase 0은 "레드(의도적 실패 테스트)" 허용, Phase 1부터는 **그린 유지**를 원칙으로 한다.
 - 이미 생성된 plan은 **체크리스트 업데이트 외 수정 금지**한다.
 - 스킵은 가능하면 **Phase 분해로 제거**한다.
@@ -71,7 +71,7 @@
 - [ ] 기능 요구사항 충족
 - [ ] 회귀/신규 테스트 추가
 - [ ] `./run_tests.sh` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run ruff check .` 통과
+- [ ] `python check_code.py` 통과 (ruff + mypy)
 - [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
 - [ ] 필요한 문서 업데이트(README/CLAUDE/plan 등)
 - [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
@@ -107,7 +107,7 @@
 
 **Validation**:
 
-- [ ] `poetry run ruff check .`
+- [ ] `python check_code.py`
 - [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
@@ -121,7 +121,7 @@
 
 **Validation**:
 
-- [ ] `poetry run ruff check .`
+- [ ] `python check_code.py`
 - [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
@@ -135,7 +135,7 @@
 
 **Validation**:
 
-- [ ] `poetry run ruff check .`
+- [ ] `python check_code.py`
 - [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 ---
@@ -152,7 +152,7 @@
 
 **Validation**:
 
-- [ ] `poetry run ruff check .`
+- [ ] `python check_code.py`
 - [ ] `./run_tests.sh` (passed=**, failed=**, skipped=\_\_)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택

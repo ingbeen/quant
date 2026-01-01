@@ -687,7 +687,7 @@ def run_buffer_strategy(
     position = 0  # 보유 주식 수 (0 = 포지션 없음)
     entry_price = 0.0  # 진입 가격 (매수한 가격)
     entry_date = None  # 진입 날짜 (None = 포지션 없음)
-    all_entry_dates = []  # 모든 매수 날짜 리스트 (동적 조정용)
+    all_entry_dates: list[date] = []  # 모든 매수 날짜 리스트 (동적 조정용)
 
     trades = []  # 거래 내역을 담을 빈 리스트
     equity_records = []  # 자본 곡선을 담을 빈 리스트

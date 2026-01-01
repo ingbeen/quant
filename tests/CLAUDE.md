@@ -86,8 +86,8 @@ poetry run pytest tests/test_xxx.py -s -vv
 # 커버리지
 ./run_tests.sh cov
 
-# 린트
-poetry run ruff check .
+# 코드 품질 체크 (ruff + mypy)
+python check_code.py
 
 # 포맷
 poetry run black --check .
