@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-통합 품질 검증 스크립트 (Ruff + Mypy + PyRight + Pytest)
+통합 품질 검증 스크립트 (Ruff + PyRight + Pytest)
 
 프로젝트의 모든 품질 검증을 단일 진입점으로 실행합니다.
 AI가 실행하고 로그를 읽어 문제를 수정할 수 있도록 명확한 출력을 제공합니다.
 
 사용법:
-    poetry run python validate_project.py                # 전체 실행 (Ruff + Mypy + PyRight + Pytest)
+    poetry run python validate_project.py                # 전체 실행 (Ruff + PyRight + Pytest)
     poetry run python validate_project.py --only-lint    # Ruff만 실행
-    poetry run python validate_project.py --only-mypy    # Mypy만 실행
     poetry run python validate_project.py --only-pyright # PyRight만 실행
     poetry run python validate_project.py --only-tests   # Pytest만 실행
     poetry run python validate_project.py --cov          # Pytest + 커버리지만 실행
@@ -74,58 +73,6 @@ def run_ruff() -> tuple[bool, int]:
         error_count = 1
 
     print(f"✗ Ruff 체크 실패 (오류/경고: {error_count}개)")
-    return False, error_count
-
-
-def run_mypy() -> tuple[bool, int]:
-    """
-    Mypy 타입 체크를 실행합니다.
-
-    Returns:
-        tuple[bool, int]: (성공 여부, 오류 개수)
-    """
-    # src/, scripts/, tests/ 전체 체크
-    result = subprocess.run(
-        ["poetry", "run", "mypy", "src/", "scripts/", "tests/"],
-        capture_output=True,
-        text=True,
-    )
-
-    # Mypy 출력 표시
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-
-    # Mypy는 오류가 있으면 exit code 1 반환
-    success = result.returncode == 0
-
-    if success:
-        print("✓ Mypy 체크 통과")
-        return True, 0
-
-    # Mypy 출력에서 오류 개수 파싱: "Found X errors in Y files"
-    error_count = 0
-    if result.stdout:
-        for line in result.stdout.split("\n"):
-            # "Found X error" 또는 "Found X errors" 형식 파싱
-            if "Found" in line and "error" in line:
-                parts = line.split()
-                for i, part in enumerate(parts):
-                    if part == "Found" and i + 1 < len(parts):
-                        try:
-                            error_count = int(parts[i + 1])
-                            break
-                        except ValueError:
-                            pass
-                if error_count > 0:
-                    break
-
-    # 파싱 실패 시 기본값 1 (실패했지만 개수를 알 수 없음)
-    if error_count == 0:
-        error_count = 1
-
-    print(f"✗ Mypy 체크 실패 (오류: {error_count}개)")
     return False, error_count
 
 
@@ -251,13 +198,12 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
 def parse_args() -> argparse.Namespace:
     """명령행 인자를 파싱합니다."""
     parser = argparse.ArgumentParser(
-        description="통합 품질 검증 스크립트 (Ruff + Mypy + PyRight + Pytest)",
+        description="통합 품질 검증 스크립트 (Ruff + PyRight + Pytest)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 사용 예시:
-  poetry run python validate_project.py                # 전체 실행 (Ruff + Mypy + PyRight + Pytest)
+  poetry run python validate_project.py                # 전체 실행 (Ruff + PyRight + Pytest)
   poetry run python validate_project.py --only-lint    # Ruff만 실행
-  poetry run python validate_project.py --only-mypy    # Mypy만 실행
   poetry run python validate_project.py --only-pyright # PyRight만 실행
   poetry run python validate_project.py --only-tests   # Pytest만 실행
   poetry run python validate_project.py --cov          # Pytest + 커버리지만 실행
@@ -275,11 +221,6 @@ def parse_args() -> argparse.Namespace:
         help="Ruff 린트 체크만 실행",
     )
     only_group.add_argument(
-        "--only-mypy",
-        action="store_true",
-        help="Mypy 타입 체크만 실행",
-    )
-    only_group.add_argument(
         "--only-pyright",
         action="store_true",
         help="PyRight 타입 체크만 실행",
@@ -293,7 +234,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cov",
         action="store_true",
-        help="커버리지 포함 테스트만 실행 (단독 사용 시 Ruff, Mypy, PyRight 제외)",
+        help="커버리지 포함 테스트만 실행 (단독 사용 시 Ruff, PyRight 제외)",
     )
 
     return parser.parse_args()
@@ -301,7 +242,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     """
-    메인 함수: 옵션에 따라 Ruff, Mypy, PyRight, Pytest를 실행하고 결과를 집계합니다.
+    메인 함수: 옵션에 따라 Ruff, PyRight, Pytest를 실행하고 결과를 집계합니다.
 
     Returns:
         int: 종료 코드 (0=성공, 1=실패)
@@ -309,23 +250,21 @@ def main() -> int:
     args = parse_args()
 
     # --cov 옵션 검증
-    if args.cov and (args.only_lint or args.only_mypy or args.only_pyright):
-        print("오류: --cov 옵션은 --only-lint, --only-mypy, --only-pyright와 함께 사용할 수 없습니다.")
+    if args.cov and (args.only_lint or args.only_pyright):
+        print("오류: --cov 옵션은 --only-lint, --only-pyright와 함께 사용할 수 없습니다.")
         return 1
 
     # 실행할 도구 결정
     if args.cov:
         # --cov 옵션: 테스트 + 커버리지만 실행
         should_run_lint = False
-        should_run_mypy = False
         should_run_pyright = False
         should_run_tests = True
     else:
         # 전체 실행인지 개별 도구 실행인지 판단
-        is_only_mode = args.only_lint or args.only_mypy or args.only_pyright or args.only_tests
+        is_only_mode = args.only_lint or args.only_pyright or args.only_tests
 
         should_run_lint = args.only_lint or not is_only_mode
-        should_run_mypy = args.only_mypy or not is_only_mode
         should_run_pyright = args.only_pyright or not is_only_mode
         should_run_tests = args.only_tests or not is_only_mode
 
@@ -333,8 +272,6 @@ def main() -> int:
     tools = []
     if should_run_lint:
         tools.append("Ruff")
-    if should_run_mypy:
-        tools.append("Mypy")
     if should_run_pyright:
         tools.append("PyRight")
     if should_run_tests:
@@ -356,21 +293,14 @@ def main() -> int:
         ruff_success, ruff_errors = run_ruff()
         results["ruff"] = (ruff_success, ruff_errors)
 
-    # 2. Mypy 실행
-    if should_run_mypy:
-        print_section(f"{section_num}. Mypy 타입 체크")
-        section_num += 1
-        mypy_success, mypy_errors = run_mypy()
-        results["mypy"] = (mypy_success, mypy_errors)
-
-    # 3. PyRight 실행
+    # 2. PyRight 실행
     if should_run_pyright:
         print_section(f"{section_num}. PyRight 타입 체크")
         section_num += 1
         pyright_success, pyright_errors = run_pyright()
         results["pyright"] = (pyright_success, pyright_errors)
 
-    # 4. Pytest 실행
+    # 3. Pytest 실행
     if should_run_tests:
         print_section(f"{section_num}. Pytest 테스트")
         section_num += 1
@@ -388,12 +318,6 @@ def main() -> int:
         total_errors += ruff_errors
         all_success &= ruff_success
         print(f"Ruff:    {'✓ 통과' if ruff_success else f'✗ 실패 (오류/경고: {ruff_errors}개)'}")
-
-    if "mypy" in results:
-        mypy_success, mypy_errors = results["mypy"]
-        total_errors += mypy_errors
-        all_success &= mypy_success
-        print(f"Mypy:    {'✓ 통과' if mypy_success else f'✗ 실패 (오류: {mypy_errors}개)'}")
 
     if "pyright" in results:
         pyright_success, pyright_errors = results["pyright"]

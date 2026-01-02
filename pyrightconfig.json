@@ -1,0 +1,35 @@
+{
+  "pythonVersion": "3.12",
+  "include": [
+    "src",
+    "tests",
+    "scripts"
+  ],
+  "exclude": [
+    "storage",
+    "**/__pycache__",
+    "**/.ruff_cache",
+    "**/.mypy_cache"
+  ],
+  "extraPaths": [
+    "src"
+  ],
+  "reportMissingTypeStubs": "none",
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "extraPaths": ["src"],
+      "typeCheckingMode": "strict"
+    },
+    {
+      "root": "tests",
+      "extraPaths": ["src"],
+      "typeCheckingMode": "basic"
+    },
+    {
+      "root": "scripts",
+      "extraPaths": ["src"],
+      "typeCheckingMode": "basic"
+    }
+  ]
+}

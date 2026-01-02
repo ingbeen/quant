@@ -50,7 +50,7 @@ pytest 설정은 루트의 `pytest.ini`가 **Single Source of Truth** 입니다.
 **모든 품질 검증은 `validate_project.py`를 통해서만 수행합니다.**
 
 ```bash
-# 전체 검증 (Ruff + Mypy + Pytest) - 권장
+# 전체 검증 (Ruff + Pyright + Pytest) - 권장
 poetry run python validate_project.py
 
 # 테스트만 실행
@@ -62,8 +62,8 @@ poetry run python validate_project.py --cov
 # Ruff 린트만 실행
 poetry run python validate_project.py --only-lint
 
-# Mypy 타입 체크만 실행
-poetry run python validate_project.py --only-mypy
+# Pyright 타입 체크만 실행
+poetry run python validate_project.py --only-pyright
 ```
 
 ### 특정 모듈/파일 테스트 (예외)
@@ -92,7 +92,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 프로젝트 수준의 품질 검증:
 
 ```bash
-# 전체 검증 (Ruff + Mypy + Pytest) - 기본
+# 전체 검증 (Ruff + Pyright + Pytest) - 기본
 poetry run python validate_project.py
 
 # 커버리지 포함 테스트만 실행
@@ -102,7 +102,7 @@ poetry run python validate_project.py --cov
 poetry run black .
 ```
 
-**중요**: `poetry run ruff`, `poetry run mypy`, `poetry run pytest` 등의 직접 명령어 실행은 금지됩니다. 반드시 `validate_project.py`를 사용하세요.
+**중요**: `poetry run ruff`, `poetry run pyright`, `poetry run pytest` 등의 직접 명령어 실행은 금지됩니다. 반드시 `validate_project.py`를 사용하세요.
 
 ---
 

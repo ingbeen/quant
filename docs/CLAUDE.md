@@ -53,9 +53,12 @@ docs/
 
 - **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
 - 각 Phase Validation에서 `poetry run python validate_project.py`를 실행합니다.
-- 이 스크립트는 Ruff(린트) + Mypy(타입 체크) + Pytest(테스트)를 통합 실행합니다.
+- 이 스크립트는 Ruff(린트) + Pyright(타입 체크) + Pytest(테스트)를 통합 실행합니다.
 - 오류가 나오면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
-- **직접 명령어 실행 금지**: `poetry run ruff`, `poetry run mypy`, `poetry run pytest` 등 직접 실행 금지
+- **직접 명령어 실행 금지**: `poetry run ruff`, `poetry run pyright`, `poetry run pytest` 등 직접 실행 금지
+- **타입 체크**: Pyright를 단일 타입 체커로 사용 (pyrightconfig.json에서 설정 관리)
+  - src 폴더: strict 모드 적용
+  - tests, scripts 폴더: basic 모드 적용
 
 ### Black 실행 원칙
 
