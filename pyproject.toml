@@ -22,6 +22,7 @@ pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 freezegun = "^1.5.5"
 plotly-stubs = "^0.1.2"
+pyright = "^1.1.407"
 
 [build-system]
 requires = ["poetry-core"]

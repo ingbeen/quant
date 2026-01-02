@@ -254,11 +254,13 @@ quant/
 - 직접 명령어 실행 금지 (원칙):
   - 금지: `poetry run ruff check .`
   - 금지: `poetry run mypy src/`
+  - 금지: `poetry run pyright`
   - 금지: `poetry run pytest tests/`
 - 표준 진입점:
-  - 전체 검증: `poetry run python validate_project.py`
+  - 전체 검증: `poetry run python validate_project.py` (Ruff + Mypy + PyRight + Pytest)
   - Ruff만: `poetry run python validate_project.py --only-lint`
   - Mypy만: `poetry run python validate_project.py --only-mypy`
+  - PyRight만: `poetry run python validate_project.py --only-pyright`
   - Pytest만: `poetry run python validate_project.py --only-tests`
   - 커버리지 포함 테스트: `poetry run python validate_project.py --cov`
 - **예외**: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
