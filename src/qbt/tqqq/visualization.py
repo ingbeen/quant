@@ -207,7 +207,7 @@ def create_level_chart(
     fig = make_subplots(
         rows=2,
         cols=1,
-        subplot_titles=("금리 수준 vs 오차 (산점도)", "시계열 추이"),
+        subplot_titles=["금리 수준 vs 오차 (산점도)", "시계열 추이"],
         row_heights=[0.5, 0.5],
         vertical_spacing=0.15,
     )
@@ -235,7 +235,7 @@ def create_level_chart(
         fig.add_trace(
             go.Scatter(
                 x=plot_df["rate_pct"],
-                y=trend_y,
+                y=trend_y.tolist(),
                 mode="lines",
                 name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
                 line={"color": "red", "dash": "dash"},
@@ -326,10 +326,10 @@ def create_delta_chart(
     fig = make_subplots(
         rows=2,
         cols=1,
-        subplot_titles=(
+        subplot_titles=[
             f"금리 변화 (Lag {lag}) vs 오차 변화 (n={n})",
             "Rolling 12개월 상관",
-        ),
+        ],
         row_heights=[0.5, 0.5],
         vertical_spacing=0.15,
     )
@@ -361,7 +361,7 @@ def create_delta_chart(
         fig.add_trace(
             go.Scatter(
                 x=plot_df["dr_shifted"],
-                y=trend_y,
+                y=trend_y.tolist(),
                 mode="lines",
                 name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
                 line={"color": "red", "dash": "dash"},

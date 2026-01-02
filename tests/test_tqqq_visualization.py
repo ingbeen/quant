@@ -54,6 +54,9 @@ class TestPriceComparisonChart:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
+        # Trace 타입 검증 및 타입 좁히기
+        assert isinstance(fig.data[0], go.Scatter)
+        assert isinstance(fig.data[1], go.Scatter)
         assert fig.data[0].name == "실제 TQQQ"
         assert fig.data[1].name == "시뮬레이션 TQQQ"
 
@@ -102,6 +105,9 @@ class TestDailyReturnDiffHistogram:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
+        # Trace 타입 검증 (Histogram + Scatter)
+        assert isinstance(fig.data[0], go.Histogram)
+        assert isinstance(fig.data[1], go.Scatter)
         assert fig.data[0].name == "일일수익률 차이"
         assert fig.data[1].name == "개별 관측값"
 
@@ -123,6 +129,7 @@ class TestDailyReturnDiffHistogram:
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
         # Rug plot의 데이터 포인트 개수가 NaN을 제외한 개수와 일치
+        assert isinstance(fig.data[1], go.Scatter)
         assert len(fig.data[1].x) == 4
 
 
@@ -151,6 +158,8 @@ class TestCumulativeReturnDiffChart:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 1
+        # Trace 타입 검증
+        assert isinstance(fig.data[0], go.Scatter)
         assert fig.data[0].name == "누적배수 로그차이 (signed)"
 
     def test_chart_handles_positive_and_negative_values(self):
@@ -175,6 +184,7 @@ class TestCumulativeReturnDiffChart:
         # Then
         assert isinstance(fig, go.Figure)
         # 양수/음수 값이 모두 포함되어 있는지 확인
+        assert isinstance(fig.data[0], go.Scatter)
         y_values = fig.data[0].y
         assert any(y > 0 for y in y_values)
         assert any(y < 0 for y in y_values)
@@ -406,8 +416,12 @@ class TestDeltaChart:
         # Then
         # 산점도 + 추세선 + Rolling 상관 = 3개 이상
         assert len(fig.data) >= 3
-        # Rolling 상관 trace 확인
-        rolling_corr_trace = [trace for trace in fig.data if "Rolling 12M" in trace.name]
+        # Rolling 상관 trace 확인 (모든 trace가 Scatter)
+        rolling_corr_trace = []
+        for trace in fig.data:
+            assert isinstance(trace, go.Scatter)
+            if isinstance(trace.name, str) and "Rolling 12M" in trace.name:
+                rolling_corr_trace.append(trace)
         assert len(rolling_corr_trace) > 0
 
     def test_rolling_correlation_with_insufficient_data(self):
