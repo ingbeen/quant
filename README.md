@@ -24,7 +24,7 @@
 # 의존성 설치
 poetry install
 
-# 품질 검증 (Ruff + Mypy + Pytest)
+# 품질 검증 (Ruff + PyRight + Pytest)
 poetry run python validate_project.py
 ```
 
@@ -86,7 +86,7 @@ poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 ### 품질 검증 (통합)
 
 ```bash
-# 전체 검증 (Ruff + Mypy + Pytest) - 권장
+# 전체 검증 (Ruff + PyRight + Pytest) - 권장
 poetry run python validate_project.py
 
 # 커버리지 포함 전체 검증
@@ -98,8 +98,8 @@ poetry run python validate_project.py --only-tests
 # Ruff 린트만 실행
 poetry run python validate_project.py --only-lint
 
-# Mypy 타입 체크만 실행
-poetry run python validate_project.py --only-mypy
+# PyRight 타입 체크만 실행
+poetry run python validate_project.py --only-pyright
 ```
 
 ### 테스트 (특정 모듈/파일)

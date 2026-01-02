@@ -25,7 +25,7 @@ tests/
 # pytest 설정 (루트 디렉토리)
 
 ../pytest.ini # pytest 기본 설정/마커 정의
-../validate_project.py # 통합 품질 검증 스크립트 (Ruff + Mypy + Pytest)
+../validate_project.py # 통합 품질 검증 스크립트 (Ruff + PyRight + Pytest)
 
 ```
 

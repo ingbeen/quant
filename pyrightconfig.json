@@ -8,8 +8,7 @@
   "exclude": [
     "storage",
     "**/__pycache__",
-    "**/.ruff_cache",
-    "**/.mypy_cache"
+    "**/.ruff_cache"
   ],
   "extraPaths": [
     "src"
