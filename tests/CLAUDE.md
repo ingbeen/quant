@@ -87,7 +87,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 ./run_tests.sh cov
 
 # 코드 품질 체크 (ruff + mypy)
-python check_code.py
+poetry run python check_code.py
 
 # 포맷
 poetry run black --check .

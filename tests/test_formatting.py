@@ -468,13 +468,16 @@ class TestAlign:
 
     def test_enum_comparison(self):
         """
-        Align enum 값끼리 비교 가능하다.
+        Align enum 값들이 구별 가능하다.
 
         Given: Align enum 값들
-        When: == 비교
-        Then: 동일한 값은 True, 다른 값은 False
+        When: 집합으로 수집
+        Then: 3개의 고유한 값이 존재
         """
-        # Given & When & Then
+        # Given & When
+        all_aligns = {Align.LEFT, Align.RIGHT, Align.CENTER}
+
+        # Then: 3개의 구별 가능한 enum 값
+        assert len(all_aligns) == 3
+        assert Align.LEFT in all_aligns
         assert Align.LEFT == Align.LEFT
-        assert Align.LEFT != Align.RIGHT  # type: ignore[comparison-overlap]
-        assert Align.RIGHT != Align.CENTER  # type: ignore[comparison-overlap]

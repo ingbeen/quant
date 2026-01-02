@@ -28,7 +28,7 @@ poetry install
 ./run_tests.sh
 
 # 코드 품질 체크 (ruff + mypy)
-python check_code.py
+poetry run python check_code.py
 ```
 
 ---
@@ -107,7 +107,7 @@ poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 
 ```bash
 # 통합 품질 체크 (ruff + mypy)
-python check_code.py
+poetry run python check_code.py
 
 # ruff 자동 수정
 poetry run ruff check --fix .
@@ -191,7 +191,7 @@ poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 
 ```bash
 # 코드 품질 체크 후 재실행
-python check_code.py
+poetry run python check_code.py
 ./run_tests.sh
 ```
 
