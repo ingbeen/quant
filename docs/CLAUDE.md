@@ -49,22 +49,19 @@ docs/
 
 ## 포맷/린트/테스트 규칙
 
+### 품질 검증 원칙
+
+- **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
+- 각 Phase Validation에서 `poetry run python validate_project.py`를 실행합니다.
+- 이 스크립트는 Ruff(린트) + Mypy(타입 체크) + Pytest(테스트)를 통합 실행합니다.
+- 오류가 나오면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
+- **직접 명령어 실행 금지**: `poetry run ruff`, `poetry run mypy`, `poetry run pytest` 등 직접 실행 금지
+
 ### Black 실행 원칙
 
 - Black은 **마지막 Phase에서 자동 포맷 적용**만 수행합니다.
 - 마지막 Phase에서 `poetry run black .`를 실행합니다.
 - `poetry run black --check .`는 사용하지 않습니다.
-
-### 코드 품질 체크 원칙
-
-- 각 Phase Validation에서 `poetry run python check_code.py`를 실행합니다.
-- 이 스크립트는 ruff(린트) + mypy(타입 체크)를 통합 실행합니다.
-- 오류가 나오면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
-
-### 테스트 실행 원칙
-
-- 각 Phase Validation에서 `./run_tests.sh`를 실행합니다.
-- 실패하면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
 
 ## plans 폴더 사용 규칙
 
@@ -117,7 +114,7 @@ docs/
 
   - plan 상태를 ✅ Done으로 처리할 수 없습니다.
   - DoD 체크박스(특히 테스트/Validation 관련)를 [x]로 처리하면 안 됩니다.
-    - 특히 `./run_tests.sh` 관련 DoD 항목은 **skipped=0**이 확인되기 전까지 [ ] 유지합니다.
+    - 특히 `poetry run python validate_project.py` 관련 DoD 항목은 **skipped=0**이 확인되기 전까지 [ ] 유지합니다.
   - Validation 결과에는 **반드시** `passed/failed/skipped` 수를 기록합니다.
   - Notes에 스킵 사유/해제 조건/후속 plan(또는 후속 Phase) 계획을 반드시 기록합니다.
 
@@ -126,13 +123,12 @@ docs/
 
 ### 4) "완료(Done)" 선언 기준 (서술 금지, 체크리스트 기반)
 
-- Done은 “말/요약”이 아니라 **plan의 체크리스트 상태**로만 판단합니다.
+- Done은 "말/요약"이 아니라 **plan의 체크리스트 상태**로만 판단합니다.
 - 아래 조건을 모두 만족할 때만 `**상태**: ✅ Done`으로 표기할 수 있습니다.
 
   1. Definition of Done(DoD) 체크리스트가 모두 [x]
-  2. 마지막 Validation의 `./run_tests.sh` 결과가 `failed=0` 그리고 `skipped=0`
-  3. 마지막 Validation의 `poetry run ruff check .` 통과
-  4. plan 내에 “미완료([ ]) 항목”이 남아있지 않음(Phase/DoD/필수 체크 포함)
+  2. 마지막 Validation의 `poetry run python validate_project.py` 결과가 `failed=0` 그리고 `skipped=0`
+  3. plan 내에 "미완료([ ]) 항목"이 남아있지 않음(Phase/DoD/필수 체크 포함)
 
 - 스킵이 남아있으면 Done 처리 금지입니다. (3번 스킵 규칙과 동일)
 

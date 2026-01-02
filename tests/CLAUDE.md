@@ -25,7 +25,7 @@ tests/
 # pytest 설정 (루트 디렉토리)
 
 ../pytest.ini # pytest 기본 설정/마커 정의
-../run_tests.sh # 권장 테스트 실행 스크립트
+../validate_project.py # 통합 품질 검증 스크립트 (Ruff + Mypy + Pytest)
 
 ```
 
@@ -45,34 +45,46 @@ pytest 설정은 루트의 `pytest.ini`가 **Single Source of Truth** 입니다.
 
 ## 테스트 실행 방법
 
-### 기본 실행
+### 통합 품질 검증 (권장)
 
-가능하면 `./run_tests.sh`를 표준 진입점으로 사용합니다.
+**모든 품질 검증은 `validate_project.py`를 통해서만 수행합니다.**
 
 ```bash
-# 전체 테스트 (권장)
-./run_tests.sh
-# 또는
-poetry run pytest tests/ -v
+# 전체 검증 (Ruff + Mypy + Pytest) - 권장
+poetry run python validate_project.py
 
+# 테스트만 실행
+poetry run python validate_project.py --only-tests
+
+# 커버리지 포함 전체 검증
+poetry run python validate_project.py --cov
+
+# Ruff 린트만 실행
+poetry run python validate_project.py --only-lint
+
+# Mypy 타입 체크만 실행
+poetry run python validate_project.py --only-mypy
+```
+
+### 특정 모듈/파일 테스트 (예외)
+
+특정 모듈이나 파일만 테스트할 때는 직접 pytest 명령을 사용할 수 있습니다:
+
+```bash
 # 특정 모듈만 실행
-./run_tests.sh strategy
-# 또는
 poetry run pytest tests/test_strategy.py -v
 
-# 커버리지 포함
-./run_tests.sh cov
-# 또는 HTML 리포트 생성
-./run_tests.sh html
+# 특정 클래스만 실행
+poetry run pytest tests/test_strategy.py::TestRunBufferStrategy -v
+
+# 특정 테스트만 실행
+poetry run pytest tests/test_strategy.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
 
 # 디버깅 모드 (print 출력 포함)
 poetry run pytest tests/test_xxx.py -s -vv
-
-# 도움말
-./run_tests.sh help
 ```
 
 ### 품질 게이트 커맨드
@@ -80,18 +92,17 @@ poetry run pytest tests/test_xxx.py -s -vv
 프로젝트 수준의 품질 검증:
 
 ```bash
-# 테스트
-./run_tests.sh
+# 전체 검증 (Ruff + Mypy + Pytest) - 기본
+poetry run python validate_project.py
 
-# 커버리지
-./run_tests.sh cov
+# 커버리지 포함
+poetry run python validate_project.py --cov
 
-# 코드 품질 체크 (ruff + mypy)
-poetry run python check_code.py
-
-# 포맷
-poetry run black --check .
+# 포맷 (마지막 단계에서만 실행)
+poetry run black .
 ```
+
+**중요**: `poetry run ruff`, `poetry run mypy`, `poetry run pytest` 등의 직접 명령어 실행은 금지됩니다. 반드시 `validate_project.py`를 사용하세요.
 
 ---
 
@@ -341,10 +352,13 @@ def test_pending_order_conflict_raises(...):
 ### 현재 커버리지 확인
 
 ```bash
-poetry run pytest --cov=src/qbt --cov-report=term-missing tests/
+# 통합 검증 스크립트 사용 (권장)
+poetry run python validate_project.py --cov
 ```
 
 ### HTML 리포트 생성
+
+커버리지 HTML 리포트가 필요한 경우 직접 pytest 명령 사용 (예외):
 
 ```bash
 poetry run pytest --cov=src/qbt --cov-report=html tests/
@@ -502,7 +516,7 @@ def test_new_feature(self):
 2. **기존 테스트 실행**
 
 ```bash
-poetry run pytest tests/ -v  # 회귀 방지
+poetry run python validate_project.py  # 회귀 방지 (전체 검증)
 ```
 
 ### 버그 발견 시

@@ -248,6 +248,23 @@ quant/
 - Black 자동 포맷팅 (에디터 설정)
 - 수동 실행 금지
 
+**품질 검증**:
+
+- **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
+- 직접 명령어 실행 금지 (원칙):
+  - 금지: `poetry run ruff check .`
+  - 금지: `poetry run mypy src/`
+  - 금지: `poetry run pytest tests/`
+- 표준 진입점:
+  - 전체 검증: `poetry run python validate_project.py`
+  - Ruff만: `poetry run python validate_project.py --only-lint`
+  - Mypy만: `poetry run python validate_project.py --only-mypy`
+  - Pytest만: `poetry run python validate_project.py --only-tests`
+  - 커버리지: `poetry run python validate_project.py --cov`
+- **예외**: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
+  - 예: `poetry run pytest tests/test_strategy.py -v`
+  - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`
+
 ### 로깅 정책
 
 **레벨 사용**:

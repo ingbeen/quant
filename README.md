@@ -24,11 +24,8 @@
 # 의존성 설치
 poetry install
 
-# 테스트 실행
-./run_tests.sh
-
-# 코드 품질 체크 (ruff + mypy)
-poetry run python check_code.py
+# 품질 검증 (Ruff + Mypy + Pytest)
+poetry run python validate_project.py
 ```
 
 ---
@@ -86,40 +83,49 @@ poetry run python scripts/tqqq/generate_synthetic_tqqq.py
 
 ## 주요 명령어
 
-### 테스트
+### 품질 검증 (통합)
 
 ```bash
-# 전체 테스트
-./run_tests.sh
+# 전체 검증 (Ruff + Mypy + Pytest) - 권장
+poetry run python validate_project.py
 
-# 커버리지 확인
-./run_tests.sh cov
+# 커버리지 포함 전체 검증
+poetry run python validate_project.py --cov
 
-# 특정 모듈 테스트
-./run_tests.sh strategy
+# 테스트만 실행
+poetry run python validate_project.py --only-tests
 
-# HTML 커버리지 리포트
-./run_tests.sh html
-# 결과: htmlcov/index.html
+# Ruff 린트만 실행
+poetry run python validate_project.py --only-lint
+
+# Mypy 타입 체크만 실행
+poetry run python validate_project.py --only-mypy
 ```
 
-### 코드 품질
+### 테스트 (특정 모듈/파일)
 
 ```bash
-# 통합 품질 체크 (ruff + mypy)
-poetry run python check_code.py
+# 특정 모듈만 테스트
+poetry run pytest tests/test_strategy.py -v
 
-# ruff 자동 수정
-poetry run ruff check --fix .
+# 특정 클래스만 테스트
+poetry run pytest tests/test_strategy.py::TestRunBufferStrategy -v
 
-# mypy만 실행
-poetry run mypy src/ scripts/ tests/
+# 실패한 테스트만 재실행
+poetry run pytest --lf -v
 
-# 포맷 확인
-poetry run black --check .
+# 디버깅 모드 (print 출력 포함)
+poetry run pytest tests/test_xxx.py -s -vv
+```
 
-# 포맷 적용
+### 코드 포맷
+
+```bash
+# 포맷 적용 (마지막 단계에서만)
 poetry run black .
+
+# ruff 자동 수정 (예외적 사용)
+poetry run ruff check --fix .
 ```
 
 ---
@@ -190,9 +196,8 @@ poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 ### 테스트 실패
 
 ```bash
-# 코드 품질 체크 후 재실행
-poetry run python check_code.py
-./run_tests.sh
+# 전체 품질 검증 후 재실행
+poetry run python validate_project.py
 ```
 
 ### 대시보드 실행 오류
