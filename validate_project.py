@@ -49,13 +49,31 @@ def run_ruff() -> tuple[bool, int]:
 
     if success:
         print("✓ Ruff 체크 통과")
-    else:
-        # Ruff 출력에서 오류 개수 추정 (정확한 파싱은 복잡하므로 간단히)
-        error_count = result.stdout.count("\n") if result.stdout else 0
-        print("✗ Ruff 체크 실패 (오류/경고 발견)")
-        return False, error_count
+        return True, 0
 
-    return True, 0
+    # Ruff 출력에서 오류 개수 파싱: "Found X error." 또는 "Found X errors."
+    error_count = 0
+    if result.stdout:
+        for line in result.stdout.split("\n"):
+            # "Found 1 error." 또는 "Found X errors." 형식 파싱
+            if "Found" in line and "error" in line:
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part == "Found" and i + 1 < len(parts):
+                        try:
+                            error_count = int(parts[i + 1])
+                            break
+                        except ValueError:
+                            pass
+                if error_count > 0:
+                    break
+
+    # 파싱 실패 시 기본값 1 (실패했지만 개수를 알 수 없음)
+    if error_count == 0:
+        error_count = 1
+
+    print(f"✗ Ruff 체크 실패 (오류/경고: {error_count}개)")
+    return False, error_count
 
 
 def run_mypy() -> tuple[bool, int]:
@@ -81,27 +99,33 @@ def run_mypy() -> tuple[bool, int]:
     # Mypy는 오류가 있으면 exit code 1 반환
     success = result.returncode == 0
 
-    # Mypy 출력에서 오류 개수 파싱
+    if success:
+        print("✓ Mypy 체크 통과")
+        return True, 0
+
+    # Mypy 출력에서 오류 개수 파싱: "Found X errors in Y files"
     error_count = 0
-    if not success and result.stdout:
-        # "Found X errors in Y files" 형식 파싱
+    if result.stdout:
         for line in result.stdout.split("\n"):
-            if "error" in line.lower() and "found" in line.lower():
+            # "Found X error" 또는 "Found X errors" 형식 파싱
+            if "Found" in line and "error" in line:
                 parts = line.split()
                 for i, part in enumerate(parts):
-                    if part.lower() == "found" and i + 1 < len(parts):
+                    if part == "Found" and i + 1 < len(parts):
                         try:
                             error_count = int(parts[i + 1])
                             break
                         except ValueError:
                             pass
+                if error_count > 0:
+                    break
 
-    if success:
-        print("✓ Mypy 체크 통과")
-    else:
-        print(f"✗ Mypy 체크 실패 (오류: {error_count}개)")
+    # 파싱 실패 시 기본값 1 (실패했지만 개수를 알 수 없음)
+    if error_count == 0:
+        error_count = 1
 
-    return success, error_count
+    print(f"✗ Mypy 체크 실패 (오류: {error_count}개)")
+    return False, error_count
 
 
 def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
@@ -141,24 +165,28 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
     if result.stdout:
         for line in result.stdout.split("\n"):
             # "= 10 passed, 2 failed, 1 skipped in 0.50s =" 형식 파싱
-            if " passed" in line or " failed" in line or " skipped" in line:
+            # 또는 "= 10 passed in 0.50s =" 형식
+            if "passed" in line or "failed" in line or "skipped" in line:
                 parts = line.split()
-                for i, part in enumerate(parts):
-                    if i > 0 and part in ["passed,", "passed"]:
-                        try:
-                            passed = int(parts[i - 1])
-                        except (ValueError, IndexError):
-                            pass
-                    elif i > 0 and part in ["failed,", "failed"]:
-                        try:
-                            failed = int(parts[i - 1])
-                        except (ValueError, IndexError):
-                            pass
-                    elif i > 0 and part in ["skipped,", "skipped"]:
-                        try:
-                            skipped = int(parts[i - 1])
-                        except (ValueError, IndexError):
-                            pass
+                i = 0
+                while i < len(parts):
+                    try:
+                        # 숫자 다음에 passed/failed/skipped가 오는 패턴 찾기
+                        if i + 1 < len(parts):
+                            num = int(parts[i])
+                            next_part = parts[i + 1].rstrip(",")
+                            if next_part == "passed":
+                                passed = num
+                            elif next_part == "failed":
+                                failed = num
+                            elif next_part == "skipped":
+                                skipped = num
+                    except ValueError:
+                        pass
+                    i += 1
+                # 유효한 파싱이 되었으면 종료
+                if passed > 0 or failed > 0 or skipped > 0:
+                    break
 
     if success:
         print(f"✓ Pytest 통과 (passed={passed}, failed={failed}, skipped={skipped})")

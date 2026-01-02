@@ -6,7 +6,7 @@ description = "Stock backtesting framework with DuckDB and CSV data management"
 packages = [{include = "qbt", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "~3.12"
 pandas = "^2.0.0"
 yfinance = "^0.2.0"
 matplotlib = "^3.7.0"
@@ -21,6 +21,7 @@ pandas-stubs = "^2.0.0"
 pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 freezegun = "^1.5.5"
+plotly-stubs = "^0.1.2"
 
 [build-system]
 requires = ["poetry-core"]
@@ -28,11 +29,11 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 120
-target-version = ['py310']
+target-version = ['py312']
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -52,7 +53,7 @@ ignore = [
 known-first-party = ["qbt"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -63,9 +64,10 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+disallow_any_unimported = true
 
 # stub이 없는 라이브러리 허용
 [[tool.mypy.overrides]]
-module = ["yfinance", "plotly.*", "streamlit"]
+module = ["yfinance", "streamlit"]
 ignore_missing_imports = true
 
