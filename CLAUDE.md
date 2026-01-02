@@ -260,7 +260,7 @@ quant/
   - Ruff만: `poetry run python validate_project.py --only-lint`
   - Mypy만: `poetry run python validate_project.py --only-mypy`
   - Pytest만: `poetry run python validate_project.py --only-tests`
-  - 커버리지: `poetry run python validate_project.py --cov`
+  - 커버리지 포함 테스트: `poetry run python validate_project.py --cov`
 - **예외**: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
   - 예: `poetry run pytest tests/test_strategy.py -v`
   - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`

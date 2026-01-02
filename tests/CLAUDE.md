@@ -56,7 +56,7 @@ poetry run python validate_project.py
 # 테스트만 실행
 poetry run python validate_project.py --only-tests
 
-# 커버리지 포함 전체 검증
+# 커버리지 포함 테스트만 실행
 poetry run python validate_project.py --cov
 
 # Ruff 린트만 실행
@@ -95,7 +95,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 # 전체 검증 (Ruff + Mypy + Pytest) - 기본
 poetry run python validate_project.py
 
-# 커버리지 포함
+# 커버리지 포함 테스트만 실행
 poetry run python validate_project.py --cov
 
 # 포맷 (마지막 단계에서만 실행)
@@ -353,7 +353,7 @@ def test_pending_order_conflict_raises(...):
 
 ```bash
 # 통합 검증 스크립트 사용 (권장)
-poetry run python validate_project.py --cov
+poetry run python validate_project.py --cov  # 테스트 + 커버리지만 실행
 ```
 
 ### HTML 리포트 생성

@@ -10,7 +10,7 @@ AI가 실행하고 로그를 읽어 문제를 수정할 수 있도록 명확한 
     poetry run python validate_project.py --only-lint  # Ruff만 실행
     poetry run python validate_project.py --only-mypy  # Mypy만 실행
     poetry run python validate_project.py --only-tests # Pytest만 실행
-    poetry run python validate_project.py --cov        # 전체 실행 + 커버리지
+    poetry run python validate_project.py --cov        # Pytest + 커버리지만 실행
 """
 
 import argparse
@@ -179,11 +179,11 @@ def parse_args() -> argparse.Namespace:
   poetry run python validate_project.py --only-lint  # Ruff만 실행
   poetry run python validate_project.py --only-mypy  # Mypy만 실행
   poetry run python validate_project.py --only-tests # Pytest만 실행
-  poetry run python validate_project.py --cov        # 전체 실행 + 커버리지
+  poetry run python validate_project.py --cov        # Pytest + 커버리지만 실행
 
 참고:
   --only-* 옵션들은 상호 배타적입니다. 하나만 선택할 수 있습니다.
-  --cov 옵션은 전체 실행 시 또는 --only-tests와 함께 사용할 수 있습니다.
+  --cov 옵션은 단독으로 사용하거나 --only-tests와 함께 사용할 수 있습니다.
         """,
     )
 
@@ -207,7 +207,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cov",
         action="store_true",
-        help="커버리지 포함 테스트 실행 (--only-tests와 함께 또는 전체 실행 시)",
+        help="커버리지 포함 테스트만 실행 (단독 사용 시 Ruff, Mypy 제외)",
     )
 
     return parser.parse_args()
@@ -228,9 +228,15 @@ def main() -> int:
         return 1
 
     # 실행할 도구 결정
-    run_lint = args.only_lint or (not args.only_mypy and not args.only_tests)
-    run_type_check = args.only_mypy or (not args.only_lint and not args.only_tests)
-    run_tests = args.only_tests or (not args.only_lint and not args.only_mypy)
+    if args.cov:
+        # --cov 옵션: 테스트 + 커버리지만 실행
+        run_lint = False
+        run_type_check = False
+        run_tests = True
+    else:
+        run_lint = args.only_lint or (not args.only_mypy and not args.only_tests)
+        run_type_check = args.only_mypy or (not args.only_lint and not args.only_tests)
+        run_tests = args.only_tests or (not args.only_lint and not args.only_mypy)
 
     # 타이틀 생성
     tools = []
