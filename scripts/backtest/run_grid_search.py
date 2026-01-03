@@ -63,10 +63,7 @@ def print_summary_stats(results_df) -> None:
     logger.debug(f"총 테스트 조합: {len(results_df)}개")
 
     logger.debug(
-        "수익률 통계:"
-        f"  - 평균: {results_df[COL_TOTAL_RETURN_PCT].mean():.2f}%, "
-        f"최대: {results_df[COL_TOTAL_RETURN_PCT].max():.2f}%, "
-        f"최소: {results_df[COL_TOTAL_RETURN_PCT].min():.2f}%"
+        f"수익률 통계:  - 평균: {results_df[COL_TOTAL_RETURN_PCT].mean():.2f}%, 최대: {results_df[COL_TOTAL_RETURN_PCT].max():.2f}%, 최소: {results_df[COL_TOTAL_RETURN_PCT].min():.2f}%"
     )
     logger.debug(f"CAGR 통계: 평균: {results_df[COL_CAGR].mean():.2f}%, 최대: {results_df[COL_CAGR].max():.2f}%")
     logger.debug(f"MDD 통계: 평균: {results_df[COL_MDD].mean():.2f}%, 최악: {results_df[COL_MDD].min():.2f}%")

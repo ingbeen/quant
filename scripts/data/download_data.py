@@ -55,9 +55,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
             null_indices = df.index[null_mask].tolist()
             null_dates = df.loc[null_mask, COL_DATE].tolist()
             raise ValueError(
-                f"결측치 발견 - 컬럼: {col}, "
-                f"인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, "
-                f"날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
+                f"결측치 발견 - 컬럼: {col}, 인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, 날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
             )
 
     # 2. 0 값 검사
@@ -67,9 +65,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
             zero_indices = df.index[zero_mask].tolist()
             zero_dates = df.loc[zero_mask, COL_DATE].tolist()
             raise ValueError(
-                f"0 값 발견 - 컬럼: {col}, "
-                f"인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, "
-                f"날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
+                f"0 값 발견 - 컬럼: {col}, 인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, 날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
             )
 
     # 3. 음수 값 검사
@@ -80,9 +76,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
             negative_dates = df.loc[negative_mask, COL_DATE].tolist()
             ellipsis = "..." if len(negative_indices) > 5 else ""
             raise ValueError(
-                f"음수 값 발견 - 컬럼: {col}, "
-                f"인덱스: {negative_indices[:5]}{ellipsis}, "
-                f"날짜: {negative_dates[:5]}{ellipsis}"
+                f"음수 값 발견 - 컬럼: {col}, 인덱스: {negative_indices[:5]}{ellipsis}, 날짜: {negative_dates[:5]}{ellipsis}"
             )
 
     # 4. 전일 대비 급등락 검사 (Close 기준)
@@ -101,9 +95,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
 
         first_extreme = extreme_rows.iloc[0]
         raise ValueError(
-            f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - "
-            f"날짜: {first_extreme[COL_DATE]}, "
-            f"변동률: {first_extreme['pct_change'] * 100:+.2f}%"
+            f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - 날짜: {first_extreme[COL_DATE]}, 변동률: {first_extreme['pct_change'] * 100:+.2f}%"
         )
 
     logger.debug("데이터 유효성 검증 완료: 이상 없음")

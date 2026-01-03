@@ -75,9 +75,7 @@ def main() -> int:
 
     # 2. 비용 모델 캘리브레이션
     logger.debug(
-        f"비용 모델 캘리브레이션 시작: "
-        f"leverage={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"{DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} (step={DEFAULT_SPREAD_STEP:.4f})"
+        f"비용 모델 캘리브레이션 시작: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, {DISPLAY_SPREAD}={DEFAULT_SPREAD_RANGE[0]:.4f}~{DEFAULT_SPREAD_RANGE[1]:.4f} (step={DEFAULT_SPREAD_STEP:.4f})"
     )
 
     top_strategies = find_optimal_cost_model(

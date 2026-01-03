@@ -70,20 +70,14 @@ def calculate_signed_log_diff_from_cumulative_returns(
         # 인덱스를 통해 위치 정보 제공 (날짜가 있으면 날짜, 없으면 인덱스 번호)
         invalid_indices = M_real[invalid_real].index.tolist()
         raise ValueError(
-            f"M_real <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: 누적수익률_실제가 -100% 이하 (자산 가치 0 이하)\n"
-            f"조치: 데이터 정합성 확인 필요"
+            f"M_real <= 0 발견 (로그 계산 불가): {num_invalid}행\n문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n원인: 누적수익률_실제가 -100% 이하 (자산 가치 0 이하)\n조치: 데이터 정합성 확인 필요"
         )
 
     if invalid_sim.any():
         num_invalid = invalid_sim.sum()
         invalid_indices = M_sim[invalid_sim].index.tolist()
         raise ValueError(
-            f"M_sim <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: 누적수익률_시뮬이 -100% 이하 (자산 가치 0 이하)\n"
-            f"조치: 시뮬레이션 로직 또는 입력 데이터 확인 필요"
+            f"M_sim <= 0 발견 (로그 계산 불가): {num_invalid}행\n문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n원인: 누적수익률_시뮬이 -100% 이하 (자산 가치 0 이하)\n조치: 시뮬레이션 로직 또는 입력 데이터 확인 필요"
         )
 
     # 3. signed 로그차이 계산
@@ -146,20 +140,14 @@ def calculate_daily_signed_log_diff(
         num_invalid = invalid_real.sum()
         invalid_indices = factor_real[invalid_real].index.tolist()
         raise ValueError(
-            f"1 + r_real/100 <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: 일일수익률_실제가 -100% 이하 (하루 만에 자산 가치 0 이하)\n"
-            f"조치: 데이터 정합성 확인 필요 (서킷브레이커/상폐 등)"
+            f"1 + r_real/100 <= 0 발견 (로그 계산 불가): {num_invalid}행\n문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n원인: 일일수익률_실제가 -100% 이하 (하루 만에 자산 가치 0 이하)\n조치: 데이터 정합성 확인 필요 (서킷브레이커/상폐 등)"
         )
 
     if invalid_sim.any():
         num_invalid = invalid_sim.sum()
         invalid_indices = factor_sim[invalid_sim].index.tolist()
         raise ValueError(
-            f"1 + r_sim/100 <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: 일일수익률_시뮬이 -100% 이하 (하루 만에 자산 가치 0 이하)\n"
-            f"조치: 시뮬레이션 로직 확인 필요 (비용 계산 오류 가능성)"
+            f"1 + r_sim/100 <= 0 발견 (로그 계산 불가): {num_invalid}행\n문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n원인: 일일수익률_시뮬이 -100% 이하 (하루 만에 자산 가치 0 이하)\n조치: 시뮬레이션 로직 확인 필요 (비용 계산 오류 가능성)"
         )
 
     # 3. 일일 증분 signed 로그오차 계산
@@ -235,7 +223,7 @@ def aggregate_monthly(
         missing_cols.append(signed_col)
 
     if missing_cols:
-        raise ValueError(f"필수 컬럼 누락: {missing_cols}\n" f"보유 컬럼: {list(daily_df.columns)}\n" f"조치: 컬럼명 확인 (대소문자 구분)")
+        raise ValueError(f"필수 컬럼 누락: {missing_cols}\n보유 컬럼: {list(daily_df.columns)}\n조치: 컬럼명 확인 (대소문자 구분)")
 
     # 2. 날짜 기준 오름차순 정렬 강제 (월말 값 정확성 보장)
     # 이유: groupby.last()는 정렬되지 않은 데이터에서 잘못된 월말 값을 반환할 수 있음
@@ -290,9 +278,7 @@ def aggregate_monthly(
         if missing_rate.any():
             num_missing = missing_rate.sum()
             missing_months = monthly.loc[missing_rate, "month"].tolist()
-            logger.debug(
-                f"금리 데이터 누락 월: {num_missing}개월\n" f"누락 월: {missing_months[:5]}{'...' if num_missing > 5 else ''}"
-            )
+            logger.debug(f"금리 데이터 누락 월: {num_missing}개월\n누락 월: {missing_months[:5]}{'...' if num_missing > 5 else ''}")
             # 경고만 하고 진행 (일부 누락은 허용, 너무 많으면 나중에 상관 계산 시 문제)
 
     else:
@@ -310,9 +296,7 @@ def aggregate_monthly(
     # Rolling 12M 상관을 계산하려면 최소 13개월 필요 (12M window + 1)
     if len(monthly) < min_months_for_analysis:
         raise ValueError(
-            f"월별 집계 결과가 너무 짧음: {len(monthly)}개월\n"
-            f"최소 필요: {min_months_for_analysis}개월 (Rolling 12M 상관 계산 위해)\n"
-            f"조치: 더 긴 기간의 일별 데이터 필요"
+            f"월별 집계 결과가 너무 짧음: {len(monthly)}개월\n최소 필요: {min_months_for_analysis}개월 (Rolling 12M 상관 계산 위해)\n조치: 더 긴 기간의 일별 데이터 필요"
         )
 
     return monthly
@@ -371,11 +355,7 @@ def validate_integrity(
         # 관측 모드: 실제 데이터로 max/mean 로그 출력
         proposed_tolerance = max(1e-6, max_abs_diff * 1.1)  # 관측값 + 10% 여유
         logger.debug(
-            f"무결성 체크 관측 결과:\n"
-            f"  max_abs_diff: {max_abs_diff:.6e}%\n"
-            f"  mean_abs_diff: {mean_abs_diff:.6e}%\n"
-            f"  제안 tolerance: {proposed_tolerance:.6e}% (max * 1.1)\n"
-            f"참고: 반올림/누적 방식 차이로 완전히 0이 아닐 수 있음"
+            f"무결성 체크 관측 결과:\n  max_abs_diff: {max_abs_diff:.6e}%\n  mean_abs_diff: {mean_abs_diff:.6e}%\n  제안 tolerance: {proposed_tolerance:.6e}% (max * 1.1)\n참고: 반올림/누적 방식 차이로 완전히 0이 아닐 수 있음"
         )
         return {
             "max_abs_diff": max_abs_diff,
@@ -387,19 +367,11 @@ def validate_integrity(
         if max_abs_diff > tolerance:
             # Fail-fast: 무결성 실패
             raise ValueError(
-                f"무결성 체크 실패: max_abs_diff > tolerance\n"
-                f"  관측 max_abs_diff: {max_abs_diff:.6e}%\n"
-                f"  허용 tolerance: {tolerance:.6e}%\n"
-                f"  초과량: {max_abs_diff - tolerance:.6e}%\n"
-                f"원인 (가능성 높은 순):\n"
-                f"  1. 반올림/누적 방식 차이 (정상 범위 초과)\n"
-                f"  2. signed 계산 로직 오류 (M 정의 불일치)\n"
-                f"  3. abs 컬럼 정의 불일치 (다른 수식 사용)\n"
-                f"조치: signed 및 abs 계산 로직 재검토 필요"
+                f"무결성 체크 실패: max_abs_diff > tolerance\n  관측 max_abs_diff: {max_abs_diff:.6e}%\n  허용 tolerance: {tolerance:.6e}%\n  초과량: {max_abs_diff - tolerance:.6e}%\n원인 (가능성 높은 순):\n  1. 반올림/누적 방식 차이 (정상 범위 초과)\n  2. signed 계산 로직 오류 (M 정의 불일치)\n  3. abs 컬럼 정의 불일치 (다른 수식 사용)\n조치: signed 및 abs 계산 로직 재검토 필요"
             )
         else:
             # 무결성 통과
-            logger.debug(f"무결성 체크 통과:\n" f"  max_abs_diff: {max_abs_diff:.6e}% <= tolerance: {tolerance:.6e}%")
+            logger.debug(f"무결성 체크 통과:\n  max_abs_diff: {max_abs_diff:.6e}% <= tolerance: {tolerance:.6e}%")
             return {
                 "max_abs_diff": max_abs_diff,
                 "mean_abs_diff": mean_abs_diff,

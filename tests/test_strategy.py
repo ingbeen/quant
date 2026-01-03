@@ -1095,10 +1095,9 @@ class TestBacktestAccuracy:
 
         # Then: equity_df 마지막 equity == summary.final_capital
         last_equity = last_equity_record["equity"]
-        assert abs(last_equity - summary["final_capital"]) < 0.01, (
-            f"equity_df 마지막 equity({last_equity:.2f})와 "
-            f"summary.final_capital({summary['final_capital']:.2f})이 일치해야 함"
-        )
+        assert (
+            abs(last_equity - summary["final_capital"]) < 0.01
+        ), f"equity_df 마지막 equity({last_equity:.2f})와 summary.final_capital({summary['final_capital']:.2f})이 일치해야 함"
 
         # Then: final_capital == cash + position × last_close (역산 검증)
         # 주의: 현재 equity_df에 cash가 기록되지 않으므로 이 검증은 구현 후 활성화
@@ -1198,11 +1197,9 @@ class TestBacktestAccuracy:
                 actual_hold_days = trade["hold_days_used"]
 
                 # 현재 구현이 하드코딩되어 있으면 이 테스트는 실패함 (레드)
-                assert actual_hold_days == expected_hold_days, (
-                    f"hold_days_used({actual_hold_days})가 "
-                    f"예상값({expected_hold_days} = {params.hold_days} + "
-                    f"{recent_buy_count} × {HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
-                )
+                assert (
+                    actual_hold_days == expected_hold_days
+                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} × {HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
 
     def test_first_valid_signal_detection(self):
         """

@@ -67,7 +67,7 @@ def main() -> int:
     qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
 
     # 3. 시뮬레이션 실행
-    logger.debug(f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, " f"{DISPLAY_SPREAD}={DEFAULT_FUNDING_SPREAD:.4f}")
+    logger.debug(f"시뮬레이션 실행: leverage={DEFAULT_LEVERAGE_MULTIPLIER}, {DISPLAY_SPREAD}={DEFAULT_FUNDING_SPREAD:.4f}")
 
     initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
     simulated_df = simulate(

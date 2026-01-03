@@ -69,8 +69,7 @@ def main() -> int:
     """
     logger.debug("버퍼존 전략 백테스트 시작")
     logger.debug(
-        f"파라미터: ma_window={DEFAULT_MA_WINDOW}, buffer_zone={DEFAULT_BUFFER_ZONE_PCT}, "
-        f"hold_days={DEFAULT_HOLD_DAYS}, recent_months={DEFAULT_RECENT_MONTHS}"
+        f"파라미터: ma_window={DEFAULT_MA_WINDOW}, buffer_zone={DEFAULT_BUFFER_ZONE_PCT}, hold_days={DEFAULT_HOLD_DAYS}, recent_months={DEFAULT_RECENT_MONTHS}"
     )
 
     # 1. 데이터 로딩
