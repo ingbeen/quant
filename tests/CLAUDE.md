@@ -47,10 +47,12 @@ pytest 설정은 루트의 `pytest.ini`가 **Single Source of Truth** 입니다.
 
 ### 통합 품질 검증 (권장)
 
-**모든 품질 검증은 `validate_project.py`를 통해서만 수행합니다.**
+품질 검증 규칙은 [루트 CLAUDE.md](../CLAUDE.md#코딩-표준)를 참고하세요.
+
+**테스트 실행 예시**:
 
 ```bash
-# 전체 검증 (Ruff + Pyright + Pytest) - 권장
+# 전체 검증 (Ruff + Pyright + Pytest)
 poetry run python validate_project.py
 
 # 테스트만 실행
@@ -58,12 +60,6 @@ poetry run python validate_project.py --only-tests
 
 # 커버리지 포함 테스트만 실행
 poetry run python validate_project.py --cov
-
-# Ruff 린트만 실행
-poetry run python validate_project.py --only-lint
-
-# Pyright 타입 체크만 실행
-poetry run python validate_project.py --only-pyright
 ```
 
 ### 특정 모듈/파일 테스트 (예외)
@@ -87,22 +83,9 @@ poetry run pytest --lf -v
 poetry run pytest tests/test_xxx.py -s -vv
 ```
 
-### 품질 게이트 커맨드
+### 품질 게이트
 
-프로젝트 수준의 품질 검증:
-
-```bash
-# 전체 검증 (Ruff + Pyright + Pytest) - 기본
-poetry run python validate_project.py
-
-# 커버리지 포함 테스트만 실행
-poetry run python validate_project.py --cov
-
-# 포맷 (마지막 단계에서만 실행)
-poetry run black .
-```
-
-**중요**: `poetry run ruff`, `poetry run pyright`, `poetry run pytest` 등의 직접 명령어 실행은 금지됩니다. 반드시 `validate_project.py`를 사용하세요.
+품질 검증 및 포맷팅 규칙은 [루트 CLAUDE.md](../CLAUDE.md#코딩-표준)를 참고하세요.
 
 ---
 
@@ -274,11 +257,7 @@ def test_with_temp_files(self, mock_storage_paths):
 
 **문서화 목적**: 테스트 자체가 도메인 규칙의 "실행 가능한 문서" 역할을 합니다.
 
-**주석 작성 원칙**:
-
-- 주석은 현재 코드의 상태와 동작만 설명
-- 과거 상태, 변경 이력, 계획 단계는 기록하지 않음
-- 금지 패턴: "Phase 0", "Phase 3", "레드", "그린" 등 개발 단계 표현 사용 금지
+**주석 작성 원칙**: [루트 CLAUDE.md](../CLAUDE.md#코딩-표준)의 문서화 규칙을 참고하세요.
 
 ---
 

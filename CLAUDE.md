@@ -51,9 +51,10 @@ QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다.
 
 **기술 환경**:
 
-- Python 3.10+ (`str | None` 문법 사용)
+- Python 3.12 (`str | None` 문법 사용)
 - 의존성 관리: Poetry
 - 코드 품질: Black, Ruff
+- 타입 체커: PyRight (strict mode for src/)
 - 주요 라이브러리: pandas, yfinance, Plotly, Streamlit
 
 ---
@@ -71,7 +72,8 @@ quant/
 │   ├── data/          # 데이터 다운로드
 │   ├── backtest/      # 백테스트 실행
 │   └── tqqq/          # 레버리지 ETF 관련
-│       └── streamlit_app.py  # 대시보드 앱
+│       ├── streamlit_daily_comparison.py  # 일별 비교 대시보드
+│       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
@@ -79,8 +81,11 @@ quant/
 │   │   ├── analysis.py   # 이동평균 계산 및 성과 지표
 │   │   └── strategy.py   # 전략 실행 엔진
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
-│   │   ├── constants.py  # 시뮬레이션 전용 상수
-│   │   └── simulation.py # 시뮬레이션 엔진
+│   │   ├── constants.py        # 시뮬레이션 전용 상수
+│   │   ├── simulation.py       # 시뮬레이션 엔진
+│   │   ├── analysis_helpers.py # 금리-오차 분석 함수
+│   │   ├── visualization.py    # Plotly 차트 생성
+│   │   └── data_loader.py      # TQQQ 전용 데이터 로더
 │   └── utils/         # 공통 유틸리티
 │       ├── logger.py
 │       ├── formatting.py
@@ -251,6 +256,8 @@ quant/
 **품질 검증**:
 
 - **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
+  - 통합 스크립트: Ruff (린트) + PyRight (타입 체크) + Pytest (테스트)
+  - 위치: 프로젝트 루트 `/home/yblee/workspace/quant/validate_project.py`
 - 직접 명령어 실행 금지 (원칙):
   - 금지: `poetry run ruff check .`
   - 금지: `poetry run pyright`
@@ -264,6 +271,10 @@ quant/
 - **예외**: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
   - 예: `poetry run pytest tests/test_strategy.py -v`
   - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`
+- **타입 체커**: PyRight 단일 사용 (Mypy 제거됨)
+  - 설정 파일: `pyrightconfig.json`
+  - src 폴더: strict 모드 적용
+  - tests, scripts 폴더: basic 모드 적용
 
 ### 로깅 정책
 

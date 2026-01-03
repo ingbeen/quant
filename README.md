@@ -11,11 +11,12 @@
 
 ## 기술 스택
 
-- **언어**: Python 3.10+
+- **언어**: Python 3.12
 - **의존성 관리**: Poetry
 - **데이터 처리**: pandas, yfinance
 - **시각화**: Plotly, Streamlit, matplotlib
 - **코드 품질**: Black, Ruff
+- **타입 체커**: PyRight
 - **테스트**: pytest, pytest-cov, freezegun
 
 ## 빠른 시작
@@ -69,7 +70,12 @@ poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 # 출력: storage/results/tqqq_daily_comparison.csv
 
 # 4. 대시보드 시각화
-poetry run streamlit run scripts/tqqq/streamlit_app.py
+# 일별 비교 대시보드
+poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
+# 브라우저에서 http://localhost:8501 열림
+
+# 금리-오차 관계 분석 연구용 앱
+poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
 # 브라우저에서 http://localhost:8501 열림
 
 # 5. 합성 TQQQ 데이터 생성
@@ -152,11 +158,17 @@ poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 
 ```
 quant/
+├── docs/              # 프로젝트 문서 및 계획서
+│   ├── plans/         # 작업 계획서 저장소
+│   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
 │   ├── backtest/      # run_grid_search.py, run_single_backtest.py
-│   └── tqqq/          # validate_tqqq_simulation.py, generate_*.py, streamlit_app.py
+│   └── tqqq/          # validate_tqqq_simulation.py, generate_*.py
+│       ├── streamlit_daily_comparison.py  # 일별 비교 대시보드
+│       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱
 ├── src/qbt/           # 비즈니스 로직
+│   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 + constants.py
 │   ├── tqqq/          # TQQQ 시뮬레이션 + constants.py
 │   └── utils/         # 공통 유틸리티
@@ -205,7 +217,12 @@ poetry run python validate_project.py
 ```bash
 # 의존 파일 먼저 생성
 poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
-poetry run streamlit run scripts/tqqq/streamlit_app.py
+
+# 일별 비교 대시보드
+poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
+
+# 금리-오차 분석 앱
+poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
 ```
 
 ---
@@ -221,6 +238,7 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
 ### 코딩 표준
 
 - **타입 힌트**: 모든 함수 필수 (`str | None` 문법)
+- **타입 체커**: PyRight (strict mode for src/, basic mode for tests/scripts)
 - **문서화**: Google 스타일 Docstring (한글)
 - **네이밍**: 함수/변수 `snake_case`, 클래스 `PascalCase`, 상수 `UPPER_SNAKE_CASE`
 - **로깅**: DEBUG(실행 흐름), WARNING(경고), ERROR(CLI만) / INFO 및 이모지 금지
@@ -238,9 +256,12 @@ poetry run streamlit run scripts/tqqq/streamlit_app.py
 프로젝트의 상세 규칙과 아키텍처는 각 디렉토리의 `CLAUDE.md` 파일을 참고하세요:
 
 - [프로젝트 가이드라인](CLAUDE.md): 전체 프로젝트 규칙
-- [테스트 가이드](tests/CLAUDE.md): 테스트 작성 규칙
+- [문서 및 계획서 가이드](docs/CLAUDE.md): 계획서 작성 및 운영 규칙
+- [CLI 스크립트 가이드](scripts/CLAUDE.md): CLI 스크립트 계층 규칙
+- [유틸리티 가이드](src/qbt/utils/CLAUDE.md): 공통 유틸리티 규칙
 - [백테스트 도메인](src/qbt/backtest/CLAUDE.md): 백테스트 로직
 - [TQQQ 시뮬레이션](src/qbt/tqqq/CLAUDE.md): 레버리지 ETF 시뮬레이션
+- [테스트 가이드](tests/CLAUDE.md): 테스트 작성 규칙
 
 ---
 

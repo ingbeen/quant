@@ -27,15 +27,11 @@ docs/
 
 ## 소스 오브 트루스 & 반드시 읽어야 할 문서
 
-계획서/코드를 작성할 때는 아래 문서를 **반드시 먼저 읽고**, 그 안에 기재된 규칙을 **전체 숙지**한 뒤 작업합니다.
+도메인별 CLAUDE.md 참고 규칙은 [루트 CLAUDE.md](../CLAUDE.md#도메인별-claudemd-참고-규칙)를 참고하세요.
 
-- 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `src/qbt/utils/CLAUDE.md`(유틸), `tests/CLAUDE.md`(테스트)
-- 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
-  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md` 등
-
-> ⚠️ plan의 “영향받는 규칙”에는 규칙을 요약/나열하지 말고,
+> ⚠️ plan의 "영향받는 규칙"에는 규칙을 요약/나열하지 말고,
 > **참고할 문서(파일) 목록만** 나열한 뒤
-> “해당 문서들에 기재된 규칙을 모두 숙지하고 준수한다”를 명시합니다.
+> "해당 문서들에 기재된 규칙을 모두 숙지하고 준수한다"를 명시합니다.
 
 ## 날짜/시간 표기 규칙 (KST)
 
@@ -49,16 +45,12 @@ docs/
 
 ## 포맷/린트/테스트 규칙
 
-### 품질 검증 원칙
+품질 검증 및 코드 포맷팅 규칙은 [루트 CLAUDE.md](../CLAUDE.md#코딩-표준)를 참고하세요.
 
-- **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
+**계획서(Plan) 작성 시**:
+
 - 각 Phase Validation에서 `poetry run python validate_project.py`를 실행합니다.
-- 이 스크립트는 Ruff(린트) + Pyright(타입 체크) + Pytest(테스트)를 통합 실행합니다.
 - 오류가 나오면 **해당 Phase에서 즉시 수정 후 재검증**합니다.
-- **직접 명령어 실행 금지**: `poetry run ruff`, `poetry run pyright`, `poetry run pytest` 등 직접 실행 금지
-- **타입 체크**: Pyright를 단일 타입 체커로 사용 (pyrightconfig.json에서 설정 관리)
-  - src 폴더: strict 모드 적용
-  - tests, scripts 폴더: basic 모드 적용
 
 ### Black 실행 원칙
 
