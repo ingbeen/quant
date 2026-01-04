@@ -91,14 +91,12 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
 
-    df = pd.read_csv(path)
+    # parse_dates로 읽기 시점에 날짜 컬럼 자동 파싱 (성능 향상)
+    df = pd.read_csv(path, parse_dates=[DISPLAY_DATE])
 
     # 필수 컬럼 검증
     missing_columns = [col for col in COMPARISON_COLUMNS if col not in df.columns]
     if missing_columns:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
-
-    # 날짜 컬럼을 datetime으로 변환
-    df[DISPLAY_DATE] = pd.to_datetime(df[DISPLAY_DATE])
 
     return df

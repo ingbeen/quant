@@ -57,7 +57,8 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     # 2. CSV 파일 로드
     # pd.read_csv(): CSV 파일을 읽어 DataFrame으로 변환
     # DataFrame: 행(row)과 열(column)로 구성된 2차원 테이블
-    df = pd.read_csv(path)
+    # parse_dates: CSV 읽기 시점에 날짜 컬럼을 자동으로 파싱 (성능 향상)
+    df = pd.read_csv(path, parse_dates=[COL_DATE])
 
     # len(df): DataFrame의 행(row) 개수
     # :,는 천 단위 구분자 (예: 1000 → 1,000)

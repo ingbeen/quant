@@ -6,6 +6,7 @@
     poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
 """
 
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -25,13 +26,29 @@ from qbt.tqqq.visualization import (
 )
 
 
-@st.cache_data
-def load_data(csv_path: Path):
+def get_file_mtime(path: Path) -> float:
+    """
+    파일의 수정 시간(mtime)을 반환한다.
+
+    캐시 키에 mtime을 포함하여 최신 CSV 반영을 보장한다.
+
+    Args:
+        path: 파일 경로
+
+    Returns:
+        파일 수정 시간 (epoch timestamp)
+    """
+    return os.path.getmtime(path)
+
+
+@st.cache_data(ttl=600)  # 10분 캐시
+def load_data(csv_path: Path, _mtime: float):
     """
     데이터를 로드하고 캐싱한다.
 
     Args:
         csv_path: CSV 파일 경로
+        _mtime: 파일 수정 시간 (캐시 키, _ 접두사는 Streamlit 캐시 규칙)
 
     Returns:
         로드된 DataFrame
@@ -61,7 +78,8 @@ def main():
 
         # 데이터 로드
         csv_path = TQQQ_DAILY_COMPARISON_PATH
-        df = load_data(csv_path)
+        mtime = get_file_mtime(csv_path)
+        df = load_data(csv_path, mtime)
 
         # 요약 지표
         st.header("요약 지표")
