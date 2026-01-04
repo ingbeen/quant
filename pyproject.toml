@@ -9,7 +9,6 @@ packages = [{include = "qbt", from = "src"}]
 python = "~3.12"
 pandas = "^2.0.0"
 yfinance = "^0.2.0"
-matplotlib = "^3.7.0"
 streamlit = "^1.30.0"
 plotly = "^5.18.0"
 
