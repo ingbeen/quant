@@ -85,26 +85,26 @@ class TestAddSingleMovingAverage:
         # Then: 모두 NaN
         assert result["ma_10"].isna().all(), "데이터가 부족하면 모든 MA 값이 NaN이어야 합니다"
 
-    def test_invalid_window(self):
+    @pytest.mark.parametrize("invalid_window", [0, -5, -1])
+    def test_invalid_window(self, invalid_window):
         """
         잘못된 window 값 테스트
 
         안정성: 0이나 음수는 거부해야 합니다.
 
         Given: 정상 데이터
-        When: window=0 또는 음수
+        When: window=0 또는 음수 (parametrize로 여러 값 테스트)
         Then: ValueError
+
+        Args:
+            invalid_window: 테스트할 잘못된 window 값 (0, -5, -1)
         """
         # Given
         df = pd.DataFrame({COL_DATE: [date(2023, 1, 1)], COL_CLOSE: [100.0]})
 
-        # When & Then: window=0
+        # When & Then
         with pytest.raises(ValueError):
-            add_single_moving_average(df, window=0)
-
-        # window=-5
-        with pytest.raises(ValueError):
-            add_single_moving_average(df, window=-5)
+            add_single_moving_average(df, window=invalid_window)
 
 
 class TestCalculateSummary:
@@ -261,47 +261,37 @@ class TestCalculateSummary:
         # Then
         assert summary["mdd"] == 0.0, "하락이 없으면 MDD는 0"
 
-    def test_calculate_summary_zero_initial_capital(self):
+    @pytest.mark.parametrize(
+        "invalid_capital,equity_values",
+        [
+            (0.0, [0.0, 1000.0]),  # zero capital
+            (-10000.0, [-10000.0, -9000.0]),  # negative capital
+        ],
+        ids=["zero_capital", "negative_capital"],
+    )
+    def test_calculate_summary_invalid_initial_capital(self, invalid_capital, equity_values):
         """
-        initial_capital=0인 경우 방어 테스트
+        initial_capital이 유효하지 않은 경우 방어 테스트
 
         정책: initial_capital <= 0이면 즉시 ValueError 발생
         이유: 수익률 계산 시 나눗셈 분모로 사용되므로 0/음수 불가
 
-        Given: initial_capital=0
+        Given: initial_capital=0 또는 음수 (parametrize로 여러 값 테스트)
         When: calculate_summary 호출
         Then: ValueError 발생
+
+        Args:
+            invalid_capital: 테스트할 잘못된 초기 자본 값 (0.0, -10000.0)
+            equity_values: 해당 케이스의 equity 값 리스트
         """
         # Given
         trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
 
-        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 2, 1)], "equity": [0.0, 1000.0]})
+        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 2, 1)], "equity": equity_values})
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            calculate_summary(trades_df, equity_df, initial_capital=0.0)
-
-        error_msg = str(exc_info.value)
-        assert "initial_capital" in error_msg and "양수" in error_msg, "initial_capital 검증 에러 메시지"
-
-    def test_calculate_summary_negative_initial_capital(self):
-        """
-        initial_capital < 0인 경우 방어 테스트
-
-        정책: initial_capital <= 0이면 즉시 ValueError 발생
-
-        Given: initial_capital=-10000
-        When: calculate_summary 호출
-        Then: ValueError 발생
-        """
-        # Given
-        trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
-
-        equity_df = pd.DataFrame({COL_DATE: [date(2021, 1, 1), date(2021, 2, 1)], "equity": [-10000.0, -9000.0]})
-
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            calculate_summary(trades_df, equity_df, initial_capital=-10000.0)
+            calculate_summary(trades_df, equity_df, initial_capital=invalid_capital)
 
         error_msg = str(exc_info.value)
         assert "initial_capital" in error_msg and "양수" in error_msg, "initial_capital 검증 에러 메시지"

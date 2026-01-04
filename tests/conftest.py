@@ -114,20 +114,118 @@ def create_csv_file(tmp_path: Path):
 
 
 @pytest.fixture
+def mock_stock_dir(tmp_path, monkeypatch):
+    """
+    주식 데이터 디렉토리(STOCK_DIR)만 테스트 임시 디렉토리로 변경
+
+    패치 대상:
+        - common_constants.STOCK_DIR
+
+    사용 예시:
+        주식 CSV 파일 로딩/저장 테스트에서 사용
+
+    Returns:
+        Path: 임시 STOCK_DIR 경로
+    """
+    # 임시 디렉토리 생성
+    stock_dir = tmp_path / "stock"
+    stock_dir.mkdir()
+
+    # common_constants 모듈의 STOCK_DIR만 패치
+    from qbt import common_constants
+
+    monkeypatch.setattr(common_constants, "STOCK_DIR", stock_dir)
+
+    return stock_dir
+
+
+@pytest.fixture
+def mock_etc_dir(tmp_path, monkeypatch):
+    """
+    기타 데이터 디렉토리(ETC_DIR)만 테스트 임시 디렉토리로 변경
+
+    패치 대상:
+        - common_constants.ETC_DIR
+
+    사용 예시:
+        FFR, expense ratio 등 기타 CSV 파일 로딩/저장 테스트에서 사용
+
+    Returns:
+        Path: 임시 ETC_DIR 경로
+    """
+    # 임시 디렉토리 생성
+    etc_dir = tmp_path / "etc"
+    etc_dir.mkdir()
+
+    # common_constants 모듈의 ETC_DIR만 패치
+    from qbt import common_constants
+
+    monkeypatch.setattr(common_constants, "ETC_DIR", etc_dir)
+
+    return etc_dir
+
+
+@pytest.fixture
+def mock_results_dir(tmp_path, monkeypatch):
+    """
+    분석 결과 디렉토리(RESULTS_DIR, META_JSON_PATH)를 테스트 임시 디렉토리로 변경
+
+    패치 대상:
+        - common_constants.RESULTS_DIR
+        - common_constants.META_JSON_PATH
+        - meta_manager.META_JSON_PATH (모듈 로드 시점 임포트)
+
+    사용 예시:
+        백테스트 결과 저장, 메타데이터 관리 테스트에서 사용
+
+    Returns:
+        dict: {'RESULTS_DIR': Path, 'META_JSON_PATH': Path}
+    """
+    # 임시 디렉토리 생성
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    # common_constants 모듈의 RESULTS_DIR 및 META_JSON_PATH 패치
+    from qbt import common_constants
+    from qbt.utils import meta_manager
+
+    meta_json_path = results_dir / "meta.json"
+
+    monkeypatch.setattr(common_constants, "RESULTS_DIR", results_dir)
+    monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
+
+    # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
+    monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
+
+    return {"RESULTS_DIR": results_dir, "META_JSON_PATH": meta_json_path}
+
+
+@pytest.fixture
 def mock_storage_paths(tmp_path, monkeypatch):
     """
-    storage 경로를 테스트 임시 디렉토리로 변경하는 픽스처
+    모든 storage 경로를 테스트 임시 디렉토리로 변경 (통합 픽스처)
+
+    패치 대상:
+        - common_constants.STOCK_DIR
+        - common_constants.ETC_DIR
+        - common_constants.RESULTS_DIR
+        - common_constants.META_JSON_PATH
+        - meta_manager.META_JSON_PATH
 
     왜 필요한가요?
-    - 실제 프로덕션 데이터를 건드리면 안 됨
-    - 테스트는 격리된 환경에서 실행되어야 함
+        - 실제 프로덕션 데이터를 건드리면 안 됨
+        - 테스트는 격리된 환경에서 실행되어야 함
 
     사용 방법:
         이 픽스처를 테스트 함수 인자로 받으면 자동으로
         common_constants의 경로들이 tmp_path로 변경됩니다.
 
+    Note:
+        여러 경로를 동시에 필요로 하는 테스트에서 사용.
+        단일 경로만 필요한 경우 mock_stock_dir, mock_etc_dir, mock_results_dir 사용 권장.
+
     Returns:
-        dict: 변경된 경로들 {'STOCK_DIR': Path, 'ETC_DIR': Path, ...}
+        dict: 변경된 경로들 {'STOCK_DIR': Path, 'ETC_DIR': Path, 'RESULTS_DIR': Path, 'META_JSON_PATH': Path}
     """
     # 임시 디렉토리 구조 생성
     stock_dir = tmp_path / "stock"

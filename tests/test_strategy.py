@@ -96,52 +96,55 @@ class TestRunBuyAndHold:
         assert summary["total_trades"] >= 0, "에러 없이 실행됨"
         assert abs(summary["total_return_pct"]) < 1.0, "자본 부족 시 수익률 거의 0%"
 
-    def test_invalid_capital_raises(self):
+    @pytest.mark.parametrize("invalid_capital", [0.0, -1000.0, -1.0])
+    def test_invalid_capital_raises(self, invalid_capital):
         """
         초기 자본이 0 이하일 때 예외 발생 테스트
 
-        Given: initial_capital <= 0
+        Given: initial_capital <= 0 (parametrize로 여러 값 테스트)
         When: run_buy_and_hold 호출
         Then: ValueError 발생
+
+        Args:
+            invalid_capital: 테스트할 잘못된 초기 자본 값 (0.0, -1000.0, -1.0)
         """
         # Given
         df = pd.DataFrame(
             {"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0], "Close": [100.0, 101.0]}
         )
 
-        # When & Then: initial_capital = 0
-        params = BuyAndHoldParams(initial_capital=0.0)
+        # When & Then
+        params = BuyAndHoldParams(initial_capital=invalid_capital)
         with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
             run_buy_and_hold(df, params)
 
-        # When & Then: initial_capital < 0
-        params = BuyAndHoldParams(initial_capital=-1000.0)
-        with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
-            run_buy_and_hold(df, params)
-
-    def test_missing_required_columns_raises(self):
+    @pytest.mark.parametrize(
+        "df_data,missing_column",
+        [
+            ({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]}, "Open"),
+            ({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0]}, "Close"),
+        ],
+        ids=["missing_open", "missing_close"],
+    )
+    def test_missing_required_columns_raises(self, df_data, missing_column):
         """
         필수 컬럼 누락 시 예외 발생 테스트
 
-        Given: Open 또는 Close 컬럼이 없는 DataFrame
+        Given: Open 또는 Close 컬럼이 없는 DataFrame (parametrize로 여러 케이스 테스트)
         When: run_buy_and_hold 호출
         Then: ValueError 발생
-        """
-        # Given: Open 컬럼 누락
-        df_no_open = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]})
 
+        Args:
+            df_data: 테스트할 DataFrame 데이터 (누락 컬럼 포함)
+            missing_column: 누락된 컬럼명 (식별용)
+        """
+        # Given
+        df = pd.DataFrame(df_data)
         params = BuyAndHoldParams(initial_capital=10000.0)
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼 누락"):
-            run_buy_and_hold(df_no_open, params)
-
-        # Given: Close 컬럼 누락
-        df_no_close = pd.DataFrame({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0]})
-
-        # When & Then
-        with pytest.raises(ValueError, match="필수 컬럼 누락"):
-            run_buy_and_hold(df_no_close, params)
+            run_buy_and_hold(df, params)
 
     def test_insufficient_rows_raises(self):
         """
@@ -323,13 +326,39 @@ class TestRunBufferStrategy:
 
         assert "유효" in str(exc_info.value) or "부족" in str(exc_info.value), "유효 데이터 부족 에러"
 
-    def test_invalid_ma_window_raises(self):
+    @pytest.mark.parametrize(
+        "param_name,invalid_value,valid_base_params,error_pattern",
+        [
+            ("ma_window", 0, {"buffer_zone_pct": 0.03, "hold_days": 0, "recent_months": 0}, "ma_window는 1 이상"),
+            (
+                "buffer_zone_pct",
+                0.005,
+                {"ma_window": 5, "hold_days": 0, "recent_months": 0},
+                "buffer_zone_pct는.*이상",
+            ),
+            ("hold_days", -1, {"ma_window": 5, "buffer_zone_pct": 0.03, "recent_months": 0}, "hold_days는.*이상"),
+            (
+                "recent_months",
+                -1,
+                {"ma_window": 5, "buffer_zone_pct": 0.03, "hold_days": 0},
+                "recent_months는 0 이상",
+            ),
+        ],
+        ids=["invalid_ma_window", "invalid_buffer_zone_pct", "invalid_hold_days", "invalid_recent_months"],
+    )
+    def test_invalid_strategy_params_raise(self, param_name, invalid_value, valid_base_params, error_pattern):
         """
-        ma_window가 1 미만일 때 예외 발생 테스트
+        전략 파라미터가 유효하지 않을 때 예외 발생 테스트
 
-        Given: ma_window < 1
+        Given: 유효하지 않은 파라미터 값 (parametrize로 여러 파라미터 테스트)
         When: run_buffer_strategy 호출
         Then: ValueError 발생
+
+        Args:
+            param_name: 테스트할 파라미터 이름
+            invalid_value: 잘못된 값
+            valid_base_params: 다른 유효한 파라미터들
+            error_pattern: 예상 에러 메시지 패턴
         """
         # Given
         df = pd.DataFrame(
@@ -337,90 +366,17 @@ class TestRunBufferStrategy:
                 "Date": [date(2023, 1, 1), date(2023, 1, 2)],
                 "Open": [100, 101],
                 "Close": [100, 101],
-                "ma_0": [100, 101],  # 존재하지만 유효하지 않은 윈도우
+                "ma_5": [100, 101],
+                "ma_0": [100, 101],  # invalid ma_window 테스트용
             }
         )
+
+        # 파라미터 구성
+        all_params = {**valid_base_params, param_name: invalid_value, "initial_capital": 10000.0}
+        params = BufferStrategyParams(**all_params)
 
         # When & Then
-        params = BufferStrategyParams(
-            ma_window=0, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
-        )
-        with pytest.raises(ValueError, match="ma_window는 1 이상"):
-            run_buffer_strategy(df, params, log_trades=False)
-
-    def test_invalid_buffer_zone_pct_raises(self):
-        """
-        buffer_zone_pct가 MIN_BUFFER_ZONE_PCT 미만일 때 예외 발생 테스트
-
-        Given: buffer_zone_pct < MIN_BUFFER_ZONE_PCT (0.01)
-        When: run_buffer_strategy 호출
-        Then: ValueError 발생
-        """
-        # Given
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
-                "Open": [100, 101],
-                "Close": [100, 101],
-                "ma_5": [100, 101],
-            }
-        )
-
-        # When & Then: buffer_zone_pct = 0.005 (0.5%, MIN보다 작음)
-        params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.005, hold_days=0, recent_months=0, initial_capital=10000.0
-        )
-        with pytest.raises(ValueError, match="buffer_zone_pct는.*이상"):
-            run_buffer_strategy(df, params, log_trades=False)
-
-    def test_invalid_hold_days_raises(self):
-        """
-        hold_days가 MIN_HOLD_DAYS 미만일 때 예외 발생 테스트
-
-        Given: hold_days < MIN_HOLD_DAYS (0)
-        When: run_buffer_strategy 호출
-        Then: ValueError 발생
-        """
-        # Given
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
-                "Open": [100, 101],
-                "Close": [100, 101],
-                "ma_5": [100, 101],
-            }
-        )
-
-        # When & Then: hold_days = -1
-        params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=-1, recent_months=0, initial_capital=10000.0
-        )
-        with pytest.raises(ValueError, match="hold_days는.*이상"):
-            run_buffer_strategy(df, params, log_trades=False)
-
-    def test_invalid_recent_months_raises(self):
-        """
-        recent_months가 음수일 때 예외 발생 테스트
-
-        Given: recent_months < 0
-        When: run_buffer_strategy 호출
-        Then: ValueError 발생
-        """
-        # Given
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
-                "Open": [100, 101],
-                "Close": [100, 101],
-                "ma_5": [100, 101],
-            }
-        )
-
-        # When & Then: recent_months = -1
-        params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=-1, initial_capital=10000.0
-        )
-        with pytest.raises(ValueError, match="recent_months는 0 이상"):
+        with pytest.raises(ValueError, match=error_pattern):
             run_buffer_strategy(df, params, log_trades=False)
 
     def test_forced_liquidation_at_end(self):

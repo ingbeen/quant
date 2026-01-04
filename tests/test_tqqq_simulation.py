@@ -145,23 +145,36 @@ class TestCalculateDailyCost:
                 leverage=leverage,
             )
 
-    def test_calculate_daily_cost_leverage_2(self):
+    @pytest.mark.parametrize(
+        "leverage,expected_multiplier",
+        [
+            (2.0, 1.0),  # leverage=2: 차입 비율 1배
+            (3.0, 2.0),  # leverage=3: 차입 비율 2배
+            (4.0, 3.0),  # leverage=4: 차입 비율 3배
+        ],
+        ids=["leverage_2x", "leverage_3x", "leverage_4x"],
+    )
+    def test_calculate_daily_cost_leverage_variations(self, leverage, expected_multiplier):
         """
-        레버리지 2배 비용 계산 테스트
+        다양한 레버리지 배수별 비용 계산 테스트
 
         정책: 레버리지 비용 = funding_rate * (leverage - 1)
-        leverage=2일 때 차입 비율은 1배 (자기자본 1 + 빌린돈 1)
+        차입 비율 = leverage - 1 (자기자본 1 + 빌린돈 N-1)
 
         Given:
           - 2023년 1월 15일
           - FFR=4.5%, funding_spread=0.006 (0.6%)
           - expense_ratio=0.0095 (0.95%)
-          - leverage=2
+          - leverage (parametrize로 여러 값 테스트)
         When: calculate_daily_cost 호출
         Then:
-          - 레버리지 비용 = (0.045 + 0.006) * 1 = 0.051
-          - 총 연간 비용 = 0.051 + 0.0095 = 0.0605
-          - 일일 비용 = 0.0605 / 252
+          - 레버리지 비용 = (0.045 + 0.006) * (leverage - 1)
+          - 총 연간 비용 = leverage_cost + 0.0095
+          - 일일 비용 = annual_cost / 252
+
+        Args:
+            leverage: 테스트할 레버리지 배수
+            expected_multiplier: 예상 차입 비율 (leverage - 1)
         """
         # Given
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
@@ -173,7 +186,6 @@ class TestCalculateDailyCost:
 
         target_date = date(2023, 1, 15)
         funding_spread = 0.006
-        leverage = 2.0
 
         # When
         daily_cost = calculate_daily_cost(
@@ -184,68 +196,15 @@ class TestCalculateDailyCost:
             leverage=leverage,
         )
 
-        # Then: 레버리지 비용 = funding_rate * (leverage - 1) = (0.045 + 0.006) * 1
-        # 총 연간 비용 = 0.051 + 0.0095 = 0.0605
-        # 일일 비용 = 0.0605 / TRADING_DAYS_PER_YEAR ≈ 0.0002401
+        # Then
         expected_funding_rate = 0.045 + 0.006
-        expected_leverage_cost = expected_funding_rate * (leverage - 1)
+        expected_leverage_cost = expected_funding_rate * expected_multiplier
         expected_annual_cost = expected_leverage_cost + expense_ratio
         expected_daily_cost = expected_annual_cost / TRADING_DAYS_PER_YEAR
 
-        assert (
-            abs(daily_cost - expected_daily_cost) < 1e-6
-        ), f"leverage=2일 때 비용 계산: 기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
-
-    def test_calculate_daily_cost_leverage_4(self):
-        """
-        레버리지 4배 비용 계산 테스트
-
-        정책: 레버리지 비용 = funding_rate * (leverage - 1)
-        leverage=4일 때 차입 비율은 3배 (자기자본 1 + 빌린돈 3)
-
-        Given:
-          - 2023년 1월 15일
-          - FFR=4.5%, funding_spread=0.006 (0.6%)
-          - expense_ratio=0.0095 (0.95%)
-          - leverage=4
-        When: calculate_daily_cost 호출
-        Then:
-          - 레버리지 비용 = (0.045 + 0.006) * 3 = 0.153
-          - 총 연간 비용 = 0.153 + 0.0095 = 0.1625
-          - 일일 비용 = 0.1625 / 252
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        ffr_dict = _create_ffr_dict(ffr_df)
-
-        expense_ratio = 0.0095  # 0.95% (0~1 비율)
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [expense_ratio]})
-        expense_dict = _create_expense_dict(expense_df)
-
-        target_date = date(2023, 1, 15)
-        funding_spread = 0.006
-        leverage = 4.0
-
-        # When
-        daily_cost = calculate_daily_cost(
-            date_value=target_date,
-            ffr_dict=ffr_dict,
-            expense_dict=expense_dict,
-            funding_spread=funding_spread,
-            leverage=leverage,
+        assert abs(daily_cost - expected_daily_cost) < 1e-6, (
+            f"leverage={leverage}일 때 비용 계산: " f"기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
         )
-
-        # Then: 레버리지 비용 = funding_rate * (leverage - 1) = (0.045 + 0.006) * 3
-        # 총 연간 비용 = 0.153 + 0.0095 = 0.1625
-        # 일일 비용 = 0.1625 / TRADING_DAYS_PER_YEAR ≈ 0.0006449
-        expected_funding_rate = 0.045 + 0.006
-        expected_leverage_cost = expected_funding_rate * (leverage - 1)
-        expected_annual_cost = expected_leverage_cost + expense_ratio
-        expected_daily_cost = expected_annual_cost / TRADING_DAYS_PER_YEAR
-
-        assert (
-            abs(daily_cost - expected_daily_cost) < 1e-6
-        ), f"leverage=4일 때 비용 계산: 기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
 
 
 class TestSimulate:
@@ -346,15 +305,19 @@ class TestSimulate:
             abs(final_price - expected_price) < 0.1
         ), f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
 
-    def test_invalid_leverage(self):
+    @pytest.mark.parametrize("invalid_leverage", [-3.0, 0.0, -1.0])
+    def test_invalid_leverage(self, invalid_leverage):
         """
         잘못된 레버리지 값 테스트
 
         안정성: 음수나 0은 거부해야 합니다.
 
-        Given: leverage=-3 또는 0
+        Given: leverage <= 0 (parametrize로 여러 값 테스트)
         When: simulate
         Then: ValueError
+
+        Args:
+            invalid_leverage: 테스트할 잘못된 레버리지 값 (-3.0, 0.0, -1.0)
         """
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
@@ -362,22 +325,11 @@ class TestSimulate:
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
-        # When & Then: 음수
+        # When & Then
         with pytest.raises(ValueError):
             simulate(
                 underlying_df=underlying_df,
-                leverage=-3.0,
-                expense_df=expense_df,
-                initial_price=30.0,
-                ffr_df=ffr_df,
-                funding_spread=0.006,
-            )
-
-        # 0
-        with pytest.raises(ValueError):
-            simulate(
-                underlying_df=underlying_df,
-                leverage=0.0,
+                leverage=invalid_leverage,
                 expense_df=expense_df,
                 initial_price=30.0,
                 ffr_df=ffr_df,
@@ -686,74 +638,51 @@ class TestFindOptimalCostModel:
 class TestSimulateValidation:
     """simulate 함수 파라미터 검증 테스트"""
 
-    def test_invalid_leverage_raises(self):
+    @pytest.mark.parametrize(
+        "param_name,invalid_value,error_pattern",
+        [
+            ("leverage", 0.0, "leverage는 양수여야 합니다"),
+            ("leverage", -3.0, "leverage는 양수여야 합니다"),
+            ("initial_price", 0.0, "initial_price는 양수여야 합니다"),
+            ("initial_price", -100.0, "initial_price는 양수여야 합니다"),
+        ],
+        ids=["leverage_zero", "leverage_negative", "initial_price_zero", "initial_price_negative"],
+    )
+    def test_invalid_numeric_params_raise(self, param_name, invalid_value, error_pattern):
         """
-        leverage가 0 이하일 때 예외 발생 테스트
+        숫자 파라미터가 유효하지 않을 때 예외 발생 테스트
 
-        Given: leverage <= 0
+        Given: leverage <= 0 또는 initial_price <= 0 (parametrize로 여러 케이스 테스트)
         When: simulate 호출
         Then: ValueError 발생
+
+        Args:
+            param_name: 테스트할 파라미터 이름 ("leverage" 또는 "initial_price")
+            invalid_value: 잘못된 값
+            error_pattern: 예상 에러 메시지 패턴
         """
         # Given
         underlying_df = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [100.0, 105.0]})
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
-        # When & Then: leverage = 0
-        with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
+        # 파라미터 구성 (param_name에 따라 다른 값 사용)
+        if param_name == "leverage":
+            leverage = invalid_value
+            initial_price = 100.0
+        else:  # initial_price
+            leverage = 3.0
+            initial_price = invalid_value
+
+        # When & Then
+        with pytest.raises(ValueError, match=error_pattern):
             simulate(
                 underlying_df=underlying_df,
                 ffr_df=ffr_df,
-                leverage=0.0,
+                leverage=leverage,
                 funding_spread=0.005,
                 expense_df=expense_df,
-                initial_price=100.0,
-            )
-
-        # When & Then: leverage < 0
-        with pytest.raises(ValueError, match="leverage는 양수여야 합니다"):
-            simulate(
-                underlying_df=underlying_df,
-                ffr_df=ffr_df,
-                leverage=-3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
-                initial_price=100.0,
-            )
-
-    def test_invalid_initial_price_raises(self):
-        """
-        initial_price가 0 이하일 때 예외 발생 테스트
-
-        Given: initial_price <= 0
-        When: simulate 호출
-        Then: ValueError 발생
-        """
-        # Given
-        underlying_df = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [100.0, 105.0]})
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
-
-        # When & Then: initial_price = 0
-        with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
-            simulate(
-                underlying_df=underlying_df,
-                ffr_df=ffr_df,
-                leverage=3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
-                initial_price=0.0,
-            )
-
-        # When & Then: initial_price < 0
-        with pytest.raises(ValueError, match="initial_price는 양수여야 합니다"):
-            simulate(
-                underlying_df=underlying_df,
-                ffr_df=ffr_df,
-                leverage=3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
-                initial_price=-100.0,
+                initial_price=initial_price,
             )
 
     def test_missing_required_columns_raises(self):
