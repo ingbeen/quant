@@ -24,7 +24,7 @@ from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 class TestAddSingleMovingAverage:
     """이동평균 계산 테스트 클래스"""
 
-    def test_normal_calculation(self):
+    def test_normal_calculation(self, enable_numpy_warnings):
         """
         정상적인 이동평균 계산 테스트
 
@@ -36,6 +36,8 @@ class TestAddSingleMovingAverage:
           - MA_3 컬럼 추가됨
           - 처음 2행은 NaN (window-1개)
           - 3행부터 정확한 평균값
+
+        Note: enable_numpy_warnings 픽스처로 부동소수점 오류 감지
         """
         # Given: 간단한 데이터 (100, 110, 120, 130, 140)
         df = pd.DataFrame(

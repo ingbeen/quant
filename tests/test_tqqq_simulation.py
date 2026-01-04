@@ -36,7 +36,7 @@ from qbt.tqqq.simulation import (
 class TestCalculateDailyCost:
     """일일 비용 계산 테스트"""
 
-    def test_normal_cost_calculation(self):
+    def test_normal_cost_calculation(self, enable_numpy_warnings):
         """
         정상적인 일일 비용 계산 테스트
 
@@ -51,6 +51,8 @@ class TestCalculateDailyCost:
           - 해당 월의 FFR 사용
           - daily_cost = ((FFR + funding_spread) * (leverage - 1) + expense_ratio) / 거래일수
           - 양수 값 반환
+
+        Note: enable_numpy_warnings 픽스처로 부동소수점 오류 감지
         """
         # Given: FFR 데이터 (DATE는 yyyy-mm 문자열 형식, VALUE는 0~1 비율)
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [0.045, 0.046]})

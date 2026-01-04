@@ -276,7 +276,21 @@ def test_with_temp_files(self, mock_storage_paths):
 
   - `tmp_path` 기반 디렉토리 생성 후 자동 삭제
   - `common_constants.py`의 경로 상수를 임시 경로로 패치
-  - `meta_manager` 등 “import 시점에 상수를 들고 있는 모듈”도 함께 패치
+  - `meta_manager` 등 "import 시점에 상수를 들고 있는 모듈"도 함께 패치
+
+- `enable_numpy_warnings`: NumPy 부동소수점 경고 활성화 픽스처 (디버깅용)
+
+  - **목적**: 디버깅/테스트 시 부동소수점 오류 조기 발견
+  - **동작**: `np.errstate(all='warn')`로 모든 부동소수점 오류를 경고로 출력
+  - **사용 시나리오**: 수치 계산 테스트에서 숨은 오류 감지
+  - **사용 예시**:
+    ```python
+    def test_calculation(self, enable_numpy_warnings):
+        # 이 테스트 안에서 NumPy 경고가 활성화됨
+        result = calculate_some_metric(df)
+    ```
+  - **프로덕션 영향**: 없음 (테스트 환경에서만 활성화)
+  - **기존 안전 장치**: EPSILON 기반 방식은 그대로 유지
 
 **픽스처 사용 시 주의사항**:
 

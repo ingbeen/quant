@@ -11,9 +11,11 @@
 4. 자동 정리: tmp_path 같은 픽스처는 테스트 후 자동 삭제
 """
 
+import warnings
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -151,3 +153,34 @@ def mock_storage_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
 
     return {"STOCK_DIR": stock_dir, "ETC_DIR": etc_dir, "RESULTS_DIR": results_dir, "META_JSON_PATH": meta_json_path}
+
+
+@pytest.fixture
+def enable_numpy_warnings():
+    """
+    NumPy 부동소수점 연산 경고 활성화 픽스처
+
+    디버깅/테스트 시 부동소수점 오류(division by zero, overflow, invalid 등)를
+    조기 발견하기 위한 픽스처입니다.
+
+    왜 필요한가요?
+    - EPSILON으로 방지하지 못한 부동소수점 오류를 조기 감지
+    - 테스트 환경에서 수치 안정성 문제를 명시적으로 확인
+    - 프로덕션 코드 동작에는 영향 없음 (테스트 전용)
+
+    사용 예시:
+        def test_calculation(enable_numpy_warnings):
+            # 이 테스트 안에서 NumPy 경고가 활성화됨
+            result = risky_calculation()
+
+    Note:
+        - 프로덕션 코드는 EPSILON 방식으로 안전성 확보 중
+        - 이 픽스처는 테스트에서 숨은 부동소수점 오류를 찾기 위한 보조 도구
+        - Context7 Best Practice: np.errstate(all='warn') 패턴 사용
+    """
+    # NumPy 부동소수점 경고를 항상 출력하도록 설정
+    with warnings.catch_warnings():
+        warnings.filterwarnings("always", category=RuntimeWarning)
+        # 모든 부동소수점 오류를 경고로 출력
+        with np.errstate(all="warn"):
+            yield
