@@ -29,8 +29,12 @@ HistoryList = list[MetaDict]
 FullMetaJson = dict[str, HistoryList]
 
 # 허용된 CSV 타입
-# set: 중복 없는 집합 자료구조, in 연산으로 빠른 검사 가능
-VALID_CSV_TYPES = {"grid_results", "tqqq_validation", "tqqq_daily_comparison"}
+VALID_CSV_TYPES = {
+    "grid_results",
+    "tqqq_validation",
+    "tqqq_daily_comparison",
+    "tqqq_rate_spread_lab",
+}
 
 
 def _load_full_metadata() -> FullMetaJson:

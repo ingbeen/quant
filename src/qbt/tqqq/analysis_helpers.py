@@ -9,12 +9,23 @@ Fail-fast 정책:
 - 조용히 진행하지 않고 명확한 에러 메시지 제공
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
+
+__all__ = [
+    "calculate_signed_log_diff_from_cumulative_returns",
+    "calculate_daily_signed_log_diff",
+    "aggregate_monthly",
+    "validate_integrity",
+    "save_monthly_features",
+    "save_summary_statistics",
+]
 
 
 def calculate_signed_log_diff_from_cumulative_returns(
@@ -377,3 +388,168 @@ def validate_integrity(
                 "mean_abs_diff": mean_abs_diff,
                 "tolerance": tolerance,
             }
+
+
+def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
+    """
+    월별 피처 DataFrame을 CSV로 저장한다 (AI/모델링용).
+
+    저장 시 month 오름차순 정렬하여 시계열 순서를 보장한다.
+
+    Args:
+        monthly_df: 월별 집계 DataFrame
+            필수 컬럼: month, rate_pct, dr_m, e_m, de_m, sum_daily_m
+            선택 컬럼: dr_lag1, dr_lag2 (있으면 함께 저장)
+        output_path: 출력 CSV 파일 경로
+
+    Raises:
+        ValueError: 필수 컬럼 누락 시
+    """
+    # 1. 필수 컬럼 검증
+    required_cols = ["month", "rate_pct", "dr_m", "e_m", "de_m", "sum_daily_m"]
+    missing = [col for col in required_cols if col not in monthly_df.columns]
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+    # 2. 저장할 컬럼 선택 (선택 컬럼 포함)
+    optional_cols = ["dr_lag1", "dr_lag2"]
+    cols_to_save = required_cols + [col for col in optional_cols if col in monthly_df.columns]
+
+    # 3. 복사 및 정렬 (원본 보호, 시계열 순서 보장)
+    df_to_save = monthly_df[cols_to_save].copy()
+    df_to_save = df_to_save.sort_values("month").reset_index(drop=True)
+
+    # 4. month를 문자열로 변환 (CSV 호환성)
+    df_to_save["month"] = df_to_save["month"].astype(str)
+
+    # 5. CSV 저장
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save.to_csv(output_path, index=False, encoding="utf-8")
+    logger.debug(f"월별 피처 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")
+
+
+def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None:
+    """
+    요약 통계 DataFrame을 CSV로 저장한다 (AI/해석용).
+
+    Level, Delta, 교차검증 요약을 모두 포함한 단일 CSV를 생성한다.
+
+    Args:
+        monthly_df: 월별 집계 DataFrame
+            필수 컬럼: month, rate_pct, dr_m, e_m, de_m, sum_daily_m
+        output_path: 출력 CSV 파일 경로
+
+    Raises:
+        ValueError: 필수 컬럼 누락, 데이터 부족 등
+    """
+    # 1. 필수 컬럼 검증
+    required_cols = ["month", "rate_pct", "dr_m", "e_m", "de_m", "sum_daily_m"]
+    missing = [col for col in required_cols if col not in monthly_df.columns]
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+    # 2. Level 요약 (rate_pct vs e_m)
+    level_valid = monthly_df.dropna(subset=["rate_pct", "e_m"])
+    if len(level_valid) < 2:
+        raise ValueError(f"Level 요약 불가: 유효 데이터 {len(level_valid)}개 (최소 2개 필요)")
+
+    level_corr = level_valid["rate_pct"].corr(level_valid["e_m"])
+    level_fit = np.polyfit(level_valid["rate_pct"], level_valid["e_m"], 1)
+    level_slope, level_intercept = level_fit[0], level_fit[1]
+
+    level_summary = pd.DataFrame(
+        [
+            {
+                "category": "Level",
+                "x_var": "rate_pct",
+                "y_var": "e_m",
+                "lag": 0,
+                "n": len(level_valid),
+                "corr": level_corr,
+                "slope": level_slope,
+                "intercept": level_intercept,
+            }
+        ]
+    )
+
+    # 3. Delta 요약 (dr_m.shift(lag) vs de_m, lag 0/1/2)
+    delta_rows = []
+    for lag in [0, 1, 2]:
+        # dr_m.shift(lag) vs de_m
+        df_lag = monthly_df.copy()
+        df_lag["dr_lag"] = df_lag["dr_m"].shift(lag)
+        delta_valid = df_lag.dropna(subset=["dr_lag", "de_m"])
+
+        if len(delta_valid) >= 2:
+            corr_de = delta_valid["dr_lag"].corr(delta_valid["de_m"])
+            fit_de = np.polyfit(delta_valid["dr_lag"], delta_valid["de_m"], 1)
+            delta_rows.append(
+                {
+                    "category": "Delta",
+                    "x_var": f"dr_m_lag{lag}",
+                    "y_var": "de_m",
+                    "lag": lag,
+                    "n": len(delta_valid),
+                    "corr": corr_de,
+                    "slope": fit_de[0],
+                    "intercept": fit_de[1],
+                }
+            )
+
+        # dr_m.shift(lag) vs sum_daily_m
+        delta_valid_sum = df_lag.dropna(subset=["dr_lag", "sum_daily_m"])
+        if len(delta_valid_sum) >= 2:
+            corr_sum = delta_valid_sum["dr_lag"].corr(delta_valid_sum["sum_daily_m"])
+            fit_sum = np.polyfit(delta_valid_sum["dr_lag"], delta_valid_sum["sum_daily_m"], 1)
+            delta_rows.append(
+                {
+                    "category": "Delta",
+                    "x_var": f"dr_m_lag{lag}",
+                    "y_var": "sum_daily_m",
+                    "lag": lag,
+                    "n": len(delta_valid_sum),
+                    "corr": corr_sum,
+                    "slope": fit_sum[0],
+                    "intercept": fit_sum[1],
+                }
+            )
+
+    delta_summary = pd.DataFrame(delta_rows) if delta_rows else pd.DataFrame()
+
+    # 4. 교차검증 요약 (de_m vs sum_daily_m 차이)
+    cross_valid = monthly_df.dropna(subset=["de_m", "sum_daily_m"])
+    if len(cross_valid) >= 1:
+        diff = cross_valid["de_m"] - cross_valid["sum_daily_m"]
+        cross_summary = pd.DataFrame(
+            [
+                {
+                    "category": "CrossValidation",
+                    "x_var": "de_m",
+                    "y_var": "sum_daily_m",
+                    "lag": None,
+                    "n": len(cross_valid),
+                    "corr": None,
+                    "slope": None,
+                    "intercept": None,
+                    "max_abs_diff": diff.abs().max(),
+                    "mean_abs_diff": diff.abs().mean(),
+                    "std_diff": diff.std(),
+                }
+            ]
+        )
+    else:
+        cross_summary = pd.DataFrame()
+
+    # 5. 전체 요약 결합
+    summary_list = [level_summary]
+    if not delta_summary.empty:
+        summary_list.append(delta_summary)
+    if not cross_summary.empty:
+        summary_list.append(cross_summary)
+
+    full_summary = pd.concat(summary_list, ignore_index=True)
+
+    # 6. CSV 저장
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    full_summary.to_csv(output_path, index=False, encoding="utf-8")
+    logger.debug(f"요약 통계 CSV 저장 완료: {output_path} ({len(full_summary)}행)")

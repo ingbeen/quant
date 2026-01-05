@@ -32,6 +32,8 @@ EXPENSE_RATIO_DATA_PATH = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 # TQQQ 시뮬레이션 관련 결과 파일 경로
 TQQQ_VALIDATION_PATH = RESULTS_DIR / "tqqq_validation.csv"
 TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
+TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_monthly.csv"
+TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_summary.csv"
 
 __all__ = [
     "DISPLAY_DATE",
@@ -40,6 +42,8 @@ __all__ = [
     "TQQQ_SYNTHETIC_PATH",
     "TQQQ_VALIDATION_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
+    "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
+    "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
     "INTEGRITY_TOLERANCE",
     # (아래에 정의되는 상수들도 __all__에 포함)
 ]
