@@ -547,7 +547,9 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     if not cross_summary.empty:
         summary_list.append(cross_summary)
 
-    full_summary = pd.concat(summary_list, ignore_index=True)
+    # Empty DataFrame 필터링 후 concat (FutureWarning 방지)
+    non_empty_summaries = [s for s in summary_list if not s.empty]
+    full_summary = pd.concat(non_empty_summaries, ignore_index=True)
 
     # 6. CSV 저장
     output_path.parent.mkdir(parents=True, exist_ok=True)

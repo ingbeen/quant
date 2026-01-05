@@ -225,7 +225,7 @@ def display_cross_validation(monthly_df: pd.DataFrame):
         yaxis_title="빈도",
         height=400,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def main():
@@ -365,7 +365,7 @@ def main():
         # 차트 생성 (y=e_m 고정)
         try:
             level_fig = create_level_chart(monthly_df, "e_m", "월말 누적 오차 (%)")
-            st.plotly_chart(level_fig, use_container_width=True)
+            st.plotly_chart(level_fig, width="stretch")
         except Exception as e:
             st.error(f"❌ Level 차트 생성 실패:\n\n{str(e)}")
 
@@ -373,7 +373,7 @@ def main():
         st.subheader("📋 최근 12개월 요약")
         recent_12 = monthly_df.tail(12)[["month", "rate_pct", "e_m", "de_m", "sum_daily_m"]].copy()
         recent_12["month"] = recent_12["month"].astype(str)
-        st.dataframe(recent_12, hide_index=True, use_container_width=True)
+        st.dataframe(recent_12, hide_index=True, width="stretch")
 
         st.divider()
 
@@ -400,7 +400,7 @@ def main():
             # 차트 생성
             try:
                 delta_fig, valid_df = create_delta_chart(monthly_df, y_col_delta, y_label_delta, lag)
-                st.plotly_chart(delta_fig, use_container_width=True)
+                st.plotly_chart(delta_fig, width="stretch")
 
                 # 샘플 수 및 상관 안내
                 st.info(
