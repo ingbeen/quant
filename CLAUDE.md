@@ -248,11 +248,6 @@ quant/
 - 클래스: `PascalCase`
 - 상수: `UPPER_SNAKE_CASE`
 
-**포맷팅**:
-
-- Black 자동 포맷팅 (에디터 설정)
-- 수동 실행 금지
-
 **품질 검증**:
 
 - **모든 품질 검증은 `validate_project.py`를 통해서만 수행**
