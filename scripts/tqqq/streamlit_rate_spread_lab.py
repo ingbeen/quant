@@ -379,12 +379,6 @@ def main():
         except Exception as e:
             st.error(f"❌ Level 차트 생성 실패:\n\n{str(e)}")
 
-        # 최근 12개월 요약 테이블
-        st.subheader("📋 최근 12개월 요약 (Recent 12 Months Summary)")
-        recent_12 = monthly_df.tail(12)[["month", "rate_pct", "e_m", "de_m", "sum_daily_m"]].copy()
-        recent_12["month"] = recent_12["month"].astype(str)
-        st.dataframe(recent_12, hide_index=True, width="stretch")
-
         st.divider()
 
         # === 고급: Delta 분석 (기본 숨김) ===
