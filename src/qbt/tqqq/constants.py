@@ -108,6 +108,29 @@ COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "누적배수로그차이_RMSE(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "누적배수로그차이_평균(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_MAX = "누적배수로그차이_최대(%)"
 
+# 월별 피처 CSV 컬럼명 (Rate Spread Lab)
+COL_MONTH = "연월"
+COL_RATE_PCT = "금리수준(%)"
+COL_DR_M = "금리변화(%p)"
+COL_E_M = "월말누적오차(%)"
+COL_DE_M = "월간오차변화(%)"
+COL_SUM_DAILY_M = "일일오차월합(%)"
+COL_DR_LAG1 = "금리변화Lag1(%p)"
+COL_DR_LAG2 = "금리변화Lag2(%p)"
+
+# 요약 통계 CSV 컬럼명 (Rate Spread Lab)
+COL_CATEGORY = "분석유형"
+COL_X_VAR = "X축변수"
+COL_Y_VAR = "Y축변수"
+COL_LAG = "시차(월)"
+COL_N = "샘플수"
+COL_CORR = "상관계수"
+COL_SLOPE = "기울기"
+COL_INTERCEPT = "절편"
+COL_MAX_ABS_DIFF = "최대절댓값차이(%)"
+COL_MEAN_ABS_DIFF = "평균절댓값차이(%)"
+COL_STD_DIFF = "표준편차(%)"
+
 # 컬럼 그룹
 COMPARISON_COLUMNS = [
     DISPLAY_DATE,

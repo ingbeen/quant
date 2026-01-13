@@ -27,6 +27,8 @@ from qbt.tqqq.analysis_helpers import (
     aggregate_monthly,
     calculate_daily_signed_log_diff,
     calculate_signed_log_diff_from_cumulative_returns,
+    save_monthly_features,
+    save_summary_statistics,
     validate_integrity,
 )
 
@@ -405,3 +407,211 @@ class TestAggregateMonthly:
         # Then
         assert monthly.loc[0, "rate_pct"] == pytest.approx(4.5)  # 0.045 * 100
         assert pd.isna(monthly.loc[0, "dr_m"])  # 첫 달
+
+
+class TestSaveMonthlyFeatures:
+    """save_monthly_features() 함수 테스트"""
+
+    def test_csv_saving_with_korean_columns_and_rounding(self, tmp_path):
+        """
+        CSV 저장 시 한글 컬럼명 변경 및 소수점 라운딩 테스트
+
+        Given:
+            - 영문 컬럼명의 월별 DataFrame (부동소수점 오차 포함)
+        When: save_monthly_features() 호출
+        Then:
+            - 한글 컬럼명으로 변경
+            - 소수점 4자리로 라운딩
+            - CSV 파일 생성
+        """
+        from qbt.tqqq.constants import (
+            COL_DE_M,
+            COL_DR_LAG1,
+            COL_DR_LAG2,
+            COL_DR_M,
+            COL_E_M,
+            COL_MONTH,
+            COL_RATE_PCT,
+            COL_SUM_DAILY_M,
+        )
+
+        # Given
+        monthly_df = pd.DataFrame(
+            {
+                "month": pd.Period("2023-01"),
+                "rate_pct": [4.123456789],
+                "dr_m": [0.051234567],
+                "e_m": [-0.03999999999998],
+                "de_m": [-0.001999999999],
+                "sum_daily_m": [-0.03888888888],
+                "dr_lag1": [0.045],
+                "dr_lag2": [0.038],
+            }
+        )
+        output_path = tmp_path / "test_monthly.csv"
+
+        # When
+        save_monthly_features(monthly_df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+
+        # 1. 컬럼명 검증 (한글)
+        assert COL_MONTH in saved_df.columns
+        assert COL_RATE_PCT in saved_df.columns
+        assert COL_DR_M in saved_df.columns
+        assert COL_E_M in saved_df.columns
+        assert COL_DE_M in saved_df.columns
+        assert COL_SUM_DAILY_M in saved_df.columns
+        assert COL_DR_LAG1 in saved_df.columns
+        assert COL_DR_LAG2 in saved_df.columns
+
+        # 2. 라운딩 검증 (4자리)
+        assert saved_df[COL_RATE_PCT].iloc[0] == pytest.approx(4.1235, abs=0.00001)
+        assert saved_df[COL_DR_M].iloc[0] == pytest.approx(0.0512, abs=0.00001)
+        assert saved_df[COL_E_M].iloc[0] == pytest.approx(-0.0400, abs=0.00001)
+        assert saved_df[COL_DE_M].iloc[0] == pytest.approx(-0.0020, abs=0.00001)
+        assert saved_df[COL_SUM_DAILY_M].iloc[0] == pytest.approx(-0.0389, abs=0.00001)
+
+    def test_missing_required_columns_raises(self, tmp_path):
+        """
+        필수 컬럼 누락 시 ValueError 발생 테스트
+
+        Given: 필수 컬럼이 없는 DataFrame
+        When: save_monthly_features() 호출
+        Then: ValueError 발생
+        """
+        # Given
+        monthly_df = pd.DataFrame({"month": pd.Period("2023-01"), "rate_pct": [4.0]})
+        output_path = tmp_path / "test_monthly.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            save_monthly_features(monthly_df, output_path)
+
+
+class TestSaveSummaryStatistics:
+    """save_summary_statistics() 함수 테스트"""
+
+    def test_csv_saving_with_korean_columns_and_rounding(self, tmp_path):
+        """
+        요약 통계 CSV 저장 시 한글 컬럼명 및 라운딩 테스트
+
+        Given:
+            - 영문 컬럼명의 월별 DataFrame (충분한 데이터)
+        When: save_summary_statistics() 호출
+        Then:
+            - 한글 컬럼명으로 변경
+            - 소수점 4자리로 라운딩
+            - Level, Delta, CrossValidation 요약 포함
+        """
+        from qbt.tqqq.constants import (
+            COL_CATEGORY,
+            COL_CORR,
+            COL_INTERCEPT,
+            COL_LAG,
+            COL_N,
+            COL_SLOPE,
+            COL_X_VAR,
+            COL_Y_VAR,
+        )
+
+        # Given (최소 13개월 데이터)
+        monthly_df = pd.DataFrame(
+            {
+                "month": pd.period_range("2023-01", periods=13, freq="M"),
+                "rate_pct": [4.0 + i * 0.1 for i in range(13)],
+                "dr_m": [0.0] + [0.05 + i * 0.01 for i in range(12)],
+                "e_m": [-0.04 + i * 0.002 for i in range(13)],
+                "de_m": [0.0] + [-0.001 + i * 0.0001 for i in range(12)],
+                "sum_daily_m": [-0.038 + i * 0.002 for i in range(13)],
+            }
+        )
+        output_path = tmp_path / "test_summary.csv"
+
+        # When
+        save_summary_statistics(monthly_df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+
+        # 1. 컬럼명 검증 (한글)
+        assert COL_CATEGORY in saved_df.columns
+        assert COL_X_VAR in saved_df.columns
+        assert COL_Y_VAR in saved_df.columns
+        assert COL_LAG in saved_df.columns
+        assert COL_N in saved_df.columns
+        assert COL_CORR in saved_df.columns
+        assert COL_SLOPE in saved_df.columns
+        assert COL_INTERCEPT in saved_df.columns
+
+        # 2. Level 요약 존재 확인
+        level_rows = saved_df[saved_df[COL_CATEGORY] == "Level"]
+        assert len(level_rows) > 0
+
+        # 3. 라운딩 검증 (4자리)
+        numeric_cols = [COL_CORR, COL_SLOPE, COL_INTERCEPT]
+        for col in numeric_cols:
+            if col in level_rows.columns:
+                value = level_rows[col].iloc[0]
+                if pd.notna(value):
+                    # 소수점 자릿수 확인
+                    str_value = str(value)
+                    if "." in str_value:
+                        decimal_places = len(str_value.split(".")[-1])
+                        assert decimal_places <= 4, f"{col} 컬럼의 소수점 자릿수가 4자리를 초과: {decimal_places}"
+
+    def test_cross_validation_with_korean_columns(self, tmp_path):
+        """
+        교차검증 요약에 한글 컬럼명 적용 테스트
+
+        Given: de_m, sum_daily_m을 포함한 월별 데이터
+        When: save_summary_statistics() 호출
+        Then: CrossValidation 요약에 한글 컬럼명 포함
+        """
+        from qbt.tqqq.constants import (
+            COL_CATEGORY,
+            COL_MAX_ABS_DIFF,
+            COL_MEAN_ABS_DIFF,
+            COL_STD_DIFF,
+        )
+
+        # Given
+        monthly_df = pd.DataFrame(
+            {
+                "month": pd.period_range("2023-01", periods=5, freq="M"),
+                "rate_pct": [4.0, 4.1, 4.2, 4.3, 4.4],
+                "dr_m": [0.0, 0.05, 0.06, 0.07, 0.08],
+                "e_m": [-0.04, -0.038, -0.036, -0.034, -0.032],
+                "de_m": [0.0, 0.002, 0.002, 0.002, 0.002],
+                "sum_daily_m": [-0.038, -0.036, -0.034, -0.032, -0.030],
+            }
+        )
+        output_path = tmp_path / "test_summary_cross.csv"
+
+        # When
+        save_summary_statistics(monthly_df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+
+        # CrossValidation 요약 존재 확인
+        cross_rows = saved_df[saved_df[COL_CATEGORY] == "CrossValidation"]
+        assert len(cross_rows) > 0
+
+        # 한글 컬럼명 확인
+        assert COL_MAX_ABS_DIFF in cross_rows.columns
+        assert COL_MEAN_ABS_DIFF in cross_rows.columns
+        assert COL_STD_DIFF in cross_rows.columns
+
+        # 라운딩 확인 (4자리)
+        for col in [COL_MAX_ABS_DIFF, COL_MEAN_ABS_DIFF, COL_STD_DIFF]:
+            value = cross_rows[col].iloc[0]
+            if pd.notna(value):
+                str_value = str(value)
+                if "." in str_value:
+                    decimal_places = len(str_value.split(".")[-1])
+                    assert decimal_places <= 4

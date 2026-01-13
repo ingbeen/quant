@@ -14,6 +14,27 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from qbt.tqqq.constants import (
+    COL_CATEGORY,
+    COL_CORR,
+    COL_DE_M,
+    COL_DR_LAG1,
+    COL_DR_LAG2,
+    COL_DR_M,
+    COL_E_M,
+    COL_INTERCEPT,
+    COL_LAG,
+    COL_MAX_ABS_DIFF,
+    COL_MEAN_ABS_DIFF,
+    COL_MONTH,
+    COL_N,
+    COL_RATE_PCT,
+    COL_SLOPE,
+    COL_STD_DIFF,
+    COL_SUM_DAILY_M,
+    COL_X_VAR,
+    COL_Y_VAR,
+)
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -395,6 +416,7 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
     월별 피처 DataFrame을 CSV로 저장한다 (AI/모델링용).
 
     저장 시 month 오름차순 정렬하여 시계열 순서를 보장한다.
+    컬럼명은 한글 단일 형식으로 변경하고 소수점은 4자리로 라운딩한다.
 
     Args:
         monthly_df: 월별 집계 DataFrame
@@ -422,7 +444,31 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
     # 4. month를 문자열로 변환 (CSV 호환성)
     df_to_save["month"] = df_to_save["month"].astype(str)
 
-    # 5. CSV 저장
+    # 5. 컬럼명 변경 (영문 → 한글)
+    rename_map = {
+        "month": COL_MONTH,
+        "rate_pct": COL_RATE_PCT,
+        "dr_m": COL_DR_M,
+        "e_m": COL_E_M,
+        "de_m": COL_DE_M,
+        "sum_daily_m": COL_SUM_DAILY_M,
+        "dr_lag1": COL_DR_LAG1,
+        "dr_lag2": COL_DR_LAG2,
+    }
+    df_to_save = df_to_save.rename(columns=rename_map)
+
+    # 6. 수치 컬럼 라운딩 (4자리 통일)
+    numeric_cols = [COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
+    if COL_DR_LAG1 in df_to_save.columns:
+        numeric_cols.append(COL_DR_LAG1)
+    if COL_DR_LAG2 in df_to_save.columns:
+        numeric_cols.append(COL_DR_LAG2)
+
+    for col in numeric_cols:
+        if col in df_to_save.columns:
+            df_to_save[col] = df_to_save[col].round(4)
+
+    # 7. CSV 저장
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_to_save.to_csv(output_path, index=False, encoding="utf-8")
     logger.debug(f"월별 피처 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")
@@ -433,6 +479,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     요약 통계 DataFrame을 CSV로 저장한다 (AI/해석용).
 
     Level, Delta, 교차검증 요약을 모두 포함한 단일 CSV를 생성한다.
+    컬럼명은 한글 단일 형식으로 변경하고 소수점은 4자리로 라운딩한다.
 
     Args:
         monthly_df: 월별 집계 DataFrame
@@ -551,7 +598,29 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     non_empty_summaries = [s for s in summary_list if not s.empty]
     full_summary = pd.concat(non_empty_summaries, ignore_index=True)
 
-    # 6. CSV 저장
+    # 6. 컬럼명 변경 (영문 → 한글)
+    rename_map = {
+        "category": COL_CATEGORY,
+        "x_var": COL_X_VAR,
+        "y_var": COL_Y_VAR,
+        "lag": COL_LAG,
+        "n": COL_N,
+        "corr": COL_CORR,
+        "slope": COL_SLOPE,
+        "intercept": COL_INTERCEPT,
+        "max_abs_diff": COL_MAX_ABS_DIFF,
+        "mean_abs_diff": COL_MEAN_ABS_DIFF,
+        "std_diff": COL_STD_DIFF,
+    }
+    full_summary = full_summary.rename(columns=rename_map)
+
+    # 7. 수치 컬럼 라운딩 (4자리 통일)
+    numeric_cols = [COL_CORR, COL_SLOPE, COL_INTERCEPT, COL_MAX_ABS_DIFF, COL_MEAN_ABS_DIFF, COL_STD_DIFF]
+    for col in numeric_cols:
+        if col in full_summary.columns:
+            full_summary[col] = full_summary[col].round(4)
+
+    # 8. CSV 저장
     output_path.parent.mkdir(parents=True, exist_ok=True)
     full_summary.to_csv(output_path, index=False, encoding="utf-8")
     logger.debug(f"요약 통계 CSV 저장 완료: {output_path} ({len(full_summary)}행)")

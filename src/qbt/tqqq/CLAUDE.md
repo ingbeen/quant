@@ -708,6 +708,55 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ---
 
+### tqqq_rate_spread_lab_monthly.csv (월별 피처)
+
+**경로**: `storage/results/tqqq_rate_spread_lab_monthly.csv`
+
+**컬럼** (8개, 모두 한글):
+
+1. `연월`: 월 Period (yyyy-MM 형식 문자열)
+2. `금리수준(%)`: FFR 금리 (0~100 범위, 예: 4.5 = 4.5%)
+3. `금리변화(%p)`: 전월 대비 금리 변화량 (percentage point)
+4. `월말누적오차(%)`: 해당 월 마지막 거래일의 누적배수 로그차이 (signed)
+5. `월간오차변화(%)`: 전월 대비 누적오차 변화량
+6. `일일오차월합(%)`: 해당 월 내 일일 signed 로그차이의 합계
+7. `금리변화Lag1(%p)`: 1개월 전 금리 변화 (lag 분석용)
+8. `금리변화Lag2(%p)`: 2개월 전 금리 변화 (lag 분석용)
+
+**라운딩 정책**: 모든 수치 컬럼 4자리 (예: 4.1235%, 0.0512%p)
+
+**용도**: AI/모델링, 금리-오차 관계 분석, Streamlit 앱 데이터 소스
+
+근거 위치: [analysis_helpers.py의 save_monthly_features](analysis_helpers.py), [constants.py](constants.py)
+
+---
+
+### tqqq_rate_spread_lab_summary.csv (요약 통계)
+
+**경로**: `storage/results/tqqq_rate_spread_lab_summary.csv`
+
+**컬럼** (11개, 모두 한글):
+
+1. `분석유형`: Level / Delta / CrossValidation
+2. `X축변수`: 독립변수 이름 (예: rate_pct, dr_m_lag0)
+3. `Y축변수`: 종속변수 이름 (예: e_m, de_m, sum_daily_m)
+4. `시차(월)`: Delta 분석의 lag 값 (0/1/2), Level/CrossValidation은 0 또는 None
+5. `샘플수`: 유효 데이터 포인트 개수
+6. `상관계수`: Pearson 상관계수 (Level/Delta만 해당)
+7. `기울기`: OLS 회귀 기울기 (Level/Delta만 해당)
+8. `절편`: OLS 회귀 절편 (Level/Delta만 해당)
+9. `최대절댓값차이(%)`: de_m - sum_daily_m 최대 차이 (CrossValidation만 해당)
+10. `평균절댓값차이(%)`: de_m - sum_daily_m 평균 차이 (CrossValidation만 해당)
+11. `표준편차(%)`: de_m - sum_daily_m 표준편차 (CrossValidation만 해당)
+
+**라운딩 정책**: 모든 수치 컬럼 4자리 (예: 0.9123, 0.0045)
+
+**용도**: AI/해석, 금리-오차 관계 패턴 발견, 교차검증 품질 확인
+
+근거 위치: [analysis_helpers.py의 save_summary_statistics](analysis_helpers.py), [constants.py](constants.py)
+
+---
+
 ## 사용 예시
 
 ### 단일 시뮬레이션
