@@ -10,9 +10,17 @@
 - Delta 탭: 금리 변화 vs 오차 변화, Lag 효과, Rolling 상관
 - 교차검증: de_m vs sum_daily_m 차이 분석
 
+CSV 저장:
+- 앱 초기 로딩 시 1회만 자동 저장 (st.session_state 사용)
+- Lag 선택 등 위젯 상호작용 시 재생성 방지
+
 Fail-fast 정책:
 - ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
 - 잘못된 차트/수치 표시 방지
+
+사용자 경험:
+- 모든 화면 텍스트 한글화 ("한글 (영문)" 형식)
+- 명확한 레이블 및 설명 제공
 """
 
 import os
@@ -166,21 +174,21 @@ def display_cross_validation(monthly_df: pd.DataFrame):
     Args:
         monthly_df: 월별 데이터 (de_m, sum_daily_m 포함)
     """
-    st.subheader("교차검증: de_m vs sum_daily_m")
+    st.subheader("교차검증 (Cross Validation): de_m vs sum_daily_m")
 
     st.markdown(
         """
         **목적**: 두 가지 방법으로 계산한 월간 오차 변화가 일치하는지 검증
 
-        - `de_m`: 월말 누적 signed의 월간 변화 (diff)
-        - `sum_daily_m`: 일일 증분 signed의 월합 (sum)
+        - `de_m`: 월말 누적 signed의 월간 변화 (Difference, diff)
+        - `sum_daily_m`: 일일 증분 signed의 월합 (Sum of Daily, sum)
 
         **기대**: 거의 같아야 함 (완전 동일 X)
 
-        **차이 원인**:
+        **차이 원인 (Difference Causes)**:
         1. 일일수익률 반올림 (CSV 저장 시 소수점 자릿수 제한)
         2. 거래일 결측 (일부 날짜 누락 가능성)
-        3. 누적수익률 계산 방식 차이 (실제 데이터 vs 시뮬 계산 경로)
+        3. 누적수익률 계산 방식 차이 (실제 데이터 vs 시뮬레이션 계산 경로)
         """
     )
 
@@ -200,12 +208,12 @@ def display_cross_validation(monthly_df: pd.DataFrame):
     mean_diff = valid_df["diff"].abs().mean()
     std_diff = valid_df["diff"].std()
 
-    st.metric(label="최대 절댓값 차이", value=f"{max_diff:.6f}%")
-    st.metric(label="평균 절댓값 차이", value=f"{mean_diff:.6f}%")
-    st.metric(label="표준편차", value=f"{std_diff:.6f}%")
+    st.metric(label="최대 절댓값 차이 (Max Abs Diff)", value=f"{max_diff:.6f}%")
+    st.metric(label="평균 절댓값 차이 (Mean Abs Diff)", value=f"{mean_diff:.6f}%")
+    st.metric(label="표준편차 (Std Dev)", value=f"{std_diff:.6f}%")
 
     # 상위 5개 차이
-    st.markdown("**차이가 큰 상위 5개월**:")
+    st.markdown("**차이가 큰 상위 5개월 (Top 5 Months with Largest Diff)**:")
     top_diff = valid_df.nlargest(5, "diff", keep="all")[["month", "de_m", "sum_daily_m", "diff"]]
     st.dataframe(top_diff, hide_index=True)
 
@@ -242,18 +250,18 @@ def main():
         st.title("TQQQ 금리-오차 관계 분석")
         st.markdown(
             """
-            금리 환경과 시뮬레이션 오차의 관계를 시각화하여 **spread 조정 전략** 수립을 지원합니다.
+            금리 환경과 시뮬레이션 오차의 관계를 시각화하여 **스프레드 조정 전략 (Spread Adjustment Strategy)** 수립을 지원합니다.
 
             **화면 구성**:
             - **핵심**: 금리 수준 vs 월말 누적 오차 (기본 표시)
-            - **고급**: Delta 분석, 교차검증 (클릭하여 열기)
+            - **고급**: 델타 분석 (Delta Analysis), 교차검증 (Cross Validation) (클릭하여 열기)
             """
         )
 
         st.divider()
 
         # 데이터 로드
-        st.header("데이터 로딩")
+        st.header("데이터 로딩 (Data Loading)")
 
         try:
             daily_mtime = get_file_mtime(TQQQ_DAILY_COMPARISON_PATH)
@@ -270,7 +278,7 @@ def main():
             st.stop()
 
         # 월별 데이터 준비
-        st.header("월별 데이터 준비")
+        st.header("월별 데이터 준비 (Monthly Data Preparation)")
 
         try:
             monthly_df = prepare_monthly_data(daily_df, ffr_df)
@@ -280,56 +288,58 @@ def main():
             monthly_df["dr_lag1"] = monthly_df["dr_m"].shift(1)
             monthly_df["dr_lag2"] = monthly_df["dr_m"].shift(2)
 
-            # CSV 자동 저장
-            try:
-                # 1. 월별 피처 CSV 저장
-                save_monthly_features(monthly_df, TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH)
+            # CSV 자동 저장 (세션당 1회만)
+            if "csv_saved" not in st.session_state:
+                try:
+                    # 1. 월별 피처 CSV 저장
+                    save_monthly_features(monthly_df, TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH)
 
-                # 2. 요약 통계 CSV 저장
-                save_summary_statistics(monthly_df, TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH)
+                    # 2. 요약 통계 CSV 저장
+                    save_summary_statistics(monthly_df, TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH)
 
-                # 3. meta.json 실행 이력 저장
-                metadata = {
-                    "input_files": {
-                        "daily_comparison": str(TQQQ_DAILY_COMPARISON_PATH),
-                        "daily_comparison_mtime": daily_mtime,
-                        "ffr_data": str(FFR_DATA_PATH),
-                        "ffr_data_mtime": ffr_mtime,
-                    },
-                    "output_files": {
-                        "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
-                        "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
-                    },
-                    "analysis_period": {
-                        "month_min": str(monthly_df["month"].min()),
-                        "month_max": str(monthly_df["month"].max()),
-                        "total_months": len(monthly_df),
-                    },
-                }
-                save_metadata("tqqq_rate_spread_lab", metadata)
+                    # 3. meta.json 실행 이력 저장
+                    metadata = {
+                        "input_files": {
+                            "daily_comparison": str(TQQQ_DAILY_COMPARISON_PATH),
+                            "daily_comparison_mtime": daily_mtime,
+                            "ffr_data": str(FFR_DATA_PATH),
+                            "ffr_data_mtime": ffr_mtime,
+                        },
+                        "output_files": {
+                            "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
+                            "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
+                        },
+                        "analysis_period": {
+                            "month_min": str(monthly_df["month"].min()),
+                            "month_max": str(monthly_df["month"].max()),
+                            "total_months": len(monthly_df),
+                        },
+                    }
+                    save_metadata("tqqq_rate_spread_lab", metadata)
 
-                st.success(
-                    f"✅ 결과 CSV 자동 저장 완료:\n- {TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH.name}\n- {TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH.name}"
-                )
+                    st.session_state.csv_saved = True
+                    st.success(
+                        f"✅ 결과 CSV 자동 저장 완료:\n- {TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH.name}\n- {TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH.name}"
+                    )
 
-            except Exception as e:
-                st.warning(f"⚠️ CSV 저장 실패 (계속 진행):\n\n{str(e)}")
+                except Exception as e:
+                    st.warning(f"⚠️ CSV 저장 실패 (계속 진행):\n\n{str(e)}")
 
             # 요약 통계
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(
-                    label="분석 기간",
+                    label="분석 기간 (Period)",
                     value=f"{monthly_df['month'].min()} ~ {monthly_df['month'].max()}",
                 )
             with col2:
                 rate_min = monthly_df["rate_pct"].min()
                 rate_max = monthly_df["rate_pct"].max()
-                st.metric(label="금리 범위", value=f"{rate_min:.2f}% ~ {rate_max:.2f}%")
+                st.metric(label="금리 범위 (Rate Range, %)", value=f"{rate_min:.2f}% ~ {rate_max:.2f}%")
             with col3:
                 e_min = monthly_df["e_m"].min()
                 e_max = monthly_df["e_m"].max()
-                st.metric(label="월말 오차 범위", value=f"{e_min:.2f}% ~ {e_max:.2f}%")
+                st.metric(label="월말 오차 범위 (End-of-Month Error, %)", value=f"{e_min:.2f}% ~ {e_max:.2f}%")
 
         except ValueError as e:
             st.error(f"❌ 월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n💡 힌트: 데이터 기간/형식 확인")
@@ -346,15 +356,15 @@ def main():
         st.markdown(
             """
             **용어 설명**:
-            - **금리 수준 (rate_pct)**: 연방기금금리(FFR, %)
-            - **월말 누적 오차 (e_m)**: 해당 월 마지막 거래일의 시뮬레이션 오차(%)
+            - **금리 수준 (Rate Level, rate_pct)**: 연방기금금리 (Federal Funds Rate, FFR, %)
+            - **월말 누적 오차 (End-of-Month Error, e_m)**: 해당 월 마지막 거래일의 시뮬레이션 오차 (%)
 
             **부호 해석**:
-            - **오차(+)**: 시뮬이 실제보다 **과대** 평가
-            - **오차(-)**: 시뮬이 실제보다 **과소** 평가
+            - **오차 (+)**: 시뮬레이션이 실제보다 **과대** 평가
+            - **오차 (-)**: 시뮬레이션이 실제보다 **과소** 평가
 
             **해석 예시**:
-            - 금리가 높을수록 월말 누적 오차(e_m)가 +로 커지면 → 고금리 구간에서 시뮬 과대 → 비용(조달비용) 가정이 낮았을 가능성
+            - 금리가 높을수록 월말 누적 오차 (e_m)가 +로 커지면 → 고금리 구간에서 시뮬레이션 과대 평가 → 비용 (조달비용) 가정이 낮았을 가능성
             - 반대로 -로 커지면 → 비용 가정이 높았을 가능성
             - **주의**: 상관관계가 인과관계를 의미하지 않음
 
@@ -370,7 +380,7 @@ def main():
             st.error(f"❌ Level 차트 생성 실패:\n\n{str(e)}")
 
         # 최근 12개월 요약 테이블
-        st.subheader("📋 최근 12개월 요약")
+        st.subheader("📋 최근 12개월 요약 (Recent 12 Months Summary)")
         recent_12 = monthly_df.tail(12)[["month", "rate_pct", "e_m", "de_m", "sum_daily_m"]].copy()
         recent_12["month"] = recent_12["month"].astype(str)
         st.dataframe(recent_12, hide_index=True, width="stretch")
@@ -378,15 +388,15 @@ def main():
         st.divider()
 
         # === 고급: Delta 분석 (기본 숨김) ===
-        with st.expander("📊 고급 분석: Delta (금리 변화 vs 오차 변화)", expanded=False):
+        with st.expander("📊 고급 분석: 델타 (Delta - 금리 변화 vs 오차 변화)", expanded=False):
             st.markdown(
                 """
-                **목적**: 금리 변화와 오차 변화의 관계 및 Lag 효과 확인
+                **목적**: 금리 변화와 오차 변화의 관계 및 시차 효과 (Lag Effect) 확인
 
-                **Lag 옵션**:
-                - Lag 0: 동월 금리 변화 vs 오차 변화
-                - Lag 1: 전월 금리 변화 vs 당월 오차 변화
-                - Lag 2: 2개월 전 금리 변화 vs 당월 오차 변화
+                **시차 옵션 (Lag Options)**:
+                - 시차 0 (Lag 0): 동월 금리 변화 vs 당월 오차 변화
+                - 시차 1 (Lag 1): 전월 금리 변화 vs 당월 오차 변화 (1개월 시차)
+                - 시차 2 (Lag 2): 2개월 전 금리 변화 vs 당월 오차 변화 (2개월 시차)
                 """
             )
 
@@ -395,7 +405,7 @@ def main():
             y_label_delta = "월간 변화 (%)"
 
             # Lag 선택
-            lag = st.selectbox("Lag (개월):", options=[0, 1, 2], index=0)
+            lag = st.selectbox("시차 (Lag, 개월):", options=[0, 1, 2], index=0)
 
             # 차트 생성
             try:
@@ -405,12 +415,12 @@ def main():
                 # 샘플 수 및 상관 안내
                 st.info(
                     f"""
-                    **샘플 수**: {len(valid_df)}개월
+                    **샘플 수 (Sample Size)**: {len(valid_df)}개월
 
-                    **상관 해석 주의점**:
+                    **상관 해석 주의점 (Correlation Interpretation)**:
                     - 상관이 높다고 인과관계를 의미하지 않음
-                    - 다른 요인(변동성, 레버리지 리밸런싱 등)도 영향 가능
-                    - Lag 효과는 금리 정책 시차를 반영할 수 있음
+                    - 다른 요인 (변동성, 레버리지 리밸런싱 등)도 영향 가능
+                    - 시차 효과 (Lag Effect)는 금리 정책 시차를 반영할 수 있음
                     """
                 )
 
@@ -420,7 +430,7 @@ def main():
                 st.error(f"❌ 예상치 못한 오류:\n\n{str(e)}")
 
         # === 고급: 교차검증 (기본 숨김) ===
-        with st.expander("✅ 고급 분석: 교차검증 (de_m vs sum_daily_m)", expanded=False):
+        with st.expander("✅ 고급 분석: 교차검증 (Cross Validation - de_m vs sum_daily_m)", expanded=False):
             try:
                 display_cross_validation(monthly_df)
             except Exception as e:

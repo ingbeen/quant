@@ -76,6 +76,7 @@ poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
 
 # 금리-오차 관계 분석 연구용 앱
 poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
+# 출력: storage/results/tqqq_rate_spread_lab_summary.csv
 # 브라우저에서 http://localhost:8501 열림
 
 # 5. 합성 TQQQ 데이터 생성
