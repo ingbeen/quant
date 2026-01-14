@@ -11,7 +11,8 @@
 - 교차검증: de_m vs sum_daily_m 차이 분석
 
 CSV 저장:
-- 앱 초기 로딩 시 1회만 자동 저장 (st.session_state 사용)
+- 서버 최초 기동 시 1회만 자동 저장 (st.cache_resource 사용)
+- 브라우저 새로고침/새 세션에서는 재저장하지 않음
 - Lag 선택 등 위젯 상호작용 시 재생성 방지
 
 Fail-fast 정책:
@@ -23,7 +24,7 @@ Fail-fast 정책:
 - 명확한 레이블 및 설명 제공
 """
 
-import os
+import threading
 from pathlib import Path
 
 import pandas as pd
@@ -51,55 +52,47 @@ from qbt.tqqq.visualization import create_delta_chart, create_level_chart
 from qbt.utils.meta_manager import save_metadata
 
 
-def get_file_mtime(path: Path) -> float:
+@st.cache_resource
+def _save_guard():
     """
-    파일의 수정 시간(mtime)을 반환한다.
+    서버 런 동안 유지되는 저장 가드 객체를 반환한다.
 
-    캐시 키에 mtime을 포함하여 최신 CSV 반영을 보장한다.
-
-    Args:
-        path: 파일 경로
+    반환 구조:
+        - saved: bool (저장 완료 여부, 초기값 False)
+        - lock: threading.Lock (동시 접근 방지)
 
     Returns:
-        파일 수정 시간 (epoch timestamp)
+        저장 가드 딕셔너리 (서버 런 동안 단일 인스턴스 유지)
     """
-    return os.path.getmtime(path)
+    return {"saved": False, "lock": threading.Lock()}
 
 
-@st.cache_data(ttl=600)  # 10분 캐시
-def load_daily_comparison(csv_path: Path, _mtime: float) -> pd.DataFrame:
+@st.cache_data
+def build_artifacts(daily_path_str: str, ffr_path_str: str) -> pd.DataFrame:
     """
-    일별 비교 CSV를 로드한다.
+    일별 비교 데이터와 금리 데이터를 로드하고 월별로 집계한다.
+
+    서버 기동 시 1회만 실행되며 이후 캐시 사용.
+    파일 경로 문자열만 캐시 키로 사용하여 파일 변경을 무시한다.
 
     Args:
-        csv_path: CSV 파일 경로
-        _mtime: 파일 수정 시간 (캐시 키, _ 접두사는 Streamlit 캐시 규칙)
+        daily_path_str: 일별 비교 CSV 파일 경로 (문자열)
+        ffr_path_str: 금리 CSV 파일 경로 (문자열)
 
     Returns:
-        일별 비교 DataFrame
+        월별 집계 DataFrame (month, e_m, de_m, sum_daily_m, rate_pct, dr_m 포함)
 
     Raises:
-        ValueError: 파일 부재, 필수 컬럼 누락 등
+        ValueError: 파일 부재, 필수 컬럼 누락, 금리 커버리지 부족 등
     """
-    return load_comparison_data(csv_path)
+    # 1. 데이터 로드
+    daily_df = load_comparison_data(Path(daily_path_str))
+    ffr_df = load_ffr_data(Path(ffr_path_str))
 
+    # 2. 월별 집계
+    monthly_df = prepare_monthly_data(daily_df, ffr_df)
 
-@st.cache_data(ttl=600)
-def load_ffr(csv_path: Path, _mtime: float) -> pd.DataFrame:
-    """
-    금리(FFR) 월별 CSV를 로드한다.
-
-    Args:
-        csv_path: CSV 파일 경로
-        _mtime: 파일 수정 시간 (캐시 키)
-
-    Returns:
-        FFR DataFrame (DATE: yyyy-mm 문자열, VALUE: 0~1 소수)
-
-    Raises:
-        ValueError: 파일 부재 등
-    """
-    return load_ffr_data(csv_path)
+    return monthly_df
 
 
 def prepare_monthly_data(
@@ -212,10 +205,14 @@ def display_cross_validation(monthly_df: pd.DataFrame):
     st.metric(label="평균 절댓값 차이 (Mean Abs Diff)", value=f"{mean_diff:.6f}%")
     st.metric(label="표준편차 (Std Dev)", value=f"{std_diff:.6f}%")
 
-    # 상위 5개 차이
-    st.markdown("**차이가 큰 상위 5개월 (Top 5 Months with Largest Diff)**:")
-    top_diff = valid_df.nlargest(5, "diff", keep="all")[["month", "de_m", "sum_daily_m", "diff"]]
-    st.dataframe(top_diff, hide_index=True)
+    # |diff| 상위 5개 (절댓값 기준)
+    st.markdown("**|diff| 상위 5개월 (Top 5 Months with Largest |diff|)**:")
+    valid_df_sorted = valid_df.copy()
+    valid_df_sorted["abs_diff"] = valid_df_sorted["diff"].abs()
+    top_diff_abs = valid_df_sorted.nlargest(5, "abs_diff", keep="all")[
+        ["month", "de_m", "sum_daily_m", "diff", "abs_diff"]
+    ]
+    st.dataframe(top_diff_abs, hide_index=True)
 
     # 히스토그램
     fig = go.Figure()
@@ -260,70 +257,59 @@ def main():
 
         st.divider()
 
-        # 데이터 로드
-        st.header("데이터 로딩 (Data Loading)")
+        # 데이터 로드 및 월별 집계
+        st.header("데이터 로딩 및 월별 집계")
 
         try:
-            daily_mtime = get_file_mtime(TQQQ_DAILY_COMPARISON_PATH)
-            ffr_mtime = get_file_mtime(FFR_DATA_PATH)
-
-            daily_df = load_daily_comparison(TQQQ_DAILY_COMPARISON_PATH, daily_mtime)
-            ffr_df = load_ffr(FFR_DATA_PATH, ffr_mtime)
-
-            st.success(f"✅ 일별 비교 데이터 로드 완료: {len(daily_df):,}행")
-            st.success(f"✅ 금리 데이터 로드 완료: {len(ffr_df):,}행")
-
-        except Exception as e:
-            st.error(f"❌ 데이터 로딩 실패:\n\n{str(e)}\n\n💡 힌트: CSV 파일 경로 및 형식 확인")
-            st.stop()
-
-        # 월별 데이터 준비
-        st.header("월별 데이터 준비 (Monthly Data Preparation)")
-
-        try:
-            monthly_df = prepare_monthly_data(daily_df, ffr_df)
+            # 1. 월별 데이터 빌드 (캐시됨, 서버 런 동안 1회만 실행)
+            monthly_df = build_artifacts(
+                str(TQQQ_DAILY_COMPARISON_PATH),
+                str(FFR_DATA_PATH),
+            )
             st.success(f"✅ 월별 집계 완료: {len(monthly_df):,}개월")
 
-            # 파생 컬럼 추가 (lag 1, 2)
+            # 2. 파생 컬럼 추가 (lag 1, 2)
+            # 주의: 원본 monthly_df를 변경하지 않도록 복사본에서 작업
+            monthly_df = monthly_df.copy()
             monthly_df["dr_lag1"] = monthly_df["dr_m"].shift(1)
             monthly_df["dr_lag2"] = monthly_df["dr_m"].shift(2)
 
-            # CSV 자동 저장 (세션당 1회만)
-            if "csv_saved" not in st.session_state:
-                try:
-                    # 1. 월별 피처 CSV 저장
-                    save_monthly_features(monthly_df, TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH)
+            # 3. CSV 자동 저장 (서버 런 동안 1회만)
+            guard = _save_guard()
+            with guard["lock"]:
+                if not guard["saved"]:
+                    try:
+                        # 3-1. 월별 피처 CSV 저장
+                        save_monthly_features(monthly_df, TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH)
 
-                    # 2. 요약 통계 CSV 저장
-                    save_summary_statistics(monthly_df, TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH)
+                        # 3-2. 요약 통계 CSV 저장
+                        save_summary_statistics(monthly_df, TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH)
 
-                    # 3. meta.json 실행 이력 저장
-                    metadata = {
-                        "input_files": {
-                            "daily_comparison": str(TQQQ_DAILY_COMPARISON_PATH),
-                            "daily_comparison_mtime": daily_mtime,
-                            "ffr_data": str(FFR_DATA_PATH),
-                            "ffr_data_mtime": ffr_mtime,
-                        },
-                        "output_files": {
-                            "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
-                            "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
-                        },
-                        "analysis_period": {
-                            "month_min": str(monthly_df["month"].min()),
-                            "month_max": str(monthly_df["month"].max()),
-                            "total_months": len(monthly_df),
-                        },
-                    }
-                    save_metadata("tqqq_rate_spread_lab", metadata)
+                        # 3-3. meta.json 실행 이력 저장
+                        metadata = {
+                            "input_files": {
+                                "daily_comparison": str(TQQQ_DAILY_COMPARISON_PATH),
+                                "ffr_data": str(FFR_DATA_PATH),
+                            },
+                            "output_files": {
+                                "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
+                                "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
+                            },
+                            "analysis_period": {
+                                "month_min": str(monthly_df["month"].min()),
+                                "month_max": str(monthly_df["month"].max()),
+                                "total_months": len(monthly_df),
+                            },
+                        }
+                        save_metadata("tqqq_rate_spread_lab", metadata)
 
-                    st.session_state.csv_saved = True
-                    st.success(
-                        f"✅ 결과 CSV 자동 저장 완료:\n- {TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH.name}\n- {TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH.name}"
-                    )
+                        guard["saved"] = True
+                        st.success(
+                            f"✅ 결과 CSV 저장 완료 (서버 런 1회):\n- {TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH.name}\n- {TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH.name}"
+                        )
 
-                except Exception as e:
-                    st.warning(f"⚠️ CSV 저장 실패 (계속 진행):\n\n{str(e)}")
+                    except Exception as e:
+                        st.warning(f"⚠️ CSV 저장 실패 (계속 진행):\n\n{str(e)}")
 
             # 요약 통계
             col1, col2, col3 = st.columns(3)

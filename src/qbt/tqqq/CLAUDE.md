@@ -371,13 +371,34 @@ Plotly 기반 차트 생성 함수를 제공하여 대시보드 및 분석 보�
   - y축 선택: de_m (기본), sum_daily_m
 - **교차검증 탭**: de_m vs sum_daily_m 차이 분석
   - 차이 통계 (최대, 평균, 표준편차)
-  - 차이가 큰 상위 5개월 표시
+  - |diff| 상위 5개월 표시 (절댓값 기준 정렬)
   - 히스토그램
   - 차이 원인 설명 (반올림, 결측, 계산 방식)
-- **데이터 로딩**:
-  - mtime 기반 캐시 (최신 CSV 자동 반영)
-  - fail-fast 에러 처리 (ValueError → st.error + st.stop)
-- **차트**: Plotly 인터랙티브 (화면 표시만, 저장 금지)
+
+**캐시 정책 (서버 스코프)**:
+
+- `@st.cache_resource`: 저장 가드 (`_save_guard()`)
+  - 서버 런 동안 유지되는 단일 객체
+  - `{"saved": False, "lock": threading.Lock()}`
+  - 모든 세션/새로고침에서 공유
+- `@st.cache_data`: 데이터 빌드 (`build_artifacts()`)
+  - 파일 경로 문자열만 캐시 키로 사용 (mtime 제거)
+  - 서버 기동 시 1회만 실행, 이후 캐시 사용
+  - 파일 변경 시에도 캐시 유지 (서버 재실행 전까지)
+
+**저장 정책 (서버 런 1회)**:
+
+- 서버 최초 기동 시에만 CSV 1회 저장
+- 브라우저 새로고침/새 세션에서는 재저장하지 않음
+- `threading.Lock()`으로 동시 접근 방지 (멀티 유저 환경 대응)
+- 입력 파일 변경을 반영하려면 서버 재실행 필요
+
+**Fail-fast 정책**:
+
+- ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
+- 잘못된 차트/수치 표시 방지
+
+**차트**: Plotly 인터랙티브 (화면 표시만, 저장 금지)
 
 근거 위치: [scripts/tqqq/streamlit_rate_spread_lab.py](../../../scripts/tqqq/streamlit_rate_spread_lab.py)
 
