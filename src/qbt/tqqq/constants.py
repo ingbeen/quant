@@ -36,16 +36,118 @@ TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_monthly.
 TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_summary.csv"
 
 __all__ = [
+    # 경로
     "DISPLAY_DATE",
     "FFR_DATA_PATH",
+    "EXPENSE_RATIO_DATA_PATH",
     "TQQQ_DATA_PATH",
     "TQQQ_SYNTHETIC_PATH",
     "TQQQ_VALIDATION_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
     "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
     "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
+    # 레버리지 상품 스펙
+    "DEFAULT_LEVERAGE_MULTIPLIER",
+    "DEFAULT_SYNTHETIC_INITIAL_PRICE",
+    # 비용 모델 파라미터
+    "DEFAULT_FUNDING_SPREAD",
+    "DEFAULT_SPREAD_RANGE",
+    "DEFAULT_SPREAD_STEP",
+    "MAX_FFR_MONTHS_DIFF",
+    "MAX_EXPENSE_MONTHS_DIFF",
+    "MAX_TOP_STRATEGIES",
     "INTEGRITY_TOLERANCE",
-    # (아래에 정의되는 상수들도 __all__에 포함)
+    # CSV 컬럼명
+    "COL_FFR_DATE",
+    "COL_FFR_VALUE",
+    "COL_EXPENSE_DATE",
+    "COL_EXPENSE_VALUE",
+    "COL_ACTUAL_CLOSE",
+    "COL_SIMUL_CLOSE",
+    "COL_ACTUAL_DAILY_RETURN",
+    "COL_SIMUL_DAILY_RETURN",
+    "COL_DAILY_RETURN_ABS_DIFF",
+    "COL_ACTUAL_CUMUL_RETURN",
+    "COL_SIMUL_CUMUL_RETURN",
+    "COL_CUMUL_RETURN_REL_DIFF",
+    "COL_CUMUL_MULTIPLE_LOG_DIFF_ABS",
+    "COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED",
+    "COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE",
+    "COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN",
+    "COL_CUMUL_MULTIPLE_LOG_DIFF_MAX",
+    "COL_MONTH",
+    "COL_RATE_PCT",
+    "COL_DR_M",
+    "COL_E_M",
+    "COL_DE_M",
+    "COL_SUM_DAILY_M",
+    "COL_DR_LAG1",
+    "COL_DR_LAG2",
+    "COL_CATEGORY",
+    "COL_X_VAR",
+    "COL_Y_VAR",
+    "COL_LAG",
+    "COL_N",
+    "COL_CORR",
+    "COL_SLOPE",
+    "COL_INTERCEPT",
+    "COL_MAX_ABS_DIFF",
+    "COL_MEAN_ABS_DIFF",
+    "COL_STD_DIFF",
+    # 컬럼 그룹
+    "COMPARISON_COLUMNS",
+    # 임시 컬럼
+    "COL_TEMP_MONTH",
+    "COL_TEMP_DAILY_SIGNED",
+    "COL_TEMP_SUM_DAILY_M_CALC",
+    "COL_TEMP_DIFF",
+    "COL_TEMP_ABS_DIFF",
+    "COL_TEMP_DR_LAG",
+    # UI 레이블
+    "DISPLAY_SPREAD",
+    "DISPLAY_CHART_DIFF_DISTRIBUTION",
+    "DISPLAY_AXIS_DIFF_PCT",
+    "DISPLAY_AXIS_FREQUENCY",
+    "DISPLAY_ERROR_END_OF_MONTH_PCT",
+    "DISPLAY_DELTA_MONTHLY_PCT",
+    # 딕셔너리 키
+    "KEY_SPREAD",
+    "KEY_META_TYPE_RATE_SPREAD_LAB",
+    "KEY_TEMP_CATEGORY",
+    "KEY_TEMP_X_VAR",
+    "KEY_TEMP_Y_VAR",
+    "KEY_TEMP_LAG",
+    "KEY_TEMP_N",
+    "KEY_TEMP_CORR",
+    "KEY_TEMP_SLOPE",
+    "KEY_TEMP_INTERCEPT",
+    "KEY_TEMP_MAX_ABS_DIFF",
+    "KEY_TEMP_MEAN_ABS_DIFF",
+    "KEY_TEMP_STD_DIFF",
+    "KEY_OVERLAP_START",
+    "KEY_OVERLAP_END",
+    "KEY_OVERLAP_DAYS",
+    "KEY_FINAL_CLOSE_ACTUAL",
+    "KEY_FINAL_CLOSE_SIMULATED",
+    "KEY_FINAL_CLOSE_REL_DIFF",
+    "KEY_CUMULATIVE_RETURN_ACTUAL",
+    "KEY_CUMULATIVE_RETURN_SIMULATED",
+    "KEY_CUMULATIVE_RETURN_REL_DIFF",
+    "KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN",
+    "KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE",
+    "KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX",
+    # 분석 파라미터
+    "PARAM_MIN_MONTHS_FOR_ANALYSIS",
+    "PARAM_TOP_N_CROSS_VALIDATION",
+    "PARAM_HISTOGRAM_BINS",
+    "PARAM_LAG_OPTIONS",
+    "PARAM_STREAMLIT_COLUMNS",
+    # 카테고리 값
+    "CATEGORY_VALUE_LEVEL",
+    "CATEGORY_VALUE_DELTA",
+    "CATEGORY_VALUE_CROSS_VALIDATION",
+    # 템플릿
+    "TEMPLATE_DR_LAG_VAR",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -145,13 +247,46 @@ COMPARISON_COLUMNS = [
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
 ]
 
+# --- 임시/중간 계산 컬럼명 (내부 처리용) ---
+COL_TEMP_MONTH = "month"  # 월별 집계용 Period 컬럼
+COL_TEMP_DAILY_SIGNED = "daily_signed"  # 일일 증분 signed 로그오차
+COL_TEMP_SUM_DAILY_M_CALC = "sum_daily_m_calc"  # sum_daily_m 계산용 임시
+COL_TEMP_DIFF = "diff"  # de_m - sum_daily_m 차이
+COL_TEMP_ABS_DIFF = "abs_diff"  # diff 절댓값
+COL_TEMP_DR_LAG = "dr_lag"  # Delta 분석용 임시 lag 컬럼
+
 # --- 출력용 레이블 (사용자 표시용) ---
 DISPLAY_SPREAD = "Funding Spread"
+
+# --- UI 표시 레이블 (Rate Spread Lab) ---
+DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
+DISPLAY_AXIS_DIFF_PCT = "차이 (%)"  # X축 레이블
+DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
+DISPLAY_ERROR_END_OF_MONTH_PCT = "월말 누적 오차 (%)"  # Level 차트 y축
+DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
 
 # --- 딕셔너리 키 (내부 사용) ---
 
 # 비용 모델
 KEY_SPREAD = "spread"
+
+# 메타데이터 타입
+KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"  # Rate Spread Lab CSV 타입
+
+# 요약 통계 dict 생성용 임시 키 (rename 전 단계)
+# 용도: save_summary_statistics에서 DataFrame 생성 시 dict 키로 사용
+# 최종 CSV 컬럼명(COL_)과 구분하기 위해 KEY_TEMP_ 접두사 사용
+KEY_TEMP_CATEGORY = "category"  # 분석 유형 임시 키
+KEY_TEMP_X_VAR = "x_var"  # X축 변수 임시 키
+KEY_TEMP_Y_VAR = "y_var"  # Y축 변수 임시 키
+KEY_TEMP_LAG = "lag"  # 시차 임시 키
+KEY_TEMP_N = "n"  # 샘플 수 임시 키
+KEY_TEMP_CORR = "corr"  # 상관계수 임시 키
+KEY_TEMP_SLOPE = "slope"  # 기울기 임시 키
+KEY_TEMP_INTERCEPT = "intercept"  # 절편 임시 키
+KEY_TEMP_MAX_ABS_DIFF = "max_abs_diff"  # 최대 절댓값 차이 임시 키
+KEY_TEMP_MEAN_ABS_DIFF = "mean_abs_diff"  # 평균 절댓값 차이 임시 키
+KEY_TEMP_STD_DIFF = "std_diff"  # 표준편차 임시 키
 
 # 겹치는 기간 정보
 KEY_OVERLAP_START = "overlap_start"
@@ -172,3 +307,30 @@ KEY_CUMULATIVE_RETURN_REL_DIFF = "cumulative_return_rel_diff_pct"
 KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN = "cumul_multiple_log_diff_mean_pct"
 KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE = "cumul_multiple_log_diff_rmse_pct"
 KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX = "cumul_multiple_log_diff_max_pct"
+
+# ============================================================
+# 분석 파라미터 (Rate Spread Lab)
+# ============================================================
+
+# --- 분석 파라미터 ---
+PARAM_MIN_MONTHS_FOR_ANALYSIS = 13  # Rolling 12M 상관 계산 위해 최소 13개월
+PARAM_TOP_N_CROSS_VALIDATION = 5  # 교차검증 상위 표시 개수
+PARAM_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
+PARAM_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지
+PARAM_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
+
+# ============================================================
+# 카테고리 값 (분석 유형)
+# ============================================================
+
+# --- 요약 통계 카테고리 값 ---
+CATEGORY_VALUE_LEVEL = "Level"  # Level 분석
+CATEGORY_VALUE_DELTA = "Delta"  # Delta 분석
+CATEGORY_VALUE_CROSS_VALIDATION = "CrossValidation"  # 교차검증
+
+# ============================================================
+# 동적 변수명 템플릿
+# ============================================================
+
+# --- 동적 변수명 템플릿 ---
+TEMPLATE_DR_LAG_VAR = "dr_m_lag{}"  # Delta 분석용 dr_lag 변수명 템플릿 (.format(lag) 사용)

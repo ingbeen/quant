@@ -31,6 +31,16 @@ from qbt.tqqq.analysis_helpers import (
     save_summary_statistics,
     validate_integrity,
 )
+from qbt.tqqq.constants import (
+    COL_DE_M,
+    COL_DR_LAG1,
+    COL_DR_LAG2,
+    COL_DR_M,
+    COL_E_M,
+    COL_RATE_PCT,
+    COL_SUM_DAILY_M,
+    COL_TEMP_MONTH,
+)
 
 
 class TestCalculateSignedLogDiffFromCumulativeReturns:
@@ -309,11 +319,11 @@ class TestAggregateMonthly:
 
         # Then: 예상 결과
         assert len(monthly) == 2  # 2개월
-        assert monthly.loc[0, "e_m"] == 2.0  # 2023-01 월말
-        assert monthly.loc[1, "e_m"] == 3.0  # 2023-02 월말
+        assert monthly.loc[0, COL_E_M] == 2.0  # 2023-01 월말
+        assert monthly.loc[1, COL_E_M] == 3.0  # 2023-02 월말
 
         # 첫 달은 NaN, 두 번째 달은 차이값 확인
-        de_m_values = monthly["de_m"].tolist()
+        de_m_values = monthly[COL_DE_M].tolist()
         assert pd.isna(de_m_values[0])  # 첫 달은 NaN
         assert de_m_values[1] == pytest.approx(1.0)  # 3.0 - 2.0
 
@@ -342,7 +352,7 @@ class TestAggregateMonthly:
         )
 
         # Then
-        assert monthly.loc[0, "e_m"] == 2.0  # 정렬 후 월말이므로 2.0
+        assert monthly.loc[0, COL_E_M] == 2.0  # 정렬 후 월말이므로 2.0
 
     def test_fail_fast_when_required_columns_missing(self):
         """
@@ -405,8 +415,8 @@ class TestAggregateMonthly:
         )
 
         # Then
-        assert monthly.loc[0, "rate_pct"] == pytest.approx(4.5)  # 0.045 * 100
-        assert pd.isna(monthly.loc[0, "dr_m"])  # 첫 달
+        assert monthly.loc[0, COL_RATE_PCT] == pytest.approx(4.5)  # 0.045 * 100
+        assert pd.isna(monthly.loc[0, COL_DR_M])  # 첫 달
 
 
 class TestSaveMonthlyFeatures:
@@ -417,7 +427,7 @@ class TestSaveMonthlyFeatures:
         CSV 저장 시 한글 컬럼명 변경 및 소수점 라운딩 테스트
 
         Given:
-            - 영문 컬럼명의 월별 DataFrame (부동소수점 오차 포함)
+            - 내부 컬럼명(상수 기준)의 월별 DataFrame (부동소수점 오차 포함)
         When: save_monthly_features() 호출
         Then:
             - 한글 컬럼명으로 변경
@@ -425,27 +435,20 @@ class TestSaveMonthlyFeatures:
             - CSV 파일 생성
         """
         from qbt.tqqq.constants import (
-            COL_DE_M,
-            COL_DR_LAG1,
-            COL_DR_LAG2,
-            COL_DR_M,
-            COL_E_M,
             COL_MONTH,
-            COL_RATE_PCT,
-            COL_SUM_DAILY_M,
         )
 
-        # Given
+        # Given (상수 기준 컬럼명 사용)
         monthly_df = pd.DataFrame(
             {
-                "month": pd.Period("2023-01"),
-                "rate_pct": [4.123456789],
-                "dr_m": [0.051234567],
-                "e_m": [-0.03999999999998],
-                "de_m": [-0.001999999999],
-                "sum_daily_m": [-0.03888888888],
-                "dr_lag1": [0.045],
-                "dr_lag2": [0.038],
+                COL_TEMP_MONTH: pd.Period("2023-01"),
+                COL_RATE_PCT: [4.123456789],
+                COL_DR_M: [0.051234567],
+                COL_E_M: [-0.03999999999998],
+                COL_DE_M: [-0.001999999999],
+                COL_SUM_DAILY_M: [-0.03888888888],
+                COL_DR_LAG1: [0.045],
+                COL_DR_LAG2: [0.038],
             }
         )
         output_path = tmp_path / "test_monthly.csv"
@@ -499,7 +502,7 @@ class TestSaveSummaryStatistics:
         요약 통계 CSV 저장 시 한글 컬럼명 및 라운딩 테스트
 
         Given:
-            - 영문 컬럼명의 월별 DataFrame (충분한 데이터)
+            - 내부 컬럼명(상수 기준)의 월별 DataFrame (충분한 데이터)
         When: save_summary_statistics() 호출
         Then:
             - 한글 컬럼명으로 변경
@@ -517,15 +520,15 @@ class TestSaveSummaryStatistics:
             COL_Y_VAR,
         )
 
-        # Given (최소 13개월 데이터)
+        # Given (최소 13개월 데이터, 상수 기준 컬럼명 사용)
         monthly_df = pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=13, freq="M"),
-                "rate_pct": [4.0 + i * 0.1 for i in range(13)],
-                "dr_m": [0.0] + [0.05 + i * 0.01 for i in range(12)],
-                "e_m": [-0.04 + i * 0.002 for i in range(13)],
-                "de_m": [0.0] + [-0.001 + i * 0.0001 for i in range(12)],
-                "sum_daily_m": [-0.038 + i * 0.002 for i in range(13)],
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=13, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(13)],
+                COL_DR_M: [0.0] + [0.05 + i * 0.01 for i in range(12)],
+                COL_E_M: [-0.04 + i * 0.002 for i in range(13)],
+                COL_DE_M: [0.0] + [-0.001 + i * 0.0001 for i in range(12)],
+                COL_SUM_DAILY_M: [-0.038 + i * 0.002 for i in range(13)],
             }
         )
         output_path = tmp_path / "test_summary.csv"
@@ -567,7 +570,7 @@ class TestSaveSummaryStatistics:
         """
         교차검증 요약에 한글 컬럼명 적용 테스트
 
-        Given: de_m, sum_daily_m을 포함한 월별 데이터
+        Given: 내부 컬럼명(상수 기준)의 월별 데이터
         When: save_summary_statistics() 호출
         Then: CrossValidation 요약에 한글 컬럼명 포함
         """
@@ -578,15 +581,15 @@ class TestSaveSummaryStatistics:
             COL_STD_DIFF,
         )
 
-        # Given
+        # Given (상수 기준 컬럼명 사용)
         monthly_df = pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=5, freq="M"),
-                "rate_pct": [4.0, 4.1, 4.2, 4.3, 4.4],
-                "dr_m": [0.0, 0.05, 0.06, 0.07, 0.08],
-                "e_m": [-0.04, -0.038, -0.036, -0.034, -0.032],
-                "de_m": [0.0, 0.002, 0.002, 0.002, 0.002],
-                "sum_daily_m": [-0.038, -0.036, -0.034, -0.032, -0.030],
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_RATE_PCT: [4.0, 4.1, 4.2, 4.3, 4.4],
+                COL_DR_M: [0.0, 0.05, 0.06, 0.07, 0.08],
+                COL_E_M: [-0.04, -0.038, -0.036, -0.034, -0.032],
+                COL_DE_M: [0.0, 0.002, 0.002, 0.002, 0.002],
+                COL_SUM_DAILY_M: [-0.038, -0.036, -0.034, -0.032, -0.030],
             }
         )
         output_path = tmp_path / "test_summary_cross.csv"

@@ -111,6 +111,21 @@ TQQQ 시뮬레이션 관련 스크립트는 다음 순서로 실행합니다:
 - 일별 비교: `COL_ACTUAL_CLOSE`, `COL_SIMUL_CLOSE`, `COL_ACTUAL_DAILY_RETURN`, `COL_SIMUL_DAILY_RETURN`, `COL_CUMUL_MULTIPLE_LOG_DIFF_ABS`, `COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED` 등
 - 딕셔너리 키: `KEY_SPREAD`, `KEY_EXPENSE`, `KEY_OVERLAP_START`, `KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE` 등
 
+**상수 명명 규칙 (TQQQ 도메인 확장)**:
+
+루트 CLAUDE.md의 상수 명명 규칙에 추가하여 TQQQ 도메인에서는 다음 접두사를 사용합니다:
+
+- `KEY_`: 딕셔너리 키 (meta.json 타입 등 중요한 키)
+- `KEY_TEMP_`: 내부 dict 생성용 임시 키 (rename 전 단계, 오타 방지 목적)
+  - 예: `KEY_TEMP_CATEGORY`, `KEY_TEMP_X_VAR` (`save_summary_statistics`에서 사용)
+  - 최종 CSV 컬럼명(`COL_CATEGORY`, `COL_X_VAR`)과 구분하기 위해 별도 접두사 사용
+  - DataFrame 생성 시 dict 키로 사용 후, rename_map을 통해 최종 컬럼명으로 변환
+- `COL_TEMP_`: 내부 임시 컬럼명 (중간 계산용, CSV 출력에는 미포함)
+  - 예: `COL_TEMP_MONTH`, `COL_TEMP_DAILY_SIGNED`, `COL_TEMP_DR_LAG`
+- `PARAM_`: 분석 파라미터 (최소 개월 수, top N, bins 등)
+- `CATEGORY_VALUE_`: 카테고리 값 (Level, Delta, CrossValidation)
+- `TEMPLATE_`: 동적 문자열 생성용 템플릿 (`.format()` 사용)
+
 근거 위치: [src/qbt/tqqq/constants.py](constants.py)
 
 ---
