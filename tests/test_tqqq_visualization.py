@@ -18,7 +18,13 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
+    COL_DE_M,
+    COL_DR_M,
+    COL_E_M,
+    COL_RATE_PCT,
     COL_SIMUL_CLOSE,
+    COL_SUM_DAILY_M,
+    COL_TEMP_MONTH,
 )
 from qbt.tqqq.visualization import (
     create_cumulative_return_diff_chart,
@@ -204,10 +210,10 @@ class TestLevelChart:
         """월별 데이터 샘플 픽스처"""
         return pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=15, freq="M"),
-                "rate_pct": [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
-                "e_m": [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.32, 0.28, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0, -0.05],
-                "de_m": [
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
+                COL_RATE_PCT: [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
+                COL_E_M: [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.32, 0.28, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0, -0.05],
+                COL_DE_M: [
                     0.0,
                     0.05,
                     0.05,
@@ -224,7 +230,7 @@ class TestLevelChart:
                     -0.05,
                     -0.05,
                 ],
-                "sum_daily_m": [
+                COL_SUM_DAILY_M: [
                     0.0,
                     0.05,
                     0.05,
@@ -256,7 +262,7 @@ class TestLevelChart:
         df = sample_monthly_df
 
         # When
-        fig = create_level_chart(df, y_col="e_m", y_label="월말 누적 signed (%)")
+        fig = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
 
         # Then
         assert isinstance(fig, go.Figure)
@@ -275,15 +281,15 @@ class TestLevelChart:
         df = sample_monthly_df
 
         # When & Then: e_m
-        fig_em = create_level_chart(df, y_col="e_m", y_label="월말 누적 signed (%)")
+        fig_em = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
         assert isinstance(fig_em, go.Figure)
 
         # When & Then: de_m
-        fig_dem = create_level_chart(df, y_col="de_m", y_label="월간 변화 (%)")
+        fig_dem = create_level_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)")
         assert isinstance(fig_dem, go.Figure)
 
         # When & Then: sum_daily_m
-        fig_sum = create_level_chart(df, y_col="sum_daily_m", y_label="일일 증분 월합 (%)")
+        fig_sum = create_level_chart(df, y_col=COL_SUM_DAILY_M, y_label="일일 증분 월합 (%)")
         assert isinstance(fig_sum, go.Figure)
 
     def test_handles_missing_values(self):
@@ -297,14 +303,14 @@ class TestLevelChart:
         # Given
         df = pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=5, freq="M"),
-                "rate_pct": [4.5, None, 4.7, 4.8, 5.0],
-                "e_m": [0.1, 0.15, None, 0.25, 0.3],
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_RATE_PCT: [4.5, None, 4.7, 4.8, 5.0],
+                COL_E_M: [0.1, 0.15, None, 0.25, 0.3],
             }
         )
 
         # When
-        fig = create_level_chart(df, y_col="e_m", y_label="월말 누적 signed (%)")
+        fig = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
 
         # Then
         assert isinstance(fig, go.Figure)
@@ -320,9 +326,9 @@ class TestDeltaChart:
         """월별 데이터 샘플 픽스처 (Rolling 상관 계산 가능한 15개월)"""
         return pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=15, freq="M"),
-                "rate_pct": [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
-                "de_m": [
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
+                COL_RATE_PCT: [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
+                COL_DE_M: [
                     0.0,
                     0.05,
                     0.05,
@@ -339,7 +345,7 @@ class TestDeltaChart:
                     -0.05,
                     -0.05,
                 ],
-                "sum_daily_m": [
+                COL_SUM_DAILY_M: [
                     0.0,
                     0.05,
                     0.05,
@@ -356,7 +362,7 @@ class TestDeltaChart:
                     -0.05,
                     -0.05,
                 ],
-                "dr_m": [0.0, 0.1, 0.1, 0.1, 0.2, 0.2, -0.1, -0.1, -0.1, -0.2, -0.2, -0.2, -0.1, -0.1, -0.1],
+                COL_DR_M: [0.0, 0.1, 0.1, 0.1, 0.2, 0.2, -0.1, -0.1, -0.1, -0.2, -0.2, -0.2, -0.1, -0.1, -0.1],
             }
         )
 
@@ -372,7 +378,7 @@ class TestDeltaChart:
         df = sample_monthly_df
 
         # When
-        fig, valid_df = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=0)
+        fig, valid_df = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
 
         # Then
         assert isinstance(fig, go.Figure)
@@ -391,17 +397,17 @@ class TestDeltaChart:
         df = sample_monthly_df
 
         # When & Then: lag=0
-        fig0, valid_df0 = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=0)
+        fig0, valid_df0 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
         assert isinstance(fig0, go.Figure)
         assert len(valid_df0) == 15  # shift(0)이므로 결측치 없음
 
         # When & Then: lag=1
-        fig1, valid_df1 = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=1)
+        fig1, valid_df1 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=1)
         assert isinstance(fig1, go.Figure)
         assert len(valid_df1) == 14  # shift(1)으로 첫 행 NaN 제거
 
         # When & Then: lag=2
-        fig2, valid_df2 = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=2)
+        fig2, valid_df2 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=2)
         assert isinstance(fig2, go.Figure)
         assert len(valid_df2) == 13  # shift(2)로 첫 2행 NaN 제거
 
@@ -417,7 +423,7 @@ class TestDeltaChart:
         df = sample_monthly_df
 
         # When
-        fig, _ = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=0)
+        fig, _ = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
 
         # Then
         # 산점도 + 추세선 + Rolling 상관 = 3개 이상
@@ -441,14 +447,14 @@ class TestDeltaChart:
         # Given
         df = pd.DataFrame(
             {
-                "month": pd.period_range("2023-01", periods=10, freq="M"),
-                "de_m": [0.05, 0.06, 0.04, 0.07, 0.05, 0.03, 0.06, 0.04, 0.05, 0.07],
-                "dr_m": [0.1, 0.12, 0.09, 0.13, 0.11, 0.08, 0.12, 0.10, 0.11, 0.13],
+                COL_TEMP_MONTH: pd.period_range("2023-01", periods=10, freq="M"),
+                COL_DE_M: [0.05, 0.06, 0.04, 0.07, 0.05, 0.03, 0.06, 0.04, 0.05, 0.07],
+                COL_DR_M: [0.1, 0.12, 0.09, 0.13, 0.11, 0.08, 0.12, 0.10, 0.11, 0.13],
             }
         )
 
         # When
-        fig, _ = create_delta_chart(df, y_col="de_m", y_label="월간 변화 (%)", lag=0)
+        fig, _ = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
 
         # Then
         assert isinstance(fig, go.Figure)

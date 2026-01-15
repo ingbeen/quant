@@ -14,7 +14,10 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
+    COL_DR_M,
+    COL_RATE_PCT,
     COL_SIMUL_CLOSE,
+    COL_TEMP_MONTH,
 )
 
 
@@ -201,7 +204,7 @@ def create_level_chart(
         Plotly Figure 객체 (서브플롯 2개: 산점도 + 시계열)
     """
     # 결측치 제거
-    plot_df = monthly_df.dropna(subset=["rate_pct", y_col])
+    plot_df = monthly_df.dropna(subset=[COL_RATE_PCT, y_col])
 
     # 서브플롯 생성: 위(산점도), 아래(시계열)
     fig = make_subplots(
@@ -215,7 +218,7 @@ def create_level_chart(
     # 1. 산점도: rate_pct vs y_col
     fig.add_trace(
         go.Scatter(
-            x=plot_df["rate_pct"],
+            x=plot_df[COL_RATE_PCT],
             y=plot_df[y_col],
             mode="markers",
             name="월별 데이터",
@@ -227,14 +230,14 @@ def create_level_chart(
     )
 
     # 추세선 (OLS)
-    x = np.asarray(plot_df["rate_pct"].values, dtype=np.float64)
+    x = np.asarray(plot_df[COL_RATE_PCT].values, dtype=np.float64)
     y = np.asarray(plot_df[y_col].values, dtype=np.float64)
     if len(x) > 1:
         coef = np.polyfit(x, y, 1)
         trend_y = np.polyval(coef, x)
         fig.add_trace(
             go.Scatter(
-                x=plot_df["rate_pct"],
+                x=plot_df[COL_RATE_PCT],
                 y=trend_y.tolist(),
                 mode="lines",
                 name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
@@ -246,12 +249,12 @@ def create_level_chart(
 
     # 2. 시계열 라인: month vs rate_pct, y_col
     plot_df_ts = plot_df.copy()
-    plot_df_ts["month_str"] = plot_df_ts["month"].astype(str)
+    plot_df_ts["month_str"] = plot_df_ts[COL_TEMP_MONTH].astype(str)
 
     fig.add_trace(
         go.Scatter(
             x=plot_df_ts["month_str"],
-            y=plot_df_ts["rate_pct"],
+            y=plot_df_ts[COL_RATE_PCT],
             mode="lines",
             name="금리 수준",
             line={"color": "#2ca02c", "width": 2},
@@ -314,7 +317,7 @@ def create_delta_chart(
     """
     # Lag 적용: dr_m을 k개월 shift
     df = monthly_df.copy()
-    df["dr_shifted"] = df["dr_m"].shift(lag)
+    df["dr_shifted"] = df[COL_DR_M].shift(lag)
 
     # 결측치 제거 (dr_shifted와 y_col 모두 존재하는 행만)
     plot_df = df.dropna(subset=["dr_shifted", y_col])
@@ -372,7 +375,7 @@ def create_delta_chart(
 
     # 2. Rolling 12M 상관
     if len(plot_df) >= 12:
-        plot_df_sorted = plot_df.sort_values(by="month").reset_index(drop=True)
+        plot_df_sorted = plot_df.sort_values(by=COL_TEMP_MONTH).reset_index(drop=True)
         rolling_corr = (
             plot_df_sorted[["dr_shifted", y_col]]
             .rolling(window=12)
@@ -382,7 +385,7 @@ def create_delta_chart(
         )
 
         # month 문자열 변환
-        plot_df_sorted["month_str"] = plot_df_sorted["month"].astype(str)
+        plot_df_sorted["month_str"] = plot_df_sorted[COL_TEMP_MONTH].astype(str)
 
         fig.add_trace(
             go.Scatter(
