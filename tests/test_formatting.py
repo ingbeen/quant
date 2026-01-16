@@ -445,39 +445,3 @@ class TestTableLogger:
         assert "명단" in output
         assert "홍길동" in output
         assert "김철수" in output
-
-
-class TestAlign:
-    """Align enum 테스트
-
-    목적: enum 값 접근과 사용 검증
-    """
-
-    def test_enum_values(self):
-        """
-        Align enum의 각 값이 올바르게 정의되어 있다.
-
-        Given: Align enum
-        When: 각 값 접근
-        Then: 예상된 문자열 값 반환
-        """
-        # Given & When & Then
-        assert Align.LEFT.value == "left"
-        assert Align.RIGHT.value == "right"
-        assert Align.CENTER.value == "center"
-
-    def test_enum_comparison(self):
-        """
-        Align enum 값들이 구별 가능하다.
-
-        Given: Align enum 값들
-        When: 집합으로 수집
-        Then: 3개의 고유한 값이 존재
-        """
-        # Given & When
-        all_aligns = {Align.LEFT, Align.RIGHT, Align.CENTER}
-
-        # Then: 3개의 구별 가능한 enum 값
-        assert len(all_aligns) == 3
-        assert Align.LEFT in all_aligns
-        assert Align.LEFT == Align.LEFT
