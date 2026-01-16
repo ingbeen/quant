@@ -496,12 +496,68 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
     logger.debug(f"월별 피처 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")
 
 
+# summary CSV 스키마 정의 (컬럼 목록 및 순서 고정)
+# FutureWarning 방지를 위해 concat 전 모든 DataFrame을 이 스키마로 정규화
+_SUMMARY_COLUMNS = [
+    COL_CATEGORY,
+    COL_X_VAR,
+    COL_Y_VAR,
+    COL_LAG,
+    COL_N,
+    COL_CORR,
+    COL_SLOPE,
+    COL_INTERCEPT,
+    COL_MAX_ABS_DIFF,
+    COL_MEAN_ABS_DIFF,
+    COL_STD_DIFF,
+]
+
+
+def _normalize_summary_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    summary DataFrame을 표준 스키마와 dtype으로 정규화한다.
+
+    FutureWarning 방지를 위해 concat 전에 모든 summary DataFrame에 적용한다.
+    - 컬럼 정렬/생성: reindex로 누락 컬럼은 NaN으로 채움
+    - dtype 강제: 문자열/정수/실수 컬럼별 명시적 타입 지정
+
+    Args:
+        df: 정규화할 summary DataFrame
+
+    Returns:
+        정규화된 DataFrame (동일 스키마, 동일 dtype)
+    """
+    # 1. 컬럼 정렬/생성 (누락 컬럼은 NaN으로 채움)
+    df = df.reindex(columns=_SUMMARY_COLUMNS)
+
+    # 2. dtype 강제 적용
+    # 문자열 컬럼: pandas StringDtype
+    df[COL_CATEGORY] = df[COL_CATEGORY].astype("string")
+    df[COL_X_VAR] = df[COL_X_VAR].astype("string")
+    df[COL_Y_VAR] = df[COL_Y_VAR].astype("string")
+
+    # 정수 컬럼: pandas nullable Int64 (None 허용)
+    df[COL_LAG] = df[COL_LAG].astype("Int64")
+    df[COL_N] = df[COL_N].astype("Int64")
+
+    # 실수 컬럼: float64
+    float_cols = [COL_CORR, COL_SLOPE, COL_INTERCEPT, COL_MAX_ABS_DIFF, COL_MEAN_ABS_DIFF, COL_STD_DIFF]
+    for col in float_cols:
+        df[col] = df[col].astype("float64")
+
+    return df
+
+
 def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None:
     """
     요약 통계 DataFrame을 CSV로 저장한다 (AI/해석용).
 
     Level, Delta, 교차검증 요약을 모두 포함한 단일 CSV를 생성한다.
     내부 컬럼명(영문 토큰)을 출력용 한글 헤더(DISPLAY_*)로 변경하고 소수점은 4자리로 라운딩한다.
+
+    FutureWarning 방지:
+        concat 전에 모든 summary DataFrame을 _normalize_summary_df()로 정규화하여
+        동일한 스키마와 dtype을 보장한다.
 
     Args:
         monthly_df: 월별 집계 DataFrame
@@ -611,16 +667,17 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     else:
         cross_summary = pd.DataFrame()
 
-    # 5. 전체 요약 결합
+    # 5. 전체 요약 결합 (FutureWarning 방지를 위해 정규화 후 concat)
     summary_list = [level_summary]
     if not delta_summary.empty:
         summary_list.append(delta_summary)
     if not cross_summary.empty:
         summary_list.append(cross_summary)
 
-    # Empty DataFrame 필터링 후 concat (FutureWarning 방지)
-    non_empty_summaries = [s for s in summary_list if not s.empty]
-    full_summary = pd.concat(non_empty_summaries, ignore_index=True)
+    # 정규화: 모든 DataFrame을 동일한 스키마와 dtype으로 변환
+    # 이렇게 하면 pandas가 dtype을 추론하지 않아 FutureWarning이 발생하지 않음
+    normalized_summaries = [_normalize_summary_df(s) for s in summary_list if not s.empty]
+    full_summary = pd.concat(normalized_summaries, ignore_index=True)
 
     # 6. 컬럼명 변경 (내부 토큰 -> 출력용 한글 헤더)
     rename_map = {
