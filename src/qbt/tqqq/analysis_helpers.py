@@ -15,9 +15,7 @@ import numpy as np
 import pandas as pd
 
 from qbt.tqqq.constants import (
-    CATEGORY_VALUE_CROSS_VALIDATION,
-    CATEGORY_VALUE_DELTA,
-    CATEGORY_VALUE_LEVEL,
+    # 내부 컬럼 (영문 토큰)
     COL_CATEGORY,
     COL_CORR,
     COL_DE_M,
@@ -36,22 +34,28 @@ from qbt.tqqq.constants import (
     COL_SLOPE,
     COL_STD_DIFF,
     COL_SUM_DAILY_M,
-    COL_TEMP_DR_LAG,
-    COL_TEMP_MONTH,
     COL_X_VAR,
     COL_Y_VAR,
-    KEY_TEMP_CATEGORY,
-    KEY_TEMP_CORR,
-    KEY_TEMP_INTERCEPT,
-    KEY_TEMP_LAG,
-    KEY_TEMP_MAX_ABS_DIFF,
-    KEY_TEMP_MEAN_ABS_DIFF,
-    KEY_TEMP_N,
-    KEY_TEMP_SLOPE,
-    KEY_TEMP_STD_DIFF,
-    KEY_TEMP_X_VAR,
-    KEY_TEMP_Y_VAR,
-    TEMPLATE_DR_LAG_VAR,
+    # 출력용 한글 헤더
+    DISPLAY_CATEGORY,
+    DISPLAY_CORR,
+    DISPLAY_DE_M,
+    DISPLAY_DR_LAG1,
+    DISPLAY_DR_LAG2,
+    DISPLAY_DR_M,
+    DISPLAY_E_M,
+    DISPLAY_INTERCEPT,
+    DISPLAY_LAG,
+    DISPLAY_MAX_ABS_DIFF,
+    DISPLAY_MEAN_ABS_DIFF,
+    DISPLAY_MONTH,
+    DISPLAY_N,
+    DISPLAY_RATE_PCT,
+    DISPLAY_SLOPE,
+    DISPLAY_STD_DIFF,
+    DISPLAY_SUM_DAILY_M,
+    DISPLAY_X_VAR,
+    DISPLAY_Y_VAR,
 )
 from qbt.utils import get_logger
 
@@ -105,7 +109,7 @@ def calculate_signed_log_diff_from_cumulative_returns(
     # 1. 누적수익률(%)을 누적배수(M)로 변환
     # 설명: 누적수익률 = (현재가격 / 초기가격 - 1) * 100
     #       따라서 M = 현재가격 / 초기가격 = 1 + 누적수익률(%)/100
-    # 예: 누적수익률 10% → M = 1.10 (초기 대비 1.1배)
+    # 예: 누적수익률 10% -> M = 1.10 (초기 대비 1.1배)
     M_real = 1.0 + cumul_return_real_pct / 100.0
     M_sim = 1.0 + cumul_return_sim_pct / 100.0
 
@@ -135,7 +139,7 @@ def calculate_signed_log_diff_from_cumulative_returns(
     # 부호 의미:
     #   - 양수: M_sim > M_real, 시뮬레이션이 실제보다 높음
     #   - 음수: M_sim < M_real, 시뮬레이션이 실제보다 낮음
-    #   - 0에 가까움: M_sim ≈ M_real, 거의 일치
+    #   - 0에 가까움: M_sim = M_real, 거의 일치
     ratio = M_sim / M_real
     signed_pct = pd.Series(100.0 * np.log(ratio), index=ratio.index)
 
@@ -174,8 +178,8 @@ def calculate_daily_signed_log_diff(
     """
     # 1. 일일수익률(%)을 배수로 변환
     # 설명: 일일수익률 r%이면 그날 자산은 (1 + r/100)배가 됨
-    # 예: r = 5% → 1.05배 (초기 100원이 105원)
-    #     r = -2% → 0.98배 (초기 100원이 98원)
+    # 예: r = 5% -> 1.05배 (초기 100원이 105원)
+    #     r = -2% -> 0.98배 (초기 100원이 98원)
     factor_real = 1.0 + daily_return_real_pct / 100.0
     factor_sim = 1.0 + daily_return_sim_pct / 100.0
 
@@ -281,25 +285,25 @@ def aggregate_monthly(
     df_sorted = daily_df.sort_values(by=date_col).copy()
 
     # 3. month 컬럼 생성 (yyyy-mm Period 객체)
-    # 예: 2023-01-15 → 2023-01
+    # 예: 2023-01-15 -> 2023-01
     # pd.to_datetime으로 명시적 datetime Series 변환 (타입 체커가 dt accessor 인식)
     date_col_data = pd.to_datetime(df_sorted[date_col])
-    df_sorted[COL_TEMP_MONTH] = date_col_data.dt.to_period("M")
+    df_sorted[COL_MONTH] = date_col_data.dt.to_period("M")
 
     # 4. 월별 집계
     # - e_m: 월말 누적 signed (last, 해당 월 마지막 거래일 값)
     # - sum_daily_m: 일일 증분 signed의 월합 (sum)
     # 주의: 일일 증분이 없으면 sum_daily_m은 계산 불가 (이 함수는 e_m만 사용)
-    monthly = df_sorted.groupby(COL_TEMP_MONTH, as_index=False).agg({signed_col: "last"})
+    monthly = df_sorted.groupby(COL_MONTH, as_index=False).agg({signed_col: "last"})
     monthly.rename(columns={signed_col: COL_E_M}, inplace=True)
 
     # 5. de_m 계산 (e_m의 월간 변화)
-    # 예: e_m = [2.0, 3.0, 2.5] → de_m = [NaN, 1.0, -0.5]
+    # 예: e_m = [2.0, 3.0, 2.5] -> de_m = [NaN, 1.0, -0.5]
     monthly[COL_DE_M] = monthly[COL_E_M].diff()
 
     # 6. sum_daily_m 계산 (별도 로직, 일일 증분 필요 시)
     # 현재는 e_m만 있으므로 placeholder로 NaN
-    # Phase 2에서 streamlit에서 calculate_daily_signed_log_diff 호출 후 계산
+    # Streamlit에서 calculate_daily_signed_log_diff 호출 후 계산
     monthly[COL_SUM_DAILY_M] = pd.NA
 
     # 7. FFR 데이터 매칭 (있을 때만)
@@ -307,13 +311,13 @@ def aggregate_monthly(
         # FFR 데이터 전처리
         # DATE 컬럼이 "yyyy-mm" 문자열 형식이므로 Period[M]로 변환
         ffr_processed = ffr_df.copy()
-        ffr_processed[COL_TEMP_MONTH] = pd.PeriodIndex(ffr_processed["DATE"], freq="M")
+        ffr_processed[COL_MONTH] = pd.PeriodIndex(ffr_processed["DATE"], freq="M")
 
         # month 키로 left join (일별 기준 월만 보존)
-        monthly = monthly.merge(ffr_processed[[COL_TEMP_MONTH, COL_FFR_VALUE]], on=COL_TEMP_MONTH, how="left")
+        monthly = monthly.merge(ffr_processed[[COL_MONTH, COL_FFR_VALUE]], on=COL_MONTH, how="left")
 
-        # rate_pct 계산 (0~1 소수 → %)
-        # 예: VALUE = 0.045 → rate_pct = 4.5
+        # rate_pct 계산 (0~1 소수 -> %)
+        # 예: VALUE = 0.045 -> rate_pct = 4.5
         monthly[COL_RATE_PCT] = monthly[COL_FFR_VALUE] * 100.0
 
         # dr_m 계산 (금리 월간 변화, %p)
@@ -327,7 +331,7 @@ def aggregate_monthly(
         missing_rate = monthly[COL_RATE_PCT].isna()
         if missing_rate.any():
             num_missing = missing_rate.sum()
-            missing_months = monthly.loc[missing_rate, COL_TEMP_MONTH].tolist()
+            missing_months = monthly.loc[missing_rate, COL_MONTH].tolist()
             logger.debug(f"금리 데이터 누락 월: {num_missing}개월\n누락 월: {missing_months[:5]}{'...' if num_missing > 5 else ''}")
             # 경고만 하고 진행 (일부 누락은 허용, 너무 많으면 나중에 상관 계산 시 문제)
 
@@ -385,7 +389,7 @@ def validate_integrity(
             - 차이 원인 안내: 반올림/누적 방식 차이, 정의 불일치 등
 
     Note:
-        이 함수는 Phase 1에서 실제 데이터로 먼저 관측(tolerance=None) 후,
+        이 함수는 실제 데이터로 먼저 관측(tolerance=None) 후,
         tolerance를 코드 상수로 확정하고 CLAUDE.md에 기록하는 데 사용된다.
     """
     # 1. abs(signed) 계산
@@ -434,7 +438,7 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
     월별 피처 DataFrame을 CSV로 저장한다 (AI/모델링용).
 
     저장 시 month 오름차순 정렬하여 시계열 순서를 보장한다.
-    컬럼명은 한글 단일 형식으로 변경하고 소수점은 4자리로 라운딩한다.
+    내부 컬럼명(영문 토큰)을 출력용 한글 헤더(DISPLAY_*)로 변경하고 소수점은 4자리로 라운딩한다.
 
     Args:
         monthly_df: 월별 집계 DataFrame
@@ -446,7 +450,7 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
         ValueError: 필수 컬럼 누락 시
     """
     # 1. 필수 컬럼 검증
-    required_cols = [COL_TEMP_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
+    required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
     missing = [col for col in required_cols if col not in monthly_df.columns]
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
@@ -457,30 +461,30 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
 
     # 3. 복사 및 정렬 (원본 보호, 시계열 순서 보장)
     df_to_save = monthly_df[cols_to_save].copy()
-    df_to_save = df_to_save.sort_values(COL_TEMP_MONTH).reset_index(drop=True)
+    df_to_save = df_to_save.sort_values(COL_MONTH).reset_index(drop=True)
 
     # 4. month를 문자열로 변환 (CSV 호환성)
-    df_to_save[COL_TEMP_MONTH] = df_to_save[COL_TEMP_MONTH].astype(str)
+    df_to_save[COL_MONTH] = df_to_save[COL_MONTH].astype(str)
 
-    # 5. 컬럼명 변경 (영문 → 한글)
+    # 5. 컬럼명 변경 (내부 토큰 -> 출력용 한글 헤더)
     rename_map = {
-        COL_TEMP_MONTH: COL_MONTH,
-        COL_RATE_PCT: COL_RATE_PCT,
-        COL_DR_M: COL_DR_M,
-        COL_E_M: COL_E_M,
-        COL_DE_M: COL_DE_M,
-        COL_SUM_DAILY_M: COL_SUM_DAILY_M,
-        COL_DR_LAG1: COL_DR_LAG1,
-        COL_DR_LAG2: COL_DR_LAG2,
+        COL_MONTH: DISPLAY_MONTH,
+        COL_RATE_PCT: DISPLAY_RATE_PCT,
+        COL_DR_M: DISPLAY_DR_M,
+        COL_E_M: DISPLAY_E_M,
+        COL_DE_M: DISPLAY_DE_M,
+        COL_SUM_DAILY_M: DISPLAY_SUM_DAILY_M,
+        COL_DR_LAG1: DISPLAY_DR_LAG1,
+        COL_DR_LAG2: DISPLAY_DR_LAG2,
     }
     df_to_save = df_to_save.rename(columns=rename_map)
 
     # 6. 수치 컬럼 라운딩 (4자리 통일)
-    numeric_cols = [COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
-    if COL_DR_LAG1 in df_to_save.columns:
-        numeric_cols.append(COL_DR_LAG1)
-    if COL_DR_LAG2 in df_to_save.columns:
-        numeric_cols.append(COL_DR_LAG2)
+    numeric_cols = [DISPLAY_RATE_PCT, DISPLAY_DR_M, DISPLAY_E_M, DISPLAY_DE_M, DISPLAY_SUM_DAILY_M]
+    if DISPLAY_DR_LAG1 in df_to_save.columns:
+        numeric_cols.append(DISPLAY_DR_LAG1)
+    if DISPLAY_DR_LAG2 in df_to_save.columns:
+        numeric_cols.append(DISPLAY_DR_LAG2)
 
     for col in numeric_cols:
         if col in df_to_save.columns:
@@ -497,7 +501,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     요약 통계 DataFrame을 CSV로 저장한다 (AI/해석용).
 
     Level, Delta, 교차검증 요약을 모두 포함한 단일 CSV를 생성한다.
-    컬럼명은 한글 단일 형식으로 변경하고 소수점은 4자리로 라운딩한다.
+    내부 컬럼명(영문 토큰)을 출력용 한글 헤더(DISPLAY_*)로 변경하고 소수점은 4자리로 라운딩한다.
 
     Args:
         monthly_df: 월별 집계 DataFrame
@@ -508,7 +512,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
         ValueError: 필수 컬럼 누락, 데이터 부족 등
     """
     # 1. 필수 컬럼 검증
-    required_cols = [COL_TEMP_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
+    required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
     missing = [col for col in required_cols if col not in monthly_df.columns]
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
@@ -525,57 +529,59 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     level_summary = pd.DataFrame(
         [
             {
-                KEY_TEMP_CATEGORY: CATEGORY_VALUE_LEVEL,
-                KEY_TEMP_X_VAR: "rate_pct",
-                KEY_TEMP_Y_VAR: "e_m",
-                KEY_TEMP_LAG: 0,
-                KEY_TEMP_N: len(level_valid),
-                KEY_TEMP_CORR: level_corr,
-                KEY_TEMP_SLOPE: level_slope,
-                KEY_TEMP_INTERCEPT: level_intercept,
+                COL_CATEGORY: "Level",
+                COL_X_VAR: "rate_pct",
+                COL_Y_VAR: "e_m",
+                COL_LAG: 0,
+                COL_N: len(level_valid),
+                COL_CORR: level_corr,
+                COL_SLOPE: level_slope,
+                COL_INTERCEPT: level_intercept,
             }
         ]
     )
 
     # 3. Delta 요약 (dr_m.shift(lag) vs de_m, lag 0/1/2)
     delta_rows = []
+    dr_lag_col = "dr_lag"  # 로컬 임시 컬럼명
+
     for lag in [0, 1, 2]:
         # dr_m.shift(lag) vs de_m
         df_lag = monthly_df.copy()
-        df_lag[COL_TEMP_DR_LAG] = df_lag[COL_DR_M].shift(lag)
-        delta_valid = df_lag.dropna(subset=[COL_TEMP_DR_LAG, COL_DE_M])
+        df_lag[dr_lag_col] = df_lag[COL_DR_M].shift(lag)
+        delta_valid = df_lag.dropna(subset=[dr_lag_col, COL_DE_M])
 
         if len(delta_valid) >= 2:
-            corr_de = delta_valid[COL_TEMP_DR_LAG].corr(delta_valid[COL_DE_M])
-            fit_de = np.polyfit(delta_valid[COL_TEMP_DR_LAG], delta_valid[COL_DE_M], 1)
+            corr_de = delta_valid[dr_lag_col].corr(delta_valid[COL_DE_M])
+            fit_de = np.polyfit(delta_valid[dr_lag_col], delta_valid[COL_DE_M], 1)
             delta_rows.append(
                 {
-                    KEY_TEMP_CATEGORY: CATEGORY_VALUE_DELTA,
-                    KEY_TEMP_X_VAR: TEMPLATE_DR_LAG_VAR.format(lag),
-                    KEY_TEMP_Y_VAR: "de_m",
-                    KEY_TEMP_LAG: lag,
-                    KEY_TEMP_N: len(delta_valid),
-                    KEY_TEMP_CORR: corr_de,
-                    KEY_TEMP_SLOPE: fit_de[0],
-                    KEY_TEMP_INTERCEPT: fit_de[1],
+                    COL_CATEGORY: "Delta",
+                    COL_X_VAR: f"dr_m_lag{lag}",
+                    COL_Y_VAR: "de_m",
+                    COL_LAG: lag,
+                    COL_N: len(delta_valid),
+                    COL_CORR: corr_de,
+                    COL_SLOPE: fit_de[0],
+                    COL_INTERCEPT: fit_de[1],
                 }
             )
 
         # dr_m.shift(lag) vs sum_daily_m
-        delta_valid_sum = df_lag.dropna(subset=[COL_TEMP_DR_LAG, COL_SUM_DAILY_M])
+        delta_valid_sum = df_lag.dropna(subset=[dr_lag_col, COL_SUM_DAILY_M])
         if len(delta_valid_sum) >= 2:
-            corr_sum = delta_valid_sum[COL_TEMP_DR_LAG].corr(delta_valid_sum[COL_SUM_DAILY_M])
-            fit_sum = np.polyfit(delta_valid_sum[COL_TEMP_DR_LAG], delta_valid_sum[COL_SUM_DAILY_M], 1)
+            corr_sum = delta_valid_sum[dr_lag_col].corr(delta_valid_sum[COL_SUM_DAILY_M])
+            fit_sum = np.polyfit(delta_valid_sum[dr_lag_col], delta_valid_sum[COL_SUM_DAILY_M], 1)
             delta_rows.append(
                 {
-                    KEY_TEMP_CATEGORY: CATEGORY_VALUE_DELTA,
-                    KEY_TEMP_X_VAR: TEMPLATE_DR_LAG_VAR.format(lag),
-                    KEY_TEMP_Y_VAR: "sum_daily_m",
-                    KEY_TEMP_LAG: lag,
-                    KEY_TEMP_N: len(delta_valid_sum),
-                    KEY_TEMP_CORR: corr_sum,
-                    KEY_TEMP_SLOPE: fit_sum[0],
-                    KEY_TEMP_INTERCEPT: fit_sum[1],
+                    COL_CATEGORY: "Delta",
+                    COL_X_VAR: f"dr_m_lag{lag}",
+                    COL_Y_VAR: "sum_daily_m",
+                    COL_LAG: lag,
+                    COL_N: len(delta_valid_sum),
+                    COL_CORR: corr_sum,
+                    COL_SLOPE: fit_sum[0],
+                    COL_INTERCEPT: fit_sum[1],
                 }
             )
 
@@ -588,17 +594,17 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
         cross_summary = pd.DataFrame(
             [
                 {
-                    KEY_TEMP_CATEGORY: CATEGORY_VALUE_CROSS_VALIDATION,
-                    KEY_TEMP_X_VAR: "de_m",
-                    KEY_TEMP_Y_VAR: "sum_daily_m",
-                    KEY_TEMP_LAG: None,
-                    KEY_TEMP_N: len(cross_valid),
-                    KEY_TEMP_CORR: None,
-                    KEY_TEMP_SLOPE: None,
-                    KEY_TEMP_INTERCEPT: None,
-                    KEY_TEMP_MAX_ABS_DIFF: diff.abs().max(),
-                    KEY_TEMP_MEAN_ABS_DIFF: diff.abs().mean(),
-                    KEY_TEMP_STD_DIFF: diff.std(),
+                    COL_CATEGORY: "CrossValidation",
+                    COL_X_VAR: "de_m",
+                    COL_Y_VAR: "sum_daily_m",
+                    COL_LAG: None,
+                    COL_N: len(cross_valid),
+                    COL_CORR: None,
+                    COL_SLOPE: None,
+                    COL_INTERCEPT: None,
+                    COL_MAX_ABS_DIFF: diff.abs().max(),
+                    COL_MEAN_ABS_DIFF: diff.abs().mean(),
+                    COL_STD_DIFF: diff.std(),
                 }
             ]
         )
@@ -616,24 +622,31 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     non_empty_summaries = [s for s in summary_list if not s.empty]
     full_summary = pd.concat(non_empty_summaries, ignore_index=True)
 
-    # 6. 컬럼명 변경 (영문 → 한글)
+    # 6. 컬럼명 변경 (내부 토큰 -> 출력용 한글 헤더)
     rename_map = {
-        KEY_TEMP_CATEGORY: COL_CATEGORY,
-        KEY_TEMP_X_VAR: COL_X_VAR,
-        KEY_TEMP_Y_VAR: COL_Y_VAR,
-        KEY_TEMP_LAG: COL_LAG,
-        KEY_TEMP_N: COL_N,
-        KEY_TEMP_CORR: COL_CORR,
-        KEY_TEMP_SLOPE: COL_SLOPE,
-        KEY_TEMP_INTERCEPT: COL_INTERCEPT,
-        KEY_TEMP_MAX_ABS_DIFF: COL_MAX_ABS_DIFF,
-        KEY_TEMP_MEAN_ABS_DIFF: COL_MEAN_ABS_DIFF,
-        KEY_TEMP_STD_DIFF: COL_STD_DIFF,
+        COL_CATEGORY: DISPLAY_CATEGORY,
+        COL_X_VAR: DISPLAY_X_VAR,
+        COL_Y_VAR: DISPLAY_Y_VAR,
+        COL_LAG: DISPLAY_LAG,
+        COL_N: DISPLAY_N,
+        COL_CORR: DISPLAY_CORR,
+        COL_SLOPE: DISPLAY_SLOPE,
+        COL_INTERCEPT: DISPLAY_INTERCEPT,
+        COL_MAX_ABS_DIFF: DISPLAY_MAX_ABS_DIFF,
+        COL_MEAN_ABS_DIFF: DISPLAY_MEAN_ABS_DIFF,
+        COL_STD_DIFF: DISPLAY_STD_DIFF,
     }
     full_summary = full_summary.rename(columns=rename_map)
 
     # 7. 수치 컬럼 라운딩 (4자리 통일)
-    numeric_cols = [COL_CORR, COL_SLOPE, COL_INTERCEPT, COL_MAX_ABS_DIFF, COL_MEAN_ABS_DIFF, COL_STD_DIFF]
+    numeric_cols = [
+        DISPLAY_CORR,
+        DISPLAY_SLOPE,
+        DISPLAY_INTERCEPT,
+        DISPLAY_MAX_ABS_DIFF,
+        DISPLAY_MEAN_ABS_DIFF,
+        DISPLAY_STD_DIFF,
+    ]
     for col in numeric_cols:
         if col in full_summary.columns:
             full_summary[col] = full_summary[col].round(4)

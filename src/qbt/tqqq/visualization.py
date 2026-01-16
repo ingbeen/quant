@@ -15,9 +15,9 @@ from qbt.tqqq.constants import (
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DR_M,
+    COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_CLOSE,
-    COL_TEMP_MONTH,
 )
 
 
@@ -249,7 +249,7 @@ def create_level_chart(
 
     # 2. 시계열 라인: month vs rate_pct, y_col
     plot_df_ts = plot_df.copy()
-    plot_df_ts["month_str"] = plot_df_ts[COL_TEMP_MONTH].astype(str)
+    plot_df_ts["month_str"] = plot_df_ts[COL_MONTH].astype(str)
 
     fig.add_trace(
         go.Scatter(
@@ -375,7 +375,7 @@ def create_delta_chart(
 
     # 2. Rolling 12M 상관
     if len(plot_df) >= 12:
-        plot_df_sorted = plot_df.sort_values(by=COL_TEMP_MONTH).reset_index(drop=True)
+        plot_df_sorted = plot_df.sort_values(by=COL_MONTH).reset_index(drop=True)
         rolling_corr = (
             plot_df_sorted[["dr_shifted", y_col]]
             .rolling(window=12)
@@ -385,7 +385,7 @@ def create_delta_chart(
         )
 
         # month 문자열 변환
-        plot_df_sorted["month_str"] = plot_df_sorted[COL_TEMP_MONTH].astype(str)
+        plot_df_sorted["month_str"] = plot_df_sorted[COL_MONTH].astype(str)
 
         fig.add_trace(
             go.Scatter(

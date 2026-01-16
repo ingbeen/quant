@@ -141,10 +141,26 @@ quant/
 
 **상수 명명 규칙**:
 
-- COL\_: DataFrame이나 테이블 형식 데이터의 컬럼명 (예: `COL_DATE`, `COL_CLOSE`)
-- KEY\_: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_EXPENSE`)
-- DISPLAY\_: CSV 출력이나 로그 표시용 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`)
-- 도메인 한 곳에서만 사용되는 상수는 해당 도메인의 `constants.py`에 정의
+4가지 접두사만 사용합니다:
+
+- `COL_`: DataFrame 컬럼명 (내부 계산용 영문 토큰, 예: `COL_DATE`, `COL_CLOSE`, `COL_MONTH`)
+- `KEY_`: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_OVERLAP_START`)
+- `DISPLAY_`: CSV 출력이나 UI 표시용 한글 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`, `DISPLAY_MONTH`)
+- `DEFAULT_`: 분석/시뮬레이션 기본값 파라미터 (예: `DEFAULT_MIN_MONTHS`, `DEFAULT_HISTOGRAM_BINS`)
+
+**내부/출력 분리 원칙** (특히 Rate Spread Lab 등 CSV 저장이 필요한 모듈):
+
+- 내부 계산: `COL_*` (영문 토큰, 예: `COL_RATE_PCT = "rate_pct"`)
+- CSV 출력 헤더: `DISPLAY_*` (한글, 예: `DISPLAY_RATE_PCT = "금리수준(%)"`)
+- 저장 직전에 `rename(COL -> DISPLAY)` 적용
+
+**지양하는 접두사** (새로 사용하지 않음):
+
+- `PARAM_*` -> `DEFAULT_*` 사용
+- `COL_TEMP_*`, `KEY_TEMP_*` -> 필요 시 `COL_*` 또는 로컬 변수 사용
+- `CATEGORY_VALUE_*`, `TEMPLATE_*` -> 리터럴 또는 f-string 사용
+
+도메인 한 곳에서만 사용되는 상수는 해당 도메인의 `constants.py`에 정의
 
 ### 3. 핵심 패턴
 

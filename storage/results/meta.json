@@ -472,6 +472,22 @@
         "month_max": "2025-12",
         "total_months": 191
       },
+      "timestamp": "2026-01-16T09:12:57+09:00"
+    },
+    {
+      "input_files": {
+        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
+      },
+      "output_files": {
+        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
+        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv"
+      },
+      "analysis_period": {
+        "month_min": "2010-02",
+        "month_max": "2025-12",
+        "total_months": 191
+      },
       "timestamp": "2026-01-15T11:57:47+09:00"
     },
     {
@@ -521,24 +537,6 @@
         "total_months": 191
       },
       "timestamp": "2026-01-14T11:04:09+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "daily_comparison_mtime": 1768351730.7103868,
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "ffr_data_mtime": 1767579139.8858125
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-14T09:48:54+09:00"
     }
   ]
 }

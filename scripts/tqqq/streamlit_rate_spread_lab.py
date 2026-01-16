@@ -41,19 +41,21 @@ from qbt.tqqq.analysis_helpers import (
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
+    COL_DAILY_SIGNED,
     COL_DE_M,
     COL_DR_LAG1,
     COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
+    COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
-    COL_TEMP_ABS_DIFF,
-    COL_TEMP_DAILY_SIGNED,
-    COL_TEMP_DIFF,
-    COL_TEMP_MONTH,
-    COL_TEMP_SUM_DAILY_M_CALC,
+    DEFAULT_HISTOGRAM_BINS,
+    DEFAULT_LAG_OPTIONS,
+    DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
+    DEFAULT_STREAMLIT_COLUMNS,
+    DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_AXIS_DIFF_PCT,
     DISPLAY_AXIS_FREQUENCY,
     DISPLAY_CHART_DIFF_DISTRIBUTION,
@@ -61,11 +63,6 @@ from qbt.tqqq.constants import (
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
     KEY_META_TYPE_RATE_SPREAD_LAB,
-    PARAM_HISTOGRAM_BINS,
-    PARAM_LAG_OPTIONS,
-    PARAM_MIN_MONTHS_FOR_ANALYSIS,
-    PARAM_STREAMLIT_COLUMNS,
-    PARAM_TOP_N_CROSS_VALIDATION,
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
     TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH,
@@ -150,7 +147,7 @@ def prepare_monthly_data(
 
     # 2. 일별 데이터에 추가
     daily_with_signed = daily_df.copy()
-    daily_with_signed[COL_TEMP_DAILY_SIGNED] = daily_signed
+    daily_with_signed[COL_DAILY_SIGNED] = daily_signed
 
     # 3. 월별 집계 (aggregate_monthly는 e_m, de_m만 제공)
     # 주의: 이 함수는 ValueError를 raise할 수 있음 (커버리지 부족, 결과 부족 등)
@@ -159,24 +156,21 @@ def prepare_monthly_data(
         date_col=DISPLAY_DATE,
         signed_col=COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
         ffr_df=ffr_df,
-        min_months_for_analysis=PARAM_MIN_MONTHS_FOR_ANALYSIS,
+        min_months_for_analysis=DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     )
 
     # 4. sum_daily_m 계산 (일일 증분의 월합)
     # aggregate_monthly에서 sum_daily_m은 placeholder(NA)이므로 여기서 계산
     date_col_data = pd.to_datetime(daily_with_signed[DISPLAY_DATE])
-    daily_with_signed[COL_TEMP_MONTH] = date_col_data.dt.to_period("M")
-    sum_daily_monthly = daily_with_signed.groupby(COL_TEMP_MONTH, as_index=False)[COL_TEMP_DAILY_SIGNED].sum()
-    # rename()의 타입 추론 문제 회피: 컬럼 직접 재할당
-    sum_daily_monthly[COL_TEMP_SUM_DAILY_M_CALC] = sum_daily_monthly[COL_TEMP_DAILY_SIGNED]
-    sum_daily_monthly = sum_daily_monthly.drop(columns=[COL_TEMP_DAILY_SIGNED])
+    daily_with_signed[COL_MONTH] = date_col_data.dt.to_period("M")
+    sum_daily_monthly = daily_with_signed.groupby(COL_MONTH, as_index=False)[COL_DAILY_SIGNED].sum()
+    # 컬럼명 변경 (daily_signed -> sum_daily_m)
+    sum_daily_monthly[COL_SUM_DAILY_M] = sum_daily_monthly[COL_DAILY_SIGNED]
+    sum_daily_monthly = sum_daily_monthly.drop(columns=[COL_DAILY_SIGNED])
 
-    # 5. monthly에 merge
-    monthly = monthly.merge(sum_daily_monthly, on=COL_TEMP_MONTH, how="left")
-
-    # 6. sum_daily_m 업데이트 (기존 NA를 계산값으로 교체)
-    monthly[COL_SUM_DAILY_M] = monthly[COL_TEMP_SUM_DAILY_M_CALC]
-    monthly.drop(columns=[COL_TEMP_SUM_DAILY_M_CALC], inplace=True)
+    # 5. monthly에 merge하여 sum_daily_m 업데이트 (기존 NA를 계산값으로 교체)
+    monthly = monthly.drop(columns=[COL_SUM_DAILY_M])
+    monthly = monthly.merge(sum_daily_monthly, on=COL_MONTH, how="left")
 
     return monthly
 
@@ -215,14 +209,18 @@ def display_cross_validation(monthly_df: pd.DataFrame):
         st.warning("교차검증 가능한 데이터가 없습니다.")
         return
 
+    # 로컬 컬럼명 (임시 계산용)
+    col_diff = "diff"
+    col_abs_diff = "abs_diff"
+
     # 차이 계산
     valid_df = valid_df.copy()
-    valid_df[COL_TEMP_DIFF] = valid_df[COL_DE_M] - valid_df[COL_SUM_DAILY_M]
+    valid_df[col_diff] = valid_df[COL_DE_M] - valid_df[COL_SUM_DAILY_M]
 
     # 통계
-    max_diff = valid_df[COL_TEMP_DIFF].abs().max()
-    mean_diff = valid_df[COL_TEMP_DIFF].abs().mean()
-    std_diff = valid_df[COL_TEMP_DIFF].std()
+    max_diff = valid_df[col_diff].abs().max()
+    mean_diff = valid_df[col_diff].abs().mean()
+    std_diff = valid_df[col_diff].std()
 
     st.metric(label="최대 절댓값 차이 (Max Abs Diff)", value=f"{max_diff:.6f}%")
     st.metric(label="평균 절댓값 차이 (Mean Abs Diff)", value=f"{mean_diff:.6f}%")
@@ -231,9 +229,9 @@ def display_cross_validation(monthly_df: pd.DataFrame):
     # |diff| 상위 5개 (절댓값 기준)
     st.markdown("**|diff| 상위 5개월 (Top 5 Months with Largest |diff|)**:")
     valid_df_sorted = valid_df.copy()
-    valid_df_sorted[COL_TEMP_ABS_DIFF] = valid_df_sorted[COL_TEMP_DIFF].abs()
-    top_diff_abs = valid_df_sorted.nlargest(PARAM_TOP_N_CROSS_VALIDATION, COL_TEMP_ABS_DIFF, keep="all")[
-        [COL_TEMP_MONTH, COL_DE_M, COL_SUM_DAILY_M, COL_TEMP_DIFF, COL_TEMP_ABS_DIFF]
+    valid_df_sorted[col_abs_diff] = valid_df_sorted[col_diff].abs()
+    top_diff_abs = valid_df_sorted.nlargest(DEFAULT_TOP_N_CROSS_VALIDATION, col_abs_diff, keep="all")[
+        [COL_MONTH, COL_DE_M, COL_SUM_DAILY_M, col_diff, col_abs_diff]
     ]
     st.dataframe(top_diff_abs, hide_index=True)
 
@@ -241,8 +239,8 @@ def display_cross_validation(monthly_df: pd.DataFrame):
     fig = go.Figure()
     fig.add_trace(
         go.Histogram(
-            x=valid_df[COL_TEMP_DIFF],
-            nbinsx=PARAM_HISTOGRAM_BINS,
+            x=valid_df[col_diff],
+            nbinsx=DEFAULT_HISTOGRAM_BINS,
             name=DISPLAY_CHART_DIFF_DISTRIBUTION,
             marker={"color": "#9467bd"},
         )
@@ -319,8 +317,8 @@ def main():
                                 "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
                             },
                             "analysis_period": {
-                                "month_min": str(monthly_df[COL_TEMP_MONTH].min()),
-                                "month_max": str(monthly_df[COL_TEMP_MONTH].max()),
+                                "month_min": str(monthly_df[COL_MONTH].min()),
+                                "month_max": str(monthly_df[COL_MONTH].max()),
                                 "total_months": len(monthly_df),
                             },
                         }
@@ -335,11 +333,11 @@ def main():
                         st.warning(f"⚠️ CSV 저장 실패 (계속 진행):\n\n{str(e)}")
 
             # 요약 통계
-            col1, col2, col3 = st.columns(PARAM_STREAMLIT_COLUMNS)
+            col1, col2, col3 = st.columns(DEFAULT_STREAMLIT_COLUMNS)
             with col1:
                 st.metric(
                     label="분석 기간 (Period)",
-                    value=f"{monthly_df[COL_TEMP_MONTH].min()} ~ {monthly_df[COL_TEMP_MONTH].max()}",
+                    value=f"{monthly_df[COL_MONTH].min()} ~ {monthly_df[COL_MONTH].max()}",
                 )
             with col2:
                 rate_min = monthly_df[COL_RATE_PCT].min()
@@ -408,7 +406,7 @@ def main():
             y_label_delta = DISPLAY_DELTA_MONTHLY_PCT
 
             # Lag 선택
-            lag = st.selectbox("시차 (Lag, 개월):", options=PARAM_LAG_OPTIONS, index=0)
+            lag = st.selectbox("시차 (Lag, 개월):", options=DEFAULT_LAG_OPTIONS, index=0)
 
             # 차트 생성
             try:

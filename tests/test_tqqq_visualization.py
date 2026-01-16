@@ -21,10 +21,10 @@ from qbt.tqqq.constants import (
     COL_DE_M,
     COL_DR_M,
     COL_E_M,
+    COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_CLOSE,
     COL_SUM_DAILY_M,
-    COL_TEMP_MONTH,
 )
 from qbt.tqqq.visualization import (
     create_cumulative_return_diff_chart,
@@ -210,7 +210,7 @@ class TestLevelChart:
         """월별 데이터 샘플 픽스처"""
         return pd.DataFrame(
             {
-                COL_TEMP_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
+                COL_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
                 COL_RATE_PCT: [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
                 COL_E_M: [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.32, 0.28, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0, -0.05],
                 COL_DE_M: [
@@ -303,7 +303,7 @@ class TestLevelChart:
         # Given
         df = pd.DataFrame(
             {
-                COL_TEMP_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
                 COL_RATE_PCT: [4.5, None, 4.7, 4.8, 5.0],
                 COL_E_M: [0.1, 0.15, None, 0.25, 0.3],
             }
@@ -326,7 +326,7 @@ class TestDeltaChart:
         """월별 데이터 샘플 픽스처 (Rolling 상관 계산 가능한 15개월)"""
         return pd.DataFrame(
             {
-                COL_TEMP_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
+                COL_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
                 COL_RATE_PCT: [4.5, 4.6, 4.7, 4.8, 5.0, 5.2, 5.1, 5.0, 4.9, 4.7, 4.5, 4.3, 4.2, 4.1, 4.0],
                 COL_DE_M: [
                     0.0,
@@ -447,7 +447,7 @@ class TestDeltaChart:
         # Given
         df = pd.DataFrame(
             {
-                COL_TEMP_MONTH: pd.period_range("2023-01", periods=10, freq="M"),
+                COL_MONTH: pd.period_range("2023-01", periods=10, freq="M"),
                 COL_DE_M: [0.05, 0.06, 0.04, 0.07, 0.05, 0.03, 0.06, 0.04, 0.05, 0.07],
                 COL_DR_M: [0.1, 0.12, 0.09, 0.13, 0.11, 0.08, 0.12, 0.10, 0.11, 0.13],
             }
