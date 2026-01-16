@@ -48,14 +48,28 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
 ### 4. analysis_helpers.py
 
-금리-오차 관계 분석을 위한 계산, 집계, 검증 함수를 제공합니다.
+금리-오차 관계 분석을 위한 계산, 집계, 검증, CSV 저장 함수를 제공합니다.
 
 주요 함수:
+
+계산/집계:
 
 - `calculate_signed_log_diff_from_cumulative_returns`: 누적수익률로부터 signed 로그차이 계산
 - `calculate_daily_signed_log_diff`: 일일수익률로부터 일일 증분 signed 로그오차 계산
 - `aggregate_monthly`: 일별 데이터를 월별로 집계하고 금리 데이터와 매칭
 - `validate_integrity`: abs(signed)와 abs 컬럼의 무결성 검증
+
+피처 생성:
+
+- `add_rate_change_lags`: 금리 변화 lag 컬럼 생성 (dr_lag1, dr_lag2)
+- `add_rolling_features`: rolling correlation 컬럼 생성 (12개월 윈도우 기본)
+- `build_model_dataset`: 모델용 DF 생성 (영문 컬럼, schema_version 포함)
+
+CSV 저장:
+
+- `save_monthly_features`: 월별 피처 CSV 저장 (한글 헤더, 4자리 라운딩)
+- `save_summary_statistics`: 요약 통계 CSV 저장 (Level/Delta/CrossValidation)
+- `save_model_csv`: 모델용 CSV 저장 (영문 헤더, schema_version 포함)
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
@@ -179,9 +193,28 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 경로: `storage/results/tqqq_rate_spread_lab_monthly.csv`
 
-주요 컬럼: 연월, 금리수준, 금리변화, 월말누적오차, 월간오차변화, 일일오차월합
+주요 컬럼: 연월, 금리수준, 금리변화, 월말누적오차, 월간오차변화, 일일오차월합, lag1, lag2
 
-용도: AI/모델링, 금리-오차 관계 분석
+용도: 사람이 읽기 쉬운 한글 헤더 CSV, 분석 결과 확인
+
+### tqqq_rate_spread_lab_model.csv
+
+경로: `storage/results/tqqq_rate_spread_lab_model.csv`
+
+주요 컬럼 (영문):
+
+- `month`: 연월 (yyyy-mm)
+- `schema_version`: 스키마 버전 (현재 "1.0")
+- `rate_level_pct`: 금리 수준 (%)
+- `rate_change_pct`: 금리 변화 (%)
+- `rate_change_lag1_pct`, `rate_change_lag2_pct`: 금리 변화 lag 1, 2
+- `error_eom_pct`: 월말 누적 오차 (%)
+- `error_change_pct`: 월간 오차 변화 (%)
+- `error_daily_sum_pct`: 일일 오차 월합 (%)
+- `cv_diff_pct`: 교차검증 차이 (error_change - error_daily_sum)
+- `rolling_corr_level`, `rolling_corr_delta`, `rolling_corr_lag1`, `rolling_corr_lag2`: 12개월 rolling correlation
+
+용도: AI/ML 모델링, 프로그래밍 API 연동 (영문 헤더로 일관성 유지)
 
 ---
 

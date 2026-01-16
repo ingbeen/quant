@@ -28,6 +28,21 @@ from qbt.tqqq.constants import (
     COL_LAG,
     COL_MAX_ABS_DIFF,
     COL_MEAN_ABS_DIFF,
+    # 모델용 CSV 컬럼 (영문)
+    COL_MODEL_CV_DIFF_PCT,
+    COL_MODEL_ERROR_CHANGE_PCT,
+    COL_MODEL_ERROR_DAILY_SUM_PCT,
+    COL_MODEL_ERROR_EOM_PCT,
+    COL_MODEL_MONTH,
+    COL_MODEL_RATE_CHANGE_LAG1_PCT,
+    COL_MODEL_RATE_CHANGE_LAG2_PCT,
+    COL_MODEL_RATE_CHANGE_PCT,
+    COL_MODEL_RATE_LEVEL_PCT,
+    COL_MODEL_ROLLING_CORR_DELTA,
+    COL_MODEL_ROLLING_CORR_LAG1,
+    COL_MODEL_ROLLING_CORR_LAG2,
+    COL_MODEL_ROLLING_CORR_LEVEL,
+    COL_MODEL_SCHEMA_VERSION,
     COL_MONTH,
     COL_N,
     COL_RATE_PCT,
@@ -36,6 +51,8 @@ from qbt.tqqq.constants import (
     COL_SUM_DAILY_M,
     COL_X_VAR,
     COL_Y_VAR,
+    DEFAULT_LAG_LIST,
+    DEFAULT_ROLLING_WINDOW,
     # 출력용 한글 헤더
     DISPLAY_CATEGORY,
     DISPLAY_CORR,
@@ -56,6 +73,7 @@ from qbt.tqqq.constants import (
     DISPLAY_SUM_DAILY_M,
     DISPLAY_X_VAR,
     DISPLAY_Y_VAR,
+    MODEL_SCHEMA_VERSION,
 )
 from qbt.utils import get_logger
 
@@ -68,6 +86,10 @@ __all__ = [
     "validate_integrity",
     "save_monthly_features",
     "save_summary_statistics",
+    "add_rate_change_lags",
+    "add_rolling_features",
+    "build_model_dataset",
+    "save_model_csv",
 ]
 
 
@@ -712,3 +734,265 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     output_path.parent.mkdir(parents=True, exist_ok=True)
     full_summary.to_csv(output_path, index=False, encoding="utf-8")
     logger.debug(f"요약 통계 CSV 저장 완료: {output_path} ({len(full_summary)}행)")
+
+
+def add_rate_change_lags(
+    df_monthly: pd.DataFrame,
+    lag_list: list[int] | None = None,
+) -> pd.DataFrame:
+    """
+    dr_m 기반 lag 컬럼을 생성한다.
+
+    delta 분석 및 모델 입력에 활용하기 위해 금리 변화의 시차 컬럼을 생성한다.
+    원본 DataFrame을 변경하지 않고 복사본에서 작업한다.
+
+    Args:
+        df_monthly: 월별 DataFrame (dr_m 컬럼 필수)
+        lag_list: 생성할 lag 값 리스트 (기본값: [1, 2])
+
+    Returns:
+        lag 컬럼이 추가된 DataFrame (원본 불변)
+        - dr_lag1: dr_m.shift(1)
+        - dr_lag2: dr_m.shift(2)
+
+    Raises:
+        ValueError: dr_m 컬럼이 없는 경우
+    """
+    if lag_list is None:
+        lag_list = DEFAULT_LAG_LIST
+
+    # 필수 컬럼 검증
+    if COL_DR_M not in df_monthly.columns:
+        raise ValueError(f"필수 컬럼 누락: {COL_DR_M}")
+
+    # 원본 불변성 보장
+    result = df_monthly.copy()
+
+    # lag 컬럼 생성
+    lag_col_map = {1: COL_DR_LAG1, 2: COL_DR_LAG2}
+    for lag in lag_list:
+        col_name = lag_col_map.get(lag)
+        if col_name:
+            result[col_name] = result[COL_DR_M].shift(lag)
+
+    return result
+
+
+def add_rolling_features(
+    df_monthly: pd.DataFrame,
+    window: int = DEFAULT_ROLLING_WINDOW,
+) -> pd.DataFrame:
+    """
+    rolling 파생피처를 생성한다.
+
+    금리/오차 관계의 "최근 안정성"을 모델이 학습할 수 있도록 rolling correlation을 계산한다.
+    데이터 길이가 window 미만이면 fail-fast 정책에 따라 예외를 발생시킨다.
+
+    Rolling correlation 계산 대상:
+        - rate_level_pct(=rate_pct) vs error_eom_pct(=e_m)
+        - rate_change_pct(=dr_m) vs error_change_pct(=de_m)
+        - rate_change_lag1_pct vs error_change_pct
+        - rate_change_lag2_pct vs error_change_pct
+
+    Args:
+        df_monthly: 월별 DataFrame
+            필수 컬럼: rate_pct, dr_m, e_m, de_m, dr_lag1, dr_lag2
+        window: rolling window 크기 (기본값: 12)
+
+    Returns:
+        rolling correlation 컬럼이 추가된 DataFrame
+        - rolling_corr_rate_level_error_eom
+        - rolling_corr_rate_change_error_change
+        - rolling_corr_rate_lag1_error_change
+        - rolling_corr_rate_lag2_error_change
+
+    Raises:
+        ValueError: 데이터 길이가 window 미만인 경우 (fail-fast)
+    """
+    # 데이터 길이 검증 (fail-fast)
+    if len(df_monthly) < window:
+        raise ValueError(f"데이터 부족: {len(df_monthly)}개월 < window {window}개월\n" f"조치: 더 긴 기간의 데이터 필요")
+
+    # 원본 불변성 보장
+    result = df_monthly.copy()
+
+    # Rolling correlation 계산
+    # min_periods = window로 설정하여 불완전 window 허용 금지
+    # 1. rate_level_pct vs error_eom_pct
+    result[COL_MODEL_ROLLING_CORR_LEVEL] = (
+        result[COL_RATE_PCT].rolling(window=window, min_periods=window).corr(result[COL_E_M])
+    )
+
+    # 2. rate_change_pct vs error_change_pct
+    result[COL_MODEL_ROLLING_CORR_DELTA] = (
+        result[COL_DR_M].rolling(window=window, min_periods=window).corr(result[COL_DE_M])
+    )
+
+    # 3. rate_change_lag1_pct vs error_change_pct
+    if COL_DR_LAG1 in result.columns:
+        result[COL_MODEL_ROLLING_CORR_LAG1] = (
+            result[COL_DR_LAG1].rolling(window=window, min_periods=window).corr(result[COL_DE_M])
+        )
+    else:
+        result[COL_MODEL_ROLLING_CORR_LAG1] = pd.NA
+
+    # 4. rate_change_lag2_pct vs error_change_pct
+    if COL_DR_LAG2 in result.columns:
+        result[COL_MODEL_ROLLING_CORR_LAG2] = (
+            result[COL_DR_LAG2].rolling(window=window, min_periods=window).corr(result[COL_DE_M])
+        )
+    else:
+        result[COL_MODEL_ROLLING_CORR_LAG2] = pd.NA
+
+    return result
+
+
+def build_model_dataset(
+    df_monthly: pd.DataFrame,
+    window: int = DEFAULT_ROLLING_WINDOW,
+) -> pd.DataFrame:
+    """
+    AI 모델이 읽을 수 있는 고정 스키마의 모델용 DataFrame을 생성한다.
+
+    내부에서 add_rate_change_lags(), add_rolling_features()를 호출하여
+    lag 및 rolling 피처를 생성한 후, 영문 컬럼명으로 변환하고 schema_version을 추가한다.
+
+    Args:
+        df_monthly: 월별 DataFrame
+            필수 컬럼: month, rate_pct, dr_m, e_m, de_m, sum_daily_m
+        window: rolling window 크기 (기본값: 12)
+
+    Returns:
+        모델용 DataFrame (영문 컬럼, schema_version 포함)
+
+    Raises:
+        ValueError: 필수 컬럼 누락 또는 데이터 부족 시
+    """
+    # 필수 컬럼 검증
+    required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
+    missing = [col for col in required_cols if col not in df_monthly.columns]
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+    # 1. lag 피처 생성
+    df_with_lags = add_rate_change_lags(df_monthly)
+
+    # 2. rolling 피처 생성
+    df_with_rolling = add_rolling_features(df_with_lags, window=window)
+
+    # 3. cv_diff_pct 계산 (error_change_pct - error_daily_sum_pct)
+    df_with_rolling[COL_MODEL_CV_DIFF_PCT] = df_with_rolling[COL_DE_M] - df_with_rolling[COL_SUM_DAILY_M]
+
+    # 4. 모델용 컬럼 선택 및 rename
+    # 내부 컬럼 -> 모델용 영문 컬럼
+    rename_map = {
+        COL_MONTH: COL_MODEL_MONTH,
+        COL_RATE_PCT: COL_MODEL_RATE_LEVEL_PCT,
+        COL_DR_M: COL_MODEL_RATE_CHANGE_PCT,
+        COL_DR_LAG1: COL_MODEL_RATE_CHANGE_LAG1_PCT,
+        COL_DR_LAG2: COL_MODEL_RATE_CHANGE_LAG2_PCT,
+        COL_E_M: COL_MODEL_ERROR_EOM_PCT,
+        COL_DE_M: COL_MODEL_ERROR_CHANGE_PCT,
+        COL_SUM_DAILY_M: COL_MODEL_ERROR_DAILY_SUM_PCT,
+        # COL_MODEL_CV_DIFF_PCT는 이미 영문명으로 생성됨
+        # rolling 컬럼도 이미 영문명으로 생성됨
+    }
+
+    # 선택할 컬럼 목록
+    cols_to_select = [
+        COL_MONTH,
+        COL_RATE_PCT,
+        COL_DR_M,
+        COL_DR_LAG1,
+        COL_DR_LAG2,
+        COL_E_M,
+        COL_DE_M,
+        COL_SUM_DAILY_M,
+        COL_MODEL_CV_DIFF_PCT,
+        COL_MODEL_ROLLING_CORR_LEVEL,
+        COL_MODEL_ROLLING_CORR_DELTA,
+        COL_MODEL_ROLLING_CORR_LAG1,
+        COL_MODEL_ROLLING_CORR_LAG2,
+    ]
+
+    result = df_with_rolling[cols_to_select].copy()
+    result = result.rename(columns=rename_map)
+
+    # 5. schema_version 컬럼 추가
+    result[COL_MODEL_SCHEMA_VERSION] = MODEL_SCHEMA_VERSION
+
+    # 6. month를 문자열로 변환 (CSV 호환성)
+    result[COL_MODEL_MONTH] = result[COL_MODEL_MONTH].astype(str)
+
+    # 7. 컬럼 순서 정리 (schema_version을 두 번째에)
+    col_order = [
+        COL_MODEL_MONTH,
+        COL_MODEL_SCHEMA_VERSION,
+        COL_MODEL_RATE_LEVEL_PCT,
+        COL_MODEL_RATE_CHANGE_PCT,
+        COL_MODEL_RATE_CHANGE_LAG1_PCT,
+        COL_MODEL_RATE_CHANGE_LAG2_PCT,
+        COL_MODEL_ERROR_EOM_PCT,
+        COL_MODEL_ERROR_CHANGE_PCT,
+        COL_MODEL_ERROR_DAILY_SUM_PCT,
+        COL_MODEL_CV_DIFF_PCT,
+        COL_MODEL_ROLLING_CORR_LEVEL,
+        COL_MODEL_ROLLING_CORR_DELTA,
+        COL_MODEL_ROLLING_CORR_LAG1,
+        COL_MODEL_ROLLING_CORR_LAG2,
+    ]
+    result = result[col_order]
+
+    return result
+
+
+def save_model_csv(df_model: pd.DataFrame, output_path: Path) -> None:
+    """
+    모델용 DataFrame을 CSV로 저장한다.
+
+    모든 수치 컬럼을 4자리로 라운딩하고, month 기준 오름차순 정렬 후 저장한다.
+
+    Args:
+        df_model: 모델용 DataFrame (영문 컬럼)
+        output_path: 출력 CSV 파일 경로
+
+    Raises:
+        ValueError: 필수 컬럼 누락 시
+    """
+    # 필수 컬럼 검증
+    required_cols = [COL_MODEL_MONTH, COL_MODEL_SCHEMA_VERSION]
+    missing = [col for col in required_cols if col not in df_model.columns]
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+    # 복사 및 정렬
+    df_to_save = df_model.copy()
+    df_to_save = df_to_save.sort_values(COL_MODEL_MONTH).reset_index(drop=True)
+
+    # 수치 컬럼 라운딩 (4자리)
+    # None/object 타입 컬럼은 먼저 numeric으로 변환 후 라운딩
+    numeric_cols = [
+        COL_MODEL_RATE_LEVEL_PCT,
+        COL_MODEL_RATE_CHANGE_PCT,
+        COL_MODEL_RATE_CHANGE_LAG1_PCT,
+        COL_MODEL_RATE_CHANGE_LAG2_PCT,
+        COL_MODEL_ERROR_EOM_PCT,
+        COL_MODEL_ERROR_CHANGE_PCT,
+        COL_MODEL_ERROR_DAILY_SUM_PCT,
+        COL_MODEL_CV_DIFF_PCT,
+        COL_MODEL_ROLLING_CORR_LEVEL,
+        COL_MODEL_ROLLING_CORR_DELTA,
+        COL_MODEL_ROLLING_CORR_LAG1,
+        COL_MODEL_ROLLING_CORR_LAG2,
+    ]
+    for col in numeric_cols:
+        if col in df_to_save.columns:
+            # object 타입이면 numeric으로 변환 (None -> NaN)
+            if df_to_save[col].dtype == "object":
+                df_to_save[col] = pd.to_numeric(df_to_save[col], errors="coerce")
+            df_to_save[col] = df_to_save[col].round(4)
+
+    # CSV 저장
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save.to_csv(output_path, index=False, encoding="utf-8")
+    logger.debug(f"모델용 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")

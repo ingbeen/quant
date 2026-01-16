@@ -24,9 +24,13 @@ import pandas as pd
 import pytest
 
 from qbt.tqqq.analysis_helpers import (
+    add_rate_change_lags,
+    add_rolling_features,
     aggregate_monthly,
+    build_model_dataset,
     calculate_daily_signed_log_diff,
     calculate_signed_log_diff_from_cumulative_returns,
+    save_model_csv,
     save_monthly_features,
     save_summary_statistics,
     validate_integrity,
@@ -37,9 +41,25 @@ from qbt.tqqq.constants import (
     COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
+    # 모델용 CSV 컬럼
+    COL_MODEL_CV_DIFF_PCT,
+    COL_MODEL_ERROR_CHANGE_PCT,
+    COL_MODEL_ERROR_DAILY_SUM_PCT,
+    COL_MODEL_ERROR_EOM_PCT,
+    COL_MODEL_MONTH,
+    COL_MODEL_RATE_CHANGE_LAG1_PCT,
+    COL_MODEL_RATE_CHANGE_LAG2_PCT,
+    COL_MODEL_RATE_CHANGE_PCT,
+    COL_MODEL_RATE_LEVEL_PCT,
+    COL_MODEL_ROLLING_CORR_DELTA,
+    COL_MODEL_ROLLING_CORR_LAG1,
+    COL_MODEL_ROLLING_CORR_LAG2,
+    COL_MODEL_ROLLING_CORR_LEVEL,
+    COL_MODEL_SCHEMA_VERSION,
     COL_MONTH,
     COL_RATE_PCT,
     COL_SUM_DAILY_M,
+    DEFAULT_ROLLING_WINDOW,
     # 출력용 한글 헤더 (CSV 저장 검증용)
     DISPLAY_CATEGORY,
     DISPLAY_CORR,
@@ -60,6 +80,7 @@ from qbt.tqqq.constants import (
     DISPLAY_SUM_DAILY_M,
     DISPLAY_X_VAR,
     DISPLAY_Y_VAR,
+    MODEL_SCHEMA_VERSION,
 )
 
 
@@ -616,3 +637,329 @@ class TestSaveSummaryStatistics:
                 if "." in str_value:
                     decimal_places = len(str_value.split(".")[-1])
                     assert decimal_places <= 4
+
+
+class TestAddRateChangeLags:
+    """add_rate_change_lags() 함수 테스트"""
+
+    def test_lag_columns_created_correctly(self):
+        """
+        lag 컬럼이 정확히 생성되는지 테스트
+
+        Given:
+            - dr_m 컬럼이 있는 월별 DataFrame
+            - lag_list = [1, 2]
+        When: add_rate_change_lags() 호출
+        Then:
+            - dr_lag1, dr_lag2 컬럼이 생성됨
+            - 값이 shift와 동일
+        """
+        # Given
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_DR_M: [0.1, 0.2, 0.3, 0.4, 0.5],
+            }
+        )
+
+        # When
+        result = add_rate_change_lags(monthly_df, lag_list=[1, 2])
+
+        # Then
+        assert COL_DR_LAG1 in result.columns
+        assert COL_DR_LAG2 in result.columns
+
+        # lag1 = shift(1)
+        assert pd.isna(result[COL_DR_LAG1].iloc[0])
+        assert result[COL_DR_LAG1].iloc[1] == pytest.approx(0.1)
+        assert result[COL_DR_LAG1].iloc[2] == pytest.approx(0.2)
+
+        # lag2 = shift(2)
+        assert pd.isna(result[COL_DR_LAG2].iloc[0])
+        assert pd.isna(result[COL_DR_LAG2].iloc[1])
+        assert result[COL_DR_LAG2].iloc[2] == pytest.approx(0.1)
+
+    def test_original_dataframe_not_modified(self):
+        """
+        원본 DataFrame이 변경되지 않는지 테스트 (불변성)
+
+        Given: 원본 DataFrame
+        When: add_rate_change_lags() 호출
+        Then: 원본에 lag 컬럼이 추가되지 않음
+        """
+        # Given
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=3, freq="M"),
+                COL_DR_M: [0.1, 0.2, 0.3],
+            }
+        )
+        original_columns = set(monthly_df.columns)
+
+        # When
+        add_rate_change_lags(monthly_df, lag_list=[1, 2])
+
+        # Then: 원본 변경 없음
+        assert set(monthly_df.columns) == original_columns
+
+
+class TestAddRollingFeatures:
+    """add_rolling_features() 함수 테스트"""
+
+    def test_rolling_correlation_columns_created(self):
+        """
+        rolling correlation 컬럼이 정확히 생성되는지 테스트
+
+        Given:
+            - 13개월 이상의 월별 데이터 (rolling 12M 가능)
+            - 필수 컬럼: rate_pct, dr_m, e_m, de_m, dr_lag1, dr_lag2
+        When: add_rolling_features() 호출
+        Then:
+            - rolling correlation 컬럼들이 생성됨
+        """
+        # Given: 15개월 데이터 (rolling 12 가능)
+        n = 15
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1] * n,
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: [0.002] * n,
+                COL_DR_LAG1: [None] + [0.1] * (n - 1),
+                COL_DR_LAG2: [None, None] + [0.1] * (n - 2),
+            }
+        )
+
+        # When
+        result = add_rolling_features(monthly_df, window=DEFAULT_ROLLING_WINDOW)
+
+        # Then: rolling correlation 컬럼 존재
+        assert COL_MODEL_ROLLING_CORR_LEVEL in result.columns
+        assert COL_MODEL_ROLLING_CORR_DELTA in result.columns
+        assert COL_MODEL_ROLLING_CORR_LAG1 in result.columns
+        assert COL_MODEL_ROLLING_CORR_LAG2 in result.columns
+
+    def test_fail_fast_when_data_length_less_than_window(self):
+        """
+        데이터 길이가 window 미만일 때 fail-fast (ValueError)
+
+        Fail-fast 정책: rolling 데이터 부족 시 예외 raise
+
+        Given:
+            - 10개월 데이터 (rolling 12M 불가)
+        When: add_rolling_features(window=12) 호출
+        Then: ValueError raise
+        """
+        # Given: 10개월 (window=12 미만)
+        n = 10
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1] * n,
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: [0.002] * n,
+                COL_DR_LAG1: [None] + [0.1] * (n - 1),
+                COL_DR_LAG2: [None, None] + [0.1] * (n - 2),
+            }
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match="데이터 부족|window"):
+            add_rolling_features(monthly_df, window=12)
+
+    def test_min_periods_equals_window(self):
+        """
+        min_periods = window 설정 확인 (불완전 window 허용 금지)
+
+        Given: 정확히 window 크기의 데이터
+        When: add_rolling_features() 호출
+        Then:
+            - 첫 번째 유효한 rolling 값은 window번째 행에서 시작
+            - 이전 행들은 NaN
+        """
+        # Given: 정확히 12개월 (경계 케이스)
+        n = 12
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1] * n,
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: [0.002] * n,
+                COL_DR_LAG1: [None] + [0.1] * (n - 1),
+                COL_DR_LAG2: [None, None] + [0.1] * (n - 2),
+            }
+        )
+
+        # When
+        result = add_rolling_features(monthly_df, window=12)
+
+        # Then: 첫 11개 행은 NaN (min_periods=12)
+        corr_col = COL_MODEL_ROLLING_CORR_LEVEL
+        for i in range(11):
+            assert pd.isna(result[corr_col].iloc[i]), f"행 {i}는 NaN이어야 함"
+
+        # 12번째 행(인덱스 11)부터 값 존재
+        assert pd.notna(result[corr_col].iloc[11])
+
+
+class TestBuildModelDataset:
+    """build_model_dataset() 함수 테스트"""
+
+    def test_model_dataset_has_english_columns(self):
+        """
+        모델용 DF가 영문 컬럼을 가지는지 테스트
+
+        Given: 충분한 월별 데이터 (15개월)
+        When: build_model_dataset() 호출
+        Then:
+            - 모든 컬럼이 영문
+            - schema_version 컬럼 포함
+        """
+        # Given: 15개월 데이터
+        n = 15
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1] * n,
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: [0.002] * n,
+                COL_SUM_DAILY_M: [0.001] * n,
+            }
+        )
+
+        # When
+        result = build_model_dataset(monthly_df, window=DEFAULT_ROLLING_WINDOW)
+
+        # Then: 영문 컬럼 확인
+        assert COL_MODEL_MONTH in result.columns
+        assert COL_MODEL_SCHEMA_VERSION in result.columns
+        assert COL_MODEL_RATE_LEVEL_PCT in result.columns
+        assert COL_MODEL_RATE_CHANGE_PCT in result.columns
+        assert COL_MODEL_ERROR_EOM_PCT in result.columns
+        assert COL_MODEL_ERROR_CHANGE_PCT in result.columns
+        assert COL_MODEL_CV_DIFF_PCT in result.columns
+
+        # schema_version 값 확인
+        assert (result[COL_MODEL_SCHEMA_VERSION] == MODEL_SCHEMA_VERSION).all()
+
+    def test_cv_diff_calculated_correctly(self):
+        """
+        cv_diff_pct가 정확히 계산되는지 테스트
+
+        계산: cv_diff_pct = error_change_pct - error_daily_sum_pct
+
+        Given: de_m, sum_daily_m 값이 있는 데이터
+        When: build_model_dataset() 호출
+        Then: cv_diff_pct = de_m - sum_daily_m
+        """
+        # Given
+        n = 15
+        de_m_vals = [0.002] * n
+        sum_daily_m_vals = [0.001] * n
+        expected_cv_diff = [0.001] * n  # de_m - sum_daily_m
+
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1] * n,
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: de_m_vals,
+                COL_SUM_DAILY_M: sum_daily_m_vals,
+            }
+        )
+
+        # When
+        result = build_model_dataset(monthly_df, window=DEFAULT_ROLLING_WINDOW)
+
+        # Then: cv_diff 검증
+        for i in range(n):
+            if pd.notna(result[COL_MODEL_CV_DIFF_PCT].iloc[i]):
+                assert result[COL_MODEL_CV_DIFF_PCT].iloc[i] == pytest.approx(expected_cv_diff[i], abs=1e-6)
+
+
+class TestSaveModelCsv:
+    """save_model_csv() 함수 테스트"""
+
+    def test_csv_saved_with_english_columns(self, tmp_path):
+        """
+        CSV가 영문 컬럼으로 저장되는지 테스트
+
+        Given: 모델용 DataFrame (영문 컬럼)
+        When: save_model_csv() 호출
+        Then:
+            - CSV 파일 생성
+            - 영문 컬럼명 유지
+        """
+        # Given
+        model_df = pd.DataFrame(
+            {
+                COL_MODEL_MONTH: ["2023-01", "2023-02"],
+                COL_MODEL_SCHEMA_VERSION: [MODEL_SCHEMA_VERSION, MODEL_SCHEMA_VERSION],
+                COL_MODEL_RATE_LEVEL_PCT: [4.5, 4.6],
+                COL_MODEL_RATE_CHANGE_PCT: [0.1, 0.1],
+                COL_MODEL_RATE_CHANGE_LAG1_PCT: [None, 0.1],
+                COL_MODEL_RATE_CHANGE_LAG2_PCT: [None, None],
+                COL_MODEL_ERROR_EOM_PCT: [-0.04, -0.038],
+                COL_MODEL_ERROR_CHANGE_PCT: [0.002, 0.002],
+                COL_MODEL_ERROR_DAILY_SUM_PCT: [0.001, 0.001],
+                COL_MODEL_CV_DIFF_PCT: [0.001, 0.001],
+                COL_MODEL_ROLLING_CORR_LEVEL: [None, None],
+                COL_MODEL_ROLLING_CORR_DELTA: [None, None],
+                COL_MODEL_ROLLING_CORR_LAG1: [None, None],
+                COL_MODEL_ROLLING_CORR_LAG2: [None, None],
+            }
+        )
+        output_path = tmp_path / "test_model.csv"
+
+        # When
+        save_model_csv(model_df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+
+        # 영문 컬럼명 확인
+        assert COL_MODEL_MONTH in saved_df.columns
+        assert COL_MODEL_SCHEMA_VERSION in saved_df.columns
+        assert COL_MODEL_RATE_LEVEL_PCT in saved_df.columns
+
+    def test_numeric_values_rounded_to_4_decimals(self, tmp_path):
+        """
+        수치 컬럼이 4자리로 라운딩되는지 테스트
+
+        Given: 부동소수점 오차가 있는 값
+        When: save_model_csv() 호출
+        Then: 4자리로 라운딩됨
+        """
+        # Given
+        model_df = pd.DataFrame(
+            {
+                COL_MODEL_MONTH: ["2023-01"],
+                COL_MODEL_SCHEMA_VERSION: [MODEL_SCHEMA_VERSION],
+                COL_MODEL_RATE_LEVEL_PCT: [4.123456789],
+                COL_MODEL_RATE_CHANGE_PCT: [0.099999999],
+                COL_MODEL_RATE_CHANGE_LAG1_PCT: [0.088888888],
+                COL_MODEL_RATE_CHANGE_LAG2_PCT: [0.077777777],
+                COL_MODEL_ERROR_EOM_PCT: [-0.03999999999],
+                COL_MODEL_ERROR_CHANGE_PCT: [0.00199999999],
+                COL_MODEL_ERROR_DAILY_SUM_PCT: [0.00099999999],
+                COL_MODEL_CV_DIFF_PCT: [0.00099999999],
+                COL_MODEL_ROLLING_CORR_LEVEL: [0.123456789],
+                COL_MODEL_ROLLING_CORR_DELTA: [0.234567890],
+                COL_MODEL_ROLLING_CORR_LAG1: [0.345678901],
+                COL_MODEL_ROLLING_CORR_LAG2: [0.456789012],
+            }
+        )
+        output_path = tmp_path / "test_model_round.csv"
+
+        # When
+        save_model_csv(model_df, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert saved_df[COL_MODEL_RATE_LEVEL_PCT].iloc[0] == pytest.approx(4.1235, abs=0.00001)
