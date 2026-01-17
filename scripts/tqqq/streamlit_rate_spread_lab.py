@@ -250,7 +250,7 @@ def _render_level_section(monthly_df: pd.DataFrame):
 
     try:
         level_fig = create_level_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
-        st.plotly_chart(level_fig, use_container_width=True)
+        st.plotly_chart(level_fig, width="stretch")
     except Exception as e:
         st.error(f"Level 차트 생성 실패:\n\n{str(e)}")
 
@@ -278,7 +278,7 @@ def _render_delta_section(monthly_df: pd.DataFrame):
 
         try:
             delta_fig, valid_df = create_delta_chart(monthly_df, y_col_delta, y_label_delta, lag)
-            st.plotly_chart(delta_fig, use_container_width=True)
+            st.plotly_chart(delta_fig, width="stretch")
 
             st.info(
                 f"""
@@ -376,7 +376,7 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
         yaxis_title=DISPLAY_AXIS_FREQUENCY,
         height=400,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # ============================================================
