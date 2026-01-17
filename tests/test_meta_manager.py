@@ -19,8 +19,7 @@ import json
 import pytest
 from freezegun import freeze_time
 
-from qbt.common_constants import MAX_HISTORY_COUNT
-from qbt.utils.meta_manager import save_metadata
+from qbt.utils.meta_manager import MAX_HISTORY_COUNT, save_metadata
 
 
 class TestSaveMetadata:

@@ -198,7 +198,7 @@ class TestLoadComparisonData:
 
         # Then
         from qbt.common_constants import DISPLAY_DATE
-        from qbt.tqqq.constants import COMPARISON_COLUMNS
+        from qbt.tqqq.data_loader import COMPARISON_COLUMNS
 
         for col in COMPARISON_COLUMNS:
             assert col in df.columns, f"필수 컬럼 '{col}'이 없습니다"

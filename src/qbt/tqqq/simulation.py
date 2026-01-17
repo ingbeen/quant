@@ -53,7 +53,6 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
-    INTEGRITY_TOLERANCE,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -67,7 +66,6 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
     KEY_SPREAD,
-    MAX_EXPENSE_MONTHS_DIFF,
     MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
 )
@@ -75,6 +73,14 @@ from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
 
 logger = get_logger(__name__)
+
+# 데이터 검증 및 월별 매칭 상수
+MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
+
+# 무결성 체크 허용 오차 (%)
+# abs(signed)와 abs 컬럼의 최대 차이 허용값
+# 결정 근거: 실제 데이터 관측값 (max_abs_diff=4.66e-14%) + 10% 여유 -> 1e-6%로 확정
+INTEGRITY_TOLERANCE = 1e-6  # 0.000001%
 
 
 def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, data_type: str) -> dict[str, float]:

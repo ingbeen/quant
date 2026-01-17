@@ -15,69 +15,83 @@ import numpy as np
 import pandas as pd
 
 from qbt.tqqq.constants import (
-    # 내부 컬럼 (영문 토큰)
-    COL_CATEGORY,
-    COL_CORR,
+    # 공유 컬럼 (다른 파일에서도 사용)
     COL_DE_M,
     COL_DR_LAG1,
     COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
     COL_FFR_VALUE,
-    COL_INTERCEPT,
-    COL_LAG,
-    COL_MAX_ABS_DIFF,
-    COL_MEAN_ABS_DIFF,
-    # 모델용 CSV 컬럼 (영문)
-    COL_MODEL_CV_DIFF_PCT,
-    COL_MODEL_ERROR_CHANGE_PCT,
-    COL_MODEL_ERROR_DAILY_SUM_PCT,
-    COL_MODEL_ERROR_EOM_PCT,
-    COL_MODEL_MONTH,
-    COL_MODEL_RATE_CHANGE_LAG1_PCT,
-    COL_MODEL_RATE_CHANGE_LAG2_PCT,
-    COL_MODEL_RATE_CHANGE_PCT,
-    COL_MODEL_RATE_LEVEL_PCT,
-    COL_MODEL_ROLLING_CORR_DELTA,
-    COL_MODEL_ROLLING_CORR_LAG1,
-    COL_MODEL_ROLLING_CORR_LAG2,
-    COL_MODEL_ROLLING_CORR_LEVEL,
-    COL_MODEL_SCHEMA_VERSION,
     COL_MONTH,
-    COL_N,
     COL_RATE_PCT,
-    COL_SLOPE,
-    COL_STD_DIFF,
     COL_SUM_DAILY_M,
-    COL_X_VAR,
-    COL_Y_VAR,
-    DEFAULT_LAG_LIST,
     DEFAULT_ROLLING_WINDOW,
-    # 출력용 한글 헤더
-    DISPLAY_CATEGORY,
-    DISPLAY_CORR,
-    DISPLAY_DE_M,
-    DISPLAY_DR_LAG1,
-    DISPLAY_DR_LAG2,
-    DISPLAY_DR_M,
-    DISPLAY_E_M,
-    DISPLAY_INTERCEPT,
-    DISPLAY_LAG,
-    DISPLAY_MAX_ABS_DIFF,
-    DISPLAY_MEAN_ABS_DIFF,
-    DISPLAY_MONTH,
-    DISPLAY_N,
-    DISPLAY_RATE_PCT,
-    DISPLAY_SLOPE,
-    DISPLAY_STD_DIFF,
-    DISPLAY_SUM_DAILY_M,
-    DISPLAY_X_VAR,
-    DISPLAY_Y_VAR,
-    MODEL_SCHEMA_VERSION,
 )
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
+
+# ============================================================
+# 분석 전용 상수 (이 파일에서만 사용)
+# ============================================================
+
+# 모델용 CSV 스키마 버전
+MODEL_SCHEMA_VERSION = "1.0"
+
+# 기본 lag 리스트
+DEFAULT_LAG_LIST = [1, 2]
+
+# --- 요약 통계 내부 컬럼 (영문 토큰) ---
+COL_CATEGORY = "category"  # 분석 유형
+COL_X_VAR = "x_var"  # X축 변수
+COL_Y_VAR = "y_var"  # Y축 변수
+COL_LAG = "lag"  # 시차 (월)
+COL_N = "n"  # 샘플 수
+COL_CORR = "corr"  # 상관계수
+COL_SLOPE = "slope"  # 기울기
+COL_INTERCEPT = "intercept"  # 절편
+COL_MAX_ABS_DIFF = "max_abs_diff"  # 최대 절댓값 차이 (%)
+COL_MEAN_ABS_DIFF = "mean_abs_diff"  # 평균 절댓값 차이 (%)
+COL_STD_DIFF = "std_diff"  # 표준편차 (%)
+
+# --- 월별 피처 출력 헤더 (DISPLAY_) ---
+DISPLAY_MONTH = "연월"
+DISPLAY_RATE_PCT = "금리수준(%)"
+DISPLAY_DR_M = "금리변화(%p)"
+DISPLAY_E_M = "월말누적오차(%)"
+DISPLAY_DE_M = "월간오차변화(%)"
+DISPLAY_SUM_DAILY_M = "일일오차월합(%)"
+DISPLAY_DR_LAG1 = "금리변화Lag1(%p)"
+DISPLAY_DR_LAG2 = "금리변화Lag2(%p)"
+
+# --- 요약 통계 출력 헤더 ---
+DISPLAY_CATEGORY = "분석유형"
+DISPLAY_X_VAR = "X축변수"
+DISPLAY_Y_VAR = "Y축변수"
+DISPLAY_LAG = "시차(월)"
+DISPLAY_N = "샘플수"
+DISPLAY_CORR = "상관계수"
+DISPLAY_SLOPE = "기울기"
+DISPLAY_INTERCEPT = "절편"
+DISPLAY_MAX_ABS_DIFF = "최대절댓값차이(%)"
+DISPLAY_MEAN_ABS_DIFF = "평균절댓값차이(%)"
+DISPLAY_STD_DIFF = "표준편차(%)"
+
+# --- 모델용 CSV 컬럼 (영문, AI 모델 입력용) ---
+COL_MODEL_MONTH = "month"  # 연월
+COL_MODEL_SCHEMA_VERSION = "schema_version"  # 스키마 버전
+COL_MODEL_RATE_LEVEL_PCT = "rate_level_pct"  # 금리 수준 (%)
+COL_MODEL_RATE_CHANGE_PCT = "rate_change_pct"  # 금리 변화 (%p)
+COL_MODEL_RATE_CHANGE_LAG1_PCT = "rate_change_lag1_pct"  # 금리 변화 Lag1 (%p)
+COL_MODEL_RATE_CHANGE_LAG2_PCT = "rate_change_lag2_pct"  # 금리 변화 Lag2 (%p)
+COL_MODEL_ERROR_EOM_PCT = "error_eom_pct"  # 월말 누적 오차 (%)
+COL_MODEL_ERROR_CHANGE_PCT = "error_change_pct"  # 월간 오차 변화 (%)
+COL_MODEL_ERROR_DAILY_SUM_PCT = "error_daily_sum_pct"  # 일일 오차 월합 (%)
+COL_MODEL_CV_DIFF_PCT = "cv_diff_pct"  # 교차검증 차이 (%)
+COL_MODEL_ROLLING_CORR_LEVEL = "rolling_corr_rate_level_error_eom"  # Rolling 상관: 금리수준-월말오차
+COL_MODEL_ROLLING_CORR_DELTA = "rolling_corr_rate_change_error_change"  # Rolling 상관: 금리변화-오차변화
+COL_MODEL_ROLLING_CORR_LAG1 = "rolling_corr_rate_lag1_error_change"  # Rolling 상관: 금리Lag1-오차변화
+COL_MODEL_ROLLING_CORR_LAG2 = "rolling_corr_rate_lag2_error_change"  # Rolling 상관: 금리Lag2-오차변화
 
 __all__ = [
     "calculate_signed_log_diff_from_cumulative_returns",

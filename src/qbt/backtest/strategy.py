@@ -15,7 +15,6 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
-    BUFFER_INCREMENT_PER_BUY,
     COL_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_FINAL_CAPITAL,
@@ -26,8 +25,6 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DAYS_PER_MONTH,
-    HOLD_DAYS_INCREMENT_PER_BUY,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_VALID_ROWS,
@@ -38,6 +35,11 @@ from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
 
 logger = get_logger(__name__)
+
+# 버퍼존 전략 동적 조정 상수
+BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
+HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (일)
+DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
 
 
 # ============================================================================

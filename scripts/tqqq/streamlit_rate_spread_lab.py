@@ -51,19 +51,11 @@ from qbt.tqqq.constants import (
     COL_RATE_PCT,
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
-    DEFAULT_HISTOGRAM_BINS,
-    DEFAULT_LAG_OPTIONS,
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     DEFAULT_ROLLING_WINDOW,
-    DEFAULT_STREAMLIT_COLUMNS,
     DEFAULT_TOP_N_CROSS_VALIDATION,
-    DISPLAY_AXIS_DIFF_PCT,
-    DISPLAY_AXIS_FREQUENCY,
-    DISPLAY_CHART_DIFF_DISTRIBUTION,
-    DISPLAY_DELTA_MONTHLY_PCT,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
-    KEY_META_TYPE_RATE_SPREAD_LAB,
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_RATE_SPREAD_LAB_MODEL_PATH,
     TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
@@ -72,6 +64,24 @@ from qbt.tqqq.constants import (
 from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
 from qbt.utils.meta_manager import save_metadata
+
+# ============================================================
+# Streamlit 앱 전용 상수 (이 파일에서만 사용)
+# ============================================================
+
+# --- 기본값 파라미터 ---
+DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
+DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
+DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
+
+# --- 메타데이터 타입 ---
+KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"
+
+# --- 출력용 한글 레이블 ---
+DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
+DISPLAY_AXIS_DIFF_PCT = "차이 (%)"  # X축 레이블
+DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
+DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
 
 # ============================================================
 # 저장 가드 및 데이터 빌드 (캐시)

@@ -1121,7 +1121,7 @@ class TestBacktestAccuracy:
           - 예상값 = base_hold_days + (recent_buy_count × HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import HOLD_DAYS_INCREMENT_PER_BUY
+        from qbt.backtest.strategy import HOLD_DAYS_INCREMENT_PER_BUY
 
         # Given: 여러 번 돌파하는 시나리오
         df = pd.DataFrame(

@@ -24,23 +24,6 @@ import pandas as pd
 import pytest
 
 from qbt.tqqq.analysis_helpers import (
-    add_rate_change_lags,
-    add_rolling_features,
-    aggregate_monthly,
-    build_model_dataset,
-    calculate_daily_signed_log_diff,
-    calculate_signed_log_diff_from_cumulative_returns,
-    save_model_csv,
-    save_monthly_features,
-    save_summary_statistics,
-    validate_integrity,
-)
-from qbt.tqqq.constants import (
-    COL_DE_M,
-    COL_DR_LAG1,
-    COL_DR_LAG2,
-    COL_DR_M,
-    COL_E_M,
     # 모델용 CSV 컬럼
     COL_MODEL_CV_DIFF_PCT,
     COL_MODEL_ERROR_CHANGE_PCT,
@@ -56,13 +39,10 @@ from qbt.tqqq.constants import (
     COL_MODEL_ROLLING_CORR_LAG2,
     COL_MODEL_ROLLING_CORR_LEVEL,
     COL_MODEL_SCHEMA_VERSION,
-    COL_MONTH,
-    COL_RATE_PCT,
-    COL_SUM_DAILY_M,
-    DEFAULT_ROLLING_WINDOW,
-    # 출력용 한글 헤더 (CSV 저장 검증용)
+    # 요약 통계 출력 헤더
     DISPLAY_CATEGORY,
     DISPLAY_CORR,
+    # 월별 피처 출력 헤더
     DISPLAY_DE_M,
     DISPLAY_DR_LAG1,
     DISPLAY_DR_LAG2,
@@ -80,7 +60,31 @@ from qbt.tqqq.constants import (
     DISPLAY_SUM_DAILY_M,
     DISPLAY_X_VAR,
     DISPLAY_Y_VAR,
+    # 기타 상수
     MODEL_SCHEMA_VERSION,
+    # 함수
+    add_rate_change_lags,
+    add_rolling_features,
+    aggregate_monthly,
+    build_model_dataset,
+    calculate_daily_signed_log_diff,
+    calculate_signed_log_diff_from_cumulative_returns,
+    save_model_csv,
+    save_monthly_features,
+    save_summary_statistics,
+    validate_integrity,
+)
+from qbt.tqqq.constants import (
+    # 공유 컬럼
+    COL_DE_M,
+    COL_DR_LAG1,
+    COL_DR_LAG2,
+    COL_DR_M,
+    COL_E_M,
+    COL_MONTH,
+    COL_RATE_PCT,
+    COL_SUM_DAILY_M,
+    DEFAULT_ROLLING_WINDOW,
 )
 
 

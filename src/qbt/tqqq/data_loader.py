@@ -16,14 +16,36 @@ import pandas as pd
 
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
+    COL_ACTUAL_CLOSE,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_ACTUAL_DAILY_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
+    COL_DAILY_RETURN_ABS_DIFF,
     COL_EXPENSE_DATE,
     COL_FFR_DATE,
-    COMPARISON_COLUMNS,
+    COL_SIMUL_CLOSE,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_SIMUL_DAILY_RETURN,
 )
 from qbt.utils import get_logger
 
 # 모듈 레벨 로거 생성
 logger = get_logger(__name__)
+
+# 일별 비교 데이터 필수 컬럼 목록
+COMPARISON_COLUMNS = [
+    DISPLAY_DATE,
+    COL_ACTUAL_CLOSE,
+    COL_SIMUL_CLOSE,
+    COL_ACTUAL_DAILY_RETURN,
+    COL_SIMUL_DAILY_RETURN,
+    COL_DAILY_RETURN_ABS_DIFF,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
+]
 
 
 def load_ffr_data(path: Path) -> pd.DataFrame:

@@ -16,7 +16,12 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from qbt.common_constants import MAX_HISTORY_COUNT, META_JSON_PATH
+from qbt.common_constants import META_JSON_PATH
+
+# 메타데이터 관리 상수
+# meta.json에 저장할 최대 실행 이력 개수
+# 오래된 이력은 자동으로 삭제되어 파일 크기 관리
+MAX_HISTORY_COUNT = 5
 
 # 타입 별칭(Type Alias): 복잡한 타입에 짧은 이름 부여
 # MetaDict: 문자열 키와 임의 값을 가진 딕셔너리
