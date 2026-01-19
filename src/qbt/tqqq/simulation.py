@@ -11,6 +11,8 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 """
 
 # 1. 표준 라이브러리 임포트
+import math  # 수학 함수 (isnan, isinf 등)
+from collections.abc import Callable  # 함수 타입 힌트
 from datetime import date  # 날짜 객체 사용 (년-월-일 정보)
 from pathlib import Path  # 파일 경로 처리 (문자열보다 안전)
 from typing import cast  # 타입 캐스팅 함수 (타입 힌트 시스템용)
@@ -68,11 +70,148 @@ from qbt.tqqq.constants import (
     KEY_SPREAD,
     MAX_FFR_MONTHS_DIFF,
     MAX_TOP_STRATEGIES,
+    SOFTPLUS_GRID_STAGE1_A_RANGE,
+    SOFTPLUS_GRID_STAGE1_A_STEP,
+    SOFTPLUS_GRID_STAGE1_B_RANGE,
+    SOFTPLUS_GRID_STAGE1_B_STEP,
+    SOFTPLUS_GRID_STAGE2_A_DELTA,
+    SOFTPLUS_GRID_STAGE2_A_STEP,
+    SOFTPLUS_GRID_STAGE2_B_DELTA,
+    SOFTPLUS_GRID_STAGE2_B_STEP,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
 
 logger = get_logger(__name__)
+
+# 동적 funding_spread 지원 타입 정의
+# - float: 고정 spread (기존 동작)
+# - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
+# - Callable[[date], float]: 날짜를 받아 spread를 반환하는 함수
+FundingSpreadSpec = float | dict[str, float] | Callable[[date], float]
+
+
+# ============================================================
+# Softplus 동적 스프레드 모델 함수
+# ============================================================
+
+
+def softplus(x: float) -> float:
+    """
+    수치 안정 버전 softplus 함수를 계산한다.
+
+    softplus(x) = log(1 + exp(x)) 를 수치적으로 안정하게 계산한다.
+    x가 크면 overflow, x가 작으면 underflow를 방지하는 변환 사용.
+
+    수치 안정 수식:
+        softplus(x) = log1p(exp(-abs(x))) + max(x, 0)
+
+    특성:
+        - 항상 양수 반환 (> 0)
+        - x -> -inf: 결과 -> 0 (점근)
+        - x -> +inf: 결과 -> x (점근)
+        - 부드러운 ReLU 근사 (미분 가능)
+
+    Args:
+        x: 입력 값
+
+    Returns:
+        softplus(x) 값 (항상 > 0)
+    """
+    # 수치 안정 계산: log1p(exp(-|x|)) + max(x, 0)
+    # 이 공식은 x의 부호에 관계없이 안정적으로 계산된다.
+    return math.log1p(math.exp(-abs(x))) + max(x, 0.0)
+
+
+def compute_softplus_spread(a: float, b: float, ffr_ratio: float) -> float:
+    """
+    softplus 기반 동적 spread를 계산한다.
+
+    수식: spread = softplus(a + b * ffr_pct)
+    여기서 ffr_pct = 100.0 * ffr_ratio (0~1 비율을 % 단위로 변환)
+
+    예시:
+        a = -5.0, b = 1.0, ffr_ratio = 0.05 (5%)
+        ffr_pct = 5.0
+        spread = softplus(-5.0 + 1.0 * 5.0) = softplus(0.0) ≈ 0.693
+
+    Args:
+        a: 절편 파라미터 (음수일 때 저금리 구간 spread 감소)
+        b: 기울기 파라미터 (양수일 때 고금리 구간 spread 증가)
+        ffr_ratio: 연방기금금리 (0~1 비율, 예: 0.05 = 5%)
+
+    Returns:
+        계산된 spread 값 (항상 > 0)
+
+    Raises:
+        ValueError: spread <= 0인 경우 (softplus는 이론적으로 항상 > 0이므로 방어적 체크)
+    """
+    # 1. FFR을 % 단위로 변환 (프롬프트 요구사항)
+    ffr_pct = 100.0 * ffr_ratio
+
+    # 2. softplus 계산
+    spread = softplus(a + b * ffr_pct)
+
+    # 3. 방어적 체크 (softplus는 항상 > 0이지만 수치 오류 대비)
+    if spread <= 0:
+        raise ValueError(
+            f"compute_softplus_spread 결과가 유효하지 않음: spread={spread} <= 0\n"
+            f"파라미터: a={a}, b={b}, ffr_ratio={ffr_ratio}, ffr_pct={ffr_pct}\n"
+            f"조치: 파라미터 값 확인 필요"
+        )
+
+    return spread
+
+
+def build_monthly_spread_map(
+    ffr_df: pd.DataFrame,
+    a: float,
+    b: float,
+) -> dict[str, float]:
+    """
+    FFR 데이터로부터 월별 softplus spread 맵을 생성한다.
+
+    각 월의 FFR 값에 대해 softplus(a + b * ffr_pct) 공식을 적용하여
+    월별 spread 딕셔너리를 생성한다. 이 딕셔너리는 simulate() 함수의
+    funding_spread 파라미터로 전달할 수 있다.
+
+    Args:
+        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        a: softplus 절편 파라미터
+        b: softplus 기울기 파라미터
+
+    Returns:
+        {"YYYY-MM": spread} 형태의 딕셔너리
+
+    Raises:
+        ValueError: FFR DataFrame이 비어있거나 필수 컬럼 누락 시
+        ValueError: spread 계산 결과가 유효하지 않을 때
+    """
+    # 1. 필수 컬럼 검증
+    if ffr_df.empty:
+        raise ValueError("FFR DataFrame이 비어있습니다")
+
+    required_cols = {COL_FFR_DATE, COL_FFR_VALUE}
+    missing_cols = required_cols - set(ffr_df.columns)
+    if missing_cols:
+        raise ValueError(f"FFR DataFrame 필수 컬럼 누락: {missing_cols}")
+
+    # 2. 월별 spread 계산
+    spread_map: dict[str, float] = {}
+    for _, row in ffr_df.iterrows():
+        month_key = str(row[COL_FFR_DATE])
+        ffr_ratio = float(row[COL_FFR_VALUE])
+
+        # softplus spread 계산
+        spread = compute_softplus_spread(a, b, ffr_ratio)
+        spread_map[month_key] = spread
+
+    logger.debug(
+        f"월별 spread 맵 생성 완료: {len(spread_map)}개월, "
+        f"a={a}, b={b}, spread 범위=[{min(spread_map.values()):.6f}, {max(spread_map.values()):.6f}]"
+    )
+
+    return spread_map
 
 # 데이터 검증 및 월별 매칭 상수
 MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
@@ -247,6 +386,80 @@ def _lookup_expense(date_value: date, expense_dict: dict[str, float]) -> float:
     return _lookup_monthly_data(date_value, expense_dict, MAX_EXPENSE_MONTHS_DIFF, "Expense")
 
 
+def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
+    """
+    특정 날짜의 funding_spread 값을 해석한다.
+
+    FundingSpreadSpec 타입에 따라 다르게 처리:
+    - float: 그대로 반환
+    - dict[str, float]: 월별 키 "YYYY-MM"으로 조회, 키 없으면 ValueError
+    - Callable[[date], float]: 함수 호출, 반환값 검증
+
+    제약 조건 (프롬프트에서 확정):
+    - 반환 spread는 항상 > 0 (음수 불허, 0도 불허)
+    - NaN/inf 반환 시 ValueError
+    - min/max 클리핑 금지 (검증만 수행)
+
+    Args:
+        d: 대상 날짜
+        spread_spec: funding_spread 스펙 (float, dict, 또는 Callable)
+
+    Returns:
+        해당 날짜의 spread 값 (> 0)
+
+    Raises:
+        ValueError: 키 누락, NaN/inf 반환, spread <= 0 등
+    """
+    spread: float
+
+    # 1. float 타입: 그대로 사용
+    if isinstance(spread_spec, float | int):
+        spread = float(spread_spec)
+
+    # 2. dict 타입: 월별 키 조회
+    elif isinstance(spread_spec, dict):
+        month_key = f"{d.year:04d}-{d.month:02d}"
+        if month_key not in spread_spec:
+            raise ValueError(
+                f"funding_spread dict에 키 누락: {month_key}\n"
+                f"보유 키: {sorted(spread_spec.keys())[:5]}{'...' if len(spread_spec) > 5 else ''}\n"
+                f"조치: dict에 해당 월의 spread 값을 추가하거나 float 타입 사용"
+            )
+        spread = spread_spec[month_key]
+
+    # 3. Callable 타입: 함수 호출
+    elif callable(spread_spec):
+        spread = spread_spec(d)
+
+    else:
+        raise ValueError(
+            f"지원하지 않는 funding_spread 타입: {type(spread_spec)}\n"
+            f"지원 타입: float, dict[str, float], Callable[[date], float]"
+        )
+
+    # 4. 반환값 검증: NaN/inf 체크
+    if math.isnan(spread):
+        raise ValueError(
+            f"funding_spread 반환값이 유효하지 않음: NaN (날짜: {d})\n"
+            f"조치: spread 함수 또는 dict 값 확인 필요"
+        )
+
+    if math.isinf(spread):
+        raise ValueError(
+            f"funding_spread 반환값이 유효하지 않음: inf (날짜: {d})\n"
+            f"조치: spread 함수 또는 dict 값 확인 필요"
+        )
+
+    # 5. 반환값 검증: spread > 0 (음수, 0 불허)
+    if spread <= 0:
+        raise ValueError(
+            f"funding_spread는 양수여야 합니다 (> 0): {spread} (날짜: {d})\n"
+            f"조치: spread 값을 양수로 수정"
+        )
+
+    return spread
+
+
 def validate_ffr_coverage(
     overlap_start: date,
     overlap_end: date,
@@ -322,7 +535,7 @@ def calculate_daily_cost(
     date_value: date,
     ffr_dict: dict[str, float],
     expense_dict: dict[str, float],
-    funding_spread: float,
+    funding_spread: FundingSpreadSpec,
     leverage: float,
 ) -> float:
     """
@@ -334,7 +547,10 @@ def calculate_daily_cost(
         date_value: 계산 대상 날짜
         ffr_dict: 연방기금금리 딕셔너리 ({"YYYY-MM": ffr_value})
         expense_dict: 운용비용 딕셔너리 ({"YYYY-MM": expense_value}, 0~1 비율)
-        funding_spread: FFR에 더해지는 스프레드 (예: 0.006 = 0.6%)
+        funding_spread: FFR에 더해지는 스프레드
+            - float: 고정 spread (예: 0.006 = 0.6%)
+            - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
+            - Callable[[date], float]: 날짜를 받아 spread를 반환하는 함수
         leverage: 레버리지 배율 (예: 3.0 = 3배 레버리지)
 
     Returns:
@@ -342,6 +558,7 @@ def calculate_daily_cost(
 
     Raises:
         ValueError: FFR 또는 Expense 데이터가 존재하지 않을 때
+        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0, 키 누락 등)
     """
     # 1. 해당 월의 FFR 조회 (딕셔너리 O(1) 조회)
     ffr = _lookup_ffr(date_value, ffr_dict)
@@ -349,21 +566,25 @@ def calculate_daily_cost(
     # 2. 해당 월의 Expense Ratio 조회 (딕셔너리 O(1) 조회)
     expense_ratio = _lookup_expense(date_value, expense_dict)
 
-    # 3. All-in funding rate 계산
-    # FFR은 0~1 비율이므로 직접 사용 (예: 0.05 = 5.0%)
-    funding_rate = ffr + funding_spread
+    # 3. 동적 spread 해석
+    # FundingSpreadSpec 타입에 따라 float, dict, Callable 처리
+    spread = _resolve_spread(date_value, funding_spread)
 
-    # 4. 레버리지 비용 (차입 비율 = leverage - 1)
+    # 4. All-in funding rate 계산
+    # FFR은 0~1 비율이므로 직접 사용 (예: 0.05 = 5.0%)
+    funding_rate = ffr + spread
+
+    # 5. 레버리지 비용 (차입 비율 = leverage - 1)
     # 레버리지 배율에 따라 빌린 돈의 비율 계산
     # 예: 3배 레버리지 = 자기 자본 1배 + 빌린 돈 2배 → leverage - 1 = 2
     # 예: 2배 레버리지 = 자기 자본 1배 + 빌린 돈 1배 → leverage - 1 = 1
     leverage_cost = funding_rate * (leverage - 1)
 
-    # 5. 총 연간 비용
+    # 6. 총 연간 비용
     # 레버리지 비용 + 운용 비용
     annual_cost = leverage_cost + expense_ratio
 
-    # 6. 일별 비용 (연간 거래일 수로 환산)
+    # 7. 일별 비용 (연간 거래일 수로 환산)
     # 연간 비용을 거래일 수로 나눔 (약 252일)
     daily_cost = annual_cost / TRADING_DAYS_PER_YEAR
 
@@ -377,7 +598,7 @@ def simulate(
     expense_df: pd.DataFrame,
     initial_price: float,
     ffr_df: pd.DataFrame | None = None,
-    funding_spread: float = DEFAULT_FUNDING_SPREAD,
+    funding_spread: FundingSpreadSpec = DEFAULT_FUNDING_SPREAD,
     ffr_dict: dict[str, float] | None = None,
     expense_dict: dict[str, float] | None = None,
 ) -> pd.DataFrame:
@@ -396,7 +617,10 @@ def simulate(
         expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
         initial_price: 시작 가격
         ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float), ffr_dict와 배타적
-        funding_spread: FFR에 더해지는 스프레드 (예: 0.006 = 0.6%)
+        funding_spread: FFR에 더해지는 스프레드
+            - float: 고정 spread (예: 0.006 = 0.6%)
+            - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
+            - Callable[[date], float]: 날짜를 받아 spread를 반환하는 함수
         ffr_dict: 이미 검증된 FFR 딕셔너리 (내부 사용), ffr_df와 배타적
         expense_dict: 이미 검증된 Expense 딕셔너리 (내부 사용)
 
@@ -408,6 +632,7 @@ def simulate(
         ValueError: 필수 컬럼이 누락되었을 때
         ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
         ValueError: ffr_df와 ffr_dict 모두 제공되거나 모두 누락된 경우
+        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0, 키 누락 등)
     """
     # 1. 파라미터 검증
     if leverage <= 0:
@@ -977,3 +1202,256 @@ def find_optimal_cost_model(
     top_strategies = candidates[:MAX_TOP_STRATEGIES]
 
     return top_strategies
+
+
+# ============================================================
+# Softplus 파라미터 최적화 (2-stage grid search)
+# ============================================================
+
+
+def _evaluate_softplus_candidate(params: dict) -> dict:
+    """
+    단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다.
+
+    2-stage grid search에서 병렬 실행을 위한 헬퍼 함수.
+    pickle 가능하도록 최상위 레벨에 정의한다.
+    DataFrame들과 딕셔너리들은 WORKER_CACHE에서 조회한다.
+
+    Args:
+        params: 파라미터 딕셔너리 {
+            "a": softplus 절편 파라미터,
+            "b": softplus 기울기 파라미터,
+            "leverage": 레버리지 배수,
+            "initial_price": 초기 가격,
+        }
+
+    Returns:
+        평가 결과 딕셔너리 {
+            "a": float,
+            "b": float,
+            "cumul_multiple_log_diff_rmse_pct": float,
+            ... (기타 검증 지표)
+        }
+    """
+    # WORKER_CACHE에서 DataFrame들과 딕셔너리들 조회
+    underlying_overlap = WORKER_CACHE["underlying_overlap"]
+    actual_overlap = WORKER_CACHE["actual_overlap"]
+    ffr_dict = WORKER_CACHE["ffr_dict"]
+    expense_dict = WORKER_CACHE["expense_dict"]
+
+    # softplus 파라미터로 월별 spread 맵 생성
+    # ffr_dict를 DataFrame으로 재구성
+    ffr_dates = list(ffr_dict.keys())
+    ffr_values = list(ffr_dict.values())
+    ffr_df_temp = pd.DataFrame({COL_FFR_DATE: ffr_dates, COL_FFR_VALUE: ffr_values})
+
+    spread_map = build_monthly_spread_map(ffr_df_temp, params["a"], params["b"])
+
+    # expense_df 재구성 (simulate 함수가 필요로 함)
+    expense_dates = list(expense_dict.keys())
+    expense_values = list(expense_dict.values())
+    expense_df = pd.DataFrame({COL_EXPENSE_DATE: expense_dates, COL_EXPENSE_VALUE: expense_values})
+
+    # 시뮬레이션 실행 (spread_map을 dict 타입으로 전달)
+    sim_df = simulate(
+        underlying_overlap,
+        leverage=params["leverage"],
+        expense_df=expense_df,
+        initial_price=params["initial_price"],
+        ffr_dict=ffr_dict,
+        funding_spread=spread_map,  # dict[str, float] 타입
+    )
+
+    # 검증 지표 계산
+    metrics = calculate_validation_metrics(
+        simulated_df=sim_df,
+        actual_df=actual_overlap,
+        output_path=None,  # CSV 저장 안 함
+    )
+
+    # candidate 딕셔너리 생성
+    candidate = {
+        "a": params["a"],
+        "b": params["b"],
+        "leverage": params["leverage"],
+        **metrics,
+    }
+
+    return candidate
+
+
+def find_optimal_softplus_params(
+    underlying_df: pd.DataFrame,
+    actual_leveraged_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+    max_workers: int | None = None,
+) -> tuple[float, float, float, list[dict]]:
+    """
+    softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-stage grid search로 탐색한다.
+
+    Stage 1에서 조대 그리드로 대략적인 최적점을 찾고,
+    Stage 2에서 해당 영역 주변을 정밀 탐색하여 최종 최적값을 결정한다.
+
+    목적함수: cumul_multiple_log_diff_rmse_pct 최소화
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (QQQ)
+        actual_leveraged_df: 실제 레버리지 ETF DataFrame (TQQQ)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        leverage: 레버리지 배수 (기본값: 3.0)
+        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+
+    Returns:
+        (a_best, b_best, best_rmse, all_candidates) 튜플
+            - a_best: 최적 절편 파라미터
+            - b_best: 최적 기울기 파라미터
+            - best_rmse: 최적 RMSE (%)
+            - all_candidates: 전체 후보 리스트 (Stage 1 + Stage 2)
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+        ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
+    """
+    # 1. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
+
+    # 2. FFR 커버리지 검증 (fail-fast)
+    overlap_start = underlying_overlap[COL_DATE].min()
+    overlap_end = underlying_overlap[COL_DATE].max()
+    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    # 3. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
+    ffr_dict = _create_ffr_dict(ffr_df)
+    expense_dict = _create_expense_dict(expense_df)
+
+    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
+
+    # 5. 워커 캐시 초기화 데이터 준비
+    cache_data = {
+        "underlying_overlap": underlying_overlap,
+        "actual_overlap": actual_overlap,
+        "ffr_dict": ffr_dict,
+        "expense_dict": expense_dict,
+    }
+
+    # ============================================================
+    # Stage 1: 조대 그리드 탐색
+    # ============================================================
+    logger.debug(
+        f"Stage 1 시작: a in [{SOFTPLUS_GRID_STAGE1_A_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_A_RANGE[1]}] "
+        f"step {SOFTPLUS_GRID_STAGE1_A_STEP}, "
+        f"b in [{SOFTPLUS_GRID_STAGE1_B_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_B_RANGE[1]}] "
+        f"step {SOFTPLUS_GRID_STAGE1_B_STEP}"
+    )
+
+    # Stage 1 파라미터 조합 생성
+    a_values_s1 = np.arange(
+        SOFTPLUS_GRID_STAGE1_A_RANGE[0],
+        SOFTPLUS_GRID_STAGE1_A_RANGE[1] + EPSILON,
+        SOFTPLUS_GRID_STAGE1_A_STEP,
+    )
+    b_values_s1 = np.arange(
+        SOFTPLUS_GRID_STAGE1_B_RANGE[0],
+        SOFTPLUS_GRID_STAGE1_B_RANGE[1] + EPSILON,
+        SOFTPLUS_GRID_STAGE1_B_STEP,
+    )
+
+    param_combinations_s1 = []
+    for a in a_values_s1:
+        for b in b_values_s1:
+            param_combinations_s1.append(
+                {
+                    "a": float(a),
+                    "b": float(b),
+                    "leverage": leverage,
+                    "initial_price": initial_price,
+                }
+            )
+
+    logger.debug(f"Stage 1 조합 수: {len(param_combinations_s1)}")
+
+    # Stage 1 병렬 실행
+    candidates_s1 = execute_parallel(
+        _evaluate_softplus_candidate,
+        param_combinations_s1,
+        max_workers=max_workers,
+        initializer=init_worker_cache,
+        initargs=(cache_data,),
+    )
+
+    # Stage 1 최적값 찾기
+    candidates_s1.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
+    best_s1 = candidates_s1[0]
+    a_star = best_s1["a"]
+    b_star = best_s1["b"]
+
+    logger.debug(
+        f"Stage 1 완료: a*={a_star:.4f}, b*={b_star:.4f}, "
+        f"RMSE={best_s1[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%"
+    )
+
+    # ============================================================
+    # Stage 2: 정밀 그리드 탐색
+    # ============================================================
+    logger.debug(
+        f"Stage 2 시작: a in [{a_star - SOFTPLUS_GRID_STAGE2_A_DELTA:.4f}, "
+        f"{a_star + SOFTPLUS_GRID_STAGE2_A_DELTA:.4f}] step {SOFTPLUS_GRID_STAGE2_A_STEP}, "
+        f"b in [{b_star - SOFTPLUS_GRID_STAGE2_B_DELTA:.4f}, "
+        f"{b_star + SOFTPLUS_GRID_STAGE2_B_DELTA:.4f}] step {SOFTPLUS_GRID_STAGE2_B_STEP}"
+    )
+
+    # Stage 2 파라미터 조합 생성 (a*, b* 주변)
+    a_values_s2 = np.arange(
+        a_star - SOFTPLUS_GRID_STAGE2_A_DELTA,
+        a_star + SOFTPLUS_GRID_STAGE2_A_DELTA + EPSILON,
+        SOFTPLUS_GRID_STAGE2_A_STEP,
+    )
+    b_values_s2 = np.arange(
+        max(0.0, b_star - SOFTPLUS_GRID_STAGE2_B_DELTA),  # b는 음수 불가
+        b_star + SOFTPLUS_GRID_STAGE2_B_DELTA + EPSILON,
+        SOFTPLUS_GRID_STAGE2_B_STEP,
+    )
+
+    param_combinations_s2 = []
+    for a in a_values_s2:
+        for b in b_values_s2:
+            param_combinations_s2.append(
+                {
+                    "a": float(a),
+                    "b": float(b),
+                    "leverage": leverage,
+                    "initial_price": initial_price,
+                }
+            )
+
+    logger.debug(f"Stage 2 조합 수: {len(param_combinations_s2)}")
+
+    # Stage 2 병렬 실행
+    candidates_s2 = execute_parallel(
+        _evaluate_softplus_candidate,
+        param_combinations_s2,
+        max_workers=max_workers,
+        initializer=init_worker_cache,
+        initargs=(cache_data,),
+    )
+
+    # Stage 2 최적값 찾기
+    candidates_s2.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
+    best_s2 = candidates_s2[0]
+    a_best = best_s2["a"]
+    b_best = best_s2["b"]
+    best_rmse = best_s2[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]
+
+    logger.debug(
+        f"Stage 2 완료: a_best={a_best:.4f}, b_best={b_best:.4f}, "
+        f"RMSE={best_rmse:.4f}%"
+    )
+
+    # 전체 후보 병합 (중복 제거는 하지 않음, 호출자가 필요시 처리)
+    all_candidates = candidates_s1 + candidates_s2
+
+    return a_best, b_best, best_rmse, all_candidates

@@ -278,25 +278,26 @@ class TestSimulate:
 
         Given: QQQ가 1% 상승
         When: leverage=3으로 시뮬레이션
-        Then: TQQQ는 약 3% 상승 (비용 제외 시)
+        Then: TQQQ는 약 3% 상승 (비용 최소화, spread > 0 제약으로 1e-9 사용)
         """
         # Given: QQQ 1% 상승
         underlying_df = pd.DataFrame({COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)], COL_CLOSE: [100.0, 101.0]})  # +1%
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})  # 비용 제거 (순수 레버리지 효과만 보기)
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})  # 비용 0
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})  # FFR 0
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})  # expense 0
 
-        # When: leverage=3, 비용 0
+        # When: leverage=3, 최소 spread (1e-9, spread > 0 제약 충족)
+        # 비용 영향 최소화: 1e-9 * 2 / 252 ≈ 7.9e-12 (무시 가능)
         simulated_df = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
             expense_df=expense_df,
             initial_price=30.0,
             ffr_df=ffr_df,
-            funding_spread=0.0,
+            funding_spread=1e-9,  # 최소 양수 (spread > 0 제약)
         )
 
-        # Then: QQQ +1% → TQQQ +3%
+        # Then: QQQ +1% -> TQQQ +3% (비용 영향 무시 가능)
         # 30.0 * 1.03 = 30.9
         final_price = simulated_df.iloc[1][COL_CLOSE]
         expected_price = 30.0 * 1.03
@@ -488,7 +489,7 @@ class TestFindOptimalCostModel:
                 ffr_df=ffr_df,
                 expense_df=expense_df,
                 leverage=3.0,
-                spread_range=(0.0, 0.01),
+                spread_range=(0.001, 0.01),
                 spread_step=0.005,
             )
 
@@ -531,7 +532,7 @@ class TestFindOptimalCostModel:
                 ffr_df=ffr_df,
                 expense_df=expense_df,
                 leverage=-3.0,  # 음수 레버리지로 에러 발생 시도
-                spread_range=(0.0, 0.01),
+                spread_range=(0.001, 0.01),
                 spread_step=0.01,
             )
             # 음수 레버리지는 simulate 단계에서 에러 날 수 있음
@@ -591,7 +592,7 @@ class TestFindOptimalCostModel:
                 ffr_df=ffr_df,
                 expense_df=expense_df,
                 leverage=3.0,
-                spread_range=(0.0, 0.01),
+                spread_range=(0.001, 0.01),
                 spread_step=0.01,
             )
 
@@ -627,7 +628,7 @@ class TestFindOptimalCostModel:
             ffr_df=ffr_df,
             expense_df=expense_df,
             leverage=3.0,
-            spread_range=(0.0, 0.01),
+            spread_range=(0.001, 0.01),
             spread_step=0.01,
         )
 
@@ -1275,3 +1276,668 @@ class TestCalculateDailyCostWithDynamicExpense:
 
         # Then: 양수 비용
         assert daily_cost > 0, "일일 비용은 양수여야 합니다"
+
+
+class TestSoftplusFunctions:
+    """
+    softplus 동적 스프레드 함수 테스트
+
+    softplus 함수, compute_softplus_spread, build_monthly_spread_map 함수를 검증한다.
+    """
+
+    def test_softplus_positive_input(self):
+        """
+        양수 입력에 대한 softplus 계산 테스트
+
+        Given: x = 2.0
+        When: softplus(x) 호출
+        Then: log(1 + exp(2)) ≈ 2.1269 반환
+        """
+        from qbt.tqqq.simulation import softplus
+
+        x = 2.0
+        result = softplus(x)
+
+        # log(1 + exp(2)) = log(1 + 7.389) ≈ 2.1269
+        import math
+
+        expected = math.log1p(math.exp(2.0))
+        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+
+    def test_softplus_negative_input(self):
+        """
+        음수 입력에 대한 softplus 계산 테스트
+
+        Given: x = -2.0
+        When: softplus(x) 호출
+        Then: log(1 + exp(-2)) ≈ 0.1269 반환
+        """
+        from qbt.tqqq.simulation import softplus
+
+        x = -2.0
+        result = softplus(x)
+
+        # log(1 + exp(-2)) = log(1 + 0.135) ≈ 0.1269
+        import math
+
+        expected = math.log1p(math.exp(-2.0))
+        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+
+    def test_softplus_zero_input(self):
+        """
+        0 입력에 대한 softplus 계산 테스트
+
+        Given: x = 0.0
+        When: softplus(x) 호출
+        Then: log(2) ≈ 0.693 반환
+        """
+        from qbt.tqqq.simulation import softplus
+
+        x = 0.0
+        result = softplus(x)
+
+        # log(1 + exp(0)) = log(2) ≈ 0.693
+        import math
+
+        expected = math.log(2.0)
+        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+
+    def test_softplus_always_positive(self):
+        """
+        softplus는 항상 양수를 반환해야 함
+
+        Given: 다양한 입력값 (-100, -10, 0, 10, 100)
+        When: softplus(x) 호출
+        Then: 모든 결과 > 0
+        """
+        from qbt.tqqq.simulation import softplus
+
+        test_values = [-100.0, -10.0, -1.0, 0.0, 1.0, 10.0, 100.0]
+        for x in test_values:
+            result = softplus(x)
+            assert result > 0, f"softplus({x}) = {result}가 양수가 아님"
+
+    def test_softplus_numerical_stability(self):
+        """
+        수치 안정성 테스트 (큰 양수/음수 입력)
+
+        Given: 극단적인 입력값
+        When: softplus(x) 호출
+        Then: overflow/underflow 없이 유한한 값 반환
+        """
+        import math
+
+        from qbt.tqqq.simulation import softplus
+
+        # 큰 양수: softplus(x) ≈ x
+        large_positive = 700.0  # exp(700)은 overflow 위험
+        result_pos = softplus(large_positive)
+        assert math.isfinite(result_pos), f"softplus({large_positive})가 유한하지 않음: {result_pos}"
+        assert abs(result_pos - large_positive) < 1.0, f"softplus({large_positive}) ≈ {large_positive} 예상"
+
+        # 큰 음수: softplus(x) ≈ 0 (하지만 > 0)
+        large_negative = -700.0
+        result_neg = softplus(large_negative)
+        assert math.isfinite(result_neg), f"softplus({large_negative})가 유한하지 않음: {result_neg}"
+        assert result_neg > 0, f"softplus({large_negative}) > 0 예상: {result_neg}"
+        assert result_neg < 1e-10, f"softplus({large_negative}) ≈ 0 예상: {result_neg}"
+
+    def test_compute_softplus_spread_basic(self):
+        """
+        compute_softplus_spread 기본 계산 테스트
+
+        Given: a=-5, b=1, ffr_ratio=0.05 (5%)
+        When: compute_softplus_spread 호출
+        Then: softplus(-5 + 1*5) = softplus(0) ≈ 0.693 반환
+        """
+        import math
+
+        from qbt.tqqq.simulation import compute_softplus_spread
+
+        a, b = -5.0, 1.0
+        ffr_ratio = 0.05  # 5%
+
+        result = compute_softplus_spread(a, b, ffr_ratio)
+
+        # ffr_pct = 100 * 0.05 = 5.0
+        # softplus(-5 + 1*5) = softplus(0) = log(2) ≈ 0.693
+        expected = math.log(2.0)
+        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+
+    def test_compute_softplus_spread_high_rate(self):
+        """
+        고금리 구간에서 spread 증가 테스트
+
+        Given: a=-5, b=1, 저금리(1%)와 고금리(5%) 비교
+        When: compute_softplus_spread 호출
+        Then: 고금리 spread > 저금리 spread
+        """
+        from qbt.tqqq.simulation import compute_softplus_spread
+
+        a, b = -5.0, 1.0
+
+        spread_low = compute_softplus_spread(a, b, 0.01)  # 1%
+        spread_high = compute_softplus_spread(a, b, 0.05)  # 5%
+
+        assert spread_high > spread_low, f"고금리 spread({spread_high}) > 저금리 spread({spread_low}) 예상"
+
+    def test_build_monthly_spread_map_basic(self):
+        """
+        build_monthly_spread_map 기본 동작 테스트
+
+        Given: 3개월 FFR 데이터
+        When: build_monthly_spread_map 호출
+        Then: 3개 월의 spread 딕셔너리 반환
+        """
+        from qbt.tqqq.simulation import build_monthly_spread_map
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02", "2023-03"], COL_FFR_VALUE: [0.04, 0.045, 0.05]})
+
+        a, b = -5.0, 1.0
+        result = build_monthly_spread_map(ffr_df, a, b)
+
+        # 3개 월 모두 포함
+        assert len(result) == 3, f"3개월 기대, 실제={len(result)}"
+        assert "2023-01" in result
+        assert "2023-02" in result
+        assert "2023-03" in result
+
+        # 모든 값이 양수
+        for month, spread in result.items():
+            assert spread > 0, f"{month}의 spread({spread})가 양수가 아님"
+
+        # 금리 순서대로 spread 증가 (b > 0이므로)
+        assert result["2023-03"] > result["2023-02"] > result["2023-01"], "금리 증가에 따라 spread도 증가해야 함"
+
+    def test_build_monthly_spread_map_empty_raises(self):
+        """
+        빈 FFR DataFrame 입력 시 ValueError 테스트
+
+        Given: 빈 FFR DataFrame
+        When: build_monthly_spread_map 호출
+        Then: ValueError 발생
+        """
+        from qbt.tqqq.simulation import build_monthly_spread_map
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: [], COL_FFR_VALUE: []})
+
+        with pytest.raises(ValueError, match="비어있습니다"):
+            build_monthly_spread_map(ffr_df, a=-5.0, b=1.0)
+
+
+class TestDynamicFundingSpread:
+    """
+    동적 funding_spread 지원 테스트
+
+    funding_spread가 float, dict[str, float], Callable[[date], float]
+    세 가지 타입을 모두 지원하는지 검증한다.
+    """
+
+    def test_float_spread_unchanged_behavior(self):
+        """
+        float 타입 funding_spread 기존 동작 유지 테스트
+
+        Given: funding_spread = 0.006 (float)
+        When: calculate_daily_cost 호출
+        Then: 기존과 동일하게 0.006이 적용됨
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+        date_value = date(2023, 1, 15)
+
+        # When: float spread 사용 (기존 동작)
+        daily_cost = calculate_daily_cost(
+            date_value=date_value,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=0.006,  # float
+            leverage=3.0,
+        )
+
+        # Then: 예상 비용 계산
+        # funding_rate = 0.045 + 0.006 = 0.051
+        # leverage_cost = 0.051 * 2 = 0.102
+        # annual_cost = 0.102 + 0.0095 = 0.1115
+        # daily_cost = 0.1115 / 252
+        expected_daily_cost = (0.045 + 0.006) * 2 + 0.0095
+        expected_daily_cost /= TRADING_DAYS_PER_YEAR
+
+        assert abs(daily_cost - expected_daily_cost) < 1e-10, f"기대={expected_daily_cost}, 실제={daily_cost}"
+
+    def test_dict_spread_monthly_lookup(self):
+        """
+        dict 타입 funding_spread 월별 조회 테스트
+
+        Given: funding_spread = {"2023-01": 0.004, "2023-02": 0.008}
+        When: 2023-01-15 날짜로 calculate_daily_cost 호출
+        Then: 해당 월의 spread 0.004가 적용됨
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [0.045, 0.046]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095, "2023-02": 0.0095}
+
+        # 월별 spread dict
+        spread_dict: dict[str, float] = {"2023-01": 0.004, "2023-02": 0.008}
+
+        # When: 1월 날짜로 호출
+        daily_cost_jan = calculate_daily_cost(
+            date_value=date(2023, 1, 15),
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=spread_dict,
+            leverage=3.0,
+        )
+
+        # When: 2월 날짜로 호출
+        daily_cost_feb = calculate_daily_cost(
+            date_value=date(2023, 2, 15),
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=spread_dict,
+            leverage=3.0,
+        )
+
+        # Then: 1월과 2월의 spread 차이만큼 비용 차이
+        # 차이: (0.008 - 0.004) * 2 / 252 = 0.008 / 252
+        spread_diff = 0.008 - 0.004
+        ffr_diff = 0.046 - 0.045  # FFR 차이도 고려
+        expected_diff = (spread_diff + ffr_diff) * 2 / TRADING_DAYS_PER_YEAR
+
+        actual_diff = daily_cost_feb - daily_cost_jan
+        assert abs(actual_diff - expected_diff) < 1e-10, f"기대 차이={expected_diff}, 실제 차이={actual_diff}"
+
+    def test_dict_spread_missing_key_raises(self):
+        """
+        dict 타입 funding_spread 키 누락 시 ValueError 테스트
+
+        Given: funding_spread = {"2023-01": 0.004} (2월 키 없음)
+        When: 2023-02-15 날짜로 호출
+        Then: ValueError 발생 (fail-fast)
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-02"], COL_FFR_VALUE: [0.046]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-02": 0.0095}
+
+        # 1월 키만 있는 spread dict
+        spread_dict: dict[str, float] = {"2023-01": 0.004}
+
+        # When & Then: 2월 키 없음 -> ValueError
+        with pytest.raises(ValueError, match="spread.*2023-02|키.*누락|없"):
+            calculate_daily_cost(
+                date_value=date(2023, 2, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=spread_dict,
+                leverage=3.0,
+            )
+
+    def test_callable_spread_function_call(self):
+        """
+        Callable 타입 funding_spread 함수 호출 테스트
+
+        Given: funding_spread = lambda d: 0.005 (고정 반환 함수)
+        When: calculate_daily_cost 호출
+        Then: 함수가 호출되고 반환값이 spread로 적용됨
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+
+        # 고정값 반환 함수
+        def fixed_spread_fn(d: date) -> float:
+            return 0.005
+
+        # When
+        daily_cost = calculate_daily_cost(
+            date_value=date(2023, 1, 15),
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=fixed_spread_fn,
+            leverage=3.0,
+        )
+
+        # Then: 0.005가 적용됨
+        expected_daily_cost = ((0.045 + 0.005) * 2 + 0.0095) / TRADING_DAYS_PER_YEAR
+        assert abs(daily_cost - expected_daily_cost) < 1e-10
+
+    def test_callable_spread_nan_raises(self):
+        """
+        Callable 반환값이 NaN일 때 ValueError 테스트
+
+        Given: funding_spread = lambda d: float('nan')
+        When: calculate_daily_cost 호출
+        Then: ValueError 발생 (fail-fast)
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+
+        def nan_spread_fn(d: date) -> float:
+            return float("nan")
+
+        # When & Then
+        with pytest.raises(ValueError, match="NaN|nan|유효하지 않"):
+            calculate_daily_cost(
+                date_value=date(2023, 1, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=nan_spread_fn,
+                leverage=3.0,
+            )
+
+    def test_callable_spread_inf_raises(self):
+        """
+        Callable 반환값이 inf일 때 ValueError 테스트
+
+        Given: funding_spread = lambda d: float('inf')
+        When: calculate_daily_cost 호출
+        Then: ValueError 발생 (fail-fast)
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+
+        def inf_spread_fn(d: date) -> float:
+            return float("inf")
+
+        # When & Then
+        with pytest.raises(ValueError, match="inf|무한|유효하지 않"):
+            calculate_daily_cost(
+                date_value=date(2023, 1, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=inf_spread_fn,
+                leverage=3.0,
+            )
+
+    def test_spread_zero_raises(self):
+        """
+        spread가 0일 때 ValueError 테스트
+
+        Given: funding_spread = 0.0
+        When: calculate_daily_cost 호출
+        Then: ValueError 발생 (spread > 0 필수)
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+
+        # When & Then: spread = 0 -> ValueError
+        with pytest.raises(ValueError, match="0|양수|> 0"):
+            calculate_daily_cost(
+                date_value=date(2023, 1, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=0.0,
+                leverage=3.0,
+            )
+
+    def test_spread_negative_raises(self):
+        """
+        spread가 음수일 때 ValueError 테스트
+
+        Given: funding_spread = -0.005
+        When: calculate_daily_cost 호출
+        Then: ValueError 발생 (음수 불허)
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+
+        # When & Then: 음수 spread -> ValueError
+        with pytest.raises(ValueError, match="음수|양수|> 0"):
+            calculate_daily_cost(
+                date_value=date(2023, 1, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=-0.005,
+                leverage=3.0,
+            )
+
+
+class TestFindOptimalSoftplusParams:
+    """
+    find_optimal_softplus_params() 함수 테스트
+
+    2-stage grid search로 softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 탐색한다.
+    테스트에서는 작은 그리드로 동작을 검증한다.
+    """
+
+    def test_find_optimal_softplus_params_basic(self, monkeypatch):
+        """
+        find_optimal_softplus_params() 기본 동작 테스트
+
+        Given: 간단한 기초/실제 데이터, 작은 그리드 범위로 패치
+        When: find_optimal_softplus_params() 호출
+        Then:
+          - (a_best, b_best, best_rmse, all_candidates) 튜플 반환
+          - a_best, b_best는 float
+          - best_rmse >= 0
+          - all_candidates는 list
+        """
+        # Given: 간단한 데이터 (10일)
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [100.0 + i * 0.5 for i in range(10)],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [30.0 + i * 0.45 for i in range(10)],
+            }
+        )
+
+        ffr_df = pd.DataFrame(
+            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
+        )
+        expense_df = pd.DataFrame(
+            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
+        )
+
+        # 작은 그리드로 패치 (테스트 속도 향상)
+        import qbt.tqqq.simulation as sim_module
+
+        # Stage 1: a in [-6, -5] step 1.0, b in [0.5, 1.0] step 0.5 -> 4조합
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.5, 1.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+
+        # Stage 2: delta=0.5, step=0.5 -> 작은 범위
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+
+        # When
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
+            underlying_df=underlying_df,
+            actual_leveraged_df=actual_leveraged_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            leverage=3.0,
+            max_workers=1,  # 테스트에서는 단일 워커
+        )
+
+        # Then
+        assert isinstance(a_best, float), f"a_best는 float이어야 함: {type(a_best)}"
+        assert isinstance(b_best, float), f"b_best는 float이어야 함: {type(b_best)}"
+        assert best_rmse >= 0, f"best_rmse는 0 이상이어야 함: {best_rmse}"
+        assert isinstance(all_candidates, list), "all_candidates는 list이어야 함"
+        assert len(all_candidates) > 0, "all_candidates가 비어있지 않아야 함"
+
+        # 각 candidate 구조 확인
+        first_candidate = all_candidates[0]
+        assert "a" in first_candidate, "candidate에 'a' 키 있어야 함"
+        assert "b" in first_candidate, "candidate에 'b' 키 있어야 함"
+        assert "cumul_multiple_log_diff_rmse_pct" in first_candidate, "RMSE 키 있어야 함"
+
+    def test_find_optimal_softplus_params_ffr_gap_raises(self, monkeypatch):
+        """
+        FFR 데이터 갭 초과 시 ValueError 테스트
+
+        Given: overlap이 2023-05인데 FFR은 2023-01만 존재 (4개월 초과)
+        When: find_optimal_softplus_params() 호출
+        Then: ValueError 발생
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 5, i + 2) for i in range(10)],
+                COL_CLOSE: [100.0 + i for i in range(10)],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 5, i + 2) for i in range(10)],
+                COL_CLOSE: [30.0 + i * 0.9 for i in range(10)],
+            }
+        )
+
+        # FFR 데이터는 2023-01만 존재 (4개월 차이 > MAX=2)
+        ffr_df = pd.DataFrame(
+            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
+        )
+        expense_df = pd.DataFrame(
+            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
+        )
+
+        # When & Then
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        with pytest.raises(ValueError, match="최대 2개월"):
+            find_optimal_softplus_params(
+                underlying_df=underlying_df,
+                actual_leveraged_df=actual_leveraged_df,
+                ffr_df=ffr_df,
+                expense_df=expense_df,
+                leverage=3.0,
+            )
+
+    def test_find_optimal_softplus_params_no_overlap_raises(self):
+        """
+        겹치는 기간이 없을 때 ValueError 테스트
+
+        Given: underlying과 actual_leveraged의 날짜가 완전히 다름
+        When: find_optimal_softplus_params() 호출
+        Then: ValueError 발생
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2020, 1, i + 1) for i in range(5)],
+                COL_CLOSE: [100.0 + i for i in range(5)],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 1) for i in range(5)],
+                COL_CLOSE: [30.0 + i for i in range(5)],
+            }
+        )
+
+        ffr_df = pd.DataFrame(
+            {COL_FFR_DATE: ["2020-01", "2023-01"], COL_FFR_VALUE: [0.02, 0.045]}
+        )
+        expense_df = pd.DataFrame(
+            {COL_EXPENSE_DATE: ["2020-01", "2023-01"], COL_EXPENSE_VALUE: [0.0095, 0.0095]}
+        )
+
+        # When & Then
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        with pytest.raises(ValueError, match="겹치는 기간"):
+            find_optimal_softplus_params(
+                underlying_df=underlying_df,
+                actual_leveraged_df=actual_leveraged_df,
+                ffr_df=ffr_df,
+                expense_df=expense_df,
+                leverage=3.0,
+            )
+
+    def test_find_optimal_softplus_params_candidate_structure(self, monkeypatch):
+        """
+        반환된 candidate 구조 상세 검증
+
+        Given: 간단한 데이터, 작은 그리드
+        When: find_optimal_softplus_params() 호출
+        Then: all_candidates의 각 원소가 필수 키를 포함
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(5)],
+                COL_CLOSE: [100.0, 101.0, 100.5, 102.0, 101.5],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(5)],
+                COL_CLOSE: [30.0, 30.9, 30.5, 31.5, 31.2],
+            }
+        )
+
+        ffr_df = pd.DataFrame(
+            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
+        )
+        expense_df = pd.DataFrame(
+            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
+        )
+
+        # 최소 그리드로 패치
+        import qbt.tqqq.simulation as sim_module
+
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-5.0, -5.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (1.0, 1.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 1.0)
+
+        # When
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
+            underlying_df=underlying_df,
+            actual_leveraged_df=actual_leveraged_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            leverage=3.0,
+            max_workers=1,
+        )
+
+        # Then: 필수 키 확인
+        required_keys = [
+            "a",
+            "b",
+            "leverage",
+            "overlap_start",
+            "overlap_end",
+            "overlap_days",
+            "cumul_multiple_log_diff_rmse_pct",
+            "cumul_multiple_log_diff_mean_pct",
+            "cumul_multiple_log_diff_max_pct",
+        ]
+
+        for candidate in all_candidates:
+            for key in required_keys:
+                assert key in candidate, f"candidate에 '{key}' 키가 있어야 함: {candidate.keys()}"

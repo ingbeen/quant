@@ -106,6 +106,15 @@ __all__ = [
     "DEFAULT_MIN_MONTHS_FOR_ANALYSIS",
     "DEFAULT_TOP_N_CROSS_VALIDATION",
     "DEFAULT_ROLLING_WINDOW",
+    # Softplus 동적 스프레드 모델 파라미터
+    "SOFTPLUS_GRID_STAGE1_A_RANGE",
+    "SOFTPLUS_GRID_STAGE1_A_STEP",
+    "SOFTPLUS_GRID_STAGE1_B_RANGE",
+    "SOFTPLUS_GRID_STAGE1_B_STEP",
+    "SOFTPLUS_GRID_STAGE2_A_DELTA",
+    "SOFTPLUS_GRID_STAGE2_A_STEP",
+    "SOFTPLUS_GRID_STAGE2_B_DELTA",
+    "SOFTPLUS_GRID_STAGE2_B_STEP",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -134,6 +143,23 @@ MAX_TOP_STRATEGIES = 50  # find_optimal_cost_model 반환 상위 전략 수
 DEFAULT_MIN_MONTHS_FOR_ANALYSIS = 13  # Rolling 12M 상관 계산 위해 최소 13개월
 DEFAULT_TOP_N_CROSS_VALIDATION = 5  # 교차검증 상위 표시 개수
 DEFAULT_ROLLING_WINDOW = 12  # Rolling 상관 계산 window (12개월)
+
+# ============================================================
+# Softplus 동적 스프레드 모델 파라미터
+# ============================================================
+
+# --- 2-Stage Grid Search 범위 ---
+# Stage 1: 조대 그리드 탐색
+SOFTPLUS_GRID_STAGE1_A_RANGE = (-10.0, -3.0)  # a 파라미터 범위
+SOFTPLUS_GRID_STAGE1_A_STEP = 0.25  # a 파라미터 증분
+SOFTPLUS_GRID_STAGE1_B_RANGE = (0.00, 1.50)  # b 파라미터 범위
+SOFTPLUS_GRID_STAGE1_B_STEP = 0.05  # b 파라미터 증분
+
+# Stage 2: 정밀 그리드 탐색 (Stage 1 최적값 주변)
+SOFTPLUS_GRID_STAGE2_A_DELTA = 0.75  # a 파라미터 탐색 반경
+SOFTPLUS_GRID_STAGE2_A_STEP = 0.05  # a 파라미터 증분
+SOFTPLUS_GRID_STAGE2_B_DELTA = 0.30  # b 파라미터 탐색 반경
+SOFTPLUS_GRID_STAGE2_B_STEP = 0.02  # b 파라미터 증분
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

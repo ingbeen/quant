@@ -858,6 +858,19 @@ def add_rolling_features(
     else:
         result[COL_MODEL_ROLLING_CORR_LAG2] = pd.NA
 
+    # inf/NaN 가드: rolling correlation 계산 후 ±inf 값을 NaN으로 치환
+    # inf 발생 원인: 윈도우 내 표준편차가 0인 경우 (상수 시퀀스)
+    rolling_corr_cols = [
+        COL_MODEL_ROLLING_CORR_LEVEL,
+        COL_MODEL_ROLLING_CORR_DELTA,
+        COL_MODEL_ROLLING_CORR_LAG1,
+        COL_MODEL_ROLLING_CORR_LAG2,
+    ]
+    for col in rolling_corr_cols:
+        if col in result.columns:
+            # inf -> NaN 치환 (양/음 모두)
+            result[col] = result[col].replace([np.inf, -np.inf], np.nan)
+
     return result
 
 

@@ -808,6 +808,84 @@ class TestAddRollingFeatures:
         # 12번째 행(인덱스 11)부터 값 존재
         assert pd.notna(result[corr_col].iloc[11])
 
+    def test_inf_values_replaced_with_nan(self):
+        """
+        rolling correlation 계산 결과에서 inf 값이 NaN으로 치환되는지 테스트
+
+        inf 발생 원인: 윈도우 내 표준편차가 0인 경우 (상수 시퀀스)
+
+        Given: 상수 값으로 구성된 일부 컬럼 데이터 (표준편차 0)
+        When: add_rolling_features() 호출
+        Then: inf 값은 NaN으로 치환됨
+        """
+        import numpy as np
+
+        # Given: 15개월 데이터, dr_m과 de_m이 모두 상수 (상관계수 계산 불가)
+        n = 15
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],  # 변동 있음
+                COL_DR_M: [0.0] * n,  # 상수 (표준편차 0)
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],  # 변동 있음
+                COL_DE_M: [0.0] * n,  # 상수 (표준편차 0)
+                COL_DR_LAG1: [0.0] * n,  # 상수
+                COL_DR_LAG2: [0.0] * n,  # 상수
+            }
+        )
+
+        # When
+        result = add_rolling_features(monthly_df, window=DEFAULT_ROLLING_WINDOW)
+
+        # Then: 상관계수 컬럼에 inf가 없어야 함 (NaN으로 치환)
+        rolling_cols = [
+            COL_MODEL_ROLLING_CORR_LEVEL,
+            COL_MODEL_ROLLING_CORR_DELTA,
+            COL_MODEL_ROLLING_CORR_LAG1,
+            COL_MODEL_ROLLING_CORR_LAG2,
+        ]
+
+        for col in rolling_cols:
+            if col in result.columns:
+                has_inf = np.isinf(result[col]).any()
+                assert not has_inf, f"{col}에 inf 값이 있으면 안 됨 (NaN으로 치환되어야 함)"
+
+    def test_inf_guard_preserves_valid_correlations(self):
+        """
+        inf 가드가 유효한 상관계수 값은 보존하는지 테스트
+
+        Given: 정상적인 변동 데이터 (상관계수 계산 가능)
+        When: add_rolling_features() 호출
+        Then: 유효한 상관계수 값이 보존됨 (-1 ~ 1 범위)
+        """
+        import numpy as np
+
+        # Given: 15개월 데이터, 모든 컬럼에 변동 있음
+        n = 15
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                COL_RATE_PCT: [4.0 + i * 0.1 for i in range(n)],
+                COL_DR_M: [0.1 + i * 0.01 for i in range(n)],  # 변동 있음
+                COL_E_M: [-0.04 + i * 0.002 for i in range(n)],
+                COL_DE_M: [0.002 + i * 0.001 for i in range(n)],  # 변동 있음
+                COL_DR_LAG1: [None] + [0.1 + i * 0.01 for i in range(n - 1)],
+                COL_DR_LAG2: [None, None] + [0.1 + i * 0.01 for i in range(n - 2)],
+            }
+        )
+
+        # When
+        result = add_rolling_features(monthly_df, window=DEFAULT_ROLLING_WINDOW)
+
+        # Then: 마지막 행의 rolling correlation이 유효한 범위 (-1 ~ 1)
+        last_idx = len(result) - 1
+        level_corr = result[COL_MODEL_ROLLING_CORR_LEVEL].iloc[last_idx]
+
+        # NaN이 아니면 -1 ~ 1 범위
+        if pd.notna(level_corr):
+            assert -1.0 <= level_corr <= 1.0, f"상관계수는 -1 ~ 1 범위: {level_corr}"
+            assert not np.isinf(level_corr), f"inf 값이면 안 됨: {level_corr}"
+
 
 class TestBuildModelDataset:
     """build_model_dataset() 함수 테스트"""
