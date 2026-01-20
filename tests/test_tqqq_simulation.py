@@ -1739,12 +1739,8 @@ class TestFindOptimalSoftplusParams:
             }
         )
 
-        ffr_df = pd.DataFrame(
-            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
-        )
-        expense_df = pd.DataFrame(
-            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
-        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 작은 그리드로 패치 (테스트 속도 향상)
         import qbt.tqqq.simulation as sim_module
@@ -1810,12 +1806,8 @@ class TestFindOptimalSoftplusParams:
         )
 
         # FFR 데이터는 2023-01만 존재 (4개월 차이 > MAX=2)
-        ffr_df = pd.DataFrame(
-            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
-        )
-        expense_df = pd.DataFrame(
-            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
-        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # When & Then
         from qbt.tqqq.simulation import find_optimal_softplus_params
@@ -1852,12 +1844,8 @@ class TestFindOptimalSoftplusParams:
             }
         )
 
-        ffr_df = pd.DataFrame(
-            {COL_FFR_DATE: ["2020-01", "2023-01"], COL_FFR_VALUE: [0.02, 0.045]}
-        )
-        expense_df = pd.DataFrame(
-            {COL_EXPENSE_DATE: ["2020-01", "2023-01"], COL_EXPENSE_VALUE: [0.0095, 0.0095]}
-        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2020-01", "2023-01"], COL_FFR_VALUE: [0.02, 0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2020-01", "2023-01"], COL_EXPENSE_VALUE: [0.0095, 0.0095]})
 
         # When & Then
         from qbt.tqqq.simulation import find_optimal_softplus_params
@@ -1894,12 +1882,8 @@ class TestFindOptimalSoftplusParams:
             }
         )
 
-        ffr_df = pd.DataFrame(
-            {COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]}
-        )
-        expense_df = pd.DataFrame(
-            {COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]}
-        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 최소 그리드로 패치
         import qbt.tqqq.simulation as sim_module

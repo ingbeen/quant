@@ -200,3 +200,136 @@ class TestSaveMetadata:
         # 내용 확인
         assert saved_data["grid_results"][0]["test"] == "grid"
         assert saved_data["tqqq_validation"][0]["test"] == "tqqq"
+
+    @freeze_time("2023-10-15 09:00:00")
+    def test_softplus_tuning_metadata_format(self, mock_results_dir):
+        """
+        Softplus 튜닝 메타데이터 형식 검증 테스트
+
+        Phase 6에서 추가된 메타 기록 형식을 검증한다.
+        tqqq_softplus_tuning 타입이 올바르게 저장되는지 확인한다.
+
+        Given: Softplus 튜닝 결과 메타데이터 (필수 키 포함)
+        When: save_metadata("tqqq_softplus_tuning", ...) 호출
+        Then:
+          - meta.json에 tqqq_softplus_tuning 키 생성
+          - 필수 키들이 모두 포함됨 (funding_spread_mode, softplus_a, softplus_b 등)
+          - output_files 키 포함 확인
+        """
+        # Given: Softplus 튜닝 결과 메타데이터
+        tuning_metadata = {
+            "funding_spread_mode": "softplus_ffr_monthly",
+            "softplus_a": -5.25,
+            "softplus_b": 0.85,
+            "ffr_scale": "pct",
+            "objective": "cumul_multiple_log_diff_rmse_pct",
+            "best_rmse_pct": 1.234,
+            "grid_settings": {
+                "stage1": {
+                    "a_range": [-10.0, -3.0],
+                    "a_step": 0.25,
+                    "b_range": [0.0, 1.5],
+                    "b_step": 0.05,
+                    "combinations": 899,
+                },
+                "stage2": {
+                    "a_delta": 0.75,
+                    "a_step": 0.05,
+                    "b_delta": 0.30,
+                    "b_step": 0.02,
+                    "combinations": 961,
+                },
+            },
+            "input_files": {
+                "qqq_data": "storage/stock/QQQ_max.csv",
+                "tqqq_data": "storage/stock/TQQQ_max.csv",
+                "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+                "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+            },
+            "output_files": {
+                "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
+                "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
+                "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv",
+            },
+        }
+
+        # When: 메타데이터 저장
+        save_metadata("tqqq_softplus_tuning", tuning_metadata)
+
+        # Then: 파일 내용 검증
+        meta_path = mock_results_dir["META_JSON_PATH"]
+        with open(meta_path, encoding="utf-8") as f:
+            saved_data = json.load(f)
+
+        assert "tqqq_softplus_tuning" in saved_data, "tqqq_softplus_tuning 키가 있어야 합니다"
+        assert len(saved_data["tqqq_softplus_tuning"]) == 1
+
+        entry = saved_data["tqqq_softplus_tuning"][0]
+
+        # 필수 키 검증
+        assert entry["funding_spread_mode"] == "softplus_ffr_monthly"
+        assert entry["softplus_a"] == -5.25
+        assert entry["softplus_b"] == 0.85
+        assert entry["ffr_scale"] == "pct"
+        assert entry["objective"] == "cumul_multiple_log_diff_rmse_pct"
+        assert entry["best_rmse_pct"] == 1.234
+
+        # grid_settings 구조 검증
+        assert "grid_settings" in entry
+        assert "stage1" in entry["grid_settings"]
+        assert "stage2" in entry["grid_settings"]
+        assert entry["grid_settings"]["stage1"]["combinations"] == 899
+        assert entry["grid_settings"]["stage2"]["combinations"] == 961
+
+        # output_files 키 포함 확인
+        assert "output_files" in entry, "output_files 키가 포함되어야 합니다"
+        assert "monthly_csv" in entry["output_files"]
+        assert "summary_csv" in entry["output_files"]
+        assert "model_csv" in entry["output_files"]
+
+        # 타임스탬프 자동 추가 확인
+        assert "timestamp" in entry
+        assert "2023-10-15" in entry["timestamp"]
+
+    @freeze_time("2023-11-01 10:00:00")
+    def test_rate_spread_lab_metadata_with_output_files(self, mock_results_dir):
+        """
+        rate_spread_lab 메타데이터에 output_files 키 포함 검증
+
+        Phase 6에서 추가된 output_files 키가 tqqq_rate_spread_lab 타입에서도
+        올바르게 저장되는지 확인한다.
+
+        Given: rate_spread_lab 메타데이터 (output_files 포함)
+        When: save_metadata("tqqq_rate_spread_lab", ...) 호출
+        Then: output_files 키가 올바르게 저장됨
+        """
+        # Given
+        metadata = {
+            "input_files": {
+                "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
+                "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+            },
+            "output_files": {
+                "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
+                "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
+            },
+            "analysis_period": {
+                "month_min": "2010-03",
+                "month_max": "2023-12",
+                "total_months": 166,
+            },
+        }
+
+        # When
+        save_metadata("tqqq_rate_spread_lab", metadata)
+
+        # Then
+        meta_path = mock_results_dir["META_JSON_PATH"]
+        with open(meta_path, encoding="utf-8") as f:
+            saved_data = json.load(f)
+
+        entry = saved_data["tqqq_rate_spread_lab"][0]
+        assert "output_files" in entry
+        assert "monthly_csv" in entry["output_files"]
+        assert "summary_csv" in entry["output_files"]
+        assert entry["analysis_period"]["total_months"] == 166

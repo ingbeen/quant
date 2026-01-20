@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🔄 In Progress
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-01-19 20:30
-**마지막 업데이트**: 2026-01-19 20:30
+**마지막 업데이트**: 2026-01-20
 **관련 범위**: tqqq, scripts/tqqq, utils
 **관련 문서**: src/qbt/tqqq/CLAUDE.md, scripts/CLAUDE.md, tests/CLAUDE.md
 
@@ -41,13 +41,13 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: `funding_spread` 동적 입력 지원 (float, dict[str, float], Callable[[date], float])
-- [ ] 목표 2: softplus 기반 f(FFR) 동적 스프레드 함수 구현 (`spread = softplus(a + b * ffr_pct)`)
-- [ ] 목표 3: (a, b) 글로벌 튜닝 기능 구현 (2-stage grid search, RMSE 최소화)
-- [ ] 목표 4: rolling corr inf/NaN 가드 구현
-- [ ] 목표 5: meta.json append 기록 기능 추가
-- [ ] 목표 6: Streamlit 앱에 softplus 동적 모드 추가 (기존 고정 spread 유지)
-- [ ] 목표 7: 베이스라인 동일성 검증 (고정 float spread 모드 결과가 수정 전과 동일)
+- [x] 목표 1: `funding_spread` 동적 입력 지원 (float, dict[str, float], Callable[[date], float])
+- [x] 목표 2: softplus 기반 f(FFR) 동적 스프레드 함수 구현 (`spread = softplus(a + b * ffr_pct)`)
+- [x] 목표 3: (a, b) 글로벌 튜닝 기능 구현 (2-stage grid search, RMSE 최소화)
+- [x] 목표 4: rolling corr inf/NaN 가드 구현
+- [x] 목표 5: meta.json append 기록 기능 추가
+- [x] 목표 6: Streamlit 앱에 softplus 동적 모드 추가 (기존 고정 spread 유지)
+- [x] 목표 7: 베이스라인 동일성 검증 (고정 float spread 모드 결과가 수정 전과 동일)
 
 ## 2) 비목표(Non-Goals)
 
@@ -89,14 +89,14 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 고정 spread(float) 모드 실행 시 수정 전과 동일한 결과 (핵심 지표 포함)
-- [ ] softplus 동적 모드가 실행 가능 (글로벌 (a,b) 탐색/선정)
-- [ ] rolling corr inf 제거 확인
-- [ ] meta.json에 append 기록 확인
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] 고정 spread(float) 모드 실행 시 수정 전과 동일한 결과 (핵심 지표 포함)
+- [x] softplus 동적 모드가 실행 가능 (글로벌 (a,b) 탐색/선정)
+- [x] rolling corr inf 제거 확인
+- [x] meta.json에 append 기록 확인
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (passed=230, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -240,18 +240,18 @@
 
 **작업 내용**:
 
-- [ ] 기존 고정 spread 실행 경로 유지 (베이스라인 검증용)
-- [ ] softplus 동적 spread 모드 실행 경로 추가
+- [x] 기존 고정 spread 실행 경로 유지 (베이스라인 검증용)
+- [x] softplus 동적 spread 모드 실행 경로 추가
   - 사이드바 또는 탭으로 모드 선택 UI 추가
   - "(a, b) 글로벌 튜닝 실행" 버튼
   - 튜닝 진행 상황 표시 (progress bar)
   - 결과 표시: 최적 (a, b), RMSE, 그리드 서치 결과 테이블
-- [ ] 결과 CSV 자동 저장 (기존 3개 CSV 유지)
-- [ ] 캐시 정책 유지 (st.cache_resource, st.cache_data)
+- [x] 결과 CSV 자동 저장 (기존 3개 CSV 유지)
+- [x] 캐시 정책 유지 (st.cache_resource, st.cache_data)
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=228, failed=0, skipped=0)
 
 ---
 
@@ -259,8 +259,8 @@
 
 **작업 내용**:
 
-- [ ] Streamlit 앱에서 튜닝 실행 시 meta.json에 append 기록
-- [ ] 기록 키 (최소 포함):
+- [x] Streamlit 앱에서 튜닝 실행 시 meta.json에 append 기록
+- [x] 기록 키 (최소 포함):
   - `funding_spread_mode`: `"fixed_float"` / `"softplus_ffr_monthly"`
   - `softplus_a`, `softplus_b`
   - `ffr_scale`: `"pct"`
@@ -268,11 +268,11 @@
   - `grid_settings`: stage1/stage2 범위/스텝
   - `output_files`: 기존 3개 CSV 경로
   - `best_rmse_pct`: 최적 RMSE 값
-- [ ] 테스트 추가: 메타 기록 형식 검증
+- [x] 테스트 추가: 메타 기록 형식 검증
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=230, failed=0, skipped=0)
 
 ---
 
@@ -280,15 +280,15 @@
 
 **작업 내용**:
 
-- [ ] 고정 spread(float) 모드로 Streamlit 앱 실행
-- [ ] Phase 0에서 백업한 CSV와 비교
+- [x] 고정 spread(float) 모드로 Streamlit 앱 실행
+- [x] Phase 0에서 백업한 CSV와 비교
   - 핵심 지표가 동일한지 확인 (summary CSV 비교)
   - 소수점 허용 오차 고려 (부동소수점 특성)
-- [ ] 검증 결과 문서화
+- [x] 검증 결과 문서화 (3개 CSV 모두 바이트 단위 동일 확인)
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=230, failed=0, skipped=0)
 
 ---
 
@@ -296,15 +296,15 @@
 
 **작업 내용**
 
-- [ ] 필요한 문서 업데이트 (CLAUDE.md 등)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트 (meta_manager.py에 tqqq_softplus_tuning 타입 추가)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=230, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) - 5개 중 1개 선택
 
@@ -357,5 +357,9 @@ spread = softplus(a + b * ffr_pct)
 ### 진행 로그 (KST)
 
 - 2026-01-19 20:30: 계획서 초안 작성
+- 2026-01-19: Phase 0-5 완료
+- 2026-01-20: Phase 6 완료 (VALID_CSV_TYPES에 tqqq_softplus_tuning 추가, 테스트 추가)
+- 2026-01-20: Phase 7 완료 (3개 CSV 베이스라인 동일성 검증 완료)
+- 2026-01-20: 마지막 Phase 완료 (black 포맷, validate_project.py passed=230)
 
 ---

@@ -9,6 +9,7 @@
 - Level 탭: 금리 수준 vs 월말 누적 signed 오차
 - Delta 탭: 금리 변화 vs 오차 변화, Lag 효과, Rolling 상관
 - 교차검증: de_m vs sum_daily_m 차이 분석
+- Softplus 동적 Spread 튜닝: 금리 수준에 따른 동적 spread 파라미터 최적화
 
 CSV 저장:
 - 서버 최초 기동 시 1회만 자동 저장 (st.cache_resource 사용)
@@ -31,7 +32,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import DISPLAY_DATE
+from qbt.common_constants import DISPLAY_DATE, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
@@ -55,14 +56,31 @@ from qbt.tqqq.constants import (
     DEFAULT_ROLLING_WINDOW,
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
+    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    SOFTPLUS_GRID_STAGE1_A_RANGE,
+    SOFTPLUS_GRID_STAGE1_A_STEP,
+    SOFTPLUS_GRID_STAGE1_B_RANGE,
+    SOFTPLUS_GRID_STAGE1_B_STEP,
+    SOFTPLUS_GRID_STAGE2_A_DELTA,
+    SOFTPLUS_GRID_STAGE2_A_STEP,
+    SOFTPLUS_GRID_STAGE2_B_DELTA,
+    SOFTPLUS_GRID_STAGE2_B_STEP,
     TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_DATA_PATH,
     TQQQ_RATE_SPREAD_LAB_MODEL_PATH,
     TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
     TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH,
 )
-from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
+from qbt.tqqq.data_loader import (
+    load_comparison_data,
+    load_expense_ratio_data,
+    load_ffr_data,
+)
+from qbt.tqqq.simulation import find_optimal_softplus_params
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
+from qbt.utils.data_loader import load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 # ============================================================
@@ -76,6 +94,15 @@ DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
 
 # --- 메타데이터 타입 ---
 KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"
+KEY_META_TYPE_SOFTPLUS_TUNING = "tqqq_softplus_tuning"
+
+# --- Softplus 튜닝 모드 관련 ---
+MODE_FIXED_SPREAD = "고정 Spread (기본)"
+MODE_SOFTPLUS_DYNAMIC = "Softplus 동적 Spread"
+
+# --- 세션 상태 키 ---
+KEY_SESSION_TUNING_RESULT = "softplus_tuning_result"
+KEY_SESSION_TUNING_RUNNING = "softplus_tuning_running"
 
 # --- 출력용 한글 레이블 ---
 DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
@@ -462,6 +489,250 @@ def _save_outputs_once(monthly_df: pd.DataFrame):
 
 
 # ============================================================
+# Softplus 튜닝 관련 함수
+# ============================================================
+
+
+@st.cache_data(show_spinner=False)
+def _load_tuning_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Softplus 튜닝에 필요한 데이터를 로드한다.
+
+    캐시되므로 서버 런 동안 1회만 로드된다.
+
+    Returns:
+        (qqq_df, tqqq_df, ffr_df, expense_df) 튜플
+    """
+    qqq_df = load_stock_data(QQQ_DATA_PATH)
+    tqqq_df = load_stock_data(TQQQ_DATA_PATH)
+    ffr_df = load_ffr_data(FFR_DATA_PATH)
+    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
+    return qqq_df, tqqq_df, ffr_df, expense_df
+
+
+def _run_softplus_tuning() -> dict | None:
+    """
+    Softplus 파라미터 2-stage grid search 튜닝을 실행한다.
+
+    진행 상황을 progress bar로 표시하며, 완료 후 결과를 세션 상태에 저장한다.
+
+    Returns:
+        튜닝 결과 딕셔너리 또는 None (실패 시)
+    """
+    try:
+        # 데이터 로드 (캐시됨)
+        with st.spinner("데이터 로딩 중..."):
+            qqq_df, tqqq_df, ffr_df, expense_df = _load_tuning_data()
+
+        # 튜닝 실행 (시간이 오래 걸릴 수 있음)
+        progress_bar = st.progress(0, text="Stage 1: 조대 그리드 탐색 시작...")
+
+        # Stage 1 조합 수 계산 (사전 정보 표시용)
+        a_count_s1 = (
+            int((SOFTPLUS_GRID_STAGE1_A_RANGE[1] - SOFTPLUS_GRID_STAGE1_A_RANGE[0]) / SOFTPLUS_GRID_STAGE1_A_STEP) + 1
+        )
+        b_count_s1 = (
+            int((SOFTPLUS_GRID_STAGE1_B_RANGE[1] - SOFTPLUS_GRID_STAGE1_B_RANGE[0]) / SOFTPLUS_GRID_STAGE1_B_STEP) + 1
+        )
+        total_s1 = a_count_s1 * b_count_s1
+
+        # Stage 2 조합 수 계산
+        a_count_s2 = int(2 * SOFTPLUS_GRID_STAGE2_A_DELTA / SOFTPLUS_GRID_STAGE2_A_STEP) + 1
+        b_count_s2 = int(2 * SOFTPLUS_GRID_STAGE2_B_DELTA / SOFTPLUS_GRID_STAGE2_B_STEP) + 1
+        total_s2 = a_count_s2 * b_count_s2
+
+        progress_bar.progress(10, text=f"Stage 1: {total_s1}개 조합 탐색 중... (약 1-2분 소요)")
+
+        # 튜닝 실행
+        a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
+            underlying_df=qqq_df,
+            actual_leveraged_df=tqqq_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+        )
+
+        progress_bar.progress(100, text="튜닝 완료!")
+
+        # 결과 저장
+        result = {
+            "a_best": a_best,
+            "b_best": b_best,
+            "best_rmse": best_rmse,
+            "all_candidates": all_candidates,
+            "stage1_count": total_s1,
+            "stage2_count": total_s2,
+        }
+
+        # meta.json에 기록
+        _save_softplus_tuning_metadata(result)
+
+        return result
+
+    except Exception as e:
+        st.error(f"튜닝 실행 실패:\n\n{str(e)}")
+        return None
+
+
+def _save_softplus_tuning_metadata(result: dict) -> None:
+    """
+    Softplus 튜닝 결과를 meta.json에 기록한다.
+
+    Args:
+        result: 튜닝 결과 딕셔너리
+    """
+    metadata = {
+        "funding_spread_mode": "softplus_ffr_monthly",
+        "softplus_a": result["a_best"],
+        "softplus_b": result["b_best"],
+        "ffr_scale": "pct",
+        "objective": "cumul_multiple_log_diff_rmse_pct",
+        "best_rmse_pct": result["best_rmse"],
+        "grid_settings": {
+            "stage1": {
+                "a_range": list(SOFTPLUS_GRID_STAGE1_A_RANGE),
+                "a_step": SOFTPLUS_GRID_STAGE1_A_STEP,
+                "b_range": list(SOFTPLUS_GRID_STAGE1_B_RANGE),
+                "b_step": SOFTPLUS_GRID_STAGE1_B_STEP,
+                "combinations": result["stage1_count"],
+            },
+            "stage2": {
+                "a_delta": SOFTPLUS_GRID_STAGE2_A_DELTA,
+                "a_step": SOFTPLUS_GRID_STAGE2_A_STEP,
+                "b_delta": SOFTPLUS_GRID_STAGE2_B_DELTA,
+                "b_step": SOFTPLUS_GRID_STAGE2_B_STEP,
+                "combinations": result["stage2_count"],
+            },
+        },
+        "input_files": {
+            "qqq_data": str(QQQ_DATA_PATH),
+            "tqqq_data": str(TQQQ_DATA_PATH),
+            "ffr_data": str(FFR_DATA_PATH),
+            "expense_data": str(EXPENSE_RATIO_DATA_PATH),
+        },
+        "output_files": {
+            "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
+            "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
+            "model_csv": str(TQQQ_RATE_SPREAD_LAB_MODEL_PATH),
+        },
+    }
+    save_metadata(KEY_META_TYPE_SOFTPLUS_TUNING, metadata)
+
+
+def _render_softplus_section() -> None:
+    """Softplus 동적 Spread 튜닝 섹션을 렌더링한다."""
+    st.header("Softplus 동적 Spread 파라미터 튜닝")
+
+    st.markdown(
+        """
+        **목적**: 금리 수준에 따라 funding spread를 동적으로 조정하는 softplus 모델의 최적 파라미터 (a, b)를 탐색합니다.
+
+        **수식**: `spread = softplus(a + b * ffr_pct)`
+
+        - `ffr_pct`: 연방기금금리 (%, 예: 5.0 = 5%)
+        - `a`: 절편 파라미터 (음수일 때 저금리 구간 spread 감소)
+        - `b`: 기울기 파라미터 (양수일 때 고금리 구간 spread 증가)
+        - `softplus(x)`: log(1 + exp(x)), 항상 양수 반환
+
+        **탐색 방법**: 2-Stage Grid Search (조대 탐색 -> 정밀 탐색)
+
+        **목적함수**: `cumul_multiple_log_diff_rmse_pct` 최소화 (추적 오차 RMSE)
+
+        ---
+        """
+    )
+
+    # Grid search 파라미터 표시
+    with st.expander("Grid Search 파라미터 (참고)", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Stage 1 (조대 그리드)**")
+            st.write(
+                f"- a: [{SOFTPLUS_GRID_STAGE1_A_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_A_RANGE[1]}], step={SOFTPLUS_GRID_STAGE1_A_STEP}"
+            )
+            st.write(
+                f"- b: [{SOFTPLUS_GRID_STAGE1_B_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_B_RANGE[1]}], step={SOFTPLUS_GRID_STAGE1_B_STEP}"
+            )
+
+        with col2:
+            st.markdown("**Stage 2 (정밀 그리드)**")
+            st.write(
+                f"- a: [a* - {SOFTPLUS_GRID_STAGE2_A_DELTA}, a* + {SOFTPLUS_GRID_STAGE2_A_DELTA}], step={SOFTPLUS_GRID_STAGE2_A_STEP}"
+            )
+            st.write(
+                f"- b: [b* - {SOFTPLUS_GRID_STAGE2_B_DELTA}, b* + {SOFTPLUS_GRID_STAGE2_B_DELTA}], step={SOFTPLUS_GRID_STAGE2_B_STEP}"
+            )
+
+    st.divider()
+
+    # 세션 상태에서 이전 결과 확인
+    if KEY_SESSION_TUNING_RESULT in st.session_state:
+        _display_tuning_result(st.session_state[KEY_SESSION_TUNING_RESULT])
+        st.divider()
+
+    # 튜닝 실행 버튼
+    if st.button("(a, b) 글로벌 튜닝 실행", type="primary", use_container_width=True):
+        result = _run_softplus_tuning()
+        if result is not None:
+            st.session_state[KEY_SESSION_TUNING_RESULT] = result
+            st.rerun()
+
+
+def _display_tuning_result(result: dict) -> None:
+    """
+    튜닝 결과를 표시한다.
+
+    Args:
+        result: 튜닝 결과 딕셔너리
+    """
+    st.subheader("튜닝 결과")
+
+    # 핵심 결과 표시
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(label="최적 a (절편)", value=f"{result['a_best']:.4f}")
+
+    with col2:
+        st.metric(label="최적 b (기울기)", value=f"{result['b_best']:.4f}")
+
+    with col3:
+        st.metric(label="최적 RMSE (%)", value=f"{result['best_rmse']:.4f}")
+
+    st.success(
+        f"최적 파라미터: a = {result['a_best']:.4f}, b = {result['b_best']:.4f}\n\n" f"추적 오차 RMSE: {result['best_rmse']:.4f}%"
+    )
+
+    # 상위 결과 테이블
+    with st.expander("상위 10개 후보 결과", expanded=True):
+        # all_candidates에서 상위 10개 추출
+        candidates = result["all_candidates"]
+        candidates_sorted = sorted(candidates, key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
+        top_10 = candidates_sorted[:10]
+
+        # DataFrame으로 변환
+        top_df = pd.DataFrame(
+            [
+                {
+                    "a": c["a"],
+                    "b": c["b"],
+                    "RMSE (%)": c[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE],
+                }
+                for c in top_10
+            ]
+        )
+        top_df.index = pd.Index(range(1, len(top_df) + 1), name="순위")
+
+        st.dataframe(top_df, use_container_width=True)
+
+    # 메타 정보
+    st.info(
+        f"탐색 조합 수: Stage 1 = {result['stage1_count']}개, Stage 2 = {result['stage2_count']}개\n\n"
+        f"결과가 meta.json에 저장되었습니다."
+    )
+
+
+# ============================================================
 # 메인 함수
 # ============================================================
 
@@ -476,46 +747,64 @@ def main():
             layout="wide",
         )
 
+        # 사이드바 - 모드 선택
+        with st.sidebar:
+            st.header("분석 모드 선택")
+            analysis_mode = st.radio(
+                "분석 모드를 선택하세요:",
+                options=[MODE_FIXED_SPREAD, MODE_SOFTPLUS_DYNAMIC],
+                index=0,
+                help="고정 Spread: 기존 분석 (금리-오차 관계 시각화)\n\nSoftplus 동적: 최적 (a, b) 파라미터 탐색",
+            )
+            st.divider()
+            st.caption("QBT (Quant BackTest)")
+
         # 타이틀 및 설명
         _render_intro()
 
-        # 데이터 로드 및 월별 집계
-        st.header("데이터 로딩 및 월별 집계")
+        # 모드에 따른 분기
+        if analysis_mode == MODE_SOFTPLUS_DYNAMIC:
+            # Softplus 동적 Spread 모드
+            _render_softplus_section()
+        else:
+            # 고정 Spread 모드 (기본)
+            # 데이터 로드 및 월별 집계
+            st.header("데이터 로딩 및 월별 집계")
 
-        try:
-            # 1. 월별 데이터 빌드 (캐시됨)
-            monthly_df = build_artifacts(
-                str(TQQQ_DAILY_COMPARISON_PATH),
-                str(FFR_DATA_PATH),
-            )
-            st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
+            try:
+                # 1. 월별 데이터 빌드 (캐시됨)
+                monthly_df = build_artifacts(
+                    str(TQQQ_DAILY_COMPARISON_PATH),
+                    str(FFR_DATA_PATH),
+                )
+                st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
 
-            # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
-            monthly_df = add_rate_change_lags(monthly_df)
+                # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
+                monthly_df = add_rate_change_lags(monthly_df)
 
-            # 3. CSV 자동 저장 (서버 런 동안 1회만)
-            _save_outputs_once(monthly_df)
+                # 3. CSV 자동 저장 (서버 런 동안 1회만)
+                _save_outputs_once(monthly_df)
 
-            # 4. 요약 통계 표시
-            _render_dataset_metrics(monthly_df)
+                # 4. 요약 통계 표시
+                _render_dataset_metrics(monthly_df)
 
-        except ValueError as e:
-            st.error(f"월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 기간/형식 확인")
-            st.stop()
-        except Exception as e:
-            st.error(f"예상치 못한 오류:\n\n{str(e)}")
-            st.stop()
+            except ValueError as e:
+                st.error(f"월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 기간/형식 확인")
+                st.stop()
+            except Exception as e:
+                st.error(f"예상치 못한 오류:\n\n{str(e)}")
+                st.stop()
 
-        st.divider()
+            st.divider()
 
-        # Level 분석 (핵심)
-        _render_level_section(monthly_df)
+            # Level 분석 (핵심)
+            _render_level_section(monthly_df)
 
-        # Delta 분석 (고급)
-        _render_delta_section(monthly_df)
+            # Delta 분석 (고급)
+            _render_delta_section(monthly_df)
 
-        # 교차검증 (고급)
-        _render_cross_validation_section(monthly_df)
+            # 교차검증 (고급)
+            _render_cross_validation_section(monthly_df)
 
         # 푸터
         st.markdown("---")

@@ -213,6 +213,7 @@ def build_monthly_spread_map(
 
     return spread_map
 
+
 # 데이터 검증 및 월별 매칭 상수
 MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 
@@ -439,23 +440,14 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
 
     # 4. 반환값 검증: NaN/inf 체크
     if math.isnan(spread):
-        raise ValueError(
-            f"funding_spread 반환값이 유효하지 않음: NaN (날짜: {d})\n"
-            f"조치: spread 함수 또는 dict 값 확인 필요"
-        )
+        raise ValueError(f"funding_spread 반환값이 유효하지 않음: NaN (날짜: {d})\n" f"조치: spread 함수 또는 dict 값 확인 필요")
 
     if math.isinf(spread):
-        raise ValueError(
-            f"funding_spread 반환값이 유효하지 않음: inf (날짜: {d})\n"
-            f"조치: spread 함수 또는 dict 값 확인 필요"
-        )
+        raise ValueError(f"funding_spread 반환값이 유효하지 않음: inf (날짜: {d})\n" f"조치: spread 함수 또는 dict 값 확인 필요")
 
     # 5. 반환값 검증: spread > 0 (음수, 0 불허)
     if spread <= 0:
-        raise ValueError(
-            f"funding_spread는 양수여야 합니다 (> 0): {spread} (날짜: {d})\n"
-            f"조치: spread 값을 양수로 수정"
-        )
+        raise ValueError(f"funding_spread는 양수여야 합니다 (> 0): {spread} (날짜: {d})\n" f"조치: spread 값을 양수로 수정")
 
     return spread
 
@@ -1390,8 +1382,7 @@ def find_optimal_softplus_params(
     b_star = best_s1["b"]
 
     logger.debug(
-        f"Stage 1 완료: a*={a_star:.4f}, b*={b_star:.4f}, "
-        f"RMSE={best_s1[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%"
+        f"Stage 1 완료: a*={a_star:.4f}, b*={b_star:.4f}, " f"RMSE={best_s1[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%"
     )
 
     # ============================================================
@@ -1446,10 +1437,7 @@ def find_optimal_softplus_params(
     b_best = best_s2["b"]
     best_rmse = best_s2[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]
 
-    logger.debug(
-        f"Stage 2 완료: a_best={a_best:.4f}, b_best={b_best:.4f}, "
-        f"RMSE={best_rmse:.4f}%"
-    )
+    logger.debug(f"Stage 2 완료: a_best={a_best:.4f}, b_best={b_best:.4f}, " f"RMSE={best_rmse:.4f}%")
 
     # 전체 후보 병합 (중복 제거는 하지 않음, 호출자가 필요시 처리)
     all_candidates = candidates_s1 + candidates_s2
