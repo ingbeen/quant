@@ -143,13 +143,13 @@
 
 **작업 내용**:
 
-- [ ] 현재 repo 상태 점검 (프롬프트 1 구현 완료 확인)
+- [x] 현재 repo 상태 점검 (프롬프트 1 구현 완료 확인)
   - funding_spread가 float + dict + callable 지원 확인
   - softplus 기반 월별 spread 생성 가능 확인
   - rolling corr inf/NaN 가드 적용 확인
   - meta_manager.py 사용 가능 확인
-- [ ] 워크포워드 관련 상수 추가 (constants.py)
-- [ ] 워크포워드 테스트 케이스 설계 (레드 테스트 추가)
+- [x] 워크포워드 관련 상수 추가 (constants.py)
+- [x] 워크포워드 테스트 케이스 설계 (레드 테스트 추가)
   - 워크포워드 시작점 자동 계산 테스트
   - 첫 구간 2-stage grid search 테스트
   - local refine 탐색 테스트
@@ -157,7 +157,7 @@
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=**, failed=**, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=230, failed=7, skipped=0) - 레드 테스트 예상대로 실패
 
 ---
 

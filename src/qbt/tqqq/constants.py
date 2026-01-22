@@ -115,6 +115,15 @@ __all__ = [
     "SOFTPLUS_GRID_STAGE2_A_STEP",
     "SOFTPLUS_GRID_STAGE2_B_DELTA",
     "SOFTPLUS_GRID_STAGE2_B_STEP",
+    # 워크포워드 검증 파라미터
+    "DEFAULT_TRAIN_WINDOW_MONTHS",
+    "DEFAULT_TEST_STEP_MONTHS",
+    "WALKFORWARD_LOCAL_REFINE_A_DELTA",
+    "WALKFORWARD_LOCAL_REFINE_A_STEP",
+    "WALKFORWARD_LOCAL_REFINE_B_DELTA",
+    "WALKFORWARD_LOCAL_REFINE_B_STEP",
+    "TQQQ_WALKFORWARD_PATH",
+    "TQQQ_WALKFORWARD_SUMMARY_PATH",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -160,6 +169,25 @@ SOFTPLUS_GRID_STAGE2_A_DELTA = 0.75  # a 파라미터 탐색 반경
 SOFTPLUS_GRID_STAGE2_A_STEP = 0.05  # a 파라미터 증분
 SOFTPLUS_GRID_STAGE2_B_DELTA = 0.30  # b 파라미터 탐색 반경
 SOFTPLUS_GRID_STAGE2_B_STEP = 0.02  # b 파라미터 증분
+
+# ============================================================
+# 워크포워드 검증 파라미터
+# ============================================================
+
+# --- 윈도우 설정 ---
+DEFAULT_TRAIN_WINDOW_MONTHS = 60  # 학습 기간 (60개월 = 5년)
+DEFAULT_TEST_STEP_MONTHS = 1  # 테스트 기간 (1개월)
+
+# --- Local Refine 탐색 범위 ---
+# 직전 월 최적값 주변에서 국소 탐색
+WALKFORWARD_LOCAL_REFINE_A_DELTA = 0.50  # a 파라미터 탐색 반경
+WALKFORWARD_LOCAL_REFINE_A_STEP = 0.05  # a 파라미터 증분 (21개 후보)
+WALKFORWARD_LOCAL_REFINE_B_DELTA = 0.15  # b 파라미터 탐색 반경
+WALKFORWARD_LOCAL_REFINE_B_STEP = 0.02  # b 파라미터 증분 (16개 후보)
+
+# --- 워크포워드 결과 파일 경로 ---
+TQQQ_WALKFORWARD_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward.csv"
+TQQQ_WALKFORWARD_SUMMARY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

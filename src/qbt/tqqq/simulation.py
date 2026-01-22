@@ -55,6 +55,7 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
+    DEFAULT_TRAIN_WINDOW_MONTHS,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -78,6 +79,10 @@ from qbt.tqqq.constants import (
     SOFTPLUS_GRID_STAGE2_A_STEP,
     SOFTPLUS_GRID_STAGE2_B_DELTA,
     SOFTPLUS_GRID_STAGE2_B_STEP,
+    WALKFORWARD_LOCAL_REFINE_A_DELTA,
+    WALKFORWARD_LOCAL_REFINE_A_STEP,
+    WALKFORWARD_LOCAL_REFINE_B_DELTA,
+    WALKFORWARD_LOCAL_REFINE_B_STEP,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
@@ -1443,3 +1448,335 @@ def find_optimal_softplus_params(
     all_candidates = candidates_s1 + candidates_s2
 
     return a_best, b_best, best_rmse, all_candidates
+
+
+# ============================================================
+# 워크포워드 검증 (Local Refine + 60m Train / 1m Test)
+# ============================================================
+
+
+def _local_refine_search(
+    underlying_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    a_prev: float,
+    b_prev: float,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+    max_workers: int | None = None,
+) -> tuple[float, float, float, list[dict]]:
+    """
+    직전 월 최적 (a_prev, b_prev) 주변에서 국소 탐색을 수행한다.
+
+    워크포워드 검증에서 첫 구간 이후 사용되는 local refine 탐색 함수.
+    탐색 범위:
+        - a in [a_prev - DELTA_A, a_prev + DELTA_A] step STEP_A
+        - b in [max(0, b_prev - DELTA_B), b_prev + DELTA_B] step STEP_B (b >= 0 제약)
+
+    목적함수: cumul_multiple_log_diff_rmse_pct 최소화
+
+    Args:
+        underlying_df: 학습 기간 기초 자산 DataFrame
+        actual_df: 학습 기간 실제 레버리지 ETF DataFrame
+        ffr_df: 연방기금금리 DataFrame
+        expense_df: 운용비용 DataFrame
+        a_prev: 직전 월 최적 a 파라미터
+        b_prev: 직전 월 최적 b 파라미터
+        leverage: 레버리지 배수 (기본값: 3.0)
+        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+
+    Returns:
+        (a_best, b_best, best_rmse, candidates) 튜플
+            - a_best: 최적 절편 파라미터
+            - b_best: 최적 기울기 파라미터
+            - best_rmse: 최적 RMSE (%)
+            - candidates: 전체 탐색 결과 리스트
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+        ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
+    """
+    # 1. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+
+    # 2. FFR 커버리지 검증 (fail-fast)
+    overlap_start = underlying_overlap[COL_DATE].min()
+    overlap_end = underlying_overlap[COL_DATE].max()
+    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    # 3. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
+    ffr_dict = _create_ffr_dict(ffr_df)
+    expense_dict = _create_expense_dict(expense_df)
+
+    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
+
+    # 5. 워커 캐시 초기화 데이터 준비
+    cache_data = {
+        "underlying_overlap": underlying_overlap,
+        "actual_overlap": actual_overlap,
+        "ffr_dict": ffr_dict,
+        "expense_dict": expense_dict,
+    }
+
+    # 6. Local Refine 파라미터 조합 생성
+    a_min = a_prev - WALKFORWARD_LOCAL_REFINE_A_DELTA
+    a_max = a_prev + WALKFORWARD_LOCAL_REFINE_A_DELTA
+    b_min = max(0.0, b_prev - WALKFORWARD_LOCAL_REFINE_B_DELTA)  # b >= 0 제약
+    b_max = b_prev + WALKFORWARD_LOCAL_REFINE_B_DELTA
+
+    a_values = np.arange(a_min, a_max + EPSILON, WALKFORWARD_LOCAL_REFINE_A_STEP)
+    b_values = np.arange(b_min, b_max + EPSILON, WALKFORWARD_LOCAL_REFINE_B_STEP)
+
+    param_combinations = []
+    for a in a_values:
+        for b in b_values:
+            param_combinations.append(
+                {
+                    "a": float(a),
+                    "b": float(b),
+                    "leverage": leverage,
+                    "initial_price": initial_price,
+                }
+            )
+
+    logger.debug(
+        f"Local Refine 탐색: a in [{a_min:.4f}, {a_max:.4f}], "
+        f"b in [{b_min:.4f}, {b_max:.4f}], 조합 수: {len(param_combinations)}"
+    )
+
+    # 7. 병렬 실행
+    candidates = execute_parallel(
+        _evaluate_softplus_candidate,
+        param_combinations,
+        max_workers=max_workers,
+        initializer=init_worker_cache,
+        initargs=(cache_data,),
+    )
+
+    # 8. RMSE 기준 정렬 및 최적값 추출
+    candidates.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
+    best = candidates[0]
+    a_best = best["a"]
+    b_best = best["b"]
+    best_rmse = best[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]
+
+    logger.debug(f"Local Refine 완료: a_best={a_best:.4f}, b_best={b_best:.4f}, RMSE={best_rmse:.4f}%")
+
+    return a_best, b_best, best_rmse, candidates
+
+
+def run_walkforward_validation(
+    underlying_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+    train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
+    max_workers: int | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """
+    워크포워드 검증을 수행한다 (60개월 Train, 1개월 Test).
+
+    워크포워드 시작점은 train_window_months 학습이 가능한 첫 달부터 자동 계산된다.
+    첫 구간은 2-stage grid search, 이후 구간은 local refine으로 (a, b) 파라미터를 튜닝한다.
+    테스트 월의 spread 계산에는 해당 월 FFR 값을 사용한다 (A안).
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (QQQ)
+        actual_df: 실제 레버리지 ETF DataFrame (TQQQ)
+        ffr_df: 연방기금금리 DataFrame
+        expense_df: 운용비용 DataFrame
+        leverage: 레버리지 배수 (기본값: 3.0)
+        train_window_months: 학습 기간 (기본값: 60개월)
+        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+
+    Returns:
+        (result_df, summary) 튜플
+            - result_df: 워크포워드 결과 DataFrame
+            - summary: 요약 통계 딕셔너리
+
+    Raises:
+        ValueError: 데이터 부족 (train_window_months + 1 개월 미만)
+        ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
+    """
+    # 1. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+
+    # 2. 월별 그룹핑을 위한 월 컬럼 추가
+    underlying_overlap = underlying_overlap.copy()
+    actual_overlap = actual_overlap.copy()
+    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(
+        lambda d: f"{d.year:04d}-{d.month:02d}"
+    )
+    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(
+        lambda d: f"{d.year:04d}-{d.month:02d}"
+    )
+
+    # 3. 고유 월 리스트 추출 및 정렬
+    months = sorted(underlying_overlap["_month"].unique())
+    total_months = len(months)
+
+    # 4. 데이터 부족 검증
+    min_required_months = train_window_months + 1  # train + test 1개월
+    if total_months < min_required_months:
+        raise ValueError(
+            f"데이터 부족: 워크포워드에 최소 {min_required_months}개월 필요, "
+            f"현재 {total_months}개월\n"
+            f"기간: {months[0]} ~ {months[-1]}\n"
+            f"조치: 더 긴 기간의 데이터 사용"
+        )
+
+    # 5. 워크포워드 시작점 계산
+    # 첫 테스트 월 인덱스 = train_window_months (0-indexed)
+    first_test_idx = train_window_months
+    test_month_indices = list(range(first_test_idx, total_months))
+
+    logger.debug(
+        f"워크포워드 설정: train={train_window_months}개월, "
+        f"테스트 월 수={len(test_month_indices)}, "
+        f"첫 테스트 월={months[first_test_idx]}"
+    )
+
+    # 6. 워크포워드 결과 저장 리스트
+    results: list[dict] = []
+    a_prev: float | None = None
+    b_prev: float | None = None
+
+    # 7. 각 테스트 월에 대해 워크포워드 수행
+    for i, test_idx in enumerate(test_month_indices):
+        test_month = months[test_idx]
+        train_start_idx = test_idx - train_window_months
+        train_end_idx = test_idx - 1  # 테스트 직전 월까지
+
+        train_months = months[train_start_idx : train_end_idx + 1]
+        train_start = train_months[0]
+        train_end = train_months[-1]
+
+        # 학습 데이터 추출
+        train_underlying = underlying_overlap[
+            underlying_overlap["_month"].isin(train_months)
+        ].copy()
+        train_actual = actual_overlap[
+            actual_overlap["_month"].isin(train_months)
+        ].copy()
+
+        # 테스트 데이터 추출
+        test_underlying = underlying_overlap[
+            underlying_overlap["_month"] == test_month
+        ].copy()
+        test_actual = actual_overlap[
+            actual_overlap["_month"] == test_month
+        ].copy()
+
+        # 8. 파라미터 튜닝
+        if i == 0:
+            # 첫 구간: 2-stage grid search
+            search_mode = "full_grid_2stage"
+            a_best, b_best, train_rmse, _ = find_optimal_softplus_params(
+                underlying_df=train_underlying,
+                actual_leveraged_df=train_actual,
+                ffr_df=ffr_df,
+                expense_df=expense_df,
+                leverage=leverage,
+                max_workers=max_workers,
+            )
+        else:
+            # 이후 구간: local refine
+            search_mode = "local_refine"
+            assert a_prev is not None and b_prev is not None
+            a_best, b_best, train_rmse, _ = _local_refine_search(
+                underlying_df=train_underlying,
+                actual_df=train_actual,
+                ffr_df=ffr_df,
+                expense_df=expense_df,
+                a_prev=a_prev,
+                b_prev=b_prev,
+                leverage=leverage,
+                max_workers=max_workers,
+            )
+
+        # 9. 테스트 월 RMSE 계산
+        # softplus spread 맵 생성
+        spread_map = build_monthly_spread_map(ffr_df, a_best, b_best)
+
+        # 테스트 기간 시뮬레이션
+        if len(test_underlying) > 0 and len(test_actual) > 0:
+            test_initial_price = float(test_actual.iloc[0][COL_CLOSE])
+
+            sim_test = simulate(
+                underlying_df=test_underlying,
+                leverage=leverage,
+                expense_df=expense_df,
+                initial_price=test_initial_price,
+                ffr_df=ffr_df,
+                funding_spread=spread_map,
+            )
+
+            # 테스트 검증 지표 계산
+            test_metrics = calculate_validation_metrics(
+                simulated_df=sim_test,
+                actual_df=test_actual,
+                output_path=None,
+            )
+            test_rmse = test_metrics[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]
+            n_test_days = test_metrics[KEY_OVERLAP_DAYS]
+        else:
+            test_rmse = float("nan")
+            n_test_days = 0
+
+        # 10. 결과 저장
+        result = {
+            "train_start": train_start,
+            "train_end": train_end,
+            "test_month": test_month,
+            "a_best": a_best,
+            "b_best": b_best,
+            "train_rmse_pct": train_rmse,
+            "test_rmse_pct": test_rmse,
+            "n_train_days": len(train_underlying),
+            "n_test_days": n_test_days,
+            "search_mode": search_mode,
+        }
+        results.append(result)
+
+        # 11. 다음 구간을 위해 현재 최적값 저장
+        a_prev = a_best
+        b_prev = b_best
+
+        logger.debug(
+            f"워크포워드 [{i + 1}/{len(test_month_indices)}] "
+            f"test={test_month}, a={a_best:.4f}, b={b_best:.4f}, "
+            f"train_rmse={train_rmse:.4f}%, test_rmse={test_rmse:.4f}%"
+        )
+
+    # 12. 결과 DataFrame 생성
+    result_df = pd.DataFrame(results)
+
+    # 13. 요약 통계 계산
+    test_rmse_values = result_df["test_rmse_pct"].dropna()
+    a_values = result_df["a_best"]
+    b_values = result_df["b_best"]
+
+    summary = {
+        "test_rmse_mean": float(test_rmse_values.mean()) if len(test_rmse_values) > 0 else float("nan"),
+        "test_rmse_median": float(test_rmse_values.median()) if len(test_rmse_values) > 0 else float("nan"),
+        "test_rmse_std": float(test_rmse_values.std()) if len(test_rmse_values) > 0 else float("nan"),
+        "test_rmse_min": float(test_rmse_values.min()) if len(test_rmse_values) > 0 else float("nan"),
+        "test_rmse_max": float(test_rmse_values.max()) if len(test_rmse_values) > 0 else float("nan"),
+        "a_mean": float(a_values.mean()),
+        "a_std": float(a_values.std()),
+        "b_mean": float(b_values.mean()),
+        "b_std": float(b_values.std()),
+        "n_test_months": len(test_month_indices),
+        "train_window_months": train_window_months,
+    }
+
+    logger.debug(
+        f"워크포워드 완료: {summary['n_test_months']}개월 테스트, "
+        f"test_rmse 평균={summary['test_rmse_mean']:.4f}%, "
+        f"a 평균={summary['a_mean']:.4f} (std={summary['a_std']:.4f}), "
+        f"b 평균={summary['b_mean']:.4f} (std={summary['b_std']:.4f})"
+    )
+
+    return result_df, summary
