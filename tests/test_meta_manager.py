@@ -333,3 +333,83 @@ class TestSaveMetadata:
         assert "monthly_csv" in entry["output_files"]
         assert "summary_csv" in entry["output_files"]
         assert entry["analysis_period"]["total_months"] == 166
+
+    @freeze_time("2024-01-15 10:30:00")
+    def test_walkforward_metadata_format(self, mock_results_dir):
+        """
+        워크포워드 검증 메타데이터 형식 테스트
+
+        워크포워드 검증 결과가 올바른 형식으로 저장되는지 확인한다.
+
+        Given: 워크포워드 검증 메타데이터
+        When: save_metadata("tqqq_walkforward", ...) 호출
+        Then: 필수 키 (walkforward_settings, tuning_policy, summary, output_files)가 올바르게 저장됨
+        """
+        # Given
+        metadata = {
+            "funding_spread_mode": "softplus_ffr_monthly",
+            "walkforward_settings": {
+                "train_window_months": 60,
+                "test_step_months": 1,
+                "test_month_ffr_usage": "same_month",
+            },
+            "tuning_policy": {
+                "first_window": "full_grid_2stage",
+                "subsequent_windows": "local_refine",
+                "local_refine_a_delta": 0.50,
+                "local_refine_a_step": 0.05,
+                "local_refine_b_delta": 0.15,
+                "local_refine_b_step": 0.02,
+            },
+            "summary": {
+                "test_rmse_mean": 1.2345,
+                "test_rmse_median": 1.1234,
+                "test_rmse_std": 0.3456,
+                "a_mean": -6.5,
+                "a_std": 0.15,
+                "b_mean": 0.82,
+                "b_std": 0.03,
+                "n_test_months": 48,
+            },
+            "input_files": {
+                "qqq_data": "storage/stock/QQQ_max.csv",
+                "tqqq_data": "storage/stock/TQQQ_max.csv",
+                "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+                "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+            },
+            "output_files": {
+                "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward.csv",
+                "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv",
+            },
+        }
+
+        # When
+        save_metadata("tqqq_walkforward", metadata)
+
+        # Then
+        meta_path = mock_results_dir["META_JSON_PATH"]
+        with open(meta_path, encoding="utf-8") as f:
+            saved_data = json.load(f)
+
+        entry = saved_data["tqqq_walkforward"][0]
+
+        # 타임스탬프 확인
+        assert entry["timestamp"] == "2024-01-15T19:30:00+09:00"
+
+        # 필수 키 확인
+        assert entry["funding_spread_mode"] == "softplus_ffr_monthly"
+        assert "walkforward_settings" in entry
+        assert entry["walkforward_settings"]["train_window_months"] == 60
+        assert entry["walkforward_settings"]["test_step_months"] == 1
+
+        assert "tuning_policy" in entry
+        assert entry["tuning_policy"]["first_window"] == "full_grid_2stage"
+        assert entry["tuning_policy"]["subsequent_windows"] == "local_refine"
+
+        assert "summary" in entry
+        assert entry["summary"]["test_rmse_mean"] == 1.2345
+        assert entry["summary"]["n_test_months"] == 48
+
+        assert "output_files" in entry
+        assert "walkforward_csv" in entry["output_files"]
+        assert "walkforward_summary_csv" in entry["output_files"]

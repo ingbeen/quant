@@ -72,6 +72,8 @@ from qbt.tqqq.analysis_helpers import (
     save_model_csv,
     save_monthly_features,
     save_summary_statistics,
+    save_walkforward_results,
+    save_walkforward_summary,
     validate_integrity,
 )
 from qbt.tqqq.constants import (
@@ -1045,3 +1047,292 @@ class TestSaveModelCsv:
         # Then
         saved_df = pd.read_csv(output_path)
         assert saved_df[COL_MODEL_RATE_LEVEL_PCT].iloc[0] == pytest.approx(4.1235, abs=0.00001)
+
+
+class TestSaveWalkforwardResults:
+    """
+    save_walkforward_results() 함수 테스트
+
+    워크포워드 결과 DataFrame을 CSV로 저장한다.
+    """
+
+    def test_save_walkforward_results_success(self, tmp_path):
+        """
+        정상적인 워크포워드 결과 저장 테스트
+
+        Given: 필수 컬럼을 갖춘 워크포워드 결과 DataFrame
+        When: save_walkforward_results 호출
+        Then: CSV 저장 성공, 컬럼 순서 및 값 유지
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01", "2018-02"],
+                "train_end": ["2022-12", "2023-01"],
+                "test_month": ["2023-01", "2023-02"],
+                "a_best": [-6.5, -6.4],
+                "b_best": [0.8, 0.82],
+                "train_rmse_pct": [1.234, 1.345],
+                "test_rmse_pct": [1.567, 1.678],
+                "n_train_days": [1260, 1265],
+                "n_test_days": [21, 20],
+                "search_mode": ["full_grid_2stage", "local_refine"],
+            }
+        )
+        output_path = tmp_path / "walkforward.csv"
+
+        # When
+        save_walkforward_results(result_df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+        assert len(saved_df) == 2
+        assert list(saved_df.columns) == [
+            "train_start",
+            "train_end",
+            "test_month",
+            "a_best",
+            "b_best",
+            "train_rmse_pct",
+            "test_rmse_pct",
+            "n_train_days",
+            "n_test_days",
+            "search_mode",
+        ]
+        assert saved_df["test_month"].iloc[0] == "2023-01"
+        assert saved_df["search_mode"].iloc[0] == "full_grid_2stage"
+
+    def test_save_walkforward_results_rounding(self, tmp_path):
+        """
+        수치 컬럼 라운딩 테스트
+
+        Given: 긴 소수점 값을 가진 결과
+        When: save_walkforward_results 호출
+        Then: 4자리로 라운딩되어 저장
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01"],
+                "train_end": ["2022-12"],
+                "test_month": ["2023-01"],
+                "a_best": [-6.123456789],
+                "b_best": [0.876543210],
+                "train_rmse_pct": [1.2345678],
+                "test_rmse_pct": [1.5678901],
+                "n_train_days": [1260],
+                "n_test_days": [21],
+                "search_mode": ["full_grid_2stage"],
+            }
+        )
+        output_path = tmp_path / "walkforward_round.csv"
+
+        # When
+        save_walkforward_results(result_df, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert saved_df["a_best"].iloc[0] == pytest.approx(-6.1235, abs=0.00001)
+        assert saved_df["b_best"].iloc[0] == pytest.approx(0.8765, abs=0.00001)
+        assert saved_df["train_rmse_pct"].iloc[0] == pytest.approx(1.2346, abs=0.00001)
+        assert saved_df["test_rmse_pct"].iloc[0] == pytest.approx(1.5679, abs=0.00001)
+
+    def test_save_walkforward_results_missing_column_raises(self, tmp_path):
+        """
+        필수 컬럼 누락 시 ValueError 발생
+
+        Given: 필수 컬럼 일부가 누락된 DataFrame
+        When: save_walkforward_results 호출
+        Then: ValueError 발생
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01"],
+                "train_end": ["2022-12"],
+                "test_month": ["2023-01"],
+                # a_best 누락
+                "b_best": [0.8],
+                "train_rmse_pct": [1.234],
+                "test_rmse_pct": [1.567],
+                "n_train_days": [1260],
+                "n_test_days": [21],
+                "search_mode": ["full_grid_2stage"],
+            }
+        )
+        output_path = tmp_path / "walkforward_missing.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            save_walkforward_results(result_df, output_path)
+
+    def test_save_walkforward_results_sorted_by_test_month(self, tmp_path):
+        """
+        test_month 기준 정렬 테스트
+
+        Given: test_month 순서가 뒤섞인 DataFrame
+        When: save_walkforward_results 호출
+        Then: test_month 오름차순으로 정렬되어 저장
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-02", "2018-01"],
+                "train_end": ["2023-01", "2022-12"],
+                "test_month": ["2023-02", "2023-01"],  # 역순
+                "a_best": [-6.4, -6.5],
+                "b_best": [0.82, 0.8],
+                "train_rmse_pct": [1.345, 1.234],
+                "test_rmse_pct": [1.678, 1.567],
+                "n_train_days": [1265, 1260],
+                "n_test_days": [20, 21],
+                "search_mode": ["local_refine", "full_grid_2stage"],
+            }
+        )
+        output_path = tmp_path / "walkforward_sorted.csv"
+
+        # When
+        save_walkforward_results(result_df, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert saved_df["test_month"].iloc[0] == "2023-01"
+        assert saved_df["test_month"].iloc[1] == "2023-02"
+
+
+class TestSaveWalkforwardSummary:
+    """
+    save_walkforward_summary() 함수 테스트
+
+    워크포워드 요약 통계를 CSV로 저장한다.
+    """
+
+    def test_save_walkforward_summary_success(self, tmp_path):
+        """
+        정상적인 요약 통계 저장 테스트
+
+        Given: 필수 키를 갖춘 요약 딕셔너리
+        When: save_walkforward_summary 호출
+        Then: metric-value 형식 CSV 저장 성공
+        """
+        # Given
+        summary = {
+            "test_rmse_mean": 1.5678,
+            "test_rmse_median": 1.4567,
+            "test_rmse_std": 0.2345,
+            "test_rmse_min": 1.0123,
+            "test_rmse_max": 2.1234,
+            "a_mean": -6.45,
+            "a_std": 0.1234,
+            "b_mean": 0.81,
+            "b_std": 0.0234,
+            "n_test_months": 24,
+            "train_window_months": 60,
+        }
+        output_path = tmp_path / "walkforward_summary.csv"
+
+        # When
+        save_walkforward_summary(summary, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+        assert len(saved_df) == 11  # 11개 지표
+        assert list(saved_df.columns) == ["metric", "value"]
+        assert saved_df[saved_df["metric"] == "test_rmse_mean"]["value"].iloc[0] == pytest.approx(1.5678, abs=0.00001)
+        assert saved_df[saved_df["metric"] == "n_test_months"]["value"].iloc[0] == 24
+
+    def test_save_walkforward_summary_rounding(self, tmp_path):
+        """
+        수치 값 라운딩 테스트
+
+        Given: 긴 소수점 값을 가진 요약
+        When: save_walkforward_summary 호출
+        Then: 4자리로 라운딩되어 저장
+        """
+        # Given
+        summary = {
+            "test_rmse_mean": 1.23456789,
+            "test_rmse_median": 1.23456789,
+            "test_rmse_std": 0.23456789,
+            "test_rmse_min": 1.01234567,
+            "test_rmse_max": 2.12345678,
+            "a_mean": -6.456789,
+            "a_std": 0.123456789,
+            "b_mean": 0.812345678,
+            "b_std": 0.023456789,
+            "n_test_months": 24,
+            "train_window_months": 60,
+        }
+        output_path = tmp_path / "walkforward_summary_round.csv"
+
+        # When
+        save_walkforward_summary(summary, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        mean_val = saved_df[saved_df["metric"] == "test_rmse_mean"]["value"].iloc[0]
+        assert mean_val == pytest.approx(1.2346, abs=0.00001)
+
+    def test_save_walkforward_summary_missing_key_raises(self, tmp_path):
+        """
+        필수 키 누락 시 ValueError 발생
+
+        Given: 필수 키 일부가 누락된 딕셔너리
+        When: save_walkforward_summary 호출
+        Then: ValueError 발생
+        """
+        # Given
+        summary = {
+            "test_rmse_mean": 1.5678,
+            # test_rmse_median 누락
+            "test_rmse_std": 0.2345,
+            "test_rmse_min": 1.0123,
+            "test_rmse_max": 2.1234,
+            "a_mean": -6.45,
+            "a_std": 0.1234,
+            "b_mean": 0.81,
+            "b_std": 0.0234,
+            "n_test_months": 24,
+            "train_window_months": 60,
+        }
+        output_path = tmp_path / "walkforward_summary_missing.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 키 누락"):
+            save_walkforward_summary(summary, output_path)
+
+    def test_save_walkforward_summary_integer_not_rounded(self, tmp_path):
+        """
+        정수 값은 라운딩되지 않음
+
+        Given: 정수 값을 포함한 요약
+        When: save_walkforward_summary 호출
+        Then: 정수 값은 그대로 유지
+        """
+        # Given
+        summary = {
+            "test_rmse_mean": 1.5678,
+            "test_rmse_median": 1.4567,
+            "test_rmse_std": 0.2345,
+            "test_rmse_min": 1.0123,
+            "test_rmse_max": 2.1234,
+            "a_mean": -6.45,
+            "a_std": 0.1234,
+            "b_mean": 0.81,
+            "b_std": 0.0234,
+            "n_test_months": 24,  # 정수
+            "train_window_months": 60,  # 정수
+        }
+        output_path = tmp_path / "walkforward_summary_int.csv"
+
+        # When
+        save_walkforward_summary(summary, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        n_months = saved_df[saved_df["metric"] == "n_test_months"]["value"].iloc[0]
+        assert n_months == 24
+        train_window = saved_df[saved_df["metric"] == "train_window_months"]["value"].iloc[0]
+        assert train_window == 60

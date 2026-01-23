@@ -40,6 +40,7 @@ VALID_CSV_TYPES = {
     "tqqq_daily_comparison",
     "tqqq_rate_spread_lab",
     "tqqq_softplus_tuning",
+    "tqqq_walkforward",
 }
 
 

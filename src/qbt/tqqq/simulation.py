@@ -1606,12 +1606,8 @@ def run_walkforward_validation(
     # 2. 월별 그룹핑을 위한 월 컬럼 추가
     underlying_overlap = underlying_overlap.copy()
     actual_overlap = actual_overlap.copy()
-    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(
-        lambda d: f"{d.year:04d}-{d.month:02d}"
-    )
-    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(
-        lambda d: f"{d.year:04d}-{d.month:02d}"
-    )
+    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
 
     # 3. 고유 월 리스트 추출 및 정렬
     months = sorted(underlying_overlap["_month"].unique())
@@ -1654,20 +1650,12 @@ def run_walkforward_validation(
         train_end = train_months[-1]
 
         # 학습 데이터 추출
-        train_underlying = underlying_overlap[
-            underlying_overlap["_month"].isin(train_months)
-        ].copy()
-        train_actual = actual_overlap[
-            actual_overlap["_month"].isin(train_months)
-        ].copy()
+        train_underlying = underlying_overlap[underlying_overlap["_month"].isin(train_months)].copy()
+        train_actual = actual_overlap[actual_overlap["_month"].isin(train_months)].copy()
 
         # 테스트 데이터 추출
-        test_underlying = underlying_overlap[
-            underlying_overlap["_month"] == test_month
-        ].copy()
-        test_actual = actual_overlap[
-            actual_overlap["_month"] == test_month
-        ].copy()
+        test_underlying = underlying_overlap[underlying_overlap["_month"] == test_month].copy()
+        test_actual = actual_overlap[actual_overlap["_month"] == test_month].copy()
 
         # 8. 파라미터 튜닝
         if i == 0:

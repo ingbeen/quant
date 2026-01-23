@@ -41,6 +41,8 @@ from qbt.tqqq.analysis_helpers import (
     save_model_csv,
     save_monthly_features,
     save_summary_statistics,
+    save_walkforward_results,
+    save_walkforward_summary,
 )
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
@@ -55,6 +57,7 @@ from qbt.tqqq.constants import (
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     DEFAULT_ROLLING_WINDOW,
     DEFAULT_TOP_N_CROSS_VALIDATION,
+    DEFAULT_TRAIN_WINDOW_MONTHS,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
@@ -72,13 +75,19 @@ from qbt.tqqq.constants import (
     TQQQ_RATE_SPREAD_LAB_MODEL_PATH,
     TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
     TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH,
+    TQQQ_WALKFORWARD_PATH,
+    TQQQ_WALKFORWARD_SUMMARY_PATH,
+    WALKFORWARD_LOCAL_REFINE_A_DELTA,
+    WALKFORWARD_LOCAL_REFINE_A_STEP,
+    WALKFORWARD_LOCAL_REFINE_B_DELTA,
+    WALKFORWARD_LOCAL_REFINE_B_STEP,
 )
 from qbt.tqqq.data_loader import (
     load_comparison_data,
     load_expense_ratio_data,
     load_ffr_data,
 )
-from qbt.tqqq.simulation import find_optimal_softplus_params
+from qbt.tqqq.simulation import find_optimal_softplus_params, run_walkforward_validation
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
 from qbt.utils.data_loader import load_stock_data
 from qbt.utils.meta_manager import save_metadata
@@ -95,6 +104,11 @@ DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
 # --- 메타데이터 타입 ---
 KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"
 KEY_META_TYPE_SOFTPLUS_TUNING = "tqqq_softplus_tuning"
+KEY_META_TYPE_WALKFORWARD = "tqqq_walkforward"
+
+# --- 세션 상태 키 (워크포워드) ---
+KEY_SESSION_WALKFORWARD_RESULT = "walkforward_result"
+KEY_SESSION_WALKFORWARD_RUNNING = "walkforward_running"
 
 # --- Softplus 튜닝 모드 관련 ---
 MODE_FIXED_SPREAD = "고정 Spread (기본)"
@@ -677,6 +691,10 @@ def _render_softplus_section() -> None:
             st.session_state[KEY_SESSION_TUNING_RESULT] = result
             st.rerun()
 
+    # 워크포워드 검증 섹션 (항상 표시)
+    st.divider()
+    _render_walkforward_section()
+
 
 def _display_tuning_result(result: dict) -> None:
     """
@@ -730,6 +748,269 @@ def _display_tuning_result(result: dict) -> None:
         f"탐색 조합 수: Stage 1 = {result['stage1_count']}개, Stage 2 = {result['stage2_count']}개\n\n"
         f"결과가 meta.json에 저장되었습니다."
     )
+
+
+# ============================================================
+# 워크포워드 검증 관련 함수
+# ============================================================
+
+
+def _run_walkforward_validation() -> dict | None:
+    """
+    워크포워드 검증을 실행한다.
+
+    60개월 Train, 1개월 Test 워크포워드 검증을 수행하고, CSV 파일을 저장한다.
+
+    Returns:
+        워크포워드 결과 딕셔너리 또는 None (실패 시)
+    """
+    try:
+        # 데이터 로드 (캐시됨)
+        with st.spinner("데이터 로딩 중..."):
+            qqq_df, tqqq_df, ffr_df, expense_df = _load_tuning_data()
+
+        # 워크포워드 실행 (시간이 오래 걸릴 수 있음)
+        progress_bar = st.progress(0, text="워크포워드 검증 시작 중...")
+
+        # 예상 테스트 월 수 계산 (사전 정보 표시용)
+        # 전체 기간에서 train 기간을 뺀 월 수
+        progress_bar.progress(5, text="워크포워드 검증 실행 중... (60개월 학습, 1개월 테스트)")
+
+        # 워크포워드 실행
+        result_df, summary = run_walkforward_validation(
+            underlying_df=qqq_df,
+            actual_df=tqqq_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            train_window_months=DEFAULT_TRAIN_WINDOW_MONTHS,
+        )
+
+        progress_bar.progress(90, text="CSV 파일 저장 중...")
+
+        # CSV 저장
+        save_walkforward_results(result_df, TQQQ_WALKFORWARD_PATH)
+        save_walkforward_summary(summary, TQQQ_WALKFORWARD_SUMMARY_PATH)
+
+        progress_bar.progress(100, text="워크포워드 검증 완료!")
+
+        # 결과 저장
+        result = {
+            "result_df": result_df,
+            "summary": summary,
+        }
+
+        # meta.json에 기록
+        _save_walkforward_metadata(result)
+
+        return result
+
+    except Exception as e:
+        st.error(f"워크포워드 검증 실행 실패:\n\n{str(e)}")
+        return None
+
+
+def _save_walkforward_metadata(result: dict) -> None:
+    """
+    워크포워드 검증 결과를 meta.json에 기록한다.
+
+    Args:
+        result: 워크포워드 결과 딕셔너리
+    """
+    summary = result["summary"]
+    metadata = {
+        "funding_spread_mode": "softplus_ffr_monthly",
+        "walkforward_settings": {
+            "train_window_months": DEFAULT_TRAIN_WINDOW_MONTHS,
+            "test_step_months": 1,
+            "test_month_ffr_usage": "same_month",
+        },
+        "tuning_policy": {
+            "first_window": "full_grid_2stage",
+            "subsequent_windows": "local_refine",
+            "local_refine_a_delta": WALKFORWARD_LOCAL_REFINE_A_DELTA,
+            "local_refine_a_step": WALKFORWARD_LOCAL_REFINE_A_STEP,
+            "local_refine_b_delta": WALKFORWARD_LOCAL_REFINE_B_DELTA,
+            "local_refine_b_step": WALKFORWARD_LOCAL_REFINE_B_STEP,
+        },
+        "summary": {
+            "test_rmse_mean": summary["test_rmse_mean"],
+            "test_rmse_median": summary["test_rmse_median"],
+            "test_rmse_std": summary["test_rmse_std"],
+            "a_mean": summary["a_mean"],
+            "a_std": summary["a_std"],
+            "b_mean": summary["b_mean"],
+            "b_std": summary["b_std"],
+            "n_test_months": summary["n_test_months"],
+        },
+        "input_files": {
+            "qqq_data": str(QQQ_DATA_PATH),
+            "tqqq_data": str(TQQQ_DATA_PATH),
+            "ffr_data": str(FFR_DATA_PATH),
+            "expense_data": str(EXPENSE_RATIO_DATA_PATH),
+        },
+        "output_files": {
+            "walkforward_csv": str(TQQQ_WALKFORWARD_PATH),
+            "walkforward_summary_csv": str(TQQQ_WALKFORWARD_SUMMARY_PATH),
+        },
+    }
+    save_metadata(KEY_META_TYPE_WALKFORWARD, metadata)
+
+
+def _display_walkforward_result(result: dict) -> None:
+    """
+    워크포워드 검증 결과를 표시한다.
+
+    Args:
+        result: 워크포워드 결과 딕셔너리
+    """
+    st.subheader("워크포워드 검증 결과")
+
+    result_df = result["result_df"]
+    summary = result["summary"]
+
+    # 핵심 요약 지표
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(label="테스트 RMSE 평균 (%)", value=f"{summary['test_rmse_mean']:.4f}")
+
+    with col2:
+        st.metric(label="테스트 RMSE 중앙값 (%)", value=f"{summary['test_rmse_median']:.4f}")
+
+    with col3:
+        st.metric(label="a 평균 (std)", value=f"{summary['a_mean']:.2f} ({summary['a_std']:.2f})")
+
+    with col4:
+        st.metric(label="b 평균 (std)", value=f"{summary['b_mean']:.2f} ({summary['b_std']:.2f})")
+
+    # 상세 요약
+    with st.expander("상세 요약 통계", expanded=True):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**테스트 RMSE 통계**")
+            st.write(f"- 평균: {summary['test_rmse_mean']:.4f}%")
+            st.write(f"- 중앙값: {summary['test_rmse_median']:.4f}%")
+            st.write(f"- 표준편차: {summary['test_rmse_std']:.4f}%")
+            st.write(f"- 최솟값: {summary['test_rmse_min']:.4f}%")
+            st.write(f"- 최댓값: {summary['test_rmse_max']:.4f}%")
+
+        with col2:
+            st.markdown("**파라미터 안정성**")
+            st.write(f"- a 평균: {summary['a_mean']:.4f}")
+            st.write(f"- a 표준편차: {summary['a_std']:.4f}")
+            st.write(f"- b 평균: {summary['b_mean']:.4f}")
+            st.write(f"- b 표준편차: {summary['b_std']:.4f}")
+            st.write(f"- 테스트 월 수: {summary['n_test_months']}개월")
+
+    # (a, b) 추이 차트
+    with st.expander("(a, b) 파라미터 추이 차트", expanded=True):
+        # a 파라미터 추이
+        fig_a = go.Figure()
+        fig_a.add_trace(
+            go.Scatter(
+                x=result_df["test_month"],
+                y=result_df["a_best"],
+                mode="lines+markers",
+                name="a",
+                line={"color": "blue"},
+            )
+        )
+        fig_a.update_layout(
+            title="a 파라미터 추이 (월별)",
+            xaxis_title="테스트 월",
+            yaxis_title="a 값",
+            height=300,
+        )
+        st.plotly_chart(fig_a, use_container_width=True)
+
+        # b 파라미터 추이
+        fig_b = go.Figure()
+        fig_b.add_trace(
+            go.Scatter(
+                x=result_df["test_month"],
+                y=result_df["b_best"],
+                mode="lines+markers",
+                name="b",
+                line={"color": "green"},
+            )
+        )
+        fig_b.update_layout(
+            title="b 파라미터 추이 (월별)",
+            xaxis_title="테스트 월",
+            yaxis_title="b 값",
+            height=300,
+        )
+        st.plotly_chart(fig_b, use_container_width=True)
+
+    # 테스트 RMSE 추이 차트
+    with st.expander("테스트 RMSE 추이 차트", expanded=False):
+        fig_rmse = go.Figure()
+        fig_rmse.add_trace(
+            go.Scatter(
+                x=result_df["test_month"],
+                y=result_df["test_rmse_pct"],
+                mode="lines+markers",
+                name="Test RMSE",
+                line={"color": "red"},
+            )
+        )
+        fig_rmse.update_layout(
+            title="테스트 RMSE 추이 (월별)",
+            xaxis_title="테스트 월",
+            yaxis_title="RMSE (%)",
+            height=300,
+        )
+        st.plotly_chart(fig_rmse, use_container_width=True)
+
+    # 전체 결과 테이블
+    with st.expander("전체 결과 테이블", expanded=False):
+        st.dataframe(result_df, use_container_width=True)
+
+    # 메타 정보
+    st.info(
+        f"워크포워드 검증 완료: {summary['n_test_months']}개월 테스트\n\n"
+        f"결과가 다음 파일에 저장되었습니다:\n"
+        f"- {TQQQ_WALKFORWARD_PATH}\n"
+        f"- {TQQQ_WALKFORWARD_SUMMARY_PATH}"
+    )
+
+
+def _render_walkforward_section() -> None:
+    """워크포워드 검증 섹션을 렌더링한다."""
+    st.header("워크포워드 검증 (파라미터 안정성)")
+
+    st.markdown(
+        f"""
+        **목적**: 글로벌 최적 (a, b) 파라미터가 미래 데이터에도 안정적으로 작동하는지 검증합니다.
+
+        **방법**: 워크포워드 (Rolling Window) 검증
+        - 학습 기간: {DEFAULT_TRAIN_WINDOW_MONTHS}개월 (5년)
+        - 테스트 기간: 1개월
+        - 첫 구간: 2-stage grid search (글로벌 탐색)
+        - 이후 구간: local refine (직전 월 최적값 주변 탐색)
+
+        **Local Refine 범위**:
+        - a: [a_prev - {WALKFORWARD_LOCAL_REFINE_A_DELTA}, a_prev + {WALKFORWARD_LOCAL_REFINE_A_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_A_STEP}
+        - b: [b_prev - {WALKFORWARD_LOCAL_REFINE_B_DELTA}, b_prev + {WALKFORWARD_LOCAL_REFINE_B_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_B_STEP}
+
+        **주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분).
+
+        ---
+        """
+    )
+
+    # 세션 상태에서 이전 결과 확인
+    if KEY_SESSION_WALKFORWARD_RESULT in st.session_state:
+        _display_walkforward_result(st.session_state[KEY_SESSION_WALKFORWARD_RESULT])
+        st.divider()
+
+    # 워크포워드 실행 버튼
+    if st.button("워크포워드 검증 실행", type="secondary", use_container_width=True):
+        result = _run_walkforward_validation()
+        if result is not None:
+            st.session_state[KEY_SESSION_WALKFORWARD_RESULT] = result
+            st.rerun()
 
 
 # ============================================================
