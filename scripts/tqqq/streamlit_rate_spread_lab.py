@@ -685,7 +685,7 @@ def _render_softplus_section() -> None:
         st.divider()
 
     # 튜닝 실행 버튼
-    if st.button("(a, b) 글로벌 튜닝 실행", type="primary", use_container_width=True):
+    if st.button("(a, b) 글로벌 튜닝 실행", type="primary", width="stretch"):
         result = _run_softplus_tuning()
         if result is not None:
             st.session_state[KEY_SESSION_TUNING_RESULT] = result
@@ -741,7 +741,7 @@ def _display_tuning_result(result: dict) -> None:
         )
         top_df.index = pd.Index(range(1, len(top_df) + 1), name="순위")
 
-        st.dataframe(top_df, use_container_width=True)
+        st.dataframe(top_df, width="stretch")
 
     # 메타 정보
     st.info(
@@ -922,7 +922,7 @@ def _display_walkforward_result(result: dict) -> None:
             yaxis_title="a 값",
             height=300,
         )
-        st.plotly_chart(fig_a, use_container_width=True)
+        st.plotly_chart(fig_a, width="stretch")
 
         # b 파라미터 추이
         fig_b = go.Figure()
@@ -941,7 +941,7 @@ def _display_walkforward_result(result: dict) -> None:
             yaxis_title="b 값",
             height=300,
         )
-        st.plotly_chart(fig_b, use_container_width=True)
+        st.plotly_chart(fig_b, width="stretch")
 
     # 테스트 RMSE 추이 차트
     with st.expander("테스트 RMSE 추이 차트", expanded=False):
@@ -961,11 +961,11 @@ def _display_walkforward_result(result: dict) -> None:
             yaxis_title="RMSE (%)",
             height=300,
         )
-        st.plotly_chart(fig_rmse, use_container_width=True)
+        st.plotly_chart(fig_rmse, width="stretch")
 
     # 전체 결과 테이블
     with st.expander("전체 결과 테이블", expanded=False):
-        st.dataframe(result_df, use_container_width=True)
+        st.dataframe(result_df, width="stretch")
 
     # 메타 정보
     st.info(
@@ -1006,7 +1006,7 @@ def _render_walkforward_section() -> None:
         st.divider()
 
     # 워크포워드 실행 버튼
-    if st.button("워크포워드 검증 실행", type="secondary", use_container_width=True):
+    if st.button("워크포워드 검증 실행", type="secondary", width="stretch"):
         result = _run_walkforward_validation()
         if result is not None:
             st.session_state[KEY_SESSION_WALKFORWARD_RESULT] = result

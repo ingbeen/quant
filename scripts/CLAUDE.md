@@ -155,6 +155,22 @@ main 함수:
 - 비즈니스 로직에서 발생한 예외를 그대로 전파
 - 변환하거나 숨기지 않음
 
+### Streamlit 앱 규칙
+
+width 파라미터 사용:
+
+- `use_container_width` 파라미터는 deprecated됨 (사용 금지)
+- 전체 너비 사용 시: `width="stretch"`
+- 콘텐츠 크기 맞춤 시: `width="content"`
+
+적용 대상 위젯:
+
+- `st.button()`
+- `st.dataframe()`
+- `st.plotly_chart()`
+- `st.download_button()`
+- 기타 width 관련 파라미터를 지원하는 위젯
+
 ### 명령행 인자
 
 기본 원칙: 명령행 인자 최소화
