@@ -26,6 +26,7 @@ Fail-fast 정책:
 """
 
 import threading
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -90,6 +91,7 @@ from qbt.tqqq.data_loader import (
 from qbt.tqqq.simulation import find_optimal_softplus_params, run_walkforward_validation
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
 from qbt.utils.data_loader import load_stock_data
+from qbt.utils.logger import setup_logger
 from qbt.utils.meta_manager import save_metadata
 
 # ============================================================
@@ -123,6 +125,11 @@ DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
 DISPLAY_AXIS_DIFF_PCT = "차이 (%)"  # X축 레이블
 DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
 DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
+
+# ============================================================
+# Logger 설정
+# ============================================================
+logger = setup_logger(__name__)
 
 # ============================================================
 # 저장 가드 및 데이터 빌드 (캐시)
@@ -557,12 +564,19 @@ def _run_softplus_tuning() -> dict | None:
 
         progress_bar.progress(10, text=f"Stage 1: {total_s1}개 조합 탐색 중... (약 1-2분 소요)")
 
-        # 튜닝 실행
+        # 튜닝 실행 (시간 측정)
+        start_time = time.perf_counter()
         a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
             underlying_df=qqq_df,
             actual_leveraged_df=tqqq_df,
             ffr_df=ffr_df,
             expense_df=expense_df,
+        )
+        elapsed_time = time.perf_counter() - start_time
+        logger.debug(
+            f"(a, b) 글로벌 튜닝 완료: "
+            f"총 {total_s1 + total_s2}개 조합 (Stage1: {total_s1}, Stage2: {total_s2}), "
+            f"소요시간: {elapsed_time:.2f}초"
         )
 
         progress_bar.progress(100, text="튜닝 완료!")

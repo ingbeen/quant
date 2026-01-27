@@ -219,6 +219,50 @@ def build_monthly_spread_map(
     return spread_map
 
 
+def build_monthly_spread_map_from_dict(
+    ffr_dict: dict[str, float],
+    a: float,
+    b: float,
+) -> dict[str, float]:
+    """
+    FFR 딕셔너리로부터 월별 softplus spread 맵을 생성한다 (벡터화 버전).
+
+    build_monthly_spread_map의 최적화 버전으로, DataFrame 생성 오버헤드 없이
+    dict에서 직접 spread 맵을 생성한다. numpy 벡터화를 사용하여 성능을 개선했다.
+
+    수식: spread = softplus(a + b * ffr_pct)
+    여기서 ffr_pct = 100.0 * ffr_ratio (0~1 비율을 % 단위로 변환)
+
+    Args:
+        ffr_dict: FFR 딕셔너리 {"YYYY-MM": ffr_ratio (0~1 비율)}
+        a: softplus 절편 파라미터
+        b: softplus 기울기 파라미터
+
+    Returns:
+        {"YYYY-MM": spread} 형태의 딕셔너리
+
+    Raises:
+        ValueError: FFR 딕셔너리가 비어있을 때
+    """
+    if not ffr_dict:
+        raise ValueError("FFR 딕셔너리가 비어있습니다")
+
+    # 월별 키와 값을 배열로 변환
+    months = list(ffr_dict.keys())
+    ffr_ratios = np.array(list(ffr_dict.values()))
+
+    # 벡터화된 softplus 계산
+    # softplus(x) = log1p(exp(-abs(x))) + max(x, 0) (수치 안정 버전)
+    ffr_pct = 100.0 * ffr_ratios
+    x = a + b * ffr_pct
+    spreads = np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
+
+    # 딕셔너리로 변환
+    spread_map = dict(zip(months, spreads.tolist(), strict=True))
+
+    return spread_map
+
+
 # 데이터 검증 및 월별 매칭 상수
 MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 
@@ -1234,20 +1278,10 @@ def _evaluate_softplus_candidate(params: dict) -> dict:
     underlying_overlap = WORKER_CACHE["underlying_overlap"]
     actual_overlap = WORKER_CACHE["actual_overlap"]
     ffr_dict = WORKER_CACHE["ffr_dict"]
-    expense_dict = WORKER_CACHE["expense_dict"]
+    expense_df = WORKER_CACHE["expense_df"]
 
-    # softplus 파라미터로 월별 spread 맵 생성
-    # ffr_dict를 DataFrame으로 재구성
-    ffr_dates = list(ffr_dict.keys())
-    ffr_values = list(ffr_dict.values())
-    ffr_df_temp = pd.DataFrame({COL_FFR_DATE: ffr_dates, COL_FFR_VALUE: ffr_values})
-
-    spread_map = build_monthly_spread_map(ffr_df_temp, params["a"], params["b"])
-
-    # expense_df 재구성 (simulate 함수가 필요로 함)
-    expense_dates = list(expense_dict.keys())
-    expense_values = list(expense_dict.values())
-    expense_df = pd.DataFrame({COL_EXPENSE_DATE: expense_dates, COL_EXPENSE_VALUE: expense_values})
+    # softplus 파라미터로 월별 spread 맵 생성 (벡터화 버전 사용)
+    spread_map = build_monthly_spread_map_from_dict(ffr_dict, params["a"], params["b"])
 
     # 시뮬레이션 실행 (spread_map을 dict 타입으로 전달)
     sim_df = simulate(
@@ -1320,19 +1354,19 @@ def find_optimal_softplus_params(
     overlap_end = underlying_overlap[COL_DATE].max()
     validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
-    # 3. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
+    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = _create_ffr_dict(ffr_df)
-    expense_dict = _create_expense_dict(expense_df)
 
     # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
     # 5. 워커 캐시 초기화 데이터 준비
+    # expense_df는 DataFrame으로 직접 캐시 (매번 재구성 방지)
     cache_data = {
         "underlying_overlap": underlying_overlap,
         "actual_overlap": actual_overlap,
         "ffr_dict": ffr_dict,
-        "expense_dict": expense_dict,
+        "expense_df": expense_df,
     }
 
     # ============================================================
@@ -1504,19 +1538,19 @@ def _local_refine_search(
     overlap_end = underlying_overlap[COL_DATE].max()
     validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
-    # 3. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
+    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = _create_ffr_dict(ffr_df)
-    expense_dict = _create_expense_dict(expense_df)
 
     # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
     # 5. 워커 캐시 초기화 데이터 준비
+    # expense_df는 DataFrame으로 직접 캐시 (매번 재구성 방지)
     cache_data = {
         "underlying_overlap": underlying_overlap,
         "actual_overlap": actual_overlap,
         "ffr_dict": ffr_dict,
-        "expense_dict": expense_dict,
+        "expense_df": expense_df,
     }
 
     # 6. Local Refine 파라미터 조합 생성

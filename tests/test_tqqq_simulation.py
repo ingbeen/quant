@@ -1464,6 +1464,74 @@ class TestSoftplusFunctions:
         with pytest.raises(ValueError, match="비어있습니다"):
             build_monthly_spread_map(ffr_df, a=-5.0, b=1.0)
 
+    def test_build_monthly_spread_map_from_dict_equivalence(self):
+        """
+        build_monthly_spread_map_from_dict와 build_monthly_spread_map 결과 동일성 테스트
+
+        Given: 동일한 FFR 데이터 (DataFrame vs dict)
+        When: 두 함수 각각 호출
+        Then: 결과가 완전히 동일
+        """
+        from qbt.tqqq.simulation import (
+            build_monthly_spread_map,
+            build_monthly_spread_map_from_dict,
+        )
+
+        # Given: 다양한 FFR 데이터
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2023-01", "2023-02", "2023-03", "2023-04", "2023-05"],
+                COL_FFR_VALUE: [0.045, 0.046, 0.050, 0.055, 0.052],
+            }
+        )
+        ffr_dict = dict(
+            zip(
+                ffr_df[COL_FFR_DATE].tolist(),
+                ffr_df[COL_FFR_VALUE].tolist(),
+                strict=True,
+            )
+        )
+
+        # 다양한 a, b 파라미터 조합 테스트
+        test_params = [
+            (-5.0, 1.0),
+            (-6.0, 0.5),
+            (-4.0, 0.8),
+            (-7.0, 1.2),
+            (0.0, 0.0),  # 엣지 케이스
+        ]
+
+        for a, b in test_params:
+            # When
+            result_df = build_monthly_spread_map(ffr_df, a, b)
+            result_dict = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+
+            # Then: 동일한 키와 값
+            assert set(result_df.keys()) == set(result_dict.keys()), f"키 불일치: a={a}, b={b}"
+
+            for month in result_df.keys():
+                df_val = result_df[month]
+                dict_val = result_dict[month]
+                assert abs(df_val - dict_val) < 1e-12, (
+                    f"값 불일치: month={month}, a={a}, b={b}, "
+                    f"df={df_val}, dict={dict_val}, diff={abs(df_val - dict_val)}"
+                )
+
+    def test_build_monthly_spread_map_from_dict_empty_raises(self):
+        """
+        빈 FFR 딕셔너리 입력 시 ValueError 테스트
+
+        Given: 빈 FFR 딕셔너리
+        When: build_monthly_spread_map_from_dict 호출
+        Then: ValueError 발생
+        """
+        from qbt.tqqq.simulation import build_monthly_spread_map_from_dict
+
+        ffr_dict: dict[str, float] = {}
+
+        with pytest.raises(ValueError, match="비어있습니다"):
+            build_monthly_spread_map_from_dict(ffr_dict, a=-5.0, b=1.0)
+
 
 class TestDynamicFundingSpread:
     """
