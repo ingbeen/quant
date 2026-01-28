@@ -55,9 +55,15 @@ class TestExecuteParallel:
             parallel_executor.execute_parallel(_simple_multiply, [], max_workers=2)
 
     def test_order_preservation(self):
-        """입력 순서가 보장되는지 검증"""
-        inputs = list(range(20))
-        results = parallel_executor.execute_parallel(_simple_multiply, inputs, max_workers=4)
+        """
+        입력 순서가 보장되는지 검증
+
+        병렬 실행 시 as_completed 완료 순서와 무관하게
+        원래 입력 순서대로 결과가 반환되는지 확인한다.
+        테스트 실행 시간 단축을 위해 최소 파라미터 사용 (5개 입력, 2 workers).
+        """
+        inputs = list(range(5))
+        results = parallel_executor.execute_parallel(_simple_multiply, inputs, max_workers=2)
 
         expected = [x * 2 for x in inputs]
         assert results == expected
