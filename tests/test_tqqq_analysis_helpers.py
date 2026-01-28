@@ -607,13 +607,14 @@ class TestSaveSummaryStatistics:
         Then: CrossValidation 요약에 한글 컬럼명 포함
         """
         # Given (상수 기준 컬럼명 사용)
+        # 상관계수 계산 시 0으로 나누기 경고를 피하기 위해 충분한 변동 포함
         monthly_df = pd.DataFrame(
             {
                 COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
                 COL_RATE_PCT: [4.0, 4.1, 4.2, 4.3, 4.4],
                 COL_DR_M: [0.0, 0.05, 0.06, 0.07, 0.08],
                 COL_E_M: [-0.04, -0.038, -0.036, -0.034, -0.032],
-                COL_DE_M: [0.0, 0.002, 0.002, 0.002, 0.002],
+                COL_DE_M: [0.0, 0.002, 0.004, 0.006, 0.008],  # 변동 추가
                 COL_SUM_DAILY_M: [-0.038, -0.036, -0.034, -0.032, -0.030],
             }
         )
