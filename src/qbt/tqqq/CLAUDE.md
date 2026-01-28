@@ -239,6 +239,16 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 
 ---
 
+## CLI 스크립트
+
+연산 집약적인 작업은 CLI 스크립트로 분리하여 spawn 경고 없이 실행 가능합니다.
+Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합니다.
+
+- `run_softplus_tuning.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
+- `run_walkforward_validation.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
+
+---
+
 ## 테스트 커버리지
 
 **주요 테스트 파일**: `tests/test_tqqq_simulation.py`, `tests/test_tqqq_analysis_helpers.py`, `tests/test_tqqq_visualization.py`

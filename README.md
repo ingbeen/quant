@@ -69,7 +69,15 @@ poetry run python scripts/tqqq/validate_tqqq_simulation.py
 poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
 # 출력: storage/results/tqqq_daily_comparison.csv
 
-# 4. 대시보드 시각화
+# 4. Softplus 동적 스프레드 모델 튜닝 (선택)
+poetry run python scripts/tqqq/run_softplus_tuning.py
+# 출력: storage/results/tqqq_softplus_tuning.csv
+
+# 5. 워크포워드 검증 (선택, 시간 소요 큼)
+poetry run python scripts/tqqq/run_walkforward_validation.py
+# 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
+
+# 6. 대시보드 시각화
 # 일별 비교 대시보드
 poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
 # 브라우저에서 http://localhost:8501 열림
@@ -166,6 +174,8 @@ quant/
 │   ├── data/          # download_data.py
 │   ├── backtest/      # run_grid_search.py, run_single_backtest.py
 │   └── tqqq/          # validate_tqqq_simulation.py, generate_*.py
+│       ├── run_softplus_tuning.py         # Softplus 튜닝 CLI
+│       ├── run_walkforward_validation.py  # 워크포워드 검증 CLI
 │       ├── streamlit_daily_comparison.py  # 일별 비교 대시보드
 │       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱
 ├── src/qbt/           # 비즈니스 로직
@@ -192,6 +202,8 @@ quant/
 
 - `storage/results/tqqq_validation.csv`: 비용 모델 최적화 결과 (RMSE 기준 정렬)
 - `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력)
+- `storage/results/tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
+- `storage/results/tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
 

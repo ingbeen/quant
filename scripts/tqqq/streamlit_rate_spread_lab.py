@@ -9,7 +9,7 @@
 - Level 탭: 금리 수준 vs 월말 누적 signed 오차
 - Delta 탭: 금리 변화 vs 오차 변화, Lag 효과, Rolling 상관
 - 교차검증: de_m vs sum_daily_m 차이 분석
-- Softplus 동적 Spread 튜닝: 금리 수준에 따른 동적 spread 파라미터 최적화
+- Softplus 동적 Spread 결과 조회: CLI로 생성된 CSV 파일 로드
 
 CSV 저장:
 - 서버 최초 기동 시 1회만 자동 저장 (st.cache_resource 사용)
@@ -23,17 +23,20 @@ Fail-fast 정책:
 사용자 경험:
 - 모든 화면 텍스트 한글화 ("한글 (영문)" 형식)
 - 명확한 레이블 및 설명 제공
+
+튜닝 실행:
+- softplus 튜닝: poetry run python scripts/tqqq/run_softplus_tuning.py
+- 워크포워드 검증: poetry run python scripts/tqqq/run_walkforward_validation.py
 """
 
 import threading
-import time
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import DISPLAY_DATE, QQQ_DATA_PATH
+from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
@@ -42,8 +45,6 @@ from qbt.tqqq.analysis_helpers import (
     save_model_csv,
     save_monthly_features,
     save_summary_statistics,
-    save_walkforward_results,
-    save_walkforward_summary,
 )
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
@@ -60,19 +61,9 @@ from qbt.tqqq.constants import (
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DEFAULT_TRAIN_WINDOW_MONTHS,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
-    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
-    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
-    SOFTPLUS_GRID_STAGE1_A_RANGE,
-    SOFTPLUS_GRID_STAGE1_A_STEP,
-    SOFTPLUS_GRID_STAGE1_B_RANGE,
-    SOFTPLUS_GRID_STAGE1_B_STEP,
-    SOFTPLUS_GRID_STAGE2_A_DELTA,
-    SOFTPLUS_GRID_STAGE2_A_STEP,
-    SOFTPLUS_GRID_STAGE2_B_DELTA,
-    SOFTPLUS_GRID_STAGE2_B_STEP,
+    SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
-    TQQQ_DATA_PATH,
     TQQQ_RATE_SPREAD_LAB_MODEL_PATH,
     TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
     TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH,
@@ -83,14 +74,8 @@ from qbt.tqqq.constants import (
     WALKFORWARD_LOCAL_REFINE_B_DELTA,
     WALKFORWARD_LOCAL_REFINE_B_STEP,
 )
-from qbt.tqqq.data_loader import (
-    load_comparison_data,
-    load_expense_ratio_data,
-    load_ffr_data,
-)
-from qbt.tqqq.simulation import find_optimal_softplus_params, run_walkforward_validation
+from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
-from qbt.utils.data_loader import load_stock_data
 from qbt.utils.logger import setup_logger
 from qbt.utils.meta_manager import save_metadata
 
@@ -105,20 +90,15 @@ DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
 
 # --- 메타데이터 타입 ---
 KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"
-KEY_META_TYPE_SOFTPLUS_TUNING = "tqqq_softplus_tuning"
-KEY_META_TYPE_WALKFORWARD = "tqqq_walkforward"
-
-# --- 세션 상태 키 (워크포워드) ---
-KEY_SESSION_WALKFORWARD_RESULT = "walkforward_result"
-KEY_SESSION_WALKFORWARD_RUNNING = "walkforward_running"
 
 # --- Softplus 튜닝 모드 관련 ---
 MODE_FIXED_SPREAD = "고정 Spread (기본)"
 MODE_SOFTPLUS_DYNAMIC = "Softplus 동적 Spread"
 
-# --- 세션 상태 키 ---
-KEY_SESSION_TUNING_RESULT = "softplus_tuning_result"
-KEY_SESSION_TUNING_RUNNING = "softplus_tuning_running"
+# --- 튜닝 결과 CSV 컬럼명 ---
+COL_A = "a"
+COL_B = "b"
+COL_RMSE_PCT = "rmse_pct"
 
 # --- 출력용 한글 레이블 ---
 DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
@@ -510,149 +490,30 @@ def _save_outputs_once(monthly_df: pd.DataFrame):
 
 
 # ============================================================
-# Softplus 튜닝 관련 함수
+# Softplus 튜닝 결과 로드 및 표시 함수
 # ============================================================
 
 
-@st.cache_data(show_spinner=False)
-def _load_tuning_data() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+@st.cache_data
+def _load_softplus_tuning_csv() -> pd.DataFrame | None:
     """
-    Softplus 튜닝에 필요한 데이터를 로드한다.
-
-    캐시되므로 서버 런 동안 1회만 로드된다.
+    Softplus 튜닝 결과 CSV를 로드한다.
 
     Returns:
-        (qqq_df, tqqq_df, ffr_df, expense_df) 튜플
+        튜닝 결과 DataFrame 또는 None (파일 없음)
     """
-    qqq_df = load_stock_data(QQQ_DATA_PATH)
-    tqqq_df = load_stock_data(TQQQ_DATA_PATH)
-    ffr_df = load_ffr_data(FFR_DATA_PATH)
-    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
-    return qqq_df, tqqq_df, ffr_df, expense_df
-
-
-def _run_softplus_tuning() -> dict | None:
-    """
-    Softplus 파라미터 2-stage grid search 튜닝을 실행한다.
-
-    진행 상황을 progress bar로 표시하며, 완료 후 결과를 세션 상태에 저장한다.
-
-    Returns:
-        튜닝 결과 딕셔너리 또는 None (실패 시)
-    """
-    try:
-        # 데이터 로드 (캐시됨)
-        with st.spinner("데이터 로딩 중..."):
-            qqq_df, tqqq_df, ffr_df, expense_df = _load_tuning_data()
-
-        # 튜닝 실행 (시간이 오래 걸릴 수 있음)
-        progress_bar = st.progress(0, text="Stage 1: 조대 그리드 탐색 시작...")
-
-        # Stage 1 조합 수 계산 (사전 정보 표시용)
-        a_count_s1 = (
-            int((SOFTPLUS_GRID_STAGE1_A_RANGE[1] - SOFTPLUS_GRID_STAGE1_A_RANGE[0]) / SOFTPLUS_GRID_STAGE1_A_STEP) + 1
-        )
-        b_count_s1 = (
-            int((SOFTPLUS_GRID_STAGE1_B_RANGE[1] - SOFTPLUS_GRID_STAGE1_B_RANGE[0]) / SOFTPLUS_GRID_STAGE1_B_STEP) + 1
-        )
-        total_s1 = a_count_s1 * b_count_s1
-
-        # Stage 2 조합 수 계산
-        a_count_s2 = int(2 * SOFTPLUS_GRID_STAGE2_A_DELTA / SOFTPLUS_GRID_STAGE2_A_STEP) + 1
-        b_count_s2 = int(2 * SOFTPLUS_GRID_STAGE2_B_DELTA / SOFTPLUS_GRID_STAGE2_B_STEP) + 1
-        total_s2 = a_count_s2 * b_count_s2
-
-        progress_bar.progress(10, text=f"Stage 1: {total_s1}개 조합 탐색 중... (약 1-2분 소요)")
-
-        # 튜닝 실행 (시간 측정)
-        start_time = time.perf_counter()
-        a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
-            underlying_df=qqq_df,
-            actual_leveraged_df=tqqq_df,
-            ffr_df=ffr_df,
-            expense_df=expense_df,
-        )
-        elapsed_time = time.perf_counter() - start_time
-        logger.debug(
-            f"(a, b) 글로벌 튜닝 완료: "
-            f"총 {total_s1 + total_s2}개 조합 (Stage1: {total_s1}, Stage2: {total_s2}), "
-            f"소요시간: {elapsed_time:.2f}초"
-        )
-
-        progress_bar.progress(100, text="튜닝 완료!")
-
-        # 결과 저장
-        result = {
-            "a_best": a_best,
-            "b_best": b_best,
-            "best_rmse": best_rmse,
-            "all_candidates": all_candidates,
-            "stage1_count": total_s1,
-            "stage2_count": total_s2,
-        }
-
-        # meta.json에 기록
-        _save_softplus_tuning_metadata(result)
-
-        return result
-
-    except Exception as e:
-        st.error(f"튜닝 실행 실패:\n\n{str(e)}")
+    if not SOFTPLUS_TUNING_CSV_PATH.exists():
         return None
-
-
-def _save_softplus_tuning_metadata(result: dict) -> None:
-    """
-    Softplus 튜닝 결과를 meta.json에 기록한다.
-
-    Args:
-        result: 튜닝 결과 딕셔너리
-    """
-    metadata = {
-        "funding_spread_mode": "softplus_ffr_monthly",
-        "softplus_a": result["a_best"],
-        "softplus_b": result["b_best"],
-        "ffr_scale": "pct",
-        "objective": "cumul_multiple_log_diff_rmse_pct",
-        "best_rmse_pct": result["best_rmse"],
-        "grid_settings": {
-            "stage1": {
-                "a_range": list(SOFTPLUS_GRID_STAGE1_A_RANGE),
-                "a_step": SOFTPLUS_GRID_STAGE1_A_STEP,
-                "b_range": list(SOFTPLUS_GRID_STAGE1_B_RANGE),
-                "b_step": SOFTPLUS_GRID_STAGE1_B_STEP,
-                "combinations": result["stage1_count"],
-            },
-            "stage2": {
-                "a_delta": SOFTPLUS_GRID_STAGE2_A_DELTA,
-                "a_step": SOFTPLUS_GRID_STAGE2_A_STEP,
-                "b_delta": SOFTPLUS_GRID_STAGE2_B_DELTA,
-                "b_step": SOFTPLUS_GRID_STAGE2_B_STEP,
-                "combinations": result["stage2_count"],
-            },
-        },
-        "input_files": {
-            "qqq_data": str(QQQ_DATA_PATH),
-            "tqqq_data": str(TQQQ_DATA_PATH),
-            "ffr_data": str(FFR_DATA_PATH),
-            "expense_data": str(EXPENSE_RATIO_DATA_PATH),
-        },
-        "output_files": {
-            "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
-            "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
-            "model_csv": str(TQQQ_RATE_SPREAD_LAB_MODEL_PATH),
-        },
-    }
-    save_metadata(KEY_META_TYPE_SOFTPLUS_TUNING, metadata)
+    return pd.read_csv(SOFTPLUS_TUNING_CSV_PATH)
 
 
 def _render_softplus_section() -> None:
-    """Softplus 동적 Spread 튜닝 섹션을 렌더링한다."""
-    st.header("Softplus 동적 Spread 파라미터 튜닝")
+    """Softplus 동적 Spread 튜닝 결과 섹션을 렌더링한다."""
+    st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
 
     st.markdown(
         """
-        **목적**: 금리 수준에 따라 funding spread를 동적으로 조정하는 softplus 모델의 최적 파라미터 (a, b)를 탐색합니다.
+        **목적**: 금리 수준에 따라 funding spread를 동적으로 조정하는 softplus 모델의 최적 파라미터 (a, b)를 확인합니다.
 
         **수식**: `spread = softplus(a + b * ffr_pct)`
 
@@ -661,226 +522,150 @@ def _render_softplus_section() -> None:
         - `b`: 기울기 파라미터 (양수일 때 고금리 구간 spread 증가)
         - `softplus(x)`: log(1 + exp(x)), 항상 양수 반환
 
-        **탐색 방법**: 2-Stage Grid Search (조대 탐색 -> 정밀 탐색)
-
-        **목적함수**: `cumul_multiple_log_diff_rmse_pct` 최소화 (추적 오차 RMSE)
+        **튜닝 실행**: `poetry run python scripts/tqqq/run_softplus_tuning.py`
 
         ---
         """
     )
 
-    # Grid search 파라미터 표시
-    with st.expander("Grid Search 파라미터 (참고)", expanded=False):
-        col1, col2 = st.columns(2)
+    # CSV 파일 로드
+    tuning_df = _load_softplus_tuning_csv()
 
-        with col1:
-            st.markdown("**Stage 1 (조대 그리드)**")
-            st.write(
-                f"- a: [{SOFTPLUS_GRID_STAGE1_A_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_A_RANGE[1]}], step={SOFTPLUS_GRID_STAGE1_A_STEP}"
-            )
-            st.write(
-                f"- b: [{SOFTPLUS_GRID_STAGE1_B_RANGE[0]}, {SOFTPLUS_GRID_STAGE1_B_RANGE[1]}], step={SOFTPLUS_GRID_STAGE1_B_STEP}"
-            )
+    if tuning_df is None:
+        st.warning(
+            f"튜닝 결과 CSV 파일이 존재하지 않습니다.\n\n"
+            f"파일 경로: `{SOFTPLUS_TUNING_CSV_PATH}`\n\n"
+            f"**튜닝 실행 방법**:\n"
+            f"```bash\n"
+            f"poetry run python scripts/tqqq/run_softplus_tuning.py\n"
+            f"```"
+        )
+    else:
+        _display_tuning_result(tuning_df)
 
-        with col2:
-            st.markdown("**Stage 2 (정밀 그리드)**")
-            st.write(
-                f"- a: [a* - {SOFTPLUS_GRID_STAGE2_A_DELTA}, a* + {SOFTPLUS_GRID_STAGE2_A_DELTA}], step={SOFTPLUS_GRID_STAGE2_A_STEP}"
-            )
-            st.write(
-                f"- b: [b* - {SOFTPLUS_GRID_STAGE2_B_DELTA}, b* + {SOFTPLUS_GRID_STAGE2_B_DELTA}], step={SOFTPLUS_GRID_STAGE2_B_STEP}"
-            )
-
-    st.divider()
-
-    # 세션 상태에서 이전 결과 확인
-    if KEY_SESSION_TUNING_RESULT in st.session_state:
-        _display_tuning_result(st.session_state[KEY_SESSION_TUNING_RESULT])
-        st.divider()
-
-    # 튜닝 실행 버튼
-    if st.button("(a, b) 글로벌 튜닝 실행", type="primary", width="stretch"):
-        result = _run_softplus_tuning()
-        if result is not None:
-            st.session_state[KEY_SESSION_TUNING_RESULT] = result
-            st.rerun()
-
-    # 워크포워드 검증 섹션 (항상 표시)
+    # 워크포워드 검증 섹션
     st.divider()
     _render_walkforward_section()
 
 
-def _display_tuning_result(result: dict) -> None:
+def _display_tuning_result(tuning_df: pd.DataFrame) -> None:
     """
     튜닝 결과를 표시한다.
 
     Args:
-        result: 튜닝 결과 딕셔너리
+        tuning_df: 튜닝 결과 DataFrame (a, b, rmse_pct 컬럼)
     """
     st.subheader("튜닝 결과")
+
+    # 최적 파라미터 (첫 번째 행)
+    best_row = tuning_df.iloc[0]
 
     # 핵심 결과 표시
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric(label="최적 a (절편)", value=f"{result['a_best']:.4f}")
+        st.metric(label="최적 a (절편)", value=f"{best_row[COL_A]:.4f}")
 
     with col2:
-        st.metric(label="최적 b (기울기)", value=f"{result['b_best']:.4f}")
+        st.metric(label="최적 b (기울기)", value=f"{best_row[COL_B]:.4f}")
 
     with col3:
-        st.metric(label="최적 RMSE (%)", value=f"{result['best_rmse']:.4f}")
+        st.metric(label="최적 RMSE (%)", value=f"{best_row[COL_RMSE_PCT]:.4f}")
 
     st.success(
-        f"최적 파라미터: a = {result['a_best']:.4f}, b = {result['b_best']:.4f}\n\n" f"추적 오차 RMSE: {result['best_rmse']:.4f}%"
+        f"최적 파라미터: a = {best_row[COL_A]:.4f}, b = {best_row[COL_B]:.4f}\n\n"
+        f"추적 오차 RMSE: {best_row[COL_RMSE_PCT]:.4f}%"
     )
 
     # 상위 결과 테이블
     with st.expander("상위 10개 후보 결과", expanded=True):
-        # all_candidates에서 상위 10개 추출
-        candidates = result["all_candidates"]
-        candidates_sorted = sorted(candidates, key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
-        top_10 = candidates_sorted[:10]
-
-        # DataFrame으로 변환
-        top_df = pd.DataFrame(
-            [
-                {
-                    "a": c["a"],
-                    "b": c["b"],
-                    "RMSE (%)": c[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE],
-                }
-                for c in top_10
-            ]
-        )
-        top_df.index = pd.Index(range(1, len(top_df) + 1), name="순위")
-
-        st.dataframe(top_df, width="stretch")
+        top_10 = tuning_df.head(10).copy()
+        top_10.index = pd.Index(range(1, len(top_10) + 1), name="순위")
+        top_10.columns = ["a", "b", "RMSE (%)"]
+        st.dataframe(top_10, width="stretch")
 
     # 메타 정보
-    st.info(
-        f"탐색 조합 수: Stage 1 = {result['stage1_count']}개, Stage 2 = {result['stage2_count']}개\n\n"
-        f"결과가 meta.json에 저장되었습니다."
-    )
+    st.info(f"총 후보 수: {len(tuning_df)}개\n\nCSV 파일: `{SOFTPLUS_TUNING_CSV_PATH}`")
 
 
 # ============================================================
-# 워크포워드 검증 관련 함수
+# 워크포워드 검증 결과 로드 및 표시 함수
 # ============================================================
 
 
-def _run_walkforward_validation() -> dict | None:
+@st.cache_data
+def _load_walkforward_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
     """
-    워크포워드 검증을 실행한다.
-
-    60개월 Train, 1개월 Test 워크포워드 검증을 수행하고, CSV 파일을 저장한다.
+    워크포워드 검증 결과 CSV를 로드한다.
 
     Returns:
-        워크포워드 결과 딕셔너리 또는 None (실패 시)
+        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
     """
-    try:
-        # 데이터 로드 (캐시됨)
-        with st.spinner("데이터 로딩 중..."):
-            qqq_df, tqqq_df, ffr_df, expense_df = _load_tuning_data()
+    if not TQQQ_WALKFORWARD_PATH.exists() or not TQQQ_WALKFORWARD_SUMMARY_PATH.exists():
+        return None, None
 
-        # 워크포워드 실행 (시간이 오래 걸릴 수 있음)
-        progress_bar = st.progress(0, text="워크포워드 검증 시작 중...")
+    result_df = pd.read_csv(TQQQ_WALKFORWARD_PATH)
+    summary_df = pd.read_csv(TQQQ_WALKFORWARD_SUMMARY_PATH)
 
-        # 예상 테스트 월 수 계산 (사전 정보 표시용)
-        # 전체 기간에서 train 기간을 뺀 월 수
-        progress_bar.progress(5, text="워크포워드 검증 실행 중... (60개월 학습, 1개월 테스트)")
+    # summary를 딕셔너리로 변환
+    return result_df, summary_df
 
-        # 워크포워드 실행
-        result_df, summary = run_walkforward_validation(
-            underlying_df=qqq_df,
-            actual_df=tqqq_df,
-            ffr_df=ffr_df,
-            expense_df=expense_df,
-            train_window_months=DEFAULT_TRAIN_WINDOW_MONTHS,
+
+def _render_walkforward_section() -> None:
+    """워크포워드 검증 결과 섹션을 렌더링한다."""
+    st.header("워크포워드 검증 (파라미터 안정성)")
+
+    st.markdown(
+        f"""
+        **목적**: 글로벌 최적 (a, b) 파라미터가 미래 데이터에도 안정적으로 작동하는지 검증합니다.
+
+        **방법**: 워크포워드 (Rolling Window) 검증
+        - 학습 기간: {DEFAULT_TRAIN_WINDOW_MONTHS}개월 (5년)
+        - 테스트 기간: 1개월
+        - 첫 구간: 2-stage grid search (글로벌 탐색)
+        - 이후 구간: local refine (직전 월 최적값 주변 탐색)
+
+        **Local Refine 범위**:
+        - a: [a_prev - {WALKFORWARD_LOCAL_REFINE_A_DELTA}, a_prev + {WALKFORWARD_LOCAL_REFINE_A_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_A_STEP}
+        - b: [b_prev - {WALKFORWARD_LOCAL_REFINE_B_DELTA}, b_prev + {WALKFORWARD_LOCAL_REFINE_B_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_B_STEP}
+
+        **검증 실행**: `poetry run python scripts/tqqq/run_walkforward_validation.py`
+
+        ---
+        """
+    )
+
+    # CSV 파일 로드
+    result_df, summary_df = _load_walkforward_csv()
+
+    if result_df is None or summary_df is None:
+        st.warning(
+            f"워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
+            f"파일 경로:\n"
+            f"- `{TQQQ_WALKFORWARD_PATH}`\n"
+            f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`\n\n"
+            f"**검증 실행 방법**:\n"
+            f"```bash\n"
+            f"poetry run python scripts/tqqq/run_walkforward_validation.py\n"
+            f"```\n\n"
+            f"**주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분)."
         )
-
-        progress_bar.progress(90, text="CSV 파일 저장 중...")
-
-        # CSV 저장
-        save_walkforward_results(result_df, TQQQ_WALKFORWARD_PATH)
-        save_walkforward_summary(summary, TQQQ_WALKFORWARD_SUMMARY_PATH)
-
-        progress_bar.progress(100, text="워크포워드 검증 완료!")
-
-        # 결과 저장
-        result = {
-            "result_df": result_df,
-            "summary": summary,
-        }
-
-        # meta.json에 기록
-        _save_walkforward_metadata(result)
-
-        return result
-
-    except Exception as e:
-        st.error(f"워크포워드 검증 실행 실패:\n\n{str(e)}")
-        return None
+    else:
+        _display_walkforward_result(result_df, summary_df)
 
 
-def _save_walkforward_metadata(result: dict) -> None:
-    """
-    워크포워드 검증 결과를 meta.json에 기록한다.
-
-    Args:
-        result: 워크포워드 결과 딕셔너리
-    """
-    summary = result["summary"]
-    metadata = {
-        "funding_spread_mode": "softplus_ffr_monthly",
-        "walkforward_settings": {
-            "train_window_months": DEFAULT_TRAIN_WINDOW_MONTHS,
-            "test_step_months": 1,
-            "test_month_ffr_usage": "same_month",
-        },
-        "tuning_policy": {
-            "first_window": "full_grid_2stage",
-            "subsequent_windows": "local_refine",
-            "local_refine_a_delta": WALKFORWARD_LOCAL_REFINE_A_DELTA,
-            "local_refine_a_step": WALKFORWARD_LOCAL_REFINE_A_STEP,
-            "local_refine_b_delta": WALKFORWARD_LOCAL_REFINE_B_DELTA,
-            "local_refine_b_step": WALKFORWARD_LOCAL_REFINE_B_STEP,
-        },
-        "summary": {
-            "test_rmse_mean": summary["test_rmse_mean"],
-            "test_rmse_median": summary["test_rmse_median"],
-            "test_rmse_std": summary["test_rmse_std"],
-            "a_mean": summary["a_mean"],
-            "a_std": summary["a_std"],
-            "b_mean": summary["b_mean"],
-            "b_std": summary["b_std"],
-            "n_test_months": summary["n_test_months"],
-        },
-        "input_files": {
-            "qqq_data": str(QQQ_DATA_PATH),
-            "tqqq_data": str(TQQQ_DATA_PATH),
-            "ffr_data": str(FFR_DATA_PATH),
-            "expense_data": str(EXPENSE_RATIO_DATA_PATH),
-        },
-        "output_files": {
-            "walkforward_csv": str(TQQQ_WALKFORWARD_PATH),
-            "walkforward_summary_csv": str(TQQQ_WALKFORWARD_SUMMARY_PATH),
-        },
-    }
-    save_metadata(KEY_META_TYPE_WALKFORWARD, metadata)
-
-
-def _display_walkforward_result(result: dict) -> None:
+def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:
     """
     워크포워드 검증 결과를 표시한다.
 
     Args:
-        result: 워크포워드 결과 딕셔너리
+        result_df: 워크포워드 결과 DataFrame
+        summary_df: 워크포워드 요약 DataFrame (metric, value 컬럼)
     """
     st.subheader("워크포워드 검증 결과")
 
-    result_df = result["result_df"]
-    summary = result["summary"]
+    # summary_df를 딕셔너리로 변환
+    summary = dict(zip(summary_df["metric"], summary_df["value"], strict=False))
 
     # 핵심 요약 지표
     col1, col2, col3, col4 = st.columns(4)
@@ -915,7 +700,7 @@ def _display_walkforward_result(result: dict) -> None:
             st.write(f"- a 표준편차: {summary['a_std']:.4f}")
             st.write(f"- b 평균: {summary['b_mean']:.4f}")
             st.write(f"- b 표준편차: {summary['b_std']:.4f}")
-            st.write(f"- 테스트 월 수: {summary['n_test_months']}개월")
+            st.write(f"- 테스트 월 수: {int(summary['n_test_months'])}개월")
 
     # (a, b) 추이 차트
     with st.expander("(a, b) 파라미터 추이 차트", expanded=True):
@@ -983,48 +768,11 @@ def _display_walkforward_result(result: dict) -> None:
 
     # 메타 정보
     st.info(
-        f"워크포워드 검증 완료: {summary['n_test_months']}개월 테스트\n\n"
-        f"결과가 다음 파일에 저장되었습니다:\n"
-        f"- {TQQQ_WALKFORWARD_PATH}\n"
-        f"- {TQQQ_WALKFORWARD_SUMMARY_PATH}"
+        f"워크포워드 검증 완료: {int(summary['n_test_months'])}개월 테스트\n\n"
+        f"CSV 파일:\n"
+        f"- `{TQQQ_WALKFORWARD_PATH}`\n"
+        f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`"
     )
-
-
-def _render_walkforward_section() -> None:
-    """워크포워드 검증 섹션을 렌더링한다."""
-    st.header("워크포워드 검증 (파라미터 안정성)")
-
-    st.markdown(
-        f"""
-        **목적**: 글로벌 최적 (a, b) 파라미터가 미래 데이터에도 안정적으로 작동하는지 검증합니다.
-
-        **방법**: 워크포워드 (Rolling Window) 검증
-        - 학습 기간: {DEFAULT_TRAIN_WINDOW_MONTHS}개월 (5년)
-        - 테스트 기간: 1개월
-        - 첫 구간: 2-stage grid search (글로벌 탐색)
-        - 이후 구간: local refine (직전 월 최적값 주변 탐색)
-
-        **Local Refine 범위**:
-        - a: [a_prev - {WALKFORWARD_LOCAL_REFINE_A_DELTA}, a_prev + {WALKFORWARD_LOCAL_REFINE_A_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_A_STEP}
-        - b: [b_prev - {WALKFORWARD_LOCAL_REFINE_B_DELTA}, b_prev + {WALKFORWARD_LOCAL_REFINE_B_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_B_STEP}
-
-        **주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분).
-
-        ---
-        """
-    )
-
-    # 세션 상태에서 이전 결과 확인
-    if KEY_SESSION_WALKFORWARD_RESULT in st.session_state:
-        _display_walkforward_result(st.session_state[KEY_SESSION_WALKFORWARD_RESULT])
-        st.divider()
-
-    # 워크포워드 실행 버튼
-    if st.button("워크포워드 검증 실행", type="secondary", width="stretch"):
-        result = _run_walkforward_validation()
-        if result is not None:
-            st.session_state[KEY_SESSION_WALKFORWARD_RESULT] = result
-            st.rerun()
 
 
 # ============================================================
@@ -1049,7 +797,7 @@ def main():
                 "분석 모드를 선택하세요:",
                 options=[MODE_FIXED_SPREAD, MODE_SOFTPLUS_DYNAMIC],
                 index=0,
-                help="고정 Spread: 기존 분석 (금리-오차 관계 시각화)\n\nSoftplus 동적: 최적 (a, b) 파라미터 탐색",
+                help="고정 Spread: 기존 분석 (금리-오차 관계 시각화)\n\nSoftplus 동적: 튜닝 결과 조회",
             )
             st.divider()
             st.caption("QBT (Quant BackTest)")

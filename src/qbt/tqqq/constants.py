@@ -35,6 +35,7 @@ TQQQ_DAILY_COMPARISON_PATH = RESULTS_DIR / "tqqq_daily_comparison.csv"
 TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_monthly.csv"
 TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_summary.csv"
 TQQQ_RATE_SPREAD_LAB_MODEL_PATH = RESULTS_DIR / "tqqq_rate_spread_lab_model.csv"
+SOFTPLUS_TUNING_CSV_PATH = RESULTS_DIR / "tqqq_softplus_tuning.csv"
 
 __all__ = [
     # 경로
@@ -48,6 +49,7 @@ __all__ = [
     "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
     "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
     "TQQQ_RATE_SPREAD_LAB_MODEL_PATH",
+    "SOFTPLUS_TUNING_CSV_PATH",
     # 레버리지 상품 스펙
     "DEFAULT_LEVERAGE_MULTIPLIER",
     "DEFAULT_SYNTHETIC_INITIAL_PRICE",

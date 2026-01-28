@@ -133,10 +133,12 @@ main 함수:
 
 - 합성 데이터 생성 (`generate_synthetic_tqqq.py`)
 - 검증 및 비교 (`validate_tqqq_simulation.py`, `generate_tqqq_daily_comparison.py`)
-- 비용 모델 최적화
+- 비용 모델 최적화:
+  - `run_softplus_tuning.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
+  - `run_walkforward_validation.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 - 대시보드 앱:
   - `streamlit_daily_comparison.py`: 일별 비교 대시보드
-  - `streamlit_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱
+  - `streamlit_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (튜닝 결과 CSV 로드)
 
 ---
 
