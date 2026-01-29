@@ -722,9 +722,8 @@ def run_buffer_strategy(
 
     # 이전 날의 밴드 값 초기화 (첫 날 값으로)
     # i=1부터 시작하므로 i=1의 prev는 i=0이 됨
-    # float | None: None 비교를 위해 선언 (방어적 타입)
-    prev_upper_band: float | None = first_upper_band
-    prev_lower_band: float | None = first_lower_band
+    prev_upper_band: float = first_upper_band
+    prev_lower_band: float = first_lower_band
 
     # 5. 백테스트 루프 (인덱스 1부터 시작 - 전일 비교 필요)
     # 학습 포인트: 인덱스 1부터 시작하는 이유
@@ -809,7 +808,7 @@ def run_buffer_strategy(
         # Critical Invariant: pending_order 존재 중 신규 신호 발생 시 예외
         prev_row = df.iloc[i - 1]
 
-        if position == 0 and prev_upper_band is not None:  # type: ignore[reportUnnecessaryComparison]
+        if position == 0:
             # 매수 로직 (상태머신)
 
             # 5-5-1. 유지조건 체크 (hold_state가 존재하면)
@@ -870,7 +869,7 @@ def run_buffer_strategy(
                             recent_buy_count=recent_buy_count,
                         )
 
-        elif position > 0 and prev_lower_band is not None:  # type: ignore[reportUnnecessaryComparison]
+        elif position > 0:
             # 매도 로직 (hold_days 없음, 즉시 실행)
             breakout_detected = _detect_sell_signal(
                 prev_close=prev_row[COL_CLOSE],

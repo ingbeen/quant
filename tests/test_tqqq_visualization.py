@@ -7,7 +7,6 @@ visualization.py의 차트 생성 함수들을 검증한다.
 """
 
 from datetime import date
-from typing import cast
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -61,13 +60,11 @@ class TestPriceComparisonChart:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
-        # Trace 타입 검증 및 타입 캐스팅 (PyRight 호환)
+        # Trace 타입 검증
         assert isinstance(fig.data[0], go.Scatter)
         assert isinstance(fig.data[1], go.Scatter)
-        trace_0 = cast(go.Scatter, fig.data[0])  # type: ignore[redundant-cast]
-        trace_1 = cast(go.Scatter, fig.data[1])  # type: ignore[redundant-cast]
-        assert trace_0.name == "실제 TQQQ"
-        assert trace_1.name == "시뮬레이션 TQQQ"
+        assert fig.data[0].name == "실제 TQQQ"
+        assert fig.data[1].name == "시뮬레이션 TQQQ"
 
     def test_chart_with_single_row(self):
         """
@@ -114,13 +111,12 @@ class TestDailyReturnDiffHistogram:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 2
-        # Trace 타입 검증 및 타입 캐스팅 (PyRight 호환)
+        # Trace 타입 검증
         assert isinstance(fig.data[0], go.Histogram)
         assert isinstance(fig.data[1], go.Scatter)
-        trace_0 = cast(go.Histogram, fig.data[0])  # type: ignore[no-any-unimported]
-        trace_1 = cast(go.Scatter, fig.data[1])  # type: ignore[redundant-cast]
-        assert trace_0.name == "일일수익률 차이"
-        assert trace_1.name == "개별 관측값"
+        # go.Histogram은 plotly-stubs에 _histogram.pyi 미제공 -> dict 접근 사용
+        assert fig.data[0]["name"] == "일일수익률 차이"
+        assert fig.data[1].name == "개별 관측값"
 
     def test_histogram_with_nan_values(self):
         """
@@ -169,10 +165,9 @@ class TestCumulativeReturnDiffChart:
         # Then
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 1
-        # Trace 타입 검증 및 타입 캐스팅 (PyRight 호환)
+        # Trace 타입 검증
         assert isinstance(fig.data[0], go.Scatter)
-        trace_0 = cast(go.Scatter, fig.data[0])  # type: ignore[redundant-cast]
-        assert trace_0.name == "누적배수 로그차이 (signed)"
+        assert fig.data[0].name == "누적배수 로그차이 (signed)"
 
     def test_chart_handles_positive_and_negative_values(self):
         """
