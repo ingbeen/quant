@@ -12,7 +12,7 @@ ProcessPoolExecutor를 사용하여 CPU 집약적 작업을 병렬로 실행한�
 import multiprocessing
 import os
 from collections.abc import Callable
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from typing import Any
 
 from qbt.utils import get_logger
@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 WORKER_CACHE: dict[str, Any] = {}
 
 
-def init_worker_cache(cache_payload: dict) -> None:
+def init_worker_cache(cache_payload: dict[str, Any]) -> None:
     """
     워커 프로세스 초기화 함수.
 
@@ -71,7 +71,7 @@ def init_worker_cache(cache_payload: dict) -> None:
     WORKER_CACHE.update(cache_payload)
 
 
-def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
+def _unwrap_kwargs(args: tuple[Callable[..., Any], dict[str, Any]]) -> Any:
     """
     (함수, kwargs 딕셔너리) 튜플을 받아 함수를 호출한다.
 
@@ -85,7 +85,8 @@ def _unwrap_kwargs(args: tuple[Callable, dict[str, Any]]) -> Any:
     Returns:
         함수 호출 결과
     """
-    func, kwargs_dict = args
+    func: Callable[..., Any] = args[0]
+    kwargs_dict: dict[str, Any] = args[1]
     return func(**kwargs_dict)
 
 
@@ -130,7 +131,7 @@ def _should_log_progress(
 
 
 def execute_parallel(
-    func: Callable,
+    func: Callable[..., Any],
     inputs: list[Any],
     max_workers: int | None = None,
     initializer: Callable[..., None] | None = None,
@@ -209,7 +210,9 @@ def execute_parallel(
         # enumerate(inputs): (0, inputs[0]), (1, inputs[1]), ... 생성
         # executor.submit(func, input_data): 작업 제출하고 Future 객체 반환
         # Future 객체를 키로, 인덱스를 값으로 하는 딕셔너리 생성
-        future_to_index = {executor.submit(func, input_data): idx for idx, input_data in enumerate(inputs)}
+        future_to_index: dict[Future[Any], int] = {
+            executor.submit(func, input_data): idx for idx, input_data in enumerate(inputs)
+        }
 
         # 완료되는 대로 결과 수집
         # as_completed(): 작업이 완료되는 순서대로 Future 객체 반환
@@ -218,7 +221,7 @@ def execute_parallel(
             idx = future_to_index[future]
             try:
                 # future.result(): 작업의 실제 결과 가져오기 (완료될 때까지 대기)
-                result = future.result()
+                result: Any = future.result()
                 # (인덱스, 결과) 튜플로 저장
                 results_with_index.append((idx, result))
 
@@ -248,7 +251,7 @@ def execute_parallel(
 
 
 def execute_parallel_with_kwargs(
-    func: Callable,
+    func: Callable[..., Any],
     inputs: list[dict[str, Any]],
     max_workers: int | None = None,
     initializer: Callable[..., None] | None = None,
@@ -288,7 +291,7 @@ def execute_parallel_with_kwargs(
         - initializer를 사용하면 큰 데이터를 작업마다 전달하지 않고 워커당 1회만 세팅 가능
     """
     # (func, kwargs) 튜플 리스트 생성
-    unwrap_inputs = [(func, kwargs_dict) for kwargs_dict in inputs]
+    unwrap_inputs: list[tuple[Callable[..., Any], dict[str, Any]]] = [(func, kwargs_dict) for kwargs_dict in inputs]
 
     # 모듈 레벨 _unwrap_kwargs 함수 사용 (pickle 가능)
     return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers, initializer, initargs)

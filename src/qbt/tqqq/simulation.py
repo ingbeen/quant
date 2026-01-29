@@ -15,7 +15,7 @@ import math  # 수학 함수 (isnan, isinf 등)
 from collections.abc import Callable  # 함수 타입 힌트
 from datetime import date  # 날짜 객체 사용 (년-월-일 정보)
 from pathlib import Path  # 파일 경로 처리 (문자열보다 안전)
-from typing import cast  # 타입 캐스팅 함수 (타입 힌트 시스템용)
+from typing import Any, cast  # 타입 캐스팅 함수 (타입 힌트 시스템용)
 
 # 2. 서드파티 라이브러리 임포트
 import numpy as np  # 수치 계산 라이브러리 (배열, 로그, 제곱근 등)
@@ -783,7 +783,7 @@ def simulate(
     return result_df
 
 
-def _evaluate_cost_model_candidate(params: dict) -> dict:
+def _evaluate_cost_model_candidate(params: dict[str, Any]) -> dict[str, Any]:
     """
     단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다.
 
@@ -1049,7 +1049,7 @@ def calculate_validation_metrics(
     simulated_df: pd.DataFrame,
     actual_df: pd.DataFrame,
     output_path: Path | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     시뮬레이션 검증 지표를 계산하고, 선택적으로 일별 비교 CSV를 생성한다.
 
@@ -1164,7 +1164,7 @@ def find_optimal_cost_model(
     spread_range: tuple[float, float] = DEFAULT_SPREAD_RANGE,
     spread_step: float = DEFAULT_SPREAD_STEP,
     max_workers: int | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     multiplier를 고정하고 비용 모델 파라미터를 grid search로 캘리브레이션한다.
 
@@ -1250,7 +1250,7 @@ def find_optimal_cost_model(
 # ============================================================
 
 
-def _evaluate_softplus_candidate(params: dict) -> dict:
+def _evaluate_softplus_candidate(params: dict[str, Any]) -> dict[str, Any]:
     """
     단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다.
 
@@ -1318,7 +1318,7 @@ def find_optimal_softplus_params(
     expense_df: pd.DataFrame,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
-) -> tuple[float, float, float, list[dict]]:
+) -> tuple[float, float, float, list[dict[str, Any]]]:
     """
     softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-stage grid search로 탐색한다.
 
@@ -1498,7 +1498,7 @@ def _local_refine_search(
     b_prev: float,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
-) -> tuple[float, float, float, list[dict]]:
+) -> tuple[float, float, float, list[dict[str, Any]]]:
     """
     직전 월 최적 (a_prev, b_prev) 주변에서 국소 탐색을 수행한다.
 
@@ -1608,7 +1608,7 @@ def run_walkforward_validation(
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
     max_workers: int | None = None,
-) -> tuple[pd.DataFrame, dict]:
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     워크포워드 검증을 수행한다 (60개월 Train, 1개월 Test).
 
@@ -1669,7 +1669,7 @@ def run_walkforward_validation(
     )
 
     # 6. 워크포워드 결과 저장 리스트
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     a_prev: float | None = None
     b_prev: float | None = None
 

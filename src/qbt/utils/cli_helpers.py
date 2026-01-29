@@ -12,6 +12,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from functools import wraps
+from typing import Any
 
 # 예외 타입 목록 (모든 예외에 스택 트레이스 포함)
 # 리스트 순서대로 매칭 시도 (구체적 → 일반적 순서)
@@ -52,7 +53,7 @@ def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
     # @wraps(func): 원본 함수의 이름, 문서 등 메타데이터를 wrapper에 복사
     # 이것이 없으면 wrapper.__name__이 'wrapper'가 되어 디버깅이 어려워짐
     @wraps(func)
-    def wrapper(*args, **kwargs) -> int:
+    def wrapper(*args: Any, **kwargs: Any) -> int:
         """실제로 실행될 래퍼 함수
 
         원본 함수를 try-except로 감싸서 예외 처리 기능을 추가
@@ -85,7 +86,7 @@ def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
             for exc_type in EXCEPTION_HANDLERS:
                 # isinstance(객체, 타입): 객체가 해당 타입인지 확인
                 # 예: isinstance(FileNotFoundError(), FileNotFoundError) → True
-                if isinstance(e, exc_type):
+                if isinstance(e, exc_type):  # type: ignore[reportUnnecessaryIsInstance]
                     # 4. 에러 로깅 (스택 트레이스에 예외 타입과 메시지 포함)
                     # exc_info=True: 예외 정보와 스택 트레이스를 로그에 포함
                     logger.error("예외 발생", exc_info=True)

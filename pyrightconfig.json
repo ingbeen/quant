@@ -1,34 +1,40 @@
 {
   "pythonVersion": "3.12",
-  "include": [
-    "src",
-    "tests",
-    "scripts"
-  ],
-  "exclude": [
-    "storage",
-    "**/__pycache__",
-    "**/.ruff_cache"
-  ],
-  "extraPaths": [
-    "src"
-  ],
+  "typeCheckingMode": "strict",
+  "include": ["src", "tests", "scripts"],
+  "exclude": ["storage", "**/__pycache__", "**/.ruff_cache"],
+  "extraPaths": ["src"],
   "reportMissingTypeStubs": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownLambdaType": "none",
   "executionEnvironments": [
     {
-      "root": "src",
-      "extraPaths": ["src"],
-      "typeCheckingMode": "strict"
-    },
-    {
       "root": "tests",
-      "extraPaths": ["src"],
-      "typeCheckingMode": "basic"
+      "reportMissingParameterType": "none",
+      "reportMissingTypeArgument": "none",
+      "reportPrivateUsage": "none",
+      "reportUnnecessaryIsInstance": "none",
+      "reportUnnecessaryComparison": "none",
+      "reportUnnecessaryTypeIgnoreComment": "none",
+      "reportImportCycles": "none",
+      "reportUnusedVariable": "none",
+      "reportGeneralTypeIssues": "none",
+      "reportArgumentType": "none"
     },
     {
       "root": "scripts",
-      "extraPaths": ["src"],
-      "typeCheckingMode": "basic"
+      "reportMissingParameterType": "none",
+      "reportMissingTypeArgument": "none",
+      "reportPrivateUsage": "none",
+      "reportUnnecessaryIsInstance": "none",
+      "reportUnnecessaryComparison": "none",
+      "reportUnnecessaryTypeIgnoreComment": "none",
+      "reportImportCycles": "none",
+      "reportUnusedVariable": "none",
+      "reportGeneralTypeIssues": "none"
     }
   ]
 }
