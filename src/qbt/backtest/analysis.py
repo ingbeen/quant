@@ -9,6 +9,8 @@
 4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
+from typing import Any
+
 import pandas as pd
 
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
@@ -83,7 +85,7 @@ def calculate_summary(
     trades_df: pd.DataFrame,
     equity_df: pd.DataFrame,
     initial_capital: float,
-) -> dict:
+) -> dict[str, Any]:
     """
     거래 내역과 자본 곡선으로 요약 지표를 계산한다.
 
@@ -113,18 +115,18 @@ def calculate_summary(
             "win_rate": 0.0,
         }
 
-    final_capital = equity_df.iloc[-1]["equity"]
-    total_return = final_capital - initial_capital
-    total_return_pct = (total_return / initial_capital) * 100
+    final_capital: float = float(equity_df.iloc[-1]["equity"])
+    total_return: float = final_capital - initial_capital
+    total_return_pct: float = (total_return / initial_capital) * 100
 
     # 기간 계산
-    start_date = pd.to_datetime(equity_df.iloc[0][COL_DATE])
-    end_date = pd.to_datetime(equity_df.iloc[-1][COL_DATE])
-    years = (end_date - start_date).days / ANNUAL_DAYS
+    start_date: pd.Timestamp = pd.Timestamp(equity_df.iloc[0][COL_DATE])
+    end_date: pd.Timestamp = pd.Timestamp(equity_df.iloc[-1][COL_DATE])
+    years: float = float((end_date - start_date).days) / ANNUAL_DAYS
 
     # CAGR
     if years > 0 and final_capital > 0:
-        cagr = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
+        cagr: float = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
     else:
         cagr = 0.0
 
@@ -133,7 +135,7 @@ def calculate_summary(
     equity_df["peak"] = equity_df["equity"].cummax()
 
     # peak가 0인 케이스 방어 (수치 안정성)
-    safe_peak = equity_df["peak"].replace(0, EPSILON)
+    safe_peak: pd.Series[Any] = equity_df["peak"].replace(0, EPSILON)
     equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / safe_peak
     mdd = equity_df["drawdown"].min() * 100
 

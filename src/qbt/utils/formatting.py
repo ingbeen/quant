@@ -10,6 +10,7 @@
 
 import logging
 import unicodedata
+from collections.abc import Sequence
 from enum import Enum
 
 
@@ -191,12 +192,12 @@ class TableLogger:
         # 헤더 하단 구분선
         self.logger.debug("-" * self._total_width)
 
-    def print_row(self, data: list) -> None:
+    def print_row(self, data: Sequence[str | int | float]) -> None:
         """
         데이터 행을 출력한다.
 
         Args:
-            data: 컬럼 순서대로 정렬된 데이터 리스트
+            data: 컬럼 순서대로 정렬된 데이터 시퀀스 (str 외 타입은 내부에서 str 변환)
 
         Raises:
             ValueError: 데이터 길이가 컬럼 수와 일치하지 않는 경우
@@ -213,14 +214,14 @@ class TableLogger:
         """테이블 푸터(하단 구분선)를 출력한다."""
         self.logger.debug("=" * self._total_width)
 
-    def print_table(self, rows: list, title: str | None = None) -> None:
+    def print_table(self, rows: Sequence[Sequence[str | int | float]], title: str | None = None) -> None:
         """
         전체 테이블을 출력한다.
 
         헤더, 모든 데이터 행, 푸터를 한 번에 출력합니다.
 
         Args:
-            rows: 데이터 행 리스트 (각 행은 컬럼 순서대로 정렬된 리스트)
+            rows: 데이터 행 시퀀스 (각 행은 컬럼 순서대로 정렬된 시퀀스)
             title: 테이블 제목 (None이면 제목 없음)
         """
         self.print_header(title)

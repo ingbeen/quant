@@ -10,6 +10,7 @@ Fail-fast 정책:
 """
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -636,7 +637,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     )
 
     # 3. Delta 요약 (dr_m.shift(lag) vs de_m, lag 0/1/2)
-    delta_rows = []
+    delta_rows: list[dict[str, Any]] = []
     dr_lag_col = "dr_lag"  # 로컬 임시 컬럼명
 
     for lag in [0, 1, 2]:
@@ -1098,7 +1099,7 @@ def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None
     logger.debug(f"워크포워드 결과 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")
 
 
-def save_walkforward_summary(summary: dict, output_path: Path) -> None:
+def save_walkforward_summary(summary: dict[str, Any], output_path: Path) -> None:
     """
     워크포워드 요약 통계를 CSV로 저장한다.
 
@@ -1134,9 +1135,9 @@ def save_walkforward_summary(summary: dict, output_path: Path) -> None:
         raise ValueError(f"필수 키 누락: {missing}")
 
     # 2. metric-value 형식 DataFrame 생성
-    rows = []
+    rows: list[dict[str, Any]] = []
     for key in required_keys:
-        value = summary[key]
+        value: Any = summary[key]
         # 수치 값 라운딩 (정수형은 제외)
         if isinstance(value, float):
             value = round(value, 4)

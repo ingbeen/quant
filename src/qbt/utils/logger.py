@@ -17,6 +17,7 @@ QBT Logging Module
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 
 class ClickableFormatter(logging.Formatter):
@@ -28,7 +29,7 @@ class ClickableFormatter(logging.Formatter):
     3. *args, **kwargs: 가변 인자 - 임의 개수의 인자를 받을 수 있음
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         """초기화 메서드
 
         *args: 위치 인자들을 튜플로 받음 (예: __init__(1, 2, 3) → args=(1, 2, 3))
@@ -83,7 +84,7 @@ class ClickableFormatter(logging.Formatter):
         # Path.cwd(): Current Working Directory (명령을 실행한 위치)
         return Path.cwd()
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         """
         로그 레코드에 상대 경로 정보 추가
 

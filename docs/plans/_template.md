@@ -60,7 +60,6 @@
 
 > 아래 문서에 기재된 규칙을 **모두 숙지**하고 준수합니다.
 
-- `CLAUDE.md` (루트)
 - 작업 도메인 `CLAUDE.md`: `src/qbt/<domain>/CLAUDE.md` 또는 `scripts/CLAUDE.md` 등
 - 테스트를 추가/수정한다면 `tests/CLAUDE.md`
 

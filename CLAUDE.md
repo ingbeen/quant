@@ -299,9 +299,9 @@ CLI 계층 (`scripts/`):
   - 예: `poetry run pytest tests/test_strategy.py -v`
   - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`
 - 타입 체커: PyRight 단일 사용 (Mypy 제거됨)
-  - 설정 파일: `pyrightconfig.json`
-  - src 폴더: strict 모드 적용
-  - tests, scripts 폴더: basic 모드 적용
+  - 설정 파일: `pyrightconfig.json` (`executionEnvironments` 방식)
+  - src 폴더: strict 모드 적용 (reportUnknown* 5개 규칙은 none, pandas/Plotly 타입 스텁 한계 대응)
+  - tests, scripts 폴더: strict 모드 + 테스트 특성에 맞는 규칙 완화
 
 ### 로깅 정책
 

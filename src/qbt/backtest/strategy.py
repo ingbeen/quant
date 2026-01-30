@@ -9,7 +9,7 @@
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -127,7 +127,7 @@ def _record_equity(
     current_buffer_pct: float,
     upper_band: float | None,
     lower_band: float | None,
-) -> dict:
+) -> dict[str, Any]:
     """
     현재 시점의 equity를 기록한다.
 
@@ -292,7 +292,7 @@ def _execute_sell_order(
     position: int,
     entry_price: float,
     entry_date: date,
-) -> tuple[int, float, dict]:
+) -> tuple[int, float, dict[str, Any]]:
     """
     매도 주문을 실행한다.
 
@@ -387,7 +387,7 @@ def _detect_sell_signal(
 def run_buy_and_hold(
     df: pd.DataFrame,  # 파라미터 타입 힌트
     params: BuyAndHoldParams,  # 데이터클래스 인스턴스
-) -> tuple[pd.DataFrame, dict]:  # 반환 타입: 튜플(DataFrame, 딕셔너리)
+) -> tuple[pd.DataFrame, dict[str, Any]]:  # 반환 타입: 튜플(DataFrame, 딕셔너리)
     """
     Buy & Hold 벤치마크 전략을 실행한다.
 
@@ -443,7 +443,7 @@ def run_buy_and_hold(
 
     # 5. 자본 곡선 계산
     # 학습 포인트: 빈 리스트에 딕셔너리를 누적 추가
-    equity_records = []  # 빈 리스트 생성
+    equity_records: list[dict[str, Any]] = []  # 빈 리스트 생성
 
     # 학습 포인트: .iterrows() - DataFrame을 행 단위로 순회
     # for 인덱스, 행 in df.iterrows():
@@ -489,7 +489,7 @@ def run_buy_and_hold(
 
 def _run_buffer_strategy_for_grid(
     params: BufferStrategyParams,
-) -> dict:
+) -> dict[str, Any]:
     """
     그리드 서치를 위해 단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
 
@@ -566,7 +566,7 @@ def run_grid_search(
     # 2. 파라미터 조합 생성
     # 학습 포인트: 중첩 for 루프를 활용한 그리드 생성
     # 모든 파라미터 조합을 생성 (예: 3 × 4 × 2 × 2 = 48개)
-    param_combinations = []  # 빈 리스트
+    param_combinations: list[dict[str, Any]] = []  # 빈 리스트
 
     # 4중 for 루프: 모든 조합을 순회
     for ma_window in ma_window_list:
@@ -614,8 +614,8 @@ def run_grid_search(
 
 
 def calculate_recent_buy_count(
-    entry_dates: list,
-    current_date,
+    entry_dates: list[date],
+    current_date: date,
     recent_months: int,
 ) -> int:
     """
@@ -640,7 +640,7 @@ def run_buffer_strategy(
     df: pd.DataFrame,
     params: BufferStrategyParams,
     log_trades: bool = True,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     """
     버퍼존 전략으로 백테스트를 실행한다.
 
@@ -691,14 +691,14 @@ def run_buffer_strategy(
     entry_date = None  # 진입 날짜 (None = 포지션 없음)
     all_entry_dates: list[date] = []  # 모든 매수 날짜 리스트 (동적 조정용)
 
-    trades = []  # 거래 내역을 담을 빈 리스트
-    equity_records = []  # 자본 곡선을 담을 빈 리스트
+    trades: list[dict[str, Any]] = []  # 거래 내역을 담을 빈 리스트
+    equity_records: list[dict[str, Any]] = []  # 자본 곡선을 담을 빈 리스트
     pending_order: PendingOrder | None = None  # 예약된 주문 (단일 슬롯)
 
     # hold_days 상태머신 변수 추가
     # 유지조건 추적을 위한 상태 (None = 유지조건 추적 안 함)
     # 구조: {"start_date": date, "days_passed": int, "buffer_pct": float, "hold_days_required": int}
-    hold_state: dict | None = None
+    hold_state: dict[str, Any] | None = None
 
     # 매수 시점의 hold_days 정보 저장 (거래 기록용)
     entry_hold_days = 0
@@ -722,8 +722,8 @@ def run_buffer_strategy(
 
     # 이전 날의 밴드 값 초기화 (첫 날 값으로)
     # i=1부터 시작하므로 i=1의 prev는 i=0이 됨
-    prev_upper_band = first_upper_band
-    prev_lower_band = first_lower_band
+    prev_upper_band: float = first_upper_band
+    prev_lower_band: float = first_lower_band
 
     # 5. 백테스트 루프 (인덱스 1부터 시작 - 전일 비교 필요)
     # 학습 포인트: 인덱스 1부터 시작하는 이유
@@ -808,7 +808,7 @@ def run_buffer_strategy(
         # Critical Invariant: pending_order 존재 중 신규 신호 발생 시 예외
         prev_row = df.iloc[i - 1]
 
-        if position == 0 and prev_upper_band is not None:
+        if position == 0:
             # 매수 로직 (상태머신)
 
             # 5-5-1. 유지조건 체크 (hold_state가 존재하면)
@@ -869,7 +869,7 @@ def run_buffer_strategy(
                             recent_buy_count=recent_buy_count,
                         )
 
-        elif position > 0 and prev_lower_band is not None:
+        elif position > 0:
             # 매도 로직 (hold_days 없음, 즉시 실행)
             breakout_detected = _detect_sell_signal(
                 prev_close=prev_row[COL_CLOSE],

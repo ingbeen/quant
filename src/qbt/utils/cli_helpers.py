@@ -12,14 +12,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from functools import wraps
-
-# 예외 타입 목록 (모든 예외에 스택 트레이스 포함)
-# 리스트 순서대로 매칭 시도 (구체적 → 일반적 순서)
-EXCEPTION_HANDLERS = [
-    FileNotFoundError,  # 파일을 찾을 수 없을 때
-    ValueError,  # 값이 유효하지 않을 때
-    Exception,  # 모든 예외의 부모 클래스 (최종 fallback)
-]
+from typing import Any
 
 
 def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
@@ -52,7 +45,7 @@ def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
     # @wraps(func): 원본 함수의 이름, 문서 등 메타데이터를 wrapper에 복사
     # 이것이 없으면 wrapper.__name__이 'wrapper'가 되어 디버깅이 어려워짐
     @wraps(func)
-    def wrapper(*args, **kwargs) -> int:
+    def wrapper(*args: Any, **kwargs: Any) -> int:
         """실제로 실행될 래퍼 함수
 
         원본 함수를 try-except로 감싸서 예외 처리 기능을 추가
@@ -77,26 +70,13 @@ def cli_exception_handler(func: Callable[[], int]) -> Callable[[], int]:
             # *args, **kwargs를 그대로 전달하여 원본 함수 호출
             return func(*args, **kwargs)
 
-        except Exception as e:
-            # 3. 예외 타입별 핸들러 검색 (가장 구체적인 타입부터)
-            # except Exception as e: 모든 예외를 잡아서 e 변수에 저장
-
-            # for 루프로 예외 타입 리스트 순회
-            for exc_type in EXCEPTION_HANDLERS:
-                # isinstance(객체, 타입): 객체가 해당 타입인지 확인
-                # 예: isinstance(FileNotFoundError(), FileNotFoundError) → True
-                if isinstance(e, exc_type):
-                    # 4. 에러 로깅 (스택 트레이스에 예외 타입과 메시지 포함)
-                    # exc_info=True: 예외 정보와 스택 트레이스를 로그에 포함
-                    logger.error("예외 발생", exc_info=True)
-
-                    # 5. 실패 코드 반환
-                    # Unix 관례: 0=성공, 1=실패
-                    return 1
-
-            # 6. 폴백 (도달하지 않아야 함)
-            # Exception이 리스트에 있으므로 모든 예외가 위에서 처리됨
+        except Exception:
+            # 3. 에러 로깅 (스택 트레이스에 예외 타입과 메시지 포함)
+            # exc_info=True: 예외 정보와 스택 트레이스를 로그에 포함
             logger.error("예외 발생", exc_info=True)
+
+            # 4. 실패 코드 반환
+            # Unix 관례: 0=성공, 1=실패
             return 1
 
     # 데코레이터는 wrapper 함수를 반환
