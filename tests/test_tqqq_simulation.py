@@ -15,6 +15,7 @@ TQQQ 같은 레버리지 ETF는 일일 리밸런싱으로 복리 효과가 발�
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -2221,3 +2222,229 @@ class TestCLIScriptExists:
 
         script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "run_walkforward_validation.py"
         assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
+
+
+class TestVectorizedSimulation:
+    """벡터화 시뮬레이션 수치 동등성 테스트
+
+    기존 Python for-loop 기반 시뮬레이션과 numpy 벡터화 버전이
+    부동소수점 오차 범위(1e-10) 내에서 동일한 결과를 산출하는지 검증한다.
+    """
+
+    def _create_test_data(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, float]:
+        """
+        테스트용 공통 데이터를 생성한다.
+
+        2개월에 걸친 20일 거래 데이터를 생성하여 월 전환 시 비용 계산 정확성도 검증한다.
+
+        Returns:
+            (underlying_df, ffr_df, expense_df, initial_price) 튜플
+        """
+        # 20 거래일 (2개월에 걸침)
+        dates = [date(2023, 1, i + 2) for i in range(15)] + [date(2023, 2, i + 1) for i in range(5)]
+        # 가격에 변동을 주어 다양한 수익률 발생
+        prices = [100.0]
+        for i in range(1, 20):
+            # 다양한 수익률: +1%, -0.5%, +0.3% 등
+            change = [0.01, -0.005, 0.003, 0.008, -0.002, 0.004, -0.007, 0.006, 0.002, -0.003]
+            prices.append(prices[-1] * (1 + change[i % len(change)]))
+
+        underlying_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: prices})
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [0.045, 0.046]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0095, 0.0088]})
+
+        initial_price = 30.0
+
+        return underlying_df, ffr_df, expense_df, initial_price
+
+    def test_simulate_fast_matches_simulate(self, enable_numpy_warnings):
+        """
+        벡터화 시뮬레이션이 기존 simulate()와 동일한 가격 배열을 산출하는지 검증한다.
+
+        Given:
+          - 2개월에 걸친 20일 거래 데이터
+          - FFR, expense, softplus spread 데이터
+        When:
+          - 기존 simulate() 실행
+          - 벡터화 경로 (precompute + simulate_vectorized) 실행
+        Then:
+          - 두 결과의 가격 배열이 1e-10 이내에서 동일
+        """
+        from qbt.tqqq.simulation import (
+            _create_expense_dict,
+            _create_ffr_dict,
+            _precompute_daily_costs_vectorized,
+            _simulate_prices_vectorized,
+            build_monthly_spread_map_from_dict,
+            simulate,
+        )
+
+        # Given
+        underlying_df, ffr_df, expense_df, initial_price = self._create_test_data()
+        leverage = 3.0
+
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = _create_expense_dict(expense_df)
+
+        # softplus 파라미터 사용 (dict spread)
+        a, b = -5.0, 0.8
+        spread_map = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+
+        # When 1: 기존 simulate() 실행
+        sim_df = simulate(
+            underlying_df=underlying_df,
+            leverage=leverage,
+            expense_df=expense_df,
+            initial_price=initial_price,
+            ffr_dict=ffr_dict,
+            funding_spread=spread_map,
+        )
+        expected_prices = np.array(sim_df[COL_CLOSE].tolist(), dtype=np.float64)
+
+        # When 2: 벡터화 경로 실행
+        underlying_returns = np.array(underlying_df[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
+
+        # 각 거래일의 "YYYY-MM" 키 배열
+        month_keys = np.array(
+            [f"{d.year:04d}-{d.month:02d}" for d in underlying_df[COL_DATE]],
+            dtype=object,
+        )
+
+        daily_costs = _precompute_daily_costs_vectorized(
+            month_keys=month_keys,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            spread_map=spread_map,
+            leverage=leverage,
+        )
+
+        actual_prices = _simulate_prices_vectorized(
+            underlying_returns=underlying_returns,
+            daily_costs=daily_costs,
+            leverage=leverage,
+            initial_price=initial_price,
+        )
+
+        # Then
+        np.testing.assert_allclose(
+            actual_prices,
+            expected_prices,
+            atol=1e-10,
+            err_msg="벡터화 시뮬레이션 결과가 기존 simulate()와 동일해야 합니다",
+        )
+
+    def test_calculate_rmse_fast_matches_full(self, enable_numpy_warnings):
+        """
+        경량 RMSE 함수가 calculate_validation_metrics의 RMSE와 동일한 값을 산출하는지 검증한다.
+
+        Given:
+          - 약간의 차이가 있는 실제/시뮬레이션 가격 배열
+        When:
+          - calculate_validation_metrics() 실행하여 RMSE 획득
+          - _calculate_metrics_fast() 실행하여 RMSE 획득
+        Then:
+          - 두 RMSE 값이 1e-10 이내에서 동일
+          - mean, max 값도 동일
+        """
+        from qbt.tqqq.simulation import (
+            _calculate_metrics_fast,
+            calculate_validation_metrics,
+        )
+
+        # Given: 약간의 차이가 있는 가격 데이터
+        dates = [date(2023, 1, i + 1) for i in range(10)]
+        actual_prices = [100.0, 101.0, 102.5, 101.8, 103.0, 104.2, 103.5, 105.0, 106.1, 107.0]
+        simul_prices = [100.0, 101.2, 102.3, 101.5, 103.3, 104.0, 103.8, 105.2, 105.8, 107.3]
+
+        actual_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: actual_prices})
+        simul_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: simul_prices})
+
+        # When 1: 전체 메트릭 계산 (기존 방식)
+        metrics_full = calculate_validation_metrics(simul_df, actual_df)
+        expected_rmse = metrics_full["cumul_multiple_log_diff_rmse_pct"]
+        expected_mean = metrics_full["cumul_multiple_log_diff_mean_pct"]
+        expected_max = metrics_full["cumul_multiple_log_diff_max_pct"]
+
+        # When 2: 경량 메트릭 계산 (빠른 경로)
+        actual_rmse, actual_mean, actual_max = _calculate_metrics_fast(
+            actual_prices=np.array(actual_prices),
+            simulated_prices=np.array(simul_prices),
+        )
+
+        # Then
+        assert actual_rmse == pytest.approx(
+            expected_rmse, abs=1e-10
+        ), f"RMSE 불일치: fast={actual_rmse}, full={expected_rmse}"
+        assert actual_mean == pytest.approx(
+            expected_mean, abs=1e-10
+        ), f"Mean 불일치: fast={actual_mean}, full={expected_mean}"
+        assert actual_max == pytest.approx(expected_max, abs=1e-10), f"Max 불일치: fast={actual_max}, full={expected_max}"
+
+    def test_precompute_daily_costs_matches_per_day(self, enable_numpy_warnings):
+        """
+        사전 계산된 일일 비용이 개별 calculate_daily_cost() 호출 결과와 동일한지 검증한다.
+
+        Given:
+          - 2개월에 걸친 20일 거래 데이터
+          - FFR, expense, softplus spread 데이터
+        When:
+          - _precompute_daily_costs_vectorized로 전체 비용 배열 한 번에 계산
+          - calculate_daily_cost로 각 날짜별 개별 계산
+        Then:
+          - 모든 날짜에서 비용이 1e-10 이내에서 동일
+        """
+        from qbt.tqqq.simulation import (
+            _create_expense_dict,
+            _create_ffr_dict,
+            _precompute_daily_costs_vectorized,
+            build_monthly_spread_map_from_dict,
+            calculate_daily_cost,
+        )
+
+        # Given
+        underlying_df, ffr_df, expense_df, _ = self._create_test_data()
+        leverage = 3.0
+
+        ffr_dict = _create_ffr_dict(ffr_df)
+        expense_dict = _create_expense_dict(expense_df)
+
+        a, b = -5.0, 0.8
+        spread_map = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+
+        dates = underlying_df[COL_DATE].tolist()
+        month_keys = np.array(
+            [f"{d.year:04d}-{d.month:02d}" for d in dates],
+            dtype=object,
+        )
+
+        # When 1: 벡터화된 사전 계산
+        daily_costs_vectorized = _precompute_daily_costs_vectorized(
+            month_keys=month_keys,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            spread_map=spread_map,
+            leverage=leverage,
+        )
+
+        # When 2: 개별 계산
+        daily_costs_individual = np.array(
+            [
+                calculate_daily_cost(
+                    date_value=d,
+                    ffr_dict=ffr_dict,
+                    expense_dict=expense_dict,
+                    funding_spread=spread_map,
+                    leverage=leverage,
+                )
+                for d in dates
+            ]
+        )
+
+        # Then
+        np.testing.assert_allclose(
+            daily_costs_vectorized,
+            daily_costs_individual,
+            atol=1e-10,
+            err_msg="사전 계산 비용이 개별 calculate_daily_cost()와 동일해야 합니다",
+        )

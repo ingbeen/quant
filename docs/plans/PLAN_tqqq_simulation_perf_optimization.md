@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: Draft
+**상태**: Done
 
 ---
 
@@ -40,10 +40,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: `simulate()` 함수의 Python for-loop를 numpy 벡터화로 대체하여 시뮬레이션 속도를 대폭 개선한다.
-- [ ] 목표 2: 그리드 서치용 경량 RMSE 계산 함수를 생성하여 불필요한 메트릭 계산을 제거한다.
-- [ ] 목표 3: expense_dict를 WORKER_CACHE에 사전 계산하여 매 후보 평가 시 반복 생성을 제거한다.
-- [ ] 목표 4: 기존 외부 API/동작은 변경 없이 유지한다 (내부 최적화만 수행).
+- [x] 목표 1: `simulate()` 함수의 Python for-loop를 numpy 벡터화로 대체하여 시뮬레이션 속도를 대폭 개선한다.
+- [x] 목표 2: 그리드 서치용 경량 RMSE 계산 함수를 생성하여 불필요한 메트릭 계산을 제거한다.
+- [x] 목표 3: expense_dict를 WORKER_CACHE에 사전 계산하여 매 후보 평가 시 반복 생성을 제거한다.
+- [x] 목표 4: 기존 외부 API/동작은 변경 없이 유지한다 (내부 최적화만 수행).
 
 ## 2) 비목표(Non-Goals)
 
@@ -88,13 +88,13 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다.
 
-- [ ] 기능 요구사항 충족: 세 가지 최적화 모두 적용 완료
-- [ ] 수치 동등성 검증: 최적화 전후 결과가 부동소수점 오차 범위 내 동일
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] 필요한 문서 업데이트
-- [ ] plan 체크박스 최신화
+- [x] 기능 요구사항 충족: 세 가지 최적화 모두 적용 완료
+- [x] 수치 동등성 검증: 최적화 전후 결과가 부동소수점 오차 범위 내 동일
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] 필요한 문서 업데이트
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -116,14 +116,14 @@
 
 **작업 내용**:
 
-- [ ] `tests/test_tqqq_simulation.py`에 수치 동등성 테스트 클래스 `TestVectorizedSimulation` 추가
-  - [ ] `test_simulate_fast_matches_simulate`: 벡터화 시뮬레이션이 기존 simulate()와 동일한 가격 배열 산출 검증
-  - [ ] `test_calculate_rmse_fast_matches_full`: 경량 RMSE가 calculate_validation_metrics의 RMSE와 동일 검증
-  - [ ] `test_precompute_daily_costs_matches_per_day`: 사전 계산 비용이 개별 calculate_daily_cost()와 동일 검증
+- [x] `tests/test_tqqq_simulation.py`에 수치 동등성 테스트 클래스 `TestVectorizedSimulation` 추가
+  - [x] `test_simulate_fast_matches_simulate`: 벡터화 시뮬레이션이 기존 simulate()와 동일한 가격 배열 산출 검증
+  - [x] `test_calculate_rmse_fast_matches_full`: 경량 RMSE가 calculate_validation_metrics의 RMSE와 동일 검증
+  - [x] `test_precompute_daily_costs_matches_per_day`: 사전 계산 비용이 개별 calculate_daily_cost()와 동일 검증
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=245, failed=3, skipped=0)
 
 ---
 
@@ -145,9 +145,9 @@ def _precompute_daily_costs_vectorized(
 ) -> np.ndarray:
 ```
 
-- [ ] 고유 월(unique months)만 추출하여 비용 계산 (월별 1회만)
-- [ ] 월별 비용을 일별 배열로 매핑 (numpy 인덱싱)
-- [ ] fallback 로직: 기존 `_lookup_monthly_data`와 동일한 "최근 이전 월" 폴백 적용
+- [x] 고유 월(unique months)만 추출하여 비용 계산 (월별 1회만)
+- [x] 월별 비용을 일별 배열로 매핑 (numpy 인덱싱)
+- [x] fallback 로직: 기존 `_lookup_monthly_data`와 동일한 "최근 이전 월" 폴백 적용
 
 #### 1-2. 벡터화 시뮬레이션 함수 (`_simulate_prices_vectorized`)
 
@@ -160,10 +160,10 @@ def _simulate_prices_vectorized(
 ) -> np.ndarray:
 ```
 
-- [ ] `leveraged_returns = underlying_returns * leverage - daily_costs`
-- [ ] `leveraged_returns[0] = 0.0` (첫날: 수익률 없음)
-- [ ] `prices = initial_price * np.cumprod(1 + leveraged_returns)`
-- [ ] 반환: 시뮬레이션 가격 numpy 배열
+- [x] `leveraged_returns = underlying_returns * leverage - daily_costs`
+- [x] `leveraged_returns[0] = 0.0` (첫날: 수익률 없음)
+- [x] `prices = initial_price * np.cumprod(1 + leveraged_returns)`
+- [x] 반환: 시뮬레이션 가격 numpy 배열
 
 #### 1-3. 경량 RMSE 계산 함수 (`_calculate_metrics_fast`)
 
@@ -174,39 +174,39 @@ def _calculate_metrics_fast(
 ) -> tuple[float, float, float]:
 ```
 
-- [ ] 누적배수 로그차이 abs 배열 계산 (기존 `_calculate_cumul_multiple_log_diff`와 동일 로직)
-- [ ] RMSE, mean, max 세 가지 지표만 반환
-- [ ] extract_overlap_period, signed log diff, DataFrame 생성 등 생략
+- [x] 누적배수 로그차이 abs 배열 계산 (기존 `_calculate_cumul_multiple_log_diff`와 동일 로직)
+- [x] RMSE, mean, max 세 가지 지표만 반환
+- [x] extract_overlap_period, signed log diff, DataFrame 생성 등 생략
 
 #### 1-4. `_evaluate_softplus_candidate` 수정
 
-- [ ] WORKER_CACHE에서 사전 계산된 배열 사용:
+- [x] WORKER_CACHE에서 사전 계산된 배열 사용:
   - `underlying_returns`: `underlying_overlap[COL_CLOSE].pct_change().values` (NaN -> 0.0)
   - `actual_prices`: `actual_overlap[COL_CLOSE].values`
   - `expense_dict`: `_create_expense_dict(expense_df)` 결과
   - `date_month_keys`: 각 거래일의 "YYYY-MM" 배열
   - `overlap_start`, `overlap_end`, `overlap_days`: 기간 정보
-- [ ] 새로운 빠른 경로 사용:
+- [x] 새로운 빠른 경로 사용:
   1. `build_monthly_spread_map_from_dict` -> spread_map
   2. `_precompute_daily_costs_vectorized` -> daily_costs
   3. `_simulate_prices_vectorized` -> simulated_prices
   4. `_calculate_metrics_fast` -> rmse, mean, max
-- [ ] 반환 candidate dict 구조 유지 (기존 키 모두 포함)
+- [x] 반환 candidate dict 구조 유지 (기존 키 모두 포함)
 
 #### 1-5. WORKER_CACHE 사전 계산 로직 추가
 
 `find_optimal_softplus_params`와 `_local_refine_search`에서:
 
-- [ ] `expense_dict = _create_expense_dict(expense_df)` 사전 계산
-- [ ] `underlying_returns` 배열 사전 계산
-- [ ] `actual_prices` 배열 사전 계산
-- [ ] `date_month_keys` 배열 사전 계산
-- [ ] 기간 정보 (`overlap_start`, `overlap_end`, `overlap_days`) 사전 계산
-- [ ] 모든 사전 계산 데이터를 `cache_data`에 추가
+- [x] `expense_dict = _create_expense_dict(expense_df)` 사전 계산
+- [x] `underlying_returns` 배열 사전 계산
+- [x] `actual_prices` 배열 사전 계산
+- [x] `date_month_keys` 배열 사전 계산
+- [x] 기간 정보 (`overlap_start`, `overlap_end`, `overlap_days`) 사전 계산
+- [x] 모든 사전 계산 데이터를 `cache_data`에 추가
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=248, failed=0, skipped=0)
 
 ---
 
@@ -216,12 +216,12 @@ def _calculate_metrics_fast(
 
 **작업 내용**:
 
-- [ ] `_evaluate_cost_model_candidate`에서도 벡터화 경로 사용
-- [ ] `find_optimal_cost_model`에서 WORKER_CACHE에 사전 계산 데이터 추가
+- [x] `_evaluate_cost_model_candidate`에서도 벡터화 경로 사용
+- [x] `find_optimal_cost_model`에서 WORKER_CACHE에 사전 계산 데이터 추가
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=248, failed=0, skipped=0)
 
 ---
 
@@ -229,15 +229,15 @@ def _calculate_metrics_fast(
 
 **작업 내용**:
 
-- [ ] 필요한 문서 업데이트
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트
+- [x] `poetry run black .` 실행 (자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=248, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) -- 5개 중 1개 선택
 
@@ -273,5 +273,6 @@ def _calculate_metrics_fast(
 ### 진행 로그 (KST)
 
 - 2026-01-30: 성능 분석 완료, 계획서 작성
+- 2026-01-30: Phase 0~마지막 Phase 구현 완료, 전체 검증 통과
 
 ---

@@ -633,6 +633,150 @@ def calculate_daily_cost(
     return daily_cost
 
 
+# ============================================================
+# 벡터화 내부 함수 (성능 최적화용)
+# ============================================================
+
+
+def _precompute_daily_costs_vectorized(
+    month_keys: np.ndarray,
+    ffr_dict: dict[str, float],
+    expense_dict: dict[str, float],
+    spread_map: dict[str, float],
+    leverage: float,
+) -> np.ndarray:
+    """
+    모든 거래일의 일일 비용을 한 번에 사전 계산한다 (벡터화 버전).
+
+    고유 월(unique months)만 추출하여 월별 1회만 비용을 계산하고,
+    numpy 인덱싱으로 일별 배열로 매핑한다.
+    기존 calculate_daily_cost와 동일한 비용 공식 및 fallback 로직을 적용한다.
+
+    Args:
+        month_keys: 각 거래일의 "YYYY-MM" 문자열 배열
+        ffr_dict: FFR 딕셔너리 ({"YYYY-MM": ffr_value})
+        expense_dict: Expense 딕셔너리 ({"YYYY-MM": expense_value})
+        spread_map: 월별 spread 맵 ({"YYYY-MM": spread})
+        leverage: 레버리지 배율
+
+    Returns:
+        일별 비용 배열 (len = len(month_keys))
+
+    Raises:
+        ValueError: spread_map에 필요한 월 키가 누락된 경우
+        ValueError: FFR 또는 Expense 데이터 조회 실패 시
+    """
+    # 1. 고유 월만 추출 (순서 유지, 중복 제거)
+    unique_months: list[str] = list(dict.fromkeys(str(mk) for mk in month_keys))
+
+    # 2. 월별 비용 계산 (월당 1회만 계산)
+    month_to_cost: dict[str, float] = {}
+    for month_key in unique_months:
+        # FFR 조회 (기존 _lookup_ffr과 동일한 fallback 로직)
+        year, month = map(int, month_key.split("-"))
+        d = date(year, month, 1)
+        ffr = _lookup_ffr(d, ffr_dict)
+
+        # Expense 조회 (기존 _lookup_expense와 동일한 fallback 로직)
+        expense = _lookup_expense(d, expense_dict)
+
+        # Spread 조회 (dict 타입: 정확한 키 필요, fallback 없음)
+        if month_key not in spread_map:
+            raise ValueError(
+                f"spread_map에 키 누락: {month_key}\n"
+                f"보유 키: {sorted(spread_map.keys())[:5]}{'...' if len(spread_map) > 5 else ''}"
+            )
+        spread = spread_map[month_key]
+
+        # 일일 비용 = ((FFR + spread) * (leverage - 1) + expense) / 거래일수
+        funding_rate = ffr + spread
+        leverage_cost = funding_rate * (leverage - 1)
+        annual_cost = leverage_cost + expense
+        month_to_cost[month_key] = annual_cost / TRADING_DAYS_PER_YEAR
+
+    # 3. 월별 비용을 일별 배열로 매핑
+    daily_costs = np.array([month_to_cost[str(mk)] for mk in month_keys])
+
+    return daily_costs
+
+
+def _simulate_prices_vectorized(
+    underlying_returns: np.ndarray,
+    daily_costs: np.ndarray,
+    leverage: float,
+    initial_price: float,
+) -> np.ndarray:
+    """
+    numpy cumprod로 레버리지 ETF 가격을 한 번에 계산한다 (벡터화 버전).
+
+    기존 simulate() 함수의 Python for-loop을 대체하며,
+    동일한 복리 계산 로직을 numpy 연산으로 수행한다.
+
+    수식:
+        leveraged_returns = underlying_returns * leverage - daily_costs
+        leveraged_returns[0] = 0.0  (첫날: 수익률 없음)
+        prices = initial_price * cumprod(1 + leveraged_returns)
+
+    Args:
+        underlying_returns: 기초 자산 일일 수익률 배열 (첫 요소는 0.0이어야 함)
+        daily_costs: 사전 계산된 일일 비용 배열
+        leverage: 레버리지 배율
+        initial_price: 시작 가격
+
+    Returns:
+        시뮬레이션 가격 numpy 배열
+    """
+    # 1. 레버리지 수익률 계산
+    leveraged_returns = underlying_returns * leverage - daily_costs
+
+    # 2. 첫날은 수익률 없음 (initial_price 유지)
+    leveraged_returns[0] = 0.0
+
+    # 3. 복리 효과 적용 (cumprod)
+    prices: np.ndarray = initial_price * np.cumprod(1 + leveraged_returns)
+
+    return prices
+
+
+def _calculate_metrics_fast(
+    actual_prices: np.ndarray,
+    simulated_prices: np.ndarray,
+) -> tuple[float, float, float]:
+    """
+    누적배수 로그차이 기반 메트릭을 경량으로 계산한다 (벡터화 버전).
+
+    기존 calculate_validation_metrics에서 RMSE, mean, max 세 가지만 추출한
+    경량 버전이다. extract_overlap_period, signed log diff, DataFrame 생성 등을
+    생략하여 그리드 서치 성능을 개선한다.
+
+    계산 방식 (기존 _calculate_cumul_multiple_log_diff와 동일):
+        M_actual(t) = actual_prices(t) / actual_prices(0)
+        M_sim(t) = simulated_prices(t) / simulated_prices(0)
+        로그차이(%) = |ln(M_actual(t) / M_sim(t))| × 100
+
+    Args:
+        actual_prices: 실제 가격 numpy 배열
+        simulated_prices: 시뮬레이션 가격 numpy 배열
+
+    Returns:
+        (rmse, mean, max) 튜플 (단위: %)
+    """
+    # 1. 누적배수 계산
+    m_actual = actual_prices / actual_prices[0]
+    m_simul = simulated_prices / simulated_prices[0]
+
+    # 2. 로그차이 abs (%) 계산
+    ratio = m_actual / m_simul
+    log_diff_abs_pct = np.abs(np.log(np.maximum(ratio, EPSILON))) * 100.0
+
+    # 3. RMSE, mean, max 계산
+    rmse = float(np.sqrt(np.mean(log_diff_abs_pct**2)))
+    mean_val = float(np.mean(log_diff_abs_pct))
+    max_val = float(np.max(log_diff_abs_pct))
+
+    return rmse, mean_val, max_val
+
+
 def simulate(
     underlying_df: pd.DataFrame,
     leverage: float,
@@ -785,10 +929,10 @@ def simulate(
 
 def _evaluate_cost_model_candidate(params: dict[str, Any]) -> dict[str, Any]:
     """
-    단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다.
+    단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다 (벡터화 버전).
 
     그리드 서치에서 병렬 실행을 위한 헬퍼 함수. pickle 가능하도록 최상위 레벨에 정의한다.
-    DataFrame들과 딕셔너리들은 WORKER_CACHE에서 조회한다.
+    사전 계산된 numpy 배열을 WORKER_CACHE에서 조회하여 성능을 개선한다.
 
     Args:
         params: 파라미터 딕셔너리 {
@@ -800,39 +944,69 @@ def _evaluate_cost_model_candidate(params: dict[str, Any]) -> dict[str, Any]:
     Returns:
         후보 평가 결과 딕셔너리
     """
-    # WORKER_CACHE에서 DataFrame들과 딕셔너리들 조회
-    underlying_overlap = WORKER_CACHE["underlying_overlap"]
-    actual_overlap = WORKER_CACHE["actual_overlap"]
-    ffr_dict = WORKER_CACHE["ffr_dict"]
-    expense_dict = WORKER_CACHE["expense_dict"]
+    # WORKER_CACHE에서 사전 계산된 배열 조회
+    ffr_dict: dict[str, float] = WORKER_CACHE["ffr_dict"]
+    underlying_returns: np.ndarray = WORKER_CACHE["underlying_returns"]
+    actual_prices: np.ndarray = WORKER_CACHE["actual_prices"]
+    expense_dict: dict[str, float] = WORKER_CACHE["expense_dict"]
+    date_month_keys: np.ndarray = WORKER_CACHE["date_month_keys"]
+    overlap_start: date = WORKER_CACHE["overlap_start"]
+    overlap_end: date = WORKER_CACHE["overlap_end"]
+    overlap_days: int = WORKER_CACHE["overlap_days"]
+    actual_cumulative_return: float = WORKER_CACHE["actual_cumulative_return"]
 
-    # expense_df 재구성 (simulate 함수가 필요로 함)
-    expense_dates = list(expense_dict.keys())
-    expense_values = list(expense_dict.values())
-    expense_df = pd.DataFrame({"DATE": expense_dates, "VALUE": expense_values})
+    leverage: float = params["leverage"]
+    initial_price: float = params["initial_price"]
+    spread_value: float = params[KEY_SPREAD]
 
-    # 시뮬레이션 실행
-    sim_df = simulate(
-        underlying_overlap,
-        leverage=params["leverage"],
-        expense_df=expense_df,
-        initial_price=params["initial_price"],
+    # 1. 고정 float spread를 월별 spread_map으로 변환
+    unique_months = list(dict.fromkeys(str(mk) for mk in date_month_keys))
+    spread_map = {month: spread_value for month in unique_months}
+
+    # 2. 일일 비용 사전 계산
+    daily_costs = _precompute_daily_costs_vectorized(
+        month_keys=date_month_keys,
         ffr_dict=ffr_dict,
-        funding_spread=params[KEY_SPREAD],
+        expense_dict=expense_dict,
+        spread_map=spread_map,
+        leverage=leverage,
     )
 
-    # 검증 지표 계산
-    metrics = calculate_validation_metrics(
-        simulated_df=sim_df,
-        actual_df=actual_overlap,
-        output_path=None,  # CSV 저장 안 함
+    # 3. 벡터화 시뮬레이션
+    simulated_prices = _simulate_prices_vectorized(
+        underlying_returns=underlying_returns.copy(),
+        daily_costs=daily_costs,
+        leverage=leverage,
+        initial_price=initial_price,
     )
 
-    # candidate 딕셔너리 생성 (expense는 CSV에서 로드하므로 포함하지 않음)
-    candidate = {
-        "leverage": params["leverage"],
-        KEY_SPREAD: params[KEY_SPREAD],
-        **metrics,
+    # 4. 경량 메트릭 계산 (RMSE, mean, max)
+    rmse, mean_val, max_val = _calculate_metrics_fast(actual_prices, simulated_prices)
+
+    # 5. 추가 메트릭 (기존 candidate dict 구조 유지)
+    final_close_simulated = float(simulated_prices[-1])
+    final_close_actual = float(actual_prices[-1])
+    final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
+
+    sim_cumulative = float(simulated_prices[-1] / simulated_prices[0]) - 1.0
+    cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative_return) / actual_cumulative_return) * 100
+
+    # 6. candidate 딕셔너리 생성 (기존 키 모두 포함)
+    candidate: dict[str, Any] = {
+        "leverage": leverage,
+        KEY_SPREAD: spread_value,
+        KEY_OVERLAP_START: overlap_start,
+        KEY_OVERLAP_END: overlap_end,
+        KEY_OVERLAP_DAYS: overlap_days,
+        KEY_FINAL_CLOSE_ACTUAL: final_close_actual,
+        KEY_FINAL_CLOSE_SIMULATED: final_close_simulated,
+        KEY_FINAL_CLOSE_REL_DIFF: final_close_rel_diff_pct,
+        KEY_CUMULATIVE_RETURN_SIMULATED: sim_cumulative,
+        KEY_CUMULATIVE_RETURN_ACTUAL: actual_cumulative_return,
+        KEY_CUMULATIVE_RETURN_REL_DIFF: cumulative_return_rel_diff_pct,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: mean_val,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: rmse,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: max_val,
     }
 
     return candidate
@@ -1191,22 +1365,39 @@ def find_optimal_cost_model(
         ValueError: 겹치는 기간이 없을 때
         ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
     """
-    # 1. 겹치는 기간 추출
+    # 1. 파라미터 검증 (fail-fast)
+    if leverage <= 0:
+        raise ValueError(f"leverage는 양수여야 합니다: {leverage}")
+
+    # 2. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
-    # 2. FFR 커버리지 검증 (fail-fast)
+    # 3. FFR 커버리지 검증 (fail-fast)
     overlap_start = underlying_overlap[COL_DATE].min()
     overlap_end = underlying_overlap[COL_DATE].max()
     validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
-    # 3. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
+    # 4. 검증 완료 후 FFR 및 Expense 딕셔너리 생성 (한 번만)
     ffr_dict = _create_ffr_dict(ffr_df)
     expense_dict = _create_expense_dict(expense_df)
 
-    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    # 5. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
-    # 5. Grid search를 위한 파라미터 조합 생성 (spread만 탐색)
+    # 6. 사전 계산 배열 준비 (벡터화 최적화)
+    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
+
+    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
+
+    date_month_keys = np.array(
+        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
+        dtype=object,
+    )
+
+    overlap_days = len(underlying_overlap)
+    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
+
+    # 7. Grid search를 위한 파라미터 조합 생성 (spread만 탐색)
     spread_values = np.arange(spread_range[0], spread_range[1] + EPSILON, spread_step)
 
     # 모든 파라미터 조합 리스트 생성 (DataFrame은 캐시에서 조회)
@@ -1220,20 +1411,25 @@ def find_optimal_cost_model(
             }
         )
 
-    # 6. 병렬 실행 (DataFrame들과 FFR/Expense 딕셔너리를 워커 캐시에 저장)
+    # 7. 병렬 실행 (사전 계산 데이터를 워커 캐시에 저장)
+    cache_data: dict[str, Any] = {
+        "ffr_dict": ffr_dict,
+        "expense_dict": expense_dict,
+        "underlying_returns": underlying_returns,
+        "actual_prices": actual_prices,
+        "date_month_keys": date_month_keys,
+        "overlap_start": overlap_start,
+        "overlap_end": overlap_end,
+        "overlap_days": overlap_days,
+        "actual_cumulative_return": actual_cumulative_return,
+    }
+
     candidates = execute_parallel(
         _evaluate_cost_model_candidate,
         param_combinations,
         max_workers=max_workers,
         initializer=init_worker_cache,
-        initargs=(
-            {
-                "underlying_overlap": underlying_overlap,
-                "actual_overlap": actual_overlap,
-                "ffr_dict": ffr_dict,
-                "expense_dict": expense_dict,
-            },
-        ),
+        initargs=(cache_data,),
     )
 
     # 7. 누적배수 로그차이 RMSE 기준 오름차순 정렬 (낮을수록 우수, 경로 전체 추적 정확도)
@@ -1252,11 +1448,11 @@ def find_optimal_cost_model(
 
 def _evaluate_softplus_candidate(params: dict[str, Any]) -> dict[str, Any]:
     """
-    단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다.
+    단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다 (벡터화 버전).
 
     2-stage grid search에서 병렬 실행을 위한 헬퍼 함수.
     pickle 가능하도록 최상위 레벨에 정의한다.
-    DataFrame들과 딕셔너리들은 WORKER_CACHE에서 조회한다.
+    사전 계산된 numpy 배열을 WORKER_CACHE에서 조회하여 성능을 개선한다.
 
     Args:
         params: 파라미터 딕셔너리 {
@@ -1274,38 +1470,68 @@ def _evaluate_softplus_candidate(params: dict[str, Any]) -> dict[str, Any]:
             ... (기타 검증 지표)
         }
     """
-    # WORKER_CACHE에서 DataFrame들과 딕셔너리들 조회
-    underlying_overlap = WORKER_CACHE["underlying_overlap"]
-    actual_overlap = WORKER_CACHE["actual_overlap"]
-    ffr_dict = WORKER_CACHE["ffr_dict"]
-    expense_df = WORKER_CACHE["expense_df"]
+    # WORKER_CACHE에서 사전 계산된 배열 조회
+    ffr_dict: dict[str, float] = WORKER_CACHE["ffr_dict"]
+    underlying_returns: np.ndarray = WORKER_CACHE["underlying_returns"]
+    actual_prices: np.ndarray = WORKER_CACHE["actual_prices"]
+    expense_dict: dict[str, float] = WORKER_CACHE["expense_dict"]
+    date_month_keys: np.ndarray = WORKER_CACHE["date_month_keys"]
+    overlap_start: date = WORKER_CACHE["overlap_start"]
+    overlap_end: date = WORKER_CACHE["overlap_end"]
+    overlap_days: int = WORKER_CACHE["overlap_days"]
+    actual_cumulative_return: float = WORKER_CACHE["actual_cumulative_return"]
 
-    # softplus 파라미터로 월별 spread 맵 생성 (벡터화 버전 사용)
+    leverage: float = params["leverage"]
+    initial_price: float = params["initial_price"]
+
+    # 1. softplus spread 맵 생성 (벡터화 버전)
     spread_map = build_monthly_spread_map_from_dict(ffr_dict, params["a"], params["b"])
 
-    # 시뮬레이션 실행 (spread_map을 dict 타입으로 전달)
-    sim_df = simulate(
-        underlying_overlap,
-        leverage=params["leverage"],
-        expense_df=expense_df,
-        initial_price=params["initial_price"],
+    # 2. 일일 비용 사전 계산
+    daily_costs = _precompute_daily_costs_vectorized(
+        month_keys=date_month_keys,
         ffr_dict=ffr_dict,
-        funding_spread=spread_map,  # dict[str, float] 타입
+        expense_dict=expense_dict,
+        spread_map=spread_map,
+        leverage=leverage,
     )
 
-    # 검증 지표 계산
-    metrics = calculate_validation_metrics(
-        simulated_df=sim_df,
-        actual_df=actual_overlap,
-        output_path=None,  # CSV 저장 안 함
+    # 3. 벡터화 시뮬레이션
+    simulated_prices = _simulate_prices_vectorized(
+        underlying_returns=underlying_returns.copy(),
+        daily_costs=daily_costs,
+        leverage=leverage,
+        initial_price=initial_price,
     )
 
-    # candidate 딕셔너리 생성
-    candidate = {
+    # 4. 경량 메트릭 계산 (RMSE, mean, max)
+    rmse, mean_val, max_val = _calculate_metrics_fast(actual_prices, simulated_prices)
+
+    # 5. 추가 메트릭 (기존 candidate dict 구조 유지)
+    final_close_simulated = float(simulated_prices[-1])
+    final_close_actual = float(actual_prices[-1])
+    final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
+
+    sim_cumulative = float(simulated_prices[-1] / simulated_prices[0]) - 1.0
+    cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative_return) / actual_cumulative_return) * 100
+
+    # 6. candidate 딕셔너리 생성 (기존 키 모두 포함)
+    candidate: dict[str, Any] = {
         "a": params["a"],
         "b": params["b"],
-        "leverage": params["leverage"],
-        **metrics,
+        "leverage": leverage,
+        KEY_OVERLAP_START: overlap_start,
+        KEY_OVERLAP_END: overlap_end,
+        KEY_OVERLAP_DAYS: overlap_days,
+        KEY_FINAL_CLOSE_ACTUAL: final_close_actual,
+        KEY_FINAL_CLOSE_SIMULATED: final_close_simulated,
+        KEY_FINAL_CLOSE_REL_DIFF: final_close_rel_diff_pct,
+        KEY_CUMULATIVE_RETURN_SIMULATED: sim_cumulative,
+        KEY_CUMULATIVE_RETURN_ACTUAL: actual_cumulative_return,
+        KEY_CUMULATIVE_RETURN_REL_DIFF: cumulative_return_rel_diff_pct,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: mean_val,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: rmse,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: max_val,
     }
 
     return candidate
@@ -1360,13 +1586,32 @@ def find_optimal_softplus_params(
     # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
-    # 5. 워커 캐시 초기화 데이터 준비
-    # expense_df는 DataFrame으로 직접 캐시 (매번 재구성 방지)
-    cache_data = {
-        "underlying_overlap": underlying_overlap,
-        "actual_overlap": actual_overlap,
+    # 5. 사전 계산 배열 준비 (벡터화 최적화)
+    expense_dict = _create_expense_dict(expense_df)
+
+    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
+
+    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
+
+    date_month_keys = np.array(
+        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
+        dtype=object,
+    )
+
+    overlap_days = len(underlying_overlap)
+    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
+
+    # 6. 워커 캐시 초기화 데이터 준비
+    cache_data: dict[str, Any] = {
         "ffr_dict": ffr_dict,
-        "expense_df": expense_df,
+        "expense_dict": expense_dict,
+        "underlying_returns": underlying_returns,
+        "actual_prices": actual_prices,
+        "date_month_keys": date_month_keys,
+        "overlap_start": overlap_start,
+        "overlap_end": overlap_end,
+        "overlap_days": overlap_days,
+        "actual_cumulative_return": actual_cumulative_return,
     }
 
     # ============================================================
@@ -1544,16 +1789,35 @@ def _local_refine_search(
     # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
     initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
 
-    # 5. 워커 캐시 초기화 데이터 준비
-    # expense_df는 DataFrame으로 직접 캐시 (매번 재구성 방지)
-    cache_data = {
-        "underlying_overlap": underlying_overlap,
-        "actual_overlap": actual_overlap,
+    # 5. 사전 계산 배열 준비 (벡터화 최적화)
+    expense_dict = _create_expense_dict(expense_df)
+
+    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
+
+    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
+
+    date_month_keys = np.array(
+        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
+        dtype=object,
+    )
+
+    overlap_days = len(underlying_overlap)
+    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
+
+    # 6. 워커 캐시 초기화 데이터 준비
+    cache_data: dict[str, Any] = {
         "ffr_dict": ffr_dict,
-        "expense_df": expense_df,
+        "expense_dict": expense_dict,
+        "underlying_returns": underlying_returns,
+        "actual_prices": actual_prices,
+        "date_month_keys": date_month_keys,
+        "overlap_start": overlap_start,
+        "overlap_end": overlap_end,
+        "overlap_days": overlap_days,
+        "actual_cumulative_return": actual_cumulative_return,
     }
 
-    # 6. Local Refine 파라미터 조합 생성
+    # 7. Local Refine 파라미터 조합 생성
     a_min = a_prev - WALKFORWARD_LOCAL_REFINE_A_DELTA
     a_max = a_prev + WALKFORWARD_LOCAL_REFINE_A_DELTA
     b_min = max(0.0, b_prev - WALKFORWARD_LOCAL_REFINE_B_DELTA)  # b >= 0 제약
