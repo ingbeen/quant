@@ -1850,6 +1850,7 @@ def _local_refine_search(
         max_workers=max_workers,
         initializer=init_worker_cache,
         initargs=(cache_data,),
+        log_progress=False,
     )
 
     # 8. RMSE 기준 정렬 및 최적값 추출

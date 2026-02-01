@@ -4,6 +4,8 @@
 병렬 실행 기능 및 워커 캐시 구조를 검증한다.
 """
 
+import logging
+
 import pandas as pd
 import pytest
 
@@ -133,3 +135,65 @@ class TestWorkerCache:
         # 원본 DataFrame이 수정되지 않았는지 확인
         # (실제로는 프로세스가 별도이므로 수정되지 않음, 이는 원칙 확인용)
         assert test_df.loc[0, "A"] == original_value
+
+
+class TestLogProgress:
+    """log_progress 파라미터 테스트
+
+    프로젝트 로거는 propagate=False로 설정되어 있어 caplog이 레코드를 캡처하지 못한다.
+    따라서 테스트 중에만 propagate=True로 임시 변경하여 caplog 캡처를 활성화한다.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _enable_propagate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """테스트 중 로거의 propagate를 임시로 True로 설정
+
+        프로젝트 로거는 propagate=False로 설정되어 caplog이 레코드를 캡처하지 못한다.
+        monkeypatch로 테스트 중에만 propagate=True로 변경한다.
+        """
+        target_logger = logging.getLogger("qbt.utils.parallel_executor")
+        monkeypatch.setattr(target_logger, "propagate", True)
+
+    def test_log_progress_false_suppresses_progress_logs(self, caplog: pytest.LogCaptureFixture):
+        """
+        log_progress=False 시 진행도 로그가 출력되지 않는지 검증
+
+        Given: 5개 입력과 log_progress=False
+        When: execute_parallel 실행
+        Then: "진행도:" 패턴의 로그가 출력되지 않음
+              (시작/완료 로그는 여전히 출력됨)
+        """
+        # Given
+        inputs = [1, 2, 3, 4, 5]
+
+        # When
+        with caplog.at_level(logging.DEBUG, logger="qbt.utils.parallel_executor"):
+            results = parallel_executor.execute_parallel(_simple_multiply, inputs, max_workers=2, log_progress=False)
+
+        # Then
+        assert results == [2, 4, 6, 8, 10]
+        progress_logs = [r.message for r in caplog.records if "진행도:" in r.message]
+        assert len(progress_logs) == 0
+        # 시작/완료 로그는 여전히 출력되는지 확인
+        start_logs = [r.message for r in caplog.records if "병렬 실행 시작" in r.message]
+        assert len(start_logs) == 1
+
+    def test_log_progress_true_emits_progress_logs(self, caplog: pytest.LogCaptureFixture):
+        """
+        log_progress=True (기본값) 시 진행도 로그가 출력되는지 검증
+
+        Given: 5개 입력과 log_progress=True (기본값)
+        When: execute_parallel 실행
+        Then: "진행도:" 패턴의 로그가 1회 이상 출력됨
+        """
+        # Given
+        inputs = [1, 2, 3, 4, 5]
+
+        # When
+        with caplog.at_level(logging.DEBUG, logger="qbt.utils.parallel_executor"):
+            results = parallel_executor.execute_parallel(_simple_multiply, inputs, max_workers=2, log_progress=True)
+
+        # Then
+        assert results == [2, 4, 6, 8, 10]
+        progress_logs = [r.message for r in caplog.records if "진행도:" in r.message]
+        assert len(progress_logs) >= 1

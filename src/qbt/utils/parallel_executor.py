@@ -136,6 +136,7 @@ def execute_parallel(
     max_workers: int | None = None,
     initializer: Callable[..., None] | None = None,
     initargs: tuple[Any, ...] | None = None,
+    log_progress: bool = True,
 ) -> list[Any]:
     """
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다.
@@ -156,6 +157,9 @@ def execute_parallel(
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
         initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
         initargs: initializer에 전달할 인자 튜플 (cache_payload,)
+        log_progress: 진행도 로깅 출력 여부 (기본값: True)
+            - True: 첫 번째, 마지막, 10% 경계마다 진행도 로그 출력
+            - False: 진행도 로그 미출력 (시작/완료 로그는 출력)
 
     Returns:
         입력 순서대로 정렬된 결과 리스트
@@ -226,11 +230,12 @@ def execute_parallel(
                 results_with_index.append((idx, result))
 
                 # 진행도 로깅 (첫 번째, 마지막, 10% 경계마다)
-                completed_count = len(results_with_index)
-                should_log, current_pct = _should_log_progress(completed_count, len(inputs), last_logged_percentage)
-                if should_log:
-                    logger.debug(f"진행도: {completed_count}/{len(inputs)} ({current_pct}%)")
-                    last_logged_percentage = current_pct
+                if log_progress:
+                    completed_count = len(results_with_index)
+                    should_log, current_pct = _should_log_progress(completed_count, len(inputs), last_logged_percentage)
+                    if should_log:
+                        logger.debug(f"진행도: {completed_count}/{len(inputs)} ({current_pct}%)")
+                        last_logged_percentage = current_pct
 
             except Exception as e:
                 logger.debug(f"작업 {idx + 1}/{len(inputs)} 실패: {e}")
@@ -256,6 +261,7 @@ def execute_parallel_with_kwargs(
     max_workers: int | None = None,
     initializer: Callable[..., None] | None = None,
     initargs: tuple[Any, ...] | None = None,
+    log_progress: bool = True,
 ) -> list[Any]:
     """
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다. (키워드 인자 지원)
@@ -269,6 +275,9 @@ def execute_parallel_with_kwargs(
         max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
         initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
         initargs: initializer에 전달할 인자 튜플 (cache_payload,)
+        log_progress: 진행도 로깅 출력 여부 (기본값: True)
+            - True: 첫 번째, 마지막, 10% 경계마다 진행도 로그 출력
+            - False: 진행도 로그 미출력 (시작/완료 로그는 출력)
 
     Returns:
         입력 순서대로 정렬된 결과 리스트
@@ -294,4 +303,4 @@ def execute_parallel_with_kwargs(
     unwrap_inputs: list[tuple[Callable[..., Any], dict[str, Any]]] = [(func, kwargs_dict) for kwargs_dict in inputs]
 
     # 모듈 레벨 _unwrap_kwargs 함수 사용 (pickle 가능)
-    return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers, initializer, initargs)
+    return execute_parallel(_unwrap_kwargs, unwrap_inputs, max_workers, initializer, initargs, log_progress)
