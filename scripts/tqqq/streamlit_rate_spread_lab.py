@@ -5,16 +5,14 @@
 실행 명령어:
     poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
 
+사전 준비:
+    poetry run python scripts/tqqq/generate_rate_spread_lab.py
+
 주요 기능:
 - Level 탭: 금리 수준 vs 월말 누적 signed 오차
 - Delta 탭: 금리 변화 vs 오차 변화, Lag 효과, Rolling 상관
 - 교차검증: de_m vs sum_daily_m 차이 분석
 - Softplus 동적 Spread 결과 조회: CLI로 생성된 CSV 파일 로드
-
-CSV 저장:
-- 서버 최초 기동 시 1회만 자동 저장 (st.cache_resource 사용)
-- 브라우저 새로고침/새 세션에서는 재저장하지 않음
-- Lag 선택 등 위젯 상호작용 시 재생성 방지
 
 Fail-fast 정책:
 - ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
@@ -29,7 +27,6 @@ Fail-fast 정책:
 - 워크포워드 검증: poetry run python scripts/tqqq/run_walkforward_validation.py
 """
 
-import threading
 from pathlib import Path
 
 import pandas as pd
@@ -40,11 +37,7 @@ from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
-    build_model_dataset,
     calculate_daily_signed_log_diff,
-    save_model_csv,
-    save_monthly_features,
-    save_summary_statistics,
 )
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
@@ -57,16 +50,12 @@ from qbt.tqqq.constants import (
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
-    DEFAULT_ROLLING_WINDOW,
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DEFAULT_TRAIN_WINDOW_MONTHS,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
-    TQQQ_RATE_SPREAD_LAB_MODEL_PATH,
-    TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH,
-    TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH,
     TQQQ_WALKFORWARD_PATH,
     TQQQ_WALKFORWARD_SUMMARY_PATH,
     WALKFORWARD_LOCAL_REFINE_A_DELTA,
@@ -77,7 +66,6 @@ from qbt.tqqq.constants import (
 from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
 from qbt.tqqq.visualization import create_delta_chart, create_level_chart
 from qbt.utils.logger import setup_logger
-from qbt.utils.meta_manager import save_metadata
 
 # ============================================================
 # Streamlit 앱 전용 상수 (이 파일에서만 사용)
@@ -87,9 +75,6 @@ from qbt.utils.meta_manager import save_metadata
 DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
 DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
 DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
-
-# --- 메타데이터 타입 ---
-KEY_META_TYPE_RATE_SPREAD_LAB = "tqqq_rate_spread_lab"
 
 # --- Softplus 튜닝 모드 관련 ---
 MODE_FIXED_SPREAD = "고정 Spread (기본)"
@@ -112,23 +97,8 @@ DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
 logger = setup_logger(__name__)
 
 # ============================================================
-# 저장 가드 및 데이터 빌드 (캐시)
+# 데이터 빌드 (캐시)
 # ============================================================
-
-
-@st.cache_resource
-def _save_guard():
-    """
-    서버 런 동안 유지되는 저장 가드 객체를 반환한다.
-
-    반환 구조:
-        - saved: bool (저장 완료 여부, 초기값 False)
-        - lock: threading.Lock (동시 접근 방지)
-
-    Returns:
-        저장 가드 딕셔너리 (서버 런 동안 단일 인스턴스 유지)
-    """
-    return {"saved": False, "lock": threading.Lock()}
 
 
 @st.cache_data
@@ -405,88 +375,6 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
         height=400,
     )
     st.plotly_chart(fig, width="stretch")
-
-
-# ============================================================
-# CSV 저장 함수
-# ============================================================
-
-
-def _save_outputs_once(monthly_df: pd.DataFrame):
-    """
-    CSV 파일들을 1회만 저장한다 (저장 가드 사용).
-
-    저장 대상:
-        1. 월별 피처 CSV (한글 헤더)
-        2. 요약 통계 CSV (한글 헤더)
-        3. 모델용 CSV (영문 헤더, schema_version 포함)
-        4. meta.json 실행 이력
-
-    Args:
-        monthly_df: 월별 데이터 (lag 컬럼 포함)
-
-    Returns:
-        저장 성공 여부
-    """
-    guard = _save_guard()
-    with guard["lock"]:
-        if guard["saved"]:
-            return True
-
-        try:
-            # 1. 월별 피처 CSV 저장
-            save_monthly_features(monthly_df, TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH)
-
-            # 2. 요약 통계 CSV 저장
-            save_summary_statistics(monthly_df, TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH)
-
-            # 3. 모델용 CSV 저장
-            # rolling 데이터가 window 미만인 경우 예외 발생할 수 있음
-            try:
-                model_df = build_model_dataset(monthly_df, window=DEFAULT_ROLLING_WINDOW)
-                save_model_csv(model_df, TQQQ_RATE_SPREAD_LAB_MODEL_PATH)
-                model_saved = True
-            except ValueError as e:
-                st.warning(f"모델용 CSV 저장 실패 (데이터 부족):\n\n{str(e)}")
-                model_saved = False
-
-            # 4. meta.json 실행 이력 저장
-            output_files = {
-                "monthly_csv": str(TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH),
-                "summary_csv": str(TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH),
-            }
-            if model_saved:
-                output_files["model_csv"] = str(TQQQ_RATE_SPREAD_LAB_MODEL_PATH)
-
-            metadata = {
-                "input_files": {
-                    "daily_comparison": str(TQQQ_DAILY_COMPARISON_PATH),
-                    "ffr_data": str(FFR_DATA_PATH),
-                },
-                "output_files": output_files,
-                "analysis_period": {
-                    "month_min": str(monthly_df[COL_MONTH].min()),
-                    "month_max": str(monthly_df[COL_MONTH].max()),
-                    "total_months": len(monthly_df),
-                },
-            }
-            save_metadata(KEY_META_TYPE_RATE_SPREAD_LAB, metadata)
-
-            guard["saved"] = True
-
-            # 성공 메시지
-            saved_files = [
-                TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH.name,
-                TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH.name,
-            ]
-            if model_saved:
-                saved_files.append(TQQQ_RATE_SPREAD_LAB_MODEL_PATH.name)
-            st.success("결과 CSV 저장 완료 (서버 런 1회):\n- " + "\n- ".join(saved_files))
-            return True
-
-        except Exception as e:
-            st.warning(f"CSV 저장 실패 (계속 진행):\n\n{str(e)}")
-            return False
 
 
 # ============================================================
@@ -825,10 +713,7 @@ def main():
                 # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
                 monthly_df = add_rate_change_lags(monthly_df)
 
-                # 3. CSV 자동 저장 (서버 런 동안 1회만)
-                _save_outputs_once(monthly_df)
-
-                # 4. 요약 통계 표시
+                # 3. 요약 통계 표시
                 _render_dataset_metrics(monthly_df)
 
             except ValueError as e:

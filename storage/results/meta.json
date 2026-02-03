@@ -457,93 +457,6 @@
       "timestamp": "2025-12-29T20:47:09+09:00"
     }
   ],
-  "tqqq_rate_spread_lab": [
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-30T20:05:09+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-28T16:24:14+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-27T19:43:50+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-26T11:51:01+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-01-26T11:47:10+09:00"
-    }
-  ],
   "tqqq_softplus_tuning": [
     {
       "funding_spread_mode": "softplus_ffr_monthly",
@@ -876,6 +789,25 @@
         "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv"
       },
       "timestamp": "2026-01-28T15:59:29+09:00"
+    }
+  ],
+  "tqqq_rate_spread_lab": [
+    {
+      "input_files": {
+        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
+      },
+      "output_files": {
+        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
+        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
+        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
+      },
+      "analysis_period": {
+        "month_min": "2010-02",
+        "month_max": "2025-12",
+        "total_months": 191
+      },
+      "timestamp": "2026-02-03T19:27:03+09:00"
     }
   ]
 }

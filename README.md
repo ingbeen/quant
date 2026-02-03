@@ -77,14 +77,17 @@ poetry run python scripts/tqqq/run_softplus_tuning.py
 poetry run python scripts/tqqq/run_walkforward_validation.py
 # 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
 
-# 6. 대시보드 시각화
+# 6. 금리-오차 분석 CSV 생성
+poetry run python scripts/tqqq/generate_rate_spread_lab.py
+# 출력: storage/results/tqqq_rate_spread_lab_*.csv (monthly, summary, model)
+
+# 7. 대시보드 시각화
 # 일별 비교 대시보드
 poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
 # 브라우저에서 http://localhost:8501 열림
 
-# 금리-오차 관계 분석 연구용 앱
+# 금리-오차 관계 분석 연구용 앱 (사전에 generate_rate_spread_lab.py 실행 필요)
 poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
-# 출력: storage/results/tqqq_rate_spread_lab_summary.csv
 # 브라우저에서 http://localhost:8501 열림
 
 # 5. 합성 TQQQ 데이터 생성
@@ -174,10 +177,11 @@ quant/
 │   ├── data/          # download_data.py
 │   ├── backtest/      # run_grid_search.py, run_single_backtest.py
 │   └── tqqq/          # validate_tqqq_simulation.py, generate_*.py
+│       ├── generate_rate_spread_lab.py    # 금리-오차 분석 CSV 생성
 │       ├── run_softplus_tuning.py         # Softplus 튜닝 CLI
 │       ├── run_walkforward_validation.py  # 워크포워드 검증 CLI
 │       ├── streamlit_daily_comparison.py  # 일별 비교 대시보드
-│       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱
+│       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 + constants.py

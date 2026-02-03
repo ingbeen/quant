@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: Draft
+**상태**: Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-02-02 21:00
-**마지막 업데이트**: 2026-02-02 21:00
+**마지막 업데이트**: 2026-02-03 09:30
 **관련 범위**: tqqq, scripts, docs
 **관련 문서**: `src/qbt/tqqq/CLAUDE.md`, `scripts/CLAUDE.md`, `docs/CLAUDE.md`
 
@@ -41,10 +41,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: `streamlit_rate_spread_lab.py`에서 CSV 3개 저장 로직을 독립 CLI 스크립트 `scripts/tqqq/generate_rate_spread_lab.py`로 분리
-- [ ] 목표 2: Streamlit 앱에서 CSV 저장/메타데이터 관련 코드를 완전히 제거 (시각화 전용으로 정리)
-- [ ] 목표 3: `meta.json`의 기존 `tqqq_rate_spread_lab` 이력 제거 (새 CLI 실행 시 재생성됨)
-- [ ] 목표 4: 관련 문서 업데이트 (`scripts/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `README.md`)
+- [x] 목표 1: `streamlit_rate_spread_lab.py`에서 CSV 3개 저장 로직을 독립 CLI 스크립트 `scripts/tqqq/generate_rate_spread_lab.py`로 분리
+- [x] 목표 2: Streamlit 앱에서 CSV 저장/메타데이터 관련 코드를 완전히 제거 (시각화 전용으로 정리)
+- [x] 목표 3: `meta.json`의 기존 `tqqq_rate_spread_lab` 이력 제거 (새 CLI 실행 시 재생성됨)
+- [x] 목표 4: 관련 문서 업데이트 (`scripts/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `README.md`)
 
 ## 2) 비목표(Non-Goals)
 
@@ -74,15 +74,15 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] 새 CLI 스크립트 `scripts/tqqq/generate_rate_spread_lab.py`가 3개 CSV를 정상 생성
-- [ ] 새 CLI 스크립트가 `meta.json`에 `tqqq_rate_spread_lab` 메타데이터를 정상 저장
-- [ ] Streamlit 앱에서 CSV 저장 관련 코드가 완전히 제거됨
-- [ ] Streamlit 앱의 시각화 기능이 정상 동작 유지
-- [ ] `meta.json`에서 기존 `tqqq_rate_spread_lab` 이력이 제거됨
-- [ ] 문서 업데이트 완료 (`scripts/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `README.md`)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] 새 CLI 스크립트 `scripts/tqqq/generate_rate_spread_lab.py`가 3개 CSV를 정상 생성
+- [x] 새 CLI 스크립트가 `meta.json`에 `tqqq_rate_spread_lab` 메타데이터를 정상 저장
+- [x] Streamlit 앱에서 CSV 저장 관련 코드가 완전히 제거됨
+- [x] Streamlit 앱의 시각화 기능이 정상 동작 유지
+- [x] `meta.json`에서 기존 `tqqq_rate_spread_lab` 이력이 제거됨
+- [x] 문서 업데이트 완료 (`scripts/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `README.md`)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -109,7 +109,7 @@
 
 **작업 내용**:
 
-- [ ] `scripts/tqqq/generate_rate_spread_lab.py` 파일 생성
+- [x] `scripts/tqqq/generate_rate_spread_lab.py` 파일 생성
 
 **CLI 스크립트 구조** (기존 `generate_tqqq_daily_comparison.py` 패턴 준수):
 
@@ -158,8 +158,8 @@ metadata = {
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
-- [ ] `poetry run python scripts/tqqq/generate_rate_spread_lab.py` 수동 실행 후 CSV 3개 생성 확인
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
+- [x] `poetry run python scripts/tqqq/generate_rate_spread_lab.py` 수동 실행 후 CSV 3개 생성 확인
 
 ---
 
@@ -167,16 +167,16 @@ metadata = {
 
 **Streamlit 앱에서 제거할 코드**:
 
-- [ ] `import threading` (행 32)
-- [ ] import에서 제거: `build_model_dataset`, `save_model_csv`, `save_monthly_features`, `save_summary_statistics` (행 43-47)
-- [ ] import에서 제거: `TQQQ_RATE_SPREAD_LAB_MODEL_PATH`, `TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH`, `TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH` (행 67-69)
-- [ ] import에서 제거: `DEFAULT_ROLLING_WINDOW` (행 61, `_save_outputs_once` 내에서만 사용)
-- [ ] import에서 제거: `from qbt.utils.meta_manager import save_metadata` (행 80)
-- [ ] 상수 제거: `KEY_META_TYPE_RATE_SPREAD_LAB` (행 92)
-- [ ] 함수 제거: `_save_guard()` 전체 (행 119-131)
-- [ ] 함수 제거: `_save_outputs_once()` 전체 (행 415-489)
-- [ ] `main()` 함수 내 `_save_outputs_once(monthly_df)` 호출 제거 (행 829)
-- [ ] 모듈 Docstring에서 CSV 저장 관련 설명 수정 (행 14-17)
+- [x] `import threading` (행 32)
+- [x] import에서 제거: `build_model_dataset`, `save_model_csv`, `save_monthly_features`, `save_summary_statistics` (행 43-47)
+- [x] import에서 제거: `TQQQ_RATE_SPREAD_LAB_MODEL_PATH`, `TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH`, `TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH` (행 67-69)
+- [x] import에서 제거: `DEFAULT_ROLLING_WINDOW` (행 61, `_save_outputs_once` 내에서만 사용)
+- [x] import에서 제거: `from qbt.utils.meta_manager import save_metadata` (행 80)
+- [x] 상수 제거: `KEY_META_TYPE_RATE_SPREAD_LAB` (행 92)
+- [x] 함수 제거: `_save_guard()` 전체 (행 119-131)
+- [x] 함수 제거: `_save_outputs_once()` 전체 (행 415-489)
+- [x] `main()` 함수 내 `_save_outputs_once(monthly_df)` 호출 제거 (행 829)
+- [x] 모듈 Docstring에서 CSV 저장 관련 설명 수정 (행 14-17)
 
 **Streamlit 앱에서 유지할 코드** (시각화에 필요):
 
@@ -189,11 +189,11 @@ metadata = {
 
 **meta.json 정리**:
 
-- [ ] `storage/results/meta.json`에서 `"tqqq_rate_spread_lab"` 키와 값 전체 제거
+- [x] `storage/results/meta.json`에서 `"tqqq_rate_spread_lab"` 키와 값 전체 제거
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
 
 ---
 
@@ -201,26 +201,26 @@ metadata = {
 
 **문서 수정**:
 
-- [ ] `scripts/CLAUDE.md`:
+- [x] `scripts/CLAUDE.md`:
   - "지원 타입" 섹션에 `"tqqq_rate_spread_lab"` 추가
   - "레버리지 시뮬레이션 (tqqq/)" 섹션에 `generate_rate_spread_lab.py` 추가
-- [ ] `src/qbt/tqqq/CLAUDE.md`:
+- [x] `src/qbt/tqqq/CLAUDE.md`:
   - "CLI 스크립트" 섹션에 `generate_rate_spread_lab.py` 추가
   - Streamlit 앱 설명에서 "CSV 1회 저장" 문구 제거
-- [ ] `README.md`:
+- [x] `README.md`:
   - 워크플로우 2에 새 CLI 스크립트 단계 추가 (5번과 6번 사이)
   - Streamlit 앱 설명에서 "출력: storage/results/tqqq_rate_spread_lab_summary.csv" 제거
   - 프로젝트 구조에 `generate_rate_spread_lab.py` 추가
 
 **포맷팅 및 최종 검증**:
 
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `poetry run black .` 실행 (자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) -- 5개 중 1개 선택
 
@@ -251,3 +251,4 @@ metadata = {
 ### 진행 로그 (KST)
 
 - 2026-02-02 21:00: Plan 작성 완료
+- 2026-02-03 09:30: Phase 1-3 완료, 최종 Validation 통과 (passed=250, failed=0, skipped=0), Done 처리

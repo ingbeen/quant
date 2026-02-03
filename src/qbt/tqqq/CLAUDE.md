@@ -229,13 +229,13 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 
 ### streamlit_rate_spread_lab.py
 
-금리-오차 관계 분석 연구용 앱
+금리-오차 관계 분석 연구용 앱 (시각화 전용)
 
 - Level 탭: 금리 수준 vs 월말 누적 signed 오차
 - Delta 탭: 금리 변화 vs 오차 변화 (Lag 옵션: 0/1/2 개월)
 - 교차검증 탭: de_m vs sum_daily_m 차이 분석
 
-캐시 정책: 서버 기동 시 1회만 데이터 빌드, CSV 1회 저장
+사전 실행 필요: `generate_rate_spread_lab.py`로 CSV 생성 후 사용
 
 ---
 
@@ -244,6 +244,7 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 연산 집약적인 작업은 CLI 스크립트로 분리하여 spawn 경고 없이 실행 가능합니다.
 Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합니다.
 
+- `generate_rate_spread_lab.py`: 금리-오차 관계 분석용 CSV 3개 생성 (monthly, summary, model)
 - `run_softplus_tuning.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
 - `run_walkforward_validation.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 
