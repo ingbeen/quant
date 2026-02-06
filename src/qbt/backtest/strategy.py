@@ -30,6 +30,14 @@ from qbt.backtest.constants import (
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
+from qbt.backtest.types import (
+    BufferStrategyResultDict,
+    BuyAndHoldResultDict,
+    EquityRecord,
+    GridSearchResult,
+    HoldState,
+    TradeRecord,
+)
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
@@ -127,7 +135,7 @@ def _record_equity(
     current_buffer_pct: float,
     upper_band: float | None,
     lower_band: float | None,
-) -> dict[str, Any]:
+) -> EquityRecord:
     """
     현재 시점의 equity를 기록한다.
 
@@ -141,7 +149,7 @@ def _record_equity(
         lower_band: 하단 밴드 (첫 날은 None 가능)
 
     Returns:
-        dict: equity 기록 딕셔너리
+        equity 기록 딕셔너리
     """
     if position > 0:
         equity = capital + position * close_price
@@ -292,7 +300,7 @@ def _execute_sell_order(
     position: int,
     entry_price: float,
     entry_date: date,
-) -> tuple[int, float, dict[str, Any]]:
+) -> tuple[int, float, TradeRecord]:
     """
     매도 주문을 실행한다.
 
@@ -316,7 +324,7 @@ def _execute_sell_order(
     sell_amount = position * sell_price
     new_capital = capital + sell_amount
 
-    trade_record = {
+    trade_record: TradeRecord = {
         "entry_date": entry_date,
         "exit_date": execute_date,
         "entry_price": entry_price,
@@ -387,7 +395,7 @@ def _detect_sell_signal(
 def run_buy_and_hold(
     df: pd.DataFrame,  # 파라미터 타입 힌트
     params: BuyAndHoldParams,  # 데이터클래스 인스턴스
-) -> tuple[pd.DataFrame, dict[str, Any]]:  # 반환 타입: 튜플(DataFrame, 딕셔너리)
+) -> tuple[pd.DataFrame, BuyAndHoldResultDict]:
     """
     Buy & Hold 벤치마크 전략을 실행한다.
 
@@ -479,8 +487,8 @@ def run_buy_and_hold(
     )
 
     # 8. calculate_summary 호출
-    summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary["strategy"] = "buy_and_hold"
+    base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
+    summary: BuyAndHoldResultDict = {**base_summary, "strategy": "buy_and_hold"}
 
     logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
 
@@ -489,7 +497,7 @@ def run_buy_and_hold(
 
 def _run_buffer_strategy_for_grid(
     params: BufferStrategyParams,
-) -> dict[str, Any]:
+) -> GridSearchResult:
     """
     그리드 서치를 위해 단일 파라미터 조합에 대해 버퍼존 전략을 실행한다.
 
@@ -566,7 +574,7 @@ def run_grid_search(
     # 2. 파라미터 조합 생성
     # 학습 포인트: 중첩 for 루프를 활용한 그리드 생성
     # 모든 파라미터 조합을 생성 (예: 3 × 4 × 2 × 2 = 48개)
-    param_combinations: list[dict[str, Any]] = []  # 빈 리스트
+    param_combinations: list[dict[str, BufferStrategyParams]] = []  # 빈 리스트
 
     # 4중 for 루프: 모든 조합을 순회
     for ma_window in ma_window_list:
@@ -640,7 +648,7 @@ def run_buffer_strategy(
     df: pd.DataFrame,
     params: BufferStrategyParams,
     log_trades: bool = True,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, BufferStrategyResultDict]:
     """
     버퍼존 전략으로 백테스트를 실행한다.
 
@@ -691,14 +699,13 @@ def run_buffer_strategy(
     entry_date = None  # 진입 날짜 (None = 포지션 없음)
     all_entry_dates: list[date] = []  # 모든 매수 날짜 리스트 (동적 조정용)
 
-    trades: list[dict[str, Any]] = []  # 거래 내역을 담을 빈 리스트
-    equity_records: list[dict[str, Any]] = []  # 자본 곡선을 담을 빈 리스트
+    trades: list[TradeRecord] = []  # 거래 내역을 담을 빈 리스트
+    equity_records: list[EquityRecord] = []  # 자본 곡선을 담을 빈 리스트
     pending_order: PendingOrder | None = None  # 예약된 주문 (단일 슬롯)
 
     # hold_days 상태머신 변수 추가
     # 유지조건 추적을 위한 상태 (None = 유지조건 추적 안 함)
-    # 구조: {"start_date": date, "days_passed": int, "buffer_pct": float, "hold_days_required": int}
-    hold_state: dict[str, Any] | None = None
+    hold_state: HoldState | None = None
 
     # 매수 시점의 hold_days 정보 저장 (거래 기록용)
     entry_hold_days = 0
@@ -904,11 +911,14 @@ def run_buffer_strategy(
     equity_df = pd.DataFrame(equity_records)
 
     # 8. 요약 지표 계산
-    summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary["strategy"] = "buffer_zone"
-    summary["ma_window"] = params.ma_window
-    summary["buffer_zone_pct"] = params.buffer_zone_pct
-    summary["hold_days"] = params.hold_days
+    base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
+    summary: BufferStrategyResultDict = {
+        **base_summary,
+        "strategy": "buffer_zone",
+        "ma_window": params.ma_window,
+        "buffer_zone_pct": params.buffer_zone_pct,
+        "hold_days": params.hold_days,
+    }
 
     if log_trades:
         logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")

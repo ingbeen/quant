@@ -9,10 +9,9 @@
 4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
-from typing import Any
-
 import pandas as pd
 
+from qbt.backtest.types import SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
 
@@ -85,7 +84,7 @@ def calculate_summary(
     trades_df: pd.DataFrame,
     equity_df: pd.DataFrame,
     initial_capital: float,
-) -> dict[str, Any]:
+) -> SummaryDict:
     """
     거래 내역과 자본 곡선으로 요약 지표를 계산한다.
 
@@ -135,7 +134,7 @@ def calculate_summary(
     equity_df["peak"] = equity_df["equity"].cummax()
 
     # peak가 0인 케이스 방어 (수치 안정성)
-    safe_peak: pd.Series[Any] = equity_df["peak"].replace(0, EPSILON)
+    safe_peak: pd.Series[float] = equity_df["peak"].replace(0, EPSILON)
     equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / safe_peak
     mdd = equity_df["drawdown"].min() * 100
 

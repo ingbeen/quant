@@ -10,6 +10,7 @@
 
 import logging
 import sys
+from collections.abc import Mapping
 
 from qbt.backtest import (
     BufferStrategyParams,
@@ -34,7 +35,7 @@ from qbt.utils.formatting import Align, TableLogger
 logger = get_logger(__name__)
 
 
-def print_summary(summary: dict, title: str, logger: logging.Logger) -> None:
+def print_summary(summary: Mapping[str, object], title: str, logger: logging.Logger) -> None:
     """
     요약 지표를 출력한다.
 
