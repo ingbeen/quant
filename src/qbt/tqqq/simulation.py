@@ -15,7 +15,7 @@ import math  # 수학 함수 (isnan, isinf 등)
 from collections.abc import Callable  # 함수 타입 힌트
 from datetime import date  # 날짜 객체 사용 (년-월-일 정보)
 from pathlib import Path  # 파일 경로 처리 (문자열보다 안전)
-from typing import Any, cast  # 타입 캐스팅 함수 (타입 힌트 시스템용)
+from typing import cast  # 타입 캐스팅 함수 (타입 힌트 시스템용)
 
 # 2. 서드파티 라이브러리 임포트
 import numpy as np  # 수치 계산 라이브러리 (배열, 로그, 제곱근 등)
@@ -83,6 +83,13 @@ from qbt.tqqq.constants import (
     WALKFORWARD_LOCAL_REFINE_A_STEP,
     WALKFORWARD_LOCAL_REFINE_B_DELTA,
     WALKFORWARD_LOCAL_REFINE_B_STEP,
+)
+from qbt.tqqq.types import (
+    CostModelCandidateDict,
+    SimulationCacheDict,
+    SoftplusCandidateDict,
+    ValidationMetricsDict,
+    WalkforwardSummaryDict,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
@@ -927,7 +934,7 @@ def simulate(
     return result_df
 
 
-def _evaluate_cost_model_candidate(params: dict[str, Any]) -> dict[str, Any]:
+def _evaluate_cost_model_candidate(params: dict[str, float]) -> CostModelCandidateDict:
     """
     단일 비용 모델 파라미터 조합을 시뮬레이션하고 평가한다 (벡터화 버전).
 
@@ -992,7 +999,7 @@ def _evaluate_cost_model_candidate(params: dict[str, Any]) -> dict[str, Any]:
     cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative_return) / actual_cumulative_return) * 100
 
     # 6. candidate 딕셔너리 생성 (기존 키 모두 포함)
-    candidate: dict[str, Any] = {
+    candidate: CostModelCandidateDict = {
         "leverage": leverage,
         KEY_SPREAD: spread_value,
         KEY_OVERLAP_START: overlap_start,
@@ -1223,7 +1230,7 @@ def calculate_validation_metrics(
     simulated_df: pd.DataFrame,
     actual_df: pd.DataFrame,
     output_path: Path | None = None,
-) -> dict[str, Any]:
+) -> ValidationMetricsDict:
     """
     시뮬레이션 검증 지표를 계산하고, 선택적으로 일별 비교 CSV를 생성한다.
 
@@ -1338,7 +1345,7 @@ def find_optimal_cost_model(
     spread_range: tuple[float, float] = DEFAULT_SPREAD_RANGE,
     spread_step: float = DEFAULT_SPREAD_STEP,
     max_workers: int | None = None,
-) -> list[dict[str, Any]]:
+) -> list[CostModelCandidateDict]:
     """
     multiplier를 고정하고 비용 모델 파라미터를 grid search로 캘리브레이션한다.
 
@@ -1412,7 +1419,7 @@ def find_optimal_cost_model(
         )
 
     # 7. 병렬 실행 (사전 계산 데이터를 워커 캐시에 저장)
-    cache_data: dict[str, Any] = {
+    cache_data: SimulationCacheDict = {
         "ffr_dict": ffr_dict,
         "expense_dict": expense_dict,
         "underlying_returns": underlying_returns,
@@ -1446,7 +1453,7 @@ def find_optimal_cost_model(
 # ============================================================
 
 
-def _evaluate_softplus_candidate(params: dict[str, Any]) -> dict[str, Any]:
+def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateDict:
     """
     단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다 (벡터화 버전).
 
@@ -1516,7 +1523,7 @@ def _evaluate_softplus_candidate(params: dict[str, Any]) -> dict[str, Any]:
     cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative_return) / actual_cumulative_return) * 100
 
     # 6. candidate 딕셔너리 생성 (기존 키 모두 포함)
-    candidate: dict[str, Any] = {
+    candidate: SoftplusCandidateDict = {
         "a": params["a"],
         "b": params["b"],
         "leverage": leverage,
@@ -1544,7 +1551,7 @@ def find_optimal_softplus_params(
     expense_df: pd.DataFrame,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
-) -> tuple[float, float, float, list[dict[str, Any]]]:
+) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
     softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-stage grid search로 탐색한다.
 
@@ -1602,7 +1609,7 @@ def find_optimal_softplus_params(
     actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
 
     # 6. 워커 캐시 초기화 데이터 준비
-    cache_data: dict[str, Any] = {
+    cache_data: SimulationCacheDict = {
         "ffr_dict": ffr_dict,
         "expense_dict": expense_dict,
         "underlying_returns": underlying_returns,
@@ -1743,7 +1750,7 @@ def _local_refine_search(
     b_prev: float,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
-) -> tuple[float, float, float, list[dict[str, Any]]]:
+) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
     직전 월 최적 (a_prev, b_prev) 주변에서 국소 탐색을 수행한다.
 
@@ -1805,7 +1812,7 @@ def _local_refine_search(
     actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
 
     # 6. 워커 캐시 초기화 데이터 준비
-    cache_data: dict[str, Any] = {
+    cache_data: SimulationCacheDict = {
         "ffr_dict": ffr_dict,
         "expense_dict": expense_dict,
         "underlying_returns": underlying_returns,
@@ -1873,7 +1880,7 @@ def run_walkforward_validation(
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
     max_workers: int | None = None,
-) -> tuple[pd.DataFrame, dict[str, Any]]:
+) -> tuple[pd.DataFrame, WalkforwardSummaryDict]:
     """
     워크포워드 검증을 수행한다 (60개월 Train, 1개월 Test).
 
@@ -1934,7 +1941,7 @@ def run_walkforward_validation(
     )
 
     # 6. 워크포워드 결과 저장 리스트
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, object]] = []
     a_prev: float | None = None
     b_prev: float | None = None
 
@@ -2013,7 +2020,7 @@ def run_walkforward_validation(
             n_test_days = 0
 
         # 10. 결과 저장
-        result = {
+        result: dict[str, object] = {
             "train_start": train_start,
             "train_end": train_end,
             "test_month": test_month,
@@ -2045,7 +2052,7 @@ def run_walkforward_validation(
     a_values = result_df["a_best"]
     b_values = result_df["b_best"]
 
-    summary = {
+    summary: WalkforwardSummaryDict = {
         "test_rmse_mean": float(test_rmse_values.mean()) if len(test_rmse_values) > 0 else float("nan"),
         "test_rmse_median": float(test_rmse_values.median()) if len(test_rmse_values) > 0 else float("nan"),
         "test_rmse_std": float(test_rmse_values.std()) if len(test_rmse_values) > 0 else float("nan"),

@@ -10,7 +10,7 @@ Fail-fast 정책:
 """
 
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ from qbt.tqqq.constants import (
     COL_SUM_DAILY_M,
     DEFAULT_ROLLING_WINDOW,
 )
+from qbt.tqqq.types import WalkforwardSummaryDict
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -637,7 +638,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     )
 
     # 3. Delta 요약 (dr_m.shift(lag) vs de_m, lag 0/1/2)
-    delta_rows: list[dict[str, Any]] = []
+    delta_rows: list[dict[str, object]] = []
     dr_lag_col = "dr_lag"  # 로컬 임시 컬럼명
 
     for lag in [0, 1, 2]:
@@ -1099,7 +1100,7 @@ def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None
     logger.debug(f"워크포워드 결과 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")
 
 
-def save_walkforward_summary(summary: dict[str, Any], output_path: Path) -> None:
+def save_walkforward_summary(summary: WalkforwardSummaryDict, output_path: Path) -> None:
     """
     워크포워드 요약 통계를 CSV로 저장한다.
 
@@ -1107,16 +1108,13 @@ def save_walkforward_summary(summary: dict[str, Any], output_path: Path) -> None
     수치 값은 4자리로 라운딩한다.
 
     Args:
-        summary: 워크포워드 요약 딕셔너리
-            필수 키: test_rmse_mean, test_rmse_median, test_rmse_std,
-                    test_rmse_min, test_rmse_max, a_mean, a_std, b_mean, b_std,
-                    n_test_months, train_window_months
+        summary: 워크포워드 요약 딕셔너리 (WalkforwardSummaryDict)
         output_path: 출력 CSV 파일 경로
 
     Raises:
         ValueError: 필수 키 누락 시
     """
-    # 1. 필수 키 검증
+    # 1. 필수 키 검증 (TypedDict이지만 런타임 방어 유지)
     required_keys = [
         "test_rmse_mean",
         "test_rmse_median",
@@ -1135,9 +1133,12 @@ def save_walkforward_summary(summary: dict[str, Any], output_path: Path) -> None
         raise ValueError(f"필수 키 누락: {missing}")
 
     # 2. metric-value 형식 DataFrame 생성
-    rows: list[dict[str, Any]] = []
+    # TypedDict를 일반 dict로 변환하여 동적 키 접근 활성화
+    # WalkforwardSummaryDict의 모든 값은 float | int이므로 cast 안전
+    summary_data = cast(dict[str, float | int], dict(summary))
+    rows: list[dict[str, float | int | str]] = []
     for key in required_keys:
-        value: Any = summary[key]
+        value: float | int = summary_data[key]
         # 수치 값 라운딩 (정수형은 제외)
         if isinstance(value, float):
             value = round(value, 4)

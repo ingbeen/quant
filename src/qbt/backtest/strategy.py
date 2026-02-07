@@ -9,7 +9,7 @@
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Literal
 
 import pandas as pd
 
@@ -451,7 +451,7 @@ def run_buy_and_hold(
 
     # 5. 자본 곡선 계산
     # 학습 포인트: 빈 리스트에 딕셔너리를 누적 추가
-    equity_records: list[dict[str, Any]] = []  # 빈 리스트 생성
+    equity_records: list[dict[str, object]] = []  # 빈 리스트 생성
 
     # 학습 포인트: .iterrows() - DataFrame을 행 단위로 순회
     # for 인덱스, 행 in df.iterrows():
