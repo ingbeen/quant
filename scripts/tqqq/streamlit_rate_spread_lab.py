@@ -975,7 +975,7 @@ def main():
         with st.sidebar:
             st.header("분석 모드 선택")
             analysis_mode = st.radio(
-                "",
+                "analysis_mode",
                 label_visibility="collapsed",
                 options=[MODE_FIXED_SPREAD, MODE_SOFTPLUS_DYNAMIC],
                 index=0,
