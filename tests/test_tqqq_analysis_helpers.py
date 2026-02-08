@@ -71,6 +71,7 @@ from qbt.tqqq.analysis_helpers import (
     calculate_signed_log_diff_from_cumulative_returns,
     save_model_csv,
     save_monthly_features,
+    save_static_spread_series,
     save_summary_statistics,
     save_walkforward_results,
     save_walkforward_summary,
@@ -1078,6 +1079,8 @@ class TestSaveWalkforwardResults:
                 "n_train_days": [1260, 1265],
                 "n_test_days": [21, 20],
                 "search_mode": ["full_grid_2stage", "local_refine"],
+                "ffr_pct_test": [4.5, 4.6],
+                "spread_test": [0.012345, 0.013456],
             }
         )
         output_path = tmp_path / "walkforward.csv"
@@ -1100,9 +1103,13 @@ class TestSaveWalkforwardResults:
             "n_train_days",
             "n_test_days",
             "search_mode",
+            "ffr_pct_test",
+            "spread_test",
         ]
         assert saved_df["test_month"].iloc[0] == "2023-01"
         assert saved_df["search_mode"].iloc[0] == "full_grid_2stage"
+        assert saved_df["ffr_pct_test"].iloc[0] == pytest.approx(4.5, abs=0.001)
+        assert saved_df["spread_test"].iloc[0] == pytest.approx(0.0123, abs=0.001)
 
     def test_save_walkforward_results_rounding(self, tmp_path):
         """
@@ -1125,6 +1132,8 @@ class TestSaveWalkforwardResults:
                 "n_train_days": [1260],
                 "n_test_days": [21],
                 "search_mode": ["full_grid_2stage"],
+                "ffr_pct_test": [4.5678901],
+                "spread_test": [0.01234567890],
             }
         )
         output_path = tmp_path / "walkforward_round.csv"
@@ -1138,6 +1147,8 @@ class TestSaveWalkforwardResults:
         assert saved_df["b_best"].iloc[0] == pytest.approx(0.8765, abs=0.00001)
         assert saved_df["train_rmse_pct"].iloc[0] == pytest.approx(1.2346, abs=0.00001)
         assert saved_df["test_rmse_pct"].iloc[0] == pytest.approx(1.5679, abs=0.00001)
+        assert saved_df["ffr_pct_test"].iloc[0] == pytest.approx(4.5679, abs=0.00001)
+        assert saved_df["spread_test"].iloc[0] == pytest.approx(0.0123, abs=0.00001)
 
     def test_save_walkforward_results_missing_column_raises(self, tmp_path):
         """
@@ -1160,6 +1171,8 @@ class TestSaveWalkforwardResults:
                 "n_train_days": [1260],
                 "n_test_days": [21],
                 "search_mode": ["full_grid_2stage"],
+                "ffr_pct_test": [4.5],
+                "spread_test": [0.012],
             }
         )
         output_path = tmp_path / "walkforward_missing.csv"
@@ -1189,6 +1202,8 @@ class TestSaveWalkforwardResults:
                 "n_train_days": [1265, 1260],
                 "n_test_days": [20, 21],
                 "search_mode": ["local_refine", "full_grid_2stage"],
+                "ffr_pct_test": [4.6, 4.5],
+                "spread_test": [0.013, 0.012],
             }
         )
         output_path = tmp_path / "walkforward_sorted.csv"
@@ -1337,3 +1352,106 @@ class TestSaveWalkforwardSummary:
         assert n_months == 24
         train_window = saved_df[saved_df["metric"] == "train_window_months"]["value"].iloc[0]
         assert train_window == 60
+
+
+class TestSaveStaticSpreadSeries:
+    """
+    save_static_spread_series() 함수 테스트
+
+    정적 spread 시계열 DataFrame을 CSV로 저장한다.
+    """
+
+    def test_save_static_spread_series_success(self, tmp_path):
+        """
+        정상적인 정적 spread 시계열 저장 테스트
+
+        Given: 필수 컬럼을 갖춘 정적 spread 시계열 DataFrame
+        When: save_static_spread_series 호출
+        Then: CSV 저장 성공, 컬럼 순서 및 값 유지, month 오름차순
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "month": ["2023-02", "2023-01", "2023-03"],  # 역순
+                "ffr_pct": [4.6, 4.5, 5.0],
+                "a_global": [-6.1, -6.1, -6.1],
+                "b_global": [0.37, 0.37, 0.37],
+                "spread_global": [0.012345, 0.011234, 0.015678],
+            }
+        )
+        output_path = tmp_path / "static_spread.csv"
+
+        # When
+        save_static_spread_series(df, output_path)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+        assert len(saved_df) == 3
+
+        # 컬럼 순서
+        assert list(saved_df.columns) == [
+            "month",
+            "ffr_pct",
+            "a_global",
+            "b_global",
+            "spread_global",
+        ]
+
+        # month 오름차순 정렬
+        assert saved_df["month"].iloc[0] == "2023-01"
+        assert saved_df["month"].iloc[2] == "2023-03"
+
+    def test_save_static_spread_series_rounding(self, tmp_path):
+        """
+        수치 컬럼 라운딩 테스트
+
+        Given: 긴 소수점 값을 가진 DataFrame
+        When: save_static_spread_series 호출
+        Then: ffr_pct/a_global/b_global는 4자리, spread_global은 6자리
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "month": ["2023-01"],
+                "ffr_pct": [4.5678901],
+                "a_global": [-6.12345678],
+                "b_global": [0.37654321],
+                "spread_global": [0.012345678901],
+            }
+        )
+        output_path = tmp_path / "static_spread_round.csv"
+
+        # When
+        save_static_spread_series(df, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert saved_df["ffr_pct"].iloc[0] == pytest.approx(4.5679, abs=0.00001)
+        assert saved_df["a_global"].iloc[0] == pytest.approx(-6.1235, abs=0.00001)
+        assert saved_df["b_global"].iloc[0] == pytest.approx(0.3765, abs=0.00001)
+        assert saved_df["spread_global"].iloc[0] == pytest.approx(0.012346, abs=0.0000001)
+
+    def test_save_static_spread_series_missing_column_raises(self, tmp_path):
+        """
+        필수 컬럼 누락 시 ValueError 발생
+
+        Given: 필수 컬럼 일부가 누락된 DataFrame
+        When: save_static_spread_series 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "month": ["2023-01"],
+                "ffr_pct": [4.5],
+                # a_global 누락
+                "b_global": [0.37],
+                "spread_global": [0.012],
+            }
+        )
+        output_path = tmp_path / "static_spread_missing.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            save_static_spread_series(df, output_path)

@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 
 from qbt.common_constants import QQQ_DATA_PATH, RESULTS_DIR
+from qbt.tqqq.analysis_helpers import save_static_spread_series
 from qbt.tqqq.constants import (
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
@@ -27,11 +28,16 @@ from qbt.tqqq.constants import (
     SOFTPLUS_GRID_STAGE2_A_STEP,
     SOFTPLUS_GRID_STAGE2_B_DELTA,
     SOFTPLUS_GRID_STAGE2_B_STEP,
+    SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
-from qbt.tqqq.simulation import find_optimal_softplus_params
+from qbt.tqqq.simulation import (
+    extract_overlap_period,
+    find_optimal_softplus_params,
+    generate_static_spread_series,
+)
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -138,7 +144,23 @@ def main() -> int:
     results_df.to_csv(SOFTPLUS_TUNING_CSV_PATH, index=False, encoding="utf-8-sig")
     logger.debug(f"튜닝 결과 저장: {SOFTPLUS_TUNING_CSV_PATH} ({len(csv_rows)}행)")
 
-    # 7. 메타데이터 저장
+    # 7. 정적 spread 시계열 CSV 생성
+    # 기초자산 overlap 기간 추출
+    overlap_underlying, _ = extract_overlap_period(qqq_df, tqqq_df)
+
+    # 전체기간 최적 (a, b)로 월별 spread 시계열 생성
+    static_spread_df = generate_static_spread_series(
+        ffr_df=ffr_df,
+        a=a_best,
+        b=b_best,
+        underlying_overlap_df=overlap_underlying,
+    )
+
+    # CSV 저장
+    save_static_spread_series(static_spread_df, SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
+    logger.debug(f"정적 spread 시계열 저장: {SOFTPLUS_SPREAD_SERIES_STATIC_PATH} ({len(static_spread_df)}행)")
+
+    # 8. 메타데이터 저장
     metadata = {
         "funding_spread_mode": "softplus_ffr_monthly",
         "softplus_a": round(a_best, 4),
@@ -172,6 +194,10 @@ def main() -> int:
         "csv_info": {
             "path": str(SOFTPLUS_TUNING_CSV_PATH),
             "row_count": len(csv_rows),
+        },
+        "static_spread_csv": {
+            "path": str(SOFTPLUS_SPREAD_SERIES_STATIC_PATH),
+            "row_count": len(static_spread_df),
         },
     }
 

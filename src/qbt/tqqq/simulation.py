@@ -270,6 +270,92 @@ def build_monthly_spread_map_from_dict(
     return spread_map
 
 
+# ============================================================
+# 정적 Spread 시계열 생성
+# ============================================================
+
+# 정적 spread 시계열 CSV 컬럼명 (이 모듈에서만 사용)
+COL_SS_MONTH = "month"
+COL_SS_FFR_PCT = "ffr_pct"
+COL_SS_A_GLOBAL = "a_global"
+COL_SS_B_GLOBAL = "b_global"
+COL_SS_SPREAD_GLOBAL = "spread_global"
+
+
+def generate_static_spread_series(
+    ffr_df: pd.DataFrame,
+    a: float,
+    b: float,
+    underlying_overlap_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    전체기간 단일 최적 (a, b)에 대해 월별 spread 시계열 DataFrame을 생성한다.
+
+    기초자산 overlap 기간의 고유 월을 추출하고, 각 월의 FFR 값으로
+    softplus(a + b * ffr_pct) 공식을 적용하여 spread를 계산한다.
+
+    FFR 누락 월 처리: _lookup_ffr (최대 2개월 이전 값 fallback, 초과 시 ValueError)
+
+    Args:
+        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        a: softplus 절편 파라미터
+        b: softplus 기울기 파라미터
+        underlying_overlap_df: 기초자산 겹침 기간 DataFrame (Date 컬럼 필수)
+
+    Returns:
+        DataFrame (month, ffr_pct, a_global, b_global, spread_global)
+        month 오름차순 정렬
+
+    Raises:
+        ValueError: overlap DataFrame이 비어있을 때
+        ValueError: FFR 조회 실패 (최대 2개월 fallback 초과) 시
+    """
+    # 1. 입력 검증
+    if underlying_overlap_df.empty:
+        raise ValueError("기초자산 overlap DataFrame이 비어있습니다")
+
+    # 2. overlap 기간 고유 월 추출 (오름차순 정렬)
+    overlap_months = sorted(underlying_overlap_df[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}").unique())
+
+    # 3. FFR 딕셔너리 생성
+    ffr_dict = _create_ffr_dict(ffr_df)
+
+    # 4. 각 월에 대해 FFR 조회 및 spread 계산
+    rows: list[dict[str, object]] = []
+    for month_key in overlap_months:
+        # 월 문자열을 date 객체로 변환 (1일 기준)
+        year, mon = map(int, month_key.split("-"))
+        month_date = date(year, mon, 1)
+
+        # FFR 조회 (2개월 fallback)
+        ffr_ratio = _lookup_ffr(month_date, ffr_dict)
+        ffr_pct = ffr_ratio * 100.0
+
+        # softplus spread 계산
+        spread = compute_softplus_spread(a, b, ffr_ratio)
+
+        rows.append(
+            {
+                COL_SS_MONTH: month_key,
+                COL_SS_FFR_PCT: ffr_pct,
+                COL_SS_A_GLOBAL: a,
+                COL_SS_B_GLOBAL: b,
+                COL_SS_SPREAD_GLOBAL: spread,
+            }
+        )
+
+    result_df = pd.DataFrame(rows)
+
+    logger.debug(
+        f"정적 spread 시계열 생성 완료: {len(result_df)}개월, "
+        f"a={a:.4f}, b={b:.4f}, "
+        f"spread 범위=[{result_df[COL_SS_SPREAD_GLOBAL].min():.6f}, "
+        f"{result_df[COL_SS_SPREAD_GLOBAL].max():.6f}]"
+    )
+
+    return result_df
+
+
 # 데이터 검증 및 월별 매칭 상수
 MAX_EXPENSE_MONTHS_DIFF = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 
@@ -1940,12 +2026,15 @@ def run_walkforward_validation(
         f"첫 테스트 월={months[first_test_idx]}"
     )
 
-    # 6. 워크포워드 결과 저장 리스트
+    # 6. FFR 딕셔너리 생성 (한 번만, spread_test 계산용)
+    ffr_dict_for_spread = _create_ffr_dict(ffr_df)
+
+    # 7. 워크포워드 결과 저장 리스트
     results: list[dict[str, object]] = []
     a_prev: float | None = None
     b_prev: float | None = None
 
-    # 7. 각 테스트 월에 대해 워크포워드 수행
+    # 8. 각 테스트 월에 대해 워크포워드 수행
     for i, test_idx in enumerate(test_month_indices):
         test_month = months[test_idx]
         train_start_idx = test_idx - train_window_months
@@ -1963,7 +2052,7 @@ def run_walkforward_validation(
         test_underlying = underlying_overlap[underlying_overlap["_month"] == test_month].copy()
         test_actual = actual_overlap[actual_overlap["_month"] == test_month].copy()
 
-        # 8. 파라미터 튜닝
+        # 9. 파라미터 튜닝
         if i == 0:
             # 첫 구간: 2-stage grid search
             search_mode = "full_grid_2stage"
@@ -1990,7 +2079,7 @@ def run_walkforward_validation(
                 max_workers=max_workers,
             )
 
-        # 9. 테스트 월 RMSE 계산
+        # 10. 테스트 월 RMSE 계산
         # softplus spread 맵 생성
         spread_map = build_monthly_spread_map(ffr_df, a_best, b_best)
 
@@ -2019,7 +2108,14 @@ def run_walkforward_validation(
             test_rmse = float("nan")
             n_test_days = 0
 
-        # 10. 결과 저장
+        # 10. 테스트 월 FFR 및 spread 계산
+        test_year, test_mon = map(int, test_month.split("-"))
+        test_date = date(test_year, test_mon, 1)
+        ffr_ratio_test = _lookup_ffr(test_date, ffr_dict_for_spread)
+        ffr_pct_test = ffr_ratio_test * 100.0
+        spread_test_val = compute_softplus_spread(a_best, b_best, ffr_ratio_test)
+
+        # 11. 결과 저장
         result: dict[str, object] = {
             "train_start": train_start,
             "train_end": train_end,
@@ -2031,10 +2127,12 @@ def run_walkforward_validation(
             "n_train_days": len(train_underlying),
             "n_test_days": n_test_days,
             "search_mode": search_mode,
+            "ffr_pct_test": ffr_pct_test,
+            "spread_test": spread_test_val,
         }
         results.append(result)
 
-        # 11. 다음 구간을 위해 현재 최적값 저장
+        # 12. 다음 구간을 위해 현재 최적값 저장
         a_prev = a_best
         b_prev = b_best
 
@@ -2044,10 +2142,10 @@ def run_walkforward_validation(
             f"train_rmse={train_rmse:.4f}%, test_rmse={test_rmse:.4f}%"
         )
 
-    # 12. 결과 DataFrame 생성
+    # 13. 결과 DataFrame 생성
     result_df = pd.DataFrame(results)
 
-    # 13. 요약 통계 계산
+    # 14. 요약 통계 계산
     test_rmse_values = result_df["test_rmse_pct"].dropna()
     a_values = result_df["a_best"]
     b_values = result_df["b_best"]

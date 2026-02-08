@@ -479,14 +479,38 @@ class TestRollingCorrelationChart:
             {
                 COL_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
                 COL_DE_M: [
-                    0.0, 0.05, 0.05, 0.05, 0.05, 0.05,
-                    -0.03, -0.04, -0.03, -0.05, -0.05, -0.05,
-                    -0.05, -0.05, -0.05,
+                    0.0,
+                    0.05,
+                    0.05,
+                    0.05,
+                    0.05,
+                    0.05,
+                    -0.03,
+                    -0.04,
+                    -0.03,
+                    -0.05,
+                    -0.05,
+                    -0.05,
+                    -0.05,
+                    -0.05,
+                    -0.05,
                 ],
                 "dr_shifted": [
-                    0.0, 0.1, 0.1, 0.1, 0.2, 0.2,
-                    -0.1, -0.1, -0.1, -0.2, -0.2, -0.2,
-                    -0.1, -0.1, -0.1,
+                    0.0,
+                    0.1,
+                    0.1,
+                    0.1,
+                    0.2,
+                    0.2,
+                    -0.1,
+                    -0.1,
+                    -0.1,
+                    -0.2,
+                    -0.2,
+                    -0.2,
+                    -0.1,
+                    -0.1,
+                    -0.1,
                 ],
             }
         )
@@ -499,7 +523,8 @@ class TestRollingCorrelationChart:
         assert len(fig.data) >= 1
         # Rolling 상관 trace 확인
         rolling_corr_trace = [
-            trace for trace in fig.data
+            trace
+            for trace in fig.data
             if isinstance(trace, go.Scatter) and isinstance(trace.name, str) and "Rolling 12M" in trace.name
         ]
         assert len(rolling_corr_trace) > 0

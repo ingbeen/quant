@@ -27,8 +27,10 @@ from qbt.tqqq.simulation import (
     _lookup_ffr,
     calculate_daily_cost,
     calculate_validation_metrics,
+    compute_softplus_spread,
     extract_overlap_period,
     find_optimal_cost_model,
+    generate_static_spread_series,
     simulate,
     validate_ffr_coverage,
 )
@@ -2187,6 +2189,125 @@ class TestRunWalkforwardValidation:
 #     def test_walkforward_subsequent_windows_local_refine(self):
 #         """이후 워크포워드 구간은 local refine 사용 테스트"""
 #         pass  # 주석 처리
+
+
+class TestGenerateStaticSpreadSeries:
+    """
+    generate_static_spread_series() 함수 테스트
+
+    전체기간 단일 최적 (a, b)에 대해 월별 spread 시계열 DataFrame을 생성한다.
+    """
+
+    def test_normal_static_spread_series(self):
+        """
+        정상 케이스: FFR 데이터와 overlap 기간이 주어지면 올바른 spread 계산
+
+        Given: 3개월 overlap 기간 + FFR 데이터 + a=-5.0, b=1.0
+        When: generate_static_spread_series 호출
+        Then: 각 월별 spread = softplus(a + b * ffr_pct) 일치, month 오름차순
+        """
+        # Given
+        a, b = -5.0, 1.0
+
+        # 3개월 겹치는 기간 데이터 (2023-01 ~ 2023-03)
+        dates = (
+            [date(2023, 1, d) for d in range(2, 22)]
+            + [date(2023, 2, d) for d in range(1, 21)]
+            + [date(2023, 3, d) for d in range(1, 22)]
+        )
+        underlying_overlap_df = pd.DataFrame(
+            {
+                COL_DATE: dates,
+                COL_CLOSE: [100.0 + i * 0.1 for i in range(len(dates))],
+            }
+        )
+
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2023-01", "2023-02", "2023-03"],
+                COL_FFR_VALUE: [0.045, 0.046, 0.05],  # 4.5%, 4.6%, 5.0%
+            }
+        )
+
+        # When
+        result = generate_static_spread_series(ffr_df, a, b, underlying_overlap_df)
+
+        # Then
+        # 1. 컬럼 존재 검증
+        expected_cols = ["month", "ffr_pct", "a_global", "b_global", "spread_global"]
+        assert list(result.columns) == expected_cols
+
+        # 2. 행 수 검증 (3개월)
+        assert len(result) == 3
+
+        # 3. month 오름차순 정렬 검증
+        assert list(result["month"]) == ["2023-01", "2023-02", "2023-03"]
+
+        # 4. spread = softplus(a + b * ffr_pct) 검증
+        for _, row in result.iterrows():
+            ffr_ratio = row["ffr_pct"] / 100.0
+            expected_spread = compute_softplus_spread(a, b, ffr_ratio)
+            assert row["spread_global"] == pytest.approx(expected_spread, abs=1e-10)
+
+        # 5. a_global, b_global은 입력값과 동일
+        assert all(result["a_global"] == a)
+        assert all(result["b_global"] == b)
+
+    def test_spread_values_differ_by_ffr(self):
+        """
+        서로 다른 FFR 값에 대해 서로 다른 spread가 계산됨
+
+        Given: 금리가 다른 2개월 overlap 기간
+        When: generate_static_spread_series 호출
+        Then: 금리가 높은 월의 spread가 더 큼 (b > 0일 때)
+        """
+        # Given
+        a, b = -6.0, 0.5
+
+        dates = [date(2023, 1, d) for d in range(2, 22)] + [date(2023, 2, d) for d in range(1, 21)]
+        underlying_overlap_df = pd.DataFrame(
+            {
+                COL_DATE: dates,
+                COL_CLOSE: [100.0] * len(dates),
+            }
+        )
+
+        # 1월: 1%, 2월: 5% (큰 차이)
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2023-01", "2023-02"],
+                COL_FFR_VALUE: [0.01, 0.05],
+            }
+        )
+
+        # When
+        result = generate_static_spread_series(ffr_df, a, b, underlying_overlap_df)
+
+        # Then: b > 0이므로 금리가 높은 2월의 spread가 더 큼
+        spread_jan = result[result["month"] == "2023-01"]["spread_global"].iloc[0]
+        spread_feb = result[result["month"] == "2023-02"]["spread_global"].iloc[0]
+        assert spread_feb > spread_jan
+
+    def test_empty_overlap_raises(self):
+        """
+        빈 overlap DataFrame이면 ValueError 발생
+
+        Given: 빈 overlap DataFrame
+        When: generate_static_spread_series 호출
+        Then: ValueError 발생
+        """
+        # Given
+        empty_df = pd.DataFrame({COL_DATE: [], COL_CLOSE: []})
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2023-01"],
+                COL_FFR_VALUE: [0.05],
+            }
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match="비어있습니다"):
+            generate_static_spread_series(ffr_df, -5.0, 1.0, empty_df)
 
 
 class TestCLIScriptExists:

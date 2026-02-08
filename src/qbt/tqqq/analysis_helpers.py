@@ -1044,6 +1044,8 @@ COL_WF_TEST_RMSE_PCT = "test_rmse_pct"
 COL_WF_N_TRAIN_DAYS = "n_train_days"
 COL_WF_N_TEST_DAYS = "n_test_days"
 COL_WF_SEARCH_MODE = "search_mode"
+COL_WF_FFR_PCT_TEST = "ffr_pct_test"
+COL_WF_SPREAD_TEST = "spread_test"
 
 # --- 워크포워드 요약 컬럼 (내부 영문 토큰) ---
 COL_WF_METRIC = "metric"
@@ -1061,6 +1063,8 @@ _WALKFORWARD_REQUIRED_COLUMNS = [
     COL_WF_N_TRAIN_DAYS,
     COL_WF_N_TEST_DAYS,
     COL_WF_SEARCH_MODE,
+    COL_WF_FFR_PCT_TEST,
+    COL_WF_SPREAD_TEST,
 ]
 
 
@@ -1074,7 +1078,8 @@ def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None
     Args:
         result_df: 워크포워드 결과 DataFrame
             필수 컬럼: train_start, train_end, test_month, a_best, b_best,
-                      train_rmse_pct, test_rmse_pct, n_train_days, n_test_days, search_mode
+                      train_rmse_pct, test_rmse_pct, n_train_days, n_test_days, search_mode,
+                      ffr_pct_test, spread_test
         output_path: 출력 CSV 파일 경로
 
     Raises:
@@ -1090,7 +1095,14 @@ def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None
     df_to_save = df_to_save.sort_values(COL_WF_TEST_MONTH).reset_index(drop=True)
 
     # 3. 수치 컬럼 라운딩 (4자리)
-    numeric_cols = [COL_WF_A_BEST, COL_WF_B_BEST, COL_WF_TRAIN_RMSE_PCT, COL_WF_TEST_RMSE_PCT]
+    numeric_cols = [
+        COL_WF_A_BEST,
+        COL_WF_B_BEST,
+        COL_WF_TRAIN_RMSE_PCT,
+        COL_WF_TEST_RMSE_PCT,
+        COL_WF_FFR_PCT_TEST,
+        COL_WF_SPREAD_TEST,
+    ]
     for col in numeric_cols:
         df_to_save[col] = df_to_save[col].round(4)
 
@@ -1150,3 +1162,53 @@ def save_walkforward_summary(summary: WalkforwardSummaryDict, output_path: Path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_summary.to_csv(output_path, index=False, encoding="utf-8")
     logger.debug(f"워크포워드 요약 CSV 저장 완료: {output_path} ({len(df_summary)}행)")
+
+
+# ============================================================
+# 정적 Spread 시계열 CSV 저장
+# ============================================================
+
+# 정적 spread 시계열 필수 컬럼 (simulation.py의 COL_SS_* 값과 일치)
+_STATIC_SPREAD_REQUIRED_COLUMNS = [
+    "month",
+    "ffr_pct",
+    "a_global",
+    "b_global",
+    "spread_global",
+]
+
+
+def save_static_spread_series(df: pd.DataFrame, output_path: Path) -> None:
+    """
+    정적 spread 시계열 DataFrame을 CSV로 저장한다.
+
+    month 오름차순 정렬 후, 수치 컬럼을 라운딩하여 저장한다.
+    - ffr_pct, a_global, b_global: 4자리
+    - spread_global: 6자리
+
+    Args:
+        df: 정적 spread 시계열 DataFrame
+            필수 컬럼: month, ffr_pct, a_global, b_global, spread_global
+        output_path: 출력 CSV 파일 경로
+
+    Raises:
+        ValueError: 필수 컬럼 누락 시
+    """
+    # 1. 필수 컬럼 검증
+    missing = [col for col in _STATIC_SPREAD_REQUIRED_COLUMNS if col not in df.columns]
+    if missing:
+        raise ValueError(f"필수 컬럼 누락: {missing}")
+
+    # 2. 복사 및 정렬 (원본 보호, 시계열 순서 보장)
+    df_to_save = df[_STATIC_SPREAD_REQUIRED_COLUMNS].copy()
+    df_to_save = df_to_save.sort_values("month").reset_index(drop=True)
+
+    # 3. 수치 컬럼 라운딩
+    for col in ["ffr_pct", "a_global", "b_global"]:
+        df_to_save[col] = df_to_save[col].round(4)
+    df_to_save["spread_global"] = df_to_save["spread_global"].round(6)
+
+    # 4. CSV 저장
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df_to_save.to_csv(output_path, index=False, encoding="utf-8")
+    logger.debug(f"정적 spread 시계열 CSV 저장 완료: {output_path} ({len(df_to_save)}행)")

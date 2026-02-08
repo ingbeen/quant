@@ -355,6 +355,10 @@ CLI 계층 (`scripts/`):
 - `grid_results.csv`: 백테스트 그리드 서치 결과
 - `tqqq_validation.csv`: TQQQ 시뮬레이션 검증 결과
 - `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터
+- `tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
+- `tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
+- `tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
+- `tqqq_rate_spread_lab_*.csv`: 금리-오차 분석 결과 (monthly, summary, model)
 - `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
 
 ### 데이터 로딩 (utils/data_loader.py)
