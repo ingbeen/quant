@@ -51,7 +51,6 @@ from qbt.tqqq.constants import (
     COL_SUM_DAILY_M,
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     DEFAULT_TOP_N_CROSS_VALIDATION,
-    DEFAULT_TRAIN_WINDOW_MONTHS,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
@@ -59,12 +58,15 @@ from qbt.tqqq.constants import (
     TQQQ_WALKFORWARD_PATH,
     TQQQ_WALKFORWARD_SUMMARY_PATH,
     WALKFORWARD_LOCAL_REFINE_A_DELTA,
-    WALKFORWARD_LOCAL_REFINE_A_STEP,
     WALKFORWARD_LOCAL_REFINE_B_DELTA,
-    WALKFORWARD_LOCAL_REFINE_B_STEP,
 )
 from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
-from qbt.tqqq.visualization import create_delta_chart, create_level_chart
+from qbt.tqqq.visualization import (
+    create_delta_scatter_chart,
+    create_level_scatter_chart,
+    create_level_timeseries_chart,
+    create_rolling_correlation_chart,
+)
 from qbt.utils.logger import setup_logger
 
 # ============================================================
@@ -194,13 +196,11 @@ def _render_intro():
     """타이틀 및 설명을 렌더링한다."""
     st.title("TQQQ 금리-오차 관계 분석")
     st.markdown(
-        """
-        금리 환경과 시뮬레이션 오차의 관계를 시각화하여 **스프레드 조정 전략 (Spread Adjustment Strategy)** 수립을 지원합니다.
+        """금리 환경과 시뮬레이션 오차의 관계를 시각화하여 **스프레드 조정 전략 (Spread Adjustment Strategy)** 수립을 지원합니다.
 
-        **화면 구성**:
-        - **핵심**: 금리 수준 vs 월말 누적 오차 (기본 표시)
-        - **고급**: 델타 분석 (Delta Analysis), 교차검증 (Cross Validation) (클릭하여 열기)
-        """
+**화면 구성**:
+- **핵심**: 금리 수준 vs 월말 누적 오차 (기본 표시)
+- **고급**: 델타 분석 (Delta Analysis), 교차검증 (Cross Validation) (클릭하여 열기)"""
     )
     st.divider()
 
@@ -222,72 +222,159 @@ def _render_dataset_metrics(monthly_df: pd.DataFrame):
         e_max = monthly_df[COL_E_M].max()
         st.metric(label="월말 오차 범위 (End-of-Month Error, %)", value=f"{e_min:.2f}% ~ {e_max:.2f}%")
 
+    # VERBATIM #0: 데이터 로딩 및 월별 집계 설명
+    st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **월별 집계**: 매일 데이터를 "월 단위"로 요약해서 보는 방식
+- **분석 기간(Period)**: 분석에 포함된 시작 월 ~ 종료 월
+- **금리 범위(Rate Range, %)**: 분석 기간 동안의 FFR(연방기금금리) 최소~최대
+- **월말 오차 범위(End-of-Month Error, %)**: 월말 기준 오차(e_m)의 최소~최대
+
+## 지표를 해석하는 방법
+
+- 기간이 길고(여러 국면 포함) 금리 범위가 넓으면, "특정 사건만의 우연"이 줄어듭니다.
+- 월말 오차 범위가 크면, 어떤 구간에서는 비용 가정/모델이 실제를 크게 빗나갈 수 있다는 뜻입니다.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 저금리~고금리 구간을 폭넓게 포함하고, 월말 오차도 ±몇 %까지 발생한 구간이 있어 **"금리 환경별로 오차가 달라지는지"를 보기 충분한 데이터 구성**입니다.""")
+
 
 def _render_level_section(monthly_df: pd.DataFrame):
-    """Level 분석 섹션을 렌더링한다."""
+    """Level 분석 섹션을 렌더링한다 (산점도 + 시계열 분리)."""
     st.header("금리 수준 vs 월말 누적 오차 (핵심)")
 
-    st.markdown(
-        """
-        **용어 설명**:
-        - **금리 수준 (Rate Level, rate_pct)**: 연방기금금리 (Federal Funds Rate, FFR, %)
-        - **월말 누적 오차 (End-of-Month Error, e_m)**: 해당 월 마지막 거래일의 시뮬레이션 오차 (%)
-
-        **부호 해석**:
-        - **오차 (+)**: 시뮬레이션이 실제보다 **과대** 평가
-        - **오차 (-)**: 시뮬레이션이 실제보다 **과소** 평가
-
-        **해석 예시**:
-        - 금리가 높을수록 월말 누적 오차 (e_m)가 +로 커지면 -> 고금리 구간에서 시뮬레이션 과대 평가 -> 비용 (조달비용) 가정이 낮았을 가능성
-        - 반대로 -로 커지면 -> 비용 가정이 높았을 가능성
-        - **주의**: 상관관계가 인과관계를 의미하지 않음
-
-        ---
-        """
-    )
-
+    # 산점도
     try:
-        level_fig = create_level_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
-        st.plotly_chart(level_fig, width="stretch")
+        scatter_fig = create_level_scatter_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
+        st.plotly_chart(scatter_fig, width="stretch")
     except Exception as e:
-        st.error(f"Level 차트 생성 실패:\n\n{str(e)}")
+        st.error(f"산점도 차트 생성 실패:\n\n{str(e)}")
+
+    # VERBATIM #1: 산점도 설명
+    st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **금리 수준(rate_pct)**: FFR(%)
+- **월말 누적 오차(e_m, %)**: 해당 월 마지막 거래일의 "시뮬 - 실제" 차이(%)
+  - **양수(+)**: 시뮬레이션이 실제보다 더 좋게 나옴 (과대평가)
+  - **음수(-)**: 시뮬레이션이 실제보다 더 나쁘게 나옴 (과소평가)
+
+- **추세선**: 점들이 전체적으로 어느 방향으로 치우치는지 보여주는 선
+
+## 지표를 해석하는 방법
+
+- 금리가 높아질수록 e_m이 **+로 커지는 경향**이면:
+  - 고금리에서 시뮬레이션이 실제보다 **좋게** 나오는 편
+  - 흔한 원인: 고금리에서 **비용(조달비용/스프레드)을 실제보다 낮게 잡았을 가능성**
+
+- 반대로 **-로 커지는 경향**이면 비용을 과하게 잡았을 가능성이 있습니다.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 화면 기준으로 추세선이 **우상향**에 가깝습니다.
+  → **금리 레벨이 높아질수록 월말 오차가 +쪽으로 치우칠 가능성**이 보입니다.
+  ✅ 판단: "고정 spread"는 고금리 구간에서 비용을 충분히 반영하지 못해 **과대평가 쪽 편향이 생길 수 있으니**, 동적 spread(금리 반영)의 필요성을 점검할 근거가 됩니다.""")
+
+    st.divider()
+
+    # 시계열
+    try:
+        ts_fig = create_level_timeseries_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
+        st.plotly_chart(ts_fig, width="stretch")
+    except Exception as e:
+        st.error(f"시계열 차트 생성 실패:\n\n{str(e)}")
+
+    # VERBATIM #2: 시계열 추이 설명
+    st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **시계열(Time Series)**: 시간 순서대로 값이 어떻게 변했는지 보는 그래프
+- 일반적으로:
+  - (선1) **금리(FFR)** 흐름
+  - (선2) **월말 오차(e_m)** 흐름
+    을 "시간축"에 함께 놓고 봅니다.
+
+## 지표를 해석하는 방법
+
+산점도는 "전체 관계(경향)"를, 시계열은 "언제부터/어느 구간에서"를 잘 보여줘요.
+
+초보자 체크리스트 3개:
+
+1. 금리가 **높아진 시기**에 오차가 **+쪽으로 오래 머무는지**
+2. 금리가 **낮은 시기**에 오차가 **-쪽으로 오래 머무는지**
+3. 특정 시점(충격장/급변 구간)에서 오차가 "뚝" 튀는지
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 화면에서는 **시기별로 오차의 중심이 달라지는(한쪽으로 치우쳤다가 돌아오는) 모습**이 보입니다.
+  ✅ 판단: "한 개의 고정 spread"로 전 기간을 덮기보다는, **금리 레벨 같은 환경 변수로 비용을 조정하는 아이디어가 자연스럽다**는 쪽으로 해석할 수 있습니다.""")
 
     st.divider()
 
 
 def _render_delta_section(monthly_df: pd.DataFrame):
-    """Delta 분석 섹션을 렌더링한다."""
+    """Delta 분석 섹션을 렌더링한다 (산점도 + Rolling 상관 분리)."""
     with st.expander("고급 분석: 델타 (Delta - 금리 변화 vs 오차 변화)", expanded=False):
-        st.markdown(
-            """
-            **목적**: 금리 변화와 오차 변화의 관계 및 시차 효과 (Lag Effect) 확인
-
-            **시차 옵션 (Lag Options)**:
-            - 시차 0 (Lag 0): 동월 금리 변화 vs 당월 오차 변화
-            - 시차 1 (Lag 1): 전월 금리 변화 vs 당월 오차 변화 (1개월 시차)
-            - 시차 2 (Lag 2): 2개월 전 금리 변화 vs 당월 오차 변화 (2개월 시차)
-            """
-        )
-
         y_col_delta = COL_DE_M
         y_label_delta = DISPLAY_DELTA_MONTHLY_PCT
 
         lag = st.selectbox("시차 (Lag, 개월):", options=DEFAULT_LAG_OPTIONS, index=0)
 
         try:
-            delta_fig, valid_df = create_delta_chart(monthly_df, y_col_delta, y_label_delta, lag)
+            # 델타 산점도
+            delta_fig, valid_df = create_delta_scatter_chart(monthly_df, y_col_delta, y_label_delta, lag)
             st.plotly_chart(delta_fig, width="stretch")
 
             st.info(
-                f"""
-                **샘플 수 (Sample Size)**: {len(valid_df)}개월
+                f"""**샘플 수 (Sample Size)**: {len(valid_df)}개월
 
-                **상관 해석 주의점 (Correlation Interpretation)**:
-                - 상관이 높다고 인과관계를 의미하지 않음
-                - 다른 요인 (변동성, 레버리지 리밸런싱 등)도 영향 가능
-                - 시차 효과 (Lag Effect)는 금리 정책 시차를 반영할 수 있음
-                """
+**상관 해석 주의점 (Correlation Interpretation)**:
+- 상관이 높다고 인과관계를 의미하지 않음
+- 다른 요인 (변동성, 레버리지 리밸런싱 등)도 영향 가능
+- 시차 효과 (Lag Effect)는 금리 정책 시차를 반영할 수 있음"""
             )
+
+            # VERBATIM #3: 델타 분석 설명
+            st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **금리 변화(dr_m)**: 전월 대비 금리 변화량
+- **오차 변화(de_m)**: 전월 대비 월말 오차 변화량
+- **Lag(시차)**:
+  - Lag 0: 같은 달 변화량끼리 비교
+  - Lag 1: 전월 금리 변화가 당월 오차 변화에 영향을 주는지
+  - Lag 2: 2개월 늦게 반영되는지
+
+## 지표를 해석하는 방법
+
+- 델타 분석은 "금리 **수준**"이 아니라 "금리의 **변화 방향/속도**"가 오차 변화와 연결되는지 봅니다.
+- 점들이 0 근처에 몰리고 추세가 약하면, 금리 변화량만으로 오차 변화를 설명하기 어렵습니다.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 화면의 델타 산점도는 강한 직선 관계라기보단 **흩어진 형태**에 가깝습니다.
+  ✅ 판단: 오차를 설명하는 핵심은 "금리 변화(Δ)"보다는 **금리 수준(Level)** 쪽일 가능성이 더 크며, Lag 비교는 "보조 힌트"로 보는 게 안전합니다.""")
+
+            st.divider()
+
+            # Rolling 12개월 상관
+            rolling_fig = create_rolling_correlation_chart(valid_df, y_col_delta)
+            st.plotly_chart(rolling_fig, width="stretch")
+
+            # VERBATIM #4: Rolling 12개월 상관 설명
+            st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **Rolling 12개월 상관**: 최근 12개월만 잘라 상관계수를 계속 계산한 것
+- **상관계수**: +면 같이, -면 반대로, 0이면 뚜렷하지 않음
+
+## 지표를 해석하는 방법
+
+- 한 숫자(전체기간 상관)보다, 롤링은 **구간별로 관계가 바뀌는지** (국면 변화)를 보여줍니다.
+- 상관이 오래 한 방향이면 "그 구간에서는 관계가 비교적 안정적"
+- 상관이 자주 뒤집히면 "관계가 불안정 → 단일 규칙 적용 위험"
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준으로 상관이 구간별로 오르내리는 모습입니다.
+  ✅ 판단: "금리-오차 관계"는 시기별로 강도가 달라질 수 있어, **동적 모델 + 워크포워드 같은 운영형 검증이 의미**가 있습니다.""")
 
         except ValueError as e:
             st.error(f"Delta 차트 생성 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 부족 가능성")
@@ -314,22 +401,6 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
         monthly_df: 월별 데이터 (de_m, sum_daily_m 포함)
     """
     st.subheader("교차검증 (Cross Validation): de_m vs sum_daily_m")
-
-    st.markdown(
-        """
-        **목적**: 두 가지 방법으로 계산한 월간 오차 변화가 일치하는지 검증
-
-        - `de_m`: 월말 누적 signed의 월간 변화 (Difference, diff)
-        - `sum_daily_m`: 일일 증분 signed의 월합 (Sum of Daily, sum)
-
-        **기대**: 거의 같아야 함 (완전 동일 X)
-
-        **차이 원인 (Difference Causes)**:
-        1. 일일수익률 반올림 (CSV 저장 시 소수점 자릿수 제한)
-        2. 거래일 결측 (일부 날짜 누락 가능성)
-        3. 누적수익률 계산 방식 차이 (실제 데이터 vs 시뮬레이션 계산 경로)
-        """
-    )
 
     valid_df = monthly_df.dropna(subset=[COL_DE_M, COL_SUM_DAILY_M])
 
@@ -376,6 +447,23 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
     )
     st.plotly_chart(fig, width="stretch")
 
+    # VERBATIM #5: 교차검증 설명
+    st.markdown("""## 지표에 사용하는 용어에 대한 설명
+
+- **de_m**: 월말 누적 오차(e_m)의 월간 변화(diff)
+- **sum_daily_m**: 일일 오차 증분의 월합(sum)
+- 두 방식은 계산 경로만 다르고 **거의 같아야 정상**입니다.
+
+## 지표를 해석하는 방법
+
+- 이 섹션은 "금리와의 관계"를 보기 전에 **오차 집계 로직이 일관적인지** 검증하는 안전장치입니다.
+- max/mean abs diff가 매우 작으면 "집계 신뢰도 OK"
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준 diff가 매우 작은 수준으로 관리됩니다.
+  ✅ 판단: 오차 계산/집계는 충분히 안정적이라, 이후 분석(델타/튜닝/워크포워드) 해석의 바닥이 튼튼한 편입니다.""")
+
 
 # ============================================================
 # Softplus 튜닝 결과 로드 및 표시 함수
@@ -399,23 +487,6 @@ def _render_softplus_section() -> None:
     """Softplus 동적 Spread 튜닝 결과 섹션을 렌더링한다."""
     st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
 
-    st.markdown(
-        """
-        **목적**: 금리 수준에 따라 funding spread를 동적으로 조정하는 softplus 모델의 최적 파라미터 (a, b)를 확인합니다.
-
-        **수식**: `spread = softplus(a + b * ffr_pct)`
-
-        - `ffr_pct`: 연방기금금리 (%, 예: 5.0 = 5%)
-        - `a`: 절편 파라미터 (음수일 때 저금리 구간 spread 감소)
-        - `b`: 기울기 파라미터 (양수일 때 고금리 구간 spread 증가)
-        - `softplus(x)`: log(1 + exp(x)), 항상 양수 반환
-
-        **튜닝 실행**: `poetry run python scripts/tqqq/run_softplus_tuning.py`
-
-        ---
-        """
-    )
-
     # CSV 파일 로드
     tuning_df = _load_softplus_tuning_csv()
 
@@ -430,6 +501,33 @@ def _render_softplus_section() -> None:
         )
     else:
         _display_tuning_result(tuning_df)
+
+    # VERBATIM #6: Softplus 동적 Spread 파라미터 튜닝 결과 설명
+    st.markdown(r"""## 지표에 사용하는 용어에 대한 설명
+
+- 모델:
+  - **spread = softplus(a + b \* ffr_pct)**
+
+- **a(절편)**: 기본 바닥값 성격(금리가 낮을 때 상대적으로 더 중요)
+- **b(기울기)**: 금리 민감도 성격(금리가 높을수록 영향이 커짐)
+- **softplus**: spread가 음수가 되지 않도록 하는 함수(항상 양수)
+- **베스트(a,b)의 기준**: 후보 조합 중 **RMSE(%)를 최소**로 만드는 조합
+  (월말 누적오차 한 점이 아니라, "기간 전체의 추적 오차"를 점수로 봅니다.)
+
+## 지표를 해석하는 방법
+
+- 아래 문구는 꼭 같이 넣어두면 이해가 빨라요(요청 반영):
+  - 금리가 낮으면 **ffr_pct가 작아서 b \* ffr_pct 항이 작고 → a의 영향이 상대적으로 더 큼**
+  - 금리가 높으면 **b \* ffr_pct가 커져서 → b(기울기)의 영향이 크게 나타남**
+
+- 중요한 오해 방지:
+  - "저금리면 a만 쓰고 b는 안 쓴다"가 아니라
+    ✅ **항상 a와 b 둘 다 사용**하고, 다만 금리 레벨에 따라 "영향 비중"이 달라집니다.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준 최적값이 **a=-6.10, b=0.37, RMSE=1.0467%** 형태로 제시됩니다.
+  ✅ 판단: "고금리에서 비용을 더 얹는(b>0)" 구조가 전체기간 추적 오차를 줄이는 데 유리하게 작동한 결과로 해석할 수 있습니다.""")
 
     # 워크포워드 검증 섹션
     st.divider()
@@ -503,26 +601,6 @@ def _render_walkforward_section() -> None:
     """워크포워드 검증 결과 섹션을 렌더링한다."""
     st.header("워크포워드 검증 (파라미터 안정성)")
 
-    st.markdown(
-        f"""
-        **목적**: 글로벌 최적 (a, b) 파라미터가 미래 데이터에도 안정적으로 작동하는지 검증합니다.
-
-        **방법**: 워크포워드 (Rolling Window) 검증
-        - 학습 기간: {DEFAULT_TRAIN_WINDOW_MONTHS}개월 (5년)
-        - 테스트 기간: 1개월
-        - 첫 구간: 2-stage grid search (글로벌 탐색)
-        - 이후 구간: local refine (직전 월 최적값 주변 탐색)
-
-        **Local Refine 범위**:
-        - a: [a_prev - {WALKFORWARD_LOCAL_REFINE_A_DELTA}, a_prev + {WALKFORWARD_LOCAL_REFINE_A_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_A_STEP}
-        - b: [b_prev - {WALKFORWARD_LOCAL_REFINE_B_DELTA}, b_prev + {WALKFORWARD_LOCAL_REFINE_B_DELTA}], step = {WALKFORWARD_LOCAL_REFINE_B_STEP}
-
-        **검증 실행**: `poetry run python scripts/tqqq/run_walkforward_validation.py`
-
-        ---
-        """
-    )
-
     # CSV 파일 로드
     result_df, summary_df = _load_walkforward_csv()
 
@@ -540,6 +618,40 @@ def _render_walkforward_section() -> None:
         )
     else:
         _display_walkforward_result(result_df, summary_df)
+
+    # VERBATIM #7: 워크포워드 검증 결과 설명
+    st.markdown(f"""## 지표에 사용하는 용어에 대한 설명
+
+- **워크포워드(rolling)**:
+  과거 60개월로 (a,b)를 고른 뒤 → "다음 1개월"에서 성능(RMSE)을 보는 걸 매달 반복
+- 워크포워드의 목적(한 줄):
+  ✅ **"최적의 a,b를 찾는 방법(튜닝 절차)이 미래에서도 잘 통하나?" + "그 과정이 얼마나 안정적이냐?"**
+
+### full grid vs local refine (요청 반영)
+
+- **full grid(전체 탐색)**
+  - a와 b를 **넓은 범위**로 펼쳐 가능한 조합을 폭넓게 검사
+  - 장점: 정답이 어디 있을지 몰라도 놓칠 확률이 낮음
+  - 단점: 느림
+
+- **local refine(주변 미세조정)**
+  - **이미 직전 달에 찾은 최적값(a_prev, b_prev)** 이 있으니,
+    그 주변(예: a는 ±{WALKFORWARD_LOCAL_REFINE_A_DELTA}, b는 ±{WALKFORWARD_LOCAL_REFINE_B_DELTA} 같은 좁은 범위)만 다시 탐색해서 "조금 더 좋은 값"을 찾는 방식
+  - 장점: 빠르고, 파라미터가 매달 멀리 점프하는 걸 줄여 **운영이 안정적**
+  - 단점: 국면이 크게 바뀌어 정답이 멀리 이동한 달이면 더 좋은 해를 놓칠 수 있음
+
+## 지표를 해석하는 방법
+
+- 워크포워드에서 매달 나오는 결과는 크게 3종입니다:
+  1. **a_best, b_best**: 그 달의 학습(60개월)에서 RMSE를 최소화한 값
+  2. **test_rmse_pct**: 그 값으로 "다음 1개월"을 얼마나 잘 맞췄는지(낮을수록 좋음)
+  3. (차트/표) a,b가 시간에 따라 얼마나 흔들리는지, 성능이 언제 튀는지
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준으로 test RMSE의 평균/중앙값이 낮게 유지되는 편이며, 일부 구간에 스파이크가 보입니다.
+  ✅ 판단: "튜닝 절차는 대체로 미래에서도 통하지만, 특정 국면에서는 성능이 튈 수 있다"는 전형적인 결론을 낼 수 있습니다.
+  → 실전 적용 시엔 스파이크 구간을 따로 분석하거나 리스크 관리 규칙(보수적 상한 등)을 고려하는 게 안전합니다.""")
 
 
 def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:
@@ -630,6 +742,24 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
         )
         st.plotly_chart(fig_b, width="stretch")
 
+        # VERBATIM #8: (a, b) 추이 차트 설명
+        st.markdown("""## 용어 설명
+
+- **a_best, b_best 추이**: 각 테스트 월 직전에, 과거 60개월 학습으로 선택된 "그 달의 최적값"의 시간 흐름
+
+## 해석 방법 (중복 최소화)
+
+- 여기서 보는 포인트는 "값이 크냐 작냐"보다 **얼마나 일정하게 유지되냐** (안정성)입니다.
+- 체크리스트:
+  1. 완만한가? (안정적)
+  2. 계단처럼 튀는 구간이 있는가? (국면 변화/충격 가능성)
+  3. 특히 b가 출렁이면 "고금리 민감도"가 시기별로 달라졌다는 뜻일 수 있음
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준으로 a는 비교적 완만한 편이고, b는 상대적으로 변동이 있는 편으로 읽힙니다.
+  ✅ 판단: "기본 바닥값(a)보다, 금리 민감도(b)가 국면 따라 조정될 여지가 더 크다"는 방향의 해석이 가능합니다.""")
+
     # 테스트 RMSE 추이 차트
     with st.expander("테스트 RMSE 추이 차트", expanded=False):
         fig_rmse = go.Figure()
@@ -650,9 +780,54 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
         )
         st.plotly_chart(fig_rmse, width="stretch")
 
+        # VERBATIM #9: 테스트 RMSE 추이 설명
+        st.markdown("""## 용어 설명
+
+- **test_rmse_pct**: 테스트 1개월 동안 "실제 TQQQ 가격 경로 vs 시뮬 가격 경로"가 얼마나 가까웠는지의 점수
+  - 낮을수록 "잘 따라감"
+
+## 해석 방법
+
+- 체크리스트:
+  1. 대부분 낮게 유지 → "꾸준히 잘 맞는 편"
+  2. 스파이크(튀는 달) 존재 → 그 달은 충격/급변/모델 한계 구간일 수 있음
+
+- 초보자 팁:
+  스파이크 달은 "버려야 할 달"이 아니라, **리스크 구간을 알려주는 힌트**입니다.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처 기준으로 전반적으로 낮은 구간이 많고, 일부 스파이크가 보입니다.
+  ✅ 판단: 절차 자체는 유효하지만, 스파이크 달을 따로 찾아 원인 분석(변동성 급등 등)을 하면 운영 안정성이 올라갑니다.""")
+
     # 전체 결과 테이블
     with st.expander("전체 결과 테이블", expanded=False):
         st.dataframe(result_df, width="stretch")
+
+        # VERBATIM #10: 전체 결과 테이블 설명
+        st.markdown("""## 용어 설명
+
+- 테이블의 한 행 = "한 테스트 월"의 기록
+- 핵심 컬럼:
+  - **train_start/train_end**: 학습 60개월 범위
+  - **test_month**: 테스트 1개월
+  - **a_best, b_best**: 그 달 학습에서 선택된 값
+  - **train_rmse_pct / test_rmse_pct**: 학습/테스트 성능
+  - **search_mode**: full grid인지 local refine인지
+
+## 해석 방법
+
+초보자용 3단계 워크플로우:
+
+1. **test_rmse_pct가 튄 달** (스파이크)을 먼저 찾기
+2. 그 달의 행에서 **a_best/b_best가 갑자기 점프했는지**, **train-test 괴리가 큰지** 보기
+3. 그 달이 **full grid였는지 / local refine였는지** 확인
+   - local refine였는데 크게 틀리면 "정답이 멀리 이동했는데 주변만 찾았을 가능성" 같은 가설을 세우기 쉬워요.
+
+## 현재 지표 해석 & 판단(결과)
+
+- 캡처에는 전체 결과 테이블이 제공되므로, 차트에서 발견한 "이상 구간"을 **테이블로 역추적**할 수 있습니다.
+  ✅ 판단: 운영 관점에서는 "스파이크 달"을 중심으로 테이블을 보는 게 가장 효율적입니다.""")
 
     # 메타 정보
     st.info(

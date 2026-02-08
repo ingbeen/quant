@@ -28,9 +28,11 @@ from qbt.tqqq.constants import (
 from qbt.tqqq.visualization import (
     create_cumulative_return_diff_chart,
     create_daily_return_diff_histogram,
-    create_delta_chart,
-    create_level_chart,
+    create_delta_scatter_chart,
+    create_level_scatter_chart,
+    create_level_timeseries_chart,
     create_price_comparison_chart,
+    create_rolling_correlation_chart,
 )
 
 
@@ -197,8 +199,8 @@ class TestCumulativeReturnDiffChart:
         assert any(y < 0 for y in y_values)
 
 
-class TestLevelChart:
-    """Level 차트 생성 함수 테스트"""
+class TestLevelScatterChart:
+    """Level 산점도 차트 생성 함수 테스트"""
 
     @pytest.fixture
     def sample_monthly_df(self):
@@ -247,26 +249,26 @@ class TestLevelChart:
 
     def test_basic_chart_creation(self, sample_monthly_df):
         """
-        기본 Level 차트를 생성한다.
+        기본 산점도 차트를 생성한다.
 
         Given: 월별 데이터 (rate_pct, e_m 컬럼 포함)
-        When: create_level_chart 호출
-        Then: Figure 객체 반환, 서브플롯 2개 (산점도 + 시계열), trace 4개 이상
+        When: create_level_scatter_chart 호출
+        Then: Figure 객체 반환, trace 2개 (산점도 + 추세선)
         """
         # Given
         df = sample_monthly_df
 
         # When
-        fig = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
+        fig = create_level_scatter_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
 
         # Then
         assert isinstance(fig, go.Figure)
-        # 산점도 trace + 추세선 + 시계열 2개 = 최소 4개
-        assert len(fig.data) >= 4
+        # 산점도 + 추세선 = 2개
+        assert len(fig.data) >= 2
 
     def test_y_col_parameter_variations(self, sample_monthly_df):
         """
-        y_col 파라미터 변경에 따라 차트가 생성된다.
+        y_col 파라미터 변경에 따라 산점도가 생성된다.
 
         Given: 월별 데이터
         When: y_col을 e_m, de_m, sum_daily_m으로 각각 호출
@@ -276,23 +278,23 @@ class TestLevelChart:
         df = sample_monthly_df
 
         # When & Then: e_m
-        fig_em = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
+        fig_em = create_level_scatter_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
         assert isinstance(fig_em, go.Figure)
 
         # When & Then: de_m
-        fig_dem = create_level_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)")
+        fig_dem = create_level_scatter_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)")
         assert isinstance(fig_dem, go.Figure)
 
         # When & Then: sum_daily_m
-        fig_sum = create_level_chart(df, y_col=COL_SUM_DAILY_M, y_label="일일 증분 월합 (%)")
+        fig_sum = create_level_scatter_chart(df, y_col=COL_SUM_DAILY_M, y_label="일일 증분 월합 (%)")
         assert isinstance(fig_sum, go.Figure)
 
     def test_handles_missing_values(self):
         """
-        결측치를 자동으로 제거하고 차트를 생성한다.
+        결측치를 자동으로 제거하고 산점도를 생성한다.
 
         Given: NaN을 포함한 월별 데이터
-        When: create_level_chart 호출
+        When: create_level_scatter_chart 호출
         Then: NaN을 제외하고 정상적으로 차트 생성
         """
         # Given
@@ -305,20 +307,72 @@ class TestLevelChart:
         )
 
         # When
-        fig = create_level_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
+        fig = create_level_scatter_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
 
         # Then
         assert isinstance(fig, go.Figure)
-        # NaN이 제거되어 유효한 데이터만 차트에 포함됨
         assert len(fig.data) > 0
 
 
-class TestDeltaChart:
-    """Delta 차트 생성 함수 테스트"""
+class TestLevelTimeseriesChart:
+    """Level 시계열 차트 생성 함수 테스트"""
+
+    def test_basic_chart_creation(self):
+        """
+        기본 시계열 차트를 생성한다.
+
+        Given: 월별 데이터 (rate_pct, e_m 컬럼 포함)
+        When: create_level_timeseries_chart 호출
+        Then: Figure 객체 반환, trace 2개 (금리 + 오차)
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_RATE_PCT: [4.5, 4.6, 4.7, 4.8, 5.0],
+                COL_E_M: [0.1, 0.15, 0.2, 0.25, 0.3],
+            }
+        )
+
+        # When
+        fig = create_level_timeseries_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
+
+        # Then
+        assert isinstance(fig, go.Figure)
+        # 금리 수준 + 오차 = 2개
+        assert len(fig.data) == 2
+
+    def test_handles_missing_values(self):
+        """
+        결측치를 자동으로 제거하고 시계열 차트를 생성한다.
+
+        Given: NaN을 포함한 월별 데이터
+        When: create_level_timeseries_chart 호출
+        Then: NaN을 제외하고 정상적으로 차트 생성
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_RATE_PCT: [4.5, None, 4.7, 4.8, 5.0],
+                COL_E_M: [0.1, 0.15, None, 0.25, 0.3],
+            }
+        )
+
+        # When
+        fig = create_level_timeseries_chart(df, y_col=COL_E_M, y_label="월말 누적 signed (%)")
+
+        # Then
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) == 2
+
+
+class TestDeltaScatterChart:
+    """Delta 산점도 차트 생성 함수 테스트"""
 
     @pytest.fixture
     def sample_monthly_df(self):
-        """월별 데이터 샘플 픽스처 (Rolling 상관 계산 가능한 15개월)"""
+        """월별 데이터 샘플 픽스처 (15개월)"""
         return pd.DataFrame(
             {
                 COL_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
@@ -363,26 +417,28 @@ class TestDeltaChart:
 
     def test_basic_chart_creation(self, sample_monthly_df):
         """
-        기본 Delta 차트를 생성한다.
+        기본 Delta 산점도를 생성한다.
 
         Given: 월별 데이터 (de_m, dr_m 컬럼 포함, 15개월)
-        When: create_delta_chart 호출 (lag=0)
+        When: create_delta_scatter_chart 호출 (lag=0)
         Then: Figure 객체 및 유효 데이터 DataFrame 반환
         """
         # Given
         df = sample_monthly_df
 
         # When
-        fig, valid_df = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
+        fig, valid_df = create_delta_scatter_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
 
         # Then
         assert isinstance(fig, go.Figure)
         assert isinstance(valid_df, pd.DataFrame)
         assert len(valid_df) > 0
+        # 산점도 + 추세선 = 2개
+        assert len(fig.data) >= 2
 
     def test_lag_parameter_variations(self, sample_monthly_df):
         """
-        lag 파라미터 변경에 따라 차트가 생성된다.
+        lag 파라미터 변경에 따라 산점도가 생성된다.
 
         Given: 월별 데이터
         When: lag를 0, 1, 2로 각각 호출
@@ -392,64 +448,81 @@ class TestDeltaChart:
         df = sample_monthly_df
 
         # When & Then: lag=0
-        fig0, valid_df0 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
+        fig0, valid_df0 = create_delta_scatter_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
         assert isinstance(fig0, go.Figure)
         assert len(valid_df0) == 15  # shift(0)이므로 결측치 없음
 
         # When & Then: lag=1
-        fig1, valid_df1 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=1)
+        fig1, valid_df1 = create_delta_scatter_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=1)
         assert isinstance(fig1, go.Figure)
         assert len(valid_df1) == 14  # shift(1)으로 첫 행 NaN 제거
 
         # When & Then: lag=2
-        fig2, valid_df2 = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=2)
+        fig2, valid_df2 = create_delta_scatter_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=2)
         assert isinstance(fig2, go.Figure)
         assert len(valid_df2) == 13  # shift(2)로 첫 2행 NaN 제거
 
-    def test_rolling_correlation_with_sufficient_data(self, sample_monthly_df):
+
+class TestRollingCorrelationChart:
+    """Rolling 12개월 상관 차트 생성 함수 테스트"""
+
+    def test_rolling_correlation_with_sufficient_data(self):
         """
         12개월 이상 데이터로 Rolling 상관을 계산한다.
 
-        Given: 15개월 월별 데이터
-        When: create_delta_chart 호출
-        Then: Rolling 상관 trace가 포함됨 (서브플롯 2에 trace 추가)
+        Given: 15개월 전처리된 Delta 데이터 (dr_shifted 컬럼 포함)
+        When: create_rolling_correlation_chart 호출
+        Then: Rolling 12M 상관 trace가 포함된 Figure 반환
         """
         # Given
-        df = sample_monthly_df
+        plot_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=15, freq="M"),
+                COL_DE_M: [
+                    0.0, 0.05, 0.05, 0.05, 0.05, 0.05,
+                    -0.03, -0.04, -0.03, -0.05, -0.05, -0.05,
+                    -0.05, -0.05, -0.05,
+                ],
+                "dr_shifted": [
+                    0.0, 0.1, 0.1, 0.1, 0.2, 0.2,
+                    -0.1, -0.1, -0.1, -0.2, -0.2, -0.2,
+                    -0.1, -0.1, -0.1,
+                ],
+            }
+        )
 
         # When
-        fig, _ = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
+        fig = create_rolling_correlation_chart(plot_df, y_col=COL_DE_M)
 
         # Then
-        # 산점도 + 추세선 + Rolling 상관 = 3개 이상
-        assert len(fig.data) >= 3
-        # Rolling 상관 trace 확인 (모든 trace가 Scatter)
-        rolling_corr_trace = []
-        for trace in fig.data:
-            assert isinstance(trace, go.Scatter)
-            if isinstance(trace.name, str) and "Rolling 12M" in trace.name:
-                rolling_corr_trace.append(trace)
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) >= 1
+        # Rolling 상관 trace 확인
+        rolling_corr_trace = [
+            trace for trace in fig.data
+            if isinstance(trace, go.Scatter) and isinstance(trace.name, str) and "Rolling 12M" in trace.name
+        ]
         assert len(rolling_corr_trace) > 0
 
     def test_rolling_correlation_with_insufficient_data(self):
         """
         12개월 미만 데이터로는 Rolling 상관 계산 안내 메시지를 표시한다.
 
-        Given: 10개월 월별 데이터 (12개월 미만)
-        When: create_delta_chart 호출
+        Given: 10개월 전처리된 Delta 데이터 (12개월 미만)
+        When: create_rolling_correlation_chart 호출
         Then: 안내 메시지 annotation 포함
         """
         # Given
-        df = pd.DataFrame(
+        plot_df = pd.DataFrame(
             {
                 COL_MONTH: pd.period_range("2023-01", periods=10, freq="M"),
                 COL_DE_M: [0.05, 0.06, 0.04, 0.07, 0.05, 0.03, 0.06, 0.04, 0.05, 0.07],
-                COL_DR_M: [0.1, 0.12, 0.09, 0.13, 0.11, 0.08, 0.12, 0.10, 0.11, 0.13],
+                "dr_shifted": [0.1, 0.12, 0.09, 0.13, 0.11, 0.08, 0.12, 0.10, 0.11, 0.13],
             }
         )
 
         # When
-        fig, _ = create_delta_chart(df, y_col=COL_DE_M, y_label="월간 변화 (%)", lag=0)
+        fig = create_rolling_correlation_chart(plot_df, y_col=COL_DE_M)
 
         # Then
         assert isinstance(fig, go.Figure)

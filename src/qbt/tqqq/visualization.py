@@ -187,13 +187,13 @@ def create_cumulative_return_diff_chart(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def create_level_chart(
+def create_level_scatter_chart(
     monthly_df: pd.DataFrame,
     y_col: str,
     y_label: str,
 ) -> go.Figure:
     """
-    금리 수준 vs 오차 수준 산점도 및 시계열 라인 차트를 생성한다.
+    금리 수준 vs 오차 수준 산점도를 생성한다.
 
     Args:
         monthly_df: 월별 데이터
@@ -201,21 +201,14 @@ def create_level_chart(
         y_label: y축 레이블 (의미 설명 포함)
 
     Returns:
-        Plotly Figure 객체 (서브플롯 2개: 산점도 + 시계열)
+        Plotly Figure 객체 (산점도 + 추세선)
     """
     # 결측치 제거
     plot_df = monthly_df.dropna(subset=[COL_RATE_PCT, y_col])
 
-    # 서브플롯 생성: 위(산점도), 아래(시계열)
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        subplot_titles=["금리 수준 vs 오차 (산점도)", "시계열 추이"],
-        row_heights=[0.5, 0.5],
-        vertical_spacing=0.15,
-    )
+    fig = go.Figure()
 
-    # 1. 산점도: rate_pct vs y_col
+    # 산점도: rate_pct vs y_col
     fig.add_trace(
         go.Scatter(
             x=plot_df[COL_RATE_PCT],
@@ -225,8 +218,6 @@ def create_level_chart(
             marker={"color": "#1f77b4", "size": 8},
             hovertemplate="<b>금리</b>: %{x:.2f}%<br>" + f"<b>{y_label}</b>: %{{y:.2f}}%<br>" + "<extra></extra>",
         ),
-        row=1,
-        col=1,
     )
 
     # 추세선 (OLS)
@@ -243,68 +234,108 @@ def create_level_chart(
                 name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
                 line={"color": "red", "dash": "dash"},
             ),
-            row=1,
-            col=1,
         )
 
-    # 2. 시계열 라인: month vs rate_pct, y_col
-    plot_df_ts = plot_df.copy()
-    plot_df_ts["month_str"] = plot_df_ts[COL_MONTH].astype(str)
-
-    fig.add_trace(
-        go.Scatter(
-            x=plot_df_ts["month_str"],
-            y=plot_df_ts[COL_RATE_PCT],
-            mode="lines",
-            name="금리 수준",
-            line={"color": "#2ca02c", "width": 2},
-            yaxis="y3",
-            hovertemplate="<b>월</b>: %{x}<br>" + "<b>금리</b>: %{y:.2f}%<br>" + "<extra></extra>",
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=plot_df_ts["month_str"],
-            y=plot_df_ts[y_col],
-            mode="lines",
-            name=y_label,
-            line={"color": "#ff7f0e", "width": 2},
-            yaxis="y4",
-            hovertemplate="<b>월</b>: %{x}<br>" + f"<b>{y_label}</b>: %{{y:.2f}}%<br>" + "<extra></extra>",
-        ),
-        row=2,
-        col=1,
-    )
-
-    # 레이아웃 업데이트
-    fig.update_xaxes(title_text="금리 수준 (%)", row=1, col=1)
-    fig.update_yaxes(title_text=y_label, row=1, col=1)
-
-    fig.update_xaxes(title_text="월", row=2, col=1)
-    fig.update_yaxes(title_text="금리 (%)", row=2, col=1, secondary_y=False)
-
-    # 이중 y축 설정 (시계열 차트)
     fig.update_layout(
-        yaxis3={"overlaying": "y2", "side": "left", "title": "금리 (%)"},
-        yaxis4={"overlaying": "y2", "side": "right", "title": y_label},
-        height=800,
-        hovermode="x unified",
+        title="금리 수준 vs 오차 (산점도)",
+        xaxis_title="금리 수준 (%)",
+        yaxis_title=y_label,
+        height=500,
+        hovermode="closest",
     )
 
     return fig
 
 
-def create_delta_chart(
+def create_level_timeseries_chart(
+    monthly_df: pd.DataFrame,
+    y_col: str,
+    y_label: str,
+) -> go.Figure:
+    """
+    금리 수준과 오차의 시계열 추이 라인 차트를 생성한다 (이중 y축).
+
+    Args:
+        monthly_df: 월별 데이터
+        y_col: y축 컬럼명 (e_m, de_m, sum_daily_m 중 하나)
+        y_label: y축 레이블 (의미 설명 포함)
+
+    Returns:
+        Plotly Figure 객체 (이중 y축 시계열 라인 차트)
+    """
+    # 결측치 제거
+    plot_df = monthly_df.dropna(subset=[COL_RATE_PCT, y_col]).copy()
+    plot_df["month_str"] = plot_df[COL_MONTH].astype(str)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # 금리 수준 (왼쪽 y축)
+    fig.add_trace(
+        go.Scatter(
+            x=plot_df["month_str"],
+            y=plot_df[COL_RATE_PCT],
+            mode="lines",
+            name="금리 수준",
+            line={"color": "#2ca02c", "width": 2},
+            hovertemplate="<b>월</b>: %{x}<br>" + "<b>금리</b>: %{y:.2f}%<br>" + "<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    # 오차 (오른쪽 y축)
+    fig.add_trace(
+        go.Scatter(
+            x=plot_df["month_str"],
+            y=plot_df[y_col],
+            mode="lines",
+            name=y_label,
+            line={"color": "#ff7f0e", "width": 2},
+            hovertemplate="<b>월</b>: %{x}<br>" + f"<b>{y_label}</b>: %{{y:.2f}}%<br>" + "<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_layout(
+        title="시계열 추이",
+        xaxis_title="월",
+        height=500,
+        hovermode="x unified",
+    )
+    fig.update_yaxes(title_text="금리 (%)", secondary_y=False)
+    fig.update_yaxes(title_text=y_label, secondary_y=True)
+
+    return fig
+
+
+def _prepare_delta_data(
+    monthly_df: pd.DataFrame,
+    y_col: str,
+    lag: int,
+) -> pd.DataFrame:
+    """
+    Delta 분석용 데이터를 전처리한다 (Lag shift + 결측치 제거).
+
+    Args:
+        monthly_df: 월별 데이터
+        y_col: y축 컬럼명 (de_m 또는 sum_daily_m)
+        lag: Lag 개월 수 (0, 1, 2)
+
+    Returns:
+        전처리된 DataFrame (dr_shifted 컬럼 포함, 결측치 제거)
+    """
+    df = monthly_df.copy()
+    df["dr_shifted"] = df[COL_DR_M].shift(lag)
+    return df.dropna(subset=["dr_shifted", y_col])
+
+
+def create_delta_scatter_chart(
     monthly_df: pd.DataFrame,
     y_col: str,
     y_label: str,
     lag: int,
 ) -> tuple[go.Figure, pd.DataFrame]:
     """
-    금리 변화 vs 오차 변화 산점도 및 Rolling 상관을 생성한다.
+    금리 변화 vs 오차 변화 산점도를 생성한다.
 
     Args:
         monthly_df: 월별 데이터
@@ -315,29 +346,12 @@ def create_delta_chart(
     Returns:
         (Plotly Figure 객체, 유효 데이터 DataFrame)
     """
-    # Lag 적용: dr_m을 k개월 shift
-    df = monthly_df.copy()
-    df["dr_shifted"] = df[COL_DR_M].shift(lag)
-
-    # 결측치 제거 (dr_shifted와 y_col 모두 존재하는 행만)
-    plot_df = df.dropna(subset=["dr_shifted", y_col])
-
-    # 샘플 수
+    plot_df = _prepare_delta_data(monthly_df, y_col, lag)
     n = len(plot_df)
 
-    # 서브플롯 생성: 위(산점도), 아래(Rolling 12M 상관)
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        subplot_titles=[
-            f"금리 변화 (Lag {lag}) vs 오차 변화 (n={n})",
-            "Rolling 12개월 상관",
-        ],
-        row_heights=[0.5, 0.5],
-        vertical_spacing=0.15,
-    )
+    fig = go.Figure()
 
-    # 1. 산점도: dr_shifted vs y_col
+    # 산점도: dr_shifted vs y_col
     fig.add_trace(
         go.Scatter(
             x=plot_df["dr_shifted"],
@@ -351,8 +365,6 @@ def create_delta_chart(
             + f"<b>{y_label}</b>: %{{y:.2f}}%<br>"
             + "<extra></extra>",
         ),
-        row=1,
-        col=1,
     )
 
     # 추세선
@@ -369,11 +381,35 @@ def create_delta_chart(
                 name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
                 line={"color": "red", "dash": "dash"},
             ),
-            row=1,
-            col=1,
         )
 
-    # 2. Rolling 12M 상관
+    fig.update_layout(
+        title=f"금리 변화 (Lag {lag}) vs 오차 변화 (n={n})",
+        xaxis_title=f"금리 변화 (Lag {lag}, %p)",
+        yaxis_title=y_label,
+        height=500,
+        hovermode="closest",
+    )
+
+    return fig, plot_df
+
+
+def create_rolling_correlation_chart(
+    plot_df: pd.DataFrame,
+    y_col: str,
+) -> go.Figure:
+    """
+    Rolling 12개월 상관 차트를 생성한다.
+
+    Args:
+        plot_df: 전처리된 Delta 데이터 (dr_shifted 컬럼 포함)
+        y_col: y축 컬럼명 (de_m 또는 sum_daily_m)
+
+    Returns:
+        Plotly Figure 객체 (Rolling 상관 라인 차트)
+    """
+    fig = go.Figure()
+
     if len(plot_df) >= 12:
         plot_df_sorted = plot_df.sort_values(by=COL_MONTH).reset_index(drop=True)
         rolling_corr = (
@@ -396,36 +432,28 @@ def create_delta_chart(
                 line={"color": "#2ca02c", "width": 2},
                 hovertemplate="<b>월</b>: %{x}<br>" + "<b>상관</b>: %{y:.2f}<br>" + "<extra></extra>",
             ),
-            row=2,
-            col=1,
         )
 
         # 0 기준선
-        fig.add_hline(y=0, line_dash="dash", line_color="gray", row=2, col=1)
+        fig.add_hline(y=0, line_dash="dash", line_color="gray")
     else:
         # 데이터 부족 안내
         fig.add_annotation(
             text=f"Rolling 12M 상관 계산 불가 (샘플 수: {len(plot_df)}, 최소: 12)",
-            xref="x2",
-            yref="y2",
             x=0.5,
             y=0.5,
+            xref="paper",
+            yref="paper",
             showarrow=False,
             font={"size": 14, "color": "red"},
-            row=2,
-            col=1,
         )
 
-    # 레이아웃 업데이트
-    fig.update_xaxes(title_text=f"금리 변화 (Lag {lag}, %p)", row=1, col=1)
-    fig.update_yaxes(title_text=y_label, row=1, col=1)
-
-    fig.update_xaxes(title_text="월", row=2, col=1)
-    fig.update_yaxes(title_text="상관 계수", row=2, col=1)
-
     fig.update_layout(
-        height=800,
+        title="Rolling 12개월 상관",
+        xaxis_title="월",
+        yaxis_title="상관 계수",
+        height=400,
         hovermode="x unified",
     )
 
-    return fig, plot_df
+    return fig
