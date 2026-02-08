@@ -601,7 +601,7 @@ def run_grid_search(
     results = execute_parallel_with_kwargs(
         func=_run_buffer_strategy_for_grid,  # 실행할 함수
         inputs=param_combinations,  # 각 파라미터 조합 (딕셔너리 리스트)
-        max_workers=None,  # CPU 코어 수 - 1 (자동 결정)
+        max_workers=None,  # 기본값 2 (자동 결정)
         initializer=init_worker_cache,  # 공통 워커 초기화 함수
         initargs=({"df": df},),  # 캐시할 데이터
     )

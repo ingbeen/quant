@@ -10,7 +10,6 @@ ProcessPoolExecutor를 사용하여 CPU 집약적 작업을 병렬로 실행한�
 """
 
 import multiprocessing
-import os
 from collections.abc import Callable
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from typing import Any
@@ -142,7 +141,7 @@ def execute_parallel(
     CPU 집약적 함수를 여러 입력에 대해 병렬로 실행한다.
 
     학습 포인트:
-    1. ProcessPoolExecutor: 여러 CPU 코어를 사용하여 작업 병렬 실행
+    1. ProcessPoolExecutor: 멀티프로세싱 기반 작업 병렬 실행
     2. enumerate(): 리스트 순회 시 (인덱스, 값) 쌍으로 가져오기
     3. 딕셔너리 컴프리헨션: {key: value for ...} 형태로 딕셔너리 생성
     4. initializer: 워커 프로세스 시작 시 실행되는 초기화 함수 (캐시 세팅용)
@@ -154,7 +153,7 @@ def execute_parallel(
     Args:
         func: 병렬로 실행할 함수 (단일 인자를 받아야 함)
         inputs: 함수에 전달할 입력 리스트
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
         initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
         initargs: initializer에 전달할 인자 튜플 (cache_payload,)
         log_progress: 진행도 로깅 출력 여부 (기본값: True)
@@ -185,13 +184,9 @@ def execute_parallel(
     if not inputs:
         raise ValueError("inputs가 비어있습니다")
 
-    # 2. max_workers 기본값 설정 (CPU 코어 수 - 1, 최소 1)
+    # 2. max_workers 기본값 설정
     if max_workers is None:
-        # os.cpu_count(): 시스템의 CPU 코어 수 반환 (None 가능)
-        # or 1: None이면 1 사용
-        cpu_count = os.cpu_count() or 1
-        # max(): 두 값 중 큰 값 선택 (최소 1 보장)
-        max_workers = max(1, cpu_count - 1)
+        max_workers = 2
 
     logger.debug(f"병렬 실행 시작 - 작업 수: {len(inputs)}, 워커 수: {max_workers}, " f"함수: {func.__module__}.{func.__name__}")
 
@@ -272,7 +267,7 @@ def execute_parallel_with_kwargs(
     Args:
         func: 병렬로 실행할 함수 (키워드 인자를 받아야 함)
         inputs: 함수에 전달할 키워드 인자 딕셔너리 리스트
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
         initializer: 워커 프로세스 초기화 함수 (WORKER_CACHE 세팅용)
         initargs: initializer에 전달할 인자 튜플 (cache_payload,)
         log_progress: 진행도 로깅 출력 여부 (기본값: True)

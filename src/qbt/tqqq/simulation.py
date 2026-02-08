@@ -1449,7 +1449,7 @@ def find_optimal_cost_model(
         leverage: 레버리지 배수 (기본값: 3.0)
         spread_range: funding spread 탐색 범위 (min, max) (%)
         spread_step: funding spread 탐색 간격 (%)
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
 
     Returns:
         top_strategies: 누적배수 로그차이 평균 기준 상위 전략 리스트
@@ -1652,7 +1652,7 @@ def find_optimal_softplus_params(
         ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
         expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
         leverage: 레버리지 배수 (기본값: 3.0)
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
 
     Returns:
         (a_best, b_best, best_rmse, all_candidates) 튜플
@@ -1855,7 +1855,7 @@ def _local_refine_search(
         a_prev: 직전 월 최적 a 파라미터
         b_prev: 직전 월 최적 b 파라미터
         leverage: 레버리지 배수 (기본값: 3.0)
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
 
     Returns:
         (a_best, b_best, best_rmse, candidates) 튜플
@@ -1981,7 +1981,7 @@ def run_walkforward_validation(
         expense_df: 운용비용 DataFrame
         leverage: 레버리지 배수 (기본값: 3.0)
         train_window_months: 학습 기간 (기본값: 60개월)
-        max_workers: 최대 워커 수 (None이면 CPU 코어 수 - 1)
+        max_workers: 최대 워커 수 (None이면 기본값 2)
 
     Returns:
         (result_df, summary) 튜플
