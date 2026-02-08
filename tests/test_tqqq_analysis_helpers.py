@@ -466,6 +466,95 @@ class TestAggregateMonthly:
         assert monthly.loc[0, COL_RATE_PCT] == pytest.approx(4.5)  # 0.045 * 100
         assert pd.isna(monthly.loc[0, COL_DR_M])  # 첫 달
 
+    def test_ffr_fallback_within_1_month(self):
+        """
+        FFR 1개월 갭일 때 이전 월 값으로 fallback 성공
+
+        2개월 fallback 정책: 해당 월 FFR이 없으면 최대 2개월 이전 값 사용
+
+        Given:
+            - 일별 데이터: 2023-01, 2023-02 (각 1일씩)
+            - FFR: {"2023-01": 0.045} (2023-02 데이터 없음, 1개월 갭)
+        When: aggregate_monthly(ffr_df 포함)
+        Then:
+            - 2023-01: rate_pct = 4.5 (직접 매칭)
+            - 2023-02: rate_pct = 4.5 (1개월 fallback)
+        """
+        # Given
+        daily_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime([date(2023, 1, 15), date(2023, 1, 31), date(2023, 2, 15)]),
+                "signed": [1.0, 2.0, 3.0],
+            }
+        )
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
+
+        # When
+        monthly = aggregate_monthly(
+            daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1
+        )
+
+        # Then
+        assert monthly.loc[0, COL_RATE_PCT] == pytest.approx(4.5)  # 직접 매칭
+        assert monthly.loc[1, COL_RATE_PCT] == pytest.approx(4.5)  # 1개월 fallback
+
+    def test_ffr_fallback_within_2_months(self):
+        """
+        FFR 2개월 갭일 때도 fallback 성공
+
+        경계값: MAX_FFR_MONTHS_DIFF = 2이므로, 정확히 2개월 갭은 허용
+
+        Given:
+            - 일별 데이터: 2023-01, 2023-03 (2개월 건너뜀)
+            - FFR: {"2023-01": 0.045} (2023-02, 2023-03 없음)
+        When: aggregate_monthly(ffr_df 포함)
+        Then:
+            - 2023-01: rate_pct = 4.5 (직접 매칭)
+            - 2023-03: rate_pct = 4.5 (2개월 fallback)
+        """
+        # Given
+        daily_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime([date(2023, 1, 15), date(2023, 3, 15)]),
+                "signed": [1.0, 3.0],
+            }
+        )
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
+
+        # When
+        monthly = aggregate_monthly(
+            daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1
+        )
+
+        # Then
+        assert monthly.loc[0, COL_RATE_PCT] == pytest.approx(4.5)  # 직접 매칭
+        assert monthly.loc[1, COL_RATE_PCT] == pytest.approx(4.5)  # 2개월 fallback
+
+    def test_ffr_gap_exceeds_max_raises_error(self):
+        """
+        FFR 3개월 갭일 때 ValueError (MAX_FFR_MONTHS_DIFF = 2 초과)
+
+        Fail-fast 정책: 2개월 이상 오래된 FFR 데이터는 신뢰 불가
+
+        Given:
+            - 일별 데이터: 2023-01, 2023-04 (3개월 건너뜀)
+            - FFR: {"2023-01": 0.045} (2023-04는 3개월 갭)
+        When: aggregate_monthly(ffr_df 포함)
+        Then: ValueError raise (최대 2개월 초과)
+        """
+        # Given
+        daily_df = pd.DataFrame(
+            {
+                "Date": pd.to_datetime([date(2023, 1, 15), date(2023, 4, 15)]),
+                "signed": [1.0, 4.0],
+            }
+        )
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 부족"):
+            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1)
+
 
 class TestSaveMonthlyFeatures:
     """save_monthly_features() 함수 테스트"""
