@@ -9,6 +9,7 @@ Fail-fast 정책:
 - 조용히 진행하지 않고 명확한 에러 메시지 제공
 """
 
+from datetime import date
 from pathlib import Path
 from typing import cast
 
@@ -22,14 +23,12 @@ from qbt.tqqq.constants import (
     COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
-    COL_FFR_DATE,
-    COL_FFR_VALUE,
     COL_MONTH,
     COL_RATE_PCT,
     COL_SUM_DAILY_M,
     DEFAULT_ROLLING_WINDOW,
-    MAX_FFR_MONTHS_DIFF,
 )
+from qbt.tqqq.data_loader import create_ffr_dict, lookup_ffr
 from qbt.tqqq.types import WalkforwardSummaryDict
 from qbt.utils import get_logger
 
@@ -258,94 +257,6 @@ def calculate_daily_signed_log_diff(
     return daily_signed_pct
 
 
-def _build_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
-    """
-    FFR DataFrame을 딕셔너리로 변환한다 (O(1) 조회용).
-
-    simulation.py의 _create_ffr_dict와 동일한 로직이다.
-    순환 임포트 제약으로 별도 구현.
-
-    Args:
-        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
-
-    Returns:
-        {"YYYY-MM": ffr_value} 형태의 딕셔너리
-
-    Raises:
-        ValueError: 빈 DataFrame 또는 중복 월 발견 시
-    """
-    if ffr_df.empty:
-        raise ValueError("FFR 데이터가 비어있습니다")
-
-    ffr_dict: dict[str, float] = {}
-    for _, row in ffr_df.iterrows():
-        month_key = str(row[COL_FFR_DATE])
-        value = float(row[COL_FFR_VALUE])
-
-        if month_key in ffr_dict:
-            raise ValueError(
-                f"FFR 데이터 무결성 오류: 월 {month_key}이(가) 중복 존재합니다. " f"기존 값: {ffr_dict[month_key]}, 중복 값: {value}"
-            )
-
-        ffr_dict[month_key] = value
-
-    return ffr_dict
-
-
-def _lookup_ffr_for_period(
-    period: pd.Period,
-    ffr_dict: dict[str, float],
-) -> float:
-    """
-    Period 객체에 해당하는 FFR 값을 2개월 fallback으로 조회한다.
-
-    simulation.py의 _lookup_ffr와 동일한 정책이다.
-    순환 임포트 제약으로 별도 구현.
-
-    조회 순서:
-        1. 해당 월 직접 조회
-        2. 없으면 가장 가까운 이전 월 값 사용 (최대 MAX_FFR_MONTHS_DIFF 이내)
-
-    Args:
-        period: 조회할 월 (Period[M])
-        ffr_dict: FFR 딕셔너리 ({"YYYY-MM": ffr_value})
-
-    Returns:
-        FFR 값 (0~1 비율)
-
-    Raises:
-        ValueError: 해당 월 이전 데이터 없음, 또는 갭 초과 시
-    """
-    year_month_str = str(period)
-
-    # 1. 직접 조회
-    if year_month_str in ffr_dict:
-        return ffr_dict[year_month_str]
-
-    # 2. 이전 월 fallback
-    previous_months = [k for k in ffr_dict if k < year_month_str]
-
-    if not previous_months:
-        raise ValueError(f"FFR 데이터 부족: {year_month_str} 이전의 FFR 데이터가 존재하지 않습니다")
-
-    closest_month = max(previous_months)
-
-    # 3. 월 차이 계산
-    query_year, query_month = period.year, period.month
-    closest_year, closest_month_num = map(int, closest_month.split("-"))
-    total_months = (query_year - closest_year) * 12 + (query_month - closest_month_num)
-
-    # 4. 갭 초과 시 ValueError
-    if total_months > MAX_FFR_MONTHS_DIFF:
-        raise ValueError(
-            f"FFR 데이터 부족: {year_month_str}의 FFR 데이터가 없으며, "
-            f"가장 가까운 이전 데이터는 {closest_month} ({total_months}개월 전)입니다. "
-            f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다."
-        )
-
-    return ffr_dict[closest_month]
-
-
 def aggregate_monthly(
     daily_df: pd.DataFrame,
     date_col: str,
@@ -443,15 +354,17 @@ def aggregate_monthly(
 
     # 7. FFR 데이터 매칭 (있을 때만)
     # 딕셔너리 기반 조회 + 2개월 fallback + fail-fast
-    # simulation.py의 _lookup_ffr와 동일한 정책 적용
+    # lookup_ffr와 동일한 정책 적용
     if ffr_df is not None and not ffr_df.empty:
         # FFR 딕셔너리 생성 (O(1) 조회용)
-        ffr_dict = _build_ffr_dict(ffr_df)
+        ffr_dict = create_ffr_dict(ffr_df)
 
         # 각 월에 대해 FFR 조회 (2개월 fallback, 초과 시 ValueError)
+        # Period 객체를 date로 변환하여 lookup_ffr 호출
         ffr_values: list[float] = []
         for period in monthly[COL_MONTH]:
-            ffr_value = _lookup_ffr_for_period(period, ffr_dict)
+            date_value = date(period.year, period.month, 1)
+            ffr_value = lookup_ffr(date_value, ffr_dict)
             ffr_values.append(ffr_value)
 
         # rate_pct 계산 (0~1 소수 -> %)

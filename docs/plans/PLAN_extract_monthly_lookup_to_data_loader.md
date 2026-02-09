@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-08 21:30
-**마지막 업데이트**: 2026-02-08 21:30
+**마지막 업데이트**: 2026-02-09
 **관련 범위**: tqqq (data_loader, simulation, analysis_helpers), tests
 **관련 문서**: `src/qbt/tqqq/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -40,9 +40,9 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `simulation.py`의 월별 데이터 조회 함수 6개를 `data_loader.py`로 추출하여 코드 중복 제거
-- [ ] `analysis_helpers.py`의 중복 FFR 조회 함수 2개를 제거하고 `data_loader.py`에서 임포트
-- [ ] 동작 변경 없음 (순수 리팩토링)
+- [x] `simulation.py`의 월별 데이터 조회 함수 6개를 `data_loader.py`로 추출하여 코드 중복 제거
+- [x] `analysis_helpers.py`의 중복 FFR 조회 함수 2개를 제거하고 `data_loader.py`에서 임포트
+- [x] 동작 변경 없음 (순수 리팩토링)
 
 ## 2) 비목표(Non-Goals)
 
@@ -120,14 +120,14 @@ constants.py ← data_loader.py ← simulation.py
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 6개 함수가 `data_loader.py`에 public으로 존재
-- [ ] `simulation.py`에서 6개 private 함수 제거, `data_loader.py`에서 임포트로 교체
-- [ ] `analysis_helpers.py`에서 `_build_ffr_dict` / `_lookup_ffr_for_period` 제거, `data_loader.py`에서 임포트로 교체
-- [ ] 기존 테스트 임포트 경로 갱신 (simulation → data_loader)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`src/qbt/tqqq/CLAUDE.md` data_loader 섹션)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] 6개 함수가 `data_loader.py`에 public으로 존재
+- [x] `simulation.py`에서 6개 private 함수 제거, `data_loader.py`에서 임포트로 교체
+- [x] `analysis_helpers.py`에서 `_build_ffr_dict` / `_lookup_ffr_for_period` 제거, `data_loader.py`에서 임포트로 교체
+- [x] 기존 테스트 임포트 경로 갱신 (simulation → data_loader)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=250, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`src/qbt/tqqq/CLAUDE.md` data_loader 섹션)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -138,6 +138,7 @@ constants.py ← data_loader.py ← simulation.py
 - `src/qbt/tqqq/analysis_helpers.py`: 중복 함수 2개 제거, import 경로 변경
 - `tests/test_tqqq_simulation.py`: import 경로 변경 (simulation → data_loader)
 - `src/qbt/tqqq/CLAUDE.md`: data_loader 모듈 설명 갱신
+- `src/qbt/tqqq/constants.py`: `MAX_EXPENSE_MONTHS_DIFF` 상수 추가 (simulation.py에서 이동)
 
 ### 데이터/결과 영향
 
@@ -150,22 +151,22 @@ constants.py ← data_loader.py ← simulation.py
 
 **작업 내용**:
 
-- [ ] `data_loader.py`에 필요한 import 추가 (`date`, `MAX_FFR_MONTHS_DIFF`, `MAX_EXPENSE_MONTHS_DIFF`, `COL_EXPENSE_VALUE`)
-- [ ] `data_loader.py`에 제네릭 함수 2개 추가 (simulation.py에서 복사, `_` 접두사 제거):
+- [x] `data_loader.py`에 필요한 import 추가 (`date`, `MAX_FFR_MONTHS_DIFF`, `MAX_EXPENSE_MONTHS_DIFF`, `COL_EXPENSE_VALUE`)
+- [x] `data_loader.py`에 제네릭 함수 2개 추가 (simulation.py에서 복사, `_` 접두사 제거):
   - `create_monthly_data_dict(df, date_col, value_col, data_type) -> dict[str, float]`
   - `lookup_monthly_data(date_value, data_dict, max_months_diff, data_type) -> float`
-- [ ] `data_loader.py`에 래퍼 함수 4개 추가 (simulation.py에서 복사, `_` 접두사 제거):
+- [x] `data_loader.py`에 래퍼 함수 4개 추가 (simulation.py에서 복사, `_` 접두사 제거):
   - `create_ffr_dict(ffr_df) -> dict[str, float]`
   - `lookup_ffr(date_value, ffr_dict) -> float`
   - `create_expense_dict(expense_df) -> dict[str, float]`
   - `lookup_expense(date_value, expense_dict) -> float`
-- [ ] `simulation.py`에서 6개 private 함수 정의 제거
-- [ ] `simulation.py`에 `data_loader.py`에서 임포트 추가
-- [ ] `simulation.py` 내 모든 호출부의 `_` 접두사 제거 (16곳)
+- [x] `simulation.py`에서 6개 private 함수 정의 제거
+- [x] `simulation.py`에 `data_loader.py`에서 임포트 추가
+- [x] `simulation.py` 내 모든 호출부의 `_` 접두사 제거 (16곳)
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
 
 ---
 
@@ -173,20 +174,20 @@ constants.py ← data_loader.py ← simulation.py
 
 **작업 내용**:
 
-- [ ] `analysis_helpers.py`에서 `_build_ffr_dict` 함수 제거
-- [ ] `analysis_helpers.py`에서 `_lookup_ffr_for_period` 함수 제거
-- [ ] `analysis_helpers.py`에 `data_loader.py`에서 임포트 추가 (`create_ffr_dict`, `lookup_ffr`)
-- [ ] `aggregate_monthly` 내 FFR 매칭 코드 갱신:
+- [x] `analysis_helpers.py`에서 `_build_ffr_dict` 함수 제거
+- [x] `analysis_helpers.py`에서 `_lookup_ffr_for_period` 함수 제거
+- [x] `analysis_helpers.py`에 `data_loader.py`에서 임포트 추가 (`create_ffr_dict`, `lookup_ffr`)
+- [x] `aggregate_monthly` 내 FFR 매칭 코드 갱신:
   - `_build_ffr_dict(ffr_df)` → `create_ffr_dict(ffr_df)`
   - `_lookup_ffr_for_period(period, ffr_dict)` → Period를 date로 변환 후 `lookup_ffr(date_value, ffr_dict)` 호출
-- [ ] `tests/test_tqqq_simulation.py` 임포트 경로 변경:
+- [x] `tests/test_tqqq_simulation.py` 임포트 경로 변경:
   - 상단 임포트: `from qbt.tqqq.simulation import _create_ffr_dict, ...` → `from qbt.tqqq.data_loader import create_ffr_dict, ...`
   - 인라인 임포트 3곳 (L1268, L2396-2397, L2519-2520) 동일 변경
   - 테스트 코드 내 함수 호출부 `_` 접두사 제거
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
 
 ---
 
@@ -194,14 +195,14 @@ constants.py ← data_loader.py ← simulation.py
 
 **작업 내용**:
 
-- [ ] `src/qbt/tqqq/CLAUDE.md` data_loader 섹션에 새 함수 설명 추가
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `src/qbt/tqqq/CLAUDE.md` data_loader 섹션에 새 함수 설명 추가
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=250, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -223,7 +224,9 @@ constants.py ← data_loader.py ← simulation.py
 - 이전 작업: PLAN_aggregate_monthly_ffr_fallback (이 리팩토링의 동기)
 - data_loader.py 현재 역할: "TQQQ 도메인 전용 데이터 로딩 유틸리티" → 확장: "데이터 로딩 + 월별 데이터 조회"
 - `_lookup_ffr_for_period`는 Period 객체를 받지만 `lookup_ffr`는 date 객체를 받음. 변환 코드 `date(period.year, period.month, 1)` 추가 필요
+- `MAX_EXPENSE_MONTHS_DIFF` 상수를 `simulation.py`에서 `constants.py`로 이동 (data_loader.py에서 import 필요)
 
 ### 진행 로그 (KST)
 
 - 2026-02-08 21:30: 계획서 Draft 작성
+- 2026-02-09: Phase 1~3 실행 완료, 최종 Validation 통과 (passed=250, failed=0, skipped=0)

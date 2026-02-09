@@ -61,6 +61,7 @@ __all__ = [
     "DEFAULT_FUNDING_SPREAD",
     "DEFAULT_SPREAD_RANGE",
     "DEFAULT_SPREAD_STEP",
+    "MAX_EXPENSE_MONTHS_DIFF",
     "MAX_FFR_MONTHS_DIFF",
     "MAX_TOP_STRATEGIES",
     # CSV 컬럼명 (내부용 영문 토큰)
@@ -148,6 +149,7 @@ DEFAULT_SPREAD_RANGE: Final = (0.002, 0.01)  # 스프레드 범위 (%)
 DEFAULT_SPREAD_STEP: Final = 0.0001  # 스프레드 증분 (%)
 
 # --- 데이터 검증 및 결과 제한 ---
+MAX_EXPENSE_MONTHS_DIFF: Final = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 MAX_FFR_MONTHS_DIFF: Final = 2  # FFR 데이터 최대 월 차이 (개월)
 MAX_TOP_STRATEGIES: Final = 50  # find_optimal_cost_model 반환 상위 전략 수
 

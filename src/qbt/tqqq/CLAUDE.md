@@ -25,13 +25,24 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 
 ### 2. data_loader.py
 
-TQQQ 도메인 전용 데이터 로딩 함수를 제공합니다.
+TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제공합니다.
 
 주요 함수:
+
+데이터 로딩:
 
 - `load_ffr_data`: 연방기금금리(FFR) 월별 데이터 로딩
 - `load_expense_ratio_data`: TQQQ 운용비율 월별 데이터 로딩
 - `load_comparison_data`: 일별 비교 CSV 파일 로딩 및 검증
+
+월별 데이터 딕셔너리 생성 및 조회 (simulation.py, analysis_helpers.py에서 공유):
+
+- `create_monthly_data_dict`: 월별 데이터 DataFrame을 딕셔너리로 변환 (제네릭)
+- `lookup_monthly_data`: 특정 날짜의 월별 데이터 값을 딕셔너리에서 조회 (제네릭, fallback 지원)
+- `create_ffr_dict`: FFR DataFrame을 딕셔너리로 변환
+- `lookup_ffr`: FFR 값 조회 (최대 2개월 fallback)
+- `create_expense_dict`: Expense Ratio DataFrame을 딕셔너리로 변환
+- `lookup_expense`: Expense Ratio 값 조회 (최대 12개월 fallback)
 
 DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
