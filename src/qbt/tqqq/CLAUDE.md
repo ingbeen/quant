@@ -231,14 +231,14 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ## Streamlit 앱
 
-### streamlit_daily_comparison.py
+### app_daily_comparison.py
 
 TQQQ 시뮬레이션 일별 비교 대시보드
 
 - 가격 비교 차트: 실제 TQQQ vs 시뮬레이션
 - 오차 분석 차트: 히스토그램, 시계열 오차 추이
 
-### streamlit_rate_spread_lab.py
+### app_rate_spread_lab.py
 
 금리-오차 관계 분석 연구용 앱 (시각화 전용)
 
@@ -256,8 +256,8 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합니다.
 
 - `generate_rate_spread_lab.py`: 금리-오차 관계 분석용 CSV 3개 생성 (monthly, summary, model)
-- `run_softplus_tuning.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
-- `run_walkforward_validation.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
+- `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
+- `validate_walkforward.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 
 ---
 

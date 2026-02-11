@@ -3,7 +3,7 @@
 금리 환경과 시뮬레이션 오차의 관계를 시각화하여 spread 조정 전략 수립을 지원한다.
 
 실행 명령어:
-    poetry run streamlit run scripts/tqqq/streamlit_rate_spread_lab.py
+    poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
 
 사전 준비:
     poetry run python scripts/tqqq/generate_rate_spread_lab.py
@@ -23,8 +23,8 @@ Fail-fast 정책:
 - 명확한 레이블 및 설명 제공
 
 튜닝 실행:
-- softplus 튜닝: poetry run python scripts/tqqq/run_softplus_tuning.py
-- 워크포워드 검증: poetry run python scripts/tqqq/run_walkforward_validation.py
+- softplus 튜닝: poetry run python scripts/tqqq/tune_softplus_params.py
+- 워크포워드 검증: poetry run python scripts/tqqq/validate_walkforward.py
 """
 
 from pathlib import Path
@@ -503,7 +503,7 @@ def _render_softplus_section() -> None:
             f"파일 경로: `{SOFTPLUS_TUNING_CSV_PATH}`\n\n"
             f"**튜닝 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/run_softplus_tuning.py\n"
+            f"poetry run python scripts/tqqq/tune_softplus_params.py\n"
             f"```"
         )
     else:
@@ -600,7 +600,7 @@ def _render_spread_comparison_section() -> None:
             f"파일 경로: `{SOFTPLUS_SPREAD_SERIES_STATIC_PATH}`\n\n"
             f"**생성 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/run_softplus_tuning.py\n"
+            f"poetry run python scripts/tqqq/tune_softplus_params.py\n"
             f"```"
         )
         return
@@ -611,7 +611,7 @@ def _render_spread_comparison_section() -> None:
             f"파일 경로: `{TQQQ_WALKFORWARD_PATH}`\n\n"
             f"**생성 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/run_walkforward_validation.py\n"
+            f"poetry run python scripts/tqqq/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -744,7 +744,7 @@ def _render_walkforward_section() -> None:
             f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/run_walkforward_validation.py\n"
+            f"poetry run python scripts/tqqq/validate_walkforward.py\n"
             f"```\n\n"
             f"**주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분)."
         )

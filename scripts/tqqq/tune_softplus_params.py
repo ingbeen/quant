@@ -5,7 +5,7 @@ Softplus 동적 스프레드 모델 파라미터 튜닝 스크립트
 Streamlit 앱에서 분리하여 spawn 경고 없이 실행 가능하다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/run_softplus_tuning.py
+    poetry run python scripts/tqqq/tune_softplus_params.py
 """
 
 import sys

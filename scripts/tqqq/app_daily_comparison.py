@@ -3,7 +3,7 @@
 일별 비교 CSV 데이터를 Streamlit + Plotly로 시각화한다.
 
 실행 명령어:
-    poetry run streamlit run scripts/tqqq/streamlit_daily_comparison.py
+    poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 """
 
 import os

@@ -6,7 +6,7 @@ TQQQ 일별 비교 CSV 생성 스크립트
 모든 파라미터는 상수에서 정의됩니다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/generate_tqqq_daily_comparison.py
+    poetry run python scripts/tqqq/generate_daily_comparison.py
 """
 
 import sys

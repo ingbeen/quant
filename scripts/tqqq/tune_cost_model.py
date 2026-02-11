@@ -7,7 +7,7 @@ TQQQ 시뮬레이션 파라미터 그리드 서치 스크립트
 모든 파라미터는 상수에서 정의됩니다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/validate_tqqq_simulation.py
+    poetry run python scripts/tqqq/tune_cost_model.py
 """
 
 import sys

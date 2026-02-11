@@ -5,7 +5,7 @@
 Streamlit 앱에서 분리하여 spawn 경고 없이 실행 가능하다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/run_walkforward_validation.py
+    poetry run python scripts/tqqq/validate_walkforward.py
 """
 
 import sys

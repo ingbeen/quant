@@ -72,8 +72,8 @@ quant/
 │   ├── data/          # 데이터 다운로드
 │   ├── backtest/      # 백테스트 실행
 │   └── tqqq/          # 레버리지 ETF 관련
-│       ├── streamlit_daily_comparison.py  # 일별 비교 대시보드
-│       └── streamlit_rate_spread_lab.py   # 금리-오차 분석 앱
+│       ├── app_daily_comparison.py        # 일별 비교 대시보드
+│       └── app_rate_spread_lab.py         # 금리-오차 분석 앱
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인

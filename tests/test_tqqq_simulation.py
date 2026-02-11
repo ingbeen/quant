@@ -2167,7 +2167,7 @@ class TestRunWalkforwardValidation:
 #     run_walkforward_validation() 통합 테스트
 #
 #     실행 시간이 오래 걸리므로 필요 시에만 실행한다.
-#     CLI 스크립트로 분리됨: scripts/tqqq/run_walkforward_validation.py
+#     CLI 스크립트로 분리됨: scripts/tqqq/validate_walkforward.py
 #     """
 #
 #     def test_walkforward_start_point_calculation(self):
@@ -2319,12 +2319,12 @@ class TestCLIScriptExists:
         softplus 튜닝 스크립트 파일 존재 테스트
 
         Given: scripts/tqqq/ 디렉토리
-        When: run_softplus_tuning.py 존재 여부 확인
+        When: tune_softplus_params.py 존재 여부 확인
         Then: 파일이 존재함
         """
         from pathlib import Path
 
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "run_softplus_tuning.py"
+        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "tune_softplus_params.py"
         assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
 
     def test_walkforward_validation_script_exists(self):
@@ -2332,12 +2332,12 @@ class TestCLIScriptExists:
         워크포워드 검증 스크립트 파일 존재 테스트
 
         Given: scripts/tqqq/ 디렉토리
-        When: run_walkforward_validation.py 존재 여부 확인
+        When: validate_walkforward.py 존재 여부 확인
         Then: 파일이 존재함
         """
         from pathlib import Path
 
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "run_walkforward_validation.py"
+        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "validate_walkforward.py"
         assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
 
 
