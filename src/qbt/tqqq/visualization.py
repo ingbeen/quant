@@ -7,7 +7,6 @@ Plotly 기반 차트 생성 함수를 제공한다.
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
@@ -253,7 +252,7 @@ def create_level_timeseries_chart(
     y_label: str,
 ) -> go.Figure:
     """
-    금리 수준과 오차의 시계열 추이 라인 차트를 생성한다 (이중 y축).
+    금리 수준과 오차의 시계열 추이 라인 차트를 생성한다 (단일 y축).
 
     Args:
         monthly_df: 월별 데이터
@@ -261,15 +260,15 @@ def create_level_timeseries_chart(
         y_label: y축 레이블 (의미 설명 포함)
 
     Returns:
-        Plotly Figure 객체 (이중 y축 시계열 라인 차트)
+        Plotly Figure 객체 (단일 y축 시계열 라인 차트)
     """
     # 결측치 제거
     plot_df = monthly_df.dropna(subset=[COL_RATE_PCT, y_col]).copy()
     plot_df["month_str"] = plot_df[COL_MONTH].astype(str)
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = go.Figure()
 
-    # 금리 수준 (왼쪽 y축)
+    # 금리 수준
     fig.add_trace(
         go.Scatter(
             x=plot_df["month_str"],
@@ -279,10 +278,9 @@ def create_level_timeseries_chart(
             line={"color": "#2ca02c", "width": 2},
             hovertemplate="<b>월</b>: %{x}<br>" + "<b>금리</b>: %{y:.2f}%<br>" + "<extra></extra>",
         ),
-        secondary_y=False,
     )
 
-    # 오차 (오른쪽 y축)
+    # 오차
     fig.add_trace(
         go.Scatter(
             x=plot_df["month_str"],
@@ -292,17 +290,15 @@ def create_level_timeseries_chart(
             line={"color": "#ff7f0e", "width": 2},
             hovertemplate="<b>월</b>: %{x}<br>" + f"<b>{y_label}</b>: %{{y:.2f}}%<br>" + "<extra></extra>",
         ),
-        secondary_y=True,
     )
 
     fig.update_layout(
         title="시계열 추이",
         xaxis_title="월",
+        yaxis_title="%",
         height=500,
         hovermode="x unified",
     )
-    fig.update_yaxes(title_text="금리 (%)", secondary_y=False)
-    fig.update_yaxes(title_text=y_label, secondary_y=True)
 
     return fig
 
