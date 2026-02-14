@@ -2009,3 +2009,124 @@ def run_walkforward_validation(
     )
 
     return result_df, summary
+
+
+def calculate_stitched_walkforward_rmse(
+    walkforward_result_df: pd.DataFrame,
+    underlying_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+) -> float:
+    """
+    워크포워드 결과를 연속으로 붙인(stitched) 시뮬레이션의 RMSE를 계산한다.
+
+    기존 워크포워드 평균 RMSE는 월별 initial_price 리셋 방식이라 누적 오차가 상쇄된다.
+    이 함수는 전체 테스트 기간을 연속 시뮬레이션하여 정적 RMSE와 동일 정의로 비교 가능하게 한다.
+
+    동작 방식:
+        1. 워크포워드 result_df에서 test_month -> spread_test 매핑 생성
+        2. 첫 테스트 월 ~ 마지막 테스트 월의 기초자산/실제 데이터 필터링
+        3. 첫 테스트 월의 실제 가격을 initial_price로 설정
+        4. spread_test를 월별 funding_spread로 사용하여 전체 기간 1회 연속 시뮬레이션
+        5. 정적 RMSE와 동일 수식(누적배수 로그차이 RMSE)으로 산출
+
+    RMSE 수식 (정적 RMSE와 동일):
+        M_actual(t) = actual_prices(t) / actual_prices(0)
+        M_simul(t) = simulated_prices(t) / simulated_prices(0)
+        log_diff_abs_pct = |ln(M_actual / M_simul)| * 100
+        RMSE = sqrt(mean(log_diff_abs_pct²)), 단위: %
+
+    Args:
+        walkforward_result_df: 워크포워드 결과 DataFrame (test_month, spread_test 컬럼 필수)
+        underlying_df: 기초 자산 DataFrame (QQQ, Date/Close 컬럼 필수)
+        actual_df: 실제 레버리지 ETF DataFrame (TQQQ, Date/Close 컬럼 필수)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        leverage: 레버리지 배수 (기본값: 3.0)
+
+    Returns:
+        연속 워크포워드 RMSE (%, 누적배수 로그차이 기반)
+
+    Raises:
+        ValueError: walkforward_result_df가 비어있을 때
+        ValueError: 필수 컬럼(test_month, spread_test)이 누락되었을 때
+        ValueError: 테스트 기간에 해당하는 데이터가 부족할 때
+    """
+    # 1. 입력 검증
+    if walkforward_result_df.empty:
+        raise ValueError("walkforward_result_df가 비어있습니다")
+
+    required_cols = {"test_month", "spread_test"}
+    missing_cols = required_cols - set(walkforward_result_df.columns)
+    if missing_cols:
+        raise ValueError(f"워크포워드 결과에 필수 컬럼이 누락되었습니다: {missing_cols}")
+
+    # 2. test_month -> spread_test 매핑 생성
+    spread_map: dict[str, float] = dict(
+        zip(
+            walkforward_result_df["test_month"].astype(str),
+            walkforward_result_df["spread_test"].astype(float),
+            strict=True,
+        )
+    )
+
+    # 3. 테스트 기간 결정
+    test_months_sorted = sorted(spread_map.keys())
+    first_test_month = test_months_sorted[0]
+    last_test_month = test_months_sorted[-1]
+
+    # 4. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+
+    # 5. 테스트 기간으로 필터링
+    # 월 컬럼 생성
+    underlying_overlap = underlying_overlap.copy()
+    actual_overlap = actual_overlap.copy()
+    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+
+    # 테스트 기간 필터링
+    test_underlying = underlying_overlap[
+        (underlying_overlap["_month"] >= first_test_month) & (underlying_overlap["_month"] <= last_test_month)
+    ].copy()
+    test_actual = actual_overlap[
+        (actual_overlap["_month"] >= first_test_month) & (actual_overlap["_month"] <= last_test_month)
+    ].copy()
+
+    # _month 컬럼 제거 (simulate에 불필요)
+    test_underlying = test_underlying.drop(columns=["_month"])
+    test_actual = test_actual.drop(columns=["_month"])
+
+    if test_underlying.empty or test_actual.empty:
+        raise ValueError(f"테스트 기간({first_test_month} ~ {last_test_month})에 해당하는 데이터가 없습니다")
+
+    # 6. initial_price 설정 (첫 테스트 월의 실제 TQQQ 가격)
+    initial_price = float(test_actual.iloc[0][COL_CLOSE])
+
+    # 7. 연속 시뮬레이션 실행 (spread_map을 FundingSpreadSpec dict로 전달)
+    simulated_df = simulate(
+        underlying_df=test_underlying,
+        leverage=leverage,
+        expense_df=expense_df,
+        initial_price=initial_price,
+        ffr_df=ffr_df,
+        funding_spread=spread_map,
+    )
+
+    # 8. 시뮬레이션 결과와 실제 데이터의 겹치는 기간 추출 및 RMSE 계산
+    sim_overlap, actual_overlap_final = extract_overlap_period(simulated_df, test_actual)
+
+    actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
+    simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
+
+    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
+
+    logger.debug(
+        f"연속 워크포워드 RMSE 계산 완료: {rmse:.4f}% "
+        f"(기간: {first_test_month} ~ {last_test_month}, "
+        f"거래일: {len(simulated_prices)}일)"
+    )
+
+    return rmse

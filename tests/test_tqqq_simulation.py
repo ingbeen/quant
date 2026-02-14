@@ -24,6 +24,7 @@ from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
     calculate_daily_cost,
+    calculate_stitched_walkforward_rmse,
     calculate_validation_metrics,
     compute_softplus_spread,
     extract_overlap_period,
@@ -2560,4 +2561,206 @@ class TestVectorizedSimulation:
             daily_costs_individual,
             atol=1e-10,
             err_msg="사전 계산 비용이 개별 calculate_daily_cost()와 동일해야 합니다",
+        )
+
+
+class TestCalculateStitchedWalkforwardRmse:
+    """
+    calculate_stitched_walkforward_rmse() 함수 테스트
+
+    워크포워드 결과를 연속으로 붙인(stitched) 시뮬레이션 기반 RMSE를 계산한다.
+    정적 RMSE와 동일한 수식(누적배수 로그차이 RMSE)을 사용하여 비교 가능하게 한다.
+    """
+
+    @pytest.fixture
+    def stitched_test_data(self):
+        """
+        연속 워크포워드 RMSE 테스트용 데이터 세트를 생성한다.
+
+        3개월분의 기초자산(QQQ), 실제 TQQQ, FFR, Expense 데이터와
+        1개월짜리 워크포워드 결과를 생성한다.
+        """
+        # 기초자산 (QQQ) - 3개월, 각 월 약 21일
+        base_dates = []
+        base_close = []
+        price = 100.0
+        for month in [1, 2, 3]:
+            for day in range(1, 22):
+                try:
+                    d = date(2023, month, day)
+                    # 주말 제외 (간단히)
+                    if d.weekday() < 5:
+                        base_dates.append(d)
+                        price *= 1.001  # 매일 0.1% 상승
+                        base_close.append(round(price, 2))
+                except ValueError:
+                    pass
+
+        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: base_close})
+
+        # 실제 TQQQ - 동일 날짜, 3배 레버리지 근사
+        tqqq_prices = [50.0]
+        for i in range(1, len(base_close)):
+            daily_ret = base_close[i] / base_close[i - 1] - 1
+            leveraged_ret = daily_ret * 3.0 - 0.0002  # 약간의 비용 차감
+            tqqq_prices.append(round(tqqq_prices[-1] * (1 + leveraged_ret), 2))
+
+        actual_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: tqqq_prices})
+
+        # FFR 데이터
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2022-11", "2022-12", "2023-01", "2023-02", "2023-03"],
+                COL_FFR_VALUE: [0.04, 0.045, 0.045, 0.046, 0.047],
+            }
+        )
+
+        # Expense 데이터
+        expense_df = pd.DataFrame(
+            {
+                "DATE": ["2022-01", "2023-01", "2023-02", "2023-03"],
+                "VALUE": [0.0095, 0.0095, 0.0095, 0.0095],
+            }
+        )
+
+        # 워크포워드 결과 (테스트 월: 2023-03, spread_test: softplus(-6.0 + 0.37 * 4.7))
+        spread_test = compute_softplus_spread(-6.0, 0.37, 0.047)
+        walkforward_df = pd.DataFrame(
+            {
+                "test_month": ["2023-03"],
+                "spread_test": [spread_test],
+                "a_best": [-6.0],
+                "b_best": [0.37],
+            }
+        )
+
+        return {
+            "underlying_df": underlying_df,
+            "actual_df": actual_df,
+            "ffr_df": ffr_df,
+            "expense_df": expense_df,
+            "walkforward_df": walkforward_df,
+        }
+
+    def test_normal_stitched_rmse_returns_positive(self, stitched_test_data):
+        """
+        정상 케이스: 유효한 입력으로 양수 RMSE 반환
+
+        Given: 3개월 기초자산/TQQQ + 1개월 워크포워드 결과
+        When: calculate_stitched_walkforward_rmse 호출
+        Then: 양수 RMSE(%) 반환
+        """
+        # Given
+        data = stitched_test_data
+
+        # When
+        rmse = calculate_stitched_walkforward_rmse(
+            walkforward_result_df=data["walkforward_df"],
+            underlying_df=data["underlying_df"],
+            actual_df=data["actual_df"],
+            ffr_df=data["ffr_df"],
+            expense_df=data["expense_df"],
+        )
+
+        # Then
+        assert rmse > 0, "연속 RMSE는 양수여야 합니다"
+        assert rmse < 100, "RMSE가 비정상적으로 크면 안 됩니다"
+
+    def test_empty_walkforward_raises_error(self, stitched_test_data):
+        """
+        경계 케이스: 빈 워크포워드 result_df이면 ValueError 발생
+
+        Given: 빈 워크포워드 result_df
+        When: calculate_stitched_walkforward_rmse 호출
+        Then: ValueError 발생
+        """
+        # Given
+        data = stitched_test_data
+        empty_wf = pd.DataFrame(columns=["test_month", "spread_test"])
+
+        # When & Then
+        with pytest.raises(ValueError, match="비어있습니다"):
+            calculate_stitched_walkforward_rmse(
+                walkforward_result_df=empty_wf,
+                underlying_df=data["underlying_df"],
+                actual_df=data["actual_df"],
+                ffr_df=data["ffr_df"],
+                expense_df=data["expense_df"],
+            )
+
+    def test_missing_columns_raises_error(self, stitched_test_data):
+        """
+        경계 케이스: 필수 컬럼이 누락되면 ValueError 발생
+
+        Given: spread_test 컬럼이 없는 워크포워드 result_df
+        When: calculate_stitched_walkforward_rmse 호출
+        Then: ValueError 발생
+        """
+        # Given
+        data = stitched_test_data
+        bad_wf = pd.DataFrame({"test_month": ["2023-03"], "a_best": [-6.0]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼"):
+            calculate_stitched_walkforward_rmse(
+                walkforward_result_df=bad_wf,
+                underlying_df=data["underlying_df"],
+                actual_df=data["actual_df"],
+                ffr_df=data["ffr_df"],
+                expense_df=data["expense_df"],
+            )
+
+    def test_single_month_stitched_equals_monthly_rmse(self, stitched_test_data):
+        """
+        정합성 검증: 워크포워드 1개월일 때, 연속 RMSE와 월별 RMSE가 동일해야 한다.
+
+        1개월만 있으면 리셋이 발생하지 않으므로 연속=월별이 동일하다.
+
+        Given: 1개월짜리 워크포워드 결과
+        When: 연속 RMSE와 별도 시뮬레이션 RMSE를 각각 계산
+        Then: 두 값이 부동소수점 오차 범위 내에서 동일
+        """
+        # Given
+        data = stitched_test_data
+
+        # When: 연속 RMSE
+        stitched_rmse = calculate_stitched_walkforward_rmse(
+            walkforward_result_df=data["walkforward_df"],
+            underlying_df=data["underlying_df"],
+            actual_df=data["actual_df"],
+            ffr_df=data["ffr_df"],
+            expense_df=data["expense_df"],
+        )
+
+        # When: 월별 시뮬레이션으로 직접 RMSE 계산 (1개월이므로 리셋 없음)
+        spread_test = float(data["walkforward_df"]["spread_test"].iloc[0])
+        test_month = "2023-03"
+
+        # 테스트 월 데이터 필터링
+        underlying = data["underlying_df"].copy()
+        actual = data["actual_df"].copy()
+        underlying["_m"] = underlying[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+        actual["_m"] = actual[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+
+        test_underlying = underlying[underlying["_m"] == test_month].drop(columns=["_m"])
+        test_actual = actual[actual["_m"] == test_month].drop(columns=["_m"])
+
+        initial_price = float(test_actual.iloc[0][COL_CLOSE])
+        spread_map = {test_month: spread_test}
+
+        sim_df = simulate(
+            underlying_df=test_underlying,
+            leverage=3.0,
+            expense_df=data["expense_df"],
+            initial_price=initial_price,
+            ffr_df=data["ffr_df"],
+            funding_spread=spread_map,
+        )
+
+        metrics = calculate_validation_metrics(simulated_df=sim_df, actual_df=test_actual)
+        monthly_rmse = metrics["cumul_multiple_log_diff_rmse_pct"]
+
+        # Then: 두 RMSE가 동일 (부동소수점 오차 허용)
+        assert stitched_rmse == pytest.approx(monthly_rmse, abs=1e-6), (
+            f"1개월 워크포워드에서 연속 RMSE({stitched_rmse:.6f})와 " f"월별 RMSE({monthly_rmse:.6f})가 동일해야 합니다"
         )

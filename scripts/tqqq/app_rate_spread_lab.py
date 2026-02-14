@@ -33,7 +33,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import DISPLAY_DATE
+from qbt.common_constants import DISPLAY_DATE, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
@@ -52,22 +52,30 @@ from qbt.tqqq.constants import (
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
+    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_DATA_PATH,
     TQQQ_WALKFORWARD_PATH,
     TQQQ_WALKFORWARD_SUMMARY_PATH,
     WALKFORWARD_LOCAL_REFINE_A_DELTA,
     WALKFORWARD_LOCAL_REFINE_B_DELTA,
 )
-from qbt.tqqq.data_loader import load_comparison_data, load_ffr_data
+from qbt.tqqq.data_loader import (
+    load_comparison_data,
+    load_expense_ratio_data,
+    load_ffr_data,
+)
+from qbt.tqqq.simulation import calculate_stitched_walkforward_rmse
 from qbt.tqqq.visualization import (
     create_delta_scatter_chart,
     create_level_scatter_chart,
     create_level_timeseries_chart,
     create_rolling_correlation_chart,
 )
+from qbt.utils.data_loader import load_stock_data
 from qbt.utils.logger import setup_logger
 
 # ============================================================
@@ -490,6 +498,47 @@ def _load_static_spread_csv() -> pd.DataFrame | None:
     return pd.read_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
 
 
+@st.cache_data
+def _calculate_stitched_rmse(
+    walkforward_result_csv_path: str,
+) -> float | None:
+    """
+    연속(stitched) 워크포워드 RMSE를 계산한다.
+
+    워크포워드 결과 CSV와 원본 데이터(QQQ, TQQQ, FFR, Expense)를 로드하여
+    연속 시뮬레이션 기반 RMSE를 계산한다. 정적 RMSE와 동일 수식을 사용한다.
+
+    파일 경로 문자열만 캐시 키로 사용하여 앱 기동 시 1회만 계산한다.
+
+    Args:
+        walkforward_result_csv_path: 워크포워드 결과 CSV 경로 (캐시 키)
+
+    Returns:
+        연속 RMSE (%) 또는 None (데이터 부족/오류)
+    """
+    try:
+        # 1. 데이터 로드
+        wf_result_df = pd.read_csv(walkforward_result_csv_path)
+        qqq_df = load_stock_data(QQQ_DATA_PATH)
+        tqqq_df = load_stock_data(TQQQ_DATA_PATH)
+        ffr_df = load_ffr_data(FFR_DATA_PATH)
+        expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
+
+        # 2. 연속 RMSE 계산
+        rmse = calculate_stitched_walkforward_rmse(
+            walkforward_result_df=wf_result_df,
+            underlying_df=qqq_df,
+            actual_df=tqqq_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+        )
+
+        return rmse
+    except Exception as e:
+        logger.debug(f"연속 RMSE 계산 실패: {e}")
+        return None
+
+
 def _render_softplus_section() -> None:
     """Softplus 동적 Spread 튜닝 결과 섹션을 렌더링한다."""
     st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
@@ -752,6 +801,77 @@ def _render_walkforward_section() -> None:
         _display_walkforward_result(result_df, summary_df)
 
 
+def _render_rmse_comparison(summary: dict[str, float]) -> None:
+    """
+    정적 RMSE vs 연속 워크포워드 RMSE를 비교 표시한다.
+
+    동일한 누적배수 로그차이 RMSE 수식을 사용하여 정합성 있는 비교를 제공한다.
+    - 정적 RMSE: 전체기간 최적 (a, b)로 전체 기간 연속 시뮬레이션한 결과
+    - 연속 워크포워드 RMSE: 워크포워드 결과를 연속으로 붙여 시뮬레이션한 결과
+    - 월별 리셋 평균 RMSE: 매월 실제 가격으로 리셋하여 계산한 평균 (참고용)
+
+    Args:
+        summary: 워크포워드 요약 딕셔너리 (test_rmse_mean 등)
+    """
+    st.subheader("RMSE 정합 비교 (동일 수식 기준)")
+
+    # 정적 RMSE 로드
+    tuning_df = _load_softplus_tuning_csv()
+    static_rmse: float | None = None
+    if tuning_df is not None and len(tuning_df) > 0:
+        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
+
+    # 연속 워크포워드 RMSE 계산
+    stitched_rmse: float | None = None
+    if TQQQ_WALKFORWARD_PATH.exists():
+        stitched_rmse = _calculate_stitched_rmse(str(TQQQ_WALKFORWARD_PATH))
+
+    # 3개 지표 표시
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if static_rmse is not None:
+            st.metric(label="정적 RMSE (%) (전체기간 최적 a,b)", value=f"{static_rmse:.4f}")
+        else:
+            st.metric(label="정적 RMSE (%)", value="N/A")
+
+    with col2:
+        if stitched_rmse is not None:
+            st.metric(label="연속 워크포워드 RMSE (%)", value=f"{stitched_rmse:.4f}")
+        else:
+            st.metric(label="연속 워크포워드 RMSE (%)", value="N/A")
+            st.caption("데이터 부족으로 계산 불가")
+
+    with col3:
+        st.metric(
+            label="월별 리셋 평균 RMSE (%) (참고)",
+            value=f"{summary['test_rmse_mean']:.4f}",
+        )
+
+    st.markdown(
+        """## 지표에 사용하는 용어에 대한 설명
+
+- **정적 RMSE**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로, **전체 기간을 연속 시뮬레이션**하여 산출한 RMSE
+- **연속 워크포워드 RMSE**: 워크포워드로 매월 선택된 spread를 **리셋 없이 연속으로 붙여** 시뮬레이션한 RMSE
+  - 정적 RMSE와 **동일한 누적배수 로그차이 수식**을 사용하므로 1:1 비교 가능
+- **월별 리셋 평균 RMSE**: 매월 실제 가격으로 시작점을 리셋한 뒤 1개월씩 RMSE를 구해 평균낸 값
+  - 장기 누적 오차가 상쇄되므로 값이 작게 나옴 → 정적 RMSE와 직접 비교하면 오해 소지
+
+## 지표를 해석하는 방법
+
+- **정적 RMSE > 연속 워크포워드 RMSE**이면: 워크포워드가 연속 시뮬에서도 정적보다 우수 → 동적 spread의 실질적 개선 효과
+- **정적 RMSE ≈ 연속 워크포워드 RMSE**이면: 워크포워드가 정적과 비슷 → 추가 복잡성 대비 이득이 크지 않음
+- **정적 RMSE < 연속 워크포워드 RMSE**이면: 워크포워드가 과적합 가능성 → 파라미터 변동이 오히려 성능 저하
+
+## 현재 지표 해석 & 판단(결과)
+
+- 이 비교를 통해 "월별 리셋 RMSE가 낮다"는 것이 실제 연속 운용에서도 유효한지 확인할 수 있습니다.
+- 연속 RMSE가 정적보다 확실히 낮으면, 동적 spread 전략의 실전 적용 근거가 강화됩니다."""
+    )
+
+    st.divider()
+
+
 def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:
     """
     워크포워드 검증 결과를 표시한다.
@@ -779,6 +899,9 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
 
     with col4:
         st.metric(label="b 평균 (std)", value=f"{summary['b_mean']:.2f} ({summary['b_std']:.2f})")
+
+    # RMSE 비교: 정적 vs 연속 워크포워드
+    _render_rmse_comparison(summary)
 
     # 상세 요약
     with st.expander("상세 요약 통계", expanded=True):
