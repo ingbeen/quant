@@ -32,7 +32,7 @@
 > 이 섹션(0)은 지워지면 안 될 뿐만 아니라 **문구가 수정되면 안 됩니다.**
 > 규칙의 상세 정의/예외는 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 따릅니다.
 
-- Validation에서 `poetry run python validate_project.py`가 실패하면 **해당 Phase에서 즉시 수정 후 재검증**한다.
+- `poetry run python validate_project.py`는 **마지막 Phase에서만 실행**한다. 실패하면 즉시 수정 후 재검증한다.
 - Phase 0은 "레드(의도적 실패 테스트)" 허용, Phase 1부터는 **그린 유지**를 원칙으로 한다.
 - 이미 생성된 plan은 **체크리스트 업데이트 외 수정 금지**한다.
 - 스킵은 가능하면 **Phase 분해로 제거**한다.
@@ -103,10 +103,6 @@
 - [ ] (예) 만들 수 있는 테스트를 최대한 먼저 추가(레드 허용)
 - [ ] (예) 인터페이스/예외/타입/상수 형태를 먼저 고정
 
-**Validation**:
-
-- [ ] `poetry run python validate_project.py` (passed=**, failed=**, skipped=\_\_)
-
 ---
 
 ### Phase 1 — 핵심 구현/수정(그린 유지)
@@ -116,10 +112,6 @@
 - [ ] ...
 - [ ] ...
 
-**Validation**:
-
-- [ ] `poetry run python validate_project.py` (passed=**, failed=**, skipped=\_\_)
-
 ---
 
 ### Phase 2 — (선택) 리팩토링/정리/추가 작업(그린 유지)
@@ -128,10 +120,6 @@
 
 - [ ] ...
 - [ ] ...
-
-**Validation**:
-
-- [ ] `poetry run python validate_project.py` (passed=**, failed=**, skipped=\_\_)
 
 ---
 

@@ -45,7 +45,8 @@ docs/
 
 계획서(Plan) 작성 시:
 
-- 각 Phase Validation에서 `poetry run python validate_project.py`를 실행합니다.
+- `poetry run python validate_project.py`는 마지막 Phase에서만 실행합니다.
+- 중간 Phase에서는 실행하지 않습니다.
 
 ### Black 실행 원칙
 
