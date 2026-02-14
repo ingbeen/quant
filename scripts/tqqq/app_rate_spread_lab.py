@@ -56,6 +56,8 @@ from qbt.tqqq.constants import (
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_WALKFORWARD_FIXED_B_PATH,
+    TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH,
     TQQQ_WALKFORWARD_PATH,
     TQQQ_WALKFORWARD_SUMMARY_PATH,
     WALKFORWARD_LOCAL_REFINE_A_DELTA,
@@ -539,6 +541,10 @@ def _render_softplus_section() -> None:
     st.divider()
     _render_walkforward_section()
 
+    # b 고정 워크포워드 검증 섹션 (과최적화 진단)
+    st.divider()
+    _render_walkforward_fixed_b_section()
+
     # Spread 비교 시각화 섹션
     st.divider()
     _render_spread_comparison_section()
@@ -579,6 +585,235 @@ def _display_tuning_result(tuning_df: pd.DataFrame) -> None:
 # ============================================================
 # 워크포워드 검증 결과 로드 및 표시 함수
 # ============================================================
+
+
+# ============================================================
+# b 고정 워크포워드 검증 결과 로드 및 표시 함수
+# ============================================================
+
+
+@st.cache_data
+def _load_walkforward_fixed_b_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+    """
+    b 고정 워크포워드 검증 결과 CSV를 로드한다.
+
+    Returns:
+        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
+    """
+    if not TQQQ_WALKFORWARD_FIXED_B_PATH.exists() or not TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH.exists():
+        return None, None
+
+    result_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_B_PATH)
+    summary_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH)
+
+    return result_df, summary_df
+
+
+def _render_walkforward_fixed_b_section() -> None:
+    """b 고정 워크포워드 검증 결과 섹션을 렌더링한다 (과최적화 진단)."""
+    st.header("b 고정 워크포워드 검증 (과최적화 진단)")
+
+    # b 고정 워크포워드 CSV 로드
+    fb_result_df, fb_summary_df = _load_walkforward_fixed_b_csv()
+
+    if fb_result_df is None or fb_summary_df is None:
+        st.warning(
+            f"b 고정 워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
+            f"파일 경로:\n"
+            f"- `{TQQQ_WALKFORWARD_FIXED_B_PATH}`\n"
+            f"- `{TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH}`\n\n"
+            f"**검증 실행 방법**:\n"
+            f"```bash\n"
+            f"poetry run python scripts/tqqq/validate_walkforward_fixed_b.py\n"
+            f"```"
+        )
+        return
+
+    # summary를 딕셔너리로 변환
+    fb_summary = dict(zip(fb_summary_df["metric"], fb_summary_df["value"], strict=False))
+
+    # 기존 동적 워크포워드 데이터도 로드
+    dyn_result_df, dyn_summary_df = _load_walkforward_csv()
+    dyn_summary: dict[str, float] | None = None
+    if dyn_summary_df is not None:
+        dyn_summary = dict(zip(dyn_summary_df["metric"], dyn_summary_df["value"], strict=False))
+
+    # 정적 RMSE
+    tuning_df = _load_softplus_tuning_csv()
+    static_rmse: float | None = None
+    if tuning_df is not None and len(tuning_df) > 0:
+        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
+
+    # 고정 b 값
+    fixed_b_value = fb_summary["b_mean"]
+
+    # --- 3-metric RMSE 비교 ---
+    st.subheader("RMSE 3자 비교 (정적 vs 동적 WF vs b고정 WF)")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if static_rmse is not None:
+            st.metric(label="정적 RMSE (%)\n(전체기간 최적 a,b)", value=f"{static_rmse:.4f}")
+        else:
+            st.metric(label="정적 RMSE (%)", value="N/A")
+
+    with col2:
+        dyn_stitched = dyn_summary.get("stitched_rmse") if dyn_summary else None
+        if dyn_stitched is not None:
+            st.metric(label="동적 WF stitched RMSE (%)\n(a,b 모두 최적화)", value=f"{dyn_stitched:.4f}")
+        else:
+            st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
+
+    with col3:
+        fb_stitched: float | None = fb_summary.get("stitched_rmse")  # type: ignore[assignment]
+        if fb_stitched is not None:
+            st.metric(
+                label=f"b고정 WF stitched RMSE (%)\n(b={fixed_b_value:.4f} 고정, a만 최적화)",
+                value=f"{fb_stitched:.4f}",
+            )
+        else:
+            st.metric(label="b고정 WF stitched RMSE (%)", value="N/A")
+
+    # --- 해석 결과 ---
+    _render_fixed_b_interpretation(static_rmse, dyn_stitched, fb_stitched, fixed_b_value)
+
+    # --- a 파라미터 안정성 비교 ---
+    st.subheader("파라미터 안정성 비교")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**동적 워크포워드 (a, b 모두 최적화)**")
+        if dyn_summary:
+            st.write(f"- a 평균: {dyn_summary['a_mean']:.4f}")
+            st.write(f"- a 표준편차: {dyn_summary['a_std']:.4f}")
+            st.write(f"- b 평균: {dyn_summary['b_mean']:.4f}")
+            st.write(f"- b 표준편차: {dyn_summary['b_std']:.4f}")
+        else:
+            st.info("동적 워크포워드 데이터 없음")
+
+    with col2:
+        st.markdown(f"**b 고정 워크포워드 (b={fixed_b_value:.4f} 고정)**")
+        st.write(f"- a 평균: {fb_summary['a_mean']:.4f}")
+        st.write(f"- a 표준편차: {fb_summary['a_std']:.4f}")
+        st.write(f"- b 고정값: {fixed_b_value:.4f}")
+        st.write(f"- b 표준편차: {fb_summary['b_std']:.4f} (0에 가까워야 정상)")
+
+    # --- 테스트 RMSE 추이 비교 차트 ---
+    with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정)", expanded=True):
+        fig_rmse = go.Figure()
+
+        # 동적 워크포워드
+        if dyn_result_df is not None:
+            fig_rmse.add_trace(
+                go.Scatter(
+                    x=dyn_result_df["test_month"],
+                    y=dyn_result_df["test_rmse_pct"],
+                    mode="lines",
+                    name="동적 WF (a,b 최적화)",
+                    line={"color": "red", "width": 1.5},
+                    opacity=0.7,
+                )
+            )
+
+        # b 고정 워크포워드
+        fig_rmse.add_trace(
+            go.Scatter(
+                x=fb_result_df["test_month"],
+                y=fb_result_df["test_rmse_pct"],
+                mode="lines",
+                name=f"b고정 WF (b={fixed_b_value:.2f})",
+                line={"color": "blue", "width": 1.5},
+                opacity=0.7,
+            )
+        )
+
+        fig_rmse.update_layout(
+            title="월별 테스트 RMSE 추이 비교",
+            xaxis_title="테스트 월",
+            yaxis_title="RMSE (%)",
+            height=400,
+            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
+        )
+        st.plotly_chart(fig_rmse, width="stretch")
+
+    # --- VERBATIM 설명 ---
+    st.markdown(
+        f"""## 지표에 사용하는 용어에 대한 설명
+
+- **정적 RMSE**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로, 전체 기간을 연속 시뮬레이션하여 산출한 RMSE
+- **동적 WF stitched RMSE**: 매월 (a, b) 모두 최적화한 워크포워드를 연속으로 붙인 RMSE
+- **b고정 WF stitched RMSE**: b를 전체기간 최적값({fixed_b_value:.4f})으로 고정하고, a만 매월 최적화한 워크포워드의 연속 RMSE
+
+## 지표를 해석하는 방법
+
+- **b고정 WF < 동적 WF**: b를 자유롭게 튜닝하는 것이 오히려 성능을 악화 → **b의 과최적화 확인**
+- **b고정 WF < 정적 RMSE**: b 고정 + a만 동적 조정으로도 정적 모델 대비 개선 효과 있음 → **a의 동적 조정은 유효**
+- **b고정 WF > 정적 RMSE**: a만 동적 조정해도 정적보다 나쁨 → 동적 모델 자체의 부가가치가 없을 수 있음"""
+    )
+
+
+def _render_fixed_b_interpretation(
+    static_rmse: float | None,
+    dyn_stitched: float | None,
+    fb_stitched: float | None,
+    fixed_b_value: float,
+) -> None:
+    """
+    b 고정 워크포워드 RMSE 해석 결과를 표시한다.
+
+    Args:
+        static_rmse: 정적 RMSE (%) 또는 None
+        dyn_stitched: 동적 워크포워드 stitched RMSE (%) 또는 None
+        fb_stitched: b고정 워크포워드 stitched RMSE (%) 또는 None
+        fixed_b_value: 고정된 b 값
+    """
+    st.markdown("## 현재 지표 해석 & 판단(결과)")
+
+    if fb_stitched is None:
+        st.info("b고정 워크포워드 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
+        return
+
+    findings = []
+
+    # 1. b 고정 vs 동적 비교 (과최적화 진단 핵심)
+    if dyn_stitched is not None:
+        if fb_stitched < dyn_stitched:
+            diff = dyn_stitched - fb_stitched
+            findings.append(
+                f"- **b고정 WF({fb_stitched:.4f}%) < 동적 WF({dyn_stitched:.4f}%)** "
+                f"→ b를 고정하는 것이 **{diff:.4f}%p 더 낮아** b의 과최적화가 확인됩니다.\n"
+                f"  - b를 자유롭게 튜닝하면 매월 노이즈에 반응하여 누적 오차가 커집니다."
+            )
+        elif fb_stitched > dyn_stitched:
+            diff = fb_stitched - dyn_stitched
+            findings.append(
+                f"- **b고정 WF({fb_stitched:.4f}%) > 동적 WF({dyn_stitched:.4f}%)** "
+                f"→ 동적 (a,b)가 **{diff:.4f}%p 더 낮아** b의 과최적화는 아닙니다.\n"
+                f"  - b의 시간 변동이 실제 성능 개선에 기여하고 있습니다."
+            )
+        else:
+            findings.append(f"- **b고정 WF({fb_stitched:.4f}%) ≈ 동적 WF({dyn_stitched:.4f}%)** " f"→ b 최적화의 영향이 미미합니다.")
+
+    # 2. b 고정 vs 정적 비교 (a 동적 조정의 부가가치)
+    if static_rmse is not None:
+        if fb_stitched < static_rmse:
+            diff = static_rmse - fb_stitched
+            findings.append(
+                f"- **b고정 WF({fb_stitched:.4f}%) < 정적({static_rmse:.4f}%)** "
+                f"→ a만 동적으로 조정해도 정적 대비 **{diff:.4f}%p 개선** → a의 동적 조정은 유효합니다."
+            )
+        else:
+            diff = fb_stitched - static_rmse
+            findings.append(
+                f"- **b고정 WF({fb_stitched:.4f}%) >= 정적({static_rmse:.4f}%)** "
+                f"→ a만 동적 조정해도 정적보다 나쁨({diff:.4f}%p) → "
+                f"현재로서는 전체기간 고정 (a={fixed_b_value:.4f} 포함) 정적 모델이 더 안정적입니다."
+            )
+
+    for finding in findings:
+        st.markdown(finding)
 
 
 def _render_spread_comparison_section() -> None:

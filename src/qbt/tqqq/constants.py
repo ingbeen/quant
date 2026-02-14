@@ -131,6 +131,9 @@ __all__ = [
     "WALKFORWARD_LOCAL_REFINE_B_STEP",
     "TQQQ_WALKFORWARD_PATH",
     "TQQQ_WALKFORWARD_SUMMARY_PATH",
+    # b 고정 워크포워드 결과 경로
+    "TQQQ_WALKFORWARD_FIXED_B_PATH",
+    "TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -196,6 +199,10 @@ WALKFORWARD_LOCAL_REFINE_B_STEP: Final = 0.02  # b 파라미터 증분 (16개 �
 # --- 워크포워드 결과 파일 경로 ---
 TQQQ_WALKFORWARD_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward.csv"
 TQQQ_WALKFORWARD_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
+
+# --- b 고정 워크포워드 결과 파일 경로 ---
+TQQQ_WALKFORWARD_FIXED_B_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
+TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

@@ -79,11 +79,17 @@ poetry run python scripts/tqqq/validate_walkforward.py
 # 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
 #       storage/results/tqqq_rate_spread_lab_walkforward_summary.csv (stitched_rmse 포함)
 
-# 6. 금리-오차 분석 CSV 생성
+# 6. b 고정 워크포워드 검증 (과최적화 진단)
+poetry run python scripts/tqqq/validate_walkforward_fixed_b.py
+# 출력: storage/results/tqqq_rate_spread_lab_walkforward_fixed_b.csv
+#       storage/results/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv
+# 사전 필요: 4번(tune_softplus_params.py)
+
+# 7. 금리-오차 분석 CSV 생성
 poetry run python scripts/tqqq/generate_rate_spread_lab.py
 # 출력: storage/results/tqqq_rate_spread_lab_*.csv (monthly, summary, model)
 
-# 7. 합성 TQQQ 데이터 생성 (선택)
+# 8. 합성 TQQQ 데이터 생성 (선택)
 poetry run python scripts/tqqq/generate_synthetic.py
 # 출력: storage/stock/TQQQ_synthetic_max.csv
 ```
@@ -98,7 +104,7 @@ poetry run python scripts/tqqq/generate_synthetic.py
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 
 # 금리-오차 관계 분석 연구용 앱
-# 선행: 1 → 2 → 3 → 4 → 5 → 6
+# 선행: 1 → 2 → 3 → 4 → 5 → 6 → 7
 poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
 ```
 

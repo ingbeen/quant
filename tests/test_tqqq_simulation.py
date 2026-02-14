@@ -2104,6 +2104,182 @@ class TestLocalRefineSearch:
             assert candidate["b"] >= 0, f"b는 음수가 되면 안 됨: {candidate['b']}"
 
 
+class TestFixedBParameter:
+    """
+    fixed_b 파라미터 테스트
+
+    b를 고정하고 a만 최적화하는 모드의 동작을 검증한다.
+    과최적화 진단을 위해 b의 자유도를 제거하는 기능이다.
+    """
+
+    def test_find_optimal_softplus_params_fixed_b(self, monkeypatch):
+        """
+        fixed_b 전달 시 반환된 b_best가 fixed_b와 동일한지 검증
+
+        Given: 간단한 데이터, 작은 그리드, fixed_b=0.37
+        When: find_optimal_softplus_params(fixed_b=0.37) 호출
+        Then:
+          - b_best == 0.37 (고정값과 동일)
+          - a_best는 float
+          - all_candidates의 모든 b가 0.37
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [100.0 + i * 0.5 for i in range(10)],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [30.0 + i * 0.45 for i in range(10)],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # 작은 그리드로 패치
+        import qbt.tqqq.simulation as sim_module
+
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+
+        fixed_b_value = 0.37
+
+        # When
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
+            underlying_df=underlying_df,
+            actual_leveraged_df=actual_leveraged_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            leverage=3.0,
+            max_workers=1,
+            fixed_b=fixed_b_value,
+        )
+
+        # Then
+        assert b_best == pytest.approx(fixed_b_value), f"b_best는 fixed_b와 동일해야 함: {b_best}"
+        assert isinstance(a_best, float), f"a_best는 float이어야 함: {type(a_best)}"
+        assert best_rmse >= 0, f"best_rmse는 0 이상이어야 함: {best_rmse}"
+
+        # 모든 candidate의 b가 fixed_b와 동일
+        for candidate in all_candidates:
+            assert candidate["b"] == pytest.approx(fixed_b_value), f"candidate의 b가 fixed_b와 동일해야 함: {candidate['b']}"
+
+    def test_local_refine_search_fixed_b(self):
+        """
+        _local_refine_search에 fixed_b 전달 시 b_best가 fixed_b와 동일한지 검증
+
+        Given: 간단한 데이터, fixed_b=0.5
+        When: _local_refine_search(fixed_b=0.5) 호출
+        Then:
+          - b_best == 0.5
+          - 모든 candidates의 b가 0.5
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [100.0 + i * 0.5 for i in range(10)],
+            }
+        )
+
+        actual_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [30.0 + i * 0.45 for i in range(10)],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        fixed_b_value = 0.5
+
+        # When
+        from qbt.tqqq.simulation import _local_refine_search
+
+        a_best, b_best, best_rmse, candidates = _local_refine_search(
+            underlying_df=underlying_df,
+            actual_df=actual_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            a_prev=-6.0,
+            b_prev=0.5,
+            leverage=3.0,
+            max_workers=1,
+            fixed_b=fixed_b_value,
+        )
+
+        # Then
+        assert b_best == pytest.approx(fixed_b_value), f"b_best는 fixed_b와 동일해야 함: {b_best}"
+        for candidate in candidates:
+            assert candidate["b"] == pytest.approx(fixed_b_value), f"candidate의 b가 fixed_b와 동일해야 함: {candidate['b']}"
+
+    def test_find_optimal_softplus_params_fixed_b_negative_raises(self, monkeypatch):
+        """
+        fixed_b가 음수이면 ValueError 발생
+
+        Given: fixed_b=-0.1
+        When: find_optimal_softplus_params(fixed_b=-0.1) 호출
+        Then: ValueError 발생
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [100.0 + i * 0.5 for i in range(10)],
+            }
+        )
+
+        actual_leveraged_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, i + 2) for i in range(10)],
+                COL_CLOSE: [30.0 + i * 0.45 for i in range(10)],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # 작은 그리드로 패치
+        import qbt.tqqq.simulation as sim_module
+
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+
+        # When & Then
+        from qbt.tqqq.simulation import find_optimal_softplus_params
+
+        with pytest.raises(ValueError, match="fixed_b"):
+            find_optimal_softplus_params(
+                underlying_df=underlying_df,
+                actual_leveraged_df=actual_leveraged_df,
+                ffr_df=ffr_df,
+                expense_df=expense_df,
+                leverage=3.0,
+                max_workers=1,
+                fixed_b=-0.1,
+            )
+
+
 class TestRunWalkforwardValidation:
     """
     run_walkforward_validation() 함수 테스트
@@ -2157,6 +2333,90 @@ class TestRunWalkforwardValidation:
                 expense_df=expense_df,
                 leverage=3.0,
             )
+
+    def test_run_walkforward_validation_fixed_b(self, monkeypatch):
+        """
+        fixed_b 전달 시 모든 결과 행의 b_best가 fixed_b와 동일한지 검증
+
+        Given: 4개월 데이터, train_window_months=2, fixed_b=0.37
+        When: run_walkforward_validation(fixed_b=0.37, train_window_months=2) 호출
+        Then:
+          - 모든 결과 행의 b_best == 0.37
+          - 결과 DataFrame이 비어있지 않음
+          - summary의 b_mean == 0.37, b_std == 0.0
+        """
+        # Given: 4개월 데이터 (2개월 train + 2개월 test)
+        import qbt.tqqq.simulation as sim_module
+
+        # 작은 그리드로 패치 (속도 향상)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_A_DELTA", 0.5)
+        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_A_STEP", 0.5)
+        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_B_DELTA", 0.25)
+        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_B_STEP", 0.25)
+
+        dates = []
+        closes_underlying = []
+        closes_actual = []
+        ffr_dates = []
+
+        # 4개월 데이터 생성 (2023-01 ~ 2023-04)
+        for month_offset in range(4):
+            month = month_offset + 1
+            for day in range(1, 21):
+                try:
+                    d = date(2023, month, day + 1)
+                    dates.append(d)
+                    closes_underlying.append(100.0 + month_offset * 2.0 + day * 0.1)
+                    closes_actual.append(30.0 + month_offset * 1.8 + day * 0.09)
+                except ValueError:
+                    pass
+            ffr_dates.append(f"2023-{month:02d}")
+
+        underlying_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_underlying})
+        actual_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_actual})
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ffr_dates, COL_FFR_VALUE: [0.045] * 4})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ffr_dates, COL_EXPENSE_VALUE: [0.0095] * 4})
+
+        fixed_b_value = 0.37
+
+        # When
+        from qbt.tqqq.simulation import run_walkforward_validation
+
+        result_df, summary = run_walkforward_validation(
+            underlying_df=underlying_df,
+            actual_df=actual_df,
+            ffr_df=ffr_df,
+            expense_df=expense_df,
+            leverage=3.0,
+            train_window_months=2,
+            max_workers=1,
+            fixed_b=fixed_b_value,
+        )
+
+        # Then: 결과가 비어있지 않아야 함
+        assert len(result_df) > 0, "워크포워드 결과 DataFrame이 비어있음"
+
+        # Then: 모든 결과 행의 b_best가 fixed_b와 동일
+        for _, row in result_df.iterrows():
+            assert row["b_best"] == pytest.approx(fixed_b_value), (
+                f"b_best가 fixed_b와 동일해야 함: {row['b_best']}"
+            )
+
+        # Then: summary의 b 통계
+        assert summary["b_mean"] == pytest.approx(fixed_b_value), (
+            f"b_mean이 fixed_b와 동일해야 함: {summary['b_mean']}"
+        )
+        assert summary["b_std"] == pytest.approx(0.0), (
+            f"b_std가 0이어야 함 (고정값): {summary['b_std']}"
+        )
 
 
 # NOTE: 아래 테스트는 통합 테스트로서 실행 시간이 오래 걸립니다 (수십 분).

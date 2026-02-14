@@ -1474,6 +1474,7 @@ def find_optimal_softplus_params(
     expense_df: pd.DataFrame,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
+    fixed_b: float | None = None,
 ) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
     softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-stage grid search로 탐색한다.
@@ -1490,18 +1491,23 @@ def find_optimal_softplus_params(
         expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
         leverage: 레버리지 배수 (기본값: 3.0)
         max_workers: 최대 워커 수 (None이면 기본값 2)
+        fixed_b: b 파라미터 고정값 (None이면 b도 그리드 서치, 설정 시 a만 최적화)
 
     Returns:
         (a_best, b_best, best_rmse, all_candidates) 튜플
             - a_best: 최적 절편 파라미터
-            - b_best: 최적 기울기 파라미터
+            - b_best: 최적 기울기 파라미터 (fixed_b 설정 시 fixed_b와 동일)
             - best_rmse: 최적 RMSE (%)
             - all_candidates: 전체 후보 리스트 (Stage 1 + Stage 2)
 
     Raises:
         ValueError: 겹치는 기간이 없을 때
         ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
+        ValueError: fixed_b가 음수일 때
     """
+    # 0. fixed_b 검증
+    if fixed_b is not None and fixed_b < 0:
+        raise ValueError(f"fixed_b는 0 이상이어야 합니다: {fixed_b}")
     # 1. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
@@ -1560,11 +1566,14 @@ def find_optimal_softplus_params(
         SOFTPLUS_GRID_STAGE1_A_RANGE[1] + EPSILON,
         SOFTPLUS_GRID_STAGE1_A_STEP,
     )
-    b_values_s1 = np.arange(
-        SOFTPLUS_GRID_STAGE1_B_RANGE[0],
-        SOFTPLUS_GRID_STAGE1_B_RANGE[1] + EPSILON,
-        SOFTPLUS_GRID_STAGE1_B_STEP,
-    )
+    if fixed_b is not None:
+        b_values_s1 = np.array([fixed_b])
+    else:
+        b_values_s1 = np.arange(
+            SOFTPLUS_GRID_STAGE1_B_RANGE[0],
+            SOFTPLUS_GRID_STAGE1_B_RANGE[1] + EPSILON,
+            SOFTPLUS_GRID_STAGE1_B_STEP,
+        )
 
     param_combinations_s1 = []
     for a in a_values_s1:
@@ -1615,11 +1624,14 @@ def find_optimal_softplus_params(
         a_star + SOFTPLUS_GRID_STAGE2_A_DELTA + EPSILON,
         SOFTPLUS_GRID_STAGE2_A_STEP,
     )
-    b_values_s2 = np.arange(
-        max(0.0, b_star - SOFTPLUS_GRID_STAGE2_B_DELTA),  # b는 음수 불가
-        b_star + SOFTPLUS_GRID_STAGE2_B_DELTA + EPSILON,
-        SOFTPLUS_GRID_STAGE2_B_STEP,
-    )
+    if fixed_b is not None:
+        b_values_s2 = np.array([fixed_b])
+    else:
+        b_values_s2 = np.arange(
+            max(0.0, b_star - SOFTPLUS_GRID_STAGE2_B_DELTA),  # b는 음수 불가
+            b_star + SOFTPLUS_GRID_STAGE2_B_DELTA + EPSILON,
+            SOFTPLUS_GRID_STAGE2_B_STEP,
+        )
 
     param_combinations_s2 = []
     for a in a_values_s2:
@@ -1673,6 +1685,7 @@ def _local_refine_search(
     b_prev: float,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     max_workers: int | None = None,
+    fixed_b: float | None = None,
 ) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
     직전 월 최적 (a_prev, b_prev) 주변에서 국소 탐색을 수행한다.
@@ -1693,11 +1706,12 @@ def _local_refine_search(
         b_prev: 직전 월 최적 b 파라미터
         leverage: 레버리지 배수 (기본값: 3.0)
         max_workers: 최대 워커 수 (None이면 기본값 2)
+        fixed_b: b 파라미터 고정값 (None이면 b도 탐색, 설정 시 a만 탐색)
 
     Returns:
         (a_best, b_best, best_rmse, candidates) 튜플
             - a_best: 최적 절편 파라미터
-            - b_best: 최적 기울기 파라미터
+            - b_best: 최적 기울기 파라미터 (fixed_b 설정 시 fixed_b와 동일)
             - best_rmse: 최적 RMSE (%)
             - candidates: 전체 탐색 결과 리스트
 
@@ -1750,11 +1764,16 @@ def _local_refine_search(
     # 7. Local Refine 파라미터 조합 생성
     a_min = a_prev - WALKFORWARD_LOCAL_REFINE_A_DELTA
     a_max = a_prev + WALKFORWARD_LOCAL_REFINE_A_DELTA
-    b_min = max(0.0, b_prev - WALKFORWARD_LOCAL_REFINE_B_DELTA)  # b >= 0 제약
-    b_max = b_prev + WALKFORWARD_LOCAL_REFINE_B_DELTA
 
     a_values = np.arange(a_min, a_max + EPSILON, WALKFORWARD_LOCAL_REFINE_A_STEP)
-    b_values = np.arange(b_min, b_max + EPSILON, WALKFORWARD_LOCAL_REFINE_B_STEP)
+    if fixed_b is not None:
+        b_values = np.array([fixed_b])
+        b_log_min = fixed_b
+        b_log_max = fixed_b
+    else:
+        b_log_min = max(0.0, b_prev - WALKFORWARD_LOCAL_REFINE_B_DELTA)  # b >= 0 제약
+        b_log_max = b_prev + WALKFORWARD_LOCAL_REFINE_B_DELTA
+        b_values = np.arange(b_log_min, b_log_max + EPSILON, WALKFORWARD_LOCAL_REFINE_B_STEP)
 
     param_combinations = []
     for a in a_values:
@@ -1770,7 +1789,7 @@ def _local_refine_search(
 
     logger.debug(
         f"Local Refine 탐색: a in [{a_min:.4f}, {a_max:.4f}], "
-        f"b in [{b_min:.4f}, {b_max:.4f}], 조합 수: {len(param_combinations)}"
+        f"b in [{b_log_min:.4f}, {b_log_max:.4f}], 조합 수: {len(param_combinations)}"
     )
 
     # 7. 병렬 실행
@@ -1803,6 +1822,7 @@ def run_walkforward_validation(
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
     max_workers: int | None = None,
+    fixed_b: float | None = None,
 ) -> tuple[pd.DataFrame, WalkforwardSummaryDict]:
     """
     워크포워드 검증을 수행한다 (60개월 Train, 1개월 Test).
@@ -1819,6 +1839,7 @@ def run_walkforward_validation(
         leverage: 레버리지 배수 (기본값: 3.0)
         train_window_months: 학습 기간 (기본값: 60개월)
         max_workers: 최대 워커 수 (None이면 기본값 2)
+        fixed_b: b 파라미터 고정값 (None이면 b도 최적화, 설정 시 a만 최적화)
 
     Returns:
         (result_df, summary) 튜플
@@ -1900,6 +1921,7 @@ def run_walkforward_validation(
                 expense_df=expense_df,
                 leverage=leverage,
                 max_workers=max_workers,
+                fixed_b=fixed_b,
             )
         else:
             # 이후 구간: local refine
@@ -1914,6 +1936,7 @@ def run_walkforward_validation(
                 b_prev=b_prev,
                 leverage=leverage,
                 max_workers=max_workers,
+                fixed_b=fixed_b,
             )
 
         # 10. 테스트 월 RMSE 계산

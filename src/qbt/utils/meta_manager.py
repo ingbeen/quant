@@ -41,6 +41,7 @@ VALID_CSV_TYPES = {
     "tqqq_rate_spread_lab",
     "tqqq_softplus_tuning",
     "tqqq_walkforward",
+    "tqqq_walkforward_fixed_b",
 }
 
 
