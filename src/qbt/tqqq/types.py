@@ -8,7 +8,7 @@
 """
 
 from datetime import date
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import numpy as np
 
@@ -86,3 +86,4 @@ class WalkforwardSummaryDict(TypedDict):
     b_std: float
     n_test_months: int
     train_window_months: int
+    stitched_rmse: NotRequired[float]

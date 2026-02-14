@@ -74,26 +74,32 @@ poetry run python scripts/tqqq/tune_softplus_params.py
 # 출력: storage/results/tqqq_softplus_tuning.csv
 #       storage/results/tqqq_softplus_spread_series_static.csv (정적 spread 시계열)
 
-# 5. 워크포워드 검증
+# 5. 워크포워드 검증 (연속 워크포워드 RMSE 포함)
 poetry run python scripts/tqqq/validate_walkforward.py
-# 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv (ffr_pct_test, spread_test 포함)
+# 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
+#       storage/results/tqqq_rate_spread_lab_walkforward_summary.csv (stitched_rmse 포함)
 
 # 6. 금리-오차 분석 CSV 생성
 poetry run python scripts/tqqq/generate_rate_spread_lab.py
 # 출력: storage/results/tqqq_rate_spread_lab_*.csv (monthly, summary, model)
 
-# 7. 대시보드 시각화
-# 일별 비교 대시보드
-poetry run streamlit run scripts/tqqq/app_daily_comparison.py
-# 브라우저에서 http://localhost:8501 열림
-
-# 금리-오차 관계 분석 연구용 앱 (사전에 generate_rate_spread_lab.py 실행 필요)
-poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
-# 브라우저에서 http://localhost:8501 열림
-
-# 5. 합성 TQQQ 데이터 생성
+# 7. 합성 TQQQ 데이터 생성 (선택)
 poetry run python scripts/tqqq/generate_synthetic.py
 # 출력: storage/stock/TQQQ_synthetic_max.csv
+```
+
+### 대시보드 앱 실행
+
+각 앱 실행 전에 선행 스크립트를 먼저 실행해야 합니다.
+
+```bash
+# 일별 비교 대시보드
+# 선행: 1 → 2 → 3
+poetry run streamlit run scripts/tqqq/app_daily_comparison.py
+
+# 금리-오차 관계 분석 연구용 앱
+# 선행: 1 → 2 → 3 → 4 → 5 → 6
+poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
 ```
 
 **파라미터 변경**: [src/qbt/tqqq/constants.py](src/qbt/tqqq/constants.py)
@@ -210,6 +216,7 @@ quant/
 - `storage/results/tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
 - `storage/results/tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
 - `storage/results/tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
+- `storage/results/tqqq_rate_spread_lab_walkforward_summary.csv`: 워크포워드 요약 통계 (stitched_rmse 포함)
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
 
@@ -233,14 +240,13 @@ poetry run python validate_project.py
 
 ### 대시보드 실행 오류
 
-```bash
-# 의존 파일 먼저 생성
-poetry run python scripts/tqqq/generate_daily_comparison.py
+각 앱은 선행 스크립트의 결과 CSV가 필요합니다. 워크플로우 2의 순서를 따라 실행하세요.
 
-# 일별 비교 대시보드
+```bash
+# 일별 비교 대시보드 (선행: 1~3)
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 
-# 금리-오차 분석 앱
+# 금리-오차 분석 앱 (선행: 1~6)
 poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
 ```
 

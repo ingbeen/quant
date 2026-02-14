@@ -1155,6 +1155,15 @@ def save_walkforward_summary(summary: WalkforwardSummaryDict, output_path: Path)
             value = round(value, 4)
         rows.append({COL_WF_METRIC: key, COL_WF_VALUE: value})
 
+    # 2-2. 선택적(optional) 키 처리
+    optional_keys = ["stitched_rmse"]
+    for key in optional_keys:
+        if key in summary_data:
+            value = summary_data[key]
+            if isinstance(value, float):
+                value = round(value, 4)
+            rows.append({COL_WF_METRIC: key, COL_WF_VALUE: value})
+
     df_summary = pd.DataFrame(rows)
 
     # 3. CSV 저장

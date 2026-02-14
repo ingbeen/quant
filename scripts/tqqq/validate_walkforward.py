@@ -26,7 +26,7 @@ from qbt.tqqq.constants import (
     WALKFORWARD_LOCAL_REFINE_B_STEP,
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
-from qbt.tqqq.simulation import run_walkforward_validation
+from qbt.tqqq.simulation import calculate_stitched_walkforward_rmse, run_walkforward_validation
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -79,18 +79,31 @@ def main() -> int:
     logger.debug(f"워크포워드 검증 완료: 소요시간 {elapsed_time:.2f}초")
     logger.debug("-" * 80)
 
-    # 4. 결과 요약 출력
+    # 4. 연속(stitched) 워크포워드 RMSE 계산
+    logger.debug("연속 워크포워드 RMSE 계산 시작...")
+    stitched_rmse = calculate_stitched_walkforward_rmse(
+        walkforward_result_df=result_df,
+        underlying_df=qqq_df,
+        actual_df=tqqq_df,
+        ffr_df=ffr_df,
+        expense_df=expense_df,
+    )
+    summary["stitched_rmse"] = stitched_rmse
+    logger.debug(f"연속 워크포워드 RMSE: {stitched_rmse:.4f}%")
+
+    # 5. 결과 요약 출력
     logger.debug("워크포워드 검증 결과 요약:")
     logger.debug(f"  테스트 월 수: {summary['n_test_months']}개월")
     logger.debug(f"  테스트 RMSE 평균: {summary['test_rmse_mean']:.4f}%")
     logger.debug(f"  테스트 RMSE 중앙값: {summary['test_rmse_median']:.4f}%")
     logger.debug(f"  테스트 RMSE 표준편차: {summary['test_rmse_std']:.4f}%")
     logger.debug(f"  테스트 RMSE 범위: [{summary['test_rmse_min']:.4f}%, {summary['test_rmse_max']:.4f}%]")
+    logger.debug(f"  연속 워크포워드 RMSE: {stitched_rmse:.4f}%")
     logger.debug(f"  a 평균 (std): {summary['a_mean']:.4f} ({summary['a_std']:.4f})")
     logger.debug(f"  b 평균 (std): {summary['b_mean']:.4f} ({summary['b_std']:.4f})")
     logger.debug("-" * 80)
 
-    # 5. CSV 저장
+    # 6. CSV 저장
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     save_walkforward_results(result_df, TQQQ_WALKFORWARD_PATH)
@@ -99,7 +112,7 @@ def main() -> int:
     save_walkforward_summary(summary, TQQQ_WALKFORWARD_SUMMARY_PATH)
     logger.debug(f"워크포워드 요약 저장: {TQQQ_WALKFORWARD_SUMMARY_PATH}")
 
-    # 6. 메타데이터 저장
+    # 7. 메타데이터 저장
     metadata = {
         "funding_spread_mode": "softplus_ffr_monthly",
         "walkforward_settings": {
@@ -126,6 +139,7 @@ def main() -> int:
             "b_mean": round(summary["b_mean"], 4),
             "b_std": round(summary["b_std"], 4),
             "n_test_months": summary["n_test_months"],
+            "stitched_rmse": round(stitched_rmse, 4),
         },
         "elapsed_time_sec": round(elapsed_time, 2),
         "input_files": {

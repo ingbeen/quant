@@ -33,7 +33,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.common_constants import DISPLAY_DATE, QQQ_DATA_PATH
+from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
@@ -52,12 +52,10 @@ from qbt.tqqq.constants import (
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
-    EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
-    TQQQ_DATA_PATH,
     TQQQ_WALKFORWARD_PATH,
     TQQQ_WALKFORWARD_SUMMARY_PATH,
     WALKFORWARD_LOCAL_REFINE_A_DELTA,
@@ -65,17 +63,14 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.data_loader import (
     load_comparison_data,
-    load_expense_ratio_data,
     load_ffr_data,
 )
-from qbt.tqqq.simulation import calculate_stitched_walkforward_rmse
 from qbt.tqqq.visualization import (
     create_delta_scatter_chart,
     create_level_scatter_chart,
     create_level_timeseries_chart,
     create_rolling_correlation_chart,
 )
-from qbt.utils.data_loader import load_stock_data
 from qbt.utils.logger import setup_logger
 
 # ============================================================
@@ -498,47 +493,6 @@ def _load_static_spread_csv() -> pd.DataFrame | None:
     return pd.read_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
 
 
-@st.cache_data
-def _calculate_stitched_rmse(
-    walkforward_result_csv_path: str,
-) -> float | None:
-    """
-    연속(stitched) 워크포워드 RMSE를 계산한다.
-
-    워크포워드 결과 CSV와 원본 데이터(QQQ, TQQQ, FFR, Expense)를 로드하여
-    연속 시뮬레이션 기반 RMSE를 계산한다. 정적 RMSE와 동일 수식을 사용한다.
-
-    파일 경로 문자열만 캐시 키로 사용하여 앱 기동 시 1회만 계산한다.
-
-    Args:
-        walkforward_result_csv_path: 워크포워드 결과 CSV 경로 (캐시 키)
-
-    Returns:
-        연속 RMSE (%) 또는 None (데이터 부족/오류)
-    """
-    try:
-        # 1. 데이터 로드
-        wf_result_df = pd.read_csv(walkforward_result_csv_path)
-        qqq_df = load_stock_data(QQQ_DATA_PATH)
-        tqqq_df = load_stock_data(TQQQ_DATA_PATH)
-        ffr_df = load_ffr_data(FFR_DATA_PATH)
-        expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
-
-        # 2. 연속 RMSE 계산
-        rmse = calculate_stitched_walkforward_rmse(
-            walkforward_result_df=wf_result_df,
-            underlying_df=qqq_df,
-            actual_df=tqqq_df,
-            ffr_df=ffr_df,
-            expense_df=expense_df,
-        )
-
-        return rmse
-    except Exception as e:
-        logger.debug(f"연속 RMSE 계산 실패: {e}")
-        return None
-
-
 def _render_softplus_section() -> None:
     """Softplus 동적 Spread 튜닝 결과 섹션을 렌더링한다."""
     st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
@@ -821,10 +775,8 @@ def _render_rmse_comparison(summary: dict[str, float]) -> None:
     if tuning_df is not None and len(tuning_df) > 0:
         static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
 
-    # 연속 워크포워드 RMSE 계산
-    stitched_rmse: float | None = None
-    if TQQQ_WALKFORWARD_PATH.exists():
-        stitched_rmse = _calculate_stitched_rmse(str(TQQQ_WALKFORWARD_PATH))
+    # 연속 워크포워드 RMSE (summary CSV에서 읽기)
+    stitched_rmse: float | None = summary.get("stitched_rmse")  # type: ignore[assignment]
 
     # 3개 지표 표시
     col1, col2, col3 = st.columns(3)
@@ -848,6 +800,7 @@ def _render_rmse_comparison(summary: dict[str, float]) -> None:
             value=f"{summary['test_rmse_mean']:.4f}",
         )
 
+    # 용어 설명 + 해석 방법
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -861,15 +814,66 @@ def _render_rmse_comparison(summary: dict[str, float]) -> None:
 
 - **정적 RMSE > 연속 워크포워드 RMSE**이면: 워크포워드가 연속 시뮬에서도 정적보다 우수 → 동적 spread의 실질적 개선 효과
 - **정적 RMSE ≈ 연속 워크포워드 RMSE**이면: 워크포워드가 정적과 비슷 → 추가 복잡성 대비 이득이 크지 않음
-- **정적 RMSE < 연속 워크포워드 RMSE**이면: 워크포워드가 과적합 가능성 → 파라미터 변동이 오히려 성능 저하
-
-## 현재 지표 해석 & 판단(결과)
-
-- 이 비교를 통해 "월별 리셋 RMSE가 낮다"는 것이 실제 연속 운용에서도 유효한지 확인할 수 있습니다.
-- 연속 RMSE가 정적보다 확실히 낮으면, 동적 spread 전략의 실전 적용 근거가 강화됩니다."""
+- **정적 RMSE < 연속 워크포워드 RMSE**이면: 워크포워드가 과적합 가능성 → 파라미터 변동이 오히려 성능 저하"""
     )
 
+    # 현재 지표 해석 (동적 생성)
+    _render_rmse_interpretation(static_rmse, stitched_rmse, summary["test_rmse_mean"])
+
     st.divider()
+
+
+def _render_rmse_interpretation(
+    static_rmse: float | None,
+    stitched_rmse: float | None,
+    monthly_reset_rmse: float,
+) -> None:
+    """
+    현재 RMSE 수치를 기반으로 해석 결과를 표시한다.
+
+    정적 RMSE와 연속 워크포워드 RMSE의 대소 관계에 따라
+    동적 spread 전략의 유효성을 판단하는 텍스트를 생성한다.
+
+    Args:
+        static_rmse: 정적 RMSE (%) 또는 None
+        stitched_rmse: 연속 워크포워드 RMSE (%) 또는 None
+        monthly_reset_rmse: 월별 리셋 평균 RMSE (%)
+    """
+    st.markdown("## 현재 지표 해석 & 판단(결과)")
+
+    if static_rmse is None or stitched_rmse is None:
+        st.info("정적 RMSE 또는 연속 워크포워드 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
+        return
+
+    # 대소 관계 판단
+    if static_rmse > stitched_rmse:
+        # 워크포워드 우수
+        diff = static_rmse - stitched_rmse
+        st.markdown(
+            f"- **정적 RMSE({static_rmse:.4f}%) > 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
+            f"→ 워크포워드가 정적보다 **{diff:.4f}%p 낮아** 연속 시뮬에서도 우수합니다.\n"
+            f"- 동적 spread 전략이 실제 연속 운용에서도 정적 모델 대비 개선 효과가 있음을 의미합니다.\n"
+            f"- 월별 리셋 평균 RMSE({monthly_reset_rmse:.4f}%)가 낮은 것이 단순 리셋 효과가 아닌, "
+            f"실제 경로 추적 성능 개선임이 확인됩니다."
+        )
+    elif static_rmse < stitched_rmse:
+        # 워크포워드 열등 → 과적합 가능성
+        diff = stitched_rmse - static_rmse
+        st.markdown(
+            f"- **정적 RMSE({static_rmse:.4f}%) < 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
+            f"→ 워크포워드가 정적보다 **{diff:.4f}%p 높아** 과적합 가능성이 있습니다.\n"
+            f"- 월별로 (a, b)를 변경하는 것이 오히려 누적 오차를 키우고 있습니다.\n"
+            f"- 월별 리셋 평균 RMSE({monthly_reset_rmse:.4f}%)가 낮게 보이는 것은 "
+            f"매월 시작가격을 리셋하여 누적 오차가 상쇄되기 때문입니다.\n"
+            f"- 현재로서는 **전체기간 고정 (a, b)를 사용하는 정적 모델이 연속 운용에 더 안정적**입니다."
+        )
+    else:
+        # 동일
+        st.markdown(
+            f"- **정적 RMSE({static_rmse:.4f}%) ≈ 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
+            f"→ 두 방식의 성능이 유사합니다.\n"
+            f"- 워크포워드의 추가 복잡성 대비 실질적 이득이 크지 않습니다."
+        )
 
 
 def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:

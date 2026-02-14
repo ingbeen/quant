@@ -10,3 +10,4 @@ b_mean,0.5247
 b_std,0.6001
 n_test_months,131.0
 train_window_months,60.0
+stitched_rmse,2.9167

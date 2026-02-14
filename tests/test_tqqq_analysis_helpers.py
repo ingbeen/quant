@@ -1334,6 +1334,7 @@ class TestSaveWalkforwardSummary:
             "b_std": 0.0234,
             "n_test_months": 24,
             "train_window_months": 60,
+            "stitched_rmse": 2.9258,
         }
         output_path = tmp_path / "walkforward_summary.csv"
 
@@ -1343,10 +1344,11 @@ class TestSaveWalkforwardSummary:
         # Then
         assert output_path.exists()
         saved_df = pd.read_csv(output_path)
-        assert len(saved_df) == 11  # 11개 지표
+        assert len(saved_df) == 12  # 11개 필수 + 1개 선택(stitched_rmse)
         assert list(saved_df.columns) == ["metric", "value"]
         assert saved_df[saved_df["metric"] == "test_rmse_mean"]["value"].iloc[0] == pytest.approx(1.5678, abs=0.00001)
         assert saved_df[saved_df["metric"] == "n_test_months"]["value"].iloc[0] == 24
+        assert saved_df[saved_df["metric"] == "stitched_rmse"]["value"].iloc[0] == pytest.approx(2.9258, abs=0.00001)
 
     def test_save_walkforward_summary_rounding(self, tmp_path):
         """
@@ -1441,6 +1443,38 @@ class TestSaveWalkforwardSummary:
         assert n_months == 24
         train_window = saved_df[saved_df["metric"] == "train_window_months"]["value"].iloc[0]
         assert train_window == 60
+
+    def test_save_walkforward_summary_without_stitched_rmse(self, tmp_path):
+        """
+        stitched_rmse 없이도 정상 저장 테스트 (하위 호환성)
+
+        Given: stitched_rmse가 없는 요약 딕셔너리
+        When: save_walkforward_summary 호출
+        Then: 11개 필수 지표만 저장
+        """
+        # Given
+        summary = {
+            "test_rmse_mean": 1.5678,
+            "test_rmse_median": 1.4567,
+            "test_rmse_std": 0.2345,
+            "test_rmse_min": 1.0123,
+            "test_rmse_max": 2.1234,
+            "a_mean": -6.45,
+            "a_std": 0.1234,
+            "b_mean": 0.81,
+            "b_std": 0.0234,
+            "n_test_months": 24,
+            "train_window_months": 60,
+        }
+        output_path = tmp_path / "walkforward_summary_no_stitched.csv"
+
+        # When
+        save_walkforward_summary(summary, output_path)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert len(saved_df) == 11  # 필수 11개만
+        assert "stitched_rmse" not in saved_df["metric"].values
 
 
 class TestSaveStaticSpreadSeries:
