@@ -12,7 +12,21 @@
 
 ## 모듈 구성
 
-### 1. constants.py
+### 1. types.py
+
+백테스트 도메인의 TypedDict 정의를 제공합니다.
+
+주요 타입:
+
+- `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약)
+- `BuyAndHoldResultDict`: `run_buy_and_hold()` 반환 타입
+- `BufferStrategyResultDict`: `run_buffer_strategy()` 반환 타입
+- `EquityRecord`: equity 기록 딕셔너리
+- `TradeRecord`: 거래 기록 딕셔너리
+- `HoldState`: hold_days 상태머신 상태
+- `GridSearchResult`: 그리드 서치 결과 딕셔너리
+
+### 2. constants.py
 
 백테스트 도메인 전용 상수를 정의합니다.
 
@@ -24,7 +38,7 @@
 - 동적 조정: `BUFFER_INCREMENT_PER_BUY`, `HOLD_DAYS_INCREMENT_PER_BUY`
 - 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUFFER_ZONE_PCT_LIST` 등
 
-### 2. analysis.py
+### 3. analysis.py
 
 이동평균 계산 및 성과 지표 분석 함수를 제공합니다.
 
@@ -33,7 +47,7 @@
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 
-### 3. strategy.py
+### 4. strategy.py
 
 전략 실행 엔진의 핵심 모듈입니다.
 

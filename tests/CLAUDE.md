@@ -17,10 +17,18 @@ tests/
 ├── CLAUDE.md # tests 관련 규칙 (이 문서)
 ├── conftest.py # 공통 픽스처
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
+├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
+├── test_formatting.py # 터미널 출력 포맷팅 테스트
+├── test_logger.py # 로거 테스트
 ├── test_meta_manager.py # 메타데이터 관리 테스트
+├── test_numpy_warnings.py # NumPy 부동소수점 경고 테스트
+├── test_parallel_executor.py # 병렬 처리 테스트
 ├── test_strategy.py # 백테스트 전략 테스트
-└── test_tqqq_simulation.py # TQQQ 시뮬레이션 테스트
+├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
+├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
+├── test_tqqq_simulation.py # TQQQ 시뮬레이션 테스트
+└── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
 
 # pytest 설정 (루트 디렉토리)
 
@@ -107,7 +115,7 @@ poetry run pytest tests/test_xxx.py -s -vv
   - 복리 효과 검증
   - 누적배수 로그차이 계산 (스케일 무관 추적오차)
   - 겹치는 기간 추출 (`extract_overlap_period`)
-  - 비용 모델 최적화 (`find_optimal_cost_model`)
+  - Softplus 파라미터 최적화 (`find_optimal_softplus_params`)
 
 - 공통 유틸리티:
 
@@ -118,10 +126,18 @@ poetry run pytest tests/test_xxx.py -s -vv
 근거 위치:
 
 - [test_strategy.py](test_strategy.py)
-- [test_tqqq_simulation.py](test_tqqq_simulation.py)
-- [test_meta_manager.py](test_meta_manager.py)
-- [test_data_loader.py](test_data_loader.py)
 - [test_analysis.py](test_analysis.py)
+- [test_tqqq_simulation.py](test_tqqq_simulation.py)
+- [test_tqqq_analysis_helpers.py](test_tqqq_analysis_helpers.py)
+- [test_tqqq_data_loader.py](test_tqqq_data_loader.py)
+- [test_tqqq_visualization.py](test_tqqq_visualization.py)
+- [test_data_loader.py](test_data_loader.py)
+- [test_meta_manager.py](test_meta_manager.py)
+- [test_parallel_executor.py](test_parallel_executor.py)
+- [test_cli_helpers.py](test_cli_helpers.py)
+- [test_formatting.py](test_formatting.py)
+- [test_logger.py](test_logger.py)
+- [test_numpy_warnings.py](test_numpy_warnings.py)
 
 ---
 

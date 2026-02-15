@@ -72,6 +72,8 @@ quant/
 │   ├── data/          # 데이터 다운로드
 │   ├── backtest/      # 백테스트 실행
 │   └── tqqq/          # 레버리지 ETF 관련
+│       ├── generate_synthetic.py          # 합성 데이터 생성
+│       ├── generate_daily_comparison.py   # 일별 비교 데이터 생성
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱
@@ -79,10 +81,12 @@ quant/
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
 │   │   ├── constants.py  # 백테스트 전용 상수
+│   │   ├── types.py      # TypedDict 정의 (성과 요약, 거래 기록, 그리드 서치 등)
 │   │   ├── analysis.py   # 이동평균 계산 및 성과 지표
 │   │   └── strategy.py   # 전략 실행 엔진
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
+│   │   ├── types.py            # TypedDict 정의 (검증 지표, 워크포워드 요약 등)
 │   │   ├── simulation.py       # 시뮬레이션 엔진
 │   │   ├── analysis_helpers.py # 금리-오차 분석 함수
 │   │   ├── visualization.py    # Plotly 차트 생성
@@ -362,8 +366,11 @@ CLI 계층 (`scripts/`):
 
 - `tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
 - `tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
-- `tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
 - `tqqq_rate_spread_lab_*.csv`: 금리-오차 분석 결과 (monthly, summary, model)
+- `tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
+- `tqqq_rate_spread_lab_walkforward_fixed_b.csv`: b 고정 워크포워드 검증 결과
+- `tqqq_rate_spread_lab_walkforward_fixed_ab.csv`: 완전 고정 (a,b) 워크포워드 검증 결과
+- 각 워크포워드 CSV에 대응하는 `*_summary.csv` 파일 존재
 
 ### 데이터 로딩 (utils/data_loader.py)
 

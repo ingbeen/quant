@@ -13,7 +13,18 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 
 ## 모듈 구성
 
-### 1. constants.py
+### 1. types.py
+
+레버리지 ETF 시뮬레이션 도메인의 TypedDict 정의를 제공합니다.
+
+주요 타입:
+
+- `ValidationMetricsDict`: `calculate_validation_metrics()` 반환 타입 (검증 지표)
+- `SoftplusCandidateDict`: softplus 후보 평가 결과 (ValidationMetricsDict 상속)
+- `SimulationCacheDict`: 병렬 처리 시 WORKER_CACHE 데이터 구조
+- `WalkforwardSummaryDict`: `run_walkforward_validation()` 반환 요약 통계
+
+### 2. constants.py
 
 레버리지 ETF 시뮬레이션 도메인 전용 상수를 정의합니다.
 
@@ -23,7 +34,7 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 - 비용 모델 파라미터 (기본값, 그리드 서치 범위, 검증 임계값)
 - 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 
-### 2. data_loader.py
+### 3. data_loader.py
 
 TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제공합니다.
 
@@ -46,7 +57,7 @@ TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제
 
 DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
-### 3. simulation.py
+### 4. simulation.py
 
 레버리지 ETF 시뮬레이션 엔진을 제공합니다.
 
@@ -58,7 +69,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `extract_overlap_period`: 기초 자산과 실제 레버리지 ETF의 겹치는 기간 추출
 - `run_walkforward_validation`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 
-### 4. analysis_helpers.py
+### 5. analysis_helpers.py
 
 금리-오차 관계 분석을 위한 계산, 집계, 검증, CSV 저장 함수를 제공합니다.
 
@@ -85,7 +96,7 @@ CSV 저장:
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
-### 5. visualization.py
+### 6. visualization.py
 
 Plotly 기반 차트 생성 함수를 제공합니다.
 
