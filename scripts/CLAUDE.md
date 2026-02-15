@@ -142,7 +142,7 @@ main 함수:
   - `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
 - 대시보드 앱:
   - `app_daily_comparison.py`: 일별 비교 대시보드
-  - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용)
+  - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
 
 ---
 

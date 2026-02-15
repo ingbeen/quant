@@ -1,6 +1,7 @@
 """TQQQ 금리-오차 관계 분석 연구용 앱
 
-금리 환경과 시뮬레이션 오차의 관계를 시각화하여 spread 조정 전략 수립을 지원한다.
+금리 환경과 시뮬레이션 오차의 관계를 시각화하여 Softplus 동적 스프레드 모델의
+검증 결과를 확인한다.
 
 실행 명령어:
     poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
@@ -8,11 +9,11 @@
 사전 준비:
     poetry run python scripts/tqqq/generate_rate_spread_lab.py
 
-주요 기능:
-- Level 탭: 금리 수준 vs 월말 누적 signed 오차
-- Delta 탭: 금리 변화 vs 오차 변화, Lag 효과, Rolling 상관
-- 교차검증: de_m vs sum_daily_m 차이 분석
-- Softplus 동적 Spread 결과 조회: CLI로 생성된 CSV 파일 로드
+화면 구성 (단일 흐름):
+- 금리-오차 관계 분석: 금리 수준 vs 월말 누적 오차 (핵심), 델타 분석, 교차검증
+- Softplus 모델 튜닝 결과: 전체기간 최적 파라미터 (a, b)
+- 과최적화 진단: 완전 고정 (a,b) 워크포워드 검증
+- 상세 분석: 모델 도출 과정 (워크포워드, b고정, Spread 비교)
 
 Fail-fast 정책:
 - ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
@@ -22,7 +23,7 @@ Fail-fast 정책:
 - 모든 화면 텍스트 한글화 ("한글 (영문)" 형식)
 - 명확한 레이블 및 설명 제공
 
-튜닝 실행:
+관련 CLI 스크립트:
 - softplus 튜닝: poetry run python scripts/tqqq/tune_softplus_params.py
 - 워크포워드 검증: poetry run python scripts/tqqq/validate_walkforward.py
 """
@@ -85,10 +86,6 @@ from qbt.utils.logger import setup_logger
 DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
 DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
 DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
-
-# --- Softplus 튜닝 모드 관련 ---
-MODE_FIXED_SPREAD = "고정 Spread"
-MODE_SOFTPLUS_DYNAMIC = "동적 Spread"
 
 # --- 튜닝 결과 CSV 컬럼명 ---
 COL_A = "a"
@@ -205,14 +202,35 @@ def _prepare_monthly_data(
 
 
 def _render_intro():
-    """타이틀 및 설명을 렌더링한다."""
+    """타이틀, 스프레드 모델 변천사, 읽기 가이드를 렌더링한다."""
     st.title("TQQQ 금리-오차 관계 분석")
     st.markdown(
-        """금리 환경과 시뮬레이션 오차의 관계를 시각화하여 **스프레드 조정 전략 (Spread Adjustment Strategy)** 수립을 지원합니다.
+        "금리 환경과 시뮬레이션 오차의 관계를 시각화하여 "
+        "**Softplus 동적 스프레드 모델**의 검증 결과를 확인합니다."
+    )
 
-**화면 구성**:
-- **핵심**: 금리 수준 vs 월말 누적 오차 (기본 표시)
-- **고급**: 델타 분석 (Delta Analysis), 교차검증 (Cross Validation) (클릭하여 열기)"""
+    # 스프레드 모델 변천사
+    st.info(
+        "**스프레드 모델 변천**\n\n"
+        "- **초기**: 고정 스프레드 (0.0034 = 0.34%) "
+        "— 금리 환경과 무관하게 일정한 비용\n"
+        "- **현재**: Softplus 동적 스프레드 "
+        "(spread = softplus(a + b × FFR%)) "
+        "— 금리에 따라 비용이 자동 조정\n"
+        "- **전환 이유**: 고정 스프레드는 고금리 구간에서 비용을 과소 반영하여 "
+        "과대평가 편향이 발생했으며, 이 앱의 금리-오차 분석이 전환 근거가 됨"
+    )
+
+    # 읽기 가이드
+    st.markdown(
+        """## 이 화면 읽는 법
+
+| 섹션 | 목적 | 중요도 |
+|------|------|--------|
+| **금리-오차 관계 분석** | 금리 수준/변화와 시뮬레이션 오차의 관계 파악 | 핵심 |
+| **Softplus 모델 튜닝 결과** | 전체기간 최적 파라미터 (a, b) 확인 | 핵심 |
+| **과최적화 진단** | 고정 파라미터가 미래에도 유효한지 검증 | 핵심 |
+| **상세 분석 (모델 도출 과정)** | Softplus 모델 선택까지의 중간 검증 과정 | 참고 |"""
     )
     st.divider()
 
@@ -278,7 +296,7 @@ def _render_level_section(monthly_df: pd.DataFrame):
 ## 현재 지표 해석 & 판단(결과)
 
 - 2026.02.08 기준으로 추세선이 **우상향**에 가깝습니다. → **금리 레벨이 높아질수록 월말 오차가 +쪽으로 치우칠 가능성**이 보입니다.
-- "고정 spread"는 고금리 구간에서 비용을 충분히 반영하지 못해 **과대평가 쪽 편향이 생길 수 있으니**, 동적 spread(금리 반영)의 필요성을 점검할 근거가 됩니다."""
+- 이 관찰이 **고정 스프레드(0.0034)에서 Softplus 동적 스프레드로 전환한 근거**가 되었습니다. 현재 데이터는 동적 스프레드 적용 후의 결과이며, 잔여 편향이 있는지 모니터링하는 용도로 활용합니다."""
     )
 
     st.divider()
@@ -313,7 +331,7 @@ def _render_level_section(monthly_df: pd.DataFrame):
 ## 현재 지표 해석 & 판단(결과)
 
 - 2026.02.08 기준으로 **시기별로 오차의 중심이 달라지는(한쪽으로 치우쳤다가 돌아오는) 모습**이 보입니다.
-- "한 개의 고정 spread"로 전 기간을 덮기보다는, **금리 레벨 같은 환경 변수로 비용을 조정하는 아이디어가 자연스럽다**는 쪽으로 해석할 수 있습니다."""
+- 이 패턴이 **금리 레벨에 따라 비용을 조정하는 Softplus 동적 스프레드 도입의 동기**가 되었습니다. 현재 데이터는 동적 스프레드 적용 후의 결과입니다."""
     )
 
     st.divider()
@@ -501,8 +519,8 @@ def _load_static_spread_csv() -> pd.DataFrame | None:
     return pd.read_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
 
 
-def _render_softplus_section() -> None:
-    """Softplus 동적 Spread 튜닝 결과 섹션을 렌더링한다."""
+def _render_softplus_tuning_section() -> None:
+    """Softplus 동적 Spread 파라미터 튜닝 결과 섹션을 렌더링한다."""
     st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
 
     # CSV 파일 로드
@@ -543,21 +561,26 @@ def _render_softplus_section() -> None:
 - "고금리에서 비용을 더 얹는(b>0)" 구조가 전체기간 추적 오차를 줄이는 데 유리하게 작동한 결과로 해석할 수 있습니다."""
     )
 
-    # 워크포워드 검증 섹션
-    st.divider()
-    _render_walkforward_section()
 
-    # b 고정 워크포워드 검증 섹션 (과최적화 진단)
-    st.divider()
-    _render_walkforward_fixed_b_section()
-
-    # 완전 고정 (a,b) 과최적화 진단 섹션
-    st.divider()
-    _render_overfitting_diagnosis_section()
-
-    # Spread 비교 시각화 섹션
-    st.divider()
-    _render_spread_comparison_section()
+def _render_detailed_analysis_section() -> None:
+    """상세 분석 섹션 (모델 도출 과정)을 렌더링한다."""
+    with st.expander(
+        "상세 분석: 모델 도출 과정 (워크포워드, b고정, Spread 비교)",
+        expanded=False,
+    ):
+        st.info(
+            "아래 섹션들은 Softplus 동적 스프레드 모델을 도출하고 검증하는 과정에서 "
+            "수행한 중간 분석입니다.\n\n"
+            "- **워크포워드 검증**: 파라미터가 시간에 따라 안정적인지 확인\n"
+            "- **b 고정 워크포워드**: b를 고정하고 a만 최적화하여 과최적화 진단\n"
+            "- **Spread 비교**: 고정 파라미터 vs 워크포워드 파라미터의 차이 시각화\n\n"
+            "최종 결론은 위의 **과최적화 진단** 섹션을 참고하세요."
+        )
+        _render_walkforward_section()
+        st.divider()
+        _render_walkforward_fixed_b_section()
+        st.divider()
+        _render_spread_comparison_section()
 
 
 def _display_tuning_result(tuning_df: pd.DataFrame) -> None:
@@ -1673,61 +1696,59 @@ def main():
             layout="wide",
         )
 
-        # 사이드바 - 모드 선택
+        # 사이드바
         with st.sidebar:
-            st.header("분석 모드 선택")
-            analysis_mode = st.radio(
-                "analysis_mode",
-                label_visibility="collapsed",
-                options=[MODE_FIXED_SPREAD, MODE_SOFTPLUS_DYNAMIC],
-                index=0,
-            )
-            st.divider()
+            st.header("TQQQ 금리-오차 분석")
             st.caption("QBT (Quant BackTest)")
 
-        # 타이틀 및 설명
+        # 타이틀, 히스토리, 읽기 가이드
         _render_intro()
 
-        # 모드에 따른 분기
-        if analysis_mode == MODE_SOFTPLUS_DYNAMIC:
-            # Softplus 동적 Spread 모드
-            _render_softplus_section()
-        else:
-            # 고정 Spread 모드 (기본)
-            # 데이터 로드 및 월별 집계
-            st.header("데이터 로딩 및 월별 집계")
+        # 데이터 로딩 및 월별 집계
+        st.header("데이터 로딩 및 월별 집계")
 
-            try:
-                # 1. 월별 데이터 빌드 (캐시됨)
-                monthly_df = build_artifacts(
-                    str(TQQQ_DAILY_COMPARISON_PATH),
-                    str(FFR_DATA_PATH),
-                )
-                st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
+        try:
+            # 1. 월별 데이터 빌드 (캐시됨)
+            monthly_df = build_artifacts(
+                str(TQQQ_DAILY_COMPARISON_PATH),
+                str(FFR_DATA_PATH),
+            )
+            st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
 
-                # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
-                monthly_df = add_rate_change_lags(monthly_df)
+            # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
+            monthly_df = add_rate_change_lags(monthly_df)
 
-                # 3. 요약 통계 표시
-                _render_dataset_metrics(monthly_df)
+            # 3. 요약 통계 표시
+            _render_dataset_metrics(monthly_df)
 
-            except ValueError as e:
-                st.error(f"월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 기간/형식 확인")
-                st.stop()
-            except Exception as e:
-                st.error(f"예상치 못한 오류:\n\n{str(e)}")
-                st.stop()
+        except ValueError as e:
+            st.error(f"월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 기간/형식 확인")
+            st.stop()
+        except Exception as e:
+            st.error(f"예상치 못한 오류:\n\n{str(e)}")
+            st.stop()
 
-            st.divider()
+        st.divider()
 
-            # Level 분석 (핵심)
-            _render_level_section(monthly_df)
+        # A. 금리-오차 관계 분석
+        _render_level_section(monthly_df)
+        _render_delta_section(monthly_df)
+        _render_cross_validation_section(monthly_df)
 
-            # Delta 분석 (고급)
-            _render_delta_section(monthly_df)
+        st.divider()
 
-            # 교차검증 (고급)
-            _render_cross_validation_section(monthly_df)
+        # B. Softplus 모델 튜닝 결과
+        _render_softplus_tuning_section()
+
+        st.divider()
+
+        # C. 과최적화 진단
+        _render_overfitting_diagnosis_section()
+
+        st.divider()
+
+        # D. 상세 분석 (모델 도출 과정)
+        _render_detailed_analysis_section()
 
         # 푸터
         st.markdown("---")
