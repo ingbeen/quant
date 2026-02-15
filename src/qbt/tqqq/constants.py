@@ -134,6 +134,11 @@ __all__ = [
     # b 고정 워크포워드 결과 경로
     "TQQQ_WALKFORWARD_FIXED_B_PATH",
     "TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH",
+    # 완전 고정 (a,b) 워크포워드 결과 경로
+    "TQQQ_WALKFORWARD_FIXED_AB_PATH",
+    "TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH",
+    # 금리 구간별 RMSE 분해
+    "DEFAULT_RATE_BOUNDARY_PCT",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -203,6 +208,13 @@ TQQQ_WALKFORWARD_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkf
 # --- b 고정 워크포워드 결과 파일 경로 ---
 TQQQ_WALKFORWARD_FIXED_B_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
 TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+
+# --- 완전 고정 (a,b) 워크포워드 결과 파일 경로 ---
+TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
+TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+
+# --- 금리 구간별 RMSE 분해 ---
+DEFAULT_RATE_BOUNDARY_PCT: Final = 2.0  # 금리 구간 경계값 (%, 0~2% = 저금리, 2%+ = 고금리)
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

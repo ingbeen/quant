@@ -24,6 +24,8 @@ from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
     calculate_daily_cost,
+    calculate_fixed_ab_stitched_rmse,
+    calculate_rate_segmented_rmse,
     calculate_stitched_walkforward_rmse,
     calculate_validation_metrics,
     compute_softplus_spread,
@@ -2406,17 +2408,11 @@ class TestRunWalkforwardValidation:
 
         # Then: 모든 결과 행의 b_best가 fixed_b와 동일
         for _, row in result_df.iterrows():
-            assert row["b_best"] == pytest.approx(fixed_b_value), (
-                f"b_best가 fixed_b와 동일해야 함: {row['b_best']}"
-            )
+            assert row["b_best"] == pytest.approx(fixed_b_value), f"b_best가 fixed_b와 동일해야 함: {row['b_best']}"
 
         # Then: summary의 b 통계
-        assert summary["b_mean"] == pytest.approx(fixed_b_value), (
-            f"b_mean이 fixed_b와 동일해야 함: {summary['b_mean']}"
-        )
-        assert summary["b_std"] == pytest.approx(0.0), (
-            f"b_std가 0이어야 함 (고정값): {summary['b_std']}"
-        )
+        assert summary["b_mean"] == pytest.approx(fixed_b_value), f"b_mean이 fixed_b와 동일해야 함: {summary['b_mean']}"
+        assert summary["b_std"] == pytest.approx(0.0), f"b_std가 0이어야 함 (고정값): {summary['b_std']}"
 
 
 # NOTE: 아래 테스트는 통합 테스트로서 실행 시간이 오래 걸립니다 (수십 분).
@@ -3024,3 +3020,217 @@ class TestCalculateStitchedWalkforwardRmse:
         assert stitched_rmse == pytest.approx(monthly_rmse, abs=1e-6), (
             f"1개월 워크포워드에서 연속 RMSE({stitched_rmse:.6f})와 " f"월별 RMSE({monthly_rmse:.6f})가 동일해야 합니다"
         )
+
+
+class TestCalculateFixedAbStitchedRmse:
+    """
+    calculate_fixed_ab_stitched_rmse() 함수 테스트
+
+    전체기간 최적 고정 (a, b)를 아웃오브샘플에 그대로 적용한 stitched RMSE를 검증한다.
+    """
+
+    @pytest.fixture
+    def fixed_ab_test_data(self):
+        """
+        고정 (a,b) stitched RMSE 테스트용 데이터 세트를 생성한다.
+
+        train_window_months=2로 설정하여 3개월 중 마지막 1개월이 테스트 기간이 된다.
+        """
+        # 기초자산 (QQQ) - 3개월, 각 월 약 15~21 거래일
+        base_dates = []
+        base_close = []
+        price = 100.0
+        for month in [1, 2, 3]:
+            for day in range(1, 22):
+                try:
+                    d = date(2023, month, day)
+                    if d.weekday() < 5:
+                        base_dates.append(d)
+                        price *= 1.001
+                        base_close.append(round(price, 2))
+                except ValueError:
+                    pass
+
+        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: base_close})
+
+        # 실제 TQQQ - 3배 레버리지 근사
+        tqqq_prices = [50.0]
+        for i in range(1, len(base_close)):
+            daily_ret = base_close[i] / base_close[i - 1] - 1
+            leveraged_ret = daily_ret * 3.0 - 0.0002
+            tqqq_prices.append(round(tqqq_prices[-1] * (1 + leveraged_ret), 2))
+
+        actual_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: tqqq_prices})
+
+        # FFR 데이터
+        ffr_df = pd.DataFrame(
+            {
+                COL_FFR_DATE: ["2022-11", "2022-12", "2023-01", "2023-02", "2023-03"],
+                COL_FFR_VALUE: [0.04, 0.045, 0.045, 0.046, 0.047],
+            }
+        )
+
+        # Expense 데이터
+        expense_df = pd.DataFrame(
+            {
+                "DATE": ["2022-01", "2023-01", "2023-02", "2023-03"],
+                "VALUE": [0.0095, 0.0095, 0.0095, 0.0095],
+            }
+        )
+
+        return {
+            "underlying_df": underlying_df,
+            "actual_df": actual_df,
+            "ffr_df": ffr_df,
+            "expense_df": expense_df,
+        }
+
+    def test_calculate_fixed_ab_stitched_rmse_basic(self, fixed_ab_test_data):
+        """
+        목적: 고정 (a,b) stitched RMSE 계산이 정상 동작하는지 검증
+
+        Given: 3개월 QQQ/TQQQ/FFR/Expense 데이터, a=-6.0, b=0.4, train_window=2개월
+        When: calculate_fixed_ab_stitched_rmse() 호출
+        Then: float 반환, 양수, 합리적 범위 내 (0~100)
+        """
+        # Given
+        data = fixed_ab_test_data
+
+        # When
+        rmse = calculate_fixed_ab_stitched_rmse(
+            underlying_df=data["underlying_df"],
+            actual_df=data["actual_df"],
+            ffr_df=data["ffr_df"],
+            expense_df=data["expense_df"],
+            a=-6.0,
+            b=0.4,
+            train_window_months=2,
+        )
+
+        # Then
+        assert isinstance(rmse, float)
+        assert rmse > 0, "RMSE는 양수여야 합니다"
+        assert rmse < 100, "RMSE가 비정상적으로 크면 안 됩니다"
+
+    def test_calculate_fixed_ab_stitched_rmse_empty_data(self, fixed_ab_test_data):
+        """
+        목적: 빈 데이터 입력 시 ValueError 발생 검증
+
+        Given: 빈 underlying_df
+        When: calculate_fixed_ab_stitched_rmse() 호출
+        Then: ValueError 발생
+        """
+        # Given
+        data = fixed_ab_test_data
+        empty_df = pd.DataFrame(columns=[COL_DATE, COL_CLOSE])
+
+        # When & Then
+        with pytest.raises(ValueError, match="비어있습니다"):
+            calculate_fixed_ab_stitched_rmse(
+                underlying_df=empty_df,
+                actual_df=data["actual_df"],
+                ffr_df=data["ffr_df"],
+                expense_df=data["expense_df"],
+                a=-6.0,
+                b=0.4,
+                train_window_months=2,
+            )
+
+
+class TestCalculateRateSegmentedRmse:
+    """
+    calculate_rate_segmented_rmse() 함수 테스트
+
+    금리 구간별 RMSE 분해가 정상 동작하는지 검증한다.
+    """
+
+    def test_calculate_rate_segmented_rmse_basic(self):
+        """
+        목적: 저금리/고금리 혼합 데이터에서 금리 구간별 RMSE 분해 검증
+
+        Given: 저금리(1%) 3일 + 고금리(5%) 3일 데이터
+        When: calculate_rate_segmented_rmse() 호출
+        Then: low_rate_rmse, high_rate_rmse 모두 양수, 각 일수 정확
+        """
+        # Given: 6일간 가격 데이터
+        actual_prices = np.array([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])
+        # 시뮬레이션은 약간 다르게
+        simulated_prices = np.array([100.0, 100.5, 101.5, 102.0, 103.5, 104.0])
+
+        # 저금리 3일 + 고금리 3일
+        dates = [
+            date(2023, 1, 2),  # 저금리 (1%)
+            date(2023, 1, 3),
+            date(2023, 1, 4),
+            date(2023, 6, 1),  # 고금리 (5%)
+            date(2023, 6, 2),
+            date(2023, 6, 5),
+        ]
+
+        # FFR: 1월은 1% (저금리), 6월은 5% (고금리)
+        ffr_df = pd.DataFrame(
+            {
+                "DATE": ["2022-11", "2022-12", "2023-01", "2023-02", "2023-03", "2023-04", "2023-05", "2023-06"],
+                "VALUE": [0.01, 0.01, 0.01, 0.01, 0.03, 0.04, 0.05, 0.05],
+            }
+        )
+
+        # When
+        result = calculate_rate_segmented_rmse(
+            actual_prices=actual_prices,
+            simulated_prices=simulated_prices,
+            dates=dates,
+            ffr_df=ffr_df,
+            rate_boundary_pct=2.0,
+        )
+
+        # Then
+        assert result["low_rate_rmse"] is not None
+        assert result["high_rate_rmse"] is not None
+        assert result["low_rate_rmse"] > 0
+        assert result["high_rate_rmse"] > 0
+        assert result["low_rate_days"] == 3
+        assert result["high_rate_days"] == 3
+        assert result["rate_boundary_pct"] == 2.0
+
+    def test_calculate_rate_segmented_rmse_single_segment(self):
+        """
+        목적: 모든 데이터가 한 구간에만 속할 때 (모두 저금리) 정상 동작 검증
+
+        Given: 모든 거래일이 저금리(1%) 구간
+        When: calculate_rate_segmented_rmse() 호출
+        Then: low_rate_rmse는 양수, high_rate_rmse는 None, high_rate_days는 0
+        """
+        # Given: 모두 저금리
+        actual_prices = np.array([100.0, 101.0, 102.0, 103.0])
+        simulated_prices = np.array([100.0, 100.8, 101.5, 102.5])
+
+        dates = [
+            date(2023, 1, 2),
+            date(2023, 1, 3),
+            date(2023, 1, 4),
+            date(2023, 1, 5),
+        ]
+
+        ffr_df = pd.DataFrame(
+            {
+                "DATE": ["2022-11", "2022-12", "2023-01"],
+                "VALUE": [0.01, 0.01, 0.01],  # 모두 1% (저금리)
+            }
+        )
+
+        # When
+        result = calculate_rate_segmented_rmse(
+            actual_prices=actual_prices,
+            simulated_prices=simulated_prices,
+            dates=dates,
+            ffr_df=ffr_df,
+            rate_boundary_pct=2.0,
+        )
+
+        # Then
+        assert result["low_rate_rmse"] is not None
+        assert result["low_rate_rmse"] > 0
+        assert result["high_rate_rmse"] is None
+        assert result["low_rate_days"] == 4
+        assert result["high_rate_days"] == 0

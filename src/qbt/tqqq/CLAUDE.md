@@ -258,6 +258,8 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 - `generate_rate_spread_lab.py`: 금리-오차 관계 분석용 CSV 3개 생성 (monthly, summary, model)
 - `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
 - `validate_walkforward.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
+- `validate_walkforward_fixed_b.py`: b 고정 워크포워드 검증 (b 고정, a만 최적화)
+- `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
 
 ---
 

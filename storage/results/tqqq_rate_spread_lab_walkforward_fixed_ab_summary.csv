@@ -1,0 +1,13 @@
+metric,value
+test_rmse_mean,0.1245
+test_rmse_median,0.0944
+test_rmse_std,0.1289
+test_rmse_min,0.0254
+test_rmse_max,1.3619
+a_mean,-6.1
+a_std,0.0
+b_mean,0.37
+b_std,0.0
+n_test_months,131.0
+train_window_months,60.0
+stitched_rmse,1.3589

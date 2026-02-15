@@ -56,6 +56,8 @@ from qbt.tqqq.constants import (
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
+    TQQQ_WALKFORWARD_FIXED_AB_PATH,
+    TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH,
     TQQQ_WALKFORWARD_FIXED_B_PATH,
     TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH,
     TQQQ_WALKFORWARD_PATH,
@@ -98,6 +100,10 @@ DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
 DISPLAY_AXIS_DIFF_PCT = "차이 (%)"  # X축 레이블
 DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
 DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
+
+# --- 과최적화 진단 임계값 ---
+OVERFITTING_THRESHOLD_LOW = 0.5  # 약한 과최적화 경계 (%p)
+OVERFITTING_THRESHOLD_HIGH = 1.5  # 강한 과최적화 경계 (%p)
 
 # ============================================================
 # Logger 설정
@@ -545,6 +551,10 @@ def _render_softplus_section() -> None:
     st.divider()
     _render_walkforward_fixed_b_section()
 
+    # 완전 고정 (a,b) 과최적화 진단 섹션
+    st.divider()
+    _render_overfitting_diagnosis_section()
+
     # Spread 비교 시각화 섹션
     st.divider()
     _render_spread_comparison_section()
@@ -814,6 +824,215 @@ def _render_fixed_b_interpretation(
 
     for finding in findings:
         st.markdown(finding)
+
+
+# ============================================================
+# 완전 고정 (a,b) 과최적화 진단 섹션
+# ============================================================
+
+
+@st.cache_data
+def _load_walkforward_fixed_ab_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+    """
+    완전 고정 (a,b) 워크포워드 검증 결과 CSV를 로드한다.
+
+    Returns:
+        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
+    """
+    if not TQQQ_WALKFORWARD_FIXED_AB_PATH.exists() or not TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH.exists():
+        return None, None
+
+    result_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_AB_PATH)
+    summary_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH)
+
+    return result_df, summary_df
+
+
+def _render_overfitting_diagnosis_section() -> None:
+    """완전 고정 (a,b) 과최적화 진단 섹션을 렌더링한다."""
+    st.header("과최적화 진단 (완전 고정 a,b)")
+
+    # CSV 로드
+    fab_result_df, fab_summary_df = _load_walkforward_fixed_ab_csv()
+
+    if fab_result_df is None or fab_summary_df is None:
+        st.warning(
+            f"완전 고정 (a,b) 워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
+            f"파일 경로:\n"
+            f"- `{TQQQ_WALKFORWARD_FIXED_AB_PATH}`\n"
+            f"- `{TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH}`\n\n"
+            f"**검증 실행 방법**:\n"
+            f"```bash\n"
+            f"poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py\n"
+            f"```"
+        )
+        return
+
+    # summary를 딕셔너리로 변환
+    fab_summary = dict(zip(fab_summary_df["metric"], fab_summary_df["value"], strict=False))
+
+    # 기존 데이터 로드
+    dyn_result_df, dyn_summary_df = _load_walkforward_csv()
+    dyn_summary: dict[str, float] | None = None
+    if dyn_summary_df is not None:
+        dyn_summary = dict(zip(dyn_summary_df["metric"], dyn_summary_df["value"], strict=False))
+
+    fb_result_df, fb_summary_df = _load_walkforward_fixed_b_csv()
+    fb_summary: dict[str, float] | None = None
+    if fb_summary_df is not None:
+        fb_summary = dict(zip(fb_summary_df["metric"], fb_summary_df["value"], strict=False))
+
+    # 정적 RMSE
+    tuning_df = _load_softplus_tuning_csv()
+    static_rmse: float | None = None
+    if tuning_df is not None and len(tuning_df) > 0:
+        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
+
+    # --- RMSE 4자 비교 ---
+    st.subheader("RMSE 4자 비교 (인샘플 vs 아웃오브샘플)")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if static_rmse is not None:
+            st.metric(label="정적 RMSE (%)\n(인샘플)", value=f"{static_rmse:.4f}")
+        else:
+            st.metric(label="정적 RMSE (%)", value="N/A")
+
+    with col2:
+        fab_stitched: float | None = fab_summary.get("stitched_rmse")  # type: ignore[assignment]
+        if fab_stitched is not None:
+            st.metric(
+                label="완전 고정 WF stitched RMSE (%)\n(아웃오브샘플)",
+                value=f"{fab_stitched:.4f}",
+            )
+        else:
+            st.metric(label="완전 고정 WF stitched RMSE (%)", value="N/A")
+
+    with col3:
+        dyn_stitched = dyn_summary.get("stitched_rmse") if dyn_summary else None
+        if dyn_stitched is not None:
+            st.metric(label="동적 WF stitched RMSE (%)\n(a,b 모두 최적화)", value=f"{dyn_stitched:.4f}")
+        else:
+            st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
+
+    with col4:
+        fb_stitched: float | None = fb_summary.get("stitched_rmse") if fb_summary else None  # type: ignore[assignment]
+        if fb_stitched is not None:
+            st.metric(label="b고정 WF stitched RMSE (%)\n(b 고정, a만 최적화)", value=f"{fb_stitched:.4f}")
+        else:
+            st.metric(label="b고정 WF stitched RMSE (%)", value="N/A")
+
+    # --- 과최적화 판단 로직 ---
+    if fab_stitched is not None and static_rmse is not None:
+        gap = fab_stitched - static_rmse
+        st.subheader("과최적화 판단")
+
+        if gap < OVERFITTING_THRESHOLD_LOW:
+            st.success(
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (< {OVERFITTING_THRESHOLD_LOW}%p)\n\n"
+                f"**판단: 과최적화 아님** - 전체기간 최적 (a,b) 파라미터가 잘 일반화되고 있습니다."
+            )
+        elif gap < OVERFITTING_THRESHOLD_HIGH:
+            st.warning(
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** ({OVERFITTING_THRESHOLD_LOW}~{OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
+                f"**판단: 약한 과최적화** - 실용적 범위이지만 모니터링이 필요합니다."
+            )
+        else:
+            st.error(
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (> {OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
+                f"**판단: 과최적화 의심** - 다른 접근(동적 모델 등) 검토가 필요합니다."
+            )
+
+    # --- 금리 구간별 RMSE 비교 ---
+    st.subheader("금리 구간별 RMSE 분해")
+
+    # summary에서 금리 구간별 RMSE는 메타데이터에 저장되므로, 여기선 summary CSV에서 로드
+    # summary CSV에는 기본 키만 있으므로, 메타 정보가 없으면 N/A 처리
+    col1, col2 = st.columns(2)
+
+    # 금리 구간 정보는 메타데이터에 저장되었으므로 직접 표시 불가 시 안내
+    with col1:
+        st.markdown("**저금리 (0~2%)**")
+        st.info("금리 구간별 RMSE는 스크립트 실행 로그에서 확인 가능합니다.")
+
+    with col2:
+        st.markdown("**고금리 (2%+)**")
+        st.info("금리 구간별 RMSE는 스크립트 실행 로그에서 확인 가능합니다.")
+
+    # --- 월별 테스트 RMSE 추이 차트 ---
+    with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정 vs 완전 고정)", expanded=True):
+        fig_rmse = go.Figure()
+
+        # 동적 워크포워드
+        if dyn_result_df is not None:
+            fig_rmse.add_trace(
+                go.Scatter(
+                    x=dyn_result_df["test_month"],
+                    y=dyn_result_df["test_rmse_pct"],
+                    mode="lines",
+                    name="동적 WF (a,b 최적화)",
+                    line={"color": "red", "width": 1.5},
+                    opacity=0.7,
+                )
+            )
+
+        # b 고정 워크포워드
+        if fb_result_df is not None:
+            fb_fixed_b_value = fb_summary.get("b_mean", 0) if fb_summary else 0
+            fig_rmse.add_trace(
+                go.Scatter(
+                    x=fb_result_df["test_month"],
+                    y=fb_result_df["test_rmse_pct"],
+                    mode="lines",
+                    name=f"b고정 WF (b={fb_fixed_b_value:.2f})",
+                    line={"color": "blue", "width": 1.5},
+                    opacity=0.7,
+                )
+            )
+
+        # 완전 고정 워크포워드
+        fig_rmse.add_trace(
+            go.Scatter(
+                x=fab_result_df["test_month"],
+                y=fab_result_df["test_rmse_pct"],
+                mode="lines",
+                name="완전 고정 WF (a,b 고정)",
+                line={"color": "green", "width": 1.5},
+                opacity=0.7,
+            )
+        )
+
+        fig_rmse.update_layout(
+            title="월별 테스트 RMSE 추이 비교 (3종)",
+            xaxis_title="테스트 월",
+            yaxis_title="RMSE (%)",
+            height=400,
+            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
+        )
+        st.plotly_chart(fig_rmse, width="stretch")
+
+    # --- VERBATIM 설명 ---
+    st.markdown(
+        """## 지표에 사용하는 용어에 대한 설명
+
+- **정적 RMSE (인샘플)**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로 전체 기간을 시뮬레이션한 RMSE. 미래 데이터를 포함하여 튜닝했으므로 인샘플 성격.
+- **완전 고정 WF stitched RMSE (아웃오브샘플)**: 위와 동일한 고정 (a, b)를 테스트 기간에만 적용하여 연속 시뮬레이션한 RMSE. 파라미터 재최적화 없이 적용하므로 아웃오브샘플 성격.
+- **동적 WF stitched RMSE**: 매월 (a, b) 모두 최적화한 워크포워드의 연속 RMSE
+- **b고정 WF stitched RMSE**: b를 전체기간 최적값으로 고정하고 a만 매월 최적화한 워크포워드의 연속 RMSE
+
+## 지표를 해석하는 방법
+
+- **인샘플-아웃오브샘플 격차** = 완전 고정 WF RMSE - 정적 RMSE
+  - 격차가 작으면 파라미터가 잘 일반화됨 (과최적화 아님)
+  - 격차가 크면 전체기간 데이터에 과적합된 파라미터 (과최적화 의심)
+- **3종 비교**: 동적 > b고정 > 완전 고정 순이면 파라미터 자유도가 높을수록 과최적화되기 쉬움을 시사
+
+## 현재 지표 해석 & 판단(결과)
+
+- 완전 고정 (a,b)의 아웃오브샘플 RMSE가 인샘플 대비 크게 벌어지지 않으면, 전체기간 고정 모델의 실용성이 높다고 판단할 수 있습니다.
+- 반대로 격차가 크면, 동적 워크포워드 모델이나 b고정 모델 등 대안을 검토해야 합니다."""
+    )
 
 
 def _render_spread_comparison_section() -> None:

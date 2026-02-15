@@ -51,6 +51,7 @@ from qbt.tqqq.constants import (
     COL_SIMUL_DAILY_RETURN,
     DEFAULT_FUNDING_SPREAD,
     DEFAULT_LEVERAGE_MULTIPLIER,
+    DEFAULT_RATE_BOUNDARY_PCT,
     DEFAULT_SPREAD_RANGE,
     DEFAULT_SPREAD_STEP,
     DEFAULT_TRAIN_WINDOW_MONTHS,
@@ -2153,3 +2154,212 @@ def calculate_stitched_walkforward_rmse(
     )
 
     return rmse
+
+
+def calculate_fixed_ab_stitched_rmse(
+    underlying_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    a: float,
+    b: float,
+    train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
+    leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
+) -> float:
+    """
+    전체기간 최적 고정 (a, b)를 아웃오브샘플에 그대로 적용한 stitched RMSE를 계산한다.
+
+    기존 calculate_stitched_walkforward_rmse()와 유사하지만, 워크포워드 result_df 대신
+    고정 (a, b)와 FFR로 spread_map을 직접 1회 생성하여 사용한다.
+    파라미터 재최적화 없이 고정값을 그대로 적용하므로, 인샘플/아웃오브샘플 격차를 통해
+    과최적화 여부를 진단할 수 있다.
+
+    동작 방식:
+        1. 겹치는 기간 추출 (extract_overlap_period)
+        2. 테스트 기간 결정 (train_window_months 이후부터 끝까지)
+        3. build_monthly_spread_map(ffr_df, a, b)로 고정 spread_map 1회 생성
+        4. simulate() 연속 실행 (initial_price = 첫 테스트일 실제 가격)
+        5. _calculate_metrics_fast()로 RMSE 산출
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (QQQ, Date/Close 컬럼 필수)
+        actual_df: 실제 레버리지 ETF DataFrame (TQQQ, Date/Close 컬럼 필수)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        a: softplus 절편 파라미터 (전체기간 최적값)
+        b: softplus 기울기 파라미터 (전체기간 최적값)
+        train_window_months: 학습 기간 (기본값: 60개월), 테스트 시작점 결정에 사용
+        leverage: 레버리지 배수 (기본값: 3.0)
+
+    Returns:
+        연속 고정 (a,b) 워크포워드 RMSE (%, 누적배수 로그차이 기반)
+
+    Raises:
+        ValueError: 데이터가 비어있을 때
+        ValueError: 테스트 기간에 해당하는 데이터가 부족할 때
+    """
+    # 1. 입력 검증
+    if underlying_df.empty or actual_df.empty:
+        raise ValueError("underlying_df 또는 actual_df가 비어있습니다")
+
+    if ffr_df.empty:
+        raise ValueError("ffr_df가 비어있습니다")
+
+    # 2. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+
+    # 3. 월 컬럼 생성 및 테스트 기간 결정
+    underlying_overlap = underlying_overlap.copy()
+    actual_overlap = actual_overlap.copy()
+    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+
+    months = sorted(underlying_overlap["_month"].unique())
+    total_months = len(months)
+
+    min_required_months = train_window_months + 1
+    if total_months < min_required_months:
+        raise ValueError(f"데이터 부족: 워크포워드에 최소 {min_required_months}개월 필요, " f"현재 {total_months}개월")
+
+    # 테스트 기간: train_window_months 이후부터 끝까지
+    first_test_month = months[train_window_months]
+    last_test_month = months[-1]
+
+    # 4. 테스트 기간 필터링
+    test_underlying = underlying_overlap[
+        (underlying_overlap["_month"] >= first_test_month) & (underlying_overlap["_month"] <= last_test_month)
+    ].copy()
+    test_actual = actual_overlap[
+        (actual_overlap["_month"] >= first_test_month) & (actual_overlap["_month"] <= last_test_month)
+    ].copy()
+
+    # _month 컬럼 제거 (simulate에 불필요)
+    test_underlying = test_underlying.drop(columns=["_month"])
+    test_actual = test_actual.drop(columns=["_month"])
+
+    if test_underlying.empty or test_actual.empty:
+        raise ValueError(f"테스트 기간({first_test_month} ~ {last_test_month})에 해당하는 데이터가 없습니다")
+
+    # 5. 고정 spread_map 1회 생성
+    spread_map = build_monthly_spread_map(ffr_df, a, b)
+
+    # 6. initial_price 설정 (첫 테스트일의 실제 TQQQ 가격)
+    initial_price = float(test_actual.iloc[0][COL_CLOSE])
+
+    # 7. 연속 시뮬레이션 실행
+    simulated_df = simulate(
+        underlying_df=test_underlying,
+        leverage=leverage,
+        expense_df=expense_df,
+        initial_price=initial_price,
+        ffr_df=ffr_df,
+        funding_spread=spread_map,
+    )
+
+    # 8. RMSE 계산
+    sim_overlap, actual_overlap_final = extract_overlap_period(simulated_df, test_actual)
+
+    actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
+    simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
+
+    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
+
+    logger.debug(
+        f"완전 고정 (a,b) 워크포워드 RMSE 계산 완료: {rmse:.4f}% "
+        f"(a={a}, b={b}, 기간: {first_test_month} ~ {last_test_month}, "
+        f"거래일: {len(simulated_prices)}일)"
+    )
+
+    return rmse
+
+
+def calculate_rate_segmented_rmse(
+    actual_prices: np.ndarray,
+    simulated_prices: np.ndarray,
+    dates: list[date],
+    ffr_df: pd.DataFrame,
+    rate_boundary_pct: float = DEFAULT_RATE_BOUNDARY_PCT,
+) -> dict[str, float | int | None]:
+    """
+    연속 시뮬레이션 결과를 금리 구간별로 분해하여 각 구간의 RMSE를 산출한다.
+
+    전체 시뮬레이션에서 각 거래일의 FFR을 조회하고, 금리 경계값으로
+    저금리/고금리 구간을 분류한 뒤 각 구간별 RMSE를 계산한다.
+
+    Args:
+        actual_prices: 실제 가격 numpy 배열
+        simulated_prices: 시뮬레이션 가격 numpy 배열
+        dates: 거래일 리스트 (date 객체)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        rate_boundary_pct: 금리 구간 경계값 (%, 기본값: 2.0)
+
+    Returns:
+        금리 구간별 RMSE 딕셔너리:
+            - "low_rate_rmse": 저금리 구간 RMSE (%) 또는 None (해당 구간 없을 때)
+            - "high_rate_rmse": 고금리 구간 RMSE (%) 또는 None
+            - "low_rate_days": 저금리 구간 거래일 수
+            - "high_rate_days": 고금리 구간 거래일 수
+            - "rate_boundary_pct": 사용된 금리 경계값
+
+    Raises:
+        ValueError: 입력 배열 길이가 일치하지 않을 때
+        ValueError: dates 길이가 가격 배열과 일치하지 않을 때
+    """
+    # 1. 입력 검증
+    if len(actual_prices) != len(simulated_prices):
+        raise ValueError(f"actual_prices({len(actual_prices)})와 " f"simulated_prices({len(simulated_prices)}) 길이가 다릅니다")
+
+    if len(dates) != len(actual_prices):
+        raise ValueError(f"dates({len(dates)})와 actual_prices({len(actual_prices)}) 길이가 다릅니다")
+
+    if len(actual_prices) == 0:
+        raise ValueError("입력 데이터가 비어있습니다")
+
+    # 2. FFR 딕셔너리 생성
+    ffr_dict = create_ffr_dict(ffr_df)
+
+    # 3. 각 거래일의 FFR 조회 및 구간 분류
+    # 누적배수 계산 (전체 기준)
+    m_actual = actual_prices / actual_prices[0]
+    m_simul = simulated_prices / simulated_prices[0]
+    ratio = m_actual / m_simul
+    log_diff_abs_pct = np.abs(np.log(np.maximum(ratio, EPSILON))) * 100.0
+
+    low_indices: list[int] = []
+    high_indices: list[int] = []
+
+    for i, d in enumerate(dates):
+        ffr_ratio = lookup_ffr(d, ffr_dict)
+        ffr_pct = ffr_ratio * 100.0
+        if ffr_pct < rate_boundary_pct:
+            low_indices.append(i)
+        else:
+            high_indices.append(i)
+
+    # 4. 구간별 RMSE 계산
+    low_rate_rmse: float | None = None
+    high_rate_rmse: float | None = None
+
+    if len(low_indices) > 0:
+        low_diffs = log_diff_abs_pct[low_indices]
+        low_rate_rmse = float(np.sqrt(np.mean(low_diffs**2)))
+
+    if len(high_indices) > 0:
+        high_diffs = log_diff_abs_pct[high_indices]
+        high_rate_rmse = float(np.sqrt(np.mean(high_diffs**2)))
+
+    result: dict[str, float | int | None] = {
+        "low_rate_rmse": low_rate_rmse,
+        "high_rate_rmse": high_rate_rmse,
+        "low_rate_days": len(low_indices),
+        "high_rate_days": len(high_indices),
+        "rate_boundary_pct": rate_boundary_pct,
+    }
+
+    logger.debug(
+        f"금리 구간별 RMSE 분해 완료: "
+        f"저금리(<{rate_boundary_pct}%) RMSE={low_rate_rmse}, 일수={len(low_indices)}, "
+        f"고금리(>={rate_boundary_pct}%) RMSE={high_rate_rmse}, 일수={len(high_indices)}"
+    )
+
+    return result
