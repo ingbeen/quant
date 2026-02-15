@@ -6,14 +6,12 @@ from qbt.tqqq.simulation import (
     build_monthly_spread_map,
     calculate_validation_metrics,
     extract_overlap_period,
-    find_optimal_cost_model,
     simulate,
 )
 
 __all__ = [
     "simulate",
     "build_monthly_spread_map",
-    "find_optimal_cost_model",
     "extract_overlap_period",
     "calculate_validation_metrics",
 ]

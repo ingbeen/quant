@@ -53,9 +53,10 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 주요 함수:
 
 - `simulate`: 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- `find_optimal_cost_model`: 그리드 서치로 최적 비용 모델 파라미터 탐색
+- `find_optimal_softplus_params`: 2-Stage Grid Search로 최적 softplus 파라미터 탐색
 - `calculate_validation_metrics`: 시뮬레이션 결과와 실제 데이터 비교 및 오차 분석
 - `extract_overlap_period`: 기초 자산과 실제 레버리지 ETF의 겹치는 기간 추출
+- `run_walkforward_validation`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 
 ### 4. analysis_helpers.py
 
@@ -158,7 +159,6 @@ funding_spread = softplus(a + b * FFR_pct)  # 기본값: a=-6.1, b=0.37
 
 ### 4. 검증 임계값
 
-- Funding Spread 탐색 범위: `DEFAULT_SPREAD_RANGE`
 - 금리 데이터 갭: `MAX_FFR_MONTHS_DIFF = 2` (초과 시 ValueError)
 - 무결성 허용 오차: `INTEGRITY_TOLERANCE = 1e-6` (0.000001%)
 
@@ -267,5 +267,5 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 - 일일 비용 계산 로직
 - 레버리지 수익률 적용 및 복리 효과
 - 누적배수 로그차이 계산
-- 비용 모델 최적화 (그리드 서치)
+- Softplus 파라미터 최적화
 - 엣지 케이스 (FFR 갭 초과, 빈 데이터)

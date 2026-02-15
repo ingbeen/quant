@@ -212,26 +212,3 @@ def get_logger(name: str = "qbt") -> logging.Logger:
         # 핸들러가 없으면 기본 설정으로 초기화
         logger = setup_logger(name)
     return logger
-
-
-def set_log_level(level: str, logger_name: str = "qbt") -> None:
-    """
-    실행 중 로그 레벨 변경
-
-    학습 포인트:
-    1. -> None: 반환값이 없는 함수 (void)
-    2. for 루프로 리스트의 각 요소에 접근
-
-    Args:
-        level: 변경할 로그 레벨 (DEBUG, WARNING, ERROR)
-        logger_name: 대상 Logger 이름
-    """
-    logger = logging.getLogger(logger_name)
-    log_level = getattr(logging, level.upper(), logging.DEBUG)
-    logger.setLevel(log_level)
-
-    # 핸들러의 레벨도 함께 변경
-    # for 루프: 리스트의 각 요소를 순회
-    # logger.handlers는 리스트이므로 각 handler를 하나씩 가져옴
-    for handler in logger.handlers:
-        handler.setLevel(log_level)

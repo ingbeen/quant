@@ -57,11 +57,8 @@ __all__ = [
     "DEFAULT_SYNTHETIC_INITIAL_PRICE",
     # 비용 모델 파라미터
     "DEFAULT_FUNDING_SPREAD",
-    "DEFAULT_SPREAD_RANGE",
-    "DEFAULT_SPREAD_STEP",
     "MAX_EXPENSE_MONTHS_DIFF",
     "MAX_FFR_MONTHS_DIFF",
-    "MAX_TOP_STRATEGIES",
     # CSV 컬럼명 (내부용 영문 토큰)
     "COL_FFR_DATE",
     "COL_FFR_VALUE",
@@ -74,7 +71,6 @@ __all__ = [
     "COL_DAILY_RETURN_ABS_DIFF",
     "COL_ACTUAL_CUMUL_RETURN",
     "COL_SIMUL_CUMUL_RETURN",
-    "COL_CUMUL_RETURN_REL_DIFF",
     "COL_CUMUL_MULTIPLE_LOG_DIFF_ABS",
     "COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED",
     "COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE",
@@ -91,7 +87,6 @@ __all__ = [
     "COL_DR_LAG2",
     "COL_DAILY_SIGNED",
     # UI 레이블
-    "DISPLAY_SPREAD",
     "DISPLAY_ERROR_END_OF_MONTH_PCT",
     # 딕셔너리 키
     "KEY_SPREAD",
@@ -124,7 +119,6 @@ __all__ = [
     "SOFTPLUS_GRID_STAGE2_B_STEP",
     # 워크포워드 검증 파라미터
     "DEFAULT_TRAIN_WINDOW_MONTHS",
-    "DEFAULT_TEST_STEP_MONTHS",
     "WALKFORWARD_LOCAL_REFINE_A_DELTA",
     "WALKFORWARD_LOCAL_REFINE_A_STEP",
     "WALKFORWARD_LOCAL_REFINE_B_DELTA",
@@ -152,14 +146,9 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
 # --- 기본값 ---
 DEFAULT_FUNDING_SPREAD: Final = 0.0034  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
 
-# --- 그리드 서치 범위 ---
-DEFAULT_SPREAD_RANGE: Final = (0.002, 0.01)  # 스프레드 범위 (%)
-DEFAULT_SPREAD_STEP: Final = 0.0001  # 스프레드 증분 (%)
-
-# --- 데이터 검증 및 결과 제한 ---
+# --- 데이터 검증 ---
 MAX_EXPENSE_MONTHS_DIFF: Final = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 MAX_FFR_MONTHS_DIFF: Final = 2  # FFR 데이터 최대 월 차이 (개월)
-MAX_TOP_STRATEGIES: Final = 50  # find_optimal_cost_model 반환 상위 전략 수
 
 # ============================================================
 # 분석 기본값 파라미터 (공유)
@@ -196,7 +185,6 @@ SOFTPLUS_GRID_STAGE2_B_STEP: Final = 0.02  # b 파라미터 증분
 
 # --- 윈도우 설정 ---
 DEFAULT_TRAIN_WINDOW_MONTHS: Final = 60  # 학습 기간 (60개월 = 5년)
-DEFAULT_TEST_STEP_MONTHS: Final = 1  # 테스트 기간 (1개월)
 
 # --- Local Refine 탐색 범위 ---
 # 직전 월 최적값 주변에서 국소 탐색
@@ -244,7 +232,6 @@ COL_DAILY_RETURN_ABS_DIFF: Final = "일일수익률_절대차이"
 # --- 일별 비교 데이터 - 누적수익률 ---
 COL_ACTUAL_CUMUL_RETURN: Final = "누적수익률_실제(%)"
 COL_SIMUL_CUMUL_RETURN: Final = "누적수익률_시뮬(%)"
-COL_CUMUL_RETURN_REL_DIFF: Final = "누적수익률_상대차이(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: Final = "누적배수_로그차이_abs(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: Final = "누적배수_로그차이_signed(%)"
 
@@ -270,7 +257,6 @@ COL_DAILY_SIGNED: Final = "daily_signed"  # 일일 증분 signed 로그오차
 # ============================================================
 
 # --- UI 표시 레이블 ---
-DISPLAY_SPREAD: Final = "Funding Spread"
 DISPLAY_ERROR_END_OF_MONTH_PCT: Final = "월말 누적 오차 (%)"  # Level 차트 y축
 
 # ============================================================

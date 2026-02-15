@@ -5,7 +5,6 @@
 테스트 대상:
 - setup_logger(): 로거 생성 및 설정
 - get_logger(): 로거 조회 및 지연 초기화
-- set_log_level(): 런타임 로그 레벨 변경
 - ClickableFormatter: VSCode 클릭 가능한 경로 포맷팅
 """
 
@@ -14,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from qbt.utils.logger import ClickableFormatter, get_logger, set_log_level, setup_logger
+from qbt.utils.logger import ClickableFormatter, get_logger, setup_logger
 
 
 class TestSetupLogger:
@@ -145,50 +144,6 @@ class TestGetLogger:
         assert len(logger.handlers) > 0
 
 
-class TestSetLogLevel:
-    """set_log_level() 함수 테스트
-
-    목적: 런타임 로그 레벨 변경 계약 검증
-    """
-
-    def test_changes_logger_level(self):
-        """
-        로거의 레벨이 변경된다.
-
-        Given: DEBUG 레벨 로거
-        When: set_log_level("ERROR") 호출
-        Then: ERROR 레벨로 변경
-        """
-        # Given
-        logger = setup_logger(name="test_level_change", level="DEBUG")
-        assert logger.level == logging.DEBUG
-
-        # When
-        set_log_level("ERROR", logger_name="test_level_change")
-
-        # Then
-        assert logger.level == logging.ERROR
-
-    def test_changes_handler_level(self):
-        """
-        로거의 핸들러 레벨도 함께 변경된다.
-
-        Given: DEBUG 레벨 로거 및 핸들러
-        When: set_log_level("WARNING") 호출
-        Then: 핸들러도 WARNING 레벨로 변경
-        """
-        # Given
-        logger = setup_logger(name="test_handler_level_change", level="DEBUG")
-        initial_handler = logger.handlers[0]
-        assert initial_handler.level == logging.DEBUG
-
-        # When
-        set_log_level("WARNING", logger_name="test_handler_level_change")
-
-        # Then
-        assert initial_handler.level == logging.WARNING
-
-
 class TestClickableFormatter:
     """ClickableFormatter 클래스 테스트
 
@@ -282,11 +237,11 @@ class TestLoggerIntegration:
 
     def test_logger_workflow(self):
         """
-        로거 생성 → 사용 → 레벨 변경 전체 워크플로우가 정상 동작한다.
+        로거 생성 → 사용 전체 워크플로우가 정상 동작한다.
 
         Given: 새 로거 생성
-        When: 로그 출력 → 레벨 변경 → 로그 출력
-        Then: 레벨에 따라 로그 필터링됨
+        When: DEBUG/WARNING 로그 출력
+        Then: 레벨에 따라 모두 출력됨
         """
         # Given
         from io import StringIO
@@ -307,16 +262,3 @@ class TestLoggerIntegration:
         output1 = stream.getvalue()
         assert "DEBUG 메시지" in output1
         assert "WARNING 메시지" in output1
-
-        # When - ERROR 레벨로 변경
-        stream.truncate(0)
-        stream.seek(0)
-        set_log_level("ERROR", logger_name="test_workflow_integration")
-
-        logger.debug("DEBUG 메시지 2")
-        logger.error("ERROR 메시지")
-
-        # Then - DEBUG는 필터링되고 ERROR만 출력
-        output2 = stream.getvalue()
-        assert "DEBUG 메시지 2" not in output2
-        assert "ERROR 메시지" in output2

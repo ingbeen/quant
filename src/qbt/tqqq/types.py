@@ -2,7 +2,7 @@
 레버리지 ETF 시뮬레이션 도메인 TypedDict 정의
 
 시뮬레이션 도메인에서 사용하는 딕셔너리 구조를 타입으로 정의한다.
-- 검증 지표 (ValidationMetricsDict, CostModelCandidateDict, SoftplusCandidateDict)
+- 검증 지표 (ValidationMetricsDict, SoftplusCandidateDict)
 - 워커 캐시 (SimulationCacheDict)
 - 워크포워드 요약 (WalkforwardSummaryDict)
 """
@@ -32,16 +32,6 @@ class ValidationMetricsDict(TypedDict):
     cumul_multiple_log_diff_mean_pct: float
     cumul_multiple_log_diff_rmse_pct: float
     cumul_multiple_log_diff_max_pct: float
-
-
-class CostModelCandidateDict(ValidationMetricsDict):
-    """_evaluate_cost_model_candidate() 반환 타입.
-
-    ValidationMetricsDict를 상속하고 비용 모델 파라미터를 추가한다.
-    """
-
-    leverage: float
-    spread: float
 
 
 class SoftplusCandidateDict(ValidationMetricsDict):
