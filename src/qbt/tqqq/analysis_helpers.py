@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 # ============================================================
 
 # 모델용 CSV 스키마 버전
-MODEL_SCHEMA_VERSION = "1.0"
+DEFAULT_MODEL_SCHEMA_VERSION = "1.0"
 
 # 기본 lag 리스트
 DEFAULT_LAG_LIST = [1, 2]
@@ -341,7 +341,7 @@ def aggregate_monthly(
     # - sum_daily_m: 일일 증분 signed의 월합 (sum)
     # 주의: 일일 증분이 없으면 sum_daily_m은 계산 불가 (이 함수는 e_m만 사용)
     monthly = df_sorted.groupby(COL_MONTH, as_index=False).agg({signed_col: "last"})
-    monthly.rename(columns={signed_col: COL_E_M}, inplace=True)
+    monthly = monthly.rename(columns={signed_col: COL_E_M})
 
     # 5. de_m 계산 (e_m의 월간 변화)
     # 예: e_m = [2.0, 3.0, 2.5] -> de_m = [NaN, 1.0, -0.5]
@@ -949,7 +949,7 @@ def build_model_dataset(
     result = result.rename(columns=rename_map)
 
     # 5. schema_version 컬럼 추가
-    result[COL_MODEL_SCHEMA_VERSION] = MODEL_SCHEMA_VERSION
+    result[COL_MODEL_SCHEMA_VERSION] = DEFAULT_MODEL_SCHEMA_VERSION
 
     # 6. month를 문자열로 변환 (CSV 호환성)
     result[COL_MODEL_MONTH] = result[COL_MODEL_MONTH].astype(str)

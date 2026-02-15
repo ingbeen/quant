@@ -39,6 +39,8 @@ from qbt.tqqq.analysis_helpers import (
     COL_MODEL_ROLLING_CORR_LAG2,
     COL_MODEL_ROLLING_CORR_LEVEL,
     COL_MODEL_SCHEMA_VERSION,
+    # 기타 상수
+    DEFAULT_MODEL_SCHEMA_VERSION,
     # 요약 통계 출력 헤더
     DISPLAY_CATEGORY,
     DISPLAY_CORR,
@@ -60,8 +62,6 @@ from qbt.tqqq.analysis_helpers import (
     DISPLAY_SUM_DAILY_M,
     DISPLAY_X_VAR,
     DISPLAY_Y_VAR,
-    # 기타 상수
-    MODEL_SCHEMA_VERSION,
     # 함수
     add_rate_change_lags,
     add_rolling_features,
@@ -1019,7 +1019,7 @@ class TestBuildModelDataset:
         assert COL_MODEL_CV_DIFF_PCT in result.columns
 
         # schema_version 값 확인
-        assert (result[COL_MODEL_SCHEMA_VERSION] == MODEL_SCHEMA_VERSION).all()
+        assert (result[COL_MODEL_SCHEMA_VERSION] == DEFAULT_MODEL_SCHEMA_VERSION).all()
 
     def test_cv_diff_calculated_correctly(self):
         """
@@ -1074,7 +1074,7 @@ class TestSaveModelCsv:
         model_df = pd.DataFrame(
             {
                 COL_MODEL_MONTH: ["2023-01", "2023-02"],
-                COL_MODEL_SCHEMA_VERSION: [MODEL_SCHEMA_VERSION, MODEL_SCHEMA_VERSION],
+                COL_MODEL_SCHEMA_VERSION: [DEFAULT_MODEL_SCHEMA_VERSION, DEFAULT_MODEL_SCHEMA_VERSION],
                 COL_MODEL_RATE_LEVEL_PCT: [4.5, 4.6],
                 COL_MODEL_RATE_CHANGE_PCT: [0.1, 0.1],
                 COL_MODEL_RATE_CHANGE_LAG1_PCT: [None, 0.1],
@@ -1115,7 +1115,7 @@ class TestSaveModelCsv:
         model_df = pd.DataFrame(
             {
                 COL_MODEL_MONTH: ["2023-01"],
-                COL_MODEL_SCHEMA_VERSION: [MODEL_SCHEMA_VERSION],
+                COL_MODEL_SCHEMA_VERSION: [DEFAULT_MODEL_SCHEMA_VERSION],
                 COL_MODEL_RATE_LEVEL_PCT: [4.123456789],
                 COL_MODEL_RATE_CHANGE_PCT: [0.099999999],
                 COL_MODEL_RATE_CHANGE_LAG1_PCT: [0.088888888],

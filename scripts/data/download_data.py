@@ -29,7 +29,7 @@ from qbt.utils.cli_helpers import cli_exception_handler
 logger = get_logger(__name__)
 
 # 데이터 검증 관련 상수
-PRICE_CHANGE_THRESHOLD = 0.50
+DEFAULT_PRICE_CHANGE_THRESHOLD = 0.50
 
 
 def validate_stock_data(df: pd.DataFrame) -> None:
@@ -84,7 +84,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     df_copy["pct_change"] = df_copy[COL_CLOSE].pct_change()
 
     # 첫 번째 행은 NaN이므로 제외
-    extreme_mask = df_copy["pct_change"].abs() >= PRICE_CHANGE_THRESHOLD
+    extreme_mask = df_copy["pct_change"].abs() >= DEFAULT_PRICE_CHANGE_THRESHOLD
     extreme_mask = extreme_mask.fillna(False)
 
     if extreme_mask.any():
@@ -95,7 +95,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
 
         first_extreme = extreme_rows.iloc[0]
         raise ValueError(
-            f"전일 대비 급등락 감지 (임계값: {PRICE_CHANGE_THRESHOLD * 100:.0f}%) - 날짜: {first_extreme[COL_DATE]}, 변동률: {first_extreme['pct_change'] * 100:+.2f}%"
+            f"전일 대비 급등락 감지 (임계값: {DEFAULT_PRICE_CHANGE_THRESHOLD * 100:.0f}%) - 날짜: {first_extreme[COL_DATE]}, 변동률: {first_extreme['pct_change'] * 100:+.2f}%"
         )
 
     logger.debug("데이터 유효성 검증 완료: 이상 없음")

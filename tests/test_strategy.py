@@ -542,12 +542,14 @@ class TestExecutionTiming:
         # 8일째 (인덱스 7): 종가=94, 하단밴드 돌파 → 매도 신호
         # 9일째 (인덱스 8)에 매도 체결되어야 함
 
-        if len(equity_df) >= 9 and len(trades_df) > 0:
-            # 매도 체결일(9일째, 인덱스 8) - 포지션 없어야 함
-            execution_day_equity = equity_df.iloc[8]
-            assert (
-                execution_day_equity["position"] == 0
-            ), f"매도 체결일에는 position=0이어야 함, 실제: {execution_day_equity['position']}"
+        assert len(equity_df) >= 9, f"에쿼티 기록이 9일 이상이어야 함, 실제: {len(equity_df)}"
+        assert len(trades_df) > 0, "거래가 발생해야 함"
+
+        # 매도 체결일(9일째, 인덱스 8) - 포지션 없어야 함
+        execution_day_equity = equity_df.iloc[8]
+        assert (
+            execution_day_equity["position"] == 0
+        ), f"매도 체결일에는 position=0이어야 함, 실제: {execution_day_equity['position']}"
 
     def test_first_day_equity_recorded(self):
         """
@@ -670,38 +672,22 @@ class TestCoreExecutionRules:
         # When
         trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
 
-        # Then: 포지션 보유 중인 모든 시점에서 equity == cash + shares*close 검증
-        # (현재 구현은 이를 만족할 수도 있지만, final_capital 로직과 일치하는지 확인 필요)
-        if len(trades_df) > 0 and len(equity_df) > 0:
-            # 포지션 보유 구간 찾기
-            position_rows = equity_df[equity_df["position"] > 0]
+        # Then: 포지션 보유 중인 시점에서 equity가 양수이고 가격에 연동되어 변동하는지 검증
+        assert len(equity_df) > 0, "에쿼티 기록이 있어야 함"
 
-            if len(position_rows) > 0:
-                # 각 행에 대해 equity == cash + position*close 검증
-                # 참고: 현재 equity_df에 cash 컬럼이 없으므로 역산 필요
-                # equity = capital + position * close
-                # → capital = equity - position * close
+        if len(trades_df) == 0:
+            pytest.skip("테스트 데이터에서 거래가 발생하지 않아 포지션 검증 불가")
 
-                # 하나의 샘플로 검증 (중간 날짜)
-                sample_row = position_rows.iloc[len(position_rows) // 2]
-                position = sample_row["position"]
-                equity = sample_row["equity"]
+        position_rows = equity_df[equity_df["position"] > 0]
+        if len(position_rows) == 0:
+            pytest.skip("포지션 보유 구간이 없어 equity 정의 검증 불가")
 
-                # equity_df에 close 정보가 없으므로, df와 조인 필요
-                # 간단히 날짜 기준으로 원본 df에서 close 찾기
-                sample_date = sample_row["Date"]
-                close_value = df[df["Date"] == sample_date]["Close"].iloc[0]
+        # 포지션 보유 중일 때 equity > 0이고, 가격 변동에 따라 equity가 달라져야 함
+        assert (position_rows["equity"] > 0).all(), "포지션 보유 중 equity는 양수여야 함"
+        assert (position_rows["position"] > 0).all(), "포지션 보유 구간에서 position > 0"
 
-                # equity = cash + position*close이므로
-                # cash = equity - position*close
-                calculated_cash = equity - position * close_value
-
-                # 다시 계산: equity_check = cash + position*close
-                equity_check = calculated_cash + position * close_value
-
-                assert (
-                    abs(equity_check - equity) < 0.01
-                ), f"Equity는 cash + position*close이어야 함. equity: {equity}, 재계산: {equity_check}"
+        unique_equities = position_rows["equity"].nunique()
+        assert unique_equities > 1, "포지션 보유 중 equity는 가격 변동에 따라 달라져야 함"
 
     def test_equity_definition_no_position(self):
         """
@@ -1111,17 +1097,17 @@ class TestBacktestAccuracy:
         동적 hold_days 증가량 상수 반영 검증
 
         핵심 인바리언트:
-        - adjusted_hold_days = base_hold_days + (recent_buy_count × HOLD_DAYS_INCREMENT_PER_BUY)
+        - adjusted_hold_days = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         - 하드코딩 금지
 
         Given: recent_months > 0, 여러 번 매수 발생
         When: run_buffer_strategy 실행
         Then:
           - trades_df의 hold_days_used 컬럼 확인
-          - 예상값 = base_hold_days + (recent_buy_count × HOLD_DAYS_INCREMENT_PER_BUY)
+          - 예상값 = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategy import HOLD_DAYS_INCREMENT_PER_BUY
+        from qbt.backtest.strategy import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
 
         # Given: 여러 번 돌파하는 시나리오
         df = pd.DataFrame(
@@ -1149,13 +1135,13 @@ class TestBacktestAccuracy:
         if not trades_df.empty and "hold_days_used" in trades_df.columns:
             for _, trade in trades_df.iterrows():
                 recent_buy_count = trade.get("recent_buy_count", 0)
-                expected_hold_days = params.hold_days + (recent_buy_count * HOLD_DAYS_INCREMENT_PER_BUY)
+                expected_hold_days = params.hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
                 actual_hold_days = trade["hold_days_used"]
 
                 # 현재 구현이 하드코딩되어 있으면 이 테스트는 실패함 (레드)
                 assert (
                     actual_hold_days == expected_hold_days
-                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} × {HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
+                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} × {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
 
     def test_first_valid_signal_detection(self):
         """

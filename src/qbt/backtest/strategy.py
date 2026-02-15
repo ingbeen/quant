@@ -45,9 +45,9 @@ from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwar
 logger = get_logger(__name__)
 
 # 버퍼존 전략 동적 조정 상수
-BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
-HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (일)
-DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
+DEFAULT_BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
+DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (일)
+DEFAULT_DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
 
 
 # ============================================================================
@@ -639,7 +639,7 @@ def calculate_recent_buy_count(
     """
     # 최근 N개월을 일수로 환산
     # 정확한 월 계산 대신 근사값 사용 (백테스트 성능 최적화)
-    cutoff_date = current_date - timedelta(days=recent_months * DAYS_PER_MONTH)
+    cutoff_date = current_date - timedelta(days=recent_months * DEFAULT_DAYS_PER_MONTH)
     count = sum(1 for d in entry_dates if d >= cutoff_date and d < current_date)
     return count
 
@@ -753,11 +753,11 @@ def run_buffer_strategy(
         if params.recent_months > 0:  # 동적 조정 활성화
             recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
             # 최근 매수가 많을수록 버퍼존 증가 (진입 조건 엄격화)
-            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
+            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
 
             if params.hold_days > 0:
                 # 유지조건도 증가 (더 오래 유지해야 매수)
-                current_hold_days = params.hold_days + (recent_buy_count * HOLD_DAYS_INCREMENT_PER_BUY)
+                current_hold_days = params.hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
             else:
                 # hold_days=0이면 유지조건 증가 안 함
                 current_hold_days = params.hold_days

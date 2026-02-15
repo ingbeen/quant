@@ -99,8 +99,8 @@ DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
 DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
 
 # --- 과최적화 진단 임계값 ---
-OVERFITTING_THRESHOLD_LOW = 0.5  # 약한 과최적화 경계 (%p)
-OVERFITTING_THRESHOLD_HIGH = 1.5  # 강한 과최적화 경계 (%p)
+DEFAULT_OVERFITTING_THRESHOLD_LOW = 0.5  # 약한 과최적화 경계 (%p)
+DEFAULT_OVERFITTING_THRESHOLD_HIGH = 1.5  # 강한 과최적화 경계 (%p)
 
 # ============================================================
 # Logger 설정
@@ -899,19 +899,19 @@ def _render_overfitting_interpretation(
 
     # 1. 인샘플 vs 아웃오브샘플 격차
     gap = fab_stitched - static_rmse
-    if gap < OVERFITTING_THRESHOLD_LOW:
+    if gap < DEFAULT_OVERFITTING_THRESHOLD_LOW:
         findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (< {OVERFITTING_THRESHOLD_LOW}%p) "
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (< {DEFAULT_OVERFITTING_THRESHOLD_LOW}%p) "
             f"→ 전체기간 최적 (a,b) 파라미터가 **잘 일반화**되고 있습니다. 과최적화 아님."
         )
-    elif gap < OVERFITTING_THRESHOLD_HIGH:
+    elif gap < DEFAULT_OVERFITTING_THRESHOLD_HIGH:
         findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** ({OVERFITTING_THRESHOLD_LOW}~{OVERFITTING_THRESHOLD_HIGH}%p) "
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** ({DEFAULT_OVERFITTING_THRESHOLD_LOW}~{DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p) "
             f"→ **약한 과최적화** 가능성. 실용적 범위이지만 모니터링이 필요합니다."
         )
     else:
         findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (> {OVERFITTING_THRESHOLD_HIGH}%p) "
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (> {DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p) "
             f"→ **과최적화 의심**. 다른 접근(동적 모델 등) 검토가 필요합니다."
         )
 
@@ -1030,19 +1030,19 @@ def _render_overfitting_diagnosis_section() -> None:
         gap = fab_stitched - static_rmse
         st.subheader("과최적화 판단")
 
-        if gap < OVERFITTING_THRESHOLD_LOW:
+        if gap < DEFAULT_OVERFITTING_THRESHOLD_LOW:
             st.success(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (< {OVERFITTING_THRESHOLD_LOW}%p)\n\n"
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (< {DEFAULT_OVERFITTING_THRESHOLD_LOW}%p)\n\n"
                 f"**판단: 과최적화 아님** - 전체기간 최적 (a,b) 파라미터가 잘 일반화되고 있습니다."
             )
-        elif gap < OVERFITTING_THRESHOLD_HIGH:
+        elif gap < DEFAULT_OVERFITTING_THRESHOLD_HIGH:
             st.warning(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** ({OVERFITTING_THRESHOLD_LOW}~{OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** ({DEFAULT_OVERFITTING_THRESHOLD_LOW}~{DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
                 f"**판단: 약한 과최적화** - 실용적 범위이지만 모니터링이 필요합니다."
             )
         else:
             st.error(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (> {OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
+                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (> {DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
                 f"**판단: 과최적화 의심** - 다른 접근(동적 모델 등) 검토가 필요합니다."
             )
 

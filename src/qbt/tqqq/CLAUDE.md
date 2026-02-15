@@ -259,7 +259,7 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 - `validate_walkforward.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 - `validate_walkforward_fixed_b.py`: b 고정 워크포워드 검증 (b 고정, a만 최적화)
 - `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
-- `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용)
+- `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
 
 ---
 

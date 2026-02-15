@@ -275,11 +275,11 @@ def build_monthly_spread_map_from_dict(
 # ============================================================
 
 # 정적 spread 시계열 CSV 컬럼명 (이 모듈에서만 사용)
-COL_SS_MONTH = "month"
-COL_SS_FFR_PCT = "ffr_pct"
-COL_SS_A_GLOBAL = "a_global"
-COL_SS_B_GLOBAL = "b_global"
-COL_SS_SPREAD_GLOBAL = "spread_global"
+COL_STATIC_MONTH = "month"
+COL_STATIC_FFR_PCT = "ffr_pct"
+COL_STATIC_A_GLOBAL = "a_global"
+COL_STATIC_B_GLOBAL = "b_global"
+COL_STATIC_SPREAD_GLOBAL = "spread_global"
 
 
 def generate_static_spread_series(
@@ -336,11 +336,11 @@ def generate_static_spread_series(
 
         rows.append(
             {
-                COL_SS_MONTH: month_key,
-                COL_SS_FFR_PCT: ffr_pct,
-                COL_SS_A_GLOBAL: a,
-                COL_SS_B_GLOBAL: b,
-                COL_SS_SPREAD_GLOBAL: spread,
+                COL_STATIC_MONTH: month_key,
+                COL_STATIC_FFR_PCT: ffr_pct,
+                COL_STATIC_A_GLOBAL: a,
+                COL_STATIC_B_GLOBAL: b,
+                COL_STATIC_SPREAD_GLOBAL: spread,
             }
         )
 
@@ -349,8 +349,8 @@ def generate_static_spread_series(
     logger.debug(
         f"정적 spread 시계열 생성 완료: {len(result_df)}개월, "
         f"a={a:.4f}, b={b:.4f}, "
-        f"spread 범위=[{result_df[COL_SS_SPREAD_GLOBAL].min():.6f}, "
-        f"{result_df[COL_SS_SPREAD_GLOBAL].max():.6f}]"
+        f"spread 범위=[{result_df[COL_STATIC_SPREAD_GLOBAL].min():.6f}, "
+        f"{result_df[COL_STATIC_SPREAD_GLOBAL].max():.6f}]"
     )
 
     return result_df

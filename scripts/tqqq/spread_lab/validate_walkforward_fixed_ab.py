@@ -27,6 +27,8 @@ from qbt.tqqq.constants import (
     DEFAULT_TRAIN_WINDOW_MONTHS,
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
+    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+    KEY_OVERLAP_DAYS,
     SOFTPLUS_TUNING_CSV_PATH,
     SPREAD_LAB_DIR,
     TQQQ_DATA_PATH,
@@ -333,7 +335,6 @@ def _run_fixed_ab_walkforward(
                 actual_df=test_actual,
                 output_path=None,
             )
-            from qbt.tqqq.constants import KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE, KEY_OVERLAP_DAYS
 
             test_rmse = test_metrics[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]
             n_test_days = test_metrics[KEY_OVERLAP_DAYS]

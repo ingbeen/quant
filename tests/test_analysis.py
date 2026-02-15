@@ -320,11 +320,8 @@ class TestCalculateSummary:
 
         initial_capital = 10000.0
 
-        # When: peak=0 케이스에서도 크래시 없이 계산
-        try:
-            summary = calculate_summary(trades_df, equity_df, initial_capital)
-            # MDD가 안전하게 계산되어야 함
-            assert "mdd" in summary, "summary에 mdd 키가 있어야 함"
-        except ZeroDivisionError:
-            # EPSILON 치환 로직이 없어서 ZeroDivisionError 발생
-            pytest.fail("peak=0일 때 ZeroDivisionError 발생 - EPSILON 치환 필요")
+        # When: peak=0 케이스에서도 크래시 없이 계산 (EPSILON 치환으로 ZeroDivisionError 방지)
+        summary = calculate_summary(trades_df, equity_df, initial_capital)
+
+        # Then: MDD가 안전하게 계산되어야 함
+        assert "mdd" in summary, "summary에 mdd 키가 있어야 함"

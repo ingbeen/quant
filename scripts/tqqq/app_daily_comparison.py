@@ -56,7 +56,7 @@ def load_data(csv_path: Path, _mtime: float):
     return load_comparison_data(csv_path)
 
 
-def main():
+def main() -> None:
     """Streamlit 앱 메인 함수"""
     try:
         # 페이지 설정
