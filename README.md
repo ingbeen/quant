@@ -192,8 +192,8 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 + constants.py
-│   ├── tqqq/          # TQQQ 시뮬레이션 + constants.py
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py)
+│   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
