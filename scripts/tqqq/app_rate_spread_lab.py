@@ -848,6 +848,88 @@ def _load_walkforward_fixed_ab_csv() -> tuple[pd.DataFrame | None, pd.DataFrame 
     return result_df, summary_df
 
 
+def _render_overfitting_interpretation(
+    static_rmse: float | None,
+    fab_stitched: float | None,
+    dyn_stitched: float | None,
+    fb_stitched: float | None,
+    low_rate_rmse: float | None,
+    high_rate_rmse: float | None,
+    rate_boundary: float | None,
+) -> None:
+    """
+    과최적화 진단 섹션의 수치 기반 해석 결과를 표시한다.
+
+    Args:
+        static_rmse: 정적 RMSE (%) 또는 None
+        fab_stitched: 완전 고정 WF stitched RMSE (%) 또는 None
+        dyn_stitched: 동적 WF stitched RMSE (%) 또는 None
+        fb_stitched: b고정 WF stitched RMSE (%) 또는 None
+        low_rate_rmse: 저금리 구간 RMSE (%) 또는 None
+        high_rate_rmse: 고금리 구간 RMSE (%) 또는 None
+        rate_boundary: 금리 구간 경계값 (%) 또는 None
+    """
+    st.markdown("## 현재 지표 해석 & 판단(결과)")
+
+    if fab_stitched is None or static_rmse is None:
+        st.info("완전 고정 WF RMSE 또는 정적 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
+        return
+
+    findings: list[str] = []
+
+    # 1. 인샘플 vs 아웃오브샘플 격차
+    gap = fab_stitched - static_rmse
+    if gap < OVERFITTING_THRESHOLD_LOW:
+        findings.append(
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (< {OVERFITTING_THRESHOLD_LOW}%p) "
+            f"→ 전체기간 최적 (a,b) 파라미터가 **잘 일반화**되고 있습니다. 과최적화 아님."
+        )
+    elif gap < OVERFITTING_THRESHOLD_HIGH:
+        findings.append(
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** ({OVERFITTING_THRESHOLD_LOW}~{OVERFITTING_THRESHOLD_HIGH}%p) "
+            f"→ **약한 과최적화** 가능성. 실용적 범위이지만 모니터링이 필요합니다."
+        )
+    else:
+        findings.append(
+            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (> {OVERFITTING_THRESHOLD_HIGH}%p) "
+            f"→ **과최적화 의심**. 다른 접근(동적 모델 등) 검토가 필요합니다."
+        )
+
+    # 2. 3종 비교 (완전 고정 vs 동적 vs b고정)
+    if dyn_stitched is not None and fb_stitched is not None:
+        if fab_stitched < fb_stitched < dyn_stitched:
+            findings.append(
+                f"- **RMSE 순서: 완전 고정({fab_stitched:.4f}%) < b고정({fb_stitched:.4f}%) < 동적({dyn_stitched:.4f}%)** "
+                f"→ 파라미터 자유도가 높을수록 과최적화되기 쉬움을 확인. "
+                f"전체기간 고정 모델이 연속 운용에 가장 안정적입니다."
+            )
+        elif fab_stitched < dyn_stitched:
+            findings.append(
+                f"- **완전 고정({fab_stitched:.4f}%) < 동적({dyn_stitched:.4f}%)** " f"→ 매월 재최적화보다 고정 파라미터가 연속 운용에서 더 안정적입니다."
+            )
+
+    # 3. 금리 구간별 RMSE 분석
+    if low_rate_rmse is not None and high_rate_rmse is not None:
+        boundary_str = f"{rate_boundary:.0f}" if rate_boundary is not None else "2"
+        diff = high_rate_rmse - low_rate_rmse
+        if diff > 0:
+            findings.append(
+                f"- **금리 구간별 RMSE: 저금리({low_rate_rmse:.4f}%) < 고금리({high_rate_rmse:.4f}%)** "
+                f"(차이: {diff:.4f}%p) "
+                f"→ 고금리({boundary_str}%+) 구간에서 추적 오차가 더 크며, "
+                f"고정 모델의 비용 반영이 고금리에서 상대적으로 부족할 수 있습니다."
+            )
+        else:
+            findings.append(
+                f"- **금리 구간별 RMSE: 저금리({low_rate_rmse:.4f}%) >= 고금리({high_rate_rmse:.4f}%)** "
+                f"→ 금리 구간에 따른 추적 오차 편차가 크지 않아, "
+                f"고정 모델이 금리 환경 전반에 걸쳐 균형 잡힌 성능을 보입니다."
+            )
+
+    for finding in findings:
+        st.markdown(finding)
+
+
 def _render_overfitting_diagnosis_section() -> None:
     """완전 고정 (a,b) 과최적화 진단 섹션을 렌더링한다."""
     st.header("과최적화 진단 (완전 고정 a,b)")
@@ -947,18 +1029,42 @@ def _render_overfitting_diagnosis_section() -> None:
     # --- 금리 구간별 RMSE 비교 ---
     st.subheader("금리 구간별 RMSE 분해")
 
-    # summary에서 금리 구간별 RMSE는 메타데이터에 저장되므로, 여기선 summary CSV에서 로드
-    # summary CSV에는 기본 키만 있으므로, 메타 정보가 없으면 N/A 처리
+    # summary CSV에서 금리 구간별 RMSE 로드
+    rate_boundary: float | None = fab_summary.get("rate_boundary_pct")  # type: ignore[assignment]
+    low_rate_rmse: float | None = fab_summary.get("low_rate_rmse")  # type: ignore[assignment]
+    high_rate_rmse: float | None = fab_summary.get("high_rate_rmse")  # type: ignore[assignment]
+    low_rate_days: int | None = fab_summary.get("low_rate_days")  # type: ignore[assignment]
+    high_rate_days: int | None = fab_summary.get("high_rate_days")  # type: ignore[assignment]
+
+    boundary_label = f"{rate_boundary:.0f}" if rate_boundary is not None else "2"
+
     col1, col2 = st.columns(2)
 
-    # 금리 구간 정보는 메타데이터에 저장되었으므로 직접 표시 불가 시 안내
     with col1:
-        st.markdown("**저금리 (0~2%)**")
-        st.info("금리 구간별 RMSE는 스크립트 실행 로그에서 확인 가능합니다.")
+        st.markdown(f"**저금리 (0~{boundary_label}%)**")
+        if low_rate_rmse is not None:
+            st.metric(label="저금리 구간 RMSE (%)", value=f"{low_rate_rmse:.4f}")
+            if low_rate_days is not None:
+                st.caption(f"거래일 수: {int(low_rate_days):,}일")
+        else:
+            st.info(
+                "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
+                "스크립트를 재실행하세요:\n"
+                "`poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py`"
+            )
 
     with col2:
-        st.markdown("**고금리 (2%+)**")
-        st.info("금리 구간별 RMSE는 스크립트 실행 로그에서 확인 가능합니다.")
+        st.markdown(f"**고금리 ({boundary_label}%+)**")
+        if high_rate_rmse is not None:
+            st.metric(label="고금리 구간 RMSE (%)", value=f"{high_rate_rmse:.4f}")
+            if high_rate_days is not None:
+                st.caption(f"거래일 수: {int(high_rate_days):,}일")
+        else:
+            st.info(
+                "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
+                "스크립트를 재실행하세요:\n"
+                "`poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py`"
+            )
 
     # --- 월별 테스트 RMSE 추이 차트 ---
     with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정 vs 완전 고정)", expanded=True):
@@ -1026,12 +1132,18 @@ def _render_overfitting_diagnosis_section() -> None:
 - **인샘플-아웃오브샘플 격차** = 완전 고정 WF RMSE - 정적 RMSE
   - 격차가 작으면 파라미터가 잘 일반화됨 (과최적화 아님)
   - 격차가 크면 전체기간 데이터에 과적합된 파라미터 (과최적화 의심)
-- **3종 비교**: 동적 > b고정 > 완전 고정 순이면 파라미터 자유도가 높을수록 과최적화되기 쉬움을 시사
+- **3종 비교**: 동적 > b고정 > 완전 고정 순이면 파라미터 자유도가 높을수록 과최적화되기 쉬움을 시사"""
+    )
 
-## 현재 지표 해석 & 판단(결과)
-
-- 완전 고정 (a,b)의 아웃오브샘플 RMSE가 인샘플 대비 크게 벌어지지 않으면, 전체기간 고정 모델의 실용성이 높다고 판단할 수 있습니다.
-- 반대로 격차가 크면, 동적 워크포워드 모델이나 b고정 모델 등 대안을 검토해야 합니다."""
+    # 수치 기반 동적 분석 결과
+    _render_overfitting_interpretation(
+        static_rmse=static_rmse,
+        fab_stitched=fab_stitched,
+        dyn_stitched=dyn_stitched,
+        fb_stitched=fb_stitched,
+        low_rate_rmse=low_rate_rmse,
+        high_rate_rmse=high_rate_rmse,
+        rate_boundary=rate_boundary,
     )
 
 
@@ -1508,8 +1620,17 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
   - **train_start/train_end**: 학습 60개월 범위
   - **test_month**: 테스트 1개월
   - **a_best, b_best**: 그 달의 학습(60개월)에서 RMSE를 최소화한 값
-  - **test_rmse_pct**: 그 값으로 "다음 1개월"을 얼마나 잘 맞췄는지(낮을수록 좋음)
-  - **train_rmse_pct / test_rmse_pct**: 학습/테스트 성능
+  - **train_rmse_pct (학습 RMSE)**:
+    - 과거 60개월(학습 구간) 데이터를 사용해 시뮬레이션했을 때의 추적 오차(RMSE)
+    - "이미 본 데이터"로 계산하므로 대체로 낮게 나옴
+    - 이 값이 높으면 모델이 학습 데이터조차 잘 설명하지 못한다는 뜻
+  - **test_rmse_pct (테스트 RMSE)**:
+    - 학습에 사용하지 않은 "다음 1개월" 데이터에서의 추적 오차(RMSE)
+    - "처음 보는 데이터"로 계산하므로 학습 RMSE보다 보통 높게 나옴
+    - 이 값이 낮을수록 모델이 미래에도 잘 통한다는 의미
+  - **train vs test 차이가 중요한 이유**:
+    - train RMSE는 낮은데 test RMSE만 높으면 → 과최적화 (학습 데이터에만 잘 맞춤)
+    - 둘 다 비슷하면 → 모델이 안정적으로 일반화됨
   - **search_mode**: full grid인지 local refine인지
     - **full grid(전체 탐색)**
       - a와 b를 **넓은 범위**로 펼쳐 가능한 조합을 폭넓게 검사

@@ -11,3 +11,8 @@ b_std,0.0
 n_test_months,131.0
 train_window_months,60.0
 stitched_rmse,1.3589
+low_rate_rmse,0.98
+high_rate_rmse,1.7763
+low_rate_days,1636.0
+high_rate_days,1108.0
+rate_boundary_pct,2.0

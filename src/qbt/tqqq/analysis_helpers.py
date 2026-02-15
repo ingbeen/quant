@@ -1145,24 +1145,31 @@ def save_walkforward_summary(summary: WalkforwardSummaryDict, output_path: Path)
 
     # 2. metric-value 형식 DataFrame 생성
     # TypedDict를 일반 dict로 변환하여 동적 키 접근 활성화
-    # WalkforwardSummaryDict의 모든 값은 float | int이므로 cast 안전
-    summary_data = cast(dict[str, float | int], dict(summary))
-    rows: list[dict[str, float | int | str]] = []
+    # WalkforwardSummaryDict의 값은 float | int | None이므로 cast 안전
+    summary_data = cast(dict[str, float | int | None], dict(summary))
+    rows: list[dict[str, float | int | str | None]] = []
     for key in required_keys:
-        value: float | int = summary_data[key]
+        value: float | int | None = summary_data[key]
         # 수치 값 라운딩 (정수형은 제외)
         if isinstance(value, float):
             value = round(value, 4)
         rows.append({COL_WF_METRIC: key, COL_WF_VALUE: value})
 
     # 2-2. 선택적(optional) 키 처리
-    optional_keys = ["stitched_rmse"]
+    optional_keys = [
+        "stitched_rmse",
+        "low_rate_rmse",
+        "high_rate_rmse",
+        "low_rate_days",
+        "high_rate_days",
+        "rate_boundary_pct",
+    ]
     for key in optional_keys:
         if key in summary_data:
-            value = summary_data[key]
-            if isinstance(value, float):
-                value = round(value, 4)
-            rows.append({COL_WF_METRIC: key, COL_WF_VALUE: value})
+            opt_value = summary_data[key]
+            if isinstance(opt_value, float):
+                opt_value = round(opt_value, 4)
+            rows.append({COL_WF_METRIC: key, COL_WF_VALUE: opt_value})
 
     df_summary = pd.DataFrame(rows)
 

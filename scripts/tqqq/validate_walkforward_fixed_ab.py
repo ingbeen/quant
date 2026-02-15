@@ -149,6 +149,28 @@ def main() -> int:
         "stitched_rmse": stitched_rmse,
     }
 
+    # 금리 구간별 RMSE 추가 (optional 키)
+    low_rmse = rate_segmented["low_rate_rmse"]
+    high_rmse = rate_segmented["high_rate_rmse"]
+    low_days = rate_segmented["low_rate_days"]
+    high_days = rate_segmented["high_rate_days"]
+    boundary = rate_segmented["rate_boundary_pct"]
+
+    if low_rmse is not None:
+        summary["low_rate_rmse"] = float(low_rmse)
+    else:
+        summary["low_rate_rmse"] = None
+    if high_rmse is not None:
+        summary["high_rate_rmse"] = float(high_rmse)
+    else:
+        summary["high_rate_rmse"] = None
+    if low_days is not None:
+        summary["low_rate_days"] = int(low_days)
+    if high_days is not None:
+        summary["high_rate_days"] = int(high_days)
+    if boundary is not None:
+        summary["rate_boundary_pct"] = float(boundary)
+
     # 8. 결과 요약 출력
     logger.debug("완전 고정 (a,b) 워크포워드 검증 결과 요약:")
     logger.debug(f"  고정 a 값: {a_global:.4f}")

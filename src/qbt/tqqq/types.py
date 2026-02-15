@@ -87,3 +87,8 @@ class WalkforwardSummaryDict(TypedDict):
     n_test_months: int
     train_window_months: int
     stitched_rmse: NotRequired[float]
+    low_rate_rmse: NotRequired[float | None]
+    high_rate_rmse: NotRequired[float | None]
+    low_rate_days: NotRequired[int]
+    high_rate_days: NotRequired[int]
+    rate_boundary_pct: NotRequired[float]
