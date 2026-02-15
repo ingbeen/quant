@@ -23,6 +23,8 @@ from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
+    _evaluate_softplus_candidate,
+    _precompute_daily_costs_vectorized,
     calculate_daily_cost,
     calculate_fixed_ab_stitched_rmse,
     calculate_rate_segmented_rmse,
@@ -34,6 +36,7 @@ from qbt.tqqq.simulation import (
     simulate,
     validate_ffr_coverage,
 )
+from qbt.utils.parallel_executor import WORKER_CACHE
 
 
 class TestCalculateDailyCost:
@@ -205,7 +208,7 @@ class TestCalculateDailyCost:
         expected_annual_cost = expected_leverage_cost + expense_ratio
         expected_daily_cost = expected_annual_cost / TRADING_DAYS_PER_YEAR
 
-        assert abs(daily_cost - expected_daily_cost) < 1e-6, (
+        assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-6), (
             f"leverage={leverage}일 때 비용 계산: " f"기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
         )
 
@@ -264,7 +267,7 @@ class TestSimulate:
 
         # 첫 가격이 initial_price 근처인지 확인 (첫날은 initial_price 유지)
         first_price = simulated_df.iloc[0][COL_CLOSE]
-        assert abs(first_price - initial_price) < 1.0, f"첫 가격은 initial_price({initial_price}) 근처여야 합니다"
+        assert first_price == pytest.approx(initial_price, abs=1.0), f"첫 가격은 initial_price({initial_price}) 근처여야 합니다"
 
         # 날짜 정렬 확인
         dates = simulated_df[COL_DATE].tolist()
@@ -305,8 +308,8 @@ class TestSimulate:
         final_price = simulated_df.iloc[1][COL_CLOSE]
         expected_price = 30.0 * 1.03
 
-        assert (
-            abs(final_price - expected_price) < 0.1
+        assert final_price == pytest.approx(
+            expected_price, abs=0.1
         ), f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
 
     @pytest.mark.parametrize("invalid_leverage", [-3.0, 0.0, -1.0])
@@ -671,8 +674,8 @@ class TestSaveDailyComparisonCsv:
         from qbt.tqqq.constants import COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE
 
         # 실제 종가 확인 (소수점 4자리로 반올림)
-        assert abs(result_df[COL_ACTUAL_CLOSE].iloc[0] - 100.1235) < 0.0001
-        assert abs(result_df[COL_SIMUL_CLOSE].iloc[0] - 100.2346) < 0.0001
+        assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=0.0001)
+        assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=0.0001)
 
 
 class TestValidateFfrCoverage:
@@ -1118,7 +1121,7 @@ class TestSoftplusFunctions:
         import math
 
         expected = math.log1p(math.exp(2.0))
-        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+        assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
     def test_softplus_negative_input(self):
         """
@@ -1137,7 +1140,7 @@ class TestSoftplusFunctions:
         import math
 
         expected = math.log1p(math.exp(-2.0))
-        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+        assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
     def test_softplus_zero_input(self):
         """
@@ -1156,7 +1159,7 @@ class TestSoftplusFunctions:
         import math
 
         expected = math.log(2.0)
-        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+        assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
     def test_softplus_always_positive(self):
         """
@@ -1189,7 +1192,7 @@ class TestSoftplusFunctions:
         large_positive = 700.0  # exp(700)은 overflow 위험
         result_pos = softplus(large_positive)
         assert math.isfinite(result_pos), f"softplus({large_positive})가 유한하지 않음: {result_pos}"
-        assert abs(result_pos - large_positive) < 1.0, f"softplus({large_positive}) ≈ {large_positive} 예상"
+        assert result_pos == pytest.approx(large_positive, abs=1.0), f"softplus({large_positive}) ≈ {large_positive} 예상"
 
         # 큰 음수: softplus(x) ≈ 0 (하지만 > 0)
         large_negative = -700.0
@@ -1218,7 +1221,7 @@ class TestSoftplusFunctions:
         # ffr_pct = 100 * 0.05 = 5.0
         # softplus(-5 + 1*5) = softplus(0) = log(2) ≈ 0.693
         expected = math.log(2.0)
-        assert abs(result - expected) < 1e-10, f"기대={expected}, 실제={result}"
+        assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
     def test_compute_softplus_spread_high_rate(self):
         """
@@ -1328,9 +1331,8 @@ class TestSoftplusFunctions:
             for month in result_df.keys():
                 df_val = result_df[month]
                 dict_val = result_dict[month]
-                assert abs(df_val - dict_val) < 1e-12, (
-                    f"값 불일치: month={month}, a={a}, b={b}, "
-                    f"df={df_val}, dict={dict_val}, diff={abs(df_val - dict_val)}"
+                assert df_val == pytest.approx(dict_val, abs=1e-12), (
+                    f"값 불일치: month={month}, a={a}, b={b}, " f"df={df_val}, dict={dict_val}"
                 )
 
     def test_build_monthly_spread_map_from_dict_empty_raises(self):
@@ -1388,7 +1390,7 @@ class TestDynamicFundingSpread:
         expected_daily_cost = (0.045 + 0.006) * 2 + 0.0095
         expected_daily_cost /= TRADING_DAYS_PER_YEAR
 
-        assert abs(daily_cost - expected_daily_cost) < 1e-10, f"기대={expected_daily_cost}, 실제={daily_cost}"
+        assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-10), f"기대={expected_daily_cost}, 실제={daily_cost}"
 
     def test_dict_spread_monthly_lookup(self):
         """
@@ -1431,7 +1433,7 @@ class TestDynamicFundingSpread:
         expected_diff = (spread_diff + ffr_diff) * 2 / TRADING_DAYS_PER_YEAR
 
         actual_diff = daily_cost_feb - daily_cost_jan
-        assert abs(actual_diff - expected_diff) < 1e-10, f"기대 차이={expected_diff}, 실제 차이={actual_diff}"
+        assert actual_diff == pytest.approx(expected_diff, abs=1e-10), f"기대 차이={expected_diff}, 실제 차이={actual_diff}"
 
     def test_dict_spread_missing_key_raises(self):
         """
@@ -1487,7 +1489,7 @@ class TestDynamicFundingSpread:
 
         # Then: 0.005가 적용됨
         expected_daily_cost = ((0.045 + 0.005) * 2 + 0.0095) / TRADING_DAYS_PER_YEAR
-        assert abs(daily_cost - expected_daily_cost) < 1e-10
+        assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-10)
 
     def test_callable_spread_nan_raises(self):
         """
@@ -3048,3 +3050,142 @@ class TestCalculateRateSegmentedRmse:
         assert result["high_rate_rmse"] is None
         assert result["low_rate_days"] == 4
         assert result["high_rate_days"] == 0
+
+
+class TestEvaluateSoftplusCandidate:
+    """_evaluate_softplus_candidate WORKER_CACHE 기반 테스트
+
+    병렬 워커 함수를 직접 호출하여 반환 구조와 핵심 계산 경로를 검증한다.
+    WORKER_CACHE를 직접 설정하고 함수 호출 후 정리한다.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_and_cleanup_worker_cache(self):
+        """
+        WORKER_CACHE에 최소 테스트 데이터를 설정하고 테스트 후 정리한다.
+
+        Given: 10일치 가격 데이터 (2023-01-02 ~ 2023-01-13)
+        - underlying_returns: QQQ 일일 수익률 (9개, pct_change 첫 행 제외)
+        - actual_prices: TQQQ 실제 종가 (10개)
+        - FFR/Expense: 2023-01 단일 월
+        """
+        # 10일치 QQQ 가격 (미세한 등락)
+        qqq_prices = np.array([300.0, 301.5, 299.8, 302.0, 303.1, 301.0, 304.2, 302.5, 305.0, 303.8])
+
+        # pct_change().fillna(0.0) 방식: 첫 요소를 0.0으로 설정하여 10개 배열 생성
+        # (프로덕션 코드의 find_optimal_softplus_params 동일 방식)
+        returns = np.diff(qqq_prices) / qqq_prices[:-1]
+        underlying_returns = np.concatenate([[0.0], returns])  # 10개
+
+        # TQQQ 실제 종가 (10일, 3배 레버리지 근사)
+        actual_prices = np.array([30.0, 30.45, 29.83, 30.61, 30.94, 30.31, 31.28, 30.77, 31.52, 31.16])
+
+        actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
+
+        WORKER_CACHE.update(
+            {
+                "ffr_dict": {"2023-01": 0.045},
+                "underlying_returns": underlying_returns,
+                "actual_prices": actual_prices,
+                "expense_dict": {"2023-01": 0.0095},
+                "date_month_keys": np.array(["2023-01"] * 10),
+                "overlap_start": date(2023, 1, 2),
+                "overlap_end": date(2023, 1, 13),
+                "overlap_days": 10,
+                "actual_cumulative_return": actual_cumulative_return,
+            }
+        )
+
+        yield
+
+        WORKER_CACHE.clear()
+
+    def test_returns_candidate_dict_with_all_keys(self):
+        """
+        목적: WORKER_CACHE 설정 후 호출 시 SoftplusCandidateDict 필수 키 반환 검증
+
+        Given: WORKER_CACHE에 10일치 데이터 설정 (autouse fixture)
+        When: _evaluate_softplus_candidate 호출
+        Then: 반환 딕셔너리에 모든 필수 키 존재, a/b 입력값 유지, RMSE >= 0
+        """
+        from qbt.tqqq.constants import (
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+            KEY_CUMULATIVE_RETURN_ACTUAL,
+            KEY_CUMULATIVE_RETURN_REL_DIFF,
+            KEY_CUMULATIVE_RETURN_SIMULATED,
+            KEY_FINAL_CLOSE_ACTUAL,
+            KEY_FINAL_CLOSE_REL_DIFF,
+            KEY_FINAL_CLOSE_SIMULATED,
+            KEY_OVERLAP_DAYS,
+            KEY_OVERLAP_END,
+            KEY_OVERLAP_START,
+        )
+
+        # When
+        params = {"a": -5.0, "b": 0.5, "leverage": 3.0, "initial_price": 30.0}
+        result = _evaluate_softplus_candidate(params)
+
+        # Then: 필수 키 존재
+        required_keys = [
+            "a",
+            "b",
+            "leverage",
+            KEY_OVERLAP_START,
+            KEY_OVERLAP_END,
+            KEY_OVERLAP_DAYS,
+            KEY_FINAL_CLOSE_ACTUAL,
+            KEY_FINAL_CLOSE_SIMULATED,
+            KEY_FINAL_CLOSE_REL_DIFF,
+            KEY_CUMULATIVE_RETURN_SIMULATED,
+            KEY_CUMULATIVE_RETURN_ACTUAL,
+            KEY_CUMULATIVE_RETURN_REL_DIFF,
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
+            KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
+        ]
+        for key in required_keys:
+            assert key in result, f"필수 키 누락: {key}"
+
+        # a, b 입력값 유지
+        assert result["a"] == pytest.approx(-5.0, abs=1e-12)
+        assert result["b"] == pytest.approx(0.5, abs=1e-12)
+
+        # RMSE >= 0
+        assert result[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE] >= 0, "RMSE는 0 이상이어야 합니다"
+
+        # overlap_days == WORKER_CACHE 설정값
+        assert result[KEY_OVERLAP_DAYS] == 10
+
+        # 시뮬레이션 종가는 양수
+        assert result[KEY_FINAL_CLOSE_SIMULATED] > 0, "시뮬레이션 종가는 양수여야 합니다"
+
+
+class TestPrecomputeDailyCostsVectorizedErrors:
+    """_precompute_daily_costs_vectorized 에러 케이스 테스트"""
+
+    def test_spread_map_missing_key_raises(self):
+        """
+        목적: spread_map에 필요한 월 키가 누락되면 ValueError 발생 검증
+
+        Given: month_keys에 "2023-01"이 있지만 spread_map은 빈 dict
+        When: _precompute_daily_costs_vectorized 호출
+        Then: ValueError 발생, "spread_map" 메시지 포함
+        """
+        # Given
+        month_keys = np.array(["2023-01", "2023-01", "2023-01"])
+        ffr_dict: dict[str, float] = {"2023-01": 0.045}
+        expense_dict: dict[str, float] = {"2023-01": 0.0095}
+        spread_map: dict[str, float] = {}  # 빈 딕셔너리 (키 누락)
+        leverage = 3.0
+
+        # When & Then
+        with pytest.raises(ValueError, match="spread_map"):
+            _precompute_daily_costs_vectorized(
+                month_keys=month_keys,
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                spread_map=spread_map,
+                leverage=leverage,
+            )

@@ -94,7 +94,7 @@ class TestRunBuyAndHold:
         # Then: 거래는 발생했지만 shares=0
         # 자본이 부족하므로 수익률이 거의 0에 가까움
         assert summary["total_trades"] >= 0, "에러 없이 실행됨"
-        assert abs(summary["total_return_pct"]) < 1.0, "자본 부족 시 수익률 거의 0%"
+        assert summary["total_return_pct"] == pytest.approx(0, abs=1.0), "자본 부족 시 수익률 거의 0%"
 
     @pytest.mark.parametrize("invalid_capital", [0.0, -1000.0, -1.0])
     def test_invalid_capital_raises(self, invalid_capital):
@@ -629,8 +629,8 @@ class TestForcedLiquidation:
         last_equity = equity_df.iloc[-1]["equity"]
         final_capital = summary["final_capital"]
 
-        assert (
-            abs(last_equity - final_capital) < 0.01
+        assert last_equity == pytest.approx(
+            final_capital, abs=0.01
         ), f"equity_df 마지막 값과 final_capital이 일치해야 함. equity_df: {last_equity}, final_capital: {final_capital}"
 
 
@@ -651,13 +651,15 @@ class TestCoreExecutionRules:
         When: equity 계산
         Then: equity == cash + shares * close (모든 시점)
         """
-        # Given: 간단한 데이터로 매수 신호 생성
+        # Given: 매수 후 매도까지 완전한 사이클을 포함하는 데이터
+        # i=2: 매수 신호 (close=107 > upper=103), i=3: 매수 실행 (open=105)
+        # i=12~13: 매도 신호 (close가 lower band 아래로 하락)
         df = pd.DataFrame(
             {
-                "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [100, 100, 100, 105, 110, 110, 110, 110, 110, 110],
-                "Close": [100, 100, 107, 110, 112, 112, 112, 112, 115, 120],
-                "ma_5": [100, 100, 100, 103, 106, 108, 109, 110, 110.5, 111],
+                "Date": [date(2023, 1, i + 1) for i in range(15)],
+                "Open": [100, 100, 100, 105, 110, 110, 110, 110, 110, 110, 118, 113, 108, 103, 98],
+                "Close": [100, 100, 107, 110, 112, 112, 112, 112, 115, 120, 115, 110, 105, 100, 95],
+                "ma_5": [100, 100, 100, 103, 106, 108, 109, 110, 110.5, 111, 115, 114, 113, 110, 105],
             }
         )
 
@@ -674,13 +676,10 @@ class TestCoreExecutionRules:
 
         # Then: 포지션 보유 중인 시점에서 equity가 양수이고 가격에 연동되어 변동하는지 검증
         assert len(equity_df) > 0, "에쿼티 기록이 있어야 함"
-
-        if len(trades_df) == 0:
-            pytest.skip("테스트 데이터에서 거래가 발생하지 않아 포지션 검증 불가")
+        assert len(trades_df) > 0, "테스트 데이터에서 거래가 반드시 발생해야 함"
 
         position_rows = equity_df[equity_df["position"] > 0]
-        if len(position_rows) == 0:
-            pytest.skip("포지션 보유 구간이 없어 equity 정의 검증 불가")
+        assert len(position_rows) > 0, "테스트 데이터에서 포지션 보유 구간이 반드시 존재해야 함"
 
         # 포지션 보유 중일 때 equity > 0이고, 가격 변동에 따라 equity가 달라져야 함
         assert (position_rows["equity"] > 0).all(), "포지션 보유 중 equity는 양수여야 함"
@@ -726,8 +725,8 @@ class TestCoreExecutionRules:
         if len(no_position_rows) > 0:
             # 첫 날은 initial_capital이어야 함
             first_equity = no_position_rows.iloc[0]["equity"]
-            assert (
-                abs(first_equity - params.initial_capital) < 0.01
+            assert first_equity == pytest.approx(
+                params.initial_capital, abs=0.01
             ), f"포지션 없을 때 equity는 초기 자본이어야 함. 기대: {params.initial_capital}, 실제: {first_equity}"
 
     def test_final_capital_with_position_remaining(self):
@@ -766,8 +765,8 @@ class TestCoreExecutionRules:
         last_equity = equity_df.iloc[-1]["equity"]
         final_capital = summary["final_capital"]
 
-        assert (
-            abs(last_equity - final_capital) < 0.01
+        assert last_equity == pytest.approx(
+            final_capital, abs=0.01
         ), f"Final capital은 마지막 equity와 일치해야 함. equity: {last_equity}, final_capital: {final_capital}"
 
     def test_hold_days_0_timeline(self):
@@ -1037,8 +1036,8 @@ class TestBacktestAccuracy:
 
         # Then: equity_df 마지막 equity == summary.final_capital
         last_equity = last_equity_record["equity"]
-        assert (
-            abs(last_equity - summary["final_capital"]) < 0.01
+        assert last_equity == pytest.approx(
+            summary["final_capital"], abs=0.01
         ), f"equity_df 마지막 equity({last_equity:.2f})와 summary.final_capital({summary['final_capital']:.2f})이 일치해야 함"
 
         # Then: final_capital == cash + position × last_close (역산 검증)

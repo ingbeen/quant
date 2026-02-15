@@ -254,6 +254,74 @@ def mock_storage_paths(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def integration_stock_df():
+    """
+    통합 테스트용 주식 데이터 DataFrame 픽스처 (~25행)
+
+    왜 별도 픽스처가 필요한가?
+    - sample_stock_df는 3행이라 MA 계산에 부족
+    - 이동평균 window=5 기준 최소 5행 이상, 버퍼존 전략 실행에는 충분한 데이터 필요
+    - 25 영업일 = 약 1개월 분량, 파이프라인 연결 테스트에 적합
+
+    Returns:
+        pd.DataFrame: 25행, OHLCV + Date 컬럼 (미세한 등락 포함)
+    """
+    # 2023-01-02 ~ 2023-02-03 (25 영업일, 주말 건너뛰기)
+    dates = []
+    day = 2
+    month = 1
+    for _ in range(25):
+        dates.append(date(2023, month, day))
+        day += 1
+        weekday = dates[-1].weekday()
+        if weekday == 4:  # 금요일 -> 월요일
+            day += 2
+        if day > 28:
+            day = 1
+            month += 1
+
+    # 가격: 100에서 시작, 미세 등락
+    base_prices = [
+        100.0,
+        101.2,
+        99.8,
+        102.5,
+        101.0,
+        103.1,
+        102.0,
+        104.5,
+        103.2,
+        105.0,
+        104.0,
+        106.2,
+        105.5,
+        103.8,
+        107.0,
+        106.0,
+        108.5,
+        107.2,
+        109.0,
+        108.0,
+        110.5,
+        109.0,
+        111.2,
+        110.0,
+        112.5,
+    ]
+
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: [p - 0.5 for p in base_prices],
+            COL_HIGH: [p + 1.5 for p in base_prices],
+            COL_LOW: [p - 1.5 for p in base_prices],
+            COL_CLOSE: base_prices,
+            COL_VOLUME: [1000000 + i * 10000 for i in range(25)],
+        }
+    )
+
+
+@pytest.fixture
 def enable_numpy_warnings():
     """
     NumPy 부동소수점 연산 경고 활성화 픽스처

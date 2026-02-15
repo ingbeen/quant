@@ -56,13 +56,13 @@ class TestAddSingleMovingAverage:
 
         # 3행부터 계산 확인
         # 3일(idx 2): (100+110+120)/3 = 110.0
-        assert abs(result.iloc[2]["ma_3"] - 110.0) < EPSILON, "3일 이동평균: (100+110+120)/3 = 110.0"
+        assert result.iloc[2]["ma_3"] == pytest.approx(110.0, abs=EPSILON), "3일 이동평균: (100+110+120)/3 = 110.0"
 
         # 4일(idx 3): (110+120+130)/3 = 120.0
-        assert abs(result.iloc[3]["ma_3"] - 120.0) < EPSILON
+        assert result.iloc[3]["ma_3"] == pytest.approx(120.0, abs=EPSILON)
 
         # 5일(idx 4): (120+130+140)/3 = 130.0
-        assert abs(result.iloc[4]["ma_3"] - 130.0) < EPSILON
+        assert result.iloc[4]["ma_3"] == pytest.approx(130.0, abs=EPSILON)
 
     def test_window_larger_than_data(self):
         """
@@ -159,24 +159,24 @@ class TestCalculateSummary:
         assert isinstance(summary, dict), "딕셔너리를 반환해야 합니다"
 
         # 최종 자본
-        assert abs(summary["final_capital"] - 15000.0) < EPSILON, "최종 자본은 equity curve의 마지막 값"
+        assert summary["final_capital"] == pytest.approx(15000.0, abs=EPSILON), "최종 자본은 equity curve의 마지막 값"
 
         # 총 수익률: (15000 - 10000) / 10000 * 100 = 50%
-        assert abs(summary["total_return_pct"] - 50.0) < 0.1, "총 수익률 = (15000-10000)/10000 * 100 = 50%"
+        assert summary["total_return_pct"] == pytest.approx(50.0, abs=0.1), "총 수익률 = (15000-10000)/10000 * 100 = 50%"
 
         # CAGR 계산: (15000/10000)^(1/2) - 1 ≈ 0.2247 = 22.47%
         # 2년 = 730일 (대략)
         expected_cagr = ((15000.0 / 10000.0) ** (365.0 / 730.0) - 1) * 100
-        assert (
-            abs(summary["cagr"] - expected_cagr) < 1.0
+        assert summary["cagr"] == pytest.approx(
+            expected_cagr, abs=1.0
         ), f"CAGR 계산 오차가 큽니다. 기대: {expected_cagr:.2f}, 실제: {summary['cagr']:.2f}"
 
         # MDD: 12000 → 11000 = -8.33%
         expected_mdd = (11000.0 / 12000.0 - 1) * 100  # ≈ -8.33%
-        assert abs(summary["mdd"] - expected_mdd) < 0.1, "MDD = (11000/12000 - 1) * 100 ≈ -8.33%"
+        assert summary["mdd"] == pytest.approx(expected_mdd, abs=0.1), "MDD = (11000/12000 - 1) * 100 ≈ -8.33%"
 
         # 승률: 1승 / 2거래 = 50%
-        assert abs(summary["win_rate"] - 50.0) < EPSILON, "승률 = 1/2 * 100 = 50%"
+        assert summary["win_rate"] == pytest.approx(50.0, abs=EPSILON), "승률 = 1/2 * 100 = 50%"
 
         # 거래 횟수
         assert summary["total_trades"] == 2
@@ -209,7 +209,7 @@ class TestCalculateSummary:
         # Then
         assert summary["total_trades"] == 0, "거래 횟수는 0"
         assert summary["win_rate"] == 0.0, "거래가 없으면 승률은 0"
-        assert abs(summary["total_return_pct"]) < EPSILON, "수익률은 0%"
+        assert summary["total_return_pct"] == pytest.approx(0, abs=EPSILON), "수익률은 0%"
 
     def test_all_losing_trades(self):
         """

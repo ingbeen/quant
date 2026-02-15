@@ -20,6 +20,7 @@ tests/
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
 ├── test_formatting.py # 터미널 출력 포맷팅 테스트
+├── test_integration.py # 통합 테스트 (백테스트/TQQQ 파이프라인)
 ├── test_logger.py # 로거 테스트
 ├── test_meta_manager.py # 메타데이터 관리 테스트
 ├── test_numpy_warnings.py # NumPy 부동소수점 경고 테스트
@@ -207,18 +208,44 @@ def test_with_fixed_time(self):
 - 랜덤성 제거: 랜덤을 쓰면 시드 고정(가능하면 랜덤 자체를 제거)
 - 순서 안정화: 결과가 리스트/딕트/DF 정렬에 민감하면 정렬 규칙을 테스트에서 명시
 
-#### 부동소수점/DF 비교 규칙(권장)
+#### 부동소수점/DF 비교 규칙(필수)
 
-수익률/누적배수/로그차이 등은 부동소수점 오차가 발생할 수 있습니다.
+부동소수점 오차가 발생할 수 있는 모든 연산 결과는 명시적 허용오차와 함께 비교합니다.
 
-- 스칼라: `pytest.approx(expected, abs=..., rel=...)`
-- DataFrame:
+**스칼라 비교** (모든 연산 결과):
 
-  - `pd.testing.assert_frame_equal(..., rtol=..., atol=...)`
-  - 컬럼 순서/인덱스 정책을 함께 고정(필요 시 `check_like=True` 사용)
+```python
+# 금지 패턴
+assert abs(a - b) < tolerance
 
-> "정확히 일치"가 정책인 값(예: 라벨/컬럼명/날짜키/정렬 결과)은 `==`로 고정하고,
-> 연산 결과(부동소수점)는 `approx/rtol/atol`을 기본으로 고려하세요.
+# 필수 패턴
+assert actual == pytest.approx(expected, abs=tolerance)
+```
+
+**허용오차 기준표**:
+
+| 검증 대상 | 허용오차 | 예시 |
+|-----------|----------|------|
+| 수학적 정확 계산 (MA, 로그차이 등) | `EPSILON` (1e-12) | 이동평균, 승률 |
+| 초정밀 함수 (softplus) | `1e-10` | softplus 계산값 |
+| 일일 비용 계산 | `1e-6` | 연간 비용/252 |
+| 가격/금액 비교 | `0.01` ~ `0.1` | equity, 종가 |
+| 비율(%) 지표 | `0.1` | total_return_pct, MDD |
+| CAGR (근사 계산) | `1.0` | 복리 연환산 |
+
+**예외** (변경 불필요):
+
+- 단순 부등식 상한/하한 검증: `assert value < threshold`
+- 정확히 일치해야 하는 값 (라벨, 컬럼명, 날짜 등): `assert value == expected`
+- 배열 비교: `np.allclose(actual, expected, rtol=...)` (허용)
+
+**DataFrame 비교**:
+
+- `pd.testing.assert_frame_equal(..., rtol=..., atol=...)`
+- 컬럼 순서/인덱스 정책을 함께 고정(필요 시 `check_like=True` 사용)
+
+> "정확히 일치"가 정책인 값은 `==`로 고정하고,
+> **모든 연산 결과는 `pytest.approx()` 사용이 필수**입니다.
 
 ---
 
@@ -303,7 +330,8 @@ def test_with_temp_files(self, mock_storage_paths):
 
 공통 픽스처: 모든 테스트에서 재사용 가능한 설정과 테스트 데이터
 
-- `sample_stock_df`: 기본 주식 데이터(OHLCV), `Date`는 `datetime.date`
+- `sample_stock_df`: 기본 주식 데이터(OHLCV, 3행), `Date`는 `datetime.date`
+- `integration_stock_df`: 통합 테스트용 주식 데이터(OHLCV, 25행), MA 계산에 충분한 크기
 - `sample_ffr_df`: FFR 금리 데이터
 
   - 중요: `DATE` 컬럼은 `date` 객체가 아닌 `"yyyy-mm"` 문자열
