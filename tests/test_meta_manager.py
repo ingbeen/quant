@@ -177,7 +177,7 @@ class TestSaveMetadata:
         """
         여러 csv_type을 독립적으로 관리하는지 테스트
 
-        안정성: grid_results와 tqqq_validation은 별도로 이력 관리되어야 합니다.
+        안정성: grid_results와 tqqq_daily_comparison은 별도로 이력 관리되어야 합니다.
 
         Given: 빈 meta.json
         When: 서로 다른 csv_type으로 각각 저장
@@ -185,7 +185,7 @@ class TestSaveMetadata:
         """
         # When: 두 가지 타입 저장
         save_metadata("grid_results", {"test": "grid"})
-        save_metadata("tqqq_validation", {"test": "tqqq"})
+        save_metadata("tqqq_daily_comparison", {"test": "tqqq"})
 
         # Then: 독립적인 키 확인
         meta_path = mock_results_dir["META_JSON_PATH"]
@@ -193,13 +193,13 @@ class TestSaveMetadata:
             saved_data = json.load(f)
 
         assert "grid_results" in saved_data
-        assert "tqqq_validation" in saved_data
+        assert "tqqq_daily_comparison" in saved_data
         assert len(saved_data["grid_results"]) == 1
-        assert len(saved_data["tqqq_validation"]) == 1
+        assert len(saved_data["tqqq_daily_comparison"]) == 1
 
         # 내용 확인
         assert saved_data["grid_results"][0]["test"] == "grid"
-        assert saved_data["tqqq_validation"][0]["test"] == "tqqq"
+        assert saved_data["tqqq_daily_comparison"][0]["test"] == "tqqq"
 
     @freeze_time("2023-10-15 09:00:00")
     def test_softplus_tuning_metadata_format(self, mock_results_dir):

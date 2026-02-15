@@ -32,7 +32,6 @@ FFR_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_monthly.csv"
 EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
 # TQQQ 시뮬레이션 관련 결과 파일 경로
-TQQQ_VALIDATION_PATH: Final = RESULTS_DIR / "tqqq_validation.csv"
 TQQQ_DAILY_COMPARISON_PATH: Final = RESULTS_DIR / "tqqq_daily_comparison.csv"
 TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_monthly.csv"
 TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_summary.csv"
@@ -47,7 +46,6 @@ __all__ = [
     "EXPENSE_RATIO_DATA_PATH",
     "TQQQ_DATA_PATH",
     "TQQQ_SYNTHETIC_PATH",
-    "TQQQ_VALIDATION_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
     "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
     "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
@@ -114,6 +112,8 @@ __all__ = [
     "DEFAULT_TOP_N_CROSS_VALIDATION",
     "DEFAULT_ROLLING_WINDOW",
     # Softplus 동적 스프레드 모델 파라미터
+    "DEFAULT_SOFTPLUS_A",
+    "DEFAULT_SOFTPLUS_B",
     "SOFTPLUS_GRID_STAGE1_A_RANGE",
     "SOFTPLUS_GRID_STAGE1_A_STEP",
     "SOFTPLUS_GRID_STAGE1_B_RANGE",
@@ -172,6 +172,10 @@ DEFAULT_ROLLING_WINDOW: Final = 12  # Rolling 상관 계산 window (12개월)
 # ============================================================
 # Softplus 동적 스프레드 모델 파라미터
 # ============================================================
+
+# --- 전체기간 최적 파라미터 (과최적화 검증 완료) ---
+DEFAULT_SOFTPLUS_A: Final = -6.1  # softplus 절편 파라미터
+DEFAULT_SOFTPLUS_B: Final = 0.37  # softplus 기울기 파라미터
 
 # --- 2-Stage Grid Search 범위 ---
 # Stage 1: 조대 그리드 탐색

@@ -118,9 +118,12 @@ Plotly 기반 차트 생성 함수를 제공합니다.
 자금 조달 비용:
 
 ```
+funding_spread = softplus(a + b * FFR_pct)  # 기본값: a=-6.1, b=0.37
 일일 자금 조달 비용 = (FFR + funding_spread) * (leverage - 1) / TRADING_DAYS_PER_YEAR
 ```
 
+- funding_spread는 softplus 모델로 금리에 따라 동적 결정 (과최적화 검증 완료)
+- 기본 파라미터: `DEFAULT_SOFTPLUS_A = -6.1`, `DEFAULT_SOFTPLUS_B = 0.37`
 - 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 -> 2배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
 
@@ -190,15 +193,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 주요 컬럼: 날짜, 종가(실제/시뮬), 일일수익률, 누적수익률, 누적배수 로그차이(abs/signed)
 
-용도: 대시보드 시각화, 금리-오차 관계 분석
-
-### tqqq_validation.csv
-
-경로: `storage/results/tqqq_validation.csv`
-
-주요 컬럼: funding_spread, 종가, 누적수익률, 누적배수로그차이(RMSE/평균/최대)
-
-용도: 최적 비용 모델 파라미터 선정
+용도: 대시보드 시각화, 금리-오차 관계 분석 (softplus 동적 스프레드 모델 사용)
 
 ### tqqq_rate_spread_lab_monthly.csv
 

@@ -353,8 +353,7 @@ CLI 계층 (`scripts/`):
 분석 결과 (`storage/results/`):
 
 - `grid_results.csv`: 백테스트 그리드 서치 결과
-- `tqqq_validation.csv`: TQQQ 시뮬레이션 검증 결과
-- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터
+- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터 (softplus 동적 스프레드)
 - `tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
 - `tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
 - `tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)

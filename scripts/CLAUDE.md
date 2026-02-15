@@ -133,8 +133,7 @@ main 함수:
 ### 레버리지 시뮬레이션 (tqqq/)
 
 - 합성 데이터 생성 (`generate_synthetic.py`)
-- 비용 모델 파라미터 탐색 (`tune_cost_model.py`)
-- 일별 비교 데이터 생성 (`generate_daily_comparison.py`)
+- 일별 비교 데이터 생성 (`generate_daily_comparison.py`, softplus 동적 스프레드 사용)
 - 금리-오차 분석 CSV 생성 (`generate_rate_spread_lab.py`)
 - 비용 모델 최적화:
   - `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)

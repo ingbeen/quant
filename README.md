@@ -61,41 +61,37 @@ QQQ로부터 TQQQ를 시뮬레이션하고 실제 데이터와 비교하여 비�
 poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/data/download_data.py TQQQ
 
-# 2. 비용 모델 파라미터 최적화
-poetry run python scripts/tqqq/tune_cost_model.py
-# 출력: storage/results/tqqq_validation.csv
-
-# 3. 일별 비교 데이터 생성
+# 2. 일별 비교 데이터 생성 (softplus 동적 스프레드 모델)
 poetry run python scripts/tqqq/generate_daily_comparison.py
 # 출력: storage/results/tqqq_daily_comparison.csv
 
-# 4. Softplus 동적 스프레드 모델 튜닝
+# 3. Softplus 동적 스프레드 모델 튜닝
 poetry run python scripts/tqqq/tune_softplus_params.py
 # 출력: storage/results/tqqq_softplus_tuning.csv
 #       storage/results/tqqq_softplus_spread_series_static.csv (정적 spread 시계열)
 
-# 5. 워크포워드 검증 (연속 워크포워드 RMSE 포함)
+# 4. 워크포워드 검증 (연속 워크포워드 RMSE 포함)
 poetry run python scripts/tqqq/validate_walkforward.py
 # 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
 #       storage/results/tqqq_rate_spread_lab_walkforward_summary.csv (stitched_rmse 포함)
 
-# 6. b 고정 워크포워드 검증 (과최적화 진단)
+# 5. b 고정 워크포워드 검증 (과최적화 진단)
 poetry run python scripts/tqqq/validate_walkforward_fixed_b.py
 # 출력: storage/results/tqqq_rate_spread_lab_walkforward_fixed_b.csv
 #       storage/results/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv
-# 사전 필요: 4번(tune_softplus_params.py)
+# 사전 필요: 3번(tune_softplus_params.py)
 
-# 7. 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
+# 6. 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
 poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py
 # 출력: storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab.csv
 #       storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv
-# 사전 필요: 4번(tune_softplus_params.py)
+# 사전 필요: 3번(tune_softplus_params.py)
 
-# 8. 금리-오차 분석 CSV 생성
+# 7. 금리-오차 분석 CSV 생성
 poetry run python scripts/tqqq/generate_rate_spread_lab.py
 # 출력: storage/results/tqqq_rate_spread_lab_*.csv (monthly, summary, model)
 
-# 9. 합성 TQQQ 데이터 생성 (선택)
+# 8. 합성 TQQQ 데이터 생성 (선택)
 poetry run python scripts/tqqq/generate_synthetic.py
 # 출력: storage/stock/TQQQ_synthetic_max.csv
 ```
@@ -106,11 +102,11 @@ poetry run python scripts/tqqq/generate_synthetic.py
 
 ```bash
 # 일별 비교 대시보드
-# 선행: 1 → 2 → 3
+# 선행: 1 → 2
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 
 # 금리-오차 관계 분석 연구용 앱
-# 선행: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
+# 선행: 1 → 2 → 3 → 4 → 5 → 6 → 7
 poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
 ```
 
@@ -195,7 +191,7 @@ quant/
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
 │   ├── backtest/      # run_grid_search.py, run_single_backtest.py
-│   └── tqqq/          # tune_cost_model.py, generate_*.py
+│   └── tqqq/          # generate_*.py, tune_softplus_params.py
 │       ├── generate_rate_spread_lab.py    # 금리-오차 분석 CSV 생성
 │       ├── tune_softplus_params.py        # Softplus 튜닝 CLI
 │       ├── validate_walkforward.py        # 워크포워드 검증 CLI
@@ -223,8 +219,7 @@ quant/
 
 ### TQQQ 시뮬레이션
 
-- `storage/results/tqqq_validation.csv`: 비용 모델 최적화 결과 (RMSE 기준 정렬)
-- `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력)
+- `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력, softplus 동적 스프레드)
 - `storage/results/tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
 - `storage/results/tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
 - `storage/results/tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
