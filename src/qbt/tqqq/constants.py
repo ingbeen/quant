@@ -33,11 +33,14 @@ EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
 # TQQQ 시뮬레이션 관련 결과 파일 경로
 TQQQ_DAILY_COMPARISON_PATH: Final = RESULTS_DIR / "tqqq_daily_comparison.csv"
-TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_monthly.csv"
-TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_summary.csv"
-TQQQ_RATE_SPREAD_LAB_MODEL_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_model.csv"
-SOFTPLUS_TUNING_CSV_PATH: Final = RESULTS_DIR / "tqqq_softplus_tuning.csv"
-SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = RESULTS_DIR / "tqqq_softplus_spread_series_static.csv"
+
+# --- 스프레드 검증 결과 파일 경로 (spread_lab 하위폴더) ---
+SPREAD_LAB_DIR: Final = RESULTS_DIR / "spread_lab"
+TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_monthly.csv"
+TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_summary.csv"
+TQQQ_RATE_SPREAD_LAB_MODEL_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_model.csv"
+SOFTPLUS_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_tuning.csv"
+SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_spread_series_static.csv"
 
 __all__ = [
     # 경로
@@ -47,6 +50,7 @@ __all__ = [
     "TQQQ_DATA_PATH",
     "TQQQ_SYNTHETIC_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
+    "SPREAD_LAB_DIR",
     "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
     "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
     "TQQQ_RATE_SPREAD_LAB_MODEL_PATH",
@@ -194,16 +198,16 @@ WALKFORWARD_LOCAL_REFINE_B_DELTA: Final = 0.15  # b 파라미터 탐색 반경
 WALKFORWARD_LOCAL_REFINE_B_STEP: Final = 0.02  # b 파라미터 증분 (16개 후보)
 
 # --- 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward.csv"
-TQQQ_WALKFORWARD_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
+TQQQ_WALKFORWARD_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward.csv"
+TQQQ_WALKFORWARD_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
 
 # --- b 고정 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_FIXED_B_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
-TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+TQQQ_WALKFORWARD_FIXED_B_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
+TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
 
 # --- 완전 고정 (a,b) 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
-TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = RESULTS_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
+TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
 
 # --- 금리 구간별 RMSE 분해 ---
 DEFAULT_RATE_BOUNDARY_PCT: Final = 2.0  # 금리 구간 경계값 (%, 0~2% = 저금리, 2%+ = 고금리)

@@ -134,6 +134,13 @@ main 함수:
 
 - 합성 데이터 생성 (`generate_synthetic.py`)
 - 일별 비교 데이터 생성 (`generate_daily_comparison.py`, softplus 동적 스프레드 사용)
+- 대시보드 앱:
+  - `app_daily_comparison.py`: 일별 비교 대시보드
+
+### 스프레드 모델 검증 (tqqq/spread_lab/)
+
+스프레드 모델 확정 후 재검증이 필요한 경우에만 사용하는 스크립트:
+
 - 금리-오차 분석 CSV 생성 (`generate_rate_spread_lab.py`)
 - 비용 모델 최적화:
   - `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
@@ -141,7 +148,6 @@ main 함수:
   - `validate_walkforward_fixed_b.py`: b 고정 워크포워드 검증 (b 고정, a만 최적화)
   - `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
 - 대시보드 앱:
-  - `app_daily_comparison.py`: 일별 비교 대시보드
   - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
 
 ---

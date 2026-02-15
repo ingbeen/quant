@@ -6,10 +6,10 @@
 60개월 Train, 1개월 Test 윈도우 구조로 월별 테스트 RMSE도 함께 산출한다.
 
 사전 준비:
-    poetry run python scripts/tqqq/tune_softplus_params.py
+    poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
 
 실행 명령어:
-    poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py
+    poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py
 """
 
 import sys
@@ -19,7 +19,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, QQQ_DATA_PATH, RESULTS_DIR
+from qbt.common_constants import COL_CLOSE, COL_DATE, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_walkforward_results, save_walkforward_summary
 from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
@@ -28,6 +28,7 @@ from qbt.tqqq.constants import (
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
+    SPREAD_LAB_DIR,
     TQQQ_DATA_PATH,
     TQQQ_WALKFORWARD_FIXED_AB_PATH,
     TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH,
@@ -68,7 +69,7 @@ def main() -> int:
     if not SOFTPLUS_TUNING_CSV_PATH.exists():
         raise FileNotFoundError(
             f"튜닝 결과 CSV가 없습니다: {SOFTPLUS_TUNING_CSV_PATH}\n"
-            f"먼저 실행: poetry run python scripts/tqqq/tune_softplus_params.py"
+            f"먼저 실행: poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py"
         )
 
     tuning_df = pd.read_csv(SOFTPLUS_TUNING_CSV_PATH)
@@ -188,7 +189,7 @@ def main() -> int:
     logger.debug("-" * 80)
 
     # 9. CSV 저장
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    SPREAD_LAB_DIR.mkdir(parents=True, exist_ok=True)
 
     save_walkforward_results(result_df, TQQQ_WALKFORWARD_FIXED_AB_PATH)
     logger.debug(f"워크포워드 결과 저장: {TQQQ_WALKFORWARD_FIXED_AB_PATH} ({len(result_df)}행)")

@@ -65,49 +65,41 @@ poetry run python scripts/data/download_data.py TQQQ
 poetry run python scripts/tqqq/generate_daily_comparison.py
 # 출력: storage/results/tqqq_daily_comparison.csv
 
-# 3. Softplus 동적 스프레드 모델 튜닝
-poetry run python scripts/tqqq/tune_softplus_params.py
-# 출력: storage/results/tqqq_softplus_tuning.csv
-#       storage/results/tqqq_softplus_spread_series_static.csv (정적 spread 시계열)
-
-# 4. 워크포워드 검증 (연속 워크포워드 RMSE 포함)
-poetry run python scripts/tqqq/validate_walkforward.py
-# 출력: storage/results/tqqq_rate_spread_lab_walkforward.csv
-#       storage/results/tqqq_rate_spread_lab_walkforward_summary.csv (stitched_rmse 포함)
-
-# 5. b 고정 워크포워드 검증 (과최적화 진단)
-poetry run python scripts/tqqq/validate_walkforward_fixed_b.py
-# 출력: storage/results/tqqq_rate_spread_lab_walkforward_fixed_b.csv
-#       storage/results/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv
-# 사전 필요: 3번(tune_softplus_params.py)
-
-# 6. 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
-poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py
-# 출력: storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab.csv
-#       storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv
-# 사전 필요: 3번(tune_softplus_params.py)
-
-# 7. 금리-오차 분석 CSV 생성
-poetry run python scripts/tqqq/generate_rate_spread_lab.py
-# 출력: storage/results/tqqq_rate_spread_lab_*.csv (monthly, summary, model)
-
-# 8. 합성 TQQQ 데이터 생성 (선택)
+# 3. 합성 TQQQ 데이터 생성 (선택)
 poetry run python scripts/tqqq/generate_synthetic.py
 # 출력: storage/stock/TQQQ_synthetic_max.csv
 ```
 
 ### 대시보드 앱 실행
 
-각 앱 실행 전에 선행 스크립트를 먼저 실행해야 합니다.
-
 ```bash
 # 일별 비교 대시보드
 # 선행: 1 → 2
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
+```
 
-# 금리-오차 관계 분석 연구용 앱
-# 선행: 1 → 2 → 3 → 4 → 5 → 6 → 7
-poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
+### 스프레드 모델 검증 (spread_lab/)
+
+스프레드 모델이 확정되어 일상적으로 사용할 일은 없지만, 재검증이 필요한 경우 사용합니다.
+
+```bash
+# Softplus 동적 스프레드 모델 튜닝
+poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
+
+# 워크포워드 검증
+poetry run python scripts/tqqq/spread_lab/validate_walkforward.py
+
+# b 고정 워크포워드 검증 (사전 필요: tune_softplus_params.py)
+poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_b.py
+
+# 완전 고정 (a,b) 워크포워드 검증 (사전 필요: tune_softplus_params.py)
+poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py
+
+# 금리-오차 분석 CSV 생성
+poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
+
+# 금리-오차 관계 분석 앱 (최신 시각화를 위해 위 스크립트를 먼저 실행할 것을 권장)
+poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 
 **파라미터 변경**: [src/qbt/tqqq/constants.py](src/qbt/tqqq/constants.py)
@@ -191,12 +183,13 @@ quant/
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
 │   ├── backtest/      # run_grid_search.py, run_single_backtest.py
-│   └── tqqq/          # generate_*.py, tune_softplus_params.py
-│       ├── generate_rate_spread_lab.py    # 금리-오차 분석 CSV 생성
-│       ├── tune_softplus_params.py        # Softplus 튜닝 CLI
-│       ├── validate_walkforward.py        # 워크포워드 검증 CLI
+│   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
-│       └── app_rate_spread_lab.py         # 금리-오차 분석 앱 (시각화)
+│       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
+│           ├── tune_softplus_params.py    # Softplus 튜닝 CLI
+│           ├── validate_walkforward*.py   # 워크포워드 검증 CLI (3종)
+│           ├── generate_rate_spread_lab.py # 금리-오차 분석 CSV 생성
+│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 + constants.py
@@ -206,6 +199,7 @@ quant/
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
+│       └── spread_lab/  # 스프레드 모델 검증 결과
 └── tests/             # 테스트 코드
 ```
 
@@ -220,12 +214,9 @@ quant/
 ### TQQQ 시뮬레이션
 
 - `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력, softplus 동적 스프레드)
-- `storage/results/tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
-- `storage/results/tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
-- `storage/results/tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
-- `storage/results/tqqq_rate_spread_lab_walkforward_summary.csv`: 워크포워드 요약 통계 (stitched_rmse 포함)
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
+- `storage/results/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석 등)
 
 ---
 
@@ -250,11 +241,11 @@ poetry run python validate_project.py
 각 앱은 선행 스크립트의 결과 CSV가 필요합니다. 워크플로우 2의 순서를 따라 실행하세요.
 
 ```bash
-# 일별 비교 대시보드 (선행: 1~3)
+# 일별 비교 대시보드 (선행: 1~2)
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 
-# 금리-오차 분석 앱 (선행: 1~6)
-poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
+# 금리-오차 분석 앱 (선행: spread_lab 스크립트 실행)
+poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 
 ---

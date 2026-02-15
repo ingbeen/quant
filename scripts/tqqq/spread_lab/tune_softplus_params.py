@@ -5,7 +5,7 @@ Softplus 동적 스프레드 모델 파라미터 튜닝 스크립트
 Streamlit 앱에서 분리하여 spawn 경고 없이 실행 가능하다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/tune_softplus_params.py
+    poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
 """
 
 import sys
@@ -14,7 +14,7 @@ from typing import Any
 
 import pandas as pd
 
-from qbt.common_constants import QQQ_DATA_PATH, RESULTS_DIR
+from qbt.common_constants import QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_static_spread_series
 from qbt.tqqq.constants import (
     EXPENSE_RATIO_DATA_PATH,
@@ -30,6 +30,7 @@ from qbt.tqqq.constants import (
     SOFTPLUS_GRID_STAGE2_B_STEP,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
+    SPREAD_LAB_DIR,
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
@@ -129,7 +130,7 @@ def main() -> int:
         )
 
     # 6. CSV 저장
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    SPREAD_LAB_DIR.mkdir(parents=True, exist_ok=True)
 
     csv_rows: list[dict[str, Any]] = []
     for candidate in candidates_sorted:

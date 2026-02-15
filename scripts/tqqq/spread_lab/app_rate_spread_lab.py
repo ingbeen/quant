@@ -4,10 +4,10 @@
 검증 결과를 확인한다.
 
 실행 명령어:
-    poetry run streamlit run scripts/tqqq/app_rate_spread_lab.py
+    poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 
 사전 준비:
-    poetry run python scripts/tqqq/generate_rate_spread_lab.py
+    poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
 
 화면 구성 (단일 흐름):
 - 금리-오차 관계 분석: 금리 수준 vs 월말 누적 오차 (핵심), 델타 분석, 교차검증
@@ -24,8 +24,8 @@ Fail-fast 정책:
 - 명확한 레이블 및 설명 제공
 
 관련 CLI 스크립트:
-- softplus 튜닝: poetry run python scripts/tqqq/tune_softplus_params.py
-- 워크포워드 검증: poetry run python scripts/tqqq/validate_walkforward.py
+- softplus 튜닝: poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
+- 워크포워드 검증: poetry run python scripts/tqqq/spread_lab/validate_walkforward.py
 """
 
 from pathlib import Path
@@ -204,10 +204,7 @@ def _prepare_monthly_data(
 def _render_intro():
     """타이틀, 스프레드 모델 변천사, 읽기 가이드를 렌더링한다."""
     st.title("TQQQ 금리-오차 관계 분석")
-    st.markdown(
-        "금리 환경과 시뮬레이션 오차의 관계를 시각화하여 "
-        "**Softplus 동적 스프레드 모델**의 검증 결과를 확인합니다."
-    )
+    st.markdown("금리 환경과 시뮬레이션 오차의 관계를 시각화하여 " "**Softplus 동적 스프레드 모델**의 검증 결과를 확인합니다.")
 
     # 스프레드 모델 변천사
     st.info(
@@ -532,7 +529,7 @@ def _render_softplus_tuning_section() -> None:
             f"파일 경로: `{SOFTPLUS_TUNING_CSV_PATH}`\n\n"
             f"**튜닝 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/tune_softplus_params.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py\n"
             f"```"
         )
     else:
@@ -657,7 +654,7 @@ def _render_walkforward_fixed_b_section() -> None:
             f"- `{TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/validate_walkforward_fixed_b.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_b.py\n"
             f"```"
         )
         return
@@ -968,7 +965,7 @@ def _render_overfitting_diagnosis_section() -> None:
             f"- `{TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py\n"
             f"```"
         )
         return
@@ -1073,7 +1070,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
                 "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py`"
+                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py`"
             )
 
     with col2:
@@ -1086,7 +1083,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
                 "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/validate_walkforward_fixed_ab.py`"
+                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py`"
             )
 
     # --- 월별 테스트 RMSE 추이 차트 ---
@@ -1192,7 +1189,7 @@ def _render_spread_comparison_section() -> None:
             f"파일 경로: `{SOFTPLUS_SPREAD_SERIES_STATIC_PATH}`\n\n"
             f"**생성 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/tune_softplus_params.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py\n"
             f"```"
         )
         return
@@ -1203,7 +1200,7 @@ def _render_spread_comparison_section() -> None:
             f"파일 경로: `{TQQQ_WALKFORWARD_PATH}`\n\n"
             f"**생성 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/validate_walkforward.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -1336,7 +1333,7 @@ def _render_walkforward_section() -> None:
             f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/validate_walkforward.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```\n\n"
             f"**주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분)."
         )

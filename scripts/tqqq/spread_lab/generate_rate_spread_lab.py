@@ -6,12 +6,12 @@ TQQQ Rate Spread Lab CSV 생성 스크립트
 모든 파라미터는 상수에서 정의됩니다.
 
 실행 명령어:
-    poetry run python scripts/tqqq/generate_rate_spread_lab.py
+    poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
 
 출력:
-    - storage/results/tqqq_rate_spread_lab_monthly.csv (월별 피처)
-    - storage/results/tqqq_rate_spread_lab_summary.csv (요약 통계)
-    - storage/results/tqqq_rate_spread_lab_model.csv (모델용, 조건부)
+    - storage/results/spread_lab/tqqq_rate_spread_lab_monthly.csv (월별 피처)
+    - storage/results/spread_lab/tqqq_rate_spread_lab_summary.csv (요약 통계)
+    - storage/results/spread_lab/tqqq_rate_spread_lab_model.csv (모델용, 조건부)
 """
 
 import sys

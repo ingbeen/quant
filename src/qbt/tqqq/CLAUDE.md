@@ -197,7 +197,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ### tqqq_rate_spread_lab_monthly.csv
 
-경로: `storage/results/tqqq_rate_spread_lab_monthly.csv`
+경로: `storage/results/spread_lab/tqqq_rate_spread_lab_monthly.csv`
 
 주요 컬럼: 연월, 금리수준, 금리변화, 월말누적오차, 월간오차변화, 일일오차월합, lag1, lag2
 
@@ -205,7 +205,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ### tqqq_rate_spread_lab_model.csv
 
-경로: `storage/results/tqqq_rate_spread_lab_model.csv`
+경로: `storage/results/spread_lab/tqqq_rate_spread_lab_model.csv`
 
 주요 컬럼 (영문):
 
@@ -233,23 +233,13 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 - 가격 비교 차트: 실제 TQQQ vs 시뮬레이션
 - 오차 분석 차트: 히스토그램, 시계열 오차 추이
 
-### app_rate_spread_lab.py
-
-금리-오차 관계 분석 연구용 앱 (시각화 전용)
-
-화면 구성 (단일 흐름):
-
-- 금리-오차 관계 분석: 금리 수준 vs 월말 누적 오차 (핵심), 델타 분석, 교차검증
-- Softplus 모델 튜닝 결과: 전체기간 최적 파라미터 (a, b)
-- 과최적화 진단: 완전 고정 (a,b) 워크포워드 검증
-- 상세 분석: 모델 도출 과정 (워크포워드, b고정, Spread 비교)
-
-사전 실행 필요: `generate_rate_spread_lab.py`로 CSV 생성 후 사용
-
 ---
 
 ## CLI 스크립트
 
+### 스프레드 모델 검증 (scripts/tqqq/spread_lab/)
+
+스프레드 모델 확정 후 재검증이 필요한 경우에만 사용하는 스크립트입니다.
 연산 집약적인 작업은 CLI 스크립트로 분리하여 spawn 경고 없이 실행 가능합니다.
 Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합니다.
 
@@ -258,6 +248,7 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 - `validate_walkforward.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 - `validate_walkforward_fixed_b.py`: b 고정 워크포워드 검증 (b 고정, a만 최적화)
 - `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
+- `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용)
 
 ---
 

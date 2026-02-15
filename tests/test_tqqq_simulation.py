@@ -2389,26 +2389,26 @@ class TestCLIScriptExists:
         """
         softplus 튜닝 스크립트 파일 존재 테스트
 
-        Given: scripts/tqqq/ 디렉토리
+        Given: scripts/tqqq/spread_lab/ 디렉토리
         When: tune_softplus_params.py 존재 여부 확인
         Then: 파일이 존재함
         """
         from pathlib import Path
 
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "tune_softplus_params.py"
+        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "spread_lab" / "tune_softplus_params.py"
         assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
 
     def test_walkforward_validation_script_exists(self):
         """
         워크포워드 검증 스크립트 파일 존재 테스트
 
-        Given: scripts/tqqq/ 디렉토리
+        Given: scripts/tqqq/spread_lab/ 디렉토리
         When: validate_walkforward.py 존재 여부 확인
         Then: 파일이 존재함
         """
         from pathlib import Path
 
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "validate_walkforward.py"
+        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "spread_lab" / "validate_walkforward.py"
         assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
 
 
