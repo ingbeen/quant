@@ -6,6 +6,7 @@
 - 거래/자본 기록 (EquityRecord, TradeRecord)
 - 상태 관리 (HoldState)
 - 그리드 서치 결과 (GridSearchResult)
+- 최적 파라미터 (BestGridParams)
 """
 
 from datetime import date
@@ -109,3 +110,15 @@ class GridSearchResult(TypedDict):
     total_trades: int
     win_rate: float
     final_capital: float
+
+
+class BestGridParams(TypedDict):
+    """load_best_grid_params() 반환 타입.
+
+    grid_results.csv에서 CAGR 1위 파라미터 4개를 담는다.
+    """
+
+    ma_window: int
+    buffer_zone_pct: float
+    hold_days: int
+    recent_months: int

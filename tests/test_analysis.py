@@ -6,6 +6,7 @@ backtest/analysis 모듈 테스트
 2. 백테스트 성과 지표(CAGR, MDD, 승률 등)가 정확한가?
 3. 거래가 없을 때 안전하게 처리되는가?
 4. 출력 DataFrame의 스키마가 일관적인가?
+5. grid_results.csv에서 최적 파라미터를 정확히 로드하는가?
 
 왜 중요한가요?
 잘못된 지표 계산은 전략 평가를 왜곡합니다.
@@ -13,11 +14,12 @@ backtest/analysis 모듈 테스트
 """
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary
+from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
 
@@ -325,3 +327,107 @@ class TestCalculateSummary:
 
         # Then: MDD가 안전하게 계산되어야 함
         assert "mdd" in summary, "summary에 mdd 키가 있어야 함"
+
+
+class TestLoadBestGridParams:
+    """grid_results.csv 최적 파라미터 로딩 테스트"""
+
+    # 테스트용 CSV 헤더 및 데이터
+    _CSV_HEADER = "이평기간,버퍼존,유지일,조정기간(월),수익률,CAGR,MDD,거래수,승률,최종자본"
+    _CSV_ROW_1 = "150,0.04,3,2,16158.13,20.92,-85.68,16,68.75,1625813095.64"
+    _CSV_ROW_2 = "200,0.03,0,0,12000.00,18.50,-70.00,20,60.00,1200000000.00"
+
+    def test_normal_load(self, tmp_path: Path) -> None:
+        """
+        정상 CSV에서 첫 행(CAGR 1위) 파라미터를 반환한다.
+
+        Given: CAGR 내림차순 정렬된 grid_results.csv (2행)
+        When: load_best_grid_params 호출
+        Then: 첫 행의 4개 파라미터가 BestGridParams로 반환됨
+        """
+        # Given
+        csv_path = tmp_path / "grid_results.csv"
+        csv_path.write_text(f"{self._CSV_HEADER}\n{self._CSV_ROW_1}\n{self._CSV_ROW_2}\n")
+
+        # When
+        result = load_best_grid_params(csv_path)
+
+        # Then
+        assert result is not None
+        assert result["ma_window"] == 150
+        assert result["buffer_zone_pct"] == pytest.approx(0.04, abs=EPSILON)
+        assert result["hold_days"] == 3
+        assert result["recent_months"] == 2
+
+    def test_file_not_found(self, tmp_path: Path) -> None:
+        """
+        파일이 존재하지 않으면 None을 반환한다.
+
+        Given: 존재하지 않는 경로
+        When: load_best_grid_params 호출
+        Then: None 반환 (예외 아닌 정상 흐름)
+        """
+        # Given
+        csv_path = tmp_path / "nonexistent.csv"
+
+        # When
+        result = load_best_grid_params(csv_path)
+
+        # Then
+        assert result is None
+
+    def test_empty_csv(self, tmp_path: Path) -> None:
+        """
+        헤더만 있는 빈 CSV에서 None을 반환한다.
+
+        Given: 헤더만 있는 CSV
+        When: load_best_grid_params 호출
+        Then: None 반환
+        """
+        # Given
+        csv_path = tmp_path / "grid_results.csv"
+        csv_path.write_text(f"{self._CSV_HEADER}\n")
+
+        # When
+        result = load_best_grid_params(csv_path)
+
+        # Then
+        assert result is None
+
+    def test_missing_required_columns(self, tmp_path: Path) -> None:
+        """
+        필수 컬럼이 누락되면 ValueError를 발생시킨다.
+
+        Given: '이평기간' 컬럼이 없는 CSV
+        When: load_best_grid_params 호출
+        Then: ValueError 발생
+        """
+        # Given
+        csv_path = tmp_path / "grid_results.csv"
+        csv_path.write_text("버퍼존,유지일,CAGR\n0.04,3,20.92\n")
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            load_best_grid_params(csv_path)
+
+    def test_type_correctness(self, tmp_path: Path) -> None:
+        """
+        반환값의 타입이 정확한지 검증한다.
+
+        Given: 정상 CSV
+        When: load_best_grid_params 호출
+        Then: ma_window=int, buffer_zone_pct=float, hold_days=int, recent_months=int
+        """
+        # Given
+        csv_path = tmp_path / "grid_results.csv"
+        csv_path.write_text(f"{self._CSV_HEADER}\n{self._CSV_ROW_1}\n")
+
+        # When
+        result = load_best_grid_params(csv_path)
+
+        # Then
+        assert result is not None
+        assert isinstance(result["ma_window"], int)
+        assert isinstance(result["buffer_zone_pct"], float)
+        assert isinstance(result["hold_days"], int)
+        assert isinstance(result["recent_months"], int)

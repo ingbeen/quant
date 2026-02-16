@@ -25,6 +25,7 @@
 - `TradeRecord`: 거래 기록 딕셔너리
 - `HoldState`: hold_days 상태머신 상태
 - `GridSearchResult`: 그리드 서치 결과 딕셔너리
+- `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
 
 ### 2. constants.py
 
@@ -36,6 +37,7 @@
 - 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUFFER_ZONE_PCT` 등
 - 제약 조건: `MIN_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`
 - 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUFFER_ZONE_PCT_LIST` 등
+- 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUFFER_ZONE` 등
 
 ### 3. analysis.py
 
@@ -45,6 +47,7 @@
 
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
+- `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
 
 ### 4. strategy.py
 

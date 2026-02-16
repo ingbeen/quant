@@ -26,6 +26,16 @@ from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW_LIST,
     DEFAULT_RECENT_MONTHS_LIST,
+    DISPLAY_BUFFER_ZONE,
+    DISPLAY_CAGR,
+    DISPLAY_FINAL_CAPITAL,
+    DISPLAY_HOLD_DAYS,
+    DISPLAY_MA_WINDOW,
+    DISPLAY_MDD,
+    DISPLAY_RECENT_MONTHS,
+    DISPLAY_TOTAL_RETURN,
+    DISPLAY_TOTAL_TRADES,
+    DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
 from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
@@ -36,18 +46,6 @@ from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
-
-# 출력용 레이블 (사용자 표시용)
-DISPLAY_MA_WINDOW = "이평기간"
-DISPLAY_BUFFER_ZONE = "버퍼존"
-DISPLAY_HOLD_DAYS = "유지일"
-DISPLAY_RECENT_MONTHS = "조정기간(월)"
-DISPLAY_TOTAL_RETURN = "수익률"
-DISPLAY_CAGR = "CAGR"
-DISPLAY_MDD = "MDD"
-DISPLAY_TOTAL_TRADES = "거래수"
-DISPLAY_WIN_RATE = "승률"
-DISPLAY_FINAL_CAPITAL = "최종자본"
 
 
 def print_summary_stats(results_df) -> None:

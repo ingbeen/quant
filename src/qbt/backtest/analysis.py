@@ -1,6 +1,6 @@
 """백테스트 분석 모듈
 
-이동평균 계산 및 성과 지표 계산 기능을 제공한다.
+이동평균 계산, 성과 지표 계산, 그리드 서치 최적 파라미터 로딩 기능을 제공한다.
 
 학습 포인트:
 1. 이동평균(Moving Average): 일정 기간의 가격 평균을 계산하여 추세 파악
@@ -9,9 +9,17 @@
 4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
+from pathlib import Path
+
 import pandas as pd
 
-from qbt.backtest.types import SummaryDict
+from qbt.backtest.constants import (
+    DISPLAY_BUFFER_ZONE,
+    DISPLAY_HOLD_DAYS,
+    DISPLAY_MA_WINDOW,
+    DISPLAY_RECENT_MONTHS,
+)
+from qbt.backtest.types import BestGridParams, SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
 
@@ -163,3 +171,61 @@ def calculate_summary(
         "start_date": str(equity_df.iloc[0][COL_DATE]),
         "end_date": str(equity_df.iloc[-1][COL_DATE]),
     }
+
+
+# DISPLAY 컬럼명 → 내부 키 매핑 (grid_results.csv 파싱용)
+_GRID_CSV_REQUIRED_COLUMNS = {
+    DISPLAY_MA_WINDOW: "ma_window",
+    DISPLAY_BUFFER_ZONE: "buffer_zone_pct",
+    DISPLAY_HOLD_DAYS: "hold_days",
+    DISPLAY_RECENT_MONTHS: "recent_months",
+}
+
+
+def load_best_grid_params(path: Path) -> BestGridParams | None:
+    """
+    grid_results.csv에서 CAGR 1위 파라미터를 로드한다.
+
+    CSV는 CAGR 내림차순 정렬되어 있으므로 첫 행이 최적 파라미터이다.
+
+    Args:
+        path: grid_results.csv 파일 경로
+
+    Returns:
+        CAGR 1위 파라미터 딕셔너리 (ma_window, buffer_zone_pct, hold_days, recent_months)
+        파일이 없거나 데이터가 비어있으면 None 반환
+
+    Raises:
+        ValueError: 필수 컬럼이 누락된 경우
+    """
+    if not path.exists():
+        logger.debug(f"grid_results.csv 없음: {path}")
+        return None
+
+    df = pd.read_csv(path)
+
+    if df.empty:
+        logger.debug("grid_results.csv 데이터 없음 (빈 파일)")
+        return None
+
+    # 필수 컬럼 검증
+    missing_columns = set(_GRID_CSV_REQUIRED_COLUMNS.keys()) - set(df.columns)
+    if missing_columns:
+        raise ValueError(f"grid_results.csv 필수 컬럼 누락: {sorted(missing_columns)}")
+
+    # 첫 행 (CAGR 1위) 파라미터 추출
+    row = df.iloc[0]
+    result: BestGridParams = {
+        "ma_window": int(row[DISPLAY_MA_WINDOW]),
+        "buffer_zone_pct": float(row[DISPLAY_BUFFER_ZONE]),
+        "hold_days": int(row[DISPLAY_HOLD_DAYS]),
+        "recent_months": int(row[DISPLAY_RECENT_MONTHS]),
+    }
+
+    logger.debug(
+        f"grid_results.csv 최적 파라미터 로드 완료: "
+        f"ma_window={result['ma_window']}, buffer_zone_pct={result['buffer_zone_pct']}, "
+        f"hold_days={result['hold_days']}, recent_months={result['recent_months']}"
+    )
+
+    return result
