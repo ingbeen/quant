@@ -1,7 +1,0 @@
-﻿bin_width_pct,stat_func,rmse_pct,n_bins
-2.0,median,2.1128,3
-0.5,median,2.5276,11
-1.0,median,3.1049,6
-0.5,mean,5.7497,11
-1.0,mean,6.4093,6
-2.0,mean,6.4463,3

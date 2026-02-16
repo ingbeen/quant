@@ -103,7 +103,6 @@ def main() -> int:
 
     # 6. CSV 저장
     SPREAD_LAB_DIR.mkdir(parents=True, exist_ok=True)
-    results_df["rmse_pct"] = results_df["rmse_pct"].round(4)
     results_df.to_csv(LOOKUP_TUNING_CSV_PATH, index=False, encoding="utf-8-sig")
     logger.debug(f"결과 저장: {LOOKUP_TUNING_CSV_PATH}")
 
