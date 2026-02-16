@@ -83,6 +83,7 @@ poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 스프레드 모델이 확정되어 일상적으로 사용할 일은 없지만, 재검증이 필요한 경우 사용합니다.
 
 ```bash
+# --- Softplus 모델 ---
 # Softplus 동적 스프레드 모델 튜닝
 poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
 
@@ -95,10 +96,18 @@ poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_b.py
 # 완전 고정 (a,b) 워크포워드 검증 (사전 필요: tune_softplus_params.py)
 poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py
 
+# --- 룩업테이블 모델 ---
+# 룩업테이블 인샘플 최적화 (구간 폭 × 통계량 6가지 조합)
+poetry run python scripts/tqqq/spread_lab/tune_lookup_params.py
+
+# 룩업테이블 워크포워드 검증 (사전 필요: tune_lookup_params.py)
+poetry run python scripts/tqqq/spread_lab/validate_walkforward_lookup.py
+
+# --- 공통 ---
 # 금리-오차 분석 CSV 생성
 poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
 
-# 금리-오차 관계 분석 앱 (최신 시각화를 위해 위 스크립트를 먼저 실행할 것을 권장)
+# 금리-오차 관계 분석 앱 (Softplus / 룩업테이블 모드 선택 가능)
 poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 
@@ -187,9 +196,10 @@ quant/
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
 │           ├── tune_softplus_params.py    # Softplus 튜닝 CLI
-│           ├── validate_walkforward*.py   # 워크포워드 검증 CLI (3종)
+│           ├── tune_lookup_params.py      # 룩업테이블 튜닝 CLI
+│           ├── validate_walkforward*.py   # 워크포워드 검증 CLI (Softplus 3종 + 룩업테이블 1종)
 │           ├── generate_rate_spread_lab.py # 금리-오차 분석 CSV 생성
-│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
+│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (Softplus / 룩업테이블)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 (constants.py, types.py)

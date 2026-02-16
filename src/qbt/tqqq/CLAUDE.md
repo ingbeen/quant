@@ -96,7 +96,22 @@ CSV 저장:
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
-### 6. visualization.py
+### 6. lookup_spread.py
+
+룩업테이블 스프레드 모델을 제공합니다.
+
+softplus 모델과 달리 함수 형태를 가정하지 않고, TQQQ 실제 수익률에서 스프레드를 역산하여
+금리 구간별로 집계한 룩업테이블을 사용합니다.
+
+주요 함수:
+
+- `calculate_realized_spread`: QQQ/TQQQ 수익률에서 실현 스프레드 역산
+- `build_lookup_table`: 금리 구간별 스프레드 테이블 생성 (mean/median)
+- `lookup_spread_from_table`: 테이블에서 스프레드 조회 (빈 구간 시 인접 구간 fallback)
+- `build_monthly_spread_map_from_lookup`: FundingSpreadSpec 호환 월별 스프레드 맵 생성
+- `evaluate_lookup_combination`: 단일 (bin_width, stat_func) 조합의 인샘플 RMSE 평가
+
+### 7. visualization.py
 
 Plotly 기반 차트 생성 함수를 제공합니다.
 

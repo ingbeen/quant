@@ -54,6 +54,9 @@ from qbt.tqqq.constants import (
     DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
+    LOOKUP_TUNING_CSV_PATH,
+    LOOKUP_WALKFORWARD_PATH,
+    LOOKUP_WALKFORWARD_SUMMARY_PATH,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
@@ -1679,6 +1682,227 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
 
 
 # ============================================================
+# 모드별 렌더링 함수
+# ============================================================
+
+
+def _render_softplus_mode(monthly_df: pd.DataFrame) -> None:
+    """Softplus 모델 모드의 전체 콘텐츠를 렌더링한다."""
+    # A. 금리-오차 관계 분석
+    _render_level_section(monthly_df)
+    _render_delta_section(monthly_df)
+    _render_cross_validation_section(monthly_df)
+
+    st.divider()
+
+    # B. Softplus 모델 튜닝 결과
+    _render_softplus_tuning_section()
+
+    st.divider()
+
+    # C. 과최적화 진단
+    _render_overfitting_diagnosis_section()
+
+    st.divider()
+
+    # D. 상세 분석 (모델 도출 과정)
+    _render_detailed_analysis_section()
+
+
+def _render_lookup_mode() -> None:
+    """룩업테이블 모델 모드의 전체 콘텐츠를 렌더링한다."""
+    st.header("룩업테이블 스프레드 모델")
+    st.markdown("실현 스프레드를 역산하여 금리 구간별로 집계한 룩업테이블 모델의 검증 결과입니다.\n\n" "softplus처럼 함수 형태를 가정하지 않고, 관측된 스프레드를 직접 사용합니다.")
+
+    # 1. 인샘플 튜닝 결과
+    _render_lookup_tuning_section()
+
+    st.divider()
+
+    # 2. 워크포워드 검증 결과
+    _render_lookup_walkforward_section()
+
+    st.divider()
+
+    # 3. 과적합 진단 (인샘플 vs 워크포워드)
+    _render_lookup_overfitting_section()
+
+
+def _render_lookup_tuning_section() -> None:
+    """룩업테이블 인샘플 튜닝 결과를 렌더링한다."""
+    st.subheader("인샘플 최적화 결과 (6가지 조합)")
+
+    tuning_path = Path(LOOKUP_TUNING_CSV_PATH)
+    if not tuning_path.exists():
+        st.warning("인샘플 튜닝 결과가 없습니다.\n\n" "먼저 실행: `poetry run python scripts/tqqq/spread_lab/tune_lookup_params.py`")
+        return
+
+    tuning_df = pd.read_csv(tuning_path)
+
+    if tuning_df.empty:
+        st.info("튜닝 결과가 비어있습니다.")
+        return
+
+    # 최적 조합 표시
+    best = tuning_df.iloc[0]
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(label="최적 구간 폭 (%)", value=f"{best['bin_width_pct']}")
+    with col2:
+        st.metric(label="최적 통계량", value=str(best["stat_func"]))
+    with col3:
+        st.metric(label="인샘플 RMSE (%)", value=f"{best['rmse_pct']:.4f}")
+
+    # 전체 결과 테이블
+    st.dataframe(tuning_df, width="stretch")
+
+    # 바 차트
+    fig = go.Figure()
+    labels = [f"{row['bin_width_pct']}% / {row['stat_func']}" for _, row in tuning_df.iterrows()]
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=tuning_df["rmse_pct"],
+            marker_color=["#2196F3" if i == 0 else "#90CAF9" for i in range(len(tuning_df))],
+        )
+    )
+    fig.update_layout(
+        title="조합별 인샘플 RMSE 비교",
+        xaxis_title="구간 폭 / 통계량",
+        yaxis_title="RMSE (%)",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+def _render_lookup_walkforward_section() -> None:
+    """룩업테이블 워크포워드 검증 결과를 렌더링한다."""
+    st.subheader("워크포워드 검증 결과")
+
+    wf_path = Path(LOOKUP_WALKFORWARD_PATH)
+    summary_path = Path(LOOKUP_WALKFORWARD_SUMMARY_PATH)
+
+    if not wf_path.exists() or not summary_path.exists():
+        st.warning(
+            "워크포워드 결과가 없습니다.\n\n" "먼저 실행: `poetry run python scripts/tqqq/spread_lab/validate_walkforward_lookup.py`"
+        )
+        return
+
+    result_df = pd.read_csv(wf_path)
+    summary_df = pd.read_csv(summary_path)
+
+    if result_df.empty or summary_df.empty:
+        st.info("워크포워드 결과가 비어있습니다.")
+        return
+
+    summary = dict(zip(summary_df["metric"], summary_df["value"], strict=False))
+
+    # 요약 지표
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        stitched = summary.get("stitched_rmse")
+        if stitched is not None:
+            st.metric(label="Stitched RMSE (%)", value=f"{float(stitched):.4f}")
+        else:
+            st.metric(label="Stitched RMSE (%)", value="N/A")
+    with col2:
+        st.metric(label="월별 RMSE 평균 (%)", value=f"{float(summary.get('test_rmse_mean', 0)):.4f}")
+    with col3:
+        st.metric(label="월별 RMSE 중앙값 (%)", value=f"{float(summary.get('test_rmse_median', 0)):.4f}")
+    with col4:
+        st.metric(label="테스트 월수", value=f"{int(float(summary.get('n_test_months', 0)))}")
+
+    # 월별 테스트 RMSE 시계열
+    if "test_month" in result_df.columns and "test_rmse_pct" in result_df.columns:
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=result_df["test_month"],
+                y=result_df["test_rmse_pct"],
+                mode="lines+markers",
+                name="월별 테스트 RMSE",
+                marker={"size": 3},
+            )
+        )
+        fig.update_layout(
+            title="월별 테스트 RMSE 추이",
+            xaxis_title="테스트 월",
+            yaxis_title="RMSE (%)",
+        )
+        st.plotly_chart(fig, width="stretch")
+
+    # 결과 테이블
+    with st.expander("워크포워드 상세 결과", expanded=False):
+        st.dataframe(result_df, width="stretch")
+
+
+def _render_lookup_overfitting_section() -> None:
+    """룩업테이블 과적합 진단 (인샘플 vs 워크포워드)을 렌더링한다."""
+    st.subheader("과적합 진단 (인샘플 vs 워크포워드)")
+
+    # 인샘플 RMSE 로드
+    tuning_path = Path(LOOKUP_TUNING_CSV_PATH)
+    summary_path = Path(LOOKUP_WALKFORWARD_SUMMARY_PATH)
+
+    if not tuning_path.exists() or not summary_path.exists():
+        st.info("인샘플 및 워크포워드 결과가 모두 필요합니다.")
+        return
+
+    tuning_df = pd.read_csv(tuning_path)
+    summary_df = pd.read_csv(summary_path)
+
+    if tuning_df.empty or summary_df.empty:
+        st.info("결과가 비어있습니다.")
+        return
+
+    insample_rmse = float(tuning_df.iloc[0]["rmse_pct"])
+    summary = dict(zip(summary_df["metric"], summary_df["value"], strict=False))
+    stitched_rmse = summary.get("stitched_rmse")
+
+    if stitched_rmse is None:
+        st.info("stitched RMSE를 산출할 수 없습니다.")
+        return
+
+    stitched_rmse = float(stitched_rmse)
+    gap = stitched_rmse - insample_rmse
+
+    # RMSE 비교
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(label="인샘플 RMSE (%)", value=f"{insample_rmse:.4f}")
+    with col2:
+        st.metric(label="워크포워드 Stitched RMSE (%)", value=f"{stitched_rmse:.4f}")
+    with col3:
+        st.metric(label="격차 (%p)", value=f"{gap:.4f}")
+
+    # 판정
+    if gap < 0.5:
+        st.success(f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (< 0.5%p)\n\n" f"**판단: 과적합 위험 낮음** - 룩업테이블 파라미터가 잘 일반화되고 있습니다.")
+    elif gap < 1.5:
+        st.warning(f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (0.5~1.5%p)\n\n" f"**판단: 약한 과적합** - 실용적 범위이지만 모니터링이 필요합니다.")
+    else:
+        st.error(f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (> 1.5%p)\n\n" f"**판단: 과적합 의심** - 다른 접근 검토가 필요합니다.")
+
+    # 비교 바 차트
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=["인샘플", "워크포워드 (Stitched)"],
+            y=[insample_rmse, stitched_rmse],
+            marker_color=["#4CAF50", "#FF5722"],
+            text=[f"{insample_rmse:.4f}%", f"{stitched_rmse:.4f}%"],
+            textposition="auto",
+        )
+    )
+    fig.update_layout(
+        title="인샘플 vs 워크포워드 RMSE 비교",
+        yaxis_title="RMSE (%)",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, width="stretch")
+
+
+# ============================================================
 # 메인 함수
 # ============================================================
 
@@ -1697,6 +1921,11 @@ def main():
         with st.sidebar:
             st.header("TQQQ 금리-오차 분석")
             st.caption("QBT (Quant BackTest)")
+            st.divider()
+            model_mode = st.radio(
+                "스프레드 모델 선택",
+                ("Softplus 모델", "룩업테이블 모델"),
+            )
 
         # 타이틀, 히스토리, 읽기 가이드
         _render_intro()
@@ -1727,25 +1956,10 @@ def main():
 
         st.divider()
 
-        # A. 금리-오차 관계 분석
-        _render_level_section(monthly_df)
-        _render_delta_section(monthly_df)
-        _render_cross_validation_section(monthly_df)
-
-        st.divider()
-
-        # B. Softplus 모델 튜닝 결과
-        _render_softplus_tuning_section()
-
-        st.divider()
-
-        # C. 과최적화 진단
-        _render_overfitting_diagnosis_section()
-
-        st.divider()
-
-        # D. 상세 분석 (모델 도출 과정)
-        _render_detailed_analysis_section()
+        if model_mode == "Softplus 모델":
+            _render_softplus_mode(monthly_df)
+        else:
+            _render_lookup_mode()
 
         # 푸터
         st.markdown("---")
