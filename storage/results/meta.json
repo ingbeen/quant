@@ -320,6 +320,42 @@
         "row_count": 3995,
         "file_size_bytes": 322792
       },
+      "timestamp": "2026-02-16T15:46:45+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-29",
+        "total_days": 3995
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 26300.71,
+        "cumulative_return_simulated_pct": 26151.06,
+        "cumul_multiple_log_diff_mean_pct": 0.8649,
+        "cumul_multiple_log_diff_rmse_pct": 1.0467,
+        "cumul_multiple_log_diff_max_pct": 5.4299
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0958,
+          "max": 6.4461
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 0.8649,
+          "max": 5.4299
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq_daily_comparison.csv",
+        "row_count": 3995,
+        "file_size_bytes": 322792
+      },
       "timestamp": "2026-02-15T18:58:34+09:00"
     },
     {
@@ -423,40 +459,6 @@
         "file_size_bytes": 322833
       },
       "timestamp": "2025-12-31T16:29:53+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.0034
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-19",
-        "total_days": 3990
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 25790.22,
-        "cumulative_return_simulated_pct": 26916.69,
-        "cumul_multiple_log_diff_mean_pct": 1.7206,
-        "cumul_multiple_log_diff_rmse_pct": 2.0043,
-        "cumul_multiple_log_diff_max_pct": 6.3173
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0957,
-          "max": 6.4455
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7206,
-          "max": 6.3173
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3990,
-        "file_size_bytes": 291886
-      },
-      "timestamp": "2025-12-31T13:44:32+09:00"
     }
   ],
   "tqqq_softplus_tuning": [
@@ -1060,6 +1062,72 @@
         "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
       },
       "timestamp": "2026-02-15T09:12:57+09:00"
+    }
+  ],
+  "tqqq_synthetic": [
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37,
+        "pre_listing_expense_ratio": 0.0095
+      },
+      "synthetic_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2010-02-10",
+        "total_days": 2749,
+        "scale_factor": 0.187162
+      },
+      "actual_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-29",
+        "total_days": 3995
+      },
+      "merged_summary": {
+        "total_days": 6744,
+        "initial_price": 37.4323,
+        "final_price": 54.490002,
+        "cumulative_return_pct": 45.57
+      },
+      "csv_info": {
+        "path": "storage/stock/TQQQ_synthetic_max.csv",
+        "row_count": 6744,
+        "file_size_bytes": 338271
+      },
+      "timestamp": "2026-02-16T16:06:23+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37,
+        "pre_listing_expense_ratio": 0.0095
+      },
+      "synthetic_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2010-02-10",
+        "total_days": 2749,
+        "scale_factor": 0.187162
+      },
+      "actual_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-29",
+        "total_days": 3995
+      },
+      "merged_summary": {
+        "total_days": 6744,
+        "initial_price": 37.4323,
+        "final_price": 54.490002,
+        "cumulative_return_pct": 45.57
+      },
+      "csv_info": {
+        "path": "storage/stock/TQQQ_synthetic_max.csv",
+        "row_count": 6744,
+        "file_size_bytes": 338271
+      },
+      "timestamp": "2026-02-16T15:58:41+09:00"
     }
   ]
 }

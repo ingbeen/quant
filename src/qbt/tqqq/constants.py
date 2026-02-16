@@ -61,6 +61,7 @@ __all__ = [
     "DEFAULT_SYNTHETIC_INITIAL_PRICE",
     # 비용 모델 파라미터
     "DEFAULT_FUNDING_SPREAD",
+    "DEFAULT_PRE_LISTING_EXPENSE_RATIO",
     "MAX_EXPENSE_MONTHS_DIFF",
     "MAX_FFR_MONTHS_DIFF",
     # CSV 컬럼명 (내부용 영문 토큰)
@@ -149,6 +150,7 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
 
 # --- 기본값 ---
 DEFAULT_FUNDING_SPREAD: Final = 0.0034  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
+DEFAULT_PRE_LISTING_EXPENSE_RATIO: Final = 0.0095  # TQQQ 상장 이전 운용비율 가정값 (0.0095 = 0.95%)
 
 # --- 데이터 검증 ---
 MAX_EXPENSE_MONTHS_DIFF: Final = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
