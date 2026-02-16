@@ -26,7 +26,7 @@ from qbt.backtest.constants import (
     DEFAULT_MA_WINDOW,
     DEFAULT_RECENT_MONTHS,
 )
-from qbt.common_constants import COL_DATE, QQQ_DATA_PATH
+from qbt.common_constants import COL_DATE, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -73,20 +73,28 @@ def main() -> int:
         f"파라미터: ma_window={DEFAULT_MA_WINDOW}, buffer_zone={DEFAULT_BUFFER_ZONE_PCT}, hold_days={DEFAULT_HOLD_DAYS}, recent_months={DEFAULT_RECENT_MONTHS}"
     )
 
-    # 1. 데이터 로딩
-    logger.debug(f"데이터 파일 경로: {QQQ_DATA_PATH}")
-    df = load_stock_data(QQQ_DATA_PATH)
+    # 1. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
+    logger.debug(f"시그널 데이터: {QQQ_DATA_PATH}")
+    logger.debug(f"매매 데이터: {TQQQ_SYNTHETIC_DATA_PATH}")
+    signal_df = load_stock_data(QQQ_DATA_PATH)
+    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
 
     logger.debug("=" * 60)
     logger.debug("데이터 로딩 완료")
-    logger.debug(f"총 행 수: {len(df):,}")
-    logger.debug(f"기간: {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
+    logger.debug(f"시그널(QQQ) 행 수: {len(signal_df):,}, 기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}")
+    logger.debug(f"매매(TQQQ) 행 수: {len(trade_df):,}, 기간: {trade_df[COL_DATE].min()} ~ {trade_df[COL_DATE].max()}")
     logger.debug("=" * 60)
 
-    # 2. 이동평균 계산
-    df = add_single_moving_average(df, DEFAULT_MA_WINDOW)
+    # 2. 날짜 기준 정렬 (겹치는 기간만 사용)
+    common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
+    signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
+    trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
+    logger.debug(f"공통 기간: {len(signal_df):,}행")
 
-    # 3. 전략 파라미터 설정
+    # 3. 이동평균 계산 (signal_df에만)
+    signal_df = add_single_moving_average(signal_df, DEFAULT_MA_WINDOW)
+
+    # 4. 전략 파라미터 설정
     params = BufferStrategyParams(
         initial_capital=DEFAULT_INITIAL_CAPITAL,
         ma_window=DEFAULT_MA_WINDOW,
@@ -97,10 +105,10 @@ def main() -> int:
 
     summaries = []
 
-    # 4. 버퍼존 전략 실행
+    # 5. 버퍼존 전략 실행 (QQQ 시그널 + TQQQ 매매)
     logger.debug("=" * 60)
-    logger.debug("버퍼존 전략 백테스트 실행")
-    trades, _, summary = run_buffer_strategy(df, params)
+    logger.debug("버퍼존 전략 백테스트 실행 (QQQ 시그널 + TQQQ 매매)")
+    trades, _, summary = run_buffer_strategy(signal_df, trade_df, params)
     print_summary(summary, "버퍼존 전략 결과", logger)
 
     # 거래 내역 출력
@@ -135,14 +143,14 @@ def main() -> int:
 
     summaries.append(("버퍼존 전략", summary))
 
-    # 5. Buy & Hold 벤치마크 실행
-    logger.debug("Buy & Hold 벤치마크 실행")
+    # 6. Buy & Hold 벤치마크 실행 (TQQQ 기준)
+    logger.debug("Buy & Hold 벤치마크 실행 (TQQQ)")
     params_bh = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
-    _, summary_bh = run_buy_and_hold(df, params=params_bh)
+    _, summary_bh = run_buy_and_hold(signal_df, trade_df, params=params_bh)
     print_summary(summary_bh, "Buy & Hold 결과", logger)
     summaries.append(("Buy & Hold", summary_bh))
 
-    # 6. 전략 비교 요약
+    # 7. 전략 비교 요약
     columns = [
         ("전략", 20, Align.LEFT),
         ("총수익률", 12, Align.RIGHT),

@@ -88,7 +88,7 @@ class TestBacktestWorkflow:
             hold_days=0,
             recent_months=0,
         )
-        trades_df, equity_df, summary = run_buffer_strategy(df_with_ma, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df_with_ma, df_with_ma, params, log_trades=False)
 
         # Then 3: 반환 구조 검증
         assert isinstance(trades_df, pd.DataFrame), "trades_df는 DataFrame"

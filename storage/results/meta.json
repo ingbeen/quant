@@ -37,6 +37,138 @@
       },
       "data_period": {
         "start_date": "1999-03-10",
+        "end_date": "2025-12-29",
+        "total_days": 6744
+      },
+      "results_summary": {
+        "total_combinations": 840,
+        "positive_return_count": 840,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 4669.72,
+          "max": 16158.13,
+          "min": 197.51
+        },
+        "cagr": {
+          "mean": 14.62,
+          "max": 20.92,
+          "min": 4.15
+        },
+        "mdd": {
+          "mean": -91.9,
+          "min": -97.81
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/grid_results.csv",
+        "row_count": 840,
+        "file_size_bytes": 46824
+      },
+      "timestamp": "2026-02-16T17:45:57+09:00"
+    },
+    {
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200,
+          250
+        ],
+        "buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2025-12-29",
+        "total_days": 6744
+      },
+      "results_summary": {
+        "total_combinations": 840,
+        "positive_return_count": 840,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 4669.72,
+          "max": 16158.13,
+          "min": 197.51
+        },
+        "cagr": {
+          "mean": 14.62,
+          "max": 20.92,
+          "min": 4.15
+        },
+        "mdd": {
+          "mean": -91.9,
+          "min": -97.81
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/grid_results.csv",
+        "row_count": 840,
+        "file_size_bytes": 46824
+      },
+      "timestamp": "2026-02-16T17:42:24+09:00"
+    },
+    {
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200,
+          250
+        ],
+        "buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
         "end_date": "2025-12-19",
         "total_days": 6739
       },
@@ -74,18 +206,6 @@
       "ticker": "NEW_TICKER",
       "note": "new",
       "timestamp": "2023-08-01T21:00:00+09:00"
-    },
-    {
-      "ticker": "NVDA",
-      "total_combinations": 75,
-      "timestamp": "2023-07-01T19:00:00+09:00"
-    },
-    {
-      "ticker": "AAPL",
-      "start_date": "2020-01-01",
-      "end_date": "2023-12-31",
-      "total_combinations": 100,
-      "timestamp": "2023-06-15T23:30:00+09:00"
     }
   ],
   "tqqq_validation": [

@@ -28,7 +28,7 @@ from qbt.backtest.constants import (
     DEFAULT_RECENT_MONTHS_LIST,
     SLIPPAGE_RATE,
 )
-from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH
+from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -85,16 +85,23 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    logger.debug("QQQ 파라미터 그리드 탐색 시작")
+    logger.debug("QQQ 시그널 + TQQQ 매매 파라미터 그리드 탐색 시작")
 
-    # 1. 데이터 로딩
-    logger.debug(f"데이터 파일 경로: {QQQ_DATA_PATH}")
-    df = load_stock_data(QQQ_DATA_PATH)
+    # 1. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
+    logger.debug(f"시그널 데이터: {QQQ_DATA_PATH}")
+    logger.debug(f"매매 데이터: {TQQQ_SYNTHETIC_DATA_PATH}")
+    signal_df = load_stock_data(QQQ_DATA_PATH)
+    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
+
+    # 날짜 기준 정렬 (겹치는 기간만 사용)
+    common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
+    signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
+    trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
 
     logger.debug("=" * 60)
     logger.debug("데이터 로딩 완료")
-    logger.debug(f"총 행 수: {len(df):,}")
-    logger.debug(f"기간: {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
+    logger.debug(f"공통 기간: {len(signal_df):,}행")
+    logger.debug(f"기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}")
     logger.debug("=" * 60)
 
     # 2. 그리드 탐색 실행
@@ -105,7 +112,8 @@ def main() -> int:
     logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
 
     results_df = run_grid_search(
-        df=df,
+        signal_df=signal_df,
+        trade_df=trade_df,
         ma_window_list=DEFAULT_MA_WINDOW_LIST,
         buffer_zone_pct_list=DEFAULT_BUFFER_ZONE_PCT_LIST,
         hold_days_list=DEFAULT_HOLD_DAYS_LIST,
@@ -197,9 +205,9 @@ def main() -> int:
             "slippage_rate": round(SLIPPAGE_RATE, 4),
         },
         "data_period": {
-            "start_date": str(df[COL_DATE].min()),
-            "end_date": str(df[COL_DATE].max()),
-            "total_days": len(df),
+            "start_date": str(signal_df[COL_DATE].min()),
+            "end_date": str(signal_df[COL_DATE].max()),
+            "total_days": len(signal_df),
         },
         "results_summary": {
             "total_combinations": len(results_df),

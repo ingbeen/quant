@@ -57,7 +57,7 @@ class TestRunBuyAndHold:
         params = BuyAndHoldParams(initial_capital=10000.0)
 
         # When
-        equity_df, summary = run_buy_and_hold(df, params)
+        equity_df, summary = run_buy_and_hold(df, df, params)
 
         # Then: summary 확인
         assert isinstance(summary, dict), "summary는 딕셔너리여야 합니다"
@@ -89,7 +89,7 @@ class TestRunBuyAndHold:
         params = BuyAndHoldParams(initial_capital=10.0)  # 주가보다 훨씬 작음
 
         # When
-        equity_df, summary = run_buy_and_hold(df, params)
+        equity_df, summary = run_buy_and_hold(df, df, params)
 
         # Then: 거래는 발생했지만 shares=0
         # 자본이 부족하므로 수익률이 거의 0에 가까움
@@ -116,7 +116,7 @@ class TestRunBuyAndHold:
         # When & Then
         params = BuyAndHoldParams(initial_capital=invalid_capital)
         with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
-            run_buy_and_hold(df, params)
+            run_buy_and_hold(df, df, params)
 
     @pytest.mark.parametrize(
         "df_data,missing_column",
@@ -144,7 +144,7 @@ class TestRunBuyAndHold:
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼 누락"):
-            run_buy_and_hold(df, params)
+            run_buy_and_hold(df, df, params)
 
     def test_insufficient_rows_raises(self):
         """
@@ -161,7 +161,7 @@ class TestRunBuyAndHold:
 
         # When & Then
         with pytest.raises(ValueError, match="유효 데이터 부족"):
-            run_buy_and_hold(df, params)
+            run_buy_and_hold(df, df, params)
 
 
 class TestCalculateRecentBuyCount:
@@ -251,7 +251,7 @@ class TestRunBufferStrategy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 반환 타입 확인
         assert isinstance(trades_df, pd.DataFrame)
@@ -292,7 +292,7 @@ class TestRunBufferStrategy:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            run_buffer_strategy(df, params, log_trades=False)
+            run_buffer_strategy(df, df, params, log_trades=False)
 
         assert "ma_5" in str(exc_info.value) or "컬럼" in str(exc_info.value), "MA 컬럼 누락 에러 메시지"
 
@@ -322,7 +322,7 @@ class TestRunBufferStrategy:
 
         # When & Then: 유효 데이터 1행으로는 부족
         with pytest.raises(ValueError) as exc_info:
-            run_buffer_strategy(df, params, log_trades=False)
+            run_buffer_strategy(df, df, params, log_trades=False)
 
         assert "유효" in str(exc_info.value) or "부족" in str(exc_info.value), "유효 데이터 부족 에러"
 
@@ -377,7 +377,7 @@ class TestRunBufferStrategy:
 
         # When & Then
         with pytest.raises(ValueError, match=error_pattern):
-            run_buffer_strategy(df, params, log_trades=False)
+            run_buffer_strategy(df, df, params, log_trades=False)
 
     def test_forced_liquidation_at_end(self):
         """
@@ -404,7 +404,7 @@ class TestRunBufferStrategy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 equity 확인
         if not equity_df.empty:
@@ -440,8 +440,8 @@ class TestRunBufferStrategy:
         )
 
         # When
-        trades_zero, _, _ = run_buffer_strategy(df, params_zero, log_trades=False)
-        trades_positive, _, _ = run_buffer_strategy(df, params_positive, log_trades=False)
+        trades_zero, _, _ = run_buffer_strategy(df, df, params_zero, log_trades=False)
+        trades_positive, _, _ = run_buffer_strategy(df, df, params_positive, log_trades=False)
 
         # Then: 둘 다 실행됨 (에러 없음)
         assert isinstance(trades_zero, pd.DataFrame)
@@ -492,7 +492,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 체결 타이밍 검증
         # 3일째 (인덱스 2): 종가=107, ma=100, 상단밴드=103 → 돌파 신호
@@ -536,7 +536,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매도 타이밍 검증
         # 8일째 (인덱스 7): 종가=94, 하단밴드 돌파 → 매도 신호
@@ -576,7 +576,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 첫 날 포함 검증
         assert len(equity_df) == len(df), f"equity_df 길이는 전체 데이터 길이와 같아야 함. 기대: {len(df)}, 실제: {len(equity_df)}"
@@ -623,7 +623,7 @@ class TestForcedLiquidation:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: equity_df 마지막 값과 final_capital 일치 확인
         last_equity = equity_df.iloc[-1]["equity"]
@@ -672,7 +672,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 포지션 보유 중인 시점에서 equity가 양수이고 가격에 연동되어 변동하는지 검증
         assert len(equity_df) > 0, "에쿼티 기록이 있어야 함"
@@ -717,7 +717,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 포지션 없는 모든 날의 equity == initial_capital
         no_position_rows = equity_df[equity_df["position"] == 0]
@@ -758,7 +758,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: final_capital == equity_df 마지막 값
         # (현재 구현은 강제청산 로직이 있어 실패할 수 있음)
@@ -803,7 +803,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 3일째(인덱스 2) position=0, 4일째(인덱스 3) position>0
         if len(equity_df) >= 4:
@@ -848,7 +848,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 돌파일(인덱스 2), 확정일(인덱스 3), 체결일(인덱스 4)
         if len(equity_df) >= 5:
@@ -889,7 +889,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 날(인덱스 9)에 포지션 있어야 함
         if len(equity_df) >= 10:
@@ -925,7 +925,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막날 포지션 없어야 함 (체결 불가)
         last_day = equity_df.iloc[-1]
@@ -1028,7 +1028,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 날 포지션이 남아있어야 함
         last_equity_record = equity_df.iloc[-1]
@@ -1086,7 +1086,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매수 거래가 없어야 함 (유지조건 실패)
         assert trades_df.empty or len(trades_df) == 0, "유지조건 실패로 매수 신호가 없어야 함"
@@ -1128,7 +1128,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: trades_df에서 hold_days_used 확인
         if not trades_df.empty and "hold_days_used" in trades_df.columns:
@@ -1178,7 +1178,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매수 신호가 감지되어야 함
         # 주의: 현재 구현에서 prev_band 초기화가 적절하지 않으면 이 테스트는 실패할 수 있음 (레드)
@@ -1219,7 +1219,8 @@ class TestRunGridSearch:
 
         # When: 작은 그리드로 테스트
         results_df = run_grid_search(
-            df=df,
+            signal_df=df,
+            trade_df=df,
             initial_capital=10000.0,
             ma_window_list=[5, 10],
             buffer_zone_pct_list=[0.01, 0.03],
@@ -1282,7 +1283,8 @@ class TestRunGridSearch:
 
         # When
         results_df = run_grid_search(
-            df=df,
+            signal_df=df,
+            trade_df=df,
             initial_capital=10000.0,
             ma_window_list=[5, 10],
             buffer_zone_pct_list=[0.01, 0.02],
@@ -1292,3 +1294,204 @@ class TestRunGridSearch:
 
         # Then
         assert len(results_df) == 16, "2×2×2×2 = 16개 조합이 생성되어야 함"
+
+
+class TestDualTickerStrategy:
+    """듀얼 티커 전략 테스트 (QQQ 시그널 + TQQQ 매매)
+
+    목적: signal_df와 trade_df 분리가 올바르게 동작하는지 검증
+    배경: QQQ로 시그널 생성, TQQQ로 실제 매수/매도 수행
+    """
+
+    def test_signal_from_signal_df_trade_from_trade_df(self):
+        """
+        시그널은 signal_df, 체결은 trade_df 사용 검증
+
+        Given:
+          - signal_df(QQQ): 3일째 상향돌파 (종가 > 상단밴드)
+          - trade_df(TQQQ): signal_df와 다른 가격 (3배 레버리지 수준)
+        When: run_buffer_strategy(signal_df, trade_df, params)
+        Then:
+          - 3일째(인덱스 2): position=0 (시그널만, 미체결)
+          - 4일째(인덱스 3): position>0 (trade_df 시가로 체결)
+          - 체결 가격은 trade_df의 Open 기반 (signal_df의 Open이 아님)
+        """
+        # Given: signal_df (QQQ) - 3일째에 상향돌파
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [100, 100, 100, 105, 110, 110, 110, 110, 110, 110],
+                "Close": [100, 100, 107, 110, 112, 112, 112, 112, 112, 112],
+                "ma_5": [100, 100, 100, 103, 106, 108, 109, 110, 110.5, 111],
+            }
+        )
+
+        # trade_df (TQQQ) - 같은 날짜, 다른 가격 (대략 3배 변동)
+        trade_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [50, 50, 50, 65, 80, 80, 80, 80, 80, 80],
+                "Close": [50, 50, 71, 80, 86, 86, 86, 86, 86, 86],
+            }
+        )
+
+        params = BufferStrategyParams(
+            ma_window=5,
+            buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
+        )
+
+        # When
+        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+
+        # Then: 체결 타이밍 검증
+        assert len(equity_df) >= 4, "에쿼티 기록이 4일 이상이어야 함"
+
+        # 신호일(3일째, 인덱스 2) - 아직 포지션 없어야 함
+        signal_day = equity_df.iloc[2]
+        assert signal_day["position"] == 0, f"신호일에는 position=0이어야 함, 실제: {signal_day['position']}"
+
+        # 체결일(4일째, 인덱스 3) - trade_df 시가로 체결
+        execution_day = equity_df.iloc[3]
+        assert execution_day["position"] > 0, f"체결일에는 position>0이어야 함, 실제: {execution_day['position']}"
+
+        # 체결 가격이 trade_df의 Open(65) 기반인지 확인
+        if not trades_df.empty:
+            entry_price = trades_df.iloc[0]["entry_price"]
+            # trade_df의 4일째 Open=65, 슬리피지 +0.3% 적용
+            expected_price = 65 * (1 + 0.003)
+            assert entry_price == pytest.approx(
+                expected_price, abs=0.01
+            ), f"체결가는 trade_df의 Open 기반이어야 함. 기대: {expected_price:.2f}, 실제: {entry_price:.2f}"
+
+    def test_equity_uses_trade_df_close(self):
+        """
+        에쿼티가 trade_df의 종가로 계산되는지 검증
+
+        Given:
+          - signal_df와 trade_df의 종가가 다름
+          - 포지션 보유 중
+        When: run_buffer_strategy
+        Then: equity = cash + position * trade_df.Close (signal_df.Close가 아님)
+        """
+        # Given
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [100, 100, 100, 105, 110, 110, 110, 110, 110, 110],
+                "Close": [100, 100, 107, 110, 112, 112, 112, 112, 112, 112],
+                "ma_5": [100, 100, 100, 103, 106, 108, 109, 110, 110.5, 111],
+            }
+        )
+
+        # trade_df - 종가가 signal_df와 다름 (TQQQ 가격)
+        trade_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [50, 50, 50, 65, 80, 80, 80, 80, 80, 80],
+                "Close": [50, 50, 71, 80, 86, 86, 86, 86, 86, 86],
+            }
+        )
+
+        params = BufferStrategyParams(
+            ma_window=5,
+            buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
+        )
+
+        # When
+        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+
+        # Then: 포지션 보유 시점의 equity가 trade_df 종가 기반인지 검증
+        position_rows = equity_df[equity_df["position"] > 0]
+        if len(position_rows) > 0:
+            # 5일째(인덱스 4): trade_df Close=86, signal_df Close=112
+            # equity는 trade_df 기준이어야 함
+            row = position_rows.iloc[0]
+            position_shares = row["position"]
+            equity_value = row["equity"]
+            # trade_df의 해당 날짜 종가로 계산된 equity 확인
+            # equity가 signal_df 종가(112) 기준이면 더 큰 값이 됨
+            assert equity_value < position_shares * 112, "에쿼티는 trade_df 종가(86) 기반이어야 하므로 signal_df 종가(112) 기반보다 작아야 함"
+
+    def test_buy_and_hold_uses_trade_df(self):
+        """
+        Buy & Hold가 trade_df의 시가/종가를 사용하는지 검증
+
+        Given:
+          - signal_df와 trade_df의 가격이 다름
+        When: run_buy_and_hold(signal_df, trade_df, params)
+        Then:
+          - 첫날 trade_df 시가에 매수
+          - 마지막날 trade_df 종가에 매도
+        """
+        # Given
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "Open": [100.0, 102.0, 104.0],
+                "Close": [101.0, 103.0, 105.0],
+            }
+        )
+
+        trade_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "Open": [50.0, 55.0, 60.0],
+                "Close": [52.0, 58.0, 65.0],
+            }
+        )
+
+        params = BuyAndHoldParams(initial_capital=10000.0)
+
+        # When
+        equity_df, summary = run_buy_and_hold(signal_df, trade_df, params)
+
+        # Then: trade_df 기준으로 매매 확인
+        # 첫날 trade_df Open=50, 슬리피지 +0.3% = 50.15
+        # shares = int(10000 / 50.15) = 199
+        assert summary["total_trades"] == 1, "Buy & Hold는 1건의 거래"
+        assert len(equity_df) == 3, "매일 equity 기록"
+
+        # 마지막 equity는 trade_df Close=65 기준이어야 함
+        last_equity = equity_df.iloc[-1]["equity"]
+        # signal_df Close=105 기준이면 훨씬 큰 값
+        assert last_equity < 199 * 105, "에쿼티는 trade_df 종가(65) 기반이어야 함"
+
+    def test_date_alignment_validation(self):
+        """
+        signal_df와 trade_df의 날짜 불일치 시 예외 발생 검증
+
+        Given: signal_df와 trade_df의 날짜가 다름
+        When: run_buffer_strategy 호출
+        Then: ValueError 발생
+        """
+        # Given: 날짜 불일치
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "Open": [100.0, 102.0, 104.0],
+                "Close": [101.0, 103.0, 105.0],
+                "ma_5": [100.0, 101.0, 102.0],
+            }
+        )
+
+        trade_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 3), date(2023, 1, 4), date(2023, 1, 5)],  # 날짜 다름
+                "Open": [50.0, 55.0, 60.0],
+                "Close": [52.0, 58.0, 65.0],
+            }
+        )
+
+        params = BufferStrategyParams(
+            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match="날짜"):
+            run_buffer_strategy(signal_df, trade_df, params, log_trades=False)

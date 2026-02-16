@@ -33,6 +33,9 @@ RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토�
 # 나스닥 100 추종 ETF 데이터 파일 경로
 QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
 
+# 합성 TQQQ 데이터 파일 경로 (시뮬레이션 생성)
+TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
+
 # --- 결과 파일 경로 ---
 # 백테스트 그리드 서치 결과 저장 경로
 GRID_RESULTS_PATH: Final = RESULTS_DIR / "grid_results.csv"
