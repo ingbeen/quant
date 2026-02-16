@@ -57,7 +57,6 @@ from qbt.tqqq.constants import (
     LOOKUP_TUNING_CSV_PATH,
     LOOKUP_WALKFORWARD_PATH,
     LOOKUP_WALKFORWARD_SUMMARY_PATH,
-    SEGMENT_SPREAD_CSV_PATH,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
     SOFTPLUS_TUNING_CSV_PATH,
     TQQQ_DAILY_COMPARISON_PATH,
@@ -218,10 +217,6 @@ def _render_intro():
         "- **현재**: Softplus 동적 스프레드 "
         "(spread = softplus(a + b × FFR%)) "
         "— 금리에 따라 비용이 자동 조정\n"
-        "- **룩업테이블**: 금리 구간별 실현 스프레드 집계 "
-        "— 비모수 기준선 (수식 없이 관측값만 사용)\n"
-        "- **구간별 고정 (오라클)**: 사용자 정의 구간 경계(0/2/4%) 기반 "
-        "전체기간 역산 — 1999~2009 시뮬레이션 준비용\n"
         "- **전환 이유**: 고정 스프레드는 고금리 구간에서 비용을 과소 반영하여 "
         "과대평가 편향이 발생했으며, 이 앱의 금리-오차 분석이 전환 근거가 됨"
     )
@@ -1714,176 +1709,6 @@ def _render_softplus_mode(monthly_df: pd.DataFrame) -> None:
     _render_detailed_analysis_section()
 
 
-def _render_segment_mode() -> None:
-    """구간별 고정 스프레드 모델 (오라클) 모드의 전체 콘텐츠를 렌더링한다."""
-    st.header("구간별 고정 스프레드 모델 (오라클)")
-
-    st.warning(
-        "**오라클 모델 안내**\n\n"
-        "이 모델은 전체 TQQQ 기간(2010~2025)의 데이터를 활용하여 "
-        "금리 구간별 스프레드를 확정합니다.\n\n"
-        "- **미래 데이터를 참조**하는 전제이므로 워크포워드 검증이 불필요합니다.\n"
-        "- **용도**: TQQQ가 존재하지 않는 1999~2009 기간 시뮬레이션에 사용할 비용 모델\n"
-        "- **인샘플 RMSE**로만 적합도를 평가합니다."
-    )
-
-    # 구간별 스프레드 테이블
-    _render_segment_table_section()
-
-    st.divider()
-
-    # RMSE 비교
-    _render_segment_rmse_section()
-
-
-def _render_segment_table_section() -> None:
-    """구간별 스프레드 테이블을 렌더링한다."""
-    st.subheader("구간별 스프레드 테이블")
-
-    csv_path = Path(SEGMENT_SPREAD_CSV_PATH)
-    if not csv_path.exists():
-        st.warning(
-            f"구간별 스프레드 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로: `{SEGMENT_SPREAD_CSV_PATH}`\n\n"
-            f"**생성 방법**:\n"
-            f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/generate_segment_spread.py\n"
-            f"```"
-        )
-        return
-
-    segment_df = pd.read_csv(csv_path)
-
-    if segment_df.empty:
-        st.info("CSV 데이터가 비어있습니다.")
-        return
-
-    # 구간별 데이터와 전체 행 분리
-    segment_rows = segment_df[segment_df["구간"] != "전체"]
-    total_row = segment_df[segment_df["구간"] == "전체"]
-
-    # 구간별 테이블 표시
-    st.dataframe(segment_rows, width="stretch", hide_index=True)
-
-    # 요약 지표
-    stat_func = segment_df["통계량"].iloc[0] if "통계량" in segment_df.columns else "N/A"
-    rmse = segment_df["인샘플_RMSE_pct"].iloc[0] if "인샘플_RMSE_pct" in segment_df.columns else None
-    n_segments = len(segment_rows)
-    n_days = int(total_row["관측일수"].iloc[0]) if not total_row.empty else 0
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="구간 수", value=f"{n_segments}")
-    with col2:
-        st.metric(label="통계량", value=str(stat_func))
-    with col3:
-        if rmse is not None:
-            st.metric(label="인샘플 RMSE (%)", value=f"{rmse:.4f}")
-        else:
-            st.metric(label="인샘플 RMSE (%)", value="N/A")
-    with col4:
-        st.metric(label="총 관측일수", value=f"{n_days:,}")
-
-    st.markdown(
-        """## 지표에 사용하는 용어에 대한 설명
-
-- **구간별 고정 스프레드 모델 (오라클)**: 전체 TQQQ 기간의 실현 스프레드를 사용자 정의 구간 경계(0%, 2%, 4%)로 나누어 집계한 모델
-- **실현 스프레드(realized spread)**: QQQ 수익률 × 3배와 실제 TQQQ 수익률의 차이에서 운용비용을 제거하여 역산한 자금조달 비용
-- **구간 경계**: [0, 2, 4, +inf) → 3구간 (0~2%, 2~4%, 4%+)
-- **통계량**: 구간 내 스프레드 데이터를 요약하는 방식 (mean: 평균, median: 중앙값)
-- **관측일수**: 해당 구간에 속하는 거래일 수 (많을수록 통계적 신뢰도 높음)
-- **인샘플 RMSE(%)**: 전체 기간 데이터로 테이블을 만들었을 때의 경로 추적 오차 (낮을수록 잘 재현)
-
-## 지표를 해석하는 방법
-
-- **관측일수가 적은 구간**은 통계적 신뢰도가 낮으므로 해석에 주의가 필요합니다
-- 오라클 모델이므로 과적합 진단은 불필요하며, 인샘플 RMSE만으로 적합도를 판단합니다
-- 이 모델은 TQQQ가 없는 기간(1999~2009)의 시뮬레이션에 "가장 좋은 추정치"를 제공하는 것이 목적입니다"""
-    )
-
-
-def _render_segment_rmse_section() -> None:
-    """다른 모델과의 인샘플 RMSE 비교를 렌더링한다."""
-    st.subheader("모델 간 인샘플 RMSE 비교")
-
-    # 각 모델의 인샘플 RMSE 수집
-    models: list[dict[str, object]] = []
-
-    # 1. Softplus
-    tuning_df = _load_softplus_tuning_csv()
-    if tuning_df is not None and len(tuning_df) > 0:
-        models.append(
-            {
-                "모델": "Softplus 동적 스프레드",
-                "인샘플 RMSE (%)": float(tuning_df.iloc[0][COL_RMSE_PCT]),
-                "비고": "a,b 2-Stage Grid Search",
-            }
-        )
-
-    # 2. 룩업테이블
-    lookup_path = Path(LOOKUP_TUNING_CSV_PATH)
-    if lookup_path.exists():
-        lookup_df = pd.read_csv(lookup_path)
-        if not lookup_df.empty:
-            models.append(
-                {
-                    "모델": "룩업테이블 (최적 조합)",
-                    "인샘플 RMSE (%)": float(lookup_df.iloc[0]["rmse_pct"]),
-                    "비고": f"bin={lookup_df.iloc[0]['bin_width_pct']}%, stat={lookup_df.iloc[0]['stat_func']}",
-                }
-            )
-
-    # 3. 구간별 고정 스프레드
-    segment_path = Path(SEGMENT_SPREAD_CSV_PATH)
-    if segment_path.exists():
-        segment_df = pd.read_csv(segment_path)
-        if not segment_df.empty and "인샘플_RMSE_pct" in segment_df.columns:
-            models.append(
-                {
-                    "모델": "구간별 고정 스프레드 (오라클)",
-                    "인샘플 RMSE (%)": float(segment_df["인샘플_RMSE_pct"].iloc[0]),
-                    "비고": "boundaries=[0,2,4]%, 전체기간 역산",
-                }
-            )
-
-    if not models:
-        st.info("비교할 모델 데이터가 없습니다. 각 모델의 튜닝 스크립트를 먼저 실행하세요.")
-        return
-
-    comparison_df = pd.DataFrame(models)
-    comparison_df = comparison_df.sort_values("인샘플 RMSE (%)")
-    comparison_df.index = pd.Index(range(1, len(comparison_df) + 1), name="순위")
-
-    st.dataframe(comparison_df, width="stretch")
-
-    # 바 차트
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=comparison_df["모델"],
-            y=comparison_df["인샘플 RMSE (%)"],
-            marker_color=["#4CAF50" if i == 0 else "#90CAF9" for i in range(len(comparison_df))],
-            text=[f"{v:.4f}%" for v in comparison_df["인샘플 RMSE (%)"]],
-            textposition="auto",
-        )
-    )
-    fig.update_layout(
-        title="모델별 인샘플 RMSE 비교",
-        yaxis_title="인샘플 RMSE (%)",
-        showlegend=False,
-    )
-    st.plotly_chart(fig, width="stretch")
-
-    st.markdown(
-        """## 지표를 해석하는 방법
-
-- **인샘플 RMSE가 낮을수록** 전체 기간에서 실제 TQQQ 가격 경로를 잘 재현한 모델
-- **주의**: 인샘플 RMSE만으로는 과적합 여부를 판단할 수 없습니다 (워크포워드 검증이 필요)
-- 오라클 모델은 미래 데이터를 포함하므로, **절대적인 모델 우열 비교가 아닌** "이 구간 분할로 어느 정도까지 설명 가능한가"를 확인하는 용도입니다
-- Softplus 모델이 가장 낮은 인샘플 RMSE를 보이면서 과적합도 적다면, 함수 형태 가정이 유효하다는 증거로 해석할 수 있습니다"""
-    )
-
-
 def _render_lookup_mode() -> None:
     """룩업테이블 모델 모드의 전체 콘텐츠를 렌더링한다."""
     st.header("룩업테이블 스프레드 모델")
@@ -2200,7 +2025,7 @@ def main():
             st.divider()
             model_mode = st.radio(
                 "스프레드 모델 선택",
-                ("Softplus 모델", "룩업테이블 모델", "구간별 고정 스프레드 (오라클)"),
+                ("Softplus 모델", "룩업테이블 모델"),
             )
 
         # 타이틀, 히스토리, 읽기 가이드
@@ -2234,10 +2059,8 @@ def main():
 
         if model_mode == "Softplus 모델":
             _render_softplus_mode(monthly_df)
-        elif model_mode == "룩업테이블 모델":
-            _render_lookup_mode()
         else:
-            _render_segment_mode()
+            _render_lookup_mode()
 
         # 푸터
         st.markdown("---")

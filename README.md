@@ -103,15 +103,11 @@ poetry run python scripts/tqqq/spread_lab/tune_lookup_params.py
 # 룩업테이블 워크포워드 검증 (사전 필요: tune_lookup_params.py)
 poetry run python scripts/tqqq/spread_lab/validate_walkforward_lookup.py
 
-# --- 구간별 고정 스프레드 모델 (오라클) ---
-# 사용자 정의 구간 경계(0/2/4%) 기반 스프레드 테이블 생성·평가·저장
-poetry run python scripts/tqqq/spread_lab/generate_segment_spread.py
-
 # --- 공통 ---
 # 금리-오차 분석 CSV 생성
 poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
 
-# 금리-오차 관계 분석 앱 (Softplus / 룩업테이블 / 구간별 고정 스프레드 모드 선택 가능)
+# 금리-오차 관계 분석 앱 (Softplus / 룩업테이블 모드 선택 가능)
 poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 
@@ -201,10 +197,9 @@ quant/
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
 │           ├── tune_softplus_params.py    # Softplus 튜닝 CLI
 │           ├── tune_lookup_params.py      # 룩업테이블 튜닝 CLI
-│           ├── generate_segment_spread.py # 구간별 고정 스프레드 (오라클) 생성 CLI
 │           ├── validate_walkforward*.py   # 워크포워드 검증 CLI (Softplus 3종 + 룩업테이블 1종)
 │           ├── generate_rate_spread_lab.py # 금리-오차 분석 CSV 생성
-│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (3모드)
+│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (Softplus / 룩업테이블)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 (constants.py, types.py)
@@ -231,7 +226,7 @@ quant/
 - `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력, softplus 동적 스프레드)
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
-- `storage/results/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석, 구간별 고정 스프레드 등)
+- `storage/results/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석 등)
 
 ---
 

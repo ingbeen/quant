@@ -150,10 +150,8 @@ main 함수:
 - 룩업테이블 비용 모델:
   - `tune_lookup_params.py`: 금리 구간별 룩업테이블 인샘플 최적화 (구간 폭 × 통계량 조합)
   - `validate_walkforward_lookup.py`: 룩업테이블 워크포워드 검증 (60개월 Train, 1개월 Test)
-- 구간별 고정 스프레드 모델 (오라클):
-  - `generate_segment_spread.py`: 사용자 정의 구간 경계 기반 스프레드 테이블 생성·평가·저장
 - 대시보드 앱:
-  - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (사이드바 모드 선택: Softplus / 룩업테이블 / 구간별 고정 스프레드)
+  - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (사이드바 모드 선택: Softplus / 룩업테이블)
 
 ---
 
