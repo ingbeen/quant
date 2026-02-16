@@ -109,6 +109,7 @@ __all__ = [
     "save_model_csv",
     "save_walkforward_results",
     "save_walkforward_summary",
+    "LOOKUP_WALKFORWARD_REQUIRED_COLUMNS",
 ]
 
 
@@ -1046,6 +1047,11 @@ COL_WF_SEARCH_MODE = "search_mode"
 COL_WF_FFR_PCT_TEST = "ffr_pct_test"
 COL_WF_SPREAD_TEST = "spread_test"
 
+# --- 워크포워드 룩업테이블 모델 컬럼 ---
+COL_WF_BIN_WIDTH_PCT = "bin_width_pct"
+COL_WF_STAT_FUNC = "stat_func"
+COL_WF_N_BINS = "n_bins"
+
 # --- 워크포워드 요약 컬럼 (내부 영문 토큰) ---
 COL_WF_METRIC = "metric"
 COL_WF_VALUE = "value"
@@ -1066,43 +1072,55 @@ _WALKFORWARD_REQUIRED_COLUMNS = [
     COL_WF_SPREAD_TEST,
 ]
 
+# --- 룩업테이블 워크포워드 결과 필수 컬럼 리스트 ---
+LOOKUP_WALKFORWARD_REQUIRED_COLUMNS = [
+    COL_WF_TRAIN_START,
+    COL_WF_TRAIN_END,
+    COL_WF_TEST_MONTH,
+    COL_WF_BIN_WIDTH_PCT,
+    COL_WF_STAT_FUNC,
+    COL_WF_TEST_RMSE_PCT,
+    COL_WF_N_TRAIN_DAYS,
+    COL_WF_N_TEST_DAYS,
+    COL_WF_N_BINS,
+    COL_WF_FFR_PCT_TEST,
+    COL_WF_SPREAD_TEST,
+]
 
-def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None:
+
+def save_walkforward_results(
+    result_df: pd.DataFrame,
+    output_path: Path,
+    required_columns: list[str] | None = None,
+) -> None:
     """
     워크포워드 결과 DataFrame을 CSV로 저장한다.
 
     test_month 기준 오름차순 정렬 후 저장한다.
-    수치 컬럼은 4자리로 라운딩한다.
+    float64 수치 컬럼은 4자리로 라운딩한다.
 
     Args:
         result_df: 워크포워드 결과 DataFrame
-            필수 컬럼: train_start, train_end, test_month, a_best, b_best,
-                      train_rmse_pct, test_rmse_pct, n_train_days, n_test_days, search_mode,
-                      ffr_pct_test, spread_test
         output_path: 출력 CSV 파일 경로
+        required_columns: 필수 컬럼 리스트 (None이면 softplus 기본 컬럼 사용)
 
     Raises:
         ValueError: 필수 컬럼 누락 시
     """
+    columns = required_columns if required_columns is not None else _WALKFORWARD_REQUIRED_COLUMNS
+
     # 1. 필수 컬럼 검증
-    missing = [col for col in _WALKFORWARD_REQUIRED_COLUMNS if col not in result_df.columns]
+    missing = [col for col in columns if col not in result_df.columns]
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
     # 2. 복사 및 정렬 (원본 보호, 시계열 순서 보장)
-    df_to_save = result_df[_WALKFORWARD_REQUIRED_COLUMNS].copy()
+    df_to_save = result_df[columns].copy()
     df_to_save = df_to_save.sort_values(COL_WF_TEST_MONTH).reset_index(drop=True)
 
-    # 3. 수치 컬럼 라운딩 (4자리)
-    numeric_cols = [
-        COL_WF_A_BEST,
-        COL_WF_B_BEST,
-        COL_WF_TRAIN_RMSE_PCT,
-        COL_WF_TEST_RMSE_PCT,
-        COL_WF_FFR_PCT_TEST,
-        COL_WF_SPREAD_TEST,
-    ]
-    for col in numeric_cols:
+    # 3. 수치 컬럼 라운딩 (4자리, float64 자동 감지)
+    float_cols = df_to_save.select_dtypes(include=["float64"]).columns.tolist()
+    for col in float_cols:
         df_to_save[col] = df_to_save[col].round(4)
 
     # 4. CSV 저장

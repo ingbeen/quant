@@ -19,8 +19,12 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, QQQ_DATA_PATH
-from qbt.tqqq.analysis_helpers import save_walkforward_results, save_walkforward_summary
+from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON, QQQ_DATA_PATH
+from qbt.tqqq.analysis_helpers import (
+    LOOKUP_WALKFORWARD_REQUIRED_COLUMNS,
+    save_walkforward_results,
+    save_walkforward_summary,
+)
 from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_TRAIN_WINDOW_MONTHS,
@@ -115,7 +119,7 @@ def main() -> int:
 
     # 5. CSV 저장
     SPREAD_LAB_DIR.mkdir(parents=True, exist_ok=True)
-    save_walkforward_results(result_df, LOOKUP_WALKFORWARD_PATH)
+    save_walkforward_results(result_df, LOOKUP_WALKFORWARD_PATH, LOOKUP_WALKFORWARD_REQUIRED_COLUMNS)
     save_walkforward_summary(summary, LOOKUP_WALKFORWARD_SUMMARY_PATH)
     logger.debug(f"결과 저장: {LOOKUP_WALKFORWARD_PATH}")
 
@@ -268,8 +272,8 @@ def _run_lookup_walkforward(
         ffr_pct_test = ffr_ratio_test * 100.0
         spread_test_val = lookup_spread_from_table(ffr_pct_test, lookup_table, bin_width_pct)
 
-        # stitched용 스프레드 저장
-        stitched_spread_map[test_month] = spread_test_val
+        # stitched용 스프레드 저장 (simulate()는 양수만 허용 → 음수/0은 EPSILON 클램핑)
+        stitched_spread_map[test_month] = max(spread_test_val, EPSILON)
 
         result: dict[str, object] = {
             "train_start": train_start,

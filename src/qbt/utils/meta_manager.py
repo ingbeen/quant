@@ -42,6 +42,8 @@ VALID_CSV_TYPES = {
     "tqqq_walkforward",
     "tqqq_walkforward_fixed_b",
     "tqqq_walkforward_fixed_ab",
+    "tqqq_lookup_tuning",
+    "tqqq_lookup_walkforward",
 }
 
 

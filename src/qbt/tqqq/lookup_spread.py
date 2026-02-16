@@ -21,7 +21,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
+from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_expense, lookup_ffr
 
@@ -207,13 +207,16 @@ def build_monthly_spread_map_from_lookup(
     기존 build_monthly_spread_map()과 동일한 dict[str, float] 형태를 반환하여
     simulate()의 funding_spread 파라미터에 그대로 전달 가능하다.
 
+    simulate()는 양수 스프레드만 허용하므로, 음수/0 스프레드는 EPSILON으로 클램핑한다.
+    (저금리 구간에서 역산 스프레드가 음수가 될 수 있음)
+
     Args:
         ffr_df: FFR DataFrame (DATE: yyyy-mm, VALUE: 0~1 비율)
         lookup_table: 구간 중앙값 → 스프레드 매핑
         bin_width_pct: 구간 폭 (%)
 
     Returns:
-        dict[str, float]: {"YYYY-MM": spread} 형태의 월별 스프레드 맵
+        dict[str, float]: {"YYYY-MM": spread} 형태의 월별 스프레드 맵 (모든 값 > 0)
     """
     spread_map: dict[str, float] = {}
 
@@ -223,7 +226,8 @@ def build_monthly_spread_map_from_lookup(
         ffr_pct = ffr_ratio * 100.0
 
         spread = lookup_spread_from_table(ffr_pct, lookup_table, bin_width_pct)
-        spread_map[month_key] = spread
+        # simulate()는 양수 스프레드만 허용 → 음수/0은 EPSILON으로 클램핑
+        spread_map[month_key] = max(spread, EPSILON)
 
     return spread_map
 

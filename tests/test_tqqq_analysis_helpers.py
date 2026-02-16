@@ -62,6 +62,8 @@ from qbt.tqqq.analysis_helpers import (
     DISPLAY_SUM_DAILY_M,
     DISPLAY_X_VAR,
     DISPLAY_Y_VAR,
+    # 룩업테이블 워크포워드 컬럼
+    LOOKUP_WALKFORWARD_REQUIRED_COLUMNS,
     # 함수
     add_rate_change_lags,
     add_rolling_features,
@@ -1304,6 +1306,128 @@ class TestSaveWalkforwardResults:
         saved_df = pd.read_csv(output_path)
         assert saved_df["test_month"].iloc[0] == "2023-01"
         assert saved_df["test_month"].iloc[1] == "2023-02"
+
+
+class TestSaveWalkforwardResultsLookup:
+    """
+    save_walkforward_results() 룩업테이블 모델 테스트
+
+    required_columns 파라미터로 룩업테이블 컬럼을 전달하여 CSV 저장한다.
+    """
+
+    def test_save_lookup_walkforward_results_success(self, tmp_path):
+        """
+        룩업테이블 워크포워드 결과 정상 저장
+
+        Given: 룩업 필수 컬럼을 갖춘 DataFrame
+        When: save_walkforward_results에 LOOKUP_WALKFORWARD_REQUIRED_COLUMNS 전달
+        Then: CSV 저장 성공, 컬럼 순서 및 값 유지
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01", "2018-02"],
+                "train_end": ["2022-12", "2023-01"],
+                "test_month": ["2023-01", "2023-02"],
+                "bin_width_pct": [1.0, 1.0],
+                "stat_func": ["median", "median"],
+                "test_rmse_pct": [2.234, 2.345],
+                "n_train_days": [1260, 1265],
+                "n_test_days": [21, 20],
+                "n_bins": [6, 6],
+                "ffr_pct_test": [4.5, 4.6],
+                "spread_test": [0.012345, 0.013456],
+            }
+        )
+        output_path = tmp_path / "lookup_walkforward.csv"
+
+        # When
+        save_walkforward_results(result_df, output_path, LOOKUP_WALKFORWARD_REQUIRED_COLUMNS)
+
+        # Then
+        assert output_path.exists()
+        saved_df = pd.read_csv(output_path)
+        assert len(saved_df) == 2
+        assert list(saved_df.columns) == [
+            "train_start",
+            "train_end",
+            "test_month",
+            "bin_width_pct",
+            "stat_func",
+            "test_rmse_pct",
+            "n_train_days",
+            "n_test_days",
+            "n_bins",
+            "ffr_pct_test",
+            "spread_test",
+        ]
+        assert saved_df["stat_func"].iloc[0] == "median"
+        assert saved_df["n_bins"].iloc[0] == 6
+
+    def test_save_lookup_walkforward_results_missing_column_raises(self, tmp_path):
+        """
+        룩업 필수 컬럼 누락 시 ValueError
+
+        Given: bin_width_pct 컬럼이 누락된 DataFrame
+        When: save_walkforward_results에 LOOKUP_WALKFORWARD_REQUIRED_COLUMNS 전달
+        Then: ValueError 발생
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01"],
+                "train_end": ["2022-12"],
+                "test_month": ["2023-01"],
+                # bin_width_pct 누락
+                "stat_func": ["median"],
+                "test_rmse_pct": [2.234],
+                "n_train_days": [1260],
+                "n_test_days": [21],
+                "n_bins": [6],
+                "ffr_pct_test": [4.5],
+                "spread_test": [0.012],
+            }
+        )
+        output_path = tmp_path / "lookup_missing.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼 누락"):
+            save_walkforward_results(result_df, output_path, LOOKUP_WALKFORWARD_REQUIRED_COLUMNS)
+
+    def test_save_lookup_walkforward_results_rounding(self, tmp_path):
+        """
+        룩업 워크포워드 수치 컬럼 라운딩
+
+        Given: 긴 소수점 값을 가진 룩업 결과
+        When: save_walkforward_results에 LOOKUP_WALKFORWARD_REQUIRED_COLUMNS 전달
+        Then: float64 컬럼이 4자리로 라운딩되어 저장
+        """
+        # Given
+        result_df = pd.DataFrame(
+            {
+                "train_start": ["2018-01"],
+                "train_end": ["2022-12"],
+                "test_month": ["2023-01"],
+                "bin_width_pct": [1.0],
+                "stat_func": ["median"],
+                "test_rmse_pct": [2.2345678],
+                "n_train_days": [1260],
+                "n_test_days": [21],
+                "n_bins": [6],
+                "ffr_pct_test": [4.5678901],
+                "spread_test": [0.01234567890],
+            }
+        )
+        output_path = tmp_path / "lookup_round.csv"
+
+        # When
+        save_walkforward_results(result_df, output_path, LOOKUP_WALKFORWARD_REQUIRED_COLUMNS)
+
+        # Then
+        saved_df = pd.read_csv(output_path)
+        assert saved_df["test_rmse_pct"].iloc[0] == pytest.approx(2.2346, abs=0.00001)
+        assert saved_df["ffr_pct_test"].iloc[0] == pytest.approx(4.5679, abs=0.00001)
+        assert saved_df["spread_test"].iloc[0] == pytest.approx(0.0123, abs=0.00001)
 
 
 class TestSaveWalkforwardSummary:
