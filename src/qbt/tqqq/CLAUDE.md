@@ -64,10 +64,16 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 주요 함수:
 
 - `simulate`: 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- `find_optimal_softplus_params`: 2-Stage Grid Search로 최적 softplus 파라미터 탐색
-- `calculate_validation_metrics`: 시뮬레이션 결과와 실제 데이터 비교 및 오차 분석
 - `extract_overlap_period`: 기초 자산과 실제 레버리지 ETF의 겹치는 기간 추출
+- `calculate_validation_metrics`: 시뮬레이션 결과와 실제 데이터 비교 및 오차 분석
+- `compute_softplus_spread`: softplus 모델로 funding spread 계산
+- `build_monthly_spread_map`: FFR 데이터로 월별 spread 딕셔너리 생성
+- `generate_static_spread_series`: 정적 spread 시계열 DataFrame 생성
+- `find_optimal_softplus_params`: 2-Stage Grid Search로 최적 softplus 파라미터 탐색
 - `run_walkforward_validation`: 워크포워드 검증 (60개월 Train, 1개월 Test)
+- `calculate_stitched_walkforward_rmse`: 워크포워드 결과를 연속 시뮬레이션한 RMSE 계산
+- `calculate_fixed_ab_stitched_rmse`: 고정 (a,b) 아웃오브샘플 RMSE 계산
+- `calculate_rate_segmented_rmse`: 금리 구간별 RMSE 분해
 
 ### 5. analysis_helpers.py
 
@@ -93,6 +99,9 @@ CSV 저장:
 - `save_monthly_features`: 월별 피처 CSV 저장 (한글 헤더, 4자리 라운딩)
 - `save_summary_statistics`: 요약 통계 CSV 저장 (Level/Delta/CrossValidation)
 - `save_model_csv`: 모델용 CSV 저장 (영문 헤더, schema_version 포함)
+- `save_walkforward_results`: 워크포워드 결과 DataFrame CSV 저장
+- `save_walkforward_summary`: 워크포워드 요약 통계 CSV 저장
+- `save_static_spread_series`: 정적 spread 시계열 CSV 저장
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
@@ -105,8 +114,10 @@ Plotly 기반 차트 생성 함수를 제공합니다.
 - `create_price_comparison_chart`: 실제 종가 vs 시뮬레이션 종가 라인 차트
 - `create_daily_return_diff_histogram`: 일일수익률 절대차이 히스토그램
 - `create_cumulative_return_diff_chart`: 누적배수 로그차이 라인 차트
-- `create_level_chart`: 금리 수준 vs 오차 수준 산점도
-- `create_delta_chart`: 금리 변화 vs 오차 변화 산점도
+- `create_level_scatter_chart`: 금리 수준 vs 오차 수준 산점도
+- `create_level_timeseries_chart`: 금리 수준과 오차 수준 시계열 차트
+- `create_delta_scatter_chart`: 금리 변화 vs 오차 변화 산점도
+- `create_rolling_correlation_chart`: rolling correlation 시계열 차트
 
 ---
 

@@ -337,8 +337,16 @@ def test_with_temp_files(self, mock_storage_paths):
   - 중요: `DATE` 컬럼은 `date` 객체가 아닌 `"yyyy-mm"` 문자열
   - 이유: 프로덕션 코드에서 월별 금리를 문자열 키로 처리
 
+- `sample_expense_df`: Expense Ratio 운용비율 데이터
+
+  - `DATE` 컬럼: `"yyyy-mm"` 문자열 (FFR과 동일 형식)
+  - `VALUE` 컬럼: 0~1 비율
+
 - `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
-- `mock_storage_paths`: 임시 경로 설정 픽스처
+- `mock_stock_dir`: `common_constants.STOCK_DIR`만 임시 경로로 패치
+- `mock_etc_dir`: `common_constants.ETC_DIR`만 임시 경로로 패치
+- `mock_results_dir`: `RESULTS_DIR`, `META_JSON_PATH` 임시 경로로 패치 (meta_manager 포함)
+- `mock_storage_paths`: 통합 픽스처 — 모든 storage 경로를 임시 경로로 패치
 
   - `tmp_path` 기반 디렉토리 생성 후 자동 삭제
   - `common_constants.py`의 경로 상수를 임시 경로로 패치

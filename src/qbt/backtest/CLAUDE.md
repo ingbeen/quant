@@ -35,7 +35,6 @@
 - 거래 비용: `SLIPPAGE_RATE` (0.3%, 슬리피지 + 수수료 통합)
 - 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUFFER_ZONE_PCT` 등
 - 제약 조건: `MIN_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`
-- 동적 조정: `BUFFER_INCREMENT_PER_BUY`, `HOLD_DAYS_INCREMENT_PER_BUY`
 - 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUFFER_ZONE_PCT_LIST` 등
 
 ### 3. analysis.py
@@ -56,6 +55,11 @@
 - `BufferStrategyParams`: 버퍼존 전략 파라미터
 - `BuyAndHoldParams`: Buy & Hold 전략 파라미터
 - `PendingOrder`: 예약 주문 정보 (신호일과 체결일 분리)
+
+로컬 상수 (`strategy.py` 상단):
+
+- `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
+- `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
 
 예외 클래스:
 
@@ -140,8 +144,8 @@ lower_band = ma * (1 - buffer_zone_pct)
 ### 동적 파라미터 조정
 
 ```
-adjusted_buffer_pct = base_buffer_pct + (recent_buy_count * BUFFER_INCREMENT_PER_BUY)
-adjusted_hold_days = base_hold_days + (recent_buy_count * HOLD_DAYS_INCREMENT_PER_BUY)
+adjusted_buffer_pct = base_buffer_pct + (recent_buy_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
+adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
 ```
 
 주의: 하드코딩 금지, 상수 사용 필수
