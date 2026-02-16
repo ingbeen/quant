@@ -29,7 +29,7 @@ class Align(Enum):
     CENTER = "center"  # 가운데 정렬
 
 
-def get_display_width(text: str) -> int:
+def _get_display_width(text: str) -> int:
     """
     문자열의 실제 터미널 출력 폭을 계산한다.
 
@@ -62,7 +62,7 @@ def get_display_width(text: str) -> int:
     return width
 
 
-def format_cell(text: str, width: int, align: Align = Align.LEFT) -> str:
+def _format_cell(text: str, width: int, align: Align = Align.LEFT) -> str:
     """
     터미널 폭을 고려하여 문자열을 정렬한다.
 
@@ -77,7 +77,7 @@ def format_cell(text: str, width: int, align: Align = Align.LEFT) -> str:
         정렬된 문자열
     """
     content = str(text)
-    content_width = get_display_width(content)
+    content_width = _get_display_width(content)
     available_padding = width - content_width
 
     # 폭이 부족한 경우 원본 반환
@@ -97,7 +97,7 @@ def format_cell(text: str, width: int, align: Align = Align.LEFT) -> str:
     return " " * left_padding + content + " " * right_padding
 
 
-def format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
+def _format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
     """
     여러 셀을 한 번에 포맷팅하여 행을 생성한다.
 
@@ -108,7 +108,7 @@ def format_row(cells: list[tuple[str, int, Align]], indent: int = 2) -> str:
     Returns:
         포맷팅된 행 문자열
     """
-    formatted_cells = [format_cell(text, width, align) for text, width, align in cells]
+    formatted_cells = [_format_cell(text, width, align) for text, width, align in cells]
     return " " * indent + "".join(formatted_cells)
 
 
@@ -186,7 +186,7 @@ class TableLogger:
 
         # 컬럼 헤더
         header_cells = [(name, width, align) for name, width, align in self.columns]
-        header_line = format_row(header_cells, self.indent)
+        header_line = _format_row(header_cells, self.indent)
         self.logger.debug(header_line)
 
         # 헤더 하단 구분선
@@ -206,7 +206,7 @@ class TableLogger:
             raise ValueError(f"데이터 길이({len(data)})가 컬럼 수({len(self.columns)})와 일치하지 않습니다")
 
         cells = [(str(value), width, align) for value, (_, width, align) in zip(data, self.columns, strict=True)]
-        row_line = format_row(cells, self.indent)
+        row_line = _format_row(cells, self.indent)
         # print_header와 함수 이름 길이 차이를 보정하기 위해 공백 2칸 추가
         self.logger.debug("  " + row_line)
 

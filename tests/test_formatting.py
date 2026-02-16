@@ -3,9 +3,9 @@
 터미널 출력 포맷팅 기능의 계약을 검증한다.
 
 테스트 대상:
-- get_display_width(): 문자열 터미널 폭 계산
-- format_cell(): 셀 정렬 (LEFT/RIGHT/CENTER)
-- format_row(): 행 포맷팅
+- _get_display_width(): 문자열 터미널 폭 계산
+- _format_cell(): 셀 정렬 (LEFT/RIGHT/CENTER)
+- _format_row(): 행 포맷팅
 - TableLogger: 테이블 출력 클래스
 - Align: 정렬 방향 enum
 """
@@ -15,11 +15,11 @@ from io import StringIO
 
 import pytest
 
-from qbt.utils.formatting import Align, TableLogger, format_cell, format_row, get_display_width
+from qbt.utils.formatting import Align, TableLogger, _format_cell, _format_row, _get_display_width
 
 
 class TestGetDisplayWidth:
-    """get_display_width() 함수 테스트
+    """_get_display_width() 함수 테스트
 
     목적: 한글/영문 혼용 문자열의 터미널 폭을 정확히 계산하는지 검증
     """
@@ -29,14 +29,14 @@ class TestGetDisplayWidth:
         빈 문자열의 폭은 0이어야 한다.
 
         Given: 빈 문자열
-        When: get_display_width() 호출
+        When: _get_display_width() 호출
         Then: 0 반환
         """
         # Given
         text = ""
 
         # When
-        width = get_display_width(text)
+        width = _get_display_width(text)
 
         # Then
         assert width == 0
@@ -46,14 +46,14 @@ class TestGetDisplayWidth:
         영문/숫자/기호는 각 1칸으로 계산된다.
 
         Given: 영문 문자열 "Hello123!@#"
-        When: get_display_width() 호출
+        When: _get_display_width() 호출
         Then: 11 반환 (각 문자 1칸씩)
         """
         # Given
         text = "Hello123!@#"
 
         # When
-        width = get_display_width(text)
+        width = _get_display_width(text)
 
         # Then
         assert width == 11
@@ -63,14 +63,14 @@ class TestGetDisplayWidth:
         한글은 각 2칸으로 계산된다.
 
         Given: 한글 문자열 "안녕하세요"
-        When: get_display_width() 호출
+        When: _get_display_width() 호출
         Then: 10 반환 (5글자 × 2칸)
         """
         # Given
         text = "안녕하세요"
 
         # When
-        width = get_display_width(text)
+        width = _get_display_width(text)
 
         # Then
         assert width == 10
@@ -80,14 +80,14 @@ class TestGetDisplayWidth:
         한글과 영문이 혼용된 경우 정확히 계산된다.
 
         Given: "Hello안녕123" (영문5칸 + 한글4칸 + 숫자3칸)
-        When: get_display_width() 호출
+        When: _get_display_width() 호출
         Then: 12 반환
         """
         # Given
         text = "Hello안녕123"
 
         # When
-        width = get_display_width(text)
+        width = _get_display_width(text)
 
         # Then
         # "Hello" (5) + "안녕" (4) + "123" (3) = 12
@@ -95,7 +95,7 @@ class TestGetDisplayWidth:
 
 
 class TestFormatCell:
-    """format_cell() 함수 테스트
+    """_format_cell() 함수 테스트
 
     목적: 셀 정렬(LEFT/RIGHT/CENTER)과 폭 부족 케이스 검증
     """
@@ -105,7 +105,7 @@ class TestFormatCell:
         영문 문자열 왼쪽 정렬 시 오른쪽에 패딩이 추가된다.
 
         Given: "ABC", width=10, align=LEFT
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "ABC       " 반환 (3글자 + 7칸 패딩)
         """
         # Given
@@ -114,7 +114,7 @@ class TestFormatCell:
         align = Align.LEFT
 
         # When
-        result = format_cell(text, width, align)
+        result = _format_cell(text, width, align)
 
         # Then
         assert result == "ABC       "
@@ -125,7 +125,7 @@ class TestFormatCell:
         영문 문자열 오른쪽 정렬 시 왼쪽에 패딩이 추가된다.
 
         Given: "ABC", width=10, align=RIGHT
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "       ABC" 반환 (7칸 패딩 + 3글자)
         """
         # Given
@@ -134,7 +134,7 @@ class TestFormatCell:
         align = Align.RIGHT
 
         # When
-        result = format_cell(text, width, align)
+        result = _format_cell(text, width, align)
 
         # Then
         assert result == "       ABC"
@@ -145,7 +145,7 @@ class TestFormatCell:
         영문 문자열 중앙 정렬 시 좌우에 패딩이 균등 분배된다.
 
         Given: "ABC", width=10, align=CENTER
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "   ABC    " 반환 (좌 3칸 + 3글자 + 우 4칸)
         """
         # Given
@@ -154,7 +154,7 @@ class TestFormatCell:
         align = Align.CENTER
 
         # When
-        result = format_cell(text, width, align)
+        result = _format_cell(text, width, align)
 
         # Then
         # 좌우 패딩 균등 분배: 7칸 / 2 = 좌 3칸, 우 4칸
@@ -166,7 +166,7 @@ class TestFormatCell:
         한글 문자열 왼쪽 정렬 시 터미널 폭 기준으로 패딩이 추가된다.
 
         Given: "안녕" (4칸), width=10, align=LEFT
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "안녕      " 반환 (한글 2글자(4칸) + 6칸 패딩)
         """
         # Given
@@ -175,20 +175,20 @@ class TestFormatCell:
         align = Align.LEFT
 
         # When
-        result = format_cell(text, width, align)
+        result = _format_cell(text, width, align)
 
         # Then
         # "안녕"은 4칸, 나머지 6칸은 공백
         assert result == "안녕      "
         # 실제 문자 길이는 2 + 6 = 8이지만, 터미널 폭은 10
-        assert get_display_width(result) == 10
+        assert _get_display_width(result) == 10
 
     def test_insufficient_width(self):
         """
         폭이 부족한 경우 원본 문자열을 그대로 반환한다.
 
         Given: "VeryLongText", width=5 (부족)
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "VeryLongText" 반환 (잘림 없음)
         """
         # Given
@@ -196,7 +196,7 @@ class TestFormatCell:
         width = 5
 
         # When
-        result = format_cell(text, width, Align.LEFT)
+        result = _format_cell(text, width, Align.LEFT)
 
         # Then
         assert result == text
@@ -206,7 +206,7 @@ class TestFormatCell:
         문자열 폭이 목표 폭과 정확히 일치하면 패딩 없이 반환한다.
 
         Given: "ABC", width=3
-        When: format_cell() 호출
+        When: _format_cell() 호출
         Then: "ABC" 반환 (패딩 없음)
         """
         # Given
@@ -214,7 +214,7 @@ class TestFormatCell:
         width = 3
 
         # When
-        result = format_cell(text, width, Align.LEFT)
+        result = _format_cell(text, width, Align.LEFT)
 
         # Then
         assert result == "ABC"
@@ -222,7 +222,7 @@ class TestFormatCell:
 
 
 class TestFormatRow:
-    """format_row() 함수 테스트
+    """_format_row() 함수 테스트
 
     목적: 다중 셀 포맷팅과 들여쓰기 검증
     """
@@ -232,7 +232,7 @@ class TestFormatRow:
         단일 셀 행 포맷팅 시 들여쓰기가 적용된다.
 
         Given: cells=[("ABC", 10, LEFT)], indent=2
-        When: format_row() 호출
+        When: _format_row() 호출
         Then: "  ABC       " 반환 (2칸 들여쓰기 + 셀)
         """
         # Given
@@ -240,7 +240,7 @@ class TestFormatRow:
         indent = 2
 
         # When
-        result = format_row(cells, indent)
+        result = _format_row(cells, indent)
 
         # Then
         assert result == "  ABC       "
@@ -250,7 +250,7 @@ class TestFormatRow:
         다중 셀 행 포맷팅 시 각 셀이 정렬되어 연결된다.
 
         Given: cells=[("A", 5, LEFT), ("B", 5, RIGHT)]
-        When: format_row() 호출
+        When: _format_row() 호출
         Then: "  A        B" 반환
         """
         # Given
@@ -258,7 +258,7 @@ class TestFormatRow:
         indent = 2
 
         # When
-        result = format_row(cells, indent)
+        result = _format_row(cells, indent)
 
         # Then
         # indent(2) + "A    " + "    B"
@@ -269,7 +269,7 @@ class TestFormatRow:
         들여쓰기가 0인 경우 셀만 출력된다.
 
         Given: cells=[("ABC", 5, LEFT)], indent=0
-        When: format_row() 호출
+        When: _format_row() 호출
         Then: "ABC  " 반환 (들여쓰기 없음)
         """
         # Given
@@ -277,7 +277,7 @@ class TestFormatRow:
         indent = 0
 
         # When
-        result = format_row(cells, indent)
+        result = _format_row(cells, indent)
 
         # Then
         assert result == "ABC  "

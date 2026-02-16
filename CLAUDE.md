@@ -168,7 +168,7 @@ CLI 계층 (`scripts/`):
 4가지 접두사만 사용합니다:
 
 - `COL_`: DataFrame 컬럼명 (내부 계산용 영문 토큰, 예: `COL_DATE`, `COL_CLOSE`, `COL_MONTH`)
-- `KEY_`: 딕셔너리나 JSON 형태의 키값 (예: `KEY_SPREAD`, `KEY_OVERLAP_START`)
+- `KEY_`: 딕셔너리나 JSON 형태의 키값 (예: `KEY_OVERLAP_START`, `KEY_FINAL_CLOSE_ACTUAL`)
 - `DISPLAY_`: CSV 출력이나 UI 표시용 한글 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`, `DISPLAY_MONTH`)
 - `DEFAULT_`: 분석/시뮬레이션 기본값 파라미터 (예: `DEFAULT_MIN_MONTHS`, `DEFAULT_HISTOGRAM_BINS`)
 

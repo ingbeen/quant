@@ -22,7 +22,7 @@ from qbt.backtest.strategy import (
     BufferStrategyParams,
     BuyAndHoldParams,
     PendingOrderConflictError,
-    calculate_recent_buy_count,
+    _calculate_recent_buy_count,
     run_buffer_strategy,
     run_buy_and_hold,
 )
@@ -189,7 +189,7 @@ class TestCalculateRecentBuyCount:
         recent_months = 3
 
         # When
-        count = calculate_recent_buy_count(entry_dates, current_date, recent_months)
+        count = _calculate_recent_buy_count(entry_dates, current_date, recent_months)
 
         # Then: 5월, 6월만 포함 = 2건
         # cutoff = 2023-04-15 (3개월 전)
@@ -209,7 +209,7 @@ class TestCalculateRecentBuyCount:
         current_date = date(2023, 7, 15)
 
         # When
-        count = calculate_recent_buy_count(entry_dates, current_date, recent_months=3)
+        count = _calculate_recent_buy_count(entry_dates, current_date, recent_months=3)
 
         # Then
         assert count == 0, "오래된 매수는 카운트되지 않아야 합니다"

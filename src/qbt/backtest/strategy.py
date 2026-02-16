@@ -621,7 +621,7 @@ def run_grid_search(
     return results_df
 
 
-def calculate_recent_buy_count(
+def _calculate_recent_buy_count(
     entry_dates: list[date],
     current_date: date,
     recent_months: int,
@@ -751,7 +751,7 @@ def run_buffer_strategy(
         # - recent_months=0: 동적 조정 비활성화
         # - hold_days=0: 유지조건 증가 금지, 버퍼존만 증가
         if params.recent_months > 0:  # 동적 조정 활성화
-            recent_buy_count = calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
+            recent_buy_count = _calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
             # 최근 매수가 많을수록 버퍼존 증가 (진입 조건 엄격화)
             current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
 

@@ -108,7 +108,7 @@ FundingSpreadSpec = float | dict[str, float] | Callable[[date], float]
 # ============================================================
 
 
-def softplus(x: float) -> float:
+def _softplus(x: float) -> float:
     """
     수치 안정 버전 softplus 함수를 계산한다.
 
@@ -162,7 +162,7 @@ def compute_softplus_spread(a: float, b: float, ffr_ratio: float) -> float:
     ffr_pct = 100.0 * ffr_ratio
 
     # 2. softplus 계산
-    spread = softplus(a + b * ffr_pct)
+    spread = _softplus(a + b * ffr_pct)
 
     # 3. 방어적 체크 (softplus는 항상 > 0이지만 수치 오류 대비)
     if spread <= 0:
@@ -226,7 +226,7 @@ def build_monthly_spread_map(
     return spread_map
 
 
-def build_monthly_spread_map_from_dict(
+def _build_monthly_spread_map_from_dict(
     ffr_dict: dict[str, float],
     a: float,
     b: float,
@@ -427,7 +427,7 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
     return spread
 
 
-def validate_ffr_coverage(
+def _validate_ffr_coverage(
     overlap_start: date,
     overlap_end: date,
     ffr_df: pd.DataFrame,
@@ -498,7 +498,7 @@ def validate_ffr_coverage(
                 )
 
 
-def calculate_daily_cost(
+def _calculate_daily_cost(
     date_value: date,
     ffr_dict: dict[str, float],
     expense_dict: dict[str, float],
@@ -576,7 +576,7 @@ def _precompute_daily_costs_vectorized(
 
     고유 월(unique months)만 추출하여 월별 1회만 비용을 계산하고,
     numpy 인덱싱으로 일별 배열로 매핑한다.
-    기존 calculate_daily_cost와 동일한 비용 공식 및 fallback 로직을 적용한다.
+    기존 _calculate_daily_cost와 동일한 비용 공식 및 fallback 로직을 적용한다.
 
     Args:
         month_keys: 각 거래일의 "YYYY-MM" 문자열 배열
@@ -776,7 +776,7 @@ def simulate(
         # ffr_df 제공 시: 검증 + 변환
         start_date = underlying_df[COL_DATE].min()
         end_date = underlying_df[COL_DATE].max()
-        validate_ffr_coverage(start_date, end_date, ffr_df)
+        _validate_ffr_coverage(start_date, end_date, ffr_df)
         ffr_dict_to_use: dict[str, float] = create_ffr_dict(ffr_df)
     else:
         # ffr_dict 직접 제공 시: 이미 검증된 것으로 간주
@@ -822,7 +822,7 @@ def simulate(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]
-            daily_cost = calculate_daily_cost(
+            daily_cost = _calculate_daily_cost(
                 current_date, ffr_dict_to_use, expense_dict_to_use, funding_spread, leverage
             )
 
@@ -1214,7 +1214,7 @@ def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateD
     initial_price: float = params["initial_price"]
 
     # 1. softplus spread 맵 생성 (벡터화 버전)
-    spread_map = build_monthly_spread_map_from_dict(ffr_dict, params["a"], params["b"])
+    spread_map = _build_monthly_spread_map_from_dict(ffr_dict, params["a"], params["b"])
 
     # 2. 일일 비용 사전 계산
     daily_costs = _precompute_daily_costs_vectorized(
@@ -1313,7 +1313,7 @@ def find_optimal_softplus_params(
     # 2. FFR 커버리지 검증 (fail-fast)
     overlap_start = underlying_overlap[COL_DATE].min()
     overlap_end = underlying_overlap[COL_DATE].max()
-    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = create_ffr_dict(ffr_df)
@@ -1524,7 +1524,7 @@ def _local_refine_search(
     # 2. FFR 커버리지 검증 (fail-fast)
     overlap_start = underlying_overlap[COL_DATE].min()
     overlap_end = underlying_overlap[COL_DATE].max()
-    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = create_ffr_dict(ffr_df)

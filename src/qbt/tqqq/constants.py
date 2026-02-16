@@ -94,7 +94,6 @@ __all__ = [
     # UI 레이블
     "DISPLAY_ERROR_END_OF_MONTH_PCT",
     # 딕셔너리 키
-    "KEY_SPREAD",
     "KEY_OVERLAP_START",
     "KEY_OVERLAP_END",
     "KEY_OVERLAP_DAYS",
@@ -268,9 +267,6 @@ DISPLAY_ERROR_END_OF_MONTH_PCT: Final = "월말 누적 오차 (%)"  # Level 차�
 # ============================================================
 # 딕셔너리 키 (KEY_)
 # ============================================================
-
-# --- 비용 모델 ---
-KEY_SPREAD: Final = "spread"
 
 # --- 겹치는 기간 정보 ---
 KEY_OVERLAP_START: Final = "overlap_start"

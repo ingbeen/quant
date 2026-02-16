@@ -23,9 +23,10 @@ from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
+    _calculate_daily_cost,
     _evaluate_softplus_candidate,
     _precompute_daily_costs_vectorized,
-    calculate_daily_cost,
+    _validate_ffr_coverage,
     calculate_fixed_ab_stitched_rmse,
     calculate_rate_segmented_rmse,
     calculate_stitched_walkforward_rmse,
@@ -34,7 +35,6 @@ from qbt.tqqq.simulation import (
     extract_overlap_period,
     generate_static_spread_series,
     simulate,
-    validate_ffr_coverage,
 )
 from qbt.utils.parallel_executor import WORKER_CACHE
 
@@ -52,7 +52,7 @@ class TestCalculateDailyCost:
           - 2023년 1월 15일
           - FFR 데이터에 2023-01이 0.045 (4.5%) 존재
           - expense_ratio=0.0095 (0.95%), funding_spread=0.006 (0.6%)
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then:
           - 해당 월의 FFR 사용
           - daily_cost = ((FFR + funding_spread) * (leverage - 1) + expense_ratio) / 거래일수
@@ -73,7 +73,7 @@ class TestCalculateDailyCost:
 
         # When
         leverage = 3.0  # 기본 3배 레버리지
-        daily_cost = calculate_daily_cost(
+        daily_cost = _calculate_daily_cost(
             date_value=target_date,
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -94,7 +94,7 @@ class TestCalculateDailyCost:
         Given:
           - 2023년 3월 15일
           - FFR에 3월 데이터 없음, 1월 데이터만 존재
-        When: calculate_daily_cost
+        When: _calculate_daily_cost
         Then: 1월 FFR 사용 (2개월 이내이므로 허용)
         """
         # Given: 1월 FFR만 존재 (DATE는 yyyy-mm 문자열)
@@ -110,7 +110,7 @@ class TestCalculateDailyCost:
 
         # When: 2개월 이내면 fallback 허용
         try:
-            daily_cost = calculate_daily_cost(
+            daily_cost = _calculate_daily_cost(
                 date_value=target_date,
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -131,7 +131,7 @@ class TestCalculateDailyCost:
         안정성: 빈 데이터는 즉시 에러
 
         Given: 빈 FFR DataFrame
-        When: calculate_daily_cost
+        When: _calculate_daily_cost
         Then: ValueError
         """
         # Given
@@ -143,7 +143,7 @@ class TestCalculateDailyCost:
         # When & Then
         with pytest.raises(ValueError):
             ffr_dict = create_ffr_dict(ffr_df)
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -160,7 +160,7 @@ class TestCalculateDailyCost:
         ],
         ids=["leverage_2x", "leverage_3x", "leverage_4x"],
     )
-    def test_calculate_daily_cost_leverage_variations(self, leverage, expected_multiplier):
+    def test__calculate_daily_cost_leverage_variations(self, leverage, expected_multiplier):
         """
         다양한 레버리지 배수별 비용 계산 테스트
 
@@ -172,7 +172,7 @@ class TestCalculateDailyCost:
           - FFR=4.5%, funding_spread=0.006 (0.6%)
           - expense_ratio=0.0095 (0.95%)
           - leverage (parametrize로 여러 값 테스트)
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then:
           - 레버리지 비용 = (0.045 + 0.006) * (leverage - 1)
           - 총 연간 비용 = leverage_cost + 0.0095
@@ -194,7 +194,7 @@ class TestCalculateDailyCost:
         funding_spread = 0.006
 
         # When
-        daily_cost = calculate_daily_cost(
+        daily_cost = _calculate_daily_cost(
             date_value=target_date,
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -700,7 +700,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 9, 20)
 
         # When & Then: 예외 없이 통과
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_within_2_months_passes(self):
         """
@@ -721,7 +721,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 20)
 
         # When & Then: 예외 없이 통과 (2023-03이 1~2개월 전)
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_exceeds_2_months_raises(self):
         """
@@ -738,7 +738,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-05" in error_msg
@@ -761,7 +761,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-03" in error_msg
@@ -786,7 +786,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 15)
 
         # When & Then
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_year_boundary_crossing(self):
         """
@@ -807,7 +807,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2024, 2, 10)
 
         # When & Then
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
 
 class TestCreateFfrDict:
@@ -1073,12 +1073,12 @@ class TestGenericMonthlyDataDict:
 class TestCalculateDailyCostWithDynamicExpense:
     """동적 expense 적용 비용 계산 테스트"""
 
-    def test_calculate_daily_cost_with_expense_dict(self):
+    def test__calculate_daily_cost_with_expense_dict(self):
         """
         expense_dict를 사용한 일일 비용 계산 테스트
 
         Given: FFR dict, expense dict, 날짜
-        When: calculate_daily_cost 호출 (expense_dict 파라미터 사용)
+        When: _calculate_daily_cost 호출 (expense_dict 파라미터 사용)
         Then: 해당 날짜의 FFR과 expense를 조회하여 비용 계산
         """
         # Given
@@ -1089,7 +1089,7 @@ class TestCalculateDailyCostWithDynamicExpense:
         date_value = date(2023, 1, 15)
 
         # When: expense_dict 파라미터로 호출 (아직 시그니처 변경 안 됨 - 레드)
-        daily_cost = calculate_daily_cost(
+        daily_cost = _calculate_daily_cost(
             date_value=date_value, ffr_dict=ffr_dict, expense_dict=expense_dict, funding_spread=0.006, leverage=3.0
         )
 
@@ -1112,10 +1112,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(1 + exp(2)) ≈ 2.1269 반환
         """
-        from qbt.tqqq.simulation import softplus
+        from qbt.tqqq.simulation import _softplus
 
         x = 2.0
-        result = softplus(x)
+        result = _softplus(x)
 
         # log(1 + exp(2)) = log(1 + 7.389) ≈ 2.1269
         import math
@@ -1131,10 +1131,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(1 + exp(-2)) ≈ 0.1269 반환
         """
-        from qbt.tqqq.simulation import softplus
+        from qbt.tqqq.simulation import _softplus
 
         x = -2.0
-        result = softplus(x)
+        result = _softplus(x)
 
         # log(1 + exp(-2)) = log(1 + 0.135) ≈ 0.1269
         import math
@@ -1150,10 +1150,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(2) ≈ 0.693 반환
         """
-        from qbt.tqqq.simulation import softplus
+        from qbt.tqqq.simulation import _softplus
 
         x = 0.0
-        result = softplus(x)
+        result = _softplus(x)
 
         # log(1 + exp(0)) = log(2) ≈ 0.693
         import math
@@ -1169,12 +1169,12 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: 모든 결과 > 0
         """
-        from qbt.tqqq.simulation import softplus
+        from qbt.tqqq.simulation import _softplus
 
         test_values = [-100.0, -10.0, -1.0, 0.0, 1.0, 10.0, 100.0]
         for x in test_values:
-            result = softplus(x)
-            assert result > 0, f"softplus({x}) = {result}가 양수가 아님"
+            result = _softplus(x)
+            assert result > 0, f"_softplus({x}) = {result}가 양수가 아님"
 
     def test_softplus_numerical_stability(self):
         """
@@ -1186,20 +1186,22 @@ class TestSoftplusFunctions:
         """
         import math
 
-        from qbt.tqqq.simulation import softplus
+        from qbt.tqqq.simulation import _softplus
 
         # 큰 양수: softplus(x) ≈ x
         large_positive = 700.0  # exp(700)은 overflow 위험
-        result_pos = softplus(large_positive)
-        assert math.isfinite(result_pos), f"softplus({large_positive})가 유한하지 않음: {result_pos}"
-        assert result_pos == pytest.approx(large_positive, abs=1.0), f"softplus({large_positive}) ≈ {large_positive} 예상"
+        result_pos = _softplus(large_positive)
+        assert math.isfinite(result_pos), f"_softplus({large_positive})가 유한하지 않음: {result_pos}"
+        assert result_pos == pytest.approx(
+            large_positive, abs=1.0
+        ), f"_softplus({large_positive}) ≈ {large_positive} 예상"
 
         # 큰 음수: softplus(x) ≈ 0 (하지만 > 0)
         large_negative = -700.0
-        result_neg = softplus(large_negative)
-        assert math.isfinite(result_neg), f"softplus({large_negative})가 유한하지 않음: {result_neg}"
-        assert result_neg > 0, f"softplus({large_negative}) > 0 예상: {result_neg}"
-        assert result_neg < 1e-10, f"softplus({large_negative}) ≈ 0 예상: {result_neg}"
+        result_neg = _softplus(large_negative)
+        assert math.isfinite(result_neg), f"_softplus({large_negative})가 유한하지 않음: {result_neg}"
+        assert result_neg > 0, f"_softplus({large_negative}) > 0 예상: {result_neg}"
+        assert result_neg < 1e-10, f"_softplus({large_negative}) ≈ 0 예상: {result_neg}"
 
     def test_compute_softplus_spread_basic(self):
         """
@@ -1283,17 +1285,17 @@ class TestSoftplusFunctions:
         with pytest.raises(ValueError, match="비어있습니다"):
             build_monthly_spread_map(ffr_df, a=-5.0, b=1.0)
 
-    def test_build_monthly_spread_map_from_dict_equivalence(self):
+    def test__build_monthly_spread_map_from_dict_equivalence(self):
         """
-        build_monthly_spread_map_from_dict와 build_monthly_spread_map 결과 동일성 테스트
+        _build_monthly_spread_map_from_dict와 build_monthly_spread_map 결과 동일성 테스트
 
         Given: 동일한 FFR 데이터 (DataFrame vs dict)
         When: 두 함수 각각 호출
         Then: 결과가 완전히 동일
         """
         from qbt.tqqq.simulation import (
+            _build_monthly_spread_map_from_dict,
             build_monthly_spread_map,
-            build_monthly_spread_map_from_dict,
         )
 
         # Given: 다양한 FFR 데이터
@@ -1323,7 +1325,7 @@ class TestSoftplusFunctions:
         for a, b in test_params:
             # When
             result_df = build_monthly_spread_map(ffr_df, a, b)
-            result_dict = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+            result_dict = _build_monthly_spread_map_from_dict(ffr_dict, a, b)
 
             # Then: 동일한 키와 값
             assert set(result_df.keys()) == set(result_dict.keys()), f"키 불일치: a={a}, b={b}"
@@ -1335,20 +1337,20 @@ class TestSoftplusFunctions:
                     f"값 불일치: month={month}, a={a}, b={b}, " f"df={df_val}, dict={dict_val}"
                 )
 
-    def test_build_monthly_spread_map_from_dict_empty_raises(self):
+    def test__build_monthly_spread_map_from_dict_empty_raises(self):
         """
         빈 FFR 딕셔너리 입력 시 ValueError 테스트
 
         Given: 빈 FFR 딕셔너리
-        When: build_monthly_spread_map_from_dict 호출
+        When: _build_monthly_spread_map_from_dict 호출
         Then: ValueError 발생
         """
-        from qbt.tqqq.simulation import build_monthly_spread_map_from_dict
+        from qbt.tqqq.simulation import _build_monthly_spread_map_from_dict
 
         ffr_dict: dict[str, float] = {}
 
         with pytest.raises(ValueError, match="비어있습니다"):
-            build_monthly_spread_map_from_dict(ffr_dict, a=-5.0, b=1.0)
+            _build_monthly_spread_map_from_dict(ffr_dict, a=-5.0, b=1.0)
 
 
 class TestDynamicFundingSpread:
@@ -1364,7 +1366,7 @@ class TestDynamicFundingSpread:
         float 타입 funding_spread 기존 동작 유지 테스트
 
         Given: funding_spread = 0.006 (float)
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: 기존과 동일하게 0.006이 적용됨
         """
         # Given
@@ -1374,7 +1376,7 @@ class TestDynamicFundingSpread:
         date_value = date(2023, 1, 15)
 
         # When: float spread 사용 (기존 동작)
-        daily_cost = calculate_daily_cost(
+        daily_cost = _calculate_daily_cost(
             date_value=date_value,
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -1397,7 +1399,7 @@ class TestDynamicFundingSpread:
         dict 타입 funding_spread 월별 조회 테스트
 
         Given: funding_spread = {"2023-01": 0.004, "2023-02": 0.008}
-        When: 2023-01-15 날짜로 calculate_daily_cost 호출
+        When: 2023-01-15 날짜로 _calculate_daily_cost 호출
         Then: 해당 월의 spread 0.004가 적용됨
         """
         # Given
@@ -1409,7 +1411,7 @@ class TestDynamicFundingSpread:
         spread_dict: dict[str, float] = {"2023-01": 0.004, "2023-02": 0.008}
 
         # When: 1월 날짜로 호출
-        daily_cost_jan = calculate_daily_cost(
+        daily_cost_jan = _calculate_daily_cost(
             date_value=date(2023, 1, 15),
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -1418,7 +1420,7 @@ class TestDynamicFundingSpread:
         )
 
         # When: 2월 날짜로 호출
-        daily_cost_feb = calculate_daily_cost(
+        daily_cost_feb = _calculate_daily_cost(
             date_value=date(2023, 2, 15),
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -1453,7 +1455,7 @@ class TestDynamicFundingSpread:
 
         # When & Then: 2월 키 없음 -> ValueError
         with pytest.raises(ValueError, match="spread.*2023-02|키.*누락|없"):
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 2, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -1466,7 +1468,7 @@ class TestDynamicFundingSpread:
         Callable 타입 funding_spread 함수 호출 테스트
 
         Given: funding_spread = lambda d: 0.005 (고정 반환 함수)
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: 함수가 호출되고 반환값이 spread로 적용됨
         """
         # Given
@@ -1479,7 +1481,7 @@ class TestDynamicFundingSpread:
             return 0.005
 
         # When
-        daily_cost = calculate_daily_cost(
+        daily_cost = _calculate_daily_cost(
             date_value=date(2023, 1, 15),
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
@@ -1496,7 +1498,7 @@ class TestDynamicFundingSpread:
         Callable 반환값이 NaN일 때 ValueError 테스트
 
         Given: funding_spread = lambda d: float('nan')
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: ValueError 발생 (fail-fast)
         """
         # Given
@@ -1509,7 +1511,7 @@ class TestDynamicFundingSpread:
 
         # When & Then
         with pytest.raises(ValueError, match="NaN|nan|유효하지 않"):
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -1522,7 +1524,7 @@ class TestDynamicFundingSpread:
         Callable 반환값이 inf일 때 ValueError 테스트
 
         Given: funding_spread = lambda d: float('inf')
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: ValueError 발생 (fail-fast)
         """
         # Given
@@ -1535,7 +1537,7 @@ class TestDynamicFundingSpread:
 
         # When & Then
         with pytest.raises(ValueError, match="inf|무한|유효하지 않"):
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -1548,7 +1550,7 @@ class TestDynamicFundingSpread:
         spread가 0일 때 ValueError 테스트
 
         Given: funding_spread = 0.0
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: ValueError 발생 (spread > 0 필수)
         """
         # Given
@@ -1558,7 +1560,7 @@ class TestDynamicFundingSpread:
 
         # When & Then: spread = 0 -> ValueError
         with pytest.raises(ValueError, match="0|양수|> 0"):
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -1571,7 +1573,7 @@ class TestDynamicFundingSpread:
         spread가 음수일 때 ValueError 테스트
 
         Given: funding_spread = -0.005
-        When: calculate_daily_cost 호출
+        When: _calculate_daily_cost 호출
         Then: ValueError 발생 (음수 불허)
         """
         # Given
@@ -1581,7 +1583,7 @@ class TestDynamicFundingSpread:
 
         # When & Then: 음수 spread -> ValueError
         with pytest.raises(ValueError, match="음수|양수|> 0"):
-            calculate_daily_cost(
+            _calculate_daily_cost(
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
@@ -2462,9 +2464,9 @@ class TestVectorizedSimulation:
           - 두 결과의 가격 배열이 1e-10 이내에서 동일
         """
         from qbt.tqqq.simulation import (
+            _build_monthly_spread_map_from_dict,
             _precompute_daily_costs_vectorized,
             _simulate_prices_vectorized,
-            build_monthly_spread_map_from_dict,
             simulate,
         )
 
@@ -2477,7 +2479,7 @@ class TestVectorizedSimulation:
 
         # softplus 파라미터 사용 (dict spread)
         a, b = -5.0, 0.8
-        spread_map = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+        spread_map = _build_monthly_spread_map_from_dict(ffr_dict, a, b)
 
         # When 1: 기존 simulate() 실행
         sim_df = simulate(
@@ -2571,21 +2573,21 @@ class TestVectorizedSimulation:
 
     def test_precompute_daily_costs_matches_per_day(self, enable_numpy_warnings):
         """
-        사전 계산된 일일 비용이 개별 calculate_daily_cost() 호출 결과와 동일한지 검증한다.
+        사전 계산된 일일 비용이 개별 _calculate_daily_cost() 호출 결과와 동일한지 검증한다.
 
         Given:
           - 2개월에 걸친 20일 거래 데이터
           - FFR, expense, softplus spread 데이터
         When:
           - _precompute_daily_costs_vectorized로 전체 비용 배열 한 번에 계산
-          - calculate_daily_cost로 각 날짜별 개별 계산
+          - _calculate_daily_cost로 각 날짜별 개별 계산
         Then:
           - 모든 날짜에서 비용이 1e-10 이내에서 동일
         """
         from qbt.tqqq.simulation import (
+            _build_monthly_spread_map_from_dict,
+            _calculate_daily_cost,
             _precompute_daily_costs_vectorized,
-            build_monthly_spread_map_from_dict,
-            calculate_daily_cost,
         )
 
         # Given
@@ -2596,7 +2598,7 @@ class TestVectorizedSimulation:
         expense_dict = create_expense_dict(expense_df)
 
         a, b = -5.0, 0.8
-        spread_map = build_monthly_spread_map_from_dict(ffr_dict, a, b)
+        spread_map = _build_monthly_spread_map_from_dict(ffr_dict, a, b)
 
         dates = underlying_df[COL_DATE].tolist()
         month_keys = np.array(
@@ -2616,7 +2618,7 @@ class TestVectorizedSimulation:
         # When 2: 개별 계산
         daily_costs_individual = np.array(
             [
-                calculate_daily_cost(
+                _calculate_daily_cost(
                     date_value=d,
                     ffr_dict=ffr_dict,
                     expense_dict=expense_dict,
@@ -2632,7 +2634,7 @@ class TestVectorizedSimulation:
             daily_costs_vectorized,
             daily_costs_individual,
             atol=1e-10,
-            err_msg="사전 계산 비용이 개별 calculate_daily_cost()와 동일해야 합니다",
+            err_msg="사전 계산 비용이 개별 _calculate_daily_cost()와 동일해야 합니다",
         )
 
 
