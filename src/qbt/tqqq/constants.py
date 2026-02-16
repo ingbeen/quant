@@ -143,6 +143,10 @@ __all__ = [
     "LOOKUP_TUNING_CSV_PATH",
     "LOOKUP_WALKFORWARD_PATH",
     "LOOKUP_WALKFORWARD_SUMMARY_PATH",
+    # 구간별 고정 스프레드 모델 (오라클)
+    "DEFAULT_SEGMENT_BOUNDARIES",
+    "DEFAULT_SEGMENT_STAT_FUNC",
+    "SEGMENT_SPREAD_CSV_PATH",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -230,6 +234,17 @@ DEFAULT_LOOKUP_STAT_FUNCS: Final = ("mean", "median")  # 통계량 후보
 LOOKUP_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_tuning.csv"
 LOOKUP_WALKFORWARD_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_walkforward.csv"
 LOOKUP_WALKFORWARD_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_walkforward_summary.csv"
+
+# ============================================================
+# 구간별 고정 스프레드 모델 (오라클) 파라미터
+# ============================================================
+
+# --- 구간 경계 및 통계량 ---
+DEFAULT_SEGMENT_BOUNDARIES: Final = (0.0, 2.0, 4.0)  # 구간 경계 (%, 암묵적 +inf)
+DEFAULT_SEGMENT_STAT_FUNC: Final = "median"  # 기본 통계량
+
+# --- 결과 파일 경로 ---
+SEGMENT_SPREAD_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_segment_spread.csv"
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

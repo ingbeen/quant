@@ -1160,5 +1160,47 @@
       },
       "timestamp": "2026-02-16T09:31:35+09:00"
     }
+  ],
+  "tqqq_segment_spread": [
+    {
+      "model_type": "segment_spread_oracle",
+      "boundaries": [
+        0.0,
+        2.0,
+        4.0
+      ],
+      "stat_func": "median",
+      "n_segments": 3,
+      "rmse_pct": 2.1127531960719854,
+      "segment_details": [
+        {
+          "segment": "0.0~2.0%",
+          "spread": 0.0020185107043234896,
+          "n_days": 2886
+        },
+        {
+          "segment": "2.0~4.0%",
+          "spread": 0.011212624157111278,
+          "n_days": 376
+        },
+        {
+          "segment": "4.0~inf%",
+          "spread": 0.0016264376210731457,
+          "n_days": 732
+        }
+      ],
+      "n_realized_spread_days": 3994,
+      "elapsed_time_sec": 0.3,
+      "input_files": {
+        "qqq": "storage/stock/QQQ_max.csv",
+        "tqqq": "storage/stock/TQQQ_max.csv",
+        "ffr": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
+      },
+      "output_files": {
+        "segment_spread_csv": "storage/results/spread_lab/tqqq_segment_spread.csv"
+      },
+      "timestamp": "2026-02-16T11:24:38+09:00"
+    }
   ]
 }

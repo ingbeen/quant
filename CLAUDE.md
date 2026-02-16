@@ -371,6 +371,7 @@ CLI 계층 (`scripts/`):
 - `tqqq_rate_spread_lab_walkforward_fixed_b.csv`: b 고정 워크포워드 검증 결과
 - `tqqq_rate_spread_lab_walkforward_fixed_ab.csv`: 완전 고정 (a,b) 워크포워드 검증 결과
 - 각 워크포워드 CSV에 대응하는 `*_summary.csv` 파일 존재
+- `tqqq_segment_spread.csv`: 구간별 고정 스프레드 모델 (오라클) 결과 (구간, 스프레드, 관측일수, RMSE)
 
 ### 데이터 로딩 (utils/data_loader.py)
 

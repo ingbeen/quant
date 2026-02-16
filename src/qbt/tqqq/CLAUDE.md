@@ -110,6 +110,10 @@ softplus 모델과 달리 함수 형태를 가정하지 않고, TQQQ 실제 수�
 - `lookup_spread_from_table`: 테이블에서 스프레드 조회 (빈 구간 시 인접 구간 fallback)
 - `build_monthly_spread_map_from_lookup`: FundingSpreadSpec 호환 월별 스프레드 맵 생성
 - `evaluate_lookup_combination`: 단일 (bin_width, stat_func) 조합의 인샘플 RMSE 평가
+- `build_segment_table`: 사용자 정의 구간 경계 기반 스프레드 테이블 생성 (비균등 구간)
+- `lookup_spread_from_segments`: 구간 테이블에서 스프레드 조회 (하한 포함, 상한 미포함)
+- `build_monthly_spread_map_from_segments`: 구간 테이블 기반 FundingSpreadSpec 호환 월별 스프레드 맵 생성
+- `evaluate_segment_combination`: 구간별 고정 스프레드의 인샘플 RMSE 평가
 
 ### 7. visualization.py
 
