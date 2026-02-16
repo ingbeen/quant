@@ -129,6 +129,8 @@ main 함수:
 - 단일 백테스트 또는 그리드 탐색 실행
 - 성과 지표 계산
 - 결과 요약 및 저장
+- 대시보드 앱:
+  - `app_single_backtest.py`: 단일 전략 시각화 대시보드 (Streamlit + lightweight-charts + Plotly)
 
 ### 레버리지 시뮬레이션 (tqqq/)
 

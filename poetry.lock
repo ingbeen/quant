@@ -1746,6 +1746,24 @@ snowflake = ["snowflake-connector-python (>=3.3.0)", "snowflake-snowpark-python[
 sql = ["SQLAlchemy (>=2.0.0)"]
 
 [[package]]
+name = "streamlit-lightweight-charts-v5"
+version = "0.1.8"
+description = "Streamlit component for viewing v5 Lightweight Charts"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "streamlit_lightweight_charts_v5-0.1.8-py3-none-any.whl", hash = "sha256:52bd1dab82603887b1a4f72de046ac277dfbab2f0443f5dc13a15313426a539c"},
+    {file = "streamlit_lightweight_charts_v5-0.1.8.tar.gz", hash = "sha256:58370f97b2e34bd2e434d3d2648604bb9c88df7c5f93979bf6c94cec9c1873ad"},
+]
+
+[package.dependencies]
+streamlit = ">=0.63"
+
+[package.extras]
+demo = ["numpy", "yfinance"]
+devel = ["playwright (==1.48.0)", "pytest (==7.4.0)", "pytest-playwright-snapshot (==1.0)", "pytest-rerunfailures (==12.0)", "requests (==2.31.0)", "wheel"]
+
+[[package]]
 name = "tenacity"
 version = "9.1.2"
 description = "Retry code until it succeeds"
@@ -1994,4 +2012,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "873883bbabbe8315ddb94a75fa9c5f490fdf5aa194fba40d5cc2fb33963b17ee"
+content-hash = "c7a8f9131d3be4d0c09f95e4236c92d50076b181e3483761f8240a0c42c11721"
