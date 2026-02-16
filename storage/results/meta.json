@@ -1093,6 +1093,38 @@
       "csv_info": {
         "path": "storage/stock/TQQQ_synthetic_max.csv",
         "row_count": 6744,
+        "file_size_bytes": 338253
+      },
+      "timestamp": "2026-02-16T17:04:18+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37,
+        "pre_listing_expense_ratio": 0.0095
+      },
+      "synthetic_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2010-02-10",
+        "total_days": 2749,
+        "scale_factor": 0.187162
+      },
+      "actual_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2025-12-29",
+        "total_days": 3995
+      },
+      "merged_summary": {
+        "total_days": 6744,
+        "initial_price": 37.4323,
+        "final_price": 54.490002,
+        "cumulative_return_pct": 45.57
+      },
+      "csv_info": {
+        "path": "storage/stock/TQQQ_synthetic_max.csv",
+        "row_count": 6744,
         "file_size_bytes": 338271
       },
       "timestamp": "2026-02-16T16:06:23+09:00"

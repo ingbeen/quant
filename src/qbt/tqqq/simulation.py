@@ -760,7 +760,7 @@ def simulate(
     # 학습 포인트: set(집합) 자료형
     # - {값1, 값2}: 중괄호로 생성, 중복 없음, 순서 없음
     # - set 연산: A - B (차집합), A & B (교집합), A | B (합집합)
-    required_cols = {COL_DATE, COL_CLOSE}  # 필요한 컬럼 집합
+    required_cols = {COL_DATE, COL_OPEN, COL_CLOSE}  # 필요한 컬럼 집합
     missing_cols = required_cols - set(underlying_df.columns)  # 차집합: 필요한데 없는 컬럼
     if missing_cols:  # 빈 set은 False, 값 있으면 True
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_cols}")
@@ -794,7 +794,7 @@ def simulate(
     # 학습 포인트: DataFrame 인덱싱과 복사
     # - df[[컬럼1, 컬럼2]]: 리스트로 여러 컬럼 선택
     # - .copy(): 깊은 복사 (원본 데이터 보호)
-    df = underlying_df[[COL_DATE, COL_CLOSE]].copy()
+    df = underlying_df[[COL_DATE, COL_OPEN, COL_CLOSE]].copy()
 
     # 6. 일일 수익률 계산
     # 학습 포인트: .pct_change() - 이전 값 대비 변화율 계산
@@ -835,19 +835,26 @@ def simulate(
             new_price = leveraged_prices[-1] * (1 + leveraged_return)
             leveraged_prices.append(new_price)  # 리스트 끝에 추가
 
+    # 8. 기초 자산 Close 보존 (오버나이트 수익률 계산에 필요)
+    underlying_close_series = df[COL_CLOSE].copy()
+
     # 계산된 가격 리스트를 DataFrame 컬럼에 할당
     df[COL_CLOSE] = leveraged_prices
 
-    # 8. OHLV 데이터 구성
-    # Open: 전일 Close (첫날은 initial_price)
-    df[COL_OPEN] = df[COL_CLOSE].shift(1).fillna(initial_price)
+    # 9. OHLV 데이터 구성
+    # Open: 기초 자산의 오버나이트 갭을 레버리지 배율로 반영
+    # 수식: TQQQ_Open(t) = TQQQ_Close(t-1) × (1 + (QQQ_Open(t)/QQQ_Close(t-1) - 1) × leverage)
+    underlying_overnight_return = df[COL_OPEN] / underlying_close_series.shift(1) - 1
+    leveraged_open = df[COL_CLOSE].shift(1) * (1 + underlying_overnight_return * leverage)
+    # 첫날은 initial_price (shift(1)로 NaN 발생 → fillna)
+    df[COL_OPEN] = leveraged_open.fillna(initial_price)
 
     # High, Low, Volume: 0 (합성 데이터이므로 사용하지 않음)
     df[COL_HIGH] = 0.0
     df[COL_LOW] = 0.0
     df[COL_VOLUME] = 0
 
-    # 9. 불필요한 컬럼 제거 및 순서 정렬
+    # 10. 불필요한 컬럼 제거 및 순서 정렬
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df

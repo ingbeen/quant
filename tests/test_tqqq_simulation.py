@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
@@ -237,6 +237,7 @@ class TestSimulate:
         underlying_df = pd.DataFrame(
             {
                 COL_DATE: [date(2023, 1, i + 2) for i in range(5)],
+                COL_OPEN: [100.0, 100.5, 99.5, 101.5, 102.5],
                 COL_CLOSE: [100.0, 101.0, 99.0, 102.0, 103.0],
             }  # 1/2 ~ 1/6
         )
@@ -287,7 +288,9 @@ class TestSimulate:
         Then: TQQQ는 약 3% 상승 (비용 최소화, spread > 0 제약으로 1e-9 사용)
         """
         # Given: QQQ 1% 상승
-        underlying_df = pd.DataFrame({COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)], COL_CLOSE: [100.0, 101.0]})  # +1%
+        underlying_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)], COL_OPEN: [100.0, 100.5], COL_CLOSE: [100.0, 101.0]}
+        )  # +1%
 
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})  # FFR 0
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})  # expense 0
@@ -327,7 +330,7 @@ class TestSimulate:
             invalid_leverage: 테스트할 잘못된 레버리지 값 (-3.0, 0.0, -1.0)
         """
         # Given
-        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Close": [100.0]})
+        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Open": [100.0], "Close": [100.0]})
 
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
@@ -484,7 +487,9 @@ class TestSimulateValidation:
             error_pattern: 예상 에러 메시지 패턴
         """
         # Given
-        underlying_df = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [100.0, 105.0]})
+        underlying_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_OPEN: [100.0, 104.0], COL_CLOSE: [100.0, 105.0]}
+        )
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
@@ -541,7 +546,7 @@ class TestSimulateValidation:
         Then: ValueError 발생
         """
         # Given: 빈 DataFrame
-        underlying_df = pd.DataFrame(columns=[COL_DATE, COL_CLOSE])
+        underlying_df = pd.DataFrame(columns=[COL_DATE, COL_OPEN, COL_CLOSE])
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
@@ -2121,6 +2126,7 @@ class TestRunWalkforwardValidation:
 
         # Given: 50개월 데이터 (60개월 train 불가)
         dates = []
+        opens_underlying = []
         closes_underlying = []
         closes_actual = []
 
@@ -2132,12 +2138,14 @@ class TestRunWalkforwardValidation:
                 try:
                     d = date(year, month, day + 1)
                     dates.append(d)
-                    closes_underlying.append(100.0 + i * 0.1)
+                    close_price = 100.0 + i * 0.1
+                    opens_underlying.append(close_price - 0.05)
+                    closes_underlying.append(close_price)
                     closes_actual.append(30.0 + i * 0.3)
                 except ValueError:
                     pass
 
-        underlying_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_underlying})
+        underlying_df = pd.DataFrame({COL_DATE: dates, COL_OPEN: opens_underlying, COL_CLOSE: closes_underlying})
         actual_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_actual})
 
         ffr_dates = [f"{2020 + (i // 12):04d}-{(i % 12) + 1:02d}" for i in range(50)]
@@ -2183,6 +2191,7 @@ class TestRunWalkforwardValidation:
         monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_B_STEP", 0.25)
 
         dates = []
+        opens_underlying = []
         closes_underlying = []
         closes_actual = []
         ffr_dates = []
@@ -2194,13 +2203,15 @@ class TestRunWalkforwardValidation:
                 try:
                     d = date(2023, month, day + 1)
                     dates.append(d)
-                    closes_underlying.append(100.0 + month_offset * 2.0 + day * 0.1)
+                    close_price = 100.0 + month_offset * 2.0 + day * 0.1
+                    opens_underlying.append(close_price - 0.05)
+                    closes_underlying.append(close_price)
                     closes_actual.append(30.0 + month_offset * 1.8 + day * 0.09)
                 except ValueError:
                     pass
             ffr_dates.append(f"2023-{month:02d}")
 
-        underlying_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_underlying})
+        underlying_df = pd.DataFrame({COL_DATE: dates, COL_OPEN: opens_underlying, COL_CLOSE: closes_underlying})
         actual_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes_actual})
         ffr_df = pd.DataFrame({COL_FFR_DATE: ffr_dates, COL_FFR_VALUE: [0.045] * 4})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ffr_dates, COL_EXPENSE_VALUE: [0.0095] * 4})
@@ -2440,8 +2451,10 @@ class TestVectorizedSimulation:
             # 다양한 수익률: +1%, -0.5%, +0.3% 등
             change = [0.01, -0.005, 0.003, 0.008, -0.002, 0.004, -0.007, 0.006, 0.002, -0.003]
             prices.append(prices[-1] * (1 + change[i % len(change)]))
+        # 시가: 종가에서 소폭 차이 (오버나이트 갭 시뮬레이션)
+        opens = [prices[0]] + [prices[i - 1] * (1 + 0.001 * ((-1) ** i)) for i in range(1, 20)]
 
-        underlying_df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: prices})
+        underlying_df = pd.DataFrame({COL_DATE: dates, COL_OPEN: opens, COL_CLOSE: prices})
 
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [0.045, 0.046]})
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0095, 0.0088]})
@@ -2656,8 +2669,10 @@ class TestCalculateStitchedWalkforwardRmse:
         """
         # 기초자산 (QQQ) - 3개월, 각 월 약 21일
         base_dates = []
+        base_open = []
         base_close = []
         price = 100.0
+        prev_close = 100.0
         for month in [1, 2, 3]:
             for day in range(1, 22):
                 try:
@@ -2666,11 +2681,13 @@ class TestCalculateStitchedWalkforwardRmse:
                     if d.weekday() < 5:
                         base_dates.append(d)
                         price *= 1.001  # 매일 0.1% 상승
+                        base_open.append(round(prev_close * 1.0002, 2))
                         base_close.append(round(price, 2))
+                        prev_close = price
                 except ValueError:
                     pass
 
-        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: base_close})
+        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_OPEN: base_open, COL_CLOSE: base_close})
 
         # 실제 TQQQ - 동일 날짜, 3배 레버리지 근사
         tqqq_prices = [50.0]
@@ -2856,8 +2873,10 @@ class TestCalculateFixedAbStitchedRmse:
         """
         # 기초자산 (QQQ) - 3개월, 각 월 약 15~21 거래일
         base_dates = []
+        base_open = []
         base_close = []
         price = 100.0
+        prev_close = 100.0
         for month in [1, 2, 3]:
             for day in range(1, 22):
                 try:
@@ -2865,11 +2884,13 @@ class TestCalculateFixedAbStitchedRmse:
                     if d.weekday() < 5:
                         base_dates.append(d)
                         price *= 1.001
+                        base_open.append(round(prev_close * 1.0002, 2))
                         base_close.append(round(price, 2))
+                        prev_close = price
                 except ValueError:
                     pass
 
-        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_CLOSE: base_close})
+        underlying_df = pd.DataFrame({COL_DATE: base_dates, COL_OPEN: base_open, COL_CLOSE: base_close})
 
         # 실제 TQQQ - 3배 레버리지 근사
         tqqq_prices = [50.0]
@@ -2940,7 +2961,7 @@ class TestCalculateFixedAbStitchedRmse:
         """
         # Given
         data = fixed_ab_test_data
-        empty_df = pd.DataFrame(columns=[COL_DATE, COL_CLOSE])
+        empty_df = pd.DataFrame(columns=[COL_DATE, COL_OPEN, COL_CLOSE])
 
         # When & Then
         with pytest.raises(ValueError, match="비어있습니다"):
@@ -3190,4 +3211,175 @@ class TestPrecomputeDailyCostsVectorizedErrors:
                 expense_dict=expense_dict,
                 spread_map=spread_map,
                 leverage=leverage,
+            )
+
+
+class TestSimulateOvernightOpen:
+    """simulate() 함수의 오버나이트 갭 기반 Open 가격 계산 테스트
+
+    레버리지 ETF의 시가(Open)는 기초 자산의 오버나이트 갭(전일 종가 → 당일 시가)을
+    레버리지 배율로 확대하여 계산해야 한다.
+
+    수식: TQQQ_Open(t) = TQQQ_Close(t-1) × (1 + (QQQ_Open(t)/QQQ_Close(t-1) - 1) × leverage)
+    """
+
+    def test_open_reflects_overnight_gap(self):
+        """
+        오버나이트 갭이 레버리지 배율로 Open에 반영되는지 확인한다.
+
+        Given:
+          - QQQ 3일 데이터, day2의 Open(102.0)이 day1의 Close(100.0)와 다름 (+2%)
+          - leverage=3.0, 비용 최소화 (FFR=0, expense=0, spread=1e-9)
+        When: simulate() 호출
+        Then:
+          - TQQQ_Open(day2) ≈ TQQQ_Close(day1) × (1 + 0.02 × 3.0) = TQQQ_Close(day1) × 1.06
+          - TQQQ_Open(day3)도 동일 수식으로 계산됨
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 102.0, 104.0],  # day2: +2% gap, day3: 갭 있음
+                COL_CLOSE: [100.0, 105.0, 103.0],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            expense_df=expense_df,
+            initial_price=30.0,
+            ffr_df=ffr_df,
+            funding_spread=1e-9,
+        )
+
+        # Then: day2 Open 검증
+        # QQQ 오버나이트 수익률 = 102.0 / 100.0 - 1 = 0.02
+        # TQQQ_Open(day2) = TQQQ_Close(day1) × (1 + 0.02 × 3.0) = 30.0 × 1.06 = 31.8
+        tqqq_close_day1 = result.iloc[0][COL_CLOSE]
+        expected_open_day2 = tqqq_close_day1 * (1 + (102.0 / 100.0 - 1) * 3.0)
+        actual_open_day2 = result.iloc[1][COL_OPEN]
+
+        assert actual_open_day2 == pytest.approx(
+            expected_open_day2, abs=0.01
+        ), f"day2 Open: expected={expected_open_day2:.4f}, actual={actual_open_day2:.4f}"
+
+        # Then: day3 Open 검증
+        # QQQ 오버나이트 수익률 = 104.0 / 105.0 - 1 ≈ -0.00952
+        # TQQQ_Open(day3) = TQQQ_Close(day2) × (1 + (-0.00952) × 3.0)
+        tqqq_close_day2 = result.iloc[1][COL_CLOSE]
+        overnight_return_day3 = 104.0 / 105.0 - 1
+        expected_open_day3 = tqqq_close_day2 * (1 + overnight_return_day3 * 3.0)
+        actual_open_day3 = result.iloc[2][COL_OPEN]
+
+        assert actual_open_day3 == pytest.approx(
+            expected_open_day3, abs=0.01
+        ), f"day3 Open: expected={expected_open_day3:.4f}, actual={actual_open_day3:.4f}"
+
+    def test_first_day_open_equals_initial_price(self):
+        """
+        첫날 Open은 initial_price여야 한다.
+
+        Given: Open 컬럼 포함된 underlying 데이터, initial_price=30.0
+        When: simulate() 호출
+        Then: 첫날 Open = 30.0 (initial_price)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 101.5],
+                COL_CLOSE: [100.0, 101.0],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            expense_df=expense_df,
+            initial_price=30.0,
+            ffr_df=ffr_df,
+            funding_spread=0.006,
+        )
+
+        # Then
+        assert result.iloc[0][COL_OPEN] == pytest.approx(30.0, abs=0.01), "첫날 Open은 initial_price여야 합니다"
+
+    def test_close_unchanged_after_open_improvement(self):
+        """
+        Open 계산 변경이 Close에 영향을 주지 않는지 확인한다.
+
+        Close는 기존 수식 그대로여야 한다:
+        TQQQ_Close(t) = TQQQ_Close(t-1) × (1 + underlying_return(t) × leverage - daily_cost)
+
+        Given: QQQ 2일 데이터 (underlying_return = 1%), leverage=3.0, 최소 비용
+        When: simulate() 호출
+        Then: Close는 initial_price × (1 + 0.01 × 3.0) ≈ 30.9 (비용 무시 가능)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 100.5],
+                COL_CLOSE: [100.0, 101.0],  # +1%
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            expense_df=expense_df,
+            initial_price=30.0,
+            ffr_df=ffr_df,
+            funding_spread=1e-9,
+        )
+
+        # Then: QQQ +1% → TQQQ +3% (비용 무시)
+        # 30.0 × 1.03 = 30.9
+        expected_close = 30.0 * 1.03
+        actual_close = result.iloc[1][COL_CLOSE]
+        assert actual_close == pytest.approx(
+            expected_close, abs=0.01
+        ), f"Close는 기존 로직과 동일해야 합니다: expected={expected_close:.4f}, actual={actual_close:.4f}"
+
+    def test_open_required_column(self):
+        """
+        Open 컬럼이 누락되면 ValueError가 발생해야 한다.
+
+        Given: Date + Close만 있는 underlying_df (Open 없음)
+        When: simulate() 호출
+        Then: ValueError (필수 컬럼 누락)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_CLOSE: [100.0, 101.0],
+            }
+        )
+
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
+            simulate(
+                underlying_df=underlying_df,
+                leverage=3.0,
+                expense_df=expense_df,
+                initial_price=30.0,
+                ffr_df=ffr_df,
+                funding_spread=0.006,
             )
