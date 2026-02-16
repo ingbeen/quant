@@ -137,12 +137,6 @@ __all__ = [
     "TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH",
     # 금리 구간별 RMSE 분해
     "DEFAULT_RATE_BOUNDARY_PCT",
-    # 룩업테이블 스프레드 모델
-    "DEFAULT_LOOKUP_BIN_WIDTHS",
-    "DEFAULT_LOOKUP_STAT_FUNCS",
-    "LOOKUP_TUNING_CSV_PATH",
-    "LOOKUP_WALKFORWARD_PATH",
-    "LOOKUP_WALKFORWARD_SUMMARY_PATH",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -217,19 +211,6 @@ TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spre
 
 # --- 금리 구간별 RMSE 분해 ---
 DEFAULT_RATE_BOUNDARY_PCT: Final = 2.0  # 금리 구간 경계값 (%, 0~2% = 저금리, 2%+ = 고금리)
-
-# ============================================================
-# 룩업테이블 스프레드 모델 파라미터
-# ============================================================
-
-# --- 탐색 후보 ---
-DEFAULT_LOOKUP_BIN_WIDTHS: Final = (0.5, 1.0, 2.0)  # 금리 구간 폭 후보 (%)
-DEFAULT_LOOKUP_STAT_FUNCS: Final = ("mean", "median")  # 통계량 후보
-
-# --- 결과 파일 경로 ---
-LOOKUP_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_tuning.csv"
-LOOKUP_WALKFORWARD_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_walkforward.csv"
-LOOKUP_WALKFORWARD_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_lookup_walkforward_summary.csv"
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)
