@@ -56,6 +56,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 - `"tqqq_validation"`: TQQQ 검증 (최적 비용 모델 탐색)
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_rate_spread_lab"`: TQQQ 금리-오차 관계 분석 CSV
+- `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
 
 근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 
@@ -130,7 +131,8 @@ main 함수:
 - 성과 지표 계산
 - 결과 요약 및 저장
 - 대시보드 앱:
-  - `app_single_backtest.py`: 단일 전략 시각화 대시보드 (Streamlit + lightweight-charts + Plotly)
+  - `app_single_backtest.py`: 단일 전략 시각화 대시보드 (표시 전용, Streamlit + lightweight-charts + Plotly)
+    - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
 
 ### 레버리지 시뮬레이션 (tqqq/)
 

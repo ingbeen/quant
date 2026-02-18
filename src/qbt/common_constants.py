@@ -40,6 +40,12 @@ TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 # 백테스트 그리드 서치 결과 저장 경로
 GRID_RESULTS_PATH: Final = RESULTS_DIR / "grid_results.csv"
 
+# 단일 백테스트 결과 파일 경로
+SINGLE_BACKTEST_SIGNAL_PATH: Final = RESULTS_DIR / "single_backtest_signal.csv"
+SINGLE_BACKTEST_EQUITY_PATH: Final = RESULTS_DIR / "single_backtest_equity.csv"
+SINGLE_BACKTEST_TRADES_PATH: Final = RESULTS_DIR / "single_backtest_trades.csv"
+SINGLE_BACKTEST_SUMMARY_PATH: Final = RESULTS_DIR / "single_backtest_summary.json"
+
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"
 

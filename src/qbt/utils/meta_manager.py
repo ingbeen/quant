@@ -43,6 +43,7 @@ VALID_CSV_TYPES = {
     "tqqq_walkforward",
     "tqqq_walkforward_fixed_b",
     "tqqq_walkforward_fixed_ab",
+    "single_backtest",
 }
 
 

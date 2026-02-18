@@ -70,7 +70,7 @@ quant/
 │   └── conftest.py    # pytest 픽스처
 ├── scripts/           # CLI 스크립트 (도메인별 분리)
 │   ├── data/          # 데이터 다운로드
-│   ├── backtest/      # 백테스트 실행
+│   ├── backtest/      # 백테스트 실행 + 대시보드 앱
 │   └── tqqq/          # 레버리지 ETF 관련
 │       ├── generate_synthetic.py          # 합성 데이터 생성
 │       ├── generate_daily_comparison.py   # 일별 비교 데이터 생성
@@ -108,6 +108,7 @@ quant/
     ├── etc/           # 기타 데이터 (금리 등)
     └── results/       # 분석 결과 CSV 및 메타데이터
         ├── meta.json  # 실행 이력 메타데이터
+        ├── single_backtest_*.csv / .json  # 단일 백테스트 결과 (signal, equity, trades, summary)
         └── spread_lab/  # 스프레드 모델 검증 결과
 ```
 
@@ -364,6 +365,10 @@ CLI 계층 (`scripts/`):
 분석 결과 (`storage/results/`):
 
 - `grid_results.csv`: 백테스트 그리드 서치 결과
+- `single_backtest_signal.csv`: 단일 백테스트 시그널 (OHLC + MA + 전일대비%)
+- `single_backtest_equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
+- `single_backtest_trades.csv`: 거래 내역 + 보유기간
+- `single_backtest_summary.json`: 요약 지표 + 파라미터 + 월별 수익률
 - `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터 (softplus 동적 스프레드)
 - `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
 

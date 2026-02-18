@@ -1,59 +1,39 @@
-"""백테스트 단일 전략 시각화 대시보드
+"""백테스트 단일 전략 시각화 대시보드 (표시 전용)
 
-QQQ 시그널 + TQQQ 매매 버퍼존 전략의 백테스트 결과를 시각화한다.
+run_single_backtest.py가 생성한 결과 파일을 로드하여 시각화한다.
 Streamlit + lightweight-charts-v5 + Plotly 기반 인터랙티브 대시보드.
+
+선행 스크립트:
+    poetry run python scripts/backtest/run_single_backtest.py
 
 실행 명령어:
     poetry run streamlit run scripts/backtest/app_single_backtest.py
 """
 
+import json
 from datetime import date
-from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
-from qbt.backtest import (
-    BufferStrategyParams,
-    add_single_moving_average,
-    load_best_grid_params,
-    run_buffer_strategy,
-)
-from qbt.backtest.constants import (
-    DEFAULT_BUFFER_ZONE_PCT,
-    DEFAULT_HOLD_DAYS,
-    DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW,
-    DEFAULT_RECENT_MONTHS,
-)
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    GRID_RESULTS_PATH,
-    QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
+    SINGLE_BACKTEST_EQUITY_PATH,
+    SINGLE_BACKTEST_SIGNAL_PATH,
+    SINGLE_BACKTEST_SUMMARY_PATH,
+    SINGLE_BACKTEST_TRADES_PATH,
 )
-from qbt.utils.data_loader import load_stock_data
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
 # ============================================================
-
-# --- Sidebar 파라미터 범위 ---
-DEFAULT_MA_WINDOW_MIN = 50
-DEFAULT_MA_WINDOW_MAX = 300
-DEFAULT_BUFFER_ZONE_PCT_MIN = 0.01
-DEFAULT_BUFFER_ZONE_PCT_MAX = 0.10
-DEFAULT_BUFFER_ZONE_PCT_STEP = 0.01
-DEFAULT_HOLD_DAYS_MIN = 0
-DEFAULT_HOLD_DAYS_MAX = 10
-DEFAULT_RECENT_MONTHS_MIN = 0
-DEFAULT_RECENT_MONTHS_MAX = 12
 
 # --- 차트 높이 ---
 DEFAULT_CANDLE_PANE_HEIGHT = 500
@@ -91,6 +71,7 @@ TRADE_COLUMN_RENAME = {
     "buffer_zone_pct": "버퍼존",
     "hold_days_used": "유지일",
     "recent_buy_count": "최근매수횟수",
+    "holding_days": "보유기간(일)",
 }
 
 # --- 월별 히트맵 한글 월 레이블 ---
@@ -106,82 +87,40 @@ DEFAULT_ZOOM_LEVEL = 200
 
 
 @st.cache_data
-def _load_signal_data(path: Path) -> pd.DataFrame:
-    """시그널(QQQ) 데이터를 로드하고 캐싱한다."""
-    return load_stock_data(path)
+def _load_signal_csv() -> pd.DataFrame:
+    """시그널 CSV를 로드한다."""
+    df = pd.read_csv(SINGLE_BACKTEST_SIGNAL_PATH)
+    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
+    return df
 
 
 @st.cache_data
-def _load_trade_data(path: Path) -> pd.DataFrame:
-    """매매(TQQQ) 데이터를 로드하고 캐싱한다."""
-    return load_stock_data(path)
+def _load_equity_csv() -> pd.DataFrame:
+    """에쿼티 CSV를 로드한다."""
+    df = pd.read_csv(SINGLE_BACKTEST_EQUITY_PATH)
+    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
+    return df
 
 
 @st.cache_data
-def _load_grid_params(path: Path) -> dict[str, object] | None:
-    """grid_results.csv에서 최적 파라미터를 로드한다."""
-    result = load_best_grid_params(path)
-    if result is not None:
-        return dict(result)
-    return None
-
-
-# ============================================================
-# 전략 실행 함수 (캐싱)
-# ============================================================
+def _load_trades_csv() -> pd.DataFrame:
+    """거래 내역 CSV를 로드한다."""
+    df = pd.read_csv(SINGLE_BACKTEST_TRADES_PATH)
+    if not df.empty:
+        df["entry_date"] = pd.to_datetime(df["entry_date"]).dt.date
+        df["exit_date"] = pd.to_datetime(df["exit_date"]).dt.date
+    return df
 
 
 @st.cache_data
-def _run_strategy(
-    _signal_df: pd.DataFrame,
-    _trade_df: pd.DataFrame,
-    ma_window: int,
-    ma_type: str,
-    buffer_zone_pct: float,
-    hold_days: int,
-    recent_months: int,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object], pd.DataFrame]:
-    """
-    전략을 실행하고 결과를 캐싱한다.
-
-    Args:
-        _signal_df: 시그널 DataFrame (언더스코어 접두사: Streamlit 캐시 해싱 제외)
-        _trade_df: 매매 DataFrame
-        ma_window: 이동평균 기간
-        ma_type: 이동평균 유형 (sma/ema)
-        buffer_zone_pct: 버퍼존 비율
-        hold_days: 유지일
-        recent_months: 조정기간
-
-    Returns:
-        tuple: (trades_df, equity_df, summary, processed_signal_df)
-    """
-    # 1. 이동평균 계산
-    signal_df = add_single_moving_average(_signal_df.copy(), ma_window, ma_type)
-    trade_df = _trade_df.copy()
-
-    # 2. 공통 날짜 필터링
-    common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
-    signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-    trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-
-    # 3. 전략 파라미터 설정
-    params = BufferStrategyParams(
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=ma_window,
-        buffer_zone_pct=buffer_zone_pct,
-        hold_days=hold_days,
-        recent_months=recent_months,
-    )
-
-    # 4. 전략 실행
-    trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
-
-    return trades_df, equity_df, dict(summary), signal_df
+def _load_summary_json() -> dict[str, Any]:
+    """요약 JSON을 로드한다."""
+    with SINGLE_BACKTEST_SUMMARY_PATH.open("r", encoding="utf-8") as f:
+        return json.load(f)  # type: ignore[no-any-return]
 
 
 # ============================================================
-# 차트 데이터 변환 함수
+# 차트 데이터 변환 함수 (표시 변환만 수행)
 # ============================================================
 
 
@@ -261,17 +200,15 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
 
 
 def _build_change_pct_data(signal_df: pd.DataFrame) -> list[dict[str, object]]:
-    """전일대비% 데이터를 Histogram 시리즈용으로 변환한다."""
-    close_series = signal_df[COL_CLOSE]
-    change_pct = close_series.pct_change() * 100
-
+    """CSV의 change_pct 컬럼에서 Histogram 시리즈 데이터를 생성한다."""
     histogram_data: list[dict[str, object]] = []
-    for i in range(len(signal_df)):
-        if pd.notna(change_pct.iloc[i]):
-            d: date = signal_df.iloc[i][COL_DATE]
-            val = float(change_pct.iloc[i])
-            color = COLOR_CHANGE_POSITIVE if val >= 0 else COLOR_CHANGE_NEGATIVE
-            histogram_data.append({"time": d.strftime("%Y-%m-%d"), "value": val, "color": color})
+    for _, row in signal_df.iterrows():
+        val = row["change_pct"]
+        if pd.notna(val):
+            d: date = row[COL_DATE]
+            fval = float(val)
+            color = COLOR_CHANGE_POSITIVE if fval >= 0 else COLOR_CHANGE_NEGATIVE
+            histogram_data.append({"time": d.strftime("%Y-%m-%d"), "value": fval, "color": color})
 
     return histogram_data
 
@@ -286,18 +223,11 @@ def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
 
 
 def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
-    """드로우다운 데이터를 Area 시리즈용으로 변환한다."""
-    equity_series = equity_df["equity"].astype(float)
-    peak = equity_series.cummax()
-    # peak가 0인 경우 방어
-    safe_peak = peak.replace(0, 1e-12)
-    drawdown = (equity_series - peak) / safe_peak * 100
-
+    """CSV의 drawdown_pct 컬럼에서 Area 시리즈 데이터를 생성한다."""
     dd_data: list[dict[str, object]] = []
-    for i in range(len(equity_df)):
-        d: date = equity_df.iloc[i][COL_DATE]
-        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(drawdown.iloc[i])})
-
+    for _, row in equity_df.iterrows():
+        d: date = row[COL_DATE]
+        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row["drawdown_pct"])})
     return dd_data
 
 
@@ -422,7 +352,7 @@ def _render_main_chart(
                 "data": change_data,
                 "options": {
                     "priceLineVisible": False,
-                    "priceFormat": {"type": "custom", "formatter": "{value}%"},
+                    "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
                 },
             }
         ],
@@ -443,7 +373,7 @@ def _render_main_chart(
                     "bottomColor": COLOR_EQUITY_BOTTOM,
                     "lineWidth": 2,
                     "priceLineVisible": False,
-                    "priceFormat": {"type": "custom", "formatter": "{value}"},
+                    "priceFormat": {"type": "price", "precision": 0, "minMove": 1},
                 },
             }
         ],
@@ -491,7 +421,7 @@ def _render_drawdown_chart(equity_df: pd.DataFrame) -> None:
                     "bottomColor": COLOR_DRAWDOWN_BOTTOM,
                     "lineWidth": 2,
                     "priceLineVisible": False,
-                    "priceFormat": {"type": "custom", "formatter": "{value}%"},
+                    "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
                     "invertFilledArea": True,
                 },
             }
@@ -509,39 +439,17 @@ def _render_drawdown_chart(equity_df: pd.DataFrame) -> None:
     )
 
 
-def _render_monthly_heatmap(equity_df: pd.DataFrame) -> None:
+def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
     """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다."""
-    if equity_df.empty or len(equity_df) < 2:
+    if not monthly_returns:
         st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
         return
 
-    # 1. 에쿼티 데이터를 날짜 인덱스로 변환
-    eq = equity_df[[COL_DATE, "equity"]].copy()
-    eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
-    eq = eq.set_index(COL_DATE)
-
-    # 2. 월말 리샘플링
-    monthly_equity = eq["equity"].resample("ME").last().dropna()
-    if len(monthly_equity) < 2:
-        st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
-        return
-
-    # 3. 월간 수익률 계산 (%)
-    monthly_returns = monthly_equity.pct_change().dropna() * 100
-
-    # 4. 연도-월 피벗 테이블 생성
-    dt_index = pd.DatetimeIndex(monthly_returns.index)
-    returns_df = pd.DataFrame(
-        {
-            "return_pct": monthly_returns.values,
-            "year": dt_index.year,
-            "month": dt_index.month,
-        }
-    )
-
+    # 1. JSON 데이터를 DataFrame으로 변환 후 피벗
+    returns_df = pd.DataFrame(monthly_returns)
     pivot = returns_df.pivot_table(values="return_pct", index="year", columns="month")
 
-    # 5. 피벗 테이블을 Plotly 히트맵으로 변환
+    # 2. 피벗 테이블을 Plotly 히트맵으로 변환
     years = sorted(pivot.index.tolist())
     months = list(range(1, 13))
 
@@ -556,7 +464,7 @@ def _render_monthly_heatmap(equity_df: pd.DataFrame) -> None:
                 row.append(None)
         z_values.append(row)
 
-    # 6. 최대 절대값으로 대칭 색상 스케일 설정
+    # 3. 최대 절대값으로 대칭 색상 스케일 설정
     flat_values = [v for row in z_values for v in row if v is not None]
     if not flat_values:
         st.info("월별 수익률 데이터가 없습니다.")
@@ -597,17 +505,11 @@ def _render_monthly_heatmap(equity_df: pd.DataFrame) -> None:
 
 def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
     """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다."""
-    if trades_df.empty:
+    if trades_df.empty or "holding_days" not in trades_df.columns:
         st.info("거래 내역이 없어 보유 기간 히스토그램을 표시할 수 없습니다.")
         return
 
-    # 보유 기간 계산 (일)
-    holding_days = []
-    for _, trade in trades_df.iterrows():
-        entry: date = trade["entry_date"]
-        exit_d: date = trade["exit_date"]
-        days = (exit_d - entry).days
-        holding_days.append(days)
+    holding_days = trades_df["holding_days"].tolist()
 
     fig = go.Figure(
         data=go.Histogram(
@@ -653,72 +555,37 @@ def main() -> None:
         st.title("백테스트 전략 대시보드")
         st.markdown("QQQ 시그널 + TQQQ 매매 버퍼존 전략 백테스트 결과를 시각화합니다.")
 
+        # ---- 결과 파일 존재 확인 ----
+        required_files = [
+            SINGLE_BACKTEST_SIGNAL_PATH,
+            SINGLE_BACKTEST_EQUITY_PATH,
+            SINGLE_BACKTEST_TRADES_PATH,
+            SINGLE_BACKTEST_SUMMARY_PATH,
+        ]
+        missing_files = [p for p in required_files if not p.exists()]
+        if missing_files:
+            st.warning(
+                "결과 파일이 없습니다. 먼저 백테스트를 실행해주세요:\n\n"
+                "```\npoetry run python scripts/backtest/run_single_backtest.py\n```\n\n"
+                f"누락 파일: {', '.join(str(p) for p in missing_files)}"
+            )
+            st.stop()
+            return
+
         # ---- 데이터 로딩 ----
-        signal_df = _load_signal_data(QQQ_DATA_PATH)
-        trade_df = _load_trade_data(TQQQ_SYNTHETIC_DATA_PATH)
-        grid_params = _load_grid_params(GRID_RESULTS_PATH)
+        signal_df = _load_signal_csv()
+        equity_df = _load_equity_csv()
+        trades_df = _load_trades_csv()
+        summary_data = _load_summary_json()
 
-        # ---- Sidebar: 파라미터 설정 ----
-        st.sidebar.header("전략 파라미터")
+        summary = summary_data["summary"]
+        params = summary_data["params"]
+        monthly_returns: list[dict[str, Any]] = summary_data.get("monthly_returns", [])
 
-        if grid_params is not None:
-            st.sidebar.success("grid_results.csv 최적값 로드됨")
-            default_ma = int(str(grid_params["ma_window"]))
-            default_bz = float(str(grid_params["buffer_zone_pct"]))
-            default_hd = int(str(grid_params["hold_days"]))
-            default_rm = int(str(grid_params["recent_months"]))
-        else:
-            st.sidebar.info("grid_results.csv 없음, 기본값 사용")
-            default_ma = DEFAULT_MA_WINDOW
-            default_bz = DEFAULT_BUFFER_ZONE_PCT
-            default_hd = DEFAULT_HOLD_DAYS
-            default_rm = DEFAULT_RECENT_MONTHS
-
-        ma_type = st.sidebar.selectbox("이동평균 유형", options=["ema", "sma"], index=0, format_func=lambda x: x.upper())
-
-        ma_window = st.sidebar.slider(
-            "이동평균 기간",
-            min_value=DEFAULT_MA_WINDOW_MIN,
-            max_value=DEFAULT_MA_WINDOW_MAX,
-            value=min(max(default_ma, DEFAULT_MA_WINDOW_MIN), DEFAULT_MA_WINDOW_MAX),
-            step=10,
-        )
-
-        buffer_zone_pct = st.sidebar.slider(
-            "버퍼존 비율",
-            min_value=DEFAULT_BUFFER_ZONE_PCT_MIN,
-            max_value=DEFAULT_BUFFER_ZONE_PCT_MAX,
-            value=min(max(default_bz, DEFAULT_BUFFER_ZONE_PCT_MIN), DEFAULT_BUFFER_ZONE_PCT_MAX),
-            step=DEFAULT_BUFFER_ZONE_PCT_STEP,
-            format="%.2f",
-        )
-
-        hold_days = st.sidebar.slider(
-            "유지일 (hold_days)",
-            min_value=DEFAULT_HOLD_DAYS_MIN,
-            max_value=DEFAULT_HOLD_DAYS_MAX,
-            value=min(max(default_hd, DEFAULT_HOLD_DAYS_MIN), DEFAULT_HOLD_DAYS_MAX),
-        )
-
-        recent_months = st.sidebar.slider(
-            "조정기간 (월)",
-            min_value=DEFAULT_RECENT_MONTHS_MIN,
-            max_value=DEFAULT_RECENT_MONTHS_MAX,
-            value=min(max(default_rm, DEFAULT_RECENT_MONTHS_MIN), DEFAULT_RECENT_MONTHS_MAX),
-        )
-
-        # ---- 전략 실행 ----
-        trades_df, equity_df, summary, processed_signal_df = _run_strategy(
-            signal_df,
-            trade_df,
-            ma_window,
-            ma_type,
-            buffer_zone_pct,
-            hold_days,
-            recent_months,
-        )
-
+        # MA 컬럼명 결정
+        ma_window = params["ma_window"]
         ma_col = f"ma_{ma_window}"
+        ma_type = params.get("ma_type", "ema")
 
         # ---- Section 1: 요약 지표 ----
         st.header("요약 지표")
@@ -731,19 +598,20 @@ def main() -> None:
         with col3:
             st.metric("MDD", f"{summary['mdd']:.2f}%")
         with col4:
-            total_trades = int(str(summary["total_trades"]))
-            win_rate = float(str(summary["win_rate"]))
+            total_trades = int(summary["total_trades"])
+            win_rate = float(summary["win_rate"])
             st.metric("거래수 / 승률", f"{total_trades}회 / {win_rate:.1f}%")
 
         st.divider()
 
         # ---- Section 2: 메인 차트 ----
         st.header("1. QQQ 시그널 차트 + 전략 오버레이")
+        buffer_zone_pct = params["buffer_zone_pct"]
         st.markdown(
             f"캔들스틱: QQQ OHLC | 이동평균: {ma_type.upper()} {ma_window}일 | "
             f"밴드: 버퍼존 {buffer_zone_pct:.0%} | 마커: Buy/Sell 체결 시점"
         )
-        _render_main_chart(processed_signal_df, equity_df, trades_df, ma_col)
+        _render_main_chart(signal_df, equity_df, trades_df, ma_col)
 
         st.divider()
 
@@ -757,7 +625,7 @@ def main() -> None:
         # ---- Section 4: 월별 수익률 히트맵 ----
         st.header("3. 월별/연도별 수익률 히트맵")
         st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
-        _render_monthly_heatmap(equity_df)
+        _render_monthly_heatmap(monthly_returns)
 
         st.divider()
 
@@ -770,20 +638,16 @@ def main() -> None:
 
         # ---- Section 6: 사용 파라미터 ----
         st.header("5. 사용 파라미터")
-        param_source = "grid_results.csv 최적값" if grid_params is not None else "DEFAULT 상수"
+        param_source = params.get("param_source", {})
         st.json(
             {
-                "기본값 출처": param_source,
                 "이동평균 유형": ma_type.upper(),
-                "이동평균 기간": ma_window,
-                "버퍼존 비율": f"{buffer_zone_pct:.2%}",
-                "유지일 (hold_days)": hold_days,
-                "조정기간 (월)": recent_months,
-                "초기 자본": f"{DEFAULT_INITIAL_CAPITAL:,.0f}원",
-                "데이터": {
-                    "시그널": str(QQQ_DATA_PATH),
-                    "매매": str(TQQQ_SYNTHETIC_DATA_PATH),
-                },
+                "이동평균 기간": f"{ma_window} ({param_source.get('ma_window', '')})",
+                "버퍼존 비율": f"{buffer_zone_pct:.2%} ({param_source.get('buffer_zone_pct', '')})",
+                "유지일 (hold_days)": f"{params['hold_days']} ({param_source.get('hold_days', '')})",
+                "조정기간 (월)": f"{params['recent_months']} ({param_source.get('recent_months', '')})",
+                "초기 자본": f"{params['initial_capital']:,.0f}원",
+                "데이터": summary_data.get("data_info", {}),
             }
         )
 
