@@ -1442,13 +1442,13 @@ class TestDynamicFundingSpread:
         actual_diff = daily_cost_feb - daily_cost_jan
         assert actual_diff == pytest.approx(expected_diff, abs=1e-10), f"기대 차이={expected_diff}, 실제 차이={actual_diff}"
 
-    def test_dict_spread_missing_key_raises(self):
+    def test_dict_spread_fallback_within_limit(self):
         """
-        dict 타입 funding_spread 키 누락 시 ValueError 테스트
+        dict 타입 funding_spread 키 누락 시 이전 월 fallback 테스트
 
         Given: funding_spread = {"2023-01": 0.004} (2월 키 없음)
         When: 2023-02-15 날짜로 호출
-        Then: ValueError 발생 (fail-fast)
+        Then: 1개월 이내이므로 1월 값 0.004 fallback 적용
         """
         # Given
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-02"], COL_FFR_VALUE: [0.046]})
@@ -1458,10 +1458,88 @@ class TestDynamicFundingSpread:
         # 1월 키만 있는 spread dict
         spread_dict: dict[str, float] = {"2023-01": 0.004}
 
-        # When & Then: 2월 키 없음 -> ValueError
-        with pytest.raises(ValueError, match="spread.*2023-02|키.*누락|없"):
+        # When: 2월 키 없음 -> 1월 값 fallback (1개월 차이, MAX_FFR_MONTHS_DIFF=2 이내)
+        daily_cost = _calculate_daily_cost(
+            date_value=date(2023, 2, 15),
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=spread_dict,
+            leverage=3.0,
+        )
+
+        # Then: 1월 spread(0.004) + 2월 FFR(0.046) 적용
+        expected = ((0.046 + 0.004) * 2 + 0.0095) / TRADING_DAYS_PER_YEAR
+        assert daily_cost == pytest.approx(expected, abs=1e-10)
+
+    def test_dict_spread_fallback_boundary_2months(self):
+        """
+        dict 타입 funding_spread fallback 경계값 테스트 (정확히 2개월 차이)
+
+        Given: funding_spread = {"2023-01": 0.004}
+        When: 2023-03-15 날짜로 호출
+        Then: 2개월 차이 = MAX_FFR_MONTHS_DIFF(2) 이내 -> fallback 성공
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-03"], COL_FFR_VALUE: [0.047]})
+        ffr_dict = create_ffr_dict(ffr_df)
+        expense_dict = {"2023-03": 0.0095}
+        spread_dict: dict[str, float] = {"2023-01": 0.004}
+
+        # When: 3월 키 없음 -> 1월 값 fallback (2개월 차이 = 허용 경계)
+        daily_cost = _calculate_daily_cost(
+            date_value=date(2023, 3, 15),
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=spread_dict,
+            leverage=3.0,
+        )
+
+        # Then: 1월 spread(0.004) + 3월 FFR(0.047) 적용
+        expected = ((0.047 + 0.004) * 2 + 0.0095) / TRADING_DAYS_PER_YEAR
+        assert daily_cost == pytest.approx(expected, abs=1e-10)
+
+    def test_dict_spread_fallback_exceeds_limit_raises(self):
+        """
+        dict 타입 funding_spread fallback 월 차이 초과 시 ValueError 테스트
+
+        Given: funding_spread = {"2023-01": 0.004} (4월 키 없음, 3개월 차이)
+        When: 2023-04-15 날짜로 호출
+        Then: MAX_FFR_MONTHS_DIFF(2개월) 초과 -> ValueError 발생
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-04"], COL_FFR_VALUE: [0.048]})
+        ffr_dict = create_ffr_dict(ffr_df)
+        expense_dict = {"2023-04": 0.0095}
+        spread_dict: dict[str, float] = {"2023-01": 0.004}
+
+        # When & Then: 3개월 차이 -> ValueError
+        with pytest.raises(ValueError, match="funding_spread"):
             _calculate_daily_cost(
-                date_value=date(2023, 2, 15),
+                date_value=date(2023, 4, 15),
+                ffr_dict=ffr_dict,
+                expense_dict=expense_dict,
+                funding_spread=spread_dict,
+                leverage=3.0,
+            )
+
+    def test_dict_spread_no_previous_months_raises(self):
+        """
+        dict 타입 funding_spread에 이전 월 데이터가 없을 때 ValueError 테스트
+
+        Given: funding_spread = {"2023-06": 0.004}
+        When: 2023-01-15 날짜로 호출
+        Then: 이전 월 데이터 없음 -> ValueError 발생
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        ffr_dict = create_ffr_dict(ffr_df)
+        expense_dict = {"2023-01": 0.0095}
+        spread_dict: dict[str, float] = {"2023-06": 0.004}
+
+        # When & Then: 이전 월 없음 -> ValueError
+        with pytest.raises(ValueError, match="funding_spread"):
+            _calculate_daily_cost(
+                date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
                 funding_spread=spread_dict,

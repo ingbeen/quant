@@ -37,6 +37,72 @@
       },
       "data_period": {
         "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "total_combinations": 840,
+        "positive_return_count": 840,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 4131.15,
+          "max": 14326.23,
+          "min": 163.99
+        },
+        "cagr": {
+          "mean": 14.03,
+          "max": 20.26,
+          "min": 3.67
+        },
+        "mdd": {
+          "mean": -91.9,
+          "min": -97.81
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/backtest/grid_results.csv",
+        "row_count": 840,
+        "file_size_bytes": 46718
+      },
+      "timestamp": "2026-02-19T10:26:08+09:00"
+    },
+    {
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200,
+          250
+        ],
+        "buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
         "end_date": "2025-12-29",
         "total_days": 6744
       },
@@ -263,10 +329,6 @@
         "file_size_bytes": 45300
       },
       "timestamp": "2025-12-29T21:12:38+09:00"
-    },
-    {
-      "test": "grid",
-      "timestamp": "2023-09-01T17:00:00+09:00"
     }
   ],
   "tqqq_validation": [
@@ -1258,6 +1320,38 @@
         "start_date": "1999-03-10",
         "end_date": "2010-02-10",
         "total_days": 2749,
+        "scale_factor": 0.18716
+      },
+      "actual_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2026-02-17",
+        "total_days": 4028
+      },
+      "merged_summary": {
+        "total_days": 6777,
+        "initial_price": 37.432087,
+        "final_price": 48.349998,
+        "cumulative_return_pct": 29.17
+      },
+      "csv_info": {
+        "path": "storage/stock/TQQQ_synthetic_max.csv",
+        "row_count": 6777,
+        "file_size_bytes": 340101
+      },
+      "timestamp": "2026-02-19T10:22:37+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37,
+        "pre_listing_expense_ratio": 0.0095
+      },
+      "synthetic_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2010-02-10",
+        "total_days": 2749,
         "scale_factor": 0.187162
       },
       "actual_period": {
@@ -1344,6 +1438,30 @@
     }
   ],
   "single_backtest": [
+    {
+      "params": {
+        "ma_window": 150,
+        "ma_type": "ema",
+        "buffer_zone_pct": 0.04,
+        "hold_days": 3,
+        "recent_months": 2,
+        "initial_capital": 10000000.0
+      },
+      "results_summary": {
+        "total_return_pct": 14326.23,
+        "cagr": 20.26,
+        "mdd": -85.68,
+        "total_trades": 16,
+        "win_rate": 68.75
+      },
+      "output_files": {
+        "signal_csv": "storage/results/backtest/single_backtest_signal.csv",
+        "equity_csv": "storage/results/backtest/single_backtest_equity.csv",
+        "trades_csv": "storage/results/backtest/single_backtest_trades.csv",
+        "summary_json": "storage/results/backtest/single_backtest_summary.json"
+      },
+      "timestamp": "2026-02-19T10:26:40+09:00"
+    },
     {
       "params": {
         "ma_window": 150,

@@ -84,6 +84,7 @@ from qbt.tqqq.data_loader import (
     create_ffr_dict,
     lookup_expense,
     lookup_ffr,
+    lookup_monthly_data,
 )
 from qbt.tqqq.types import (
     SimulationCacheDict,
@@ -368,7 +369,7 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
 
     FundingSpreadSpec 타입에 따라 다르게 처리:
     - float: 그대로 반환
-    - dict[str, float]: 월별 키 "YYYY-MM"으로 조회, 키 없으면 ValueError
+    - dict[str, float]: 월별 키 "YYYY-MM"으로 조회, 키 없으면 MAX_FFR_MONTHS_DIFF 이내 이전 월 fallback
     - Callable[[date], float]: 함수 호출, 반환값 검증
 
     제약 조건 (프롬프트에서 확정):
@@ -384,7 +385,7 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
         해당 날짜의 spread 값 (> 0)
 
     Raises:
-        ValueError: 키 누락, NaN/inf 반환, spread <= 0 등
+        ValueError: 이전 월 없음, 월 차이 초과, NaN/inf 반환, spread <= 0 등
     """
     spread: float
 
@@ -392,26 +393,13 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
     if isinstance(spread_spec, float | int):
         spread = float(spread_spec)
 
-    # 2. dict 타입: 월별 키 조회
+    # 2. dict 타입: 월별 키 조회 (키 없으면 MAX_FFR_MONTHS_DIFF 이내 이전 월 fallback)
     elif isinstance(spread_spec, dict):
-        month_key = f"{d.year:04d}-{d.month:02d}"
-        if month_key not in spread_spec:
-            raise ValueError(
-                f"funding_spread dict에 키 누락: {month_key}\n"
-                f"보유 키: {sorted(spread_spec.keys())[:5]}{'...' if len(spread_spec) > 5 else ''}\n"
-                f"조치: dict에 해당 월의 spread 값을 추가하거나 float 타입 사용"
-            )
-        spread = spread_spec[month_key]
+        spread = lookup_monthly_data(d, spread_spec, MAX_FFR_MONTHS_DIFF, "funding_spread")
 
     # 3. Callable 타입: 함수 호출
-    elif callable(spread_spec):
-        spread = spread_spec(d)
-
     else:
-        raise ValueError(
-            f"지원하지 않는 funding_spread 타입: {type(spread_spec)}\n"
-            f"지원 타입: float, dict[str, float], Callable[[date], float]"
-        )
+        spread = spread_spec(d)
 
     # 4. 반환값 검증: NaN/inf 체크
     if math.isnan(spread):
