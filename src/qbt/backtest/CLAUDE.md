@@ -14,7 +14,7 @@
 
 ### 1. types.py
 
-백테스트 도메인의 TypedDict 정의를 제공합니다.
+백테스트 도메인의 TypedDict 및 dataclass 정의를 제공합니다.
 
 주요 타입:
 
@@ -26,6 +26,7 @@
 - `HoldState`: hold_days 상태머신 상태
 - `GridSearchResult`: 그리드 서치 결과 딕셔너리
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
+- `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir 포함
 
 ### 2. constants.py
 
@@ -79,11 +80,21 @@
 - `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
 - `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
 
+오버라이드 상수 (`buffer_zone.py` 상단):
+
+- `OVERRIDE_MA_WINDOW`: MA 기간 수동 설정 (None = 자동)
+- `OVERRIDE_BUFFER_ZONE_PCT`: 버퍼존 비율 수동 설정 (None = 자동)
+- `OVERRIDE_HOLD_DAYS`: 유지일 수동 설정 (None = 자동)
+- `OVERRIDE_RECENT_MONTHS`: 조정기간 수동 설정 (None = 자동)
+- `MA_TYPE`: 이동평균 유형 ("ema")
+
 주요 함수:
 
 - `run_buffer_strategy`: 버퍼존 전략 실행
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
 - `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
+- `resolve_params`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
+- `run_single`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
 
 #### strategies/buy_and_hold.py
 
@@ -96,6 +107,8 @@ Buy & Hold 벤치마크 전략 구현입니다.
 주요 함수:
 
 - `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행
+- `resolve_params`: 파라미터 결정 (항상 DEFAULT_INITIAL_CAPITAL 사용)
+- `run_single`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
 
 #### strategies/__init__.py
 
@@ -218,3 +231,5 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 - 엣지 케이스 (빈 데이터, 극단값)
 - 동적 파라미터 조정
 - 그리드 서치 병렬 처리
+- resolve_params 폴백 체인 (OVERRIDE → grid_best → DEFAULT)
+- run_single → SingleBacktestResult 구조 검증

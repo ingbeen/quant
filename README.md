@@ -47,6 +47,9 @@ poetry run python scripts/backtest/run_grid_search.py
 poetry run python scripts/backtest/run_single_backtest.py
 # 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 결과 파일 4개
 
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone / buy_and_hold, 기본값: all)
+poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
+
 # 4. 대시보드 시각화 (선행: 3)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 ```

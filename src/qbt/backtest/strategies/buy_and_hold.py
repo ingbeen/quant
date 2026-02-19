@@ -5,16 +5,18 @@
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
 from qbt.backtest.analysis import calculate_summary
 from qbt.backtest.constants import (
+    DEFAULT_INITIAL_CAPITAL,
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
-from qbt.backtest.types import BuyAndHoldResultDict
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
+from qbt.backtest.types import BuyAndHoldResultDict, SingleBacktestResult
+from qbt.common_constants import BUY_AND_HOLD_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -96,3 +98,61 @@ def run_buy_and_hold(
     logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
 
     return equity_df, summary
+
+
+def resolve_params() -> tuple[BuyAndHoldParams, dict[str, str]]:
+    """
+    Buy & Hold 전략의 파라미터를 결정한다.
+
+    Returns:
+        tuple: (params, sources)
+            - params: 전략 파라미터
+            - sources: 각 파라미터의 출처 딕셔너리
+    """
+    params = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
+    sources: dict[str, str] = {"initial_capital": "DEFAULT"}
+
+    logger.debug(f"Buy & Hold 파라미터 결정: initial_capital={DEFAULT_INITIAL_CAPITAL}")
+
+    return params, sources
+
+
+def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktestResult:
+    """
+    Buy & Hold 전략 단일 백테스트를 실행한다.
+
+    Args:
+        signal_df: 시그널용 DataFrame (Buy & Hold에서는 미사용)
+        trade_df: 매매용 DataFrame (TQQQ)
+
+    Returns:
+        SingleBacktestResult: 백테스트 결과 컨테이너
+    """
+    # 1. 파라미터 결정
+    params, _sources = resolve_params()
+
+    # 2. 전략 실행
+    equity_df, summary = run_buy_and_hold(signal_df, trade_df, params)
+
+    # 3. 시그널 DataFrame 구성 (trade_df OHLC, MA 없음)
+    bh_signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
+
+    # 4. 거래 내역 (Buy & Hold는 매도 없음)
+    trades_df = pd.DataFrame()
+
+    # 5. JSON 저장용 파라미터
+    params_json: dict[str, Any] = {
+        "strategy": "buy_and_hold",
+        "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
+    }
+
+    return SingleBacktestResult(
+        strategy_name="buy_and_hold",
+        display_name="Buy & Hold",
+        signal_df=bh_signal_df,
+        equity_df=equity_df,
+        trades_df=trades_df,
+        summary=summary,
+        params_json=params_json,
+        result_dir=BUY_AND_HOLD_RESULTS_DIR,
+    )

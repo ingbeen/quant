@@ -14,7 +14,7 @@ from qbt.backtest.strategies.buy_and_hold import (
     BuyAndHoldParams,
     run_buy_and_hold,
 )
-from qbt.backtest.types import BestGridParams
+from qbt.backtest.types import BestGridParams, SingleBacktestResult
 
 __all__ = [
     # Analysis functions
@@ -29,4 +29,5 @@ __all__ = [
     "BuyAndHoldParams",
     # Types
     "BestGridParams",
+    "SingleBacktestResult",
 ]

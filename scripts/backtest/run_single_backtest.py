@@ -1,52 +1,36 @@
 """
 단일 백테스트 실행 스크립트
 
-이동평균선 교차 전략 백테스트 (EMA/Buy&Hold)
-파라미터 우선순위: OVERRIDE 상수 → grid_results.csv 최적값 → DEFAULT 상수
+전략별 백테스트를 실행하고 결과를 저장한다.
+--strategy 인자로 실행할 전략을 선택할 수 있다.
 
 실행 명령어:
     poetry run python scripts/backtest/run_single_backtest.py
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buy_and_hold
 """
 
+import argparse
 import json
 import logging
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import pandas as pd
 
-from qbt.backtest import (
-    BufferStrategyParams,
-    BuyAndHoldParams,
-    add_single_moving_average,
-    load_best_grid_params,
-    run_buffer_strategy,
-    run_buy_and_hold,
+from qbt.backtest.strategies import (
+    buffer_zone_run_single,
+    buy_and_hold_run_single,
 )
-from qbt.backtest.constants import (
-    DEFAULT_BUFFER_ZONE_PCT,
-    DEFAULT_HOLD_DAYS,
-    DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW,
-    DEFAULT_RECENT_MONTHS,
-)
+from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
-    BUFFER_ZONE_EQUITY_PATH,
-    BUFFER_ZONE_SIGNAL_PATH,
-    BUFFER_ZONE_SUMMARY_PATH,
-    BUFFER_ZONE_TRADES_PATH,
-    BUY_AND_HOLD_EQUITY_PATH,
-    BUY_AND_HOLD_SIGNAL_PATH,
-    BUY_AND_HOLD_SUMMARY_PATH,
-    BUY_AND_HOLD_TRADES_PATH,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
     EPSILON,
-    GRID_RESULTS_PATH,
     META_JSON_PATH,
     QQQ_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
@@ -59,17 +43,11 @@ from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
-# ============================================================
-# 파라미터 오버라이드 (None = grid_results.csv 최적값 사용, 값 설정 = 수동)
-# 폴백 체인: OVERRIDE → grid_results.csv 최적값 → DEFAULT
-# ============================================================
-OVERRIDE_MA_WINDOW: int | None = None
-OVERRIDE_BUFFER_ZONE_PCT: float | None = None
-OVERRIDE_HOLD_DAYS: int | None = None
-OVERRIDE_RECENT_MONTHS: int | None = None
-
-# MA 유형 (grid_search와 동일하게 EMA 사용)
-MA_TYPE = "ema"
+# 전략 레지스트리
+STRATEGY_RUNNERS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], SingleBacktestResult]] = {
+    "buffer_zone": buffer_zone_run_single,
+    "buy_and_hold": buy_and_hold_run_single,
+}
 
 
 def print_summary(summary: Mapping[str, object], title: str, logger: logging.Logger) -> None:
@@ -138,323 +116,13 @@ def _calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object
     return result
 
 
-def _save_results(
-    signal_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    trades_df: pd.DataFrame,
-    summary: Mapping[str, object],
-    ma_window: int,
-    buffer_zone_pct: float,
-    hold_days: int,
-    recent_months: int,
-    ma_window_source: str,
-    bz_source: str,
-    hd_source: str,
-    rm_source: str,
-) -> None:
+def _load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    백테스트 결과를 CSV/JSON 파일로 저장한다.
-
-    Args:
-        signal_df: 시그널 DataFrame (OHLC + MA)
-        equity_df: 에쿼티 DataFrame
-        trades_df: 거래 내역 DataFrame
-        summary: 요약 지표 딕셔너리
-        ma_window: 이동평균 기간
-        buffer_zone_pct: 버퍼존 비율
-        hold_days: 유지일
-        recent_months: 조정기간
-        ma_window_source: ma_window 출처
-        bz_source: buffer_zone_pct 출처
-        hd_source: hold_days 출처
-        rm_source: recent_months 출처
-    """
-    # 결과 디렉토리 생성
-    BUFFER_ZONE_SIGNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    # 1. signal CSV 저장 (OHLC + MA + change_pct)
-    signal_export = signal_df.copy()
-    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
-    ma_col = f"ma_{ma_window}"
-    signal_export = signal_export.round(
-        {
-            COL_OPEN: 6,
-            COL_HIGH: 6,
-            COL_LOW: 6,
-            COL_CLOSE: 6,
-            ma_col: 6,
-            "change_pct": 2,
-        }
-    )
-    signal_export.to_csv(BUFFER_ZONE_SIGNAL_PATH, index=False)
-    logger.debug(f"시그널 데이터 저장 완료: {BUFFER_ZONE_SIGNAL_PATH}")
-
-    # 2. equity CSV 저장 (equity + bands + drawdown_pct)
-    equity_export = equity_df.copy()
-    equity_series = equity_export["equity"].astype(float)
-    peak = equity_series.cummax()
-    safe_peak = peak.replace(0, EPSILON)
-    equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
-    equity_export = equity_export.round(
-        {
-            "equity": 0,
-            "buffer_zone_pct": 4,
-            "upper_band": 6,
-            "lower_band": 6,
-            "drawdown_pct": 2,
-        }
-    )
-    equity_export["equity"] = equity_export["equity"].astype(int)
-    equity_export.to_csv(BUFFER_ZONE_EQUITY_PATH, index=False)
-    logger.debug(f"에쿼티 데이터 저장 완료: {BUFFER_ZONE_EQUITY_PATH}")
-
-    # 3. trades CSV 저장 (거래 내역 + holding_days)
-    if not trades_df.empty:
-        trades_export = trades_df.copy()
-        trades_export["holding_days"] = trades_export.apply(
-            lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
-        )
-        trades_export = trades_export.round(
-            {
-                "entry_price": 6,
-                "exit_price": 6,
-                "pnl": 0,
-                "pnl_pct": 4,
-                "buffer_zone_pct": 4,
-            }
-        )
-        trades_export["pnl"] = trades_export["pnl"].astype(int)
-        trades_export.to_csv(BUFFER_ZONE_TRADES_PATH, index=False)
-    else:
-        trades_df.to_csv(BUFFER_ZONE_TRADES_PATH, index=False)
-    logger.debug(f"거래 내역 저장 완료: {BUFFER_ZONE_TRADES_PATH}")
-
-    # 4. summary JSON 저장
-    monthly_returns = _calculate_monthly_returns(equity_df)
-
-    summary_data: dict[str, Any] = {
-        "summary": {
-            "initial_capital": round(float(str(summary["initial_capital"]))),
-            "final_capital": round(float(str(summary["final_capital"]))),
-            "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
-            "cagr": round(float(str(summary["cagr"])), 2),
-            "mdd": round(float(str(summary["mdd"])), 2),
-            "total_trades": summary["total_trades"],
-            "winning_trades": summary["winning_trades"],
-            "losing_trades": summary["losing_trades"],
-            "win_rate": round(float(str(summary["win_rate"])), 2),
-            "start_date": summary.get("start_date", ""),
-            "end_date": summary.get("end_date", ""),
-        },
-        "params": {
-            "ma_window": ma_window,
-            "ma_type": MA_TYPE,
-            "buffer_zone_pct": round(buffer_zone_pct, 4),
-            "hold_days": hold_days,
-            "recent_months": recent_months,
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-            "param_source": {
-                "ma_window": ma_window_source,
-                "buffer_zone_pct": bz_source,
-                "hold_days": hd_source,
-                "recent_months": rm_source,
-            },
-        },
-        "monthly_returns": monthly_returns,
-        "data_info": {
-            "signal_path": str(QQQ_DATA_PATH),
-            "trade_path": str(TQQQ_SYNTHETIC_DATA_PATH),
-        },
-    }
-
-    with BUFFER_ZONE_SUMMARY_PATH.open("w", encoding="utf-8") as f:
-        json.dump(summary_data, f, indent=2, ensure_ascii=False)
-    logger.debug(f"요약 JSON 저장 완료: {BUFFER_ZONE_SUMMARY_PATH}")
-
-    # 5. 메타데이터 저장
-    metadata: dict[str, Any] = {
-        "params": {
-            "ma_window": ma_window,
-            "ma_type": MA_TYPE,
-            "buffer_zone_pct": round(buffer_zone_pct, 4),
-            "hold_days": hold_days,
-            "recent_months": recent_months,
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
-        },
-        "results_summary": {
-            "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
-            "cagr": round(float(str(summary["cagr"])), 2),
-            "mdd": round(float(str(summary["mdd"])), 2),
-            "total_trades": int(str(summary["total_trades"])),
-            "win_rate": round(float(str(summary["win_rate"])), 2),
-        },
-        "output_files": {
-            "signal_csv": str(BUFFER_ZONE_SIGNAL_PATH),
-            "equity_csv": str(BUFFER_ZONE_EQUITY_PATH),
-            "trades_csv": str(BUFFER_ZONE_TRADES_PATH),
-            "summary_json": str(BUFFER_ZONE_SUMMARY_PATH),
-        },
-    }
-    save_metadata("single_backtest", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
-
-
-def _save_buy_and_hold_results(
-    signal_df: pd.DataFrame,
-    trade_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    summary: Mapping[str, object],
-) -> None:
-    """
-    Buy & Hold 결과를 CSV/JSON 파일로 저장한다.
-
-    Args:
-        signal_df: 시그널 DataFrame (OHLC, MA 없음)
-        trade_df: 매매 DataFrame (OHLC)
-        equity_df: 에쿼티 DataFrame
-        summary: 요약 지표 딕셔너리
-    """
-    # 결과 디렉토리 생성
-    BUY_AND_HOLD_SIGNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    # 1. signal CSV 저장 (OHLC + change_pct, MA 없음)
-    signal_export = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
-    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
-    signal_export = signal_export.round(
-        {
-            COL_OPEN: 6,
-            COL_HIGH: 6,
-            COL_LOW: 6,
-            COL_CLOSE: 6,
-            "change_pct": 2,
-        }
-    )
-    signal_export.to_csv(BUY_AND_HOLD_SIGNAL_PATH, index=False)
-    logger.debug(f"Buy & Hold 시그널 데이터 저장 완료: {BUY_AND_HOLD_SIGNAL_PATH}")
-
-    # 2. equity CSV 저장 (equity + position + drawdown_pct)
-    equity_export = equity_df.copy()
-    equity_series = equity_export["equity"].astype(float)
-    peak = equity_series.cummax()
-    safe_peak = peak.replace(0, EPSILON)
-    equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
-    equity_export = equity_export.round(
-        {
-            "equity": 0,
-            "drawdown_pct": 2,
-        }
-    )
-    equity_export["equity"] = equity_export["equity"].astype(int)
-    equity_export.to_csv(BUY_AND_HOLD_EQUITY_PATH, index=False)
-    logger.debug(f"Buy & Hold 에쿼티 데이터 저장 완료: {BUY_AND_HOLD_EQUITY_PATH}")
-
-    # 3. trades CSV 저장 (빈 DataFrame, 매도 없음)
-    empty_trades = pd.DataFrame()
-    empty_trades.to_csv(BUY_AND_HOLD_TRADES_PATH, index=False)
-    logger.debug(f"Buy & Hold 거래 내역 저장 완료: {BUY_AND_HOLD_TRADES_PATH}")
-
-    # 4. summary JSON 저장
-    monthly_returns = _calculate_monthly_returns(equity_df)
-
-    summary_data: dict[str, Any] = {
-        "summary": {
-            "initial_capital": round(float(str(summary["initial_capital"]))),
-            "final_capital": round(float(str(summary["final_capital"]))),
-            "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
-            "cagr": round(float(str(summary["cagr"])), 2),
-            "mdd": round(float(str(summary["mdd"])), 2),
-            "total_trades": summary["total_trades"],
-            "winning_trades": summary.get("winning_trades", 0),
-            "losing_trades": summary.get("losing_trades", 0),
-            "win_rate": round(float(str(summary["win_rate"])), 2),
-            "start_date": summary.get("start_date", ""),
-            "end_date": summary.get("end_date", ""),
-        },
-        "params": {
-            "strategy": "buy_and_hold",
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-        },
-        "monthly_returns": monthly_returns,
-        "data_info": {
-            "signal_path": str(QQQ_DATA_PATH),
-            "trade_path": str(TQQQ_SYNTHETIC_DATA_PATH),
-        },
-    }
-
-    with BUY_AND_HOLD_SUMMARY_PATH.open("w", encoding="utf-8") as f:
-        json.dump(summary_data, f, indent=2, ensure_ascii=False)
-    logger.debug(f"Buy & Hold 요약 JSON 저장 완료: {BUY_AND_HOLD_SUMMARY_PATH}")
-
-
-@cli_exception_handler
-def main() -> int:
-    """
-    메인 실행 함수.
+    QQQ, TQQQ 데이터를 로딩하고 공통 날짜로 정렬한다.
 
     Returns:
-        종료 코드 (0: 성공, 1: 실패)
+        tuple: (signal_df, trade_df)
     """
-    # 1. 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
-    grid_params = load_best_grid_params(GRID_RESULTS_PATH)
-
-    if grid_params is not None:
-        logger.debug(f"grid_results.csv 최적값 로드 완료: {GRID_RESULTS_PATH}")
-    else:
-        logger.debug("grid_results.csv 없음, DEFAULT 상수 사용")
-
-    # 1-1. ma_window
-    if OVERRIDE_MA_WINDOW is not None:
-        ma_window = OVERRIDE_MA_WINDOW
-        ma_window_source = "OVERRIDE"
-    elif grid_params is not None:
-        ma_window = grid_params["ma_window"]
-        ma_window_source = "grid_best"
-    else:
-        ma_window = DEFAULT_MA_WINDOW
-        ma_window_source = "DEFAULT"
-
-    # 1-2. buffer_zone_pct
-    if OVERRIDE_BUFFER_ZONE_PCT is not None:
-        buffer_zone_pct = OVERRIDE_BUFFER_ZONE_PCT
-        bz_source = "OVERRIDE"
-    elif grid_params is not None:
-        buffer_zone_pct = grid_params["buffer_zone_pct"]
-        bz_source = "grid_best"
-    else:
-        buffer_zone_pct = DEFAULT_BUFFER_ZONE_PCT
-        bz_source = "DEFAULT"
-
-    # 1-3. hold_days
-    if OVERRIDE_HOLD_DAYS is not None:
-        hold_days = OVERRIDE_HOLD_DAYS
-        hd_source = "OVERRIDE"
-    elif grid_params is not None:
-        hold_days = grid_params["hold_days"]
-        hd_source = "grid_best"
-    else:
-        hold_days = DEFAULT_HOLD_DAYS
-        hd_source = "DEFAULT"
-
-    # 1-4. recent_months
-    if OVERRIDE_RECENT_MONTHS is not None:
-        recent_months = OVERRIDE_RECENT_MONTHS
-        rm_source = "OVERRIDE"
-    elif grid_params is not None:
-        recent_months = grid_params["recent_months"]
-        rm_source = "grid_best"
-    else:
-        recent_months = DEFAULT_RECENT_MONTHS
-        rm_source = "DEFAULT"
-
-    logger.debug("버퍼존 전략 백테스트 시작")
-    logger.debug(
-        f"파라미터: ma_window={ma_window} ({ma_window_source}), "
-        f"buffer_zone={buffer_zone_pct} ({bz_source}), "
-        f"hold_days={hold_days} ({hd_source}), "
-        f"recent_months={recent_months} ({rm_source})"
-    )
-
-    # 2. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
     logger.debug(f"시그널 데이터: {QQQ_DATA_PATH}")
     logger.debug(f"매매 데이터: {TQQQ_SYNTHETIC_DATA_PATH}")
     signal_df = load_stock_data(QQQ_DATA_PATH)
@@ -466,34 +134,161 @@ def main() -> int:
     logger.debug(f"매매(TQQQ) 행 수: {len(trade_df):,}, 기간: {trade_df[COL_DATE].min()} ~ {trade_df[COL_DATE].max()}")
     logger.debug("=" * 60)
 
-    # 3. 날짜 기준 정렬 (겹치는 기간만 사용)
+    # 공통 날짜로 정렬
     common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
     signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
     trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
     logger.debug(f"공통 기간: {len(signal_df):,}행")
 
-    # 4. 이동평균 계산 (signal_df에만, grid_search와 동일하게 EMA 사용)
-    signal_df = add_single_moving_average(signal_df, ma_window, ma_type=MA_TYPE)
+    return signal_df, trade_df
 
-    # 5. 전략 파라미터 설정
-    params = BufferStrategyParams(
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=ma_window,
-        buffer_zone_pct=buffer_zone_pct,
-        hold_days=hold_days,
-        recent_months=recent_months,
-    )
 
-    summaries = []
+def _save_results(result: SingleBacktestResult) -> None:
+    """
+    백테스트 결과를 CSV/JSON 파일로 저장한다.
 
-    # 6. 버퍼존 전략 실행 (QQQ 시그널 + TQQQ 매매)
-    logger.debug("=" * 60)
-    logger.debug("버퍼존 전략 백테스트 실행 (QQQ 시그널 + TQQQ 매매)")
-    trades, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params)
-    print_summary(summary, "버퍼존 전략 결과", logger)
+    컬럼 감지 기반 반올림:
+    - 가격 (OHLC, MA, 밴드): 6자리
+    - 자본금 (equity, pnl): 정수
+    - 백분율 (change_pct, drawdown_pct): 2자리
+    - 비율 (pnl_pct, buffer_zone_pct): 4자리
 
-    # 거래 내역 출력
-    if not trades.empty:
+    Args:
+        result: SingleBacktestResult 컨테이너
+    """
+    # 결과 디렉토리 생성
+    result.result_dir.mkdir(parents=True, exist_ok=True)
+
+    signal_path = result.result_dir / "signal.csv"
+    equity_path = result.result_dir / "equity.csv"
+    trades_path = result.result_dir / "trades.csv"
+    summary_path = result.result_dir / "summary.json"
+
+    # 1. signal CSV 저장 (OHLC + MA + change_pct)
+    signal_export = result.signal_df.copy()
+    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+
+    # 컬럼 감지 기반 반올림 (가격 6자리, MA 6자리, % 2자리)
+    signal_round: dict[str, int] = {"change_pct": 2}
+    for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
+        if col in signal_export.columns:
+            signal_round[col] = 6
+    for col in signal_export.columns:
+        if col.startswith("ma_"):
+            signal_round[col] = 6
+
+    signal_export = signal_export.round(signal_round)
+    signal_export.to_csv(signal_path, index=False)
+    logger.debug(f"시그널 데이터 저장 완료: {signal_path}")
+
+    # 2. equity CSV 저장 (equity + drawdown_pct + 전략별 컬럼)
+    equity_export = result.equity_df.copy()
+    equity_series = equity_export["equity"].astype(float)
+    peak = equity_series.cummax()
+    safe_peak = peak.replace(0, EPSILON)
+    equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+
+    # 컬럼 감지 기반 반올림 (equity 정수, 밴드 6자리, 비율 4자리)
+    equity_round: dict[str, int] = {"equity": 0, "drawdown_pct": 2}
+    if "buffer_zone_pct" in equity_export.columns:
+        equity_round["buffer_zone_pct"] = 4
+    if "upper_band" in equity_export.columns:
+        equity_round["upper_band"] = 6
+    if "lower_band" in equity_export.columns:
+        equity_round["lower_band"] = 6
+
+    equity_export = equity_export.round(equity_round)
+    equity_export["equity"] = equity_export["equity"].astype(int)
+    equity_export.to_csv(equity_path, index=False)
+    logger.debug(f"에쿼티 데이터 저장 완료: {equity_path}")
+
+    # 3. trades CSV 저장 (거래 내역 + holding_days)
+    if not result.trades_df.empty:
+        trades_export = result.trades_df.copy()
+        # holding_days 추가 (entry_date/exit_date 존재 시)
+        if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
+            trades_export["holding_days"] = trades_export.apply(
+                lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
+            )
+        # 컬럼 감지 기반 반올림
+        trades_round: dict[str, int] = {}
+        if "entry_price" in trades_export.columns:
+            trades_round["entry_price"] = 6
+        if "exit_price" in trades_export.columns:
+            trades_round["exit_price"] = 6
+        if "pnl" in trades_export.columns:
+            trades_round["pnl"] = 0
+        if "pnl_pct" in trades_export.columns:
+            trades_round["pnl_pct"] = 4
+        if "buffer_zone_pct" in trades_export.columns:
+            trades_round["buffer_zone_pct"] = 4
+
+        trades_export = trades_export.round(trades_round)
+        if "pnl" in trades_export.columns:
+            trades_export["pnl"] = trades_export["pnl"].astype(int)
+        trades_export.to_csv(trades_path, index=False)
+    else:
+        result.trades_df.to_csv(trades_path, index=False)
+    logger.debug(f"거래 내역 저장 완료: {trades_path}")
+
+    # 4. summary JSON 저장
+    monthly_returns = _calculate_monthly_returns(result.equity_df)
+
+    summary_data: dict[str, Any] = {
+        "summary": {
+            "initial_capital": round(float(str(result.summary["initial_capital"]))),
+            "final_capital": round(float(str(result.summary["final_capital"]))),
+            "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
+            "cagr": round(float(str(result.summary["cagr"])), 2),
+            "mdd": round(float(str(result.summary["mdd"])), 2),
+            "total_trades": result.summary["total_trades"],
+            "winning_trades": result.summary.get("winning_trades", 0),
+            "losing_trades": result.summary.get("losing_trades", 0),
+            "win_rate": round(float(str(result.summary["win_rate"])), 2),
+            "start_date": result.summary.get("start_date", ""),
+            "end_date": result.summary.get("end_date", ""),
+        },
+        "params": result.params_json,
+        "monthly_returns": monthly_returns,
+        "data_info": {
+            "signal_path": str(QQQ_DATA_PATH),
+            "trade_path": str(TQQQ_SYNTHETIC_DATA_PATH),
+        },
+    }
+
+    with summary_path.open("w", encoding="utf-8") as f:
+        json.dump(summary_data, f, indent=2, ensure_ascii=False)
+    logger.debug(f"요약 JSON 저장 완료: {summary_path}")
+
+    # 5. 메타데이터 저장
+    metadata: dict[str, Any] = {
+        "params": result.params_json,
+        "results_summary": {
+            "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
+            "cagr": round(float(str(result.summary["cagr"])), 2),
+            "mdd": round(float(str(result.summary["mdd"])), 2),
+            "total_trades": int(str(result.summary["total_trades"])),
+            "win_rate": round(float(str(result.summary["win_rate"])), 2),
+        },
+        "output_files": {
+            "signal_csv": str(signal_path),
+            "equity_csv": str(equity_path),
+            "trades_csv": str(trades_path),
+            "summary_json": str(summary_path),
+        },
+    }
+    save_metadata("single_backtest", metadata)
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
+
+
+def _print_trades_table(result: SingleBacktestResult) -> None:
+    """
+    거래 내역 테이블을 출력한다.
+
+    Args:
+        result: SingleBacktestResult 컨테이너
+    """
+    if not result.trades_df.empty:
         columns = [
             ("진입일", 12, Align.LEFT),
             ("청산일", 12, Align.LEFT),
@@ -504,7 +299,7 @@ def main() -> int:
 
         max_rows = 10
         rows = []
-        for _, trade in trades.tail(max_rows).iterrows():
+        for _, trade in result.trades_df.tail(max_rows).iterrows():
             rows.append(
                 [
                     str(trade["entry_date"]),
@@ -516,20 +311,21 @@ def main() -> int:
             )
 
         table = TableLogger(columns, logger)
-        table.print_table(rows, title=f"[버퍼존 전략] 거래 내역 (최근 {max_rows}건)")
+        table.print_table(rows, title=f"[{result.display_name}] 거래 내역 (최근 {max_rows}건)")
     else:
-        logger.debug("[버퍼존 전략] 거래 내역 없음")
+        logger.debug(f"[{result.display_name}] 거래 내역 없음")
 
-    summaries.append(("버퍼존 전략", summary))
 
-    # 7. Buy & Hold 벤치마크 실행 (TQQQ 기준)
-    logger.debug("Buy & Hold 벤치마크 실행 (TQQQ)")
-    params_bh = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
-    equity_df_bh, summary_bh = run_buy_and_hold(signal_df, trade_df, params=params_bh)
-    print_summary(summary_bh, "Buy & Hold 결과", logger)
-    summaries.append(("Buy & Hold", summary_bh))
+def _print_comparison_table(results: list[SingleBacktestResult]) -> None:
+    """
+    전략 비교 요약 테이블을 출력한다.
 
-    # 8. 전략 비교 요약
+    Args:
+        results: SingleBacktestResult 리스트 (2개 이상일 때만 출력)
+    """
+    if len(results) < 2:
+        return
+
     columns = [
         ("전략", 20, Align.LEFT),
         ("총수익률", 12, Align.RIGHT),
@@ -539,46 +335,63 @@ def main() -> int:
     ]
 
     rows = []
-    for name, summary in summaries:
+    for result in results:
         rows.append(
             [
-                name,
-                f"{summary['total_return_pct']:.2f}%",
-                f"{summary['cagr']:.2f}%",
-                f"{summary['mdd']:.2f}%",
-                str(summary["total_trades"]),
+                result.display_name,
+                f"{result.summary['total_return_pct']:.2f}%",
+                f"{result.summary['cagr']:.2f}%",
+                f"{result.summary['mdd']:.2f}%",
+                str(result.summary["total_trades"]),
             ]
         )
 
     table = TableLogger(columns, logger)
     table.print_table(rows, title="[전략 비교 요약]")
 
-    # 9. 버퍼존 결과 파일 저장 (대시보드용)
-    buffer_summary = summaries[0][1]
-    _save_results(
-        signal_df=signal_df,
-        equity_df=equity_df,
-        trades_df=trades,
-        summary=buffer_summary,
-        ma_window=ma_window,
-        buffer_zone_pct=buffer_zone_pct,
-        hold_days=hold_days,
-        recent_months=recent_months,
-        ma_window_source=ma_window_source,
-        bz_source=bz_source,
-        hd_source=hd_source,
-        rm_source=rm_source,
-    )
-    logger.debug("버퍼존 결과 파일 저장 완료")
 
-    # 10. Buy & Hold 결과 파일 저장
-    _save_buy_and_hold_results(
-        signal_df=signal_df,
-        trade_df=trade_df,
-        equity_df=equity_df_bh,
-        summary=summary_bh,
+@cli_exception_handler
+def main() -> int:
+    """
+    메인 실행 함수.
+
+    Returns:
+        종료 코드 (0: 성공, 1: 실패)
+    """
+    # 1. argparse로 --strategy 파싱
+    parser = argparse.ArgumentParser(description="단일 백테스트 실행")
+    parser.add_argument(
+        "--strategy",
+        choices=["all", "buffer_zone", "buy_and_hold"],
+        default="all",
+        help="실행할 전략 (기본값: all)",
     )
-    logger.debug("Buy & Hold 결과 파일 저장 완료")
+    args = parser.parse_args()
+
+    # 2. 데이터 로딩
+    signal_df, trade_df = _load_data()
+
+    # 3. 전략 목록 결정
+    if args.strategy == "all":
+        strategy_names = list(STRATEGY_RUNNERS.keys())
+    else:
+        strategy_names = [args.strategy]
+
+    logger.debug(f"실행 전략: {strategy_names}")
+
+    # 4. 전략별 실행
+    results: list[SingleBacktestResult] = []
+    for name in strategy_names:
+        logger.debug("=" * 60)
+        result = STRATEGY_RUNNERS[name](signal_df.copy(), trade_df.copy())
+        print_summary(result.summary, result.display_name, logger)
+        _print_trades_table(result)
+        _save_results(result)
+        results.append(result)
+        logger.debug(f"{result.display_name} 결과 파일 저장 완료")
+
+    # 5. 비교 테이블 출력 (2개 이상 시)
+    _print_comparison_table(results)
 
     return 0
 

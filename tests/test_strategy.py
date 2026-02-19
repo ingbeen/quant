@@ -1497,3 +1497,225 @@ class TestDualTickerStrategy:
         # When & Then
         with pytest.raises(ValueError, match="날짜"):
             run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+
+
+class TestResolveParams:
+    """resolve_params 파라미터 결정 테스트
+
+    목적: 각 전략의 resolve_params 함수가 올바른 폴백 체인을 따르는지 검증
+    """
+
+    def test_buffer_zone_resolve_params_default(self, tmp_path, monkeypatch):
+        """
+        목적: OVERRIDE=None, grid=None → DEFAULT 사용 검증
+
+        Given: OVERRIDE 상수 전부 None, grid_results.csv 없음
+        When: resolve_params 호출
+        Then: 모든 파라미터가 DEFAULT 상수 값 사용, 출처 "DEFAULT"
+        """
+        from qbt.backtest.constants import (
+            DEFAULT_BUFFER_ZONE_PCT,
+            DEFAULT_HOLD_DAYS,
+            DEFAULT_MA_WINDOW,
+            DEFAULT_RECENT_MONTHS,
+        )
+        from qbt.backtest.strategies import buffer_zone
+
+        # Given
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", None)
+        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+
+        # When
+        params, sources = buffer_zone.resolve_params()
+
+        # Then
+        assert params.ma_window == DEFAULT_MA_WINDOW
+        assert params.buffer_zone_pct == DEFAULT_BUFFER_ZONE_PCT
+        assert params.hold_days == DEFAULT_HOLD_DAYS
+        assert params.recent_months == DEFAULT_RECENT_MONTHS
+        assert all(s == "DEFAULT" for s in sources.values())
+
+    def test_buffer_zone_resolve_params_override(self, tmp_path, monkeypatch):
+        """
+        목적: OVERRIDE 값 설정 시 OVERRIDE 우선 검증
+
+        Given: OVERRIDE 상수에 특정 값 설정
+        When: resolve_params 호출
+        Then: OVERRIDE 값이 사용됨, 출처 "OVERRIDE"
+        """
+        from qbt.backtest.strategies import buffer_zone
+
+        # Given
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", 50)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", 0.05)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", 3)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", 6)
+        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+
+        # When
+        params, sources = buffer_zone.resolve_params()
+
+        # Then
+        assert params.ma_window == 50
+        assert params.buffer_zone_pct == 0.05
+        assert params.hold_days == 3
+        assert params.recent_months == 6
+        assert all(s == "OVERRIDE" for s in sources.values())
+
+    def test_buffer_zone_resolve_params_grid(self, tmp_path, monkeypatch):
+        """
+        목적: grid_results.csv 존재 시 grid_best 사용 검증
+
+        Given: OVERRIDE=None, grid_results.csv에 파라미터 존재
+        When: resolve_params 호출
+        Then: grid_results.csv의 첫 행 값 사용, 출처 "grid_best"
+        """
+        from qbt.backtest.constants import (
+            DISPLAY_BUFFER_ZONE,
+            DISPLAY_HOLD_DAYS,
+            DISPLAY_MA_WINDOW,
+            DISPLAY_RECENT_MONTHS,
+        )
+        from qbt.backtest.strategies import buffer_zone
+
+        # Given
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", None)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", None)
+
+        grid_path = tmp_path / "grid_results.csv"
+        grid_df = pd.DataFrame(
+            {
+                DISPLAY_MA_WINDOW: [150],
+                DISPLAY_BUFFER_ZONE: [0.04],
+                DISPLAY_HOLD_DAYS: [2],
+                DISPLAY_RECENT_MONTHS: [4],
+            }
+        )
+        grid_df.to_csv(grid_path, index=False)
+        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", grid_path)
+
+        # When
+        params, sources = buffer_zone.resolve_params()
+
+        # Then
+        assert params.ma_window == 150
+        assert params.buffer_zone_pct == 0.04
+        assert params.hold_days == 2
+        assert params.recent_months == 4
+        assert all(s == "grid_best" for s in sources.values())
+
+    def test_buy_and_hold_resolve_params(self):
+        """
+        목적: Buy & Hold resolve_params는 항상 DEFAULT_INITIAL_CAPITAL 사용 검증
+
+        Given: (특별한 설정 없음)
+        When: resolve_params 호출
+        Then: initial_capital이 DEFAULT_INITIAL_CAPITAL, 출처 "DEFAULT"
+        """
+        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
+        from qbt.backtest.strategies.buy_and_hold import resolve_params
+
+        # When
+        params, sources = resolve_params()
+
+        # Then
+        assert params.initial_capital == DEFAULT_INITIAL_CAPITAL
+        assert sources["initial_capital"] == "DEFAULT"
+
+
+class TestRunSingle:
+    """run_single 테스트
+
+    목적: 각 전략의 run_single 함수가 SingleBacktestResult를 올바르게 반환하는지 검증
+    """
+
+    def test_buffer_zone_run_single_returns_result(self, tmp_path, monkeypatch):
+        """
+        목적: buffer_zone run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
+
+        Given: 20일 데이터, OVERRIDE로 작은 MA window 설정
+        When: buffer_zone.run_single 호출
+        Then: SingleBacktestResult 필드 정합성 확인
+        """
+        from qbt.backtest.strategies import buffer_zone
+        from qbt.backtest.types import SingleBacktestResult
+
+        # Given
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", 5)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", 0)
+        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", 0)
+        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+        monkeypatch.setattr(buffer_zone, "BUFFER_ZONE_RESULTS_DIR", tmp_path / "buffer_zone")
+
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(20)],
+                "Open": [100 + i for i in range(20)],
+                "High": [102 + i for i in range(20)],
+                "Low": [98 + i for i in range(20)],
+                "Close": [100 + i * 0.5 for i in range(20)],
+            }
+        )
+        trade_df = signal_df.copy()
+
+        # When
+        result = buffer_zone.run_single(signal_df, trade_df)
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buffer_zone"
+        assert result.display_name == "버퍼존 전략"
+        assert isinstance(result.signal_df, pd.DataFrame)
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert isinstance(result.trades_df, pd.DataFrame)
+        assert isinstance(result.summary, dict)
+        assert isinstance(result.params_json, dict)
+        assert "ma_window" in result.params_json
+        assert "ma_type" in result.params_json
+        assert result.result_dir == tmp_path / "buffer_zone"
+
+    def test_buy_and_hold_run_single_returns_result(self, tmp_path, monkeypatch):
+        """
+        목적: buy_and_hold run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
+
+        Given: 10일 데이터
+        When: buy_and_hold.run_single 호출
+        Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame
+        """
+        from qbt.backtest.strategies import buy_and_hold
+        from qbt.backtest.types import SingleBacktestResult
+
+        # Given
+        monkeypatch.setattr(buy_and_hold, "BUY_AND_HOLD_RESULTS_DIR", tmp_path / "buy_and_hold")
+
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [100 + i for i in range(10)],
+                "High": [102 + i for i in range(10)],
+                "Low": [98 + i for i in range(10)],
+                "Close": [101 + i for i in range(10)],
+            }
+        )
+        trade_df = signal_df.copy()
+
+        # When
+        result = buy_and_hold.run_single(signal_df, trade_df)
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buy_and_hold"
+        assert result.display_name == "Buy & Hold"
+        assert isinstance(result.signal_df, pd.DataFrame)
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert result.trades_df.empty
+        assert isinstance(result.summary, dict)
+        assert "strategy" in result.params_json
+        assert result.params_json["strategy"] == "buy_and_hold"
+        assert result.result_dir == tmp_path / "buy_and_hold"

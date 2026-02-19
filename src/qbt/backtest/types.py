@@ -9,8 +9,13 @@
 - 최적 파라미터 (BestGridParams)
 """
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date
-from typing import NotRequired, TypedDict
+from pathlib import Path
+from typing import Any, NotRequired, TypedDict
+
+import pandas as pd
 
 
 class SummaryDict(TypedDict):
@@ -121,3 +126,22 @@ class BestGridParams(TypedDict):
     buffer_zone_pct: float
     hold_days: int
     recent_months: int
+
+
+@dataclass
+class SingleBacktestResult:
+    """run_single() 반환 타입.
+
+    각 전략의 run_single() 함수가 공통으로 반환하는 결과 컨테이너.
+    signal_df, equity_df, trades_df는 반올림 전 원시 데이터이며,
+    저장 직전에 스크립트에서 반올림 처리한다.
+    """
+
+    strategy_name: str  # "buffer_zone", "buy_and_hold"
+    display_name: str  # "버퍼존 전략", "Buy & Hold"
+    signal_df: pd.DataFrame  # 저장용 시그널 데이터 (raw)
+    equity_df: pd.DataFrame  # 에쿼티 데이터 (raw)
+    trades_df: pd.DataFrame  # 거래 내역 (빈 DataFrame 가능)
+    summary: Mapping[str, object]  # 요약 지표
+    params_json: dict[str, Any]  # JSON 저장용 전략 파라미터
+    result_dir: Path  # 결과 저장 디렉토리
