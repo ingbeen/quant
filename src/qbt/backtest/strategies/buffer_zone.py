@@ -1,4 +1,7 @@
-"""전략 실행 모듈
+"""버퍼존 전략 모듈
+
+이동평균 기반 버퍼존 전략의 실행 엔진을 구현한다.
+시그널 생성, 매매 체결, 그리드 서치를 포함한다.
 
 학습 포인트:
 1. @dataclass: 데이터를 담는 클래스를 간결하게 정의하는 데코레이터
@@ -33,7 +36,6 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.types import (
     BufferStrategyResultDict,
-    BuyAndHoldResultDict,
     EquityRecord,
     GridSearchResult,
     HoldState,
@@ -237,16 +239,6 @@ class BufferStrategyParams(BaseStrategyParams):
 
 
 @dataclass
-class BuyAndHoldParams:
-    """Buy & Hold 전략 파라미터를 담는 데이터 클래스.
-
-    Buy & Hold: 매수 후 그대로 보유하는 가장 기본적인 전략 (벤치마크용)
-    """
-
-    initial_capital: float  # 초기 자본금
-
-
-@dataclass
 class PendingOrder:
     """예약된 주문 정보
 
@@ -405,74 +397,6 @@ def _detect_sell_signal(
     """
     # 하향돌파 체크: 전일 종가 >= 하단밴드 AND 당일 종가 < 하단밴드
     return prev_close >= prev_lower_band and close < lower_band
-
-
-def run_buy_and_hold(
-    signal_df: pd.DataFrame,
-    trade_df: pd.DataFrame,
-    params: BuyAndHoldParams,
-) -> tuple[pd.DataFrame, BuyAndHoldResultDict]:
-    """
-    Buy & Hold 벤치마크 전략을 실행한다.
-
-    첫날 trade_df 시가에 매수 후 보유한다. 강제청산 없음 (버퍼존 전략과 동일).
-    에쿼티는 trade_df 종가 기준으로 계산한다.
-
-    Args:
-        signal_df: 시그널용 DataFrame (Buy & Hold에서는 미사용, 일관성을 위해 유지)
-        trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
-        params: Buy & Hold 파라미터
-
-    Returns:
-        tuple: (equity_df, summary)
-            - equity_df: 자본 곡선 DataFrame
-            - summary: 요약 지표 딕셔너리
-    """
-    # 1. 파라미터 검증
-    if params.initial_capital <= 0:
-        raise ValueError(f"initial_capital은 양수여야 합니다: {params.initial_capital}")
-
-    # 2. trade_df 필수 컬럼 검증
-    required_cols = [COL_OPEN, COL_CLOSE, COL_DATE]
-    missing = set(required_cols) - set(trade_df.columns)
-    if missing:
-        raise ValueError(f"필수 컬럼 누락: {missing}")
-
-    # 3. 최소 행 수 검증
-    if len(trade_df) < MIN_VALID_ROWS:
-        raise ValueError(f"유효 데이터 부족: {len(trade_df)}행 (최소 {MIN_VALID_ROWS}행 필요)")
-
-    logger.debug("Buy & Hold 실행 시작")
-
-    trade_df = trade_df.copy()
-
-    # 4. 첫날 trade_df 시가에 매수
-    buy_price_raw = trade_df.iloc[0][COL_OPEN]
-    buy_price = buy_price_raw * (1 + SLIPPAGE_RATE)
-
-    shares = int(params.initial_capital / buy_price)
-    buy_amount = shares * buy_price
-    capital_after_buy = params.initial_capital - buy_amount
-
-    # 5. 자본 곡선 계산 (trade_df 종가 기준)
-    equity_records: list[dict[str, object]] = []
-
-    for _, row in trade_df.iterrows():
-        equity = capital_after_buy + shares * row[COL_CLOSE]
-        equity_records.append({COL_DATE: row[COL_DATE], "equity": equity, "position": shares})
-
-    equity_df = pd.DataFrame(equity_records)
-
-    # 6. 강제청산 없음 (버퍼존 전략과 동일 정책)
-    trades_df = pd.DataFrame()
-
-    # 7. calculate_summary 호출
-    base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary: BuyAndHoldResultDict = {**base_summary, "strategy": "buy_and_hold"}
-
-    logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
-
-    return equity_df, summary
 
 
 def _run_buffer_strategy_for_grid(

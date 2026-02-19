@@ -21,7 +21,7 @@ import pandas as pd
 from freezegun import freeze_time
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.strategy import BufferStrategyParams, run_buffer_strategy
+from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, run_buffer_strategy
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 from qbt.tqqq import build_monthly_spread_map, calculate_validation_metrics, extract_overlap_period, simulate
 from qbt.tqqq.constants import (

@@ -49,30 +49,62 @@
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
 
-### 4. strategy.py
+### 4. strategies/ 패키지
 
-전략 실행 엔진의 핵심 모듈입니다.
+전략 실행 엔진을 전략별로 분리한 패키지입니다.
+
+#### strategies/buffer_zone.py
+
+버퍼존 전략의 전체 구현을 포함합니다 (데이터 클래스, 헬퍼 함수, 실행 함수).
 
 데이터 클래스:
 
+- `BaseStrategyParams`: 전략 파라미터 기본 클래스
 - `BufferStrategyParams`: 버퍼존 전략 파라미터
-- `BuyAndHoldParams`: Buy & Hold 전략 파라미터
 - `PendingOrder`: 예약 주문 정보 (신호일과 체결일 분리)
-
-로컬 상수 (`strategy.py` 상단):
-
-- `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
-- `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
 
 예외 클래스:
 
 - `PendingOrderConflictError`: Pending Order 충돌 예외 (Critical Invariant 위반)
 
+로컬 상수 (`buffer_zone.py` 상단):
+
+- `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
+- `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
+- `DEFAULT_DAYS_PER_MONTH`: 최근 기간 계산용 월당 일수 (30일 근사값)
+
+헬퍼 함수 (9개):
+
+- `_validate_buffer_strategy_inputs`, `_compute_bands`, `_check_pending_conflict`
+- `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
+- `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
+
 주요 함수:
 
 - `run_buffer_strategy`: 버퍼존 전략 실행
-- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
+- `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
+
+#### strategies/buy_and_hold.py
+
+Buy & Hold 벤치마크 전략 구현입니다.
+
+데이터 클래스:
+
+- `BuyAndHoldParams`: Buy & Hold 전략 파라미터
+
+주요 함수:
+
+- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행
+
+#### strategies/__init__.py
+
+전략 패키지의 공개 API를 export합니다.
+
+설계 결정 사항:
+
+- helpers.py 미생성: YAGNI 원칙 적용. 버퍼존 전용 헬퍼는 `buffer_zone.py`에 직접 배치.
+  향후 버퍼존 계열 전략 추가 시 공통 헬퍼를 추출하여 helpers.py 생성 예정.
 
 ---
 
@@ -166,7 +198,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 ### grid_results.csv
 
-경로: `storage/results/backtest/grid_results.csv`
+경로: `storage/results/backtest/buffer_zone/grid_results.csv`
 
 주요 컬럼: 이평기간, 버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
 

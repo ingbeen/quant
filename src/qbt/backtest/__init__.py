@@ -5,12 +5,14 @@ from qbt.backtest.analysis import (
     calculate_summary,
     load_best_grid_params,
 )
-from qbt.backtest.strategy import (
+from qbt.backtest.strategies.buffer_zone import (
     BufferStrategyParams,
-    BuyAndHoldParams,
     run_buffer_strategy,
-    run_buy_and_hold,
     run_grid_search,
+)
+from qbt.backtest.strategies.buy_and_hold import (
+    BuyAndHoldParams,
+    run_buy_and_hold,
 )
 from qbt.backtest.types import BestGridParams
 

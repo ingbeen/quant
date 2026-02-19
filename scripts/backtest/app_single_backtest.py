@@ -20,15 +20,15 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
 from qbt.common_constants import (
+    BUFFER_ZONE_EQUITY_PATH,
+    BUFFER_ZONE_SIGNAL_PATH,
+    BUFFER_ZONE_SUMMARY_PATH,
+    BUFFER_ZONE_TRADES_PATH,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    SINGLE_BACKTEST_EQUITY_PATH,
-    SINGLE_BACKTEST_SIGNAL_PATH,
-    SINGLE_BACKTEST_SUMMARY_PATH,
-    SINGLE_BACKTEST_TRADES_PATH,
 )
 
 # ============================================================
@@ -85,7 +85,7 @@ DEFAULT_ZOOM_LEVEL = 200
 @st.cache_data
 def _load_signal_csv() -> pd.DataFrame:
     """시그널 CSV를 로드한다."""
-    df = pd.read_csv(SINGLE_BACKTEST_SIGNAL_PATH)
+    df = pd.read_csv(BUFFER_ZONE_SIGNAL_PATH)
     df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
     return df
 
@@ -93,7 +93,7 @@ def _load_signal_csv() -> pd.DataFrame:
 @st.cache_data
 def _load_equity_csv() -> pd.DataFrame:
     """에쿼티 CSV를 로드한다."""
-    df = pd.read_csv(SINGLE_BACKTEST_EQUITY_PATH)
+    df = pd.read_csv(BUFFER_ZONE_EQUITY_PATH)
     df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
     return df
 
@@ -101,7 +101,7 @@ def _load_equity_csv() -> pd.DataFrame:
 @st.cache_data
 def _load_trades_csv() -> pd.DataFrame:
     """거래 내역 CSV를 로드한다."""
-    df = pd.read_csv(SINGLE_BACKTEST_TRADES_PATH)
+    df = pd.read_csv(BUFFER_ZONE_TRADES_PATH)
     if not df.empty:
         df["entry_date"] = pd.to_datetime(df["entry_date"]).dt.date
         df["exit_date"] = pd.to_datetime(df["exit_date"]).dt.date
@@ -111,7 +111,7 @@ def _load_trades_csv() -> pd.DataFrame:
 @st.cache_data
 def _load_summary_json() -> dict[str, Any]:
     """요약 JSON을 로드한다."""
-    with SINGLE_BACKTEST_SUMMARY_PATH.open("r", encoding="utf-8") as f:
+    with BUFFER_ZONE_SUMMARY_PATH.open("r", encoding="utf-8") as f:
         return json.load(f)  # type: ignore[no-any-return]
 
 
@@ -497,10 +497,10 @@ def main() -> None:
 
         # ---- 결과 파일 존재 확인 ----
         required_files = [
-            SINGLE_BACKTEST_SIGNAL_PATH,
-            SINGLE_BACKTEST_EQUITY_PATH,
-            SINGLE_BACKTEST_TRADES_PATH,
-            SINGLE_BACKTEST_SUMMARY_PATH,
+            BUFFER_ZONE_SIGNAL_PATH,
+            BUFFER_ZONE_EQUITY_PATH,
+            BUFFER_ZONE_TRADES_PATH,
+            BUFFER_ZONE_SUMMARY_PATH,
         ]
         missing_files = [p for p in required_files if not p.exists()]
         if missing_files:

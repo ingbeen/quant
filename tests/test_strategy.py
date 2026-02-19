@@ -18,12 +18,14 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.backtest.strategy import (
+from qbt.backtest.strategies.buffer_zone import (
     BufferStrategyParams,
-    BuyAndHoldParams,
     PendingOrderConflictError,
     _calculate_recent_buy_count,
     run_buffer_strategy,
+)
+from qbt.backtest.strategies.buy_and_hold import (
+    BuyAndHoldParams,
     run_buy_and_hold,
 )
 
@@ -945,7 +947,7 @@ class TestCoreExecutionRules:
         이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
         통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
         """
-        from qbt.backtest.strategy import PendingOrder, _check_pending_conflict
+        from qbt.backtest.strategies.buffer_zone import PendingOrder, _check_pending_conflict
 
         # Given: 기존 pending이 존재
         existing_pending = PendingOrder(
@@ -1106,7 +1108,7 @@ class TestBacktestAccuracy:
           - 예상값 = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategy import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
+        from qbt.backtest.strategies.buffer_zone import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
 
         # Given: 여러 번 돌파하는 시나리오
         df = pd.DataFrame(
@@ -1202,7 +1204,7 @@ class TestRunGridSearch:
           - CAGR 기준 내림차순 정렬
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategy import run_grid_search
+        from qbt.backtest.strategies.buffer_zone import run_grid_search
 
         # Given: 충분한 기간의 데이터
         df = pd.DataFrame(
@@ -1266,7 +1268,7 @@ class TestRunGridSearch:
         Then: 정확히 16개 결과 생성
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategy import run_grid_search
+        from qbt.backtest.strategies.buffer_zone import run_grid_search
 
         # Given
         df = pd.DataFrame(

@@ -38,15 +38,22 @@ QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
 # 합성 TQQQ 데이터 파일 경로 (시뮬레이션 생성)
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
-# --- 결과 파일 경로 ---
-# 백테스트 그리드 서치 결과 저장 경로
-GRID_RESULTS_PATH: Final = BACKTEST_RESULTS_DIR / "grid_results.csv"
+# --- 전략별 결과 디렉토리 ---
+BUFFER_ZONE_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone"  # 버퍼존 전략 결과
+BUY_AND_HOLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold"  # Buy & Hold 전략 결과
 
-# 단일 백테스트 결과 파일 경로
-SINGLE_BACKTEST_SIGNAL_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_signal.csv"
-SINGLE_BACKTEST_EQUITY_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_equity.csv"
-SINGLE_BACKTEST_TRADES_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_trades.csv"
-SINGLE_BACKTEST_SUMMARY_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_summary.json"
+# --- 버퍼존 전략 결과 파일 경로 ---
+BUFFER_ZONE_SIGNAL_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "signal.csv"
+BUFFER_ZONE_EQUITY_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "equity.csv"
+BUFFER_ZONE_TRADES_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "trades.csv"
+BUFFER_ZONE_SUMMARY_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "summary.json"
+GRID_RESULTS_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "grid_results.csv"
+
+# --- Buy & Hold 전략 결과 파일 경로 ---
+BUY_AND_HOLD_SIGNAL_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "signal.csv"
+BUY_AND_HOLD_EQUITY_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "equity.csv"
+BUY_AND_HOLD_TRADES_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "trades.csv"
+BUY_AND_HOLD_SUMMARY_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "summary.json"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

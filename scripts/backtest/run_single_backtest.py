@@ -32,6 +32,14 @@ from qbt.backtest.constants import (
     DEFAULT_RECENT_MONTHS,
 )
 from qbt.common_constants import (
+    BUFFER_ZONE_EQUITY_PATH,
+    BUFFER_ZONE_SIGNAL_PATH,
+    BUFFER_ZONE_SUMMARY_PATH,
+    BUFFER_ZONE_TRADES_PATH,
+    BUY_AND_HOLD_EQUITY_PATH,
+    BUY_AND_HOLD_SIGNAL_PATH,
+    BUY_AND_HOLD_SUMMARY_PATH,
+    BUY_AND_HOLD_TRADES_PATH,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
@@ -41,10 +49,6 @@ from qbt.common_constants import (
     GRID_RESULTS_PATH,
     META_JSON_PATH,
     QQQ_DATA_PATH,
-    SINGLE_BACKTEST_EQUITY_PATH,
-    SINGLE_BACKTEST_SIGNAL_PATH,
-    SINGLE_BACKTEST_SUMMARY_PATH,
-    SINGLE_BACKTEST_TRADES_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
@@ -166,7 +170,7 @@ def _save_results(
         rm_source: recent_months 출처
     """
     # 결과 디렉토리 생성
-    SINGLE_BACKTEST_SIGNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    BUFFER_ZONE_SIGNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. signal CSV 저장 (OHLC + MA + change_pct)
     signal_export = signal_df.copy()
@@ -182,8 +186,8 @@ def _save_results(
             "change_pct": 2,
         }
     )
-    signal_export.to_csv(SINGLE_BACKTEST_SIGNAL_PATH, index=False)
-    logger.debug(f"시그널 데이터 저장 완료: {SINGLE_BACKTEST_SIGNAL_PATH}")
+    signal_export.to_csv(BUFFER_ZONE_SIGNAL_PATH, index=False)
+    logger.debug(f"시그널 데이터 저장 완료: {BUFFER_ZONE_SIGNAL_PATH}")
 
     # 2. equity CSV 저장 (equity + bands + drawdown_pct)
     equity_export = equity_df.copy()
@@ -201,8 +205,8 @@ def _save_results(
         }
     )
     equity_export["equity"] = equity_export["equity"].astype(int)
-    equity_export.to_csv(SINGLE_BACKTEST_EQUITY_PATH, index=False)
-    logger.debug(f"에쿼티 데이터 저장 완료: {SINGLE_BACKTEST_EQUITY_PATH}")
+    equity_export.to_csv(BUFFER_ZONE_EQUITY_PATH, index=False)
+    logger.debug(f"에쿼티 데이터 저장 완료: {BUFFER_ZONE_EQUITY_PATH}")
 
     # 3. trades CSV 저장 (거래 내역 + holding_days)
     if not trades_df.empty:
@@ -220,10 +224,10 @@ def _save_results(
             }
         )
         trades_export["pnl"] = trades_export["pnl"].astype(int)
-        trades_export.to_csv(SINGLE_BACKTEST_TRADES_PATH, index=False)
+        trades_export.to_csv(BUFFER_ZONE_TRADES_PATH, index=False)
     else:
-        trades_df.to_csv(SINGLE_BACKTEST_TRADES_PATH, index=False)
-    logger.debug(f"거래 내역 저장 완료: {SINGLE_BACKTEST_TRADES_PATH}")
+        trades_df.to_csv(BUFFER_ZONE_TRADES_PATH, index=False)
+    logger.debug(f"거래 내역 저장 완료: {BUFFER_ZONE_TRADES_PATH}")
 
     # 4. summary JSON 저장
     monthly_returns = _calculate_monthly_returns(equity_df)
@@ -263,9 +267,9 @@ def _save_results(
         },
     }
 
-    with SINGLE_BACKTEST_SUMMARY_PATH.open("w", encoding="utf-8") as f:
+    with BUFFER_ZONE_SUMMARY_PATH.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
-    logger.debug(f"요약 JSON 저장 완료: {SINGLE_BACKTEST_SUMMARY_PATH}")
+    logger.debug(f"요약 JSON 저장 완료: {BUFFER_ZONE_SUMMARY_PATH}")
 
     # 5. 메타데이터 저장
     metadata: dict[str, Any] = {
@@ -285,14 +289,101 @@ def _save_results(
             "win_rate": round(float(str(summary["win_rate"])), 2),
         },
         "output_files": {
-            "signal_csv": str(SINGLE_BACKTEST_SIGNAL_PATH),
-            "equity_csv": str(SINGLE_BACKTEST_EQUITY_PATH),
-            "trades_csv": str(SINGLE_BACKTEST_TRADES_PATH),
-            "summary_json": str(SINGLE_BACKTEST_SUMMARY_PATH),
+            "signal_csv": str(BUFFER_ZONE_SIGNAL_PATH),
+            "equity_csv": str(BUFFER_ZONE_EQUITY_PATH),
+            "trades_csv": str(BUFFER_ZONE_TRADES_PATH),
+            "summary_json": str(BUFFER_ZONE_SUMMARY_PATH),
         },
     }
     save_metadata("single_backtest", metadata)
     logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
+
+
+def _save_buy_and_hold_results(
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    equity_df: pd.DataFrame,
+    summary: Mapping[str, object],
+) -> None:
+    """
+    Buy & Hold 결과를 CSV/JSON 파일로 저장한다.
+
+    Args:
+        signal_df: 시그널 DataFrame (OHLC, MA 없음)
+        trade_df: 매매 DataFrame (OHLC)
+        equity_df: 에쿼티 DataFrame
+        summary: 요약 지표 딕셔너리
+    """
+    # 결과 디렉토리 생성
+    BUY_AND_HOLD_SIGNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1. signal CSV 저장 (OHLC + change_pct, MA 없음)
+    signal_export = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
+    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+    signal_export = signal_export.round(
+        {
+            COL_OPEN: 6,
+            COL_HIGH: 6,
+            COL_LOW: 6,
+            COL_CLOSE: 6,
+            "change_pct": 2,
+        }
+    )
+    signal_export.to_csv(BUY_AND_HOLD_SIGNAL_PATH, index=False)
+    logger.debug(f"Buy & Hold 시그널 데이터 저장 완료: {BUY_AND_HOLD_SIGNAL_PATH}")
+
+    # 2. equity CSV 저장 (equity + position + drawdown_pct)
+    equity_export = equity_df.copy()
+    equity_series = equity_export["equity"].astype(float)
+    peak = equity_series.cummax()
+    safe_peak = peak.replace(0, EPSILON)
+    equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+    equity_export = equity_export.round(
+        {
+            "equity": 0,
+            "drawdown_pct": 2,
+        }
+    )
+    equity_export["equity"] = equity_export["equity"].astype(int)
+    equity_export.to_csv(BUY_AND_HOLD_EQUITY_PATH, index=False)
+    logger.debug(f"Buy & Hold 에쿼티 데이터 저장 완료: {BUY_AND_HOLD_EQUITY_PATH}")
+
+    # 3. trades CSV 저장 (빈 DataFrame, 매도 없음)
+    empty_trades = pd.DataFrame()
+    empty_trades.to_csv(BUY_AND_HOLD_TRADES_PATH, index=False)
+    logger.debug(f"Buy & Hold 거래 내역 저장 완료: {BUY_AND_HOLD_TRADES_PATH}")
+
+    # 4. summary JSON 저장
+    monthly_returns = _calculate_monthly_returns(equity_df)
+
+    summary_data: dict[str, Any] = {
+        "summary": {
+            "initial_capital": round(float(str(summary["initial_capital"]))),
+            "final_capital": round(float(str(summary["final_capital"]))),
+            "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
+            "cagr": round(float(str(summary["cagr"])), 2),
+            "mdd": round(float(str(summary["mdd"])), 2),
+            "total_trades": summary["total_trades"],
+            "winning_trades": summary.get("winning_trades", 0),
+            "losing_trades": summary.get("losing_trades", 0),
+            "win_rate": round(float(str(summary["win_rate"])), 2),
+            "start_date": summary.get("start_date", ""),
+            "end_date": summary.get("end_date", ""),
+        },
+        "params": {
+            "strategy": "buy_and_hold",
+            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
+        },
+        "monthly_returns": monthly_returns,
+        "data_info": {
+            "signal_path": str(QQQ_DATA_PATH),
+            "trade_path": str(TQQQ_SYNTHETIC_DATA_PATH),
+        },
+    }
+
+    with BUY_AND_HOLD_SUMMARY_PATH.open("w", encoding="utf-8") as f:
+        json.dump(summary_data, f, indent=2, ensure_ascii=False)
+    logger.debug(f"Buy & Hold 요약 JSON 저장 완료: {BUY_AND_HOLD_SUMMARY_PATH}")
 
 
 @cli_exception_handler
@@ -434,7 +525,7 @@ def main() -> int:
     # 7. Buy & Hold 벤치마크 실행 (TQQQ 기준)
     logger.debug("Buy & Hold 벤치마크 실행 (TQQQ)")
     params_bh = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
-    _, summary_bh = run_buy_and_hold(signal_df, trade_df, params=params_bh)
+    equity_df_bh, summary_bh = run_buy_and_hold(signal_df, trade_df, params=params_bh)
     print_summary(summary_bh, "Buy & Hold 결과", logger)
     summaries.append(("Buy & Hold", summary_bh))
 
@@ -462,7 +553,7 @@ def main() -> int:
     table = TableLogger(columns, logger)
     table.print_table(rows, title="[전략 비교 요약]")
 
-    # 9. 결과 파일 저장 (대시보드용)
+    # 9. 버퍼존 결과 파일 저장 (대시보드용)
     buffer_summary = summaries[0][1]
     _save_results(
         signal_df=signal_df,
@@ -478,7 +569,16 @@ def main() -> int:
         hd_source=hd_source,
         rm_source=rm_source,
     )
-    logger.debug("결과 파일 저장 완료")
+    logger.debug("버퍼존 결과 파일 저장 완료")
+
+    # 10. Buy & Hold 결과 파일 저장
+    _save_buy_and_hold_results(
+        signal_df=signal_df,
+        trade_df=trade_df,
+        equity_df=equity_df_bh,
+        summary=summary_bh,
+    )
+    logger.debug("Buy & Hold 결과 파일 저장 완료")
 
     return 0
 
