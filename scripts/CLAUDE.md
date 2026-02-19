@@ -202,11 +202,14 @@ width 파라미터 사용:
   - 공통 상수: `src/qbt/common_constants.py`
   - 도메인 상수: 각 도메인의 `constants.py` (예: `src/qbt/backtest/constants.py`)
   - 상수 명명 규칙: 루트 CLAUDE.md 참고
-- 예외 사례: 데이터 다운로드 스크립트(`scripts/data/download_data.py`)
+- 예외 사례 1: 데이터 다운로드 스크립트(`scripts/data/download_data.py`)
   - ticker, 시작일, 종료일을 명령행 인자로 받음
   - 이유: 다양한 종목/기간에 대한 유연한 데이터 수집 필요
+- 예외 사례 2: 단일 백테스트 스크립트(`scripts/backtest/run_single_backtest.py`)
+  - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone / buy_and_hold, 기본값: all)
+  - 이유: 전략별 독립 실행 및 비교 실행 지원
 
-근거 위치: [scripts/data/download_data.py](data/download_data.py)
+근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py)
 
 ---
 

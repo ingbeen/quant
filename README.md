@@ -41,11 +41,11 @@ poetry run python scripts/data/download_data.py QQQ
 
 # 2. 파라미터 최적화 (그리드 서치)
 poetry run python scripts/backtest/run_grid_search.py
-# 출력: storage/results/backtest/grid_results.csv
+# 출력: storage/results/backtest/buffer_zone/grid_results.csv
 
 # 3. 단일 전략 검증 + 결과 저장
 poetry run python scripts/backtest/run_single_backtest.py
-# 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 결과 파일 4개
+# 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
 
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone / buy_and_hold, 기본값: all)
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
@@ -198,16 +198,18 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
-│       ├── backtest/  # 백테스트 결과 (grid_results, single_backtest_*)
-│       └── tqqq/      # TQQQ 시뮬레이션 결과
-│           └── spread_lab/  # 스프레드 모델 검증 결과
+│       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
+│       │   ├── buffer_zone/   # 버퍼존 전략 결과
+│       │   └── buy_and_hold/  # Buy & Hold 전략 결과
+│       └── tqqq/              # TQQQ 시뮬레이션 결과
+│           └── spread_lab/    # 스프레드 모델 검증 결과
 └── tests/             # 테스트 코드
 ```
 
@@ -217,11 +219,13 @@ quant/
 
 ### 백테스트
 
-- `storage/results/backtest/grid_results.csv`: 파라미터 그리드 서치 결과
-- `storage/results/backtest/single_backtest_signal.csv`: 단일 백테스트 시그널 데이터 (OHLC + MA + 전일대비%)
-- `storage/results/backtest/single_backtest_equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
-- `storage/results/backtest/single_backtest_trades.csv`: 거래 내역 + 보유기간
-- `storage/results/backtest/single_backtest_summary.json`: 요약 지표 + 파라미터 + 월별 수익률
+각 전략의 결과는 `storage/results/backtest/{strategy_name}/` 하위에 저장됩니다.
+
+- `storage/results/backtest/buffer_zone/grid_results.csv`: 파라미터 그리드 서치 결과
+- `storage/results/backtest/{strategy_name}/signal.csv`: 시그널 데이터 (OHLC + MA + 전일대비%)
+- `storage/results/backtest/{strategy_name}/equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
+- `storage/results/backtest/{strategy_name}/trades.csv`: 거래 내역 + 보유기간
+- `storage/results/backtest/{strategy_name}/summary.json`: 요약 지표 + 파라미터 + 월별 수익률
 
 ### TQQQ 시뮬레이션
 
