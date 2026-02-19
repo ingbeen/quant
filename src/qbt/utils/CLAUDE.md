@@ -22,10 +22,11 @@
 
 ### 2. data_loader.py
 
-중앙 집중식 CSV 로딩
+중앙 집중식 CSV 로딩 및 DataFrame 전처리
 
 - `load_stock_data`: 주식 데이터 로딩
 - 자동 전처리: 파일 존재 확인, 필수 컬럼 검증, 날짜 파싱, 시간순 정렬, 중복 제거
+- `extract_overlap_period`: 두 DataFrame의 겹치는 기간 추출 (교집합 날짜 필터링, 정렬, 빈 결과 시 ValueError)
 
 ### 3. cli_helpers.py
 

@@ -43,13 +43,12 @@ from qbt.tqqq.simulation import (
     calculate_rate_segmented_rmse,
     calculate_validation_metrics,
     compute_softplus_spread,
-    extract_overlap_period,
     simulate,
 )
 from qbt.tqqq.types import WalkforwardSummaryDict
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)

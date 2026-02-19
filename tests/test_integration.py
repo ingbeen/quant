@@ -23,14 +23,14 @@ from freezegun import freeze_time
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, run_buffer_strategy
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
-from qbt.tqqq import build_monthly_spread_map, calculate_validation_metrics, extract_overlap_period, simulate
+from qbt.tqqq import build_monthly_spread_map, calculate_validation_metrics, simulate
 from qbt.tqqq.constants import (
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     KEY_OVERLAP_DAYS,
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
 )
-from qbt.utils.data_loader import load_stock_data
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 

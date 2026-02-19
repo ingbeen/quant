@@ -7,6 +7,7 @@ data_loader 모듈 테스트
 3. 날짜가 올바르게 파싱되고 정렬되는가?
 4. 중복 날짜가 제거되고 경고 로그가 찍히는가?
 5. 파일이 없을 때 명확한 에러를 내는가?
+6. 두 DataFrame의 겹치는 기간이 정확히 추출되는가?
 
 왜 중요한가요?
 백테스트의 모든 결과는 입력 데이터에 의존합니다.
@@ -19,7 +20,8 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.utils.data_loader import load_stock_data
+from qbt.common_constants import COL_CLOSE, COL_DATE
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 
 class TestLoadStockData:
@@ -187,3 +189,58 @@ class TestLoadStockData:
         expected_dates = [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)]
         actual_dates = df["Date"].tolist()
         assert actual_dates == expected_dates, f"날짜가 정렬되어야 합니다. 기대: {expected_dates}, 실제: {actual_dates}"
+
+
+class TestExtractOverlapPeriod:
+    """겹치는 기간 추출 테스트"""
+
+    def test_normal_overlap(self):
+        """
+        정상적인 겹치는 기간 추출 테스트
+
+        데이터 신뢰성: 실제 데이터와 시뮬레이션 비교 시 같은 기간만 사용해야 합니다.
+
+        Given:
+          - simulated: 2023-01-01 ~ 2023-12-31
+          - actual: 2023-06-01 ~ 2024-06-30
+        When: extract_overlap_period
+        Then: 2023-06-01 ~ 2023-12-31만 반환
+        """
+        # Given
+        simulated_df = pd.DataFrame(
+            {COL_DATE: pd.date_range(date(2023, 1, 1), date(2023, 12, 31), freq="D"), "Simulated_Close": range(365)}
+        )
+
+        actual_df = pd.DataFrame(
+            {COL_DATE: pd.date_range(date(2023, 6, 1), date(2024, 6, 30), freq="D"), "Actual_Close": range(396)}
+        )
+
+        # When
+        overlap_sim, overlap_actual = extract_overlap_period(simulated_df, actual_df)
+
+        # Then: 2023-06-01 ~ 2023-12-31
+        assert overlap_sim[COL_DATE].min() == pd.Timestamp(date(2023, 6, 1))
+        assert overlap_sim[COL_DATE].max() == pd.Timestamp(date(2023, 12, 31))
+
+        assert len(overlap_sim) == len(overlap_actual), "겹치는 기간의 행 수는 같아야 합니다"
+
+    def test_no_overlap(self):
+        """
+        겹치는 기간이 없을 때 테스트
+
+        안정성: 겹치는 날짜가 없으면 ValueError 발생
+
+        Given: 완전히 다른 기간
+        When: extract_overlap_period
+        Then: ValueError
+        """
+        # Given
+        simulated_df = pd.DataFrame({COL_DATE: [date(2020, 1, 1), date(2020, 1, 2)], COL_CLOSE: [100, 101]})
+
+        actual_df = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [200, 201]})
+
+        # When & Then: ValueError 발생
+        with pytest.raises(ValueError) as exc_info:
+            extract_overlap_period(simulated_df, actual_df)
+
+        assert "겹치는 기간이 없습니다" in str(exc_info.value)

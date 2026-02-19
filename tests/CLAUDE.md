@@ -115,13 +115,13 @@ poetry run pytest tests/test_xxx.py -s -vv
   - 레버리지 수익률 적용 (`simulate`)
   - 복리 효과 검증
   - 누적배수 로그차이 계산 (스케일 무관 추적오차)
-  - 겹치는 기간 추출 (`extract_overlap_period`)
   - Softplus 파라미터 최적화 (`find_optimal_softplus_params`)
 
 - 공통 유틸리티:
 
   - 메타데이터 저장/로드 (순환 저장 검증)
   - 데이터 로더 (CSV 로딩 및 전처리)
+  - 겹치는 기간 추출 (`extract_overlap_period`)
   - 병렬 처리/결과 정렬(입력 순서 보장)
 
 근거 위치:

@@ -32,7 +32,6 @@ from qbt.tqqq.simulation import (
     calculate_stitched_walkforward_rmse,
     calculate_validation_metrics,
     compute_softplus_spread,
-    extract_overlap_period,
     generate_static_spread_series,
     simulate,
 )
@@ -345,61 +344,6 @@ class TestSimulate:
                 ffr_df=ffr_df,
                 funding_spread=0.006,
             )
-
-
-class TestExtractOverlapPeriod:
-    """중복 기간 추출 테스트"""
-
-    def test_normal_overlap(self):
-        """
-        정상적인 중복 기간 추출 테스트
-
-        데이터 신뢰성: 실제 데이터와 시뮬레이션 비교 시 같은 기간만 사용해야 합니다.
-
-        Given:
-          - simulated: 2023-01-01 ~ 2023-12-31
-          - actual: 2023-06-01 ~ 2024-06-30
-        When: extract_overlap_period
-        Then: 2023-06-01 ~ 2023-12-31만 반환
-        """
-        # Given
-        simulated_df = pd.DataFrame(
-            {COL_DATE: pd.date_range(date(2023, 1, 1), date(2023, 12, 31), freq="D"), "Simulated_Close": range(365)}
-        )
-
-        actual_df = pd.DataFrame(
-            {COL_DATE: pd.date_range(date(2023, 6, 1), date(2024, 6, 30), freq="D"), "Actual_Close": range(396)}
-        )
-
-        # When
-        overlap_sim, overlap_actual = extract_overlap_period(simulated_df, actual_df)
-
-        # Then: 2023-06-01 ~ 2023-12-31
-        assert overlap_sim[COL_DATE].min() == pd.Timestamp(date(2023, 6, 1))
-        assert overlap_sim[COL_DATE].max() == pd.Timestamp(date(2023, 12, 31))
-
-        assert len(overlap_sim) == len(overlap_actual), "중복 기간의 행 수는 같아야 합니다"
-
-    def test_no_overlap(self):
-        """
-        중복 기간이 없을 때 테스트
-
-        안정성: 겹치는 날짜가 없으면 ValueError 발생
-
-        Given: 완전히 다른 기간
-        When: extract_overlap_period
-        Then: ValueError
-        """
-        # Given
-        simulated_df = pd.DataFrame({COL_DATE: [date(2020, 1, 1), date(2020, 1, 2)], COL_CLOSE: [100, 101]})
-
-        actual_df = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [200, 201]})
-
-        # When & Then: ValueError 발생
-        with pytest.raises(ValueError) as exc_info:
-            extract_overlap_period(simulated_df, actual_df)
-
-        assert "겹치는 기간이 없습니다" in str(exc_info.value)
 
 
 class TestCalculateValidationMetrics:

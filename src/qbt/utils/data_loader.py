@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.common_constants import COL_DATE, REQUIRED_COLUMNS
-from qbt.utils import get_logger
+from qbt.utils.logger import get_logger
 
 # 모듈 레벨 로거 생성
 # __name__: 현재 모듈의 이름 (예: "qbt.utils.data_loader")
@@ -100,3 +100,40 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
 
     return df
+
+
+def extract_overlap_period(
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    두 DataFrame의 겹치는 기간을 추출한다.
+
+    Args:
+        df1: 첫 번째 DataFrame (Date 컬럼 필수)
+        df2: 두 번째 DataFrame (Date 컬럼 필수)
+
+    Returns:
+        (df1_overlap, df2_overlap) 튜플
+            - df1_overlap: 겹치는 기간의 df1 (날짜순 정렬, reset_index 완료)
+            - df2_overlap: 겹치는 기간의 df2 (날짜순 정렬, reset_index 완료)
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+    """
+    # 1. 겹치는 날짜 추출 (set 교집합)
+    dates1 = set(df1[COL_DATE])
+    dates2 = set(df2[COL_DATE])
+    overlap_dates_set = dates1 & dates2
+
+    if not overlap_dates_set:
+        raise ValueError("두 DataFrame 간 겹치는 기간이 없습니다")
+
+    # 2. 날짜순 정렬
+    overlap_dates = sorted(overlap_dates_set)
+
+    # 3. 겹치는 기간 데이터 추출
+    df1_overlap = df1[df1[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+    df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
+
+    return df1_overlap, df2_overlap

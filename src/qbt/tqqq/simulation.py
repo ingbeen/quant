@@ -93,6 +93,7 @@ from qbt.tqqq.types import (
     WalkforwardSummaryDict,
 )
 from qbt.utils import get_logger
+from qbt.utils.data_loader import extract_overlap_period
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
 
 logger = get_logger(__name__)
@@ -846,59 +847,6 @@ def simulate(
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
-
-
-def extract_overlap_period(
-    df1: pd.DataFrame,
-    df2: pd.DataFrame,
-) -> tuple[pd.DataFrame, pd.DataFrame]:  # 튜플 반환 타입
-    """
-    두 DataFrame의 겹치는 기간을 추출한다.
-
-    학습 포인트:
-    1. set 집합 연산: & (교집합), | (합집합), - (차집합)
-    2. .isin() 메서드: 값이 리스트/집합에 포함되는지 확인
-    3. 메서드 체이닝: 여러 메서드를 연속 호출
-    4. tuple 언패킹: 반환값을 두 변수로 받을 수 있음
-
-    Args:
-        df1: 첫 번째 DataFrame (Date 컬럼 필수)
-        df2: 두 번째 DataFrame (Date 컬럼 필수)
-
-    Returns:
-        (df1_overlap, df2_overlap) 튜플
-            - df1_overlap: 겹치는 기간의 df1 (reset_index 완료)
-            - df2_overlap: 겹치는 기간의 df2 (reset_index 완료)
-
-    Raises:
-        ValueError: 겹치는 기간이 없을 때
-    """
-    # 1. 겹치는 날짜 추출
-    # 학습 포인트: DataFrame 컬럼을 set으로 변환
-    dates1 = set(df1[COL_DATE])  # df1의 모든 날짜를 집합으로
-    dates2 = set(df2[COL_DATE])  # df2의 모든 날짜를 집합으로
-    # & 연산자: 교집합 (두 집합 모두에 있는 요소)
-    overlap_dates_set = dates1 & dates2
-
-    if not overlap_dates_set:
-        raise ValueError("두 DataFrame 간 겹치는 기간이 없습니다")
-
-    # 2. 날짜순 정렬
-    # sorted() 함수: 리스트/집합을 정렬하여 리스트로 반환
-    overlap_dates = sorted(overlap_dates_set)
-
-    # 3. 겹치는 기간 데이터 추출
-    # 학습 포인트: 메서드 체이닝 - 한 줄에 여러 작업 수행
-    # 1) .isin(): 날짜가 overlap_dates에 포함되는지 확인 (불린 인덱싱)
-    # 2) .sort_values(): 날짜 컬럼 기준 정렬
-    # 3) .reset_index(drop=True): 인덱스를 0부터 다시 매김 (원래 인덱스 버림)
-    df1_overlap = df1[df1[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-    df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
-
-    # 학습 포인트: 튜플 반환
-    # return a, b는 (a, b) 튜플을 반환
-    # 호출 시: df1_result, df2_result = extract_overlap_period(df1, df2)
-    return df1_overlap, df2_overlap
 
 
 def _calculate_cumul_multiple_log_diff(

@@ -34,10 +34,9 @@ from qbt.common_constants import (
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
-
-from _common import load_backtest_data  # 같은 디렉토리 스크립트 모듈
 
 logger = get_logger(__name__)
 
@@ -349,7 +348,9 @@ def main() -> int:
     args = parser.parse_args()
 
     # 2. 데이터 로딩
-    signal_df, trade_df = load_backtest_data(logger)
+    signal_df = load_stock_data(QQQ_DATA_PATH)
+    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
+    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
 
     # 3. 전략 목록 결정
     if args.strategy == "all":

@@ -40,13 +40,18 @@ from qbt.backtest.constants import (
     DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
-from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, META_JSON_PATH
+from qbt.common_constants import (
+    COL_DATE,
+    GRID_RESULTS_PATH,
+    META_JSON_PATH,
+    QQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
+)
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
-
-from _common import load_backtest_data  # 같은 디렉토리 스크립트 모듈
 
 logger = get_logger(__name__)
 
@@ -89,7 +94,9 @@ def main() -> int:
     logger.debug("QQQ 시그널 + TQQQ 매매 파라미터 그리드 탐색 시작")
 
     # 1. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
-    signal_df, trade_df = load_backtest_data(logger)
+    signal_df = load_stock_data(QQQ_DATA_PATH)
+    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
+    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
 
     # 2. 그리드 탐색 실행
     logger.debug("그리드 탐색 파라미터:")

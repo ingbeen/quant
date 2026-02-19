@@ -41,7 +41,7 @@ def get_file_mtime(path: Path) -> float:
     return os.path.getmtime(path)
 
 
-@st.cache_data(ttl=600)  # 10분 캐시
+@st.cache_data
 def load_data(csv_path: Path, _mtime: float):
     """
     데이터를 로드하고 캐싱한다.

@@ -17,7 +17,6 @@ from qbt.common_constants import COL_CLOSE, META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq import (
     build_monthly_spread_map,
     calculate_validation_metrics,
-    extract_overlap_period,
     simulate,
 )
 from qbt.tqqq.constants import (
@@ -47,7 +46,7 @@ from qbt.tqqq.constants import (
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)

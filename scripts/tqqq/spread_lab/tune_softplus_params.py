@@ -35,13 +35,12 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
 from qbt.tqqq.simulation import (
-    extract_overlap_period,
     find_optimal_softplus_params,
     generate_static_spread_series,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
