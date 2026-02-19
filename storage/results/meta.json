@@ -1460,6 +1460,30 @@
         "trades_csv": "storage/results/backtest/single_backtest_trades.csv",
         "summary_json": "storage/results/backtest/single_backtest_summary.json"
       },
+      "timestamp": "2026-02-19T10:51:07+09:00"
+    },
+    {
+      "params": {
+        "ma_window": 150,
+        "ma_type": "ema",
+        "buffer_zone_pct": 0.04,
+        "hold_days": 3,
+        "recent_months": 2,
+        "initial_capital": 10000000.0
+      },
+      "results_summary": {
+        "total_return_pct": 14326.23,
+        "cagr": 20.26,
+        "mdd": -85.68,
+        "total_trades": 16,
+        "win_rate": 68.75
+      },
+      "output_files": {
+        "signal_csv": "storage/results/backtest/single_backtest_signal.csv",
+        "equity_csv": "storage/results/backtest/single_backtest_equity.csv",
+        "trades_csv": "storage/results/backtest/single_backtest_trades.csv",
+        "summary_json": "storage/results/backtest/single_backtest_summary.json"
+      },
       "timestamp": "2026-02-19T10:26:40+09:00"
     },
     {

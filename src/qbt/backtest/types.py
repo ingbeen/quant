@@ -79,7 +79,6 @@ class TradeRecord(TypedDict):
     shares: int
     pnl: float
     pnl_pct: float
-    exit_reason: str
     buffer_zone_pct: float
     hold_days_used: int
     recent_buy_count: int

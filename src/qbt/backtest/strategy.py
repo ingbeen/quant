@@ -348,7 +348,6 @@ def _execute_sell_order(
         "shares": position,
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
-        "exit_reason": "signal",
         "buffer_zone_pct": order.buffer_zone_pct,
         "hold_days_used": order.hold_days_used,
         "recent_buy_count": order.recent_buy_count,

@@ -64,7 +64,6 @@ TRADE_COLUMN_RENAME = {
     "shares": "수량",
     "pnl": "손익금액",
     "pnl_pct": "손익률",
-    "exit_reason": "청산사유",
     "buffer_zone_pct": "버퍼존",
     "hold_days_used": "유지일",
     "recent_buy_count": "최근매수횟수",

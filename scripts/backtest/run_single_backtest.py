@@ -200,6 +200,7 @@ def _save_results(
             "drawdown_pct": 2,
         }
     )
+    equity_export["equity"] = equity_export["equity"].astype(int)
     equity_export.to_csv(SINGLE_BACKTEST_EQUITY_PATH, index=False)
     logger.debug(f"에쿼티 데이터 저장 완료: {SINGLE_BACKTEST_EQUITY_PATH}")
 
@@ -211,13 +212,14 @@ def _save_results(
         )
         trades_export = trades_export.round(
             {
-                "entry_price": 2,
-                "exit_price": 2,
+                "entry_price": 6,
+                "exit_price": 6,
                 "pnl": 0,
                 "pnl_pct": 4,
                 "buffer_zone_pct": 4,
             }
         )
+        trades_export["pnl"] = trades_export["pnl"].astype(int)
         trades_export.to_csv(SINGLE_BACKTEST_TRADES_PATH, index=False)
     else:
         trades_df.to_csv(SINGLE_BACKTEST_TRADES_PATH, index=False)
@@ -407,7 +409,6 @@ def main() -> int:
             ("진입가", 12, Align.RIGHT),
             ("청산가", 12, Align.RIGHT),
             ("손익률", 14, Align.RIGHT),
-            ("사유", 16, Align.RIGHT),
         ]
 
         max_rows = 10
@@ -420,7 +421,6 @@ def main() -> int:
                     f"{trade['entry_price']:.2f}",
                     f"{trade['exit_price']:.2f}",
                     f"{trade['pnl_pct'] * 100:+.2f}%",
-                    trade["exit_reason"],
                 ]
             )
 

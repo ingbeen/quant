@@ -148,7 +148,6 @@ storage/results/
 | entry_price | float | O | 진입가 |
 | exit_price | float | O | 청산가 |
 | pnl_pct | float | O | 손익률 (0~1) |
-| exit_reason | str | O | 매도 사유 (signal, stop_loss, trailing 등) |
 
 전략별로 추가 컬럼 허용. 비교 대시보드는 위 컬럼만 사용.
 
