@@ -52,4 +52,5 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["qbt"]
+known-local-folder = ["_common"]
 

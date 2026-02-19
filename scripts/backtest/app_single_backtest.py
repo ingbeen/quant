@@ -210,9 +210,9 @@ def _build_candle_data(
             d: date = getattr(row, COL_DATE)
             band_entry: dict[str, float] = {}
             if has_upper and pd.notna(row.upper_band):
-                band_entry["upper"] = float(row.upper_band)
+                band_entry["upper"] = float(row.upper_band)  # type: ignore[arg-type]
             if has_lower and pd.notna(row.lower_band):
-                band_entry["lower"] = float(row.lower_band)
+                band_entry["lower"] = float(row.lower_band)  # type: ignore[arg-type]
             if band_entry:
                 band_map[d] = band_entry
 
@@ -276,7 +276,7 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
         return markers
 
     for trade in trades_df.itertuples(index=False):
-        entry_d: date = trade.entry_date
+        entry_d: date = trade.entry_date  # type: ignore[assignment]
         markers.append(
             {
                 "time": entry_d.strftime("%Y-%m-%d"),
@@ -287,8 +287,8 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "size": 2,
             }
         )
-        exit_d: date = trade.exit_date
-        pnl_pct = trade.pnl_pct * 100
+        exit_d: date = trade.exit_date  # type: ignore[assignment]
+        pnl_pct = trade.pnl_pct * 100  # type: ignore[operator]
         markers.append(
             {
                 "time": exit_d.strftime("%Y-%m-%d"),
@@ -308,7 +308,7 @@ def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     equity_data: list[dict[str, object]] = []
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
-        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.equity)})
+        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.equity)})  # type: ignore[arg-type]
     return equity_data
 
 
@@ -317,7 +317,7 @@ def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     dd_data: list[dict[str, object]] = []
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
-        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.drawdown_pct)})
+        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.drawdown_pct)})  # type: ignore[arg-type]
     return dd_data
 
 

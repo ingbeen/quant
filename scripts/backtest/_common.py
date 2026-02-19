@@ -39,14 +39,8 @@ def load_backtest_data(logger: logging.Logger) -> tuple[pd.DataFrame, pd.DataFra
 
     logger.debug("=" * 60)
     logger.debug("데이터 로딩 완료")
-    logger.debug(
-        f"시그널(QQQ) 행 수: {len(signal_df):,}, "
-        f"기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}"
-    )
-    logger.debug(
-        f"매매(TQQQ) 행 수: {len(trade_df):,}, "
-        f"기간: {trade_df[COL_DATE].min()} ~ {trade_df[COL_DATE].max()}"
-    )
+    logger.debug(f"시그널(QQQ) 행 수: {len(signal_df):,}, " f"기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}")
+    logger.debug(f"매매(TQQQ) 행 수: {len(trade_df):,}, " f"기간: {trade_df[COL_DATE].min()} ~ {trade_df[COL_DATE].max()}")
     logger.debug(f"공통 기간: {len(signal_df):,}행")
     logger.debug("=" * 60)
 

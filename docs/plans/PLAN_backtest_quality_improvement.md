@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-19 16:00
-**마지막 업데이트**: 2026-02-19 16:00
+**마지막 업데이트**: 2026-02-19 17:30
 **관련 범위**: backtest, scripts
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `scripts/CLAUDE.md`
 
@@ -42,11 +42,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 앱 차트 데이터 변환 함수 성능 개선: `iterrows()` → `itertuples()` 전환
-- [ ] 중복 함수 통합: `_build_line_data`와 `_build_band_data` → `_build_series_data`로 통합
-- [ ] 데이터 로딩 중복 제거: `run_single_backtest.py`와 `run_grid_search.py`의 공통 로딩 로직 추출
-- [ ] `_save_results` 함수 분리: signal/equity/trades/summary 개별 저장 함수로 분리
-- [ ] `_load_csv` 함수에 `st.cache_data` 이유 주석 추가
+- [x] 앱 차트 데이터 변환 함수 성능 개선: `iterrows()` → `itertuples()` 전환
+- [x] 중복 함수 통합: `_build_line_data`와 `_build_band_data` → `_build_series_data`로 통합
+- [x] 데이터 로딩 중복 제거: `run_single_backtest.py`와 `run_grid_search.py`의 공통 로딩 로직 추출
+- [x] `_save_results` 함수 분리: signal/equity/trades/summary 개별 저장 함수로 분리
+- [x] `_load_csv` 함수에 `st.cache_data` 이유 주석 추가
 
 ## 2) 비목표(Non-Goals)
 
@@ -84,16 +84,16 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다.
 
-- [ ] `app_single_backtest.py`의 데이터 변환 함수 6개가 `itertuples()` 사용
-- [ ] `_build_line_data`와 `_build_band_data`가 `_build_series_data` 하나로 통합됨
-- [ ] `run_single_backtest.py`와 `run_grid_search.py`에서 데이터 로딩 중복 제거됨
-- [ ] `_save_results`가 개별 저장 함수로 분리됨
-- [ ] `_load_csv`에 `st.cache_data` hashable 제약 주석 존재
-- [ ] 동작 변경 없음 (기존과 동일한 결과 출력)
-- [ ] 기존 테스트 전부 통과 (회귀 없음)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] plan 체크박스 최신화
+- [x] `app_single_backtest.py`의 데이터 변환 함수 6개가 `itertuples()` 사용
+- [x] `_build_line_data`와 `_build_band_data`가 `_build_series_data` 하나로 통합됨
+- [x] `run_single_backtest.py`와 `run_grid_search.py`에서 데이터 로딩 중복 제거됨
+- [x] `_save_results`가 개별 저장 함수로 분리됨
+- [x] `_load_csv`에 `st.cache_data` hashable 제약 주석 존재
+- [x] 동작 변경 없음 (기존과 동일한 결과 출력)
+- [x] 기존 테스트 전부 통과 (회귀 없음)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -131,14 +131,14 @@
 
 **작업 내용**:
 
-- [ ] `scripts/backtest/run_single_backtest.py`의 `_load_data()`를 공통 함수로 유지하되, `run_grid_search.py`에서도 사용하도록 리팩토링
+- [x] `scripts/backtest/run_single_backtest.py`의 `_load_data()`를 공통 함수로 유지하되, `run_grid_search.py`에서도 사용하도록 리팩토링
   - 방법: `_load_data()`를 `run_single_backtest.py`에서 `scripts/backtest/` 수준의 공유 모듈이 아닌, `run_grid_search.py`에서 직접 호출하도록 구성
   - 구체적: `run_single_backtest.py`의 `_load_data()` 함수를 모듈 레벨에서 재사용 가능한 형태로 export하고, `run_grid_search.py`에서 import
   - 대안: 두 스크립트가 같은 패키지가 아니므로, 공통 로직을 `_load_backtest_data()` 이름의 함수로 같은 디렉토리 내 공유 모듈에 배치
   - 최종 결정: `scripts/backtest/_common.py` 모듈 생성. 함수명 `load_backtest_data()`
-- [ ] `scripts/backtest/run_grid_search.py`에서 인라인 데이터 로딩 로직을 `load_backtest_data()` 호출로 교체
-- [ ] `scripts/backtest/run_single_backtest.py`에서 `_load_data()`를 `load_backtest_data()` 호출로 교체
-- [ ] `_save_results` 함수를 개별 저장 함수로 분리:
+- [x] `scripts/backtest/run_grid_search.py`에서 인라인 데이터 로딩 로직을 `load_backtest_data()` 호출로 교체
+- [x] `scripts/backtest/run_single_backtest.py`에서 `_load_data()`를 `load_backtest_data()` 호출로 교체
+- [x] `_save_results` 함수를 개별 저장 함수로 분리:
   - `_save_signal_csv(result: SingleBacktestResult) -> Path`
   - `_save_equity_csv(result: SingleBacktestResult) -> Path`
   - `_save_trades_csv(result: SingleBacktestResult) -> Path`
@@ -151,15 +151,15 @@
 
 **작업 내용**
 
-- [ ] `scripts/CLAUDE.md` 업데이트:
+- [x] `scripts/CLAUDE.md` 업데이트:
   - `scripts/backtest/_common.py` 모듈 존재 및 목적 기재
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=293, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -184,5 +184,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-19 16:00: Plan 작성 완료
+- 2026-02-19 17:30: 전체 Phase 완료 (passed=293, failed=0, skipped=0)
 
 ---

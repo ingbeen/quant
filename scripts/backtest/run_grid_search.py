@@ -40,12 +40,13 @@ from qbt.backtest.constants import (
     DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
-from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, META_JSON_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
+from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, META_JSON_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
+
+from _common import load_backtest_data  # 같은 디렉토리 스크립트 모듈
 
 logger = get_logger(__name__)
 
@@ -88,21 +89,7 @@ def main() -> int:
     logger.debug("QQQ 시그널 + TQQQ 매매 파라미터 그리드 탐색 시작")
 
     # 1. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
-    logger.debug(f"시그널 데이터: {QQQ_DATA_PATH}")
-    logger.debug(f"매매 데이터: {TQQQ_SYNTHETIC_DATA_PATH}")
-    signal_df = load_stock_data(QQQ_DATA_PATH)
-    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
-
-    # 날짜 기준 정렬 (겹치는 기간만 사용)
-    common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
-    signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-    trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-
-    logger.debug("=" * 60)
-    logger.debug("데이터 로딩 완료")
-    logger.debug(f"공통 기간: {len(signal_df):,}행")
-    logger.debug(f"기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}")
-    logger.debug("=" * 60)
+    signal_df, trade_df = load_backtest_data(logger)
 
     # 2. 그리드 탐색 실행
     logger.debug("그리드 탐색 파라미터:")

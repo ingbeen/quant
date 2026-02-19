@@ -130,6 +130,8 @@ main 함수:
 - 단일 백테스트 또는 그리드 탐색 실행
 - 성과 지표 계산
 - 결과 요약 및 저장
+- 공통 모듈:
+  - `_common.py`: 백테스트 스크립트 공통 데이터 로딩 (`load_backtest_data`). QQQ/TQQQ 로딩 + 공통 날짜 필터.
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
