@@ -1,7 +1,8 @@
 # 전략 분리 아키텍처 설계
 
-> 이 문서는 백테스트 전략을 파일 단위로 분리하고,
-> 여러 전략을 동시에 비교할 수 있는 구조를 정의한다.
+> 이 문서는 백테스트 전략을 파일 단위로 분리하는 구조를 정의한다.
+> 현재 구현된 2개 전략(버퍼존, Buy & Hold) 기준으로 진행하며,
+> 향후 새 전략 추가가 용이한 구조를 목표로 한다.
 
 ---
 
@@ -11,23 +12,22 @@
 
 ```
 현재:
-  src/qbt/backtest/strategy.py  ← 버퍼존 + Buy&Hold + 그리드서치 전부 한 파일
-  scripts/backtest/run_single_backtest.py  ← 버퍼존 전용
-  storage/results/single_backtest_*.csv    ← 결과 1벌만 저장
+  src/qbt/backtest/strategy.py (866줄)
+    ← 버퍼존 + Buy&Hold + 그리드서치 + 헬퍼 함수 + 예외 클래스 전부 한 파일
 
 문제:
-  1. 새 전략을 테스트하려면 strategy.py를 직접 수정해야 함
-  2. 결과 CSV가 1벌이라 이전 결과가 덮어써짐
-  3. 여러 전략을 동시에 비교할 수 없음
-  4. 전략마다 입력 데이터/시그널/매매 방법이 다를 수 있는데 구조가 이를 지원하지 않음
+  1. 새 전략을 추가하려면 strategy.py를 직접 수정해야 함
+  2. 전략 간 공통 코드(매수/매도 체결, 밴드 계산 등)를 재사용할 수 없음
+  3. 전략마다 입력 데이터/시그널/매매 방법이 다를 수 있는데 구조가 이를 지원하지 않음
 ```
 
 ### 설계 목표
 
-- 전략 1개 = 파일 1개 (독립적 실행, 독립적 결과)
-- 기존 버퍼존과 Buy & Hold도 분리 대상
-- 각 전략은 자기만의 입력 파일, 시그널 로직, 매수/매도 방법을 가질 수 있음
-- 비교 대시보드는 결과 CSV만 읽어서 모든 전략을 오버레이
+- 전략 1개 = 파일 1개 (독립적 실행)
+- 기존 버퍼존과 Buy & Hold를 분리
+- 공통 헬퍼를 추출하여 향후 전략이 재사용할 수 있도록 구조화
+- 전략별 결과를 독립 폴더에 저장
+- **리팩토링 전후 백테스트 결과 동일성 보장** (가장 중요)
 
 ---
 
@@ -40,96 +40,230 @@
 전략 A (Buy & Hold):
   입력: TQQQ 데이터만
   매수: 첫날 시가
-  매도: 마지막 날 종가
+  매도: 없음 (강제청산 없음)
 
 전략 B (버퍼존):
   입력: QQQ(시그널) + TQQQ(매매)
   매수: QQQ 종가 > EMA 상단밴드 돌파 → 다음날 TQQQ 시가
   매도: QQQ 종가 < EMA 하단밴드 돌파 → 다음날 TQQQ 시가
-
-전략 C (버퍼존 + Trailing):
-  입력: QQQ(시그널, OHLC) + TQQQ(매매, OHLC) ← ATR 계산에 High/Low 필요
-  매수: 버퍼존과 동일
-  매도: MA 하향돌파 OR ATR trailing stop 이탈 시 부분 익절
 ```
 
 ---
 
-## 3. 디렉토리 구조
+## 3. 현재 strategy.py 구성요소 분류
+
+### A. 데이터 클래스 (4개)
+
+| 클래스 | 역할 | 분리 대상 |
+|--------|------|-----------|
+| `BaseStrategyParams` | 공통 파라미터 기반 (initial_capital) | helpers.py |
+| `BufferStrategyParams` | 버퍼존 전략 파라미터 | strategies/buffer_zone.py |
+| `BuyAndHoldParams` | B&H 파라미터 | strategies/buy_and_hold.py |
+| `PendingOrder` | 예약 주문 정보 | helpers.py |
+
+### B. 예외 클래스 (1개)
+
+| 클래스 | 역할 | 분리 대상 |
+|--------|------|-----------|
+| `PendingOrderConflictError` | Pending 충돌 예외 (Critical Invariant) | helpers.py |
+
+### C. 헬퍼 함수 (9개, 모두 private)
+
+| 함수 | 역할 | 분리 대상 |
+|------|------|-----------|
+| `_validate_buffer_strategy_inputs()` | 입력 검증 | helpers.py |
+| `_compute_bands()` | MA 밴드 계산 | helpers.py |
+| `_check_pending_conflict()` | Pending 충돌 검사 | helpers.py |
+| `_record_equity()` | Equity 기록 생성 | helpers.py |
+| `_execute_buy_order()` | 매수 체결 | helpers.py |
+| `_execute_sell_order()` | 매도 체결 | helpers.py |
+| `_detect_buy_signal()` | 상향돌파 감지 | helpers.py |
+| `_detect_sell_signal()` | 하향돌파 감지 | helpers.py |
+| `_calculate_recent_buy_count()` | 최근 매수 횟수 계산 | helpers.py |
+
+### D. 전략 실행 함수 (4개)
+
+| 함수 | 역할 | 분리 대상 |
+|------|------|-----------|
+| `run_buy_and_hold()` | B&H 전략 실행 | strategies/buy_and_hold.py |
+| `run_buffer_strategy()` | 버퍼존 전략 실행 | strategies/buffer_zone.py |
+| `run_grid_search()` | 그리드 서치 | strategies/buffer_zone.py |
+| `_run_buffer_strategy_for_grid()` | 그리드 워커 | strategies/buffer_zone.py |
+
+### E. 로컬 상수 (3개)
+
+| 상수 | 값 | 분리 대상 |
+|------|-----|-----------|
+| `DEFAULT_BUFFER_INCREMENT_PER_BUY` | 0.01 | helpers.py |
+| `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY` | 1 | helpers.py |
+| `DEFAULT_DAYS_PER_MONTH` | 30 | helpers.py |
+
+---
+
+## 4. 분리 후 디렉토리 구조
 
 ### 비즈니스 로직 (src/qbt/backtest/)
 
 ```
 src/qbt/backtest/
 ├── __init__.py              # 패키지 공개 API
-├── analysis.py              # 공통 유틸 (MA 계산, calculate_summary, ATR 계산 등)
-├── constants.py             # 공통 상수 (SLIPPAGE_RATE, 초기자본 등)
-├── types.py                 # 공통 TypedDict (SummaryDict, TradeRecord, EquityRecord)
-├── helpers.py               # 공통 헬퍼 함수 (strategy.py에서 분리)
+├── analysis.py              # 변경 없음
+├── constants.py             # 변경 없음
+├── types.py                 # 변경 없음
+├── helpers.py               # [신규] strategy.py에서 공통 헬퍼 추출
+│                              BaseStrategyParams, PendingOrder, PendingOrderConflictError,
 │                              _compute_bands, _execute_buy_order, _execute_sell_order,
 │                              _detect_buy_signal, _detect_sell_signal, _record_equity,
-│                              PendingOrder, PendingOrderConflictError 등
+│                              _check_pending_conflict, _calculate_recent_buy_count,
+│                              _validate_buffer_strategy_inputs, 동적 조정 상수 3개
 │
-├── strategies/              # 전략 파일들 (1 전략 = 1 파일)
+├── strategies/              # [신규] 전략 파일들 (1 전략 = 1 파일)
 │   ├── __init__.py
-│   ├── buy_and_hold.py      # Buy & Hold
-│   ├── buffer_zone.py       # 현재 버퍼존 (strategy.py에서 이동)
-│   ├── buffer_stoploss.py   # 버퍼존 + Stop Loss
-│   └── buffer_trailing.py   # 버퍼존 + ATR Trailing 부분 익절
+│   ├── buy_and_hold.py      # BuyAndHoldParams + run_buy_and_hold
+│   └── buffer_zone.py       # BufferStrategyParams + run_buffer_strategy + run_grid_search
 │
-├── strategy.py              # (기존) → 분리 완료 후 제거 또는 하위 호환 래퍼로 유지
-└── CLAUDE.md
+├── strategy.py              # [삭제]
+└── CLAUDE.md                # 업데이트
 ```
 
-### 스크립트 (scripts/backtest/)
+### 결과 저장 (storage/results/backtest/)
 
 ```
-scripts/backtest/
-├── run_single_backtest.py       # 기존 (특정 전략 하나 실행, 전략 선택 가능하도록 수정)
-├── run_grid_search.py           # 기존 (그리드서치)
-├── app_single_backtest.py       # 기존 (단일 전략 대시보드)
-└── app_strategy_comparison.py   # 신규: 비교 대시보드
+storage/results/backtest/
+├── buffer_zone/                    # [신규] 버퍼존 전략 결과
+│   ├── signal.csv
+│   ├── equity.csv
+│   ├── trades.csv
+│   ├── summary.json
+│   └── grid_results.csv
+│
+├── buy_and_hold/                   # [신규] Buy & Hold 전략 결과
+│   ├── signal.csv
+│   ├── equity.csv
+│   ├── trades.csv
+│   └── summary.json
+│
+├── single_backtest_*.csv           # [삭제] 기존 결과 (전략별 폴더로 이동)
+├── grid_results.csv                # [삭제] 기존 결과 (buffer_zone/ 하위로 이동)
+└── meta.json                       # 유지
 ```
 
-### 결과 저장 (storage/results/)
+전략 폴더명이 곧 전략 식별자이므로, 폴더 내 파일명은 모든 전략이 동일하다:
+`signal.csv`, `equity.csv`, `trades.csv`, `summary.json`
+
+---
+
+## 5. 각 파일 상세
+
+### 5-1. helpers.py (공통 빌딩 블록)
+
+향후 버퍼존 계열 전략들(StopLoss, Trailing 등)이 공유하는 헬퍼를 모은다.
 
 ```
-storage/results/
-├── strategies/                  # 전략별 결과 폴더
-│   ├── buy_and_hold/
-│   │   ├── equity.csv
-│   │   ├── trades.csv
-│   │   └── summary.json
-│   ├── buffer_zone/
-│   │   ├── equity.csv
-│   │   ├── trades.csv
-│   │   └── summary.json
-│   ├── buffer_stoploss/
-│   │   ├── equity.csv
-│   │   ├── trades.csv
-│   │   └── summary.json
-│   └── buffer_trailing/
-│       ├── equity.csv
-│       ├── trades.csv
-│       └── summary.json
-├── grid_results.csv             # 기존 그리드서치 결과 (유지)
-├── single_backtest_*.csv        # 기존 단일 백테스트 결과 (과도기 유지, 이후 제거 가능)
-└── meta.json
+포함 목록:
+  데이터 클래스:
+    - BaseStrategyParams        (모든 전략의 기본)
+    - PendingOrder              (예약 주문)
+
+  예외 클래스:
+    - PendingOrderConflictError
+
+  함수:
+    - _validate_buffer_strategy_inputs()
+    - _compute_bands()
+    - _check_pending_conflict()
+    - _record_equity()
+    - _execute_buy_order()
+    - _execute_sell_order()
+    - _detect_buy_signal()
+    - _detect_sell_signal()
+    - _calculate_recent_buy_count()
+
+  상수:
+    - DEFAULT_BUFFER_INCREMENT_PER_BUY
+    - DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
+    - DEFAULT_DAYS_PER_MONTH
+```
+
+### 5-2. strategies/buy_and_hold.py
+
+```
+포함 목록:
+  데이터 클래스:
+    - BuyAndHoldParams
+
+  함수:
+    - run_buy_and_hold()
+
+  helpers.py 의존: 없음 (완전 독립적)
+```
+
+### 5-3. strategies/buffer_zone.py
+
+```
+포함 목록:
+  데이터 클래스:
+    - BufferStrategyParams      (BaseStrategyParams 상속)
+
+  함수:
+    - run_buffer_strategy()     (핵심 전략 루프)
+    - run_grid_search()         (파라미터 탐색)
+    - _run_buffer_strategy_for_grid()  (병렬 워커)
+
+  helpers.py 의존: 대부분의 헬퍼 import
+```
+
+### 5-4. 그리드 서치 소유 정책
+
+`run_grid_search()`는 `buffer_zone.py`에 포함한다.
+내부에서 `BufferStrategyParams` 조합을 생성하고 `run_buffer_strategy()`를 직접 호출하므로
+버퍼존 전략 전용이다.
+
+향후 새 전략이 그리드 서치를 필요로 하면 해당 전략 파일에 자체 구현한다.
+전략마다 탐색 파라미터가 다르므로 범용 그리드 서치는 만들지 않는다.
+
+```
+buffer_zone:     ma_window, buffer_zone_pct, hold_days, recent_months       (4개)
+buffer_stoploss: 위 4개 + stop_loss_pct                                     (5개)
+buffer_trailing: 위 4개 + atr_period, atr_multiplier, activate_pct, ...     (7개+)
 ```
 
 ---
 
-## 4. 전략 파일 규약
+## 6. 전략 파일 규약
 
 ### 각 전략 파일이 반드시 제공하는 것
 
 1. **Params dataclass**: 전략 고유 파라미터
 2. **run() 함수**: 전략 실행 진입점
-3. **반환값**: `(trades_df, equity_df, summary)` 형식 통일
+3. **반환값**: `(signal_df, trades_df, equity_df, summary)` 형식 통일
 
-### 반환 형식 상세
+### 결과 파일 통일 규약
 
-#### equity.csv (비교 대시보드의 핵심)
+**모든 전략은 동일한 4개 파일을 동일한 형식으로 생성한다.**
+
+| 파일 | 설명 |
+|------|------|
+| `signal.csv` | 시그널 데이터 (OHLC + MA + 전일대비% 등) |
+| `equity.csv` | 에쿼티 곡선 (자산 평가액 + 포지션) |
+| `trades.csv` | 거래 내역 |
+| `summary.json` | 요약 지표 + 파라미터 |
+
+### 각 파일 필수 컬럼
+
+#### signal.csv
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| Date | date | O | 날짜 |
+| Open | float | O | 시가 |
+| High | float | O | 고가 |
+| Low | float | O | 저가 |
+| Close | float | O | 종가 |
+
+전략별로 추가 컬럼 허용 (ma_N, change_pct, upper_band 등).
+
+#### equity.csv
 
 | 컬럼 | 타입 | 필수 | 설명 |
 |------|------|------|------|
@@ -137,7 +271,7 @@ storage/results/
 | equity | float | O | 해당 시점 평가 자산 |
 | position | int | O | 보유 수량 |
 
-전략별로 추가 컬럼 허용 (upper_band, trailing_stop 등). 비교 대시보드는 Date, equity만 사용.
+전략별로 추가 컬럼 허용 (buffer_zone_pct, upper_band, trailing_stop 등).
 
 #### trades.csv
 
@@ -149,228 +283,91 @@ storage/results/
 | exit_price | float | O | 청산가 |
 | pnl_pct | float | O | 손익률 (0~1) |
 
-전략별로 추가 컬럼 허용. 비교 대시보드는 위 컬럼만 사용.
+전략별로 추가 컬럼 허용 (shares, pnl, buffer_zone_pct 등).
 
 #### summary.json
 
-```json
-{
-  "strategy_name": "buffer_zone",
-  "summary": {
-    "initial_capital": 10000000,
-    "final_capital": 123456789,
-    "total_return_pct": 1134.57,
-    "cagr": 10.23,
-    "mdd": -42.83,
-    "total_trades": 16,
-    "winning_trades": 11,
-    "losing_trades": 5,
-    "win_rate": 68.75,
-    "start_date": "1999-03-10",
-    "end_date": "2025-08-06"
-  },
-  "params": { ... },
-  "data_info": { ... }
-}
-```
+| 키 | 타입 | 필수 | 설명 |
+|-----|------|------|------|
+| strategy | str | O | 전략 식별자 |
+| initial_capital | float | O | 초기 자본금 |
+| final_capital | float | O | 최종 자본금 |
+| total_return_pct | float | O | 총 수익률 (%) |
+| cagr | float | O | 연평균 복합 성장률 (%) |
+| mdd | float | O | 최대 낙폭 (%) |
+| total_trades | int | O | 총 거래 수 |
+| winning_trades | int | O | 수익 거래 수 |
+| losing_trades | int | O | 손실 거래 수 |
+| win_rate | float | O | 승률 (%) |
+| start_date | str | O | 시작일 |
+| end_date | str | O | 종료일 |
 
-### 전략 파일 예시
-
-```python
-# src/qbt/backtest/strategies/buffer_stoploss.py
-
-"""버퍼존 + Stop Loss 전략
-
-기존 버퍼존 전략에 진입가 대비 고정 비율 손절을 추가한다.
-매도 조건: MA 하향돌파 OR TQQQ 종가 < 진입가 * (1 - stop_loss_pct)
-"""
-
-from dataclasses import dataclass
-
-from qbt.backtest.helpers import (
-    BaseStrategyParams,
-    _compute_bands,
-    _execute_buy_order,
-    _execute_sell_order,
-    _record_equity,
-)
-
-
-@dataclass
-class BufferStopLossParams(BaseStrategyParams):
-    """버퍼존 + Stop Loss 전략 파라미터."""
-
-    ma_window: int
-    buffer_zone_pct: float
-    hold_days: int
-    recent_months: int
-    stop_loss_pct: float  # 손절 비율 (0.20 = 20%)
-
-
-def run(signal_df, trade_df, params):
-    """
-    버퍼존 + Stop Loss 전략을 실행한다.
-
-    Args:
-        signal_df: 시그널용 DataFrame (QQQ, Close + MA 필요)
-        trade_df: 매매용 DataFrame (TQQQ, Open + Close 필요)
-        params: BufferStopLossParams
-
-    Returns:
-        tuple: (trades_df, equity_df, summary)
-    """
-    # 기존 버퍼존 로직 + stop loss 조건 추가
-    ...
-```
+전략별로 추가 키 허용 (ma_window, buffer_zone_pct, params 등).
 
 ---
 
-## 5. 비교 대시보드 (app_strategy_comparison.py)
+## 7. 영향 범위
 
-### 동작 방식
+하위 호환은 고려하지 않는다.
+리팩토링이므로 기존 import 경로가 깨지면 해당 파일을 새 경로로 수정한다.
 
-```
-1. storage/results/strategies/ 하위 폴더를 스캔
-2. 각 폴더에서 equity.csv + summary.json 로드
-3. 전략별 equity 곡선을 하나의 Plotly 차트에 오버레이
-4. 요약 지표 비교 테이블 표시
-```
+### 변경 없는 파일
 
-### 화면 구성 (안)
+| 파일 | 이유 |
+|------|------|
+| `analysis.py` | strategy.py를 import하지 않음 |
+| `constants.py` | 독립적 |
+| `types.py` | 독립적 |
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  [전략 비교 대시보드]                                      │
-│                                                         │
-│  Equity 곡선 오버레이 (Plotly)                             │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │ ── 버퍼존 (파랑)                                  │    │
-│  │ ── 버퍼존+StopLoss (빨강)                         │    │
-│  │ ── 버퍼존+Trailing (초록)                         │    │
-│  │ ── Buy&Hold (회색 점선)                           │    │
-│  └─────────────────────────────────────────────────┘    │
-│                                                         │
-│  요약 비교 테이블                                         │
-│  ┌────────────────┬────────┬────────┬────────┬───────┐  │
-│  │ 전략           │ CAGR   │ MDD    │ 거래수 │ 승률  │  │
-│  ├────────────────┼────────┼────────┼────────┼───────┤  │
-│  │ 버퍼존         │ 10.2%  │ -42.8% │ 16     │ 68.8% │  │
-│  │ 버퍼존+StopLoss│ 9.8%   │ -20.0% │ 22     │ 72.7% │  │
-│  │ 버퍼존+Trailing│ 11.1%  │ -28.5% │ 20     │ 70.0% │  │
-│  │ Buy&Hold       │ 8.5%   │ -78.2% │ 1      │ 100%  │  │
-│  └────────────────┴────────┴────────┴────────┴───────┘  │
-│                                                         │
-│  거래 내역 비교 (전략 선택 시 상세 표시)                     │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
+### 변경이 필요한 파일
 
-### 전략 추가 시 변경 범위
-
-```
-새 전략 추가 = 파일 2개만 추가:
-  1. src/qbt/backtest/strategies/새전략.py   ← 전략 로직
-  2. storage/results/strategies/새전략/      ← 실행 시 자동 생성
-
-대시보드 코드 변경 없음 (폴더 스캔 방식이므로 자동 반영)
-```
+| 파일 | 변경 내용 |
+|------|-----------|
+| `backtest/__init__.py` | 새 모듈 경로로 import 변경 |
+| `scripts/backtest/run_single_backtest.py` | import 경로 변경 + 결과 저장 경로 변경 |
+| `scripts/backtest/run_grid_search.py` | import 경로 변경 + 결과 저장 경로 변경 |
+| `scripts/backtest/app_single_backtest.py` | 결과 로딩 경로 변경 |
+| `tests/test_strategy.py` | import 경로를 새 위치로 변경 |
+| `backtest/CLAUDE.md` | 모듈 구성 문서 업데이트 |
+| `common_constants.py` | 결과 경로 상수 변경 (전략별 폴더) |
 
 ---
 
-## 6. 공통 헬퍼 모듈 (helpers.py)
+## 8. 결과 동일성 검증 (가장 중요)
 
-기존 `strategy.py`에서 전략 간 공유 가능한 함수를 분리한다.
+리팩토링 전후 백테스트 결과가 **완전히 동일**해야 한다.
 
-### 분리 대상
+### 검증 방법
 
 ```
-strategy.py에서 helpers.py로 이동:
-  - BaseStrategyParams          (기본 파라미터 클래스)
-  - PendingOrder                (예약 주문 정보)
-  - PendingOrderConflictError   (충돌 예외)
-  - _compute_bands()            (밴드 계산)
-  - _execute_buy_order()        (매수 체결)
-  - _execute_sell_order()       (매도 체결)
-  - _detect_buy_signal()        (상향돌파 감지)
-  - _detect_sell_signal()       (하향돌파 감지)
-  - _record_equity()            (에쿼티 기록)
-  - _check_pending_conflict()   (pending 충돌 검사)
-  - _calculate_recent_buy_count()  (최근 매수 횟수)
-  - _validate_buffer_strategy_inputs()  (입력 검증)
-
-analysis.py에 추가:
-  - calculate_atr()             (ATR 계산, ATR 관련 전략들이 공유)
+1. 리팩토링 전: 현재 코드로 백테스트 실행, 결과 CSV/JSON 보관
+2. 리팩토링 후: 동일 파라미터로 백테스트 실행
+3. 비교: equity, trades, summary 값이 소수점까지 일치하는지 확인
 ```
 
-### 사용하지 않는 전략에서는 import 안 함
+### 검증 대상
 
-```python
-# buy_and_hold.py → 밴드/시그널 관련 헬퍼 불필요
-from qbt.backtest.helpers import BaseStrategyParams
+- `single_backtest_equity.csv`: equity, position 값
+- `single_backtest_trades.csv`: entry_date, exit_date, entry_price, exit_price, pnl_pct 값
+- `single_backtest_summary.json`: CAGR, MDD, 총 수익률, 거래 수 등
+- `grid_results.csv`: 모든 파라미터 조합의 결과
 
-# buffer_zone.py → 기존 헬퍼 전부 사용
-from qbt.backtest.helpers import (
-    BaseStrategyParams, PendingOrder, _compute_bands,
-    _execute_buy_order, _execute_sell_order, ...
-)
-
-# buffer_trailing.py → 기존 헬퍼 + ATR 유틸
-from qbt.backtest.helpers import (...)
-from qbt.backtest.analysis import calculate_atr
-```
+로직 변경 없이 순수 구조 분리이므로 결과가 달라질 이유가 없다.
+만약 다르다면 분리 과정에서 실수가 있는 것이다.
 
 ---
 
-## 7. 마이그레이션 단계
+## 9. 향후 새 전략 추가 시 작업 범위
 
-### Phase 1: 구조 준비
-
-- `strategies/` 폴더 생성
-- `helpers.py` 생성 (strategy.py에서 공통 함수 분리)
-- `analysis.py`에 `calculate_atr()` 추가
-
-### Phase 2: 기존 전략 분리
-
-- `strategy.py`의 `run_buy_and_hold()` → `strategies/buy_and_hold.py`
-- `strategy.py`의 `run_buffer_strategy()` → `strategies/buffer_zone.py`
-- `strategy.py`의 `run_grid_search()` → `strategies/buffer_zone.py` 또는 별도 모듈
-- `__init__.py` 업데이트 (하위 호환 유지)
-- 결과 저장 경로를 `storage/results/strategies/` 하위로 변경
-
-### Phase 3: 새 전략 추가
-
-- `strategies/buffer_stoploss.py` 구현
-- `strategies/buffer_trailing.py` 구현
-- 각 전략 실행 스크립트 추가 또는 `run_single_backtest.py`에 전략 선택 옵션 추가
-
-### Phase 4: 비교 대시보드
-
-- `app_strategy_comparison.py` 구현
-- `storage/results/strategies/` 하위 폴더 자동 스캔
-- equity 오버레이 + 요약 테이블
-
----
-
-## 8. 기존 코드와의 호환성
-
-### __init__.py 하위 호환
-
-분리 후에도 기존 import 경로가 동작하도록 `__init__.py`에서 re-export한다.
-
-```python
-# src/qbt/backtest/__init__.py
-# 기존 import 경로 유지
-from qbt.backtest.strategies.buffer_zone import run_buffer_strategy, BufferStrategyParams
-from qbt.backtest.strategies.buy_and_hold import run_buy_and_hold, BuyAndHoldParams
 ```
+새 전략 추가 = 파일 1개만 추가:
+  src/qbt/backtest/strategies/새전략.py
+    - Params dataclass (BaseStrategyParams 상속)
+    - run() 함수
+    - (필요 시) 자체 run_grid_search()
 
-### 기존 테스트
+  helpers.py에서 공통 함수 import:
+    _compute_bands, _execute_buy_order, _execute_sell_order, ...
 
-- `tests/test_strategy.py`의 import 경로를 업데이트하거나 __init__.py re-export로 유지
-- 기존 테스트가 깨지지 않도록 보장
-
-### 기존 결과 CSV
-
-- `storage/results/single_backtest_*.csv`는 과도기에 유지
-- 새 결과는 `storage/results/strategies/` 하위에 저장
-- 이후 기존 CSV 제거 가능
+  기존 코드 변경 없음 (개방-폐쇄 원칙)
+```

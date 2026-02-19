@@ -174,11 +174,11 @@ def _save_results(
     ma_col = f"ma_{ma_window}"
     signal_export = signal_export.round(
         {
-            COL_OPEN: 2,
-            COL_HIGH: 2,
-            COL_LOW: 2,
-            COL_CLOSE: 2,
-            ma_col: 2,
+            COL_OPEN: 6,
+            COL_HIGH: 6,
+            COL_LOW: 6,
+            COL_CLOSE: 6,
+            ma_col: 6,
             "change_pct": 2,
         }
     )
@@ -195,8 +195,8 @@ def _save_results(
         {
             "equity": 0,
             "buffer_zone_pct": 4,
-            "upper_band": 2,
-            "lower_band": 2,
+            "upper_band": 6,
+            "lower_band": 6,
             "drawdown_pct": 2,
         }
     )
@@ -418,8 +418,8 @@ def main() -> int:
                 [
                     str(trade["entry_date"]),
                     str(trade["exit_date"]),
-                    f"{trade['entry_price']:.2f}",
-                    f"{trade['exit_price']:.2f}",
+                    f"{trade['entry_price']:.6f}",
+                    f"{trade['exit_price']:.6f}",
                     f"{trade['pnl_pct'] * 100:+.2f}%",
                 ]
             )
