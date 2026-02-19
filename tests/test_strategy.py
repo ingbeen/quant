@@ -1615,17 +1615,16 @@ class TestResolveParams:
 
         Given: (특별한 설정 없음)
         When: resolve_params 호출
-        Then: initial_capital이 DEFAULT_INITIAL_CAPITAL, 출처 "DEFAULT"
+        Then: initial_capital이 DEFAULT_INITIAL_CAPITAL
         """
         from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
         from qbt.backtest.strategies.buy_and_hold import resolve_params
 
         # When
-        params, sources = resolve_params()
+        params = resolve_params()
 
         # Then
         assert params.initial_capital == DEFAULT_INITIAL_CAPITAL
-        assert sources["initial_capital"] == "DEFAULT"
 
 
 class TestRunSingle:

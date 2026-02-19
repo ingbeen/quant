@@ -185,9 +185,7 @@ def main() -> int:
         }
     )
 
-    results_df_export[DISPLAY_FINAL_CAPITAL] = results_df_export[
-        DISPLAY_FINAL_CAPITAL
-    ].astype(int)
+    results_df_export[DISPLAY_FINAL_CAPITAL] = results_df_export[DISPLAY_FINAL_CAPITAL].astype(int)
     results_df_export.to_csv(GRID_RESULTS_PATH, index=False)
     logger.debug(f"결과 저장 완료: {GRID_RESULTS_PATH}")
 

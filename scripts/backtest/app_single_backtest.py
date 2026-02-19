@@ -104,7 +104,10 @@ def _load_csv(path_str: str) -> pd.DataFrame:
 
     st.cache_data는 hashable 인자만 지원하므로 Path 대신 str을 사용한다.
     """
-    df = pd.read_csv(path_str)
+    try:
+        df = pd.read_csv(path_str)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
     return df

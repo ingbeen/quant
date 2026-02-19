@@ -118,21 +118,18 @@ def run_buy_and_hold(
     return equity_df, summary
 
 
-def resolve_params() -> tuple[BuyAndHoldParams, dict[str, str]]:
+def resolve_params() -> BuyAndHoldParams:
     """
     Buy & Hold 전략의 파라미터를 결정한다.
 
     Returns:
-        tuple: (params, sources)
-            - params: 전략 파라미터
-            - sources: 각 파라미터의 출처 딕셔너리
+        BuyAndHoldParams: 전략 파라미터 (항상 DEFAULT_INITIAL_CAPITAL 사용)
     """
     params = BuyAndHoldParams(initial_capital=DEFAULT_INITIAL_CAPITAL)
-    sources: dict[str, str] = {"initial_capital": "DEFAULT"}
 
     logger.debug(f"Buy & Hold 파라미터 결정: initial_capital={DEFAULT_INITIAL_CAPITAL}")
 
-    return params, sources
+    return params
 
 
 def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktestResult:
@@ -147,7 +144,7 @@ def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktes
         SingleBacktestResult: 백테스트 결과 컨테이너
     """
     # 1. 파라미터 결정
-    params, _sources = resolve_params()
+    params = resolve_params()
 
     # 2. 전략 실행
     equity_df, summary = run_buy_and_hold(signal_df, trade_df, params)
