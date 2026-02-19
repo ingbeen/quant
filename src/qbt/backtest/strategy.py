@@ -416,8 +416,8 @@ def run_buy_and_hold(
     """
     Buy & Hold 벤치마크 전략을 실행한다.
 
-    첫날 trade_df 시가에 매수, 마지막 날 trade_df 종가에 매도한다.
-    에쿼티도 trade_df 종가 기준으로 계산한다.
+    첫날 trade_df 시가에 매수 후 보유한다. 강제청산 없음 (버퍼존 전략과 동일).
+    에쿼티는 trade_df 종가 기준으로 계산한다.
 
     Args:
         signal_df: 시그널용 DataFrame (Buy & Hold에서는 미사용, 일관성을 위해 유지)
@@ -464,27 +464,10 @@ def run_buy_and_hold(
 
     equity_df = pd.DataFrame(equity_records)
 
-    # 6. 마지막 날 trade_df 종가에 매도
-    sell_price_raw = trade_df.iloc[-1][COL_CLOSE]
-    sell_price = sell_price_raw * (1 - SLIPPAGE_RATE)
-    sell_amount = shares * sell_price
+    # 6. 강제청산 없음 (버퍼존 전략과 동일 정책)
+    trades_df = pd.DataFrame()
 
-    # 7. 거래 내역 생성
-    trades_df = pd.DataFrame(
-        [
-            {
-                "entry_date": trade_df.iloc[0][COL_DATE],
-                "exit_date": trade_df.iloc[-1][COL_DATE],
-                "entry_price": buy_price,
-                "exit_price": sell_price,
-                "shares": shares,
-                "pnl": sell_amount - buy_amount,
-                "pnl_pct": (sell_price - buy_price) / buy_price,
-            }
-        ]
-    )
-
-    # 8. calculate_summary 호출
+    # 7. calculate_summary 호출
     base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
     summary: BuyAndHoldResultDict = {**base_summary, "strategy": "buy_and_hold"}
 

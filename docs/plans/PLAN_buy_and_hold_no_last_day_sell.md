@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-19 23:00
-**마지막 업데이트**: 2026-02-19 23:00
+**마지막 업데이트**: 2026-02-19 23:10
 **관련 범위**: backtest
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -40,9 +40,9 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `run_buy_and_hold` 전략에서 마지막날 매도 로직을 제거하여, 버퍼존 전략과 동일하게 "강제청산 없음" 정책을 적용한다
-- [ ] 핵심 성과 지표(CAGR, MDD, total_return_pct, final_capital)가 변하지 않음을 보장한다
-- [ ] 관련 테스트를 업데이트하여 새 정책을 반영한다
+- [x] `run_buy_and_hold` 전략에서 마지막날 매도 로직을 제거하여, 버퍼존 전략과 동일하게 "강제청산 없음" 정책을 적용한다
+- [x] 핵심 성과 지표(CAGR, MDD, total_return_pct, final_capital)가 변하지 않음을 보장한다
+- [x] 관련 테스트를 업데이트하여 새 정책을 반영한다
 
 ## 2) 비목표(Non-Goals)
 
@@ -93,13 +93,13 @@ equity_df는 매도 로직 이전에 계산 완료(strategy.py:461-465)되므로
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] `run_buy_and_hold`에서 마지막날 매도 로직 제거
-- [ ] 빈 trades_df로 `calculate_summary` 호출
-- [ ] 함수 docstring 업데이트
-- [ ] 깨지는 테스트 2개 수정 (`total_trades == 0`)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `run_buy_and_hold`에서 마지막날 매도 로직 제거
+- [x] 빈 trades_df로 `calculate_summary` 호출
+- [x] 함수 docstring 업데이트
+- [x] 깨지는 테스트 2개 수정 (`total_trades == 0`)
+- [x] `poetry run python validate_project.py` 통과 (passed=284, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -122,17 +122,17 @@ equity_df는 매도 로직 이전에 계산 완료(strategy.py:461-465)되므로
 
 **strategy.py 수정** (`src/qbt/backtest/strategy.py`):
 
-- [ ] docstring 업데이트 (line 419): "마지막 날 trade_df 종가에 매도한다" 제거 → "매수 후 보유, 강제청산 없음" 명시
-- [ ] 매도 로직 제거 (lines 467-470): `sell_price_raw`, `sell_price`, `sell_amount` 변수 삭제
-- [ ] 거래 내역 생성 제거 (lines 472-485): trades_df 생성 코드 삭제
-- [ ] 빈 trades_df 생성으로 대체: `trades_df = pd.DataFrame()` (calculate_summary 호출을 위해)
+- [x] docstring 업데이트 (line 419): "마지막 날 trade_df 종가에 매도한다" 제거 → "매수 후 보유, 강제청산 없음" 명시
+- [x] 매도 로직 제거 (lines 467-470): `sell_price_raw`, `sell_price`, `sell_amount` 변수 삭제
+- [x] 거래 내역 생성 제거 (lines 472-485): trades_df 생성 코드 삭제
+- [x] 빈 trades_df 생성으로 대체: `trades_df = pd.DataFrame()` (calculate_summary 호출을 위해)
 
 **test_strategy.py 수정** (`tests/test_strategy.py`):
 
-- [ ] `TestRunBuyAndHold::test_normal_execution` (line 65): `assert summary["total_trades"] == 1` → `== 0`
-- [ ] `TestRunBuyAndHold::test_normal_execution` docstring (line 43): "1개 거래 (첫날 매수 → 마지막날 매도)" → "마지막날 매도 없음 (보유 유지)" 반영
-- [ ] `TestDualTickerStrategy::test_buy_and_hold_uses_trade_df` (line 1457): `assert summary["total_trades"] == 1` → `== 0`
-- [ ] `TestDualTickerStrategy::test_buy_and_hold_uses_trade_df` docstring: 마지막날 매도 관련 설명 업데이트
+- [x] `TestRunBuyAndHold::test_normal_execution` (line 65): `assert summary["total_trades"] == 1` → `== 0`
+- [x] `TestRunBuyAndHold::test_normal_execution` docstring (line 43): "1개 거래 (첫날 매수 → 마지막날 매도)" → "마지막날 매도 없음 (보유 유지)" 반영
+- [x] `TestDualTickerStrategy::test_buy_and_hold_uses_trade_df` (line 1457): `assert summary["total_trades"] == 1` → `== 0`
+- [x] `TestDualTickerStrategy::test_buy_and_hold_uses_trade_df` docstring: 마지막날 매도 관련 설명 업데이트
 
 ---
 
@@ -140,13 +140,13 @@ equity_df는 매도 로직 이전에 계산 완료(strategy.py:461-465)되므로
 
 **작업 내용**
 
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `poetry run black .` 실행 (자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=284, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -170,3 +170,4 @@ equity_df는 매도 로직 이전에 계산 완료(strategy.py:461-465)되므로
 ### 진행 로그 (KST)
 
 - 2026-02-19 23:00: 계획서 작성 (Draft)
+- 2026-02-19 23:10: 구현 완료, 검증 통과 (passed=284, failed=0, skipped=0)

@@ -40,8 +40,8 @@ class TestRunBuyAndHold:
         Given: 3일치 가격 데이터
         When: run_buy_and_hold 실행
         Then:
-          - 1개 거래 (첫날 매수 → 마지막날 매도)
-          - 슬리피지 적용 확인 (매수 +, 매도 -)
+          - 강제청산 없음 (마지막날 매도하지 않음, total_trades=0)
+          - 슬리피지 적용 확인 (매수 +)
           - shares는 정수
           - equity_df와 summary 반환
         """
@@ -62,7 +62,7 @@ class TestRunBuyAndHold:
         # Then: summary 확인
         assert isinstance(summary, dict), "summary는 딕셔너리여야 합니다"
         assert summary["strategy"] == "buy_and_hold", "전략 이름 확인"
-        assert summary["total_trades"] == 1, "Buy & Hold는 1건의 거래 (매수→매도)"
+        assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
         assert summary["final_capital"] > params.initial_capital * 0.9, "최종 자본은 초기 자본의 90% 이상"
 
         # Equity curve 확인
@@ -1427,7 +1427,7 @@ class TestDualTickerStrategy:
         When: run_buy_and_hold(signal_df, trade_df, params)
         Then:
           - 첫날 trade_df 시가에 매수
-          - 마지막날 trade_df 종가에 매도
+          - 강제청산 없음 (마지막날 매도하지 않음)
         """
         # Given
         signal_df = pd.DataFrame(
@@ -1454,7 +1454,7 @@ class TestDualTickerStrategy:
         # Then: trade_df 기준으로 매매 확인
         # 첫날 trade_df Open=50, 슬리피지 +0.3% = 50.15
         # shares = int(10000 / 50.15) = 199
-        assert summary["total_trades"] == 1, "Buy & Hold는 1건의 거래"
+        assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
         assert len(equity_df) == 3, "매일 equity 기록"
 
         # 마지막 equity는 trade_df Close=65 기준이어야 함
