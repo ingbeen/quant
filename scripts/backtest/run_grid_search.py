@@ -9,6 +9,8 @@
 
 import sys
 
+import pandas as pd
+
 from qbt.backtest import run_grid_search
 from qbt.backtest.constants import (
     COL_BUFFER_ZONE_PCT,
@@ -48,7 +50,7 @@ from qbt.utils.meta_manager import save_metadata
 logger = get_logger(__name__)
 
 
-def print_summary_stats(results_df) -> None:
+def print_summary_stats(results_df: pd.DataFrame) -> None:
     """결과 요약 통계를 출력한다."""
     title_width = 60
 
@@ -185,7 +187,7 @@ def main() -> int:
             DISPLAY_CAGR: 2,  # 11.05
             DISPLAY_MDD: 2,  # -42.83
             DISPLAY_WIN_RATE: 2,  # 80.00
-            DISPLAY_FINAL_CAPITAL: 2,  # 165143072.86
+            DISPLAY_FINAL_CAPITAL: 0,  # 165143073
         }
     )
 

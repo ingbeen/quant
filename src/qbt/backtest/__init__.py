@@ -2,6 +2,7 @@
 
 from qbt.backtest.analysis import (
     add_single_moving_average,
+    calculate_monthly_returns,
     calculate_summary,
     load_best_grid_params,
 )
@@ -19,6 +20,7 @@ from qbt.backtest.types import BestGridParams, SingleBacktestResult
 __all__ = [
     # Analysis functions
     "add_single_moving_average",
+    "calculate_monthly_returns",
     "calculate_summary",
     "load_best_grid_params",
     # Strategy functions

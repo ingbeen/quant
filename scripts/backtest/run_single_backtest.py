@@ -14,15 +14,16 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from qbt.backtest.analysis import calculate_monthly_returns
 from qbt.backtest.strategies import buffer_zone, buy_and_hold
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
-    COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
@@ -33,9 +34,10 @@ from qbt.common_constants import (
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
+
+from _common import load_backtest_data  # 같은 디렉토리 스크립트 모듈
 
 logger = get_logger(__name__)
 
@@ -70,100 +72,23 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
     logger.debug("=" * 60)
 
 
-def _calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]]:
+def _save_signal_csv(result: SingleBacktestResult) -> Path:
     """
-    에쿼티 데이터로부터 월별 수익률을 계산한다.
+    시그널 데이터를 CSV로 저장한다 (OHLC + MA + change_pct).
 
-    Args:
-        equity_df: 자본 곡선 DataFrame (Date, equity 컬럼 필수)
-
-    Returns:
-        월별 수익률 리스트 [{year, month, return_pct}, ...]
-    """
-    if equity_df.empty or len(equity_df) < 2:
-        return []
-
-    # 1. 에쿼티 데이터를 날짜 인덱스로 변환
-    eq = equity_df[[COL_DATE, "equity"]].copy()
-    eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
-    eq = eq.set_index(COL_DATE)
-
-    # 2. 월말 리샘플링
-    monthly_equity = eq["equity"].resample("ME").last().dropna()
-    if len(monthly_equity) < 2:
-        return []
-
-    # 3. 월간 수익률 계산 (%)
-    monthly_returns = monthly_equity.pct_change().dropna() * 100
-
-    # 4. 결과 리스트 생성
-    dt_index = pd.DatetimeIndex(monthly_returns.index)
-    result: list[dict[str, object]] = []
-    for i in range(len(monthly_returns)):
-        result.append(
-            {
-                "year": int(dt_index[i].year),
-                "month": int(dt_index[i].month),
-                "return_pct": round(float(monthly_returns.iloc[i]), 2),
-            }
-        )
-
-    return result
-
-
-def _load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    QQQ, TQQQ 데이터를 로딩하고 공통 날짜로 정렬한다.
-
-    Returns:
-        tuple: (signal_df, trade_df)
-    """
-    logger.debug(f"시그널 데이터: {QQQ_DATA_PATH}")
-    logger.debug(f"매매 데이터: {TQQQ_SYNTHETIC_DATA_PATH}")
-    signal_df = load_stock_data(QQQ_DATA_PATH)
-    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
-
-    logger.debug("=" * 60)
-    logger.debug("데이터 로딩 완료")
-    logger.debug(f"시그널(QQQ) 행 수: {len(signal_df):,}, 기간: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}")
-    logger.debug(f"매매(TQQQ) 행 수: {len(trade_df):,}, 기간: {trade_df[COL_DATE].min()} ~ {trade_df[COL_DATE].max()}")
-    logger.debug("=" * 60)
-
-    # 공통 날짜로 정렬
-    common_dates = set(signal_df[COL_DATE]) & set(trade_df[COL_DATE])
-    signal_df = signal_df[signal_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-    trade_df = trade_df[trade_df[COL_DATE].isin(common_dates)].reset_index(drop=True)
-    logger.debug(f"공통 기간: {len(signal_df):,}행")
-
-    return signal_df, trade_df
-
-
-def _save_results(result: SingleBacktestResult) -> None:
-    """
-    백테스트 결과를 CSV/JSON 파일로 저장한다.
-
-    컬럼 감지 기반 반올림:
-    - 가격 (OHLC, MA, 밴드): 6자리
-    - 자본금 (equity, pnl): 정수
-    - 백분율 (change_pct, drawdown_pct): 2자리
-    - 비율 (pnl_pct, buffer_zone_pct): 4자리
+    컬럼 감지 기반 반올림: 가격 6자리, MA 6자리, % 2자리.
 
     Args:
         result: SingleBacktestResult 컨테이너
+
+    Returns:
+        저장된 CSV 파일 경로
     """
-    # 결과 디렉토리 생성
-    result.result_dir.mkdir(parents=True, exist_ok=True)
-
     signal_path = result.result_dir / "signal.csv"
-    equity_path = result.result_dir / "equity.csv"
-    trades_path = result.result_dir / "trades.csv"
-    summary_path = result.result_dir / "summary.json"
 
-    # 1. signal CSV 저장 (OHLC + MA + change_pct)
     signal_export = result.signal_df.copy()
     signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
 
-    # 컬럼 감지 기반 반올림 (가격 6자리, MA 6자리, % 2자리)
     signal_round: dict[str, int] = {"change_pct": 2}
     for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
         if col in signal_export.columns:
@@ -175,15 +100,29 @@ def _save_results(result: SingleBacktestResult) -> None:
     signal_export = signal_export.round(signal_round)
     signal_export.to_csv(signal_path, index=False)
     logger.debug(f"시그널 데이터 저장 완료: {signal_path}")
+    return signal_path
 
-    # 2. equity CSV 저장 (equity + drawdown_pct + 전략별 컬럼)
+
+def _save_equity_csv(result: SingleBacktestResult) -> Path:
+    """
+    에쿼티 데이터를 CSV로 저장한다 (equity + drawdown_pct + 전략별 컬럼).
+
+    컬럼 감지 기반 반올림: equity 정수, 밴드 6자리, 비율 4자리.
+
+    Args:
+        result: SingleBacktestResult 컨테이너
+
+    Returns:
+        저장된 CSV 파일 경로
+    """
+    equity_path = result.result_dir / "equity.csv"
+
     equity_export = result.equity_df.copy()
     equity_series = equity_export["equity"].astype(float)
     peak = equity_series.cummax()
     safe_peak = peak.replace(0, EPSILON)
     equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
 
-    # 컬럼 감지 기반 반올림 (equity 정수, 밴드 6자리, 비율 4자리)
     equity_round: dict[str, int] = {"equity": 0, "drawdown_pct": 2}
     if "buffer_zone_pct" in equity_export.columns:
         equity_round["buffer_zone_pct"] = 4
@@ -196,16 +135,29 @@ def _save_results(result: SingleBacktestResult) -> None:
     equity_export["equity"] = equity_export["equity"].astype(int)
     equity_export.to_csv(equity_path, index=False)
     logger.debug(f"에쿼티 데이터 저장 완료: {equity_path}")
+    return equity_path
 
-    # 3. trades CSV 저장 (거래 내역 + holding_days)
+
+def _save_trades_csv(result: SingleBacktestResult) -> Path:
+    """
+    거래 내역을 CSV로 저장한다 (거래 내역 + holding_days).
+
+    컬럼 감지 기반 반올림: 가격 6자리, pnl 정수, 비율 4자리.
+
+    Args:
+        result: SingleBacktestResult 컨테이너
+
+    Returns:
+        저장된 CSV 파일 경로
+    """
+    trades_path = result.result_dir / "trades.csv"
+
     if not result.trades_df.empty:
         trades_export = result.trades_df.copy()
-        # holding_days 추가 (entry_date/exit_date 존재 시)
         if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
             trades_export["holding_days"] = trades_export.apply(
                 lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
             )
-        # 컬럼 감지 기반 반올림
         trades_round: dict[str, int] = {}
         if "entry_price" in trades_export.columns:
             trades_round["entry_price"] = 6
@@ -225,9 +177,21 @@ def _save_results(result: SingleBacktestResult) -> None:
     else:
         result.trades_df.to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
+    return trades_path
 
-    # 4. summary JSON 저장
-    monthly_returns = _calculate_monthly_returns(result.equity_df)
+
+def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[str, Any]]) -> Path:
+    """
+    요약 지표를 JSON으로 저장한다.
+
+    Args:
+        result: SingleBacktestResult 컨테이너
+        monthly_returns: 월별 수익률 리스트
+
+    Returns:
+        저장된 JSON 파일 경로
+    """
+    summary_path = result.result_dir / "summary.json"
 
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
@@ -255,8 +219,28 @@ def _save_results(result: SingleBacktestResult) -> None:
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
     logger.debug(f"요약 JSON 저장 완료: {summary_path}")
+    return summary_path
 
-    # 5. 메타데이터 저장
+
+def _save_results(result: SingleBacktestResult) -> None:
+    """
+    백테스트 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
+
+    개별 저장 함수를 조합 호출하여 signal, equity, trades, summary를 저장한 뒤
+    메타데이터를 기록한다.
+
+    Args:
+        result: SingleBacktestResult 컨테이너
+    """
+    result.result_dir.mkdir(parents=True, exist_ok=True)
+
+    signal_path = _save_signal_csv(result)
+    equity_path = _save_equity_csv(result)
+    trades_path = _save_trades_csv(result)
+    monthly_returns = calculate_monthly_returns(result.equity_df)
+    summary_path = _save_summary_json(result, monthly_returns)
+
+    # 메타데이터 저장
     metadata: dict[str, Any] = {
         "params": result.params_json,
         "results_summary": {
@@ -365,7 +349,7 @@ def main() -> int:
     args = parser.parse_args()
 
     # 2. 데이터 로딩
-    signal_df, trade_df = _load_data()
+    signal_df, trade_df = load_backtest_data(logger)
 
     # 3. 전략 목록 결정
     if args.strategy == "all":

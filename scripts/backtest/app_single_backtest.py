@@ -100,7 +100,10 @@ class StrategyData(TypedDict):
 
 @st.cache_data
 def _load_csv(path_str: str) -> pd.DataFrame:
-    """CSV를 로드하고 날짜 컬럼을 파싱한다."""
+    """CSV를 로드하고 날짜 컬럼을 파싱한다.
+
+    st.cache_data는 hashable 인자만 지원하므로 Path 대신 str을 사용한다.
+    """
     df = pd.read_csv(path_str)
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
@@ -119,7 +122,7 @@ def _discover_strategies() -> list[StrategyData]:
     BACKTEST_RESULTS_DIR 하위 디렉토리를 스캔하여 전략 데이터를 자동 탐색한다.
 
     각 디렉토리에 summary.json이 존재하면 유효한 전략 결과로 간주한다.
-    display_name은 summary.json에서 읽으며, 없으면 디렉토리명을 fallback으로 사용한다.
+    display_name은 summary.json에서 필수로 읽으며, 없으면 ValueError를 발생시킨다.
 
     Returns:
         전략 데이터 리스트 (디렉토리명 정렬)
@@ -156,8 +159,10 @@ def _discover_strategies() -> list[StrategyData]:
         else:
             trades_df = pd.DataFrame()
 
-        # display_name: JSON에 있으면 사용, 없으면 디렉토리명 fallback
-        display_name = summary_data.get("display_name", subdir.name)
+        # display_name 필수 검증
+        display_name = summary_data.get("display_name", "")
+        if not display_name:
+            raise ValueError(f"summary.json에 display_name이 없습니다: {summary_path}. " "run_single_backtest.py를 재실행하세요.")
 
         strategies.append(
             StrategyData(
@@ -201,13 +206,13 @@ def _build_candle_data(
     has_lower = "lower_band" in equity_df.columns
     band_map: dict[date, dict[str, float]] = {}
     if has_upper or has_lower:
-        for _, row in equity_df.iterrows():
-            d: date = row[COL_DATE]
+        for row in equity_df.itertuples(index=False):
+            d: date = getattr(row, COL_DATE)
             band_entry: dict[str, float] = {}
-            if has_upper and pd.notna(row.get("upper_band")):
-                band_entry["upper"] = float(row["upper_band"])
-            if has_lower and pd.notna(row.get("lower_band")):
-                band_entry["lower"] = float(row["lower_band"])
+            if has_upper and pd.notna(row.upper_band):
+                band_entry["upper"] = float(row.upper_band)
+            if has_lower and pd.notna(row.lower_band):
+                band_entry["lower"] = float(row.lower_band)
             if band_entry:
                 band_map[d] = band_entry
 
@@ -216,14 +221,14 @@ def _build_candle_data(
     change_pct = close_series.pct_change() * 100
 
     candle_data: list[dict[str, object]] = []
-    for i, (_, row) in enumerate(signal_df.iterrows()):
-        d = row[COL_DATE]
+    for i, row in enumerate(signal_df.itertuples(index=False)):
+        d = getattr(row, COL_DATE)
         candle_entry: dict[str, object] = {
             "time": d.strftime("%Y-%m-%d"),
-            "open": float(row[COL_OPEN]),
-            "high": float(row[COL_HIGH]),
-            "low": float(row[COL_LOW]),
-            "close": float(row[COL_CLOSE]),
+            "open": float(getattr(row, COL_OPEN)),
+            "high": float(getattr(row, COL_HIGH)),
+            "low": float(getattr(row, COL_LOW)),
+            "close": float(getattr(row, COL_CLOSE)),
         }
 
         # customValues 구성 (Record<string, string>)
@@ -231,8 +236,10 @@ def _build_candle_data(
         pct_val = change_pct.iloc[i]
         if pd.notna(pct_val):
             cv["pct"] = f"{pct_val:.2f}"
-        if ma_col and ma_col in signal_df.columns and pd.notna(row.get(ma_col)):
-            cv["ma"] = f"{row[ma_col]:.2f}"
+        if ma_col and ma_col in signal_df.columns:
+            ma_val = getattr(row, ma_col)
+            if pd.notna(ma_val):
+                cv["ma"] = f"{ma_val:.2f}"
         if d in band_map:
             bands = band_map[d]
             if "upper" in bands:
@@ -248,26 +255,18 @@ def _build_candle_data(
     return candle_data
 
 
-def _build_line_data(signal_df: pd.DataFrame, col: str) -> list[dict[str, object]]:
-    """특정 컬럼의 Line 시리즈 데이터를 생성한다."""
+def _build_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
+    """DataFrame의 특정 컬럼에서 Line 시리즈 데이터를 생성한다.
+
+    signal_df의 MA 컬럼, equity_df의 밴드 컬럼 등 공통 변환에 사용한다.
+    """
     data: list[dict[str, object]] = []
-    for _, row in signal_df.iterrows():
-        val = row[col]
+    for row in df.itertuples(index=False):
+        val = getattr(row, col)
         if pd.notna(val):
-            d: date = row[COL_DATE]
+            d: date = getattr(row, COL_DATE)
             data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
     return data
-
-
-def _build_band_data(equity_df: pd.DataFrame, band_col: str) -> list[dict[str, object]]:
-    """밴드(upper/lower) 데이터를 Line 시리즈용으로 변환한다."""
-    band_data: list[dict[str, object]] = []
-    for _, row in equity_df.iterrows():
-        val = row[band_col]
-        if val is not None and pd.notna(val):
-            d: date = row[COL_DATE]
-            band_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
-    return band_data
 
 
 def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
@@ -276,20 +275,20 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
     if trades_df.empty:
         return markers
 
-    for _, trade in trades_df.iterrows():
-        entry_d: date = trade["entry_date"]
+    for trade in trades_df.itertuples(index=False):
+        entry_d: date = trade.entry_date
         markers.append(
             {
                 "time": entry_d.strftime("%Y-%m-%d"),
                 "position": "belowBar",
                 "color": COLOR_BUY_MARKER,
                 "shape": "arrowUp",
-                "text": f"Buy ${trade['entry_price']:.1f}",
+                "text": f"Buy ${trade.entry_price:.1f}",
                 "size": 2,
             }
         )
-        exit_d: date = trade["exit_date"]
-        pnl_pct = trade["pnl_pct"] * 100
+        exit_d: date = trade.exit_date
+        pnl_pct = trade.pnl_pct * 100
         markers.append(
             {
                 "time": exit_d.strftime("%Y-%m-%d"),
@@ -307,18 +306,18 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
 def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """에쿼티 곡선 데이터를 Area 시리즈용으로 변환한다."""
     equity_data: list[dict[str, object]] = []
-    for _, row in equity_df.iterrows():
-        d: date = row[COL_DATE]
-        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row["equity"])})
+    for row in equity_df.itertuples(index=False):
+        d: date = getattr(row, COL_DATE)
+        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.equity)})
     return equity_data
 
 
 def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """CSV의 drawdown_pct 컬럼에서 Area 시리즈 데이터를 생성한다."""
     dd_data: list[dict[str, object]] = []
-    for _, row in equity_df.iterrows():
-        d: date = row[COL_DATE]
-        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row["drawdown_pct"])})
+    for row in equity_df.itertuples(index=False):
+        d: date = getattr(row, COL_DATE)
+        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.drawdown_pct)})
     return dd_data
 
 
@@ -393,7 +392,7 @@ def _render_main_chart(
 
     # MA 오버레이 (ma_* 컬럼 존재 시)
     if ma_col:
-        ma_data = _build_line_data(signal_df, ma_col)
+        ma_data = _build_series_data(signal_df, ma_col)
         if ma_data:
             pane1_series.append(
                 {
@@ -410,7 +409,7 @@ def _render_main_chart(
 
     # Upper Band 오버레이
     if has_upper:
-        upper_data = _build_band_data(equity_df, "upper_band")
+        upper_data = _build_series_data(equity_df, "upper_band")
         if upper_data:
             pane1_series.append(
                 {
@@ -428,7 +427,7 @@ def _render_main_chart(
 
     # Lower Band 오버레이
     if has_lower:
-        lower_data = _build_band_data(equity_df, "lower_band")
+        lower_data = _build_series_data(equity_df, "lower_band")
         if lower_data:
             pane1_series.append(
                 {

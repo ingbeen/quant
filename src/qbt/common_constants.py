@@ -43,17 +43,7 @@ BUFFER_ZONE_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone"  # 버퍼�
 BUY_AND_HOLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold"  # Buy & Hold 전략 결과
 
 # --- 버퍼존 전략 결과 파일 경로 ---
-BUFFER_ZONE_SIGNAL_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "signal.csv"
-BUFFER_ZONE_EQUITY_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "equity.csv"
-BUFFER_ZONE_TRADES_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "trades.csv"
-BUFFER_ZONE_SUMMARY_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "summary.json"
 GRID_RESULTS_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "grid_results.csv"
-
-# --- Buy & Hold 전략 결과 파일 경로 ---
-BUY_AND_HOLD_SIGNAL_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "signal.csv"
-BUY_AND_HOLD_EQUITY_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "equity.csv"
-BUY_AND_HOLD_TRADES_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "trades.csv"
-BUY_AND_HOLD_SUMMARY_PATH: Final = BUY_AND_HOLD_RESULTS_DIR / "summary.json"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

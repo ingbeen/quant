@@ -229,3 +229,46 @@ def load_best_grid_params(path: Path) -> BestGridParams | None:
     )
 
     return result
+
+
+def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]]:
+    """
+    에쿼티 데이터로부터 월별 수익률을 계산한다.
+
+    월말 리샘플링으로 에쿼티 값을 추출한 뒤, 월간 수익률(%)을 계산한다.
+
+    Args:
+        equity_df: 자본 곡선 DataFrame (Date, equity 컬럼 필수)
+
+    Returns:
+        월별 수익률 리스트 [{year, month, return_pct}, ...]
+    """
+    if equity_df.empty or len(equity_df) < 2:
+        return []
+
+    # 1. 에쿼티 데이터를 날짜 인덱스로 변환
+    eq = equity_df[[COL_DATE, "equity"]].copy()
+    eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
+    eq = eq.set_index(COL_DATE)
+
+    # 2. 월말 리샘플링
+    monthly_equity = eq["equity"].resample("ME").last().dropna()
+    if len(monthly_equity) < 2:
+        return []
+
+    # 3. 월간 수익률 계산 (%)
+    monthly_returns = monthly_equity.pct_change().dropna() * 100
+
+    # 4. 결과 리스트 생성
+    dt_index = pd.DatetimeIndex(monthly_returns.index)
+    result: list[dict[str, object]] = []
+    for i in range(len(monthly_returns)):
+        result.append(
+            {
+                "year": int(dt_index[i].year),
+                "month": int(dt_index[i].month),
+                "return_pct": round(float(monthly_returns.iloc[i]), 2),
+            }
+        )
+
+    return result

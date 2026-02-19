@@ -44,6 +44,7 @@
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
+- `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 
 ### 4. strategies/ 패키지
 
@@ -251,7 +252,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
   - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가
   - `trades_df`가 비어있지 않음 → 마커 추가
 - **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
-- **하위 호환**: `summary.json`에 `display_name` 없으면 디렉토리명 fallback
+- **display_name 필수**: `summary.json`에 `display_name`이 없으면 `ValueError` 발생
 
 ### Vendor Fork (`vendor/streamlit-lightweight-charts-v5/`)
 
