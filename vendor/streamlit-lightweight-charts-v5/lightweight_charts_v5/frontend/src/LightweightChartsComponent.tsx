@@ -435,7 +435,7 @@ function LightweightChartsComponent({
      */
     const tooltipEl = document.createElement("div")
     tooltipEl.style.cssText = `
-      position: absolute; top: 55px; left: 12px; z-index: 10;
+      position: absolute; top: 30px; left: 12px; z-index: 10;
       background: rgba(0, 0, 0, 0.85); color: #d1d4dc;
       padding: 8px 12px; border-radius: 4px; font-size: 12px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -521,7 +521,15 @@ function LightweightChartsComponent({
           }
 
           if (lines.length > 0) {
-            tooltipEl.innerHTML = lines.join("<br>")
+            // hr 태그 전후에는 br을 넣지 않음
+            let html = ""
+            for (let li = 0; li < lines.length; li++) {
+              const isHr = lines[li].startsWith("<hr")
+              const prevIsHr = li > 0 && lines[li - 1].startsWith("<hr")
+              if (li > 0 && !isHr && !prevIsHr) html += "<br>"
+              html += lines[li]
+            }
+            tooltipEl.innerHTML = html
             tooltipEl.style.display = "block"
           } else {
             tooltipEl.style.display = "none"

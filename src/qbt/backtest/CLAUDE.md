@@ -265,6 +265,14 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 - cleanup 함수에 `unsubscribeCrosshairMove` + tooltip DOM 제거 포함
 - `pyproject.toml`에서 로컬 경로 참조: `{path = "vendor/streamlit-lightweight-charts-v5"}`
 - 팀원은 `poetry install`만 실행하면 됨 (Node.js 불필요, 빌드 결과물 포함)
+- TSX 수정 후 반영 절차 (3단계):
+  ```bash
+  # 1. 프론트엔드 빌드
+  cd vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend && npm run build
+  # 2. site-packages에 새 빌드 반영 (Poetry는 복사 설치이므로 필수)
+  pip install --force-reinstall --no-deps vendor/streamlit-lightweight-charts-v5
+  # 3. Streamlit 앱 재시작 + 브라우저 하드 리프레시 (Ctrl+Shift+R)
+  ```
 
 ---
 
