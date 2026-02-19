@@ -37,23 +37,20 @@ from qbt.common_constants import (
 
 # --- 차트 높이 ---
 DEFAULT_CANDLE_PANE_HEIGHT = 500
-DEFAULT_CHANGE_PANE_HEIGHT = 100
 DEFAULT_EQUITY_PANE_HEIGHT = 200
-DEFAULT_DRAWDOWN_CHART_HEIGHT = 300
+DEFAULT_DRAWDOWN_PANE_HEIGHT = 150
 
 # --- 차트 색상 ---
 COLOR_UP = "rgb(38, 166, 154)"
 COLOR_DOWN = "rgb(239, 83, 80)"
 COLOR_MA_LINE = "rgba(255, 152, 0, 0.9)"
-COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.4)"
-COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.4)"
+COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.6)"
+COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.6)"
 COLOR_BUY_MARKER = "#26a69a"
 COLOR_SELL_MARKER = "#ef5350"
 COLOR_EQUITY_LINE = "rgba(33, 150, 243, 1)"
 COLOR_EQUITY_TOP = "rgba(33, 150, 243, 0.3)"
 COLOR_EQUITY_BOTTOM = "rgba(33, 150, 243, 0.05)"
-COLOR_CHANGE_POSITIVE = "rgba(38, 166, 154, 0.6)"
-COLOR_CHANGE_NEGATIVE = "rgba(239, 83, 80, 0.6)"
 COLOR_DRAWDOWN_LINE = "rgba(244, 67, 54, 1)"
 COLOR_DRAWDOWN_TOP = "rgba(244, 67, 54, 0.3)"
 COLOR_DRAWDOWN_BOTTOM = "rgba(244, 67, 54, 0.05)"
@@ -179,7 +176,7 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "color": COLOR_BUY_MARKER,
                 "shape": "arrowUp",
                 "text": f"Buy ${trade['entry_price']:.1f}",
-                "size": 1,
+                "size": 2,
             }
         )
         # Sell 마커 (청산일)
@@ -192,25 +189,11 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "color": COLOR_SELL_MARKER,
                 "shape": "arrowDown",
                 "text": f"Sell {pnl_pct:+.1f}%",
-                "size": 1,
+                "size": 2,
             }
         )
 
     return markers
-
-
-def _build_change_pct_data(signal_df: pd.DataFrame) -> list[dict[str, object]]:
-    """CSV의 change_pct 컬럼에서 Histogram 시리즈 데이터를 생성한다."""
-    histogram_data: list[dict[str, object]] = []
-    for _, row in signal_df.iterrows():
-        val = row["change_pct"]
-        if pd.notna(val):
-            d: date = row[COL_DATE]
-            fval = float(val)
-            color = COLOR_CHANGE_POSITIVE if fval >= 0 else COLOR_CHANGE_NEGATIVE
-            histogram_data.append({"time": d.strftime("%Y-%m-%d"), "value": fval, "color": color})
-
-    return histogram_data
 
 
 def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
@@ -242,15 +225,15 @@ def _render_main_chart(
     trades_df: pd.DataFrame,
     ma_col: str,
 ) -> None:
-    """메인 차트를 렌더링한다 (캔들+MA+밴드+마커+전일대비%+에쿼티)."""
+    """메인 차트를 렌더링한다 (캔들+MA+밴드+마커+에쿼티+드로우다운)."""
     # 1. 데이터 준비
     candle_data = _build_candle_data(signal_df)
     ma_data = _build_ma_data(signal_df, ma_col)
     upper_band_data = _build_band_data(equity_df, "upper_band")
     lower_band_data = _build_band_data(equity_df, "lower_band")
     markers = _build_markers(trades_df)
-    change_data = _build_change_pct_data(signal_df)
     equity_data = _build_equity_data(equity_df)
+    dd_data = _build_drawdown_data(equity_df)
 
     # 2. 차트 테마
     chart_theme = {
@@ -312,7 +295,7 @@ def _render_main_chart(
                 "data": upper_band_data,
                 "options": {
                     "color": COLOR_UPPER_BAND,
-                    "lineWidth": 1,
+                    "lineWidth": 2,
                     "lineStyle": 2,
                     "priceLineVisible": False,
                     "crosshairMarkerVisible": False,
@@ -328,7 +311,7 @@ def _render_main_chart(
                 "data": lower_band_data,
                 "options": {
                     "color": COLOR_LOWER_BAND,
-                    "lineWidth": 1,
+                    "lineWidth": 2,
                     "lineStyle": 2,
                     "priceLineVisible": False,
                     "crosshairMarkerVisible": False,
@@ -343,25 +326,8 @@ def _render_main_chart(
         "title": "QQQ (시그널)",
     }
 
-    # 4. Pane 2: 전일대비% Histogram
+    # 4. Pane 2: 에쿼티 곡선
     pane2 = {
-        "chart": chart_theme,
-        "series": [
-            {
-                "type": "Histogram",
-                "data": change_data,
-                "options": {
-                    "priceLineVisible": False,
-                    "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
-                },
-            }
-        ],
-        "height": DEFAULT_CHANGE_PANE_HEIGHT,
-        "title": "전일대비 (%)",
-    }
-
-    # 5. Pane 3: 에쿼티 곡선
-    pane3 = {
         "chart": chart_theme,
         "series": [
             {
@@ -381,35 +347,8 @@ def _render_main_chart(
         "title": "에쿼티 (원)",
     }
 
-    # 6. 렌더링
-    total_height = DEFAULT_CANDLE_PANE_HEIGHT + DEFAULT_CHANGE_PANE_HEIGHT + DEFAULT_EQUITY_PANE_HEIGHT
-    lightweight_charts_v5_component(
-        name="backtest_main_chart",
-        charts=[pane1, pane2, pane3],
-        height=total_height,
-        zoom_level=DEFAULT_ZOOM_LEVEL,
-        key="main_chart",
-    )
-
-
-def _render_drawdown_chart(equity_df: pd.DataFrame) -> None:
-    """드로우다운 차트를 별도 컴포넌트로 렌더링한다."""
-    dd_data = _build_drawdown_data(equity_df)
-
-    chart_theme = {
-        "layout": {
-            "background": {"color": "#131722"},
-            "textColor": "#D1D4DC",
-            "fontFamily": "Arial",
-            "fontSize": 12,
-        },
-        "grid": {
-            "vertLines": {"color": "#1e222d", "visible": True},
-            "horzLines": {"color": "#1e222d", "visible": True},
-        },
-    }
-
-    pane = {
+    # 5. Pane 3: 드로우다운
+    pane3 = {
         "chart": chart_theme,
         "series": [
             {
@@ -426,16 +365,18 @@ def _render_drawdown_chart(equity_df: pd.DataFrame) -> None:
                 },
             }
         ],
-        "height": DEFAULT_DRAWDOWN_CHART_HEIGHT,
+        "height": DEFAULT_DRAWDOWN_PANE_HEIGHT,
         "title": "드로우다운 (%)",
     }
 
+    # 6. 렌더링
+    total_height = DEFAULT_CANDLE_PANE_HEIGHT + DEFAULT_EQUITY_PANE_HEIGHT + DEFAULT_DRAWDOWN_PANE_HEIGHT
     lightweight_charts_v5_component(
-        name="backtest_drawdown",
-        charts=[pane],
-        height=DEFAULT_DRAWDOWN_CHART_HEIGHT,
+        name="backtest_main_chart",
+        charts=[pane1, pane2, pane3],
+        height=total_height,
         zoom_level=DEFAULT_ZOOM_LEVEL,
-        key="drawdown_chart",
+        key="main_chart",
     )
 
 
@@ -615,24 +556,31 @@ def main() -> None:
 
         st.divider()
 
-        # ---- Section 3: 드로우다운 차트 ----
-        st.header("2. 드로우다운")
-        st.markdown("에쿼티 고점 대비 하락률을 시계열로 표시합니다.")
-        _render_drawdown_chart(equity_df)
-
-        st.divider()
-
-        # ---- Section 4: 월별 수익률 히트맵 ----
-        st.header("3. 월별/연도별 수익률 히트맵")
+        # ---- Section 3: 월별 수익률 히트맵 ----
+        st.header("2. 월별/연도별 수익률 히트맵")
         st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
         _render_monthly_heatmap(monthly_returns)
 
         st.divider()
 
-        # ---- Section 5: 포지션 보유 기간 분포 ----
-        st.header("4. 포지션 보유 기간 분포")
+        # ---- Section 4: 포지션 보유 기간 분포 ----
+        st.header("3. 포지션 보유 기간 분포")
         st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
         _render_holding_period_histogram(trades_df)
+
+        st.divider()
+
+        # ---- Section 5: 전체 거래 상세 내역 ----
+        st.header("4. 전체 거래 상세 내역")
+        if not trades_df.empty:
+            display_df = trades_df.copy()
+            # 손익률을 %로 변환
+            display_df["pnl_pct"] = display_df["pnl_pct"] * 100
+            display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
+            st.dataframe(display_df, width="stretch")  # type: ignore[call-overload]
+            st.caption(f"총 {len(trades_df)}건의 거래")
+        else:
+            st.info("거래 내역이 없습니다.")
 
         st.divider()
 
@@ -650,20 +598,6 @@ def main() -> None:
                 "데이터": summary_data.get("data_info", {}),
             }
         )
-
-        st.divider()
-
-        # ---- Section 7: 전체 거래 상세 내역 ----
-        st.header("6. 전체 거래 상세 내역")
-        if not trades_df.empty:
-            display_df = trades_df.copy()
-            # 손익률을 %로 변환
-            display_df["pnl_pct"] = display_df["pnl_pct"] * 100
-            display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
-            st.dataframe(display_df, width="stretch")  # type: ignore[call-overload]
-            st.caption(f"총 {len(trades_df)}건의 거래")
-        else:
-            st.info("거래 내역이 없습니다.")
 
         # ---- 푸터 ----
         st.markdown("---")
