@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, TRADING_DAYS_PER_YEAR
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.simulation import (
@@ -344,6 +344,79 @@ class TestSimulate:
                 ffr_df=ffr_df,
                 funding_spread=0.006,
             )
+
+    def test_high_low_approximation_for_synthetic_data(self):
+        """
+        합성 데이터의 High/Low가 Open/Close 기반 근사값으로 생성되는지 검증한다.
+
+        Given: QQQ 데이터 (Open과 Close가 다른 값)
+        When: simulate 호출
+        Then: High == max(Open, Close), Low == min(Open, Close)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 100.5, 99.5],
+                COL_CLOSE: [100.0, 101.0, 99.0],
+            }
+        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            expense_df=expense_df,
+            initial_price=30.0,
+            ffr_df=ffr_df,
+            funding_spread=1e-9,
+        )
+
+        # Then: High == max(Open, Close), Low == min(Open, Close)
+        for i in range(len(result)):
+            row = result.iloc[i]
+            expected_high = max(row[COL_OPEN], row[COL_CLOSE])
+            expected_low = min(row[COL_OPEN], row[COL_CLOSE])
+            assert row[COL_HIGH] == pytest.approx(
+                expected_high, abs=1e-6
+            ), f"행 {i}: High={row[COL_HIGH]}, expected max(O,C)={expected_high}"
+            assert row[COL_LOW] == pytest.approx(
+                expected_low, abs=1e-6
+            ), f"행 {i}: Low={row[COL_LOW]}, expected min(O,C)={expected_low}"
+
+    def test_high_low_relationship(self):
+        """
+        High >= Low 불변조건을 검증한다.
+
+        Given: QQQ 데이터
+        When: simulate 호출
+        Then: 모든 행에서 High >= Low
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4), date(2023, 1, 5)],
+                COL_OPEN: [100.0, 100.5, 99.5, 101.5],
+                COL_CLOSE: [100.0, 101.0, 99.0, 102.0],
+            }
+        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            expense_df=expense_df,
+            initial_price=30.0,
+            ffr_df=ffr_df,
+            funding_spread=0.006,
+        )
+
+        # Then: High >= Low
+        assert (result[COL_HIGH] >= result[COL_LOW]).all(), "모든 행에서 High >= Low 이어야 합니다"
 
 
 class TestCalculateValidationMetrics:

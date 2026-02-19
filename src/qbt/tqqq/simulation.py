@@ -838,9 +838,10 @@ def simulate(
     # 첫날은 initial_price (shift(1)로 NaN 발생 → fillna)
     df[COL_OPEN] = leveraged_open.fillna(initial_price)
 
-    # High, Low, Volume: 0 (합성 데이터이므로 사용하지 않음)
-    df[COL_HIGH] = 0.0
-    df[COL_LOW] = 0.0
+    # High, Low: 합성 데이터이므로 Open/Close 기반 근사값 사용
+    df[COL_HIGH] = df[[COL_OPEN, COL_CLOSE]].max(axis=1)
+    df[COL_LOW] = df[[COL_OPEN, COL_CLOSE]].min(axis=1)
+    # Volume: 합성 데이터이므로 0
     df[COL_VOLUME] = 0
 
     # 10. 불필요한 컬럼 제거 및 순서 정렬

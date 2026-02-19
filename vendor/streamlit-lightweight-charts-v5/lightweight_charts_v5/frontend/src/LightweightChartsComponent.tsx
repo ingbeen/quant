@@ -435,7 +435,7 @@ function LightweightChartsComponent({
      */
     const tooltipEl = document.createElement("div")
     tooltipEl.style.cssText = `
-      position: absolute; top: 12px; left: 12px; z-index: 10;
+      position: absolute; top: 55px; left: 12px; z-index: 10;
       background: rgba(0, 0, 0, 0.85); color: #d1d4dc;
       padding: 8px 12px; border-radius: 4px; font-size: 12px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -470,10 +470,56 @@ function LightweightChartsComponent({
         if (data?.customValues && Object.keys(data.customValues).length > 0) {
           const cv = data.customValues
           const lines: string[] = []
-          if (cv.pct) lines.push(`전일대비: ${cv.pct}%`)
+
+          // OHLC 가격 + 전일종가대비%
+          const pctStyle = (pct: string) => {
+            const val = parseFloat(pct)
+            const color = val > 0 ? "#26a69a" : val < 0 ? "#ef5350" : "#d1d4dc"
+            return `<span style="color:${color}">${pct}%</span>`
+          }
+
+          if (cv.open) {
+            let line = `시가: ${cv.open}`
+            if (cv.open_pct) line += ` (${pctStyle(cv.open_pct)})`
+            lines.push(line)
+          }
+          if (cv.high) {
+            let line = `고가: ${cv.high}`
+            if (cv.high_pct) line += ` (${pctStyle(cv.high_pct)})`
+            lines.push(line)
+          }
+          if (cv.low) {
+            let line = `저가: ${cv.low}`
+            if (cv.low_pct) line += ` (${pctStyle(cv.low_pct)})`
+            lines.push(line)
+          }
+          if (cv.close) {
+            let line = `종가: ${cv.close}`
+            if (cv.close_pct) line += ` (${pctStyle(cv.close_pct)})`
+            lines.push(line)
+          }
+
+          // 구분선
+          if (cv.ma || cv.upper || cv.lower) {
+            lines.push('<hr style="border:0;border-top:1px solid #333;margin:4px 0">')
+          }
+
+          // 지표 (MA, 밴드)
           if (cv.ma) lines.push(`이평선: ${cv.ma}`)
           if (cv.upper) lines.push(`상단밴드: ${cv.upper}`)
           if (cv.lower) lines.push(`하단밴드: ${cv.lower}`)
+
+          // 에쿼티 + 드로우다운
+          if (cv.equity || cv.dd) {
+            lines.push('<hr style="border:0;border-top:1px solid #333;margin:4px 0">')
+          }
+          if (cv.equity) lines.push(`에쿼티: ${cv.equity}원`)
+          if (cv.dd) {
+            const ddVal = parseFloat(cv.dd)
+            const ddColor = ddVal < 0 ? "#ef5350" : "#d1d4dc"
+            lines.push(`드로우다운: <span style="color:${ddColor}">${cv.dd}%</span>`)
+          }
+
           if (lines.length > 0) {
             tooltipEl.innerHTML = lines.join("<br>")
             tooltipEl.style.display = "block"

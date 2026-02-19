@@ -252,6 +252,10 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
   - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가
   - `trades_df`가 비어있지 않음 → 마커 추가
 - **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
+  - OHLC 가격: `open`, `high`, `low`, `close`
+  - 전일종가대비%: `open_pct`, `high_pct`, `low_pct`, `close_pct`
+  - 지표: `ma`, `upper`, `lower`
+  - 포트폴리오: `equity`, `dd`
 - **display_name 필수**: `summary.json`에 `display_name`이 없으면 `ValueError` 발생
 
 ### Vendor Fork (`vendor/streamlit-lightweight-charts-v5/`)

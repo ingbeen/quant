@@ -203,52 +203,83 @@ def _build_candle_data(
     """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
 
     customValues를 포함하여 tooltip에서 표시할 수 있게 한다.
+    OHLC 가격, 전일종가대비%, MA, 밴드, 에쿼티, 드로우다운을 포함한다.
     """
-    # 밴드 데이터를 날짜 기준으로 매핑
+    # 1. 밴드 + 에쿼티 + 드로우다운 데이터를 날짜 기준으로 매핑
     has_upper = "upper_band" in equity_df.columns
     has_lower = "lower_band" in equity_df.columns
-    band_map: dict[date, dict[str, float]] = {}
-    if has_upper or has_lower:
-        for row in equity_df.itertuples(index=False):
-            d: date = getattr(row, COL_DATE)
-            band_entry: dict[str, float] = {}
-            if has_upper and pd.notna(row.upper_band):
-                band_entry["upper"] = float(row.upper_band)  # type: ignore[arg-type]
-            if has_lower and pd.notna(row.lower_band):
-                band_entry["lower"] = float(row.lower_band)  # type: ignore[arg-type]
-            if band_entry:
-                band_map[d] = band_entry
+    has_equity = "equity" in equity_df.columns
+    has_drawdown = "drawdown_pct" in equity_df.columns
 
-    # change_pct 계산
-    close_series = signal_df[COL_CLOSE]
-    change_pct = close_series.pct_change() * 100
+    equity_map: dict[date, dict[str, float]] = {}
+    for row in equity_df.itertuples(index=False):
+        d: date = getattr(row, COL_DATE)
+        entry: dict[str, float] = {}
+        if has_upper and pd.notna(row.upper_band):
+            entry["upper"] = float(row.upper_band)  # type: ignore[arg-type]
+        if has_lower and pd.notna(row.lower_band):
+            entry["lower"] = float(row.lower_band)  # type: ignore[arg-type]
+        if has_equity and pd.notna(row.equity):
+            entry["equity"] = float(row.equity)  # type: ignore[arg-type]
+        if has_drawdown and pd.notna(row.drawdown_pct):
+            entry["dd"] = float(row.drawdown_pct)  # type: ignore[arg-type]
+        if entry:
+            equity_map[d] = entry
+
+    # 2. 전일종가 시리즈 (각 OHLC의 전일종가대비% 계산용)
+    prev_close = signal_df[COL_CLOSE].shift(1)
 
     candle_data: list[dict[str, object]] = []
     for i, row in enumerate(signal_df.itertuples(index=False)):
         d = getattr(row, COL_DATE)
+        open_val = float(getattr(row, COL_OPEN))
+        high_val = float(getattr(row, COL_HIGH))
+        low_val = float(getattr(row, COL_LOW))
+        close_val = float(getattr(row, COL_CLOSE))
+
         candle_entry: dict[str, object] = {
             "time": d.strftime("%Y-%m-%d"),
-            "open": float(getattr(row, COL_OPEN)),
-            "high": float(getattr(row, COL_HIGH)),
-            "low": float(getattr(row, COL_LOW)),
-            "close": float(getattr(row, COL_CLOSE)),
+            "open": open_val,
+            "high": high_val,
+            "low": low_val,
+            "close": close_val,
         }
 
-        # customValues 구성 (Record<string, string>)
+        # 3. customValues 구성 (Record<string, string>)
         cv: dict[str, str] = {}
-        pct_val = change_pct.iloc[i]
-        if pd.notna(pct_val):
-            cv["pct"] = f"{pct_val:.2f}"
+
+        # OHLC 가격
+        cv["open"] = f"{open_val:.2f}"
+        cv["high"] = f"{high_val:.2f}"
+        cv["low"] = f"{low_val:.2f}"
+        cv["close"] = f"{close_val:.2f}"
+
+        # 전일종가대비% (첫날 제외)
+        pc = prev_close.iloc[i]
+        if pd.notna(pc) and pc != 0:
+            pc_float = float(pc)
+            cv["open_pct"] = f"{(open_val / pc_float - 1) * 100:+.2f}"
+            cv["high_pct"] = f"{(high_val / pc_float - 1) * 100:+.2f}"
+            cv["low_pct"] = f"{(low_val / pc_float - 1) * 100:+.2f}"
+            cv["close_pct"] = f"{(close_val / pc_float - 1) * 100:+.2f}"
+
+        # MA
         if ma_col and ma_col in signal_df.columns:
             ma_val = getattr(row, ma_col)
             if pd.notna(ma_val):
                 cv["ma"] = f"{ma_val:.2f}"
-        if d in band_map:
-            bands = band_map[d]
-            if "upper" in bands:
-                cv["upper"] = f"{bands['upper']:.2f}"
-            if "lower" in bands:
-                cv["lower"] = f"{bands['lower']:.2f}"
+
+        # 밴드 + 에쿼티 + 드로우다운
+        if d in equity_map:
+            eq_data = equity_map[d]
+            if "upper" in eq_data:
+                cv["upper"] = f"{eq_data['upper']:.2f}"
+            if "lower" in eq_data:
+                cv["lower"] = f"{eq_data['lower']:.2f}"
+            if "equity" in eq_data:
+                cv["equity"] = f"{int(eq_data['equity']):,}"
+            if "dd" in eq_data:
+                cv["dd"] = f"{eq_data['dd']:.2f}"
 
         if cv:
             candle_entry["customValues"] = cv
@@ -381,7 +412,7 @@ def _render_main_chart(
             "borderVisible": False,
             "wickUpColor": COLOR_UP,
             "wickDownColor": COLOR_DOWN,
-            "priceLineVisible": True,
+            "priceLineVisible": False,
         },
     }
 
@@ -405,6 +436,7 @@ def _render_main_chart(
                         "color": COLOR_MA_LINE,
                         "lineWidth": 2,
                         "priceLineVisible": False,
+                        "lastValueVisible": False,
                         "crosshairMarkerVisible": False,
                     },
                 }
@@ -423,6 +455,7 @@ def _render_main_chart(
                         "lineWidth": 2,
                         "lineStyle": 2,
                         "priceLineVisible": False,
+                        "lastValueVisible": False,
                         "crosshairMarkerVisible": False,
                     },
                 }
@@ -441,6 +474,7 @@ def _render_main_chart(
                         "lineWidth": 2,
                         "lineStyle": 2,
                         "priceLineVisible": False,
+                        "lastValueVisible": False,
                         "crosshairMarkerVisible": False,
                     },
                 }
