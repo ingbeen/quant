@@ -56,3 +56,7 @@ Desktop.ini
 # 큰 데이터 파일들 (필요시 git add -f 사용)
 *.parquet
 temp/
+
+# Vendor fork (node_modules 제외, 빌드 결과물은 포함)
+vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend/node_modules/
+!vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend/build/

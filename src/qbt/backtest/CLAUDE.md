@@ -236,6 +236,33 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 ---
 
+## 대시보드 앱 아키텍처
+
+### 동적 전략 탭 (`scripts/backtest/app_single_backtest.py`)
+
+대시보드는 `BACKTEST_RESULTS_DIR` 하위 디렉토리를 자동 탐색하여 전략별 탭을 생성한다.
+새로운 전략이 추가되면 결과 폴더만 있으면 앱 코드 수정 없이 자동으로 탭이 추가된다.
+
+핵심 설계:
+
+- **전략 자동 탐색**: `_discover_strategies()`가 하위 디렉토리의 `summary.json` 존재 여부로 유효한 전략 결과를 판별
+- **Feature Detection**: 전략명 분기(`if strategy == "buffer_zone"`) 없이 DataFrame 컬럼 감지로 차트 오버레이 결정
+  - `ma_*` 컬럼 존재 → MA 오버레이 추가
+  - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가
+  - `trades_df`가 비어있지 않음 → 마커 추가
+- **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
+- **하위 호환**: `summary.json`에 `display_name` 없으면 디렉토리명 fallback
+
+### Vendor Fork (`vendor/streamlit-lightweight-charts-v5/`)
+
+- `streamlit-lightweight-charts-v5` 포크를 `vendor/` 디렉토리에 포함
+- TSX 소스에 `subscribeCrosshairMove` 기반 커스텀 tooltip 추가
+- cleanup 함수에 `unsubscribeCrosshairMove` + tooltip DOM 제거 포함
+- `pyproject.toml`에서 로컬 경로 참조: `{path = "vendor/streamlit-lightweight-charts-v5"}`
+- 팀원은 `poetry install`만 실행하면 됨 (Node.js 불필요, 빌드 결과물 포함)
+
+---
+
 ## 테스트 커버리지
 
 주요 테스트 파일: `tests/test_strategy.py`, `tests/test_analysis.py`

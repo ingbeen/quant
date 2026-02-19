@@ -1,0 +1,58 @@
+Notes on development-loop for this project
+==========================================
+
+- Keep two shells available in VSCode
+    a) Python Debug Console for the Python Streamlit test project
+    b) zsh for running the development server and re-building ts-code
+
+Typescript development iteration (zsh)
+--------------------------------------
+- project_root: /Volumes/Work/development/projects/git/streamlit-lightweight-charts-v5/
+- cd {project_root}/lightweight_charts_v5/frontend
+- use restart.sh to re-build all ts-code and restart the server 
+  (basically: npm run build && sleep 3 && npm start)
+
+Python-side streamlit demo_chart.py
+----------------------------------- 
+- cd {project_root}
+- stop streamlit debugger if running
+- pip install -e .
+- Cmd-Shift D to run streamlit again in the debugger
+
+New Release
+----------------
+# Remove previous build artifacts
+rm -rf build/ dist/ *.egg-info/
+
+# Build the frontend
+cd lightweight_charts_v5/frontend
+npm install
+npm run build
+cd ../..
+
+# Build the Python package
+python -m pip install --upgrade build
+python -m build
+
+Deploy to PyPI (Test First!)
+-----------------------------
+
+## Step 1: Test Deploy to TestPyPI (ALWAYS DO THIS FIRST)
+# Clean previous builds
+rm -rf build/ dist/ *.egg-info/
+
+# Build the package
+python -m pip install --upgrade build twine
+python -m build
+
+# Upload to TestPyPI (use TestPyPI token)
+twine upload --repository testpypi dist/*
+# Token from: https://test.pypi.org/manage/account/token/
+
+# Test installation in another project
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple streamlit-lightweight-charts-v5==0.1.8
+
+## Step 2: Deploy to Production PyPI (after testing!)
+# Only run this after confirming TestPyPI package works!
+twine upload dist/*
+# Token from: Documents/Licenses/PyPI-Token.txt

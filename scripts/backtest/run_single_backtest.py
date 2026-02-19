@@ -230,6 +230,7 @@ def _save_results(result: SingleBacktestResult) -> None:
     monthly_returns = _calculate_monthly_returns(result.equity_df)
 
     summary_data: dict[str, Any] = {
+        "display_name": result.display_name,
         "summary": {
             "initial_capital": round(float(str(result.summary["initial_capital"]))),
             "final_capital": round(float(str(result.summary["final_capital"]))),

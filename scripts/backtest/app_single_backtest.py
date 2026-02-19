@@ -1,7 +1,8 @@
-"""백테스트 단일 전략 시각화 대시보드 (표시 전용)
+"""백테스트 전략별 시각화 대시보드 (동적 탭)
 
-run_single_backtest.py가 생성한 결과 파일을 로드하여 시각화한다.
-Streamlit + lightweight-charts-v5 + Plotly 기반 인터랙티브 대시보드.
+BACKTEST_RESULTS_DIR 하위 전략별 결과 폴더를 자동 탐색하여
+각 전략마다 독립된 탭에서 시각화를 제공한다.
+전략이 추가되면 결과 폴더만 있으면 자동으로 탭이 생성된다.
 
 선행 스크립트:
     poetry run python scripts/backtest/run_single_backtest.py
@@ -12,7 +13,8 @@ Streamlit + lightweight-charts-v5 + Plotly 기반 인터랙티브 대시보드.
 
 import json
 from datetime import date
-from typing import Any
+from pathlib import Path
+from typing import Any, TypedDict
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -20,10 +22,7 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
 from qbt.common_constants import (
-    BUFFER_ZONE_EQUITY_PATH,
-    BUFFER_ZONE_SIGNAL_PATH,
-    BUFFER_ZONE_SUMMARY_PATH,
-    BUFFER_ZONE_TRADES_PATH,
+    BACKTEST_RESULTS_DIR,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
@@ -78,74 +77,186 @@ DEFAULT_ZOOM_LEVEL = 200
 
 
 # ============================================================
-# 데이터 로딩 함수
+# 전략 데이터 타입
+# ============================================================
+
+
+class StrategyData(TypedDict):
+    """자동 탐색된 전략 데이터 컨테이너."""
+
+    strategy_name: str
+    display_name: str
+    result_dir: Path
+    summary_data: dict[str, Any]
+    signal_df: pd.DataFrame
+    equity_df: pd.DataFrame
+    trades_df: pd.DataFrame
+
+
+# ============================================================
+# 전략 자동 탐색
 # ============================================================
 
 
 @st.cache_data
-def _load_signal_csv() -> pd.DataFrame:
-    """시그널 CSV를 로드한다."""
-    df = pd.read_csv(BUFFER_ZONE_SIGNAL_PATH)
-    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
+def _load_csv(path_str: str) -> pd.DataFrame:
+    """CSV를 로드하고 날짜 컬럼을 파싱한다."""
+    df = pd.read_csv(path_str)
+    if COL_DATE in df.columns:
+        df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
     return df
 
 
 @st.cache_data
-def _load_equity_csv() -> pd.DataFrame:
-    """에쿼티 CSV를 로드한다."""
-    df = pd.read_csv(BUFFER_ZONE_EQUITY_PATH)
-    df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
-    return df
-
-
-@st.cache_data
-def _load_trades_csv() -> pd.DataFrame:
-    """거래 내역 CSV를 로드한다."""
-    df = pd.read_csv(BUFFER_ZONE_TRADES_PATH)
-    if not df.empty:
-        df["entry_date"] = pd.to_datetime(df["entry_date"]).dt.date
-        df["exit_date"] = pd.to_datetime(df["exit_date"]).dt.date
-    return df
-
-
-@st.cache_data
-def _load_summary_json() -> dict[str, Any]:
-    """요약 JSON을 로드한다."""
-    with BUFFER_ZONE_SUMMARY_PATH.open("r", encoding="utf-8") as f:
+def _load_json(path_str: str) -> dict[str, Any]:
+    """JSON 파일을 로드한다."""
+    with Path(path_str).open("r", encoding="utf-8") as f:
         return json.load(f)  # type: ignore[no-any-return]
 
 
-# ============================================================
-# 차트 데이터 변환 함수 (표시 변환만 수행)
-# ============================================================
+def _discover_strategies() -> list[StrategyData]:
+    """
+    BACKTEST_RESULTS_DIR 하위 디렉토리를 스캔하여 전략 데이터를 자동 탐색한다.
 
+    각 디렉토리에 summary.json이 존재하면 유효한 전략 결과로 간주한다.
+    display_name은 summary.json에서 읽으며, 없으면 디렉토리명을 fallback으로 사용한다.
 
-def _build_candle_data(signal_df: pd.DataFrame) -> list[dict[str, object]]:
-    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다."""
-    candle_data: list[dict[str, object]] = []
-    for _, row in signal_df.iterrows():
-        d: date = row[COL_DATE]
-        candle_data.append(
-            {
-                "time": d.strftime("%Y-%m-%d"),
-                "open": float(row[COL_OPEN]),
-                "high": float(row[COL_HIGH]),
-                "low": float(row[COL_LOW]),
-                "close": float(row[COL_CLOSE]),
-            }
+    Returns:
+        전략 데이터 리스트 (디렉토리명 정렬)
+    """
+    if not BACKTEST_RESULTS_DIR.exists():
+        return []
+
+    strategies: list[StrategyData] = []
+
+    for subdir in sorted(BACKTEST_RESULTS_DIR.iterdir()):
+        if not subdir.is_dir():
+            continue
+
+        summary_path = subdir / "summary.json"
+        signal_path = subdir / "signal.csv"
+        equity_path = subdir / "equity.csv"
+        trades_path = subdir / "trades.csv"
+
+        # summary.json, signal.csv, equity.csv 필수
+        if not summary_path.exists() or not signal_path.exists() or not equity_path.exists():
+            continue
+
+        summary_data = _load_json(str(summary_path))
+        signal_df = _load_csv(str(signal_path))
+        equity_df = _load_csv(str(equity_path))
+
+        # trades는 선택 (Buy & Hold는 빈 파일)
+        if trades_path.exists():
+            trades_df = _load_csv(str(trades_path))
+            if not trades_df.empty and "entry_date" in trades_df.columns:
+                trades_df["entry_date"] = pd.to_datetime(trades_df["entry_date"]).dt.date
+            if not trades_df.empty and "exit_date" in trades_df.columns:
+                trades_df["exit_date"] = pd.to_datetime(trades_df["exit_date"]).dt.date
+        else:
+            trades_df = pd.DataFrame()
+
+        # display_name: JSON에 있으면 사용, 없으면 디렉토리명 fallback
+        display_name = summary_data.get("display_name", subdir.name)
+
+        strategies.append(
+            StrategyData(
+                strategy_name=subdir.name,
+                display_name=display_name,
+                result_dir=subdir,
+                summary_data=summary_data,
+                signal_df=signal_df,
+                equity_df=equity_df,
+                trades_df=trades_df,
+            )
         )
+
+    return strategies
+
+
+# ============================================================
+# 차트 데이터 변환 함수 (Feature Detection 기반)
+# ============================================================
+
+
+def _detect_ma_col(signal_df: pd.DataFrame) -> str | None:
+    """signal_df에서 ma_* 컬럼을 찾아 반환한다."""
+    for col in signal_df.columns:
+        if col.startswith("ma_"):
+            return col
+    return None
+
+
+def _build_candle_data(
+    signal_df: pd.DataFrame,
+    equity_df: pd.DataFrame,
+    ma_col: str | None,
+) -> list[dict[str, object]]:
+    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
+
+    customValues를 포함하여 tooltip에서 표시할 수 있게 한다.
+    """
+    # 밴드 데이터를 날짜 기준으로 매핑
+    has_upper = "upper_band" in equity_df.columns
+    has_lower = "lower_band" in equity_df.columns
+    band_map: dict[date, dict[str, float]] = {}
+    if has_upper or has_lower:
+        for _, row in equity_df.iterrows():
+            d: date = row[COL_DATE]
+            band_entry: dict[str, float] = {}
+            if has_upper and pd.notna(row.get("upper_band")):
+                band_entry["upper"] = float(row["upper_band"])
+            if has_lower and pd.notna(row.get("lower_band")):
+                band_entry["lower"] = float(row["lower_band"])
+            if band_entry:
+                band_map[d] = band_entry
+
+    # change_pct 계산
+    close_series = signal_df[COL_CLOSE]
+    change_pct = close_series.pct_change() * 100
+
+    candle_data: list[dict[str, object]] = []
+    for i, (_, row) in enumerate(signal_df.iterrows()):
+        d = row[COL_DATE]
+        candle_entry: dict[str, object] = {
+            "time": d.strftime("%Y-%m-%d"),
+            "open": float(row[COL_OPEN]),
+            "high": float(row[COL_HIGH]),
+            "low": float(row[COL_LOW]),
+            "close": float(row[COL_CLOSE]),
+        }
+
+        # customValues 구성 (Record<string, string>)
+        cv: dict[str, str] = {}
+        pct_val = change_pct.iloc[i]
+        if pd.notna(pct_val):
+            cv["pct"] = f"{pct_val:.2f}"
+        if ma_col and ma_col in signal_df.columns and pd.notna(row.get(ma_col)):
+            cv["ma"] = f"{row[ma_col]:.2f}"
+        if d in band_map:
+            bands = band_map[d]
+            if "upper" in bands:
+                cv["upper"] = f"{bands['upper']:.2f}"
+            if "lower" in bands:
+                cv["lower"] = f"{bands['lower']:.2f}"
+
+        if cv:
+            candle_entry["customValues"] = cv
+
+        candle_data.append(candle_entry)
+
     return candle_data
 
 
-def _build_ma_data(signal_df: pd.DataFrame, ma_col: str) -> list[dict[str, object]]:
-    """이동평균 데이터를 Line 시리즈용으로 변환한다."""
-    ma_data: list[dict[str, object]] = []
+def _build_line_data(signal_df: pd.DataFrame, col: str) -> list[dict[str, object]]:
+    """특정 컬럼의 Line 시리즈 데이터를 생성한다."""
+    data: list[dict[str, object]] = []
     for _, row in signal_df.iterrows():
-        val = row[ma_col]
+        val = row[col]
         if pd.notna(val):
             d: date = row[COL_DATE]
-            ma_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
-    return ma_data
+            data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
+    return data
 
 
 def _build_band_data(equity_df: pd.DataFrame, band_col: str) -> list[dict[str, object]]:
@@ -166,7 +277,6 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
         return markers
 
     for _, trade in trades_df.iterrows():
-        # Buy 마커 (진입일)
         entry_d: date = trade["entry_date"]
         markers.append(
             {
@@ -178,7 +288,6 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "size": 2,
             }
         )
-        # Sell 마커 (청산일)
         exit_d: date = trade["exit_date"]
         pnl_pct = trade["pnl_pct"] * 100
         markers.append(
@@ -214,23 +323,30 @@ def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
 
 
 # ============================================================
-# 차트 렌더링 함수
+# 차트 렌더링 함수 (Feature Detection 기반)
 # ============================================================
 
 
 def _render_main_chart(
-    signal_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    trades_df: pd.DataFrame,
-    ma_col: str,
+    strategy: StrategyData,
+    chart_key: str,
 ) -> None:
-    """메인 차트를 렌더링한다 (캔들+MA+밴드+마커+에쿼티+드로우다운)."""
+    """메인 차트를 렌더링한다 (캔들 + 조건부 MA/밴드/마커 + 에쿼티 + 드로우다운).
+
+    Feature Detection: 컬럼 존재 여부로 오버레이를 결정한다.
+    """
+    signal_df = strategy["signal_df"]
+    equity_df = strategy["equity_df"]
+    trades_df = strategy["trades_df"]
+
+    # Feature detection
+    ma_col = _detect_ma_col(signal_df)
+    has_upper = "upper_band" in equity_df.columns
+    has_lower = "lower_band" in equity_df.columns
+    has_trades = not trades_df.empty and "entry_date" in trades_df.columns
+
     # 1. 데이터 준비
-    candle_data = _build_candle_data(signal_df)
-    ma_data = _build_ma_data(signal_df, ma_col)
-    upper_band_data = _build_band_data(equity_df, "upper_band")
-    lower_band_data = _build_band_data(equity_df, "lower_band")
-    markers = _build_markers(trades_df)
+    candle_data = _build_candle_data(signal_df, equity_df, ma_col)
     equity_data = _build_equity_data(equity_df)
     dd_data = _build_drawdown_data(equity_df)
 
@@ -253,7 +369,7 @@ def _render_main_chart(
         },
     }
 
-    # 3. Pane 1: 캔들스틱 + MA + 밴드 + 마커
+    # 3. Pane 1: 캔들스틱 + 조건부 오버레이
     candle_series: dict[str, object] = {
         "type": "Candlestick",
         "data": candle_data,
@@ -266,63 +382,75 @@ def _render_main_chart(
             "priceLineVisible": True,
         },
     }
-    if markers:
-        candle_series["markers"] = markers
+
+    # 마커 (trades가 있을 때만)
+    if has_trades:
+        markers = _build_markers(trades_df)
+        if markers:
+            candle_series["markers"] = markers
 
     pane1_series: list[dict[str, object]] = [candle_series]
 
-    # MA 오버레이
-    if ma_data:
-        pane1_series.append(
-            {
-                "type": "Line",
-                "data": ma_data,
-                "options": {
-                    "color": COLOR_MA_LINE,
-                    "lineWidth": 2,
-                    "priceLineVisible": False,
-                    "crosshairMarkerVisible": False,
-                },
-            }
-        )
+    # MA 오버레이 (ma_* 컬럼 존재 시)
+    if ma_col:
+        ma_data = _build_line_data(signal_df, ma_col)
+        if ma_data:
+            pane1_series.append(
+                {
+                    "type": "Line",
+                    "data": ma_data,
+                    "options": {
+                        "color": COLOR_MA_LINE,
+                        "lineWidth": 2,
+                        "priceLineVisible": False,
+                        "crosshairMarkerVisible": False,
+                    },
+                }
+            )
 
     # Upper Band 오버레이
-    if upper_band_data:
-        pane1_series.append(
-            {
-                "type": "Line",
-                "data": upper_band_data,
-                "options": {
-                    "color": COLOR_UPPER_BAND,
-                    "lineWidth": 2,
-                    "lineStyle": 2,
-                    "priceLineVisible": False,
-                    "crosshairMarkerVisible": False,
-                },
-            }
-        )
+    if has_upper:
+        upper_data = _build_band_data(equity_df, "upper_band")
+        if upper_data:
+            pane1_series.append(
+                {
+                    "type": "Line",
+                    "data": upper_data,
+                    "options": {
+                        "color": COLOR_UPPER_BAND,
+                        "lineWidth": 2,
+                        "lineStyle": 2,
+                        "priceLineVisible": False,
+                        "crosshairMarkerVisible": False,
+                    },
+                }
+            )
 
     # Lower Band 오버레이
-    if lower_band_data:
-        pane1_series.append(
-            {
-                "type": "Line",
-                "data": lower_band_data,
-                "options": {
-                    "color": COLOR_LOWER_BAND,
-                    "lineWidth": 2,
-                    "lineStyle": 2,
-                    "priceLineVisible": False,
-                    "crosshairMarkerVisible": False,
-                },
-            }
-        )
+    if has_lower:
+        lower_data = _build_band_data(equity_df, "lower_band")
+        if lower_data:
+            pane1_series.append(
+                {
+                    "type": "Line",
+                    "data": lower_data,
+                    "options": {
+                        "color": COLOR_LOWER_BAND,
+                        "lineWidth": 2,
+                        "lineStyle": 2,
+                        "priceLineVisible": False,
+                        "crosshairMarkerVisible": False,
+                    },
+                }
+            )
+
+    chart_title = f"{strategy['display_name']} - 시그널 차트"
 
     pane1 = {
         "chart": chart_theme,
         "series": pane1_series,
         "height": DEFAULT_CANDLE_PANE_HEIGHT,
-        "title": "QQQ (시그널)",
+        "title": chart_title,
     }
 
     # 4. Pane 2: 에쿼티 곡선
@@ -371,11 +499,11 @@ def _render_main_chart(
     # 6. 렌더링
     total_height = DEFAULT_CANDLE_PANE_HEIGHT + DEFAULT_EQUITY_PANE_HEIGHT + DEFAULT_DRAWDOWN_PANE_HEIGHT
     lightweight_charts_v5_component(
-        name="backtest_main_chart",
+        name=f"chart_{chart_key}",
         charts=[pane1, pane2, pane3],
         height=total_height,
         zoom_level=DEFAULT_ZOOM_LEVEL,
-        key="main_chart",
+        key=f"main_chart_{chart_key}",
     )
 
 
@@ -385,11 +513,9 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
         st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
         return
 
-    # 1. JSON 데이터를 DataFrame으로 변환 후 피벗
     returns_df = pd.DataFrame(monthly_returns)
     pivot = returns_df.pivot_table(values="return_pct", index="year", columns="month")
 
-    # 2. 피벗 테이블을 Plotly 히트맵으로 변환
     years = sorted(pivot.index.tolist())
     months = list(range(1, 13))
 
@@ -404,7 +530,6 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
                 row.append(None)
         z_values.append(row)
 
-    # 3. 최대 절대값으로 대칭 색상 스케일 설정
     flat_values = [v for row in z_values for v in row if v is not None]
     if not flat_values:
         st.info("월별 수익률 데이터가 없습니다.")
@@ -446,7 +571,7 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
 def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
     """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다."""
     if trades_df.empty or "holding_days" not in trades_df.columns:
-        st.info("거래 내역이 없어 보유 기간 히스토그램을 표시할 수 없습니다.")
+        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
         return
 
     holding_days = trades_df["holding_days"].tolist()
@@ -478,6 +603,97 @@ def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
 
 
 # ============================================================
+# 전략 탭 렌더링
+# ============================================================
+
+
+def _render_strategy_tab(strategy: StrategyData) -> None:
+    """하나의 전략 탭 내부를 렌더링한다."""
+    summary_data = strategy["summary_data"]
+    summary = summary_data["summary"]
+    params = summary_data.get("params", {})
+    monthly_returns: list[dict[str, Any]] = summary_data.get("monthly_returns", [])
+    trades_df = strategy["trades_df"]
+    has_trades = not trades_df.empty and "entry_date" in trades_df.columns
+
+    # ---- Section 1: 요약 지표 ----
+    st.header("요약 지표")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("총 수익률", f"{summary['total_return_pct']:.2f}%")
+    with col2:
+        st.metric("CAGR", f"{summary['cagr']:.2f}%")
+    with col3:
+        st.metric("MDD", f"{summary['mdd']:.2f}%")
+    with col4:
+        total_trades = int(summary["total_trades"])
+        win_rate = float(summary["win_rate"])
+        st.metric("거래수 / 승률", f"{total_trades}회 / {win_rate:.1f}%")
+
+    st.divider()
+
+    # ---- Section 2: 메인 차트 ----
+    st.header("1. 시그널 차트 + 전략 오버레이")
+
+    # 차트 설명 (feature detection 기반)
+    ma_col = _detect_ma_col(strategy["signal_df"])
+    has_bands = "upper_band" in strategy["equity_df"].columns
+
+    desc_parts: list[str] = ["캔들스틱: OHLC"]
+    if ma_col:
+        ma_type = params.get("ma_type", "sma")
+        ma_window = params.get("ma_window", "")
+        desc_parts.append(f"이동평균: {str(ma_type).upper()} {ma_window}일")
+    if has_bands:
+        buffer_zone_pct = params.get("buffer_zone_pct")
+        if buffer_zone_pct is not None:
+            desc_parts.append(f"밴드: 버퍼존 {buffer_zone_pct:.0%}")
+    if has_trades:
+        desc_parts.append("마커: Buy/Sell 체결 시점")
+
+    st.markdown(" | ".join(desc_parts))
+
+    _render_main_chart(strategy, strategy["strategy_name"])
+
+    st.divider()
+
+    # ---- Section 3: 월별 수익률 히트맵 ----
+    st.header("2. 월별/연도별 수익률 히트맵")
+    st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
+    _render_monthly_heatmap(monthly_returns)
+
+    st.divider()
+
+    # ---- Section 4: 포지션 보유 기간 분포 ----
+    st.header("3. 포지션 보유 기간 분포")
+    if has_trades:
+        st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
+        _render_holding_period_histogram(trades_df)
+    else:
+        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
+
+    st.divider()
+
+    # ---- Section 5: 전체 거래 상세 내역 ----
+    st.header("4. 전체 거래 상세 내역")
+    if has_trades:
+        display_df = trades_df.copy()
+        display_df["pnl_pct"] = display_df["pnl_pct"] * 100
+        display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
+        st.dataframe(display_df, width="stretch")  # type: ignore[call-overload]
+        st.caption(f"총 {len(trades_df)}건의 거래")
+    else:
+        st.info("이 전략에서는 거래 내역이 없습니다.")
+
+    st.divider()
+
+    # ---- Section 6: 사용 파라미터 ----
+    st.header("5. 사용 파라미터")
+    st.json(params)
+
+
+# ============================================================
 # 메인 앱
 # ============================================================
 
@@ -485,7 +701,6 @@ def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
 def main() -> None:
     """Streamlit 앱 메인 함수."""
     try:
-        # ---- 페이지 설정 ----
         st.set_page_config(
             page_title="백테스트 전략 대시보드",
             page_icon=":chart_with_upwards_trend:",
@@ -493,110 +708,26 @@ def main() -> None:
         )
 
         st.title("백테스트 전략 대시보드")
-        st.markdown("QQQ 시그널 + TQQQ 매매 버퍼존 전략 백테스트 결과를 시각화합니다.")
+        st.markdown("전략별 백테스트 결과를 시각화합니다. 전략이 추가되면 자동으로 탭이 생성됩니다.")
 
-        # ---- 결과 파일 존재 확인 ----
-        required_files = [
-            BUFFER_ZONE_SIGNAL_PATH,
-            BUFFER_ZONE_EQUITY_PATH,
-            BUFFER_ZONE_TRADES_PATH,
-            BUFFER_ZONE_SUMMARY_PATH,
-        ]
-        missing_files = [p for p in required_files if not p.exists()]
-        if missing_files:
+        # ---- 전략 자동 탐색 ----
+        strategies = _discover_strategies()
+
+        if not strategies:
             st.warning(
                 "결과 파일이 없습니다. 먼저 백테스트를 실행해주세요:\n\n"
-                "```\npoetry run python scripts/backtest/run_single_backtest.py\n```\n\n"
-                f"누락 파일: {', '.join(str(p) for p in missing_files)}"
+                "```\npoetry run python scripts/backtest/run_single_backtest.py\n```"
             )
             st.stop()
             return
 
-        # ---- 데이터 로딩 ----
-        signal_df = _load_signal_csv()
-        equity_df = _load_equity_csv()
-        trades_df = _load_trades_csv()
-        summary_data = _load_summary_json()
+        # ---- 동적 탭 생성 ----
+        tab_labels = [s["display_name"] for s in strategies]
+        tabs = st.tabs(tab_labels)
 
-        summary = summary_data["summary"]
-        params = summary_data["params"]
-        monthly_returns: list[dict[str, Any]] = summary_data.get("monthly_returns", [])
-
-        # MA 컬럼명 결정
-        ma_window = params["ma_window"]
-        ma_col = f"ma_{ma_window}"
-        ma_type = params.get("ma_type", "ema")
-
-        # ---- Section 1: 요약 지표 ----
-        st.header("요약 지표")
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("총 수익률", f"{summary['total_return_pct']:.2f}%")
-        with col2:
-            st.metric("CAGR", f"{summary['cagr']:.2f}%")
-        with col3:
-            st.metric("MDD", f"{summary['mdd']:.2f}%")
-        with col4:
-            total_trades = int(summary["total_trades"])
-            win_rate = float(summary["win_rate"])
-            st.metric("거래수 / 승률", f"{total_trades}회 / {win_rate:.1f}%")
-
-        st.divider()
-
-        # ---- Section 2: 메인 차트 ----
-        st.header("1. QQQ 시그널 차트 + 전략 오버레이")
-        buffer_zone_pct = params["buffer_zone_pct"]
-        st.markdown(
-            f"캔들스틱: QQQ OHLC | 이동평균: {ma_type.upper()} {ma_window}일 | "
-            f"밴드: 버퍼존 {buffer_zone_pct:.0%} | 마커: Buy/Sell 체결 시점"
-        )
-        _render_main_chart(signal_df, equity_df, trades_df, ma_col)
-
-        st.divider()
-
-        # ---- Section 3: 월별 수익률 히트맵 ----
-        st.header("2. 월별/연도별 수익률 히트맵")
-        st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
-        _render_monthly_heatmap(monthly_returns)
-
-        st.divider()
-
-        # ---- Section 4: 포지션 보유 기간 분포 ----
-        st.header("3. 포지션 보유 기간 분포")
-        st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
-        _render_holding_period_histogram(trades_df)
-
-        st.divider()
-
-        # ---- Section 5: 전체 거래 상세 내역 ----
-        st.header("4. 전체 거래 상세 내역")
-        if not trades_df.empty:
-            display_df = trades_df.copy()
-            # 손익률을 %로 변환
-            display_df["pnl_pct"] = display_df["pnl_pct"] * 100
-            display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
-            st.dataframe(display_df, width="stretch")  # type: ignore[call-overload]
-            st.caption(f"총 {len(trades_df)}건의 거래")
-        else:
-            st.info("거래 내역이 없습니다.")
-
-        st.divider()
-
-        # ---- Section 6: 사용 파라미터 ----
-        st.header("5. 사용 파라미터")
-        param_source = params.get("param_source", {})
-        st.json(
-            {
-                "이동평균 유형": ma_type.upper(),
-                "이동평균 기간": f"{ma_window} ({param_source.get('ma_window', '')})",
-                "버퍼존 비율": f"{buffer_zone_pct:.2%} ({param_source.get('buffer_zone_pct', '')})",
-                "유지일 (hold_days)": f"{params['hold_days']} ({param_source.get('hold_days', '')})",
-                "조정기간 (월)": f"{params['recent_months']} ({param_source.get('recent_months', '')})",
-                "초기 자본": f"{params['initial_capital']:,.0f}원",
-                "데이터": summary_data.get("data_info", {}),
-            }
-        )
+        for tab, strategy in zip(tabs, strategies, strict=True):
+            with tab:
+                _render_strategy_tab(strategy)
 
         # ---- 푸터 ----
         st.markdown("---")

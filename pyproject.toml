@@ -11,7 +11,7 @@ pandas = "^2.0.0"
 yfinance = "^0.2.0"
 streamlit = "^1.30.0"
 plotly = "^5.18.0"
-streamlit-lightweight-charts-v5 = "^0.1.8"
+streamlit-lightweight-charts-v5 = {path = "vendor/streamlit-lightweight-charts-v5"}
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.0.0"
@@ -34,6 +34,7 @@ target-version = ['py312']
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+extend-exclude = ["vendor"]
 
 [tool.ruff.lint]
 select = [
