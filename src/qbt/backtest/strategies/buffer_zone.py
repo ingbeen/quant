@@ -13,7 +13,7 @@
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import pandas as pd
 
@@ -40,18 +40,92 @@ from qbt.backtest.constants import (
     SLIPPAGE_RATE,
 )
 from qbt.backtest.types import (
-    BufferStrategyResultDict,
-    EquityRecord,
-    GridSearchResult,
-    HoldState,
     SingleBacktestResult,
-    TradeRecord,
+    SummaryDict,
 )
 from qbt.common_constants import BUFFER_ZONE_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_OPEN, GRID_RESULTS_PATH
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
 
 logger = get_logger(__name__)
+
+# 전략 식별 상수
+STRATEGY_NAME = "buffer_zone"
+DISPLAY_NAME = "버퍼존 전략"
+
+
+# ============================================================================
+# 전략 전용 TypedDict (types.py에서 이동)
+# ============================================================================
+
+
+class BufferStrategyResultDict(SummaryDict):
+    """run_buffer_strategy() 반환 타입.
+
+    SummaryDict를 상속하고 전략 파라미터를 추가한다.
+    """
+
+    strategy: str
+    ma_window: int
+    buffer_zone_pct: float
+    hold_days: int
+
+
+class EquityRecord(TypedDict):
+    """_record_equity() 반환 타입 / equity_records 리스트 아이템.
+
+    키 "Date"는 COL_DATE 상수의 값이다.
+    """
+
+    Date: date
+    equity: float
+    position: int
+    buffer_zone_pct: float
+    upper_band: float | None
+    lower_band: float | None
+
+
+class TradeRecord(TypedDict):
+    """_execute_sell_order() 거래 기록 딕셔너리."""
+
+    entry_date: date
+    exit_date: date
+    entry_price: float
+    exit_price: float
+    shares: int
+    pnl: float
+    pnl_pct: float
+    buffer_zone_pct: float
+    hold_days_used: int
+    recent_buy_count: int
+
+
+class HoldState(TypedDict):
+    """hold_days 상태머신의 상태 딕셔너리."""
+
+    start_date: date
+    days_passed: int
+    buffer_pct: float
+    hold_days_required: int
+
+
+class GridSearchResult(TypedDict):
+    """_run_buffer_strategy_for_grid() 반환 타입.
+
+    키 이름은 backtest/constants.py의 COL_* 상수 값과 동일하다.
+    """
+
+    ma_window: int
+    buffer_zone_pct: float
+    hold_days: int
+    recent_months: int
+    total_return_pct: float
+    cagr: float
+    mdd: float
+    total_trades: int
+    win_rate: float
+    final_capital: float
+
 
 # 버퍼존 전략 동적 조정 상수
 DEFAULT_BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
@@ -792,7 +866,7 @@ def run_buffer_strategy(
     base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
     summary: BufferStrategyResultDict = {
         **base_summary,
-        "strategy": "buffer_zone",
+        "strategy": STRATEGY_NAME,
         "ma_window": params.ma_window,
         "buffer_zone_pct": params.buffer_zone_pct,
         "hold_days": params.hold_days,
@@ -925,8 +999,8 @@ def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktes
     }
 
     return SingleBacktestResult(
-        strategy_name="buffer_zone",
-        display_name="버퍼존 전략",
+        strategy_name=STRATEGY_NAME,
+        display_name=DISPLAY_NAME,
         signal_df=signal_df,
         equity_df=equity_df,
         trades_df=trades_df,

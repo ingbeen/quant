@@ -14,17 +14,12 @@
 
 ### 1. types.py
 
-백테스트 도메인의 TypedDict 및 dataclass 정의를 제공합니다.
+백테스트 도메인의 공통 TypedDict 및 dataclass 정의를 제공합니다.
+전략 전용 타입은 각 전략 모듈에 정의합니다.
 
-주요 타입:
+공통 타입:
 
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약)
-- `BuyAndHoldResultDict`: `run_buy_and_hold()` 반환 타입
-- `BufferStrategyResultDict`: `run_buffer_strategy()` 반환 타입
-- `EquityRecord`: equity 기록 딕셔너리
-- `TradeRecord`: 거래 기록 딕셔너리
-- `HoldState`: hold_days 상태머신 상태
-- `GridSearchResult`: 그리드 서치 결과 딕셔너리
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir 포함
 
@@ -56,7 +51,20 @@
 
 #### strategies/buffer_zone.py
 
-버퍼존 전략의 전체 구현을 포함합니다 (데이터 클래스, 헬퍼 함수, 실행 함수).
+버퍼존 전략의 전체 구현을 포함합니다 (데이터 클래스, 헬퍼 함수, 실행 함수, 전략 전용 타입).
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: 전략 내부 식별자 (`"buffer_zone"`)
+- `DISPLAY_NAME`: 전략 표시명 (`"버퍼존 전략"`)
+
+전략 전용 TypedDict (types.py에서 이동):
+
+- `BufferStrategyResultDict`: `run_buffer_strategy()` 반환 타입
+- `EquityRecord`: equity 기록 딕셔너리
+- `TradeRecord`: 거래 기록 딕셔너리
+- `HoldState`: hold_days 상태머신 상태
+- `GridSearchResult`: 그리드 서치 결과 딕셔너리
 
 데이터 클래스:
 
@@ -99,6 +107,15 @@
 #### strategies/buy_and_hold.py
 
 Buy & Hold 벤치마크 전략 구현입니다.
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: 전략 내부 식별자 (`"buy_and_hold"`)
+- `DISPLAY_NAME`: 전략 표시명 (`"Buy & Hold"`)
+
+전략 전용 TypedDict (types.py에서 이동):
+
+- `BuyAndHoldResultDict`: `run_buy_and_hold()` 반환 타입
 
 데이터 클래스:
 

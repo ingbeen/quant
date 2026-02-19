@@ -15,11 +15,29 @@ from qbt.backtest.constants import (
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
-from qbt.backtest.types import BuyAndHoldResultDict, SingleBacktestResult
+from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import BUY_AND_HOLD_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
+
+# 전략 식별 상수
+STRATEGY_NAME = "buy_and_hold"
+DISPLAY_NAME = "Buy & Hold"
+
+
+# ============================================================================
+# 전략 전용 TypedDict (types.py에서 이동)
+# ============================================================================
+
+
+class BuyAndHoldResultDict(SummaryDict):
+    """run_buy_and_hold() 반환 타입.
+
+    SummaryDict를 상속하고 전략 식별자를 추가한다.
+    """
+
+    strategy: str
 
 
 @dataclass
@@ -93,7 +111,7 @@ def run_buy_and_hold(
 
     # 7. calculate_summary 호출
     base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary: BuyAndHoldResultDict = {**base_summary, "strategy": "buy_and_hold"}
+    summary: BuyAndHoldResultDict = {**base_summary, "strategy": STRATEGY_NAME}
 
     logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
 
@@ -142,13 +160,13 @@ def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktes
 
     # 5. JSON 저장용 파라미터
     params_json: dict[str, Any] = {
-        "strategy": "buy_and_hold",
+        "strategy": STRATEGY_NAME,
         "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
     }
 
     return SingleBacktestResult(
-        strategy_name="buy_and_hold",
-        display_name="Buy & Hold",
+        strategy_name=STRATEGY_NAME,
+        display_name=DISPLAY_NAME,
         signal_df=bh_signal_df,
         equity_df=equity_df,
         trades_df=trades_df,

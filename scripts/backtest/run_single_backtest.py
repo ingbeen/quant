@@ -12,17 +12,13 @@
 
 import argparse
 import json
-import logging
 import sys
 from collections.abc import Callable, Mapping
 from typing import Any
 
 import pandas as pd
 
-from qbt.backtest.strategies import (
-    buffer_zone_run_single,
-    buy_and_hold_run_single,
-)
+from qbt.backtest.strategies import buffer_zone, buy_and_hold
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
@@ -45,19 +41,18 @@ logger = get_logger(__name__)
 
 # 전략 레지스트리
 STRATEGY_RUNNERS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], SingleBacktestResult]] = {
-    "buffer_zone": buffer_zone_run_single,
-    "buy_and_hold": buy_and_hold_run_single,
+    buffer_zone.STRATEGY_NAME: buffer_zone.run_single,
+    buy_and_hold.STRATEGY_NAME: buy_and_hold.run_single,
 }
 
 
-def print_summary(summary: Mapping[str, object], title: str, logger: logging.Logger) -> None:
+def print_summary(summary: Mapping[str, object], title: str) -> None:
     """
     요약 지표를 출력한다.
 
     Args:
         summary: 요약 지표 딕셔너리
         title: 출력 제목
-        logger: 로거 인스턴스
     """
     logger.debug("=" * 60)
     logger.debug(f"[{title}]")
@@ -362,7 +357,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="단일 백테스트 실행")
     parser.add_argument(
         "--strategy",
-        choices=["all", "buffer_zone", "buy_and_hold"],
+        choices=["all", *STRATEGY_RUNNERS.keys()],
         default="all",
         help="실행할 전략 (기본값: all)",
     )
@@ -384,7 +379,7 @@ def main() -> int:
     for name in strategy_names:
         logger.debug("=" * 60)
         result = STRATEGY_RUNNERS[name](signal_df.copy(), trade_df.copy())
-        print_summary(result.summary, result.display_name, logger)
+        print_summary(result.summary, result.display_name)
         _print_trades_table(result)
         _save_results(result)
         results.append(result)
