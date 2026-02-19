@@ -38,7 +38,7 @@ from qbt.backtest.constants import (
     DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
-from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
+from qbt.common_constants import COL_DATE, GRID_RESULTS_PATH, META_JSON_PATH, QQQ_DATA_PATH, TQQQ_SYNTHETIC_DATA_PATH
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
@@ -237,7 +237,7 @@ def main() -> int:
     }
 
     save_metadata("grid_results", metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     return 0
 

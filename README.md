@@ -41,7 +41,7 @@ poetry run python scripts/data/download_data.py QQQ
 
 # 2. 파라미터 최적화 (그리드 서치)
 poetry run python scripts/backtest/run_grid_search.py
-# 출력: storage/results/grid_results.csv
+# 출력: storage/results/backtest/grid_results.csv
 
 # 3. 단일 전략 검증 + 결과 저장
 poetry run python scripts/backtest/run_single_backtest.py
@@ -66,7 +66,7 @@ poetry run python scripts/data/download_data.py TQQQ
 
 # 2. 일별 비교 데이터 생성 (softplus 동적 스프레드 모델)
 poetry run python scripts/tqqq/generate_daily_comparison.py
-# 출력: storage/results/tqqq_daily_comparison.csv
+# 출력: storage/results/tqqq/tqqq_daily_comparison.csv
 
 # 3. 합성 TQQQ 데이터 생성 (선택)
 poetry run python scripts/tqqq/generate_synthetic.py
@@ -202,7 +202,9 @@ quant/
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
-│       └── spread_lab/  # 스프레드 모델 검증 결과
+│       ├── backtest/  # 백테스트 결과 (grid_results, single_backtest_*)
+│       └── tqqq/      # TQQQ 시뮬레이션 결과
+│           └── spread_lab/  # 스프레드 모델 검증 결과
 └── tests/             # 테스트 코드
 ```
 
@@ -212,18 +214,18 @@ quant/
 
 ### 백테스트
 
-- `storage/results/grid_results.csv`: 파라미터 그리드 서치 결과
-- `storage/results/single_backtest_signal.csv`: 단일 백테스트 시그널 데이터 (OHLC + MA + 전일대비%)
-- `storage/results/single_backtest_equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
-- `storage/results/single_backtest_trades.csv`: 거래 내역 + 보유기간
-- `storage/results/single_backtest_summary.json`: 요약 지표 + 파라미터 + 월별 수익률
+- `storage/results/backtest/grid_results.csv`: 파라미터 그리드 서치 결과
+- `storage/results/backtest/single_backtest_signal.csv`: 단일 백테스트 시그널 데이터 (OHLC + MA + 전일대비%)
+- `storage/results/backtest/single_backtest_equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
+- `storage/results/backtest/single_backtest_trades.csv`: 거래 내역 + 보유기간
+- `storage/results/backtest/single_backtest_summary.json`: 요약 지표 + 파라미터 + 월별 수익률
 
 ### TQQQ 시뮬레이션
 
-- `storage/results/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력, softplus 동적 스프레드)
+- `storage/results/tqqq/tqqq_daily_comparison.csv`: 일별 비교 데이터 (대시보드 입력, softplus 동적 스프레드)
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
-- `storage/results/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석 등)
+- `storage/results/tqqq/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석 등)
 
 ---
 

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import DISPLAY_DATE
+from qbt.common_constants import DISPLAY_DATE, META_JSON_PATH
 from qbt.tqqq.analysis_helpers import (
     add_rate_change_lags,
     aggregate_monthly,
@@ -177,7 +177,7 @@ def main() -> int:
         },
     }
     save_metadata(KEY_META_TYPE_RATE_SPREAD_LAB, metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     # 6. 결과 출력 (터미널)
     logger.debug("=" * 64)

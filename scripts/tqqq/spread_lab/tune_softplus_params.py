@@ -14,7 +14,7 @@ from typing import Any
 
 import pandas as pd
 
-from qbt.common_constants import QQQ_DATA_PATH
+from qbt.common_constants import META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_static_spread_series
 from qbt.tqqq.constants import (
     EXPENSE_RATIO_DATA_PATH,
@@ -203,7 +203,7 @@ def main() -> int:
     }
 
     save_metadata("tqqq_softplus_tuning", metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     return 0
 

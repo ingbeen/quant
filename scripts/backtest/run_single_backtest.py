@@ -34,8 +34,12 @@ from qbt.backtest.constants import (
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
     EPSILON,
     GRID_RESULTS_PATH,
+    META_JSON_PATH,
     QQQ_DATA_PATH,
     SINGLE_BACKTEST_EQUITY_PATH,
     SINGLE_BACKTEST_SIGNAL_PATH,
@@ -167,6 +171,17 @@ def _save_results(
     # 1. signal CSV 저장 (OHLC + MA + change_pct)
     signal_export = signal_df.copy()
     signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+    ma_col = f"ma_{ma_window}"
+    signal_export = signal_export.round(
+        {
+            COL_OPEN: 2,
+            COL_HIGH: 2,
+            COL_LOW: 2,
+            COL_CLOSE: 2,
+            ma_col: 2,
+            "change_pct": 2,
+        }
+    )
     signal_export.to_csv(SINGLE_BACKTEST_SIGNAL_PATH, index=False)
     logger.debug(f"시그널 데이터 저장 완료: {SINGLE_BACKTEST_SIGNAL_PATH}")
 
@@ -176,6 +191,15 @@ def _save_results(
     peak = equity_series.cummax()
     safe_peak = peak.replace(0, EPSILON)
     equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+    equity_export = equity_export.round(
+        {
+            "equity": 0,
+            "buffer_zone_pct": 4,
+            "upper_band": 2,
+            "lower_band": 2,
+            "drawdown_pct": 2,
+        }
+    )
     equity_export.to_csv(SINGLE_BACKTEST_EQUITY_PATH, index=False)
     logger.debug(f"에쿼티 데이터 저장 완료: {SINGLE_BACKTEST_EQUITY_PATH}")
 
@@ -184,6 +208,15 @@ def _save_results(
         trades_export = trades_df.copy()
         trades_export["holding_days"] = trades_export.apply(
             lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
+        )
+        trades_export = trades_export.round(
+            {
+                "entry_price": 2,
+                "exit_price": 2,
+                "pnl": 0,
+                "pnl_pct": 4,
+                "buffer_zone_pct": 4,
+            }
         )
         trades_export.to_csv(SINGLE_BACKTEST_TRADES_PATH, index=False)
     else:
@@ -195,25 +228,25 @@ def _save_results(
 
     summary_data: dict[str, Any] = {
         "summary": {
-            "initial_capital": summary["initial_capital"],
-            "final_capital": summary["final_capital"],
-            "total_return_pct": summary["total_return_pct"],
-            "cagr": summary["cagr"],
-            "mdd": summary["mdd"],
+            "initial_capital": round(float(str(summary["initial_capital"]))),
+            "final_capital": round(float(str(summary["final_capital"]))),
+            "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
+            "cagr": round(float(str(summary["cagr"])), 2),
+            "mdd": round(float(str(summary["mdd"])), 2),
             "total_trades": summary["total_trades"],
             "winning_trades": summary["winning_trades"],
             "losing_trades": summary["losing_trades"],
-            "win_rate": summary["win_rate"],
+            "win_rate": round(float(str(summary["win_rate"])), 2),
             "start_date": summary.get("start_date", ""),
             "end_date": summary.get("end_date", ""),
         },
         "params": {
             "ma_window": ma_window,
             "ma_type": MA_TYPE,
-            "buffer_zone_pct": buffer_zone_pct,
+            "buffer_zone_pct": round(buffer_zone_pct, 4),
             "hold_days": hold_days,
             "recent_months": recent_months,
-            "initial_capital": DEFAULT_INITIAL_CAPITAL,
+            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
             "param_source": {
                 "ma_window": ma_window_source,
                 "buffer_zone_pct": bz_source,
@@ -257,7 +290,7 @@ def _save_results(
         },
     }
     save_metadata("single_backtest", metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
 
 @cli_exception_handler

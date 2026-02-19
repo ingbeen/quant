@@ -166,7 +166,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 ### grid_results.csv
 
-경로: `storage/results/grid_results.csv`
+경로: `storage/results/backtest/grid_results.csv`
 
 주요 컬럼: 이평기간, 버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
 

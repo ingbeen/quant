@@ -108,8 +108,9 @@ quant/
     ├── etc/           # 기타 데이터 (금리 등)
     └── results/       # 분석 결과 CSV 및 메타데이터
         ├── meta.json  # 실행 이력 메타데이터
-        ├── single_backtest_*.csv / .json  # 단일 백테스트 결과 (signal, equity, trades, summary)
-        └── spread_lab/  # 스프레드 모델 검증 결과
+        ├── backtest/  # 백테스트 결과 (grid_results, single_backtest_*)
+        └── tqqq/      # TQQQ 시뮬레이션 결과
+            └── spread_lab/  # 스프레드 모델 검증 결과
 ```
 
 ---
@@ -276,6 +277,23 @@ CLI 계층 (`scripts/`):
   - `SLIPPAGE_RATE = 0.003  # 슬리피지 비율 (0.003 = 0.3%)`
   - `buffer_zone_pct: float  # 버퍼존 비율 (0.03 = 3%)`
 
+출력 데이터 반올림 규칙:
+
+CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합니다.
+비즈니스 로직 내부 계산 정밀도는 변경하지 않으며, 저장 직전에만 적용합니다.
+
+| 데이터 유형 | 소수점 자릿수 | 예시 |
+|------------|-------------|------|
+| 가격 (종가, 시가, 밴드 등) | 2자리 | `103.45` |
+| 자본금 (equity, pnl) | 정수 (0자리) | `10000000` |
+| 백분율 (수익률, MDD, 승률, 드로우다운) | 2자리 | `22.47` |
+| 비율 (0~1, buffer_zone_pct, pnl_pct) | 4자리 | `0.0300` |
+
+적용 패턴:
+
+- DataFrame: `df.round({컬럼명: 자릿수, ...})` (to_csv 직전)
+- JSON: `round(float(str(value)), 자릿수)` (dict 구성 시)
+
 문서화:
 
 - Google 스타일 Docstring
@@ -362,17 +380,23 @@ CLI 계층 (`scripts/`):
 - `federal_funds_rate_monthly.csv`: 연방기금금리 월별 데이터
 - `tqqq_net_expense_ratio_monthly.csv`: TQQQ 운용비율 월별 데이터
 
-분석 결과 (`storage/results/`):
+분석 결과 - 공통 (`storage/results/`):
+
+- `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
+
+분석 결과 - 백테스트 (`storage/results/backtest/`):
 
 - `grid_results.csv`: 백테스트 그리드 서치 결과
 - `single_backtest_signal.csv`: 단일 백테스트 시그널 (OHLC + MA + 전일대비%)
 - `single_backtest_equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
 - `single_backtest_trades.csv`: 거래 내역 + 보유기간
 - `single_backtest_summary.json`: 요약 지표 + 파라미터 + 월별 수익률
-- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터 (softplus 동적 스프레드)
-- `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
 
-스프레드 모델 검증 결과 (`storage/results/spread_lab/`):
+분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
+
+- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터 (softplus 동적 스프레드)
+
+스프레드 모델 검증 결과 (`storage/results/tqqq/spread_lab/`):
 
 - `tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
 - `tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)

@@ -232,7 +232,7 @@ class TestTQQQSimulationWorkflow:
         assert (simulated_df[COL_CLOSE] > 0).all(), "모든 가격은 양수"
 
         # When 4: 검증 지표 계산 + CSV 저장
-        output_path = mock_storage_paths["RESULTS_DIR"] / "tqqq_daily_comparison.csv"
+        output_path = mock_storage_paths["TQQQ_RESULTS_DIR"] / "tqqq_daily_comparison.csv"
         validation_results = calculate_validation_metrics(
             simulated_df=simulated_df,
             actual_df=tqqq_overlap,

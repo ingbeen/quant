@@ -28,6 +28,8 @@ STORAGE_DIR: Final = Path("storage")
 STOCK_DIR: Final = STORAGE_DIR / "stock"  # 주식 데이터 저장 디렉토리
 ETC_DIR: Final = STORAGE_DIR / "etc"  # 금리 등 기타 데이터 저장 디렉토리
 RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토리
+BACKTEST_RESULTS_DIR: Final = RESULTS_DIR / "backtest"  # 백테스트 결과 저장 디렉토리
+TQQQ_RESULTS_DIR: Final = RESULTS_DIR / "tqqq"  # TQQQ 시뮬레이션 결과 저장 디렉토리
 
 # --- 데이터 파일 경로 ---
 # 나스닥 100 추종 ETF 데이터 파일 경로
@@ -38,13 +40,13 @@ TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
 # --- 결과 파일 경로 ---
 # 백테스트 그리드 서치 결과 저장 경로
-GRID_RESULTS_PATH: Final = RESULTS_DIR / "grid_results.csv"
+GRID_RESULTS_PATH: Final = BACKTEST_RESULTS_DIR / "grid_results.csv"
 
 # 단일 백테스트 결과 파일 경로
-SINGLE_BACKTEST_SIGNAL_PATH: Final = RESULTS_DIR / "single_backtest_signal.csv"
-SINGLE_BACKTEST_EQUITY_PATH: Final = RESULTS_DIR / "single_backtest_equity.csv"
-SINGLE_BACKTEST_TRADES_PATH: Final = RESULTS_DIR / "single_backtest_trades.csv"
-SINGLE_BACKTEST_SUMMARY_PATH: Final = RESULTS_DIR / "single_backtest_summary.json"
+SINGLE_BACKTEST_SIGNAL_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_signal.csv"
+SINGLE_BACKTEST_EQUITY_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_equity.csv"
+SINGLE_BACKTEST_TRADES_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_trades.csv"
+SINGLE_BACKTEST_SUMMARY_PATH: Final = BACKTEST_RESULTS_DIR / "single_backtest_summary.json"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

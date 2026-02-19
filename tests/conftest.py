@@ -168,36 +168,56 @@ def mock_etc_dir(tmp_path, monkeypatch):
 @pytest.fixture
 def mock_results_dir(tmp_path, monkeypatch):
     """
-    분석 결과 디렉토리(RESULTS_DIR, META_JSON_PATH)를 테스트 임시 디렉토리로 변경
+    분석 결과 디렉토리를 테스트 임시 디렉토리로 변경
 
     패치 대상:
-        - common_constants.RESULTS_DIR
+        - common_constants.RESULTS_DIR, BACKTEST_RESULTS_DIR, TQQQ_RESULTS_DIR
         - common_constants.META_JSON_PATH
         - meta_manager.META_JSON_PATH (모듈 로드 시점 임포트)
+        - tqqq constants (import 시점에 캡처된 경로)
 
     사용 예시:
         백테스트 결과 저장, 메타데이터 관리 테스트에서 사용
 
     Returns:
-        dict: {'RESULTS_DIR': Path, 'META_JSON_PATH': Path}
+        dict: {'RESULTS_DIR': Path, 'BACKTEST_RESULTS_DIR': Path,
+               'TQQQ_RESULTS_DIR': Path, 'META_JSON_PATH': Path}
     """
     # 임시 디렉토리 생성
     results_dir = tmp_path / "results"
     results_dir.mkdir()
 
-    # common_constants 모듈의 RESULTS_DIR 및 META_JSON_PATH 패치
+    # 하위 디렉토리 생성
+    backtest_dir = results_dir / "backtest"
+    backtest_dir.mkdir()
+    tqqq_dir = results_dir / "tqqq"
+    tqqq_dir.mkdir()
+
+    # common_constants 모듈의 경로 상수 패치
     from qbt import common_constants
+    from qbt.tqqq import constants as tqqq_constants
     from qbt.utils import meta_manager
 
     meta_json_path = results_dir / "meta.json"
 
     monkeypatch.setattr(common_constants, "RESULTS_DIR", results_dir)
+    monkeypatch.setattr(common_constants, "BACKTEST_RESULTS_DIR", backtest_dir)
+    monkeypatch.setattr(common_constants, "TQQQ_RESULTS_DIR", tqqq_dir)
     monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
 
     # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
     monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
 
-    return {"RESULTS_DIR": results_dir, "META_JSON_PATH": meta_json_path}
+    # tqqq constants 패치 (import 시점에 캡처된 경로)
+    monkeypatch.setattr(tqqq_constants, "TQQQ_DAILY_COMPARISON_PATH", tqqq_dir / "tqqq_daily_comparison.csv")
+    monkeypatch.setattr(tqqq_constants, "SPREAD_LAB_DIR", tqqq_dir / "spread_lab")
+
+    return {
+        "RESULTS_DIR": results_dir,
+        "BACKTEST_RESULTS_DIR": backtest_dir,
+        "TQQQ_RESULTS_DIR": tqqq_dir,
+        "META_JSON_PATH": meta_json_path,
+    }
 
 
 @pytest.fixture
@@ -206,11 +226,11 @@ def mock_storage_paths(tmp_path, monkeypatch):
     모든 storage 경로를 테스트 임시 디렉토리로 변경 (통합 픽스처)
 
     패치 대상:
-        - common_constants.STOCK_DIR
-        - common_constants.ETC_DIR
-        - common_constants.RESULTS_DIR
+        - common_constants.STOCK_DIR, ETC_DIR, RESULTS_DIR
+        - common_constants.BACKTEST_RESULTS_DIR, TQQQ_RESULTS_DIR
         - common_constants.META_JSON_PATH
         - meta_manager.META_JSON_PATH
+        - tqqq constants (import 시점에 캡처된 경로)
 
     왜 필요한가요?
         - 실제 프로덕션 데이터를 건드리면 안 됨
@@ -225,7 +245,7 @@ def mock_storage_paths(tmp_path, monkeypatch):
         단일 경로만 필요한 경우 mock_stock_dir, mock_etc_dir, mock_results_dir 사용 권장.
 
     Returns:
-        dict: 변경된 경로들 {'STOCK_DIR': Path, 'ETC_DIR': Path, 'RESULTS_DIR': Path, 'META_JSON_PATH': Path}
+        dict: 변경된 경로들
     """
     # 임시 디렉토리 구조 생성
     stock_dir = tmp_path / "stock"
@@ -236,8 +256,15 @@ def mock_storage_paths(tmp_path, monkeypatch):
     etc_dir.mkdir()
     results_dir.mkdir()
 
+    # 하위 디렉토리 생성
+    backtest_dir = results_dir / "backtest"
+    backtest_dir.mkdir()
+    tqqq_dir = results_dir / "tqqq"
+    tqqq_dir.mkdir()
+
     # common_constants 모듈의 경로 상수들을 임시 경로로 변경
     from qbt import common_constants
+    from qbt.tqqq import constants as tqqq_constants
     from qbt.utils import meta_manager
 
     meta_json_path = results_dir / "meta.json"
@@ -245,12 +272,25 @@ def mock_storage_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(common_constants, "STOCK_DIR", stock_dir)
     monkeypatch.setattr(common_constants, "ETC_DIR", etc_dir)
     monkeypatch.setattr(common_constants, "RESULTS_DIR", results_dir)
+    monkeypatch.setattr(common_constants, "BACKTEST_RESULTS_DIR", backtest_dir)
+    monkeypatch.setattr(common_constants, "TQQQ_RESULTS_DIR", tqqq_dir)
     monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
 
     # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
     monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
 
-    return {"STOCK_DIR": stock_dir, "ETC_DIR": etc_dir, "RESULTS_DIR": results_dir, "META_JSON_PATH": meta_json_path}
+    # tqqq constants 패치 (import 시점에 캡처된 경로)
+    monkeypatch.setattr(tqqq_constants, "TQQQ_DAILY_COMPARISON_PATH", tqqq_dir / "tqqq_daily_comparison.csv")
+    monkeypatch.setattr(tqqq_constants, "SPREAD_LAB_DIR", tqqq_dir / "spread_lab")
+
+    return {
+        "STOCK_DIR": stock_dir,
+        "ETC_DIR": etc_dir,
+        "RESULTS_DIR": results_dir,
+        "BACKTEST_RESULTS_DIR": backtest_dir,
+        "TQQQ_RESULTS_DIR": tqqq_dir,
+        "META_JSON_PATH": meta_json_path,
+    }
 
 
 @pytest.fixture

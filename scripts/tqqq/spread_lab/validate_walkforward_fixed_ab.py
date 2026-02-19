@@ -19,7 +19,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, QQQ_DATA_PATH
+from qbt.common_constants import COL_CLOSE, COL_DATE, META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_walkforward_results, save_walkforward_summary
 from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
@@ -246,7 +246,7 @@ def main() -> int:
     }
 
     save_metadata("tqqq_walkforward_fixed_ab", metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     return 0
 

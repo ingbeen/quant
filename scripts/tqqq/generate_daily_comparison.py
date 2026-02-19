@@ -13,7 +13,7 @@ import sys
 
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, QQQ_DATA_PATH
+from qbt.common_constants import COL_CLOSE, META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq import (
     build_monthly_spread_map,
     calculate_validation_metrics,
@@ -141,7 +141,7 @@ def main() -> int:
     }
 
     save_metadata("tqqq_daily_comparison", metadata)
-    logger.debug("메타데이터 저장 완료: storage/results/meta.json")
+    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     # 7. 결과 출력 (터미널)
     logger.debug("=" * 64)

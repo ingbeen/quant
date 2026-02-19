@@ -211,7 +211,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ### tqqq_daily_comparison.csv
 
-경로: `storage/results/tqqq_daily_comparison.csv`
+경로: `storage/results/tqqq/tqqq_daily_comparison.csv`
 
 주요 컬럼: 날짜, 종가(실제/시뮬), 일일수익률, 누적수익률, 누적배수 로그차이(abs/signed)
 
@@ -219,7 +219,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ### tqqq_rate_spread_lab_monthly.csv
 
-경로: `storage/results/spread_lab/tqqq_rate_spread_lab_monthly.csv`
+경로: `storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_monthly.csv`
 
 주요 컬럼: 연월, 금리수준, 금리변화, 월말누적오차, 월간오차변화, 일일오차월합, lag1, lag2
 
@@ -227,7 +227,7 @@ M_sim(t) = simul_close(t) / simul_close(0)
 
 ### tqqq_rate_spread_lab_model.csv
 
-경로: `storage/results/spread_lab/tqqq_rate_spread_lab_model.csv`
+경로: `storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_model.csv`
 
 주요 컬럼 (영문):
 

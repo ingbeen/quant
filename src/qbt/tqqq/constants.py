@@ -12,8 +12,8 @@ from typing import Final
 from qbt.common_constants import (
     DISPLAY_DATE,
     ETC_DIR,
-    RESULTS_DIR,
     STOCK_DIR,
+    TQQQ_RESULTS_DIR,
 )
 
 # ============================================================
@@ -32,10 +32,10 @@ FFR_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_monthly.csv"
 EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
 # TQQQ 시뮬레이션 관련 결과 파일 경로
-TQQQ_DAILY_COMPARISON_PATH: Final = RESULTS_DIR / "tqqq_daily_comparison.csv"
+TQQQ_DAILY_COMPARISON_PATH: Final = TQQQ_RESULTS_DIR / "tqqq_daily_comparison.csv"
 
 # --- 스프레드 검증 결과 파일 경로 (spread_lab 하위폴더) ---
-SPREAD_LAB_DIR: Final = RESULTS_DIR / "spread_lab"
+SPREAD_LAB_DIR: Final = TQQQ_RESULTS_DIR / "spread_lab"
 TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_monthly.csv"
 TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_summary.csv"
 TQQQ_RATE_SPREAD_LAB_MODEL_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_model.csv"
