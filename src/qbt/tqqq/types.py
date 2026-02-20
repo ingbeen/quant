@@ -35,7 +35,7 @@ class ValidationMetricsDict(TypedDict):
 
 
 class SoftplusCandidateDict(ValidationMetricsDict):
-    """_evaluate_softplus_candidate() 반환 타입.
+    """evaluate_softplus_candidate() 반환 타입.
 
     ValidationMetricsDict를 상속하고 softplus 파라미터를 추가한다.
     """

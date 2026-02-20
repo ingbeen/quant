@@ -351,7 +351,7 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
     return spread
 
 
-def _validate_ffr_coverage(
+def validate_ffr_coverage(
     overlap_start: date,
     overlap_end: date,
     ffr_df: pd.DataFrame,
@@ -483,7 +483,7 @@ def _calculate_daily_cost(
     return daily_cost
 
 
-def _calculate_metrics_fast(  # pyright: ignore[reportUnusedFunction]  # optimization.py, walkforward.py에서 사용
+def calculate_metrics_fast(
     actual_prices: np.ndarray,
     simulated_prices: np.ndarray,
 ) -> tuple[float, float, float]:
@@ -595,7 +595,7 @@ def simulate(
         # ffr_df 제공 시: 검증 + 변환
         start_date = underlying_df[COL_DATE].min()
         end_date = underlying_df[COL_DATE].max()
-        _validate_ffr_coverage(start_date, end_date, ffr_df)
+        validate_ffr_coverage(start_date, end_date, ffr_df)
         ffr_dict_to_use: dict[str, float] = create_ffr_dict(ffr_df)
     else:
         # ffr_dict 직접 제공 시: 이미 검증된 것으로 간주

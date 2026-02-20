@@ -80,13 +80,13 @@ softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-Stage Gri
 주요 함수:
 
 - `find_optimal_softplus_params`: 2-Stage Grid Search로 최적 softplus 파라미터 탐색
-- `_evaluate_softplus_candidate`: 단일 softplus (a, b) 후보 평가
-- `_prepare_optimization_data`: 최적화에 필요한 데이터 전처리
+- `evaluate_softplus_candidate`: 단일 softplus (a, b) 후보 평가
+- `prepare_optimization_data`: 최적화에 필요한 데이터 전처리
 - `_precompute_daily_costs_vectorized`: 벡터화된 일일 비용 계산
 - `_simulate_prices_vectorized`: 벡터화된 가격 시뮬레이션
 - `_build_monthly_spread_map_from_dict`: 딕셔너리 기반 월별 spread map 생성
 
-의존성: `simulation.py`(core)의 `_calculate_metrics_fast`, `_validate_ffr_coverage` 사용
+의존성: `simulation.py`(core)의 `calculate_metrics_fast`, `validate_ffr_coverage` 사용
 
 ### 6. walkforward.py
 

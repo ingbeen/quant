@@ -40,8 +40,8 @@ from qbt.tqqq.data_loader import (
     lookup_ffr,
 )
 from qbt.tqqq.simulation import (
-    _calculate_metrics_fast,  # pyright: ignore[reportPrivateUsage]
-    _validate_ffr_coverage,  # pyright: ignore[reportPrivateUsage]
+    calculate_metrics_fast,
+    validate_ffr_coverage,
 )
 from qbt.tqqq.types import SimulationCacheDict, SoftplusCandidateDict
 from qbt.utils import get_logger
@@ -195,7 +195,7 @@ def _simulate_prices_vectorized(
     return prices
 
 
-def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateDict:
+def evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateDict:
     """
     단일 softplus (a, b) 파라미터 조합을 시뮬레이션하고 평가한다 (벡터화 버전).
 
@@ -254,7 +254,7 @@ def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateD
     )
 
     # 4. 경량 메트릭 계산 (RMSE, mean, max)
-    rmse, mean_val, max_val = _calculate_metrics_fast(actual_prices, simulated_prices)
+    rmse, mean_val, max_val = calculate_metrics_fast(actual_prices, simulated_prices)
 
     # 5. 추가 메트릭 (기존 candidate dict 구조 유지)
     final_close_simulated = float(simulated_prices[-1])
@@ -286,7 +286,7 @@ def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateD
     return candidate
 
 
-def _prepare_optimization_data(
+def prepare_optimization_data(
     underlying_df: pd.DataFrame,
     actual_df: pd.DataFrame,
     ffr_df: pd.DataFrame,
@@ -319,7 +319,7 @@ def _prepare_optimization_data(
     # 2. FFR 커버리지 검증 (fail-fast)
     overlap_start = underlying_overlap[COL_DATE].min()
     overlap_end = underlying_overlap[COL_DATE].max()
-    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+    validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
     ffr_dict = create_ffr_dict(ffr_df)
@@ -401,7 +401,7 @@ def find_optimal_softplus_params(
         raise ValueError(f"fixed_b는 0 이상이어야 합니다: {fixed_b}")
 
     # 1. 공통 초기화 (겹치는 기간 추출, FFR 검증, 배열 변환)
-    initial_price, cache_data = _prepare_optimization_data(underlying_df, actual_leveraged_df, ffr_df, expense_df)
+    initial_price, cache_data = prepare_optimization_data(underlying_df, actual_leveraged_df, ffr_df, expense_df)
 
     # ============================================================
     # Stage 1: 조대 그리드 탐색
@@ -444,7 +444,7 @@ def find_optimal_softplus_params(
 
     # Stage 1 병렬 실행
     candidates_s1 = execute_parallel(
-        _evaluate_softplus_candidate,
+        evaluate_softplus_candidate,
         param_combinations_s1,
         max_workers=max_workers,
         initializer=init_worker_cache,
@@ -502,7 +502,7 @@ def find_optimal_softplus_params(
 
     # Stage 2 병렬 실행
     candidates_s2 = execute_parallel(
-        _evaluate_softplus_candidate,
+        evaluate_softplus_candidate,
         param_combinations_s2,
         max_workers=max_workers,
         initializer=init_worker_cache,

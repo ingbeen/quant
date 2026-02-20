@@ -23,16 +23,16 @@ from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPE
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
 from qbt.tqqq.optimization import (
-    _evaluate_softplus_candidate,
     _precompute_daily_costs_vectorized,
+    evaluate_softplus_candidate,
 )
 from qbt.tqqq.simulation import (
     _calculate_daily_cost,
-    _validate_ffr_coverage,
     calculate_validation_metrics,
     compute_softplus_spread,
     generate_static_spread_series,
     simulate,
+    validate_ffr_coverage,
 )
 from qbt.tqqq.walkforward import (
     calculate_fixed_ab_stitched_rmse,
@@ -722,7 +722,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 9, 20)
 
         # When & Then: 예외 없이 통과
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_within_2_months_passes(self):
         """
@@ -743,7 +743,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 20)
 
         # When & Then: 예외 없이 통과 (2023-03이 1~2개월 전)
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_exceeds_2_months_raises(self):
         """
@@ -760,7 +760,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-05" in error_msg
@@ -783,7 +783,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-03" in error_msg
@@ -808,7 +808,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 15)
 
         # When & Then
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_year_boundary_crossing(self):
         """
@@ -829,7 +829,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2024, 2, 10)
 
         # When & Then
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
 
 class TestCreateFfrDict:
@@ -2640,13 +2640,13 @@ class TestVectorizedSimulation:
           - 약간의 차이가 있는 실제/시뮬레이션 가격 배열
         When:
           - calculate_validation_metrics() 실행하여 RMSE 획득
-          - _calculate_metrics_fast() 실행하여 RMSE 획득
+          - calculate_metrics_fast() 실행하여 RMSE 획득
         Then:
           - 두 RMSE 값이 1e-10 이내에서 동일
           - mean, max 값도 동일
         """
         from qbt.tqqq.simulation import (
-            _calculate_metrics_fast,
+            calculate_metrics_fast,
             calculate_validation_metrics,
         )
 
@@ -2665,7 +2665,7 @@ class TestVectorizedSimulation:
         expected_max = metrics_full["cumul_multiple_log_diff_max_pct"]
 
         # When 2: 경량 메트릭 계산 (빠른 경로)
-        actual_rmse, actual_mean, actual_max = _calculate_metrics_fast(
+        actual_rmse, actual_mean, actual_max = calculate_metrics_fast(
             actual_prices=np.array(actual_prices),
             simulated_prices=np.array(simul_prices),
         )
@@ -3171,7 +3171,7 @@ class TestCalculateRateSegmentedRmse:
 
 
 class TestEvaluateSoftplusCandidate:
-    """_evaluate_softplus_candidate WORKER_CACHE 기반 테스트
+    """evaluate_softplus_candidate WORKER_CACHE 기반 테스트
 
     병렬 워커 함수를 직접 호출하여 반환 구조와 핵심 계산 경로를 검증한다.
     WORKER_CACHE를 직접 설정하고 함수 호출 후 정리한다.
@@ -3223,7 +3223,7 @@ class TestEvaluateSoftplusCandidate:
         목적: WORKER_CACHE 설정 후 호출 시 SoftplusCandidateDict 필수 키 반환 검증
 
         Given: WORKER_CACHE에 10일치 데이터 설정 (autouse fixture)
-        When: _evaluate_softplus_candidate 호출
+        When: evaluate_softplus_candidate 호출
         Then: 반환 딕셔너리에 모든 필수 키 존재, a/b 입력값 유지, RMSE >= 0
         """
         from qbt.tqqq.constants import (
@@ -3243,7 +3243,7 @@ class TestEvaluateSoftplusCandidate:
 
         # When
         params = {"a": -5.0, "b": 0.5, "leverage": 3.0, "initial_price": 30.0}
-        result = _evaluate_softplus_candidate(params)
+        result = evaluate_softplus_candidate(params)
 
         # Then: 필수 키 존재
         required_keys = [

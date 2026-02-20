@@ -24,13 +24,13 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.data_loader import create_ffr_dict, lookup_ffr
 from qbt.tqqq.optimization import (
-    _evaluate_softplus_candidate,  # pyright: ignore[reportPrivateUsage]  # 동일 패키지 내 private 함수 공유
-    _prepare_optimization_data,  # pyright: ignore[reportPrivateUsage]  # 동일 패키지 내 private 함수 공유
+    evaluate_softplus_candidate,
     find_optimal_softplus_params,
+    prepare_optimization_data,
 )
 from qbt.tqqq.simulation import (
-    _calculate_metrics_fast,  # pyright: ignore[reportPrivateUsage]  # 동일 패키지 내 private 함수 공유
     build_monthly_spread_map,
+    calculate_metrics_fast,
     calculate_validation_metrics,
     compute_softplus_spread,
     simulate,
@@ -87,7 +87,7 @@ def _local_refine_search(
         ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
     """
     # 1. 공통 초기화 (겹치는 기간 추출, FFR 검증, 배열 변환)
-    initial_price, cache_data = _prepare_optimization_data(underlying_df, actual_df, ffr_df, expense_df)
+    initial_price, cache_data = prepare_optimization_data(underlying_df, actual_df, ffr_df, expense_df)
 
     # 2. Local Refine 파라미터 조합 생성
     a_min = a_prev - WALKFORWARD_LOCAL_REFINE_A_DELTA
@@ -122,7 +122,7 @@ def _local_refine_search(
 
     # 3. 병렬 실행
     candidates = execute_parallel(
-        _evaluate_softplus_candidate,
+        evaluate_softplus_candidate,
         param_combinations,
         max_workers=max_workers,
         initializer=init_worker_cache,
@@ -434,7 +434,7 @@ def _simulate_stitched_periods(
     actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
     simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
 
-    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
+    rmse, _, _ = calculate_metrics_fast(actual_prices, simulated_prices)
 
     return rmse
 
@@ -548,7 +548,7 @@ def calculate_fixed_ab_stitched_rmse(
         2. 테스트 기간 결정 (train_window_months 이후부터 끝까지)
         3. build_monthly_spread_map(ffr_df, a, b)로 고정 spread_map 1회 생성
         4. simulate() 연속 실행 (initial_price = 첫 테스트일 실제 가격)
-        5. _calculate_metrics_fast()로 RMSE 산출
+        5. calculate_metrics_fast()로 RMSE 산출
 
     Args:
         underlying_df: 기초 자산 DataFrame (QQQ, Date/Close 컬럼 필수)
@@ -815,7 +815,7 @@ def run_fixed_ab_walkforward(
             sim_train_overlap, actual_train_overlap = extract_overlap_period(sim_train, train_actual)
             train_actual_prices = actual_train_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
             train_sim_prices = sim_train_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
-            train_rmse, _, _ = _calculate_metrics_fast(train_actual_prices, train_sim_prices)
+            train_rmse, _, _ = calculate_metrics_fast(train_actual_prices, train_sim_prices)
         else:
             train_rmse = float("nan")
 
