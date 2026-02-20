@@ -53,10 +53,14 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 지원 타입:
 
 - `"grid_results"`: 백테스트 그리드 서치
-- `"tqqq_validation"`: TQQQ 검증 (최적 비용 모델 탐색)
-- `"tqqq_daily_comparison"`: TQQQ 일별 비교
-- `"tqqq_rate_spread_lab"`: TQQQ 금리-오차 관계 분석 CSV
 - `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
+- `"tqqq_daily_comparison"`: TQQQ 일별 비교
+- `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
+- `"tqqq_softplus_tuning"`: Softplus 파라미터 튜닝
+- `"tqqq_rate_spread_lab"`: TQQQ 금리-오차 관계 분석 CSV
+- `"tqqq_walkforward"`: TQQQ 워크포워드 검증
+- `"tqqq_walkforward_fixed_b"`: TQQQ b 고정 워크포워드 검증
+- `"tqqq_walkforward_fixed_ab"`: TQQQ 완전 고정 (a,b) 워크포워드 검증
 
 근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 

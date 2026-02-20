@@ -64,7 +64,6 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 주요 함수:
 
 - `simulate`: 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
-- `extract_overlap_period`: `utils/data_loader.py`로 이동됨 (re-export는 `tqqq/__init__.py`에서 유지)
 - `calculate_validation_metrics`: 시뮬레이션 결과와 실제 데이터 비교 및 오차 분석
 - `compute_softplus_spread`: softplus 모델로 funding spread 계산
 - `build_monthly_spread_map`: FFR 데이터로 월별 spread 딕셔너리 생성
@@ -74,6 +73,8 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `calculate_stitched_walkforward_rmse`: 워크포워드 결과를 연속 시뮬레이션한 RMSE 계산
 - `calculate_fixed_ab_stitched_rmse`: 고정 (a,b) 아웃오브샘플 RMSE 계산
 - `calculate_rate_segmented_rmse`: 금리 구간별 RMSE 분해
+
+참고: `extract_overlap_period`는 `utils/data_loader.py`로 이동됨. 하위 호환을 위해 `tqqq/__init__.py`에서 re-export 유지.
 
 ### 5. analysis_helpers.py
 

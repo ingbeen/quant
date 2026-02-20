@@ -123,7 +123,7 @@ def save_metadata(csv_type: str, metadata: MetaDict) -> None:
     타임스탬프는 자동으로 추가된다.
 
     Args:
-        csv_type: CSV 타입 ("grid_results", "tqqq_validation", "tqqq_daily_comparison")
+        csv_type: CSV 타입 (VALID_CSV_TYPES 참조)
         metadata: 저장할 메타데이터 (타임스탬프 자동 추가)
 
     Raises:

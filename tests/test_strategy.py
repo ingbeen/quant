@@ -5,7 +5,7 @@ backtest/strategy 모듈 테스트
 1. Buy & Hold 전략이 정확히 실행되는가?
 2. 버퍼존 전략의 매수/매도 신호가 정확한가?
 3. 슬리피지가 올바르게 적용되는가?
-4. 포지션이 남았을 때 강제 청산되는가?
+4. 마지막 날 포지션이 남았을 때 강제청산 없이 유지되는가?
 5. 유효 데이터 부족 시 에러 처리가 되는가?
 
 왜 중요한가요?
@@ -463,7 +463,7 @@ class TestExecutionTiming:
         """
         매수 신호일과 체결일 분리 검증
 
-        버그 재현: 현재 구현은 신호일에 즉시 포지션 반영 (잘못됨)
+        검증: 신호일에 즉시 포지션이 반영되지 않고 다음 거래일에 체결되는지 확인
 
         Given:
           - 10일 데이터, 5일 이동평균
@@ -1138,7 +1138,7 @@ class TestBacktestAccuracy:
                 expected_hold_days = params.hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
                 actual_hold_days = trade["hold_days_used"]
 
-                # 현재 구현이 하드코딩되어 있으면 이 테스트는 실패함 (레드)
+                # hold_days_used가 동적 조정 공식에 따라 계산되는지 검증
                 assert (
                     actual_hold_days == expected_hold_days
                 ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} × {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
@@ -1182,7 +1182,7 @@ class TestBacktestAccuracy:
         trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매수 신호가 감지되어야 함
-        # 주의: 현재 구현에서 prev_band 초기화가 적절하지 않으면 이 테스트는 실패할 수 있음 (레드)
+        # prev_band가 올바르게 초기화되어 첫 유효 구간의 신호를 감지해야 함
         assert not trades_df.empty, "첫 유효 구간에서 신호가 감지되어야 함"
 
 

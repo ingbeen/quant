@@ -192,7 +192,7 @@ class BufferStrategyParams(BaseStrategyParams):
     """
 
     ma_window: int  # 이동평균 기간 (예: 20일)
-    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 5.0 = 5%)
+    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 0.05 = 5%)
     hold_days: int  # 최소 보유 일수 (예: 5일)
     recent_months: int  # 최근 매수 기간 (예: 6개월)
 

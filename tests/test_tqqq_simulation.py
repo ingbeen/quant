@@ -981,7 +981,7 @@ class TestExpenseRatioLoading:
         )
         csv_path = create_csv_file("expense_ratio.csv", expense_df)
 
-        # When: 로딩 (아직 구현 안 됨 - 레드)
+        # When: expense ratio 데이터 로딩
         from qbt.tqqq.data_loader import load_expense_ratio_data
 
         result_df = load_expense_ratio_data(csv_path)
@@ -1110,7 +1110,7 @@ class TestCalculateDailyCostWithDynamicExpense:
         expense_dict = {"2023-01": 0.0095}  # 0.95%
         date_value = date(2023, 1, 15)
 
-        # When: expense_dict 파라미터로 호출 (아직 시그니처 변경 안 됨 - 레드)
+        # When: expense_dict 파라미터로 일일 비용 계산
         daily_cost = _calculate_daily_cost(
             date_value=date_value, ffr_dict=ffr_dict, expense_dict=expense_dict, funding_spread=0.006, leverage=3.0
         )

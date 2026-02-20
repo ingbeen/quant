@@ -101,7 +101,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 - 백테스트 도메인:
 
   - 이동평균 계산 (`analysis.py`)
-  - 버퍼존 밴드 계산 (`strategies/buffer_zone.py`)
+  - 버퍼존 밴드 계산 (`strategies/buffer_zone_helpers.py`)
   - 거래 신호 생성 (매수/매도 조건)
   - 체결 타이밍 규칙 (신호일 vs 체결일 분리)
   - Pending Order 정책 (단일 슬롯, 충돌 감지)

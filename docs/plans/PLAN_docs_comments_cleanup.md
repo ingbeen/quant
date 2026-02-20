@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-02-20 20:00
-**마지막 업데이트**: 2026-02-20 20:00
+**마지막 업데이트**: 2026-02-20 21:00
 **관련 범위**: docs, tests, scripts, src/qbt (주석만), 설정 파일
 **관련 문서**: `CLAUDE.md`(루트), `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `tests/CLAUDE.md`, `scripts/CLAUDE.md`
 
@@ -41,10 +41,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: CLAUDE.md 문서와 실제 코드 간 불일치 해소 (보고서 B-1~B-5)
-- [ ] 목표 2: 금지된 개발 단계 표현(레드/Phase N) 주석 제거 (보고서 E-1)
-- [ ] 목표 3: 주석 가독성 개선 — 비율 표기 오류(A-5), 변수명 혼란(E-2) 수정
-- [ ] 목표 4: 설정 파일 정합성 확보 (보고서 H-1, H-2, B-3)
+- [x] 목표 1: CLAUDE.md 문서와 실제 코드 간 불일치 해소 (보고서 B-1~B-5)
+- [x] 목표 2: 금지된 개발 단계 표현(레드/Phase N) 주석 제거 (보고서 E-1)
+- [x] 목표 3: 주석 가독성 개선 — 비율 표기 오류(A-5), 변수명 혼란(E-2) 수정
+- [x] 목표 4: 설정 파일 정합성 확보 (보고서 H-1, H-2, B-3)
 
 ## 2) 비목표(Non-Goals)
 
@@ -75,13 +75,13 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 문서-코드 불일치 5건(B-1~B-5) 모두 해소
-- [ ] 금지된 개발 단계 표현 주석 제거 (E-1: 6개 위치)
-- [ ] 비율 표기 오류(A-5) 및 변수명 혼란(E-2) 수정
-- [ ] 설정 파일 정합성 3건(H-1, H-2, B-3) 해소
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] plan 체크박스 최신화
+- [x] 문서-코드 불일치 5건(B-1~B-5) 모두 해소
+- [x] 금지된 개발 단계 표현 주석 제거 (E-1: 6개 위치)
+- [x] 비율 표기 오류(A-5) 및 변수명 혼란(E-2) 수정
+- [x] 설정 파일 정합성 3건(H-1, H-2, B-3) 해소
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -114,13 +114,13 @@
 
 **작업 내용**:
 
-- [ ] B-1: `src/qbt/backtest/types.py:10` — `buffer_zone.py` → `buffer_zone_helpers.py`
-- [ ] B-1: `tests/CLAUDE.md:104` — `strategies/buffer_zone.py` → `strategies/buffer_zone_helpers.py`
-- [ ] B-2: `src/qbt/utils/meta_manager.py:126` — docstring 예시를 실제 `VALID_CSV_TYPES`에 맞게 업데이트
-- [ ] B-2: `scripts/CLAUDE.md:56` — 메타데이터 타입 목록을 실제 코드에 맞게 전면 업데이트
-- [ ] B-3: `pyproject.toml:5` — description에서 `with DuckDB and` 부분 제거
-- [ ] B-4: `tests/test_strategy.py` — 파일 docstring 4번 항목을 현재 정책("강제청산 없음")에 맞게 수정
-- [ ] B-5: `src/qbt/tqqq/CLAUDE.md:67` — `extract_overlap_period`를 `simulation.py` 함수 목록에서 분리하여 별도 설명
+- [x] B-1: `src/qbt/backtest/types.py:10` — `buffer_zone.py` → `buffer_zone_helpers.py`
+- [x] B-1: `tests/CLAUDE.md:104` — `strategies/buffer_zone.py` → `strategies/buffer_zone_helpers.py`
+- [x] B-2: `src/qbt/utils/meta_manager.py:126` — docstring 예시를 실제 `VALID_CSV_TYPES`에 맞게 업데이트
+- [x] B-2: `scripts/CLAUDE.md:56` — 메타데이터 타입 목록을 실제 코드에 맞게 전면 업데이트
+- [x] B-3: `pyproject.toml:5` — description에서 `with DuckDB and` 부분 제거
+- [x] B-4: `tests/test_strategy.py` — 파일 docstring 4번 항목을 현재 정책("강제청산 없음")에 맞게 수정
+- [x] B-5: `src/qbt/tqqq/CLAUDE.md:67` — `extract_overlap_period`를 `simulation.py` 함수 목록에서 분리하여 별도 설명
 
 ---
 
@@ -128,15 +128,15 @@
 
 **작업 내용**:
 
-- [ ] A-5: `src/qbt/backtest/strategies/buffer_zone_helpers.py:195` — 비율 표기 `(예: 5.0 = 5%)` → `(예: 0.05 = 5%)` 수정
-- [ ] E-1: `tests/test_strategy.py:1141` — `(레드)` 표현 제거, 현재 동작 기준으로 주석 재작성
-- [ ] E-1: `tests/test_strategy.py:1185` — `(레드)` 표현 제거
-- [ ] E-1: `tests/test_meta_manager.py:209` — `Phase 6에서 추가된` → 현재 동작 기준 설명으로 교체
-- [ ] E-1: `tests/test_meta_manager.py:299` — `Phase 6` 표현 제거
-- [ ] E-1: `tests/test_tqqq_simulation.py:984` — `(아직 구현 안 됨 - 레드)` → 현재 동작 설명으로 교체
-- [ ] E-1: `tests/test_tqqq_simulation.py:1113` — `(아직 시그니처 변경 안 됨 - 레드)` → 현재 동작 설명으로 교체
-- [ ] E-2: `scripts/tqqq/spread_lab/app_rate_spread_lab.py:842` — `a={fixed_b_value:.4f}` 표시 혼란 수정
-- [ ] E-1: `tests/test_strategy.py:466` — `버그 재현: 현재 구현은 신호일에 즉시 포지션 반영 (잘못됨)` → 현재 정상 동작 기준으로 docstring 수정
+- [x] A-5: `src/qbt/backtest/strategies/buffer_zone_helpers.py:195` — 비율 표기 `(예: 5.0 = 5%)` → `(예: 0.05 = 5%)` 수정
+- [x] E-1: `tests/test_strategy.py:1141` — `(레드)` 표현 제거, 현재 동작 기준으로 주석 재작성
+- [x] E-1: `tests/test_strategy.py:1185` — `(레드)` 표현 제거
+- [x] E-1: `tests/test_meta_manager.py:209` — `Phase 6에서 추가된` → 현재 동작 기준 설명으로 교체
+- [x] E-1: `tests/test_meta_manager.py:299` — `Phase 6` 표현 제거
+- [x] E-1: `tests/test_tqqq_simulation.py:984` — `(아직 구현 안 됨 - 레드)` → 현재 동작 설명으로 교체
+- [x] E-1: `tests/test_tqqq_simulation.py:1113` — `(아직 시그니처 변경 안 됨 - 레드)` → 현재 동작 설명으로 교체
+- [x] E-2: `scripts/tqqq/spread_lab/app_rate_spread_lab.py:842` — `a={fixed_b_value:.4f}` 표시 혼란 수정
+- [x] E-1: `tests/test_strategy.py:466` — `버그 재현: 현재 구현은 신호일에 즉시 포지션 반영 (잘못됨)` → 현재 정상 동작 기준으로 docstring 수정
 
 ---
 
@@ -144,15 +144,15 @@
 
 **작업 내용**:
 
-- [ ] H-2: `pytest.ini:18` — `minversion = 7.0` → `minversion = 9.0`
-- [ ] H-1: `pytest.ini`에서 `[coverage:run]`/`[coverage:report]` 섹션을 `pyproject.toml`의 `[tool.coverage.run]`/`[tool.coverage.report]`로 이동
-- [ ] 필요한 문서 업데이트
-- [ ] `poetry run black .` 실행
-- [ ] DoD 체크리스트 최종 업데이트
+- [x] H-2: `pytest.ini:18` — `minversion = 7.0` → `minversion = 9.0`
+- [x] H-1: `pytest.ini`에서 `[coverage:run]`/`[coverage:report]` 섹션을 `pyproject.toml`의 `[tool.coverage.run]`/`[tool.coverage.report]`로 이동
+- [x] 필요한 문서 업데이트
+- [x] `poetry run black .` 실행
+- [x] DoD 체크리스트 최종 업데이트
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=301, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -175,5 +175,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-20 20:00: 계획서 초안 작성
+- 2026-02-20 21:00: Phase 1~3 완료, validate_project.py 통과 (passed=301, failed=0, skipped=0)
 
 ---

@@ -2,7 +2,7 @@
 name = "quant-backtest"
 authors = ["Yubeen"]
 version = "0.1.0"
-description = "Stock backtesting framework with DuckDB and CSV data management"
+description = "Stock backtesting framework with CSV data management"
 packages = [{include = "qbt", from = "src"}]
 
 [tool.poetry.dependencies]
@@ -52,4 +52,13 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["qbt"]
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+show_missing = true
 

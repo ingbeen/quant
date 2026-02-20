@@ -839,7 +839,7 @@ def _render_fixed_b_interpretation(
             findings.append(
                 f"- **b고정 WF({fb_stitched:.4f}%) >= 정적({static_rmse:.4f}%)** "
                 f"→ a만 동적 조정해도 정적보다 나쁨({diff:.4f}%p) → "
-                f"현재로서는 전체기간 고정 (a={fixed_b_value:.4f} 포함) 정적 모델이 더 안정적입니다."
+                f"현재로서는 전체기간 고정 (b={fixed_b_value:.4f} 포함) 정적 모델이 더 안정적입니다."
             )
 
     for finding in findings:

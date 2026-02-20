@@ -206,8 +206,7 @@ class TestSaveMetadata:
         """
         Softplus 튜닝 메타데이터 형식 검증 테스트
 
-        Phase 6에서 추가된 메타 기록 형식을 검증한다.
-        tqqq_softplus_tuning 타입이 올바르게 저장되는지 확인한다.
+        tqqq_softplus_tuning 타입의 메타 기록 형식을 검증한다.
 
         Given: Softplus 튜닝 결과 메타데이터 (필수 키 포함)
         When: save_metadata("tqqq_softplus_tuning", ...) 호출
@@ -296,7 +295,7 @@ class TestSaveMetadata:
         """
         rate_spread_lab 메타데이터에 output_files 키 포함 검증
 
-        Phase 6에서 추가된 output_files 키가 tqqq_rate_spread_lab 타입에서도
+        output_files 키가 tqqq_rate_spread_lab 타입에서도
         올바르게 저장되는지 확인한다.
 
         Given: rate_spread_lab 메타데이터 (output_files 포함)

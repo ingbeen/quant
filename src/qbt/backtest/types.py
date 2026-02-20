@@ -7,7 +7,7 @@
 - 공통 결과 컨테이너 (SingleBacktestResult)
 
 전략 전용 타입은 각 전략 모듈에 정의한다:
-- buffer_zone.py: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
+- buffer_zone_helpers.py: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
 - buy_and_hold.py: BuyAndHoldConfig, BuyAndHoldParams
 """
 
