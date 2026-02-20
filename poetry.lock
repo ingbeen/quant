@@ -1775,7 +1775,7 @@ description = "Streamlit component for viewing v5 Lightweight Charts"
 optional = false
 python-versions = ">=3.7"
 files = []
-develop = false
+develop = true
 
 [package.dependencies]
 streamlit = ">=0.63"
@@ -2025,4 +2025,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "882fe5748fd36cc5a1e7478b85390e386f079e9682dbc87711023b7785cbf713"
+content-hash = "e2260acf52377197744ec9bbf36a26bba8507c7e890dd52a9a01f2ff719e1897"

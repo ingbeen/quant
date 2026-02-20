@@ -128,7 +128,7 @@ Buy & Hold 벤치마크 전략 구현입니다.
 - `resolve_params`: 파라미터 결정 (항상 DEFAULT_INITIAL_CAPITAL 사용)
 - `run_single`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
 
-#### strategies/__init__.py
+#### strategies/**init**.py
 
 전략 패키지의 공개 API를 export합니다.
 
@@ -263,15 +263,14 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 - `streamlit-lightweight-charts-v5` 포크를 `vendor/` 디렉토리에 포함
 - TSX 소스에 `subscribeCrosshairMove` 기반 커스텀 tooltip 추가
 - cleanup 함수에 `unsubscribeCrosshairMove` + tooltip DOM 제거 포함
-- `pyproject.toml`에서 로컬 경로 참조: `{path = "vendor/streamlit-lightweight-charts-v5"}`
+- `pyproject.toml`에서 editable 모드로 참조: `{path = "vendor/streamlit-lightweight-charts-v5", develop = true}`
+- `develop = true`로 Poetry가 editable 설치 → `__file__`이 vendor 디렉토리를 직접 가리킴
 - 팀원은 `poetry install`만 실행하면 됨 (Node.js 불필요, 빌드 결과물 포함)
-- TSX 수정 후 반영 절차 (3단계):
+- TSX 수정 후 반영 절차 (2단계):
   ```bash
   # 1. 프론트엔드 빌드
   cd vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend && npm run build
-  # 2. site-packages에 새 빌드 반영 (Poetry는 복사 설치이므로 필수)
-  pip install --force-reinstall --no-deps vendor/streamlit-lightweight-charts-v5
-  # 3. Streamlit 앱 재시작 + 브라우저 하드 리프레시 (Ctrl+Shift+R)
+  # 2. Streamlit 앱 재시작 + 브라우저 하드 리프레시 (Ctrl+Shift+R)
   ```
 
 ---
