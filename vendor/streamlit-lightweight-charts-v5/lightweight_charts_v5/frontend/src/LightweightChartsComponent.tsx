@@ -786,7 +786,13 @@ function LightweightChartsComponent({
             // Get new dimensions
             const newWidth = chartContainerRef.current.clientWidth
 
-            if (!hasInitializedView.current && newWidth > 0) {
+            // width=0 (숨겨진 탭) → 무시
+            if (newWidth === 0) {
+              isResizing.current = false
+              return
+            }
+
+            if (!hasInitializedView.current) {
               // 숨겨진 탭이 처음 표시됨 → 패딩 포함 초기 뷰 설정
               chartRef.current.resize(newWidth, totalHeight)
               setTimeout(() => {
@@ -803,8 +809,9 @@ function LightweightChartsComponent({
                 }
               }, 100)
             } else {
-              // 일반 리사이즈 → 기존 동작 (visibleRange 보존)
-              const visibleRange = chartRef.current.timeScale().getVisibleRange()
+              // 일반 리사이즈 → visibleLogicalRange 보존
+              // 논리 범위를 사용해야 패딩(음수 from, 데이터 이후 to)이 보존됨
+              const logicalRange = chartRef.current.timeScale().getVisibleLogicalRange()
               chartRef.current.resize(newWidth, totalHeight)
 
               // Apply heights after a short delay
@@ -813,9 +820,9 @@ function LightweightChartsComponent({
                   if (chartRef.current) {
                     setRelativeHeights()
 
-                    // Restore visible range
-                    if (visibleRange) {
-                      chartRef.current.timeScale().setVisibleRange(visibleRange)
+                    // Restore visible logical range (패딩 포함 보존)
+                    if (logicalRange) {
+                      chartRef.current.timeScale().setVisibleLogicalRange(logicalRange)
                     }
                   }
 
