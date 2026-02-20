@@ -43,8 +43,17 @@ from qbt.backtest.types import (
     SingleBacktestResult,
     SummaryDict,
 )
-from qbt.common_constants import BUFFER_ZONE_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_OPEN, GRID_RESULTS_PATH
+from qbt.common_constants import (
+    BUFFER_ZONE_RESULTS_DIR,
+    COL_CLOSE,
+    COL_DATE,
+    COL_OPEN,
+    GRID_RESULTS_PATH,
+    QQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
+)
 from qbt.utils import get_logger
+from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
 
 logger = get_logger(__name__)
@@ -52,6 +61,10 @@ logger = get_logger(__name__)
 # 전략 식별 상수
 STRATEGY_NAME = "buffer_zone"
 DISPLAY_NAME = "버퍼존 전략"
+
+# 데이터 소스 경로 (버퍼존: QQQ 시그널 + TQQQ 합성 매매)
+SIGNAL_DATA_PATH = QQQ_DATA_PATH
+TRADE_DATA_PATH = TQQQ_SYNTHETIC_DATA_PATH
 
 
 # ============================================================================
@@ -965,29 +978,31 @@ def resolve_params() -> tuple[BufferStrategyParams, dict[str, str]]:
     return params, sources
 
 
-def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktestResult:
+def run_single() -> SingleBacktestResult:
     """
     버퍼존 전략 단일 백테스트를 실행한다.
 
-    resolve_params로 파라미터를 결정하고, 이동평균 계산 후 전략을 실행한다.
-
-    Args:
-        signal_df: 시그널용 DataFrame (QQQ)
-        trade_df: 매매용 DataFrame (TQQQ)
+    데이터 로딩부터 전략 실행까지 자체 수행한다.
+    시그널은 QQQ, 매매는 TQQQ 합성 데이터를 사용한다.
 
     Returns:
         SingleBacktestResult: 백테스트 결과 컨테이너
     """
-    # 1. 파라미터 결정
+    # 1. 데이터 로딩
+    signal_df = load_stock_data(SIGNAL_DATA_PATH)
+    trade_df = load_stock_data(TRADE_DATA_PATH)
+    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
+
+    # 2. 파라미터 결정
     params, sources = resolve_params()
 
-    # 2. 이동평균 계산
+    # 3. 이동평균 계산
     signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=MA_TYPE)
 
-    # 3. 전략 실행
+    # 4. 전략 실행
     trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params)
 
-    # 4. JSON 저장용 파라미터
+    # 5. JSON 저장용 파라미터
     params_json: dict[str, Any] = {
         "ma_window": params.ma_window,
         "ma_type": MA_TYPE,
@@ -1007,4 +1022,8 @@ def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktes
         summary=summary,
         params_json=params_json,
         result_dir=BUFFER_ZONE_RESULTS_DIR,
+        data_info={
+            "signal_path": str(SIGNAL_DATA_PATH),
+            "trade_path": str(TRADE_DATA_PATH),
+        },
     )

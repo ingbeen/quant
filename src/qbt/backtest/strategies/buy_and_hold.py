@@ -16,14 +16,26 @@ from qbt.backtest.constants import (
     SLIPPAGE_RATE,
 )
 from qbt.backtest.types import SingleBacktestResult, SummaryDict
-from qbt.common_constants import BUY_AND_HOLD_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN
+from qbt.common_constants import (
+    BUY_AND_HOLD_RESULTS_DIR,
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    QQQ_DATA_PATH,
+)
 from qbt.utils import get_logger
+from qbt.utils.data_loader import load_stock_data
 
 logger = get_logger(__name__)
 
 # 전략 식별 상수
 STRATEGY_NAME = "buy_and_hold"
 DISPLAY_NAME = "Buy & Hold"
+
+# 데이터 소스 경로 (Buy & Hold: QQQ 단일 데이터)
+TRADE_DATA_PATH = QQQ_DATA_PATH
 
 
 # ============================================================================
@@ -51,7 +63,6 @@ class BuyAndHoldParams:
 
 
 def run_buy_and_hold(
-    signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
     params: BuyAndHoldParams,
 ) -> tuple[pd.DataFrame, BuyAndHoldResultDict]:
@@ -62,7 +73,6 @@ def run_buy_and_hold(
     에쿼티는 trade_df 종가 기준으로 계산한다.
 
     Args:
-        signal_df: 시그널용 DataFrame (Buy & Hold에서는 미사용, 일관성을 위해 유지)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
         params: Buy & Hold 파라미터
 
@@ -132,30 +142,32 @@ def resolve_params() -> BuyAndHoldParams:
     return params
 
 
-def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktestResult:
+def run_single() -> SingleBacktestResult:
     """
     Buy & Hold 전략 단일 백테스트를 실행한다.
 
-    Args:
-        signal_df: 시그널용 DataFrame (Buy & Hold에서는 미사용)
-        trade_df: 매매용 DataFrame (TQQQ)
+    데이터 로딩부터 전략 실행까지 자체 수행한다.
+    Buy & Hold는 signal과 trade가 동일한 QQQ 데이터를 사용한다.
 
     Returns:
         SingleBacktestResult: 백테스트 결과 컨테이너
     """
-    # 1. 파라미터 결정
+    # 1. 데이터 로딩 (QQQ 단일 데이터)
+    trade_df = load_stock_data(TRADE_DATA_PATH)
+
+    # 2. 파라미터 결정
     params = resolve_params()
 
-    # 2. 전략 실행
-    equity_df, summary = run_buy_and_hold(signal_df, trade_df, params)
+    # 3. 전략 실행
+    equity_df, summary = run_buy_and_hold(trade_df, params)
 
-    # 3. 시그널 DataFrame 구성 (trade_df OHLC, MA 없음)
+    # 4. 시그널 DataFrame 구성 (trade_df OHLC, MA 없음)
     bh_signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
 
-    # 4. 거래 내역 (Buy & Hold는 매도 없음)
+    # 5. 거래 내역 (Buy & Hold는 매도 없음)
     trades_df = pd.DataFrame()
 
-    # 5. JSON 저장용 파라미터
+    # 6. JSON 저장용 파라미터
     params_json: dict[str, Any] = {
         "strategy": STRATEGY_NAME,
         "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
@@ -170,4 +182,7 @@ def run_single(signal_df: pd.DataFrame, trade_df: pd.DataFrame) -> SingleBacktes
         summary=summary,
         params_json=params_json,
         result_dir=BUY_AND_HOLD_RESULTS_DIR,
+        data_info={
+            "trade_path": str(TRADE_DATA_PATH),
+        },
     )

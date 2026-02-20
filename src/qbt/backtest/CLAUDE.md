@@ -21,7 +21,7 @@
 
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약)
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
-- `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir 포함
+- `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 
 ### 2. constants.py
 
@@ -58,6 +58,11 @@
 
 - `STRATEGY_NAME`: 전략 내부 식별자 (`"buffer_zone"`)
 - `DISPLAY_NAME`: 전략 표시명 (`"버퍼존 전략"`)
+
+데이터 소스 경로:
+
+- `SIGNAL_DATA_PATH`: 시그널용 데이터 경로 (`QQQ_DATA_PATH`)
+- `TRADE_DATA_PATH`: 매매용 데이터 경로 (`TQQQ_SYNTHETIC_DATA_PATH`)
 
 전략 전용 TypedDict (types.py에서 이동):
 
@@ -103,16 +108,20 @@
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
 - `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
 - `resolve_params`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
-- `run_single`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
+- `run_single`: 단일 백테스트 실행 (인자 없음, 자체 데이터 로딩) → `SingleBacktestResult` 반환
 
 #### strategies/buy_and_hold.py
 
-Buy & Hold 벤치마크 전략 구현입니다.
+Buy & Hold 벤치마크 전략 구현입니다. QQQ 데이터를 사용한다.
 
 전략 식별 상수:
 
 - `STRATEGY_NAME`: 전략 내부 식별자 (`"buy_and_hold"`)
 - `DISPLAY_NAME`: 전략 표시명 (`"Buy & Hold"`)
+
+데이터 소스 경로:
+
+- `TRADE_DATA_PATH`: 매매용 데이터 경로 (`QQQ_DATA_PATH`). Buy & Hold는 signal과 trade가 동일 (QQQ 단일 데이터)
 
 전략 전용 TypedDict (types.py에서 이동):
 
@@ -124,9 +133,9 @@ Buy & Hold 벤치마크 전략 구현입니다.
 
 주요 함수:
 
-- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행
+- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행 (`trade_df`만 받음, `signal_df` 미사용)
 - `resolve_params`: 파라미터 결정 (항상 DEFAULT_INITIAL_CAPITAL 사용)
-- `run_single`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
+- `run_single`: 단일 백테스트 실행 (인자 없음, 자체 데이터 로딩) → `SingleBacktestResult` 반환
 
 #### strategies/**init**.py
 

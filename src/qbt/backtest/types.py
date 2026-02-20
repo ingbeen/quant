@@ -69,3 +69,4 @@ class SingleBacktestResult:
     summary: Mapping[str, object]  # 요약 지표
     params_json: dict[str, Any]  # JSON 저장용 전략 파라미터
     result_dir: Path  # 결과 저장 디렉토리
+    data_info: dict[str, str]  # 데이터 소스 경로 정보 (signal_path, trade_path)

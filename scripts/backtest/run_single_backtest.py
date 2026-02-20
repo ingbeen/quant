@@ -17,8 +17,6 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 from qbt.backtest.analysis import calculate_monthly_returns
 from qbt.backtest.strategies import buffer_zone, buy_and_hold
 from qbt.backtest.types import SingleBacktestResult
@@ -29,19 +27,16 @@ from qbt.common_constants import (
     COL_OPEN,
     EPSILON,
     META_JSON_PATH,
-    QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
 # 전략 레지스트리
-STRATEGY_RUNNERS: dict[str, Callable[[pd.DataFrame, pd.DataFrame], SingleBacktestResult]] = {
+STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
     buffer_zone.STRATEGY_NAME: buffer_zone.run_single,
     buy_and_hold.STRATEGY_NAME: buy_and_hold.run_single,
 }
@@ -209,10 +204,7 @@ def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[
         },
         "params": result.params_json,
         "monthly_returns": monthly_returns,
-        "data_info": {
-            "signal_path": str(QQQ_DATA_PATH),
-            "trade_path": str(TQQQ_SYNTHETIC_DATA_PATH),
-        },
+        "data_info": result.data_info,
     }
 
     with summary_path.open("w", encoding="utf-8") as f:
@@ -347,12 +339,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # 2. 데이터 로딩
-    signal_df = load_stock_data(QQQ_DATA_PATH)
-    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
-    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-    # 3. 전략 목록 결정
+    # 2. 전략 목록 결정
     if args.strategy == "all":
         strategy_names = list(STRATEGY_RUNNERS.keys())
     else:
@@ -360,18 +347,18 @@ def main() -> int:
 
     logger.debug(f"실행 전략: {strategy_names}")
 
-    # 4. 전략별 실행
+    # 3. 전략별 실행 (각 전략이 자체 데이터 로딩 수행)
     results: list[SingleBacktestResult] = []
     for name in strategy_names:
         logger.debug("=" * 60)
-        result = STRATEGY_RUNNERS[name](signal_df.copy(), trade_df.copy())
+        result = STRATEGY_RUNNERS[name]()
         print_summary(result.summary, result.display_name)
         _print_trades_table(result)
         _save_results(result)
         results.append(result)
         logger.debug(f"{result.display_name} 결과 파일 저장 완료")
 
-    # 5. 비교 테이블 출력 (2개 이상 시)
+    # 4. 비교 테이블 출력 (2개 이상 시)
     _print_comparison_table(results)
 
     return 0

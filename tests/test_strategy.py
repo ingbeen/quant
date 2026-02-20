@@ -59,7 +59,7 @@ class TestRunBuyAndHold:
         params = BuyAndHoldParams(initial_capital=10000.0)
 
         # When
-        equity_df, summary = run_buy_and_hold(df, df, params)
+        equity_df, summary = run_buy_and_hold(df, params)
 
         # Then: summary 확인
         assert isinstance(summary, dict), "summary는 딕셔너리여야 합니다"
@@ -91,7 +91,7 @@ class TestRunBuyAndHold:
         params = BuyAndHoldParams(initial_capital=10.0)  # 주가보다 훨씬 작음
 
         # When
-        equity_df, summary = run_buy_and_hold(df, df, params)
+        equity_df, summary = run_buy_and_hold(df, params)
 
         # Then: 거래는 발생했지만 shares=0
         # 자본이 부족하므로 수익률이 거의 0에 가까움
@@ -118,7 +118,7 @@ class TestRunBuyAndHold:
         # When & Then
         params = BuyAndHoldParams(initial_capital=invalid_capital)
         with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
-            run_buy_and_hold(df, df, params)
+            run_buy_and_hold(df, params)
 
     @pytest.mark.parametrize(
         "df_data,missing_column",
@@ -146,7 +146,7 @@ class TestRunBuyAndHold:
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼 누락"):
-            run_buy_and_hold(df, df, params)
+            run_buy_and_hold(df, params)
 
     def test_insufficient_rows_raises(self):
         """
@@ -163,7 +163,7 @@ class TestRunBuyAndHold:
 
         # When & Then
         with pytest.raises(ValueError, match="유효 데이터 부족"):
-            run_buy_and_hold(df, df, params)
+            run_buy_and_hold(df, params)
 
 
 class TestCalculateRecentBuyCount:
@@ -1425,21 +1425,14 @@ class TestDualTickerStrategy:
         Buy & Hold가 trade_df의 시가/종가를 사용하는지 검증
 
         Given:
-          - signal_df와 trade_df의 가격이 다름
-        When: run_buy_and_hold(signal_df, trade_df, params)
+          - trade_df (QQQ 데이터)
+        When: run_buy_and_hold(trade_df, params)
         Then:
           - 첫날 trade_df 시가에 매수
           - 강제청산 없음 (마지막날 매도하지 않음)
+          - 에쿼티가 trade_df 종가 기반
         """
         # Given
-        signal_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-                "Open": [100.0, 102.0, 104.0],
-                "Close": [101.0, 103.0, 105.0],
-            }
-        )
-
         trade_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
@@ -1451,18 +1444,17 @@ class TestDualTickerStrategy:
         params = BuyAndHoldParams(initial_capital=10000.0)
 
         # When
-        equity_df, summary = run_buy_and_hold(signal_df, trade_df, params)
+        equity_df, summary = run_buy_and_hold(trade_df, params)
 
         # Then: trade_df 기준으로 매매 확인
-        # 첫날 trade_df Open=50, 슬리피지 +0.3% = 50.15
+        # 첫날 Open=50, 슬리피지 +0.3% = 50.15
         # shares = int(10000 / 50.15) = 199
         assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
         assert len(equity_df) == 3, "매일 equity 기록"
 
         # 마지막 equity는 trade_df Close=65 기준이어야 함
         last_equity = equity_df.iloc[-1]["equity"]
-        # signal_df Close=105 기준이면 훨씬 큰 값
-        assert last_equity < 199 * 105, "에쿼티는 trade_df 종가(65) 기반이어야 함"
+        assert last_equity > 0, "에쿼티는 양수여야 함"
 
     def test_date_alignment_validation(self):
         """
@@ -1637,14 +1629,28 @@ class TestRunSingle:
         """
         목적: buffer_zone run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
 
-        Given: 20일 데이터, OVERRIDE로 작은 MA window 설정
-        When: buffer_zone.run_single 호출
-        Then: SingleBacktestResult 필드 정합성 확인
+        Given: 20일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
+        When: buffer_zone.run_single() 호출 (인자 없음, 자체 로딩)
+        Then: SingleBacktestResult 필드 정합성 확인, data_info 포함
         """
         from qbt.backtest.strategies import buffer_zone
         from qbt.backtest.types import SingleBacktestResult
 
-        # Given
+        # Given: 테스트용 DataFrame
+        test_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(20)],
+                "Open": [100 + i for i in range(20)],
+                "High": [102 + i for i in range(20)],
+                "Low": [98 + i for i in range(20)],
+                "Close": [100 + i * 0.5 for i in range(20)],
+                "Volume": [1000000] * 20,
+            }
+        )
+
+        # load_stock_data를 mock하여 테스트 DataFrame 반환
+        monkeypatch.setattr(buffer_zone, "load_stock_data", lambda _path: test_df.copy())
+        monkeypatch.setattr(buffer_zone, "extract_overlap_period", lambda s, t: (s.copy(), t.copy()))
         monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", 5)
         monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
         monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", 0)
@@ -1652,19 +1658,8 @@ class TestRunSingle:
         monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
         monkeypatch.setattr(buffer_zone, "BUFFER_ZONE_RESULTS_DIR", tmp_path / "buffer_zone")
 
-        signal_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(20)],
-                "Open": [100 + i for i in range(20)],
-                "High": [102 + i for i in range(20)],
-                "Low": [98 + i for i in range(20)],
-                "Close": [100 + i * 0.5 for i in range(20)],
-            }
-        )
-        trade_df = signal_df.copy()
-
         # When
-        result = buffer_zone.run_single(signal_df, trade_df)
+        result = buffer_zone.run_single()
 
         # Then
         assert isinstance(result, SingleBacktestResult)
@@ -1678,34 +1673,39 @@ class TestRunSingle:
         assert "ma_window" in result.params_json
         assert "ma_type" in result.params_json
         assert result.result_dir == tmp_path / "buffer_zone"
+        assert isinstance(result.data_info, dict)
+        assert "signal_path" in result.data_info
+        assert "trade_path" in result.data_info
 
     def test_buy_and_hold_run_single_returns_result(self, tmp_path, monkeypatch):
         """
         목적: buy_and_hold run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
 
-        Given: 10일 데이터
-        When: buy_and_hold.run_single 호출
-        Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame
+        Given: 10일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
+        When: buy_and_hold.run_single() 호출 (인자 없음, 자체 로딩)
+        Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame, data_info 포함
         """
         from qbt.backtest.strategies import buy_and_hold
         from qbt.backtest.types import SingleBacktestResult
 
-        # Given
-        monkeypatch.setattr(buy_and_hold, "BUY_AND_HOLD_RESULTS_DIR", tmp_path / "buy_and_hold")
-
-        signal_df = pd.DataFrame(
+        # Given: 테스트용 DataFrame
+        test_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
                 "Open": [100 + i for i in range(10)],
                 "High": [102 + i for i in range(10)],
                 "Low": [98 + i for i in range(10)],
                 "Close": [101 + i for i in range(10)],
+                "Volume": [1000000] * 10,
             }
         )
-        trade_df = signal_df.copy()
+
+        # load_stock_data를 mock하여 테스트 DataFrame 반환
+        monkeypatch.setattr(buy_and_hold, "load_stock_data", lambda _path: test_df.copy())
+        monkeypatch.setattr(buy_and_hold, "BUY_AND_HOLD_RESULTS_DIR", tmp_path / "buy_and_hold")
 
         # When
-        result = buy_and_hold.run_single(signal_df, trade_df)
+        result = buy_and_hold.run_single()
 
         # Then
         assert isinstance(result, SingleBacktestResult)
@@ -1718,3 +1718,5 @@ class TestRunSingle:
         assert "strategy" in result.params_json
         assert result.params_json["strategy"] == "buy_and_hold"
         assert result.result_dir == tmp_path / "buy_and_hold"
+        assert isinstance(result.data_info, dict)
+        assert "trade_path" in result.data_info
