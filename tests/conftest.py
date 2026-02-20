@@ -172,8 +172,8 @@ def mock_results_dir(tmp_path, monkeypatch):
 
     패치 대상:
         - common_constants.RESULTS_DIR, BACKTEST_RESULTS_DIR, TQQQ_RESULTS_DIR
-        - common_constants.BUFFER_ZONE_RESULTS_DIR, BUY_AND_HOLD_QQQ_RESULTS_DIR, BUY_AND_HOLD_TQQQ_RESULTS_DIR
-        - common_constants.GRID_RESULTS_PATH
+        - common_constants.BUFFER_ZONE_TQQQ_RESULTS_DIR, BUFFER_ZONE_QQQ_RESULTS_DIR
+        - common_constants.BUY_AND_HOLD_QQQ_RESULTS_DIR, BUY_AND_HOLD_TQQQ_RESULTS_DIR
         - common_constants.META_JSON_PATH
         - meta_manager.META_JSON_PATH (모듈 로드 시점 임포트)
         - tqqq constants (import 시점에 캡처된 경로)
@@ -184,7 +184,8 @@ def mock_results_dir(tmp_path, monkeypatch):
     Returns:
         dict: {'RESULTS_DIR': Path, 'BACKTEST_RESULTS_DIR': Path,
                'TQQQ_RESULTS_DIR': Path, 'META_JSON_PATH': Path,
-               'BUFFER_ZONE_RESULTS_DIR': Path,
+               'BUFFER_ZONE_TQQQ_RESULTS_DIR': Path,
+               'BUFFER_ZONE_QQQ_RESULTS_DIR': Path,
                'BUY_AND_HOLD_QQQ_RESULTS_DIR': Path,
                'BUY_AND_HOLD_TQQQ_RESULTS_DIR': Path}
     """
@@ -199,8 +200,10 @@ def mock_results_dir(tmp_path, monkeypatch):
     tqqq_dir.mkdir()
 
     # 전략별 결과 디렉토리 생성
-    buffer_zone_dir = backtest_dir / "buffer_zone"
-    buffer_zone_dir.mkdir()
+    buffer_zone_tqqq_dir = backtest_dir / "buffer_zone_tqqq"
+    buffer_zone_tqqq_dir.mkdir()
+    buffer_zone_qqq_dir = backtest_dir / "buffer_zone_qqq"
+    buffer_zone_qqq_dir.mkdir()
     buy_and_hold_qqq_dir = backtest_dir / "buy_and_hold_qqq"
     buy_and_hold_qqq_dir.mkdir()
     buy_and_hold_tqqq_dir = backtest_dir / "buy_and_hold_tqqq"
@@ -219,12 +222,10 @@ def mock_results_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
 
     # 전략별 결과 디렉토리 패치
-    monkeypatch.setattr(common_constants, "BUFFER_ZONE_RESULTS_DIR", buffer_zone_dir)
+    monkeypatch.setattr(common_constants, "BUFFER_ZONE_TQQQ_RESULTS_DIR", buffer_zone_tqqq_dir)
+    monkeypatch.setattr(common_constants, "BUFFER_ZONE_QQQ_RESULTS_DIR", buffer_zone_qqq_dir)
     monkeypatch.setattr(common_constants, "BUY_AND_HOLD_QQQ_RESULTS_DIR", buy_and_hold_qqq_dir)
     monkeypatch.setattr(common_constants, "BUY_AND_HOLD_TQQQ_RESULTS_DIR", buy_and_hold_tqqq_dir)
-
-    # 전략별 결과 파일 경로 패치
-    monkeypatch.setattr(common_constants, "GRID_RESULTS_PATH", buffer_zone_dir / "grid_results.csv")
 
     # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
     monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
@@ -238,7 +239,8 @@ def mock_results_dir(tmp_path, monkeypatch):
         "BACKTEST_RESULTS_DIR": backtest_dir,
         "TQQQ_RESULTS_DIR": tqqq_dir,
         "META_JSON_PATH": meta_json_path,
-        "BUFFER_ZONE_RESULTS_DIR": buffer_zone_dir,
+        "BUFFER_ZONE_TQQQ_RESULTS_DIR": buffer_zone_tqqq_dir,
+        "BUFFER_ZONE_QQQ_RESULTS_DIR": buffer_zone_qqq_dir,
         "BUY_AND_HOLD_QQQ_RESULTS_DIR": buy_and_hold_qqq_dir,
         "BUY_AND_HOLD_TQQQ_RESULTS_DIR": buy_and_hold_tqqq_dir,
     }
@@ -252,8 +254,8 @@ def mock_storage_paths(tmp_path, monkeypatch):
     패치 대상:
         - common_constants.STOCK_DIR, ETC_DIR, RESULTS_DIR
         - common_constants.BACKTEST_RESULTS_DIR, TQQQ_RESULTS_DIR
-        - common_constants.BUFFER_ZONE_RESULTS_DIR, BUY_AND_HOLD_QQQ_RESULTS_DIR, BUY_AND_HOLD_TQQQ_RESULTS_DIR
-        - common_constants.GRID_RESULTS_PATH
+        - common_constants.BUFFER_ZONE_TQQQ_RESULTS_DIR, BUFFER_ZONE_QQQ_RESULTS_DIR
+        - common_constants.BUY_AND_HOLD_QQQ_RESULTS_DIR, BUY_AND_HOLD_TQQQ_RESULTS_DIR
         - common_constants.META_JSON_PATH
         - meta_manager.META_JSON_PATH
         - tqqq constants (import 시점에 캡처된 경로)
@@ -289,8 +291,10 @@ def mock_storage_paths(tmp_path, monkeypatch):
     tqqq_dir.mkdir()
 
     # 전략별 결과 디렉토리 생성
-    buffer_zone_dir = backtest_dir / "buffer_zone"
-    buffer_zone_dir.mkdir()
+    buffer_zone_tqqq_dir = backtest_dir / "buffer_zone_tqqq"
+    buffer_zone_tqqq_dir.mkdir()
+    buffer_zone_qqq_dir = backtest_dir / "buffer_zone_qqq"
+    buffer_zone_qqq_dir.mkdir()
     buy_and_hold_qqq_dir = backtest_dir / "buy_and_hold_qqq"
     buy_and_hold_qqq_dir.mkdir()
     buy_and_hold_tqqq_dir = backtest_dir / "buy_and_hold_tqqq"
@@ -311,12 +315,10 @@ def mock_storage_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(common_constants, "META_JSON_PATH", meta_json_path)
 
     # 전략별 결과 디렉토리 패치
-    monkeypatch.setattr(common_constants, "BUFFER_ZONE_RESULTS_DIR", buffer_zone_dir)
+    monkeypatch.setattr(common_constants, "BUFFER_ZONE_TQQQ_RESULTS_DIR", buffer_zone_tqqq_dir)
+    monkeypatch.setattr(common_constants, "BUFFER_ZONE_QQQ_RESULTS_DIR", buffer_zone_qqq_dir)
     monkeypatch.setattr(common_constants, "BUY_AND_HOLD_QQQ_RESULTS_DIR", buy_and_hold_qqq_dir)
     monkeypatch.setattr(common_constants, "BUY_AND_HOLD_TQQQ_RESULTS_DIR", buy_and_hold_tqqq_dir)
-
-    # 전략별 결과 파일 경로 패치
-    monkeypatch.setattr(common_constants, "GRID_RESULTS_PATH", buffer_zone_dir / "grid_results.csv")
 
     # meta_manager 모듈도 패치 (모듈 로드 시점에 임포트한 값)
     monkeypatch.setattr(meta_manager, "META_JSON_PATH", meta_json_path)
@@ -332,7 +334,8 @@ def mock_storage_paths(tmp_path, monkeypatch):
         "BACKTEST_RESULTS_DIR": backtest_dir,
         "TQQQ_RESULTS_DIR": tqqq_dir,
         "META_JSON_PATH": meta_json_path,
-        "BUFFER_ZONE_RESULTS_DIR": buffer_zone_dir,
+        "BUFFER_ZONE_TQQQ_RESULTS_DIR": buffer_zone_tqqq_dir,
+        "BUFFER_ZONE_QQQ_RESULTS_DIR": buffer_zone_qqq_dir,
         "BUY_AND_HOLD_QQQ_RESULTS_DIR": buy_and_hold_qqq_dir,
         "BUY_AND_HOLD_TQQQ_RESULTS_DIR": buy_and_hold_tqqq_dir,
     }

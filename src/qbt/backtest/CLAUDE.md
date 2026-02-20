@@ -50,21 +50,11 @@
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.
 
-#### strategies/buffer_zone.py
+#### strategies/buffer_zone_helpers.py
 
-버퍼존 전략의 전체 구현을 포함합니다 (데이터 클래스, 헬퍼 함수, 실행 함수, 전략 전용 타입).
+버퍼존 계열 전략(buffer_zone_tqqq, buffer_zone_qqq)이 공유하는 핵심 로직, 타입, 예외, 상수를 제공합니다.
 
-전략 식별 상수:
-
-- `STRATEGY_NAME`: 전략 내부 식별자 (`"buffer_zone"`)
-- `DISPLAY_NAME`: 전략 표시명 (`"버퍼존 전략"`)
-
-데이터 소스 경로:
-
-- `SIGNAL_DATA_PATH`: 시그널용 데이터 경로 (`QQQ_DATA_PATH`)
-- `TRADE_DATA_PATH`: 매매용 데이터 경로 (`TQQQ_SYNTHETIC_DATA_PATH`)
-
-전략 전용 TypedDict (types.py에서 이동):
+전략 전용 TypedDict:
 
 - `BufferStrategyResultDict`: `run_buffer_strategy()` 반환 타입
 - `EquityRecord`: equity 기록 딕셔너리
@@ -82,7 +72,7 @@
 
 - `PendingOrderConflictError`: Pending Order 충돌 예외 (Critical Invariant 위반)
 
-로컬 상수 (`buffer_zone.py` 상단):
+동적 조정 상수:
 
 - `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
 - `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
@@ -94,21 +84,55 @@
 - `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
 - `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
 
-오버라이드 상수 (`buffer_zone.py` 상단):
-
-- `OVERRIDE_MA_WINDOW`: MA 기간 수동 설정 (None = 자동)
-- `OVERRIDE_BUFFER_ZONE_PCT`: 버퍼존 비율 수동 설정 (None = 자동)
-- `OVERRIDE_HOLD_DAYS`: 유지일 수동 설정 (None = 자동)
-- `OVERRIDE_RECENT_MONTHS`: 조정기간 수동 설정 (None = 자동)
-- `MA_TYPE`: 이동평균 유형 ("ema")
-
-주요 함수:
+핵심 함수:
 
 - `run_buffer_strategy`: 버퍼존 전략 실행
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
 - `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
-- `resolve_params`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
-- `run_single`: 단일 백테스트 실행 (인자 없음, 자체 데이터 로딩) → `SingleBacktestResult` 반환
+
+#### strategies/buffer_zone_tqqq.py
+
+QQQ 시그널 + TQQQ 합성 데이터 매매 전략의 설정 및 실행을 담당합니다.
+핵심 로직은 buffer_zone_helpers에서 임포트합니다.
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: `"buffer_zone_tqqq"`
+- `DISPLAY_NAME`: `"버퍼존 전략 (TQQQ)"`
+
+데이터 소스 경로:
+
+- `SIGNAL_DATA_PATH`: `QQQ_DATA_PATH`
+- `TRADE_DATA_PATH`: `TQQQ_SYNTHETIC_DATA_PATH`
+
+기타:
+
+- `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
+- OVERRIDE 상수 4개 + `MA_TYPE`
+- `resolve_params()`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
+- `run_single()`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
+
+#### strategies/buffer_zone_qqq.py
+
+QQQ 시그널 + QQQ 매매 전략의 설정 및 실행을 담당합니다.
+핵심 로직은 buffer_zone_helpers에서 임포트합니다.
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: `"buffer_zone_qqq"`
+- `DISPLAY_NAME`: `"버퍼존 전략 (QQQ)"`
+
+데이터 소스 경로:
+
+- `SIGNAL_DATA_PATH`: `QQQ_DATA_PATH`
+- `TRADE_DATA_PATH`: `QQQ_DATA_PATH` (시그널과 매매 동일)
+
+기타:
+
+- `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
+- OVERRIDE 상수 4개 + `MA_TYPE`
+- `resolve_params()`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
+- `run_single()`: 단일 백테스트 실행 (signal과 trade 동일, `extract_overlap_period` 불필요) → `SingleBacktestResult` 반환
 
 #### strategies/buy_and_hold.py
 
@@ -140,8 +164,9 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 
 설계 결정 사항:
 
-- helpers.py 미생성: YAGNI 원칙 적용. 버퍼존 전용 헬퍼는 `buffer_zone.py`에 직접 배치.
-  향후 버퍼존 계열 전략 추가 시 공통 헬퍼를 추출하여 helpers.py 생성 예정.
+- 버퍼존 계열 전략은 개별 모듈 방식 채택 (팩토리 패턴 대신).
+  이유: 각 전략별 OVERRIDE 상수, `resolve_params` 폴백 체인, 그리드 서치 등 커스터마이징이 많아 명시적 모듈이 적합.
+- 공통 로직은 `buffer_zone_helpers.py`에 추출하여 코드 중복을 방지.
 
 ---
 
@@ -235,7 +260,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 ### grid_results.csv
 
-경로: `storage/results/backtest/buffer_zone/grid_results.csv`
+경로: `storage/results/backtest/{strategy_name}/grid_results.csv` (예: `buffer_zone_tqqq/`, `buffer_zone_qqq/`)
 
 주요 컬럼: 이평기간, 버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
 

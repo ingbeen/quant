@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-20 18:00
-**마지막 업데이트**: 2026-02-20 18:00
+**마지막 업데이트**: 2026-02-20 19:30
 **관련 범위**: backtest, strategies, scripts, tests
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`, `scripts/CLAUDE.md`
 
@@ -40,11 +40,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 기존 `buffer_zone.py`의 공통 로직을 `buffer_zone_helpers.py`로 추출
-- [ ] 기존 `buffer_zone.py`를 `buffer_zone_tqqq.py`로 이름 변경 (QQQ 시그널 + TQQQ 매매)
-- [ ] 새로운 `buffer_zone_qqq.py` 전략 생성 (QQQ 시그널 + QQQ 매매)
-- [ ] 그리드 서치 스크립트(`run_grid_search.py`)를 두 전략 모두 지원하도록 범용화
-- [ ] 모든 임포트 경로, 테스트, 문서를 최신 구조에 맞게 업데이트
+- [x] 기존 `buffer_zone.py`의 공통 로직을 `buffer_zone_helpers.py`로 추출
+- [x] 기존 `buffer_zone.py`를 `buffer_zone_tqqq.py`로 이름 변경 (QQQ 시그널 + TQQQ 매매)
+- [x] 새로운 `buffer_zone_qqq.py` 전략 생성 (QQQ 시그널 + QQQ 매매)
+- [x] 그리드 서치 스크립트(`run_grid_search.py`)를 두 전략 모두 지원하도록 범용화
+- [x] 모든 임포트 경로, 테스트, 문서를 최신 구조에 맞게 업데이트
 
 ## 2) 비목표(Non-Goals)
 
@@ -78,22 +78,22 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] `buffer_zone_helpers.py` 생성 (공통 로직 추출)
-- [ ] `buffer_zone_tqqq.py` 생성 (기존 buffer_zone 이름 변경 + helpers 임포트)
-- [ ] `buffer_zone_qqq.py` 생성 (QQQ 전용 전략)
-- [ ] `buffer_zone.py` 삭제
-- [ ] `common_constants.py` 경로 상수 업데이트
-- [ ] `strategies/__init__.py`, `backtest/__init__.py` 임포트 경로 업데이트
-- [ ] `run_single_backtest.py` 전략 레지스트리 업데이트
-- [ ] `run_grid_search.py` 범용화 (`--strategy` 인자 추가)
-- [ ] 기존 테스트 임포트 경로 업데이트 (`test_strategy.py`, `test_integration.py`)
-- [ ] `buffer_zone_qqq` 전략의 `run_single` 테스트 추가
-- [ ] `conftest.py` 경로 상수 패치 업데이트
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`src/qbt/backtest/CLAUDE.md`)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `buffer_zone_helpers.py` 생성 (공통 로직 추출)
+- [x] `buffer_zone_tqqq.py` 생성 (기존 buffer_zone 이름 변경 + helpers 임포트)
+- [x] `buffer_zone_qqq.py` 생성 (QQQ 전용 전략)
+- [x] `buffer_zone.py` 삭제
+- [x] `common_constants.py` 경로 상수 업데이트
+- [x] `strategies/__init__.py`, `backtest/__init__.py` 임포트 경로 업데이트
+- [x] `run_single_backtest.py` 전략 레지스트리 업데이트
+- [x] `run_grid_search.py` 범용화 (`--strategy` 인자 추가)
+- [x] 기존 테스트 임포트 경로 업데이트 (`test_strategy.py`, `test_integration.py`)
+- [x] `buffer_zone_qqq` 전략의 `run_single` 테스트 추가
+- [x] `conftest.py` 경로 상수 패치 업데이트
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=301, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`src/qbt/backtest/CLAUDE.md`)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -135,52 +135,52 @@
 기존 `buffer_zone.py`에서 데이터 소스에 비종속적인 공통 로직을 추출한다.
 
 포함 내용:
-- [ ] TypedDicts: `BufferStrategyResultDict`, `EquityRecord`, `TradeRecord`, `HoldState`, `GridSearchResult`
-- [ ] DataClasses: `BaseStrategyParams`, `BufferStrategyParams`, `PendingOrder`
-- [ ] 예외: `PendingOrderConflictError`
-- [ ] 동적 조정 상수: `DEFAULT_BUFFER_INCREMENT_PER_BUY`, `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`, `DEFAULT_DAYS_PER_MONTH`
-- [ ] 헬퍼 함수 9개: `_validate_buffer_strategy_inputs`, `_compute_bands`, `_check_pending_conflict`, `_record_equity`, `_execute_buy_order`, `_execute_sell_order`, `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
-- [ ] 핵심 함수: `run_buffer_strategy`, `run_grid_search`, `_run_buffer_strategy_for_grid`
+- [x] TypedDicts: `BufferStrategyResultDict`, `EquityRecord`, `TradeRecord`, `HoldState`, `GridSearchResult`
+- [x] DataClasses: `BaseStrategyParams`, `BufferStrategyParams`, `PendingOrder`
+- [x] 예외: `PendingOrderConflictError`
+- [x] 동적 조정 상수: `DEFAULT_BUFFER_INCREMENT_PER_BUY`, `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`, `DEFAULT_DAYS_PER_MONTH`
+- [x] 헬퍼 함수 9개: `_validate_buffer_strategy_inputs`, `_compute_bands`, `_check_pending_conflict`, `_record_equity`, `_execute_buy_order`, `_execute_sell_order`, `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
+- [x] 핵심 함수: `run_buffer_strategy`, `run_grid_search`, `_run_buffer_strategy_for_grid`
 
 **1-2. `buffer_zone_tqqq.py` 생성**
 
 기존 `buffer_zone.py`의 전략별 코드만 유지하고, helpers를 임포트한다.
 
 포함 내용:
-- [ ] `STRATEGY_NAME = "buffer_zone_tqqq"`
-- [ ] `DISPLAY_NAME = "버퍼존 전략 (TQQQ)"`
-- [ ] `SIGNAL_DATA_PATH = QQQ_DATA_PATH`
-- [ ] `TRADE_DATA_PATH = TQQQ_SYNTHETIC_DATA_PATH`
-- [ ] `GRID_RESULTS_PATH` (전략 모듈 내 정의)
-- [ ] OVERRIDE 상수 4개 + `MA_TYPE`
-- [ ] `resolve_params()` 함수
-- [ ] `run_single()` 함수
+- [x] `STRATEGY_NAME = "buffer_zone_tqqq"`
+- [x] `DISPLAY_NAME = "버퍼존 전략 (TQQQ)"`
+- [x] `SIGNAL_DATA_PATH = QQQ_DATA_PATH`
+- [x] `TRADE_DATA_PATH = TQQQ_SYNTHETIC_DATA_PATH`
+- [x] `GRID_RESULTS_PATH` (전략 모듈 내 정의)
+- [x] OVERRIDE 상수 4개 + `MA_TYPE`
+- [x] `resolve_params()` 함수
+- [x] `run_single()` 함수
 
 **1-3. `buffer_zone_qqq.py` 생성**
 
 QQQ 전용 버퍼존 전략을 생성한다.
 
 포함 내용:
-- [ ] `STRATEGY_NAME = "buffer_zone_qqq"`
-- [ ] `DISPLAY_NAME = "버퍼존 전략 (QQQ)"`
-- [ ] `SIGNAL_DATA_PATH = QQQ_DATA_PATH`
-- [ ] `TRADE_DATA_PATH = QQQ_DATA_PATH`
-- [ ] `GRID_RESULTS_PATH` (전략 모듈 내 정의)
-- [ ] OVERRIDE 상수 4개 + `MA_TYPE`
-- [ ] `resolve_params()` 함수
-- [ ] `run_single()` 함수 (signal과 trade가 동일하므로 `extract_overlap_period` 불필요)
+- [x] `STRATEGY_NAME = "buffer_zone_qqq"`
+- [x] `DISPLAY_NAME = "버퍼존 전략 (QQQ)"`
+- [x] `SIGNAL_DATA_PATH = QQQ_DATA_PATH`
+- [x] `TRADE_DATA_PATH = QQQ_DATA_PATH`
+- [x] `GRID_RESULTS_PATH` (전략 모듈 내 정의)
+- [x] OVERRIDE 상수 4개 + `MA_TYPE`
+- [x] `resolve_params()` 함수
+- [x] `run_single()` 함수 (signal과 trade가 동일하므로 `extract_overlap_period` 불필요)
 
 **1-4. `common_constants.py` 업데이트**
-- [ ] `BUFFER_ZONE_RESULTS_DIR` → `BUFFER_ZONE_TQQQ_RESULTS_DIR` 이름 변경
-- [ ] `BUFFER_ZONE_QQQ_RESULTS_DIR` 추가
-- [ ] `GRID_RESULTS_PATH` 제거 (각 전략 모듈로 이동)
+- [x] `BUFFER_ZONE_RESULTS_DIR` → `BUFFER_ZONE_TQQQ_RESULTS_DIR` 이름 변경
+- [x] `BUFFER_ZONE_QQQ_RESULTS_DIR` 추가
+- [x] `GRID_RESULTS_PATH` 제거 (각 전략 모듈로 이동)
 
 **1-5. `buffer_zone.py` 삭제**
-- [ ] 원본 파일 삭제
+- [x] 원본 파일 삭제
 
 **1-6. 임포트 경로 업데이트**
-- [ ] `strategies/__init__.py`: `buffer_zone` → `buffer_zone_helpers` + `buffer_zone_tqqq` + `buffer_zone_qqq`
-- [ ] `backtest/__init__.py`: `buffer_zone` → `buffer_zone_helpers`
+- [x] `strategies/__init__.py`: `buffer_zone` → `buffer_zone_helpers` + `buffer_zone_tqqq` + `buffer_zone_qqq`
+- [x] `backtest/__init__.py`: `buffer_zone` → `buffer_zone_helpers`
 
 ---
 
@@ -189,34 +189,34 @@ QQQ 전용 버퍼존 전략을 생성한다.
 **작업 내용:**
 
 **2-1. `run_single_backtest.py` 업데이트**
-- [ ] `buffer_zone` 임포트 → `buffer_zone_tqqq` + `buffer_zone_qqq`
-- [ ] `STRATEGY_RUNNERS`에 `buffer_zone_tqqq`, `buffer_zone_qqq` 등록
+- [x] `buffer_zone` 임포트 → `buffer_zone_tqqq` + `buffer_zone_qqq`
+- [x] `STRATEGY_RUNNERS`에 `buffer_zone_tqqq`, `buffer_zone_qqq` 등록
 
 **2-2. `run_grid_search.py` 범용화**
-- [ ] `--strategy` 인자 추가 (choices: `buffer_zone_tqqq`, `buffer_zone_qqq`, 기본값: `buffer_zone_tqqq`)
-- [ ] 전략별 데이터 경로, 결과 경로를 동적으로 결정
-- [ ] `buffer_zone_tqqq`: signal=QQQ + trade=TQQQ합성 + `extract_overlap_period`
-- [ ] `buffer_zone_qqq`: signal=trade=QQQ (overlap 불필요)
-- [ ] `GRID_RESULTS_PATH`를 전략 모듈에서 임포트
+- [x] `--strategy` 인자 추가 (choices: `buffer_zone_tqqq`, `buffer_zone_qqq`, 기본값: `buffer_zone_tqqq`)
+- [x] 전략별 데이터 경로, 결과 경로를 동적으로 결정
+- [x] `buffer_zone_tqqq`: signal=QQQ + trade=TQQQ합성 + `extract_overlap_period`
+- [x] `buffer_zone_qqq`: signal=trade=QQQ (overlap 불필요)
+- [x] `GRID_RESULTS_PATH`를 전략 모듈에서 임포트
 
 **2-3. `tests/test_strategy.py` 업데이트**
-- [ ] 모든 `from qbt.backtest.strategies.buffer_zone import ...` → `buffer_zone_helpers` 또는 `buffer_zone_tqqq`로 변경
+- [x] 모든 `from qbt.backtest.strategies.buffer_zone import ...` → `buffer_zone_helpers` 또는 `buffer_zone_tqqq`로 변경
   - `run_buffer_strategy`, `BufferStrategyParams`, `PendingOrderConflictError`, `_calculate_recent_buy_count`, `_check_pending_conflict`, `PendingOrder`, `run_grid_search` → `buffer_zone_helpers`
   - `resolve_params`, `run_single`, OVERRIDE 상수, `GRID_RESULTS_PATH`, `BUFFER_ZONE_RESULTS_DIR` → `buffer_zone_tqqq`
-- [ ] `TestResolveParams.test_buffer_zone_resolve_params_*`: `buffer_zone` → `buffer_zone_tqqq` monkeypatch 대상 업데이트
-- [ ] `TestRunSingle.test_buffer_zone_run_single_returns_result`: monkeypatch 대상 업데이트
+- [x] `TestResolveParams.test_buffer_zone_resolve_params_*`: `buffer_zone` → `buffer_zone_tqqq` monkeypatch 대상 업데이트
+- [x] `TestRunSingle.test_buffer_zone_run_single_returns_result`: monkeypatch 대상 업데이트
   - `strategy_name` 검증: `"buffer_zone"` → `"buffer_zone_tqqq"`
   - `display_name` 검증: `"버퍼존 전략"` → `"버퍼존 전략 (TQQQ)"`
-- [ ] `buffer_zone_qqq`용 `test_buffer_zone_qqq_run_single_returns_result` 추가
+- [x] `buffer_zone_qqq`용 `test_buffer_zone_qqq_run_single_returns_result` 추가
 
 **2-4. `tests/test_integration.py` 업데이트**
-- [ ] `from qbt.backtest.strategies.buffer_zone import ...` → `buffer_zone_helpers`
+- [x] `from qbt.backtest.strategies.buffer_zone import ...` → `buffer_zone_helpers`
 
 **2-5. `tests/conftest.py` 업데이트**
-- [ ] `BUFFER_ZONE_RESULTS_DIR` → `BUFFER_ZONE_TQQQ_RESULTS_DIR`
-- [ ] `BUFFER_ZONE_QQQ_RESULTS_DIR` 추가 (디렉토리 생성 + monkeypatch)
-- [ ] `GRID_RESULTS_PATH` 패치 제거 (common_constants에서 삭제됨)
-  - 각 전략 모듈의 `GRID_RESULTS_PATH`를 별도 패치 필요 여부 확인
+- [x] `BUFFER_ZONE_RESULTS_DIR` → `BUFFER_ZONE_TQQQ_RESULTS_DIR`
+- [x] `BUFFER_ZONE_QQQ_RESULTS_DIR` 추가 (디렉토리 생성 + monkeypatch)
+- [x] `GRID_RESULTS_PATH` 패치 제거 (common_constants에서 삭제됨)
+  - 각 전략 모듈의 `GRID_RESULTS_PATH`를 별도 패치 필요 여부 확인 → 불필요 (전략 모듈에서 직접 정의)
 
 ---
 
@@ -224,19 +224,19 @@ QQQ 전용 버퍼존 전략을 생성한다.
 
 **작업 내용:**
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
   - `buffer_zone.py` → `buffer_zone_helpers.py` + `buffer_zone_tqqq.py` + `buffer_zone_qqq.py`
   - 전략 식별 상수, 데이터 소스 경로, 모듈 설명 갱신
   - `helpers.py 미생성` 설계 결정 제거 (이제 생성됨)
-- [ ] 루트 `CLAUDE.md` 디렉토리 구조 업데이트 (전략 모듈명 변경 반영)
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 루트 `CLAUDE.md` 디렉토리 구조 업데이트 (전략 모듈명 변경 반영)
+- [x] `poetry run black .` 실행 (자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=301, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -261,5 +261,6 @@ QQQ 전용 버퍼존 전략을 생성한다.
 ### 진행 로그 (KST)
 
 - 2026-02-20 18:00: 계획서 초안 작성
+- 2026-02-20 19:30: Phase 1~3 완료, 전체 검증 통과 (passed=301, failed=0, skipped=0)
 
 ---

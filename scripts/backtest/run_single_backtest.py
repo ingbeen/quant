@@ -6,8 +6,8 @@
 
 실행 명령어:
     poetry run python scripts/backtest/run_single_backtest.py
-    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
-    poetry run python scripts/backtest/run_single_backtest.py --strategy buy_and_hold
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_qqq
 """
 
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from qbt.backtest.analysis import calculate_monthly_returns
-from qbt.backtest.strategies import buffer_zone, buy_and_hold
+from qbt.backtest.strategies import buffer_zone_qqq, buffer_zone_tqqq, buy_and_hold
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
@@ -37,7 +37,8 @@ logger = get_logger(__name__)
 
 # 전략 레지스트리
 STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
-    buffer_zone.STRATEGY_NAME: buffer_zone.run_single,
+    buffer_zone_tqqq.STRATEGY_NAME: buffer_zone_tqqq.run_single,
+    buffer_zone_qqq.STRATEGY_NAME: buffer_zone_qqq.run_single,
 }
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록

@@ -6,7 +6,7 @@ from qbt.backtest.analysis import (
     calculate_summary,
     load_best_grid_params,
 )
-from qbt.backtest.strategies.buffer_zone import (
+from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     run_buffer_strategy,
     run_grid_search,

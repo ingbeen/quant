@@ -2,12 +2,17 @@
 버퍼존 전략 파라미터 그리드 탐색 실행 스크립트
 
 버퍼존 전략의 파라미터 조합을 탐색하여 최적 전략을 찾습니다.
+--strategy 인자로 TQQQ/QQQ 전략을 선택할 수 있습니다.
 
 실행 명령어:
     poetry run python scripts/backtest/run_grid_search.py
+    poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_tqqq
+    poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_qqq
 """
 
+import argparse
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -40,9 +45,9 @@ from qbt.backtest.constants import (
     DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
+from qbt.backtest.strategies import buffer_zone_qqq, buffer_zone_tqqq
 from qbt.common_constants import (
     COL_DATE,
-    GRID_RESULTS_PATH,
     META_JSON_PATH,
     QQQ_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
@@ -54,6 +59,47 @@ from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
+
+# 전략별 설정 매핑
+STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
+    buffer_zone_tqqq.STRATEGY_NAME: {
+        "signal_path": QQQ_DATA_PATH,
+        "trade_path": TQQQ_SYNTHETIC_DATA_PATH,
+        "grid_results_path": buffer_zone_tqqq.GRID_RESULTS_PATH,
+    },
+    buffer_zone_qqq.STRATEGY_NAME: {
+        "signal_path": QQQ_DATA_PATH,
+        "trade_path": QQQ_DATA_PATH,
+        "grid_results_path": buffer_zone_qqq.GRID_RESULTS_PATH,
+    },
+}
+
+
+def _load_data(strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    전략에 맞는 데이터를 로딩한다.
+
+    Args:
+        strategy_name: 전략 이름
+
+    Returns:
+        tuple: (signal_df, trade_df)
+    """
+    config = STRATEGY_CONFIG[strategy_name]
+    signal_path = config["signal_path"]
+    trade_path = config["trade_path"]
+
+    signal_df = load_stock_data(signal_path)
+
+    if signal_path == trade_path:
+        # QQQ 전략: 시그널과 매매가 동일 데이터
+        trade_df = signal_df.copy()
+    else:
+        # TQQQ 전략: 시그널과 매매가 다른 데이터, overlap 추출 필요
+        trade_df = load_stock_data(trade_path)
+        signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
+
+    return signal_df, trade_df
 
 
 def print_summary_stats(results_df: pd.DataFrame) -> None:
@@ -91,14 +137,25 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    logger.debug("QQQ 시그널 + TQQQ 매매 파라미터 그리드 탐색 시작")
+    # 1. argparse로 --strategy 파싱
+    parser = argparse.ArgumentParser(description="버퍼존 전략 그리드 탐색")
+    parser.add_argument(
+        "--strategy",
+        choices=list(STRATEGY_CONFIG.keys()),
+        default=buffer_zone_tqqq.STRATEGY_NAME,
+        help=f"실행할 전략 (기본값: {buffer_zone_tqqq.STRATEGY_NAME})",
+    )
+    args = parser.parse_args()
 
-    # 1. 데이터 로딩 (QQQ: 시그널, TQQQ: 매매)
-    signal_df = load_stock_data(QQQ_DATA_PATH)
-    trade_df = load_stock_data(TQQQ_SYNTHETIC_DATA_PATH)
-    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
+    strategy_name: str = args.strategy
+    grid_results_path = STRATEGY_CONFIG[strategy_name]["grid_results_path"]
 
-    # 2. 그리드 탐색 실행
+    logger.debug(f"[{strategy_name}] 파라미터 그리드 탐색 시작")
+
+    # 2. 데이터 로딩
+    signal_df, trade_df = _load_data(strategy_name)
+
+    # 3. 그리드 탐색 실행
     logger.debug("그리드 탐색 파라미터:")
     logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
     logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
@@ -115,10 +172,10 @@ def main() -> int:
         initial_capital=DEFAULT_INITIAL_CAPITAL,
     )
 
-    # 3. CAGR 기준 정렬
+    # 4. CAGR 기준 정렬
     results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
 
-    # 4. 상위 결과 출력
+    # 5. 상위 결과 출력
     columns = [
         ("순위", 6, Align.RIGHT),
         (DISPLAY_MA_WINDOW, 10, Align.RIGHT),
@@ -151,13 +208,13 @@ def main() -> int:
         )
 
     table = TableLogger(columns, logger)
-    table.print_table(rows, title=f"상위 {top_n}개 결과 (CAGR 기준)")
+    table.print_table(rows, title=f"[{strategy_name}] 상위 {top_n}개 결과 (CAGR 기준)")
 
-    # 5. 요약 통계 출력
+    # 6. 요약 통계 출력
     print_summary_stats(results_df)
 
-    # 6. 결과 저장
-    GRID_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # 7. 결과 저장
+    grid_results_path.parent.mkdir(parents=True, exist_ok=True)
 
     # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
     results_df_export = results_df.rename(
@@ -186,11 +243,12 @@ def main() -> int:
     )
 
     results_df_export[DISPLAY_FINAL_CAPITAL] = results_df_export[DISPLAY_FINAL_CAPITAL].astype(int)
-    results_df_export.to_csv(GRID_RESULTS_PATH, index=False)
-    logger.debug(f"결과 저장 완료: {GRID_RESULTS_PATH}")
+    results_df_export.to_csv(grid_results_path, index=False)
+    logger.debug(f"결과 저장 완료: {grid_results_path}")
 
-    # 7. 메타데이터 저장
+    # 8. 메타데이터 저장
     metadata = {
+        "strategy": strategy_name,
         "execution_params": {
             "ma_window_list": DEFAULT_MA_WINDOW_LIST,
             "buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_BUFFER_ZONE_PCT_LIST],
@@ -227,9 +285,9 @@ def main() -> int:
             },
         },
         "csv_info": {
-            "path": str(GRID_RESULTS_PATH),
+            "path": str(grid_results_path),
             "row_count": len(results_df),
-            "file_size_bytes": GRID_RESULTS_PATH.stat().st_size,
+            "file_size_bytes": grid_results_path.stat().st_size,
         },
     }
 

@@ -89,8 +89,10 @@ quant/
 │   │   ├── types.py         # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너)
 │   │   ├── analysis.py      # 이동평균 계산 및 성과 지표
 │   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
-│   │       ├── buffer_zone.py   # 버퍼존 전략
-│   │       └── buy_and_hold.py  # Buy & Hold 벤치마크
+│   │       ├── buffer_zone_helpers.py  # 버퍼존 계열 공통 로직
+│   │       ├── buffer_zone_tqqq.py     # 버퍼존 전략 (QQQ 시그널 + TQQQ 매매)
+│   │       ├── buffer_zone_qqq.py      # 버퍼존 전략 (QQQ 시그널 + QQQ 매매)
+│   │       └── buy_and_hold.py         # Buy & Hold 벤치마크
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
 │   │   ├── types.py            # TypedDict 정의 (검증 지표, 워크포워드 요약 등)
@@ -111,7 +113,8 @@ quant/
     └── results/       # 분석 결과 CSV 및 메타데이터
         ├── meta.json  # 실행 이력 메타데이터
         ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
-        │   ├── buffer_zone/       # 버퍼존 전략 결과
+        │   ├── buffer_zone_tqqq/  # 버퍼존 전략 (TQQQ) 결과
+        │   ├── buffer_zone_qqq/   # 버퍼존 전략 (QQQ) 결과
         │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
         │   └── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
         └── tqqq/              # TQQQ 시뮬레이션 결과
@@ -391,7 +394,7 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 
 분석 결과 - 백테스트 (`storage/results/backtest/{strategy_name}/`):
 
-각 전략의 결과는 전략명 하위 폴더에 저장된다 (예: `buffer_zone/`, `buy_and_hold_qqq/`, `buy_and_hold_tqqq/`).
+각 전략의 결과는 전략명 하위 폴더에 저장된다 (예: `buffer_zone_tqqq/`, `buffer_zone_qqq/`, `buy_and_hold_qqq/`, `buy_and_hold_tqqq/`).
 
 - `signal.csv`: 시그널 데이터 (OHLC + MA + 전일대비%)
 - `equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운

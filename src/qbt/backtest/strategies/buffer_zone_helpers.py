@@ -1,23 +1,25 @@
-"""버퍼존 전략 모듈
+"""버퍼존 전략 공통 헬퍼 모듈
 
-이동평균 기반 버퍼존 전략의 실행 엔진을 구현한다.
-시그널 생성, 매매 체결, 그리드 서치를 포함한다.
+버퍼존 계열 전략(buffer_zone_tqqq, buffer_zone_qqq)이 공유하는
+핵심 로직, 타입, 예외, 상수를 제공한다.
 
-학습 포인트:
-1. @dataclass: 데이터를 담는 클래스를 간결하게 정의하는 데코레이터
-2. 백테스팅: 과거 데이터로 거래 전략을 시뮬레이션하여 성능 검증
-3. 이동평균 전략: 가격이 이동평균선을 돌파하면 매수/매도하는 전략
-4. 슬리피지: 실제 체결 가격이 예상 가격과 다른 현상 (수수료와 별도)
+포함 내용:
+- TypedDicts: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
+- DataClasses: BaseStrategyParams, BufferStrategyParams, PendingOrder
+- 예외: PendingOrderConflictError
+- 동적 조정 상수
+- 헬퍼 함수 9개 (입력 검증, 밴드 계산, 신호 감지, 주문 실행 등)
+- 핵심 함수: run_buffer_strategy, run_grid_search
 """
 
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Literal, TypedDict
+from typing import Literal, TypedDict
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
+from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
     COL_BUFFER_ZONE_PCT,
     COL_CAGR,
@@ -29,46 +31,27 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUFFER_ZONE_PCT,
-    DEFAULT_HOLD_DAYS,
-    DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW,
-    DEFAULT_RECENT_MONTHS,
     MIN_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
 from qbt.backtest.types import (
-    SingleBacktestResult,
     SummaryDict,
 )
 from qbt.common_constants import (
-    BUFFER_ZONE_RESULTS_DIR,
     COL_CLOSE,
     COL_DATE,
     COL_OPEN,
-    GRID_RESULTS_PATH,
-    QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
 
 logger = get_logger(__name__)
 
-# 전략 식별 상수
-STRATEGY_NAME = "buffer_zone"
-DISPLAY_NAME = "버퍼존 전략"
-
-# 데이터 소스 경로 (버퍼존: QQQ 시그널 + TQQQ 합성 매매)
-SIGNAL_DATA_PATH = QQQ_DATA_PATH
-TRADE_DATA_PATH = TQQQ_SYNTHETIC_DATA_PATH
-
 
 # ============================================================================
-# 전략 전용 TypedDict (types.py에서 이동)
+# 전략 공통 TypedDict
 # ============================================================================
 
 
@@ -140,20 +123,95 @@ class GridSearchResult(TypedDict):
     final_capital: float
 
 
-# 버퍼존 전략 동적 조정 상수
+# ============================================================================
+# 동적 조정 상수
+# ============================================================================
+
 DEFAULT_BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
 DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (일)
 DEFAULT_DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
 
-# 파라미터 오버라이드 (None = grid_results.csv 최적값 사용, 값 설정 = 수동)
-# 폴백 체인: OVERRIDE → grid_results.csv 최적값 → DEFAULT
-OVERRIDE_MA_WINDOW: int | None = None
-OVERRIDE_BUFFER_ZONE_PCT: float | None = None
-OVERRIDE_HOLD_DAYS: int | None = None
-OVERRIDE_RECENT_MONTHS: int | None = None
 
-# MA 유형 (grid_search와 동일하게 EMA 사용)
-MA_TYPE = "ema"
+# ============================================================================
+# 예외 클래스
+# ============================================================================
+
+
+class PendingOrderConflictError(Exception):
+    """Pending Order 충돌 예외
+
+    이 예외는 백테스트의 Critical Invariant 위반을 나타냅니다.
+
+    발생 조건:
+    - pending_order가 이미 존재하는 상태에서 새로운 신호가 발생하려 할 때
+
+    왜 중요한가:
+    - pending은 "신호일 종가 → 체결일 시가" 사이의 단일 예약 상태를 나타냄
+    - 이 기간에 새로운 신호가 발생하면 논리적 모순 (두 신호가 동시에 존재할 수 없음)
+    - 이는 매우 크리티컬한 버그로, 발견 즉시 백테스트를 중단해야 함
+
+    디버깅 방법:
+    - 예외 메시지에서 기존 pending 정보 및 새 신호 발생 시점 확인
+    - hold_days 로직, 신호 감지 로직에서 타이밍 문제 검토
+    """
+
+    pass
+
+
+# ============================================================================
+# DataClasses
+# ============================================================================
+
+
+@dataclass
+class BaseStrategyParams:
+    """전략 파라미터의 기본 클래스.
+
+    학습 포인트:
+    1. @dataclass 데코레이터: 클래스를 데이터 컨테이너로 만듦
+    2. 타입 힌트와 함께 변수 선언만 하면 __init__ 메서드 자동 생성
+    3. 클래스 상속의 기본 - 공통 속성을 부모 클래스에 정의
+    """
+
+    initial_capital: float  # 초기 자본금
+
+
+@dataclass
+class BufferStrategyParams(BaseStrategyParams):
+    """버퍼존 전략 파라미터를 담는 데이터 클래스.
+
+    학습 포인트:
+    - 클래스 상속: (BaseStrategyParams) - 부모 클래스의 속성 상속
+    - BaseStrategyParams의 initial_capital도 사용 가능
+    """
+
+    ma_window: int  # 이동평균 기간 (예: 20일)
+    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 5.0 = 5%)
+    hold_days: int  # 최소 보유 일수 (예: 5일)
+    recent_months: int  # 최근 매수 기간 (예: 6개월)
+
+
+@dataclass
+class PendingOrder:
+    """예약된 주문 정보
+
+    신호 발생 시점에 생성되며, 다음 거래일 시가에 실제 체결됩니다.
+    이를 통해 신호 발생일과 체결일을 명확히 분리하고, 미래 데이터 참조를 방지합니다.
+
+    타입 안정성:
+    - order_type은 Literal["buy", "sell"]로 제한하여 타입 체크 시점에 오류 방지
+
+    중요: 미래 데이터 참조 방지
+    - execute_date, price_raw를 저장하지 않음 (look-ahead bias 방지)
+    - 다음 날 루프에서 해당 날짜의 시가를 조회하여 체결
+    - 마지막 날 신호는 자연스럽게 미체결됨 (다음 날이 없으므로)
+    """
+
+    order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
+    signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
+    buffer_zone_pct: float  # 신호 시점의 버퍼존 비율 (0~1)
+    hold_days_used: int  # 신호 시점의 유지일수
+    recent_buy_count: int  # 신호 시점의 최근 매수 횟수
 
 
 # ============================================================================
@@ -162,7 +220,7 @@ MA_TYPE = "ema"
 
 
 def _validate_buffer_strategy_inputs(
-    params: "BufferStrategyParams", signal_df: pd.DataFrame, trade_df: pd.DataFrame, ma_col: str
+    params: BufferStrategyParams, signal_df: pd.DataFrame, trade_df: pd.DataFrame, ma_col: str
 ) -> None:
     """
     버퍼존 전략의 입력 파라미터와 데이터를 검증한다.
@@ -227,7 +285,7 @@ def _compute_bands(ma_value: float, buffer_zone_pct: float) -> tuple[float, floa
 
 
 def _check_pending_conflict(
-    pending_order: "PendingOrder | None", signal_type: Literal["buy", "sell"], current_date: date
+    pending_order: PendingOrder | None, signal_type: Literal["buy", "sell"], current_date: date
 ) -> None:
     """
     Pending order 충돌을 검사한다 (Critical Invariant).
@@ -285,83 +343,6 @@ def _record_equity(
         "upper_band": upper_band,
         "lower_band": lower_band,
     }
-
-
-# ============================================================================
-# Exceptions
-# ============================================================================
-
-
-class PendingOrderConflictError(Exception):
-    """Pending Order 충돌 예외
-
-    이 예외는 백테스트의 Critical Invariant 위반을 나타냅니다.
-
-    발생 조건:
-    - pending_order가 이미 존재하는 상태에서 새로운 신호가 발생하려 할 때
-
-    왜 중요한가:
-    - pending은 "신호일 종가 → 체결일 시가" 사이의 단일 예약 상태를 나타냄
-    - 이 기간에 새로운 신호가 발생하면 논리적 모순 (두 신호가 동시에 존재할 수 없음)
-    - 이는 매우 크리티컬한 버그로, 발견 즉시 백테스트를 중단해야 함
-
-    디버깅 방법:
-    - 예외 메시지에서 기존 pending 정보 및 새 신호 발생 시점 확인
-    - hold_days 로직, 신호 감지 로직에서 타이밍 문제 검토
-    """
-
-    pass
-
-
-@dataclass
-class BaseStrategyParams:
-    """전략 파라미터의 기본 클래스.
-
-    학습 포인트:
-    1. @dataclass 데코레이터: 클래스를 데이터 컨테이너로 만듦
-    2. 타입 힌트와 함께 변수 선언만 하면 __init__ 메서드 자동 생성
-    3. 클래스 상속의 기본 - 공통 속성을 부모 클래스에 정의
-    """
-
-    initial_capital: float  # 초기 자본금
-
-
-@dataclass
-class BufferStrategyParams(BaseStrategyParams):
-    """버퍼존 전략 파라미터를 담는 데이터 클래스.
-
-    학습 포인트:
-    - 클래스 상속: (BaseStrategyParams) - 부모 클래스의 속성 상속
-    - BaseStrategyParams의 initial_capital도 사용 가능
-    """
-
-    ma_window: int  # 이동평균 기간 (예: 20일)
-    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 5.0 = 5%)
-    hold_days: int  # 최소 보유 일수 (예: 5일)
-    recent_months: int  # 최근 매수 기간 (예: 6개월)
-
-
-@dataclass
-class PendingOrder:
-    """예약된 주문 정보
-
-    신호 발생 시점에 생성되며, 다음 거래일 시가에 실제 체결됩니다.
-    이를 통해 신호 발생일과 체결일을 명확히 분리하고, 미래 데이터 참조를 방지합니다.
-
-    타입 안정성:
-    - order_type은 Literal["buy", "sell"]로 제한하여 타입 체크 시점에 오류 방지
-
-    중요: 미래 데이터 참조 방지
-    - execute_date, price_raw를 저장하지 않음 (look-ahead bias 방지)
-    - 다음 날 루프에서 해당 날짜의 시가를 조회하여 체결
-    - 마지막 날 신호는 자연스럽게 미체결됨 (다음 날이 없으므로)
-    """
-
-    order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
-    signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
-    buffer_zone_pct: float  # 신호 시점의 버퍼존 비율 (0~1)
-    hold_days_used: int  # 신호 시점의 유지일수
-    recent_buy_count: int  # 신호 시점의 최근 매수 횟수
 
 
 def _execute_buy_order(
@@ -460,10 +441,6 @@ def _detect_buy_signal(
     """
     상향돌파 신호를 감지한다 (상태머신 방식).
 
-    - hold_days 체크 로직 제거 (메인 루프의 상태머신으로 이동)
-    - 돌파 감지만 수행
-    - 반환값 단순화: bool만 반환
-
     Args:
         prev_close: 전일 종가
         close: 당일 종가
@@ -486,9 +463,6 @@ def _detect_sell_signal(
     """
     하향돌파 신호를 감지한다 (상태머신 방식).
 
-    - 반환값 단순화: bool만 반환 (일관성 유지)
-    - 매도는 hold_days 없음 (즉시 실행)
-
     Args:
         prev_close: 전일 종가
         close: 당일 종가
@@ -500,6 +474,34 @@ def _detect_sell_signal(
     """
     # 하향돌파 체크: 전일 종가 >= 하단밴드 AND 당일 종가 < 하단밴드
     return prev_close >= prev_lower_band and close < lower_band
+
+
+def _calculate_recent_buy_count(
+    entry_dates: list[date],
+    current_date: date,
+    recent_months: int,
+) -> int:
+    """
+    최근 N개월 내 매수 횟수를 계산한다.
+
+    Args:
+        entry_dates: 모든 매수 날짜 리스트 (datetime.date 객체)
+        current_date: 현재 날짜 (datetime.date 객체)
+        recent_months: 최근 기간 (개월)
+
+    Returns:
+        최근 N개월 내 매수 횟수
+    """
+    # 최근 N개월을 일수로 환산
+    # 정확한 월 계산 대신 근사값 사용 (백테스트 성능 최적화)
+    cutoff_date = current_date - timedelta(days=recent_months * DEFAULT_DAYS_PER_MONTH)
+    count = sum(1 for d in entry_dates if d >= cutoff_date and d < current_date)
+    return count
+
+
+# ============================================================================
+# 핵심 전략 실행 함수
+# ============================================================================
 
 
 def _run_buffer_strategy_for_grid(
@@ -625,34 +627,12 @@ def run_grid_search(
     return results_df
 
 
-def _calculate_recent_buy_count(
-    entry_dates: list[date],
-    current_date: date,
-    recent_months: int,
-) -> int:
-    """
-    최근 N개월 내 매수 횟수를 계산한다.
-
-    Args:
-        entry_dates: 모든 매수 날짜 리스트 (datetime.date 객체)
-        current_date: 현재 날짜 (datetime.date 객체)
-        recent_months: 최근 기간 (개월)
-
-    Returns:
-        최근 N개월 내 매수 횟수
-    """
-    # 최근 N개월을 일수로 환산
-    # 정확한 월 계산 대신 근사값 사용 (백테스트 성능 최적화)
-    cutoff_date = current_date - timedelta(days=recent_months * DEFAULT_DAYS_PER_MONTH)
-    count = sum(1 for d in entry_dates if d >= cutoff_date and d < current_date)
-    return count
-
-
 def run_buffer_strategy(
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
     params: BufferStrategyParams,
     log_trades: bool = True,
+    strategy_name: str = "buffer_zone",
 ) -> tuple[pd.DataFrame, pd.DataFrame, BufferStrategyResultDict]:
     """
     버퍼존 전략으로 백테스트를 실행한다.
@@ -672,6 +652,7 @@ def run_buffer_strategy(
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
         params: 전략 파라미터
         log_trades: 거래 로그 출력 여부 (기본값: True)
+        strategy_name: 전략 식별 이름 (기본값: "buffer_zone")
 
     Returns:
         tuple: (trades_df, equity_df, summary)
@@ -879,7 +860,7 @@ def run_buffer_strategy(
     base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
     summary: BufferStrategyResultDict = {
         **base_summary,
-        "strategy": STRATEGY_NAME,
+        "strategy": strategy_name,
         "ma_window": params.ma_window,
         "buffer_zone_pct": params.buffer_zone_pct,
         "hold_days": params.hold_days,
@@ -889,141 +870,3 @@ def run_buffer_strategy(
         logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 
     return trades_df, equity_df, summary
-
-
-def resolve_params() -> tuple[BufferStrategyParams, dict[str, str]]:
-    """
-    버퍼존 전략의 파라미터를 결정한다.
-
-    폴백 체인: OVERRIDE → grid_results.csv 최적값 → DEFAULT
-
-    Returns:
-        tuple: (params, sources)
-            - params: 전략 파라미터
-            - sources: 각 파라미터의 출처 딕셔너리
-    """
-    grid_params = load_best_grid_params(GRID_RESULTS_PATH)
-
-    if grid_params is not None:
-        logger.debug(f"grid_results.csv 최적값 로드 완료: {GRID_RESULTS_PATH}")
-    else:
-        logger.debug("grid_results.csv 없음, DEFAULT 상수 사용")
-
-    # 1. ma_window
-    if OVERRIDE_MA_WINDOW is not None:
-        ma_window = OVERRIDE_MA_WINDOW
-        ma_window_source = "OVERRIDE"
-    elif grid_params is not None:
-        ma_window = grid_params["ma_window"]
-        ma_window_source = "grid_best"
-    else:
-        ma_window = DEFAULT_MA_WINDOW
-        ma_window_source = "DEFAULT"
-
-    # 2. buffer_zone_pct
-    if OVERRIDE_BUFFER_ZONE_PCT is not None:
-        buffer_zone_pct = OVERRIDE_BUFFER_ZONE_PCT
-        bz_source = "OVERRIDE"
-    elif grid_params is not None:
-        buffer_zone_pct = grid_params["buffer_zone_pct"]
-        bz_source = "grid_best"
-    else:
-        buffer_zone_pct = DEFAULT_BUFFER_ZONE_PCT
-        bz_source = "DEFAULT"
-
-    # 3. hold_days
-    if OVERRIDE_HOLD_DAYS is not None:
-        hold_days = OVERRIDE_HOLD_DAYS
-        hd_source = "OVERRIDE"
-    elif grid_params is not None:
-        hold_days = grid_params["hold_days"]
-        hd_source = "grid_best"
-    else:
-        hold_days = DEFAULT_HOLD_DAYS
-        hd_source = "DEFAULT"
-
-    # 4. recent_months
-    if OVERRIDE_RECENT_MONTHS is not None:
-        recent_months = OVERRIDE_RECENT_MONTHS
-        rm_source = "OVERRIDE"
-    elif grid_params is not None:
-        recent_months = grid_params["recent_months"]
-        rm_source = "grid_best"
-    else:
-        recent_months = DEFAULT_RECENT_MONTHS
-        rm_source = "DEFAULT"
-
-    params = BufferStrategyParams(
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=ma_window,
-        buffer_zone_pct=buffer_zone_pct,
-        hold_days=hold_days,
-        recent_months=recent_months,
-    )
-
-    sources = {
-        "ma_window": ma_window_source,
-        "buffer_zone_pct": bz_source,
-        "hold_days": hd_source,
-        "recent_months": rm_source,
-    }
-
-    logger.debug(
-        f"파라미터 결정: ma_window={ma_window} ({ma_window_source}), "
-        f"buffer_zone={buffer_zone_pct} ({bz_source}), "
-        f"hold_days={hold_days} ({hd_source}), "
-        f"recent_months={recent_months} ({rm_source})"
-    )
-
-    return params, sources
-
-
-def run_single() -> SingleBacktestResult:
-    """
-    버퍼존 전략 단일 백테스트를 실행한다.
-
-    데이터 로딩부터 전략 실행까지 자체 수행한다.
-    시그널은 QQQ, 매매는 TQQQ 합성 데이터를 사용한다.
-
-    Returns:
-        SingleBacktestResult: 백테스트 결과 컨테이너
-    """
-    # 1. 데이터 로딩
-    signal_df = load_stock_data(SIGNAL_DATA_PATH)
-    trade_df = load_stock_data(TRADE_DATA_PATH)
-    signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-    # 2. 파라미터 결정
-    params, sources = resolve_params()
-
-    # 3. 이동평균 계산
-    signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=MA_TYPE)
-
-    # 4. 전략 실행
-    trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params)
-
-    # 5. JSON 저장용 파라미터
-    params_json: dict[str, Any] = {
-        "ma_window": params.ma_window,
-        "ma_type": MA_TYPE,
-        "buffer_zone_pct": round(params.buffer_zone_pct, 4),
-        "hold_days": params.hold_days,
-        "recent_months": params.recent_months,
-        "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-        "param_source": sources,
-    }
-
-    return SingleBacktestResult(
-        strategy_name=STRATEGY_NAME,
-        display_name=DISPLAY_NAME,
-        signal_df=signal_df,
-        equity_df=equity_df,
-        trades_df=trades_df,
-        summary=summary,
-        params_json=params_json,
-        result_dir=BUFFER_ZONE_RESULTS_DIR,
-        data_info={
-            "signal_path": str(SIGNAL_DATA_PATH),
-            "trade_path": str(TRADE_DATA_PATH),
-        },
-    )

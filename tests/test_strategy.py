@@ -18,7 +18,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.backtest.strategies.buffer_zone import (
+from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     PendingOrderConflictError,
     _calculate_recent_buy_count,
@@ -946,7 +946,7 @@ class TestCoreExecutionRules:
         이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
         통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
         """
-        from qbt.backtest.strategies.buffer_zone import PendingOrder, _check_pending_conflict
+        from qbt.backtest.strategies.buffer_zone_helpers import PendingOrder, _check_pending_conflict
 
         # Given: 기존 pending이 존재
         existing_pending = PendingOrder(
@@ -1107,7 +1107,7 @@ class TestBacktestAccuracy:
           - 예상값 = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategies.buffer_zone import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
+        from qbt.backtest.strategies.buffer_zone_helpers import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
 
         # Given: 여러 번 돌파하는 시나리오
         df = pd.DataFrame(
@@ -1203,7 +1203,7 @@ class TestRunGridSearch:
           - CAGR 기준 내림차순 정렬
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategies.buffer_zone import run_grid_search
+        from qbt.backtest.strategies.buffer_zone_helpers import run_grid_search
 
         # Given: 충분한 기간의 데이터
         df = pd.DataFrame(
@@ -1267,7 +1267,7 @@ class TestRunGridSearch:
         Then: 정확히 16개 결과 생성
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategies.buffer_zone import run_grid_search
+        from qbt.backtest.strategies.buffer_zone_helpers import run_grid_search
 
         # Given
         df = pd.DataFrame(
@@ -1510,17 +1510,17 @@ class TestResolveParams:
             DEFAULT_MA_WINDOW,
             DEFAULT_RECENT_MONTHS,
         )
-        from qbt.backtest.strategies import buffer_zone
+        from qbt.backtest.strategies import buffer_zone_tqqq
 
         # Given
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", None)
-        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
 
         # When
-        params, sources = buffer_zone.resolve_params()
+        params, sources = buffer_zone_tqqq.resolve_params()
 
         # Then
         assert params.ma_window == DEFAULT_MA_WINDOW
@@ -1537,17 +1537,17 @@ class TestResolveParams:
         When: resolve_params 호출
         Then: OVERRIDE 값이 사용됨, 출처 "OVERRIDE"
         """
-        from qbt.backtest.strategies import buffer_zone
+        from qbt.backtest.strategies import buffer_zone_tqqq
 
         # Given
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", 50)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", 0.05)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", 3)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", 6)
-        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 50)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.05)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 3)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 6)
+        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
 
         # When
-        params, sources = buffer_zone.resolve_params()
+        params, sources = buffer_zone_tqqq.resolve_params()
 
         # Then
         assert params.ma_window == 50
@@ -1570,13 +1570,13 @@ class TestResolveParams:
             DISPLAY_MA_WINDOW,
             DISPLAY_RECENT_MONTHS,
         )
-        from qbt.backtest.strategies import buffer_zone
+        from qbt.backtest.strategies import buffer_zone_tqqq
 
         # Given
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", None)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
 
         grid_path = tmp_path / "grid_results.csv"
         grid_df = pd.DataFrame(
@@ -1588,10 +1588,10 @@ class TestResolveParams:
             }
         )
         grid_df.to_csv(grid_path, index=False)
-        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", grid_path)
+        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", grid_path)
 
         # When
-        params, sources = buffer_zone.resolve_params()
+        params, sources = buffer_zone_tqqq.resolve_params()
 
         # Then
         assert params.ma_window == 150
@@ -1624,15 +1624,15 @@ class TestRunSingle:
     목적: 각 전략의 run_single 함수가 SingleBacktestResult를 올바르게 반환하는지 검증
     """
 
-    def test_buffer_zone_run_single_returns_result(self, tmp_path, monkeypatch):
+    def test_buffer_zone_tqqq_run_single_returns_result(self, tmp_path, monkeypatch):
         """
-        목적: buffer_zone run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
+        목적: buffer_zone_tqqq run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
 
         Given: 20일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: buffer_zone.run_single() 호출 (인자 없음, 자체 로딩)
+        When: buffer_zone_tqqq.run_single() 호출 (인자 없음, 자체 로딩)
         Then: SingleBacktestResult 필드 정합성 확인, data_info 포함
         """
-        from qbt.backtest.strategies import buffer_zone
+        from qbt.backtest.strategies import buffer_zone_tqqq
         from qbt.backtest.types import SingleBacktestResult
 
         # Given: 테스트용 DataFrame
@@ -1648,22 +1648,22 @@ class TestRunSingle:
         )
 
         # load_stock_data를 mock하여 테스트 DataFrame 반환
-        monkeypatch.setattr(buffer_zone, "load_stock_data", lambda _path: test_df.copy())
-        monkeypatch.setattr(buffer_zone, "extract_overlap_period", lambda s, t: (s.copy(), t.copy()))
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_MA_WINDOW", 5)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_HOLD_DAYS", 0)
-        monkeypatch.setattr(buffer_zone, "OVERRIDE_RECENT_MONTHS", 0)
-        monkeypatch.setattr(buffer_zone, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
-        monkeypatch.setattr(buffer_zone, "BUFFER_ZONE_RESULTS_DIR", tmp_path / "buffer_zone")
+        monkeypatch.setattr(buffer_zone_tqqq, "load_stock_data", lambda _path: test_df.copy())
+        monkeypatch.setattr(buffer_zone_tqqq, "extract_overlap_period", lambda s, t: (s.copy(), t.copy()))
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 5)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 0)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 0)
+        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+        monkeypatch.setattr(buffer_zone_tqqq, "BUFFER_ZONE_TQQQ_RESULTS_DIR", tmp_path / "buffer_zone_tqqq")
 
         # When
-        result = buffer_zone.run_single()
+        result = buffer_zone_tqqq.run_single()
 
         # Then
         assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buffer_zone"
-        assert result.display_name == "버퍼존 전략"
+        assert result.strategy_name == "buffer_zone_tqqq"
+        assert result.display_name == "버퍼존 전략 (TQQQ)"
         assert isinstance(result.signal_df, pd.DataFrame)
         assert isinstance(result.equity_df, pd.DataFrame)
         assert isinstance(result.trades_df, pd.DataFrame)
@@ -1671,7 +1671,58 @@ class TestRunSingle:
         assert isinstance(result.params_json, dict)
         assert "ma_window" in result.params_json
         assert "ma_type" in result.params_json
-        assert result.result_dir == tmp_path / "buffer_zone"
+        assert result.result_dir == tmp_path / "buffer_zone_tqqq"
+        assert isinstance(result.data_info, dict)
+        assert "signal_path" in result.data_info
+        assert "trade_path" in result.data_info
+
+    def test_buffer_zone_qqq_run_single_returns_result(self, tmp_path, monkeypatch):
+        """
+        목적: buffer_zone_qqq run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
+
+        Given: 20일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
+        When: buffer_zone_qqq.run_single() 호출 (인자 없음, 자체 로딩)
+        Then: SingleBacktestResult 필드 정합성 확인, data_info 포함
+        """
+        from qbt.backtest.strategies import buffer_zone_qqq
+        from qbt.backtest.types import SingleBacktestResult
+
+        # Given: 테스트용 DataFrame
+        test_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(20)],
+                "Open": [100 + i for i in range(20)],
+                "High": [102 + i for i in range(20)],
+                "Low": [98 + i for i in range(20)],
+                "Close": [100 + i * 0.5 for i in range(20)],
+                "Volume": [1000000] * 20,
+            }
+        )
+
+        # load_stock_data를 mock하여 테스트 DataFrame 반환
+        monkeypatch.setattr(buffer_zone_qqq, "load_stock_data", lambda _path: test_df.copy())
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_MA_WINDOW", 5)
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_HOLD_DAYS", 0)
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_RECENT_MONTHS", 0)
+        monkeypatch.setattr(buffer_zone_qqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
+        monkeypatch.setattr(buffer_zone_qqq, "BUFFER_ZONE_QQQ_RESULTS_DIR", tmp_path / "buffer_zone_qqq")
+
+        # When
+        result = buffer_zone_qqq.run_single()
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buffer_zone_qqq"
+        assert result.display_name == "버퍼존 전략 (QQQ)"
+        assert isinstance(result.signal_df, pd.DataFrame)
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert isinstance(result.trades_df, pd.DataFrame)
+        assert isinstance(result.summary, dict)
+        assert isinstance(result.params_json, dict)
+        assert "ma_window" in result.params_json
+        assert "ma_type" in result.params_json
+        assert result.result_dir == tmp_path / "buffer_zone_qqq"
         assert isinstance(result.data_info, dict)
         assert "signal_path" in result.data_info
         assert "trade_path" in result.data_info

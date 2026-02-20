@@ -39,12 +39,10 @@ QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
 # --- 전략별 결과 디렉토리 ---
-BUFFER_ZONE_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone"  # 버퍼존 전략 결과
+BUFFER_ZONE_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_tqqq"  # 버퍼존 전략 (TQQQ) 결과
+BUFFER_ZONE_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq"  # 버퍼존 전략 (QQQ) 결과
 BUY_AND_HOLD_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_qqq"  # Buy & Hold (QQQ) 전략 결과
 BUY_AND_HOLD_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq"  # Buy & Hold (TQQQ) 전략 결과
-
-# --- 버퍼존 전략 결과 파일 경로 ---
-GRID_RESULTS_PATH: Final = BUFFER_ZONE_RESULTS_DIR / "grid_results.csv"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"
