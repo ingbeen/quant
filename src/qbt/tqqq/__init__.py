@@ -7,11 +7,9 @@ from qbt.tqqq.simulation import (
     calculate_validation_metrics,
     simulate,
 )
-from qbt.utils.data_loader import extract_overlap_period
 
 __all__ = [
     "simulate",
     "build_monthly_spread_map",
-    "extract_overlap_period",
     "calculate_validation_metrics",
 ]

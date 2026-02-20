@@ -75,7 +75,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `calculate_fixed_ab_stitched_rmse`: 고정 (a,b) 아웃오브샘플 RMSE 계산
 - `calculate_rate_segmented_rmse`: 금리 구간별 RMSE 분해
 
-참고: `extract_overlap_period`는 `utils/data_loader.py`로 이동됨. 하위 호환을 위해 `tqqq/__init__.py`에서 re-export 유지.
+참고: `extract_overlap_period`는 `utils/data_loader.py`에 위치.
 
 ### 5. analysis_helpers.py
 
