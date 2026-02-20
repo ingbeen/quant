@@ -22,18 +22,22 @@ import pytest
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, lookup_ffr
-from qbt.tqqq.simulation import (
-    _calculate_daily_cost,
+from qbt.tqqq.optimization import (
     _evaluate_softplus_candidate,
     _precompute_daily_costs_vectorized,
+)
+from qbt.tqqq.simulation import (
+    _calculate_daily_cost,
     _validate_ffr_coverage,
-    calculate_fixed_ab_stitched_rmse,
-    calculate_rate_segmented_rmse,
-    calculate_stitched_walkforward_rmse,
     calculate_validation_metrics,
     compute_softplus_spread,
     generate_static_spread_series,
     simulate,
+)
+from qbt.tqqq.walkforward import (
+    calculate_fixed_ab_stitched_rmse,
+    calculate_rate_segmented_rmse,
+    calculate_stitched_walkforward_rmse,
 )
 from qbt.utils.parallel_executor import WORKER_CACHE
 
@@ -1311,10 +1315,8 @@ class TestSoftplusFunctions:
         When: 두 함수 각각 호출
         Then: 결과가 완전히 동일
         """
-        from qbt.tqqq.simulation import (
-            _build_monthly_spread_map_from_dict,
-            build_monthly_spread_map,
-        )
+        from qbt.tqqq.optimization import _build_monthly_spread_map_from_dict
+        from qbt.tqqq.simulation import build_monthly_spread_map
 
         # Given: 다양한 FFR 데이터
         ffr_df = pd.DataFrame(
@@ -1363,7 +1365,7 @@ class TestSoftplusFunctions:
         When: _build_monthly_spread_map_from_dict 호출
         Then: ValueError 발생
         """
-        from qbt.tqqq.simulation import _build_monthly_spread_map_from_dict
+        from qbt.tqqq.optimization import _build_monthly_spread_map_from_dict
 
         ffr_dict: dict[str, float] = {}
 
@@ -1727,22 +1729,22 @@ class TestFindOptimalSoftplusParams:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 작은 그리드로 패치 (테스트 속도 향상)
-        import qbt.tqqq.simulation as sim_module
+        import qbt.tqqq.optimization as opt_module
 
         # Stage 1: a in [-6, -5] step 1.0, b in [0.5, 1.0] step 0.5 -> 4조합
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.5, 1.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.5, 1.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
 
         # Stage 2: delta=0.5, step=0.5 -> 작은 범위
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
 
         # When
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
             underlying_df=underlying_df,
@@ -1794,7 +1796,7 @@ class TestFindOptimalSoftplusParams:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # When & Then
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         with pytest.raises(ValueError, match="최대 2개월"):
             find_optimal_softplus_params(
@@ -1832,7 +1834,7 @@ class TestFindOptimalSoftplusParams:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2020-01", "2023-01"], COL_EXPENSE_VALUE: [0.0095, 0.0095]})
 
         # When & Then
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         with pytest.raises(ValueError, match="겹치는 기간"):
             find_optimal_softplus_params(
@@ -1870,19 +1872,19 @@ class TestFindOptimalSoftplusParams:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 최소 그리드로 패치
-        import qbt.tqqq.simulation as sim_module
+        import qbt.tqqq.optimization as opt_module
 
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-5.0, -5.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (1.0, 1.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-5.0, -5.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (1.0, 1.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 1.0)
 
         # When
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
             underlying_df=underlying_df,
@@ -1933,7 +1935,7 @@ class TestLocalRefineSearch:
           - best_rmse >= 0
           - candidates는 list (모든 탐색 결과)
         """
-        from qbt.tqqq.simulation import _local_refine_search
+        from qbt.tqqq.walkforward import _local_refine_search
 
         # Given: 간단한 데이터 (10일)
         underlying_df = pd.DataFrame(
@@ -1981,7 +1983,7 @@ class TestLocalRefineSearch:
         When: _local_refine_search() 호출
         Then: 모든 탐색된 b 값이 0 이상
         """
-        from qbt.tqqq.simulation import _local_refine_search
+        from qbt.tqqq.walkforward import _local_refine_search
 
         # Given
         underlying_df = pd.DataFrame(
@@ -2058,21 +2060,21 @@ class TestFixedBParameter:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 작은 그리드로 패치
-        import qbt.tqqq.simulation as sim_module
+        import qbt.tqqq.optimization as opt_module
 
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
 
         fixed_b_value = 0.37
 
         # When
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         a_best, b_best, best_rmse, all_candidates = find_optimal_softplus_params(
             underlying_df=underlying_df,
@@ -2124,7 +2126,7 @@ class TestFixedBParameter:
         fixed_b_value = 0.5
 
         # When
-        from qbt.tqqq.simulation import _local_refine_search
+        from qbt.tqqq.walkforward import _local_refine_search
 
         a_best, b_best, best_rmse, candidates = _local_refine_search(
             underlying_df=underlying_df,
@@ -2170,19 +2172,19 @@ class TestFixedBParameter:
         expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 작은 그리드로 패치
-        import qbt.tqqq.simulation as sim_module
+        import qbt.tqqq.optimization as opt_module
 
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
 
         # When & Then
-        from qbt.tqqq.simulation import find_optimal_softplus_params
+        from qbt.tqqq.optimization import find_optimal_softplus_params
 
         with pytest.raises(ValueError, match="fixed_b"):
             find_optimal_softplus_params(
@@ -2213,7 +2215,7 @@ class TestRunWalkforwardValidation:
         When: run_walkforward_validation() 호출
         Then: ValueError 발생
         """
-        from qbt.tqqq.simulation import run_walkforward_validation
+        from qbt.tqqq.walkforward import run_walkforward_validation
 
         # Given: 50개월 데이터 (60개월 train 불가)
         dates = []
@@ -2265,21 +2267,23 @@ class TestRunWalkforwardValidation:
           - summary의 b_mean == 0.37, b_std == 0.0
         """
         # Given: 4개월 데이터 (2개월 train + 2개월 test)
-        import qbt.tqqq.simulation as sim_module
+        import qbt.tqqq.optimization as opt_module
+        import qbt.tqqq.walkforward as wf_module
 
-        # 작은 그리드로 패치 (속도 향상)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
-        monkeypatch.setattr(sim_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
-        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_A_DELTA", 0.5)
-        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_A_STEP", 0.5)
-        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_B_DELTA", 0.25)
-        monkeypatch.setattr(sim_module, "WALKFORWARD_LOCAL_REFINE_B_STEP", 0.25)
+        # 작은 그리드로 패치 (속도 향상) — SOFTPLUS_GRID_*는 optimization 모듈에 위치
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_RANGE", (-6.0, -5.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_A_STEP", 1.0)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_RANGE", (0.0, 1.0))
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE1_B_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_DELTA", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_A_STEP", 0.5)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_DELTA", 0.25)
+        monkeypatch.setattr(opt_module, "SOFTPLUS_GRID_STAGE2_B_STEP", 0.25)
+        # WALKFORWARD_LOCAL_REFINE_*는 walkforward 모듈에 위치
+        monkeypatch.setattr(wf_module, "WALKFORWARD_LOCAL_REFINE_A_DELTA", 0.5)
+        monkeypatch.setattr(wf_module, "WALKFORWARD_LOCAL_REFINE_A_STEP", 0.5)
+        monkeypatch.setattr(wf_module, "WALKFORWARD_LOCAL_REFINE_B_DELTA", 0.25)
+        monkeypatch.setattr(wf_module, "WALKFORWARD_LOCAL_REFINE_B_STEP", 0.25)
 
         dates = []
         opens_underlying = []
@@ -2310,7 +2314,7 @@ class TestRunWalkforwardValidation:
         fixed_b_value = 0.37
 
         # When
-        from qbt.tqqq.simulation import run_walkforward_validation
+        from qbt.tqqq.walkforward import run_walkforward_validation
 
         result_df, summary = run_walkforward_validation(
             underlying_df=underlying_df,
@@ -2567,12 +2571,12 @@ class TestVectorizedSimulation:
         Then:
           - 두 결과의 가격 배열이 1e-10 이내에서 동일
         """
-        from qbt.tqqq.simulation import (
+        from qbt.tqqq.optimization import (
             _build_monthly_spread_map_from_dict,
             _precompute_daily_costs_vectorized,
             _simulate_prices_vectorized,
-            simulate,
         )
+        from qbt.tqqq.simulation import simulate
 
         # Given
         underlying_df, ffr_df, expense_df, initial_price = self._create_test_data()
@@ -2688,11 +2692,11 @@ class TestVectorizedSimulation:
         Then:
           - 모든 날짜에서 비용이 1e-10 이내에서 동일
         """
-        from qbt.tqqq.simulation import (
+        from qbt.tqqq.optimization import (
             _build_monthly_spread_map_from_dict,
-            _calculate_daily_cost,
             _precompute_daily_costs_vectorized,
         )
+        from qbt.tqqq.simulation import _calculate_daily_cost
 
         # Given
         underlying_df, ffr_df, expense_df, _ = self._create_test_data()

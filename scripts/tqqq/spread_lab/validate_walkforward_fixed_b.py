@@ -30,7 +30,7 @@ from qbt.tqqq.constants import (
     TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH,
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
-from qbt.tqqq.simulation import calculate_stitched_walkforward_rmse, run_walkforward_validation
+from qbt.tqqq.walkforward import calculate_stitched_walkforward_rmse, run_walkforward_validation
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data

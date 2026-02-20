@@ -60,7 +60,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
 ### 4. simulation.py
 
-레버리지 ETF 시뮬레이션 엔진을 제공합니다.
+레버리지 ETF 시뮬레이션 엔진(core)을 제공합니다.
 
 주요 함수:
 
@@ -69,15 +69,45 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `compute_softplus_spread`: softplus 모델로 funding spread 계산
 - `build_monthly_spread_map`: FFR 데이터로 월별 spread 딕셔너리 생성
 - `generate_static_spread_series`: 정적 spread 시계열 DataFrame 생성
+
+참고: `extract_overlap_period`는 `utils/data_loader.py`에 위치.
+
+### 5. optimization.py
+
+softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-Stage Grid Search로 탐색합니다.
+벡터화된 시뮬레이션과 병렬 처리를 사용하여 성능을 최적화합니다.
+
+주요 함수:
+
 - `find_optimal_softplus_params`: 2-Stage Grid Search로 최적 softplus 파라미터 탐색
+- `_evaluate_softplus_candidate`: 단일 softplus (a, b) 후보 평가
+- `_prepare_optimization_data`: 최적화에 필요한 데이터 전처리
+- `_precompute_daily_costs_vectorized`: 벡터화된 일일 비용 계산
+- `_simulate_prices_vectorized`: 벡터화된 가격 시뮬레이션
+- `_build_monthly_spread_map_from_dict`: 딕셔너리 기반 월별 spread map 생성
+
+의존성: `simulation.py`(core)의 `_calculate_metrics_fast`, `_validate_ffr_coverage` 사용
+
+### 6. walkforward.py
+
+워크포워드 방식으로 softplus 동적 스프레드 모델의 out-of-sample 성능을 평가합니다.
+60개월 학습 / 1개월 테스트 윈도우 방식, 연속(stitched) RMSE, 금리 구간별 RMSE 분해,
+고정 (a,b) 과최적화 진단 등을 제공합니다.
+
+주요 함수:
+
 - `run_walkforward_validation`: 워크포워드 검증 (60개월 Train, 1개월 Test)
 - `calculate_stitched_walkforward_rmse`: 워크포워드 결과를 연속 시뮬레이션한 RMSE 계산
 - `calculate_fixed_ab_stitched_rmse`: 고정 (a,b) 아웃오브샘플 RMSE 계산
 - `calculate_rate_segmented_rmse`: 금리 구간별 RMSE 분해
+- `run_fixed_ab_walkforward`: 고정 (a,b) 워크포워드 실행
+- `calculate_rate_segmented_from_stitched`: stitched 결과에서 금리 구간별 RMSE 계산
+- `_local_refine_search`: 로컬 정밀 탐색 (Stage 2)
+- `_simulate_stitched_periods`: 연속 기간 시뮬레이션
 
-참고: `extract_overlap_period`는 `utils/data_loader.py`에 위치.
+의존성: `simulation.py`(core) + `optimization.py` 사용
 
-### 5. analysis_helpers.py
+### 7. analysis_helpers.py
 
 금리-오차 관계 분석을 위한 계산, 집계, 검증, CSV 저장 함수를 제공합니다.
 
@@ -108,7 +138,7 @@ CSV 저장:
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
-### 6. visualization.py
+### 8. visualization.py
 
 Plotly 기반 차트 생성 함수를 제공합니다.
 

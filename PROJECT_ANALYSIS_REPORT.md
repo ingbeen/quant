@@ -13,13 +13,13 @@
 |---------|------|--------|----------|
 | A. 버그 및 논리적 오류 | 5건 | 높음 | 5/5 해결 |
 | B. 문서와 코드 불일치 | 5건 | 중간 | 5/5 해결 |
-| C. CLI 계층 규칙 위반 | 3건 | 중간 | 0/3 향후 과제 |
-| D. 리팩토링 기회 | 9건 | 중간~낮음 | 5/9 해결 |
+| C. CLI 계층 규칙 위반 | 3건 | 중간 | 1/3 해결 |
+| D. 리팩토링 기회 | 9건 | 중간~낮음 | 6/9 해결 |
 | E. 주석 및 가독성 | 4건 | 낮음 | 4/4 해결 |
 | F. 일관성 문제 | 6건 | 낮음 | 6/6 해결 |
 | G. 테스트 품질 | 3건 | 낮음~중간 | 3/3 해결 |
 | H. 설정 파일 | 2건 | 낮음 | 2/2 해결 |
-| **합계** | **37건** | | **30/37 해결** |
+| **합계** | **37건** | | **32/37 해결** |
 
 ---
 
@@ -103,7 +103,7 @@
 - `scripts/data/download_data.py:35-172`
 - `validate_stock_data()`와 `download_stock_data()` 모두 비즈니스 로직
 
-### C-2. `validate_walkforward_fixed_ab.py` — ~220줄의 비즈니스 로직 `[향후 과제]`
+### C-2. `validate_walkforward_fixed_ab.py` — ~220줄의 비즈니스 로직 `[해결됨 - Plan 7]`
 
 - `scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py:253-472`
 - 내부 함수(`_calculate_metrics_fast`)까지 직접 import하여 모듈 캡슐화 위반
@@ -133,7 +133,7 @@
 - `validate_walkforward.py`, `validate_walkforward_fixed_b.py`, `validate_walkforward_fixed_ab.py`
 - 데이터 로딩 → 출력 → 실행 → 저장 패턴 거의 동일
 
-### D-4. `simulation.py` 파일 크기 과대 (2108줄) `[향후 과제]`
+### D-4. `simulation.py` 파일 크기 과대 (2108줄) `[해결됨 - Plan 7]`
 
 - simulate, softplus 최적화, 워크포워드 검증 등 서로 다른 관심사가 한 파일에 밀집
 

@@ -37,10 +37,8 @@ from qbt.tqqq.constants import (
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
-from qbt.tqqq.simulation import (
-    find_optimal_softplus_params,
-    generate_static_spread_series,
-)
+from qbt.tqqq.optimization import find_optimal_softplus_params
+from qbt.tqqq.simulation import generate_static_spread_series
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
