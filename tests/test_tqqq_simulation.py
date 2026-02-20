@@ -107,21 +107,17 @@ class TestCalculateDailyCost:
         target_date = date(2023, 3, 15)  # 1월부터 약 2개월 후
         leverage = 3.0
 
-        # When: 2개월 이내면 fallback 허용
-        try:
-            daily_cost = _calculate_daily_cost(
-                date_value=target_date,
-                ffr_dict=ffr_dict,
-                expense_dict=expense_dict,
-                funding_spread=0.006,
-                leverage=leverage,
-            )
-            # fallback 사용되면 비용이 계산됨
-            assert daily_cost > 0, "fallback 시에도 비용 계산됨"
-        except ValueError:
-            # 구현이 엄격하면 에러를 낼 수도 있음
-            # 이 경우 테스트는 "에러가 명확한지" 검증
-            pass
+        # When: 2개월 이내이므로 fallback 성공 (MAX_FFR_MONTHS_DIFF=2)
+        daily_cost = _calculate_daily_cost(
+            date_value=target_date,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread=0.006,
+            leverage=leverage,
+        )
+
+        # Then: fallback으로 1월 FFR을 사용하여 비용이 정상 계산됨
+        assert daily_cost > 0, "fallback 시에도 비용이 양수여야 합니다"
 
     def test_empty_ffr_dataframe(self):
         """

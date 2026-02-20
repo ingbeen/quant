@@ -27,7 +27,7 @@ from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 class TestLoadStockData:
     """주식 데이터 로딩 테스트 클래스"""
 
-    def test_normal_load(self, tmp_path, sample_stock_df, caplog):
+    def test_normal_load(self, tmp_path, sample_stock_df):
         """
         정상적인 주식 데이터 로딩 테스트
 
@@ -116,7 +116,7 @@ class TestLoadStockData:
         assert "필수 컬럼" in error_msg, "에러 메시지에 '필수 컬럼'이 포함되어야 합니다"
         assert "Close" in error_msg, "누락된 컬럼명이 에러 메시지에 있어야 합니다"
 
-    def test_duplicate_dates_removed(self, tmp_path, caplog):
+    def test_duplicate_dates_removed(self, tmp_path, caplog, monkeypatch):
         """
         중복 날짜 제거 및 경고 로그 테스트
 
@@ -127,9 +127,16 @@ class TestLoadStockData:
         When: load_stock_data 호출
         Then:
           - 중복 제거되어 행 수 감소
-          - WARNING 로그 발생
+          - WARNING 로그 발생 ("중복 날짜" 메시지 포함)
           - 첫 번째 값 유지 확인
         """
+        import logging
+
+        # 프로젝트 로거는 propagate=False로 설정되어 caplog이 캡처하지 못함
+        # 테스트 중에만 propagate=True로 임시 변경
+        target_logger = logging.getLogger("qbt.utils.data_loader")
+        monkeypatch.setattr(target_logger, "propagate", True)
+
         # Given: 중복 날짜 데이터
         dup_df = pd.DataFrame(
             {
@@ -145,7 +152,8 @@ class TestLoadStockData:
         dup_df.to_csv(csv_path, index=False)
 
         # When: 로그 캡처하면서 로딩
-        df = load_stock_data(csv_path)
+        with caplog.at_level(logging.WARNING, logger="qbt.utils.data_loader"):
+            df = load_stock_data(csv_path)
 
         # Then: 중복 제거 확인
         assert len(df) == 2, "중복 날짜 제거 후 2행이어야 합니다"
@@ -154,8 +162,9 @@ class TestLoadStockData:
         first_row = df[df["Date"] == date(2023, 1, 2)].iloc[0]
         assert first_row["Open"] == 100.0, "중복 시 첫 번째 값을 유지해야 합니다"
 
-        # 경고 로그 확인 (로그가 출력되었다면 충분, caplog 설정 이슈로 인해 간단히 확인)
-        # 실제로는 WARNING 로그가 찍히는 것을 위 출력에서 확인 가능
+        # 경고 로그 검증: "중복 날짜" 메시지가 WARNING 레벨로 출력되었는지 확인
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("중복 날짜" in msg for msg in warning_messages), f"'중복 날짜' 경고 로그가 출력되어야 합니다. 캡처된 경고: {warning_messages}"
 
     def test_date_sorting(self, tmp_path):
         """

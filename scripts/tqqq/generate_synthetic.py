@@ -162,7 +162,7 @@ def main() -> int:
 
     # 7. 병합: 스케일링된 합성(< overlap_date) + 실제 TQQQ(>= overlap_date)
     actual_from_overlap = tqqq_df[tqqq_df[COL_DATE] >= overlap_date].copy()
-    merged_df = pd.concat([synthetic_before, actual_from_overlap], ignore_index=True)
+    merged_df: pd.DataFrame = pd.concat([synthetic_before, actual_from_overlap], ignore_index=True)
     merged_df = merged_df.sort_values(COL_DATE).reset_index(drop=True)
 
     logger.debug(f"병합 완료: {len(merged_df):,}행 ({merged_df[COL_DATE].min()} ~ {merged_df[COL_DATE].max()})")

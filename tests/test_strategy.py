@@ -499,16 +499,15 @@ class TestExecutionTiming:
         # 3일째 (인덱스 2): 종가=107, ma=100, 상단밴드=103 → 돌파 신호
         # 4일째 (인덱스 3)에 체결되어야 함
 
-        if len(equity_df) >= 4:
-            # 신호일(3일째, 인덱스 2) - 아직 포지션 없어야 함
-            signal_day_equity = equity_df.iloc[2]
-            assert signal_day_equity["position"] == 0, f"신호일에는 position=0이어야 함, 실제: {signal_day_equity['position']}"
+        assert len(equity_df) >= 4, f"equity_df는 최소 4행이어야 합니다. 실제: {len(equity_df)}"
 
-            # 체결일(4일째, 인덱스 3) - 포지션 있어야 함
-            execution_day_equity = equity_df.iloc[3]
-            assert (
-                execution_day_equity["position"] > 0
-            ), f"체결일에는 position>0이어야 함, 실제: {execution_day_equity['position']}"
+        # 신호일(3일째, 인덱스 2) - 아직 포지션 없어야 함
+        signal_day_equity = equity_df.iloc[2]
+        assert signal_day_equity["position"] == 0, f"신호일에는 position=0이어야 함, 실제: {signal_day_equity['position']}"
+
+        # 체결일(4일째, 인덱스 3) - 포지션 있어야 함
+        execution_day_equity = equity_df.iloc[3]
+        assert execution_day_equity["position"] > 0, f"체결일에는 position>0이어야 함, 실제: {execution_day_equity['position']}"
 
     def test_sell_execution_timing_separation(self):
         """
@@ -807,12 +806,12 @@ class TestCoreExecutionRules:
         trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 3일째(인덱스 2) position=0, 4일째(인덱스 3) position>0
-        if len(equity_df) >= 4:
-            signal_day = equity_df.iloc[2]
-            execution_day = equity_df.iloc[3]
+        assert len(equity_df) >= 4, f"equity_df는 최소 4행이어야 합니다. 실제: {len(equity_df)}"
+        signal_day = equity_df.iloc[2]
+        execution_day = equity_df.iloc[3]
 
-            assert signal_day["position"] == 0, f"hold_days=0: 돌파일에는 position=0. 실제: {signal_day['position']}"
-            assert execution_day["position"] > 0, f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
+        assert signal_day["position"] == 0, f"hold_days=0: 돌파일에는 position=0. 실제: {signal_day['position']}"
+        assert execution_day["position"] > 0, f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
 
     def test_hold_days_1_timeline(self):
         """
@@ -852,14 +851,14 @@ class TestCoreExecutionRules:
         trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 돌파일(인덱스 2), 확정일(인덱스 3), 체결일(인덱스 4)
-        if len(equity_df) >= 5:
-            break_day = equity_df.iloc[2]  # 돌파일
-            confirm_day = equity_df.iloc[3]  # 유지조건 확인 후 pending 생성
-            execution_day = equity_df.iloc[4]  # 체결일
+        assert len(equity_df) >= 5, f"equity_df는 최소 5행이어야 합니다. 실제: {len(equity_df)}"
+        break_day = equity_df.iloc[2]  # 돌파일
+        confirm_day = equity_df.iloc[3]  # 유지조건 확인 후 pending 생성
+        execution_day = equity_df.iloc[4]  # 체결일
 
-            assert break_day["position"] == 0, f"hold_days=1: 돌파일 position=0. 실제: {break_day['position']}"
-            assert confirm_day["position"] == 0, f"hold_days=1: 확정일 position=0. 실제: {confirm_day['position']}"
-            assert execution_day["position"] > 0, f"hold_days=1: 체결일 position>0. 실제: {execution_day['position']}"
+        assert break_day["position"] == 0, f"hold_days=1: 돌파일 position=0. 실제: {break_day['position']}"
+        assert confirm_day["position"] == 0, f"hold_days=1: 확정일 position=0. 실제: {confirm_day['position']}"
+        assert execution_day["position"] > 0, f"hold_days=1: 체결일 position>0. 실제: {execution_day['position']}"
 
     def test_last_day_pending_execution(self):
         """
@@ -893,9 +892,9 @@ class TestCoreExecutionRules:
         trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 날(인덱스 9)에 포지션 있어야 함
-        if len(equity_df) >= 10:
-            last_day = equity_df.iloc[-1]
-            assert last_day["position"] > 0, f"마지막날 pending 체결되어 position>0. 실제: {last_day['position']}"
+        assert len(equity_df) >= 10, f"equity_df는 최소 10행이어야 합니다. 실제: {len(equity_df)}"
+        last_day = equity_df.iloc[-1]
+        assert last_day["position"] > 0, f"마지막날 pending 체결되어 position>0. 실제: {last_day['position']}"
 
     def test_last_day_signal_ignored(self):
         """
