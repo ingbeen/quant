@@ -38,8 +38,11 @@ logger = get_logger(__name__)
 # 전략 레지스트리
 STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
     buffer_zone.STRATEGY_NAME: buffer_zone.run_single,
-    buy_and_hold.STRATEGY_NAME: buy_and_hold.run_single,
 }
+
+# Buy & Hold 팩토리: CONFIGS 기반 자동 등록
+for _config in buy_and_hold.CONFIGS:
+    STRATEGY_RUNNERS[_config.strategy_name] = buy_and_hold.create_runner(_config)
 
 
 def print_summary(summary: Mapping[str, object], title: str) -> None:

@@ -8,7 +8,7 @@
 
 전략 전용 타입은 각 전략 모듈에 정의한다:
 - buffer_zone.py: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
-- buy_and_hold.py: BuyAndHoldResultDict
+- buy_and_hold.py: BuyAndHoldConfig, BuyAndHoldParams
 """
 
 from collections.abc import Mapping
@@ -61,8 +61,8 @@ class SingleBacktestResult:
     저장 직전에 스크립트에서 반올림 처리한다.
     """
 
-    strategy_name: str  # "buffer_zone", "buy_and_hold"
-    display_name: str  # "버퍼존 전략", "Buy & Hold"
+    strategy_name: str  # "buffer_zone", "buy_and_hold_qqq", "buy_and_hold_tqqq"
+    display_name: str  # "버퍼존 전략", "Buy & Hold (QQQ)", "Buy & Hold (TQQQ)"
     signal_df: pd.DataFrame  # 저장용 시그널 데이터 (raw)
     equity_df: pd.DataFrame  # 에쿼티 데이터 (raw)
     trades_df: pd.DataFrame  # 거래 내역 (빈 DataFrame 가능)

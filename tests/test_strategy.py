@@ -63,7 +63,6 @@ class TestRunBuyAndHold:
 
         # Then: summary 확인
         assert isinstance(summary, dict), "summary는 딕셔너리여야 합니다"
-        assert summary["strategy"] == "buy_and_hold", "전략 이름 확인"
         assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
         assert summary["final_capital"] > params.initial_capital * 0.9, "최종 자본은 초기 자본의 90% 이상"
 
@@ -1677,15 +1676,18 @@ class TestRunSingle:
         assert "signal_path" in result.data_info
         assert "trade_path" in result.data_info
 
-    def test_buy_and_hold_run_single_returns_result(self, tmp_path, monkeypatch):
+    def test_buy_and_hold_qqq_create_runner_returns_result(self, tmp_path, monkeypatch):
         """
-        목적: buy_and_hold run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
+        목적: create_runner로 생성한 QQQ Buy & Hold runner가 SingleBacktestResult를 올바르게 반환하는지 검증
 
         Given: 10일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: buy_and_hold.run_single() 호출 (인자 없음, 자체 로딩)
+        When: create_runner(config)()로 실행
         Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame, data_info 포함
         """
+        from pathlib import Path
+
         from qbt.backtest.strategies import buy_and_hold
+        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
         from qbt.backtest.types import SingleBacktestResult
 
         # Given: 테스트용 DataFrame
@@ -1700,23 +1702,136 @@ class TestRunSingle:
             }
         )
 
+        # 테스트용 config
+        config = BuyAndHoldConfig(
+            strategy_name="buy_and_hold_qqq",
+            display_name="Buy & Hold (QQQ)",
+            trade_data_path=Path("dummy_qqq.csv"),
+            result_dir=tmp_path / "buy_and_hold_qqq",
+        )
+
         # load_stock_data를 mock하여 테스트 DataFrame 반환
         monkeypatch.setattr(buy_and_hold, "load_stock_data", lambda _path: test_df.copy())
-        monkeypatch.setattr(buy_and_hold, "BUY_AND_HOLD_RESULTS_DIR", tmp_path / "buy_and_hold")
 
         # When
-        result = buy_and_hold.run_single()
+        runner = buy_and_hold.create_runner(config)
+        result = runner()
 
         # Then
         assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buy_and_hold"
-        assert result.display_name == "Buy & Hold"
+        assert result.strategy_name == "buy_and_hold_qqq"
+        assert result.display_name == "Buy & Hold (QQQ)"
         assert isinstance(result.signal_df, pd.DataFrame)
         assert isinstance(result.equity_df, pd.DataFrame)
         assert result.trades_df.empty
         assert isinstance(result.summary, dict)
         assert "strategy" in result.params_json
-        assert result.params_json["strategy"] == "buy_and_hold"
-        assert result.result_dir == tmp_path / "buy_and_hold"
+        assert result.params_json["strategy"] == "buy_and_hold_qqq"
+        assert result.result_dir == tmp_path / "buy_and_hold_qqq"
         assert isinstance(result.data_info, dict)
         assert "trade_path" in result.data_info
+
+    def test_buy_and_hold_tqqq_create_runner_returns_result(self, tmp_path, monkeypatch):
+        """
+        목적: create_runner로 생성한 TQQQ Buy & Hold runner가 SingleBacktestResult를 올바르게 반환하는지 검증
+
+        Given: 10일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
+        When: create_runner(tqqq_config)()로 실행
+        Then: strategy_name="buy_and_hold_tqqq", display_name="Buy & Hold (TQQQ)" 확인
+        """
+        from pathlib import Path
+
+        from qbt.backtest.strategies import buy_and_hold
+        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
+        from qbt.backtest.types import SingleBacktestResult
+
+        # Given: 테스트용 DataFrame
+        test_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [50 + i for i in range(10)],
+                "High": [52 + i for i in range(10)],
+                "Low": [48 + i for i in range(10)],
+                "Close": [51 + i for i in range(10)],
+                "Volume": [2000000] * 10,
+            }
+        )
+
+        # 테스트용 TQQQ config
+        config = BuyAndHoldConfig(
+            strategy_name="buy_and_hold_tqqq",
+            display_name="Buy & Hold (TQQQ)",
+            trade_data_path=Path("dummy_tqqq.csv"),
+            result_dir=tmp_path / "buy_and_hold_tqqq",
+        )
+
+        # load_stock_data를 mock하여 테스트 DataFrame 반환
+        monkeypatch.setattr(buy_and_hold, "load_stock_data", lambda _path: test_df.copy())
+
+        # When
+        runner = buy_and_hold.create_runner(config)
+        result = runner()
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buy_and_hold_tqqq"
+        assert result.display_name == "Buy & Hold (TQQQ)"
+        assert result.trades_df.empty
+        assert result.params_json["strategy"] == "buy_and_hold_tqqq"
+        assert result.result_dir == tmp_path / "buy_and_hold_tqqq"
+
+
+class TestBuyAndHoldConfigs:
+    """Buy & Hold CONFIGS 정합성 테스트"""
+
+    def test_configs_has_multiple_entries(self):
+        """
+        목적: CONFIGS에 최소 2개 이상의 설정이 존재하는지 검증
+
+        Given: buy_and_hold.CONFIGS
+        When: 길이 확인
+        Then: 최소 2개 이상
+        """
+        from qbt.backtest.strategies.buy_and_hold import CONFIGS
+
+        assert len(CONFIGS) >= 2, f"CONFIGS에 최소 2개 항목이 필요합니다. 실제: {len(CONFIGS)}"
+
+    def test_configs_strategy_names_unique(self):
+        """
+        목적: CONFIGS 내 strategy_name이 모두 유일한지 검증
+
+        Given: buy_and_hold.CONFIGS
+        When: strategy_name 중복 확인
+        Then: 중복 없음
+        """
+        from qbt.backtest.strategies.buy_and_hold import CONFIGS
+
+        names = [c.strategy_name for c in CONFIGS]
+        assert len(names) == len(set(names)), f"strategy_name 중복 발견: {names}"
+
+    def test_configs_display_names_unique(self):
+        """
+        목적: CONFIGS 내 display_name이 모두 유일한지 검증
+
+        Given: buy_and_hold.CONFIGS
+        When: display_name 중복 확인
+        Then: 중복 없음
+        """
+        from qbt.backtest.strategies.buy_and_hold import CONFIGS
+
+        display_names = [c.display_name for c in CONFIGS]
+        assert len(display_names) == len(set(display_names)), f"display_name 중복 발견: {display_names}"
+
+    def test_configs_contains_qqq_and_tqqq(self):
+        """
+        목적: CONFIGS에 QQQ와 TQQQ 설정이 모두 존재하는지 검증
+
+        Given: buy_and_hold.CONFIGS
+        When: strategy_name 확인
+        Then: buy_and_hold_qqq와 buy_and_hold_tqqq 모두 포함
+        """
+        from qbt.backtest.strategies.buy_and_hold import CONFIGS
+
+        names = {c.strategy_name for c in CONFIGS}
+        assert "buy_and_hold_qqq" in names, "QQQ 설정이 CONFIGS에 포함되어야 합니다"
+        assert "buy_and_hold_tqqq" in names, "TQQQ 설정이 CONFIGS에 포함되어야 합니다"

@@ -2,9 +2,16 @@
 
 매수 후 보유하는 가장 기본적인 전략을 구현한다.
 버퍼존 전략의 성과를 비교하기 위한 벤치마크 용도이다.
+
+팩토리 패턴:
+    BuyAndHoldConfig로 티커별 설정을 정의하고,
+    create_runner()로 각 설정에 대한 실행 함수를 생성한다.
+    CONFIGS 리스트에 티커를 추가하면 자동으로 전략이 확장된다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -17,39 +24,61 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import (
-    BUY_AND_HOLD_RESULTS_DIR,
+    BUY_AND_HOLD_QQQ_RESULTS_DIR,
+    BUY_AND_HOLD_TQQQ_RESULTS_DIR,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
     QQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.data_loader import load_stock_data
 
 logger = get_logger(__name__)
 
-# 전략 식별 상수
-STRATEGY_NAME = "buy_and_hold"
-DISPLAY_NAME = "Buy & Hold"
-
-# 데이터 소스 경로 (Buy & Hold: QQQ 단일 데이터)
-TRADE_DATA_PATH = QQQ_DATA_PATH
-
 
 # ============================================================================
-# 전략 전용 TypedDict (types.py에서 이동)
+# 설정 데이터클래스 및 팩토리
 # ============================================================================
 
 
-class BuyAndHoldResultDict(SummaryDict):
-    """run_buy_and_hold() 반환 타입.
+@dataclass(frozen=True)
+class BuyAndHoldConfig:
+    """Buy & Hold 전략의 티커별 설정.
 
-    SummaryDict를 상속하고 전략 식별자를 추가한다.
+    각 티커(QQQ, TQQQ 등)에 대한 전략 식별 정보와 데이터 경로를 담는다.
+    CONFIGS 리스트에 추가하면 자동으로 전략 레지스트리에 등록된다.
     """
 
-    strategy: str
+    strategy_name: str  # 전략 내부 식별자 (예: "buy_and_hold_qqq")
+    display_name: str  # 전략 표시명 (예: "Buy & Hold (QQQ)")
+    trade_data_path: Path  # 매매용 데이터 경로
+    result_dir: Path  # 결과 저장 디렉토리
+
+
+# 티커별 설정 목록 (새 티커 추가 시 여기에 한 줄 추가)
+CONFIGS: list[BuyAndHoldConfig] = [
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_qqq",
+        display_name="Buy & Hold (QQQ)",
+        trade_data_path=QQQ_DATA_PATH,
+        result_dir=BUY_AND_HOLD_QQQ_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_tqqq",
+        display_name="Buy & Hold (TQQQ)",
+        trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+        result_dir=BUY_AND_HOLD_TQQQ_RESULTS_DIR,
+    ),
+]
+
+
+# ============================================================================
+# 파라미터 데이터클래스
+# ============================================================================
 
 
 @dataclass
@@ -62,10 +91,15 @@ class BuyAndHoldParams:
     initial_capital: float  # 초기 자본금
 
 
+# ============================================================================
+# 핵심 전략 로직
+# ============================================================================
+
+
 def run_buy_and_hold(
     trade_df: pd.DataFrame,
     params: BuyAndHoldParams,
-) -> tuple[pd.DataFrame, BuyAndHoldResultDict]:
+) -> tuple[pd.DataFrame, SummaryDict]:
     """
     Buy & Hold 벤치마크 전략을 실행한다.
 
@@ -120,8 +154,7 @@ def run_buy_and_hold(
     trades_df = pd.DataFrame()
 
     # 7. calculate_summary 호출
-    base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary: BuyAndHoldResultDict = {**base_summary, "strategy": STRATEGY_NAME}
+    summary = calculate_summary(trades_df, equity_df, params.initial_capital)
 
     logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
 
@@ -142,47 +175,67 @@ def resolve_params() -> BuyAndHoldParams:
     return params
 
 
-def run_single() -> SingleBacktestResult:
-    """
-    Buy & Hold 전략 단일 백테스트를 실행한다.
+# ============================================================================
+# 팩토리 함수
+# ============================================================================
 
-    데이터 로딩부터 전략 실행까지 자체 수행한다.
-    Buy & Hold는 signal과 trade가 동일한 QQQ 데이터를 사용한다.
+
+def create_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]:
+    """
+    BuyAndHoldConfig에 대한 run_single 실행 함수를 생성한다.
+
+    팩토리 패턴: config별로 데이터 소스와 결과 경로가 다른 실행 함수를 반환한다.
+
+    Args:
+        config: Buy & Hold 전략 설정 (티커별)
 
     Returns:
-        SingleBacktestResult: 백테스트 결과 컨테이너
+        Callable: 인자 없이 호출 가능한 run_single 함수
     """
-    # 1. 데이터 로딩 (QQQ 단일 데이터)
-    trade_df = load_stock_data(TRADE_DATA_PATH)
 
-    # 2. 파라미터 결정
-    params = resolve_params()
+    def run_single() -> SingleBacktestResult:
+        """
+        Buy & Hold 전략 단일 백테스트를 실행한다.
 
-    # 3. 전략 실행
-    equity_df, summary = run_buy_and_hold(trade_df, params)
+        데이터 로딩부터 전략 실행까지 자체 수행한다.
+        Buy & Hold는 signal과 trade가 동일한 데이터를 사용한다.
 
-    # 4. 시그널 DataFrame 구성 (trade_df OHLC, MA 없음)
-    bh_signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
+        Returns:
+            SingleBacktestResult: 백테스트 결과 컨테이너
+        """
+        # 1. 데이터 로딩
+        trade_df = load_stock_data(config.trade_data_path)
 
-    # 5. 거래 내역 (Buy & Hold는 매도 없음)
-    trades_df = pd.DataFrame()
+        # 2. 파라미터 결정
+        params = resolve_params()
 
-    # 6. JSON 저장용 파라미터
-    params_json: dict[str, Any] = {
-        "strategy": STRATEGY_NAME,
-        "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-    }
+        # 3. 전략 실행
+        equity_df, summary = run_buy_and_hold(trade_df, params)
 
-    return SingleBacktestResult(
-        strategy_name=STRATEGY_NAME,
-        display_name=DISPLAY_NAME,
-        signal_df=bh_signal_df,
-        equity_df=equity_df,
-        trades_df=trades_df,
-        summary=summary,
-        params_json=params_json,
-        result_dir=BUY_AND_HOLD_RESULTS_DIR,
-        data_info={
-            "trade_path": str(TRADE_DATA_PATH),
-        },
-    )
+        # 4. 시그널 DataFrame 구성 (trade_df OHLC, MA 없음)
+        bh_signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
+
+        # 5. 거래 내역 (Buy & Hold는 매도 없음)
+        trades_df = pd.DataFrame()
+
+        # 6. JSON 저장용 파라미터
+        params_json: dict[str, Any] = {
+            "strategy": config.strategy_name,
+            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
+        }
+
+        return SingleBacktestResult(
+            strategy_name=config.strategy_name,
+            display_name=config.display_name,
+            signal_df=bh_signal_df,
+            equity_df=equity_df,
+            trades_df=trades_df,
+            summary=summary,
+            params_json=params_json,
+            result_dir=config.result_dir,
+            data_info={
+                "trade_path": str(config.trade_data_path),
+            },
+        )
+
+    return run_single

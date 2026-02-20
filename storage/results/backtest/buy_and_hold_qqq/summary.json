@@ -1,5 +1,5 @@
 {
-  "display_name": "Buy & Hold",
+  "display_name": "Buy & Hold (QQQ)",
   "summary": {
     "initial_capital": 10000000,
     "final_capital": 138832962,
@@ -14,7 +14,7 @@
     "end_date": "2026-02-17"
   },
   "params": {
-    "strategy": "buy_and_hold",
+    "strategy": "buy_and_hold_qqq",
     "initial_capital": 10000000
   },
   "monthly_returns": [

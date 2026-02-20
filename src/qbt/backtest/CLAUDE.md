@@ -112,30 +112,27 @@
 
 #### strategies/buy_and_hold.py
 
-Buy & Hold 벤치마크 전략 구현입니다. QQQ 데이터를 사용한다.
+Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 티커를 지원한다.
 
-전략 식별 상수:
+설정 데이터클래스:
 
-- `STRATEGY_NAME`: 전략 내부 식별자 (`"buy_and_hold"`)
-- `DISPLAY_NAME`: 전략 표시명 (`"Buy & Hold"`)
+- `BuyAndHoldConfig`: 티커별 전략 설정 (strategy_name, display_name, trade_data_path, result_dir)
 
-데이터 소스 경로:
+티커별 설정 목록:
 
-- `TRADE_DATA_PATH`: 매매용 데이터 경로 (`QQQ_DATA_PATH`). Buy & Hold는 signal과 trade가 동일 (QQQ 단일 데이터)
+- `CONFIGS`: `list[BuyAndHoldConfig]`. 새 티커 추가 시 여기에 한 줄 추가
+  - `buy_and_hold_qqq`: QQQ 데이터 (`QQQ_DATA_PATH`) 사용
+  - `buy_and_hold_tqqq`: TQQQ 합성 데이터 (`TQQQ_SYNTHETIC_DATA_PATH`) 사용
 
-전략 전용 TypedDict (types.py에서 이동):
+파라미터 데이터클래스:
 
-- `BuyAndHoldResultDict`: `run_buy_and_hold()` 반환 타입
-
-데이터 클래스:
-
-- `BuyAndHoldParams`: Buy & Hold 전략 파라미터
+- `BuyAndHoldParams`: Buy & Hold 전략 파라미터 (initial_capital)
 
 주요 함수:
 
-- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행 (`trade_df`만 받음, `signal_df` 미사용)
+- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행 (`trade_df`만 받음, `signal_df` 미사용) → `SummaryDict` 반환
 - `resolve_params`: 파라미터 결정 (항상 DEFAULT_INITIAL_CAPITAL 사용)
-- `run_single`: 단일 백테스트 실행 (인자 없음, 자체 데이터 로딩) → `SingleBacktestResult` 반환
+- `create_runner`: 팩토리 함수. `BuyAndHoldConfig` → `Callable[[], SingleBacktestResult]` 생성
 
 #### strategies/**init**.py
 
