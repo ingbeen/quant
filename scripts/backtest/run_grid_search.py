@@ -2,7 +2,7 @@
 버퍼존 전략 파라미터 그리드 탐색 실행 스크립트
 
 버퍼존 전략의 파라미터 조합을 탐색하여 최적 전략을 찾습니다.
---strategy 인자로 TQQQ/QQQ 전략을 선택할 수 있습니다.
+--strategy 인자로 실행할 전략을 선택할 수 있습니다 (기본값: all).
 
 실행 명령어:
     poetry run python scripts/backtest/run_grid_search.py
@@ -141,158 +141,168 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="버퍼존 전략 그리드 탐색")
     parser.add_argument(
         "--strategy",
-        choices=list(STRATEGY_CONFIG.keys()),
-        default=buffer_zone_tqqq.STRATEGY_NAME,
-        help=f"실행할 전략 (기본값: {buffer_zone_tqqq.STRATEGY_NAME})",
+        choices=["all", *STRATEGY_CONFIG.keys()],
+        default="all",
+        help="실행할 전략 (기본값: all)",
     )
     args = parser.parse_args()
 
-    strategy_name: str = args.strategy
-    grid_results_path = STRATEGY_CONFIG[strategy_name]["grid_results_path"]
+    # 2. 전략 목록 결정
+    if args.strategy == "all":
+        strategy_names = list(STRATEGY_CONFIG.keys())
+    else:
+        strategy_names = [args.strategy]
 
-    logger.debug(f"[{strategy_name}] 파라미터 그리드 탐색 시작")
+    logger.debug(f"실행 전략: {strategy_names}")
 
-    # 2. 데이터 로딩
-    signal_df, trade_df = _load_data(strategy_name)
+    # 3. 전략별 그리드 탐색 실행
+    for strategy_name in strategy_names:
+        grid_results_path = STRATEGY_CONFIG[strategy_name]["grid_results_path"]
 
-    # 3. 그리드 탐색 실행
-    logger.debug("그리드 탐색 파라미터:")
-    logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
-    logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
-    logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")
-    logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
+        logger.debug("=" * 60)
+        logger.debug(f"[{strategy_name}] 파라미터 그리드 탐색 시작")
 
-    results_df = run_grid_search(
-        signal_df=signal_df,
-        trade_df=trade_df,
-        ma_window_list=DEFAULT_MA_WINDOW_LIST,
-        buffer_zone_pct_list=DEFAULT_BUFFER_ZONE_PCT_LIST,
-        hold_days_list=DEFAULT_HOLD_DAYS_LIST,
-        recent_months_list=DEFAULT_RECENT_MONTHS_LIST,
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-    )
+        # 3-1. 데이터 로딩
+        signal_df, trade_df = _load_data(strategy_name)
 
-    # 4. CAGR 기준 정렬
-    results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
+        # 3-2. 그리드 탐색 실행
+        logger.debug("그리드 탐색 파라미터:")
+        logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
+        logger.debug(f"  - buffer_zone_pct: {DEFAULT_BUFFER_ZONE_PCT_LIST}")
+        logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")
+        logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
 
-    # 5. 상위 결과 출력
-    columns = [
-        ("순위", 6, Align.RIGHT),
-        (DISPLAY_MA_WINDOW, 10, Align.RIGHT),
-        (DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
-        (DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
-        (DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
-        (DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
-        (DISPLAY_CAGR, 10, Align.RIGHT),
-        (DISPLAY_MDD, 10, Align.RIGHT),
-        (DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
-        (DISPLAY_WIN_RATE, 8, Align.RIGHT),
-    ]
-
-    top_n = 10
-    rows = []
-    for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
-        rows.append(
-            [
-                str(rank),
-                str(row[COL_MA_WINDOW]),
-                f"{row[COL_BUFFER_ZONE_PCT] * 100:.1f}%",
-                f"{row[COL_HOLD_DAYS]}일",
-                f"{row[COL_RECENT_MONTHS]}월",
-                f"{row[COL_TOTAL_RETURN_PCT]:.2f}%",
-                f"{row[COL_CAGR]:.2f}%",
-                f"{row[COL_MDD]:.2f}%",
-                str(row[COL_TOTAL_TRADES]),
-                f"{row[COL_WIN_RATE]:.1f}%",
-            ]
+        results_df = run_grid_search(
+            signal_df=signal_df,
+            trade_df=trade_df,
+            ma_window_list=DEFAULT_MA_WINDOW_LIST,
+            buffer_zone_pct_list=DEFAULT_BUFFER_ZONE_PCT_LIST,
+            hold_days_list=DEFAULT_HOLD_DAYS_LIST,
+            recent_months_list=DEFAULT_RECENT_MONTHS_LIST,
+            initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
-    table = TableLogger(columns, logger)
-    table.print_table(rows, title=f"[{strategy_name}] 상위 {top_n}개 결과 (CAGR 기준)")
+        # 3-3. CAGR 기준 정렬
+        results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
 
-    # 6. 요약 통계 출력
-    print_summary_stats(results_df)
+        # 3-4. 상위 결과 출력
+        columns = [
+            ("순위", 6, Align.RIGHT),
+            (DISPLAY_MA_WINDOW, 10, Align.RIGHT),
+            (DISPLAY_BUFFER_ZONE, 10, Align.RIGHT),
+            (DISPLAY_HOLD_DAYS, 8, Align.RIGHT),
+            (DISPLAY_RECENT_MONTHS, 10, Align.RIGHT),
+            (DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
+            (DISPLAY_CAGR, 10, Align.RIGHT),
+            (DISPLAY_MDD, 10, Align.RIGHT),
+            (DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
+            (DISPLAY_WIN_RATE, 8, Align.RIGHT),
+        ]
 
-    # 7. 결과 저장
-    grid_results_path.parent.mkdir(parents=True, exist_ok=True)
+        top_n = 10
+        rows = []
+        for rank, (_, row) in enumerate(results_df.head(top_n).iterrows(), start=1):
+            rows.append(
+                [
+                    str(rank),
+                    str(row[COL_MA_WINDOW]),
+                    f"{row[COL_BUFFER_ZONE_PCT] * 100:.1f}%",
+                    f"{row[COL_HOLD_DAYS]}일",
+                    f"{row[COL_RECENT_MONTHS]}월",
+                    f"{row[COL_TOTAL_RETURN_PCT]:.2f}%",
+                    f"{row[COL_CAGR]:.2f}%",
+                    f"{row[COL_MDD]:.2f}%",
+                    str(row[COL_TOTAL_TRADES]),
+                    f"{row[COL_WIN_RATE]:.1f}%",
+                ]
+            )
 
-    # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
-    results_df_export = results_df.rename(
-        columns={
-            COL_MA_WINDOW: DISPLAY_MA_WINDOW,
-            COL_BUFFER_ZONE_PCT: DISPLAY_BUFFER_ZONE,
-            COL_HOLD_DAYS: DISPLAY_HOLD_DAYS,
-            COL_RECENT_MONTHS: DISPLAY_RECENT_MONTHS,
-            COL_TOTAL_RETURN_PCT: DISPLAY_TOTAL_RETURN,
-            COL_CAGR: DISPLAY_CAGR,
-            COL_MDD: DISPLAY_MDD,
-            COL_TOTAL_TRADES: DISPLAY_TOTAL_TRADES,
-            COL_WIN_RATE: DISPLAY_WIN_RATE,
-            COL_FINAL_CAPITAL: DISPLAY_FINAL_CAPITAL,
+        table = TableLogger(columns, logger)
+        table.print_table(rows, title=f"[{strategy_name}] 상위 {top_n}개 결과 (CAGR 기준)")
+
+        # 3-5. 요약 통계 출력
+        print_summary_stats(results_df)
+
+        # 3-6. 결과 저장
+        grid_results_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
+        results_df_export = results_df.rename(
+            columns={
+                COL_MA_WINDOW: DISPLAY_MA_WINDOW,
+                COL_BUFFER_ZONE_PCT: DISPLAY_BUFFER_ZONE,
+                COL_HOLD_DAYS: DISPLAY_HOLD_DAYS,
+                COL_RECENT_MONTHS: DISPLAY_RECENT_MONTHS,
+                COL_TOTAL_RETURN_PCT: DISPLAY_TOTAL_RETURN,
+                COL_CAGR: DISPLAY_CAGR,
+                COL_MDD: DISPLAY_MDD,
+                COL_TOTAL_TRADES: DISPLAY_TOTAL_TRADES,
+                COL_WIN_RATE: DISPLAY_WIN_RATE,
+                COL_FINAL_CAPITAL: DISPLAY_FINAL_CAPITAL,
+            }
+        )
+        results_df_export = results_df_export.round(
+            {
+                DISPLAY_BUFFER_ZONE: 4,  # 0.0500
+                DISPLAY_TOTAL_RETURN: 2,  # 1551.43
+                DISPLAY_CAGR: 2,  # 11.05
+                DISPLAY_MDD: 2,  # -42.83
+                DISPLAY_WIN_RATE: 2,  # 80.00
+                DISPLAY_FINAL_CAPITAL: 0,  # 165143073
+            }
+        )
+
+        results_df_export[DISPLAY_FINAL_CAPITAL] = results_df_export[DISPLAY_FINAL_CAPITAL].astype(int)
+        results_df_export.to_csv(grid_results_path, index=False)
+        logger.debug(f"결과 저장 완료: {grid_results_path}")
+
+        # 3-7. 메타데이터 저장
+        metadata = {
+            "strategy": strategy_name,
+            "execution_params": {
+                "ma_window_list": DEFAULT_MA_WINDOW_LIST,
+                "buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_BUFFER_ZONE_PCT_LIST],
+                "hold_days_list": DEFAULT_HOLD_DAYS_LIST,
+                "recent_months_list": DEFAULT_RECENT_MONTHS_LIST,
+                "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
+                "slippage_rate": round(SLIPPAGE_RATE, 4),
+            },
+            "data_period": {
+                "start_date": str(signal_df[COL_DATE].min()),
+                "end_date": str(signal_df[COL_DATE].max()),
+                "total_days": len(signal_df),
+            },
+            "results_summary": {
+                "total_combinations": len(results_df),
+                "positive_return_count": int(len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0])),
+                "positive_return_ratio": round(
+                    len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0]) / len(results_df),
+                    4,
+                ),
+                "total_return_pct": {
+                    "mean": round(results_df[COL_TOTAL_RETURN_PCT].mean(), 2),
+                    "max": round(results_df[COL_TOTAL_RETURN_PCT].max(), 2),
+                    "min": round(results_df[COL_TOTAL_RETURN_PCT].min(), 2),
+                },
+                "cagr": {
+                    "mean": round(results_df[COL_CAGR].mean(), 2),
+                    "max": round(results_df[COL_CAGR].max(), 2),
+                    "min": round(results_df[COL_CAGR].min(), 2),
+                },
+                "mdd": {
+                    "mean": round(results_df[COL_MDD].mean(), 2),
+                    "min": round(results_df[COL_MDD].min(), 2),
+                },
+            },
+            "csv_info": {
+                "path": str(grid_results_path),
+                "row_count": len(results_df),
+                "file_size_bytes": grid_results_path.stat().st_size,
+            },
         }
-    )
-    results_df_export = results_df_export.round(
-        {
-            DISPLAY_BUFFER_ZONE: 4,  # 0.0500
-            DISPLAY_TOTAL_RETURN: 2,  # 1551.43
-            DISPLAY_CAGR: 2,  # 11.05
-            DISPLAY_MDD: 2,  # -42.83
-            DISPLAY_WIN_RATE: 2,  # 80.00
-            DISPLAY_FINAL_CAPITAL: 0,  # 165143073
-        }
-    )
 
-    results_df_export[DISPLAY_FINAL_CAPITAL] = results_df_export[DISPLAY_FINAL_CAPITAL].astype(int)
-    results_df_export.to_csv(grid_results_path, index=False)
-    logger.debug(f"결과 저장 완료: {grid_results_path}")
-
-    # 8. 메타데이터 저장
-    metadata = {
-        "strategy": strategy_name,
-        "execution_params": {
-            "ma_window_list": DEFAULT_MA_WINDOW_LIST,
-            "buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_BUFFER_ZONE_PCT_LIST],
-            "hold_days_list": DEFAULT_HOLD_DAYS_LIST,
-            "recent_months_list": DEFAULT_RECENT_MONTHS_LIST,
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
-            "slippage_rate": round(SLIPPAGE_RATE, 4),
-        },
-        "data_period": {
-            "start_date": str(signal_df[COL_DATE].min()),
-            "end_date": str(signal_df[COL_DATE].max()),
-            "total_days": len(signal_df),
-        },
-        "results_summary": {
-            "total_combinations": len(results_df),
-            "positive_return_count": int(len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0])),
-            "positive_return_ratio": round(
-                len(results_df[results_df[COL_TOTAL_RETURN_PCT] > 0]) / len(results_df),
-                4,
-            ),
-            "total_return_pct": {
-                "mean": round(results_df[COL_TOTAL_RETURN_PCT].mean(), 2),
-                "max": round(results_df[COL_TOTAL_RETURN_PCT].max(), 2),
-                "min": round(results_df[COL_TOTAL_RETURN_PCT].min(), 2),
-            },
-            "cagr": {
-                "mean": round(results_df[COL_CAGR].mean(), 2),
-                "max": round(results_df[COL_CAGR].max(), 2),
-                "min": round(results_df[COL_CAGR].min(), 2),
-            },
-            "mdd": {
-                "mean": round(results_df[COL_MDD].mean(), 2),
-                "min": round(results_df[COL_MDD].min(), 2),
-            },
-        },
-        "csv_info": {
-            "path": str(grid_results_path),
-            "row_count": len(results_df),
-            "file_size_bytes": grid_results_path.stat().st_size,
-        },
-    }
-
-    save_metadata("grid_results", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
+        save_metadata("grid_results", metadata)
+        logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
     return 0
 

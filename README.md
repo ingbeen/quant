@@ -41,7 +41,10 @@ poetry run python scripts/data/download_data.py QQQ
 
 # 2. 파라미터 최적화 (그리드 서치)
 poetry run python scripts/backtest/run_grid_search.py
-# 출력: storage/results/backtest/buffer_zone/grid_results.csv
+# 출력: storage/results/backtest/{전략명}/grid_results.csv
+
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
+poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_tqqq
 
 # 3. 단일 전략 검증 + 결과 저장
 poetry run python scripts/backtest/run_single_backtest.py
