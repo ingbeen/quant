@@ -309,12 +309,21 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 
 ## 테스트 커버리지
 
-**주요 테스트 파일**: `tests/test_tqqq_simulation.py`, `tests/test_tqqq_analysis_helpers.py`, `tests/test_tqqq_visualization.py`
+**주요 테스트 파일**:
+
+- `tests/test_tqqq_simulation.py`: 시뮬레이션 core (비용 계산, simulate, 검증 지표)
+- `tests/test_tqqq_optimization.py`: softplus 파라미터 최적화, 벡터화 동등성
+- `tests/test_tqqq_walkforward.py`: 워크포워드 검증, stitched RMSE, 금리 구간별 RMSE
+- `tests/test_tqqq_data_loader.py`: FFR/Expense 데이터 로딩, 딕셔너리 생성/조회
+- `tests/test_tqqq_analysis_helpers.py`: 금리-오차 분석 함수
+- `tests/test_tqqq_visualization.py`: Plotly 차트 생성
 
 **테스트 범위**:
 
 - 일일 비용 계산 로직
 - 레버리지 수익률 적용 및 복리 효과
 - 누적배수 로그차이 계산
-- Softplus 파라미터 최적화
+- Softplus 파라미터 최적화 및 벡터화 수치 동등성
+- 워크포워드 검증 및 stitched RMSE
+- FFR/Expense 딕셔너리 생성, 조회, 갭 검증
 - 엣지 케이스 (FFR 갭 초과, 빈 데이터)
