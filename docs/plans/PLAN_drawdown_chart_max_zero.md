@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-20 23:30
-**마지막 업데이트**: 2026-02-20 23:30
+**마지막 업데이트**: 2026-02-20 23:40
 **관련 범위**: scripts/backtest, vendor/streamlit-lightweight-charts-v5
 **관련 문서**: scripts/CLAUDE.md
 
@@ -40,7 +40,7 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 드로우다운 차트의 Y축 상한을 0으로 고정하여, 0 이상의 값이 표시되지 않도록 한다
+- [x] 드로우다운 차트의 Y축 상한을 0으로 고정하여, 0 이상의 값이 표시되지 않도록 한다
 
 ## 2) 비목표(Non-Goals)
 
@@ -67,12 +67,12 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 드로우다운 차트 Y축 상한이 0으로 고정됨 (0 이상 영역 미표시)
-- [ ] 기존 차트(캔들, 에쿼티) 동작에 영향 없음
-- [ ] 테스트 추가 불필요 (UI 전용 변경, 비즈니스 로직 변경 없음)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] 드로우다운 차트 Y축 상한이 0으로 고정됨 (0 이상 영역 미표시)
+- [x] 기존 차트(캔들, 에쿼티) 동작에 영향 없음
+- [x] 테스트 추가 불필요 (UI 전용 변경, 비즈니스 로직 변경 없음)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=295, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -91,8 +91,8 @@
 
 **작업 내용**:
 
-- [ ] `LightweightChartsComponent.tsx`의 Phase 2.5 블록에서, `autoscaleInfoProvider` 적용 직후 해당 시리즈의 price scale에 `scaleMargins: { top: 0, bottom: 0.1 }`을 설정
-- [ ] TSX 프론트엔드 빌드 수행 (`npm run build`)
+- [x] `LightweightChartsComponent.tsx`의 Phase 2.5 블록에서, `autoscaleInfoProvider` 적용 직후 해당 시리즈의 price scale에 `scaleMargins: { top: 0, bottom: 0.1 }`을 설정
+- [x] TSX 프론트엔드 빌드 수행 (`npm run build`)
 
 구체적 변경 위치: `LightweightChartsComponent.tsx` 약 376행 근처, `autoscaleInfoProvider` applyOptions 호출 직후에 추가:
 
@@ -112,13 +112,13 @@ seriesInstances[paneIndex][seriesIndex].priceScale().applyOptions({
 
 **작업 내용**
 
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=295, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -142,5 +142,7 @@ seriesInstances[paneIndex][seriesIndex].priceScale().applyOptions({
 ### 진행 로그 (KST)
 
 - 2026-02-20 23:30: 계획서 작성 완료
+- 2026-02-20 23:40: Phase 1 완료 (TSX scaleMargins 추가 + 빌드)
+- 2026-02-20 23:40: 마지막 Phase 완료 (black + validate_project.py 통과, passed=295, failed=0, skipped=0)
 
 ---

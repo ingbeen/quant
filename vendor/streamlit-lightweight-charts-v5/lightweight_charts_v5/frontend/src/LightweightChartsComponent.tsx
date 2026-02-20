@@ -375,6 +375,14 @@ function LightweightChartsComponent({
               return res
             }) as any,
           })
+
+          // fixedMaxValue 적용 시 price scale 상단 여백 제거
+          seriesInstances[paneIndex][seriesIndex].priceScale().applyOptions({
+            scaleMargins: {
+              top: 0,
+              bottom: 0.1,
+            },
+          })
         }
       })
     })
