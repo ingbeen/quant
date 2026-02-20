@@ -120,6 +120,7 @@ interface ChartConfig {
     }
     timeScale?: {
       visible?: boolean
+      minBarSpacing?: number
     }
     titleOptions?: {
       fontSize?: number
@@ -173,6 +174,7 @@ function LightweightChartsComponent({
     charts,
     take_screenshot,
     zoom_level = 200,
+    scroll_padding = 0,
     fonts = [],
     configureTimeScale = false,
   } = args
@@ -308,10 +310,13 @@ function LightweightChartsComponent({
     >[][] = charts.map((paneConfig: ChartConfig, index: number) =>
       paneConfig.series.map((s: SeriesConfig) => {
         // Combine series options with price scale settings
-        const seriesOptions = {
+        const seriesOptions: any = {
           ...s.options,
           ...(s.priceScale && { priceScale: s.priceScale }),
         }
+
+        // fixedMaxValue는 시리즈 생성 시 제거 (데이터 설정 후 applyOptions로 적용)
+        delete seriesOptions.fixedMaxValue
 
         // Create the appropriate series type
         switch (s.type) {
@@ -339,6 +344,37 @@ function LightweightChartsComponent({
       paneConfig.series.forEach((s: SeriesConfig, seriesIndex: number) => {
         if (s.data && seriesInstances[paneIndex][seriesIndex]) {
           seriesInstances[paneIndex][seriesIndex].setData(s.data)
+        }
+      })
+    })
+
+    /**
+     * Phase 2.5: Apply fixedMaxValue via autoscaleInfoProvider
+     * Must run AFTER data is set so the auto-scale system is initialized.
+     * Uses applyOptions to inject autoscaleInfoProvider that clamps maxValue.
+     */
+    charts.forEach((paneConfig: ChartConfig, paneIndex: number) => {
+      paneConfig.series.forEach((s: SeriesConfig, seriesIndex: number) => {
+        if (s.options?.fixedMaxValue !== undefined) {
+          const fixedMax = s.options.fixedMaxValue
+          seriesInstances[paneIndex][seriesIndex].applyOptions({
+            autoscaleInfoProvider: ((original: () => any) => {
+              const res = original()
+              if (res !== null) {
+                return {
+                  priceRange: {
+                    minValue: res.priceRange.minValue,
+                    maxValue: fixedMax,
+                  },
+                  margins: {
+                    above: 0,
+                    below: res.margins?.below ?? 0,
+                  },
+                }
+              }
+              return res
+            }) as any,
+          })
         }
       })
     })
@@ -648,6 +684,45 @@ function LightweightChartsComponent({
         chartRef.current.timeScale().fitContent()
       }
 
+      // Scroll boundary clamping: 데이터 범위 ± scroll_padding 바 이내로 제한
+      if (scroll_padding > 0) {
+        const dataLength = charts[0]?.series?.[0]?.data?.length || 0
+        if (dataLength > 0) {
+          let isClampingScroll = false
+          chartRef.current.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
+            if (isClampingScroll || range === null || !chartRef.current) return
+
+            const minFrom = -scroll_padding
+            const maxTo = dataLength - 1 + scroll_padding
+
+            let newFrom = range.from
+            let newTo = range.to
+
+            // 1. 왼쪽 경계 초과 시 오른쪽으로 이동
+            if (newFrom < minFrom) {
+              const shift = minFrom - newFrom
+              newFrom = minFrom
+              newTo = newTo + shift
+            }
+            // 2. 오른쪽 경계 초과 시 왼쪽으로 이동
+            if (newTo > maxTo) {
+              const shift = newTo - maxTo
+              newTo = maxTo
+              newFrom = newFrom - shift
+            }
+            // 3. 줌아웃으로 양쪽 모두 초과 시 양쪽 클램프
+            newFrom = Math.max(newFrom, minFrom)
+            newTo = Math.min(newTo, maxTo)
+
+            if (newFrom !== range.from || newTo !== range.to) {
+              isClampingScroll = true
+              chartRef.current!.timeScale().setVisibleLogicalRange({ from: newFrom, to: newTo })
+              requestAnimationFrame(() => { isClampingScroll = false })
+            }
+          })
+        }
+      }
+
       // Mark chart as initialized
       setChartStable(true)
 
@@ -822,6 +897,7 @@ function LightweightChartsComponent({
     JSON.stringify(charts),
     JSON.stringify(theme),
     zoom_level,
+    scroll_padding,
     fontsLoaded,
     configureTimeScale,
   ])

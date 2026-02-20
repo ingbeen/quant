@@ -400,6 +400,7 @@ def _render_main_chart(
             "vertLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
             "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
         },
+        "timeScale": {"minBarSpacing": 0.2},
     }
 
     # 3. Pane 1: 캔들스틱 + 조건부 오버레이
@@ -480,7 +481,7 @@ def _render_main_chart(
                 }
             )
 
-    chart_title = f"{strategy['display_name']} - 시그널 차트"
+    chart_title = f"{strategy['display_name']}"
 
     pane1 = {
         "chart": chart_theme,
@@ -525,6 +526,7 @@ def _render_main_chart(
                     "priceLineVisible": False,
                     "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
                     "invertFilledArea": True,
+                    "fixedMaxValue": 0,
                 },
             }
         ],
@@ -539,6 +541,7 @@ def _render_main_chart(
         charts=[pane1, pane2, pane3],
         height=total_height,
         zoom_level=DEFAULT_ZOOM_LEVEL,
+        scroll_padding=60,
         key=f"main_chart_{chart_key}",
     )
 
@@ -643,6 +646,20 @@ def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
 # ============================================================
 
 
+def _style_pnl_rows(row: pd.Series) -> list[str]:  # type: ignore[type-arg]
+    """손익률 기반 행별 배경색을 반환한다.
+
+    수익 거래는 옅은 초록, 손실 거래는 옅은 빨강 배경을 적용한다.
+    """
+    pnl_col = TRADE_COLUMN_RENAME.get("pnl_pct", "손익률")
+    pnl = row.get(pnl_col, 0)
+    if pnl > 0:
+        return ["background-color: rgba(38, 166, 154, 0.15)"] * len(row)
+    elif pnl < 0:
+        return ["background-color: rgba(239, 83, 80, 0.15)"] * len(row)
+    return [""] * len(row)
+
+
 def _render_strategy_tab(strategy: StrategyData) -> None:
     """하나의 전략 탭 내부를 렌더링한다."""
     summary_data = strategy["summary_data"]
@@ -652,7 +669,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     trades_df = strategy["trades_df"]
     has_trades = not trades_df.empty and "entry_date" in trades_df.columns
 
-    # ---- Section 1: 요약 지표 ----
+    # ---- 요약 지표 ----
     st.header("요약 지표")
     col1, col2, col3, col4 = st.columns(4)
 
@@ -669,64 +686,46 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     st.divider()
 
-    # ---- Section 2: 메인 차트 ----
-    st.header("1. 시그널 차트 + 전략 오버레이")
-
-    # 차트 설명 (feature detection 기반)
-    ma_col = _detect_ma_col(strategy["signal_df"])
-    has_bands = "upper_band" in strategy["equity_df"].columns
-
-    desc_parts: list[str] = ["캔들스틱: OHLC"]
-    if ma_col:
-        ma_type = params.get("ma_type", "sma")
-        ma_window = params.get("ma_window", "")
-        desc_parts.append(f"이동평균: {str(ma_type).upper()} {ma_window}일")
-    if has_bands:
-        buffer_zone_pct = params.get("buffer_zone_pct")
-        if buffer_zone_pct is not None:
-            desc_parts.append(f"밴드: 버퍼존 {buffer_zone_pct:.0%}")
-    if has_trades:
-        desc_parts.append("마커: Buy/Sell 체결 시점")
-
-    st.markdown(" | ".join(desc_parts))
-
+    # ---- Section 1: 메인 차트 ----
+    st.header("1. 메인 차트")
     _render_main_chart(strategy, strategy["strategy_name"])
 
     st.divider()
 
-    # ---- Section 3: 월별 수익률 히트맵 ----
-    st.header("2. 월별/연도별 수익률 히트맵")
-    st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
-    _render_monthly_heatmap(monthly_returns)
-
-    st.divider()
-
-    # ---- Section 4: 포지션 보유 기간 분포 ----
-    st.header("3. 포지션 보유 기간 분포")
-    if has_trades:
-        st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
-        _render_holding_period_histogram(trades_df)
-    else:
-        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
-
-    st.divider()
-
-    # ---- Section 5: 전체 거래 상세 내역 ----
-    st.header("4. 전체 거래 상세 내역")
+    # ---- Section 2: 전체 거래 상세 내역 ----
+    st.header("2. 전체 거래 상세 내역")
     if has_trades:
         display_df = trades_df.copy()
         display_df["pnl_pct"] = display_df["pnl_pct"] * 100
         display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
-        st.dataframe(display_df, width="stretch")  # type: ignore[call-overload]
+        styled_df = display_df.style.apply(_style_pnl_rows, axis=1)
+        st.dataframe(styled_df, width="stretch")  # type: ignore[call-overload]
         st.caption(f"총 {len(trades_df)}건의 거래")
     else:
         st.info("이 전략에서는 거래 내역이 없습니다.")
 
     st.divider()
 
-    # ---- Section 6: 사용 파라미터 ----
-    st.header("5. 사용 파라미터")
+    # ---- Section 3: 사용 파라미터 ----
+    st.header("3. 사용 파라미터")
     st.json(params)
+
+    st.divider()
+
+    # ---- Section 4: 월별 수익률 히트맵 ----
+    st.header("4. 월별/연도별 수익률 히트맵")
+    st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
+    _render_monthly_heatmap(monthly_returns)
+
+    st.divider()
+
+    # ---- Section 5: 포지션 보유 기간 분포 ----
+    st.header("5. 포지션 보유 기간 분포")
+    if has_trades:
+        st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
+        _render_holding_period_histogram(trades_df)
+    else:
+        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
 
 
 # ============================================================

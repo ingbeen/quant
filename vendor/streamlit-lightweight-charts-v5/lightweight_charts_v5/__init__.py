@@ -44,6 +44,7 @@ def lightweight_charts_v5_component(
     height: int = 400,
     take_screenshot: bool = False,
     zoom_level: int = 200,
+    scroll_padding: int = 0,
     fonts: List[str] = None,
     configure_time_scale: bool = False,
     key=None,
@@ -78,6 +79,9 @@ def lightweight_charts_v5_component(
         If True, triggers a screenshot of the chart
     zoom_level: int
         Number of bars to show in the initial view (default: 200).
+    scroll_padding: int
+        Number of empty bars allowed beyond data edges when scrolling (default: 0).
+        For example, 60 allows ~3 months of empty space on each side.
     fonts: List[str]
         List of optional google fonts that will be downloaded for use.
     configure_time_scale: bool
@@ -105,6 +109,7 @@ def lightweight_charts_v5_component(
             height=height,
             take_screenshot=take_screenshot,
             zoom_level=zoom_level,
+            scroll_padding=scroll_padding,
             fonts=fonts,
             key=key,
             configure_time_scale=configure_time_scale,
@@ -117,6 +122,7 @@ def lightweight_charts_v5_component(
             height=height,
             take_screenshot=take_screenshot,
             zoom_level=zoom_level,
+            scroll_padding=scroll_padding,
             key=key,
             configure_time_scale=configure_time_scale,
             default=default_value,
