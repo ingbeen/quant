@@ -537,8 +537,8 @@ def _execute_sell_order(
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
         "buffer_zone_pct": order.buffer_zone_pct,
-        "hold_days_used": order.hold_days_used,
-        "recent_buy_count": order.recent_buy_count,
+        "hold_days_used": 0,
+        "recent_buy_count": 0,
     }
 
     return 0, new_capital, trade_record
@@ -732,7 +732,7 @@ def run_grid_search(
     results_df = pd.DataFrame(results)
 
     # 5. 정렬
-    results_df = results_df.sort_values(by=COL_TOTAL_RETURN_PCT, ascending=False).reset_index(drop=True)
+    results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 

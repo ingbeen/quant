@@ -150,6 +150,7 @@ def calculate_summary(
     total_trades = len(trades_df)
     if total_trades > 0:
         winning_trades = len(trades_df[trades_df["pnl"] > 0])
+        # pnl=0은 손실로 분류 (winning + losing = total)
         losing_trades = len(trades_df[trades_df["pnl"] <= 0])
         win_rate = (winning_trades / total_trades) * 100
     else:

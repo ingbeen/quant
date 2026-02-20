@@ -202,7 +202,7 @@ def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[
             "total_trades": result.summary["total_trades"],
             "winning_trades": result.summary.get("winning_trades", 0),
             "losing_trades": result.summary.get("losing_trades", 0),
-            "win_rate": round(float(str(result.summary["win_rate"])), 2),
+            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
             "start_date": result.summary.get("start_date", ""),
             "end_date": result.summary.get("end_date", ""),
         },
@@ -243,7 +243,7 @@ def _save_results(result: SingleBacktestResult) -> None:
             "cagr": round(float(str(result.summary["cagr"])), 2),
             "mdd": round(float(str(result.summary["mdd"])), 2),
             "total_trades": int(str(result.summary["total_trades"])),
-            "win_rate": round(float(str(result.summary["win_rate"])), 2),
+            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
         },
         "output_files": {
             "signal_csv": str(signal_path),
