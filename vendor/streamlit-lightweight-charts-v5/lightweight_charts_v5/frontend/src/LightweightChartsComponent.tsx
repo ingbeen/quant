@@ -190,6 +190,7 @@ function LightweightChartsComponent({
   const MIN_RESIZE_INTERVAL = 500 // 1 second minimum between resizes
   const [chartStable, setChartStable] = useState(false)
   const stabilityTimeout = useRef<number | null>(null)
+  const hasInitializedView = useRef(false)
 
   // Separate useEffect for font loading
   useEffect(() => {
@@ -680,16 +681,37 @@ function LightweightChartsComponent({
     initializePaneHeights()
 
     // Set up chart view immediately after height initialization
-    if (chartRef.current) {
-      // Set initial zoom level after heights are established
-      const mainSeriesData = charts[0].series[0].data
-      if (mainSeriesData?.length >= zoom_level) {
-        chartRef.current.timeScale().setVisibleRange({
-          from: mainSeriesData[mainSeriesData.length - zoom_level].time,
-          to: mainSeriesData[mainSeriesData.length - 1].time,
+    //
+    // applyInitialView: 초기 뷰 설정 헬퍼.
+    // zoom_level >= dataLength이고 scroll_padding > 0이면
+    // 데이터 앞뒤로 scroll_padding만큼 패딩을 포함한 전체 표시.
+    const applyInitialView = (targetChart: IChartApi) => {
+      const seriesData = charts[0]?.series?.[0]?.data
+      const dataLen = seriesData?.length || 0
+      if (dataLen === 0) return
+
+      if (dataLen >= zoom_level) {
+        targetChart.timeScale().setVisibleRange({
+          from: seriesData[dataLen - zoom_level].time,
+          to: seriesData[dataLen - 1].time,
+        })
+      } else if (scroll_padding > 0) {
+        targetChart.timeScale().setVisibleLogicalRange({
+          from: -scroll_padding,
+          to: dataLen - 1 + scroll_padding,
         })
       } else {
-        chartRef.current.timeScale().fitContent()
+        targetChart.timeScale().fitContent()
+      }
+    }
+
+    if (chartRef.current) {
+      // 활성 탭(width > 0): 즉시 초기 뷰 설정
+      // 숨겨진 탭(width = 0): 건너뜀 → 첫 리사이즈에서 처리
+      const currentWidth = chartContainerRef.current?.clientWidth || 0
+      if (currentWidth > 0) {
+        applyInitialView(chartRef.current)
+        hasInitializedView.current = true
       }
 
       // Scroll boundary clamping: 데이터 범위 ± scroll_padding 바 이내로 제한
@@ -764,33 +786,49 @@ function LightweightChartsComponent({
             // Get new dimensions
             const newWidth = chartContainerRef.current.clientWidth
 
-            // Store visible range before resize
-            const visibleRange = chartRef.current.timeScale().getVisibleRange()
-
-            // Perform resize
-            chartRef.current.resize(newWidth, totalHeight)
-
-            // Apply heights after a short delay
-            setTimeout(() => {
-              try {
-                if (chartRef.current) {
-                  setRelativeHeights() // Use the existing function for consistent height setting
-
-                  // Restore visible range
-                  if (visibleRange) {
-                    chartRef.current.timeScale().setVisibleRange(visibleRange)
+            if (!hasInitializedView.current && newWidth > 0) {
+              // 숨겨진 탭이 처음 표시됨 → 패딩 포함 초기 뷰 설정
+              chartRef.current.resize(newWidth, totalHeight)
+              setTimeout(() => {
+                try {
+                  if (chartRef.current) {
+                    setRelativeHeights()
+                    applyInitialView(chartRef.current)
+                    hasInitializedView.current = true
                   }
-                }
-
-                // Release resize lock
-                setTimeout(() => {
+                  setTimeout(() => { isResizing.current = false }, 200)
+                } catch (e) {
+                  console.error("Error during first view initialization:", e)
                   isResizing.current = false
-                }, 200)
-              } catch (e) {
-                console.error("Error during height adjustment:", e)
-                isResizing.current = false
-              }
-            }, 100)
+                }
+              }, 100)
+            } else {
+              // 일반 리사이즈 → 기존 동작 (visibleRange 보존)
+              const visibleRange = chartRef.current.timeScale().getVisibleRange()
+              chartRef.current.resize(newWidth, totalHeight)
+
+              // Apply heights after a short delay
+              setTimeout(() => {
+                try {
+                  if (chartRef.current) {
+                    setRelativeHeights()
+
+                    // Restore visible range
+                    if (visibleRange) {
+                      chartRef.current.timeScale().setVisibleRange(visibleRange)
+                    }
+                  }
+
+                  // Release resize lock
+                  setTimeout(() => {
+                    isResizing.current = false
+                  }, 200)
+                } catch (e) {
+                  console.error("Error during height adjustment:", e)
+                  isResizing.current = false
+                }
+              }, 100)
+            }
           } catch (e) {
             console.error("Error during resize:", e)
             isResizing.current = false
@@ -883,6 +921,7 @@ function LightweightChartsComponent({
 
       // Mark as disposed
       isDisposed.current = true
+      hasInitializedView.current = false
 
       // Clear any pending resize timeout
       if (resizeTimeoutRef.current) {
