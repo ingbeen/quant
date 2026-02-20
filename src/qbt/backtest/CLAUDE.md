@@ -84,6 +84,10 @@
 - `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
 - `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
 
+파라미터 결정 함수:
+
+- `resolve_buffer_params`: 버퍼존 계열 공통 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT). 각 전략 모듈의 `resolve_params()`가 위임 호출한다.
+
 핵심 함수:
 
 - `run_buffer_strategy`: 버퍼존 전략 실행
@@ -109,7 +113,7 @@ QQQ 시그널 + TQQQ 합성 데이터 매매 전략의 설정 및 실행을 담�
 
 - `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
 - OVERRIDE 상수 4개 + `MA_TYPE`
-- `resolve_params()`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
+- `resolve_params()`: `resolve_buffer_params()`에 위임하여 파라미터 결정
 - `run_single()`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
 
 #### strategies/buffer_zone_qqq.py
@@ -131,7 +135,7 @@ QQQ 시그널 + QQQ 매매 전략의 설정 및 실행을 담당합니다.
 
 - `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
 - OVERRIDE 상수 4개 + `MA_TYPE`
-- `resolve_params()`: 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT)
+- `resolve_params()`: `resolve_buffer_params()`에 위임하여 파라미터 결정
 - `run_single()`: 단일 백테스트 실행 (signal과 trade 동일, `extract_overlap_period` 불필요) → `SingleBacktestResult` 반환
 
 #### strategies/buy_and_hold.py

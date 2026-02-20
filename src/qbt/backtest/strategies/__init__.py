@@ -11,6 +11,7 @@ from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     PendingOrder,
     PendingOrderConflictError,
+    resolve_buffer_params,
     run_buffer_strategy,
     run_grid_search,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "BufferStrategyParams",
     "PendingOrder",
     "PendingOrderConflictError",
+    "resolve_buffer_params",
     "run_buffer_strategy",
     "run_grid_search",
     # Buy and hold strategy
