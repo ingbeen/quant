@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-02-20 20:00
-**마지막 업데이트**: 2026-02-20 20:00
+**마지막 업데이트**: 2026-02-20 21:00
 **관련 범위**: 프로젝트 전체
 **관련 문서**: `CLAUDE.md`(루트), 모든 도메인 `CLAUDE.md`
 
@@ -41,9 +41,9 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: Plan 1~5의 모든 변경 사항이 기능 동일성을 유지하는지 통합 검증
-- [ ] 목표 2: 전체 품질 게이트(Ruff + PyRight + Pytest) 통과 확인
-- [ ] 목표 3: 분석 보고서(PROJECT_ANALYSIS_REPORT.md)의 해결 상태 최종 업데이트
+- [x] 목표 1: Plan 1~5의 모든 변경 사항이 기능 동일성을 유지하는지 통합 검증
+- [x] 목표 2: 전체 품질 게이트(Ruff + PyRight + Pytest) 통과 확인
+- [x] 목표 3: 분석 보고서(PROJECT_ANALYSIS_REPORT.md)의 해결 상태 최종 업데이트
 
 ## 2) 비목표(Non-Goals)
 
@@ -73,14 +73,14 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 전체 품질 게이트 통과: `poetry run python validate_project.py` (Ruff + PyRight + Pytest)
-- [ ] Ruff: 린트 에러 0건
-- [ ] PyRight: 타입 에러 0건
-- [ ] Pytest: failed=0, skipped=0
-- [ ] `poetry run black .` 실행 후 diff 없음 (포맷 일관성)
-- [ ] Plan 1~5의 DoD가 모두 [x] 상태인지 확인
-- [ ] PROJECT_ANALYSIS_REPORT.md에 해결 상태 반영
-- [ ] plan 체크박스 최신화
+- [x] 전체 품질 게이트 통과: `poetry run python validate_project.py` (Ruff + PyRight + Pytest)
+- [x] Ruff: 린트 에러 0건
+- [x] PyRight: 타입 에러 0건
+- [x] Pytest: failed=0, skipped=0 (passed=301)
+- [x] `poetry run black .` 실행 후 diff 없음 (포맷 일관성, 65 files unchanged)
+- [x] Plan 1~5의 DoD가 모두 [x] 상태인지 확인
+- [x] PROJECT_ANALYSIS_REPORT.md에 해결 상태 반영 (30/37건 해결, 7건 향후 과제)
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -100,11 +100,11 @@
 
 **작업 내용**:
 
-- [ ] Plan 1 (PLAN_docs_comments_cleanup.md) 상태: Done 확인
-- [ ] Plan 2 (PLAN_bug_fixes.md) 상태: Done 확인
-- [ ] Plan 3 (PLAN_constants_consistency.md) 상태: Done 확인
-- [ ] Plan 4 (PLAN_refactoring.md) 상태: Done 확인
-- [ ] Plan 5 (PLAN_test_quality.md) 상태: Done 확인
+- [x] Plan 1 (PLAN_docs_comments_cleanup.md) 상태: Done 확인
+- [x] Plan 2 (PLAN_bug_fixes.md) 상태: Done 확인
+- [x] Plan 3 (PLAN_constants_consistency.md) 상태: Done 확인
+- [x] Plan 4 (PLAN_refactoring.md) 상태: Done 확인
+- [x] Plan 5 (PLAN_test_quality.md) 상태: Done 확인
 
 ---
 
@@ -112,12 +112,12 @@
 
 **작업 내용**:
 
-- [ ] `poetry run black .` 실행 — 포맷 변경 없음 확인
-- [ ] `poetry run python validate_project.py` 전체 실행
+- [x] `poetry run black .` 실행 — 포맷 변경 없음 확인 (65 files left unchanged)
+- [x] `poetry run python validate_project.py` 전체 실행
   - Ruff 린트: 에러 0건
   - PyRight 타입 체크: 에러 0건
-  - Pytest 테스트: failed=0, skipped=0
-- [ ] 실패 시: 원인 파악 후 해당 Plan 범위에서 수정, 재검증
+  - Pytest 테스트: passed=301, failed=0, skipped=0
+- [x] 실패 시: 원인 파악 후 해당 Plan 범위에서 수정, 재검증 (실패 없음)
 
 ---
 
@@ -125,9 +125,9 @@
 
 **작업 내용**:
 
-- [ ] import 경로 검증: Plan 3(상수 통합) + Plan 4(함수 추출)로 변경된 import가 모든 파일에서 정상 동작하는지 확인
-- [ ] 상수 참조 검증: Plan 3에서 통합된 상수가 Plan 2(버그 수정)에서 수정된 코드와 충돌하지 않는지 확인
-- [ ] 테스트 검증: Plan 5에서 수정된 테스트가 Plan 2/4의 코드 변경과 호환되는지 확인
+- [x] import 경로 검증: Plan 3(상수 통합) + Plan 4(함수 추출)로 변경된 import가 모든 파일에서 정상 동작하는지 확인
+- [x] 상수 참조 검증: Plan 3에서 통합된 상수가 Plan 2(버그 수정)에서 수정된 코드와 충돌하지 않는지 확인
+- [x] 테스트 검증: Plan 5에서 수정된 테스트가 Plan 2/4의 코드 변경과 호환되는지 확인
 
 ---
 
@@ -135,14 +135,14 @@
 
 **작업 내용**:
 
-- [ ] `PROJECT_ANALYSIS_REPORT.md`에 각 항목별 해결 상태 업데이트
-  - 해결된 항목: 해당 Plan 번호와 함께 표기
-  - 미해결 항목(향후 과제): 상태 유지
-- [ ] DoD 체크리스트 최종 업데이트
+- [x] `PROJECT_ANALYSIS_REPORT.md`에 각 항목별 해결 상태 업데이트
+  - 해결된 항목: 해당 Plan 번호와 함께 표기 (30/37건 해결)
+  - 미해결 항목(향후 과제): 상태 유지 (C-1~3, D-3~5)
+- [x] DoD 체크리스트 최종 업데이트
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=301, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -184,5 +184,6 @@ Plan 3 (상수 통합)  ──┼── Plan 4 (리팩토링) ──┼── Pl
 ### 진행 로그 (KST)
 
 - 2026-02-20 20:00: 계획서 초안 작성
+- 2026-02-20 21:00: Phase 1~4 완료, 전체 품질 게이트 통과 (passed=301, failed=0, skipped=0), Done 처리
 
 ---
