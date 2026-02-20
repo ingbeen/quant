@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-02-20 20:00
-**마지막 업데이트**: 2026-02-20 20:00
+**마지막 업데이트**: 2026-02-20 21:30
 **관련 범위**: src/qbt/tqqq, src/qbt/backtest, scripts/tqqq
 **관련 문서**: `src/qbt/tqqq/CLAUDE.md`, `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -41,11 +41,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: `_prepare_monthly_data` 함수 중복 제거 (보고서 D-1)
-- [ ] 목표 2: `simulation.py` 내부 초기화 코드 중복 제거 (보고서 D-6)
-- [ ] 목표 3: `simulation.py` 내부 stitched RMSE 함수 중복 제거 (보고서 D-7)
-- [ ] 목표 4: `buy_and_hold.py`의 `iterrows()` 벡터화 (보고서 D-9)
-- [ ] 목표 5: `aggregate_monthly`의 `sum_daily_m` placeholder 주석 보강 (보고서 E-4)
+- [x] 목표 1: `_prepare_monthly_data` 함수 중복 제거 (보고서 D-1)
+- [x] 목표 2: `simulation.py` 내부 초기화 코드 중복 제거 (보고서 D-6)
+- [x] 목표 3: `simulation.py` 내부 stitched RMSE 함수 중복 제거 (보고서 D-7)
+- [x] 목표 4: `buy_and_hold.py`의 `iterrows()` 벡터화 (보고서 D-9)
+- [x] 목표 5: `aggregate_monthly`의 `sum_daily_m` placeholder 주석 보강 (보고서 E-4)
 
 ## 2) 비목표(Non-Goals)
 
@@ -78,15 +78,15 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] D-1: `_prepare_monthly_data`가 `analysis_helpers.py`에 1곳만 존재
-- [ ] D-6: `simulation.py` 초기화 코드가 헬퍼 함수로 추출되어 중복 제거
-- [ ] D-7: stitched RMSE 공통 로직이 헬퍼 함수로 추출되어 중복 제거
-- [ ] D-9: `buy_and_hold.py`에서 `iterrows()` 제거, 벡터화 연산으로 대체
-- [ ] E-4: `aggregate_monthly` docstring에 `sum_daily_m` 사용 가이드 추가
-- [ ] 각 수정에 대한 기존 테스트 통과 확인
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] plan 체크박스 최신화
+- [x] D-1: `_prepare_monthly_data`가 `analysis_helpers.py`에 1곳만 존재
+- [x] D-6: `simulation.py` 초기화 코드가 헬퍼 함수로 추출되어 중복 제거
+- [x] D-7: stitched RMSE 공통 로직이 헬퍼 함수로 추출되어 중복 제거
+- [x] D-9: `buy_and_hold.py`에서 `iterrows()` 제거, 벡터화 연산으로 대체
+- [x] E-4: `aggregate_monthly` docstring에 `sum_daily_m` 사용 가이드 추가
+- [x] 각 수정에 대한 기존 테스트 통과 확인
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -120,11 +120,11 @@
 
 **작업 내용**:
 
-- [ ] D-1: `_prepare_monthly_data` 함수를 `src/qbt/tqqq/analysis_helpers.py`로 이동
+- [x] D-1: `_prepare_monthly_data` 함수를 `src/qbt/tqqq/analysis_helpers.py`로 이동
   - 함수 시그니처 유지, docstring 추가
   - `generate_rate_spread_lab.py`에서 로컬 함수 제거, import로 대체
   - `app_rate_spread_lab.py`에서 로컬 함수 제거, import로 대체
-- [ ] D-9: `buy_and_hold.py`의 `run_buy_and_hold` 함수를 벡터화
+- [x] D-9: `buy_and_hold.py`의 `run_buy_and_hold` 함수를 벡터화
   - `for _, row in trade_df.iterrows()` 루프 → `trade_df[COL_CLOSE]` 벡터 연산
   - 기존 테스트 통과 확인
 
@@ -134,14 +134,14 @@
 
 **작업 내용**:
 
-- [ ] D-6: 공통 초기화 헬퍼 함수 추출 (예: `_prepare_optimization_data`)
+- [x] D-6: 공통 초기화 헬퍼 함수 추출 (예: `_prepare_optimization_data`)
   - overlap 추출, FFR 검증, 딕셔너리 생성, numpy 배열 변환 로직을 포함
   - `find_optimal_softplus_params`와 `_local_refine_search`에서 호출
-- [ ] D-7: 공통 stitched 시뮬레이션 헬퍼 함수 추출 (예: `_simulate_stitched_periods`)
+- [x] D-7: 공통 stitched 시뮬레이션 헬퍼 함수 추출 (예: `_simulate_stitched_periods`)
   - overlap 추출, 월 컬럼 생성, 기간 필터링, simulate 호출 로직을 포함
   - `calculate_stitched_walkforward_rmse`와 `calculate_fixed_ab_stitched_rmse`에서 호출
   - spread_map 생성은 각 함수에서 개별 처리 (차이점)
-- [ ] E-4: `aggregate_monthly` docstring에 `sum_daily_m` placeholder 설명 추가
+- [x] E-4: `aggregate_monthly` docstring에 `sum_daily_m` placeholder 설명 추가
   - 호출자가 `calculate_daily_signed_log_diff` 후 별도 계산해야 함을 명시
 
 ---
@@ -150,13 +150,13 @@
 
 **작업 내용**:
 
-- [ ] `src/qbt/tqqq/CLAUDE.md`에 새로 추출된 함수 반영
-- [ ] `poetry run black .` 실행
-- [ ] DoD 체크리스트 최종 업데이트
+- [x] `src/qbt/tqqq/CLAUDE.md`에 새로 추출된 함수 반영
+- [x] `poetry run black .` 실행
+- [x] DoD 체크리스트 최종 업데이트
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=301, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -180,5 +180,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-20 20:00: 계획서 초안 작성
+- 2026-02-20 21:30: 전체 Phase 완료, validate_project.py 통과 (passed=301, failed=0, skipped=0)
 
 ---

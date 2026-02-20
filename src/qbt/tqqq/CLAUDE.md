@@ -88,6 +88,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `calculate_signed_log_diff_from_cumulative_returns`: 누적수익률로부터 signed 로그차이 계산
 - `calculate_daily_signed_log_diff`: 일일수익률로부터 일일 증분 signed 로그오차 계산
 - `aggregate_monthly`: 일별 데이터를 월별로 집계하고 금리 데이터와 매칭
+- `prepare_monthly_data`: 일별 비교 데이터를 월별로 집계 (일일 증분 계산 + aggregate_monthly + sum_daily_m 자동 채움)
 - `validate_integrity`: abs(signed)와 abs 컬럼의 무결성 검증
 
 피처 생성:

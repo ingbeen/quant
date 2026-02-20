@@ -141,14 +141,15 @@ def run_buy_and_hold(
     buy_amount = shares * buy_price
     capital_after_buy = params.initial_capital - buy_amount
 
-    # 5. 자본 곡선 계산 (trade_df 종가 기준)
-    equity_records: list[dict[str, object]] = []
-
-    for _, row in trade_df.iterrows():
-        equity = capital_after_buy + shares * row[COL_CLOSE]
-        equity_records.append({COL_DATE: row[COL_DATE], "equity": equity, "position": shares})
-
-    equity_df = pd.DataFrame(equity_records)
+    # 5. 자본 곡선 계산 (trade_df 종가 기준, 벡터화)
+    close_array = trade_df[COL_CLOSE].to_numpy(dtype=float)
+    equity_df = pd.DataFrame(
+        {
+            COL_DATE: trade_df[COL_DATE].to_numpy(),
+            "equity": capital_after_buy + shares * close_array,
+            "position": shares,
+        }
+    )
 
     # 6. 강제청산 없음 (버퍼존 전략과 동일 정책)
     trades_df = pd.DataFrame()

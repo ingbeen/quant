@@ -1209,6 +1209,78 @@ def _evaluate_softplus_candidate(params: dict[str, float]) -> SoftplusCandidateD
     return candidate
 
 
+def _prepare_optimization_data(
+    underlying_df: pd.DataFrame,
+    actual_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+) -> tuple[float, SimulationCacheDict]:
+    """
+    softplus 파라미터 최적화를 위한 공통 초기화를 수행한다.
+
+    겹치는 기간 추출, FFR 검증, 딕셔너리 생성, numpy 배열 변환,
+    워커 캐시 데이터 구성을 한 곳에서 처리한다.
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (QQQ)
+        actual_df: 실제 레버리지 ETF DataFrame (TQQQ)
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+
+    Returns:
+        (initial_price, cache_data) 튜플
+            - initial_price: 실제 레버리지 ETF 첫날 가격
+            - cache_data: 병렬 워커 캐시 초기화용 딕셔너리
+
+    Raises:
+        ValueError: 겹치는 기간이 없을 때
+        ValueError: FFR 커버리지가 부족할 때
+    """
+    # 1. 겹치는 기간 추출
+    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+
+    # 2. FFR 커버리지 검증 (fail-fast)
+    overlap_start = underlying_overlap[COL_DATE].min()
+    overlap_end = underlying_overlap[COL_DATE].max()
+    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+
+    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
+    ffr_dict = create_ffr_dict(ffr_df)
+
+    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
+    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
+
+    # 5. 사전 계산 배열 준비 (벡터화 최적화)
+    expense_dict = create_expense_dict(expense_df)
+
+    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
+
+    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
+
+    date_month_keys = np.array(
+        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
+        dtype=object,
+    )
+
+    overlap_days = len(underlying_overlap)
+    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
+
+    # 6. 워커 캐시 초기화 데이터 구성
+    cache_data: SimulationCacheDict = {
+        "ffr_dict": ffr_dict,
+        "expense_dict": expense_dict,
+        "underlying_returns": underlying_returns,
+        "actual_prices": actual_prices,
+        "date_month_keys": date_month_keys,
+        "overlap_start": overlap_start,
+        "overlap_end": overlap_end,
+        "overlap_days": overlap_days,
+        "actual_cumulative_return": actual_cumulative_return,
+    }
+
+    return initial_price, cache_data
+
+
 def find_optimal_softplus_params(
     underlying_df: pd.DataFrame,
     actual_leveraged_df: pd.DataFrame,
@@ -1250,47 +1322,9 @@ def find_optimal_softplus_params(
     # 0. fixed_b 검증
     if fixed_b is not None and fixed_b < 0:
         raise ValueError(f"fixed_b는 0 이상이어야 합니다: {fixed_b}")
-    # 1. 겹치는 기간 추출
-    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_leveraged_df)
 
-    # 2. FFR 커버리지 검증 (fail-fast)
-    overlap_start = underlying_overlap[COL_DATE].min()
-    overlap_end = underlying_overlap[COL_DATE].max()
-    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
-    ffr_dict = create_ffr_dict(ffr_df)
-
-    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
-    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
-
-    # 5. 사전 계산 배열 준비 (벡터화 최적화)
-    expense_dict = create_expense_dict(expense_df)
-
-    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
-
-    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
-
-    date_month_keys = np.array(
-        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
-        dtype=object,
-    )
-
-    overlap_days = len(underlying_overlap)
-    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
-
-    # 6. 워커 캐시 초기화 데이터 준비
-    cache_data: SimulationCacheDict = {
-        "ffr_dict": ffr_dict,
-        "expense_dict": expense_dict,
-        "underlying_returns": underlying_returns,
-        "actual_prices": actual_prices,
-        "date_month_keys": date_month_keys,
-        "overlap_start": overlap_start,
-        "overlap_end": overlap_end,
-        "overlap_days": overlap_days,
-        "actual_cumulative_return": actual_cumulative_return,
-    }
+    # 1. 공통 초기화 (겹치는 기간 추출, FFR 검증, 배열 변환)
+    initial_price, cache_data = _prepare_optimization_data(underlying_df, actual_leveraged_df, ffr_df, expense_df)
 
     # ============================================================
     # Stage 1: 조대 그리드 탐색
@@ -1461,49 +1495,10 @@ def _local_refine_search(
         ValueError: 겹치는 기간이 없을 때
         ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
     """
-    # 1. 겹치는 기간 추출
-    underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
+    # 1. 공통 초기화 (겹치는 기간 추출, FFR 검증, 배열 변환)
+    initial_price, cache_data = _prepare_optimization_data(underlying_df, actual_df, ffr_df, expense_df)
 
-    # 2. FFR 커버리지 검증 (fail-fast)
-    overlap_start = underlying_overlap[COL_DATE].min()
-    overlap_end = underlying_overlap[COL_DATE].max()
-    _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-    # 3. 검증 완료 후 FFR 딕셔너리 생성 (한 번만)
-    ffr_dict = create_ffr_dict(ffr_df)
-
-    # 4. 실제 레버리지 ETF 첫날 가격을 initial_price로 사용
-    initial_price = float(actual_overlap.iloc[0][COL_CLOSE])
-
-    # 5. 사전 계산 배열 준비 (벡터화 최적화)
-    expense_dict = create_expense_dict(expense_df)
-
-    underlying_returns = np.array(underlying_overlap[COL_CLOSE].pct_change().fillna(0.0).tolist(), dtype=np.float64)
-
-    actual_prices = np.array(actual_overlap[COL_CLOSE].tolist(), dtype=np.float64)
-
-    date_month_keys = np.array(
-        [f"{d.year:04d}-{d.month:02d}" for d in underlying_overlap[COL_DATE]],
-        dtype=object,
-    )
-
-    overlap_days = len(underlying_overlap)
-    actual_cumulative_return = float(actual_prices[-1] / actual_prices[0]) - 1.0
-
-    # 6. 워커 캐시 초기화 데이터 준비
-    cache_data: SimulationCacheDict = {
-        "ffr_dict": ffr_dict,
-        "expense_dict": expense_dict,
-        "underlying_returns": underlying_returns,
-        "actual_prices": actual_prices,
-        "date_month_keys": date_month_keys,
-        "overlap_start": overlap_start,
-        "overlap_end": overlap_end,
-        "overlap_days": overlap_days,
-        "actual_cumulative_return": actual_cumulative_return,
-    }
-
-    # 7. Local Refine 파라미터 조합 생성
+    # 2. Local Refine 파라미터 조합 생성
     a_min = a_prev - WALKFORWARD_LOCAL_REFINE_A_DELTA
     a_max = a_prev + WALKFORWARD_LOCAL_REFINE_A_DELTA
 
@@ -1776,6 +1771,83 @@ def run_walkforward_validation(
     return result_df, summary
 
 
+def _simulate_stitched_periods(
+    underlying_overlap: pd.DataFrame,
+    actual_overlap: pd.DataFrame,
+    first_test_month: str,
+    last_test_month: str,
+    spread_map: dict[str, float],
+    expense_df: pd.DataFrame,
+    ffr_df: pd.DataFrame,
+    leverage: float,
+) -> float:
+    """
+    테스트 기간을 필터링하고 연속 시뮬레이션하여 RMSE를 계산한다.
+
+    calculate_stitched_walkforward_rmse와 calculate_fixed_ab_stitched_rmse의
+    공통 로직(기간 필터링, 시뮬레이션, RMSE 산출)을 추출한 헬퍼 함수.
+
+    Args:
+        underlying_overlap: 겹치는 기간의 기초 자산 DataFrame
+        actual_overlap: 겹치는 기간의 실제 레버리지 ETF DataFrame
+        first_test_month: 첫 테스트 월 (yyyy-mm)
+        last_test_month: 마지막 테스트 월 (yyyy-mm)
+        spread_map: 월별 funding spread 딕셔너리 ({"yyyy-mm": spread})
+        expense_df: 운용비용 DataFrame
+        ffr_df: 연방기금금리 DataFrame
+        leverage: 레버리지 배수
+
+    Returns:
+        연속 시뮬레이션 RMSE (%, 누적배수 로그차이 기반)
+
+    Raises:
+        ValueError: 테스트 기간에 해당하는 데이터가 부족할 때
+    """
+    # 1. 월 컬럼 생성 및 테스트 기간 필터링
+    underlying_with_month = underlying_overlap.copy()
+    actual_with_month = actual_overlap.copy()
+    underlying_with_month["_month"] = underlying_with_month[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+    actual_with_month["_month"] = actual_with_month[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+
+    # 2. 테스트 기간 필터링
+    test_underlying = underlying_with_month[
+        (underlying_with_month["_month"] >= first_test_month) & (underlying_with_month["_month"] <= last_test_month)
+    ].copy()
+    test_actual = actual_with_month[
+        (actual_with_month["_month"] >= first_test_month) & (actual_with_month["_month"] <= last_test_month)
+    ].copy()
+
+    # _month 컬럼 제거 (simulate에 불필요)
+    test_underlying = test_underlying.drop(columns=["_month"])
+    test_actual = test_actual.drop(columns=["_month"])
+
+    if test_underlying.empty or test_actual.empty:
+        raise ValueError(f"테스트 기간({first_test_month} ~ {last_test_month})에 해당하는 데이터가 없습니다")
+
+    # 3. initial_price 설정 (첫 테스트일의 실제 TQQQ 가격)
+    initial_price = float(test_actual.iloc[0][COL_CLOSE])
+
+    # 4. 연속 시뮬레이션 실행 (spread_map을 FundingSpreadSpec dict로 전달)
+    simulated_df = simulate(
+        underlying_df=test_underlying,
+        leverage=leverage,
+        expense_df=expense_df,
+        initial_price=initial_price,
+        ffr_df=ffr_df,
+        funding_spread=spread_map,
+    )
+
+    # 5. RMSE 계산
+    sim_overlap, actual_overlap_final = extract_overlap_period(simulated_df, test_actual)
+
+    actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
+    simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
+
+    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
+
+    return rmse
+
+
 def calculate_stitched_walkforward_rmse(
     walkforward_result_df: pd.DataFrame,
     underlying_df: pd.DataFrame,
@@ -1845,54 +1917,19 @@ def calculate_stitched_walkforward_rmse(
     # 4. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
 
-    # 5. 테스트 기간으로 필터링
-    # 월 컬럼 생성
-    underlying_overlap = underlying_overlap.copy()
-    actual_overlap = actual_overlap.copy()
-    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
-    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
-
-    # 테스트 기간 필터링
-    test_underlying = underlying_overlap[
-        (underlying_overlap["_month"] >= first_test_month) & (underlying_overlap["_month"] <= last_test_month)
-    ].copy()
-    test_actual = actual_overlap[
-        (actual_overlap["_month"] >= first_test_month) & (actual_overlap["_month"] <= last_test_month)
-    ].copy()
-
-    # _month 컬럼 제거 (simulate에 불필요)
-    test_underlying = test_underlying.drop(columns=["_month"])
-    test_actual = test_actual.drop(columns=["_month"])
-
-    if test_underlying.empty or test_actual.empty:
-        raise ValueError(f"테스트 기간({first_test_month} ~ {last_test_month})에 해당하는 데이터가 없습니다")
-
-    # 6. initial_price 설정 (첫 테스트 월의 실제 TQQQ 가격)
-    initial_price = float(test_actual.iloc[0][COL_CLOSE])
-
-    # 7. 연속 시뮬레이션 실행 (spread_map을 FundingSpreadSpec dict로 전달)
-    simulated_df = simulate(
-        underlying_df=test_underlying,
-        leverage=leverage,
+    # 5. 연속 시뮬레이션 및 RMSE 계산
+    rmse = _simulate_stitched_periods(
+        underlying_overlap=underlying_overlap,
+        actual_overlap=actual_overlap,
+        first_test_month=first_test_month,
+        last_test_month=last_test_month,
+        spread_map=spread_map,
         expense_df=expense_df,
-        initial_price=initial_price,
         ffr_df=ffr_df,
-        funding_spread=spread_map,
+        leverage=leverage,
     )
 
-    # 8. 시뮬레이션 결과와 실제 데이터의 겹치는 기간 추출 및 RMSE 계산
-    sim_overlap, actual_overlap_final = extract_overlap_period(simulated_df, test_actual)
-
-    actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
-    simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
-
-    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
-
-    logger.debug(
-        f"연속 워크포워드 RMSE 계산 완료: {rmse:.4f}% "
-        f"(기간: {first_test_month} ~ {last_test_month}, "
-        f"거래일: {len(simulated_prices)}일)"
-    )
+    logger.debug(f"연속 워크포워드 RMSE 계산 완료: {rmse:.4f}% " f"(기간: {first_test_month} ~ {last_test_month})")
 
     return rmse
 
@@ -1949,66 +1986,37 @@ def calculate_fixed_ab_stitched_rmse(
     # 2. 겹치는 기간 추출
     underlying_overlap, actual_overlap = extract_overlap_period(underlying_df, actual_df)
 
-    # 3. 월 컬럼 생성 및 테스트 기간 결정
-    underlying_overlap = underlying_overlap.copy()
-    actual_overlap = actual_overlap.copy()
-    underlying_overlap["_month"] = underlying_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
-    actual_overlap["_month"] = actual_overlap[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
+    # 3. 테스트 기간 결정 (train_window_months 이후부터 끝까지)
+    underlying_with_month = underlying_overlap.copy()
+    underlying_with_month["_month"] = underlying_with_month[COL_DATE].apply(lambda d: f"{d.year:04d}-{d.month:02d}")
 
-    months = sorted(underlying_overlap["_month"].unique())
+    months = sorted(underlying_with_month["_month"].unique())
     total_months = len(months)
 
     min_required_months = train_window_months + 1
     if total_months < min_required_months:
         raise ValueError(f"데이터 부족: 워크포워드에 최소 {min_required_months}개월 필요, " f"현재 {total_months}개월")
 
-    # 테스트 기간: train_window_months 이후부터 끝까지
     first_test_month = months[train_window_months]
     last_test_month = months[-1]
 
-    # 4. 테스트 기간 필터링
-    test_underlying = underlying_overlap[
-        (underlying_overlap["_month"] >= first_test_month) & (underlying_overlap["_month"] <= last_test_month)
-    ].copy()
-    test_actual = actual_overlap[
-        (actual_overlap["_month"] >= first_test_month) & (actual_overlap["_month"] <= last_test_month)
-    ].copy()
-
-    # _month 컬럼 제거 (simulate에 불필요)
-    test_underlying = test_underlying.drop(columns=["_month"])
-    test_actual = test_actual.drop(columns=["_month"])
-
-    if test_underlying.empty or test_actual.empty:
-        raise ValueError(f"테스트 기간({first_test_month} ~ {last_test_month})에 해당하는 데이터가 없습니다")
-
-    # 5. 고정 spread_map 1회 생성
+    # 4. 고정 spread_map 1회 생성
     spread_map = build_monthly_spread_map(ffr_df, a, b)
 
-    # 6. initial_price 설정 (첫 테스트일의 실제 TQQQ 가격)
-    initial_price = float(test_actual.iloc[0][COL_CLOSE])
-
-    # 7. 연속 시뮬레이션 실행
-    simulated_df = simulate(
-        underlying_df=test_underlying,
-        leverage=leverage,
+    # 5. 연속 시뮬레이션 및 RMSE 계산
+    rmse = _simulate_stitched_periods(
+        underlying_overlap=underlying_overlap,
+        actual_overlap=actual_overlap,
+        first_test_month=first_test_month,
+        last_test_month=last_test_month,
+        spread_map=spread_map,
         expense_df=expense_df,
-        initial_price=initial_price,
         ffr_df=ffr_df,
-        funding_spread=spread_map,
+        leverage=leverage,
     )
 
-    # 8. RMSE 계산
-    sim_overlap, actual_overlap_final = extract_overlap_period(simulated_df, test_actual)
-
-    actual_prices = actual_overlap_final[COL_CLOSE].to_numpy(dtype=np.float64)
-    simulated_prices = sim_overlap[COL_CLOSE].to_numpy(dtype=np.float64)
-
-    rmse, _, _ = _calculate_metrics_fast(actual_prices, simulated_prices)
-
     logger.debug(
-        f"완전 고정 (a,b) 워크포워드 RMSE 계산 완료: {rmse:.4f}% "
-        f"(a={a}, b={b}, 기간: {first_test_month} ~ {last_test_month}, "
-        f"거래일: {len(simulated_prices)}일)"
+        f"완전 고정 (a,b) 워크포워드 RMSE 계산 완료: {rmse:.4f}% " f"(a={a}, b={b}, 기간: {first_test_month} ~ {last_test_month})"
     )
 
     return rmse
