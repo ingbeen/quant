@@ -1000,8 +1000,7 @@ def _save_daily_comparison_csv(
     # 8. CSV 저장
     # to_csv() 메서드: DataFrame을 CSV 파일로 저장
     # index=False: 행 인덱스 제외
-    # encoding="utf-8-sig": 한글 엑셀 호환 (BOM 포함 UTF-8)
-    comparison_df.to_csv(output_path, index=False, encoding="utf-8-sig")
+    comparison_df.to_csv(output_path, index=False, encoding="utf-8")
 
 
 def calculate_validation_metrics(

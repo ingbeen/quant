@@ -6,7 +6,6 @@
     poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 """
 
-import os
 from pathlib import Path
 
 import streamlit as st
@@ -38,7 +37,7 @@ def get_file_mtime(path: Path) -> float:
     Returns:
         파일 수정 시간 (epoch timestamp)
     """
-    return os.path.getmtime(path)
+    return path.stat().st_mtime
 
 
 @st.cache_data

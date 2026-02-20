@@ -41,13 +41,16 @@ from qbt.tqqq.analysis_helpers import (
     calculate_daily_signed_log_diff,
 )
 from qbt.tqqq.constants import (
+    COL_A,
     COL_ACTUAL_DAILY_RETURN,
+    COL_B,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_SIGNED,
     COL_DE_M,
     COL_E_M,
     COL_MONTH,
     COL_RATE_PCT,
+    COL_RMSE_PCT,
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
     DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
@@ -76,7 +79,7 @@ from qbt.tqqq.visualization import (
     create_level_timeseries_chart,
     create_rolling_correlation_chart,
 )
-from qbt.utils.logger import setup_logger
+from qbt.utils import get_logger
 
 # ============================================================
 # Streamlit 앱 전용 상수 (이 파일에서만 사용)
@@ -86,11 +89,6 @@ from qbt.utils.logger import setup_logger
 DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
 DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
 DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
-
-# --- 튜닝 결과 CSV 컬럼명 ---
-COL_A = "a"
-COL_B = "b"
-COL_RMSE_PCT = "rmse_pct"
 
 # --- 출력용 한글 레이블 ---
 DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
@@ -105,7 +103,7 @@ DEFAULT_OVERFITTING_THRESHOLD_HIGH = 1.5  # 강한 과최적화 경계 (%p)
 # ============================================================
 # Logger 설정
 # ============================================================
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 
 # ============================================================
 # 데이터 빌드 (캐시)

@@ -316,11 +316,8 @@ def aggregate_monthly(
     if daily_df.empty:
         raise ValueError("daily_df가 비어있음 (월별 집계 불가)")
 
-    missing_cols = []
-    if date_col not in daily_df.columns:
-        missing_cols.append(date_col)
-    if signed_col not in daily_df.columns:
-        missing_cols.append(signed_col)
+    required_cols = [date_col, signed_col]
+    missing_cols = sorted(set(required_cols) - set(daily_df.columns))
 
     if missing_cols:
         raise ValueError(f"필수 컬럼 누락: {missing_cols}\n보유 컬럼: {list(daily_df.columns)}\n조치: 컬럼명 확인 (대소문자 구분)")
@@ -490,7 +487,7 @@ def save_monthly_features(monthly_df: pd.DataFrame, output_path: Path) -> None:
     """
     # 1. 필수 컬럼 검증
     required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
-    missing = [col for col in required_cols if col not in monthly_df.columns]
+    missing = sorted(set(required_cols) - set(monthly_df.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
@@ -608,7 +605,7 @@ def save_summary_statistics(monthly_df: pd.DataFrame, output_path: Path) -> None
     """
     # 1. 필수 컬럼 검증
     required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
-    missing = [col for col in required_cols if col not in monthly_df.columns]
+    missing = sorted(set(required_cols) - set(monthly_df.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
@@ -900,7 +897,7 @@ def build_model_dataset(
     """
     # 필수 컬럼 검증
     required_cols = [COL_MONTH, COL_RATE_PCT, COL_DR_M, COL_E_M, COL_DE_M, COL_SUM_DAILY_M]
-    missing = [col for col in required_cols if col not in df_monthly.columns]
+    missing = sorted(set(required_cols) - set(df_monthly.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
@@ -991,7 +988,7 @@ def save_model_csv(df_model: pd.DataFrame, output_path: Path) -> None:
     """
     # 필수 컬럼 검증
     required_cols = [COL_MODEL_MONTH, COL_MODEL_SCHEMA_VERSION]
-    missing = [col for col in required_cols if col not in df_model.columns]
+    missing = sorted(set(required_cols) - set(df_model.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
@@ -1085,7 +1082,7 @@ def save_walkforward_results(result_df: pd.DataFrame, output_path: Path) -> None
         ValueError: 필수 컬럼 누락 시
     """
     # 1. 필수 컬럼 검증
-    missing = [col for col in _WALKFORWARD_REQUIRED_COLUMNS if col not in result_df.columns]
+    missing = sorted(set(_WALKFORWARD_REQUIRED_COLUMNS) - set(result_df.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 
@@ -1139,7 +1136,7 @@ def save_walkforward_summary(summary: WalkforwardSummaryDict, output_path: Path)
         "n_test_months",
         "train_window_months",
     ]
-    missing = [key for key in required_keys if key not in summary]
+    missing = sorted(set(required_keys) - set(summary))
     if missing:
         raise ValueError(f"필수 키 누락: {missing}")
 
@@ -1210,7 +1207,7 @@ def save_static_spread_series(df: pd.DataFrame, output_path: Path) -> None:
         ValueError: 필수 컬럼 누락 시
     """
     # 1. 필수 컬럼 검증
-    missing = [col for col in _STATIC_SPREAD_REQUIRED_COLUMNS if col not in df.columns]
+    missing = sorted(set(_STATIC_SPREAD_REQUIRED_COLUMNS) - set(df.columns))
     if missing:
         raise ValueError(f"필수 컬럼 누락: {missing}")
 

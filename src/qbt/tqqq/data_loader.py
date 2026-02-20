@@ -123,7 +123,7 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=[DISPLAY_DATE])
 
     # 필수 컬럼 검증
-    missing_columns = [col for col in COMPARISON_COLUMNS if col not in df.columns]
+    missing_columns = sorted(set(COMPARISON_COLUMNS) - set(df.columns))
     if missing_columns:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
 

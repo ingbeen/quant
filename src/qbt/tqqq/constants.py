@@ -23,7 +23,6 @@ from qbt.common_constants import (
 # --- 데이터 파일 경로 ---
 # TQQQ (3배 레버리지 ETF) 데이터 파일 경로
 TQQQ_DATA_PATH: Final = STOCK_DIR / "TQQQ_max.csv"
-TQQQ_SYNTHETIC_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
 # 연방기금금리 월별 데이터 파일 경로
 FFR_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_monthly.csv"
@@ -48,7 +47,6 @@ __all__ = [
     "FFR_DATA_PATH",
     "EXPENSE_RATIO_DATA_PATH",
     "TQQQ_DATA_PATH",
-    "TQQQ_SYNTHETIC_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
     "SPREAD_LAB_DIR",
     "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
@@ -91,6 +89,10 @@ __all__ = [
     "COL_DR_LAG1",
     "COL_DR_LAG2",
     "COL_DAILY_SIGNED",
+    # 튜닝 결과 CSV 컬럼
+    "COL_A",
+    "COL_B",
+    "COL_RMSE_PCT",
     # UI 레이블
     "DISPLAY_ERROR_END_OF_MONTH_PCT",
     # 딕셔너리 키
@@ -255,6 +257,11 @@ COL_SUM_DAILY_M: Final = "sum_daily_m"  # 일일 오차 월합 (%)
 COL_DR_LAG1: Final = "dr_lag1"  # 금리 변화 Lag1 (%p)
 COL_DR_LAG2: Final = "dr_lag2"  # 금리 변화 Lag2 (%p)
 COL_DAILY_SIGNED: Final = "daily_signed"  # 일일 증분 signed 로그오차
+
+# --- 튜닝 결과 CSV 컬럼 ---
+COL_A: Final = "a"  # softplus 파라미터 a
+COL_B: Final = "b"  # softplus 파라미터 b
+COL_RMSE_PCT: Final = "rmse_pct"  # RMSE (%)
 
 
 # ============================================================

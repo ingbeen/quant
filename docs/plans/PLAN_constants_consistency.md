@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-02-20 20:00
-**마지막 업데이트**: 2026-02-20 20:00
+**마지막 업데이트**: 2026-02-20 21:00
 **관련 범위**: src/qbt/tqqq, src/qbt/common_constants, scripts/tqqq
 **관련 문서**: `CLAUDE.md`(루트), `src/qbt/tqqq/CLAUDE.md`, `scripts/CLAUDE.md`
 
@@ -41,8 +41,8 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: 중복 정의된 상수 통합 (보고서 D-2, D-8)
-- [ ] 목표 2: 코드 일관성 확보 — 로거, CSV 인코딩, Path 사용, 컬럼 검증 패턴 (보고서 F-2, F-3, F-5, F-6)
+- [x] 목표 1: 중복 정의된 상수 통합 (보고서 D-2, D-8)
+- [x] 목표 2: 코드 일관성 확보 — 로거, CSV 인코딩, Path 사용, 컬럼 검증 패턴 (보고서 F-2, F-3, F-5, F-6)
 
 ## 2) 비목표(Non-Goals)
 
@@ -73,15 +73,15 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] D-2: `COL_A`, `COL_B`, `COL_RMSE_PCT`가 `tqqq/constants.py`에 1곳만 정의
-- [ ] D-8: `TQQQ_SYNTHETIC_PATH` 중복 제거, 1곳만 유지
-- [ ] F-2: 동일 도메인 내 CSV 인코딩 통일
-- [ ] F-3: 로거 초기화 `get_logger()`로 통일
-- [ ] F-5: 누락 컬럼 검증 패턴 통일
-- [ ] F-6: `os.path.getmtime` → `Path.stat().st_mtime` 대체
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] plan 체크박스 최신화
+- [x] D-2: `COL_A`, `COL_B`, `COL_RMSE_PCT`가 `tqqq/constants.py`에 1곳만 정의
+- [x] D-8: `TQQQ_SYNTHETIC_PATH` 중복 제거, 1곳만 유지
+- [x] F-2: 동일 도메인 내 CSV 인코딩 통일
+- [x] F-3: 로거 초기화 `get_logger()`로 통일
+- [x] F-5: 누락 컬럼 검증 패턴 통일
+- [x] F-6: `os.path.getmtime` → `Path.stat().st_mtime` 대체
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -118,9 +118,9 @@
 
 **작업 내용**:
 
-- [ ] D-2: `src/qbt/tqqq/constants.py`에 `COL_A`, `COL_B`, `COL_RMSE_PCT` 상수 추가
-- [ ] D-2: 4개 스크립트에서 로컬 정의 제거, `from qbt.tqqq.constants import COL_A, COL_B, COL_RMSE_PCT`로 변경
-- [ ] D-8: `TQQQ_SYNTHETIC_PATH` 사용처를 `TQQQ_SYNTHETIC_DATA_PATH`로 통일
+- [x] D-2: `src/qbt/tqqq/constants.py`에 `COL_A`, `COL_B`, `COL_RMSE_PCT` 상수 추가
+- [x] D-2: 4개 스크립트에서 로컬 정의 제거, `from qbt.tqqq.constants import COL_A, COL_B, COL_RMSE_PCT`로 변경
+- [x] D-8: `TQQQ_SYNTHETIC_PATH` 사용처를 `TQQQ_SYNTHETIC_DATA_PATH`로 통일
   - `tqqq/constants.py`에서 `TQQQ_SYNTHETIC_PATH` 제거
   - 기존 import 경로 업데이트
 
@@ -130,10 +130,10 @@
 
 **작업 내용**:
 
-- [ ] F-2: `simulation.py`의 `_save_daily_comparison_csv` 인코딩을 `utf-8`로 변경
-- [ ] F-3: `app_rate_spread_lab.py`의 `from qbt.utils.logger import setup_logger` → `from qbt.utils import get_logger`
-- [ ] F-5: 누락 컬럼 검증 패턴을 `set` 차집합 방식(`sorted(set(required) - set(df.columns))`)으로 통일
-- [ ] F-6: `app_daily_comparison.py`에서 `import os` 제거, `os.path.getmtime(path)` → `path.stat().st_mtime`
+- [x] F-2: `simulation.py`의 `_save_daily_comparison_csv` 인코딩을 `utf-8`로 변경
+- [x] F-3: `app_rate_spread_lab.py`의 `from qbt.utils.logger import setup_logger` → `from qbt.utils import get_logger`
+- [x] F-5: 누락 컬럼 검증 패턴을 `set` 차집합 방식(`sorted(set(required) - set(df.columns))`)으로 통일
+- [x] F-6: `app_daily_comparison.py`에서 `import os` 제거, `os.path.getmtime(path)` → `path.stat().st_mtime`
 
 ---
 
@@ -141,13 +141,13 @@
 
 **작업 내용**:
 
-- [ ] `tqqq/CLAUDE.md`에 새로 추가된 상수(`COL_A`, `COL_B`, `COL_RMSE_PCT`) 반영
-- [ ] `poetry run black .` 실행
-- [ ] DoD 체크리스트 최종 업데이트
+- [x] `tqqq/CLAUDE.md`에 새로 추가된 상수(`COL_A`, `COL_B`, `COL_RMSE_PCT`) 반영
+- [x] `poetry run black .` 실행
+- [x] DoD 체크리스트 최종 업데이트
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=301, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -171,5 +171,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-20 20:00: 계획서 초안 작성
+- 2026-02-20 21:00: Phase 1~3 완료, validate_project 통과 (passed=301, failed=0, skipped=0)
 
 ---

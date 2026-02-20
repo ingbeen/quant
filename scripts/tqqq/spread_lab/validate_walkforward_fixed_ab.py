@@ -22,6 +22,8 @@ import pandas as pd
 from qbt.common_constants import COL_CLOSE, COL_DATE, META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_walkforward_results, save_walkforward_summary
 from qbt.tqqq.constants import (
+    COL_A,
+    COL_B,
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_RATE_BOUNDARY_PCT,
     DEFAULT_TRAIN_WINDOW_MONTHS,
@@ -52,10 +54,6 @@ from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
-
-# 튜닝 CSV 컬럼명
-COL_A = "a"
-COL_B = "b"
 
 
 @cli_exception_handler

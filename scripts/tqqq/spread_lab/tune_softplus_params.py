@@ -17,6 +17,9 @@ import pandas as pd
 from qbt.common_constants import META_JSON_PATH, QQQ_DATA_PATH
 from qbt.tqqq.analysis_helpers import save_static_spread_series
 from qbt.tqqq.constants import (
+    COL_A,
+    COL_B,
+    COL_RMSE_PCT,
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -44,11 +47,6 @@ from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
-
-# CSV 컬럼명
-COL_A = "a"
-COL_B = "b"
-COL_RMSE_PCT = "rmse_pct"
 
 
 @cli_exception_handler

@@ -24,6 +24,7 @@ from qbt.common_constants import (
     COL_DATE,
     PRICE_COLUMNS,
     QQQ_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.tqqq import build_monthly_spread_map, simulate
 from qbt.tqqq.constants import (
@@ -35,7 +36,6 @@ from qbt.tqqq.constants import (
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     TQQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_PATH,
 )
 from qbt.tqqq.data_loader import (
     create_expense_dict,
@@ -170,13 +170,13 @@ def main() -> int:
     logger.debug(f"  실제 구간: {len(actual_from_overlap):,}행 ({overlap_date} ~)")
 
     # 8. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
-    TQQQ_SYNTHETIC_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TQQQ_SYNTHETIC_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     for col in PRICE_COLUMNS:
         if col in merged_df.columns:
             merged_df[col] = merged_df[col].round(6)
 
-    merged_df.to_csv(TQQQ_SYNTHETIC_PATH, index=False)
-    logger.debug(f"병합 데이터 저장 완료: {TQQQ_SYNTHETIC_PATH}")
+    merged_df.to_csv(TQQQ_SYNTHETIC_DATA_PATH, index=False)
+    logger.debug(f"병합 데이터 저장 완료: {TQQQ_SYNTHETIC_DATA_PATH}")
 
     # 9. 결과 요약 출력
     initial_close = float(merged_df.iloc[0][COL_CLOSE])
@@ -190,7 +190,7 @@ def main() -> int:
     # 10. 메타데이터 저장
     synthetic_end_date = synthetic_before[COL_DATE].max()
     actual_end_date = actual_from_overlap[COL_DATE].max()
-    file_size_bytes = TQQQ_SYNTHETIC_PATH.stat().st_size
+    file_size_bytes = TQQQ_SYNTHETIC_DATA_PATH.stat().st_size
 
     metadata = {
         "execution_params": {
@@ -218,7 +218,7 @@ def main() -> int:
             "cumulative_return_pct": round(cumulative_return_pct, 2),
         },
         "csv_info": {
-            "path": str(TQQQ_SYNTHETIC_PATH),
+            "path": str(TQQQ_SYNTHETIC_DATA_PATH),
             "row_count": len(merged_df),
             "file_size_bytes": file_size_bytes,
         },
