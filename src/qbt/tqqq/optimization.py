@@ -24,6 +24,7 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_DAYS,
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
+    MAX_FFR_MONTHS_DIFF,
     SOFTPLUS_GRID_STAGE1_A_RANGE,
     SOFTPLUS_GRID_STAGE1_A_STEP,
     SOFTPLUS_GRID_STAGE1_B_RANGE,
@@ -38,6 +39,7 @@ from qbt.tqqq.data_loader import (
     create_ffr_dict,
     lookup_expense,
     lookup_ffr,
+    lookup_monthly_data,
 )
 from qbt.tqqq.simulation import (
     calculate_metrics_fast,
@@ -120,8 +122,7 @@ def _precompute_daily_costs_vectorized(
         일별 비용 배열 (len = len(month_keys))
 
     Raises:
-        ValueError: spread_map에 필요한 월 키가 누락된 경우
-        ValueError: FFR 또는 Expense 데이터 조회 실패 시
+        ValueError: spread, FFR 또는 Expense 데이터 조회 실패 시 (최대 허용 월 차이 초과)
     """
     # 1. 고유 월만 추출 (순서 유지, 중복 제거)
     unique_months: list[str] = list(dict.fromkeys(str(mk) for mk in month_keys))
@@ -137,13 +138,8 @@ def _precompute_daily_costs_vectorized(
         # Expense 조회 (lookup_expense와 동일한 fallback 로직)
         expense = lookup_expense(d, expense_dict)
 
-        # Spread 조회 (dict 타입: 정확한 키 필요, fallback 없음)
-        if month_key not in spread_map:
-            raise ValueError(
-                f"spread_map에 키 누락: {month_key}\n"
-                f"보유 키: {sorted(spread_map.keys())[:5]}{'...' if len(spread_map) > 5 else ''}"
-            )
-        spread = spread_map[month_key]
+        # Spread 조회 (FFR과 동일하게 최대 2개월 fallback 적용)
+        spread = lookup_monthly_data(d, spread_map, MAX_FFR_MONTHS_DIFF, "spread")
 
         # 일일 비용 = ((FFR + spread) * (leverage - 1) + expense) / 거래일수
         funding_rate = ffr + spread

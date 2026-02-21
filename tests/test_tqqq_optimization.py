@@ -771,7 +771,7 @@ class TestPrecomputeDailyCostsVectorizedErrors:
 
         Given: month_keys에 "2023-01"이 있지만 spread_map은 빈 dict
         When: _precompute_daily_costs_vectorized 호출
-        Then: ValueError 발생, "spread_map" 메시지 포함
+        Then: ValueError 발생, "spread 데이터 부족" 메시지 포함
         """
         # Given
         month_keys = np.array(["2023-01", "2023-01", "2023-01"])
@@ -781,7 +781,7 @@ class TestPrecomputeDailyCostsVectorizedErrors:
         leverage = 3.0
 
         # When & Then
-        with pytest.raises(ValueError, match="spread_map"):
+        with pytest.raises(ValueError, match="spread"):
             _precompute_daily_costs_vectorized(
                 month_keys=month_keys,
                 ffr_dict=ffr_dict,
