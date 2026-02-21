@@ -130,10 +130,12 @@
 - `tune_softplus_params.py`, `validate_walkforward_fixed_b.py`, `validate_walkforward_fixed_ab.py`, `app_rate_spread_lab.py`
 - **해결**: `tqqq/constants.py`로 통합, 4개 스크립트에서 import 방식으로 변경
 
-### D-3. 3개 워크포워드 검증 스크립트의 구조적 중복 `[향후 과제]`
+### D-3. 3개 워크포워드 검증 스크립트의 구조적 중복 `[해결됨]`
 
-- `validate_walkforward.py`, `validate_walkforward_fixed_b.py`, `validate_walkforward_fixed_ab.py`
-- 데이터 로딩 → 출력 → 실행 → 저장 패턴 거의 동일
+- 단일 `validate_walkforward.py`로 통합 (3가지 모드 순차 실행)
+- `validate_walkforward_fixed_b.py`, `validate_walkforward_fixed_ab.py` 삭제
+- 데이터 로딩 1회 공유, 공통 헬퍼 함수 추출로 중복 제거
+- `optimization.py`, `walkforward.py`의 병렬처리를 순차 실행으로 전환 (ProcessPool 오버헤드 제거)
 
 ### D-4. `simulation.py` 파일 크기 과대 (2108줄) `[해결됨 - Plan 7]`
 
@@ -292,7 +294,6 @@
 
 아래 항목은 대규모 구조 변경으로, 별도의 독립 계획서로 다루는 것을 권장합니다:
 
-- **D-3**: 3개 워크포워드 스크립트 통합
 - **D-5**: app_rate_spread_lab.py(1762줄) 파일 분할
 
 ---

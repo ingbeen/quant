@@ -82,7 +82,6 @@ class TestLocalRefineSearch:
             a_prev=a_prev,
             b_prev=b_prev,
             leverage=3.0,
-            max_workers=1,
         )
 
         # Then
@@ -130,7 +129,6 @@ class TestLocalRefineSearch:
             a_prev=a_prev,
             b_prev=b_prev,
             leverage=3.0,
-            max_workers=1,
         )
 
         # Then: 모든 candidate의 b >= 0
@@ -263,7 +261,6 @@ class TestRunWalkforwardValidation:
             expense_df=expense_df,
             leverage=3.0,
             train_window_months=2,
-            max_workers=1,
             fixed_b=fixed_b_value,
         )
 

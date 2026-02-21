@@ -76,7 +76,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 ### 5. optimization.py
 
 softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-Stage Grid Search로 탐색합니다.
-벡터화된 시뮬레이션과 병렬 처리를 사용하여 성능을 최적화합니다.
+벡터화된 시뮬레이션을 사용하여 성능을 최적화합니다.
 
 주요 함수:
 
@@ -301,9 +301,7 @@ Streamlit 앱은 CLI 스크립트 실행 결과 CSV를 로드하여 시각화합
 
 - `generate_rate_spread_lab.py`: 금리-오차 관계 분석용 CSV 3개 생성 (monthly, summary, model)
 - `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
-- `validate_walkforward.py`: 워크포워드 검증 (60개월 Train, 1개월 Test)
-- `validate_walkforward_fixed_b.py`: b 고정 워크포워드 검증 (b 고정, a만 최적화)
-- `validate_walkforward_fixed_ab.py`: 완전 고정 (a,b) 워크포워드 검증 (과최적화 진단)
+- `validate_walkforward.py`: 워크포워드 검증 통합 (3가지 모드 순차 실행: 동적/b고정/완전고정)
 - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
 
 ---

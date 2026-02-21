@@ -1,7 +1,7 @@
 """레버리지 ETF 시뮬레이션 파라미터 최적화 모듈
 
 softplus 동적 스프레드 모델의 최적 (a, b) 파라미터를 2-Stage Grid Search로 탐색한다.
-벡터화된 시뮬레이션과 병렬 처리를 사용하여 성능을 최적화한다.
+벡터화된 시뮬레이션을 사용하여 성능을 최적화한다.
 """
 
 from datetime import date
@@ -48,7 +48,7 @@ from qbt.tqqq.simulation import (
 from qbt.tqqq.types import SimulationCacheDict, SoftplusCandidateDict
 from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period
-from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel, init_worker_cache
+from qbt.utils.parallel_executor import WORKER_CACHE, init_worker_cache
 
 logger = get_logger(__name__)
 
@@ -180,7 +180,7 @@ def _simulate_prices_vectorized(
         시뮬레이션 가격 numpy 배열
     """
     # 1. 레버리지 수익률 계산
-    leveraged_returns = underlying_returns * leverage - daily_costs
+    leveraged_returns: np.ndarray = np.multiply(underlying_returns, leverage) - daily_costs
 
     # 2. 첫날은 수익률 없음 (initial_price 유지)
     leveraged_returns[0] = 0.0
@@ -360,7 +360,6 @@ def find_optimal_softplus_params(
     ffr_df: pd.DataFrame,
     expense_df: pd.DataFrame,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
-    max_workers: int | None = None,
     fixed_b: float | None = None,
 ) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
@@ -377,7 +376,6 @@ def find_optimal_softplus_params(
         ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float)
         expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
         leverage: 레버리지 배수 (기본값: 3.0)
-        max_workers: 최대 워커 수 (None이면 기본값 2)
         fixed_b: b 파라미터 고정값 (None이면 b도 그리드 서치, 설정 시 a만 최적화)
 
     Returns:
@@ -438,14 +436,9 @@ def find_optimal_softplus_params(
 
     logger.debug(f"Stage 1 조합 수: {len(param_combinations_s1)}")
 
-    # Stage 1 병렬 실행
-    candidates_s1 = execute_parallel(
-        evaluate_softplus_candidate,
-        param_combinations_s1,
-        max_workers=max_workers,
-        initializer=init_worker_cache,
-        initargs=(cache_data,),
-    )
+    # Stage 1 순차 실행
+    init_worker_cache(dict(cache_data))
+    candidates_s1 = [evaluate_softplus_candidate(p) for p in param_combinations_s1]
 
     # Stage 1 최적값 찾기
     candidates_s1.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
@@ -496,14 +489,9 @@ def find_optimal_softplus_params(
 
     logger.debug(f"Stage 2 조합 수: {len(param_combinations_s2)}")
 
-    # Stage 2 병렬 실행
-    candidates_s2 = execute_parallel(
-        evaluate_softplus_candidate,
-        param_combinations_s2,
-        max_workers=max_workers,
-        initializer=init_worker_cache,
-        initargs=(cache_data,),
-    )
+    # Stage 2 순차 실행
+    init_worker_cache(dict(cache_data))
+    candidates_s2 = [evaluate_softplus_candidate(p) for p in param_combinations_s2]
 
     # Stage 2 최적값 찾기
     candidates_s2.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])

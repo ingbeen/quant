@@ -38,7 +38,7 @@ from qbt.tqqq.simulation import (
 from qbt.tqqq.types import SoftplusCandidateDict, WalkforwardSummaryDict
 from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period
-from qbt.utils.parallel_executor import execute_parallel, init_worker_cache
+from qbt.utils.parallel_executor import init_worker_cache
 
 logger = get_logger(__name__)
 
@@ -51,7 +51,6 @@ def _local_refine_search(
     a_prev: float,
     b_prev: float,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
-    max_workers: int | None = None,
     fixed_b: float | None = None,
 ) -> tuple[float, float, float, list[SoftplusCandidateDict]]:
     """
@@ -72,7 +71,6 @@ def _local_refine_search(
         a_prev: 직전 월 최적 a 파라미터
         b_prev: 직전 월 최적 b 파라미터
         leverage: 레버리지 배수 (기본값: 3.0)
-        max_workers: 최대 워커 수 (None이면 기본값 2)
         fixed_b: b 파라미터 고정값 (None이면 b도 탐색, 설정 시 a만 탐색)
 
     Returns:
@@ -120,15 +118,9 @@ def _local_refine_search(
         f"b in [{b_log_min:.4f}, {b_log_max:.4f}], 조합 수: {len(param_combinations)}"
     )
 
-    # 3. 병렬 실행
-    candidates = execute_parallel(
-        evaluate_softplus_candidate,
-        param_combinations,
-        max_workers=max_workers,
-        initializer=init_worker_cache,
-        initargs=(cache_data,),
-        log_progress=False,
-    )
+    # 3. 순차 실행
+    init_worker_cache(dict(cache_data))
+    candidates = [evaluate_softplus_candidate(p) for p in param_combinations]
 
     # 4. RMSE 기준 정렬 및 최적값 추출
     candidates.sort(key=lambda x: x[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE])
@@ -149,7 +141,6 @@ def run_walkforward_validation(
     expense_df: pd.DataFrame,
     leverage: float = DEFAULT_LEVERAGE_MULTIPLIER,
     train_window_months: int = DEFAULT_TRAIN_WINDOW_MONTHS,
-    max_workers: int | None = None,
     fixed_b: float | None = None,
 ) -> tuple[pd.DataFrame, WalkforwardSummaryDict]:
     """
@@ -166,7 +157,6 @@ def run_walkforward_validation(
         expense_df: 운용비용 DataFrame
         leverage: 레버리지 배수 (기본값: 3.0)
         train_window_months: 학습 기간 (기본값: 60개월)
-        max_workers: 최대 워커 수 (None이면 기본값 2)
         fixed_b: b 파라미터 고정값 (None이면 b도 최적화, 설정 시 a만 최적화)
 
     Returns:
@@ -248,7 +238,6 @@ def run_walkforward_validation(
                 ffr_df=ffr_df,
                 expense_df=expense_df,
                 leverage=leverage,
-                max_workers=max_workers,
                 fixed_b=fixed_b,
             )
         else:
@@ -263,7 +252,6 @@ def run_walkforward_validation(
                 a_prev=a_prev,
                 b_prev=b_prev,
                 leverage=leverage,
-                max_workers=max_workers,
                 fixed_b=fixed_b,
             )
 

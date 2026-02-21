@@ -944,6 +944,170 @@
         "test_step_months": 1,
         "test_month_ffr_usage": "same_month"
       },
+      "summary": {
+        "test_rmse_mean": 0.1191,
+        "test_rmse_median": 0.0938,
+        "test_rmse_std": 0.1294,
+        "test_rmse_min": 0.019,
+        "test_rmse_max": 1.3664,
+        "a_mean": -6.032,
+        "a_std": 0.875,
+        "b_mean": 0.5164,
+        "b_std": 0.5989,
+        "n_test_months": 133,
+        "stitched_rmse": 2.9405
+      },
+      "elapsed_time_sec": 16.3,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
+      },
+      "tuning_policy": {
+        "first_window": "full_grid_2stage",
+        "subsequent_windows": "local_refine",
+        "local_refine_a_delta": 0.5,
+        "local_refine_a_step": 0.05,
+        "local_refine_b_delta": 0.15,
+        "local_refine_b_step": 0.02
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv"
+      },
+      "timestamp": "2026-02-21T18:02:43+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1191,
+        "test_rmse_median": 0.0938,
+        "test_rmse_std": 0.1294,
+        "test_rmse_min": 0.019,
+        "test_rmse_max": 1.3664,
+        "a_mean": -6.032,
+        "a_std": 0.875,
+        "b_mean": 0.5164,
+        "b_std": 0.5989,
+        "n_test_months": 133,
+        "stitched_rmse": 2.9405
+      },
+      "elapsed_time_sec": 16.38,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
+      },
+      "tuning_policy": {
+        "first_window": "full_grid_2stage",
+        "subsequent_windows": "local_refine",
+        "local_refine_a_delta": 0.5,
+        "local_refine_a_step": 0.05,
+        "local_refine_b_delta": 0.15,
+        "local_refine_b_step": 0.02
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv"
+      },
+      "timestamp": "2026-02-21T18:00:51+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1191,
+        "test_rmse_median": 0.0938,
+        "test_rmse_std": 0.1294,
+        "test_rmse_min": 0.019,
+        "test_rmse_max": 1.3664,
+        "a_mean": -6.032,
+        "a_std": 0.875,
+        "b_mean": 0.5164,
+        "b_std": 0.5989,
+        "n_test_months": 133,
+        "stitched_rmse": 2.9405
+      },
+      "elapsed_time_sec": 16.7,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
+      },
+      "tuning_policy": {
+        "first_window": "full_grid_2stage",
+        "subsequent_windows": "local_refine",
+        "local_refine_a_delta": 0.5,
+        "local_refine_a_step": 0.05,
+        "local_refine_b_delta": 0.15,
+        "local_refine_b_step": 0.02
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:58:58+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "tuning_policy": {
+        "first_window": "full_grid_2stage",
+        "subsequent_windows": "local_refine",
+        "local_refine_a_delta": 0.5,
+        "local_refine_a_step": 0.05,
+        "local_refine_b_delta": 0.15,
+        "local_refine_b_step": 0.02
+      },
+      "summary": {
+        "test_rmse_mean": 0.1191,
+        "test_rmse_median": 0.0938,
+        "test_rmse_std": 0.1294,
+        "test_rmse_min": 0.019,
+        "test_rmse_max": 1.3664,
+        "a_mean": -6.032,
+        "a_std": 0.875,
+        "b_mean": 0.5164,
+        "b_std": 0.5989,
+        "n_test_months": 133,
+        "stitched_rmse": 2.9405
+      },
+      "elapsed_time_sec": 80.87,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:27:48+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
       "tuning_policy": {
         "first_window": "full_grid_2stage",
         "subsequent_windows": "local_refine",
@@ -977,170 +1141,26 @@
         "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv"
       },
       "timestamp": "2026-02-21T16:55:21+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "tuning_policy": {
-        "first_window": "full_grid_2stage",
-        "subsequent_windows": "local_refine",
-        "local_refine_a_delta": 0.5,
-        "local_refine_a_step": 0.05,
-        "local_refine_b_delta": 0.15,
-        "local_refine_b_step": 0.02
-      },
-      "summary": {
-        "test_rmse_mean": 0.1201,
-        "test_rmse_median": 0.094,
-        "test_rmse_std": 0.1302,
-        "test_rmse_min": 0.019,
-        "test_rmse_max": 1.3665,
-        "a_mean": -6.0508,
-        "a_std": 0.8682,
-        "b_mean": 0.5247,
-        "b_std": 0.6001,
-        "n_test_months": 131,
-        "stitched_rmse": 2.9167
-      },
-      "elapsed_time_sec": 79.17,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv"
-      },
-      "timestamp": "2026-02-14T11:11:05+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "tuning_policy": {
-        "first_window": "full_grid_2stage",
-        "subsequent_windows": "local_refine",
-        "local_refine_a_delta": 0.5,
-        "local_refine_a_step": 0.05,
-        "local_refine_b_delta": 0.15,
-        "local_refine_b_step": 0.02
-      },
-      "summary": {
-        "test_rmse_mean": 0.1201,
-        "test_rmse_median": 0.094,
-        "test_rmse_std": 0.1302,
-        "test_rmse_min": 0.019,
-        "test_rmse_max": 1.3665,
-        "a_mean": -6.0508,
-        "a_std": 0.8682,
-        "b_mean": 0.5247,
-        "b_std": 0.6001,
-        "n_test_months": 131
-      },
-      "elapsed_time_sec": 85.86,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv"
-      },
-      "timestamp": "2026-02-08T18:50:00+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "tuning_policy": {
-        "first_window": "full_grid_2stage",
-        "subsequent_windows": "local_refine",
-        "local_refine_a_delta": 0.5,
-        "local_refine_a_step": 0.05,
-        "local_refine_b_delta": 0.15,
-        "local_refine_b_step": 0.02
-      },
-      "summary": {
-        "test_rmse_mean": 0.1201,
-        "test_rmse_median": 0.094,
-        "test_rmse_std": 0.1302,
-        "test_rmse_min": 0.019,
-        "test_rmse_max": 1.3665,
-        "a_mean": -6.0508,
-        "a_std": 0.8682,
-        "b_mean": 0.5247,
-        "b_std": 0.6001,
-        "n_test_months": 131
-      },
-      "elapsed_time_sec": 88.06,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv"
-      },
-      "timestamp": "2026-02-08T18:48:19+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "tuning_policy": {
-        "first_window": "full_grid_2stage",
-        "subsequent_windows": "local_refine",
-        "local_refine_a_delta": 0.5,
-        "local_refine_a_step": 0.05,
-        "local_refine_b_delta": 0.15,
-        "local_refine_b_step": 0.02
-      },
-      "summary": {
-        "test_rmse_mean": 0.1201,
-        "test_rmse_median": 0.094,
-        "test_rmse_std": 0.1302,
-        "test_rmse_min": 0.019,
-        "test_rmse_max": 1.3665,
-        "a_mean": -6.0508,
-        "a_std": 0.8682,
-        "b_mean": 0.5247,
-        "b_std": 0.6001,
-        "n_test_months": 131
-      },
-      "elapsed_time_sec": 181.43,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_summary.csv"
-      },
-      "timestamp": "2026-02-08T18:46:37+09:00"
     }
   ],
   "tqqq_rate_spread_lab": [
+    {
+      "input_files": {
+        "daily_comparison": "storage/results/tqqq/tqqq_daily_comparison.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
+      },
+      "output_files": {
+        "monthly_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_monthly.csv",
+        "summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_summary.csv",
+        "model_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_model.csv"
+      },
+      "analysis_period": {
+        "month_min": "2010-02",
+        "month_max": "2026-02",
+        "total_months": 193
+      },
+      "timestamp": "2026-02-21T17:31:45+09:00"
+    },
     {
       "input_files": {
         "daily_comparison": "storage/results/tqqq/tqqq_daily_comparison.csv",
@@ -1208,26 +1228,157 @@
         "total_months": 191
       },
       "timestamp": "2026-02-11T16:22:41+09:00"
-    },
-    {
-      "input_files": {
-        "daily_comparison": "storage/results/tqqq_daily_comparison.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv"
-      },
-      "output_files": {
-        "monthly_csv": "storage/results/tqqq_rate_spread_lab_monthly.csv",
-        "summary_csv": "storage/results/tqqq_rate_spread_lab_summary.csv",
-        "model_csv": "storage/results/tqqq_rate_spread_lab_model.csv"
-      },
-      "analysis_period": {
-        "month_min": "2010-02",
-        "month_max": "2025-12",
-        "total_months": 191
-      },
-      "timestamp": "2026-02-03T19:27:03+09:00"
     }
   ],
   "tqqq_walkforward_fixed_b": [
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1376,
+        "test_rmse_median": 0.1094,
+        "test_rmse_std": 0.1309,
+        "test_rmse_min": 0.0292,
+        "test_rmse_max": 1.3653,
+        "a_mean": -6.1316,
+        "a_std": 0.431,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 2.159
+      },
+      "elapsed_time_sec": 6.82,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "b_mode": "fixed",
+      "b_fixed_value": 0.37,
+      "b_source": "global_tuning",
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+      },
+      "timestamp": "2026-02-21T18:02:50+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1376,
+        "test_rmse_median": 0.1094,
+        "test_rmse_std": 0.1309,
+        "test_rmse_min": 0.0292,
+        "test_rmse_max": 1.3653,
+        "a_mean": -6.1316,
+        "a_std": 0.431,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 2.159
+      },
+      "elapsed_time_sec": 6.04,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "b_mode": "fixed",
+      "b_fixed_value": 0.37,
+      "b_source": "global_tuning",
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+      },
+      "timestamp": "2026-02-21T18:00:58+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1376,
+        "test_rmse_median": 0.1094,
+        "test_rmse_std": 0.1309,
+        "test_rmse_min": 0.0292,
+        "test_rmse_max": 1.3653,
+        "a_mean": -6.1316,
+        "a_std": 0.431,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 2.159
+      },
+      "elapsed_time_sec": 6.33,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "b_mode": "fixed",
+      "b_fixed_value": 0.37,
+      "b_source": "global_tuning",
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:59:05+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "b_mode": "fixed",
+      "b_fixed_value": 0.37,
+      "b_source": "global_tuning",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1376,
+        "test_rmse_median": 0.1094,
+        "test_rmse_std": 0.1309,
+        "test_rmse_min": 0.0292,
+        "test_rmse_max": 1.3653,
+        "a_mean": -6.1316,
+        "a_std": 0.431,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 2.159
+      },
+      "elapsed_time_sec": 68.32,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:29:40+09:00"
+    },
     {
       "funding_spread_mode": "softplus_ffr_monthly",
       "b_mode": "fixed",
@@ -1264,46 +1415,185 @@
         "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
       },
       "timestamp": "2026-02-21T16:56:58+09:00"
-    },
+    }
+  ],
+  "tqqq_walkforward_fixed_ab": [
     {
       "funding_spread_mode": "softplus_ffr_monthly",
-      "b_mode": "fixed",
-      "b_fixed_value": 0.37,
-      "b_source": "global_tuning",
       "walkforward_settings": {
         "train_window_months": 60,
         "test_step_months": 1,
         "test_month_ffr_usage": "same_month"
       },
       "summary": {
-        "test_rmse_mean": 0.1389,
-        "test_rmse_median": 0.1126,
-        "test_rmse_std": 0.1315,
-        "test_rmse_min": 0.0292,
-        "test_rmse_max": 1.3653,
-        "a_mean": -6.1321,
-        "a_std": 0.4343,
+        "test_rmse_mean": 0.1234,
+        "test_rmse_median": 0.0943,
+        "test_rmse_std": 0.1282,
+        "test_rmse_min": 0.0254,
+        "test_rmse_max": 1.3619,
+        "a_mean": -6.1,
+        "a_std": 0.0,
         "b_mean": 0.37,
         "b_std": 0.0,
-        "n_test_months": 131,
-        "stitched_rmse": 2.1227
+        "n_test_months": 133,
+        "stitched_rmse": 1.3511
       },
-      "elapsed_time_sec": 66.04,
+      "elapsed_time_sec": 10.69,
       "input_files": {
         "qqq_data": "storage/stock/QQQ_max.csv",
         "tqqq_data": "storage/stock/TQQQ_max.csv",
         "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
         "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
-        "tuning_csv": "storage/results/tqqq_softplus_tuning.csv"
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "ab_mode": "fixed",
+      "a_fixed_value": -6.1,
+      "b_fixed_value": 0.37,
+      "ab_source": "global_tuning",
+      "rate_segmented_rmse": {
+        "low_rate_rmse": 0.9799,
+        "high_rate_rmse": 1.751,
+        "low_rate_days": 1636,
+        "high_rate_days": 1141,
+        "rate_boundary_pct": 2.0
       },
       "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_b.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
       },
-      "timestamp": "2026-02-14T19:35:22+09:00"
-    }
-  ],
-  "tqqq_walkforward_fixed_ab": [
+      "timestamp": "2026-02-21T18:03:01+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1234,
+        "test_rmse_median": 0.0943,
+        "test_rmse_std": 0.1282,
+        "test_rmse_min": 0.0254,
+        "test_rmse_max": 1.3619,
+        "a_mean": -6.1,
+        "a_std": 0.0,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 1.3511
+      },
+      "elapsed_time_sec": 11.94,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "ab_mode": "fixed",
+      "a_fixed_value": -6.1,
+      "b_fixed_value": 0.37,
+      "ab_source": "global_tuning",
+      "rate_segmented_rmse": {
+        "low_rate_rmse": 0.9799,
+        "high_rate_rmse": 1.751,
+        "low_rate_days": 1636,
+        "high_rate_days": 1141,
+        "rate_boundary_pct": 2.0
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+      },
+      "timestamp": "2026-02-21T18:01:09+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1234,
+        "test_rmse_median": 0.0943,
+        "test_rmse_std": 0.1282,
+        "test_rmse_min": 0.0254,
+        "test_rmse_max": 1.3619,
+        "a_mean": -6.1,
+        "a_std": 0.0,
+        "b_mean": 0.37,
+        "b_std": 0.0,
+        "n_test_months": 133,
+        "stitched_rmse": 1.3511
+      },
+      "elapsed_time_sec": 11.4,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "ab_mode": "fixed",
+      "a_fixed_value": -6.1,
+      "b_fixed_value": 0.37,
+      "ab_source": "global_tuning",
+      "rate_segmented_rmse": {
+        "low_rate_rmse": 0.9799,
+        "high_rate_rmse": 1.751,
+        "low_rate_days": 1636,
+        "high_rate_days": 1141,
+        "rate_boundary_pct": 2.0
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:59:16+09:00"
+    },
+    {
+      "funding_spread_mode": "softplus_ffr_monthly",
+      "ab_mode": "fixed",
+      "a_fixed_value": -6.1,
+      "b_fixed_value": 0.37,
+      "ab_source": "global_tuning",
+      "walkforward_settings": {
+        "train_window_months": 60,
+        "test_step_months": 1,
+        "test_month_ffr_usage": "same_month"
+      },
+      "summary": {
+        "test_rmse_mean": 0.1234,
+        "test_rmse_median": 0.0943,
+        "test_rmse_std": 0.1282,
+        "test_rmse_min": 0.0254,
+        "test_rmse_max": 1.3619,
+        "n_test_months": 133,
+        "stitched_rmse": 1.3511
+      },
+      "rate_segmented_rmse": {
+        "low_rate_rmse": 0.9799,
+        "high_rate_rmse": 1.751,
+        "low_rate_days": 1636,
+        "high_rate_days": 1141,
+        "rate_boundary_pct": 2.0
+      },
+      "elapsed_time_sec": 10.36,
+      "input_files": {
+        "qqq_data": "storage/stock/QQQ_max.csv",
+        "tqqq_data": "storage/stock/TQQQ_max.csv",
+        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
+        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
+        "tuning_csv": "storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv"
+      },
+      "output_files": {
+        "walkforward_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
+        "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+      },
+      "timestamp": "2026-02-21T17:29:54+09:00"
+    },
     {
       "funding_spread_mode": "softplus_ffr_monthly",
       "ab_mode": "fixed",
@@ -1344,88 +1634,6 @@
         "walkforward_summary_csv": "storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
       },
       "timestamp": "2026-02-21T16:57:52+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "ab_mode": "fixed",
-      "a_fixed_value": -6.1,
-      "b_fixed_value": 0.37,
-      "ab_source": "global_tuning",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "summary": {
-        "test_rmse_mean": 0.1245,
-        "test_rmse_median": 0.0944,
-        "test_rmse_std": 0.1289,
-        "test_rmse_min": 0.0254,
-        "test_rmse_max": 1.3619,
-        "n_test_months": 131,
-        "stitched_rmse": 1.3589
-      },
-      "rate_segmented_rmse": {
-        "low_rate_rmse": 0.98,
-        "high_rate_rmse": 1.7763,
-        "low_rate_days": 1636,
-        "high_rate_days": 1108,
-        "rate_boundary_pct": 2.0
-      },
-      "elapsed_time_sec": 10.17,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
-        "tuning_csv": "storage/results/tqqq_softplus_tuning.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
-      },
-      "timestamp": "2026-02-15T10:36:04+09:00"
-    },
-    {
-      "funding_spread_mode": "softplus_ffr_monthly",
-      "ab_mode": "fixed",
-      "a_fixed_value": -6.1,
-      "b_fixed_value": 0.37,
-      "ab_source": "global_tuning",
-      "walkforward_settings": {
-        "train_window_months": 60,
-        "test_step_months": 1,
-        "test_month_ffr_usage": "same_month"
-      },
-      "summary": {
-        "test_rmse_mean": 0.1245,
-        "test_rmse_median": 0.0944,
-        "test_rmse_std": 0.1289,
-        "test_rmse_min": 0.0254,
-        "test_rmse_max": 1.3619,
-        "n_test_months": 131,
-        "stitched_rmse": 1.3589
-      },
-      "rate_segmented_rmse": {
-        "low_rate_rmse": 0.98,
-        "high_rate_rmse": 1.7763,
-        "low_rate_days": 1636,
-        "high_rate_days": 1108,
-        "rate_boundary_pct": 2.0
-      },
-      "elapsed_time_sec": 10.19,
-      "input_files": {
-        "qqq_data": "storage/stock/QQQ_max.csv",
-        "tqqq_data": "storage/stock/TQQQ_max.csv",
-        "ffr_data": "storage/etc/federal_funds_rate_monthly.csv",
-        "expense_data": "storage/etc/tqqq_net_expense_ratio_monthly.csv",
-        "tuning_csv": "storage/results/tqqq_softplus_tuning.csv"
-      },
-      "output_files": {
-        "walkforward_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab.csv",
-        "walkforward_summary_csv": "storage/results/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
-      },
-      "timestamp": "2026-02-15T09:12:57+09:00"
     }
   ],
   "tqqq_synthetic": [

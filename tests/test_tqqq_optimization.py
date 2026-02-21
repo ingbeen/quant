@@ -91,7 +91,6 @@ class TestFindOptimalSoftplusParams:
             ffr_df=ffr_df,
             expense_df=expense_df,
             leverage=3.0,
-            max_workers=1,  # 테스트에서는 단일 워커
         )
 
         # Then
@@ -231,7 +230,6 @@ class TestFindOptimalSoftplusParams:
             ffr_df=ffr_df,
             expense_df=expense_df,
             leverage=3.0,
-            max_workers=1,
         )
 
         # Then: 필수 키 확인
@@ -312,7 +310,6 @@ class TestFixedBParameter:
             ffr_df=ffr_df,
             expense_df=expense_df,
             leverage=3.0,
-            max_workers=1,
             fixed_b=fixed_b_value,
         )
 
@@ -366,7 +363,6 @@ class TestFixedBParameter:
             a_prev=-6.0,
             b_prev=0.5,
             leverage=3.0,
-            max_workers=1,
             fixed_b=fixed_b_value,
         )
 
@@ -423,7 +419,6 @@ class TestFixedBParameter:
                 ffr_df=ffr_df,
                 expense_df=expense_df,
                 leverage=3.0,
-                max_workers=1,
                 fixed_b=-0.1,
             )
 

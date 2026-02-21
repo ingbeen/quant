@@ -589,7 +589,7 @@ def _render_walkforward_fixed_b_section() -> None:
             f"- `{TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_b.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -900,7 +900,7 @@ def _render_overfitting_diagnosis_section() -> None:
             f"- `{TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH}`\n\n"
             f"**검증 실행 방법**:\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py\n"
+            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -1005,7 +1005,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
                 "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py`"
+                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward.py`"
             )
 
     with col2:
@@ -1018,7 +1018,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
                 "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py`"
+                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward.py`"
             )
 
     # --- 월별 테스트 RMSE 추이 차트 ---
