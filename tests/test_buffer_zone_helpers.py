@@ -1,12 +1,16 @@
 """
-backtest/strategy 모듈 테스트
+backtest/strategies/buffer_zone_helpers 모듈 테스트
 
 이 파일은 무엇을 검증하나요?
-1. Buy & Hold 전략이 정확히 실행되는가?
-2. 버퍼존 전략의 매수/매도 신호가 정확한가?
-3. 슬리피지가 올바르게 적용되는가?
-4. 마지막 날 포지션이 남았을 때 강제청산 없이 유지되는가?
-5. 유효 데이터 부족 시 에러 처리가 되는가?
+1. 최근 매수 횟수 계산 로직
+2. 버퍼존 전략의 매수/매도 신호 생성 정확성
+3. 체결 타이밍 분리 (신호일 vs 체결일)
+4. 에쿼티/Final Capital 정의 및 정합성
+5. hold_days 상태머신 규칙 (룩어헤드 방지)
+6. Pending Order 충돌 감지 (Critical Invariant)
+7. 동적 파라미터 조정 (최근 매수 기반)
+8. 그리드 서치 병렬 처리
+9. 듀얼 티커 전략 (signal_df/trade_df 분리)
 
 왜 중요한가요?
 전략 실행 로직의 버그는 백테스트 결과를 완전히 왜곡합니다.
@@ -24,145 +28,6 @@ from qbt.backtest.strategies.buffer_zone_helpers import (
     _calculate_recent_buy_count,
     run_buffer_strategy,
 )
-from qbt.backtest.strategies.buy_and_hold import (
-    BuyAndHoldParams,
-    run_buy_and_hold,
-)
-
-
-class TestRunBuyAndHold:
-    """Buy & Hold 전략 테스트"""
-
-    def test_normal_execution(self):
-        """
-        정상적인 Buy & Hold 실행 테스트
-
-        데이터 신뢰성: 벤치마크 전략이므로 정확해야 비교가 의미 있습니다.
-
-        Given: 3일치 가격 데이터
-        When: run_buy_and_hold 실행
-        Then:
-          - 강제청산 없음 (마지막날 매도하지 않음, total_trades=0)
-          - 슬리피지 적용 확인 (매수 +)
-          - shares는 정수
-          - equity_df와 summary 반환
-        """
-        # Given
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-                "Open": [100.0, 102.0, 104.0],
-                "Close": [101.0, 103.0, 105.0],
-            }
-        )
-
-        params = BuyAndHoldParams(initial_capital=10000.0)
-
-        # When
-        equity_df, summary = run_buy_and_hold(df, params)
-
-        # Then: summary 확인
-        assert isinstance(summary, dict), "summary는 딕셔너리여야 합니다"
-        assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
-        assert summary["final_capital"] > params.initial_capital * 0.9, "최종 자본은 초기 자본의 90% 이상"
-
-        # Equity curve 확인
-        assert len(equity_df) == 3, "매일 equity 기록"
-        assert "equity" in equity_df.columns, "equity 컬럼 존재"
-        assert "position" in equity_df.columns, "position 컬럼 존재"
-        assert equity_df["equity"].iloc[-1] > 0, "최종 자본은 양수"
-
-    def test_insufficient_capital(self):
-        """
-        자본이 부족해 주식을 살 수 없을 때 테스트
-
-        안정성: 자본 < 주가일 때도 에러 없이 처리되어야 합니다.
-
-        Given: 초기 자본 10, 주가 100
-        When: run_buy_and_hold
-        Then: shares = 0, 총 수익률은 0% 근처
-        """
-        # Given
-        df = pd.DataFrame(
-            {"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0], "Close": [100.0, 101.0]}
-        )
-
-        params = BuyAndHoldParams(initial_capital=10.0)  # 주가보다 훨씬 작음
-
-        # When
-        equity_df, summary = run_buy_and_hold(df, params)
-
-        # Then: 거래는 발생했지만 shares=0
-        # 자본이 부족하므로 수익률이 거의 0에 가까움
-        assert summary["total_trades"] >= 0, "에러 없이 실행됨"
-        assert summary["total_return_pct"] == pytest.approx(0, abs=1.0), "자본 부족 시 수익률 거의 0%"
-
-    @pytest.mark.parametrize("invalid_capital", [0.0, -1000.0, -1.0])
-    def test_invalid_capital_raises(self, invalid_capital):
-        """
-        초기 자본이 0 이하일 때 예외 발생 테스트
-
-        Given: initial_capital <= 0 (parametrize로 여러 값 테스트)
-        When: run_buy_and_hold 호출
-        Then: ValueError 발생
-
-        Args:
-            invalid_capital: 테스트할 잘못된 초기 자본 값 (0.0, -1000.0, -1.0)
-        """
-        # Given
-        df = pd.DataFrame(
-            {"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0], "Close": [100.0, 101.0]}
-        )
-
-        # When & Then
-        params = BuyAndHoldParams(initial_capital=invalid_capital)
-        with pytest.raises(ValueError, match="initial_capital은 양수여야 합니다"):
-            run_buy_and_hold(df, params)
-
-    @pytest.mark.parametrize(
-        "df_data,missing_column",
-        [
-            ({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Close": [100.0, 101.0]}, "Open"),
-            ({"Date": [date(2023, 1, 2), date(2023, 1, 3)], "Open": [100.0, 101.0]}, "Close"),
-        ],
-        ids=["missing_open", "missing_close"],
-    )
-    def test_missing_required_columns_raises(self, df_data, missing_column):
-        """
-        필수 컬럼 누락 시 예외 발생 테스트
-
-        Given: Open 또는 Close 컬럼이 없는 DataFrame (parametrize로 여러 케이스 테스트)
-        When: run_buy_and_hold 호출
-        Then: ValueError 발생
-
-        Args:
-            df_data: 테스트할 DataFrame 데이터 (누락 컬럼 포함)
-            missing_column: 누락된 컬럼명 (식별용)
-        """
-        # Given
-        df = pd.DataFrame(df_data)
-        params = BuyAndHoldParams(initial_capital=10000.0)
-
-        # When & Then
-        with pytest.raises(ValueError, match="필수 컬럼 누락"):
-            run_buy_and_hold(df, params)
-
-    def test_insufficient_rows_raises(self):
-        """
-        최소 행 수 미달 시 예외 발생 테스트
-
-        Given: 1행만 있는 DataFrame
-        When: run_buy_and_hold 호출
-        Then: ValueError 발생 (최소 2행 필요)
-        """
-        # Given: 1행만
-        df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Open": [100.0], "Close": [100.0]})
-
-        params = BuyAndHoldParams(initial_capital=10000.0)
-
-        # When & Then
-        with pytest.raises(ValueError, match="유효 데이터 부족"):
-            run_buy_and_hold(df, params)
 
 
 class TestCalculateRecentBuyCount:
@@ -996,7 +861,7 @@ class TestBacktestAccuracy:
         백테스트 종료 시 equity_df, trades_df, summary 간 일관성 검증
 
         핵심 인바리언트:
-        - final_capital = cash + position × last_close (항상)
+        - final_capital = cash + position x last_close (항상)
         - 마지막 날 포지션이 남아있어도 강제청산하지 않음
         - equity_df의 마지막 equity == summary.final_capital
 
@@ -1005,7 +870,7 @@ class TestBacktestAccuracy:
         Then:
           - 마지막 날 포지션이 남아있음 (position > 0)
           - equity_df 마지막 equity == summary.final_capital
-          - final_capital == cash + position × last_close
+          - final_capital == cash + position x last_close
         """
         # Given: 상향돌파 후 계속 상승 (매도 신호 없음)
         from qbt.backtest.analysis import add_single_moving_average
@@ -1040,7 +905,7 @@ class TestBacktestAccuracy:
             summary["final_capital"], abs=0.01
         ), f"equity_df 마지막 equity({last_equity:.2f})와 summary.final_capital({summary['final_capital']:.2f})이 일치해야 함"
 
-        # Then: final_capital == cash + position × last_close (역산 검증)
+        # Then: final_capital == cash + position x last_close (역산 검증)
         # 주의: 현재 equity_df에 cash가 기록되지 않으므로 이 검증은 구현 후 활성화
         # last_close = df.iloc[-1]["Close"]
         # expected_final = last_equity_record["cash"] + last_equity_record["position"] * last_close
@@ -1096,14 +961,14 @@ class TestBacktestAccuracy:
         동적 hold_days 증가량 상수 반영 검증
 
         핵심 인바리언트:
-        - adjusted_hold_days = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+        - adjusted_hold_days = base_hold_days + (recent_buy_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         - 하드코딩 금지
 
         Given: recent_months > 0, 여러 번 매수 발생
         When: run_buffer_strategy 실행
         Then:
           - trades_df의 hold_days_used 컬럼 확인
-          - 예상값 = base_hold_days + (recent_buy_count × DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+          - 예상값 = base_hold_days + (recent_buy_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
         from qbt.backtest.strategies.buffer_zone_helpers import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
@@ -1140,7 +1005,7 @@ class TestBacktestAccuracy:
                 # hold_days_used가 동적 조정 공식에 따라 계산되는지 검증
                 assert (
                     actual_hold_days == expected_hold_days
-                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} × {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
+                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} x {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
 
     def test_first_valid_signal_detection(self):
         """
@@ -1229,7 +1094,7 @@ class TestRunGridSearch:
         )
 
         # Then: 결과 검증
-        # 2 × 2 × 2 × 1 = 8개 조합
+        # 2 x 2 x 2 x 1 = 8개 조합
         assert len(results_df) == 8, "모든 파라미터 조합이 실행되어야 함"
 
         # 필수 컬럼 존재 확인
@@ -1261,7 +1126,7 @@ class TestRunGridSearch:
         """
         그리드 서치 파라미터 조합 생성 검증
 
-        Given: 각 파라미터 2개씩 (2×2×2×2 = 16개 조합)
+        Given: 각 파라미터 2개씩 (2x2x2x2 = 16개 조합)
         When: run_grid_search 실행
         Then: 정확히 16개 결과 생성
         """
@@ -1293,7 +1158,7 @@ class TestRunGridSearch:
         )
 
         # Then
-        assert len(results_df) == 16, "2×2×2×2 = 16개 조합이 생성되어야 함"
+        assert len(results_df) == 16, "2x2x2x2 = 16개 조합이 생성되어야 함"
 
 
 class TestDualTickerStrategy:
@@ -1418,42 +1283,6 @@ class TestDualTickerStrategy:
             # equity가 signal_df 종가(112) 기준이면 더 큰 값이 됨
             assert equity_value < position_shares * 112, "에쿼티는 trade_df 종가(86) 기반이어야 하므로 signal_df 종가(112) 기반보다 작아야 함"
 
-    def test_buy_and_hold_uses_trade_df(self):
-        """
-        Buy & Hold가 trade_df의 시가/종가를 사용하는지 검증
-
-        Given:
-          - trade_df (QQQ 데이터)
-        When: run_buy_and_hold(trade_df, params)
-        Then:
-          - 첫날 trade_df 시가에 매수
-          - 강제청산 없음 (마지막날 매도하지 않음)
-          - 에쿼티가 trade_df 종가 기반
-        """
-        # Given
-        trade_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-                "Open": [50.0, 55.0, 60.0],
-                "Close": [52.0, 58.0, 65.0],
-            }
-        )
-
-        params = BuyAndHoldParams(initial_capital=10000.0)
-
-        # When
-        equity_df, summary = run_buy_and_hold(trade_df, params)
-
-        # Then: trade_df 기준으로 매매 확인
-        # 첫날 Open=50, 슬리피지 +0.3% = 50.15
-        # shares = int(10000 / 50.15) = 199
-        assert summary["total_trades"] == 0, "Buy & Hold는 강제청산 없음 (매도 없이 보유 유지)"
-        assert len(equity_df) == 3, "매일 equity 기록"
-
-        # 마지막 equity는 trade_df Close=65 기준이어야 함
-        last_equity = equity_df.iloc[-1]["equity"]
-        assert last_equity > 0, "에쿼티는 양수여야 함"
-
     def test_date_alignment_validation(self):
         """
         signal_df와 trade_df의 날짜 불일치 시 예외 발생 검증
@@ -1487,401 +1316,3 @@ class TestDualTickerStrategy:
         # When & Then
         with pytest.raises(ValueError, match="날짜"):
             run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
-
-
-class TestResolveParams:
-    """resolve_params 파라미터 결정 테스트
-
-    목적: 각 전략의 resolve_params 함수가 올바른 폴백 체인을 따르는지 검증
-    """
-
-    def test_buffer_zone_resolve_params_default(self, tmp_path, monkeypatch):
-        """
-        목적: OVERRIDE=None, grid=None → DEFAULT 사용 검증
-
-        Given: OVERRIDE 상수 전부 None, grid_results.csv 없음
-        When: resolve_params 호출
-        Then: 모든 파라미터가 DEFAULT 상수 값 사용, 출처 "DEFAULT"
-        """
-        from qbt.backtest.constants import (
-            DEFAULT_BUFFER_ZONE_PCT,
-            DEFAULT_HOLD_DAYS,
-            DEFAULT_MA_WINDOW,
-            DEFAULT_RECENT_MONTHS,
-        )
-        from qbt.backtest.strategies import buffer_zone_tqqq
-
-        # Given
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
-
-        # When
-        params, sources = buffer_zone_tqqq.resolve_params()
-
-        # Then
-        assert params.ma_window == DEFAULT_MA_WINDOW
-        assert params.buffer_zone_pct == DEFAULT_BUFFER_ZONE_PCT
-        assert params.hold_days == DEFAULT_HOLD_DAYS
-        assert params.recent_months == DEFAULT_RECENT_MONTHS
-        assert all(s == "DEFAULT" for s in sources.values())
-
-    def test_buffer_zone_resolve_params_override(self, tmp_path, monkeypatch):
-        """
-        목적: OVERRIDE 값 설정 시 OVERRIDE 우선 검증
-
-        Given: OVERRIDE 상수에 특정 값 설정
-        When: resolve_params 호출
-        Then: OVERRIDE 값이 사용됨, 출처 "OVERRIDE"
-        """
-        from qbt.backtest.strategies import buffer_zone_tqqq
-
-        # Given
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 50)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.05)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 3)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 6)
-        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
-
-        # When
-        params, sources = buffer_zone_tqqq.resolve_params()
-
-        # Then
-        assert params.ma_window == 50
-        assert params.buffer_zone_pct == 0.05
-        assert params.hold_days == 3
-        assert params.recent_months == 6
-        assert all(s == "OVERRIDE" for s in sources.values())
-
-    def test_buffer_zone_resolve_params_grid(self, tmp_path, monkeypatch):
-        """
-        목적: grid_results.csv 존재 시 grid_best 사용 검증
-
-        Given: OVERRIDE=None, grid_results.csv에 파라미터 존재
-        When: resolve_params 호출
-        Then: grid_results.csv의 첫 행 값 사용, 출처 "grid_best"
-        """
-        from qbt.backtest.constants import (
-            DISPLAY_BUFFER_ZONE,
-            DISPLAY_HOLD_DAYS,
-            DISPLAY_MA_WINDOW,
-            DISPLAY_RECENT_MONTHS,
-        )
-        from qbt.backtest.strategies import buffer_zone_tqqq
-
-        # Given
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
-
-        grid_path = tmp_path / "grid_results.csv"
-        grid_df = pd.DataFrame(
-            {
-                DISPLAY_MA_WINDOW: [150],
-                DISPLAY_BUFFER_ZONE: [0.04],
-                DISPLAY_HOLD_DAYS: [2],
-                DISPLAY_RECENT_MONTHS: [4],
-            }
-        )
-        grid_df.to_csv(grid_path, index=False)
-        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", grid_path)
-
-        # When
-        params, sources = buffer_zone_tqqq.resolve_params()
-
-        # Then
-        assert params.ma_window == 150
-        assert params.buffer_zone_pct == 0.04
-        assert params.hold_days == 2
-        assert params.recent_months == 4
-        assert all(s == "grid_best" for s in sources.values())
-
-    def test_buy_and_hold_resolve_params(self):
-        """
-        목적: Buy & Hold resolve_params는 항상 DEFAULT_INITIAL_CAPITAL 사용 검증
-
-        Given: (특별한 설정 없음)
-        When: resolve_params 호출
-        Then: initial_capital이 DEFAULT_INITIAL_CAPITAL
-        """
-        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-        from qbt.backtest.strategies.buy_and_hold import resolve_params
-
-        # When
-        params = resolve_params()
-
-        # Then
-        assert params.initial_capital == DEFAULT_INITIAL_CAPITAL
-
-
-class TestRunSingle:
-    """run_single 테스트
-
-    목적: 각 전략의 run_single 함수가 SingleBacktestResult를 올바르게 반환하는지 검증
-    """
-
-    def test_buffer_zone_tqqq_run_single_returns_result(self, tmp_path, monkeypatch):
-        """
-        목적: buffer_zone_tqqq run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
-
-        Given: 20일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: buffer_zone_tqqq.run_single() 호출 (인자 없음, 자체 로딩)
-        Then: SingleBacktestResult 필드 정합성 확인, data_info 포함
-        """
-        from qbt.backtest.strategies import buffer_zone_tqqq
-        from qbt.backtest.types import SingleBacktestResult
-
-        # Given: 테스트용 DataFrame
-        test_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(20)],
-                "Open": [100 + i for i in range(20)],
-                "High": [102 + i for i in range(20)],
-                "Low": [98 + i for i in range(20)],
-                "Close": [100 + i * 0.5 for i in range(20)],
-                "Volume": [1000000] * 20,
-            }
-        )
-
-        # load_stock_data를 mock하여 테스트 DataFrame 반환
-        monkeypatch.setattr(buffer_zone_tqqq, "load_stock_data", lambda _path: test_df.copy())
-        monkeypatch.setattr(buffer_zone_tqqq, "extract_overlap_period", lambda s, t: (s.copy(), t.copy()))
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 5)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 0)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 0)
-        monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
-        monkeypatch.setattr(buffer_zone_tqqq, "BUFFER_ZONE_TQQQ_RESULTS_DIR", tmp_path / "buffer_zone_tqqq")
-
-        # When
-        result = buffer_zone_tqqq.run_single()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buffer_zone_tqqq"
-        assert result.display_name == "버퍼존 전략 (TQQQ)"
-        assert isinstance(result.signal_df, pd.DataFrame)
-        assert isinstance(result.equity_df, pd.DataFrame)
-        assert isinstance(result.trades_df, pd.DataFrame)
-        assert isinstance(result.summary, dict)
-        assert isinstance(result.params_json, dict)
-        assert "ma_window" in result.params_json
-        assert "ma_type" in result.params_json
-        assert result.result_dir == tmp_path / "buffer_zone_tqqq"
-        assert isinstance(result.data_info, dict)
-        assert "signal_path" in result.data_info
-        assert "trade_path" in result.data_info
-
-    def test_buffer_zone_qqq_run_single_returns_result(self, tmp_path, monkeypatch):
-        """
-        목적: buffer_zone_qqq run_single이 SingleBacktestResult 구조를 올바르게 반환하는지 검증
-
-        Given: 20일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: buffer_zone_qqq.run_single() 호출 (인자 없음, 자체 로딩)
-        Then: SingleBacktestResult 필드 정합성 확인, data_info 포함
-        """
-        from qbt.backtest.strategies import buffer_zone_qqq
-        from qbt.backtest.types import SingleBacktestResult
-
-        # Given: 테스트용 DataFrame
-        test_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(20)],
-                "Open": [100 + i for i in range(20)],
-                "High": [102 + i for i in range(20)],
-                "Low": [98 + i for i in range(20)],
-                "Close": [100 + i * 0.5 for i in range(20)],
-                "Volume": [1000000] * 20,
-            }
-        )
-
-        # load_stock_data를 mock하여 테스트 DataFrame 반환
-        monkeypatch.setattr(buffer_zone_qqq, "load_stock_data", lambda _path: test_df.copy())
-        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_MA_WINDOW", 5)
-        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
-        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_HOLD_DAYS", 0)
-        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_RECENT_MONTHS", 0)
-        monkeypatch.setattr(buffer_zone_qqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
-        monkeypatch.setattr(buffer_zone_qqq, "BUFFER_ZONE_QQQ_RESULTS_DIR", tmp_path / "buffer_zone_qqq")
-
-        # When
-        result = buffer_zone_qqq.run_single()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buffer_zone_qqq"
-        assert result.display_name == "버퍼존 전략 (QQQ)"
-        assert isinstance(result.signal_df, pd.DataFrame)
-        assert isinstance(result.equity_df, pd.DataFrame)
-        assert isinstance(result.trades_df, pd.DataFrame)
-        assert isinstance(result.summary, dict)
-        assert isinstance(result.params_json, dict)
-        assert "ma_window" in result.params_json
-        assert "ma_type" in result.params_json
-        assert result.result_dir == tmp_path / "buffer_zone_qqq"
-        assert isinstance(result.data_info, dict)
-        assert "signal_path" in result.data_info
-        assert "trade_path" in result.data_info
-
-    def test_buy_and_hold_qqq_create_runner_returns_result(self, tmp_path, monkeypatch):
-        """
-        목적: create_runner로 생성한 QQQ Buy & Hold runner가 SingleBacktestResult를 올바르게 반환하는지 검증
-
-        Given: 10일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: create_runner(config)()로 실행
-        Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame, data_info 포함
-        """
-        from pathlib import Path
-
-        from qbt.backtest.strategies import buy_and_hold
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-        from qbt.backtest.types import SingleBacktestResult
-
-        # Given: 테스트용 DataFrame
-        test_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [100 + i for i in range(10)],
-                "High": [102 + i for i in range(10)],
-                "Low": [98 + i for i in range(10)],
-                "Close": [101 + i for i in range(10)],
-                "Volume": [1000000] * 10,
-            }
-        )
-
-        # 테스트용 config
-        config = BuyAndHoldConfig(
-            strategy_name="buy_and_hold_qqq",
-            display_name="Buy & Hold (QQQ)",
-            trade_data_path=Path("dummy_qqq.csv"),
-            result_dir=tmp_path / "buy_and_hold_qqq",
-        )
-
-        # load_stock_data를 mock하여 테스트 DataFrame 반환
-        monkeypatch.setattr(buy_and_hold, "load_stock_data", lambda _path: test_df.copy())
-
-        # When
-        runner = buy_and_hold.create_runner(config)
-        result = runner()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buy_and_hold_qqq"
-        assert result.display_name == "Buy & Hold (QQQ)"
-        assert isinstance(result.signal_df, pd.DataFrame)
-        assert isinstance(result.equity_df, pd.DataFrame)
-        assert result.trades_df.empty
-        assert isinstance(result.summary, dict)
-        assert "strategy" in result.params_json
-        assert result.params_json["strategy"] == "buy_and_hold_qqq"
-        assert result.result_dir == tmp_path / "buy_and_hold_qqq"
-        assert isinstance(result.data_info, dict)
-        assert "trade_path" in result.data_info
-
-    def test_buy_and_hold_tqqq_create_runner_returns_result(self, tmp_path, monkeypatch):
-        """
-        목적: create_runner로 생성한 TQQQ Buy & Hold runner가 SingleBacktestResult를 올바르게 반환하는지 검증
-
-        Given: 10일 데이터 (load_stock_data를 mock하여 테스트 DataFrame 반환)
-        When: create_runner(tqqq_config)()로 실행
-        Then: strategy_name="buy_and_hold_tqqq", display_name="Buy & Hold (TQQQ)" 확인
-        """
-        from pathlib import Path
-
-        from qbt.backtest.strategies import buy_and_hold
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-        from qbt.backtest.types import SingleBacktestResult
-
-        # Given: 테스트용 DataFrame
-        test_df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [50 + i for i in range(10)],
-                "High": [52 + i for i in range(10)],
-                "Low": [48 + i for i in range(10)],
-                "Close": [51 + i for i in range(10)],
-                "Volume": [2000000] * 10,
-            }
-        )
-
-        # 테스트용 TQQQ config
-        config = BuyAndHoldConfig(
-            strategy_name="buy_and_hold_tqqq",
-            display_name="Buy & Hold (TQQQ)",
-            trade_data_path=Path("dummy_tqqq.csv"),
-            result_dir=tmp_path / "buy_and_hold_tqqq",
-        )
-
-        # load_stock_data를 mock하여 테스트 DataFrame 반환
-        monkeypatch.setattr(buy_and_hold, "load_stock_data", lambda _path: test_df.copy())
-
-        # When
-        runner = buy_and_hold.create_runner(config)
-        result = runner()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buy_and_hold_tqqq"
-        assert result.display_name == "Buy & Hold (TQQQ)"
-        assert result.trades_df.empty
-        assert result.params_json["strategy"] == "buy_and_hold_tqqq"
-        assert result.result_dir == tmp_path / "buy_and_hold_tqqq"
-
-
-class TestBuyAndHoldConfigs:
-    """Buy & Hold CONFIGS 정합성 테스트"""
-
-    def test_configs_has_multiple_entries(self):
-        """
-        목적: CONFIGS에 최소 2개 이상의 설정이 존재하는지 검증
-
-        Given: buy_and_hold.CONFIGS
-        When: 길이 확인
-        Then: 최소 2개 이상
-        """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
-        assert len(CONFIGS) >= 2, f"CONFIGS에 최소 2개 항목이 필요합니다. 실제: {len(CONFIGS)}"
-
-    def test_configs_strategy_names_unique(self):
-        """
-        목적: CONFIGS 내 strategy_name이 모두 유일한지 검증
-
-        Given: buy_and_hold.CONFIGS
-        When: strategy_name 중복 확인
-        Then: 중복 없음
-        """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
-        names = [c.strategy_name for c in CONFIGS]
-        assert len(names) == len(set(names)), f"strategy_name 중복 발견: {names}"
-
-    def test_configs_display_names_unique(self):
-        """
-        목적: CONFIGS 내 display_name이 모두 유일한지 검증
-
-        Given: buy_and_hold.CONFIGS
-        When: display_name 중복 확인
-        Then: 중복 없음
-        """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
-        display_names = [c.display_name for c in CONFIGS]
-        assert len(display_names) == len(set(display_names)), f"display_name 중복 발견: {display_names}"
-
-    def test_configs_contains_qqq_and_tqqq(self):
-        """
-        목적: CONFIGS에 QQQ와 TQQQ 설정이 모두 존재하는지 검증
-
-        Given: buy_and_hold.CONFIGS
-        When: strategy_name 확인
-        Then: buy_and_hold_qqq와 buy_and_hold_tqqq 모두 포함
-        """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
-        names = {c.strategy_name for c in CONFIGS}
-        assert "buy_and_hold_qqq" in names, "QQQ 설정이 CONFIGS에 포함되어야 합니다"
-        assert "buy_and_hold_tqqq" in names, "TQQQ 설정이 CONFIGS에 포함되어야 합니다"

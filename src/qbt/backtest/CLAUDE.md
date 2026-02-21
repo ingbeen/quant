@@ -312,7 +312,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 ## 테스트 커버리지
 
-주요 테스트 파일: `tests/test_strategy.py`, `tests/test_analysis.py`
+주요 테스트 파일: `tests/test_buffer_zone_helpers.py`, `tests/test_buffer_zone_tqqq.py`, `tests/test_buffer_zone_qqq.py`, `tests/test_buy_and_hold.py`, `tests/test_analysis.py`
 
 테스트 범위:
 
