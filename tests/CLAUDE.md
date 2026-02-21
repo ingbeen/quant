@@ -80,13 +80,13 @@ poetry run python validate_project.py --cov
 
 ```bash
 # 특정 모듈만 실행
-poetry run pytest tests/test_strategy.py -v
+poetry run pytest tests/test_buffer_zone_helpers.py -v
 
 # 특정 클래스만 실행
-poetry run pytest tests/test_strategy.py::TestRunBufferStrategy -v
+poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy -v
 
 # 특정 테스트만 실행
-poetry run pytest tests/test_strategy.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
+poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v

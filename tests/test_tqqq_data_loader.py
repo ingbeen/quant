@@ -9,6 +9,7 @@ TQQQ 도메인 전용 데이터 로더 테스트
 5. 파일이 없을 때 명확한 에러를 내는가?
 6. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
 7. 월별 데이터 중복/갭 검증이 작동하는가?
+8. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
 
 왜 중요한가요?
 TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 의존합니다.
@@ -500,3 +501,122 @@ class TestGenericMonthlyDataDict:
 
         # Then: 2023-02 값 사용
         assert result == pytest.approx(0.0088)
+
+
+class TestBuildExtendedExpenseDict:
+    """운용비율 딕셔너리 확장 테스트"""
+
+    def test_extends_from_1999(self):
+        """
+        2010-02 시작 데이터를 1999-01부터 확장하는 테스트
+
+        Given: 2010-02부터 시작하는 expense DataFrame
+        When: build_extended_expense_dict 호출
+        Then:
+          - 1999-01 키가 존재
+          - 1999-01 ~ 2010-01 구간에 DEFAULT_PRE_LISTING_EXPENSE_RATIO 적용
+          - 2010-02 원본 값 보존
+        """
+        # Given
+        expense_df = pd.DataFrame(
+            {
+                COL_EXPENSE_DATE: ["2010-02", "2010-03", "2010-04"],
+                COL_EXPENSE_VALUE: [0.0095, 0.0093, 0.0091],
+            }
+        )
+
+        # When
+        from qbt.tqqq.data_loader import build_extended_expense_dict
+
+        result = build_extended_expense_dict(expense_df)
+
+        # Then: 1999-01 키가 존재
+        assert "1999-01" in result, "1999-01 키가 존재해야 합니다"
+
+        # 확장 구간 값 검증 (DEFAULT_PRE_LISTING_EXPENSE_RATIO = 0.0095)
+        from qbt.tqqq.constants import DEFAULT_PRE_LISTING_EXPENSE_RATIO
+
+        assert result["1999-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
+        assert result["2005-06"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
+        assert result["2010-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
+
+        # 원본 값 보존 검증
+        assert result["2010-02"] == pytest.approx(0.0095)
+        assert result["2010-03"] == pytest.approx(0.0093)
+        assert result["2010-04"] == pytest.approx(0.0091)
+
+    def test_original_values_preserved(self):
+        """
+        확장 시 기존 딕셔너리 값이 변경되지 않는 테스트
+
+        Given: 3개월분 expense DataFrame
+        When: build_extended_expense_dict 호출
+        Then: 원본 3개월 값이 정확히 보존됨
+        """
+        # Given
+        expense_df = pd.DataFrame(
+            {
+                COL_EXPENSE_DATE: ["2015-01", "2015-02", "2015-03"],
+                COL_EXPENSE_VALUE: [0.0088, 0.0085, 0.0082],
+            }
+        )
+
+        # When
+        from qbt.tqqq.data_loader import build_extended_expense_dict
+
+        result = build_extended_expense_dict(expense_df)
+
+        # Then: 원본 값 정확히 보존
+        assert result["2015-01"] == pytest.approx(0.0088)
+        assert result["2015-02"] == pytest.approx(0.0085)
+        assert result["2015-03"] == pytest.approx(0.0082)
+
+    def test_extension_count(self):
+        """
+        확장된 월 수가 정확한지 테스트
+
+        Given: 2010-02부터 시작하는 expense DataFrame
+        When: build_extended_expense_dict 호출
+        Then: 1999-01 ~ 2010-01 = 133개월 확장 + 원본 3개월 = 총 136개
+        """
+        # Given
+        expense_df = pd.DataFrame(
+            {
+                COL_EXPENSE_DATE: ["2010-02", "2010-03", "2010-04"],
+                COL_EXPENSE_VALUE: [0.0095, 0.0093, 0.0091],
+            }
+        )
+
+        # When
+        from qbt.tqqq.data_loader import build_extended_expense_dict
+
+        result = build_extended_expense_dict(expense_df)
+
+        # Then: 1999-01 ~ 2010-01 = 11년 * 12 + 1 = 133개월 + 원본 3개월 = 136개
+        assert len(result) == 136
+
+    def test_no_extension_if_starts_at_1999(self):
+        """
+        1999-01부터 시작하면 확장 없이 그대로 반환
+
+        Given: 1999-01부터 시작하는 expense DataFrame
+        When: build_extended_expense_dict 호출
+        Then: 원본 딕셔너리만 반환 (추가 키 없음)
+        """
+        # Given
+        expense_df = pd.DataFrame(
+            {
+                COL_EXPENSE_DATE: ["1999-01", "1999-02"],
+                COL_EXPENSE_VALUE: [0.0095, 0.0093],
+            }
+        )
+
+        # When
+        from qbt.tqqq.data_loader import build_extended_expense_dict
+
+        result = build_extended_expense_dict(expense_df)
+
+        # Then: 원본 그대로 (확장 없음)
+        assert len(result) == 2
+        assert result["1999-01"] == pytest.approx(0.0095)
+        assert result["1999-02"] == pytest.approx(0.0093)

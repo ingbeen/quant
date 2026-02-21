@@ -96,7 +96,9 @@ quant/
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
 │   │   ├── types.py            # TypedDict 정의 (검증 지표, 워크포워드 요약 등)
-│   │   ├── simulation.py       # 시뮬레이션 엔진
+│   │   ├── simulation.py       # 시뮬레이션 엔진 (코어)
+│   │   ├── optimization.py     # Softplus 파라미터 최적화
+│   │   ├── walkforward.py      # 워크포워드 검증
 │   │   ├── analysis_helpers.py # 금리-오차 분석 함수
 │   │   ├── visualization.py    # Plotly 차트 생성
 │   │   └── data_loader.py      # TQQQ 전용 데이터 로더
@@ -334,7 +336,7 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
   - Pytest만: `poetry run python validate_project.py --only-tests`
   - 커버리지 포함 테스트: `poetry run python validate_project.py --cov`
 - 예외: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
-  - 예: `poetry run pytest tests/test_strategy.py -v`
+  - 예: `poetry run pytest tests/test_buffer_zone_helpers.py -v`
   - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`
 - 타입 체커: PyRight 단일 사용 (Mypy 제거됨)
   - 설정 파일: `pyrightconfig.json` (`executionEnvironments` 방식)

@@ -13,13 +13,13 @@
 |---------|------|--------|----------|
 | A. 버그 및 논리적 오류 | 5건 | 높음 | 5/5 해결 |
 | B. 문서와 코드 불일치 | 5건 | 중간 | 5/5 해결 |
-| C. CLI 계층 규칙 위반 | 3건 | 중간 | 1/3 해결 |
-| D. 리팩토링 기회 | 9건 | 중간~낮음 | 6/9 해결 |
+| C. CLI 계층 규칙 위반 | 3건 | 중간 | 3/3 해결 |
+| D. 리팩토링 기회 | 9건 | 중간~낮음 | 7/9 해결 |
 | E. 주석 및 가독성 | 4건 | 낮음 | 4/4 해결 |
 | F. 일관성 문제 | 6건 | 낮음 | 6/6 해결 |
 | G. 테스트 품질 | 3건 | 낮음~중간 | 3/3 해결 |
 | H. 설정 파일 | 2건 | 낮음 | 2/2 해결 |
-| **합계** | **37건** | | **32/37 해결** |
+| **합계** | **37건** | | **36/37 해결** |
 
 ---
 
@@ -98,19 +98,21 @@
 
 ## C. CLI 계층 규칙 위반 (심각도: 중간)
 
-### C-1. `download_data.py` — 비즈니스 로직이 CLI에 구현 `[향후 과제]`
+### C-1. `download_data.py` — 비즈니스 로직이 CLI에 구현 `[해결됨 - Plan CLI_BUSINESS_LOGIC_EXTRACTION]`
 
 - `scripts/data/download_data.py:35-172`
 - `validate_stock_data()`와 `download_stock_data()` 모두 비즈니스 로직
+- **해결**: `src/qbt/utils/stock_downloader.py`로 이동, CLI는 import 호출만 담당
 
 ### C-2. `validate_walkforward_fixed_ab.py` — ~220줄의 비즈니스 로직 `[해결됨 - Plan 7]`
 
 - `scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py:253-472`
 - 내부 함수(`_calculate_metrics_fast`)까지 직접 import하여 모듈 캡슐화 위반
 
-### C-3. `generate_synthetic.py` — `_build_extended_expense_dict` 비즈니스 로직 `[향후 과제]`
+### C-3. `generate_synthetic.py` — `_build_extended_expense_dict` 비즈니스 로직 `[해결됨 - Plan CLI_BUSINESS_LOGIC_EXTRACTION]`
 
 - `scripts/tqqq/generate_synthetic.py:53-92`
+- **해결**: `src/qbt/tqqq/data_loader.py`로 이동, `build_extended_expense_dict`로 공개 함수화
 
 ---
 
@@ -271,7 +273,7 @@
 
 ## 개선 계획
 
-위 발견 사항을 아래 6개 계획서로 분리하여 단계적으로 개선합니다.
+위 발견 사항을 아래 9개 계획서로 분리하여 단계적으로 개선합니다.
 모든 계획서는 동작 동일성(behavioral equivalence)을 보장합니다.
 
 | 계획서 | 범위 | 리스크 | 상태 |
@@ -282,13 +284,15 @@
 | Plan 4: 코드 중복 제거 및 리팩토링 | D-1, D-6, D-7, D-9 항목 | 중간 | Done |
 | Plan 5: 테스트 품질 개선 | A-4, G 항목 | 낮음 | Done |
 | Plan 6: 최종 통합 검증 | 전체 계획서 통합 검증 | 없음 | Done |
+| Plan 7: simulation.py 분할 + CLI 추출 | C-2, D-4 항목 | 중간 | Done |
+| Plan 8: test_tqqq_simulation 분할 | Plan 7 테스트 대응 | 낮음 | Done |
+| Plan 9: test_strategy 분할 | 전략 테스트 모듈 분리 | 낮음 | Done |
 
 ### 향후 과제 (이번 계획서 범위 외)
 
 아래 항목은 대규모 구조 변경으로, 별도의 독립 계획서로 다루는 것을 권장합니다:
 
-- **C-1~3**: CLI 계층 비즈니스 로직 분리 (download_data.py, validate_walkforward_fixed_ab.py, generate_synthetic.py)
 - **D-3**: 3개 워크포워드 스크립트 통합
-- **D-4, D-5**: simulation.py(2108줄), app_rate_spread_lab.py(1762줄) 파일 분할
+- **D-5**: app_rate_spread_lab.py(1762줄) 파일 분할
 
 ---

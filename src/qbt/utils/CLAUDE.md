@@ -51,7 +51,15 @@ CLI 예외 처리 데코레이터
 - 다국어 문자폭 계산 (한글 = 2칸, 영문 = 1칸)
 - `TableLogger` 클래스: 컬럼 정의 기반 테이블 생성
 
-### 6. meta_manager.py
+### 6. stock_downloader.py
+
+주식 데이터 다운로드 및 검증
+
+- `validate_stock_data`: 주식 데이터 유효성 검증 (결측치, 0값, 음수, 급등락)
+- `download_stock_data`: Yahoo Finance에서 주식 데이터 다운로드 + 전처리 + 검증 + CSV 저장
+- 검증 실패 시 즉시 ValueError (보간 금지)
+
+### 7. meta_manager.py
 
 실행 메타데이터 관리
 

@@ -6,6 +6,7 @@ TQQQ 시뮬레이션 및 검증에 필요한 데이터 로딩, 월별 데이터 
 1. 연방기금금리(FFR) 월별 데이터 로딩
 2. TQQQ 일별 비교 데이터 로딩
 3. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
+4. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
 
 이 모듈의 함수들은 TQQQ 도메인에서만 사용되며,
 프로젝트 전반의 공통 데이터 로딩은 utils/data_loader.py를 참고한다.
@@ -31,6 +32,7 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
+    DEFAULT_PRE_LISTING_EXPENSE_RATIO,
     MAX_EXPENSE_MONTHS_DIFF,
     MAX_FFR_MONTHS_DIFF,
 )
@@ -297,3 +299,45 @@ def lookup_expense(date_value: date, expense_dict: dict[str, float]) -> float:
         ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
     """
     return lookup_monthly_data(date_value, expense_dict, MAX_EXPENSE_MONTHS_DIFF, "Expense")
+
+
+def build_extended_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
+    """
+    운용비율 딕셔너리를 생성하고, 1999-01부터 실제 데이터 시작 전까지 고정값으로 확장한다.
+
+    TQQQ 실제 운용비율 데이터는 2010-02부터 존재하므로,
+    1999-01 ~ 2010-01 구간에 DEFAULT_PRE_LISTING_EXPENSE_RATIO를 적용한다.
+
+    Args:
+        expense_df: Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
+
+    Returns:
+        1999-01부터 커버하는 확장된 expense 딕셔너리
+    """
+    # 1. 기존 expense_df를 딕셔너리로 변환
+    expense_dict = create_expense_dict(expense_df)
+
+    # 2. 최초 월 확인
+    earliest_month = min(expense_dict.keys())
+    earliest_year, earliest_month_num = map(int, earliest_month.split("-"))
+
+    # 3. 1999-01 ~ 최초 월 직전까지 고정값 채우기
+    fill_year = 1999
+    fill_month = 1
+
+    while True:
+        fill_key = f"{fill_year:04d}-{fill_month:02d}"
+
+        # 최초 월에 도달하면 종료
+        if fill_year > earliest_year or (fill_year == earliest_year and fill_month >= earliest_month_num):
+            break
+
+        expense_dict[fill_key] = DEFAULT_PRE_LISTING_EXPENSE_RATIO
+
+        # 다음 월로 이동
+        fill_month += 1
+        if fill_month > 12:
+            fill_month = 1
+            fill_year += 1
+
+    return expense_dict

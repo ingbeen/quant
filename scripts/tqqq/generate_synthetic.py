@@ -38,7 +38,7 @@ from qbt.tqqq.constants import (
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import (
-    create_expense_dict,
+    build_extended_expense_dict,
     load_expense_ratio_data,
     load_ffr_data,
 )
@@ -48,48 +48,6 @@ from qbt.utils.data_loader import load_stock_data
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
-
-
-def _build_extended_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
-    """
-    운용비율 딕셔너리를 생성하고, 1999-01부터 실제 데이터 시작 전까지 고정값으로 확장한다.
-
-    TQQQ 실제 운용비율 데이터는 2010-02부터 존재하므로,
-    1999-01 ~ 2010-01 구간에 DEFAULT_PRE_LISTING_EXPENSE_RATIO를 적용한다.
-
-    Args:
-        expense_df: Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
-
-    Returns:
-        1999-01부터 커버하는 확장된 expense 딕셔너리
-    """
-    # 1. 기존 expense_df를 딕셔너리로 변환
-    expense_dict = create_expense_dict(expense_df)
-
-    # 2. 최초 월 확인
-    earliest_month = min(expense_dict.keys())
-    earliest_year, earliest_month_num = map(int, earliest_month.split("-"))
-
-    # 3. 1999-01 ~ 최초 월 직전까지 고정값 채우기
-    fill_year = 1999
-    fill_month = 1
-
-    while True:
-        fill_key = f"{fill_year:04d}-{fill_month:02d}"
-
-        # 최초 월에 도달하면 종료
-        if fill_year > earliest_year or (fill_year == earliest_year and fill_month >= earliest_month_num):
-            break
-
-        expense_dict[fill_key] = DEFAULT_PRE_LISTING_EXPENSE_RATIO
-
-        # 다음 월로 이동
-        fill_month += 1
-        if fill_month > 12:
-            fill_month = 1
-            fill_year += 1
-
-    return expense_dict
 
 
 @cli_exception_handler
@@ -121,7 +79,7 @@ def main() -> int:
     logger.debug(f"SoftPlus 스프레드 맵 생성 완료: {len(spread_map)}개월")
 
     # 3. expense_dict 확장 (1999-01 ~ expense_df 최초월 직전까지 고정값 채우기)
-    extended_expense_dict = _build_extended_expense_dict(expense_df)
+    extended_expense_dict = build_extended_expense_dict(expense_df)
     logger.debug(
         f"확장된 expense_dict: {len(extended_expense_dict)}개월 "
         f"({min(extended_expense_dict.keys())} ~ {max(extended_expense_dict.keys())})"

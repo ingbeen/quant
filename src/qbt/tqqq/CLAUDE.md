@@ -55,6 +55,7 @@ TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제
 - `lookup_ffr`: FFR 값 조회 (최대 2개월 fallback)
 - `create_expense_dict`: Expense Ratio DataFrame을 딕셔너리로 변환
 - `lookup_expense`: Expense Ratio 값 조회 (최대 12개월 fallback)
+- `build_extended_expense_dict`: 운용비율 딕셔너리를 1999-01부터 확장 (합성 데이터 생성용, `DEFAULT_PRE_LISTING_EXPENSE_RATIO` 적용)
 
 DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
