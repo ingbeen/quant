@@ -84,6 +84,7 @@ poetry run python scripts/tqqq/generate_synthetic.py
 ```bash
 # 일별 비교 대시보드
 # 선행: 1 → 2
+# 필요: storage/results/tqqq/tqqq_daily_comparison.csv
 poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 ```
 
@@ -94,20 +95,33 @@ poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 ```bash
 # Softplus 동적 스프레드 모델 튜닝
 poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
+# 결과: storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv
+#       storage/results/tqqq/spread_lab/tqqq_softplus_spread_series_static.csv
 
-# 워크포워드 검증
+# 워크포워드 검증 (3가지 모드 순차 실행: 동적/b고정/완전고정)
+# 필요: storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv
 poetry run python scripts/tqqq/spread_lab/validate_walkforward.py
-
-# b 고정 워크포워드 검증 (사전 필요: tune_softplus_params.py)
-poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_b.py
-
-# 완전 고정 (a,b) 워크포워드 검증 (사전 필요: tune_softplus_params.py)
-poetry run python scripts/tqqq/spread_lab/validate_walkforward_fixed_ab.py
+# 결과: storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_summary.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv
 
 # 금리-오차 분석 CSV 생성
+# 필요: storage/results/tqqq/tqqq_daily_comparison.csv
 poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
+# 결과: storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_monthly.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_summary.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_model.csv (조건부)
 
-# 금리-오차 관계 분석 앱 (최신 시각화를 위해 위 스크립트를 먼저 실행할 것을 권장)
+# 금리-오차 관계 분석 앱
+# 필수: storage/results/tqqq/tqqq_daily_comparison.csv
+# 선택: storage/results/tqqq/spread_lab/tqqq_softplus_tuning.csv
+#       storage/results/tqqq/spread_lab/tqqq_softplus_spread_series_static.csv
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward.csv (+summary)
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_b.csv (+summary)
+#       storage/results/tqqq/spread_lab/tqqq_rate_spread_lab_walkforward_fixed_ab.csv (+summary)
 poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 
@@ -196,7 +210,7 @@ quant/
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
 │           ├── tune_softplus_params.py    # Softplus 튜닝 CLI
-│           ├── validate_walkforward*.py   # 워크포워드 검증 CLI (3종)
+│           ├── validate_walkforward.py    # 워크포워드 검증 CLI (3모드 통합)
 │           ├── generate_rate_spread_lab.py # 금리-오차 분석 CSV 생성
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
