@@ -84,7 +84,8 @@ class TestBacktestWorkflow:
         params = BufferStrategyParams(
             initial_capital=10000.0,
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
         )

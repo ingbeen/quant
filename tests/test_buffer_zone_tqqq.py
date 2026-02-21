@@ -30,16 +30,18 @@ class TestResolveParams:
         Then: 모든 파라미터가 DEFAULT 상수 값 사용, 출처 "DEFAULT"
         """
         from qbt.backtest.constants import (
-            DEFAULT_BUFFER_ZONE_PCT,
+            DEFAULT_BUY_BUFFER_ZONE_PCT,
             DEFAULT_HOLD_DAYS,
             DEFAULT_MA_WINDOW,
             DEFAULT_RECENT_MONTHS,
+            DEFAULT_SELL_BUFFER_ZONE_PCT,
         )
         from qbt.backtest.strategies import buffer_zone_tqqq
 
         # Given
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUY_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_SELL_BUFFER_ZONE_PCT", None)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
         monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
@@ -49,7 +51,8 @@ class TestResolveParams:
 
         # Then
         assert params.ma_window == DEFAULT_MA_WINDOW
-        assert params.buffer_zone_pct == DEFAULT_BUFFER_ZONE_PCT
+        assert params.buy_buffer_zone_pct == DEFAULT_BUY_BUFFER_ZONE_PCT
+        assert params.sell_buffer_zone_pct == DEFAULT_SELL_BUFFER_ZONE_PCT
         assert params.hold_days == DEFAULT_HOLD_DAYS
         assert params.recent_months == DEFAULT_RECENT_MONTHS
         assert all(s == "DEFAULT" for s in sources.values())
@@ -66,7 +69,8 @@ class TestResolveParams:
 
         # Given
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 50)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.05)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUY_BUFFER_ZONE_PCT", 0.05)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_SELL_BUFFER_ZONE_PCT", 0.04)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 3)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 6)
         monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")
@@ -76,7 +80,8 @@ class TestResolveParams:
 
         # Then
         assert params.ma_window == 50
-        assert params.buffer_zone_pct == 0.05
+        assert params.buy_buffer_zone_pct == 0.05
+        assert params.sell_buffer_zone_pct == 0.04
         assert params.hold_days == 3
         assert params.recent_months == 6
         assert all(s == "OVERRIDE" for s in sources.values())
@@ -90,16 +95,18 @@ class TestResolveParams:
         Then: grid_results.csv의 첫 행 값 사용, 출처 "grid_best"
         """
         from qbt.backtest.constants import (
-            DISPLAY_BUFFER_ZONE,
+            DISPLAY_BUY_BUFFER_ZONE,
             DISPLAY_HOLD_DAYS,
             DISPLAY_MA_WINDOW,
             DISPLAY_RECENT_MONTHS,
+            DISPLAY_SELL_BUFFER_ZONE,
         )
         from qbt.backtest.strategies import buffer_zone_tqqq
 
         # Given
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", None)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUY_BUFFER_ZONE_PCT", None)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_SELL_BUFFER_ZONE_PCT", None)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", None)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", None)
 
@@ -107,7 +114,8 @@ class TestResolveParams:
         grid_df = pd.DataFrame(
             {
                 DISPLAY_MA_WINDOW: [150],
-                DISPLAY_BUFFER_ZONE: [0.04],
+                DISPLAY_BUY_BUFFER_ZONE: [0.04],
+                DISPLAY_SELL_BUFFER_ZONE: [0.03],
                 DISPLAY_HOLD_DAYS: [2],
                 DISPLAY_RECENT_MONTHS: [4],
             }
@@ -120,7 +128,8 @@ class TestResolveParams:
 
         # Then
         assert params.ma_window == 150
-        assert params.buffer_zone_pct == 0.04
+        assert params.buy_buffer_zone_pct == 0.04
+        assert params.sell_buffer_zone_pct == 0.03
         assert params.hold_days == 2
         assert params.recent_months == 4
         assert all(s == "grid_best" for s in sources.values())
@@ -159,7 +168,8 @@ class TestRunSingle:
         monkeypatch.setattr(buffer_zone_tqqq, "load_stock_data", lambda _path: test_df.copy())
         monkeypatch.setattr(buffer_zone_tqqq, "extract_overlap_period", lambda s, t: (s.copy(), t.copy()))
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_MA_WINDOW", 5)
-        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_BUY_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_SELL_BUFFER_ZONE_PCT", 0.03)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_HOLD_DAYS", 0)
         monkeypatch.setattr(buffer_zone_tqqq, "OVERRIDE_RECENT_MONTHS", 0)
         monkeypatch.setattr(buffer_zone_tqqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")

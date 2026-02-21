@@ -22,23 +22,26 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
 from qbt.backtest.constants import (
-    COL_BUFFER_ZONE_PCT,
+    COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
     COL_MDD,
     COL_RECENT_MONTHS,
+    COL_SELL_BUFFER_ZONE_PCT,
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUFFER_ZONE_PCT,
+    DEFAULT_BUY_BUFFER_ZONE_PCT,
     DEFAULT_HOLD_DAYS,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_MA_WINDOW,
     DEFAULT_RECENT_MONTHS,
-    MIN_BUFFER_ZONE_PCT,
+    DEFAULT_SELL_BUFFER_ZONE_PCT,
+    MIN_BUY_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
+    MIN_SELL_BUFFER_ZONE_PCT,
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
@@ -69,7 +72,8 @@ class BufferStrategyResultDict(SummaryDict):
 
     strategy: str
     ma_window: int
-    buffer_zone_pct: float
+    buy_buffer_zone_pct: float
+    sell_buffer_zone_pct: float
     hold_days: int
 
 
@@ -77,12 +81,15 @@ class EquityRecord(TypedDict):
     """_record_equity() 반환 타입 / equity_records 리스트 아이템.
 
     키 "Date"는 COL_DATE 상수의 값이다.
+    buy_buffer_pct: 해당 시점의 매수 버퍼 (동적 조정 반영)
+    sell_buffer_pct: 해당 시점의 매도 버퍼 (항상 고정)
     """
 
     Date: date
     equity: float
     position: int
-    buffer_zone_pct: float
+    buy_buffer_pct: float
+    sell_buffer_pct: float
     upper_band: float | None
     lower_band: float | None
 
@@ -97,9 +104,9 @@ class TradeRecord(TypedDict):
     shares: int
     pnl: float
     pnl_pct: float
-    buffer_zone_pct: float
+    buy_buffer_pct: float
     hold_days_used: int
-    recent_buy_count: int
+    recent_sell_count: int
 
 
 class HoldState(TypedDict):
@@ -107,7 +114,7 @@ class HoldState(TypedDict):
 
     start_date: date
     days_passed: int
-    buffer_pct: float
+    buffer_pct: float  # 매수 버퍼 (buy buffer)
     hold_days_required: int
 
 
@@ -118,7 +125,8 @@ class GridSearchResult(TypedDict):
     """
 
     ma_window: int
-    buffer_zone_pct: float
+    buy_buffer_zone_pct: float
+    sell_buffer_zone_pct: float
     hold_days: int
     recent_months: int
     total_return_pct: float
@@ -133,8 +141,8 @@ class GridSearchResult(TypedDict):
 # 동적 조정 상수
 # ============================================================================
 
-DEFAULT_BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
-DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 매수 1회당 유지조건 증가량 (일)
+DEFAULT_BUFFER_INCREMENT_PER_BUY = 0.01  # 최근 청산 1회당 버퍼존 증가량 (0.01 = 1%)
+DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY = 1  # 최근 청산 1회당 유지조건 증가량 (일)
 DEFAULT_DAYS_PER_MONTH = 30  # 최근 기간 계산용 월당 일수 (근사값)
 
 
@@ -191,10 +199,11 @@ class BufferStrategyParams(BaseStrategyParams):
     - BaseStrategyParams의 initial_capital도 사용 가능
     """
 
-    ma_window: int  # 이동평균 기간 (예: 20일)
-    buffer_zone_pct: float  # 초기 버퍼존 비율 (예: 0.05 = 5%)
+    ma_window: int  # 이동평균 기간 (예: 200일)
+    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준) — 동적 조정됨
+    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준) — 항상 고정
     hold_days: int  # 최소 보유 일수 (예: 5일)
-    recent_months: int  # 최근 매수 기간 (예: 6개월)
+    recent_months: int  # 최근 청산 기간 (예: 6개월)
 
 
 @dataclass
@@ -215,9 +224,9 @@ class PendingOrder:
 
     order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
     signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
-    buffer_zone_pct: float  # 신호 시점의 버퍼존 비율 (0~1)
+    buffer_zone_pct: float  # 신호 시점의 매수 버퍼 비율 (buy buffer, 0~1)
     hold_days_used: int  # 신호 시점의 유지일수
-    recent_buy_count: int  # 신호 시점의 최근 매수 횟수
+    recent_sell_count: int  # 신호 시점의 최근 청산 횟수
 
 
 # ============================================================================
@@ -228,7 +237,8 @@ class PendingOrder:
 def resolve_buffer_params(
     grid_results_path: Path,
     override_ma_window: int | None,
-    override_buffer_zone_pct: float | None,
+    override_buy_buffer_zone_pct: float | None,
+    override_sell_buffer_zone_pct: float | None,
     override_hold_days: int | None,
     override_recent_months: int | None,
 ) -> tuple[BufferStrategyParams, dict[str, str]]:
@@ -241,7 +251,8 @@ def resolve_buffer_params(
     Args:
         grid_results_path: 그리드 서치 결과 CSV 경로
         override_ma_window: MA 기간 오버라이드 (None이면 폴백)
-        override_buffer_zone_pct: 버퍼존 비율 오버라이드 (None이면 폴백)
+        override_buy_buffer_zone_pct: 매수 버퍼존 비율 오버라이드 (None이면 폴백)
+        override_sell_buffer_zone_pct: 매도 버퍼존 비율 오버라이드 (None이면 폴백)
         override_hold_days: 유지일수 오버라이드 (None이면 폴백)
         override_recent_months: 조정기간 오버라이드 (None이면 폴백)
 
@@ -268,18 +279,29 @@ def resolve_buffer_params(
         ma_window = DEFAULT_MA_WINDOW
         ma_window_source = "DEFAULT"
 
-    # 2. buffer_zone_pct
-    if override_buffer_zone_pct is not None:
-        buffer_zone_pct = override_buffer_zone_pct
-        bz_source = "OVERRIDE"
+    # 2. buy_buffer_zone_pct
+    if override_buy_buffer_zone_pct is not None:
+        buy_buffer_zone_pct = override_buy_buffer_zone_pct
+        buy_bz_source = "OVERRIDE"
     elif grid_params is not None:
-        buffer_zone_pct = grid_params["buffer_zone_pct"]
-        bz_source = "grid_best"
+        buy_buffer_zone_pct = grid_params["buy_buffer_zone_pct"]
+        buy_bz_source = "grid_best"
     else:
-        buffer_zone_pct = DEFAULT_BUFFER_ZONE_PCT
-        bz_source = "DEFAULT"
+        buy_buffer_zone_pct = DEFAULT_BUY_BUFFER_ZONE_PCT
+        buy_bz_source = "DEFAULT"
 
-    # 3. hold_days
+    # 3. sell_buffer_zone_pct
+    if override_sell_buffer_zone_pct is not None:
+        sell_buffer_zone_pct = override_sell_buffer_zone_pct
+        sell_bz_source = "OVERRIDE"
+    elif grid_params is not None:
+        sell_buffer_zone_pct = grid_params["sell_buffer_zone_pct"]
+        sell_bz_source = "grid_best"
+    else:
+        sell_buffer_zone_pct = DEFAULT_SELL_BUFFER_ZONE_PCT
+        sell_bz_source = "DEFAULT"
+
+    # 4. hold_days
     if override_hold_days is not None:
         hold_days = override_hold_days
         hd_source = "OVERRIDE"
@@ -290,7 +312,7 @@ def resolve_buffer_params(
         hold_days = DEFAULT_HOLD_DAYS
         hd_source = "DEFAULT"
 
-    # 4. recent_months
+    # 5. recent_months
     if override_recent_months is not None:
         recent_months = override_recent_months
         rm_source = "OVERRIDE"
@@ -304,21 +326,24 @@ def resolve_buffer_params(
     params = BufferStrategyParams(
         initial_capital=DEFAULT_INITIAL_CAPITAL,
         ma_window=ma_window,
-        buffer_zone_pct=buffer_zone_pct,
+        buy_buffer_zone_pct=buy_buffer_zone_pct,
+        sell_buffer_zone_pct=sell_buffer_zone_pct,
         hold_days=hold_days,
         recent_months=recent_months,
     )
 
     sources = {
         "ma_window": ma_window_source,
-        "buffer_zone_pct": bz_source,
+        "buy_buffer_zone_pct": buy_bz_source,
+        "sell_buffer_zone_pct": sell_bz_source,
         "hold_days": hd_source,
         "recent_months": rm_source,
     }
 
     logger.debug(
         f"파라미터 결정: ma_window={ma_window} ({ma_window_source}), "
-        f"buffer_zone={buffer_zone_pct} ({bz_source}), "
+        f"buy_buffer={buy_buffer_zone_pct} ({buy_bz_source}), "
+        f"sell_buffer={sell_buffer_zone_pct} ({sell_bz_source}), "
         f"hold_days={hold_days} ({hd_source}), "
         f"recent_months={recent_months} ({rm_source})"
     )
@@ -350,8 +375,11 @@ def _validate_buffer_strategy_inputs(
     if params.ma_window < 1:
         raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
 
-    if params.buffer_zone_pct < MIN_BUFFER_ZONE_PCT:
-        raise ValueError(f"buffer_zone_pct는 {MIN_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buffer_zone_pct}")
+    if params.buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
+        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buy_buffer_zone_pct}")
+
+    if params.sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
+        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.sell_buffer_zone_pct}")
 
     if params.hold_days < MIN_HOLD_DAYS:
         raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
@@ -378,21 +406,28 @@ def _validate_buffer_strategy_inputs(
         raise ValueError("signal_df와 trade_df의 날짜가 일치하지 않습니다")
 
 
-def _compute_bands(ma_value: float, buffer_zone_pct: float) -> tuple[float, float]:
+def _compute_bands(
+    ma_value: float,
+    buy_buffer_pct: float,
+    sell_buffer_pct: float,
+) -> tuple[float, float]:
     """
     이동평균 기준 상하단 밴드를 계산한다.
 
+    upper_band는 매수 버퍼(동적 조정됨), lower_band는 매도 버퍼(항상 고정).
+
     Args:
         ma_value: 이동평균 값
-        buffer_zone_pct: 버퍼존 비율 (0~1)
+        buy_buffer_pct: 매수 버퍼존 비율 (upper_band용, 0~1)
+        sell_buffer_pct: 매도 버퍼존 비율 (lower_band용, 0~1)
 
     Returns:
         tuple: (upper_band, lower_band)
-            - upper_band: 상단 밴드 = ma * (1 + buffer_zone_pct)
-            - lower_band: 하단 밴드 = ma * (1 - buffer_zone_pct)
+            - upper_band: 상단 밴드 = ma * (1 + buy_buffer_pct)
+            - lower_band: 하단 밴드 = ma * (1 - sell_buffer_pct)
     """
-    upper_band = ma_value * (1 + buffer_zone_pct)
-    lower_band = ma_value * (1 - buffer_zone_pct)
+    upper_band = ma_value * (1 + buy_buffer_pct)
+    lower_band = ma_value * (1 - sell_buffer_pct)
     return upper_band, lower_band
 
 
@@ -423,7 +458,8 @@ def _record_equity(
     capital: float,
     position: int,
     close_price: float,
-    current_buffer_pct: float,
+    buy_buffer_pct: float,
+    sell_buffer_pct: float,
     upper_band: float | None,
     lower_band: float | None,
 ) -> EquityRecord:
@@ -435,7 +471,8 @@ def _record_equity(
         capital: 현재 보유 현금
         position: 현재 포지션 수량
         close_price: 현재 종가
-        current_buffer_pct: 현재 버퍼존 비율
+        buy_buffer_pct: 현재 매수 버퍼존 비율 (동적 조정 반영)
+        sell_buffer_pct: 현재 매도 버퍼존 비율 (항상 고정)
         upper_band: 상단 밴드 (첫 날은 None 가능)
         lower_band: 하단 밴드 (첫 날은 None 가능)
 
@@ -451,7 +488,8 @@ def _record_equity(
         COL_DATE: current_date,
         "equity": equity,
         "position": position,
-        "buffer_zone_pct": current_buffer_pct,
+        "buy_buffer_pct": buy_buffer_pct,
+        "sell_buffer_pct": sell_buffer_pct,
         "upper_band": upper_band,
         "lower_band": lower_band,
     }
@@ -536,9 +574,9 @@ def _execute_sell_order(
         "shares": position,
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
-        "buffer_zone_pct": order.buffer_zone_pct,
+        "buy_buffer_pct": order.buffer_zone_pct,
         "hold_days_used": 0,
-        "recent_buy_count": 0,
+        "recent_sell_count": 0,
     }
 
     return 0, new_capital, trade_record
@@ -588,26 +626,32 @@ def _detect_sell_signal(
     return prev_close >= prev_lower_band and close < lower_band
 
 
-def _calculate_recent_buy_count(
-    entry_dates: list[date],
+def _calculate_recent_sell_count(
+    exit_dates: list[date],
     current_date: date,
     recent_months: int,
 ) -> int:
     """
-    최근 N개월 내 매수 횟수를 계산한다.
+    최근 N개월 내 청산 횟수를 계산한다.
+
+    가산 누적: 60일 내 청산이 2회 발생하면 count=2.
+    당일 청산(d == current_date)은 포함하지 않는다.
 
     Args:
-        entry_dates: 모든 매수 날짜 리스트 (datetime.date 객체)
+        exit_dates: 모든 청산 날짜 리스트 (datetime.date 객체)
         current_date: 현재 날짜 (datetime.date 객체)
-        recent_months: 최근 기간 (개월)
+        recent_months: 최근 기간 (개월), 0이면 항상 0 반환
 
     Returns:
-        최근 N개월 내 매수 횟수
+        최근 N개월 내 청산 횟수
     """
+    if recent_months == 0:
+        return 0
+
     # 최근 N개월을 일수로 환산
     # 정확한 월 계산 대신 근사값 사용 (백테스트 성능 최적화)
     cutoff_date = current_date - timedelta(days=recent_months * DEFAULT_DAYS_PER_MONTH)
-    count = sum(1 for d in entry_dates if d >= cutoff_date and d < current_date)
+    count = sum(1 for d in exit_dates if d >= cutoff_date and d < current_date)
     return count
 
 
@@ -641,7 +685,8 @@ def _run_buffer_strategy_for_grid(
 
     return {
         COL_MA_WINDOW: params.ma_window,
-        COL_BUFFER_ZONE_PCT: params.buffer_zone_pct,
+        COL_BUY_BUFFER_ZONE_PCT: params.buy_buffer_zone_pct,
+        COL_SELL_BUFFER_ZONE_PCT: params.sell_buffer_zone_pct,
         COL_HOLD_DAYS: params.hold_days,
         COL_RECENT_MONTHS: params.recent_months,
         COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
@@ -657,7 +702,8 @@ def run_grid_search(
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
     ma_window_list: list[int],
-    buffer_zone_pct_list: list[float],
+    buy_buffer_zone_pct_list: list[float],
+    sell_buffer_zone_pct_list: list[float],
     hold_days_list: list[int],
     recent_months_list: list[int],
     initial_capital: float = 10_000_000.0,
@@ -672,9 +718,10 @@ def run_grid_search(
         signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
         ma_window_list: 이동평균 기간 목록
-        buffer_zone_pct_list: 버퍼존 비율 목록
+        buy_buffer_zone_pct_list: 매수 버퍼존 비율 목록
+        sell_buffer_zone_pct_list: 매도 버퍼존 비율 목록
         hold_days_list: 유지조건 일수 목록
-        recent_months_list: 최근 매수 기간 목록
+        recent_months_list: 최근 청산 기간 목록
         initial_capital: 초기 자본금
 
     Returns:
@@ -682,7 +729,8 @@ def run_grid_search(
     """
     logger.debug(
         f"그리드 탐색 시작: "
-        f"ma_window={ma_window_list}, buffer_zone_pct={buffer_zone_pct_list}, "
+        f"ma_window={ma_window_list}, buy_buffer_zone_pct={buy_buffer_zone_pct_list}, "
+        f"sell_buffer_zone_pct={sell_buffer_zone_pct_list}, "
         f"hold_days={hold_days_list}, recent_months={recent_months_list}"
     )
 
@@ -700,20 +748,22 @@ def run_grid_search(
     param_combinations: list[dict[str, BufferStrategyParams]] = []
 
     for ma_window in ma_window_list:
-        for buffer_zone_pct in buffer_zone_pct_list:
-            for hold_days in hold_days_list:
-                for recent_months in recent_months_list:
-                    param_combinations.append(
-                        {
-                            "params": BufferStrategyParams(
-                                ma_window=ma_window,
-                                buffer_zone_pct=buffer_zone_pct,
-                                hold_days=hold_days,
-                                recent_months=recent_months,
-                                initial_capital=initial_capital,
-                            ),
-                        }
-                    )
+        for buy_buffer_zone_pct in buy_buffer_zone_pct_list:
+            for sell_buffer_zone_pct in sell_buffer_zone_pct_list:
+                for hold_days in hold_days_list:
+                    for recent_months in recent_months_list:
+                        param_combinations.append(
+                            {
+                                "params": BufferStrategyParams(
+                                    ma_window=ma_window,
+                                    buy_buffer_zone_pct=buy_buffer_zone_pct,
+                                    sell_buffer_zone_pct=sell_buffer_zone_pct,
+                                    hold_days=hold_days,
+                                    recent_months=recent_months,
+                                    initial_capital=initial_capital,
+                                ),
+                            }
+                        )
 
     logger.debug(f"총 {len(param_combinations)}개 조합 병렬 실행 시작 (DataFrame 캐시 사용)")
 
@@ -758,6 +808,8 @@ def run_buffer_strategy(
     - equity = cash + position * trade_df.close (모든 시점)
     - final_capital = 마지막 equity (평가액 포함)
     - pending_order: 단일 슬롯 (충돌 시 PendingOrderConflictError)
+    - lower_band: 항상 sell_buffer_zone_pct 기준 고정
+    - upper_band: recent_sell_count 기반 동적 확장
 
     Args:
         signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
@@ -800,7 +852,7 @@ def run_buffer_strategy(
     position = 0
     entry_price = 0.0
     entry_date = None
-    all_entry_dates: list[date] = []
+    all_exit_dates: list[date] = []  # 청산 날짜 누적 (동적 조정 기준)
 
     trades: list[TradeRecord] = []
     equity_records: list[EquityRecord] = []
@@ -808,13 +860,17 @@ def run_buffer_strategy(
     hold_state: HoldState | None = None
 
     entry_hold_days = 0
-    entry_recent_buy_count = 0
+    entry_recent_sell_count = 0
 
     # 3-1. 첫 날 에쿼티 기록 및 prev band 초기화
     first_signal_row = signal_df.iloc[0]
     first_trade_row = trade_df.iloc[0]
     first_ma_value = first_signal_row[ma_col]
-    first_upper_band, first_lower_band = _compute_bands(first_ma_value, params.buffer_zone_pct)
+    first_upper_band, first_lower_band = _compute_bands(
+        first_ma_value,
+        params.buy_buffer_zone_pct,  # 초기 buy buffer
+        params.sell_buffer_zone_pct,  # sell buffer (고정)
+    )
 
     # 에쿼티는 trade_df의 종가로 계산
     first_equity_record = _record_equity(
@@ -822,7 +878,8 @@ def run_buffer_strategy(
         params.initial_capital,
         0,
         first_trade_row[COL_CLOSE],
-        params.buffer_zone_pct,
+        params.buy_buffer_zone_pct,
+        params.sell_buffer_zone_pct,
         first_upper_band,
         first_lower_band,
     )
@@ -842,17 +899,21 @@ def run_buffer_strategy(
 
         # 4-1. 동적 파라미터 계산
         if params.recent_months > 0:
-            recent_buy_count = _calculate_recent_buy_count(all_entry_dates, current_date, params.recent_months)
-            current_buffer_pct = params.buffer_zone_pct + (recent_buy_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
+            recent_sell_count = _calculate_recent_sell_count(all_exit_dates, current_date, params.recent_months)
+            # 동적 확장은 upper_band(매수)에만 적용
+            current_buy_buffer_pct = params.buy_buffer_zone_pct + (recent_sell_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
 
             if params.hold_days > 0:
-                current_hold_days = params.hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+                current_hold_days = params.hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
             else:
                 current_hold_days = params.hold_days
         else:
-            current_buffer_pct = params.buffer_zone_pct
+            recent_sell_count = 0
+            current_buy_buffer_pct = params.buy_buffer_zone_pct
             current_hold_days = params.hold_days
-            recent_buy_count = 0
+
+        # lower_band는 항상 고정 (sell_buffer_zone_pct)
+        current_sell_buffer_pct = params.sell_buffer_zone_pct
 
         # 4-2. 예약된 주문 실행 (trade_df의 오늘 시가로 체결)
         if pending_order is not None:
@@ -861,13 +922,12 @@ def run_buffer_strategy(
                     pending_order, trade_row[COL_OPEN], current_date, capital, position
                 )
                 if success:
-                    all_entry_dates.append(entry_date)
                     entry_hold_days = pending_order.hold_days_used
-                    entry_recent_buy_count = pending_order.recent_buy_count
+                    entry_recent_sell_count = pending_order.recent_sell_count
                     if log_trades:
                         logger.debug(
                             f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
-                            f"수량={position}, 버퍼존={pending_order.buffer_zone_pct:.2%}"
+                            f"수량={position}, 매수버퍼={pending_order.buffer_zone_pct:.2%}"
                         )
 
             elif pending_order.order_type == "sell" and position > 0:
@@ -876,8 +936,10 @@ def run_buffer_strategy(
                     pending_order, trade_row[COL_OPEN], current_date, capital, position, entry_price, entry_date
                 )
                 trade_record["hold_days_used"] = entry_hold_days
-                trade_record["recent_buy_count"] = entry_recent_buy_count
+                trade_record["recent_sell_count"] = entry_recent_sell_count
                 trades.append(trade_record)
+                # 청산 완료 → all_exit_dates에 기록
+                all_exit_dates.append(current_date)
                 if log_trades:
                     logger.debug(f"매도 체결: {current_date}, 손익률={trade_record['pnl_pct']*100:.2f}%")
 
@@ -885,11 +947,18 @@ def run_buffer_strategy(
 
         # 4-3. 버퍼존 밴드 계산 (signal_df의 MA 기준)
         ma_value = signal_row[ma_col]
-        upper_band, lower_band = _compute_bands(ma_value, current_buffer_pct)
+        upper_band, lower_band = _compute_bands(ma_value, current_buy_buffer_pct, current_sell_buffer_pct)
 
         # 4-4. 에쿼티 기록 (trade_df의 종가로 평가)
         equity_record = _record_equity(
-            current_date, capital, position, trade_row[COL_CLOSE], current_buffer_pct, upper_band, lower_band
+            current_date,
+            capital,
+            position,
+            trade_row[COL_CLOSE],
+            current_buy_buffer_pct,
+            current_sell_buffer_pct,
+            upper_band,
+            lower_band,
         )
         equity_records.append(equity_record)
 
@@ -909,7 +978,7 @@ def run_buffer_strategy(
                             signal_date=current_date,
                             buffer_zone_pct=hold_state["buffer_pct"],
                             hold_days_used=hold_state["hold_days_required"],
-                            recent_buy_count=recent_buy_count,
+                            recent_sell_count=recent_sell_count,
                         )
                         hold_state = None
                 else:
@@ -928,7 +997,7 @@ def run_buffer_strategy(
                         hold_state = {
                             "start_date": current_date,
                             "days_passed": 0,
-                            "buffer_pct": current_buffer_pct,
+                            "buffer_pct": current_buy_buffer_pct,
                             "hold_days_required": current_hold_days,
                         }
                     else:
@@ -936,9 +1005,9 @@ def run_buffer_strategy(
                         pending_order = PendingOrder(
                             order_type="buy",
                             signal_date=current_date,
-                            buffer_zone_pct=current_buffer_pct,
+                            buffer_zone_pct=current_buy_buffer_pct,
                             hold_days_used=0,
-                            recent_buy_count=recent_buy_count,
+                            recent_sell_count=recent_sell_count,
                         )
 
         elif position > 0:
@@ -955,9 +1024,9 @@ def run_buffer_strategy(
                 pending_order = PendingOrder(
                     order_type="sell",
                     signal_date=current_date,
-                    buffer_zone_pct=current_buffer_pct,
+                    buffer_zone_pct=current_buy_buffer_pct,
                     hold_days_used=0,
-                    recent_buy_count=recent_buy_count,
+                    recent_sell_count=recent_sell_count,
                 )
 
         # 4-6. 다음 루프를 위해 전일 밴드 저장
@@ -974,7 +1043,8 @@ def run_buffer_strategy(
         **base_summary,
         "strategy": strategy_name,
         "ma_window": params.ma_window,
-        "buffer_zone_pct": params.buffer_zone_pct,
+        "buy_buffer_zone_pct": params.buy_buffer_zone_pct,
+        "sell_buffer_zone_pct": params.sell_buffer_zone_pct,
         "hold_days": params.hold_days,
     }
 

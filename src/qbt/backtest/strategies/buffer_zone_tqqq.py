@@ -38,7 +38,8 @@ GRID_RESULTS_PATH = BUFFER_ZONE_TQQQ_RESULTS_DIR / "grid_results.csv"
 # 파라미터 오버라이드 (None = grid_results.csv 최적값 사용, 값 설정 = 수동)
 # 폴백 체인: OVERRIDE → grid_results.csv 최적값 → DEFAULT
 OVERRIDE_MA_WINDOW: int | None = None
-OVERRIDE_BUFFER_ZONE_PCT: float | None = None
+OVERRIDE_BUY_BUFFER_ZONE_PCT: float | None = None
+OVERRIDE_SELL_BUFFER_ZONE_PCT: float | None = None
 OVERRIDE_HOLD_DAYS: int | None = None
 OVERRIDE_RECENT_MONTHS: int | None = None
 
@@ -60,7 +61,8 @@ def resolve_params() -> tuple[BufferStrategyParams, dict[str, str]]:
     return resolve_buffer_params(
         GRID_RESULTS_PATH,
         OVERRIDE_MA_WINDOW,
-        OVERRIDE_BUFFER_ZONE_PCT,
+        OVERRIDE_BUY_BUFFER_ZONE_PCT,
+        OVERRIDE_SELL_BUFFER_ZONE_PCT,
         OVERRIDE_HOLD_DAYS,
         OVERRIDE_RECENT_MONTHS,
     )
@@ -94,7 +96,8 @@ def run_single() -> SingleBacktestResult:
     params_json: dict[str, Any] = {
         "ma_window": params.ma_window,
         "ma_type": MA_TYPE,
-        "buffer_zone_pct": round(params.buffer_zone_pct, 4),
+        "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, 4),
+        "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
         "hold_days": params.hold_days,
         "recent_months": params.recent_months,
         "initial_capital": round(DEFAULT_INITIAL_CAPITAL),

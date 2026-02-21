@@ -59,11 +59,12 @@ class SummaryDict(TypedDict):
 class BestGridParams(TypedDict):
     """load_best_grid_params() 반환 타입.
 
-    grid_results.csv에서 CAGR 1위 파라미터 4개를 담는다.
+    grid_results.csv에서 CAGR 1위 파라미터 5개를 담는다.
     """
 
     ma_window: int
-    buffer_zone_pct: float
+    buy_buffer_zone_pct: float
+    sell_buffer_zone_pct: float
     hold_days: int
     recent_months: int
 

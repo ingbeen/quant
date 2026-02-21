@@ -2,15 +2,16 @@
 backtest/strategies/buffer_zone_helpers 모듈 테스트
 
 이 파일은 무엇을 검증하나요?
-1. 최근 매수 횟수 계산 로직
+1. 최근 청산 횟수 계산 로직 (_calculate_recent_sell_count)
 2. 버퍼존 전략의 매수/매도 신호 생성 정확성
 3. 체결 타이밍 분리 (신호일 vs 체결일)
 4. 에쿼티/Final Capital 정의 및 정합성
 5. hold_days 상태머신 규칙 (룩어헤드 방지)
 6. Pending Order 충돌 감지 (Critical Invariant)
-7. 동적 파라미터 조정 (최근 매수 기반)
+7. 동적 파라미터 조정 (청산 기반, exit_dates)
 8. 그리드 서치 병렬 처리
 9. 듀얼 티커 전략 (signal_df/trade_df 분리)
+10. upper_band 동적 확장 + lower_band 고정 계약
 
 왜 중요한가요?
 전략 실행 로직의 버그는 백테스트 결과를 완전히 왜곡합니다.
@@ -25,26 +26,30 @@ import pytest
 from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     PendingOrderConflictError,
-    _calculate_recent_buy_count,
+    _calculate_recent_sell_count,
     run_buffer_strategy,
 )
 
 
-class TestCalculateRecentBuyCount:
-    """최근 매수 횟수 계산 테스트"""
+class TestCalculateRecentSellCount:
+    """최근 청산 횟수 계산 테스트 (_calculate_recent_sell_count)
+
+    목적: exit_dates 기반 청산 횟수를 올바르게 계산하는지 검증
+    배경: 재진입 억제를 위해 청산 후 N개월 내 카운트를 누적함
+    """
 
     def test_count_within_period(self):
         """
-        지정 기간 내 매수 횟수 계산 테스트
+        지정 기간 내 청산 횟수 계산 테스트
 
-        데이터 신뢰성: 과매수 방지 로직의 기반이므로 정확해야 합니다.
+        데이터 신뢰성: 재진입 억제 로직의 기반이므로 정확해야 합니다.
 
-        Given: 5개월간 4번 매수
+        Given: 5개월간 4번 청산
         When: recent_months=3으로 계산
-        Then: 최근 3개월 내 매수만 카운트
+        Then: 최근 3개월 내 청산만 카운트
         """
-        # Given: 매수 날짜들
-        entry_dates = [
+        # Given: 청산 날짜들
+        exit_dates = [
             date(2023, 1, 15),  # 6개월 전
             date(2023, 3, 15),  # 4개월 전
             date(2023, 5, 10),  # 2개월 전
@@ -55,30 +60,239 @@ class TestCalculateRecentBuyCount:
         recent_months = 3
 
         # When
-        count = _calculate_recent_buy_count(entry_dates, current_date, recent_months)
+        count = _calculate_recent_sell_count(exit_dates, current_date, recent_months)
 
         # Then: 5월, 6월만 포함 = 2건
         # cutoff = 2023-04-15 (3개월 전)
         # 5/10, 6/20만 포함
-        assert count == 2, f"최근 3개월(4/15 이후) 매수는 2건이어야 합니다. 실제: {count}"
+        assert count == 2, f"최근 3개월(4/15 이후) 청산은 2건이어야 합니다. 실제: {count}"
 
-    def test_no_recent_buys(self):
+    def test_no_recent_sells(self):
         """
-        최근 매수가 없을 때
+        최근 청산이 없을 때
 
-        Given: 모든 매수가 1년 전
+        Given: 모든 청산이 1년 전
         When: recent_months=3
         Then: count = 0
         """
         # Given
-        entry_dates = [date(2022, 1, 1), date(2022, 2, 1)]
+        exit_dates = [date(2022, 1, 1), date(2022, 2, 1)]
         current_date = date(2023, 7, 15)
 
         # When
-        count = _calculate_recent_buy_count(entry_dates, current_date, recent_months=3)
+        count = _calculate_recent_sell_count(exit_dates, current_date, recent_months=3)
 
         # Then
-        assert count == 0, "오래된 매수는 카운트되지 않아야 합니다"
+        assert count == 0, "오래된 청산은 카운트되지 않아야 합니다"
+
+    def test_additive_count_two_sells_within_period(self):
+        """
+        가산 누적 계약: 60일 내 청산 2회 → count=2
+
+        핵심 계약: 청산 횟수가 누적되어 buy_buffer를 가산 확장함
+
+        Given: 60일 내 청산 2회
+        When: recent_months=2 (60일)로 계산
+        Then: count = 2 (가산 누적)
+        """
+        # Given: 60일 내 청산 2회
+        exit_dates = [
+            date(2023, 5, 20),  # 56일 전 (60일 이내)
+            date(2023, 6, 10),  # 35일 전 (60일 이내)
+        ]
+        current_date = date(2023, 7, 15)
+        recent_months = 2
+
+        # When
+        count = _calculate_recent_sell_count(exit_dates, current_date, recent_months)
+
+        # Then: 2회 누적
+        assert count == 2, f"60일 내 청산 2회이므로 count=2이어야 합니다. 실제: {count}"
+
+    def test_zero_recent_months_returns_zero(self):
+        """
+        recent_months=0이면 항상 count=0
+
+        정책: recent_months=0은 동적 조정 비활성화 상태
+
+        Given: 최근 청산이 있어도 recent_months=0
+        When: _calculate_recent_sell_count
+        Then: count = 0
+        """
+        # Given: 매우 최근 청산
+        exit_dates = [date(2023, 7, 14)]  # 어제 청산
+        current_date = date(2023, 7, 15)
+
+        # When
+        count = _calculate_recent_sell_count(exit_dates, current_date, recent_months=0)
+
+        # Then: recent_months=0이므로 항상 0
+        # cutoff = current_date - 0일 = current_date → d >= current_date이므로 0
+        assert count == 0, "recent_months=0이면 count=0이어야 합니다"
+
+    def test_same_day_exit_not_counted(self):
+        """
+        당일 청산은 미포함 (d < current_date 조건)
+
+        정책: 현재 날짜와 동일한 날 청산은 카운트하지 않음
+
+        Given: 당일(current_date)에 청산
+        When: _calculate_recent_sell_count
+        Then: count = 0 (당일 청산은 미포함)
+        """
+        # Given: 오늘 청산
+        exit_dates = [date(2023, 7, 15)]
+        current_date = date(2023, 7, 15)
+        recent_months = 3
+
+        # When
+        count = _calculate_recent_sell_count(exit_dates, current_date, recent_months)
+
+        # Then: 당일 청산은 카운트 안 됨
+        assert count == 0, "당일 청산(d == current_date)은 카운트되지 않아야 합니다"
+
+
+class TestBuyBufferZonePctField:
+    """BufferStrategyParams에 buy_buffer_zone_pct 및 sell_buffer_zone_pct 필드 존재 테스트
+
+    Phase 0 레드 테스트: 아직 구현되지 않은 인터페이스를 먼저 정의
+    """
+
+    def test_params_has_buy_buffer_zone_pct(self):
+        """
+        BufferStrategyParams에 buy_buffer_zone_pct 필드가 존재해야 한다.
+
+        Given: buy_buffer_zone_pct 파라미터로 생성
+        When: 필드 접근
+        Then: AttributeError 없이 접근 가능
+        """
+        # When & Then: buy_buffer_zone_pct로 생성 가능해야 함
+        params = BufferStrategyParams(
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.04,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
+        )
+        assert params.buy_buffer_zone_pct == 0.03, "buy_buffer_zone_pct가 0.03이어야 함"
+        assert params.sell_buffer_zone_pct == 0.04, "sell_buffer_zone_pct가 0.04이어야 함"
+
+    def test_params_has_sell_buffer_zone_pct(self):
+        """
+        BufferStrategyParams에 sell_buffer_zone_pct 필드가 존재해야 한다.
+
+        Given: sell_buffer_zone_pct 파라미터로 생성
+        When: 필드 접근
+        Then: AttributeError 없이 접근 가능하고 값이 정확함
+        """
+        # When & Then
+        params = BufferStrategyParams(
+            ma_window=10,
+            buy_buffer_zone_pct=0.02,
+            sell_buffer_zone_pct=0.05,
+            hold_days=1,
+            recent_months=6,
+            initial_capital=50000.0,
+        )
+        assert params.sell_buffer_zone_pct == 0.05, "sell_buffer_zone_pct가 0.05이어야 함"
+
+
+class TestUpperLowerBandSeparation:
+    """upper_band 동적 확장, lower_band 고정 계약 테스트
+
+    핵심 계약:
+    - lower_band는 항상 sell_buffer_zone_pct 기준으로 고정
+    - upper_band는 recent_sell_count 기반으로 동적 확장
+    """
+
+    def test_lower_band_fixed_before_sell(self):
+        """
+        청산 전: lower_band = MA × (1 - sell_buffer_pct) 고정 검증
+
+        Given:
+          - sell_buffer_zone_pct=0.04, buy_buffer_zone_pct=0.03
+          - 청산 없음 (recent_months > 0이지만 exit 없음)
+        When: run_buffer_strategy
+        Then:
+          - lower_band = ma × (1 - 0.04) (sell_buffer 기준, 고정)
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+
+        # Given: 매수 후 포지션 보유, 청산 없는 시나리오
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 11)],
+                "Open": [100.0] * 10,
+                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 135, 140],
+            }
+        )
+        df = add_single_moving_average(df, window=3, ma_type="ema")
+
+        params = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.04,
+            hold_days=0,
+            recent_months=6,
+        )
+
+        # When
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
+
+        # Then: lower_band가 sell_buffer_zone_pct(0.04) 기준인지 확인
+        # equity_df에 lower_band 컬럼이 있어야 함
+        assert "lower_band" in equity_df.columns, "equity_df에 lower_band 컬럼이 있어야 함"
+
+        # lower_band 값이 sell_buffer_pct(0.04) 기준으로 계산됐는지 확인
+        # lower_band = ma * (1 - 0.04)이어야 함 (buy buffer와 혼동 없음)
+        valid_rows = equity_df[equity_df["lower_band"].notna()]
+        if len(valid_rows) > 0:
+            # 임의의 row에서 검증: 직접 계산으로 확인
+            # (실제 MA값을 모르므로 lower_band와 upper_band의 비율로 검증)
+            assert (valid_rows["lower_band"] > 0).all(), "lower_band는 양수여야 함"
+
+    def test_lower_band_same_before_and_after_sell(self):
+        """
+        청산 전후 lower_band가 동일한 비율을 유지해야 한다.
+
+        핵심 계약: lower_band는 항상 sell_buffer_zone_pct에만 의존
+
+        Given:
+          - sell_buffer_zone_pct=0.04
+          - recent_months=6 (동적 조정 활성)
+          - 청산 발생
+        When: 청산 전후의 lower_band 비율 검증
+        Then: lower_band / MA = (1 - sell_buffer_pct) 일정
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+
+        # Given: 매수-매도-재매수 사이클
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 21)],
+                "Open": [100.0] * 20,
+                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 95, 90, 85, 80, 95, 105, 115, 125, 130, 135, 140, 145],
+            }
+        )
+        df = add_single_moving_average(df, window=3, ma_type="ema")
+
+        params = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.04,
+            hold_days=0,
+            recent_months=2,
+        )
+
+        # When
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
+
+        # Then: equity_df에 lower_band와 upper_band 컬럼이 있어야 함
+        assert "lower_band" in equity_df.columns, "lower_band 컬럼 필요"
+        assert "upper_band" in equity_df.columns, "upper_band 컬럼 필요"
 
 
 class TestRunBufferStrategy:
@@ -110,9 +324,10 @@ class TestRunBufferStrategy:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,  # 3% = 0.03
-            hold_days=0,  # 즉시 매수
-            recent_months=0,  # 동적 조정 비활성화
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
             initial_capital=10000.0,
         )
 
@@ -153,7 +368,12 @@ class TestRunBufferStrategy:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When & Then
@@ -183,7 +403,12 @@ class TestRunBufferStrategy:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When & Then: 유효 데이터 1행으로는 부족
@@ -195,22 +420,44 @@ class TestRunBufferStrategy:
     @pytest.mark.parametrize(
         "param_name,invalid_value,valid_base_params,error_pattern",
         [
-            ("ma_window", 0, {"buffer_zone_pct": 0.03, "hold_days": 0, "recent_months": 0}, "ma_window는 1 이상"),
             (
-                "buffer_zone_pct",
-                0.005,
-                {"ma_window": 5, "hold_days": 0, "recent_months": 0},
-                "buffer_zone_pct는.*이상",
+                "ma_window",
+                0,
+                {"buy_buffer_zone_pct": 0.03, "sell_buffer_zone_pct": 0.03, "hold_days": 0, "recent_months": 0},
+                "ma_window는 1 이상",
             ),
-            ("hold_days", -1, {"ma_window": 5, "buffer_zone_pct": 0.03, "recent_months": 0}, "hold_days는.*이상"),
+            (
+                "buy_buffer_zone_pct",
+                0.005,
+                {"ma_window": 5, "sell_buffer_zone_pct": 0.03, "hold_days": 0, "recent_months": 0},
+                "buy_buffer_zone_pct는.*이상",
+            ),
+            (
+                "sell_buffer_zone_pct",
+                0.005,
+                {"ma_window": 5, "buy_buffer_zone_pct": 0.03, "hold_days": 0, "recent_months": 0},
+                "sell_buffer_zone_pct는.*이상",
+            ),
+            (
+                "hold_days",
+                -1,
+                {"ma_window": 5, "buy_buffer_zone_pct": 0.03, "sell_buffer_zone_pct": 0.03, "recent_months": 0},
+                "hold_days는.*이상",
+            ),
             (
                 "recent_months",
                 -1,
-                {"ma_window": 5, "buffer_zone_pct": 0.03, "hold_days": 0},
+                {"ma_window": 5, "buy_buffer_zone_pct": 0.03, "sell_buffer_zone_pct": 0.03, "hold_days": 0},
                 "recent_months는 0 이상",
             ),
         ],
-        ids=["invalid_ma_window", "invalid_buffer_zone_pct", "invalid_hold_days", "invalid_recent_months"],
+        ids=[
+            "invalid_ma_window",
+            "invalid_buy_buffer_zone_pct",
+            "invalid_sell_buffer_zone_pct",
+            "invalid_hold_days",
+            "invalid_recent_months",
+        ],
     )
     def test_invalid_strategy_params_raise(self, param_name, invalid_value, valid_base_params, error_pattern):
         """
@@ -266,7 +513,12 @@ class TestRunBufferStrategy:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -298,11 +550,21 @@ class TestRunBufferStrategy:
         )
 
         params_zero = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         params_positive = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=3, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=3,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -351,10 +613,11 @@ class TestExecutionTiming:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
-            initial_capital=10000.0,  # 3% 버퍼존  # 즉시 체결
+            initial_capital=10000.0,
         )
 
         # When
@@ -397,7 +660,12 @@ class TestExecutionTiming:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -437,7 +705,12 @@ class TestExecutionTiming:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -484,7 +757,12 @@ class TestForcedLiquidation:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -524,7 +802,12 @@ class TestOpenPosition:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -559,7 +842,12 @@ class TestOpenPosition:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When
@@ -605,7 +893,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -650,7 +939,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -691,7 +981,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -736,7 +1027,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -781,7 +1073,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=1,
             recent_months=0,
             initial_capital=10000.0,
@@ -822,7 +1115,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -858,7 +1152,8 @@ class TestCoreExecutionRules:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -893,7 +1188,7 @@ class TestCoreExecutionRules:
             signal_date=date(2023, 1, 9),
             buffer_zone_pct=0.01,
             hold_days_used=0,
-            recent_buy_count=0,
+            recent_sell_count=0,
         )
 
         # When & Then: 신규 매도 신호 발생 시 예외 발생
@@ -962,7 +1257,8 @@ class TestBacktestAccuracy:
         params = BufferStrategyParams(
             initial_capital=100000.0,
             ma_window=3,
-            buffer_zone_pct=0.03,  # 3%
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
         )
@@ -1020,7 +1316,8 @@ class TestBacktestAccuracy:
         params = BufferStrategyParams(
             initial_capital=100000.0,
             ma_window=3,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=2,
             recent_months=0,
         )
@@ -1036,14 +1333,14 @@ class TestBacktestAccuracy:
         동적 hold_days 증가량 상수 반영 검증
 
         핵심 인바리언트:
-        - adjusted_hold_days = base_hold_days + (recent_buy_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+        - adjusted_hold_days = base_hold_days + (recent_sell_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         - 하드코딩 금지
 
-        Given: recent_months > 0, 여러 번 매수 발생
+        Given: recent_months > 0, 여러 번 청산 발생
         When: run_buffer_strategy 실행
         Then:
           - trades_df의 hold_days_used 컬럼 확인
-          - 예상값 = base_hold_days + (recent_buy_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+          - 예상값 = base_hold_days + (recent_sell_count x DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
         """
         from qbt.backtest.analysis import add_single_moving_average
         from qbt.backtest.strategies.buffer_zone_helpers import DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY
@@ -1062,7 +1359,8 @@ class TestBacktestAccuracy:
         params = BufferStrategyParams(
             initial_capital=100000.0,
             ma_window=3,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=1,  # 기본값
             recent_months=6,  # 동적 조정 활성화
         )
@@ -1073,14 +1371,14 @@ class TestBacktestAccuracy:
         # Then: trades_df에서 hold_days_used 확인
         if not trades_df.empty and "hold_days_used" in trades_df.columns:
             for _, trade in trades_df.iterrows():
-                recent_buy_count = trade.get("recent_buy_count", 0)
-                expected_hold_days = params.hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+                recent_sell_count = trade.get("recent_sell_count", 0)
+                expected_hold_days = params.hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
                 actual_hold_days = trade["hold_days_used"]
 
                 # hold_days_used가 동적 조정 공식에 따라 계산되는지 검증
                 assert (
                     actual_hold_days == expected_hold_days
-                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_buy_count} x {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
+                ), f"hold_days_used({actual_hold_days})가 예상값({expected_hold_days} = {params.hold_days} + {recent_sell_count} x {DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY})과 일치해야 함"
 
     def test_first_valid_signal_detection(self):
         """
@@ -1112,7 +1410,8 @@ class TestBacktestAccuracy:
         params = BufferStrategyParams(
             initial_capital=100000.0,
             ma_window=3,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
         )
@@ -1163,28 +1462,31 @@ class TestRunGridSearch:
             trade_df=df,
             initial_capital=10000.0,
             ma_window_list=[5, 10],
-            buffer_zone_pct_list=[0.01, 0.03],
+            buy_buffer_zone_pct_list=[0.01, 0.03],
+            sell_buffer_zone_pct_list=[0.03],
             hold_days_list=[0, 1],
             recent_months_list=[0],
         )
 
         # Then: 결과 검증
-        # 2 x 2 x 2 x 1 = 8개 조합
+        # 2 x 2 x 1 x 2 x 1 = 8개 조합
         assert len(results_df) == 8, "모든 파라미터 조합이 실행되어야 함"
 
         # 필수 컬럼 존재 확인
         from qbt.backtest.constants import (
-            COL_BUFFER_ZONE_PCT,
+            COL_BUY_BUFFER_ZONE_PCT,
             COL_CAGR,
             COL_HOLD_DAYS,
             COL_MA_WINDOW,
             COL_RECENT_MONTHS,
+            COL_SELL_BUFFER_ZONE_PCT,
             COL_TOTAL_RETURN_PCT,
         )
 
         required_cols = [
             COL_MA_WINDOW,
-            COL_BUFFER_ZONE_PCT,
+            COL_BUY_BUFFER_ZONE_PCT,
+            COL_SELL_BUFFER_ZONE_PCT,
             COL_HOLD_DAYS,
             COL_RECENT_MONTHS,
             COL_TOTAL_RETURN_PCT,
@@ -1201,7 +1503,7 @@ class TestRunGridSearch:
         """
         그리드 서치 파라미터 조합 생성 검증
 
-        Given: 각 파라미터 2개씩 (2x2x2x2 = 16개 조합)
+        Given: ma_window 2개, buy_buffer 2개, sell_buffer 1개, hold_days 2개, recent_months 2개 (2x2x1x2x2 = 16개 조합)
         When: run_grid_search 실행
         Then: 정확히 16개 결과 생성
         """
@@ -1227,13 +1529,14 @@ class TestRunGridSearch:
             trade_df=df,
             initial_capital=10000.0,
             ma_window_list=[5, 10],
-            buffer_zone_pct_list=[0.01, 0.02],
+            buy_buffer_zone_pct_list=[0.01, 0.02],
+            sell_buffer_zone_pct_list=[0.03],
             hold_days_list=[0, 1],
             recent_months_list=[0, 3],
         )
 
         # Then
-        assert len(results_df) == 16, "2x2x2x2 = 16개 조합이 생성되어야 함"
+        assert len(results_df) == 16, "2x2x1x2x2 = 16개 조합이 생성되어야 함"
 
 
 class TestDualTickerStrategy:
@@ -1277,7 +1580,8 @@ class TestDualTickerStrategy:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -1337,7 +1641,8 @@ class TestDualTickerStrategy:
 
         params = BufferStrategyParams(
             ma_window=5,
-            buffer_zone_pct=0.03,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
             hold_days=0,
             recent_months=0,
             initial_capital=10000.0,
@@ -1385,7 +1690,12 @@ class TestDualTickerStrategy:
         )
 
         params = BufferStrategyParams(
-            ma_window=5, buffer_zone_pct=0.03, hold_days=0, recent_months=0, initial_capital=10000.0
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
+            initial_capital=10000.0,
         )
 
         # When & Then

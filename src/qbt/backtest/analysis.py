@@ -14,10 +14,11 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.backtest.constants import (
-    DISPLAY_BUFFER_ZONE,
+    DISPLAY_BUY_BUFFER_ZONE,
     DISPLAY_HOLD_DAYS,
     DISPLAY_MA_WINDOW,
     DISPLAY_RECENT_MONTHS,
+    DISPLAY_SELL_BUFFER_ZONE,
 )
 from qbt.backtest.types import BestGridParams, SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
@@ -177,7 +178,8 @@ def calculate_summary(
 # DISPLAY 컬럼명 → 내부 키 매핑 (grid_results.csv 파싱용)
 _GRID_CSV_REQUIRED_COLUMNS = {
     DISPLAY_MA_WINDOW: "ma_window",
-    DISPLAY_BUFFER_ZONE: "buffer_zone_pct",
+    DISPLAY_BUY_BUFFER_ZONE: "buy_buffer_zone_pct",
+    DISPLAY_SELL_BUFFER_ZONE: "sell_buffer_zone_pct",
     DISPLAY_HOLD_DAYS: "hold_days",
     DISPLAY_RECENT_MONTHS: "recent_months",
 }
@@ -193,7 +195,7 @@ def load_best_grid_params(path: Path) -> BestGridParams | None:
         path: grid_results.csv 파일 경로
 
     Returns:
-        CAGR 1위 파라미터 딕셔너리 (ma_window, buffer_zone_pct, hold_days, recent_months)
+        CAGR 1위 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
         파일이 없거나 데이터가 비어있으면 None 반환
 
     Raises:
@@ -218,14 +220,16 @@ def load_best_grid_params(path: Path) -> BestGridParams | None:
     row = df.iloc[0]
     result: BestGridParams = {
         "ma_window": int(row[DISPLAY_MA_WINDOW]),
-        "buffer_zone_pct": float(row[DISPLAY_BUFFER_ZONE]),
+        "buy_buffer_zone_pct": float(row[DISPLAY_BUY_BUFFER_ZONE]),
+        "sell_buffer_zone_pct": float(row[DISPLAY_SELL_BUFFER_ZONE]),
         "hold_days": int(row[DISPLAY_HOLD_DAYS]),
         "recent_months": int(row[DISPLAY_RECENT_MONTHS]),
     }
 
     logger.debug(
         f"grid_results.csv 최적 파라미터 로드 완료: "
-        f"ma_window={result['ma_window']}, buffer_zone_pct={result['buffer_zone_pct']}, "
+        f"ma_window={result['ma_window']}, buy_buffer_zone_pct={result['buy_buffer_zone_pct']}, "
+        f"sell_buffer_zone_pct={result['sell_buffer_zone_pct']}, "
         f"hold_days={result['hold_days']}, recent_months={result['recent_months']}"
     )
 

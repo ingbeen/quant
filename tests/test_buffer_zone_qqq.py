@@ -46,7 +46,8 @@ class TestRunSingle:
         # load_stock_data를 mock하여 테스트 DataFrame 반환
         monkeypatch.setattr(buffer_zone_qqq, "load_stock_data", lambda _path: test_df.copy())
         monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_MA_WINDOW", 5)
-        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_BUY_BUFFER_ZONE_PCT", 0.03)
+        monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_SELL_BUFFER_ZONE_PCT", 0.03)
         monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_HOLD_DAYS", 0)
         monkeypatch.setattr(buffer_zone_qqq, "OVERRIDE_RECENT_MONTHS", 0)
         monkeypatch.setattr(buffer_zone_qqq, "GRID_RESULTS_PATH", tmp_path / "nonexistent.csv")

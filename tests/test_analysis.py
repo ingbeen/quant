@@ -333,9 +333,9 @@ class TestLoadBestGridParams:
     """grid_results.csv 최적 파라미터 로딩 테스트"""
 
     # 테스트용 CSV 헤더 및 데이터
-    _CSV_HEADER = "이평기간,버퍼존,유지일,조정기간(월),수익률,CAGR,MDD,거래수,승률,최종자본"
-    _CSV_ROW_1 = "150,0.04,3,2,16158.13,20.92,-85.68,16,68.75,1625813095.64"
-    _CSV_ROW_2 = "200,0.03,0,0,12000.00,18.50,-70.00,20,60.00,1200000000.00"
+    _CSV_HEADER = "이평기간,매수버퍼존,매도버퍼존,유지일,조정기간(월),수익률,CAGR,MDD,거래수,승률,최종자본"
+    _CSV_ROW_1 = "150,0.04,0.03,3,2,16158.13,20.92,-85.68,16,68.75,1625813095.64"
+    _CSV_ROW_2 = "200,0.03,0.02,0,0,12000.00,18.50,-70.00,20,60.00,1200000000.00"
 
     def test_normal_load(self, tmp_path: Path) -> None:
         """
@@ -355,7 +355,8 @@ class TestLoadBestGridParams:
         # Then
         assert result is not None
         assert result["ma_window"] == 150
-        assert result["buffer_zone_pct"] == pytest.approx(0.04, abs=EPSILON)
+        assert result["buy_buffer_zone_pct"] == pytest.approx(0.04, abs=EPSILON)
+        assert result["sell_buffer_zone_pct"] == pytest.approx(0.03, abs=EPSILON)
         assert result["hold_days"] == 3
         assert result["recent_months"] == 2
 
@@ -416,7 +417,7 @@ class TestLoadBestGridParams:
 
         Given: 정상 CSV
         When: load_best_grid_params 호출
-        Then: ma_window=int, buffer_zone_pct=float, hold_days=int, recent_months=int
+        Then: ma_window=int, buy_buffer_zone_pct=float, sell_buffer_zone_pct=float, hold_days=int, recent_months=int
         """
         # Given
         csv_path = tmp_path / "grid_results.csv"
@@ -428,6 +429,7 @@ class TestLoadBestGridParams:
         # Then
         assert result is not None
         assert isinstance(result["ma_window"], int)
-        assert isinstance(result["buffer_zone_pct"], float)
+        assert isinstance(result["buy_buffer_zone_pct"], float)
+        assert isinstance(result["sell_buffer_zone_pct"], float)
         assert isinstance(result["hold_days"], int)
         assert isinstance(result["recent_months"], int)

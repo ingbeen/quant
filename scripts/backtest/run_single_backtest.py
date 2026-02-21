@@ -122,8 +122,10 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
     equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
 
     equity_round: dict[str, int] = {"equity": 0, "drawdown_pct": 2}
-    if "buffer_zone_pct" in equity_export.columns:
-        equity_round["buffer_zone_pct"] = 4
+    if "buy_buffer_pct" in equity_export.columns:
+        equity_round["buy_buffer_pct"] = 4
+    if "sell_buffer_pct" in equity_export.columns:
+        equity_round["sell_buffer_pct"] = 4
     if "upper_band" in equity_export.columns:
         equity_round["upper_band"] = 6
     if "lower_band" in equity_export.columns:
@@ -165,8 +167,8 @@ def _save_trades_csv(result: SingleBacktestResult) -> Path:
             trades_round["pnl"] = 0
         if "pnl_pct" in trades_export.columns:
             trades_round["pnl_pct"] = 4
-        if "buffer_zone_pct" in trades_export.columns:
-            trades_round["buffer_zone_pct"] = 4
+        if "buy_buffer_pct" in trades_export.columns:
+            trades_round["buy_buffer_pct"] = 4
 
         trades_export = trades_export.round(trades_round)
         if "pnl" in trades_export.columns:

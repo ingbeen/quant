@@ -21,7 +21,7 @@
 
 - `OpenPositionDict`: 미청산 포지션 정보 (entry_date, entry_price, shares). 백테스트 종료 시 보유 중인 포지션의 진입 정보를 담으며, summary에 포함되어 summary.json에 저장된다
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
-- `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
+- `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 
 ### 2. constants.py
@@ -31,10 +31,10 @@
 주요 상수 카테고리:
 
 - 거래 비용: `SLIPPAGE_RATE` (0.3%, 슬리피지 + 수수료 통합)
-- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUFFER_ZONE_PCT` 등
-- 제약 조건: `MIN_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`
-- 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUFFER_ZONE_PCT_LIST` 등
-- 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUFFER_ZONE` 등
+- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUY_BUFFER_ZONE_PCT`, `DEFAULT_SELL_BUFFER_ZONE_PCT` 등
+- 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`
+- 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUY_BUFFER_ZONE_PCT_LIST`, `DEFAULT_SELL_BUFFER_ZONE_PCT_LIST` 등
+- 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
 
 ### 3. analysis.py
 
@@ -66,7 +66,7 @@
 데이터 클래스:
 
 - `BaseStrategyParams`: 전략 파라미터 기본 클래스
-- `BufferStrategyParams`: 버퍼존 전략 파라미터
+- `BufferStrategyParams`: 버퍼존 전략 파라미터 (buy_buffer_zone_pct, sell_buffer_zone_pct 분리)
 - `PendingOrder`: 예약 주문 정보 (신호일과 체결일 분리)
 
 예외 클래스:
@@ -75,15 +75,15 @@
 
 동적 조정 상수:
 
-- `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 매수 1회당 버퍼존 증가량 (0.01 = 1%)
-- `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 매수 1회당 유지조건 증가량 (1일)
+- `DEFAULT_BUFFER_INCREMENT_PER_BUY`: 최근 청산 1회당 매수 버퍼존 증가량 (0.01 = 1%)
+- `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 청산 1회당 유지조건 증가량 (1일)
 - `DEFAULT_DAYS_PER_MONTH`: 최근 기간 계산용 월당 일수 (30일 근사값)
 
 헬퍼 함수 (9개):
 
 - `_validate_buffer_strategy_inputs`, `_compute_bands`, `_check_pending_conflict`
 - `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
-- `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_buy_count`
+- `_detect_buy_signal`, `_detect_sell_signal`, `_calculate_recent_sell_count`
 
 파라미터 결정 함수:
 
@@ -113,7 +113,7 @@ QQQ 시그널 + TQQQ 합성 데이터 매매 전략의 설정 및 실행을 담�
 기타:
 
 - `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
-- OVERRIDE 상수 4개 + `MA_TYPE`
+- OVERRIDE 상수 5개 (OVERRIDE_BUY_BUFFER_ZONE_PCT, OVERRIDE_SELL_BUFFER_ZONE_PCT 포함) + `MA_TYPE`
 - `resolve_params()`: `resolve_buffer_params()`에 위임하여 파라미터 결정
 - `run_single()`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
 
@@ -135,7 +135,7 @@ QQQ 시그널 + QQQ 매매 전략의 설정 및 실행을 담당합니다.
 기타:
 
 - `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
-- OVERRIDE 상수 4개 + `MA_TYPE`
+- OVERRIDE 상수 5개 (OVERRIDE_BUY_BUFFER_ZONE_PCT, OVERRIDE_SELL_BUFFER_ZONE_PCT 포함) + `MA_TYPE`
 - `resolve_params()`: `resolve_buffer_params()`에 위임하여 파라미터 결정
 - `run_single()`: 단일 백테스트 실행 (signal과 trade 동일, `extract_overlap_period` 불필요) → `SingleBacktestResult` 반환
 
@@ -180,9 +180,10 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 ### 1. 전략 파라미터
 
 - 이동평균 기간 (`ma_window`): 추세 판단의 기준 기간, 1 이상
-- 버퍼존 (`buffer_zone_pct`): 이동평균선 주변 허용 범위 (비율, 0~1)
+- 매수 버퍼존 (`buy_buffer_zone_pct`): upper_band 기준 매수 진입 허용 범위 (비율, 0~1). 동적 조정됨
+- 매도 버퍼존 (`sell_buffer_zone_pct`): lower_band 기준 매도 청산 허용 범위 (비율, 0~1). 항상 고정
 - 유지 조건 (`hold_days`): 신호 확정까지 대기 기간 (일), 0 = 버퍼존만 모드
-- 조정 기간 (`recent_months`): 최근 거래 분석 기간, 0이면 동적 조정 비활성화
+- 조정 기간 (`recent_months`): 최근 청산 분석 기간, 0이면 동적 조정 비활성화
 
 ### 2. 비용 모델
 
@@ -240,15 +241,17 @@ Lookahead 금지:
 ### 버퍼존 밴드 계산
 
 ```
-upper_band = ma * (1 + buffer_zone_pct)
-lower_band = ma * (1 - buffer_zone_pct)
+upper_band = ma * (1 + buy_buffer_zone_pct)   # 매수 진입 기준 (동적 조정됨)
+lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준 (항상 고정)
 ```
 
-### 동적 파라미터 조정
+### 동적 파라미터 조정 (청산 기반)
 
 ```
-adjusted_buffer_pct = base_buffer_pct + (recent_buy_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
-adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+# upper_band에만 적용 (매수 진입 억제)
+adjusted_buy_buffer_pct = base_buy_buffer_pct + (recent_sell_count * DEFAULT_BUFFER_INCREMENT_PER_BUY)
+adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY)
+# lower_band는 항상 sell_buffer_zone_pct 고정 (동적 조정 없음)
 ```
 
 주의: 하드코딩 금지, 상수 사용 필수
@@ -268,7 +271,7 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 
 경로: `storage/results/backtest/{strategy_name}/grid_results.csv` (예: `buffer_zone_tqqq/`, `buffer_zone_qqq/`)
 
-주요 컬럼: 이평기간, 버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
+주요 컬럼: 이평기간, 매수버퍼존, 매도버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
 
 정렬: CAGR 내림차순
 
