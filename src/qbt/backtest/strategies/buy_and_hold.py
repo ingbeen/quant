@@ -157,6 +157,14 @@ def run_buy_and_hold(
     # 7. calculate_summary 호출
     summary = calculate_summary(trades_df, equity_df, params.initial_capital)
 
+    # 8. 미청산 포지션 정보 기록 (Buy & Hold는 항상 보유중)
+    if shares > 0:
+        summary["open_position"] = {
+            "entry_date": str(trade_df.iloc[0][COL_DATE]),
+            "entry_price": round(buy_price, 6),
+            "shares": shares,
+        }
+
     logger.debug(f"Buy & Hold 완료: 총 수익률={summary['total_return_pct']:.2f}%, CAGR={summary['cagr']:.2f}%")
 
     return equity_df, summary

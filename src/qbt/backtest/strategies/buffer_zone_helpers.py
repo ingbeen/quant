@@ -978,6 +978,14 @@ def run_buffer_strategy(
         "hold_days": params.hold_days,
     }
 
+    # 7. 미청산 포지션 정보 기록
+    if position > 0 and entry_date is not None:
+        summary["open_position"] = {
+            "entry_date": str(entry_date),
+            "entry_price": round(entry_price, 6),
+            "shares": position,
+        }
+
     if log_trades:
         logger.debug(f"버퍼존 전략 완료: 총 거래={summary['total_trades']}, 총 수익률={summary['total_return_pct']:.2f}%")
 

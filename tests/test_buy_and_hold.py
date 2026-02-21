@@ -159,6 +159,66 @@ class TestRunBuyAndHold:
             run_buy_and_hold(df, params)
 
 
+class TestOpenPosition:
+    """Buy & Hold 미청산 포지션 정보(open_position) 검증 테스트
+
+    목적: Buy & Hold는 항상 포지션을 보유하므로 summary에 open_position이 항상 포함되는지 검증
+    """
+
+    def test_open_position_always_present(self):
+        """
+        Buy & Hold 전략은 항상 open_position이 summary에 포함된다.
+
+        Given: 3일치 가격 데이터
+        When: run_buy_and_hold 실행
+        Then: summary에 open_position 존재 (entry_date, entry_price, shares)
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "Open": [100.0, 102.0, 104.0],
+                "Close": [101.0, 103.0, 105.0],
+            }
+        )
+        params = BuyAndHoldParams(initial_capital=10000.0)
+
+        # When
+        _equity_df, summary = run_buy_and_hold(df, params)
+
+        # Then: open_position이 항상 존재
+        assert "open_position" in summary, "Buy & Hold는 항상 open_position이 있어야 함"
+        open_pos = summary["open_position"]
+        assert open_pos["entry_date"] == "2023-01-02", "진입일은 첫 거래일"
+        assert open_pos["entry_price"] > 100.0, "진입가는 슬리피지 적용으로 시가보다 높음"
+        assert open_pos["shares"] > 0, "보유 수량은 양수"
+        assert isinstance(open_pos["shares"], int), "보유 수량은 정수"
+
+    def test_open_position_absent_when_no_shares(self):
+        """
+        자본 부족으로 매수하지 못한 경우 open_position이 없다.
+
+        Given: 초기 자본 10, 주가 100 (매수 불가)
+        When: run_buy_and_hold 실행
+        Then: summary에 open_position 없음
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3)],
+                "Open": [100.0, 101.0],
+                "Close": [100.0, 101.0],
+            }
+        )
+        params = BuyAndHoldParams(initial_capital=10.0)
+
+        # When
+        _equity_df, summary = run_buy_and_hold(df, params)
+
+        # Then: shares=0이므로 open_position 없음
+        assert "open_position" not in summary, "매수하지 못했으면 open_position이 없어야 함"
+
+
 class TestBuyAndHoldUsesTradeDF:
     """Buy & Hold가 trade_df를 올바르게 사용하는지 검증"""
 

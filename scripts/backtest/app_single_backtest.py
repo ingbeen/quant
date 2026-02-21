@@ -338,6 +338,31 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
     return markers
 
 
+def _build_open_position_marker(
+    summary_data: dict[str, Any],
+) -> list[dict[str, object]]:
+    """미청산 포지션(summary.json의 open_position)의 Buy 마커를 생성한다.
+
+    Feature Detection: summary에 open_position 키가 있으면 마커를 생성한다.
+    모든 전략에 대해 동일하게 동작한다.
+    """
+    summary = summary_data.get("summary", {})
+    open_pos = summary.get("open_position")
+    if open_pos is None:
+        return []
+
+    return [
+        {
+            "time": open_pos["entry_date"],
+            "position": "belowBar",
+            "color": COLOR_BUY_MARKER,
+            "shape": "arrowUp",
+            "text": f"Buy ${open_pos['entry_price']:.1f} (보유중)",
+            "size": 2,
+        }
+    ]
+
+
 def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """에쿼티 곡선 데이터를 Area 시리즈용으로 변환한다."""
     equity_data: list[dict[str, object]] = []
@@ -402,6 +427,7 @@ def _render_main_chart(
             "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
         },
         "timeScale": {"minBarSpacing": 0.2},
+        "localization": {"dateFormat": "yyyy-MM-dd"},
     }
 
     # 3. Pane 1: 캔들스틱 + 조건부 오버레이
@@ -418,11 +444,14 @@ def _render_main_chart(
         },
     }
 
-    # 마커 (trades가 있을 때만)
+    # 마커 (완료된 거래 + 미청산 포지션)
+    markers: list[dict[str, object]] = []
     if has_trades:
         markers = _build_markers(trades_df)
-        if markers:
-            candle_series["markers"] = markers
+    open_markers = _build_open_position_marker(strategy["summary_data"])
+    markers.extend(open_markers)
+    if markers:
+        candle_series["markers"] = markers
 
     pane1_series: list[dict[str, object]] = [candle_series]
 

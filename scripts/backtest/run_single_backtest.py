@@ -191,21 +191,33 @@ def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[
     """
     summary_path = result.result_dir / "summary.json"
 
+    # 1. 성과 지표 반올림
+    summary_dict: dict[str, Any] = {
+        "initial_capital": round(float(str(result.summary["initial_capital"]))),
+        "final_capital": round(float(str(result.summary["final_capital"]))),
+        "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
+        "cagr": round(float(str(result.summary["cagr"])), 2),
+        "mdd": round(float(str(result.summary["mdd"])), 2),
+        "total_trades": result.summary["total_trades"],
+        "winning_trades": result.summary.get("winning_trades", 0),
+        "losing_trades": result.summary.get("losing_trades", 0),
+        "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
+        "start_date": result.summary.get("start_date", ""),
+        "end_date": result.summary.get("end_date", ""),
+    }
+
+    # 2. 미청산 포지션 정보 (있는 경우에만 저장)
+    open_position_raw = result.summary.get("open_position")
+    if open_position_raw is not None and isinstance(open_position_raw, dict):
+        summary_dict["open_position"] = {
+            "entry_date": str(open_position_raw["entry_date"]),
+            "entry_price": round(float(str(open_position_raw["entry_price"])), 6),
+            "shares": int(str(open_position_raw["shares"])),
+        }
+
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
-        "summary": {
-            "initial_capital": round(float(str(result.summary["initial_capital"]))),
-            "final_capital": round(float(str(result.summary["final_capital"]))),
-            "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
-            "cagr": round(float(str(result.summary["cagr"])), 2),
-            "mdd": round(float(str(result.summary["mdd"])), 2),
-            "total_trades": result.summary["total_trades"],
-            "winning_trades": result.summary.get("winning_trades", 0),
-            "losing_trades": result.summary.get("losing_trades", 0),
-            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
-            "start_date": result.summary.get("start_date", ""),
-            "end_date": result.summary.get("end_date", ""),
-        },
+        "summary": summary_dict,
         "params": result.params_json,
         "monthly_returns": monthly_returns,
         "data_info": result.data_info,

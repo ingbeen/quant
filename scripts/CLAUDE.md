@@ -139,8 +139,10 @@ main 함수:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
     - 전략 자동 탐색: `BACKTEST_RESULTS_DIR` 하위 폴더를 스캔하여 전략별 탭 자동 생성
-    - Feature Detection: 컬럼 존재 여부로 차트 오버레이 결정 (전략명 분기 없음)
+    - Feature Detection: 데이터 존재 여부로 차트 오버레이 결정 (전략명 분기 없음)
+    - 미청산 포지션 마커: `summary.open_position` 존재 시 `"Buy $XX.X (보유중)"` 마커 자동 표시
     - customValues 기반 tooltip: 전일대비%, 이평선, 상단/하단 밴드 표시
+    - 날짜 표기: `localization.dateFormat` 설정으로 한국식 "yyyy-MM-dd" 형식 적용
     - vendor fork: `vendor/streamlit-lightweight-charts-v5/` (tooltip 지원 추가)
 
 ### 레버리지 시뮬레이션 (tqqq/)

@@ -11,7 +11,12 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "1999-03-10",
-    "end_date": "2026-02-17"
+    "end_date": "2026-02-17",
+    "open_position": {
+      "entry_date": "1999-03-10",
+      "entry_price": 43.310999,
+      "shares": 230888
+    }
   },
   "params": {
     "strategy": "buy_and_hold_qqq",

@@ -19,7 +19,8 @@
 
 공통 타입:
 
-- `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약)
+- `OpenPositionDict`: 미청산 포지션 정보 (entry_date, entry_price, shares). 백테스트 종료 시 보유 중인 포지션의 진입 정보를 담으며, summary에 포함되어 summary.json에 저장된다
+- `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buffer_zone_pct, hold_days, recent_months)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 
@@ -90,7 +91,7 @@
 
 핵심 함수:
 
-- `run_buffer_strategy`: 버퍼존 전략 실행
+- `run_buffer_strategy`: 버퍼존 전략 실행. 종료 시 포지션 보유 중이면 summary에 `open_position` 포함
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
 - `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
 
@@ -158,7 +159,7 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 
 주요 함수:
 
-- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행 (`trade_df`만 받음, `signal_df` 미사용) → `SummaryDict` 반환
+- `run_buy_and_hold`: 매수 후 보유 벤치마크 전략 실행 (`trade_df`만 받음, `signal_df` 미사용) → `SummaryDict` 반환. 항상 포지션을 보유하므로 summary에 `open_position` 포함 (shares > 0인 경우)
 - `resolve_params`: 파라미터 결정 (항상 DEFAULT_INITIAL_CAPITAL 사용)
 - `create_runner`: 팩토리 함수. `BuyAndHoldConfig` → `Callable[[], SingleBacktestResult]` 생성
 
@@ -230,6 +231,7 @@ Lookahead 금지:
 - N-1일 종가에서 생성된 `pending`은 N일 시가에서 정상 체결
 - N일 종가에서 발생한 신호는 N+1일 시가가 없으므로 무시
 - 강제청산 없음: 마지막 날에 포지션이 남아있어도 강제 매도하지 않음
+- 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy $XX.X (보유중)"` 마커로 표시된다
 
 ---
 
@@ -282,10 +284,12 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 핵심 설계:
 
 - **전략 자동 탐색**: `_discover_strategies()`가 하위 디렉토리의 `summary.json` 존재 여부로 유효한 전략 결과를 판별
-- **Feature Detection**: 전략명 분기(`if strategy == "buffer_zone"`) 없이 DataFrame 컬럼 감지로 차트 오버레이 결정
+- **Feature Detection**: 전략명 분기(`if strategy == "buffer_zone"`) 없이 데이터 존재 여부로 차트 오버레이 결정
   - `ma_*` 컬럼 존재 → MA 오버레이 추가
   - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가
-  - `trades_df`가 비어있지 않음 → 마커 추가
+  - `trades_df`가 비어있지 않음 → 완료된 거래 Buy/Sell 마커 추가
+  - `summary.open_position` 존재 → 미청산 포지션 Buy 마커 추가 (`"Buy $XX.X (보유중)"`)
+- **날짜 표기**: `localization.dateFormat: "yyyy-MM-dd"` 설정으로 한국식 날짜 형식 적용
 - **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
   - OHLC 가격: `open`, `high`, `low`, `close`
   - 전일종가대비%: `open_pct`, `high_pct`, `low_pct`, `close_pct`
@@ -324,3 +328,4 @@ adjusted_hold_days = base_hold_days + (recent_buy_count * DEFAULT_HOLD_DAYS_INCR
 - 그리드 서치 병렬 처리
 - resolve_params 폴백 체인 (OVERRIDE → grid_best → DEFAULT)
 - run_single → SingleBacktestResult 구조 검증
+- 미청산 포지션 (open_position): 포지션 보유 시 포함 / 미보유 시 미포함 검증

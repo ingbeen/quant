@@ -2,6 +2,7 @@
 백테스트 도메인 공통 TypedDict 정의
 
 백테스트 도메인에서 공통으로 사용하는 딕셔너리 구조를 타입으로 정의한다.
+- 미청산 포지션 (OpenPositionDict)
 - 성과 요약 (SummaryDict)
 - 최적 파라미터 (BestGridParams)
 - 공통 결과 컨테이너 (SingleBacktestResult)
@@ -19,11 +20,25 @@ from typing import Any, NotRequired, TypedDict
 import pandas as pd
 
 
+class OpenPositionDict(TypedDict):
+    """미청산 포지션 정보.
+
+    백테스트 종료 시 보유 중인 포지션의 진입 정보를 담는다.
+    summary에 포함되어 summary.json에 저장되며,
+    대시보드에서 Feature Detection으로 Buy 마커를 생성한다.
+    """
+
+    entry_date: str  # ISO format "YYYY-MM-DD"
+    entry_price: float  # 진입가 (슬리피지 반영, 소수점 6자리)
+    shares: int  # 보유 수량
+
+
 class SummaryDict(TypedDict):
     """calculate_summary() 반환 타입.
 
     성과 지표 요약 딕셔너리.
     equity_df가 비어있는 경우 start_date/end_date가 포함되지 않으므로 NotRequired.
+    open_position은 백테스트 종료 시 보유 중인 포지션이 있을 때만 포함된다.
     """
 
     initial_capital: float
@@ -38,6 +53,7 @@ class SummaryDict(TypedDict):
     win_rate: float
     start_date: NotRequired[str]
     end_date: NotRequired[str]
+    open_position: NotRequired[OpenPositionDict]
 
 
 class BestGridParams(TypedDict):

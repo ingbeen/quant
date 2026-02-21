@@ -11,7 +11,12 @@
     "losing_trades": 5,
     "win_rate": 68.75,
     "start_date": "1999-03-10",
-    "end_date": "2026-02-17"
+    "end_date": "2026-02-17",
+    "open_position": {
+      "entry_date": "2025-05-16",
+      "entry_price": 35.472617,
+      "shares": 29837078
+    }
   },
   "params": {
     "ma_window": 150,
