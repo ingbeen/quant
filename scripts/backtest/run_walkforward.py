@@ -145,7 +145,20 @@ def _run_stitched_equity(
         params_schedule=schedule,
     )
 
-    return equity_df, dict(summary)
+    result_summary = dict(summary)
+
+    # Profit Concentration 계산용 윈도우 경계 equity 추출
+    window_end_equities: list[float] = []
+    for wr in window_results:
+        oos_end_str = str(wr["oos_end"])
+        oos_end_d = date_type.fromisoformat(oos_end_str)
+        # OOS 종료일 이하의 마지막 행 equity
+        mask = equity_df[COL_DATE] <= oos_end_d
+        if mask.any():
+            window_end_equities.append(float(equity_df[mask].iloc[-1]["equity"]))
+    result_summary["window_end_equities"] = window_end_equities
+
+    return equity_df, result_summary
 
 
 def _run_single_mode(
@@ -197,6 +210,52 @@ def _run_single_mode(
     return window_results, mode_summary, equity_df
 
 
+# JSON 반올림 규칙: 백분율 2자리, 비율 4자리
+_PCT_FIELDS = {
+    "oos_cagr_mean",
+    "oos_cagr_std",
+    "oos_mdd_mean",
+    "oos_mdd_worst",
+    "oos_win_rate_mean",
+    "stitched_cagr",
+    "stitched_mdd",
+    "stitched_total_return_pct",
+}
+
+_RATIO_FIELDS = {
+    "oos_calmar_mean",
+    "oos_calmar_std",
+    "wfe_calmar_mean",
+    "wfe_calmar_median",
+    "wfe_cagr_mean",
+    "wfe_cagr_median",
+    "gap_calmar_median",
+    "wfe_calmar_robust",
+    "profit_concentration_max",
+    "stitched_calmar",
+}
+
+
+def _round_summary_for_json(summary: dict[str, object]) -> dict[str, object]:
+    """WfoModeSummaryDict를 JSON 저장용 반올림 규칙에 맞게 변환한다.
+
+    Args:
+        summary: WfoModeSummaryDict 또는 동등한 딕셔너리
+
+    Returns:
+        반올림 적용된 딕셔너리 (원본 변경 없음)
+    """
+    result: dict[str, object] = {}
+    for key, value in summary.items():
+        if key in _PCT_FIELDS and isinstance(value, int | float):
+            result[key] = round(float(value), 2)
+        elif key in _RATIO_FIELDS and isinstance(value, int | float):
+            result[key] = round(float(value), 4)
+        else:
+            result[key] = value
+    return result
+
+
 def _save_results(
     strategy_name: str,
     result_dir: Path,
@@ -230,7 +289,7 @@ def _save_results(
                 "oos_win_rate",
             ]:
                 round_cols[col] = 2
-            elif col in ["is_calmar", "oos_calmar", "wfe_calmar"]:
+            elif col in ["is_calmar", "oos_calmar", "wfe_calmar", "wfe_cagr"]:
                 round_cols[col] = 4
             elif col.endswith("_buffer_zone_pct"):
                 round_cols[col] = 4
@@ -250,10 +309,19 @@ def _save_results(
             )
             eq_export.to_csv(result_dir / filename, index=False)
 
-    # 요약 JSON 저장
+    # 요약 JSON 저장 (반올림 규칙 적용)
+    rounded_summaries: dict[str, object] = {"strategy": all_summaries.get("strategy", "")}
+    for mode_key in ["dynamic", "sell_fixed", "fully_fixed"]:
+        if mode_key in all_summaries:
+            mode_data = all_summaries[mode_key]
+            if isinstance(mode_data, dict):
+                rounded_summaries[mode_key] = _round_summary_for_json(mode_data)
+            else:
+                rounded_summaries[mode_key] = mode_data
+
     summary_path = result_dir / WALKFORWARD_SUMMARY_FILENAME
     with summary_path.open("w", encoding="utf-8") as f:
-        json.dump(all_summaries, f, indent=2, ensure_ascii=False, default=str)
+        json.dump(rounded_summaries, f, indent=2, ensure_ascii=False, default=str)
 
     logger.debug(f"결과 저장 완료: {result_dir}")
 
@@ -271,8 +339,14 @@ def _print_mode_summary(mode_name: str, summary: WfoModeSummaryDict) -> None:
         ["OOS MDD 평균", f"{summary['oos_mdd_mean']:.2f}%"],
         ["OOS MDD 최악", f"{summary['oos_mdd_worst']:.2f}%"],
         ["OOS Calmar 평균", f"{summary['oos_calmar_mean']:.4f}"],
-        ["WFE 평균", f"{summary['wfe_calmar_mean']:.4f}"],
-        ["WFE 중앙값", f"{summary['wfe_calmar_median']:.4f}"],
+        ["WFE Calmar 평균", f"{summary['wfe_calmar_mean']:.4f}"],
+        ["WFE Calmar 중앙값", f"{summary['wfe_calmar_median']:.4f}"],
+        ["WFE Calmar Robust", f"{summary['wfe_calmar_robust']:.4f}"],
+        ["WFE CAGR 평균", f"{summary['wfe_cagr_mean']:.4f}"],
+        ["WFE CAGR 중앙값", f"{summary['wfe_cagr_median']:.4f}"],
+        ["Gap Calmar 중앙값", f"{summary['gap_calmar_median']:.4f}"],
+        ["PC 최대", f"{summary['profit_concentration_max']:.4f}"],
+        ["PC 최대 윈도우", str(summary["profit_concentration_window_idx"])],
         ["OOS 총 거래수", str(summary["oos_trades_total"])],
     ]
 

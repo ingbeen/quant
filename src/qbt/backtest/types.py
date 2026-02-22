@@ -122,6 +122,7 @@ class WfoWindowResultDict(TypedDict):
     oos_win_rate: float
     # WFE (Walk-Forward Efficiency)
     wfe_calmar: float  # OOS Calmar / IS Calmar
+    wfe_cagr: float  # OOS CAGR / IS CAGR
 
 
 class WfoModeSummaryDict(TypedDict):
@@ -143,6 +144,13 @@ class WfoModeSummaryDict(TypedDict):
     # WFE 통계
     wfe_calmar_mean: float
     wfe_calmar_median: float
+    wfe_cagr_mean: float  # CAGR 기반 WFE 평균
+    wfe_cagr_median: float  # CAGR 기반 WFE 중앙값
+    gap_calmar_median: float  # OOS Calmar - IS Calmar 중앙값
+    wfe_calmar_robust: float  # IS Calmar > 0인 윈도우만 집계한 WFE Calmar 중앙값
+    # Profit Concentration
+    profit_concentration_max: float  # 최대 Profit Concentration (0~1)
+    profit_concentration_window_idx: int  # 최대 PC가 발생한 윈도우 인덱스
     # 파라미터 안정성 진단용 (윈도우별 선택된 파라미터 값 리스트)
     param_ma_windows: list[int]
     param_buy_buffers: list[float]

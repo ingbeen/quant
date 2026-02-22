@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-22 23:30
-**마지막 업데이트**: 2026-02-22 23:30
+**마지막 업데이트**: 2026-02-23 00:15
 **관련 범위**: backtest (walkforward, types, constants)
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -40,10 +40,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] WFE를 CAGR 기반으로 추가하여 폭주 문제 해소 (`wfe_cagr`)
-- [ ] Calmar 기반 WFE의 robust 버전 추가 (`wfe_calmar_robust`, `gap_calmar_median`)
-- [ ] Profit Concentration 지표 추가 (`profit_concentration_max`, `profit_concentration_window_idx`)
-- [ ] `walkforward_summary.json` 반올림 규칙 적용 (백분율 2자리, 비율 4자리)
+- [x] WFE를 CAGR 기반으로 추가하여 폭주 문제 해소 (`wfe_cagr`)
+- [x] Calmar 기반 WFE의 robust 버전 추가 (`wfe_calmar_robust`, `gap_calmar_median`)
+- [x] Profit Concentration 지표 추가 (`profit_concentration_max`, `profit_concentration_window_idx`)
+- [x] `walkforward_summary.json` 반올림 규칙 적용 (백분율 2자리, 비율 4자리)
 
 ## 2) 비목표(Non-Goals)
 
@@ -74,15 +74,15 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] `WfoWindowResultDict`에 `wfe_cagr` 필드 추가
-- [ ] `WfoModeSummaryDict`에 `wfe_cagr_mean`, `wfe_cagr_median`, `gap_calmar_median`, `wfe_calmar_robust`, `profit_concentration_max`, `profit_concentration_window_idx` 필드 추가
-- [ ] `run_walkforward()`에서 `wfe_cagr` 계산 로직 구현
-- [ ] `calculate_wfo_mode_summary()`에서 새 지표 계산 로직 구현
-- [ ] `_save_results()`에서 JSON 반올림 규칙 적용
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `WfoWindowResultDict`에 `wfe_cagr` 필드 추가
+- [x] `WfoModeSummaryDict`에 `wfe_cagr_mean`, `wfe_cagr_median`, `gap_calmar_median`, `wfe_calmar_robust`, `profit_concentration_max`, `profit_concentration_window_idx` 필드 추가
+- [x] `run_walkforward()`에서 `wfe_cagr` 계산 로직 구현
+- [x] `calculate_wfo_mode_summary()`에서 새 지표 계산 로직 구현
+- [x] `_save_results()`에서 JSON 반올림 규칙 적용
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -105,15 +105,15 @@
 
 **작업 내용**:
 
-- [ ] `WfoWindowResultDict`에 `wfe_cagr: float` 필드 추가
-- [ ] `WfoModeSummaryDict`에 새 필드 6개 추가:
+- [x] `WfoWindowResultDict`에 `wfe_cagr: float` 필드 추가
+- [x] `WfoModeSummaryDict`에 새 필드 6개 추가:
   - `wfe_cagr_mean: float` — CAGR 기반 WFE 평균
   - `wfe_cagr_median: float` — CAGR 기반 WFE 중앙값
   - `gap_calmar_median: float` — OOS Calmar - IS Calmar 중앙값
   - `wfe_calmar_robust: float` — IS Calmar > 0인 윈도우만 집계한 WFE Calmar 중앙값
   - `profit_concentration_max: float` — 최대 Profit Concentration (0~1)
   - `profit_concentration_window_idx: int` — 최대 PC가 발생한 윈도우 인덱스
-- [ ] 테스트 추가 (레드):
+- [x] 테스트 추가 (레드):
   - `wfe_cagr` 계산 검증 (IS CAGR > 0, IS CAGR ≤ 0 케이스)
   - `wfe_calmar_robust` 계산 검증 (IS Calmar ≤ 0인 윈도우 제외)
   - `profit_concentration_max` 계산 검증 (V2 방식: end - prev_end)
@@ -125,23 +125,23 @@
 
 **작업 내용**:
 
-- [ ] `walkforward.py`의 `run_walkforward()`에 `wfe_cagr` 계산 추가:
+- [x] `walkforward.py`의 `run_walkforward()`에 `wfe_cagr` 계산 추가:
   ```
   wfe_cagr = oos_cagr / is_cagr  (is_cagr > EPSILON일 때)
   wfe_cagr = 0.0                  (is_cagr ≤ EPSILON일 때)
   ```
-- [ ] `walkforward.py`의 `calculate_wfo_mode_summary()`에 새 지표 계산 추가:
+- [x] `walkforward.py`의 `calculate_wfo_mode_summary()`에 새 지표 계산 추가:
   - `wfe_cagr_mean`, `wfe_cagr_median`: wfe_cagr 리스트의 평균/중앙값
   - `gap_calmar_median`: `[oos_calmar - is_calmar for each window]`의 중앙값
   - `wfe_calmar_robust`: IS Calmar > 0인 윈도우만 필터링 → wfe_calmar 중앙값 (해당 윈도우 없으면 0.0)
   - `profit_concentration_max`, `profit_concentration_window_idx`: stitched equity 기반 PC 계산 (V2 방식)
-- [ ] Profit Concentration 계산 함수 신규 추가 (`_calculate_profit_concentration`):
+- [x] Profit Concentration 계산 함수 신규 추가 (`_calculate_profit_concentration`):
   - 입력: stitched equity의 윈도우별 시작/종료 equity 값
   - 각 윈도우 기여분 = end_equity - prev_end_equity (V2)
   - total_net_profit = final_equity - initial_equity
   - 각 윈도우 share = 기여분 / total_net_profit
   - max_share, max_window_idx 반환
-- [ ] Phase 0 레드 테스트 통과 확인
+- [x] Phase 0 레드 테스트 통과 확인
 
 ---
 
@@ -149,20 +149,20 @@
 
 **작업 내용**:
 
-- [ ] `scripts/backtest/run_walkforward.py`의 `_save_results()`에서 JSON 반올림 적용:
+- [x] `scripts/backtest/run_walkforward.py`의 `_save_results()`에서 JSON 반올림 적용:
   - 백분율 (CAGR, MDD, 승률, 수익률): 소수점 2자리
   - 비율 (Calmar, WFE, PC): 소수점 4자리
   - 정수 (윈도우 수, 거래수, 인덱스): 그대로
   - 파라미터 배열: 그대로
-- [ ] `_print_mode_summary()`에 새 지표 출력 행 추가
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트 (새 필드 반영)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `_print_mode_summary()`에 새 지표 출력 행 추가
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트 (새 필드 반영)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=347, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -187,5 +187,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-22 23:30: Plan 작성 완료 (Draft)
+- 2026-02-23 00:15: 전체 Phase 완료 (passed=347, failed=0, skipped=0)
 
 ---

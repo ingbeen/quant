@@ -23,8 +23,8 @@
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
-- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params 5개, is/oos CAGR/MDD/Calmar/trades/win_rate, wfe_calmar)
-- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, param_values, stitched 지표)
+- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params 5개, is/oos CAGR/MDD/Calmar/trades/win_rate, wfe_calmar, wfe_cagr)
+- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계(calmar/cagr/robust), gap_calmar_median, profit_concentration, param_values, stitched 지표)
 
 ### 2. constants.py
 
@@ -60,9 +60,10 @@
 
 - `generate_wfo_windows`: 월 기반 Expanding Anchored 윈도우 생성
 - `select_best_calmar_params`: Calmar(CAGR/|MDD|) 기준 최적 파라미터 선택 (MDD=0 + CAGR>0 최우선 처리)
-- `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가)
+- `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가, wfe_calmar + wfe_cagr 계산)
 - `build_params_schedule`: WFO 결과에서 params_schedule 구성
-- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE + 파라미터 안정성 진단
+- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
+- `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
 
 ### 5. strategies/ 패키지
 

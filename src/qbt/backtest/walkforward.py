@@ -279,11 +279,18 @@ def run_walkforward(
         oos_win_rate = float(oos_summary["win_rate"])
         oos_calmar = _safe_calmar(oos_cagr, oos_mdd)
 
-        # 7. WFE (Walk-Forward Efficiency) = OOS Calmar / IS Calmar
+        # 7. WFE (Walk-Forward Efficiency)
+        # 7-1. WFE Calmar = OOS Calmar / IS Calmar
         if abs(is_calmar) > EPSILON:
             wfe_calmar = oos_calmar / is_calmar
         else:
             wfe_calmar = 0.0
+
+        # 7-2. WFE CAGR = OOS CAGR / IS CAGR
+        if abs(is_cagr) > EPSILON:
+            wfe_cagr = oos_cagr / is_cagr
+        else:
+            wfe_cagr = 0.0
 
         result: WfoWindowResultDict = {
             "window_idx": idx,
@@ -307,6 +314,7 @@ def run_walkforward(
             "oos_trades": oos_trades,
             "oos_win_rate": oos_win_rate,
             "wfe_calmar": wfe_calmar,
+            "wfe_cagr": wfe_cagr,
         }
         results.append(result)
 
@@ -372,6 +380,46 @@ def build_params_schedule(
     return initial_params, schedule
 
 
+def _calculate_profit_concentration(
+    initial_equity: float,
+    window_end_equities: list[float],
+) -> tuple[float, int]:
+    """Profit Concentration (V2)을 계산한다.
+
+    각 윈도우 기여분 = end_equity - prev_end_equity (stitched equity 윈도우 경계 기준).
+    total_net_profit ≤ 0이면 (전체 손실) share 계산이 무의미하므로 (0.0, 0) 반환.
+
+    Args:
+        initial_equity: 초기 equity (stitched equity 시작값)
+        window_end_equities: 각 윈도우 종료 시점 equity 리스트
+
+    Returns:
+        (max_share, max_window_idx) 튜플
+    """
+    if not window_end_equities:
+        return 0.0, 0
+
+    final_equity = window_end_equities[-1]
+    total_net_profit = final_equity - initial_equity
+
+    if total_net_profit <= EPSILON:
+        return 0.0, 0
+
+    # 각 윈도우 기여분 계산 (V2: end - prev_end)
+    prev = initial_equity
+    max_share = 0.0
+    max_idx = 0
+    for i, end_eq in enumerate(window_end_equities):
+        contribution = end_eq - prev
+        share = contribution / total_net_profit
+        if share > max_share:
+            max_share = share
+            max_idx = i
+        prev = end_eq
+
+    return max_share, max_idx
+
+
 def calculate_wfo_mode_summary(
     window_results: list[WfoWindowResultDict],
     stitched_summary: dict[str, object] | None = None,
@@ -380,7 +428,8 @@ def calculate_wfo_mode_summary(
 
     Args:
         window_results: run_walkforward() 반환 결과
-        stitched_summary: stitched equity의 calculate_summary() 결과 (선택적)
+        stitched_summary: stitched equity의 calculate_summary() 결과 (선택적).
+            window_end_equities 키가 있으면 Profit Concentration 계산에 사용.
 
     Returns:
         모드별 요약 통계 딕셔너리
@@ -393,6 +442,23 @@ def calculate_wfo_mode_summary(
     oos_trades_list = [wr["oos_trades"] for wr in window_results]
     oos_win_rates = [wr["oos_win_rate"] for wr in window_results]
     wfe_calmars = [wr["wfe_calmar"] for wr in window_results]
+    wfe_cagrs = [wr["wfe_cagr"] for wr in window_results]
+    is_calmars = [wr["is_calmar"] for wr in window_results]
+
+    # gap_calmar: OOS Calmar - IS Calmar 중앙값
+    gap_calmars = [wr["oos_calmar"] - wr["is_calmar"] for wr in window_results]
+
+    # wfe_calmar_robust: IS Calmar > 0인 윈도우만 필터링하여 wfe_calmar 중앙값
+    robust_wfe_calmars = [wr["wfe_calmar"] for wr, is_cal in zip(window_results, is_calmars, strict=True) if is_cal > 0]
+
+    # Profit Concentration 계산
+    pc_max = 0.0
+    pc_idx = 0
+    if stitched_summary is not None and "window_end_equities" in stitched_summary:
+        initial_eq = float(stitched_summary.get("initial_capital", 0.0))  # type: ignore[arg-type]
+        end_equities = stitched_summary["window_end_equities"]
+        if isinstance(end_equities, list):
+            pc_max, pc_idx = _calculate_profit_concentration(initial_eq, [float(e) for e in end_equities])
 
     summary: WfoModeSummaryDict = {
         "n_windows": n,
@@ -406,6 +472,12 @@ def calculate_wfo_mode_summary(
         "oos_win_rate_mean": sum(oos_win_rates) / n if n > 0 else 0.0,
         "wfe_calmar_mean": sum(wfe_calmars) / n if n > 0 else 0.0,
         "wfe_calmar_median": median(wfe_calmars) if wfe_calmars else 0.0,
+        "wfe_cagr_mean": sum(wfe_cagrs) / n if n > 0 else 0.0,
+        "wfe_cagr_median": median(wfe_cagrs) if wfe_cagrs else 0.0,
+        "gap_calmar_median": median(gap_calmars) if gap_calmars else 0.0,
+        "wfe_calmar_robust": median(robust_wfe_calmars) if robust_wfe_calmars else 0.0,
+        "profit_concentration_max": pc_max,
+        "profit_concentration_window_idx": pc_idx,
         "param_ma_windows": [wr["best_ma_window"] for wr in window_results],
         "param_buy_buffers": [wr["best_buy_buffer_zone_pct"] for wr in window_results],
         "param_sell_buffers": [wr["best_sell_buffer_zone_pct"] for wr in window_results],
