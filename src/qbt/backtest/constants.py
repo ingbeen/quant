@@ -44,6 +44,14 @@ DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]  # 4개
 DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]  # 4개
 # 3 × 3 × 3 × 4 × 4 = 432개
 
+# --- ATR 트레일링 스탑 기본값 ---
+DEFAULT_ATR_PERIOD: Final = 22  # Chandelier Exit 표준
+DEFAULT_ATR_MULTIPLIER: Final = 3.0  # Chandelier Exit 표준
+
+# --- WFO ATR 파라미터 리스트 ---
+DEFAULT_WFO_ATR_PERIOD_LIST: Final = [14, 22]  # Wilder 표준(14) + Chandelier Exit 표준(22)
+DEFAULT_WFO_ATR_MULTIPLIER_LIST: Final = [2.5, 3.0]  # 약간 공격적(2.5) + Chandelier Exit 기본(3.0)
+
 # --- WFO 최소 거래수 ---
 DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 거래수 제약
 
@@ -79,6 +87,8 @@ COL_MDD: Final = "mdd"
 COL_TOTAL_TRADES: Final = "total_trades"
 COL_WIN_RATE: Final = "win_rate"
 COL_FINAL_CAPITAL: Final = "final_capital"
+COL_ATR_PERIOD: Final = "atr_period"
+COL_ATR_MULTIPLIER: Final = "atr_multiplier"
 
 # --- 그리드 서치 결과 CSV 출력용 레이블 (한글) ---
 DISPLAY_MA_WINDOW: Final = "이평기간"

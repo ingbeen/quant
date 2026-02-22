@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-22 23:30
-**마지막 업데이트**: 2026-02-22 23:30
+**마지막 업데이트**: 2026-02-23 01:00
 **관련 범위**: backtest (strategies, walkforward, constants, types)
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`, `scripts/CLAUDE.md`
 
@@ -40,12 +40,12 @@
 
 ## 1) 목표(Goal)
 
-- [ ] ATR 트레일링 스탑을 포함한 새 전략 파일 `buffer_zone_atr_tqqq.py` 생성
-- [ ] 매도 조건을 "하단밴드 하향돌파 **OR** ATR 스탑 발동"으로 확장
-- [ ] ATR 시그널 소스는 QQQ(signal_df) 고정
-- [ ] ATR 기준가는 `highest_close_since_entry` 고정
-- [ ] WFO 파이프라인에서 ATR 전략 실행 가능하도록 통합
-- [ ] 기존 `buffer_zone_tqqq` 전략은 변경 없음 (비교용 보존)
+- [x] ATR 트레일링 스탑을 포함한 새 전략 파일 `buffer_zone_atr_tqqq.py` 생성
+- [x] 매도 조건을 "하단밴드 하향돌파 **OR** ATR 스탑 발동"으로 확장
+- [x] ATR 시그널 소스는 QQQ(signal_df) 고정
+- [x] ATR 기준가는 `highest_close_since_entry` 고정
+- [x] WFO 파이프라인에서 ATR 전략 실행 가능하도록 통합
+- [x] 기존 `buffer_zone_tqqq` 전략은 변경 없음 (비교용 보존)
 
 ## 2) 비목표(Non-Goals)
 
@@ -92,19 +92,19 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] ATR 계산 함수 구현 (`_calculate_atr`)
-- [ ] ATR 트레일링 스탑 감지 함수 구현 (`_detect_atr_stop_signal`)
-- [ ] `run_buffer_strategy()`에 ATR 스탑 OR 조건 통합
-- [ ] `BufferStrategyParams`에 ATR 관련 필드 추가 (`atr_period`, `atr_multiplier`)
-- [ ] `buffer_zone_atr_tqqq.py` 전략 파일 생성
-- [ ] WFO 그리드에 ATR 파라미터 포함
-- [ ] `run_walkforward.py`에서 ATR 전략 실행 지원
-- [ ] 결과 디렉토리 `storage/results/backtest/buffer_zone_atr_tqqq/` 지원
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] ATR 계산 함수 구현 (`_calculate_atr`)
+- [x] ATR 트레일링 스탑 감지 함수 구현 (`_detect_atr_stop_signal`)
+- [x] `run_buffer_strategy()`에 ATR 스탑 OR 조건 통합
+- [x] `BufferStrategyParams`에 ATR 관련 필드 추가 (`atr_period`, `atr_multiplier`)
+- [x] `buffer_zone_atr_tqqq.py` 전략 파일 생성
+- [x] WFO 그리드에 ATR 파라미터 포함
+- [x] `run_walkforward.py`에서 ATR 전략 실행 지원
+- [x] 결과 디렉토리 `storage/results/backtest/buffer_zone_atr_tqqq/` 지원
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -132,16 +132,16 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 
 **작업 내용**:
 
-- [ ] `BufferStrategyParams`에 ATR 필드 추가:
+- [x] `BufferStrategyParams`에 ATR 필드 추가:
   - `atr_period: int | None = None` (None이면 ATR 미사용)
   - `atr_multiplier: float | None = None`
-- [ ] `constants.py`에 ATR 상수 추가:
+- [x] `constants.py`에 ATR 상수 추가:
   - `DEFAULT_ATR_PERIOD: Final = 22`
   - `DEFAULT_ATR_MULTIPLIER: Final = 3.0`
   - `DEFAULT_WFO_ATR_PERIOD_LIST: Final = [14, 22]`
   - `DEFAULT_WFO_ATR_MULTIPLIER_LIST: Final = [2.5, 3.0]`
-- [ ] `common_constants.py`에 결과 디렉토리 경로 추가
-- [ ] 테스트 추가 (레드):
+- [x] `common_constants.py`에 결과 디렉토리 경로 추가
+- [x] 테스트 추가 (레드):
   - ATR 계산 정확성 (수동 계산과 비교)
   - ATR 스탑 발동 조건 (close < highest_close - ATR × multiplier)
   - ATR 스탑 미발동 (정상 변동 범위)
@@ -154,22 +154,22 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 
 **작업 내용**:
 
-- [ ] `_calculate_atr()` 함수 구현:
+- [x] `_calculate_atr()` 함수 구현:
   - 입력: signal_df (QQQ), period
   - True Range = max(high-low, |high-prev_close|, |low-prev_close|)
   - ATR = True Range의 EMA(period) 또는 Wilder smoothing
   - 반환: ATR Series
-- [ ] `_detect_atr_stop_signal()` 함수 구현:
+- [x] `_detect_atr_stop_signal()` 함수 구현:
   - 입력: close, highest_close_since_entry, atr_value, multiplier
   - 조건: `close < highest_close_since_entry - atr_value * multiplier`
   - 반환: bool
-- [ ] `run_buffer_strategy()`에 ATR 스탑 통합:
+- [x] `run_buffer_strategy()`에 ATR 스탑 통합:
   - 포지션 보유 중(`position > 0`) 매도 로직에서:
     - 기존: `_detect_sell_signal()` 하나만 체크
     - 변경: `_detect_sell_signal() OR _detect_atr_stop_signal()` (params.atr_period가 None이 아닌 경우만)
   - `highest_close_since_entry` 상태 변수 관리 (매수 체결 시 초기화, 매일 갱신)
-- [ ] `run_grid_search()`에 ATR 파라미터 리스트 지원 추가
-- [ ] Phase 0 레드 테스트 통과 확인
+- [x] `run_grid_search()`에 ATR 파라미터 리스트 지원 추가
+- [x] Phase 0 레드 테스트 통과 확인
 
 ---
 
@@ -177,14 +177,14 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 
 **작업 내용**:
 
-- [ ] `buffer_zone_atr_tqqq.py` 신규 생성:
+- [x] `buffer_zone_atr_tqqq.py` 신규 생성:
   - `STRATEGY_NAME = "buffer_zone_atr_tqqq"`
   - `DISPLAY_NAME = "버퍼존 전략 ATR (TQQQ)"`
   - OVERRIDE 상수 (기존 5개 + ATR 2개)
   - `resolve_params()`, `run_single()` (buffer_zone_tqqq.py와 동일 구조, ATR 파라미터 포함)
-- [ ] `run_walkforward.py`의 STRATEGY_CONFIG에 ATR 전략 추가
-- [ ] `--strategy` 선택지에 `buffer_zone_atr_tqqq` 추가
-- [ ] WFO 실행 시 ATR 파라미터 그리드 전달 로직
+- [x] `run_walkforward.py`의 STRATEGY_CONFIG에 ATR 전략 추가
+- [x] `--strategy` 선택지에 `buffer_zone_atr_tqqq` 추가
+- [x] WFO 실행 시 ATR 파라미터 그리드 전달 로직
 
 ---
 
@@ -192,15 +192,15 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트 (ATR 전략 설명 추가)
-- [ ] 루트 `CLAUDE.md` 디렉토리 구조 업데이트
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트 (ATR 전략 설명 추가)
+- [x] 루트 `CLAUDE.md` 디렉토리 구조 업데이트
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=358, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -228,5 +228,6 @@ ATR 트레일링 스탑은 변동성 기반 비상 브레이크로, 급락 시 �
 ### 진행 로그 (KST)
 
 - 2026-02-22 23:30: Plan 작성 완료 (Draft)
+- 2026-02-23 01:00: Phase 0~3 완료, validate_project.py 통과 (passed=358, failed=0, skipped=0)
 
 ---

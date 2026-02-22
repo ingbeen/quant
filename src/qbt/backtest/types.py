@@ -102,12 +102,14 @@ class WfoWindowResultDict(TypedDict):
     is_end: str  # IS 종료일 (ISO format)
     oos_start: str  # OOS 시작일 (ISO format)
     oos_end: str  # OOS 종료일 (ISO format)
-    # IS 최적 파라미터 5개
+    # IS 최적 파라미터 5개 + ATR 2개 (선택적)
     best_ma_window: int
     best_buy_buffer_zone_pct: float
     best_sell_buffer_zone_pct: float
     best_hold_days: int
     best_recent_months: int
+    best_atr_period: NotRequired[int]  # ATR 전략에서만 포함
+    best_atr_multiplier: NotRequired[float]  # ATR 전략에서만 포함
     # IS 성과 지표
     is_cagr: float
     is_mdd: float

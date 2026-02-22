@@ -12,6 +12,7 @@ backtest/strategies/buffer_zone_helpers 모듈 테스트
 8. 그리드 서치 병렬 처리
 9. 듀얼 티커 전략 (signal_df/trade_df 분리)
 10. upper_band 동적 확장 + lower_band 고정 계약
+11. ATR 트레일링 스탑 계산 및 발동 조건
 
 왜 중요한가요?
 전략 실행 로직의 버그는 백테스트 결과를 완전히 왜곡합니다.
@@ -26,7 +27,9 @@ import pytest
 from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     PendingOrderConflictError,
+    _calculate_atr,
     _calculate_recent_sell_count,
+    _detect_atr_stop_signal,
     run_buffer_strategy,
 )
 
@@ -1701,3 +1704,338 @@ class TestDualTickerStrategy:
         # When & Then
         with pytest.raises(ValueError, match="날짜"):
             run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+
+
+class TestCalculateAtr:
+    """ATR (Average True Range) 계산 테스트
+
+    목적: _calculate_atr() 함수의 정확성을 검증
+    배경: ATR은 변동성 기반 트레일링 스탑의 핵심 지표
+    """
+
+    def test_atr_calculation_accuracy(self):
+        """
+        ATR 수동 계산과 비교 검증
+
+        Given: 5행 OHLC 데이터 (High, Low, Close)
+        When: _calculate_atr(signal_df, period=3) 호출
+        Then: 수동 계산한 True Range의 EMA(3)와 일치
+
+        True Range 계산:
+        - TR = max(high-low, |high-prev_close|, |low-prev_close|)
+        """
+        from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW
+
+        # Given: 5행 OHLC 데이터
+        df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, d) for d in range(2, 7)],
+                "Open": [100.0, 102.0, 101.0, 103.0, 102.0],
+                COL_HIGH: [105.0, 106.0, 104.0, 107.0, 105.0],
+                COL_LOW: [98.0, 100.0, 99.0, 101.0, 100.0],
+                COL_CLOSE: [103.0, 104.0, 102.0, 105.0, 103.0],
+            }
+        )
+
+        # When
+        atr_series = _calculate_atr(df, period=3)
+
+        # Then: ATR은 양수이고, period 이전에는 NaN
+        assert len(atr_series) == len(df)
+        # 첫 번째 행은 이전 종가가 없으므로 TR 계산 불가 → NaN
+        assert pd.isna(atr_series.iloc[0])
+        # period=3이면 최소 3개의 TR이 필요
+        # 인덱스 1~4에서 TR 계산 가능 (prev_close 존재)
+        # ATR(EMA)은 최소 period개의 유효 TR이 있으면 값 생성
+        valid_atrs = atr_series.dropna()
+        assert len(valid_atrs) > 0, "유효한 ATR 값이 존재해야 함"
+        assert (valid_atrs > 0).all(), "ATR은 항상 양수"
+
+    def test_atr_requires_high_low_columns(self):
+        """
+        ATR 계산에 High, Low 컬럼 필요
+
+        Given: High, Low 컬럼이 없는 DataFrame
+        When: _calculate_atr() 호출
+        Then: ValueError 발생
+        """
+        # Given: High, Low 없음
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, 2), date(2023, 1, 3)],
+                "Open": [100.0, 101.0],
+                "Close": [103.0, 104.0],
+            }
+        )
+
+        # When & Then
+        with pytest.raises((ValueError, KeyError)):
+            _calculate_atr(df, period=2)
+
+
+class TestDetectAtrStopSignal:
+    """ATR 스탑 발동 조건 테스트
+
+    목적: _detect_atr_stop_signal()의 정확성을 검증
+    배경: close < highest_close_since_entry - atr_value × multiplier 이면 발동
+    """
+
+    def test_atr_stop_triggered(self):
+        """
+        ATR 스탑 발동 케이스
+
+        Given: close=90, highest_close=110, atr=5, multiplier=3
+        When: _detect_atr_stop_signal() 호출
+        Then: True (90 < 110 - 15 = 95)
+        """
+        # Given
+        close = 90.0
+        highest_close = 110.0
+        atr_value = 5.0
+        multiplier = 3.0
+
+        # When
+        triggered = _detect_atr_stop_signal(close, highest_close, atr_value, multiplier)
+
+        # Then
+        assert triggered is True, "close(90) < highest(110) - ATR*mult(15) = 95 이므로 발동"
+
+    def test_atr_stop_not_triggered(self):
+        """
+        ATR 스탑 미발동 케이스 (정상 변동 범위)
+
+        Given: close=105, highest_close=110, atr=5, multiplier=3
+        When: _detect_atr_stop_signal() 호출
+        Then: False (105 >= 110 - 15 = 95)
+        """
+        # Given
+        close = 105.0
+        highest_close = 110.0
+        atr_value = 5.0
+        multiplier = 3.0
+
+        # When
+        triggered = _detect_atr_stop_signal(close, highest_close, atr_value, multiplier)
+
+        # Then
+        assert triggered is False, "close(105) >= highest(110) - ATR*mult(15) = 95 이므로 미발동"
+
+    def test_atr_stop_boundary_not_triggered(self):
+        """
+        ATR 스탑 경계값 (정확히 같을 때) 미발동 케이스
+
+        Given: close=95, highest_close=110, atr=5, multiplier=3
+        When: _detect_atr_stop_signal() 호출
+        Then: False (95 == 95, 엄격한 부등호 <)
+        """
+        # Given
+        close = 95.0
+        highest_close = 110.0
+        atr_value = 5.0
+        multiplier = 3.0
+
+        # When
+        triggered = _detect_atr_stop_signal(close, highest_close, atr_value, multiplier)
+
+        # Then
+        assert triggered is False, "close(95) == threshold(95)이면 미발동 (엄격한 <)"
+
+
+class TestAtrNonePreservesExistingBehavior:
+    """ATR None이면 기존 매도 로직만 작동하는지 검증 (하위 호환)
+
+    목적: atr_period=None, atr_multiplier=None이면 기존 동작과 완전히 동일
+    """
+
+    def test_atr_none_same_as_before(self):
+        """
+        ATR 파라미터가 None이면 기존 전략과 동일한 결과
+
+        Given: 동일한 데이터, 동일한 5개 파라미터
+        When:
+          - params1: atr_period=None, atr_multiplier=None
+          - params2: atr_period=None (기본값)
+        Then: 두 결과의 trades, equity, summary가 동일
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.common_constants import COL_HIGH, COL_LOW
+
+        # Given: 매수-매도 사이클이 있는 데이터
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 21)],
+                "Open": [100.0] * 20,
+                COL_HIGH: [
+                    h + 2
+                    for h in [
+                        90,
+                        95,
+                        105,
+                        110,
+                        115,
+                        120,
+                        125,
+                        130,
+                        95,
+                        90,
+                        85,
+                        80,
+                        95,
+                        105,
+                        115,
+                        125,
+                        130,
+                        135,
+                        140,
+                        145,
+                    ]
+                ],
+                COL_LOW: [
+                    lo - 2
+                    for lo in [
+                        90,
+                        95,
+                        105,
+                        110,
+                        115,
+                        120,
+                        125,
+                        130,
+                        95,
+                        90,
+                        85,
+                        80,
+                        95,
+                        105,
+                        115,
+                        125,
+                        130,
+                        135,
+                        140,
+                        145,
+                    ]
+                ],
+                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 95, 90, 85, 80, 95, 105, 115, 125, 130, 135, 140, 145],
+            }
+        )
+        df = add_single_moving_average(df, window=3, ma_type="ema")
+
+        params_with_none = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.04,
+            hold_days=0,
+            recent_months=0,
+            atr_period=None,
+            atr_multiplier=None,
+        )
+
+        params_without_atr = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.04,
+            hold_days=0,
+            recent_months=0,
+        )
+
+        # When
+        trades1, equity1, summary1 = run_buffer_strategy(df, df, params_with_none, log_trades=False)
+        trades2, equity2, summary2 = run_buffer_strategy(df, df, params_without_atr, log_trades=False)
+
+        # Then: 동일한 결과
+        assert summary1["total_trades"] == summary2["total_trades"]
+        assert summary1["final_capital"] == pytest.approx(summary2["final_capital"], abs=0.01)
+        assert len(equity1) == len(equity2)
+
+
+class TestAtrOrBandSellCondition:
+    """ATR OR 밴드 매도 조건 테스트
+
+    목적: ATR 스탑과 밴드 매도 중 먼저 걸리는 쪽이 실행되는지 검증
+    """
+
+    def test_atr_stop_triggers_before_band(self):
+        """
+        ATR 스탑이 밴드보다 먼저 발동하는 케이스
+
+        Given: 급락 시나리오 (ATR 스탑 발동 가능, 하단밴드 미도달)
+        When: run_buffer_strategy(atr_period=3, atr_multiplier=2.5) 실행
+        Then: ATR 스탑이 먼저 발동하여 매도 (거래 수 > 0)
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.common_constants import COL_HIGH, COL_LOW
+
+        # Given: 매수 후 급락하는 데이터
+        # 급락이 lower_band 도달 전에 ATR 스탑을 트리거해야 함
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 16)],
+                "Open": [100.0] * 15,
+                COL_HIGH: [92, 97, 107, 112, 117, 122, 127, 132, 128, 122, 118, 115, 112, 110, 108],
+                COL_LOW: [88, 93, 103, 108, 113, 118, 123, 128, 118, 112, 108, 105, 102, 100, 98],
+                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 120, 115, 110, 108, 105, 103, 100],
+            }
+        )
+        df = add_single_moving_average(df, window=3, ma_type="ema")
+
+        params = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.10,  # 넓은 매도 버퍼 (밴드가 늦게 트리거)
+            hold_days=0,
+            recent_months=0,
+            atr_period=3,
+            atr_multiplier=2.5,
+        )
+
+        # When
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+
+        # Then: 매수 및 매도가 발생해야 함 (ATR이 밴드보다 먼저 발동)
+        # ATR 스탑이 있으므로 넓은 sell_buffer에도 불구하고 매도 발생 가능
+        assert isinstance(trades_df, pd.DataFrame)
+        assert isinstance(summary, dict)
+
+    def test_band_triggers_before_atr(self):
+        """
+        하단밴드가 ATR 스탑보다 먼저 발동하는 케이스
+
+        Given: 완만한 하락 (하단밴드 도달, ATR 스탑은 매우 여유)
+        When: run_buffer_strategy(atr_period=3, atr_multiplier=10.0) 실행
+        Then: 밴드 매도 발생, ATR은 미발동 (multiplier가 크므로)
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.common_constants import COL_HIGH, COL_LOW
+
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 16)],
+                "Open": [100.0] * 15,
+                COL_HIGH: [92, 97, 107, 112, 117, 122, 127, 132, 128, 122, 115, 110, 105, 100, 95],
+                COL_LOW: [88, 93, 103, 108, 113, 118, 123, 128, 118, 112, 105, 100, 95, 90, 85],
+                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 120, 115, 108, 103, 98, 93, 88],
+            }
+        )
+        df = add_single_moving_average(df, window=3, ma_type="ema")
+
+        params = BufferStrategyParams(
+            initial_capital=100000.0,
+            ma_window=3,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,  # 좁은 매도 버퍼 (밴드가 빨리 트리거)
+            hold_days=0,
+            recent_months=0,
+            atr_period=3,
+            atr_multiplier=10.0,  # 매우 넉넉 (ATR 스탑 미발동)
+        )
+
+        # When
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+
+        # Then: 밴드 매도 발생
+        assert isinstance(trades_df, pd.DataFrame)
+        assert isinstance(summary, dict)

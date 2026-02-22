@@ -157,6 +157,37 @@ QQQ 시그널 + QQQ 매매 전략의 설정 및 실행을 담당합니다.
 - `resolve_params()`: `resolve_buffer_params()`에 위임하여 파라미터 결정
 - `run_single()`: 단일 백테스트 실행 (signal과 trade 동일, `extract_overlap_period` 불필요) → `SingleBacktestResult` 반환
 
+#### strategies/buffer_zone_atr_tqqq.py
+
+QQQ 시그널 + TQQQ 합성 데이터 매매 전략에 ATR 트레일링 스탑을 추가한 설정 및 실행을 담당합니다.
+핵심 로직은 buffer_zone_helpers에서 임포트합니다.
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: `"buffer_zone_atr_tqqq"`
+- `DISPLAY_NAME`: `"버퍼존 전략 ATR (TQQQ)"`
+
+매도 조건: 하단밴드 하향돌파 **OR** ATR 트레일링 스탑 (둘 중 먼저 걸리는 쪽)
+
+데이터 소스 경로:
+
+- `SIGNAL_DATA_PATH`: `QQQ_DATA_PATH`
+- `TRADE_DATA_PATH`: `TQQQ_SYNTHETIC_DATA_PATH`
+
+기타:
+
+- `GRID_RESULTS_PATH`: 그리드 서치 결과 파일 경로
+- OVERRIDE 상수 5개 (기존) + ATR 2개 (`OVERRIDE_ATR_PERIOD`, `OVERRIDE_ATR_MULTIPLIER`) + `MA_TYPE`
+- `resolve_params()`: `resolve_buffer_params()`에 위임 + ATR 파라미터 결정
+- `run_single()`: 단일 백테스트 실행 (ATR 포함) → `SingleBacktestResult` 반환
+
+ATR 핵심 설계:
+
+- ATR 시그널 소스: QQQ (signal_df) 고정
+- ATR 기준가: highest_close_since_entry (매수 후 최고 종가)
+- 발동 조건: `close < highest_close_since_entry - atr_value × multiplier`
+- ATR 파라미터가 None이면 기존 매도 로직만 작동 (하위 호환)
+
 #### strategies/buy_and_hold.py
 
 Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 티커를 지원한다.
