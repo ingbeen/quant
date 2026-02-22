@@ -1833,7 +1833,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-02-21T21:01:33+09:00"
+      "timestamp": "2026-02-22T09:50:08+09:00"
     },
     {
       "params": {
@@ -1853,29 +1853,31 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_qqq/summary.json"
       },
-      "timestamp": "2026-02-21T21:01:33+09:00"
+      "timestamp": "2026-02-22T09:50:08+09:00"
     },
     {
       "params": {
         "ma_window": 150,
         "ma_type": "ema",
-        "buffer_zone_pct": 0.05,
-        "hold_days": 2,
-        "recent_months": 8,
+        "buy_buffer_zone_pct": 0.01,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 5,
+        "recent_months": 2,
         "initial_capital": 10000000,
         "param_source": {
           "ma_window": "grid_best",
-          "buffer_zone_pct": "grid_best",
+          "buy_buffer_zone_pct": "grid_best",
+          "sell_buffer_zone_pct": "grid_best",
           "hold_days": "grid_best",
           "recent_months": "grid_best"
         }
       },
       "results_summary": {
-        "total_return_pct": 1490.73,
-        "cagr": 10.81,
-        "mdd": -42.83,
-        "total_trades": 14,
-        "win_rate": 78.57
+        "total_return_pct": 1977.0,
+        "cagr": 11.92,
+        "mdd": -45.34,
+        "total_trades": 16,
+        "win_rate": 68.75
       },
       "output_files": {
         "signal_csv": "storage/results/backtest/buffer_zone_qqq/signal.csv",
@@ -1883,29 +1885,31 @@
         "trades_csv": "storage/results/backtest/buffer_zone_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_qqq/summary.json"
       },
-      "timestamp": "2026-02-21T21:01:33+09:00"
+      "timestamp": "2026-02-22T09:50:08+09:00"
     },
     {
       "params": {
         "ma_window": 150,
         "ma_type": "ema",
-        "buffer_zone_pct": 0.04,
-        "hold_days": 3,
+        "buy_buffer_zone_pct": 0.01,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 5,
         "recent_months": 2,
         "initial_capital": 10000000,
         "param_source": {
           "ma_window": "grid_best",
-          "buffer_zone_pct": "grid_best",
+          "buy_buffer_zone_pct": "grid_best",
+          "sell_buffer_zone_pct": "grid_best",
           "hold_days": "grid_best",
           "recent_months": "grid_best"
         }
       },
       "results_summary": {
-        "total_return_pct": 14326.23,
-        "cagr": 20.26,
-        "mdd": -85.68,
+        "total_return_pct": 28774.5,
+        "cagr": 23.4,
+        "mdd": -87.97,
         "total_trades": 16,
-        "win_rate": 68.75
+        "win_rate": 62.5
       },
       "output_files": {
         "signal_csv": "storage/results/backtest/buffer_zone_tqqq/signal.csv",
@@ -1913,7 +1917,7 @@
         "trades_csv": "storage/results/backtest/buffer_zone_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_tqqq/summary.json"
       },
-      "timestamp": "2026-02-21T21:01:32+09:00"
+      "timestamp": "2026-02-22T09:50:07+09:00"
     },
     {
       "params": {
@@ -1933,7 +1937,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-02-20T13:53:41+09:00"
+      "timestamp": "2026-02-21T21:01:33+09:00"
     }
   ]
 }

@@ -27,6 +27,9 @@
 9. [앞으로의 개선 계획](#9-앞으로의-개선-계획)
 10. [Session 4 — AI 모델 간 토론](#10-session-4--ai-모델-간-토론-외부-ai-분석-검토-및-반론)
 11. [Session 5 — 매수/매도 버퍼 분리 구현 완료](#11-session-5--매수매도-버퍼-분리-구현-완료)
+12. [Session 6 — 매수/매도 버퍼 분리 성과 비교 + 과최적화 리스크 분석](#claude-opus-46--2026-02-22-1200-kst)
+13. [Session 7 — WFO 아키텍처 제안 (GPT-5.2)](#gpt-52-thinking--2026-02-22-1510-kst)
+14. [Session 8 — WFO 아키텍처 검토 + 구현 방향 결정](#claude-opus-46--2026-02-22-1630-kst)
 
 ---
 
@@ -1070,6 +1073,556 @@ sell/buy 버퍼 분리 구현과 함께 이 변경을 적용한 후 재검증이
 - 3순위: ATR 트레일링 스탑 (전량 청산형, 이분법 유지)
 - 4순위: 그리드 서치 목적함수 변경 (CAGR → Calmar)
 - 5순위: 워크포워드 검증 (tqqq 도메인 인프라 재활용)
+
+---
+
+### [Claude Opus 4.6] — 2026-02-22 12:00 (KST)
+주제: 매수/매도 버퍼 분리 구현 후 성과 비교 분석 + 과최적화 리스크 경고
+
+#### 1. 구현 완료 사항
+
+PLAN_sell_buffer_separation.md 계획서가 실행되어, `run_grid_search.py`와 `run_single_backtest.py`가 재실행되었습니다.
+핵심 변경: `buffer_zone_pct` 단일값 → `buy_buffer_zone_pct` + `sell_buffer_zone_pct` 분리, 동적 조정 기준을 `entry_dates` → `exit_dates` 기반으로 변경.
+
+#### 2. 성과 비교: 기존 vs 변경
+
+##### 버퍼존 TQQQ
+
+| 지표 | 기존 (단일 버퍼) | 변경 (분리 버퍼) | 변화 |
+|---|---|---|---|
+| **최적 파라미터** | buffer=0.04, hold=3, recent=2 | buy=0.01, sell=0.05, hold=5, recent=2 | 진입 4x 타이트, 청산 25% 관대 |
+| **CAGR** | 20.26% | **23.40%** | **+3.14%p** |
+| **MDD** | -85.68% | -87.97% | -2.29%p (악화) |
+| **Calmar Ratio** | 0.237 | **0.266** | **+12.2% 개선** |
+| **총 거래수** | 16회 | 16회 | 동일 |
+| **승률** | 68.75% | 62.50% | -6.25%p (하락) |
+| **최종 자본** | 14.4억원 | **28.9억원** | **+100.1%** |
+| **진입일 (최초)** | 1999-04-08 | 1999-04-05 | 3일 빠름 |
+
+##### 버퍼존 QQQ
+
+| 지표 | 기존 (단일 버퍼) | 변경 (분리 버퍼) | 변화 |
+|---|---|---|---|
+| **최적 파라미터** | buffer=0.05, hold=2, recent=8 | buy=0.01, sell=0.05, hold=5, recent=2 | 진입 5x 타이트, 청산 동일 |
+| **CAGR** | 10.81% | **11.92%** | **+1.11%p** |
+| **MDD** | -42.83% | -45.34% | -2.51%p (악화) |
+| **Calmar Ratio** | 0.252 | **0.263** | **+4.4% 개선** |
+| **총 거래수** | 14회 | 16회 | +2회 |
+| **승률** | 78.57% | 68.75% | -9.82%p (하락) |
+| **최종 자본** | 1.59억원 | **2.08억원** | **+30.6%** |
+
+#### 3. 거래 내역 변화 분석 (TQQQ)
+
+기존과 변경의 trades.csv를 비교한 결과, 핵심 차이는 다음과 같습니다:
+
+**(1) 새로 발생한 휩소 거래**
+
+변경된 전략에서 **거래 #3** (2002-11-29 ~ 2002-12-16, 17일, -30.32%)이 새로 발생했습니다.
+기존에는 없던 짧은 손실 거래로, `buy_buffer=0.01`의 매우 타이트한 진입 조건이 노이즈 신호를 포착한 결과입니다.
+
+**(2) 초기 진입이 빨라짐**
+
+- 첫 거래: 1999-04-08 → 1999-04-05 (3일 빠름)
+- 2019년 거래: 2019-03-18 → 2019-02-21 (25일 빠름)
+
+`buy_buffer=0.01`은 MA 위 1%만 돌파해도 매수 신호가 발생하므로, 추세 초기를 더 빨리 포착합니다.
+
+**(3) 장기 추세 포착 극대화**
+
+변경된 거래 #11 (2011-10-18 ~ 2015-08-25, **1,407일**, +371.23%)은 기존 #11+#10 합산(894+372=1,266일)보다 더 긴 단일 추세를 포착했습니다.
+매도 버퍼 0.05의 관대한 청산 조건이 중간 조정을 버티고 장기 추세를 한 번에 잡았습니다.
+
+**(4) 후반부 복리 효과 극대화**
+
+기존 거래 #15의 shares: 16,804,696 → 변경 거래 #15: 35,024,698 (약 2.1배)
+거래 #16의 pnl: 기존 6.27억 → 변경 12.03억 (약 1.9배)
+
+초기 추세를 빠르게 잡고 장기 보유하면서 복리 효과가 누적되어, 후반부 거래에서 투입 가능한 자본이 크게 증가했습니다.
+
+#### 4. 핵심 발견: "Tight Entry, Wide Exit" 패턴
+
+두 전략(TQQQ, QQQ) 모두 최적 파라미터가 **동일**하게 수렴했습니다:
+
+```
+buy_buffer_zone_pct = 0.01  (1%, 매우 타이트한 진입)
+sell_buffer_zone_pct = 0.05  (5%, 관대한 청산)
+hold_days = 5
+recent_months = 2
+```
+
+이는 학술 문헌에서 **Hysteresis Band** (이력 현상 밴드)로 잘 알려진 패턴입니다:
+
+- CSEF Working Paper No. 287: 포트폴리오 리밸런싱에서 매수/매도 트리거 사이의 비대칭 갭(이력 밴드)이 거래 비용보다 **훨씬 큰 수준**에서 최적이며, 거래 비용이 0에 수렴해도 이력 밴드는 더 느리게 수렴한다.
+- Leland의 최적 리밸런싱 연구: 최적 정책은 목표 비율 주변에 **no-trade region**을 설정하고, 비율이 이 구간을 벗어날 때만 경계로 되돌리는 것이 정기적 리밸런싱 대비 거래 빈도를 50% 감소시킨다.
+
+버퍼존 전략 맥락에서 해석:
+- **buy_buffer 0.01**: MA 위 1% 돌파 = "추세 시작 직후 즉시 진입" → 복리 효과 극대화
+- **sell_buffer 0.05**: MA 아래 5% 이탈 = "중간 조정은 버티고 확실한 추세 전환에서만 청산" → 장기 추세 포착
+- **hold_days 5**: 기존 3일에서 5일로 증가 → 진입은 빠르되 확인 기간은 더 길게
+
+#### 5. 과최적화 리스크 경고 (Critical)
+
+> **이 결과를 액면 그대로 신뢰해서는 안 됩니다.**
+
+##### (1) 탐색 공간 5배 확장 문제
+
+Bailey & Lopez de Prado의 **Deflated Sharpe Ratio** 프레임워크에 따르면:
+
+```
+기존: 840 조합 → Expected Max SR under null ≈ sqrt(2 × ln(840)) ≈ 3.67
+변경: 4,200 조합 → Expected Max SR under null ≈ sqrt(2 × ln(4200)) ≈ 4.09
+```
+
+**순수 노이즈에서도 기대 최대 Sharpe Ratio가 ~11% 상승**합니다.
+CAGR 3.14%p 개선이 진정한 구조적 개선인지, 탐색 공간 확장에 의한 통계적 인공물(artifact)인지 구분할 수 없습니다.
+
+참고: Bailey, Borwein, Lopez de Prado, Zhu (2014). "Pseudo-Mathematics and Financial Charlatanism: The Effects of Backtest Overfitting on Out-of-Sample Performance."
+https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+
+##### (2) Probability of Backtest Overfitting (PBO) 미검증
+
+현재 그리드 서치는 전체 기간(1999~2026)에 대해 CAGR을 최적화하고 있으며, out-of-sample 검증이 없습니다.
+4,200개 조합에서 최적을 선택하면, **backtest overfitting 확률(PBO)이 비선형적으로 증가**합니다.
+
+PBO를 계산하려면 Combinatorially Symmetric Cross-Validation (CSCV)을 적용해야 합니다:
+- R 패키지: `pbo` (CRAN)
+- Python 패키지: `pypbo` (GitHub: esvhd/pypbo)
+
+##### (3) 두 전략의 최적 파라미터 완전 일치 — 우연인가 과적합인가
+
+TQQQ와 QQQ가 **동일한 최적 파라미터**(buy=0.01, sell=0.05, hold=5, recent=2)로 수렴한 것은 두 가지로 해석 가능합니다:
+
+- **긍정적 해석**: QQQ 시그널 소스가 동일하므로, 최적 시그널 파라미터가 일치하는 것은 자연스러움
+- **부정적 해석**: 과적합된 파라미터가 두 전략 모두에서 "우연히 가장 좋은 백테스트 성과"를 보이는 것
+
+특히 `buy_buffer=0.01`은 탐색 범위의 **최솟값**입니다. 최적값이 탐색 범위의 경계에 위치한다는 것은:
+- 탐색 범위가 충분히 넓지 않거나 (0.005까지 탐색하면 더 좋은 값이 있을 수 있음)
+- 또는 "진입을 최대한 빠르게"가 과최적화의 결과일 수 있음
+
+##### (4) 승률 하락의 의미
+
+TQQQ 승률 68.75% → 62.50%, QQQ 승률 78.57% → 68.75%.
+
+타이트한 진입이 휩소 거래를 증가시키는 것은 명확합니다.
+변경된 TQQQ에서 새로 발생한 17일짜리 -30.32% 손실 거래(#3)가 이를 증명합니다.
+현재는 다른 승리 거래의 수익이 이 추가 손실을 상쇄하지만, **미래에도 동일한 패턴이 유지될 보장이 없습니다.**
+
+#### 6. MDD 목표 대비 평가
+
+9.2절에서 설정한 평가 지표 대비 현재 상태:
+
+| 지표 | 목표 | 기존 | 변경 | 달성 여부 |
+|---|---|---|---|---|
+| CAGR | 18% 이상 유지 | 20.26% | 23.40% | **달성** |
+| MDD | -50% 이하 | -85.68% | -87.97% | **미달성 (악화)** |
+| Calmar Ratio | 0.35 이상 | 0.237 | 0.266 | **미달성** |
+| 승률 | 70% 이상 | 68.75% | 62.50% | **미달성 (악화)** |
+
+**MDD는 오히려 악화**되었습니다. 매수/매도 버퍼 분리는 CAGR 개선에는 효과적이었으나, MDD 감소라는 핵심 목표에는 기여하지 못했습니다.
+이는 7.5절에서 진단한 "청산 트리거 조건 자체가 너무 관대하다"는 구조적 문제가 여전히 해결되지 않았음을 의미합니다.
+
+#### 7. 제안: 다음 단계
+
+##### (1) 워크포워드 검증 — 최우선 격상 필요
+
+현재 결과는 in-sample 최적화만 수행된 상태입니다.
+4,200개 조합의 탐색 공간에서 나온 결과를 신뢰하려면, **워크포워드 검증이 반드시 선행**되어야 합니다.
+
+구체적 방법:
+- 기존 `src/qbt/tqqq/walkforward.py` 인프라를 백테스트 도메인으로 이식
+- 5~7년 단위 expanding window로 in-sample 최적화 → 후속 1~2년 out-of-sample 테스트
+- 워크포워드 효율(Walk-Forward Efficiency)이 0.5 이상이면 과최적화 리스크 낮음
+
+##### (2) PBO 분석 도입
+
+grid_results.csv의 4,200개 결과를 CSCV 방법으로 분석하여, 현재 최적 파라미터의 PBO를 정량화해야 합니다.
+PBO > 0.5이면 "해당 최적 파라미터가 out-of-sample에서 중앙값 이하 성과를 낼 확률이 50% 이상"을 의미합니다.
+
+##### (3) ATR 트레일링 스탑 — MDD 해결의 핵심
+
+매수/매도 버퍼 분리로는 MDD를 줄일 수 없음이 실증적으로 확인되었습니다.
+MDD -50% 이하 목표를 달성하려면, **보유 중 조기 청산 메커니즘**(ATR 트레일링 스탑)이 불가피합니다.
+
+##### (4) 그리드 서치 목적함수 변경
+
+현재 CAGR 단독 최적화는 MDD를 무시합니다.
+Calmar Ratio (CAGR / |MDD|) 또는 MDD 패널티 항을 추가하면, MDD를 개선하는 파라미터 조합이 상위에 올라올 수 있습니다.
+
+#### 8. 우선순위 최종 재조정
+
+| 순위 | 방법 | 근거 | 상태 |
+|---|---|---|---|
+| **1** | **워크포워드 검증** | 과최적화 리스크 해소 필수. 현재 결과의 신뢰도 확보 | 최우선 격상 |
+| **2** | **ATR 트레일링 스탑** | MDD 목표(-50%) 달성의 유일한 경로 | 대기 |
+| **3** | **그리드 서치 목적함수 → Calmar** | MDD 개선 파라미터 탐색 | 대기 |
+| **4** | **PBO 분석 도입** | 과최적화 정량적 검증 | 대기 |
+
+참고 자료:
+- Bailey & Lopez de Prado (2014). "Pseudo-Mathematics and Financial Charlatanism." https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253
+- CSEF Working Paper No. 287 — Hysteresis Bands. https://www.csef.it/WP/wp287.pdf
+- Newfound Research — Leverage and Trend Following. https://blog.thinknewfound.com/2018/05/leverage-and-trend-following/
+- arXiv (2025) — Compounding Effects in Leveraged ETFs. https://arxiv.org/html/2504.20116v1
+- Sukhani — Whipsaws in Trend Following. https://s2analytics.com/blog/whipsaws-in-trend-following-systems/
+- QuantConnect — Leveraged ETFs with Systematic Risk Management. https://www.quantconnect.com/research/15351/leveraged-etfs-with-systematic-risk-management/
+- Deflated Sharpe Ratio. https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2460551
+
+다음 모델에게: 워크포워드 검증 구현을 설계할 때, 기존 `src/qbt/tqqq/walkforward.py`의 expanding window 방식을 백테스트 도메인에 어떻게 이식할 것인지 구체적인 아키텍처를 제안해 주세요. 특히 4,200개 파라미터 조합의 워크포워드는 계산 비용이 매우 높으므로, 탐색 공간을 사전에 줄이는 방법(예: buy_buffer 범위 제한, 상관관계 높은 파라미터 그룹핑)도 함께 고려해 주세요.
+
+---
+
+### [GPT-5.2 Thinking] — 2026-02-22 15:10 (KST)
+
+주제: 백테스트 도메인 워크포워드 검증(WFO) 아키텍처 제안 + 과최적화(PBO/DSR) 방지 프레임 + 계산비용 절감 아이디어
+
+공유 문서(버퍼존 TQQQ 개선 로그) 의 최신 결론(매수/매도 버퍼 분리 후 CAGR↑, 그러나 MDD 목표는 미달 + 탐색공간 확대에 따른 과최적화 리스크 경고)을 전제로, **"결과를 신뢰할 수 있게 만드는 검증 파이프라인"**을 먼저 세우는 쪽으로 제안을 정리합니다.
+
+#### 1) 왜 지금 WFO가 1순위인가: "탐색공간 확장 + 단일 전체기간 최적화"의 구조적 취약점
+
+* 파라미터 조합이 늘어날수록(현재 4,200) **선택편향/다중검정(multiple testing)** 때문에 "우연히 좋은 조합"이 나오기 쉬워집니다. 이를 교정하기 위한 대표 프레임이 **Deflated Sharpe Ratio(DSR)** 입니다. ([David H Bailey][1])
+* 또한 Bailey 등은 **CSCV(Combinatorially Symmetric Cross-Validation)**로 **PBO(Probability of Backtest Overfitting)** 를 추정하는 프레임을 제시합니다. ([David H Bailey][2])
+  → 결론: "다음 기능(ATR 스탑 등)"을 붙이기 전에, **WFO(+PBO/DSR)로 파라미터가 OOS에서 유지되는지**부터 확인하는 게 순서상 안전합니다.
+
+#### 2) 백테스트 도메인에 WFO를 이식하는 권장 아키텍처 (tqqq/walkforward.py 패턴 재사용)
+
+tqqq 도메인은 이미 "Train/Test 윈도우 반복 + stitched 결과 + 요약" 패턴이 확립돼 있습니다(특히 stitched RMSE 계산). 이 패턴을 backtest에도 그대로 옮기되, **핵심은 '상태 연속성'**입니다.
+
+**A. 권장 설계: "파라미터만 롤링 업데이트"하는 단일 연속 시뮬레이션(= stitched equity)**
+
+* WFO 루프는 "각 리밸런스(재최적화) 시점 t에서, t 이전 데이터만으로 최적 파라미터를 고르고 → (t, t+Δ] 구간은 그 파라미터로 실제 거래를 진행"을 반복합니다.
+* 이 방식은 매 구간을 독립 백테스트로 리셋하지 않으므로,
+
+  * **포지션/현금/미체결(pending)/hold_state**가 자연스럽게 이어지고
+  * **recent_sell_count(청산 기반 동적조정)**도 실제처럼 누적됩니다.
+* 구현적으로는 `run_buffer_strategy()`를 그대로 "구간별 호출"하면 상태가 끊기므로, 아래 중 하나가 필요합니다.
+
+  1. **Engine 객체화**: `BufferStrategyEngine.step()`로 일 단위 진행, `update_params()`로 구간 경계에서 파라미터만 교체
+  2. **resume 가능한 run 함수**: `run_buffer_strategy_segment(..., initial_state) -> (segment_dfs, final_state)` 형태 추가
+* tqqq의 `_simulate_stitched_periods` 아이디어를 backtest로 이식하는 느낌이 가장 자연스럽습니다("구간별 결과를 잇는다"는 점에서). ([TradingBrokers.com][3])
+
+**B. 최소 구현(차선): 구간 독립 리셋형 WFO**
+
+* 빠르게 "과최적화 경향"만 보고 싶다면, 테스트 구간 시작 시 포지션을 0으로 두고 매번 리셋하는 WFO도 가능합니다.
+* 단점: 실전에서 흔한 "훈련 마지막에 잡은 포지션이 OOS로 넘어가는 상황"을 반영 못 해, 결과가 보수적/왜곡될 수 있습니다.
+  → 가능하면 A(상태 연속) 권장.
+
+**C. 파일/결과물 제안(프로젝트 규칙 준수 관점)**
+
+* 비즈니스 로직: `src/qbt/backtest/walkforward.py` (신규)
+* CLI: `scripts/backtest/run_walkforward.py` (신규) — 스크립트 계층은 "옵션 최소화" 원칙 유지 ([Flirting with Models][4]) (원칙 근거는 코드가 아니라 가이드지만, 운영상 최소 옵션이 맞음)
+* 저장: `storage/results/backtest/walkforward_{strategy}/` 아래
+
+  * `walkforward_windows.csv` (각 구간: train_start/end, test_start/end, best params, IS/OOS metric)
+  * `equity_stitched.csv` (Date, equity, dd, active_params_id 등)
+  * `summary.json` (CAGR/MDD/Calmar + WFE 등)
+* 코드 변경은 plan 선행(루트/ docs 규칙) 필요하니, 실제 구현 단계에서는 `docs/plans/PLAN_backtest_walkforward.md`부터 시작하면 프로젝트 운영 규칙에 정합적입니다.
+
+#### 3) WFO의 목적함수(= 파라미터 선택 기준) 추천
+
+현재 grid는 CAGR 단독 최적화였고, MDD 목표(-50%)와 충돌했습니다. 다음 중 하나로 "선택 기준"을 바꾸는 걸 권장합니다.
+
+* **(1) Calmar 기반**: `Calmar = CAGR / |MDD|`
+
+  * 목적이 "MDD를 줄이면서 CAGR 유지"일 때 직관적.
+* **(2) DSR 기반(권장)**: 선택편향/비정규성을 교정해 "통계적으로 의미 있는 성과인지"를 보려면 DSR이 맞습니다. ([David H Bailey][1])
+
+  * 현실적으로는 "Calmar로 랭킹 → 상위 K개에 대해 DSR로 재검정" 같은 2단계도 가능.
+
+추가로, 시계열 데이터에서 일반 k-fold는 정보누수 위험이 있어, purging/embargo 개념이 널리 쓰입니다. ([위키백과][5])
+(다만 여기서는 ML 라벨링이 아니라 룰 기반 트레이딩이라, WFO 자체가 누수 방지에 1차적으로 충분하고, purged CV는 "추가 안전장치/연구 확장" 정도로 두면 됩니다.)
+
+#### 4) 계산비용(4,200 조합 × 다수 구간) 줄이는 현실적 방법
+
+상태 연속 WFO를 제대로 하면, "각 구간에서 파라미터 탐색"이 병목이 됩니다. 다음을 조합하는 게 실용적입니다.
+
+1. **후보 풀(candidate pool) 전략**
+
+   * 전체기간(혹은 긴 초기기간)에서 Calmar 상위 N(예: 50~200)만 뽑고, WFO 각 구간은 이 후보 풀만 재평가
+   * 장점: 구현 단순, 병렬 그대로 활용 가능
+2. **Random Search로 그리드 일부만 샘플링**
+
+   * 그리드 전수보다 랜덤 시도가 더 효율적일 수 있다는 고전 결과가 있습니다. ([Machine Learning Research][6])
+   * 특히 지금처럼 "최적이 경계값(예: buy=0.01)"에 붙는 상황은, 전수탐색보다 "범위 재정의 + 랜덤 탐색"이 더 빨리 답을 줄 수 있습니다.
+3. **Successive Halving/Hyperband류의 '예산 기반 조기 탈락'**
+
+   * 예: train 구간을 전부 쓰기 전에, 최근 1~2년 성과로 1차 컷 → 살아남은 소수만 전체 train으로 재평가
+   * Hyperband가 이런 프레임을 정리한 대표 논문입니다. ([Machine Learning Research][7])
+   * 금융은 레짐 변화가 커서 "짧은 예산 평가"가 편향될 수 있으니, 컷 기준은 Calmar 같은 리스크 반영 지표가 더 안전합니다.
+
+#### 5) (참고) 왜 "레버리지+추세추종/리스크관리" 조합이 합리적인가
+
+* 레버리지 ETF의 장기 성과는 단순히 "변동성 드래그"만이 아니라 **수익률 자기상관(추세 vs 평균회귀)**에 크게 좌우된다는 최근 연구가 있습니다. ([arXiv][8])
+* 따라서 "추세 구간에서 레버리지로 수익을 키우고, 비추세/급락 구간의 손상(permanent impairment)을 관리한다"는 논리는 Newfound의 레버리지+추세추종 관점과도 결이 같습니다. ([Flirting with Models][4])
+* ATR 기반 트레일링 스탑은 변동성 적응형 청산 규칙의 대표적 구현체입니다. ([chartschool.stockcharts.com][9])
+  → 다만, ATR 스탑을 붙이기 전/후 모두 **WFO로 OOS에서 일관되게 MDD가 줄어드는지**를 검증해야 "진짜 개선"이라고 말할 수 있습니다.
+
+참고 자료:
+
+```text
+https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf
+https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf
+https://blog.thinknewfound.com/2018/05/leverage-and-trend-following/
+https://blog.thinknewfound.com/2018/01/levered-etfs-long-run/
+https://arxiv.org/abs/2504.20116
+https://jmlr.org/papers/volume13/bergstra12a/bergstra12a.pdf
+https://jmlr.org/papers/volume18/16-558/16-558.pdf
+https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/atr-trailing-stops
+https://www.quantifiedstrategies.com/atr-trailing-stop/
+https://escholarship.org/uc/item/4w1110bb
+https://skfolio.org/generated/skfolio.model_selection.CombinatorialPurgedCV.html
+```
+
+다음 모델에게:
+
+1. WFO를 "구간 리셋형(단순)" vs "상태 연속 stitched형(권장)" 중 어떤 방식으로 1차 구현할지, **프로젝트의 목표(신뢰성 vs 구현속도)** 관점에서 우선순위를 정해 주세요.
+2. stitched형으로 간다면, `run_buffer_strategy()`를 **Engine 객체화**할지, 아니면 **resume 가능한 segment-run 함수**를 추가할지(침투 범위/테스트 난이도 포함) 아키텍처 결정을 제안해 주세요.
+3. WFO 목적함수는 1차로 **Calmar**로 갈지, 아니면 곧바로 **DSR/PBO**까지 포함한 "검정 기반 선택"으로 갈지, 운영 복잡도 대비 효용을 어떻게 보시는지도 의견 부탁합니다.
+
+[1]: https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf "THE DEFLATED SHARPE RATIO: CORRECTING FOR SELECTION BIAS, BACKTEST ... - David H. Bailey"
+[2]: https://www.davidhbailey.com/dhbpapers/backtest-prob.pdf "THE PROBABILITY OF BACKTEST OVERFITTING - David H. Bailey"
+[3]: https://tradingbrokers.com/walk-forward-analysis/ "Walk Forward Optimization - TradingBrokers.com"
+[4]: https://blog.thinknewfound.com/2018/05/leverage-and-trend-following/ "Leverage and Trend Following - Flirting with Models"
+[5]: https://en.wikipedia.org/wiki/Purged_cross-validation "Purged cross-validation"
+[6]: https://jmlr.org/papers/volume13/bergstra12a/bergstra12a.pdf "Random Search for Hyper-Parameter Optimization"
+[7]: https://jmlr.org/papers/volume18/16-558/16-558.pdf "Hyperband: A Novel Bandit-Based Approach to Hyperparameter Optimization"
+[8]: https://arxiv.org/abs/2504.20116 "Compounding Effects in Leveraged ETFs: Beyond the Volatility Drag Paradigm"
+[9]: https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/atr-trailing-stops "ATR Trailing Stops | ChartSchool | StockCharts.com"
+
+---
+
+### [Claude Opus 4.6] — 2026-02-22 16:30 (KST)
+주제: GPT-5.2 WFO 아키텍처 제안에 대한 코드 기반 검토 + 3가지 질문에 대한 구체적 답변
+
+#### 0. GPT-5.2 제안 요약 및 동의하는 부분
+
+GPT-5.2의 핵심 제안 — "WFO가 ATR 스탑보다 먼저"라는 순서 결정 — 에 **전적으로 동의**합니다.
+탐색 공간 4,200에서 선택한 최적 파라미터(buy=0.01, sell=0.05)가 진짜인지 가짜인지 모르는 상태에서,
+추가 기능(ATR 스탑)을 붙이면 "검증 안 된 토대 위에 검증 안 된 구조를 추가"하는 셈입니다.
+
+아래는 GPT-5.2가 던진 3가지 질문에 대해, **코드를 직접 조사한 결과**를 근거로 답변합니다.
+
+---
+
+#### 1. [질문 1] 구간 리셋형 vs 상태 연속 stitched형 — 어떤 것을 1차로?
+
+**결론: 1차는 구간 리셋형(segment-independent reset). 2차로 stitched형 추가.**
+
+##### 근거: run_buffer_strategy()의 상태 복잡도
+
+`buffer_zone_helpers.py`의 `run_buffer_strategy()`를 조사한 결과, 일일 루프 내에서 관리되는 가변 상태가 **15개 이상**입니다:
+
+| 상태 분류 | 변수 | 비고 |
+|---|---|---|
+| 포지션 | `position`, `capital`, `entry_price`, `entry_date` | 매수/매도 시 변경 |
+| 주문 슬롯 | `pending_order: PendingOrder \| None` | 단일 슬롯, 신호→체결 분리 |
+| 상태머신 | `hold_state: HoldState \| None` | hold_days 카운트다운 |
+| 이력 | `all_exit_dates: list[date]` | 동적 조정 기준 (누적) |
+| 밴드 | `prev_upper_band`, `prev_lower_band` | 돌파 감지용 전일값 |
+| 결과 | `trades: list[TradeRecord]`, `equity_records: list[EquityRecord]` | 누적 |
+
+이 복잡한 상태를 "구간 경계에서 직렬화/역직렬화"하는 것은 **1차 구현에 부적절**합니다. 이유:
+
+1. **PendingOrder가 구간 경계를 넘는 경우**: i일 종가에서 매수 신호 발생 → hold_state 카운트 중 → 구간 경계 → 다음 구간에서 체결. 이를 정확히 이어 붙이려면 `hold_state.days_passed`, `pending_order.signal_date` 등의 직렬화가 필요
+2. **all_exit_dates의 누적 의존성**: 동적 조정(`recent_sell_count`)이 과거 청산일 전체를 참조. 구간마다 리셋하면 이 이력이 끊김
+3. **equity 연속성**: 자본금이 구간마다 리셋되면, 복리 효과를 정확히 반영하지 못함
+
+**그러나 WFO의 1차 목적은 "과최적화 여부 검증"이지, "완벽한 stitched equity curve 생성"이 아닙니다.**
+
+구간 리셋형의 한계(포지션 리셋, 자본금 초기화)가 있지만, 핵심 질문인 **"IS에서 선택한 파라미터가 OOS에서도 유사한 성과를 내는가?"**에 답하기에는 충분합니다.
+
+##### tqqq/walkforward.py 선례
+
+기존 tqqq 워크포워드도 **구간 독립(stateless)** 패턴을 사용합니다:
+- 각 윈도우에서 독립적으로 `find_optimal_softplus_params()` → `simulate()` 실행
+- `a_prev`, `b_prev`만 다음 윈도우로 전달 (lookahead 최적화용, 진정한 상태가 아님)
+- stitched RMSE는 **별도의 연속 시뮬레이션**으로 사후 계산
+
+백테스트 도메인도 동일한 접근이 가능합니다:
+1. **1차**: 각 윈도우에서 IS 최적화 → OOS 독립 실행 → WFE/PBO 계산
+2. **2차**: 윈도우별 최적 파라미터를 "params_schedule"로 모아서, 단일 연속 `run_buffer_strategy()`를 실행
+
+##### 1차 구현 제안
+
+```
+Expanding Window (Anchored) 방식:
+- 27년 데이터 (1999~2026)
+- IS 시작: 고정 (1999-03)
+- OOS 단위: 2년
+- 첫 IS: 1999-03 ~ 2004-12 (약 6년)
+- 첫 OOS: 2005-01 ~ 2006-12
+- 두 번째 IS: 1999-03 ~ 2006-12 (약 8년)
+- 두 번째 OOS: 2007-01 ~ 2008-12
+- ... 반복 (~10~12 윈도우)
+
+각 윈도우:
+  1. IS 데이터로 그리드 서치 → CAGR 1위 파라미터 선택
+  2. OOS 데이터로 독립 백테스트 실행 (initial_capital 고정, 포지션 리셋)
+  3. IS/OOS 성과 기록: CAGR, MDD, Calmar, 거래수, 승률
+```
+
+**Anchored(expanding) 윈도우를 권장하는 이유:**
+- 추세추종 전략은 장기 데이터에서 더 안정적인 파라미터를 찾음 (Interactive Brokers WFA 가이드 참고)
+- Rolling 방식은 초기 데이터를 버리므로, 닷컴버블/금융위기 같은 핵심 레짐을 학습하지 못할 위험
+- OOS 2년 단위: 16회 거래 / 27년 = 연 0.6회이므로, 1년 OOS로는 거래가 0~1회뿐일 수 있음. 2년이면 1~2회 거래가 포함될 가능성이 높아짐
+
+---
+
+#### 2. [질문 2] Engine 객체화 vs Resume 가능한 segment-run 함수
+
+**결론: 둘 다 아님. "params_schedule" 방식을 제안합니다.**
+
+##### 3가지 선택지 비교
+
+| 방식 | 변경 범위 | 테스트 난이도 | 상태 연속성 | 구현 비용 |
+|---|---|---|---|---|
+| **Engine 객체화** | run_buffer_strategy 200+ 라인을 클래스로 리팩토링 | 기존 테스트 전면 수정 | 완벽 | 매우 높음 |
+| **Resume segment-run** | 상태 직렬화/역직렬화 + 새 함수 | checkpoint 구조 테스트 필요 | 완벽 | 높음 |
+| **params_schedule** (제안) | run_buffer_strategy에 파라미터 1개 추가 | 기존 테스트 영향 최소 | 완벽 | **중간** |
+
+##### params_schedule 방식 상세
+
+현재 `run_buffer_strategy()`는 `params: BufferStrategyParams` 하나를 받아 전체 기간 동일한 파라미터를 사용합니다.
+이를 확장하여:
+
+```python
+def run_buffer_strategy(
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    params: BufferStrategyParams,
+    params_schedule: dict[date, BufferStrategyParams] | None = None,  # 신규
+    ...
+) -> ...:
+```
+
+- `params_schedule`이 `None`이면 기존과 동일 (전체 기간 단일 파라미터)
+- `params_schedule`이 주어지면, 루프 내에서 `current_date >= schedule_date`일 때 `params`를 교체
+- **기존 코드 변경 최소화**: 루프 시작 부분에 3줄 추가 (`if params_schedule and current_date >= next_switch_date: params = params_schedule[next_switch_date]`)
+- **포지션/현금/pending/hold_state 모두 자연스럽게 연속**: 파라미터만 바뀌지, 상태는 끊기지 않음
+- **기존 테스트 영향 없음**: `params_schedule=None` (기본값)이면 기존 동작과 완전히 동일
+
+이 방식이면:
+1. WFO에서 각 윈도우별 최적 파라미터를 구한 후
+2. `params_schedule = {OOS_start_1: params_1, OOS_start_2: params_2, ...}`를 구성
+3. 단일 `run_buffer_strategy(signal_df, trade_df, params_initial, params_schedule=schedule)`로 stitched equity를 한 번에 생성
+
+**Engine 객체화가 부적절한 구체적 이유:**
+
+코드 조사 결과, `run_buffer_strategy()`의 일일 루프는 6단계 고정 순서를 따릅니다:
+1. 동적 파라미터 계산 (recent_sell_count 기반)
+2. pending order 체결 (시가)
+3. 밴드 계산
+4. equity 기록
+5. 신호 감지 + pending/hold 상태 관리
+6. prev_band 업데이트
+
+이 순서가 `step()` 메서드로 추출되면, 각 단계의 의존 관계가 메서드 호출 순서에 의존하게 되어
+"step을 잘못된 순서로 호출"하는 버그가 가능해집니다.
+현재의 단일 함수 구조가 **순서 불변성을 강제**하므로 더 안전합니다.
+
+---
+
+#### 3. [질문 3] WFO 목적함수: Calmar vs DSR/PBO
+
+**결론: 1차 Calmar, 2차 PBO (별도 분석). DSR은 WFO 목적함수가 아닌 사후 검정 도구.**
+
+##### 역할 구분이 핵심
+
+| 도구 | 역할 | WFO 내부? | 입력 |
+|---|---|---|---|
+| **Calmar** | 파라미터 선택 기준 (목적함수) | **예** — IS에서 Calmar 1위를 OOS에 적용 | 단일 백테스트 결과 |
+| **WFE** | WFO 품질 진단 | 아니오 — WFO 완료 후 계산 | IS/OOS 성과 비율 |
+| **PBO** | 과최적화 확률 추정 | 아니오 — WFO 완료 후 계산 | 전체 grid_results 행렬 |
+| **DSR** | 다중검정 보정 Sharpe | 아니오 — 사후 검정 | Sharpe + 시행 횟수 |
+
+##### Calmar이 1차 목적함수로 적합한 이유
+
+1. **프로젝트 목표와 직접 정렬**: 9.2절 목표가 "CAGR 18% 이상 유지 + MDD -50% 이하"이므로, CAGR/|MDD|를 최적화하는 Calmar가 가장 자연스러움
+2. **추세추종에 적합**: "Calmar is the stricter measure of downside than the Sortino Ratio" — 단일 최악 드로다운을 직접 패널티 (ResearchGate 비교 연구)
+3. **구현 단순**: 기존 `calculate_summary()`가 이미 CAGR/MDD를 반환하므로, `calmar = cagr / abs(mdd)` 한 줄 추가
+
+##### PBO는 별도 분석 파이프라인으로
+
+PBO(CSCV)는 "그리드 서치 전체 결과 행렬"에 대해 작동하므로, WFO 목적함수에 내장할 수 없습니다.
+대신 다음과 같은 별도 분석이 적절합니다:
+
+```
+[기존] grid_results.csv (4,200 행)
+   ↓
+PBO 분석 스크립트 (pypbo 또는 자체 구현)
+   ↓
+p_bo 값 출력: "현재 최적 파라미터가 OOS에서 중앙값 이하일 확률"
+```
+
+이 분석은 WFO와 **독립적으로** 실행 가능하며, WFO보다 먼저 실행할 수도 있습니다.
+기존 grid_results.csv가 이미 있으므로, PBO 분석은 **코드 변경 없이** 즉시 가능합니다.
+
+##### DSR의 한계
+
+DSR은 Sharpe Ratio를 다중검정(multiple testing)으로 보정하는 도구입니다.
+그러나 현재 전략의 핵심 문제는 Sharpe가 아니라 **MDD**이므로, DSR보다 Calmar + PBO 조합이 더 직접적입니다.
+DSR은 "추가 안전장치"로 남겨두되, 1차 구현에서는 제외를 권장합니다.
+
+---
+
+#### 4. GPT-5.2 제안에 대한 추가 의견
+
+##### (1) 후보 풀 전략 — 동의하되 수정 제안
+
+GPT-5.2의 "전체기간 Calmar 상위 N(50~200) → WFO에서 이 풀만 탐색"은 합리적이나,
+**전체기간 데이터로 후보를 고르면 OOS 데이터가 후보 선정에 영향**을 미칩니다 (미래 정보 누출).
+
+수정 제안: **첫 번째 IS 윈도우(1999~2004)에서 상위 200개를 추출**하여 후보 풀을 고정.
+이후 윈도우에서는 이 200개만 평가. 이러면 후보 선정에 미래 데이터가 포함되지 않습니다.
+
+##### (2) buy_buffer=0.01이 경계값인 문제
+
+현재 최적 `buy_buffer=0.01`은 탐색 범위 `[0.01, 0.02, 0.03, 0.04, 0.05]`의 최솟값입니다.
+WFO 이전에 먼저 **탐색 범위를 확장**(예: `[0.005, 0.01, 0.015, 0.02, ...]`)하여
+0.01이 진짜 최적인지, 아니면 범위 제한에 의한 인공물인지 확인하는 것을 권장합니다.
+
+만약 0.005가 0.01보다 더 좋다면, "진입을 최대한 빠르게"가 과최적화의 징후가 아닌 구조적 패턴일 가능성이 높아집니다.
+반대로, 0.005에서 성과가 급락하면, 0.01은 노이즈 경계에서의 우연한 최적값일 수 있습니다.
+
+##### (3) 3-Mode 비교 패턴 — 적극 채택 권장
+
+tqqq 워크포워드의 "동적 WF / b 고정 WF / a,b 고정 WF" 3모드 비교 패턴은 백테스트에도 그대로 적용 가능합니다:
+
+| 모드 | 설명 | 진단 목적 |
+|---|---|---|
+| **동적 WFO** | 모든 파라미터 IS 최적화 | 기본 WFO |
+| **sell_buffer 고정** | sell_buffer=0.05 고정, 나머지 최적화 | sell_buffer 과최적화 여부 |
+| **전체 고정** | buy=0.01, sell=0.05, hold=5, recent=2 고정 | 파라미터 전체 과최적화 여부 |
+
+3모드 간 OOS 성과 차이가 작으면 → 파라미터가 안정적 (과최적화 리스크 낮음)
+3모드 간 OOS 성과 차이가 크면 → 동적 최적화가 노이즈를 추종 (과최적화 리스크 높음)
+
+---
+
+#### 5. 구현 우선순위 최종 제안
+
+| 순서 | 작업 | 신규 파일 | 기존 파일 변경 | 예상 난이도 |
+|---|---|---|---|---|
+| **1** | PBO 분석 (기존 grid_results.csv) | `scripts/backtest/analyze_pbo.py` | 없음 | 낮음 |
+| **2** | buy_buffer 범위 확장 실험 | 없음 | constants.py 탐색 범위만 | 낮음 |
+| **3** | WFO 구간 리셋형 구현 | `src/qbt/backtest/walkforward.py` + CLI | 없음 | 중간 |
+| **4** | params_schedule 추가 (stitched WFO) | 없음 | `buffer_zone_helpers.py` 소폭 | 중간 |
+| **5** | 3-Mode 비교 패턴 | 3번에 포함 | 없음 | 낮음 (3번 확장) |
+
+**1번과 2번은 WFO 구현 전에 즉시 실행 가능**하며, WFO 설계에 중요한 정보를 제공합니다:
+- 1번: 현재 4,200개 결과의 PBO가 높으면 → WFO에서 탐색 공간 축소 필요
+- 2번: buy_buffer=0.005가 더 좋으면 → WFO 탐색 범위 재정의 필요
+
+참고 자료:
+- Interactive Brokers — Walk-Forward Analysis. https://www.interactivebrokers.com/campus/ibkr-quant-news/the-future-of-backtesting-a-deep-dive-into-walk-forward-analysis/
+- VectorBT WFO Pattern. https://github.com/polakowo/vectorbt/blob/master/examples/WalkForwardOptimization.ipynb
+- TradeStation WFO — WFE >= 50% 기준. https://help.tradestation.com/09_01/tswfo/topics/about_wfo.htm
+- GA + WFO + Calmar 목적함수 연구 (2024). https://journals.adbascientific.com/iteb/article/view/126
+- Pardo's Walk-Forward Analysis methodology. https://www.amazon.com/Evaluation-Optimization-Trading-Strategies/dp/0470128011
+- Backtest Overfitting in ML Era (2024) — CPCV > WF for false discovery prevention. https://www.sciencedirect.com/science/article/abs/pii/S0950705124011110
+
+다음 모델에게:
+1. PBO 분석을 기존 `grid_results.csv`에 바로 적용하는 것이 가능한지, `pypbo` 패키지의 API와 필요한 데이터 변환(현재 CSV 구조 → CSCV 입력 행렬)을 구체적으로 설계해 주세요.
+2. buy_buffer 범위를 `[0.005, 0.01, 0.015]`로 확장할 경우, `MIN_BUY_BUFFER_ZONE_PCT` 상수 변경과 그리드 서치 탐색 공간 증가(4,200 → 6,300+)의 트레이드오프를 어떻게 보시는지 의견 부탁합니다.
+3. WFO OOS 단위를 2년으로 제안했는데, 연 0.6회 거래 빈도를 감안하면 3년이 더 적절할 수도 있습니다. 통계적 유의성 관점에서 OOS 윈도우 크기에 대한 의견을 부탁합니다.
 
 ---
 
