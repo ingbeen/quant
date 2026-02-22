@@ -20,6 +20,7 @@ tests/
 ├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
 ├── test_buffer_zone_qqq.py # 버퍼존 QQQ 전략 테스트
 ├── test_buffer_zone_tqqq.py # 버퍼존 TQQQ 전략 테스트
+├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_data_loader.py # 데이터 로더 테스트

@@ -29,12 +29,12 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUY_BUFFER_ZONE_PCT_LIST,
-    DEFAULT_HOLD_DAYS_LIST,
     DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW_LIST,
-    DEFAULT_RECENT_MONTHS_LIST,
-    DEFAULT_SELL_BUFFER_ZONE_PCT_LIST,
+    DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
+    DEFAULT_WFO_HOLD_DAYS_LIST,
+    DEFAULT_WFO_MA_WINDOW_LIST,
+    DEFAULT_WFO_RECENT_MONTHS_LIST,
+    DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
     DISPLAY_BUY_BUFFER_ZONE,
     DISPLAY_CAGR,
     DISPLAY_FINAL_CAPITAL,
@@ -170,20 +170,20 @@ def main() -> int:
 
         # 3-2. 그리드 탐색 실행
         logger.debug("그리드 탐색 파라미터:")
-        logger.debug(f"  - ma_window: {DEFAULT_MA_WINDOW_LIST}")
-        logger.debug(f"  - buy_buffer_zone_pct: {DEFAULT_BUY_BUFFER_ZONE_PCT_LIST}")
-        logger.debug(f"  - sell_buffer_zone_pct: {DEFAULT_SELL_BUFFER_ZONE_PCT_LIST}")
-        logger.debug(f"  - hold_days: {DEFAULT_HOLD_DAYS_LIST}")
-        logger.debug(f"  - recent_months: {DEFAULT_RECENT_MONTHS_LIST}")
+        logger.debug(f"  - ma_window: {DEFAULT_WFO_MA_WINDOW_LIST}")
+        logger.debug(f"  - buy_buffer_zone_pct: {DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST}")
+        logger.debug(f"  - sell_buffer_zone_pct: {DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST}")
+        logger.debug(f"  - hold_days: {DEFAULT_WFO_HOLD_DAYS_LIST}")
+        logger.debug(f"  - recent_months: {DEFAULT_WFO_RECENT_MONTHS_LIST}")
 
         results_df = run_grid_search(
             signal_df=signal_df,
             trade_df=trade_df,
-            ma_window_list=DEFAULT_MA_WINDOW_LIST,
-            buy_buffer_zone_pct_list=DEFAULT_BUY_BUFFER_ZONE_PCT_LIST,
-            sell_buffer_zone_pct_list=DEFAULT_SELL_BUFFER_ZONE_PCT_LIST,
-            hold_days_list=DEFAULT_HOLD_DAYS_LIST,
-            recent_months_list=DEFAULT_RECENT_MONTHS_LIST,
+            ma_window_list=DEFAULT_WFO_MA_WINDOW_LIST,
+            buy_buffer_zone_pct_list=DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
+            sell_buffer_zone_pct_list=DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+            hold_days_list=DEFAULT_WFO_HOLD_DAYS_LIST,
+            recent_months_list=DEFAULT_WFO_RECENT_MONTHS_LIST,
             initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
@@ -269,11 +269,11 @@ def main() -> int:
         metadata = {
             "strategy": strategy_name,
             "execution_params": {
-                "ma_window_list": DEFAULT_MA_WINDOW_LIST,
-                "buy_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_BUY_BUFFER_ZONE_PCT_LIST],
-                "sell_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_SELL_BUFFER_ZONE_PCT_LIST],
-                "hold_days_list": DEFAULT_HOLD_DAYS_LIST,
-                "recent_months_list": DEFAULT_RECENT_MONTHS_LIST,
+                "ma_window_list": DEFAULT_WFO_MA_WINDOW_LIST,
+                "buy_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST],
+                "sell_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST],
+                "hold_days_list": DEFAULT_WFO_HOLD_DAYS_LIST,
+                "recent_months_list": DEFAULT_WFO_RECENT_MONTHS_LIST,
                 "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
                 "slippage_rate": round(SLIPPAGE_RATE, 4),
             },

@@ -36,6 +36,7 @@ FullMetaJson = dict[str, HistoryList]
 # 허용된 CSV 타입
 VALID_CSV_TYPES = {
     "grid_results",
+    "backtest_walkforward",
     "tqqq_daily_comparison",
     "tqqq_rate_spread_lab",
     "tqqq_softplus_tuning",

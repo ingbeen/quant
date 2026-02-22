@@ -23,6 +23,8 @@
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
+- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params 5개, is/oos CAGR/MDD/Calmar/trades/win_rate, wfe_calmar)
+- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, param_values, stitched 지표)
 
 ### 2. constants.py
 
@@ -33,7 +35,10 @@
 - 거래 비용: `SLIPPAGE_RATE` (0.3%, 슬리피지 + 수수료 통합)
 - 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUY_BUFFER_ZONE_PCT`, `DEFAULT_SELL_BUFFER_ZONE_PCT` 등
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`
-- 그리드 서치 기본값: `DEFAULT_MA_WINDOW_LIST`, `DEFAULT_BUY_BUFFER_ZONE_PCT_LIST`, `DEFAULT_SELL_BUFFER_ZONE_PCT_LIST` 등
+- WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
+- WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
+- WFO 고정값: `DEFAULT_WFO_FIXED_SELL_BUFFER_PCT`
+- WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등 7개
 - 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
 
 ### 3. analysis.py
@@ -47,7 +52,19 @@
 - `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 
-### 4. strategies/ 패키지
+### 4. walkforward.py
+
+워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
+
+주요 함수:
+
+- `generate_wfo_windows`: 월 기반 Expanding Anchored 윈도우 생성
+- `select_best_calmar_params`: Calmar(CAGR/|MDD|) 기준 최적 파라미터 선택 (MDD=0 + CAGR>0 최우선 처리)
+- `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가)
+- `build_params_schedule`: WFO 결과에서 params_schedule 구성
+- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE + 파라미터 안정성 진단
+
+### 5. strategies/ 패키지
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.
 
@@ -91,7 +108,7 @@
 
 핵심 함수:
 
-- `run_buffer_strategy`: 버퍼존 전략 실행. 종료 시 포지션 보유 중이면 summary에 `open_position` 포함
+- `run_buffer_strategy`: 버퍼존 전략 실행. `params_schedule` 파라미터로 구간별 파라미터 전환 지원. 종료 시 포지션 보유 중이면 summary에 `open_position` 포함
 - `run_grid_search`: 파라미터 그리드 탐색 (병렬 처리)
 - `_run_buffer_strategy_for_grid`: 그리드 서치용 병렬 실행 헬퍼
 
@@ -319,7 +336,7 @@ adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INC
 
 ## 테스트 커버리지
 
-주요 테스트 파일: `tests/test_buffer_zone_helpers.py`, `tests/test_buffer_zone_tqqq.py`, `tests/test_buffer_zone_qqq.py`, `tests/test_buy_and_hold.py`, `tests/test_analysis.py`
+주요 테스트 파일: `tests/test_buffer_zone_helpers.py`, `tests/test_buffer_zone_tqqq.py`, `tests/test_buffer_zone_qqq.py`, `tests/test_buy_and_hold.py`, `tests/test_analysis.py`, `tests/test_backtest_walkforward.py`
 
 테스트 범위:
 

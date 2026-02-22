@@ -795,6 +795,7 @@ def run_buffer_strategy(
     params: BufferStrategyParams,
     log_trades: bool = True,
     strategy_name: str = "buffer_zone",
+    params_schedule: dict[date, BufferStrategyParams] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, BufferStrategyResultDict]:
     """
     버퍼존 전략으로 백테스트를 실행한다.
@@ -814,9 +815,12 @@ def run_buffer_strategy(
     Args:
         signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
-        params: 전략 파라미터
+        params: 전략 파라미터 (초기 구간 파라미터)
         log_trades: 거래 로그 출력 여부 (기본값: True)
         strategy_name: 전략 식별 이름 (기본값: "buffer_zone")
+        params_schedule: 구간별 파라미터 전환 스케줄 (기본값: None)
+            {date: BufferStrategyParams} 형태. 해당 날짜부터 새 파라미터 적용.
+            None이면 기존 동작과 완전히 동일.
 
     Returns:
         tuple: (trades_df, equity_df, summary)
@@ -838,6 +842,24 @@ def run_buffer_strategy(
     # 2. 유효 데이터만 사용 (signal_df의 ma_window 이후부터)
     signal_df = signal_df.copy()
     trade_df = trade_df.copy()
+
+    # 2-1. params_schedule의 모든 고유 MA 윈도우를 signal_df에 사전 계산
+    sorted_switch_dates: list[date] = []
+    next_switch_idx = 0
+    if params_schedule is not None:
+        # 모든 고유 MA 윈도우 수집 (현재 params + schedule의 모든 params)
+        all_ma_windows = {params.ma_window}
+        for sched_params in params_schedule.values():
+            all_ma_windows.add(sched_params.ma_window)
+
+        # signal_df에 없는 MA 컬럼 사전 계산
+        for window in all_ma_windows:
+            col = f"ma_{window}"
+            if col not in signal_df.columns:
+                signal_df = add_single_moving_average(signal_df, window, ma_type="ema")
+
+        # schedule 날짜 정렬
+        sorted_switch_dates = sorted(params_schedule.keys())
 
     # signal_df에서 MA가 유효한 행의 인덱스를 기준으로 양쪽 모두 필터
     valid_mask = signal_df[ma_col].notna()
@@ -896,6 +918,15 @@ def run_buffer_strategy(
         signal_row = signal_df.iloc[i]
         trade_row = trade_df.iloc[i]
         current_date = signal_row[COL_DATE]
+
+        # 4-0. params_schedule 전환 체크
+        if params_schedule is not None and next_switch_idx < len(sorted_switch_dates):
+            if current_date >= sorted_switch_dates[next_switch_idx]:
+                params = params_schedule[sorted_switch_dates[next_switch_idx]]
+                ma_col = f"ma_{params.ma_window}"
+                next_switch_idx += 1
+                if log_trades:
+                    logger.debug(f"파라미터 전환: {current_date}, 새 params={params}")
 
         # 4-1. 동적 파라미터 계산
         if params.recent_months > 0:

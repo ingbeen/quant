@@ -6,6 +6,8 @@
 - 성과 요약 (SummaryDict)
 - 최적 파라미터 (BestGridParams)
 - 공통 결과 컨테이너 (SingleBacktestResult)
+- WFO 윈도우 결과 (WfoWindowResultDict)
+- WFO 모드 요약 (WfoModeSummaryDict)
 
 전략 전용 타입은 각 전략 모듈에 정의한다:
 - buffer_zone_helpers.py: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
@@ -87,3 +89,68 @@ class SingleBacktestResult:
     params_json: dict[str, Any]  # JSON 저장용 전략 파라미터
     result_dir: Path  # 결과 저장 디렉토리
     data_info: dict[str, str]  # 데이터 소스 경로 정보 (signal_path, trade_path)
+
+
+class WfoWindowResultDict(TypedDict):
+    """워크포워드 윈도우별 IS/OOS 결과.
+
+    각 윈도우의 IS 최적화 결과와 OOS 독립 평가 결과를 담는다.
+    """
+
+    window_idx: int  # 윈도우 인덱스 (0-based)
+    is_start: str  # IS 시작일 (ISO format)
+    is_end: str  # IS 종료일 (ISO format)
+    oos_start: str  # OOS 시작일 (ISO format)
+    oos_end: str  # OOS 종료일 (ISO format)
+    # IS 최적 파라미터 5개
+    best_ma_window: int
+    best_buy_buffer_zone_pct: float
+    best_sell_buffer_zone_pct: float
+    best_hold_days: int
+    best_recent_months: int
+    # IS 성과 지표
+    is_cagr: float
+    is_mdd: float
+    is_calmar: float
+    is_trades: int
+    is_win_rate: float
+    # OOS 성과 지표
+    oos_cagr: float
+    oos_mdd: float
+    oos_calmar: float
+    oos_trades: int
+    oos_win_rate: float
+    # WFE (Walk-Forward Efficiency)
+    wfe_calmar: float  # OOS Calmar / IS Calmar
+
+
+class WfoModeSummaryDict(TypedDict):
+    """WFO 모드별 요약 통계.
+
+    동적/sell_fixed/fully_fixed 각 모드의 OOS 성과 통합 요약.
+    """
+
+    n_windows: int  # 총 윈도우 수
+    # OOS 통계
+    oos_cagr_mean: float
+    oos_cagr_std: float
+    oos_mdd_mean: float
+    oos_mdd_worst: float  # 가장 낮은 MDD (가장 큰 낙폭)
+    oos_calmar_mean: float
+    oos_calmar_std: float
+    oos_trades_total: int
+    oos_win_rate_mean: float
+    # WFE 통계
+    wfe_calmar_mean: float
+    wfe_calmar_median: float
+    # 파라미터 안정성 진단용 (윈도우별 선택된 파라미터 값 리스트)
+    param_ma_windows: list[int]
+    param_buy_buffers: list[float]
+    param_sell_buffers: list[float]
+    param_hold_days: list[int]
+    param_recent_months: list[int]
+    # Stitched Equity 지표 (선택적)
+    stitched_cagr: NotRequired[float]
+    stitched_mdd: NotRequired[float]
+    stitched_calmar: NotRequired[float]
+    stitched_total_return_pct: NotRequired[float]

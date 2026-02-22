@@ -36,12 +36,29 @@ MIN_SELL_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매도 버퍼존 비율 (0.01 =
 MIN_HOLD_DAYS: Final = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 MIN_VALID_ROWS: Final = 2  # 백테스트 최소 유효 데이터 행 수
 
-# --- 그리드 서치 파라미터 ---
-DEFAULT_MA_WINDOW_LIST: Final = [100, 150, 200, 250]
-DEFAULT_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.02, 0.03, 0.04, 0.05]
-DEFAULT_SELL_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.02, 0.03, 0.04, 0.05]
-DEFAULT_HOLD_DAYS_LIST: Final = [0, 1, 2, 3, 4, 5]
-DEFAULT_RECENT_MONTHS_LIST: Final = [0, 2, 4, 6, 8, 10, 12]
+# --- WFO 파라미터 리스트 (그리드 서치 + 워크포워드 공용) ---
+DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]  # 3개
+DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]  # 3개
+DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]  # 3개
+DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]  # 4개
+DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]  # 4개
+# 3 × 3 × 3 × 4 × 4 = 432개
+
+# --- WFO 윈도우 설정 ---
+DEFAULT_WFO_INITIAL_IS_MONTHS: Final = 72  # 초기 IS 기간 (6년)
+DEFAULT_WFO_OOS_MONTHS: Final = 24  # OOS 기간 (2년)
+
+# --- WFO 고정값 ---
+DEFAULT_WFO_FIXED_SELL_BUFFER_PCT: Final = 0.05  # sell_fixed 모드에서 고정할 매도 버퍼 비율
+
+# --- WFO 결과 파일명 ---
+WALKFORWARD_DYNAMIC_FILENAME: Final = "walkforward_dynamic.csv"
+WALKFORWARD_SELL_FIXED_FILENAME: Final = "walkforward_sell_fixed.csv"
+WALKFORWARD_FULLY_FIXED_FILENAME: Final = "walkforward_fully_fixed.csv"
+WALKFORWARD_EQUITY_DYNAMIC_FILENAME: Final = "walkforward_equity_dynamic.csv"
+WALKFORWARD_EQUITY_SELL_FIXED_FILENAME: Final = "walkforward_equity_sell_fixed.csv"
+WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME: Final = "walkforward_equity_fully_fixed.csv"
+WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 
 # ============================================================
 # 결과 데이터 컬럼 및 표시
