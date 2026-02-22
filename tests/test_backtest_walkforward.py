@@ -293,7 +293,7 @@ class TestCalmarSelection:
                 "cagr": [5.0, 10.0, 3.0],
                 "mdd": [-20.0, 0.0, -10.0],
                 "total_return_pct": [50.0, 100.0, 30.0],
-                "total_trades": [5, 0, 3],
+                "total_trades": [5, 3, 3],
                 "win_rate": [60.0, 0.0, 66.7],
                 "final_capital": [15_000_000, 20_000_000, 13_000_000],
             }
@@ -326,7 +326,7 @@ class TestCalmarSelection:
                 "cagr": [-5.0, -2.0],
                 "mdd": [0.0, 0.0],
                 "total_return_pct": [-50.0, -20.0],
-                "total_trades": [0, 0],
+                "total_trades": [3, 4],
                 "win_rate": [0.0, 0.0],
                 "final_capital": [5_000_000, 8_000_000],
             }
@@ -396,6 +396,7 @@ class TestRunWalkforward:
         df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
 
         # When — 소규모 파라미터 리스트로 실행 (속도 최적화)
+        # min_trades=0: 소규모 테스트에서 거래수 제약 비활성화
         results = run_walkforward(
             signal_df=df,
             trade_df=df,
@@ -406,6 +407,7 @@ class TestRunWalkforward:
             recent_months_list=[0],
             initial_is_months=24,
             oos_months=12,
+            min_trades=0,
         )
 
         # Then — 최소 1개 이상의 윈도우 결과
@@ -628,7 +630,7 @@ class TestWfeCagr:
         # Given — 약 10년 분량, 작은 윈도우로 빠른 실행
         df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
 
-        # When
+        # When — min_trades=0: 소규모 테스트에서 거래수 제약 비활성화
         results = run_walkforward(
             signal_df=df,
             trade_df=df,
@@ -639,6 +641,7 @@ class TestWfeCagr:
             recent_months_list=[0],
             initial_is_months=24,
             oos_months=12,
+            min_trades=0,
         )
 
         # Then — wfe_cagr 필드가 존재하고 올바른 계산
@@ -1085,3 +1088,109 @@ class TestJsonRounding:
 
         # Then — 파라미터 배열: 그대로
         assert rounded["param_ma_windows"] == [100, 150, 200, 100, 150]
+
+
+class TestCalmarSelectionMinTrades:
+    """min_trades 파라미터 기반 Calmar 선택 필터링 테스트."""
+
+    def test_min_trades_filters_low_trade_params(self):
+        """
+        목적: min_trades=3일 때 거래수 2인 파라미터가 탈락하고 2위가 선택되는지 검증
+
+        Given: 그리드 서치 결과 DataFrame
+               - ma=100: calmar 1위, total_trades=2 (min_trades 미달)
+               - ma=150: calmar 2위, total_trades=5 (min_trades 충족)
+        When: select_best_calmar_params(grid_df, min_trades=3) 호출
+        Then: ma=100은 탈락하고 ma=150이 선택됨
+        """
+        from qbt.backtest.walkforward import select_best_calmar_params
+
+        # Given
+        grid_df = pd.DataFrame(
+            {
+                "ma_window": [100, 150, 200],
+                "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
+                "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
+                "hold_days": [0, 0, 0],
+                "recent_months": [0, 0, 0],
+                "cagr": [20.0, 15.0, 8.0],
+                "mdd": [-10.0, -25.0, -30.0],
+                "total_return_pct": [200.0, 150.0, 80.0],
+                "total_trades": [2, 5, 3],
+                "win_rate": [100.0, 60.0, 66.7],
+                "final_capital": [30_000_000, 25_000_000, 18_000_000],
+            }
+        )
+        # ma=100: calmar = 20/10 = 2.0 (1위, trades=2 → 탈락)
+        # ma=150: calmar = 15/25 = 0.6 (2위, trades=5 → 통과)
+        # ma=200: calmar = 8/30 = 0.267 (3위, trades=3 → 통과)
+
+        # When
+        best = select_best_calmar_params(grid_df, min_trades=3)
+
+        # Then — ma=100은 거래수 부족으로 탈락, ma=150이 선택
+        assert best["ma_window"] == 150
+
+    def test_min_trades_zero_preserves_existing_behavior(self):
+        """
+        목적: min_trades=0이면 기존 동작과 동일한지 검증 (하위 호환)
+
+        Given: 그리드 서치 결과 DataFrame (total_trades=0인 행 포함)
+        When: select_best_calmar_params(grid_df, min_trades=0) 호출
+        Then: total_trades=0인 행도 필터링되지 않고 기존 Calmar 기준 선택
+        """
+        from qbt.backtest.walkforward import select_best_calmar_params
+
+        # Given — ma=100이 calmar 1위, trades=0
+        grid_df = pd.DataFrame(
+            {
+                "ma_window": [100, 150],
+                "buy_buffer_zone_pct": [0.03, 0.03],
+                "sell_buffer_zone_pct": [0.03, 0.03],
+                "hold_days": [0, 0],
+                "recent_months": [0, 0],
+                "cagr": [10.0, 5.0],
+                "mdd": [0.0, -20.0],
+                "total_return_pct": [100.0, 50.0],
+                "total_trades": [0, 3],
+                "win_rate": [0.0, 66.7],
+                "final_capital": [20_000_000, 15_000_000],
+            }
+        )
+
+        # When — min_trades=0이면 필터링 없음
+        best = select_best_calmar_params(grid_df, min_trades=0)
+
+        # Then — 기존 동작: MDD=0+CAGR>0인 ma=100이 선택
+        assert best["ma_window"] == 100
+
+    def test_min_trades_all_filtered_raises_value_error(self):
+        """
+        목적: 모든 행이 min_trades 미달인 경우 ValueError 발생 검증
+
+        Given: 모든 행의 total_trades < min_trades
+        When: select_best_calmar_params(grid_df, min_trades=5) 호출
+        Then: ValueError 발생 (충족 파라미터 없음 메시지 포함)
+        """
+        from qbt.backtest.walkforward import select_best_calmar_params
+
+        # Given — 모든 행이 trades < 5
+        grid_df = pd.DataFrame(
+            {
+                "ma_window": [100, 150, 200],
+                "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
+                "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
+                "hold_days": [0, 0, 0],
+                "recent_months": [0, 0, 0],
+                "cagr": [10.0, 15.0, 8.0],
+                "mdd": [-20.0, -25.0, -30.0],
+                "total_return_pct": [100.0, 150.0, 80.0],
+                "total_trades": [2, 3, 4],
+                "win_rate": [50.0, 66.7, 75.0],
+                "final_capital": [20_000_000, 25_000_000, 18_000_000],
+            }
+        )
+
+        # When/Then — min_trades=5를 충족하는 행이 없으므로 ValueError
+        with pytest.raises(ValueError, match="충족 파라미터 없음"):
+            select_best_calmar_params(grid_df, min_trades=5)

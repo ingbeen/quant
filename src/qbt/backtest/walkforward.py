@@ -17,11 +17,13 @@ from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
     COL_CAGR,
     COL_MDD,
+    COL_TOTAL_TRADES,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
     DEFAULT_WFO_HOLD_DAYS_LIST,
     DEFAULT_WFO_INITIAL_IS_MONTHS,
     DEFAULT_WFO_MA_WINDOW_LIST,
+    DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_RECENT_MONTHS_LIST,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
@@ -118,17 +120,26 @@ def _last_day_of_month(year: int, month: int) -> date:
     return date(year, month + 1, 1).replace(day=1) - __import__("datetime").timedelta(days=1)
 
 
-def select_best_calmar_params(grid_df: pd.DataFrame) -> BestGridParams:
+def select_best_calmar_params(
+    grid_df: pd.DataFrame,
+    min_trades: int = DEFAULT_WFO_MIN_TRADES,
+) -> BestGridParams:
     """그리드 서치 결과에서 Calmar 기준 최적 파라미터를 선택한다.
 
     Calmar = CAGR / |MDD|. MDD=0이고 CAGR>0이면 최우선 처리.
+    min_trades 이상의 거래수를 가진 파라미터만 후보로 사용한다.
 
     Args:
-        grid_df: 그리드 서치 결과 DataFrame (cagr, mdd 컬럼 필수)
+        grid_df: 그리드 서치 결과 DataFrame (cagr, mdd, total_trades 컬럼 필수)
+        min_trades: 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES).
+            0이면 필터링하지 않음.
 
     Returns:
         최적 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct,
         hold_days, recent_months)
+
+    Raises:
+        ValueError: min_trades 충족 파라미터가 없는 경우
     """
     df = grid_df.copy()
 
@@ -148,6 +159,31 @@ def select_best_calmar_params(grid_df: pd.DataFrame) -> BestGridParams:
 
     df["calmar"] = df.apply(_calmar, axis=1)
     df = df.sort_values("calmar", ascending=False).reset_index(drop=True)
+
+    # min_trades 필터링
+    if min_trades > 0:
+        # 필터링 전 1위 기록 (탈락 로그용)
+        pre_filter_best = df.iloc[0]
+
+        filtered = df[df[COL_TOTAL_TRADES] >= min_trades].reset_index(drop=True)
+
+        if len(filtered) == 0:
+            raise ValueError(f"min_trades={min_trades} 충족 파라미터 없음 " f"(전체 {len(df)}개 중 0개 통과)")
+
+        # 필터링으로 1위가 변경된 경우 로그 출력
+        post_filter_best = filtered.iloc[0]
+        if int(pre_filter_best["ma_window"]) != int(post_filter_best["ma_window"]) or float(
+            pre_filter_best["buy_buffer_zone_pct"]
+        ) != float(post_filter_best["buy_buffer_zone_pct"]):
+            logger.debug(
+                f"min_trades={min_trades} 필터: "
+                f"기존 1위(ma={int(pre_filter_best['ma_window'])}, "
+                f"trades={int(pre_filter_best[COL_TOTAL_TRADES])}) 탈락 → "
+                f"새 1위(ma={int(post_filter_best['ma_window'])}, "
+                f"trades={int(post_filter_best[COL_TOTAL_TRADES])})"
+            )
+
+        df = filtered
 
     best = df.iloc[0]
     return {
@@ -170,6 +206,7 @@ def run_walkforward(
     initial_is_months: int = DEFAULT_WFO_INITIAL_IS_MONTHS,
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
+    min_trades: int = DEFAULT_WFO_MIN_TRADES,
 ) -> list[WfoWindowResultDict]:
     """핵심 WFO 루프를 실행한다.
 
@@ -186,6 +223,7 @@ def run_walkforward(
         initial_is_months: 초기 IS 기간 (개월)
         oos_months: OOS 기간 (개월)
         initial_capital: 초기 자본금
+        min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
 
     Returns:
         윈도우별 결과 리스트
@@ -231,8 +269,8 @@ def run_walkforward(
             initial_capital=initial_capital,
         )
 
-        # 4. Calmar 기준 최적 파라미터 추출
-        best = select_best_calmar_params(grid_df)
+        # 4. Calmar 기준 최적 파라미터 추출 (min_trades 필터링 적용)
+        best = select_best_calmar_params(grid_df, min_trades=min_trades)
         best_ma = best["ma_window"]
         best_buy_buf = best["buy_buffer_zone_pct"]
         best_sell_buf = best["sell_buffer_zone_pct"]

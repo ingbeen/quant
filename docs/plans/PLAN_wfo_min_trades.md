@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-02-22 23:30
-**마지막 업데이트**: 2026-02-22 23:30
+**마지막 업데이트**: 2026-02-23 00:00
 **관련 범위**: backtest (walkforward, constants)
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -40,8 +40,8 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `select_best_calmar_params()`에 `min_trades` 파라미터 추가 (기본값: 3)
-- [ ] IS 그리드 서치에서 거래수 부족 파라미터를 필터링하고, 탈락 시 로그 출력
+- [x] `select_best_calmar_params()`에 `min_trades` 파라미터 추가 (기본값: 3)
+- [x] IS 그리드 서치에서 거래수 부족 파라미터를 필터링하고, 탈락 시 로그 출력
 
 ## 2) 비목표(Non-Goals)
 
@@ -73,15 +73,15 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] `select_best_calmar_params()`에 `min_trades` 파라미터 추가 (기본값: 3)
-- [ ] 거래수 부족 필터링 로직 구현 (total_trades < min_trades인 행 제거)
-- [ ] 필터링으로 원래 1위가 탈락한 경우 로그 출력
-- [ ] 모든 행이 필터링되는 경우 예외 처리 (ValueError)
-- [ ] `DEFAULT_WFO_MIN_TRADES` 상수 추가 (`constants.py`)
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `select_best_calmar_params()`에 `min_trades` 파라미터 추가 (기본값: 3)
+- [x] 거래수 부족 필터링 로직 구현 (total_trades < min_trades인 행 제거)
+- [x] 필터링으로 원래 1위가 탈락한 경우 로그 출력
+- [x] 모든 행이 필터링되는 경우 예외 처리 (ValueError)
+- [x] `DEFAULT_WFO_MIN_TRADES` 상수 추가 (`constants.py`)
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -103,8 +103,8 @@
 
 **작업 내용**:
 
-- [ ] `constants.py`에 `DEFAULT_WFO_MIN_TRADES: Final = 3` 추가
-- [ ] 테스트 추가 (레드):
+- [x] `constants.py`에 `DEFAULT_WFO_MIN_TRADES: Final = 3` 추가
+- [x] 테스트 추가 (레드):
   - `min_trades=3`일 때 거래수 2인 파라미터가 탈락하고 2위가 선택되는지 검증
   - `min_trades=0`이면 기존 동작과 동일한지 검증 (하위 호환)
   - 모든 행이 min_trades 미달인 경우 ValueError 발생 검증
@@ -115,7 +115,7 @@
 
 **작업 내용**:
 
-- [ ] `select_best_calmar_params()` 수정:
+- [x] `select_best_calmar_params()` 수정:
   - `min_trades: int = DEFAULT_WFO_MIN_TRADES` 파라미터 추가
   - Calmar 계산 전 `total_trades >= min_trades` 필터링
   - 필터링 전 1위 vs 필터링 후 1위가 다르면 로그 출력:
@@ -126,15 +126,15 @@
     ```
     "min_trades={min_trades} 충족 파라미터 없음 (전체 {n}개 중 0개 통과)"
     ```
-- [ ] Phase 0 레드 테스트 통과 확인
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트 (min_trades 설명 추가)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] Phase 0 레드 테스트 통과 확인
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트 (min_trades 설명 추가)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=350, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -158,5 +158,6 @@
 ### 진행 로그 (KST)
 
 - 2026-02-22 23:30: Plan 작성 완료 (Draft)
+- 2026-02-23 00:00: Phase 0~1 구현 완료, 전체 검증 통과 (passed=350, failed=0, skipped=0)
 
 ---

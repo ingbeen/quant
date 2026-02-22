@@ -44,6 +44,9 @@ DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]  # 4개
 DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]  # 4개
 # 3 × 3 × 3 × 4 × 4 = 432개
 
+# --- WFO 최소 거래수 ---
+DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 거래수 제약
+
 # --- WFO 윈도우 설정 ---
 DEFAULT_WFO_INITIAL_IS_MONTHS: Final = 72  # 초기 IS 기간 (6년)
 DEFAULT_WFO_OOS_MONTHS: Final = 24  # OOS 기간 (2년)
