@@ -9,6 +9,154 @@
           200,
           250
         ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "total_combinations": 4200,
+        "positive_return_count": 4200,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 803.3,
+          "max": 1977.0,
+          "min": 58.3
+        },
+        "cagr": {
+          "mean": 8.25,
+          "max": 11.92,
+          "min": 1.72
+        },
+        "mdd": {
+          "mean": -47.73,
+          "min": -71.0
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/backtest/buffer_zone_qqq/grid_results.csv",
+        "row_count": 4200,
+        "file_size_bytes": 233077
+      },
+      "timestamp": "2026-02-22T00:40:26+09:00"
+    },
+    {
+      "strategy": "buffer_zone_tqqq",
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200,
+          250
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.02,
+          0.03,
+          0.04,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "total_combinations": 4200,
+        "positive_return_count": 4198,
+        "positive_return_ratio": 0.9995,
+        "total_return_pct": {
+          "mean": 3577.92,
+          "max": 28774.5,
+          "min": -41.72
+        },
+        "cagr": {
+          "mean": 13.2,
+          "max": 23.4,
+          "min": -1.98
+        },
+        "mdd": {
+          "mean": -91.28,
+          "min": -98.23
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/backtest/buffer_zone_tqqq/grid_results.csv",
+        "row_count": 4200,
+        "file_size_bytes": 241625
+      },
+      "timestamp": "2026-02-22T00:28:09+09:00"
+    },
+    {
+      "strategy": "buffer_zone_qqq",
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200,
+          250
+        ],
         "buffer_zone_pct_list": [
           0.01,
           0.02,
@@ -199,138 +347,6 @@
         "file_size_bytes": 44277
       },
       "timestamp": "2026-02-19T20:26:02+09:00"
-    },
-    {
-      "execution_params": {
-        "ma_window_list": [
-          100,
-          150,
-          200,
-          250
-        ],
-        "buffer_zone_pct_list": [
-          0.01,
-          0.02,
-          0.03,
-          0.04,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          1,
-          2,
-          3,
-          4,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          2,
-          4,
-          6,
-          8,
-          10,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "total_combinations": 840,
-        "positive_return_count": 840,
-        "positive_return_ratio": 1.0,
-        "total_return_pct": {
-          "mean": 4131.15,
-          "max": 14326.23,
-          "min": 163.99
-        },
-        "cagr": {
-          "mean": 14.03,
-          "max": 20.26,
-          "min": 3.67
-        },
-        "mdd": {
-          "mean": -91.9,
-          "min": -97.81
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/backtest/buffer_zone/grid_results.csv",
-        "row_count": 840,
-        "file_size_bytes": 45957
-      },
-      "timestamp": "2026-02-19T20:18:40+09:00"
-    },
-    {
-      "execution_params": {
-        "ma_window_list": [
-          100,
-          150,
-          200,
-          250
-        ],
-        "buffer_zone_pct_list": [
-          0.01,
-          0.02,
-          0.03,
-          0.04,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          1,
-          2,
-          3,
-          4,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          2,
-          4,
-          6,
-          8,
-          10,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "total_combinations": 840,
-        "positive_return_count": 840,
-        "positive_return_ratio": 1.0,
-        "total_return_pct": {
-          "mean": 4131.15,
-          "max": 14326.23,
-          "min": 163.99
-        },
-        "cagr": {
-          "mean": 14.03,
-          "max": 20.26,
-          "min": 3.67
-        },
-        "mdd": {
-          "mean": -91.9,
-          "min": -97.81
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/backtest/buffer_zone/grid_results.csv",
-        "row_count": 840,
-        "file_size_bytes": 46718
-      },
-      "timestamp": "2026-02-19T14:28:36+09:00"
     }
   ],
   "tqqq_validation": [

@@ -475,10 +475,10 @@ df["equity"]  # 소문자 (실제 프로덕션 코드 확인!)
 
 ```python
 # 잘못된 예
-buffer_zone_pct=3.0  # 퍼센트
+buy_buffer_zone_pct=3.0  # 퍼센트
 
 # 올바른 예
-buffer_zone_pct=0.03  # 비율 (3%)
+buy_buffer_zone_pct=0.03  # 비율 (3%)
 ```
 
 ### 4. 함수 시그니처

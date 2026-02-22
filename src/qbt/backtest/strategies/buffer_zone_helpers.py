@@ -224,7 +224,7 @@ class PendingOrder:
 
     order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
     signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
-    buffer_zone_pct: float  # 신호 시점의 매수 버퍼 비율 (buy buffer, 0~1)
+    buy_buffer_zone_pct: float  # 신호 시점의 매수 버퍼 비율 (0~1)
     hold_days_used: int  # 신호 시점의 유지일수
     recent_sell_count: int  # 신호 시점의 최근 청산 횟수
 
@@ -574,7 +574,7 @@ def _execute_sell_order(
         "shares": position,
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
-        "buy_buffer_pct": order.buffer_zone_pct,
+        "buy_buffer_pct": order.buy_buffer_zone_pct,
         "hold_days_used": 0,
         "recent_sell_count": 0,
     }
@@ -927,7 +927,7 @@ def run_buffer_strategy(
                     if log_trades:
                         logger.debug(
                             f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
-                            f"수량={position}, 매수버퍼={pending_order.buffer_zone_pct:.2%}"
+                            f"수량={position}, 매수버퍼={pending_order.buy_buffer_zone_pct:.2%}"
                         )
 
             elif pending_order.order_type == "sell" and position > 0:
@@ -976,7 +976,7 @@ def run_buffer_strategy(
                         pending_order = PendingOrder(
                             order_type="buy",
                             signal_date=current_date,
-                            buffer_zone_pct=hold_state["buffer_pct"],
+                            buy_buffer_zone_pct=hold_state["buffer_pct"],
                             hold_days_used=hold_state["hold_days_required"],
                             recent_sell_count=recent_sell_count,
                         )
@@ -1005,7 +1005,7 @@ def run_buffer_strategy(
                         pending_order = PendingOrder(
                             order_type="buy",
                             signal_date=current_date,
-                            buffer_zone_pct=current_buy_buffer_pct,
+                            buy_buffer_zone_pct=current_buy_buffer_pct,
                             hold_days_used=0,
                             recent_sell_count=recent_sell_count,
                         )
@@ -1024,7 +1024,7 @@ def run_buffer_strategy(
                 pending_order = PendingOrder(
                     order_type="sell",
                     signal_date=current_date,
-                    buffer_zone_pct=current_buy_buffer_pct,
+                    buy_buffer_zone_pct=current_buy_buffer_pct,
                     hold_days_used=0,
                     recent_sell_count=recent_sell_count,
                 )

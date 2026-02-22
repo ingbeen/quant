@@ -1186,7 +1186,7 @@ class TestCoreExecutionRules:
         existing_pending = PendingOrder(
             order_type="sell",
             signal_date=date(2023, 1, 9),
-            buffer_zone_pct=0.01,
+            buy_buffer_zone_pct=0.01,
             hold_days_used=0,
             recent_sell_count=0,
         )
