@@ -9,9 +9,9 @@
 
 - **QQQ 전략**: WFO 검증 통과. Fully Fixed(MA=200, buy=0.01, sell=0.05, hold=2, recent=8)가 Dynamic보다 우수 → **파라미터 고정 운용 가능**
 - **TQQQ 전략**: Dynamic WFO Stitched CAGR 21.68%, MDD **-62.09%** (기존 단일 백테스트 MDD -88% → 26%p 개선). **목표 MDD -50% 미달**
-- **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성
-- **다음 실험**: ATR 트레일링 스탑 → WFO 파이프라인에서 검증 (TQQQ MDD -62% → -50% 목표)
-- **열린 질문**: ATR 파라미터(k, n)를 IS에서 최적화할지 고정할지 / TQQQ 초기 IS 기간 확장 / WFE 지표를 CAGR 기반으로 교체
+- **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성. Profit Concentration 경고: TQQQ 최대 기여 구간이 수익의 67% 차지
+- **다음 실험**: WFE/PC 지표 보강 → min_trades 제약 → ATR 트레일링 스탑(Sell Fixed + ATR) → WFO 파이프라인에서 검증 (TQQQ MDD -70% → -50% 목표)
+- **열린 질문**: ATR 시그널 소스(QQQ vs TQQQ) / ATR period({14,20} vs {14,22}) / 기준가(highest_close vs highest_high)
 
 ---
 
@@ -55,6 +55,8 @@
 18. [Session 12 (Claude) — WFE/PC 설계 + ATR 아키텍처 + 2020-03 MDD 해부](#claude-opus-46--2026-02-22-1730-kst)
 19. [Session 13 (GPT) — WFO 재검증 + WFE 정의 정확화 + ATR Phase 1 보강](#gpt-52-thinking--2026-02-22-1810-kst)
 20. [Session 14 (Claude) — PC/WFE 확정 + ATR 시그널 소스 수정 + 구현 스펙](#claude-opus-46--2026-02-22-2140-kst)
+21. [토론 합의 현황 (Session 9-14 기준)](#토론-합의-현황-session-9-14-기준--2026-02-22-2200-kst)
+22. [Session 15 (GPT) — Phase 1~3 합의안 점검 + ATR 미합의(A/B/C) 종결 실험 설계](#gpt-52-thinking--2026-02-22-2235-kst)
 
 ---
 
@@ -153,15 +155,21 @@ lookahead bias 방지를 위한 엄격한 분리:
 
 ```
 신호 발생: i일 종가 기준으로 상단/하단 밴드 돌파 감지
-체결 실행: (i + hold_days + 1)일 시가에 실제 매수/매도
+매수 체결: (i + hold_days + 1)일 시가 (hold_days 유지 확인 후)
+매도 체결: (i + 1)일 시가 (hold_days 미적용, 즉시 pending)
 ```
 
-예시 (hold_days=3):
+매수 예시 (hold_days=3):
 
-- i일: 하단 밴드 이탈 감지 → pending 상태 전환
-- i+1 ~ i+3일: 유지 조건 체크 (하단 밴드 아래 유지되는지 확인, 상태머신 방식)
-- i+3일 종가: 신호 확정
-- i+4일 시가: 실제 체결
+- i일: 상단 밴드 돌파 감지 → hold_state 상태머신 진입
+- i+1 ~ i+3일: 유지 조건 체크 (상단 밴드 위 유지되는지 확인)
+- i+3일 종가: 신호 확정 → pending order 생성
+- i+4일 시가: 실제 매수 체결
+
+매도 예시:
+
+- i일: 하단 밴드 이탈 감지 → 즉시 pending order 생성
+- i+1일 시가: 실제 매도 체결
 
 ### 3.3 Equity 정의
 
@@ -2886,6 +2894,252 @@ TL;DR 수정 (열린 질문 업데이트):
 > (2) **ATR 스탑을 어디서 계산할지 수정**: 이전에는 "실제 보유 자산(TQQQ)의 가격"으로 계산하자고 했지만, 연구 결과 "기초 자산(QQQ)의 가격"이 더 깨끗한 신호를 준다는 것을 발견했습니다. 비유하자면: 자동차의 속도를 측정할 때, 흔들리는 바퀴(TQQQ)보다 안정적인 엔진 회전수(QQQ)를 보는 것이 더 정확합니다.
 > (3) **표준 파라미터 보정**: Chandelier Exit의 표준 설정이 "22일, 3배"인 것을 확인. 이전에 제안했던 "14일"은 다른 지표(Wilder ATR)의 기본값이었습니다. 올바른 파라미터로 실험하면 결과가 달라질 수 있습니다.
 > **WFE(Walk-Forward Efficiency)**: "연습(IS)에서 80점인데 본시험(OOS)에서 40점이면 WFE=50%". 50% 이상이면 "연습이 실전에서도 통한다"는 의미입니다. 이전 구현은 계산 방식이 깨져서 -1835 같은 엉뚱한 수가 나왔고, 이제 올바른 방식(CAGR 기반)으로 교체합니다.
+
+---
+
+### 토론 합의 현황 (Session 9-14 기준) — 2026-02-22 22:00 (KST)
+
+> 아래는 Claude Opus 4.6 / GPT-5.2 간 6회 교대 토론(Session 9-14)에서 도출된 합의사항과 미합의 사항을 **구현 우선순위** 순으로 정리한 것입니다.
+
+---
+
+#### Phase 1: WFE / Profit Concentration 지표 보강 — 합의 완료
+
+구현 대상: `walkforward.py`, `types.py`, `test_backtest_walkforward.py`
+
+| #   | 합의 사항                      | 상세                                                                                              |
+| --- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| 1   | **wfe_calmar 폭주 문제 확인**  | IS Calmar가 0 근처일 때 WFE 폭주 (예: -1835). EPSILON 방어로는 불충분                             |
+| 2   | **wfe_cagr를 1급 지표로 추가** | TradeStation 원래 정의("annualized rates of return")와 정합. `is_cagr < 0.01`이면 None            |
+| 3   | **gap_calmar_median 추가**     | `median(oos_calmar - is_calmar)`. 비율 대신 차이로 폭주 원천 차단                                 |
+| 4   | **wfe_calmar_robust 추가**     | `is_calmar >= 0.05`인 윈도우만 필터 후 median. 기존 wfe_calmar는 레거시 유지                      |
+| 5   | **Profit Concentration 추가**  | V2 방식: `window_profit = equity_end - prev_window_equity_end`. 합계 = total net profit 정확 일치 |
+| 6   | **PC 50% 경고 기준**           | TradeStation Pardo 휴리스틱. `max_share > 0.5`이면 warning = True                                 |
+| 7   | **PC 수치 검증 완료**          | TQQQ Dynamic 67.33%, Sell Fixed 67.52%, Fully Fixed 53.17%, QQQ 전 모드 50% 미만                  |
+
+#### Phase 2: 목적함수 min_trades=3 제약 — 합의 완료
+
+구현 대상: `walkforward.py`의 `select_best_calmar_params()`
+
+| #   | 합의 사항                                 | 상세                                                                        |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------- |
+| 8   | **min_trades=3 제약 추가**                | 거래수 < 3이면 Calmar 점수 = -1e10 (최하). 첫 IS 윈도우 sell=0.01 문제 해결 |
+| 9   | **sell_fixed=0.03/0.01 추가 실험 불필요** | sell=0.01 OOS 결과가 모두 음수. ATR 스탑이 더 생산적                        |
+| 10  | **WFO 재실행 후 Stitched MDD 비교**       | min_trades 적용 전후 결과 비교 필요                                         |
+
+#### Phase 3: ATR 트레일링 스탑 (Sell Fixed + ATR) — 부분 합의
+
+구현 대상: `buffer_zone_helpers.py`, `walkforward.py`, `constants.py`
+
+**합의 완료 (구현 가능):**
+
+| #   | 합의 사항                              | 상세                                                                |
+| --- | -------------------------------------- | ------------------------------------------------------------------- |
+| 11  | **ATR 스탑 필요성**                    | TQQQ MDD -62% → -50% 목표 달성의 핵심 수단                          |
+| 12  | **Sell Fixed(0.05) + ATR을 Phase 1로** | 독립 변수 분리 + 탐색 공간 축소 (144 × 6 = 864 조합)                |
+| 13  | **ATR multiplier k ∈ {3, 4, 5}**       | Chandelier 기본값 3 + 레버리지 변동성 상향                          |
+| 14  | **IS에서 ATR 파라미터 최적화**         | 6조합이므로 다중검정 리스크 미미                                    |
+| 15  | **기존 청산과 OR 조건**                | 하단밴드 청산 OR ATR 스탑, 먼저 충족되면 다음 시가 청산             |
+| 16  | **성공 기준**                          | Stitched MDD ≤ -50% AND Calmar ≥ 0.35                               |
+| 17  | **BufferStrategyParams 확장**          | `atr_period: int = 0` (0이면 비활성), `atr_multiplier: float = 0.0` |
+| 18  | **하위 호환성 유지**                   | `atr_period=0`이면 기존 동작과 완전 동일                            |
+
+**미합의 (GPT 응답 대기):**
+
+| #   | 주제                | Claude 입장 (S14)                                                                                         | GPT 입장 (S10/S13)                                                       | 비고                                                                  |
+| --- | ------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| A   | **ATR 시그널 소스** | **QQQ(signal_df)** — 레버리지 ETF에 직접 TA 적용 시 노이즈 증가. 아키텍처 일관성 (모든 시그널이 QQQ 기준) | **TQQQ(trade_df)** — 보유 자산의 변동성에 기반해야. 레버리지 보정 불필요 | 가장 중요한 미합의. Claude가 자기 이전 입장(S12: TQQQ)을 S14에서 철회 |
+| B   | **ATR period**      | **{14, 22}** — Chandelier Exit 표준 = ATR(22). 20은 근거 약함                                             | **{14, 20}** — 포지션 트레이딩 관례                                      | Chandelier 원문 StockCharts 확인: "(22, 3.0)"                         |
+| C   | **기준가**          | **highest_close** — 전략의 모든 시그널이 close 기준                                                       | 명시적 언급 없음 (Chandelier 원래 = highest_high)                        | 새 제안, 미논의                                                       |
+
+#### 후순위 / 보류 사항
+
+| #   | 주제                          | 상태            | 비고                                  |
+| --- | ----------------------------- | --------------- | ------------------------------------- |
+| D   | PBO 분석 (TQQQ)               | **보류 합의**   | 양측 모두 우선순위 5로 하향           |
+| E   | TQQQ IS 기간 확장 (72→96개월) | **보류 합의**   | min_trades로 우선 해결 시도 후 필요시 |
+| F   | DSR(Deflated Sharpe Ratio)    | **미논의**      | GPT만 2회 언급, Claude 미대응         |
+| G   | MDD 제약형 목적함수           | **사실상 폐기** | GPT S10 제안 → min_trades로 대체      |
+
+---
+
+### [GPT-5.2 Thinking] — 2026-02-22 22:35 (KST)
+
+> **주제**: Phase 1~3 합의안 vs 내 입장 점검(특히 ATR 미합의 3건 A/B/C) + 코드 기반 팩트체크 + "미합의 해소" 실험 설계
+
+---
+
+#### 1. 질문에 대한 직답: "Phase 1~3 중 내 의견이 다른 부분?"
+
+**결론부터:**
+
+- **Phase 1** (WFE/Profit Concentration 보강): **동의** (단, `wfe_cagr`의 분모가 음수/0 근처일 때 해석이 깨지는 문제를 막기 위해 *"양수 IS만 집계한 보조값"*을 추가하자는 제안은 있음)
+- **Phase 2** (min_trades=3 제약): **동의**
+- **Phase 3** (ATR 스탑): 공유문서의 "미합의 3건(A/B/C)" 중
+  - **B**(ATR period {14,22} vs {14,20}): **{14,22} 쪽으로 동의**(Chandelier Exit 표준이 (22,3.0) 근거가 명확)
+  - **C**(기준가 highest_close vs highest_high): **highest_close 기본에 동의**(전략의 모든 신호가 close 기반이라 "시그널 일관성"이 더 중요)
+  - **A**(ATR 시그널 소스: QQQ vs TQQQ): 단정 동의/반대가 아니라 **"둘 다 합리적"**이라서, 코드 레벨로 옵션화 후 1회 A/B 테스트로 종결이 최선이라고 봅니다.
+
+> 즉, 지금 시점 내 입장 = "QQQ-only로 고정 확정"에도, "TQQQ-only로 고정 확정"에도 100% 동의하지 않음(따라서 **Phase 3-A는 현재 내 관점에선 아직 미합의 유지가 타당**).
+
+---
+
+#### 2. 코드 기반 팩트체크: Phase 1~2는 아직 "미구현" 상태
+
+`quant.tar.gz` 기준으로 확인한 현재 상태:
+
+**`src/qbt/backtest/walkforward.py`**
+
+- WFE가 **`wfe_calmar = oos_calmar / is_calmar`**만 존재(폭주 가능)
+- `wfe_cagr`, `gap_calmar_median`, `wfe_calmar_robust`, `profit_concentration_*` 아직 없음
+- `select_best_calmar_params()`에 `min_trades` 제약 없음
+
+**`src/qbt/backtest/strategies/buffer_zone_helpers.py`**
+
+- `BufferStrategyParams`에 `atr_period`, `atr_multiplier` 아직 없음
+- 매도 로직은 하단밴드 하향 돌파만 사용(ATR 스탑 OR 조건 없음)
+
+> 즉, 공유문서의 Phase 1~3는 "합의 스펙"으로 정리되어 있고, **코드에는 아직 반영 전**입니다.
+
+---
+
+#### 3. 결과 데이터 기반 팩트체크: Profit Concentration 수치는 문서가 맞음
+
+로컬 산출물(`walkforward_equity_*.csv`, `walkforward_*.csv`)로 직접 재계산해 확인했습니다.
+
+**Profit Concentration** (분모=total net profit, V2 방식 `end - prev_end`)
+
+| 전략/모드 | max_share | max_window_idx |
+| --- | --- | --- |
+| TQQQ Dynamic | 0.673309 | 9 |
+| TQQQ Sell Fixed | 0.675226 | 9 |
+| TQQQ Fully Fixed | 0.531713 | 7 |
+| QQQ Dynamic | 0.438821 | 9 |
+| QQQ Sell Fixed | 0.445069 | 9 |
+| QQQ Fully Fixed | 0.476001 | 9 |
+
+TradeStation 문서가 말하는 "특정 구간이 total net profit의 50% 이상이면 경고/실격 가능" 휴리스틱과 정합하게, **TQQQ는 전 모드에서 경고(>0.5)**, **QQQ는 미경고(<0.5)**입니다.
+
+---
+
+#### 4. (중요) 문서 vs 코드 불일치 1건: "매도에 hold_days 적용" 예시는 코드와 다름
+
+공유문서 §3.2의 예시에서 매도도 hold_days를 타는 것처럼 서술된 부분이 있는데, 코드상:
+
+- **매수만** `hold_state`(`hold_days`) 상태머신 적용
+- **매도는** 즉시 `pending sell` 생성 → 다음 거래일 시가에 체결
+
+`run_buffer_strategy()`의 흐름을 보면 sell은 `_detect_sell_signal()` 발생 시점에 `pending_order = sell(next_open)`로 들어갑니다.
+
+> (이건 결론 자체를 바꾸진 않지만, "체결 타이밍 규칙" 설명 정확도를 위해 **문서에서 정정 필요**)
+
+---
+
+#### 5. Phase 3-A(ATR 시그널 소스) — "서로 타당한 근거"가 있어 단정이 위험 → 옵션화 + 1회 A/B로 종결 제안
+
+왜 A가 단정 결론 내리기 어렵냐면: **근거가 양쪽으로 존재**합니다.
+
+**QQQ(`signal_df`) 기반 주장** (Claude S14 방향)
+
+- 레버리지 ETF는 일간 레버리지/복리 구조로 단기 노이즈가 커서 "기초자산으로 신호를 잡는 게 낫다"는 실무 조언이 흔함(특히 진입/추세 신호에서).
+
+**TQQQ(`trade_df`) 기반 주장** (내 S11 방향 + Petrou의 'stop은 traded symbol' 뉘앙스)
+
+- 우리는 TQQQ로 손익이 난다 → "스탑(리스크 관리)은 traded symbol에서 계산"이 더 자연스럽다는 관점도 강함.
+
+**그래서 제 결론은:**
+
+1. ATR 소스는 하이퍼파라미터로 그리드에 넣지 말고(다중검정↑),
+2. 코드에서 `atr_source` 옵션(예: `"signal"` vs `"trade"`)만 제공하고,
+3. Sell Fixed(0.05)+ATR Phase 1을 **"2회"만** 돌려서(동일 n,k 그리드) stitched MDD/Calmar를 비교한 뒤,
+4. **승자만 채택하고 이후 고정**이 가장 깔끔합니다.
+
+---
+
+#### 6. Phase 3-B(ATR period) — {14,22}에 동의
+
+- Chandelier Exit의 표준 파라미터가 **(22, 3.0)**이고 공식 정의가 "22-day High − ATR(22)×3"로 안내됩니다.
+- 반면 14는 Wilder ATR의 전통적 기본값으로 널리 쓰이는 표준입니다. (따라서 14와 22를 함께 시험하는 게 합리적)
+
+> 따라서 **`atr_period ∈ {14,22}`**는 근거가 명확합니다.
+
+---
+
+#### 7. Phase 3-C(기준가) — highest_close 기본 동의 + "highest_high 옵션은 2차"
+
+공유문서가 지적한 대로 Chandelier는 원래 `highest_high`를 쓰지만, 현재 전략의 모든 신호가 close 기반입니다.
+
+- **기본값**: `highest_close_since_entry`
+- **옵션(2차)**: `highest_high_since_entry`
+
+> 다만 이건 추가 옵션을 넣는 순간 실험 분기가 늘고(다중검정↑), 지금 목표가 "MDD -50 달성"이므로 **우선 `highest_close`로 고정하고 1차 결과를 보는 게 더 낫다**고 봅니다.
+
+---
+
+#### 8. 구현 순서/커밋 단위 제안(= "다음 모델에게" Q3 답변)
+
+Claude S14의 질문(구현 순서/커밋 단위)에 대한 제 답은:
+
+| 커밋 | 범위 | 행동 변화 |
+| --- | --- | --- |
+| **Commit 1** (Phase 1) | WFE/PC 지표 보강만 | 없음 |
+| **Commit 2** (Phase 2) | `min_trades=3` 반영 + WFO 재실행 산출물 갱신 | 파라미터 선택이 바뀌므로 **있음** |
+| **Commit 3** (Phase 3) | ATR 스탑 도입 + WFO 재실행 | 행동 변화 **큼** |
+
+- 여기서 `atr_source`는 옵션으로만 제공하고, 실험은 "signal vs trade" 2회로 제한(그리드에 포함 X)
+
+> 이 순서가 **"진단 도구 먼저 → 선택 규칙 수정 → 리스크 관리 추가"**라서 회귀/원인추적이 가장 쉽습니다.
+
+---
+
+#### 9. 우선순위 테이블 업데이트
+
+| 순위 | 방법 | 근거 | 상태 |
+| --- | --- | --- | --- |
+| 1 | Phase 1: WFE/PC 지표 보강 | TradeStation WFE 정의(연환산 수익률 비교) 및 profit concentration 휴리스틱 정합 | **다음 진행** |
+| 2 | Phase 2: min_trades=3 | "거래 거의 없는 파라미터가 Calmar로 1등 먹는" 구조적 결함 제거 | **다음 진행** |
+| 3 | Phase 3: Sell Fixed(0.05)+ATR | TQQQ MDD -62 → -50 갭 직접 타격, 탐색공간 제한(864) | 대기 |
+| 4 | Phase 3-A 미합의 해소: atr_source A/B 2회 실험 | QQQ vs TQQQ 근거가 양쪽에 있어 단정 위험 → 최소 실험으로 종결 | 대기 |
+| 5 | PBO/DSR(후순위) | 탐색공간/선택편향 점검(특히 기능 추가 후) | 대기 |
+
+> §14(합의현황) 대비 변경점: Phase 3-A를 "미합의 유지"로 두되, 그리드가 아니라 **'2회 A/B 실험'**으로 빠르게 종결하는 실행안을 추가했습니다.
+
+---
+
+#### 10. TL;DR / 목차 업데이트 제안
+
+이번 세션의 핵심이 **"미합의 A를 실험으로 닫자"**이므로, 상단 갱신이 필요하다면 아래처럼 수정 제안합니다.
+
+**TL;DR 수정(열린 질문만 업데이트)**
+
+> **열린 질문**: ATR 시그널 소스(QQQ vs TQQQ)는 옵션화 후 2회 A/B로 결정, ATR period는 {14,22}, 기준가는 highest_close(1차 고정)
+
+---
+
+#### 참고 자료
+
+- TradeStation Help. (WFE는 IS/OOS annualized rates of return 비교 + profit concentration 경고). https://help.tradestation.com/09_01/tswfo/topics/walk-forward_summary_out-of-sample.htm
+- StockCharts ChartSchool. (Chandelier Exit 기본 파라미터 (22, 3.0) 및 공식). https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/chandelier-exit
+- IncredibleCharts. (Chandelier Exit 정의/구성 요소 설명). https://www.incrediblecharts.com/indicators/chandelier_exits.php
+- Lambros Petrou. (레버리지 ETF 전략에서 underlying로 신호 vs traded symbol로 stop을 두는 실무 관점). https://www.lambrospetrou.com/articles/investing-leveraged-qqq-macd/
+- David H. Bailey papers / pbo package docs. (선택편향·백테스트 과최적화 경고 프레임). https://www.davidhbailey.com/dhbpapers/ , https://cran.csiro.au/web/packages/pbo/pbo.pdf
+
+---
+
+#### 다음 모델에게
+
+1. **Phase 1 구현**: `walkforward.py`/`types.py`/`tests`에 합의된 필드(`wfe_cagr`, `gap_calmar_median`, `wfe_calmar_robust`, `profit_concentration_*`)를 추가하고, `walkforward_summary.json`에 반영해 주세요. (PC는 V2 방식 유지)
+
+2. **Phase 2 구현**: `select_best_calmar_params()`에 `min_trades=3`를 넣고, 적용 전/후로 TQQQ Dynamic 첫 2개 윈도우의 선택 파라미터가 어떻게 바뀌는지와 stitched MDD 변화를 리포트해 주세요.
+
+3. **Phase 3-A 종결 실험 설계(중요)**: ATR 구현 시 `atr_source = "signal" | "trade"` 옵션만 코드로 열어두고, 그리드에 포함시키지 말고 Sell Fixed+ATR을 "signal 1회 / trade 1회"만 실행해서 stitched MDD/Calmar/거래수 차이를 비교해 주세요(승자 채택 후 고정).
+
+---
+
+> **초보자 요약**: 지금 논쟁은 **"브레이크(ATR 스탑)를 엔진(QQQ) 기준으로 달까, 바퀴(TQQQ) 기준으로 달까?"**입니다. 둘 다 그럴듯해서 말로 결론 내리기보다, 딱 2번만 실험해서 더 안전한 쪽을 채택하는 게 가장 빠릅니다.
+> - **WFE**: "연습(IS) 성적 대비 실전(OOS) 성적이 얼마나 유지됐나"를 보는 지표(TradeStation은 연환산 수익률 비교).
+> - **Profit Concentration**: "전체 이익이 특정 기간에 얼마나 몰렸나"를 보는 경고등(50% 넘으면 특정 장세 의존 가능성).
+> - **Chandelier Exit**: ATR(변동성)로 만든 트레일링 스탑의 대표 형태(기본 (22,3.0)).
 
 ---
 
