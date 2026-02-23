@@ -43,7 +43,7 @@ poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/backtest/run_grid_search.py
 # 출력: storage/results/backtest/{전략명}/grid_results.csv
 
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_tqqq
 
 # 3. 단일 전략 검증 + 결과 저장
@@ -56,9 +56,10 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
 # 4. 워크포워드 검증 (과최적화 검증, 선행: 1~2)
 poetry run python scripts/backtest/run_walkforward.py
 # 출력: 3-Mode 비교 (동적/sell고정/전체고정) + stitched equity
+# 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
 # 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
 
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
 
 # 5. 대시보드 시각화 (선행: 3)
@@ -231,8 +232,9 @@ quant/
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
-│       │   ├── buffer_zone_tqqq/  # 버퍼존 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_qqq/   # 버퍼존 전략 (QQQ) 결과
+│       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
+│       │   ├── buffer_zone_atr_tqqq/ # 버퍼존 ATR 전략 (TQQQ) 결과
+│       │   ├── buffer_zone_qqq/      # 버퍼존 전략 (QQQ) 결과
 │       │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
 │       │   └── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
@@ -255,7 +257,7 @@ quant/
 - `summary.json`: 요약 지표 + 파라미터 + 월별 수익률
 - `walkforward_dynamic.csv`, `walkforward_sell_fixed.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
 - `walkforward_equity_dynamic.csv`, `walkforward_equity_sell_fixed.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
-- `walkforward_summary.json`: 3-Mode 비교 요약
+- `walkforward_summary.json`: 3-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
 
 ### TQQQ 시뮬레이션
 

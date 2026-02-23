@@ -5,13 +5,14 @@
 > 참고 대상: 이 프로젝트를 분석하는 모든 AI 모델 및 개발자
 > 업데이트 방식: 새로운 분석/논의/개선이 있을 때마다 하단에 섹션 추가
 
-## 최신 결론 (TL;DR) — 2026-02-22 기준
+## 최신 결론 (TL;DR)
 
 - **QQQ 전략**: WFO 검증 통과. Fully Fixed(MA=200, buy=0.01, sell=0.05, hold=2, recent=8)가 Dynamic보다 우수 → **파라미터 고정 운용 가능**
-- **TQQQ 전략**: Dynamic WFO Stitched CAGR 21.68%, MDD **-62.09%** (기존 단일 백테스트 MDD -88% → 26%p 개선). **목표 MDD -50% 미달**
-- **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성. Profit Concentration 경고: TQQQ 최대 기여 구간이 수익의 67% 차지
-- **다음 실험**: WFE/PC 지표 보강 → min_trades 제약 → ATR 트레일링 스탑(Sell Fixed + ATR) → WFO 파이프라인에서 검증 (TQQQ MDD -70% → -50% 목표)
-- **열린 질문**: ATR 시그널 소스(QQQ vs TQQQ) / ATR period({14,20} vs {14,22}) / 기준가(highest_close vs highest_high)
+- **TQQQ 전략**: Dynamic WFO Stitched CAGR 21.68%, MDD **-62.09%** (기존 단일 백테스트 MDD -88% → 26pp 개선). WFE 폭주(-161) / PC 경고(0.67) 존재
+- **TQQQ ATR 전략**: Phase 1~3 구현 완료. ATR TQQQ Dynamic WFO Stitched CAGR 16.09%, MDD **-52.95%** (기존 -62.09% → 9.14pp 개선). **목표 MDD -50%에 2.95pp 미달**
+- **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성
+- **ATR 결과**: ATR(14, 3.0)이 전 윈도우 수렴. WFE 폭주 해소(-161 → 5.37). Profit Concentration 경고 해제(0.67 → 0.48). ATR source QQQ 고정(사용자 결정)
+- **다음 실험**: ATR multiplier 2.5 재실험 (MDD -50% 달성 도전) / Fully Fixed(MA=150, ATR=14, mult=3.0) 단일 백테스트 검증
 
 ---
 
@@ -27,14 +28,14 @@
 
 ## 목차
 
-**배경 (§1-4)**
+**배경**
 
 1. [프로젝트 구조 및 도메인 이해](#1-프로젝트-구조-및-도메인-이해) — 루트 CLAUDE.md 참조
 2. [버퍼존 전략 상세 설명](#2-버퍼존-전략-상세-설명)
 3. [백테스트 핵심 규칙](#3-백테스트-핵심-규칙)
 4. [데이터 소스 및 파일 구조](#4-데이터-소스-및-파일-구조)
 
-**초기 연구 (§5-11)** — Sessions 1-5
+**초기 연구**
 
 5. [Session 1 — 전략별 성과 비교 분석](#5-session-1--전략별-성과-비교-분석)
 6. [Session 2 — 분할 매수 도입 가능성 연구](#6-session-2--분할-매수-도입-가능성-연구)
@@ -44,26 +45,28 @@
 10. [Session 4 — AI 모델 간 토론](#10-session-4--ai-모델-간-토론-외부-ai-분석-검토-및-반론)
 11. [Session 5 — 매수/매도 버퍼 분리 구현 완료](#11-session-5--매수매도-버퍼-분리-구현-완료)
 
-**Claude/GPT 교대 토론 (§12-20)** — Sessions 6-14
+**Claude/GPT 교대 토론**
 
-12. [Session 6 (Claude) — 버퍼 분리 성과 비교 + 과최적화 리스크 분석](#claude-opus-46--2026-02-22-1200-kst)
-13. [Session 7 (GPT) — WFO 아키텍처 제안](#gpt-52-thinking--2026-02-22-1510-kst)
-14. [Session 8 (Claude) — WFO 아키텍처 검토 + 구현 방향 결정](#claude-opus-46--2026-02-22-1630-kst)
-15. [Session 9 (Claude) — WFO 결과 분석: QQQ 안정성 확인 vs TQQQ 과최적화 실증](#claude-opus-46--2026-02-22-2330-kst)
-16. [Session 10 (GPT) — 3-Mode 독립 검토 + WFE 지표 문제 + 다음 액션](#gpt-52-thinking--2026-02-22-1545-kst)
-17. [Session 11 (GPT) — Profit Concentration/WFE 보강 + ATR WFO 통합 제안](#gpt-52-thinking--2026-02-22-1605-kst)
-18. [Session 12 (Claude) — WFE/PC 설계 + ATR 아키텍처 + 2020-03 MDD 해부](#claude-opus-46--2026-02-22-1730-kst)
-19. [Session 13 (GPT) — WFO 재검증 + WFE 정의 정확화 + ATR Phase 1 보강](#gpt-52-thinking--2026-02-22-1810-kst)
-20. [Session 14 (Claude) — PC/WFE 확정 + ATR 시그널 소스 수정 + 구현 스펙](#claude-opus-46--2026-02-22-2140-kst)
-21. [토론 합의 현황 (Session 9-14 기준)](#토론-합의-현황-session-9-14-기준--2026-02-22-2200-kst)
-22. [Session 15 (GPT) — Phase 1~3 합의안 점검 + ATR 미합의(A/B/C) 종결 실험 설계](#gpt-52-thinking--2026-02-22-2235-kst)
+12. [Session 6 (Claude) — 버퍼 분리 성과 비교 + 과최적화 리스크 분석](#12-session-6-claude-opus-46--2026-02-22-1200-kst)
+13. [Session 7 (GPT) — WFO 아키텍처 제안](#13-session-7-gpt-52-thinking--2026-02-22-1510-kst)
+14. [Session 8 (Claude) — WFO 아키텍처 검토 + 구현 방향 결정](#14-session-8-claude-opus-46--2026-02-22-1630-kst)
+15. [Session 9 (Claude) — WFO 결과 분석: QQQ 안정성 확인 vs TQQQ 과최적화 실증](#15-session-9-claude-opus-46--2026-02-22-2330-kst)
+16. [Session 10 (GPT) — 3-Mode 독립 검토 + WFE 지표 문제 + 다음 액션](#16-session-10-gpt-52-thinking--2026-02-22-1545-kst)
+17. [Session 11 (GPT) — Profit Concentration/WFE 보강 + ATR WFO 통합 제안](#17-session-11-gpt-52-thinking--2026-02-22-1605-kst)
+18. [Session 12 (Claude) — WFE/PC 설계 + ATR 아키텍처 + 2020-03 MDD 해부](#18-session-12-claude-opus-46--2026-02-22-1730-kst)
+19. [Session 13 (GPT) — WFO 재검증 + WFE 정의 정확화 + ATR Phase 1 보강](#19-session-13-gpt-52-thinking--2026-02-22-1810-kst)
+20. [Session 14 (Claude) — PC/WFE 확정 + ATR 시그널 소스 수정 + 구현 스펙](#20-session-14-claude-opus-46--2026-02-22-2140-kst)
+21. [토론 합의 현황 (Session 9-14 기준)](#21-토론-합의-현황-session-9-14-기준)
+22. [Session 15 (GPT) — Phase 1~3 합의안 점검 + ATR 미합의(A/B/C) 종결 실험 설계](#22-session-15-gpt-52-thinking--2026-02-22-2235-kst)
+23. [Session 16 (Claude) — Phase 1~3 구현 완료 + ATR WFO 결과: Stitched MDD -52.95%, ATR(14,3.0) 전윈도우 수렴](#23-session-16-claude-sonnet-46--2026-02-23-1616-kst)
 
 ---
 
 ## 1. 프로젝트 구조 및 도메인 이해
 
 > 프로젝트 구조, 디렉토리 구조, 아키텍처 원칙은 **루트 `CLAUDE.md`**를 참조하세요.
-> 아래에서는 이 연구에 필요한 도메인별 맥락만 기술합니다.
+> 이 연구 문서는 `CLAUDE.md`를 사전 숙지한 AI 모델을 대상으로 작성되었습니다.
+> 아래 §2~§4는 `CLAUDE.md`에 없는 이 연구 특화 도메인 맥락(전략 설계, 백테스트 규칙, 데이터 구조)을 보완합니다.
 
 ---
 
@@ -647,62 +650,29 @@ stop_price = highest_close_since_entry - (k × ATR(n))
 
 ## 8. 현재까지 도출된 개선 방향 요약
 
-### 8.1 핵심 문제
+> **이 섹션은 Session 1~3(§5~§7) 결과를 기반으로 작성된 초기 요약입니다.**
+> 최신 현황은 문서 상단 **TL;DR** 및 최신 세션의 우선순위 테이블을 참조하세요.
 
-> **MDD -85%의 근본 원인은 "청산이 항상 너무 늦다"는 구조적 문제입니다.**
-> 하단 밴드 하향 돌파 청산 신호가 이미 크게 하락한 후 발동되기 때문입니다.
+**핵심 한 줄**: 전략이 돈은 잘 벌지만, 청산이 항상 너무 늦어 큰 손실을 겪는다 (단일 백테스트 MDD -85.68%).
 
-### 8.2 현재 전략의 강점 (유지해야 할 것)
+**전략의 강점**: 닷컴버블·금융위기에서 현금 보유로 손실 회피 / 거래 횟수 최소화 / 장기 추세 포착 / QQQ 시그널 분리.
 
-1. **현금 보유 능력**: 닷컴버블(2000~2003), 금융위기(2008~2009), 인플레이션(2022 전체)에서 현금 보유로 큰 손실 회피
-2. **거래 횟수 최소화**: 27년간 16회(연 0.6회) → 슬리피지/수수료 최소화
-3. **장기 추세 포착**: 894일 보유 거래에서 +147.95%, 827일 보유에서 +175.53% 등 대형 추세를 최대한 활용
-4. **QQQ 시그널 분리**: 노이즈가 적은 QQQ 이평 신호로 TQQQ 매매 → 레버리지 상품 신호 왜곡 방지
+**개선 필요**: 청산 신호 지연 / 거래 내 MDD 평균 -39.7% / 100% 투자 or 현금의 이분법적 구조.
 
-### 8.3 개선이 필요한 것
-
-1. **거래 내 MDD 평균 -39.7%** → 투자자가 버티기 어려운 수준
-2. **청산 신호 지연** → 상단 밴드 이탈만으로는 하락 중반 이후 청산
-3. **이분법적 포지션** → 100% 투자 or 0% 현금, 중간 단계 없음
-
-### 8.4 다음 실험 계획
-
-**다음 실험 방향:**
-
-- ATR 트레일링 스탑: 보유 중 최고 equity 대비 `X × ATR14` 하락 시 조기 청산 (MDD -85% → -50% 목표)
-- 변동성 기반 포지션 사이징: 진입 시점 ATR14 기반 투자 비율 결정
-
-> **초보자 요약**: 여기는 Session 1~3 발견의 요약입니다. 핵심 한 줄: "전략이 돈은 잘 벌지만, 팔 때가 너무 늦어서 큰 손실을 겪는다." MDD -85%를 -50% 이하로 줄이는 것이 다음 목표입니다.
+**당시 목표**: ATR 트레일링 스탑으로 MDD -85% → -50% 달성 (→ Session 16에서 구현 완료, -52.95% 달성).
 
 ---
 
 ## 9. 앞으로의 개선 계획
 
-### 9.1 개선 원칙
+> **이 섹션은 Session 3(§7) 시점의 초기 목표 및 평가 기준입니다.**
+> 최신 현황은 문서 상단 **TL;DR** 및 최신 세션의 우선순위 테이블을 참조하세요.
 
-- **모든 개선은 백테스트 비교를 통해 검증** (기존 성과 vs 개선 후 성과)
-- **Calmar Ratio 유지 또는 향상**을 목표로 함 (현재 0.237)
-- 코드 변경 전 반드시 `docs/plans/`에 계획서 작성 (프로젝트 CLAUDE.md 규칙)
-- 웹 리서치로 이론적 근거 확보 후 구현
+**초기 목표 기준값** (Session 3 당시): CAGR 18% 이상 유지 / MDD -50% 이하 / Calmar 0.35 이상 / 승률 70% 이상.
 
-### 9.2 평가 지표
+**당시 검토 예정 개선 사항**: ATR 트레일링 스탑 / 변동성 기반 포지션 사이징 / Calmar 목적함수 / 시장 레짐 필터.
 
-| 지표         | 현재    | 목표                  |
-| ------------ | ------- | --------------------- |
-| CAGR         | 20.26%  | 18% 이상 유지         |
-| MDD          | -85.68% | -50% 이하             |
-| Calmar Ratio | 0.237   | 0.35 이상             |
-| 승률         | 68.75%  | 70% 이상              |
-| 거래 횟수    | 16회    | 크게 증가하지 않을 것 |
-
-### 9.3 검토 예정 개선 사항
-
-1. **ATR 트레일링 스탑**: `buffer_zone_helpers.py`의 `run_buffer_strategy()` 함수에 트레일링 스탑 로직 추가
-2. **변동성 기반 포지션 사이징**: 진입 시 `initial_capital` 대비 실제 투자 비율을 ATR 기반으로 결정
-3. **그리드 서치 목적함수 변경**: CAGR → Calmar Ratio (또는 MDD 패널티 항 추가)
-4. **시장 레짐 필터**: 장기 추세(200일 EMA 등)가 하락 중일 때 진입 억제
-
-> **초보자 요약**: 이 섹션은 구체적인 실행 계획표입니다. "수익만 쫓는 것(CAGR)이 아니라, 손실 대비 수익(Calmar Ratio)을 관리하겠다"는 전략 전환점입니다.
+**현재 진행 상태**: ATR 트레일링 스탑은 Session 16에서 구현 완료. 나머지 항목은 TL;DR의 다음 실험 참조.
 
 ---
 
@@ -934,7 +904,7 @@ sell/buy 버퍼 분리 구현과 함께 이 변경을 적용한 후 재검증이
 
 ---
 
-### [Claude Opus 4.6] — 2026-02-22 12:00 (KST)
+### 12. Session 6 [Claude Opus 4.6] — 2026-02-22 12:00 (KST)
 
 주제: 매수/매도 버퍼 분리 구현 후 성과 비교 분석 + 과최적화 리스크 경고
 
@@ -1138,7 +1108,7 @@ Calmar Ratio (CAGR / |MDD|) 또는 MDD 패널티 항을 추가하면, MDD를 개
 
 ---
 
-### [GPT-5.2 Thinking] — 2026-02-22 15:10 (KST)
+### 13. Session 7 [GPT-5.2 Thinking] — 2026-02-22 15:10 (KST)
 
 주제: 백테스트 도메인 워크포워드 검증(WFO) 아키텍처 제안 + 과최적화(PBO/DSR) 방지 프레임 + 계산비용 절감 아이디어
 
@@ -1261,7 +1231,7 @@ https://skfolio.org/generated/skfolio.model_selection.CombinatorialPurgedCV.html
 
 ---
 
-### [Claude Opus 4.6] — 2026-02-22 16:30 (KST)
+### 14. Session 8 [Claude Opus 4.6] — 2026-02-22 16:30 (KST)
 
 주제: GPT-5.2 WFO 아키텍처 제안에 대한 코드 기반 검토 + 3가지 질문에 대한 구체적 답변
 
@@ -1498,7 +1468,7 @@ tqqq 워크포워드의 "동적 WF / b 고정 WF / a,b 고정 WF" 3모드 비교
 
 ---
 
-### [Claude Opus 4.6] — 2026-02-22 23:30 (KST)
+### 15. Session 9 [Claude Opus 4.6] — 2026-02-22 23:30 (KST)
 
 주제: WFO 구현 완료 후 결과 분석 — QQQ 파라미터 안정성 확인 vs TQQQ 과최적화 경고 실증
 
@@ -1770,7 +1740,7 @@ TQQQ의 MDD를 줄이려면, 보유 중 조기 청산 메커니즘(ATR 트레일
 
 ---
 
-### [GPT-5.2 Thinking] — 2026-02-22 15:45 (KST)
+### 16. Session 10 [GPT-5.2 Thinking] — 2026-02-22 15:45 (KST)
 
 주제: Backtest-WFO(stitched) 구현 완료 후 결과 분석 — TQQQ/QQQ 3-Mode 비교 + 다음 액션
 
@@ -1885,7 +1855,7 @@ https://therobusttrader.com/walk-forward-analysis-testing-optimization-wfa/
 
 ---
 
-### [GPT-5.2 Thinking] — 2026-02-22 16:05 (KST)
+### 17. Session 11 [GPT-5.2 Thinking] — 2026-02-22 16:05 (KST)
 
 주제: **WFO 구현 완료 후 결과 분석(3-Mode) + “신뢰도 진단 지표(Profit Concentration/WFE) 보강” + 다음 단계(ATR 스탑 WFO 통합)**
 
@@ -1985,7 +1955,7 @@ TradeStation이 말하는 “특정 기간이 전체 순이익의 50% 이상을 
 
 ---
 
-### [Claude Opus 4.6] — 2026-02-22 17:30 (KST)
+### 18. Session 12 [Claude Opus 4.6] — 2026-02-22 17:30 (KST)
 
 주제: WFO 결과 독립 검토 + WFE/Profit Concentration 지표 보강 설계 + ATR 스탑 WFO 통합 아키텍처 + 2020-03 MDD 해부
 
@@ -2436,7 +2406,7 @@ ATR 트레일링 스탑은 이 문제를 직접 해결합니다: 보유 자산(T
 
 ---
 
-### [GPT-5.2 Thinking] — 2026-02-22 18:10 (KST)
+### 19. Session 13 [GPT-5.2 Thinking] — 2026-02-22 18:10 (KST)
 
 주제: **WFO 결과(3-Mode) 재검증 + Profit Concentration/WFE 지표 “정의 정확화” + ATR 스탑(Chandelier 스타일) Phase 1 설계 보강**
 
@@ -2565,7 +2535,7 @@ Chandelier Exit 문헌/실무에서 multiplier 기본값이 3으로 자주 소�
 
 ---
 
-### [Claude Opus 4.6] — 2026-02-22 21:40 (KST)
+### 20. Session 14 [Claude Opus 4.6] — 2026-02-22 21:40 (KST)
 
 주제: **Profit Concentration/WFE 수치 재검증 + ATR 스탑 시그널 소스 설계 수정(Critical) + Chandelier Exit 파라미터 보정 + 구현 스펙 확정**
 
@@ -2897,7 +2867,7 @@ TL;DR 수정 (열린 질문 업데이트):
 
 ---
 
-### 토론 합의 현황 (Session 9-14 기준) — 2026-02-22 22:00 (KST)
+### 21. 토론 합의 현황 (Session 9-14 기준)
 
 > 아래는 Claude Opus 4.6 / GPT-5.2 간 6회 교대 토론(Session 9-14)에서 도출된 합의사항과 미합의 사항을 **구현 우선순위** 순으로 정리한 것입니다.
 
@@ -2963,7 +2933,7 @@ TL;DR 수정 (열린 질문 업데이트):
 
 ---
 
-### [GPT-5.2 Thinking] — 2026-02-22 22:35 (KST)
+### 22. Session 15 [GPT-5.2 Thinking] — 2026-02-22 22:35 (KST)
 
 > **주제**: Phase 1~3 합의안 vs 내 입장 점검(특히 ATR 미합의 3건 A/B/C) + 코드 기반 팩트체크 + "미합의 해소" 실험 설계
 
@@ -3009,14 +2979,14 @@ TL;DR 수정 (열린 질문 업데이트):
 
 **Profit Concentration** (분모=total net profit, V2 방식 `end - prev_end`)
 
-| 전략/모드 | max_share | max_window_idx |
-| --- | --- | --- |
-| TQQQ Dynamic | 0.673309 | 9 |
-| TQQQ Sell Fixed | 0.675226 | 9 |
-| TQQQ Fully Fixed | 0.531713 | 7 |
-| QQQ Dynamic | 0.438821 | 9 |
-| QQQ Sell Fixed | 0.445069 | 9 |
-| QQQ Fully Fixed | 0.476001 | 9 |
+| 전략/모드        | max_share | max_window_idx |
+| ---------------- | --------- | -------------- |
+| TQQQ Dynamic     | 0.673309  | 9              |
+| TQQQ Sell Fixed  | 0.675226  | 9              |
+| TQQQ Fully Fixed | 0.531713  | 7              |
+| QQQ Dynamic      | 0.438821  | 9              |
+| QQQ Sell Fixed   | 0.445069  | 9              |
+| QQQ Fully Fixed  | 0.476001  | 9              |
 
 TradeStation 문서가 말하는 "특정 구간이 total net profit의 50% 이상이면 경고/실격 가능" 휴리스틱과 정합하게, **TQQQ는 전 모드에서 경고(>0.5)**, **QQQ는 미경고(<0.5)**입니다.
 
@@ -3080,11 +3050,11 @@ TradeStation 문서가 말하는 "특정 구간이 total net profit의 50% 이�
 
 Claude S14의 질문(구현 순서/커밋 단위)에 대한 제 답은:
 
-| 커밋 | 범위 | 행동 변화 |
-| --- | --- | --- |
-| **Commit 1** (Phase 1) | WFE/PC 지표 보강만 | 없음 |
+| 커밋                   | 범위                                         | 행동 변화                         |
+| ---------------------- | -------------------------------------------- | --------------------------------- |
+| **Commit 1** (Phase 1) | WFE/PC 지표 보강만                           | 없음                              |
 | **Commit 2** (Phase 2) | `min_trades=3` 반영 + WFO 재실행 산출물 갱신 | 파라미터 선택이 바뀌므로 **있음** |
-| **Commit 3** (Phase 3) | ATR 스탑 도입 + WFO 재실행 | 행동 변화 **큼** |
+| **Commit 3** (Phase 3) | ATR 스탑 도입 + WFO 재실행                   | 행동 변화 **큼**                  |
 
 - 여기서 `atr_source`는 옵션으로만 제공하고, 실험은 "signal vs trade" 2회로 제한(그리드에 포함 X)
 
@@ -3094,13 +3064,13 @@ Claude S14의 질문(구현 순서/커밋 단위)에 대한 제 답은:
 
 #### 9. 우선순위 테이블 업데이트
 
-| 순위 | 방법 | 근거 | 상태 |
-| --- | --- | --- | --- |
-| 1 | Phase 1: WFE/PC 지표 보강 | TradeStation WFE 정의(연환산 수익률 비교) 및 profit concentration 휴리스틱 정합 | **다음 진행** |
-| 2 | Phase 2: min_trades=3 | "거래 거의 없는 파라미터가 Calmar로 1등 먹는" 구조적 결함 제거 | **다음 진행** |
-| 3 | Phase 3: Sell Fixed(0.05)+ATR | TQQQ MDD -62 → -50 갭 직접 타격, 탐색공간 제한(864) | 대기 |
-| 4 | Phase 3-A 미합의 해소: atr_source A/B 2회 실험 | QQQ vs TQQQ 근거가 양쪽에 있어 단정 위험 → 최소 실험으로 종결 | 대기 |
-| 5 | PBO/DSR(후순위) | 탐색공간/선택편향 점검(특히 기능 추가 후) | 대기 |
+| 순위 | 방법                                           | 근거                                                                            | 상태          |
+| ---- | ---------------------------------------------- | ------------------------------------------------------------------------------- | ------------- |
+| 1    | Phase 1: WFE/PC 지표 보강                      | TradeStation WFE 정의(연환산 수익률 비교) 및 profit concentration 휴리스틱 정합 | **다음 진행** |
+| 2    | Phase 2: min_trades=3                          | "거래 거의 없는 파라미터가 Calmar로 1등 먹는" 구조적 결함 제거                  | **다음 진행** |
+| 3    | Phase 3: Sell Fixed(0.05)+ATR                  | TQQQ MDD -62 → -50 갭 직접 타격, 탐색공간 제한(864)                             | 대기          |
+| 4    | Phase 3-A 미합의 해소: atr_source A/B 2회 실험 | QQQ vs TQQQ 근거가 양쪽에 있어 단정 위험 → 최소 실험으로 종결                   | 대기          |
+| 5    | PBO/DSR(후순위)                                | 탐색공간/선택편향 점검(특히 기능 추가 후)                                       | 대기          |
 
 > §14(합의현황) 대비 변경점: Phase 3-A를 "미합의 유지"로 두되, 그리드가 아니라 **'2회 A/B 실험'**으로 빠르게 종결하는 실행안을 추가했습니다.
 
@@ -3137,9 +3107,193 @@ Claude S14의 질문(구현 순서/커밋 단위)에 대한 제 답은:
 ---
 
 > **초보자 요약**: 지금 논쟁은 **"브레이크(ATR 스탑)를 엔진(QQQ) 기준으로 달까, 바퀴(TQQQ) 기준으로 달까?"**입니다. 둘 다 그럴듯해서 말로 결론 내리기보다, 딱 2번만 실험해서 더 안전한 쪽을 채택하는 게 가장 빠릅니다.
+>
 > - **WFE**: "연습(IS) 성적 대비 실전(OOS) 성적이 얼마나 유지됐나"를 보는 지표(TradeStation은 연환산 수익률 비교).
 > - **Profit Concentration**: "전체 이익이 특정 기간에 얼마나 몰렸나"를 보는 경고등(50% 넘으면 특정 장세 의존 가능성).
 > - **Chandelier Exit**: ATR(변동성)로 만든 트레일링 스탑의 대표 형태(기본 (22,3.0)).
+
+---
+
+### 23. Session 16 [Claude Sonnet 4.6] — 2026-02-23 16:16 (KST)
+
+주제: Phase 1~3 구현 완료 보고 + ATR 전략 WFO 결과 분석: Stitched MDD -52.95%, ATR(14, 3.0) 전윈도우 수렴
+
+#### 1. Session 15 질문 응답: Phase 1~3 구현 완료 팩트체크
+
+Session 15 (GPT)의 "다음 모델에게" 3개 과제 이행 상태를 코드로 직접 확인:
+
+| 과제                                                  | Session 15 요청                                                                     | 실제 구현 상태                                                   |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Phase 1: WFE/PC 지표 보강                             | `wfe_cagr`, `gap_calmar_median`, `wfe_calmar_robust`, `profit_concentration_*` 추가 | **Done** — PLAN_wfo_wfe_pc_metrics, passed=347, failed=0         |
+| Phase 2: min_trades=3 제약                            | `select_best_calmar_params()`에 min_trades=3 필터링                                 | **Done** — PLAN_wfo_min_trades, passed=350, failed=0             |
+| Phase 3-A: ATR source QQQ vs TQQQ 2회 실험            | 2회 실험 후 승자 채택                                                               | **미실행 — 사용자가 QQQ 고정으로 결정**                          |
+| Phase 3-B/C: ATR `{14,22}×{2.5,3.0}`, `highest_close` | 그리드 4종, ATR 스탑 OR 조건                                                        | **Done** — PLAN_atr_trailing_stop_strategy, passed=358, failed=0 |
+
+**코드 확인 근거**: PLAN_atr_trailing_stop_strategy.md §8 Notes에 "ATR 시그널 소스 합의: QQQ 고정 (Session 15에서 GPT는 A/B 테스트 제안했으나, 사용자가 QQQ 고정으로 결정)"이라고 명시. Phase 3-A는 사용자 결정으로 종결됨.
+
+구현 순서는 Session 15 제안(Phase 1 → 2 → 3)을 정확히 따랐으며, 각 Phase 완료 후 검증을 통과했음을 확인.
+
+---
+
+#### 2. ATR 전략 WFO 결과: 3-Mode Stitched 성과 비교
+
+**코드 확인 출처**: `storage/results/backtest/buffer_zone_atr_tqqq/walkforward_summary.json`, `storage/results/backtest/buffer_zone_tqqq/walkforward_summary.json`
+
+| Mode        | 기존 TQQQ CAGR | ATR TQQQ CAGR | 차이    | 기존 MDD | ATR MDD     | MDD 개선 |
+| ----------- | -------------- | ------------- | ------- | -------- | ----------- | -------- |
+| Dynamic     | 21.68%         | 16.09%        | -5.59pp | -62.09%  | **-52.95%** | +9.14pp  |
+| Sell Fixed  | 20.77%         | 11.32%        | -9.45pp | -70.06%  | -54.31%     | +15.75pp |
+| Fully Fixed | 6.97%          | 8.40%         | +1.43pp | -61.10%  | **-51.75%** | +9.35pp  |
+
+**목표 달성 여부**: Stitched MDD -50% 목표는 모든 모드에서 아직 미달. Dynamic은 2.95pp, Fully Fixed는 1.75pp 차이.
+
+**주목할 결과**: Fully Fixed 모드에서 CAGR이 유일하게 개선(+1.43pp)되면서 MDD도 -9.35pp 개선됨. 기존 Fully Fixed의 낮은 IS Calmar 구조가 ATR 스탑 추가로 더 나은 파라미터를 선택하게 된 것으로 추정.
+
+---
+
+#### 3. 진단 지표 비교: WFE 폭주 해소 + Profit Concentration 경고 해제
+
+**코드 확인 출처**: walkforward_summary.json (Dynamic 모드 기준)
+
+| 지표              | 기존 TQQQ Dynamic  | ATR TQQQ Dynamic       | 변화                |
+| ----------------- | ------------------ | ---------------------- | ------------------- |
+| WFE Calmar Mean   | -161.66 (**폭주**) | 5.37                   | **폭주 완전 해소**  |
+| WFE Calmar Median | -0.40              | 2.39                   | 개선                |
+| WFE Calmar Robust | 0.94               | 2.39                   | 개선                |
+| WFE CAGR Mean     | -72.19 (**폭주**)  | 1.92                   | **폭주 해소**       |
+| WFE CAGR Median   | -0.22              | 0.95                   | 개선                |
+| Gap Calmar Median | 0.20               | 0.22                   | 유사                |
+| **PC Max**        | 0.6733 (**경고**)  | **0.4799 (경고 해제)** | 경고 기준(0.5) 하회 |
+| OOS 총 거래       | 18회               | 51회                   | +33회               |
+| OOS 평균 승률     | 32.58%             | 50.2%                  | +17.62pp            |
+
+WFE 폭주의 원인: 기존 TQQQ Dynamic Window 2에서 IS Calmar=-0.0017(거의 0)이었기 때문에 `wfe_calmar = oos_calmar / is_calmar` 계산 시 분모가 0에 수렴 → -1835 극단값 발생. ATR 전략에서는 같은 Window 2의 IS Calmar=0.0814로 정상화됨.
+
+**발견 1**: Profit Concentration 경고 해제가 가장 주목할 개선. 기존 0.6733(수익의 67%가 Window 9에 집중)에서 0.4799(48%)로 개선. TradeStation 휴리스틱(50% 초과 경고) 기준을 하회.
+
+**발견 2**: OOS 거래 18 → 51회 증가는 ATR 스탑이 실제로 발동하여 보유 기간을 단축한 결과. 승률 32.58% → 50.2% 개선은 ATR 스탑이 큰 손실 거래를 중도 청산하는 효과를 실증.
+
+---
+
+#### 4. 팩트체크: ATR(14, 3.0) 전윈도우 수렴 현상
+
+**코드 확인 출처**: `walkforward_dynamic.csv`, `walkforward_sell_fixed.csv`, `walkforward_fully_fixed.csv` (각 파일의 `best_atr_period`, `best_atr_multiplier` 컬럼 직접 확인)
+
+그리드 설정: `{14, 22} × {2.5, 3.0}` (4개 조합)
+
+| 모드        | 윈도우 0~10 ATR 선택 결과 |
+| ----------- | ------------------------- |
+| Dynamic     | **전부 (14, 3.0)**        |
+| Sell Fixed  | **전부 (14, 3.0)**        |
+| Fully Fixed | **전부 (14, 3.0)**        |
+
+Session 15에서 GPT와 Claude 양측 모두 "(22, 3.0)이 Chandelier Exit 표준"이라고 언급했으나, IS Calmar 최적화 결과는 11개 윈도우, 3개 모드, **33개 데이터 포인트 전부에서 예외 없이 (14, 3.0) 선택**됨.
+
+**해석**: ATR 14일은 ATR 22일보다 더 빠르게 변동성을 반영함. IS 구간(닷컴버블, 금융위기 포함 확장 기간)에서 더 빠른 청산이 IS Calmar를 높이는 방향으로 작동한 것으로 판단됨. 단, IS 최적화 결과가 OOS에서도 동일하게 유효한지는 추가 검증이 필요.
+
+**Chandelier 표준 (22, 3.0)의 재평가**: 웹 리서치(StockCharts ChartSchool, QuantifiedStrategies.com)에 따르면 22일은 "월간 거래일 기준"에서 유래. 그러나 3배 레버리지 ETF는 일반 주식보다 변동성이 크기 때문에 더 짧은 ATR 기간(14일)이 더 타이트하고 빠른 스탑을 제공하여 IS에서 유리했을 가능성이 있음. 이 가설은 OOS 독립 구간 실험으로 검증 가능.
+
+**과최적화 시각**: 4개 조합 중 33개 데이터 포인트 전부 동일 파라미터는 안정성 신호로 볼 수 있음. 단, IS 성과(Calmar)만으로 선택했으므로 OOS에서의 일반화 가능성은 별도 검증 권장.
+
+---
+
+#### 5. OOS 윈도우별 손익 분포 (Dynamic 모드) — 과최적화 리스크 평가
+
+| 윈도우 | OOS 기간  | OOS CAGR   | OOS MDD     | OOS 거래 | 판정            |
+| ------ | --------- | ---------- | ----------- | -------- | --------------- |
+| 0      | 2005-2007 | -5.58%     | -20.45%     | 3        | 손실            |
+| 1      | 2007-2009 | -9.88%     | -58.94%     | 6        | 손실 (금융위기) |
+| 2      | 2009-2011 | **65.54%** | -37.67%     | 5        | 이익            |
+| 3      | 2011-2013 | -20.88%    | **-65.64%** | 9        | 손실            |
+| 4      | 2013-2015 | **51.13%** | -17.20%     | 3        | 이익            |
+| 5      | 2015-2017 | -17.46%    | -42.94%     | 8        | 손실            |
+| 6      | 2017-2019 | 9.35%      | -24.35%     | 5        | 이익            |
+| 7      | 2019-2021 | **36.78%** | -30.32%     | 4        | 이익            |
+| 8      | 2021-2023 | -0.09%     | -22.13%     | 3        | 손실            |
+| 9      | 2023-2025 | **44.49%** | -21.23%     | 4        | 이익            |
+| 10     | 2025-2026 | **30.14%** | -24.25%     | 1        | 이익            |
+
+11개 OOS 윈도우 중 5개 손실(45%), 6개 이익(55%). Stitched 기준에서 이익 윈도우의 이익이 손실 윈도우의 손실을 크게 상회하여 Stitched CAGR 16.09% 달성.
+
+**ATR 스탑이 MDD 관리에 기여한 구간**: Window 3 OOS MDD -65.64%는 여전히 높음. 이는 2011~2013 구간에서 ATR 스탑이 발동하더라도 TQQQ 합성 특성상 낙폭이 컸음을 의미. Window 1(금융위기) OOS MDD -58.94%도 유사.
+
+**기존 TQQQ Dynamic과의 비교 (OOS 총 거래)**:
+
+- 기존: 18회 → ATR: 51회 (+33회). 기존 Dynamic에서 OOS 거래 0~1회인 윈도우가 다수였던 것 대비, ATR 전략에서는 모든 윈도우에서 최소 3회 이상 거래 발생.
+
+**다중검정 리스크**: IS 탐색공간 1,728개 조합(Dynamic 모드), 11개 OOS 윈도우. WFO의 OOS 검증이 이 리스크를 완화하는 역할을 하지만, 완전 제거는 불가. PBO(Probability of Backtest Overfitting)/DSR 분석은 추후 검토 권장.
+
+---
+
+#### 6. 상단 업데이트 제안
+
+사용자가 직접 공유 문서 상단 섹션을 아래 내용으로 갱신하기를 권장합니다.
+
+**목차에 추가**:
+
+```
+23. [Session 16 (Claude) — Phase 1~3 구현 완료 + ATR WFO 결과: Stitched MDD -52.95%, ATR(14,3.0) 전윈도우 수렴](#session-16-claude-sonnet-46--2026-02-23-1616-kst)
+```
+
+**최신 결론 (TL;DR) 업데이트 제안 — 2026-02-23 기준**:
+
+```
+- **QQQ 전략**: WFO 검증 통과. Fully Fixed(MA=200, buy=0.01, sell=0.05, hold=2, recent=8)가 Dynamic보다 우수 → 파라미터 고정 운용 가능
+- **TQQQ ATR 전략**: Phase 1~3 구현 완료. ATR TQQQ Dynamic WFO Stitched CAGR 16.09%, MDD -52.95% (기존 -62.09% → 9.14pp 개선). 목표 MDD -50%에 2.95pp 미달.
+- **ATR 파라미터**: IS Calmar 최적화 결과 모든 윈도우에서 (ATR period=14, multiplier=3.0) 수렴. Chandelier 표준(22, 3.0) 불채택.
+- **WFE/PC 개선**: WFE 폭주 해소 (-161 → 5.37), Profit Concentration 경고 해제 (0.67 → 0.48).
+- **Phase 3-A 종결**: ATR 소스 QQQ 고정 (사용자 결정).
+- **다음 실험**: ATR multiplier 2.5 재실험 (MDD -50% 목표 달성 도전) / Fully Fixed (MA=150, ATR=14, mult=3.0) 단일 백테스트 검증
+```
+
+---
+
+#### 7. 우선순위 테이블 업데이트
+
+| 순위 | 방법                                | 근거                                                                             | 상태                   |
+| ---- | ----------------------------------- | -------------------------------------------------------------------------------- | ---------------------- |
+| 1    | Phase 1: WFE/PC 지표 보강           | WFE 폭주 해소 + PC 진단 기반 마련                                                | **Done**               |
+| 2    | Phase 2: min_trades=3 제약          | IS 거래 부족 파라미터 탈락 안전장치                                              | **Done**               |
+| 3    | Phase 3: ATR 스탑 (QQQ 고정)        | Stitched MDD -62% → -53% (+9.14pp), PC 경고 해제                                 | **Done**               |
+| 4    | ATR multiplier 하향 실험 (2.5 단일) | 현재 (14,3.0) 수렴 확인. multiplier 낮추면 더 타이트한 스탑 → MDD -50% 달성 도전 | **다음 진행**          |
+| 5    | Fully Fixed 단일 백테스트 검증      | ATR TQQQ Fully Fixed MDD -51.75% — 목표 근접. 파라미터 고정 운용 가능성 검토     | **다음 진행**          |
+| 6    | Phase 3-A: ATR source 비교          | 사용자가 QQQ 고정으로 결정                                                       | **종결 (사용자 결정)** |
+| 7    | PBO/DSR 분석                        | 탐색공간 1,728개 → 다중검정 점검                                                 | 대기                   |
+
+Session 15 대비 변경점:
+
+- Phase 1, 2, 3 모두 Done으로 전환
+- Phase 3-A 종결 (사용자 결정)
+- 순위 4에 "ATR multiplier 2.5 단일 재실험" 신규 추가 (목표 MDD -50% 달성 도전)
+- 순위 5에 "Fully Fixed 단일 백테스트" 신규 추가 (목표 근접 모드 실용성 검토)
+
+---
+
+참고 자료:
+
+- ATR Trailing Stops. StockCharts ChartSchool. https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/atr-trailing-stops
+- Chandelier Exit. StockCharts ChartSchool. https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/chandelier-exit
+- Chandelier Exit Strategy. QuantifiedStrategies.com. https://www.quantifiedstrategies.com/chandelier-exit-strategy/
+- ATR Trailing Stop. QuantifiedStrategies.com. https://www.quantifiedstrategies.com/atr-trailing-stop/
+- Compounding Effects in Leveraged ETFs: Beyond the Volatility Drag Paradigm. arXiv:2504.20116v1. https://arxiv.org/html/2504.20116v1
+- Dynamic ATR Trailing Stop Trading Strategy. Medium (Sword Red). https://medium.com/@redsword_23261/dynamic-atr-trailing-stop-trading-strategy-market-volatility-adaptive-system-2c2df9f778f2
+
+---
+
+다음 모델에게:
+
+1. **ATR multiplier 2.5 재실험**: 현재 모든 윈도우에서 (14, 3.0) 선택됨. multiplier를 2.5로 단일 고정하여 `run_walkforward.py --strategy buffer_zone_atr_tqqq`를 재실행하면 Stitched MDD -50% 달성 가능한지 확인해 주세요. 코드상 `DEFAULT_WFO_ATR_MULTIPLIER_LIST = [2.5]`로 임시 변경하거나, 전략 파일의 OVERRIDE에 `atr_multiplier=2.5` 고정하는 방식 검토. 결과를 (14,3.0) 기준과 비교 테이블로 제시해 주세요.
+2. **ATR TQQQ Fully Fixed 단일 백테스트**: `walkforward_fully_fixed.csv` 기준 고정 파라미터 (MA=150, buy=0.05, sell=0.05, hold=5, recent=8, ATR=14, mult=3.0)로 `run_single_backtest.py --strategy buffer_zone_atr_tqqq`를 실행하고, 전체 기간(1999~2026) 단일 백테스트 결과와 WFO Stitched 결과를 비교해 주세요. 과최적화 갭이 얼마나 되는지 확인이 목적.
+3. **ATR(14, 3.0) vs (22, 3.0) OOS 비교**: IS 최적화 없이 (14, 3.0) 고정 vs (22, 3.0) 고정으로 각각 walk-forward를 1회 실행하여 OOS 성과를 직접 비교해 주세요. IS 최적화 편향 없이 파라미터 일반화 가능성을 검증하는 것이 목적.
+
+---
+
+> 초보자 요약: ATR(자동 손절) 기능을 추가하니 최대 손실이 -62%에서 -53%로 줄었습니다. 목표인 -50%에는 아직 3% 부족하지만, 전략이 자동으로 선택한 파라미터가 항상 같은 값(14일, 3배)이었다는 점이 흥미롭습니다. 이는 3배 레버리지 상품에서 빠른 손절이 유리하다는 것을 보여줍니다. 다음 단계는 손절 기준을 조금 더 빠르게(3배 → 2.5배) 조정해서 목표에 더 가까이 가는 것입니다.
+>
+> - **ATR(Average True Range)**: 주식이 하루에 보통 얼마나 오르내리는지를 측정하는 지표.
+> - **트레일링 스탑**: "최고점에서 일정 폭 이상 떨어지면 자동으로 파는" 규칙.
+> - **Stitched CAGR/MDD**: 여러 구간을 연결해 만든 가상 포트폴리오의 연간 수익률/최대 낙폭.
+> - **Profit Concentration**: 전체 수익이 특정 기간에 얼마나 몰렸는지. 48%로 개선(기존 67%).
 
 ---
 

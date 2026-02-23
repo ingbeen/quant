@@ -6,6 +6,134 @@
         "ma_window_list": [
           100,
           150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "total_combinations": 432,
+        "positive_return_count": 432,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 800.88,
+          "max": 1825.34,
+          "min": 84.53
+        },
+        "cagr": {
+          "mean": 8.11,
+          "max": 11.6,
+          "min": 2.3
+        },
+        "mdd": {
+          "mean": -47.93,
+          "min": -68.96
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/backtest/buffer_zone_qqq/grid_results.csv",
+        "row_count": 432,
+        "file_size_bytes": 24104
+      },
+      "timestamp": "2026-02-23T12:00:20+09:00"
+    },
+    {
+      "strategy": "buffer_zone_tqqq",
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "total_combinations": 432,
+        "positive_return_count": 432,
+        "positive_return_ratio": 1.0,
+        "total_return_pct": {
+          "mean": 4233.22,
+          "max": 22589.28,
+          "min": 7.55
+        },
+        "cagr": {
+          "mean": 13.33,
+          "max": 22.3,
+          "min": 0.27
+        },
+        "mdd": {
+          "mean": -90.54,
+          "min": -97.62
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/backtest/buffer_zone_tqqq/grid_results.csv",
+        "row_count": 432,
+        "file_size_bytes": 24947
+      },
+      "timestamp": "2026-02-23T11:57:47+09:00"
+    },
+    {
+      "strategy": "buffer_zone_qqq",
+      "execution_params": {
+        "ma_window_list": [
+          100,
+          150,
           200,
           250
         ],
@@ -214,139 +342,6 @@
         "file_size_bytes": 42796
       },
       "timestamp": "2026-02-20T13:43:05+09:00"
-    },
-    {
-      "strategy": "buffer_zone_tqqq",
-      "execution_params": {
-        "ma_window_list": [
-          100,
-          150,
-          200,
-          250
-        ],
-        "buffer_zone_pct_list": [
-          0.01,
-          0.02,
-          0.03,
-          0.04,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          1,
-          2,
-          3,
-          4,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          2,
-          4,
-          6,
-          8,
-          10,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "total_combinations": 840,
-        "positive_return_count": 840,
-        "positive_return_ratio": 1.0,
-        "total_return_pct": {
-          "mean": 4131.15,
-          "max": 14326.23,
-          "min": 163.99
-        },
-        "cagr": {
-          "mean": 14.03,
-          "max": 20.26,
-          "min": 3.67
-        },
-        "mdd": {
-          "mean": -91.9,
-          "min": -97.81
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/backtest/buffer_zone_tqqq/grid_results.csv",
-        "row_count": 840,
-        "file_size_bytes": 44277
-      },
-      "timestamp": "2026-02-20T13:40:57+09:00"
-    },
-    {
-      "execution_params": {
-        "ma_window_list": [
-          100,
-          150,
-          200,
-          250
-        ],
-        "buffer_zone_pct_list": [
-          0.01,
-          0.02,
-          0.03,
-          0.04,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          1,
-          2,
-          3,
-          4,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          2,
-          4,
-          6,
-          8,
-          10,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "total_combinations": 840,
-        "positive_return_count": 840,
-        "positive_return_ratio": 1.0,
-        "total_return_pct": {
-          "mean": 4131.15,
-          "max": 14326.23,
-          "min": 163.99
-        },
-        "cagr": {
-          "mean": 14.03,
-          "max": 20.26,
-          "min": 3.67
-        },
-        "mdd": {
-          "mean": -91.9,
-          "min": -97.81
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/backtest/buffer_zone/grid_results.csv",
-        "row_count": 840,
-        "file_size_bytes": 44277
-      },
-      "timestamp": "2026-02-19T20:26:02+09:00"
     }
   ],
   "tqqq_validation": [
@@ -1833,7 +1828,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-02-22T09:50:08+09:00"
+      "timestamp": "2026-02-23T12:57:02+09:00"
     },
     {
       "params": {
@@ -1853,16 +1848,16 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_qqq/summary.json"
       },
-      "timestamp": "2026-02-22T09:50:08+09:00"
+      "timestamp": "2026-02-23T12:57:02+09:00"
     },
     {
       "params": {
         "ma_window": 150,
         "ma_type": "ema",
-        "buy_buffer_zone_pct": 0.01,
+        "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
-        "hold_days": 5,
-        "recent_months": 2,
+        "hold_days": 3,
+        "recent_months": 0,
         "initial_capital": 10000000,
         "param_source": {
           "ma_window": "grid_best",
@@ -1873,11 +1868,11 @@
         }
       },
       "results_summary": {
-        "total_return_pct": 1977.0,
-        "cagr": 11.92,
-        "mdd": -45.34,
-        "total_trades": 16,
-        "win_rate": 68.75
+        "total_return_pct": 1825.34,
+        "cagr": 11.6,
+        "mdd": -43.46,
+        "total_trades": 15,
+        "win_rate": 73.33
       },
       "output_files": {
         "signal_csv": "storage/results/backtest/buffer_zone_qqq/signal.csv",
@@ -1885,16 +1880,16 @@
         "trades_csv": "storage/results/backtest/buffer_zone_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_qqq/summary.json"
       },
-      "timestamp": "2026-02-22T09:50:08+09:00"
+      "timestamp": "2026-02-23T12:57:02+09:00"
     },
     {
       "params": {
         "ma_window": 150,
         "ma_type": "ema",
-        "buy_buffer_zone_pct": 0.01,
+        "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
-        "hold_days": 5,
-        "recent_months": 2,
+        "hold_days": 3,
+        "recent_months": 0,
         "initial_capital": 10000000,
         "param_source": {
           "ma_window": "grid_best",
@@ -1905,11 +1900,11 @@
         }
       },
       "results_summary": {
-        "total_return_pct": 28774.5,
-        "cagr": 23.4,
-        "mdd": -87.97,
-        "total_trades": 16,
-        "win_rate": 62.5
+        "total_return_pct": 22589.28,
+        "cagr": 22.3,
+        "mdd": -86.96,
+        "total_trades": 15,
+        "win_rate": 66.67
       },
       "output_files": {
         "signal_csv": "storage/results/backtest/buffer_zone_tqqq/signal.csv",
@@ -1917,7 +1912,7 @@
         "trades_csv": "storage/results/backtest/buffer_zone_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_tqqq/summary.json"
       },
-      "timestamp": "2026-02-22T09:50:07+09:00"
+      "timestamp": "2026-02-23T12:57:01+09:00"
     },
     {
       "params": {
@@ -1937,10 +1932,168 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-02-21T21:01:33+09:00"
+      "timestamp": "2026-02-22T09:50:08+09:00"
     }
   ],
   "backtest_walkforward": [
+    {
+      "strategy": "buffer_zone_atr_tqqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05,
+        "atr_period_list": [
+          14,
+          22
+        ],
+        "atr_multiplier_list": [
+          2.5,
+          3.0
+        ]
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 16.69,
+        "sell_fixed_oos_cagr_mean": 18.86,
+        "fully_fixed_oos_cagr_mean": 13.44
+      },
+      "elapsed_seconds": 7512.0,
+      "timestamp": "2026-02-23T16:00:07+09:00"
+    },
+    {
+      "strategy": "buffer_zone_qqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 11.97,
+        "sell_fixed_oos_cagr_mean": 11.97,
+        "fully_fixed_oos_cagr_mean": 13.4
+      },
+      "elapsed_seconds": 1533.2,
+      "timestamp": "2026-02-23T13:54:55+09:00"
+    },
+    {
+      "strategy": "buffer_zone_tqqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 30.02,
+        "sell_fixed_oos_cagr_mean": 28.31,
+        "fully_fixed_oos_cagr_mean": 15.93
+      },
+      "elapsed_seconds": 1934.0,
+      "timestamp": "2026-02-23T13:29:22+09:00"
+    },
     {
       "strategy": "buffer_zone_qqq",
       "execution_params": {
