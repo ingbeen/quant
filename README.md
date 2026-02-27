@@ -62,7 +62,12 @@ poetry run python scripts/backtest/run_walkforward.py
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
 
-# 5. CSCV/PBO/DSR 과최적화 통계 검증 (선행: 1)
+# 5. ATR 비교 실험 (선행: 1)
+poetry run python scripts/backtest/run_atr_comparison.py
+# 출력: ATR(14,3.0) vs ATR(22,3.0) 고정 OOS 성과 비교
+# 결과: storage/results/backtest/buffer_zone_atr_tqqq/atr_comparison_windows.csv, atr_comparison_summary.json
+
+# 6. CSCV/PBO/DSR 과최적화 통계 검증 (선행: 1)
 poetry run python scripts/backtest/run_cpcv_analysis.py
 # 출력: PBO (과최적화 확률), DSR (보정 Sharpe 유의성)
 # 결과: storage/results/backtest/{전략명}/cscv_analysis.json, cscv_logit_lambdas.csv
@@ -70,7 +75,7 @@ poetry run python scripts/backtest/run_cpcv_analysis.py
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_cpcv_analysis.py --strategy buffer_zone_tqqq
 
-# 6. 대시보드 시각화 (선행: 3)
+# 7. 대시보드 시각화 (선행: 3)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 ```
 
@@ -222,7 +227,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_cpcv_analysis.py, app_single_backtest.py
+│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_atr_comparison.py, run_cpcv_analysis.py, app_single_backtest.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
@@ -232,7 +237,7 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, cpcv.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, cpcv.py, atr_comparison.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
@@ -268,6 +273,8 @@ quant/
 - `walkforward_summary.json`: 3-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
 - `cscv_analysis.json`: CSCV/PBO/DSR 과최적화 통계 검증 결과 (버퍼존 전략 전용)
 - `cscv_logit_lambdas.csv`: CSCV logit lambda 분포 (PBO 진단용, 버퍼존 전략 전용)
+- `atr_comparison_windows.csv`: ATR 고정 OOS 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
+- `atr_comparison_summary.json`: ATR 고정 OOS 비교 요약 (buffer_zone_atr_tqqq 전용)
 
 ### TQQQ 시뮬레이션
 

@@ -17,6 +17,7 @@ tests/
 ├── CLAUDE.md # tests 관련 규칙 (이 문서)
 ├── conftest.py # 공통 픽스처
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
+├── test_atr_comparison.py # ATR 고정 OOS 비교 실험 테스트
 ├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
 ├── test_buffer_zone_qqq.py # 버퍼존 QQQ 전략 테스트
 ├── test_buffer_zone_tqqq.py # 버퍼존 TQQQ 전략 테스트

@@ -2359,5 +2359,65 @@
       "elapsed_seconds": 56.2,
       "timestamp": "2026-02-27T18:23:40+09:00"
     }
+  ],
+  "atr_comparison": [
+    {
+      "experiment": "ATR OOS 비교",
+      "config_a": {
+        "atr_period": 14,
+        "atr_multiplier": 3.0
+      },
+      "config_b": {
+        "atr_period": 22,
+        "atr_multiplier": 3.0
+      },
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows": 11,
+        "a_stitched_cagr": 16.09,
+        "b_stitched_cagr": 12.2,
+        "a_wins_cagr": 5,
+        "b_wins_cagr": 5
+      },
+      "elapsed_seconds": 904.4,
+      "timestamp": "2026-02-27T23:33:59+09:00"
+    }
   ]
 }

@@ -89,6 +89,7 @@ quant/
 │   │   ├── types.py         # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너)
 │   │   ├── analysis.py      # 이동평균 계산 및 성과 지표
 │   │   ├── cpcv.py          # CSCV/PBO/DSR 과최적화 통계 검증
+│   │   ├── atr_comparison.py # ATR 고정 WFO OOS 비교 실험
 │   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
 │   │       ├── buffer_zone_helpers.py      # 버퍼존 계열 공통 로직
 │   │       ├── buffer_zone_tqqq.py         # 버퍼존 전략 (QQQ 시그널 + TQQQ 매매)
@@ -425,6 +426,8 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 - `grid_results.csv`: 그리드 서치 결과 (버퍼존 전략 전용, CAGR 내림차순)
 - `cscv_analysis.json`: CSCV/PBO/DSR 과최적화 통계 검증 결과 (버퍼존 전략 전용)
 - `cscv_logit_lambdas.csv`: CSCV logit lambda 분포 (PBO 진단용)
+- `atr_comparison_windows.csv`: ATR 고정 OOS 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
+- `atr_comparison_summary.json`: ATR 고정 OOS 비교 요약 (buffer_zone_atr_tqqq 전용)
 
 분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
 

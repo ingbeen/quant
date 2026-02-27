@@ -83,6 +83,10 @@ DEFAULT_CSCV_METRIC: Final = "sharpe"  # 기본 성과 지표 ("sharpe" 또는 "
 CSCV_ANALYSIS_FILENAME: Final = "cscv_analysis.json"
 CSCV_LOGIT_LAMBDAS_FILENAME: Final = "cscv_logit_lambdas.csv"
 
+# --- ATR 비교 실험 결과 파일명 ---
+ATR_COMPARISON_WINDOWS_FILENAME: Final = "atr_comparison_windows.csv"
+ATR_COMPARISON_SUMMARY_FILENAME: Final = "atr_comparison_summary.json"
+
 # ============================================================
 # 결과 데이터 컬럼 및 표시
 # ============================================================

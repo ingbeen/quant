@@ -80,7 +80,22 @@ CSCV 분할 및 PBO/DSR:
 - `build_returns_matrix()`: 병렬 실행 + ndarray 합성
 - `run_cscv_analysis()`: 통합 오케스트레이션 (행렬 구축 → PBO → DSR)
 
-### 5. walkforward.py
+### 5. atr_comparison.py
+
+ATR 고정 WFO OOS 비교 실험 모듈을 제공합니다.
+
+TypedDict:
+
+- `AtrComparisonResultDict`: 단일 ATR 설정의 WFO 실행 결과 (atr_period, atr_multiplier, window_results, mode_summary)
+- `WindowComparisonRow`: 윈도우별 비교 행 (a/b OOS 지표 + 차이)
+
+주요 함수:
+
+- `run_single_atr_config()`: 단일 ATR 설정으로 WFO + Stitched Equity + 모드 요약 생성
+- `build_window_comparison()`: 두 ATR 설정의 윈도우별 OOS 성과 비교 DataFrame 생성
+- `build_comparison_summary()`: 두 ATR 설정의 요약 통계 생성 (Stitched 지표, 우위 카운트, 차이 통계)
+
+### 6. walkforward.py
 
 워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
 
@@ -93,7 +108,7 @@ CSCV 분할 및 PBO/DSR:
 - `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
 - `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
 
-### 5. strategies/ 패키지
+### 7. strategies/ 패키지
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.
 

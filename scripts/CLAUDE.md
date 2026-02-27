@@ -53,6 +53,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 지원 타입:
 
 - `"grid_results"`: 백테스트 그리드 서치
+- `"atr_comparison"`: ATR 고정 OOS 비교 실험
 - `"cscv_analysis"`: CSCV/PBO/DSR 과최적화 분석
 - `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
@@ -140,6 +141,10 @@ main 함수:
   - `run_walkforward.py`: WFO 3-Mode 비교 실행 (동적/sell고정/전체고정)
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
+- ATR 비교 실험:
+  - `run_atr_comparison.py`: ATR(14,3.0) vs ATR(22,3.0) 고정 OOS 비교 실험
+    - IS 최적화 없이 ATR 고정, Dynamic OOS 성과 비교
+    - atr_comparison_windows.csv + atr_comparison_summary.json 저장
 - 과최적화 통계 검증:
   - `run_cpcv_analysis.py`: CSCV/PBO/DSR 분석 실행
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)

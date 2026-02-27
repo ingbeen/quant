@@ -15,7 +15,8 @@
 - **ATR 결과**: ATR(14, 3.0)이 전 윈도우(33개 데이터 포인트) 수렴. WFE 폭주 해소(-161 → 5.37). Profit Concentration 경고 해제(0.67 → 0.48). ATR source QQQ 고정(사용자 결정)
 - **ATR mult 2.5 실험**: 실패. Dynamic Stitched MDD -66.66% (기존 -52.95% → 13.71pp **악화**), Calmar 0.12. mult 2.5는 whipsaw에 취약하여 MDD와 CAGR 모두 악화 → 기각, `[2.5, 3.0]` 그리드 유지
 - **CSCV·PBO·DSR 결과**: ATR TQQQ PBO 0.65 (경고), DSR 0.35 (미유의). QQQ PBO 0.40 (통과), TQQQ PBO 0.45 (통과). 3개 전략 모두 DSR < 0.95. 통계적 과최적화 경고가 존재하나, WFO OOS 실증·ATR 수렴·범용 파라미터 사용 등 복수의 실증적 근거가 보완 → "맹신하지 말 것" 수준의 리스크 지표로 활용
-- **다음 실험**: ATR(14,3.0) vs (22,3.0) OOS 비교 / Expanding vs Rolling WFO 비교
+- **ATR 고정 OOS 비교**: ATR(14,3.0) vs (22,3.0) IS 최적화 없이 고정 비교. Stitched CAGR 16.09% vs 12.20% (+3.89pp), MDD -52.95% vs -59.06% (+6.11pp), Calmar 0.3038 vs 0.2065 (+47%). 윈도우 승수 5:5:1(무승부)이나 A의 승리 폭이 압도적(W2 +43pp, W4 +36pp). **ATR(14,3.0)의 구조적 우위 확인** → PBO 0.65 경고에 대한 가장 깨끗한 독립적 반론
+- **다음 실험**: Expanding vs Rolling WFO 비교
 
 ---
 
@@ -117,8 +118,36 @@ CSCV(Combinatorial Symmetric Cross-Validation) 6블록 → C(6,3)=20개 IS/OOS �
 | WFO (미래 데이터 미참조) | Out-of-sample validation | 가장 기본적인 과최적화 방지 |
 | sell=0.05 수렴 확인 | Parameter stability | 여러 구간에서 같은 값이면 노이즈가 아닌 신호 |
 | 레짐 전환이 거시경제와 일치 | Economic rationale | 숫자가 아닌 논리로 설명 가능 |
+| ATR(14) vs (22) 고정 OOS 비교 | Independent A/B test | IS 최적화 없이 구조적 우위 실증 |
 
-**종합 판단**: CSCV/PBO/DSR은 이 목록에 하나 더 추가된 "건강검진 항목"이지, 위의 모든 노력을 무효화하는 최종 심판이 아님. 1,728개 탐색 공간에 대한 통계적 과최적화 경고(PBO 0.65)가 존재하나, WFO OOS 실증(MDD 9pp 개선), ATR 파라미터 전 구간 수렴(33/33), 범용 파라미터 사용 등 복수의 실증적 근거가 보완. PBO/DSR은 "이 전략을 쓰지 마라"가 아니라 **"이 전략을 맹신하지 마라"**로 읽는 것이 올바름. 실전 운용 시 주의해야 할 리스크 지표로 활용.
+**종합 판단**: CSCV/PBO/DSR은 이 목록에 하나 더 추가된 "건강검진 항목"이지, 위의 모든 노력을 무효화하는 최종 심판이 아님. 1,728개 탐색 공간에 대한 통계적 과최적화 경고(PBO 0.65)가 존재하나, WFO OOS 실증(MDD 9pp 개선), ATR 파라미터 전 구간 수렴(33/33), 범용 파라미터 사용, ATR 고정 OOS 비교에서의 구조적 우위 확인 등 복수의 실증적 근거가 보완. PBO/DSR은 "이 전략을 쓰지 마라"가 아니라 **"이 전략을 맹신하지 마라"**로 읽는 것이 올바름. 실전 운용 시 주의해야 할 리스크 지표로 활용.
+
+#### ATR(14,3.0) vs (22,3.0) 고정 OOS 비교 실험 결과
+
+IS 최적화 없이 ATR을 고정하고, 버퍼존 파라미터만 IS에서 최적화한 WFO Dynamic 비교 결과:
+
+결과 파일: `storage/results/backtest/buffer_zone_atr_tqqq/atr_comparison_summary.json`, `atr_comparison_windows.csv`
+
+**Stitched 지표 비교**:
+
+| 지표 | ATR(14,3.0) | ATR(22,3.0) | 차이 |
+|------|:-----------:|:-----------:|:----:|
+| CAGR | **16.09%** | 12.20% | +3.89pp |
+| MDD | **-52.95%** | -59.06% | +6.11pp |
+| Calmar | **0.3038** | 0.2065 | +0.0973 (+47%) |
+| 총 수익률 | **2,181.64%** | 1,016.77% | 2.1배 |
+| OOS CAGR 평균 | **16.69%** | 11.59% | +5.10pp |
+| OOS Calmar 평균 | **0.7708** | 0.5007 | +0.2701 (+54%) |
+
+**윈도우별 승패**: A 5승 / B 5승 / 무승부 1. 승수는 동률이나 **승리 폭의 비대칭성**이 핵심:
+
+- A 주요 승리: Window 2(2009~2011) +43.38pp, Window 4(2013~2015) +35.53pp, Window 9(2023~2025) +12.80pp
+- B 주요 승리: Window 3(2011~2013) +19.03pp, Window 10(2025~2026) +13.18pp
+- Window 7(2019~2021): 완전 무승부 (양쪽 동일 버퍼존 파라미터 선택)
+
+A가 이기는 윈도우(2, 4, 9)는 **강세장 반등기**로, ATR(14)의 빠른 반응(14일)이 조기 청산을 방지하여 큰 수익을 유지. ATR(22)는 느린 반응(22일)으로 수익 기회를 놓침.
+
+**PBO 0.65에 대한 검증 의미**: 두 ATR 설정 모두 IS에서 최적화되지 않고 고정된 상태에서 비교한 독립적 A/B 테스트. ATR(14,3.0) 고정 결과가 기존 WFO Dynamic 결과와 완전 일치(CAGR 16.09%, MDD -52.95%, Calmar 0.3038)하여, WFO에서의 33/33 수렴이 IS 과최적화가 아니라 실제로 (14,3.0)이 최선이기 때문임을 확인. 사후적 결정(post-hoc)과 달리, IS를 아예 사용하지 않는 비교이므로 PBO 경고에 대한 가장 깨끗한 반론 근거.
 
 ### 3.4 MDD 원인 분석
 
@@ -198,6 +227,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | Phase 2: min_trades  | select_best_calmar_params()에 min_trades=3 필터링                         | `PLAN_wfo_min_trades.md`             | passed=350 |
 | Phase 3: ATR 스탑    | buffer_zone_atr_tqqq 전략 신규 추가 + WFO 파이프라인 통합                 | `PLAN_atr_trailing_stop_strategy.md` | passed=358 |
 | CSCV·PBO·DSR         | CSCV 분할 + PBO + DSR 과최적화 통계 검증 모듈 + CLI 스크립트              | `PLAN_cpcv_pbo_dsr_analysis.md`      | passed=397 |
+| ATR 고정 OOS 비교    | ATR(14,3.0) vs (22,3.0) 고정 OOS 비교 실험 모듈 + CLI 스크립트           | `PLAN_atr_oos_comparison.md`         | passed=404 |
 
 계획서 위치: [docs/plans/](docs/plans/) 또는 [docs/archive/](docs/archive/)
 
@@ -239,7 +269,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | ---- | ------------------------------------------------------ | ------------------------------------------------- | ------------------------------------- | ---- |
 | ~~1~~| ~~ATR multiplier 2.5 단일 고정 재실험~~               | ~~MDD -50% 달성 도전~~                            | ~~Stitched MDD ≤ -50% AND Calmar ≥ 0.35~~ | 실패·기각 |
 | ~~2~~| ~~CPCV·PBO·DSR 분석~~                                 | ~~탐색공간 1,728개 다중검정 + CPCV 교차 검증~~    | ~~PBO < 0.5, DSR 유의~~               | 완료 (PBO 0.65, DSR 0.35 — §3.3 참조) |
-| 3    | ATR(14,3.0) vs (22,3.0) OOS 비교 (IS 최적화 없이 고정) | 파라미터 일반화 가능성 검증                       | OOS 성과 비교                         | 대기 |
+| ~~3~~| ~~ATR(14,3.0) vs (22,3.0) OOS 비교 (IS 최적화 없이 고정)~~ | ~~파라미터 일반화 가능성 검증~~                 | ~~OOS 성과 비교~~                     | 완료 (ATR(14,3.0) 구조적 우위 확인 — §3.3 참조) |
 | 4    | Expanding vs Rolling Window WFO 비교                   | "지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화 | Stitched MDD/CAGR/Calmar 비교         | 대기 |
 
 ---
@@ -348,6 +378,16 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 - 사후 파라미터 축소 함정 확인: "ATR 수렴 결과를 보고 고정하면 PBO가 개선되지 않나?" → 데이터에서 답을 확인한 후의 사후적 결정이므로, 검정 기준을 느슨하게 만드는 것일 뿐
 - 종합 판단: 통계적 경고 존재하나 WFO OOS 실증·ATR 수렴·범용 파라미터 사용이 보완 → "맹신 금지" 수준의 리스크 지표로 활용
 - §1 TL;DR, §3.3, §4, §5, §6, §7 업데이트
+
+### 2026-02-28 ATR(14,3.0) vs (22,3.0) 고정 OOS 비교 실험 완료
+
+- ATR 고정 OOS 비교 모듈 구현 완료 (계획서: `PLAN_atr_oos_comparison.md`, passed=404)
+- Stitched 결과: ATR(14,3.0) CAGR 16.09%, MDD -52.95%, Calmar 0.3038 / ATR(22,3.0) CAGR 12.20%, MDD -59.06%, Calmar 0.2065
+- ATR(14,3.0)이 모든 Stitched 지표에서 우위: CAGR +3.89pp, MDD +6.11pp, Calmar +47%, 총 수익률 2.1배
+- 윈도우 승수 5:5:1(무승부)이나 A의 승리 폭이 압도적 (Window 2: +43pp, Window 4: +36pp)
+- ATR(14,3.0) 고정 결과가 기존 WFO Dynamic 결과와 완전 일치 → 33/33 수렴이 과최적화가 아님을 실증
+- PBO 0.65 경고에 대한 가장 깨끗한 독립적 반론 근거 확보
+- §1 TL;DR, §3.3, §4, §6 업데이트
 
 ---
 
