@@ -1976,6 +1976,63 @@
           22
         ],
         "atr_multiplier_list": [
+          2.5
+        ]
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 9.62,
+        "sell_fixed_oos_cagr_mean": 13.83,
+        "fully_fixed_oos_cagr_mean": 10.0
+      },
+      "elapsed_seconds": 1198.2,
+      "timestamp": "2026-02-27T16:36:24+09:00"
+    },
+    {
+      "strategy": "buffer_zone_atr_tqqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05,
+        "atr_period_list": [
+          14,
+          22
+        ],
+        "atr_multiplier_list": [
           2.5,
           3.0
         ]
@@ -2143,56 +2200,6 @@
       },
       "elapsed_seconds": 571.3,
       "timestamp": "2026-02-22T12:30:42+09:00"
-    },
-    {
-      "strategy": "buffer_zone_tqqq",
-      "execution_params": {
-        "initial_is_months": 72,
-        "oos_months": 24,
-        "ma_window_list": [
-          100,
-          150,
-          200
-        ],
-        "buy_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "sell_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          2,
-          3,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          4,
-          8,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003,
-        "fixed_sell_buffer_pct": 0.05
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 30.02,
-        "sell_fixed_oos_cagr_mean": 28.31,
-        "fully_fixed_oos_cagr_mean": 15.93
-      },
-      "elapsed_seconds": 567.8,
-      "timestamp": "2026-02-22T12:21:11+09:00"
     }
   ]
 }

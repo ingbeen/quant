@@ -13,7 +13,8 @@
 - **TQQQ ATR 전략**: Phase 1~3 구현 완료. ATR TQQQ Dynamic WFO Stitched CAGR 16.09%, MDD **-52.95%** (기존 -62.09% → 9.14pp 개선). **목표 MDD -50%에 2.95pp 미달**
 - **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성
 - **ATR 결과**: ATR(14, 3.0)이 전 윈도우(33개 데이터 포인트) 수렴. WFE 폭주 해소(-161 → 5.37). Profit Concentration 경고 해제(0.67 → 0.48). ATR source QQQ 고정(사용자 결정)
-- **다음 실험**: ATR multiplier 2.5 재실험 (MDD -50% 달성 도전) / Fully Fixed(MA=150, ATR=14, mult=3.0) 단일 백테스트 검증
+- **ATR mult 2.5 실험**: 실패. Dynamic Stitched MDD -66.66% (기존 -52.95% → 13.71pp **악화**), Calmar 0.12. mult 2.5는 whipsaw에 취약하여 MDD와 CAGR 모두 악화 → 기각, `[2.5, 3.0]` 그리드 유지
+- **다음 실험**: CPCV·PBO·DSR 과최적화 통계 검증 / ATR(14,3.0) vs (22,3.0) OOS 비교
 
 ---
 
@@ -34,6 +35,7 @@
 | + min_trades=3 제약    | (동일)     | (동일)      | (동일)      | (동일)      | 첫 IS 윈도우 파라미터 개선             |
 | + WFE/PC 지표 보강     | (동일)     | (동일)      | (신규 지표) | (신규 지표) | 진단 기반 마련                         |
 | + ATR 트레일링 스탑    | **16.09%** | **-52.95%** | **5.37**    | **0.48**    | MDD 9.14pp 개선                        |
+| + ATR mult 2.5 고정   | 8.26%      | -66.66%     | -0.79       | 0.60 (경고) | 실패: MDD/CAGR 모두 악화, 기각         |
 
 ### 2.3 전략별 ATR WFO 비교
 
@@ -90,6 +92,7 @@
 - **분할 매수(DCA)**: 버퍼존 전략의 이분법적 구조(전량 진입/전량 청산)에서 오히려 역효과. 진입 타이밍 문제는 ATR 스탑으로 해결
 - **MDD 제약형 목적함수**: min_trades=3으로 대체
 - **PBO 분석**: 우선순위 하향, 보류 합의
+- **ATR mult 2.5 단일 고정**: Dynamic Stitched CAGR 8.26%, MDD -66.66%, Calmar 0.12. 기존 mult [2.5, 3.0] 대비 CAGR -7.83pp, MDD 13.71pp 악화. 전 윈도우 ATR(22, 2.5) 선택 (period가 14→22로 이동하여 빡빡한 mult 보상 시도, 역부족). PC 0.60 (경고). whipsaw에 의한 조기 청산 → 재진입 비용 누적이 원인
 
 ### 3.6 버퍼존 파라미터 레짐 전환 분석
 
@@ -192,9 +195,13 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | E   | TQQQ IS 기간 확장 (72→96개월) | 보류 (min_trades로 우선 해결) |
 | F   | DSR (Deflated Sharpe Ratio)   | 미논의                        |
 
-**PBO (Probability of Backtest Overfitting)**: Bailey et al. (2017). 데이터를 S개 블록으로 나눠 가능한 모든 IS/OOS 조합(CSCV)을 테스트하여 "백테스트 최적 전략이 실전에서도 성과를 낼 확률"을 정량화. PBO > 0.5면 과최적화 위험. 이 프로젝트에서는 탐색공간 1,728개 조합의 다중검정(multiple testing) 문제를 검증하는 용도.
+**CPCV (Combinatorial Purged Cross-Validation)**: López de Prado (2018). 데이터를 N개 블록으로 나눈 뒤, 시간 순서를 유지하면서 가능한 모든 훈련/시험 조합을 생성하는 방법론. 인접 블록 사이의 데이터 오염을 정화(purge)하여 통계적 독립성을 확보. 기존 WFO가 하나의 시간순 분할만 사용하는 반면, CPCV는 수백 개 분할의 성과 분포를 생성하여 PBO와 DSR을 정밀하게 계산하는 데이터 기반을 제공. 2024년 연구(Knowledge-Based Systems)에서 WFO보다 과적합 방지에 우수하다고 실증됨.
+
+**PBO (Probability of Backtest Overfitting)**: Bailey et al. (2017). CPCV로 생성한 모든 IS/OOS 분할에서 "IS 최적 전략이 OOS에서 중간(median)보다 못하는 비율"을 계산. PBO > 0.5면 과최적화 위험 (동전 던지기보다 나쁨). 이 프로젝트에서는 탐색공간 1,728개 조합의 다중검정(multiple testing) 문제를 검증하는 용도.
 
 **DSR (Deflated Sharpe Ratio)**: Bailey & López de Prado (2014). N개 전략을 시도한 후 최고 Sharpe를 뽑았을 때, 시행 횟수/왜도/첨도를 반영하여 보정한 Sharpe. 많은 조합을 시도할수록 "우연히" 높은 Sharpe가 나올 확률이 높으므로, 통계적 유의성을 확인하는 용도.
+
+**세 도구의 관계**: CPCV는 데이터를 나누는 **방법론**, PBO와 DSR은 그 결과로 계산하는 **지표**. CPCV가 수백 개의 IS/OOS 분할을 제공하면, PBO는 "과최적화 확률"을, DSR은 "보정된 Sharpe 유의성"을 산출. 기존 WFO의 과최적화 갭 분석(IS vs OOS 성과 차이)이 정성적 판단이라면, CPCV·PBO·DSR은 동일 문제에 대한 통계적 정량 검증.
 
 ---
 
@@ -202,11 +209,10 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 
 | 순위 | 실험                                                   | 목적                                              | 성공 기준                             | 상태 |
 | ---- | ------------------------------------------------------ | ------------------------------------------------- | ------------------------------------- | ---- |
-| 1    | ATR multiplier 2.5 단일 고정 재실험                    | MDD -50% 달성 도전                                | Stitched MDD ≤ -50% AND Calmar ≥ 0.35 | 대기 |
-| 2    | Fully Fixed 단일 백테스트 (MA=150, ATR=14, mult=3.0)   | ATR TQQQ Fully Fixed MDD -51.75% → 전체 기간 검증 | 과최적화 갭 확인                      | 대기 |
+| ~~1~~| ~~ATR multiplier 2.5 단일 고정 재실험~~               | ~~MDD -50% 달성 도전~~                            | ~~Stitched MDD ≤ -50% AND Calmar ≥ 0.35~~ | 실패·기각 |
+| 2    | CPCV·PBO·DSR 분석                                      | 탐색공간 1,728개 다중검정 + CPCV 교차 검증        | PBO < 0.5, DSR 유의                   | 대기 |
 | 3    | ATR(14,3.0) vs (22,3.0) OOS 비교 (IS 최적화 없이 고정) | 파라미터 일반화 가능성 검증                       | OOS 성과 비교                         | 대기 |
-| 4    | PBO/DSR 분석                                           | 탐색공간 1,728개 다중검정 점검                    | -                                     | 대기 |
-| 5    | Expanding vs Rolling Window WFO 비교                   | "지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화 | Stitched MDD/CAGR/Calmar 비교         | 대기 |
+| 4    | Expanding vs Rolling Window WFO 비교                   | "지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화 | Stitched MDD/CAGR/Calmar 비교         | 대기 |
 
 ---
 
@@ -289,6 +295,17 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 - §3.7 신규: Expanding vs Rolling Window WFO 비교 분석 추가
 - §5: PBO/DSR 개념 설명 추가
 - §6: Expanding vs Rolling WFO 비교 실험 추가 (#5)
+
+### 2026-02-27 ATR mult 2.5 단일 고정 실험 + 문서 정비
+
+- ATR mult 2.5 단일 고정 WFO 실험 실행: Dynamic Stitched CAGR 8.26%, MDD -66.66%, Calmar 0.12
+- 결과: 성공 기준(MDD ≤ -50%, Calmar ≥ 0.35) **미달**, 기존 대비 CAGR -7.83pp, MDD 13.71pp **악화**
+- 원인: mult 2.5의 빡빡한 스탑이 whipsaw에 취약, 전 윈도우 ATR(22, 2.5) 선택 (period 14→22로 보상 시도, 역부족)
+- 판정: **기각**, `DEFAULT_WFO_ATR_MULTIPLIER_LIST = [2.5, 3.0]` 원복, 결과 파일 git restore
+- §1 TL;DR, §2.2, §3.5, §5, §6 업데이트
+- Fully Fixed 실험 삭제 (CAGR 8.4%, 실용 가치 없음)
+- CPCV 개념 설명 + PBO/DSR 관계 추가 (§5)
+- 실험 순위 재조정: CPCV·PBO·DSR을 2순위로 승격
 
 ---
 
