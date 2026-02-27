@@ -72,6 +72,18 @@ WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME: Final = "walkforward_equity_fully_fixed
 WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 
 # ============================================================
+# CSCV 과최적화 검증 상수
+# ============================================================
+
+# --- CSCV 블록 설정 ---
+DEFAULT_CSCV_N_BLOCKS: Final = 6  # 시계열 블록 수 (짝수). C(6,3)=20 조합
+DEFAULT_CSCV_METRIC: Final = "sharpe"  # 기본 성과 지표 ("sharpe" 또는 "calmar")
+
+# --- CSCV 결과 파일명 ---
+CSCV_ANALYSIS_FILENAME: Final = "cscv_analysis.json"
+CSCV_LOGIT_LAMBDAS_FILENAME: Final = "cscv_logit_lambdas.csv"
+
+# ============================================================
 # 결과 데이터 컬럼 및 표시
 # ============================================================
 

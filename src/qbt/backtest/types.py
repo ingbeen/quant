@@ -8,6 +8,7 @@
 - 공통 결과 컨테이너 (SingleBacktestResult)
 - WFO 윈도우 결과 (WfoWindowResultDict)
 - WFO 모드 요약 (WfoModeSummaryDict)
+- CSCV/PBO/DSR 과최적화 검증 (PboResultDict, DsrResultDict, CscvAnalysisResultDict)
 
 전략 전용 타입은 각 전략 모듈에 정의한다:
 - buffer_zone_helpers.py: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
@@ -164,3 +165,51 @@ class WfoModeSummaryDict(TypedDict):
     stitched_mdd: NotRequired[float]
     stitched_calmar: NotRequired[float]
     stitched_total_return_pct: NotRequired[float]
+
+
+class PboResultDict(TypedDict):
+    """PBO (Probability of Backtest Overfitting) 계산 결과.
+
+    CSCV (Combinatorial Symmetric Cross-Validation) 기반으로
+    IS 최적 전략이 OOS에서 중간(median) 이하로 떨어지는 비율을 측정한다.
+    Bailey et al. (2017) 방법론.
+    """
+
+    pbo: float  # Probability of Backtest Overfitting (0~1)
+    n_splits: int  # C(S, S/2) 조합 수
+    n_blocks: int  # S (블록 수)
+    logit_lambdas: list[float]  # 각 split의 logit(rank)
+    rank_below_median: int  # rank <= 0.5인 횟수
+    metric: str  # "sharpe" 또는 "calmar"
+
+
+class DsrResultDict(TypedDict):
+    """DSR (Deflated Sharpe Ratio) 계산 결과.
+
+    다중검정 보정 + 왜도/첨도를 반영하여 Sharpe Ratio의
+    통계적 유의성을 판정한다.
+    Bailey & Lopez de Prado (2014) 방법론.
+    """
+
+    dsr: float  # Deflated Sharpe Ratio (0~1, 확률값)
+    sr_observed: float  # 관측된 연간화 Sharpe Ratio
+    sr_benchmark: float  # E[SR_max] (다중 시행 보정 기대값)
+    z_score: float  # 표준화된 테스트 통계량
+    n_trials: int  # 시행 수 (파라미터 조합 수)
+    t_observations: int  # 관측 수 (시계열 길이)
+
+
+class CscvAnalysisResultDict(TypedDict):
+    """CSCV 통합 분석 결과.
+
+    PBO(Sharpe 기반) + DSR을 하나의 딕셔너리에 담는다.
+    Calmar 기반 PBO는 선택적으로 포함될 수 있다.
+    """
+
+    strategy: str  # 전략명
+    n_param_combinations: int  # 파라미터 조합 수
+    t_observations: int  # 시계열 길이 (거래일 수)
+    pbo_sharpe: PboResultDict  # Sharpe 기반 PBO 결과
+    pbo_calmar: NotRequired[PboResultDict]  # Calmar 기반 PBO (선택)
+    dsr: DsrResultDict  # DSR 결과
+    best_is_sharpe: float  # 전체기간 IS 최적 Sharpe

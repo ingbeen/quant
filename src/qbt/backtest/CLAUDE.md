@@ -52,7 +52,35 @@
 - `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 
-### 4. walkforward.py
+### 4. cpcv.py
+
+CSCV/PBO/DSR 과최적화 통계 검증 모듈을 제공합니다.
+
+수학 유틸리티 (scipy 대체):
+
+- `_norm_cdf()`: 표준 정규 CDF (math.erf 기반)
+- `_norm_ppf()`: 표준 정규 역CDF (Acklam 근사, 정밀도 ~1e-9)
+- `_logit()`: 로짓 함수
+
+성과 지표 (블록 단위):
+
+- `_compute_annualized_sharpe()`: 일별 수익률 → 연간화 Sharpe (sqrt(252) 사용)
+- `_compute_calmar_from_returns()`: 일별 수익률 → Calmar Ratio
+
+CSCV 분할 및 PBO/DSR:
+
+- `generate_cscv_splits()`: C(n_blocks, n_blocks//2) 대칭 IS/OOS 분할
+- `calculate_pbo()`: CSCV 기반 PBO 계산 (Sharpe 또는 Calmar 기준)
+- `calculate_dsr()`: Deflated Sharpe Ratio 계산 (다중검정 보정)
+
+수익률 행렬 구축 (병렬 처리):
+
+- `generate_param_combinations()`: 파라미터 리스트 → BufferStrategyParams 리스트
+- `_run_strategy_for_cscv()`: WORKER_CACHE 패턴, equity → 일별 수익률
+- `build_returns_matrix()`: 병렬 실행 + ndarray 합성
+- `run_cscv_analysis()`: 통합 오케스트레이션 (행렬 구축 → PBO → DSR)
+
+### 5. walkforward.py
 
 워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
 

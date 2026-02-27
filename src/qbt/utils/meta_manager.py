@@ -37,6 +37,7 @@ FullMetaJson = dict[str, HistoryList]
 VALID_CSV_TYPES = {
     "grid_results",
     "backtest_walkforward",
+    "cscv_analysis",
     "tqqq_daily_comparison",
     "tqqq_rate_spread_lab",
     "tqqq_softplus_tuning",

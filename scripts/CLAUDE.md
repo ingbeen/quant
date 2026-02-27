@@ -53,6 +53,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 지원 타입:
 
 - `"grid_results"`: 백테스트 그리드 서치
+- `"cscv_analysis"`: CSCV/PBO/DSR 과최적화 분석
 - `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
@@ -139,6 +140,11 @@ main 함수:
   - `run_walkforward.py`: WFO 3-Mode 비교 실행 (동적/sell고정/전체고정)
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
+- 과최적화 통계 검증:
+  - `run_cpcv_analysis.py`: CSCV/PBO/DSR 분석 실행
+    - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
+    - 병렬 실행으로 수익률 행렬 구축 후 PBO + DSR 계산
+    - cscv_analysis.json + cscv_logit_lambdas.csv 저장
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
@@ -218,8 +224,11 @@ width 파라미터 사용:
 - 예외 사례 3: 그리드 서치 스크립트(`scripts/backtest/run_grid_search.py`)
   - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
   - 이유: 전략별 독립 실행 및 전체 일괄 실행 지원
+- 예외 사례 4: CSCV 분석 스크립트(`scripts/backtest/run_cpcv_analysis.py`)
+  - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
+  - 이유: 전략별 독립 실행 및 전체 일괄 실행 지원
 
-근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py), [scripts/backtest/run_grid_search.py](backtest/run_grid_search.py)
+근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py), [scripts/backtest/run_grid_search.py](backtest/run_grid_search.py), [scripts/backtest/run_cpcv_analysis.py](backtest/run_cpcv_analysis.py)
 
 ---
 

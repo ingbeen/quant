@@ -14,7 +14,8 @@
 - **공통 발견**: sell_buffer=0.05가 두 전략 모두에서 가장 안정적. "Tight Entry, Wide Exit" 패턴은 구조적 특성
 - **ATR 결과**: ATR(14, 3.0)이 전 윈도우(33개 데이터 포인트) 수렴. WFE 폭주 해소(-161 → 5.37). Profit Concentration 경고 해제(0.67 → 0.48). ATR source QQQ 고정(사용자 결정)
 - **ATR mult 2.5 실험**: 실패. Dynamic Stitched MDD -66.66% (기존 -52.95% → 13.71pp **악화**), Calmar 0.12. mult 2.5는 whipsaw에 취약하여 MDD와 CAGR 모두 악화 → 기각, `[2.5, 3.0]` 그리드 유지
-- **다음 실험**: CPCV·PBO·DSR 과최적화 통계 검증 / ATR(14,3.0) vs (22,3.0) OOS 비교
+- **CSCV·PBO·DSR 결과**: ATR TQQQ PBO 0.65 (경고), DSR 0.35 (미유의). QQQ PBO 0.40 (통과), TQQQ PBO 0.45 (통과). 3개 전략 모두 DSR < 0.95. 통계적 과최적화 경고가 존재하나, WFO OOS 실증·ATR 수렴·범용 파라미터 사용 등 복수의 실증적 근거가 보완 → "맹신하지 말 것" 수준의 리스크 지표로 활용
+- **다음 실험**: ATR(14,3.0) vs (22,3.0) OOS 비교 / Expanding vs Rolling WFO 비교
 
 ---
 
@@ -80,6 +81,44 @@
   | 9 | 2023~2025 | 72.66% | 44.49% | 집중도 완화 |
 - **min_trades=3**: IS 구간에서 거래 < 3회인 파라미터 조합 제외. 첫 IS 윈도우의 sell=0.01 선택 문제 해결
 - 진단 지표 구현: [walkforward.py](src/qbt/backtest/walkforward.py)의 `calculate_wfo_mode_summary()`
+
+#### CSCV·PBO·DSR 통계 검증 결과
+
+CSCV(Combinatorial Symmetric Cross-Validation) 6블록 → C(6,3)=20개 IS/OOS 분할로 3개 전략을 검증:
+
+| 지표 | buffer_zone_qqq | buffer_zone_tqqq | buffer_zone_atr_tqqq |
+|------|:---:|:---:|:---:|
+| 파라미터 조합 수 | 432 | 432 | **1,728** |
+| **PBO** | **0.40** (통과) | **0.45** (통과) | **0.65** (미통과) |
+| rank_below_median | 8/20 | 9/20 | 13/20 |
+| **DSR** | **0.78** | **0.65** | **0.35** |
+| DSR 판정 | 미유의 | 미유의 | 미유의 |
+| z-score | 0.77 | 0.40 | -0.39 |
+| SR_observed | 0.87 | 0.79 | 0.71 |
+| SR_benchmark | 0.69 | 0.69 | 0.80 |
+
+결과 파일: `storage/results/backtest/{strategy_name}/cscv_analysis.json`, `cscv_logit_lambdas.csv`
+
+**PBO 해석**: PBO < 0.5 = "IS 최적이 OOS에서 중간 이상일 확률이 동전 던지기보다 나음". QQQ(0.40)와 TQQQ(0.45)는 통과, ATR TQQQ(0.65)는 미통과. ATR 전략의 높은 PBO 원인은 탐색 공간 4배 확대(432 → 1,728)에 따른 다중검정 부담 증가.
+
+**DSR 해석**: DSR은 0~1 범위의 확률값(CDF 기반). 원 논문(Bailey & López de Prado, 2014) 기준 0.95 이상이면 "95% 신뢰로 우연이 아닌 실력". 3개 전략 모두 0.95 미달이나, 432~1,728개 조합을 탐색하는 그리드 서치에서 DSR 0.95 달성은 비현실적으로 높은 관측 Sharpe를 요구. 절대값보다 **전략 간 상대 순위**(QQQ 0.78 > TQQQ 0.65 > ATR TQQQ 0.35)가 유의미.
+
+#### PBO/DSR 결과의 한계와 올바른 해석
+
+**PBO가 측정하지 못하는 것**: PBO는 "1,728개 중 IS 1등을 맹목적으로 고르는 사용자"를 가정. 범용 파라미터(MA 200, ATR 14 등 투자자들이 보편적으로 사용하는 값)를 선호하는 의사결정 과정, 즉 도메인 지식 기반의 사전 제약(prior regularization)을 반영하지 못함. PBO에게는 "MA 200을 도메인 지식으로 선택한 사람"과 "MA 197이 IS에서 0.01% 높아서 고른 사람"이 동일한 1회 시행.
+
+**사후 파라미터 축소의 함정**: ATR(14, 3.0)이 33/33 수렴한 결과를 보고 "그럼 ATR을 고정하면 탐색 공간이 432개로 줄어서 PBO가 개선되지 않나?"라는 접근은 사후적 결정(post-hoc decision). 이미 데이터에서 답을 확인한 후 고정하는 것이므로, PBO 숫자는 좋아지지만 진짜 과최적화가 줄어드는 것이 아니라 검정 기준을 느슨하게 만드는 것에 불과. 결과를 알고 파라미터를 줄이는 것도 일종의 과최적화.
+
+**실제로 과최적화를 방지하는 것들**:
+
+| 이미 적용 중인 기법 | 학술적 명칭 | 효과 |
+|---------------------|------------|------|
+| MA 200, ATR 14 등 범용 값 선호 | Prior regularization | 데이터가 아닌 도메인 지식으로 파라미터 제약 |
+| WFO (미래 데이터 미참조) | Out-of-sample validation | 가장 기본적인 과최적화 방지 |
+| sell=0.05 수렴 확인 | Parameter stability | 여러 구간에서 같은 값이면 노이즈가 아닌 신호 |
+| 레짐 전환이 거시경제와 일치 | Economic rationale | 숫자가 아닌 논리로 설명 가능 |
+
+**종합 판단**: CSCV/PBO/DSR은 이 목록에 하나 더 추가된 "건강검진 항목"이지, 위의 모든 노력을 무효화하는 최종 심판이 아님. 1,728개 탐색 공간에 대한 통계적 과최적화 경고(PBO 0.65)가 존재하나, WFO OOS 실증(MDD 9pp 개선), ATR 파라미터 전 구간 수렴(33/33), 범용 파라미터 사용 등 복수의 실증적 근거가 보완. PBO/DSR은 "이 전략을 쓰지 마라"가 아니라 **"이 전략을 맹신하지 마라"**로 읽는 것이 올바름. 실전 운용 시 주의해야 할 리스크 지표로 활용.
 
 ### 3.4 MDD 원인 분석
 
@@ -158,6 +197,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | Phase 1: WFE/PC 지표 | wfe_cagr, gap_calmar_median, wfe_calmar_robust, profit_concentration 추가 | `PLAN_wfo_wfe_pc_metrics.md`         | passed=347 |
 | Phase 2: min_trades  | select_best_calmar_params()에 min_trades=3 필터링                         | `PLAN_wfo_min_trades.md`             | passed=350 |
 | Phase 3: ATR 스탑    | buffer_zone_atr_tqqq 전략 신규 추가 + WFO 파이프라인 통합                 | `PLAN_atr_trailing_stop_strategy.md` | passed=358 |
+| CSCV·PBO·DSR         | CSCV 분할 + PBO + DSR 과최적화 통계 검증 모듈 + CLI 스크립트              | `PLAN_cpcv_pbo_dsr_analysis.md`      | passed=397 |
 
 계획서 위치: [docs/plans/](docs/plans/) 또는 [docs/archive/](docs/archive/)
 
@@ -167,33 +207,21 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 
 2026-02-22 ~ 2026-02-23 Claude Opus 4.6 / GPT-5.2 간 교대 토론으로 도출한 합의사항입니다.
 
-### 합의 완료 (구현됨)
-
-| #   | 항목                                                             | 상태 |
-| --- | ---------------------------------------------------------------- | ---- |
-| 1   | wfe_calmar 폭주 → wfe_cagr를 1급 지표로 추가                     | Done |
-| 2   | gap_calmar_median(차이 기반) + wfe_calmar_robust(필터 후 median) | Done |
-| 3   | Profit Concentration V2 (window_profit = end - prev_end)         | Done |
-| 4   | min_trades=3 제약                                                | Done |
-| 5   | ATR 스탑: Sell Fixed(0.05) + ATR, OR 조건, 다음 시가 체결        | Done |
-| 6   | ATR 그리드: {14, 22} x {2.5, 3.0}, IS에서 최적화                 | Done |
-| 7   | BufferStrategyParams 확장: atr_period=0이면 비활성 (하위 호환)   | Done |
-
-### 종결된 미합의
-
-| #   | 주제                                       | 결론                                                     |
-| --- | ------------------------------------------ | -------------------------------------------------------- |
-| A   | ATR 시그널 소스 (QQQ vs TQQQ)              | **QQQ 고정** (사용자 결정)                               |
-| B   | ATR period {14,22} vs {14,20}              | **{14,22}** 채택, IS 결과 전부 14 선택                   |
-| C   | ATR 기준가 (highest_close vs highest_high) | **highest_close** 채택 (전략의 모든 시그널이 close 기준) |
-
-### 보류
-
-| #   | 주제                          | 상태                          |
-| --- | ----------------------------- | ----------------------------- |
-| D   | PBO 분석 (TQQQ)               | 보류 (양측 우선순위 5로 하향) |
-| E   | TQQQ IS 기간 확장 (72→96개월) | 보류 (min_trades로 우선 해결) |
-| F   | DSR (Deflated Sharpe Ratio)   | 미논의                        |
+| #   | 항목                                                             | 상태                                                     |
+| --- | ---------------------------------------------------------------- | -------------------------------------------------------- |
+| 1   | wfe_calmar 폭주 → wfe_cagr를 1급 지표로 추가                     | Done                                                     |
+| 2   | gap_calmar_median(차이 기반) + wfe_calmar_robust(필터 후 median) | Done                                                     |
+| 3   | Profit Concentration V2 (window_profit = end - prev_end)         | Done                                                     |
+| 4   | min_trades=3 제약                                                | Done                                                     |
+| 5   | ATR 스탑: Sell Fixed(0.05) + ATR, OR 조건, 다음 시가 체결        | Done                                                     |
+| 6   | ATR 그리드: {14, 22} x {2.5, 3.0}, IS에서 최적화                 | Done                                                     |
+| 7   | BufferStrategyParams 확장: atr_period=0이면 비활성 (하위 호환)   | Done                                                     |
+| A   | ATR 시그널 소스 (QQQ vs TQQQ)                                    | Done — **QQQ 고정** (사용자 결정)                        |
+| B   | ATR period {14,22} vs {14,20}                                    | Done — **{14,22}** 채택, IS 결과 전부 14 선택            |
+| C   | ATR 기준가 (highest_close vs highest_high)                       | Done — **highest_close** 채택 (close 기준 통일)          |
+| D   | PBO 분석 (TQQQ)                                                  | Done (CSCV·PBO·DSR 모듈로 통합 구현)                     |
+| E   | TQQQ IS 기간 확장 (72→96개월)                                    | 보류 (min_trades로 우선 해결)                             |
+| F   | DSR (Deflated Sharpe Ratio)                                      | Done (D와 함께 구현)                                     |
 
 **CPCV (Combinatorial Purged Cross-Validation)**: López de Prado (2018). 데이터를 N개 블록으로 나눈 뒤, 시간 순서를 유지하면서 가능한 모든 훈련/시험 조합을 생성하는 방법론. 인접 블록 사이의 데이터 오염을 정화(purge)하여 통계적 독립성을 확보. 기존 WFO가 하나의 시간순 분할만 사용하는 반면, CPCV는 수백 개 분할의 성과 분포를 생성하여 PBO와 DSR을 정밀하게 계산하는 데이터 기반을 제공. 2024년 연구(Knowledge-Based Systems)에서 WFO보다 과적합 방지에 우수하다고 실증됨.
 
@@ -210,7 +238,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | 순위 | 실험                                                   | 목적                                              | 성공 기준                             | 상태 |
 | ---- | ------------------------------------------------------ | ------------------------------------------------- | ------------------------------------- | ---- |
 | ~~1~~| ~~ATR multiplier 2.5 단일 고정 재실험~~               | ~~MDD -50% 달성 도전~~                            | ~~Stitched MDD ≤ -50% AND Calmar ≥ 0.35~~ | 실패·기각 |
-| 2    | CPCV·PBO·DSR 분석                                      | 탐색공간 1,728개 다중검정 + CPCV 교차 검증        | PBO < 0.5, DSR 유의                   | 대기 |
+| ~~2~~| ~~CPCV·PBO·DSR 분석~~                                 | ~~탐색공간 1,728개 다중검정 + CPCV 교차 검증~~    | ~~PBO < 0.5, DSR 유의~~               | 완료 (PBO 0.65, DSR 0.35 — §3.3 참조) |
 | 3    | ATR(14,3.0) vs (22,3.0) OOS 비교 (IS 최적화 없이 고정) | 파라미터 일반화 가능성 검증                       | OOS 성과 비교                         | 대기 |
 | 4    | Expanding vs Rolling Window WFO 비교                   | "지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화 | Stitched MDD/CAGR/Calmar 비교         | 대기 |
 
@@ -223,6 +251,9 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 - DeMiguel, Garlappi & Uppal (2009). "Optimal Versus Naive Diversification." Review of Financial Studies
 - Kelly, Malamud, Zhou (2024). "The Virtue of Complexity in Return Prediction." Journal of Finance
 - Hsu & Kuan (2005). "Re-Examining the Profitability of Technical Analysis." SSRN
+- Bailey, Borwein, López de Prado, Zhu (2017). "The Probability of Backtest Overfitting." Journal of Computational Finance
+- Bailey & López de Prado (2014). "The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting, and Non-Normality." Journal of Portfolio Management
+- López de Prado (2018). "Advances in Financial Machine Learning." Wiley, Chapter 11-12
 - Pardo, R.E. (2008). "The Evaluation and Optimization of Trading Strategies." Wiley
 
 ### 기술 참고
@@ -306,6 +337,17 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 - Fully Fixed 실험 삭제 (CAGR 8.4%, 실용 가치 없음)
 - CPCV 개념 설명 + PBO/DSR 관계 추가 (§5)
 - 실험 순위 재조정: CPCV·PBO·DSR을 2순위로 승격
+
+### 2026-02-28 CSCV·PBO·DSR 과최적화 통계 검증 완료
+
+- CSCV·PBO·DSR 모듈 구현 완료 (계획서: `PLAN_cpcv_pbo_dsr_analysis.md`, passed=397)
+- 3개 전략 분석 실행: buffer_zone_qqq, buffer_zone_tqqq, buffer_zone_atr_tqqq
+- PBO 결과: QQQ 0.40 (통과), TQQQ 0.45 (통과), ATR TQQQ **0.65** (미통과)
+- DSR 결과: QQQ 0.78, TQQQ 0.65, ATR TQQQ 0.35 (3개 전략 모두 0.95 미달)
+- ATR TQQQ의 높은 PBO 원인: 탐색 공간 4배 확대 (432 → 1,728)에 따른 다중검정 부담
+- 사후 파라미터 축소 함정 확인: "ATR 수렴 결과를 보고 고정하면 PBO가 개선되지 않나?" → 데이터에서 답을 확인한 후의 사후적 결정이므로, 검정 기준을 느슨하게 만드는 것일 뿐
+- 종합 판단: 통계적 경고 존재하나 WFO OOS 실증·ATR 수렴·범용 파라미터 사용이 보완 → "맹신 금지" 수준의 리스크 지표로 활용
+- §1 TL;DR, §3.3, §4, §5, §6, §7 업데이트
 
 ---
 

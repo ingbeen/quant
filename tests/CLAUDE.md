@@ -23,6 +23,7 @@ tests/
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
+├── test_cpcv.py # CSCV/PBO/DSR 과최적화 검증 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
 ├── test_formatting.py # 터미널 출력 포맷팅 테스트
 ├── test_integration.py # 통합 테스트 (백테스트/TQQQ 파이프라인)
