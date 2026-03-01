@@ -2419,5 +2419,68 @@
       "elapsed_seconds": 904.4,
       "timestamp": "2026-02-27T23:33:59+09:00"
     }
+  ],
+  "wfo_comparison": [
+    {
+      "experiment": "Expanding vs Rolling WFO 비교",
+      "rolling_is_months": 120,
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "atr_period_list": [
+          14,
+          22
+        ],
+        "atr_multiplier_list": [
+          2.5,
+          3.0
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-02-17",
+        "total_days": 6777
+      },
+      "results_summary": {
+        "n_windows": 11,
+        "n_identical": 3,
+        "n_diverged": 8,
+        "exp_stitched_cagr": 16.09,
+        "roll_stitched_cagr": 11.04,
+        "exp_wins_cagr": 4,
+        "roll_wins_cagr": 3
+      },
+      "elapsed_seconds": 2920.4,
+      "timestamp": "2026-03-02T00:02:41+09:00"
+    }
   ]
 }

@@ -90,6 +90,7 @@ quant/
 │   │   ├── analysis.py      # 이동평균 계산 및 성과 지표
 │   │   ├── cpcv.py          # CSCV/PBO/DSR 과최적화 통계 검증
 │   │   ├── atr_comparison.py # ATR 고정 WFO OOS 비교 실험
+│   │   ├── wfo_comparison.py # Expanding vs Rolling WFO 비교 실험
 │   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
 │   │       ├── buffer_zone_helpers.py      # 버퍼존 계열 공통 로직
 │   │       ├── buffer_zone_tqqq.py         # 버퍼존 전략 (QQQ 시그널 + TQQQ 매매)
@@ -126,6 +127,17 @@ quant/
         └── tqqq/              # TQQQ 시뮬레이션 결과
             └── spread_lab/  # 스프레드 모델 검증 결과
 ```
+
+---
+
+## 스크립트 실행 규칙
+
+> CRITICAL: `scripts/` 폴더에 위치한 모든 스크립트는 **사용자만이 직접 실행**합니다.
+> AI 모델은 scripts 폴더의 스크립트를 직접 실행하지 않습니다.
+
+- AI 모델의 역할: 스크립트 코드 작성/수정, 실행 방법 안내
+- 사용자의 역할: 스크립트 직접 실행, 결과 확인 및 피드백
+- 예외: `validate_project.py`는 루트에 위치하며 AI 모델이 실행 가능
 
 ---
 
@@ -428,6 +440,8 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 - `cscv_logit_lambdas.csv`: CSCV logit lambda 분포 (PBO 진단용)
 - `atr_comparison_windows.csv`: ATR 고정 OOS 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
 - `atr_comparison_summary.json`: ATR 고정 OOS 비교 요약 (buffer_zone_atr_tqqq 전용)
+- `wfo_comparison_windows.csv`: Expanding vs Rolling WFO 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
+- `wfo_comparison_summary.json`: Expanding vs Rolling WFO 비교 요약 (buffer_zone_atr_tqqq 전용)
 
 분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
 

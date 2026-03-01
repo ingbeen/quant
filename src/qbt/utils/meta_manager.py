@@ -38,6 +38,7 @@ VALID_CSV_TYPES = {
     "grid_results",
     "backtest_walkforward",
     "atr_comparison",
+    "wfo_comparison",
     "cscv_analysis",
     "tqqq_daily_comparison",
     "tqqq_rate_spread_lab",

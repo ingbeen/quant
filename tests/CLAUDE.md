@@ -22,6 +22,7 @@ tests/
 ├── test_buffer_zone_qqq.py # 버퍼존 QQQ 전략 테스트
 ├── test_buffer_zone_tqqq.py # 버퍼존 TQQQ 전략 테스트
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
+├── test_wfo_comparison.py      # Expanding vs Rolling WFO 비교 실험 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_cpcv.py # CSCV/PBO/DSR 과최적화 검증 테스트

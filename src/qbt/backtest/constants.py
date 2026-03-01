@@ -87,6 +87,13 @@ CSCV_LOGIT_LAMBDAS_FILENAME: Final = "cscv_logit_lambdas.csv"
 ATR_COMPARISON_WINDOWS_FILENAME: Final = "atr_comparison_windows.csv"
 ATR_COMPARISON_SUMMARY_FILENAME: Final = "atr_comparison_summary.json"
 
+# --- WFO 비교 실험 설정 ---
+DEFAULT_WFO_ROLLING_IS_MONTHS: Final = 120  # Rolling IS 최대 길이 (10년)
+
+# --- WFO 비교 실험 결과 파일명 ---
+WFO_COMPARISON_WINDOWS_FILENAME: Final = "wfo_comparison_windows.csv"
+WFO_COMPARISON_SUMMARY_FILENAME: Final = "wfo_comparison_summary.json"
+
 # ============================================================
 # 결과 데이터 컬럼 및 표시
 # ============================================================

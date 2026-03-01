@@ -1,7 +1,7 @@
 """백테스트 워크포워드 검증(WFO) 모듈
 
-Expanding Anchored Walk-Forward Optimization을 제공한다.
-- 윈도우 생성: 월 기반 Expanding Anchored 윈도우
+Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
+- 윈도우 생성: 월 기반 Expanding Anchored 또는 Rolling 윈도우
 - IS 최적화: 그리드 서치 + Calmar(CAGR/|MDD|) 목적함수
 - OOS 평가: 독립 구간 백테스트
 - Stitched Equity: params_schedule 기반 연속 자본곡선
@@ -42,21 +42,49 @@ from qbt.utils import get_logger
 logger = get_logger(__name__)
 
 
+def _first_day_months_before(ref_end: date, months: int) -> date:
+    """ref_end의 월에서 months-1개월 전의 첫째 날을 반환한다.
+
+    Rolling Window WFO에서 IS 시작일을 계산하는 데 사용한다.
+    예: ref_end=2012-02-29, months=120 → 2002-03-01
+    (IS 종료월은 2012-02이므로, 120개월 전 시작월은 2002-03이 된다)
+
+    Args:
+        ref_end: IS 종료일 (기준일)
+        months: IS 최대 길이 (개월)
+
+    Returns:
+        IS 시작일 (해당 월의 첫째 날)
+    """
+    # IS 종료월 기준으로 months-1개월 전의 월 1일을 계산
+    # ref_end가 속한 월의 1일부터 months-1개월을 거슬러 올라감
+    total_months = ref_end.year * 12 + ref_end.month
+    target_month = total_months - (months - 1)
+    year = (target_month - 1) // 12
+    month = (target_month - 1) % 12 + 1
+    return date(year, month, 1)
+
+
 def generate_wfo_windows(
     data_start: date,
     data_end: date,
     initial_is_months: int = DEFAULT_WFO_INITIAL_IS_MONTHS,
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
+    rolling_is_months: int | None = None,
 ) -> list[tuple[date, date, date, date]]:
-    """월 기반 Expanding Anchored 윈도우를 생성한다.
+    """월 기반 WFO 윈도우를 생성한다.
 
-    IS는 항상 data_start에서 시작하며, OOS 기간만큼 확장하면서 윈도우를 생성한다.
+    Expanding Anchored 또는 Rolling Window 모드를 지원한다.
+    - Expanding (기본): IS는 항상 data_start에서 시작, OOS 기간만큼 확장
+    - Rolling: IS 길이가 rolling_is_months를 초과하면 시작점이 전진
 
     Args:
         data_start: 데이터 시작일
         data_end: 데이터 종료일
         initial_is_months: 초기 IS 기간 (개월, 기본값: 72)
         oos_months: OOS 기간 (개월, 기본값: 24)
+        rolling_is_months: Rolling IS 최대 길이 (개월).
+            None이면 Expanding 모드 (기존 동작). int이면 Rolling 모드.
 
     Returns:
         (is_start, is_end, oos_start, oos_end) 튜플 리스트
@@ -99,7 +127,14 @@ def generate_wfo_windows(
         if oos_end > data_end:
             oos_end = data_end
 
-        windows.append((is_start, is_end, oos_start, oos_end))
+        # Rolling 모드: IS 시작점 조정
+        actual_is_start = is_start
+        if rolling_is_months is not None:
+            rolling_start = _first_day_months_before(is_end, rolling_is_months)
+            # data_start보다 이전이면 data_start로 클램핑
+            actual_is_start = max(data_start, rolling_start)
+
+        windows.append((actual_is_start, is_end, oos_start, oos_end))
         window_idx += 1
 
         # 다음 윈도우: IS 확장 (OOS 기간만큼)
@@ -211,6 +246,7 @@ def run_walkforward(
     min_trades: int = DEFAULT_WFO_MIN_TRADES,
     atr_period_list: list[int] | None = None,
     atr_multiplier_list: list[float] | None = None,
+    rolling_is_months: int | None = None,
 ) -> list[WfoWindowResultDict]:
     """핵심 WFO 루프를 실행한다.
 
@@ -230,6 +266,8 @@ def run_walkforward(
         min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
         atr_period_list: ATR 기간 리스트 (None이면 ATR 미사용)
         atr_multiplier_list: ATR 배수 리스트 (None이면 ATR 미사용)
+        rolling_is_months: Rolling IS 최대 길이 (개월).
+            None이면 Expanding 모드 (기존 동작). int이면 Rolling 모드.
 
     Returns:
         윈도우별 결과 리스트
@@ -249,7 +287,7 @@ def run_walkforward(
     # 1. 윈도우 생성
     data_start = signal_df[COL_DATE].min()
     data_end = signal_df[COL_DATE].max()
-    windows = generate_wfo_windows(data_start, data_end, initial_is_months, oos_months)
+    windows = generate_wfo_windows(data_start, data_end, initial_is_months, oos_months, rolling_is_months)
 
     logger.debug(f"WFO 윈도우 {len(windows)}개 생성 완료")
 

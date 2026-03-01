@@ -16,7 +16,7 @@
 - **ATR mult 2.5 실험**: 실패. Dynamic Stitched MDD -66.66% (기존 -52.95% → 13.71pp **악화**), Calmar 0.12. mult 2.5는 whipsaw에 취약하여 MDD와 CAGR 모두 악화 → 기각, `[2.5, 3.0]` 그리드 유지
 - **CSCV·PBO·DSR 결과**: ATR TQQQ PBO 0.65 (경고), DSR 0.35 (미유의). QQQ PBO 0.40 (통과), TQQQ PBO 0.45 (통과). 3개 전략 모두 DSR < 0.95. 통계적 과최적화 경고가 존재하나, WFO OOS 실증·ATR 수렴·범용 파라미터 사용 등 복수의 실증적 근거가 보완 → "맹신하지 말 것" 수준의 리스크 지표로 활용
 - **ATR 고정 OOS 비교**: ATR(14,3.0) vs (22,3.0) IS 최적화 없이 고정 비교. Stitched CAGR 16.09% vs 12.20% (+3.89pp), MDD -52.95% vs -59.06% (+6.11pp), Calmar 0.3038 vs 0.2065 (+47%). 윈도우 승수 5:5:1(무승부)이나 A의 승리 폭이 압도적(W2 +43pp, W4 +36pp). **ATR(14,3.0)의 구조적 우위 확인** → PBO 0.65 경고에 대한 가장 깨끗한 독립적 반론
-- **다음 실험**: Expanding vs Rolling WFO 비교
+- **Expanding vs Rolling WFO 비교**: IS=120개월 Rolling 비교 결과, Expanding Stitched CAGR 16.09% vs Rolling 11.04% (+5.05pp), MDD 거의 동일(-52.95% vs -52.98%), Calmar 0.3038 vs 0.2084. 윈도우 승수 4:3(Expanding 우위). Rolling은 Window 3에서 +32.94pp 우위이나 최근 Window 9~10에서 Expanding이 +36.72pp 합산 우위. **Expanding Anchored 유지 결정**
 
 ---
 
@@ -213,7 +213,38 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 
 **Rolling의 핵심 위험: 위기 데이터 망각**. IS가 2014~2024면 2008 금융위기, 2000 닷컴버블 경험이 완전히 사라짐. 이 상태에서 유사한 위기가 오면 낙관적 파라미터로 대응하여 MDD가 폭등할 수 있음. TQQQ는 3x 레버리지로 MDD가 핵심 리스크이므로, 모든 위기 데이터를 항상 반영하는 Expanding이 더 적합함.
 
-**현재 결론**: Expanding Anchored 유지. 단, Expanding vs Rolling 비교 실험을 §6 다음 실험 계획에 포함하여 정량적으로 검증 예정.
+#### 정량 비교 결과 (IS=120개월 Rolling)
+
+결과 파일: `storage/results/backtest/buffer_zone_atr_tqqq/wfo_comparison_summary.json`, `wfo_comparison_windows.csv`
+
+**Stitched Equity 성과**:
+
+| 지표 | Expanding | Rolling (IS=120개월) | 차이 |
+|------|:---------:|:-------------------:|:----:|
+| CAGR | **16.09%** | 11.04% | +5.05pp |
+| MDD | -52.95% | -52.98% | 거의 동일 |
+| Calmar | **0.3038** | 0.2084 | +0.0954 |
+| 총 수익률 | **2,181.64%** | 798.80% | 2.7배 |
+| OOS CAGR 평균 | **16.69%** | 16.21% | +0.48pp |
+| OOS Calmar 평균 | **0.7708** | 0.7041 | +0.0667 |
+
+**윈도우 구성**: 전체 11개 윈도우 중 IS 동일 3개(Window 0~2), IS 분기 8개(Window 3~10).
+
+**윈도우 승수 (OOS CAGR)**: Expanding 4승, Rolling 3승, 무승부 4. 승수는 비슷하나 **승리 폭의 비대칭**이 핵심:
+
+| 구간 | 윈도우 | Expanding | Rolling | 차이 | 승자 |
+|------|--------|-----------|---------|------|------|
+| 닷컴 후 | W3 (2011~2013) | -20.88% | **+12.07%** | **-32.94pp** | Rolling |
+| 최근 | W9 (2023~2025) | **44.49%** | 24.54% | **+19.95pp** | Expanding |
+| 최근 | W10 (2025~2026) | **30.14%** | 13.37% | **+16.77pp** | Expanding |
+
+**Window 3 해석 (Rolling 압승)**: Expanding IS(1999~2011, 144개월)는 닷컴버블 상승기(1999~2001) 포함. 이 초기 데이터가 위기 과적합 파라미터를 유도하여 OOS -20.88%. Rolling IS(2001~2011, 120개월)는 초기 2년을 제외하여 +12.07% 달성. 다만 이 윈도우는 예외적이며, 같은 IS 구성 차이가 Window 4에서는 동일 결과(51.13%)를 생성.
+
+**Window 9~10 해석 (Expanding 압승)**: Expanding은 25년치 전체 시장 사이클을 학습. Rolling은 최근 10년(2013~이후 강세장)에 편향된 파라미터 선택 가능성. 최근 구간에서 장기 기억의 가치가 확인됨.
+
+**MDD 동일성**: Rolling이 MDD를 개선하지 못함(-52.95% vs -52.98%). IS 축소의 실익이 없는 핵심 근거.
+
+**최종 결론**: **Expanding Anchored 유지**. 윈도우 승수는 근소하나 Stitched CAGR 5.05pp 차이, 총 수익률 2.7배 차이가 결정적. Window 3 반례(Rolling +32.94pp)가 존재하나 최근 Window 9~10에서 Expanding 합산 +36.72pp로 상쇄 이상. Rolling은 MDD도 개선하지 못하므로, "지연된 전환"이라는 이론적 단점보다 "위기 데이터 보존"의 실증적 이점이 우위.
 
 ---
 
@@ -228,6 +259,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | Phase 3: ATR 스탑    | buffer_zone_atr_tqqq 전략 신규 추가 + WFO 파이프라인 통합                 | `PLAN_atr_trailing_stop_strategy.md` | passed=358 |
 | CSCV·PBO·DSR         | CSCV 분할 + PBO + DSR 과최적화 통계 검증 모듈 + CLI 스크립트              | `PLAN_cpcv_pbo_dsr_analysis.md`      | passed=397 |
 | ATR 고정 OOS 비교    | ATR(14,3.0) vs (22,3.0) 고정 OOS 비교 실험 모듈 + CLI 스크립트           | `PLAN_atr_oos_comparison.md`         | passed=404 |
+| Expanding vs Rolling | Expanding vs Rolling WFO 비교 실험 모듈 + CLI 스크립트                   | `PLAN_expanding_vs_rolling_wfo.md`   | passed=419 |
 
 계획서 위치: [docs/plans/](docs/plans/) 또는 [docs/archive/](docs/archive/)
 
@@ -270,7 +302,7 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 | ~~1~~| ~~ATR multiplier 2.5 단일 고정 재실험~~               | ~~MDD -50% 달성 도전~~                            | ~~Stitched MDD ≤ -50% AND Calmar ≥ 0.35~~ | 실패·기각 |
 | ~~2~~| ~~CPCV·PBO·DSR 분석~~                                 | ~~탐색공간 1,728개 다중검정 + CPCV 교차 검증~~    | ~~PBO < 0.5, DSR 유의~~               | 완료 (PBO 0.65, DSR 0.35 — §3.3 참조) |
 | ~~3~~| ~~ATR(14,3.0) vs (22,3.0) OOS 비교 (IS 최적화 없이 고정)~~ | ~~파라미터 일반화 가능성 검증~~                 | ~~OOS 성과 비교~~                     | 완료 (ATR(14,3.0) 구조적 우위 확인 — §3.3 참조) |
-| 4    | Expanding vs Rolling Window WFO 비교                   | "지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화 | Stitched MDD/CAGR/Calmar 비교         | 대기 |
+| ~~4~~| ~~Expanding vs Rolling Window WFO 비교~~               | ~~"지연된 전환" 대안 검증, 위기 데이터 망각 위험 정량화~~ | ~~Stitched MDD/CAGR/Calmar 비교~~     | 완료 (Expanding 유지 — §3.7 참조) |
 
 ---
 
@@ -388,6 +420,17 @@ Expanding Anchored WFO의 "지연된 전환"이 단점이라면, IS 시작점을
 - ATR(14,3.0) 고정 결과가 기존 WFO Dynamic 결과와 완전 일치 → 33/33 수렴이 과최적화가 아님을 실증
 - PBO 0.65 경고에 대한 가장 깨끗한 독립적 반론 근거 확보
 - §1 TL;DR, §3.3, §4, §6 업데이트
+
+### 2026-03-02 Expanding vs Rolling WFO 비교 실험 완료
+
+- Expanding vs Rolling Window WFO 비교 모듈 구현 완료 (계획서: `PLAN_expanding_vs_rolling_wfo.md`, passed=419)
+- Rolling IS=120개월(10년) 설정으로 buffer_zone_atr_tqqq Dynamic 모드 비교
+- Stitched 결과: Expanding CAGR 16.09%, MDD -52.95%, Calmar 0.3038 / Rolling CAGR 11.04%, MDD -52.98%, Calmar 0.2084
+- Expanding이 모든 Stitched 지표에서 우위: CAGR +5.05pp, Calmar +46%, 총 수익률 2.7배
+- 윈도우 승수 4:3(Expanding 우위), 승리 폭의 비대칭이 핵심: Window 3에서 Rolling +32.94pp이나 Window 9~10에서 Expanding +36.72pp 합산
+- MDD 거의 동일(-52.95% vs -52.98%) → Rolling이 IS 축소로 MDD를 개선하지 못함
+- **Expanding Anchored 유지 결정**: 위기 데이터 보존의 실증적 이점이 "지연된 전환" 단점을 상회
+- §1 TL;DR, §3.7, §6 업데이트
 
 ---
 

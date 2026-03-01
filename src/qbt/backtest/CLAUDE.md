@@ -95,13 +95,30 @@ TypedDict:
 - `build_window_comparison()`: 두 ATR 설정의 윈도우별 OOS 성과 비교 DataFrame 생성
 - `build_comparison_summary()`: 두 ATR 설정의 요약 통계 생성 (Stitched 지표, 우위 카운트, 차이 통계)
 
-### 6. walkforward.py
+### 6. wfo_comparison.py
 
-워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
+Expanding vs Rolling WFO 비교 실험 모듈을 제공합니다.
+동일 OOS 기간에서 Expanding Anchored WFO와 Rolling Window WFO의 성과 차이를 측정한다.
+
+TypedDict:
+
+- `WfoComparisonResultDict`: 단일 WFO 모드 실행 결과 (window_type, rolling_is_months, window_results, mode_summary)
+- `WfoComparisonWindowRow`: 윈도우별 비교 행 (Expanding/Rolling OOS 지표 + 차이 + is_identical)
 
 주요 함수:
 
-- `generate_wfo_windows`: 월 기반 Expanding Anchored 윈도우 생성
+- `run_single_wfo_mode()`: 단일 WFO 모드(Expanding 또는 Rolling) 실행 + Stitched Equity + 모드 요약
+- `build_window_comparison()`: 윈도우별 Expanding vs Rolling 비교 DataFrame 생성
+- `build_comparison_summary()`: 비교 요약 통계 생성 (Stitched 지표, 우위 카운트, 차이 통계, IS 분기 통계)
+
+### 7. walkforward.py
+
+워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
+Expanding Anchored 및 Rolling Window 모드를 지원한다.
+
+주요 함수:
+
+- `generate_wfo_windows`: 월 기반 Expanding Anchored 또는 Rolling 윈도우 생성 (`rolling_is_months` 파라미터로 모드 전환)
 - `select_best_calmar_params`: Calmar(CAGR/|MDD|) 기준 최적 파라미터 선택 (MDD=0 + CAGR>0 최우선 처리, min_trades 필터링 적용)
 - `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가, wfe_calmar + wfe_cagr 계산)
 - `build_params_schedule`: WFO 결과에서 params_schedule 구성
