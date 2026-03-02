@@ -187,15 +187,15 @@ _GRID_CSV_REQUIRED_COLUMNS = {
 
 def load_best_grid_params(path: Path) -> BestGridParams | None:
     """
-    grid_results.csv에서 CAGR 1위 파라미터를 로드한다.
+    grid_results.csv에서 Calmar 1위 파라미터를 로드한다.
 
-    CSV는 CAGR 내림차순 정렬되어 있으므로 첫 행이 최적 파라미터이다.
+    CSV는 Calmar 내림차순 정렬되어 있으므로 첫 행이 최적 파라미터이다.
 
     Args:
         path: grid_results.csv 파일 경로
 
     Returns:
-        CAGR 1위 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
+        Calmar 1위 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months)
         파일이 없거나 데이터가 비어있으면 None 반환
 
     Raises:

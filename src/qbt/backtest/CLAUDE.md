@@ -49,7 +49,7 @@
 
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
-- `load_best_grid_params`: grid_results.csv에서 CAGR 1위 파라미터 로딩 (파일 없으면 None 반환)
+- `load_best_grid_params`: grid_results.csv에서 Calmar 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 
 ### 4. cpcv.py
@@ -383,7 +383,7 @@ adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INC
 
 주요 컬럼: 이평기간, 매수버퍼존, 매도버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
 
-정렬: CAGR 내림차순
+정렬: Calmar 내림차순
 
 ---
 

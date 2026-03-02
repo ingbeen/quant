@@ -1441,7 +1441,7 @@ class TestRunGridSearch:
         Then:
           - 모든 조합 실행 완료
           - 결과 DataFrame 반환
-          - CAGR 기준 내림차순 정렬
+          - Calmar 기준 내림차순 정렬
         """
         from qbt.backtest.analysis import add_single_moving_average
         from qbt.backtest.strategies.buffer_zone_helpers import run_grid_search
@@ -1479,6 +1479,7 @@ class TestRunGridSearch:
         from qbt.backtest.constants import (
             COL_BUY_BUFFER_ZONE_PCT,
             COL_CAGR,
+            COL_CALMAR,
             COL_HOLD_DAYS,
             COL_MA_WINDOW,
             COL_RECENT_MONTHS,
@@ -1494,13 +1495,14 @@ class TestRunGridSearch:
             COL_RECENT_MONTHS,
             COL_TOTAL_RETURN_PCT,
             COL_CAGR,
+            COL_CALMAR,
         ]
         for col in required_cols:
             assert col in results_df.columns, f"결과에 {col} 컬럼이 있어야 함"
 
-        # 정렬 검증: total_return_pct 기준 내림차순
-        total_returns = results_df[COL_TOTAL_RETURN_PCT].tolist()
-        assert total_returns == sorted(total_returns, reverse=True), "결과가 수익률 내림차순으로 정렬되어야 함"
+        # 정렬 검증: Calmar 기준 내림차순
+        calmar_values = results_df[COL_CALMAR].tolist()
+        assert calmar_values == sorted(calmar_values, reverse=True), "결과가 Calmar 내림차순으로 정렬되어야 함"
 
     def test_grid_search_parameter_combinations(self):
         """

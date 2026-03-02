@@ -26,6 +26,7 @@ from qbt.backtest.constants import (
     COL_ATR_PERIOD,
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
+    COL_CALMAR,
     COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
@@ -56,6 +57,7 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    EPSILON,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
@@ -137,6 +139,7 @@ class GridSearchResult(TypedDict, total=False):
     total_return_pct: float
     cagr: float
     mdd: float
+    calmar: float
     total_trades: int
     win_rate: float
     final_capital: float
@@ -762,6 +765,14 @@ def _run_buffer_strategy_for_grid(
     trade_df = WORKER_CACHE["trade_df"]
     _, _, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
+    # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
+    cagr = summary["cagr"]
+    abs_mdd = abs(summary["mdd"])
+    if abs_mdd < EPSILON:
+        calmar = 1e10 + cagr if cagr > 0 else 0.0
+    else:
+        calmar = cagr / abs_mdd
+
     result: GridSearchResult = {
         COL_MA_WINDOW: params.ma_window,
         COL_BUY_BUFFER_ZONE_PCT: params.buy_buffer_zone_pct,
@@ -771,6 +782,7 @@ def _run_buffer_strategy_for_grid(
         COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
         COL_CAGR: summary["cagr"],
         COL_MDD: summary["mdd"],
+        COL_CALMAR: calmar,
         COL_TOTAL_TRADES: summary["total_trades"],
         COL_WIN_RATE: summary["win_rate"],
         COL_FINAL_CAPITAL: summary["final_capital"],
@@ -882,8 +894,8 @@ def run_grid_search(
     # 4. 딕셔너리 리스트를 DataFrame으로 변환
     results_df = pd.DataFrame(results)
 
-    # 5. 정렬
-    results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
+    # 5. Calmar 기준 내림차순 정렬
+    results_df = results_df.sort_values(by=COL_CALMAR, ascending=False).reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 

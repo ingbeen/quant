@@ -20,6 +20,7 @@ from qbt.backtest import run_grid_search
 from qbt.backtest.constants import (
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
+    COL_CALMAR,
     COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
@@ -37,6 +38,7 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
     DISPLAY_BUY_BUFFER_ZONE,
     DISPLAY_CAGR,
+    DISPLAY_CALMAR,
     DISPLAY_FINAL_CAPITAL,
     DISPLAY_HOLD_DAYS,
     DISPLAY_MA_WINDOW,
@@ -187,10 +189,7 @@ def main() -> int:
             initial_capital=DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 3-3. CAGR 기준 정렬
-        results_df = results_df.sort_values(by=COL_CAGR, ascending=False).reset_index(drop=True)
-
-        # 3-4. 상위 결과 출력
+        # 3-3. 상위 결과 출력
         columns = [
             ("순위", 6, Align.RIGHT),
             (DISPLAY_MA_WINDOW, 10, Align.RIGHT),
@@ -201,6 +200,7 @@ def main() -> int:
             (DISPLAY_TOTAL_RETURN, 12, Align.RIGHT),
             (DISPLAY_CAGR, 10, Align.RIGHT),
             (DISPLAY_MDD, 10, Align.RIGHT),
+            (DISPLAY_CALMAR, 10, Align.RIGHT),
             (DISPLAY_TOTAL_TRADES, 8, Align.RIGHT),
             (DISPLAY_WIN_RATE, 8, Align.RIGHT),
         ]
@@ -219,18 +219,19 @@ def main() -> int:
                     f"{row[COL_TOTAL_RETURN_PCT]:.2f}%",
                     f"{row[COL_CAGR]:.2f}%",
                     f"{row[COL_MDD]:.2f}%",
+                    f"{row[COL_CALMAR]:.4f}",
                     str(row[COL_TOTAL_TRADES]),
                     f"{row[COL_WIN_RATE]:.1f}%",
                 ]
             )
 
         table = TableLogger(columns, logger)
-        table.print_table(rows, title=f"[{strategy_name}] 상위 {top_n}개 결과 (CAGR 기준)")
+        table.print_table(rows, title=f"[{strategy_name}] 상위 {top_n}개 결과 (Calmar 기준)")
 
-        # 3-5. 요약 통계 출력
+        # 3-4. 요약 통계 출력
         print_summary_stats(results_df)
 
-        # 3-6. 결과 저장
+        # 3-5. 결과 저장
         grid_results_path.parent.mkdir(parents=True, exist_ok=True)
 
         # CSV 저장용 DataFrame 준비 (컬럼명 한글화 + 소수점 제한)
@@ -244,6 +245,7 @@ def main() -> int:
                 COL_TOTAL_RETURN_PCT: DISPLAY_TOTAL_RETURN,
                 COL_CAGR: DISPLAY_CAGR,
                 COL_MDD: DISPLAY_MDD,
+                COL_CALMAR: DISPLAY_CALMAR,
                 COL_TOTAL_TRADES: DISPLAY_TOTAL_TRADES,
                 COL_WIN_RATE: DISPLAY_WIN_RATE,
                 COL_FINAL_CAPITAL: DISPLAY_FINAL_CAPITAL,
@@ -256,6 +258,7 @@ def main() -> int:
                 DISPLAY_TOTAL_RETURN: 2,
                 DISPLAY_CAGR: 2,
                 DISPLAY_MDD: 2,
+                DISPLAY_CALMAR: 4,
                 DISPLAY_WIN_RATE: 2,
                 DISPLAY_FINAL_CAPITAL: 0,
             }
@@ -265,7 +268,7 @@ def main() -> int:
         results_df_export.to_csv(grid_results_path, index=False)
         logger.debug(f"결과 저장 완료: {grid_results_path}")
 
-        # 3-7. 메타데이터 저장
+        # 3-6. 메타데이터 저장
         metadata = {
             "strategy": strategy_name,
             "execution_params": {

@@ -332,18 +332,19 @@ class TestCalculateSummary:
 class TestLoadBestGridParams:
     """grid_results.csv 최적 파라미터 로딩 테스트"""
 
-    # 테스트용 CSV 헤더 및 데이터
+    # 테스트용 CSV 헤더 및 데이터 (Calmar 내림차순 정렬)
+    # ROW_1: Calmar = 20.92 / 50.00 ≈ 0.418, ROW_2: Calmar = 18.50 / 70.00 ≈ 0.264
     _CSV_HEADER = "이평기간,매수버퍼존,매도버퍼존,유지일,조정기간(월),수익률,CAGR,MDD,거래수,승률,최종자본"
-    _CSV_ROW_1 = "150,0.04,0.03,3,2,16158.13,20.92,-85.68,16,68.75,1625813095.64"
+    _CSV_ROW_1 = "150,0.04,0.03,3,2,16158.13,20.92,-50.00,16,68.75,1625813095.64"
     _CSV_ROW_2 = "200,0.03,0.02,0,0,12000.00,18.50,-70.00,20,60.00,1200000000.00"
 
     def test_normal_load(self, tmp_path: Path) -> None:
         """
-        정상 CSV에서 첫 행(CAGR 1위) 파라미터를 반환한다.
+        정상 CSV에서 첫 행(Calmar 1위) 파라미터를 반환한다.
 
-        Given: CAGR 내림차순 정렬된 grid_results.csv (2행)
+        Given: Calmar 내림차순 정렬된 grid_results.csv (2행)
         When: load_best_grid_params 호출
-        Then: 첫 행의 4개 파라미터가 BestGridParams로 반환됨
+        Then: 첫 행의 5개 파라미터가 BestGridParams로 반환됨
         """
         # Given
         csv_path = tmp_path / "grid_results.csv"
