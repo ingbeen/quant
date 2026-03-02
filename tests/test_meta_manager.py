@@ -5,7 +5,6 @@ meta_manager 모듈 테스트
 1. 실행 메타데이터가 올바르게 저장되는가?
 2. 타임스탬프가 정확히 기록되는가? (결정적 테스트)
 3. MAX_HISTORY_COUNT를 초과하면 오래된 항목이 제거되는가?
-4. 잘못된 csv_type을 거부하는가?
 
 왜 중요한가요?
 백테스트나 시뮬레이션의 실행 이력을 추적하면:
@@ -16,7 +15,6 @@ meta_manager 모듈 테스트
 
 import json
 
-import pytest
 from freezegun import freeze_time
 
 from qbt.utils.meta_manager import MAX_HISTORY_COUNT, save_metadata
@@ -150,27 +148,6 @@ class TestSaveMetadata:
         # MAX_HISTORY_COUNT=5이므로 TICKER_0~4가 있었고, 새로 추가되면 TICKER_4가 제거됨
         tickers = [e["ticker"] for e in entries]
         assert f"TICKER_{MAX_HISTORY_COUNT-1}" not in tickers, "가장 오래된 항목(마지막)은 제거되어야 합니다"
-
-    def test_invalid_csv_type(self, mock_results_dir):
-        """
-        잘못된 csv_type 거부 테스트
-
-        안정성: 정의되지 않은 타입은 즉시 실패해야 오타나 버그를 조기에 발견합니다.
-
-        Given: 유효하지 않은 csv_type
-        When: save_metadata 호출
-        Then: ValueError 발생
-        """
-        # Given
-        invalid_type = "invalid_type_123"
-        metadata = {"test": "data"}
-
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            save_metadata(invalid_type, metadata)
-
-        error_msg = str(exc_info.value)
-        assert "유효하지 않은" in error_msg or "invalid" in error_msg.lower(), "csv_type이 잘못되었음을 명확히 알려야 합니다"
 
     @freeze_time("2023-09-01 08:00:00")
     def test_multiple_csv_types(self, mock_results_dir):

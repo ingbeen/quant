@@ -33,24 +33,6 @@ HistoryList = list[MetaDict]
 # FullMetaJson: 문자열 키와 HistoryList 값을 가진 딕셔너리
 FullMetaJson = dict[str, HistoryList]
 
-# 허용된 CSV 타입
-VALID_CSV_TYPES = {
-    "grid_results",
-    "backtest_walkforward",
-    "atr_comparison",
-    "wfo_comparison",
-    "cscv_analysis",
-    "tqqq_daily_comparison",
-    "tqqq_rate_spread_lab",
-    "tqqq_softplus_tuning",
-    "tqqq_synthetic",
-    "tqqq_walkforward",
-    "tqqq_walkforward_fixed_b",
-    "tqqq_walkforward_fixed_ab",
-    "single_backtest",
-    "wfo_stitched_backtest",
-}
-
 
 def _load_full_metadata() -> FullMetaJson:
     """
@@ -128,32 +110,25 @@ def save_metadata(csv_type: str, metadata: MetaDict) -> None:
     타임스탬프는 자동으로 추가된다.
 
     Args:
-        csv_type: CSV 타입 (VALID_CSV_TYPES 참조)
+        csv_type: CSV 타입 식별자
         metadata: 저장할 메타데이터 (타임스탬프 자동 추가)
-
-    Raises:
-        ValueError: csv_type이 유효하지 않은 경우
     """
-    # 1. csv_type 검증
-    if csv_type not in VALID_CSV_TYPES:
-        raise ValueError(f"유효하지 않은 csv_type: {csv_type}. " f"허용된 값: {VALID_CSV_TYPES}")
-
-    # 2. 기존 meta.json 로드
+    # 1. 기존 meta.json 로드
     full_meta = _load_full_metadata()
 
-    # 3. 타임스탬프 추가
+    # 2. 타임스탬프 추가
     metadata_with_ts = _add_timestamp(metadata)
 
-    # 4. 해당 타입의 이력 가져오기
+    # 3. 해당 타입의 이력 가져오기
     history: HistoryList = full_meta.get(csv_type, [])
 
-    # 5. 최근 N개만 유지
+    # 4. 최근 N개만 유지
     updated_history = _rotate_history(history, metadata_with_ts)
 
-    # 6. 전체 dict 업데이트
+    # 5. 전체 dict 업데이트
     full_meta[csv_type] = updated_history
 
-    # 7. meta.json 저장
+    # 6. meta.json 저장
     META_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
     with META_JSON_PATH.open("w", encoding="utf-8") as f:
         json.dump(full_meta, f, indent=2, ensure_ascii=False)
