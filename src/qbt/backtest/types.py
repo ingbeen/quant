@@ -50,6 +50,7 @@ class SummaryDict(TypedDict):
     total_return_pct: float
     cagr: float
     mdd: float
+    calmar: float
     total_trades: int
     winning_trades: int
     losing_trades: int

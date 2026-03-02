@@ -701,7 +701,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     # ---- 요약 지표 ----
     st.header("요약 지표")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric("총 수익률", f"{summary['total_return_pct']:.2f}%")
@@ -710,6 +710,9 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     with col3:
         st.metric("MDD", f"{summary['mdd']:.2f}%")
     with col4:
+        calmar = float(summary.get("calmar", 0.0))
+        st.metric("Calmar", f"{calmar:.2f}")
+    with col5:
         total_trades = int(summary["total_trades"])
         win_rate = float(summary["win_rate"])
         st.metric("거래수 / 승률", f"{total_trades}회 / {win_rate:.1f}%")

@@ -198,6 +198,7 @@ def _save_summary_json(
         "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
         "cagr": round(float(str(summary["cagr"])), 2),
         "mdd": round(float(str(summary["mdd"])), 2),
+        "calmar": round(float(str(summary["calmar"])), 2),
         "total_trades": summary["total_trades"],
         "winning_trades": summary.get("winning_trades", 0),
         "losing_trades": summary.get("losing_trades", 0),
@@ -344,6 +345,7 @@ def main() -> int:
             "total_return_pct": round(float(str(summary["total_return_pct"])), 2),
             "cagr": round(float(str(summary["cagr"])), 2),
             "mdd": round(float(str(summary["mdd"])), 2),
+            "calmar": round(float(str(summary["calmar"])), 2),
             "total_trades": int(str(summary["total_trades"])),
             "win_rate": round(float(str(summary.get("win_rate", 0.0))), 2),
         },
@@ -366,6 +368,7 @@ def main() -> int:
     logger.debug(f"  총 수익률: {summary['total_return_pct']:.2f}%")
     logger.debug(f"  CAGR: {summary['cagr']:.2f}%")
     logger.debug(f"  MDD: {summary['mdd']:.2f}%")
+    logger.debug(f"  Calmar: {summary['calmar']:.2f}")
     logger.debug(f"  총 거래수: {summary['total_trades']}")
     logger.debug(f"  승률: {summary.get('win_rate', 0.0):.1f}%")
     logger.debug(f"  결과 디렉토리: {RESULT_DIR}")

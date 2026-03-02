@@ -117,6 +117,7 @@ def calculate_summary(
             "total_return_pct": 0.0,
             "cagr": 0.0,
             "mdd": 0.0,
+            "calmar": 0.0,
             "total_trades": 0,
             "winning_trades": 0,
             "losing_trades": 0,
@@ -147,6 +148,13 @@ def calculate_summary(
     equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / safe_peak
     mdd = equity_df["drawdown"].min() * 100
 
+    # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
+    abs_mdd = abs(mdd)
+    if abs_mdd < EPSILON:
+        calmar: float = 1e10 + cagr if cagr > 0 else 0.0
+    else:
+        calmar = cagr / abs_mdd
+
     # 거래 통계
     total_trades = len(trades_df)
     if total_trades > 0:
@@ -166,6 +174,7 @@ def calculate_summary(
         "total_return_pct": total_return_pct,
         "cagr": cagr,
         "mdd": mdd,
+        "calmar": calmar,
         "total_trades": total_trades,
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,

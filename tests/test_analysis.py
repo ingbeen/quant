@@ -328,6 +328,94 @@ class TestCalculateSummary:
         # Then: MDD가 안전하게 계산되어야 함
         assert "mdd" in summary, "summary에 mdd 키가 있어야 함"
 
+    def test_calmar_normal(self):
+        """
+        정상적인 Calmar Ratio 계산 테스트
+
+        정책: Calmar = CAGR / |MDD|
+
+        Given:
+          - Equity curve: 10000 → 12000 → 11000 → 15000 (2년)
+          - CAGR ≈ 22.47%, MDD ≈ -8.33%
+        When: calculate_summary 호출
+        Then: calmar ≈ 22.47 / 8.33 ≈ 2.70 (CAGR/|MDD|)
+        """
+        # Given
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 1, 1)],
+                "exit_date": [date(2021, 6, 1)],
+                "pnl": [5000.0],
+            }
+        )
+
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [
+                    date(2021, 1, 1),
+                    date(2021, 6, 1),
+                    date(2021, 8, 1),
+                    date(2023, 1, 1),
+                ],
+                "equity": [10000.0, 12000.0, 11000.0, 15000.0],
+            }
+        )
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then
+        assert "calmar" in summary, "summary에 calmar 키가 있어야 합니다"
+        expected_calmar = summary["cagr"] / abs(summary["mdd"])
+        assert summary["calmar"] == pytest.approx(
+            expected_calmar, abs=0.01
+        ), f"Calmar = CAGR / |MDD| = {summary['cagr']:.2f} / {abs(summary['mdd']):.2f}"
+
+    def test_calmar_mdd_zero(self):
+        """
+        MDD=0일 때 Calmar 안전 처리 테스트
+
+        정책: |MDD| < EPSILON이면 Calmar = 1e10 + CAGR (CAGR > 0) 또는 0.0
+
+        Given: Equity가 계속 상승 (MDD=0)
+        When: calculate_summary 호출
+        Then: calmar = 1e10 + CAGR (양수 CAGR이므로 매우 큰 값)
+        """
+        # Given
+        trades_df = pd.DataFrame({"entry_date": [date(2021, 1, 1)], "exit_date": [date(2021, 2, 1)], "pnl": [1000.0]})
+
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 1), date(2021, 6, 1), date(2022, 1, 1)],
+                "equity": [10000.0, 11000.0, 12000.0],
+            }
+        )
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then: MDD=0이고 CAGR>0이면 매우 큰 값
+        assert summary["mdd"] == 0.0, "하락이 없으면 MDD는 0"
+        assert summary["calmar"] > 1e10, "MDD=0, CAGR>0이면 Calmar는 1e10보다 커야 합니다"
+
+    def test_calmar_empty_equity(self):
+        """
+        빈 equity_df일 때 Calmar = 0.0 테스트
+
+        Given: 빈 equity_df
+        When: calculate_summary 호출
+        Then: calmar = 0.0
+        """
+        # Given
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
+        equity_df = pd.DataFrame(columns=[COL_DATE, "equity"])
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then
+        assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
+
 
 class TestLoadBestGridParams:
     """grid_results.csv 최적 파라미터 로딩 테스트"""

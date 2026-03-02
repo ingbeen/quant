@@ -62,6 +62,7 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
     logger.debug(f"  총 수익률: {summary['total_return_pct']:.2f}%")
     logger.debug(f"  CAGR: {summary['cagr']:.2f}%")
     logger.debug(f"  MDD: {summary['mdd']:.2f}%")
+    logger.debug(f"  Calmar: {summary['calmar']:.2f}")
     logger.debug(f"  총 거래 수: {summary['total_trades']}")
     if "win_rate" in summary:
         logger.debug(f"  승률: {summary['win_rate']:.1f}%")
@@ -200,6 +201,7 @@ def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[
         "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
         "cagr": round(float(str(result.summary["cagr"])), 2),
         "mdd": round(float(str(result.summary["mdd"])), 2),
+        "calmar": round(float(str(result.summary["calmar"])), 2),
         "total_trades": result.summary["total_trades"],
         "winning_trades": result.summary.get("winning_trades", 0),
         "losing_trades": result.summary.get("losing_trades", 0),
@@ -256,6 +258,7 @@ def _save_results(result: SingleBacktestResult) -> None:
             "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
             "cagr": round(float(str(result.summary["cagr"])), 2),
             "mdd": round(float(str(result.summary["mdd"])), 2),
+            "calmar": round(float(str(result.summary["calmar"])), 2),
             "total_trades": int(str(result.summary["total_trades"])),
             "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
         },
@@ -320,6 +323,7 @@ def _print_comparison_table(results: list[SingleBacktestResult]) -> None:
         ("총수익률", 12, Align.RIGHT),
         ("CAGR", 10, Align.RIGHT),
         ("MDD", 10, Align.RIGHT),
+        ("Calmar", 10, Align.RIGHT),
         ("거래수", 10, Align.RIGHT),
     ]
 
@@ -331,6 +335,7 @@ def _print_comparison_table(results: list[SingleBacktestResult]) -> None:
                 f"{result.summary['total_return_pct']:.2f}%",
                 f"{result.summary['cagr']:.2f}%",
                 f"{result.summary['mdd']:.2f}%",
+                f"{result.summary['calmar']:.2f}",
                 str(result.summary["total_trades"]),
             ]
         )

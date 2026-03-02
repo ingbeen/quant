@@ -2,24 +2,25 @@
   "display_name": "버퍼존 전략 (QQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 192533937,
-    "total_return_pct": 1825.34,
-    "cagr": 11.6,
-    "mdd": -43.46,
-    "total_trades": 15,
-    "winning_trades": 11,
+    "final_capital": 165802626,
+    "total_return_pct": 1558.03,
+    "cagr": 10.99,
+    "mdd": -36.49,
+    "calmar": 0.3,
+    "total_trades": 14,
+    "winning_trades": 10,
     "losing_trades": 4,
-    "win_rate": 73.33,
+    "win_rate": 71.43,
     "start_date": "1999-03-10",
     "end_date": "2026-02-17",
     "open_position": {
       "entry_date": "2025-05-16",
       "entry_price": 520.36169,
-      "shares": 320196
+      "shares": 275740
     }
   },
   "params": {
-    "ma_window": 150,
+    "ma_window": 200,
     "ma_type": "ema",
     "buy_buffer_zone_pct": 0.03,
     "sell_buffer_zone_pct": 0.05,
@@ -98,17 +99,17 @@
     {
       "year": 2000,
       "month": 4,
-      "return_pct": -28.97
+      "return_pct": -13.47
     },
     {
       "year": 2000,
       "month": 5,
-      "return_pct": 0.0
+      "return_pct": -12.93
     },
     {
       "year": 2000,
       "month": 6,
-      "return_pct": -1.55
+      "return_pct": 1.74
     },
     {
       "year": 2000,
@@ -128,7 +129,7 @@
     {
       "year": 2000,
       "month": 10,
-      "return_pct": -1.07
+      "return_pct": -6.2
     },
     {
       "year": 2000,
@@ -273,17 +274,17 @@
     {
       "year": 2003,
       "month": 3,
-      "return_pct": -7.48
+      "return_pct": 0.0
     },
     {
       "year": 2003,
       "month": 4,
-      "return_pct": 8.71
+      "return_pct": 0.0
     },
     {
       "year": 2003,
       "month": 5,
-      "return_pct": 8.52
+      "return_pct": 7.57
     },
     {
       "year": 2003,
@@ -358,7 +359,7 @@
     {
       "year": 2004,
       "month": 8,
-      "return_pct": -4.56
+      "return_pct": -6.24
     },
     {
       "year": 2004,
@@ -368,7 +369,7 @@
     {
       "year": 2004,
       "month": 10,
-      "return_pct": 1.97
+      "return_pct": 0.68
     },
     {
       "year": 2004,
@@ -403,7 +404,7 @@
     {
       "year": 2005,
       "month": 5,
-      "return_pct": -0.46
+      "return_pct": -0.04
     },
     {
       "year": 2005,
@@ -463,12 +464,12 @@
     {
       "year": 2006,
       "month": 5,
-      "return_pct": -8.21
+      "return_pct": -7.24
     },
     {
       "year": 2006,
       "month": 6,
-      "return_pct": 0.0
+      "return_pct": -1.89
     },
     {
       "year": 2006,
@@ -563,7 +564,7 @@
     {
       "year": 2008,
       "month": 1,
-      "return_pct": -8.3
+      "return_pct": -9.99
     },
     {
       "year": 2008,
@@ -643,12 +644,12 @@
     {
       "year": 2009,
       "month": 5,
-      "return_pct": 0.81
+      "return_pct": 0.0
     },
     {
       "year": 2009,
       "month": 6,
-      "return_pct": 2.95
+      "return_pct": -0.26
     },
     {
       "year": 2009,
@@ -713,12 +714,12 @@
     {
       "year": 2010,
       "month": 7,
-      "return_pct": 0.0
+      "return_pct": 7.26
     },
     {
       "year": 2010,
       "month": 8,
-      "return_pct": -7.22
+      "return_pct": -5.13
     },
     {
       "year": 2010,
@@ -788,7 +789,7 @@
     {
       "year": 2011,
       "month": 10,
-      "return_pct": 0.18
+      "return_pct": -0.23
     },
     {
       "year": 2011,
@@ -1058,7 +1059,7 @@
     {
       "year": 2016,
       "month": 4,
-      "return_pct": -5.42
+      "return_pct": -3.38
     },
     {
       "year": 2016,
@@ -1208,12 +1209,12 @@
     {
       "year": 2018,
       "month": 10,
-      "return_pct": -9.89
+      "return_pct": -8.6
     },
     {
       "year": 2018,
       "month": 11,
-      "return_pct": 0.0
+      "return_pct": -5.27
     },
     {
       "year": 2018,
@@ -1293,7 +1294,7 @@
     {
       "year": 2020,
       "month": 3,
-      "return_pct": -2.57
+      "return_pct": -9.37
     },
     {
       "year": 2020,
@@ -1403,7 +1404,7 @@
     {
       "year": 2022,
       "month": 1,
-      "return_pct": -13.32
+      "return_pct": -11.56
     },
     {
       "year": 2022,
@@ -1468,12 +1469,12 @@
     {
       "year": 2023,
       "month": 2,
-      "return_pct": -3.55
+      "return_pct": 0.0
     },
     {
       "year": 2023,
       "month": 3,
-      "return_pct": 9.49
+      "return_pct": 3.13
     },
     {
       "year": 2023,
@@ -1593,12 +1594,12 @@
     {
       "year": 2025,
       "month": 3,
-      "return_pct": -7.33
+      "return_pct": -7.59
     },
     {
       "year": 2025,
       "month": 4,
-      "return_pct": 0.0
+      "return_pct": -6.84
     },
     {
       "year": 2025,
