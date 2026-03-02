@@ -19,7 +19,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
+from qbt.backtest.analysis import (
+    add_single_moving_average,
+    calculate_regime_summaries,
+    calculate_summary,
+    load_best_grid_params,
+)
+from qbt.backtest.types import MarketRegimeDict
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
 
@@ -522,3 +528,224 @@ class TestLoadBestGridParams:
         assert isinstance(result["sell_buffer_zone_pct"], float)
         assert isinstance(result["hold_days"], int)
         assert isinstance(result["recent_months"], int)
+
+
+class TestCalculateRegimeSummaries:
+    """시장 구간별 성과 요약 계산 테스트
+
+    calculate_regime_summaries()가 equity_df와 trades_df를 시장 구간별로
+    분할하여 올바른 성과 지표를 계산하는지 검증한다.
+    """
+
+    def test_basic_two_regimes(self):
+        """
+        2개 구간(상승+하락)에 걸치는 equity+trades의 구간별 지표 검증
+
+        Given:
+          - 2개 시장 구간: bull(2021-01-01~2021-06-30), bear(2021-07-01~2021-12-31)
+          - equity curve가 상승→하락 패턴
+          - 각 구간에 1개씩 거래 존재
+        When: calculate_regime_summaries 호출
+        Then:
+          - 2개 구간 결과 반환
+          - 각 구간의 regime_type, name, 거래수 정확
+          - CAGR, MDD 등 지표가 양/음 부호 올바름
+        """
+        # Given
+        # 상승 구간: equity 10000 → 15000
+        # 하락 구간: equity 15000 → 12000
+        dates_bull = [date(2021, 1, 4), date(2021, 3, 1), date(2021, 6, 30)]
+        dates_bear = [date(2021, 7, 1), date(2021, 9, 1), date(2021, 12, 31)]
+
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: dates_bull + dates_bear,
+                "equity": [10000.0, 12000.0, 15000.0, 15000.0, 13000.0, 12000.0],
+            }
+        )
+
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 2, 1), date(2021, 8, 1)],
+                "exit_date": [date(2021, 5, 1), date(2021, 11, 1)],
+                "pnl": [3000.0, -1500.0],
+                "holding_days": [89, 92],
+            }
+        )
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-06-30", "regime_type": "bull", "name": "상승기"},
+            {"start": "2021-07-01", "end": "2021-12-31", "regime_type": "bear", "name": "하락기"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 2, "2개 구간 결과가 반환되어야 합니다"
+
+        bull_result = results[0]
+        assert bull_result["name"] == "상승기"
+        assert bull_result["regime_type"] == "bull"
+        assert bull_result["total_trades"] == 1
+        assert bull_result["total_return_pct"] > 0, "상승 구간 수익률은 양수"
+        assert bull_result["cagr"] > 0, "상승 구간 CAGR은 양수"
+        assert bull_result["trading_days"] == 3
+
+        bear_result = results[1]
+        assert bear_result["name"] == "하락기"
+        assert bear_result["regime_type"] == "bear"
+        assert bear_result["total_trades"] == 1
+        assert bear_result["total_return_pct"] < 0, "하락 구간 수익률은 음수"
+        assert bear_result["mdd"] < 0, "하락 구간 MDD는 음수"
+
+    def test_regime_no_overlap(self):
+        """
+        데이터 범위 밖 구간은 결과 리스트에서 제외된다.
+
+        Given:
+          - equity 데이터: 2021-01-01 ~ 2021-12-31
+          - 구간: 2025-01-01 ~ 2025-12-31 (데이터 범위 밖)
+        When: calculate_regime_summaries 호출
+        Then: 빈 리스트 반환
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [10000.0, 12000.0, 15000.0],
+            }
+        )
+
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 3, 1)],
+                "exit_date": [date(2021, 5, 1)],
+                "pnl": [2000.0],
+                "holding_days": [61],
+            }
+        )
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2025-01-01", "end": "2025-12-31", "regime_type": "bull", "name": "미래 구간"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 0, "데이터 범위 밖 구간은 결과에서 제외"
+
+    def test_no_trades_regime(self):
+        """
+        거래 없는 구간 (Buy & Hold 등) 테스트
+
+        Given:
+          - equity 데이터만 존재, 거래 없음
+        When: calculate_regime_summaries 호출
+        Then: total_trades=0, avg_holding_days=0.0, profit_factor=0.0
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [10000.0, 12000.0, 15000.0],
+            }
+        )
+
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-12-31", "regime_type": "bull", "name": "전체 상승"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        result = results[0]
+        assert result["total_trades"] == 0
+        assert result["avg_holding_days"] == pytest.approx(0.0, abs=EPSILON)
+        assert result["profit_factor"] == pytest.approx(0.0, abs=EPSILON)
+
+    def test_profit_factor_calculation(self):
+        """
+        수익/손실 거래 혼합 시 profit_factor 계산 검증
+
+        정책: profit_factor = 총수익 / |총손실|
+
+        Given:
+          - 거래 3건: +5000, -2000, +3000 (총수익 8000, 총손실 2000)
+        When: calculate_regime_summaries 호출
+        Then: profit_factor = 8000 / 2000 = 4.0
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [10000.0, 15000.0, 16000.0],
+            }
+        )
+
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 2, 1), date(2021, 4, 1), date(2021, 8, 1)],
+                "exit_date": [date(2021, 3, 1), date(2021, 5, 1), date(2021, 10, 1)],
+                "pnl": [5000.0, -2000.0, 3000.0],
+                "holding_days": [28, 30, 61],
+            }
+        )
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-12-31", "regime_type": "bull", "name": "전체"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        result = results[0]
+        assert result["profit_factor"] == pytest.approx(4.0, abs=0.01), "profit_factor = 8000 / 2000 = 4.0"
+        assert result["avg_holding_days"] == pytest.approx((28 + 30 + 61) / 3, abs=0.1), "평균 보유기간 = (28+30+61)/3"
+
+    def test_profit_factor_no_loss(self):
+        """
+        손실 거래 없을 때 profit_factor = 0.0 반환 (무한대 대신)
+
+        정책: 분모(총손실)가 0이면 무한대 대신 0.0 반환 (N/A 의미)
+
+        Given:
+          - 거래 2건 모두 수익 (+3000, +2000)
+        When: calculate_regime_summaries 호출
+        Then: profit_factor = 0.0
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [10000.0, 13000.0, 15000.0],
+            }
+        )
+
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 2, 1), date(2021, 8, 1)],
+                "exit_date": [date(2021, 5, 1), date(2021, 11, 1)],
+                "pnl": [3000.0, 2000.0],
+                "holding_days": [89, 92],
+            }
+        )
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-12-31", "regime_type": "bull", "name": "전체"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        result = results[0]
+        assert result["profit_factor"] == pytest.approx(0.0, abs=EPSILON), "손실 거래 없으면 profit_factor = 0.0"

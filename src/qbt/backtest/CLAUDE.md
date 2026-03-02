@@ -25,6 +25,8 @@
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 - `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params 5개, is/oos CAGR/MDD/Calmar/trades/win_rate, wfe_calmar, wfe_cagr)
 - `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계(calmar/cagr/robust), gap_calmar_median, profit_concentration, param_values, stitched 지표)
+- `MarketRegimeDict`: 시장 구간 정의 (start, end, regime_type, name). QQQ 기준 수동 분류한 구간 정보
+- `RegimeSummaryDict`: 구간별 성과 요약 (name, regime_type, start_date, end_date, trading_days, 기본 지표 + avg_holding_days, profit_factor)
 
 ### 2. constants.py
 
@@ -40,6 +42,7 @@
 - WFO 고정값: `DEFAULT_WFO_FIXED_SELL_BUFFER_PCT`
 - WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등 7개
 - 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
+- 시장 구간: `MARKET_REGIMES` (QQQ 기준 19개 구간, `list[MarketRegimeDict]`)
 
 ### 3. analysis.py
 
@@ -51,6 +54,7 @@
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `load_best_grid_params`: grid_results.csv에서 Calmar 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
+- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산)
 
 ### 4. cpcv.py
 
@@ -371,6 +375,7 @@ adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INC
 - 총 수익률: `(final_capital - initial_capital) / initial_capital * 100`
 - CAGR: `((final_capital / initial_capital) ^ (ANNUAL_DAYS / 총일수)) - 1`
 - MDD: 자본 곡선에서 최대 낙폭 계산
+- Calmar: `CAGR / |MDD|` (|MDD| < EPSILON이면 CAGR > 0일 때 1e10 + CAGR, 아니면 0.0)
 - 승률: `profitable_trades / total_trades * 100`
 
 ---
