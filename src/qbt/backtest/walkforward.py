@@ -9,6 +9,7 @@ Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
 """
 
 from datetime import date
+from pathlib import Path
 from statistics import median
 
 import pandas as pd
@@ -496,6 +497,62 @@ def build_params_schedule(
         )
 
     return initial_params, schedule
+
+
+# WFO 결과 CSV 로딩 시 필수 컬럼
+_WFO_CSV_REQUIRED_COLUMNS = [
+    "oos_start",
+    "best_ma_window",
+    "best_buy_buffer_zone_pct",
+    "best_sell_buffer_zone_pct",
+    "best_hold_days",
+    "best_recent_months",
+]
+
+# 정수 변환 대상 컬럼 (pandas CSV 로딩 시 float64 가능성 대비)
+_WFO_CSV_INT_COLUMNS = ["best_ma_window", "best_hold_days", "best_recent_months"]
+
+
+def load_wfo_results_from_csv(csv_path: Path) -> list[WfoWindowResultDict]:
+    """WFO 결과 CSV를 읽어 WfoWindowResultDict 리스트로 반환한다.
+
+    walkforward_dynamic.csv (또는 다른 WFO 결과 CSV)를 파싱하여
+    build_params_schedule()에 전달 가능한 형식으로 변환한다.
+
+    Args:
+        csv_path: walkforward_*.csv 파일 경로
+
+    Returns:
+        WFO 윈도우 결과 딕셔너리 리스트
+
+    Raises:
+        FileNotFoundError: CSV 파일이 존재하지 않을 때
+        ValueError: 필수 컬럼이 누락되었을 때
+    """
+    # 1. 파일 존재 확인
+    if not csv_path.exists():
+        raise FileNotFoundError(f"WFO 결과 CSV를 찾을 수 없습니다: {csv_path}")
+
+    # 2. CSV 로딩
+    df = pd.read_csv(csv_path)
+
+    # 3. 필수 컬럼 검증
+    missing = set(_WFO_CSV_REQUIRED_COLUMNS) - set(df.columns)
+    if missing:
+        raise ValueError(f"WFO 결과 CSV 필수 컬럼 누락: {sorted(missing)}")
+
+    # 4. 정수 컬럼 타입 보정 (pandas CSV 로딩 시 float64 가능성 대비)
+    for col in _WFO_CSV_INT_COLUMNS:
+        if col in df.columns:
+            df[col] = df[col].astype(int)
+
+    # 5. ATR 컬럼 정수 보정 (선택적)
+    if "best_atr_period" in df.columns:
+        df["best_atr_period"] = df["best_atr_period"].astype(int)
+
+    # 6. dict 리스트 반환
+    records: list[WfoWindowResultDict] = df.to_dict("records")  # type: ignore[assignment]
+    return records
 
 
 def _calculate_profit_concentration(

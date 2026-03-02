@@ -122,6 +122,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `select_best_calmar_params`: Calmar(CAGR/|MDD|) 기준 최적 파라미터 선택 (MDD=0 + CAGR>0 최우선 처리, min_trades 필터링 적용)
 - `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가, wfe_calmar + wfe_cagr 계산)
 - `build_params_schedule`: WFO 결과에서 params_schedule 구성
+- `load_wfo_results_from_csv`: WFO 결과 CSV를 읽어 WfoWindowResultDict 리스트로 반환 (필수 컬럼 검증, 정수 타입 보정, ATR 선택적 컬럼 처리)
 - `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
 - `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
 

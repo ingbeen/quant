@@ -151,6 +151,12 @@ main 함수:
     - Expanding Anchored WFO와 Rolling Window WFO(IS=120개월)의 동일 OOS 성과 비교
     - buffer_zone_atr_tqqq Dynamic 모드 전용
     - wfo_comparison_windows.csv + wfo_comparison_summary.json 저장
+- WFO Stitched 대시보드:
+  - `run_wfo_stitched_backtest.py`: WFO Dynamic 결과를 대시보드 호환 형식으로 저장
+    - 선행: `run_walkforward.py --strategy buffer_zone_atr_tqqq` 실행 필요
+    - walkforward_dynamic.csv → params_schedule → OOS 전체 1회 실행
+    - signal.csv + equity.csv + trades.csv + summary.json 저장 (buffer_zone_atr_tqqq_wfo/)
+    - app_single_backtest.py 대시보드에서 자동 탐색 및 시각화
 - 과최적화 통계 검증:
   - `run_cpcv_analysis.py`: CSCV/PBO/DSR 분석 실행
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)

@@ -62,6 +62,12 @@ poetry run python scripts/backtest/run_walkforward.py
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
 
+# 4-1. WFO Stitched 대시보드 결과 생성 (선행: 4)
+poetry run python scripts/backtest/run_wfo_stitched_backtest.py
+# 출력: walkforward_dynamic.csv → params_schedule 기반 OOS 전체 1회 실행
+# 결과: storage/results/backtest/buffer_zone_atr_tqqq_wfo/ (signal, equity, trades, summary)
+# 대시보드에서 자동 탐색 → 새 탭 생성 (코드 수정 불필요)
+
 # 5. ATR 비교 실험 (선행: 1)
 poetry run python scripts/backtest/run_atr_comparison.py
 # 출력: ATR(14,3.0) vs ATR(22,3.0) 고정 OOS 성과 비교
@@ -233,7 +239,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_atr_comparison.py, run_wfo_comparison.py, run_cpcv_analysis.py, app_single_backtest.py
+│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_wfo_stitched_backtest.py, run_atr_comparison.py, run_wfo_comparison.py, run_cpcv_analysis.py, app_single_backtest.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
@@ -252,8 +258,9 @@ quant/
 │   └── results/       # 분석 결과 + meta.json
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
 │       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_atr_tqqq/ # 버퍼존 ATR 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_qqq/      # 버퍼존 전략 (QQQ) 결과
+│       │   ├── buffer_zone_atr_tqqq/     # 버퍼존 ATR 전략 (TQQQ) 결과
+│       │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
+│       │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
 │       │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
 │       │   └── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
