@@ -576,7 +576,7 @@ def _render_main_chart(
     )
 
 
-def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
+def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key: str) -> None:
     """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다."""
     if not monthly_returns:
         st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
@@ -634,10 +634,10 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]]) -> None:
         font={"color": "#D1D4DC"},
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", key=chart_key)
 
 
-def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
+def _render_holding_period_histogram(trades_df: pd.DataFrame, *, chart_key: str) -> None:
     """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다."""
     if trades_df.empty or "holding_days" not in trades_df.columns:
         st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
@@ -668,7 +668,7 @@ def _render_holding_period_histogram(trades_df: pd.DataFrame) -> None:
         yaxis={"gridcolor": "#1e222d"},
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", key=chart_key)
 
 
 # ============================================================
@@ -745,7 +745,8 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     # ---- Section 4: 월별 수익률 히트맵 ----
     st.header("4. 월별/연도별 수익률 히트맵")
     st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
-    _render_monthly_heatmap(monthly_returns)
+    strategy_name = strategy["strategy_name"]
+    _render_monthly_heatmap(monthly_returns, chart_key=f"heatmap_{strategy_name}")
 
     st.divider()
 
@@ -753,7 +754,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     st.header("5. 포지션 보유 기간 분포")
     if has_trades:
         st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
-        _render_holding_period_histogram(trades_df)
+        _render_holding_period_histogram(trades_df, chart_key=f"histogram_{strategy_name}")
     else:
         st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
 
