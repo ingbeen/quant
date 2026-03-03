@@ -713,15 +713,33 @@ _REGIME_COLUMN_RENAME: dict[str, str] = {
 }
 
 
+_ALT_ROW_BG = "background-color: rgba(128, 128, 128, 0.06)"
+
+
 def _style_regime_rows(row: pd.Series) -> list[str]:  # type: ignore[type-arg]
-    """구간 유형별 행 배경색을 반환한다."""
+    """구간명/유형은 regime 색상, 나머지는 홀짝 교대 연회색 배경을 반환한다."""
+    name_col = _REGIME_COLUMN_RENAME.get("name", "구간명")
     regime_type_col = _REGIME_COLUMN_RENAME.get("regime_type", "유형")
+
+    # regime 색상 결정
     regime_display = row.get(regime_type_col, "")
+    regime_bg = ""
     for eng_type, kor_display in _REGIME_TYPE_DISPLAY.items():
         if regime_display == kor_display:
-            bg = _REGIME_BG_COLORS.get(eng_type, "")
-            return [f"background-color: {bg}"] * len(row)
-    return [""] * len(row)
+            regime_bg = f"background-color: {_REGIME_BG_COLORS[eng_type]}"
+            break
+
+    # 홀수행 교대 배경
+    is_odd = int(row.name) % 2 == 1  # type: ignore[arg-type]
+    alt_bg = _ALT_ROW_BG if is_odd else ""
+
+    styles: list[str] = []
+    for col in row.index:
+        if col in (name_col, regime_type_col):
+            styles.append(regime_bg)
+        else:
+            styles.append(alt_bg)
+    return styles
 
 
 def _render_regime_table(
@@ -752,8 +770,15 @@ def _render_regime_table(
     df["avg_holding_days"] = df["avg_holding_days"].round(1)
     df["profit_factor"] = df["profit_factor"].round(2)
 
-    # profit_factor 0.0은 "-"로 표시
-    df["profit_factor"] = df["profit_factor"].apply(lambda x: "-" if x == 0.0 else f"{x:.2f}")
+    # 거래수 0인 행: 거래 관련 지표를 "-"로 표시
+    no_trades_mask = df["total_trades"] == 0
+    trade_related_cols = ["total_trades", "win_rate", "avg_holding_days", "profit_factor"]
+    for col in trade_related_cols:
+        df[col] = df[col].astype(str)
+    df.loc[no_trades_mask, trade_related_cols] = "-"
+    # 거래가 있는 행에서도 profit_factor 0.0(손실 거래 없음)은 "-"로 표시
+    pf_has_trades = df.loc[~no_trades_mask, "profit_factor"]
+    df.loc[~no_trades_mask, "profit_factor"] = pf_has_trades.apply(lambda x: "-" if x == "0.0" else x)
 
     # 한글 컬럼명 매핑
     df = df.rename(columns=_REGIME_COLUMN_RENAME)
