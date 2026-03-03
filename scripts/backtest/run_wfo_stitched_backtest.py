@@ -22,13 +22,16 @@ import pandas as pd
 from qbt.backtest.analysis import (
     add_single_moving_average,
     calculate_monthly_returns,
+    calculate_regime_summaries,
     calculate_summary,
 )
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
+    MARKET_REGIMES,
     WALKFORWARD_DYNAMIC_FILENAME,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import run_buffer_strategy
+from qbt.backtest.types import RegimeSummaryDict
 from qbt.backtest.walkforward import build_params_schedule, load_wfo_results_from_csv
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
@@ -177,6 +180,7 @@ def _save_summary_json(
     equity_df: pd.DataFrame,
     window_results: list[dict[str, object]],
     result_dir: Path,
+    regime_summaries: list[RegimeSummaryDict],
 ) -> Path:
     """요약 지표를 JSON으로 저장한다.
 
@@ -185,6 +189,7 @@ def _save_summary_json(
         equity_df: 에쿼티 DataFrame (월별 수익률 계산용)
         window_results: WFO 윈도우 결과 리스트
         result_dir: 결과 저장 디렉토리
+        regime_summaries: 시장 구간별 성과 요약 리스트
 
     Returns:
         저장된 JSON 파일 경로
@@ -251,12 +256,35 @@ def _save_summary_json(
         "total_days": str(len(equity_df)),
     }
 
-    # 6. JSON 구성
+    # 6. regime_summaries 반올림
+    regime_data: list[dict[str, Any]] = []
+    for rs in regime_summaries:
+        regime_data.append(
+            {
+                "name": rs["name"],
+                "regime_type": rs["regime_type"],
+                "start_date": rs["start_date"],
+                "end_date": rs["end_date"],
+                "trading_days": rs["trading_days"],
+                "total_return_pct": round(float(str(rs["total_return_pct"])), 2),
+                "cagr": round(float(str(rs["cagr"])), 2),
+                "mdd": round(float(str(rs["mdd"])), 2),
+                "calmar": round(float(str(rs["calmar"])), 2),
+                "total_trades": rs["total_trades"],
+                "winning_trades": rs["winning_trades"],
+                "win_rate": round(float(str(rs["win_rate"])), 2),
+                "avg_holding_days": round(float(str(rs["avg_holding_days"])), 1),
+                "profit_factor": round(float(str(rs["profit_factor"])), 2),
+            }
+        )
+
+    # 7. JSON 구성
     summary_data: dict[str, Any] = {
         "display_name": DISPLAY_NAME,
         "summary": summary_dict,
         "params": params,
         "monthly_returns": monthly_returns,
+        "regime_summaries": regime_data,
         "data_info": data_info,
     }
 
@@ -330,10 +358,13 @@ def main() -> int:
     # 10. 결과 저장
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
+    # regime_summaries 계산
+    regime_summaries = calculate_regime_summaries(equity_df, trades_df, MARKET_REGIMES)
+
     signal_path = _save_signal_csv(oos_signal, RESULT_DIR)
     equity_path = _save_equity_csv(equity_df, RESULT_DIR)
     trades_path = _save_trades_csv(trades_df, RESULT_DIR)
-    summary_path = _save_summary_json(summary, equity_df, window_results, RESULT_DIR)  # type: ignore[arg-type]
+    summary_path = _save_summary_json(summary, equity_df, window_results, RESULT_DIR, regime_summaries)  # type: ignore[arg-type]
 
     # 11. 메타데이터 저장
     metadata: dict[str, Any] = {

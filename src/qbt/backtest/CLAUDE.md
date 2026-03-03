@@ -54,7 +54,7 @@
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `load_best_grid_params`: grid_results.csv에서 Calmar 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
-- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산)
+- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`와 `run_wfo_stitched_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨
 
 ### 4. cpcv.py
 

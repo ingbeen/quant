@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -40,10 +40,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `calculate_regime_summaries()` 연산을 대시보드(app) 런타임에서 백테스트 실행 시점으로 이동
-- [ ] `run_single_backtest.py`와 `run_wfo_stitched_backtest.py` 양쪽에서 계산하여 `summary.json`에 `regime_summaries` 키로 저장
-- [ ] 대시보드는 저장된 결과를 로드하여 렌더링만 수행 (Feature Detection)
-- [ ] 불필요해진 대시보드 임포트 및 연산 코드 제거
+- [x] `calculate_regime_summaries()` 연산을 대시보드(app) 런타임에서 백테스트 실행 시점으로 이동
+- [x] `run_single_backtest.py`와 `run_wfo_stitched_backtest.py` 양쪽에서 계산하여 `summary.json`에 `regime_summaries` 키로 저장
+- [x] 대시보드는 저장된 결과를 로드하여 렌더링만 수행 (Feature Detection)
+- [x] 불필요해진 대시보드 임포트 및 연산 코드 제거
 
 ## 2) 비목표(Non-Goals)
 
@@ -96,17 +96,17 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `calculate_regime_summaries()`에 holding_days 자동 계산 폴백 추가
-- [ ] `run_single_backtest.py`에서 regime_summaries 계산 및 summary.json 저장
-- [ ] `run_wfo_stitched_backtest.py`에서 regime_summaries 계산 및 summary.json 저장
-- [ ] `app_single_backtest.py`에서 런타임 연산 제거, summary_data에서 로드
-- [ ] `app_single_backtest.py`에서 `calculate_regime_summaries`, `MARKET_REGIMES` 임포트 제거
-- [ ] summary.json에 `regime_summaries` 키 없는 경우 대응 (Feature Detection)
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
-- [ ] plan 체크박스 최신화
+- [x] `calculate_regime_summaries()`에 holding_days 자동 계산 폴백 추가
+- [x] `run_single_backtest.py`에서 regime_summaries 계산 및 summary.json 저장
+- [x] `run_wfo_stitched_backtest.py`에서 regime_summaries 계산 및 summary.json 저장
+- [x] `app_single_backtest.py`에서 런타임 연산 제거, summary_data에서 로드
+- [x] `app_single_backtest.py`에서 `calculate_regime_summaries`, `MARKET_REGIMES` 임포트 제거
+- [x] summary.json에 `regime_summaries` 키 없는 경우 대응 (Feature Detection)
+- [x] 회귀/신규 테스트 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -133,7 +133,7 @@
 
 **작업 내용**:
 
-- [ ] `tests/test_analysis.py`의 `TestCalculateRegimeSummaries`에 테스트 추가:
+- [x] `tests/test_analysis.py`의 `TestCalculateRegimeSummaries`에 테스트 추가:
   - `test_holding_days_auto_computed`: `trades_df`에 `holding_days` 컬럼 없이 `entry_date`/`exit_date`만 있을 때 `avg_holding_days`가 정확히 계산되는지 검증
 
   ```python
@@ -151,7 +151,7 @@
 
 **작업 내용**:
 
-- [ ] `analysis.py`의 `calculate_regime_summaries()`에 holding_days 폴백 로직 추가
+- [x] `analysis.py`의 `calculate_regime_summaries()`에 holding_days 폴백 로직 추가
   - 구간 필터링된 `regime_trades`에 `holding_days` 컬럼이 없고 `entry_date`/`exit_date`가 있으면 자동 계산
   ```python
   # holding_days 자동 계산 (컬럼 미존재 시)
@@ -161,22 +161,22 @@
               lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
           )
   ```
-- [ ] Phase 0 테스트 통과 확인
+- [x] Phase 0 테스트 통과 확인
 
-- [ ] `run_single_backtest.py` 변경:
+- [x] `run_single_backtest.py` 변경:
   - `calculate_regime_summaries`, `MARKET_REGIMES` 임포트 추가
   - `_save_summary_json()` 시그니처에 `regime_summaries` 파라미터 추가
   - 반올림 적용 후 `summary_data`에 `regime_summaries` 키 추가
   - `_save_results()`에서 `calculate_regime_summaries()` 호출하여 전달
 
-- [ ] `run_wfo_stitched_backtest.py` 변경:
+- [x] `run_wfo_stitched_backtest.py` 변경:
   - `calculate_regime_summaries` 임포트 추가 (기존 analysis 임포트에 병합)
   - `MARKET_REGIMES` 임포트 추가 (기존 constants 임포트에 병합)
   - `_save_summary_json()` 시그니처에 `regime_summaries` 파라미터 추가
   - 반올림 적용 후 `summary_data`에 `regime_summaries` 키 추가
   - `main()`에서 `calculate_regime_summaries()` 호출하여 전달
 
-- [ ] `app_single_backtest.py` 변경:
+- [x] `app_single_backtest.py` 변경:
   - `from qbt.backtest.analysis import calculate_regime_summaries` 임포트 제거
   - `from qbt.backtest.constants import MARKET_REGIMES` 임포트 제거
   - `_render_strategy_tab()`의 Section 2에서 런타임 연산 제거
@@ -269,15 +269,15 @@ else:
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
   - analysis.py 섹션: `calculate_regime_summaries()`에 holding_days 폴백 설명 추가
   - summary.json에 `regime_summaries` 키 저장 사실 문서화
-- [ ] `poetry run black .` 실행
-- [ ] DoD 체크리스트 최종 업데이트
+- [x] `poetry run black .` 실행
+- [x] DoD 체크리스트 최종 업데이트
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=432, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -306,5 +306,6 @@ else:
 
 - 2026-03-02 23:30: 계획서 초안 작성
 - 2026-03-02 23:50: `run_wfo_stitched_backtest.py` 범위 추가
+- 2026-03-03: 구현 완료 (Phase 0~마지막 Phase), validate_project.py 통과 (432 passed, 0 failed, 0 skipped)
 
 ---

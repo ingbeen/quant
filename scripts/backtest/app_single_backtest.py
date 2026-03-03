@@ -21,8 +21,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
-from qbt.backtest.analysis import calculate_regime_summaries
-from qbt.backtest.constants import MARKET_REGIMES
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
@@ -867,23 +865,13 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     # ---- Section 2: 시장 구간별 분석 ----
     st.header("2. 시장 구간별 분석")
-    regime_summaries = calculate_regime_summaries(
-        strategy["equity_df"],
-        strategy["trades_df"],
-        MARKET_REGIMES,
-    )
+    regime_summaries = summary_data.get("regime_summaries", [])
     if regime_summaries:
-        _render_regime_table(
-            regime_summaries,  # type: ignore[arg-type]
-            chart_key=strategy["strategy_name"],
-        )
-        _render_cagr_bar_chart(
-            regime_summaries,  # type: ignore[arg-type]
-            chart_key=strategy["strategy_name"],
-        )
+        _render_regime_table(regime_summaries, chart_key=strategy["strategy_name"])
+        _render_cagr_bar_chart(regime_summaries, chart_key=strategy["strategy_name"])
         st.caption("QQQ 기준 시장 구간 분류 (19개 구간: 상승 10개, 횡보 3개, 하락 6개)")
     else:
-        st.info("시장 구간별 분석을 표시할 데이터가 부족합니다.")
+        st.info("시장 구간별 분석 데이터가 없습니다. 백테스트를 재실행하세요.")
 
     st.divider()
 

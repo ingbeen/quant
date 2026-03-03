@@ -17,9 +17,10 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from qbt.backtest.analysis import calculate_monthly_returns
+from qbt.backtest.analysis import calculate_monthly_returns, calculate_regime_summaries
+from qbt.backtest.constants import MARKET_REGIMES
 from qbt.backtest.strategies import buffer_zone_qqq, buffer_zone_tqqq, buy_and_hold
-from qbt.backtest.types import SingleBacktestResult
+from qbt.backtest.types import RegimeSummaryDict, SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
     COL_HIGH,
@@ -181,13 +182,18 @@ def _save_trades_csv(result: SingleBacktestResult) -> Path:
     return trades_path
 
 
-def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[str, Any]]) -> Path:
+def _save_summary_json(
+    result: SingleBacktestResult,
+    monthly_returns: list[dict[str, Any]],
+    regime_summaries: list[RegimeSummaryDict],
+) -> Path:
     """
     요약 지표를 JSON으로 저장한다.
 
     Args:
         result: SingleBacktestResult 컨테이너
         monthly_returns: 월별 수익률 리스트
+        regime_summaries: 시장 구간별 성과 요약 리스트
 
     Returns:
         저장된 JSON 파일 경로
@@ -219,11 +225,34 @@ def _save_summary_json(result: SingleBacktestResult, monthly_returns: list[dict[
             "shares": int(str(open_position_raw["shares"])),
         }
 
+    # regime_summaries 반올림
+    regime_data: list[dict[str, Any]] = []
+    for rs in regime_summaries:
+        regime_data.append(
+            {
+                "name": rs["name"],
+                "regime_type": rs["regime_type"],
+                "start_date": rs["start_date"],
+                "end_date": rs["end_date"],
+                "trading_days": rs["trading_days"],
+                "total_return_pct": round(float(str(rs["total_return_pct"])), 2),
+                "cagr": round(float(str(rs["cagr"])), 2),
+                "mdd": round(float(str(rs["mdd"])), 2),
+                "calmar": round(float(str(rs["calmar"])), 2),
+                "total_trades": rs["total_trades"],
+                "winning_trades": rs["winning_trades"],
+                "win_rate": round(float(str(rs["win_rate"])), 2),
+                "avg_holding_days": round(float(str(rs["avg_holding_days"])), 1),
+                "profit_factor": round(float(str(rs["profit_factor"])), 2),
+            }
+        )
+
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
         "summary": summary_dict,
         "params": result.params_json,
         "monthly_returns": monthly_returns,
+        "regime_summaries": regime_data,
         "data_info": result.data_info,
     }
 
@@ -249,7 +278,8 @@ def _save_results(result: SingleBacktestResult) -> None:
     equity_path = _save_equity_csv(result)
     trades_path = _save_trades_csv(result)
     monthly_returns = calculate_monthly_returns(result.equity_df)
-    summary_path = _save_summary_json(result, monthly_returns)
+    regime_summaries = calculate_regime_summaries(result.equity_df, result.trades_df, MARKET_REGIMES)
+    summary_path = _save_summary_json(result, monthly_returns, regime_summaries)
 
     # 메타데이터 저장
     metadata: dict[str, Any] = {

@@ -710,6 +710,51 @@ class TestCalculateRegimeSummaries:
         assert result["profit_factor"] == pytest.approx(4.0, abs=0.01), "profit_factor = 8000 / 2000 = 4.0"
         assert result["avg_holding_days"] == pytest.approx((28 + 30 + 61) / 3, abs=0.1), "평균 보유기간 = (28+30+61)/3"
 
+    def test_holding_days_auto_computed(self):
+        """
+        trades_df에 holding_days 컬럼이 없을 때 entry_date/exit_date로 자동 계산
+
+        정책: holding_days 컬럼 미존재 시 entry_date~exit_date 일수 차이로 폴백
+
+        Given:
+          - trades_df에 entry_date, exit_date, pnl만 있고 holding_days 없음
+          - 거래 2건: (2021-02-01 ~ 2021-05-01 = 89일), (2021-08-01 ~ 2021-11-01 = 92일)
+        When: calculate_regime_summaries 호출
+        Then: avg_holding_days == (89 + 92) / 2 = 90.5
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [10000.0, 13000.0, 15000.0],
+            }
+        )
+
+        # holding_days 컬럼 없이 entry_date, exit_date, pnl만 존재
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 2, 1), date(2021, 8, 1)],
+                "exit_date": [date(2021, 5, 1), date(2021, 11, 1)],
+                "pnl": [3000.0, 2000.0],
+            }
+        )
+
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-12-31", "regime_type": "bull", "name": "전체"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        result = results[0]
+        # (2021-05-01 - 2021-02-01).days = 89, (2021-11-01 - 2021-08-01).days = 92
+        # avg_holding_days = (89 + 92) / 2 = 90.5
+        assert result["avg_holding_days"] == pytest.approx(
+            90.5, abs=0.1
+        ), "holding_days 컬럼 없을 때 entry_date/exit_date로 자동 계산: (89+92)/2 = 90.5"
+
     def test_profit_factor_no_loss(self):
         """
         손실 거래 없을 때 profit_factor = 0.0 반환 (무한대 대신)

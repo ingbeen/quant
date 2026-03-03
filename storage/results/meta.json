@@ -1806,7 +1806,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-03-02T23:24:43+09:00"
+      "timestamp": "2026-03-03T11:01:03+09:00"
     },
     {
       "params": {
@@ -1827,7 +1827,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_qqq/summary.json"
       },
-      "timestamp": "2026-03-02T23:24:43+09:00"
+      "timestamp": "2026-03-03T11:01:03+09:00"
     },
     {
       "params": {
@@ -1860,7 +1860,7 @@
         "trades_csv": "storage/results/backtest/buffer_zone_qqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_qqq/summary.json"
       },
-      "timestamp": "2026-03-02T23:24:43+09:00"
+      "timestamp": "2026-03-03T11:01:03+09:00"
     },
     {
       "params": {
@@ -1893,7 +1893,7 @@
         "trades_csv": "storage/results/backtest/buffer_zone_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buffer_zone_tqqq/summary.json"
       },
-      "timestamp": "2026-03-02T23:24:43+09:00"
+      "timestamp": "2026-03-03T11:01:02+09:00"
     },
     {
       "params": {
@@ -1914,7 +1914,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-03-02T21:02:51+09:00"
+      "timestamp": "2026-03-02T23:24:43+09:00"
     }
   ],
   "backtest_walkforward": [
@@ -2474,6 +2474,27 @@
     }
   ],
   "wfo_stitched_backtest": [
+    {
+      "strategy": "buffer_zone_atr_tqqq_wfo",
+      "display_name": "버퍼존 전략 ATR WFO (TQQQ)",
+      "wfo_mode": "dynamic",
+      "n_windows": 11,
+      "results_summary": {
+        "total_return_pct": 2181.64,
+        "cagr": 16.09,
+        "mdd": -52.95,
+        "calmar": 0.3,
+        "total_trades": 38,
+        "win_rate": 55.26
+      },
+      "output_files": {
+        "signal_csv": "storage/results/backtest/buffer_zone_atr_tqqq_wfo/signal.csv",
+        "equity_csv": "storage/results/backtest/buffer_zone_atr_tqqq_wfo/equity.csv",
+        "trades_csv": "storage/results/backtest/buffer_zone_atr_tqqq_wfo/trades.csv",
+        "summary_json": "storage/results/backtest/buffer_zone_atr_tqqq_wfo/summary.json"
+      },
+      "timestamp": "2026-03-03T11:01:11+09:00"
+    },
     {
       "strategy": "buffer_zone_atr_tqqq_wfo",
       "display_name": "버퍼존 전략 ATR WFO (TQQQ)",

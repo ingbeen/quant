@@ -343,6 +343,13 @@ def calculate_regime_summaries(
 
         # 7. 추가 지표 계산
         # 평균 보유기간
+        # holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
+        if not regime_trades.empty and "holding_days" not in regime_trades.columns:
+            if "entry_date" in regime_trades.columns and "exit_date" in regime_trades.columns:
+                regime_trades["holding_days"] = regime_trades.apply(
+                    lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
+                )
+
         avg_holding_days = 0.0
         if not regime_trades.empty and "holding_days" in regime_trades.columns:
             avg_holding_days = float(regime_trades["holding_days"].mean())
