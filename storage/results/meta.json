@@ -1789,6 +1789,32 @@
   "single_backtest": [
     {
       "params": {
+        "entry_channel_days": 55,
+        "exit_channel_days": 20,
+        "initial_capital": 10000000,
+        "param_source": {
+          "entry_channel_days": "default",
+          "exit_channel_days": "default"
+        }
+      },
+      "results_summary": {
+        "total_return_pct": 91.16,
+        "cagr": 2.43,
+        "mdd": -95.69,
+        "calmar": 0.03,
+        "total_trades": 63,
+        "win_rate": 47.62
+      },
+      "output_files": {
+        "signal_csv": "storage/results/backtest/donchian_channel_tqqq/signal.csv",
+        "equity_csv": "storage/results/backtest/donchian_channel_tqqq/equity.csv",
+        "trades_csv": "storage/results/backtest/donchian_channel_tqqq/trades.csv",
+        "summary_json": "storage/results/backtest/donchian_channel_tqqq/summary.json"
+      },
+      "timestamp": "2026-03-03T22:40:33+09:00"
+    },
+    {
+      "params": {
         "strategy": "buy_and_hold_tqqq",
         "initial_capital": 10000000
       },
@@ -1894,27 +1920,6 @@
         "summary_json": "storage/results/backtest/buffer_zone_tqqq/summary.json"
       },
       "timestamp": "2026-03-03T11:01:02+09:00"
-    },
-    {
-      "params": {
-        "strategy": "buy_and_hold_tqqq",
-        "initial_capital": 10000000
-      },
-      "results_summary": {
-        "total_return_pct": 28.78,
-        "cagr": 0.94,
-        "mdd": -99.98,
-        "calmar": 0.01,
-        "total_trades": 0,
-        "win_rate": 0.0
-      },
-      "output_files": {
-        "signal_csv": "storage/results/backtest/buy_and_hold_tqqq/signal.csv",
-        "equity_csv": "storage/results/backtest/buy_and_hold_tqqq/equity.csv",
-        "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
-        "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
-      },
-      "timestamp": "2026-03-02T23:24:43+09:00"
     }
   ],
   "backtest_walkforward": [

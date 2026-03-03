@@ -44,6 +44,9 @@ BUFFER_ZONE_ATR_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_at
 BUFFER_ZONE_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq"  # 버퍼존 전략 (QQQ) 결과
 BUY_AND_HOLD_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_qqq"  # Buy & Hold (QQQ) 전략 결과
 BUY_AND_HOLD_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq"  # Buy & Hold (TQQQ) 전략 결과
+DONCHIAN_CHANNEL_TQQQ_RESULTS_DIR: Final = (
+    BACKTEST_RESULTS_DIR / "donchian_channel_tqqq"
+)  # Donchian Channel (TQQQ) 전략 결과
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

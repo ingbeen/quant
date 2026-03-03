@@ -96,6 +96,8 @@ quant/
 │   │       ├── buffer_zone_tqqq.py         # 버퍼존 전략 (QQQ 시그널 + TQQQ 매매)
 │   │       ├── buffer_zone_atr_tqqq.py     # 버퍼존 ATR 전략 (QQQ 시그널 + TQQQ 매매 + ATR 스탑)
 │   │       ├── buffer_zone_qqq.py          # 버퍼존 전략 (QQQ 시그널 + QQQ 매매)
+│   │       ├── donchian_helpers.py        # Donchian Channel 전략 핵심 로직
+│   │       ├── donchian_channel_tqqq.py   # Donchian Channel (QQQ 시그널 + TQQQ 매매)
 │   │       └── buy_and_hold.py             # Buy & Hold 벤치마크
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
@@ -124,7 +126,8 @@ quant/
         │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
         │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
         │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
-        │   └── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
+        │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
+        │   └── donchian_channel_tqqq/  # Donchian Channel (TQQQ) 전략 결과
         └── tqqq/              # TQQQ 시뮬레이션 결과
             └── spread_lab/  # 스프레드 모델 검증 결과
 ```

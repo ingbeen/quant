@@ -5,7 +5,7 @@
 ## 주요 기능
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
-- 이동평균 기반 거래 전략 백테스트
+- 이동평균 기반 거래 전략 백테스트 + Donchian Channel (터틀 트레이딩) 전략
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -262,7 +262,8 @@ quant/
 │       │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
 │       │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
-│       │   └── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
+│       │   ├── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
+│       │   └── donchian_channel_tqqq/ # Donchian Channel (TQQQ) 전략 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
 │           └── spread_lab/    # 스프레드 모델 검증 결과
 └── tests/             # 테스트 코드

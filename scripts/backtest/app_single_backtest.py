@@ -206,9 +206,11 @@ def _build_candle_data(
     customValues를 포함하여 tooltip에서 표시할 수 있게 한다.
     OHLC 가격, 전일종가대비%, MA, 밴드, 에쿼티, 드로우다운을 포함한다.
     """
-    # 1. 밴드 + 에쿼티 + 드로우다운 데이터를 날짜 기준으로 매핑
-    has_upper = "upper_band" in equity_df.columns
-    has_lower = "lower_band" in equity_df.columns
+    # 1. 밴드/채널 + 에쿼티 + 드로우다운 데이터를 날짜 기준으로 매핑
+    has_upper_band = "upper_band" in equity_df.columns
+    has_lower_band = "lower_band" in equity_df.columns
+    has_upper_channel = "upper_channel" in equity_df.columns
+    has_lower_channel = "lower_channel" in equity_df.columns
     has_equity = "equity" in equity_df.columns
     has_drawdown = "drawdown_pct" in equity_df.columns
 
@@ -216,10 +218,14 @@ def _build_candle_data(
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
         entry: dict[str, float] = {}
-        if has_upper and pd.notna(row.upper_band):
+        if has_upper_band and pd.notna(row.upper_band):
             entry["upper"] = float(row.upper_band)  # type: ignore[arg-type]
-        if has_lower and pd.notna(row.lower_band):
+        elif has_upper_channel and pd.notna(row.upper_channel):
+            entry["upper"] = float(row.upper_channel)  # type: ignore[arg-type]
+        if has_lower_band and pd.notna(row.lower_band):
             entry["lower"] = float(row.lower_band)  # type: ignore[arg-type]
+        elif has_lower_channel and pd.notna(row.lower_channel):
+            entry["lower"] = float(row.lower_channel)  # type: ignore[arg-type]
         if has_equity and pd.notna(row.equity):
             entry["equity"] = float(row.equity)  # type: ignore[arg-type]
         if has_drawdown and pd.notna(row.drawdown_pct):
@@ -400,8 +406,10 @@ def _render_main_chart(
 
     # Feature detection
     ma_col = _detect_ma_col(signal_df)
-    has_upper = "upper_band" in equity_df.columns
-    has_lower = "lower_band" in equity_df.columns
+    has_upper = "upper_band" in equity_df.columns or "upper_channel" in equity_df.columns
+    has_lower = "lower_band" in equity_df.columns or "lower_channel" in equity_df.columns
+    upper_col = "upper_band" if "upper_band" in equity_df.columns else "upper_channel"
+    lower_col = "lower_band" if "lower_band" in equity_df.columns else "lower_channel"
     has_trades = not trades_df.empty and "entry_date" in trades_df.columns
 
     # 1. 데이터 준비
@@ -473,9 +481,9 @@ def _render_main_chart(
                 }
             )
 
-    # Upper Band 오버레이
+    # Upper Band/Channel 오버레이
     if has_upper:
-        upper_data = _build_series_data(equity_df, "upper_band")
+        upper_data = _build_series_data(equity_df, upper_col)
         if upper_data:
             pane1_series.append(
                 {
@@ -492,9 +500,9 @@ def _render_main_chart(
                 }
             )
 
-    # Lower Band 오버레이
+    # Lower Band/Channel 오버레이
     if has_lower:
-        lower_data = _build_series_data(equity_df, "lower_band")
+        lower_data = _build_series_data(equity_df, lower_col)
         if lower_data:
             pane1_series.append(
                 {

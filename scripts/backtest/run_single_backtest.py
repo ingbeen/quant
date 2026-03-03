@@ -19,7 +19,12 @@ from typing import Any
 
 from qbt.backtest.analysis import calculate_monthly_returns, calculate_regime_summaries
 from qbt.backtest.constants import MARKET_REGIMES
-from qbt.backtest.strategies import buffer_zone_qqq, buffer_zone_tqqq, buy_and_hold
+from qbt.backtest.strategies import (
+    buffer_zone_qqq,
+    buffer_zone_tqqq,
+    buy_and_hold,
+    donchian_channel_tqqq,
+)
 from qbt.backtest.types import RegimeSummaryDict, SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
@@ -40,6 +45,7 @@ logger = get_logger(__name__)
 STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
     buffer_zone_tqqq.STRATEGY_NAME: buffer_zone_tqqq.run_single,
     buffer_zone_qqq.STRATEGY_NAME: buffer_zone_qqq.run_single,
+    donchian_channel_tqqq.STRATEGY_NAME: donchian_channel_tqqq.run_single,
 }
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록
@@ -132,6 +138,10 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
         equity_round["upper_band"] = 6
     if "lower_band" in equity_export.columns:
         equity_round["lower_band"] = 6
+    if "upper_channel" in equity_export.columns:
+        equity_round["upper_channel"] = 6
+    if "lower_channel" in equity_export.columns:
+        equity_round["lower_channel"] = 6
 
     equity_export = equity_export.round(equity_round)
     equity_export["equity"] = equity_export["equity"].astype(int)

@@ -39,6 +39,10 @@ MIN_SELL_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매도 버퍼존 비율 (0.01 =
 MIN_HOLD_DAYS: Final = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 MIN_VALID_ROWS: Final = 2  # 백테스트 최소 유효 데이터 행 수
 
+# --- Donchian Channel 전략 기본값 ---
+DEFAULT_ENTRY_CHANNEL_DAYS: Final = 55  # 매수 채널 기간 (55일 최고가)
+DEFAULT_EXIT_CHANNEL_DAYS: Final = 20  # 매도 채널 기간 (20일 최저가)
+
 # --- WFO 파라미터 리스트 (그리드 서치 + 워크포워드 공용) ---
 DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]  # 3개
 DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]  # 3개

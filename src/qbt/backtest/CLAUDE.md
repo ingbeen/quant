@@ -253,6 +253,47 @@ ATR 핵심 설계:
 - 발동 조건: `close < highest_close_since_entry - atr_value × multiplier`
 - ATR 파라미터가 None이면 기존 매도 로직만 작동 (하위 호환)
 
+#### strategies/donchian_helpers.py
+
+Donchian Channel (터틀 트레이딩) 전략의 핵심 실행 엔진을 제공합니다.
+이평선 기반이 아닌 N일 최고가/M일 최저가 기반 독립적 프레임워크입니다.
+
+전략 전용 TypedDict:
+
+- `DonchianEquityRecord`: equity 기록 딕셔너리 (Date, equity, position, upper_channel, lower_channel)
+- `DonchianTradeRecord`: 거래 기록 딕셔너리 (entry_date, exit_date, entry_price, exit_price, shares, pnl, pnl_pct)
+- `DonchianStrategyResultDict`: 결과 딕셔너리 (SummaryDict 확장 + strategy, entry_channel_days, exit_channel_days)
+
+데이터 클래스:
+
+- `DonchianStrategyParams`: 전략 파라미터 (initial_capital, entry_channel_days, exit_channel_days)
+
+핵심 함수:
+
+- `compute_donchian_channels`: Donchian Channel 상단/하단 계산. rolling(N).max().shift(1) / rolling(M).min().shift(1). shift(1)로 lookahead 방지
+- `run_donchian_strategy`: 전략 실행. signal_df에서 채널 돌파 감지, trade_df에서 체결. pending order 패턴 동일, PendingOrderConflictError 재사용. 종료 시 미청산 포지션 → open_position 포함
+
+#### strategies/donchian_channel_tqqq.py
+
+QQQ 시그널 + TQQQ 합성 데이터 매매 Donchian Channel 전략의 설정 및 실행을 담당합니다.
+핵심 로직은 donchian_helpers에서 임포트합니다.
+
+전략 식별 상수:
+
+- `STRATEGY_NAME`: `"donchian_channel_tqqq"`
+- `DISPLAY_NAME`: `"Donchian Channel (TQQQ)"`
+
+데이터 소스 경로:
+
+- `SIGNAL_DATA_PATH`: `QQQ_DATA_PATH`
+- `TRADE_DATA_PATH`: `TQQQ_SYNTHETIC_DATA_PATH`
+
+기타:
+
+- OVERRIDE 상수 2개 (`OVERRIDE_ENTRY_CHANNEL_DAYS`, `OVERRIDE_EXIT_CHANNEL_DAYS`)
+- `resolve_params()`: OVERRIDE → DEFAULT 폴백으로 파라미터 결정
+- `run_single()`: 단일 백테스트 실행 → `SingleBacktestResult` 반환
+
 #### strategies/buy_and_hold.py
 
 Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 티커를 지원한다.
