@@ -89,6 +89,10 @@ poetry run python scripts/backtest/run_cpcv_analysis.py --strategy buffer_zone_t
 
 # 7. 대시보드 시각화 (선행: 3)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
+
+# 8. 파라미터 안정성 대시보드 (선행: 2)
+poetry run streamlit run scripts/backtest/app_parameter_stability.py
+# 시각화: Calmar 분포, MA별 히트맵, 인접 파라미터 비교, 통과 기준 판정
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
@@ -239,7 +243,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_wfo_stitched_backtest.py, run_atr_comparison.py, run_wfo_comparison.py, run_cpcv_analysis.py, app_single_backtest.py
+│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_wfo_stitched_backtest.py, run_atr_comparison.py, run_wfo_comparison.py, run_cpcv_analysis.py, app_single_backtest.py, app_parameter_stability.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
@@ -249,7 +253,7 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, cpcv.py, atr_comparison.py, wfo_comparison.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, parameter_stability.py, cpcv.py, atr_comparison.py, wfo_comparison.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소

@@ -56,7 +56,20 @@
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 - `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`와 `run_wfo_stitched_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨
 
-### 4. cpcv.py
+### 4. parameter_stability.py
+
+파라미터 안정성 분석 모듈을 제공합니다.
+overfitting_analysis_report.md 11.2절 "1단계: 파라미터 안정성 확인"에 대응한다.
+
+주요 함수:
+
+- `load_grid_results`: grid_results.csv 로드 + DISPLAY -> COL 컬럼명 변환 + 필수 컬럼 검증
+- `build_calmar_histogram_data`: 전체 Calmar 값 Series 반환 (11.2절 "Calmar 분포 확인")
+- `build_heatmap_data`: MA별 buy_buffer x sell_buffer 히트맵 집계 (11.2절 "buy/sell buffer 히트맵"). hold_days/recent_months 평균 집계
+- `build_adjacent_comparison`: 최적 파라미터 기준 인접 조합 비교 데이터 생성 (11.2절 "인접 파라미터 비교"). buy/sell/hold_days 축 포함
+- `evaluate_stability_criteria`: 통과 기준 판정 (Calmar>0 비율, 인접 30% 이내)
+
+### 5. cpcv.py
 
 CSCV/PBO/DSR 과최적화 통계 검증 모듈을 제공합니다.
 
