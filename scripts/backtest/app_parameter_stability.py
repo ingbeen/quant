@@ -211,7 +211,7 @@ def _render_heatmaps(df: pd.DataFrame) -> None:
             st.plotly_chart(fig, width="stretch")
 
 
-def _render_adjacent_comparison(df: pd.DataFrame, optimal_calmar: float) -> None:
+def _render_adjacent_comparison(df: pd.DataFrame, criteria: dict[str, Any]) -> None:
     """섹션 C: 인접 파라미터 비교 바 차트."""
     st.header("C. 인접 파라미터 비교")
 
@@ -222,16 +222,17 @@ def _render_adjacent_comparison(df: pd.DataFrame, optimal_calmar: float) -> None
     optimal_buy = float(optimal_row[COL_BUY_BUFFER_ZONE_PCT])  # type: ignore[call-overload]
     optimal_sell = float(optimal_row[COL_SELL_BUFFER_ZONE_PCT])  # type: ignore[call-overload]
 
+    opt_cell_mean = criteria["opt_cell_mean"]
     st.markdown(
         f"**최적 파라미터**: MA={optimal_ma}, "
         f"Buy Buffer={optimal_buy:.0%}, "
         f"Sell Buffer={optimal_sell:.0%}, "
-        f"Calmar={optimal_calmar:.4f}"
+        f"셀 평균 Calmar={opt_cell_mean:.4f}"
     )
 
     adj_df = build_adjacent_comparison(df, optimal_ma, optimal_buy, optimal_sell)
 
-    threshold = optimal_calmar * 0.7  # 30% 이내 임계선
+    threshold = criteria["adjacent_threshold"]  # 셀 평균 x 0.70
 
     col1, col2 = st.columns(2)
 
@@ -303,10 +304,15 @@ def _render_adjacent_comparison(df: pd.DataFrame, optimal_calmar: float) -> None
 
 
 def _render_stability_summary(criteria: dict[str, Any]) -> None:
-    """섹션 D: 통과 기준 판정 요약."""
+    """섹션 D: 통과 기준 판정 요약 (5개 기준 + 3단계 판정)."""
     st.header("D. 통과 기준 판정 요약")
 
-    # 판정 테이블
+    opt_cell_mean = criteria["opt_cell_mean"]
+    adjacent_min = criteria["adjacent_min_mean"]
+    adjacent_threshold = criteria["adjacent_threshold"]
+    ratio = adjacent_min / opt_cell_mean * 100 if opt_cell_mean > 0 else 0.0
+
+    # 판정 테이블 (5행)
     rows = [
         {
             "기준": "Calmar > 0 비율 (과반수 216+)",
@@ -314,22 +320,47 @@ def _render_stability_summary(criteria: dict[str, Any]) -> None:
             "판정": "PASS" if criteria["calmar_positive_pass"] else "FAIL",
         },
         {
-            "기준": "인접 파라미터 Calmar (최적 대비 30% 이내)",
-            "결과": f"최소 평균 Calmar: {criteria['adjacent_min_calmar']:.4f} (임계: {criteria['adjacent_within_threshold']:.4f})",
+            "기준": "히트맵 고원 형태 (MA 내 셀 간 차이)",
+            "결과": f"차이 {criteria['plateau_range']:.3f}",
+            "판정": "PASS" if criteria["plateau_pass"] else "FAIL",
+        },
+        {
+            "기준": "인접 파라미터 (평균 대 평균, 30% 이내)",
+            "결과": (f"최소 {adjacent_min:.4f} / " f"기준 {opt_cell_mean:.4f} = {ratio:.1f}%"),
             "판정": "PASS" if criteria["adjacent_pass"] else "FAIL",
         },
         {
-            "기준": "종합 판정",
-            "결과": "",
-            "판정": "PASS" if criteria["overall_pass"] else "FAIL",
+            "기준": "MA 의존성",
+            "결과": f"MA=100이 최적 MA 대비 {criteria['ma_gap_pct']:.1f}% 낮음",
+            "판정": "WARN" if criteria["ma_dependency_warn"] else "PASS",
+        },
+        {
+            "기준": "sell_buffer 의존성",
+            "결과": "sell_buffer=0.01 셀이 가장 낮음" if criteria["sell_dependency_warn"] else "특이사항 없음",
+            "판정": "WARN" if criteria["sell_dependency_warn"] else "PASS",
         },
     ]
 
     summary_df = pd.DataFrame(rows)
     st.dataframe(summary_df, width="stretch", hide_index=True)
 
-    if criteria["overall_pass"]:
+    verdict = criteria["overall_verdict"]
+    if verdict == "pass":
         st.success("파라미터 안정성 1단계 검증: 통과")
+    elif verdict == "conditional":
+        st.warning("파라미터 안정성 1단계 검증: 조건부 통과")
+        # 주의 항목 나열
+        warnings: list[str] = []
+        if criteria["ma_dependency_warn"]:
+            warnings.append(f"MA 의존성: MA=100이 {criteria['ma_gap_pct']:.1f}% 낮음")
+        if criteria["sell_dependency_warn"]:
+            warnings.append("sell_buffer 의존성: sell_buffer=0.01 셀이 가장 낮음")
+        if not criteria["plateau_pass"]:
+            warnings.append(f"히트맵 고원: 셀 간 차이 {criteria['plateau_range']:.3f}")
+        if not criteria["adjacent_pass"]:
+            warnings.append(f"인접 파라미터: 최소 {adjacent_min:.4f} < 임계 {adjacent_threshold:.4f}")
+        if warnings:
+            st.markdown("**주의 항목:**\n" + "\n".join(f"- {w}" for w in warnings))
     else:
         st.error("파라미터 안정성 1단계 검증: 미달")
 
@@ -366,15 +397,20 @@ def main() -> None:
     # 데이터 로드
     df = load_grid_results(grid_path)
 
-    # 최적 Calmar
-    optimal_calmar = float(df[COL_CALMAR].max())
-
     # 최적 파라미터
     optimal_idx = df[COL_CALMAR].idxmax()
     optimal_row = df.loc[optimal_idx]  # type: ignore[call-overload]
     optimal_ma = int(optimal_row[COL_MA_WINDOW])  # type: ignore[call-overload]
     optimal_buy = float(optimal_row[COL_BUY_BUFFER_ZONE_PCT])  # type: ignore[call-overload]
     optimal_sell = float(optimal_row[COL_SELL_BUFFER_ZONE_PCT])  # type: ignore[call-overload]
+
+    # 판정 결과 (셀 평균 기반)
+    criteria = evaluate_stability_criteria(
+        df,
+        optimal_ma=optimal_ma,
+        optimal_buy=optimal_buy,
+        optimal_sell=optimal_sell,
+    )
 
     # 섹션 A: Calmar 분포
     calmar_series = build_calmar_histogram_data(df)
@@ -388,18 +424,11 @@ def main() -> None:
     st.divider()
 
     # 섹션 C: 인접 비교
-    _render_adjacent_comparison(df, optimal_calmar)
+    _render_adjacent_comparison(df, criteria)
 
     st.divider()
 
     # 섹션 D: 판정 요약
-    criteria = evaluate_stability_criteria(
-        df,
-        optimal_calmar=optimal_calmar,
-        optimal_ma=optimal_ma,
-        optimal_buy=optimal_buy,
-        optimal_sell=optimal_sell,
-    )
     _render_stability_summary(criteria)
 
 

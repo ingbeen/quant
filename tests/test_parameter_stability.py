@@ -306,43 +306,254 @@ class TestBuildAdjacentComparison:
 
 
 class TestEvaluateStabilityCriteria:
-    """보고서 11.2절 통과 기준 평가 테스트."""
+    """보고서 11.2절 통과 기준 평가 테스트 (5개 기준 + 3단계 판정)."""
 
-    def test_evaluate_stability_criteria(self) -> None:
+    def test_evaluate_stability_returns_all_keys(self) -> None:
         """
-        목적: Calmar>0 비율, 인접 30% 이내 판정 함수 검증
+        목적: 반환 dict에 5개 기준의 모든 키가 포함되는지 검증
 
-        Given: 모든 Calmar > 0인 432개 데이터, 최적 Calmar 값
+        Given: 432개 그리드 결과
         When: evaluate_stability_criteria() 호출
-        Then: Calmar>0 비율 100%, 통과 판정 포함
+        Then: 모든 필수 키 포함
         """
         from qbt.backtest.parameter_stability import evaluate_stability_criteria
 
         # Given
         df = _build_grid_df()
-        # 최적 Calmar 값 찾기
-        optimal_calmar = df[COL_CALMAR].max()
 
         # When
         result = evaluate_stability_criteria(
             df,
-            optimal_calmar=optimal_calmar,
             optimal_ma=200,
             optimal_buy=0.03,
             optimal_sell=0.05,
         )
 
         # Then
-        assert isinstance(result, dict)
-        # Calmar > 0 비율 관련
-        assert "calmar_positive_ratio" in result
-        assert "calmar_positive_pass" in result
-        assert result["calmar_positive_ratio"] == pytest.approx(1.0, abs=1e-12)
+        expected_keys = {
+            # 기준 1: Calmar > 0
+            "calmar_positive_ratio",
+            "calmar_positive_count",
+            "calmar_positive_pass",
+            # 기준 2: 히트맵 고원
+            "plateau_range",
+            "plateau_pass",
+            # 기준 3: 인접 파라미터
+            "opt_cell_mean",
+            "adjacent_threshold",
+            "adjacent_min_mean",
+            "adjacent_pass",
+            # 기준 4: MA 의존성
+            "ma_gap_pct",
+            "ma_dependency_warn",
+            # 기준 5: sell_buffer 의존성
+            "sell_dependency_warn",
+            # 종합 판정
+            "overall_verdict",
+        }
+        assert expected_keys.issubset(result.keys())
+
+    def test_evaluate_stability_opt_cell_mean_baseline(self) -> None:
+        """
+        목적: 기준값이 단일 최적 Calmar가 아닌 최적 셀 평균인지 검증
+
+        Given: 432개 그리드 결과 (MA=200, buy=0.03, sell=0.05가 최적)
+        When: evaluate_stability_criteria() 호출
+        Then: opt_cell_mean은 해당 셀의 hold_days x recent_months 16개 평균
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given
+        df = _build_grid_df()
+        # 직접 계산: MA=200, buy=0.03, sell=0.05 셀의 16개 Calmar 평균
+        cell_mask = (
+            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.03) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.05)
+        )
+        expected_cell_mean = float(df.loc[cell_mask, COL_CALMAR].mean())
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        assert result["opt_cell_mean"] == pytest.approx(expected_cell_mean, abs=1e-10)
+        # 셀 평균은 단일 최적값보다 작아야 함
+        single_max = float(df[COL_CALMAR].max())
+        assert result["opt_cell_mean"] < single_max
+
+    def test_evaluate_stability_plateau_detection(self) -> None:
+        """
+        목적: 히트맵 고원 판정 검증 (best_ma 내 9셀 max-min 차이)
+
+        Given: MA=200 내 9셀의 평균 Calmar가 좁은 범위
+        When: evaluate_stability_criteria() 호출
+        Then: plateau_range < 0.05이면 plateau_pass = True
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given
+        df = _build_grid_df()
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        # 테스트 데이터에서 MA=200 내 9셀 범위 직접 계산
+        ma200 = df[df[COL_MA_WINDOW] == 200]
+        cell_means = ma200.groupby([COL_BUY_BUFFER_ZONE_PCT, COL_SELL_BUFFER_ZONE_PCT])[COL_CALMAR].mean()
+        expected_range = float(cell_means.max() - cell_means.min())
+        assert result["plateau_range"] == pytest.approx(expected_range, abs=1e-10)
+        # 테스트 데이터에서는 범위가 0.05 미만이므로 통과
+        assert result["plateau_pass"] is True
+
+    def test_evaluate_stability_adjacent_mean_vs_mean(self) -> None:
+        """
+        목적: 인접 파라미터 비교가 평균 대 평균으로 수행되는지 검증
+
+        Given: 432개 그리드 결과
+        When: evaluate_stability_criteria() 호출
+        Then: adjacent_threshold = opt_cell_mean * 0.70
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given
+        df = _build_grid_df()
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        expected_threshold = result["opt_cell_mean"] * 0.70
+        assert result["adjacent_threshold"] == pytest.approx(expected_threshold, abs=1e-10)
+
+    def test_evaluate_stability_ma_dependency(self) -> None:
+        """
+        목적: MA 의존성 판정 검증 (MA=100 vs best_ma 평균 비교)
+
+        Given: 432개 그리드 결과 (MA=100이 MA=200보다 낮도록 설계)
+        When: evaluate_stability_criteria() 호출
+        Then: ma_gap_pct > 0 (MA=200이 더 높음)
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given
+        df = _build_grid_df()
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        # MA=100은 MA=200보다 낮아야 함
+        assert result["ma_gap_pct"] > 0
+
+    def test_evaluate_stability_overall_three_tier_pass(self) -> None:
+        """
+        목적: 3단계 종합 판정 - 통과 케이스 검증
+
+        Given: 모든 기준 양호한 데이터
+        When: evaluate_stability_criteria() 호출
+        Then: overall_verdict = "pass" (fail 0개)
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given
+        df = _build_grid_df()
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        # 테스트 데이터는 모든 Calmar > 0이고 인접 차이가 크지 않으므로
         assert result["calmar_positive_pass"] is True
+        assert result["plateau_pass"] is True
+        assert result["adjacent_pass"] is True
+        # fail이 0개이면 "pass"
+        assert result["overall_verdict"] == "pass"
 
-        # 인접 파라미터 30% 이내 관련
-        assert "adjacent_within_threshold" in result
-        assert "adjacent_pass" in result
+    def test_evaluate_stability_overall_three_tier_fail(self) -> None:
+        """
+        목적: 3단계 종합 판정 - 미달 케이스 검증
 
-        # 전체 통과 여부
-        assert "overall_pass" in result
+        Given: Calmar > 0 비율이 낮고 인접 판정도 실패하는 데이터
+        When: evaluate_stability_criteria() 호출
+        Then: overall_verdict = "fail"
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given: 대부분 Calmar < 0인 데이터 생성
+        df = _build_grid_df()
+        df[COL_CALMAR] = -0.1  # 모든 Calmar를 음수로
+        # 최적 셀만 약간 양수로 (평균 대 평균 비교 시 인접도 실패하도록)
+        opt_mask = (
+            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.03) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.05)
+        )
+        df.loc[opt_mask, COL_CALMAR] = 0.01
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        assert result["calmar_positive_pass"] is False
+        assert result["overall_verdict"] == "fail"
+
+    def test_evaluate_stability_overall_three_tier_conditional(self) -> None:
+        """
+        목적: 3단계 종합 판정 - 조건부 통과 케이스 검증
+
+        Given: 3개 핵심 기준 중 정확히 1개만 fail
+        When: evaluate_stability_criteria() 호출
+        Then: overall_verdict = "conditional"
+        """
+        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+
+        # Given: 기본 데이터에서 고원 범위를 크게 만들어 plateau만 실패시킴
+        df = _build_grid_df()
+        # MA=200, buy=0.01, sell=0.01 셀의 Calmar를 매우 높게 설정하여
+        # 9셀 내 max-min 차이가 0.05를 초과하도록 만듦
+        outlier_mask = (
+            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.01) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.01)
+        )
+        df.loc[outlier_mask, COL_CALMAR] = 0.50  # 다른 셀(~0.2)과 큰 차이
+
+        # When
+        result = evaluate_stability_criteria(
+            df,
+            optimal_ma=200,
+            optimal_buy=0.03,
+            optimal_sell=0.05,
+        )
+
+        # Then
+        assert result["calmar_positive_pass"] is True
+        assert result["plateau_pass"] is False  # 고원 실패
+        assert result["adjacent_pass"] is True  # 인접 통과
+        assert result["overall_verdict"] == "conditional"

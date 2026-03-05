@@ -76,6 +76,9 @@ _ADJACENT_THRESHOLD_RATIO = 0.7  # 최적 대비 70% 이상이면 통과
 # Calmar > 0 과반수 기준
 _CALMAR_POSITIVE_MAJORITY_RATIO = 0.5  # 50% 초과
 
+# 히트맵 고원 판정 임계값 (셀 간 max-min 차이)
+_PLATEAU_RANGE_THRESHOLD = 0.05
+
 
 def load_grid_results(grid_results_path: Path) -> pd.DataFrame:
     """grid_results.csv 로드 후 내부 컬럼명(COL_*)으로 변환.
@@ -233,16 +236,17 @@ def build_adjacent_comparison(
 
 def evaluate_stability_criteria(
     df: pd.DataFrame,
-    optimal_calmar: float,
     optimal_ma: int,
     optimal_buy: float,
     optimal_sell: float,
 ) -> dict[str, Any]:
-    """보고서 11.2절 통과 기준 평가.
+    """보고서 11.2절 통과 기준 평가 (5개 기준 + 3단계 판정).
+
+    기준값을 단일 최적 Calmar 대신 최적 셀 평균 Calmar로 사용하여
+    동일한 집계 기준(평균 대 평균)으로 비교한다.
 
     Args:
         df: load_grid_results()로 로드한 DataFrame
-        optimal_calmar: 최적 Calmar 값
         optimal_ma: 최적 MA 기간
         optimal_buy: 최적 매수 버퍼존 비율
         optimal_sell: 최적 매도 버퍼존 비율
@@ -252,10 +256,16 @@ def evaluate_stability_criteria(
         - calmar_positive_ratio: Calmar > 0 비율 (0~1)
         - calmar_positive_count: Calmar > 0 개수
         - calmar_positive_pass: 과반수 통과 여부
-        - adjacent_within_threshold: 인접 파라미터가 30% 이내인지
+        - plateau_range: best_ma 내 9셀 max-min 차이
+        - plateau_pass: 고원 형태 통과 여부
+        - opt_cell_mean: 최적 셀 평균 Calmar
+        - adjacent_threshold: 인접 판정 임계값
+        - adjacent_min_mean: 인접 셀 중 최소 평균 Calmar
         - adjacent_pass: 인접 기준 통과 여부
-        - adjacent_min_calmar: 인접 파라미터 중 최소 Calmar 평균
-        - overall_pass: 전체 통과 여부
+        - ma_gap_pct: MA=100이 best_ma 대비 낮은 비율 (%)
+        - ma_dependency_warn: MA 의존성 경고 여부
+        - sell_dependency_warn: sell_buffer 의존성 경고 여부
+        - overall_verdict: 종합 판정 ("pass" | "conditional" | "fail")
     """
     # 1. Calmar > 0 비율
     total_count = len(df)
@@ -263,28 +273,77 @@ def evaluate_stability_criteria(
     positive_ratio = positive_count / total_count if total_count > 0 else 0.0
     calmar_positive_pass = positive_ratio > _CALMAR_POSITIVE_MAJORITY_RATIO
 
-    # 2. 인접 파라미터 30% 이내 판정
-    adjacent_df = build_adjacent_comparison(df, optimal_ma, optimal_buy, optimal_sell)
-    threshold = optimal_calmar * _ADJACENT_THRESHOLD_RATIO
+    # 2. 히트맵 고원 판정: best_ma 내 9셀의 max-min 차이
+    best_ma_df = df[df[COL_MA_WINDOW] == optimal_ma]
+    cell_means = best_ma_df.groupby([COL_BUY_BUFFER_ZONE_PCT, COL_SELL_BUFFER_ZONE_PCT])[COL_CALMAR].mean()
+    plateau_range = float(cell_means.max() - cell_means.min()) if len(cell_means) > 0 else 0.0
+    plateau_pass = plateau_range < _PLATEAU_RANGE_THRESHOLD
 
-    # buy_buffer, sell_buffer 축의 인접 Calmar만 검사 (hold_days 제외)
+    # 3. 인접 파라미터 (평균 대 평균, 30% 이내)
+    # 3-1. 최적 셀 평균 Calmar 계산
+    opt_cell_mask = (
+        (df[COL_MA_WINDOW] == optimal_ma)
+        & (df[COL_BUY_BUFFER_ZONE_PCT] == optimal_buy)
+        & (df[COL_SELL_BUFFER_ZONE_PCT] == optimal_sell)
+    )
+    opt_cell_data = df.loc[opt_cell_mask, COL_CALMAR]
+    opt_cell_mean = float(opt_cell_data.mean()) if len(opt_cell_data) > 0 else 0.0
+
+    # 3-2. 인접 셀 평균 계산 (buy 또는 sell을 한 단계 변경)
+    adjacent_df = build_adjacent_comparison(df, optimal_ma, optimal_buy, optimal_sell)
     buffer_adjacent = adjacent_df[adjacent_df["axis"].isin(["buy_buffer", "sell_buffer"])]
+
+    threshold = opt_cell_mean * _ADJACENT_THRESHOLD_RATIO
     if len(buffer_adjacent) > 0:
-        adjacent_min = float(buffer_adjacent["calmar_mean"].min())
-        adjacent_pass = adjacent_min >= threshold
+        adjacent_min_mean = float(buffer_adjacent["calmar_mean"].min())
+        adjacent_pass = adjacent_min_mean >= threshold
     else:
-        adjacent_min = 0.0
+        adjacent_min_mean = 0.0
         adjacent_pass = False
 
-    # 3. 전체 통과 여부
-    overall_pass = calmar_positive_pass and adjacent_pass
+    # 4. MA 의존성: MA=100 평균 vs best_ma 평균
+    ma100_data = df[df[COL_MA_WINDOW] == 100]
+    best_ma_mean = float(best_ma_df[COL_CALMAR].mean()) if len(best_ma_df) > 0 else 0.0
+    ma100_mean = float(ma100_data[COL_CALMAR].mean()) if len(ma100_data) > 0 else 0.0
+
+    if best_ma_mean > 0:
+        ma_gap_pct = (best_ma_mean - ma100_mean) / best_ma_mean * 100
+    else:
+        ma_gap_pct = 0.0
+    ma_dependency_warn = ma_gap_pct > 10.0
+
+    # 5. sell_buffer 의존성: sell_buffer=0.01 평균이 전체 최저인지
+    unique_sells = sorted(df[COL_SELL_BUFFER_ZONE_PCT].unique())
+    sell_means = {
+        sell_val: float(df[df[COL_SELL_BUFFER_ZONE_PCT] == sell_val][COL_CALMAR].mean()) for sell_val in unique_sells
+    }
+    min_sell_val = min(sell_means, key=sell_means.get) if sell_means else 0.0  # type: ignore[arg-type]
+    sell_dependency_warn = min_sell_val == 0.01
+
+    # 6. 종합 판정 (3단계)
+    # ✓/✗ 판정 대상: calmar_positive, plateau, adjacent (3개)
+    # △ 주의 대상: ma_dependency, sell_dependency (2개, fail에 포함하지 않음)
+    fail_count = sum([not calmar_positive_pass, not plateau_pass, not adjacent_pass])
+
+    if fail_count == 0:
+        overall_verdict = "pass"
+    elif fail_count == 1:
+        overall_verdict = "conditional"
+    else:
+        overall_verdict = "fail"
 
     return {
         "calmar_positive_ratio": positive_ratio,
         "calmar_positive_count": positive_count,
         "calmar_positive_pass": calmar_positive_pass,
-        "adjacent_within_threshold": threshold,
+        "plateau_range": plateau_range,
+        "plateau_pass": plateau_pass,
+        "opt_cell_mean": opt_cell_mean,
+        "adjacent_threshold": threshold,
+        "adjacent_min_mean": adjacent_min_mean,
         "adjacent_pass": adjacent_pass,
-        "adjacent_min_calmar": adjacent_min,
-        "overall_pass": overall_pass,
+        "ma_gap_pct": ma_gap_pct,
+        "ma_dependency_warn": ma_dependency_warn,
+        "sell_dependency_warn": sell_dependency_warn,
+        "overall_verdict": overall_verdict,
     }
