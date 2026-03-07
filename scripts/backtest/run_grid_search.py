@@ -50,12 +50,10 @@ from qbt.backtest.constants import (
     DISPLAY_WIN_RATE,
     SLIPPAGE_RATE,
 )
-from qbt.backtest.strategies import buffer_zone_qqq, buffer_zone_tqqq
+from qbt.backtest.strategies import buffer_zone
 from qbt.common_constants import (
     COL_DATE,
     META_JSON_PATH,
-    QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -65,17 +63,19 @@ from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
-# 전략별 설정 매핑
+# 전략별 설정 매핑 (grid search 대상: 기존 전략만)
+_tqqq = buffer_zone.get_config("buffer_zone_tqqq")
+_qqq = buffer_zone.get_config("buffer_zone_qqq")
 STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
-    buffer_zone_tqqq.STRATEGY_NAME: {
-        "signal_path": QQQ_DATA_PATH,
-        "trade_path": TQQQ_SYNTHETIC_DATA_PATH,
-        "grid_results_path": buffer_zone_tqqq.GRID_RESULTS_PATH,
+    _tqqq.strategy_name: {
+        "signal_path": _tqqq.signal_data_path,
+        "trade_path": _tqqq.trade_data_path,
+        "grid_results_path": _tqqq.grid_results_path,  # type: ignore[dict-item]
     },
-    buffer_zone_qqq.STRATEGY_NAME: {
-        "signal_path": QQQ_DATA_PATH,
-        "trade_path": QQQ_DATA_PATH,
-        "grid_results_path": buffer_zone_qqq.GRID_RESULTS_PATH,
+    _qqq.strategy_name: {
+        "signal_path": _qqq.signal_data_path,
+        "trade_path": _qqq.trade_data_path,
+        "grid_results_path": _qqq.grid_results_path,  # type: ignore[dict-item]
     },
 }
 

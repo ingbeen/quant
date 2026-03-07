@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-03-07 15:00
-**마지막 업데이트**: 2026-03-07 15:00
+**마지막 업데이트**: 2026-03-07 16:30
 **관련 범위**: scripts, backtest, tests, docs
 **관련 문서**: cross_asset_validation_plan.md (§9 구현 방안), PLAN_BUFFER_ZONE_UNIFIED_MODULE.md
 
@@ -43,11 +43,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 모든 스크립트를 `buffer_zone.py` 통합 모듈로 마이그레이션
-- [ ] `run_single_backtest.py`에 cross-asset 전략 레지스트리 자동 등록 + regime_summaries 분기 추가
-- [ ] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 삭제
-- [ ] 기존 테스트(`test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py`) → `test_buffer_zone.py`로 통합
-- [ ] CLAUDE.md 문서 업데이트 (루트, backtest 도메인, scripts)
+- [x] 모든 스크립트를 `buffer_zone.py` 통합 모듈로 마이그레이션
+- [x] `run_single_backtest.py`에 cross-asset 전략 레지스트리 자동 등록 + regime_summaries 분기 추가
+- [x] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 삭제
+- [x] 기존 테스트(`test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py`) → `test_buffer_zone.py`로 통합
+- [x] CLAUDE.md 문서 업데이트 (루트, backtest 도메인, scripts)
 
 ## 2) 비목표(Non-Goals)
 
@@ -96,17 +96,17 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] 4개 스크립트가 `buffer_zone.py` 통합 모듈만 참조 (기존 개별 모듈 import 제거)
-- [ ] `run_single_backtest.py`의 전략 레지스트리에 CONFIGS 기반 자동 등록
-- [ ] `run_single_backtest.py`의 regime_summaries 분기 로직 구현
-- [ ] `buffer_zone_tqqq.py`, `buffer_zone_qqq.py` 삭제
-- [ ] `test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py` 삭제
-- [ ] `test_buffer_zone.py`에 기존 테스트 케이스 통합 (resolve_params 폴백, run_single 구조)
-- [ ] `__init__.py`에서 삭제된 모듈 참조 제거
-- [ ] CLAUDE.md 문서 업데이트 (루트 디렉토리 구조, backtest 도메인, scripts)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] 4개 스크립트가 `buffer_zone.py` 통합 모듈만 참조 (기존 개별 모듈 import 제거)
+- [x] `run_single_backtest.py`의 전략 레지스트리에 CONFIGS 기반 자동 등록
+- [x] `run_single_backtest.py`의 regime_summaries 분기 로직 구현
+- [x] `buffer_zone_tqqq.py`, `buffer_zone_qqq.py` 삭제
+- [x] `test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py` 삭제
+- [x] `test_buffer_zone.py`에 기존 테스트 케이스 통합 (resolve_params 폴백, run_single 구조)
+- [x] `__init__.py`에서 삭제된 모듈 참조 제거
+- [x] CLAUDE.md 문서 업데이트 (루트 디렉토리 구조, backtest 도메인, scripts)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=479, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -152,25 +152,25 @@
 
 **작업 내용:**
 
-- [ ] `scripts/backtest/run_single_backtest.py` 변경
-  - [ ] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
-  - [ ] 전략 레지스트리: `buffer_zone.CONFIGS` 기반 자동 등록 (`for _config in buffer_zone.CONFIGS`)
-  - [ ] regime_summaries 분기 로직 추가:
+- [x] `scripts/backtest/run_single_backtest.py` 변경
+  - [x] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
+  - [x] 전략 레지스트리: `buffer_zone.CONFIGS` 기반 자동 등록 (`for _config in buffer_zone.CONFIGS`)
+  - [x] regime_summaries 분기 로직 추가:
     - `data_info["signal_path"] == str(QQQ_DATA_PATH)` → `MARKET_REGIMES` 적용
     - 그 외 → 빈 리스트 (`[]`)
-  - [ ] `--strategy` choices에 cross-asset 전략명 자동 포함 (STRATEGY_RUNNERS.keys() 기반이므로 자동)
-- [ ] `scripts/backtest/run_grid_search.py` 변경
-  - [ ] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
-  - [ ] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `grid_results_path` 참조
-  - [ ] grid search 대상은 기존 전략(buffer_zone_tqqq, buffer_zone_qqq)만 유지 (cross-asset은 그리드 서치 불필요)
-- [ ] `scripts/backtest/run_walkforward.py` 변경
-  - [ ] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
-  - [ ] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `result_dir` 참조
-  - [ ] WFO 대상은 기존 전략만 유지 (cross-asset은 WFO 불필요)
-- [ ] `scripts/backtest/run_cpcv_analysis.py` 변경
-  - [ ] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
-  - [ ] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `result_dir` 참조
-  - [ ] CSCV 분석 대상은 기존 전략만 유지 (cross-asset은 CSCV 불필요)
+  - [x] `--strategy` choices에 cross-asset 전략명 자동 포함 (STRATEGY_RUNNERS.keys() 기반이므로 자동)
+- [x] `scripts/backtest/run_grid_search.py` 변경
+  - [x] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
+  - [x] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `grid_results_path` 참조
+  - [x] grid search 대상은 기존 전략(buffer_zone_tqqq, buffer_zone_qqq)만 유지 (cross-asset은 그리드 서치 불필요)
+- [x] `scripts/backtest/run_walkforward.py` 변경
+  - [x] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
+  - [x] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `result_dir` 참조
+  - [x] WFO 대상은 기존 전략만 유지 (cross-asset은 WFO 불필요)
+- [x] `scripts/backtest/run_cpcv_analysis.py` 변경
+  - [x] import 변경: `buffer_zone_tqqq`, `buffer_zone_qqq` → `buffer_zone`
+  - [x] STRATEGY_CONFIG 구성: `buffer_zone.get_config()` 기반으로 `signal_path`, `trade_path`, `result_dir` 참조
+  - [x] CSCV 분석 대상은 기존 전략만 유지 (cross-asset은 CSCV 불필요)
 
 ---
 
@@ -178,19 +178,19 @@
 
 **작업 내용:**
 
-- [ ] `src/qbt/backtest/strategies/buffer_zone_tqqq.py` 삭제
-- [ ] `src/qbt/backtest/strategies/buffer_zone_qqq.py` 삭제
-- [ ] `src/qbt/backtest/strategies/__init__.py`에서 삭제된 모듈 참조 제거
+- [x] `src/qbt/backtest/strategies/buffer_zone_tqqq.py` 삭제
+- [x] `src/qbt/backtest/strategies/buffer_zone_qqq.py` 삭제
+- [x] `src/qbt/backtest/strategies/__init__.py`에서 삭제된 모듈 참조 제거
   - `buffer_zone_tqqq`, `buffer_zone_qqq` import 제거
   - `buffer_zone` 모듈 export는 Plan 1에서 추가 완료
-- [ ] `tests/test_buffer_zone_tqqq.py` 삭제
-- [ ] `tests/test_buffer_zone_qqq.py` 삭제
-- [ ] `tests/test_buffer_zone.py`에 기존 테스트 케이스 통합
-  - [ ] `TestResolveParamsForConfig`에 TQQQ/QQQ 폴백 체인 테스트 추가 (기존 test_buffer_zone_tqqq.py의 3개 테스트 이전)
+- [x] `tests/test_buffer_zone_tqqq.py` 삭제
+- [x] `tests/test_buffer_zone_qqq.py` 삭제
+- [x] `tests/test_buffer_zone.py`에 기존 테스트 케이스 통합
+  - [x] `TestResolveParamsForConfig`에 TQQQ/QQQ 폴백 체인 테스트 추가 (기존 test_buffer_zone_tqqq.py의 3개 테스트 이전)
     - OVERRIDE 없고 grid 없을 때 DEFAULT 사용
     - OVERRIDE 값이 최우선
     - grid_results.csv 존재 시 grid_best 사용
-  - [ ] `TestCreateRunner`에 TQQQ/QQQ run_single 구조 검증 추가 (기존 test_buffer_zone_tqqq.py, test_buffer_zone_qqq.py의 run_single 테스트 이전)
+  - [x] `TestCreateRunner`에 TQQQ/QQQ run_single 구조 검증 추가 (기존 test_buffer_zone_tqqq.py, test_buffer_zone_qqq.py의 run_single 테스트 이전)
     - buffer_zone_tqqq config로 run_single 실행 → SingleBacktestResult 구조 검증
     - buffer_zone_qqq config로 run_single 실행 → SingleBacktestResult 구조 검증
 
@@ -200,25 +200,25 @@
 
 **작업 내용**
 
-- [ ] `CLAUDE.md` (루트) 업데이트
-  - [ ] 디렉토리 구조에 `buffer_zone.py` 추가, `buffer_zone_tqqq.py`/`buffer_zone_qqq.py` 제거
-  - [ ] `storage/results/backtest/` 하위에 cross-asset 결과 디렉토리 추가
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
-  - [ ] `strategies/buffer_zone.py` 섹션 추가 (BufferZoneConfig, CONFIGS, create_runner, resolve_params_for_config)
-  - [ ] `strategies/buffer_zone_tqqq.py`, `strategies/buffer_zone_qqq.py` 섹션 삭제
-  - [ ] `strategies/__init__.py` 설명 업데이트
-- [ ] `scripts/CLAUDE.md` 업데이트
-  - [ ] `run_single_backtest.py` 설명 업데이트 (cross-asset 전략 자동 등록, regime_summaries 분기)
-  - [ ] `--strategy` 옵션 설명에 cross-asset 전략명 추가
-- [ ] `tests/CLAUDE.md` 업데이트
-  - [ ] 테스트 파일 목록에 `test_buffer_zone.py` 추가, `test_buffer_zone_tqqq.py`/`test_buffer_zone_qqq.py` 제거
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `CLAUDE.md` (루트) 업데이트
+  - [x] 디렉토리 구조에 `buffer_zone.py` 추가, `buffer_zone_tqqq.py`/`buffer_zone_qqq.py` 제거
+  - [x] `storage/results/backtest/` 하위에 cross-asset 결과 디렉토리 추가
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
+  - [x] `strategies/buffer_zone.py` 섹션 추가 (BufferZoneConfig, CONFIGS, create_runner, resolve_params_for_config)
+  - [x] `strategies/buffer_zone_tqqq.py`, `strategies/buffer_zone_qqq.py` 섹션 삭제
+  - [x] `strategies/__init__.py` 설명 업데이트
+- [x] `scripts/CLAUDE.md` 업데이트
+  - [x] `run_single_backtest.py` 설명 업데이트 (cross-asset 전략 자동 등록, regime_summaries 분기)
+  - [x] `--strategy` 옵션 설명에 cross-asset 전략명 추가
+- [x] `tests/CLAUDE.md` 업데이트
+  - [x] 테스트 파일 목록에 `test_buffer_zone.py` 추가, `test_buffer_zone_tqqq.py`/`test_buffer_zone_qqq.py` 제거
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=479, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -305,5 +305,6 @@ STRATEGY_CONFIG = {
 ### 진행 로그 (KST)
 
 - 2026-03-07 15:00: Plan 초안 작성
+- 2026-03-07 16:30: Phase 1~3 완료. validate_project.py 통과 (passed=479, failed=0, skipped=0)
 
 ---

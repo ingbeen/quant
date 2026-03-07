@@ -7,6 +7,8 @@ backtest/strategies/buffer_zone 통합 모듈 테스트
 3. resolve_params_for_config() 폴백 체인 (override -> grid -> DEFAULT)
 4. create_runner() 팩토리 함수 및 SingleBacktestResult 반환 구조
 5. signal_path == trade_path 분기 (overlap 호출 여부)
+6. TQQQ/QQQ config별 resolve_params_for_config 폴백 체인 검증
+7. TQQQ/QQQ config별 create_runner run_single 구조 검증
 
 왜 중요한가요?
 buffer_zone.py는 9개 자산의 config-driven 통합 전략 모듈입니다.
@@ -275,6 +277,139 @@ class TestResolveParamsForConfig:
         assert params.hold_days == 0, "cross-asset config는 hold_days=0이어야 합니다"
         assert params.recent_months == 0, "cross-asset config는 recent_months=0이어야 합니다"
 
+    def test_tqqq_config_default_fallback(self, tmp_path):
+        """
+        목적: buffer_zone_tqqq config에서 override=None, grid 없음 -> DEFAULT 사용 검증
+
+        Given: buffer_zone_tqqq config를 가져와 grid_results_path를 존재하지 않는 경로로 교체
+        When: resolve_params_for_config 호출
+        Then: DEFAULT 상수 값 사용, 출처 "DEFAULT"
+        """
+        from qbt.backtest.constants import (
+            DEFAULT_BUY_BUFFER_ZONE_PCT,
+            DEFAULT_HOLD_DAYS,
+            DEFAULT_MA_WINDOW,
+            DEFAULT_RECENT_MONTHS,
+            DEFAULT_SELL_BUFFER_ZONE_PCT,
+        )
+
+        # Given: tqqq config 복제 (grid 파일 없는 경로)
+        config = BufferZoneConfig(
+            strategy_name="buffer_zone_tqqq",
+            display_name="버퍼존 전략 (TQQQ)",
+            signal_data_path=Path("signal.csv"),
+            trade_data_path=Path("trade.csv"),
+            result_dir=tmp_path / "buffer_zone_tqqq",
+            grid_results_path=tmp_path / "nonexistent.csv",
+            override_ma_window=None,
+            override_buy_buffer_zone_pct=None,
+            override_sell_buffer_zone_pct=None,
+            override_hold_days=None,
+            override_recent_months=None,
+            ma_type="ema",
+        )
+
+        # When
+        params, sources = resolve_params_for_config(config)
+
+        # Then
+        assert params.ma_window == DEFAULT_MA_WINDOW
+        assert params.buy_buffer_zone_pct == DEFAULT_BUY_BUFFER_ZONE_PCT
+        assert params.sell_buffer_zone_pct == DEFAULT_SELL_BUFFER_ZONE_PCT
+        assert params.hold_days == DEFAULT_HOLD_DAYS
+        assert params.recent_months == DEFAULT_RECENT_MONTHS
+        assert all(s == "DEFAULT" for s in sources.values())
+
+    def test_tqqq_config_override_priority(self):
+        """
+        목적: buffer_zone_tqqq config에서 OVERRIDE 값 최우선 검증
+
+        Given: 모든 override 값이 설정된 config
+        When: resolve_params_for_config 호출
+        Then: OVERRIDE 값이 사용됨
+        """
+        # Given
+        config = BufferZoneConfig(
+            strategy_name="buffer_zone_tqqq",
+            display_name="버퍼존 전략 (TQQQ)",
+            signal_data_path=Path("signal.csv"),
+            trade_data_path=Path("trade.csv"),
+            result_dir=Path("results/tqqq"),
+            grid_results_path=None,
+            override_ma_window=50,
+            override_buy_buffer_zone_pct=0.05,
+            override_sell_buffer_zone_pct=0.04,
+            override_hold_days=3,
+            override_recent_months=6,
+            ma_type="ema",
+        )
+
+        # When
+        params, sources = resolve_params_for_config(config)
+
+        # Then
+        assert params.ma_window == 50
+        assert params.buy_buffer_zone_pct == 0.05
+        assert params.sell_buffer_zone_pct == 0.04
+        assert params.hold_days == 3
+        assert params.recent_months == 6
+        assert all(s == "OVERRIDE" for s in sources.values())
+
+    def test_tqqq_config_grid_best_fallback(self, tmp_path):
+        """
+        목적: buffer_zone_tqqq config에서 grid_results.csv 존재 시 grid_best 사용 검증
+
+        Given: override=None, grid_results.csv에 파라미터 존재
+        When: resolve_params_for_config 호출
+        Then: grid의 첫 행 값 사용, 출처 "grid_best"
+        """
+        from qbt.backtest.constants import (
+            DISPLAY_BUY_BUFFER_ZONE,
+            DISPLAY_HOLD_DAYS,
+            DISPLAY_MA_WINDOW,
+            DISPLAY_RECENT_MONTHS,
+            DISPLAY_SELL_BUFFER_ZONE,
+        )
+
+        # Given: grid_results.csv 생성
+        grid_path = tmp_path / "grid_results.csv"
+        grid_df = pd.DataFrame(
+            {
+                DISPLAY_MA_WINDOW: [150],
+                DISPLAY_BUY_BUFFER_ZONE: [0.04],
+                DISPLAY_SELL_BUFFER_ZONE: [0.03],
+                DISPLAY_HOLD_DAYS: [2],
+                DISPLAY_RECENT_MONTHS: [4],
+            }
+        )
+        grid_df.to_csv(grid_path, index=False)
+
+        config = BufferZoneConfig(
+            strategy_name="buffer_zone_tqqq",
+            display_name="버퍼존 전략 (TQQQ)",
+            signal_data_path=Path("signal.csv"),
+            trade_data_path=Path("trade.csv"),
+            result_dir=tmp_path / "buffer_zone_tqqq",
+            grid_results_path=grid_path,
+            override_ma_window=None,
+            override_buy_buffer_zone_pct=None,
+            override_sell_buffer_zone_pct=None,
+            override_hold_days=None,
+            override_recent_months=None,
+            ma_type="ema",
+        )
+
+        # When
+        params, sources = resolve_params_for_config(config)
+
+        # Then
+        assert params.ma_window == 150
+        assert params.buy_buffer_zone_pct == 0.04
+        assert params.sell_buffer_zone_pct == 0.03
+        assert params.hold_days == 2
+        assert params.recent_months == 4
+        assert all(s == "grid_best" for s in sources.values())
+
 
 class TestCreateRunner:
     """create_runner 팩토리 함수 테스트
@@ -483,3 +618,102 @@ class TestCreateRunner:
         assert "trade_path" in result.data_info
         assert result.data_info["signal_path"] == str(signal_path)
         assert result.data_info["trade_path"] == str(trade_path)
+
+    @patch("qbt.backtest.strategies.buffer_zone.extract_overlap_period")
+    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    def test_tqqq_config_run_single_returns_result(self, mock_load, mock_overlap, tmp_path):
+        """
+        목적: buffer_zone_tqqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
+
+        Given: buffer_zone_tqqq config (signal != trade, override 고정)
+        When: create_runner(config)() 실행
+        Then: strategy_name, display_name, data_info 정합성 확인
+        """
+        # Given
+        test_df = self._make_test_df()
+        mock_load.return_value = test_df.copy()
+        mock_overlap.return_value = (test_df.copy(), test_df.copy())
+
+        tqqq_config = get_config("buffer_zone_tqqq")
+        # grid_results_path를 None으로 교체하여 override 사용
+        config = BufferZoneConfig(
+            strategy_name=tqqq_config.strategy_name,
+            display_name=tqqq_config.display_name,
+            signal_data_path=tqqq_config.signal_data_path,
+            trade_data_path=tqqq_config.trade_data_path,
+            result_dir=tmp_path / "buffer_zone_tqqq",
+            grid_results_path=None,
+            override_ma_window=5,
+            override_buy_buffer_zone_pct=0.03,
+            override_sell_buffer_zone_pct=0.03,
+            override_hold_days=0,
+            override_recent_months=0,
+            ma_type="ema",
+        )
+
+        # When
+        runner = create_runner(config)
+        result = runner()
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buffer_zone_tqqq"
+        assert result.display_name == "버퍼존 전략 (TQQQ)"
+        assert isinstance(result.signal_df, pd.DataFrame)
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert isinstance(result.trades_df, pd.DataFrame)
+        assert isinstance(result.summary, dict)
+        assert isinstance(result.params_json, dict)
+        assert "ma_window" in result.params_json
+        assert "ma_type" in result.params_json
+        assert isinstance(result.data_info, dict)
+        assert "signal_path" in result.data_info
+        assert "trade_path" in result.data_info
+
+    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    def test_qqq_config_run_single_returns_result(self, mock_load, tmp_path):
+        """
+        목적: buffer_zone_qqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
+
+        Given: buffer_zone_qqq config (signal == trade, overlap 불필요)
+        When: create_runner(config)() 실행
+        Then: strategy_name, display_name, data_info 정합성 확인
+        """
+        # Given
+        test_df = self._make_test_df()
+        mock_load.return_value = test_df.copy()
+
+        qqq_config = get_config("buffer_zone_qqq")
+        config = BufferZoneConfig(
+            strategy_name=qqq_config.strategy_name,
+            display_name=qqq_config.display_name,
+            signal_data_path=qqq_config.signal_data_path,
+            trade_data_path=qqq_config.trade_data_path,
+            result_dir=tmp_path / "buffer_zone_qqq",
+            grid_results_path=None,
+            override_ma_window=5,
+            override_buy_buffer_zone_pct=0.03,
+            override_sell_buffer_zone_pct=0.03,
+            override_hold_days=0,
+            override_recent_months=0,
+            ma_type="ema",
+        )
+
+        # When
+        runner = create_runner(config)
+        result = runner()
+
+        # Then
+        assert isinstance(result, SingleBacktestResult)
+        assert result.strategy_name == "buffer_zone_qqq"
+        assert result.display_name == "버퍼존 전략 (QQQ)"
+        assert isinstance(result.signal_df, pd.DataFrame)
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert isinstance(result.trades_df, pd.DataFrame)
+        assert isinstance(result.summary, dict)
+        assert isinstance(result.params_json, dict)
+        assert "ma_window" in result.params_json
+        assert "ma_type" in result.params_json
+        assert isinstance(result.data_info, dict)
+        assert "signal_path" in result.data_info
+        assert "trade_path" in result.data_info

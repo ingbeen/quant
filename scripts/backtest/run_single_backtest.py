@@ -7,7 +7,7 @@
 실행 명령어:
     poetry run python scripts/backtest/run_single_backtest.py
     poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
-    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_qqq
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_spy
 """
 
 import argparse
@@ -20,8 +20,7 @@ from typing import Any
 from qbt.backtest.analysis import calculate_monthly_returns, calculate_regime_summaries
 from qbt.backtest.constants import MARKET_REGIMES
 from qbt.backtest.strategies import (
-    buffer_zone_qqq,
-    buffer_zone_tqqq,
+    buffer_zone,
     buy_and_hold,
     donchian_channel_tqqq,
 )
@@ -33,6 +32,7 @@ from qbt.common_constants import (
     COL_OPEN,
     EPSILON,
     META_JSON_PATH,
+    QQQ_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -43,10 +43,12 @@ logger = get_logger(__name__)
 
 # 전략 레지스트리
 STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
-    buffer_zone_tqqq.STRATEGY_NAME: buffer_zone_tqqq.run_single,
-    buffer_zone_qqq.STRATEGY_NAME: buffer_zone_qqq.run_single,
     donchian_channel_tqqq.STRATEGY_NAME: donchian_channel_tqqq.run_single,
 }
+
+# Buffer zone: CONFIGS 기반 자동 등록
+for _config in buffer_zone.CONFIGS:
+    STRATEGY_RUNNERS[_config.strategy_name] = buffer_zone.create_runner(_config)
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록
 for _config in buy_and_hold.CONFIGS:
@@ -288,7 +290,14 @@ def _save_results(result: SingleBacktestResult) -> None:
     equity_path = _save_equity_csv(result)
     trades_path = _save_trades_csv(result)
     monthly_returns = calculate_monthly_returns(result.equity_df)
-    regime_summaries = calculate_regime_summaries(result.equity_df, result.trades_df, MARKET_REGIMES)
+
+    # regime_summaries 분기: QQQ 시그널 전략만 MARKET_REGIMES 적용
+    signal_path_str = result.data_info.get("signal_path", "")
+    if signal_path_str == str(QQQ_DATA_PATH):
+        regime_summaries = calculate_regime_summaries(result.equity_df, result.trades_df, MARKET_REGIMES)
+    else:
+        regime_summaries = []
+
     summary_path = _save_summary_json(result, monthly_returns, regime_summaries)
 
     # 메타데이터 저장

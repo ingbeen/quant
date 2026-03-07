@@ -93,9 +93,8 @@ quant/
 │   │   ├── wfo_comparison.py # Expanding vs Rolling WFO 비교 실험
 │   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
 │   │       ├── buffer_zone_helpers.py      # 버퍼존 계열 공통 로직
-│   │       ├── buffer_zone_tqqq.py         # 버퍼존 전략 (QQQ 시그널 + TQQQ 매매)
+│   │       ├── buffer_zone.py             # 버퍼존 통합 config-driven 전략 모듈 (9개 자산)
 │   │       ├── buffer_zone_atr_tqqq.py     # 버퍼존 ATR 전략 (QQQ 시그널 + TQQQ 매매 + ATR 스탑)
-│   │       ├── buffer_zone_qqq.py          # 버퍼존 전략 (QQQ 시그널 + QQQ 매매)
 │   │       ├── donchian_helpers.py        # Donchian Channel 전략 핵심 로직
 │   │       ├── donchian_channel_tqqq.py   # Donchian Channel (QQQ 시그널 + TQQQ 매매)
 │   │       └── buy_and_hold.py             # Buy & Hold 벤치마크
@@ -125,6 +124,13 @@ quant/
         │   ├── buffer_zone_atr_tqqq/      # 버퍼존 ATR 전략 (TQQQ) 결과
         │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
         │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
+        │   ├── buffer_zone_qqq_3p/       # 버퍼존 전략 (QQQ 3P) 결과
+        │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
+        │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
+        │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과
+        │   ├── buffer_zone_eem/          # 버퍼존 전략 (EEM) 결과
+        │   ├── buffer_zone_gld/          # 버퍼존 전략 (GLD) 결과
+        │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
         │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
         │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
         │   └── donchian_channel_tqqq/  # Donchian Channel (TQQQ) 전략 결과

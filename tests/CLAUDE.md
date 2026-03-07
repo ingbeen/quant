@@ -19,8 +19,7 @@ tests/
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
 ├── test_atr_comparison.py # ATR 고정 OOS 비교 실험 테스트
 ├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
-├── test_buffer_zone_qqq.py # 버퍼존 QQQ 전략 테스트
-├── test_buffer_zone_tqqq.py # 버퍼존 TQQQ 전략 테스트
+├── test_buffer_zone.py    # 버퍼존 통합 모듈 테스트 (config, resolve_params, create_runner)
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
 ├── test_wfo_comparison.py      # Expanding vs Rolling WFO 비교 실험 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
@@ -137,8 +136,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 근거 위치:
 
 - [test_buffer_zone_helpers.py](test_buffer_zone_helpers.py)
-- [test_buffer_zone_tqqq.py](test_buffer_zone_tqqq.py)
-- [test_buffer_zone_qqq.py](test_buffer_zone_qqq.py)
+- [test_buffer_zone.py](test_buffer_zone.py)
 - [test_buy_and_hold.py](test_buy_and_hold.py)
 - [test_analysis.py](test_analysis.py)
 - [test_tqqq_simulation.py](test_tqqq_simulation.py)

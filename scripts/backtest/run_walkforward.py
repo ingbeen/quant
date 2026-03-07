@@ -40,7 +40,7 @@ from qbt.backtest.constants import (
     WALKFORWARD_SELL_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
 )
-from qbt.backtest.strategies import buffer_zone_atr_tqqq, buffer_zone_qqq, buffer_zone_tqqq
+from qbt.backtest.strategies import buffer_zone, buffer_zone_atr_tqqq
 from qbt.backtest.strategies.buffer_zone_helpers import run_buffer_strategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
@@ -62,17 +62,19 @@ from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
-# 전략별 설정 매핑
+# 전략별 설정 매핑 (WFO 대상: 기존 전략만)
+_tqqq = buffer_zone.get_config("buffer_zone_tqqq")
+_qqq = buffer_zone.get_config("buffer_zone_qqq")
 STRATEGY_CONFIG: dict[str, dict[str, Path | list[int] | list[float] | None]] = {
-    buffer_zone_tqqq.STRATEGY_NAME: {
-        "signal_path": QQQ_DATA_PATH,
-        "trade_path": TQQQ_SYNTHETIC_DATA_PATH,
-        "result_dir": buffer_zone_tqqq.GRID_RESULTS_PATH.parent,
+    _tqqq.strategy_name: {
+        "signal_path": _tqqq.signal_data_path,
+        "trade_path": _tqqq.trade_data_path,
+        "result_dir": _tqqq.result_dir,
     },
-    buffer_zone_qqq.STRATEGY_NAME: {
-        "signal_path": QQQ_DATA_PATH,
-        "trade_path": QQQ_DATA_PATH,
-        "result_dir": buffer_zone_qqq.GRID_RESULTS_PATH.parent,
+    _qqq.strategy_name: {
+        "signal_path": _qqq.signal_data_path,
+        "trade_path": _qqq.trade_data_path,
+        "result_dir": _qqq.result_dir,
     },
     buffer_zone_atr_tqqq.STRATEGY_NAME: {
         "signal_path": QQQ_DATA_PATH,
