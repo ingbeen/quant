@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -41,11 +41,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `BufferZoneConfig` 기반 config-driven 통합 전략 모듈(`buffer_zone.py`) 생성
-- [ ] `common_constants.py`에 cross-asset 6개 자산 데이터 경로 + 결과 디렉토리 상수 추가
-- [ ] `resolve_buffer_params`의 `grid_results_path` 타입을 `Path | None`으로 확장
-- [ ] 통합 모듈 테스트(`test_buffer_zone.py`) 추가
-- [ ] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 유지 (하위 호환성 보장)
+- [x] `BufferZoneConfig` 기반 config-driven 통합 전략 모듈(`buffer_zone.py`) 생성
+- [x] `common_constants.py`에 cross-asset 6개 자산 데이터 경로 + 결과 디렉토리 상수 추가
+- [x] `resolve_buffer_params`의 `grid_results_path` 타입을 `Path | None`으로 확장
+- [x] 통합 모듈 테스트(`test_buffer_zone.py`) 추가
+- [x] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 유지 (하위 호환성 보장)
 
 ## 2) 비목표(Non-Goals)
 
@@ -102,16 +102,16 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] `BufferZoneConfig` dataclass + 9개 `CONFIGS` 리스트 구현
-- [ ] `create_runner(config)` 팩토리 함수 구현 (signal=trade 분기 포함)
-- [ ] `resolve_params_for_config(config)` 함수 구현
-- [ ] `resolve_buffer_params`의 `grid_results_path: Path | None` 타입 확장
-- [ ] `common_constants.py`에 13개 상수 추가 (데이터 경로 6개 + 결과 디렉토리 7개)
-- [ ] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 미변경, 기존 테스트 통과
-- [ ] 통합 모듈 테스트(`test_buffer_zone.py`) 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `BufferZoneConfig` dataclass + 9개 `CONFIGS` 리스트 구현
+- [x] `create_runner(config)` 팩토리 함수 구현 (signal=trade 분기 포함)
+- [x] `resolve_params_for_config(config)` 함수 구현
+- [x] `resolve_buffer_params`의 `grid_results_path: Path | None` 타입 확장
+- [x] `common_constants.py`에 13개 상수 추가 (데이터 경로 6개 + 결과 디렉토리 7개)
+- [x] 기존 모듈(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`) 미변경, 기존 테스트 통과
+- [x] 통합 모듈 테스트(`test_buffer_zone.py`) 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=479, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -147,23 +147,23 @@
 
 **작업 내용** (`tests/test_buffer_zone.py` 신규 생성):
 
-- [ ] `TestBufferZoneConfig` 클래스
-  - [ ] `test_config_frozen_dataclass` — BufferZoneConfig 인스턴스 생성 및 frozen 불변성 검증
-  - [ ] `test_configs_list_has_expected_count` — CONFIGS 리스트가 9개 설정을 포함하는지 검증
-  - [ ] `test_configs_unique_strategy_names` — 모든 strategy_name이 고유한지 검증
-  - [ ] `test_get_config_returns_correct_config` — `get_config("buffer_zone_tqqq")`가 올바른 설정 반환
-  - [ ] `test_get_config_raises_for_unknown` — 존재하지 않는 이름에 ValueError 발생
-- [ ] `TestResolveParamsForConfig` 클래스
-  - [ ] `test_override_params_used_when_set` — override 값이 모두 설정된 config에서 해당 값 사용 (cross-asset 패턴)
-  - [ ] `test_grid_fallback_when_override_is_none` — override=None + grid 파일 존재 시 grid 값 사용
-  - [ ] `test_default_fallback_when_no_grid` — override=None + grid_results_path=None 시 DEFAULT 사용
-  - [ ] `test_three_param_config_sets_hold_days_zero` — cross-asset config의 hold_days=0, recent_months=0 확인
-- [ ] `TestCreateRunner` 클래스
-  - [ ] `test_create_runner_returns_callable` — create_runner가 호출 가능 함수를 반환
-  - [ ] `test_run_single_returns_single_backtest_result` — 반환값이 SingleBacktestResult 구조 충족
-  - [ ] `test_signal_equals_trade_no_overlap` — signal_path == trade_path 시 extract_overlap_period 미호출
-  - [ ] `test_signal_differs_trade_calls_overlap` — signal_path != trade_path 시 extract_overlap_period 호출
-  - [ ] `test_data_info_contains_paths` — data_info에 signal_path, trade_path 포함
+- [x] `TestBufferZoneConfig` 클래스
+  - [x] `test_config_frozen_dataclass` — BufferZoneConfig 인스턴스 생성 및 frozen 불변성 검증
+  - [x] `test_configs_list_has_expected_count` — CONFIGS 리스트가 9개 설정을 포함하는지 검증
+  - [x] `test_configs_unique_strategy_names` — 모든 strategy_name이 고유한지 검증
+  - [x] `test_get_config_returns_correct_config` — `get_config("buffer_zone_tqqq")`가 올바른 설정 반환
+  - [x] `test_get_config_raises_for_unknown` — 존재하지 않는 이름에 ValueError 발생
+- [x] `TestResolveParamsForConfig` 클래스
+  - [x] `test_override_params_used_when_set` — override 값이 모두 설정된 config에서 해당 값 사용 (cross-asset 패턴)
+  - [x] `test_grid_fallback_when_override_is_none` — override=None + grid 파일 존재 시 grid 값 사용
+  - [x] `test_default_fallback_when_no_grid` — override=None + grid_results_path=None 시 DEFAULT 사용
+  - [x] `test_three_param_config_sets_hold_days_zero` — cross-asset config의 hold_days=0, recent_months=0 확인
+- [x] `TestCreateRunner` 클래스
+  - [x] `test_create_runner_returns_callable` — create_runner가 호출 가능 함수를 반환
+  - [x] `test_run_single_returns_single_backtest_result` — 반환값이 SingleBacktestResult 구조 충족
+  - [x] `test_signal_equals_trade_no_overlap` — signal_path == trade_path 시 extract_overlap_period 미호출
+  - [x] `test_signal_differs_trade_calls_overlap` — signal_path != trade_path 시 extract_overlap_period 호출
+  - [x] `test_data_info_contains_paths` — data_info에 signal_path, trade_path 포함
 
 ---
 
@@ -171,13 +171,13 @@
 
 **작업 내용:**
 
-- [ ] `src/qbt/common_constants.py` — 데이터 경로 상수 추가 (6개)
+- [x] `src/qbt/common_constants.py` — 데이터 경로 상수 추가 (6개)
   - `SPY_DATA_PATH`, `IWM_DATA_PATH`, `EFA_DATA_PATH`, `EEM_DATA_PATH`, `GLD_DATA_PATH`, `TLT_DATA_PATH`
   - 패턴: `STOCK_DIR / "{TICKER}_max.csv"`
-- [ ] `src/qbt/common_constants.py` — 결과 디렉토리 상수 추가 (7개)
+- [x] `src/qbt/common_constants.py` — 결과 디렉토리 상수 추가 (7개)
   - `BUFFER_ZONE_QQQ_3P_RESULTS_DIR`, `BUFFER_ZONE_SPY_RESULTS_DIR`, `BUFFER_ZONE_IWM_RESULTS_DIR`, `BUFFER_ZONE_EFA_RESULTS_DIR`, `BUFFER_ZONE_EEM_RESULTS_DIR`, `BUFFER_ZONE_GLD_RESULTS_DIR`, `BUFFER_ZONE_TLT_RESULTS_DIR`
   - 패턴: `BACKTEST_RESULTS_DIR / "buffer_zone_{ticker_lower}"`
-- [ ] `src/qbt/backtest/strategies/buffer_zone_helpers.py` — `resolve_buffer_params` 시그니처 변경
+- [x] `src/qbt/backtest/strategies/buffer_zone_helpers.py` — `resolve_buffer_params` 시그니처 변경
   - `grid_results_path: Path` → `grid_results_path: Path | None`
   - 내부: `grid_best = load_best_grid_params(grid_results_path) if grid_results_path is not None else None`
   - 기존 호출자(`buffer_zone_tqqq.py`, `buffer_zone_qqq.py`)는 `Path`를 전달하므로 하위 호환
@@ -188,23 +188,23 @@
 
 **작업 내용** (`src/qbt/backtest/strategies/buffer_zone.py` 신규 생성):
 
-- [ ] `BufferZoneConfig` frozen dataclass 구현
+- [x] `BufferZoneConfig` frozen dataclass 구현
   - 필드: `strategy_name`, `display_name`, `signal_data_path`, `trade_data_path`, `result_dir`, `grid_results_path` (`Path | None`), `override_ma_window` (`int | None`), `override_buy_buffer_zone_pct` (`float | None`), `override_sell_buffer_zone_pct` (`float | None`), `override_hold_days` (`int | None`), `override_recent_months` (`int | None`), `ma_type` (`str`)
-- [ ] `CONFIGS: list[BufferZoneConfig]` — 9개 설정 리스트
+- [x] `CONFIGS: list[BufferZoneConfig]` — 9개 설정 리스트
   - 기존 2개: buffer_zone_tqqq (override=None, grid=Path), buffer_zone_qqq (override=None, grid=Path)
   - QQQ 3P 기준선 1개: buffer_zone_qqq_3p (override=고정, grid=None)
   - cross-asset 6개: buffer_zone_spy/iwm/efa/eem/gld/tlt (override=고정, grid=None)
   - cross-asset 고정값: `ma_window=200, buy_buffer_zone_pct=0.03, sell_buffer_zone_pct=0.05, hold_days=0, recent_months=0`
-- [ ] `get_config(strategy_name: str) -> BufferZoneConfig` — 이름으로 설정 조회, 미존재 시 ValueError
-- [ ] `resolve_params_for_config(config: BufferZoneConfig) -> tuple[BufferStrategyParams, dict[str, str]]`
+- [x] `get_config(strategy_name: str) -> BufferZoneConfig` — 이름으로 설정 조회, 미존재 시 ValueError
+- [x] `resolve_params_for_config(config: BufferZoneConfig) -> tuple[BufferStrategyParams, dict[str, str]]`
   - `resolve_buffer_params(config.grid_results_path, config.override_*, ...)` 위임
-- [ ] `create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]` 팩토리 함수
+- [x] `create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]` 팩토리 함수
   - `run_single()` 클로저 반환
   - signal_path == trade_path 분기: 같으면 `trade_df.copy()`, 다르면 `extract_overlap_period()` 호출
   - `add_single_moving_average()` → `run_buffer_strategy()` → `SingleBacktestResult` 구성
   - `data_info`에 `signal_path`, `trade_path` 포함
-- [ ] `__init__.py`에 buffer_zone 모듈 export 추가 (`BufferZoneConfig`, `get_config`, `create_runner`, `resolve_params_for_config`)
-- [ ] Phase 0 테스트 전부 통과
+- [x] `__init__.py`에 buffer_zone 모듈 export 추가 (`BufferZoneConfig`, `get_config`, `create_runner`, `resolve_params_for_config`)
+- [x] Phase 0 테스트 전부 통과
 
 ---
 
@@ -212,14 +212,14 @@
 
 **작업 내용**
 
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 기존 테스트(`test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py`) 통과 확인
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 기존 테스트(`test_buffer_zone_tqqq.py`, `test_buffer_zone_qqq.py`) 통과 확인
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=479, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

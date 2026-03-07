@@ -38,6 +38,14 @@ QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
 # 합성 TQQQ 데이터 파일 경로 (시뮬레이션 생성)
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
+# 교차 자산 검증용 데이터 파일 경로
+SPY_DATA_PATH: Final = STOCK_DIR / "SPY_max.csv"
+IWM_DATA_PATH: Final = STOCK_DIR / "IWM_max.csv"
+EFA_DATA_PATH: Final = STOCK_DIR / "EFA_max.csv"
+EEM_DATA_PATH: Final = STOCK_DIR / "EEM_max.csv"
+GLD_DATA_PATH: Final = STOCK_DIR / "GLD_max.csv"
+TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
+
 # --- 전략별 결과 디렉토리 ---
 BUFFER_ZONE_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_tqqq"  # 버퍼존 전략 (TQQQ) 결과
 BUFFER_ZONE_ATR_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_atr_tqqq"  # 버퍼존 ATR 전략 (TQQQ) 결과
@@ -47,6 +55,15 @@ BUY_AND_HOLD_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq
 DONCHIAN_CHANNEL_TQQQ_RESULTS_DIR: Final = (
     BACKTEST_RESULTS_DIR / "donchian_channel_tqqq"
 )  # Donchian Channel (TQQQ) 전략 결과
+
+# 교차 자산 검증용 결과 디렉토리
+BUFFER_ZONE_QQQ_3P_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq_3p"  # 버퍼존 QQQ 3P 기준선 결과
+BUFFER_ZONE_SPY_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_spy"  # 버퍼존 SPY 결과
+BUFFER_ZONE_IWM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_iwm"  # 버퍼존 IWM 결과
+BUFFER_ZONE_EFA_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_efa"  # 버퍼존 EFA 결과
+BUFFER_ZONE_EEM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_eem"  # 버퍼존 EEM 결과
+BUFFER_ZONE_GLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_gld"  # 버퍼존 GLD 결과
+BUFFER_ZONE_TLT_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_tlt"  # 버퍼존 TLT 결과
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

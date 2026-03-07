@@ -247,7 +247,7 @@ class PendingOrder:
 
 
 def resolve_buffer_params(
-    grid_results_path: Path,
+    grid_results_path: Path | None,
     override_ma_window: int | None,
     override_buy_buffer_zone_pct: float | None,
     override_sell_buffer_zone_pct: float | None,
@@ -261,7 +261,7 @@ def resolve_buffer_params(
     버퍼존 계열 전략(QQQ, TQQQ)이 공유하는 공통 로직이다.
 
     Args:
-        grid_results_path: 그리드 서치 결과 CSV 경로
+        grid_results_path: 그리드 서치 결과 CSV 경로 (None이면 grid 폴백 건너뜀)
         override_ma_window: MA 기간 오버라이드 (None이면 폴백)
         override_buy_buffer_zone_pct: 매수 버퍼존 비율 오버라이드 (None이면 폴백)
         override_sell_buffer_zone_pct: 매도 버퍼존 비율 오버라이드 (None이면 폴백)
@@ -273,7 +273,7 @@ def resolve_buffer_params(
             - params: 전략 파라미터
             - sources: 각 파라미터의 출처 딕셔너리
     """
-    grid_params = load_best_grid_params(grid_results_path)
+    grid_params = load_best_grid_params(grid_results_path) if grid_results_path is not None else None
 
     if grid_params is not None:
         logger.debug(f"grid_results.csv 최적값 로드 완료: {grid_results_path}")
