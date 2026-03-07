@@ -453,22 +453,27 @@ class BufferZoneConfig:
 
 ### 9.4 작업 순서 (우선순위별)
 
-```
-Step 1: 경로 상수 + 데이터 준비 (선행 조건, 리스크 낮음)
-  - common_constants.py에 6개 자산 데이터 경로 + 결과 디렉토리 상수 추가
-  - 사용자가 download_data.py로 6개 자산 다운로드
+> **구현 완료**: 아래 Step 1~4, 6~7은 두 개의 Implementation Plan으로 완료되었다.
+> - `PLAN_BUFFER_ZONE_UNIFIED_MODULE`: Step 1~3 (통합 모듈 + 상수 + 테스트)
+> - `PLAN_CROSS_ASSET_SCRIPT_MIGRATION`: Step 4, 6~7 (스크립트 전환 + 레거시 삭제 + 문서)
+> - Step 5 (비교 테이블 출력)는 사용자가 스크립트 실행 후 결과로 확인한다.
 
-Step 2: 3파라미터 인터페이스 생성 (핵심 변경, 리스크 중간)
+```
+Step 1: 경로 상수 + 데이터 준비 (선행 조건, 리스크 낮음) ✅ 완료
+  - common_constants.py에 6개 자산 데이터 경로 + 결과 디렉토리 상수 추가
+  - 사용자가 download_data.py로 6개 자산 다운로드 (사용자 실행 필요)
+
+Step 2: 3파라미터 인터페이스 생성 (핵심 변경, 리스크 중간) ✅ 완료
   - 3파라미터 전용 외부 인터페이스 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct)
   - 내부적으로 BufferStrategyParams(hold_days=0, recent_months=0) 래핑
 
-Step 3: 통합 전략 모듈 생성 (가장 큰 변경, 리스크 높음)
-  - BufferZoneConfig dataclass + CONFIGS 리스트
+Step 3: 통합 전략 모듈 생성 (가장 큰 변경, 리스크 높음) ✅ 완료
+  - BufferZoneConfig dataclass + CONFIGS 리스트 (9개)
   - signal_path/trade_path 분리 지원
   - 파라미터 결정: 고정(cross-asset) vs OVERRIDE/grid 폴백(기존)
-  - 기존 buffer_zone_tqqq.py, buffer_zone_qqq.py 대체
+  - 기존 buffer_zone_tqqq.py, buffer_zone_qqq.py 삭제 (통합 모듈로 대체)
 
-Step 4: 스크립트 업데이트 (리스크 중간)
+Step 4: 스크립트 업데이트 (리스크 중간) ✅ 완료
   - run_single_backtest.py: 전략 레지스트리 + regime_summaries 분기
   - run_grid_search.py: import 변경 + 설정 구조 대응
   - run_walkforward.py: import 변경 + 설정 구조 대응
@@ -476,31 +481,34 @@ Step 4: 스크립트 업데이트 (리스크 중간)
 
 Step 5: cross-asset 결과 비교 출력 (리스크 낮음)
   - run_single_backtest.py에서 일괄 실행 시 4.2절 비교 테이블 출력
+  - (사용자가 스크립트 실행 후 결과로 확인)
 
-Step 6: 테스트 전환 (리스크 중간)
-  - test_buffer_zone_tqqq.py → 통합 모듈 테스트로 전환
-  - test_buffer_zone_qqq.py → 통합 모듈 테스트로 전환
+Step 6: 테스트 전환 (리스크 중간) ✅ 완료
+  - test_buffer_zone_tqqq.py → test_buffer_zone.py로 통합
+  - test_buffer_zone_qqq.py → test_buffer_zone.py로 통합
   - 3파라미터 인터페이스 + config-driven 설정 검증
 
-Step 7: 품질 검증 + 문서 업데이트 (마무리)
-  - poetry run python validate_project.py
+Step 7: 품질 검증 + 문서 업데이트 (마무리) ✅ 완료
+  - poetry run python validate_project.py (passed=479, failed=0, skipped=0)
   - poetry run black .
-  - CLAUDE.md 업데이트 (backtest 도메인, 루트)
+  - CLAUDE.md 업데이트 (backtest 도메인, 루트, scripts, tests)
 ```
 
 ### 9.5 재실행이 필요한 스크립트
 
+> **구현 완료 후 상태**: Step 1~4, 6~7 완료. 아래 스크립트는 사용자가 직접 실행해야 한다.
+
 **신규 실행 (필수):**
 
-| 순서 | 스크립트 | 목적 |
-|---|---|---|
-| 1 | `scripts/data/download_data.py` x 6회 | SPY, IWM, EFA, EEM, GLD, TLT 데이터 다운로드 |
-| 2 | `scripts/backtest/run_single_backtest.py` | cross-asset 전략 7개 실행 (QQQ 3p 기준선 + 6개 자산) |
+| 순서 | 스크립트 | 명령어 | 목적 |
+|---|---|---|---|
+| 1 | `download_data.py` x 6회 | `poetry run python scripts/data/download_data.py SPY` (+ IWM, EFA, EEM, GLD, TLT) | 6개 자산 데이터 다운로드 |
+| 2 | `run_single_backtest.py` | `poetry run python scripts/backtest/run_single_backtest.py` | cross-asset 전략 포함 전체 실행 |
 
-**기존 결과:**
+**기존 결과 재실행 (선택):**
 
-- 기존 CSV/JSON 결과는 유효 (출력 포맷 동일). 선택적 재실행.
-- `run_grid_search.py`, `run_walkforward.py`, `run_cpcv_analysis.py`는 재실행 불필요 (import만 변경).
+- 기존 CSV/JSON 결과는 유효 (출력 포맷 동일). 원하면 재실행 가능.
+- `run_grid_search.py`, `run_walkforward.py`, `run_cpcv_analysis.py`는 재실행 불필요 (import만 변경, 기존 결과 유효).
 
 ### 9.6 시각화 대시보드 호환성
 
@@ -518,5 +526,16 @@ Step 7: 품질 검증 + 문서 업데이트 (마무리)
 
 **참고: 탭 개수**
 
-기존 6개 + 신규 cross-asset 6개 = 최대 12개 탭.
+기존 6개 + 신규 cross-asset 7개(QQQ 3P + 6개 자산) = 최대 13개 탭.
 `--strategy` 옵션으로 특정 전략만 실행하여 탭 수 제한 가능.
+
+---
+
+## 10. 구현 이력
+
+| 날짜 | Plan | 내용 |
+|---|---|---|
+| 2026-03-07 | `PLAN_BUFFER_ZONE_UNIFIED_MODULE` | BufferZoneConfig 기반 통합 전략 모듈 생성 (9개 CONFIGS) |
+| 2026-03-07 | `PLAN_CROSS_ASSET_SCRIPT_MIGRATION` | 스크립트 마이그레이션 + 레거시 모듈 삭제 + 문서 업데이트 |
+
+**다음 단계**: 사용자가 6개 자산 데이터를 다운로드하고 `run_single_backtest.py`를 실행하여 §4.2 결과 비교 테이블을 작성한다.

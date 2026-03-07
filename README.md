@@ -36,7 +36,9 @@ poetry run python validate_project.py
 이동평균 기반 버퍼존 전략의 최적 파라미터를 탐색하고 성과를 평가합니다.
 
 ```bash
-# 1. 데이터 다운로드
+# 1. 데이터 다운로드 (전체 종목 일괄)
+poetry run python scripts/data/download_data.py
+# 또는 특정 종목만
 poetry run python scripts/data/download_data.py QQQ
 
 # 2. 파라미터 최적화 (그리드 서치)
@@ -50,8 +52,11 @@ poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_tqq
 poetry run python scripts/backtest/run_single_backtest.py
 # 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
 
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone / buy_and_hold, 기본값: all)
-poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_spy / ... / buy_and_hold_qqq 등, 기본값: all)
+poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
+
+# cross-asset 전략 전체 실행 (QQQ 3P 기준선 + SPY/IWM/EFA/EEM/GLD/TLT)
+poetry run python scripts/backtest/run_single_backtest.py --strategy all
 
 # 4. 워크포워드 검증 (과최적화 검증, 선행: 1~2)
 poetry run python scripts/backtest/run_walkforward.py
@@ -104,7 +109,9 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 QQQ로부터 TQQQ를 시뮬레이션하고 실제 데이터와 비교하여 비용 모델을 검증합니다.
 
 ```bash
-# 1. 필수 데이터 다운로드
+# 1. 필수 데이터 다운로드 (전체 종목 일괄)
+poetry run python scripts/data/download_data.py
+# 또는 개별 다운로드
 poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/data/download_data.py TQQQ
 
@@ -219,7 +226,10 @@ poetry run ruff check --fix .
 ## 데이터 다운로드 옵션
 
 ```bash
-# 전체 기간
+# 전체 종목 일괄 다운로드 (SPY, IWM, EFA, EEM, GLD, TLT, QQQ, TQQQ)
+poetry run python scripts/data/download_data.py
+
+# 특정 종목 전체 기간
 poetry run python scripts/data/download_data.py TICKER
 
 # 시작일 지정
@@ -265,6 +275,13 @@ quant/
 │       │   ├── buffer_zone_atr_tqqq/     # 버퍼존 ATR 전략 (TQQQ) 결과
 │       │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
+│       │   ├── buffer_zone_qqq_3p/       # 버퍼존 전략 (QQQ 3P) 결과
+│       │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
+│       │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
+│       │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과
+│       │   ├── buffer_zone_eem/          # 버퍼존 전략 (EEM) 결과
+│       │   ├── buffer_zone_gld/          # 버퍼존 전략 (GLD) 결과
+│       │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
 │       │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
 │       │   ├── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
 │       │   └── donchian_channel_tqqq/ # Donchian Channel (TQQQ) 전략 결과
