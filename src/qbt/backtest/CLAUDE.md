@@ -203,7 +203,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 - `CONFIGS`: `list[BufferZoneConfig]` (9개). 새 자산 추가 시 여기에 한 줄 추가
   - 기존 2개: buffer_zone_tqqq (grid 폴백), buffer_zone_qqq (grid 폴백)
-  - QQQ 3P 기준선: buffer_zone_qqq_3p (고정 파라미터)
+  - QQQ 4P 기준선: buffer_zone_qqq_4p (고정 파라미터)
   - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (고정 파라미터)
 
 주요 함수:

@@ -275,7 +275,7 @@ quant/
 │       │   ├── buffer_zone_atr_tqqq/     # 버퍼존 ATR 전략 (TQQQ) 결과
 │       │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
-│       │   ├── buffer_zone_qqq_3p/       # 버퍼존 전략 (QQQ 3P) 결과
+│       │   ├── buffer_zone_qqq_4p/       # 버퍼존 전략 (QQQ 4P) 결과
 │       │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
 │       │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
 │       │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과

@@ -7,7 +7,7 @@ BufferZoneConfig 기반으로 확장성을 제공한다.
 CONFIGS 목록 (9개):
     - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (override→grid→DEFAULT)
     - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (override→grid→DEFAULT)
-    - buffer_zone_qqq_3p: QQQ 3P 기준선 (고정 파라미터)
+    - buffer_zone_qqq_4p: QQQ 4P 기준선 (고정 파라미터)
     - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (고정 파라미터)
 """
 
@@ -29,7 +29,7 @@ from qbt.common_constants import (
     BUFFER_ZONE_EFA_RESULTS_DIR,
     BUFFER_ZONE_GLD_RESULTS_DIR,
     BUFFER_ZONE_IWM_RESULTS_DIR,
-    BUFFER_ZONE_QQQ_3P_RESULTS_DIR,
+    BUFFER_ZONE_QQQ_4P_RESULTS_DIR,
     BUFFER_ZONE_QQQ_RESULTS_DIR,
     BUFFER_ZONE_SPY_RESULTS_DIR,
     BUFFER_ZONE_TLT_RESULTS_DIR,
@@ -89,7 +89,7 @@ class BufferZoneConfig:
 _CROSS_ASSET_MA_WINDOW = 200
 _CROSS_ASSET_BUY_BUFFER_PCT = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
 _CROSS_ASSET_SELL_BUFFER_PCT = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
-_CROSS_ASSET_HOLD_DAYS = 0
+_CROSS_ASSET_HOLD_DAYS = 2
 _CROSS_ASSET_RECENT_MONTHS = 0
 
 CONFIGS: list[BufferZoneConfig] = [
@@ -122,13 +122,13 @@ CONFIGS: list[BufferZoneConfig] = [
         override_recent_months=None,
         ma_type="ema",
     ),
-    # --- QQQ 3P 기준선 (고정 파라미터) ---
+    # --- QQQ 4P 기준선 (고정 파라미터) ---
     BufferZoneConfig(
-        strategy_name="buffer_zone_qqq_3p",
-        display_name="버퍼존 전략 (QQQ 3P)",
+        strategy_name="buffer_zone_qqq_4p",
+        display_name="버퍼존 전략 (QQQ 4P)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=QQQ_DATA_PATH,
-        result_dir=BUFFER_ZONE_QQQ_3P_RESULTS_DIR,
+        result_dir=BUFFER_ZONE_QQQ_4P_RESULTS_DIR,
         grid_results_path=None,
         override_ma_window=_CROSS_ASSET_MA_WINDOW,
         override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,

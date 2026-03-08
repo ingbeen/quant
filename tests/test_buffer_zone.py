@@ -259,13 +259,13 @@ class TestResolveParamsForConfig:
         assert params.recent_months == DEFAULT_RECENT_MONTHS
         assert all(s == "DEFAULT" for s in sources.values())
 
-    def test_three_param_config_sets_hold_days_zero(self):
+    def test_cross_asset_config_sets_hold_days_two(self):
         """
-        목적: cross-asset config의 hold_days=0, recent_months=0 확인
+        목적: cross-asset config의 hold_days=2, recent_months=0 확인
 
         Given: cross-asset 패턴의 config (override로 고정값 설정)
         When: resolve_params_for_config 호출
-        Then: hold_days=0, recent_months=0 확인
+        Then: hold_days=2, recent_months=0 확인
         """
         # Given: cross-asset 패턴 (SPY 예시)
         config = get_config("buffer_zone_spy")
@@ -273,8 +273,8 @@ class TestResolveParamsForConfig:
         # When
         params, _sources = resolve_params_for_config(config)
 
-        # Then: 3파라미터 모드 (hold_days=0, recent_months=0)
-        assert params.hold_days == 0, "cross-asset config는 hold_days=0이어야 합니다"
+        # Then: cross-asset hold_days=2 (학술 근거 기반 사전 결정)
+        assert params.hold_days == 2, "cross-asset config는 hold_days=2이어야 합니다"
         assert params.recent_months == 0, "cross-asset config는 recent_months=0이어야 합니다"
 
     def test_tqqq_config_default_fallback(self, tmp_path):
