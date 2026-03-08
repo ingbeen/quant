@@ -2,8 +2,8 @@
   "display_name": "Donchian Channel (TQQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 19116437,
-    "total_return_pct": 91.16,
+    "final_capital": 19116580,
+    "total_return_pct": 91.17,
     "cagr": 2.43,
     "mdd": -95.69,
     "calmar": 0.03,
@@ -12,7 +12,7 @@
     "losing_trades": 33,
     "win_rate": 47.62,
     "start_date": "1999-03-10",
-    "end_date": "2026-02-17"
+    "end_date": "2026-03-05"
   },
   "params": {
     "entry_channel_days": 55,
@@ -247,7 +247,7 @@
     {
       "year": 2002,
       "month": 12,
-      "return_pct": -26.35
+      "return_pct": -26.34
     },
     {
       "year": 2003,
@@ -1307,7 +1307,7 @@
     {
       "year": 2020,
       "month": 8,
-      "return_pct": 35.16
+      "return_pct": 35.17
     },
     {
       "year": 2020,
@@ -1638,6 +1638,11 @@
       "year": 2026,
       "month": 2,
       "return_pct": -10.66
+    },
+    {
+      "year": 2026,
+      "month": 3,
+      "return_pct": 0.0
     }
   ],
   "regime_summaries": [
@@ -1679,7 +1684,7 @@
       "start_date": "2002-10-10",
       "end_date": "2004-01-26",
       "trading_days": 325,
-      "total_return_pct": -0.28,
+      "total_return_pct": -0.27,
       "cagr": -0.21,
       "mdd": -33.47,
       "calmar": -0.01,
