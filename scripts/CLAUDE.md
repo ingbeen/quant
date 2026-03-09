@@ -162,6 +162,11 @@ main 함수:
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
     - 병렬 실행으로 수익률 행렬 구축 후 PBO + DSR 계산
     - cscv_analysis.json + cscv_logit_lambdas.csv 저장
+- 파라미터 고원 분석:
+  - `run_hold_days_plateau.py`: hold_days 고원 분석 (7자산 × 8값 = 56회 백테스트)
+    - Calmar 곡선의 고원 형태 확인, 피벗 CSV 5종 + 상세 CSV 1종 저장
+  - `run_param_plateau.py`: sell_buffer/buy_buffer/ma_window 고원 분석 (3실험 × 7자산 × 6값 = 126회 백테스트)
+    - 피벗 CSV 15종 + 상세 CSV 1종 저장
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)

@@ -133,7 +133,9 @@ quant/
         │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
         │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
         │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
-        │   └── donchian_channel_tqqq/  # Donchian Channel (TQQQ) 전략 결과
+        │   ├── donchian_channel_tqqq/  # Donchian Channel (TQQQ) 전략 결과
+        │   ├── hold_days_plateau/     # hold_days 고원 분석 결과
+        │   └── param_plateau/         # 파라미터(sell/buy/ma) 고원 분석 결과
         └── tqqq/              # TQQQ 시뮬레이션 결과
             └── spread_lab/  # 스프레드 모델 검증 결과
 ```
