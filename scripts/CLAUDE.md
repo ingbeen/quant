@@ -53,9 +53,6 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 지원 타입:
 
 - `"grid_results"`: 백테스트 그리드 서치
-- `"atr_comparison"`: ATR 고정 OOS 비교 실험
-- `"wfo_comparison"`: Expanding vs Rolling WFO 비교 실험
-- `"cscv_analysis"`: CSCV/PBO/DSR 과최적화 분석
 - `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
@@ -140,28 +137,8 @@ main 함수:
 - 데이터 로딩: `load_stock_data` + `extract_overlap_period` (공통 유틸 사용)
 - 워크포워드 검증:
   - `run_walkforward.py`: WFO 3-Mode 비교 실행 (동적/sell고정/전체고정)
-    - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
+    - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
-- ATR 비교 실험:
-  - `run_atr_comparison.py`: ATR(14,3.0) vs ATR(22,3.0) 고정 OOS 비교 실험
-    - IS 최적화 없이 ATR 고정, Dynamic OOS 성과 비교
-    - atr_comparison_windows.csv + atr_comparison_summary.json 저장
-- WFO 비교 실험:
-  - `run_wfo_comparison.py`: Expanding vs Rolling WFO 비교 실험
-    - Expanding Anchored WFO와 Rolling Window WFO(IS=120개월)의 동일 OOS 성과 비교
-    - buffer_zone_atr_tqqq Dynamic 모드 전용
-    - wfo_comparison_windows.csv + wfo_comparison_summary.json 저장
-- WFO Stitched 대시보드:
-  - `run_wfo_stitched_backtest.py`: WFO Dynamic 결과를 대시보드 호환 형식으로 저장
-    - 선행: `run_walkforward.py --strategy buffer_zone_atr_tqqq` 실행 필요
-    - walkforward_dynamic.csv → params_schedule → OOS 전체 1회 실행
-    - signal.csv + equity.csv + trades.csv + summary.json 저장 (buffer_zone_atr_tqqq_wfo/)
-    - app_single_backtest.py 대시보드에서 자동 탐색 및 시각화
-- 과최적화 통계 검증:
-  - `run_cpcv_analysis.py`: CSCV/PBO/DSR 분석 실행
-    - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
-    - 병렬 실행으로 수익률 행렬 구축 후 PBO + DSR 계산
-    - cscv_analysis.json + cscv_logit_lambdas.csv 저장
 - 파라미터 고원 분석:
   - `run_hold_days_plateau.py`: hold_days 고원 분석 (7자산 × 8값 = 56회 백테스트)
     - Calmar 곡선의 고원 형태 확인, 피벗 CSV 5종 + 상세 CSV 1종 저장
@@ -248,11 +225,7 @@ width 파라미터 사용:
 - 예외 사례 3: 그리드 서치 스크립트(`scripts/backtest/run_grid_search.py`)
   - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
   - 이유: 전략별 독립 실행 및 전체 일괄 실행 지원
-- 예외 사례 4: CSCV 분석 스크립트(`scripts/backtest/run_cpcv_analysis.py`)
-  - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
-  - 이유: 전략별 독립 실행 및 전체 일괄 실행 지원
-
-근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py), [scripts/backtest/run_grid_search.py](backtest/run_grid_search.py), [scripts/backtest/run_cpcv_analysis.py](backtest/run_cpcv_analysis.py)
+근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py), [scripts/backtest/run_grid_search.py](backtest/run_grid_search.py)
 
 ---
 

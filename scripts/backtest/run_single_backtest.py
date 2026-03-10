@@ -22,7 +22,6 @@ from qbt.backtest.constants import MARKET_REGIMES
 from qbt.backtest.strategies import (
     buffer_zone,
     buy_and_hold,
-    donchian_channel_tqqq,
 )
 from qbt.backtest.types import RegimeSummaryDict, SingleBacktestResult
 from qbt.common_constants import (
@@ -42,9 +41,7 @@ from qbt.utils.meta_manager import save_metadata
 logger = get_logger(__name__)
 
 # 전략 레지스트리
-STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
-    donchian_channel_tqqq.STRATEGY_NAME: donchian_channel_tqqq.run_single,
-}
+STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {}
 
 # Buffer zone: CONFIGS 기반 자동 등록
 for _config in buffer_zone.CONFIGS:

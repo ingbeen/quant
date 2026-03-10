@@ -48,7 +48,6 @@ TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 
 # --- 전략별 결과 디렉토리 ---
 BUFFER_ZONE_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_tqqq"  # 버퍼존 전략 (TQQQ) 결과
-BUFFER_ZONE_ATR_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_atr_tqqq"  # 버퍼존 ATR 전략 (TQQQ) 결과
 BUFFER_ZONE_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq"  # 버퍼존 전략 (QQQ) 결과
 BUY_AND_HOLD_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_qqq"  # Buy & Hold (QQQ) 전략 결과
 BUY_AND_HOLD_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq"  # Buy & Hold (TQQQ) 전략 결과
@@ -58,10 +57,6 @@ BUY_AND_HOLD_EFA_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_efa" 
 BUY_AND_HOLD_EEM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_eem"  # Buy & Hold (EEM) 전략 결과
 BUY_AND_HOLD_GLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_gld"  # Buy & Hold (GLD) 전략 결과
 BUY_AND_HOLD_TLT_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tlt"  # Buy & Hold (TLT) 전략 결과
-DONCHIAN_CHANNEL_TQQQ_RESULTS_DIR: Final = (
-    BACKTEST_RESULTS_DIR / "donchian_channel_tqqq"
-)  # Donchian Channel (TQQQ) 전략 결과
-
 # 교차 자산 검증용 결과 디렉토리
 BUFFER_ZONE_QQQ_4P_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq_4p"  # 버퍼존 QQQ 4P 기준선 결과
 BUFFER_ZONE_SPY_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_spy"  # 버퍼존 SPY 결과

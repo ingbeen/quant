@@ -51,14 +51,6 @@ DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]  # 4개
 DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]  # 4개
 # 3 × 3 × 3 × 4 × 4 = 432개
 
-# --- ATR 트레일링 스탑 기본값 ---
-DEFAULT_ATR_PERIOD: Final = 22  # Chandelier Exit 표준
-DEFAULT_ATR_MULTIPLIER: Final = 3.0  # Chandelier Exit 표준
-
-# --- WFO ATR 파라미터 리스트 ---
-DEFAULT_WFO_ATR_PERIOD_LIST: Final = [14, 22]  # Wilder 표준(14) + Chandelier Exit 표준(22)
-DEFAULT_WFO_ATR_MULTIPLIER_LIST: Final = [2.5, 3.0]  # 약간 공격적(2.5) + Chandelier Exit 기본(3.0)
-
 # --- WFO 최소 거래수 ---
 DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 거래수 제약
 
@@ -89,17 +81,6 @@ DEFAULT_CSCV_METRIC: Final = "sharpe"  # 기본 성과 지표 ("sharpe" 또는 "
 # --- CSCV 결과 파일명 ---
 CSCV_ANALYSIS_FILENAME: Final = "cscv_analysis.json"
 CSCV_LOGIT_LAMBDAS_FILENAME: Final = "cscv_logit_lambdas.csv"
-
-# --- ATR 비교 실험 결과 파일명 ---
-ATR_COMPARISON_WINDOWS_FILENAME: Final = "atr_comparison_windows.csv"
-ATR_COMPARISON_SUMMARY_FILENAME: Final = "atr_comparison_summary.json"
-
-# --- WFO 비교 실험 설정 ---
-DEFAULT_WFO_ROLLING_IS_MONTHS: Final = 120  # Rolling IS 최대 길이 (10년)
-
-# --- WFO 비교 실험 결과 파일명 ---
-WFO_COMPARISON_WINDOWS_FILENAME: Final = "wfo_comparison_windows.csv"
-WFO_COMPARISON_SUMMARY_FILENAME: Final = "wfo_comparison_summary.json"
 
 # ============================================================
 # 시장 구간 정의 (QQQ 기준, 수동 분류)

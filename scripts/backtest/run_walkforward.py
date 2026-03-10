@@ -21,8 +21,6 @@ import pandas as pd
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_WFO_ATR_MULTIPLIER_LIST,
-    DEFAULT_WFO_ATR_PERIOD_LIST,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
     DEFAULT_WFO_FIXED_SELL_BUFFER_PCT,
     DEFAULT_WFO_HOLD_DAYS_LIST,
@@ -40,7 +38,7 @@ from qbt.backtest.constants import (
     WALKFORWARD_SELL_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
 )
-from qbt.backtest.strategies import buffer_zone, buffer_zone_atr_tqqq
+from qbt.backtest.strategies import buffer_zone
 from qbt.backtest.strategies.buffer_zone_helpers import run_buffer_strategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
@@ -51,8 +49,6 @@ from qbt.backtest.walkforward import (
 from qbt.common_constants import (
     COL_DATE,
     META_JSON_PATH,
-    QQQ_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -75,13 +71,6 @@ STRATEGY_CONFIG: dict[str, dict[str, Path | list[int] | list[float] | None]] = {
         "signal_path": _qqq.signal_data_path,
         "trade_path": _qqq.trade_data_path,
         "result_dir": _qqq.result_dir,
-    },
-    buffer_zone_atr_tqqq.STRATEGY_NAME: {
-        "signal_path": QQQ_DATA_PATH,
-        "trade_path": TQQQ_SYNTHETIC_DATA_PATH,
-        "result_dir": buffer_zone_atr_tqqq.GRID_RESULTS_PATH.parent,
-        "atr_period_list": list(DEFAULT_WFO_ATR_PERIOD_LIST),
-        "atr_multiplier_list": list(DEFAULT_WFO_ATR_MULTIPLIER_LIST),
     },
 }
 
@@ -182,8 +171,6 @@ def _run_single_mode(
     hold_days_list: list[int],
     recent_months_list: list[int],
     initial_capital: float,
-    atr_period_list: list[int] | None = None,
-    atr_multiplier_list: list[float] | None = None,
 ) -> tuple[list[WfoWindowResultDict], WfoModeSummaryDict, pd.DataFrame]:
     """단일 WFO 모드를 실행한다.
 
@@ -191,8 +178,6 @@ def _run_single_mode(
         mode_name: 모드 이름 (dynamic / sell_fixed / fully_fixed)
         signal_df: 시그널 DataFrame
         trade_df: 매매 DataFrame
-        atr_period_list: ATR 기간 리스트 (None이면 ATR 미사용)
-        atr_multiplier_list: ATR 배수 리스트 (None이면 ATR 미사용)
         기타: 파라미터 리스트들
 
     Returns:
@@ -211,8 +196,6 @@ def _run_single_mode(
         initial_is_months=DEFAULT_WFO_INITIAL_IS_MONTHS,
         oos_months=DEFAULT_WFO_OOS_MONTHS,
         initial_capital=initial_capital,
-        atr_period_list=atr_period_list,
-        atr_multiplier_list=atr_multiplier_list,
     )
 
     # Stitched Equity 생성
@@ -409,15 +392,6 @@ def main() -> int:
         signal_df, trade_df = _load_data(strategy_name)
         logger.debug(f"데이터 로딩 완료: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}, " f"{len(signal_df)}행")
 
-        # 전략별 ATR 파라미터 추출 (ATR 전략인 경우만)
-        config = STRATEGY_CONFIG[strategy_name]
-        atr_period_list: list[int] | None = None
-        atr_multiplier_list: list[float] | None = None
-        if "atr_period_list" in config and config["atr_period_list"] is not None:
-            atr_period_list = list(config["atr_period_list"])  # type: ignore[arg-type]
-        if "atr_multiplier_list" in config and config["atr_multiplier_list"] is not None:
-            atr_multiplier_list = list(config["atr_multiplier_list"])  # type: ignore[arg-type]
-
         # 3-2. Mode 1: Dynamic (모든 파라미터 IS 최적화)
         logger.debug("-" * 40)
         logger.debug("[Mode 1: Dynamic] 모든 파라미터 IS 최적화")
@@ -431,8 +405,6 @@ def main() -> int:
             list(DEFAULT_WFO_HOLD_DAYS_LIST),
             list(DEFAULT_WFO_RECENT_MONTHS_LIST),
             DEFAULT_INITIAL_CAPITAL,
-            atr_period_list=atr_period_list,
-            atr_multiplier_list=atr_multiplier_list,
         )
 
         # 3-3. Mode 2: Sell Fixed (sell_buffer=0.05 고정)
@@ -444,26 +416,16 @@ def main() -> int:
             trade_df,
             list(DEFAULT_WFO_MA_WINDOW_LIST),
             list(DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST),
-            [DEFAULT_WFO_FIXED_SELL_BUFFER_PCT],  # 고정
+            [DEFAULT_WFO_FIXED_SELL_BUFFER_PCT],
             list(DEFAULT_WFO_HOLD_DAYS_LIST),
             list(DEFAULT_WFO_RECENT_MONTHS_LIST),
             DEFAULT_INITIAL_CAPITAL,
-            atr_period_list=atr_period_list,
-            atr_multiplier_list=atr_multiplier_list,
         )
 
         # 3-4. Mode 3: Fully Fixed (첫 윈도우 best params 고정)
         logger.debug("-" * 40)
         logger.debug("[Mode 3: Fully Fixed] 첫 IS 윈도우 최적 파라미터 고정")
         first_best = dynamic_results[0]
-
-        # Fully Fixed ATR: 첫 윈도우 최적 ATR도 고정
-        ff_atr_period_list: list[int] | None = None
-        ff_atr_multiplier_list: list[float] | None = None
-        if "best_atr_period" in first_best:
-            ff_atr_period_list = [first_best["best_atr_period"]]
-        if "best_atr_multiplier" in first_best:
-            ff_atr_multiplier_list = [first_best["best_atr_multiplier"]]
 
         fully_fixed_results, fully_fixed_summary, fully_fixed_equity = _run_single_mode(
             "fully_fixed",
@@ -475,8 +437,6 @@ def main() -> int:
             [first_best["best_hold_days"]],
             [first_best["best_recent_months"]],
             DEFAULT_INITIAL_CAPITAL,
-            atr_period_list=ff_atr_period_list,
-            atr_multiplier_list=ff_atr_multiplier_list,
         )
 
         # 3-5. 요약 출력
@@ -519,8 +479,6 @@ def main() -> int:
                 "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
                 "slippage_rate": round(SLIPPAGE_RATE, 4),
                 "fixed_sell_buffer_pct": round(DEFAULT_WFO_FIXED_SELL_BUFFER_PCT, 4),
-                **({"atr_period_list": atr_period_list} if atr_period_list else {}),
-                **({"atr_multiplier_list": [round(x, 4) for x in atr_multiplier_list]} if atr_multiplier_list else {}),
             },
             "data_period": {
                 "start_date": str(signal_df[COL_DATE].min()),

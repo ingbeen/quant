@@ -17,15 +17,11 @@ tests/
 ├── CLAUDE.md # tests 관련 규칙 (이 문서)
 ├── conftest.py # 공통 픽스처
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
-├── test_atr_comparison.py # ATR 고정 OOS 비교 실험 테스트
 ├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
 ├── test_buffer_zone.py    # 버퍼존 통합 모듈 테스트 (config, resolve_params, create_runner)
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
-├── test_wfo_comparison.py      # Expanding vs Rolling WFO 비교 실험 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
-├── test_donchian_helpers.py # Donchian Channel 전략 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
-├── test_cpcv.py # CSCV/PBO/DSR 과최적화 검증 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
 ├── test_formatting.py # 터미널 출력 포맷팅 테스트
 ├── test_integration.py # 통합 테스트 (백테스트/TQQQ 파이프라인)
