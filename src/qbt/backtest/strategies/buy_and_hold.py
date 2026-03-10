@@ -24,14 +24,26 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import (
+    BUY_AND_HOLD_EEM_RESULTS_DIR,
+    BUY_AND_HOLD_EFA_RESULTS_DIR,
+    BUY_AND_HOLD_GLD_RESULTS_DIR,
+    BUY_AND_HOLD_IWM_RESULTS_DIR,
     BUY_AND_HOLD_QQQ_RESULTS_DIR,
+    BUY_AND_HOLD_SPY_RESULTS_DIR,
+    BUY_AND_HOLD_TLT_RESULTS_DIR,
     BUY_AND_HOLD_TQQQ_RESULTS_DIR,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    EEM_DATA_PATH,
+    EFA_DATA_PATH,
+    GLD_DATA_PATH,
+    IWM_DATA_PATH,
     QQQ_DATA_PATH,
+    SPY_DATA_PATH,
+    TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
@@ -72,6 +84,42 @@ CONFIGS: list[BuyAndHoldConfig] = [
         display_name="Buy & Hold (TQQQ)",
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BUY_AND_HOLD_TQQQ_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_spy",
+        display_name="Buy & Hold (SPY)",
+        trade_data_path=SPY_DATA_PATH,
+        result_dir=BUY_AND_HOLD_SPY_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_iwm",
+        display_name="Buy & Hold (IWM)",
+        trade_data_path=IWM_DATA_PATH,
+        result_dir=BUY_AND_HOLD_IWM_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_efa",
+        display_name="Buy & Hold (EFA)",
+        trade_data_path=EFA_DATA_PATH,
+        result_dir=BUY_AND_HOLD_EFA_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_eem",
+        display_name="Buy & Hold (EEM)",
+        trade_data_path=EEM_DATA_PATH,
+        result_dir=BUY_AND_HOLD_EEM_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_gld",
+        display_name="Buy & Hold (GLD)",
+        trade_data_path=GLD_DATA_PATH,
+        result_dir=BUY_AND_HOLD_GLD_RESULTS_DIR,
+    ),
+    BuyAndHoldConfig(
+        strategy_name="buy_and_hold_tlt",
+        display_name="Buy & Hold (TLT)",
+        trade_data_path=TLT_DATA_PATH,
+        result_dir=BUY_AND_HOLD_TLT_RESULTS_DIR,
     ),
 ]
 

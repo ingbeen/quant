@@ -133,6 +133,12 @@ quant/
         │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
         │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
         │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
+        │   ├── buy_and_hold_spy/      # Buy & Hold (SPY) 전략 결과
+        │   ├── buy_and_hold_iwm/      # Buy & Hold (IWM) 전략 결과
+        │   ├── buy_and_hold_efa/      # Buy & Hold (EFA) 전략 결과
+        │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
+        │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
+        │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
         │   ├── donchian_channel_tqqq/  # Donchian Channel (TQQQ) 전략 결과
         │   ├── hold_days_plateau/     # hold_days 고원 분석 결과
         │   └── param_plateau/         # 파라미터(sell/buy/ma) 고원 분석 결과
