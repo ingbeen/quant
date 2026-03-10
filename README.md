@@ -5,7 +5,7 @@
 ## 주요 기능
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
-- 이동평균 기반 거래 전략 백테스트 + Donchian Channel (터틀 트레이딩) 전략
+- 이동평균 기반 버퍼존 거래 전략 백테스트 (4P 고정 파라미터: MA=200, buy=3%, sell=5%, hold=3)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -33,7 +33,7 @@ poetry run python validate_project.py
 
 ## 워크플로우 1: 백테스트 전략 분석
 
-이동평균 기반 버퍼존 전략의 최적 파라미터를 탐색하고 성과를 평가합니다.
+이동평균 기반 버퍼존 전략의 성과를 평가합니다. 파라미터는 4P 고정 (MA=200, buy=0.03, sell=0.05, hold=3)입니다.
 
 ```bash
 # 1. 데이터 다운로드 (전체 종목 일괄)
@@ -41,73 +41,33 @@ poetry run python scripts/data/download_data.py
 # 또는 특정 종목만
 poetry run python scripts/data/download_data.py QQQ
 
-# 2. 파라미터 최적화 (그리드 서치)
-poetry run python scripts/backtest/run_grid_search.py
-# 출력: storage/results/backtest/{전략명}/grid_results.csv
-
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
-poetry run python scripts/backtest/run_grid_search.py --strategy buffer_zone_tqqq
-
-# 3. 단일 전략 검증 + 결과 저장
-poetry run python scripts/backtest/run_single_backtest.py
+# 2. 단일 전략 검증 + 결과 저장
 # 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
-
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_spy / ... / buy_and_hold_qqq 등, 기본값: all)
+poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
 
-# cross-asset 전략 전체 실행 (QQQ 3P 기준선 + SPY/IWM/EFA/EEM/GLD/TLT)
-poetry run python scripts/backtest/run_single_backtest.py --strategy all
-
-# 4. 워크포워드 검증 (과최적화 검증, 선행: 1~2)
+# 3. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
 # 출력: 3-Mode 비교 (동적/sell고정/전체고정) + stitched equity
 # 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
 # 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
 
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
 
-# 4-1. WFO Stitched 대시보드 결과 생성 (선행: 4)
-poetry run python scripts/backtest/run_wfo_stitched_backtest.py
-# 출력: walkforward_dynamic.csv → params_schedule 기반 OOS 전체 1회 실행
-# 결과: storage/results/backtest/buffer_zone_atr_tqqq_wfo/ (signal, equity, trades, summary)
-# 대시보드에서 자동 탐색 → 새 탭 생성 (코드 수정 불필요)
+# 4. 파라미터 고원 분석 (선행: 1)
+poetry run python scripts/backtest/run_param_plateau_all.py
+# 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 7자산 통합 고원 분석
+# --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
+# 출력: storage/results/backtest/param_plateau/ (피벗 CSV + 상세 CSV)
 
-# 5. ATR 비교 실험 (선행: 1)
-poetry run python scripts/backtest/run_atr_comparison.py
-# 출력: ATR(14,3.0) vs ATR(22,3.0) 고정 OOS 성과 비교
-# 결과: storage/results/backtest/buffer_zone_atr_tqqq/atr_comparison_windows.csv, atr_comparison_summary.json
-
-# 5-1. Expanding vs Rolling WFO 비교 실험 (선행: 1)
-poetry run python scripts/backtest/run_wfo_comparison.py
-# 출력: Expanding Anchored vs Rolling Window(IS=120개월) OOS 성과 비교
-# 진단: IS 분기 통계, 위기 데이터 망각 위험 정량 검증
-# 결과: storage/results/backtest/buffer_zone_atr_tqqq/wfo_comparison_windows.csv, wfo_comparison_summary.json
-
-# 6. CSCV/PBO/DSR 과최적화 통계 검증 (선행: 1)
-poetry run python scripts/backtest/run_cpcv_analysis.py
-# 출력: PBO (과최적화 확률), DSR (보정 Sharpe 유의성)
-# 결과: storage/results/backtest/{전략명}/cscv_analysis.json, cscv_logit_lambdas.csv
-
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_atr_tqqq / buffer_zone_qqq, 기본값: all)
-poetry run python scripts/backtest/run_cpcv_analysis.py --strategy buffer_zone_tqqq
-
-# 7. 대시보드 시각화 (선행: 3)
+# 5. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
-# 8. 파라미터 안정성 대시보드 (선행: 2)
+# 6. 파라미터 고원 시각화 대시보드 (선행: 4)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
-# 시각화: Calmar 분포, MA별 히트맵, 인접 파라미터 비교, 통과 기준 판정
-
-# 9. hold_days 고원 분석 (선행: 1)
-poetry run python scripts/backtest/run_hold_days_plateau.py
-# 7자산 x 8 hold_days(0~10) = 56회 백테스트 일괄 실행
-# 출력: storage/results/backtest/hold_days_plateau/ (상세 1 + 피벗 5 = CSV 6종)
-
-# 10. 파라미터 고원 분석 (선행: 1)
-poetry run python scripts/backtest/run_param_plateau.py
-# 3실험(sell_buffer/buy_buffer/ma_window) x 7자산 x 6값 = 126회 백테스트 일괄 실행
-# 출력: storage/results/backtest/param_plateau/ (상세 1 + 피벗 15 = CSV 16종)
+# 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 7자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
@@ -209,10 +169,10 @@ poetry run python validate_project.py --only-pyright
 
 ```bash
 # 특정 모듈만 테스트
-poetry run pytest tests/test_strategy.py -v
+poetry run pytest tests/test_buffer_zone_helpers.py -v
 
 # 특정 클래스만 테스트
-poetry run pytest tests/test_strategy.py::TestRunBufferStrategy -v
+poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
@@ -263,7 +223,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_grid_search.py, run_single_backtest.py, run_walkforward.py, run_wfo_stitched_backtest.py, run_atr_comparison.py, run_wfo_comparison.py, run_cpcv_analysis.py, run_hold_days_plateau.py, run_param_plateau.py, app_single_backtest.py, app_parameter_stability.py
+│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_parameter_stability.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 (확정 후 아카이빙)
@@ -273,7 +233,7 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, parameter_stability.py, cpcv.py, atr_comparison.py, wfo_comparison.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
@@ -282,21 +242,23 @@ quant/
 │   └── results/       # 분석 결과 + meta.json
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
 │       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_atr_tqqq/     # 버퍼존 ATR 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_atr_tqqq_wfo/ # 버퍼존 ATR WFO Stitched (TQQQ) 결과
-│       │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
-│       │   ├── buffer_zone_qqq_4p/       # 버퍼존 전략 (QQQ 4P) 결과
-│       │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
-│       │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
-│       │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과
-│       │   ├── buffer_zone_eem/          # 버퍼존 전략 (EEM) 결과
-│       │   ├── buffer_zone_gld/          # 버퍼존 전략 (GLD) 결과
-│       │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
-│       │   ├── hold_days_plateau/        # hold_days 고원 분석 결과
-│       │   ├── param_plateau/           # 파라미터(sell/buy/ma) 고원 분석 결과
-│       │   ├── buy_and_hold_qqq/  # Buy & Hold (QQQ) 전략 결과
-│       │   ├── buy_and_hold_tqqq/ # Buy & Hold (TQQQ) 전략 결과
-│       │   └── donchian_channel_tqqq/ # Donchian Channel (TQQQ) 전략 결과
+│       │   ├── buffer_zone_qqq/       # 버퍼존 전략 (QQQ) 결과
+│       │   ├── buffer_zone_spy/       # 버퍼존 전략 (SPY) 결과
+│       │   ├── buffer_zone_iwm/       # 버퍼존 전략 (IWM) 결과
+│       │   ├── buffer_zone_efa/       # 버퍼존 전략 (EFA) 결과
+│       │   ├── buffer_zone_eem/       # 버퍼존 전략 (EEM) 결과
+│       │   ├── buffer_zone_gld/       # 버퍼존 전략 (GLD) 결과
+│       │   ├── buffer_zone_tlt/       # 버퍼존 전략 (TLT) 결과
+│       │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
+│       │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
+│       │   ├── buy_and_hold_spy/      # Buy & Hold (SPY) 전략 결과
+│       │   ├── buy_and_hold_iwm/      # Buy & Hold (IWM) 전략 결과
+│       │   ├── buy_and_hold_efa/      # Buy & Hold (EFA) 전략 결과
+│       │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
+│       │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
+│       │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
+│       │   ├── hold_days_plateau/     # hold_days 고원 분석 결과
+│       │   └── param_plateau/         # 파라미터(hold/sell/buy/ma) 고원 분석 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
 │           └── spread_lab/    # 스프레드 모델 검증 결과
 └── tests/             # 테스트 코드
@@ -310,7 +272,6 @@ quant/
 
 각 전략의 결과는 `storage/results/backtest/{strategy_name}/` 하위에 저장됩니다.
 
-- `grid_results.csv`: 파라미터 그리드 서치 결과 (버퍼존 전략 전용)
 - `signal.csv`: 시그널 데이터 (OHLC + MA + 전일대비%)
 - `equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
 - `trades.csv`: 거래 내역 + 보유기간
@@ -318,12 +279,6 @@ quant/
 - `walkforward_dynamic.csv`, `walkforward_sell_fixed.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
 - `walkforward_equity_dynamic.csv`, `walkforward_equity_sell_fixed.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
 - `walkforward_summary.json`: 3-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
-- `cscv_analysis.json`: CSCV/PBO/DSR 과최적화 통계 검증 결과 (버퍼존 전략 전용)
-- `cscv_logit_lambdas.csv`: CSCV logit lambda 분포 (PBO 진단용, 버퍼존 전략 전용)
-- `atr_comparison_windows.csv`: ATR 고정 OOS 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
-- `atr_comparison_summary.json`: ATR 고정 OOS 비교 요약 (buffer_zone_atr_tqqq 전용)
-- `wfo_comparison_windows.csv`: Expanding vs Rolling WFO 비교 윈도우별 결과 (buffer_zone_atr_tqqq 전용)
-- `wfo_comparison_summary.json`: Expanding vs Rolling WFO 비교 요약 (buffer_zone_atr_tqqq 전용)
 
 ### TQQQ 시뮬레이션
 
@@ -331,39 +286,6 @@ quant/
 - `storage/stock/TQQQ_synthetic_max.csv`: 합성 TQQQ 데이터
 - `storage/results/meta.json`: 실행 이력 메타데이터
 - `storage/results/tqqq/spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 워크포워드, 금리-오차 분석 등)
-
----
-
-## 문제 해결
-
-### 데이터 다운로드 실패
-
-```bash
-# 다른 기간으로 재시도
-poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
-```
-
-### 테스트 실패
-
-```bash
-# 전체 품질 검증 후 재실행
-poetry run python validate_project.py
-```
-
-### 대시보드 실행 오류
-
-각 앱은 선행 스크립트의 결과 파일이 필요합니다. 해당 워크플로우의 순서를 따라 실행하세요.
-
-```bash
-# 백테스트 대시보드 (선행: 워크플로우 1의 1~3)
-poetry run streamlit run scripts/backtest/app_single_backtest.py
-
-# 일별 비교 대시보드 (선행: 워크플로우 2의 1~2)
-poetry run streamlit run scripts/tqqq/app_daily_comparison.py
-
-# 금리-오차 분석 앱 (선행: spread_lab 스크립트 실행)
-poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
-```
 
 ---
 
