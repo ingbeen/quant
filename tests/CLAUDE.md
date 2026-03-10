@@ -28,6 +28,7 @@ tests/
 ├── test_logger.py # 로거 테스트
 ├── test_meta_manager.py # 메타데이터 관리 테스트
 ├── test_numpy_warnings.py # NumPy 부동소수점 경고 테스트
+├── test_parameter_stability.py # 파라미터 고원 분석 모듈 테스트
 ├── test_parallel_executor.py # 병렬 처리 테스트
 ├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
 ├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트

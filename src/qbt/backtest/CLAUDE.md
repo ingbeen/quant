@@ -58,16 +58,16 @@
 
 ### 4. parameter_stability.py
 
-파라미터 안정성 분석 모듈을 제공합니다.
-overfitting_analysis_report.md 11.2절 "1단계: 파라미터 안정성 확인"에 대응한다.
+파라미터 고원 분석 모듈을 제공합니다.
+고원 분석 CSV(param_plateau/)를 로딩하고 시각화용 데이터를 가공한다.
 
 주요 함수:
 
-- `load_grid_results`: grid_results.csv 로드 + DISPLAY -> COL 컬럼명 변환 + 필수 컬럼 검증
-- `build_calmar_histogram_data`: 전체 Calmar 값 Series 반환 (11.2절 "Calmar 분포 확인")
-- `build_heatmap_data`: MA별 buy_buffer x sell_buffer 히트맵 집계 (11.2절 "buy/sell buffer 히트맵"). hold_days/recent_months 평균 집계
-- `build_adjacent_comparison`: 최적 파라미터 기준 인접 조합 비교 데이터 생성 (11.2절 "인접 파라미터 비교"). buy/sell/hold_days 축 포함
-- `evaluate_stability_criteria`: 통과 기준 판정 (Calmar>0 비율, 인접 30% 이내)
+- `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (예: `param_plateau_buy_buffer_calmar.csv`)
+- `load_plateau_detail()`: 상세 CSV 로드 (`param_plateau_all_detail.csv`)
+- `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (MA=200, buy=0.03, sell=0.05, hold=3)
+- `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
+- `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)
 
 ### 5. walkforward.py
 
@@ -134,7 +134,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 #### strategies/buffer_zone.py
 
-버퍼존 통합 config-driven 전략 모듈 (9개 자산). 기존 buffer_zone_tqqq, buffer_zone_qqq를 통합한다.
+버퍼존 통합 config-driven 전략 모듈 (8개 자산, 4P 고정). 기존 buffer_zone_tqqq, buffer_zone_qqq를 통합한다.
 
 설정 데이터클래스:
 
@@ -142,10 +142,10 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설정 목록:
 
-- `CONFIGS`: `list[BufferZoneConfig]` (9개). 새 자산 추가 시 여기에 한 줄 추가
-  - 기존 2개: buffer_zone_tqqq (grid 폴백), buffer_zone_qqq (grid 폴백)
-  - QQQ 4P 기준선: buffer_zone_qqq_4p (고정 파라미터)
-  - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (고정 파라미터)
+- `CONFIGS`: `list[BufferZoneConfig]` (8개, 전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가
+  - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
+  - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
+  - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (4P 고정)
 
 주요 함수:
 
@@ -280,14 +280,6 @@ adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INC
 ---
 
 ## CSV 파일 형식
-
-### grid_results.csv
-
-경로: `storage/results/backtest/{strategy_name}/grid_results.csv` (예: `buffer_zone_tqqq/`, `buffer_zone_qqq/`)
-
-주요 컬럼: 이평기간, 매수버퍼존, 매도버퍼존, 유지일, 조정기간(월), 수익률, CAGR, MDD, 거래수, 승률, 최종자본
-
-정렬: Calmar 내림차순
 
 ---
 

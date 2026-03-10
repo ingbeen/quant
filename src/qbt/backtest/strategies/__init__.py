@@ -2,7 +2,7 @@
 
 전략별 모듈을 제공한다.
 - buffer_zone_helpers: 버퍼존 계열 전략 공통 로직
-- buffer_zone: 버퍼존 통합 config-driven 전략 모듈 (9개 자산)
+- buffer_zone: 버퍼존 통합 config-driven 전략 모듈 (8개 자산, 4P 고정)
 - buy_and_hold: 매수 후 보유 벤치마크 전략 (팩토리 패턴으로 멀티 티커 지원)
 """
 

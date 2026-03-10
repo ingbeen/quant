@@ -116,7 +116,6 @@ quant/
         ├── backtest/              # 백테스트 결과 (전략별 하위 폴더)
         │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
         │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
-        │   ├── buffer_zone_qqq_4p/       # 버퍼존 전략 (QQQ 4P) 결과
         │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
         │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
         │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과
@@ -131,8 +130,7 @@ quant/
         │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
         │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
         │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
-        │   ├── hold_days_plateau/     # hold_days 고원 분석 결과
-        │   └── param_plateau/         # 파라미터(sell/buy/ma) 고원 분석 결과
+        │   └── param_plateau/         # 파라미터 고원 분석 결과 (hold_days/sell/buy/ma 통합)
         └── tqqq/              # TQQQ 시뮬레이션 결과
             └── spread_lab/  # 스프레드 모델 검증 결과
 ```

@@ -11,8 +11,8 @@ backtest/strategies/buffer_zone 통합 모듈 테스트
 7. TQQQ/QQQ config별 create_runner run_single 구조 검증
 
 왜 중요한가요?
-buffer_zone.py는 9개 자산의 config-driven 통합 전략 모듈입니다.
-기존 buffer_zone_tqqq, buffer_zone_qqq의 공통 패턴을 일반화하므로
+buffer_zone.py는 8개 자산의 config-driven 통합 전략 모듈입니다.
+전 자산 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일된
 설정 정합성과 팩토리 패턴의 정확성이 핵심입니다.
 """
 
@@ -69,14 +69,14 @@ class TestBufferZoneConfig:
 
     def test_configs_list_has_expected_count(self):
         """
-        목적: CONFIGS 리스트가 9개 설정을 포함하는지 검증
+        목적: CONFIGS 리스트가 8개 설정을 포함하는지 검증
 
         Given: buffer_zone.CONFIGS
         When: 길이 확인
-        Then: 9개
+        Then: 8개
         """
         # Then
-        assert len(CONFIGS) == 9, f"CONFIGS는 9개여야 합니다. 실제: {len(CONFIGS)}"
+        assert len(CONFIGS) == 8, f"CONFIGS는 8개여야 합니다. 실제: {len(CONFIGS)}"
 
     def test_configs_unique_strategy_names(self):
         """
@@ -259,23 +259,23 @@ class TestResolveParamsForConfig:
         assert params.recent_months == DEFAULT_RECENT_MONTHS
         assert all(s == "DEFAULT" for s in sources.values())
 
-    def test_cross_asset_config_sets_hold_days_two(self):
+    def test_4p_config_sets_hold_days_three(self):
         """
-        목적: cross-asset config의 hold_days=2, recent_months=0 확인
+        목적: 전 자산 4P 고정 파라미터에서 hold_days=3, recent_months=0 확인
 
-        Given: cross-asset 패턴의 config (override로 고정값 설정)
+        Given: 4P 고정 패턴의 config (override로 고정값 설정)
         When: resolve_params_for_config 호출
-        Then: hold_days=2, recent_months=0 확인
+        Then: hold_days=3, recent_months=0 확인
         """
-        # Given: cross-asset 패턴 (SPY 예시)
+        # Given: 4P 패턴 (SPY 예시)
         config = get_config("buffer_zone_spy")
 
         # When
         params, _sources = resolve_params_for_config(config)
 
-        # Then: cross-asset hold_days=2 (학술 근거 기반 사전 결정)
-        assert params.hold_days == 2, "cross-asset config는 hold_days=2이어야 합니다"
-        assert params.recent_months == 0, "cross-asset config는 recent_months=0이어야 합니다"
+        # Then: 4P 확정 hold_days=3 (overfitting_analysis_report.md §2.1 기반)
+        assert params.hold_days == 3, "4P config는 hold_days=3이어야 합니다"
+        assert params.recent_months == 0, "4P config는 recent_months=0이어야 합니다"
 
     def test_tqqq_config_default_fallback(self, tmp_path):
         """

@@ -140,10 +140,9 @@ main 함수:
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
 - 파라미터 고원 분석:
-  - `run_hold_days_plateau.py`: hold_days 고원 분석 (7자산 × 8값 = 56회 백테스트)
-    - Calmar 곡선의 고원 형태 확인, 피벗 CSV 5종 + 상세 CSV 1종 저장
-  - `run_param_plateau.py`: sell_buffer/buy_buffer/ma_window 고원 분석 (3실험 × 7자산 × 6값 = 126회 백테스트)
-    - 피벗 CSV 15종 + 상세 CSV 1종 저장
+  - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
+    - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
+    - 결과: `param_plateau/` 디렉토리에 피벗 CSV + 상세 CSV 저장
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
@@ -153,6 +152,9 @@ main 함수:
     - customValues 기반 tooltip: 전일대비%, 이평선, 상단/하단 밴드 표시
     - 날짜 표기: `localization.dateFormat` 설정으로 한국식 "yyyy-MM-dd" 형식 적용
     - vendor fork: `vendor/streamlit-lightweight-charts-v5/` (tooltip 지원 추가)
+  - `app_parameter_stability.py`: 4개 파라미터(MA Window, Buy Buffer, Sell Buffer, Hold Days) 고원 시각화 대시보드
+    - 선행: `run_param_plateau_all.py` 실행 필요 (고원 분석 CSV 로드)
+    - 각 탭: 7자산 Calmar 라인차트, 확정값 마커, 고원 구간 하이라이트, 보조 지표(CAGR/MDD/거래수) expander
 
 ### 레버리지 시뮬레이션 (tqqq/)
 
@@ -222,10 +224,7 @@ width 파라미터 사용:
   - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_spy / ... / buy_and_hold_qqq 등, 기본값: all)
   - cross-asset 전략은 CONFIGS 기반 자동 등록, regime_summaries는 QQQ 시그널 전략에만 적용
   - 이유: 전략별 독립 실행 및 비교 실행 지원
-- 예외 사례 3: 그리드 서치 스크립트(`scripts/backtest/run_grid_search.py`)
-  - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
-  - 이유: 전략별 독립 실행 및 전체 일괄 실행 지원
-근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py), [scripts/backtest/run_grid_search.py](backtest/run_grid_search.py)
+근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py)
 
 ---
 

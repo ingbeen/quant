@@ -1,559 +1,290 @@
-"""파라미터 안정성 분석 모듈 테스트
+"""파라미터 고원 분석 모듈 테스트
 
-overfitting_analysis_report.md 11.2절 "1단계: 파라미터 안정성 확인"의
-데이터 가공 로직과 판정 기준을 검증한다.
+고원 CSV 로딩, 고원 구간 탐지, 현재값 반환 함수를 검증한다.
 
 테스트 대상:
-- grid_results.csv 로드 및 컬럼명 변환
-- Calmar 히스토그램 데이터 추출
-- MA별 buy_buffer x sell_buffer 히트맵 집계
-- 인접 파라미터 비교 데이터 생성
-- 안정성 통과 기준 판정
+- load_plateau_pivot: 피벗 CSV 로드
+- load_plateau_detail: 상세 CSV 로드
+- get_current_value: 4P 확정 파라미터값 반환
+- find_plateau_range: 고원 구간 탐지
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from qbt.backtest.constants import (
-    COL_BUY_BUFFER_ZONE_PCT,
-    COL_CAGR,
-    COL_CALMAR,
-    COL_FINAL_CAPITAL,
-    COL_HOLD_DAYS,
-    COL_MA_WINDOW,
-    COL_MDD,
-    COL_RECENT_MONTHS,
-    COL_SELL_BUFFER_ZONE_PCT,
-    COL_TOTAL_RETURN_PCT,
-    COL_TOTAL_TRADES,
-    COL_WIN_RATE,
-    DISPLAY_BUY_BUFFER_ZONE,
-    DISPLAY_CAGR,
-    DISPLAY_CALMAR,
-    DISPLAY_FINAL_CAPITAL,
-    DISPLAY_HOLD_DAYS,
-    DISPLAY_MA_WINDOW,
-    DISPLAY_MDD,
-    DISPLAY_RECENT_MONTHS,
-    DISPLAY_SELL_BUFFER_ZONE,
-    DISPLAY_TOTAL_RETURN,
-    DISPLAY_TOTAL_TRADES,
-    DISPLAY_WIN_RATE,
-)
 
+class TestLoadPlateauPivot:
+    """피벗 CSV 로드 테스트."""
 
-def _build_grid_df() -> pd.DataFrame:
-    """테스트용 그리드 서치 결과 DataFrame 생성 (내부 COL_* 컬럼명).
-
-    3(MA) x 3(buy) x 3(sell) x 4(hold) x 4(recent) = 432개 조합.
-    Calmar는 0.05 ~ 0.30 범위에서 결정론적으로 생성한다.
-    """
-    ma_list = [100, 150, 200]
-    buy_list = [0.01, 0.03, 0.05]
-    sell_list = [0.01, 0.03, 0.05]
-    hold_list = [0, 2, 3, 5]
-    recent_list = [0, 4, 8, 12]
-
-    rows = []
-    idx = 0
-    for ma in ma_list:
-        for buy in buy_list:
-            for sell in sell_list:
-                for hold in hold_list:
-                    for recent in recent_list:
-                        # Calmar: MA=200, buy=0.03, sell=0.05 부근이 높도록 설계
-                        calmar = 0.10 + 0.05 * (ma / 200) + 0.03 * (sell / 0.05) + 0.01 * (buy / 0.03)
-                        # hold=3, recent=0일 때 약간 더 높게
-                        if hold == 3:
-                            calmar += 0.02
-                        if recent == 0:
-                            calmar += 0.01
-                        cagr = calmar * 30.0
-                        mdd = -cagr / calmar if calmar > 0 else -30.0
-                        rows.append(
-                            {
-                                COL_MA_WINDOW: ma,
-                                COL_BUY_BUFFER_ZONE_PCT: buy,
-                                COL_SELL_BUFFER_ZONE_PCT: sell,
-                                COL_HOLD_DAYS: hold,
-                                COL_RECENT_MONTHS: recent,
-                                COL_TOTAL_RETURN_PCT: cagr * 10,
-                                COL_CAGR: cagr,
-                                COL_MDD: mdd,
-                                COL_CALMAR: calmar,
-                                COL_TOTAL_TRADES: 10 + idx % 5,
-                                COL_WIN_RATE: 60.0 + (idx % 20),
-                                COL_FINAL_CAPITAL: 10_000_000 + cagr * 100_000,
-                            }
-                        )
-                        idx += 1
-    return pd.DataFrame(rows)
-
-
-def _build_display_csv_df() -> pd.DataFrame:
-    """테스트용 CSV 파일에 저장할 DISPLAY 컬럼명 DataFrame.
-
-    _build_grid_df()의 결과를 DISPLAY 컬럼명으로 변환한다.
-    """
-    df = _build_grid_df()
-    return df.rename(
-        columns={
-            COL_MA_WINDOW: DISPLAY_MA_WINDOW,
-            COL_BUY_BUFFER_ZONE_PCT: DISPLAY_BUY_BUFFER_ZONE,
-            COL_SELL_BUFFER_ZONE_PCT: DISPLAY_SELL_BUFFER_ZONE,
-            COL_HOLD_DAYS: DISPLAY_HOLD_DAYS,
-            COL_RECENT_MONTHS: DISPLAY_RECENT_MONTHS,
-            COL_TOTAL_RETURN_PCT: DISPLAY_TOTAL_RETURN,
-            COL_CAGR: DISPLAY_CAGR,
-            COL_MDD: DISPLAY_MDD,
-            COL_CALMAR: DISPLAY_CALMAR,
-            COL_TOTAL_TRADES: DISPLAY_TOTAL_TRADES,
-            COL_WIN_RATE: DISPLAY_WIN_RATE,
-            COL_FINAL_CAPITAL: DISPLAY_FINAL_CAPITAL,
-        }
-    )
-
-
-class TestLoadGridResults:
-    """grid_results.csv 로드 및 컬럼명 변환 테스트."""
-
-    def test_load_grid_results_returns_dataframe(self, tmp_path: Path) -> None:
+    def test_load_plateau_pivot_returns_dataframe(self, tmp_path: Path) -> None:
         """
-        목적: CSV 로드 후 DISPLAY -> COL 컬럼명 변환 검증
+        목적: 피벗 CSV 로드 후 DataFrame 반환 검증
 
-        Given: DISPLAY 컬럼명을 가진 grid_results.csv
-        When: load_grid_results() 호출
-        Then: COL_* 내부 컬럼명으로 변환된 DataFrame 반환
+        Given: param_plateau_hold_days_calmar.csv 파일 존재
+        When: load_plateau_pivot("hold_days", "calmar") 호출
+        Then: DataFrame 반환, index=자산, columns=파라미터값
         """
-        from qbt.backtest.parameter_stability import load_grid_results
+        from qbt.backtest.parameter_stability import load_plateau_pivot
 
-        # Given
-        csv_path = tmp_path / "grid_results.csv"
-        display_df = _build_display_csv_df()
-        display_df.to_csv(csv_path, index=False)
+        # Given: 피벗 CSV 생성
+        pivot_df = pd.DataFrame(
+            {"hold=0": [0.15, 0.12], "hold=3": [0.20, 0.18], "hold=5": [0.19, 0.17]},
+            index=["QQQ", "SPY"],
+        )
+        csv_path = tmp_path / "param_plateau_hold_days_calmar.csv"
+        pivot_df.to_csv(csv_path)
 
         # When
-        result = load_grid_results(csv_path)
+        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
+            result = load_plateau_pivot("hold_days", "calmar")
 
         # Then
         assert isinstance(result, pd.DataFrame)
-        assert len(result) == 432
-        assert COL_MA_WINDOW in result.columns
-        assert COL_BUY_BUFFER_ZONE_PCT in result.columns
-        assert COL_SELL_BUFFER_ZONE_PCT in result.columns
-        assert COL_CALMAR in result.columns
-        assert COL_CAGR in result.columns
-        assert COL_MDD in result.columns
+        assert len(result) == 2
+        assert "hold=0" in result.columns
+        assert "hold=3" in result.columns
 
-    def test_load_grid_results_validates_required_columns(self, tmp_path: Path) -> None:
+    def test_load_plateau_pivot_raises_file_not_found(self, tmp_path: Path) -> None:
         """
-        목적: 필수 컬럼 미존재 시 ValueError 발생 검증
+        목적: CSV 파일 미존재 시 FileNotFoundError 발생 검증
 
-        Given: 일부 컬럼만 존재하는 CSV 파일
-        When: load_grid_results() 호출
-        Then: ValueError 발생
+        Given: 빈 디렉토리
+        When: load_plateau_pivot("hold_days", "calmar") 호출
+        Then: FileNotFoundError 발생
         """
-        from qbt.backtest.parameter_stability import load_grid_results
-
-        # Given
-        csv_path = tmp_path / "bad_grid.csv"
-        bad_df = pd.DataFrame({"col_a": [1], "col_b": [2]})
-        bad_df.to_csv(csv_path, index=False)
+        from qbt.backtest.parameter_stability import load_plateau_pivot
 
         # When / Then
-        with pytest.raises(ValueError, match="필수 컬럼"):
-            load_grid_results(csv_path)
+        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
+            with pytest.raises(FileNotFoundError, match="고원 분석 결과"):
+                load_plateau_pivot("hold_days", "calmar")
 
 
-class TestBuildCalmarHistogramData:
-    """Calmar 히스토그램 데이터 추출 테스트."""
+class TestLoadPlateauDetail:
+    """상세 CSV 로드 테스트."""
 
-    def test_build_calmar_histogram_data_returns_all_432(self) -> None:
+    def test_load_plateau_detail_returns_dataframe(self, tmp_path: Path) -> None:
         """
-        목적: 히스토그램 데이터가 전체 행 수(432)와 동일한지 검증
+        목적: 상세 CSV 로드 후 DataFrame 반환 검증
 
-        Given: 432개 조합의 그리드 서치 결과
-        When: build_calmar_histogram_data() 호출
-        Then: 432개의 Calmar 값 Series 반환
+        Given: param_plateau_all_detail.csv 파일 존재
+        When: load_plateau_detail() 호출
+        Then: DataFrame 반환
         """
-        from qbt.backtest.parameter_stability import build_calmar_histogram_data
+        from qbt.backtest.parameter_stability import load_plateau_detail
 
         # Given
-        df = _build_grid_df()
+        detail_df = pd.DataFrame(
+            {
+                "experiment": ["hold_days", "hold_days"],
+                "param_name": ["hold_days", "hold_days"],
+                "param_value": [0, 3],
+                "asset": ["QQQ", "QQQ"],
+                "calmar": [0.15, 0.20],
+            }
+        )
+        csv_path = tmp_path / "param_plateau_all_detail.csv"
+        detail_df.to_csv(csv_path, index=False)
 
         # When
-        result = build_calmar_histogram_data(df)
-
-        # Then
-        assert isinstance(result, pd.Series)
-        assert len(result) == 432
-
-
-class TestBuildHeatmapData:
-    """MA별 buy_buffer x sell_buffer 히트맵 집계 테스트."""
-
-    def test_build_heatmap_data_filters_by_ma(self) -> None:
-        """
-        목적: MA=200 필터링 시 정확히 144개 행 기반 집계 검증
-
-        Given: 432개 전체 그리드 결과
-        When: build_heatmap_data(df, ma_window=200) 호출
-        Then: 3(buy) x 3(sell) = 9셀 피벗 반환 (각 셀은 16개 조합의 집계)
-        """
-        from qbt.backtest.parameter_stability import build_heatmap_data
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = build_heatmap_data(df, ma_window=200)
-
-        # Then
-        # 3(buy) x 3(sell) = 9개 행 (long format) 또는 피벗된 형태
-        assert len(result) == 9
-
-    def test_build_heatmap_data_aggregates_mean_and_min(self) -> None:
-        """
-        목적: buy_buffer x sell_buffer별 평균/최소 Calmar 집계 검증
-
-        Given: MA=200 필터링된 데이터
-        When: build_heatmap_data(df, ma_window=200) 호출
-        Then: calmar_mean과 calmar_min 컬럼 존재, calmar_min <= calmar_mean
-        """
-        from qbt.backtest.parameter_stability import build_heatmap_data
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = build_heatmap_data(df, ma_window=200)
-
-        # Then
-        assert "calmar_mean" in result.columns
-        assert "calmar_min" in result.columns
-        # 모든 셀에서 최소값이 평균값 이하
-        assert (result["calmar_min"] <= result["calmar_mean"] + 1e-12).all()
-
-    def test_build_heatmap_data_includes_cagr_mdd(self) -> None:
-        """
-        목적: 집계 결과에 CAGR 평균, MDD 평균 포함 검증
-
-        Given: MA=200 필터링된 데이터
-        When: build_heatmap_data(df, ma_window=200) 호출
-        Then: cagr_mean과 mdd_mean 컬럼 존재
-        """
-        from qbt.backtest.parameter_stability import build_heatmap_data
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = build_heatmap_data(df, ma_window=200)
-
-        # Then
-        assert "cagr_mean" in result.columns
-        assert "mdd_mean" in result.columns
-
-
-class TestBuildAdjacentComparison:
-    """인접 파라미터 비교 데이터 생성 테스트."""
-
-    def test_build_adjacent_comparison_returns_optimal_and_neighbors(self) -> None:
-        """
-        목적: 최적 파라미터 기준 인접 조합 비교 데이터 반환 검증
-
-        Given: 432개 그리드 결과, 최적 파라미터 (MA=200, buy=0.03, sell=0.05)
-        When: build_adjacent_comparison() 호출
-        Then: 비교 테이블에 최적 + 인접 조합 포함
-        """
-        from qbt.backtest.parameter_stability import build_adjacent_comparison
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = build_adjacent_comparison(df, optimal_ma=200, optimal_buy=0.03, optimal_sell=0.05)
+        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
+            result = load_plateau_detail()
 
         # Then
         assert isinstance(result, pd.DataFrame)
-        assert len(result) > 0
-        # 비교 테이블에 파라미터 변경 정보와 Calmar 포함
-        assert "calmar_mean" in result.columns
+        assert len(result) == 2
 
-    def test_build_adjacent_comparison_includes_hold_days_axis(self) -> None:
+    def test_load_plateau_detail_raises_file_not_found(self, tmp_path: Path) -> None:
         """
-        목적: hold_days 축 변화에 따른 Calmar 포함 검증
+        목적: CSV 파일 미존재 시 FileNotFoundError 발생 검증
 
-        Given: 432개 그리드 결과
-        When: build_adjacent_comparison() 호출
-        Then: hold_days 변화에 따른 비교 행 포함
+        Given: 빈 디렉토리
+        When: load_plateau_detail() 호출
+        Then: FileNotFoundError 발생
         """
-        from qbt.backtest.parameter_stability import build_adjacent_comparison
+        from qbt.backtest.parameter_stability import load_plateau_detail
+
+        # When / Then
+        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
+            with pytest.raises(FileNotFoundError, match="고원 분석 상세"):
+                load_plateau_detail()
+
+
+class TestGetCurrentValue:
+    """현재 확정 파라미터값 반환 테스트."""
+
+    def test_get_current_value_returns_correct_values(self) -> None:
+        """
+        목적: 4P 확정 파라미터값이 올바른지 검증
+
+        Given: 확정 파라미터 (MA=200, buy=0.03, sell=0.05, hold=3)
+        When: get_current_value() 호출
+        Then: 각 파라미터의 확정값 반환
+        """
+        from qbt.backtest.parameter_stability import get_current_value
+
+        # Then
+        assert get_current_value("ma_window") == 200
+        assert get_current_value("buy_buffer") == pytest.approx(0.03, abs=1e-12)
+        assert get_current_value("sell_buffer") == pytest.approx(0.05, abs=1e-12)
+        assert get_current_value("hold_days") == 3
+
+    def test_get_current_value_raises_for_unknown(self) -> None:
+        """
+        목적: 알 수 없는 파라미터명에 ValueError 발생 검증
+
+        Given: "unknown_param"이라는 파라미터명
+        When: get_current_value("unknown_param") 호출
+        Then: ValueError 발생
+        """
+        from qbt.backtest.parameter_stability import get_current_value
+
+        # When / Then
+        with pytest.raises(ValueError, match="알 수 없는 파라미터"):
+            get_current_value("unknown_param")
+
+
+class TestGetPlateauDir:
+    """고원 분석 디렉토리 경로 반환 테스트."""
+
+    def test_get_plateau_dir_returns_path(self) -> None:
+        """
+        목적: 고원 분석 결과 디렉토리 Path 반환 검증
+
+        Given: 모듈 초기화 상태
+        When: get_plateau_dir() 호출
+        Then: Path 객체 반환, "param_plateau"로 끝남
+        """
+        from qbt.backtest.parameter_stability import get_plateau_dir
+
+        # When
+        result = get_plateau_dir()
+
+        # Then
+        assert isinstance(result, Path)
+        assert result.name == "param_plateau"
+
+
+class TestFindPlateauRange:
+    """고원 구간 탐지 테스트."""
+
+    def test_find_plateau_range_returns_range(self) -> None:
+        """
+        목적: 최대값 대비 90% 이상인 연속 범위 탐지 검증
+
+        Given: [0.10, 0.19, 0.20, 0.19, 0.12] 값의 Series (인덱스 0~4)
+        When: find_plateau_range(series, threshold_ratio=0.9) 호출
+        Then: (1.0, 3.0) 반환 (인덱스 1, 2, 3이 0.20 * 0.9 = 0.18 이상)
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
+
+        # Given: 0.19, 0.20, 0.19는 모두 threshold(0.18) 이상
+        series = pd.Series([0.10, 0.19, 0.20, 0.19, 0.12], index=[0, 1, 2, 3, 4])
+
+        # When
+        result = find_plateau_range(series, threshold_ratio=0.9)
+
+        # Then
+        assert result is not None
+        assert result == pytest.approx((1.0, 3.0), abs=1e-12)
+
+    def test_find_plateau_range_returns_none_for_empty(self) -> None:
+        """
+        목적: 빈 Series에 대해 None 반환 검증
+
+        Given: 빈 Series
+        When: find_plateau_range(series) 호출
+        Then: None 반환
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
 
         # Given
-        df = _build_grid_df()
+        series = pd.Series([], dtype=float)
 
         # When
-        result = build_adjacent_comparison(df, optimal_ma=200, optimal_buy=0.03, optimal_sell=0.05)
+        result = find_plateau_range(series)
 
         # Then
-        # hold_days 축이 포함되어야 함
-        assert "axis" in result.columns
-        hold_rows = result[result["axis"] == "hold_days"]
-        assert len(hold_rows) > 0
+        assert result is None
 
-
-class TestEvaluateStabilityCriteria:
-    """보고서 11.2절 통과 기준 평가 테스트 (5개 기준 + 3단계 판정)."""
-
-    def test_evaluate_stability_returns_all_keys(self) -> None:
+    def test_find_plateau_range_returns_none_for_all_negative(self) -> None:
         """
-        목적: 반환 dict에 5개 기준의 모든 키가 포함되는지 검증
+        목적: 모든 값이 0 이하일 때 None 반환 검증
 
-        Given: 432개 그리드 결과
-        When: evaluate_stability_criteria() 호출
-        Then: 모든 필수 키 포함
+        Given: 모든 값이 음수인 Series
+        When: find_plateau_range(series) 호출
+        Then: None 반환
         """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+        from qbt.backtest.parameter_stability import find_plateau_range
 
         # Given
-        df = _build_grid_df()
+        series = pd.Series([-0.1, -0.2, -0.3], index=[0, 1, 2])
 
         # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
+        result = find_plateau_range(series)
 
         # Then
-        expected_keys = {
-            # 기준 1: Calmar > 0
-            "calmar_positive_ratio",
-            "calmar_positive_count",
-            "calmar_positive_pass",
-            # 기준 2: 히트맵 고원
-            "plateau_range",
-            "plateau_pass",
-            # 기준 3: 인접 파라미터
-            "opt_cell_mean",
-            "adjacent_threshold",
-            "adjacent_min_mean",
-            "adjacent_pass",
-            # 기준 4: MA 의존성
-            "ma_gap_pct",
-            "ma_dependency_warn",
-            # 기준 5: sell_buffer 의존성
-            "sell_dependency_warn",
-            # 종합 판정
-            "overall_verdict",
-        }
-        assert expected_keys.issubset(result.keys())
+        assert result is None
 
-    def test_evaluate_stability_opt_cell_mean_baseline(self) -> None:
+    def test_find_plateau_range_single_peak(self) -> None:
         """
-        목적: 기준값이 단일 최적 Calmar가 아닌 최적 셀 평균인지 검증
+        목적: 단일 피크에서 단일 포인트 고원 반환 검증
 
-        Given: 432개 그리드 결과 (MA=200, buy=0.03, sell=0.05가 최적)
-        When: evaluate_stability_criteria() 호출
-        Then: opt_cell_mean은 해당 셀의 hold_days x recent_months 16개 평균
+        Given: [0.01, 0.50, 0.01] (중앙만 높음)
+        When: find_plateau_range(series, threshold_ratio=0.9) 호출
+        Then: (1.0, 1.0) 반환 (인덱스 1만 해당)
         """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+        from qbt.backtest.parameter_stability import find_plateau_range
 
         # Given
-        df = _build_grid_df()
-        # 직접 계산: MA=200, buy=0.03, sell=0.05 셀의 16개 Calmar 평균
-        cell_mask = (
-            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.03) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.05)
-        )
-        expected_cell_mean = float(df.loc[cell_mask, COL_CALMAR].mean())
+        series = pd.Series([0.01, 0.50, 0.01], index=[0, 1, 2])
 
         # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
+        result = find_plateau_range(series, threshold_ratio=0.9)
 
         # Then
-        assert result["opt_cell_mean"] == pytest.approx(expected_cell_mean, abs=1e-10)
-        # 셀 평균은 단일 최적값보다 작아야 함
-        single_max = float(df[COL_CALMAR].max())
-        assert result["opt_cell_mean"] < single_max
+        assert result is not None
+        assert result == pytest.approx((1.0, 1.0), abs=1e-12)
 
-    def test_evaluate_stability_plateau_detection(self) -> None:
+    def test_find_plateau_range_custom_threshold(self) -> None:
         """
-        목적: 히트맵 고원 판정 검증 (best_ma 내 9셀 max-min 차이)
+        목적: threshold_ratio 변경 시 고원 구간 변화 검증
 
-        Given: MA=200 내 9셀의 평균 Calmar가 좁은 범위
-        When: evaluate_stability_criteria() 호출
-        Then: plateau_range < 0.05이면 plateau_pass = True
+        Given: [0.10, 0.16, 0.20, 0.16, 0.12] (인덱스 0~4)
+        When: find_plateau_range(series, threshold_ratio=0.75) 호출
+        Then: 0.20 * 0.75 = 0.15 이상인 범위 (1.0, 3.0) 반환
         """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+        from qbt.backtest.parameter_stability import find_plateau_range
 
-        # Given
-        df = _build_grid_df()
+        # Given: 0.16, 0.20, 0.16은 모두 threshold(0.15) 이상
+        series = pd.Series([0.10, 0.16, 0.20, 0.16, 0.12], index=[0, 1, 2, 3, 4])
 
         # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
+        result = find_plateau_range(series, threshold_ratio=0.75)
 
         # Then
-        # 테스트 데이터에서 MA=200 내 9셀 범위 직접 계산
-        ma200 = df[df[COL_MA_WINDOW] == 200]
-        cell_means = ma200.groupby([COL_BUY_BUFFER_ZONE_PCT, COL_SELL_BUFFER_ZONE_PCT])[COL_CALMAR].mean()
-        expected_range = float(cell_means.max() - cell_means.min())
-        assert result["plateau_range"] == pytest.approx(expected_range, abs=1e-10)
-        # 테스트 데이터에서는 범위가 0.05 미만이므로 통과
-        assert result["plateau_pass"] is True
+        assert result is not None
+        assert result == pytest.approx((1.0, 3.0), abs=1e-12)
 
-    def test_evaluate_stability_adjacent_mean_vs_mean(self) -> None:
+    def test_find_plateau_range_all_above_threshold(self) -> None:
         """
-        목적: 인접 파라미터 비교가 평균 대 평균으로 수행되는지 검증
+        목적: 모든 값이 threshold 이상일 때 전체 범위 반환 검증
 
-        Given: 432개 그리드 결과
-        When: evaluate_stability_criteria() 호출
-        Then: adjacent_threshold = opt_cell_mean * 0.70
+        Given: [0.20, 0.19, 0.19] (모두 0.20 * 0.9 = 0.18 초과)
+        When: find_plateau_range(series, threshold_ratio=0.9) 호출
+        Then: (0.0, 2.0) 반환 (전체 범위)
         """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
+        from qbt.backtest.parameter_stability import find_plateau_range
 
-        # Given
-        df = _build_grid_df()
+        # Given: 모든 값이 threshold(0.18) 초과
+        series = pd.Series([0.20, 0.19, 0.19], index=[0, 1, 2])
 
         # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
+        result = find_plateau_range(series, threshold_ratio=0.9)
 
         # Then
-        expected_threshold = result["opt_cell_mean"] * 0.70
-        assert result["adjacent_threshold"] == pytest.approx(expected_threshold, abs=1e-10)
-
-    def test_evaluate_stability_ma_dependency(self) -> None:
-        """
-        목적: MA 의존성 판정 검증 (MA=100 vs best_ma 평균 비교)
-
-        Given: 432개 그리드 결과 (MA=100이 MA=200보다 낮도록 설계)
-        When: evaluate_stability_criteria() 호출
-        Then: ma_gap_pct > 0 (MA=200이 더 높음)
-        """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
-
-        # Then
-        # MA=100은 MA=200보다 낮아야 함
-        assert result["ma_gap_pct"] > 0
-
-    def test_evaluate_stability_overall_three_tier_pass(self) -> None:
-        """
-        목적: 3단계 종합 판정 - 통과 케이스 검증
-
-        Given: 모든 기준 양호한 데이터
-        When: evaluate_stability_criteria() 호출
-        Then: overall_verdict = "pass" (fail 0개)
-        """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
-
-        # Given
-        df = _build_grid_df()
-
-        # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
-
-        # Then
-        # 테스트 데이터는 모든 Calmar > 0이고 인접 차이가 크지 않으므로
-        assert result["calmar_positive_pass"] is True
-        assert result["plateau_pass"] is True
-        assert result["adjacent_pass"] is True
-        # fail이 0개이면 "pass"
-        assert result["overall_verdict"] == "pass"
-
-    def test_evaluate_stability_overall_three_tier_fail(self) -> None:
-        """
-        목적: 3단계 종합 판정 - 미달 케이스 검증
-
-        Given: Calmar > 0 비율이 낮고 인접 판정도 실패하는 데이터
-        When: evaluate_stability_criteria() 호출
-        Then: overall_verdict = "fail"
-        """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
-
-        # Given: 대부분 Calmar < 0인 데이터 생성
-        df = _build_grid_df()
-        df[COL_CALMAR] = -0.1  # 모든 Calmar를 음수로
-        # 최적 셀만 약간 양수로 (평균 대 평균 비교 시 인접도 실패하도록)
-        opt_mask = (
-            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.03) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.05)
-        )
-        df.loc[opt_mask, COL_CALMAR] = 0.01
-
-        # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
-
-        # Then
-        assert result["calmar_positive_pass"] is False
-        assert result["overall_verdict"] == "fail"
-
-    def test_evaluate_stability_overall_three_tier_conditional(self) -> None:
-        """
-        목적: 3단계 종합 판정 - 조건부 통과 케이스 검증
-
-        Given: 3개 핵심 기준 중 정확히 1개만 fail
-        When: evaluate_stability_criteria() 호출
-        Then: overall_verdict = "conditional"
-        """
-        from qbt.backtest.parameter_stability import evaluate_stability_criteria
-
-        # Given: 기본 데이터에서 고원 범위를 크게 만들어 plateau만 실패시킴
-        df = _build_grid_df()
-        # MA=200, buy=0.01, sell=0.01 셀의 Calmar를 매우 높게 설정하여
-        # 9셀 내 max-min 차이가 0.05를 초과하도록 만듦
-        outlier_mask = (
-            (df[COL_MA_WINDOW] == 200) & (df[COL_BUY_BUFFER_ZONE_PCT] == 0.01) & (df[COL_SELL_BUFFER_ZONE_PCT] == 0.01)
-        )
-        df.loc[outlier_mask, COL_CALMAR] = 0.50  # 다른 셀(~0.2)과 큰 차이
-
-        # When
-        result = evaluate_stability_criteria(
-            df,
-            optimal_ma=200,
-            optimal_buy=0.03,
-            optimal_sell=0.05,
-        )
-
-        # Then
-        assert result["calmar_positive_pass"] is True
-        assert result["plateau_pass"] is False  # 고원 실패
-        assert result["adjacent_pass"] is True  # 인접 통과
-        assert result["overall_verdict"] == "conditional"
+        assert result is not None
+        assert result == pytest.approx((0.0, 2.0), abs=1e-12)

@@ -1,14 +1,12 @@
 """버퍼존 통합 전략 모듈
 
-config-driven 방식으로 9개 자산의 버퍼존 전략을 통합 관리한다.
-기존 buffer_zone_tqqq, buffer_zone_qqq 모듈과 동일한 실행 로직을 공유하되,
-BufferZoneConfig 기반으로 확장성을 제공한다.
+config-driven 방식으로 8개 자산의 버퍼존 전략을 통합 관리한다.
+전 자산 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일한다.
 
-CONFIGS 목록 (9개):
-    - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (override→grid→DEFAULT)
-    - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (override→grid→DEFAULT)
-    - buffer_zone_qqq_4p: QQQ 4P 기준선 (고정 파라미터)
-    - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (고정 파라미터)
+CONFIGS 목록 (8개):
+    - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
+    - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
+    - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (4P 고정)
 """
 
 from collections.abc import Callable
@@ -29,7 +27,6 @@ from qbt.common_constants import (
     BUFFER_ZONE_EFA_RESULTS_DIR,
     BUFFER_ZONE_GLD_RESULTS_DIR,
     BUFFER_ZONE_IWM_RESULTS_DIR,
-    BUFFER_ZONE_QQQ_4P_RESULTS_DIR,
     BUFFER_ZONE_QQQ_RESULTS_DIR,
     BUFFER_ZONE_SPY_RESULTS_DIR,
     BUFFER_ZONE_TLT_RESULTS_DIR,
@@ -82,62 +79,48 @@ class BufferZoneConfig:
 
 
 # ============================================================================
-# CONFIGS 리스트 (9개)
+# CONFIGS 리스트 (8개)
 # ============================================================================
 
-# cross-asset 공통 고정값
-_CROSS_ASSET_MA_WINDOW = 200
-_CROSS_ASSET_BUY_BUFFER_PCT = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
-_CROSS_ASSET_SELL_BUFFER_PCT = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
-_CROSS_ASSET_HOLD_DAYS = 2
-_CROSS_ASSET_RECENT_MONTHS = 0
+# 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반)
+_4P_MA_WINDOW = 200
+_4P_BUY_BUFFER_PCT = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
+_4P_SELL_BUFFER_PCT = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
+_4P_HOLD_DAYS = 3
+_4P_RECENT_MONTHS = 0
 
 CONFIGS: list[BufferZoneConfig] = [
-    # --- 기존 2개 (override=None, grid 폴백) ---
+    # --- TQQQ (QQQ 시그널 + TQQQ 합성 매매, 4P 고정) ---
     BufferZoneConfig(
         strategy_name="buffer_zone_tqqq",
         display_name="버퍼존 전략 (TQQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BUFFER_ZONE_TQQQ_RESULTS_DIR,
-        grid_results_path=BUFFER_ZONE_TQQQ_RESULTS_DIR / "grid_results.csv",
-        override_ma_window=None,
-        override_buy_buffer_zone_pct=None,
-        override_sell_buffer_zone_pct=None,
-        override_hold_days=None,
-        override_recent_months=None,
+        grid_results_path=None,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
+    # --- QQQ (4P 고정) ---
     BufferZoneConfig(
         strategy_name="buffer_zone_qqq",
         display_name="버퍼존 전략 (QQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BUFFER_ZONE_QQQ_RESULTS_DIR,
-        grid_results_path=BUFFER_ZONE_QQQ_RESULTS_DIR / "grid_results.csv",
-        override_ma_window=None,
-        override_buy_buffer_zone_pct=None,
-        override_sell_buffer_zone_pct=None,
-        override_hold_days=None,
-        override_recent_months=None,
-        ma_type="ema",
-    ),
-    # --- QQQ 4P 기준선 (고정 파라미터) ---
-    BufferZoneConfig(
-        strategy_name="buffer_zone_qqq_4p",
-        display_name="버퍼존 전략 (QQQ 4P)",
-        signal_data_path=QQQ_DATA_PATH,
-        trade_data_path=QQQ_DATA_PATH,
-        result_dir=BUFFER_ZONE_QQQ_4P_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
-    # --- cross-asset 6개 (고정 파라미터) ---
+    # --- cross-asset 6개 (4P 고정) ---
     BufferZoneConfig(
         strategy_name="buffer_zone_spy",
         display_name="버퍼존 전략 (SPY)",
@@ -145,11 +128,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=SPY_DATA_PATH,
         result_dir=BUFFER_ZONE_SPY_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
     BufferZoneConfig(
@@ -159,11 +142,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=IWM_DATA_PATH,
         result_dir=BUFFER_ZONE_IWM_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
     BufferZoneConfig(
@@ -173,11 +156,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=EFA_DATA_PATH,
         result_dir=BUFFER_ZONE_EFA_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
     BufferZoneConfig(
@@ -187,11 +170,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=EEM_DATA_PATH,
         result_dir=BUFFER_ZONE_EEM_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
     BufferZoneConfig(
@@ -201,11 +184,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=GLD_DATA_PATH,
         result_dir=BUFFER_ZONE_GLD_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
     BufferZoneConfig(
@@ -215,11 +198,11 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=TLT_DATA_PATH,
         result_dir=BUFFER_ZONE_TLT_RESULTS_DIR,
         grid_results_path=None,
-        override_ma_window=_CROSS_ASSET_MA_WINDOW,
-        override_buy_buffer_zone_pct=_CROSS_ASSET_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_CROSS_ASSET_SELL_BUFFER_PCT,
-        override_hold_days=_CROSS_ASSET_HOLD_DAYS,
-        override_recent_months=_CROSS_ASSET_RECENT_MONTHS,
+        override_ma_window=_4P_MA_WINDOW,
+        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
+        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
+        override_hold_days=_4P_HOLD_DAYS,
+        override_recent_months=_4P_RECENT_MONTHS,
         ma_type="ema",
     ),
 ]

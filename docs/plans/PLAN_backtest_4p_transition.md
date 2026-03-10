@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -20,7 +20,7 @@
 ---
 
 **작성일**: 2026-03-10 22:00
-**마지막 업데이트**: 2026-03-10 22:00
+**마지막 업데이트**: 2026-03-10 24:00
 **관련 범위**: backtest, scripts, tests
 **관련 문서**: `docs/overfitting_analysis_report.md`, `src/qbt/backtest/CLAUDE.md`
 **선행 계획서**: `PLAN_backtest_cleanup.md` (완료 후 착수)
@@ -42,12 +42,12 @@
 
 ## 1) 목표(Goal)
 
-- [ ] buffer_zone.py의 전체 CONFIGS를 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일한다
-- [ ] buffer_zone_qqq_4p config를 buffer_zone_qqq로 통합하여 중복 제거한다
-- [ ] 고원 분석 스크립트 2개(run_hold_days_plateau.py + run_param_plateau.py)를 1개로 통합한다
-- [ ] parameter_stability.py를 고원 데이터 분석 모듈로 변환한다
-- [ ] app_parameter_stability.py를 QQQ 4개 파라미터 고원 시각화 대시보드로 변환한다
-- [ ] grid search 관련 코드를 정리한다 (스크립트 삭제, 결과 파일 삭제)
+- [x] buffer_zone.py의 전체 CONFIGS를 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일한다
+- [x] buffer_zone_qqq_4p config를 buffer_zone_qqq로 통합하여 중복 제거한다
+- [x] 고원 분석 스크립트 2개(run_hold_days_plateau.py + run_param_plateau.py)를 1개로 통합한다
+- [x] parameter_stability.py를 고원 데이터 분석 모듈로 변환한다
+- [x] app_parameter_stability.py를 QQQ 4개 파라미터 고원 시각화 대시보드로 변환한다
+- [x] grid search 관련 코드를 정리한다 (스크립트 삭제, 결과 파일 삭제)
 
 ## 2) 비목표(Non-Goals)
 
@@ -86,18 +86,18 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 docs/CLAUDE.md)
 
-- [ ] buffer_zone.py CONFIGS 전체가 4P 고정 (8개, qqq_4p 통합)
-- [ ] hold_days=3이 전 자산에 적용됨
-- [ ] grid_results_path가 전 config에서 None
-- [ ] 고원 분석 스크립트 1개로 통합됨
-- [ ] parameter_stability.py가 고원 데이터 분석 모듈로 변환됨
-- [ ] app_parameter_stability.py가 4개 파라미터 고원 시각화 대시보드로 변환됨
-- [ ] test_parameter_stability.py가 새 모듈에 맞게 재작성됨
-- [ ] run_grid_search.py 삭제됨
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트(CLAUDE.md 파일들)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] buffer_zone.py CONFIGS 전체가 4P 고정 (8개, qqq_4p 통합)
+- [x] hold_days=3이 전 자산에 적용됨
+- [x] grid_results_path가 전 config에서 None
+- [x] 고원 분석 스크립트 1개로 통합됨
+- [x] parameter_stability.py가 고원 데이터 분석 모듈로 변환됨
+- [x] app_parameter_stability.py가 4개 파라미터 고원 시각화 대시보드로 변환됨
+- [x] test_parameter_stability.py가 새 모듈에 맞게 재작성됨
+- [x] run_grid_search.py 삭제됨
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed=405, failed=0, skipped=0)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트(CLAUDE.md 파일들)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -141,19 +141,19 @@
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/strategies/buffer_zone.py` 수정:
+- [x] `src/qbt/backtest/strategies/buffer_zone.py` 수정:
   - `_CROSS_ASSET_HOLD_DAYS`: 2 → 3
   - buffer_zone_tqqq config: override 5개 설정, grid_results_path=None, ma_type="ema" 유지
   - buffer_zone_qqq config: override 5개 설정, grid_results_path=None
   - buffer_zone_qqq_4p config: 삭제 (buffer_zone_qqq와 통합)
   - CONFIGS 리스트: 9개 → 8개
   - 파라미터 확정값: MA=200, buy=0.03, sell=0.05, hold=3, recent=0
-- [ ] `src/qbt/common_constants.py` 수정: `BUFFER_ZONE_QQQ_4P_RESULTS_DIR` 제거
-- [ ] `scripts/backtest/run_grid_search.py` 삭제
-- [ ] `storage/results/backtest/buffer_zone_tqqq/grid_results.csv` 삭제
-- [ ] `storage/results/backtest/buffer_zone_qqq/grid_results.csv` 삭제
-- [ ] `storage/results/backtest/buffer_zone_qqq_4p/` 폴더 삭제
-- [ ] `tests/test_buffer_zone.py` 수정: buffer_zone_qqq_4p 관련 테스트 제거/수정
+- [x] `src/qbt/common_constants.py` 수정: `BUFFER_ZONE_QQQ_4P_RESULTS_DIR` 제거
+- [x] `scripts/backtest/run_grid_search.py` 삭제
+- [x] `storage/results/backtest/buffer_zone_tqqq/grid_results.csv` 삭제
+- [x] `storage/results/backtest/buffer_zone_qqq/grid_results.csv` 삭제
+- [x] `storage/results/backtest/buffer_zone_qqq_4p/` 폴더 삭제
+- [x] `tests/test_buffer_zone.py` 수정: buffer_zone_qqq_4p 관련 테스트 제거/수정
 
 ---
 
@@ -161,16 +161,16 @@
 
 **작업 내용**:
 
-- [ ] `scripts/backtest/run_param_plateau_all.py` 신규 작성:
+- [x] `scripts/backtest/run_param_plateau_all.py` 신규 작성:
   - 4개 실험 통합: hold_days + sell_buffer + buy_buffer + ma_window
   - 기존 2개 스크립트의 공통 패턴 추출:
     - 자산별 데이터 로딩 (1회) → 파라미터 변경 반복 실행 → summary 수집 → 피벗 CSV 생성
   - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
   - 결과 저장: 기존과 동일한 `param_plateau/` 디렉토리에 통합
   - hold_days 결과도 `param_plateau/`에 저장 (기존 `hold_days_plateau/`에서 이동)
-- [ ] `scripts/backtest/run_hold_days_plateau.py` 삭제
-- [ ] `scripts/backtest/run_param_plateau.py` 삭제
-- [ ] 고원 분석 스크립트 내 `buffer_zone_qqq_4p` 참조 → `buffer_zone_qqq`로 변경
+- [x] `scripts/backtest/run_hold_days_plateau.py` 삭제
+- [x] `scripts/backtest/run_param_plateau.py` 삭제
+- [x] 고원 분석 스크립트 내 `buffer_zone_qqq_4p` 참조 → `buffer_zone_qqq`로 변경
 
 ---
 
@@ -178,7 +178,7 @@
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/parameter_stability.py` 전면 재작성:
+- [x] `src/qbt/backtest/parameter_stability.py` 전면 재작성:
   - 기존: grid_results.csv 기반 분석 (히스토그램, 히트맵, 인접 비교, 판정)
   - 변경: 고원 분석 CSV 로딩 + 시각화용 데이터 가공
   - 주요 함수:
@@ -186,7 +186,7 @@
     - `load_plateau_detail()`: 상세 CSV 로드 (`param_plateau_all_detail.csv`)
     - `get_current_value(param_name)`: 현재 확정 파라미터값 반환 (MA=200, buy=0.03 등)
     - `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)
-- [ ] `scripts/backtest/app_parameter_stability.py` 전면 재작성:
+- [x] `scripts/backtest/app_parameter_stability.py` 전면 재작성:
   - 4개 탭: ma_window / buy_buffer / sell_buffer / hold_days
   - 각 탭 구성:
     - Calmar 라인차트: X=파라미터값, Y=Calmar, 7자산 각각 라인 (Plotly)
@@ -195,7 +195,7 @@
     - 보조 지표: CAGR, MDD 라인차트 (접을 수 있는 expander)
     - 거래 수 라인차트 (sell_buffer의 "거래 수 함정" 시각화용)
   - 데이터 소스: `storage/results/backtest/param_plateau/` + `hold_days_plateau/`
-- [ ] `tests/test_parameter_stability.py` 재작성:
+- [x] `tests/test_parameter_stability.py` 재작성:
   - 기존: grid_results 분석 함수 테스트
   - 변경: 고원 CSV 로딩, 고원 구간 탐지, 현재값 반환 함수 테스트
 
@@ -205,24 +205,24 @@
 
 **작업 내용**
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 갱신:
+- [x] `src/qbt/backtest/CLAUDE.md` 갱신:
   - parameter_stability.py 섹션 재작성 (고원 분석 모듈)
   - buffer_zone.py CONFIGS 목록 갱신 (8개, 4P 고정)
   - grid_results.csv 관련 내용 정리
-- [ ] `scripts/CLAUDE.md` 갱신:
+- [x] `scripts/CLAUDE.md` 갱신:
   - 고원 분석 스크립트 통합 반영
   - run_grid_search.py 제거 반영
   - app_parameter_stability.py 설명 갱신
-- [ ] `tests/CLAUDE.md` 갱신: test_parameter_stability.py 설명 갱신
-- [ ] 루트 `CLAUDE.md` 갱신: 디렉토리 구조, 스크립트 목록 업데이트
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] `tests/CLAUDE.md` 갱신: test_parameter_stability.py 설명 갱신
+- [x] 루트 `CLAUDE.md` 갱신: 디렉토리 구조, 스크립트 목록 업데이트
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=405, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -254,5 +254,6 @@
 ### 진행 로그 (KST)
 
 - 2026-03-10 22:00: 계획서 초안 작성
+- 2026-03-10 24:00: 전체 Phase 완료, validate_project.py 통과 (passed=405, failed=0, skipped=0)
 
 ---

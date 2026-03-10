@@ -58,7 +58,6 @@ BUY_AND_HOLD_EEM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_eem" 
 BUY_AND_HOLD_GLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_gld"  # Buy & Hold (GLD) 전략 결과
 BUY_AND_HOLD_TLT_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buy_and_hold_tlt"  # Buy & Hold (TLT) 전략 결과
 # 교차 자산 검증용 결과 디렉토리
-BUFFER_ZONE_QQQ_4P_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_qqq_4p"  # 버퍼존 QQQ 4P 기준선 결과
 BUFFER_ZONE_SPY_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_spy"  # 버퍼존 SPY 결과
 BUFFER_ZONE_IWM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_iwm"  # 버퍼존 IWM 결과
 BUFFER_ZONE_EFA_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_efa"  # 버퍼존 EFA 결과
