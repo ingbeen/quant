@@ -1039,71 +1039,6 @@ class TestSoftplusFunctions:
         with pytest.raises(ValueError, match="비어있습니다"):
             build_monthly_spread_map(ffr_df, a=-5.0, b=1.0)
 
-    def test__build_monthly_spread_map_from_dict_equivalence(self):
-        """
-        _build_monthly_spread_map_from_dict와 build_monthly_spread_map 결과 동일성 테스트
-
-        Given: 동일한 FFR 데이터 (DataFrame vs dict)
-        When: 두 함수 각각 호출
-        Then: 결과가 완전히 동일
-        """
-        from qbt.tqqq.optimization import _build_monthly_spread_map_from_dict
-        from qbt.tqqq.simulation import build_monthly_spread_map
-
-        # Given: 다양한 FFR 데이터
-        ffr_df = pd.DataFrame(
-            {
-                COL_FFR_DATE: ["2023-01", "2023-02", "2023-03", "2023-04", "2023-05"],
-                COL_FFR_VALUE: [0.045, 0.046, 0.050, 0.055, 0.052],
-            }
-        )
-        ffr_dict = dict(
-            zip(
-                ffr_df[COL_FFR_DATE].tolist(),
-                ffr_df[COL_FFR_VALUE].tolist(),
-                strict=True,
-            )
-        )
-
-        # 다양한 a, b 파라미터 조합 테스트
-        test_params = [
-            (-5.0, 1.0),
-            (-6.0, 0.5),
-            (-4.0, 0.8),
-            (-7.0, 1.2),
-            (0.0, 0.0),  # 엣지 케이스
-        ]
-
-        for a, b in test_params:
-            # When
-            result_df = build_monthly_spread_map(ffr_df, a, b)
-            result_dict = _build_monthly_spread_map_from_dict(ffr_dict, a, b)
-
-            # Then: 동일한 키와 값
-            assert set(result_df.keys()) == set(result_dict.keys()), f"키 불일치: a={a}, b={b}"
-
-            for month in result_df.keys():
-                df_val = result_df[month]
-                dict_val = result_dict[month]
-                assert df_val == pytest.approx(dict_val, abs=1e-12), (
-                    f"값 불일치: month={month}, a={a}, b={b}, " f"df={df_val}, dict={dict_val}"
-                )
-
-    def test__build_monthly_spread_map_from_dict_empty_raises(self):
-        """
-        빈 FFR 딕셔너리 입력 시 ValueError 테스트
-
-        Given: 빈 FFR 딕셔너리
-        When: _build_monthly_spread_map_from_dict 호출
-        Then: ValueError 발생
-        """
-        from qbt.tqqq.optimization import _build_monthly_spread_map_from_dict
-
-        ffr_dict: dict[str, float] = {}
-
-        with pytest.raises(ValueError, match="비어있습니다"):
-            _build_monthly_spread_map_from_dict(ffr_dict, a=-5.0, b=1.0)
-
 
 class TestDynamicFundingSpread:
     """
@@ -1539,41 +1474,6 @@ class TestGenerateStaticSpreadSeries:
         # When & Then
         with pytest.raises(ValueError, match="비어있습니다"):
             generate_static_spread_series(ffr_df, -5.0, 1.0, empty_df)
-
-
-class TestCLIScriptExists:
-    """
-    CLI 스크립트 존재 테스트
-
-    스크립트 파일이 존재하는지 검증한다.
-    임포트 및 문법 검증은 PyRight 타입 체크로 수행된다.
-    """
-
-    def test_softplus_tuning_script_exists(self):
-        """
-        softplus 튜닝 스크립트 파일 존재 테스트
-
-        Given: scripts/tqqq/spread_lab/ 디렉토리
-        When: tune_softplus_params.py 존재 여부 확인
-        Then: 파일이 존재함
-        """
-        from pathlib import Path
-
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "spread_lab" / "tune_softplus_params.py"
-        assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
-
-    def test_walkforward_validation_script_exists(self):
-        """
-        워크포워드 검증 스크립트 파일 존재 테스트
-
-        Given: scripts/tqqq/spread_lab/ 디렉토리
-        When: validate_walkforward.py 존재 여부 확인
-        Then: 파일이 존재함
-        """
-        from pathlib import Path
-
-        script_path = Path(__file__).parent.parent / "scripts" / "tqqq" / "spread_lab" / "validate_walkforward.py"
-        assert script_path.exists(), f"스크립트 파일이 존재해야 함: {script_path}"
 
 
 class TestSimulateOvernightOpen:

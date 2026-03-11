@@ -3,7 +3,7 @@
 
 레버리지 ETF 시뮬레이션에서 사용하는 기본값과 검증 임계값을 정의한다.
 - 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
-- 비용 모델 파라미터 (기본값, 그리드 서치, 검증)
+- 비용 모델 파라미터 (기본값, 검증)
 - 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 """
 
@@ -35,9 +35,6 @@ TQQQ_DAILY_COMPARISON_PATH: Final = TQQQ_RESULTS_DIR / "tqqq_daily_comparison.cs
 
 # --- 스프레드 검증 결과 파일 경로 (spread_lab 하위폴더) ---
 SPREAD_LAB_DIR: Final = TQQQ_RESULTS_DIR / "spread_lab"
-TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_monthly.csv"
-TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_summary.csv"
-TQQQ_RATE_SPREAD_LAB_MODEL_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_model.csv"
 SOFTPLUS_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_tuning.csv"
 SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_spread_series_static.csv"
 
@@ -49,9 +46,6 @@ __all__ = [
     "TQQQ_DATA_PATH",
     "TQQQ_DAILY_COMPARISON_PATH",
     "SPREAD_LAB_DIR",
-    "TQQQ_RATE_SPREAD_LAB_MONTHLY_PATH",
-    "TQQQ_RATE_SPREAD_LAB_SUMMARY_PATH",
-    "TQQQ_RATE_SPREAD_LAB_MODEL_PATH",
     "SOFTPLUS_TUNING_CSV_PATH",
     "SOFTPLUS_SPREAD_SERIES_STATIC_PATH",
     # 레버리지 상품 스펙
@@ -111,34 +105,18 @@ __all__ = [
     # 분석 기본값 파라미터 (공유)
     "DEFAULT_MIN_MONTHS_FOR_ANALYSIS",
     "DEFAULT_TOP_N_CROSS_VALIDATION",
-    "DEFAULT_ROLLING_WINDOW",
     # Softplus 동적 스프레드 모델 파라미터
     "DEFAULT_SOFTPLUS_A",
     "DEFAULT_SOFTPLUS_B",
-    "SOFTPLUS_GRID_STAGE1_A_RANGE",
-    "SOFTPLUS_GRID_STAGE1_A_STEP",
-    "SOFTPLUS_GRID_STAGE1_B_RANGE",
-    "SOFTPLUS_GRID_STAGE1_B_STEP",
-    "SOFTPLUS_GRID_STAGE2_A_DELTA",
-    "SOFTPLUS_GRID_STAGE2_A_STEP",
-    "SOFTPLUS_GRID_STAGE2_B_DELTA",
-    "SOFTPLUS_GRID_STAGE2_B_STEP",
-    # 워크포워드 검증 파라미터
-    "DEFAULT_TRAIN_WINDOW_MONTHS",
+    # 워크포워드 검증 파라미터 (앱에서 사용)
     "WALKFORWARD_LOCAL_REFINE_A_DELTA",
-    "WALKFORWARD_LOCAL_REFINE_A_STEP",
     "WALKFORWARD_LOCAL_REFINE_B_DELTA",
-    "WALKFORWARD_LOCAL_REFINE_B_STEP",
     "TQQQ_WALKFORWARD_PATH",
     "TQQQ_WALKFORWARD_SUMMARY_PATH",
-    # b 고정 워크포워드 결과 경로
     "TQQQ_WALKFORWARD_FIXED_B_PATH",
     "TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH",
-    # 완전 고정 (a,b) 워크포워드 결과 경로
     "TQQQ_WALKFORWARD_FIXED_AB_PATH",
     "TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH",
-    # 금리 구간별 RMSE 분해
-    "DEFAULT_RATE_BOUNDARY_PCT",
 ]
 
 # --- 레버리지 상품 스펙 ---
@@ -163,7 +141,6 @@ MAX_FFR_MONTHS_DIFF: Final = 2  # FFR 데이터 최대 월 차이 (개월)
 
 DEFAULT_MIN_MONTHS_FOR_ANALYSIS: Final = 13  # Rolling 12M 상관 계산 위해 최소 13개월
 DEFAULT_TOP_N_CROSS_VALIDATION: Final = 5  # 교차검증 상위 표시 개수
-DEFAULT_ROLLING_WINDOW: Final = 12  # Rolling 상관 계산 window (12개월)
 
 # ============================================================
 # Softplus 동적 스프레드 모델 파라미터
@@ -173,32 +150,13 @@ DEFAULT_ROLLING_WINDOW: Final = 12  # Rolling 상관 계산 window (12개월)
 DEFAULT_SOFTPLUS_A: Final = -6.1  # softplus 절편 파라미터
 DEFAULT_SOFTPLUS_B: Final = 0.37  # softplus 기울기 파라미터
 
-# --- 2-Stage Grid Search 범위 ---
-# Stage 1: 조대 그리드 탐색
-SOFTPLUS_GRID_STAGE1_A_RANGE: Final = (-10.0, -3.0)  # a 파라미터 범위
-SOFTPLUS_GRID_STAGE1_A_STEP: Final = 0.25  # a 파라미터 증분
-SOFTPLUS_GRID_STAGE1_B_RANGE: Final = (0.00, 1.50)  # b 파라미터 범위
-SOFTPLUS_GRID_STAGE1_B_STEP: Final = 0.05  # b 파라미터 증분
-
-# Stage 2: 정밀 그리드 탐색 (Stage 1 최적값 주변)
-SOFTPLUS_GRID_STAGE2_A_DELTA: Final = 0.75  # a 파라미터 탐색 반경
-SOFTPLUS_GRID_STAGE2_A_STEP: Final = 0.05  # a 파라미터 증분
-SOFTPLUS_GRID_STAGE2_B_DELTA: Final = 0.30  # b 파라미터 탐색 반경
-SOFTPLUS_GRID_STAGE2_B_STEP: Final = 0.02  # b 파라미터 증분
-
 # ============================================================
-# 워크포워드 검증 파라미터
+# 워크포워드 검증 파라미터 (앱에서 사용)
 # ============================================================
-
-# --- 윈도우 설정 ---
-DEFAULT_TRAIN_WINDOW_MONTHS: Final = 60  # 학습 기간 (60개월 = 5년)
 
 # --- Local Refine 탐색 범위 ---
-# 직전 월 최적값 주변에서 국소 탐색
 WALKFORWARD_LOCAL_REFINE_A_DELTA: Final = 0.50  # a 파라미터 탐색 반경
-WALKFORWARD_LOCAL_REFINE_A_STEP: Final = 0.05  # a 파라미터 증분 (21개 후보)
 WALKFORWARD_LOCAL_REFINE_B_DELTA: Final = 0.15  # b 파라미터 탐색 반경
-WALKFORWARD_LOCAL_REFINE_B_STEP: Final = 0.02  # b 파라미터 증분 (16개 후보)
 
 # --- 워크포워드 결과 파일 경로 ---
 TQQQ_WALKFORWARD_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward.csv"
@@ -211,9 +169,6 @@ TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_sprea
 # --- 완전 고정 (a,b) 워크포워드 결과 파일 경로 ---
 TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
 TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
-
-# --- 금리 구간별 RMSE 분해 ---
-DEFAULT_RATE_BOUNDARY_PCT: Final = 2.0  # 금리 구간 경계값 (%, 0~2% = 저금리, 2%+ = 고금리)
 
 # ============================================================
 # 데이터 컬럼 정의 (내부 계산용 영문 토큰)

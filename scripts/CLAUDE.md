@@ -163,16 +163,13 @@ main 함수:
 - 대시보드 앱:
   - `app_daily_comparison.py`: 일별 비교 대시보드
 
-### 스프레드 모델 검증 (tqqq/spread_lab/)
+### 스프레드 모델 검증 결과 열람 (tqqq/spread_lab/)
 
-스프레드 모델 확정 후 재검증이 필요한 경우에만 사용하는 스크립트:
+스프레드 모델 확정 후 검증 결과를 열람하기 위한 시각화 앱만 유지:
 
-- 금리-오차 분석 CSV 생성 (`generate_rate_spread_lab.py`)
-- 비용 모델 최적화:
-  - `tune_softplus_params.py`: Softplus 동적 스프레드 모델 파라미터 튜닝 (2-Stage Grid Search)
-  - `validate_walkforward.py`: 워크포워드 검증 통합 (3가지 모드 순차 실행: 동적/b고정/완전고정)
 - 대시보드 앱:
   - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
+- CSV 생성 스크립트(tune, validate, generate)는 삭제됨 (`docs/archive/tqqq_removed_modules.md` 참고, git history에서 복원 가능)
 
 ---
 

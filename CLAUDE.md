@@ -75,13 +75,8 @@ quant/
 │       ├── generate_synthetic.py          # 합성 데이터 생성
 │       ├── generate_daily_comparison.py   # 일별 비교 데이터 생성
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
-│       └── spread_lab/                           # 스프레드 모델 검증 (확정 후 아카이빙)
-│           ├── generate_rate_spread_lab.py        # 금리-오차 분석 CSV 생성
-│           ├── tune_softplus_params.py            # Softplus 파라미터 튜닝
-│           ├── validate_walkforward.py            # 워크포워드 검증
-│           ├── validate_walkforward_fixed_b.py    # b 고정 워크포워드 검증
-│           ├── validate_walkforward_fixed_ab.py   # 완전 고정 (a,b) 워크포워드 검증
-│           └── app_rate_spread_lab.py             # 금리-오차 분석 앱
+│       └── spread_lab/                           # 스프레드 모델 검증 결과 열람
+│           └── app_rate_spread_lab.py             # 금리-오차 분석 앱 (시각화 전용)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
@@ -94,10 +89,8 @@ quant/
 │   │       └── buy_and_hold.py             # Buy & Hold 벤치마크
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
-│   │   ├── types.py            # TypedDict 정의 (검증 지표, 워크포워드 요약 등)
+│   │   ├── types.py            # TypedDict 정의 (검증 지표)
 │   │   ├── simulation.py       # 시뮬레이션 엔진 (코어)
-│   │   ├── optimization.py     # Softplus 파라미터 최적화
-│   │   ├── walkforward.py      # 워크포워드 검증
 │   │   ├── analysis_helpers.py # 금리-오차 분석 함수
 │   │   ├── visualization.py    # Plotly 차트 생성
 │   │   └── data_loader.py      # TQQQ 전용 데이터 로더

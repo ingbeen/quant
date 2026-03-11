@@ -32,9 +32,7 @@ tests/
 ├── test_parallel_executor.py # 병렬 처리 테스트
 ├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
 ├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
-├── test_tqqq_optimization.py # TQQQ softplus 파라미터 최적화 테스트
 ├── test_tqqq_simulation.py # TQQQ 시뮬레이션 (core) 테스트
-├── test_tqqq_walkforward.py # TQQQ 워크포워드 검증 테스트
 └── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
 
 # pytest 설정 (루트 디렉토리)
@@ -121,8 +119,6 @@ poetry run pytest tests/test_xxx.py -s -vv
   - 레버리지 수익률 적용 (`simulate`)
   - 복리 효과 검증
   - 누적배수 로그차이 계산 (스케일 무관 추적오차)
-  - Softplus 파라미터 최적화 (`find_optimal_softplus_params`)
-
 - 공통 유틸리티:
 
   - 메타데이터 저장/로드 (순환 저장 검증)
