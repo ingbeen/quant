@@ -422,7 +422,7 @@ def simulate(
         leverage: 레버리지 배수 (예: 3.0)
         expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
         initial_price: 시작 가격
-        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), FFR: float), ffr_dict와 배타적
+        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율)), ffr_dict와 배타적
         funding_spread: FFR에 더해지는 스프레드
             - float: 고정 spread (예: 0.006 = 0.6%)
             - dict[str, float]: 월별 spread ({"YYYY-MM": spread})

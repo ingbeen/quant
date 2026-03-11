@@ -22,8 +22,6 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
 from qbt.backtest.constants import (
-    COL_ATR_MULTIPLIER,
-    COL_ATR_PERIOD,
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_CALMAR,
@@ -54,8 +52,6 @@ from qbt.backtest.types import (
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    COL_HIGH,
-    COL_LOW,
     COL_OPEN,
     EPSILON,
 )
@@ -124,11 +120,10 @@ class HoldState(TypedDict):
     hold_days_required: int
 
 
-class GridSearchResult(TypedDict, total=False):
+class GridSearchResult(TypedDict):
     """_run_buffer_strategy_for_grid() 반환 타입.
 
     키 이름은 backtest/constants.py의 COL_* 상수 값과 동일하다.
-    ATR 필드는 ATR 전략에서만 포함 (total=False로 선택적).
     """
 
     ma_window: int
@@ -143,8 +138,6 @@ class GridSearchResult(TypedDict, total=False):
     total_trades: int
     win_rate: float
     final_capital: float
-    atr_period: int
-    atr_multiplier: float
 
 
 # ============================================================================
@@ -214,8 +207,6 @@ class BufferStrategyParams(BaseStrategyParams):
     sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준) — 항상 고정
     hold_days: int  # 최소 보유 일수 (예: 5일)
     recent_months: int  # 최근 청산 기간 (예: 6개월)
-    atr_period: int | None = None  # ATR 기간 (None이면 ATR 미사용)
-    atr_multiplier: float | None = None  # ATR 배수 (None이면 ATR 미사용)
 
 
 @dataclass
@@ -667,76 +658,6 @@ def _calculate_recent_sell_count(
     return count
 
 
-def _calculate_atr(
-    signal_df: pd.DataFrame,
-    period: int,
-) -> pd.Series:
-    """ATR (Average True Range)을 계산한다.
-
-    True Range = max(high-low, |high-prev_close|, |low-prev_close|)
-    ATR = True Range의 EMA(period)
-
-    ATR 시그널 소스는 signal_df(QQQ) 고정이다.
-
-    Args:
-        signal_df: 시그널용 DataFrame (High, Low, Close 필수)
-        period: ATR 기간 (예: 14, 22)
-
-    Returns:
-        ATR Series (첫 행은 NaN, 이후 EMA 기반)
-
-    Raises:
-        ValueError: High, Low, Close 컬럼 누락 시
-    """
-    required = [COL_HIGH, COL_LOW, COL_CLOSE]
-    missing = set(required) - set(signal_df.columns)
-    if missing:
-        raise ValueError(f"ATR 계산에 필수 컬럼 누락: {missing}")
-
-    high = signal_df[COL_HIGH]
-    low = signal_df[COL_LOW]
-    close = signal_df[COL_CLOSE]
-    prev_close = close.shift(1)
-
-    # True Range 계산
-    tr1 = high - low
-    tr2 = (high - prev_close).abs()
-    tr3 = (low - prev_close).abs()
-    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-
-    # 첫 행은 prev_close가 없으므로 NaN 처리
-    true_range.iloc[0] = float("nan")
-
-    # ATR = True Range의 EMA
-    atr = true_range.ewm(span=period, adjust=False).mean()
-
-    return atr
-
-
-def _detect_atr_stop_signal(
-    close: float,
-    highest_close_since_entry: float,
-    atr_value: float,
-    multiplier: float,
-) -> bool:
-    """ATR 트레일링 스탑 발동 여부를 판단한다.
-
-    발동 조건: close < highest_close_since_entry - atr_value × multiplier
-    기준가는 highest_close_since_entry (매수 후 최고 종가) 고정이다.
-
-    Args:
-        close: 현재 종가 (signal_df 기준)
-        highest_close_since_entry: 매수 이후 최고 종가
-        atr_value: 현재 ATR 값
-        multiplier: ATR 배수 (예: 2.5, 3.0)
-
-    Returns:
-        bool: ATR 스탑 발동 여부
-    """
-    stop_level = highest_close_since_entry - atr_value * multiplier
-    return close < stop_level
-
-
 # ============================================================================
 # 핵심 전략 실행 함수
 # ============================================================================
@@ -788,12 +709,6 @@ def _run_buffer_strategy_for_grid(
         COL_FINAL_CAPITAL: summary["final_capital"],
     }
 
-    # ATR 파라미터 포함 (ATR 전략인 경우만)
-    if params.atr_period is not None:
-        result[COL_ATR_PERIOD] = params.atr_period
-    if params.atr_multiplier is not None:
-        result[COL_ATR_MULTIPLIER] = params.atr_multiplier
-
     return result
 
 
@@ -806,8 +721,6 @@ def run_grid_search(
     hold_days_list: list[int],
     recent_months_list: list[int],
     initial_capital: float = 10_000_000.0,
-    atr_period_list: list[int] | None = None,
-    atr_multiplier_list: list[float] | None = None,
 ) -> pd.DataFrame:
     """
     버퍼존 전략 파라미터 그리드 탐색을 수행한다.
@@ -824,8 +737,6 @@ def run_grid_search(
         hold_days_list: 유지조건 일수 목록
         recent_months_list: 최근 청산 기간 목록
         initial_capital: 초기 자본금
-        atr_period_list: ATR 기간 목록 (None이면 ATR 미사용)
-        atr_multiplier_list: ATR 배수 목록 (None이면 ATR 미사용)
 
     Returns:
         그리드 탐색 결과 DataFrame (각 조합별 성과 지표 포함)
@@ -847,13 +758,6 @@ def run_grid_search(
 
     logger.debug("이동평균 사전 계산 완료")
 
-    # ATR 파라미터 결정 (None이면 [(None, None)] 하나만 순회)
-    atr_combos: list[tuple[int | None, float | None]]
-    if atr_period_list is not None and atr_multiplier_list is not None:
-        atr_combos = [(p, m) for p in atr_period_list for m in atr_multiplier_list]
-    else:
-        atr_combos = [(None, None)]
-
     # 2. 파라미터 조합 생성
     param_combinations: list[dict[str, BufferStrategyParams]] = []
 
@@ -862,21 +766,18 @@ def run_grid_search(
             for sell_buffer_zone_pct in sell_buffer_zone_pct_list:
                 for hold_days in hold_days_list:
                     for recent_months in recent_months_list:
-                        for atr_period, atr_multiplier in atr_combos:
-                            param_combinations.append(
-                                {
-                                    "params": BufferStrategyParams(
-                                        ma_window=ma_window,
-                                        buy_buffer_zone_pct=buy_buffer_zone_pct,
-                                        sell_buffer_zone_pct=sell_buffer_zone_pct,
-                                        hold_days=hold_days,
-                                        recent_months=recent_months,
-                                        initial_capital=initial_capital,
-                                        atr_period=atr_period,
-                                        atr_multiplier=atr_multiplier,
-                                    ),
-                                }
-                            )
+                        param_combinations.append(
+                            {
+                                "params": BufferStrategyParams(
+                                    ma_window=ma_window,
+                                    buy_buffer_zone_pct=buy_buffer_zone_pct,
+                                    sell_buffer_zone_pct=sell_buffer_zone_pct,
+                                    hold_days=hold_days,
+                                    recent_months=recent_months,
+                                    initial_capital=initial_capital,
+                                ),
+                            }
+                        )
 
     logger.debug(f"총 {len(param_combinations)}개 조합 병렬 실행 시작 (DataFrame 캐시 사용)")
 
@@ -982,20 +883,12 @@ def run_buffer_strategy(
     if len(signal_df) < MIN_VALID_ROWS:
         raise ValueError(f"유효 데이터 부족: {len(signal_df)}행 (최소 {MIN_VALID_ROWS}행 필요)")
 
-    # 2-2. ATR 사전 계산 (params.atr_period가 있는 경우)
-    atr_series: pd.Series | None = None
-    use_atr = params.atr_period is not None and params.atr_multiplier is not None
-    if use_atr:
-        assert params.atr_period is not None
-        atr_series = _calculate_atr(signal_df, params.atr_period)
-
     # 3. 초기화
     capital = params.initial_capital
     position = 0
     entry_price = 0.0
     entry_date = None
     all_exit_dates: list[date] = []  # 청산 날짜 누적 (동적 조정 기준)
-    highest_close_since_entry = 0.0  # ATR 트레일링 스탑 기준가
 
     trades: list[TradeRecord] = []
     equity_records: list[EquityRecord] = []
@@ -1076,8 +969,6 @@ def run_buffer_strategy(
                 if success:
                     entry_hold_days = pending_order.hold_days_used
                     entry_recent_sell_count = pending_order.recent_sell_count
-                    # ATR 트레일링 스탑: 매수 체결 시 highest_close 초기화
-                    highest_close_since_entry = signal_row[COL_CLOSE]
                     if log_trades:
                         logger.debug(
                             f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
@@ -1165,34 +1056,15 @@ def run_buffer_strategy(
                         )
 
         elif position > 0:
-            # ATR 트레일링 스탑: highest_close 갱신 (signal_df 종가 기준)
-            current_signal_close = signal_row[COL_CLOSE]
-            if current_signal_close > highest_close_since_entry:
-                highest_close_since_entry = current_signal_close
-
             # 매도 로직 - signal_df의 close로 판단
-            # 조건 1: 하단밴드 하향돌파
-            band_sell_detected = _detect_sell_signal(
+            sell_detected = _detect_sell_signal(
                 prev_close=prev_signal_row[COL_CLOSE],
-                close=current_signal_close,
+                close=signal_row[COL_CLOSE],
                 prev_lower_band=prev_lower_band,
                 lower_band=lower_band,
             )
 
-            # 조건 2: ATR 트레일링 스탑 (atr_period가 None이 아닌 경우만)
-            atr_sell_detected = False
-            if use_atr and atr_series is not None and params.atr_multiplier is not None:
-                atr_value = atr_series.iloc[i]
-                if not pd.isna(atr_value):
-                    atr_sell_detected = _detect_atr_stop_signal(
-                        current_signal_close,
-                        highest_close_since_entry,
-                        float(atr_value),
-                        params.atr_multiplier,
-                    )
-
-            # OR 조건: 둘 중 하나라도 발동하면 매도
-            if band_sell_detected or atr_sell_detected:
+            if sell_detected:
                 _check_pending_conflict(pending_order, "sell", current_date)
                 pending_order = PendingOrder(
                     order_type="sell",

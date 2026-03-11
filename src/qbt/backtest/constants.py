@@ -126,8 +126,6 @@ COL_CALMAR: Final = "calmar"
 COL_TOTAL_TRADES: Final = "total_trades"
 COL_WIN_RATE: Final = "win_rate"
 COL_FINAL_CAPITAL: Final = "final_capital"
-COL_ATR_PERIOD: Final = "atr_period"
-COL_ATR_MULTIPLIER: Final = "atr_multiplier"
 
 # --- 그리드 서치 결과 CSV 출력용 레이블 (한글) ---
 DISPLAY_MA_WINDOW: Final = "이평기간"

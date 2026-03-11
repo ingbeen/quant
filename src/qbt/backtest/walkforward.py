@@ -16,8 +16,6 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
-    COL_ATR_MULTIPLIER,
-    COL_ATR_PERIOD,
     COL_CAGR,
     COL_MDD,
     COL_TOTAL_TRADES,
@@ -245,8 +243,6 @@ def run_walkforward(
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     min_trades: int = DEFAULT_WFO_MIN_TRADES,
-    atr_period_list: list[int] | None = None,
-    atr_multiplier_list: list[float] | None = None,
     rolling_is_months: int | None = None,
 ) -> list[WfoWindowResultDict]:
     """핵심 WFO 루프를 실행한다.
@@ -265,8 +261,6 @@ def run_walkforward(
         oos_months: OOS 기간 (개월)
         initial_capital: 초기 자본금
         min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
-        atr_period_list: ATR 기간 리스트 (None이면 ATR 미사용)
-        atr_multiplier_list: ATR 배수 리스트 (None이면 ATR 미사용)
         rolling_is_months: Rolling IS 최대 길이 (개월).
             None이면 Expanding 모드 (기존 동작). int이면 Rolling 모드.
 
@@ -312,8 +306,6 @@ def run_walkforward(
             hold_days_list=hold_days_list,
             recent_months_list=recent_months_list,
             initial_capital=initial_capital,
-            atr_period_list=atr_period_list,
-            atr_multiplier_list=atr_multiplier_list,
         )
 
         # 4. Calmar 기준 최적 파라미터 추출 (min_trades 필터링 적용)
@@ -324,11 +316,6 @@ def run_walkforward(
         best_hold = best["hold_days"]
         best_recent = best["recent_months"]
 
-        # ATR 최적 파라미터 추출 (ATR 컬럼이 grid_df에 존재하는 경우)
-        use_atr = COL_ATR_PERIOD in grid_df.columns and COL_ATR_MULTIPLIER in grid_df.columns
-        best_atr_period: int | None = None
-        best_atr_multiplier: float | None = None
-
         # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd)
         best_row_mask = (
             (grid_df["ma_window"] == best_ma)
@@ -337,21 +324,6 @@ def run_walkforward(
             & (grid_df["hold_days"] == best_hold)
             & (grid_df["recent_months"] == best_recent)
         )
-
-        # ATR 파라미터도 best_row_mask에 추가 (ATR 전략인 경우)
-        if use_atr:
-            # Calmar 기준 1위의 ATR 파라미터는 grid_df에서 직접 추출
-            # best_row_mask에 해당하는 행이 여러 개일 수 있으므로 (ATR 조합 차이)
-            # calmar 기준 정렬된 grid_df에서 5개 파라미터 일치 행 중 최상위 사용
-            matching_rows = grid_df[best_row_mask].reset_index(drop=True)
-            # grid_df는 이미 CAGR 내림차순 정렬되어 있으므로 첫 행이 최적
-            best_row = matching_rows.iloc[0]
-            best_atr_period = int(best_row[COL_ATR_PERIOD])
-            best_atr_multiplier = float(best_row[COL_ATR_MULTIPLIER])
-            # ATR까지 포함한 정확한 매칭으로 갱신
-            best_row_mask = best_row_mask & (
-                (grid_df[COL_ATR_PERIOD] == best_atr_period) & (grid_df[COL_ATR_MULTIPLIER] == best_atr_multiplier)
-            )
 
         best_row = grid_df[best_row_mask].iloc[0]
         is_cagr = float(best_row[COL_CAGR])
@@ -375,8 +347,6 @@ def run_walkforward(
             sell_buffer_zone_pct=best_sell_buf,
             hold_days=best_hold,
             recent_months=best_recent,
-            atr_period=best_atr_period,
-            atr_multiplier=best_atr_multiplier,
         )
 
         _, _, oos_summary = run_buffer_strategy(oos_signal, oos_trade, oos_params, log_trades=False)
@@ -425,12 +395,6 @@ def run_walkforward(
             "wfe_cagr": wfe_cagr,
         }
 
-        # ATR 전략인 경우 ATR 최적 파라미터 포함
-        if best_atr_period is not None:
-            result["best_atr_period"] = best_atr_period
-        if best_atr_multiplier is not None:
-            result["best_atr_multiplier"] = best_atr_multiplier
-
         results.append(result)
 
         logger.debug(
@@ -478,8 +442,6 @@ def build_params_schedule(
         sell_buffer_zone_pct=first["best_sell_buffer_zone_pct"],
         hold_days=first["best_hold_days"],
         recent_months=first["best_recent_months"],
-        atr_period=first.get("best_atr_period"),
-        atr_multiplier=first.get("best_atr_multiplier"),
     )
 
     schedule: dict[date, BufferStrategyParams] = {}
@@ -492,8 +454,6 @@ def build_params_schedule(
             sell_buffer_zone_pct=wr["best_sell_buffer_zone_pct"],
             hold_days=wr["best_hold_days"],
             recent_months=wr["best_recent_months"],
-            atr_period=wr.get("best_atr_period"),
-            atr_multiplier=wr.get("best_atr_multiplier"),
         )
 
     return initial_params, schedule
@@ -546,11 +506,7 @@ def load_wfo_results_from_csv(csv_path: Path) -> list[WfoWindowResultDict]:
         if col in df.columns:
             df[col] = df[col].astype(int)
 
-    # 5. ATR 컬럼 정수 보정 (선택적)
-    if "best_atr_period" in df.columns:
-        df["best_atr_period"] = df["best_atr_period"].astype(int)
-
-    # 6. dict 리스트 반환
+    # 5. dict 리스트 반환
     records: list[WfoWindowResultDict] = df.to_dict("records")  # type: ignore[assignment]
     return records
 

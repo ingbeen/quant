@@ -206,7 +206,7 @@ quant/
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, strategies/)
-│   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py, types.py)
+│   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
@@ -229,7 +229,6 @@ quant/
 │       │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
 │       │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
 │       │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
-│       │   ├── hold_days_plateau/     # hold_days 고원 분석 결과
 │       │   └── param_plateau/         # 파라미터(hold/sell/buy/ma) 고원 분석 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
 │           └── spread_lab/    # 스프레드 모델 검증 결과

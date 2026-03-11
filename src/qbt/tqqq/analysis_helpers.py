@@ -207,7 +207,7 @@ def aggregate_monthly(
         - 해당 월 FFR이 존재하면 직접 사용
         - 없으면 최대 MAX_FFR_MONTHS_DIFF(2개월) 이전 값 fallback
         - 갭 초과 시 ValueError (fail-fast)
-        - simulation.py의 _lookup_ffr와 동일한 정책
+        - data_loader.py의 lookup_ffr과 동일한 정책
 
     Args:
         daily_df: 일별 데이터 (날짜, signed 컬럼 필수)
