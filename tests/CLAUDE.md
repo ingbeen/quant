@@ -33,6 +33,7 @@ tests/
 ├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
 ├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
 ├── test_tqqq_simulation.py # TQQQ 시뮬레이션 (core) 테스트
+├── test_tqqq_spread_lab_helpers.py # TQQQ Spread Lab 앱 전용 함수 테스트
 └── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
 
 # pytest 설정 (루트 디렉토리)
@@ -135,6 +136,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 - [test_tqqq_simulation.py](test_tqqq_simulation.py)
 - [test_tqqq_analysis_helpers.py](test_tqqq_analysis_helpers.py)
 - [test_tqqq_data_loader.py](test_tqqq_data_loader.py)
+- [test_tqqq_spread_lab_helpers.py](test_tqqq_spread_lab_helpers.py)
 - [test_tqqq_visualization.py](test_tqqq_visualization.py)
 - [test_data_loader.py](test_data_loader.py)
 - [test_meta_manager.py](test_meta_manager.py)

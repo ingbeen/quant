@@ -431,16 +431,16 @@ class TestGenericMonthlyDataDict:
         제네릭 딕셔너리 생성 기본 테스트
 
         Given: 월별 데이터 DataFrame
-        When: create_monthly_data_dict 호출
+        When: _create_monthly_data_dict 호출
         Then: {월: 값} 딕셔너리 반환
         """
         # Given (0~1 비율)
         df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0095, 0.0088]})
 
         # When: 제네릭 함수 호출
-        from qbt.tqqq.data_loader import create_monthly_data_dict
+        from qbt.tqqq.data_loader import _create_monthly_data_dict
 
-        result_dict = create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+        result_dict = _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
 
         # Then
         assert result_dict == {"2023-01": 0.0095, "2023-02": 0.0088}
@@ -450,7 +450,7 @@ class TestGenericMonthlyDataDict:
         중복 월 검증 테스트
 
         Given: 중복 월이 있는 DataFrame
-        When: create_monthly_data_dict 호출
+        When: _create_monthly_data_dict 호출
         Then: ValueError 발생 (data_type 포함한 명확한 메시지)
         """
         # Given: 2023-01이 중복 (0~1 비율)
@@ -459,17 +459,17 @@ class TestGenericMonthlyDataDict:
         )
 
         # When & Then
-        from qbt.tqqq.data_loader import create_monthly_data_dict
+        from qbt.tqqq.data_loader import _create_monthly_data_dict
 
         with pytest.raises(ValueError, match="Expense.*2023-01.*중복"):
-            create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+            _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
 
     def test_lookup_monthly_data_with_gap(self):
         """
         월 차이 검증 테스트
 
         Given: 월별 데이터 딕셔너리와 갭이 큰 날짜
-        When: lookup_monthly_data 호출
+        When: _lookup_monthly_data 호출
         Then: max_months_diff 초과 시 ValueError 발생
         """
         # Given
@@ -477,17 +477,17 @@ class TestGenericMonthlyDataDict:
         date_value = date(2024, 2, 15)  # 2024-02, 2023-01부터 13개월 차이
 
         # When & Then: max_months_diff=12 초과
-        from qbt.tqqq.data_loader import lookup_monthly_data
+        from qbt.tqqq.data_loader import _lookup_monthly_data
 
         with pytest.raises(ValueError, match="Expense.*데이터 부족.*2024-02.*최대 12개월"):
-            lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
+            _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
 
     def test_lookup_monthly_data_within_gap(self):
         """
         월 차이 허용 범위 내 조회 테스트
 
         Given: 월별 데이터 딕셔너리와 허용 범위 내 날짜
-        When: lookup_monthly_data 호출
+        When: _lookup_monthly_data 호출
         Then: 가장 가까운 이전 월의 값 반환
         """
         # Given
@@ -495,9 +495,9 @@ class TestGenericMonthlyDataDict:
         date_value = date(2023, 12, 15)  # 2023-12, 2023-02부터 10개월 차이 (12개월 이내)
 
         # When
-        from qbt.tqqq.data_loader import lookup_monthly_data
+        from qbt.tqqq.data_loader import _lookup_monthly_data
 
-        result = lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
+        result = _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
 
         # Then: 2023-02 값 사용
         assert result == pytest.approx(0.0088)

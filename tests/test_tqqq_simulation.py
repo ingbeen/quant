@@ -12,8 +12,6 @@ tqqq/simulation 모듈 (core) 테스트
 TQQQ 같은 레버리지 ETF는 일일 리밸런싱으로 복리 효과가 발생합니다.
 비용 모델이 틀리면 시뮬레이션 결과가 실제와 크게 차이나서 무의미해집니다.
 
-참고: optimization, walkforward 관련 테스트는 각각
-test_tqqq_optimization.py, test_tqqq_walkforward.py에서 수행합니다.
 """
 
 from datetime import date
@@ -26,11 +24,9 @@ from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
 from qbt.tqqq.simulation import (
     _calculate_daily_cost,
+    _validate_ffr_coverage,
     calculate_validation_metrics,
-    compute_softplus_spread,
-    generate_static_spread_series,
     simulate,
-    validate_ffr_coverage,
 )
 
 
@@ -588,6 +584,7 @@ class TestSaveDailyComparisonCsv:
           - 누적배수 로그차이 포함
           - 올바른 행 수
         """
+        from qbt.common_constants import DISPLAY_DATE
         from qbt.tqqq.constants import (
             COL_ACTUAL_CLOSE,
             COL_ACTUAL_CUMUL_RETURN,
@@ -598,7 +595,6 @@ class TestSaveDailyComparisonCsv:
             COL_SIMUL_CLOSE,
             COL_SIMUL_CUMUL_RETURN,
             COL_SIMUL_DAILY_RETURN,
-            DISPLAY_DATE,
         )
         from qbt.tqqq.simulation import _save_daily_comparison_csv
 
@@ -714,7 +710,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 9, 20)
 
         # When & Then: 예외 없이 통과
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_within_2_months_passes(self):
         """
@@ -735,7 +731,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 20)
 
         # When & Then: 예외 없이 통과 (2023-03이 1~2개월 전)
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_missing_month_exceeds_2_months_raises(self):
         """
@@ -752,7 +748,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-05" in error_msg
@@ -775,7 +771,7 @@ class TestValidateFfrCoverage:
 
         # When & Then
         with pytest.raises(ValueError) as exc_info:
-            validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
         error_msg = str(exc_info.value)
         assert "2023-03" in error_msg
@@ -800,7 +796,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2023, 5, 15)
 
         # When & Then
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
     def test_year_boundary_crossing(self):
         """
@@ -821,7 +817,7 @@ class TestValidateFfrCoverage:
         overlap_end = date(2024, 2, 10)
 
         # When & Then
-        validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
+        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
 
 class TestCalculateDailyCostWithDynamicExpense:
@@ -855,7 +851,7 @@ class TestSoftplusFunctions:
     """
     softplus 동적 스프레드 함수 테스트
 
-    softplus 함수, compute_softplus_spread, build_monthly_spread_map 함수를 검증한다.
+    softplus 함수, _compute_softplus_spread, build_monthly_spread_map 함수를 검증한다.
     """
 
     def test_softplus_positive_input(self):
@@ -959,20 +955,20 @@ class TestSoftplusFunctions:
 
     def test_compute_softplus_spread_basic(self):
         """
-        compute_softplus_spread 기본 계산 테스트
+        _compute_softplus_spread 기본 계산 테스트
 
         Given: a=-5, b=1, ffr_ratio=0.05 (5%)
-        When: compute_softplus_spread 호출
+        When: _compute_softplus_spread 호출
         Then: softplus(-5 + 1*5) = softplus(0) ≈ 0.693 반환
         """
         import math
 
-        from qbt.tqqq.simulation import compute_softplus_spread
+        from qbt.tqqq.simulation import _compute_softplus_spread
 
         a, b = -5.0, 1.0
         ffr_ratio = 0.05  # 5%
 
-        result = compute_softplus_spread(a, b, ffr_ratio)
+        result = _compute_softplus_spread(a, b, ffr_ratio)
 
         # ffr_pct = 100 * 0.05 = 5.0
         # softplus(-5 + 1*5) = softplus(0) = log(2) ≈ 0.693
@@ -984,15 +980,15 @@ class TestSoftplusFunctions:
         고금리 구간에서 spread 증가 테스트
 
         Given: a=-5, b=1, 저금리(1%)와 고금리(5%) 비교
-        When: compute_softplus_spread 호출
+        When: _compute_softplus_spread 호출
         Then: 고금리 spread > 저금리 spread
         """
-        from qbt.tqqq.simulation import compute_softplus_spread
+        from qbt.tqqq.simulation import _compute_softplus_spread
 
         a, b = -5.0, 1.0
 
-        spread_low = compute_softplus_spread(a, b, 0.01)  # 1%
-        spread_high = compute_softplus_spread(a, b, 0.05)  # 5%
+        spread_low = _compute_softplus_spread(a, b, 0.01)  # 1%
+        spread_high = _compute_softplus_spread(a, b, 0.05)  # 5%
 
         assert spread_high > spread_low, f"고금리 spread({spread_high}) > 저금리 spread({spread_low}) 예상"
 
@@ -1044,8 +1040,7 @@ class TestDynamicFundingSpread:
     """
     동적 funding_spread 지원 테스트
 
-    funding_spread가 float, dict[str, float], Callable[[date], float]
-    세 가지 타입을 모두 지원하는지 검증한다.
+    funding_spread가 float 또는 dict[str, float] 타입을 지원함을 검증
     """
 
     def test_float_spread_unchanged_behavior(self):
@@ -1228,88 +1223,6 @@ class TestDynamicFundingSpread:
                 leverage=3.0,
             )
 
-    def test_callable_spread_function_call(self):
-        """
-        Callable 타입 funding_spread 함수 호출 테스트
-
-        Given: funding_spread = lambda d: 0.005 (고정 반환 함수)
-        When: _calculate_daily_cost 호출
-        Then: 함수가 호출되고 반환값이 spread로 적용됨
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        ffr_dict = create_ffr_dict(ffr_df)
-        expense_dict = {"2023-01": 0.0095}
-
-        # 고정값 반환 함수
-        def fixed_spread_fn(d: date) -> float:
-            return 0.005
-
-        # When
-        daily_cost = _calculate_daily_cost(
-            date_value=date(2023, 1, 15),
-            ffr_dict=ffr_dict,
-            expense_dict=expense_dict,
-            funding_spread=fixed_spread_fn,
-            leverage=3.0,
-        )
-
-        # Then: 0.005가 적용됨
-        expected_daily_cost = ((0.045 + 0.005) * 2 + 0.0095) / TRADING_DAYS_PER_YEAR
-        assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-10)
-
-    def test_callable_spread_nan_raises(self):
-        """
-        Callable 반환값이 NaN일 때 ValueError 테스트
-
-        Given: funding_spread = lambda d: float('nan')
-        When: _calculate_daily_cost 호출
-        Then: ValueError 발생 (fail-fast)
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        ffr_dict = create_ffr_dict(ffr_df)
-        expense_dict = {"2023-01": 0.0095}
-
-        def nan_spread_fn(d: date) -> float:
-            return float("nan")
-
-        # When & Then
-        with pytest.raises(ValueError, match="NaN|nan|유효하지 않"):
-            _calculate_daily_cost(
-                date_value=date(2023, 1, 15),
-                ffr_dict=ffr_dict,
-                expense_dict=expense_dict,
-                funding_spread=nan_spread_fn,
-                leverage=3.0,
-            )
-
-    def test_callable_spread_inf_raises(self):
-        """
-        Callable 반환값이 inf일 때 ValueError 테스트
-
-        Given: funding_spread = lambda d: float('inf')
-        When: _calculate_daily_cost 호출
-        Then: ValueError 발생 (fail-fast)
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        ffr_dict = create_ffr_dict(ffr_df)
-        expense_dict = {"2023-01": 0.0095}
-
-        def inf_spread_fn(d: date) -> float:
-            return float("inf")
-
-        # When & Then
-        with pytest.raises(ValueError, match="inf|무한|유효하지 않"):
-            _calculate_daily_cost(
-                date_value=date(2023, 1, 15),
-                ffr_dict=ffr_dict,
-                expense_dict=expense_dict,
-                funding_spread=inf_spread_fn,
-                leverage=3.0,
-            )
-
     def test_spread_zero_raises(self):
         """
         spread가 0일 때 ValueError 테스트
@@ -1355,125 +1268,6 @@ class TestDynamicFundingSpread:
                 funding_spread=-0.005,
                 leverage=3.0,
             )
-
-
-class TestGenerateStaticSpreadSeries:
-    """
-    generate_static_spread_series() 함수 테스트
-
-    전체기간 단일 최적 (a, b)에 대해 월별 spread 시계열 DataFrame을 생성한다.
-    """
-
-    def test_normal_static_spread_series(self):
-        """
-        정상 케이스: FFR 데이터와 overlap 기간이 주어지면 올바른 spread 계산
-
-        Given: 3개월 overlap 기간 + FFR 데이터 + a=-5.0, b=1.0
-        When: generate_static_spread_series 호출
-        Then: 각 월별 spread = softplus(a + b * ffr_pct) 일치, month 오름차순
-        """
-        # Given
-        a, b = -5.0, 1.0
-
-        # 3개월 겹치는 기간 데이터 (2023-01 ~ 2023-03)
-        dates = (
-            [date(2023, 1, d) for d in range(2, 22)]
-            + [date(2023, 2, d) for d in range(1, 21)]
-            + [date(2023, 3, d) for d in range(1, 22)]
-        )
-        underlying_overlap_df = pd.DataFrame(
-            {
-                COL_DATE: dates,
-                COL_CLOSE: [100.0 + i * 0.1 for i in range(len(dates))],
-            }
-        )
-
-        ffr_df = pd.DataFrame(
-            {
-                COL_FFR_DATE: ["2023-01", "2023-02", "2023-03"],
-                COL_FFR_VALUE: [0.045, 0.046, 0.05],  # 4.5%, 4.6%, 5.0%
-            }
-        )
-
-        # When
-        result = generate_static_spread_series(ffr_df, a, b, underlying_overlap_df)
-
-        # Then
-        # 1. 컬럼 존재 검증
-        expected_cols = ["month", "ffr_pct", "a_global", "b_global", "spread_global"]
-        assert list(result.columns) == expected_cols
-
-        # 2. 행 수 검증 (3개월)
-        assert len(result) == 3
-
-        # 3. month 오름차순 정렬 검증
-        assert list(result["month"]) == ["2023-01", "2023-02", "2023-03"]
-
-        # 4. spread = softplus(a + b * ffr_pct) 검증
-        for _, row in result.iterrows():
-            ffr_ratio = row["ffr_pct"] / 100.0
-            expected_spread = compute_softplus_spread(a, b, ffr_ratio)
-            assert row["spread_global"] == pytest.approx(expected_spread, abs=1e-10)
-
-        # 5. a_global, b_global은 입력값과 동일
-        assert all(result["a_global"] == a)
-        assert all(result["b_global"] == b)
-
-    def test_spread_values_differ_by_ffr(self):
-        """
-        서로 다른 FFR 값에 대해 서로 다른 spread가 계산됨
-
-        Given: 금리가 다른 2개월 overlap 기간
-        When: generate_static_spread_series 호출
-        Then: 금리가 높은 월의 spread가 더 큼 (b > 0일 때)
-        """
-        # Given
-        a, b = -6.0, 0.5
-
-        dates = [date(2023, 1, d) for d in range(2, 22)] + [date(2023, 2, d) for d in range(1, 21)]
-        underlying_overlap_df = pd.DataFrame(
-            {
-                COL_DATE: dates,
-                COL_CLOSE: [100.0] * len(dates),
-            }
-        )
-
-        # 1월: 1%, 2월: 5% (큰 차이)
-        ffr_df = pd.DataFrame(
-            {
-                COL_FFR_DATE: ["2023-01", "2023-02"],
-                COL_FFR_VALUE: [0.01, 0.05],
-            }
-        )
-
-        # When
-        result = generate_static_spread_series(ffr_df, a, b, underlying_overlap_df)
-
-        # Then: b > 0이므로 금리가 높은 2월의 spread가 더 큼
-        spread_jan = result[result["month"] == "2023-01"]["spread_global"].iloc[0]
-        spread_feb = result[result["month"] == "2023-02"]["spread_global"].iloc[0]
-        assert spread_feb > spread_jan
-
-    def test_empty_overlap_raises(self):
-        """
-        빈 overlap DataFrame이면 ValueError 발생
-
-        Given: 빈 overlap DataFrame
-        When: generate_static_spread_series 호출
-        Then: ValueError 발생
-        """
-        # Given
-        empty_df = pd.DataFrame({COL_DATE: [], COL_CLOSE: []})
-        ffr_df = pd.DataFrame(
-            {
-                COL_FFR_DATE: ["2023-01"],
-                COL_FFR_VALUE: [0.05],
-            }
-        )
-
-        # When & Then
-        with pytest.raises(ValueError, match="비어있습니다"):
-            generate_static_spread_series(ffr_df, -5.0, 1.0, empty_df)
 
 
 class TestSimulateOvernightOpen:

@@ -137,7 +137,7 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
 # ============================================================
 
 
-def create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, data_type: str) -> dict[str, float]:
+def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, data_type: str) -> dict[str, float]:
     """
     월별 데이터 DataFrame을 딕셔너리로 변환한다 (O(1) 조회용).
 
@@ -176,7 +176,7 @@ def create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, da
     return data_dict
 
 
-def lookup_monthly_data(date_value: date, data_dict: dict[str, float], max_months_diff: int, data_type: str) -> float:
+def _lookup_monthly_data(date_value: date, data_dict: dict[str, float], max_months_diff: int, data_type: str) -> float:
     """
     특정 날짜의 월별 데이터 값을 딕셔너리에서 조회한다.
 
@@ -242,7 +242,7 @@ def create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
     Raises:
         ValueError: 빈 DataFrame 또는 중복 월 발견 시
     """
-    return create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR")
+    return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR")
 
 
 def lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
@@ -261,7 +261,7 @@ def lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
     Raises:
         ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
     """
-    return lookup_monthly_data(date_value, ffr_dict, MAX_FFR_MONTHS_DIFF, "FFR")
+    return _lookup_monthly_data(date_value, ffr_dict, MAX_FFR_MONTHS_DIFF, "FFR")
 
 
 def create_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
@@ -279,7 +279,7 @@ def create_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
     Raises:
         ValueError: 빈 DataFrame 또는 중복 월 발견 시
     """
-    return create_monthly_data_dict(expense_df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+    return _create_monthly_data_dict(expense_df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
 
 
 def lookup_expense(date_value: date, expense_dict: dict[str, float]) -> float:
@@ -298,7 +298,26 @@ def lookup_expense(date_value: date, expense_dict: dict[str, float]) -> float:
     Raises:
         ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
     """
-    return lookup_monthly_data(date_value, expense_dict, MAX_EXPENSE_MONTHS_DIFF, "Expense")
+    return _lookup_monthly_data(date_value, expense_dict, MAX_EXPENSE_MONTHS_DIFF, "Expense")
+
+
+def lookup_funding_spread(date_value: date, spread_dict: dict[str, float]) -> float:
+    """
+    특정 날짜의 funding spread 값을 딕셔너리에서 조회한다.
+
+    내부적으로 제네릭 월별 데이터 함수를 사용한다.
+
+    Args:
+        date_value: 조회할 날짜
+        spread_dict: funding spread 딕셔너리 ({"YYYY-MM": spread_value})
+
+    Returns:
+        funding spread 값
+
+    Raises:
+        ValueError: 월 키 없음 + 이전 월 없음, 또는 월 차이 초과 시
+    """
+    return _lookup_monthly_data(date_value, spread_dict, MAX_FFR_MONTHS_DIFF, "funding_spread")
 
 
 def build_extended_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:

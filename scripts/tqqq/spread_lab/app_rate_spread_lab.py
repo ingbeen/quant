@@ -6,9 +6,6 @@
 실행 명령어:
     poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 
-사전 준비:
-    poetry run python scripts/tqqq/spread_lab/generate_rate_spread_lab.py
-
 화면 구성 (단일 흐름):
 - 금리-오차 관계 분석: 금리 수준 vs 월말 누적 오차 (핵심), 델타 분석, 교차검증
 - Softplus 모델 튜닝 결과: 전체기간 최적 파라미터 (a, b)
@@ -22,10 +19,6 @@ Fail-fast 정책:
 사용자 경험:
 - 모든 화면 텍스트 한글화 ("한글 (영문)" 형식)
 - 명확한 레이블 및 설명 제공
-
-관련 CLI 스크립트:
-- softplus 튜닝: poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py
-- 워크포워드 검증: poetry run python scripts/tqqq/spread_lab/validate_walkforward.py
 """
 
 from pathlib import Path
@@ -34,10 +27,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.tqqq.analysis_helpers import (
-    add_rate_change_lags,
-    prepare_monthly_data,
-)
 from qbt.tqqq.constants import (
     COL_A,
     COL_B,
@@ -47,7 +36,6 @@ from qbt.tqqq.constants import (
     COL_RATE_PCT,
     COL_RMSE_PCT,
     COL_SUM_DAILY_M,
-    DEFAULT_TOP_N_CROSS_VALIDATION,
     DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
     SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
@@ -66,6 +54,10 @@ from qbt.tqqq.data_loader import (
     load_comparison_data,
     load_ffr_data,
 )
+from qbt.tqqq.spread_lab_helpers import (
+    add_rate_change_lags,
+    prepare_monthly_data,
+)
 from qbt.tqqq.visualization import (
     create_delta_scatter_chart,
     create_level_scatter_chart,
@@ -79,6 +71,7 @@ from qbt.utils import get_logger
 # ============================================================
 
 # --- 기본값 파라미터 ---
+DEFAULT_TOP_N_CROSS_VALIDATION = 5  # 교차검증 상위 표시 개수
 DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
 DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
 DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수

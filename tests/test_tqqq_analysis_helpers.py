@@ -24,7 +24,6 @@ import pandas as pd
 import pytest
 
 from qbt.tqqq.analysis_helpers import (
-    add_rate_change_lags,
     aggregate_monthly,
     calculate_daily_signed_log_diff,
     calculate_signed_log_diff_from_cumulative_returns,
@@ -32,11 +31,8 @@ from qbt.tqqq.analysis_helpers import (
 )
 from qbt.tqqq.constants import (
     COL_DE_M,
-    COL_DR_LAG1,
-    COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
-    COL_MONTH,
     COL_RATE_PCT,
 )
 
@@ -504,67 +500,3 @@ class TestAggregateMonthly:
         # When & Then
         with pytest.raises(ValueError, match="FFR 데이터 부족"):
             aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1)
-
-
-class TestAddRateChangeLags:
-    """add_rate_change_lags() 함수 테스트"""
-
-    def test_lag_columns_created_correctly(self):
-        """
-        lag 컬럼이 정확히 생성되는지 테스트
-
-        Given:
-            - dr_m 컬럼이 있는 월별 DataFrame
-            - lag_list = [1, 2]
-        When: add_rate_change_lags() 호출
-        Then:
-            - dr_lag1, dr_lag2 컬럼이 생성됨
-            - 값이 shift와 동일
-        """
-        # Given
-        monthly_df = pd.DataFrame(
-            {
-                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
-                COL_DR_M: [0.1, 0.2, 0.3, 0.4, 0.5],
-            }
-        )
-
-        # When
-        result = add_rate_change_lags(monthly_df, lag_list=[1, 2])
-
-        # Then
-        assert COL_DR_LAG1 in result.columns
-        assert COL_DR_LAG2 in result.columns
-
-        # lag1 = shift(1)
-        assert pd.isna(result[COL_DR_LAG1].iloc[0])
-        assert result[COL_DR_LAG1].iloc[1] == pytest.approx(0.1)
-        assert result[COL_DR_LAG1].iloc[2] == pytest.approx(0.2)
-
-        # lag2 = shift(2)
-        assert pd.isna(result[COL_DR_LAG2].iloc[0])
-        assert pd.isna(result[COL_DR_LAG2].iloc[1])
-        assert result[COL_DR_LAG2].iloc[2] == pytest.approx(0.1)
-
-    def test_original_dataframe_not_modified(self):
-        """
-        원본 DataFrame이 변경되지 않는지 테스트 (불변성)
-
-        Given: 원본 DataFrame
-        When: add_rate_change_lags() 호출
-        Then: 원본에 lag 컬럼이 추가되지 않음
-        """
-        # Given
-        monthly_df = pd.DataFrame(
-            {
-                COL_MONTH: pd.period_range("2023-01", periods=3, freq="M"),
-                COL_DR_M: [0.1, 0.2, 0.3],
-            }
-        )
-        original_columns = set(monthly_df.columns)
-
-        # When
-        add_rate_change_lags(monthly_df, lag_list=[1, 2])
-
-        # Then: 원본 변경 없음
-        assert set(monthly_df.columns) == original_columns

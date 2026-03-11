@@ -10,7 +10,6 @@
 from typing import Final
 
 from qbt.common_constants import (
-    DISPLAY_DATE,
     ETC_DIR,
     STOCK_DIR,
     TQQQ_RESULTS_DIR,
@@ -38,87 +37,6 @@ SPREAD_LAB_DIR: Final = TQQQ_RESULTS_DIR / "spread_lab"
 SOFTPLUS_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_tuning.csv"
 SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_spread_series_static.csv"
 
-__all__ = [
-    # 경로
-    "DISPLAY_DATE",
-    "FFR_DATA_PATH",
-    "EXPENSE_RATIO_DATA_PATH",
-    "TQQQ_DATA_PATH",
-    "TQQQ_DAILY_COMPARISON_PATH",
-    "SPREAD_LAB_DIR",
-    "SOFTPLUS_TUNING_CSV_PATH",
-    "SOFTPLUS_SPREAD_SERIES_STATIC_PATH",
-    # 레버리지 상품 스펙
-    "DEFAULT_LEVERAGE_MULTIPLIER",
-    "DEFAULT_SYNTHETIC_INITIAL_PRICE",
-    # 비용 모델 파라미터
-    "DEFAULT_FUNDING_SPREAD",
-    "DEFAULT_PRE_LISTING_EXPENSE_RATIO",
-    "MAX_EXPENSE_MONTHS_DIFF",
-    "MAX_FFR_MONTHS_DIFF",
-    # CSV 컬럼명 (내부용 영문 토큰)
-    "COL_FFR_DATE",
-    "COL_FFR_VALUE",
-    "COL_EXPENSE_DATE",
-    "COL_EXPENSE_VALUE",
-    "COL_ACTUAL_CLOSE",
-    "COL_SIMUL_CLOSE",
-    "COL_ACTUAL_DAILY_RETURN",
-    "COL_SIMUL_DAILY_RETURN",
-    "COL_DAILY_RETURN_ABS_DIFF",
-    "COL_ACTUAL_CUMUL_RETURN",
-    "COL_SIMUL_CUMUL_RETURN",
-    "COL_CUMUL_MULTIPLE_LOG_DIFF_ABS",
-    "COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED",
-    "COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE",
-    "COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN",
-    "COL_CUMUL_MULTIPLE_LOG_DIFF_MAX",
-    # Rate Spread Lab 내부 컬럼 (영문 토큰)
-    "COL_MONTH",
-    "COL_RATE_PCT",
-    "COL_DR_M",
-    "COL_E_M",
-    "COL_DE_M",
-    "COL_SUM_DAILY_M",
-    "COL_DR_LAG1",
-    "COL_DR_LAG2",
-    "COL_DAILY_SIGNED",
-    # 튜닝 결과 CSV 컬럼
-    "COL_A",
-    "COL_B",
-    "COL_RMSE_PCT",
-    # UI 레이블
-    "DISPLAY_ERROR_END_OF_MONTH_PCT",
-    # 딕셔너리 키
-    "KEY_OVERLAP_START",
-    "KEY_OVERLAP_END",
-    "KEY_OVERLAP_DAYS",
-    "KEY_FINAL_CLOSE_ACTUAL",
-    "KEY_FINAL_CLOSE_SIMULATED",
-    "KEY_FINAL_CLOSE_REL_DIFF",
-    "KEY_CUMULATIVE_RETURN_ACTUAL",
-    "KEY_CUMULATIVE_RETURN_SIMULATED",
-    "KEY_CUMULATIVE_RETURN_REL_DIFF",
-    "KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN",
-    "KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE",
-    "KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX",
-    # 분석 기본값 파라미터 (공유)
-    "DEFAULT_MIN_MONTHS_FOR_ANALYSIS",
-    "DEFAULT_TOP_N_CROSS_VALIDATION",
-    # Softplus 동적 스프레드 모델 파라미터
-    "DEFAULT_SOFTPLUS_A",
-    "DEFAULT_SOFTPLUS_B",
-    # 워크포워드 검증 파라미터 (앱에서 사용)
-    "WALKFORWARD_LOCAL_REFINE_A_DELTA",
-    "WALKFORWARD_LOCAL_REFINE_B_DELTA",
-    "TQQQ_WALKFORWARD_PATH",
-    "TQQQ_WALKFORWARD_SUMMARY_PATH",
-    "TQQQ_WALKFORWARD_FIXED_B_PATH",
-    "TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH",
-    "TQQQ_WALKFORWARD_FIXED_AB_PATH",
-    "TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH",
-]
-
 # --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
 DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
@@ -128,19 +46,21 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
 # ============================================================
 
 # --- 기본값 ---
-DEFAULT_FUNDING_SPREAD: Final = 0.0034  # FFR 스프레드 비율 (예시 0.004 = 0.4%)
 DEFAULT_PRE_LISTING_EXPENSE_RATIO: Final = 0.0095  # TQQQ 상장 이전 운용비율 가정값 (0.0095 = 0.95%)
 
 # --- 데이터 검증 ---
 MAX_EXPENSE_MONTHS_DIFF: Final = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
 MAX_FFR_MONTHS_DIFF: Final = 2  # FFR 데이터 최대 월 차이 (개월)
 
+# 무결성 체크 허용 오차 (%)
+# abs(signed)와 abs 컬럼의 최대 차이 허용값
+INTEGRITY_TOLERANCE: Final = 1e-6  # 0.000001%
+
 # ============================================================
-# 분석 기본값 파라미터 (공유)
+# 분석 기본값 파라미터
 # ============================================================
 
 DEFAULT_MIN_MONTHS_FOR_ANALYSIS: Final = 13  # Rolling 12M 상관 계산 위해 최소 13개월
-DEFAULT_TOP_N_CROSS_VALIDATION: Final = 5  # 교차검증 상위 표시 개수
 
 # ============================================================
 # Softplus 동적 스프레드 모델 파라미터
