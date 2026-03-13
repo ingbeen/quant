@@ -1,7 +1,7 @@
 """백테스트 워크포워드 검증(WFO) 테스트
 
-Phase 0: params_schedule, WFO 윈도우 생성, Calmar 선택 테스트
-Phase 2: WFO 엔진, build_params_schedule, calculate_wfo_mode_summary 테스트
+params_schedule, WFO 윈도우 생성, Calmar 선택, WFO 엔진,
+build_params_schedule, calculate_wfo_mode_summary 테스트
 """
 
 from datetime import date

@@ -456,9 +456,9 @@ def _render_softplus_tuning_section() -> None:
         st.warning(
             f"튜닝 결과 CSV 파일이 존재하지 않습니다.\n\n"
             f"파일 경로: `{SOFTPLUS_TUNING_CSV_PATH}`\n\n"
-            f"**튜닝 실행 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/tune_softplus_params.py\n"
             f"```"
         )
     else:
@@ -581,9 +581,9 @@ def _render_walkforward_fixed_b_section() -> None:
             f"파일 경로:\n"
             f"- `{TQQQ_WALKFORWARD_FIXED_B_PATH}`\n"
             f"- `{TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH}`\n\n"
-            f"**검증 실행 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -892,9 +892,9 @@ def _render_overfitting_diagnosis_section() -> None:
             f"파일 경로:\n"
             f"- `{TQQQ_WALKFORWARD_FIXED_AB_PATH}`\n"
             f"- `{TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH}`\n\n"
-            f"**검증 실행 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -998,8 +998,8 @@ def _render_overfitting_diagnosis_section() -> None:
         else:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
-                "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward.py`"
+                "스크립트가 삭제되었습니다. git history에서 복원 후 재실행하세요:\n"
+                "`git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py`"
             )
 
     with col2:
@@ -1011,8 +1011,8 @@ def _render_overfitting_diagnosis_section() -> None:
         else:
             st.info(
                 "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
-                "스크립트를 재실행하세요:\n"
-                "`poetry run python scripts/tqqq/spread_lab/validate_walkforward.py`"
+                "스크립트가 삭제되었습니다. git history에서 복원 후 재실행하세요:\n"
+                "`git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py`"
             )
 
     # --- 월별 테스트 RMSE 추이 차트 ---
@@ -1116,9 +1116,9 @@ def _render_spread_comparison_section() -> None:
         st.warning(
             f"정적 spread 시계열 CSV 파일이 존재하지 않습니다.\n\n"
             f"파일 경로: `{SOFTPLUS_SPREAD_SERIES_STATIC_PATH}`\n\n"
-            f"**생성 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/tune_softplus_params.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/tune_softplus_params.py\n"
             f"```"
         )
         return
@@ -1127,9 +1127,9 @@ def _render_spread_comparison_section() -> None:
         st.warning(
             f"워크포워드 결과 CSV 파일이 존재하지 않습니다.\n\n"
             f"파일 경로: `{TQQQ_WALKFORWARD_PATH}`\n\n"
-            f"**생성 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```"
         )
         return
@@ -1260,9 +1260,9 @@ def _render_walkforward_section() -> None:
             f"파일 경로:\n"
             f"- `{TQQQ_WALKFORWARD_PATH}`\n"
             f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`\n\n"
-            f"**검증 실행 방법**:\n"
+            f"**스크립트 복원 방법** (삭제됨, git history에서 복원 가능):\n"
             f"```bash\n"
-            f"poetry run python scripts/tqqq/spread_lab/validate_walkforward.py\n"
+            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
             f"```\n\n"
             f"**주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분)."
         )

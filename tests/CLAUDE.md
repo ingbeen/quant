@@ -34,7 +34,9 @@ tests/
 ├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
 ├── test_tqqq_simulation.py # TQQQ 시뮬레이션 (core) 테스트
 ├── test_tqqq_spread_lab_helpers.py # TQQQ Spread Lab 앱 전용 함수 테스트
-└── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
+├── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
+├── test_stock_downloader.py # 주식 데이터 다운로드/검증 테스트
+└── test_wfo_stitched.py # WFO CSV 로딩/build_params_schedule 연결 테스트
 
 # pytest 설정 (루트 디렉토리)
 

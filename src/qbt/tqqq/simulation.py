@@ -92,7 +92,7 @@ class ValidationMetricsDict(TypedDict):
 
 
 # 동적 funding_spread 지원 타입 정의
-# - float: 고정 spread (기존 동작)
+# - float: 고정 spread
 # - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
 FundingSpreadSpec = float | dict[str, float]
 
@@ -152,7 +152,7 @@ def _compute_softplus_spread(a: float, b: float, ffr_ratio: float) -> float:
     Raises:
         ValueError: spread <= 0인 경우 (softplus는 이론적으로 항상 > 0이므로 방어적 체크)
     """
-    # 1. FFR을 % 단위로 변환 (프롬프트 요구사항)
+    # 1. FFR을 % 단위로 변환 (softplus 모델은 FFR_pct 기준)
     ffr_pct = 100.0 * ffr_ratio
 
     # 2. softplus 계산
@@ -675,13 +675,16 @@ def calculate_validation_metrics(
         output_path: CSV 저장 경로 (None이면 저장 안 함)
 
     Returns:
-        검증 결과 딕셔너리: {
+        검증 결과 딕셔너리 (ValidationMetricsDict): {
             'overlap_start': date,
             'overlap_end': date,
             'overlap_days': int,
+            'final_close_actual': float,
+            'final_close_simulated': float,
+            'final_close_rel_diff_pct': float,
             'cumulative_return_simulated': float,
             'cumulative_return_actual': float,
-            'cumulative_return_abs_diff': float,
+            'cumulative_return_rel_diff_pct': float,
             'cumul_multiple_log_diff_mean_pct': float,
             'cumul_multiple_log_diff_rmse_pct': float,
             'cumul_multiple_log_diff_max_pct': float,

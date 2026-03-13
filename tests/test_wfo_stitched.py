@@ -1,10 +1,9 @@
 """WFO Stitched 대시보드 관련 테스트
 
 load_wfo_results_from_csv() 함수의 계약을 검증한다:
-- CSV → WfoWindowResultDict 리스트 변환
+- CSV -> WfoWindowResultDict 리스트 변환
 - 필수 컬럼 검증
 - 정수 타입 보정
-- ATR 선택적 컬럼 처리
 - build_params_schedule() 연결 검증
 """
 
@@ -91,13 +90,13 @@ class TestLoadWfoResultsFromCsv:
         assert first["best_recent_months"] == 0
         assert first["oos_start"] == "2005-03-01"
 
-    def test_load_wfo_results_from_csv_with_atr(self, tmp_path: Path) -> None:
+    def test_load_wfo_results_from_csv_with_extra_columns(self, tmp_path: Path) -> None:
         """
-        목적: ATR 컬럼 포함 CSV에서 ATR 파라미터가 올바르게 포함되는지 검증한다.
+        목적: 추가 컬럼이 포함된 CSV에서 필수 컬럼만 올바르게 로딩되는지 검증한다.
 
-        Given: ATR 컬럼(best_atr_period, best_atr_multiplier)이 포함된 WFO 결과 CSV
+        Given: 필수 컬럼 + 추가 컬럼이 포함된 WFO 결과 CSV
         When: load_wfo_results_from_csv() 호출
-        Then: 각 딕셔너리에 ATR 파라미터가 올바른 타입으로 포함됨
+        Then: 각 딕셔너리에 추가 컬럼이 올바른 타입으로 포함됨
         """
         # Given
         df = pd.DataFrame(
@@ -112,8 +111,7 @@ class TestLoadWfoResultsFromCsv:
                 "best_sell_buffer_zone_pct": [0.03, 0.01],
                 "best_hold_days": [3, 5],
                 "best_recent_months": [0, 4],
-                "best_atr_period": [14, 22],
-                "best_atr_multiplier": [3.0, 2.5],
+                "extra_metric": [1.5, 2.5],
                 "is_cagr": [15.0, 12.0],
                 "is_mdd": [-25.0, -30.0],
                 "is_calmar": [0.6, 0.4],
@@ -137,14 +135,13 @@ class TestLoadWfoResultsFromCsv:
         # Then
         assert len(results) == 2
 
-        # ATR 파라미터 존재 및 타입 확인 (.get()으로 NotRequired 키 접근)
-        assert results[0].get("best_atr_period") == 14
-        assert isinstance(results[0].get("best_atr_period"), int)
-        assert results[0].get("best_atr_multiplier") == pytest.approx(3.0, abs=1e-6)
+        # 추가 컬럼이 딕셔너리에 포함됨
+        assert results[0].get("extra_metric") == pytest.approx(1.5, abs=1e-6)
+        assert results[1].get("extra_metric") == pytest.approx(2.5, abs=1e-6)
 
-        assert results[1].get("best_atr_period") == 22
-        assert isinstance(results[1].get("best_atr_period"), int)
-        assert results[1].get("best_atr_multiplier") == pytest.approx(2.5, abs=1e-6)
+        # 필수 필드 정수 타입 보정 확인
+        assert isinstance(results[0]["best_ma_window"], int)
+        assert isinstance(results[0]["best_hold_days"], int)
 
     def test_load_wfo_results_from_csv_file_not_found(self, tmp_path: Path) -> None:
         """

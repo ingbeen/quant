@@ -83,6 +83,8 @@ quant/
 │   │   ├── constants.py     # 백테스트 전용 상수
 │   │   ├── types.py         # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너)
 │   │   ├── analysis.py      # 이동평균 계산 및 성과 지표
+│   │   ├── walkforward.py   # 워크포워드 검증(WFO) 비즈니스 로직
+│   │   ├── parameter_stability.py  # 파라미터 고원 분석
 │   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
 │   │       ├── buffer_zone_helpers.py      # 버퍼존 계열 공통 로직
 │   │       ├── buffer_zone.py             # 버퍼존 통합
@@ -100,6 +102,7 @@ quant/
 │       ├── data_loader.py       # CSV 로딩 통합
 │       ├── cli_helpers.py       # 예외 처리 데코레이터
 │       ├── parallel_executor.py # 병렬 처리
+│       ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
 │       └── meta_manager.py      # 실행 메타데이터 관리
 └── storage/           # 데이터 저장소
     ├── stock/         # 주식 데이터 CSV

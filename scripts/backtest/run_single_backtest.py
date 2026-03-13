@@ -137,10 +137,6 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
         equity_round["upper_band"] = 6
     if "lower_band" in equity_export.columns:
         equity_round["lower_band"] = 6
-    if "upper_channel" in equity_export.columns:
-        equity_round["upper_channel"] = 6
-    if "lower_channel" in equity_export.columns:
-        equity_round["lower_channel"] = 6
 
     equity_export = equity_export.round(equity_round)
     equity_export["equity"] = equity_export["equity"].astype(int)

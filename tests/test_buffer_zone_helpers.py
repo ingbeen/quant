@@ -153,10 +153,7 @@ class TestCalculateRecentSellCount:
 
 
 class TestBuyBufferZonePctField:
-    """BufferStrategyParams에 buy_buffer_zone_pct 및 sell_buffer_zone_pct 필드 존재 테스트
-
-    Phase 0 레드 테스트: 아직 구현되지 않은 인터페이스를 먼저 정의
-    """
+    """BufferStrategyParams에 buy_buffer_zone_pct 및 sell_buffer_zone_pct 필드 존재 테스트."""
 
     def test_params_has_buy_buffer_zone_pct(self):
         """
