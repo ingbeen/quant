@@ -52,7 +52,6 @@
 
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
-- `load_best_grid_params`: grid_results.csv에서 Calmar 1위 파라미터 로딩 (파일 없으면 None 반환)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 - `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨
 
@@ -60,12 +59,13 @@
 
 파라미터 고원 분석 모듈을 제공합니다.
 고원 분석 CSV(param_plateau/)를 로딩하고 시각화용 데이터를 가공한다.
+4P 확정값은 `constants.py`의 `FIXED_4P_*` 상수를 참조한다.
 
 주요 함수:
 
 - `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (예: `param_plateau_buy_buffer_calmar.csv`)
 - `load_plateau_detail()`: 상세 CSV 로드 (`param_plateau_all_detail.csv`)
-- `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (MA=200, buy=0.03, sell=0.05, hold=3)
+- `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
 - `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
 - `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)
 
@@ -102,8 +102,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 데이터 클래스:
 
-- `BaseStrategyParams`: 전략 파라미터 기본 클래스
-- `BufferStrategyParams`: 버퍼존 전략 파라미터 (buy_buffer_zone_pct, sell_buffer_zone_pct 분리)
+- `BufferStrategyParams`: 버퍼존 전략 파라미터 (initial_capital, ma_window, buy/sell_buffer_zone_pct, hold_days, recent_months)
 - `PendingOrder`: 예약 주문 정보 (신호일과 체결일 분리)
 
 예외 클래스:
@@ -124,7 +123,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 파라미터 결정 함수:
 
-- `resolve_buffer_params`: 버퍼존 계열 공통 파라미터 결정 (폴백 체인: OVERRIDE → grid_best → DEFAULT). 각 전략 모듈의 `resolve_params()`가 위임 호출한다.
+- `resolve_buffer_params`: 전달받은 파라미터로 BufferStrategyParams를 생성한다. sources 딕셔너리는 "FIXED"로 통일.
 
 핵심 함수:
 
@@ -138,11 +137,11 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설정 데이터클래스:
 
-- `BufferZoneConfig`: 자산별 전략 설정 (strategy*name, display_name, signal_data_path, trade_data_path, result_dir, grid_results_path, override*\* 5개, ma_type). frozen=True
+- `BufferZoneConfig`: 자산별 전략 설정 (strategy_name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months, ma_type). frozen=True. 기본값은 `constants.py`의 `FIXED_4P_*` 참조
 
 설정 목록:
 
-- `CONFIGS`: `list[BufferZoneConfig]` (8개, 전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가
+- `CONFIGS`: `list[BufferZoneConfig]` (8개, 전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가. config당 필수 필드(strategy_name, display_name, 경로)만 명시, 나머지는 기본값 활용
   - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
   - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
   - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (4P 고정)
@@ -150,7 +149,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 주요 함수:
 
 - `get_config(strategy_name)`: 이름으로 BufferZoneConfig 조회. 존재하지 않으면 ValueError
-- `resolve_params_for_config(config)`: config의 override/grid/DEFAULT 폴백 체인으로 파라미터 결정. resolve_buffer_params()에 위임
+- `resolve_params_for_config(config)`: config의 파라미터를 resolve_buffer_params()에 전달
 - `create_runner(config)`: 팩토리 함수. `BufferZoneConfig` → `Callable[[], SingleBacktestResult]` 생성. 데이터 로딩, overlap 처리, MA 계산, 전략 실행을 자체 수행
 
 #### strategies/buy_and_hold.py
@@ -336,6 +335,6 @@ adjusted_hold_days = base_hold_days + (recent_sell_count * DEFAULT_HOLD_DAYS_INC
 - 엣지 케이스 (빈 데이터, 극단값)
 - 동적 파라미터 조정
 - 그리드 서치 병렬 처리
-- resolve_params 폴백 체인 (OVERRIDE → grid_best → DEFAULT)
+- resolve_params 파라미터 결정 (FIXED 고정값)
 - run_single → SingleBacktestResult 구조 검증
 - 미청산 포지션 (open_position): 포지션 보유 시 포함 / 미보유 시 미포함 검증

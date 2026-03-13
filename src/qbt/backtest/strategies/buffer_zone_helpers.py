@@ -5,7 +5,7 @@
 
 포함 내용:
 - TypedDicts: BufferStrategyResultDict, EquityRecord, TradeRecord, HoldState, GridSearchResult
-- DataClasses: BaseStrategyParams, BufferStrategyParams, PendingOrder
+- DataClasses: BufferStrategyParams, PendingOrder
 - 예외: PendingOrderConflictError
 - 동적 조정 상수
 - 헬퍼 함수 9개 (입력 검증, 밴드 계산, 신호 감지, 주문 실행 등)
@@ -15,12 +15,11 @@
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
-from pathlib import Path
 from typing import Literal, TypedDict
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary, load_best_grid_params
+from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
@@ -34,12 +33,7 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUY_BUFFER_ZONE_PCT,
-    DEFAULT_HOLD_DAYS,
     DEFAULT_INITIAL_CAPITAL,
-    DEFAULT_MA_WINDOW,
-    DEFAULT_RECENT_MONTHS,
-    DEFAULT_SELL_BUFFER_ZONE_PCT,
     MIN_BUY_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_SELL_BUFFER_ZONE_PCT,
@@ -181,30 +175,13 @@ class PendingOrderConflictError(Exception):
 
 
 @dataclass
-class BaseStrategyParams:
-    """전략 파라미터의 기본 클래스.
-
-    학습 포인트:
-    1. @dataclass 데코레이터: 클래스를 데이터 컨테이너로 만듦
-    2. 타입 힌트와 함께 변수 선언만 하면 __init__ 메서드 자동 생성
-    3. 클래스 상속의 기본 - 공통 속성을 부모 클래스에 정의
-    """
+class BufferStrategyParams:
+    """버퍼존 전략 파라미터를 담는 데이터 클래스."""
 
     initial_capital: float  # 초기 자본금
-
-
-@dataclass
-class BufferStrategyParams(BaseStrategyParams):
-    """버퍼존 전략 파라미터를 담는 데이터 클래스.
-
-    학습 포인트:
-    - 클래스 상속: (BaseStrategyParams) - 부모 클래스의 속성 상속
-    - BaseStrategyParams의 initial_capital도 사용 가능
-    """
-
     ma_window: int  # 이동평균 기간 (예: 200일)
-    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준) — 동적 조정됨
-    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준) — 항상 고정
+    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준) -- 동적 조정됨
+    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준) -- 항상 고정
     hold_days: int  # 최소 보유 일수 (예: 5일)
     recent_months: int  # 최근 청산 기간 (예: 6개월)
 
@@ -238,94 +215,28 @@ class PendingOrder:
 
 
 def resolve_buffer_params(
-    grid_results_path: Path | None,
-    override_ma_window: int | None,
-    override_buy_buffer_zone_pct: float | None,
-    override_sell_buffer_zone_pct: float | None,
-    override_hold_days: int | None,
-    override_recent_months: int | None,
+    ma_window: int,
+    buy_buffer_zone_pct: float,
+    sell_buffer_zone_pct: float,
+    hold_days: int,
+    recent_months: int,
 ) -> tuple[BufferStrategyParams, dict[str, str]]:
-    """
-    버퍼존 전략의 파라미터를 결정한다.
+    """버퍼존 전략의 파라미터를 결정한다.
 
-    폴백 체인: OVERRIDE → grid_results.csv 최적값 → DEFAULT.
-    버퍼존 계열 전략(QQQ, TQQQ)이 공유하는 공통 로직이다.
+    전달받은 파라미터로 BufferStrategyParams를 생성한다.
 
     Args:
-        grid_results_path: 그리드 서치 결과 CSV 경로 (None이면 grid 폴백 건너뜀)
-        override_ma_window: MA 기간 오버라이드 (None이면 폴백)
-        override_buy_buffer_zone_pct: 매수 버퍼존 비율 오버라이드 (None이면 폴백)
-        override_sell_buffer_zone_pct: 매도 버퍼존 비율 오버라이드 (None이면 폴백)
-        override_hold_days: 유지일수 오버라이드 (None이면 폴백)
-        override_recent_months: 조정기간 오버라이드 (None이면 폴백)
+        ma_window: 이동평균 기간
+        buy_buffer_zone_pct: 매수 버퍼존 비율
+        sell_buffer_zone_pct: 매도 버퍼존 비율
+        hold_days: 유지일수
+        recent_months: 조정기간
 
     Returns:
         tuple: (params, sources)
             - params: 전략 파라미터
             - sources: 각 파라미터의 출처 딕셔너리
     """
-    grid_params = load_best_grid_params(grid_results_path) if grid_results_path is not None else None
-
-    if grid_params is not None:
-        logger.debug(f"grid_results.csv 최적값 로드 완료: {grid_results_path}")
-    else:
-        logger.debug("grid_results.csv 없음, DEFAULT 상수 사용")
-
-    # 1. ma_window
-    if override_ma_window is not None:
-        ma_window = override_ma_window
-        ma_window_source = "OVERRIDE"
-    elif grid_params is not None:
-        ma_window = grid_params["ma_window"]
-        ma_window_source = "grid_best"
-    else:
-        ma_window = DEFAULT_MA_WINDOW
-        ma_window_source = "DEFAULT"
-
-    # 2. buy_buffer_zone_pct
-    if override_buy_buffer_zone_pct is not None:
-        buy_buffer_zone_pct = override_buy_buffer_zone_pct
-        buy_bz_source = "OVERRIDE"
-    elif grid_params is not None:
-        buy_buffer_zone_pct = grid_params["buy_buffer_zone_pct"]
-        buy_bz_source = "grid_best"
-    else:
-        buy_buffer_zone_pct = DEFAULT_BUY_BUFFER_ZONE_PCT
-        buy_bz_source = "DEFAULT"
-
-    # 3. sell_buffer_zone_pct
-    if override_sell_buffer_zone_pct is not None:
-        sell_buffer_zone_pct = override_sell_buffer_zone_pct
-        sell_bz_source = "OVERRIDE"
-    elif grid_params is not None:
-        sell_buffer_zone_pct = grid_params["sell_buffer_zone_pct"]
-        sell_bz_source = "grid_best"
-    else:
-        sell_buffer_zone_pct = DEFAULT_SELL_BUFFER_ZONE_PCT
-        sell_bz_source = "DEFAULT"
-
-    # 4. hold_days
-    if override_hold_days is not None:
-        hold_days = override_hold_days
-        hd_source = "OVERRIDE"
-    elif grid_params is not None:
-        hold_days = grid_params["hold_days"]
-        hd_source = "grid_best"
-    else:
-        hold_days = DEFAULT_HOLD_DAYS
-        hd_source = "DEFAULT"
-
-    # 5. recent_months
-    if override_recent_months is not None:
-        recent_months = override_recent_months
-        rm_source = "OVERRIDE"
-    elif grid_params is not None:
-        recent_months = grid_params["recent_months"]
-        rm_source = "grid_best"
-    else:
-        recent_months = DEFAULT_RECENT_MONTHS
-        rm_source = "DEFAULT"
-
     params = BufferStrategyParams(
         initial_capital=DEFAULT_INITIAL_CAPITAL,
         ma_window=ma_window,
@@ -336,19 +247,19 @@ def resolve_buffer_params(
     )
 
     sources = {
-        "ma_window": ma_window_source,
-        "buy_buffer_zone_pct": buy_bz_source,
-        "sell_buffer_zone_pct": sell_bz_source,
-        "hold_days": hd_source,
-        "recent_months": rm_source,
+        "ma_window": "FIXED",
+        "buy_buffer_zone_pct": "FIXED",
+        "sell_buffer_zone_pct": "FIXED",
+        "hold_days": "FIXED",
+        "recent_months": "FIXED",
     }
 
     logger.debug(
-        f"파라미터 결정: ma_window={ma_window} ({ma_window_source}), "
-        f"buy_buffer={buy_buffer_zone_pct} ({buy_bz_source}), "
-        f"sell_buffer={sell_buffer_zone_pct} ({sell_bz_source}), "
-        f"hold_days={hold_days} ({hd_source}), "
-        f"recent_months={recent_months} ({rm_source})"
+        f"파라미터 결정: ma_window={ma_window}, "
+        f"buy_buffer={buy_buffer_zone_pct}, "
+        f"sell_buffer={sell_buffer_zone_pct}, "
+        f"hold_days={hold_days}, "
+        f"recent_months={recent_months}"
     )
 
     return params, sources

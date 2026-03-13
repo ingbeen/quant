@@ -3,8 +3,8 @@
 from qbt.backtest.analysis import (
     add_single_moving_average,
     calculate_monthly_returns,
+    calculate_regime_summaries,
     calculate_summary,
-    load_best_grid_params,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
@@ -15,14 +15,19 @@ from qbt.backtest.strategies.buy_and_hold import (
     BuyAndHoldParams,
     run_buy_and_hold,
 )
-from qbt.backtest.types import BestGridParams, SingleBacktestResult
+from qbt.backtest.types import (
+    BestGridParams,
+    MarketRegimeDict,
+    RegimeSummaryDict,
+    SingleBacktestResult,
+)
 
 __all__ = [
     # Analysis functions
     "add_single_moving_average",
     "calculate_monthly_returns",
+    "calculate_regime_summaries",
     "calculate_summary",
-    "load_best_grid_params",
     # Strategy functions
     "run_buffer_strategy",
     "run_buy_and_hold",
@@ -31,5 +36,7 @@ __all__ = [
     "BuyAndHoldParams",
     # Types
     "BestGridParams",
+    "MarketRegimeDict",
+    "RegimeSummaryDict",
     "SingleBacktestResult",
 ]

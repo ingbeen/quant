@@ -196,11 +196,11 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for hold_val in _HOLD_DAYS_VALUES:
                 config = replace(
                     base_config,
-                    override_ma_window=_FIXED_MA_WINDOW,
-                    override_buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
-                    override_sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
-                    override_hold_days=hold_val,
-                    override_recent_months=_FIXED_RECENT_MONTHS,
+                    ma_window=_FIXED_MA_WINDOW,
+                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
+                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
+                    hold_days=hold_val,
+                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -214,11 +214,11 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for sell_val in _SELL_BUFFER_VALUES:
                 config = replace(
                     base_config,
-                    override_ma_window=_FIXED_MA_WINDOW,
-                    override_buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
-                    override_sell_buffer_zone_pct=sell_val,
-                    override_hold_days=_FIXED_HOLD_DAYS,
-                    override_recent_months=_FIXED_RECENT_MONTHS,
+                    ma_window=_FIXED_MA_WINDOW,
+                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
+                    sell_buffer_zone_pct=sell_val,
+                    hold_days=_FIXED_HOLD_DAYS,
+                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -234,11 +234,11 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for buy_val in _BUY_BUFFER_VALUES:
                 config = replace(
                     base_config,
-                    override_ma_window=_FIXED_MA_WINDOW,
-                    override_buy_buffer_zone_pct=buy_val,
-                    override_sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
-                    override_hold_days=_FIXED_HOLD_DAYS,
-                    override_recent_months=_FIXED_RECENT_MONTHS,
+                    ma_window=_FIXED_MA_WINDOW,
+                    buy_buffer_zone_pct=buy_val,
+                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
+                    hold_days=_FIXED_HOLD_DAYS,
+                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -255,11 +255,11 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                 signal_with_ma = add_single_moving_average(signal_df, ma_val, ma_type="ema")
                 config = replace(
                     base_config,
-                    override_ma_window=ma_val,
-                    override_buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
-                    override_sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
-                    override_hold_days=_FIXED_HOLD_DAYS,
-                    override_recent_months=_FIXED_RECENT_MONTHS,
+                    ma_window=ma_val,
+                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
+                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
+                    hold_days=_FIXED_HOLD_DAYS,
+                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(

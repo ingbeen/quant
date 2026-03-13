@@ -4,10 +4,10 @@ backtest/strategies/buffer_zone 통합 모듈 테스트
 이 파일은 무엇을 검증하나요?
 1. BufferZoneConfig frozen dataclass 구조 및 CONFIGS 정합성
 2. get_config() 이름 조회 및 에러 처리
-3. resolve_params_for_config() 폴백 체인 (override -> grid -> DEFAULT)
+3. resolve_params_for_config() 파라미터 결정 (직접 설정 + 기본값)
 4. create_runner() 팩토리 함수 및 SingleBacktestResult 반환 구조
 5. signal_path == trade_path 분기 (overlap 호출 여부)
-6. TQQQ/QQQ config별 resolve_params_for_config 폴백 체인 검증
+6. TQQQ/QQQ config별 resolve_params_for_config 파라미터 검증
 7. TQQQ/QQQ config별 create_runner run_single 구조 검증
 
 왜 중요한가요?
@@ -54,13 +54,6 @@ class TestBufferZoneConfig:
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=Path("results/test"),
-            grid_results_path=None,
-            override_ma_window=None,
-            override_buy_buffer_zone_pct=None,
-            override_sell_buffer_zone_pct=None,
-            override_hold_days=None,
-            override_recent_months=None,
-            ma_type="ema",
         )
 
         # When & Then: frozen이므로 속성 변경 시 예외 발생
@@ -123,31 +116,29 @@ class TestBufferZoneConfig:
 class TestResolveParamsForConfig:
     """resolve_params_for_config 파라미터 결정 테스트
 
-    목적: config의 override/grid/DEFAULT 폴백 체인이 올바르게 동작하는지 검증
+    목적: config의 파라미터가 올바르게 resolve되는지 검증
     """
 
-    def test_override_params_used_when_set(self):
+    def test_explicit_params_used(self):
         """
-        목적: override 값이 모두 설정된 config에서 해당 값이 사용되는지 검증 (cross-asset 패턴)
+        목적: 직접 설정한 파라미터가 사용되는지 검증
 
-        Given: 모든 override 값이 설정된 config (grid_results_path=None)
+        Given: 파라미터가 직접 설정된 config
         When: resolve_params_for_config 호출
-        Then: override 값이 params에 반영, 출처 "OVERRIDE"
+        Then: 설정된 값이 params에 반영, 출처 "FIXED"
         """
         # Given
         config = BufferZoneConfig(
-            strategy_name="test_override",
-            display_name="테스트 오버라이드",
+            strategy_name="test_explicit",
+            display_name="테스트 직접 설정",
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=Path("results/test"),
-            grid_results_path=None,
-            override_ma_window=200,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=200,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -159,77 +150,22 @@ class TestResolveParamsForConfig:
         assert params.sell_buffer_zone_pct == 0.05
         assert params.hold_days == 0
         assert params.recent_months == 0
-        assert all(s == "OVERRIDE" for s in sources.values())
+        assert all(s == "FIXED" for s in sources.values())
 
-    def test_grid_fallback_when_override_is_none(self, tmp_path):
+    def test_default_values_when_not_specified(self):
         """
-        목적: override=None + grid 파일 존재 시 grid 값 사용 검증
+        목적: 기본값만으로 생성 시 FIXED_4P_* 기본값이 적용되는지 검증
 
-        Given: override=None, grid_results.csv에 파라미터 존재
+        Given: 필수 필드만 설정한 config (기본값 사용)
         When: resolve_params_for_config 호출
-        Then: grid의 첫 행 값 사용, 출처 "grid_best"
+        Then: FIXED_4P_* 기본값 사용, 출처 "FIXED"
         """
         from qbt.backtest.constants import (
-            DISPLAY_BUY_BUFFER_ZONE,
-            DISPLAY_HOLD_DAYS,
-            DISPLAY_MA_WINDOW,
-            DISPLAY_RECENT_MONTHS,
-            DISPLAY_SELL_BUFFER_ZONE,
-        )
-
-        # Given: grid_results.csv 생성
-        grid_path = tmp_path / "grid_results.csv"
-        grid_df = pd.DataFrame(
-            {
-                DISPLAY_MA_WINDOW: [150],
-                DISPLAY_BUY_BUFFER_ZONE: [0.04],
-                DISPLAY_SELL_BUFFER_ZONE: [0.03],
-                DISPLAY_HOLD_DAYS: [2],
-                DISPLAY_RECENT_MONTHS: [4],
-            }
-        )
-        grid_df.to_csv(grid_path, index=False)
-
-        config = BufferZoneConfig(
-            strategy_name="test_grid",
-            display_name="테스트 그리드",
-            signal_data_path=Path("signal.csv"),
-            trade_data_path=Path("trade.csv"),
-            result_dir=Path("results/test"),
-            grid_results_path=grid_path,
-            override_ma_window=None,
-            override_buy_buffer_zone_pct=None,
-            override_sell_buffer_zone_pct=None,
-            override_hold_days=None,
-            override_recent_months=None,
-            ma_type="ema",
-        )
-
-        # When
-        params, sources = resolve_params_for_config(config)
-
-        # Then
-        assert params.ma_window == 150
-        assert params.buy_buffer_zone_pct == 0.04
-        assert params.sell_buffer_zone_pct == 0.03
-        assert params.hold_days == 2
-        assert params.recent_months == 4
-        assert all(s == "grid_best" for s in sources.values())
-
-    def test_default_fallback_when_no_grid(self, tmp_path):
-        """
-        목적: override=None + grid_results_path=None 시 DEFAULT 사용 검증
-
-        Given: override=None, grid_results_path=None
-        When: resolve_params_for_config 호출
-        Then: DEFAULT 상수 값 사용, 출처 "DEFAULT"
-        """
-        from qbt.backtest.constants import (
-            DEFAULT_BUY_BUFFER_ZONE_PCT,
-            DEFAULT_HOLD_DAYS,
-            DEFAULT_MA_WINDOW,
-            DEFAULT_RECENT_MONTHS,
-            DEFAULT_SELL_BUFFER_ZONE_PCT,
+            FIXED_4P_BUY_BUFFER_ZONE_PCT,
+            FIXED_4P_HOLD_DAYS,
+            FIXED_4P_MA_WINDOW,
+            FIXED_4P_RECENT_MONTHS,
+            FIXED_4P_SELL_BUFFER_ZONE_PCT,
         )
 
         # Given
@@ -239,25 +175,18 @@ class TestResolveParamsForConfig:
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=Path("results/test"),
-            grid_results_path=None,
-            override_ma_window=None,
-            override_buy_buffer_zone_pct=None,
-            override_sell_buffer_zone_pct=None,
-            override_hold_days=None,
-            override_recent_months=None,
-            ma_type="ema",
         )
 
         # When
         params, sources = resolve_params_for_config(config)
 
         # Then
-        assert params.ma_window == DEFAULT_MA_WINDOW
-        assert params.buy_buffer_zone_pct == DEFAULT_BUY_BUFFER_ZONE_PCT
-        assert params.sell_buffer_zone_pct == DEFAULT_SELL_BUFFER_ZONE_PCT
-        assert params.hold_days == DEFAULT_HOLD_DAYS
-        assert params.recent_months == DEFAULT_RECENT_MONTHS
-        assert all(s == "DEFAULT" for s in sources.values())
+        assert params.ma_window == FIXED_4P_MA_WINDOW
+        assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
+        assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
+        assert params.hold_days == FIXED_4P_HOLD_DAYS
+        assert params.recent_months == FIXED_4P_RECENT_MONTHS
+        assert all(s == "FIXED" for s in sources.values())
 
     def test_4p_config_sets_hold_days_three(self):
         """
@@ -277,56 +206,43 @@ class TestResolveParamsForConfig:
         assert params.hold_days == 3, "4P config는 hold_days=3이어야 합니다"
         assert params.recent_months == 0, "4P config는 recent_months=0이어야 합니다"
 
-    def test_tqqq_config_default_fallback(self, tmp_path):
+    def test_tqqq_config_uses_4p_defaults(self):
         """
-        목적: buffer_zone_tqqq config에서 override=None, grid 없음 -> DEFAULT 사용 검증
+        목적: buffer_zone_tqqq config가 4P 기본값을 사용하는지 검증
 
-        Given: buffer_zone_tqqq config를 가져와 grid_results_path를 존재하지 않는 경로로 교체
+        Given: buffer_zone_tqqq config (CONFIGS에서 가져옴)
         When: resolve_params_for_config 호출
-        Then: DEFAULT 상수 값 사용, 출처 "DEFAULT"
+        Then: FIXED_4P_* 기본값 사용, 출처 "FIXED"
         """
         from qbt.backtest.constants import (
-            DEFAULT_BUY_BUFFER_ZONE_PCT,
-            DEFAULT_HOLD_DAYS,
-            DEFAULT_MA_WINDOW,
-            DEFAULT_RECENT_MONTHS,
-            DEFAULT_SELL_BUFFER_ZONE_PCT,
+            FIXED_4P_BUY_BUFFER_ZONE_PCT,
+            FIXED_4P_HOLD_DAYS,
+            FIXED_4P_MA_WINDOW,
+            FIXED_4P_RECENT_MONTHS,
+            FIXED_4P_SELL_BUFFER_ZONE_PCT,
         )
 
-        # Given: tqqq config 복제 (grid 파일 없는 경로)
-        config = BufferZoneConfig(
-            strategy_name="buffer_zone_tqqq",
-            display_name="버퍼존 전략 (TQQQ)",
-            signal_data_path=Path("signal.csv"),
-            trade_data_path=Path("trade.csv"),
-            result_dir=tmp_path / "buffer_zone_tqqq",
-            grid_results_path=tmp_path / "nonexistent.csv",
-            override_ma_window=None,
-            override_buy_buffer_zone_pct=None,
-            override_sell_buffer_zone_pct=None,
-            override_hold_days=None,
-            override_recent_months=None,
-            ma_type="ema",
-        )
+        # Given
+        config = get_config("buffer_zone_tqqq")
 
         # When
         params, sources = resolve_params_for_config(config)
 
         # Then
-        assert params.ma_window == DEFAULT_MA_WINDOW
-        assert params.buy_buffer_zone_pct == DEFAULT_BUY_BUFFER_ZONE_PCT
-        assert params.sell_buffer_zone_pct == DEFAULT_SELL_BUFFER_ZONE_PCT
-        assert params.hold_days == DEFAULT_HOLD_DAYS
-        assert params.recent_months == DEFAULT_RECENT_MONTHS
-        assert all(s == "DEFAULT" for s in sources.values())
+        assert params.ma_window == FIXED_4P_MA_WINDOW
+        assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
+        assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
+        assert params.hold_days == FIXED_4P_HOLD_DAYS
+        assert params.recent_months == FIXED_4P_RECENT_MONTHS
+        assert all(s == "FIXED" for s in sources.values())
 
-    def test_tqqq_config_override_priority(self):
+    def test_custom_params_applied(self):
         """
-        목적: buffer_zone_tqqq config에서 OVERRIDE 값 최우선 검증
+        목적: 직접 파라미터를 설정한 config에서 해당 값이 사용되는지 검증
 
-        Given: 모든 override 값이 설정된 config
+        Given: 커스텀 파라미터가 설정된 config
         When: resolve_params_for_config 호출
-        Then: OVERRIDE 값이 사용됨
+        Then: 커스텀 값이 사용됨, 출처 "FIXED"
         """
         # Given
         config = BufferZoneConfig(
@@ -335,13 +251,11 @@ class TestResolveParamsForConfig:
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=Path("results/tqqq"),
-            grid_results_path=None,
-            override_ma_window=50,
-            override_buy_buffer_zone_pct=0.05,
-            override_sell_buffer_zone_pct=0.04,
-            override_hold_days=3,
-            override_recent_months=6,
-            ma_type="ema",
+            ma_window=50,
+            buy_buffer_zone_pct=0.05,
+            sell_buffer_zone_pct=0.04,
+            hold_days=3,
+            recent_months=6,
         )
 
         # When
@@ -353,62 +267,7 @@ class TestResolveParamsForConfig:
         assert params.sell_buffer_zone_pct == 0.04
         assert params.hold_days == 3
         assert params.recent_months == 6
-        assert all(s == "OVERRIDE" for s in sources.values())
-
-    def test_tqqq_config_grid_best_fallback(self, tmp_path):
-        """
-        목적: buffer_zone_tqqq config에서 grid_results.csv 존재 시 grid_best 사용 검증
-
-        Given: override=None, grid_results.csv에 파라미터 존재
-        When: resolve_params_for_config 호출
-        Then: grid의 첫 행 값 사용, 출처 "grid_best"
-        """
-        from qbt.backtest.constants import (
-            DISPLAY_BUY_BUFFER_ZONE,
-            DISPLAY_HOLD_DAYS,
-            DISPLAY_MA_WINDOW,
-            DISPLAY_RECENT_MONTHS,
-            DISPLAY_SELL_BUFFER_ZONE,
-        )
-
-        # Given: grid_results.csv 생성
-        grid_path = tmp_path / "grid_results.csv"
-        grid_df = pd.DataFrame(
-            {
-                DISPLAY_MA_WINDOW: [150],
-                DISPLAY_BUY_BUFFER_ZONE: [0.04],
-                DISPLAY_SELL_BUFFER_ZONE: [0.03],
-                DISPLAY_HOLD_DAYS: [2],
-                DISPLAY_RECENT_MONTHS: [4],
-            }
-        )
-        grid_df.to_csv(grid_path, index=False)
-
-        config = BufferZoneConfig(
-            strategy_name="buffer_zone_tqqq",
-            display_name="버퍼존 전략 (TQQQ)",
-            signal_data_path=Path("signal.csv"),
-            trade_data_path=Path("trade.csv"),
-            result_dir=tmp_path / "buffer_zone_tqqq",
-            grid_results_path=grid_path,
-            override_ma_window=None,
-            override_buy_buffer_zone_pct=None,
-            override_sell_buffer_zone_pct=None,
-            override_hold_days=None,
-            override_recent_months=None,
-            ma_type="ema",
-        )
-
-        # When
-        params, sources = resolve_params_for_config(config)
-
-        # Then
-        assert params.ma_window == 150
-        assert params.buy_buffer_zone_pct == 0.04
-        assert params.sell_buffer_zone_pct == 0.03
-        assert params.hold_days == 2
-        assert params.recent_months == 4
-        assert all(s == "grid_best" for s in sources.values())
+        assert all(s == "FIXED" for s in sources.values())
 
 
 class TestCreateRunner:
@@ -445,13 +304,11 @@ class TestCreateRunner:
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=tmp_path / "test",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -480,13 +337,11 @@ class TestCreateRunner:
             signal_data_path=data_path,
             trade_data_path=data_path,
             result_dir=tmp_path / "test_result",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -525,13 +380,11 @@ class TestCreateRunner:
             signal_data_path=same_path,
             trade_data_path=same_path,
             result_dir=tmp_path / "test",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -563,13 +416,11 @@ class TestCreateRunner:
             signal_data_path=Path("signal.csv"),
             trade_data_path=Path("trade.csv"),
             result_dir=tmp_path / "test",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -600,13 +451,11 @@ class TestCreateRunner:
             signal_data_path=signal_path,
             trade_data_path=trade_path,
             result_dir=tmp_path / "test",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.05,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -635,20 +484,17 @@ class TestCreateRunner:
         mock_overlap.return_value = (test_df.copy(), test_df.copy())
 
         tqqq_config = get_config("buffer_zone_tqqq")
-        # grid_results_path를 None으로 교체하여 override 사용
         config = BufferZoneConfig(
             strategy_name=tqqq_config.strategy_name,
             display_name=tqqq_config.display_name,
             signal_data_path=tqqq_config.signal_data_path,
             trade_data_path=tqqq_config.trade_data_path,
             result_dir=tmp_path / "buffer_zone_tqqq",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.03,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When
@@ -690,13 +536,11 @@ class TestCreateRunner:
             signal_data_path=qqq_config.signal_data_path,
             trade_data_path=qqq_config.trade_data_path,
             result_dir=tmp_path / "buffer_zone_qqq",
-            grid_results_path=None,
-            override_ma_window=5,
-            override_buy_buffer_zone_pct=0.03,
-            override_sell_buffer_zone_pct=0.03,
-            override_hold_days=0,
-            override_recent_months=0,
-            ma_type="ema",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.03,
+            hold_days=0,
+            recent_months=0,
         )
 
         # When

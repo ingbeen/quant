@@ -15,7 +15,14 @@ from pathlib import Path
 from typing import Any
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.constants import (
+    DEFAULT_INITIAL_CAPITAL,
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_RECENT_MONTHS,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
+)
 from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     resolve_buffer_params,
@@ -55,13 +62,10 @@ logger = get_logger(__name__)
 class BufferZoneConfig:
     """버퍼존 통합 전략의 자산별 설정.
 
-    각 자산에 대한 전략 식별 정보, 데이터 경로, 파라미터 결정 방식을 담는다.
+    각 자산에 대한 전략 식별 정보, 데이터 경로, 파라미터를 담는다.
     CONFIGS 리스트에 추가하면 자동으로 전략 레지스트리에 등록된다.
 
-    파라미터 결정 방식:
-        - override가 설정된 경우: 해당 값 고정 사용 (cross-asset 패턴)
-        - override=None + grid_results_path 존재: grid 최적값 사용 (기존 패턴)
-        - override=None + grid_results_path=None: DEFAULT 상수 사용
+    파라미터는 직접 설정하며, 기본값은 4P 확정 파라미터를 사용한다.
     """
 
     strategy_name: str  # 전략 내부 식별자 (예: "buffer_zone_tqqq")
@@ -69,71 +73,42 @@ class BufferZoneConfig:
     signal_data_path: Path  # 시그널용 데이터 경로
     trade_data_path: Path  # 매매용 데이터 경로
     result_dir: Path  # 결과 저장 디렉토리
-    grid_results_path: Path | None  # 그리드 서치 결과 CSV 경로 (None이면 grid 건너뜀)
-    override_ma_window: int | None  # MA 기간 오버라이드 (None이면 폴백)
-    override_buy_buffer_zone_pct: float | None  # 매수 버퍼존 비율 오버라이드 (None이면 폴백)
-    override_sell_buffer_zone_pct: float | None  # 매도 버퍼존 비율 오버라이드 (None이면 폴백)
-    override_hold_days: int | None  # 유지일수 오버라이드 (None이면 폴백)
-    override_recent_months: int | None  # 조정기간 오버라이드 (None이면 폴백)
-    ma_type: str  # 이동평균 유형 ("ema" 또는 "sma")
+    ma_window: int = FIXED_4P_MA_WINDOW  # 이동평균 기간
+    buy_buffer_zone_pct: float = FIXED_4P_BUY_BUFFER_ZONE_PCT  # 매수 버퍼존 비율
+    sell_buffer_zone_pct: float = FIXED_4P_SELL_BUFFER_ZONE_PCT  # 매도 버퍼존 비율
+    hold_days: int = FIXED_4P_HOLD_DAYS  # 유지일수
+    recent_months: int = FIXED_4P_RECENT_MONTHS  # 조정기간
+    ma_type: str = "ema"  # 이동평균 유형 ("ema" 또는 "sma")
 
 
 # ============================================================================
 # CONFIGS 리스트 (8개)
 # ============================================================================
 
-# 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반)
-_4P_MA_WINDOW = 200
-_4P_BUY_BUFFER_PCT = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
-_4P_SELL_BUFFER_PCT = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
-_4P_HOLD_DAYS = 3
-_4P_RECENT_MONTHS = 0
-
 CONFIGS: list[BufferZoneConfig] = [
-    # --- TQQQ (QQQ 시그널 + TQQQ 합성 매매, 4P 고정) ---
+    # --- TQQQ (QQQ 시그널 + TQQQ 합성 매매) ---
     BufferZoneConfig(
         strategy_name="buffer_zone_tqqq",
         display_name="버퍼존 전략 (TQQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BUFFER_ZONE_TQQQ_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
-    # --- QQQ (4P 고정) ---
+    # --- QQQ ---
     BufferZoneConfig(
         strategy_name="buffer_zone_qqq",
         display_name="버퍼존 전략 (QQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BUFFER_ZONE_QQQ_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
-    # --- cross-asset 6개 (4P 고정) ---
+    # --- cross-asset 6개 ---
     BufferZoneConfig(
         strategy_name="buffer_zone_spy",
         display_name="버퍼존 전략 (SPY)",
         signal_data_path=SPY_DATA_PATH,
         trade_data_path=SPY_DATA_PATH,
         result_dir=BUFFER_ZONE_SPY_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_iwm",
@@ -141,13 +116,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=IWM_DATA_PATH,
         trade_data_path=IWM_DATA_PATH,
         result_dir=BUFFER_ZONE_IWM_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_efa",
@@ -155,13 +123,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=EFA_DATA_PATH,
         trade_data_path=EFA_DATA_PATH,
         result_dir=BUFFER_ZONE_EFA_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_eem",
@@ -169,13 +130,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=EEM_DATA_PATH,
         trade_data_path=EEM_DATA_PATH,
         result_dir=BUFFER_ZONE_EEM_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_gld",
@@ -183,13 +137,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=GLD_DATA_PATH,
         trade_data_path=GLD_DATA_PATH,
         result_dir=BUFFER_ZONE_GLD_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_tlt",
@@ -197,13 +144,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=TLT_DATA_PATH,
         trade_data_path=TLT_DATA_PATH,
         result_dir=BUFFER_ZONE_TLT_RESULTS_DIR,
-        grid_results_path=None,
-        override_ma_window=_4P_MA_WINDOW,
-        override_buy_buffer_zone_pct=_4P_BUY_BUFFER_PCT,
-        override_sell_buffer_zone_pct=_4P_SELL_BUFFER_PCT,
-        override_hold_days=_4P_HOLD_DAYS,
-        override_recent_months=_4P_RECENT_MONTHS,
-        ma_type="ema",
     ),
 ]
 
@@ -242,7 +182,7 @@ def resolve_params_for_config(
 ) -> tuple[BufferStrategyParams, dict[str, str]]:
     """BufferZoneConfig에 따라 전략 파라미터를 결정한다.
 
-    resolve_buffer_params()에 config의 override/grid 값을 위임한다.
+    config의 파라미터를 resolve_buffer_params()에 전달한다.
 
     Args:
         config: 버퍼존 전략 설정
@@ -253,12 +193,11 @@ def resolve_params_for_config(
             - sources: 각 파라미터의 출처 딕셔너리
     """
     return resolve_buffer_params(
-        config.grid_results_path,
-        config.override_ma_window,
-        config.override_buy_buffer_zone_pct,
-        config.override_sell_buffer_zone_pct,
-        config.override_hold_days,
-        config.override_recent_months,
+        config.ma_window,
+        config.buy_buffer_zone_pct,
+        config.sell_buffer_zone_pct,
+        config.hold_days,
+        config.recent_months,
     )
 
 

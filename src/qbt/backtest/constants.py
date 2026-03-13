@@ -33,15 +33,18 @@ DEFAULT_SELL_BUFFER_ZONE_PCT: Final = 0.03  # 매도 버퍼존 비율 (0.03 = 3%
 DEFAULT_HOLD_DAYS: Final = 0  # 유지조건 기본값 (0일 = 버퍼존만 모드)
 DEFAULT_RECENT_MONTHS: Final = 0  # 최근 청산 기간 기본값 (개월)
 
+# --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
+FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간
+FIXED_4P_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 확정 매수 버퍼존 비율 (0.03 = 3%)
+FIXED_4P_SELL_BUFFER_ZONE_PCT: Final = 0.05  # 확정 매도 버퍼존 비율 (0.05 = 5%)
+FIXED_4P_HOLD_DAYS: Final = 3  # 확정 유지일수
+FIXED_4P_RECENT_MONTHS: Final = 0  # 확정 조정기간 (0 = 비활성화)
+
 # --- 버퍼존 전략 제약 조건 ---
 MIN_BUY_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매수 버퍼존 비율 (0.01 = 1%)
 MIN_SELL_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매도 버퍼존 비율 (0.01 = 1%)
 MIN_HOLD_DAYS: Final = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 MIN_VALID_ROWS: Final = 2  # 백테스트 최소 유효 데이터 행 수
-
-# --- Donchian Channel 전략 기본값 ---
-DEFAULT_ENTRY_CHANNEL_DAYS: Final = 55  # 매수 채널 기간 (55일 최고가)
-DEFAULT_EXIT_CHANNEL_DAYS: Final = 20  # 매도 채널 기간 (20일 최저가)
 
 # --- WFO 파라미터 리스트 (그리드 서치 + 워크포워드 공용) ---
 DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]  # 3개
@@ -69,18 +72,6 @@ WALKFORWARD_EQUITY_DYNAMIC_FILENAME: Final = "walkforward_equity_dynamic.csv"
 WALKFORWARD_EQUITY_SELL_FIXED_FILENAME: Final = "walkforward_equity_sell_fixed.csv"
 WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME: Final = "walkforward_equity_fully_fixed.csv"
 WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
-
-# ============================================================
-# CSCV 과최적화 검증 상수
-# ============================================================
-
-# --- CSCV 블록 설정 ---
-DEFAULT_CSCV_N_BLOCKS: Final = 6  # 시계열 블록 수 (짝수). C(6,3)=20 조합
-DEFAULT_CSCV_METRIC: Final = "sharpe"  # 기본 성과 지표 ("sharpe" 또는 "calmar")
-
-# --- CSCV 결과 파일명 ---
-CSCV_ANALYSIS_FILENAME: Final = "cscv_analysis.json"
-CSCV_LOGIT_LAMBDAS_FILENAME: Final = "cscv_logit_lambdas.csv"
 
 # ============================================================
 # 시장 구간 정의 (QQQ 기준, 수동 분류)

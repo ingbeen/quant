@@ -9,17 +9,23 @@ from pathlib import Path
 
 import pandas as pd
 
+from qbt.backtest.constants import (
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
+)
 from qbt.common_constants import BACKTEST_RESULTS_DIR
 
 # 고원 분석 결과 디렉토리
 _PLATEAU_DIR = BACKTEST_RESULTS_DIR / "param_plateau"
 
-# 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반)
+# 4P 확정 파라미터 (constants.py FIXED_4P_* 참조)
 _CURRENT_VALUES: dict[str, int | float] = {
-    "ma_window": 200,
-    "buy_buffer": 0.03,
-    "sell_buffer": 0.05,
-    "hold_days": 3,
+    "ma_window": FIXED_4P_MA_WINDOW,
+    "buy_buffer": FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    "sell_buffer": FIXED_4P_SELL_BUFFER_ZONE_PCT,
+    "hold_days": FIXED_4P_HOLD_DAYS,
 }
 
 
