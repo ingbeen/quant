@@ -22,6 +22,7 @@ Fail-fast 정책:
 """
 
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -624,7 +625,7 @@ def _render_walkforward_fixed_b_section() -> None:
             st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
 
     with col3:
-        fb_stitched: float | None = fb_summary.get("stitched_rmse")  # type: ignore[assignment]
+        fb_stitched = cast(float | None, fb_summary.get("stitched_rmse"))
         if fb_stitched is not None:
             st.metric(
                 label=f"b고정 WF stitched RMSE (%)\n(b={fixed_b_value:.4f} 고정, a만 최적화)",
@@ -930,7 +931,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.metric(label="정적 RMSE (%)", value="N/A")
 
     with col2:
-        fab_stitched: float | None = fab_summary.get("stitched_rmse")  # type: ignore[assignment]
+        fab_stitched = cast(float | None, fab_summary.get("stitched_rmse"))
         if fab_stitched is not None:
             st.metric(
                 label="완전 고정 WF stitched RMSE (%)\n(아웃오브샘플)",
@@ -947,7 +948,7 @@ def _render_overfitting_diagnosis_section() -> None:
             st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
 
     with col4:
-        fb_stitched: float | None = fb_summary.get("stitched_rmse") if fb_summary else None  # type: ignore[assignment]
+        fb_stitched: float | None = fb_summary.get("stitched_rmse") if fb_summary else None
         if fb_stitched is not None:
             st.metric(label="b고정 WF stitched RMSE (%)\n(b 고정, a만 최적화)", value=f"{fb_stitched:.4f}")
         else:
@@ -978,11 +979,11 @@ def _render_overfitting_diagnosis_section() -> None:
     st.subheader("금리 구간별 RMSE 분해")
 
     # summary CSV에서 금리 구간별 RMSE 로드
-    rate_boundary: float | None = fab_summary.get("rate_boundary_pct")  # type: ignore[assignment]
-    low_rate_rmse: float | None = fab_summary.get("low_rate_rmse")  # type: ignore[assignment]
-    high_rate_rmse: float | None = fab_summary.get("high_rate_rmse")  # type: ignore[assignment]
-    low_rate_days: int | None = fab_summary.get("low_rate_days")  # type: ignore[assignment]
-    high_rate_days: int | None = fab_summary.get("high_rate_days")  # type: ignore[assignment]
+    rate_boundary = cast(float | None, fab_summary.get("rate_boundary_pct"))
+    low_rate_rmse = cast(float | None, fab_summary.get("low_rate_rmse"))
+    high_rate_rmse = cast(float | None, fab_summary.get("high_rate_rmse"))
+    low_rate_days = cast(int | None, fab_summary.get("low_rate_days"))
+    high_rate_days = cast(int | None, fab_summary.get("high_rate_days"))
 
     boundary_label = f"{rate_boundary:.0f}" if rate_boundary is not None else "2"
 
@@ -1290,7 +1291,7 @@ def _render_rmse_comparison(summary: dict[str, float]) -> None:
         static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
 
     # 연속 워크포워드 RMSE (summary CSV에서 읽기)
-    stitched_rmse: float | None = summary.get("stitched_rmse")  # type: ignore[assignment]
+    stitched_rmse: float | None = summary.get("stitched_rmse")
 
     # 3개 지표 표시
     col1, col2, col3 = st.columns(3)

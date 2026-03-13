@@ -5,6 +5,8 @@
 고원 구간 탐지 및 현재 확정값 제공 기능을 포함한다.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pandas as pd
@@ -95,7 +97,7 @@ def get_plateau_dir() -> Path:
 
 
 def find_plateau_range(
-    series: pd.Series,  # type: ignore[type-arg]
+    series: pd.Series[float],
     threshold_ratio: float = 0.9,
 ) -> tuple[float, float] | None:
     """고원 구간을 탐지한다.

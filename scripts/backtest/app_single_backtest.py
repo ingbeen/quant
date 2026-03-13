@@ -14,7 +14,7 @@ BACKTEST_RESULTS_DIR 하위 전략별 결과 폴더를 자동 탐색하여
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -118,7 +118,7 @@ def _load_csv(path_str: str) -> pd.DataFrame:
 def _load_json(path_str: str) -> dict[str, Any]:
     """JSON 파일을 로드한다."""
     with Path(path_str).open("r", encoding="utf-8") as f:
-        return json.load(f)  # type: ignore[no-any-return]
+        return cast(dict[str, Any], json.load(f))
 
 
 def _discover_strategies() -> list[StrategyData]:
@@ -219,17 +219,17 @@ def _build_candle_data(
         d: date = getattr(row, COL_DATE)
         entry: dict[str, float] = {}
         if has_upper_band and pd.notna(row.upper_band):
-            entry["upper"] = float(row.upper_band)  # type: ignore[arg-type]
+            entry["upper"] = float(cast(float, row.upper_band))
         elif has_upper_channel and pd.notna(row.upper_channel):
-            entry["upper"] = float(row.upper_channel)  # type: ignore[arg-type]
+            entry["upper"] = float(cast(float, row.upper_channel))
         if has_lower_band and pd.notna(row.lower_band):
-            entry["lower"] = float(row.lower_band)  # type: ignore[arg-type]
+            entry["lower"] = float(cast(float, row.lower_band))
         elif has_lower_channel and pd.notna(row.lower_channel):
-            entry["lower"] = float(row.lower_channel)  # type: ignore[arg-type]
+            entry["lower"] = float(cast(float, row.lower_channel))
         if has_equity and pd.notna(row.equity):
-            entry["equity"] = float(row.equity)  # type: ignore[arg-type]
+            entry["equity"] = float(cast(float, row.equity))
         if has_drawdown and pd.notna(row.drawdown_pct):
-            entry["dd"] = float(row.drawdown_pct)  # type: ignore[arg-type]
+            entry["dd"] = float(cast(float, row.drawdown_pct))
         if entry:
             equity_map[d] = entry
 
@@ -317,7 +317,7 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
         return markers
 
     for trade in trades_df.itertuples(index=False):
-        entry_d: date = trade.entry_date  # type: ignore[assignment]
+        entry_d = cast(date, trade.entry_date)
         markers.append(
             {
                 "time": entry_d.strftime("%Y-%m-%d"),
@@ -328,8 +328,8 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "size": 2,
             }
         )
-        exit_d: date = trade.exit_date  # type: ignore[assignment]
-        pnl_pct = trade.pnl_pct * 100  # type: ignore[operator]
+        exit_d = cast(date, trade.exit_date)
+        pnl_pct = cast(float, trade.pnl_pct) * 100
         markers.append(
             {
                 "time": exit_d.strftime("%Y-%m-%d"),
@@ -374,7 +374,7 @@ def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     equity_data: list[dict[str, object]] = []
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
-        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.equity)})  # type: ignore[arg-type]
+        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.equity))})
     return equity_data
 
 
@@ -383,7 +383,7 @@ def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     dd_data: list[dict[str, object]] = []
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
-        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(row.drawdown_pct)})  # type: ignore[arg-type]
+        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.drawdown_pct))})
     return dd_data
 
 
@@ -724,7 +724,7 @@ _REGIME_COLUMN_RENAME: dict[str, str] = {
 _ALT_ROW_BG = "background-color: rgba(128, 128, 128, 0.06)"
 
 
-def _style_regime_rows(row: pd.Series) -> list[str]:  # type: ignore[type-arg]
+def _style_regime_rows(row: pd.Series) -> list[str]:
     """구간명/유형은 regime 색상, 나머지는 홀짝 교대 연회색 배경을 반환한다."""
     name_col = _REGIME_COLUMN_RENAME.get("name", "구간명")
     regime_type_col = _REGIME_COLUMN_RENAME.get("regime_type", "유형")
@@ -738,7 +738,7 @@ def _style_regime_rows(row: pd.Series) -> list[str]:  # type: ignore[type-arg]
             break
 
     # 홀수행 교대 배경
-    is_odd = int(row.name) % 2 == 1  # type: ignore[arg-type]
+    is_odd = int(cast(int, row.name)) % 2 == 1
     alt_bg = _ALT_ROW_BG if is_odd else ""
 
     styles: list[str] = []
@@ -847,7 +847,7 @@ def _render_cagr_bar_chart(
 # ============================================================
 
 
-def _style_pnl_rows(row: pd.Series) -> list[str]:  # type: ignore[type-arg]
+def _style_pnl_rows(row: pd.Series) -> list[str]:
     """손익률 기반 행별 배경색을 반환한다.
 
     수익 거래는 옅은 초록, 손실 거래는 옅은 빨강 배경을 적용한다.

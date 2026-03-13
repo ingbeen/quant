@@ -11,6 +11,7 @@ Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
 from datetime import date
 from pathlib import Path
 from statistics import median
+from typing import cast
 
 import pandas as pd
 
@@ -507,7 +508,7 @@ def load_wfo_results_from_csv(csv_path: Path) -> list[WfoWindowResultDict]:
             df[col] = df[col].astype(int)
 
     # 5. dict 리스트 반환
-    records: list[WfoWindowResultDict] = df.to_dict("records")  # type: ignore[assignment]
+    records = cast(list[WfoWindowResultDict], df.to_dict("records"))
     return records
 
 
@@ -586,7 +587,7 @@ def calculate_wfo_mode_summary(
     pc_max = 0.0
     pc_idx = 0
     if stitched_summary is not None and "window_end_equities" in stitched_summary:
-        initial_eq = float(stitched_summary.get("initial_capital", 0.0))  # type: ignore[arg-type]
+        initial_eq = float(cast(float, stitched_summary.get("initial_capital", 0.0)))
         end_equities = stitched_summary["window_end_equities"]
         if isinstance(end_equities, list):
             pc_max, pc_idx = _calculate_profit_concentration(initial_eq, [float(e) for e in end_equities])
@@ -618,12 +619,12 @@ def calculate_wfo_mode_summary(
 
     # Stitched Equity 지표 추가
     if stitched_summary is not None:
-        stitched_cagr = float(stitched_summary.get("cagr", 0.0))  # type: ignore[arg-type]
-        stitched_mdd = float(stitched_summary.get("mdd", 0.0))  # type: ignore[arg-type]
+        stitched_cagr = float(cast(float, stitched_summary.get("cagr", 0.0)))
+        stitched_mdd = float(cast(float, stitched_summary.get("mdd", 0.0)))
         summary["stitched_cagr"] = stitched_cagr
         summary["stitched_mdd"] = stitched_mdd
         summary["stitched_calmar"] = _safe_calmar(stitched_cagr, stitched_mdd)
-        summary["stitched_total_return_pct"] = float(stitched_summary.get("total_return_pct", 0.0))  # type: ignore[arg-type]
+        summary["stitched_total_return_pct"] = float(cast(float, stitched_summary.get("total_return_pct", 0.0)))
 
     return summary
 

@@ -514,7 +514,7 @@ class TestBuildParamsSchedule:
         ]
 
         # When
-        initial_params, schedule = build_params_schedule(results)  # type: ignore[arg-type]
+        initial_params, schedule = build_params_schedule(results)
 
         # Then — initial_params는 첫 윈도우 기반
         assert initial_params.ma_window == 100
@@ -599,7 +599,7 @@ class TestCalculateWfoModeSummary:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results)
 
         # Then
         assert summary["n_windows"] == 2
@@ -698,7 +698,7 @@ class TestWfeCagr:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results)
 
         # Then — wfe_cagr_mean = 0.0
         assert summary["wfe_cagr_mean"] == pytest.approx(0.0, abs=EPSILON)
@@ -795,7 +795,7 @@ class TestWfeCalmarRobust:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results)
 
         # Then — IS Calmar > 0인 윈도우: idx=0 (wfe=1.06), idx=2 (wfe=1.3333)
         # 중앙값 = (1.06 + 1.3333) / 2 = 1.1967
@@ -840,7 +840,7 @@ class TestWfeCalmarRobust:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results)
 
         # Then
         assert summary["wfe_calmar_robust"] == pytest.approx(0.0, abs=EPSILON)
@@ -951,7 +951,7 @@ class TestProfitConcentration:
         }
 
         # When
-        summary = calculate_wfo_mode_summary(results, stitched_summary)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results, stitched_summary)
 
         # Then — max PC = 0.6 at window idx=1
         assert summary["profit_concentration_max"] == pytest.approx(0.6, abs=0.01)
@@ -1006,7 +1006,7 @@ class TestProfitConcentration:
         }
 
         # When
-        summary = calculate_wfo_mode_summary(results, stitched_summary)  # type: ignore[arg-type]
+        summary = calculate_wfo_mode_summary(results, stitched_summary)
 
         # Then — 전체 손실이므로 PC = 0.0
         assert summary["profit_concentration_max"] == pytest.approx(0.0, abs=EPSILON)

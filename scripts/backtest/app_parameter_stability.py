@@ -13,6 +13,8 @@
     poetry run streamlit run scripts/backtest/app_parameter_stability.py
 """
 
+from typing import cast
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -104,8 +106,8 @@ def _render_line_chart(
         qqq_row = pivot.loc["QQQ"]
         # pivot.loc[]은 Series | DataFrame 반환 가능하지만, 단일 행이므로 Series
         assert isinstance(qqq_row, pd.Series)
-        qqq_series: pd.Series[float] = qqq_row  # type: ignore[assignment]
-        qqq_series.index = x_values  # type: ignore[assignment]
+        qqq_series = cast(pd.Series[float], qqq_row)
+        qqq_series.index = cast(pd.Index, x_values)
         plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
         if plateau is not None:
             fig.add_vrect(
