@@ -47,12 +47,11 @@ MIN_HOLD_DAYS: Final = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 MIN_VALID_ROWS: Final = 2  # 백테스트 최소 유효 데이터 행 수
 
 # --- WFO 파라미터 리스트 (그리드 서치 + 워크포워드 공용) ---
-DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]  # 3개
-DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]  # 3개
-DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]  # 3개
-DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]  # 4개
-DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]  # 4개
-# 3 × 3 × 3 × 4 × 4 = 432개
+DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]
+DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]
+DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]
+DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]
+DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]
 
 # --- WFO 최소 거래수 ---
 DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 거래수 제약
@@ -77,7 +76,7 @@ WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 # 시장 구간 정의 (QQQ 기준, 수동 분류)
 # ============================================================
 
-# 19개 구간 (상승 10개, 횡보 3개, 하락 6개)
+# QQQ 기준 수동 분류 (상승/횡보/하락)
 MARKET_REGIMES: Final[list[MarketRegimeDict]] = [
     {"start": "1999-03-10", "end": "2000-03-27", "regime_type": "bull", "name": "닷컴 버블 상승기"},
     {"start": "2000-03-28", "end": "2002-10-09", "regime_type": "bear", "name": "닷컴 붕괴"},

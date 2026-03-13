@@ -98,7 +98,7 @@ class SummaryDict(TypedDict):
 
 
 class BestGridParams(TypedDict):
-    """그리드 서치 최적 파라미터 5개를 담는 타입.
+    """그리드 서치 최적 파라미터를 담는 타입.
 
     walkforward.py의 select_best_calmar_params() 반환 타입으로 사용한다.
     """

@@ -42,7 +42,7 @@
 - WFO 고정값: `DEFAULT_WFO_FIXED_SELL_BUFFER_PCT`
 - WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등 7개
 - 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
-- 시장 구간: `MARKET_REGIMES` (QQQ 기준 19개 구간, `list[MarketRegimeDict]`)
+- 시장 구간: `MARKET_REGIMES` (QQQ 기준 수동 분류, `list[MarketRegimeDict]`)
 
 ### 3. analysis.py
 
@@ -115,7 +115,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `DEFAULT_HOLD_DAYS_INCREMENT_PER_BUY`: 최근 청산 1회당 유지조건 증가량 (1일)
 - `DEFAULT_DAYS_PER_MONTH`: 최근 기간 계산용 월당 일수 (30일 근사값)
 
-헬퍼 함수 (9개):
+헬퍼 함수:
 
 - `_validate_buffer_strategy_inputs`, `_compute_bands`, `_check_pending_conflict`
 - `_record_equity`, `_execute_buy_order`, `_execute_sell_order`
@@ -133,7 +133,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 #### strategies/buffer_zone.py
 
-버퍼존 통합 config-driven 전략 모듈 (8개 자산, 4P 고정). 기존 buffer_zone_tqqq, buffer_zone_qqq를 통합한다.
+버퍼존 통합 config-driven 전략 모듈 (4P 고정). 기존 buffer_zone_tqqq, buffer_zone_qqq를 통합한다.
 
 설정 데이터클래스:
 
@@ -141,7 +141,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설정 목록:
 
-- `CONFIGS`: `list[BufferZoneConfig]` (8개, 전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가. config당 필수 필드(strategy_name, display_name, 경로)만 명시, 나머지는 기본값 활용
+- `CONFIGS`: `list[BufferZoneConfig]` (전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가. config당 필수 필드(strategy_name, display_name, 경로)만 명시, 나머지는 기본값 활용
   - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
   - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
   - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (4P 고정)

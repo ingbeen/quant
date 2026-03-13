@@ -188,7 +188,7 @@ def main() -> None:
     st.title("파라미터 고원 시각화 대시보드")
     st.markdown("4P 확정 파라미터(MA=200, buy=3%, sell=5%, hold=3) 기준 고원 분석")
 
-    # 4개 탭 생성
+    # 탭 생성
     tab_names = [display for _, display in _TABS]
     tabs = st.tabs(tab_names)
 

@@ -1,9 +1,9 @@
 """버퍼존 통합 전략 모듈
 
-config-driven 방식으로 8개 자산의 버퍼존 전략을 통합 관리한다.
+config-driven 방식으로 멀티 자산의 버퍼존 전략을 통합 관리한다.
 전 자산 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일한다.
 
-CONFIGS 목록 (8개):
+CONFIGS 목록:
     - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
     - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
     - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (4P 고정)
@@ -82,7 +82,7 @@ class BufferZoneConfig:
 
 
 # ============================================================================
-# CONFIGS 리스트 (8개)
+# CONFIGS 리스트
 # ============================================================================
 
 CONFIGS: list[BufferZoneConfig] = [
@@ -102,7 +102,7 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BUFFER_ZONE_QQQ_RESULTS_DIR,
     ),
-    # --- cross-asset 6개 ---
+    # --- cross-asset ---
     BufferZoneConfig(
         strategy_name="buffer_zone_spy",
         display_name="버퍼존 전략 (SPY)",

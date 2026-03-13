@@ -58,7 +58,7 @@ poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqq
 
 # 4. 파라미터 고원 분석 (선행: 1)
 poetry run python scripts/backtest/run_param_plateau_all.py
-# 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 7자산 통합 고원 분석
+# 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 멀티자산 통합 고원 분석
 # --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV + 상세 CSV)
 
@@ -67,7 +67,7 @@ poetry run streamlit run scripts/backtest/app_single_backtest.py
 
 # 6. 파라미터 고원 시각화 대시보드 (선행: 4)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
-# 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 7자산 Calmar 라인차트, 고원 구간 하이라이트
+# 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)

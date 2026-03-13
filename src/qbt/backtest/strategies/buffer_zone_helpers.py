@@ -8,7 +8,7 @@
 - DataClasses: BufferStrategyParams, PendingOrder
 - 예외: PendingOrderConflictError
 - 동적 조정 상수
-- 헬퍼 함수 9개 (입력 검증, 밴드 계산, 신호 감지, 주문 실행 등)
+- 헬퍼 함수 (입력 검증, 밴드 계산, 신호 감지, 주문 실행 등)
 - 핵심 함수: run_buffer_strategy, run_grid_search
 """
 
