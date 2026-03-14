@@ -6,6 +6,7 @@
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
 - 이동평균 기반 버퍼존 거래 전략 백테스트 (4P 고정 파라미터: MA=200, buy=3%, sell=5%, hold=3)
+- 분할 매수매도 전략 (ma250/ma200/ma150 3분할, 시간적 분산)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -47,7 +48,13 @@ poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
 
-# 3. 워크포워드 검증 (과최적화 검증, 선행: 1)
+# 3. 분할 매수매도 백테스트 (ma250/ma200/ma150 3분할, 선행: 1)
+# 출력: storage/results/backtest/split_buffer_zone_{tqqq,qqq}/ (equity, trades, summary)
+# --strategy 인자: all(기본) / split_buffer_zone_tqqq / split_buffer_zone_qqq
+poetry run python scripts/backtest/run_split_backtest.py
+poetry run python scripts/backtest/run_split_backtest.py --strategy split_buffer_zone_tqqq
+
+# 4. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
 # 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity
 # 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
@@ -56,20 +63,20 @@ poetry run python scripts/backtest/run_walkforward.py
 # --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
 poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
 
-# 4. 파라미터 고원 분석 (선행: 1)
+# 5. 파라미터 고원 분석 (선행: 1)
 poetry run python scripts/backtest/run_param_plateau_all.py
 # 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 멀티자산 통합 고원 분석
 # --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
 
-# 5. 대시보드 시각화 (선행: 2)
+# 6. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
-# 6. WFO 결과 시각화 대시보드 (선행: 3)
+# 7. WFO 결과 시각화 대시보드 (선행: 4)
 poetry run streamlit run scripts/backtest/app_walkforward.py
 # 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)
 
-# 7. 파라미터 고원 시각화 대시보드 (선행: 4)
+# 8. 파라미터 고원 시각화 대시보드 (선행: 5)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
@@ -202,14 +209,14 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py
+│   ├── backtest/      # run_single_backtest.py, run_split_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 결과 열람
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화 전용)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, split_strategy.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
@@ -233,6 +240,8 @@ quant/
 │       │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
 │       │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
 │       │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
+│       │   ├── split_buffer_zone_tqqq/ # 분할 버퍼존 전략 (TQQQ) 결과
+│       │   ├── split_buffer_zone_qqq/  # 분할 버퍼존 전략 (QQQ) 결과
 │       │   └── param_plateau/         # 파라미터(hold/sell/buy/ma) 고원 분석 결과
 │       └── tqqq/              # TQQQ 시뮬레이션 결과
 │           └── spread_lab/    # 스프레드 모델 검증 결과
@@ -254,6 +263,12 @@ quant/
 - `walkforward_dynamic.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
 - `walkforward_equity_dynamic.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
 - `walkforward_summary.json`: 2-Mode 비교 요약 (Dynamic/Fully Fixed, WFE CAGR/Calmar, Profit Concentration)
+
+분할 매수매도 전략 결과는 `storage/results/backtest/split_buffer_zone_{tqqq,qqq}/` 하위에 저장됩니다.
+
+- `equity.csv`: 합산 에쿼티 + 트랜치별 에쿼티/포지션 + active_tranches + avg_entry_price
+- `trades.csv`: 전체 거래 내역 (tranche_id, tranche_seq, ma_window 태깅)
+- `summary.json`: 분할 레벨 요약 + 트랜치별 요약 + 미청산 포지션
 
 ### TQQQ 시뮬레이션
 

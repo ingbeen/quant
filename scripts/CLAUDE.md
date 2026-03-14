@@ -134,6 +134,11 @@ main 함수:
   - `run_walkforward.py`: WFO 2-Mode 비교 실행 (Dynamic/Fully Fixed)
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
+- 분할 매수매도:
+  - `run_split_backtest.py`: 분할 매수매도 백테스트 실행 (ma250/ma200/ma150 3분할)
+    - `--strategy` 인자로 실행 전략 선택 (all / split_buffer_zone_tqqq / split_buffer_zone_qqq, 기본값: all)
+    - 결과: `split_buffer_zone_tqqq/`, `split_buffer_zone_qqq/` 디렉토리에 equity.csv, trades.csv, summary.json 저장
+    - 메타데이터 타입: `"split_backtest"`
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

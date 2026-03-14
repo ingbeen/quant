@@ -64,6 +64,9 @@ BUFFER_ZONE_EFA_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_efa"  #
 BUFFER_ZONE_EEM_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_eem"  # 버퍼존 EEM 결과
 BUFFER_ZONE_GLD_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_gld"  # 버퍼존 GLD 결과
 BUFFER_ZONE_TLT_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "buffer_zone_tlt"  # 버퍼존 TLT 결과
+# 분할 매수매도 전략 결과 디렉토리
+SPLIT_BUFFER_ZONE_TQQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "split_buffer_zone_tqqq"
+SPLIT_BUFFER_ZONE_QQQ_RESULTS_DIR: Final = BACKTEST_RESULTS_DIR / "split_buffer_zone_qqq"
 
 # 실행 이력 메타데이터 저장 경로 (JSON 형식)
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

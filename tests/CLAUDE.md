@@ -19,6 +19,7 @@ tests/
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
 ├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
 ├── test_buffer_zone.py    # 버퍼존 통합 모듈 테스트 (config, resolve_params, create_runner)
+├── test_split_strategy.py # 분할 매수매도 오케스트레이터 테스트 (자본 분배, 결과 조합, 트랜치 태깅)
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트

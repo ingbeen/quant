@@ -83,7 +83,38 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
 - `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
 
-### 6. strategies/ 패키지
+### 6. split_strategy.py
+
+분할 매수매도 오케스트레이터 모듈을 제공합니다.
+3개 트랜치(ma250/ma200/ma150)를 독립 실행 후 결과를 조합하는 오케스트레이터 패턴입니다.
+기존 `run_buffer_strategy()`를 블랙박스로 호출하며, 기존 코드 무변경 원칙을 준수합니다.
+
+데이터 클래스:
+
+- `SplitTrancheConfig`: 트랜치별 설정 (tranche_id, weight, ma_window). frozen=True
+- `SplitStrategyConfig`: 전략 설정 (strategy_name, display_name, base_config, total_capital, tranches, result_dir). frozen=True
+- `SplitTrancheResult`: 트랜치별 백테스트 결과 (tranche_id, config, trades_df, equity_df, summary)
+- `SplitStrategyResult`: 분할 매수매도 전체 결과 (combined_equity_df, combined_trades_df, combined_summary, per_tranche, config, params_json)
+
+설정 목록:
+
+- `SPLIT_CONFIGS`: `list[SplitStrategyConfig]` (split_buffer_zone_tqqq, split_buffer_zone_qqq)
+
+주요 함수:
+
+- `run_split_backtest`: 분할 매수매도 백테스트 실행 (데이터 1회 로딩, 트랜치별 독립 실행, 결과 조합)
+- `create_split_runner`: 팩토리 함수. `SplitStrategyConfig` → `Callable[[], SplitStrategyResult]` 생성
+
+헬퍼 함수:
+
+- `_combine_equity`: 트랜치별 에쿼티를 합산 (active_tranches, avg_entry_price 포함)
+- `_combine_trades`: 트랜치별 거래를 합산 (tranche_id, tranche_seq, ma_window 태깅)
+- `_calculate_combined_summary`: 합산 에쿼티로 calculate_summary() 호출
+- `_build_params_json`: JSON 저장용 파라미터 딕셔너리 생성
+
+설계 근거: `docs/tranche_architecture.md`, `docs/tranche_final_recommendation.md`
+
+### 7. strategies/ 패키지
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.
 
