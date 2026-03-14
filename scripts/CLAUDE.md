@@ -150,6 +150,11 @@ main 함수:
   - `app_parameter_stability.py`: 4개 파라미터(MA Window, Buy Buffer, Sell Buffer, Hold Days) 고원 시각화 대시보드
     - 선행: `run_param_plateau_all.py` 실행 필요 (고원 분석 CSV 로드)
     - 각 탭: 7자산 Calmar 라인차트, 확정값 마커, 고원 구간 하이라이트, 보조 지표(CAGR/MDD/거래수) expander
+  - `app_walkforward.py`: WFO 2-Mode 결과 시각화 대시보드 (Streamlit + Plotly)
+    - 선행: `run_walkforward.py` 실행 필요 (WFO 결과 CSV/JSON 로드)
+    - 전략 자동 탐색: walkforward_summary.json 존재 여부로 탭 자동 생성
+    - 5개 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포
+    - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
 
 ### 레버리지 시뮬레이션 (tqqq/)
 

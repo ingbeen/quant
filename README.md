@@ -49,7 +49,7 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
 
 # 3. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
-# 출력: 3-Mode 비교 (동적/sell고정/전체고정) + stitched equity
+# 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity
 # 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
 # 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
 
@@ -65,7 +65,11 @@ poetry run python scripts/backtest/run_param_plateau_all.py
 # 5. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
-# 6. 파라미터 고원 시각화 대시보드 (선행: 4)
+# 6. WFO 결과 시각화 대시보드 (선행: 3)
+poetry run streamlit run scripts/backtest/app_walkforward.py
+# 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)
+
+# 7. 파라미터 고원 시각화 대시보드 (선행: 4)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
@@ -198,7 +202,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_parameter_stability.py
+│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 결과 열람
@@ -249,7 +253,7 @@ quant/
 - `summary.json`: 요약 지표 + 파라미터 + 월별 수익률
 - `walkforward_dynamic.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
 - `walkforward_equity_dynamic.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
-- `walkforward_summary.json`: 2-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
+- `walkforward_summary.json`: 2-Mode 비교 요약 (Dynamic/Fully Fixed, WFE CAGR/Calmar, Profit Concentration)
 
 ### TQQQ 시뮬레이션
 
