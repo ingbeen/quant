@@ -350,8 +350,6 @@ def test_with_temp_files(self, mock_storage_paths):
   - `VALUE` 컬럼: 0~1 비율
 
 - `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
-- `mock_stock_dir`: `common_constants.STOCK_DIR`만 임시 경로로 패치
-- `mock_etc_dir`: `common_constants.ETC_DIR`만 임시 경로로 패치
 - `mock_results_dir`: `RESULTS_DIR`, `META_JSON_PATH` 임시 경로로 패치 (meta_manager 포함)
 - `mock_storage_paths`: 통합 픽스처 — 모든 storage 경로를 임시 경로로 패치
 

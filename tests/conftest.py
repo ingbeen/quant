@@ -114,58 +114,6 @@ def create_csv_file(tmp_path: Path):
 
 
 @pytest.fixture
-def mock_stock_dir(tmp_path, monkeypatch):
-    """
-    주식 데이터 디렉토리(STOCK_DIR)만 테스트 임시 디렉토리로 변경
-
-    패치 대상:
-        - common_constants.STOCK_DIR
-
-    사용 예시:
-        주식 CSV 파일 로딩/저장 테스트에서 사용
-
-    Returns:
-        Path: 임시 STOCK_DIR 경로
-    """
-    # 임시 디렉토리 생성
-    stock_dir = tmp_path / "stock"
-    stock_dir.mkdir()
-
-    # common_constants 모듈의 STOCK_DIR만 패치
-    from qbt import common_constants
-
-    monkeypatch.setattr(common_constants, "STOCK_DIR", stock_dir)
-
-    return stock_dir
-
-
-@pytest.fixture
-def mock_etc_dir(tmp_path, monkeypatch):
-    """
-    기타 데이터 디렉토리(ETC_DIR)만 테스트 임시 디렉토리로 변경
-
-    패치 대상:
-        - common_constants.ETC_DIR
-
-    사용 예시:
-        FFR, expense ratio 등 기타 CSV 파일 로딩/저장 테스트에서 사용
-
-    Returns:
-        Path: 임시 ETC_DIR 경로
-    """
-    # 임시 디렉토리 생성
-    etc_dir = tmp_path / "etc"
-    etc_dir.mkdir()
-
-    # common_constants 모듈의 ETC_DIR만 패치
-    from qbt import common_constants
-
-    monkeypatch.setattr(common_constants, "ETC_DIR", etc_dir)
-
-    return etc_dir
-
-
-@pytest.fixture
 def mock_results_dir(tmp_path, monkeypatch):
     """
     분석 결과 디렉토리를 테스트 임시 디렉토리로 변경
