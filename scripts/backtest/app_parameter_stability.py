@@ -21,6 +21,7 @@ import streamlit as st
 
 from qbt.backtest.parameter_stability import (
     find_plateau_range,
+    find_plateau_range_with_trade_filter,
     get_current_value,
     load_plateau_pivot,
 )
@@ -44,6 +45,9 @@ _SUB_CHART_HEIGHT = 350
 # 고원 구간 배경색
 _PLATEAU_BG_COLOR = "rgba(144, 238, 144, 0.15)"
 
+# Sell Buffer 거래 수 필터 기준
+_SELL_BUFFER_MIN_TRADES = 5
+
 
 def _render_line_chart(
     param_name: str,
@@ -52,6 +56,7 @@ def _render_line_chart(
     height: int = _CHART_HEIGHT,
     show_plateau: bool = True,
     show_current: bool = True,
+    trade_filter_min_trades: int | None = None,
 ) -> None:
     """라인차트를 렌더링한다.
 
@@ -62,6 +67,7 @@ def _render_line_chart(
         height: 차트 높이
         show_plateau: 고원 구간 하이라이트 표시 여부
         show_current: 현재 확정값 마커 표시 여부
+        trade_filter_min_trades: 거래 수 필터 기준 (설정 시 해당 미만 파라미터를 고원 탐지에서 제외)
     """
     try:
         pivot = load_plateau_pivot(param_name, metric)
@@ -108,14 +114,35 @@ def _render_line_chart(
         assert isinstance(qqq_row, pd.Series)
         qqq_series = cast("pd.Series[float]", qqq_row)
         qqq_series.index = cast("pd.Index", x_values)
-        plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
+
+        if trade_filter_min_trades is not None:
+            # 거래 수 필터 적용 (sell_buffer 등 저거래 파라미터 제외)
+            try:
+                trades_pivot = load_plateau_pivot(param_name, "trades")
+                trades_row = trades_pivot.loc["QQQ"]
+                assert isinstance(trades_row, pd.Series)
+                trades_series = cast("pd.Series[float]", trades_row)
+                trades_series.index = cast("pd.Index", x_values)
+                plateau, _excluded = find_plateau_range_with_trade_filter(
+                    qqq_series,
+                    trades_series,
+                    min_trades=trade_filter_min_trades,
+                    threshold_ratio=0.9,
+                )
+            except (FileNotFoundError, KeyError):
+                plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
+            annotation_label = "고원 구간 (QQQ 90%, 저거래 제외)"
+        else:
+            plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
+            annotation_label = "고원 구간 (QQQ 90%)"
+
         if plateau is not None:
             fig.add_vrect(
                 x0=plateau[0],
                 x1=plateau[1],
                 fillcolor=_PLATEAU_BG_COLOR,
                 line_width=0,
-                annotation_text="고원 구간 (QQQ 90%)",
+                annotation_text=annotation_label,
                 annotation_position="top left",
             )
 
@@ -142,7 +169,17 @@ def _render_tab(param_name: str, display_name: str) -> None:
     st.markdown(f"**확정값**: {current}")
 
     # 메인: Calmar 라인차트
-    _render_line_chart(param_name, "calmar", f"{display_name} - Calmar")
+    trade_filter = _SELL_BUFFER_MIN_TRADES if param_name == "sell_buffer" else None
+    _render_line_chart(
+        param_name,
+        "calmar",
+        f"{display_name} - Calmar",
+        trade_filter_min_trades=trade_filter,
+    )
+
+    # sell_buffer: 거래 수 필터 적용 안내
+    if param_name == "sell_buffer":
+        st.caption(f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터(예: sell=0.15)는 " "사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다.")
 
     # 보조: CAGR, MDD (접을 수 있는 expander)
     with st.expander("보조 지표 (CAGR, MDD)", expanded=True):

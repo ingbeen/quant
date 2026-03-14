@@ -6,6 +6,7 @@
 - load_plateau_pivot: 피벗 CSV 로드
 - get_current_value: 4P 확정 파라미터값 반환
 - find_plateau_range: 고원 구간 탐지
+- find_plateau_range_with_trade_filter: 거래 수 필터 적용 고원 구간 탐지
 """
 
 from pathlib import Path
@@ -237,3 +238,81 @@ class TestFindPlateauRange:
         # Then
         assert result is not None
         assert result == pytest.approx((0.0, 2.0), abs=1e-12)
+
+
+class TestFindPlateauRangeWithTradeFilter:
+    """거래 수 필터 적용 고원 구간 탐지 테스트."""
+
+    def test_filters_low_trade_params(self) -> None:
+        """
+        목적: 거래 수 부족 파라미터 제외 후 고원이 올바른 위치에 탐지되는지 검증
+
+        Given: sell=0.15가 최고 Calmar이나 거래 수 4회 (min_trades=5 미만)
+        When: find_plateau_range_with_trade_filter() 호출
+        Then: sell=0.15 제외, sell=0.05 기준 고원 탐지
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range_with_trade_filter
+
+        # Given: sell=0.15는 Calmar 최고(0.36)이나 거래 수 4회
+        metric = pd.Series(
+            [0.20, 0.24, 0.30, 0.22, 0.23, 0.36],
+            index=[0.01, 0.03, 0.05, 0.07, 0.10, 0.15],
+        )
+        trades = pd.Series(
+            [27, 21, 14, 13, 8, 4],
+            index=[0.01, 0.03, 0.05, 0.07, 0.10, 0.15],
+        )
+
+        # When
+        plateau, excluded = find_plateau_range_with_trade_filter(metric, trades, min_trades=5, threshold_ratio=0.9)
+
+        # Then: sell=0.15 제외, 나머지 max=0.30 (sell=0.05)
+        assert excluded == pytest.approx([0.15], abs=1e-12)
+        assert plateau is not None
+        assert plateau == pytest.approx((0.05, 0.05), abs=1e-12)
+
+    def test_all_filtered_returns_none(self) -> None:
+        """
+        목적: 모든 파라미터가 필터링되면 None 반환 검증
+
+        Given: 모든 파라미터의 거래 수가 min_trades 미만
+        When: find_plateau_range_with_trade_filter() 호출
+        Then: plateau=None, 전체 인덱스 제외
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range_with_trade_filter
+
+        # Given
+        metric = pd.Series([0.20, 0.30], index=[0.05, 0.10])
+        trades = pd.Series([2, 3], index=[0.05, 0.10])
+
+        # When
+        plateau, excluded = find_plateau_range_with_trade_filter(metric, trades, min_trades=5)
+
+        # Then
+        assert plateau is None
+        assert excluded == pytest.approx([0.05, 0.10], abs=1e-12)
+
+    def test_no_filtering_when_all_sufficient(self) -> None:
+        """
+        목적: 모든 거래 수가 충분하면 기존 find_plateau_range와 동일 결과 검증
+
+        Given: 모든 파라미터의 거래 수가 min_trades 이상
+        When: find_plateau_range_with_trade_filter() 호출
+        Then: excluded=[], find_plateau_range와 동일 결과
+        """
+        from qbt.backtest.parameter_stability import (
+            find_plateau_range,
+            find_plateau_range_with_trade_filter,
+        )
+
+        # Given
+        metric = pd.Series([0.10, 0.19, 0.20, 0.19], index=[1, 2, 3, 4])
+        trades = pd.Series([20, 15, 10, 8], index=[1, 2, 3, 4])
+
+        # When
+        plateau, excluded = find_plateau_range_with_trade_filter(metric, trades, min_trades=5, threshold_ratio=0.9)
+        expected = find_plateau_range(metric, threshold_ratio=0.9)
+
+        # Then
+        assert excluded == []
+        assert plateau == expected

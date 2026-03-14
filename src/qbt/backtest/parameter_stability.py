@@ -111,3 +111,35 @@ def find_plateau_range(
         return None
 
     return (float(above_indices[0]), float(above_indices[-1]))
+
+
+def find_plateau_range_with_trade_filter(
+    metric_series: pd.Series[float],
+    trades_series: pd.Series[float],
+    min_trades: int,
+    threshold_ratio: float = 0.9,
+) -> tuple[tuple[float, float] | None, list[float]]:
+    """거래 수 필터를 적용한 고원 구간 탐지.
+
+    거래 수가 min_trades 미만인 파라미터값을 제외한 뒤
+    고원 구간을 탐지한다. Sell Buffer처럼 극단 파라미터에서
+    거래 수가 극소(사실상 Buy & Hold)하여 Calmar가 왜곡되는 경우에 사용한다.
+
+    Args:
+        metric_series: 파라미터값을 인덱스, 지표값을 값으로 가지는 Series
+        trades_series: 파라미터값을 인덱스, 거래 수를 값으로 가지는 Series
+            (metric_series와 동일한 인덱스 구조)
+        min_trades: 최소 거래 수 기준 (미만이면 제외)
+        threshold_ratio: 최대값 대비 임계 비율 (0.9 = 90%)
+
+    Returns:
+        (고원 범위, 제외된 파라미터값 리스트) 튜플.
+        고원 범위는 (시작값, 끝값) 또는 None
+    """
+    # 거래 수 부족한 인덱스 제외
+    valid_mask = trades_series >= min_trades
+    excluded = [float(idx) for idx in trades_series.index[~valid_mask]]
+    filtered_series = metric_series[valid_mask]
+
+    plateau = find_plateau_range(filtered_series, threshold_ratio=threshold_ratio)
+    return plateau, excluded
