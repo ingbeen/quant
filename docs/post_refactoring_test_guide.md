@@ -130,7 +130,7 @@ poetry run python scripts/backtest/run_param_plateau_all.py --experiment ma_wind
 **리팩토링 영향**:
 - **신규 스크립트**: 기존 `run_hold_days_plateau.py` + `run_param_plateau.py` 2개가 1개로 통합됨 (`PLAN_backtest_4p_transition`)
 - **BufferZoneConfig 필드명 변경**: `replace()` 호출에서 `override_*` -> 직접 파라미터명으로 변경 (`PLAN_backtest_refactoring`)
-- **hold_days 결과도 param_plateau/ 로 통합** (기존 hold_days_plateau/ 에서 이동)
+- **hold_days 결과도 param_plateau/ 로 통합**
 - **소요 시간이 길 수 있음**: 파라미터 범위 순회 + 자산별 백테스트 반복
 
 ---

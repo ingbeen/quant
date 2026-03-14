@@ -106,8 +106,8 @@ def _render_line_chart(
         qqq_row = pivot.loc["QQQ"]
         # pivot.loc[]은 Series | DataFrame 반환 가능하지만, 단일 행이므로 Series
         assert isinstance(qqq_row, pd.Series)
-        qqq_series = cast(pd.Series[float], qqq_row)
-        qqq_series.index = cast(pd.Index, x_values)
+        qqq_series = cast("pd.Series[float]", qqq_row)
+        qqq_series.index = cast("pd.Index", x_values)
         plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
         if plateau is not None:
             fig.add_vrect(
@@ -124,7 +124,7 @@ def _render_line_chart(
         xaxis_title=param_name,
         yaxis_title=metric.upper(),
         height=height,
-        legend={"orientation": "h", "yanchor": "bottom", "y": -0.2, "x": 0.5, "xanchor": "center"},
+        legend={"yanchor": "top", "y": 0.99, "xanchor": "right", "x": 0.99},
     )
     st.plotly_chart(fig, width="stretch")
 
@@ -145,7 +145,7 @@ def _render_tab(param_name: str, display_name: str) -> None:
     _render_line_chart(param_name, "calmar", f"{display_name} - Calmar")
 
     # 보조: CAGR, MDD (접을 수 있는 expander)
-    with st.expander("보조 지표 (CAGR, MDD)"):
+    with st.expander("보조 지표 (CAGR, MDD)", expanded=True):
         col1, col2 = st.columns(2)
         with col1:
             _render_line_chart(
@@ -167,7 +167,7 @@ def _render_tab(param_name: str, display_name: str) -> None:
             )
 
     # 거래 수 라인차트
-    with st.expander("거래 수"):
+    with st.expander("거래 수", expanded=True):
         _render_line_chart(
             param_name,
             "trades",
