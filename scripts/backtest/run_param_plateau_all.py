@@ -79,7 +79,6 @@ _METRICS: list[tuple[str, str]] = [
     ("cagr", "CAGR(%)"),
     ("mdd", "MDD(%)"),
     ("trades", "거래수"),
-    ("win_rate", "승률(%)"),
 ]
 
 # --experiment 인자 유효값
@@ -119,7 +118,6 @@ def _build_row(
         "mdd": round(float(str(summary["mdd"])), 2),
         "calmar": round(float(str(summary["calmar"])), 2),
         "trades": int(str(summary["total_trades"])),
-        "win_rate": round(float(str(summary.get("win_rate", 0.0))), 2),
         "period_start": str(summary.get("start_date", "")),
         "period_end": str(summary.get("end_date", "")),
     }
@@ -319,12 +317,7 @@ def _save_results(detail_df: pd.DataFrame, selected_experiments: list[str]) -> N
     """
     _RESULT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. 상세 테이블
-    detail_path = _RESULT_DIR / "param_plateau_all_detail.csv"
-    detail_df.to_csv(detail_path, index=False)
-    logger.debug(f"저장 완료: {detail_path}")
-
-    # 2. 피벗 테이블 (실험 x 지표)
+    # 피벗 테이블 (실험 x 지표)
     for exp_name, param_name, col_prefix, param_values in _EXPERIMENT_META:
         if exp_name not in selected_experiments:
             continue

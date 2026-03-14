@@ -60,7 +60,7 @@ poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqq
 poetry run python scripts/backtest/run_param_plateau_all.py
 # 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 멀티자산 통합 고원 분석
 # --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
-# 출력: storage/results/backtest/param_plateau/ (피벗 CSV + 상세 CSV)
+# 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
 
 # 5. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py

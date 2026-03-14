@@ -64,7 +64,6 @@
 주요 함수:
 
 - `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (예: `param_plateau_buy_buffer_calmar.csv`)
-- `load_plateau_detail()`: 상세 CSV 로드 (`param_plateau_all_detail.csv`)
 - `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
 - `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
 - `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)

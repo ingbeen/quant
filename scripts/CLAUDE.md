@@ -137,7 +137,7 @@ main 함수:
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
-    - 결과: `param_plateau/` 디렉토리에 피벗 CSV + 상세 CSV 저장
+    - 결과: `param_plateau/` 디렉토리에 피벗 CSV 저장 (calmar/cagr/mdd/trades × 4 파라미터)
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
