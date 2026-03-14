@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
+from qbt.backtest.constants import DEFAULT_SINGLE_BACKTEST_STRATEGIES
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
@@ -179,6 +180,9 @@ def _discover_strategies() -> list[StrategyData]:
                 trades_df=trades_df,
             )
         )
+
+    # 활성 전략만 필터링
+    strategies = [s for s in strategies if s["strategy_name"] in DEFAULT_SINGLE_BACKTEST_STRATEGIES]
 
     return strategies
 
