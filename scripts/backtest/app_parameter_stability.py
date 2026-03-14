@@ -127,14 +127,13 @@ def _render_line_chart(
                     qqq_series,
                     trades_series,
                     min_trades=trade_filter_min_trades,
-                    threshold_ratio=0.9,
                 )
             except (FileNotFoundError, KeyError):
-                plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
-            annotation_label = "고원 구간 (QQQ 90%, 저거래 제외)"
+                plateau = find_plateau_range(qqq_series)
+            annotation_label = "고원 구간 (80%, 저거래 제외)"
         else:
-            plateau = find_plateau_range(qqq_series, threshold_ratio=0.9)
-            annotation_label = "고원 구간 (QQQ 90%)"
+            plateau = find_plateau_range(qqq_series)
+            annotation_label = "고원 구간 (80%)"
 
         if plateau is not None:
             fig.add_vrect(
@@ -179,7 +178,10 @@ def _render_tab(param_name: str, display_name: str) -> None:
 
     # sell_buffer: 거래 수 필터 적용 안내
     if param_name == "sell_buffer":
-        st.caption(f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터(예: sell=0.15)는 " "사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다.")
+        st.caption(
+            f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터(예: sell=0.15)는 "
+            "사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다."
+        )
 
     # 보조: CAGR, MDD (접을 수 있는 expander)
     with st.expander("보조 지표 (CAGR, MDD)", expanded=True):

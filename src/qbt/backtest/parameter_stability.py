@@ -81,7 +81,7 @@ def get_plateau_dir() -> Path:
 
 def find_plateau_range(
     series: pd.Series[float],
-    threshold_ratio: float = 0.9,
+    threshold_ratio: float = 0.8,
 ) -> tuple[float, float] | None:
     """고원 구간을 탐지한다.
 
@@ -89,7 +89,7 @@ def find_plateau_range(
 
     Args:
         series: 파라미터값을 인덱스, 지표값을 값으로 가지는 Series
-        threshold_ratio: 최대값 대비 임계 비율 (0.9 = 90%)
+        threshold_ratio: 최대값 대비 임계 비율 (0.8 = 80%)
 
     Returns:
         (시작값, 끝값) 튜플. 고원 구간이 없으면 None
@@ -117,7 +117,7 @@ def find_plateau_range_with_trade_filter(
     metric_series: pd.Series[float],
     trades_series: pd.Series[float],
     min_trades: int,
-    threshold_ratio: float = 0.9,
+    threshold_ratio: float = 0.8,
 ) -> tuple[tuple[float, float] | None, list[float]]:
     """거래 수 필터를 적용한 고원 구간 탐지.
 
@@ -130,7 +130,7 @@ def find_plateau_range_with_trade_filter(
         trades_series: 파라미터값을 인덱스, 거래 수를 값으로 가지는 Series
             (metric_series와 동일한 인덱스 구조)
         min_trades: 최소 거래 수 기준 (미만이면 제외)
-        threshold_ratio: 최대값 대비 임계 비율 (0.9 = 90%)
+        threshold_ratio: 최대값 대비 임계 비율 (0.8 = 80%)
 
     Returns:
         (고원 범위, 제외된 파라미터값 리스트) 튜플.
