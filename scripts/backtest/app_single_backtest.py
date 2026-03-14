@@ -66,7 +66,6 @@ TRADE_COLUMN_RENAME = {
     "pnl_pct": "손익률",
     "buy_buffer_pct": "매수버퍼존",
     "hold_days_used": "유지일",
-    "recent_sell_count": "최근청산횟수",
     "holding_days": "보유기간(일)",
 }
 

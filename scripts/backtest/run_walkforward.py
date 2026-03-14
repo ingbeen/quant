@@ -26,7 +26,6 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_INITIAL_IS_MONTHS,
     DEFAULT_WFO_MA_WINDOW_LIST,
     DEFAULT_WFO_OOS_MONTHS,
-    DEFAULT_WFO_RECENT_MONTHS_LIST,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
     SLIPPAGE_RATE,
     WALKFORWARD_DYNAMIC_FILENAME,
@@ -166,7 +165,6 @@ def _run_single_mode(
     buy_buffer_zone_pct_list: list[float],
     sell_buffer_zone_pct_list: list[float],
     hold_days_list: list[int],
-    recent_months_list: list[int],
     initial_capital: float,
 ) -> tuple[list[WfoWindowResultDict], WfoModeSummaryDict, pd.DataFrame]:
     """단일 WFO 모드를 실행한다.
@@ -189,7 +187,6 @@ def _run_single_mode(
         buy_buffer_zone_pct_list=buy_buffer_zone_pct_list,
         sell_buffer_zone_pct_list=sell_buffer_zone_pct_list,
         hold_days_list=hold_days_list,
-        recent_months_list=recent_months_list,
         initial_is_months=DEFAULT_WFO_INITIAL_IS_MONTHS,
         oos_months=DEFAULT_WFO_OOS_MONTHS,
         initial_capital=initial_capital,
@@ -396,7 +393,6 @@ def main() -> int:
             list(DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST),
             list(DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST),
             list(DEFAULT_WFO_HOLD_DAYS_LIST),
-            list(DEFAULT_WFO_RECENT_MONTHS_LIST),
             DEFAULT_INITIAL_CAPITAL,
         )
 
@@ -413,7 +409,6 @@ def main() -> int:
             [first_best["best_buy_buffer_zone_pct"]],
             [first_best["best_sell_buffer_zone_pct"]],
             [first_best["best_hold_days"]],
-            [first_best["best_recent_months"]],
             DEFAULT_INITIAL_CAPITAL,
         )
 
@@ -449,7 +444,6 @@ def main() -> int:
                 "buy_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST],
                 "sell_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST],
                 "hold_days_list": list(DEFAULT_WFO_HOLD_DAYS_LIST),
-                "recent_months_list": list(DEFAULT_WFO_RECENT_MONTHS_LIST),
                 "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
                 "slippage_rate": round(SLIPPAGE_RATE, 4),
             },

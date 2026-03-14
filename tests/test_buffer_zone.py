@@ -138,7 +138,6 @@ class TestResolveParamsForConfig:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -149,7 +148,6 @@ class TestResolveParamsForConfig:
         assert params.buy_buffer_zone_pct == 0.03
         assert params.sell_buffer_zone_pct == 0.05
         assert params.hold_days == 0
-        assert params.recent_months == 0
         assert all(s == "FIXED" for s in sources.values())
 
     def test_default_values_when_not_specified(self):
@@ -164,7 +162,6 @@ class TestResolveParamsForConfig:
             FIXED_4P_BUY_BUFFER_ZONE_PCT,
             FIXED_4P_HOLD_DAYS,
             FIXED_4P_MA_WINDOW,
-            FIXED_4P_RECENT_MONTHS,
             FIXED_4P_SELL_BUFFER_ZONE_PCT,
         )
 
@@ -185,16 +182,15 @@ class TestResolveParamsForConfig:
         assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
         assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
         assert params.hold_days == FIXED_4P_HOLD_DAYS
-        assert params.recent_months == FIXED_4P_RECENT_MONTHS
         assert all(s == "FIXED" for s in sources.values())
 
     def test_4p_config_sets_hold_days_three(self):
         """
-        목적: 전 자산 4P 고정 파라미터에서 hold_days=3, recent_months=0 확인
+        목적: 전 자산 4P 고정 파라미터에서 hold_days=3 확인
 
         Given: 4P 고정 패턴의 config (override로 고정값 설정)
         When: resolve_params_for_config 호출
-        Then: hold_days=3, recent_months=0 확인
+        Then: hold_days=3 확인
         """
         # Given: 4P 패턴 (SPY 예시)
         config = get_config("buffer_zone_spy")
@@ -204,7 +200,6 @@ class TestResolveParamsForConfig:
 
         # Then: 4P 확정 hold_days=3 (overfitting_analysis_report.md §2.1 기반)
         assert params.hold_days == 3, "4P config는 hold_days=3이어야 합니다"
-        assert params.recent_months == 0, "4P config는 recent_months=0이어야 합니다"
 
     def test_tqqq_config_uses_4p_defaults(self):
         """
@@ -218,7 +213,6 @@ class TestResolveParamsForConfig:
             FIXED_4P_BUY_BUFFER_ZONE_PCT,
             FIXED_4P_HOLD_DAYS,
             FIXED_4P_MA_WINDOW,
-            FIXED_4P_RECENT_MONTHS,
             FIXED_4P_SELL_BUFFER_ZONE_PCT,
         )
 
@@ -233,7 +227,6 @@ class TestResolveParamsForConfig:
         assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
         assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
         assert params.hold_days == FIXED_4P_HOLD_DAYS
-        assert params.recent_months == FIXED_4P_RECENT_MONTHS
         assert all(s == "FIXED" for s in sources.values())
 
     def test_custom_params_applied(self):
@@ -255,7 +248,6 @@ class TestResolveParamsForConfig:
             buy_buffer_zone_pct=0.05,
             sell_buffer_zone_pct=0.04,
             hold_days=3,
-            recent_months=6,
         )
 
         # When
@@ -266,7 +258,6 @@ class TestResolveParamsForConfig:
         assert params.buy_buffer_zone_pct == 0.05
         assert params.sell_buffer_zone_pct == 0.04
         assert params.hold_days == 3
-        assert params.recent_months == 6
         assert all(s == "FIXED" for s in sources.values())
 
 
@@ -308,7 +299,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -341,7 +331,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -384,7 +373,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -420,7 +408,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -455,7 +442,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -494,7 +480,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
 
         # When
@@ -540,7 +525,6 @@ class TestCreateRunner:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
 
         # When

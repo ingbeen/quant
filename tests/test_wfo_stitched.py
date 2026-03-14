@@ -39,7 +39,6 @@ class TestLoadWfoResultsFromCsv:
                 "best_buy_buffer_zone_pct": [0.03, 0.05, 0.03],
                 "best_sell_buffer_zone_pct": [0.03, 0.01, 0.03],
                 "best_hold_days": [3, 5, 2],
-                "best_recent_months": [0, 4, 8],
                 "is_cagr": [15.2, 12.8, 10.5],
                 "is_mdd": [-25.3, -30.1, -28.7],
                 "is_calmar": [0.6008, 0.4252, 0.3659],
@@ -79,7 +78,6 @@ class TestLoadWfoResultsFromCsv:
         for r in results:
             assert isinstance(r["best_ma_window"], int)
             assert isinstance(r["best_hold_days"], int)
-            assert isinstance(r["best_recent_months"], int)
 
         # 첫 번째 윈도우 값 검증
         first = results[0]
@@ -87,7 +85,6 @@ class TestLoadWfoResultsFromCsv:
         assert first["best_buy_buffer_zone_pct"] == pytest.approx(0.03, abs=1e-6)
         assert first["best_sell_buffer_zone_pct"] == pytest.approx(0.03, abs=1e-6)
         assert first["best_hold_days"] == 3
-        assert first["best_recent_months"] == 0
         assert first["oos_start"] == "2005-03-01"
 
     def test_load_wfo_results_from_csv_with_extra_columns(self, tmp_path: Path) -> None:
@@ -110,7 +107,6 @@ class TestLoadWfoResultsFromCsv:
                 "best_buy_buffer_zone_pct": [0.03, 0.05],
                 "best_sell_buffer_zone_pct": [0.03, 0.01],
                 "best_hold_days": [3, 5],
-                "best_recent_months": [0, 4],
                 "extra_metric": [1.5, 2.5],
                 "is_cagr": [15.0, 12.0],
                 "is_mdd": [-25.0, -30.0],
@@ -173,7 +169,6 @@ class TestLoadWfoResultsFromCsv:
                 "best_buy_buffer_zone_pct": [0.03],
                 "best_sell_buffer_zone_pct": [0.03],
                 "best_hold_days": [3],
-                "best_recent_months": [0],
             }
         )
         csv_path = tmp_path / "incomplete.csv"
@@ -199,12 +194,11 @@ class TestLoadWfoResultsFromCsv:
         initial_params, schedule = build_params_schedule(results)
 
         # Then
-        # initial_params: 첫 윈도우 기반 (ma=150, buy=0.03, sell=0.03, hold=3, recent=0)
+        # initial_params: 첫 윈도우 기반 (ma=150, buy=0.03, sell=0.03, hold=3)
         assert initial_params.ma_window == 150
         assert initial_params.buy_buffer_zone_pct == pytest.approx(0.03, abs=1e-6)
         assert initial_params.sell_buffer_zone_pct == pytest.approx(0.03, abs=1e-6)
         assert initial_params.hold_days == 3
-        assert initial_params.recent_months == 0
 
         # schedule: 2번째, 3번째 윈도우의 OOS 시작일 → params
         from datetime import date

@@ -526,12 +526,11 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
         ("param_buy_buffers", "Buy Buffer (%)"),
         ("param_sell_buffers", "Sell Buffer (%)"),
         ("param_hold_days", "Hold Days"),
-        ("param_recent_months", "Recent Months"),
     ]
 
-    # 5개 서브플롯
+    # 4개 서브플롯
     fig = make_subplots(
-        rows=5,
+        rows=4,
         cols=1,
         subplot_titles=[label for _, label in param_keys],
         vertical_spacing=0.10,

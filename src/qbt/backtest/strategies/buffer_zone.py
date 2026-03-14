@@ -20,7 +20,6 @@ from qbt.backtest.constants import (
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
-    FIXED_4P_RECENT_MONTHS,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import (
@@ -77,7 +76,6 @@ class BufferZoneConfig:
     buy_buffer_zone_pct: float = FIXED_4P_BUY_BUFFER_ZONE_PCT  # 매수 버퍼존 비율
     sell_buffer_zone_pct: float = FIXED_4P_SELL_BUFFER_ZONE_PCT  # 매도 버퍼존 비율
     hold_days: int = FIXED_4P_HOLD_DAYS  # 유지일수
-    recent_months: int = FIXED_4P_RECENT_MONTHS  # 조정기간
     ma_type: str = "ema"  # 이동평균 유형 ("ema" 또는 "sma")
 
 
@@ -197,7 +195,6 @@ def resolve_params_for_config(
         config.buy_buffer_zone_pct,
         config.sell_buffer_zone_pct,
         config.hold_days,
-        config.recent_months,
     )
 
 
@@ -255,7 +252,6 @@ def create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult
             "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, 4),
             "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
             "hold_days": params.hold_days,
-            "recent_months": params.recent_months,
             "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
             "param_source": sources,
         }

@@ -87,7 +87,6 @@ class TestBacktestWorkflow:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
         trades_df, equity_df, summary = run_buffer_strategy(df_with_ma, df_with_ma, params, log_trades=False)
 

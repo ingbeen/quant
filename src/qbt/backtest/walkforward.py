@@ -27,7 +27,6 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_MA_WINDOW_LIST,
     DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
-    DEFAULT_WFO_RECENT_MONTHS_LIST,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import (
@@ -173,7 +172,7 @@ def select_best_calmar_params(
 
     Returns:
         최적 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct,
-        hold_days, recent_months)
+        hold_days)
 
     Raises:
         ValueError: min_trades 충족 파라미터가 없는 경우
@@ -228,7 +227,6 @@ def select_best_calmar_params(
         "buy_buffer_zone_pct": float(best["buy_buffer_zone_pct"]),
         "sell_buffer_zone_pct": float(best["sell_buffer_zone_pct"]),
         "hold_days": int(best["hold_days"]),
-        "recent_months": int(best["recent_months"]),
     }
 
 
@@ -239,7 +237,6 @@ def run_walkforward(
     buy_buffer_zone_pct_list: list[float] | None = None,
     sell_buffer_zone_pct_list: list[float] | None = None,
     hold_days_list: list[int] | None = None,
-    recent_months_list: list[int] | None = None,
     initial_is_months: int = DEFAULT_WFO_INITIAL_IS_MONTHS,
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
@@ -257,7 +254,6 @@ def run_walkforward(
         buy_buffer_zone_pct_list: 매수 버퍼존 리스트 (None이면 기본값)
         sell_buffer_zone_pct_list: 매도 버퍼존 리스트 (None이면 기본값)
         hold_days_list: 유지일 리스트 (None이면 기본값)
-        recent_months_list: 조정기간 리스트 (None이면 기본값)
         initial_is_months: 초기 IS 기간 (개월)
         oos_months: OOS 기간 (개월)
         initial_capital: 초기 자본금
@@ -277,8 +273,6 @@ def run_walkforward(
         sell_buffer_zone_pct_list = list(DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST)
     if hold_days_list is None:
         hold_days_list = list(DEFAULT_WFO_HOLD_DAYS_LIST)
-    if recent_months_list is None:
-        recent_months_list = list(DEFAULT_WFO_RECENT_MONTHS_LIST)
 
     # 1. 윈도우 생성
     data_start = signal_df[COL_DATE].min()
@@ -305,7 +299,6 @@ def run_walkforward(
             buy_buffer_zone_pct_list=buy_buffer_zone_pct_list,
             sell_buffer_zone_pct_list=sell_buffer_zone_pct_list,
             hold_days_list=hold_days_list,
-            recent_months_list=recent_months_list,
             initial_capital=initial_capital,
         )
 
@@ -315,7 +308,6 @@ def run_walkforward(
         best_buy_buf = best["buy_buffer_zone_pct"]
         best_sell_buf = best["sell_buffer_zone_pct"]
         best_hold = best["hold_days"]
-        best_recent = best["recent_months"]
 
         # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd)
         best_row_mask = (
@@ -323,7 +315,6 @@ def run_walkforward(
             & (grid_df["buy_buffer_zone_pct"] == best_buy_buf)
             & (grid_df["sell_buffer_zone_pct"] == best_sell_buf)
             & (grid_df["hold_days"] == best_hold)
-            & (grid_df["recent_months"] == best_recent)
         )
 
         best_row = grid_df[best_row_mask].iloc[0]
@@ -347,7 +338,6 @@ def run_walkforward(
             buy_buffer_zone_pct=best_buy_buf,
             sell_buffer_zone_pct=best_sell_buf,
             hold_days=best_hold,
-            recent_months=best_recent,
         )
 
         _, _, oos_summary = run_buffer_strategy(oos_signal, oos_trade, oos_params, log_trades=False)
@@ -381,7 +371,6 @@ def run_walkforward(
             "best_buy_buffer_zone_pct": best_buy_buf,
             "best_sell_buffer_zone_pct": best_sell_buf,
             "best_hold_days": best_hold,
-            "best_recent_months": best_recent,
             "is_cagr": is_cagr,
             "is_mdd": is_mdd,
             "is_calmar": is_calmar,
@@ -442,7 +431,6 @@ def build_params_schedule(
         buy_buffer_zone_pct=first["best_buy_buffer_zone_pct"],
         sell_buffer_zone_pct=first["best_sell_buffer_zone_pct"],
         hold_days=first["best_hold_days"],
-        recent_months=first["best_recent_months"],
     )
 
     schedule: dict[date, BufferStrategyParams] = {}
@@ -454,7 +442,6 @@ def build_params_schedule(
             buy_buffer_zone_pct=wr["best_buy_buffer_zone_pct"],
             sell_buffer_zone_pct=wr["best_sell_buffer_zone_pct"],
             hold_days=wr["best_hold_days"],
-            recent_months=wr["best_recent_months"],
         )
 
     return initial_params, schedule
@@ -467,11 +454,10 @@ _WFO_CSV_REQUIRED_COLUMNS = [
     "best_buy_buffer_zone_pct",
     "best_sell_buffer_zone_pct",
     "best_hold_days",
-    "best_recent_months",
 ]
 
 # 정수 변환 대상 컬럼 (pandas CSV 로딩 시 float64 가능성 대비)
-_WFO_CSV_INT_COLUMNS = ["best_ma_window", "best_hold_days", "best_recent_months"]
+_WFO_CSV_INT_COLUMNS = ["best_ma_window", "best_hold_days"]
 
 
 def load_wfo_results_from_csv(csv_path: Path) -> list[WfoWindowResultDict]:
@@ -614,7 +600,6 @@ def calculate_wfo_mode_summary(
         "param_buy_buffers": [wr["best_buy_buffer_zone_pct"] for wr in window_results],
         "param_sell_buffers": [wr["best_sell_buffer_zone_pct"] for wr in window_results],
         "param_hold_days": [wr["best_hold_days"] for wr in window_results],
-        "param_recent_months": [wr["best_recent_months"] for wr in window_results],
     }
 
     # Stitched Equity 지표 추가

@@ -57,7 +57,6 @@ _FIXED_MA_WINDOW = 200
 _FIXED_BUY_BUFFER = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
 _FIXED_SELL_BUFFER = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
 _FIXED_HOLD_DAYS = 3
-_FIXED_RECENT_MONTHS = 0
 
 # 실험별 탐색 값
 _HOLD_DAYS_VALUES: list[int] = [0, 1, 2, 3, 4, 5, 7, 10]
@@ -198,7 +197,6 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
                     sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
                     hold_days=hold_val,
-                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -216,7 +214,6 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
                     sell_buffer_zone_pct=sell_val,
                     hold_days=_FIXED_HOLD_DAYS,
-                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -236,7 +233,6 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     buy_buffer_zone_pct=buy_val,
                     sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
                     hold_days=_FIXED_HOLD_DAYS,
-                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -257,7 +253,6 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
                     sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
                     hold_days=_FIXED_HOLD_DAYS,
-                    recent_months=_FIXED_RECENT_MONTHS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(

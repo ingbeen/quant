@@ -91,7 +91,6 @@ class TestParamsSchedule:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
 
         # When — params_schedule=None (기본값)
@@ -125,7 +124,6 @@ class TestParamsSchedule:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
 
         # 전환점에서 MA 100으로 변경
@@ -137,7 +135,6 @@ class TestParamsSchedule:
                 buy_buffer_zone_pct=0.05,
                 sell_buffer_zone_pct=0.01,
                 hold_days=2,
-                recent_months=4,
             )
         }
 
@@ -176,7 +173,6 @@ class TestParamsSchedule:
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.03,
             hold_days=0,
-            recent_months=0,
         )
 
         switch_date = df.iloc[300][COL_DATE]
@@ -187,7 +183,6 @@ class TestParamsSchedule:
                 buy_buffer_zone_pct=0.05,
                 sell_buffer_zone_pct=0.05,
                 hold_days=0,
-                recent_months=0,
             )
         }
 
@@ -289,7 +284,6 @@ class TestCalmarSelection:
                 "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "hold_days": [0, 0, 0],
-                "recent_months": [0, 0, 0],
                 "cagr": [5.0, 10.0, 3.0],
                 "mdd": [-20.0, 0.0, -10.0],
                 "total_return_pct": [50.0, 100.0, 30.0],
@@ -322,7 +316,6 @@ class TestCalmarSelection:
                 "buy_buffer_zone_pct": [0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03],
                 "hold_days": [0, 0],
-                "recent_months": [0, 0],
                 "cagr": [-5.0, -2.0],
                 "mdd": [0.0, 0.0],
                 "total_return_pct": [-50.0, -20.0],
@@ -358,7 +351,6 @@ class TestCalmarSelection:
                 "buy_buffer_zone_pct": [0.03, 0.05, 0.01],
                 "sell_buffer_zone_pct": [0.03, 0.01, 0.05],
                 "hold_days": [0, 2, 5],
-                "recent_months": [0, 4, 8],
                 "cagr": [10.0, 15.0, 8.0],
                 "mdd": [-20.0, -25.0, -30.0],
                 "total_return_pct": [100.0, 150.0, 80.0],
@@ -376,7 +368,6 @@ class TestCalmarSelection:
         assert best["buy_buffer_zone_pct"] == pytest.approx(0.05, abs=EPSILON)
         assert best["sell_buffer_zone_pct"] == pytest.approx(0.01, abs=EPSILON)
         assert best["hold_days"] == 2
-        assert best["recent_months"] == 4
 
 
 class TestRunWalkforward:
@@ -404,7 +395,6 @@ class TestRunWalkforward:
             buy_buffer_zone_pct_list=[0.03],
             sell_buffer_zone_pct_list=[0.03],
             hold_days_list=[0],
-            recent_months_list=[0],
             initial_is_months=24,
             oos_months=12,
             min_trades=0,
@@ -449,7 +439,6 @@ class TestBuildParamsSchedule:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 10.0,
                 "is_mdd": -20.0,
                 "is_calmar": 0.5,
@@ -473,7 +462,6 @@ class TestBuildParamsSchedule:
                 "best_buy_buffer_zone_pct": 0.05,
                 "best_sell_buffer_zone_pct": 0.01,
                 "best_hold_days": 2,
-                "best_recent_months": 4,
                 "is_cagr": 12.0,
                 "is_mdd": -25.0,
                 "is_calmar": 0.48,
@@ -497,7 +485,6 @@ class TestBuildParamsSchedule:
                 "best_buy_buffer_zone_pct": 0.01,
                 "best_sell_buffer_zone_pct": 0.05,
                 "best_hold_days": 5,
-                "best_recent_months": 8,
                 "is_cagr": 9.0,
                 "is_mdd": -18.0,
                 "is_calmar": 0.5,
@@ -558,7 +545,6 @@ class TestCalculateWfoModeSummary:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 10.0,
                 "is_mdd": -20.0,
                 "is_calmar": 0.5,
@@ -582,7 +568,6 @@ class TestCalculateWfoModeSummary:
                 "best_buy_buffer_zone_pct": 0.05,
                 "best_sell_buffer_zone_pct": 0.01,
                 "best_hold_days": 2,
-                "best_recent_months": 4,
                 "is_cagr": 12.0,
                 "is_mdd": -25.0,
                 "is_calmar": 0.48,
@@ -638,7 +623,6 @@ class TestWfeCagr:
             buy_buffer_zone_pct_list=[0.03],
             sell_buffer_zone_pct_list=[0.03],
             hold_days_list=[0],
-            recent_months_list=[0],
             initial_is_months=24,
             oos_months=12,
             min_trades=0,
@@ -681,7 +665,6 @@ class TestWfeCagr:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 0.0,
                 "is_mdd": 0.0,
                 "is_calmar": 0.0,
@@ -730,7 +713,6 @@ class TestWfeCalmarRobust:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 10.0,
                 "is_mdd": -20.0,
                 "is_calmar": 0.5,
@@ -754,7 +736,6 @@ class TestWfeCalmarRobust:
                 "best_buy_buffer_zone_pct": 0.05,
                 "best_sell_buffer_zone_pct": 0.01,
                 "best_hold_days": 2,
-                "best_recent_months": 4,
                 "is_cagr": -3.0,
                 "is_mdd": -15.0,
                 "is_calmar": -0.2,
@@ -778,7 +759,6 @@ class TestWfeCalmarRobust:
                 "best_buy_buffer_zone_pct": 0.01,
                 "best_sell_buffer_zone_pct": 0.05,
                 "best_hold_days": 5,
-                "best_recent_months": 8,
                 "is_cagr": 6.0,
                 "is_mdd": -20.0,
                 "is_calmar": 0.3,
@@ -823,7 +803,6 @@ class TestWfeCalmarRobust:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": -5.0,
                 "is_mdd": -10.0,
                 "is_calmar": -0.5,
@@ -876,7 +855,6 @@ class TestProfitConcentration:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 10.0,
                 "is_mdd": -20.0,
                 "is_calmar": 0.5,
@@ -900,7 +878,6 @@ class TestProfitConcentration:
                 "best_buy_buffer_zone_pct": 0.05,
                 "best_sell_buffer_zone_pct": 0.01,
                 "best_hold_days": 2,
-                "best_recent_months": 4,
                 "is_cagr": 12.0,
                 "is_mdd": -25.0,
                 "is_calmar": 0.48,
@@ -924,7 +901,6 @@ class TestProfitConcentration:
                 "best_buy_buffer_zone_pct": 0.01,
                 "best_sell_buffer_zone_pct": 0.05,
                 "best_hold_days": 5,
-                "best_recent_months": 8,
                 "is_cagr": 9.0,
                 "is_mdd": -18.0,
                 "is_calmar": 0.5,
@@ -979,7 +955,6 @@ class TestProfitConcentration:
                 "best_buy_buffer_zone_pct": 0.03,
                 "best_sell_buffer_zone_pct": 0.03,
                 "best_hold_days": 0,
-                "best_recent_months": 0,
                 "is_cagr": 5.0,
                 "is_mdd": -10.0,
                 "is_calmar": 0.5,
@@ -1059,7 +1034,6 @@ class TestJsonRounding:
             "param_buy_buffers": [0.03, 0.05, 0.01, 0.03, 0.05],
             "param_sell_buffers": [0.03, 0.01, 0.05, 0.03, 0.01],
             "param_hold_days": [0, 2, 5, 0, 2],
-            "param_recent_months": [0, 4, 8, 0, 4],
             "stitched_cagr": 15.678912,
             "stitched_mdd": -22.345678,
             "stitched_calmar": 0.701234,
@@ -1251,7 +1225,6 @@ class TestCalmarSelectionMinTrades:
                 "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "hold_days": [0, 0, 0],
-                "recent_months": [0, 0, 0],
                 "cagr": [20.0, 15.0, 8.0],
                 "mdd": [-10.0, -25.0, -30.0],
                 "total_return_pct": [200.0, 150.0, 80.0],
@@ -1287,7 +1260,6 @@ class TestCalmarSelectionMinTrades:
                 "buy_buffer_zone_pct": [0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03],
                 "hold_days": [0, 0],
-                "recent_months": [0, 0],
                 "cagr": [10.0, 5.0],
                 "mdd": [0.0, -20.0],
                 "total_return_pct": [100.0, 50.0],
@@ -1320,7 +1292,6 @@ class TestCalmarSelectionMinTrades:
                 "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "hold_days": [0, 0, 0],
-                "recent_months": [0, 0, 0],
                 "cagr": [10.0, 15.0, 8.0],
                 "mdd": [-20.0, -25.0, -30.0],
                 "total_return_pct": [100.0, 150.0, 80.0],

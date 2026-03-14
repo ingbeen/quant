@@ -107,7 +107,6 @@ class BestGridParams(TypedDict):
     buy_buffer_zone_pct: float
     sell_buffer_zone_pct: float
     hold_days: int
-    recent_months: int
 
 
 @dataclass
@@ -141,12 +140,11 @@ class WfoWindowResultDict(TypedDict):
     is_end: str  # IS 종료일 (ISO format)
     oos_start: str  # OOS 시작일 (ISO format)
     oos_end: str  # OOS 종료일 (ISO format)
-    # IS 최적 파라미터 5개
+    # IS 최적 파라미터
     best_ma_window: int
     best_buy_buffer_zone_pct: float
     best_sell_buffer_zone_pct: float
     best_hold_days: int
-    best_recent_months: int
     # IS 성과 지표
     is_cagr: float
     is_mdd: float
@@ -195,7 +193,6 @@ class WfoModeSummaryDict(TypedDict):
     param_buy_buffers: list[float]
     param_sell_buffers: list[float]
     param_hold_days: list[int]
-    param_recent_months: list[int]
     # Stitched Equity 지표 (선택적)
     stitched_cagr: NotRequired[float]
     stitched_mdd: NotRequired[float]

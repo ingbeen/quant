@@ -31,14 +31,12 @@ DEFAULT_MA_WINDOW: Final = 200  # 이동평균 기간
 DEFAULT_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
 DEFAULT_SELL_BUFFER_ZONE_PCT: Final = 0.03  # 매도 버퍼존 비율 (0.03 = 3%)
 DEFAULT_HOLD_DAYS: Final = 0  # 유지조건 기본값 (0일 = 버퍼존만 모드)
-DEFAULT_RECENT_MONTHS: Final = 0  # 최근 청산 기간 기본값 (개월)
 
 # --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
 FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간
 FIXED_4P_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 확정 매수 버퍼존 비율 (0.03 = 3%)
 FIXED_4P_SELL_BUFFER_ZONE_PCT: Final = 0.05  # 확정 매도 버퍼존 비율 (0.05 = 5%)
 FIXED_4P_HOLD_DAYS: Final = 3  # 확정 유지일수
-FIXED_4P_RECENT_MONTHS: Final = 0  # 확정 조정기간 (0 = 비활성화)
 
 # --- 버퍼존 전략 제약 조건 ---
 MIN_BUY_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매수 버퍼존 비율 (0.01 = 1%)
@@ -51,7 +49,6 @@ DEFAULT_WFO_MA_WINDOW_LIST: Final = [100, 150, 200]
 DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]
 DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST: Final = [0.01, 0.03, 0.05]
 DEFAULT_WFO_HOLD_DAYS_LIST: Final = [0, 2, 3, 5]
-DEFAULT_WFO_RECENT_MONTHS_LIST: Final = [0, 4, 8, 12]
 
 # --- WFO 최소 거래수 ---
 DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 거래수 제약
@@ -103,7 +100,6 @@ COL_MA_WINDOW: Final = "ma_window"
 COL_BUY_BUFFER_ZONE_PCT: Final = "buy_buffer_zone_pct"
 COL_SELL_BUFFER_ZONE_PCT: Final = "sell_buffer_zone_pct"
 COL_HOLD_DAYS: Final = "hold_days"
-COL_RECENT_MONTHS: Final = "recent_months"
 COL_TOTAL_RETURN_PCT: Final = "total_return_pct"
 COL_CAGR: Final = "cagr"
 COL_MDD: Final = "mdd"
@@ -117,7 +113,6 @@ DISPLAY_MA_WINDOW: Final = "이평기간"
 DISPLAY_BUY_BUFFER_ZONE: Final = "매수버퍼존"
 DISPLAY_SELL_BUFFER_ZONE: Final = "매도버퍼존"
 DISPLAY_HOLD_DAYS: Final = "유지일"
-DISPLAY_RECENT_MONTHS: Final = "조정기간(월)"
 DISPLAY_TOTAL_RETURN: Final = "수익률"
 DISPLAY_CAGR: Final = "CAGR"
 DISPLAY_MDD: Final = "MDD"
