@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (EEM)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 79951604,
-    "total_return_pct": 699.52,
-    "cagr": 9.51,
+    "final_capital": 79008222,
+    "total_return_pct": 690.08,
+    "cagr": 9.44,
     "mdd": -66.43,
     "calmar": 0.14,
     "total_trades": 0,
@@ -12,7 +12,7 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2003-04-14",
-    "end_date": "2026-03-05",
+    "end_date": "2026-03-12",
     "open_position": {
       "entry_date": "2003-04-14",
       "entry_price": 7.208108,
@@ -1397,7 +1397,7 @@
     {
       "year": 2026,
       "month": 3,
-      "return_pct": -7.91
+      "return_pct": -9.0
     }
   ],
   "regime_summaries": [],

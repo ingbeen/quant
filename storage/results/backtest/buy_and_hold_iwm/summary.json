@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (IWM)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 78544190,
-    "total_return_pct": 685.44,
-    "cagr": 8.33,
+    "final_capital": 75683978,
+    "total_return_pct": 656.84,
+    "cagr": 8.16,
     "mdd": -58.64,
     "calmar": 0.14,
     "total_trades": 0,
@@ -12,10 +12,10 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2000-05-26",
-    "end_date": "2026-03-05",
+    "end_date": "2026-03-12",
     "open_position": {
       "entry_date": "2000-05-26",
-      "entry_price": 32.689825,
+      "entry_price": 32.689821,
       "shares": 305905
     }
   },
@@ -477,7 +477,7 @@
     {
       "year": 2007,
       "month": 12,
-      "return_pct": -0.64
+      "return_pct": -0.65
     },
     {
       "year": 2008,
@@ -1122,7 +1122,7 @@
     {
       "year": 2018,
       "month": 9,
-      "return_pct": -2.33
+      "return_pct": -2.32
     },
     {
       "year": 2018,
@@ -1572,7 +1572,7 @@
     {
       "year": 2026,
       "month": 3,
-      "return_pct": -1.78
+      "return_pct": -5.36
     }
   ],
   "regime_summaries": [],

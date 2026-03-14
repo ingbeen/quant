@@ -2,25 +2,25 @@
   "display_name": "버퍼존 전략 (TQQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 2336983792,
-    "total_return_pct": 23269.84,
-    "cagr": 22.4,
-    "mdd": -86.96,
-    "calmar": 0.26,
-    "total_trades": 15,
-    "winning_trades": 10,
+    "final_capital": 1215324660,
+    "total_return_pct": 12053.25,
+    "cagr": 19.47,
+    "mdd": -89.3,
+    "calmar": 0.22,
+    "total_trades": 14,
+    "winning_trades": 9,
     "losing_trades": 5,
-    "win_rate": 66.67,
+    "win_rate": 64.29,
     "start_date": "1999-03-10",
     "end_date": "2026-03-05",
     "open_position": {
       "entry_date": "2025-05-16",
       "entry_price": 35.472617,
-      "shares": 46927386
+      "shares": 24404110
     }
   },
   "params": {
-    "ma_window": 150,
+    "ma_window": 200,
     "ma_type": "ema",
     "buy_buffer_zone_pct": 0.03,
     "sell_buffer_zone_pct": 0.05,
@@ -28,11 +28,11 @@
     "recent_months": 0,
     "initial_capital": 10000000,
     "param_source": {
-      "ma_window": "grid_best",
-      "buy_buffer_zone_pct": "grid_best",
-      "sell_buffer_zone_pct": "grid_best",
-      "hold_days": "grid_best",
-      "recent_months": "grid_best"
+      "ma_window": "FIXED",
+      "buy_buffer_zone_pct": "FIXED",
+      "sell_buffer_zone_pct": "FIXED",
+      "hold_days": "FIXED",
+      "recent_months": "FIXED"
     }
   },
   "monthly_returns": [
@@ -99,17 +99,17 @@
     {
       "year": 2000,
       "month": 4,
-      "return_pct": -67.15
+      "return_pct": -44.82
     },
     {
       "year": 2000,
       "month": 5,
-      "return_pct": 0.0
+      "return_pct": -36.83
     },
     {
       "year": 2000,
       "month": 6,
-      "return_pct": -8.07
+      "return_pct": 1.17
     },
     {
       "year": 2000,
@@ -129,7 +129,7 @@
     {
       "year": 2000,
       "month": 10,
-      "return_pct": -2.9
+      "return_pct": -17.52
     },
     {
       "year": 2000,
@@ -274,17 +274,17 @@
     {
       "year": 2003,
       "month": 3,
-      "return_pct": -21.23
+      "return_pct": 0.0
     },
     {
       "year": 2003,
       "month": 4,
-      "return_pct": 26.37
+      "return_pct": 0.0
     },
     {
       "year": 2003,
       "month": 5,
-      "return_pct": 25.44
+      "return_pct": 22.95
     },
     {
       "year": 2003,
@@ -359,7 +359,7 @@
     {
       "year": 2004,
       "month": 8,
-      "return_pct": -12.83
+      "return_pct": -17.56
     },
     {
       "year": 2004,
@@ -369,7 +369,7 @@
     {
       "year": 2004,
       "month": 10,
-      "return_pct": 5.63
+      "return_pct": 1.62
     },
     {
       "year": 2004,
@@ -404,7 +404,7 @@
     {
       "year": 2005,
       "month": 5,
-      "return_pct": -0.84
+      "return_pct": 0.36
     },
     {
       "year": 2005,
@@ -464,12 +464,12 @@
     {
       "year": 2006,
       "month": 5,
-      "return_pct": -23.28
+      "return_pct": -21.69
     },
     {
       "year": 2006,
       "month": 6,
-      "return_pct": 0.0
+      "return_pct": -5.69
     },
     {
       "year": 2006,
@@ -564,7 +564,7 @@
     {
       "year": 2008,
       "month": 1,
-      "return_pct": -23.34
+      "return_pct": -28.15
     },
     {
       "year": 2008,
@@ -644,12 +644,12 @@
     {
       "year": 2009,
       "month": 5,
-      "return_pct": 1.63
+      "return_pct": 0.0
     },
     {
       "year": 2009,
       "month": 6,
-      "return_pct": 7.85
+      "return_pct": -1.09
     },
     {
       "year": 2009,
@@ -714,12 +714,12 @@
     {
       "year": 2010,
       "month": 7,
-      "return_pct": 0.25
+      "return_pct": 21.8
     },
     {
       "year": 2010,
       "month": 8,
-      "return_pct": -19.86
+      "return_pct": -15.12
     },
     {
       "year": 2010,
@@ -789,7 +789,7 @@
     {
       "year": 2011,
       "month": 10,
-      "return_pct": 0.1
+      "return_pct": -0.94
     },
     {
       "year": 2011,
@@ -1059,7 +1059,7 @@
     {
       "year": 2016,
       "month": 4,
-      "return_pct": -15.21
+      "return_pct": -9.57
     },
     {
       "year": 2016,
@@ -1209,12 +1209,12 @@
     {
       "year": 2018,
       "month": 10,
-      "return_pct": -28.4
+      "return_pct": -26.61
     },
     {
       "year": 2018,
       "month": 11,
-      "return_pct": 0.0
+      "return_pct": -15.92
     },
     {
       "year": 2018,
@@ -1294,7 +1294,7 @@
     {
       "year": 2020,
       "month": 3,
-      "return_pct": -11.98
+      "return_pct": -32.36
     },
     {
       "year": 2020,
@@ -1404,7 +1404,7 @@
     {
       "year": 2022,
       "month": 1,
-      "return_pct": -35.44
+      "return_pct": -31.68
     },
     {
       "year": 2022,
@@ -1469,12 +1469,12 @@
     {
       "year": 2023,
       "month": 2,
-      "return_pct": -11.14
+      "return_pct": 0.0
     },
     {
       "year": 2023,
       "month": 3,
-      "return_pct": 28.44
+      "return_pct": 9.59
     },
     {
       "year": 2023,
@@ -1594,12 +1594,12 @@
     {
       "year": 2025,
       "month": 3,
-      "return_pct": -20.95
+      "return_pct": -23.29
     },
     {
       "year": 2025,
       "month": 4,
-      "return_pct": 0.0
+      "return_pct": -19.98
     },
     {
       "year": 2025,
@@ -1671,7 +1671,7 @@
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 375.0,
+      "avg_holding_days": 399.0,
       "profit_factor": 0.0
     },
     {
@@ -1680,14 +1680,14 @@
       "start_date": "2000-03-28",
       "end_date": "2002-10-09",
       "trading_days": 636,
-      "total_return_pct": -81.76,
-      "cagr": -48.93,
-      "mdd": -82.5,
-      "calmar": -0.59,
+      "total_return_pct": -81.91,
+      "cagr": -49.09,
+      "mdd": -81.91,
+      "calmar": -0.6,
       "total_trades": 1,
       "winning_trades": 0,
       "win_rate": 0.0,
-      "avg_holding_days": 117.0,
+      "avg_holding_days": 119.0,
       "profit_factor": 0.0
     },
     {
@@ -1696,14 +1696,14 @@
       "start_date": "2002-10-10",
       "end_date": "2004-01-26",
       "trading_days": 325,
-      "total_return_pct": 142.32,
-      "cagr": 98.07,
-      "mdd": -21.23,
-      "calmar": 4.62,
+      "total_return_pct": 138.63,
+      "cagr": 95.74,
+      "mdd": -20.59,
+      "calmar": 4.65,
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 504.0,
+      "avg_holding_days": 465.0,
       "profit_factor": 0.0
     },
     {
@@ -1712,14 +1712,14 @@
       "start_date": "2004-01-27",
       "end_date": "2006-07-21",
       "trading_days": 627,
-      "total_return_pct": -51.7,
-      "cagr": -25.43,
-      "mdd": -51.83,
-      "calmar": -0.49,
+      "total_return_pct": -57.18,
+      "cagr": -28.96,
+      "mdd": -57.22,
+      "calmar": -0.51,
       "total_trades": 2,
       "winning_trades": 0,
       "win_rate": 0.0,
-      "avg_holding_days": 277.0,
+      "avg_holding_days": 287.5,
       "profit_factor": 0.0
     },
     {
@@ -1735,7 +1735,7 @@
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 467.0,
+      "avg_holding_days": 475.0,
       "profit_factor": 0.0
     },
     {
@@ -1744,9 +1744,9 @@
       "start_date": "2007-11-01",
       "end_date": "2009-03-09",
       "trading_days": 339,
-      "total_return_pct": -53.54,
-      "cagr": -43.26,
-      "mdd": -55.82,
+      "total_return_pct": -56.45,
+      "cagr": -45.91,
+      "mdd": -58.59,
       "calmar": -0.78,
       "total_trades": 1,
       "winning_trades": 0,
@@ -1760,14 +1760,14 @@
       "start_date": "2009-03-10",
       "end_date": "2011-07-25",
       "trading_days": 600,
-      "total_return_pct": 209.21,
-      "cagr": 60.89,
-      "mdd": -53.58,
-      "calmar": 1.14,
-      "total_trades": 2,
-      "winning_trades": 2,
+      "total_return_pct": 259.05,
+      "cagr": 71.35,
+      "mdd": -43.09,
+      "calmar": 1.66,
+      "total_trades": 1,
+      "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 393.0,
+      "avg_holding_days": 796.0,
       "profit_factor": 0.0
     },
     {
@@ -1776,14 +1776,14 @@
       "start_date": "2011-07-26",
       "end_date": "2012-09-18",
       "trading_days": 291,
-      "total_return_pct": 3.29,
-      "cagr": 2.86,
-      "mdd": -53.53,
-      "calmar": 0.05,
+      "total_return_pct": 2.23,
+      "cagr": 1.93,
+      "mdd": -54.01,
+      "calmar": 0.04,
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 1406.0,
+      "avg_holding_days": 1408.0,
       "profit_factor": 0.0
     },
     {
@@ -1808,15 +1808,15 @@
       "start_date": "2015-07-21",
       "end_date": "2016-06-30",
       "trading_days": 240,
-      "total_return_pct": -55.5,
-      "cagr": -57.56,
-      "mdd": -61.59,
-      "calmar": -0.93,
+      "total_return_pct": -52.54,
+      "cagr": -54.57,
+      "mdd": -59.03,
+      "calmar": -0.92,
       "total_trades": 2,
       "winning_trades": 1,
       "win_rate": 50.0,
-      "avg_holding_days": 498.5,
-      "profit_factor": 4.59
+      "avg_holding_days": 519.0,
+      "profit_factor": 4.01
     },
     {
       "name": "트럼프 랠리",
@@ -1840,10 +1840,10 @@
       "start_date": "2018-10-01",
       "end_date": "2018-12-24",
       "trading_days": 59,
-      "total_return_pct": -28.81,
-      "cagr": -77.18,
-      "mdd": -31.63,
-      "calmar": -2.44,
+      "total_return_pct": -38.65,
+      "cagr": -88.05,
+      "mdd": -40.74,
+      "calmar": -2.16,
       "total_trades": 0,
       "winning_trades": 0,
       "win_rate": 0.0,
@@ -1863,7 +1863,7 @@
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 376.0,
+      "avg_holding_days": 379.0,
       "profit_factor": 0.0
     },
     {
@@ -1872,10 +1872,10 @@
       "start_date": "2020-02-20",
       "end_date": "2020-03-23",
       "trading_days": 23,
-      "total_return_pct": -40.91,
-      "cagr": -99.75,
-      "mdd": -46.62,
-      "calmar": -2.14,
+      "total_return_pct": -54.59,
+      "cagr": -99.99,
+      "mdd": -60.98,
+      "calmar": -1.64,
       "total_trades": 0,
       "winning_trades": 0,
       "win_rate": 0.0,
@@ -1895,7 +1895,7 @@
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 644.0,
+      "avg_holding_days": 646.0,
       "profit_factor": 0.0
     },
     {
@@ -1904,10 +1904,10 @@
       "start_date": "2021-11-22",
       "end_date": "2022-10-13",
       "trading_days": 225,
-      "total_return_pct": -37.21,
-      "cagr": -40.72,
-      "mdd": -38.07,
-      "calmar": -1.07,
+      "total_return_pct": -33.54,
+      "cagr": -36.82,
+      "mdd": -38.58,
+      "calmar": -0.95,
       "total_trades": 0,
       "winning_trades": 0,
       "win_rate": 0.0,
@@ -1920,14 +1920,14 @@
       "start_date": "2022-10-14",
       "end_date": "2025-02-18",
       "trading_days": 587,
-      "total_return_pct": 274.31,
-      "cagr": 75.4,
+      "total_return_pct": 259.4,
+      "cagr": 72.39,
       "mdd": -37.37,
-      "calmar": 2.02,
+      "calmar": 1.94,
       "total_trades": 1,
       "winning_trades": 1,
       "win_rate": 100.0,
-      "avg_holding_days": 763.0,
+      "avg_holding_days": 744.0,
       "profit_factor": 0.0
     },
     {
@@ -1936,10 +1936,10 @@
       "start_date": "2025-02-19",
       "end_date": "2025-05-12",
       "trading_days": 58,
-      "total_return_pct": -34.49,
-      "cagr": -84.8,
-      "mdd": -34.49,
-      "calmar": -2.46,
+      "total_return_pct": -49.13,
+      "cagr": -95.07,
+      "mdd": -49.13,
+      "calmar": -1.94,
       "total_trades": 0,
       "winning_trades": 0,
       "win_rate": 0.0,

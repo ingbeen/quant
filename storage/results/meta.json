@@ -528,6 +528,42 @@
       },
       "overlap_period": {
         "start_date": "2010-02-11",
+        "end_date": "2026-03-12",
+        "total_days": 4045
+      },
+      "validation_metrics": {
+        "cumulative_return_actual_pct": 22589.39,
+        "cumulative_return_simulated_pct": 22467.12,
+        "cumul_multiple_log_diff_mean_pct": 0.8604,
+        "cumul_multiple_log_diff_rmse_pct": 1.0417,
+        "cumul_multiple_log_diff_max_pct": 5.4298
+      },
+      "daily_stats": {
+        "daily_return_abs_diff": {
+          "mean": 0.0952,
+          "max": 6.4459
+        },
+        "cumul_multiple_log_diff": {
+          "mean": 0.8604,
+          "max": 5.4298
+        }
+      },
+      "csv_info": {
+        "path": "storage/results/tqqq/tqqq_daily_comparison.csv",
+        "row_count": 4045,
+        "file_size_bytes": 326922
+      },
+      "timestamp": "2026-03-14T13:25:42+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37
+      },
+      "overlap_period": {
+        "start_date": "2010-02-11",
         "end_date": "2026-02-17",
         "total_days": 4028
       },
@@ -660,40 +696,6 @@
         "file_size_bytes": 322839
       },
       "timestamp": "2026-02-15T18:41:00+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread": 0.0034
-      },
-      "overlap_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-29",
-        "total_days": 3995
-      },
-      "validation_metrics": {
-        "cumulative_return_actual_pct": 26300.71,
-        "cumulative_return_simulated_pct": 27478.24,
-        "cumul_multiple_log_diff_mean_pct": 1.7239,
-        "cumul_multiple_log_diff_rmse_pct": 2.0089,
-        "cumul_multiple_log_diff_max_pct": 6.3173
-      },
-      "daily_stats": {
-        "daily_return_abs_diff": {
-          "mean": 0.0957,
-          "max": 6.4456
-        },
-        "cumul_multiple_log_diff": {
-          "mean": 1.7239,
-          "max": 6.3173
-        }
-      },
-      "csv_info": {
-        "path": "storage/results/tqqq_daily_comparison.csv",
-        "row_count": 3995,
-        "file_size_bytes": 322839
-      },
-      "timestamp": "2026-02-11T16:22:38+09:00"
     }
   ],
   "tqqq_softplus_tuning": [
@@ -1637,6 +1639,38 @@
         "start_date": "1999-03-10",
         "end_date": "2010-02-10",
         "total_days": 2749,
+        "scale_factor": 0.187161
+      },
+      "actual_period": {
+        "start_date": "2010-02-11",
+        "end_date": "2026-03-12",
+        "total_days": 4045
+      },
+      "merged_summary": {
+        "total_days": 6794,
+        "initial_price": 37.432174,
+        "final_price": 46.830002,
+        "cumulative_return_pct": 25.11
+      },
+      "csv_info": {
+        "path": "storage/stock/TQQQ_synthetic_max.csv",
+        "row_count": 6794,
+        "file_size_bytes": 369177
+      },
+      "timestamp": "2026-03-14T13:25:34+09:00"
+    },
+    {
+      "execution_params": {
+        "leverage": 3.0,
+        "funding_spread_mode": "softplus",
+        "softplus_a": -6.1,
+        "softplus_b": 0.37,
+        "pre_listing_expense_ratio": 0.0095
+      },
+      "synthetic_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2010-02-10",
+        "total_days": 2749,
         "scale_factor": 0.18716
       },
       "actual_period": {
@@ -1752,184 +1786,216 @@
         "file_size_bytes": 340101
       },
       "timestamp": "2026-02-19T10:22:37+09:00"
-    },
-    {
-      "execution_params": {
-        "leverage": 3.0,
-        "funding_spread_mode": "softplus",
-        "softplus_a": -6.1,
-        "softplus_b": 0.37,
-        "pre_listing_expense_ratio": 0.0095
-      },
-      "synthetic_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2010-02-10",
-        "total_days": 2749,
-        "scale_factor": 0.187162
-      },
-      "actual_period": {
-        "start_date": "2010-02-11",
-        "end_date": "2025-12-29",
-        "total_days": 3995
-      },
-      "merged_summary": {
-        "total_days": 6744,
-        "initial_price": 37.4323,
-        "final_price": 54.490002,
-        "cumulative_return_pct": 45.57
-      },
-      "csv_info": {
-        "path": "storage/stock/TQQQ_synthetic_max.csv",
-        "row_count": 6744,
-        "file_size_bytes": 338253
-      },
-      "timestamp": "2026-02-16T17:04:18+09:00"
     }
   ],
   "single_backtest": [
     {
       "params": {
-        "strategy": "buy_and_hold_tqqq",
+        "strategy": "buy_and_hold_tlt",
         "initial_capital": 10000000
       },
       "results_summary": {
-        "total_return_pct": 32.64,
-        "cagr": 1.05,
-        "mdd": -99.98,
-        "calmar": 0.01,
+        "total_return_pct": 137.62,
+        "cagr": 3.73,
+        "mdd": -48.35,
+        "calmar": 0.08,
         "total_trades": 0,
         "win_rate": 0.0
       },
       "output_files": {
-        "signal_csv": "storage/results/backtest/buy_and_hold_tqqq/signal.csv",
-        "equity_csv": "storage/results/backtest/buy_and_hold_tqqq/equity.csv",
-        "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
-        "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
+        "signal_csv": "storage/results/backtest/buy_and_hold_tlt/signal.csv",
+        "equity_csv": "storage/results/backtest/buy_and_hold_tlt/equity.csv",
+        "trades_csv": "storage/results/backtest/buy_and_hold_tlt/trades.csv",
+        "summary_json": "storage/results/backtest/buy_and_hold_tlt/summary.json"
       },
-      "timestamp": "2026-03-08T20:32:53+09:00"
+      "timestamp": "2026-03-14T13:23:05+09:00"
     },
     {
       "params": {
-        "strategy": "buy_and_hold_qqq",
+        "strategy": "buy_and_hold_gld",
         "initial_capital": 10000000
       },
       "results_summary": {
-        "total_return_pct": 1305.9,
-        "cagr": 10.29,
-        "mdd": -82.96,
-        "calmar": 0.12,
+        "total_return_pct": 947.67,
+        "cagr": 11.65,
+        "mdd": -45.55,
+        "calmar": 0.26,
         "total_trades": 0,
         "win_rate": 0.0
       },
       "output_files": {
-        "signal_csv": "storage/results/backtest/buy_and_hold_qqq/signal.csv",
-        "equity_csv": "storage/results/backtest/buy_and_hold_qqq/equity.csv",
-        "trades_csv": "storage/results/backtest/buy_and_hold_qqq/trades.csv",
-        "summary_json": "storage/results/backtest/buy_and_hold_qqq/summary.json"
+        "signal_csv": "storage/results/backtest/buy_and_hold_gld/signal.csv",
+        "equity_csv": "storage/results/backtest/buy_and_hold_gld/equity.csv",
+        "trades_csv": "storage/results/backtest/buy_and_hold_gld/trades.csv",
+        "summary_json": "storage/results/backtest/buy_and_hold_gld/summary.json"
       },
-      "timestamp": "2026-03-08T20:32:53+09:00"
+      "timestamp": "2026-03-14T13:23:05+09:00"
     },
     {
       "params": {
-        "ma_window": 200,
-        "ma_type": "ema",
-        "buy_buffer_zone_pct": 0.03,
-        "sell_buffer_zone_pct": 0.05,
-        "hold_days": 2,
-        "recent_months": 0,
-        "initial_capital": 10000000,
-        "param_source": {
-          "ma_window": "OVERRIDE",
-          "buy_buffer_zone_pct": "OVERRIDE",
-          "sell_buffer_zone_pct": "OVERRIDE",
-          "hold_days": "OVERRIDE",
-          "recent_months": "OVERRIDE"
-        }
+        "strategy": "buy_and_hold_eem",
+        "initial_capital": 10000000
       },
       "results_summary": {
-        "total_return_pct": 20.69,
-        "cagr": 0.8,
-        "mdd": -38.05,
-        "calmar": 0.02,
-        "total_trades": 13,
-        "win_rate": 38.46
+        "total_return_pct": 690.08,
+        "cagr": 9.44,
+        "mdd": -66.43,
+        "calmar": 0.14,
+        "total_trades": 0,
+        "win_rate": 0.0
       },
       "output_files": {
-        "signal_csv": "storage/results/backtest/buffer_zone_tlt/signal.csv",
-        "equity_csv": "storage/results/backtest/buffer_zone_tlt/equity.csv",
-        "trades_csv": "storage/results/backtest/buffer_zone_tlt/trades.csv",
-        "summary_json": "storage/results/backtest/buffer_zone_tlt/summary.json"
+        "signal_csv": "storage/results/backtest/buy_and_hold_eem/signal.csv",
+        "equity_csv": "storage/results/backtest/buy_and_hold_eem/equity.csv",
+        "trades_csv": "storage/results/backtest/buy_and_hold_eem/trades.csv",
+        "summary_json": "storage/results/backtest/buy_and_hold_eem/summary.json"
       },
-      "timestamp": "2026-03-08T20:32:53+09:00"
+      "timestamp": "2026-03-14T13:23:05+09:00"
     },
     {
       "params": {
-        "ma_window": 200,
-        "ma_type": "ema",
-        "buy_buffer_zone_pct": 0.03,
-        "sell_buffer_zone_pct": 0.05,
-        "hold_days": 2,
-        "recent_months": 0,
-        "initial_capital": 10000000,
-        "param_source": {
-          "ma_window": "OVERRIDE",
-          "buy_buffer_zone_pct": "OVERRIDE",
-          "sell_buffer_zone_pct": "OVERRIDE",
-          "hold_days": "OVERRIDE",
-          "recent_months": "OVERRIDE"
-        }
+        "strategy": "buy_and_hold_efa",
+        "initial_capital": 10000000
       },
       "results_summary": {
-        "total_return_pct": 593.47,
-        "cagr": 9.52,
-        "mdd": -38.72,
-        "calmar": 0.25,
-        "total_trades": 9,
-        "win_rate": 33.33
+        "total_return_pct": 336.81,
+        "cagr": 6.19,
+        "mdd": -61.04,
+        "calmar": 0.1,
+        "total_trades": 0,
+        "win_rate": 0.0
       },
       "output_files": {
-        "signal_csv": "storage/results/backtest/buffer_zone_gld/signal.csv",
-        "equity_csv": "storage/results/backtest/buffer_zone_gld/equity.csv",
-        "trades_csv": "storage/results/backtest/buffer_zone_gld/trades.csv",
-        "summary_json": "storage/results/backtest/buffer_zone_gld/summary.json"
+        "signal_csv": "storage/results/backtest/buy_and_hold_efa/signal.csv",
+        "equity_csv": "storage/results/backtest/buy_and_hold_efa/equity.csv",
+        "trades_csv": "storage/results/backtest/buy_and_hold_efa/trades.csv",
+        "summary_json": "storage/results/backtest/buy_and_hold_efa/summary.json"
       },
-      "timestamp": "2026-03-08T20:32:52+09:00"
+      "timestamp": "2026-03-14T13:23:05+09:00"
     },
     {
       "params": {
-        "ma_window": 200,
-        "ma_type": "ema",
-        "buy_buffer_zone_pct": 0.03,
-        "sell_buffer_zone_pct": 0.05,
-        "hold_days": 2,
-        "recent_months": 0,
-        "initial_capital": 10000000,
-        "param_source": {
-          "ma_window": "OVERRIDE",
-          "buy_buffer_zone_pct": "OVERRIDE",
-          "sell_buffer_zone_pct": "OVERRIDE",
-          "hold_days": "OVERRIDE",
-          "recent_months": "OVERRIDE"
-        }
+        "strategy": "buy_and_hold_iwm",
+        "initial_capital": 10000000
       },
       "results_summary": {
-        "total_return_pct": 110.31,
-        "cagr": 3.3,
-        "mdd": -60.88,
-        "calmar": 0.05,
-        "total_trades": 21,
-        "win_rate": 33.33
+        "total_return_pct": 656.84,
+        "cagr": 8.16,
+        "mdd": -58.64,
+        "calmar": 0.14,
+        "total_trades": 0,
+        "win_rate": 0.0
       },
       "output_files": {
-        "signal_csv": "storage/results/backtest/buffer_zone_eem/signal.csv",
-        "equity_csv": "storage/results/backtest/buffer_zone_eem/equity.csv",
-        "trades_csv": "storage/results/backtest/buffer_zone_eem/trades.csv",
-        "summary_json": "storage/results/backtest/buffer_zone_eem/summary.json"
+        "signal_csv": "storage/results/backtest/buy_and_hold_iwm/signal.csv",
+        "equity_csv": "storage/results/backtest/buy_and_hold_iwm/equity.csv",
+        "trades_csv": "storage/results/backtest/buy_and_hold_iwm/trades.csv",
+        "summary_json": "storage/results/backtest/buy_and_hold_iwm/summary.json"
       },
-      "timestamp": "2026-03-08T20:32:52+09:00"
+      "timestamp": "2026-03-14T13:23:05+09:00"
     }
   ],
   "backtest_walkforward": [
+    {
+      "strategy": "buffer_zone_qqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-03-12",
+        "total_days": 6794
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 12.31,
+        "sell_fixed_oos_cagr_mean": 11.81,
+        "fully_fixed_oos_cagr_mean": 13.23
+      },
+      "elapsed_seconds": 687.8,
+      "timestamp": "2026-03-14T13:48:22+09:00"
+    },
+    {
+      "strategy": "buffer_zone_tqqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003,
+        "fixed_sell_buffer_pct": 0.05
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-03-12",
+        "total_days": 6794
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 29.4,
+        "sell_fixed_oos_cagr_mean": 27.68,
+        "fully_fixed_oos_cagr_mean": 15.69
+      },
+      "elapsed_seconds": 624.6,
+      "timestamp": "2026-03-14T13:36:54+09:00"
+    },
     {
       "strategy": "buffer_zone_atr_tqqq",
       "execution_params": {
@@ -2102,106 +2168,6 @@
       },
       "elapsed_seconds": 7512.0,
       "timestamp": "2026-02-23T16:00:07+09:00"
-    },
-    {
-      "strategy": "buffer_zone_qqq",
-      "execution_params": {
-        "initial_is_months": 72,
-        "oos_months": 24,
-        "ma_window_list": [
-          100,
-          150,
-          200
-        ],
-        "buy_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "sell_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          2,
-          3,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          4,
-          8,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003,
-        "fixed_sell_buffer_pct": 0.05
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 11.97,
-        "sell_fixed_oos_cagr_mean": 11.97,
-        "fully_fixed_oos_cagr_mean": 13.4
-      },
-      "elapsed_seconds": 1533.2,
-      "timestamp": "2026-02-23T13:54:55+09:00"
-    },
-    {
-      "strategy": "buffer_zone_tqqq",
-      "execution_params": {
-        "initial_is_months": 72,
-        "oos_months": 24,
-        "ma_window_list": [
-          100,
-          150,
-          200
-        ],
-        "buy_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "sell_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          2,
-          3,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          4,
-          8,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003,
-        "fixed_sell_buffer_pct": 0.05
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 30.02,
-        "sell_fixed_oos_cagr_mean": 28.31,
-        "fully_fixed_oos_cagr_mean": 15.93
-      },
-      "elapsed_seconds": 1934.0,
-      "timestamp": "2026-02-23T13:29:22+09:00"
     }
   ],
   "cscv_analysis": [

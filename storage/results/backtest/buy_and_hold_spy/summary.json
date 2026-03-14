@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (SPY)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 280012283,
-    "total_return_pct": 2700.12,
-    "cagr": 10.59,
+    "final_capital": 273744669,
+    "total_return_pct": 2637.45,
+    "cagr": 10.51,
     "mdd": -55.19,
     "calmar": 0.19,
     "total_trades": 0,
@@ -12,10 +12,10 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "1993-01-29",
-    "end_date": "2026-03-05",
+    "end_date": "2026-03-12",
     "open_position": {
       "entry_date": "1993-01-29",
-      "entry_price": 24.331419,
+      "entry_price": 24.331423,
       "shares": 410991
     }
   },
@@ -1377,7 +1377,7 @@
     {
       "year": 2015,
       "month": 8,
-      "return_pct": -6.1
+      "return_pct": -6.09
     },
     {
       "year": 2015,
@@ -2012,7 +2012,7 @@
     {
       "year": 2026,
       "month": 3,
-      "return_pct": -0.68
+      "return_pct": -2.91
     }
   ],
   "regime_summaries": [],

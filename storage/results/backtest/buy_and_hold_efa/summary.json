@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (EFA)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 44442440,
-    "total_return_pct": 344.42,
-    "cagr": 6.27,
+    "final_capital": 43680520,
+    "total_return_pct": 336.81,
+    "cagr": 6.19,
     "mdd": -61.04,
     "calmar": 0.1,
     "total_trades": 0,
@@ -12,10 +12,10 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2001-08-27",
-    "end_date": "2026-03-05",
+    "end_date": "2026-03-12",
     "open_position": {
       "entry_date": "2001-08-27",
-      "entry_price": 22.311977,
+      "entry_price": 22.31197,
       "shares": 448189
     }
   },
@@ -232,7 +232,7 @@
     {
       "year": 2005,
       "month": 2,
-      "return_pct": 3.78
+      "return_pct": 3.79
     },
     {
       "year": 2005,
@@ -562,7 +562,7 @@
     {
       "year": 2010,
       "month": 8,
-      "return_pct": -3.8
+      "return_pct": -3.79
     },
     {
       "year": 2010,
@@ -1342,7 +1342,7 @@
     {
       "year": 2023,
       "month": 8,
-      "return_pct": -3.94
+      "return_pct": -3.93
     },
     {
       "year": 2023,
@@ -1497,7 +1497,7 @@
     {
       "year": 2026,
       "month": 3,
-      "return_pct": -5.9
+      "return_pct": -7.52
     }
   ],
   "regime_summaries": [],
