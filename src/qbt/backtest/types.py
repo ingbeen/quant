@@ -118,8 +118,8 @@ class SingleBacktestResult:
     저장 직전에 스크립트에서 반올림 처리한다.
     """
 
-    strategy_name: str  # "buffer_zone", "buy_and_hold_qqq", "buy_and_hold_tqqq"
-    display_name: str  # "버퍼존 전략", "Buy & Hold (QQQ)", "Buy & Hold (TQQQ)"
+    strategy_name: str  # 전략 식별자 (예: "buffer_zone_tqqq", "buy_and_hold_qqq")
+    display_name: str  # 표시명 (예: "버퍼존 전략 (TQQQ)", "Buy & Hold (QQQ)")
     signal_df: pd.DataFrame  # 저장용 시그널 데이터 (raw)
     equity_df: pd.DataFrame  # 에쿼티 데이터 (raw)
     trades_df: pd.DataFrame  # 거래 내역 (빈 DataFrame 가능)

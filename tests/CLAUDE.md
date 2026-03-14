@@ -114,7 +114,6 @@ poetry run pytest tests/test_xxx.py -s -vv
   - Pending Order 정책 (단일 슬롯, 충돌 감지)
   - Equity 및 Final Capital 정의
   - 성과 지표 (CAGR, MDD, 승률 등)
-  - 동적 파라미터 조정 (최근 매수 기반)
 
 - TQQQ 시뮬레이션 도메인:
 

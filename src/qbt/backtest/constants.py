@@ -26,12 +26,6 @@ DEFAULT_INITIAL_CAPITAL: Final = 10_000_000.0  # 1천만원
 # 전략 파라미터
 # ============================================================
 
-# --- 버퍼존 전략 기본값 ---
-DEFAULT_MA_WINDOW: Final = 200  # 이동평균 기간
-DEFAULT_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
-DEFAULT_SELL_BUFFER_ZONE_PCT: Final = 0.03  # 매도 버퍼존 비율 (0.03 = 3%)
-DEFAULT_HOLD_DAYS: Final = 0  # 유지조건 기본값 (0일 = 버퍼존만 모드)
-
 # --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
 FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간
 FIXED_4P_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 확정 매수 버퍼존 비율 (0.03 = 3%)
@@ -107,19 +101,6 @@ COL_CALMAR: Final = "calmar"
 COL_TOTAL_TRADES: Final = "total_trades"
 COL_WIN_RATE: Final = "win_rate"
 COL_FINAL_CAPITAL: Final = "final_capital"
-
-# --- 그리드 서치 결과 CSV 출력용 레이블 (한글) ---
-DISPLAY_MA_WINDOW: Final = "이평기간"
-DISPLAY_BUY_BUFFER_ZONE: Final = "매수버퍼존"
-DISPLAY_SELL_BUFFER_ZONE: Final = "매도버퍼존"
-DISPLAY_HOLD_DAYS: Final = "유지일"
-DISPLAY_TOTAL_RETURN: Final = "수익률"
-DISPLAY_CAGR: Final = "CAGR"
-DISPLAY_MDD: Final = "MDD"
-DISPLAY_CALMAR: Final = "Calmar"
-DISPLAY_TOTAL_TRADES: Final = "거래수"
-DISPLAY_WIN_RATE: Final = "승률"
-DISPLAY_FINAL_CAPITAL: Final = "최종자본"
 
 # ============================================================
 # 단일 백테스트 활성 전략 필터

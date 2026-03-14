@@ -36,7 +36,7 @@ def load_plateau_pivot(param_name: str, metric: str) -> pd.DataFrame:
 
     Args:
         param_name: 파라미터명 ("hold_days", "sell_buffer", "buy_buffer", "ma_window")
-        metric: 지표명 ("calmar", "cagr", "mdd", "trades", "win_rate")
+        metric: 지표명 (run_param_plateau_all.py에서 생성한 지표와 일치해야 함)
 
     Returns:
         피벗 DataFrame (index=자산, columns=파라미터값)
@@ -51,23 +51,6 @@ def load_plateau_pivot(param_name: str, metric: str) -> pd.DataFrame:
         raise FileNotFoundError(f"고원 분석 결과 파일을 찾을 수 없습니다: {path}")
 
     return pd.read_csv(path, index_col=0)
-
-
-def load_plateau_detail() -> pd.DataFrame:
-    """상세 CSV를 로드한다.
-
-    Returns:
-        상세 결과 DataFrame
-
-    Raises:
-        FileNotFoundError: CSV 파일이 존재하지 않을 때
-    """
-    path = _PLATEAU_DIR / "param_plateau_all_detail.csv"
-
-    if not path.exists():
-        raise FileNotFoundError(f"고원 분석 상세 파일을 찾을 수 없습니다: {path}")
-
-    return pd.read_csv(path)
 
 
 def get_current_value(param_name: str) -> int | float:

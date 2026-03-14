@@ -10,17 +10,10 @@ from qbt.backtest.strategies.buffer_zone import (
     BufferZoneConfig,
     resolve_params_for_config,
 )
-from qbt.backtest.strategies.buffer_zone import (
-    create_runner as create_buffer_zone_runner,
-)
-from qbt.backtest.strategies.buffer_zone import (
-    get_config as get_buffer_zone_config,
-)
 from qbt.backtest.strategies.buffer_zone_helpers import (
     BufferStrategyParams,
     PendingOrder,
     PendingOrderConflictError,
-    resolve_buffer_params,
     run_buffer_strategy,
     run_grid_search,
 )
@@ -34,14 +27,11 @@ from qbt.backtest.strategies.buy_and_hold import (
 __all__ = [
     # Buffer zone unified (config-driven)
     "BufferZoneConfig",
-    "create_buffer_zone_runner",
-    "get_buffer_zone_config",
     "resolve_params_for_config",
     # Buffer zone strategy (shared)
     "BufferStrategyParams",
     "PendingOrder",
     "PendingOrderConflictError",
-    "resolve_buffer_params",
     "run_buffer_strategy",
     "run_grid_search",
     # Buy and hold strategy

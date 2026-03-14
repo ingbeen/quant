@@ -25,14 +25,12 @@
     "buy_buffer_zone_pct": 0.03,
     "sell_buffer_zone_pct": 0.05,
     "hold_days": 3,
-    "recent_months": 0,
     "initial_capital": 10000000,
     "param_source": {
       "ma_window": "FIXED",
       "buy_buffer_zone_pct": "FIXED",
       "sell_buffer_zone_pct": "FIXED",
-      "hold_days": "FIXED",
-      "recent_months": "FIXED"
+      "hold_days": "FIXED"
     }
   },
   "monthly_returns": [

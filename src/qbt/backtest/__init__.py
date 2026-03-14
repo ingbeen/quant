@@ -16,7 +16,6 @@ from qbt.backtest.strategies.buy_and_hold import (
     run_buy_and_hold,
 )
 from qbt.backtest.types import (
-    BestGridParams,
     MarketRegimeDict,
     RegimeSummaryDict,
     SingleBacktestResult,
@@ -35,7 +34,6 @@ __all__ = [
     "BufferStrategyParams",
     "BuyAndHoldParams",
     # Types
-    "BestGridParams",
     "MarketRegimeDict",
     "RegimeSummaryDict",
     "SingleBacktestResult",

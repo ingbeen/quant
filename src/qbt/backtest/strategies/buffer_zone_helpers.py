@@ -167,7 +167,7 @@ class BufferStrategyParams:
     ma_window: int  # 이동평균 기간 (예: 200일)
     buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준)
     sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준)
-    hold_days: int  # 최소 보유 일수 (예: 5일)
+    hold_days: int  # 신호 확정 대기 기간 (0 = 버퍼존만 모드)
 
 
 @dataclass
@@ -752,7 +752,7 @@ def run_buffer_strategy(
     first_upper_band, first_lower_band = _compute_bands(
         first_ma_value,
         params.buy_buffer_zone_pct,  # 초기 buy buffer
-        params.sell_buffer_zone_pct,  # sell buffer (고정)
+        params.sell_buffer_zone_pct,  # 초기 sell buffer
     )
 
     # 에쿼티는 trade_df의 종가로 계산

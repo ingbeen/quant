@@ -4,7 +4,6 @@
 
 테스트 대상:
 - load_plateau_pivot: 피벗 CSV 로드
-- load_plateau_detail: 상세 CSV 로드
 - get_current_value: 4P 확정 파라미터값 반환
 - find_plateau_range: 고원 구간 탐지
 """
@@ -61,56 +60,6 @@ class TestLoadPlateauPivot:
         with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
             with pytest.raises(FileNotFoundError, match="고원 분석 결과"):
                 load_plateau_pivot("hold_days", "calmar")
-
-
-class TestLoadPlateauDetail:
-    """상세 CSV 로드 테스트."""
-
-    def test_load_plateau_detail_returns_dataframe(self, tmp_path: Path) -> None:
-        """
-        목적: 상세 CSV 로드 후 DataFrame 반환 검증
-
-        Given: param_plateau_all_detail.csv 파일 존재
-        When: load_plateau_detail() 호출
-        Then: DataFrame 반환
-        """
-        from qbt.backtest.parameter_stability import load_plateau_detail
-
-        # Given
-        detail_df = pd.DataFrame(
-            {
-                "experiment": ["hold_days", "hold_days"],
-                "param_name": ["hold_days", "hold_days"],
-                "param_value": [0, 3],
-                "asset": ["QQQ", "QQQ"],
-                "calmar": [0.15, 0.20],
-            }
-        )
-        csv_path = tmp_path / "param_plateau_all_detail.csv"
-        detail_df.to_csv(csv_path, index=False)
-
-        # When
-        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
-            result = load_plateau_detail()
-
-        # Then
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 2
-
-    def test_load_plateau_detail_raises_file_not_found(self, tmp_path: Path) -> None:
-        """
-        목적: CSV 파일 미존재 시 FileNotFoundError 발생 검증
-
-        Given: 빈 디렉토리
-        When: load_plateau_detail() 호출
-        Then: FileNotFoundError 발생
-        """
-        from qbt.backtest.parameter_stability import load_plateau_detail
-
-        # When / Then
-        with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
-            with pytest.raises(FileNotFoundError, match="고원 분석 상세"):
-                load_plateau_detail()
 
 
 class TestGetCurrentValue:

@@ -23,8 +23,8 @@
 - `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
 - `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days)
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
-- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params 5개, is/oos CAGR/MDD/Calmar/trades/win_rate, wfe_calmar, wfe_cagr)
-- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계(calmar/cagr/robust), gap_calmar_median, profit_concentration, param_values, stitched 지표)
+- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params, is/oos 성과 지표, wfe_calmar, wfe_cagr)
+- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, gap_calmar_median, profit_concentration, 파라미터별 리스트(param_ma_windows 등), stitched 지표)
 - `MarketRegimeDict`: 시장 구간 정의 (start, end, regime_type, name). QQQ 기준 수동 분류한 구간 정보
 - `RegimeSummaryDict`: 구간별 성과 요약 (name, regime_type, start_date, end_date, trading_days, 기본 지표 + avg_holding_days, profit_factor)
 
@@ -35,12 +35,11 @@
 주요 상수 카테고리:
 
 - 거래 비용: `SLIPPAGE_RATE` (0.3%, 슬리피지 + 수수료 통합)
-- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_MA_WINDOW`, `DEFAULT_BUY_BUFFER_ZONE_PCT`, `DEFAULT_SELL_BUFFER_ZONE_PCT` 등
+- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
 - WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등
-- 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
 - 시장 구간: `MARKET_REGIMES` (QQQ 기준 수동 분류, `list[MarketRegimeDict]`)
 
 ### 3. analysis.py
@@ -62,7 +61,7 @@
 
 주요 함수:
 
-- `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (예: `param_plateau_buy_buffer_calmar.csv`)
+- `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (metric은 run_param_plateau_all.py에서 생성한 지표와 일치해야 함)
 - `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
 - `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
 - `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)
