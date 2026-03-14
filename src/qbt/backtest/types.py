@@ -167,7 +167,7 @@ class WfoWindowResultDict(TypedDict):
 class WfoModeSummaryDict(TypedDict):
     """WFO 모드별 요약 통계.
 
-    동적/sell_fixed/fully_fixed 각 모드의 OOS 성과 통합 요약.
+    동적/fully_fixed 각 모드의 OOS 성과 통합 요약.
     """
 
     n_windows: int  # 총 윈도우 수

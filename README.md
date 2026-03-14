@@ -247,9 +247,9 @@ quant/
 - `equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
 - `trades.csv`: 거래 내역 + 보유기간
 - `summary.json`: 요약 지표 + 파라미터 + 월별 수익률
-- `walkforward_dynamic.csv`, `walkforward_sell_fixed.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
-- `walkforward_equity_dynamic.csv`, `walkforward_equity_sell_fixed.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
-- `walkforward_summary.json`: 3-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
+- `walkforward_dynamic.csv`, `walkforward_fully_fixed.csv`: WFO 윈도우별 결과
+- `walkforward_equity_dynamic.csv`, `walkforward_equity_fully_fixed.csv`: stitched equity
+- `walkforward_summary.json`: 2-Mode 비교 요약 (WFE CAGR/Calmar, Profit Concentration, min_trades 포함)
 
 ### TQQQ 시뮬레이션
 

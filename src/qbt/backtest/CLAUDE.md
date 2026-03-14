@@ -39,8 +39,7 @@
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
-- WFO 고정값: `DEFAULT_WFO_FIXED_SELL_BUFFER_PCT`
-- WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등 7개
+- WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등
 - 그리드 서치 결과 CSV 출력용 레이블: `DISPLAY_MA_WINDOW`, `DISPLAY_BUY_BUFFER_ZONE`, `DISPLAY_SELL_BUFFER_ZONE` 등
 - 시장 구간: `MARKET_REGIMES` (QQQ 기준 수동 분류, `list[MarketRegimeDict]`)
 
@@ -58,8 +57,8 @@
 ### 4. parameter_stability.py
 
 파라미터 고원 분석 모듈을 제공합니다.
-고원 분석 CSV(param_plateau/)를 로딩하고 시각화용 데이터를 가공한다.
-4P 확정값은 `constants.py`의 `FIXED_4P_*` 상수를 참조한다.
+고원 분석 CSV(param*plateau/)를 로딩하고 시각화용 데이터를 가공한다.
+4P 확정값은 `constants.py`의 `FIXED_4P*\*` 상수를 참조한다.
 
 주요 함수:
 
@@ -136,7 +135,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설정 데이터클래스:
 
-- `BufferZoneConfig`: 자산별 전략 설정 (strategy_name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months, ma_type). frozen=True. 기본값은 `constants.py`의 `FIXED_4P_*` 참조
+- `BufferZoneConfig`: 자산별 전략 설정 (strategy*name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, recent_months, ma_type). frozen=True. 기본값은 `constants.py`의 `FIXED_4P*\*` 참조
 
 설정 목록:
 

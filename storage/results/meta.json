@@ -1929,6 +1929,102 @@
           12
         ],
         "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-03-12",
+        "total_days": 6794
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 12.31,
+        "fully_fixed_oos_cagr_mean": 13.23
+      },
+      "elapsed_seconds": 455.3,
+      "timestamp": "2026-03-14T17:46:42+09:00"
+    },
+    {
+      "strategy": "buffer_zone_tqqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
+        "slippage_rate": 0.003
+      },
+      "data_period": {
+        "start_date": "1999-03-10",
+        "end_date": "2026-03-12",
+        "total_days": 6794
+      },
+      "results_summary": {
+        "n_windows_dynamic": 11,
+        "dynamic_oos_cagr_mean": 29.4,
+        "fully_fixed_oos_cagr_mean": 15.69
+      },
+      "elapsed_seconds": 460.7,
+      "timestamp": "2026-03-14T17:39:07+09:00"
+    },
+    {
+      "strategy": "buffer_zone_qqq",
+      "execution_params": {
+        "initial_is_months": 72,
+        "oos_months": 24,
+        "ma_window_list": [
+          100,
+          150,
+          200
+        ],
+        "buy_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "sell_buffer_zone_pct_list": [
+          0.01,
+          0.03,
+          0.05
+        ],
+        "hold_days_list": [
+          0,
+          2,
+          3,
+          5
+        ],
+        "recent_months_list": [
+          0,
+          4,
+          8,
+          12
+        ],
+        "initial_capital": 10000000.0,
         "slippage_rate": 0.003,
         "fixed_sell_buffer_pct": 0.05
       },
@@ -2053,121 +2149,6 @@
       },
       "elapsed_seconds": 2482.4,
       "timestamp": "2026-03-02T18:13:54+09:00"
-    },
-    {
-      "strategy": "buffer_zone_atr_tqqq",
-      "execution_params": {
-        "initial_is_months": 72,
-        "oos_months": 24,
-        "ma_window_list": [
-          100,
-          150,
-          200
-        ],
-        "buy_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "sell_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          2,
-          3,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          4,
-          8,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003,
-        "fixed_sell_buffer_pct": 0.05,
-        "atr_period_list": [
-          14,
-          22
-        ],
-        "atr_multiplier_list": [
-          2.5
-        ]
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 9.62,
-        "sell_fixed_oos_cagr_mean": 13.83,
-        "fully_fixed_oos_cagr_mean": 10.0
-      },
-      "elapsed_seconds": 1198.2,
-      "timestamp": "2026-02-27T16:36:24+09:00"
-    },
-    {
-      "strategy": "buffer_zone_atr_tqqq",
-      "execution_params": {
-        "initial_is_months": 72,
-        "oos_months": 24,
-        "ma_window_list": [
-          100,
-          150,
-          200
-        ],
-        "buy_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "sell_buffer_zone_pct_list": [
-          0.01,
-          0.03,
-          0.05
-        ],
-        "hold_days_list": [
-          0,
-          2,
-          3,
-          5
-        ],
-        "recent_months_list": [
-          0,
-          4,
-          8,
-          12
-        ],
-        "initial_capital": 10000000.0,
-        "slippage_rate": 0.003,
-        "fixed_sell_buffer_pct": 0.05,
-        "atr_period_list": [
-          14,
-          22
-        ],
-        "atr_multiplier_list": [
-          2.5,
-          3.0
-        ]
-      },
-      "data_period": {
-        "start_date": "1999-03-10",
-        "end_date": "2026-02-17",
-        "total_days": 6777
-      },
-      "results_summary": {
-        "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 16.69,
-        "sell_fixed_oos_cagr_mean": 18.86,
-        "fully_fixed_oos_cagr_mean": 13.44
-      },
-      "elapsed_seconds": 7512.0,
-      "timestamp": "2026-02-23T16:00:07+09:00"
     }
   ],
   "cscv_analysis": [

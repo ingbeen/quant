@@ -1,7 +1,7 @@
 """
 백테스트 워크포워드 검증(WFO) 실행 스크립트
 
-3-Mode 비교를 수행하여 과최적화 검증 파이프라인을 구축합니다.
+2-Mode 비교(Dynamic/Fully Fixed)를 수행하여 과최적화 검증 파이프라인을 구축합니다.
 --strategy 인자로 실행할 전략을 선택할 수 있습니다 (기본값: all).
 
 실행 명령어:
@@ -22,7 +22,6 @@ from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
-    DEFAULT_WFO_FIXED_SELL_BUFFER_PCT,
     DEFAULT_WFO_HOLD_DAYS_LIST,
     DEFAULT_WFO_INITIAL_IS_MONTHS,
     DEFAULT_WFO_MA_WINDOW_LIST,
@@ -33,9 +32,7 @@ from qbt.backtest.constants import (
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
-    WALKFORWARD_EQUITY_SELL_FIXED_FILENAME,
     WALKFORWARD_FULLY_FIXED_FILENAME,
-    WALKFORWARD_SELL_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
 )
 from qbt.backtest.strategies import buffer_zone
@@ -175,7 +172,7 @@ def _run_single_mode(
     """단일 WFO 모드를 실행한다.
 
     Args:
-        mode_name: 모드 이름 (dynamic / sell_fixed / fully_fixed)
+        mode_name: 모드 이름 (dynamic / fully_fixed)
         signal_df: 시그널 DataFrame
         trade_df: 매매 DataFrame
         기타: 파라미터 리스트들
@@ -260,10 +257,8 @@ def _save_results(
     strategy_name: str,
     result_dir: Path,
     dynamic_results: list[WfoWindowResultDict],
-    sell_fixed_results: list[WfoWindowResultDict],
     fully_fixed_results: list[WfoWindowResultDict],
     dynamic_equity: pd.DataFrame,
-    sell_fixed_equity: pd.DataFrame,
     fully_fixed_equity: pd.DataFrame,
     all_summaries: dict[str, object],
 ) -> None:
@@ -273,7 +268,6 @@ def _save_results(
     # WFO 윈도우 결과 CSV 저장
     for filename, results in [
         (WALKFORWARD_DYNAMIC_FILENAME, dynamic_results),
-        (WALKFORWARD_SELL_FIXED_FILENAME, sell_fixed_results),
         (WALKFORWARD_FULLY_FIXED_FILENAME, fully_fixed_results),
     ]:
         df = pd.DataFrame(results)
@@ -300,7 +294,6 @@ def _save_results(
     # Equity CSV 저장
     for filename, eq_df in [
         (WALKFORWARD_EQUITY_DYNAMIC_FILENAME, dynamic_equity),
-        (WALKFORWARD_EQUITY_SELL_FIXED_FILENAME, sell_fixed_equity),
         (WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME, fully_fixed_equity),
     ]:
         if not eq_df.empty:
@@ -311,7 +304,7 @@ def _save_results(
 
     # 요약 JSON 저장 (반올림 규칙 적용)
     rounded_summaries: dict[str, object] = {"strategy": all_summaries.get("strategy", "")}
-    for mode_key in ["dynamic", "sell_fixed", "fully_fixed"]:
+    for mode_key in ["dynamic", "fully_fixed"]:
         if mode_key in all_summaries:
             mode_data = all_summaries[mode_key]
             if isinstance(mode_data, dict):
@@ -363,7 +356,7 @@ def _print_mode_summary(mode_name: str, summary: WfoModeSummaryDict) -> None:
 def main() -> int:
     """메인 실행 함수."""
     # 1. argparse
-    parser = argparse.ArgumentParser(description="백테스트 워크포워드 검증 (3-Mode)")
+    parser = argparse.ArgumentParser(description="백테스트 워크포워드 검증 (2-Mode)")
     parser.add_argument(
         "--strategy",
         choices=["all", *STRATEGY_CONFIG.keys()],
@@ -407,24 +400,9 @@ def main() -> int:
             DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 3-3. Mode 2: Sell Fixed (sell_buffer=0.05 고정)
+        # 3-3. Mode 2: Fully Fixed (첫 윈도우 best params 고정)
         logger.debug("-" * 40)
-        logger.debug(f"[Mode 2: Sell Fixed] sell_buffer={DEFAULT_WFO_FIXED_SELL_BUFFER_PCT} 고정")
-        sell_fixed_results, sell_fixed_summary, sell_fixed_equity = _run_single_mode(
-            "sell_fixed",
-            signal_df,
-            trade_df,
-            list(DEFAULT_WFO_MA_WINDOW_LIST),
-            list(DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST),
-            [DEFAULT_WFO_FIXED_SELL_BUFFER_PCT],
-            list(DEFAULT_WFO_HOLD_DAYS_LIST),
-            list(DEFAULT_WFO_RECENT_MONTHS_LIST),
-            DEFAULT_INITIAL_CAPITAL,
-        )
-
-        # 3-4. Mode 3: Fully Fixed (첫 윈도우 best params 고정)
-        logger.debug("-" * 40)
-        logger.debug("[Mode 3: Fully Fixed] 첫 IS 윈도우 최적 파라미터 고정")
+        logger.debug("[Mode 2: Fully Fixed] 첫 IS 윈도우 최적 파라미터 고정")
         first_best = dynamic_results[0]
 
         fully_fixed_results, fully_fixed_summary, fully_fixed_equity = _run_single_mode(
@@ -439,16 +417,14 @@ def main() -> int:
             DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 3-5. 요약 출력
+        # 3-4. 요약 출력
         _print_mode_summary("Dynamic", dynamic_summary)
-        _print_mode_summary("Sell Fixed", sell_fixed_summary)
         _print_mode_summary("Fully Fixed", fully_fixed_summary)
 
-        # 3-6. 결과 저장
+        # 3-5. 결과 저장
         all_summaries: dict[str, object] = {
             "strategy": strategy_name,
             "dynamic": dynamic_summary,
-            "sell_fixed": sell_fixed_summary,
             "fully_fixed": fully_fixed_summary,
         }
 
@@ -456,15 +432,13 @@ def main() -> int:
             strategy_name,
             result_dir,
             dynamic_results,
-            sell_fixed_results,
             fully_fixed_results,
             dynamic_equity,
-            sell_fixed_equity,
             fully_fixed_equity,
             all_summaries,
         )
 
-        # 3-7. 메타데이터 저장
+        # 3-6. 메타데이터 저장
         total_elapsed = time.time() - total_start
         metadata = {
             "strategy": strategy_name,
@@ -478,7 +452,6 @@ def main() -> int:
                 "recent_months_list": list(DEFAULT_WFO_RECENT_MONTHS_LIST),
                 "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
                 "slippage_rate": round(SLIPPAGE_RATE, 4),
-                "fixed_sell_buffer_pct": round(DEFAULT_WFO_FIXED_SELL_BUFFER_PCT, 4),
             },
             "data_period": {
                 "start_date": str(signal_df[COL_DATE].min()),
@@ -488,7 +461,6 @@ def main() -> int:
             "results_summary": {
                 "n_windows_dynamic": dynamic_summary["n_windows"],
                 "dynamic_oos_cagr_mean": round(dynamic_summary["oos_cagr_mean"], 2),
-                "sell_fixed_oos_cagr_mean": round(sell_fixed_summary["oos_cagr_mean"], 2),
                 "fully_fixed_oos_cagr_mean": round(fully_fixed_summary["oos_cagr_mean"], 2),
             },
             "elapsed_seconds": round(total_elapsed, 1),

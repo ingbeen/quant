@@ -131,7 +131,7 @@ main 함수:
 - 결과 요약 및 저장
 - 데이터 로딩: `load_stock_data` + `extract_overlap_period` (공통 유틸 사용)
 - 워크포워드 검증:
-  - `run_walkforward.py`: WFO 3-Mode 비교 실행 (동적/sell고정/전체고정)
+  - `run_walkforward.py`: WFO 2-Mode 비교 실행 (Dynamic/Fully Fixed)
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
 - 파라미터 고원 분석:
