@@ -2540,6 +2540,92 @@
         ]
       },
       "results_summary": {
+        "total_return_pct": 1452.19,
+        "cagr": 10.69,
+        "mdd": -41.0,
+        "calmar": 0.26,
+        "total_trades": 43,
+        "active_open_positions": 3
+      },
+      "output_files": {
+        "equity_csv": "storage/results/backtest/split_buffer_zone_qqq/equity.csv",
+        "trades_csv": "storage/results/backtest/split_buffer_zone_qqq/trades.csv",
+        "summary_json": "storage/results/backtest/split_buffer_zone_qqq/summary.json"
+      },
+      "timestamp": "2026-03-15T15:15:37+09:00"
+    },
+    {
+      "params": {
+        "total_capital": 10000000,
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3,
+        "ma_type": "ema",
+        "tranches": [
+          {
+            "tranche_id": "ma250",
+            "ma_window": 250,
+            "weight": 0.33,
+            "initial_capital": 3300000
+          },
+          {
+            "tranche_id": "ma200",
+            "ma_window": 200,
+            "weight": 0.34,
+            "initial_capital": 3400000
+          },
+          {
+            "tranche_id": "ma150",
+            "ma_window": 150,
+            "weight": 0.33,
+            "initial_capital": 3300000
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 10223.89,
+        "cagr": 18.73,
+        "mdd": -89.6,
+        "calmar": 0.21,
+        "total_trades": 43,
+        "active_open_positions": 3
+      },
+      "output_files": {
+        "equity_csv": "storage/results/backtest/split_buffer_zone_tqqq/equity.csv",
+        "trades_csv": "storage/results/backtest/split_buffer_zone_tqqq/trades.csv",
+        "summary_json": "storage/results/backtest/split_buffer_zone_tqqq/summary.json"
+      },
+      "timestamp": "2026-03-15T15:15:33+09:00"
+    },
+    {
+      "params": {
+        "total_capital": 10000000,
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3,
+        "ma_type": "ema",
+        "tranches": [
+          {
+            "tranche_id": "ma250",
+            "ma_window": 250,
+            "weight": 0.33,
+            "initial_capital": 3300000
+          },
+          {
+            "tranche_id": "ma200",
+            "ma_window": 200,
+            "weight": 0.34,
+            "initial_capital": 3400000
+          },
+          {
+            "tranche_id": "ma150",
+            "ma_window": 150,
+            "weight": 0.33,
+            "initial_capital": 3300000
+          }
+        ]
+      },
+      "results_summary": {
         "total_return_pct": 1474.3,
         "cagr": 10.75,
         "mdd": -40.97,
@@ -2639,49 +2725,6 @@
         "summary_json": "storage/results/backtest/split_buffer_zone_qqq/summary.json"
       },
       "timestamp": "2026-03-15T12:28:28+09:00"
-    },
-    {
-      "params": {
-        "total_capital": 10000000,
-        "buy_buffer_zone_pct": 0.03,
-        "sell_buffer_zone_pct": 0.05,
-        "hold_days": 3,
-        "ma_type": "ema",
-        "tranches": [
-          {
-            "tranche_id": "ma250",
-            "ma_window": 250,
-            "weight": 0.33,
-            "initial_capital": 3300000
-          },
-          {
-            "tranche_id": "ma200",
-            "ma_window": 200,
-            "weight": 0.34,
-            "initial_capital": 3400000
-          },
-          {
-            "tranche_id": "ma150",
-            "ma_window": 150,
-            "weight": 0.33,
-            "initial_capital": 3300000
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 12201.48,
-        "cagr": 19.51,
-        "mdd": -89.32,
-        "calmar": 0.22,
-        "total_trades": 43,
-        "active_open_positions": 3
-      },
-      "output_files": {
-        "equity_csv": "storage/results/backtest/split_buffer_zone_tqqq/equity.csv",
-        "trades_csv": "storage/results/backtest/split_buffer_zone_tqqq/trades.csv",
-        "summary_json": "storage/results/backtest/split_buffer_zone_tqqq/summary.json"
-      },
-      "timestamp": "2026-03-15T12:28:24+09:00"
     }
   ]
 }

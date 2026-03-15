@@ -2,11 +2,11 @@
   "display_name": "분할 버퍼존 (TQQQ)",
   "split_summary": {
     "initial_capital": 10000000,
-    "final_capital": 1230148482,
-    "total_return_pct": 12201.48,
-    "cagr": 19.51,
-    "mdd": -89.32,
-    "calmar": 0.22,
+    "final_capital": 1032389365,
+    "total_return_pct": 10223.89,
+    "cagr": 18.73,
+    "mdd": -89.6,
+    "calmar": 0.21,
     "total_trades": 43,
     "active_open_positions": 3
   },
@@ -17,18 +17,18 @@
       "weight": 0.33,
       "initial_capital": 3300000,
       "summary": {
-        "final_capital": 116367698,
-        "total_return_pct": 3426.29,
-        "cagr": 14.1,
-        "mdd": -93.27,
-        "calmar": 0.15,
+        "final_capital": 344129755,
+        "total_return_pct": 10328.17,
+        "cagr": 18.78,
+        "mdd": -100.0,
+        "calmar": 0.19,
         "total_trades": 14,
         "win_rate": 64.29
       },
       "open_position": {
         "entry_date": "2025-05-16",
         "entry_price": 35.472617,
-        "shares": 2484896
+        "shares": 7348489
       }
     },
     {
@@ -37,18 +37,18 @@
       "weight": 0.34,
       "initial_capital": 3400000,
       "summary": {
-        "final_capital": 388571863,
-        "total_return_pct": 11328.58,
-        "cagr": 19.18,
-        "mdd": -89.3,
-        "calmar": 0.21,
+        "final_capital": 344129801,
+        "total_return_pct": 10021.46,
+        "cagr": 18.65,
+        "mdd": -100.0,
+        "calmar": 0.19,
         "total_trades": 14,
         "win_rate": 64.29
       },
       "open_position": {
         "entry_date": "2025-05-16",
         "entry_price": 35.472617,
-        "shares": 8297498
+        "shares": 7348490
       }
     },
     {
@@ -57,18 +57,18 @@
       "weight": 0.33,
       "initial_capital": 3300000,
       "summary": {
-        "final_capital": 725208921,
-        "total_return_pct": 21876.03,
-        "cagr": 22.1,
-        "mdd": -86.96,
-        "calmar": 0.25,
+        "final_capital": 344129801,
+        "total_return_pct": 10328.18,
+        "cagr": 18.78,
+        "mdd": -100.0,
+        "calmar": 0.19,
         "total_trades": 15,
         "win_rate": 66.67
       },
       "open_position": {
         "entry_date": "2025-05-16",
         "entry_price": 35.472617,
-        "shares": 15485989
+        "shares": 7348490
       }
     }
   ],

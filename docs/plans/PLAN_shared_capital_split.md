@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -40,10 +40,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 미청산 포지션 avg_entry_price 버그 수정 (마지막 보유 기간에서 평단이 None으로 빠지는 문제)
-- [ ] 공유 자본 매수 규칙 구현 (매수 투입 자본 = 현금 ÷ 미보유 트랜치 수)
-- [ ] 기존 독립 자본 방식(`run_buffer_strategy()` N회 호출)에서 공유 자본 방식(날짜별 통합 루프)으로 전환
-- [ ] 테스트 코드 작성 (공유 자본 규칙 검증)
+- [x]미청산 포지션 avg_entry_price 버그 수정 (마지막 보유 기간에서 평단이 None으로 빠지는 문제)
+- [x]공유 자본 매수 규칙 구현 (매수 투입 자본 = 현금 ÷ 미보유 트랜치 수)
+- [x]기존 독립 자본 방식(`run_buffer_strategy()` N회 호출)에서 공유 자본 방식(날짜별 통합 루프)으로 전환
+- [x]테스트 코드 작성 (공유 자본 규칙 검증)
 
 ## 2) 비목표(Non-Goals)
 
@@ -114,20 +114,20 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `_get_latest_entry_price()` 미청산 포지션 버그 수정 (summary의 open_position entry_price 활용)
-- [ ] `run_split_backtest_shared_capital()` 신규 함수 구현 (공유 자본 날짜별 루프)
-- [ ] 공유 자본 매수 규칙: `현금 ÷ 미보유 트랜치 수` 정확히 적용
-- [ ] 매도 규칙: 해당 트랜치 보유 주식 전량 매도 (기존과 동일)
-- [ ] 체결 타이밍 규칙 준수: 시그널 i일 종가, 체결 i+1일 시가 (절대 규칙)
-- [ ] pending order / hold_days 상태머신 규칙 준수 (절대 규칙)
-- [ ] SplitStrategyResult 출력 형식 유지 (combined_equity_df, combined_trades_df, combined_summary, signal_df)
-- [ ] equity.csv 컬럼 구조 유지 (Date, equity, active_tranches, avg_entry_price, {tid}_equity, {tid}_position)
-- [ ] CLI 스크립트 업데이트 (`run_split_backtest.py`에서 공유 자본 함수 호출)
-- [ ] 회귀/신규 테스트 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 관련 문서 업데이트
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x]`_get_latest_entry_price()` 미청산 포지션 버그 수정 (summary의 open_position entry_price 활용)
+- [x]`run_split_backtest_shared_capital()` 신규 함수 구현 (공유 자본 날짜별 루프)
+- [x]공유 자본 매수 규칙: `현금 ÷ 미보유 트랜치 수` 정확히 적용
+- [x]매도 규칙: 해당 트랜치 보유 주식 전량 매도 (기존과 동일)
+- [x]체결 타이밍 규칙 준수: 시그널 i일 종가, 체결 i+1일 시가 (절대 규칙)
+- [x]pending order / hold_days 상태머신 규칙 준수 (절대 규칙)
+- [x]SplitStrategyResult 출력 형식 유지 (combined_equity_df, combined_trades_df, combined_summary, signal_df)
+- [x]equity.csv 컬럼 구조 유지 (Date, equity, active_tranches, avg_entry_price, {tid}_equity, {tid}_position)
+- [x]CLI 스크립트 업데이트 (`run_split_backtest.py`에서 공유 자본 함수 호출)
+- [x]회귀/신규 테스트 추가
+- [x]`poetry run python validate_project.py` 통과 (failed=0, skipped=0)
+- [x]`poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x]관련 문서 업데이트
+- [x]plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -167,7 +167,7 @@
 
 **작업 내용**:
 
-- [ ] `_get_latest_entry_price()` 버그 수정
+- [x]`_get_latest_entry_price()` 버그 수정
 
 수정 방법: 함수 시그니처에 `open_position` 파라미터 추가
 
@@ -189,7 +189,7 @@ if open_position is not None:
 return None
 ```
 
-- [ ] `_combine_equity()` 호출부에서 `open_position` 전달
+- [x]`_combine_equity()` 호출부에서 `open_position` 전달
 
 ```python
 open_pos = tr.summary.get("open_position")
@@ -199,13 +199,13 @@ entry_price = _get_latest_entry_price(
 )
 ```
 
-- [ ] 미청산 포지션 버그 수정 테스트 추가
+- [x]미청산 포지션 버그 수정 테스트 추가
 
 ```
 - test_avg_entry_price_with_open_position: 미청산 포지션 기간에 avg_entry_price가 None이 아닌지 검증
 ```
 
-- [ ] 공유 자본 핵심 규칙 테스트 작성 (레드)
+- [x]공유 자본 핵심 규칙 테스트 작성 (레드)
 
 ```
 - test_shared_capital_first_buy_divides_by_3: 첫 매수 시 현금 ÷ 3
@@ -226,7 +226,7 @@ entry_price = _get_latest_entry_price(
 
 **작업 내용**:
 
-- [ ] `run_split_backtest_shared_capital()` 신규 함수 구현
+- [x]`run_split_backtest_shared_capital()` 신규 함수 구현
 
 처리 흐름:
 
@@ -280,7 +280,7 @@ actual_cost = shares * buy_price
 shared_cash -= actual_cost
 ```
 
-- [ ] 시그널 판정 로직: `buffer_zone_helpers.py`의 규칙 동일 적용
+- [x]시그널 판정 로직: `buffer_zone_helpers.py`의 규칙 동일 적용
   - 밴드 계산: `upper = ma × (1 + buy_buffer_pct)`, `lower = ma × (1 - sell_buffer_pct)`
   - 매수 시그널: `close >= upper_band` (미보유 시)
   - 매도 시그널: `close <= lower_band` (보유 시)
@@ -288,14 +288,14 @@ shared_cash -= actual_cost
   - pending order: 단일 슬롯, 신호일에 생성, 체결일에 실행 후 None
   - 비용: `buy_price = open × (1 + SLIPPAGE_RATE)`, `sell_price = open × (1 - SLIPPAGE_RATE)`
 
-- [ ] `_combine_equity_shared()` 헬퍼 구현
+- [x]`_combine_equity_shared()` 헬퍼 구현
   - 날짜별 루프에서 직접 기록하므로 기존 `_combine_equity()`보다 단순
   - equity, active_tranches, avg_entry_price, {tid}_equity, {tid}_position 동일 컬럼 구조
 
-- [ ] `_combine_trades_shared()` 헬퍼 구현
+- [x]`_combine_trades_shared()` 헬퍼 구현
   - 기존 `_combine_trades()`와 동일 (tranche_id, tranche_seq, ma_window 태깅)
 
-- [ ] Phase 0의 레드 테스트 전부 그린 전환
+- [x]Phase 0의 레드 테스트 전부 그린 전환
 
 ---
 
@@ -303,10 +303,10 @@ shared_cash -= actual_cost
 
 **작업 내용**:
 
-- [ ] `run_split_backtest.py` 수정: `run_split_backtest_shared_capital()` 호출로 변경
-- [ ] `SPLIT_CONFIGS` 업데이트 (필요 시)
-- [ ] 기존 `run_split_backtest()` (독립 자본) 함수는 유지 (삭제하지 않음, 비교 가능)
-- [ ] 추가 테스트:
+- [x]`run_split_backtest.py` 수정: `run_split_backtest_shared_capital()` 호출로 변경
+- [x]`SPLIT_CONFIGS` 업데이트 (필요 시)
+- [x]기존 `run_split_backtest()` (독립 자본) 함수는 유지 (삭제하지 않음, 비교 가능)
+- [x]추가 테스트:
 
 ```
 - test_shared_capital_equity_csv_columns: equity.csv 컬럼 구조 유지 검증
@@ -321,18 +321,18 @@ shared_cash -= actual_cost
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트 (공유 자본 방식 설명 추가)
-- [ ] `scripts/CLAUDE.md` 업데이트
-- [ ] `tests/CLAUDE.md` 업데이트
-- [ ] `docs/tranche_architecture.md` 업데이트 (공유 자본 방식 추가 기술)
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x]`src/qbt/backtest/CLAUDE.md` 업데이트 (공유 자본 방식 설명 추가)
+- [x]`scripts/CLAUDE.md` 업데이트
+- [x]`tests/CLAUDE.md` 업데이트
+- [x]`docs/tranche_architecture.md` 업데이트 (공유 자본 방식 추가 기술)
+- [x]`poetry run black .` 실행 (자동 포맷 적용)
+- [x]변경 기능 및 전체 플로우 최종 검증
+- [x]DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x]전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=351, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

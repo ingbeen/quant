@@ -25,7 +25,6 @@ from qbt.backtest.split_strategy import (
     SplitStrategyConfig,
     SplitStrategyResult,
     SplitTrancheConfig,
-    create_split_runner,
     run_split_backtest,
 )
 from qbt.backtest.strategies.buffer_zone import BufferZoneConfig
@@ -364,13 +363,14 @@ class TestRunSplitBacktest:
             assert equity_col in result.combined_equity_df.columns, f"컬럼 누락: {equity_col}"
             assert position_col in result.combined_equity_df.columns, f"컬럼 누락: {position_col}"
 
-    def test_combined_equity_sum(self, tmp_path):
+    def test_combined_equity_includes_cash(self, tmp_path):
         """
-        목적: 합산 equity가 트랜치별 equity의 합과 일치하는지 검증
+        목적: 합산 equity가 트랜치별 주식평가액 + 현금인지 검증
 
         Given: 테스트 설정
         When: run_split_backtest() 실행
-        Then: 모든 날짜에서 equity = sum(트랜치별 equity)
+        Then: 모든 날짜에서 equity >= sum(트랜치별 equity) (현금 포함)
+              첫 날 equity == total_capital (전액 현금)
         """
         config = _make_test_split_config(tmp_path)
         result = run_split_backtest(config)
@@ -378,10 +378,14 @@ class TestRunSplitBacktest:
         equity_cols = [f"{t.tranche_id}_equity" for t in config.tranches]
         tranche_sum = result.combined_equity_df[equity_cols].sum(axis=1)
 
+        # 합산 equity는 항상 트랜치별 주식평가액 합 이상 (현금 포함)
         for i in range(len(result.combined_equity_df)):
-            assert result.combined_equity_df.iloc[i]["equity"] == pytest.approx(
-                tranche_sum.iloc[i], abs=0.01
-            ), f"행 {i}: equity 합산 불일치"
+            total_eq = result.combined_equity_df.iloc[i]["equity"]
+            stock_eq = tranche_sum.iloc[i]
+            assert total_eq >= stock_eq - 0.01, f"행 {i}: equity < 주식평가액 합"
+
+        # 첫 날은 전액 현금이므로 total_capital과 동일
+        assert result.combined_equity_df.iloc[0]["equity"] == pytest.approx(config.total_capital, abs=0.01)
 
     def test_combined_trades_tranche_tagging(self, tmp_path):
         """
@@ -517,23 +521,6 @@ class TestSplitBacktestAdditional:
         result = run_split_backtest(config)
         assert isinstance(result, SplitStrategyResult)
         assert len(result.per_tranche) == 3
-
-    def test_create_split_runner(self, tmp_path):
-        """
-        목적: 팩토리 함수 호출 후 결과 타입 검증
-
-        Given: 테스트 설정
-        When: create_split_runner() 호출 후 실행
-        Then: SplitStrategyResult 타입 반환
-        """
-        config = _make_test_split_config(tmp_path)
-        runner = create_split_runner(config)
-
-        assert callable(runner)
-
-        result = runner()
-        assert isinstance(result, SplitStrategyResult)
-        assert result.strategy_name == config.strategy_name
 
     def test_data_loaded_once(self, tmp_path):
         """

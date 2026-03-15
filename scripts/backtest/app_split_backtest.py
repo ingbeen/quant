@@ -37,7 +37,7 @@ from qbt.common_constants import (
 
 # --- 차트 높이 ---
 DEFAULT_CANDLE_PANE_HEIGHT = 500
-DEFAULT_EQUITY_PANE_HEIGHT = 250
+DEFAULT_EQUITY_PANE_HEIGHT = 150
 DEFAULT_POSITION_PANE_HEIGHT = 150
 DEFAULT_DRAWDOWN_PANE_HEIGHT = 150
 
@@ -611,33 +611,11 @@ def _render_candlestick_chart(
         }
     ]
 
-    # 트랜치별 에쿼티 오버레이
-    for tid in SPLIT_TRANCHE_IDS:
-        eq_col = f"{tid}_equity"
-        if eq_col in equity_df.columns:
-            t_data = _build_series_data(equity_df, eq_col)
-            if t_data:
-                t_colors = TRANCHE_COLORS[tid]
-                equity_pane_series.append(
-                    {
-                        "type": "Line",
-                        "data": t_data,
-                        "options": {
-                            "color": t_colors["equity"],
-                            "lineWidth": 1,
-                            "priceLineVisible": False,
-                            "lastValueVisible": False,
-                            "crosshairMarkerVisible": False,
-                            "priceFormat": {"type": "price", "precision": 0, "minMove": 1},
-                        },
-                    }
-                )
-
     pane2 = {
         "chart": _CHART_THEME,
         "series": equity_pane_series,
         "height": DEFAULT_EQUITY_PANE_HEIGHT,
-        "title": "에쿼티 (원) — 트랜치별 오버레이",
+        "title": "에쿼티 (원)",
     }
 
     # Pane 3: 드로우다운
@@ -688,11 +666,11 @@ def _render_position_tracking(
     equity_df = strategy["equity_df"]
     signal_df = strategy["signal_df"]
 
-    st.header("3. 포지션 추적 (보유 상태 변화)")
+    st.header("4. 포지션 추적 (보유 상태 변화)")
 
     # 3-1. 평균단가 vs 종가
     if "avg_entry_price" in equity_df.columns:
-        st.subheader("3-1. 가중 평균 진입가 vs 종가")
+        st.subheader("4-1. 가중 평균 진입가 vs 종가")
 
         # 날짜 기준으로 signal_df의 Close와 equity_df의 avg_entry_price를 결합
         merged = pd.merge(
@@ -734,13 +712,13 @@ def _render_position_tracking(
             font={"color": "#D1D4DC"},
             xaxis={"gridcolor": "#1e222d"},
             yaxis={"gridcolor": "#1e222d", "title": "가격"},
-            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02},
+            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "font": {"color": "#FFFFFF"}},
         )
         st.plotly_chart(fig, width="stretch", key=f"avg_price_{chart_key}")
 
     # 4-2. 보유 트랜치 수
     if "active_tranches" in equity_df.columns:
-        st.subheader("3-2. 동시 보유 트랜치 수")
+        st.subheader("4-2. 동시 보유 트랜치 수")
 
         fig_at = go.Figure()
         fig_at.add_trace(
@@ -764,7 +742,7 @@ def _render_position_tracking(
         st.plotly_chart(fig_at, width="stretch", key=f"active_tranches_{chart_key}")
 
     # 4-3. 트랜치별 보유수량
-    st.subheader("3-3. 트랜치별 보유수량 변화")
+    st.subheader("4-3. 트랜치별 보유수량 변화")
     fig_pos = go.Figure()
 
     for tid in SPLIT_TRANCHE_IDS:
@@ -791,7 +769,7 @@ def _render_position_tracking(
         font={"color": "#D1D4DC"},
         xaxis={"gridcolor": "#1e222d"},
         yaxis={"gridcolor": "#1e222d", "title": "보유 주수"},
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "font": {"color": "#FFFFFF"}},
     )
     st.plotly_chart(fig_pos, width="stretch", key=f"position_{chart_key}")
 
@@ -830,7 +808,7 @@ def _render_trades_table(
     """거래 상세 테이블을 렌더링한다."""
     trades_df = strategy["trades_df"]
 
-    st.header("4. 거래 상세 내역")
+    st.header("3. 거래 상세 내역")
 
     if trades_df.empty:
         st.info("거래 내역이 없습니다.")
@@ -897,10 +875,10 @@ def _render_strategy_tab(strategy: SplitStrategyData) -> None:
     _render_candlestick_chart(strategy, chart_key)
     st.divider()
 
-    _render_position_tracking(strategy, chart_key)
+    _render_trades_table(strategy, chart_key)
     st.divider()
 
-    _render_trades_table(strategy, chart_key)
+    _render_position_tracking(strategy, chart_key)
     st.divider()
 
     _render_params(strategy)

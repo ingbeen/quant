@@ -544,15 +544,32 @@ function LightweightChartsComponent({
             lines.push(line)
           }
 
-          // 구분선
-          if (cv.ma || cv.upper || cv.lower) {
+          // 지표 (MA, 밴드) — 동적 키 탐색: ma_*, upper_band_*, lower_band_*
+          const numSort = (a: string, b: string) => {
+            const na = parseInt(a.replace(/\D/g, "") || "0")
+            const nb = parseInt(b.replace(/\D/g, "") || "0")
+            return na - nb
+          }
+          const maKeys = Object.keys(cv).filter(k => k.startsWith("ma_") || k === "ma").sort(numSort)
+          const upperKeys = Object.keys(cv).filter(k => k.startsWith("upper_band_") || k === "upper").sort(numSort)
+          const lowerKeys = Object.keys(cv).filter(k => k.startsWith("lower_band_") || k === "lower").sort(numSort)
+
+          if (maKeys.length > 0 || upperKeys.length > 0 || lowerKeys.length > 0) {
             lines.push('<hr style="border:0;border-top:1px solid #333;margin:4px 0">')
           }
 
-          // 지표 (MA, 밴드)
-          if (cv.ma) lines.push(`이평선: ${cv.ma}`)
-          if (cv.upper) lines.push(`상단밴드: ${cv.upper}`)
-          if (cv.lower) lines.push(`하단밴드: ${cv.lower}`)
+          for (const k of maKeys) {
+            const label = k === "ma" ? "이평선" : k.replace("ma_", "MA ")
+            lines.push(`${label}: ${cv[k]}`)
+          }
+          for (const k of upperKeys) {
+            const label = k === "upper" ? "상단밴드" : k.replace("upper_band_", "상단 ")
+            lines.push(`${label}: ${cv[k]}`)
+          }
+          for (const k of lowerKeys) {
+            const label = k === "lower" ? "하단밴드" : k.replace("lower_band_", "하단 ")
+            lines.push(`${label}: ${cv[k]}`)
+          }
 
           // 에쿼티 + 드로우다운
           if (cv.equity || cv.dd) {

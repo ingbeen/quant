@@ -102,7 +102,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 주요 함수:
 
-- `run_split_backtest`: 분할 매수매도 백테스트 실행 (데이터 1회 로딩, 트랜치별 독립 실행, 결과 조합)
+- `run_split_backtest`: 분할 매수매도 백테스트 실행 (공유 자본, 날짜별 통합 루프, 매수 시 현금 ÷ 미보유 트랜치 수 배분, 매도 시 대금 공유 현금 복귀)
 - `create_split_runner`: 팩토리 함수. `SplitStrategyConfig` → `Callable[[], SplitStrategyResult]` 생성
 
 헬퍼 함수:
