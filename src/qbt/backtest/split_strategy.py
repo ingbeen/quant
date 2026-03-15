@@ -99,6 +99,7 @@ class SplitStrategyResult:
     per_tranche: list[SplitTrancheResult]  # 트랜치별 결과
     config: SplitStrategyConfig  # 원본 설정 (재현성)
     params_json: dict[str, Any]  # JSON 저장용
+    signal_df: pd.DataFrame  # 시그널 데이터 (OHLCV + MA, 시각화용)
 
 
 # ============================================================================
@@ -531,6 +532,7 @@ def run_split_backtest(config: SplitStrategyConfig) -> SplitStrategyResult:
         per_tranche=tranche_results,
         config=config,
         params_json=params_json,
+        signal_df=signal_df,
     )
 
 

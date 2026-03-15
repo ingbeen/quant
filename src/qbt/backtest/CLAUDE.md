@@ -94,7 +94,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `SplitTrancheConfig`: 트랜치별 설정 (tranche_id, weight, ma_window). frozen=True
 - `SplitStrategyConfig`: 전략 설정 (strategy_name, display_name, base_config, total_capital, tranches, result_dir). frozen=True
 - `SplitTrancheResult`: 트랜치별 백테스트 결과 (tranche_id, config, trades_df, equity_df, summary)
-- `SplitStrategyResult`: 분할 매수매도 전체 결과 (combined_equity_df, combined_trades_df, combined_summary, per_tranche, config, params_json)
+- `SplitStrategyResult`: 분할 매수매도 전체 결과 (combined_equity_df, combined_trades_df, combined_summary, per_tranche, config, params_json, signal_df)
 
 설정 목록:
 

@@ -19,7 +19,14 @@ from qbt.backtest.split_strategy import (
     SplitStrategyResult,
     run_split_backtest,
 )
-from qbt.common_constants import EPSILON, META_JSON_PATH
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    EPSILON,
+    META_JSON_PATH,
+)
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger
@@ -31,6 +38,46 @@ logger = get_logger(__name__)
 _CONFIG_MAP = {c.strategy_name: c for c in SPLIT_CONFIGS}
 
 
+def _save_signal_csv(result: SplitStrategyResult) -> None:
+    """분할 전략의 시그널 데이터를 CSV로 저장한다.
+
+    3개 MA(ma_250/200/150) + 6개 밴드(upper/lower × 3) + 전일종가대비%를 포함한다.
+    밴드 계산: upper = ma × (1 + buy_buffer_zone_pct), lower = ma × (1 - sell_buffer_zone_pct)
+
+    Args:
+        result: SplitStrategyResult 컨테이너
+    """
+    signal_path = result.config.result_dir / "signal.csv"
+    signal_export = result.signal_df.copy()
+
+    bc = result.config.base_config
+    buy_pct = bc.buy_buffer_zone_pct
+    sell_pct = bc.sell_buffer_zone_pct
+
+    # 트랜치별 밴드 계산
+    for tranche in result.config.tranches:
+        ma_col = f"ma_{tranche.ma_window}"
+        if ma_col in signal_export.columns:
+            signal_export[f"upper_band_{tranche.ma_window}"] = signal_export[ma_col] * (1 + buy_pct)
+            signal_export[f"lower_band_{tranche.ma_window}"] = signal_export[ma_col] * (1 - sell_pct)
+
+    # 전일종가대비%
+    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+
+    # 반올림 규칙
+    signal_round: dict[str, int] = {"change_pct": 2}
+    for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
+        if col in signal_export.columns:
+            signal_round[col] = 6
+    for col in signal_export.columns:
+        if col.startswith("ma_") or col.startswith("upper_band_") or col.startswith("lower_band_"):
+            signal_round[col] = 6
+
+    signal_export = signal_export.round(signal_round)
+    signal_export.to_csv(signal_path, index=False)
+    logger.debug(f"시그널 데이터 저장 완료: {signal_path}")
+
+
 def _save_split_results(result: SplitStrategyResult) -> None:
     """분할 매수매도 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
 
@@ -38,6 +85,9 @@ def _save_split_results(result: SplitStrategyResult) -> None:
         result: SplitStrategyResult 컨테이너
     """
     result.config.result_dir.mkdir(parents=True, exist_ok=True)
+
+    # 0. signal.csv 저장
+    _save_signal_csv(result)
 
     # 1. equity.csv 저장 (반올림 적용)
     equity_path = result.config.result_dir / "equity.csv"

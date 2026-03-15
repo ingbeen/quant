@@ -72,11 +72,15 @@ poetry run python scripts/backtest/run_param_plateau_all.py
 # 6. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
-# 7. WFO 결과 시각화 대시보드 (선행: 4)
+# 7. 분할 매수매도 대시보드 (선행: 3)
+# 시각화: 캔들스틱(MA+밴드+매매마커), 합산/트랜치별 에쿼티, 포지션 추적(평균단가/보유수량), 거래 테이블
+poetry run streamlit run scripts/backtest/app_split_backtest.py
+
+# 8. WFO 결과 시각화 대시보드 (선행: 4)
 poetry run streamlit run scripts/backtest/app_walkforward.py
 # 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)
 
-# 8. 파라미터 고원 시각화 대시보드 (선행: 5)
+# 9. 파라미터 고원 시각화 대시보드 (선행: 5)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
@@ -209,7 +213,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_single_backtest.py, run_split_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py
+│   ├── backtest/      # run_single_backtest.py, run_split_backtest.py, run_walkforward.py, run_param_plateau_all.py, app_single_backtest.py, app_split_backtest.py, app_walkforward.py, app_parameter_stability.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 결과 열람
@@ -266,6 +270,7 @@ quant/
 
 분할 매수매도 전략 결과는 `storage/results/backtest/split_buffer_zone_{tqqq,qqq}/` 하위에 저장됩니다.
 
+- `signal.csv`: 시그널 데이터 (OHLC + MA 3개 + 밴드 6개 + 전일대비%)
 - `equity.csv`: 합산 에쿼티 + 트랜치별 에쿼티/포지션 + active_tranches + avg_entry_price
 - `trades.csv`: 전체 거래 내역 (tranche_id, tranche_seq, ma_window 태깅)
 - `summary.json`: 분할 레벨 요약 + 트랜치별 요약 + 미청산 포지션

@@ -1,0 +1,102 @@
+{
+  "display_name": "분할 버퍼존 (TQQQ)",
+  "split_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 1230148482,
+    "total_return_pct": 12201.48,
+    "cagr": 19.51,
+    "mdd": -89.32,
+    "calmar": 0.22,
+    "total_trades": 43,
+    "active_open_positions": 3
+  },
+  "tranches": [
+    {
+      "tranche_id": "ma250",
+      "ma_window": 250,
+      "weight": 0.33,
+      "initial_capital": 3300000,
+      "summary": {
+        "final_capital": 116367698,
+        "total_return_pct": 3426.29,
+        "cagr": 14.1,
+        "mdd": -93.27,
+        "calmar": 0.15,
+        "total_trades": 14,
+        "win_rate": 64.29
+      },
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 35.472617,
+        "shares": 2484896
+      }
+    },
+    {
+      "tranche_id": "ma200",
+      "ma_window": 200,
+      "weight": 0.34,
+      "initial_capital": 3400000,
+      "summary": {
+        "final_capital": 388571863,
+        "total_return_pct": 11328.58,
+        "cagr": 19.18,
+        "mdd": -89.3,
+        "calmar": 0.21,
+        "total_trades": 14,
+        "win_rate": 64.29
+      },
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 35.472617,
+        "shares": 8297498
+      }
+    },
+    {
+      "tranche_id": "ma150",
+      "ma_window": 150,
+      "weight": 0.33,
+      "initial_capital": 3300000,
+      "summary": {
+        "final_capital": 725208921,
+        "total_return_pct": 21876.03,
+        "cagr": 22.1,
+        "mdd": -86.96,
+        "calmar": 0.25,
+        "total_trades": 15,
+        "win_rate": 66.67
+      },
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 35.472617,
+        "shares": 15485989
+      }
+    }
+  ],
+  "split_config": {
+    "total_capital": 10000000,
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "ma_type": "ema",
+    "tranches": [
+      {
+        "tranche_id": "ma250",
+        "ma_window": 250,
+        "weight": 0.33,
+        "initial_capital": 3300000
+      },
+      {
+        "tranche_id": "ma200",
+        "ma_window": 200,
+        "weight": 0.34,
+        "initial_capital": 3400000
+      },
+      {
+        "tranche_id": "ma150",
+        "ma_window": 150,
+        "weight": 0.33,
+        "initial_capital": 3300000
+      }
+    ]
+  }
+}
