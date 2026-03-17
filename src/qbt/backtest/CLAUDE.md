@@ -114,7 +114,51 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설계 근거: `docs/tranche_architecture.md`, `docs/tranche_final_recommendation.md`
 
-### 7. strategies/ 패키지
+### 7. portfolio_types.py
+
+포트폴리오 백테스트에서 사용하는 데이터클래스를 정의한다.
+
+설정 데이터클래스 (frozen=True):
+
+- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight)
+- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, rebalance_threshold_rate, result_dir, 4P 파라미터)
+
+결과 데이터클래스:
+
+- `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
+- `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, per_asset, config, params_json)
+
+equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, rebalanced
+
+### 8. portfolio_strategy.py
+
+포트폴리오 백테스트 엔진을 제공한다.
+복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 처리한다.
+
+로컬 상수:
+
+- `REBALANCE_THRESHOLD_RATE = 0.20`: 상대 리밸런싱 임계값 (|actual/target - 1| > 0.20이면 트리거)
+
+내부 데이터클래스:
+
+- `_PortfolioPendingOrder`: 포트폴리오 전용 예약 주문 (order_type, signal_date, capital)
+- `_AssetState`: 자산별 런타임 상태 (position, signal_state, pending_order, hold_state)
+
+공개 함수:
+
+- `run_portfolio_backtest(config: PortfolioConfig) -> PortfolioResult`: 포트폴리오 백테스트 실행
+- `_check_rebalancing_needed(asset_states, equity_vals, total_equity, config) -> bool`: 리밸런싱 필요 여부 판정
+- `_execute_rebalancing(asset_states, equity_vals, config, shared_cash, current_date) -> None`: 리밸런싱 pending_order 생성 (in-place)
+- `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정
+- `_compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float`: 에쿼티 산식 계산
+
+설계 특징:
+
+- TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
+- 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
+- 매도 먼저: 리밸런싱 시 매도 예상 대금을 매수 자본으로 활용 (shared_cash=0에서도 동작)
+
+### 9. strategies/ 패키지
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.
 

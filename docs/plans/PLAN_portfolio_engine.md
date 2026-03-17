@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-03-17 14:00
-**마지막 업데이트**: 2026-03-17 14:00
+**마지막 업데이트**: 2026-03-17 22:10
 **관련 범위**: backtest, common_constants
 **관련 문서**: docs/PLAN_portfolio_experiment.md, docs/tranche_design.md, docs/strategy_validation_report.md
 
@@ -40,9 +40,9 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 처리하는 포트폴리오 백테스트 엔진 구현
-- [ ] 엔진 타입 정의 (`portfolio_types.py`) 및 핵심 계약을 테스트로 고정
-- [ ] `PORTFOLIO_RESULTS_DIR` 상수 추가 (`common_constants.py`)
+- [x] 복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 처리하는 포트폴리오 백테스트 엔진 구현
+- [x] 엔진 타입 정의 (`portfolio_types.py`) 및 핵심 계약을 테스트로 고정
+- [x] `PORTFOLIO_RESULTS_DIR` 상수 추가 (`common_constants.py`)
 
 ## 2) 비목표(Non-Goals)
 
@@ -92,14 +92,14 @@ PLAN_portfolio_experiment.md에서 정의한 7가지 포트폴리오 실험(A-1~
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `PortfolioConfig`, `AssetSlotConfig`, `PortfolioResult` 등 타입 정의 완료
-- [ ] `run_portfolio_backtest()` 구현 완료 (시그널 + 리밸런싱 + 에쿼티 계산)
-- [ ] `tests/test_portfolio_strategy.py` 작성 및 전체 통과
-- [ ] `PORTFOLIO_RESULTS_DIR` 상수 추가 완료 (`common_constants.py`)
-- [ ] `src/qbt/backtest/CLAUDE.md` — 신규 모듈 설명 업데이트 완료
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; 결과 기록 필수)
-- [ ] `poetry run black .` 실행 완료
-- [ ] plan 체크박스 최신화
+- [x] `PortfolioConfig`, `AssetSlotConfig`, `PortfolioResult` 등 타입 정의 완료
+- [x] `run_portfolio_backtest()` 구현 완료 (시그널 + 리밸런싱 + 에쿼티 계산)
+- [x] `tests/test_portfolio_strategy.py` 작성 및 전체 통과
+- [x] `PORTFOLIO_RESULTS_DIR` 상수 추가 완료 (`common_constants.py`)
+- [x] `src/qbt/backtest/CLAUDE.md` — 신규 모듈 설명 업데이트 완료
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; 결과 기록 필수)
+- [x] `poetry run black .` 실행 완료
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -138,7 +138,7 @@ PLAN_portfolio_experiment.md에서 정의한 7가지 포트폴리오 실험(A-1~
 
 **작업 내용**:
 
-- [ ] `src/qbt/backtest/portfolio_types.py` 생성
+- [x] `src/qbt/backtest/portfolio_types.py` 생성
 
   ```python
   # 자산 슬롯 설정 (frozen: 불변)
@@ -205,7 +205,7 @@ PLAN_portfolio_experiment.md에서 정의한 7가지 포트폴리오 실험(A-1~
   | `asset_id` | str | 자산 식별자 ("qqq", "spy" 등) |
   | `trade_type` | str | "signal" 또는 "rebalance" — 거래 원인 |
 
-- [ ] `tests/test_portfolio_strategy.py` 생성 — 아래 계약 테스트 작성 (현재 레드)
+- [x] `tests/test_portfolio_strategy.py` 생성 — 아래 계약 테스트 작성 (현재 레드)
 
   **테스트 1: 상대 임계값 경계 조건** (`test_rebalancing_trigger_relative`)
 
@@ -305,13 +305,13 @@ Phase 0 테스트를 모두 통과시킨다.
 
 **작업 내용**:
 
-- [ ] `src/qbt/common_constants.py` 수정 (1줄 추가)
+- [x] `src/qbt/common_constants.py` 수정 (1줄 추가)
 
   ```python
   PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
   ```
 
-- [ ] `src/qbt/backtest/portfolio_strategy.py` 생성
+- [x] `src/qbt/backtest/portfolio_strategy.py` 생성
 
   **로컬 상수** (이 파일에서만 사용):
 
@@ -482,13 +482,13 @@ Phase 0 테스트를 모두 통과시킨다.
 
 **Validation** (Phase 1):
 
-- [ ] `poetry run python validate_project.py --only-tests` 통과
+- [x] `poetry run python validate_project.py --only-tests` 통과
 
 ---
 
 ### Phase 2 — 엣지 케이스 테스트 + CLAUDE.md 업데이트 (그린)
 
-- [ ] 엣지 케이스 테스트 추가 (`tests/test_portfolio_strategy.py`에 추가)
+- [x] 엣지 케이스 테스트 추가 (`tests/test_portfolio_strategy.py`에 추가)
 
   - `test_invalid_config_weight_sum_exceeds_one`: target_weight 합 > 1.0 → ValueError
   - `test_invalid_config_duplicate_asset_id`: asset_id 중복 → ValueError
@@ -497,16 +497,16 @@ Phase 0 테스트를 모두 통과시킨다.
   - `test_rebalancing_not_triggered_after_just_rebalanced`: 리밸런싱 직후 같은 월에 재트리거 없음
   - `test_c1_full_cash_on_sell`: C-1 (QQQ 50% + TQQQ 50%) 매도 시 전액 현금화
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
 
   - `portfolio_types.py` 모듈 설명 추가 (AssetSlotConfig, PortfolioConfig, PortfolioResult)
   - `portfolio_strategy.py` 모듈 설명 추가 (run_portfolio_backtest, REBALANCE_THRESHOLD_RATE)
 
-- [ ] `tests/conftest.py` 확인 — `mock_storage_paths`에 `PORTFOLIO_RESULTS_DIR` 패치 필요 시 추가
+- [x] `tests/conftest.py` 확인 — `mock_storage_paths`에 `PORTFOLIO_RESULTS_DIR` 패치 필요 시 추가 (불필요: 테스트에서 result_dir=tmp_path 직접 사용)
 
 **Validation** (Phase 2):
 
-- [ ] `poetry run python validate_project.py --only-tests` 통과
+- [x] `poetry run python validate_project.py --only-tests` 통과
 
 ---
 
@@ -514,13 +514,13 @@ Phase 0 테스트를 모두 통과시킨다.
 
 **작업 내용**:
 
-- [ ] `poetry run black .` 실행 (자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 확인
+- [x] `poetry run black .` 실행 (자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 확인
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=0, skipped=0)
+- [x] `poetry run python validate_project.py` (passed=365, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -580,3 +580,4 @@ target_weight 합이 1.0 미만인 경우(예: B-1 = 0.86),
 ### 진행 로그 (KST)
 
 - 2026-03-17 14:00: 계획서 초안 작성 완료 (설계 결정 사항 반영)
+- 2026-03-17 22:10: 전 Phase 구현 완료. validate_project.py 통과 (passed=365, failed=0, skipped=0)

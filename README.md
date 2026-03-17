@@ -220,13 +220,14 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화 전용)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, split_strategy.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, split_strategy.py, portfolio_types.py, portfolio_strategy.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
+│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더)
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
 │       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/       # 버퍼존 전략 (QQQ) 결과
