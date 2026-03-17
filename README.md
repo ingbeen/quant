@@ -7,6 +7,7 @@
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
 - 이동평균 기반 버퍼존 거래 전략 백테스트 (4P 고정 파라미터: MA=200, buy=3%, sell=5%, hold=3)
 - 분할 매수매도 전략 (ma250/ma200/ma150 3분할, 시간적 분산)
+- 멀티자산 포트폴리오 백테스트 (7가지 실험: A/B/C 시리즈, 목표 비중 배분 + 월간 리밸런싱)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -83,6 +84,13 @@ poetry run streamlit run scripts/backtest/app_walkforward.py
 # 9. 파라미터 고원 시각화 대시보드 (선행: 5)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
+
+# 10. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
+# A시리즈(QQQ/SPY/GLD), B시리즈(TQQQ 소량 포함 + 현금 버퍼), C-1(QQQ+TQQQ 레버리지)
+# 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id})
+poetry run python scripts/backtest/run_portfolio_backtest.py
+# --experiment 인자: all(기본) / portfolio_a1 / portfolio_a2 / ... / portfolio_c1
+poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
@@ -220,14 +228,14 @@ quant/
 │           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화 전용)
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, split_strategy.py, portfolio_types.py, portfolio_strategy.py, strategies/)
+│   ├── backtest/      # 백테스트 도메인 (constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py, split_strategy.py, portfolio_types.py, portfolio_strategy.py, portfolio_configs.py, strategies/)
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
-│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더)
+│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더: portfolio_a1 ~ portfolio_c1)
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
 │       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/       # 버퍼존 전략 (QQQ) 결과
@@ -275,6 +283,24 @@ quant/
 - `equity.csv`: 합산 에쿼티 + 트랜치별 에쿼티/포지션 + active_tranches + avg_entry_price
 - `trades.csv`: 전체 거래 내역 (tranche_id, tranche_seq, ma_window 태깅)
 - `summary.json`: 분할 레벨 요약 + 트랜치별 요약 + 미청산 포지션
+
+### 포트폴리오 백테스트
+
+각 실험의 결과는 `storage/results/portfolio/{experiment_name}/` 하위에 저장됩니다.
+
+- `equity.csv`: 합산 에쿼티 + 현금 + 드로우다운 + 자산별 평가액/비중/시그널 + 리밸런싱 여부
+- `trades.csv`: 전 자산 거래 내역 (asset_id, trade_type, holding_days 포함)
+- `summary.json`: 전체 포트폴리오 요약 + 자산별 요약(target_weight, 거래수, 승률) + 설정 파라미터
+- `signal_{asset_id}.csv`: 자산별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
+
+실험 목록:
+- `portfolio_a1`: QQQ 25% / SPY 25% / GLD 50% (역변동성 근사)
+- `portfolio_a2`: QQQ 30% / SPY 30% / GLD 40% (60:40 전통 배분)
+- `portfolio_a3`: QQQ 35% / SPY 35% / GLD 30% (공격적)
+- `portfolio_b1`: QQQ 19.5% / TQQQ 7% / SPY 19.5% / GLD 40% (현금 14%)
+- `portfolio_b2`: QQQ 12% / TQQQ 12% / SPY 12% / GLD 40% (현금 24%)
+- `portfolio_b3`: QQQ 15% / TQQQ 15% / SPY 30% / GLD 40% (전액 투자)
+- `portfolio_c1`: QQQ 50% / TQQQ 50% (레버리지 기준선, 분산 없음)
 
 ### TQQQ 시뮬레이션
 

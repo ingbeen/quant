@@ -158,6 +158,26 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
 - 매도 먼저: 리밸런싱 시 매도 예상 대금을 매수 자본으로 활용 (shared_cash=0에서도 동작)
 
+### 10. portfolio_configs.py
+
+포트폴리오 백테스트 실험 설정을 제공한다.
+PLAN_portfolio_experiment.md에 정의된 7가지 실험(A-1~A-3, B-1~B-3, C-1)을 PortfolioConfig로 구현한다.
+
+설정 목록:
+- PORTFOLIO_CONFIGS: list[PortfolioConfig] (7개 실험)
+  - portfolio_a1: QQQ 25% / SPY 25% / GLD 50% (역변동성 근사, 참고)
+  - portfolio_a2: QQQ 30% / SPY 30% / GLD 40% (60:40 전통 배분, 기본)
+  - portfolio_a3: QQQ 35% / SPY 35% / GLD 30% (공격적, 민감도)
+  - portfolio_b1: QQQ 19.5% / TQQQ 7% / SPY 19.5% / GLD 40% (현금 14%)
+  - portfolio_b2: QQQ 12% / TQQQ 12% / SPY 12% / GLD 40% (현금 24%)
+  - portfolio_b3: QQQ 15% / TQQQ 15% / SPY 30% / GLD 40% (전액 투자)
+  - portfolio_c1: QQQ 50% / TQQQ 50% (레버리지만, 분산 없음)
+
+주요 함수:
+- get_portfolio_config(experiment_name): 이름으로 PortfolioConfig 조회. 없으면 ValueError
+
+---
+
 ### 9. strategies/ 패키지
 
 전략 실행 엔진을 전략별로 분리한 패키지입니다.

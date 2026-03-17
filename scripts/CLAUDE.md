@@ -140,6 +140,12 @@ main 함수:
     - 결과: `split_buffer_zone_tqqq/`, `split_buffer_zone_qqq/` 디렉토리에 signal.csv, equity.csv, trades.csv, summary.json 저장
     - signal.csv: OHLCV + MA 3개(ma_250/200/150) + 밴드 6개(upper/lower × 3) + 전일대비%
     - 메타데이터 타입: `"split_backtest"`
+- 포트폴리오 실험:
+  - `run_portfolio_backtest.py`: 7가지 포트폴리오 실험 실행 (A/B/C 시리즈)
+    - `--experiment` 인자로 실행 실험 선택 (all / portfolio_a1 ~ portfolio_c1, 기본값: all)
+    - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
+      equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
+    - 메타데이터 타입: `"portfolio_backtest"`
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
