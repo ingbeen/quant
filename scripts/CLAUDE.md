@@ -172,6 +172,12 @@ main 함수:
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
     - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포
     - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
+  - `app_portfolio_backtest.py`: 7가지 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
+    - 선행: `run_portfolio_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
+    - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성
+    - 주요 섹션:
+      - 전체 비교 탭: 성과 지표 테이블, 에쿼티 곡선 비교, 드로우다운 비교, 실험 해설(§7.1 행동 가이드)
+      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 거래 현황 바차트, 거래 내역 테이블, 시그널 차트(자산 선택), 파라미터 정보
 
 ### 레버리지 시뮬레이션 (tqqq/)
 

@@ -383,6 +383,21 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
   - 포트폴리오: `equity`, `dd`
 - **display_name 필수**: `summary.json`에 `display_name`이 없으면 `ValueError` 발생
 
+### 포트폴리오 비교 대시보드 (`scripts/backtest/app_portfolio_backtest.py`)
+
+7가지 포트폴리오 실험(A/B/C 시리즈) 결과를 비교하는 대시보드.
+
+핵심 설계:
+
+- **실험 자동 탐색**: `_discover_experiments()`가 `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별
+- **탭 구조**: "전체 비교" 탭 + 실험별 탭 (알파벳 순 자동 생성)
+- **Plotly 전용**: lightweight-charts 없이 Plotly만 사용 (멀티 시리즈 라인 차트가 주목적)
+- **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
+- **전체 비교 탭 주요 기능**: 성과 지표 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교, 실험 해설(행동 가이드)
+- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이(스택 에어리어), 거래 현황 바차트, 거래 내역 테이블(자산 필터), 시그널 차트(Plotly 캔들스틱, 자산 선택), 파라미터 expander
+
+선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요
+
 ### Vendor Fork (`vendor/streamlit-lightweight-charts-v5/`)
 
 - `streamlit-lightweight-charts-v5` 포크를 `vendor/` 디렉토리에 포함
