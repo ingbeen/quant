@@ -1,0 +1,77 @@
+{
+  "display_name": "B-3 (QQQ 15% / TQQQ 15% / SPY 30% / GLD 40%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 119784818,
+    "total_return_pct": 1097.85,
+    "cagr": 12.36,
+    "mdd": -19.97,
+    "calmar": 0.62,
+    "total_trades": 98,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "qqq",
+      "target_weight": 0.15,
+      "total_trades": 30,
+      "win_rate": 73.33
+    },
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.15,
+      "total_trades": 33,
+      "win_rate": 69.7
+    },
+    {
+      "asset_id": "spy",
+      "target_weight": 0.3,
+      "total_trades": 18,
+      "win_rate": 77.78
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.4,
+      "total_trades": 17,
+      "win_rate": 52.94
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_b3",
+    "display_name": "B-3 (QQQ 15% / TQQQ 15% / SPY 30% / GLD 40%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "qqq",
+        "target_weight": 0.15,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/QQQ_max.csv"
+      },
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.15,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv"
+      },
+      {
+        "asset_id": "spy",
+        "target_weight": 0.3,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv"
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.4,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv"
+      }
+    ]
+  }
+}

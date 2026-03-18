@@ -223,6 +223,23 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
 # ============================================================
 
 
+def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """hex 색상 코드를 rgba 문자열로 변환한다.
+
+    Plotly는 8자리 hex(#RRGGBBAA)를 지원하지 않으므로 rgba() 형식으로 변환한다.
+
+    Args:
+        hex_color: 6자리 hex 색상 코드 (예: "#aec7e8")
+        alpha: 투명도 (0.0 ~ 1.0)
+
+    Returns:
+        rgba 문자열 (예: "rgba(174, 199, 232, 0.1)")
+    """
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
 def _get_asset_color(asset_id: str) -> str:
     """자산 ID에 대한 색상을 반환한다."""
     return _ASSET_COLORS.get(asset_id, _ASSET_COLOR_FALLBACK)
@@ -345,7 +362,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
                 fill="tozeroy",
                 fillcolor=color.replace(")", ", 0.1)").replace("rgb", "rgba")
                 if color.startswith("rgb")
-                else color + "1a",
+                else _hex_to_rgba(color, 0.1),
                 hovertemplate=("%{x|%Y-%m-%d}<br>" f"{exp.display_name}: %{{y:.2f}}%<extra></extra>"),
             )
         )

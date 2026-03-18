@@ -1,0 +1,77 @@
+{
+  "display_name": "B-2 (QQQ 12% / TQQQ 12% / SPY 12% / GLD 40% / 현금 24%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 68404446,
+    "total_return_pct": 584.04,
+    "cagr": 9.44,
+    "mdd": -15.39,
+    "calmar": 0.61,
+    "total_trades": 125,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "qqq",
+      "target_weight": 0.12,
+      "total_trades": 37,
+      "win_rate": 75.68
+    },
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.12,
+      "total_trades": 36,
+      "win_rate": 72.22
+    },
+    {
+      "asset_id": "spy",
+      "target_weight": 0.12,
+      "total_trades": 31,
+      "win_rate": 70.97
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.4,
+      "total_trades": 21,
+      "win_rate": 57.14
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_b2",
+    "display_name": "B-2 (QQQ 12% / TQQQ 12% / SPY 12% / GLD 40% / 현금 24%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "qqq",
+        "target_weight": 0.12,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/QQQ_max.csv"
+      },
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.12,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv"
+      },
+      {
+        "asset_id": "spy",
+        "target_weight": 0.12,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv"
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.4,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv"
+      }
+    ]
+  }
+}

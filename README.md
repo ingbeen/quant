@@ -91,6 +91,10 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자: all(기본) / portfolio_a1 / portfolio_a2 / ... / portfolio_c1
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
+
+# 11. 포트폴리오 비교 대시보드 (선행: 10)
+poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
+# 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 거래 현황, 시그널 차트)
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)

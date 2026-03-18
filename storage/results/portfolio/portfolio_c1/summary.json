@@ -1,0 +1,53 @@
+{
+  "display_name": "C-1 (QQQ 50% / TQQQ 50%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 463333714,
+    "total_return_pct": 4533.34,
+    "cagr": 15.26,
+    "mdd": -58.76,
+    "calmar": 0.26,
+    "total_trades": 63,
+    "start_date": "1999-03-10",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "qqq",
+      "target_weight": 0.5,
+      "total_trades": 14,
+      "win_rate": 71.43
+    },
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.5,
+      "total_trades": 49,
+      "win_rate": 75.51
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_c1",
+    "display_name": "C-1 (QQQ 50% / TQQQ 50%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "qqq",
+        "target_weight": 0.5,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/QQQ_max.csv"
+      },
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.5,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv"
+      }
+    ]
+  }
+}
