@@ -146,6 +146,7 @@ main 함수:
     - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 메타데이터 타입: `"portfolio_backtest"`
+    - 글로벌 시작일 정렬: 실험 실행 전 전체 PORTFOLIO_CONFIGS 기준 유효 시작일을 계산하여 max값을 모든 실험에 적용 (단일 실험 실행 시에도 동일). C-1(QQQ+TQQQ, 1999년~)과 A/B 시리즈(GLD 포함, 2004년~)의 기간 불일치 방지
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

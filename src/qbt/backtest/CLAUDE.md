@@ -146,7 +146,8 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 
 공개 함수:
 
-- `run_portfolio_backtest(config: PortfolioConfig) -> PortfolioResult`: 포트폴리오 백테스트 실행
+- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
+- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
 - `_check_rebalancing_needed(asset_states, equity_vals, total_equity, config) -> bool`: 리밸런싱 필요 여부 판정
 - `_execute_rebalancing(asset_states, equity_vals, config, shared_cash, current_date) -> None`: 리밸런싱 pending_order 생성 (in-place)
 - `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정

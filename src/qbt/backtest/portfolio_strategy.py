@@ -312,13 +312,101 @@ def _build_combined_equity(
 # ============================================================================
 
 
-def run_portfolio_backtest(config: PortfolioConfig) -> PortfolioResult:
+def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
+    """포트폴리오 실험의 유효 시작일을 계산한다.
+
+    전 자산 데이터의 날짜 교집합을 구하고 MA 워밍업 완료 이후 첫 날짜를 반환한다.
+    여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
+
+    Args:
+        config: 포트폴리오 실험 설정
+
+    Returns:
+        MA 워밍업 완료 이후 첫 유효 거래일 (date 객체)
+
+    Raises:
+        ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시
+    """
+    ma_col = f"ma_{config.ma_window}"
+
+    # 1. 자산별 데이터 로딩 + MA 계산 (signal_data_path 기준 캐시)
+    signal_cache: dict[str, pd.DataFrame] = {}
+    asset_trade_dfs: dict[str, pd.DataFrame] = {}
+    asset_signal_dfs: dict[str, pd.DataFrame] = {}
+
+    for slot in config.asset_slots:
+        signal_key = str(slot.signal_data_path)
+        if signal_key not in signal_cache:
+            signal_df_raw, trade_df = _load_and_prepare_data(slot, config.ma_window, config.ma_type)
+            signal_cache[signal_key] = signal_df_raw
+        else:
+            signal_df_raw = signal_cache[signal_key]
+            trade_df = load_stock_data(slot.trade_data_path)
+            if slot.signal_data_path != slot.trade_data_path:
+                signal_df_raw, trade_df = extract_overlap_period(signal_df_raw.copy(), trade_df)
+
+        asset_signal_dfs[slot.asset_id] = signal_df_raw
+        asset_trade_dfs[slot.asset_id] = trade_df
+
+    # 2. 공통 기간 추출 (전 자산 trade_df의 날짜 교집합)
+    date_sets = [set(df[COL_DATE]) for df in asset_trade_dfs.values()]
+    common_dates_set: set[date] = date_sets[0]
+    for ds in date_sets[1:]:
+        common_dates_set &= ds
+
+    if not common_dates_set:
+        raise ValueError("전 자산의 공통 거래 기간이 없습니다.")
+
+    # 공통 기간으로 필터링
+    for asset_id in asset_signal_dfs:
+        signal_df = asset_signal_dfs[asset_id]
+        trade_df = asset_trade_dfs[asset_id]
+
+        mask_s = pd.Series(signal_df[COL_DATE]).isin(common_dates_set)
+        mask_t = pd.Series(trade_df[COL_DATE]).isin(common_dates_set)
+
+        asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
+        asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
+
+    # 3. MA 유효 구간 필터링 (MA 워밍업 완료 이후 첫 인덱스)
+    valid_start_indices: list[int] = []
+    for asset_id in asset_signal_dfs:
+        sdf = asset_signal_dfs[asset_id]
+        if ma_col not in sdf.columns:
+            raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
+        valid_mask = sdf[ma_col].notna()
+        if valid_mask.any():
+            valid_start_indices.append(int(valid_mask.idxmax()))
+        else:
+            valid_start_indices.append(len(sdf))
+
+    valid_start = max(valid_start_indices)
+
+    # 4. 유효 시작 인덱스의 첫 trade_df 날짜 반환
+    first_trade_df = next(iter(asset_trade_dfs.values()))
+    first_trade_df_filtered = first_trade_df.iloc[valid_start:].reset_index(drop=True)
+
+    if len(first_trade_df_filtered) < 1:
+        raise ValueError("유효 데이터 부족: MA 워밍업 후 데이터가 없습니다.")
+
+    return date(
+        first_trade_df_filtered[COL_DATE].iloc[0].year,
+        first_trade_df_filtered[COL_DATE].iloc[0].month,
+        first_trade_df_filtered[COL_DATE].iloc[0].day,
+    )
+
+
+def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
     """포트폴리오 백테스트를 실행한다.
 
     복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 수행한다.
 
     Args:
         config: 포트폴리오 실험 설정
+        start_date: 백테스트 시작일 하한 (None이면 MA 워밍업 완료 시점부터 자동 결정).
+            여러 실험을 동일 기간으로 정렬할 때 global_start_date를 전달한다.
+            MA 워밍업 필터링 이후에 추가로 적용되므로 실제 시작일은
+            max(valid_start 날짜, start_date)가 된다.
 
     Returns:
         PortfolioResult (equity_df, trades_df, summary, per_asset 포함)
@@ -391,6 +479,17 @@ def run_portfolio_backtest(config: PortfolioConfig) -> PortfolioResult:
     for asset_id in asset_signal_dfs:
         asset_signal_dfs[asset_id] = asset_signal_dfs[asset_id].iloc[valid_start:].reset_index(drop=True)
         asset_trade_dfs[asset_id] = asset_trade_dfs[asset_id].iloc[valid_start:].reset_index(drop=True)
+
+    # start_date 필터: MA 워밍업 완료 이후 추가로 시작일 하한 적용
+    # 여러 실험의 공통 기간 정렬 시 사용 (global_start_date 전달)
+    if start_date is not None:
+        for asset_id in asset_signal_dfs:
+            sdf = asset_signal_dfs[asset_id]
+            tdf = asset_trade_dfs[asset_id]
+            mask_s = pd.Series(sdf[COL_DATE]) >= start_date
+            mask_t = pd.Series(tdf[COL_DATE]) >= start_date
+            asset_signal_dfs[asset_id] = sdf[mask_s.values].reset_index(drop=True)
+            asset_trade_dfs[asset_id] = tdf[mask_t.values].reset_index(drop=True)
 
     n = len(next(iter(asset_trade_dfs.values())))
     if n < 2:

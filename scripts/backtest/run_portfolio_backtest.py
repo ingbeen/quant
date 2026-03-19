@@ -15,7 +15,7 @@ import sys
 from typing import Any
 
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_strategy import run_portfolio_backtest
+from qbt.backtest.portfolio_strategy import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_types import PortfolioResult
 from qbt.common_constants import (
     COL_CLOSE,
@@ -278,11 +278,18 @@ def main() -> int:
 
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
-    # 3. 실험별 실행
+    # 3. 글로벌 시작일 계산 (전체 7개 PORTFOLIO_CONFIGS 기준)
+    # 모든 실험이 동일한 기간에서 비교될 수 있도록 유효 시작일 중 가장 늦은 날짜 적용
+    logger.debug("글로벌 시작일 계산 중 (전체 PORTFOLIO_CONFIGS 대상)...")
+    effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS]
+    global_start_date = max(effective_start_dates)
+    logger.debug(f"글로벌 시작일 결정: {global_start_date} (전체 {len(PORTFOLIO_CONFIGS)}개 실험 기준)")
+
+    # 4. 실험별 실행 (글로벌 시작일 적용)
     for config in target_configs:
         logger.debug("=" * 70)
         logger.debug(f"실험 시작: {config.experiment_name} ({config.display_name})")
-        result = run_portfolio_backtest(config)
+        result = run_portfolio_backtest(config, start_date=global_start_date)
         _print_summary(result)
         _save_portfolio_results(result)
         logger.debug(f"{config.display_name} 결과 파일 저장 완료: {config.result_dir}")

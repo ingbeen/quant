@@ -19,6 +19,7 @@ from qbt.backtest.portfolio_strategy import (  # pyright: ignore[reportPrivateUs
     _execute_rebalancing,
     _is_first_trading_day_of_month,
     _PortfolioPendingOrder,
+    compute_portfolio_effective_start_date,
     run_portfolio_backtest,
 )
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
@@ -839,3 +840,171 @@ class TestC1FullCashOnSell:
         trades = result.trades_df
         assert len(trades[trades["asset_id"] == "qqq"]) > 0, "QQQ 거래 내역이 있어야 함"
         assert len(trades[trades["asset_id"] == "tqqq"]) > 0, "TQQQ 거래 내역이 있어야 함"
+
+
+# ============================================================================
+# Phase 0: start_date 파라미터 계약 + compute_portfolio_effective_start_date 계약
+# ============================================================================
+
+
+class TestStartDateConstraint:
+    """run_portfolio_backtest()의 start_date 파라미터 계약 테스트.
+
+    핵심 계약:
+    - start_date가 주어지면 equity_df의 첫 날짜가 start_date 이상이어야 한다.
+    - start_date=None이면 기존 동작과 동일하다 (자연 시작일 사용).
+    """
+
+    def test_start_date_filters_early_data(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: start_date가 주어지면 equity_df가 해당 날짜 이후부터 시작함을 검증.
+
+        Given: 2024-01-02부터 시작하는 50행 데이터
+               start_date = 2024-02-01 (데이터 중간 날짜)
+        When:  run_portfolio_backtest(config, start_date=start_date) 실행
+        Then:  equity_df의 첫 날짜 >= start_date
+        """
+        # Given: 충분히 긴 데이터 (MA 워밍업 포함)
+        stock_df = _make_stock_df(n_rows=50)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 1.0},
+            ma_window=5,
+        )
+
+        # 데이터 자연 시작일 이후 날짜 지정
+        natural_result = run_portfolio_backtest(config)
+        natural_start = natural_result.equity_df[COL_DATE].iloc[0]
+
+        # natural_start보다 늦은 날짜를 start_date로 지정
+        constrained_start = natural_start + timedelta(days=5)
+
+        # When
+        result = run_portfolio_backtest(config, start_date=constrained_start)
+
+        # Then: equity_df 첫 날짜 >= constrained_start
+        first_date = result.equity_df[COL_DATE].iloc[0]
+        assert first_date >= constrained_start, (
+            f"start_date={constrained_start} 지정 시 equity_df 첫 날짜({first_date})가 " f"start_date 이상이어야 함"
+        )
+
+    def test_start_date_none_uses_natural_start(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: start_date=None이면 기존 동작(자연 시작일)과 동일함을 검증.
+
+        Given: 단일 자산 포트폴리오 config
+        When:  run_portfolio_backtest(config, start_date=None) 실행
+        Then:  start_date 미전달 시와 equity_df 첫 날짜가 동일
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result_no_date = run_portfolio_backtest(config)
+        result_none = run_portfolio_backtest(config, start_date=None)
+
+        # Then: 두 결과의 첫 날짜가 동일해야 함
+        first_date_no = result_no_date.equity_df[COL_DATE].iloc[0]
+        first_date_none = result_none.equity_df[COL_DATE].iloc[0]
+        assert first_date_no == first_date_none, (
+            f"start_date=None과 미전달 시 첫 날짜가 동일해야 함 " f"(미전달={first_date_no}, None={first_date_none})"
+        )
+
+
+class TestComputeEffectiveStartDate:
+    """compute_portfolio_effective_start_date() 계약 테스트.
+
+    핵심 계약:
+    - 반환값이 date 객체이어야 한다.
+    - 반환된 날짜가 MA 워밍업 완료 이후(데이터의 ma_window번째 이후)이어야 한다.
+    """
+
+    def test_returns_date_object(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: compute_portfolio_effective_start_date()가 date 객체를 반환함을 검증.
+
+        Given: 단일 자산 포트폴리오 config
+        When:  compute_portfolio_effective_start_date(config) 호출
+        Then:  반환값이 datetime.date 인스턴스
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = compute_portfolio_effective_start_date(config)
+
+        # Then
+        assert isinstance(result, date), f"반환값이 date 객체이어야 함 (현재: {type(result)})"
+
+    def test_effective_start_matches_backtest_start(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: compute_portfolio_effective_start_date()가 run_portfolio_backtest()의
+              equity_df 첫 날짜와 동일함을 검증.
+
+        Given: ma_window=5 (SMA, NaN 워밍업이 발생하는 유형) n_rows=20 데이터
+        When:  compute_portfolio_effective_start_date(config) 호출
+        Then:  반환 날짜 == run_portfolio_backtest()의 equity_df 첫 날짜
+               SMA 사용 시 반환 날짜가 데이터 시작일보다 이후 (ma_window-1 행은 NaN)
+        """
+        # Given: SMA 타입 사용 (처음 window-1 행이 NaN → 워밍업 발생)
+        stock_df = _make_stock_df(n_rows=20)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+        data_start = stock_df[COL_DATE].iloc[0]
+
+        # ma_type="sma"로 명시 (SMA는 처음 window-1행이 NaN → 워밍업 기간 명확)
+        config = PortfolioConfig(
+            experiment_name="test_sma",
+            display_name="Test SMA",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="qqq",
+                    signal_data_path=qqq_path,
+                    trade_data_path=qqq_path,
+                    target_weight=1.0,
+                ),
+            ),
+            total_capital=10_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path,
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="sma",  # SMA: 처음 4행(window-1=4)이 NaN
+        )
+
+        # When
+        effective_start = compute_portfolio_effective_start_date(config)
+
+        # Then 1: SMA 워밍업으로 유효 시작일이 데이터 시작일보다 이후이어야 함
+        assert effective_start > data_start, (
+            f"SMA 워밍업으로 유효 시작일({effective_start})이 "
+            f"데이터 시작일({data_start})보다 이후여야 함"
+        )
+
+        # Then 2: run_portfolio_backtest()의 equity_df 첫 날짜와 일치해야 함 (핵심 계약)
+        result = run_portfolio_backtest(config)
+        backtest_start = result.equity_df[COL_DATE].iloc[0]
+        assert effective_start == backtest_start, (
+            f"compute_portfolio_effective_start_date({effective_start})와 "
+            f"run_portfolio_backtest 첫 날짜({backtest_start})가 동일해야 함"
+        )
