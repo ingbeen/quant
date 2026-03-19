@@ -34,7 +34,8 @@
       "reportUnnecessaryTypeIgnoreComment": "none",
       "reportImportCycles": "none",
       "reportUnusedVariable": "none",
-      "reportGeneralTypeIssues": "none"
+      "reportGeneralTypeIssues": "none",
+      "reportUntypedFunctionDecorator": "none"
     }
   ]
 }

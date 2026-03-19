@@ -3,15 +3,17 @@
 portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 
 테스트 계약:
-1. PORTFOLIO_CONFIGS 개수 == 7
+1. PORTFOLIO_CONFIGS 개수 == 9
 2. 모든 config의 target_weight 합 <= 1.0
 3. 모든 config에서 asset_id 중복 없음
 4. A 시리즈(a1/a2/a3)에 TQQQ 없음
-5. B/C 시리즈의 TQQQ signal_data_path == QQQ_DATA_PATH
+5. B/C/D 시리즈의 TQQQ signal_data_path == QQQ_DATA_PATH
 6. C-1: QQQ 50% + TQQQ 50% (전액 투자)
 7. B-1: target_weight 합 == 0.86 (현금 버퍼 14%)
 8. get_portfolio_config("portfolio_a2") 정상 조회
 9. get_portfolio_config("nonexistent") → ValueError
+10. D-1: QQQ 100% 전액 투자 (TQQQ 없음)
+11. D-2: TQQQ 100% 전액 투자 (QQQ 시그널 사용)
 """
 
 import pytest
@@ -25,17 +27,18 @@ class TestPortfolioConfigsList:
 
     def test_portfolio_configs_count(self) -> None:
         """
-        목적: PORTFOLIO_CONFIGS에 정확히 7개의 실험이 정의되어 있어야 한다.
+        목적: PORTFOLIO_CONFIGS에 정확히 9개의 실험이 정의되어 있어야 한다.
+              A/B/C 7개 + D 시리즈 2개 (D-1 QQQ 100%, D-2 TQQQ 100%)
 
         Given: PORTFOLIO_CONFIGS 리스트
         When:  길이를 확인
-        Then:  7개
+        Then:  9개
         """
         # When
         count = len(PORTFOLIO_CONFIGS)
 
         # Then
-        assert count == 7
+        assert count == 9
 
     def test_all_portfolio_configs_target_weights_valid(self) -> None:
         """
@@ -88,18 +91,24 @@ class TestASeriesConfigs:
 class TestBCSeriesConfigs:
     """B/C 시리즈 설정 계약 테스트."""
 
-    def test_b_c_series_tqqq_signal_is_qqq(self) -> None:
+    def test_b_c_d_series_tqqq_signal_is_qqq(self) -> None:
         """
-        목적: B/C 시리즈의 TQQQ 자산은 QQQ 데이터로 시그널을 생성해야 한다.
+        목적: B/C/D 시리즈의 TQQQ 자산은 QQQ 데이터로 시그널을 생성해야 한다.
 
-        Given: portfolio_b1/b2/b3/c1 설정
+        Given: portfolio_b1/b2/b3/c1/d2 설정
         When:  TQQQ AssetSlotConfig의 signal_data_path 확인
         Then:  tqqq_slot.signal_data_path == QQQ_DATA_PATH (각 config)
         """
-        bc_series_names = {"portfolio_b1", "portfolio_b2", "portfolio_b3", "portfolio_c1"}
+        bcd_series_names = {
+            "portfolio_b1",
+            "portfolio_b2",
+            "portfolio_b3",
+            "portfolio_c1",
+            "portfolio_d2",
+        }
 
         for config in PORTFOLIO_CONFIGS:
-            if config.experiment_name not in bc_series_names:
+            if config.experiment_name not in bcd_series_names:
                 continue
             for slot in config.asset_slots:
                 if slot.asset_id == "tqqq":
@@ -144,6 +153,68 @@ class TestBCSeriesConfigs:
 
         # Then
         assert total == pytest.approx(0.86, abs=1e-9)
+
+
+class TestDSeriesConfigs:
+    """D 시리즈 (d1/d2) 설정 계약 테스트."""
+
+    def test_d1_full_investment_qqq_only(self) -> None:
+        """
+        목적: D-1은 QQQ 100%로 전액 투자해야 하며 TQQQ가 없어야 한다.
+
+        Given: portfolio_d1 설정 (QQQ 100%)
+        When:  target_weight 합산 및 asset_id 확인
+        Then:  합 == 1.0, asset_ids == {"qqq"}, "tqqq" 없음
+        """
+        # Given
+        config = get_portfolio_config("portfolio_d1")
+
+        # When
+        total = sum(slot.target_weight for slot in config.asset_slots)
+        asset_ids = {slot.asset_id for slot in config.asset_slots}
+
+        # Then
+        assert total == pytest.approx(1.0, abs=1e-9)
+        assert asset_ids == {"qqq"}
+        assert "tqqq" not in asset_ids
+
+    def test_d2_full_investment_tqqq_only(self) -> None:
+        """
+        목적: D-2는 TQQQ 100%로 전액 투자해야 하며 asset_ids == {"tqqq"}이어야 한다.
+
+        Given: portfolio_d2 설정 (TQQQ 100%)
+        When:  target_weight 합산 및 asset_id 확인
+        Then:  합 == 1.0, asset_ids == {"tqqq"}
+        """
+        # Given
+        config = get_portfolio_config("portfolio_d2")
+
+        # When
+        total = sum(slot.target_weight for slot in config.asset_slots)
+        asset_ids = {slot.asset_id for slot in config.asset_slots}
+
+        # Then
+        assert total == pytest.approx(1.0, abs=1e-9)
+        assert asset_ids == {"tqqq"}
+
+    def test_d2_tqqq_signal_is_qqq(self) -> None:
+        """
+        목적: D-2의 TQQQ 자산은 QQQ 데이터로 시그널을 생성해야 한다.
+
+        Given: portfolio_d2 설정
+        When:  TQQQ AssetSlotConfig의 signal_data_path 확인
+        Then:  signal_data_path == QQQ_DATA_PATH
+        """
+        # Given
+        config = get_portfolio_config("portfolio_d2")
+
+        # When
+        tqqq_slot = next(slot for slot in config.asset_slots if slot.asset_id == "tqqq")
+
+        # Then
+        assert (
+            tqqq_slot.signal_data_path == QQQ_DATA_PATH
+        ), f"D-2 TQQQ signal_data_path가 QQQ_DATA_PATH가 아닙니다: {tqqq_slot.signal_data_path}"
 
 
 class TestGetPortfolioConfig:

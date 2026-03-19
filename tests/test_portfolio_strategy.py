@@ -996,10 +996,7 @@ class TestComputeEffectiveStartDate:
         effective_start = compute_portfolio_effective_start_date(config)
 
         # Then 1: SMA 워밍업으로 유효 시작일이 데이터 시작일보다 이후이어야 함
-        assert effective_start > data_start, (
-            f"SMA 워밍업으로 유효 시작일({effective_start})이 "
-            f"데이터 시작일({data_start})보다 이후여야 함"
-        )
+        assert effective_start > data_start, f"SMA 워밍업으로 유효 시작일({effective_start})이 " f"데이터 시작일({data_start})보다 이후여야 함"
 
         # Then 2: run_portfolio_backtest()의 equity_df 첫 날짜와 일치해야 함 (핵심 계약)
         result = run_portfolio_backtest(config)

@@ -75,6 +75,8 @@ _EXPERIMENT_COLORS: dict[str, str] = {
     "portfolio_b2": "#ff7f0e",
     "portfolio_b3": "#d62728",
     "portfolio_c1": "#9467bd",
+    "portfolio_d1": "#2ca02c",  # 진한 초록 (QQQ 단일 비교군)
+    "portfolio_d2": "#8c4f00",  # 진한 갈색 (TQQQ 단일 비교군)
 }
 _EXPERIMENT_COLOR_FALLBACK = "#888888"
 

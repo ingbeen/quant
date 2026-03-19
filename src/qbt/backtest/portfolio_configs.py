@@ -296,6 +296,52 @@ _CONFIG_C1 = PortfolioConfig(
     ma_type=_DEFAULT_MA_TYPE,
 )
 
+# D-1: QQQ 단일 자산 (버퍼존 100%, 비교군) — QQQ 100%
+# target_weight 합 = 1.0 → 전액 투자, 분산 없음
+_CONFIG_D1 = PortfolioConfig(
+    experiment_name="portfolio_d1",
+    display_name="D-1 (QQQ 100%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="qqq",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QQQ_DATA_PATH,
+            target_weight=1.00,
+        ),
+    ),
+    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
+    result_dir=_make_result_dir("portfolio_d1"),
+    ma_window=_DEFAULT_MA_WINDOW,
+    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
+    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
+    hold_days=_DEFAULT_HOLD_DAYS,
+    ma_type=_DEFAULT_MA_TYPE,
+)
+
+# D-2: TQQQ 단일 자산 (버퍼존 100%, 비교군) — TQQQ 100%
+# target_weight 합 = 1.0 → 전액 투자, 분산 없음
+_CONFIG_D2 = PortfolioConfig(
+    experiment_name="portfolio_d2",
+    display_name="D-2 (TQQQ 100%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=1.00,
+        ),
+    ),
+    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
+    result_dir=_make_result_dir("portfolio_d2"),
+    ma_window=_DEFAULT_MA_WINDOW,
+    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
+    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
+    hold_days=_DEFAULT_HOLD_DAYS,
+    ma_type=_DEFAULT_MA_TYPE,
+)
+
 # ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
@@ -308,6 +354,8 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_B2,
     _CONFIG_B3,
     _CONFIG_C1,
+    _CONFIG_D1,
+    _CONFIG_D2,
 ]
 
 
