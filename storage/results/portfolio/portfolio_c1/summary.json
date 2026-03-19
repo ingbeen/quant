@@ -2,27 +2,27 @@
   "display_name": "C-1 (QQQ 50% / TQQQ 50%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 463333714,
-    "total_return_pct": 4533.34,
-    "cagr": 15.26,
-    "mdd": -58.76,
-    "calmar": 0.26,
-    "total_trades": 63,
-    "start_date": "1999-03-10",
+    "final_capital": 248572874,
+    "total_return_pct": 2385.73,
+    "cagr": 16.27,
+    "mdd": -50.35,
+    "calmar": 0.32,
+    "total_trades": 51,
+    "start_date": "2004-11-18",
     "end_date": "2026-03-12"
   },
   "per_asset": [
     {
       "asset_id": "qqq",
       "target_weight": 0.5,
-      "total_trades": 14,
-      "win_rate": 71.43
+      "total_trades": 10,
+      "win_rate": 80.0
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.5,
-      "total_trades": 49,
-      "win_rate": 75.51
+      "total_trades": 41,
+      "win_rate": 80.49
     }
   ],
   "portfolio_config": {
