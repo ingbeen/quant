@@ -3,7 +3,7 @@
 portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 
 테스트 계약:
-1. PORTFOLIO_CONFIGS 개수 == 9
+1. PORTFOLIO_CONFIGS 개수 == 25 (A=3, B=3, C=1, D=2, E=5, F=4, G=4, H=3)
 2. 모든 config의 target_weight 합 <= 1.0
 3. 모든 config에서 asset_id 중복 없음
 4. A 시리즈(a1/a2/a3)에 TQQQ 없음
@@ -27,18 +27,18 @@ class TestPortfolioConfigsList:
 
     def test_portfolio_configs_count(self) -> None:
         """
-        목적: PORTFOLIO_CONFIGS에 정확히 9개의 실험이 정의되어 있어야 한다.
-              A/B/C 7개 + D 시리즈 2개 (D-1 QQQ 100%, D-2 TQQQ 100%)
+        목적: PORTFOLIO_CONFIGS에 정확히 25개의 실험이 정의되어 있어야 한다.
+              A 3개 + B 3개 + C 1개 + D 2개 + E 5개 + F 4개 + G 4개 + H 3개 = 25개
 
         Given: PORTFOLIO_CONFIGS 리스트
         When:  길이를 확인
-        Then:  9개
+        Then:  25개
         """
         # When
         count = len(PORTFOLIO_CONFIGS)
 
         # Then
-        assert count == 9
+        assert count == 25
 
     def test_all_portfolio_configs_target_weights_valid(self) -> None:
         """

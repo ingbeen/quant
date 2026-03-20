@@ -1,0 +1,68 @@
+{
+  "display_name": "E-2 (SPY 60% / GLD 20% / TLT 20%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 51369239,
+    "total_return_pct": 413.69,
+    "cagr": 7.98,
+    "mdd": -14.24,
+    "calmar": 0.56,
+    "total_trades": 52,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "spy",
+      "target_weight": 0.6,
+      "total_trades": 15,
+      "win_rate": 86.67
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.2,
+      "total_trades": 21,
+      "win_rate": 57.14
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.2,
+      "total_trades": 16,
+      "win_rate": 31.25
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_e2",
+    "display_name": "E-2 (SPY 60% / GLD 20% / TLT 20%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "spy",
+        "target_weight": 0.6,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

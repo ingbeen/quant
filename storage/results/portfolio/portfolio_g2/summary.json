@@ -1,0 +1,68 @@
+{
+  "display_name": "G-2 (SPY 60%(버퍼존) / GLD 25%(B&H) / TLT 15%(버퍼존))",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 37082038,
+    "total_return_pct": 270.82,
+    "cagr": 6.34,
+    "mdd": -11.85,
+    "calmar": 0.54,
+    "total_trades": 94,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "spy",
+      "target_weight": 0.6,
+      "total_trades": 57,
+      "win_rate": 78.95
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.25,
+      "total_trades": 7,
+      "win_rate": 100.0
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.15,
+      "total_trades": 30,
+      "win_rate": 60.0
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_g2",
+    "display_name": "G-2 (SPY 60%(버퍼존) / GLD 25%(B&H) / TLT 15%(버퍼존))",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "spy",
+        "target_weight": 0.6,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.25,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": true
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.15,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

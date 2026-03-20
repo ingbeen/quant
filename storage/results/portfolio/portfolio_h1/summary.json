@@ -1,0 +1,68 @@
+{
+  "display_name": "H-1 (TQQQ 60% / GLD 20% / TLT 20%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 201378841,
+    "total_return_pct": 1913.79,
+    "cagr": 15.13,
+    "mdd": -42.5,
+    "calmar": 0.36,
+    "total_trades": 75,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.6,
+      "total_trades": 40,
+      "win_rate": 75.0
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.2,
+      "total_trades": 16,
+      "win_rate": 56.25
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.2,
+      "total_trades": 19,
+      "win_rate": 42.11
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_h1",
+    "display_name": "H-1 (TQQQ 60% / GLD 20% / TLT 20%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.6,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

@@ -33,12 +33,16 @@ class AssetSlotConfig:
         signal_data_path: EMA-200 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
         trade_data_path: 실제 매매 대상 데이터 경로 (TQQQ → 합성 데이터 경로)
         target_weight: 목표 비중 (예: 0.30 = 30%)
+        always_invested: True이면 버퍼존 매도 신호를 무시하고 항상 투자 상태 유지 (B&H 동작).
+            리밸런싱은 정상 참여한다. G 시리즈에서 GLD·TLT B&H 처리에 사용.
+            기본값 False = 버퍼존 전략 정상 적용.
     """
 
     asset_id: str
     signal_data_path: Path
     trade_data_path: Path
     target_weight: float  # 목표 비중 (0.30 = 30%)
+    always_invested: bool = False  # True이면 버퍼존 매도 무시, 항상 투자 상태 유지
 
 
 @dataclass(frozen=True)

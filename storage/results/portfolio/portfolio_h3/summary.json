@@ -1,0 +1,55 @@
+{
+  "display_name": "H-3 (TQQQ 60% / TLT 40%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 333435123,
+    "total_return_pct": 3234.35,
+    "cagr": 17.89,
+    "mdd": -40.09,
+    "calmar": 0.45,
+    "total_trades": 53,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.6,
+      "total_trades": 36,
+      "win_rate": 72.22
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.4,
+      "total_trades": 17,
+      "win_rate": 35.29
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_h3",
+    "display_name": "H-3 (TQQQ 60% / TLT 40%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.6,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.4,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "display_name": "F-3 (SPY 40% / TQQQ 20% / GLD 30% / TLT 10%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 84855272,
+    "total_return_pct": 748.55,
+    "cagr": 10.55,
+    "mdd": -21.81,
+    "calmar": 0.48,
+    "total_trades": 104,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "spy",
+      "target_weight": 0.4,
+      "total_trades": 20,
+      "win_rate": 70.0
+    },
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.2,
+      "total_trades": 38,
+      "win_rate": 73.68
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.3,
+      "total_trades": 22,
+      "win_rate": 54.55
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.1,
+      "total_trades": 24,
+      "win_rate": 41.67
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_f3",
+    "display_name": "F-3 (SPY 40% / TQQQ 20% / GLD 30% / TLT 10%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "spy",
+        "target_weight": 0.4,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.3,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.1,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

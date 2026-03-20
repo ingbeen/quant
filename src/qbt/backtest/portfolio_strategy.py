@@ -498,10 +498,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     trade_dates = list(next(iter(asset_trade_dfs.values()))[COL_DATE])
 
     # 4. 자산별 상태 초기화
+    # always_invested=True 자산은 항상 매수 상태로 시작 (버퍼존 신호 대기 없음)
     asset_states: dict[str, _AssetState] = {
         slot.asset_id: _AssetState(
             position=0,
-            signal_state="sell",  # 초기: 시그널 없음 (매수 신호 대기)
+            signal_state="buy" if slot.always_invested else "sell",
             pending_order=None,
             hold_state=None,
         )
@@ -520,21 +521,35 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     prev_lower_bands: dict[str, float] = {}
 
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
+    first_trade_date = trade_dates[0]
 
     # 5. 첫 날 초기화
-    for asset_id, signal_df in asset_signal_dfs.items():
+    # always_invested=True 자산은 day 0에 buy pending_order 생성 (i=1에서 즉시 매수)
+    for slot in config.asset_slots:
+        asset_id = slot.asset_id
+        signal_df = asset_signal_dfs[asset_id]
         first_row = signal_df.iloc[0]
         ma_val = float(first_row[ma_col])
         u, lb = _compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
         prev_upper_bands[asset_id] = u
         prev_lower_bands[asset_id] = lb
 
+        if slot.always_invested:
+            # 초기 매수 자본: total_capital × target_weight
+            # 여러 always_invested 자산이 동시에 매수될 때 공정한 자본 배분을 위해
+            # shared_cash 잔액이 아닌 total_capital 기준으로 고정 계산
+            initial_capital = config.total_capital * slot.target_weight
+            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
+                order_type="buy",
+                signal_date=first_trade_date,
+                capital=initial_capital,
+            )
+
     # 거래 기록 및 에쿼티 기록
     all_trades: list[dict[str, Any]] = []
     equity_rows: list[dict[str, Any]] = []
 
     # 첫 날 에쿼티 기록
-    first_trade_date = trade_dates[0]
     first_row_dict: dict[str, Any] = {
         COL_DATE: first_trade_date,
         "equity": shared_cash,
@@ -629,6 +644,24 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             prev_close = float(prev_signal_row[COL_CLOSE])
             cur_close = float(signal_row[COL_CLOSE])
 
+            slot = slot_dict[asset_id]
+
+            if slot.always_invested:
+                # always_invested 자산: 버퍼존 매도 신호 무시, 항상 투자 상태 유지.
+                # 포지션이 없는 경우(리밸런싱으로 매도된 직후)에만 재매수 신호 판정.
+                if state.position == 0 and state.pending_order is None:
+                    target_w = slot.target_weight
+                    buy_capital = current_equity * target_w
+                    state.pending_order = _PortfolioPendingOrder(
+                        order_type="buy",
+                        signal_date=current_date,
+                        capital=buy_capital,
+                    )
+                    state.signal_state = "buy"
+                prev_upper_bands[asset_id] = upper_band
+                prev_lower_bands[asset_id] = lower_band
+                continue
+
             if state.position == 0:
                 # 매수 시그널 판정 (hold_state 상태머신)
                 if state.hold_state is not None:
@@ -638,7 +671,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                         if hs["days_passed"] >= hs["hold_days_required"]:
                             if state.pending_order is None:
                                 # 매수 pending_order: capital = total_equity × target_weight
-                                target_w = slot_dict[asset_id].target_weight
+                                target_w = slot.target_weight
                                 buy_capital = current_equity * target_w
                                 state.pending_order = _PortfolioPendingOrder(
                                     order_type="buy",
@@ -663,7 +696,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                             )
                         else:
                             if state.pending_order is None:
-                                target_w = slot_dict[asset_id].target_weight
+                                target_w = slot.target_weight
                                 buy_capital = current_equity * target_w
                                 state.pending_order = _PortfolioPendingOrder(
                                     order_type="buy",
@@ -768,6 +801,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 "target_weight": slot.target_weight,
                 "signal_data_path": str(slot.signal_data_path),
                 "trade_data_path": str(slot.trade_data_path),
+                "always_invested": slot.always_invested,
             }
             for slot in config.asset_slots
         ],

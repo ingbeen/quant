@@ -1,0 +1,68 @@
+{
+  "display_name": "E-5 (SPY 80% / GLD 15% / TLT 5%)",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 53032512,
+    "total_return_pct": 430.33,
+    "cagr": 8.14,
+    "mdd": -16.52,
+    "calmar": 0.49,
+    "total_trades": 52,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "spy",
+      "target_weight": 0.8,
+      "total_trades": 15,
+      "win_rate": 86.67
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.15,
+      "total_trades": 20,
+      "win_rate": 55.0
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.05,
+      "total_trades": 17,
+      "win_rate": 35.29
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_e5",
+    "display_name": "E-5 (SPY 80% / GLD 15% / TLT 5%)",
+    "total_capital": 10000000.0,
+    "ma_window": 200,
+    "ma_type": "ema",
+    "buy_buffer_zone_pct": 0.03,
+    "sell_buffer_zone_pct": 0.05,
+    "hold_days": 3,
+    "rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "spy",
+        "target_weight": 0.8,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.15,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": false
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.05,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "always_invested": false
+      }
+    ]
+  }
+}

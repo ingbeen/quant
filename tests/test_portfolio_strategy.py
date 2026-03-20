@@ -1005,3 +1005,290 @@ class TestComputeEffectiveStartDate:
             f"compute_portfolio_effective_start_date({effective_start})와 "
             f"run_portfolio_backtest 첫 날짜({backtest_start})가 동일해야 함"
         )
+
+
+# ============================================================================
+# always_invested 기능 테스트
+# ============================================================================
+
+
+def _make_flat_price_df(n_rows: int = 20, price: float = 100.0) -> pd.DataFrame:
+    """가격이 고정된 합성 주식 데이터를 생성한다.
+
+    always_invested 테스트 목적:
+    - buy_buffer=0.03 → upper_band = MA * 1.03 ≈ 103
+    - price=100 → upper_band(103)을 절대 돌파하지 않음 → 버퍼존 매수 신호 없음
+    - always_invested=True라면 신호 없이도 즉시 매수 가능
+    """
+    start = date(2024, 1, 2)
+    dates: list[date] = []
+    current = start
+    for _ in range(n_rows):
+        while current.weekday() >= 5:
+            current += timedelta(days=1)
+        dates.append(current)
+        current += timedelta(days=1)
+
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: [price - 0.1] * n_rows,
+            COL_HIGH: [price + 0.1] * n_rows,
+            COL_LOW: [price - 0.1] * n_rows,
+            COL_CLOSE: [price] * n_rows,
+            COL_VOLUME: [1_000_000] * n_rows,
+        }
+    )
+
+
+def _make_sell_signal_df(n_rows: int = 20, initial_price: float = 100.0, drop_price: float = 80.0) -> pd.DataFrame:
+    """초반 고가→후반 저가(매도 신호 구간)를 포함한 합성 데이터를 생성한다.
+
+    - 처음 5행: initial_price (MA ≈ initial_price, lower_band = initial_price * 0.95 = 95)
+    - 나머지: drop_price = 80 (lower_band 95 하향 돌파 → 버퍼존 매도 신호)
+    """
+    start = date(2024, 1, 2)
+    dates: list[date] = []
+    current = start
+    for _ in range(n_rows):
+        while current.weekday() >= 5:
+            current += timedelta(days=1)
+        dates.append(current)
+        current += timedelta(days=1)
+
+    closes = [initial_price] * 5 + [drop_price] * (n_rows - 5)
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: [c - 0.1 for c in closes],
+            COL_HIGH: [c + 0.1 for c in closes],
+            COL_LOW: [c - 0.1 for c in closes],
+            COL_CLOSE: closes,
+            COL_VOLUME: [1_000_000] * n_rows,
+        }
+    )
+
+
+class TestAlwaysInvested:
+    """always_invested 기능 테스트.
+
+    검증 정책:
+    1. always_invested=True: 버퍼존 매수 신호 없이도 day 1에 즉시 매수
+    2. always_invested=True: 매도 신호 발생 시에도 포지션 유지
+    3. always_invested=False: 기존 버퍼존 동작 — 매수 신호 없으면 절대 매수하지 않음
+    4. AssetSlotConfig 기본값: always_invested=False (기존 코드 호환)
+    """
+
+    def test_always_invested_true_buys_immediately(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: always_invested=True 자산이 버퍼존 매수 신호 없이도 즉시 매수됨을 검증.
+
+        Given:
+            - 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
+            - always_invested=True 자산 슬롯 (target_weight=1.0)
+
+        When: run_portfolio_backtest() 실행
+
+        Then:
+            - 마지막 날 {asset_id}_value > 0 (즉시 매수 후 포지션 유지)
+            - always_invested=False 동일 구성이면 마지막 날 value = 0 (대조군 확인)
+        """
+        # Given: 가격 100 고정 (upper_band=103 돌파 없음 → 버퍼존 신호 없음)
+        df = _make_flat_price_df(n_rows=20, price=100.0)
+        csv_path = create_csv_file("asset_always.csv", df)
+
+        config_true = PortfolioConfig(
+            experiment_name="test_always_true",
+            display_name="Test Always True",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_a",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    always_invested=True,
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "always_true",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config_true)
+
+        # Then: 마지막 날 포지션 보유 (매수 신호 없어도 항상 투자)
+        equity_df = result.equity_df
+        last_value = float(equity_df["asset_a_value"].iloc[-1])
+        assert last_value > 0, f"always_invested=True 자산은 마지막 날 포지션을 보유해야 함, 실제: {last_value}"
+
+    def test_always_invested_false_does_not_buy_without_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: always_invested=False(기본값)이면 버퍼존 신호 없이 절대 매수하지 않음을 검증.
+
+        Given:
+            - 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
+            - always_invested=False (기본 버퍼존 전략)
+
+        When: run_portfolio_backtest() 실행
+
+        Then:
+            - 전체 기간 {asset_id}_value = 0 (매수 신호 없어서 포지션 없음)
+            - trades_df가 비어있음
+        """
+        # Given: 동일 가격 데이터, always_invested=False
+        df = _make_flat_price_df(n_rows=20, price=100.0)
+        csv_path = create_csv_file("asset_normal.csv", df)
+
+        config_false = PortfolioConfig(
+            experiment_name="test_always_false",
+            display_name="Test Always False",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_b",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    always_invested=False,
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "always_false",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config_false)
+
+        # Then: 전체 기간 포지션 없음
+        equity_df = result.equity_df
+        assert (equity_df["asset_b_value"] == 0).all(), "always_invested=False 자산은 매수 신호 없이 포지션을 가지면 안 됨"
+        assert result.trades_df.empty, "always_invested=False 자산은 신호 없으면 거래가 없어야 함"
+
+    def test_always_invested_true_does_not_sell_on_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: always_invested=True 자산이 매도 신호(하단 밴드 하향 돌파)에도 매도하지 않음을 검증.
+
+        Given:
+            - 처음 5행: 가격 100 (MA ≈ 100, lower_band = 95)
+            - 이후 15행: 가격 80 (lower_band 95 하향 돌파 → 버퍼존 매도 신호 발생)
+            - always_invested=True
+
+        When: run_portfolio_backtest() 실행
+
+        Then:
+            - 마지막 날 {asset_id}_value > 0 (매도하지 않고 포지션 유지)
+            - trades_df가 비어있음 (완료된 매도 거래 없음)
+        """
+        # Given: 초반 100 → 후반 80 (매도 신호 발생 구간)
+        df = _make_sell_signal_df(n_rows=20, initial_price=100.0, drop_price=80.0)
+        csv_path = create_csv_file("asset_sell_signal.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_no_sell",
+            display_name="Test No Sell",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_c",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    always_invested=True,
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "no_sell",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: 마지막 날 포지션 보유 (매도 신호 무시)
+        equity_df = result.equity_df
+        last_value = float(equity_df["asset_c_value"].iloc[-1])
+        assert last_value > 0, f"always_invested=True 자산은 매도 신호에도 포지션을 유지해야 함, 실제: {last_value}"
+
+        # 완료된 거래(entry + exit) 없음
+        assert result.trades_df.empty, f"always_invested=True 자산은 매도 기록이 없어야 함, " f"실제 거래 수: {len(result.trades_df)}"
+
+    def test_always_invested_default_value_is_false(self, tmp_path: Path) -> None:
+        """
+        목적: AssetSlotConfig.always_invested 기본값이 False임을 검증 (기존 코드 호환성).
+
+        Given: always_invested 파라미터 없이 AssetSlotConfig 생성
+        When:  AssetSlotConfig 인스턴스 생성
+        Then:  always_invested == False
+        """
+        # Given/When: always_invested 명시 없이 생성
+        slot = AssetSlotConfig(
+            asset_id="test",
+            signal_data_path=tmp_path / "dummy.csv",
+            trade_data_path=tmp_path / "dummy.csv",
+            target_weight=0.50,
+        )
+
+        # Then: 기본값 False
+        assert (
+            slot.always_invested is False
+        ), f"AssetSlotConfig.always_invested 기본값은 False여야 함, 실제: {slot.always_invested}"
+
+    def test_always_invested_params_json_includes_flag(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: params_json에 always_invested 필드가 포함됨을 검증.
+
+        Given: always_invested=True 자산을 포함한 포트폴리오 config
+        When:  run_portfolio_backtest() 실행
+        Then:  result.params_json["assets"][0]["always_invested"] == True
+        """
+        # Given
+        df = _make_flat_price_df(n_rows=20, price=100.0)
+        csv_path = create_csv_file("asset_json.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_params_json",
+            display_name="Test Params JSON",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_d",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    always_invested=True,
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "params_json",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: params_json에 always_invested 포함
+        assets_json = result.params_json.get("assets", [])
+        assert len(assets_json) == 1, "자산이 1개이어야 함"
+        assert "always_invested" in assets_json[0], "params_json[assets][0]에 always_invested 키가 있어야 함"
+        assert assets_json[0]["always_invested"] is True, (
+            f"always_invested=True가 params_json에 반영되어야 함, " f"실제: {assets_json[0].get('always_invested')}"
+        )

@@ -34,7 +34,8 @@
         "asset_id": "qqq",
         "target_weight": 1.0,
         "signal_data_path": "storage/stock/QQQ_max.csv",
-        "trade_data_path": "storage/stock/QQQ_max.csv"
+        "trade_data_path": "storage/stock/QQQ_max.csv",
+        "always_invested": false
       }
     ]
   }

@@ -378,7 +378,6 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
     st.plotly_chart(fig_dd, width="stretch")
 
 
-
 # ============================================================
 # 개별 실험 탭
 # ============================================================
@@ -538,7 +537,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             hovermode="x unified",
             legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         )
-        st.plotly_chart(fig_weight, width="stretch")
+        st.plotly_chart(fig_weight, width="stretch", key=f"weight_chart_{exp.experiment_name}")
     else:
         st.info("비중 데이터가 없습니다.")
 
@@ -578,7 +577,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             height=_SMALL_CHART_HEIGHT,
             legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         )
-        st.plotly_chart(fig_bar, width="stretch")
+        st.plotly_chart(fig_bar, width="stretch", key=f"bar_chart_{exp.experiment_name}")
     else:
         st.info("거래 데이터가 없습니다.")
 

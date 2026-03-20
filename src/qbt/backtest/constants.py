@@ -125,6 +125,10 @@ SPLIT_TRANCHE_IDS: Final = ["ma250", "ma200", "ma150"]
 DEFAULT_SINGLE_BACKTEST_STRATEGIES: Final[list[str]] = [
     "buffer_zone_tqqq",
     "buffer_zone_qqq",
+    "buffer_zone_tlt",
+    "buffer_zone_gld",
     "buy_and_hold_qqq",
     "buy_and_hold_tqqq",
+    "buy_and_hold_tlt",
+    "buy_and_hold_gld",
 ]

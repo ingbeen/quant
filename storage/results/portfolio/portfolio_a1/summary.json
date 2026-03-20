@@ -46,19 +46,22 @@
         "asset_id": "qqq",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/QQQ_max.csv",
-        "trade_data_path": "storage/stock/QQQ_max.csv"
+        "trade_data_path": "storage/stock/QQQ_max.csv",
+        "always_invested": false
       },
       {
         "asset_id": "spy",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/SPY_max.csv",
-        "trade_data_path": "storage/stock/SPY_max.csv"
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "always_invested": false
       },
       {
         "asset_id": "gld",
         "target_weight": 0.5,
         "signal_data_path": "storage/stock/GLD_max.csv",
-        "trade_data_path": "storage/stock/GLD_max.csv"
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "always_invested": false
       }
     ]
   }

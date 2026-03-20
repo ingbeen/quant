@@ -1,6 +1,6 @@
 """포트폴리오 백테스트 실행 스크립트
 
-7가지 포트폴리오 실험(A-1~A-3, B-1~B-3, C-1)을 실행하고 결과를 저장한다.
+포트폴리오 실험을 실행하고 결과를 저장한다.
 --experiment 인자로 실행할 실험을 선택할 수 있다.
 
 실행 명령어:
@@ -259,7 +259,7 @@ def main() -> int:
         종료 코드 (0: 성공, 1: 실패)
     """
     # 1. 명령행 인자 파싱
-    parser = argparse.ArgumentParser(description="포트폴리오 백테스트 실행 (A/B/C 시리즈)")
+    parser = argparse.ArgumentParser(description="포트폴리오 백테스트 실행 (A/B/C/D/E/F/G/H 시리즈)")
     parser.add_argument(
         "--experiment",
         choices=["all", *_CONFIG_MAP.keys()],
