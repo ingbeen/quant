@@ -304,8 +304,6 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
     compare_df = pd.DataFrame(rows)
     st.dataframe(compare_df, hide_index=True, width="stretch")
 
-    st.caption("Calmar 기준 내림차순으로 확인 가능하나, 결과에 따라 비율을 변경하지 않습니다. " "(PLAN_portfolio_experiment.md §7.1 행동 가이드 참고)")
-
     # ---- 실험 선택 ----
     st.subheader("에쿼티 곡선 비교")
 
@@ -379,23 +377,6 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
     )
     st.plotly_chart(fig_dd, width="stretch")
 
-    # ---- 실험 해설 ----
-    with st.expander("실험 해설 — 결과에 따른 행동 가이드 (PLAN §7.1)"):
-        st.markdown(
-            """
-**행동 가이드 (사전 결정, 결과에 따라 변경 금지)**
-
-| 결과 시나리오 | 행동 |
-|---|---|
-| A-2(60:40)의 Calmar > QQQ 단일 | **A-2를 기본 포트폴리오로 채택** (60:40은 사전 결정이므로 과최적화 아님) |
-| A-1(50:50)이 A-2보다 Calmar 높음 | **A-2 유지** (비율을 결과에 따라 변경하면 과최적화) |
-| B시리즈가 A시리즈보다 Calmar 높음 | **TQQQ 포함 여부를 별도 판단** (레버리지 허용 의향에 따라) |
-| C-1이 B-3보다 Calmar 높음 | **분산의 가치가 없다는 증거** → 추가 분석 필요 |
-| 모든 포트폴리오가 QQQ 단일보다 열등 | **단일 QQQ 유지** (분산의 비용이 이득보다 큰 경우) |
-
-**절대 하지 않는 것**: 7가지 결과 중 가장 좋은 것을 채택 / 비율 미세 조정 / TQQQ 비율을 백테스트 성과로 결정
-"""
-        )
 
 
 # ============================================================
@@ -498,7 +479,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         hovermode="x unified",
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", key=f"equity_chart_{exp.experiment_name}")
 
     # ---- 섹션 3: 자산별 비중 추이 ----
     st.subheader("자산별 비중 추이")
@@ -775,7 +756,7 @@ def _render_signal_chart(
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         hovermode="x unified",
     )
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", key=f"signal_chart_{experiment_name}_{asset_id}")
 
 
 # ============================================================
