@@ -9,13 +9,11 @@ CONFIGS 목록:
     - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (4P 고정)
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Literal
 
-from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
@@ -28,10 +26,11 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.strategies.strategy_common import (
     HoldState,
+    SignalStrategy,
     detect_buy_signal,
     detect_sell_signal,
 )
-from qbt.backtest.types import SingleBacktestResult
+from qbt.backtest.types import BufferStrategyParams
 from qbt.common_constants import (
     BUFFER_ZONE_EEM_RESULTS_DIR,
     BUFFER_ZONE_EFA_RESULTS_DIR,
@@ -51,25 +50,8 @@ from qbt.common_constants import (
     TQQQ_SYNTHETIC_DATA_PATH,
 )
 from qbt.utils import get_logger
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 logger = get_logger(__name__)
-
-
-# ============================================================================
-# 전략 파라미터 데이터클래스
-# ============================================================================
-
-
-@dataclass
-class BufferStrategyParams:
-    """버퍼존 전략 파라미터를 담는 데이터 클래스."""
-
-    initial_capital: float  # 초기 자본금
-    ma_window: int  # 이동평균 기간 (예: 200일)
-    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준)
-    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준)
-    hold_days: int  # 신호 확정 대기 기간 (0 = 버퍼존만 모드)
 
 
 # ============================================================================
@@ -157,7 +139,7 @@ class BufferZoneConfig:
     buy_buffer_zone_pct: float = FIXED_4P_BUY_BUFFER_ZONE_PCT  # 매수 버퍼존 비율
     sell_buffer_zone_pct: float = FIXED_4P_SELL_BUFFER_ZONE_PCT  # 매도 버퍼존 비율
     hold_days: int = FIXED_4P_HOLD_DAYS  # 유지일수
-    ma_type: str = "ema"  # 이동평균 유형 ("ema" 또는 "sma")
+    ma_type: Literal["ema", "sma"] = "ema"  # 이동평균 유형
 
 
 # ============================================================================
@@ -280,91 +262,11 @@ def resolve_params_for_config(
 
 
 # ============================================================================
-# 팩토리 함수
-# ============================================================================
-
-
-def create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]:
-    """BufferZoneConfig에 대한 run_single 실행 함수를 생성한다.
-
-    팩토리 패턴: config별로 데이터 소스와 결과 경로가 다른 실행 함수를 반환한다.
-
-    Args:
-        config: 버퍼존 전략 설정
-
-    Returns:
-        Callable: 인자 없이 호출 가능한 run_single 함수
-    """
-
-    def run_single() -> SingleBacktestResult:
-        """버퍼존 전략 단일 백테스트를 실행한다.
-
-        데이터 로딩부터 전략 실행까지 자체 수행한다.
-
-        Returns:
-            SingleBacktestResult: 백테스트 결과 컨테이너
-        """
-        # 순환 import 방지를 위해 run_backtest를 지연 import한다.
-        # (backtest_engine.py가 이 모듈에서 BufferStrategyParams를 import하기 때문)
-        from qbt.backtest.engines.backtest_engine import run_backtest  # noqa: PLC0415
-
-        # 1. 데이터 로딩 및 overlap 처리
-        if config.signal_data_path == config.trade_data_path:
-            # signal == trade: 동일 데이터, overlap 불필요
-            trade_df = load_stock_data(config.trade_data_path)
-            signal_df = trade_df.copy()
-        else:
-            # signal != trade: 겹치는 기간 추출 필요
-            signal_df = load_stock_data(config.signal_data_path)
-            trade_df = load_stock_data(config.trade_data_path)
-            signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-        # 2. 파라미터 결정
-        params, sources = resolve_params_for_config(config)
-
-        # 3. 이동평균 계산
-        signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=config.ma_type)
-
-        # 4. 전략 실행
-        trades_df, equity_df, summary = run_backtest(
-            BufferZoneStrategy(), signal_df, trade_df, params, strategy_name=config.strategy_name
-        )
-
-        # 5. JSON 저장용 파라미터
-        params_json: dict[str, Any] = {
-            "ma_window": params.ma_window,
-            "ma_type": config.ma_type,
-            "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, 4),
-            "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
-            "hold_days": params.hold_days,
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-            "param_source": sources,
-        }
-
-        return SingleBacktestResult(
-            strategy_name=config.strategy_name,
-            display_name=config.display_name,
-            signal_df=signal_df,
-            equity_df=equity_df,
-            trades_df=trades_df,
-            summary=summary,
-            params_json=params_json,
-            result_dir=config.result_dir,
-            data_info={
-                "signal_path": str(config.signal_data_path),
-                "trade_path": str(config.trade_data_path),
-            },
-        )
-
-    return run_single
-
-
-# ============================================================================
 # 전략 클래스
 # ============================================================================
 
 
-class BufferZoneStrategy:
+class BufferZoneStrategy(SignalStrategy):
     """버퍼존 전략 클래스.
 
     SignalStrategy Protocol을 구현한다.
@@ -372,7 +274,10 @@ class BufferZoneStrategy:
 
     사용 예:
         strategy = BufferZoneStrategy()
-        buy, hold_state = strategy.check_buy(prev_close, cur_close, prev_upper, cur_upper, hold_state, hold_days)
+        buy, hold_state = strategy.check_buy(
+            prev_close, cur_close, prev_upper, cur_upper,
+            hold_state, hold_days, current_date, buy_buffer_pct
+        )
         sell = strategy.check_sell(prev_close, cur_close, prev_lower, cur_lower)
     """
 
@@ -384,6 +289,8 @@ class BufferZoneStrategy:
         cur_upper: float,
         hold_state: HoldState | None,
         hold_days_required: int,
+        current_date: date,
+        buy_buffer_pct: float,
     ) -> tuple[bool, HoldState | None]:
         """매수 신호 여부와 갱신된 HoldState를 반환한다.
 
@@ -403,6 +310,8 @@ class BufferZoneStrategy:
             cur_upper: 당일 상단 밴드
             hold_state: 현재 hold_days 상태 (None이면 대기 없음)
             hold_days_required: 신호 확정까지 대기 기간 (0 = 버퍼존만 모드)
+            current_date: 현재 날짜 (HoldState.start_date에 기록)
+            buy_buffer_pct: 현재 매수 버퍼 비율 (HoldState.buffer_pct에 기록)
 
         Returns:
             tuple: (매수 여부, 갱신된 HoldState)
@@ -438,11 +347,11 @@ class BufferZoneStrategy:
         breakout = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
         if breakout:
             # 상향돌파 감지 → HoldState 생성 (아직 매수 아님).
-            # start_date, buffer_pct는 엔진이 실제 값으로 채워준다 (플레이스홀더 사용).
+            # current_date, buy_buffer_pct를 직접 기록 (플레이스홀더 없음).
             new_hold_state: HoldState = {
-                "start_date": date.min,  # 플레이스홀더: 엔진이 current_date로 덮어씀
+                "start_date": current_date,
                 "days_passed": 0,
-                "buffer_pct": 0.0,  # 플레이스홀더: 엔진이 params.buy_buffer_zone_pct로 덮어씀
+                "buffer_pct": buy_buffer_pct,
                 "hold_days_required": hold_days_required,
             }
             return False, new_hold_state

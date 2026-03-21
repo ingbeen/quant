@@ -83,7 +83,7 @@ class PortfolioConfig:
     buy_buffer_zone_pct: float  # 0.03 (3%)
     sell_buffer_zone_pct: float  # 0.05 (5%)
     hold_days: int  # 3
-    ma_type: str  # "ema"
+    ma_type: Literal["ema", "sma"]  # "ema"
 
 
 # ============================================================================

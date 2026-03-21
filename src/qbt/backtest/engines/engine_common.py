@@ -133,6 +133,7 @@ def execute_sell_order(
     position: int,
     entry_price: float,
     entry_date: date,
+    hold_days_used: int,
 ) -> tuple[int, float, TradeRecord]:
     """매도 주문을 실행한다.
 
@@ -144,6 +145,7 @@ def execute_sell_order(
         position: 현재 포지션 수량
         entry_price: 진입 가격
         entry_date: 진입 날짜
+        hold_days_used: 매수 시 사용된 유지일수 (trade_record에 명시적으로 기록)
 
     Returns:
         tuple: (new_position, new_capital, trade_record)
@@ -165,7 +167,7 @@ def execute_sell_order(
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
         "buy_buffer_pct": order.buy_buffer_zone_pct,
-        "hold_days_used": 0,
+        "hold_days_used": hold_days_used,
     }
 
     return 0, new_capital, trade_record

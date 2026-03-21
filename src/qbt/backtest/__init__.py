@@ -7,12 +7,8 @@ from qbt.backtest.analysis import (
     calculate_summary,
 )
 from qbt.backtest.engines.backtest_engine import run_buffer_strategy, run_grid_search
-from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
-from qbt.backtest.strategies.buy_and_hold import (
-    BuyAndHoldParams,
-    run_buy_and_hold,
-)
 from qbt.backtest.types import (
+    BufferStrategyParams,
     MarketRegimeDict,
     RegimeSummaryDict,
     SingleBacktestResult,
@@ -26,10 +22,8 @@ __all__ = [
     "calculate_summary",
     # Strategy functions
     "run_buffer_strategy",
-    "run_buy_and_hold",
     "run_grid_search",
     "BufferStrategyParams",
-    "BuyAndHoldParams",
     # Types
     "MarketRegimeDict",
     "RegimeSummaryDict",

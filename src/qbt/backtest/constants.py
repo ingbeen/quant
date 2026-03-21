@@ -26,6 +26,12 @@ DEFAULT_INITIAL_CAPITAL: Final = 10_000_000.0  # 1천만원
 # 전략 파라미터
 # ============================================================
 
+# --- Calmar MDD=0 처리 대용값 (MDD=0인 구간에서 Calmar 정렬 유지) ---
+CALMAR_MDD_ZERO_SUBSTITUTE: Final = 1e10
+
+# --- 버퍼존/그리드서치 기본 이동평균 유형 ---
+DEFAULT_BUFFER_MA_TYPE: Final = "ema"
+
 # --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
 FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간
 FIXED_4P_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 확정 매수 버퍼존 비율 (0.03 = 3%)

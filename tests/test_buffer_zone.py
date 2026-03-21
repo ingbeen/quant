@@ -23,10 +23,10 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from qbt.backtest import runners
 from qbt.backtest.strategies.buffer_zone import (
     CONFIGS,
     BufferZoneConfig,
-    create_runner,
     get_config,
     resolve_params_for_config,
 )
@@ -262,9 +262,9 @@ class TestResolveParamsForConfig:
 
 
 class TestCreateRunner:
-    """create_runner 팩토리 함수 테스트
+    """create_buffer_zone_runner 팩토리 함수 테스트
 
-    목적: create_runner로 생성한 runner가 올바른 SingleBacktestResult를 반환하는지 검증
+    목적: runners.create_buffer_zone_runner로 생성한 runner가 올바른 SingleBacktestResult를 반환하는지 검증
     """
 
     def _make_test_df(self, n_rows: int = 20) -> pd.DataFrame:
@@ -302,12 +302,12 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
 
         # Then
         assert callable(runner)
 
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_run_single_returns_single_backtest_result(self, mock_load, tmp_path):
         """
         목적: 반환값이 SingleBacktestResult 구조를 충족하는지 검증
@@ -334,7 +334,7 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
         result = runner()
 
         # Then
@@ -349,7 +349,7 @@ class TestCreateRunner:
         assert "ma_window" in result.params_json
         assert "ma_type" in result.params_json
 
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_signal_equals_trade_no_overlap(self, mock_load, tmp_path):
         """
         목적: signal_path == trade_path 시 extract_overlap_period 미호출 검증
@@ -376,15 +376,15 @@ class TestCreateRunner:
         )
 
         # When
-        with patch("qbt.backtest.strategies.buffer_zone.extract_overlap_period") as mock_overlap:
-            runner = create_runner(config)
+        with patch("qbt.backtest.runners.extract_overlap_period") as mock_overlap:
+            runner = runners.create_buffer_zone_runner(config)
             runner()
 
             # Then: signal == trade이면 overlap 호출하지 않음
             mock_overlap.assert_not_called()
 
-    @patch("qbt.backtest.strategies.buffer_zone.extract_overlap_period")
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.extract_overlap_period")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_signal_differs_trade_calls_overlap(self, mock_load, mock_overlap, tmp_path):
         """
         목적: signal_path != trade_path 시 extract_overlap_period 호출 검증
@@ -411,13 +411,13 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
         runner()
 
         # Then: signal != trade이면 overlap 호출
         mock_overlap.assert_called_once()
 
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_data_info_contains_paths(self, mock_load, tmp_path):
         """
         목적: data_info에 signal_path, trade_path가 포함되는지 검증
@@ -445,7 +445,7 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
         result = runner()
 
         # Then
@@ -454,8 +454,8 @@ class TestCreateRunner:
         assert result.data_info["signal_path"] == str(signal_path)
         assert result.data_info["trade_path"] == str(trade_path)
 
-    @patch("qbt.backtest.strategies.buffer_zone.extract_overlap_period")
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.extract_overlap_period")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_tqqq_config_run_single_returns_result(self, mock_load, mock_overlap, tmp_path):
         """
         목적: buffer_zone_tqqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
@@ -483,7 +483,7 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
         result = runner()
 
         # Then
@@ -501,7 +501,7 @@ class TestCreateRunner:
         assert "signal_path" in result.data_info
         assert "trade_path" in result.data_info
 
-    @patch("qbt.backtest.strategies.buffer_zone.load_stock_data")
+    @patch("qbt.backtest.runners.load_stock_data")
     def test_qqq_config_run_single_returns_result(self, mock_load, tmp_path):
         """
         목적: buffer_zone_qqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
@@ -528,7 +528,7 @@ class TestCreateRunner:
         )
 
         # When
-        runner = create_runner(config)
+        runner = runners.create_buffer_zone_runner(config)
         result = runner()
 
         # Then

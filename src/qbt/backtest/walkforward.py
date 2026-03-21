@@ -17,9 +17,11 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
+    CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_CAGR,
     COL_MDD,
     COL_TOTAL_TRADES,
+    DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
     DEFAULT_WFO_HOLD_DAYS_LIST,
@@ -185,7 +187,7 @@ def select_best_calmar_params(
         if abs_mdd < EPSILON:
             # MDD=0: CAGR>0이면 최우선 (inf 대용으로 큰 값)
             if cagr > 0:
-                return 1e10 + cagr
+                return CALMAR_MDD_ZERO_SUBSTITUTE + cagr
             else:
                 return 0.0
         return cagr / abs_mdd
@@ -327,7 +329,7 @@ def run_walkforward(
         oos_trade = trade_df[oos_mask].reset_index(drop=True)
 
         # 6. OOS 독립 평가 (MA 사전 계산)
-        oos_signal = add_single_moving_average(oos_signal, best_ma, ma_type="ema")
+        oos_signal = add_single_moving_average(oos_signal, best_ma, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
         oos_params = BufferStrategyParams(
             initial_capital=initial_capital,
@@ -397,7 +399,7 @@ def _safe_calmar(cagr: float, mdd: float) -> float:
     abs_mdd = abs(mdd)
     if abs_mdd < EPSILON:
         if cagr > 0:
-            return 1e10
+            return CALMAR_MDD_ZERO_SUBSTITUTE
         return 0.0
     return cagr / abs_mdd
 

@@ -80,15 +80,22 @@ quant/
 ├── src/qbt/           # 비즈니스 로직
 │   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 │   ├── backtest/      # 백테스트 도메인
-│   │   ├── constants.py     # 백테스트 전용 상수
-│   │   ├── types.py         # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너)
-│   │   ├── analysis.py      # 이동평균 계산 및 성과 지표
-│   │   ├── walkforward.py   # 워크포워드 검증(WFO) 비즈니스 로직
-│   │   ├── parameter_stability.py  # 파라미터 고원 분석
-│   │   └── strategies/      # 전략 실행 엔진 (전략별 분리)
-│   │       ├── buffer_zone_helpers.py      # 버퍼존 계열 공통 로직
-│   │       ├── buffer_zone.py             # 버퍼존 통합
-│   │       └── buy_and_hold.py             # Buy & Hold 벤치마크
+│   │   ├── constants.py          # 백테스트 전용 상수
+│   │   ├── types.py              # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너, BufferStrategyParams)
+│   │   ├── analysis.py           # 이동평균 계산 및 성과 지표
+│   │   ├── walkforward.py        # 워크포워드 검증(WFO) 비즈니스 로직
+│   │   ├── parameter_stability.py # 파라미터 고원 분석
+│   │   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
+│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (9가지 실험)
+│   │   ├── runners.py            # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
+│   │   ├── strategies/           # 전략 클래스 (SignalStrategy Protocol 기반)
+│   │   │   ├── strategy_common.py  # SignalStrategy Protocol, HoldState, 신호 계산 함수
+│   │   │   ├── buffer_zone.py      # 버퍼존 통합 전략
+│   │   │   └── buy_and_hold.py     # Buy & Hold 벤치마크 전략
+│   │   └── engines/              # 백테스트 엔진
+│   │       ├── engine_common.py    # 공통 체결/equity 기록 함수 (execute_buy/sell_order)
+│   │       ├── backtest_engine.py  # 단일 자산 백테스트 엔진 + 그리드 서치
+│   │       └── portfolio_engine.py # 포트폴리오 백테스트 엔진 (이중 트리거 리밸런싱)
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
 │   │   ├── simulation.py       # 시뮬레이션 엔진 (코어)

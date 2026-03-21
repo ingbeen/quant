@@ -9,8 +9,11 @@
 4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
+from typing import Literal
+
 import pandas as pd
 
+from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
 from qbt.backtest.types import MarketRegimeDict, RegimeSummaryDict, SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
@@ -21,7 +24,7 @@ logger = get_logger(__name__)
 def add_single_moving_average(
     df: pd.DataFrame,
     window: int,
-    ma_type: str = "sma",
+    ma_type: Literal["ema", "sma"] = "sma",
 ) -> pd.DataFrame:
     """
     지정된 기간의 이동평균을 계산하여 컬럼으로 추가한다.
@@ -142,7 +145,7 @@ def calculate_summary(
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
     abs_mdd = abs(mdd)
     if abs_mdd < EPSILON:
-        calmar: float = 1e10 + cagr if cagr > 0 else 0.0
+        calmar: float = CALMAR_MDD_ZERO_SUBSTITUTE + cagr if cagr > 0 else 0.0
     else:
         calmar = cagr / abs_mdd
 

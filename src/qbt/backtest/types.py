@@ -6,6 +6,7 @@
 - 성과 요약 (SummaryDict)
 - 최적 파라미터 (BestGridParams)
 - 공통 결과 컨테이너 (SingleBacktestResult)
+- 버퍼존 전략 파라미터 (BufferStrategyParams)
 - WFO 윈도우 결과 (WfoWindowResultDict)
 - WFO 모드 요약 (WfoModeSummaryDict)
 - 시장 구간 정의 (MarketRegimeDict)
@@ -16,7 +17,7 @@
 - strategy_common.py: HoldState
 - backtest_engine.py: GridSearchResult
 - buffer_zone.py: BufferStrategyResultDict
-- buy_and_hold.py: BuyAndHoldConfig, BuyAndHoldParams
+- buy_and_hold.py: BuyAndHoldConfig
 """
 
 from collections.abc import Mapping
@@ -110,6 +111,21 @@ class BestGridParams(TypedDict):
     buy_buffer_zone_pct: float
     sell_buffer_zone_pct: float
     hold_days: int
+
+
+@dataclass
+class BufferStrategyParams:
+    """버퍼존 전략 파라미터를 담는 데이터 클래스.
+
+    순환 의존성을 방지하기 위해 buffer_zone.py가 아닌 types.py에 정의한다.
+    (backtest_engine.py가 이 클래스를 참조하므로 buffer_zone.py에 있으면 순환 발생)
+    """
+
+    initial_capital: float  # 초기 자본금
+    ma_window: int  # 이동평균 기간 (예: 200일)
+    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준)
+    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준)
+    hold_days: int  # 신호 확정 대기 기간 (0 = 버퍼존만 모드)
 
 
 @dataclass

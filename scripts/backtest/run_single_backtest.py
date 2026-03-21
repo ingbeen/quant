@@ -17,6 +17,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from qbt.backtest import runners
 from qbt.backtest.analysis import calculate_monthly_returns, calculate_regime_summaries
 from qbt.backtest.constants import DEFAULT_SINGLE_BACKTEST_STRATEGIES, MARKET_REGIMES
 from qbt.backtest.strategies import (
@@ -45,11 +46,11 @@ _ALL_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {}
 
 # Buffer zone: CONFIGS 기반 자동 등록
 for _config in buffer_zone.CONFIGS:
-    _ALL_RUNNERS[_config.strategy_name] = buffer_zone.create_runner(_config)
+    _ALL_RUNNERS[_config.strategy_name] = runners.create_buffer_zone_runner(_config)
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록
 for _config in buy_and_hold.CONFIGS:
-    _ALL_RUNNERS[_config.strategy_name] = buy_and_hold.create_runner(_config)
+    _ALL_RUNNERS[_config.strategy_name] = runners.create_buy_and_hold_runner(_config)
 
 # 활성 전략만 필터링
 STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {

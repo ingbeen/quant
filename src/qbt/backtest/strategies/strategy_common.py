@@ -81,6 +81,8 @@ class SignalStrategy(Protocol):
         cur_upper: float,
         hold_state: "HoldState | None",
         hold_days_required: int,
+        current_date: date,
+        buy_buffer_pct: float,
     ) -> tuple[bool, "HoldState | None"]:
         """매수 신호 여부와 갱신된 HoldState를 반환한다.
 
@@ -91,6 +93,8 @@ class SignalStrategy(Protocol):
             cur_upper: 당일 상단 밴드
             hold_state: 현재 hold_days 상태 (None이면 대기 없음)
             hold_days_required: 신호 확정까지 대기 기간 (0 = 버퍼존만 모드)
+            current_date: 현재 날짜 (HoldState.start_date에 직접 기록)
+            buy_buffer_pct: 현재 매수 버퍼 비율 (HoldState.buffer_pct에 직접 기록)
 
         Returns:
             tuple: (매수 여부, 갱신된 HoldState)

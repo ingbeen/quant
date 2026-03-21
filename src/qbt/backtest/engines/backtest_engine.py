@@ -16,6 +16,7 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
+    CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_CALMAR,
@@ -27,6 +28,8 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
+    DEFAULT_BUFFER_MA_TYPE,
+    DEFAULT_INITIAL_CAPITAL,
     MIN_BUY_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
     MIN_SELL_BUFFER_ZONE_PCT,
@@ -40,14 +43,14 @@ from qbt.backtest.engines.engine_common import (
     execute_sell_order,
     record_equity,
 )
-from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import (
     HoldState,
     PendingOrderConflictError,
     SignalStrategy,
     compute_bands,
 )
-from qbt.backtest.types import SummaryDict
+from qbt.backtest.types import BufferStrategyParams, SummaryDict
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
@@ -196,8 +199,6 @@ def _run_backtest_for_grid(
     Raises:
         예외 발생 시 즉시 전파
     """
-    from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-
     # WORKER_CACHE에서 DataFrame 조회
     signal_df = WORKER_CACHE["signal_df"]
     trade_df = WORKER_CACHE["trade_df"]
@@ -207,7 +208,7 @@ def _run_backtest_for_grid(
     cagr = summary["cagr"]
     abs_mdd = abs(summary["mdd"])
     if abs_mdd < EPSILON:
-        calmar = 1e10 + cagr if cagr > 0 else 0.0
+        calmar = CALMAR_MDD_ZERO_SUBSTITUTE + cagr if cagr > 0 else 0.0
     else:
         calmar = cagr / abs_mdd
 
@@ -300,7 +301,7 @@ def run_backtest(
         for window in all_ma_windows:
             col = f"ma_{window}"
             if col not in signal_df.columns:
-                signal_df = add_single_moving_average(signal_df, window, ma_type="ema")
+                signal_df = add_single_moving_average(signal_df, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
         # schedule 날짜 정렬
         sorted_switch_dates = sorted(params_schedule.keys())
@@ -399,8 +400,8 @@ def run_backtest(
                     position,
                     entry_price,
                     entry_date,
+                    hold_days_used=entry_hold_days,
                 )
-                trade_record["hold_days_used"] = entry_hold_days
                 trades.append(trade_record)
                 if log_trades:
                     logger.debug(f"매도 체결: {current_date}, 손익률={trade_record['pnl_pct']*100:.2f}%")
@@ -437,6 +438,8 @@ def run_backtest(
                 cur_upper=upper_band,
                 hold_state=hold_state,
                 hold_days_required=current_hold_days,
+                current_date=current_date,
+                buy_buffer_pct=current_buy_buffer_pct,
             )
 
             if buy:
@@ -459,11 +462,8 @@ def run_backtest(
                 hold_state = None
 
             elif new_hold_state is not None:
-                if old_hold_state is None:
-                    # 신규 HoldState 생성 (첫 돌파 감지) — 엔진이 실제 값 주입
-                    new_hold_state["start_date"] = current_date
-                    new_hold_state["buffer_pct"] = current_buy_buffer_pct
-                # else: 대기 중 (days_passed 증가) — buffer_pct, start_date는 이미 올바름
+                # 대기 중 (days_passed 증가 또는 신규 생성)
+                # start_date, buffer_pct는 check_buy에서 이미 올바르게 설정됨
                 hold_state = new_hold_state
 
             else:
@@ -528,7 +528,7 @@ def run_grid_search(
     buy_buffer_zone_pct_list: list[float],
     sell_buffer_zone_pct_list: list[float],
     hold_days_list: list[int],
-    initial_capital: float = 10_000_000.0,
+    initial_capital: float = DEFAULT_INITIAL_CAPITAL,
 ) -> pd.DataFrame:
     """버퍼존 전략 파라미터 그리드 탐색을 수행한다.
 
@@ -560,7 +560,7 @@ def run_grid_search(
     logger.debug(f"이동평균 사전 계산 (EMA): {sorted(ma_window_list)}")
 
     for window in ma_window_list:
-        signal_df = add_single_moving_average(signal_df, window, ma_type="ema")
+        signal_df = add_single_moving_average(signal_df, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
     logger.debug("이동평균 사전 계산 완료")
 
@@ -634,8 +634,6 @@ def run_buffer_strategy(
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
         PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
-    from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-
     return run_backtest(
         BufferZoneStrategy(),
         signal_df,

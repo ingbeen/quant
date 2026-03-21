@@ -276,7 +276,7 @@ def _execute_rebalancing(
 def _load_and_prepare_data(
     slot: AssetSlotConfig,
     ma_window: int,
-    ma_type: str,
+    ma_type: Literal["ema", "sma"],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """자산 슬롯의 데이터를 로딩하고 MA를 계산한다.
 
@@ -609,6 +609,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             cur_upper=u,
             hold_state=None,
             hold_days_required=config.hold_days,
+            current_date=first_trade_date,
+            buy_buffer_pct=config.buy_buffer_zone_pct,
         )
         if buy_now:
             # 초기 매수 자본: total_capital × target_weight
@@ -748,6 +750,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     cur_upper=upper_band,
                     hold_state=state.hold_state,
                     hold_days_required=config.hold_days,
+                    current_date=current_date,
+                    buy_buffer_pct=config.buy_buffer_zone_pct,
                 )
 
                 if buy_now:
@@ -768,11 +772,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     state.hold_state = None
 
                 elif new_hold_state is not None:
-                    if old_hold_state is None:
-                        # 신규 HoldState 생성 (첫 돌파 감지) — 엔진이 실제 값 주입
-                        new_hold_state["start_date"] = current_date
-                        new_hold_state["buffer_pct"] = config.buy_buffer_zone_pct
-                    # else: 대기 중 (days_passed 증가) — buffer_pct, start_date는 이미 올바름
+                    # 대기 중 (days_passed 증가 또는 신규 생성)
+                    # start_date, buffer_pct는 check_buy에서 이미 올바르게 설정됨
                     state.hold_state = new_hold_state
 
                 else:
