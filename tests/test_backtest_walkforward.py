@@ -10,10 +10,8 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.backtest.strategies.buffer_zone_helpers import (
-    BufferStrategyParams,
-    run_buffer_strategy,
-)
+from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
 

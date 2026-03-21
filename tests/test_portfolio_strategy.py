@@ -1,9 +1,7 @@
-"""포트폴리오 백테스트 전략 테스트
+"""포트폴리오 백테스트 엔진 테스트
 
 핵심 계약/불변조건을 테스트로 고정한다.
-
-Phase 0: 엔진(portfolio_strategy.py) 미구현으로 현재 import 오류가 발생한다 (RED).
-Phase 1: 엔진 구현 후 전체 통과(GREEN)를 목표로 한다.
+engines/portfolio_engine.py의 이중 트리거, 부분 매도, strategy_type 분기를 검증한다.
 """
 
 from datetime import date, timedelta
@@ -12,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qbt.backtest.portfolio_strategy import (  # pyright: ignore[reportPrivateUsage]
+from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
     _AssetState,
     _check_rebalancing_needed,
     _compute_portfolio_equity,
@@ -1455,12 +1453,12 @@ class TestDualTriggerThreshold:
         """
         목적: MONTHLY_REBALANCE_THRESHOLD_RATE, DAILY_REBALANCE_THRESHOLD_RATE 상수 존재 및 값 검증.
 
-        Given: qbt.backtest.portfolio_strategy 모듈
+        Given: qbt.backtest.engines.portfolio_engine 모듈
         When:  두 상수 import
         Then:  MONTHLY_REBALANCE_THRESHOLD_RATE == 0.10
                DAILY_REBALANCE_THRESHOLD_RATE == 0.20
         """
-        from qbt.backtest.portfolio_strategy import (  # type: ignore[attr-defined]
+        from qbt.backtest.engines.portfolio_engine import (
             DAILY_REBALANCE_THRESHOLD_RATE,
             MONTHLY_REBALANCE_THRESHOLD_RATE,
         )

@@ -14,8 +14,8 @@ import json
 import sys
 from typing import Any
 
+from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_strategy import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_types import PortfolioResult
 from qbt.common_constants import (
     COL_CLOSE,

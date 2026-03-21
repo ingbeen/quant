@@ -10,6 +10,7 @@
     - 매일: 편차 20% 초과 시 긴급 (DAILY_REBALANCE_THRESHOLD_RATE)
 - 부분 매도: 리밸런싱 시 초과분(대금 기준)만 매도, 신호 기반 매도는 전량 유지
 - 현금 부족: scale_factor 비례 배분
+- 전략 주입: SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary)
 """
 
@@ -27,11 +28,12 @@ from qbt.backtest.portfolio_types import (
     PortfolioConfig,
     PortfolioResult,
 )
-from qbt.backtest.strategies.buffer_zone_helpers import (  # type: ignore[import]
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
+from qbt.backtest.strategies.strategy_common import (
     HoldState,
-    _compute_bands,  # pyright: ignore[reportPrivateUsage]
-    _detect_buy_signal,  # pyright: ignore[reportPrivateUsage]
-    _detect_sell_signal,  # pyright: ignore[reportPrivateUsage]
+    SignalStrategy,
+    compute_bands,
 )
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
 from qbt.utils import get_logger
@@ -55,7 +57,7 @@ DAILY_REBALANCE_THRESHOLD_RATE: float = 0.20
 class _PortfolioPendingOrder:
     """포트폴리오 전략 전용 예약 주문.
 
-    buffer_zone_helpers의 PendingOrder와 달리 capital, rebalance_sell_amount 필드를 포함한다.
+    engine_common의 PendingOrder와 달리 capital, rebalance_sell_amount 필드를 포함한다.
     매수 시 capital에 투자 자본금을 저장하고, rebalance_sell_amount는 0.0.
     리밸런싱 매도 시 rebalance_sell_amount에 초과분 대금을 저장 (> 0.0 = 부분 매도).
     신호 기반 매도 시 rebalance_sell_amount = 0.0 (전량 매도).
@@ -75,6 +77,30 @@ class _AssetState:
     signal_state: str  # "buy" | "sell"
     pending_order: _PortfolioPendingOrder | None  # 예약 주문 (None = 없음)
     hold_state: HoldState | None  # hold_days 상태머신
+
+
+# ============================================================================
+# 전략 팩토리
+# ============================================================================
+
+
+def _create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
+    """strategy_type 기반으로 전략 객체를 생성한다.
+
+    Args:
+        slot: 자산 슬롯 설정
+
+    Returns:
+        SignalStrategy를 구현한 전략 객체
+
+    Raises:
+        ValueError: 미등록 strategy_type인 경우
+    """
+    if slot.strategy_type == "buffer_zone":
+        return BufferZoneStrategy()
+    elif slot.strategy_type == "buy_and_hold":
+        return BuyAndHoldStrategy()
+    raise ValueError(f"미등록 strategy_type: '{slot.strategy_type}'. " f"사용 가능: 'buffer_zone', 'buy_and_hold'")
 
 
 # ============================================================================
@@ -413,6 +439,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     """포트폴리오 백테스트를 실행한다.
 
     복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 수행한다.
+    SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용한다.
 
     Args:
         config: 포트폴리오 실험 설정
@@ -510,12 +537,17 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
     trade_dates = list(next(iter(asset_trade_dfs.values()))[COL_DATE])
 
-    # 4. 자산별 상태 초기화
-    # strategy_type="buy_and_hold" 자산은 항상 매수 상태로 시작 (버퍼존 신호 대기 없음)
+    # 4. 전략 객체 생성 (자산별 strategy_type 기반 팩토리)
+    strategies: dict[str, SignalStrategy] = {
+        slot.asset_id: _create_strategy_for_slot(slot) for slot in config.asset_slots
+    }
+
+    # 5. 자산별 상태 초기화
+    # 모든 자산 "sell"로 시작 — day 0 check_buy 결과로 갱신
     asset_states: dict[str, _AssetState] = {
         slot.asset_id: _AssetState(
             position=0,
-            signal_state="buy" if slot.strategy_type == "buy_and_hold" else "sell",
+            signal_state="sell",
             pending_order=None,
             hold_state=None,
         )
@@ -536,33 +568,12 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
     first_trade_date = trade_dates[0]
 
-    # 5. 첫 날 초기화
-    # strategy_type="buy_and_hold" 자산은 day 0에 buy pending_order 생성 (i=1에서 즉시 매수)
-    for slot in config.asset_slots:
-        asset_id = slot.asset_id
-        signal_df = asset_signal_dfs[asset_id]
-        first_row = signal_df.iloc[0]
-        ma_val = float(first_row[ma_col])
-        u, lb = _compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
-        prev_upper_bands[asset_id] = u
-        prev_lower_bands[asset_id] = lb
-
-        if slot.strategy_type == "buy_and_hold":
-            # 초기 매수 자본: total_capital × target_weight
-            # 여러 buy_and_hold 자산이 동시에 매수될 때 공정한 자본 배분을 위해
-            # shared_cash 잔액이 아닌 total_capital 기준으로 고정 계산
-            initial_capital = config.total_capital * slot.target_weight
-            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
-                order_type="buy",
-                signal_date=first_trade_date,
-                capital=initial_capital,
-            )
-
     # 거래 기록 및 에쿼티 기록
     all_trades: list[dict[str, Any]] = []
     equity_rows: list[dict[str, Any]] = []
 
-    # 첫 날 에쿼티 기록
+    # 첫 날 에쿼티 기록 (초기 상태: 모든 자산 0 포지션, 전액 현금)
+    # signal은 "sell"로 기록 (pending_order 생성 전 초기 상태)
     first_row_dict: dict[str, Any] = {
         COL_DATE: first_trade_date,
         "equity": shared_cash,
@@ -575,12 +586,48 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         first_row_dict[f"{asset_id}_signal"] = "sell"
     equity_rows.append(first_row_dict)
 
-    # 6. 메인 루프 (i = 1 ~ N-1)
+    # 6. 첫 날(day 0) 초기화
+    # 모든 전략에 check_buy(prev=cur=day0_data)를 호출한다.
+    # - B&H: 항상 True → signal_state="buy" + pending buy 생성
+    # - BufferZone: prev==cur이면 상향돌파 불가 → False → 아무것도 안 함
+    for slot in config.asset_slots:
+        asset_id = slot.asset_id
+        signal_df = asset_signal_dfs[asset_id]
+        first_row = signal_df.iloc[0]
+        ma_val = float(first_row[ma_col])
+        u, lb = compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
+        prev_upper_bands[asset_id] = u
+        prev_lower_bands[asset_id] = lb
+
+        # day 0: prev=cur=day0_close → BufferZone 상향돌파 불가
+        day0_close = float(first_row[COL_CLOSE])
+        strategy = strategies[asset_id]
+        buy_now, _ = strategy.check_buy(
+            prev_close=day0_close,
+            cur_close=day0_close,
+            prev_upper=u,
+            cur_upper=u,
+            hold_state=None,
+            hold_days_required=config.hold_days,
+        )
+        if buy_now:
+            # 초기 매수 자본: total_capital × target_weight
+            # 여러 자산이 동시에 매수될 때 공정한 자본 배분을 위해
+            # shared_cash 잔액이 아닌 total_capital 기준으로 고정 계산
+            initial_capital = config.total_capital * slot.target_weight
+            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
+                order_type="buy",
+                signal_date=first_trade_date,
+                capital=initial_capital,
+            )
+            asset_states[asset_id].signal_state = "buy"
+
+    # 7. 메인 루프 (i = 1 ~ N-1)
     for i in range(1, n):
         current_date = trade_dates[i]
         rebalanced_today = False
 
-        # 6-1. pending_order 체결 (trade_df[i].Open 기준) — 2패스 방식
+        # 7-1. pending_order 체결 (trade_df[i].Open 기준) — 2패스 방식
         # 1패스: 전 자산 sell pending_order 먼저 체결 (매도 대금이 매수 자본으로 사용)
         for asset_id, state in asset_states.items():
             if state.pending_order is None or state.pending_order.order_type != "sell":
@@ -664,7 +711,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
             state.pending_order = None
 
-        # 6-2. 에쿼티 계산 (trade_df[i].Close 기준)
+        # 7-2. 에쿼티 계산 (trade_df[i].Close 기준)
         asset_positions = {aid: st.position for aid, st in asset_states.items()}
         asset_closes_map: dict[str, float] = {}
         for asset_id in asset_states:
@@ -673,14 +720,15 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
         current_equity = _compute_portfolio_equity(shared_cash, asset_positions, asset_closes_map)
 
-        # 6-3. 시그널 판정 (signal_df[i].Close 기준)
+        # 7-3. 시그널 판정 (signal_df[i].Close 기준)
+        # 모든 전략에 대해 strategy.check_buy() 또는 strategy.check_sell() 호출
         for asset_id, state in asset_states.items():
             signal_df = asset_signal_dfs[asset_id]
             signal_row = signal_df.iloc[i]
             prev_signal_row = signal_df.iloc[i - 1]
 
             ma_val = float(signal_row[ma_col])
-            upper_band, lower_band = _compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
+            upper_band, lower_band = compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
             prev_upper = prev_upper_bands[asset_id]
             prev_lower = prev_lower_bands[asset_id]
 
@@ -688,82 +736,69 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             cur_close = float(signal_row[COL_CLOSE])
 
             slot = slot_dict[asset_id]
-
-            if slot.strategy_type == "buy_and_hold":
-                # buy_and_hold 자산: 버퍼존 매도 신호 무시, 항상 투자 상태 유지.
-                # 포지션이 없는 경우(리밸런싱 부분 매도 후 전량 소진 등)에만 재매수 신호 판정.
-                if state.position == 0 and state.pending_order is None:
-                    target_w = slot.target_weight
-                    buy_capital = current_equity * target_w
-                    state.pending_order = _PortfolioPendingOrder(
-                        order_type="buy",
-                        signal_date=current_date,
-                        capital=buy_capital,
-                    )
-                    state.signal_state = "buy"
-                prev_upper_bands[asset_id] = upper_band
-                prev_lower_bands[asset_id] = lower_band
-                continue
+            strategy = strategies[asset_id]
 
             if state.position == 0:
-                # 매수 시그널 판정 (hold_state 상태머신)
-                if state.hold_state is not None:
-                    hs = state.hold_state
-                    if cur_close > upper_band:
-                        hs["days_passed"] += 1
-                        if hs["days_passed"] >= hs["hold_days_required"]:
-                            if state.pending_order is None:
-                                # 매수 pending_order: capital = total_equity × target_weight
-                                target_w = slot.target_weight
-                                buy_capital = current_equity * target_w
-                                state.pending_order = _PortfolioPendingOrder(
-                                    order_type="buy",
-                                    signal_date=current_date,
-                                    capital=buy_capital,
-                                )
-                                state.signal_state = "buy"
-                                entry_hold_days[asset_id] = hs["hold_days_required"]
-                            state.hold_state = None
-                    else:
-                        state.hold_state = None
+                # 매수 시그널 판정 — strategy.check_buy()에 위임
+                old_hold_state = state.hold_state
+                buy_now, new_hold_state = strategy.check_buy(
+                    prev_close=prev_close,
+                    cur_close=cur_close,
+                    prev_upper=prev_upper,
+                    cur_upper=upper_band,
+                    hold_state=state.hold_state,
+                    hold_days_required=config.hold_days,
+                )
 
-                if state.hold_state is None:
-                    buy_detected = _detect_buy_signal(prev_close, cur_close, prev_upper, upper_band)
-                    if buy_detected:
-                        if config.hold_days > 0:
-                            state.hold_state = HoldState(
-                                start_date=current_date,
-                                days_passed=0,
-                                buffer_pct=config.buy_buffer_zone_pct,
-                                hold_days_required=config.hold_days,
-                            )
+                if buy_now:
+                    if state.pending_order is None:
+                        target_w = slot.target_weight
+                        buy_capital = current_equity * target_w
+                        state.pending_order = _PortfolioPendingOrder(
+                            order_type="buy",
+                            signal_date=current_date,
+                            capital=buy_capital,
+                        )
+                        state.signal_state = "buy"
+                        # entry_hold_days: hold_state 완료 시 hold_days_required, 즉시 매수 시 0
+                        if old_hold_state is not None:
+                            entry_hold_days[asset_id] = old_hold_state["hold_days_required"]
                         else:
-                            if state.pending_order is None:
-                                target_w = slot.target_weight
-                                buy_capital = current_equity * target_w
-                                state.pending_order = _PortfolioPendingOrder(
-                                    order_type="buy",
-                                    signal_date=current_date,
-                                    capital=buy_capital,
-                                )
-                                state.signal_state = "buy"
-                                entry_hold_days[asset_id] = 0
+                            entry_hold_days[asset_id] = 0
+                    state.hold_state = None
+
+                elif new_hold_state is not None:
+                    if old_hold_state is None:
+                        # 신규 HoldState 생성 (첫 돌파 감지) — 엔진이 실제 값 주입
+                        new_hold_state["start_date"] = current_date
+                        new_hold_state["buffer_pct"] = config.buy_buffer_zone_pct
+                    # else: 대기 중 (days_passed 증가) — buffer_pct, start_date는 이미 올바름
+                    state.hold_state = new_hold_state
+
+                else:
+                    # 신호 없음 또는 hold 해제
+                    state.hold_state = None
 
             elif state.position > 0:
-                sell_detected = _detect_sell_signal(prev_close, cur_close, prev_lower, lower_band)
-                if sell_detected:
-                    if state.pending_order is None:
-                        state.pending_order = _PortfolioPendingOrder(
-                            order_type="sell",
-                            signal_date=current_date,
-                            capital=0.0,
-                        )
-                        state.signal_state = "sell"
+                # 매도 시그널 판정 — strategy.check_sell()에 위임
+                sell_now = strategy.check_sell(
+                    prev_close=prev_close,
+                    cur_close=cur_close,
+                    prev_lower=prev_lower,
+                    cur_lower=lower_band,
+                )
+                if sell_now and state.pending_order is None:
+                    state.pending_order = _PortfolioPendingOrder(
+                        order_type="sell",
+                        signal_date=current_date,
+                        capital=0.0,
+                    )
+                    state.signal_state = "sell"
 
             prev_upper_bands[asset_id] = upper_band
             prev_lower_bands[asset_id] = lower_band
 
-        # 6-4. 이중 트리거 리밸런싱 판정
+        # 7-4. 이중 트리거 리밸런싱 판정
         # - 월 첫 거래일: 10% 임계값 (MONTHLY_REBALANCE_THRESHOLD_RATE)
         # - 매일(월 중간): 20% 임계값 (DAILY_REBALANCE_THRESHOLD_RATE)
         equity_vals_now: dict[str, float] = {
@@ -782,7 +817,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
             rebalanced_today = True
 
-        # 6-5. 에쿼티 행 기록
+        # 7-5. 에쿼티 행 기록
         row: dict[str, Any] = {
             COL_DATE: current_date,
             "equity": current_equity,
@@ -796,7 +831,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             row[f"{asset_id}_signal"] = st.signal_state
         equity_rows.append(row)
 
-    # 7. 결과 조합
+    # 8. 결과 조합
     equity_df = _build_combined_equity(equity_rows, config.total_capital)
 
     # trades_df 정리 (asset_id, trade_type 컬럼 표준화)

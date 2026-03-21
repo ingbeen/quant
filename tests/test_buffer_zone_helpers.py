@@ -1,5 +1,5 @@
 """
-backtest/strategies/buffer_zone_helpers 모듈 테스트
+backtest 버퍼존 전략 핵심 로직 테스트
 
 이 파일은 무엇을 검증하나요?
 1. 버퍼존 전략의 매수/매도 신호 생성 정확성
@@ -21,11 +21,9 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.backtest.strategies.buffer_zone_helpers import (
-    BufferStrategyParams,
-    PendingOrderConflictError,
-    run_buffer_strategy,
-)
+from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
+from qbt.backtest.strategies.strategy_common import PendingOrderConflictError
 
 
 class TestBuyBufferZonePctField:
@@ -1021,7 +1019,8 @@ class TestCoreExecutionRules:
         이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
         통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
         """
-        from qbt.backtest.strategies.buffer_zone_helpers import PendingOrder, _check_pending_conflict
+        from qbt.backtest.engines.backtest_engine import _check_pending_conflict
+        from qbt.backtest.engines.engine_common import PendingOrder
 
         # Given: 기존 pending이 존재
         existing_pending = PendingOrder(
@@ -1225,7 +1224,7 @@ class TestRunGridSearch:
           - Calmar 기준 내림차순 정렬
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategies.buffer_zone_helpers import run_grid_search
+        from qbt.backtest.engines.backtest_engine import run_grid_search
 
         # Given: 충분한 기간의 데이터
         df = pd.DataFrame(
@@ -1291,7 +1290,7 @@ class TestRunGridSearch:
         Then: 정확히 8개 결과 생성
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.strategies.buffer_zone_helpers import run_grid_search
+        from qbt.backtest.engines.backtest_engine import run_grid_search
 
         # Given
         df = pd.DataFrame(

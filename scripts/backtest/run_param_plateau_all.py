@@ -21,11 +21,12 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies.buffer_zone import (
+    BufferZoneStrategy,
     get_config,
     resolve_params_for_config,
 )
-from qbt.backtest.strategies.buffer_zone_helpers import run_buffer_strategy
 from qbt.common_constants import BACKTEST_RESULTS_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
@@ -199,8 +200,13 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=hold_val,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_ma200, trade_df, params, log_trades=False, strategy_name=config.strategy_name
+                _, _, summary = run_backtest(
+                    BufferZoneStrategy(),
+                    signal_ma200,
+                    trade_df,
+                    params,
+                    log_trades=False,
+                    strategy_name=config.strategy_name,
                 )
                 results.append(_build_row("hold_days", "hold_days", hold_val, asset_label, summary))
                 logger.debug(f"  hold={hold_val}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%")
@@ -216,8 +222,13 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_ma200, trade_df, params, log_trades=False, strategy_name=config.strategy_name
+                _, _, summary = run_backtest(
+                    BufferZoneStrategy(),
+                    signal_ma200,
+                    trade_df,
+                    params,
+                    log_trades=False,
+                    strategy_name=config.strategy_name,
                 )
                 results.append(_build_row("sell_buffer", "sell_buffer", sell_val, asset_label, summary))
                 logger.debug(
@@ -235,8 +246,13 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_ma200, trade_df, params, log_trades=False, strategy_name=config.strategy_name
+                _, _, summary = run_backtest(
+                    BufferZoneStrategy(),
+                    signal_ma200,
+                    trade_df,
+                    params,
+                    log_trades=False,
+                    strategy_name=config.strategy_name,
                 )
                 results.append(_build_row("buy_buffer", "buy_buffer", buy_val, asset_label, summary))
                 logger.debug(
@@ -255,8 +271,13 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_with_ma, trade_df, params, log_trades=False, strategy_name=config.strategy_name
+                _, _, summary = run_backtest(
+                    BufferZoneStrategy(),
+                    signal_with_ma,
+                    trade_df,
+                    params,
+                    log_trades=False,
+                    strategy_name=config.strategy_name,
                 )
                 results.append(_build_row("ma_window", "ma_window", ma_val, asset_label, summary))
                 logger.debug(f"  ma={ma_val}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%")

@@ -34,8 +34,9 @@ from qbt.backtest.constants import (
     WALKFORWARD_FULLY_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
 )
+from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies import buffer_zone
-from qbt.backtest.strategies.buffer_zone_helpers import run_buffer_strategy
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
     build_params_schedule,
@@ -133,7 +134,8 @@ def _run_stitched_equity(
         oos_signal = add_single_moving_average(oos_signal, window, ma_type="ema")
 
     # stitched 실행
-    trades_df, equity_df, summary = run_buffer_strategy(
+    trades_df, equity_df, summary = run_backtest(
+        BufferZoneStrategy(),
         oos_signal,
         oos_trade,
         initial_params,

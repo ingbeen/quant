@@ -29,11 +29,8 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
 )
-from qbt.backtest.strategies.buffer_zone_helpers import (
-    BufferStrategyParams,
-    run_buffer_strategy,
-    run_grid_search,
-)
+from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
+from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, BufferZoneStrategy
 from qbt.backtest.types import BestGridParams, WfoModeSummaryDict, WfoWindowResultDict
 from qbt.common_constants import COL_DATE, EPSILON
 from qbt.utils import get_logger
@@ -340,7 +337,7 @@ def run_walkforward(
             hold_days=best_hold,
         )
 
-        _, _, oos_summary = run_buffer_strategy(oos_signal, oos_trade, oos_params, log_trades=False)
+        _, _, oos_summary = run_backtest(BufferZoneStrategy(), oos_signal, oos_trade, oos_params, log_trades=False)
 
         oos_cagr = float(oos_summary["cagr"])
         oos_mdd = float(oos_summary["mdd"])

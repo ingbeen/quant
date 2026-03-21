@@ -11,6 +11,7 @@ CONFIGS 목록:
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,14 @@ from qbt.backtest.constants import (
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
+    MIN_BUY_BUFFER_ZONE_PCT,
+    MIN_HOLD_DAYS,
+    MIN_SELL_BUFFER_ZONE_PCT,
 )
-from qbt.backtest.strategies.buffer_zone_helpers import (
-    BufferStrategyParams,
-    resolve_buffer_params,
-    run_buffer_strategy,
+from qbt.backtest.strategies.strategy_common import (
+    HoldState,
+    detect_buy_signal,
+    detect_sell_signal,
 )
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
@@ -50,6 +54,83 @@ from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 logger = get_logger(__name__)
+
+
+# ============================================================================
+# 전략 파라미터 데이터클래스
+# ============================================================================
+
+
+@dataclass
+class BufferStrategyParams:
+    """버퍼존 전략 파라미터를 담는 데이터 클래스."""
+
+    initial_capital: float  # 초기 자본금
+    ma_window: int  # 이동평균 기간 (예: 200일)
+    buy_buffer_zone_pct: float  # 매수 버퍼 비율 (upper_band 기준)
+    sell_buffer_zone_pct: float  # 매도 버퍼 비율 (lower_band 기준)
+    hold_days: int  # 신호 확정 대기 기간 (0 = 버퍼존만 모드)
+
+
+# ============================================================================
+# 파라미터 결정 공통 함수
+# ============================================================================
+
+
+def resolve_buffer_params(
+    ma_window: int,
+    buy_buffer_zone_pct: float,
+    sell_buffer_zone_pct: float,
+    hold_days: int,
+) -> tuple[BufferStrategyParams, dict[str, str]]:
+    """버퍼존 전략의 파라미터를 결정한다.
+
+    전달받은 파라미터로 BufferStrategyParams를 생성한다.
+
+    Args:
+        ma_window: 이동평균 기간
+        buy_buffer_zone_pct: 매수 버퍼존 비율
+        sell_buffer_zone_pct: 매도 버퍼존 비율
+        hold_days: 유지일수
+
+    Returns:
+        tuple: (params, sources)
+            - params: 전략 파라미터
+            - sources: 각 파라미터의 출처 딕셔너리
+
+    Raises:
+        ValueError: 파라미터 범위 위반 시
+    """
+    if buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
+        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {buy_buffer_zone_pct}")
+    if sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
+        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {sell_buffer_zone_pct}")
+    if hold_days < MIN_HOLD_DAYS:
+        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {hold_days}")
+
+    params = BufferStrategyParams(
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
+        ma_window=ma_window,
+        buy_buffer_zone_pct=buy_buffer_zone_pct,
+        sell_buffer_zone_pct=sell_buffer_zone_pct,
+        hold_days=hold_days,
+    )
+
+    sources = {
+        "ma_window": "FIXED",
+        "buy_buffer_zone_pct": "FIXED",
+        "sell_buffer_zone_pct": "FIXED",
+        "hold_days": "FIXED",
+    }
+
+    logger.debug(
+        f"파라미터 결정: ma_window={ma_window}, "
+        f"buy_buffer={buy_buffer_zone_pct}, "
+        f"sell_buffer={sell_buffer_zone_pct}, "
+        f"hold_days={hold_days}"
+    )
+
+    return params, sources
 
 
 # ============================================================================
@@ -223,6 +304,10 @@ def create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult
         Returns:
             SingleBacktestResult: 백테스트 결과 컨테이너
         """
+        # 순환 import 방지를 위해 run_backtest를 지연 import한다.
+        # (backtest_engine.py가 이 모듈에서 BufferStrategyParams를 import하기 때문)
+        from qbt.backtest.engines.backtest_engine import run_backtest  # noqa: PLC0415
+
         # 1. 데이터 로딩 및 overlap 처리
         if config.signal_data_path == config.trade_data_path:
             # signal == trade: 동일 데이터, overlap 불필요
@@ -241,8 +326,8 @@ def create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult
         signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=config.ma_type)
 
         # 4. 전략 실행
-        trades_df, equity_df, summary = run_buffer_strategy(
-            signal_df, trade_df, params, strategy_name=config.strategy_name
+        trades_df, equity_df, summary = run_backtest(
+            BufferZoneStrategy(), signal_df, trade_df, params, strategy_name=config.strategy_name
         )
 
         # 5. JSON 저장용 파라미터
@@ -272,3 +357,116 @@ def create_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult
         )
 
     return run_single
+
+
+# ============================================================================
+# 전략 클래스
+# ============================================================================
+
+
+class BufferZoneStrategy:
+    """버퍼존 전략 클래스.
+
+    SignalStrategy Protocol을 구현한다.
+    check_buy에 hold_days 상태머신을 포함하고, check_sell은 하향돌파를 감지한다.
+
+    사용 예:
+        strategy = BufferZoneStrategy()
+        buy, hold_state = strategy.check_buy(prev_close, cur_close, prev_upper, cur_upper, hold_state, hold_days)
+        sell = strategy.check_sell(prev_close, cur_close, prev_lower, cur_lower)
+    """
+
+    def check_buy(
+        self,
+        prev_close: float,
+        cur_close: float,
+        prev_upper: float,
+        cur_upper: float,
+        hold_state: HoldState | None,
+        hold_days_required: int,
+    ) -> tuple[bool, HoldState | None]:
+        """매수 신호 여부와 갱신된 HoldState를 반환한다.
+
+        hold_days_required == 0:
+            detect_buy_signal() 결과를 즉시 반환한다. (True, None)
+        hold_days_required > 0:
+            1. hold_state가 None이고 상향돌파 감지 시 → HoldState 생성 (False, new_hold_state)
+            2. hold_state가 있고 cur_close > cur_upper 유지 시 → days_passed 증가
+               hold_days_required 도달 시 → (True, None) 반환
+               미달 시 → (False, 갱신 hold_state) 반환
+            3. hold_state가 있고 cur_close <= cur_upper 이탈 시 → 상태 해제 (False, None)
+
+        Args:
+            prev_close: 전일 종가
+            cur_close: 당일 종가
+            prev_upper: 전일 상단 밴드
+            cur_upper: 당일 상단 밴드
+            hold_state: 현재 hold_days 상태 (None이면 대기 없음)
+            hold_days_required: 신호 확정까지 대기 기간 (0 = 버퍼존만 모드)
+
+        Returns:
+            tuple: (매수 여부, 갱신된 HoldState)
+        """
+
+        if hold_days_required == 0:
+            # 즉시 신호: detect_buy_signal 결과 반환
+            buy = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
+            return buy, None
+
+        # hold_days > 0: 상태머신 처리
+        if hold_state is not None:
+            # 대기 중 — 상단밴드 위 유지 여부 확인
+            if cur_close > cur_upper:
+                new_days_passed = hold_state["days_passed"] + 1
+                if new_days_passed >= hold_state["hold_days_required"]:
+                    # 유지 조건 충족 → 매수 신호
+                    return True, None
+                else:
+                    # 유지 중 — 상태 갱신
+                    updated_hold_state: HoldState = {
+                        "start_date": hold_state["start_date"],
+                        "days_passed": new_days_passed,
+                        "buffer_pct": hold_state["buffer_pct"],
+                        "hold_days_required": hold_state["hold_days_required"],
+                    }
+                    return False, updated_hold_state
+            else:
+                # 상단밴드 아래로 이탈 → 상태 해제
+                return False, None
+
+        # hold_state가 None인 경우 — 상향돌파 감지
+        breakout = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
+        if breakout:
+            # 상향돌파 감지 → HoldState 생성 (아직 매수 아님).
+            # start_date, buffer_pct는 엔진이 실제 값으로 채워준다 (플레이스홀더 사용).
+            new_hold_state: HoldState = {
+                "start_date": date.min,  # 플레이스홀더: 엔진이 current_date로 덮어씀
+                "days_passed": 0,
+                "buffer_pct": 0.0,  # 플레이스홀더: 엔진이 params.buy_buffer_zone_pct로 덮어씀
+                "hold_days_required": hold_days_required,
+            }
+            return False, new_hold_state
+
+        return False, None
+
+    def check_sell(
+        self,
+        prev_close: float,
+        cur_close: float,
+        prev_lower: float,
+        cur_lower: float,
+    ) -> bool:
+        """매도 신호 여부를 반환한다.
+
+        detect_sell_signal() 결과를 반환한다.
+
+        Args:
+            prev_close: 전일 종가
+            cur_close: 당일 종가
+            prev_lower: 전일 하단 밴드
+            cur_lower: 당일 하단 밴드
+
+        Returns:
+            True이면 매도 신호 (하향돌파)
+        """
+        return detect_sell_signal(prev_close, cur_close, prev_lower, cur_lower)

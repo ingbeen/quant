@@ -22,6 +22,7 @@ from qbt.backtest.constants import (
     MIN_VALID_ROWS,
     SLIPPAGE_RATE,
 )
+from qbt.backtest.strategies.strategy_common import HoldState
 from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import (
     BUY_AND_HOLD_EEM_RESULTS_DIR,
@@ -296,3 +297,69 @@ def create_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult
         )
 
     return run_single
+
+
+# ============================================================================
+# 전략 클래스
+# ============================================================================
+
+
+class BuyAndHoldStrategy:
+    """Buy & Hold 전략 클래스.
+
+    SignalStrategy Protocol을 구현한다.
+    check_buy는 항상 (True, None)을 반환하고, check_sell은 항상 False를 반환한다.
+
+    사용 예:
+        strategy = BuyAndHoldStrategy()
+        buy, hold_state = strategy.check_buy(prev_close, cur_close, prev_upper, cur_upper, None, 0)
+        sell = strategy.check_sell(prev_close, cur_close, prev_lower, cur_lower)
+    """
+
+    def check_buy(
+        self,
+        prev_close: float,
+        cur_close: float,
+        prev_upper: float,
+        cur_upper: float,
+        hold_state: HoldState | None,
+        hold_days_required: int,
+    ) -> tuple[bool, HoldState | None]:
+        """항상 매수 신호를 반환한다 (파라미터 무시).
+
+        Buy & Hold는 어떤 조건에서도 즉시 매수를 원하므로 항상 (True, None)을 반환한다.
+
+        Args:
+            prev_close: 전일 종가 (무시)
+            cur_close: 당일 종가 (무시)
+            prev_upper: 전일 상단 밴드 (무시)
+            cur_upper: 당일 상단 밴드 (무시)
+            hold_state: 현재 hold_days 상태 (무시)
+            hold_days_required: 대기 기간 (무시)
+
+        Returns:
+            tuple: (True, None) — 항상 매수, hold_state 없음
+        """
+        return True, None
+
+    def check_sell(
+        self,
+        prev_close: float,
+        cur_close: float,
+        prev_lower: float,
+        cur_lower: float,
+    ) -> bool:
+        """항상 매도 안 함을 반환한다 (파라미터 무시).
+
+        Buy & Hold는 매도하지 않으므로 항상 False를 반환한다.
+
+        Args:
+            prev_close: 전일 종가 (무시)
+            cur_close: 당일 종가 (무시)
+            prev_lower: 전일 하단 밴드 (무시)
+            cur_lower: 당일 하단 밴드 (무시)
+
+        Returns:
+            False — 항상 매도하지 않음
+        """
+        return False
