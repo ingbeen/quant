@@ -1,11 +1,14 @@
 """포트폴리오 백테스트 엔진
 
-복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 처리한다.
+복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
 
 주요 설계 결정:
 - 시그널: signal_data_path 기준 EMA-200 버퍼존 (자산별 독립)
 - TQQQ/QQQ 시그널 공유: signal_data_path를 동일하게 설정하면 자동으로 공유
-- 리밸런싱: 월 첫 거래일 + 상대 ±20% 임계값 초과 시 전 매수 자산 일괄 조정
+- 리밸런싱: 이중 트리거 체계
+    - 월 첫 거래일: 편차 10% 초과 시 (MONTHLY_REBALANCE_THRESHOLD_RATE)
+    - 매일: 편차 20% 초과 시 긴급 (DAILY_REBALANCE_THRESHOLD_RATE)
+- 부분 매도: 리밸런싱 시 초과분(대금 기준)만 매도, 신호 기반 매도는 전량 유지
 - 현금 부족: scale_factor 비례 배분
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary)
 """
@@ -36,8 +39,11 @@ from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 logger = get_logger(__name__)
 
-# 상대 리밸런싱 임계값: |actual/target - 1| > 이 값이면 트리거
-REBALANCE_THRESHOLD_RATE: float = 0.20
+# 월 첫 거래일 리밸런싱 임계값: |actual/target - 1| > 0.10이면 트리거 (정기 리밸런싱)
+MONTHLY_REBALANCE_THRESHOLD_RATE: float = 0.10
+
+# 매일 긴급 리밸런싱 임계값: |actual/target - 1| > 0.20이면 트리거 (급격한 편차 대응)
+DAILY_REBALANCE_THRESHOLD_RATE: float = 0.20
 
 
 # ============================================================================
@@ -49,13 +55,16 @@ REBALANCE_THRESHOLD_RATE: float = 0.20
 class _PortfolioPendingOrder:
     """포트폴리오 전략 전용 예약 주문.
 
-    buffer_zone_helpers의 PendingOrder와 달리 capital 필드를 포함한다.
-    매수 시 투자할 자본금, 매도 시에는 0.0 (포지션 전량 매도).
+    buffer_zone_helpers의 PendingOrder와 달리 capital, rebalance_sell_amount 필드를 포함한다.
+    매수 시 capital에 투자 자본금을 저장하고, rebalance_sell_amount는 0.0.
+    리밸런싱 매도 시 rebalance_sell_amount에 초과분 대금을 저장 (> 0.0 = 부분 매도).
+    신호 기반 매도 시 rebalance_sell_amount = 0.0 (전량 매도).
     """
 
     order_type: Literal["buy", "sell"]  # 주문 유형
     signal_date: date  # 신호 발생 날짜
     capital: float  # 매수 자본 (매도 시 0.0)
+    rebalance_sell_amount: float = 0.0  # 리밸런싱 부분 매도 대금 (0.0 = 전량 매도)
 
 
 @dataclass
@@ -113,6 +122,7 @@ def _check_rebalancing_needed(
     equity_vals: dict[str, float],
     total_equity: float,
     config: PortfolioConfig,
+    threshold: float | None = None,
 ) -> bool:
     """리밸런싱 필요 여부를 판정한다.
 
@@ -124,6 +134,8 @@ def _check_rebalancing_needed(
         equity_vals: {asset_id: 현재 평가액}
         total_equity: 총 에쿼티
         config: 포트폴리오 설정
+        threshold: 리밸런싱 임계값. None이면 config.rebalance_threshold_rate 사용.
+            월 첫날: MONTHLY_REBALANCE_THRESHOLD_RATE, 매일: DAILY_REBALANCE_THRESHOLD_RATE
 
     Returns:
         True이면 리밸런싱 실행 필요
@@ -132,7 +144,7 @@ def _check_rebalancing_needed(
         return False
 
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
-    threshold = config.rebalance_threshold_rate
+    effective_threshold = threshold if threshold is not None else config.rebalance_threshold_rate
 
     for asset_id, state in asset_states.items():
         if state.signal_state != "buy":
@@ -143,7 +155,7 @@ def _check_rebalancing_needed(
 
         actual = equity_vals.get(asset_id, 0.0) / total_equity
         deviation = abs(actual / slot.target_weight - 1.0)
-        if deviation > threshold:
+        if deviation > effective_threshold:
             return True
 
     return False
@@ -211,13 +223,14 @@ def _execute_rebalancing(
         buy_orders = {aid: amt * scale_factor for aid, amt in buy_orders.items()}
 
     # 4. pending_order 생성
-    for asset_id in sell_orders:
+    for asset_id, excess_value in sell_orders.items():
         # 이미 pending_order가 있으면 덮어쓰지 않음 (시그널 pending_order 우선)
         if asset_states[asset_id].pending_order is None:
             asset_states[asset_id].pending_order = _PortfolioPendingOrder(
                 order_type="sell",
                 signal_date=current_date,
                 capital=0.0,
+                rebalance_sell_amount=excess_value,  # 부분 매도: 초과분 대금 기준
             )
 
     for asset_id, capital in buy_orders.items():
@@ -498,11 +511,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     trade_dates = list(next(iter(asset_trade_dfs.values()))[COL_DATE])
 
     # 4. 자산별 상태 초기화
-    # always_invested=True 자산은 항상 매수 상태로 시작 (버퍼존 신호 대기 없음)
+    # strategy_type="buy_and_hold" 자산은 항상 매수 상태로 시작 (버퍼존 신호 대기 없음)
     asset_states: dict[str, _AssetState] = {
         slot.asset_id: _AssetState(
             position=0,
-            signal_state="buy" if slot.always_invested else "sell",
+            signal_state="buy" if slot.strategy_type == "buy_and_hold" else "sell",
             pending_order=None,
             hold_state=None,
         )
@@ -524,7 +537,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     first_trade_date = trade_dates[0]
 
     # 5. 첫 날 초기화
-    # always_invested=True 자산은 day 0에 buy pending_order 생성 (i=1에서 즉시 매수)
+    # strategy_type="buy_and_hold" 자산은 day 0에 buy pending_order 생성 (i=1에서 즉시 매수)
     for slot in config.asset_slots:
         asset_id = slot.asset_id
         signal_df = asset_signal_dfs[asset_id]
@@ -534,9 +547,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         prev_upper_bands[asset_id] = u
         prev_lower_bands[asset_id] = lb
 
-        if slot.always_invested:
+        if slot.strategy_type == "buy_and_hold":
             # 초기 매수 자본: total_capital × target_weight
-            # 여러 always_invested 자산이 동시에 매수될 때 공정한 자본 배분을 위해
+            # 여러 buy_and_hold 자산이 동시에 매수될 때 공정한 자본 배분을 위해
             # shared_cash 잔액이 아닌 total_capital 기준으로 고정 계산
             initial_capital = config.total_capital * slot.target_weight
             asset_states[asset_id].pending_order = _PortfolioPendingOrder(
@@ -567,16 +580,74 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         current_date = trade_dates[i]
         rebalanced_today = False
 
-        # 6-1. pending_order 체결 (trade_df[i].Open 기준)
+        # 6-1. pending_order 체결 (trade_df[i].Open 기준) — 2패스 방식
+        # 1패스: 전 자산 sell pending_order 먼저 체결 (매도 대금이 매수 자본으로 사용)
         for asset_id, state in asset_states.items():
-            if state.pending_order is None:
+            if state.pending_order is None or state.pending_order.order_type != "sell":
+                continue
+            if state.position <= 0:
+                state.pending_order = None
+                continue
+
+            trade_df = asset_trade_dfs[asset_id]
+            open_price = float(trade_df.iloc[i][COL_OPEN])
+            order = state.pending_order
+            sell_price = open_price * (1.0 - SLIPPAGE_RATE)
+
+            if order.rebalance_sell_amount > 0.0:
+                # 부분 매도 (리밸런싱): 초과 대금 기준으로 수량 계산 (내림)
+                shares_to_sell = int(order.rebalance_sell_amount / sell_price)
+                shares_sold = min(shares_to_sell, state.position)
+            else:
+                # 전량 매도 (신호 기반)
+                shares_sold = state.position
+
+            if shares_sold > 0:
+                sell_amount = shares_sold * sell_price
+                shared_cash += sell_amount
+
+                e_date = entry_dates.get(asset_id)
+                e_price = entry_prices.get(asset_id, 0.0)
+
+                trade_record: dict[str, Any] = {
+                    "entry_date": e_date,
+                    "exit_date": current_date,
+                    "entry_price": e_price,
+                    "exit_price": sell_price,
+                    "shares": shares_sold,
+                    "pnl": (sell_price - e_price) * shares_sold,
+                    "pnl_pct": (sell_price - e_price) / (e_price + EPSILON),
+                    "hold_days_used": entry_hold_days.get(asset_id, 0),
+                    "asset_id": asset_id,
+                    "trade_type": "rebalance" if order.rebalance_sell_amount > 0.0 else "signal",
+                }
+                all_trades.append(trade_record)
+
+                state.position -= shares_sold
+
+                # 전량 매도(신호 기반)인 경우에만 진입 정보 초기화
+                if state.position == 0:
+                    entry_prices[asset_id] = 0.0
+                    entry_dates[asset_id] = None
+
+                logger.debug(
+                    f"매도 체결: {asset_id}, 날짜={current_date}, "
+                    f"가격={sell_price:.2f}, 수량={shares_sold}, "
+                    f"잔여포지션={state.position}"
+                )
+
+            state.pending_order = None
+
+        # 2패스: 전 자산 buy pending_order 체결 (매도 후 현금으로 매수)
+        for asset_id, state in asset_states.items():
+            if state.pending_order is None or state.pending_order.order_type != "buy":
                 continue
 
             trade_df = asset_trade_dfs[asset_id]
             open_price = float(trade_df.iloc[i][COL_OPEN])
             order = state.pending_order
 
-            if order.order_type == "buy" and state.position == 0:
+            if state.position == 0:
                 buy_price = open_price * (1.0 + SLIPPAGE_RATE)
                 buy_capital = order.capital
                 if buy_capital <= 0:
@@ -590,34 +661,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     entry_prices[asset_id] = buy_price
                     entry_dates[asset_id] = current_date
                     logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, " f"가격={buy_price:.2f}, 수량={shares}")
-
-            elif order.order_type == "sell" and state.position > 0:
-                sell_price = open_price * (1.0 - SLIPPAGE_RATE)
-                sell_amount = state.position * sell_price
-                shared_cash += sell_amount
-
-                e_date = entry_dates.get(asset_id)
-                e_price = entry_prices.get(asset_id, 0.0)
-                shares_sold = state.position
-
-                trade_record: dict[str, Any] = {
-                    "entry_date": e_date,
-                    "exit_date": current_date,
-                    "entry_price": e_price,
-                    "exit_price": sell_price,
-                    "shares": shares_sold,
-                    "pnl": (sell_price - e_price) * shares_sold,
-                    "pnl_pct": (sell_price - e_price) / (e_price + EPSILON),
-                    "hold_days_used": entry_hold_days.get(asset_id, 0),
-                    "asset_id": asset_id,
-                    "trade_type": order.signal_date.isoformat(),  # 임시: signal_date 저장
-                }
-                all_trades.append(trade_record)
-
-                state.position = 0
-                entry_prices[asset_id] = 0.0
-                entry_dates[asset_id] = None
-                logger.debug(f"매도 체결: {asset_id}, 날짜={current_date}, " f"가격={sell_price:.2f}, 수량={shares_sold}")
 
             state.pending_order = None
 
@@ -646,9 +689,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
             slot = slot_dict[asset_id]
 
-            if slot.always_invested:
-                # always_invested 자산: 버퍼존 매도 신호 무시, 항상 투자 상태 유지.
-                # 포지션이 없는 경우(리밸런싱으로 매도된 직후)에만 재매수 신호 판정.
+            if slot.strategy_type == "buy_and_hold":
+                # buy_and_hold 자산: 버퍼존 매도 신호 무시, 항상 투자 상태 유지.
+                # 포지션이 없는 경우(리밸런싱 부분 매도 후 전량 소진 등)에만 재매수 신호 판정.
                 if state.position == 0 and state.pending_order is None:
                     target_w = slot.target_weight
                     buy_capital = current_equity * target_w
@@ -720,14 +763,24 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             prev_upper_bands[asset_id] = upper_band
             prev_lower_bands[asset_id] = lower_band
 
-        # 6-4. 월 첫 거래일 → 리밸런싱 판정
-        if _is_first_trading_day_of_month(trade_dates, i):
-            equity_vals_now: dict[str, float] = {
-                aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
-            }
-            if _check_rebalancing_needed(asset_states, equity_vals_now, current_equity, config):
+        # 6-4. 이중 트리거 리밸런싱 판정
+        # - 월 첫 거래일: 10% 임계값 (MONTHLY_REBALANCE_THRESHOLD_RATE)
+        # - 매일(월 중간): 20% 임계값 (DAILY_REBALANCE_THRESHOLD_RATE)
+        equity_vals_now: dict[str, float] = {
+            aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
+        }
+        is_month_start = _is_first_trading_day_of_month(trade_dates, i)
+        if is_month_start:
+            if _check_rebalancing_needed(
+                asset_states, equity_vals_now, current_equity, config, threshold=MONTHLY_REBALANCE_THRESHOLD_RATE
+            ):
                 _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
                 rebalanced_today = True
+        elif _check_rebalancing_needed(
+            asset_states, equity_vals_now, current_equity, config, threshold=DAILY_REBALANCE_THRESHOLD_RATE
+        ):
+            _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
+            rebalanced_today = True
 
         # 6-5. 에쿼티 행 기록
         row: dict[str, Any] = {
@@ -801,7 +854,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 "target_weight": slot.target_weight,
                 "signal_data_path": str(slot.signal_data_path),
                 "trade_data_path": str(slot.trade_data_path),
-                "always_invested": slot.always_invested,
+                "strategy_type": slot.strategy_type,
             }
             for slot in config.asset_slots
         ],

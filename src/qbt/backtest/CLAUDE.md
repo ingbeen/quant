@@ -83,45 +83,17 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
 - `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
 
-### 6. split_strategy.py
-
-분할 매수매도 오케스트레이터 모듈을 제공합니다.
-3개 트랜치(ma250/ma200/ma150)를 독립 실행 후 결과를 조합하는 오케스트레이터 패턴입니다.
-기존 `run_buffer_strategy()`를 블랙박스로 호출하며, 기존 코드 무변경 원칙을 준수합니다.
-
-데이터 클래스:
-
-- `SplitTrancheConfig`: 트랜치별 설정 (tranche_id, weight, ma_window). frozen=True
-- `SplitStrategyConfig`: 전략 설정 (strategy_name, display_name, base_config, total_capital, tranches, result_dir). frozen=True
-- `SplitTrancheResult`: 트랜치별 백테스트 결과 (tranche_id, config, trades_df, equity_df, summary)
-- `SplitStrategyResult`: 분할 매수매도 전체 결과 (combined_equity_df, combined_trades_df, combined_summary, per_tranche, config, params_json, signal_df)
-
-설정 목록:
-
-- `SPLIT_CONFIGS`: `list[SplitStrategyConfig]` (split_buffer_zone_tqqq, split_buffer_zone_qqq)
-
-주요 함수:
-
-- `run_split_backtest`: 분할 매수매도 백테스트 실행 (공유 자본, 날짜별 통합 루프, 매수 시 현금 ÷ 미보유 트랜치 수 배분, 매도 시 대금 공유 현금 복귀)
-- `create_split_runner`: 팩토리 함수. `SplitStrategyConfig` → `Callable[[], SplitStrategyResult]` 생성
-
-헬퍼 함수:
-
-- `_combine_equity`: 트랜치별 에쿼티를 합산 (active_tranches, avg_entry_price 포함)
-- `_combine_trades`: 트랜치별 거래를 합산 (tranche_id, tranche_seq, ma_window 태깅)
-- `_calculate_combined_summary`: 합산 에쿼티로 calculate_summary() 호출
-- `_build_params_json`: JSON 저장용 파라미터 딕셔너리 생성
-
-설계 근거: `docs/tranche_architecture.md`, `docs/tranche_final_recommendation.md`
-
 ### 7. portfolio_types.py
 
 포트폴리오 백테스트에서 사용하는 데이터클래스를 정의한다.
 
 설정 데이터클래스 (frozen=True):
 
-- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight)
+- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_type)
+  - `strategy_type="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도
+  - `strategy_type="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, rebalance_threshold_rate, result_dir, 4P 파라미터)
+  - `rebalance_threshold_rate`: 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
 
 결과 데이터클래스:
 
@@ -133,23 +105,26 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 ### 8. portfolio_strategy.py
 
 포트폴리오 백테스트 엔진을 제공한다.
-복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 처리한다.
+복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
 
 로컬 상수:
 
-- `REBALANCE_THRESHOLD_RATE = 0.20`: 상대 리밸런싱 임계값 (|actual/target - 1| > 0.20이면 트리거)
+- `MONTHLY_REBALANCE_THRESHOLD_RATE = 0.10`: 월 첫 거래일 리밸런싱 임계값 (정기 리밸런싱)
+- `DAILY_REBALANCE_THRESHOLD_RATE = 0.20`: 매일 긴급 리밸런싱 임계값 (급격한 편차 대응)
 
 내부 데이터클래스:
 
-- `_PortfolioPendingOrder`: 포트폴리오 전용 예약 주문 (order_type, signal_date, capital)
+- `_PortfolioPendingOrder`: 포트폴리오 전용 예약 주문 (order_type, signal_date, capital, rebalance_sell_amount)
+  - `rebalance_sell_amount > 0.0`: 리밸런싱 부분 매도 (대금 기준)
+  - `rebalance_sell_amount == 0.0`: 신호 기반 전량 매도 (기본값)
 - `_AssetState`: 자산별 런타임 상태 (position, signal_state, pending_order, hold_state)
 
 공개 함수:
 
 - `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
-- `_check_rebalancing_needed(asset_states, equity_vals, total_equity, config) -> bool`: 리밸런싱 필요 여부 판정
-- `_execute_rebalancing(asset_states, equity_vals, config, shared_cash, current_date) -> None`: 리밸런싱 pending_order 생성 (in-place)
+- `_check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold) -> bool`: 리밸런싱 필요 여부 판정 (threshold 파라미터로 월별/일별 임계값 전환)
+- `_execute_rebalancing(asset_states, equity_vals, config, shared_cash, current_date) -> None`: 리밸런싱 pending_order 생성 (in-place). 초과 자산은 rebalance_sell_amount 기반 부분 매도.
 - `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정
 - `_compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float`: 에쿼티 산식 계산
 
@@ -157,7 +132,9 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
-- 매도 먼저: 리밸런싱 시 매도 예상 대금을 매수 자본으로 활용 (shared_cash=0에서도 동작)
+- 이중 트리거 리밸런싱: 월 첫날 10% / 매일 20% 긴급 트리거
+- 부분 매도: 리밸런싱 시 초과분(rebalance_sell_amount)만 매도. 신호 기반 매도는 전량 유지
+- 2패스 체결: 전 자산 매도 완료 후 매수 진행 (매도 대금을 매수 자본으로 활용)
 
 ### 10. portfolio_configs.py
 

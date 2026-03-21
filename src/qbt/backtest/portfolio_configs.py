@@ -34,7 +34,7 @@ _DEFAULT_BUY_BUFFER = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
 _DEFAULT_SELL_BUFFER = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
 _DEFAULT_HOLD_DAYS = 3
 _DEFAULT_MA_TYPE = "ema"
-_DEFAULT_REBALANCE_THRESHOLD = 0.20  # 상대 리밸런싱 임계값 (0.20 = ±20%)
+_DEFAULT_REBALANCE_THRESHOLD = 0.10  # 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
 _DEFAULT_TOTAL_CAPITAL = 10_000_000.0
 
 
@@ -691,8 +691,8 @@ _CONFIG_F4 = PortfolioConfig(
 # ============================================================================
 # G 시리즈: SPY/GLD/TLT 구성 고정, 전략만 변경 (버퍼존 vs B&H 팩토리얼)
 # 구성: SPY(버퍼존) 60% / GLD 25% / TLT 15%
-# GLD·TLT에 적용하는 전략(버퍼존/always_invested)만 변경하는 2×2 팩토리얼 설계.
-# always_invested=True: 버퍼존 매도 신호 무시, 항상 투자 상태 유지 (B&H 동작)
+# GLD·TLT에 적용하는 전략(버퍼존/strategy_type)만 변경하는 2×2 팩토리얼 설계.
+# strategy_type="buy_and_hold": 버퍼존 매도 신호 무시, 항상 투자 상태 유지
 # ============================================================================
 
 # G-1: 전부 버퍼존 (E-1과 동일 구성, G 시리즈 비교 기준선)
@@ -729,7 +729,7 @@ _CONFIG_G1 = PortfolioConfig(
     ma_type=_DEFAULT_MA_TYPE,
 )
 
-# G-2: GLD B&H (SPY 버퍼존 / GLD always_invested / TLT 버퍼존)
+# G-2: GLD B&H (SPY 버퍼존 / GLD strategy_type=buy_and_hold / TLT 버퍼존)
 _CONFIG_G2 = PortfolioConfig(
     experiment_name="portfolio_g2",
     display_name="G-2 (SPY 60%(버퍼존) / GLD 25%(B&H) / TLT 15%(버퍼존))",
@@ -745,7 +745,7 @@ _CONFIG_G2 = PortfolioConfig(
             signal_data_path=GLD_DATA_PATH,
             trade_data_path=GLD_DATA_PATH,
             target_weight=0.25,
-            always_invested=True,  # GLD: B&H (버퍼존 매도 신호 무시)
+            strategy_type="buy_and_hold",  # GLD: B&H (버퍼존 매도 신호 무시)
         ),
         AssetSlotConfig(
             asset_id="tlt",
@@ -764,7 +764,7 @@ _CONFIG_G2 = PortfolioConfig(
     ma_type=_DEFAULT_MA_TYPE,
 )
 
-# G-3: TLT B&H (SPY 버퍼존 / GLD 버퍼존 / TLT always_invested)
+# G-3: TLT B&H (SPY 버퍼존 / GLD 버퍼존 / TLT strategy_type=buy_and_hold)
 _CONFIG_G3 = PortfolioConfig(
     experiment_name="portfolio_g3",
     display_name="G-3 (SPY 60%(버퍼존) / GLD 25%(버퍼존) / TLT 15%(B&H))",
@@ -786,7 +786,7 @@ _CONFIG_G3 = PortfolioConfig(
             signal_data_path=TLT_DATA_PATH,
             trade_data_path=TLT_DATA_PATH,
             target_weight=0.15,
-            always_invested=True,  # TLT: B&H (버퍼존 매도 신호 무시)
+            strategy_type="buy_and_hold",  # TLT: B&H (버퍼존 매도 신호 무시)
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
@@ -799,7 +799,7 @@ _CONFIG_G3 = PortfolioConfig(
     ma_type=_DEFAULT_MA_TYPE,
 )
 
-# G-4: GLD+TLT 모두 B&H (SPY 버퍼존 / GLD always_invested / TLT always_invested)
+# G-4: GLD+TLT 모두 B&H (SPY 버퍼존 / GLD strategy_type=buy_and_hold / TLT strategy_type=buy_and_hold)
 _CONFIG_G4 = PortfolioConfig(
     experiment_name="portfolio_g4",
     display_name="G-4 (SPY 60%(버퍼존) / GLD 25%(B&H) / TLT 15%(B&H))",
@@ -815,14 +815,14 @@ _CONFIG_G4 = PortfolioConfig(
             signal_data_path=GLD_DATA_PATH,
             trade_data_path=GLD_DATA_PATH,
             target_weight=0.25,
-            always_invested=True,  # GLD: B&H (버퍼존 매도 신호 무시)
+            strategy_type="buy_and_hold",  # GLD: B&H (버퍼존 매도 신호 무시)
         ),
         AssetSlotConfig(
             asset_id="tlt",
             signal_data_path=TLT_DATA_PATH,
             trade_data_path=TLT_DATA_PATH,
             target_weight=0.15,
-            always_invested=True,  # TLT: B&H (버퍼존 매도 신호 무시)
+            strategy_type="buy_and_hold",  # TLT: B&H (버퍼존 매도 신호 무시)
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,

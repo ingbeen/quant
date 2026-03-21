@@ -12,7 +12,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -33,16 +33,17 @@ class AssetSlotConfig:
         signal_data_path: EMA-200 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
         trade_data_path: 실제 매매 대상 데이터 경로 (TQQQ → 합성 데이터 경로)
         target_weight: 목표 비중 (예: 0.30 = 30%)
-        always_invested: True이면 버퍼존 매도 신호를 무시하고 항상 투자 상태 유지 (B&H 동작).
-            리밸런싱은 정상 참여한다. G 시리즈에서 GLD·TLT B&H 처리에 사용.
-            기본값 False = 버퍼존 전략 정상 적용.
+        strategy_type: 전략 유형.
+            "buffer_zone" = 버퍼존 신호에 따라 매수/매도 (기본값).
+            "buy_and_hold" = 즉시 매수 후 매도 신호 무시, 항상 투자 상태 유지.
+            G 시리즈에서 GLD·TLT B&H 처리에 사용.
     """
 
     asset_id: str
     signal_data_path: Path
     trade_data_path: Path
     target_weight: float  # 목표 비중 (0.30 = 30%)
-    always_invested: bool = False  # True이면 버퍼존 매도 무시, 항상 투자 상태 유지
+    strategy_type: Literal["buffer_zone", "buy_and_hold"] = "buffer_zone"
 
 
 @dataclass(frozen=True)
@@ -52,12 +53,17 @@ class PortfolioConfig:
     복수 자산의 목표 비중, 리밸런싱 정책, 4P 전략 파라미터를 담는다.
     target_weight 합이 1.0 미만인 경우 잔여분은 현금으로 유지된다 (B시리즈).
 
+    리밸런싱 정책:
+        - 월 첫 거래일: 편차 10% 초과 시 트리거 (MONTHLY_REBALANCE_THRESHOLD_RATE)
+        - 매일: 편차 20% 초과 시 긴급 트리거 (DAILY_REBALANCE_THRESHOLD_RATE)
+        rebalance_threshold_rate는 월 첫날 임계값으로 사용된다.
+
     Attributes:
         experiment_name: 실험 식별자 ("portfolio_a2" 등)
         display_name: 표시 이름 ("A-2 (QQQ 30% / SPY 30% / GLD 40%)")
         asset_slots: 자산 슬롯 설정 튜플
         total_capital: 총 초기 자본금
-        rebalance_threshold_rate: 상대 리밸런싱 임계값 (0.20 = ±20%)
+        rebalance_threshold_rate: 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
         result_dir: 결과 저장 디렉토리
         ma_window: 이동평균 기간 (전 자산 공통)
         buy_buffer_zone_pct: 매수 버퍼존 비율 (전 자산 공통)
@@ -146,7 +152,7 @@ class PortfolioResult:
             display_name="",
             asset_slots=(),
             total_capital=0.0,
-            rebalance_threshold_rate=0.20,
+            rebalance_threshold_rate=0.10,
             result_dir=Path("."),
             ma_window=200,
             buy_buffer_zone_pct=0.03,

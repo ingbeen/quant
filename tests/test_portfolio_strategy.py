@@ -1069,29 +1069,28 @@ def _make_sell_signal_df(n_rows: int = 20, initial_price: float = 100.0, drop_pr
     )
 
 
-class TestAlwaysInvested:
-    """always_invested 기능 테스트.
+class TestStrategyTypeBehavior:
+    """strategy_type 동작 통합 테스트.
 
     검증 정책:
-    1. always_invested=True: 버퍼존 매수 신호 없이도 day 1에 즉시 매수
-    2. always_invested=True: 매도 신호 발생 시에도 포지션 유지
-    3. always_invested=False: 기존 버퍼존 동작 — 매수 신호 없으면 절대 매수하지 않음
-    4. AssetSlotConfig 기본값: always_invested=False (기존 코드 호환)
+    1. strategy_type="buy_and_hold": 버퍼존 매수 신호 없이도 day 1에 즉시 매수
+    2. strategy_type="buy_and_hold": 매도 신호 발생 시에도 포지션 유지
+    3. strategy_type="buffer_zone"(기본값): 매수 신호 없으면 절대 매수하지 않음
+    4. AssetSlotConfig 기본값: strategy_type="buffer_zone"
     """
 
-    def test_always_invested_true_buys_immediately(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buy_and_hold_buys_immediately(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
         """
-        목적: always_invested=True 자산이 버퍼존 매수 신호 없이도 즉시 매수됨을 검증.
+        목적: strategy_type="buy_and_hold" 자산이 버퍼존 매수 신호 없이도 즉시 매수됨을 검증.
 
         Given:
             - 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
-            - always_invested=True 자산 슬롯 (target_weight=1.0)
+            - strategy_type="buy_and_hold" 자산 슬롯 (target_weight=1.0)
 
         When: run_portfolio_backtest() 실행
 
         Then:
             - 마지막 날 {asset_id}_value > 0 (즉시 매수 후 포지션 유지)
-            - always_invested=False 동일 구성이면 마지막 날 value = 0 (대조군 확인)
         """
         # Given: 가격 100 고정 (upper_band=103 돌파 없음 → 버퍼존 신호 없음)
         df = _make_flat_price_df(n_rows=20, price=100.0)
@@ -1106,7 +1105,7 @@ class TestAlwaysInvested:
                     signal_data_path=csv_path,
                     trade_data_path=csv_path,
                     target_weight=1.0,
-                    always_invested=True,
+                    strategy_type="buy_and_hold",
                 ),
             ),
             total_capital=1_000_000.0,
@@ -1125,15 +1124,15 @@ class TestAlwaysInvested:
         # Then: 마지막 날 포지션 보유 (매수 신호 없어도 항상 투자)
         equity_df = result.equity_df
         last_value = float(equity_df["asset_a_value"].iloc[-1])
-        assert last_value > 0, f"always_invested=True 자산은 마지막 날 포지션을 보유해야 함, 실제: {last_value}"
+        assert last_value > 0, f"strategy_type='buy_and_hold' 자산은 마지막 날 포지션을 보유해야 함, 실제: {last_value}"
 
-    def test_always_invested_false_does_not_buy_without_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buffer_zone_does_not_buy_without_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
         """
-        목적: always_invested=False(기본값)이면 버퍼존 신호 없이 절대 매수하지 않음을 검증.
+        목적: strategy_type="buffer_zone"(기본값)이면 버퍼존 신호 없이 절대 매수하지 않음을 검증.
 
         Given:
             - 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
-            - always_invested=False (기본 버퍼존 전략)
+            - strategy_type="buffer_zone" (기본 버퍼존 전략)
 
         When: run_portfolio_backtest() 실행
 
@@ -1141,7 +1140,7 @@ class TestAlwaysInvested:
             - 전체 기간 {asset_id}_value = 0 (매수 신호 없어서 포지션 없음)
             - trades_df가 비어있음
         """
-        # Given: 동일 가격 데이터, always_invested=False
+        # Given: 동일 가격 데이터, strategy_type="buffer_zone"(기본값)
         df = _make_flat_price_df(n_rows=20, price=100.0)
         csv_path = create_csv_file("asset_normal.csv", df)
 
@@ -1154,7 +1153,7 @@ class TestAlwaysInvested:
                     signal_data_path=csv_path,
                     trade_data_path=csv_path,
                     target_weight=1.0,
-                    always_invested=False,
+                    strategy_type="buffer_zone",
                 ),
             ),
             total_capital=1_000_000.0,
@@ -1172,17 +1171,17 @@ class TestAlwaysInvested:
 
         # Then: 전체 기간 포지션 없음
         equity_df = result.equity_df
-        assert (equity_df["asset_b_value"] == 0).all(), "always_invested=False 자산은 매수 신호 없이 포지션을 가지면 안 됨"
-        assert result.trades_df.empty, "always_invested=False 자산은 신호 없으면 거래가 없어야 함"
+        assert (equity_df["asset_b_value"] == 0).all(), "strategy_type='buffer_zone' 자산은 매수 신호 없이 포지션을 가지면 안 됨"
+        assert result.trades_df.empty, "strategy_type='buffer_zone' 자산은 신호 없으면 거래가 없어야 함"
 
-    def test_always_invested_true_does_not_sell_on_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buy_and_hold_does_not_sell_on_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
         """
-        목적: always_invested=True 자산이 매도 신호(하단 밴드 하향 돌파)에도 매도하지 않음을 검증.
+        목적: strategy_type="buy_and_hold" 자산이 매도 신호(하단 밴드 하향 돌파)에도 매도하지 않음을 검증.
 
         Given:
             - 처음 5행: 가격 100 (MA ≈ 100, lower_band = 95)
             - 이후 15행: 가격 80 (lower_band 95 하향 돌파 → 버퍼존 매도 신호 발생)
-            - always_invested=True
+            - strategy_type="buy_and_hold"
 
         When: run_portfolio_backtest() 실행
 
@@ -1203,7 +1202,7 @@ class TestAlwaysInvested:
                     signal_data_path=csv_path,
                     trade_data_path=csv_path,
                     target_weight=1.0,
-                    always_invested=True,
+                    strategy_type="buy_and_hold",
                 ),
             ),
             total_capital=1_000_000.0,
@@ -1222,20 +1221,22 @@ class TestAlwaysInvested:
         # Then: 마지막 날 포지션 보유 (매도 신호 무시)
         equity_df = result.equity_df
         last_value = float(equity_df["asset_c_value"].iloc[-1])
-        assert last_value > 0, f"always_invested=True 자산은 매도 신호에도 포지션을 유지해야 함, 실제: {last_value}"
+        assert last_value > 0, f"strategy_type='buy_and_hold' 자산은 매도 신호에도 포지션을 유지해야 함, 실제: {last_value}"
 
         # 완료된 거래(entry + exit) 없음
-        assert result.trades_df.empty, f"always_invested=True 자산은 매도 기록이 없어야 함, " f"실제 거래 수: {len(result.trades_df)}"
+        assert result.trades_df.empty, (
+            f"strategy_type='buy_and_hold' 자산은 매도 기록이 없어야 함, " f"실제 거래 수: {len(result.trades_df)}"
+        )
 
-    def test_always_invested_default_value_is_false(self, tmp_path: Path) -> None:
+    def test_strategy_type_default_is_buffer_zone(self, tmp_path: Path) -> None:
         """
-        목적: AssetSlotConfig.always_invested 기본값이 False임을 검증 (기존 코드 호환성).
+        목적: AssetSlotConfig.strategy_type 기본값이 "buffer_zone"임을 검증.
 
-        Given: always_invested 파라미터 없이 AssetSlotConfig 생성
+        Given: strategy_type 파라미터 없이 AssetSlotConfig 생성
         When:  AssetSlotConfig 인스턴스 생성
-        Then:  always_invested == False
+        Then:  strategy_type == "buffer_zone"
         """
-        # Given/When: always_invested 명시 없이 생성
+        # Given/When: strategy_type 명시 없이 생성
         slot = AssetSlotConfig(
             asset_id="test",
             signal_data_path=tmp_path / "dummy.csv",
@@ -1243,18 +1244,18 @@ class TestAlwaysInvested:
             target_weight=0.50,
         )
 
-        # Then: 기본값 False
+        # Then: 기본값 "buffer_zone"
         assert (
-            slot.always_invested is False
-        ), f"AssetSlotConfig.always_invested 기본값은 False여야 함, 실제: {slot.always_invested}"
+            slot.strategy_type == "buffer_zone"
+        ), f"AssetSlotConfig.strategy_type 기본값은 'buffer_zone'이어야 함, 실제: {slot.strategy_type}"
 
-    def test_always_invested_params_json_includes_flag(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_params_json_includes_strategy_type_flag(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
         """
-        목적: params_json에 always_invested 필드가 포함됨을 검증.
+        목적: params_json에 strategy_type 필드가 포함됨을 검증.
 
-        Given: always_invested=True 자산을 포함한 포트폴리오 config
+        Given: strategy_type="buy_and_hold" 자산을 포함한 포트폴리오 config
         When:  run_portfolio_backtest() 실행
-        Then:  result.params_json["assets"][0]["always_invested"] == True
+        Then:  result.params_json["assets"][0]["strategy_type"] == "buy_and_hold"
         """
         # Given
         df = _make_flat_price_df(n_rows=20, price=100.0)
@@ -1269,7 +1270,7 @@ class TestAlwaysInvested:
                     signal_data_path=csv_path,
                     trade_data_path=csv_path,
                     target_weight=1.0,
-                    always_invested=True,
+                    strategy_type="buy_and_hold",
                 ),
             ),
             total_capital=1_000_000.0,
@@ -1285,10 +1286,414 @@ class TestAlwaysInvested:
         # When
         result = run_portfolio_backtest(config)
 
-        # Then: params_json에 always_invested 포함
+        # Then: params_json에 strategy_type 포함
         assets_json = result.params_json.get("assets", [])
         assert len(assets_json) == 1, "자산이 1개이어야 함"
-        assert "always_invested" in assets_json[0], "params_json[assets][0]에 always_invested 키가 있어야 함"
-        assert assets_json[0]["always_invested"] is True, (
-            f"always_invested=True가 params_json에 반영되어야 함, " f"실제: {assets_json[0].get('always_invested')}"
+        assert "strategy_type" in assets_json[0], "params_json[assets][0]에 strategy_type 키가 있어야 함"
+        assert assets_json[0]["strategy_type"] == "buy_and_hold", (
+            f"strategy_type='buy_and_hold'가 params_json에 반영되어야 함, " f"실제: {assets_json[0].get('strategy_type')}"
         )
+
+
+# ============================================================================
+# Phase 0: 새로운 계약 고정 (레드 허용)
+# ============================================================================
+
+
+class TestPartialSellInvariant:
+    """리밸런싱 부분 매도 인바리언트 테스트 (Phase 0: RED).
+
+    핵심 계약:
+    - 리밸런싱 매도 시 rebalance_sell_amount = excess_value (> 0.0) — 부분 매도
+    - 리밸런싱 후 초과 자산의 position > 0 유지 (전량 매도 금지)
+    - 신호 기반 매도는 여전히 전량 매도 (변경 없음)
+    """
+
+    def test_rebalancing_sell_sets_rebalance_sell_amount(self) -> None:
+        """
+        목적: _execute_rebalancing() 후 초과 자산의
+              pending_order.rebalance_sell_amount == excess_value 검증.
+
+        Given: QQQ 60%(target 40%), total_equity=1,000,000, shared_cash=400,000
+               excess_value = 600,000 - 400,000 = 200,000
+        When:  _execute_rebalancing() 호출
+        Then:  QQQ pending_order.rebalance_sell_amount == 200,000 (초과분, 전량 아님)
+        """
+        # Given
+        asset_states: dict[str, _AssetState] = {
+            "qqq": _AssetState(position=150, signal_state="buy", pending_order=None, hold_state=None),
+        }
+        equity_vals = {"qqq": 600_000.0}
+        shared_cash = 400_000.0  # total = 1,000,000
+
+        config = PortfolioConfig(
+            experiment_name="test",
+            display_name="Test",
+            asset_slots=(AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.40),),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=Path("."),
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        _execute_rebalancing(asset_states, equity_vals, config, shared_cash, date(2024, 1, 2))
+
+        # Then
+        order = asset_states["qqq"].pending_order
+        assert order is not None
+        assert order.order_type == "sell"
+        # rebalance_sell_amount = 600,000 - 400,000 = 200,000 (전량 아닌 초과분)
+        assert order.rebalance_sell_amount == pytest.approx(200_000.0, rel=1e-6)  # type: ignore[attr-defined]
+
+    def test_rebalancing_position_remains_after_partial_sell(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: 리밸런싱 매도 후 익일(체결일)에 초과 자산 qqq_value > 0 유지 검증 (전량 매도 금지).
+
+        Given: QQQ 50% / GLD 50% 포트폴리오
+               QQQ가 대폭 상승 (편차 >20%) → 첫 월 거래일에 리밸런싱 트리거
+        When:  run_portfolio_backtest() 실행
+        Then:  리밸런싱 트리거 익일 qqq_value > 0 (부분 매도로 포지션 유지)
+        """
+        # Given: QQQ 100→110 (buy signal) → 200 (편차 유발), GLD 100→110 (유지)
+        n = 55
+        start = date(2024, 1, 2)
+        dates_list: list[date] = []
+        current = start
+        for _ in range(n):
+            while current.weekday() >= 5:
+                current += timedelta(days=1)
+            dates_list.append(current)
+            current += timedelta(days=1)
+
+        qqq_closes = [100.0] * 10 + [110.0] * 15 + [200.0] * 30
+        gld_closes = [100.0] * 10 + [110.0] * 45
+
+        def _make_df(closes: list[float]) -> pd.DataFrame:
+            return pd.DataFrame(
+                {
+                    COL_DATE: dates_list,
+                    COL_OPEN: [c - 0.5 for c in closes],
+                    COL_HIGH: [c + 1.0 for c in closes],
+                    COL_LOW: [c - 1.0 for c in closes],
+                    COL_CLOSE: closes,
+                    COL_VOLUME: [1_000_000] * n,
+                }
+            )
+
+        qqq_path = create_csv_file("QQQ_max.csv", _make_df(qqq_closes))
+        gld_path = create_csv_file("GLD_max.csv", _make_df(gld_closes))
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.50, "gld": 0.50},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # 리밸런싱이 발생했는지 확인 (편차 >20% 이므로 반드시 발생해야 함)
+        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        assert len(rebalanced_rows) > 0, "QQQ 편차 >20%이므로 리밸런싱이 발생해야 함"
+
+        # Then: 리밸런싱 트리거 익일(체결일) qqq_value > 0 (부분 매도로 포지션 유지)
+        first_rebalance_idx = int(rebalanced_rows.index[0])
+        post_rebalance_idx = first_rebalance_idx + 1
+        assert post_rebalance_idx < len(equity_df), "리밸런싱 후 익일이 존재해야 함"
+
+        post_qqq_value = float(equity_df.iloc[post_rebalance_idx]["qqq_value"])
+        assert post_qqq_value > 0, f"리밸런싱 매도 후 QQQ position이 유지되어야 함 (부분 매도). " f"실제 qqq_value={post_qqq_value}"
+
+    def test_signal_sell_still_full_sell(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+        """
+        목적: 신호 기반 매도는 여전히 전량 매도임을 검증 (변경 없음).
+
+        Given: buy → sell 신호가 있는 데이터 (단일 자산 100%)
+        When:  run_portfolio_backtest() 실행
+        Then:  마지막 날 qqq_value == 0 (전량 매도 유지)
+        """
+        # Given
+        stock_df = _make_stock_df_with_sell(n_rows=60)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: 마지막 날 포지션 = 0 (신호 기반 전량 매도 유지)
+        last_row = result.equity_df.iloc[-1]
+        assert last_row["qqq_value"] == pytest.approx(0.0, abs=0.01), "신호 기반 매도 후 포지션은 0이어야 함"
+
+
+class TestDualTriggerThreshold:
+    """이중 트리거 임계값 계약 테스트 (Phase 0: RED).
+
+    핵심 계약:
+    - MONTHLY_REBALANCE_THRESHOLD_RATE = 0.10 (월 첫날 임계값)
+    - DAILY_REBALANCE_THRESHOLD_RATE = 0.20 (매일 임계값)
+    - _check_rebalancing_needed()에 threshold 파라미터 지원
+    - 10%~20% 편차 구간: 월 첫날에만 트리거, 일중에는 패스
+    """
+
+    def test_monthly_threshold_constants_exist(self) -> None:
+        """
+        목적: MONTHLY_REBALANCE_THRESHOLD_RATE, DAILY_REBALANCE_THRESHOLD_RATE 상수 존재 및 값 검증.
+
+        Given: qbt.backtest.portfolio_strategy 모듈
+        When:  두 상수 import
+        Then:  MONTHLY_REBALANCE_THRESHOLD_RATE == 0.10
+               DAILY_REBALANCE_THRESHOLD_RATE == 0.20
+        """
+        from qbt.backtest.portfolio_strategy import (  # type: ignore[attr-defined]
+            DAILY_REBALANCE_THRESHOLD_RATE,
+            MONTHLY_REBALANCE_THRESHOLD_RATE,
+        )
+
+        assert MONTHLY_REBALANCE_THRESHOLD_RATE == pytest.approx(0.10, abs=1e-9)
+        assert DAILY_REBALANCE_THRESHOLD_RATE == pytest.approx(0.20, abs=1e-9)
+
+    def test_check_rebalancing_monthly_threshold_triggers_at_11pct(self) -> None:
+        """
+        목적: threshold=0.10(월 첫날 임계값) 기준, 편차 11%에서 트리거됨을 검증.
+
+        Given: target=0.30, actual=0.333 → |0.333/0.30 - 1| ≈ 0.11 > 0.10
+               threshold=0.10 (MONTHLY_REBALANCE_THRESHOLD_RATE)
+        When:  _check_rebalancing_needed(..., threshold=0.10)
+        Then:  True (월 임계값 초과 → 트리거)
+        """
+        # Given
+        asset_states: dict[str, _AssetState] = {
+            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
+        }
+        equity_vals = {"qqq": 33_300.0}  # 33.3% (target 30%, |33.3/30-1| ≈ 0.11)
+        config = _make_minimal_config("qqq", target_weight=0.30)
+
+        # When
+        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.10)  # type: ignore[call-arg]
+
+        # Then
+        assert result is True, "편차 11% > 월 임계값 10%이면 트리거되어야 함"
+
+    def test_check_rebalancing_daily_no_trigger_at_15pct(self) -> None:
+        """
+        목적: threshold=0.20(매일 임계값) 기준, 편차 15%에서 트리거 없음을 검증.
+
+        Given: target=0.30, actual=0.345 → |0.345/0.30 - 1| = 0.15 < 0.20
+               threshold=0.20 (DAILY_REBALANCE_THRESHOLD_RATE)
+        When:  _check_rebalancing_needed(..., threshold=0.20)
+        Then:  False (월 중간 임계값 미달 → 패스)
+        """
+        # Given
+        asset_states: dict[str, _AssetState] = {
+            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
+        }
+        equity_vals = {"qqq": 34_500.0}  # 34.5% (target 30%, |34.5/30-1| = 0.15)
+        config = _make_minimal_config("qqq", target_weight=0.30)
+
+        # When
+        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.20)  # type: ignore[call-arg]
+
+        # Then
+        assert result is False, "편차 15% < 매일 임계값 20%이면 트리거 없어야 함"
+
+    def test_check_rebalancing_monthly_no_trigger_below_10pct(self) -> None:
+        """
+        목적: threshold=0.10(월 임계값) 기준, 편차 9%에서 트리거 없음을 검증.
+
+        Given: target=0.30, actual=0.327 → |0.327/0.30 - 1| = 0.09 < 0.10
+        When:  _check_rebalancing_needed(..., threshold=0.10)
+        Then:  False (편차 < 월 임계값 → 패스)
+        """
+        # Given
+        asset_states: dict[str, _AssetState] = {
+            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
+        }
+        equity_vals = {"qqq": 32_700.0}  # 32.7% (target 30%, |32.7/30-1| = 0.09)
+        config = _make_minimal_config("qqq", target_weight=0.30)
+
+        # When
+        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.10)  # type: ignore[call-arg]
+
+        # Then
+        assert result is False, "편차 9% < 월 임계값 10%이면 트리거 없어야 함"
+
+
+class TestStrategyType:
+    """strategy_type 기능 계약 테스트 (Phase 0: RED).
+
+    핵심 계약:
+    1. AssetSlotConfig.strategy_type 기본값 == "buffer_zone"
+    2. strategy_type="buy_and_hold": 버퍼존 신호 없이 즉시 매수
+    3. strategy_type="buy_and_hold": 매도 신호에도 포지션 유지
+    4. params_json에 strategy_type 키 포함
+    """
+
+    def test_strategy_type_default_is_buffer_zone(self) -> None:
+        """
+        목적: AssetSlotConfig.strategy_type 기본값이 "buffer_zone"임을 검증.
+
+        Given: strategy_type 명시 없이 AssetSlotConfig 생성
+        When:  .strategy_type 속성 조회
+        Then:  "buffer_zone"
+        """
+        # Given/When
+        slot = AssetSlotConfig(
+            asset_id="test",
+            signal_data_path=Path("dummy"),
+            trade_data_path=Path("dummy"),
+            target_weight=0.50,
+        )
+
+        # Then
+        assert slot.strategy_type == "buffer_zone"  # type: ignore[attr-defined]
+
+    def test_strategy_type_buy_and_hold_buys_immediately(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: strategy_type="buy_and_hold" 자산이 버퍼존 신호 없이 즉시 매수됨을 검증.
+
+        Given: 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
+               strategy_type="buy_and_hold"
+        When:  run_portfolio_backtest() 실행
+        Then:  마지막 날 value > 0 (즉시 매수 후 포지션 유지)
+        """
+        # Given
+        df = _make_flat_price_df(n_rows=20, price=100.0)
+        csv_path = create_csv_file("asset_bnh.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_bnh",
+            display_name="Test B&H",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_bnh",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    strategy_type="buy_and_hold",  # type: ignore[call-arg]
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "bnh",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then
+        last_value = float(result.equity_df["asset_bnh_value"].iloc[-1])
+        assert last_value > 0, f"strategy_type='buy_and_hold' 자산은 즉시 매수되어야 함, 실제: {last_value}"
+
+    def test_strategy_type_buy_and_hold_ignores_sell_signal(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: strategy_type="buy_and_hold" 자산이 매도 신호에도 포지션 유지됨을 검증.
+
+        Given: 처음 5행 100 → 이후 80 (매도 신호 발생)
+               strategy_type="buy_and_hold"
+        When:  run_portfolio_backtest() 실행
+        Then:  마지막 날 value > 0 (매도 신호 무시)
+               trades_df 비어있음 (완료된 매도 거래 없음)
+        """
+        # Given
+        df = _make_sell_signal_df(n_rows=20, initial_price=100.0, drop_price=80.0)
+        csv_path = create_csv_file("asset_bnh_sell.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_bnh_sell",
+            display_name="Test B&H Sell",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_bnh_s",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    strategy_type="buy_and_hold",  # type: ignore[call-arg]
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "bnh_sell",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then
+        last_value = float(result.equity_df["asset_bnh_s_value"].iloc[-1])
+        assert last_value > 0, "strategy_type='buy_and_hold' 자산은 매도 신호에도 포지션을 유지해야 함"
+        assert result.trades_df.empty, "strategy_type='buy_and_hold' 자산은 완료된 매도 기록이 없어야 함"
+
+    def test_params_json_includes_strategy_type(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: params_json에 strategy_type 필드가 포함됨을 검증.
+
+        Given: strategy_type="buy_and_hold" 자산 포함 config
+        When:  run_portfolio_backtest() 실행
+        Then:  result.params_json["assets"][0]["strategy_type"] == "buy_and_hold"
+        """
+        # Given
+        df = _make_flat_price_df(n_rows=20, price=100.0)
+        csv_path = create_csv_file("asset_pj.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_params_json_st",
+            display_name="Test Params JSON ST",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_pj",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    strategy_type="buy_and_hold",  # type: ignore[call-arg]
+                ),
+            ),
+            total_capital=1_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path / "params_json_st",
+            ma_window=5,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=0,
+            ma_type="ema",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then
+        assets_json = result.params_json.get("assets", [])
+        assert len(assets_json) == 1
+        assert "strategy_type" in assets_json[0], "params_json[assets][0]에 strategy_type 키가 있어야 함"
+        assert assets_json[0]["strategy_type"] == "buy_and_hold"
