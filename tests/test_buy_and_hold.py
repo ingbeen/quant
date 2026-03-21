@@ -239,6 +239,54 @@ class TestCreateRunner:
         assert len(ma_cols) == 0, f"signal_df에 ma_* 컬럼이 없어야 함. 실제: {ma_cols}"
 
 
+    def test_buy_and_hold_runner_first_buy_on_second_day(self, tmp_path, monkeypatch):
+        """
+        목적: B&H 첫 매수가 시계열 2번째 날 시가에 이루어지는지 검증
+
+        엔진 루프가 day 0 (i=0)부터 시작하므로:
+        - i=0: check_buy → True → pending_order 생성
+        - i=1: pending_order 실행 → 2번째 날 시가에 체결
+
+        Given: 10일 데이터 (Open=[100,101,102,...])
+        When: runners.create_buy_and_hold_runner(config)() 실행
+        Then: open_position["entry_date"] == 2번째 날 날짜 (date(2023, 1, 2))
+        """
+        from pathlib import Path
+
+        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
+
+        test_df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, i + 1) for i in range(10)],
+                "Open": [100 + i for i in range(10)],
+                "High": [102 + i for i in range(10)],
+                "Low": [98 + i for i in range(10)],
+                "Close": [101 + i for i in range(10)],
+                "Volume": [1000000] * 10,
+            }
+        )
+        config = BuyAndHoldConfig(
+            strategy_name="buy_and_hold_qqq",
+            display_name="Buy & Hold (QQQ)",
+            trade_data_path=Path("dummy.csv"),
+            result_dir=tmp_path / "bh",
+        )
+        monkeypatch.setattr(runners, "load_stock_data", lambda _path: test_df.copy())
+
+        result = runners.create_buy_and_hold_runner(config)()
+
+        from typing import cast
+
+        from qbt.backtest.types import OpenPositionDict
+
+        assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
+        open_pos = cast(OpenPositionDict, result.summary["open_position"])
+        # 2번째 날이 entry_date여야 함 (i=0에서 신호 → i=1에서 체결)
+        assert open_pos["entry_date"] == str(date(2023, 1, 2)), (
+            f"B&H 첫 매수는 시계열 2번째 날(2023-01-02)이어야 합니다. 실제: {open_pos['entry_date']}"
+        )
+
+
 class TestBuyAndHoldConfigs:
     """Buy & Hold CONFIGS 정합성 테스트"""
 
