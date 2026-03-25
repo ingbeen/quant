@@ -40,11 +40,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] **하드코딩 제거**: magic number(`1e10`)와 문자열 리터럴(`"ema"`) 및 중복 수치를 이름 있는 상수로 교체
-- [ ] **순환 의존성 완전 해결**: `BufferStrategyParams`를 `types.py`로 이동하고 `create_runner` 함수들을 새 `runners.py`로 분리하여 deferred import 0개 달성
-- [ ] **HoldState 안정성**: `check_buy` 시그니처에 `current_date`, `buy_buffer_pct`를 추가하여 플레이스홀더 패턴 제거 + 명시적 Protocol 상속 적용
-- [ ] **execute_sell_order 안정성**: `hold_days_used` 파라미터를 명시적으로 요구하여 암묵적 덮어쓰기 계약 제거
-- [ ] **run_buy_and_hold 제거**: B&H를 엔진 기반으로 통일하고 미사용 코드(`run_buy_and_hold`, `BuyAndHoldParams`, `resolve_params`) 삭제
+- [x] **하드코딩 제거**: magic number(`1e10`)와 문자열 리터럴(`"ema"`) 및 중복 수치를 이름 있는 상수로 교체
+- [x] **순환 의존성 완전 해결**: `BufferStrategyParams`를 `types.py`로 이동하고 `create_runner` 함수들을 새 `runners.py`로 분리하여 deferred import 0개 달성
+- [x] **HoldState 안정성**: `check_buy` 시그니처에 `current_date`, `buy_buffer_pct`를 추가하여 플레이스홀더 패턴 제거 + 명시적 Protocol 상속 적용
+- [x] **execute_sell_order 안정성**: `hold_days_used` 파라미터를 명시적으로 요구하여 암묵적 덮어쓰기 계약 제거
+- [x] **run_buy_and_hold 제거**: B&H를 엔진 기반으로 통일하고 미사용 코드(`run_buy_and_hold`, `BuyAndHoldParams`, `resolve_params`) 삭제
 
 ## 2) 비목표(Non-Goals)
 
@@ -138,14 +138,14 @@
 
 **작업 내용** (`tests/test_strategy_interface.py`에 추가):
 
-- [ ] `TestBufferZoneStrategyInterface`에 테스트 2개 추가:
+- [x] `TestBufferZoneStrategyInterface`에 테스트 2개 추가:
   - `test_check_buy_first_breakout_start_date_is_current_date`: 첫 돌파 감지 시 반환된 `hold_state["start_date"]`가 전달한 `current_date`와 일치하는지 검증 (플레이스홀더 `date.min` 방지)
   - `test_check_buy_first_breakout_buffer_pct_is_correct`: 반환된 `hold_state["buffer_pct"]`가 전달한 `buy_buffer_pct`와 일치하는지 검증 (플레이스홀더 `0.0` 방지)
   - 두 테스트 모두 새 시그니처 사용 → 현재 TypeError로 실패 (레드)
 
 **작업 내용** (`tests/test_buffer_zone_helpers.py` 또는 신규 `tests/test_engine_common.py`에 추가):
 
-- [ ] `test_execute_sell_order_hold_days_used_param`: `execute_sell_order(..., hold_days_used=5)` 호출 → 반환된 `trade_record["hold_days_used"] == 5` 검증
+- [x] `test_execute_sell_order_hold_days_used_param`: `execute_sell_order(..., hold_days_used=5)` 호출 → 반환된 `trade_record["hold_days_used"] == 5` 검증
   - 현재 `hold_days_used` 파라미터 없음 → TypeError로 실패 (레드)
 
 ---
@@ -155,30 +155,30 @@
 **작업 내용**:
 
 1. `src/qbt/backtest/constants.py` 수정:
-   - [ ] `CALMAR_MDD_ZERO_SUBSTITUTE: Final = 1e10` 추가 (Calmar MDD=0 처리 대용값)
-   - [ ] `DEFAULT_BUFFER_MA_TYPE: Final = "ema"` 추가 (버퍼존/그리드서치 기본 MA 유형)
+   - [x] `CALMAR_MDD_ZERO_SUBSTITUTE: Final = 1e10` 추가 (Calmar MDD=0 처리 대용값)
+   - [x] `DEFAULT_BUFFER_MA_TYPE: Final = "ema"` 추가 (버퍼존/그리드서치 기본 MA 유형)
 
 2. `src/qbt/backtest/analysis.py` 수정:
-   - [ ] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE` 추가
-   - [ ] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (line 145 근방)
-   - [ ] `add_single_moving_average` 시그니처: `ma_type: str` → `ma_type: Literal["ema", "sma"]`
+   - [x] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE` 추가
+   - [x] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (line 145 근방)
+   - [x] `add_single_moving_average` 시그니처: `ma_type: str` → `ma_type: Literal["ema", "sma"]`
 
 3. `src/qbt/backtest/walkforward.py` 수정:
-   - [ ] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE`, `DEFAULT_BUFFER_MA_TYPE` 추가
-   - [ ] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (2개소)
-   - [ ] `ma_type="ema"` → `ma_type=DEFAULT_BUFFER_MA_TYPE` 교체 (line 330 근방)
+   - [x] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE`, `DEFAULT_BUFFER_MA_TYPE` 추가
+   - [x] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (2개소)
+   - [x] `ma_type="ema"` → `ma_type=DEFAULT_BUFFER_MA_TYPE` 교체 (line 330 근방)
 
 4. `src/qbt/backtest/engines/backtest_engine.py` 수정:
-   - [ ] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE`, `DEFAULT_BUFFER_MA_TYPE` 추가
-   - [ ] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (line 210 근방)
-   - [ ] `ma_type="ema"` → `ma_type=DEFAULT_BUFFER_MA_TYPE` 교체 (line 303, 563 근방, 2개소)
-   - [ ] `run_grid_search` 기본값: `initial_capital: float = 10_000_000.0` → `initial_capital: float = DEFAULT_INITIAL_CAPITAL`
+   - [x] `constants` import에 `CALMAR_MDD_ZERO_SUBSTITUTE`, `DEFAULT_BUFFER_MA_TYPE` 추가
+   - [x] `1e10` → `CALMAR_MDD_ZERO_SUBSTITUTE` 교체 (line 210 근방)
+   - [x] `ma_type="ema"` → `ma_type=DEFAULT_BUFFER_MA_TYPE` 교체 (line 303, 563 근방, 2개소)
+   - [x] `run_grid_search` 기본값: `initial_capital: float = 10_000_000.0` → `initial_capital: float = DEFAULT_INITIAL_CAPITAL`
 
 5. `src/qbt/backtest/strategies/buffer_zone.py` 수정:
-   - [ ] `BufferZoneConfig.ma_type` 타입: `str` → `Literal["ema", "sma"]` (typing import에 Literal 추가)
+   - [x] `BufferZoneConfig.ma_type` 타입: `str` → `Literal["ema", "sma"]` (typing import에 Literal 추가)
 
 6. `src/qbt/backtest/portfolio_types.py` 수정:
-   - [ ] `PortfolioConfig.ma_type` 타입: `str` → `Literal["ema", "sma"]`
+   - [x] `PortfolioConfig.ma_type` 타입: `str` → `Literal["ema", "sma"]`
 
 **Validation**: Phase 1 완료 후 직접 실행 확인 (`poetry run python validate_project.py --only-lint` 수준)
 
@@ -208,41 +208,41 @@
 **작업 내용**:
 
 1. `src/qbt/backtest/types.py` 수정:
-   - [ ] `BufferStrategyParams` dataclass를 `buffer_zone.py`에서 이곳으로 이동
-   - [ ] 모듈 docstring 업데이트 (BufferStrategyParams 위치 반영)
+   - [x] `BufferStrategyParams` dataclass를 `buffer_zone.py`에서 이곳으로 이동
+   - [x] 모듈 docstring 업데이트 (BufferStrategyParams 위치 반영)
 
 2. `src/qbt/backtest/runners.py` **신규 생성**:
-   - [ ] `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`
+   - [x] `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`
      - 내용: 기존 `buffer_zone.create_runner`의 `run_single` 클로저 이전 (데이터 로딩, overlap 처리, MA 계산, `run_backtest(BufferZoneStrategy(), ...)`)
-   - [ ] `create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]`
+   - [x] `create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]`
      - 내용: 기존 `buy_and_hold.create_runner`의 `run_single` 클로저 이전 (Phase 5에서 `run_buy_and_hold` → `run_backtest` 전환)
-   - [ ] 모듈 docstring 작성 (팩토리 역할, 순환 의존성 해결 이유 명시)
+   - [x] 모듈 docstring 작성 (팩토리 역할, 순환 의존성 해결 이유 명시)
 
 3. `src/qbt/backtest/strategies/buffer_zone.py` 수정:
-   - [ ] `BufferStrategyParams` 클래스 정의 제거
-   - [ ] `from qbt.backtest.types import BufferStrategyParams` import 추가
-   - [ ] `create_runner` 함수 제거 (내용이 `runners.py`로 이동)
-   - [ ] `from qbt.backtest.engines.backtest_engine import run_backtest` deferred import 제거
+   - [x] `BufferStrategyParams` 클래스 정의 제거
+   - [x] `from qbt.backtest.types import BufferStrategyParams` import 추가
+   - [x] `create_runner` 함수 제거 (내용이 `runners.py`로 이동)
+   - [x] `from qbt.backtest.engines.backtest_engine import run_backtest` deferred import 제거
 
 4. `src/qbt/backtest/strategies/buy_and_hold.py` 수정:
-   - [ ] `create_runner` 함수 제거 (내용이 `runners.py`로 이동)
+   - [x] `create_runner` 함수 제거 (내용이 `runners.py`로 이동)
 
 5. `src/qbt/backtest/engines/backtest_engine.py` 수정:
-   - [ ] `from qbt.backtest.strategies.buffer_zone import BufferStrategyParams` → `from qbt.backtest.types import BufferStrategyParams`
-   - [ ] `_run_backtest_for_grid` 내부 deferred import → 파일 상단 top-level import로 이동: `from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy`
-   - [ ] `run_buffer_strategy` 내부 deferred import 제거 (이미 top-level에 있음)
+   - [x] `from qbt.backtest.strategies.buffer_zone import BufferStrategyParams` → `from qbt.backtest.types import BufferStrategyParams`
+   - [x] `_run_backtest_for_grid` 내부 deferred import → 파일 상단 top-level import로 이동: `from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy`
+   - [x] `run_buffer_strategy` 내부 deferred import 제거 (이미 top-level에 있음)
 
 6. `src/qbt/backtest/strategies/__init__.py` 수정:
-   - [ ] `BufferStrategyParams` import 출처: `buffer_zone` → `types`
-   - [ ] `create_runner` export 유지 (buy_and_hold의 것 → Phase 5에서 제거)
+   - [x] `BufferStrategyParams` import 출처: `buffer_zone` → `types`
+   - [x] `create_runner` export 유지 (buy_and_hold의 것 → Phase 5에서 제거)
 
 7. `src/qbt/backtest/__init__.py` 수정:
-   - [ ] `BufferStrategyParams` import 출처: `buffer_zone` → `types`
+   - [x] `BufferStrategyParams` import 출처: `buffer_zone` → `types`
 
 8. `scripts/backtest/run_single_backtest.py` 수정:
-   - [ ] `from qbt.backtest import runners` import 추가
-   - [ ] `buffer_zone.create_runner(_config)` → `runners.create_buffer_zone_runner(_config)`
-   - [ ] `buy_and_hold.create_runner(_config)` → `runners.create_buy_and_hold_runner(_config)`
+   - [x] `from qbt.backtest import runners` import 추가
+   - [x] `buffer_zone.create_runner(_config)` → `runners.create_buffer_zone_runner(_config)`
+   - [x] `buy_and_hold.create_runner(_config)` → `runners.create_buy_and_hold_runner(_config)`
 
 **Validation**: 테스트 스위트 전체 실행하여 회귀 없음 확인
 
@@ -255,14 +255,14 @@
 **작업 내용**:
 
 1. `src/qbt/backtest/strategies/strategy_common.py` 수정:
-   - [ ] `SignalStrategy.check_buy` 시그니처에 `current_date: date, buy_buffer_pct: float` 파라미터 추가
-   - [ ] `date` import 확인 (이미 있음)
-   - [ ] Docstring 업데이트
+   - [x] `SignalStrategy.check_buy` 시그니처에 `current_date: date, buy_buffer_pct: float` 파라미터 추가
+   - [x] `date` import 확인 (이미 있음)
+   - [x] Docstring 업데이트
 
 2. `src/qbt/backtest/strategies/buffer_zone.py` 수정:
-   - [ ] `class BufferZoneStrategy(SignalStrategy):` 명시적 상속으로 변경 (SignalStrategy import 추가)
-   - [ ] `check_buy` 메서드 시그니처 갱신: `current_date: date, buy_buffer_pct: float` 추가
-   - [ ] 첫 돌파 감지 시 플레이스홀더 제거:
+   - [x] `class BufferZoneStrategy(SignalStrategy):` 명시적 상속으로 변경 (SignalStrategy import 추가)
+   - [x] `check_buy` 메서드 시그니처 갱신: `current_date: date, buy_buffer_pct: float` 추가
+   - [x] 첫 돌파 감지 시 플레이스홀더 제거:
      ```python
      # 변경 전
      new_hold_state: HoldState = {
@@ -279,12 +279,12 @@
      ```
 
 3. `src/qbt/backtest/strategies/buy_and_hold.py` 수정:
-   - [ ] `class BuyAndHoldStrategy(SignalStrategy):` 명시적 상속으로 변경
-   - [ ] `check_buy` 메서드 시그니처 갱신: `current_date: date, buy_buffer_pct: float` 추가 (여전히 무시)
+   - [x] `class BuyAndHoldStrategy(SignalStrategy):` 명시적 상속으로 변경
+   - [x] `check_buy` 메서드 시그니처 갱신: `current_date: date, buy_buffer_pct: float` 추가 (여전히 무시)
 
 4. `src/qbt/backtest/engines/backtest_engine.py` 수정:
-   - [ ] `strategy.check_buy(...)` 호출에 `current_date=current_date, buy_buffer_pct=current_buy_buffer_pct` 추가
-   - [ ] HoldState 주입 코드 제거:
+   - [x] `strategy.check_buy(...)` 호출에 `current_date=current_date, buy_buffer_pct=current_buy_buffer_pct` 추가
+   - [x] HoldState 주입 코드 제거:
      ```python
      # 제거 대상 (lines ~463-466)
      if old_hold_state is None:
@@ -293,9 +293,9 @@
      ```
 
 5. `src/qbt/backtest/engines/portfolio_engine.py` 수정:
-   - [ ] day-0 초기화 `strategy.check_buy(...)` 호출 (line ~605): `current_date=first_date, buy_buffer_pct=config.buy_buffer_zone_pct` 추가
-   - [ ] 메인 루프 `strategy.check_buy(...)` 호출 (line ~744): `current_date=current_date, buy_buffer_pct=config.buy_buffer_zone_pct` 추가
-   - [ ] HoldState 주입 코드 제거 (lines ~773-774):
+   - [x] day-0 초기화 `strategy.check_buy(...)` 호출 (line ~605): `current_date=first_date, buy_buffer_pct=config.buy_buffer_zone_pct` 추가
+   - [x] 메인 루프 `strategy.check_buy(...)` 호출 (line ~744): `current_date=current_date, buy_buffer_pct=config.buy_buffer_zone_pct` 추가
+   - [x] HoldState 주입 코드 제거 (lines ~773-774):
      ```python
      # 제거 대상
      new_hold_state["start_date"] = current_date
@@ -303,8 +303,8 @@
      ```
 
 6. `tests/test_strategy_interface.py` 수정:
-   - [ ] 모든 `check_buy(...)` 호출에 `current_date=date(2020,1,1), buy_buffer_pct=0.03` 인자 추가
-   - [ ] Phase 0에서 작성한 레드 테스트가 이제 그린이 됨을 확인
+   - [x] 모든 `check_buy(...)` 호출에 `current_date=date(2020,1,1), buy_buffer_pct=0.03` 인자 추가
+   - [x] Phase 0에서 작성한 레드 테스트가 이제 그린이 됨을 확인
 
 **Validation**: 테스트 스위트 전체 실행 (Phase 0 레드 테스트 2개 그린 전환 확인)
 
@@ -317,16 +317,16 @@
 **작업 내용**:
 
 1. `src/qbt/backtest/engines/engine_common.py` 수정:
-   - [ ] `execute_sell_order` 시그니처에 `hold_days_used: int` 파라미터 추가 (기존 파라미터 이후)
-   - [ ] `trade_record` 생성 시 `"hold_days_used": hold_days_used` (파라미터 값 사용)
-   - [ ] Docstring 업데이트
+   - [x] `execute_sell_order` 시그니처에 `hold_days_used: int` 파라미터 추가 (기존 파라미터 이후)
+   - [x] `trade_record` 생성 시 `"hold_days_used": hold_days_used` (파라미터 값 사용)
+   - [x] Docstring 업데이트
 
 2. `src/qbt/backtest/engines/backtest_engine.py` 수정:
-   - [ ] `execute_sell_order(...)` 호출에 `hold_days_used=entry_hold_days` 명시적 전달
-   - [ ] `trade_record["hold_days_used"] = entry_hold_days` 덮어쓰기 라인 제거
+   - [x] `execute_sell_order(...)` 호출에 `hold_days_used=entry_hold_days` 명시적 전달
+   - [x] `trade_record["hold_days_used"] = entry_hold_days` 덮어쓰기 라인 제거
 
 3. 테스트 확인:
-   - [ ] Phase 0에서 작성한 `test_execute_sell_order_hold_days_used_param` 테스트가 그린이 됨을 확인
+   - [x] Phase 0에서 작성한 `test_execute_sell_order_hold_days_used_param` 테스트가 그린이 됨을 확인
 
 **Validation**: 테스트 스위트 전체 실행
 
@@ -349,32 +349,32 @@
 **작업 내용**:
 
 1. `src/qbt/backtest/runners.py` 수정:
-   - [ ] `create_buy_and_hold_runner` 내부 `run_single` 구현을 `run_backtest(BuyAndHoldStrategy(), ...)` 기반으로 교체
-   - [ ] `run_buy_and_hold` 관련 import 제거
-   - [ ] `add_single_moving_average` import 추가
+   - [x] `create_buy_and_hold_runner` 내부 `run_single` 구현을 `run_backtest(BuyAndHoldStrategy(), ...)` 기반으로 교체
+   - [x] `run_buy_and_hold` 관련 import 제거
+   - [x] `add_single_moving_average` import 추가
 
 2. `src/qbt/backtest/strategies/buy_and_hold.py` 수정:
-   - [ ] `run_buy_and_hold` 함수 제거
-   - [ ] `BuyAndHoldParams` 클래스 제거
-   - [ ] `resolve_params` 함수 제거
-   - [ ] 더 이상 필요 없는 import 제거 (`SLIPPAGE_RATE`, `calculate_summary`, `COL_HIGH`, `COL_LOW` 등)
+   - [x] `run_buy_and_hold` 함수 제거
+   - [x] `BuyAndHoldParams` 클래스 제거
+   - [x] `resolve_params` 함수 제거
+   - [x] 더 이상 필요 없는 import 제거 (`SLIPPAGE_RATE`, `calculate_summary`, `COL_HIGH`, `COL_LOW` 등)
 
 3. `src/qbt/backtest/strategies/__init__.py` 수정:
-   - [ ] `BuyAndHoldParams`, `create_runner`, `run_buy_and_hold` exports 제거
-   - [ ] `BuyAndHoldConfig` export는 유지
+   - [x] `BuyAndHoldParams`, `create_runner`, `run_buy_and_hold` exports 제거
+   - [x] `BuyAndHoldConfig` export는 유지
 
 4. `src/qbt/backtest/__init__.py` 수정:
-   - [ ] `BuyAndHoldParams`, `run_buy_and_hold` exports 제거
-   - [ ] 관련 imports 제거
+   - [x] `BuyAndHoldParams`, `run_buy_and_hold` exports 제거
+   - [x] 관련 imports 제거
 
 5. `tests/test_buy_and_hold.py` 수정:
-   - [ ] `import BuyAndHoldParams`, `import run_buy_and_hold` 제거
-   - [ ] `TestRunBuyAndHold` 클래스 제거 (6개 메서드)
-   - [ ] `TestOpenPosition` 클래스 제거 (2개 메서드)
-   - [ ] `TestResolveParams` 클래스 제거 (1개 메서드)
-   - [ ] `TestCreateRunner` 클래스: `buy_and_hold.create_runner` → `runners.create_buy_and_hold_runner` 호출로 교체, monkeypatch 대상 모듈 변경
-   - [ ] `TestBuyAndHoldUsesTradeDF` 클래스: 엔진 기반 동작 기준으로 업데이트 (2-day delay 반영)
-   - [ ] 신규 테스트 추가:
+   - [x] `import BuyAndHoldParams`, `import run_buy_and_hold` 제거
+   - [x] `TestRunBuyAndHold` 클래스 제거 (6개 메서드)
+   - [x] `TestOpenPosition` 클래스 제거 (2개 메서드)
+   - [x] `TestResolveParams` 클래스 제거 (1개 메서드)
+   - [x] `TestCreateRunner` 클래스: `buy_and_hold.create_runner` → `runners.create_buy_and_hold_runner` 호출로 교체, monkeypatch 대상 모듈 변경
+   - [x] `TestBuyAndHoldUsesTradeDF` 클래스: 엔진 기반 동작 기준으로 업데이트 (2-day delay 반영)
+   - [x] 신규 테스트 추가:
      - `test_buy_and_hold_runner_open_position_present`: B&H runner 실행 시 `summary["open_position"]` 존재 확인
      - `test_buy_and_hold_runner_trades_df_empty`: 매도 없으므로 `trades_df`가 비어있음 확인
      - `test_buy_and_hold_runner_signal_df_has_ohlc_no_ma`: signal_df에 ma 컬럼 없음 확인

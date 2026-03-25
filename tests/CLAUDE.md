@@ -23,6 +23,7 @@ tests/
 ├── test_portfolio_strategy.py # 포트폴리오 백테스트 엔진 테스트 (이중 트리거, 부분 매도, strategy_type 분기)
 ├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
+├── test_engine_common.py  # 엔진 공통 함수 계약 테스트 (execute_buy/sell_order, record_equity)
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
 ├── test_formatting.py # 터미널 출력 포맷팅 테스트
@@ -135,6 +136,7 @@ poetry run pytest tests/test_xxx.py -s -vv
 - [test_buffer_zone_helpers.py](test_buffer_zone_helpers.py)
 - [test_buffer_zone.py](test_buffer_zone.py)
 - [test_buy_and_hold.py](test_buy_and_hold.py)
+- [test_engine_common.py](test_engine_common.py)
 - [test_analysis.py](test_analysis.py)
 - [test_tqqq_simulation.py](test_tqqq_simulation.py)
 - [test_tqqq_analysis_helpers.py](test_tqqq_analysis_helpers.py)

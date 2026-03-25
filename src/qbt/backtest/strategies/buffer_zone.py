@@ -43,6 +43,7 @@ from qbt.common_constants import (
     BUFFER_ZONE_SPY_RESULTS_DIR,
     BUFFER_ZONE_TLT_RESULTS_DIR,
     BUFFER_ZONE_TQQQ_RESULTS_DIR,
+    COL_CLOSE,
     EEM_DATA_PATH,
     EFA_DATA_PATH,
     GLD_DATA_PATH,
@@ -345,8 +346,6 @@ class BufferZoneStrategy(SignalStrategy):
         Returns:
             True이면 매수 신호
         """
-        from qbt.common_constants import COL_CLOSE
-
         row = signal_df.iloc[i]
         ma_val = float(row[self._ma_col])
         cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
@@ -440,8 +439,6 @@ class BufferZoneStrategy(SignalStrategy):
         Returns:
             True이면 매도 신호
         """
-        from qbt.common_constants import COL_CLOSE
-
         row = signal_df.iloc[i]
         ma_val = float(row[self._ma_col])
         cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
