@@ -53,16 +53,18 @@ DAILY_REBALANCE_THRESHOLD_RATE: float = 0.20
 class _PortfolioPendingOrder:
     """포트폴리오 전략 전용 예약 주문.
 
-    engine_common의 PendingOrder와 달리 capital, rebalance_sell_amount 필드를 포함한다.
+    engine_common의 PendingOrder와 달리 capital, rebalance_sell_amount, is_rebalance 필드를 포함한다.
     매수 시 capital에 투자 자본금을 저장하고, rebalance_sell_amount는 0.0.
     리밸런싱 매도 시 rebalance_sell_amount에 초과분 대금을 저장 (> 0.0 = 부분 매도).
     신호 기반 매도 시 rebalance_sell_amount = 0.0 (전량 매도).
+    리밸런싱 추가매수 시 is_rebalance=True: position > 0인 자산에도 체결을 허용한다.
     """
 
     order_type: Literal["buy", "sell"]  # 주문 유형
     signal_date: date  # 신호 발생 날짜
     capital: float  # 매수 자본 (매도 시 0.0)
     rebalance_sell_amount: float = 0.0  # 리밸런싱 부분 매도 대금 (0.0 = 전량 매도)
+    is_rebalance: bool = False  # 리밸런싱 추가매수 여부 (True이면 position > 0에도 체결)
 
 
 @dataclass
@@ -266,6 +268,7 @@ def _execute_rebalancing(
                 order_type="buy",
                 signal_date=current_date,
                 capital=capital,
+                is_rebalance=True,  # 리밸런싱 추가매수: position > 0에도 체결 허용
             )
 
 
@@ -375,7 +378,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
 
     for slot in config.asset_slots:
-        signal_key = str(slot.signal_data_path)
+        signal_key = f"{slot.signal_data_path}::{slot.strategy_type}::{slot.ma_window}::{slot.ma_type}"
         if signal_key not in signal_cache:
             signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
@@ -473,7 +476,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     asset_trade_dfs: dict[str, pd.DataFrame] = {}
 
     for slot in config.asset_slots:
-        signal_key = str(slot.signal_data_path)
+        signal_key = f"{slot.signal_data_path}::{slot.strategy_type}::{slot.ma_window}::{slot.ma_type}"
         if signal_key not in signal_cache:
             signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
@@ -629,6 +632,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     entry_prices[asset_id] = 0.0
                     entry_dates[asset_id] = None
 
+                if order.rebalance_sell_amount > 0.0:
+                    rebalanced_today = True
+
                 logger.debug(
                     f"매도 체결: {asset_id}, 날짜={current_date}, "
                     f"가격={sell_price:.2f}, 수량={shares_sold}, "
@@ -646,7 +652,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             open_price = float(trade_df.iloc[i][COL_OPEN])
             order = state.pending_order
 
-            if state.position == 0:
+            if state.position == 0 or order.is_rebalance:
                 buy_price = open_price * (1.0 + SLIPPAGE_RATE)
                 buy_capital = order.capital
                 if buy_capital <= 0:
@@ -656,9 +662,21 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 if shares > 0:
                     cost = shares * buy_price
                     shared_cash -= cost
-                    state.position = shares
-                    entry_prices[asset_id] = buy_price
-                    entry_dates[asset_id] = current_date
+                    if state.position == 0:
+                        # 신규 진입: entry_price = buy_price
+                        state.position = shares
+                        entry_prices[asset_id] = buy_price
+                        entry_dates[asset_id] = current_date
+                    else:
+                        # 리밸런싱 추가매수: entry_price 가중평균 업데이트
+                        prev_position = state.position
+                        prev_entry_price = entry_prices.get(asset_id, 0.0)
+                        state.position += shares
+                        entry_prices[asset_id] = (
+                            prev_entry_price * prev_position + buy_price * shares
+                        ) / state.position
+                    if order.is_rebalance:
+                        rebalanced_today = True
                     logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, " f"가격={buy_price:.2f}, 수량={shares}")
 
             state.pending_order = None
@@ -719,12 +737,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 asset_states, equity_vals_now, current_equity, config, threshold=MONTHLY_REBALANCE_THRESHOLD_RATE
             ):
                 _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
-                rebalanced_today = True
         elif _check_rebalancing_needed(
             asset_states, equity_vals_now, current_equity, config, threshold=DAILY_REBALANCE_THRESHOLD_RATE
         ):
             _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
-            rebalanced_today = True
 
         # 7-5. 에쿼티 행 기록
         row: dict[str, Any] = {

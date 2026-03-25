@@ -1342,13 +1342,13 @@ class TestPartialSellInvariant:
         rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
         assert len(rebalanced_rows) > 0, "QQQ 편차 >20%이므로 리밸런싱이 발생해야 함"
 
-        # Then: 리밸런싱 트리거 익일(체결일) qqq_value > 0 (부분 매도로 포지션 유지)
+        # Then: 리밸런싱 체결일(rebalanced=True인 날) qqq_value > 0 (부분 매도로 포지션 유지)
         first_rebalance_idx = int(rebalanced_rows.index[0])
-        post_rebalance_idx = first_rebalance_idx + 1
-        assert post_rebalance_idx < len(equity_df), "리밸런싱 후 익일이 존재해야 함"
 
-        post_qqq_value = float(equity_df.iloc[post_rebalance_idx]["qqq_value"])
-        assert post_qqq_value > 0, f"리밸런싱 매도 후 QQQ position이 유지되어야 함 (부분 매도). " f"실제 qqq_value={post_qqq_value}"
+        rebalanced_qqq_value = float(equity_df.iloc[first_rebalance_idx]["qqq_value"])
+        assert rebalanced_qqq_value > 0, (
+            f"리밸런싱 매도 후 QQQ position이 유지되어야 함 (부분 매도). " f"실제 qqq_value={rebalanced_qqq_value}"
+        )
 
     def test_signal_sell_still_full_sell(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
         """
@@ -1612,3 +1612,329 @@ class TestStrategyType:
         assert len(assets_json) == 1
         assert "strategy_type" in assets_json[0], "params_json[assets][0]에 strategy_type 키가 있어야 함"
         assert assets_json[0]["strategy_type"] == "buy_and_hold"
+
+
+# ============================================================================
+# Phase 0: 버그 재현 테스트 (RED — 수정 전에는 실패해야 정상)
+# ============================================================================
+
+
+def _make_diverge_stock_dfs(
+    n_rows: int = 55,
+) -> tuple[list[float], list[float], list["date"]]:
+    """리밸런싱 트리거 시나리오용 합성 데이터 값 생성.
+
+    QQQ는 급등(편차 >20%), GLD는 안정 유지.
+    패턴:
+    - 처음 10일: 100.0 (MA 수렴)
+    - 다음 15일: 110.0 (buy signal 트리거)
+    - 이후 30일: QQQ=200.0 (급등), GLD=110.0 (유지)
+    """
+    start = date(2024, 1, 2)
+    dates_list: list[date] = []
+    current = start
+    for _ in range(n_rows):
+        while current.weekday() >= 5:
+            current += timedelta(days=1)
+        dates_list.append(current)
+        current += timedelta(days=1)
+
+    qqq_closes = [100.0] * 10 + [110.0] * 15 + [200.0] * (n_rows - 25)
+    gld_closes = [100.0] * 10 + [110.0] * (n_rows - 10)
+    return qqq_closes, gld_closes, dates_list
+
+
+def _make_df_from_closes(closes: list[float], dates: list["date"]) -> "pd.DataFrame":
+    """종가 목록과 날짜 목록으로 DataFrame을 생성한다."""
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: [c - 0.5 for c in closes],
+            COL_HIGH: [c + 1.0 for c in closes],
+            COL_LOW: [c - 1.0 for c in closes],
+            COL_CLOSE: closes,
+            COL_VOLUME: [1_000_000] * len(closes),
+        }
+    )
+
+
+class TestRebalancingTopUpBuy:
+    """리밸런싱 추가매수 체결 계약 테스트 (Phase 0 RED).
+
+    핵심 계약:
+    - 리밸런싱으로 생성된 buy pending_order는 position > 0인 자산에도 체결되어야 한다.
+    - 체결 완료 후 position이 실제로 증가해야 한다.
+    - 수정 전에는 position == 0 조건 때문에 미체결 → 테스트 실패.
+    """
+
+    def test_top_up_buy_executes_when_position_exists(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: 이미 보유 중인(position > 0) 자산에 리밸런싱 추가매수가 실제로 체결됨을 검증.
+
+        Given: QQQ/GLD 각 50% 포트폴리오, QQQ 급등으로 편차 >20% → 리밸런싱 트리거
+               GLD는 이미 보유 중 (position > 0)
+        When:  run_portfolio_backtest() 실행
+        Then:  rebalanced=True인 날(체결 완료일)에 GLD value가 전날보다 증가해야 함
+               (GLD 가격 고정 → value 증가 = 추가매수 체결 완료)
+
+        RED 사유: 현재 체결 루프에 `if state.position == 0:` 조건이 있어
+                  position > 0이면 리밸런싱 buy pending_order가 체결되지 않음.
+        """
+        # Given
+        qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
+        qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
+        gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.50, "gld": 0.50},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # 리밸런싱이 발생했는지 확인
+        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        assert len(rebalanced_rows) > 0, "QQQ 급등 편차 >20%이므로 리밸런싱이 발생해야 함"
+
+        # Then: rebalanced=True인 날(수정 후: 체결 완료일)에 GLD value가 전날보다 증가해야 함
+        # GLD 가격은 110.0으로 고정 → value 증가 = position(수량) 증가 = 추가매수 체결 완료
+        first_reb_idx = int(rebalanced_rows.index[0])
+        assert first_reb_idx > 0, "리밸런싱 발생 전에 최소 1일 이상의 데이터가 있어야 함"
+
+        gld_value_before = float(equity_df.iloc[first_reb_idx - 1]["gld_value"])
+        gld_value_on_reb = float(equity_df.iloc[first_reb_idx]["gld_value"])
+
+        assert gld_value_on_reb > gld_value_before, (
+            f"rebalanced=True인 날은 체결 완료일이므로 GLD 추가매수가 체결되어야 함. "
+            f"이전: {gld_value_before:.0f}, 리밸런싱일: {gld_value_on_reb:.0f}. "
+            f"현재 버그: position > 0인 자산의 리밸런싱 buy가 체결되지 않음"
+        )
+
+
+class TestWeightRecoveryAfterRebalancing:
+    """리밸런싱 후 과소 자산 비중 회복 계약 테스트 (Phase 0 RED).
+
+    핵심 계약:
+    - 리밸런싱 완료 후 과소 비중 자산의 weight가 리밸런싱 전보다 증가해야 한다.
+    - 과대 자산은 매도 체결, 과소 자산은 추가매수 체결이 모두 이루어져야 한다.
+    - 수정 전에는 과소 자산 추가매수가 미체결 → weight 회복 안 됨 → 테스트 실패.
+    """
+
+    def test_underweight_asset_weight_increases_after_rebalancing(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: 리밸런싱 후 과소 비중(GLD) weight가 실제로 증가함을 검증.
+
+        Given: QQQ/GLD 각 50% 포트폴리오, QQQ 급등으로 GLD 과소 비중 형성
+        When:  run_portfolio_backtest() 실행
+        Then:  리밸런싱 체결 완료 후 GLD weight가 리밸런싱 트리거 직전보다 증가해야 함
+
+        RED 사유: 현재 버그로 GLD 추가매수가 체결되지 않아 weight가 회복되지 않음.
+        """
+        # Given
+        qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
+        qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
+        gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.50, "gld": 0.50},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # 리밸런싱 발생일 확인
+        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        assert len(rebalanced_rows) > 0, "QQQ 급등 편차 >20%이므로 리밸런싱이 발생해야 함"
+
+        first_reb_idx = int(rebalanced_rows.index[0])
+        assert first_reb_idx > 0
+
+        # 리밸런싱 트리거 직전 GLD weight (과소 비중)
+        gld_weight_before = float(equity_df.iloc[first_reb_idx - 1]["gld_weight"])
+        # 리밸런싱 체결 완료일(수정 후: rebalanced=True 날) GLD weight
+        gld_weight_on_reb = float(equity_df.iloc[first_reb_idx]["gld_weight"])
+
+        # Then: 체결 완료 후 GLD weight가 회복되어야 함 (과소 → 더 큰 비중)
+        assert gld_weight_on_reb > gld_weight_before, (
+            f"리밸런싱 체결 완료 후 GLD weight가 증가해야 함. "
+            f"직전: {gld_weight_before:.4f}, 체결일: {gld_weight_on_reb:.4f}. "
+            f"현재 버그: 추가매수 미체결로 weight 회복 안 됨"
+        )
+
+
+class TestCacheKeyWithDifferentMAParams:
+    """signal cache key 충돌 방지 계약 테스트 (Phase 0 RED).
+
+    핵심 계약:
+    - 동일 signal_data_path를 공유하는 슬롯이 서로 다른 ma_window를 사용해도
+      각자 올바른 MA 컬럼을 가진 signal_df를 사용해야 한다.
+    - 수정 전에는 캐시 키가 경로만이므로 나중 슬롯이 잘못된 MA 컬럼을 참조 → 실패.
+    """
+
+    def test_same_path_different_ma_window_no_collision(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: 동일 signal_data_path + 다른 ma_window 슬롯이 각자 올바른 MA 컬럼 사용 검증.
+
+        Given: 두 슬롯이 같은 qqq_path를 signal 소스로 공유하되
+               슬롯 A는 ma_window=5, 슬롯 B는 ma_window=10 사용
+        When:  run_portfolio_backtest() 실행
+        Then:  예외 없이 완료, 각 슬롯이 자기 MA 컬럼(ma_5 / ma_10)을 사용
+
+        RED 사유: 현재 캐시 키 = str(signal_data_path)만 사용 → 슬롯 A의 ma_5 계산 결과가
+                  슬롯 B에 재사용 → 슬롯 B가 ma_10 컬럼을 찾지 못함 → KeyError 발생.
+        """
+        # Given: 두 슬롯 모두 같은 CSV를 signal 소스로 사용하되 ma_window가 다름
+        stock_df = _make_stock_df(n_rows=30)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = PortfolioConfig(
+            experiment_name="test_cache_collision",
+            display_name="Test Cache Collision",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="slot_a",
+                    signal_data_path=qqq_path,
+                    trade_data_path=qqq_path,
+                    target_weight=0.50,
+                    ma_window=5,  # ma_5 컬럼
+                ),
+                AssetSlotConfig(
+                    asset_id="slot_b",
+                    signal_data_path=qqq_path,  # 동일 경로
+                    trade_data_path=qqq_path,
+                    target_weight=0.50,
+                    ma_window=10,  # ma_10 컬럼 (현재 캐시 충돌 → 없는 컬럼 참조)
+                ),
+            ),
+            total_capital=10_000_000.0,
+            rebalance_threshold_rate=0.20,
+            result_dir=tmp_path,
+        )
+
+        # When & Then: 예외 없이 실행 완료해야 함
+        # 현재 버그: KeyError (ma_10 컬럼이 캐시된 signal_df에 없음)
+        result = run_portfolio_backtest(config)
+        assert result is not None, "캐시 키 충돌 없이 정상 실행되어야 함"
+        assert isinstance(result.equity_df, pd.DataFrame)
+        assert len(result.equity_df) > 0
+
+
+class TestRebalancedColumnMeaning:
+    """rebalanced 컬럼 의미 계약 테스트 (Phase 0 RED).
+
+    핵심 계약:
+    - rebalanced=True는 리밸런싱 주문이 "실제 체결 완료된 날"에 기록되어야 한다.
+    - pending_order 생성일(트리거일)에는 rebalanced=False이어야 한다.
+    - 수정 전에는 pending 생성일에 True → 체결 완료일과 1일 어긋남 → 테스트 실패.
+    """
+
+    def test_rebalanced_true_on_execution_day_not_pending_day(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: rebalanced=True가 체결 완료일(pending 생성일 +1)에 기록됨을 검증.
+
+        Given: QQQ/GLD 50:50 포트폴리오, QQQ 급등 → 리밸런싱 트리거
+        When:  run_portfolio_backtest() 실행
+        Then:  rebalanced=True인 날에 실제 포지션 변화(QQQ value 감소 또는 GLD value 증가)가 있어야 함
+               즉, 체결 없는 날(pending 생성만)에는 rebalanced=True가 기록되지 않아야 함
+
+        RED 사유: 현재 rebalanced=True가 pending 생성일(체결 전날)에 기록되므로,
+                  그 날은 실제 포지션 변화가 없음 → 검증 실패.
+        """
+        # Given
+        qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
+        qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
+        gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.50, "gld": 0.50},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # 리밸런싱 발생 확인
+        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        assert len(rebalanced_rows) > 0, "리밸런싱이 발생해야 함"
+
+        # Then: rebalanced=True인 날에 실제로 체결(포지션 변화)이 있어야 함
+        # QQQ 가격=200(고정), GLD 가격=110(고정) 구간에서:
+        # QQQ 매도 체결 → qqq_value 감소
+        # GLD 매수 체결 → gld_value 증가
+        first_reb_idx = int(rebalanced_rows.index[0])
+        assert first_reb_idx > 0
+
+        qqq_value_before = float(equity_df.iloc[first_reb_idx - 1]["qqq_value"])
+        qqq_value_on_reb = float(equity_df.iloc[first_reb_idx]["qqq_value"])
+        gld_value_before = float(equity_df.iloc[first_reb_idx - 1]["gld_value"])
+        gld_value_on_reb = float(equity_df.iloc[first_reb_idx]["gld_value"])
+
+        # 체결 완료일이면 QQQ 매도(value 감소) 또는 GLD 매수(value 증가) 중 하나라도 발생해야 함
+        qqq_sold = qqq_value_on_reb < qqq_value_before - 1.0
+        gld_bought = gld_value_on_reb > gld_value_before + 1.0
+        assert qqq_sold or gld_bought, (
+            f"rebalanced=True인 날은 체결 완료일이므로 포지션 변화가 있어야 함. "
+            f"QQQ value: {qqq_value_before:.0f} → {qqq_value_on_reb:.0f}, "
+            f"GLD value: {gld_value_before:.0f} → {gld_value_on_reb:.0f}. "
+            f"현재 버그: rebalanced=True가 pending 생성일(체결 전날)에 기록됨"
+        )
+
+    def test_initial_entry_not_marked_as_rebalanced(
+        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
+    ) -> None:
+        """
+        목적: 초기 진입(첫 매수 체결일)이 rebalanced=True로 잘못 기록되지 않음을 검증.
+
+        Given: 단일 자산 100% 포트폴리오, buy signal 발생 후 초기 진입
+        When:  run_portfolio_backtest() 실행
+        Then:  첫 매수 체결일에 rebalanced=False
+               (초기 진입은 리밸런싱이 아니므로 rebalanced 표시 금지)
+        """
+        # Given: buy → 유지 데이터 (sell 없음)
+        stock_df = _make_stock_df(n_rows=30)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 1.0},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # 포지션이 처음으로 생기는 날 = equity_df에서 qqq_value가 처음으로 > 0이 되는 날
+        # 포트폴리오 거래 기록은 매도 체결 시에만 생성되므로 equity_df로 검증
+        assert (equity_df["qqq_value"] > 0).any(), "최소 1일 이상 QQQ 포지션이 있어야 함"
+        first_invested_idx = int((equity_df["qqq_value"] > 0).idxmax())
+
+        # Then: 첫 매수 체결일은 리밸런싱이 아님
+        rebalanced_on_entry = equity_df.iloc[first_invested_idx]["rebalanced"]
+        assert rebalanced_on_entry is False or rebalanced_on_entry == False, (  # noqa: E712
+            f"초기 진입 체결일({equity_df.iloc[first_invested_idx][COL_DATE]})에 " f"rebalanced=True가 기록되면 안 됨"
+        )
