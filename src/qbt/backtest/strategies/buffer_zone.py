@@ -14,6 +14,8 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
+import pandas as pd
+
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
@@ -24,12 +26,13 @@ from qbt.backtest.constants import (
     MIN_HOLD_DAYS,
     MIN_SELL_BUFFER_ZONE_PCT,
 )
-from qbt.backtest.strategies.strategy_common import (
+from qbt.backtest.strategies.buffer_zone_helpers import (
     HoldState,
-    SignalStrategy,
+    compute_bands,
     detect_buy_signal,
     detect_sell_signal,
 )
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BufferStrategyParams
 from qbt.common_constants import (
     BUFFER_ZONE_EEM_RESULTS_DIR,
@@ -267,115 +270,211 @@ def resolve_params_for_config(
 
 
 class BufferZoneStrategy(SignalStrategy):
-    """버퍼존 전략 클래스.
+    """버퍼존 전략 클래스 (Stateful).
 
     SignalStrategy Protocol을 구현한다.
-    check_buy에 hold_days 상태머신을 포함하고, check_sell은 하향돌파를 감지한다.
+    내부 상태(_prev_upper, _prev_lower, _hold_state)를 관리하여 엔진이
+    밴드 값을 직접 다룰 필요가 없도록 한다.
+
+    생성자 파라미터:
+        ma_col: 이동평균 컬럼명 (예: "ma_200")
+        buy_buffer_pct: 매수 버퍼존 비율 (0~1)
+        sell_buffer_pct: 매도 버퍼존 비율 (0~1)
+        hold_days: 상향돌파 후 유지일수 (0=즉시 신호)
+        ma_type: 이동평균 유형 ("ema" 또는 "sma"), 기본값 "ema"
 
     사용 예:
-        strategy = BufferZoneStrategy()
-        buy, hold_state = strategy.check_buy(
-            prev_close, cur_close, prev_upper, cur_upper,
-            hold_state, hold_days, current_date, buy_buffer_pct
-        )
-        sell = strategy.check_sell(prev_close, cur_close, prev_lower, cur_lower)
+        strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
+        buy = strategy.check_buy(signal_df, i, current_date)
+        sell = strategy.check_sell(signal_df, i)
+        if buy:
+            meta = strategy.get_buy_meta()
     """
+
+    def __init__(
+        self,
+        ma_col: str,
+        buy_buffer_pct: float,
+        sell_buffer_pct: float,
+        hold_days: int,
+        ma_type: str = "ema",
+    ) -> None:
+        self._ma_col = ma_col
+        self._buy_buffer_pct = buy_buffer_pct
+        self._sell_buffer_pct = sell_buffer_pct
+        self._hold_days = hold_days
+        self._ma_type = ma_type
+
+        # 내부 상태 (None이면 미초기화)
+        self._prev_upper: float | None = None
+        self._prev_lower: float | None = None
+        self._hold_state: HoldState | None = None
+
+        # get_buy_meta() 반환 값 (check_buy → True 직후 갱신)
+        self._last_buy_buffer_pct: float = 0.0
+        self._last_hold_days_used: int = 0
+
+    def _init_prev_from_row(self, signal_df: pd.DataFrame, idx: int) -> None:
+        """idx행 기준으로 _prev_upper/_prev_lower를 초기화한다."""
+        ma_val = float(signal_df.iloc[idx][self._ma_col])
+        self._prev_upper, self._prev_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
 
     def check_buy(
         self,
-        prev_close: float,
-        cur_close: float,
-        prev_upper: float,
-        cur_upper: float,
-        hold_state: HoldState | None,
-        hold_days_required: int,
+        signal_df: pd.DataFrame,
+        i: int,
         current_date: date,
-        buy_buffer_pct: float,
-    ) -> tuple[bool, HoldState | None]:
-        """매수 신호 여부와 갱신된 HoldState를 반환한다.
+    ) -> bool:
+        """i번째 날 매수 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
-        hold_days_required == 0:
-            detect_buy_signal() 결과를 즉시 반환한다. (True, None)
-        hold_days_required > 0:
-            1. hold_state가 None이고 상향돌파 감지 시 → HoldState 생성 (False, new_hold_state)
-            2. hold_state가 있고 cur_close > cur_upper 유지 시 → days_passed 증가
-               hold_days_required 도달 시 → (True, None) 반환
-               미달 시 → (False, 갱신 hold_state) 반환
-            3. hold_state가 있고 cur_close <= cur_upper 이탈 시 → 상태 해제 (False, None)
+        최초 호출 처리:
+        - _prev_upper is None: 미초기화 상태
+          - i=0: 현재 행(row[0])으로 초기화 → False 반환 (신호 없음)
+          - i>0: row[i-1]로 초기화 → 정상 신호 체크 진행
+
+        이후 호출:
+        - hold_days=0: detect_buy_signal로 즉시 신호 판단
+        - hold_days>0: 상태머신 처리 (대기/유지/해제)
+        - 항상 _prev_upper/_prev_lower를 현재 행 값으로 갱신
 
         Args:
-            prev_close: 전일 종가
-            cur_close: 당일 종가
-            prev_upper: 전일 상단 밴드
-            cur_upper: 당일 상단 밴드
-            hold_state: 현재 hold_days 상태 (None이면 대기 없음)
-            hold_days_required: 신호 확정까지 대기 기간 (0 = 버퍼존만 모드)
-            current_date: 현재 날짜 (HoldState.start_date에 기록)
-            buy_buffer_pct: 현재 매수 버퍼 비율 (HoldState.buffer_pct에 기록)
+            signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
+            i: 현재 인덱스 (0부터 시작)
+            current_date: 현재 날짜 (HoldState.start_date 기록용)
 
         Returns:
-            tuple: (매수 여부, 갱신된 HoldState)
+            True이면 매수 신호
         """
+        from qbt.common_constants import COL_CLOSE
 
-        if hold_days_required == 0:
+        row = signal_df.iloc[i]
+        ma_val = float(row[self._ma_col])
+        cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
+        cur_close = float(row[COL_CLOSE])
+
+        # 최초 호출 처리
+        if self._prev_upper is None:
+            if i == 0:
+                # i=0: 현재 행으로 초기화 후 False 반환
+                self._prev_upper = cur_upper
+                self._prev_lower = cur_lower
+                return False
+            else:
+                # i>0: i-1 행으로 초기화 후 정상 신호 체크 진행
+                self._init_prev_from_row(signal_df, i - 1)
+
+        # 이 시점에서 _prev_upper는 초기화된 상태 (_prev_lower는 check_sell에서 사용)
+        prev_upper: float = self._prev_upper  # type: ignore[assignment]
+        prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
+
+        # 현재 행으로 prev 갱신 (신호 판단 후에도 동일 값 사용)
+        self._prev_upper = cur_upper
+        self._prev_lower = cur_lower
+
+        # 신호 판단
+        if self._hold_days == 0:
             # 즉시 신호: detect_buy_signal 결과 반환
             buy = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
-            return buy, None
+            if buy:
+                self._last_buy_buffer_pct = self._buy_buffer_pct
+                self._last_hold_days_used = 0
+            return buy
 
         # hold_days > 0: 상태머신 처리
-        if hold_state is not None:
+        if self._hold_state is not None:
             # 대기 중 — 상단밴드 위 유지 여부 확인
             if cur_close > cur_upper:
-                new_days_passed = hold_state["days_passed"] + 1
-                if new_days_passed >= hold_state["hold_days_required"]:
+                new_days_passed = self._hold_state["days_passed"] + 1
+                if new_days_passed >= self._hold_state["hold_days_required"]:
                     # 유지 조건 충족 → 매수 신호
-                    return True, None
+                    self._last_buy_buffer_pct = self._hold_state["buffer_pct"]
+                    self._last_hold_days_used = self._hold_state["hold_days_required"]
+                    self._hold_state = None
+                    return True
                 else:
-                    # 유지 중 — 상태 갱신
-                    updated_hold_state: HoldState = {
-                        "start_date": hold_state["start_date"],
+                    # 유지 중 — days_passed 증가
+                    self._hold_state = {
+                        "start_date": self._hold_state["start_date"],
                         "days_passed": new_days_passed,
-                        "buffer_pct": hold_state["buffer_pct"],
-                        "hold_days_required": hold_state["hold_days_required"],
+                        "buffer_pct": self._hold_state["buffer_pct"],
+                        "hold_days_required": self._hold_state["hold_days_required"],
                     }
-                    return False, updated_hold_state
+                    return False
             else:
                 # 상단밴드 아래로 이탈 → 상태 해제
-                return False, None
+                self._hold_state = None
+                return False
 
         # hold_state가 None인 경우 — 상향돌파 감지
         breakout = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
         if breakout:
-            # 상향돌파 감지 → HoldState 생성 (아직 매수 아님).
-            # current_date, buy_buffer_pct를 직접 기록 (플레이스홀더 없음).
-            new_hold_state: HoldState = {
+            # 상향돌파 감지 → HoldState 생성 (아직 매수 아님)
+            self._hold_state = {
                 "start_date": current_date,
                 "days_passed": 0,
-                "buffer_pct": buy_buffer_pct,
-                "hold_days_required": hold_days_required,
+                "buffer_pct": self._buy_buffer_pct,
+                "hold_days_required": self._hold_days,
             }
-            return False, new_hold_state
-
-        return False, None
+        return False
 
     def check_sell(
         self,
-        prev_close: float,
-        cur_close: float,
-        prev_lower: float,
-        cur_lower: float,
+        signal_df: pd.DataFrame,
+        i: int,
     ) -> bool:
-        """매도 신호 여부를 반환한다.
+        """i번째 날 매도 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
-        detect_sell_signal() 결과를 반환한다.
+        최초 호출 처리:
+        - _prev_lower is None: 미초기화 상태
+          - i=0: 현재 행으로 초기화 → False 반환
+          - i>0: row[i-1]로 초기화 → 정상 신호 체크 진행
+
+        이후 호출:
+        - detect_sell_signal로 하향돌파 감지
+        - 항상 _prev_upper/_prev_lower를 현재 행 값으로 갱신
 
         Args:
-            prev_close: 전일 종가
-            cur_close: 당일 종가
-            prev_lower: 전일 하단 밴드
-            cur_lower: 당일 하단 밴드
+            signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
+            i: 현재 인덱스 (0부터 시작)
 
         Returns:
-            True이면 매도 신호 (하향돌파)
+            True이면 매도 신호
         """
+        from qbt.common_constants import COL_CLOSE
+
+        row = signal_df.iloc[i]
+        ma_val = float(row[self._ma_col])
+        cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
+        cur_close = float(row[COL_CLOSE])
+
+        # 최초 호출 처리
+        if self._prev_lower is None:
+            if i == 0:
+                # i=0: 현재 행으로 초기화 후 False 반환
+                self._prev_upper = cur_upper
+                self._prev_lower = cur_lower
+                return False
+            else:
+                # i>0: i-1 행으로 초기화 후 정상 신호 체크 진행
+                self._init_prev_from_row(signal_df, i - 1)
+
+        # 이 시점에서 _prev_lower는 초기화된 상태
+        prev_lower: float = self._prev_lower  # type: ignore[assignment]
+        prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
+
+        # 현재 행으로 prev 갱신
+        self._prev_upper = cur_upper
+        self._prev_lower = cur_lower
+
         return detect_sell_signal(prev_close, cur_close, prev_lower, cur_lower)
+
+    def get_buy_meta(self) -> dict[str, float | int]:
+        """check_buy True 직후 호출. TradeRecord 기록용 메타데이터를 반환한다.
+
+        Returns:
+            dict: {"buy_buffer_pct": float, "hold_days_used": int}
+        """
+        return {
+            "buy_buffer_pct": self._last_buy_buffer_pct,
+            "hold_days_used": self._last_hold_days_used,
+        }

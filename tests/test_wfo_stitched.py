@@ -184,31 +184,38 @@ class TestLoadWfoResultsFromCsv:
 
         Given: 3개 윈도우의 WFO 결과 CSV
         When: load_wfo_results_from_csv() → build_params_schedule() 연결 호출
-        Then: initial_params와 schedule이 올바르게 생성됨
+        Then: initial_strategy와 schedule이 올바르게 생성됨 (SignalStrategy 객체)
         """
+        from datetime import date
+
+        from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+        from qbt.backtest.strategies.strategy_common import SignalStrategy
+
         # Given
         csv_path = self._create_base_wfo_csv(tmp_path)
 
         # When
         results = load_wfo_results_from_csv(csv_path)
-        initial_params, schedule = build_params_schedule(results)
+        initial_strategy, schedule = build_params_schedule(results)
 
         # Then
-        # initial_params: 첫 윈도우 기반 (ma=150, buy=0.03, sell=0.03, hold=3)
-        assert initial_params.ma_window == 150
-        assert initial_params.buy_buffer_zone_pct == pytest.approx(0.03, abs=1e-6)
-        assert initial_params.sell_buffer_zone_pct == pytest.approx(0.03, abs=1e-6)
-        assert initial_params.hold_days == 3
+        # initial_strategy: SignalStrategy Protocol을 구현한 BufferZoneStrategy
+        assert isinstance(initial_strategy, SignalStrategy)
+        assert isinstance(initial_strategy, BufferZoneStrategy)
+        # 첫 윈도우 기반 파라미터 (ma=150, buy=0.03, sell=0.03, hold=3)
+        assert initial_strategy._ma_col == "ma_150"  # pyright: ignore[reportPrivateUsage]
+        assert initial_strategy._buy_buffer_pct == pytest.approx(0.03, abs=1e-6)  # pyright: ignore[reportPrivateUsage]
+        assert initial_strategy._sell_buffer_pct == pytest.approx(0.03, abs=1e-6)  # pyright: ignore[reportPrivateUsage]
+        assert initial_strategy._hold_days == 3  # pyright: ignore[reportPrivateUsage]
 
-        # schedule: 2번째, 3번째 윈도우의 OOS 시작일 → params
-        from datetime import date
-
+        # schedule: 2번째, 3번째 윈도우의 OOS 시작일 → SignalStrategy
         assert len(schedule) == 2
         assert date(2007, 3, 1) in schedule
         assert date(2009, 3, 1) in schedule
 
-        # 두 번째 윈도우 파라미터 확인
-        second_params = schedule[date(2007, 3, 1)]
-        assert second_params.ma_window == 200
-        assert second_params.buy_buffer_zone_pct == pytest.approx(0.05, abs=1e-6)
-        assert second_params.hold_days == 5
+        # 두 번째 윈도우 전략 파라미터 확인
+        second_strategy = schedule[date(2007, 3, 1)]
+        assert isinstance(second_strategy, BufferZoneStrategy)
+        assert second_strategy._ma_col == "ma_200"  # pyright: ignore[reportPrivateUsage]
+        assert second_strategy._buy_buffer_pct == pytest.approx(0.05, abs=1e-6)  # pyright: ignore[reportPrivateUsage]
+        assert second_strategy._hold_days == 5  # pyright: ignore[reportPrivateUsage]

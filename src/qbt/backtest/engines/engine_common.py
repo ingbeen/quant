@@ -35,10 +35,6 @@ class EquityRecord(TypedDict):
     Date: date
     equity: float
     position: int
-    buy_buffer_pct: float
-    sell_buffer_pct: float
-    upper_band: float | None
-    lower_band: float | None
 
 
 class TradeRecord(TypedDict):
@@ -78,8 +74,6 @@ class PendingOrder:
 
     order_type: Literal["buy", "sell"]  # 주문 유형 (타입 안전)
     signal_date: date  # 신호 발생 날짜 (디버깅/로깅용)
-    buy_buffer_zone_pct: float  # 신호 시점의 매수 버퍼 비율 (0~1)
-    hold_days_used: int  # 신호 시점의 유지일수
 
 
 # ============================================================================
@@ -134,6 +128,7 @@ def execute_sell_order(
     entry_price: float,
     entry_date: date,
     hold_days_used: int,
+    buy_buffer_pct: float = 0.0,
 ) -> tuple[int, float, TradeRecord]:
     """매도 주문을 실행한다.
 
@@ -146,6 +141,7 @@ def execute_sell_order(
         entry_price: 진입 가격
         entry_date: 진입 날짜
         hold_days_used: 매수 시 사용된 유지일수 (trade_record에 명시적으로 기록)
+        buy_buffer_pct: 매수 시 버퍼존 비율 (strategy.get_buy_meta()에서 전달, 기본값 0.0)
 
     Returns:
         tuple: (new_position, new_capital, trade_record)
@@ -166,7 +162,7 @@ def execute_sell_order(
         "shares": position,
         "pnl": (sell_price - entry_price) * position,
         "pnl_pct": (sell_price - entry_price) / entry_price,
-        "buy_buffer_pct": order.buy_buffer_zone_pct,
+        "buy_buffer_pct": buy_buffer_pct,
         "hold_days_used": hold_days_used,
     }
 
@@ -178,10 +174,6 @@ def record_equity(
     capital: float,
     position: int,
     close_price: float,
-    buy_buffer_pct: float,
-    sell_buffer_pct: float,
-    upper_band: float | None,
-    lower_band: float | None,
 ) -> EquityRecord:
     """현재 시점의 equity를 기록한다.
 
@@ -190,10 +182,6 @@ def record_equity(
         capital: 현재 보유 현금
         position: 현재 포지션 수량
         close_price: 현재 종가
-        buy_buffer_pct: 현재 매수 버퍼존 비율
-        sell_buffer_pct: 현재 매도 버퍼존 비율
-        upper_band: 상단 밴드 (첫 날은 None 가능)
-        lower_band: 하단 밴드 (첫 날은 None 가능)
 
     Returns:
         equity 기록 딕셔너리
@@ -207,8 +195,4 @@ def record_equity(
         "Date": current_date,
         "equity": equity,
         "position": position,
-        "buy_buffer_pct": buy_buffer_pct,
-        "sell_buffer_pct": sell_buffer_pct,
-        "upper_band": upper_band,
-        "lower_band": lower_band,
     }

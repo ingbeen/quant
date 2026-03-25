@@ -238,7 +238,6 @@ class TestCreateRunner:
         ma_cols = [c for c in sig_cols if c.startswith("ma_")]
         assert len(ma_cols) == 0, f"signal_df에 ma_* 컬럼이 없어야 함. 실제: {ma_cols}"
 
-
     def test_buy_and_hold_runner_first_buy_on_second_day(self, tmp_path, monkeypatch):
         """
         목적: B&H 첫 매수가 시계열 2번째 날 시가에 이루어지는지 검증
@@ -282,9 +281,9 @@ class TestCreateRunner:
         assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
         open_pos = cast(OpenPositionDict, result.summary["open_position"])
         # 2번째 날이 entry_date여야 함 (i=0에서 신호 → i=1에서 체결)
-        assert open_pos["entry_date"] == str(date(2023, 1, 2)), (
-            f"B&H 첫 매수는 시계열 2번째 날(2023-01-02)이어야 합니다. 실제: {open_pos['entry_date']}"
-        )
+        assert open_pos["entry_date"] == str(
+            date(2023, 1, 2)
+        ), f"B&H 첫 매수는 시계열 2번째 날(2023-01-02)이어야 합니다. 실제: {open_pos['entry_date']}"
 
 
 class TestBuyAndHoldConfigs:

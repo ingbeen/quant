@@ -77,87 +77,56 @@ class TestUpperLowerBandSeparation:
 
     def test_lower_band_fixed_before_sell(self):
         """
-        청산 전: lower_band = MA × (1 - sell_buffer_pct) 고정 검증
+        lower_band = MA × (1 - sell_buffer_pct) 계약 검증
 
         Given:
           - sell_buffer_zone_pct=0.04, buy_buffer_zone_pct=0.03
-        When: run_buffer_strategy
+          - ma_value=100.0
+        When: compute_bands() 호출
         Then:
-          - lower_band = ma × (1 - 0.04) (sell_buffer 기준, 고정)
+          - lower_band = 100.0 × (1 - 0.04) = 96.0
+          - upper_band = 100.0 × (1 + 0.03) = 103.0
         """
-        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 
-        # Given: 매수 후 포지션 보유, 청산 없는 시나리오
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, d) for d in range(1, 11)],
-                "Open": [100.0] * 10,
-                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 135, 140],
-            }
-        )
-        df = add_single_moving_average(df, window=3, ma_type="ema")
-
-        params = BufferStrategyParams(
-            initial_capital=100000.0,
-            ma_window=3,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.04,
-            hold_days=0,
-        )
+        # Given
+        ma_value = 100.0
+        buy_buffer_pct = 0.03
+        sell_buffer_pct = 0.04
 
         # When
-        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
+        upper_band, lower_band = compute_bands(ma_value, buy_buffer_pct, sell_buffer_pct)
 
-        # Then: lower_band가 sell_buffer_zone_pct(0.04) 기준인지 확인
-        # equity_df에 lower_band 컬럼이 있어야 함
-        assert "lower_band" in equity_df.columns, "equity_df에 lower_band 컬럼이 있어야 함"
-
-        # lower_band 값이 sell_buffer_pct(0.04) 기준으로 계산됐는지 확인
-        # lower_band = ma * (1 - 0.04)이어야 함 (buy buffer와 혼동 없음)
-        valid_rows = equity_df[equity_df["lower_band"].notna()]
-        if len(valid_rows) > 0:
-            # 임의의 row에서 검증: 직접 계산으로 확인
-            # (실제 MA값을 모르므로 lower_band와 upper_band의 비율로 검증)
-            assert (valid_rows["lower_band"] > 0).all(), "lower_band는 양수여야 함"
+        # Then
+        assert upper_band == pytest.approx(
+            103.0, abs=1e-6
+        ), f"upper_band = MA × (1 + buy_pct). 기대: 103.0, 실제: {upper_band}"
+        assert lower_band == pytest.approx(
+            96.0, abs=1e-6
+        ), f"lower_band = MA × (1 - sell_pct). 기대: 96.0, 실제: {lower_band}"
 
     def test_lower_band_same_before_and_after_sell(self):
         """
-        청산 전후 lower_band가 동일한 비율을 유지해야 한다.
+        lower_band와 upper_band가 버퍼 비율에만 의존하는지 검증
 
-        핵심 계약: lower_band는 항상 sell_buffer_zone_pct에만 의존
+        핵심 계약: lower_band = MA × (1 - sell_buffer_pct), 항상 sell_pct에만 의존
 
         Given:
-          - sell_buffer_zone_pct=0.04
-          - 청산 발생
-        When: 청산 전후의 lower_band 비율 검증
+          - sell_buffer_zone_pct=0.04, buy_buffer_zone_pct=0.03
+          - 다양한 MA값에 대해 검증
+        When: compute_bands() 호출
         Then: lower_band / MA = (1 - sell_buffer_pct) 일정
         """
-        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 
-        # Given: 매수-매도-재매수 사이클
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, d) for d in range(1, 21)],
-                "Open": [100.0] * 20,
-                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 95, 90, 85, 80, 95, 105, 115, 125, 130, 135, 140, 145],
-            }
-        )
-        df = add_single_moving_average(df, window=3, ma_type="ema")
+        buy_pct = 0.03
+        sell_pct = 0.04
 
-        params = BufferStrategyParams(
-            initial_capital=100000.0,
-            ma_window=3,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.04,
-            hold_days=0,
-        )
-
-        # When
-        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
-
-        # Then: equity_df에 lower_band와 upper_band 컬럼이 있어야 함
-        assert "lower_band" in equity_df.columns, "lower_band 컬럼 필요"
-        assert "upper_band" in equity_df.columns, "upper_band 컬럼 필요"
+        # 다양한 MA 값에서 비율이 일정한지 검증
+        for ma in [50.0, 100.0, 200.0, 300.0]:
+            upper, lower = compute_bands(ma, buy_pct, sell_pct)
+            assert upper == pytest.approx(ma * (1 + buy_pct), abs=1e-6), f"upper_band 비율 불일치 (MA={ma})"
+            assert lower == pytest.approx(ma * (1 - sell_pct), abs=1e-6), f"lower_band 비율 불일치 (MA={ma})"
 
 
 class TestRunBufferStrategy:
@@ -204,9 +173,9 @@ class TestRunBufferStrategy:
         assert isinstance(summary, dict)
 
         # summary 검증
-        assert summary["strategy"] == "buffer_zone"
         assert "total_trades" in summary
         assert "total_return_pct" in summary
+        assert "final_capital" in summary
 
         # equity_df 검증
         assert len(equity_df) > 0, "Equity curve는 최소 1행 이상"
@@ -214,20 +183,21 @@ class TestRunBufferStrategy:
 
     def test_missing_ma_column(self):
         """
-        MA 컬럼 누락 시 에러 테스트
+        MA 컬럼 누락 시 자동 계산 테스트
 
-        안정성: 필수 컬럼 없으면 즉시 실패해야 합니다.
+        계약: signal_df에 MA 컬럼이 없으면 run_buffer_strategy가 자동으로 계산한다.
 
         Given: ma_5 컬럼 없는 DataFrame
         When: run_buffer_strategy (ma_window=5)
-        Then: ValueError
+        Then: 에러 없이 실행되며 결과가 반환된다
         """
-        # Given: MA 컬럼 없음
+        # Given: MA 컬럼 없음, 충분한 행 수 (EMA 자동 계산 가능)
+        n = 20
         df = pd.DataFrame(
             {
-                "Date": [date(2023, 1, 1), date(2023, 1, 2)],
-                "Open": [100, 101],
-                "Close": [100, 101],
+                "Date": [date(2023, 1, i + 1) for i in range(n)],
+                "Open": [100.0 + i for i in range(n)],
+                "Close": [100.0 + i for i in range(n)],
             }
         )
 
@@ -239,11 +209,11 @@ class TestRunBufferStrategy:
             initial_capital=10000.0,
         )
 
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            run_buffer_strategy(df, df, params, log_trades=False)
+        # When & Then: 에러 없이 실행 (MA 자동 계산)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
-        assert "ma_5" in str(exc_info.value) or "컬럼" in str(exc_info.value), "MA 컬럼 누락 에러 메시지"
+        assert isinstance(equity_df, pd.DataFrame), "equity_df가 반환되어야 함"
+        assert len(equity_df) > 0, "equity_df에 데이터가 있어야 함"
 
     def test_insufficient_valid_data(self):
         """
@@ -1026,8 +996,6 @@ class TestCoreExecutionRules:
         existing_pending = PendingOrder(
             order_type="sell",
             signal_date=date(2023, 1, 9),
-            buy_buffer_zone_pct=0.01,
-            hold_days_used=0,
         )
 
         # When & Then: 신규 매도 신호 발생 시 예외 발생

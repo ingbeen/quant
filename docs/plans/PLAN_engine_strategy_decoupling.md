@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-03-21 00:00
-**마지막 업데이트**: 2026-03-21 00:00
+**마지막 업데이트**: 2026-03-25 14:00
 **관련 범위**: backtest (engines, strategies, runners, walkforward, portfolio)
 **관련 문서**: `src/qbt/backtest/CLAUDE.md`, `tests/CLAUDE.md`
 
@@ -40,10 +40,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 백테스트 엔진(`backtest_engine.py`)과 포트폴리오 엔진(`portfolio_engine.py`)에서 버퍼존 전용 로직을 완전히 제거한다
-- [ ] 모든 전략 고유 로직(밴드 계산, 상태머신 등)을 각 전략 클래스 내부로 이동한다
-- [ ] B&H 첫 매수 타이밍을 수정한다 (시계열 3번째 날 → **2번째 날** 시가)
-- [ ] `PortfolioConfig`에서 4P 파라미터를 제거하고 `AssetSlotConfig` 슬롯 레벨로 이동한다
+- [x] 백테스트 엔진(`backtest_engine.py`)과 포트폴리오 엔진(`portfolio_engine.py`)에서 버퍼존 전용 로직을 완전히 제거한다
+- [x] 모든 전략 고유 로직(밴드 계산, 상태머신 등)을 각 전략 클래스 내부로 이동한다
+- [x] B&H 첫 매수 타이밍을 수정한다 (시계열 3번째 날 → **2번째 날** 시가)
+- [x] `PortfolioConfig`에서 4P 파라미터를 제거하고 `AssetSlotConfig` 슬롯 레벨로 이동한다
 
 ## 2) 비목표(Non-Goals)
 
@@ -82,17 +82,17 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] 모든 테스트 통과 (failed=0, skipped=0)
-- [ ] `poetry run python validate_project.py` 통과 (결과 기록 필요)
-- [ ] `poetry run black .` 실행 완료
-- [ ] `backtest_engine.run_backtest` 시그니처에서 `BufferStrategyParams` 제거됨
-- [ ] `backtest_engine` / `portfolio_engine`에서 `compute_bands` 호출 없음
-- [ ] `PortfolioConfig`에서 `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days`, `ma_type` 제거됨
-- [ ] `AssetSlotConfig`에 전략별 파라미터 추가됨
-- [ ] B&H 첫 매수: **시계열 2번째 날 시가** (테스트로 고정)
-- [ ] 버퍼존 신호 타이밍: 기존과 동일 (테스트로 고정)
-- [ ] `params_schedule` 타입: `dict[date, SignalStrategy]`
-- [ ] 계획서 체크박스 최신화
+- [x] 모든 테스트 통과 (failed=0, skipped=0) — pytest passed=389, failed=0, skipped=0
+- [x] `poetry run python validate_project.py` 통과 — Ruff 0개, PyRight 0개, Pytest passed=389/failed=0/skipped=0
+- [x] `poetry run black .` 실행 완료
+- [x] `backtest_engine.run_backtest` 시그니처에서 `BufferStrategyParams` 제거됨
+- [x] `backtest_engine` / `portfolio_engine`에서 `compute_bands` 호출 없음
+- [x] `PortfolioConfig`에서 `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days`, `ma_type` 제거됨
+- [x] `AssetSlotConfig`에 전략별 파라미터 추가됨
+- [x] B&H 첫 매수: **시계열 2번째 날 시가** (테스트로 고정)
+- [x] 버퍼존 신호 타이밍: 기존과 동일 (테스트로 고정)
+- [x] `params_schedule` 타입: `dict[date, SignalStrategy]`
+- [x] 계획서 체크박스 최신화
 
 ---
 
@@ -241,12 +241,12 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `tests/test_strategy_interface.py` 전면 재작성
+- [x] `tests/test_strategy_interface.py` 전면 재작성
   - 새 Protocol 시그니처 계약 고정: `check_buy(signal_df, i, current_date) -> bool`
   - B&H: 모든 i에서 `check_buy` → True
   - BufferZone: i=0 → False (최초 호출, 초기화만), i>0 상향돌파 조건 → True
   - `get_buy_meta()` 반환 타입/키 계약 고정
-- [ ] `tests/test_buy_and_hold.py` 업데이트
+- [x] `tests/test_buy_and_hold.py` 업데이트
   - B&H 첫 매수가 **시계열 2번째 날 시가**임을 고정 (현재 3번째 날 → 실패 예상)
   - `run_backtest` 새 시그니처 (`initial_capital: float`, 루프 day 0 시작) 기준으로 작성
 
@@ -260,16 +260,16 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `strategies/buffer_zone_helpers.py` **신규 생성**
+- [x] `strategies/buffer_zone_helpers.py` **신규 생성**
   - `strategy_common.py`에서 이동: `HoldState`, `compute_bands`, `detect_buy_signal`, `detect_sell_signal`
-- [ ] `strategies/strategy_common.py` 정제
+- [x] `strategies/strategy_common.py` 정제
   - 제거: `HoldState`, `compute_bands`, `detect_buy_signal`, `detect_sell_signal`
   - 유지: `PendingOrderConflictError`, `SignalStrategy` Protocol
   - `SignalStrategy` Protocol 새 시그니처 적용:
     - `check_buy(self, signal_df, i, current_date) -> bool`
     - `check_sell(self, signal_df, i) -> bool`
     - `get_buy_meta(self) -> dict[str, float | int]`
-- [ ] `strategies/buffer_zone.py` — `BufferZoneStrategy` stateful 리팩터링
+- [x] `strategies/buffer_zone.py` — `BufferZoneStrategy` stateful 리팩터링
   - 생성자: `(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)`
   - 내부 상태: `_prev_upper`, `_prev_lower`, `_hold_state`, `_last_buy_buffer_pct`, `_last_hold_days_used`
   - `check_buy(signal_df, i, current_date)`: 내부에서 밴드 계산 + hold_state 관리
@@ -278,15 +278,15 @@ class AssetSlotConfig:
   - `check_sell(signal_df, i)`: 내부에서 하향돌파 감지
   - `get_buy_meta()`: `{"buy_buffer_pct": ..., "hold_days_used": ...}`
   - `CONFIGS` 각 항목에서 `resolve_params_for_config` 호출 시 `BufferZoneStrategy` 생성자 파라미터 매핑
-- [ ] `strategies/buy_and_hold.py` — `BuyAndHoldStrategy` 단순화
+- [x] `strategies/buy_and_hold.py` — `BuyAndHoldStrategy` 단순화
   - 파라미터 없는 생성자
   - `check_buy(signal_df, i, current_date) -> bool`: 항상 `True`
   - `check_sell(signal_df, i) -> bool`: 항상 `False`
   - `get_buy_meta() -> dict`: `{}`
-- [ ] `strategies/__init__.py` — export 업데이트
-- [ ] `tests/test_strategy_interface.py` — Phase 0 테스트가 통과하도록 확인
-- [ ] `tests/test_buffer_zone_helpers.py` — import 경로 수정 (`strategy_common` → `buffer_zone_helpers`)
-- [ ] `tests/test_buffer_zone.py` — 새 전략 인터페이스 반영
+- [x] `strategies/__init__.py` — export 업데이트
+- [x] `tests/test_strategy_interface.py` — Phase 0 테스트가 통과하도록 확인
+- [x] `tests/test_buffer_zone_helpers.py` — import 경로 수정 (`strategy_common` → `buffer_zone_helpers`)
+- [x] `tests/test_buffer_zone.py` — 새 전략 인터페이스 반영
 
 **Validation**: Phase 0 테스트 포함 전체 통과 확인
 
@@ -298,7 +298,7 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `engines/engine_common.py`
+- [x] `engines/engine_common.py`
   - `PendingOrder`: `buy_buffer_zone_pct`, `hold_days_used` 필드 제거 → `order_type`, `signal_date`만
   - `EquityRecord`: `buy_buffer_pct`, `sell_buffer_pct`, `upper_band`, `lower_band` 제거 → `Date`, `equity`, `position`만
   - `record_equity()`: 버퍼존 파라미터 제거 (`current_date`, `capital`, `position`, `close_price`만)
@@ -314,7 +314,7 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `engines/backtest_engine.py`
+- [x] `engines/backtest_engine.py`
   - `run_backtest()` 새 시그니처:
     ```python
     def run_backtest(
@@ -342,8 +342,8 @@ class AssetSlotConfig:
     - MA valid_mask 필터링 후 `run_backtest` 호출
   - `_run_backtest_for_grid()`: `BufferZoneStrategy(ma_col, ...)` 생성 + valid_mask 필터링 후 호출
   - `BufferStrategyResultDict` 제거 (SummaryDict 반환으로 대체)
-- [ ] `tests/test_buffer_zone_helpers.py` — 새 engine API 반영
-- [ ] `tests/test_buy_and_hold.py` — B&H 타이밍 테스트 통과 확인
+- [x] `tests/test_buffer_zone_helpers.py` — 새 engine API 반영
+- [x] `tests/test_buy_and_hold.py` — B&H 타이밍 테스트 통과 확인
 
 **Validation**: 전체 테스트 통과 확인
 
@@ -355,7 +355,7 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `runners.py`
+- [x] `runners.py`
   - `create_buffer_zone_runner()`:
     - MA 계산 후 valid_mask 필터링 (기존과 동일)
     - `BufferZoneStrategy(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)` 생성
@@ -381,7 +381,7 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `walkforward.py`
+- [x] `walkforward.py`
   - `build_params_schedule(wfo_results, signal_df)`:
     - 반환 타입 `dict[date, BufferStrategyParams]` → `dict[date, SignalStrategy]`
     - 내부에서 `BufferZoneStrategy(f"ma_{p.ma_window}", p.buy_buffer_zone_pct, ...)` 생성
@@ -391,8 +391,8 @@ class AssetSlotConfig:
     - IS 그리드서치: `run_grid_search` 그대로 사용 (`BufferStrategyParams` 기반)
   - stitched equity 호출부: `params_schedule: dict[date, SignalStrategy]` 타입 적용
     - 주의: `params_schedule`에 포함된 모든 `ma_window`에 해당하는 MA 컬럼을 signal_df에 사전 계산 후 전달
-- [ ] `tests/test_backtest_walkforward.py` — params_schedule 타입 변경 반영
-- [ ] `tests/test_wfo_stitched.py` — `build_params_schedule` 반환 타입 변경 반영
+- [x] `tests/test_backtest_walkforward.py` — params_schedule 타입 변경 반영
+- [x] `tests/test_wfo_stitched.py` — `build_params_schedule` 반환 타입 변경 반영
 
 **Validation**: 전체 테스트 통과 확인
 
@@ -404,11 +404,11 @@ class AssetSlotConfig:
 
 **할 일**
 
-- [ ] `portfolio_types.py`
+- [x] `portfolio_types.py`
   - `AssetSlotConfig`: 슬롯별 파라미터 추가 (`ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="ema"` — 모두 기본값)
   - `PortfolioConfig`: `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days`, `ma_type` 제거
   - `PortfolioResult.config` 기본값: 제거된 필드 반영
-- [ ] `portfolio_engine.py`
+- [x] `portfolio_engine.py`
   - `_create_strategy_for_slot(slot)`:
     - `buffer_zone`: `BufferZoneStrategy(f"ma_{slot.ma_window}", slot.buy_buffer_zone_pct, ..., slot.ma_type)` 생성
     - `buy_and_hold`: `BuyAndHoldStrategy()` 생성
@@ -420,12 +420,12 @@ class AssetSlotConfig:
   - `prev_upper_bands`, `prev_lower_bands` 추적 제거
   - `compute_bands` 호출 없음
   - `compute_portfolio_effective_start_date()`: `slot.ma_window` 기준으로 재계산 (`config.ma_window` 제거)
-- [ ] `portfolio_configs.py`
+- [x] `portfolio_configs.py`
   - 모든 `PortfolioConfig` 정의에서 `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days`, `ma_type` 제거
   - `buffer_zone` 슬롯에 파라미터 명시 (`ma_window=200, buy_buffer_zone_pct=0.03, ...`)
   - `buy_and_hold` 슬롯: 기본값 사용 (파라미터 무시되므로 명시 불필요)
-- [ ] `tests/test_portfolio_strategy.py` — 새 슬롯 config 구조 반영
-- [ ] `tests/test_portfolio_configs.py` — `PortfolioConfig` 구조 변경 반영
+- [x] `tests/test_portfolio_strategy.py` — 새 슬롯 config 구조 반영
+- [x] `tests/test_portfolio_configs.py` — `PortfolioConfig` 구조 변경 반영
 
 **Validation**: 전체 테스트 통과 확인
 
@@ -435,19 +435,19 @@ class AssetSlotConfig:
 
 **작업 내용**
 
-- [ ] `src/qbt/backtest/CLAUDE.md` 업데이트
+- [x] `src/qbt/backtest/CLAUDE.md` 업데이트
   - 새 `SignalStrategy` Protocol 시그니처 반영
   - `BufferZoneStrategy` 생성자 파라미터 반영
   - `engine_common` 변경 사항 반영
   - `AssetSlotConfig` 새 필드 반영
   - `PortfolioConfig` 제거된 필드 반영
   - `runners.py` B&H 타이밍 코멘트 수정
-- [ ] `poetry run black .` (자동 포맷 적용)
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] `poetry run black .` (자동 포맷 적용)
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
 
 **Validation**
 
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=0, skipped=0)
+- [x] `poetry run python validate_project.py` (passed=389, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -483,3 +483,6 @@ class AssetSlotConfig:
 ### 진행 로그 (KST)
 
 - 2026-03-21 00:00: 계획서 작성
+- 2026-03-24 14:00: Phase 0~6 완료, Phase 7 진행 중 (CLAUDE.md + black 완료, pytest passed=389/0/0)
+- 2026-03-25 14:00: Phase 7 완료 — Ruff 0개, PyRight 0개, Pytest passed=389/failed=0/skipped=0 통과
+  - 수정 파일: runners.py (unused import), buffer_zone.py (unused var + type: ignore[assignment]), buffer_zone_helpers.py/strategy_common.py/test_strategy_interface.py (I001), walkforward.py (unused import), run_param_plateau_all.py (run_backtest → run_buffer_strategy), run_walkforward.py (_run_stitched_equity 새 API)

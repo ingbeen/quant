@@ -32,7 +32,8 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
-from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, BufferZoneStrategy
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BestGridParams, WfoModeSummaryDict, WfoWindowResultDict
 from qbt.common_constants import COL_DATE, EPSILON
 from qbt.utils import get_logger
@@ -328,18 +329,25 @@ def run_walkforward(
         oos_signal = signal_df[oos_mask].reset_index(drop=True)
         oos_trade = trade_df[oos_mask].reset_index(drop=True)
 
-        # 6. OOS 독립 평가 (MA 사전 계산)
-        oos_signal = add_single_moving_average(oos_signal, best_ma, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        # 6. OOS 독립 평가 (MA 사전 계산 + 유효 구간 필터링)
+        oos_ma_col = f"ma_{best_ma}"
+        if oos_ma_col not in oos_signal.columns:
+            oos_signal = add_single_moving_average(oos_signal, best_ma, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
-        oos_params = BufferStrategyParams(
-            initial_capital=initial_capital,
-            ma_window=best_ma,
-            buy_buffer_zone_pct=best_buy_buf,
-            sell_buffer_zone_pct=best_sell_buf,
+        oos_valid_mask = oos_signal[oos_ma_col].notna()
+        oos_signal_valid = oos_signal[oos_valid_mask].reset_index(drop=True)
+        oos_trade_valid = oos_trade[oos_valid_mask].reset_index(drop=True)
+
+        oos_strategy = BufferZoneStrategy(
+            ma_col=oos_ma_col,
+            buy_buffer_pct=best_buy_buf,
+            sell_buffer_pct=best_sell_buf,
             hold_days=best_hold,
         )
 
-        _, _, oos_summary = run_backtest(BufferZoneStrategy(), oos_signal, oos_trade, oos_params, log_trades=False)
+        _, _, oos_summary = run_backtest(
+            oos_strategy, oos_signal_valid, oos_trade_valid, initial_capital, log_trades=False
+        )
 
         oos_cagr = float(oos_summary["cagr"])
         oos_mdd = float(oos_summary["mdd"])
@@ -406,44 +414,45 @@ def _safe_calmar(cagr: float, mdd: float) -> float:
 
 def build_params_schedule(
     window_results: list[WfoWindowResultDict],
-) -> tuple[BufferStrategyParams, dict[date, BufferStrategyParams]]:
+) -> tuple[SignalStrategy, dict[date, SignalStrategy]]:
     """WFO 결과에서 params_schedule을 구성한다.
 
-    첫 윈도우의 최적 파라미터를 초기 params로 사용하고,
-    두 번째 윈도우부터 OOS 시작일을 전환 키로 사용한다.
+    첫 윈도우의 최적 파라미터로 초기 전략을 생성하고,
+    두 번째 윈도우부터 OOS 시작일을 전환 키로 전략 객체를 매핑한다.
+
+    호출 전제: 반환된 전략 객체들이 사용하는 MA 컬럼이 signal_df에
+    사전 계산되어 있어야 한다. (예: "ma_150", "ma_200" 등)
 
     Args:
         window_results: run_walkforward() 반환 결과
 
     Returns:
-        (initial_params, schedule) 튜플
-            - initial_params: 첫 윈도우 기반 파라미터
-            - schedule: {oos2_start: params2, oos3_start: params3, ...}
+        (initial_strategy, schedule) 튜플
+            - initial_strategy: 첫 윈도우 기반 전략 객체
+            - schedule: {oos2_start: strategy2, oos3_start: strategy3, ...}
     """
     if not window_results:
         raise ValueError("window_results가 비어있습니다")
 
     first = window_results[0]
-    initial_params = BufferStrategyParams(
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=first["best_ma_window"],
-        buy_buffer_zone_pct=first["best_buy_buffer_zone_pct"],
-        sell_buffer_zone_pct=first["best_sell_buffer_zone_pct"],
+    initial_strategy: SignalStrategy = BufferZoneStrategy(
+        ma_col=f"ma_{first['best_ma_window']}",
+        buy_buffer_pct=first["best_buy_buffer_zone_pct"],
+        sell_buffer_pct=first["best_sell_buffer_zone_pct"],
         hold_days=first["best_hold_days"],
     )
 
-    schedule: dict[date, BufferStrategyParams] = {}
+    schedule: dict[date, SignalStrategy] = {}
     for wr in window_results[1:]:
         oos_start = date.fromisoformat(wr["oos_start"])
-        schedule[oos_start] = BufferStrategyParams(
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-            ma_window=wr["best_ma_window"],
-            buy_buffer_zone_pct=wr["best_buy_buffer_zone_pct"],
-            sell_buffer_zone_pct=wr["best_sell_buffer_zone_pct"],
+        schedule[oos_start] = BufferZoneStrategy(
+            ma_col=f"ma_{wr['best_ma_window']}",
+            buy_buffer_pct=wr["best_buy_buffer_zone_pct"],
+            sell_buffer_pct=wr["best_sell_buffer_zone_pct"],
             hold_days=wr["best_hold_days"],
         )
 
-    return initial_params, schedule
+    return initial_strategy, schedule
 
 
 # WFO 결과 CSV 로딩 시 필수 컬럼

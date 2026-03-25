@@ -36,7 +36,6 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies import buffer_zone
-from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
     build_params_schedule,
@@ -125,20 +124,22 @@ def _run_stitched_equity(
     oos_signal = signal_df[oos_mask].reset_index(drop=True)
     oos_trade = trade_df[oos_mask].reset_index(drop=True)
 
-    # 모든 MA 윈도우 사전 계산
-    all_ma_windows = {initial_params.ma_window}
-    for p in schedule.values():
-        all_ma_windows.add(p.ma_window)
+    # 모든 MA 윈도우 사전 계산 (_ma_col 속성: "ma_200" 형태)
+    _initial_ma_col: str = initial_params._ma_col  # type: ignore[attr-defined]
+    all_ma_windows: set[int] = {int(_initial_ma_col.removeprefix("ma_"))}
+    for _p in schedule.values():
+        _p_ma_col: str = _p._ma_col  # type: ignore[attr-defined]
+        all_ma_windows.add(int(_p_ma_col.removeprefix("ma_")))
 
     for window in all_ma_windows:
         oos_signal = add_single_moving_average(oos_signal, window, ma_type="ema")
 
-    # stitched 실행
+    # stitched 실행 (initial_params는 이미 SignalStrategy)
     trades_df, equity_df, summary = run_backtest(
-        BufferZoneStrategy(),
+        initial_params,
         oos_signal,
         oos_trade,
-        initial_params,
+        initial_capital,
         log_trades=False,
         params_schedule=schedule,
     )

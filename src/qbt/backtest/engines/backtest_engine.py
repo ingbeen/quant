@@ -6,6 +6,7 @@ SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용
 주요 함수:
 - run_backtest: 전략 객체를 받아 단일 백테스트를 실행
 - run_grid_search: 파라미터 그리드 탐색 (병렬 처리)
+- run_buffer_strategy: BufferStrategyParams 기반 버퍼존 백테스트 편의 래퍼
 """
 
 import os
@@ -45,10 +46,8 @@ from qbt.backtest.engines.engine_common import (
 )
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import (
-    HoldState,
     PendingOrderConflictError,
     SignalStrategy,
-    compute_bands,
 )
 from qbt.backtest.types import BufferStrategyParams, SummaryDict
 from qbt.common_constants import (
@@ -87,67 +86,37 @@ class GridSearchResult(TypedDict):
     final_capital: float
 
 
-class BufferStrategyResultDict(SummaryDict):
-    """run_backtest() 반환 타입.
-
-    SummaryDict를 상속하고 전략 파라미터를 추가한다.
-    """
-
-    strategy: str
-    ma_window: int
-    buy_buffer_zone_pct: float
-    sell_buffer_zone_pct: float
-    hold_days: int
-
-
 # ============================================================================
 # 내부 헬퍼
 # ============================================================================
 
 
 def _validate_backtest_inputs(
-    params: BufferStrategyParams,
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
-    ma_col: str,
 ) -> None:
-    """버퍼존 전략의 입력 파라미터와 데이터를 검증한다.
+    """백테스트 입력 데이터를 검증한다.
 
     Args:
-        params: 전략 파라미터
         signal_df: 시그널용 DataFrame
         trade_df: 매매용 DataFrame
-        ma_col: 이동평균 컬럼명
 
     Raises:
         ValueError: 검증 실패 시
     """
-    # 1. 파라미터 검증
-    if params.ma_window < 1:
-        raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
-
-    if params.buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
-        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buy_buffer_zone_pct}")
-
-    if params.sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
-        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.sell_buffer_zone_pct}")
-
-    if params.hold_days < MIN_HOLD_DAYS:
-        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
-
-    # 2. signal_df 필수 컬럼 확인
-    signal_required = [ma_col, COL_CLOSE, COL_DATE]
+    # 1. signal_df 필수 컬럼 확인
+    signal_required = [COL_DATE, COL_CLOSE]
     signal_missing = set(signal_required) - set(signal_df.columns)
     if signal_missing:
         raise ValueError(f"signal_df 필수 컬럼 누락: {signal_missing}")
 
-    # 3. trade_df 필수 컬럼 확인
-    trade_required = [COL_OPEN, COL_CLOSE, COL_DATE]
+    # 2. trade_df 필수 컬럼 확인
+    trade_required = [COL_DATE, COL_OPEN, COL_CLOSE]
     trade_missing = set(trade_required) - set(trade_df.columns)
     if trade_missing:
         raise ValueError(f"trade_df 필수 컬럼 누락: {trade_missing}")
 
-    # 4. 날짜 정렬 일치 검증
+    # 3. 날짜 정렬 일치 검증
     signal_dates = list(signal_df[COL_DATE])
     trade_dates = list(trade_df[COL_DATE])
     if signal_dates != trade_dates:
@@ -189,6 +158,7 @@ def _run_backtest_for_grid(
 
     병렬 실행을 위한 헬퍼 함수. 예외 발생 시 즉시 전파한다.
     signal_df, trade_df는 WORKER_CACHE에서 조회한다.
+    signal_df에는 해당 ma_window 컬럼이 사전 계산되어 있어야 한다.
 
     Args:
         params: 전략 파라미터
@@ -202,7 +172,22 @@ def _run_backtest_for_grid(
     # WORKER_CACHE에서 DataFrame 조회
     signal_df = WORKER_CACHE["signal_df"]
     trade_df = WORKER_CACHE["trade_df"]
-    _, _, summary = run_backtest(BufferZoneStrategy(), signal_df, trade_df, params, log_trades=False)
+
+    # MA 컬럼 기준으로 유효 행 필터링
+    ma_col = f"ma_{params.ma_window}"
+    valid_mask = signal_df[ma_col].notna()
+    filtered_signal = signal_df[valid_mask].reset_index(drop=True)
+    filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+
+    # BufferZoneStrategy 생성 (파라미터 포함)
+    strategy = BufferZoneStrategy(
+        ma_col=ma_col,
+        buy_buffer_pct=params.buy_buffer_zone_pct,
+        sell_buffer_pct=params.sell_buffer_zone_pct,
+        hold_days=params.hold_days,
+    )
+
+    _, _, summary = run_backtest(strategy, filtered_signal, filtered_trade, params.initial_capital, log_trades=False)
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
     cagr = summary["cagr"]
@@ -238,11 +223,11 @@ def run_backtest(
     strategy: SignalStrategy,
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
-    params: BufferStrategyParams,
+    initial_capital: float,
     log_trades: bool = True,
-    strategy_name: str = "buffer_zone",
-    params_schedule: dict[date, BufferStrategyParams] | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, BufferStrategyResultDict]:
+    strategy_name: str = "",
+    params_schedule: dict[date, SignalStrategy] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, SummaryDict]:
     """전략 객체를 받아 단일 자산 백테스트를 실행한다.
 
     롱 온리, 최대 1 포지션 전략을 사용한다.
@@ -250,72 +235,54 @@ def run_backtest(
     strategy.check_buy(), strategy.check_sell()로 신호를 감지한다.
 
     핵심 실행 규칙:
-    - 시그널: signal_df의 close vs signal_df의 MA 밴드
+    - 시그널: signal_df의 close vs 전략 내부 MA/밴드 계산
     - 체결: trade_df의 open (다음 날 시가)
     - equity = cash + position * trade_df.close (모든 시점)
     - final_capital = 마지막 equity (평가액 포함)
     - pending_order: 단일 슬롯 (충돌 시 PendingOrderConflictError)
 
+    MA 필터링 책임:
+    - 호출자가 유효 데이터 구간(MA 워밍업 이후)으로 signal_df/trade_df를 사전 필터링해야 한다.
+    - run_backtest 자체는 전달받은 데이터를 그대로 사용한다.
+
     Args:
         strategy: SignalStrategy Protocol을 구현한 전략 객체
-        signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
+        signal_df: 시그널용 DataFrame (전략에 필요한 MA 컬럼 포함, 사전 필터링됨)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
-        params: 전략 파라미터 (초기 구간 파라미터)
+        initial_capital: 초기 자본금
         log_trades: 거래 로그 출력 여부 (기본값: True)
-        strategy_name: 전략 식별 이름 (기본값: "buffer_zone")
-        params_schedule: 구간별 파라미터 전환 스케줄 (기본값: None)
-            {date: BufferStrategyParams} 형태. 해당 날짜부터 새 파라미터 적용.
-            None이면 기존 동작과 완전히 동일.
+        strategy_name: 전략 식별 이름 (기본값: "")
+        params_schedule: 구간별 전략 전환 스케줄 (기본값: None)
+            {date: SignalStrategy} 형태. 해당 날짜부터 새 전략 객체로 교체.
+            None이면 단일 전략으로 전체 기간 실행.
 
     Returns:
         tuple: (trades_df, equity_df, summary)
             - trades_df: 거래 내역 DataFrame
             - equity_df: 자본 곡선 DataFrame
-            - summary: 요약 지표 딕셔너리
+            - summary: 요약 지표 딕셔너리 (SummaryDict)
 
     Raises:
-        ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
+        ValueError: 필수 컬럼 누락 또는 데이터 부족 시
         PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
     if log_trades:
-        logger.debug(f"백테스트 실행 시작: params={params}")
+        logger.debug(f"백테스트 실행 시작: strategy_name={strategy_name!r}, initial_capital={initial_capital}")
 
-    # 1. 파라미터 및 데이터 검증
-    ma_col = f"ma_{params.ma_window}"
-    _validate_backtest_inputs(params, signal_df, trade_df, ma_col)
-
-    # 2. 유효 데이터만 사용 (signal_df의 ma_window 이후부터)
-    signal_df = signal_df.copy()
-    trade_df = trade_df.copy()
-
-    # 2-1. params_schedule의 모든 고유 MA 윈도우를 signal_df에 사전 계산
-    sorted_switch_dates: list[date] = []
-    next_switch_idx = 0
-    if params_schedule is not None:
-        # 모든 고유 MA 윈도우 수집 (현재 params + schedule의 모든 params)
-        all_ma_windows = {params.ma_window}
-        for sched_params in params_schedule.values():
-            all_ma_windows.add(sched_params.ma_window)
-
-        # signal_df에 없는 MA 컬럼 사전 계산
-        for window in all_ma_windows:
-            col = f"ma_{window}"
-            if col not in signal_df.columns:
-                signal_df = add_single_moving_average(signal_df, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
-
-        # schedule 날짜 정렬
-        sorted_switch_dates = sorted(params_schedule.keys())
-
-    # signal_df에서 MA가 유효한 행의 인덱스를 기준으로 양쪽 모두 필터
-    valid_mask = signal_df[ma_col].notna()
-    signal_df = signal_df[valid_mask].reset_index(drop=True)
-    trade_df = trade_df[valid_mask].reset_index(drop=True)
+    # 1. 데이터 검증
+    _validate_backtest_inputs(signal_df, trade_df)
 
     if len(signal_df) < MIN_VALID_ROWS:
         raise ValueError(f"유효 데이터 부족: {len(signal_df)}행 (최소 {MIN_VALID_ROWS}행 필요)")
 
+    # 2. params_schedule 날짜 목록 사전 정렬
+    sorted_switch_dates: list[date] = []
+    next_switch_idx = 0
+    if params_schedule is not None:
+        sorted_switch_dates = sorted(params_schedule.keys())
+
     # 3. 초기화
-    capital = params.initial_capital
+    capital = initial_capital
     position = 0
     entry_price = 0.0
     entry_date: date | None = None
@@ -323,72 +290,38 @@ def run_backtest(
     trades: list[TradeRecord] = []
     equity_records: list[EquityRecord] = []
     pending_order: PendingOrder | None = None
-    hold_state: HoldState | None = None
 
-    entry_hold_days = 0
+    # 매수 체결 시 엔진 로컬 상태 (strategy.get_buy_meta()에서 갱신)
+    entry_buy_buffer_pct: float = 0.0
+    entry_hold_days_used: int = 0
 
-    # 3-1. 첫 날 에쿼티 기록 및 prev band 초기화
-    first_signal_row = signal_df.iloc[0]
-    first_trade_row = trade_df.iloc[0]
-    first_ma_value = float(first_signal_row[ma_col])
-    first_upper_band, first_lower_band = compute_bands(
-        first_ma_value,
-        params.buy_buffer_zone_pct,
-        params.sell_buffer_zone_pct,
-    )
-
-    # 에쿼티는 trade_df의 종가로 계산
-    first_equity_record = record_equity(
-        current_date=first_signal_row[COL_DATE],
-        capital=params.initial_capital,
-        position=0,
-        close_price=float(first_trade_row[COL_CLOSE]),
-        buy_buffer_pct=params.buy_buffer_zone_pct,
-        sell_buffer_pct=params.sell_buffer_zone_pct,
-        upper_band=first_upper_band,
-        lower_band=first_lower_band,
-    )
-    equity_records.append(first_equity_record)
-
-    prev_upper_band: float = first_upper_band
-    prev_lower_band: float = first_lower_band
-
-    # 4. 백테스트 루프
-    # 시그널: signal_df의 close, ma → 밴드/돌파 감지
+    # 4. 백테스트 루프 (Day 0부터 시작 — B&H 첫 매수 타이밍 fix)
+    # 시그널: signal_df의 close, MA → 전략 내부에서 밴드/돌파 감지
     # 체결: trade_df의 open → 매수/매도 체결가
     # 에쿼티: trade_df의 close → 포지션 평가
-    for i in range(1, len(signal_df)):
+    for i in range(0, len(signal_df)):
         signal_row = signal_df.iloc[i]
         trade_row = trade_df.iloc[i]
         current_date = signal_row[COL_DATE]
 
-        # 4-0. params_schedule 전환 체크
+        # 4-0. params_schedule 전환 체크 (strategy 객체 직접 교체)
         if params_schedule is not None and next_switch_idx < len(sorted_switch_dates):
             if current_date >= sorted_switch_dates[next_switch_idx]:
-                params = params_schedule[sorted_switch_dates[next_switch_idx]]
-                ma_col = f"ma_{params.ma_window}"
+                strategy = params_schedule[sorted_switch_dates[next_switch_idx]]
                 next_switch_idx += 1
                 if log_trades:
-                    logger.debug(f"파라미터 전환: {current_date}, 새 params={params}")
+                    logger.debug(f"전략 교체: {current_date}")
 
-        # 4-1. 파라미터 적용
-        current_buy_buffer_pct = params.buy_buffer_zone_pct
-        current_hold_days = params.hold_days
-        current_sell_buffer_pct = params.sell_buffer_zone_pct
-
-        # 4-2. 예약된 주문 실행 (trade_df의 오늘 시가로 체결)
+        # 4-1. 예약된 주문 실행 (trade_df의 오늘 시가로 체결)
         if pending_order is not None:
             if pending_order.order_type == "buy" and position == 0:
                 position, capital, entry_price, entry_date, success = execute_buy_order(
                     pending_order, float(trade_row[COL_OPEN]), current_date, capital, position
                 )
-                if success:
-                    entry_hold_days = pending_order.hold_days_used
-                    if log_trades:
-                        logger.debug(
-                            f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
-                            f"수량={position}, 매수버퍼={pending_order.buy_buffer_zone_pct:.2%}"
-                        )
+                if success and log_trades:
+                    logger.debug(
+                        f"매수 체결: {entry_date}, 가격={entry_price:.2f}, " f"수량={position}, 매수버퍼={entry_buy_buffer_pct:.2%}"
+                    )
 
             elif pending_order.order_type == "sell" and position > 0:
                 assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
@@ -400,7 +333,8 @@ def run_backtest(
                     position,
                     entry_price,
                     entry_date,
-                    hold_days_used=entry_hold_days,
+                    hold_days_used=entry_hold_days_used,
+                    buy_buffer_pct=entry_buy_buffer_pct,
                 )
                 trades.append(trade_record)
                 if log_trades:
@@ -408,104 +342,49 @@ def run_backtest(
 
             pending_order = None
 
-        # 4-3. 버퍼존 밴드 계산 (signal_df의 MA 기준)
-        ma_value = float(signal_row[ma_col])
-        upper_band, lower_band = compute_bands(ma_value, current_buy_buffer_pct, current_sell_buffer_pct)
-
-        # 4-4. 에쿼티 기록 (trade_df의 종가로 평가)
+        # 4-2. 에쿼티 기록 (trade_df의 종가로 평가)
         equity_record = record_equity(
             current_date=current_date,
             capital=capital,
             position=position,
             close_price=float(trade_row[COL_CLOSE]),
-            buy_buffer_pct=current_buy_buffer_pct,
-            sell_buffer_pct=current_sell_buffer_pct,
-            upper_band=upper_band,
-            lower_band=lower_band,
         )
         equity_records.append(equity_record)
 
-        # 4-5. 신호 감지 및 주문 예약 (signal_df 기준)
-        prev_signal_row = signal_df.iloc[i - 1]
-
+        # 4-3. 신호 감지 및 주문 예약 (signal_df 기준, 전략 내부에서 처리)
         if position == 0:
-            # 매수 로직 — strategy.check_buy()에 위임
-            old_hold_state = hold_state
-            buy, new_hold_state = strategy.check_buy(
-                prev_close=float(prev_signal_row[COL_CLOSE]),
-                cur_close=float(signal_row[COL_CLOSE]),
-                prev_upper=prev_upper_band,
-                cur_upper=upper_band,
-                hold_state=hold_state,
-                hold_days_required=current_hold_days,
-                current_date=current_date,
-                buy_buffer_pct=current_buy_buffer_pct,
-            )
+            # 매수 로직 — strategy.check_buy()에 위임 (내부 prev 상태 갱신 포함)
+            buy = strategy.check_buy(signal_df, i, current_date)
 
             if buy:
-                # 매수 신호: PendingOrder 생성
-                # hold_state가 있었으면 그 시점의 buffer_pct, hold_days 사용
-                if old_hold_state is not None:
-                    pend_buffer_pct = old_hold_state["buffer_pct"]
-                    hold_days_used = old_hold_state["hold_days_required"]
-                else:
-                    pend_buffer_pct = current_buy_buffer_pct
-                    hold_days_used = 0
+                # 매수 신호: get_buy_meta()로 메타데이터 수집 → 엔진 로컬 상태 갱신
+                meta = strategy.get_buy_meta()
+                entry_buy_buffer_pct = float(meta.get("buy_buffer_pct", 0.0))
+                entry_hold_days_used = int(meta.get("hold_days_used", 0))
 
                 _check_pending_conflict(pending_order, "buy", current_date)
                 pending_order = PendingOrder(
                     order_type="buy",
                     signal_date=current_date,
-                    buy_buffer_zone_pct=pend_buffer_pct,
-                    hold_days_used=hold_days_used,
                 )
-                hold_state = None
-
-            elif new_hold_state is not None:
-                # 대기 중 (days_passed 증가 또는 신규 생성)
-                # start_date, buffer_pct는 check_buy에서 이미 올바르게 설정됨
-                hold_state = new_hold_state
-
-            else:
-                # 신호 없음 또는 hold 해제
-                hold_state = None
 
         elif position > 0:
-            # 매도 로직 — strategy.check_sell()에 위임
-            sell = strategy.check_sell(
-                prev_close=float(prev_signal_row[COL_CLOSE]),
-                cur_close=float(signal_row[COL_CLOSE]),
-                prev_lower=prev_lower_band,
-                cur_lower=lower_band,
-            )
+            # 매도 로직 — strategy.check_sell()에 위임 (내부 prev 상태 갱신 포함)
+            sell = strategy.check_sell(signal_df, i)
 
             if sell:
                 _check_pending_conflict(pending_order, "sell", current_date)
                 pending_order = PendingOrder(
                     order_type="sell",
                     signal_date=current_date,
-                    buy_buffer_zone_pct=current_buy_buffer_pct,
-                    hold_days_used=0,
                 )
-
-        # 4-6. 다음 루프를 위해 전일 밴드 저장
-        prev_upper_band = upper_band
-        prev_lower_band = lower_band
 
     # 5. 백테스트 종료 (강제청산 없음)
     trades_df = pd.DataFrame(trades)
     equity_df = pd.DataFrame(equity_records)
 
     # 6. 요약 지표 계산
-    base_summary = calculate_summary(trades_df, equity_df, params.initial_capital)
-    summary: BufferStrategyResultDict = {
-        **base_summary,
-        "strategy": strategy_name,
-        "ma_window": params.ma_window,
-        "buy_buffer_zone_pct": params.buy_buffer_zone_pct,
-        "sell_buffer_zone_pct": params.sell_buffer_zone_pct,
-        "hold_days": params.hold_days,
-    }
+    summary = calculate_summary(trades_df, equity_df, initial_capital)
 
     # 7. 미청산 포지션 정보 기록
     if position > 0 and entry_date is not None:
@@ -536,7 +415,7 @@ def run_grid_search(
     성과 지표를 기록한다.
 
     Args:
-        signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
+        signal_df: 시그널용 DataFrame (MA 계산 대상)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
         ma_window_list: 이동평균 기간 목록
         buy_buffer_zone_pct_list: 매수 버퍼존 비율 목록
@@ -613,19 +492,25 @@ def run_buffer_strategy(
     params: BufferStrategyParams,
     log_trades: bool = True,
     strategy_name: str = "buffer_zone",
-    params_schedule: dict[date, BufferStrategyParams] | None = None,
-) -> tuple[pd.DataFrame, pd.DataFrame, "BufferStrategyResultDict"]:
+    params_schedule: dict[date, SignalStrategy] | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, SummaryDict]:
     """버퍼존 전략으로 백테스트를 실행한다.
 
-    `run_backtest(BufferZoneStrategy(), ...)` 편의 래퍼.
+    `BufferStrategyParams`를 받아 내부에서 `BufferZoneStrategy`를 생성하고
+    `run_backtest`를 호출하는 편의 래퍼.
+
+    초기 MA 계산 및 유효 구간 필터링을 내부에서 수행한다.
+    params_schedule에 포함된 전략들의 MA 컬럼은 호출자가 사전 계산해야 한다.
 
     Args:
-        signal_df: 시그널용 DataFrame (MA 계산, 밴드 비교, 돌파 감지)
+        signal_df: 시그널용 DataFrame (초기 MA 사전 계산 불필요, 내부에서 처리)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
         params: 전략 파라미터 (초기 구간 파라미터)
         log_trades: 거래 로그 출력 여부 (기본값: True)
         strategy_name: 전략 식별 이름 (기본값: "buffer_zone")
-        params_schedule: 구간별 파라미터 전환 스케줄 (기본값: None)
+        params_schedule: 구간별 전략 전환 스케줄 (기본값: None)
+            {date: SignalStrategy} 형태. 해당 날짜부터 해당 전략 객체로 교체.
+            포함된 전략이 사용하는 MA 컬럼은 signal_df에 사전 계산되어 있어야 한다.
 
     Returns:
         tuple: (trades_df, equity_df, summary)
@@ -634,11 +519,42 @@ def run_buffer_strategy(
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
         PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
+    # 1. 파라미터 검증
+    if params.ma_window < 1:
+        raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
+    if params.buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
+        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buy_buffer_zone_pct}")
+    if params.sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
+        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.sell_buffer_zone_pct}")
+    if params.hold_days < MIN_HOLD_DAYS:
+        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
+
+    # 2. 초기 MA 계산
+    ma_col = f"ma_{params.ma_window}"
+    signal_df = signal_df.copy()
+    trade_df = trade_df.copy()
+
+    if ma_col not in signal_df.columns:
+        signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+
+    # 3. MA 유효 구간 필터링 (초기 MA 기준)
+    valid_mask = signal_df[ma_col].notna()
+    filtered_signal = signal_df[valid_mask].reset_index(drop=True)
+    filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+
+    # 4. BufferZoneStrategy 생성 및 실행
+    strategy = BufferZoneStrategy(
+        ma_col=ma_col,
+        buy_buffer_pct=params.buy_buffer_zone_pct,
+        sell_buffer_pct=params.sell_buffer_zone_pct,
+        hold_days=params.hold_days,
+    )
+
     return run_backtest(
-        BufferZoneStrategy(),
-        signal_df,
-        trade_df,
-        params,
+        strategy,
+        filtered_signal,
+        filtered_trade,
+        params.initial_capital,
         log_trades=log_trades,
         strategy_name=strategy_name,
         params_schedule=params_schedule,

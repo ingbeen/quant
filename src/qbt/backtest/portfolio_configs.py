@@ -26,14 +26,9 @@ from qbt.common_constants import (
 )
 
 # ============================================================================
-# 전 자산 공통 4P 파라미터 (PLAN_portfolio_experiment.md §4.1)
+# 공통 포트폴리오 설정 기본값
 # ============================================================================
 
-_DEFAULT_MA_WINDOW = 200
-_DEFAULT_BUY_BUFFER = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
-_DEFAULT_SELL_BUFFER = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
-_DEFAULT_HOLD_DAYS = 3
-_DEFAULT_MA_TYPE = "ema"
 _DEFAULT_REBALANCE_THRESHOLD = 0.10  # 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
 _DEFAULT_TOTAL_CAPITAL = 10_000_000.0
 
@@ -74,11 +69,6 @@ _CONFIG_A1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # A-2: 60:40 전통 배분 (기본, 사전 결정) — QQQ 30% / SPY 30% / GLD 40%
@@ -108,11 +98,6 @@ _CONFIG_A2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # A-3: 공격적 구성 (민감도 확인) — QQQ 35% / SPY 35% / GLD 30%
@@ -142,11 +127,6 @@ _CONFIG_A3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # B-1: TQQQ 소량(7%) + 현금 14% — QQQ 19.5% / TQQQ 7% / SPY 19.5% / GLD 40%
@@ -183,11 +163,6 @@ _CONFIG_B1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # B-2: TQQQ 증가(12%) + 현금 24% — QQQ 12% / TQQQ 12% / SPY 12% / GLD 40%
@@ -224,11 +199,6 @@ _CONFIG_B2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # B-3: 현금 없이 전액 투자 — QQQ 15% / TQQQ 15% / SPY 30% / GLD 40%
@@ -265,11 +235,6 @@ _CONFIG_B3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # C-1: QQQ+TQQQ만 (레버리지만, 분산 없음) — QQQ 50% / TQQQ 50%
@@ -294,11 +259,6 @@ _CONFIG_C1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_c1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # D-1: QQQ 단일 자산 (버퍼존 100%, 비교군) — QQQ 100%
@@ -317,11 +277,6 @@ _CONFIG_D1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_d1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # D-2: TQQQ 단일 자산 (버퍼존 100%, 비교군) — TQQQ 100%
@@ -340,11 +295,6 @@ _CONFIG_D2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_d2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # ============================================================================
@@ -379,11 +329,6 @@ _CONFIG_E1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # E-2: SPY 60% / GLD 20% / TLT 20% (GLD:TLT 1:1)
@@ -413,11 +358,6 @@ _CONFIG_E2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # E-3: SPY 60% / GLD 30% / TLT 10% (GLD 우위)
@@ -447,11 +387,6 @@ _CONFIG_E3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # E-4: SPY 70% / GLD 20% / TLT 10% (주식 비중 70%)
@@ -481,11 +416,6 @@ _CONFIG_E4 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e4"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # E-5: SPY 80% / GLD 15% / TLT 5% (주식 비중 80%, 방어 자산 최소화)
@@ -515,11 +445,6 @@ _CONFIG_E5 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e5"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # ============================================================================
@@ -561,11 +486,6 @@ _CONFIG_F1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # F-2: SPY 30% / TQQQ 30% / GLD 25% / TLT 15% (유효 주식 노출 120%)
@@ -601,11 +521,6 @@ _CONFIG_F2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # F-3: SPY 40% / TQQQ 20% / GLD 30% / TLT 10% (GLD 비중 증가, 유효 주식 노출 100%)
@@ -641,11 +556,6 @@ _CONFIG_F3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # F-4: SPY 20% / TQQQ 40% / GLD 25% / TLT 15% (유효 주식 노출 140%)
@@ -681,11 +591,6 @@ _CONFIG_F4 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f4"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # ============================================================================
@@ -722,11 +627,6 @@ _CONFIG_G1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # G-2: GLD B&H (SPY 버퍼존 / GLD strategy_type=buy_and_hold / TLT 버퍼존)
@@ -757,11 +657,6 @@ _CONFIG_G2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # G-3: TLT B&H (SPY 버퍼존 / GLD 버퍼존 / TLT strategy_type=buy_and_hold)
@@ -792,11 +687,6 @@ _CONFIG_G3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # G-4: GLD+TLT 모두 B&H (SPY 버퍼존 / GLD strategy_type=buy_and_hold / TLT strategy_type=buy_and_hold)
@@ -828,11 +718,6 @@ _CONFIG_G4 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g4"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # ============================================================================
@@ -867,11 +752,6 @@ _CONFIG_H1 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h1"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # H-2: TQQQ 60% / GLD 40% (GLD 집중)
@@ -895,11 +775,6 @@ _CONFIG_H2 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h2"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # H-3: TQQQ 60% / TLT 40% (TLT 집중)
@@ -923,11 +798,6 @@ _CONFIG_H3 = PortfolioConfig(
     total_capital=_DEFAULT_TOTAL_CAPITAL,
     rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h3"),
-    ma_window=_DEFAULT_MA_WINDOW,
-    buy_buffer_zone_pct=_DEFAULT_BUY_BUFFER,
-    sell_buffer_zone_pct=_DEFAULT_SELL_BUFFER,
-    hold_days=_DEFAULT_HOLD_DAYS,
-    ma_type=_DEFAULT_MA_TYPE,
 )
 
 # ============================================================================

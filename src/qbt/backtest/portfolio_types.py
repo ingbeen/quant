@@ -37,6 +37,11 @@ class AssetSlotConfig:
             "buffer_zone" = 버퍼존 신호에 따라 매수/매도 (기본값).
             "buy_and_hold" = 즉시 매수 후 매도 신호 무시, 항상 투자 상태 유지.
             G 시리즈에서 GLD·TLT B&H 처리에 사용.
+        ma_window: 이동평균 기간 (buffer_zone 슬롯에서 사용, 기본값 200)
+        buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.03)
+        sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.05)
+        hold_days: 유지일수 (buffer_zone 슬롯에서 사용, 기본값 3)
+        ma_type: 이동평균 유형 (buffer_zone 슬롯에서 사용, 기본값 "ema")
     """
 
     asset_id: str
@@ -44,13 +49,20 @@ class AssetSlotConfig:
     trade_data_path: Path
     target_weight: float  # 목표 비중 (0.30 = 30%)
     strategy_type: Literal["buffer_zone", "buy_and_hold"] = "buffer_zone"
+    # 전략별 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시)
+    ma_window: int = 200
+    buy_buffer_zone_pct: float = 0.03
+    sell_buffer_zone_pct: float = 0.05
+    hold_days: int = 3
+    ma_type: Literal["ema", "sma"] = "ema"
 
 
 @dataclass(frozen=True)
 class PortfolioConfig:
     """포트폴리오 실험 설정.
 
-    복수 자산의 목표 비중, 리밸런싱 정책, 4P 전략 파라미터를 담는다.
+    복수 자산의 목표 비중, 리밸런싱 정책을 담는다.
+    전략 파라미터(ma_window, buffer_pct 등)는 슬롯 레벨(AssetSlotConfig)로 이동하였다.
     target_weight 합이 1.0 미만인 경우 잔여분은 현금으로 유지된다 (B시리즈).
 
     리밸런싱 정책:
@@ -65,25 +77,14 @@ class PortfolioConfig:
         total_capital: 총 초기 자본금
         rebalance_threshold_rate: 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
         result_dir: 결과 저장 디렉토리
-        ma_window: 이동평균 기간 (전 자산 공통)
-        buy_buffer_zone_pct: 매수 버퍼존 비율 (전 자산 공통)
-        sell_buffer_zone_pct: 매도 버퍼존 비율 (전 자산 공통)
-        hold_days: 유지일수 (전 자산 공통)
-        ma_type: 이동평균 유형 (전 자산 공통, "ema" 또는 "sma")
     """
 
     experiment_name: str
     display_name: str
     asset_slots: tuple[AssetSlotConfig, ...]
     total_capital: float
-    rebalance_threshold_rate: float  # 상대 리밸런싱 임계값 (0.20 = ±20%)
+    rebalance_threshold_rate: float  # 상대 리밸런싱 임계값 (0.10 = ±10%)
     result_dir: Path
-    # 전 자산 공통 4P 파라미터
-    ma_window: int  # 200
-    buy_buffer_zone_pct: float  # 0.03 (3%)
-    sell_buffer_zone_pct: float  # 0.05 (5%)
-    hold_days: int  # 3
-    ma_type: Literal["ema", "sma"]  # "ema"
 
 
 # ============================================================================
@@ -147,18 +148,13 @@ class PortfolioResult:
     summary: Mapping[str, object]
     per_asset: list[PortfolioAssetResult] = field(default_factory=list)
     config: PortfolioConfig = field(
-        default_factory=lambda: PortfolioConfig(  # type: ignore[call-arg]
+        default_factory=lambda: PortfolioConfig(
             experiment_name="",
             display_name="",
             asset_slots=(),
             total_capital=0.0,
             rebalance_threshold_rate=0.10,
             result_dir=Path("."),
-            ma_window=200,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=3,
-            ma_type="ema",
         )
     )
     params_json: dict[str, Any] = field(default_factory=dict)

@@ -21,9 +21,8 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.engines.backtest_engine import run_backtest
+from qbt.backtest.engines.backtest_engine import run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import (
-    BufferZoneStrategy,
     get_config,
     resolve_params_for_config,
 )
@@ -200,8 +199,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=hold_val,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_backtest(
-                    BufferZoneStrategy(),
+                _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
                     params,
@@ -222,8 +220,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_backtest(
-                    BufferZoneStrategy(),
+                _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
                     params,
@@ -246,8 +243,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_backtest(
-                    BufferZoneStrategy(),
+                _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
                     params,
@@ -271,8 +267,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     hold_days=_FIXED_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
-                _, _, summary = run_backtest(
-                    BufferZoneStrategy(),
+                _, _, summary = run_buffer_strategy(
                     signal_with_ma,
                     trade_df,
                     params,

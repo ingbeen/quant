@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from qbt.backtest.strategies.strategy_common import HoldState, SignalStrategy
+import pandas as pd
+
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import (
     BUY_AND_HOLD_EEM_RESULTS_DIR,
     BUY_AND_HOLD_EFA_RESULTS_DIR,
@@ -111,68 +113,60 @@ CONFIGS: list[BuyAndHoldConfig] = [
 
 
 class BuyAndHoldStrategy(SignalStrategy):
-    """Buy & Hold 전략 클래스.
+    """Buy & Hold 전략 클래스 (Stateless).
 
     SignalStrategy Protocol을 구현한다.
-    check_buy는 항상 (True, None)을 반환하고, check_sell은 항상 False를 반환한다.
+    check_buy는 항상 True, check_sell은 항상 False, get_buy_meta는 빈 dict를 반환한다.
 
     사용 예:
         strategy = BuyAndHoldStrategy()
-        buy, hold_state = strategy.check_buy(
-            prev_close, cur_close, prev_upper, cur_upper, None, 0,
-            current_date, buy_buffer_pct
-        )
-        sell = strategy.check_sell(prev_close, cur_close, prev_lower, cur_lower)
+        buy = strategy.check_buy(signal_df, i, current_date)  # 항상 True
+        sell = strategy.check_sell(signal_df, i)               # 항상 False
     """
 
     def check_buy(
         self,
-        prev_close: float,
-        cur_close: float,
-        prev_upper: float,
-        cur_upper: float,
-        hold_state: HoldState | None,
-        hold_days_required: int,
+        signal_df: pd.DataFrame,
+        i: int,
         current_date: date,
-        buy_buffer_pct: float,
-    ) -> tuple[bool, HoldState | None]:
+    ) -> bool:
         """항상 매수 신호를 반환한다 (파라미터 무시).
 
-        Buy & Hold는 어떤 조건에서도 즉시 매수를 원하므로 항상 (True, None)을 반환한다.
+        Buy & Hold는 모든 i에서 즉시 매수를 원하므로 항상 True를 반환한다.
+        엔진이 이미 position > 0인 경우에는 check_buy 자체를 호출하지 않는다.
 
         Args:
-            prev_close: 전일 종가 (무시)
-            cur_close: 당일 종가 (무시)
-            prev_upper: 전일 상단 밴드 (무시)
-            cur_upper: 당일 상단 밴드 (무시)
-            hold_state: 현재 hold_days 상태 (무시)
-            hold_days_required: 대기 기간 (무시)
+            signal_df: 시그널 DataFrame (무시)
+            i: 현재 인덱스 (무시)
             current_date: 현재 날짜 (무시)
-            buy_buffer_pct: 매수 버퍼 비율 (무시)
 
         Returns:
-            tuple: (True, None) — 항상 매수, hold_state 없음
+            True — 항상 매수
         """
-        return True, None
+        return True
 
     def check_sell(
         self,
-        prev_close: float,
-        cur_close: float,
-        prev_lower: float,
-        cur_lower: float,
+        signal_df: pd.DataFrame,
+        i: int,
     ) -> bool:
-        """항상 매도 안 함을 반환한다 (파라미터 무시).
+        """항상 매도하지 않음을 반환한다 (파라미터 무시).
 
         Buy & Hold는 매도하지 않으므로 항상 False를 반환한다.
 
         Args:
-            prev_close: 전일 종가 (무시)
-            cur_close: 당일 종가 (무시)
-            prev_lower: 전일 하단 밴드 (무시)
-            cur_lower: 당일 하단 밴드 (무시)
+            signal_df: 시그널 DataFrame (무시)
+            i: 현재 인덱스 (무시)
 
         Returns:
             False — 항상 매도하지 않음
         """
         return False
+
+    def get_buy_meta(self) -> dict[str, float | int]:
+        """빈 dict를 반환한다. Buy & Hold는 메타데이터가 없다.
+
+        Returns:
+            {} — 빈 딕셔너리
+        """
+        return {}

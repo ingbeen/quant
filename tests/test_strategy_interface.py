@@ -17,7 +17,6 @@ from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 
-
 # ============================================================================
 # 테스트용 샘플 DataFrame 생성 헬퍼
 # ============================================================================

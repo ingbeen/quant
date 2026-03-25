@@ -21,12 +21,11 @@
 from collections.abc import Callable
 from typing import Any
 
+import pandas as pd
+
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
-    DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
-    MIN_BUY_BUFFER_ZONE_PCT,
-    MIN_SELL_BUFFER_ZONE_PCT,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies.buffer_zone import (
@@ -34,8 +33,9 @@ from qbt.backtest.strategies.buffer_zone import (
     BufferZoneStrategy,
     resolve_params_for_config,
 )
+from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig, BuyAndHoldStrategy
-from qbt.backtest.types import BufferStrategyParams, SingleBacktestResult
+from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
@@ -47,6 +47,52 @@ from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 logger = get_logger(__name__)
+
+
+# ============================================================================
+# 내부 헬퍼
+# ============================================================================
+
+
+def _enrich_equity_with_bands(
+    equity_df: pd.DataFrame,
+    signal_df: pd.DataFrame,
+    ma_col: str,
+    buy_buffer_pct: float,
+    sell_buffer_pct: float,
+) -> pd.DataFrame:
+    """equity_df에 버퍼존 밴드 컬럼을 추가한다.
+
+    signal_df의 MA 값으로 upper_band, lower_band, buy_buffer_pct, sell_buffer_pct 컬럼을
+    equity_df에 Date 기준으로 join하여 추가한다.
+    대시보드에서 밴드 오버레이 표시에 사용된다.
+
+    Args:
+        equity_df: 기본 에쿼티 DataFrame (Date, equity, position 컬럼)
+        signal_df: 시그널 DataFrame (MA 컬럼 포함)
+        ma_col: 이동평균 컬럼명 (예: "ma_200")
+        buy_buffer_pct: 매수 버퍼존 비율 (0~1)
+        sell_buffer_pct: 매도 버퍼존 비율 (0~1)
+
+    Returns:
+        밴드 컬럼이 추가된 equity_df
+    """
+    # signal_df에서 Date, MA 컬럼만 추출 후 밴드 계산
+    band_df = signal_df[[COL_DATE, ma_col]].copy()
+    band_df["upper_band"] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[0])
+    band_df["lower_band"] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[1])
+    band_df["buy_buffer_pct"] = buy_buffer_pct
+    band_df["sell_buffer_pct"] = sell_buffer_pct
+    band_df = band_df.drop(columns=[ma_col])
+
+    # equity_df에 Date 기준으로 join
+    enriched = equity_df.merge(band_df, on=COL_DATE, how="left")
+    return enriched
+
+
+# ============================================================================
+# 팩토리 함수
+# ============================================================================
 
 
 def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]:
@@ -82,16 +128,41 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
 
         # 2. 파라미터 결정
         params, sources = resolve_params_for_config(config)
+        ma_col = f"ma_{params.ma_window}"
 
         # 3. 이동평균 계산
         signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=config.ma_type)
 
-        # 4. 전략 실행
+        # 4. MA 유효 구간 필터링
+        valid_mask = signal_df[ma_col].notna()
+        filtered_signal = signal_df[valid_mask].reset_index(drop=True)
+        filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+
+        # 5. 전략 생성 및 실행
+        strategy = BufferZoneStrategy(
+            ma_col=ma_col,
+            buy_buffer_pct=params.buy_buffer_zone_pct,
+            sell_buffer_pct=params.sell_buffer_zone_pct,
+            hold_days=params.hold_days,
+        )
         trades_df, equity_df, summary = run_backtest(
-            BufferZoneStrategy(), signal_df, trade_df, params, strategy_name=config.strategy_name
+            strategy,
+            filtered_signal,
+            filtered_trade,
+            params.initial_capital,
+            strategy_name=config.strategy_name,
         )
 
-        # 5. JSON 저장용 파라미터
+        # 6. equity_df에 밴드 컬럼 post-processing으로 보강
+        equity_df = _enrich_equity_with_bands(
+            equity_df,
+            filtered_signal,
+            ma_col,
+            params.buy_buffer_zone_pct,
+            params.sell_buffer_zone_pct,
+        )
+
+        # 7. JSON 저장용 파라미터
         params_json: dict[str, Any] = {
             "ma_window": params.ma_window,
             "ma_type": config.ma_type,
@@ -105,7 +176,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         return SingleBacktestResult(
             strategy_name=config.strategy_name,
             display_name=config.display_name,
-            signal_df=signal_df,
+            signal_df=filtered_signal,
             equity_df=equity_df,
             trades_df=trades_df,
             summary=summary,
@@ -137,7 +208,7 @@ def create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleB
         """Buy & Hold 전략 단일 백테스트를 실행한다.
 
         엔진 기반(run_backtest + BuyAndHoldStrategy)으로 실행한다.
-        첫 매수 시점은 MA 워밍업 이후 day 2 시가 (버퍼존과 동일한 엔진 규칙 적용).
+        첫 매수 시점은 시계열 2번째 날 시가 (Day 0에서 신호 → Day 1에서 체결).
 
         Returns:
             SingleBacktestResult: 백테스트 결과 컨테이너
@@ -146,32 +217,20 @@ def create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleB
         trade_df = load_stock_data(config.trade_data_path)
         signal_df = trade_df.copy()
 
-        # 2. dummy BufferStrategyParams 생성 (BuyAndHoldStrategy는 파라미터 무시)
-        #    ma_window=1: EMA-1 = 종가 자체 (NaN 없음), buy/sell_buffer=MIN (0에 가장 근접한 유효값)
-        dummy_params = BufferStrategyParams(
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-            ma_window=1,
-            buy_buffer_zone_pct=MIN_BUY_BUFFER_ZONE_PCT,
-            sell_buffer_zone_pct=MIN_SELL_BUFFER_ZONE_PCT,
-            hold_days=0,
-        )
-
-        # 3. MA 사전 계산 (ma_window=1)
-        signal_df = add_single_moving_average(signal_df, dummy_params.ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
-
-        # 4. 전략 실행
+        # 2. 전략 생성 및 실행 (MA 계산/필터링 불필요)
+        strategy = BuyAndHoldStrategy()
         trades_df, equity_df, summary = run_backtest(
-            BuyAndHoldStrategy(),
+            strategy,
             signal_df,
             trade_df,
-            dummy_params,
+            DEFAULT_INITIAL_CAPITAL,
             strategy_name=config.strategy_name,
         )
 
-        # 5. 시그널 DataFrame: trade_df OHLC만 추출 (ma 컬럼 제외)
+        # 3. 시그널 DataFrame: trade_df OHLC만 추출 (MA 컬럼 없음)
         bh_signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
 
-        # 6. JSON 저장용 파라미터 (dummy MA 파라미터 노출 안 함)
+        # 4. JSON 저장용 파라미터
         params_json: dict[str, Any] = {
             "strategy": config.strategy_name,
             "initial_capital": round(DEFAULT_INITIAL_CAPITAL),

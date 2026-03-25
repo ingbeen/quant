@@ -30,11 +30,7 @@ from qbt.backtest.portfolio_types import (
 )
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
-from qbt.backtest.strategies.strategy_common import (
-    HoldState,
-    SignalStrategy,
-    compute_bands,
-)
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
 from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
@@ -76,7 +72,6 @@ class _AssetState:
     position: int  # 보유 수량
     signal_state: str  # "buy" | "sell"
     pending_order: _PortfolioPendingOrder | None  # 예약 주문 (None = 없음)
-    hold_state: HoldState | None  # hold_days 상태머신
 
 
 # ============================================================================
@@ -97,7 +92,13 @@ def _create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
         ValueError: 미등록 strategy_type인 경우
     """
     if slot.strategy_type == "buffer_zone":
-        return BufferZoneStrategy()
+        return BufferZoneStrategy(
+            ma_col=f"ma_{slot.ma_window}",
+            buy_buffer_pct=slot.buy_buffer_zone_pct,
+            sell_buffer_pct=slot.sell_buffer_zone_pct,
+            hold_days=slot.hold_days,
+            ma_type=slot.ma_type,
+        )
     elif slot.strategy_type == "buy_and_hold":
         return BuyAndHoldStrategy()
     raise ValueError(f"미등록 strategy_type: '{slot.strategy_type}'. " f"사용 가능: 'buffer_zone', 'buy_and_hold'")
@@ -275,18 +276,17 @@ def _execute_rebalancing(
 
 def _load_and_prepare_data(
     slot: AssetSlotConfig,
-    ma_window: int,
-    ma_type: Literal["ema", "sma"],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """자산 슬롯의 데이터를 로딩하고 MA를 계산한다.
 
+    buffer_zone 슬롯: 슬롯별 MA 파라미터(ma_window, ma_type)로 이동평균 계산.
+    buy_and_hold 슬롯: MA 계산 생략 (불필요).
+
     Args:
         slot: 자산 슬롯 설정
-        ma_window: 이동평균 기간
-        ma_type: 이동평균 유형 ("ema" 또는 "sma")
 
     Returns:
-        (signal_df_with_ma, trade_df)
+        (signal_df, trade_df) — buffer_zone이면 MA 컬럼 포함
     """
     signal_df = load_stock_data(slot.signal_data_path)
     trade_df = load_stock_data(slot.trade_data_path)
@@ -295,8 +295,9 @@ def _load_and_prepare_data(
     if slot.signal_data_path != slot.trade_data_path:
         signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
 
-    # MA 계산
-    signal_df = add_single_moving_average(signal_df, ma_window, ma_type)
+    # MA 계산 (buffer_zone 슬롯만)
+    if slot.strategy_type == "buffer_zone":
+        signal_df = add_single_moving_average(signal_df, slot.ma_window, slot.ma_type)
 
     return signal_df, trade_df
 
@@ -354,7 +355,8 @@ def _build_combined_equity(
 def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     """포트폴리오 실험의 유효 시작일을 계산한다.
 
-    전 자산 데이터의 날짜 교집합을 구하고 MA 워밍업 완료 이후 첫 날짜를 반환한다.
+    전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 완료 이후
+    첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
     여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
 
     Args:
@@ -366,17 +368,16 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     Raises:
         ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시
     """
-    ma_col = f"ma_{config.ma_window}"
-
-    # 1. 자산별 데이터 로딩 + MA 계산 (signal_data_path 기준 캐시)
+    # 1. 자산별 데이터 로딩 + MA 계산 (signal_data_path 기준 캐시, 슬롯별 MA 파라미터 사용)
     signal_cache: dict[str, pd.DataFrame] = {}
     asset_trade_dfs: dict[str, pd.DataFrame] = {}
     asset_signal_dfs: dict[str, pd.DataFrame] = {}
+    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
 
     for slot in config.asset_slots:
         signal_key = str(slot.signal_data_path)
         if signal_key not in signal_cache:
-            signal_df_raw, trade_df = _load_and_prepare_data(slot, config.ma_window, config.ma_type)
+            signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
         else:
             signal_df_raw = signal_cache[signal_key]
@@ -407,9 +408,13 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
         asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
         asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
 
-    # 3. MA 유효 구간 필터링 (MA 워밍업 완료 이후 첫 인덱스)
+    # 3. MA 유효 구간 필터링 (buffer_zone 슬롯만 대상, buy_and_hold는 MA 없음)
     valid_start_indices: list[int] = []
     for asset_id in asset_signal_dfs:
+        slot = slot_dict[asset_id]
+        if slot.strategy_type != "buffer_zone":
+            continue
+        ma_col = f"ma_{slot.ma_window}"
         sdf = asset_signal_dfs[asset_id]
         if ma_col not in sdf.columns:
             raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
@@ -419,7 +424,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
         else:
             valid_start_indices.append(len(sdf))
 
-    valid_start = max(valid_start_indices)
+    valid_start = max(valid_start_indices) if valid_start_indices else 0
 
     # 4. 유효 시작 인덱스의 첫 trade_df 날짜 반환
     first_trade_df = next(iter(asset_trade_dfs.values()))
@@ -459,9 +464,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # 1. 설정 검증
     _validate_portfolio_config(config)
 
-    ma_col = f"ma_{config.ma_window}"
+    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
 
-    # 2. 자산별 데이터 로딩 + MA 계산
+    # 2. 자산별 데이터 로딩 + MA 계산 (슬롯별 MA 파라미터 사용)
     # signal_data_path 기준으로 중복 로딩 방지 (캐시)
     signal_cache: dict[str, pd.DataFrame] = {}
     asset_signal_dfs: dict[str, pd.DataFrame] = {}
@@ -470,7 +475,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     for slot in config.asset_slots:
         signal_key = str(slot.signal_data_path)
         if signal_key not in signal_cache:
-            signal_df_raw, trade_df = _load_and_prepare_data(slot, config.ma_window, config.ma_type)
+            signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
         else:
             # 같은 시그널 경로 → 캐시 재사용
@@ -502,9 +507,13 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
         asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
 
-    # MA 유효 구간 필터링 (MA 값이 있는 첫 인덱스 이후만 사용)
+    # MA 유효 구간 필터링 (buffer_zone 슬롯의 MA NaN 기준만, buy_and_hold 슬롯 제외)
     valid_start_indices: list[int] = []
     for asset_id in asset_signal_dfs:
+        slot = slot_dict[asset_id]
+        if slot.strategy_type != "buffer_zone":
+            continue
+        ma_col = f"ma_{slot.ma_window}"
         sdf = asset_signal_dfs[asset_id]
         if ma_col not in sdf.columns:
             raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
@@ -514,7 +523,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         else:
             valid_start_indices.append(len(sdf))
 
-    valid_start = max(valid_start_indices)
+    valid_start = max(valid_start_indices) if valid_start_indices else 0
 
     for asset_id in asset_signal_dfs:
         asset_signal_dfs[asset_id] = asset_signal_dfs[asset_id].iloc[valid_start:].reset_index(drop=True)
@@ -537,19 +546,17 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
     trade_dates = list(next(iter(asset_trade_dfs.values()))[COL_DATE])
 
-    # 4. 전략 객체 생성 (자산별 strategy_type 기반 팩토리)
+    # 4. 전략 객체 생성 (자산별 strategy_type 기반 팩토리, 슬롯별 파라미터 사용)
     strategies: dict[str, SignalStrategy] = {
         slot.asset_id: _create_strategy_for_slot(slot) for slot in config.asset_slots
     }
 
-    # 5. 자산별 상태 초기화
-    # 모든 자산 "sell"로 시작 — day 0 check_buy 결과로 갱신
+    # 5. 자산별 상태 초기화 (모든 자산 "sell"로 시작)
     asset_states: dict[str, _AssetState] = {
         slot.asset_id: _AssetState(
             position=0,
             signal_state="sell",
             pending_order=None,
-            hold_state=None,
         )
         for slot in config.asset_slots
     }
@@ -561,71 +568,14 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     entry_dates: dict[str, date | None] = {slot.asset_id: None for slot in config.asset_slots}
     entry_hold_days: dict[str, int] = {slot.asset_id: 0 for slot in config.asset_slots}
 
-    # 자산별 이전 밴드 값 초기화
-    prev_upper_bands: dict[str, float] = {}
-    prev_lower_bands: dict[str, float] = {}
-
-    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
-    first_trade_date = trade_dates[0]
-
     # 거래 기록 및 에쿼티 기록
     all_trades: list[dict[str, Any]] = []
     equity_rows: list[dict[str, Any]] = []
 
-    # 첫 날 에쿼티 기록 (초기 상태: 모든 자산 0 포지션, 전액 현금)
-    # signal은 "sell"로 기록 (pending_order 생성 전 초기 상태)
-    first_row_dict: dict[str, Any] = {
-        COL_DATE: first_trade_date,
-        "equity": shared_cash,
-        "cash": shared_cash,
-        "rebalanced": False,
-    }
-    for asset_id in asset_states:
-        first_row_dict[f"{asset_id}_value"] = 0.0
-        first_row_dict[f"{asset_id}_weight"] = 0.0
-        first_row_dict[f"{asset_id}_signal"] = "sell"
-    equity_rows.append(first_row_dict)
-
-    # 6. 첫 날(day 0) 초기화
-    # 모든 전략에 check_buy(prev=cur=day0_data)를 호출한다.
-    # - B&H: 항상 True → signal_state="buy" + pending buy 생성
-    # - BufferZone: prev==cur이면 상향돌파 불가 → False → 아무것도 안 함
-    for slot in config.asset_slots:
-        asset_id = slot.asset_id
-        signal_df = asset_signal_dfs[asset_id]
-        first_row = signal_df.iloc[0]
-        ma_val = float(first_row[ma_col])
-        u, lb = compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
-        prev_upper_bands[asset_id] = u
-        prev_lower_bands[asset_id] = lb
-
-        # day 0: prev=cur=day0_close → BufferZone 상향돌파 불가
-        day0_close = float(first_row[COL_CLOSE])
-        strategy = strategies[asset_id]
-        buy_now, _ = strategy.check_buy(
-            prev_close=day0_close,
-            cur_close=day0_close,
-            prev_upper=u,
-            cur_upper=u,
-            hold_state=None,
-            hold_days_required=config.hold_days,
-            current_date=first_trade_date,
-            buy_buffer_pct=config.buy_buffer_zone_pct,
-        )
-        if buy_now:
-            # 초기 매수 자본: total_capital × target_weight
-            # 여러 자산이 동시에 매수될 때 공정한 자본 배분을 위해
-            # shared_cash 잔액이 아닌 total_capital 기준으로 고정 계산
-            initial_capital = config.total_capital * slot.target_weight
-            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
-                order_type="buy",
-                signal_date=first_trade_date,
-                capital=initial_capital,
-            )
-            asset_states[asset_id].signal_state = "buy"
-
-    # 7. 메인 루프 (i = 1 ~ N-1)
-    for i in range(1, n):
+    # 6. 메인 루프 (i = 0 ~ N-1)
+    # Day 0: pending 없음 → equity 기록 → check_buy (B&H: True → pending, BufferZone: False)
+    # Day 1+: pending 체결 → equity → 신호 판정
+    for i in range(0, n):
         current_date = trade_dates[i]
         rebalanced_today = False
 
@@ -723,38 +673,18 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         current_equity = _compute_portfolio_equity(shared_cash, asset_positions, asset_closes_map)
 
         # 7-3. 시그널 판정 (signal_df[i].Close 기준)
-        # 모든 전략에 대해 strategy.check_buy() 또는 strategy.check_sell() 호출
+        # 전략의 check_buy/check_sell은 내부적으로 이전 상태를 관리한다 (stateful)
         for asset_id, state in asset_states.items():
             signal_df = asset_signal_dfs[asset_id]
-            signal_row = signal_df.iloc[i]
-            prev_signal_row = signal_df.iloc[i - 1]
-
-            ma_val = float(signal_row[ma_col])
-            upper_band, lower_band = compute_bands(ma_val, config.buy_buffer_zone_pct, config.sell_buffer_zone_pct)
-            prev_upper = prev_upper_bands[asset_id]
-            prev_lower = prev_lower_bands[asset_id]
-
-            prev_close = float(prev_signal_row[COL_CLOSE])
-            cur_close = float(signal_row[COL_CLOSE])
-
-            slot = slot_dict[asset_id]
             strategy = strategies[asset_id]
+            slot = slot_dict[asset_id]
 
             if state.position == 0:
-                # 매수 시그널 판정 — strategy.check_buy()에 위임
-                old_hold_state = state.hold_state
-                buy_now, new_hold_state = strategy.check_buy(
-                    prev_close=prev_close,
-                    cur_close=cur_close,
-                    prev_upper=prev_upper,
-                    cur_upper=upper_band,
-                    hold_state=state.hold_state,
-                    hold_days_required=config.hold_days,
-                    current_date=current_date,
-                    buy_buffer_pct=config.buy_buffer_zone_pct,
-                )
+                # 매수 시그널 판정 — strategy.check_buy()에 위임 (내부 prev 상태 갱신 포함)
+                buy_now = strategy.check_buy(signal_df, i, current_date)
 
                 if buy_now:
+                    meta = strategy.get_buy_meta()
                     if state.pending_order is None:
                         target_w = slot.target_weight
                         buy_capital = current_equity * target_w
@@ -764,30 +694,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                             capital=buy_capital,
                         )
                         state.signal_state = "buy"
-                        # entry_hold_days: hold_state 완료 시 hold_days_required, 즉시 매수 시 0
-                        if old_hold_state is not None:
-                            entry_hold_days[asset_id] = old_hold_state["hold_days_required"]
-                        else:
-                            entry_hold_days[asset_id] = 0
-                    state.hold_state = None
-
-                elif new_hold_state is not None:
-                    # 대기 중 (days_passed 증가 또는 신규 생성)
-                    # start_date, buffer_pct는 check_buy에서 이미 올바르게 설정됨
-                    state.hold_state = new_hold_state
-
-                else:
-                    # 신호 없음 또는 hold 해제
-                    state.hold_state = None
+                        entry_hold_days[asset_id] = int(meta.get("hold_days_used", 0))
 
             elif state.position > 0:
-                # 매도 시그널 판정 — strategy.check_sell()에 위임
-                sell_now = strategy.check_sell(
-                    prev_close=prev_close,
-                    cur_close=cur_close,
-                    prev_lower=prev_lower,
-                    cur_lower=lower_band,
-                )
+                # 매도 시그널 판정 — strategy.check_sell()에 위임 (내부 prev 상태 갱신 포함)
+                sell_now = strategy.check_sell(signal_df, i)
                 if sell_now and state.pending_order is None:
                     state.pending_order = _PortfolioPendingOrder(
                         order_type="sell",
@@ -795,9 +706,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                         capital=0.0,
                     )
                     state.signal_state = "sell"
-
-            prev_upper_bands[asset_id] = upper_band
-            prev_lower_bands[asset_id] = lower_band
 
         # 7-4. 이중 트리거 리밸런싱 판정
         # - 월 첫 거래일: 10% 임계값 (MONTHLY_REBALANCE_THRESHOLD_RATE)
@@ -873,16 +781,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             )
         )
 
-    # params_json 구성
+    # params_json 구성 (전략 파라미터는 슬롯 레벨로 이동)
     params_json: dict[str, Any] = {
         "experiment_name": config.experiment_name,
         "display_name": config.display_name,
         "total_capital": config.total_capital,
-        "ma_window": config.ma_window,
-        "ma_type": config.ma_type,
-        "buy_buffer_zone_pct": config.buy_buffer_zone_pct,
-        "sell_buffer_zone_pct": config.sell_buffer_zone_pct,
-        "hold_days": config.hold_days,
         "rebalance_threshold_rate": config.rebalance_threshold_rate,
         "assets": [
             {
@@ -891,6 +794,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 "signal_data_path": str(slot.signal_data_path),
                 "trade_data_path": str(slot.trade_data_path),
                 "strategy_type": slot.strategy_type,
+                "ma_window": slot.ma_window,
+                "ma_type": slot.ma_type,
+                "buy_buffer_zone_pct": slot.buy_buffer_zone_pct,
+                "sell_buffer_zone_pct": slot.sell_buffer_zone_pct,
+                "hold_days": slot.hold_days,
             }
             for slot in config.asset_slots
         ],

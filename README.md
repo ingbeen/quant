@@ -278,6 +278,7 @@ quant/
 - `signal_{asset_id}.csv`: 자산별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
 
 실험 목록:
+
 - `portfolio_a1`: QQQ 25% / SPY 25% / GLD 50% (역변동성 근사)
 - `portfolio_a2`: QQQ 30% / SPY 30% / GLD 40% (60:40 전통 배분)
 - `portfolio_a3`: QQQ 35% / SPY 35% / GLD 30% (공격적)

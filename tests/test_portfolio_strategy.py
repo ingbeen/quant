@@ -103,8 +103,8 @@ def _make_portfolio_config(
         asset_paths: {asset_id: (signal_path, trade_path)}
         result_dir: 결과 저장 디렉토리 (tmp_path)
         target_weights: {asset_id: weight} (기본값: 동일 비중 배분)
-        ma_window: 이동평균 기간
-        hold_days: 유지일수
+        ma_window: 이동평균 기간 (슬롯 레벨 파라미터로 전달)
+        hold_days: 유지일수 (슬롯 레벨 파라미터로 전달)
         total_capital: 총 초기 자본금
     """
     if target_weights is None:
@@ -117,6 +117,8 @@ def _make_portfolio_config(
             signal_data_path=signal_path,
             trade_data_path=trade_path,
             target_weight=target_weights.get(aid, 0.25),
+            ma_window=ma_window,
+            hold_days=hold_days,
         )
         for aid, (signal_path, trade_path) in asset_paths.items()
     )
@@ -128,11 +130,6 @@ def _make_portfolio_config(
         total_capital=total_capital,
         rebalance_threshold_rate=0.20,
         result_dir=result_dir,
-        ma_window=ma_window,
-        buy_buffer_zone_pct=0.03,
-        sell_buffer_zone_pct=0.05,
-        hold_days=hold_days,
-        ma_type="ema",
     )
 
 
@@ -145,11 +142,6 @@ def _make_minimal_config(asset_id: str, target_weight: float) -> PortfolioConfig
         total_capital=100_000.0,
         rebalance_threshold_rate=0.20,
         result_dir=Path("."),
-        ma_window=5,
-        buy_buffer_zone_pct=0.03,
-        sell_buffer_zone_pct=0.05,
-        hold_days=0,
-        ma_type="ema",
     )
 
 
@@ -175,7 +167,7 @@ class TestRebalancingTrigger:
         """
         # Given
         total_equity = 100_000.0
-        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)}
+        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
         equity_vals = {"qqq": 36_000.0}  # 36_000 / 100_000 = 0.36
         config = _make_minimal_config("qqq", target_weight=0.30)
 
@@ -195,7 +187,7 @@ class TestRebalancingTrigger:
         """
         # Given
         total_equity = 100_000.0
-        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)}
+        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
         equity_vals = {"qqq": 36_100.0}  # 36_100 / 100_000 = 0.361
         config = _make_minimal_config("qqq", target_weight=0.30)
 
@@ -226,8 +218,8 @@ class TestRebalancingExcludesSoldAssets:
         # Given
         # QQQ: 40% (target 30%), SPY: 0% (signal=sell)
         asset_states = {
-            "qqq": _AssetState(position=100, signal_state="buy", pending_order=None, hold_state=None),
-            "spy": _AssetState(position=0, signal_state="sell", pending_order=None, hold_state=None),
+            "qqq": _AssetState(position=100, signal_state="buy", pending_order=None),
+            "spy": _AssetState(position=0, signal_state="sell", pending_order=None),
         }
         equity_vals = {"qqq": 400_000.0, "spy": 0.0}
         shared_cash = 600_000.0  # 총 1_000_000
@@ -242,11 +234,6 @@ class TestRebalancingExcludesSoldAssets:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -333,8 +320,8 @@ class TestCashPartialFill:
         """
         # Given: 두 자산 모두 포지션 없음 (각각 target 50%, 현재 0%)
         asset_states = {
-            "A": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None),
-            "B": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None),
+            "A": _AssetState(position=0, signal_state="buy", pending_order=None),
+            "B": _AssetState(position=0, signal_state="buy", pending_order=None),
         }
         equity_vals = {"A": 0.0, "B": 0.0}
         shared_cash = 2_000_000.0  # 가용 현금 (< 총 매수 필요 3,000,000)
@@ -349,11 +336,6 @@ class TestCashPartialFill:
             total_capital=3_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -531,9 +513,9 @@ class TestRebalancingOrder:
         # Given
         # QQQ: 50% (target 40%), SPY: 20% (target 20%, 변화 없음), GLD: 30% (target 40%)
         asset_states = {
-            "qqq": _AssetState(position=125, signal_state="buy", pending_order=None, hold_state=None),
-            "spy": _AssetState(position=100, signal_state="buy", pending_order=None, hold_state=None),
-            "gld": _AssetState(position=75, signal_state="buy", pending_order=None, hold_state=None),
+            "qqq": _AssetState(position=125, signal_state="buy", pending_order=None),
+            "spy": _AssetState(position=100, signal_state="buy", pending_order=None),
+            "gld": _AssetState(position=75, signal_state="buy", pending_order=None),
         }
         equity_vals = {
             "qqq": 500_000.0,  # 50% (target 40%) → 과비중 → 매도
@@ -553,11 +535,6 @@ class TestRebalancingOrder:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -613,11 +590,6 @@ class TestInvalidConfig:
             total_capital=10_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When & Then
@@ -643,11 +615,6 @@ class TestInvalidConfig:
             total_capital=10_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When & Then
@@ -778,7 +745,6 @@ class TestNoRebalancingAfterJustRebalanced:
                 position=100,
                 signal_state="buy",
                 pending_order=existing_order,  # 이미 pending
-                hold_state=None,
             )
         }
         equity_vals = {"qqq": 40_000.0}  # 40% (target 30%, 초과)
@@ -978,16 +944,13 @@ class TestComputeEffectiveStartDate:
                     signal_data_path=qqq_path,
                     trade_data_path=qqq_path,
                     target_weight=1.0,
+                    ma_window=5,
+                    ma_type="sma",  # SMA: 처음 4행(window-1=4)이 NaN
                 ),
             ),
             total_capital=10_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path,
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="sma",  # SMA: 처음 4행(window-1=4)이 NaN
         )
 
         # When
@@ -1109,11 +1072,6 @@ class TestStrategyTypeBehavior:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "always_true",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1157,11 +1115,6 @@ class TestStrategyTypeBehavior:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "always_false",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1206,11 +1159,6 @@ class TestStrategyTypeBehavior:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "no_sell",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1274,11 +1222,6 @@ class TestStrategyTypeBehavior:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "params_json",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1319,7 +1262,7 @@ class TestPartialSellInvariant:
         """
         # Given
         asset_states: dict[str, _AssetState] = {
-            "qqq": _AssetState(position=150, signal_state="buy", pending_order=None, hold_state=None),
+            "qqq": _AssetState(position=150, signal_state="buy", pending_order=None),
         }
         equity_vals = {"qqq": 600_000.0}
         shared_cash = 400_000.0  # total = 1,000,000
@@ -1331,11 +1274,6 @@ class TestPartialSellInvariant:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=Path("."),
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1476,9 +1414,7 @@ class TestDualTriggerThreshold:
         Then:  True (월 임계값 초과 → 트리거)
         """
         # Given
-        asset_states: dict[str, _AssetState] = {
-            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
-        }
+        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
         equity_vals = {"qqq": 33_300.0}  # 33.3% (target 30%, |33.3/30-1| ≈ 0.11)
         config = _make_minimal_config("qqq", target_weight=0.30)
 
@@ -1498,9 +1434,7 @@ class TestDualTriggerThreshold:
         Then:  False (월 중간 임계값 미달 → 패스)
         """
         # Given
-        asset_states: dict[str, _AssetState] = {
-            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
-        }
+        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
         equity_vals = {"qqq": 34_500.0}  # 34.5% (target 30%, |34.5/30-1| = 0.15)
         config = _make_minimal_config("qqq", target_weight=0.30)
 
@@ -1519,9 +1453,7 @@ class TestDualTriggerThreshold:
         Then:  False (편차 < 월 임계값 → 패스)
         """
         # Given
-        asset_states: dict[str, _AssetState] = {
-            "qqq": _AssetState(position=0, signal_state="buy", pending_order=None, hold_state=None)
-        }
+        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
         equity_vals = {"qqq": 32_700.0}  # 32.7% (target 30%, |32.7/30-1| = 0.09)
         config = _make_minimal_config("qqq", target_weight=0.30)
 
@@ -1591,11 +1523,6 @@ class TestStrategyType:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "bnh",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1636,11 +1563,6 @@ class TestStrategyType:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "bnh_sell",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When
@@ -1680,11 +1602,6 @@ class TestStrategyType:
             total_capital=1_000_000.0,
             rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "params_json_st",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=0,
-            ma_type="ema",
         )
 
         # When

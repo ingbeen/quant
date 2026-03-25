@@ -27,8 +27,6 @@ class TestExecuteSellOrder:
         order = PendingOrder(
             order_type="sell",
             signal_date=date(2020, 1, 10),
-            buy_buffer_zone_pct=0.03,
-            hold_days_used=3,
         )
         open_price = 100.0
         execute_date = date(2020, 1, 11)
@@ -65,8 +63,6 @@ class TestExecuteSellOrder:
         order = PendingOrder(
             order_type="sell",
             signal_date=date(2020, 1, 10),
-            buy_buffer_zone_pct=0.03,
-            hold_days_used=3,
         )
 
         # When
@@ -96,8 +92,6 @@ class TestExecuteSellOrder:
         order = PendingOrder(
             order_type="sell",
             signal_date=date(2020, 1, 10),
-            buy_buffer_zone_pct=0.03,
-            hold_days_used=3,
         )
 
         # When
