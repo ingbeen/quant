@@ -128,7 +128,6 @@ def _make_portfolio_config(
         display_name="Test Portfolio",
         asset_slots=slots,
         total_capital=total_capital,
-        rebalance_threshold_rate=0.20,
         result_dir=result_dir,
     )
 
@@ -140,7 +139,6 @@ def _make_minimal_config(asset_id: str, target_weight: float) -> PortfolioConfig
         display_name="Test",
         asset_slots=(AssetSlotConfig(asset_id, Path("dummy"), Path("dummy"), target_weight),),
         total_capital=100_000.0,
-        rebalance_threshold_rate=0.20,
         result_dir=Path("."),
     )
 
@@ -172,7 +170,7 @@ class TestRebalancingTrigger:
         config = _make_minimal_config("qqq", target_weight=0.30)
 
         # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config)
+        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold=0.20)
 
         # Then
         assert result is False, "정확히 임계값(0.20)에서는 리밸런싱이 트리거되면 안 됨"
@@ -192,7 +190,7 @@ class TestRebalancingTrigger:
         config = _make_minimal_config("qqq", target_weight=0.30)
 
         # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config)
+        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold=0.20)
 
         # Then
         assert result is True, "임계값 초과(0.2033)에서는 리밸런싱이 트리거되어야 함"
@@ -232,7 +230,6 @@ class TestRebalancingExcludesSoldAssets:
                 AssetSlotConfig("spy", Path("dummy"), Path("dummy"), 0.30),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -334,7 +331,6 @@ class TestCashPartialFill:
                 AssetSlotConfig("B", Path("dummy"), Path("dummy"), 0.50),
             ),
             total_capital=3_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -533,7 +529,6 @@ class TestRebalancingOrder:
                 AssetSlotConfig("gld", Path("dummy"), Path("dummy"), 0.40),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -588,7 +583,6 @@ class TestInvalidConfig:
                 AssetSlotConfig("spy", Path("dummy"), Path("dummy"), 0.60),
             ),
             total_capital=10_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -613,7 +607,6 @@ class TestInvalidConfig:
                 AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.30),  # 중복
             ),
             total_capital=10_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -949,7 +942,6 @@ class TestComputeEffectiveStartDate:
                 ),
             ),
             total_capital=10_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path,
         )
 
@@ -1070,7 +1062,6 @@ class TestStrategyTypeBehavior:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "always_true",
         )
 
@@ -1113,7 +1104,6 @@ class TestStrategyTypeBehavior:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "always_false",
         )
 
@@ -1157,7 +1147,6 @@ class TestStrategyTypeBehavior:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "no_sell",
         )
 
@@ -1220,7 +1209,6 @@ class TestStrategyTypeBehavior:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "params_json",
         )
 
@@ -1272,7 +1260,6 @@ class TestPartialSellInvariant:
             display_name="Test",
             asset_slots=(AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.40),),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=Path("."),
         )
 
@@ -1521,7 +1508,6 @@ class TestStrategyType:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "bnh",
         )
 
@@ -1561,7 +1547,6 @@ class TestStrategyType:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "bnh_sell",
         )
 
@@ -1600,7 +1585,6 @@ class TestStrategyType:
                 ),
             ),
             total_capital=1_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path / "params_json_st",
         )
 
@@ -1823,7 +1807,6 @@ class TestCacheKeyWithDifferentMAParams:
                 ),
             ),
             total_capital=10_000_000.0,
-            rebalance_threshold_rate=0.20,
             result_dir=tmp_path,
         )
 

@@ -63,20 +63,47 @@ _ASSET_COLORS: dict[str, str] = {
     "tqqq": "#ff7f0e",  # 주황
     "spy": "#2ca02c",  # 초록
     "gld": "#d62728",  # 빨강
+    "tlt": "#9467bd",  # 보라 (채권)
+    "iwm": "#8c564b",  # 갈색 (소형주)
+    "efa": "#e377c2",  # 분홍 (선진국 국제)
+    "eem": "#7f7f7f",  # 회색 (신흥국)
 }
 _ASSET_COLOR_FALLBACK = "#888888"  # 매핑 없는 자산
 
 # --- 실험별 색상 (전체 비교 에쿼티 차트용) ---
 _EXPERIMENT_COLORS: dict[str, str] = {
+    # A 시리즈: QQQ / SPY / GLD (파랑 계열)
     "portfolio_a1": "#aec7e8",
     "portfolio_a2": "#1f77b4",
     "portfolio_a3": "#17becf",
+    # B 시리즈: TQQQ 포함 (주황-빨강 계열)
     "portfolio_b1": "#ffbb78",
     "portfolio_b2": "#ff7f0e",
     "portfolio_b3": "#d62728",
-    "portfolio_c1": "#9467bd",
-    "portfolio_d1": "#2ca02c",  # 진한 초록 (QQQ 단일 비교군)
-    "portfolio_d2": "#8c4f00",  # 진한 갈색 (TQQQ 단일 비교군)
+    # C/D 시리즈: 단일 자산 비교군
+    "portfolio_c1": "#9467bd",  # 보라 (QQQ + TQQQ)
+    "portfolio_d1": "#2ca02c",  # 진한 초록 (QQQ 단일)
+    "portfolio_d2": "#8c4f00",  # 진한 갈색 (TQQQ 단일)
+    # E 시리즈: SPY / GLD / TLT (초록 계열, 연→진)
+    "portfolio_e1": "#c7e9c0",
+    "portfolio_e2": "#74c476",
+    "portfolio_e3": "#238b45",
+    "portfolio_e4": "#006d2c",
+    "portfolio_e5": "#00441b",
+    # F 시리즈: SPY / TQQQ / GLD / TLT (분홍-장미 계열)
+    "portfolio_f1": "#e7b8d4",
+    "portfolio_f2": "#d46b98",
+    "portfolio_f3": "#b52b6e",
+    "portfolio_f4": "#7a1446",
+    # G 시리즈: SPY / GLD / TLT B&H 변형 (청록 계열)
+    "portfolio_g1": "#c7fbf8",
+    "portfolio_g2": "#66d4cf",
+    "portfolio_g3": "#1aada8",
+    "portfolio_g4": "#0e7470",
+    # H 시리즈: TQQQ / GLD / TLT 공격적 (황금-갈색 계열)
+    "portfolio_h1": "#e6c880",
+    "portfolio_h2": "#c8912a",
+    "portfolio_h3": "#8c5e00",
 }
 _EXPERIMENT_COLOR_FALLBACK = "#888888"
 

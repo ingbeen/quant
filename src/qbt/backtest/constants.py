@@ -113,21 +113,6 @@ COL_FINAL_CAPITAL: Final = "final_capital"
 # ============================================================
 
 # run_single_backtest.py / app_single_backtest.py에서 실행·표출할 전략 목록
-# ============================================================
-# 분할 매수매도 트랜치 설정 (tranche_final_recommendation.md 기반)
-# ============================================================
-
-# 트랜치별 MA 윈도우 (고원 내 우단/중앙/좌단)
-SPLIT_TRANCHE_MA_WINDOWS: Final = [250, 200, 150]
-# 트랜치별 가중치 (균등 분배)
-SPLIT_TRANCHE_WEIGHTS: Final = [0.33, 0.34, 0.33]
-# 트랜치 ID
-SPLIT_TRANCHE_IDS: Final = ["ma250", "ma200", "ma150"]
-
-# ============================================================
-# 단일 백테스트 활성 전략 필터
-# ============================================================
-
 DEFAULT_SINGLE_BACKTEST_STRATEGIES: Final[list[str]] = [
     "buffer_zone_tqqq",
     "buffer_zone_qqq",

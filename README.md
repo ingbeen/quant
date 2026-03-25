@@ -6,7 +6,7 @@
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
 - 이동평균 기반 버퍼존 거래 전략 백테스트 (4P 고정: MA=200, buy=3%, sell=5%, hold=3) — 엔진-전략 분리 아키텍처 (`SignalStrategy` Protocol, stateful 전략 클래스)
-- 멀티자산 포트폴리오 백테스트 (25가지 실험: A~H 시리즈, 목표 비중 배분 + 이중 트리거 리밸런싱, 슬롯별 전략 파라미터)
+- 멀티자산 포트폴리오 백테스트 (25가지 실험: A~H 시리즈, 목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -77,7 +77,8 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 8. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
 # A시리즈(QQQ/SPY/GLD 비율 탐색), B시리즈(TQQQ 소량+현금), C-1(QQQ+TQQQ 기준선), D시리즈(단일 자산)
 # E시리즈(SPY+GLD+TLT, TLT 순효과), F시리즈(SPY+TQQQ+GLD+TLT), G시리즈(버퍼존 vs B&H 팩토리얼), H시리즈(TQQQ 60%+방어)
-# 각 자산 슬롯별 전략 파라미터 설정 가능 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
+# 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
+# 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id})
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자: all(기본) / portfolio_a1 ~ portfolio_h3
@@ -335,9 +336,10 @@ quant/
 
 ### 파라미터 변경
 
-- **백테스트**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
+- **백테스트 파라미터** (그리드 범위, 4P 고정값 등): [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
+- **포트폴리오 실험 설정** (자산 구성, 목표 비중, 슬롯별 전략 파라미터): [src/qbt/backtest/portfolio_configs.py](src/qbt/backtest/portfolio_configs.py)
 - **TQQQ 시뮬레이션**: [src/qbt/tqqq/constants.py](src/qbt/tqqq/constants.py)
-- **공통 설정**: [src/qbt/common_constants.py](src/qbt/common_constants.py)
+- **공통 설정** (경로, 컬럼명 등): [src/qbt/common_constants.py](src/qbt/common_constants.py)
 
 ### 코딩 표준
 

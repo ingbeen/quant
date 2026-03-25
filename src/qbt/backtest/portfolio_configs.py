@@ -29,7 +29,6 @@ from qbt.common_constants import (
 # 공통 포트폴리오 설정 기본값
 # ============================================================================
 
-_DEFAULT_REBALANCE_THRESHOLD = 0.10  # 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
 _DEFAULT_TOTAL_CAPITAL = 10_000_000.0
 
 
@@ -67,7 +66,6 @@ _CONFIG_A1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a1"),
 )
 
@@ -96,7 +94,6 @@ _CONFIG_A2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a2"),
 )
 
@@ -125,7 +122,6 @@ _CONFIG_A3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_a3"),
 )
 
@@ -161,7 +157,6 @@ _CONFIG_B1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b1"),
 )
 
@@ -197,7 +192,6 @@ _CONFIG_B2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b2"),
 )
 
@@ -233,7 +227,6 @@ _CONFIG_B3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_b3"),
 )
 
@@ -257,7 +250,6 @@ _CONFIG_C1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_c1"),
 )
 
@@ -275,7 +267,6 @@ _CONFIG_D1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_d1"),
 )
 
@@ -293,7 +284,6 @@ _CONFIG_D2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_d2"),
 )
 
@@ -327,7 +317,6 @@ _CONFIG_E1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e1"),
 )
 
@@ -356,7 +345,6 @@ _CONFIG_E2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e2"),
 )
 
@@ -385,7 +373,6 @@ _CONFIG_E3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e3"),
 )
 
@@ -414,7 +401,6 @@ _CONFIG_E4 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e4"),
 )
 
@@ -443,7 +429,6 @@ _CONFIG_E5 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_e5"),
 )
 
@@ -484,7 +469,6 @@ _CONFIG_F1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f1"),
 )
 
@@ -519,7 +503,6 @@ _CONFIG_F2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f2"),
 )
 
@@ -554,7 +537,6 @@ _CONFIG_F3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f3"),
 )
 
@@ -589,7 +571,6 @@ _CONFIG_F4 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_f4"),
 )
 
@@ -625,7 +606,6 @@ _CONFIG_G1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g1"),
 )
 
@@ -655,7 +635,6 @@ _CONFIG_G2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g2"),
 )
 
@@ -685,7 +664,6 @@ _CONFIG_G3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g3"),
 )
 
@@ -716,7 +694,6 @@ _CONFIG_G4 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_g4"),
 )
 
@@ -750,7 +727,6 @@ _CONFIG_H1 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h1"),
 )
 
@@ -773,7 +749,6 @@ _CONFIG_H2 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h2"),
 )
 
@@ -796,7 +771,6 @@ _CONFIG_H3 = PortfolioConfig(
         ),
     ),
     total_capital=_DEFAULT_TOTAL_CAPITAL,
-    rebalance_threshold_rate=_DEFAULT_REBALANCE_THRESHOLD,
     result_dir=_make_result_dir("portfolio_h3"),
 )
 

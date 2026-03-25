@@ -65,17 +65,15 @@ class PortfolioConfig:
     전략 파라미터(ma_window, buffer_pct 등)는 슬롯 레벨(AssetSlotConfig)로 이동하였다.
     target_weight 합이 1.0 미만인 경우 잔여분은 현금으로 유지된다 (B시리즈).
 
-    리밸런싱 정책:
-        - 월 첫 거래일: 편차 10% 초과 시 트리거 (MONTHLY_REBALANCE_THRESHOLD_RATE)
-        - 매일: 편차 20% 초과 시 긴급 트리거 (DAILY_REBALANCE_THRESHOLD_RATE)
-        rebalance_threshold_rate는 월 첫날 임계값으로 사용된다.
+    리밸런싱 정책은 엔진 레벨 상수로 고정된다:
+        - 월 첫 거래일: MONTHLY_REBALANCE_THRESHOLD_RATE (10%) 초과 시 트리거
+        - 매일: DAILY_REBALANCE_THRESHOLD_RATE (20%) 초과 시 긴급 트리거
 
     Attributes:
         experiment_name: 실험 식별자 ("portfolio_a2" 등)
         display_name: 표시 이름 ("A-2 (QQQ 30% / SPY 30% / GLD 40%)")
         asset_slots: 자산 슬롯 설정 튜플
         total_capital: 총 초기 자본금
-        rebalance_threshold_rate: 월 첫날 리밸런싱 임계값 (0.10 = ±10%)
         result_dir: 결과 저장 디렉토리
     """
 
@@ -83,7 +81,6 @@ class PortfolioConfig:
     display_name: str
     asset_slots: tuple[AssetSlotConfig, ...]
     total_capital: float
-    rebalance_threshold_rate: float  # 상대 리밸런싱 임계값 (0.10 = ±10%)
     result_dir: Path
 
 
@@ -153,7 +150,6 @@ class PortfolioResult:
             display_name="",
             asset_slots=(),
             total_capital=0.0,
-            rebalance_threshold_rate=0.10,
             result_dir=Path("."),
         )
     )

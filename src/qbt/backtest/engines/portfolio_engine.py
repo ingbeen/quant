@@ -72,7 +72,7 @@ class _AssetState:
     """자산별 런타임 상태."""
 
     position: int  # 보유 수량
-    signal_state: str  # "buy" | "sell"
+    signal_state: Literal["buy", "sell"]  # 현재 시그널 상태
     pending_order: _PortfolioPendingOrder | None  # 예약 주문 (None = 없음)
 
 
@@ -151,7 +151,7 @@ def _check_rebalancing_needed(
     equity_vals: dict[str, float],
     total_equity: float,
     config: PortfolioConfig,
-    threshold: float | None = None,
+    threshold: float,
 ) -> bool:
     """리밸런싱 필요 여부를 판정한다.
 
@@ -162,9 +162,10 @@ def _check_rebalancing_needed(
         asset_states: {asset_id: _AssetState}
         equity_vals: {asset_id: 현재 평가액}
         total_equity: 총 에쿼티
-        config: 포트폴리오 설정
-        threshold: 리밸런싱 임계값. None이면 config.rebalance_threshold_rate 사용.
-            월 첫날: MONTHLY_REBALANCE_THRESHOLD_RATE, 매일: DAILY_REBALANCE_THRESHOLD_RATE
+        config: 포트폴리오 설정 (asset_slots의 target_weight 참조용)
+        threshold: 리밸런싱 임계값 (호출자가 명시적으로 전달).
+            월 첫날: MONTHLY_REBALANCE_THRESHOLD_RATE
+            매일: DAILY_REBALANCE_THRESHOLD_RATE
 
     Returns:
         True이면 리밸런싱 실행 필요
@@ -173,7 +174,6 @@ def _check_rebalancing_needed(
         return False
 
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
-    effective_threshold = threshold if threshold is not None else config.rebalance_threshold_rate
 
     for asset_id, state in asset_states.items():
         if state.signal_state != "buy":
@@ -184,7 +184,7 @@ def _check_rebalancing_needed(
 
         actual = equity_vals.get(asset_id, 0.0) / total_equity
         deviation = abs(actual / slot.target_weight - 1.0)
-        if deviation > effective_threshold:
+        if deviation > threshold:
             return True
 
     return False
@@ -575,15 +575,15 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     all_trades: list[dict[str, Any]] = []
     equity_rows: list[dict[str, Any]] = []
 
-    # 6. 메인 루프 (i = 0 ~ N-1)
-    # Day 0: pending 없음 → equity 기록 → check_buy (B&H: True → pending, BufferZone: False)
-    # Day 1+: pending 체결 → equity → 신호 판정
+    # 6. 메인 루프: 전일 체결 → 당일 에쿼티 → 당일 시그널 → 리밸런싱 판정
+    # 신호와 체결을 하루씩 분리(Lookahead 방지): i일 종가 시그널 → i+1일 시가 체결
+    # Day 0: 전일 pending 없음 → 에쿼티 초기 기록 → 최초 시그널 판정만 수행
     for i in range(0, n):
         current_date = trade_dates[i]
         rebalanced_today = False
 
-        # 7-1. pending_order 체결 (trade_df[i].Open 기준) — 2패스 방식
-        # 1패스: 전 자산 sell pending_order 먼저 체결 (매도 대금이 매수 자본으로 사용)
+        # Step A: 매도 선행 체결 (trade_df[i].Open 기준)
+        # 매도를 먼저 처리해야 확보된 현금을 당일 매수에 즉시 활용할 수 있다 (shared_cash 재사용)
         for asset_id, state in asset_states.items():
             if state.pending_order is None or state.pending_order.order_type != "sell":
                 continue
@@ -643,7 +643,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
             state.pending_order = None
 
-        # 2패스: 전 자산 buy pending_order 체결 (매도 후 현금으로 매수)
+        # Step B: 매수 후행 체결 (Step A에서 확보된 현금 포함하여 매수)
         for asset_id, state in asset_states.items():
             if state.pending_order is None or state.pending_order.order_type != "buy":
                 continue
@@ -681,7 +681,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
             state.pending_order = None
 
-        # 7-2. 에쿼티 계산 (trade_df[i].Close 기준)
+        # Step C: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
+        # 체결 후에 계산해야 리밸런싱 판정 시 목표 비중 편차가 정확히 반영된다
         asset_positions = {aid: st.position for aid, st in asset_states.items()}
         asset_closes_map: dict[str, float] = {}
         for asset_id in asset_states:
@@ -690,8 +691,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
         current_equity = _compute_portfolio_equity(shared_cash, asset_positions, asset_closes_map)
 
-        # 7-3. 시그널 판정 (signal_df[i].Close 기준)
-        # 전략의 check_buy/check_sell은 내부적으로 이전 상태를 관리한다 (stateful)
+        # Step D: 시그널 판정 (signal_df[i].Close 기준, 익일 체결 예약)
+        # 전략의 check_buy/check_sell은 내부 prev 상태를 순차적으로 갱신한다 (stateful).
+        # 신호 발생 시 pending_order만 등록하고 실제 체결은 익일 Step A/B에서 처리한다
         for asset_id, state in asset_states.items():
             signal_df = asset_signal_dfs[asset_id]
             strategy = strategies[asset_id]
@@ -725,9 +727,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     )
                     state.signal_state = "sell"
 
-        # 7-4. 이중 트리거 리밸런싱 판정
-        # - 월 첫 거래일: 10% 임계값 (MONTHLY_REBALANCE_THRESHOLD_RATE)
-        # - 매일(월 중간): 20% 임계값 (DAILY_REBALANCE_THRESHOLD_RATE)
+        # Step E: 이중 트리거 리밸런싱 판정 (Step C 에쿼티 기준)
+        # 월 첫 거래일(정기): 10% 초과 시 트리거 — 정기적인 비중 재조정
+        # 나머지 날(긴급): 20% 초과 시 트리거 — 급격한 비중 이탈 대응
         equity_vals_now: dict[str, float] = {
             aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
         }
@@ -742,7 +744,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         ):
             _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
 
-        # 7-5. 에쿼티 행 기록
+        # Step F: 에쿼티 행 기록 (자산별 value/weight/signal 포함)
         row: dict[str, Any] = {
             COL_DATE: current_date,
             "equity": current_equity,
@@ -802,7 +804,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         "experiment_name": config.experiment_name,
         "display_name": config.display_name,
         "total_capital": config.total_capital,
-        "rebalance_threshold_rate": config.rebalance_threshold_rate,
+        # 리밸런싱 임계값: 엔진 레벨 상수로 고정 (모든 실험에 동일하게 적용됨)
+        "monthly_rebalance_threshold_rate": MONTHLY_REBALANCE_THRESHOLD_RATE,
+        "daily_rebalance_threshold_rate": DAILY_REBALANCE_THRESHOLD_RATE,
         "assets": [
             {
                 "asset_id": slot.asset_id,
