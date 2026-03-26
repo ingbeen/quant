@@ -4,13 +4,15 @@
 
 주요 설계 결정:
 - 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
-- 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution
+- 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
 - 리밸런싱: 이중 트리거 체계
     - 월 첫 거래일: 편차 10% 초과 시 (MONTHLY_REBALANCE_THRESHOLD_RATE)
     - 매일: 편차 20% 초과 시 긴급 (DAILY_REBALANCE_THRESHOLD_RATE)
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장
 - projected state: signal intent 반영 후 리밸런싱 계획 → planning 왜곡 방지
 - 체결 기준: 익일 open 가격 (Lookahead 방지)
+- 체결 흐름: SELL 먼저 체결 → available_cash 확정 → BUY 체결 (_execute_orders)
+- 현금 부족 시: BUY 총 비용이 available_cash 초과이면 raw_shares × scale_factor로 비례 축소
 - 부분 매도: 리밸런싱 REDUCE_TO_TARGET은 delta_amount 기준 수량, 신호 EXIT_ALL은 전량
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary)
 """
@@ -94,6 +96,22 @@ class _AssetState:
 
     position: int  # 보유 수량
     signal_state: Literal["buy", "sell"]  # 현재 시그널 상태
+
+
+@dataclass
+class _ExecutionResult:
+    """_execute_orders() 반환값.
+
+    SELL → BUY 순으로 체결한 결과를 담는다.
+    """
+
+    updated_cash: float
+    updated_positions: dict[str, int]
+    updated_entry_prices: dict[str, float]
+    updated_entry_dates: dict[str, date | None]
+    updated_entry_hold_days: dict[str, int]
+    new_trades: list[dict[str, Any]]
+    rebalanced_today: bool
 
 
 # ============================================================================
@@ -445,6 +463,188 @@ def _merge_intents(
     return merged
 
 
+def _execute_orders(
+    order_intents: dict[str, OrderIntent],
+    open_prices: dict[str, float],
+    current_positions: dict[str, int],
+    current_cash: float,
+    entry_prices: dict[str, float],
+    entry_dates: dict[str, date | None],
+    entry_hold_days: dict[str, int],
+    current_date: date,
+) -> _ExecutionResult:
+    """주문 의도 목록을 SELL → BUY 순으로 체결하고 결과를 반환한다.
+
+    SELL을 먼저 체결하여 확보된 현금을 포함한 available_cash를 계산한 뒤
+    BUY 체결에 활용한다. BUY 총 비용이 available_cash를 초과하면 자산별
+    BUY amount를 동일 비율(scale_factor)로 축소하여 음수 현금이 발생하지 않도록 한다.
+
+    처리 흐름:
+        1. SELL 단계: EXIT_ALL(전량), REDUCE_TO_TARGET(delta_amount 기준) 체결
+        2. CASH 확정: available_cash = current_cash + sell_proceeds
+        3. BUY 단계:
+           a. raw_shares = floor(delta_amount / buy_price)
+           b. total_raw_cost = Σ raw_shares × buy_price
+           c. total_raw_cost > available_cash 이면 scale_factor 적용
+              adjusted_amount = delta_amount × scale_factor
+              shares = floor(adjusted_amount / buy_price)
+           d. ENTER_TO_TARGET: 신규 진입, entry 정보 기록
+              INCREASE_TO_TARGET: 가중평균 entry_price 업데이트
+        4. _ExecutionResult 반환
+
+    Args:
+        order_intents: {asset_id: OrderIntent} — 체결할 주문 의도 목록
+        open_prices: {asset_id: 당일 시가} — 체결 기준 가격
+        current_positions: {asset_id: 현재 보유 수량}
+        current_cash: 현재 보유 현금
+        entry_prices: {asset_id: 진입 가격}
+        entry_dates: {asset_id: 진입 날짜}
+        entry_hold_days: {asset_id: 진입 시 hold_days}
+        current_date: 체결 날짜
+
+    Returns:
+        _ExecutionResult (updated_cash, updated_positions, updated_entry_prices,
+                          updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
+    """
+    # 1. 상태 복사 (원본 불변)
+    positions = dict(current_positions)
+    e_prices = dict(entry_prices)
+    e_dates = dict(entry_dates)
+    e_hold_days = dict(entry_hold_days)
+    cash = current_cash
+    new_trades: list[dict[str, Any]] = []
+    rebalanced_today = False
+
+    # 2. SELL 선행 체결 (EXIT_ALL, REDUCE_TO_TARGET)
+    for asset_id, intent in order_intents.items():
+        if intent.intent_type not in ("EXIT_ALL", "REDUCE_TO_TARGET"):
+            continue
+        position = positions.get(asset_id, 0)
+        if position <= 0:
+            continue
+
+        open_price = open_prices.get(asset_id, 0.0)
+        sell_price = open_price * (1.0 - SLIPPAGE_RATE)
+
+        if intent.intent_type == "EXIT_ALL":
+            shares_sold = position
+        else:
+            # REDUCE_TO_TARGET: delta_amount 기준 수량 (내림)
+            shares_to_sell = int(abs(intent.delta_amount) / sell_price)
+            shares_sold = min(shares_to_sell, position)
+
+        if shares_sold > 0:
+            sell_amount = shares_sold * sell_price
+            cash += sell_amount
+
+            e_date = e_dates.get(asset_id)
+            e_price = e_prices.get(asset_id, 0.0)
+
+            trade_record: dict[str, Any] = {
+                "entry_date": e_date,
+                "exit_date": current_date,
+                "entry_price": e_price,
+                "exit_price": sell_price,
+                "shares": shares_sold,
+                "pnl": (sell_price - e_price) * shares_sold,
+                "pnl_pct": (sell_price - e_price) / (e_price + EPSILON),
+                "hold_days_used": e_hold_days.get(asset_id, 0),
+                "asset_id": asset_id,
+                "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
+            }
+            new_trades.append(trade_record)
+
+            positions[asset_id] = position - shares_sold
+
+            # 전량 매도(position=0)인 경우에만 진입 정보 초기화
+            if positions[asset_id] == 0:
+                e_prices[asset_id] = 0.0
+                e_dates[asset_id] = None
+
+            if intent.intent_type == "REDUCE_TO_TARGET":
+                rebalanced_today = True
+
+            logger.debug(
+                f"매도 체결: {asset_id}, 날짜={current_date}, "
+                f"가격={sell_price:.2f}, 수량={shares_sold}, "
+                f"잔여포지션={positions[asset_id]}"
+            )
+
+    # 3. BUY 후행 체결 (ENTER_TO_TARGET, INCREASE_TO_TARGET)
+    # 3-1. raw_shares 및 raw_cost 계산 (scale 전)
+    buy_order_ids: list[str] = []
+    buy_raw_shares: dict[str, int] = {}
+    buy_prices_map: dict[str, float] = {}
+
+    for asset_id, intent in order_intents.items():
+        if intent.intent_type not in ("ENTER_TO_TARGET", "INCREASE_TO_TARGET"):
+            continue
+        if intent.delta_amount <= 0:
+            continue
+        open_price = open_prices.get(asset_id, 0.0)
+        buy_price = open_price * (1.0 + SLIPPAGE_RATE)
+        raw_shares = int(intent.delta_amount / buy_price)
+        if raw_shares > 0:
+            buy_order_ids.append(asset_id)
+            buy_raw_shares[asset_id] = raw_shares
+            buy_prices_map[asset_id] = buy_price
+
+    # 3-2. available_cash vs total_raw_cost → scale_factor 결정
+    # available_cash: SELL 체결 후 확보된 현금 (sell_proceeds 포함)
+    available_cash = cash
+    total_raw_cost = sum(buy_raw_shares[aid] * buy_prices_map[aid] for aid in buy_order_ids)
+
+    if total_raw_cost > available_cash and total_raw_cost > EPSILON:
+        scale_factor = available_cash / total_raw_cost
+    else:
+        scale_factor = 1.0
+
+    # 3-3. BUY 체결 (scale_factor 적용)
+    for asset_id in buy_order_ids:
+        intent = order_intents[asset_id]
+        buy_price = buy_prices_map[asset_id]
+
+        if scale_factor < 1.0:
+            # 비례 축소: raw_shares × scale_factor 기준으로 shares 재계산
+            # delta_amount 기준이 아닌 raw_shares 기준으로 scale해야
+            # Σ(shares × buy_price) ≤ available_cash 보장 (음수 현금 방지)
+            shares = int(buy_raw_shares[asset_id] * scale_factor)
+        else:
+            shares = buy_raw_shares[asset_id]
+
+        if shares > 0:
+            cost = shares * buy_price
+            cash -= cost
+
+            prev_position = positions.get(asset_id, 0)
+            if prev_position == 0:
+                # 신규 진입 (ENTER_TO_TARGET)
+                positions[asset_id] = shares
+                e_prices[asset_id] = buy_price
+                e_dates[asset_id] = current_date
+                e_hold_days[asset_id] = intent.hold_days_used
+            else:
+                # 리밸런싱 추가매수 (INCREASE_TO_TARGET): entry_price 가중평균 업데이트
+                prev_entry_price = e_prices.get(asset_id, 0.0)
+                positions[asset_id] = prev_position + shares
+                e_prices[asset_id] = (prev_entry_price * prev_position + buy_price * shares) / positions[asset_id]
+
+            if intent.intent_type == "INCREASE_TO_TARGET":
+                rebalanced_today = True
+
+            logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, 가격={buy_price:.2f}, 수량={shares}")
+
+    return _ExecutionResult(
+        updated_cash=cash,
+        updated_positions=positions,
+        updated_entry_prices=e_prices,
+        updated_entry_dates=e_dates,
+        updated_entry_hold_days=e_hold_days,
+        new_trades=new_trades,
+        rebalanced_today=rebalanced_today,
+    )
+
+
 # ============================================================================
 # 내부 헬퍼 함수
 # ============================================================================
@@ -757,102 +957,27 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         current_date = trade_dates[i]
         rebalanced_today = False
 
-        # Step A: 매도 선행 체결 (trade_df[i].Open 기준)
-        # EXIT_ALL, REDUCE_TO_TARGET intent를 먼저 처리하여 확보된 현금을 당일 매수에 활용한다
-        for asset_id, intent in next_day_intents.items():
-            if intent.intent_type not in ("EXIT_ALL", "REDUCE_TO_TARGET"):
-                continue
-            state = asset_states[asset_id]
-            if state.position <= 0:
-                continue
-
-            trade_df = asset_trade_dfs[asset_id]
-            open_price = float(trade_df.iloc[i][COL_OPEN])
-            sell_price = open_price * (1.0 - SLIPPAGE_RATE)
-
-            if intent.intent_type == "EXIT_ALL":
-                # 전량 매도 (신호 기반)
-                shares_sold = state.position
-            else:
-                # 부분 매도 (REDUCE_TO_TARGET): 초과 대금 기준 수량 계산 (내림)
-                shares_to_sell = int(abs(intent.delta_amount) / sell_price)
-                shares_sold = min(shares_to_sell, state.position)
-
-            if shares_sold > 0:
-                sell_amount = shares_sold * sell_price
-                shared_cash += sell_amount
-
-                e_date = entry_dates.get(asset_id)
-                e_price = entry_prices.get(asset_id, 0.0)
-
-                trade_record: dict[str, Any] = {
-                    "entry_date": e_date,
-                    "exit_date": current_date,
-                    "entry_price": e_price,
-                    "exit_price": sell_price,
-                    "shares": shares_sold,
-                    "pnl": (sell_price - e_price) * shares_sold,
-                    "pnl_pct": (sell_price - e_price) / (e_price + EPSILON),
-                    "hold_days_used": entry_hold_days.get(asset_id, 0),
-                    "asset_id": asset_id,
-                    "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
-                }
-                all_trades.append(trade_record)
-
-                state.position -= shares_sold
-
-                # 전량 매도(EXIT_ALL)인 경우에만 진입 정보 초기화
-                if state.position == 0:
-                    entry_prices[asset_id] = 0.0
-                    entry_dates[asset_id] = None
-
-                if intent.intent_type == "REDUCE_TO_TARGET":
-                    rebalanced_today = True
-
-                logger.debug(
-                    f"매도 체결: {asset_id}, 날짜={current_date}, "
-                    f"가격={sell_price:.2f}, 수량={shares_sold}, "
-                    f"잔여포지션={state.position}"
-                )
-
-        # Step B: 매수 후행 체결 (Step A에서 확보된 현금 포함하여 매수)
-        # ENTER_TO_TARGET, INCREASE_TO_TARGET intent 처리
-        for asset_id, intent in next_day_intents.items():
-            if intent.intent_type not in ("ENTER_TO_TARGET", "INCREASE_TO_TARGET"):
-                continue
-
-            state = asset_states[asset_id]
-            trade_df = asset_trade_dfs[asset_id]
-            open_price = float(trade_df.iloc[i][COL_OPEN])
-            buy_price = open_price * (1.0 + SLIPPAGE_RATE)
-
-            # delta_amount: ENTER=target_amount, INCREASE=추가 필요 금액 (scale_factor 적용 완료)
-            buy_capital = intent.delta_amount
-            if buy_capital <= 0:
-                continue
-
-            shares = int(buy_capital / buy_price)
-            if shares > 0:
-                cost = shares * buy_price
-                shared_cash -= cost
-
-                if state.position == 0:
-                    # 신규 진입 (ENTER_TO_TARGET)
-                    state.position = shares
-                    entry_prices[asset_id] = buy_price
-                    entry_dates[asset_id] = current_date
-                    entry_hold_days[asset_id] = intent.hold_days_used
-                else:
-                    # 리밸런싱 추가매수 (INCREASE_TO_TARGET): entry_price 가중평균 업데이트
-                    prev_position = state.position
-                    prev_entry_price = entry_prices.get(asset_id, 0.0)
-                    state.position += shares
-                    entry_prices[asset_id] = (prev_entry_price * prev_position + buy_price * shares) / state.position
-
-                if intent.intent_type == "INCREASE_TO_TARGET":
-                    rebalanced_today = True
-
-                logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, " f"가격={buy_price:.2f}, 수량={shares}")
+        # Step A+B: SELL → BUY 순 체결 (SELL 확보 현금 → BUY에 활용, 부족 시 비례 축소)
+        open_prices_map: dict[str, float] = {aid: float(asset_trade_dfs[aid].iloc[i][COL_OPEN]) for aid in asset_states}
+        exec_result = _execute_orders(
+            order_intents=next_day_intents,
+            open_prices=open_prices_map,
+            current_positions={aid: st.position for aid, st in asset_states.items()},
+            current_cash=shared_cash,
+            entry_prices=entry_prices,
+            entry_dates=entry_dates,
+            entry_hold_days=entry_hold_days,
+            current_date=current_date,
+        )
+        shared_cash = exec_result.updated_cash
+        for aid, new_pos in exec_result.updated_positions.items():
+            if aid in asset_states:
+                asset_states[aid].position = new_pos
+        entry_prices = exec_result.updated_entry_prices
+        entry_dates = exec_result.updated_entry_dates
+        entry_hold_days = exec_result.updated_entry_hold_days
+        all_trades.extend(exec_result.new_trades)
+        rebalanced_today = exec_result.rebalanced_today
 
         # Step C: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
         # 체결 후에 계산해야 리밸런싱 판정 시 목표 비중 편차가 정확히 반영된다

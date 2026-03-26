@@ -162,6 +162,7 @@ TypedDict:
   - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
   - ENTER_TO_TARGET 자산은 active_assets에 추가 (position=0이므로 amount=0 유지)
 - `_AssetState`: 자산별 런타임 상태 (position, signal_state)
+- `_ExecutionResult`: `_execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
 
 주문 흐름 함수:
 
@@ -169,6 +170,7 @@ TypedDict:
 - `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
 - `_build_rebalance_intents(projected, slot_dict, total_equity_projected, threshold, current_date) -> dict[str, OrderIntent]`: projected 상태 기반 리밸런싱 intent 생성 (threshold 미초과 시 빈 dict)
 - `_merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
+- `_execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> _ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
 
 공개 함수:
 

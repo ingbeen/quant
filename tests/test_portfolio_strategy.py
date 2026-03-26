@@ -129,7 +129,6 @@ def _make_portfolio_config(
     )
 
 
-
 # ============================================================================
 # 테스트 클래스
 # ============================================================================
@@ -2245,4 +2244,537 @@ class TestRebalancedColumnMeaning:
         rebalanced_on_entry = equity_df.iloc[first_invested_idx]["rebalanced"]
         assert rebalanced_on_entry is False or rebalanced_on_entry == False, (  # noqa: E712
             f"초기 진입 체결일({equity_df.iloc[first_invested_idx][COL_DATE]})에 " f"rebalanced=True가 기록되면 안 됨"
+        )
+
+
+# ============================================================================
+# Phase 0: _execute_orders 계약 고정 (레드 허용)
+# ============================================================================
+
+
+class TestExecuteOrders:
+    """_execute_orders() 계약 테스트 (Phase 0: RED).
+
+    핵심 계약:
+    1. SELL이 BUY보다 먼저 체결되어 sell_proceeds가 available_cash에 반영됨
+    2. BUY 총 비용이 available_cash를 초과하면 자산별 BUY amount를 동일 비율로 축소
+    3. BUY 총 비용이 available_cash 이하이면 scale 없이 원래 shares로 체결
+    4. EXIT_ALL → position = 0, entry_price/date 초기화
+    5. REDUCE_TO_TARGET → position이 delta_amount 기준 수량만큼 감소 (부분 매도)
+    6. ENTER_TO_TARGET → 신규 position, entry_price/date 기록
+    7. INCREASE_TO_TARGET → 기존 position에 추가, 가중평균 entry_price 업데이트
+    """
+
+    def test_sell_proceeds_increase_available_cash(self) -> None:
+        """
+        목적: EXIT_ALL 체결 후 sell_proceeds만큼 updated_cash가 증가함을 검증.
+
+        Given: current_cash=0, QQQ 100주 보유, open_price=100.0
+               EXIT_ALL intent (전량 매도)
+        When:  _execute_orders() 호출
+        Then:  updated_cash = 100주 × 100.0 × (1 - SLIPPAGE_RATE)
+               updated_positions["qqq"] = 0
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+            _ExecutionResult,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="EXIT_ALL",
+                current_amount=10_000.0,
+                target_amount=0.0,
+                delta_amount=-10_000.0,
+                target_weight=0.0,
+                reason="signal sell",
+            )
+        }
+        open_prices = {"qqq": 100.0}
+        current_positions = {"qqq": 100}
+        current_cash = 0.0
+        entry_prices = {"qqq": 90.0}
+        entry_dates: dict[str, date | None] = {"qqq": date(2024, 1, 1)}
+        entry_hold_days = {"qqq": 3}
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices=entry_prices,
+            entry_dates=entry_dates,
+            entry_hold_days=entry_hold_days,
+            current_date=current_date,
+        )
+
+        # Then
+        assert isinstance(result, _ExecutionResult), "_execute_orders는 _ExecutionResult를 반환해야 함"
+        expected_sell_price = 100.0 * (1.0 - SLIPPAGE_RATE)
+        expected_cash = 100 * expected_sell_price
+        assert result.updated_cash == pytest.approx(
+            expected_cash, rel=1e-6
+        ), f"EXIT_ALL 후 updated_cash가 sell_proceeds와 일치해야 함 (기대: {expected_cash:.2f}, 실제: {result.updated_cash:.2f})"
+        assert result.updated_positions["qqq"] == 0, "EXIT_ALL 후 position = 0이어야 함"
+
+    def test_sell_proceeds_used_for_subsequent_buy(self) -> None:
+        """
+        목적: SELL 체결 후 확보된 현금이 BUY에 활용됨을 검증.
+
+        Given: current_cash=0, QQQ 100주 보유 (EXIT_ALL intent)
+               SPY ENTER_TO_TARGET intent (delta_amount=9,700)
+               open_price=100.0 (QQQ sell → 100 × 99.7 = 9,970 현금 확보)
+               SPY open_price=97.0 (9,700 / (97.0 × 1.003) = ~99주 매수 가능)
+        When:  _execute_orders() 호출
+        Then:  updated_positions["spy"] > 0 (SELL 확보 현금으로 BUY 가능)
+               updated_positions["qqq"] = 0
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given: QQQ 매도 후 약 9,970 현금 확보 → SPY 매수 capital=9,700 < 9,970 → 충분
+        current_date = date(2024, 3, 1)
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="EXIT_ALL",
+                current_amount=10_000.0,
+                target_amount=0.0,
+                delta_amount=-10_000.0,
+                target_weight=0.0,
+                reason="signal sell",
+            ),
+            "spy": OrderIntent(
+                asset_id="spy",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=9_700.0,
+                delta_amount=9_700.0,
+                target_weight=0.50,
+                reason="signal buy",
+                hold_days_used=0,
+            ),
+        }
+        open_prices = {"qqq": 100.0, "spy": 97.0}
+        current_positions = {"qqq": 100, "spy": 0}
+        current_cash = 0.0
+        entry_prices = {"qqq": 90.0, "spy": 0.0}
+        entry_dates: dict[str, date | None] = {"qqq": date(2024, 1, 1), "spy": None}
+        entry_hold_days = {"qqq": 3, "spy": 0}
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices=entry_prices,
+            entry_dates=entry_dates,
+            entry_hold_days=entry_hold_days,
+            current_date=current_date,
+        )
+
+        # Then: SELL 후 확보된 현금(~9,970)으로 SPY BUY(9,700) 가능 → SPY 포지션 > 0
+        expected_qqq_sell = 100 * 100.0 * (1.0 - SLIPPAGE_RATE)  # ~9,970
+        assert expected_qqq_sell > 9_700.0, "테스트 전제: QQQ sell proceeds가 SPY buy보다 커야 함"
+        assert result.updated_positions["qqq"] == 0, "QQQ EXIT_ALL 후 position = 0이어야 함"
+        assert result.updated_positions["spy"] > 0, "SELL proceeds로 SPY BUY가 가능해야 함"
+
+    def test_buy_sufficient_cash_no_scaling(self) -> None:
+        """
+        목적: available_cash가 충분할 때 scale 없이 원래 shares로 체결됨을 검증.
+
+        Given: current_cash=10,000, ENTER_TO_TARGET delta_amount=5,000
+               open_price=50.0 → buy_price=50.15 → raw_shares=floor(5000/50.15)=99주
+               available_cash(10,000) > raw_cost(99×50.15=4,964.85) → scale 불필요
+        When:  _execute_orders() 호출
+        Then:  updated_positions["qqq"] = 99 (scale 없음)
+               updated_cash = 10,000 - 99 × 50.15
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        open_price = 50.0
+        buy_price = open_price * (1.0 + SLIPPAGE_RATE)
+        delta_amount = 5_000.0
+        expected_raw_shares = int(delta_amount / buy_price)  # 99
+
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=delta_amount,
+                delta_amount=delta_amount,
+                target_weight=0.50,
+                reason="signal buy",
+                hold_days_used=0,
+            )
+        }
+        open_prices = {"qqq": open_price}
+        current_positions = {"qqq": 0}
+        current_cash = 10_000.0
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices={"qqq": 0.0},
+            entry_dates={"qqq": None},
+            entry_hold_days={"qqq": 0},
+            current_date=current_date,
+        )
+
+        # Then: scale 없이 raw_shares 그대로 체결
+        assert (
+            result.updated_positions["qqq"] == expected_raw_shares
+        ), f"충분한 현금: scale 없이 raw_shares({expected_raw_shares})로 체결되어야 함, 실제: {result.updated_positions['qqq']}"
+        expected_cash = current_cash - expected_raw_shares * buy_price
+        assert result.updated_cash == pytest.approx(
+            expected_cash, rel=1e-6
+        ), f"updated_cash가 cost만큼 감소해야 함 (기대: {expected_cash:.2f}, 실제: {result.updated_cash:.2f})"
+
+    def test_buy_cash_shortage_proportional_scaling(self) -> None:
+        """
+        목적: total_raw_cost > available_cash이면 자산별 BUY amount를 동일 비율로 축소한 뒤
+              shares를 계산함을 검증.
+
+        Given: current_cash=5,000
+               QQQ ENTER_TO_TARGET delta_amount=4,000, open_price=100.0
+               SPY ENTER_TO_TARGET delta_amount=4,000, open_price=100.0
+               raw_shares 각 약 39주, raw_cost 각 약 3,912 → total_raw_cost ≈ 7,824
+               scale_factor = 5,000 / 7,824 ≈ 0.639
+        When:  _execute_orders() 호출
+        Then:  두 자산의 shares가 scale 없는 경우보다 작음 (비례 축소됨)
+               updated_cash >= 0 (음수 현금 없음)
+               두 자산의 shares 비율이 거의 동일 (동일 price → 동일 scale)
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        open_price = 100.0
+        buy_price = open_price * (1.0 + SLIPPAGE_RATE)
+        delta_amount = 4_000.0
+        raw_shares = int(delta_amount / buy_price)  # ~39주
+        raw_cost_each = raw_shares * buy_price
+        total_raw_cost = raw_cost_each * 2  # 두 자산
+
+        current_cash = 5_000.0
+        assert total_raw_cost > current_cash, "테스트 전제: total_raw_cost > available_cash이어야 함"
+
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=delta_amount,
+                delta_amount=delta_amount,
+                target_weight=0.40,
+                reason="signal buy",
+                hold_days_used=0,
+            ),
+            "spy": OrderIntent(
+                asset_id="spy",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=delta_amount,
+                delta_amount=delta_amount,
+                target_weight=0.40,
+                reason="signal buy",
+                hold_days_used=0,
+            ),
+        }
+        open_prices = {"qqq": open_price, "spy": open_price}
+        current_positions = {"qqq": 0, "spy": 0}
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices={"qqq": 0.0, "spy": 0.0},
+            entry_dates={"qqq": None, "spy": None},
+            entry_hold_days={"qqq": 0, "spy": 0},
+            current_date=current_date,
+        )
+
+        # Then 1: 비례 축소 → raw_shares보다 작음
+        assert (
+            result.updated_positions["qqq"] < raw_shares
+        ), f"현금 부족 시 QQQ shares가 raw_shares({raw_shares})보다 작아야 함, 실제: {result.updated_positions['qqq']}"
+        assert (
+            result.updated_positions["spy"] < raw_shares
+        ), f"현금 부족 시 SPY shares가 raw_shares({raw_shares})보다 작아야 함, 실제: {result.updated_positions['spy']}"
+
+        # Then 2: 음수 현금 없음
+        assert result.updated_cash >= 0.0, f"비례 축소 후 updated_cash >= 0이어야 함, 실제: {result.updated_cash:.2f}"
+
+        # Then 3: 동일 가격 + 동일 delta_amount → 동일 비율 축소 → shares가 동일
+        assert result.updated_positions["qqq"] == result.updated_positions["spy"], (
+            f"동일 조건의 두 자산은 동일한 shares로 체결되어야 함 "
+            f"(QQQ: {result.updated_positions['qqq']}, SPY: {result.updated_positions['spy']})"
+        )
+
+    def test_exit_all_clears_position_and_entry_info(self) -> None:
+        """
+        목적: EXIT_ALL 체결 후 position=0, entry_price/date가 초기화됨을 검증.
+
+        Given: QQQ 50주 보유, entry_price=90.0, entry_date=2024-01-01
+               EXIT_ALL intent
+        When:  _execute_orders() 호출
+        Then:  updated_positions["qqq"] = 0
+               updated_entry_prices["qqq"] = 0.0
+               updated_entry_dates["qqq"] = None
+        """
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="EXIT_ALL",
+                current_amount=5_000.0,
+                target_amount=0.0,
+                delta_amount=-5_000.0,
+                target_weight=0.0,
+                reason="signal sell",
+            )
+        }
+        open_prices = {"qqq": 102.0}
+        current_positions = {"qqq": 50}
+        current_cash = 0.0
+        entry_prices = {"qqq": 90.0}
+        entry_dates: dict[str, date | None] = {"qqq": date(2024, 1, 1)}
+        entry_hold_days = {"qqq": 3}
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices=entry_prices,
+            entry_dates=entry_dates,
+            entry_hold_days=entry_hold_days,
+            current_date=current_date,
+        )
+
+        # Then
+        assert result.updated_positions["qqq"] == 0, "EXIT_ALL 후 position = 0이어야 함"
+        assert result.updated_entry_prices["qqq"] == pytest.approx(
+            0.0, abs=1e-9
+        ), "EXIT_ALL 후 entry_price가 0.0으로 초기화되어야 함"
+        assert result.updated_entry_dates["qqq"] is None, "EXIT_ALL 후 entry_date가 None으로 초기화되어야 함"
+
+    def test_reduce_to_target_partial_position(self) -> None:
+        """
+        목적: REDUCE_TO_TARGET이 delta_amount 기준 수량만 매도함을 검증 (부분 매도).
+
+        Given: QQQ 100주 보유, open_price=100.0
+               REDUCE_TO_TARGET delta_amount=-3,000 (약 30주 매도)
+        When:  _execute_orders() 호출
+        Then:  매도된 수량 = floor(3,000 / sell_price) = floor(3,000 / 99.7) = 30주
+               updated_positions["qqq"] = 100 - 30 = 70주 (부분 매도)
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        open_price = 100.0
+        sell_price = open_price * (1.0 - SLIPPAGE_RATE)
+        reduce_amount = 3_000.0
+        expected_shares_sold = int(reduce_amount / sell_price)  # floor(3000/99.7) = 30
+
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="REDUCE_TO_TARGET",
+                current_amount=10_000.0,
+                target_amount=7_000.0,
+                delta_amount=-reduce_amount,
+                target_weight=0.40,
+                reason="rebalance",
+            )
+        }
+        open_prices = {"qqq": open_price}
+        current_positions = {"qqq": 100}
+        current_cash = 0.0
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices={"qqq": 80.0},
+            entry_dates={"qqq": date(2024, 1, 1)},
+            entry_hold_days={"qqq": 0},
+            current_date=current_date,
+        )
+
+        # Then: 부분 매도 (전량이 아님)
+        expected_remaining = 100 - expected_shares_sold
+        assert (
+            result.updated_positions["qqq"] == expected_remaining
+        ), f"REDUCE_TO_TARGET 후 잔여 수량이 {expected_remaining}이어야 함, 실제: {result.updated_positions['qqq']}"
+        assert result.updated_positions["qqq"] > 0, "REDUCE_TO_TARGET은 부분 매도이므로 position이 남아야 함"
+
+    def test_enter_to_target_records_entry_info(self) -> None:
+        """
+        목적: ENTER_TO_TARGET 체결 후 entry_price/date/hold_days가 기록됨을 검증.
+
+        Given: QQQ position=0, ENTER_TO_TARGET delta_amount=5,000, open_price=50.0
+               hold_days_used=3
+        When:  _execute_orders() 호출
+        Then:  updated_positions["qqq"] > 0
+               updated_entry_prices["qqq"] = buy_price (체결가)
+               updated_entry_dates["qqq"] = current_date
+               updated_entry_hold_days["qqq"] = 3
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        open_price = 50.0
+        buy_price = open_price * (1.0 + SLIPPAGE_RATE)
+
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=5_000.0,
+                delta_amount=5_000.0,
+                target_weight=0.50,
+                reason="signal buy",
+                hold_days_used=3,
+            )
+        }
+        open_prices = {"qqq": open_price}
+        current_positions = {"qqq": 0}
+        current_cash = 10_000.0
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices={"qqq": 0.0},
+            entry_dates={"qqq": None},
+            entry_hold_days={"qqq": 0},
+            current_date=current_date,
+        )
+
+        # Then
+        assert result.updated_positions["qqq"] > 0, "ENTER_TO_TARGET 후 position > 0이어야 함"
+        assert result.updated_entry_prices["qqq"] == pytest.approx(
+            buy_price, rel=1e-6
+        ), f"entry_price가 buy_price({buy_price:.4f})로 기록되어야 함, 실제: {result.updated_entry_prices['qqq']:.4f}"
+        assert (
+            result.updated_entry_dates["qqq"] == current_date
+        ), f"entry_date가 current_date({current_date})로 기록되어야 함, 실제: {result.updated_entry_dates['qqq']}"
+        assert (
+            result.updated_entry_hold_days["qqq"] == 3
+        ), f"entry_hold_days가 hold_days_used(3)로 기록되어야 함, 실제: {result.updated_entry_hold_days['qqq']}"
+
+    def test_increase_to_target_weighted_avg_entry_price(self) -> None:
+        """
+        목적: INCREASE_TO_TARGET 체결 후 entry_price가 가중평균으로 업데이트됨을 검증.
+
+        Given: QQQ 100주 보유, entry_price=80.0
+               INCREASE_TO_TARGET delta_amount=2,000, open_price=100.0
+               buy_price = 100.3 → shares = floor(2000/100.3) = 19주
+               새 entry_price = (80×100 + 100.3×19) / 119
+        When:  _execute_orders() 호출
+        Then:  updated_positions["qqq"] = 119
+               updated_entry_prices["qqq"] = (80×100 + buy_price×19) / 119
+        """
+        from qbt.backtest.constants import SLIPPAGE_RATE
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            OrderIntent,
+            _execute_orders,
+        )
+
+        # Given
+        current_date = date(2024, 3, 1)
+        open_price = 100.0
+        buy_price = open_price * (1.0 + SLIPPAGE_RATE)
+        delta_amount = 2_000.0
+        new_shares = int(delta_amount / buy_price)  # floor(2000/100.3) = 19
+
+        prev_position = 100
+        prev_entry_price = 80.0
+
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="INCREASE_TO_TARGET",
+                current_amount=10_000.0,
+                target_amount=12_000.0,
+                delta_amount=delta_amount,
+                target_weight=0.60,
+                reason="rebalance",
+            )
+        }
+        open_prices = {"qqq": open_price}
+        current_positions = {"qqq": prev_position}
+        current_cash = 5_000.0
+
+        # When
+        result = _execute_orders(
+            order_intents=order_intents,
+            open_prices=open_prices,
+            current_positions=current_positions,
+            current_cash=current_cash,
+            entry_prices={"qqq": prev_entry_price},
+            entry_dates={"qqq": date(2024, 1, 1)},
+            entry_hold_days={"qqq": 0},
+            current_date=current_date,
+        )
+
+        # Then
+        expected_total_shares = prev_position + new_shares
+        expected_entry_price = (prev_entry_price * prev_position + buy_price * new_shares) / expected_total_shares
+
+        assert (
+            result.updated_positions["qqq"] == expected_total_shares
+        ), f"INCREASE_TO_TARGET 후 총 수량이 {expected_total_shares}이어야 함, 실제: {result.updated_positions['qqq']}"
+        assert result.updated_entry_prices["qqq"] == pytest.approx(expected_entry_price, rel=1e-6), (
+            f"INCREASE_TO_TARGET 후 entry_price가 가중평균({expected_entry_price:.4f})이어야 함, "
+            f"실제: {result.updated_entry_prices['qqq']:.4f}"
         )
