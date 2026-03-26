@@ -135,16 +135,16 @@ main 함수:
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
 - 포트폴리오 실험:
-  - `run_portfolio_backtest.py`: 7가지 포트폴리오 실험 실행 (A/B/C 시리즈)
-    - `--experiment` 인자로 실행 실험 선택 (all / portfolio_a1 ~ portfolio_c1, 기본값: all)
+  - `run_portfolio_backtest.py`: 포트폴리오 실험 실행
+    - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all, 실험 목록은 PORTFOLIO_CONFIGS 참고)
     - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 메타데이터 타입: `"portfolio_backtest"`
-    - 글로벌 시작일 정렬: 실험 실행 전 전체 PORTFOLIO_CONFIGS 기준 유효 시작일을 계산하여 max값을 모든 실험에 적용 (단일 실험 실행 시에도 동일). C-1(QQQ+TQQQ, 1999년~)과 A/B 시리즈(GLD 포함, 2004년~)의 기간 불일치 방지
+    - 글로벌 시작일 정렬: 실험 실행 전 전체 PORTFOLIO_CONFIGS 기준 유효 시작일을 계산하여 max값을 모든 실험에 적용 (단일 실험 실행 시에도 동일). 자산별 데이터 시작일이 다른 경우에도 모든 실험이 동일 기간에서 비교될 수 있도록 한다.
 - 파라미터 고원 분석:
-  - `run_param_plateau_all.py`: 4개 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
+  - `run_param_plateau_all.py`: 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
-    - 결과: `param_plateau/` 디렉토리에 피벗 CSV 저장 (calmar/cagr/mdd/trades × 4 파라미터)
+    - 결과: `param_plateau/` 디렉토리에 피벗 CSV 저장 (calmar/cagr/mdd/trades × 분석 파라미터)
 - 대시보드 앱:
   - `app_single_backtest.py`: 전략별 동적 탭 대시보드 (Streamlit + lightweight-charts + Plotly)
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
@@ -156,17 +156,17 @@ main 함수:
     - vendor fork: `vendor/streamlit-lightweight-charts-v5/` (tooltip 지원 추가)
   - `app_parameter_stability.py`: 4개 파라미터(MA Window, Buy Buffer, Sell Buffer, Hold Days) 고원 시각화 대시보드
     - 선행: `run_param_plateau_all.py` 실행 필요 (고원 분석 CSV 로드)
-    - 각 탭: 7자산 Calmar 라인차트, 확정값 마커, 고원 구간 하이라이트, 보조 지표(CAGR/MDD/거래수) expander
+    - 각 탭: 다자산 Calmar 라인차트, 확정값 마커, 고원 구간 하이라이트, 보조 지표(CAGR/MDD/거래수) expander
   - `app_walkforward.py`: WFO 2-Mode 결과 시각화 대시보드 (Streamlit + Plotly)
     - 선행: `run_walkforward.py` 실행 필요 (WFO 결과 CSV/JSON 로드)
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
     - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포
     - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
-  - `app_portfolio_backtest.py`: 7가지 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
+  - `app_portfolio_backtest.py`: 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
     - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성
     - 주요 섹션:
-      - 전체 비교 탭: 성과 지표 테이블, 에쿼티 곡선 비교, 드로우다운 비교, 실험 해설(§7.1 행동 가이드)
+      - 전체 비교 탭: 성과 지표 테이블, 에쿼티 곡선 비교, 드로우다운 비교, 실험 해설
       - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 거래 현황 바차트, 거래 내역 테이블, 시그널 차트(자산 선택), 파라미터 정보
 
 ### 레버리지 시뮬레이션 (tqqq/)

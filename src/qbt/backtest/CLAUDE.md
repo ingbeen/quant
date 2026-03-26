@@ -184,17 +184,17 @@ TypedDict:
 ### 8. portfolio_configs.py
 
 포트폴리오 백테스트 실험 설정을 제공한다.
-A~H 시리즈 25가지 실험을 PortfolioConfig로 구현한다.
+A~H 시리즈 포트폴리오 실험을 PortfolioConfig로 구현한다.
 
 설정 목록:
-- PORTFOLIO_CONFIGS: list[PortfolioConfig] (25개 실험)
-  - A 시리즈 (A1~A3): QQQ / SPY / GLD (비중 변형)
-  - B 시리즈 (B1~B3): QQQ / TQQQ / SPY / GLD (레버리지 포함)
+- PORTFOLIO_CONFIGS: list[PortfolioConfig]
+  - A 시리즈: QQQ / SPY / GLD (비중 변형)
+  - B 시리즈: QQQ / TQQQ / SPY / GLD (레버리지 포함)
   - C/D 시리즈: 단일 자산 비교군 (QQQ·TQQQ 50:50, QQQ 100%, TQQQ 100%)
-  - E 시리즈 (E1~E5): SPY / GLD / TLT (SPY 비중 변형, 60~80%)
-  - F 시리즈 (F1~F4): SPY / TQQQ / GLD / TLT (TQQQ 포함 공격적)
-  - G 시리즈 (G1~G4): SPY / GLD / TLT — B&H 전략 조합 변형 (GLD·TLT strategy_type 혼합)
-  - H 시리즈 (H1~H3): TQQQ / GLD / TLT (TQQQ 60% 고정, 헤지 비중 변형)
+  - E 시리즈: SPY / GLD / TLT (SPY 비중 변형)
+  - F 시리즈: SPY / TQQQ / GLD / TLT (TQQQ 포함 공격적)
+  - G 시리즈: SPY / GLD / TLT — B&H 전략 조합 변형 (GLD·TLT strategy_type 혼합)
+  - H 시리즈: TQQQ / GLD / TLT (TQQQ 집중 + 헤지 비중 변형)
 
 주요 함수:
 - get_portfolio_config(experiment_name): 이름으로 PortfolioConfig 조회. 없으면 ValueError
@@ -434,7 +434,7 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 
 ### 포트폴리오 비교 대시보드 (`scripts/backtest/app_portfolio_backtest.py`)
 
-7가지 포트폴리오 실험(A/B/C 시리즈) 결과를 비교하는 대시보드.
+설정에 정의된 포트폴리오 실험 결과를 비교하는 대시보드.
 
 핵심 설계:
 

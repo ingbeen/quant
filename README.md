@@ -5,8 +5,8 @@
 ## 주요 기능
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
-- 이동평균 기반 버퍼존 거래 전략 백테스트 (4P 고정: MA=200, buy=3%, sell=5%, hold=3) — 엔진-전략 분리 아키텍처 (`SignalStrategy` Protocol, stateful 전략 클래스)
-- 멀티자산 포트폴리오 백테스트 (25가지 실험: A~H 시리즈, 목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정)
+- 이동평균 기반 버퍼존 거래 전략 백테스트 — 엔진-전략 분리 아키텍처 (`SignalStrategy` Protocol, stateful 전략 클래스)
+- 멀티자산 포트폴리오 백테스트 (A~H 시리즈 실험, 목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -34,7 +34,7 @@ poetry run python validate_project.py
 
 ## 워크플로우 1: 백테스트 전략 분석
 
-이동평균 기반 버퍼존 전략의 성과를 평가합니다. 파라미터는 4P 고정 (MA=200, buy=0.03, sell=0.05, hold=3)입니다.
+이동평균 기반 버퍼존 전략의 성과를 평가합니다.
 
 ```bash
 # 1. 데이터 다운로드 (전체 종목 일괄)
@@ -59,7 +59,7 @@ poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqq
 
 # 4. 파라미터 고원 분석 (선행: 1)
 poetry run python scripts/backtest/run_param_plateau_all.py
-# 4실험(hold_days/sell_buffer/buy_buffer/ma_window) x 멀티자산 통합 고원 분석
+# 파라미터(hold_days/sell_buffer/buy_buffer/ma_window) 통합 고원 분석
 # --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
 
@@ -75,13 +75,12 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 
 # 8. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
-# A시리즈(QQQ/SPY/GLD 비율 탐색), B시리즈(TQQQ 소량+현금), C-1(QQQ+TQQQ 기준선), D시리즈(단일 자산)
-# E시리즈(SPY+GLD+TLT, TLT 순효과), F시리즈(SPY+TQQQ+GLD+TLT), G시리즈(버퍼존 vs B&H 팩토리얼), H시리즈(TQQQ 60%+방어)
+# A~H 시리즈 실험 (실험 구성은 portfolio_configs.py 참고)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
 # 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id})
 poetry run python scripts/backtest/run_portfolio_backtest.py
-# --experiment 인자: all(기본) / portfolio_a1 ~ portfolio_h3
+# --experiment 인자로 실험 선택 가능 (기본값: all)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
 
 # 9. 포트폴리오 비교 대시보드 (선행: 8)
@@ -292,36 +291,16 @@ quant/
 - `summary.json`: 전체 포트폴리오 요약 + 자산별 요약(target_weight, 거래수, 승률) + 설정 파라미터
 - `signal_{asset_id}.csv`: 자산별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
 
-실험 목록 (총 25가지):
+실험 구성 및 자산 배분 상세는 [portfolio_configs.py](src/qbt/backtest/portfolio_configs.py)를 참고하세요.
 
-**A 시리즈 — QQQ/SPY/GLD 주식:금 비율 탐색**
-- `portfolio_a1`: QQQ 25% / SPY 25% / GLD 50%
-- `portfolio_a2`: QQQ 30% / SPY 30% / GLD 40%
-- `portfolio_a3`: QQQ 35% / SPY 35% / GLD 30%
-
-**B 시리즈 — TQQQ 소량 포함 + 현금 버퍼**
-- `portfolio_b1`: QQQ 19.5% / TQQQ 7% / SPY 19.5% / GLD 40% (현금 14%)
-- `portfolio_b2`: QQQ 12% / TQQQ 12% / SPY 12% / GLD 40% (현금 24%)
-- `portfolio_b3`: QQQ 15% / TQQQ 15% / SPY 30% / GLD 40% (전액 투자)
-
-**C 시리즈 — 분산 없는 레버리지 기준선**
-- `portfolio_c1`: QQQ 50% / TQQQ 50%
-
-**D 시리즈 — 단일 자산 비교군**
-- `portfolio_d1`: QQQ 100%
-- `portfolio_d2`: TQQQ 100% (QQQ 시그널 사용)
-
-**E 시리즈 — SPY + GLD + TLT (레버리지 없음, TLT 순효과 측정)**
-- `portfolio_e1` ~ `portfolio_e5`: SPY/GLD/TLT 비율 조합 5가지
-
-**F 시리즈 — SPY + TQQQ + GLD + TLT (레버리지 혼합)**
-- `portfolio_f1` ~ `portfolio_f4`: SPY/TQQQ/GLD/TLT 비율 조합 4가지
-
-**G 시리즈 — 버퍼존 vs B&H 팩토리얼 (기여도 격리)**
-- `portfolio_g1` ~ `portfolio_g4`: SPY/GLD/TLT 고정 구성, 전략 조합 실험
-
-**H 시리즈 — TQQQ 60% + 방어 자산 조합**
-- `portfolio_h1` ~ `portfolio_h3`: TQQQ 60% 집중 + 방어 자산 3가지
+- **A 시리즈**: QQQ / SPY / GLD 비중 변형 탐색
+- **B 시리즈**: TQQQ 소량 포함 + 현금 버퍼 구성
+- **C 시리즈**: 레버리지 기준선 (분산 없음)
+- **D 시리즈**: 단일 자산 비교군
+- **E 시리즈**: SPY / GLD / TLT (레버리지 없음, TLT 순효과 측정)
+- **F 시리즈**: SPY / TQQQ / GLD / TLT (레버리지 혼합)
+- **G 시리즈**: 버퍼존 vs B&H 팩토리얼 (전략 기여도 격리)
+- **H 시리즈**: TQQQ 집중 + 방어 자산 조합
 
 ### TQQQ 시뮬레이션
 

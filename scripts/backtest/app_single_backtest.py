@@ -899,7 +899,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     if regime_summaries:
         _render_regime_table(regime_summaries, chart_key=strategy["strategy_name"])
         _render_cagr_bar_chart(regime_summaries, chart_key=strategy["strategy_name"])
-        st.caption("QQQ 기준 시장 구간 분류 (19개 구간: 상승 10개, 횡보 3개, 하락 6개)")
+        st.caption("QQQ 기준 시장 구간 분류")
     else:
         st.info("시장 구간별 분석 데이터가 없습니다. 백테스트를 재실행하세요.")
 

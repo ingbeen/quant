@@ -278,7 +278,7 @@ def main() -> int:
 
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
-    # 3. 글로벌 시작일 계산 (전체 7개 PORTFOLIO_CONFIGS 기준)
+    # 3. 글로벌 시작일 계산 (전체 PORTFOLIO_CONFIGS 기준)
     # 모든 실험이 동일한 기간에서 비교될 수 있도록 유효 시작일 중 가장 늦은 날짜 적용
     logger.debug("글로벌 시작일 계산 중 (전체 PORTFOLIO_CONFIGS 대상)...")
     effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS]

@@ -1,6 +1,6 @@
 """포트폴리오 비교 대시보드
 
-7가지 포트폴리오 실험(A/B/C 시리즈) 결과를 비교한다.
+포트폴리오 실험 결과를 비교한다.
 전체 비교 탭에서 에쿼티 곡선·드로우다운·성과 지표를 나란히 보고,
 실험별 탭에서 자산 비중 추이·거래 현황·시그널 차트를 상세 확인한다.
 
@@ -307,7 +307,7 @@ def _asset_id_from_weight_col(col: str) -> str:
 
 
 def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
-    """전체 비교 탭 — 7가지 실험의 성과 지표·에쿼티 곡선·드로우다운을 비교한다."""
+    """전체 비교 탭 — 포트폴리오 실험의 성과 지표·에쿼티 곡선·드로우다운을 비교한다."""
 
     # ---- 성과 지표 비교 테이블 ----
     st.subheader("성과 지표 비교")
@@ -797,7 +797,7 @@ def main() -> None:
         layout="wide",
     )
     st.title("포트폴리오 비교 대시보드")
-    st.caption("A/B/C 시리즈 7가지 실험 결과 비교 (PLAN_portfolio_experiment.md 기반)")
+    st.caption("포트폴리오 실험 결과 비교")
 
     # 실험 탐색
     experiment_dirs = _discover_experiments()

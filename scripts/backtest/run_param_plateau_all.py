@@ -1,6 +1,6 @@
 """파라미터 고원 분석 통합 스크립트
 
-4개 실험(hold_days, sell_buffer, buy_buffer, ma_window) x 7개 자산의
+파라미터(hold_days, sell_buffer, buy_buffer, ma_window)별 다자산의
 고원(plateau) 형태를 확인한다.
 
 각 실험에서 1개 파라미터만 변경하고 나머지를 4P 확정값으로 고정한다.
