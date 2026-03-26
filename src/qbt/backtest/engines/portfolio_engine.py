@@ -5,9 +5,9 @@
 주요 설계 결정:
 - 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
 - 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
-- 리밸런싱: 이중 트리거 체계
-    - 월 첫 거래일: 편차 10% 초과 시 (MONTHLY_REBALANCE_THRESHOLD_RATE)
-    - 매일: 편차 20% 초과 시 긴급 (DAILY_REBALANCE_THRESHOLD_RATE)
+- 리밸런싱: 이중 트리거 체계 (RebalancePolicy)
+    - 월 첫 거래일: 편차 10% 초과 시 트리거 (monthly_threshold_rate)
+    - 매일: 편차 20% 초과 시 긴급 트리거 (daily_threshold_rate)
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장
 - projected state: signal intent 반영 후 리밸런싱 계획 → planning 왜곡 방지
 - 체결 기준: 익일 open 가격 (Lookahead 방지)
@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary
+from qbt.backtest.analysis import calculate_summary
 from qbt.backtest.constants import SLIPPAGE_RATE
 from qbt.backtest.portfolio_types import (
     AssetSlotConfig,
@@ -31,20 +31,13 @@ from qbt.backtest.portfolio_types import (
     PortfolioConfig,
     PortfolioResult,
 )
-from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
+from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
 from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 logger = get_logger(__name__)
-
-# 월 첫 거래일 리밸런싱 임계값: |actual/target - 1| > 0.10이면 트리거 (정기 리밸런싱)
-MONTHLY_REBALANCE_THRESHOLD_RATE: float = 0.10
-
-# 매일 긴급 리밸런싱 임계값: |actual/target - 1| > 0.20이면 트리거 (급격한 편차 대응)
-DAILY_REBALANCE_THRESHOLD_RATE: float = 0.20
 
 
 # ============================================================================
@@ -114,13 +107,166 @@ class _ExecutionResult:
     rebalanced_today: bool
 
 
+@dataclass(frozen=True)
+class RebalancePolicy:
+    """이중 트리거 리밸런싱 정책.
+
+    monthly_threshold_rate와 daily_threshold_rate를 기반으로
+    리밸런싱 발동 여부를 판단하고 intent를 생성한다.
+
+    Attributes:
+        monthly_threshold_rate: 월 첫 거래일 리밸런싱 임계값 (0.10 = 10%)
+        daily_threshold_rate: 매일 긴급 리밸런싱 임계값 (0.20 = 20%)
+    """
+
+    monthly_threshold_rate: float
+    daily_threshold_rate: float
+
+    def get_threshold(self, is_month_start: bool) -> float:
+        """is_month_start에 따라 적용할 리밸런싱 임계값을 반환한다.
+
+        Args:
+            is_month_start: True이면 월 첫 거래일
+
+        Returns:
+            월 첫 거래일이면 monthly_threshold_rate, 그 외이면 daily_threshold_rate
+        """
+        return self.monthly_threshold_rate if is_month_start else self.daily_threshold_rate
+
+    def should_rebalance(
+        self,
+        projected: _ProjectedPortfolio,
+        slot_dict: dict[str, AssetSlotConfig],
+        total_equity_projected: float,
+        is_month_start: bool,
+    ) -> bool:
+        """active 자산 중 임계값 초과 자산이 있는지 판정한다.
+
+        Args:
+            projected: signal intents 반영 후 예상 포트폴리오 상태
+            slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
+            total_equity_projected: projected 상태 기준 총 에쿼티
+            is_month_start: True이면 monthly_threshold_rate 사용, False이면 daily_threshold_rate 사용
+
+        Returns:
+            True이면 리밸런싱 실행 필요, False이면 스킵
+        """
+        if total_equity_projected < EPSILON:
+            return False
+        threshold = self.get_threshold(is_month_start)
+        for asset_id in projected.active_assets:
+            slot = slot_dict.get(asset_id)
+            if slot is None or slot.target_weight == 0:
+                continue
+            current_amount = projected.projected_amounts.get(asset_id, 0.0)
+            actual_weight = current_amount / total_equity_projected
+            deviation = abs(actual_weight / slot.target_weight - 1.0)
+            if deviation > threshold:
+                return True
+        return False
+
+    def build_rebalance_intents(
+        self,
+        projected: _ProjectedPortfolio,
+        slot_dict: dict[str, AssetSlotConfig],
+        total_equity_projected: float,
+        current_date: date,
+    ) -> dict[str, OrderIntent]:
+        """projected 상태 기반으로 리밸런싱 intent를 생성한다.
+
+        threshold 체크 없이 항상 intent를 생성한다.
+        should_rebalance()가 True인 경우에만 호출해야 한다.
+
+        1. active_assets 전체에 대해 REDUCE_TO_TARGET / INCREASE_TO_TARGET 생성
+        2. scale_factor: projected_cash + 예상 매도 수익 기준 매수 가능액 계산
+
+        Args:
+            projected: _ProjectedPortfolio (signal intents 반영 후 예상 상태)
+            slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
+            total_equity_projected: projected 상태 기준 총 에쿼티
+            current_date: 현재 날짜 (OrderIntent.reason 기록용)
+
+        Returns:
+            {asset_id: OrderIntent}
+        """
+        if total_equity_projected < EPSILON:
+            return {}
+
+        # 1. active_assets 전체에 대해 매도/매수 금액 계산
+        sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}
+        buy_intents: dict[str, float] = {}  # {asset_id: 매수 필요 금액}
+
+        for asset_id in projected.active_assets:
+            slot = slot_dict.get(asset_id)
+            if slot is None:
+                continue
+            target_amount = total_equity_projected * slot.target_weight
+            current_amount = projected.projected_amounts.get(asset_id, 0.0)
+            delta = target_amount - current_amount
+            if delta < 0:
+                sell_intents[asset_id] = abs(delta)
+            elif delta > 0:
+                buy_intents[asset_id] = delta
+
+        # 2. 현금 부족 시 scale_factor 비례 축소
+        estimated_sell_proceeds = sum(sell_intents.values())
+        available_cash = projected.projected_cash + estimated_sell_proceeds
+        total_buy_needed = sum(buy_intents.values())
+
+        if total_buy_needed > available_cash and total_buy_needed > EPSILON:
+            scale_factor = available_cash / total_buy_needed
+            buy_intents = {aid: amt * scale_factor for aid, amt in buy_intents.items()}
+
+        # 3. OrderIntent 생성
+        result: dict[str, OrderIntent] = {}
+
+        for asset_id, excess_value in sell_intents.items():
+            slot = slot_dict[asset_id]
+            current_amount = projected.projected_amounts.get(asset_id, 0.0)
+            target_amount = total_equity_projected * slot.target_weight
+            result[asset_id] = OrderIntent(
+                asset_id=asset_id,
+                intent_type="REDUCE_TO_TARGET",
+                current_amount=current_amount,
+                target_amount=target_amount,
+                delta_amount=-excess_value,
+                target_weight=slot.target_weight,
+                reason=f"rebalance {current_date}",
+            )
+
+        for asset_id, buy_amount in buy_intents.items():
+            slot = slot_dict[asset_id]
+            current_amount = projected.projected_amounts.get(asset_id, 0.0)
+            target_amount = total_equity_projected * slot.target_weight
+            result[asset_id] = OrderIntent(
+                asset_id=asset_id,
+                intent_type="INCREASE_TO_TARGET",
+                current_amount=current_amount,
+                target_amount=target_amount,
+                delta_amount=buy_amount,
+                target_weight=slot.target_weight,
+                reason=f"rebalance {current_date}",
+            )
+
+        return result
+
+
+# 기본 리밸런싱 정책 인스턴스
+# 월 첫 거래일: 편차 10% 초과 시 트리거 (정기 리밸런싱)
+# 매일: 편차 20% 초과 시 긴급 트리거
+_DEFAULT_REBALANCE_POLICY = RebalancePolicy(
+    monthly_threshold_rate=0.10,
+    daily_threshold_rate=0.20,
+)
+
+
 # ============================================================================
 # 전략 팩토리
 # ============================================================================
 
 
 def _create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
-    """strategy_type 기반으로 전략 객체를 생성한다.
+    """STRATEGY_REGISTRY를 경유하여 전략 객체를 생성한다.
 
     Args:
         slot: 자산 슬롯 설정
@@ -129,19 +275,12 @@ def _create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
         SignalStrategy를 구현한 전략 객체
 
     Raises:
-        ValueError: 미등록 strategy_type인 경우
+        ValueError: 미등록 strategy_id인 경우
     """
-    if slot.strategy_type == "buffer_zone":
-        return BufferZoneStrategy(
-            ma_col=f"ma_{slot.ma_window}",
-            buy_buffer_pct=slot.buy_buffer_zone_pct,
-            sell_buffer_pct=slot.sell_buffer_zone_pct,
-            hold_days=slot.hold_days,
-            ma_type=slot.ma_type,
-        )
-    elif slot.strategy_type == "buy_and_hold":
-        return BuyAndHoldStrategy()
-    raise ValueError(f"미등록 strategy_type: '{slot.strategy_type}'. " f"사용 가능: 'buffer_zone', 'buy_and_hold'")
+    spec = STRATEGY_REGISTRY.get(slot.strategy_id)
+    if spec is None:
+        raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
+    return spec.create_strategy(slot)
 
 
 # ============================================================================
@@ -303,107 +442,6 @@ def _compute_projected_portfolio(
         projected_cash=projected_cash,
         active_assets=active_assets,
     )
-
-
-def _build_rebalance_intents(
-    projected: _ProjectedPortfolio,
-    slot_dict: dict[str, AssetSlotConfig],
-    total_equity_projected: float,
-    threshold: float,
-    current_date: date,
-) -> dict[str, OrderIntent]:
-    """projected 상태 기반으로 리밸런싱 intent를 생성한다.
-
-    1. active_assets 중 |actual/target - 1| > threshold인 자산이 없으면 {} 반환
-    2. 하나라도 초과 시: 전체 active 자산에 대해 REDUCE_TO_TARGET / INCREASE_TO_TARGET 생성
-    3. scale_factor: projected_cash + 예상 매도 수익 기준 매수 가능액 계산
-
-    Args:
-        projected: _ProjectedPortfolio (signal intents 반영 후 예상 상태)
-        slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
-        total_equity_projected: projected 상태 기준 총 에쿼티
-        threshold: 리밸런싱 임계값 (월: MONTHLY_REBALANCE_THRESHOLD_RATE, 일: DAILY_REBALANCE_THRESHOLD_RATE)
-        current_date: 현재 날짜 (OrderIntent.reason 기록용)
-
-    Returns:
-        {asset_id: OrderIntent} — threshold 미초과 시 빈 dict
-    """
-    if total_equity_projected < EPSILON:
-        return {}
-
-    # 1. threshold 초과 여부 확인 (active_assets만 대상)
-    threshold_exceeded = False
-    for asset_id in projected.active_assets:
-        slot = slot_dict.get(asset_id)
-        if slot is None or slot.target_weight == 0:
-            continue
-        current_amount = projected.projected_amounts.get(asset_id, 0.0)
-        actual_weight = current_amount / total_equity_projected
-        deviation = abs(actual_weight / slot.target_weight - 1.0)
-        if deviation > threshold:
-            threshold_exceeded = True
-            break
-
-    if not threshold_exceeded:
-        return {}
-
-    # 2. active_assets 전체에 대해 매도/매수 intent 생성
-    sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}
-    buy_intents: dict[str, float] = {}  # {asset_id: 매수 필요 금액}
-
-    for asset_id in projected.active_assets:
-        slot = slot_dict.get(asset_id)
-        if slot is None:
-            continue
-        target_amount = total_equity_projected * slot.target_weight
-        current_amount = projected.projected_amounts.get(asset_id, 0.0)
-        delta = target_amount - current_amount
-        if delta < 0:
-            sell_intents[asset_id] = abs(delta)
-        elif delta > 0:
-            buy_intents[asset_id] = delta
-
-    # 3. 현금 부족 시 scale_factor 비례 축소
-    estimated_sell_proceeds = sum(sell_intents.values())
-    available_cash = projected.projected_cash + estimated_sell_proceeds
-    total_buy_needed = sum(buy_intents.values())
-
-    if total_buy_needed > available_cash and total_buy_needed > EPSILON:
-        scale_factor = available_cash / total_buy_needed
-        buy_intents = {aid: amt * scale_factor for aid, amt in buy_intents.items()}
-
-    # 4. OrderIntent 생성
-    result: dict[str, OrderIntent] = {}
-
-    for asset_id, excess_value in sell_intents.items():
-        slot = slot_dict[asset_id]
-        current_amount = projected.projected_amounts.get(asset_id, 0.0)
-        target_amount = total_equity_projected * slot.target_weight
-        result[asset_id] = OrderIntent(
-            asset_id=asset_id,
-            intent_type="REDUCE_TO_TARGET",
-            current_amount=current_amount,
-            target_amount=target_amount,
-            delta_amount=-excess_value,
-            target_weight=slot.target_weight,
-            reason=f"rebalance {current_date}",
-        )
-
-    for asset_id, buy_amount in buy_intents.items():
-        slot = slot_dict[asset_id]
-        current_amount = projected.projected_amounts.get(asset_id, 0.0)
-        target_amount = total_equity_projected * slot.target_weight
-        result[asset_id] = OrderIntent(
-            asset_id=asset_id,
-            intent_type="INCREASE_TO_TARGET",
-            current_amount=current_amount,
-            target_amount=target_amount,
-            delta_amount=buy_amount,
-            target_weight=slot.target_weight,
-            reason=f"rebalance {current_date}",
-        )
-
-    return result
 
 
 def _merge_intents(
@@ -653,10 +691,10 @@ def _execute_orders(
 def _load_and_prepare_data(
     slot: AssetSlotConfig,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """자산 슬롯의 데이터를 로딩하고 MA를 계산한다.
+    """자산 슬롯의 데이터를 로딩하고 전략별 전처리를 적용한다.
 
-    buffer_zone 슬롯: 슬롯별 MA 파라미터(ma_window, ma_type)로 이동평균 계산.
-    buy_and_hold 슬롯: MA 계산 생략 (불필요).
+    전처리는 STRATEGY_REGISTRY의 prepare_signal_df를 경유한다.
+    buffer_zone: MA 컬럼 추가, buy_and_hold: 원본 그대로 반환.
 
     Args:
         slot: 자산 슬롯 설정
@@ -671,9 +709,11 @@ def _load_and_prepare_data(
     if slot.signal_data_path != slot.trade_data_path:
         signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
 
-    # MA 계산 (buffer_zone 슬롯만)
-    if slot.strategy_type == "buffer_zone":
-        signal_df = add_single_moving_average(signal_df, slot.ma_window, slot.ma_type)
+    # MA 계산 (registry의 prepare_signal_df 경유)
+    spec = STRATEGY_REGISTRY.get(slot.strategy_id)
+    if spec is None:
+        raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
+    signal_df = spec.prepare_signal_df(signal_df, slot)
 
     return signal_df, trade_df
 
@@ -751,7 +791,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
 
     for slot in config.asset_slots:
-        signal_key = f"{slot.signal_data_path}::{slot.strategy_type}::{slot.ma_window}::{slot.ma_type}"
+        signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}::{slot.ma_type}"
         if signal_key not in signal_cache:
             signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
@@ -784,11 +824,16 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
         asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
         asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
 
-    # 3. MA 유효 구간 필터링 (buffer_zone 슬롯만 대상, buy_and_hold는 MA 없음)
+    # 3. MA 워밍업 구간 필터링 (registry의 get_warmup_periods 경유)
+    # warmup > 0인 슬롯만 MA NaN 체크 대상 (warmup == 0이면 워밍업 없음)
     valid_start_indices: list[int] = []
     for asset_id in asset_signal_dfs:
         slot = slot_dict[asset_id]
-        if slot.strategy_type != "buffer_zone":
+        spec = STRATEGY_REGISTRY.get(slot.strategy_id)
+        if spec is None:
+            raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
+        warmup = spec.get_warmup_periods(slot)
+        if warmup == 0:
             continue
         ma_col = f"ma_{slot.ma_window}"
         sdf = asset_signal_dfs[asset_id]
@@ -854,7 +899,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     asset_trade_dfs: dict[str, pd.DataFrame] = {}
 
     for slot in config.asset_slots:
-        signal_key = f"{slot.signal_data_path}::{slot.strategy_type}::{slot.ma_window}::{slot.ma_type}"
+        signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}::{slot.ma_type}"
         if signal_key not in signal_cache:
             signal_df_raw, trade_df = _load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
@@ -888,11 +933,16 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
         asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
 
-    # MA 유효 구간 필터링 (buffer_zone 슬롯의 MA NaN 기준만, buy_and_hold 슬롯 제외)
+    # MA 워밍업 구간 필터링 (registry의 get_warmup_periods 경유)
+    # warmup > 0인 슬롯만 MA NaN 체크 대상 (warmup == 0이면 워밍업 없음)
     valid_start_indices: list[int] = []
     for asset_id in asset_signal_dfs:
         slot = slot_dict[asset_id]
-        if slot.strategy_type != "buffer_zone":
+        spec = STRATEGY_REGISTRY.get(slot.strategy_id)
+        if spec is None:
+            raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
+        warmup = spec.get_warmup_periods(slot)
+        if warmup == 0:
             continue
         ma_col = f"ma_{slot.ma_window}"
         sdf = asset_signal_dfs[asset_id]
@@ -1007,10 +1057,12 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         # D.3: rebalance intents 생성 (projected 기준, 이중 트리거 임계값 적용)
         total_equity_projected = projected.projected_cash + sum(projected.projected_amounts.values())
         is_month_start = _is_first_trading_day_of_month(trade_dates, i)
-        threshold = MONTHLY_REBALANCE_THRESHOLD_RATE if is_month_start else DAILY_REBALANCE_THRESHOLD_RATE
-        rebalance_intents = _build_rebalance_intents(
-            projected, slot_dict, total_equity_projected, threshold, current_date
-        )
+        if _DEFAULT_REBALANCE_POLICY.should_rebalance(projected, slot_dict, total_equity_projected, is_month_start):
+            rebalance_intents = _DEFAULT_REBALANCE_POLICY.build_rebalance_intents(
+                projected, slot_dict, total_equity_projected, current_date
+            )
+        else:
+            rebalance_intents = {}
 
         # D.4: signal + rebalance 통합 (우선순위 규칙 적용, 자산당 1개 보장)
         merged_intents = _merge_intents(signal_intents, rebalance_intents)
@@ -1085,15 +1137,15 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         "display_name": config.display_name,
         "total_capital": config.total_capital,
         # 리밸런싱 임계값: 엔진 레벨 상수로 고정 (모든 실험에 동일하게 적용됨)
-        "monthly_rebalance_threshold_rate": MONTHLY_REBALANCE_THRESHOLD_RATE,
-        "daily_rebalance_threshold_rate": DAILY_REBALANCE_THRESHOLD_RATE,
+        "monthly_rebalance_threshold_rate": _DEFAULT_REBALANCE_POLICY.monthly_threshold_rate,
+        "daily_rebalance_threshold_rate": _DEFAULT_REBALANCE_POLICY.daily_threshold_rate,
         "assets": [
             {
                 "asset_id": slot.asset_id,
                 "target_weight": slot.target_weight,
                 "signal_data_path": str(slot.signal_data_path),
                 "trade_data_path": str(slot.trade_data_path),
-                "strategy_type": slot.strategy_type,
+                "strategy_id": slot.strategy_id,
                 "ma_window": slot.ma_window,
                 "ma_type": slot.ma_type,
                 "buy_buffer_zone_pct": slot.buy_buffer_zone_pct,

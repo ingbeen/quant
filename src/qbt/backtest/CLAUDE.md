@@ -91,13 +91,14 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 설정 데이터클래스 (frozen=True):
 
-- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_type)
-  - `strategy_type="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도
-  - `strategy_type="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
+- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_id)
+  - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
+  - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
+  - 유효하지 않은 strategy_id는 엔진이 registry 조회 후 ValueError로 처리
   - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="ema"`
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, result_dir)
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)는 슬롯 레벨(AssetSlotConfig)로 이동.
-  - 리밸런싱 임계값은 엔진 레벨 상수(`MONTHLY_REBALANCE_THRESHOLD_RATE`, `DAILY_REBALANCE_THRESHOLD_RATE`)로 고정되며 PortfolioConfig에서 제거됨.
+  - 리밸런싱 정책은 엔진 레벨의 `_DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며 PortfolioConfig에서 제거됨.
 
 결과 데이터클래스:
 
@@ -149,11 +150,6 @@ TypedDict:
 포트폴리오 백테스트 엔진을 제공한다.
 복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
 
-로컬 상수:
-
-- `MONTHLY_REBALANCE_THRESHOLD_RATE = 0.10`: 월 첫 거래일 리밸런싱 임계값 (정기 리밸런싱)
-- `DAILY_REBALANCE_THRESHOLD_RATE = 0.20`: 매일 긴급 리밸런싱 임계값 (급격한 편차 대응)
-
 내부 데이터클래스:
 
 - `OrderIntent`: 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
@@ -163,12 +159,18 @@ TypedDict:
   - ENTER_TO_TARGET 자산은 active_assets에 추가 (position=0이므로 amount=0 유지)
 - `_AssetState`: 자산별 런타임 상태 (position, signal_state)
 - `_ExecutionResult`: `_execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
+- `RebalancePolicy`: 이중 트리거 리밸런싱 정책 (frozen=True)
+  - `monthly_threshold_rate`: 월 첫 거래일 임계값 (기본 0.10 = 10%)
+  - `daily_threshold_rate`: 매일 긴급 임계값 (기본 0.20 = 20%)
+  - `get_threshold(is_month_start) -> float`: 해당 거래일 기준 임계값 반환
+  - `should_rebalance(projected, slot_dict, total_equity_projected, is_month_start) -> bool`: 임계값 초과 여부 판정
+  - `build_rebalance_intents(projected, slot_dict, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성)
+- `_DEFAULT_REBALANCE_POLICY`: 기본 RebalancePolicy 인스턴스 (monthly=0.10, daily=0.20). `run_portfolio_backtest`에서 사용
 
 주문 흐름 함수:
 
 - `_generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
 - `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
-- `_build_rebalance_intents(projected, slot_dict, total_equity_projected, threshold, current_date) -> dict[str, OrderIntent]`: projected 상태 기반 리밸런싱 intent 생성 (threshold 미초과 시 빈 dict)
 - `_merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
 - `_execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> _ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
 
@@ -178,7 +180,7 @@ TypedDict:
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
 - `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정
 - `_compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float`: 에쿼티 산식 계산
-- `_create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy`: strategy_type 기반 팩토리 (`"buffer_zone"` → `BufferZoneStrategy()`, `"buy_and_hold"` → `BuyAndHoldStrategy()`)
+- `_create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy`: STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)
 
 설계 특징:
 
@@ -186,11 +188,11 @@ TypedDict:
 - 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
-- 이중 트리거 리밸런싱: 월 첫날 10% / 매일 20% 긴급 트리거
+- 이중 트리거 리밸런싱: `_DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 첫날 10% / 매일 20% 긴급 트리거
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
 - projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
 - 부분 매도: REDUCE_TO_TARGET은 delta_amount 기준 수량, EXIT_ALL은 전량
-- SignalStrategy 팩토리: strategy_type 문자열 분기 없이 `strategy.check_buy()`, `strategy.check_sell()` 호출
+- SignalStrategy 팩토리: STRATEGY_REGISTRY 경유, strategy_id 문자열 분기 없음
 
 ### 8. portfolio_configs.py
 
@@ -212,7 +214,28 @@ A~H 시리즈 포트폴리오 실험을 PortfolioConfig로 구현한다.
 
 ---
 
-### 9. strategies/ 패키지
+### 9. strategy_registry.py
+
+전략 확장 가능 구조를 제공한다.
+`StrategySpec` 데이터클래스와 `STRATEGY_REGISTRY` 딕셔너리를 통해
+포트폴리오 엔진이 `strategy_id` 문자열로 전략 동작을 조회한다.
+
+데이터클래스:
+
+- `StrategySpec` (frozen=True): 전략 명세
+  - `strategy_id`: 전략 식별자 (STRATEGY_REGISTRY의 키)
+  - `create_strategy(slot) -> SignalStrategy`: 전략 객체 생성 팩토리
+  - `prepare_signal_df(df, slot) -> pd.DataFrame`: signal DataFrame 전처리 (buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환)
+  - `get_warmup_periods(slot) -> int`: MA 워밍업 기간 (buffer_zone → `slot.ma_window`, buy_and_hold → `0`)
+  - `supports_single`, `supports_portfolio`: 예약 필드
+
+등록된 전략:
+
+- `STRATEGY_REGISTRY: dict[str, StrategySpec]`
+  - `"buffer_zone"`: BufferZoneStrategy 생성 + MA 컬럼 추가 + ma_window 워밍업
+  - `"buy_and_hold"`: BuyAndHoldStrategy 생성 + 원본 반환 + 워밍업 0
+
+### 10. strategies/ 패키지
 
 전략 관련 모듈을 담은 패키지입니다.
 전략 클래스(`SignalStrategy` Protocol 구현체)와 config-driven 팩토리 패턴을 제공합니다.

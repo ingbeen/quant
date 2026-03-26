@@ -1,8 +1,8 @@
 # PLAN: Strategy Registry + Config + Rebalance Policy
 
 - 작성일: 2026-03-26 10:00
-- 마지막 업데이트: 2026-03-26 10:00
-- 상태: In Progress
+- 마지막 업데이트: 2026-03-26 14:30
+- 상태: Done
 
 ---
 
@@ -100,17 +100,17 @@ class RebalancePolicy:
 
 ## Definition of Done
 
-- [ ] `STRATEGY_REGISTRY`에 `"buffer_zone"`, `"buy_and_hold"` 모두 등록
-- [ ] `prepare_signal_df`: buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환
-- [ ] `get_warmup_periods`: buffer_zone → `slot.ma_window`, buy_and_hold → `0`
-- [ ] `AssetSlotConfig.strategy_type` → `strategy_id` 변경 완료 (모든 사용처 포함)
-- [ ] `portfolio_engine.py`의 모든 `strategy_type` 분기 제거 (총 6곳)
-- [ ] `compute_portfolio_effective_start_date`의 `strategy_type` 분기 제거
-- [ ] `RebalancePolicy` 클래스 분리 완료 (`should_rebalance` + `build_rebalance_intents`)
-- [ ] `MONTHLY_REBALANCE_THRESHOLD_RATE`, `DAILY_REBALANCE_THRESHOLD_RATE` 로컬 상수 → `RebalancePolicy` 기본값으로 이동
-- [ ] PyRight strict: 오류 0
-- [ ] Pytest: failed=0, skipped=0
-- [ ] Black 포맷 적용
+- [x] `STRATEGY_REGISTRY`에 `"buffer_zone"`, `"buy_and_hold"` 모두 등록
+- [x] `prepare_signal_df`: buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환
+- [x] `get_warmup_periods`: buffer_zone → `slot.ma_window`, buy_and_hold → `0`
+- [x] `AssetSlotConfig.strategy_type` → `strategy_id` 변경 완료 (모든 사용처 포함)
+- [x] `portfolio_engine.py`의 모든 `strategy_type` 분기 제거 (총 6곳)
+- [x] `compute_portfolio_effective_start_date`의 `strategy_type` 분기 제거
+- [x] `RebalancePolicy` 클래스 분리 완료 (`should_rebalance` + `build_rebalance_intents`)
+- [x] `MONTHLY_REBALANCE_THRESHOLD_RATE`, `DAILY_REBALANCE_THRESHOLD_RATE` 로컬 상수 → `RebalancePolicy` 기본값으로 이동
+- [x] PyRight strict: 오류 0
+- [x] Pytest: failed=0, skipped=0
+- [x] Black 포맷 적용
 
 ---
 
@@ -378,12 +378,17 @@ poetry run python validate_project.py
 ### 진행 로그
 
 - 2026-03-26 10:00 — 계획서 초안 작성
+- 2026-03-26 14:30 — Phase 0~5 완료. Ruff/PyRight/Pytest 모두 통과 (passed=426, failed=0, skipped=0)
 
 ---
 
 ## Commit Messages (Final candidates)
 
-*(완료 직전 채울 것)*
+1. `백테스트 / StrategySpec + STRATEGY_REGISTRY + RebalancePolicy 도입 — strategy_id registry 경유 + 리밸런싱 정책 클래스 분리`
+2. `백테스트 / strategy_registry + RebalancePolicy — 전략 확장 구조 + 이중 트리거 정책 객체화`
+3. `백테스트 / 포트폴리오 엔진 리팩토링 — STRATEGY_REGISTRY 경유 전략 팩토리 + RebalancePolicy 클래스 분리`
+4. `백테스트 / strategy_id registry + RebalancePolicy — strategy_type 하드코딩 제거 + 리밸런싱 정책 캡슐화`
+5. `백테스트 / 전략 레지스트리 + 리밸런싱 정책 — StrategySpec 등록 구조 + RebalancePolicy frozen dataclass`
 
 ---
 

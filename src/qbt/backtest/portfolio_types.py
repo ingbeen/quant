@@ -33,7 +33,7 @@ class AssetSlotConfig:
         signal_data_path: EMA-200 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
         trade_data_path: 실제 매매 대상 데이터 경로 (TQQQ → 합성 데이터 경로)
         target_weight: 목표 비중 (예: 0.30 = 30%)
-        strategy_type: 전략 유형.
+        strategy_id: STRATEGY_REGISTRY 키. 유효하지 않은 값은 엔진이 ValueError로 처리한다.
             "buffer_zone" = 버퍼존 신호에 따라 매수/매도 (기본값).
             "buy_and_hold" = 즉시 매수 후 매도 신호 무시, 항상 투자 상태 유지.
             G 시리즈에서 GLD·TLT B&H 처리에 사용.
@@ -48,7 +48,7 @@ class AssetSlotConfig:
     signal_data_path: Path
     trade_data_path: Path
     target_weight: float  # 목표 비중 (0.30 = 30%)
-    strategy_type: Literal["buffer_zone", "buy_and_hold"] = "buffer_zone"
+    strategy_id: str = "buffer_zone"  # STRATEGY_REGISTRY 키 (예: "buffer_zone", "buy_and_hold")
     # 전략별 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시)
     ma_window: int = 200
     buy_buffer_zone_pct: float = 0.03
