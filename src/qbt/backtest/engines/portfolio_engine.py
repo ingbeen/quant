@@ -3,14 +3,15 @@
 복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
 
 주요 설계 결정:
-- 시그널: signal_data_path 기준 EMA-200 버퍼존 (자산별 독립)
-- TQQQ/QQQ 시그널 공유: signal_data_path를 동일하게 설정하면 자동으로 공유
+- 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
+- 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution
 - 리밸런싱: 이중 트리거 체계
     - 월 첫 거래일: 편차 10% 초과 시 (MONTHLY_REBALANCE_THRESHOLD_RATE)
     - 매일: 편차 20% 초과 시 긴급 (DAILY_REBALANCE_THRESHOLD_RATE)
-- 부분 매도: 리밸런싱 시 초과분(대금 기준)만 매도, 신호 기반 매도는 전량 유지
-- 현금 부족: scale_factor 비례 배분
-- 전략 주입: SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용
+- 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장
+- projected state: signal intent 반영 후 리밸런싱 계획 → planning 왜곡 방지
+- 체결 기준: 익일 open 가격 (Lookahead 방지)
+- 부분 매도: 리밸런싱 REDUCE_TO_TARGET은 delta_amount 기준 수량, 신호 EXIT_ALL은 전량
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary)
 """
 
@@ -50,21 +51,41 @@ DAILY_REBALANCE_THRESHOLD_RATE: float = 0.20
 
 
 @dataclass
-class _PortfolioPendingOrder:
-    """포트폴리오 전략 전용 예약 주문.
+class OrderIntent:
+    """자산별 주문 의도를 나타내는 모델.
 
-    engine_common의 PendingOrder와 달리 capital, rebalance_sell_amount, is_rebalance 필드를 포함한다.
-    매수 시 capital에 투자 자본금을 저장하고, rebalance_sell_amount는 0.0.
-    리밸런싱 매도 시 rebalance_sell_amount에 초과분 대금을 저장 (> 0.0 = 부분 매도).
-    신호 기반 매도 시 rebalance_sell_amount = 0.0 (전량 매도).
-    리밸런싱 추가매수 시 is_rebalance=True: position > 0인 자산에도 체결을 허용한다.
+    signal 또는 rebalance 로직이 생성한 주문 의도를 통일된 형태로 표현한다.
+    merge_intents에서 signal/rebalance intent를 통합하여 자산당 1개를 보장한다.
+
+    intent_type 종류:
+    - EXIT_ALL: 보유 전량 청산 (signal sell)
+    - ENTER_TO_TARGET: 신규 진입하여 target_amount 도달 (signal buy)
+    - REDUCE_TO_TARGET: 초과분 매도하여 target_amount 도달 (rebalance)
+    - INCREASE_TO_TARGET: 미달분 매수하여 target_amount 도달 (rebalance)
     """
 
-    order_type: Literal["buy", "sell"]  # 주문 유형
-    signal_date: date  # 신호 발생 날짜
-    capital: float  # 매수 자본 (매도 시 0.0)
-    rebalance_sell_amount: float = 0.0  # 리밸런싱 부분 매도 대금 (0.0 = 전량 매도)
-    is_rebalance: bool = False  # 리밸런싱 추가매수 여부 (True이면 position > 0에도 체결)
+    asset_id: str
+    intent_type: Literal["EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "INCREASE_TO_TARGET"]
+    current_amount: float  # 현재 평가액
+    target_amount: float  # 목표 금액
+    delta_amount: float  # target_amount - current_amount (음수 = 매도, 양수 = 매수)
+    target_weight: float  # 목표 비중 (0~1)
+    reason: str  # 생성 이유 (로깅/디버깅용)
+    hold_days_used: int = 0  # 진입 시 hold_days 파라미터 (TradeRecord에 기록)
+
+
+@dataclass
+class _ProjectedPortfolio:
+    """signal intents 반영 후 예상 포트폴리오 상태.
+
+    signal intents를 적용한 뒤 리밸런싱 기준이 되는 "예상" 포트폴리오를 나타낸다.
+    EXIT_ALL 자산의 평가액은 projected_cash로 이동하고, active_assets에서 제거된다.
+    ENTER_TO_TARGET 자산은 active_assets에 추가된다 (아직 position=0이므로 amount=0).
+    """
+
+    projected_amounts: dict[str, float]  # {asset_id: 예상 평가액}
+    projected_cash: float  # EXIT_ALL 매도 예상 대금 포함 현금
+    active_assets: set[str]  # 리밸런싱 대상 자산 집합 (signal_state == "buy" 기준)
 
 
 @dataclass
@@ -73,7 +94,6 @@ class _AssetState:
 
     position: int  # 보유 수량
     signal_state: Literal["buy", "sell"]  # 현재 시그널 상태
-    pending_order: _PortfolioPendingOrder | None  # 예약 주문 (None = 없음)
 
 
 # ============================================================================
@@ -146,130 +166,283 @@ def _is_first_trading_day_of_month(trade_dates: list[date], i: int) -> bool:
     return trade_dates[i].month != trade_dates[i - 1].month
 
 
-def _check_rebalancing_needed(
-    asset_states: dict[str, _AssetState],
+def _generate_signal_intents(
+    asset_states: dict[str, "_AssetState"],
+    strategies: dict[str, SignalStrategy],
+    asset_signal_dfs: dict[str, pd.DataFrame],
     equity_vals: dict[str, float],
-    total_equity: float,
-    config: PortfolioConfig,
-    threshold: float,
-) -> bool:
-    """리밸런싱 필요 여부를 판정한다.
+    slot_dict: dict[str, AssetSlotConfig],
+    current_equity: float,
+    i: int,
+    current_date: date,
+) -> dict[str, OrderIntent]:
+    """전략 기반으로 시그널 intent를 생성한다.
 
-    매수 시그널 자산 중 하나라도 |actual/target - 1| > threshold이면 True.
-    target=0인 자산은 건너뛴다.
+    1. position=0 + buy signal → ENTER_TO_TARGET (target_amount = current_equity × target_weight)
+    2. position>0 + sell signal → EXIT_ALL (current_amount = equity_vals[asset_id])
+    3. 그 외(HOLD) → intent 생성 안 함
+
+    Args:
+        asset_states: {asset_id: _AssetState} (position, signal_state)
+        strategies: {asset_id: SignalStrategy}
+        asset_signal_dfs: {asset_id: signal DataFrame}
+        equity_vals: {asset_id: 현재 평가액}
+        slot_dict: {asset_id: AssetSlotConfig}
+        current_equity: 총 에쿼티
+        i: 현재 행 인덱스
+        current_date: 현재 날짜
+
+    Returns:
+        {asset_id: OrderIntent} — HOLD 자산은 포함하지 않음
+    """
+    intents: dict[str, OrderIntent] = {}
+
+    for asset_id, state in asset_states.items():
+        strategy = strategies[asset_id]
+        signal_df = asset_signal_dfs[asset_id]
+        slot = slot_dict[asset_id]
+
+        if state.position == 0:
+            # 매수 시그널 판정 (내부 prev 상태 갱신 포함)
+            buy_now = strategy.check_buy(signal_df, i, current_date)
+            if buy_now:
+                meta = strategy.get_buy_meta()
+                target_amount = current_equity * slot.target_weight
+                intents[asset_id] = OrderIntent(
+                    asset_id=asset_id,
+                    intent_type="ENTER_TO_TARGET",
+                    current_amount=0.0,
+                    target_amount=target_amount,
+                    delta_amount=target_amount,
+                    target_weight=slot.target_weight,
+                    reason="signal buy",
+                    hold_days_used=int(meta.get("hold_days_used", 0)),
+                )
+        elif state.position > 0:
+            # 매도 시그널 판정 (내부 prev 상태 갱신 포함)
+            sell_now = strategy.check_sell(signal_df, i)
+            if sell_now:
+                current_amount = equity_vals.get(asset_id, 0.0)
+                intents[asset_id] = OrderIntent(
+                    asset_id=asset_id,
+                    intent_type="EXIT_ALL",
+                    current_amount=current_amount,
+                    target_amount=0.0,
+                    delta_amount=-current_amount,
+                    target_weight=0.0,
+                    reason="signal sell",
+                )
+
+    return intents
+
+
+def _compute_projected_portfolio(
+    asset_states: dict[str, "_AssetState"],
+    signal_intents: dict[str, OrderIntent],
+    equity_vals: dict[str, float],
+    asset_closes_map: dict[str, float],
+    shared_cash: float,
+) -> _ProjectedPortfolio:
+    """signal intents 반영 후 예상 포트폴리오 상태를 계산한다.
+
+    signal intent 실행 결과를 반영하여 리밸런싱의 기준이 되는 projected 상태를 구성한다.
+
+    - EXIT_ALL 자산: projected_amounts[asset_id]=0, active에서 제거, cash 증가 (현재 평가액 추가)
+    - ENTER_TO_TARGET 자산: active에 추가 (아직 position=0이므로 projected_amounts=0 유지)
+    - 기타 자산: 현재 상태 유지
 
     Args:
         asset_states: {asset_id: _AssetState}
+        signal_intents: {asset_id: OrderIntent} — EXIT_ALL 또는 ENTER_TO_TARGET
         equity_vals: {asset_id: 현재 평가액}
-        total_equity: 총 에쿼티
-        config: 포트폴리오 설정 (asset_slots의 target_weight 참조용)
-        threshold: 리밸런싱 임계값 (호출자가 명시적으로 전달).
-            월 첫날: MONTHLY_REBALANCE_THRESHOLD_RATE
-            매일: DAILY_REBALANCE_THRESHOLD_RATE
+        asset_closes_map: {asset_id: 현재 종가} (사용 안 함, 확장성 위해 유지)
+        shared_cash: 현재 미투자 현금
 
     Returns:
-        True이면 리밸런싱 실행 필요
+        _ProjectedPortfolio (projected_amounts, projected_cash, active_assets)
     """
-    if total_equity < EPSILON:
-        return False
+    # 현재 active_assets: signal_state == "buy"인 자산
+    active_assets: set[str] = {aid for aid, st in asset_states.items() if st.signal_state == "buy"}
 
-    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
+    # projected_amounts: 현재 평가액에서 시작
+    projected_amounts: dict[str, float] = {aid: equity_vals.get(aid, 0.0) for aid in asset_states}
+    projected_cash = shared_cash
 
-    for asset_id, state in asset_states.items():
-        if state.signal_state != "buy":
-            continue
+    for asset_id, intent in signal_intents.items():
+        if intent.intent_type == "EXIT_ALL":
+            # 전량 청산: 평가액 → cash로 이동, active에서 제거
+            projected_cash += equity_vals.get(asset_id, 0.0)
+            projected_amounts[asset_id] = 0.0
+            active_assets.discard(asset_id)
+
+        elif intent.intent_type == "ENTER_TO_TARGET":
+            # 신규 진입 예정: active에 추가 (아직 position=0)
+            active_assets.add(asset_id)
+            # projected_amounts[asset_id]는 0.0 유지 (position 없음)
+
+    return _ProjectedPortfolio(
+        projected_amounts=projected_amounts,
+        projected_cash=projected_cash,
+        active_assets=active_assets,
+    )
+
+
+def _build_rebalance_intents(
+    projected: _ProjectedPortfolio,
+    slot_dict: dict[str, AssetSlotConfig],
+    total_equity_projected: float,
+    threshold: float,
+    current_date: date,
+) -> dict[str, OrderIntent]:
+    """projected 상태 기반으로 리밸런싱 intent를 생성한다.
+
+    1. active_assets 중 |actual/target - 1| > threshold인 자산이 없으면 {} 반환
+    2. 하나라도 초과 시: 전체 active 자산에 대해 REDUCE_TO_TARGET / INCREASE_TO_TARGET 생성
+    3. scale_factor: projected_cash + 예상 매도 수익 기준 매수 가능액 계산
+
+    Args:
+        projected: _ProjectedPortfolio (signal intents 반영 후 예상 상태)
+        slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
+        total_equity_projected: projected 상태 기준 총 에쿼티
+        threshold: 리밸런싱 임계값 (월: MONTHLY_REBALANCE_THRESHOLD_RATE, 일: DAILY_REBALANCE_THRESHOLD_RATE)
+        current_date: 현재 날짜 (OrderIntent.reason 기록용)
+
+    Returns:
+        {asset_id: OrderIntent} — threshold 미초과 시 빈 dict
+    """
+    if total_equity_projected < EPSILON:
+        return {}
+
+    # 1. threshold 초과 여부 확인 (active_assets만 대상)
+    threshold_exceeded = False
+    for asset_id in projected.active_assets:
         slot = slot_dict.get(asset_id)
         if slot is None or slot.target_weight == 0:
             continue
-
-        actual = equity_vals.get(asset_id, 0.0) / total_equity
-        deviation = abs(actual / slot.target_weight - 1.0)
+        current_amount = projected.projected_amounts.get(asset_id, 0.0)
+        actual_weight = current_amount / total_equity_projected
+        deviation = abs(actual_weight / slot.target_weight - 1.0)
         if deviation > threshold:
-            return True
+            threshold_exceeded = True
+            break
 
-    return False
+    if not threshold_exceeded:
+        return {}
 
+    # 2. active_assets 전체에 대해 매도/매수 intent 생성
+    sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}
+    buy_intents: dict[str, float] = {}  # {asset_id: 매수 필요 금액}
 
-def _execute_rebalancing(
-    asset_states: dict[str, _AssetState],
-    equity_vals: dict[str, float],
-    config: PortfolioConfig,
-    shared_cash: float,
-    current_date: date,
-) -> None:
-    """리밸런싱 pending_order를 생성한다 (in-place 수정).
-
-    1. 총 에쿼티 = shared_cash + 전 자산 평가액
-    2. 매수 시그널 자산별 target_amount 계산
-    3. 초과 자산: 매도 pending_order 생성
-    4. 미달 자산: 매수 pending_order 생성 (현금 부족 시 scale_factor 적용)
-
-    매도 예상 대금을 매수 자본에 반영하여 shared_cash=0이어도 동작한다.
-
-    Args:
-        asset_states: {asset_id: _AssetState} — in-place 수정
-        equity_vals: {asset_id: 현재 평가액}
-        config: 포트폴리오 설정
-        shared_cash: 현재 미투자 현금
-        current_date: pending_order 생성 날짜
-    """
-    total_equity = shared_cash + sum(equity_vals.values())
-    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
-
-    # 매수 시그널 자산만 대상
-    buy_signal_assets = {aid for aid, st in asset_states.items() if st.signal_state == "buy"}
-
-    # 1. 매도 대상 (초과 자산) 판별
-    sell_orders: dict[str, float] = {}
-    for asset_id in buy_signal_assets:
+    for asset_id in projected.active_assets:
         slot = slot_dict.get(asset_id)
         if slot is None:
             continue
-        target_amount = total_equity * slot.target_weight
-        delta = target_amount - equity_vals.get(asset_id, 0.0)
-        if delta < 0:  # 초과 → 매도
-            sell_orders[asset_id] = abs(delta)
-
-    estimated_sell_proceeds = sum(sell_orders.values())
-
-    # 2. 매수 대상 (미달 자산) 판별
-    buy_orders: dict[str, float] = {}
-    for asset_id in buy_signal_assets:
-        slot = slot_dict.get(asset_id)
-        if slot is None:
-            continue
-        target_amount = total_equity * slot.target_weight
-        delta = target_amount - equity_vals.get(asset_id, 0.0)
-        if delta > 0:  # 미달 → 매수
-            buy_orders[asset_id] = delta
-
-    total_buy_needed = sum(buy_orders.values())
-    available_cash = shared_cash + estimated_sell_proceeds
+        target_amount = total_equity_projected * slot.target_weight
+        current_amount = projected.projected_amounts.get(asset_id, 0.0)
+        delta = target_amount - current_amount
+        if delta < 0:
+            sell_intents[asset_id] = abs(delta)
+        elif delta > 0:
+            buy_intents[asset_id] = delta
 
     # 3. 현금 부족 시 scale_factor 비례 축소
+    estimated_sell_proceeds = sum(sell_intents.values())
+    available_cash = projected.projected_cash + estimated_sell_proceeds
+    total_buy_needed = sum(buy_intents.values())
+
     if total_buy_needed > available_cash and total_buy_needed > EPSILON:
         scale_factor = available_cash / total_buy_needed
-        buy_orders = {aid: amt * scale_factor for aid, amt in buy_orders.items()}
+        buy_intents = {aid: amt * scale_factor for aid, amt in buy_intents.items()}
 
-    # 4. pending_order 생성
-    for asset_id, excess_value in sell_orders.items():
-        # 이미 pending_order가 있으면 덮어쓰지 않음 (시그널 pending_order 우선)
-        if asset_states[asset_id].pending_order is None:
-            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
-                order_type="sell",
-                signal_date=current_date,
-                capital=0.0,
-                rebalance_sell_amount=excess_value,  # 부분 매도: 초과분 대금 기준
-            )
+    # 4. OrderIntent 생성
+    result: dict[str, OrderIntent] = {}
 
-    for asset_id, capital in buy_orders.items():
-        if asset_states[asset_id].pending_order is None:
-            asset_states[asset_id].pending_order = _PortfolioPendingOrder(
-                order_type="buy",
-                signal_date=current_date,
-                capital=capital,
-                is_rebalance=True,  # 리밸런싱 추가매수: position > 0에도 체결 허용
+    for asset_id, excess_value in sell_intents.items():
+        slot = slot_dict[asset_id]
+        current_amount = projected.projected_amounts.get(asset_id, 0.0)
+        target_amount = total_equity_projected * slot.target_weight
+        result[asset_id] = OrderIntent(
+            asset_id=asset_id,
+            intent_type="REDUCE_TO_TARGET",
+            current_amount=current_amount,
+            target_amount=target_amount,
+            delta_amount=-excess_value,
+            target_weight=slot.target_weight,
+            reason=f"rebalance {current_date}",
+        )
+
+    for asset_id, buy_amount in buy_intents.items():
+        slot = slot_dict[asset_id]
+        current_amount = projected.projected_amounts.get(asset_id, 0.0)
+        target_amount = total_equity_projected * slot.target_weight
+        result[asset_id] = OrderIntent(
+            asset_id=asset_id,
+            intent_type="INCREASE_TO_TARGET",
+            current_amount=current_amount,
+            target_amount=target_amount,
+            delta_amount=buy_amount,
+            target_weight=slot.target_weight,
+            reason=f"rebalance {current_date}",
+        )
+
+    return result
+
+
+def _merge_intents(
+    signal_intents: dict[str, OrderIntent],
+    rebalance_intents: dict[str, OrderIntent],
+) -> dict[str, OrderIntent]:
+    """signal intent와 rebalance intent를 통합하여 자산당 1개를 반환한다.
+
+    우선순위 규칙:
+    1. EXIT_ALL: 항상 우선 (rebalance intent 무시)
+    2. ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target_amount/delta_amount 사용)
+    3. 단독 signal intent → 그대로 통과
+    4. 단독 rebalance intent → 그대로 통과
+
+    EXIT_ALL + REDUCE 조합은 _compute_projected_portfolio가 선행되므로 발생하지 않는다.
+    (EXIT_ALL 자산은 projected에서 active_assets에서 제거되므로 rebalance 대상 제외)
+
+    Args:
+        signal_intents: {asset_id: OrderIntent} — signal에서 생성
+        rebalance_intents: {asset_id: OrderIntent} — rebalance에서 생성
+
+    Returns:
+        {asset_id: OrderIntent} — 자산당 1개 보장
+    """
+    merged: dict[str, OrderIntent] = {}
+    all_assets = set(signal_intents) | set(rebalance_intents)
+
+    for asset_id in all_assets:
+        sig = signal_intents.get(asset_id)
+        reb = rebalance_intents.get(asset_id)
+
+        if sig is not None and sig.intent_type == "EXIT_ALL":
+            # EXIT_ALL은 항상 우선
+            merged[asset_id] = sig
+        elif (
+            sig is not None
+            and sig.intent_type == "ENTER_TO_TARGET"
+            and reb is not None
+            and reb.intent_type == "INCREASE_TO_TARGET"
+        ):
+            # 신규 진입 + 리밸런싱 매수 → ENTER_TO_TARGET (rebalance target 사용, signal hold_days_used 보존)
+            merged[asset_id] = OrderIntent(
+                asset_id=asset_id,
+                intent_type="ENTER_TO_TARGET",
+                current_amount=sig.current_amount,
+                target_amount=reb.target_amount,
+                delta_amount=reb.delta_amount,
+                target_weight=reb.target_weight,
+                reason="signal_buy+rebalance",
+                hold_days_used=sig.hold_days_used,
             )
+        elif sig is not None:
+            merged[asset_id] = sig
+        elif reb is not None:
+            merged[asset_id] = reb
+
+    return merged
 
 
 # ============================================================================
@@ -446,15 +619,20 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
 def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
     """포트폴리오 백테스트를 실행한다.
 
-    복수 자산의 독립 시그널 + 목표 비중 배분 + 월간 리밸런싱을 수행한다.
-    SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용한다.
+    복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 수행한다.
+    OrderIntent 기반 주문 모델로 signal과 rebalance 충돌을 merge_intents가 해소한다.
+
+    메인 루프 흐름:
+        Step A: SELL 체결 (전일 next_day_intents: EXIT_ALL, REDUCE_TO_TARGET)
+        Step B: BUY 체결 (전일 next_day_intents: ENTER_TO_TARGET, INCREASE_TO_TARGET)
+        Step C: Equity 계산 (당일 종가 기준)
+        Step D: Signal → Projected → Rebalance → Merge → next_day_intents
+        Step E: Equity row 기록
 
     Args:
         config: 포트폴리오 실험 설정
         start_date: 백테스트 시작일 하한 (None이면 MA 워밍업 완료 시점부터 자동 결정).
             여러 실험을 동일 기간으로 정렬할 때 global_start_date를 전달한다.
-            MA 워밍업 필터링 이후에 추가로 적용되므로 실제 시작일은
-            max(valid_start 날짜, start_date)가 된다.
 
     Returns:
         PortfolioResult (equity_df, trades_df, summary, per_asset 포함)
@@ -554,19 +732,14 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         slot.asset_id: _create_strategy_for_slot(slot) for slot in config.asset_slots
     }
 
-    # 5. 자산별 상태 초기화 (모든 자산 "sell"로 시작)
+    # 5. 자산별 상태 초기화 (모든 자산 "sell"로 시작, pending_order 없음)
     asset_states: dict[str, _AssetState] = {
-        slot.asset_id: _AssetState(
-            position=0,
-            signal_state="sell",
-            pending_order=None,
-        )
-        for slot in config.asset_slots
+        slot.asset_id: _AssetState(position=0, signal_state="sell") for slot in config.asset_slots
     }
 
     shared_cash = config.total_capital
 
-    # 자산별 진입 정보 (entry_price, entry_date)
+    # 자산별 진입 정보 (entry_price, entry_date, entry_hold_days)
     entry_prices: dict[str, float] = {slot.asset_id: 0.0 for slot in config.asset_slots}
     entry_dates: dict[str, date | None] = {slot.asset_id: None for slot in config.asset_slots}
     entry_hold_days: dict[str, int] = {slot.asset_id: 0 for slot in config.asset_slots}
@@ -575,34 +748,35 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     all_trades: list[dict[str, Any]] = []
     equity_rows: list[dict[str, Any]] = []
 
-    # 6. 메인 루프: 전일 체결 → 당일 에쿼티 → 당일 시그널 → 리밸런싱 판정
+    # next_day_intents: 전일 생성된 merged intents → 당일 체결 대상
+    next_day_intents: dict[str, OrderIntent] = {}
+
+    # 6. 메인 루프: 전일 intents 체결 → 당일 에쿼티 → 당일 signal → projected → rebalance → merge
     # 신호와 체결을 하루씩 분리(Lookahead 방지): i일 종가 시그널 → i+1일 시가 체결
-    # Day 0: 전일 pending 없음 → 에쿼티 초기 기록 → 최초 시그널 판정만 수행
     for i in range(0, n):
         current_date = trade_dates[i]
         rebalanced_today = False
 
         # Step A: 매도 선행 체결 (trade_df[i].Open 기준)
-        # 매도를 먼저 처리해야 확보된 현금을 당일 매수에 즉시 활용할 수 있다 (shared_cash 재사용)
-        for asset_id, state in asset_states.items():
-            if state.pending_order is None or state.pending_order.order_type != "sell":
+        # EXIT_ALL, REDUCE_TO_TARGET intent를 먼저 처리하여 확보된 현금을 당일 매수에 활용한다
+        for asset_id, intent in next_day_intents.items():
+            if intent.intent_type not in ("EXIT_ALL", "REDUCE_TO_TARGET"):
                 continue
+            state = asset_states[asset_id]
             if state.position <= 0:
-                state.pending_order = None
                 continue
 
             trade_df = asset_trade_dfs[asset_id]
             open_price = float(trade_df.iloc[i][COL_OPEN])
-            order = state.pending_order
             sell_price = open_price * (1.0 - SLIPPAGE_RATE)
 
-            if order.rebalance_sell_amount > 0.0:
-                # 부분 매도 (리밸런싱): 초과 대금 기준으로 수량 계산 (내림)
-                shares_to_sell = int(order.rebalance_sell_amount / sell_price)
-                shares_sold = min(shares_to_sell, state.position)
-            else:
+            if intent.intent_type == "EXIT_ALL":
                 # 전량 매도 (신호 기반)
                 shares_sold = state.position
+            else:
+                # 부분 매도 (REDUCE_TO_TARGET): 초과 대금 기준 수량 계산 (내림)
+                shares_to_sell = int(abs(intent.delta_amount) / sell_price)
+                shares_sold = min(shares_to_sell, state.position)
 
             if shares_sold > 0:
                 sell_amount = shares_sold * sell_price
@@ -621,18 +795,18 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     "pnl_pct": (sell_price - e_price) / (e_price + EPSILON),
                     "hold_days_used": entry_hold_days.get(asset_id, 0),
                     "asset_id": asset_id,
-                    "trade_type": "rebalance" if order.rebalance_sell_amount > 0.0 else "signal",
+                    "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
                 }
                 all_trades.append(trade_record)
 
                 state.position -= shares_sold
 
-                # 전량 매도(신호 기반)인 경우에만 진입 정보 초기화
+                # 전량 매도(EXIT_ALL)인 경우에만 진입 정보 초기화
                 if state.position == 0:
                     entry_prices[asset_id] = 0.0
                     entry_dates[asset_id] = None
 
-                if order.rebalance_sell_amount > 0.0:
+                if intent.intent_type == "REDUCE_TO_TARGET":
                     rebalanced_today = True
 
                 logger.debug(
@@ -641,45 +815,44 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     f"잔여포지션={state.position}"
                 )
 
-            state.pending_order = None
-
         # Step B: 매수 후행 체결 (Step A에서 확보된 현금 포함하여 매수)
-        for asset_id, state in asset_states.items():
-            if state.pending_order is None or state.pending_order.order_type != "buy":
+        # ENTER_TO_TARGET, INCREASE_TO_TARGET intent 처리
+        for asset_id, intent in next_day_intents.items():
+            if intent.intent_type not in ("ENTER_TO_TARGET", "INCREASE_TO_TARGET"):
                 continue
 
+            state = asset_states[asset_id]
             trade_df = asset_trade_dfs[asset_id]
             open_price = float(trade_df.iloc[i][COL_OPEN])
-            order = state.pending_order
+            buy_price = open_price * (1.0 + SLIPPAGE_RATE)
 
-            if state.position == 0 or order.is_rebalance:
-                buy_price = open_price * (1.0 + SLIPPAGE_RATE)
-                buy_capital = order.capital
-                if buy_capital <= 0:
-                    # capital이 없으면 가용 현금 전체 사용 (초기 진입)
-                    buy_capital = shared_cash * slot_dict[asset_id].target_weight
-                shares = int(buy_capital / buy_price)
-                if shares > 0:
-                    cost = shares * buy_price
-                    shared_cash -= cost
-                    if state.position == 0:
-                        # 신규 진입: entry_price = buy_price
-                        state.position = shares
-                        entry_prices[asset_id] = buy_price
-                        entry_dates[asset_id] = current_date
-                    else:
-                        # 리밸런싱 추가매수: entry_price 가중평균 업데이트
-                        prev_position = state.position
-                        prev_entry_price = entry_prices.get(asset_id, 0.0)
-                        state.position += shares
-                        entry_prices[asset_id] = (
-                            prev_entry_price * prev_position + buy_price * shares
-                        ) / state.position
-                    if order.is_rebalance:
-                        rebalanced_today = True
-                    logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, " f"가격={buy_price:.2f}, 수량={shares}")
+            # delta_amount: ENTER=target_amount, INCREASE=추가 필요 금액 (scale_factor 적용 완료)
+            buy_capital = intent.delta_amount
+            if buy_capital <= 0:
+                continue
 
-            state.pending_order = None
+            shares = int(buy_capital / buy_price)
+            if shares > 0:
+                cost = shares * buy_price
+                shared_cash -= cost
+
+                if state.position == 0:
+                    # 신규 진입 (ENTER_TO_TARGET)
+                    state.position = shares
+                    entry_prices[asset_id] = buy_price
+                    entry_dates[asset_id] = current_date
+                    entry_hold_days[asset_id] = intent.hold_days_used
+                else:
+                    # 리밸런싱 추가매수 (INCREASE_TO_TARGET): entry_price 가중평균 업데이트
+                    prev_position = state.position
+                    prev_entry_price = entry_prices.get(asset_id, 0.0)
+                    state.position += shares
+                    entry_prices[asset_id] = (prev_entry_price * prev_position + buy_price * shares) / state.position
+
+                if intent.intent_type == "INCREASE_TO_TARGET":
+                    rebalanced_today = True
+
+                logger.debug(f"매수 체결: {asset_id}, 날짜={current_date}, " f"가격={buy_price:.2f}, 수량={shares}")
 
         # Step C: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
         # 체결 후에 계산해야 리밸런싱 판정 시 목표 비중 편차가 정확히 반영된다
@@ -691,60 +864,43 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
         current_equity = _compute_portfolio_equity(shared_cash, asset_positions, asset_closes_map)
 
-        # Step D: 시그널 판정 (signal_df[i].Close 기준, 익일 체결 예약)
-        # 전략의 check_buy/check_sell은 내부 prev 상태를 순차적으로 갱신한다 (stateful).
-        # 신호 발생 시 pending_order만 등록하고 실제 체결은 익일 Step A/B에서 처리한다
-        for asset_id, state in asset_states.items():
-            signal_df = asset_signal_dfs[asset_id]
-            strategy = strategies[asset_id]
-            slot = slot_dict[asset_id]
-
-            if state.position == 0:
-                # 매수 시그널 판정 — strategy.check_buy()에 위임 (내부 prev 상태 갱신 포함)
-                buy_now = strategy.check_buy(signal_df, i, current_date)
-
-                if buy_now:
-                    meta = strategy.get_buy_meta()
-                    if state.pending_order is None:
-                        target_w = slot.target_weight
-                        buy_capital = current_equity * target_w
-                        state.pending_order = _PortfolioPendingOrder(
-                            order_type="buy",
-                            signal_date=current_date,
-                            capital=buy_capital,
-                        )
-                        state.signal_state = "buy"
-                        entry_hold_days[asset_id] = int(meta.get("hold_days_used", 0))
-
-            elif state.position > 0:
-                # 매도 시그널 판정 — strategy.check_sell()에 위임 (내부 prev 상태 갱신 포함)
-                sell_now = strategy.check_sell(signal_df, i)
-                if sell_now and state.pending_order is None:
-                    state.pending_order = _PortfolioPendingOrder(
-                        order_type="sell",
-                        signal_date=current_date,
-                        capital=0.0,
-                    )
-                    state.signal_state = "sell"
-
-        # Step E: 이중 트리거 리밸런싱 판정 (Step C 에쿼티 기준)
-        # 월 첫 거래일(정기): 10% 초과 시 트리거 — 정기적인 비중 재조정
-        # 나머지 날(긴급): 20% 초과 시 트리거 — 급격한 비중 이탈 대응
+        # Step D: Signal → Projected → Rebalance → Merge (익일 체결용 next_day_intents 생성)
         equity_vals_now: dict[str, float] = {
             aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
         }
-        is_month_start = _is_first_trading_day_of_month(trade_dates, i)
-        if is_month_start:
-            if _check_rebalancing_needed(
-                asset_states, equity_vals_now, current_equity, config, threshold=MONTHLY_REBALANCE_THRESHOLD_RATE
-            ):
-                _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
-        elif _check_rebalancing_needed(
-            asset_states, equity_vals_now, current_equity, config, threshold=DAILY_REBALANCE_THRESHOLD_RATE
-        ):
-            _execute_rebalancing(asset_states, equity_vals_now, config, shared_cash, current_date)
 
-        # Step F: 에쿼티 행 기록 (자산별 value/weight/signal 포함)
+        # D.1: signal intents 생성 (전략 호출, 내부 prev 상태 갱신 포함)
+        signal_intents = _generate_signal_intents(
+            asset_states, strategies, asset_signal_dfs, equity_vals_now, slot_dict, current_equity, i, current_date
+        )
+
+        # D.2: projected portfolio 계산 (signal intents 반영 후 예상 상태)
+        projected = _compute_projected_portfolio(
+            asset_states, signal_intents, equity_vals_now, asset_closes_map, shared_cash
+        )
+
+        # D.3: rebalance intents 생성 (projected 기준, 이중 트리거 임계값 적용)
+        total_equity_projected = projected.projected_cash + sum(projected.projected_amounts.values())
+        is_month_start = _is_first_trading_day_of_month(trade_dates, i)
+        threshold = MONTHLY_REBALANCE_THRESHOLD_RATE if is_month_start else DAILY_REBALANCE_THRESHOLD_RATE
+        rebalance_intents = _build_rebalance_intents(
+            projected, slot_dict, total_equity_projected, threshold, current_date
+        )
+
+        # D.4: signal + rebalance 통합 (우선순위 규칙 적용, 자산당 1개 보장)
+        merged_intents = _merge_intents(signal_intents, rebalance_intents)
+
+        # D.5: signal_state 업데이트 (EXIT_ALL → "sell", ENTER_TO_TARGET → "buy")
+        for asset_id, intent in merged_intents.items():
+            if intent.intent_type == "EXIT_ALL":
+                asset_states[asset_id].signal_state = "sell"
+            elif intent.intent_type == "ENTER_TO_TARGET":
+                asset_states[asset_id].signal_state = "buy"
+
+        # D.6: 익일 체결용 intents 저장
+        next_day_intents = merged_intents
+
+        # Step E: 에쿼티 행 기록 (자산별 value/weight/signal 포함)
         row: dict[str, Any] = {
             COL_DATE: current_date,
             "equity": current_equity,
@@ -761,10 +917,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # 8. 결과 조합
     equity_df = _build_combined_equity(equity_rows, config.total_capital)
 
-    # trades_df 정리 (asset_id, trade_type 컬럼 표준화)
+    # trades_df 정리
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
-        # trade_type 컬럼 추가: 현재는 모두 "signal" (리밸런싱 체결은 signal_date로 구분 가능)
         if "trade_type" not in trades_df.columns:
             trades_df["trade_type"] = "signal"
     else:

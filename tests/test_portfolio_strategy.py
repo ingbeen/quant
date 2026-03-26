@@ -6,17 +6,14 @@ engines/portfolio_engine.py의 이중 트리거, 부분 매도, strategy_type �
 
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
 
 from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-    _AssetState,
-    _check_rebalancing_needed,
     _compute_portfolio_equity,
-    _execute_rebalancing,
     _is_first_trading_day_of_month,
-    _PortfolioPendingOrder,
     compute_portfolio_effective_start_date,
     run_portfolio_backtest,
 )
@@ -132,117 +129,10 @@ def _make_portfolio_config(
     )
 
 
-def _make_minimal_config(asset_id: str, target_weight: float) -> PortfolioConfig:
-    """단일 자산 단위 테스트용 최소 PortfolioConfig를 생성한다."""
-    return PortfolioConfig(
-        experiment_name="test",
-        display_name="Test",
-        asset_slots=(AssetSlotConfig(asset_id, Path("dummy"), Path("dummy"), target_weight),),
-        total_capital=100_000.0,
-        result_dir=Path("."),
-    )
-
 
 # ============================================================================
 # 테스트 클래스
 # ============================================================================
-
-
-class TestRebalancingTrigger:
-    """상대 임계값 ±20% 경계 조건 테스트.
-
-    핵심 계약: |actual/target - 1| > 0.20 이면 리밸런싱 트리거.
-    경계값(정확히 0.20)에서는 트리거하지 않는다.
-    """
-
-    def test_no_trigger_at_boundary(self):
-        """
-        목적: actual/target - 1 = 0.20 (정확히 경계값)이면 트리거 없음 검증.
-
-        Given: target_weight=0.30, actual_weight=0.36 → |0.36/0.30 - 1| = 0.20
-        When:  _check_rebalancing_needed() 호출
-        Then:  False 반환 (경계값 포함 미실행 정책)
-        """
-        # Given
-        total_equity = 100_000.0
-        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
-        equity_vals = {"qqq": 36_000.0}  # 36_000 / 100_000 = 0.36
-        config = _make_minimal_config("qqq", target_weight=0.30)
-
-        # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold=0.20)
-
-        # Then
-        assert result is False, "정확히 임계값(0.20)에서는 리밸런싱이 트리거되면 안 됨"
-
-    def test_trigger_above_boundary(self):
-        """
-        목적: |actual/target - 1| > 0.20 이면 트리거 발생 검증.
-
-        Given: target_weight=0.30, actual_weight=0.361 → |0.361/0.30 - 1| ≈ 0.203 > 0.20
-        When:  _check_rebalancing_needed() 호출
-        Then:  True 반환 (임계값 초과 → 트리거)
-        """
-        # Given
-        total_equity = 100_000.0
-        asset_states = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
-        equity_vals = {"qqq": 36_100.0}  # 36_100 / 100_000 = 0.361
-        config = _make_minimal_config("qqq", target_weight=0.30)
-
-        # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold=0.20)
-
-        # Then
-        assert result is True, "임계값 초과(0.2033)에서는 리밸런싱이 트리거되어야 함"
-
-
-class TestRebalancingExcludesSoldAssets:
-    """매도 시그널 자산은 리밸런싱에서 제외되어야 한다.
-
-    핵심 계약: signal_state == "sell" 자산은 리밸런싱 대상에서 제외.
-    SPY가 매도 시그널 중이면 SPY pending_order는 생성되지 않는다.
-    """
-
-    def test_rebalancing_excludes_sold_assets(self):
-        """
-        목적: 매도 시그널 자산이 리밸런싱에서 제외됨을 검증.
-
-        Given: SPY 시그널 = "sell" (포지션 0), QQQ 시그널 = "buy"
-               QQQ 실제 비중 40% (타겟 30%, |0.40/0.30-1|=0.333 > 0.20 → 트리거)
-        When:  _execute_rebalancing() 호출
-        Then:  QQQ 매도 pending_order 생성 (40% → 30%로 축소)
-               SPY pending_order는 None 유지 (매도 시그널 자산 제외)
-        """
-        # Given
-        # QQQ: 40% (target 30%), SPY: 0% (signal=sell)
-        asset_states = {
-            "qqq": _AssetState(position=100, signal_state="buy", pending_order=None),
-            "spy": _AssetState(position=0, signal_state="sell", pending_order=None),
-        }
-        equity_vals = {"qqq": 400_000.0, "spy": 0.0}
-        shared_cash = 600_000.0  # 총 1_000_000
-
-        config = PortfolioConfig(
-            experiment_name="test",
-            display_name="Test",
-            asset_slots=(
-                AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.30),
-                AssetSlotConfig("spy", Path("dummy"), Path("dummy"), 0.30),
-            ),
-            total_capital=1_000_000.0,
-            result_dir=Path("."),
-        )
-
-        # When
-        _execute_rebalancing(asset_states, equity_vals, config, shared_cash, date(2024, 1, 2))
-
-        # Then
-        # QQQ 과비중 → 매도 pending_order 생성
-        assert asset_states["qqq"].pending_order is not None, "QQQ는 과비중이므로 매도 pending_order가 생성되어야 함"
-        assert asset_states["qqq"].pending_order.order_type == "sell"
-
-        # SPY는 매도 시그널 → 리밸런싱 제외 → pending_order 없음
-        assert asset_states["spy"].pending_order is None, "SPY는 매도 시그널이므로 pending_order가 생성되면 안 됨"
 
 
 class TestQQQTQQQSharedSignal:
@@ -296,70 +186,6 @@ class TestQQQTQQQSharedSignal:
         qqq_last_exit = qqq_trades["exit_date"].max()
         tqqq_last_exit = tqqq_trades["exit_date"].max()
         assert qqq_last_exit == tqqq_last_exit, f"QQQ({qqq_last_exit})와 TQQQ({tqqq_last_exit})의 마지막 매도 날짜가 동일해야 함"
-
-
-class TestCashPartialFill:
-    """현금 부족 시 비례 배분 리밸런싱 테스트.
-
-    핵심 계약: 매수 필요액 > 가용 현금이면 scale_factor를 적용하여 비례 축소.
-    """
-
-    def test_cash_partial_fill_on_rebalancing(self):
-        """
-        목적: 가용 현금 < 매수 필요액 시 scale_factor 비례 축소 검증.
-
-        Given: 두 매수 자산, 각각 1,500,000 매수 필요 → 총 3,000,000
-               가용 현금 = 2,000,000 (< 3,000,000)
-        When:  _execute_rebalancing() 호출
-        Then:  scale_factor = 2,000,000 / 3,000,000 ≈ 0.667
-               각 매수 자산 pending_order.capital = 1,500,000 × 0.667 = 1,000,000
-               두 pending_order.capital 합계 = 2,000,000 (가용 현금 소진)
-        """
-        # Given: 두 자산 모두 포지션 없음 (각각 target 50%, 현재 0%)
-        asset_states = {
-            "A": _AssetState(position=0, signal_state="buy", pending_order=None),
-            "B": _AssetState(position=0, signal_state="buy", pending_order=None),
-        }
-        equity_vals = {"A": 0.0, "B": 0.0}
-        shared_cash = 2_000_000.0  # 가용 현금 (< 총 매수 필요 3,000,000)
-
-        config = PortfolioConfig(
-            experiment_name="test",
-            display_name="Test",
-            asset_slots=(
-                AssetSlotConfig("A", Path("dummy"), Path("dummy"), 0.50),
-                AssetSlotConfig("B", Path("dummy"), Path("dummy"), 0.50),
-            ),
-            total_capital=3_000_000.0,
-            result_dir=Path("."),
-        )
-
-        # When
-        _execute_rebalancing(asset_states, equity_vals, config, shared_cash, date(2024, 1, 2))
-
-        # Then
-        a_order = asset_states["A"].pending_order
-        b_order = asset_states["B"].pending_order
-
-        assert a_order is not None, "자산 A에 매수 pending_order가 생성되어야 함"
-        assert b_order is not None, "자산 B에 매수 pending_order가 생성되어야 함"
-        assert a_order.order_type == "buy"
-        assert b_order.order_type == "buy"
-
-        # scale_factor = 2,000,000 / 3,000,000 = 2/3
-        # 각 자산 capital = 1,500,000 × 2/3 = 1,000,000
-        assert a_order.capital == pytest.approx(
-            1_000_000.0, rel=1e-6
-        ), f"A의 매수 자본이 1,000,000이어야 함 (현재: {a_order.capital})"
-        assert b_order.capital == pytest.approx(
-            1_000_000.0, rel=1e-6
-        ), f"B의 매수 자본이 1,000,000이어야 함 (현재: {b_order.capital})"
-
-        # 두 pending_order capital 합 = 가용 현금
-        total_pending = a_order.capital + b_order.capital
-        assert total_pending == pytest.approx(
-            2_000_000.0, rel=1e-6
-        ), f"두 매수 capital 합이 가용 현금(2,000,000)과 같아야 함 (현재: {total_pending})"
 
 
 class TestPortfolioEquityFormula:
@@ -486,76 +312,6 @@ class TestB1CashBuffer:
         assert first_invested_cash == pytest.approx(
             expected_cash, rel=0.05
         ), f"초기 현금이 total × 14% ≈ {expected_cash:,.0f}이어야 함 (현재: {first_invested_cash:,.0f})"
-
-
-class TestRebalancingOrder:
-    """리밸런싱 순서 검증 — 매도 먼저, 매도 대금으로 매수.
-
-    핵심 계약: shared_cash=0이어도 매도 예상 대금을 매수 자본으로 활용할 수 있다.
-    """
-
-    def test_rebalancing_sell_before_buy(self):
-        """
-        목적: 리밸런싱 시 매도 pending_order가 먼저 생성되고, 그 예상 대금으로 매수됨을 검증.
-
-        Given: QQQ 과비중(50%, target 40%), GLD 과소비중(30%, target 40%)
-               shared_cash = 0 (매도 대금 없이는 매수 불가한 상태)
-               total_equity = 1,000,000
-        When:  _execute_rebalancing() 호출
-        Then:  QQQ 매도 pending_order 생성 (100,000 감소 필요)
-               GLD 매수 pending_order 생성 (100,000 증가 필요)
-               GLD buy capital = estimated QQQ sell proceeds ≈ 100,000
-        """
-        # Given
-        # QQQ: 50% (target 40%), SPY: 20% (target 20%, 변화 없음), GLD: 30% (target 40%)
-        asset_states = {
-            "qqq": _AssetState(position=125, signal_state="buy", pending_order=None),
-            "spy": _AssetState(position=100, signal_state="buy", pending_order=None),
-            "gld": _AssetState(position=75, signal_state="buy", pending_order=None),
-        }
-        equity_vals = {
-            "qqq": 500_000.0,  # 50% (target 40%) → 과비중 → 매도
-            "spy": 200_000.0,  # 20% (target 20%) → 유지
-            "gld": 300_000.0,  # 30% (target 40%) → 과소비중 → 매수
-        }
-        shared_cash = 0.0  # 현금 없음
-
-        config = PortfolioConfig(
-            experiment_name="test",
-            display_name="Test",
-            asset_slots=(
-                AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.40),
-                AssetSlotConfig("spy", Path("dummy"), Path("dummy"), 0.20),
-                AssetSlotConfig("gld", Path("dummy"), Path("dummy"), 0.40),
-            ),
-            total_capital=1_000_000.0,
-            result_dir=Path("."),
-        )
-
-        # When
-        _execute_rebalancing(asset_states, equity_vals, config, shared_cash, date(2024, 1, 2))
-
-        # Then
-        qqq_order = asset_states["qqq"].pending_order
-        spy_order = asset_states["spy"].pending_order
-        gld_order = asset_states["gld"].pending_order
-
-        # QQQ 과비중 → 매도 pending_order
-        assert qqq_order is not None, "QQQ 과비중이므로 매도 pending_order가 생성되어야 함"
-        assert qqq_order.order_type == "sell"
-
-        # SPY 정확히 target → pending_order 없음
-        assert spy_order is None, "SPY는 정확히 target 비중이므로 pending_order가 없어야 함"
-
-        # GLD 과소비중 + QQQ 매도 예상 대금 → 매수 pending_order
-        assert gld_order is not None, "GLD 과소비중이므로 매수 pending_order가 생성되어야 함"
-        assert gld_order.order_type == "buy"
-
-        # GLD 매수 자본 = 예상 QQQ 매도 대금 ≈ 100,000 (shared_cash=0이므로)
-        expected_gld_buy = 100_000.0  # QQQ 500k → 400k 축소 → 100k 매도 대금
-        assert gld_order.capital == pytest.approx(
-            expected_gld_buy, rel=0.01
-        ), f"GLD 매수 자본이 QQQ 매도 예상 대금({expected_gld_buy:,.0f})과 같아야 함 (현재: {gld_order.capital:,.0f})"
 
 
 # ============================================================================
@@ -713,43 +469,6 @@ class TestSingleAssetPortfolio:
         assert "equity" in result.equity_df.columns
         assert "cash" in result.equity_df.columns
         assert "gld_value" in result.equity_df.columns
-
-
-class TestNoRebalancingAfterJustRebalanced:
-    """리밸런싱 직후 같은 월에 재트리거 없음 테스트."""
-
-    def test_rebalancing_not_triggered_after_just_rebalanced(self):
-        """
-        목적: 리밸런싱 직후 동일 자산이 여전히 임계값 내에 있으면 재트리거 없음.
-
-        Given: 리밸런싱 실행 후 asset_states에 pending_order가 설정됨
-               (pending_order 존재 = 이미 리밸런싱 중)
-        When:  _check_rebalancing_needed() 호출
-        Then:  pending_order가 있는 자산은 이미 조정 중이므로 정상 False 반환
-               (pending_order 있는 경우는 _execute_rebalancing이 건너뜀)
-
-        설계 참고: pending_order가 이미 있는 자산은 _execute_rebalancing에서
-        new pending_order를 생성하지 않는다 (if pending_order is None 조건).
-        """
-        # Given: QQQ에 이미 pending_order 존재 (리밸런싱 중)
-        existing_order = _PortfolioPendingOrder(order_type="sell", signal_date=date(2024, 1, 2), capital=0.0)
-        asset_states = {
-            "qqq": _AssetState(
-                position=100,
-                signal_state="buy",
-                pending_order=existing_order,  # 이미 pending
-            )
-        }
-        equity_vals = {"qqq": 40_000.0}  # 40% (target 30%, 초과)
-        config = _make_minimal_config("qqq", target_weight=0.30)
-
-        # When: _execute_rebalancing 호출해도 pending_order 덮어쓰지 않음
-        _execute_rebalancing(asset_states, equity_vals, config, 60_000.0, date(2024, 1, 5))
-
-        # Then: 기존 pending_order가 유지됨 (덮어쓰기 없음)
-        assert (
-            asset_states["qqq"].pending_order is existing_order
-        ), "이미 pending_order가 있는 자산은 새로운 pending_order로 덮어쓰지 않아야 함"
 
 
 class TestC1FullCashOnSell:
@@ -1240,38 +959,39 @@ class TestPartialSellInvariant:
 
     def test_rebalancing_sell_sets_rebalance_sell_amount(self) -> None:
         """
-        목적: _execute_rebalancing() 후 초과 자산의
-              pending_order.rebalance_sell_amount == excess_value 검증.
+        목적: _build_rebalance_intents() 후 초과 자산의
+              REDUCE_TO_TARGET.delta_amount == -excess_value 검증.
 
-        Given: QQQ 60%(target 40%), total_equity=1,000,000, shared_cash=400,000
+        Given: QQQ 60%(target 40%), total_equity=1,000,000
                excess_value = 600,000 - 400,000 = 200,000
-        When:  _execute_rebalancing() 호출
-        Then:  QQQ pending_order.rebalance_sell_amount == 200,000 (초과분, 전량 아님)
+        When:  _build_rebalance_intents() 호출
+        Then:  QQQ REDUCE_TO_TARGET.delta_amount == -200,000 (초과분, 전량 아님)
         """
-        # Given
-        asset_states: dict[str, _AssetState] = {
-            "qqq": _AssetState(position=150, signal_state="buy", pending_order=None),
-        }
-        equity_vals = {"qqq": 600_000.0}
-        shared_cash = 400_000.0  # total = 1,000,000
-
-        config = PortfolioConfig(
-            experiment_name="test",
-            display_name="Test",
-            asset_slots=(AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), 0.40),),
-            total_capital=1_000_000.0,
-            result_dir=Path("."),
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            _build_rebalance_intents,
+            _ProjectedPortfolio,
         )
 
-        # When
-        _execute_rebalancing(asset_states, equity_vals, config, shared_cash, date(2024, 1, 2))
+        # Given
+        projected = _ProjectedPortfolio(
+            projected_amounts={"qqq": 600_000.0},
+            projected_cash=400_000.0,
+            active_assets={"qqq"},
+        )
+        slot_dict = {
+            "qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.40),
+        }
+        total_equity = 1_000_000.0
 
-        # Then
-        order = asset_states["qqq"].pending_order
-        assert order is not None
-        assert order.order_type == "sell"
-        # rebalance_sell_amount = 600,000 - 400,000 = 200,000 (전량 아닌 초과분)
-        assert order.rebalance_sell_amount == pytest.approx(200_000.0, rel=1e-6)  # type: ignore[attr-defined]
+        # When
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.10, current_date=date(2024, 1, 2)
+        )
+
+        # Then: REDUCE_TO_TARGET, delta_amount = 400,000 - 600,000 = -200,000 (전량 아닌 초과분)
+        assert "qqq" in result
+        assert result["qqq"].intent_type == "REDUCE_TO_TARGET"
+        assert result["qqq"].delta_amount == pytest.approx(-200_000.0, rel=1e-6)
 
     def test_rebalancing_position_remains_after_partial_sell(
         self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
@@ -1397,19 +1117,30 @@ class TestDualTriggerThreshold:
 
         Given: target=0.30, actual=0.333 → |0.333/0.30 - 1| ≈ 0.11 > 0.10
                threshold=0.10 (MONTHLY_REBALANCE_THRESHOLD_RATE)
-        When:  _check_rebalancing_needed(..., threshold=0.10)
-        Then:  True (월 임계값 초과 → 트리거)
+        When:  _build_rebalance_intents(..., threshold=0.10)
+        Then:  non-empty dict (월 임계값 초과 → 트리거)
         """
-        # Given
-        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
-        equity_vals = {"qqq": 33_300.0}  # 33.3% (target 30%, |33.3/30-1| ≈ 0.11)
-        config = _make_minimal_config("qqq", target_weight=0.30)
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            _build_rebalance_intents,
+            _ProjectedPortfolio,
+        )
+
+        # Given: QQQ 33.3% (target 30%, 편차 11%)
+        total_equity = 100_000.0
+        projected = _ProjectedPortfolio(
+            projected_amounts={"qqq": 33_300.0},
+            projected_cash=66_700.0,
+            active_assets={"qqq"},
+        )
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
 
         # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.10)  # type: ignore[call-arg]
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.10, current_date=date(2024, 1, 2)
+        )
 
         # Then
-        assert result is True, "편차 11% > 월 임계값 10%이면 트리거되어야 함"
+        assert len(result) > 0, "편차 11% > 월 임계값 10%이면 트리거되어야 함"
 
     def test_check_rebalancing_daily_no_trigger_at_15pct(self) -> None:
         """
@@ -1417,38 +1148,60 @@ class TestDualTriggerThreshold:
 
         Given: target=0.30, actual=0.345 → |0.345/0.30 - 1| = 0.15 < 0.20
                threshold=0.20 (DAILY_REBALANCE_THRESHOLD_RATE)
-        When:  _check_rebalancing_needed(..., threshold=0.20)
-        Then:  False (월 중간 임계값 미달 → 패스)
+        When:  _build_rebalance_intents(..., threshold=0.20)
+        Then:  {} (월 중간 임계값 미달 → 패스)
         """
-        # Given
-        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
-        equity_vals = {"qqq": 34_500.0}  # 34.5% (target 30%, |34.5/30-1| = 0.15)
-        config = _make_minimal_config("qqq", target_weight=0.30)
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            _build_rebalance_intents,
+            _ProjectedPortfolio,
+        )
+
+        # Given: QQQ 34.5% (target 30%, 편차 15%)
+        total_equity = 100_000.0
+        projected = _ProjectedPortfolio(
+            projected_amounts={"qqq": 34_500.0},
+            projected_cash=65_500.0,
+            active_assets={"qqq"},
+        )
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
 
         # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.20)  # type: ignore[call-arg]
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.20, current_date=date(2024, 1, 2)
+        )
 
         # Then
-        assert result is False, "편차 15% < 매일 임계값 20%이면 트리거 없어야 함"
+        assert result == {}, "편차 15% < 매일 임계값 20%이면 트리거 없어야 함"
 
     def test_check_rebalancing_monthly_no_trigger_below_10pct(self) -> None:
         """
         목적: threshold=0.10(월 임계값) 기준, 편차 9%에서 트리거 없음을 검증.
 
         Given: target=0.30, actual=0.327 → |0.327/0.30 - 1| = 0.09 < 0.10
-        When:  _check_rebalancing_needed(..., threshold=0.10)
-        Then:  False (편차 < 월 임계값 → 패스)
+        When:  _build_rebalance_intents(..., threshold=0.10)
+        Then:  {} (편차 < 월 임계값 → 패스)
         """
-        # Given
-        asset_states: dict[str, _AssetState] = {"qqq": _AssetState(position=0, signal_state="buy", pending_order=None)}
-        equity_vals = {"qqq": 32_700.0}  # 32.7% (target 30%, |32.7/30-1| = 0.09)
-        config = _make_minimal_config("qqq", target_weight=0.30)
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            _build_rebalance_intents,
+            _ProjectedPortfolio,
+        )
+
+        # Given: QQQ 32.7% (target 30%, 편차 9%)
+        total_equity = 100_000.0
+        projected = _ProjectedPortfolio(
+            projected_amounts={"qqq": 32_700.0},
+            projected_cash=67_300.0,
+            active_assets={"qqq"},
+        )
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
 
         # When
-        result = _check_rebalancing_needed(asset_states, equity_vals, 100_000.0, config, threshold=0.10)  # type: ignore[call-arg]
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.10, current_date=date(2024, 1, 2)
+        )
 
         # Then
-        assert result is False, "편차 9% < 월 임계값 10%이면 트리거 없어야 함"
+        assert result == {}, "편차 9% < 월 임계값 10%이면 트리거 없어야 함"
 
 
 class TestStrategyType:
@@ -1596,6 +1349,578 @@ class TestStrategyType:
         assert len(assets_json) == 1
         assert "strategy_type" in assets_json[0], "params_json[assets][0]에 strategy_type 키가 있어야 함"
         assert assets_json[0]["strategy_type"] == "buy_and_hold"
+
+
+# ============================================================================
+# Phase 0: OrderIntent 기반 새 계약 고정 (레드 허용)
+# ============================================================================
+
+# Mock 전략 클래스 (TestGenerateSignalIntents에서 사용)
+
+
+class _MockBuyStrategy:
+    """항상 buy signal을 반환하는 mock 전략 (SignalStrategy Protocol 구현)."""
+
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+        return True
+
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+        return False
+
+    def get_buy_meta(self) -> dict[str, float | int]:
+        return {"hold_days_used": 3}
+
+
+class _MockSellStrategy:
+    """항상 sell signal을 반환하는 mock 전략."""
+
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+        return False
+
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+        return True
+
+    def get_buy_meta(self) -> dict[str, float | int]:
+        return {}
+
+
+class _MockHoldStrategy:
+    """아무 signal도 발생하지 않는 mock 전략."""
+
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+        return False
+
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+        return False
+
+    def get_buy_meta(self) -> dict[str, float | int]:
+        return {}
+
+
+class TestOrderIntentModel:
+    """OrderIntent 모델 계약 검증.
+
+    핵심 계약: OrderIntent는 4가지 intent_type을 지원한다.
+    - EXIT_ALL: 보유 전량 청산 (signal sell)
+    - ENTER_TO_TARGET: 신규 진입 목표 달성 (signal buy)
+    - REDUCE_TO_TARGET: 초과분 매도 목표 달성 (rebalance)
+    - INCREASE_TO_TARGET: 미달분 매수 목표 달성 (rebalance)
+    """
+
+    def test_exit_all_intent_type(self) -> None:
+        """
+        목적: EXIT_ALL 타입으로 OrderIntent를 생성할 수 있어야 함.
+
+        Given: intent_type="EXIT_ALL" 파라미터
+        When:  OrderIntent 생성
+        Then:  intent.intent_type == "EXIT_ALL", hold_days_used 기본값 0
+        """
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        # Given / When
+        intent = OrderIntent(
+            asset_id="qqq",
+            intent_type="EXIT_ALL",
+            current_amount=100_000.0,
+            target_amount=0.0,
+            delta_amount=-100_000.0,
+            target_weight=0.0,
+            reason="signal sell",
+        )
+
+        # Then
+        assert intent.intent_type == "EXIT_ALL"
+        assert intent.hold_days_used == 0  # 기본값
+
+    def test_enter_to_target_intent_type(self) -> None:
+        """
+        목적: ENTER_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
+
+        Given: intent_type="ENTER_TO_TARGET", hold_days_used=3
+        When:  OrderIntent 생성
+        Then:  intent.intent_type == "ENTER_TO_TARGET", intent.hold_days_used == 3
+        """
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        intent = OrderIntent(
+            asset_id="qqq",
+            intent_type="ENTER_TO_TARGET",
+            current_amount=0.0,
+            target_amount=300_000.0,
+            delta_amount=300_000.0,
+            target_weight=0.30,
+            reason="signal buy",
+            hold_days_used=3,
+        )
+
+        assert intent.intent_type == "ENTER_TO_TARGET"
+        assert intent.hold_days_used == 3
+
+    def test_reduce_to_target_intent_type(self) -> None:
+        """
+        목적: REDUCE_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
+
+        Given: intent_type="REDUCE_TO_TARGET", delta_amount < 0
+        When:  OrderIntent 생성
+        Then:  intent.intent_type == "REDUCE_TO_TARGET"
+        """
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        intent = OrderIntent(
+            asset_id="qqq",
+            intent_type="REDUCE_TO_TARGET",
+            current_amount=400_000.0,
+            target_amount=300_000.0,
+            delta_amount=-100_000.0,
+            target_weight=0.30,
+            reason="rebalance",
+        )
+
+        assert intent.intent_type == "REDUCE_TO_TARGET"
+        assert intent.delta_amount == pytest.approx(-100_000.0, abs=0.01)
+
+    def test_increase_to_target_intent_type(self) -> None:
+        """
+        목적: INCREASE_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
+
+        Given: intent_type="INCREASE_TO_TARGET", delta_amount > 0
+        When:  OrderIntent 생성
+        Then:  intent.intent_type == "INCREASE_TO_TARGET"
+        """
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        intent = OrderIntent(
+            asset_id="gld",
+            intent_type="INCREASE_TO_TARGET",
+            current_amount=200_000.0,
+            target_amount=300_000.0,
+            delta_amount=100_000.0,
+            target_weight=0.30,
+            reason="rebalance",
+        )
+
+        assert intent.intent_type == "INCREASE_TO_TARGET"
+        assert intent.delta_amount == pytest.approx(100_000.0, abs=0.01)
+
+
+class TestGenerateSignalIntents:
+    """_generate_signal_intents 계약 검증.
+
+    핵심 계약:
+    - position=0 + buy signal → ENTER_TO_TARGET (target_amount = current_equity × target_weight)
+    - position>0 + sell signal → EXIT_ALL
+    - 신호 없음(HOLD) → dict에 포함 안 됨
+    """
+
+    def _make_signal_df(self) -> pd.DataFrame:
+        """최소 signal DataFrame 생성 (mock 전략은 df를 사용하지 않음)."""
+        return pd.DataFrame({COL_DATE: [date(2024, 1, 2)], COL_CLOSE: [100.0]})
+
+    def test_buy_signal_generates_enter_to_target(self) -> None:
+        """
+        목적: position=0이고 buy signal 발생 시 ENTER_TO_TARGET 생성 검증.
+
+        Given: position=0, signal_state="sell", buy strategy
+               current_equity=1_000_000, target_weight=0.30
+        When:  _generate_signal_intents() 호출
+        Then:  qqq에 ENTER_TO_TARGET intent 생성
+               target_amount ≈ current_equity × 0.30 = 300,000
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _AssetState as NewAssetState,
+        )  # pyright: ignore[reportPrivateUsage]
+        from qbt.backtest.engines.portfolio_engine import (
+            _generate_signal_intents,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        strategies: dict[str, Any] = {"qqq": _MockBuyStrategy()}
+        signal_dfs = {"qqq": self._make_signal_df()}
+        equity_vals = {"qqq": 0.0}
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
+        current_equity = 1_000_000.0
+
+        # When
+        intents = _generate_signal_intents(
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+        )
+
+        # Then
+        assert "qqq" in intents, "buy signal 발생 시 qqq에 intent가 생성되어야 함"
+        assert intents["qqq"].intent_type == "ENTER_TO_TARGET"
+        assert intents["qqq"].target_amount == pytest.approx(300_000.0, rel=1e-6)
+
+    def test_sell_signal_generates_exit_all(self) -> None:
+        """
+        목적: position>0이고 sell signal 발생 시 EXIT_ALL 생성 검증.
+
+        Given: position=100, signal_state="buy", sell strategy
+               equity_vals["qqq"]=100_000
+        When:  _generate_signal_intents() 호출
+        Then:  qqq에 EXIT_ALL intent 생성
+               current_amount == equity_vals["qqq"], target_amount == 0
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _AssetState as NewAssetState,
+        )  # pyright: ignore[reportPrivateUsage]
+        from qbt.backtest.engines.portfolio_engine import (
+            _generate_signal_intents,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=100, signal_state="buy")}
+        strategies: dict[str, Any] = {"qqq": _MockSellStrategy()}
+        signal_dfs = {"qqq": self._make_signal_df()}
+        equity_vals = {"qqq": 100_000.0}
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
+        current_equity = 1_000_000.0
+
+        # When
+        intents = _generate_signal_intents(
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+        )
+
+        # Then
+        assert "qqq" in intents, "sell signal 발생 시 qqq에 intent가 생성되어야 함"
+        assert intents["qqq"].intent_type == "EXIT_ALL"
+        assert intents["qqq"].current_amount == pytest.approx(100_000.0, abs=0.01)
+        assert intents["qqq"].target_amount == pytest.approx(0.0, abs=0.01)
+
+    def test_no_signal_generates_no_intent(self) -> None:
+        """
+        목적: signal이 없으면 intent가 생성되지 않음(HOLD) 검증.
+
+        Given: position=0, hold strategy (buy도 sell도 없음)
+        When:  _generate_signal_intents() 호출
+        Then:  빈 dict 반환 (qqq에 intent 없음)
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _AssetState as NewAssetState,
+        )  # pyright: ignore[reportPrivateUsage]
+        from qbt.backtest.engines.portfolio_engine import (
+            _generate_signal_intents,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        strategies: dict[str, Any] = {"qqq": _MockHoldStrategy()}
+        signal_dfs = {"qqq": self._make_signal_df()}
+        equity_vals = {"qqq": 0.0}
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
+        current_equity = 1_000_000.0
+
+        # When
+        intents = _generate_signal_intents(
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+        )
+
+        # Then
+        assert "qqq" not in intents, "신호 없으면 qqq에 intent가 생성되면 안 됨"
+
+
+class TestComputeProjectedPortfolio:
+    """_compute_projected_portfolio 계약 검증.
+
+    핵심 계약:
+    - EXIT_ALL 자산: projected_amounts[asset_id]=0, active에서 제거, cash 증가
+    - ENTER_TO_TARGET 자산: active에 추가 (아직 position=0이므로 amount는 0)
+    - intent 없는 기존 보유 자산: 현재 상태 유지
+    """
+
+    def _make_intent(
+        self,
+        asset_id: str,
+        intent_type: str,
+        current_amount: float = 0.0,
+        target_amount: float = 0.0,
+        delta_amount: float = 0.0,
+    ) -> Any:
+        """테스트용 OrderIntent 생성 헬퍼."""
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        return OrderIntent(
+            asset_id=asset_id,
+            intent_type=intent_type,  # type: ignore[arg-type]
+            current_amount=current_amount,
+            target_amount=target_amount,
+            delta_amount=delta_amount,
+            target_weight=0.30,
+            reason="test",
+        )
+
+    def test_exit_all_removes_from_active_and_increases_cash(self) -> None:
+        """
+        목적: EXIT_ALL intent → projected_amounts=0, active 제거, cash 증가 검증.
+
+        Given: QQQ position=100, equity_val=100_000, shared_cash=50_000
+               EXIT_ALL intent for qqq
+        When:  _compute_projected_portfolio() 호출
+        Then:  projected.projected_amounts["qqq"] == 0
+               "qqq" not in projected.active_assets
+               projected.projected_cash ≈ 50_000 + 100_000 = 150_000
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _AssetState as NewAssetState,
+        )  # pyright: ignore[reportPrivateUsage]
+        from qbt.backtest.engines.portfolio_engine import (
+            _compute_projected_portfolio,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=100, signal_state="buy")}
+        signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
+        equity_vals = {"qqq": 100_000.0}
+        asset_closes_map = {"qqq": 1000.0}
+        shared_cash = 50_000.0
+
+        # When
+        projected = _compute_projected_portfolio(
+            asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash
+        )
+
+        # Then
+        assert projected.projected_amounts.get("qqq", 0.0) == pytest.approx(0.0, abs=0.01)
+        assert "qqq" not in projected.active_assets
+        assert projected.projected_cash == pytest.approx(150_000.0, abs=0.01)
+
+    def test_enter_to_target_adds_to_active(self) -> None:
+        """
+        목적: ENTER_TO_TARGET intent → active에 추가, cash 변화 없음 검증.
+
+        Given: QQQ position=0 (signal_state="sell"), shared_cash=500_000
+               ENTER_TO_TARGET intent for qqq
+        When:  _compute_projected_portfolio() 호출
+        Then:  "qqq" in projected.active_assets
+               projected.projected_amounts["qqq"] == 0 (아직 position 없음)
+               projected.projected_cash == 500_000 (변화 없음)
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _AssetState as NewAssetState,
+        )  # pyright: ignore[reportPrivateUsage]
+        from qbt.backtest.engines.portfolio_engine import (
+            _compute_projected_portfolio,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        signal_intents = {
+            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
+        }
+        equity_vals = {"qqq": 0.0}
+        asset_closes_map = {"qqq": 1000.0}
+        shared_cash = 500_000.0
+
+        # When
+        projected = _compute_projected_portfolio(
+            asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash
+        )
+
+        # Then
+        assert "qqq" in projected.active_assets
+        assert projected.projected_amounts.get("qqq", 0.0) == pytest.approx(0.0, abs=0.01)
+        assert projected.projected_cash == pytest.approx(500_000.0, abs=0.01)
+
+
+class TestBuildRebalanceIntents:
+    """_build_rebalance_intents 계약 검증.
+
+    핵심 계약:
+    - active_assets 중 threshold 초과 자산이 없으면 빈 dict 반환
+    - threshold 초과 시 전체 active 자산에 대해 REDUCE/INCREASE 생성
+    - inactive 자산(exit 예정)은 대상에서 제외
+    """
+
+    def _make_projected(
+        self,
+        active_assets: set[str],
+        projected_amounts: dict[str, float],
+        projected_cash: float,
+    ) -> Any:
+        """테스트용 _ProjectedPortfolio 생성."""
+        from qbt.backtest.engines.portfolio_engine import _ProjectedPortfolio  # pyright: ignore[reportPrivateUsage]
+
+        return _ProjectedPortfolio(
+            projected_amounts=projected_amounts,
+            projected_cash=projected_cash,
+            active_assets=active_assets,
+        )
+
+    def test_no_rebalance_when_threshold_not_exceeded(self) -> None:
+        """
+        목적: active 자산 편차가 threshold 이하이면 빈 dict 반환 검증.
+
+        Given: QQQ 31% (target 30%), threshold=0.20
+               |31/30 - 1| = 0.033 < 0.20
+        When:  _build_rebalance_intents() 호출
+        Then:  빈 dict 반환
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _build_rebalance_intents,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given: QQQ 31% (편차 3.3% < 20%)
+        total_equity = 1_000_000.0
+        projected = self._make_projected(
+            active_assets={"qqq"},
+            projected_amounts={"qqq": 310_000.0},  # 31%
+            projected_cash=690_000.0,
+        )
+        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
+
+        # When
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.20, current_date=date(2024, 1, 2)
+        )
+
+        # Then
+        assert result == {}, "threshold 미초과 시 빈 dict를 반환해야 함"
+
+    def test_rebalance_generates_reduce_and_increase(self) -> None:
+        """
+        목적: threshold 초과 시 REDUCE_TO_TARGET/INCREASE_TO_TARGET 생성 검증.
+
+        Given: QQQ 50% (target 30%), GLD 10% (target 30%)
+               |50/30 - 1| = 0.667 > 0.20 → threshold 초과
+               total_equity=1,000,000, projected_cash=400,000
+        When:  _build_rebalance_intents() 호출
+        Then:  QQQ → REDUCE_TO_TARGET
+               GLD → INCREASE_TO_TARGET
+        """
+        from qbt.backtest.engines.portfolio_engine import (
+            _build_rebalance_intents,
+        )  # pyright: ignore[reportPrivateUsage]
+
+        # Given: QQQ 과비중, GLD 과소비중
+        total_equity = 1_000_000.0
+        projected = self._make_projected(
+            active_assets={"qqq", "gld"},
+            projected_amounts={"qqq": 500_000.0, "gld": 100_000.0},  # 50%, 10%
+            projected_cash=400_000.0,
+        )
+        slot_dict = {
+            "qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30),
+            "gld": AssetSlotConfig("gld", Path("dummy"), Path("dummy"), target_weight=0.30),
+        }
+
+        # When
+        result = _build_rebalance_intents(
+            projected, slot_dict, total_equity, threshold=0.20, current_date=date(2024, 1, 2)
+        )
+
+        # Then
+        assert "qqq" in result, "QQQ 과비중이므로 REDUCE_TO_TARGET이 생성되어야 함"
+        assert result["qqq"].intent_type == "REDUCE_TO_TARGET"
+        assert "gld" in result, "GLD 과소비중이므로 INCREASE_TO_TARGET이 생성되어야 함"
+        assert result["gld"].intent_type == "INCREASE_TO_TARGET"
+
+
+class TestMergeIntents:
+    """_merge_intents 계약 검증.
+
+    핵심 계약:
+    - EXIT_ALL은 항상 우선 (rebalance intent 무시)
+    - ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target_amount 사용)
+    - 단독 signal/rebalance intent는 그대로 통과
+    - 결과: 자산당 1개 intent 보장
+    """
+
+    def _make_intent(
+        self,
+        asset_id: str,
+        intent_type: str,
+        delta_amount: float = 0.0,
+        target_amount: float = 0.0,
+        hold_days_used: int = 0,
+    ) -> Any:
+        """테스트용 OrderIntent 생성 헬퍼."""
+        from qbt.backtest.engines.portfolio_engine import OrderIntent  # pyright: ignore[reportPrivateUsage]
+
+        return OrderIntent(
+            asset_id=asset_id,
+            intent_type=intent_type,  # type: ignore[arg-type]
+            current_amount=0.0,
+            target_amount=target_amount,
+            delta_amount=delta_amount,
+            target_weight=0.30,
+            reason="test",
+            hold_days_used=hold_days_used,
+        )
+
+    def test_exit_all_overrides_rebalance(self) -> None:
+        """
+        목적: EXIT_ALL signal이 rebalance intent를 항상 우선하는지 검증.
+
+        Given: signal → EXIT_ALL, rebalance → REDUCE_TO_TARGET
+        When:  _merge_intents() 호출
+        Then:  merged["qqq"].intent_type == "EXIT_ALL"
+        """
+        from qbt.backtest.engines.portfolio_engine import _merge_intents  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        signal_intents: dict[str, Any] = {"qqq": self._make_intent("qqq", "EXIT_ALL")}
+        rebalance_intents: dict[str, Any] = {
+            "qqq": self._make_intent("qqq", "REDUCE_TO_TARGET", delta_amount=-100_000.0)
+        }
+
+        # When
+        merged = _merge_intents(signal_intents, rebalance_intents)
+
+        # Then
+        assert "qqq" in merged
+        assert merged["qqq"].intent_type == "EXIT_ALL"
+
+    def test_enter_plus_increase_becomes_enter_with_rebalance_target(self) -> None:
+        """
+        목적: ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target 사용) 검증.
+
+        Given: signal → ENTER_TO_TARGET (target=300_000, hold_days_used=3)
+               rebalance → INCREASE_TO_TARGET (target=320_000, delta=320_000)
+        When:  _merge_intents() 호출
+        Then:  merged.intent_type == "ENTER_TO_TARGET"
+               merged.target_amount == 320_000 (rebalance의 target 사용)
+               merged.hold_days_used == 3 (signal의 hold_days_used 보존)
+        """
+        from qbt.backtest.engines.portfolio_engine import _merge_intents  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        signal_intents: dict[str, Any] = {
+            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, hold_days_used=3)
+        }
+        rebalance_intents: dict[str, Any] = {
+            "qqq": self._make_intent("qqq", "INCREASE_TO_TARGET", target_amount=320_000.0, delta_amount=320_000.0)
+        }
+
+        # When
+        merged = _merge_intents(signal_intents, rebalance_intents)
+
+        # Then
+        assert merged["qqq"].intent_type == "ENTER_TO_TARGET"
+        assert merged["qqq"].target_amount == pytest.approx(320_000.0, abs=0.01)
+        assert merged["qqq"].hold_days_used == 3  # signal의 hold_days_used 보존
+
+    def test_single_rebalance_passes_through(self) -> None:
+        """
+        목적: rebalance intent만 있으면 그대로 통과 검증.
+
+        Given: signal={}, rebalance → REDUCE_TO_TARGET
+        When:  _merge_intents() 호출
+        Then:  merged["qqq"].intent_type == "REDUCE_TO_TARGET"
+        """
+        from qbt.backtest.engines.portfolio_engine import _merge_intents  # pyright: ignore[reportPrivateUsage]
+
+        # Given
+        signal_intents: dict[str, Any] = {}
+        rebalance_intents: dict[str, Any] = {
+            "qqq": self._make_intent("qqq", "REDUCE_TO_TARGET", delta_amount=-100_000.0)
+        }
+
+        # When
+        merged = _merge_intents(signal_intents, rebalance_intents)
+
+        # Then
+        assert "qqq" in merged
+        assert merged["qqq"].intent_type == "REDUCE_TO_TARGET"
 
 
 # ============================================================================

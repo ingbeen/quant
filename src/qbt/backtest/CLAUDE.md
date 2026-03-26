@@ -156,29 +156,38 @@ TypedDict:
 
 내부 데이터클래스:
 
-- `_PortfolioPendingOrder`: 포트폴리오 전용 예약 주문 (order_type, signal_date, capital, rebalance_sell_amount)
-  - `rebalance_sell_amount > 0.0`: 리밸런싱 부분 매도 (대금 기준)
-  - `rebalance_sell_amount == 0.0`: 신호 기반 전량 매도 (기본값)
-- `_AssetState`: 자산별 런타임 상태 (position, signal_state, pending_order)
-  - hold_state 필드 제거됨 (BufferZoneStrategy 내부에서 관리)
+- `OrderIntent`: 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
+  - intent_type: `EXIT_ALL` (signal sell 전량 청산) / `ENTER_TO_TARGET` (signal buy 신규 진입) / `REDUCE_TO_TARGET` (rebalance 초과분 매도) / `INCREASE_TO_TARGET` (rebalance 미달분 매수)
+- `_ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets)
+  - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
+  - ENTER_TO_TARGET 자산은 active_assets에 추가 (position=0이므로 amount=0 유지)
+- `_AssetState`: 자산별 런타임 상태 (position, signal_state)
+
+주문 흐름 함수:
+
+- `_generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
+- `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
+- `_build_rebalance_intents(projected, slot_dict, total_equity_projected, threshold, current_date) -> dict[str, OrderIntent]`: projected 상태 기반 리밸런싱 intent 생성 (threshold 미초과 시 빈 dict)
+- `_merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
 
 공개 함수:
 
 - `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
-- `_check_rebalancing_needed(asset_states, equity_vals, total_equity, config, threshold) -> bool`: 리밸런싱 필요 여부 판정 (threshold 파라미터로 월별/일별 임계값 전환)
-- `_execute_rebalancing(asset_states, equity_vals, config, shared_cash, current_date) -> None`: 리밸런싱 pending_order 생성 (in-place). 초과 자산은 rebalance_sell_amount 기반 부분 매도.
 - `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정
 - `_compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float`: 에쿼티 산식 계산
 - `_create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy`: strategy_type 기반 팩토리 (`"buffer_zone"` → `BufferZoneStrategy()`, `"buy_and_hold"` → `BuyAndHoldStrategy()`)
 
 설계 특징:
 
+- 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
+- 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
 - 이중 트리거 리밸런싱: 월 첫날 10% / 매일 20% 긴급 트리거
-- 부분 매도: 리밸런싱 시 초과분(rebalance_sell_amount)만 매도. 신호 기반 매도는 전량 유지
-- 2패스 체결: 전 자산 매도 완료 후 매수 진행 (매도 대금을 매수 자본으로 활용)
+- 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
+- projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
+- 부분 매도: REDUCE_TO_TARGET은 delta_amount 기준 수량, EXIT_ALL은 전량
 - SignalStrategy 팩토리: strategy_type 문자열 분기 없이 `strategy.check_buy()`, `strategy.check_sell()` 호출
 
 ### 8. portfolio_configs.py
