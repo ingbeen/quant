@@ -17,11 +17,20 @@ tests/
 ├── CLAUDE.md # tests 관련 규칙 (이 문서)
 ├── conftest.py # 공통 픽스처
 ├── test_analysis.py # 성과 지표/분석 로직 테스트
-├── test_buffer_zone_helpers.py # 버퍼존 전략 핵심 로직 테스트
+├── test_buffer_zone_contracts.py # 버퍼존 필드 및 밴드 분리 계약 테스트
+├── test_buffer_zone_run.py       # 버퍼존 실행 및 그리드 서치 테스트
+├── test_buffer_zone_execution_rules.py # 버퍼존 체결 규칙 테스트
+├── test_buffer_zone_dual_ticker.py     # 버퍼존 듀얼 티커 전략 테스트
 ├── test_buffer_zone.py    # 버퍼존 통합 모듈 테스트 (config, resolve_params, create_runner)
 ├── test_portfolio_configs.py # 포트폴리오 실험 설정 불변조건 테스트 (target_weight 합, asset_id 중복 등)
-├── test_portfolio_strategy.py # 포트폴리오 백테스트 엔진 테스트 (이중 트리거, 부분 매도, strategy_type 분기)
-├── test_backtest_walkforward.py # 백테스트 워크포워드 검증(WFO) 테스트
+├── test_portfolio_backtest_scenarios.py # 포트폴리오 백테스트 시나리오 및 edge case 테스트
+├── test_portfolio_strategy_types.py     # 포트폴리오 strategy_id 동작 계약 테스트
+├── test_portfolio_planning.py           # 포트폴리오 planning 로직 테스트 (OrderIntent, signal/projected/merge)
+├── test_portfolio_execution.py          # 포트폴리오 체결 로직 테스트 (SELL→BUY, 부분 매도)
+├── test_walkforward_windows.py   # WFO 윈도우 생성 테스트
+├── test_walkforward_schedule.py  # WFO 파라미터 스케줄 및 실행 테스트
+├── test_walkforward_selection.py # WFO 파라미터 선택 및 WFE 테스트
+├── test_walkforward_summary.py   # WFO 모드 요약 통계 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
 ├── test_engine_common.py  # 엔진 공통 함수 계약 테스트 (execute_buy/sell_order, record_equity)
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
@@ -35,7 +44,9 @@ tests/
 ├── test_parallel_executor.py # 병렬 처리 테스트
 ├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
 ├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
-├── test_tqqq_simulation.py # TQQQ 시뮬레이션 (core) 테스트
+├── test_tqqq_simulation_cost_model.py # TQQQ 비용 모델 테스트 (일일 비용, FFR, softplus, 스프레드)
+├── test_tqqq_simulation_core.py       # TQQQ 시뮬레이션 코어 테스트 (simulate, 오버나이트)
+├── test_tqqq_simulation_outputs.py    # TQQQ 출력 테스트 (검증 지표, CSV 저장)
 ├── test_tqqq_spread_lab_helpers.py # TQQQ Spread Lab 앱 전용 함수 테스트
 ├── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
 ├── test_stock_downloader.py # 주식 데이터 다운로드/검증 테스트
@@ -133,12 +144,17 @@ poetry run pytest tests/test_xxx.py -s -vv
 
 근거 위치:
 
-- [test_buffer_zone_helpers.py](test_buffer_zone_helpers.py)
+- [test_buffer_zone_contracts.py](test_buffer_zone_contracts.py)
+- [test_buffer_zone_run.py](test_buffer_zone_run.py)
+- [test_buffer_zone_execution_rules.py](test_buffer_zone_execution_rules.py)
+- [test_buffer_zone_dual_ticker.py](test_buffer_zone_dual_ticker.py)
 - [test_buffer_zone.py](test_buffer_zone.py)
 - [test_buy_and_hold.py](test_buy_and_hold.py)
 - [test_engine_common.py](test_engine_common.py)
 - [test_analysis.py](test_analysis.py)
-- [test_tqqq_simulation.py](test_tqqq_simulation.py)
+- [test_tqqq_simulation_cost_model.py](test_tqqq_simulation_cost_model.py)
+- [test_tqqq_simulation_core.py](test_tqqq_simulation_core.py)
+- [test_tqqq_simulation_outputs.py](test_tqqq_simulation_outputs.py)
 - [test_tqqq_analysis_helpers.py](test_tqqq_analysis_helpers.py)
 - [test_tqqq_data_loader.py](test_tqqq_data_loader.py)
 - [test_tqqq_spread_lab_helpers.py](test_tqqq_spread_lab_helpers.py)

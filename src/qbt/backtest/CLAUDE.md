@@ -112,6 +112,13 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 백테스트 엔진을 엔진 공통 로직 / 단일 백테스트 엔진 / 포트폴리오 엔진으로 분리한 패키지입니다.
 `SignalStrategy` Protocol을 통해 전략을 의존성 주입 방식으로 사용하므로, 새 전략 추가 시 엔진 파일 수정이 불필요합니다.
 
+포트폴리오 엔진은 책임 단위로 4개 모듈로 분리되어 있다:
+- `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
+- `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 월 첫 거래일 판정 함수
+- `portfolio_execution.py`: 자산 상태(_AssetState), SELL→BUY 순 체결 함수
+- `portfolio_data.py`: 데이터 로딩/검증, 에쿼티 DataFrame 빌드 함수
+- `portfolio_engine.py`: facade (공개 API 2개: `compute_portfolio_effective_start_date`, `run_portfolio_backtest`)
+
 #### engines/engine_common.py
 
 체결/에쿼티 기록 등 두 엔진이 공유하는 공통 로직을 제공합니다.
