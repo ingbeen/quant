@@ -2,12 +2,12 @@
   "display_name": "A-1 (QQQ 25% / SPY 25% / GLD 50%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 83953319,
-    "total_return_pct": 739.53,
+    "final_capital": 83917865,
+    "total_return_pct": 739.18,
     "cagr": 10.5,
-    "mdd": -16.34,
-    "calmar": 0.64,
-    "total_trades": 46,
+    "mdd": -14.96,
+    "calmar": 0.7,
+    "total_trades": 77,
     "start_date": "2004-11-18",
     "end_date": "2026-03-12"
   },
@@ -15,53 +15,64 @@
     {
       "asset_id": "qqq",
       "target_weight": 0.25,
-      "total_trades": 17,
-      "win_rate": 76.47
+      "total_trades": 30,
+      "win_rate": 86.67
     },
     {
       "asset_id": "spy",
       "target_weight": 0.25,
-      "total_trades": 16,
-      "win_rate": 68.75
+      "total_trades": 26,
+      "win_rate": 92.31
     },
     {
       "asset_id": "gld",
       "target_weight": 0.5,
-      "total_trades": 13,
-      "win_rate": 38.46
+      "total_trades": 21,
+      "win_rate": 76.19
     }
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_a1",
     "display_name": "A-1 (QQQ 25% / SPY 25% / GLD 50%)",
     "total_capital": 10000000.0,
-    "ma_window": 200,
-    "ma_type": "ema",
-    "buy_buffer_zone_pct": 0.03,
-    "sell_buffer_zone_pct": 0.05,
-    "hold_days": 3,
-    "rebalance_threshold_rate": 0.2,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
         "asset_id": "qqq",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/QQQ_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "spy",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/SPY_max.csv",
         "trade_data_path": "storage/stock/SPY_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "gld",
         "target_weight": 0.5,
         "signal_data_path": "storage/stock/GLD_max.csv",
         "trade_data_path": "storage/stock/GLD_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       }
     ]
   }

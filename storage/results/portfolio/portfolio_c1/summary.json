@@ -2,12 +2,12 @@
   "display_name": "C-1 (QQQ 50% / TQQQ 50%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 248572874,
-    "total_return_pct": 2385.73,
-    "cagr": 16.27,
-    "mdd": -50.35,
-    "calmar": 0.32,
-    "total_trades": 51,
+    "final_capital": 453873777,
+    "total_return_pct": 4438.74,
+    "cagr": 19.6,
+    "mdd": -48.91,
+    "calmar": 0.4,
+    "total_trades": 49,
     "start_date": "2004-11-18",
     "end_date": "2026-03-12"
   },
@@ -15,40 +15,46 @@
     {
       "asset_id": "qqq",
       "target_weight": 0.5,
-      "total_trades": 10,
-      "win_rate": 80.0
+      "total_trades": 15,
+      "win_rate": 86.67
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.5,
-      "total_trades": 41,
-      "win_rate": 80.49
+      "total_trades": 34,
+      "win_rate": 91.18
     }
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_c1",
     "display_name": "C-1 (QQQ 50% / TQQQ 50%)",
     "total_capital": 10000000.0,
-    "ma_window": 200,
-    "ma_type": "ema",
-    "buy_buffer_zone_pct": 0.03,
-    "sell_buffer_zone_pct": 0.05,
-    "hold_days": 3,
-    "rebalance_threshold_rate": 0.2,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
         "asset_id": "qqq",
         "target_weight": 0.5,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/QQQ_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "tqqq",
         "target_weight": 0.5,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       }
     ]
   }

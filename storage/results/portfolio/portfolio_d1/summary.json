@@ -23,19 +23,20 @@
     "experiment_name": "portfolio_d1",
     "display_name": "D-1 (QQQ 100%)",
     "total_capital": 10000000.0,
-    "ma_window": 200,
-    "ma_type": "ema",
-    "buy_buffer_zone_pct": 0.03,
-    "sell_buffer_zone_pct": 0.05,
-    "hold_days": 3,
-    "rebalance_threshold_rate": 0.2,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
         "asset_id": "qqq",
         "target_weight": 1.0,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/QQQ_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       }
     ]
   }

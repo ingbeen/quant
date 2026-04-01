@@ -2,12 +2,12 @@
   "display_name": "G-3 (SPY 60%(버퍼존) / GLD 25%(버퍼존) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 40560251,
-    "total_return_pct": 305.6,
-    "cagr": 6.79,
-    "mdd": -13.35,
-    "calmar": 0.51,
-    "total_trades": 79,
+    "final_capital": 56764304,
+    "total_return_pct": 467.64,
+    "cagr": 8.49,
+    "mdd": -16.31,
+    "calmar": 0.52,
+    "total_trades": 90,
     "start_date": "2004-11-18",
     "end_date": "2026-03-12"
   },
@@ -15,53 +15,64 @@
     {
       "asset_id": "spy",
       "target_weight": 0.6,
-      "total_trades": 37,
-      "win_rate": 81.08
+      "total_trades": 30,
+      "win_rate": 96.67
     },
     {
       "asset_id": "gld",
       "target_weight": 0.25,
-      "total_trades": 38,
-      "win_rate": 65.79
+      "total_trades": 34,
+      "win_rate": 82.35
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.15,
-      "total_trades": 4,
-      "win_rate": 100.0
+      "total_trades": 26,
+      "win_rate": 84.62
     }
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_g3",
     "display_name": "G-3 (SPY 60%(버퍼존) / GLD 25%(버퍼존) / TLT 15%(B&H))",
     "total_capital": 10000000.0,
-    "ma_window": 200,
-    "ma_type": "ema",
-    "buy_buffer_zone_pct": 0.03,
-    "sell_buffer_zone_pct": 0.05,
-    "hold_days": 3,
-    "rebalance_threshold_rate": 0.2,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
         "asset_id": "spy",
         "target_weight": 0.6,
         "signal_data_path": "storage/stock/SPY_max.csv",
         "trade_data_path": "storage/stock/SPY_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "gld",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/GLD_max.csv",
         "trade_data_path": "storage/stock/GLD_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "tlt",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/TLT_max.csv",
         "trade_data_path": "storage/stock/TLT_max.csv",
-        "always_invested": true
+        "strategy_id": "buy_and_hold",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       }
     ]
   }

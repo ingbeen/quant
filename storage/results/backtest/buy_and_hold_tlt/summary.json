@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (TLT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 23762393,
-    "total_return_pct": 137.62,
-    "cagr": 3.73,
+    "final_capital": 23704405,
+    "total_return_pct": 137.04,
+    "cagr": 3.72,
     "mdd": -48.35,
     "calmar": 0.08,
     "total_trades": 0,
@@ -14,9 +14,9 @@
     "start_date": "2002-07-30",
     "end_date": "2026-03-12",
     "open_position": {
-      "entry_date": "2002-07-30",
-      "entry_price": 36.59982,
-      "shares": 273225
+      "entry_date": "2002-07-31",
+      "entry_price": 36.68931,
+      "shares": 272558
     }
   },
   "params": {

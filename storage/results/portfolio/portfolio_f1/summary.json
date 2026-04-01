@@ -2,12 +2,12 @@
   "display_name": "F-1 (SPY 40% / TQQQ 20% / GLD 25% / TLT 15%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 72083979,
-    "total_return_pct": 620.84,
-    "cagr": 9.71,
-    "mdd": -21.29,
-    "calmar": 0.46,
-    "total_trades": 109,
+    "final_capital": 124811371,
+    "total_return_pct": 1148.11,
+    "cagr": 12.57,
+    "mdd": -21.81,
+    "calmar": 0.58,
+    "total_trades": 214,
     "start_date": "2004-11-18",
     "end_date": "2026-03-12"
   },
@@ -15,66 +15,82 @@
     {
       "asset_id": "spy",
       "target_weight": 0.4,
-      "total_trades": 22,
-      "win_rate": 68.18
+      "total_trades": 43,
+      "win_rate": 95.35
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.2,
-      "total_trades": 39,
-      "win_rate": 74.36
+      "total_trades": 77,
+      "win_rate": 92.21
     },
     {
       "asset_id": "gld",
       "target_weight": 0.25,
-      "total_trades": 25,
-      "win_rate": 56.0
+      "total_trades": 53,
+      "win_rate": 86.79
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.15,
-      "total_trades": 23,
-      "win_rate": 43.48
+      "total_trades": 41,
+      "win_rate": 80.49
     }
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_f1",
     "display_name": "F-1 (SPY 40% / TQQQ 20% / GLD 25% / TLT 15%)",
     "total_capital": 10000000.0,
-    "ma_window": 200,
-    "ma_type": "ema",
-    "buy_buffer_zone_pct": 0.03,
-    "sell_buffer_zone_pct": 0.05,
-    "hold_days": 3,
-    "rebalance_threshold_rate": 0.2,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
         "asset_id": "spy",
         "target_weight": 0.4,
         "signal_data_path": "storage/stock/SPY_max.csv",
         "trade_data_path": "storage/stock/SPY_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "tqqq",
         "target_weight": 0.2,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "gld",
         "target_weight": 0.25,
         "signal_data_path": "storage/stock/GLD_max.csv",
         "trade_data_path": "storage/stock/GLD_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       },
       {
         "asset_id": "tlt",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/TLT_max.csv",
         "trade_data_path": "storage/stock/TLT_max.csv",
-        "always_invested": false
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
       }
     ]
   }

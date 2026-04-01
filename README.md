@@ -48,33 +48,7 @@ poetry run python scripts/data/download_data.py QQQ
 poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
 
-# 3. 워크포워드 검증 (과최적화 검증, 선행: 1)
-poetry run python scripts/backtest/run_walkforward.py
-# 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity
-# 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
-# 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
-
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
-poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
-
-# 4. 파라미터 고원 분석 (선행: 1)
-poetry run python scripts/backtest/run_param_plateau_all.py
-# 파라미터(hold_days/sell_buffer/buy_buffer/ma_window) 통합 고원 분석
-# --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
-# 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
-
-# 5. 대시보드 시각화 (선행: 2)
-poetry run streamlit run scripts/backtest/app_single_backtest.py
-
-# 6. WFO 결과 시각화 대시보드 (선행: 3)
-poetry run streamlit run scripts/backtest/app_walkforward.py
-# 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)
-
-# 7. 파라미터 고원 시각화 대시보드 (선행: 4)
-poetry run streamlit run scripts/backtest/app_parameter_stability.py
-# 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
-
-# 8. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
+# 3. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
 # A~H 시리즈 실험 (실험 구성은 portfolio_configs.py 참고)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
 # 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
@@ -83,9 +57,35 @@ poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 실험 선택 가능 (기본값: all)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
 
-# 9. 포트폴리오 비교 대시보드 (선행: 8)
+# 4. 워크포워드 검증 (과최적화 검증, 선행: 1)
+poetry run python scripts/backtest/run_walkforward.py
+# 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity
+# 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
+# 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
+
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
+poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
+
+# 5. 파라미터 고원 분석 (선행: 1)
+poetry run python scripts/backtest/run_param_plateau_all.py
+# 파라미터(hold_days/sell_buffer/buy_buffer/ma_window) 통합 고원 분석
+# --experiment 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window
+# 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
+
+# 6. 대시보드 시각화 (선행: 2)
+poetry run streamlit run scripts/backtest/app_single_backtest.py
+
+# 7. 포트폴리오 비교 대시보드 (선행: 8)
 poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
 # 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 거래 현황, 시그널 차트)
+
+# 8. WFO 결과 시각화 대시보드 (선행: 3)
+poetry run streamlit run scripts/backtest/app_walkforward.py
+# 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)
+
+# 9. 파라미터 고원 시각화 대시보드 (선행: 4)
+poetry run streamlit run scripts/backtest/app_parameter_stability.py
+# 시각화: 4개 파라미터(MA/Buy/Sell/Hold) x 멀티자산 Calmar 라인차트, 고원 구간 하이라이트
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](src/qbt/backtest/constants.py)
