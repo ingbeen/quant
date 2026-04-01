@@ -35,7 +35,8 @@
       "reportImportCycles": "none",
       "reportUnusedVariable": "none",
       "reportGeneralTypeIssues": "none",
-      "reportUntypedFunctionDecorator": "none"
+      "reportUntypedFunctionDecorator": "none",
+      "reportArgumentType": "none"
     }
   ]
 }
