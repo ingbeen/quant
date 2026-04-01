@@ -15,6 +15,7 @@
 
 from pathlib import Path
 
+from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import (
     GLD_DATA_PATH,
@@ -24,12 +25,6 @@ from qbt.common_constants import (
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
 )
-
-# ============================================================================
-# 공통 포트폴리오 설정 기본값
-# ============================================================================
-
-_DEFAULT_TOTAL_CAPITAL = 10_000_000.0
 
 
 def _make_result_dir(experiment_name: str) -> Path:
@@ -65,7 +60,7 @@ _CONFIG_A1 = PortfolioConfig(
             target_weight=0.50,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_a1"),
 )
 
@@ -93,7 +88,7 @@ _CONFIG_A2 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_a2"),
 )
 
@@ -121,7 +116,7 @@ _CONFIG_A3 = PortfolioConfig(
             target_weight=0.30,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_a3"),
 )
 
@@ -156,7 +151,7 @@ _CONFIG_B1 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_b1"),
 )
 
@@ -191,7 +186,7 @@ _CONFIG_B2 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_b2"),
 )
 
@@ -226,7 +221,7 @@ _CONFIG_B3 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_b3"),
 )
 
@@ -249,7 +244,7 @@ _CONFIG_C1 = PortfolioConfig(
             target_weight=0.50,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_c1"),
 )
 
@@ -266,7 +261,7 @@ _CONFIG_D1 = PortfolioConfig(
             target_weight=1.00,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_d1"),
 )
 
@@ -283,7 +278,7 @@ _CONFIG_D2 = PortfolioConfig(
             target_weight=1.00,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_d2"),
 )
 
@@ -316,7 +311,7 @@ _CONFIG_E1 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_e1"),
 )
 
@@ -344,7 +339,7 @@ _CONFIG_E2 = PortfolioConfig(
             target_weight=0.20,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_e2"),
 )
 
@@ -372,7 +367,7 @@ _CONFIG_E3 = PortfolioConfig(
             target_weight=0.10,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_e3"),
 )
 
@@ -400,7 +395,7 @@ _CONFIG_E4 = PortfolioConfig(
             target_weight=0.10,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_e4"),
 )
 
@@ -428,7 +423,7 @@ _CONFIG_E5 = PortfolioConfig(
             target_weight=0.05,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_e5"),
 )
 
@@ -468,7 +463,7 @@ _CONFIG_F1 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_f1"),
 )
 
@@ -502,7 +497,7 @@ _CONFIG_F2 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_f2"),
 )
 
@@ -536,7 +531,7 @@ _CONFIG_F3 = PortfolioConfig(
             target_weight=0.10,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_f3"),
 )
 
@@ -570,7 +565,7 @@ _CONFIG_F4 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_f4"),
 )
 
@@ -605,7 +600,7 @@ _CONFIG_G1 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_g1"),
 )
 
@@ -634,7 +629,7 @@ _CONFIG_G2 = PortfolioConfig(
             target_weight=0.15,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_g2"),
 )
 
@@ -663,7 +658,7 @@ _CONFIG_G3 = PortfolioConfig(
             strategy_id="buy_and_hold",  # TLT: B&H (버퍼존 매도 신호 무시)
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_g3"),
 )
 
@@ -693,7 +688,7 @@ _CONFIG_G4 = PortfolioConfig(
             strategy_id="buy_and_hold",  # TLT: B&H (버퍼존 매도 신호 무시)
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_g4"),
 )
 
@@ -726,7 +721,7 @@ _CONFIG_H1 = PortfolioConfig(
             target_weight=0.20,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_h1"),
 )
 
@@ -748,7 +743,7 @@ _CONFIG_H2 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_h2"),
 )
 
@@ -770,7 +765,7 @@ _CONFIG_H3 = PortfolioConfig(
             target_weight=0.40,
         ),
     ),
-    total_capital=_DEFAULT_TOTAL_CAPITAL,
+    total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_h3"),
 )
 

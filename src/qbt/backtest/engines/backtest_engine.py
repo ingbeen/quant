@@ -15,9 +15,8 @@ from typing import TypedDict
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_summary
+from qbt.backtest.analysis import add_single_moving_average, calculate_calmar, calculate_summary
 from qbt.backtest.constants import (
-    CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_CALMAR,
@@ -54,7 +53,6 @@ from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
     COL_OPEN,
-    EPSILON,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache
@@ -190,12 +188,7 @@ def _run_backtest_for_grid(
     _, _, summary = run_backtest(strategy, filtered_signal, filtered_trade, params.initial_capital, log_trades=False)
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
-    cagr = summary["cagr"]
-    abs_mdd = abs(summary["mdd"])
-    if abs_mdd < EPSILON:
-        calmar = CALMAR_MDD_ZERO_SUBSTITUTE + cagr if cagr > 0 else 0.0
-    else:
-        calmar = cagr / abs_mdd
+    calmar = calculate_calmar(summary["cagr"], summary["mdd"])
 
     result: GridSearchResult = {
         COL_MA_WINDOW: params.ma_window,

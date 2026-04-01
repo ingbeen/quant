@@ -19,6 +19,7 @@ import pytest
 
 from qbt.backtest.analysis import (
     add_single_moving_average,
+    calculate_calmar,
     calculate_regime_summaries,
     calculate_summary,
 )
@@ -418,6 +419,74 @@ class TestCalculateSummary:
 
         # Then
         assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
+
+
+class TestCalculateCalmar:
+    """calculate_calmar 단위 테스트
+
+    정책: Calmar = CAGR / |MDD|, MDD=0 안전 처리
+    - |MDD| >= EPSILON: cagr / abs(mdd)
+    - |MDD| < EPSILON, CAGR > 0: CALMAR_MDD_ZERO_SUBSTITUTE + cagr
+    - |MDD| < EPSILON, CAGR <= 0: 0.0
+    """
+
+    def test_normal(self):
+        """
+        정상 케이스: cagr / abs(mdd)
+
+        Given: cagr=10.0, mdd=-5.0
+        When: calculate_calmar 호출
+        Then: 10.0 / 5.0 = 2.0
+        """
+        # Given / When
+        result = calculate_calmar(cagr=10.0, mdd=-5.0)
+
+        # Then
+        assert result == pytest.approx(2.0, abs=EPSILON)
+
+    def test_mdd_zero_cagr_positive(self):
+        """
+        MDD=0, CAGR>0: CALMAR_MDD_ZERO_SUBSTITUTE + cagr 반환
+
+        Given: cagr=5.0, mdd=0.0
+        When: calculate_calmar 호출
+        Then: 1e10 + 5.0 반환 (MDD=0인 전략들끼리 CAGR로 차별화)
+        """
+        from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
+
+        # Given / When
+        result = calculate_calmar(cagr=5.0, mdd=0.0)
+
+        # Then
+        assert result == pytest.approx(CALMAR_MDD_ZERO_SUBSTITUTE + 5.0, abs=EPSILON)
+
+    def test_mdd_zero_cagr_zero(self):
+        """
+        MDD=0, CAGR=0: 0.0 반환
+
+        Given: cagr=0.0, mdd=0.0
+        When: calculate_calmar 호출
+        Then: 0.0
+        """
+        # Given / When
+        result = calculate_calmar(cagr=0.0, mdd=0.0)
+
+        # Then
+        assert result == pytest.approx(0.0, abs=EPSILON)
+
+    def test_mdd_zero_cagr_negative(self):
+        """
+        MDD=0, CAGR<0: 0.0 반환
+
+        Given: cagr=-3.0, mdd=0.0
+        When: calculate_calmar 호출
+        Then: 0.0
+        """
+        # Given / When
+        result = calculate_calmar(cagr=-3.0, mdd=0.0)
+
+        # Then
+        assert result == pytest.approx(0.0, abs=EPSILON)
 
 
 class TestCalculateRegimeSummaries:

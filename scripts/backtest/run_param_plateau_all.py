@@ -21,6 +21,12 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.constants import (
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
+)
 from qbt.backtest.engines.backtest_engine import run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import (
     get_config,
@@ -52,11 +58,6 @@ _ASSET_CONFIGS: list[tuple[str, str]] = [
     ("buffer_zone_tlt", "TLT"),
 ]
 
-# 4P 확정 고정값
-_FIXED_MA_WINDOW = 200
-_FIXED_BUY_BUFFER = 0.03  # 매수 버퍼존 비율 (0.03 = 3%)
-_FIXED_SELL_BUFFER = 0.05  # 매도 버퍼존 비율 (0.05 = 5%)
-_FIXED_HOLD_DAYS = 3
 
 # 실험별 탐색 값
 _HOLD_DAYS_VALUES: list[int] = [0, 1, 2, 3, 4, 5, 7, 10]
@@ -184,7 +185,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
         base_config = get_config(config_name)
 
         # MA=200 사전 계산 (hold_days, sell_buffer, buy_buffer 실험용)
-        signal_ma200 = add_single_moving_average(signal_df, _FIXED_MA_WINDOW, ma_type="ema")
+        signal_ma200 = add_single_moving_average(signal_df, FIXED_4P_MA_WINDOW, ma_type="ema")
 
         logger.debug(f"[{asset_label}] 데이터 로딩 완료: {len(signal_df)}행")
 
@@ -193,9 +194,9 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for hold_val in _HOLD_DAYS_VALUES:
                 config = replace(
                     base_config,
-                    ma_window=_FIXED_MA_WINDOW,
-                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
-                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
+                    ma_window=FIXED_4P_MA_WINDOW,
+                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
+                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
                     hold_days=hold_val,
                 )
                 params, _ = resolve_params_for_config(config)
@@ -214,10 +215,10 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for sell_val in _SELL_BUFFER_VALUES:
                 config = replace(
                     base_config,
-                    ma_window=_FIXED_MA_WINDOW,
-                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
+                    ma_window=FIXED_4P_MA_WINDOW,
+                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
                     sell_buffer_zone_pct=sell_val,
-                    hold_days=_FIXED_HOLD_DAYS,
+                    hold_days=FIXED_4P_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -237,10 +238,10 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
             for buy_val in _BUY_BUFFER_VALUES:
                 config = replace(
                     base_config,
-                    ma_window=_FIXED_MA_WINDOW,
+                    ma_window=FIXED_4P_MA_WINDOW,
                     buy_buffer_zone_pct=buy_val,
-                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
-                    hold_days=_FIXED_HOLD_DAYS,
+                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
+                    hold_days=FIXED_4P_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
@@ -262,9 +263,9 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                 config = replace(
                     base_config,
                     ma_window=ma_val,
-                    buy_buffer_zone_pct=_FIXED_BUY_BUFFER,
-                    sell_buffer_zone_pct=_FIXED_SELL_BUFFER,
-                    hold_days=_FIXED_HOLD_DAYS,
+                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
+                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
+                    hold_days=FIXED_4P_HOLD_DAYS,
                 )
                 params, _ = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(

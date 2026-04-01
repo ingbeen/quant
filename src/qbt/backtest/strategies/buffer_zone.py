@@ -282,7 +282,6 @@ class BufferZoneStrategy(SignalStrategy):
         buy_buffer_pct: 매수 버퍼존 비율 (0~1)
         sell_buffer_pct: 매도 버퍼존 비율 (0~1)
         hold_days: 상향돌파 후 유지일수 (0=즉시 신호)
-        ma_type: 이동평균 유형 ("ema" 또는 "sma"), 기본값 "ema"
 
     사용 예:
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
@@ -298,13 +297,11 @@ class BufferZoneStrategy(SignalStrategy):
         buy_buffer_pct: float,
         sell_buffer_pct: float,
         hold_days: int,
-        ma_type: str = "ema",
     ) -> None:
         self._ma_col = ma_col
         self._buy_buffer_pct = buy_buffer_pct
         self._sell_buffer_pct = sell_buffer_pct
         self._hold_days = hold_days
-        self._ma_type = ma_type
 
         # 내부 상태 (None이면 미초기화)
         self._prev_upper: float | None = None

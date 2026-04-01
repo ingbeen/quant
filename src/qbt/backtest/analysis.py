@@ -83,6 +83,25 @@ def add_single_moving_average(
     return df
 
 
+def calculate_calmar(cagr: float, mdd: float) -> float:
+    """CAGR / |MDD| 기준 Calmar를 계산한다. MDD=0 안전 처리 포함.
+
+    Args:
+        cagr: 연평균 복리 성장률 (퍼센트 단위, 예: 10.0 = 10%)
+        mdd: 최대 낙폭 (퍼센트 단위, 예: -5.0 = -5%)
+
+    Returns:
+        Calmar 비율.
+        - |MDD| < EPSILON, CAGR > 0: CALMAR_MDD_ZERO_SUBSTITUTE + cagr
+        - |MDD| < EPSILON, CAGR <= 0: 0.0
+        - 정상: cagr / abs(mdd)
+    """
+    abs_mdd = abs(mdd)
+    if abs_mdd < EPSILON:
+        return CALMAR_MDD_ZERO_SUBSTITUTE + cagr if cagr > 0 else 0.0
+    return cagr / abs_mdd
+
+
 def calculate_summary(
     trades_df: pd.DataFrame,
     equity_df: pd.DataFrame,
@@ -143,11 +162,7 @@ def calculate_summary(
     mdd = equity_df["drawdown"].min() * 100
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
-    abs_mdd = abs(mdd)
-    if abs_mdd < EPSILON:
-        calmar: float = CALMAR_MDD_ZERO_SUBSTITUTE + cagr if cagr > 0 else 0.0
-    else:
-        calmar = cagr / abs_mdd
+    calmar: float = calculate_calmar(cagr, mdd)
 
     # 거래 통계
     total_trades = len(trades_df)

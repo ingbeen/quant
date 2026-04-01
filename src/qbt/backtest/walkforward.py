@@ -15,9 +15,8 @@ from typing import cast
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.analysis import add_single_moving_average, calculate_calmar
 from qbt.backtest.constants import (
-    CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_CAGR,
     COL_MDD,
     COL_TOTAL_TRADES,
@@ -180,20 +179,7 @@ def select_best_calmar_params(
     df = grid_df.copy()
 
     # Calmar 계산: MDD=0 처리
-    def _calmar(row: pd.Series) -> float:
-        cagr = float(row[COL_CAGR])
-        mdd = float(row[COL_MDD])
-        abs_mdd = abs(mdd)
-
-        if abs_mdd < EPSILON:
-            # MDD=0: CAGR>0이면 최우선 (inf 대용으로 큰 값)
-            if cagr > 0:
-                return CALMAR_MDD_ZERO_SUBSTITUTE + cagr
-            else:
-                return 0.0
-        return cagr / abs_mdd
-
-    df["calmar"] = df.apply(_calmar, axis=1)
+    df["calmar"] = df.apply(lambda row: calculate_calmar(float(row[COL_CAGR]), float(row[COL_MDD])), axis=1)
     df = df.sort_values("calmar", ascending=False).reset_index(drop=True)
 
     # min_trades 필터링
@@ -337,7 +323,7 @@ def run_walkforward(
         is_mdd = float(best_row[COL_MDD])
         is_trades = int(best_row["total_trades"])
         is_win_rate = float(best_row["win_rate"])
-        is_calmar = _safe_calmar(is_cagr, is_mdd)
+        is_calmar = calculate_calmar(is_cagr, is_mdd)
 
         # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — EMA 연속성 보장)
         oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
@@ -366,7 +352,7 @@ def run_walkforward(
         oos_mdd = float(oos_summary["mdd"])
         oos_trades = int(oos_summary["total_trades"])
         oos_win_rate = float(oos_summary["win_rate"])
-        oos_calmar = _safe_calmar(oos_cagr, oos_mdd)
+        oos_calmar = calculate_calmar(oos_cagr, oos_mdd)
 
         # 8. WFE (Walk-Forward Efficiency)
         # 8-1. WFE Calmar = OOS Calmar / IS Calmar
@@ -413,16 +399,6 @@ def run_walkforward(
         )
 
     return results
-
-
-def _safe_calmar(cagr: float, mdd: float) -> float:
-    """MDD=0 안전 처리된 Calmar를 계산한다."""
-    abs_mdd = abs(mdd)
-    if abs_mdd < EPSILON:
-        if cagr > 0:
-            return CALMAR_MDD_ZERO_SUBSTITUTE
-        return 0.0
-    return cagr / abs_mdd
 
 
 def build_params_schedule(
@@ -629,7 +605,7 @@ def calculate_wfo_mode_summary(
         stitched_mdd = float(cast(float, stitched_summary.get("mdd", 0.0)))
         summary["stitched_cagr"] = stitched_cagr
         summary["stitched_mdd"] = stitched_mdd
-        summary["stitched_calmar"] = _safe_calmar(stitched_cagr, stitched_mdd)
+        summary["stitched_calmar"] = calculate_calmar(stitched_cagr, stitched_mdd)
         summary["stitched_total_return_pct"] = float(cast(float, stitched_summary.get("total_return_pct", 0.0)))
 
     return summary

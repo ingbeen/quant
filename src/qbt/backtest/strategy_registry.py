@@ -40,16 +40,12 @@ class StrategySpec:
         get_warmup_periods: MA 워밍업 기간을 반환하는 함수
             - buffer_zone: slot.ma_window 반환
             - buy_and_hold: 0 반환
-        supports_single: 단일 백테스트 엔진 지원 여부 (예약)
-        supports_portfolio: 포트폴리오 엔진 지원 여부 (예약)
     """
 
     strategy_id: str
     create_strategy: Callable[[AssetSlotConfig], SignalStrategy]
     prepare_signal_df: Callable[[pd.DataFrame, AssetSlotConfig], pd.DataFrame]
     get_warmup_periods: Callable[[AssetSlotConfig], int]
-    supports_single: bool = True
-    supports_portfolio: bool = True
 
 
 # ============================================================================
@@ -71,7 +67,6 @@ def _create_buffer_zone_strategy(slot: AssetSlotConfig) -> SignalStrategy:
         buy_buffer_pct=slot.buy_buffer_zone_pct,
         sell_buffer_pct=slot.sell_buffer_zone_pct,
         hold_days=slot.hold_days,
-        ma_type=slot.ma_type,
     )
 
 
