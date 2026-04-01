@@ -161,7 +161,7 @@ main 함수:
   - `app_walkforward.py`: WFO 2-Mode 결과 시각화 대시보드 (Streamlit + Plotly + lightweight-charts)
     - 선행: `run_walkforward.py` 실행 필요 (WFO 결과 CSV/JSON 로드)
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
-    - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포, 윈도우별 상세 차트
+    - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, 윈도우별 상세 차트
     - 윈도우별 상세 차트: Selectbox 네비게이션 (4개 지표 × 11 윈도우), IS+OOS 결합 캔들차트 + Buy/Sell 마커 + MA + 밴드 + 에쿼티 + 드로우다운, OOS 시작일 경계 마커, lightweight-charts 사용
     - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
   - `app_portfolio_backtest.py`: 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
