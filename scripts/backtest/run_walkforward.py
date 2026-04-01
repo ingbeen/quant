@@ -33,9 +33,12 @@ from qbt.backtest.constants import (
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
     WALKFORWARD_FULLY_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
+    WFO_WINDOWS_DYNAMIC_DIR,
+    WFO_WINDOWS_FULLY_FIXED_DIR,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies import buffer_zone
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
     build_params_schedule,
@@ -44,6 +47,7 @@ from qbt.backtest.walkforward import (
 )
 from qbt.common_constants import (
     COL_DATE,
+    EPSILON,
     META_JSON_PATH,
 )
 from qbt.utils import get_logger
@@ -257,6 +261,149 @@ def _round_summary_for_json(summary: dict[str, object]) -> dict[str, object]:
     return result
 
 
+def _save_window_detail_csvs(
+    window_results: list[WfoWindowResultDict],
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    result_dir: Path,
+    mode_dir_name: str,
+    initial_capital: float,
+) -> None:
+    """윈도우별 상세 CSV(signal, equity, trades)를 저장한다.
+
+    각 윈도우의 best params로 IS_start ~ OOS_end 전체 기간의 백테스트를 실행하여
+    캔들차트 + Buy/Sell 마커 시각화에 필요한 데이터를 사전 생성한다.
+
+    Args:
+        window_results: WFO 윈도우 결과 리스트
+        signal_df: 시그널용 원본 DataFrame (전체 기간)
+        trade_df: 매매용 원본 DataFrame (전체 기간)
+        result_dir: 전략 결과 디렉토리
+        mode_dir_name: 모드별 하위 디렉토리명
+        initial_capital: 초기 자본금
+    """
+    from datetime import date as date_type
+
+    window_dir = result_dir / mode_dir_name
+    window_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (EMA 연속성 보장)
+    all_ma_windows: set[int] = set()
+    for wr in window_results:
+        all_ma_windows.add(wr["best_ma_window"])
+
+    signal_df_with_ma = signal_df.copy()
+    for ma_window in all_ma_windows:
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type="ema")
+
+    # 2. 각 윈도우별 백테스트 실행 및 CSV 저장
+    for wr in window_results:
+        idx = wr["window_idx"]
+        is_start = date_type.fromisoformat(str(wr["is_start"]))
+        oos_end = date_type.fromisoformat(str(wr["oos_end"]))
+
+        ma_window = wr["best_ma_window"]
+        buy_pct = wr["best_buy_buffer_zone_pct"]
+        sell_pct = wr["best_sell_buffer_zone_pct"]
+        hold_days = wr["best_hold_days"]
+        ma_col = f"ma_{ma_window}"
+
+        # IS_start ~ OOS_end 슬라이싱
+        mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
+        win_signal = signal_df_with_ma[mask].reset_index(drop=True)
+        win_trade = trade_df[mask].reset_index(drop=True)
+
+        if win_signal.empty:
+            continue
+
+        # 백테스트 실행
+        strategy = BufferZoneStrategy(
+            ma_col=ma_col,
+            buy_buffer_pct=buy_pct,
+            sell_buffer_pct=sell_pct,
+            hold_days=hold_days,
+        )
+        trades_df, equity_df, _summary = run_backtest(
+            strategy,
+            win_signal,
+            win_trade,
+            initial_capital,
+            log_trades=False,
+        )
+
+        # --- signal CSV 저장 ---
+        signal_cols = [COL_DATE, "Open", "High", "Low", "Close", ma_col, "change_pct"]
+        signal_export = win_signal[[c for c in signal_cols if c in win_signal.columns]].copy()
+        signal_round: dict[str, int] = {
+            "Open": 6,
+            "High": 6,
+            "Low": 6,
+            "Close": 6,
+            "change_pct": 2,
+        }
+        if ma_col in signal_export.columns:
+            signal_round[ma_col] = 6
+        signal_export = signal_export.round(signal_round)
+        signal_export.to_csv(window_dir / f"w{idx:02d}_signal.csv", index=False)
+
+        # --- equity CSV 저장 (밴드 + 드로우다운 추가) ---
+        equity_export = equity_df.copy()
+
+        # 밴드 계산: MA × (1 ± buffer) 벡터화 연산
+        band_df = win_signal[[COL_DATE, ma_col]].copy()
+        band_df["upper_band"] = band_df[ma_col] * (1 + buy_pct)
+        band_df["lower_band"] = band_df[ma_col] * (1 - sell_pct)
+        band_df["buy_buffer_pct"] = buy_pct
+        band_df["sell_buffer_pct"] = sell_pct
+        band_df = band_df.drop(columns=[ma_col])
+        equity_export = equity_export.merge(band_df, on=COL_DATE, how="left")
+
+        # 드로우다운 계산
+        equity_series = equity_export["equity"].astype(float)
+        peak = equity_series.cummax()
+        safe_peak = peak.replace(0, EPSILON)
+        equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+
+        equity_round: dict[str, int] = {
+            "equity": 0,
+            "upper_band": 6,
+            "lower_band": 6,
+            "buy_buffer_pct": 4,
+            "sell_buffer_pct": 4,
+            "drawdown_pct": 2,
+        }
+        equity_export = equity_export.round(equity_round)
+        equity_export["equity"] = equity_export["equity"].astype(int)
+        equity_export.to_csv(window_dir / f"w{idx:02d}_equity.csv", index=False)
+
+        # --- trades CSV 저장 ---
+        if not trades_df.empty:
+            trades_export = trades_df.copy()
+            if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
+                trades_export["holding_days"] = trades_export.apply(
+                    lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
+                )
+            trades_round: dict[str, int] = {}
+            if "entry_price" in trades_export.columns:
+                trades_round["entry_price"] = 6
+            if "exit_price" in trades_export.columns:
+                trades_round["exit_price"] = 6
+            if "pnl" in trades_export.columns:
+                trades_round["pnl"] = 0
+            if "pnl_pct" in trades_export.columns:
+                trades_round["pnl_pct"] = 4
+            if "buy_buffer_pct" in trades_export.columns:
+                trades_round["buy_buffer_pct"] = 4
+            trades_export = trades_export.round(trades_round)
+            if "pnl" in trades_export.columns:
+                trades_export["pnl"] = trades_export["pnl"].astype(int)
+            trades_export.to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
+        else:
+            trades_df.to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
+
+    logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(window_results)}개 윈도우)")
+
+
 def _save_results(
     strategy_name: str,
     result_dir: Path,
@@ -440,7 +587,25 @@ def main() -> int:
             all_summaries,
         )
 
-        # 3-6. 메타데이터 저장
+        # 3-6. 윈도우별 상세 CSV 저장
+        _save_window_detail_csvs(
+            dynamic_results,
+            signal_df,
+            trade_df,
+            result_dir,
+            WFO_WINDOWS_DYNAMIC_DIR,
+            DEFAULT_INITIAL_CAPITAL,
+        )
+        _save_window_detail_csvs(
+            fully_fixed_results,
+            signal_df,
+            trade_df,
+            result_dir,
+            WFO_WINDOWS_FULLY_FIXED_DIR,
+            DEFAULT_INITIAL_CAPITAL,
+        )
+
+        # 3-7. 메타데이터 저장
         total_elapsed = time.time() - total_start
         metadata = {
             "strategy": strategy_name,

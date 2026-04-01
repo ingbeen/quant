@@ -134,6 +134,7 @@ main 함수:
   - `run_walkforward.py`: WFO 2-Mode 비교 실행 (Dynamic/Fully Fixed)
     - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
+    - 윈도우별 상세 CSV 저장: `wfo_windows_dynamic/` 및 `wfo_windows_fully_fixed/` 하위에 w{idx}_signal.csv, w{idx}_equity.csv, w{idx}_trades.csv (캔들차트 시각화용)
 - 포트폴리오 실험:
   - `run_portfolio_backtest.py`: 포트폴리오 실험 실행
     - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all, 실험 목록은 PORTFOLIO_CONFIGS 참고)
@@ -157,10 +158,11 @@ main 함수:
   - `app_parameter_stability.py`: 4개 파라미터(MA Window, Buy Buffer, Sell Buffer, Hold Days) 고원 시각화 대시보드
     - 선행: `run_param_plateau_all.py` 실행 필요 (고원 분석 CSV 로드)
     - 각 탭: 다자산 Calmar 라인차트, 확정값 마커, 고원 구간 하이라이트, 보조 지표(CAGR/MDD/거래수) expander
-  - `app_walkforward.py`: WFO 2-Mode 결과 시각화 대시보드 (Streamlit + Plotly)
+  - `app_walkforward.py`: WFO 2-Mode 결과 시각화 대시보드 (Streamlit + Plotly + lightweight-charts)
     - 선행: `run_walkforward.py` 실행 필요 (WFO 결과 CSV/JSON 로드)
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
-    - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포
+    - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, WFE 분포, 윈도우별 상세 차트
+    - 윈도우별 상세 차트: Selectbox 네비게이션 (4개 지표 × 11 윈도우), IS+OOS 결합 캔들차트 + Buy/Sell 마커 + MA + 밴드 + 에쿼티 + 드로우다운, OOS 시작일 경계 마커, lightweight-charts 사용
     - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
   - `app_portfolio_backtest.py`: 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (결과 CSV/JSON 로드)

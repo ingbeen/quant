@@ -64,6 +64,10 @@ WALKFORWARD_EQUITY_DYNAMIC_FILENAME: Final = "walkforward_equity_dynamic.csv"
 WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME: Final = "walkforward_equity_fully_fixed.csv"
 WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 
+# --- WFO 윈도우별 상세 CSV 디렉토리명 ---
+WFO_WINDOWS_DYNAMIC_DIR: Final = "wfo_windows_dynamic"
+WFO_WINDOWS_FULLY_FIXED_DIR: Final = "wfo_windows_fully_fixed"
+
 # ============================================================
 # 시장 구간 정의 (QQQ 기준, 수동 분류)
 # ============================================================
