@@ -3,7 +3,8 @@
 build_params_schedule()과 run_walkforward()의 핵심 계약을 검증한다.
 """
 
-from datetime import date
+import math
+from datetime import date, timedelta
 
 import pandas as pd
 import pytest
@@ -58,6 +59,213 @@ def _make_stock_df(
             COL_VOLUME: [1_000_000] * n_days,
         }
     )
+
+
+def _make_trend_and_oscillating_df(
+    n_is: int,
+    n_oos: int,
+    is_base_price: float = 100.0,
+    is_daily_return: float = 0.001,
+    oos_center: float = 60.0,
+    oos_amplitude: float = 10.0,
+) -> pd.DataFrame:
+    """EMA 연속성 테스트용 데이터를 생성한다.
+
+    IS 구간은 단조 상승 추세, OOS 구간은 낮은 가격대에서 정현파로 진동한다.
+    전체 히스토리 EMA와 OOS-리셋 EMA가 크게 달라지도록 설계되어 있다.
+
+    Args:
+        n_is: IS 구간 거래일 수
+        n_oos: OOS 구간 거래일 수
+        is_base_price: IS 구간 시작 가격
+        is_daily_return: IS 구간 일일 수익률 (기본 0.1%)
+        oos_center: OOS 구간 진동 중심 가격
+        oos_amplitude: OOS 구간 진동 진폭
+
+    Returns:
+        IS(상승) + OOS(진동) OHLCV DataFrame
+    """
+    dates: list[date] = []
+    prices: list[float] = []
+    p = is_base_price
+    d = date(2000, 1, 3)
+    for i in range(n_is + n_oos):
+        while d.weekday() >= 5:
+            d = d + timedelta(days=1)
+        dates.append(d)
+        if i < n_is:
+            prices.append(round(p, 6))
+            p *= 1 + is_daily_return
+        else:
+            oos_i = i - n_is
+            prices.append(round(oos_center + oos_amplitude * math.sin(oos_i * 0.4), 6))
+        d = d + timedelta(days=1)
+
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: [round(px * 0.999, 6) for px in prices],
+            COL_HIGH: [round(px * 1.01, 6) for px in prices],
+            COL_LOW: [round(px * 0.99, 6) for px in prices],
+            COL_CLOSE: prices,
+            COL_VOLUME: [1_000_000] * len(prices),
+        }
+    )
+
+
+class TestEmaContiniuty:
+    """EMA 연속성 인바리언트 테스트.
+
+    핵심 인바리언트:
+    "OOS 구간의 EMA 값은 전체 히스토리 기반으로 계산된 EMA를 해당 구간만 잘랐을 때의 값과 동일해야 한다."
+
+    현재 구현은 이 인바리언트를 위반한다 (Phase 0에서 FAILED 확인).
+    """
+
+    def test_oos_ema_matches_full_history_ema(self):
+        """
+        목적: run_walkforward() OOS 평가의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
+
+        Given: IS 상승(~220) + OOS 진동(60±10) 데이터.
+               전체 히스토리 EMA는 OOS 기간에 ~200+를 유지하여 OOS 가격과 크게 달라진다.
+        When:
+          1) raw_df로 run_walkforward() 실행 — 현재 구현은 OOS에서 EMA를 리셋한다
+          2) 전체 히스토리 MA를 미리 계산한 full_df_with_ma로 run_walkforward() 실행
+             — MA 컬럼이 이미 있으므로 OOS 슬라이스가 전체 히스토리 EMA를 유지한다
+        Then: 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다.
+              현재 구현에서는 OOS EMA 리셋으로 결과가 달라지므로 이 테스트가 실패한다.
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.walkforward import run_walkforward
+
+        # Given — IS 상승(800 거래일, 100→222) + OOS 진동(300 거래일, 60±10)
+        n_is = 800
+        raw_df = _make_trend_and_oscillating_df(n_is=n_is, n_oos=300)
+        ma_window = 100
+
+        # 전체 히스토리 MA 사전 계산 (두 번째 실행에서 OOS 슬라이스에 포함됨)
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type="ema")
+
+        wfo_kwargs: dict[str, object] = {
+            "trade_df": raw_df,
+            "ma_window_list": [ma_window],
+            "buy_buffer_zone_pct_list": [0.03],
+            "sell_buffer_zone_pct_list": [0.03],
+            "hold_days_list": [0],
+            "initial_is_months": 38,  # ~800 거래일 → IS가 상승 구간 전체를 포함
+            "oos_months": 6,
+            "min_trades": 0,
+        }
+
+        # When — 두 가지 실행
+        # 실행 1: raw_df (MA 미포함) — 현재 구현은 OOS에서 EMA 리셋 발생
+        results_raw = run_walkforward(signal_df=raw_df, **wfo_kwargs)  # type: ignore[arg-type]
+
+        # 실행 2: full_df_with_ma (MA 포함) — OOS 슬라이스에 전체 히스토리 EMA가 담긴다
+        results_with_ma = run_walkforward(signal_df=full_df_with_ma, **wfo_kwargs)  # type: ignore[arg-type]
+
+        # Then — 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다
+        assert len(results_raw) >= 1
+        assert len(results_with_ma) >= 1
+        first_raw = results_raw[0]
+        first_with_ma = results_with_ma[0]
+        assert first_raw["oos_calmar"] == pytest.approx(first_with_ma["oos_calmar"], abs=0.01)
+
+    def test_stitched_equity_ema_matches_full_history_ema(self):
+        """
+        목적: _run_stitched_equity() stitched 자본곡선의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
+
+        Given: IS 상승(800 거래일) + OOS 진동(300 거래일) 데이터 + 1개 윈도우 결과
+        When:
+          - _run_stitched_equity(raw_df, ...) 실행 → OOS에서 EMA를 리셋하여 stitched 자본곡선 생성
+          - 전체 히스토리 EMA 기반 참조 실행 → OOS에서 거래 없음 (EMA가 OOS 가격과 크게 달라서)
+        Then: stitched CAGR과 참조 CAGR이 동일해야 한다.
+              현재 구현에서는 OOS EMA 리셋으로 결과가 달라지므로 이 테스트가 실패한다.
+        """
+        import importlib.util
+        from pathlib import Path
+
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
+        from qbt.backtest.engines.backtest_engine import run_backtest
+        from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+
+        # Given
+        n_is = 800
+        raw_df = _make_trend_and_oscillating_df(n_is=n_is, n_oos=300)
+        ma_window = 100
+        ma_col = f"ma_{ma_window}"
+
+        oos_start_date = raw_df.iloc[n_is][COL_DATE]
+        oos_end_date = raw_df.iloc[-1][COL_DATE]
+
+        # WFO 1개 윈도우 결과 (파라미터 스케줄 구성에 필요한 최소 구조)
+        window_results = [
+            {
+                "window_idx": 0,
+                "is_start": str(raw_df.iloc[0][COL_DATE]),
+                "is_end": str(raw_df.iloc[n_is - 1][COL_DATE]),
+                "oos_start": str(oos_start_date),
+                "oos_end": str(oos_end_date),
+                "best_ma_window": ma_window,
+                "best_buy_buffer_zone_pct": 0.03,
+                "best_sell_buffer_zone_pct": 0.03,
+                "best_hold_days": 0,
+                "is_cagr": 10.0,
+                "is_mdd": -5.0,
+                "is_calmar": 2.0,
+                "is_trades": 10,
+                "is_win_rate": 60.0,
+                "oos_cagr": 5.0,
+                "oos_mdd": -3.0,
+                "oos_calmar": 1.67,
+                "oos_trades": 5,
+                "oos_win_rate": 60.0,
+                "wfe_calmar": 0.83,
+                "wfe_cagr": 0.5,
+            }
+        ]
+
+        # 참조: 전체 히스토리 EMA 기반 OOS 백테스트
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type="ema")
+        oos_mask = (raw_df[COL_DATE] >= oos_start_date) & (raw_df[COL_DATE] <= oos_end_date)
+        oos_signal_ref = full_df_with_ma[oos_mask].reset_index(drop=True)
+        oos_trade_ref = raw_df[oos_mask].reset_index(drop=True)
+
+        ref_strategy = BufferZoneStrategy(
+            ma_col=ma_col,
+            buy_buffer_pct=0.03,
+            sell_buffer_pct=0.03,
+            hold_days=0,
+        )
+        _, _, ref_summary = run_backtest(
+            ref_strategy,
+            oos_signal_ref,
+            oos_trade_ref,
+            DEFAULT_INITIAL_CAPITAL,
+            log_trades=False,
+        )
+        ref_cagr = float(ref_summary["cagr"])
+
+        # _run_stitched_equity를 importlib으로 동적 로딩 (scripts/ 패키지 미구성)
+        script_path = Path(__file__).parent.parent / "scripts" / "backtest" / "run_walkforward.py"
+        spec = importlib.util.spec_from_file_location("run_walkforward_script", script_path)
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        _run_stitched_equity = mod._run_stitched_equity
+
+        # When — _run_stitched_equity 실행 (raw_df: MA 미포함)
+        _, stitched_summary = _run_stitched_equity(
+            raw_df,
+            raw_df,
+            window_results,
+            DEFAULT_INITIAL_CAPITAL,
+        )
+        stitched_cagr = float(stitched_summary["cagr"])
+
+        # Then — stitched CAGR과 참조 CAGR이 동일해야 한다
+        assert stitched_cagr == pytest.approx(ref_cagr, abs=1.0)
 
 
 class TestParamsSchedule:

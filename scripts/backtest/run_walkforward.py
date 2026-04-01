@@ -120,19 +120,23 @@ def _run_stitched_equity(
     oos_start_date = date_type.fromisoformat(str(first_oos_start))
     oos_end_date = date_type.fromisoformat(str(last_oos_end))
 
-    oos_mask = (signal_df[COL_DATE] >= oos_start_date) & (signal_df[COL_DATE] <= oos_end_date)
-    oos_signal = signal_df[oos_mask].reset_index(drop=True)
-    oos_trade = trade_df[oos_mask].reset_index(drop=True)
-
-    # 모든 MA 윈도우 사전 계산 (_ma_col 속성: "ma_200" 형태)
+    # 모든 MA 윈도우 사전 계산 (EMA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
+    # EMA는 전달된 시리즈의 첫 행부터 새로 계산되므로, OOS 슬라이스 후 계산하면
+    # 전체 히스토리를 이어받지 못한다. 슬라이스 전에 전체 데이터로 먼저 계산한다.
     _initial_ma_col: str = initial_params._ma_col  # type: ignore[attr-defined]
     all_ma_windows: set[int] = {int(_initial_ma_col.removeprefix("ma_"))}
     for _p in schedule.values():
         _p_ma_col: str = _p._ma_col  # type: ignore[attr-defined]
         all_ma_windows.add(int(_p_ma_col.removeprefix("ma_")))
 
+    signal_df_with_ma = signal_df.copy()
     for window in all_ma_windows:
-        oos_signal = add_single_moving_average(oos_signal, window, ma_type="ema")
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type="ema")
+
+    # OOS 구간 데이터 슬라이스 (전체 히스토리 MA 포함)
+    oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
+    oos_signal = signal_df_with_ma[oos_mask].reset_index(drop=True)
+    oos_trade = trade_df[oos_mask].reset_index(drop=True)
 
     # stitched 실행 (initial_params는 이미 SignalStrategy)
     trades_df, equity_df, summary = run_backtest(

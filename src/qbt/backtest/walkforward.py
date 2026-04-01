@@ -247,6 +247,12 @@ def run_walkforward(
 
     각 윈도우에서 IS 그리드 서치 → Calmar 최적 → OOS 독립 평가를 수행한다.
 
+    MA 계산 순서:
+    1. 루프 진입 전, ma_window_list의 모든 윈도우에 대해 전체 signal_df에 MA를 사전 계산한다.
+    2. IS/OOS 슬라이스는 이 사전 계산된 DataFrame에서 수행한다.
+    3. IS 그리드 서치(run_grid_search)는 내부적으로 MA를 재계산하므로 IS 평가에는 영향이 없다.
+    4. OOS 독립 평가는 전체 히스토리 기반 EMA 값을 그대로 사용하여 EMA 연속성을 보장한다.
+
     Args:
         signal_df: 시그널용 DataFrame (MA 컬럼 미포함, 내부에서 계산)
         trade_df: 매매용 DataFrame
@@ -283,15 +289,24 @@ def run_walkforward(
 
     results: list[WfoWindowResultDict] = []
 
+    # 2. 루프 전: 전체 signal_df에 모든 MA 윈도우 사전 계산 (EMA 연속성 보장)
+    # EMA는 전달된 시리즈의 첫 행부터 새로 계산되므로, OOS 슬라이스 후 계산하면
+    # 전체 히스토리를 이어받지 못한다. 슬라이스 전에 전체 데이터로 먼저 계산한다.
+    signal_df_with_ma = signal_df.copy()
+    for _ma_window in ma_window_list:
+        _ma_col = f"ma_{_ma_window}"
+        if _ma_col not in signal_df_with_ma.columns:
+            signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+
     for idx, (is_start, is_end, oos_start, oos_end) in enumerate(windows):
         logger.debug(f"WFO [{idx + 1}/{len(windows)}] " f"IS={is_start}~{is_end}, OOS={oos_start}~{oos_end}")
 
-        # 2. IS 데이터 슬라이스
-        is_mask = (signal_df[COL_DATE] >= is_start) & (signal_df[COL_DATE] <= is_end)
-        is_signal = signal_df[is_mask].reset_index(drop=True)
+        # 3. IS 데이터 슬라이스 (전체 히스토리 MA 포함)
+        is_mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= is_end)
+        is_signal = signal_df_with_ma[is_mask].reset_index(drop=True)
         is_trade = trade_df[is_mask].reset_index(drop=True)
 
-        # 3. IS 그리드 서치 실행
+        # 4. IS 그리드 서치 실행
         grid_df = run_grid_search(
             signal_df=is_signal,
             trade_df=is_trade,
@@ -302,14 +317,14 @@ def run_walkforward(
             initial_capital=initial_capital,
         )
 
-        # 4. Calmar 기준 최적 파라미터 추출 (min_trades 필터링 적용)
+        # 5. Calmar 기준 최적 파라미터 추출 (min_trades 필터링 적용)
         best = select_best_calmar_params(grid_df, min_trades=min_trades)
         best_ma = best["ma_window"]
         best_buy_buf = best["buy_buffer_zone_pct"]
         best_sell_buf = best["sell_buffer_zone_pct"]
         best_hold = best["hold_days"]
 
-        # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd)
+        # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd — run_grid_search 내부에서 MA 재계산)
         best_row_mask = (
             (grid_df["ma_window"] == best_ma)
             & (grid_df["buy_buffer_zone_pct"] == best_buy_buf)
@@ -324,16 +339,14 @@ def run_walkforward(
         is_win_rate = float(best_row["win_rate"])
         is_calmar = _safe_calmar(is_cagr, is_mdd)
 
-        # 5. OOS 데이터 슬라이스
-        oos_mask = (signal_df[COL_DATE] >= oos_start) & (signal_df[COL_DATE] <= oos_end)
-        oos_signal = signal_df[oos_mask].reset_index(drop=True)
+        # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — EMA 연속성 보장)
+        oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
+        oos_signal = signal_df_with_ma[oos_mask].reset_index(drop=True)
         oos_trade = trade_df[oos_mask].reset_index(drop=True)
 
-        # 6. OOS 독립 평가 (MA 사전 계산 + 유효 구간 필터링)
+        # 7. OOS 독립 평가 (유효 구간 필터링)
+        # MA는 루프 전 전체 데이터로 사전 계산되었으므로 OOS 슬라이스에 이미 포함되어 있다.
         oos_ma_col = f"ma_{best_ma}"
-        if oos_ma_col not in oos_signal.columns:
-            oos_signal = add_single_moving_average(oos_signal, best_ma, ma_type=DEFAULT_BUFFER_MA_TYPE)
-
         oos_valid_mask = oos_signal[oos_ma_col].notna()
         oos_signal_valid = oos_signal[oos_valid_mask].reset_index(drop=True)
         oos_trade_valid = oos_trade[oos_valid_mask].reset_index(drop=True)
@@ -355,14 +368,14 @@ def run_walkforward(
         oos_win_rate = float(oos_summary["win_rate"])
         oos_calmar = _safe_calmar(oos_cagr, oos_mdd)
 
-        # 7. WFE (Walk-Forward Efficiency)
-        # 7-1. WFE Calmar = OOS Calmar / IS Calmar
+        # 8. WFE (Walk-Forward Efficiency)
+        # 8-1. WFE Calmar = OOS Calmar / IS Calmar
         if abs(is_calmar) > EPSILON:
             wfe_calmar = oos_calmar / is_calmar
         else:
             wfe_calmar = 0.0
 
-        # 7-2. WFE CAGR = OOS CAGR / IS CAGR
+        # 8-2. WFE CAGR = OOS CAGR / IS CAGR
         if abs(is_cagr) > EPSILON:
             wfe_cagr = oos_cagr / is_cagr
         else:
