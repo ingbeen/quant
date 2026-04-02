@@ -68,8 +68,13 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
     # 3. asset_id 중복 없음
     asset_ids = [slot.asset_id for slot in config.asset_slots]
     if len(asset_ids) != len(set(asset_ids)):
-        seen = set()
-        duplicates = [aid for aid in asset_ids if aid in seen or seen.add(aid)]  # type: ignore[func-returns-value]
+        seen: set[str] = set()
+        duplicates: list[str] = []
+        for aid in asset_ids:
+            if aid in seen:
+                duplicates.append(aid)
+            else:
+                seen.add(aid)
         raise ValueError(f"asset_id 중복이 있습니다: {duplicates}")
 
 

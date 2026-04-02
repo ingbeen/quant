@@ -9,6 +9,9 @@
 4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
+from __future__ import annotations
+
+from datetime import date
 from typing import Literal
 
 import pandas as pd
@@ -90,11 +93,10 @@ def add_single_moving_average(
     return df
 
 
-def calculate_drawdown_pct_series(equity_series: pd.Series) -> pd.Series:  # type: ignore[type-arg]
+def calculate_drawdown_pct_series(equity_series: pd.Series[float]) -> pd.Series[float]:
     """에쿼티 시리즈로부터 drawdown_pct(%) 시리즈를 계산한다.
 
     cummax 대비 하락률을 백분율로 반환한다.
-    peak=0인 경우 EPSILON으로 대체하여 division by zero를 방지한다.
 
     Args:
         equity_series: 에쿼티 값 시리즈
@@ -103,8 +105,9 @@ def calculate_drawdown_pct_series(equity_series: pd.Series) -> pd.Series:  # typ
         drawdown_pct 시리즈 (0 이하 값, 단위: %)
     """
     peak = equity_series.cummax()
-    safe_peak = peak.replace(0, EPSILON)
-    return (equity_series - peak) / safe_peak * 100
+    if (peak == 0).any():
+        raise RuntimeError("내부 불변조건 위반: equity peak에 0이 존재 (initial_capital > 0이면 불가능)")
+    return (equity_series - peak) / peak * 100
 
 
 def calculate_calmar(cagr: float, mdd: float) -> float:
@@ -174,8 +177,7 @@ def calculate_summary(
     if years > 0 and final_capital > 0:
         cagr: float = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
     elif years > 0 and final_capital <= 0:
-        # 전액 손실: CAGR = -100% (0.0 반환은 "변화 없음"으로 오해 가능)
-        cagr = -100.0
+        raise RuntimeError(f"내부 불변조건 위반: final_capital <= 0 (비레버리지 백테스트에서 전액 손실 불가, final_capital={final_capital})")
     else:
         cagr = 0.0
 
@@ -183,9 +185,9 @@ def calculate_summary(
     equity_df = equity_df.copy()
     equity_df["peak"] = equity_df[COL_EQUITY].cummax()
 
-    # peak가 0인 케이스 방어 (수치 안정성)
-    safe_peak: pd.Series[float] = equity_df["peak"].replace(0, EPSILON)
-    equity_df["drawdown"] = (equity_df[COL_EQUITY] - equity_df["peak"]) / safe_peak
+    if (equity_df["peak"] == 0).any():
+        raise RuntimeError("내부 불변조건 위반: equity peak에 0이 존재 (initial_capital > 0이면 불가능)")
+    equity_df["drawdown"] = (equity_df[COL_EQUITY] - equity_df["peak"]) / equity_df["peak"]
     mdd = equity_df["drawdown"].min() * 100
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
@@ -282,14 +284,12 @@ def calculate_regime_summaries(
     Returns:
         구간별 성과 요약 리스트 (데이터 2행 미만인 구간은 제외)
     """
-    from datetime import date as date_type
-
     results: list[RegimeSummaryDict] = []
 
     for regime in regimes:
         # 1. 구간 날짜 파싱
-        regime_start = date_type.fromisoformat(regime["start"])
-        regime_end = date_type.fromisoformat(regime["end"])
+        regime_start = date.fromisoformat(regime["start"])
+        regime_end = date.fromisoformat(regime["end"])
 
         # 2. equity_df를 구간 날짜로 필터링
         equity_dates = pd.Series(equity_df[COL_DATE])

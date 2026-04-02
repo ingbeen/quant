@@ -3,20 +3,15 @@
 Signal → Projected → Merge 흐름의 핵심 로직을 담당한다.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import pandas as pd
 
-from qbt.backtest.portfolio_types import AssetSlotConfig
+from qbt.backtest.portfolio_types import AssetSlotConfig, AssetState
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
-
-if TYPE_CHECKING:
-    from qbt.backtest.engines.portfolio_execution import AssetState
 
 
 @dataclass

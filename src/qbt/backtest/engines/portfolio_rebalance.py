@@ -53,7 +53,10 @@ class RebalancePolicy:
             True이면 리밸런싱 실행 필요, False이면 스킵
         """
         if total_equity_projected < EPSILON:
-            return False
+            raise RuntimeError(
+                f"내부 불변조건 위반: total_equity_projected < EPSILON "
+                f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
+            )
         threshold = self.get_threshold(is_month_start)
         for asset_id in projected.active_assets:
             slot = slot_dict.get(asset_id)
@@ -91,7 +94,10 @@ class RebalancePolicy:
             {asset_id: OrderIntent}
         """
         if total_equity_projected < EPSILON:
-            return {}
+            raise RuntimeError(
+                f"내부 불변조건 위반: total_equity_projected < EPSILON "
+                f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
+            )
 
         # 1. active_assets 전체에 대해 매도/매수 금액 계산
         sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}

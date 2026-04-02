@@ -3,6 +3,7 @@
 포트폴리오 백테스트 엔진에서 사용하는 데이터클래스 및 TypedDict를 정의한다.
 
 포함 내용:
+- AssetState: 자산별 런타임 상태
 - AssetSlotConfig: 자산 슬롯 설정 (frozen=True)
 - PortfolioConfig: 포트폴리오 실험 설정 (frozen=True)
 - PortfolioAssetResult: 자산별 결과 (거래 내역 + 시그널 데이터)
@@ -15,6 +16,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
+
+# ============================================================================
+# 런타임 상태
+# ============================================================================
+
+
+@dataclass
+class AssetState:
+    """자산별 런타임 상태."""
+
+    position: int  # 보유 수량
+    signal_state: Literal["buy", "sell"]  # 현재 시그널 상태
+
 
 # ============================================================================
 # 설정 데이터클래스 (frozen=True: 불변)

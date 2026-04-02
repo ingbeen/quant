@@ -29,10 +29,7 @@ from qbt.backtest.engines.portfolio_data import (
     load_and_prepare_data,
     validate_portfolio_config,
 )
-from qbt.backtest.engines.portfolio_execution import (
-    AssetState,
-    execute_orders,
-)
+from qbt.backtest.engines.portfolio_execution import execute_orders
 from qbt.backtest.engines.portfolio_planning import (
     OrderIntent,
     compute_portfolio_equity,
@@ -46,6 +43,7 @@ from qbt.backtest.engines.portfolio_rebalance import (
     is_first_trading_day_of_month,
 )
 from qbt.backtest.portfolio_types import (
+    AssetState,
     PortfolioAssetResult,
     PortfolioConfig,
     PortfolioResult,

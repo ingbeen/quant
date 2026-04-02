@@ -304,20 +304,16 @@ class TestCalculateSummary:
 
     def test_calculate_summary_zero_peak(self):
         """
-        peak=0인 경우 방어 테스트
+        equity가 모두 0인 경우 RuntimeError 발생 테스트
 
-        정책: peak가 0이면 EPSILON으로 치환하여 ZeroDivisionError 방지
-        이유: MDD 계산 시 (equity - peak) / peak 연산 수행
+        정책: equity=0은 final_capital<=0 또는 peak=0으로 내부 불변조건 위반
+        이유: initial_capital > 0이면 equity=0은 논리적으로 불가능
 
-        Given:
-          - equity curve가 모두 0 (극단적 케이스)
-          - 또는 초기에만 0이고 이후 증가
+        Given: equity curve가 모두 0 (극단적 케이스)
         When: calculate_summary 호출
-        Then:
-          - ZeroDivisionError 발생하지 않음
-          - MDD가 안전하게 계산됨
+        Then: RuntimeError 발생 (final_capital <= 0 또는 peak=0)
         """
-        # Given: 극단적 케이스 - equity가 모두 0
+        # Given
         trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
 
         equity_df = pd.DataFrame(
@@ -326,11 +322,9 @@ class TestCalculateSummary:
 
         initial_capital = 10000.0
 
-        # When: peak=0 케이스에서도 크래시 없이 계산 (EPSILON 치환으로 ZeroDivisionError 방지)
-        summary = calculate_summary(trades_df, equity_df, initial_capital)
-
-        # Then: MDD가 안전하게 계산되어야 함
-        assert "mdd" in summary, "summary에 mdd 키가 있어야 함"
+        # When / Then
+        with pytest.raises(RuntimeError, match="불변조건"):
+            calculate_summary(trades_df, equity_df, initial_capital)
 
     def test_calmar_normal(self):
         """
@@ -420,16 +414,16 @@ class TestCalculateSummary:
         # Then
         assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
 
-    def test_cagr_minus_100_when_final_capital_zero(self) -> None:
+    def test_cagr_runtime_error_when_final_capital_zero(self) -> None:
         """
-        목적: final_capital이 0 이하일 때 CAGR이 -100.0을 반환하는지 검증
+        목적: final_capital이 0 이하일 때 RuntimeError가 발생하는지 검증
 
-        정책: 전액 손실(final_capital <= 0)은 CAGR = -100.0이 정확하다.
-              기존에는 0.0을 반환했으나, 이는 "변화 없음"으로 오해할 수 있다.
+        정책: 비레버리지 백테스트에서 전액 손실은 내부 불변조건 위반
+              final_capital <= 0은 논리적으로 불가능하므로 RuntimeError 발생
 
-        Given: equity가 10000 → 0으로 하락, 기간 1년
+        Given: equity가 10000 -> 0으로 하락, 기간 1년
         When: calculate_summary 호출
-        Then: cagr == -100.0
+        Then: RuntimeError 발생
         """
         # Given
         trades_df = pd.DataFrame(
@@ -446,11 +440,9 @@ class TestCalculateSummary:
             }
         )
 
-        # When
-        summary = calculate_summary(trades_df, equity_df, 10000.0)
-
-        # Then
-        assert summary["cagr"] == pytest.approx(-100.0, abs=0.1), "전액 손실 시 CAGR은 -100.0이어야 함"
+        # When / Then
+        with pytest.raises(RuntimeError, match="final_capital"):
+            calculate_summary(trades_df, equity_df, 10000.0)
 
     def test_cagr_negative_when_final_capital_very_small(self) -> None:
         """
@@ -527,24 +519,24 @@ class TestCalculateDrawdownPctSeries:
         # Then
         assert (result == 0.0).all()
 
-    def test_zero_peak_protection(self):
+    def test_zero_peak_raises_runtime_error(self):
         """
-        목적: peak=0일 때 division by zero가 발생하지 않음을 검증
+        목적: peak=0일 때 RuntimeError가 발생함을 검증
 
-        Given: 에쿼티 [0, 10, 5]
+        정책: initial_capital > 0이면 peak=0은 내부 불변조건 위반
+
+        Given: 에쿼티 [0, 10, 5] (첫 값이 0)
         When: calculate_drawdown_pct_series 호출
-        Then: 에러 없이 결과 반환
+        Then: RuntimeError 발생
         """
         from qbt.backtest.analysis import calculate_drawdown_pct_series
 
         # Given
         equity = pd.Series([0.0, 10.0, 5.0])
 
-        # When
-        result = calculate_drawdown_pct_series(equity)
-
-        # Then: 에러 없이 반환되면 성공
-        assert len(result) == 3
+        # When / Then
+        with pytest.raises(RuntimeError, match="peak"):
+            calculate_drawdown_pct_series(equity)
 
 
 class TestCalculateCalmar:

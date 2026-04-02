@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Literal
 
 from qbt.backtest.constants import COL_ENTRY_DATE, COL_EXIT_DATE
 from qbt.backtest.engines.engine_common import (
@@ -11,17 +10,10 @@ from qbt.backtest.engines.engine_common import (
     execute_sell_order,
 )
 from qbt.backtest.engines.portfolio_planning import OrderIntent
+from qbt.common_constants import EPSILON
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class AssetState:
-    """자산별 런타임 상태."""
-
-    position: int  # 보유 수량
-    signal_state: Literal["buy", "sell"]  # 현재 시그널 상태
 
 
 @dataclass
@@ -97,7 +89,7 @@ def execute_orders(
             continue
         position = positions.get(asset_id, 0)
         if position <= 0:
-            continue
+            raise RuntimeError(f"내부 불변조건 위반: SELL intent 대상의 position <= 0 (asset_id={asset_id}, position={position})")
 
         open_price = open_prices.get(asset_id, 0.0)
         e_date = e_dates.get(asset_id)
@@ -116,8 +108,9 @@ def execute_orders(
             sell_price, sell_amount, pnl, pnl_pct = execute_sell_order(open_price, shares_sold, e_price)
             cash += sell_amount
 
+            assert e_date is not None, "position > 0이면 entry_date는 항상 존재해야 함"
             trade_record: PortfolioTradeRecord = {
-                COL_ENTRY_DATE: e_date,  # type: ignore[typeddict-item]
+                COL_ENTRY_DATE: e_date,
                 COL_EXIT_DATE: current_date,
                 "entry_price": e_price,
                 "exit_price": sell_price,
@@ -157,7 +150,9 @@ def execute_orders(
         if intent.intent_type not in ("ENTER_TO_TARGET", "INCREASE_TO_TARGET"):
             continue
         if intent.delta_amount <= 0:
-            continue
+            raise RuntimeError(
+                f"내부 불변조건 위반: BUY intent의 delta_amount <= 0 (asset_id={asset_id}, delta_amount={intent.delta_amount})"
+            )
         open_price = open_prices.get(asset_id, 0.0)
         raw_shares, buy_price, _ = execute_buy_order(open_price, intent.delta_amount)
         if raw_shares > 0:
@@ -166,8 +161,6 @@ def execute_orders(
             buy_prices_map[asset_id] = buy_price
 
     # 3-2. available_cash vs total_raw_cost -> scale_factor 결정
-    from qbt.common_constants import EPSILON
-
     available_cash = cash
     total_raw_cost = sum(buy_raw_shares[aid] * buy_prices_map[aid] for aid in buy_order_ids)
 
