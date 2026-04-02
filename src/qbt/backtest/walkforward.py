@@ -289,9 +289,11 @@ def run_walkforward(
         logger.debug(f"WFO [{idx + 1}/{len(windows)}] " f"IS={is_start}~{is_end}, OOS={oos_start}~{oos_end}")
 
         # 3. IS 데이터 슬라이스 (전체 히스토리 MA 포함)
+        # 방어적 설계: trade_df에 독립 날짜 마스크 적용 (인덱스 정합성 가정 제거)
         is_mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= is_end)
         is_signal = signal_df_with_ma[is_mask].reset_index(drop=True)
-        is_trade = trade_df[is_mask].reset_index(drop=True)
+        is_trade_mask = (trade_df[COL_DATE] >= is_start) & (trade_df[COL_DATE] <= is_end)
+        is_trade = trade_df[is_trade_mask].reset_index(drop=True)
 
         # 4. IS 그리드 서치 실행
         grid_df = run_grid_search(
@@ -327,16 +329,20 @@ def run_walkforward(
         is_calmar = calculate_calmar(is_cagr, is_mdd)
 
         # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — EMA 연속성 보장)
+        # 방어적 설계: trade_df에 독립 날짜 마스크 적용
         oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
         oos_signal = signal_df_with_ma[oos_mask].reset_index(drop=True)
-        oos_trade = trade_df[oos_mask].reset_index(drop=True)
+        oos_trade_mask = (trade_df[COL_DATE] >= oos_start) & (trade_df[COL_DATE] <= oos_end)
+        oos_trade = trade_df[oos_trade_mask].reset_index(drop=True)
 
         # 7. OOS 독립 평가 (유효 구간 필터링)
         # MA는 루프 전 전체 데이터로 사전 계산되었으므로 OOS 슬라이스에 이미 포함되어 있다.
+        # trade_df도 독립 날짜 기반으로 필터링 (인덱스 정합성 가정 제거)
         oos_ma_col = ma_col_name(best_ma)
         oos_valid_mask = oos_signal[oos_ma_col].notna()
         oos_signal_valid = oos_signal[oos_valid_mask].reset_index(drop=True)
-        oos_trade_valid = oos_trade[oos_valid_mask].reset_index(drop=True)
+        oos_valid_dates = oos_signal[oos_valid_mask][COL_DATE]
+        oos_trade_valid = oos_trade[oos_trade[COL_DATE].isin(oos_valid_dates)].reset_index(drop=True)
 
         oos_strategy = BufferZoneStrategy(
             ma_col=oos_ma_col,

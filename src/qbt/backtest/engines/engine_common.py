@@ -1,13 +1,15 @@
 """엔진 공통 모듈
 
-단일 백테스트 엔진과 포트폴리오 엔진이 공유하는 데이터 타입과 체결/equity 기록 함수를 제공한다.
+단일 백테스트 엔진과 포트폴리오 엔진이 공유하는 데이터 타입과 체결 계산 함수를 제공한다.
 
 포함 내용:
 - PendingOrder: 예약된 주문 정보 (신호일과 체결일 분리)
 - TradeRecord: 거래 기록 딕셔너리
+- PortfolioTradeRecord: 포트폴리오 전용 거래 기록 (TradeRecord 확장)
 - EquityRecord: equity 기록 딕셔너리
-- execute_buy_order: 매수 주문 실행
-- execute_sell_order: 매도 주문 실행
+- execute_buy_order: 매수 체결 계산 (순수 함수)
+- execute_sell_order: 매도 체결 계산 (순수 함수)
+- create_trade_record: TradeRecord 생성 헬퍼
 - record_equity: equity 기록 생성
 """
 
@@ -38,7 +40,7 @@ class EquityRecord(TypedDict):
 
 
 class TradeRecord(TypedDict):
-    """execute_sell_order() 거래 기록 딕셔너리."""
+    """거래 기록 딕셔너리. 단일 백테스트 엔진에서 사용."""
 
     entry_date: date
     exit_date: date
@@ -49,6 +51,13 @@ class TradeRecord(TypedDict):
     pnl_pct: float
     buy_buffer_pct: float
     hold_days_used: int
+
+
+class PortfolioTradeRecord(TradeRecord):
+    """포트폴리오 전용 거래 기록. TradeRecord를 확장한다."""
+
+    asset_id: str
+    trade_type: str  # "signal" | "rebalance"
 
 
 # ============================================================================
@@ -77,96 +86,100 @@ class PendingOrder:
 
 
 # ============================================================================
-# 체결/equity 기록 함수
+# 체결 계산 함수 (순수 함수 — 상태 변경 없음)
 # ============================================================================
 
 
 def execute_buy_order(
-    order: PendingOrder,
     open_price: float,
-    execute_date: date,
-    capital: float,
-    position: int,
-) -> tuple[int, float, float, date, bool]:
-    """매수 주문을 실행한다.
+    amount: float,
+) -> tuple[int, float, float]:
+    """매수 체결 계산. 상태 업데이트는 호출부에서 수행한다.
+
+    슬리피지를 적용한 매수가로 체결 수량과 비용을 계산한다.
+    단일 엔진은 전체 자본을, 포트폴리오 엔진은 delta_amount를 amount로 전달한다.
 
     Args:
-        order: 실행할 매수 주문
-        open_price: 체결 날짜의 시가 (슬리피지 적용 전)
-        execute_date: 체결 날짜
-        capital: 현재 보유 현금
-        position: 현재 포지션 (0이어야 함)
+        open_price: 시가 (슬리피지 적용 전)
+        amount: 매수에 사용할 금액
 
     Returns:
-        tuple: (new_position, new_capital, entry_price, entry_date, executed)
-            - new_position: 새 포지션 수량
-            - new_capital: 새 자본
-            - entry_price: 진입 가격 (슬리피지 적용)
-            - entry_date: 진입 날짜
-            - executed: 실행 여부 (자본 부족 시 False)
+        (shares, buy_price, total_cost) 튜플.
+        shares=0이면 금액 부족으로 미체결, total_cost=0.0.
     """
-    # 슬리피지 적용 (매수 시 +0.3%)
     buy_price = open_price * (1 + SLIPPAGE_RATE)
-    shares = int(capital / buy_price)
+    shares = int(amount / buy_price)
 
-    if shares > 0:
-        buy_amount = shares * buy_price
-        new_capital = capital - buy_amount
-        return shares, new_capital, buy_price, execute_date, True
-    else:
-        # 자본 부족으로 매수 불가
-        logger.debug(f"매수 불가 (자본 부족): 날짜={execute_date}, 필요가격={buy_price:.2f}, " f"현재자본={capital:.2f}, 가능수량=0")
-        return position, capital, 0.0, execute_date, False
+    if shares <= 0:
+        return (0, buy_price, 0.0)
+
+    cost = shares * buy_price
+    return (shares, buy_price, cost)
 
 
 def execute_sell_order(
-    order: PendingOrder,
     open_price: float,
-    execute_date: date,
-    capital: float,
-    position: int,
+    shares_to_sell: int,
     entry_price: float,
-    entry_date: date,
-    hold_days_used: int,
-    buy_buffer_pct: float = 0.0,
-) -> tuple[int, float, TradeRecord]:
-    """매도 주문을 실행한다.
+) -> tuple[float, float, float, float]:
+    """매도 체결 계산. 상태 업데이트는 호출부에서 수행한다.
+
+    슬리피지를 적용한 매도가로 매도 대금, 손익, 손익률을 계산한다.
+    단일 엔진은 전량 매도를, 포트폴리오 엔진은 부분 매도도 지원한다.
 
     Args:
-        order: 실행할 매도 주문
-        open_price: 체결 날짜의 시가 (슬리피지 적용 전)
-        execute_date: 체결 날짜
-        capital: 현재 보유 현금
-        position: 현재 포지션 수량
-        entry_price: 진입 가격
-        entry_date: 진입 날짜
-        hold_days_used: 매수 시 사용된 유지일수 (trade_record에 명시적으로 기록)
-        buy_buffer_pct: 매수 시 버퍼존 비율 (strategy.get_buy_meta()에서 전달, 기본값 0.0)
+        open_price: 시가 (슬리피지 적용 전)
+        shares_to_sell: 매도할 수량
+        entry_price: 진입가
 
     Returns:
-        tuple: (new_position, new_capital, trade_record)
-            - new_position: 새 포지션 (0)
-            - new_capital: 새 자본 (매도 금액 추가)
-            - trade_record: 거래 기록 딕셔너리
+        (sell_price, proceeds, pnl, pnl_pct) 튜플.
     """
-    # 슬리피지 적용 (매도 시 -0.3%)
     sell_price = open_price * (1 - SLIPPAGE_RATE)
-    sell_amount = position * sell_price
-    new_capital = capital + sell_amount
+    proceeds = shares_to_sell * sell_price
+    pnl = (sell_price - entry_price) * shares_to_sell
+    pnl_pct = (sell_price - entry_price) / entry_price
+    return (sell_price, proceeds, pnl, pnl_pct)
 
-    trade_record: TradeRecord = {
+
+def create_trade_record(
+    entry_date: date,
+    exit_date: date,
+    entry_price: float,
+    exit_price: float,
+    shares: int,
+    pnl: float,
+    pnl_pct: float,
+    buy_buffer_pct: float = 0.0,
+    hold_days_used: int = 0,
+) -> TradeRecord:
+    """TradeRecord TypedDict를 생성한다.
+
+    Args:
+        entry_date: 진입 날짜
+        exit_date: 청산 날짜
+        entry_price: 진입가
+        exit_price: 청산가
+        shares: 체결 수량
+        pnl: 손익
+        pnl_pct: 손익률
+        buy_buffer_pct: 매수 시 버퍼존 비율 (기본값 0.0, B&H용)
+        hold_days_used: 매수 시 유지일수 (기본값 0, B&H용)
+
+    Returns:
+        TradeRecord TypedDict
+    """
+    return {
         "entry_date": entry_date,
-        "exit_date": execute_date,
+        "exit_date": exit_date,
         "entry_price": entry_price,
-        "exit_price": sell_price,
-        "shares": position,
-        "pnl": (sell_price - entry_price) * position,
-        "pnl_pct": (sell_price - entry_price) / entry_price,
+        "exit_price": exit_price,
+        "shares": shares,
+        "pnl": pnl,
+        "pnl_pct": pnl_pct,
         "buy_buffer_pct": buy_buffer_pct,
         "hold_days_used": hold_days_used,
     }
-
-    return 0, new_capital, trade_record
 
 
 def record_equity(

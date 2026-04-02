@@ -121,19 +121,20 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 
 #### engines/engine_common.py
 
-체결/에쿼티 기록 등 두 엔진이 공유하는 공통 로직을 제공합니다.
+체결 계산 및 에쿼티 기록 등 두 엔진이 공유하는 공통 로직을 제공합니다.
 
 데이터 구조:
 
-- `PendingOrder`: 예약 주문 (order_type, signal_date). 신호일과 체결일 분리. 버퍼존 전용 필드(buy_buffer_zone_pct, hold_days_used) 제거됨.
-- `TradeRecord`: 거래 기록 TypedDict. buy_buffer_pct, hold_days_used는 유지 (CSV 호환). 호출자가 명시적으로 전달.
-- `EquityRecord`: equity 기록 TypedDict. Date, equity, position만 포함. 버퍼존 band 필드(buy_buffer_pct, sell_buffer_pct, upper_band, lower_band) 제거됨.
+- `PendingOrder`: 예약 주문 (order_type, signal_date). 신호일과 체결일 분리
+- `TradeRecord`: 거래 기록 TypedDict. buy_buffer_pct, hold_days_used 포함 (CSV 호환)
+- `PortfolioTradeRecord(TradeRecord)`: 포트폴리오 전용 거래 기록. TradeRecord를 확장하여 asset_id, trade_type 필드 추가
+- `EquityRecord`: equity 기록 TypedDict. Date, equity, position만 포함
 
-공통 함수:
+공통 함수 (순수 계산 함수 — 상태 변경 없음):
 
-- `execute_buy_order(order, open_price, execute_date, capital, position) -> tuple`
-- `execute_sell_order(order, open_price, execute_date, capital, position, entry_price, entry_date, buy_buffer_pct, hold_days_used) -> tuple`
-  - `buy_buffer_pct`, `hold_days_used`: 호출자가 명시적으로 전달 (TradeRecord에 포함)
+- `execute_buy_order(open_price, amount) -> (shares, buy_price, cost)`: 매수 체결 계산. 단일 엔진은 전체 자본을, 포트폴리오 엔진은 delta_amount를 amount로 전달
+- `execute_sell_order(open_price, shares_to_sell, entry_price) -> (sell_price, proceeds, pnl, pnl_pct)`: 매도 체결 계산. 단일 엔진은 전량 매도, 포트폴리오 엔진은 부분 매도도 지원
+- `create_trade_record(entry_date, exit_date, entry_price, exit_price, shares, pnl, pnl_pct, buy_buffer_pct=0.0, hold_days_used=0) -> TradeRecord`: TradeRecord 생성 헬퍼
 - `record_equity(current_date, capital, position, close_price) -> EquityRecord`
 
 #### engines/backtest_engine.py
@@ -146,6 +147,7 @@ TypedDict:
 
 주요 함수:
 
+- `filter_valid_rows(signal_df, trade_df, ma_col) -> tuple[pd.DataFrame, pd.DataFrame]`: MA 컬럼 기준 유효 행(NaN 아닌 행) 필터링
 - `run_backtest(strategy, signal_df, trade_df, initial_capital, log_trades, strategy_name, params_schedule) -> tuple[trades_df, equity_df, summary]`: SignalStrategy 의존성 주입 방식 실행. `initial_capital: float`를 직접 전달한다.
 - `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴)
 - `run_buffer_strategy(signal_df, trade_df, params, ...) -> ...`: `BufferZoneStrategy` + `run_backtest` 편의 래퍼
@@ -177,7 +179,7 @@ TypedDict:
 주문 흐름 함수:
 
 - `_generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
-- `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
+- `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
 - `_merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
 - `_execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> _ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
 

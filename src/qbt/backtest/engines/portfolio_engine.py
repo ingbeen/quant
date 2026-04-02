@@ -286,7 +286,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     entry_hold_days: dict[str, int] = {slot.asset_id: 0 for slot in config.asset_slots}
 
     # 거래 기록 및 에쿼티 기록
-    all_trades: list[dict[str, Any]] = []
+    all_trades: list[Any] = []
     equity_rows: list[dict[str, Any]] = []
 
     # next_day_intents: 전일 생성된 merged intents → 당일 체결 대상
@@ -341,9 +341,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         )
 
         # D.2: projected portfolio 계산 (signal intents 반영 후 예상 상태)
-        projected = compute_projected_portfolio(
-            asset_states, signal_intents, equity_vals_now, asset_closes_map, shared_cash
-        )
+        projected = compute_projected_portfolio(asset_states, signal_intents, equity_vals_now, shared_cash)
 
         # D.3: rebalance intents 생성 (projected 기준, 이중 트리거 임계값 적용)
         total_equity_projected = projected.projected_cash + sum(projected.projected_amounts.values())

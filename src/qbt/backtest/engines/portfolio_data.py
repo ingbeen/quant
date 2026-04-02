@@ -4,6 +4,7 @@ from typing import Any
 
 import pandas as pd
 
+from qbt.backtest.analysis import calculate_drawdown_pct_series
 from qbt.backtest.constants import COL_EQUITY
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
@@ -79,8 +80,7 @@ def build_combined_equity(
     """에쿼티 행 목록을 DataFrame으로 변환하고 drawdown을 계산한다."""
     equity_df = pd.DataFrame(equity_rows)
 
-    # drawdown 계산
-    peak = equity_df[COL_EQUITY].cummax()
-    equity_df["drawdown_pct"] = (equity_df[COL_EQUITY] - peak) / (peak + EPSILON) * 100.0
+    # drawdown 계산 (analysis.py의 공용 함수 사용 — 방어 로직 통일)
+    equity_df["drawdown_pct"] = calculate_drawdown_pct_series(equity_df[COL_EQUITY])
 
     return equity_df

@@ -168,7 +168,6 @@ def compute_projected_portfolio(
     asset_states: dict[str, AssetState],
     signal_intents: dict[str, OrderIntent],
     equity_vals: dict[str, float],
-    asset_closes_map: dict[str, float],
     shared_cash: float,
 ) -> ProjectedPortfolio:
     """signal intents 반영 후 예상 포트폴리오 상태를 계산한다.
@@ -183,7 +182,6 @@ def compute_projected_portfolio(
         asset_states: {asset_id: AssetState}
         signal_intents: {asset_id: OrderIntent} — EXIT_ALL 또는 ENTER_TO_TARGET
         equity_vals: {asset_id: 현재 평가액}
-        asset_closes_map: {asset_id: 현재 종가} (사용 안 함, 확장성 위해 유지)
         shared_cash: 현재 미투자 현금
 
     Returns:

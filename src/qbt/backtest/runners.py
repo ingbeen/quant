@@ -82,8 +82,9 @@ def _enrich_equity_with_bands(
     """
     # signal_df에서 Date, MA 컬럼만 추출 후 밴드 계산
     band_df = signal_df[[COL_DATE, ma_col]].copy()
-    band_df[COL_UPPER_BAND] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[0])
-    band_df[COL_LOWER_BAND] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[1])
+    bands = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct))
+    band_df[COL_UPPER_BAND] = bands.apply(lambda b: b[0])
+    band_df[COL_LOWER_BAND] = bands.apply(lambda b: b[1])
     band_df["buy_buffer_pct"] = buy_buffer_pct
     band_df["sell_buffer_pct"] = sell_buffer_pct
     band_df = band_df.drop(columns=[ma_col])

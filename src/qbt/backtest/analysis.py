@@ -173,6 +173,9 @@ def calculate_summary(
     # CAGR
     if years > 0 and final_capital > 0:
         cagr: float = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
+    elif years > 0 and final_capital <= 0:
+        # 전액 손실: CAGR = -100% (0.0 반환은 "변화 없음"으로 오해 가능)
+        cagr = -100.0
     else:
         cagr = 0.0
 

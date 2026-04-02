@@ -326,13 +326,10 @@ class TestComputeProjectedPortfolio:
         asset_states = {"qqq": NewAssetState(position=100, signal_state="buy")}
         signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
         equity_vals = {"qqq": 100_000.0}
-        asset_closes_map = {"qqq": 1000.0}
         shared_cash = 50_000.0
 
         # When
-        projected = compute_projected_portfolio(
-            asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash
-        )
+        projected = compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash)
 
         # Then
         assert projected.projected_amounts.get("qqq", 0.0) == pytest.approx(0.0, abs=0.01)
@@ -360,13 +357,10 @@ class TestComputeProjectedPortfolio:
             "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
         }
         equity_vals = {"qqq": 0.0}
-        asset_closes_map = {"qqq": 1000.0}
         shared_cash = 500_000.0
 
         # When
-        projected = compute_projected_portfolio(
-            asset_states, signal_intents, equity_vals, asset_closes_map, shared_cash
-        )
+        projected = compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash)
 
         # Then
         assert "qqq" in projected.active_assets

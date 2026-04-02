@@ -40,6 +40,7 @@ from qbt.backtest.engines.engine_common import (
     EquityRecord,
     PendingOrder,
     TradeRecord,
+    create_trade_record,
     execute_buy_order,
     execute_sell_order,
     record_equity,
@@ -145,6 +146,31 @@ def _check_pending_conflict(
         )
 
 
+def filter_valid_rows(
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    ma_col: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """MA 컬럼 기준으로 유효 행(NaN 아닌 행)만 필터링한다.
+
+    signal_df와 trade_df에서 ma_col이 NaN인 행을 제거하고,
+    인덱스를 재설정하여 두 DataFrame의 행 정합성을 유지한다.
+
+    Args:
+        signal_df: 시그널 DataFrame (MA 컬럼 포함)
+        trade_df: 매매 DataFrame
+        ma_col: 유효성 기준이 되는 MA 컬럼명
+
+    Returns:
+        (filtered_signal, filtered_trade) 튜플
+    """
+    valid_mask = signal_df[ma_col].notna()
+    return (
+        signal_df[valid_mask].reset_index(drop=True),
+        trade_df[valid_mask].reset_index(drop=True),
+    )
+
+
 # ============================================================================
 # 그리드 서치 병렬 헬퍼 (module-level, pickle 가능)
 # ============================================================================
@@ -174,9 +200,7 @@ def _run_backtest_for_grid(
 
     # MA 컬럼 기준으로 유효 행 필터링
     ma_col = ma_col_name(params.ma_window)
-    valid_mask = signal_df[ma_col].notna()
-    filtered_signal = signal_df[valid_mask].reset_index(drop=True)
-    filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+    filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
     # BufferZoneStrategy 생성 (파라미터 포함)
     strategy = BufferZoneStrategy(
@@ -299,8 +323,9 @@ def run_backtest(
         current_date = signal_row[COL_DATE]
 
         # 4-0. params_schedule 전환 체크 (strategy 객체 직접 교체)
-        if params_schedule is not None and next_switch_idx < len(sorted_switch_dates):
-            if current_date >= sorted_switch_dates[next_switch_idx]:
+        # while 루프: 데이터 갭 등으로 여러 전환 날짜를 건너뛰어야 하는 경우 안전 처리
+        if params_schedule is not None:
+            while next_switch_idx < len(sorted_switch_dates) and current_date >= sorted_switch_dates[next_switch_idx]:
                 strategy = params_schedule[sorted_switch_dates[next_switch_idx]]
                 next_switch_idx += 1
                 if log_trades:
@@ -309,30 +334,43 @@ def run_backtest(
         # 4-1. 예약된 주문 실행 (trade_df의 오늘 시가로 체결)
         if pending_order is not None:
             if pending_order.order_type == "buy" and position == 0:
-                position, capital, entry_price, entry_date, success = execute_buy_order(
-                    pending_order, float(trade_row[COL_OPEN]), current_date, capital, position
-                )
-                if success and log_trades:
+                shares, buy_price, cost = execute_buy_order(float(trade_row[COL_OPEN]), capital)
+                if shares > 0:
+                    position = shares
+                    capital -= cost
+                    entry_price = buy_price
+                    entry_date = current_date
+                    if log_trades:
+                        logger.debug(
+                            f"매수 체결: {entry_date}, 가격={entry_price:.2f}, "
+                            f"수량={position}, 매수버퍼={entry_buy_buffer_pct:.2%}"
+                        )
+                else:
                     logger.debug(
-                        f"매수 체결: {entry_date}, 가격={entry_price:.2f}, " f"수량={position}, 매수버퍼={entry_buy_buffer_pct:.2%}"
+                        f"매수 불가 (자본 부족): 날짜={current_date}, " f"필요가격={buy_price:.2f}, 현재자본={capital:.2f}, 가능수량=0"
                     )
 
             elif pending_order.order_type == "sell" and position > 0:
                 assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
-                position, capital, trade_record = execute_sell_order(
-                    pending_order,
-                    float(trade_row[COL_OPEN]),
-                    current_date,
-                    capital,
-                    position,
-                    entry_price,
-                    entry_date,
-                    hold_days_used=entry_hold_days_used,
+                sell_price, proceeds, pnl, pnl_pct = execute_sell_order(
+                    float(trade_row[COL_OPEN]), position, entry_price
+                )
+                capital += proceeds
+                trade_record = create_trade_record(
+                    entry_date=entry_date,
+                    exit_date=current_date,
+                    entry_price=entry_price,
+                    exit_price=sell_price,
+                    shares=position,
+                    pnl=pnl,
+                    pnl_pct=pnl_pct,
                     buy_buffer_pct=entry_buy_buffer_pct,
+                    hold_days_used=entry_hold_days_used,
                 )
                 trades.append(trade_record)
+                position = 0
                 if log_trades:
-                    logger.debug(f"매도 체결: {current_date}, 손익률={trade_record['pnl_pct']*100:.2f}%")
+                    logger.debug(f"매도 체결: {current_date}, 손익률={pnl_pct*100:.2f}%")
 
             pending_order = None
 
@@ -532,9 +570,7 @@ def run_buffer_strategy(
         signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
     # 3. MA 유효 구간 필터링 (초기 MA 기준)
-    valid_mask = signal_df[ma_col].notna()
-    filtered_signal = signal_df[valid_mask].reset_index(drop=True)
-    filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+    filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
     # 4. BufferZoneStrategy 생성 및 실행
     strategy = BufferZoneStrategy(

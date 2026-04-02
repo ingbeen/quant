@@ -420,6 +420,67 @@ class TestCalculateSummary:
         # Then
         assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
 
+    def test_cagr_minus_100_when_final_capital_zero(self) -> None:
+        """
+        목적: final_capital이 0 이하일 때 CAGR이 -100.0을 반환하는지 검증
+
+        정책: 전액 손실(final_capital <= 0)은 CAGR = -100.0이 정확하다.
+              기존에는 0.0을 반환했으나, 이는 "변화 없음"으로 오해할 수 있다.
+
+        Given: equity가 10000 → 0으로 하락, 기간 1년
+        When: calculate_summary 호출
+        Then: cagr == -100.0
+        """
+        # Given
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 1, 1)],
+                "exit_date": [date(2021, 6, 1)],
+                "pnl": [-10000.0],
+            }
+        )
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 1), date(2022, 1, 1)],
+                "equity": [10000.0, 0.0],
+            }
+        )
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then
+        assert summary["cagr"] == pytest.approx(-100.0, abs=0.1), "전액 손실 시 CAGR은 -100.0이어야 함"
+
+    def test_cagr_negative_when_final_capital_very_small(self) -> None:
+        """
+        목적: final_capital이 매우 작은 양수일 때 CAGR이 큰 음수인지 검증
+
+        Given: equity가 10000 → 1.0으로 하락, 기간 1년
+        When: calculate_summary 호출
+        Then: CAGR이 큰 음수 (약 -99.99%)
+        """
+        # Given
+        trades_df = pd.DataFrame(
+            {
+                "entry_date": [date(2021, 1, 1)],
+                "exit_date": [date(2021, 6, 1)],
+                "pnl": [-9999.0],
+            }
+        )
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 1), date(2022, 1, 1)],
+                "equity": [10000.0, 1.0],
+            }
+        )
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then: (1/10000)^(1/1) - 1 ≈ -0.9999 = -99.99%
+        assert summary["cagr"] < -99.0, "거의 전액 손실 시 CAGR은 -99% 이하"
+
 
 class TestCalculateDrawdownPctSeries:
     """calculate_drawdown_pct_series 함수 테스트"""

@@ -32,7 +32,8 @@ tests/
 ├── test_walkforward_selection.py # WFO 파라미터 선택 및 WFE 테스트
 ├── test_walkforward_summary.py   # WFO 모드 요약 통계 테스트
 ├── test_buy_and_hold.py # Buy & Hold 전략 테스트
-├── test_engine_common.py  # 엔진 공통 함수 계약 테스트 (execute_buy/sell_order, record_equity)
+├── test_engine_common.py  # 엔진 공통 함수 계약 테스트 (execute_buy/sell_order, create_trade_record)
+├── test_backtest_engine.py # 백테스트 엔진 테스트 (params_schedule, filter_valid_rows)
 ├── test_csv_export.py # 백테스트 CSV 저장용 변환 유틸리티 테스트
 ├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
 ├── test_data_loader.py # 데이터 로더 테스트
