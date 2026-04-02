@@ -199,7 +199,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
                     hold_days=hold_val,
                 )
-                params, _ = resolve_params_for_config(config)
+                params = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
@@ -220,7 +220,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     sell_buffer_zone_pct=sell_val,
                     hold_days=FIXED_4P_HOLD_DAYS,
                 )
-                params, _ = resolve_params_for_config(config)
+                params = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
@@ -243,7 +243,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
                     hold_days=FIXED_4P_HOLD_DAYS,
                 )
-                params, _ = resolve_params_for_config(config)
+                params = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
                     signal_ma200,
                     trade_df,
@@ -267,7 +267,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
                     hold_days=FIXED_4P_HOLD_DAYS,
                 )
-                params, _ = resolve_params_for_config(config)
+                params = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
                     signal_with_ma,
                     trade_df,

@@ -143,14 +143,6 @@ class PortfolioResult:
     equity_df: pd.DataFrame
     trades_df: pd.DataFrame
     summary: Mapping[str, object]
+    config: PortfolioConfig
     per_asset: list[PortfolioAssetResult] = field(default_factory=list)
-    config: PortfolioConfig = field(
-        default_factory=lambda: PortfolioConfig(
-            experiment_name="",
-            display_name="",
-            asset_slots=(),
-            total_capital=0.0,
-            result_dir=Path("."),
-        )
-    )
     params_json: dict[str, Any] = field(default_factory=dict)

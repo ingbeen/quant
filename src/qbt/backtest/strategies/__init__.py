@@ -6,9 +6,10 @@
 - buffer_zone: 버퍼존 통합 config-driven 전략 모듈 (8개 자산, 4P 고정)
 - buy_and_hold: 매수 후 보유 벤치마크 전략 (팩토리 패턴으로 멀티 티커 지원)
 - runners: create_buffer_zone_runner, create_buy_and_hold_runner 팩토리
+
+PendingOrder는 engines.engine_common에서 직접 import한다 (계층 분리 원칙).
 """
 
-from qbt.backtest.engines.engine_common import PendingOrder
 from qbt.backtest.strategies.buffer_zone import (
     BufferZoneConfig,
     resolve_params_for_config,
@@ -23,7 +24,6 @@ __all__ = [
     "resolve_params_for_config",
     # Buffer zone strategy (shared)
     "BufferStrategyParams",
-    "PendingOrder",
     "PendingOrderConflictError",
     # Buy and hold strategy
     "BuyAndHoldConfig",

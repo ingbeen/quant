@@ -123,7 +123,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         signal_df, trade_df = load_signal_trade_pair(config.signal_data_path, config.trade_data_path)
 
         # 2. 파라미터 결정
-        params, sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
         ma_col = ma_col_name(params.ma_window)
 
         # 3. 이동평균 계산
@@ -166,7 +166,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
             "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
             "hold_days": params.hold_days,
             "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-            "param_source": sources,
+            "param_source": "FIXED",
         }
 
         return SingleBacktestResult(

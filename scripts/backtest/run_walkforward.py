@@ -18,7 +18,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_drawdown_pct_series
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
@@ -35,17 +34,15 @@ from qbt.backtest.constants import (
     WALKFORWARD_SUMMARY_FILENAME,
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
-    ma_col_name,
 )
 from qbt.backtest.csv_export import prepare_trades_for_csv
-from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies import buffer_zone
-from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
-    build_params_schedule,
     calculate_wfo_mode_summary,
+    run_stitched_equity,
     run_walkforward,
+    run_window_detail_backtests,
 )
 from qbt.common_constants import (
     COL_DATE,
@@ -62,7 +59,7 @@ logger = get_logger(__name__)
 # 전략별 설정 매핑 (WFO 대상: 기존 전략만)
 _tqqq = buffer_zone.get_config("buffer_zone_tqqq")
 _qqq = buffer_zone.get_config("buffer_zone_qqq")
-STRATEGY_CONFIG: dict[str, dict[str, Path | list[int] | list[float] | None]] = {
+STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
     _tqqq.strategy_name: {
         "signal_path": _tqqq.signal_data_path,
         "trade_path": _tqqq.trade_data_path,
@@ -91,82 +88,6 @@ def _load_data(strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
 
     return signal_df, trade_df
-
-
-def _run_stitched_equity(
-    signal_df: pd.DataFrame,
-    trade_df: pd.DataFrame,
-    window_results: list[WfoWindowResultDict],
-    initial_capital: float,
-) -> tuple[pd.DataFrame, dict[str, object]]:
-    """Stitched Equity를 생성한다.
-
-    WFO 결과의 params_schedule을 사용하여 첫 OOS 시작일부터 마지막 OOS 종료일까지
-    연속 자본곡선을 생성한다.
-
-    Args:
-        signal_df: 시그널용 DataFrame
-        trade_df: 매매용 DataFrame
-        window_results: WFO 윈도우 결과 리스트
-        initial_capital: 초기 자본금
-
-    Returns:
-        (equity_df, summary) 튜플
-    """
-    initial_params, schedule = build_params_schedule(window_results)
-
-    # OOS 범위 결정
-    first_oos_start = window_results[0]["oos_start"]
-    last_oos_end = window_results[-1]["oos_end"]
-
-    # OOS 구간 데이터 슬라이스
-    from datetime import date as date_type
-
-    oos_start_date = date_type.fromisoformat(str(first_oos_start))
-    oos_end_date = date_type.fromisoformat(str(last_oos_end))
-
-    # 모든 MA 윈도우 사전 계산 (EMA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
-    # EMA는 전달된 시리즈의 첫 행부터 새로 계산되므로, OOS 슬라이스 후 계산하면
-    # 전체 히스토리를 이어받지 못한다. 슬라이스 전에 전체 데이터로 먼저 계산한다.
-    _initial_ma_col: str = initial_params._ma_col  # type: ignore[attr-defined]
-    all_ma_windows: set[int] = {int(_initial_ma_col.removeprefix("ma_"))}
-    for _p in schedule.values():
-        _p_ma_col: str = _p._ma_col  # type: ignore[attr-defined]
-        all_ma_windows.add(int(_p_ma_col.removeprefix("ma_")))
-
-    signal_df_with_ma = signal_df.copy()
-    for window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type="ema")
-
-    # OOS 구간 데이터 슬라이스 (전체 히스토리 MA 포함)
-    oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
-    oos_signal = signal_df_with_ma[oos_mask].reset_index(drop=True)
-    oos_trade = trade_df[oos_mask].reset_index(drop=True)
-
-    # stitched 실행 (initial_params는 이미 SignalStrategy)
-    trades_df, equity_df, summary = run_backtest(
-        initial_params,
-        oos_signal,
-        oos_trade,
-        initial_capital,
-        log_trades=False,
-        params_schedule=schedule,
-    )
-
-    result_summary = dict(summary)
-
-    # Profit Concentration 계산용 윈도우 경계 equity 추출
-    window_end_equities: list[float] = []
-    for wr in window_results:
-        oos_end_str = str(wr["oos_end"])
-        oos_end_d = date_type.fromisoformat(oos_end_str)
-        # OOS 종료일 이하의 마지막 행 equity
-        mask = equity_df[COL_DATE] <= oos_end_d
-        if mask.any():
-            window_end_equities.append(float(equity_df[mask].iloc[-1]["equity"]))
-    result_summary["window_end_equities"] = window_end_equities
-
-    return equity_df, result_summary
 
 
 def _run_single_mode(
@@ -205,7 +126,7 @@ def _run_single_mode(
     )
 
     # Stitched Equity 생성
-    equity_df, stitched_summary = _run_stitched_equity(signal_df, trade_df, window_results, initial_capital)
+    equity_df, stitched_summary = run_stitched_equity(signal_df, trade_df, window_results, initial_capital)
 
     # 모드 요약 계산
     mode_summary = calculate_wfo_mode_summary(window_results, stitched_summary)
@@ -272,8 +193,8 @@ def _save_window_detail_csvs(
 ) -> None:
     """윈도우별 상세 CSV(signal, equity, trades)를 저장한다.
 
-    각 윈도우의 best params로 IS_start ~ OOS_end 전체 기간의 백테스트를 실행하여
-    캔들차트 + Buy/Sell 마커 시각화에 필요한 데이터를 사전 생성한다.
+    비즈니스 로직(백테스트 실행, 밴드/드로우다운 계산)은 walkforward 모듈에 위임하고,
+    이 함수는 CSV 포맷팅과 저장만 수행한다.
 
     Args:
         window_results: WFO 윈도우 결과 리스트
@@ -283,58 +204,25 @@ def _save_window_detail_csvs(
         mode_dir_name: 모드별 하위 디렉토리명
         initial_capital: 초기 자본금
     """
-    from datetime import date as date_type
-
     window_dir = result_dir / mode_dir_name
     window_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (EMA 연속성 보장)
-    all_ma_windows: set[int] = set()
-    for wr in window_results:
-        all_ma_windows.add(wr["best_ma_window"])
+    # 비즈니스 로직은 walkforward 모듈에 위임
+    details = run_window_detail_backtests(
+        window_results,
+        signal_df,
+        trade_df,
+        initial_capital,
+    )
 
-    signal_df_with_ma = signal_df.copy()
-    for ma_window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type="ema")
-
-    # 2. 각 윈도우별 백테스트 실행 및 CSV 저장
-    for wr in window_results:
-        idx = wr["window_idx"]
-        is_start = date_type.fromisoformat(str(wr["is_start"]))
-        oos_end = date_type.fromisoformat(str(wr["oos_end"]))
-
-        ma_window = wr["best_ma_window"]
-        buy_pct = wr["best_buy_buffer_zone_pct"]
-        sell_pct = wr["best_sell_buffer_zone_pct"]
-        hold_days = wr["best_hold_days"]
-        ma_col = ma_col_name(ma_window)
-
-        # IS_start ~ OOS_end 슬라이싱
-        mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
-        win_signal = signal_df_with_ma[mask].reset_index(drop=True)
-        win_trade = trade_df[mask].reset_index(drop=True)
-
-        if win_signal.empty:
-            continue
-
-        # 백테스트 실행
-        strategy = BufferZoneStrategy(
-            ma_col=ma_col,
-            buy_buffer_pct=buy_pct,
-            sell_buffer_pct=sell_pct,
-            hold_days=hold_days,
-        )
-        trades_df, equity_df, _summary = run_backtest(
-            strategy,
-            win_signal,
-            win_trade,
-            initial_capital,
-            log_trades=False,
-        )
+    # CSV 포맷팅 및 저장 (CLI 책임)
+    for detail in details:
+        idx = detail.window_idx
+        ma_col = detail.ma_col
 
         # --- signal CSV 저장 ---
         signal_cols = [COL_DATE, "Open", "High", "Low", "Close", ma_col, "change_pct"]
-        signal_export = win_signal[[c for c in signal_cols if c in win_signal.columns]].copy()
+        signal_export = detail.signal_df[[c for c in signal_cols if c in detail.signal_df.columns]].copy()
         signal_round: dict[str, int] = {
             "Open": 6,
             "High": 6,
@@ -347,21 +235,8 @@ def _save_window_detail_csvs(
         signal_export = signal_export.round(signal_round)
         signal_export.to_csv(window_dir / f"w{idx:02d}_signal.csv", index=False)
 
-        # --- equity CSV 저장 (밴드 + 드로우다운 추가) ---
-        equity_export = equity_df.copy()
-
-        # 밴드 계산: MA × (1 ± buffer) 벡터화 연산
-        band_df = win_signal[[COL_DATE, ma_col]].copy()
-        band_df["upper_band"] = band_df[ma_col] * (1 + buy_pct)
-        band_df["lower_band"] = band_df[ma_col] * (1 - sell_pct)
-        band_df["buy_buffer_pct"] = buy_pct
-        band_df["sell_buffer_pct"] = sell_pct
-        band_df = band_df.drop(columns=[ma_col])
-        equity_export = equity_export.merge(band_df, on=COL_DATE, how="left")
-
-        # 드로우다운 계산
-        equity_export["drawdown_pct"] = calculate_drawdown_pct_series(equity_export["equity"].astype(float))
-
+        # --- equity CSV 저장 ---
+        equity_export = detail.equity_df.copy()
         equity_round: dict[str, int] = {
             "equity": 0,
             "upper_band": 6,
@@ -375,9 +250,9 @@ def _save_window_detail_csvs(
         equity_export.to_csv(window_dir / f"w{idx:02d}_equity.csv", index=False)
 
         # --- trades CSV 저장 ---
-        prepare_trades_for_csv(trades_df).to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
+        prepare_trades_for_csv(detail.trades_df).to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
 
-    logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(window_results)}개 윈도우)")
+    logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(details)}개 윈도우)")
 
 
 def _save_results(

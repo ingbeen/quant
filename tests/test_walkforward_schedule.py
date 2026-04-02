@@ -173,22 +173,19 @@ class TestEmaContiniuty:
 
     def test_stitched_equity_ema_matches_full_history_ema(self):
         """
-        목적: _run_stitched_equity() stitched 자본곡선의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
+        목적: run_stitched_equity() stitched 자본곡선의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
 
         Given: IS 상승(800 거래일) + OOS 진동(300 거래일) 데이터 + 1개 윈도우 결과
         When:
-          - _run_stitched_equity(raw_df, ...) 실행 → OOS에서 EMA를 리셋하여 stitched 자본곡선 생성
-          - 전체 히스토리 EMA 기반 참조 실행 → OOS에서 거래 없음 (EMA가 OOS 가격과 크게 달라서)
+          - run_stitched_equity(raw_df, ...) 실행 → 전체 히스토리 EMA 기반 stitched 자본곡선 생성
+          - 전체 히스토리 EMA 기반 참조 실행
         Then: stitched CAGR과 참조 CAGR이 동일해야 한다.
-              현재 구현에서는 OOS EMA 리셋으로 결과가 달라지므로 이 테스트가 실패한다.
         """
-        import importlib.util
-        from pathlib import Path
-
         from qbt.backtest.analysis import add_single_moving_average
         from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
         from qbt.backtest.engines.backtest_engine import run_backtest
         from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+        from qbt.backtest.walkforward import run_stitched_equity
 
         # Given
         n_is = 800
@@ -247,16 +244,8 @@ class TestEmaContiniuty:
         )
         ref_cagr = float(ref_summary["cagr"])
 
-        # _run_stitched_equity를 importlib으로 동적 로딩 (scripts/ 패키지 미구성)
-        script_path = Path(__file__).parent.parent / "scripts" / "backtest" / "run_walkforward.py"
-        spec = importlib.util.spec_from_file_location("run_walkforward_script", script_path)
-        assert spec is not None and spec.loader is not None
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
-        _run_stitched_equity = mod._run_stitched_equity
-
-        # When — _run_stitched_equity 실행 (raw_df: MA 미포함)
-        _, stitched_summary = _run_stitched_equity(
+        # When — walkforward.run_stitched_equity 직접 호출 (raw_df: MA 미포함)
+        _, stitched_summary = run_stitched_equity(
             raw_df,
             raw_df,
             window_results,

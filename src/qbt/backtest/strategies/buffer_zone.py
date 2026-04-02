@@ -61,10 +61,8 @@ def resolve_buffer_params(
     buy_buffer_zone_pct: float,
     sell_buffer_zone_pct: float,
     hold_days: int,
-) -> tuple[BufferStrategyParams, dict[str, str]]:
-    """버퍼존 전략의 파라미터를 결정한다.
-
-    전달받은 파라미터로 BufferStrategyParams를 생성한다.
+) -> BufferStrategyParams:
+    """버퍼존 전략의 파라미터를 검증하고 BufferStrategyParams를 생성한다.
 
     Args:
         ma_window: 이동평균 기간
@@ -73,9 +71,7 @@ def resolve_buffer_params(
         hold_days: 유지일수
 
     Returns:
-        tuple: (params, sources)
-            - params: 전략 파라미터
-            - sources: 각 파라미터의 출처 딕셔너리
+        검증된 전략 파라미터
 
     Raises:
         ValueError: 파라미터 범위 위반 시
@@ -97,13 +93,6 @@ def resolve_buffer_params(
         hold_days=hold_days,
     )
 
-    sources = {
-        "ma_window": "FIXED",
-        "buy_buffer_zone_pct": "FIXED",
-        "sell_buffer_zone_pct": "FIXED",
-        "hold_days": "FIXED",
-    }
-
     logger.debug(
         f"파라미터 결정: ma_window={ma_window}, "
         f"buy_buffer={buy_buffer_zone_pct}, "
@@ -111,7 +100,7 @@ def resolve_buffer_params(
         f"hold_days={hold_days}"
     )
 
-    return params, sources
+    return params
 
 
 # ============================================================================
@@ -239,7 +228,7 @@ def get_config(strategy_name: str) -> BufferZoneConfig:
 
 def resolve_params_for_config(
     config: BufferZoneConfig,
-) -> tuple[BufferStrategyParams, dict[str, str]]:
+) -> BufferStrategyParams:
     """BufferZoneConfig에 따라 전략 파라미터를 결정한다.
 
     config의 파라미터를 resolve_buffer_params()에 전달한다.
@@ -248,9 +237,7 @@ def resolve_params_for_config(
         config: 버퍼존 전략 설정
 
     Returns:
-        tuple: (params, sources)
-            - params: 전략 파라미터
-            - sources: 각 파라미터의 출처 딕셔너리
+        검증된 전략 파라미터
     """
     return resolve_buffer_params(
         config.ma_window,
@@ -312,6 +299,53 @@ class BufferZoneStrategy(SignalStrategy):
         ma_val = float(signal_df.iloc[idx][self._ma_col])
         self._prev_upper, self._prev_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
 
+    def _update_bands(
+        self,
+        signal_df: pd.DataFrame,
+        i: int,
+    ) -> tuple[float, float, float, float, float, float] | None:
+        """밴드를 계산하고 prev 상태를 갱신한다.
+
+        최초 호출(i=0 또는 prev 미초기화) 시 초기화 후 None 반환.
+        정상 상태이면 (prev_close, cur_close, prev_upper, cur_upper, prev_lower, cur_lower)
+        반환 후 prev 상태를 현재 값으로 갱신한다.
+
+        check_buy와 check_sell 모두 이 메서드를 통해 밴드를 계산하므로
+        _prev_upper와 _prev_lower가 항상 동시에 갱신된다.
+
+        Args:
+            signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
+            i: 현재 인덱스 (0부터 시작)
+
+        Returns:
+            None이면 초기화 완료 후 신호 없음.
+            6-tuple이면 신호 판단에 필요한 (prev_close, cur_close, prev_upper, cur_upper, prev_lower, cur_lower).
+        """
+        row = signal_df.iloc[i]
+        ma_val = float(row[self._ma_col])
+        cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
+
+        # 최초 호출 처리
+        if self._prev_upper is None or self._prev_lower is None:
+            if i == 0:
+                self._prev_upper = cur_upper
+                self._prev_lower = cur_lower
+                return None
+            else:
+                self._init_prev_from_row(signal_df, i - 1)
+
+        assert self._prev_upper is not None and self._prev_lower is not None
+        prev_upper = self._prev_upper
+        prev_lower = self._prev_lower
+        prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
+        cur_close = float(row[COL_CLOSE])
+
+        # prev 상태를 현재 값으로 갱신
+        self._prev_upper = cur_upper
+        self._prev_lower = cur_lower
+
+        return (prev_close, cur_close, prev_upper, cur_upper, prev_lower, cur_lower)
+
     def check_buy(
         self,
         signal_df: pd.DataFrame,
@@ -320,15 +354,8 @@ class BufferZoneStrategy(SignalStrategy):
     ) -> bool:
         """i번째 날 매수 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
-        최초 호출 처리:
-        - _prev_upper is None: 미초기화 상태
-          - i=0: 현재 행(row[0])으로 초기화 → False 반환 (신호 없음)
-          - i>0: row[i-1]로 초기화 → 정상 신호 체크 진행
-
-        이후 호출:
-        - hold_days=0: detect_buy_signal로 즉시 신호 판단
-        - hold_days>0: 상태머신 처리 (대기/유지/해제)
-        - 항상 _prev_upper/_prev_lower를 현재 행 값으로 갱신
+        _update_bands()로 밴드 계산 및 prev 갱신을 수행한 후
+        hold_days 상태머신에 따라 매수 신호를 판단한다.
 
         Args:
             signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
@@ -338,30 +365,10 @@ class BufferZoneStrategy(SignalStrategy):
         Returns:
             True이면 매수 신호
         """
-        row = signal_df.iloc[i]
-        ma_val = float(row[self._ma_col])
-        cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
-        cur_close = float(row[COL_CLOSE])
-
-        # 최초 호출 처리
-        if self._prev_upper is None:
-            if i == 0:
-                # i=0: 현재 행으로 초기화 후 False 반환
-                self._prev_upper = cur_upper
-                self._prev_lower = cur_lower
-                return False
-            else:
-                # i>0: i-1 행으로 초기화 후 정상 신호 체크 진행
-                self._init_prev_from_row(signal_df, i - 1)
-
-        # 이 시점에서 _prev_upper는 초기화된 상태 (_prev_lower는 check_sell에서 사용)
-        assert self._prev_upper is not None, "_prev_upper가 초기화되지 않음"
-        prev_upper: float = self._prev_upper
-        prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
-
-        # 현재 행으로 prev 갱신 (신호 판단 후에도 동일 값 사용)
-        self._prev_upper = cur_upper
-        self._prev_lower = cur_lower
+        ctx = self._update_bands(signal_df, i)
+        if ctx is None:
+            return False
+        prev_close, cur_close, prev_upper, cur_upper, _, _ = ctx
 
         # 신호 판단
         if self._hold_days == 0:
@@ -373,6 +380,7 @@ class BufferZoneStrategy(SignalStrategy):
             return buy
 
         # hold_days > 0: 상태머신 처리
+        # cur_upper 재계산: _update_bands에서 이미 계산된 값 사용
         if self._hold_state is not None:
             # 대기 중 — 상단밴드 위 유지 여부 확인
             if cur_close > cur_upper:
@@ -416,14 +424,7 @@ class BufferZoneStrategy(SignalStrategy):
     ) -> bool:
         """i번째 날 매도 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
-        최초 호출 처리:
-        - _prev_lower is None: 미초기화 상태
-          - i=0: 현재 행으로 초기화 → False 반환
-          - i>0: row[i-1]로 초기화 → 정상 신호 체크 진행
-
-        이후 호출:
-        - detect_sell_signal로 하향돌파 감지
-        - 항상 _prev_upper/_prev_lower를 현재 행 값으로 갱신
+        _update_bands()로 밴드 계산 및 prev 갱신을 수행한 후 하향돌파를 감지한다.
 
         Args:
             signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
@@ -432,30 +433,10 @@ class BufferZoneStrategy(SignalStrategy):
         Returns:
             True이면 매도 신호
         """
-        row = signal_df.iloc[i]
-        ma_val = float(row[self._ma_col])
-        cur_upper, cur_lower = compute_bands(ma_val, self._buy_buffer_pct, self._sell_buffer_pct)
-        cur_close = float(row[COL_CLOSE])
-
-        # 최초 호출 처리
-        if self._prev_lower is None:
-            if i == 0:
-                # i=0: 현재 행으로 초기화 후 False 반환
-                self._prev_upper = cur_upper
-                self._prev_lower = cur_lower
-                return False
-            else:
-                # i>0: i-1 행으로 초기화 후 정상 신호 체크 진행
-                self._init_prev_from_row(signal_df, i - 1)
-
-        # 이 시점에서 _prev_lower는 초기화된 상태
-        assert self._prev_lower is not None, "_prev_lower가 초기화되지 않음"
-        prev_lower: float = self._prev_lower
-        prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
-
-        # 현재 행으로 prev 갱신
-        self._prev_upper = cur_upper
-        self._prev_lower = cur_lower
+        ctx = self._update_bands(signal_df, i)
+        if ctx is None:
+            return False
+        prev_close, cur_close, _, _, prev_lower, cur_lower = ctx
 
         return detect_sell_signal(prev_close, cur_close, prev_lower, cur_lower)
 

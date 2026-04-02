@@ -141,14 +141,13 @@ class TestResolveParamsForConfig:
         )
 
         # When
-        params, sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
 
         # Then
         assert params.ma_window == 200
         assert params.buy_buffer_zone_pct == 0.03
         assert params.sell_buffer_zone_pct == 0.05
         assert params.hold_days == 0
-        assert all(s == "FIXED" for s in sources.values())
 
     def test_default_values_when_not_specified(self):
         """
@@ -156,7 +155,7 @@ class TestResolveParamsForConfig:
 
         Given: 필수 필드만 설정한 config (기본값 사용)
         When: resolve_params_for_config 호출
-        Then: FIXED_4P_* 기본값 사용, 출처 "FIXED"
+        Then: FIXED_4P_* 기본값 사용
         """
         from qbt.backtest.constants import (
             FIXED_4P_BUY_BUFFER_ZONE_PCT,
@@ -175,14 +174,13 @@ class TestResolveParamsForConfig:
         )
 
         # When
-        params, sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
 
         # Then
         assert params.ma_window == FIXED_4P_MA_WINDOW
         assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
         assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
         assert params.hold_days == FIXED_4P_HOLD_DAYS
-        assert all(s == "FIXED" for s in sources.values())
 
     def test_4p_config_sets_hold_days_three(self):
         """
@@ -196,7 +194,7 @@ class TestResolveParamsForConfig:
         config = get_config("buffer_zone_spy")
 
         # When
-        params, _sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
 
         # Then: 4P 확정 hold_days=3 (overfitting_analysis_report.md §2.1 기반)
         assert params.hold_days == 3, "4P config는 hold_days=3이어야 합니다"
@@ -207,7 +205,7 @@ class TestResolveParamsForConfig:
 
         Given: buffer_zone_tqqq config (CONFIGS에서 가져옴)
         When: resolve_params_for_config 호출
-        Then: FIXED_4P_* 기본값 사용, 출처 "FIXED"
+        Then: FIXED_4P_* 기본값 사용
         """
         from qbt.backtest.constants import (
             FIXED_4P_BUY_BUFFER_ZONE_PCT,
@@ -220,14 +218,13 @@ class TestResolveParamsForConfig:
         config = get_config("buffer_zone_tqqq")
 
         # When
-        params, sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
 
         # Then
         assert params.ma_window == FIXED_4P_MA_WINDOW
         assert params.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
         assert params.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
         assert params.hold_days == FIXED_4P_HOLD_DAYS
-        assert all(s == "FIXED" for s in sources.values())
 
     def test_custom_params_applied(self):
         """
@@ -235,7 +232,7 @@ class TestResolveParamsForConfig:
 
         Given: 커스텀 파라미터가 설정된 config
         When: resolve_params_for_config 호출
-        Then: 커스텀 값이 사용됨, 출처 "FIXED"
+        Then: 커스텀 값이 사용됨
         """
         # Given
         config = BufferZoneConfig(
@@ -251,14 +248,13 @@ class TestResolveParamsForConfig:
         )
 
         # When
-        params, sources = resolve_params_for_config(config)
+        params = resolve_params_for_config(config)
 
         # Then
         assert params.ma_window == 50
         assert params.buy_buffer_zone_pct == 0.05
         assert params.sell_buffer_zone_pct == 0.04
         assert params.hold_days == 3
-        assert all(s == "FIXED" for s in sources.values())
 
 
 class TestResolveBufferParamsMaWindowValidation:
@@ -318,7 +314,7 @@ class TestResolveBufferParamsMaWindowValidation:
         from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
 
         # When
-        params, _sources = resolve_buffer_params(
+        params = resolve_buffer_params(
             ma_window=1,
             buy_buffer_zone_pct=0.03,
             sell_buffer_zone_pct=0.05,
@@ -327,6 +323,68 @@ class TestResolveBufferParamsMaWindowValidation:
 
         # Then
         assert params.ma_window == 1
+
+
+class TestResolveBufferParamsReturnType:
+    """resolve_buffer_params / resolve_params_for_config 반환타입 검증
+
+    핵심 계약: sources 딕셔너리 제거 후 BufferStrategyParams만 반환.
+    (리포트 3-12, 확정 방침 5-5)
+    """
+
+    def test_resolve_buffer_params_returns_params_only(self):
+        """
+        목적: resolve_buffer_params가 BufferStrategyParams만 반환하는지 검증
+
+        Given: 유효한 4P 파라미터
+        When: resolve_buffer_params 호출
+        Then: 반환값이 tuple이 아닌 BufferStrategyParams 인스턴스
+        """
+        from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
+        from qbt.backtest.types import BufferStrategyParams
+
+        # When
+        result = resolve_buffer_params(
+            ma_window=200,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=3,
+        )
+
+        # Then
+        assert isinstance(result, BufferStrategyParams)
+        assert not isinstance(result, tuple)
+        assert result.ma_window == 200
+
+    def test_resolve_params_for_config_returns_params_only(self):
+        """
+        목적: resolve_params_for_config가 BufferStrategyParams만 반환하는지 검증
+
+        Given: 유효한 BufferZoneConfig
+        When: resolve_params_for_config 호출
+        Then: 반환값이 tuple이 아닌 BufferStrategyParams 인스턴스
+        """
+        from qbt.backtest.strategies.buffer_zone import (
+            BufferZoneConfig,
+            resolve_params_for_config,
+        )
+        from qbt.backtest.types import BufferStrategyParams
+
+        # Given
+        config = BufferZoneConfig(
+            strategy_name="test",
+            display_name="Test",
+            signal_data_path=Path("dummy.csv"),
+            trade_data_path=Path("dummy.csv"),
+            result_dir=Path("dummy"),
+        )
+
+        # When
+        result = resolve_params_for_config(config)
+
+        # Then
+        assert isinstance(result, BufferStrategyParams)
+        assert not isinstance(result, tuple)
 
 
 class TestCreateRunner:

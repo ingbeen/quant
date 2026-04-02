@@ -168,16 +168,16 @@ class TestParamsScheduleWhile:
 
         # strategy_jan5는 1/5~1/9 사이에 적용되어야 하지만 데이터 없으므로
         # check_buy/check_sell이 호출되지 않아야 함
-        assert strategy_jan5.check_buy.call_count == 0, (  # pyright: ignore[reportAttributeAccessIssue]
-            "데이터 갭으로 건너뛴 jan5 전략은 호출되지 않아야 함"
-        )
+        assert (
+            strategy_jan5.check_buy.call_count == 0  # pyright: ignore[reportAttributeAccessIssue]
+        ), "데이터 갭으로 건너뛴 jan5 전략은 호출되지 않아야 함"
 
         # strategy_jan10은 1/12~1/14 (3일) 동안 호출되어야 함
-        assert strategy_jan10.check_buy.call_count > 0, (  # pyright: ignore[reportAttributeAccessIssue]
-            "while 루프로 1/10 전환을 건너뛴 후 jan10 전략이 적용되어야 함"
-        )
+        assert (
+            strategy_jan10.check_buy.call_count > 0  # pyright: ignore[reportAttributeAccessIssue]
+        ), "while 루프로 1/10 전환을 건너뛴 후 jan10 전략이 적용되어야 함"
 
         # strategy_jan15는 1/15~1/20 (6일) 동안 호출되어야 함
-        assert strategy_jan15.check_buy.call_count > 0, (  # pyright: ignore[reportAttributeAccessIssue]
-            "1/15 이후 jan15 전략이 적용되어야 함"
-        )
+        assert (
+            strategy_jan15.check_buy.call_count > 0  # pyright: ignore[reportAttributeAccessIssue]
+        ), "1/15 이후 jan15 전략이 적용되어야 함"

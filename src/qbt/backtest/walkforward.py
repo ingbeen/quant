@@ -8,6 +8,7 @@ Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
 - 모드 요약: OOS 성과 통계 + WFE + 파라미터 안정성 진단
 """
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from statistics import median
@@ -15,11 +16,18 @@ from typing import cast
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_calmar
+from qbt.backtest.analysis import (
+    add_single_moving_average,
+    calculate_calmar,
+    calculate_drawdown_pct_series,
+)
 from qbt.backtest.constants import (
     COL_CAGR,
+    COL_EQUITY,
+    COL_LOWER_BAND,
     COL_MDD,
     COL_TOTAL_TRADES,
+    COL_UPPER_BAND,
     DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
@@ -626,3 +634,176 @@ def _std(values: list[float]) -> float:
     mean = sum(values) / n
     variance = sum((v - mean) ** 2 for v in values) / (n - 1)
     return variance**0.5
+
+
+# ============================================================================
+# Stitched Equity + Window Detail Backtests
+# ============================================================================
+
+
+def run_stitched_equity(
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    window_results: list[WfoWindowResultDict],
+    initial_capital: float,
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    """WFO 결과의 params_schedule로 Stitched Equity를 생성한다.
+
+    첫 OOS 시작일부터 마지막 OOS 종료일까지 연속 자본곡선을 생성한다.
+    전체 signal_df에 먼저 MA를 계산하여 EMA 연속성을 보장한 후 OOS 구간만 슬라이싱한다.
+
+    Args:
+        signal_df: 시그널용 원본 DataFrame (MA 미포함)
+        trade_df: 매매용 원본 DataFrame
+        window_results: WFO 윈도우 결과 리스트
+        initial_capital: 초기 자본금
+
+    Returns:
+        (equity_df, summary) 튜플.
+        summary에 "window_end_equities" 키 포함 (Profit Concentration 계산용).
+    """
+    initial_params, schedule = build_params_schedule(window_results)
+
+    # OOS 범위 결정
+    first_oos_start = window_results[0]["oos_start"]
+    last_oos_end = window_results[-1]["oos_end"]
+
+    oos_start_date = date.fromisoformat(str(first_oos_start))
+    oos_end_date = date.fromisoformat(str(last_oos_end))
+
+    # 모든 MA 윈도우 사전 계산 (EMA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
+    all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
+
+    signal_df_with_ma = signal_df.copy()
+    for window in all_ma_windows:
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type="ema")
+
+    # OOS 구간 데이터 슬라이스 (독립 날짜 기반 마스크)
+    oos_signal_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
+    oos_signal = signal_df_with_ma[oos_signal_mask].reset_index(drop=True)
+    oos_trade_mask = (trade_df[COL_DATE] >= oos_start_date) & (trade_df[COL_DATE] <= oos_end_date)
+    oos_trade = trade_df[oos_trade_mask].reset_index(drop=True)
+
+    # stitched 실행 (initial_params는 이미 SignalStrategy)
+    _trades_df, equity_df, summary = run_backtest(
+        initial_params,
+        oos_signal,
+        oos_trade,
+        initial_capital,
+        log_trades=False,
+        params_schedule=schedule,
+    )
+
+    result_summary = dict(summary)
+
+    # Profit Concentration 계산용 윈도우 경계 equity 추출
+    window_end_equities: list[float] = []
+    for wr in window_results:
+        oos_end_d = date.fromisoformat(str(wr["oos_end"]))
+        mask = equity_df[COL_DATE] <= oos_end_d
+        if mask.any():
+            window_end_equities.append(float(equity_df[mask].iloc[-1][COL_EQUITY]))
+    result_summary["window_end_equities"] = window_end_equities
+
+    return equity_df, result_summary
+
+
+@dataclass
+class WindowDetailData:
+    """윈도우별 상세 백테스트 결과 데이터."""
+
+    window_idx: int
+    signal_df: pd.DataFrame
+    equity_df: pd.DataFrame
+    trades_df: pd.DataFrame
+    ma_col: str
+
+
+def run_window_detail_backtests(
+    window_results: list[WfoWindowResultDict],
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    initial_capital: float,
+) -> list[WindowDetailData]:
+    """각 윈도우의 best params로 IS_start~OOS_end 백테스트를 실행한다.
+
+    캔들차트 + Buy/Sell 마커 시각화에 필요한 데이터를 생성한다.
+    equity_df에 밴드(upper_band, lower_band)와 drawdown_pct를 포함한다.
+
+    Args:
+        window_results: WFO 윈도우 결과 리스트
+        signal_df: 시그널용 원본 DataFrame (전체 기간)
+        trade_df: 매매용 원본 DataFrame (전체 기간)
+        initial_capital: 초기 자본금
+
+    Returns:
+        윈도우별 WindowDetailData 리스트 (빈 윈도우는 건너뜀)
+    """
+    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (EMA 연속성 보장)
+    all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
+
+    signal_df_with_ma = signal_df.copy()
+    for ma_window in all_ma_windows:
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type="ema")
+
+    # 2. 각 윈도우별 백테스트 실행
+    results: list[WindowDetailData] = []
+    for wr in window_results:
+        idx = wr["window_idx"]
+        is_start = date.fromisoformat(str(wr["is_start"]))
+        oos_end = date.fromisoformat(str(wr["oos_end"]))
+
+        ma_window = wr["best_ma_window"]
+        buy_pct = wr["best_buy_buffer_zone_pct"]
+        sell_pct = wr["best_sell_buffer_zone_pct"]
+        hold_days = wr["best_hold_days"]
+        ma_col = ma_col_name(ma_window)
+
+        # IS_start ~ OOS_end 슬라이싱 (독립 날짜 기반 마스크)
+        signal_mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
+        win_signal = signal_df_with_ma[signal_mask].reset_index(drop=True)
+        trade_mask = (trade_df[COL_DATE] >= is_start) & (trade_df[COL_DATE] <= oos_end)
+        win_trade = trade_df[trade_mask].reset_index(drop=True)
+
+        if win_signal.empty:
+            continue
+
+        # 백테스트 실행
+        strategy = BufferZoneStrategy(
+            ma_col=ma_col,
+            buy_buffer_pct=buy_pct,
+            sell_buffer_pct=sell_pct,
+            hold_days=hold_days,
+        )
+        trades_df_w, equity_df_w, _summary = run_backtest(
+            strategy,
+            win_signal,
+            win_trade,
+            initial_capital,
+            log_trades=False,
+        )
+
+        # 밴드 계산: MA x (1 +/- buffer) 벡터화 연산
+        band_df = win_signal[[COL_DATE, ma_col]].copy()
+        band_df[COL_UPPER_BAND] = band_df[ma_col] * (1 + buy_pct)
+        band_df[COL_LOWER_BAND] = band_df[ma_col] * (1 - sell_pct)
+        band_df["buy_buffer_pct"] = buy_pct
+        band_df["sell_buffer_pct"] = sell_pct
+        band_df = band_df.drop(columns=[ma_col])
+
+        equity_enriched = equity_df_w.merge(band_df, on=COL_DATE, how="left")
+
+        # 드로우다운 계산
+        equity_enriched["drawdown_pct"] = calculate_drawdown_pct_series(equity_enriched[COL_EQUITY].astype(float))
+
+        results.append(
+            WindowDetailData(
+                window_idx=idx,
+                signal_df=win_signal,
+                equity_df=equity_enriched,
+                trades_df=trades_df_w,
+                ma_col=ma_col,
+            )
+        )
+
+    return results

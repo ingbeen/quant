@@ -59,18 +59,21 @@ from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 logger = get_logger(__name__)
 
 
-def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
-    """포트폴리오 실험의 유효 시작일을 계산한다.
+def _load_portfolio_data_with_common_period(
+    config: PortfolioConfig,
+) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict[str, Any], int]:
+    """자산별 데이터 로딩 → 공통 기간 필터링 → MA 워밍업 인덱스 계산.
 
-    전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 완료 이후
-    첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
-    여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
+    signal_data_path 기준 캐시, 날짜 교집합 필터링, MA 워밍업 구간 계산을
+    한 곳에서 수행한다.
 
     Args:
         config: 포트폴리오 실험 설정
 
     Returns:
-        MA 워밍업 완료 이후 첫 유효 거래일 (date 객체)
+        (asset_signal_dfs, asset_trade_dfs, slot_dict, valid_start_index) 튜플.
+        valid_start_index: MA 워밍업 완료 후 첫 유효 인덱스.
+        asset_signal_dfs, asset_trade_dfs는 공통 기간으로 필터링된 상태 (워밍업 슬라이싱 미적용).
 
     Raises:
         ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시
@@ -79,7 +82,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     signal_cache: dict[str, pd.DataFrame] = {}
     asset_trade_dfs: dict[str, pd.DataFrame] = {}
     asset_signal_dfs: dict[str, pd.DataFrame] = {}
-    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
+    slot_dict: dict[str, Any] = {slot.asset_id: slot for slot in config.asset_slots}
 
     for slot in config.asset_slots:
         signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}::{slot.ma_type}"
@@ -116,7 +119,6 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
         asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
 
     # 3. MA 워밍업 구간 필터링 (registry의 get_warmup_periods 경유)
-    # warmup > 0인 슬롯만 MA NaN 체크 대상 (warmup == 0이면 워밍업 없음)
     valid_start_indices: list[int] = []
     for asset_id in asset_signal_dfs:
         slot = slot_dict[asset_id]
@@ -138,7 +140,27 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
 
     valid_start = max(valid_start_indices) if valid_start_indices else 0
 
-    # 4. 유효 시작 인덱스의 첫 trade_df 날짜 반환
+    return asset_signal_dfs, asset_trade_dfs, slot_dict, valid_start
+
+
+def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
+    """포트폴리오 실험의 유효 시작일을 계산한다.
+
+    전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 완료 이후
+    첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
+    여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
+
+    Args:
+        config: 포트폴리오 실험 설정
+
+    Returns:
+        MA 워밍업 완료 이후 첫 유효 거래일 (date 객체)
+
+    Raises:
+        ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시
+    """
+    _, asset_trade_dfs, _, valid_start = _load_portfolio_data_with_common_period(config)
+
     first_trade_df = next(iter(asset_trade_dfs.values()))
     first_trade_df_filtered = first_trade_df.iloc[valid_start:].reset_index(drop=True)
 
@@ -181,72 +203,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # 1. 설정 검증
     validate_portfolio_config(config)
 
-    slot_dict = {slot.asset_id: slot for slot in config.asset_slots}
+    # 2. 자산별 데이터 로딩 + 공통 기간 필터링 + MA 워밍업 인덱스 계산
+    asset_signal_dfs, asset_trade_dfs, slot_dict, valid_start = _load_portfolio_data_with_common_period(config)
 
-    # 2. 자산별 데이터 로딩 + MA 계산 (슬롯별 MA 파라미터 사용)
-    # signal_data_path 기준으로 중복 로딩 방지 (캐시)
-    signal_cache: dict[str, pd.DataFrame] = {}
-    asset_signal_dfs: dict[str, pd.DataFrame] = {}
-    asset_trade_dfs: dict[str, pd.DataFrame] = {}
-
-    for slot in config.asset_slots:
-        signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}::{slot.ma_type}"
-        if signal_key not in signal_cache:
-            signal_df_raw, trade_df = load_and_prepare_data(slot)
-            signal_cache[signal_key] = signal_df_raw
-        else:
-            # 같은 시그널 경로 → 캐시 재사용
-            signal_df_raw = signal_cache[signal_key]
-            trade_df = load_stock_data(slot.trade_data_path)
-            if slot.signal_data_path != slot.trade_data_path:
-                signal_df_raw, trade_df = extract_overlap_period(signal_df_raw.copy(), trade_df)
-
-        asset_signal_dfs[slot.asset_id] = signal_df_raw
-        asset_trade_dfs[slot.asset_id] = trade_df
-
-    # 3. 공통 기간 추출 (전 자산 trade_df의 날짜 교집합)
-    date_sets = [set(df[COL_DATE]) for df in asset_trade_dfs.values()]
-    common_dates_set: set[date] = date_sets[0]
-    for ds in date_sets[1:]:
-        common_dates_set &= ds
-
-    if not common_dates_set:
-        raise ValueError("전 자산의 공통 거래 기간이 없습니다.")
-
-    # 공통 기간으로 필터링
-    for asset_id in asset_signal_dfs:
-        signal_df = asset_signal_dfs[asset_id]
-        trade_df = asset_trade_dfs[asset_id]
-
-        mask_s = pd.Series(signal_df[COL_DATE]).isin(common_dates_set)
-        mask_t = pd.Series(trade_df[COL_DATE]).isin(common_dates_set)
-
-        asset_signal_dfs[asset_id] = signal_df[mask_s.values].reset_index(drop=True)
-        asset_trade_dfs[asset_id] = trade_df[mask_t.values].reset_index(drop=True)
-
-    # MA 워밍업 구간 필터링 (registry의 get_warmup_periods 경유)
-    # warmup > 0인 슬롯만 MA NaN 체크 대상 (warmup == 0이면 워밍업 없음)
-    valid_start_indices: list[int] = []
-    for asset_id in asset_signal_dfs:
-        slot = slot_dict[asset_id]
-        spec = STRATEGY_REGISTRY.get(slot.strategy_id)
-        if spec is None:
-            raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
-        warmup = spec.get_warmup_periods(slot)
-        if warmup == 0:
-            continue
-        ma_col = ma_col_name(slot.ma_window)
-        sdf = asset_signal_dfs[asset_id]
-        if ma_col not in sdf.columns:
-            raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
-        valid_mask = sdf[ma_col].notna()
-        if valid_mask.any():
-            valid_start_indices.append(int(valid_mask.idxmax()))
-        else:
-            valid_start_indices.append(len(sdf))
-
-    valid_start = max(valid_start_indices) if valid_start_indices else 0
-
+    # MA 워밍업 구간 슬라이싱
     for asset_id in asset_signal_dfs:
         asset_signal_dfs[asset_id] = asset_signal_dfs[asset_id].iloc[valid_start:].reset_index(drop=True)
         asset_trade_dfs[asset_id] = asset_trade_dfs[asset_id].iloc[valid_start:].reset_index(drop=True)
