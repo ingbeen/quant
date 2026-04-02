@@ -2,14 +2,14 @@
   "display_name": "E-2 (SPY 60% / GLD 20% / TLT 20%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 47636266,
-    "total_return_pct": 376.36,
-    "cagr": 7.6,
+    "final_capital": 46272356,
+    "total_return_pct": 362.72,
+    "cagr": 7.43,
     "mdd": -13.84,
-    "calmar": 0.55,
+    "calmar": 0.54,
     "total_trades": 95,
     "start_date": "2004-11-18",
-    "end_date": "2026-03-12"
+    "end_date": "2026-03-31"
   },
   "per_asset": [
     {

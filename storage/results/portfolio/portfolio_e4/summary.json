@@ -2,14 +2,14 @@
   "display_name": "E-4 (SPY 70% / GLD 20% / TLT 10%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 54362452,
-    "total_return_pct": 443.62,
-    "cagr": 8.27,
+    "final_capital": 52709207,
+    "total_return_pct": 427.09,
+    "cagr": 8.09,
     "mdd": -14.89,
-    "calmar": 0.56,
+    "calmar": 0.54,
     "total_trades": 93,
     "start_date": "2004-11-18",
-    "end_date": "2026-03-12"
+    "end_date": "2026-03-31"
   },
   "per_asset": [
     {

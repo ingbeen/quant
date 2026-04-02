@@ -2,9 +2,9 @@
   "display_name": "버퍼존 전략 (QQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 164688340,
-    "total_return_pct": 1546.88,
-    "cagr": 10.93,
+    "final_capital": 159352483,
+    "total_return_pct": 1493.52,
+    "cagr": 10.77,
     "mdd": -36.49,
     "calmar": 0.3,
     "total_trades": 14,
@@ -12,11 +12,11 @@
     "losing_trades": 4,
     "win_rate": 71.43,
     "start_date": "1999-03-10",
-    "end_date": "2026-03-12",
+    "end_date": "2026-03-31",
     "open_position": {
       "entry_date": "2025-05-16",
-      "entry_price": 520.361629,
-      "shares": 275739
+      "entry_price": 519.706317,
+      "shares": 276088
     }
   },
   "params": {
@@ -1647,7 +1647,7 @@
     {
       "year": 2026,
       "month": 3,
-      "return_pct": -1.65
+      "return_pct": -4.84
     }
   ],
   "regime_summaries": [

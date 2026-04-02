@@ -2,8 +2,8 @@
   "display_name": "B-1 (QQQ 19.5% / TQQQ 7% / SPY 19.5% / GLD 40% / 현금 14%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 83815562,
-    "total_return_pct": 738.16,
+    "final_capital": 83815414,
+    "total_return_pct": 738.15,
     "cagr": 10.49,
     "mdd": -15.52,
     "calmar": 0.68,

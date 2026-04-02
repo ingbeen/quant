@@ -2,14 +2,14 @@
   "display_name": "E-5 (SPY 80% / GLD 15% / TLT 5%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 56600827,
-    "total_return_pct": 466.01,
-    "cagr": 8.47,
+    "final_capital": 54989355,
+    "total_return_pct": 449.89,
+    "cagr": 8.31,
     "mdd": -16.2,
-    "calmar": 0.52,
+    "calmar": 0.51,
     "total_trades": 98,
     "start_date": "2004-11-18",
-    "end_date": "2026-03-12"
+    "end_date": "2026-03-31"
   },
   "per_asset": [
     {

@@ -2,14 +2,14 @@
   "display_name": "G-3 (SPY 60%(버퍼존) / GLD 25%(버퍼존) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 56764304,
-    "total_return_pct": 467.64,
-    "cagr": 8.49,
+    "final_capital": 54928199,
+    "total_return_pct": 449.28,
+    "cagr": 8.3,
     "mdd": -16.31,
-    "calmar": 0.52,
+    "calmar": 0.51,
     "total_trades": 90,
     "start_date": "2004-11-18",
-    "end_date": "2026-03-12"
+    "end_date": "2026-03-31"
   },
   "per_asset": [
     {

@@ -2,14 +2,14 @@
   "display_name": "A-2 (QQQ 30% / SPY 30% / GLD 40%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 84450247,
-    "total_return_pct": 744.5,
-    "cagr": 10.53,
+    "final_capital": 80482220,
+    "total_return_pct": 704.82,
+    "cagr": 10.25,
     "mdd": -15.1,
-    "calmar": 0.7,
+    "calmar": 0.68,
     "total_trades": 75,
     "start_date": "2004-11-18",
-    "end_date": "2026-03-12"
+    "end_date": "2026-03-31"
   },
   "per_asset": [
     {
