@@ -1,6 +1,6 @@
 """포트폴리오 백테스트 실험 설정
 
-정의돈 실험을 PortfolioConfig 인스턴스로 구현한다.
+정의된 실험을 PortfolioConfig 인스턴스로 구현한다.
 
 실험 목적:
 - A 시리즈: TQQQ 없는 기본 분산 포트폴리오 (QQQ/SPY/GLD) — 주식:금 비율 탐색

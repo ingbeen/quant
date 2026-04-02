@@ -96,8 +96,25 @@ MARKET_REGIMES: Final[list[MarketRegimeDict]] = [
 ]
 
 # ============================================================
+# 반올림 규칙 상수 (루트 CLAUDE.md "출력 데이터 반올림 규칙" 참조)
+# ============================================================
+
+ROUND_PRICE: Final = 6  # 가격 (종가, 시가, 밴드, 체결가 등)
+ROUND_CAPITAL: Final = 0  # 자본금 (equity, pnl) -> 정수
+ROUND_PERCENT: Final = 2  # 백분율 (수익률, MDD, 승률, 드로우다운)
+ROUND_RATIO: Final = 4  # 비율 (0~1, buy_buffer_zone_pct, pnl_pct)
+
+# ============================================================
 # 결과 데이터 컬럼 및 표시
 # ============================================================
+
+# --- 핵심 컬럼명 상수 (도메인 내 2개 이상 파일에서 사용) ---
+COL_EQUITY: Final = "equity"
+COL_PNL: Final = "pnl"
+COL_ENTRY_DATE: Final = "entry_date"
+COL_EXIT_DATE: Final = "exit_date"
+COL_UPPER_BAND: Final = "upper_band"
+COL_LOWER_BAND: Final = "lower_band"
 
 # --- DataFrame 컬럼명 (내부용) ---
 COL_MA_WINDOW: Final = "ma_window"
@@ -111,6 +128,23 @@ COL_CALMAR: Final = "calmar"
 COL_TOTAL_TRADES: Final = "total_trades"
 COL_WIN_RATE: Final = "win_rate"
 COL_FINAL_CAPITAL: Final = "final_capital"
+
+# ============================================================
+# MA 컬럼명 생성 함수
+# ============================================================
+
+
+def ma_col_name(window: int) -> str:
+    """MA 컬럼명을 생성한다.
+
+    Args:
+        window: 이동평균 기간
+
+    Returns:
+        MA 컬럼명 문자열. 예: ma_col_name(200) -> 'ma_200'
+    """
+    return f"ma_{window}"
+
 
 # ============================================================
 # 단일 백테스트 활성 전략 필터

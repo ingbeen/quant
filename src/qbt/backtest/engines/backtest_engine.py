@@ -34,6 +34,7 @@ from qbt.backtest.constants import (
     MIN_HOLD_DAYS,
     MIN_SELL_BUFFER_ZONE_PCT,
     MIN_VALID_ROWS,
+    ma_col_name,
 )
 from qbt.backtest.engines.engine_common import (
     EquityRecord,
@@ -172,7 +173,7 @@ def _run_backtest_for_grid(
     trade_df = WORKER_CACHE["trade_df"]
 
     # MA 컬럼 기준으로 유효 행 필터링
-    ma_col = f"ma_{params.ma_window}"
+    ma_col = ma_col_name(params.ma_window)
     valid_mask = signal_df[ma_col].notna()
     filtered_signal = signal_df[valid_mask].reset_index(drop=True)
     filtered_trade = trade_df[valid_mask].reset_index(drop=True)
@@ -523,7 +524,7 @@ def run_buffer_strategy(
         raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
 
     # 2. 초기 MA 계산
-    ma_col = f"ma_{params.ma_window}"
+    ma_col = ma_col_name(params.ma_window)
     signal_df = signal_df.copy()
     trade_df = trade_df.copy()
 

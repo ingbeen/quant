@@ -14,6 +14,8 @@ import json
 import sys
 from typing import Any
 
+from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PERCENT, ROUND_PRICE, ROUND_RATIO
+from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import PortfolioResult
@@ -33,13 +35,6 @@ logger = get_logger(__name__)
 
 # 실험 이름 → 설정 매핑
 _CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
-
-# 반올림 규칙 (루트 CLAUDE.md §출력 데이터 반올림 규칙 참고)
-_PRICE_ROUND = 6  # 가격 (OHLCV, MA, 밴드)
-_EQUITY_ROUND = 0  # 자본금 (equity, cash, {asset_id}_value)
-_PCT_ROUND = 2  # 백분율 (drawdown_pct, change_pct, cagr, mdd 등)
-_RATIO_ROUND = 4  # 비율 0~1 ({asset_id}_weight)
-_PNL_PCT_ROUND = 4  # pnl_pct
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
@@ -61,15 +56,15 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     equity_export = result.equity_df.copy()
 
     equity_round: dict[str, int] = {
-        "equity": _EQUITY_ROUND,
-        "cash": _EQUITY_ROUND,
-        "drawdown_pct": _PCT_ROUND,
+        "equity": ROUND_CAPITAL,
+        "cash": ROUND_CAPITAL,
+        "drawdown_pct": ROUND_PERCENT,
     }
     for col in equity_export.columns:
         if col.endswith("_value"):
-            equity_round[col] = _EQUITY_ROUND
+            equity_round[col] = ROUND_CAPITAL
         elif col.endswith("_weight"):
-            equity_round[col] = _RATIO_ROUND
+            equity_round[col] = ROUND_RATIO
 
     equity_export = equity_export.round(equity_round)
     # int 변환 (자본금)
@@ -82,32 +77,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
     # 2. trades.csv 저장
     trades_path = result.config.result_dir / "trades.csv"
-    if not result.trades_df.empty:
-        trades_export = result.trades_df.copy()
-
-        # holding_days 컬럼 추가
-        if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
-            trades_export["holding_days"] = trades_export.apply(
-                lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
-            )
-
-        trades_round: dict[str, int] = {}
-        if "entry_price" in trades_export.columns:
-            trades_round["entry_price"] = _PRICE_ROUND
-        if "exit_price" in trades_export.columns:
-            trades_round["exit_price"] = _PRICE_ROUND
-        if "pnl" in trades_export.columns:
-            trades_round["pnl"] = _EQUITY_ROUND
-        if "pnl_pct" in trades_export.columns:
-            trades_round["pnl_pct"] = _PNL_PCT_ROUND
-
-        trades_export = trades_export.round(trades_round)
-        if "pnl" in trades_export.columns:
-            trades_export["pnl"] = trades_export["pnl"].astype(int)
-
-        trades_export.to_csv(trades_path, index=False)
-    else:
-        result.trades_df.to_csv(trades_path, index=False)
+    prepare_trades_for_csv(result.trades_df).to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
 
     # 3. signal_{asset_id}.csv 저장 (자산별)
@@ -117,17 +87,17 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
         # 전일종가대비% 계산 (저장 직전)
         if COL_CLOSE in signal_export.columns:
-            signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+            signal_export["change_pct"] = calculate_change_pct(signal_export)
 
         signal_round: dict[str, int] = {}
         for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
             if col in signal_export.columns:
-                signal_round[col] = _PRICE_ROUND
+                signal_round[col] = ROUND_PRICE
         for col in signal_export.columns:
             if col.startswith("ma_") or col in ("upper_band", "lower_band"):
-                signal_round[col] = _PRICE_ROUND
+                signal_round[col] = ROUND_PRICE
         if "change_pct" in signal_export.columns:
-            signal_round["change_pct"] = _PCT_ROUND
+            signal_round["change_pct"] = ROUND_PERCENT
 
         signal_export = signal_export.round(signal_round)
         signal_export.to_csv(signal_path, index=False)
@@ -140,10 +110,10 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     portfolio_summary: dict[str, Any] = {
         "initial_capital": round(float(str(s["initial_capital"]))),
         "final_capital": round(float(str(s["final_capital"]))),
-        "total_return_pct": round(float(str(s["total_return_pct"])), _PCT_ROUND),
-        "cagr": round(float(str(s["cagr"])), _PCT_ROUND),
-        "mdd": round(float(str(s["mdd"])), _PCT_ROUND),
-        "calmar": round(float(str(s["calmar"])), _PCT_ROUND),
+        "total_return_pct": round(float(str(s["total_return_pct"])), ROUND_PERCENT),
+        "cagr": round(float(str(s["cagr"])), ROUND_PERCENT),
+        "mdd": round(float(str(s["mdd"])), ROUND_PERCENT),
+        "calmar": round(float(str(s["calmar"])), ROUND_PERCENT),
         "total_trades": s["total_trades"],
         "start_date": str(s.get("start_date", "")),
         "end_date": str(s.get("end_date", "")),
@@ -162,13 +132,13 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         if total_asset_trades > 0 and "pnl" in asset_trades.columns:
             win_rate = round(
                 float((asset_trades["pnl"] > 0).sum()) / total_asset_trades * 100,
-                _PCT_ROUND,
+                ROUND_PERCENT,
             )
 
         per_asset_data.append(
             {
                 "asset_id": asset_result.asset_id,
-                "target_weight": round(slot.target_weight, _RATIO_ROUND) if slot else 0.0,
+                "target_weight": round(slot.target_weight, ROUND_RATIO) if slot else 0.0,
                 "total_trades": total_asset_trades,
                 "win_rate": win_rate,
             }

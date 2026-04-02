@@ -49,6 +49,56 @@ class TestBuyBufferZonePctField:
         assert params.sell_buffer_zone_pct == 0.05, "sell_buffer_zone_pct가 0.05이어야 함"
 
 
+class TestBufferStrategyParamsFrozen:
+    """BufferStrategyParams frozen 불변성 계약 테스트.
+
+    핵심 계약: BufferStrategyParams는 frozen=True dataclass이므로
+    생성 후 필드 변경이 불가능해야 한다.
+    """
+
+    def test_frozen_prevents_field_modification(self):
+        """
+        목적: frozen=True로 인해 필드 변경이 불가능함을 검증
+
+        Given: BufferStrategyParams 인스턴스 생성
+        When: ma_window 필드 변경 시도
+        Then: FrozenInstanceError 또는 AttributeError 발생
+        """
+        # Given
+        params = BufferStrategyParams(
+            initial_capital=10_000_000.0,
+            ma_window=200,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=3,
+        )
+
+        # When & Then: frozen이므로 속성 변경 시 예외 발생
+        with pytest.raises((AttributeError, Exception)):
+            params.ma_window = 100  # type: ignore[misc]
+
+    def test_frozen_prevents_hold_days_modification(self):
+        """
+        목적: hold_days 필드도 변경 불가능함을 검증
+
+        Given: BufferStrategyParams 인스턴스 생성
+        When: hold_days 필드 변경 시도
+        Then: FrozenInstanceError 또는 AttributeError 발생
+        """
+        # Given
+        params = BufferStrategyParams(
+            initial_capital=10_000_000.0,
+            ma_window=200,
+            buy_buffer_zone_pct=0.03,
+            sell_buffer_zone_pct=0.05,
+            hold_days=3,
+        )
+
+        # When & Then
+        with pytest.raises((AttributeError, Exception)):
+            params.hold_days = 5  # type: ignore[misc]
+
+
 class TestUpperLowerBandSeparation:
     """upper_band/lower_band 밴드 계약 테스트
 

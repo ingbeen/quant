@@ -8,7 +8,7 @@ Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
 - 모드 요약: OOS 성과 통계 + WFE + 파라미터 안정성 진단
 """
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from statistics import median
 from typing import cast
@@ -29,6 +29,7 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+    ma_col_name,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
@@ -152,7 +153,7 @@ def _last_day_of_month(year: int, month: int) -> date:
     """해당 월의 마지막 날을 반환한다."""
     if month == 12:
         return date(year, 12, 31)
-    return date(year, month + 1, 1).replace(day=1) - __import__("datetime").timedelta(days=1)
+    return date(year, month + 1, 1) - timedelta(days=1)
 
 
 def select_best_calmar_params(
@@ -280,7 +281,7 @@ def run_walkforward(
     # 전체 히스토리를 이어받지 못한다. 슬라이스 전에 전체 데이터로 먼저 계산한다.
     signal_df_with_ma = signal_df.copy()
     for _ma_window in ma_window_list:
-        _ma_col = f"ma_{_ma_window}"
+        _ma_col = ma_col_name(_ma_window)
         if _ma_col not in signal_df_with_ma.columns:
             signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
@@ -332,7 +333,7 @@ def run_walkforward(
 
         # 7. OOS 독립 평가 (유효 구간 필터링)
         # MA는 루프 전 전체 데이터로 사전 계산되었으므로 OOS 슬라이스에 이미 포함되어 있다.
-        oos_ma_col = f"ma_{best_ma}"
+        oos_ma_col = ma_col_name(best_ma)
         oos_valid_mask = oos_signal[oos_ma_col].notna()
         oos_signal_valid = oos_signal[oos_valid_mask].reset_index(drop=True)
         oos_trade_valid = oos_trade[oos_valid_mask].reset_index(drop=True)
@@ -425,7 +426,7 @@ def build_params_schedule(
 
     first = window_results[0]
     initial_strategy: SignalStrategy = BufferZoneStrategy(
-        ma_col=f"ma_{first['best_ma_window']}",
+        ma_col=ma_col_name(first["best_ma_window"]),
         buy_buffer_pct=first["best_buy_buffer_zone_pct"],
         sell_buffer_pct=first["best_sell_buffer_zone_pct"],
         hold_days=first["best_hold_days"],
@@ -435,7 +436,7 @@ def build_params_schedule(
     for wr in window_results[1:]:
         oos_start = date.fromisoformat(wr["oos_start"])
         schedule[oos_start] = BufferZoneStrategy(
-            ma_col=f"ma_{wr['best_ma_window']}",
+            ma_col=ma_col_name(wr["best_ma_window"]),
             buy_buffer_pct=wr["best_buy_buffer_zone_pct"],
             sell_buffer_pct=wr["best_sell_buffer_zone_pct"],
             hold_days=wr["best_hold_days"],

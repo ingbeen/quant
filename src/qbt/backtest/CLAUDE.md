@@ -234,7 +234,6 @@ A~H 시리즈 포트폴리오 실험을 PortfolioConfig로 구현한다.
   - `create_strategy(slot) -> SignalStrategy`: 전략 객체 생성 팩토리
   - `prepare_signal_df(df, slot) -> pd.DataFrame`: signal DataFrame 전처리 (buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환)
   - `get_warmup_periods(slot) -> int`: MA 워밍업 기간 (buffer_zone → `slot.ma_window`, buy_and_hold → `0`)
-  - `supports_single`, `supports_portfolio`: 예약 필드
 
 등록된 전략:
 
@@ -297,7 +296,7 @@ TypedDict:
 전략 클래스:
 
 - `BufferZoneStrategy`: `SignalStrategy` Protocol 구현체 (stateful)
-  - 생성자: `(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days, ma_type="ema")`
+  - 생성자: `(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)`
   - 내부 상태: `_prev_upper`, `_prev_lower`, `_hold_state`, `_last_buy_buffer_pct`, `_last_hold_days_used`
   - `check_buy(signal_df, i, current_date) -> bool`: i=0 첫 호출 시 초기화 후 False 반환. 이후 밴드 계산 + hold_state 상태머신 처리.
   - `check_sell(signal_df, i) -> bool`: 하향돌파 감지
@@ -364,6 +363,17 @@ export 심볼: `BufferZoneConfig`, `resolve_params_for_config`, `BufferStrategyP
 - `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`: 버퍼존 전략 runner 팩토리. 데이터 로딩, overlap 처리, MA 계산, `run_backtest(BufferZoneStrategy(), ...)` 수행. equity_df에 band 컬럼 post-processing으로 보강 (`_enrich_equity_with_bands`).
 - `create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]`: B&H 전략 runner 팩토리. `run_backtest(BuyAndHoldStrategy(), ...)` 기반으로 실행. dummy params 불필요. B&H 첫 매수는 시계열 2번째 날 시가.
 - `_enrich_equity_with_bands(equity_df, signal_df, ma_col, buy_pct, sell_pct) -> pd.DataFrame`: signal_df의 MA 값으로 upper_band, lower_band, buy_buffer_pct, sell_buffer_pct 컬럼을 equity_df에 추가.
+
+### 12. csv_export.py
+
+백테스트 CSV 저장용 DataFrame 변환 유틸리티를 제공한다.
+CLI 스크립트에서 반복되는 trades CSV 준비, change_pct 계산 패턴을 공용 함수로 제공한다.
+CSV 저장(to_csv) 자체는 호출부에서 수행한다.
+
+주요 함수:
+
+- `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 정수 변환). 빈 DataFrame 입력 시 빈 복사본 반환
+- `calculate_change_pct(df, close_col) -> pd.Series`: 전일대비 변동률(%) 계산
 
 ---
 

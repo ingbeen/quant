@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.constants import ma_col_name
 from qbt.backtest.portfolio_types import AssetSlotConfig
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
@@ -63,7 +64,7 @@ def _create_buffer_zone_strategy(slot: AssetSlotConfig) -> SignalStrategy:
         BufferZoneStrategy 인스턴스
     """
     return BufferZoneStrategy(
-        ma_col=f"ma_{slot.ma_window}",
+        ma_col=ma_col_name(slot.ma_window),
         buy_buffer_pct=slot.buy_buffer_zone_pct,
         sell_buffer_pct=slot.sell_buffer_zone_pct,
         hold_days=slot.hold_days,
@@ -117,16 +118,16 @@ def _create_buy_and_hold_strategy(slot: AssetSlotConfig) -> SignalStrategy:
 def _prepare_buy_and_hold_signal_df(df: pd.DataFrame, slot: AssetSlotConfig) -> pd.DataFrame:
     """buy_and_hold 슬롯용 signal DataFrame을 그대로 반환한다.
 
-    MA 계산이 불필요하므로 원본을 변경 없이 반환한다.
+    MA 계산이 불필요하므로 복사본을 반환한다.
 
     Args:
         df: 원본 OHLCV DataFrame
         slot: 자산 슬롯 설정 (사용하지 않음)
 
     Returns:
-        원본 df 그대로 반환
+        원본 df의 복사본 (데이터 불변성 원칙)
     """
-    return df
+    return df.copy()
 
 
 def _get_buy_and_hold_warmup_periods(slot: AssetSlotConfig) -> int:

@@ -18,8 +18,20 @@ from pathlib import Path
 from typing import Any
 
 from qbt.backtest import runners
-from qbt.backtest.analysis import calculate_monthly_returns, calculate_regime_summaries
-from qbt.backtest.constants import DEFAULT_SINGLE_BACKTEST_STRATEGIES, MARKET_REGIMES
+from qbt.backtest.analysis import (
+    calculate_drawdown_pct_series,
+    calculate_monthly_returns,
+    calculate_regime_summaries,
+)
+from qbt.backtest.constants import (
+    DEFAULT_SINGLE_BACKTEST_STRATEGIES,
+    MARKET_REGIMES,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
+)
+from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
 from qbt.backtest.strategies import (
     buffer_zone,
     buy_and_hold,
@@ -30,7 +42,6 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    EPSILON,
     META_JSON_PATH,
     QQQ_DATA_PATH,
 )
@@ -98,15 +109,15 @@ def _save_signal_csv(result: SingleBacktestResult) -> Path:
     signal_path = result.result_dir / "signal.csv"
 
     signal_export = result.signal_df.copy()
-    signal_export["change_pct"] = signal_export[COL_CLOSE].pct_change() * 100
+    signal_export["change_pct"] = calculate_change_pct(signal_export)
 
-    signal_round: dict[str, int] = {"change_pct": 2}
+    signal_round: dict[str, int] = {"change_pct": ROUND_PERCENT}
     for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
         if col in signal_export.columns:
-            signal_round[col] = 6
+            signal_round[col] = ROUND_PRICE
     for col in signal_export.columns:
         if col.startswith("ma_"):
-            signal_round[col] = 6
+            signal_round[col] = ROUND_PRICE
 
     signal_export = signal_export.round(signal_round)
     signal_export.to_csv(signal_path, index=False)
@@ -129,20 +140,17 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
     equity_path = result.result_dir / "equity.csv"
 
     equity_export = result.equity_df.copy()
-    equity_series = equity_export["equity"].astype(float)
-    peak = equity_series.cummax()
-    safe_peak = peak.replace(0, EPSILON)
-    equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+    equity_export["drawdown_pct"] = calculate_drawdown_pct_series(equity_export["equity"].astype(float))
 
-    equity_round: dict[str, int] = {"equity": 0, "drawdown_pct": 2}
+    equity_round: dict[str, int] = {"equity": ROUND_CAPITAL, "drawdown_pct": ROUND_PERCENT}
     if "buy_buffer_pct" in equity_export.columns:
-        equity_round["buy_buffer_pct"] = 4
+        equity_round["buy_buffer_pct"] = ROUND_RATIO
     if "sell_buffer_pct" in equity_export.columns:
-        equity_round["sell_buffer_pct"] = 4
+        equity_round["sell_buffer_pct"] = ROUND_RATIO
     if "upper_band" in equity_export.columns:
-        equity_round["upper_band"] = 6
+        equity_round["upper_band"] = ROUND_PRICE
     if "lower_band" in equity_export.columns:
-        equity_round["lower_band"] = 6
+        equity_round["lower_band"] = ROUND_PRICE
 
     equity_export = equity_export.round(equity_round)
     equity_export["equity"] = equity_export["equity"].astype(int)
@@ -164,31 +172,7 @@ def _save_trades_csv(result: SingleBacktestResult) -> Path:
         저장된 CSV 파일 경로
     """
     trades_path = result.result_dir / "trades.csv"
-
-    if not result.trades_df.empty:
-        trades_export = result.trades_df.copy()
-        if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
-            trades_export["holding_days"] = trades_export.apply(
-                lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
-            )
-        trades_round: dict[str, int] = {}
-        if "entry_price" in trades_export.columns:
-            trades_round["entry_price"] = 6
-        if "exit_price" in trades_export.columns:
-            trades_round["exit_price"] = 6
-        if "pnl" in trades_export.columns:
-            trades_round["pnl"] = 0
-        if "pnl_pct" in trades_export.columns:
-            trades_round["pnl_pct"] = 4
-        if "buy_buffer_pct" in trades_export.columns:
-            trades_round["buy_buffer_pct"] = 4
-
-        trades_export = trades_export.round(trades_round)
-        if "pnl" in trades_export.columns:
-            trades_export["pnl"] = trades_export["pnl"].astype(int)
-        trades_export.to_csv(trades_path, index=False)
-    else:
-        result.trades_df.to_csv(trades_path, index=False)
+    prepare_trades_for_csv(result.trades_df).to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
     return trades_path
 

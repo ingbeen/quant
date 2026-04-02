@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.analysis import add_single_moving_average, calculate_drawdown_pct_series
 from qbt.backtest.constants import (
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
@@ -35,7 +35,9 @@ from qbt.backtest.constants import (
     WALKFORWARD_SUMMARY_FILENAME,
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
+    ma_col_name,
 )
+from qbt.backtest.csv_export import prepare_trades_for_csv
 from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies import buffer_zone
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
@@ -47,7 +49,6 @@ from qbt.backtest.walkforward import (
 )
 from qbt.common_constants import (
     COL_DATE,
-    EPSILON,
     META_JSON_PATH,
 )
 from qbt.utils import get_logger
@@ -306,7 +307,7 @@ def _save_window_detail_csvs(
         buy_pct = wr["best_buy_buffer_zone_pct"]
         sell_pct = wr["best_sell_buffer_zone_pct"]
         hold_days = wr["best_hold_days"]
-        ma_col = f"ma_{ma_window}"
+        ma_col = ma_col_name(ma_window)
 
         # IS_start ~ OOS_end 슬라이싱
         mask = (signal_df_with_ma[COL_DATE] >= is_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
@@ -359,10 +360,7 @@ def _save_window_detail_csvs(
         equity_export = equity_export.merge(band_df, on=COL_DATE, how="left")
 
         # 드로우다운 계산
-        equity_series = equity_export["equity"].astype(float)
-        peak = equity_series.cummax()
-        safe_peak = peak.replace(0, EPSILON)
-        equity_export["drawdown_pct"] = (equity_series - peak) / safe_peak * 100
+        equity_export["drawdown_pct"] = calculate_drawdown_pct_series(equity_export["equity"].astype(float))
 
         equity_round: dict[str, int] = {
             "equity": 0,
@@ -377,29 +375,7 @@ def _save_window_detail_csvs(
         equity_export.to_csv(window_dir / f"w{idx:02d}_equity.csv", index=False)
 
         # --- trades CSV 저장 ---
-        if not trades_df.empty:
-            trades_export = trades_df.copy()
-            if "entry_date" in trades_export.columns and "exit_date" in trades_export.columns:
-                trades_export["holding_days"] = trades_export.apply(
-                    lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
-                )
-            trades_round: dict[str, int] = {}
-            if "entry_price" in trades_export.columns:
-                trades_round["entry_price"] = 6
-            if "exit_price" in trades_export.columns:
-                trades_round["exit_price"] = 6
-            if "pnl" in trades_export.columns:
-                trades_round["pnl"] = 0
-            if "pnl_pct" in trades_export.columns:
-                trades_round["pnl_pct"] = 4
-            if "buy_buffer_pct" in trades_export.columns:
-                trades_round["buy_buffer_pct"] = 4
-            trades_export = trades_export.round(trades_round)
-            if "pnl" in trades_export.columns:
-                trades_export["pnl"] = trades_export["pnl"].astype(int)
-            trades_export.to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
-        else:
-            trades_df.to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
+        prepare_trades_for_csv(trades_df).to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
 
     logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(window_results)}개 윈도우)")
 

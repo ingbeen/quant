@@ -25,7 +25,10 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
+    COL_LOWER_BAND,
+    COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
+    ma_col_name,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
 from qbt.backtest.strategies.buffer_zone import (
@@ -44,7 +47,7 @@ from qbt.common_constants import (
     COL_OPEN,
 )
 from qbt.utils import get_logger
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_signal_trade_pair, load_stock_data
 
 logger = get_logger(__name__)
 
@@ -79,8 +82,8 @@ def _enrich_equity_with_bands(
     """
     # signal_df에서 Date, MA 컬럼만 추출 후 밴드 계산
     band_df = signal_df[[COL_DATE, ma_col]].copy()
-    band_df["upper_band"] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[0])
-    band_df["lower_band"] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[1])
+    band_df[COL_UPPER_BAND] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[0])
+    band_df[COL_LOWER_BAND] = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct)[1])
     band_df["buy_buffer_pct"] = buy_buffer_pct
     band_df["sell_buffer_pct"] = sell_buffer_pct
     band_df = band_df.drop(columns=[ma_col])
@@ -116,19 +119,11 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
             SingleBacktestResult: 백테스트 결과 컨테이너
         """
         # 1. 데이터 로딩 및 overlap 처리
-        if config.signal_data_path == config.trade_data_path:
-            # signal == trade: 동일 데이터, overlap 불필요
-            trade_df = load_stock_data(config.trade_data_path)
-            signal_df = trade_df.copy()
-        else:
-            # signal != trade: 겹치는 기간 추출 필요
-            signal_df = load_stock_data(config.signal_data_path)
-            trade_df = load_stock_data(config.trade_data_path)
-            signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
+        signal_df, trade_df = load_signal_trade_pair(config.signal_data_path, config.trade_data_path)
 
         # 2. 파라미터 결정
         params, sources = resolve_params_for_config(config)
-        ma_col = f"ma_{params.ma_window}"
+        ma_col = ma_col_name(params.ma_window)
 
         # 3. 이동평균 계산
         signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=config.ma_type)

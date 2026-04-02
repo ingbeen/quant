@@ -13,7 +13,14 @@ from typing import Literal
 
 import pandas as pd
 
-from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
+from qbt.backtest.constants import (
+    CALMAR_MDD_ZERO_SUBSTITUTE,
+    COL_ENTRY_DATE,
+    COL_EQUITY,
+    COL_EXIT_DATE,
+    COL_PNL,
+    ma_col_name,
+)
 from qbt.backtest.types import MarketRegimeDict, RegimeSummaryDict, SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
@@ -57,7 +64,7 @@ def add_single_moving_average(
 
     # 컬럼명 설정
     # f-string으로 동적 컬럼명 생성 (예: "ma_20", "ma_50")
-    col_name = f"ma_{window}"
+    col_name = ma_col_name(window)
 
     # 이동평균 계산
     if ma_type == "sma":
@@ -81,6 +88,23 @@ def add_single_moving_average(
     logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
 
     return df
+
+
+def calculate_drawdown_pct_series(equity_series: pd.Series) -> pd.Series:  # type: ignore[type-arg]
+    """에쿼티 시리즈로부터 drawdown_pct(%) 시리즈를 계산한다.
+
+    cummax 대비 하락률을 백분율로 반환한다.
+    peak=0인 경우 EPSILON으로 대체하여 division by zero를 방지한다.
+
+    Args:
+        equity_series: 에쿼티 값 시리즈
+
+    Returns:
+        drawdown_pct 시리즈 (0 이하 값, 단위: %)
+    """
+    peak = equity_series.cummax()
+    safe_peak = peak.replace(0, EPSILON)
+    return (equity_series - peak) / safe_peak * 100
 
 
 def calculate_calmar(cagr: float, mdd: float) -> float:
@@ -137,7 +161,7 @@ def calculate_summary(
             "win_rate": 0.0,
         }
 
-    final_capital: float = float(equity_df.iloc[-1]["equity"])
+    final_capital: float = float(equity_df.iloc[-1][COL_EQUITY])
     total_return: float = final_capital - initial_capital
     total_return_pct: float = (total_return / initial_capital) * 100
 
@@ -154,11 +178,11 @@ def calculate_summary(
 
     # MDD 계산
     equity_df = equity_df.copy()
-    equity_df["peak"] = equity_df["equity"].cummax()
+    equity_df["peak"] = equity_df[COL_EQUITY].cummax()
 
     # peak가 0인 케이스 방어 (수치 안정성)
     safe_peak: pd.Series[float] = equity_df["peak"].replace(0, EPSILON)
-    equity_df["drawdown"] = (equity_df["equity"] - equity_df["peak"]) / safe_peak
+    equity_df["drawdown"] = (equity_df[COL_EQUITY] - equity_df["peak"]) / safe_peak
     mdd = equity_df["drawdown"].min() * 100
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
@@ -167,9 +191,9 @@ def calculate_summary(
     # 거래 통계
     total_trades = len(trades_df)
     if total_trades > 0:
-        winning_trades = len(trades_df[trades_df["pnl"] > 0])
+        winning_trades = len(trades_df[trades_df[COL_PNL] > 0])
         # pnl=0은 손실로 분류 (winning + losing = total)
-        losing_trades = len(trades_df[trades_df["pnl"] <= 0])
+        losing_trades = len(trades_df[trades_df[COL_PNL] <= 0])
         win_rate = (winning_trades / total_trades) * 100
     else:
         winning_trades = 0
@@ -214,7 +238,7 @@ def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]
     eq = eq.set_index(COL_DATE)
 
     # 2. 월말 리샘플링
-    monthly_equity = eq["equity"].resample("ME").last().dropna()
+    monthly_equity = eq[COL_EQUITY].resample("ME").last().dropna()
     if len(monthly_equity) < 2:
         return []
 
@@ -274,17 +298,17 @@ def calculate_regime_summaries(
             continue
 
         # 4. 구간 시작 에쿼티를 initial_capital로 사용
-        initial_capital = float(regime_equity.iloc[0]["equity"])
+        initial_capital = float(regime_equity.iloc[0][COL_EQUITY])
         if initial_capital <= 0:
             initial_capital = 1.0  # 안전 처리
 
         # 5. trades_df를 entry_date 기준으로 구간 필터링
-        if not trades_df.empty and "entry_date" in trades_df.columns:
-            trade_dates = pd.Series(trades_df["entry_date"])
+        if not trades_df.empty and COL_ENTRY_DATE in trades_df.columns:
+            trade_dates = pd.Series(trades_df[COL_ENTRY_DATE])
             trade_mask = trade_dates.apply(lambda d, s=regime_start, e=regime_end: s <= d <= e)
             regime_trades = trades_df[trade_mask].copy()
         else:
-            regime_trades = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
+            regime_trades = pd.DataFrame(columns=[COL_ENTRY_DATE, COL_EXIT_DATE, COL_PNL])
 
         # 6. calculate_summary()로 기본 지표 획득
         summary = calculate_summary(regime_trades, regime_equity, initial_capital)
@@ -293,9 +317,9 @@ def calculate_regime_summaries(
         # 평균 보유기간
         # holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
         if not regime_trades.empty and "holding_days" not in regime_trades.columns:
-            if "entry_date" in regime_trades.columns and "exit_date" in regime_trades.columns:
+            if COL_ENTRY_DATE in regime_trades.columns and COL_EXIT_DATE in regime_trades.columns:
                 regime_trades["holding_days"] = regime_trades.apply(
-                    lambda row: (row["exit_date"] - row["entry_date"]).days, axis=1
+                    lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1
                 )
 
         avg_holding_days = 0.0
@@ -304,9 +328,9 @@ def calculate_regime_summaries(
 
         # 수익팩터 (profit_factor)
         profit_factor = 0.0
-        if not regime_trades.empty and "pnl" in regime_trades.columns:
-            gains = regime_trades[regime_trades["pnl"] > 0]["pnl"].sum()
-            losses = abs(regime_trades[regime_trades["pnl"] < 0]["pnl"].sum())
+        if not regime_trades.empty and COL_PNL in regime_trades.columns:
+            gains = regime_trades[regime_trades[COL_PNL] > 0][COL_PNL].sum()
+            losses = abs(regime_trades[regime_trades[COL_PNL] < 0][COL_PNL].sum())
             if losses > 0:
                 profit_factor = float(gains / losses)
 

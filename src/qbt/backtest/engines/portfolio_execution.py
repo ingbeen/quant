@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Literal
 
-from qbt.backtest.constants import SLIPPAGE_RATE
+from qbt.backtest.constants import COL_ENTRY_DATE, COL_EXIT_DATE, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_planning import OrderIntent
 from qbt.common_constants import EPSILON
 from qbt.utils import get_logger
@@ -114,8 +114,8 @@ def execute_orders(
             e_price = e_prices.get(asset_id, 0.0)
 
             trade_record: dict[str, Any] = {
-                "entry_date": e_date,
-                "exit_date": current_date,
+                COL_ENTRY_DATE: e_date,
+                COL_EXIT_DATE: current_date,
                 "entry_price": e_price,
                 "exit_price": sell_price,
                 "shares": shares_sold,

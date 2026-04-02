@@ -113,7 +113,7 @@ class BestGridParams(TypedDict):
     hold_days: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class BufferStrategyParams:
     """버퍼존 전략 파라미터를 담는 데이터 클래스.
 

@@ -21,7 +21,7 @@ import pandas as pd
 import pytest
 
 from qbt.common_constants import COL_CLOSE, COL_DATE
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import extract_overlap_period, load_signal_trade_pair, load_stock_data
 
 
 class TestLoadStockData:
@@ -253,3 +253,106 @@ class TestExtractOverlapPeriod:
             extract_overlap_period(simulated_df, actual_df)
 
         assert "겹치는 기간이 없습니다" in str(exc_info.value)
+
+
+class TestLoadSignalTradePair:
+    """load_signal_trade_pair 함수 테스트"""
+
+    def test_same_path_returns_independent_copies(self, tmp_path, sample_stock_df):
+        """
+        목적: signal_path == trade_path일 때 독립 복사본이 반환됨을 검증
+
+        Given: 동일한 CSV 경로
+        When: load_signal_trade_pair(path, path) 호출
+        Then: signal_df와 trade_df가 동일 내용이지만 독립 객체
+        """
+        # Given
+        csv_path = tmp_path / "data.csv"
+        sample_stock_df.to_csv(csv_path, index=False)
+
+        # When
+        signal_df, trade_df = load_signal_trade_pair(csv_path, csv_path)
+
+        # Then
+        assert len(signal_df) == len(trade_df)
+        assert signal_df is not trade_df  # 독립 객체
+        pd.testing.assert_frame_equal(signal_df, trade_df)
+
+    def test_different_paths_extracts_overlap(self, tmp_path):
+        """
+        목적: 경로가 다를 때 겹치는 기간만 추출됨을 검증
+
+        Given: 2개의 CSV (일부 날짜만 겹침)
+        When: load_signal_trade_pair 호출
+        Then: 겹치는 날짜의 데이터만 반환
+        """
+        # Given
+        signal_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                "Open": [100.0, 101.0, 102.0],
+                "High": [105.0, 106.0, 107.0],
+                "Low": [99.0, 100.0, 101.0],
+                COL_CLOSE: [103.0, 104.0, 105.0],
+                "Volume": [1000000, 1100000, 1200000],
+            }
+        )
+        trade_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 3), date(2023, 1, 4), date(2023, 1, 5)],
+                "Open": [201.0, 202.0, 203.0],
+                "High": [206.0, 207.0, 208.0],
+                "Low": [200.0, 201.0, 202.0],
+                COL_CLOSE: [204.0, 205.0, 206.0],
+                "Volume": [2000000, 2100000, 2200000],
+            }
+        )
+        signal_path = tmp_path / "signal.csv"
+        trade_path = tmp_path / "trade.csv"
+        signal_df.to_csv(signal_path, index=False)
+        trade_df.to_csv(trade_path, index=False)
+
+        # When
+        s_result, t_result = load_signal_trade_pair(signal_path, trade_path)
+
+        # Then: 겹치는 날짜는 1/3, 1/4 (2일)
+        assert len(s_result) == 2
+        assert len(t_result) == 2
+
+    def test_no_overlap_raises_value_error(self, tmp_path):
+        """
+        목적: 겹치는 기간이 없을 때 ValueError가 전파됨을 검증
+
+        Given: 겹치지 않는 2개의 CSV
+        When: load_signal_trade_pair 호출
+        Then: ValueError 발생
+        """
+        # Given
+        df1 = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2)],
+                "Open": [100.0],
+                "High": [105.0],
+                "Low": [99.0],
+                COL_CLOSE: [103.0],
+                "Volume": [1000000],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                COL_DATE: [date(2024, 1, 2)],
+                "Open": [200.0],
+                "High": [205.0],
+                "Low": [199.0],
+                COL_CLOSE: [203.0],
+                "Volume": [2000000],
+            }
+        )
+        path1 = tmp_path / "a.csv"
+        path2 = tmp_path / "b.csv"
+        df1.to_csv(path1, index=False)
+        df2.to_csv(path2, index=False)
+
+        # When & Then
+        with pytest.raises(ValueError, match="겹치는 기간"):
+            load_signal_trade_pair(path1, path2)

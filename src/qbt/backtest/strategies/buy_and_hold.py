@@ -17,14 +17,7 @@ import pandas as pd
 
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import (
-    BUY_AND_HOLD_EEM_RESULTS_DIR,
-    BUY_AND_HOLD_EFA_RESULTS_DIR,
-    BUY_AND_HOLD_GLD_RESULTS_DIR,
-    BUY_AND_HOLD_IWM_RESULTS_DIR,
-    BUY_AND_HOLD_QQQ_RESULTS_DIR,
-    BUY_AND_HOLD_SPY_RESULTS_DIR,
-    BUY_AND_HOLD_TLT_RESULTS_DIR,
-    BUY_AND_HOLD_TQQQ_RESULTS_DIR,
+    BACKTEST_RESULTS_DIR,
     EEM_DATA_PATH,
     EFA_DATA_PATH,
     GLD_DATA_PATH,
@@ -60,49 +53,49 @@ CONFIGS: list[BuyAndHoldConfig] = [
         strategy_name="buy_and_hold_qqq",
         display_name="Buy & Hold (QQQ)",
         trade_data_path=QQQ_DATA_PATH,
-        result_dir=BUY_AND_HOLD_QQQ_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_qqq",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_tqqq",
         display_name="Buy & Hold (TQQQ)",
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
-        result_dir=BUY_AND_HOLD_TQQQ_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_spy",
         display_name="Buy & Hold (SPY)",
         trade_data_path=SPY_DATA_PATH,
-        result_dir=BUY_AND_HOLD_SPY_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_spy",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_iwm",
         display_name="Buy & Hold (IWM)",
         trade_data_path=IWM_DATA_PATH,
-        result_dir=BUY_AND_HOLD_IWM_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_iwm",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_efa",
         display_name="Buy & Hold (EFA)",
         trade_data_path=EFA_DATA_PATH,
-        result_dir=BUY_AND_HOLD_EFA_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_efa",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_eem",
         display_name="Buy & Hold (EEM)",
         trade_data_path=EEM_DATA_PATH,
-        result_dir=BUY_AND_HOLD_EEM_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_eem",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_gld",
         display_name="Buy & Hold (GLD)",
         trade_data_path=GLD_DATA_PATH,
-        result_dir=BUY_AND_HOLD_GLD_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_gld",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_tlt",
         display_name="Buy & Hold (TLT)",
         trade_data_path=TLT_DATA_PATH,
-        result_dir=BUY_AND_HOLD_TLT_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tlt",
     ),
 ]
 

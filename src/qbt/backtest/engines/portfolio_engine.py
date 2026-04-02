@@ -23,6 +23,7 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import calculate_summary
+from qbt.backtest.constants import COL_EQUITY, ma_col_name
 from qbt.backtest.engines.portfolio_data import (
     build_combined_equity,
     load_and_prepare_data,
@@ -125,7 +126,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
         warmup = spec.get_warmup_periods(slot)
         if warmup == 0:
             continue
-        ma_col = f"ma_{slot.ma_window}"
+        ma_col = ma_col_name(slot.ma_window)
         sdf = asset_signal_dfs[asset_id]
         if ma_col not in sdf.columns:
             raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
@@ -234,7 +235,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         warmup = spec.get_warmup_periods(slot)
         if warmup == 0:
             continue
-        ma_col = f"ma_{slot.ma_window}"
+        ma_col = ma_col_name(slot.ma_window)
         sdf = asset_signal_dfs[asset_id]
         if ma_col not in sdf.columns:
             raise ValueError(f"MA 컬럼 누락: {ma_col} (asset_id={asset_id})")
@@ -370,7 +371,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         # Step E: 에쿼티 행 기록 (자산별 value/weight/signal 포함)
         row: dict[str, Any] = {
             COL_DATE: current_date,
-            "equity": current_equity,
+            COL_EQUITY: current_equity,
             "cash": shared_cash,
             "rebalanced": rebalanced_today,
         }

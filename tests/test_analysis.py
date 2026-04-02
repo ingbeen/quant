@@ -421,6 +421,71 @@ class TestCalculateSummary:
         assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
 
 
+class TestCalculateDrawdownPctSeries:
+    """calculate_drawdown_pct_series 함수 테스트"""
+
+    def test_basic_drawdown_calculation(self):
+        """
+        목적: drawdown_pct 시리즈가 정확히 계산됨을 검증
+
+        Given: 에쿼티 [100, 110, 90, 120]
+        When: calculate_drawdown_pct_series 호출
+        Then: [0, 0, -(110-90)/110*100, 0]
+        """
+        from qbt.backtest.analysis import calculate_drawdown_pct_series
+
+        # Given
+        equity = pd.Series([100.0, 110.0, 90.0, 120.0])
+
+        # When
+        result = calculate_drawdown_pct_series(equity)
+
+        # Then
+        assert result.iloc[0] == pytest.approx(0.0, abs=1e-6)
+        assert result.iloc[1] == pytest.approx(0.0, abs=1e-6)
+        expected_dd = (90.0 - 110.0) / 110.0 * 100  # -18.18...
+        assert result.iloc[2] == pytest.approx(expected_dd, abs=0.01)
+        assert result.iloc[3] == pytest.approx(0.0, abs=1e-6)
+
+    def test_monotonically_increasing(self):
+        """
+        목적: 단조 증가 시 drawdown이 항상 0임을 검증
+
+        Given: 에쿼티 [100, 110, 120, 130]
+        When: calculate_drawdown_pct_series 호출
+        Then: 모든 값이 0
+        """
+        from qbt.backtest.analysis import calculate_drawdown_pct_series
+
+        # Given
+        equity = pd.Series([100.0, 110.0, 120.0, 130.0])
+
+        # When
+        result = calculate_drawdown_pct_series(equity)
+
+        # Then
+        assert (result == 0.0).all()
+
+    def test_zero_peak_protection(self):
+        """
+        목적: peak=0일 때 division by zero가 발생하지 않음을 검증
+
+        Given: 에쿼티 [0, 10, 5]
+        When: calculate_drawdown_pct_series 호출
+        Then: 에러 없이 결과 반환
+        """
+        from qbt.backtest.analysis import calculate_drawdown_pct_series
+
+        # Given
+        equity = pd.Series([0.0, 10.0, 5.0])
+
+        # When
+        result = calculate_drawdown_pct_series(equity)
+
+        # Then: 에러 없이 반환되면 성공
+        assert len(result) == 3
+
+
 class TestCalculateCalmar:
     """calculate_calmar 단위 테스트
 

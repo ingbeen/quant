@@ -137,3 +137,34 @@ def extract_overlap_period(
     df2_overlap = df2[df2[COL_DATE].isin(overlap_dates)].sort_values(COL_DATE).reset_index(drop=True)
 
     return df1_overlap, df2_overlap
+
+
+def load_signal_trade_pair(
+    signal_path: Path,
+    trade_path: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """시그널 + 매매 데이터를 로드하고, 경로가 다르면 겹치는 기간을 추출한다.
+
+    signal_path == trade_path인 경우 한 번만 로드하고 독립 복사본을 반환한다.
+    경로가 다르면 각각 로드한 뒤 extract_overlap_period로 겹치는 기간만 추출한다.
+
+    Args:
+        signal_path: 시그널 데이터 CSV 경로
+        trade_path: 매매 데이터 CSV 경로
+
+    Returns:
+        (signal_df, trade_df) 튜플. 두 DataFrame은 독립 복사본.
+
+    Raises:
+        FileNotFoundError: 파일이 존재하지 않을 때
+        ValueError: 필수 컬럼 누락 또는 겹치는 기간 없을 때
+    """
+    if signal_path == trade_path:
+        trade_df = load_stock_data(trade_path)
+        signal_df = trade_df.copy()
+    else:
+        signal_df = load_stock_data(signal_path)
+        trade_df = load_stock_data(trade_path)
+        signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
+
+    return signal_df, trade_df

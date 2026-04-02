@@ -4,6 +4,7 @@ from typing import Any
 
 import pandas as pd
 
+from qbt.backtest.constants import COL_EQUITY
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 from qbt.common_constants import EPSILON
@@ -79,7 +80,7 @@ def build_combined_equity(
     equity_df = pd.DataFrame(equity_rows)
 
     # drawdown 계산
-    peak = equity_df["equity"].cummax()
-    equity_df["drawdown_pct"] = (equity_df["equity"] - peak) / (peak + EPSILON) * 100.0
+    peak = equity_df[COL_EQUITY].cummax()
+    equity_df["drawdown_pct"] = (equity_df[COL_EQUITY] - peak) / (peak + EPSILON) * 100.0
 
     return equity_df

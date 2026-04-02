@@ -35,14 +35,7 @@ from qbt.backtest.strategies.buffer_zone_helpers import (
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BufferStrategyParams
 from qbt.common_constants import (
-    BUFFER_ZONE_EEM_RESULTS_DIR,
-    BUFFER_ZONE_EFA_RESULTS_DIR,
-    BUFFER_ZONE_GLD_RESULTS_DIR,
-    BUFFER_ZONE_IWM_RESULTS_DIR,
-    BUFFER_ZONE_QQQ_RESULTS_DIR,
-    BUFFER_ZONE_SPY_RESULTS_DIR,
-    BUFFER_ZONE_TLT_RESULTS_DIR,
-    BUFFER_ZONE_TQQQ_RESULTS_DIR,
+    BACKTEST_RESULTS_DIR,
     COL_CLOSE,
     EEM_DATA_PATH,
     EFA_DATA_PATH,
@@ -87,6 +80,8 @@ def resolve_buffer_params(
     Raises:
         ValueError: 파라미터 범위 위반 시
     """
+    if ma_window < 1:
+        raise ValueError(f"ma_window는 1 이상이어야 합니다: {ma_window}")
     if buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
         raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {buy_buffer_zone_pct}")
     if sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
@@ -157,7 +152,7 @@ CONFIGS: list[BufferZoneConfig] = [
         display_name="버퍼존 전략 (TQQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
-        result_dir=BUFFER_ZONE_TQQQ_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tqqq",
     ),
     # --- QQQ ---
     BufferZoneConfig(
@@ -165,7 +160,7 @@ CONFIGS: list[BufferZoneConfig] = [
         display_name="버퍼존 전략 (QQQ)",
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=QQQ_DATA_PATH,
-        result_dir=BUFFER_ZONE_QQQ_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq",
     ),
     # --- cross-asset ---
     BufferZoneConfig(
@@ -173,42 +168,42 @@ CONFIGS: list[BufferZoneConfig] = [
         display_name="버퍼존 전략 (SPY)",
         signal_data_path=SPY_DATA_PATH,
         trade_data_path=SPY_DATA_PATH,
-        result_dir=BUFFER_ZONE_SPY_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_spy",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_iwm",
         display_name="버퍼존 전략 (IWM)",
         signal_data_path=IWM_DATA_PATH,
         trade_data_path=IWM_DATA_PATH,
-        result_dir=BUFFER_ZONE_IWM_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_iwm",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_efa",
         display_name="버퍼존 전략 (EFA)",
         signal_data_path=EFA_DATA_PATH,
         trade_data_path=EFA_DATA_PATH,
-        result_dir=BUFFER_ZONE_EFA_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_efa",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_eem",
         display_name="버퍼존 전략 (EEM)",
         signal_data_path=EEM_DATA_PATH,
         trade_data_path=EEM_DATA_PATH,
-        result_dir=BUFFER_ZONE_EEM_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_eem",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_gld",
         display_name="버퍼존 전략 (GLD)",
         signal_data_path=GLD_DATA_PATH,
         trade_data_path=GLD_DATA_PATH,
-        result_dir=BUFFER_ZONE_GLD_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_gld",
     ),
     BufferZoneConfig(
         strategy_name="buffer_zone_tlt",
         display_name="버퍼존 전략 (TLT)",
         signal_data_path=TLT_DATA_PATH,
         trade_data_path=TLT_DATA_PATH,
-        result_dir=BUFFER_ZONE_TLT_RESULTS_DIR,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tlt",
     ),
 ]
 
@@ -360,7 +355,8 @@ class BufferZoneStrategy(SignalStrategy):
                 self._init_prev_from_row(signal_df, i - 1)
 
         # 이 시점에서 _prev_upper는 초기화된 상태 (_prev_lower는 check_sell에서 사용)
-        prev_upper: float = self._prev_upper  # type: ignore[assignment]
+        assert self._prev_upper is not None, "_prev_upper가 초기화되지 않음"
+        prev_upper: float = self._prev_upper
         prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
 
         # 현재 행으로 prev 갱신 (신호 판단 후에도 동일 값 사용)
@@ -453,7 +449,8 @@ class BufferZoneStrategy(SignalStrategy):
                 self._init_prev_from_row(signal_df, i - 1)
 
         # 이 시점에서 _prev_lower는 초기화된 상태
-        prev_lower: float = self._prev_lower  # type: ignore[assignment]
+        assert self._prev_lower is not None, "_prev_lower가 초기화되지 않음"
+        prev_lower: float = self._prev_lower
         prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])
 
         # 현재 행으로 prev 갱신
