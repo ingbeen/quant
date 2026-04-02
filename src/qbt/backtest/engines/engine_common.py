@@ -135,6 +135,11 @@ def execute_sell_order(
     Returns:
         (sell_price, proceeds, pnl, pnl_pct) 튜플.
     """
+    if entry_price <= 0:
+        raise RuntimeError(
+            f"내부 불변조건 위반: entry_price <= 0 (execute_buy_order를 통해서만 설정되므로 불가능, entry_price={entry_price})"
+        )
+
     sell_price = open_price * (1 - SLIPPAGE_RATE)
     proceeds = shares_to_sell * sell_price
     pnl = (sell_price - entry_price) * shares_to_sell

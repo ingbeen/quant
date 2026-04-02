@@ -96,8 +96,8 @@ class SummaryDict(TypedDict):
     winning_trades: int
     losing_trades: int
     win_rate: float
-    start_date: NotRequired[str]
-    end_date: NotRequired[str]
+    start_date: NotRequired[str | None]
+    end_date: NotRequired[str | None]
     open_position: NotRequired[OpenPositionDict]
 
 

@@ -162,6 +162,8 @@ def calculate_summary(
             "winning_trades": 0,
             "losing_trades": 0,
             "win_rate": 0.0,
+            "start_date": None,
+            "end_date": None,
         }
 
     final_capital: float = float(equity_df.iloc[-1][COL_EQUITY])

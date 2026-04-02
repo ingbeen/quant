@@ -414,6 +414,30 @@ class TestCalculateSummary:
         # Then
         assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
 
+    def test_empty_equity_contains_start_end_date_keys(self):
+        """
+        목적: 빈 equity_df일 때 start_date, end_date 키가 존재하는지 검증
+
+        정책: 다운스트림 코드에서 start_date/end_date 접근 시 KeyError 방지.
+              빈 equity_df이면 기간 정보가 없으므로 None을 반환한다.
+
+        Given: 빈 equity_df
+        When: calculate_summary 호출
+        Then: start_date, end_date 키가 존재하고 값은 None
+        """
+        # Given
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
+        equity_df = pd.DataFrame(columns=[COL_DATE, "equity"])
+
+        # When
+        summary = calculate_summary(trades_df, equity_df, 10000.0)
+
+        # Then
+        assert "start_date" in summary, "빈 equity_df 반환에도 start_date 키가 존재해야 함"
+        assert "end_date" in summary, "빈 equity_df 반환에도 end_date 키가 존재해야 함"
+        assert summary["start_date"] is None, "빈 equity_df이면 start_date는 None"
+        assert summary["end_date"] is None, "빈 equity_df이면 end_date는 None"
+
     def test_cagr_runtime_error_when_final_capital_zero(self) -> None:
         """
         목적: final_capital이 0 이하일 때 RuntimeError가 발생하는지 검증

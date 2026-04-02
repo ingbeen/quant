@@ -71,6 +71,54 @@ class TestCalculateValidationMetrics:
         # 차이가 있으므로 로그차이 RMSE > 0
         assert metrics["cumul_multiple_log_diff_rmse_pct"] > 0, "차이가 있으면 RMSE > 0"
 
+    def test_actual_cumulative_zero_raises_value_error(self):
+        """
+        목적: actual_cumulative가 0일 때 ValueError 발생 검증
+
+        정책: 실제 누적수익률이 정확히 0이면 상대차이 계산(분모 0)이 불가.
+              입력 데이터 조건 문제이므로 ValueError로 즉시 중단.
+
+        Given: 실제 데이터의 누적수익률이 0 (시작가 = 종료가)
+        When: calculate_validation_metrics 호출
+        Then: ValueError 발생
+        """
+        # Given: 실제 데이터가 시작과 끝이 동일 -> 누적수익률 0
+        simulated_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 102.0, 104.0, 106.0, 108.0]}
+        )
+        actual_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 105.0, 95.0, 110.0, 100.0]}
+        )
+
+        # When / Then
+        with pytest.raises(ValueError, match="actual_cumulative"):
+            calculate_validation_metrics(simulated_df, actual_df)
+
+    def test_final_close_actual_zero_raises_value_error(self):
+        """
+        목적: final_close_actual이 0일 때 ValueError 발생 검증
+
+        정책: 실제 종가가 0이면 종가 상대차이 계산(분모 0)이 불가.
+              종가 0은 누적배수(M_real) 계산 단계에서 먼저 잡히거나,
+              해당 단계를 통과하면 final_close_actual 방어 코드에서 잡힌다.
+              어느 경로든 ValueError로 즉시 중단되어야 한다.
+
+        Given: 실제 데이터의 마지막 종가가 0
+        When: calculate_validation_metrics 호출
+        Then: ValueError 발생 (M_real <= 0 또는 final_close_actual 방어)
+        """
+        # Given: 마지막 종가가 0
+        simulated_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 102.0, 104.0, 106.0, 108.0]}
+        )
+        actual_df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 90.0, 50.0, 10.0, 0.0]}
+        )
+
+        # When / Then: M_real 계산 또는 final_close_actual 방어에서 ValueError
+        with pytest.raises(ValueError):
+            calculate_validation_metrics(simulated_df, actual_df)
+
 
 class TestSaveDailyComparisonCsv:
     """_save_daily_comparison_csv 함수 테스트"""

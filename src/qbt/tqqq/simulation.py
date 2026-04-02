@@ -742,6 +742,8 @@ def calculate_validation_metrics(
         )
 
     # 8. 누적수익률 상대차이 계산 (마지막 날 기준, 실제 기준 퍼센트)
+    if abs(actual_cumulative) < EPSILON:
+        raise ValueError(f"actual_cumulative가 0이므로 상대차이 계산 불가 (actual_cumulative={actual_cumulative})")
     cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative) / actual_cumulative) * 100
 
     # 9. 마지막 날 종가 추출
@@ -749,6 +751,8 @@ def calculate_validation_metrics(
     final_close_simulated = float(sim_overlap.iloc[-1][COL_CLOSE])
 
     # 10. 종가 상대차이 계산 (실제 기준 퍼센트)
+    if abs(final_close_actual) < EPSILON:
+        raise ValueError(f"final_close_actual이 0이므로 상대차이 계산 불가 (final_close_actual={final_close_actual})")
     final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
 
     # 11. 검증 결과 반환

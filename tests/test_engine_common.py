@@ -193,6 +193,41 @@ class TestExecuteSellOrderPure:
         ), "pnl_pct는 (sell-entry)/entry 정확히 일치해야 함 (EPSILON 없음)"
 
 
+class TestExecuteSellOrderInvariant:
+    """execute_sell_order 구조적 불변조건 테스트.
+
+    entry_price는 execute_buy_order를 통해서만 설정되므로 0 이하가 될 수 없다.
+    이 불변조건을 명시적으로 방어하여, 위반 시 RuntimeError로 즉시 중단한다.
+    """
+
+    def test_entry_price_zero_raises_runtime_error(self) -> None:
+        """
+        목적: entry_price=0일 때 RuntimeError 발생 검증
+
+        정책: entry_price는 execute_buy_order 결과로만 설정되므로 0이 될 수 없다.
+              0이면 구조적 불변조건 위반이므로 RuntimeError로 즉시 중단.
+
+        Given: entry_price=0.0
+        When: execute_sell_order(100.0, 10, 0.0) 호출
+        Then: RuntimeError 발생
+        """
+        # When / Then
+        with pytest.raises(RuntimeError, match="entry_price"):
+            execute_sell_order(100.0, 10, 0.0)
+
+    def test_entry_price_negative_raises_runtime_error(self) -> None:
+        """
+        목적: entry_price가 음수일 때 RuntimeError 발생 검증
+
+        Given: entry_price=-10.0
+        When: execute_sell_order(100.0, 10, -10.0) 호출
+        Then: RuntimeError 발생
+        """
+        # When / Then
+        with pytest.raises(RuntimeError, match="entry_price"):
+            execute_sell_order(100.0, 10, -10.0)
+
+
 class TestCreateTradeRecord:
     """create_trade_record 헬퍼 함수 계약 테스트."""
 
