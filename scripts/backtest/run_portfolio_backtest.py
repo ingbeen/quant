@@ -14,6 +14,8 @@ import json
 import sys
 from typing import Any
 
+import pandas as pd
+
 from qbt.backtest.constants import (
     DEFAULT_PORTFOLIO_EXPERIMENTS,
     ROUND_CAPITAL,
@@ -43,6 +45,130 @@ logger = get_logger(__name__)
 _ACTIVE_CONFIG_MAP = {
     c.experiment_name: c for c in PORTFOLIO_CONFIGS if c.experiment_name in DEFAULT_PORTFOLIO_EXPERIMENTS
 }
+
+
+def _build_execution_comparison_df(
+    equity_df: pd.DataFrame,
+    trades_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """모든 체결일의 전후 비교 데이터를 생성한다.
+
+    equity_df와 trades_df를 교차 참조하여, 체결 발생일(exit_date)마다
+    자산별 전일/당일 보유수, 비중, 평가액 변화를 계산한다.
+
+    Args:
+        equity_df: 포트폴리오 에쿼티 DataFrame (Date, equity, cash, {asset}_shares 등)
+        trades_df: 포트폴리오 거래 내역 DataFrame (exit_date, asset_id, trade_type, shares 등)
+
+    Returns:
+        체결 전후 비교 DataFrame (date x asset_id 행). 거래가 없으면 빈 DataFrame.
+    """
+    if trades_df.empty or "exit_date" not in trades_df.columns:
+        return pd.DataFrame()
+
+    # 1. 자산 ID 추출 (weight 컬럼 기반)
+    asset_ids = [c.removesuffix("_weight") for c in equity_df.columns if c.endswith("_weight")]
+    if not asset_ids:
+        return pd.DataFrame()
+
+    # 2. 체결 발생일 목록 (exit_date 기준)
+    trade_dates = sorted(trades_df["exit_date"].dropna().unique())
+    if not trade_dates:
+        return pd.DataFrame()
+
+    # 3. 날짜 -> 인덱스 매핑 (빠른 조회용)
+    date_to_idx: dict[Any, int] = {}
+    for i, d in enumerate(equity_df["Date"]):
+        date_to_idx[d] = i
+
+    rows: list[dict[str, Any]] = []
+    for trade_date in trade_dates:
+        current_idx = date_to_idx.get(trade_date)
+        if current_idx is None:
+            continue
+
+        current_row = equity_df.iloc[current_idx]
+        prev_row = equity_df.iloc[current_idx - 1] if current_idx > 0 else current_row
+
+        date_str = str(trade_date)
+
+        # 리밸런싱 사유
+        rebalance_reason = ""
+        if "rebalance_reason" in equity_df.columns:
+            val = current_row.get("rebalance_reason")
+            if pd.notna(val):
+                rebalance_reason = str(val)
+
+        # 해당일 거래 내역
+        day_trades = trades_df[trades_df["exit_date"] == trade_date]
+
+        # 4. 자산별 행
+        for asset_id in asset_ids:
+            shares_col = f"{asset_id}_shares"
+            weight_col = f"{asset_id}_weight"
+            value_col = f"{asset_id}_value"
+
+            pre_shares = int(prev_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
+            post_shares = int(current_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
+            pre_weight = float(prev_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
+            post_weight = float(current_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
+            pre_value = int(prev_row.get(value_col, 0)) if value_col in equity_df.columns else 0
+            post_value = int(current_row.get(value_col, 0)) if value_col in equity_df.columns else 0
+
+            # 거래 내역 텍스트
+            trade_info = ""
+            if "asset_id" in day_trades.columns:
+                asset_day_trades = day_trades[day_trades["asset_id"] == asset_id]
+                for _, t in asset_day_trades.iterrows():
+                    tt = str(t.get("trade_type", ""))
+                    s = int(t.get("shares", 0))
+                    label = "매도" if tt == "signal" else "리밸런싱"
+                    trade_info += f"{label} {s}주 "
+                trade_info = trade_info.strip()
+
+            rows.append(
+                {
+                    "date": date_str,
+                    "asset_id": asset_id,
+                    "pre_shares": pre_shares,
+                    "post_shares": post_shares,
+                    "pre_weight_pct": round(pre_weight, ROUND_PERCENT),
+                    "post_weight_pct": round(post_weight, ROUND_PERCENT),
+                    "pre_value": pre_value,
+                    "post_value": post_value,
+                    "delta_shares": post_shares - pre_shares,
+                    "delta_value": post_value - pre_value,
+                    "trade_info": trade_info,
+                    "rebalance_reason": rebalance_reason,
+                }
+            )
+
+        # 5. 현금 행
+        pre_cash = int(prev_row.get("cash", 0))
+        post_cash = int(current_row.get("cash", 0))
+        pre_equity_val = int(prev_row.get("equity", 1))
+        post_equity_val = int(current_row.get("equity", 1))
+
+        rows.append(
+            {
+                "date": date_str,
+                "asset_id": "cash",
+                "pre_shares": 0,
+                "post_shares": 0,
+                "pre_weight_pct": round(pre_cash / pre_equity_val * 100 if pre_equity_val > 0 else 0.0, ROUND_PERCENT),
+                "post_weight_pct": round(
+                    post_cash / post_equity_val * 100 if post_equity_val > 0 else 0.0, ROUND_PERCENT
+                ),
+                "pre_value": pre_cash,
+                "post_value": post_cash,
+                "delta_shares": 0,
+                "delta_value": post_cash - pre_cash,
+                "trade_info": "",
+                "rebalance_reason": rebalance_reason,
+            }
+        )
+
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
@@ -118,7 +244,14 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         signal_export.to_csv(signal_path, index=False)
         logger.debug(f"시그널 데이터 저장 완료: {signal_path} (asset_id={asset_result.asset_id})")
 
-    # 4. summary.json 저장
+    # 4. execution_comparison.csv 저장
+    comparison_df = _build_execution_comparison_df(result.equity_df, result.trades_df)
+    comparison_path = result.config.result_dir / "execution_comparison.csv"
+    if not comparison_df.empty:
+        comparison_df.to_csv(comparison_path, index=False)
+        logger.debug(f"체결 전후 비교 데이터 저장 완료: {comparison_path}")
+
+    # 5. summary.json 저장
     summary_path = result.config.result_dir / "summary.json"
     s = result.summary
 
@@ -182,7 +315,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
     logger.debug(f"요약 JSON 저장 완료: {summary_path}")
 
-    # 5. 메타데이터 저장
+    # 6. 메타데이터 저장
     metadata: dict[str, Any] = {
         "params": result.params_json,
         "results_summary": {
@@ -195,6 +328,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "output_files": {
             "equity_csv": str(equity_path),
             "trades_csv": str(trades_path),
+            "execution_comparison_csv": str(comparison_path),
             "summary_json": str(summary_path),
         },
     }

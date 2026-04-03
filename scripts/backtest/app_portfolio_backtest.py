@@ -250,6 +250,22 @@ def _load_signal_csv(signal_path_str: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data
+def _load_execution_comparison_csv(experiment_dir_str: str) -> pd.DataFrame | None:
+    """execution_comparison.csv를 로드한다.
+
+    Args:
+        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
+
+    Returns:
+        execution_comparison DataFrame. 파일 미존재 시 None.
+    """
+    path = Path(experiment_dir_str) / "execution_comparison.csv"
+    if not path.exists():
+        return None
+    return pd.read_csv(path)
+
+
 def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
     """한 실험의 모든 결과 데이터를 로드한다.
 
@@ -357,10 +373,13 @@ def _get_asset_ids_from_equity(equity_df: pd.DataFrame) -> list[str]:
 # ============================================================
 
 
+@st.fragment
 def _render_holdings_section(exp: _ExperimentData) -> None:
     """특정 날짜의 포트폴리오 보유 현황을 표시한다.
 
-    날짜 슬라이더로 선택한 일자의 종목별 보유수, 평균매수가, 현재가, 평가금액, 비중, 수익률을 보여준다.
+    거래일 전용 select_slider로 선택한 일자의 종목별 보유수, 평균매수가,
+    현재가, 평가금액, 비중, 수익률을 보여준다.
+    @st.fragment로 격리되어 날짜 변경 시 이 섹션만 재렌더링된다.
     """
     st.subheader("포트폴리오 보유 현황")
 
@@ -373,26 +392,18 @@ def _render_holdings_section(exp: _ExperimentData) -> None:
     per_asset = _extract_per_asset(exp.summary)
     initial_capital = int(ps.get("initial_capital", 0))
 
-    # 날짜 슬라이더
-    dates = pd.to_datetime(equity_df["Date"])
-    min_date = dates.iloc[0].date()
-    max_date = dates.iloc[-1].date()
+    # 거래일 전용 선택 슬라이더 (equity_df에 존재하는 날짜만 옵션으로 제공)
+    trading_dates: list[date] = pd.to_datetime(equity_df["Date"]).dt.date.tolist()
 
-    selected_date = st.slider(
+    selected_date = st.select_slider(
         "조회 날짜",
-        min_value=min_date,
-        max_value=max_date,
-        value=max_date,
-        format="YYYY-MM-DD",
+        options=trading_dates,
+        value=trading_dates[-1],
         key=f"holdings_date_{exp.experiment_name}",
     )
 
-    # 선택 날짜의 데이터 행
-    date_mask = dates.dt.date == selected_date
-    if not date_mask.any():
-        st.warning("선택한 날짜의 데이터가 없습니다.")
-        return
-
+    # 선택 날짜의 데이터 행 (select_slider이므로 항상 유효한 거래일)
+    date_mask = pd.to_datetime(equity_df["Date"]).dt.date == selected_date
     row = equity_df[date_mask.values].iloc[0]
     total_equity = int(row["equity"])
     cash = int(row["cash"])
@@ -498,136 +509,62 @@ def _render_holdings_section(exp: _ExperimentData) -> None:
 
 
 def _render_execution_comparison_section(exp: _ExperimentData) -> None:
-    """체결 발생일의 자산별 전후 변화를 비교한다."""
-    st.subheader("체결 전후 비교")
+    """체결 발생일의 자산별 전후 변화를 비교한다.
 
-    equity_df = exp.equity_df
-    trades_df = exp.trades_df
+    사전 생성된 execution_comparison.csv를 로드하여 긴 표 형태로 표시한다.
+    데이터가 많으므로 기본 숨김(expander collapsed) 상태로 제공한다.
+    """
+    with st.expander("체결 전후 비교", expanded=False):
+        experiment_dir = PORTFOLIO_RESULTS_DIR / exp.experiment_name
+        comparison_df = _load_execution_comparison_csv(str(experiment_dir))
 
-    if not _has_holdings_data(equity_df):
-        st.info("보유 상세 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
-        return
+        if comparison_df is None or comparison_df.empty:
+            st.info("체결 전후 비교 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
+            return
 
-    # 거래가 발생한 날짜 목록 (trades_df의 exit_date 기준)
-    if trades_df.empty or "exit_date" not in trades_df.columns:
-        st.info("거래 내역이 없습니다.")
-        return
+        # 표시용 DataFrame 구성
+        display_rows: list[dict[str, str]] = []
+        for _, row in comparison_df.iterrows():
+            asset_id = str(row["asset_id"])
+            is_cash = asset_id == "cash"
 
-    trade_dates_list = sorted(trades_df["exit_date"].dropna().unique())
-    if not trade_dates_list:
-        st.info("거래 내역이 없습니다.")
-        return
+            delta_shares = int(row["delta_shares"])
+            delta_value = int(row["delta_value"])
 
-    # 날짜 선택
-    trade_date_strs = [pd.Timestamp(d).strftime("%Y-%m-%d") for d in trade_dates_list]
-    selected_idx = st.selectbox(
-        "체결일 선택",
-        options=range(len(trade_date_strs)),
-        format_func=lambda i: trade_date_strs[i],
-        index=len(trade_date_strs) - 1,
-        key=f"exec_compare_date_{exp.experiment_name}",
-    )
-    selected_trade_date = trade_dates_list[selected_idx]
+            # 리밸런싱 사유 변환
+            reason = str(row.get("rebalance_reason", ""))
+            if reason == "nan":
+                reason = ""
+            reason_text = ""
+            if reason == "monthly":
+                reason_text = "월초 정기"
+            elif reason == "daily":
+                reason_text = "긴급"
 
-    # 해당 일자의 equity 행 (당일 + 전일)
-    dates = pd.to_datetime(equity_df["Date"])
-    sel_date_val = pd.Timestamp(selected_trade_date)
-    current_mask = dates == sel_date_val
+            # 거래 내역 (NaN 처리)
+            trade_info = str(row.get("trade_info", ""))
+            if trade_info == "nan":
+                trade_info = ""
 
-    if not current_mask.any():
-        st.warning("선택한 날짜의 에쿼티 데이터가 없습니다.")
-        return
+            display_rows.append(
+                {
+                    "체결일": str(row["date"]),
+                    "사유": reason_text,
+                    "종목": "현금" if is_cash else asset_id.upper(),
+                    "전일 주수": "-" if is_cash else str(int(row["pre_shares"])),
+                    "전일 비중": f"{float(row['pre_weight_pct']):.1f}%",
+                    "전일 평가액": f"{int(row['pre_value']):,}",
+                    "당일 주수": "-" if is_cash else str(int(row["post_shares"])),
+                    "당일 비중": f"{float(row['post_weight_pct']):.1f}%",
+                    "당일 평가액": f"{int(row['post_value']):,}",
+                    "주수 변동": "-" if is_cash else (f"{delta_shares:+d}" if delta_shares != 0 else "-"),
+                    "금액 변동": f"{delta_value:+,}" if delta_value != 0 else "-",
+                    "거래 내역": trade_info if trade_info else "-",
+                }
+            )
 
-    matched_positions = [i for i, v in enumerate(current_mask.values) if v]
-    if not matched_positions:
-        st.warning("선택한 날짜의 에쿼티 데이터가 없습니다.")
-        return
-    current_idx = matched_positions[0]
-    current_row = equity_df.iloc[current_idx]
-
-    # 전일 (이전 인덱스)
-    if current_idx > 0:
-        prev_row = equity_df.iloc[current_idx - 1]
-    else:
-        prev_row = current_row  # 첫날이면 자기 자신
-
-    # 리밸런싱 사유
-    rebalance_reason = ""
-    if "rebalance_reason" in equity_df.columns:
-        rebalance_reason = str(current_row.get("rebalance_reason", ""))
-
-    if rebalance_reason:
-        reason_text = "월초 정기 리밸런싱" if rebalance_reason == "monthly" else "긴급 리밸런싱 (일일 임계값 초과)"
-        st.caption(f"거래 사유: {reason_text}")
-
-    # 해당 일자 거래 내역
-    day_trades = trades_df[trades_df["exit_date"] == selected_trade_date]
-
-    # 비교 테이블 구성
-    asset_ids = _get_asset_ids_from_equity(equity_df)
-    compare_rows: list[dict[str, Any]] = []
-
-    for asset_id in asset_ids:
-        shares_col = f"{asset_id}_shares"
-        weight_col = f"{asset_id}_weight"
-        value_col = f"{asset_id}_value"
-
-        pre_shares = int(prev_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
-        post_shares = int(current_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
-        pre_weight = float(prev_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
-        post_weight = float(current_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
-        pre_value = int(prev_row.get(value_col, 0)) if value_col in equity_df.columns else 0
-        post_value = int(current_row.get(value_col, 0)) if value_col in equity_df.columns else 0
-
-        delta_shares = post_shares - pre_shares
-        delta_value = post_value - pre_value
-
-        # 해당 자산의 당일 거래
-        asset_day_trades = (
-            day_trades[day_trades["asset_id"] == asset_id] if "asset_id" in day_trades.columns else pd.DataFrame()
-        )
-        trade_info = ""
-        if not asset_day_trades.empty:
-            for _, t in asset_day_trades.iterrows():
-                tt = str(t.get("trade_type", ""))
-                s = int(t.get("shares", 0))
-                trade_info += f"{'매도' if tt == 'signal' else '리밸런싱'} {s}주 "
-
-        compare_rows.append(
-            {
-                "종목": asset_id.upper(),
-                "전일 주수": str(pre_shares),
-                "전일 비중": f"{pre_weight:.1f}%",
-                "전일 평가액": f"{pre_value:,}",
-                "당일 주수": str(post_shares),
-                "당일 비중": f"{post_weight:.1f}%",
-                "당일 평가액": f"{post_value:,}",
-                "주수 변동": f"{delta_shares:+d}" if delta_shares != 0 else "-",
-                "금액 변동": f"{delta_value:+,}" if delta_value != 0 else "-",
-                "거래 내역": trade_info.strip() if trade_info else "-",
-            }
-        )
-
-    # 현금 행 추가
-    pre_cash = int(prev_row.get("cash", 0))
-    post_cash = int(current_row.get("cash", 0))
-    delta_cash = post_cash - pre_cash
-    compare_rows.append(
-        {
-            "종목": "현금",
-            "전일 주수": "-",
-            "전일 비중": f"{pre_cash / int(prev_row.get('equity', 1)) * 100:.1f}%",
-            "전일 평가액": f"{pre_cash:,}",
-            "당일 주수": "-",
-            "당일 비중": f"{post_cash / int(current_row.get('equity', 1)) * 100:.1f}%",
-            "당일 평가액": f"{post_cash:,}",
-            "주수 변동": "-",
-            "금액 변동": f"{delta_cash:+,}" if delta_cash != 0 else "-",
-            "거래 내역": "-",
-        }
-    )
-
-    st.dataframe(pd.DataFrame(compare_rows), hide_index=True, width="stretch")
+        st.caption(f"총 {len(comparison_df['date'].unique())}개 체결일")
+        st.dataframe(pd.DataFrame(display_rows), hide_index=True, width="stretch")
 
 
 # ============================================================
