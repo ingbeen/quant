@@ -1,0 +1,97 @@
+{
+  "display_name": "F-7H (SPY 25% / TQQQ 35% / GLD 20%(B&H) / TLT 20%(B&H))",
+  "portfolio_summary": {
+    "initial_capital": 10000000,
+    "final_capital": 242476988,
+    "total_return_pct": 2324.77,
+    "cagr": 16.14,
+    "mdd": -29.95,
+    "calmar": 0.54,
+    "total_trades": 180,
+    "start_date": "2004-11-18",
+    "end_date": "2026-03-12"
+  },
+  "per_asset": [
+    {
+      "asset_id": "spy",
+      "target_weight": 0.25,
+      "total_trades": 33,
+      "win_rate": 87.88
+    },
+    {
+      "asset_id": "tqqq",
+      "target_weight": 0.35,
+      "total_trades": 61,
+      "win_rate": 93.44
+    },
+    {
+      "asset_id": "gld",
+      "target_weight": 0.2,
+      "total_trades": 43,
+      "win_rate": 88.37
+    },
+    {
+      "asset_id": "tlt",
+      "target_weight": 0.2,
+      "total_trades": 43,
+      "win_rate": 81.4
+    }
+  ],
+  "portfolio_config": {
+    "experiment_name": "portfolio_f7h",
+    "display_name": "F-7H (SPY 25% / TQQQ 35% / GLD 20%(B&H) / TLT 20%(B&H))",
+    "total_capital": 10000000.0,
+    "monthly_rebalance_threshold_rate": 0.1,
+    "daily_rebalance_threshold_rate": 0.2,
+    "assets": [
+      {
+        "asset_id": "spy",
+        "target_weight": 0.25,
+        "signal_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SPY_max.csv",
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
+      },
+      {
+        "asset_id": "tqqq",
+        "target_weight": 0.35,
+        "signal_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
+        "strategy_id": "buffer_zone",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
+      },
+      {
+        "asset_id": "gld",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/GLD_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
+        "strategy_id": "buy_and_hold",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
+      },
+      {
+        "asset_id": "tlt",
+        "target_weight": 0.2,
+        "signal_data_path": "storage/stock/TLT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
+        "strategy_id": "buy_and_hold",
+        "ma_window": 200,
+        "ma_type": "ema",
+        "buy_buffer_zone_pct": 0.03,
+        "sell_buffer_zone_pct": 0.05,
+        "hold_days": 3
+      }
+    ]
+  }
+}

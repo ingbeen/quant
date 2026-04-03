@@ -569,6 +569,216 @@ _CONFIG_F4 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_f4"),
 )
 
+# F-5: SPY 35% / TQQQ 25% / GLD 20% / TLT 20% (전체 버퍼존)
+_CONFIG_F5 = PortfolioConfig(
+    experiment_name="portfolio_f5",
+    display_name="F-5 (SPY 35% / TQQQ 25% / GLD 20% / TLT 20%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.25,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f5"),
+)
+
+# F-5H: SPY 35% / TQQQ 25% / GLD 20%(B&H) / TLT 20%(B&H)
+_CONFIG_F5H = PortfolioConfig(
+    experiment_name="portfolio_f5h",
+    display_name="F-5H (SPY 35% / TQQQ 25% / GLD 20%(B&H) / TLT 20%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.25,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # GLD: B&H
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # TLT: B&H
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f5h"),
+)
+
+# F-6: SPY 30% / TQQQ 30% / GLD 20% / TLT 20% (전체 버퍼존)
+_CONFIG_F6 = PortfolioConfig(
+    experiment_name="portfolio_f6",
+    display_name="F-6 (SPY 30% / TQQQ 30% / GLD 20% / TLT 20%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f6"),
+)
+
+# F-6H: SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H)
+_CONFIG_F6H = PortfolioConfig(
+    experiment_name="portfolio_f6h",
+    display_name="F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # GLD: B&H
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # TLT: B&H
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f6h"),
+)
+
+# F-7: SPY 25% / TQQQ 35% / GLD 20% / TLT 20% (전체 버퍼존)
+_CONFIG_F7 = PortfolioConfig(
+    experiment_name="portfolio_f7",
+    display_name="F-7 (SPY 25% / TQQQ 35% / GLD 20% / TLT 20%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.25,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f7"),
+)
+
+# F-7H: SPY 25% / TQQQ 35% / GLD 20%(B&H) / TLT 20%(B&H)
+_CONFIG_F7H = PortfolioConfig(
+    experiment_name="portfolio_f7h",
+    display_name="F-7H (SPY 25% / TQQQ 35% / GLD 20%(B&H) / TLT 20%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.25,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # GLD: B&H
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",  # TLT: B&H
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_f7h"),
+)
+
 # ============================================================================
 # G 시리즈: SPY/GLD/TLT 구성 고정, 전략만 변경 (버퍼존 vs B&H 팩토리얼)
 # 구성: SPY(버퍼존) 60% / GLD 25% / TLT 15%
@@ -798,6 +1008,12 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_F2,
     _CONFIG_F3,
     _CONFIG_F4,
+    _CONFIG_F5,
+    _CONFIG_F5H,
+    _CONFIG_F6,
+    _CONFIG_F6H,
+    _CONFIG_F7,
+    _CONFIG_F7H,
     # G 시리즈: 버퍼존 vs B&H 팩토리얼 (기여도 격리)
     _CONFIG_G1,
     _CONFIG_G2,

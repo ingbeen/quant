@@ -147,6 +147,28 @@ def ma_col_name(window: int) -> str:
 
 
 # ============================================================
+# 포트폴리오 실험 활성 필터
+# ============================================================
+
+# run_portfolio_backtest.py / app_portfolio_backtest.py에서 실행·표출할 실험 목록
+DEFAULT_PORTFOLIO_EXPERIMENTS: Final[list[str]] = [
+    # 유지 (기존)
+    "portfolio_a2",
+    "portfolio_b3",
+    "portfolio_d1",
+    "portfolio_d2",
+    "portfolio_e2",
+    "portfolio_f1",
+    # 추가 (F 시리즈 확장: TQQQ 25~35% 구간, GLD/TLT BZ vs B&H 팩토리얼)
+    "portfolio_f5",
+    "portfolio_f5h",
+    "portfolio_f6",
+    "portfolio_f6h",
+    "portfolio_f7",
+    "portfolio_f7h",
+]
+
+# ============================================================
 # 단일 백테스트 활성 전략 필터
 # ============================================================
 

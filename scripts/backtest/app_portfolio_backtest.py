@@ -23,6 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+from qbt.backtest.constants import DEFAULT_PORTFOLIO_EXPERIMENTS
 from qbt.common_constants import PORTFOLIO_RESULTS_DIR
 
 # ============================================================
@@ -95,6 +96,12 @@ _EXPERIMENT_COLORS: dict[str, str] = {
     "portfolio_f2": "#d46b98",
     "portfolio_f3": "#b52b6e",
     "portfolio_f4": "#7a1446",
+    "portfolio_f5": "#e066a0",
+    "portfolio_f5h": "#f0a0c4",
+    "portfolio_f6": "#c84080",
+    "portfolio_f6h": "#e880b0",
+    "portfolio_f7": "#a01060",
+    "portfolio_f7h": "#d06090",
     # G 시리즈: SPY / GLD / TLT B&H 변형 (청록 계열)
     "portfolio_g1": "#c7fbf8",
     "portfolio_g2": "#66d4cf",
@@ -131,7 +138,9 @@ class _ExperimentData:
 
 
 def _discover_experiments() -> list[Path]:
-    """PORTFOLIO_RESULTS_DIR 하위에서 summary.json이 있는 폴더를 탐색한다.
+    """PORTFOLIO_RESULTS_DIR 하위에서 활성 실험의 summary.json이 있는 폴더를 탐색한다.
+
+    DEFAULT_PORTFOLIO_EXPERIMENTS에 포함된 실험만 반환한다.
 
     Returns:
         유효한 실험 결과 폴더 경로 리스트 (알파벳 순 정렬)
@@ -141,7 +150,7 @@ def _discover_experiments() -> list[Path]:
 
     result: list[Path] = []
     for sub_dir in sorted(PORTFOLIO_RESULTS_DIR.iterdir()):
-        if sub_dir.is_dir() and (sub_dir / "summary.json").exists():
+        if sub_dir.is_dir() and (sub_dir / "summary.json").exists() and sub_dir.name in DEFAULT_PORTFOLIO_EXPERIMENTS:
             result.append(sub_dir)
 
     return result

@@ -14,7 +14,13 @@ import json
 import sys
 from typing import Any
 
-from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PERCENT, ROUND_PRICE, ROUND_RATIO
+from qbt.backtest.constants import (
+    DEFAULT_PORTFOLIO_EXPERIMENTS,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
+)
 from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
@@ -33,8 +39,10 @@ from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
-# 실험 이름 → 설정 매핑
-_CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
+# 활성 실험만 포함하는 매핑 (DEFAULT_PORTFOLIO_EXPERIMENTS 필터)
+_ACTIVE_CONFIG_MAP = {
+    c.experiment_name: c for c in PORTFOLIO_CONFIGS if c.experiment_name in DEFAULT_PORTFOLIO_EXPERIMENTS
+}
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
@@ -229,31 +237,33 @@ def main() -> int:
         종료 코드 (0: 성공, 1: 실패)
     """
     # 1. 명령행 인자 파싱
-    parser = argparse.ArgumentParser(description="포트폴리오 백테스트 실행 (A/B/C/D/E/F/G/H 시리즈)")
+    parser = argparse.ArgumentParser(description="포트폴리오 백테스트 실행")
     parser.add_argument(
         "--experiment",
-        choices=["all", *_CONFIG_MAP.keys()],
+        choices=["all", *_ACTIVE_CONFIG_MAP.keys()],
         default="all",
-        help="실행할 실험 (기본값: all)",
+        help="실행할 실험 (기본값: all, 활성 실험만 선택 가능)",
     )
     args = parser.parse_args()
 
-    # 2. 대상 실험 결정
+    # 2. 대상 실험 결정 (활성 실험 기준)
+    active_configs = [c for c in PORTFOLIO_CONFIGS if c.experiment_name in DEFAULT_PORTFOLIO_EXPERIMENTS]
+
     if args.experiment == "all":
-        target_configs = list(PORTFOLIO_CONFIGS)
-        logger.debug(f"전체 {len(target_configs)}개 실험 실행")
+        target_configs = list(active_configs)
+        logger.debug(f"활성 실험 {len(target_configs)}개 실행")
     else:
         target_configs = [get_portfolio_config(args.experiment)]
         logger.debug(f"단일 실험 실행: {args.experiment}")
 
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
-    # 3. 글로벌 시작일 계산 (전체 PORTFOLIO_CONFIGS 기준)
-    # 모든 실험이 동일한 기간에서 비교될 수 있도록 유효 시작일 중 가장 늦은 날짜 적용
-    logger.debug("글로벌 시작일 계산 중 (전체 PORTFOLIO_CONFIGS 대상)...")
-    effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS]
+    # 3. 글로벌 시작일 계산 (활성 실험 기준)
+    # 활성 실험이 동일한 기간에서 비교될 수 있도록 유효 시작일 중 가장 늦은 날짜 적용
+    logger.debug("글로벌 시작일 계산 중 (활성 실험 대상)...")
+    effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in active_configs]
     global_start_date = max(effective_start_dates)
-    logger.debug(f"글로벌 시작일 결정: {global_start_date} (전체 {len(PORTFOLIO_CONFIGS)}개 실험 기준)")
+    logger.debug(f"글로벌 시작일 결정: {global_start_date} (활성 {len(active_configs)}개 실험 기준)")
 
     # 4. 실험별 실행 (글로벌 시작일 적용)
     for config in target_configs:
