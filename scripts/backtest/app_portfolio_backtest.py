@@ -867,7 +867,12 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
 
 
 def _render_contribution_section(exp: _ExperimentData) -> None:
-    """자산별 수익 기여도를 표시한다."""
+    """자산별 수익 기여도를 실현+미실현 손익 기반으로 표시한다.
+
+    총 기여도 = 누적 실현손익 + 미실현손익.
+    매도 후에도 실현손익이 유지되어 자산별 기여 이력이 끊기지 않는다.
+    신규 컬럼(_realized_pnl, _unrealized_pnl)이 없으면 기존 방식(value 기반)으로 fallback.
+    """
     st.subheader("자산별 수익 기여도")
 
     equity_df = exp.equity_df
@@ -876,41 +881,48 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         return
 
     asset_ids = _get_asset_ids_from_equity(equity_df)
-    value_cols = [f"{aid}_value" for aid in asset_ids if f"{aid}_value" in equity_df.columns]
 
-    if not value_cols:
-        st.info("자산별 평가액 데이터가 없습니다.")
+    # PnL 컬럼 존재 여부 확인 (graceful fallback)
+    has_pnl_cols = all(
+        f"{aid}_realized_pnl" in equity_df.columns and f"{aid}_unrealized_pnl" in equity_df.columns for aid in asset_ids
+    )
+
+    if not has_pnl_cols:
+        _render_contribution_section_legacy(exp, asset_ids)
         return
 
-    # 일별 자산별 가치 변동분
-    df = equity_df[["Date"] + value_cols + ["cash"]].copy()
+    # 총 기여도 = realized_pnl + unrealized_pnl (자산별)
+    df = equity_df[["Date"]].copy()
     df["Date"] = pd.to_datetime(df["Date"])
+    contrib_cols: list[str] = []
+    for aid in asset_ids:
+        col = f"{aid}_contribution"
+        df[col] = equity_df[f"{aid}_realized_pnl"].to_numpy() + equity_df[f"{aid}_unrealized_pnl"].to_numpy()
+        contrib_cols.append(col)
+
     df = df.set_index("Date")
 
-    # 분기별 기여도 계산
-    quarterly = df.resample("QE").last()
+    # 분기별 기여도 변동분 (스택 바차트)
+    quarterly = df[contrib_cols].resample("QE").last()
     quarterly_diff = quarterly.diff()
-    quarterly_diff = quarterly_diff.iloc[1:]  # 첫 행 NaN 제거
+    quarterly_diff = quarterly_diff.iloc[1:]
 
     if quarterly_diff.empty:
         st.info("분기별 기여도를 계산할 수 없습니다.")
         return
 
-    # 스택 바차트
     fig_contrib = go.Figure()
     quarter_labels = [f"{d.year}Q{(d.month - 1) // 3 + 1}" for d in quarterly_diff.index]
 
     for aid in asset_ids:
-        col = f"{aid}_value"
+        col = f"{aid}_contribution"
         if col not in quarterly_diff.columns:
             continue
-        values = quarterly_diff[col].values
         color = _get_asset_color(aid)
-
         fig_contrib.add_trace(
             go.Bar(
                 x=quarter_labels,
-                y=values,
+                y=quarterly_diff[col].values,
                 name=aid.upper(),
                 marker_color=color,
                 hovertemplate=f"{aid.upper()}: %{{y:+,.0f}}원<extra></extra>",
@@ -918,7 +930,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         )
 
     fig_contrib.update_layout(
-        title="분기별 자산 기여도 (평가액 변동분)",
+        title="분기별 자산 기여도 (실현+미실현 손익 변동분)",
         barmode="relative",
         height=_SUB_CHART_HEIGHT,
         xaxis_title="분기",
@@ -927,9 +939,93 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
     )
     st.plotly_chart(fig_contrib, width="stretch", key=f"contrib_bar_{exp.experiment_name}")
 
-    # 누적 기여도 면적 차트
+    # 누적 기여도 면적 차트 (실현+미실현 손익)
+    fig_cum = go.Figure()
+    for aid in asset_ids:
+        col = f"{aid}_contribution"
+        if col not in df.columns:
+            continue
+        color = _get_asset_color(aid)
+        r = int(color[1:3], 16)
+        g = int(color[3:5], 16)
+        b = int(color[5:7], 16)
+
+        fig_cum.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df[col],
+                mode="lines",
+                name=aid.upper(),
+                stackgroup="one",
+                line={"width": 0},
+                fillcolor=f"rgba({r}, {g}, {b}, 0.6)",
+                hovertemplate=f"{aid.upper()}: %{{y:+,.0f}}원<extra></extra>",
+            )
+        )
+
+    fig_cum.update_layout(
+        title="누적 자산별 기여도 (실현+미실현 손익)",
+        height=_SUB_CHART_HEIGHT,
+        xaxis_title="날짜",
+        yaxis_title="누적 기여 금액 (원)",
+        hovermode="x unified",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+    )
+    st.plotly_chart(fig_cum, width="stretch", key=f"contrib_cum_{exp.experiment_name}")
+
+    # 실현/미실현 분해 차트 (자산별 마지막 값 기준 수평 바)
+    final_row = equity_df.iloc[-1]
+    realized_vals = [float(final_row.get(f"{aid}_realized_pnl", 0)) for aid in asset_ids]
+    unrealized_vals = [float(final_row.get(f"{aid}_unrealized_pnl", 0)) for aid in asset_ids]
+    labels = [aid.upper() for aid in asset_ids]
+
+    fig_decomp = go.Figure()
+    fig_decomp.add_trace(
+        go.Bar(
+            y=labels,
+            x=realized_vals,
+            name="실현손익",
+            orientation="h",
+            marker_color="rgba(55, 128, 191, 0.8)",
+            hovertemplate="%{y}: %{x:+,.0f}원<extra>실현손익</extra>",
+        )
+    )
+    fig_decomp.add_trace(
+        go.Bar(
+            y=labels,
+            x=unrealized_vals,
+            name="미실현손익",
+            orientation="h",
+            marker_color="rgba(219, 64, 82, 0.8)",
+            hovertemplate="%{y}: %{x:+,.0f}원<extra>미실현손익</extra>",
+        )
+    )
+    fig_decomp.update_layout(
+        title="자산별 손익 분해 (최종일 기준)",
+        barmode="stack",
+        height=max(250, len(asset_ids) * 60 + 100),
+        xaxis_title="손익 (원)",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+    )
+    st.plotly_chart(fig_decomp, width="stretch", key=f"contrib_decomp_{exp.experiment_name}")
+
+
+def _render_contribution_section_legacy(exp: _ExperimentData, asset_ids: list[str]) -> None:
+    """기존 방식(value 기반) 자산별 수익 기여도 fallback."""
+    equity_df = exp.equity_df
+    value_cols = [f"{aid}_value" for aid in asset_ids if f"{aid}_value" in equity_df.columns]
+
+    if not value_cols:
+        st.info("자산별 평가액 데이터가 없습니다.")
+        return
+
+    st.caption("(PnL 컬럼 미존재 -- 기존 방식으로 표시)")
+
+    df = equity_df[["Date"] + value_cols].copy()
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.set_index("Date")
+
     cumulative = df[value_cols].copy()
-    # 각 자산의 초기값 대비 변동분
     for col in value_cols:
         cumulative[col] = cumulative[col] - cumulative[col].iloc[0]
 
@@ -964,7 +1060,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
-    st.plotly_chart(fig_cum, width="stretch", key=f"contrib_cum_{exp.experiment_name}")
+    st.plotly_chart(fig_cum, width="stretch", key=f"contrib_cum_legacy_{exp.experiment_name}")
 
 
 # ============================================================

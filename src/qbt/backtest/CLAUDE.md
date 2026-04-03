@@ -108,7 +108,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
 - `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json)
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price, {asset_id}_realized_pnl, {asset_id}_unrealized_pnl
 
 ### 7. engines/ 패키지
 

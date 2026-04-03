@@ -75,10 +75,13 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             equity_round[col] = ROUND_RATIO
         elif col.endswith("_avg_price"):
             equity_round[col] = ROUND_PRICE
+        elif col.endswith("_realized_pnl") or col.endswith("_unrealized_pnl"):
+            equity_round[col] = ROUND_CAPITAL
 
     equity_export = equity_export.round(equity_round)
-    # int 변환 (자본금 + 보유 주수)
-    for col in ["equity", "cash"] + [c for c in equity_export.columns if c.endswith("_value")]:
+    # int 변환 (자본금 + 보유 주수 + 손익)
+    pnl_cols = [c for c in equity_export.columns if c.endswith("_realized_pnl") or c.endswith("_unrealized_pnl")]
+    for col in ["equity", "cash"] + [c for c in equity_export.columns if c.endswith("_value")] + pnl_cols:
         if col in equity_export.columns:
             equity_export[col] = equity_export[col].astype(int)
     for col in [c for c in equity_export.columns if c.endswith("_shares")]:

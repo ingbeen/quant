@@ -247,6 +247,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     all_trades: list[Any] = []
     equity_rows: list[dict[str, Any]] = []
 
+    # 자산별 누적 실현손익 추적 (매도 후에도 기여 이력 유지)
+    cumulative_realized_pnl: dict[str, float] = {slot.asset_id: 0.0 for slot in config.asset_slots}
+
     # next_day_intents: 전일 생성된 merged intents → 당일 체결 대상
     next_day_intents: dict[str, OrderIntent] = {}
     # 전일 리밸런싱 결정 사유 (익일 체결 시 equity 행에 기록)
@@ -277,6 +280,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         entry_prices = exec_result.updated_entry_prices
         entry_dates = exec_result.updated_entry_dates
         entry_hold_days = exec_result.updated_entry_hold_days
+        # 누적 실현손익 업데이트 (체결된 거래의 pnl을 자산별로 누적)
+        for trade in exec_result.new_trades:
+            cumulative_realized_pnl[trade["asset_id"]] += trade["pnl"]
         all_trades.extend(exec_result.new_trades)
         rebalanced_today = exec_result.rebalanced_today
         # 전일 결정된 리밸런싱 사유 (체결된 경우에만 기록)
@@ -345,6 +351,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             row[f"{asset_id}_signal"] = st.signal_state
             row[f"{asset_id}_shares"] = st.position
             row[f"{asset_id}_avg_price"] = entry_prices[asset_id]
+            # 자산별 손익 추적 (매도 후에도 기여 이력 유지)
+            row[f"{asset_id}_realized_pnl"] = cumulative_realized_pnl[asset_id]
+            unrealized = (asset_closes_map[asset_id] - entry_prices[asset_id]) * st.position if st.position > 0 else 0.0
+            row[f"{asset_id}_unrealized_pnl"] = unrealized
         equity_rows.append(row)
 
     # 8. 결과 조합

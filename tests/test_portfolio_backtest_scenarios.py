@@ -736,3 +736,130 @@ class TestCacheKeyWithDifferentMAParams:
         assert result is not None, "캐시 키 충돌 없이 정상 실행되어야 함"
         assert isinstance(result.equity_df, pd.DataFrame)
         assert len(result.equity_df) > 0
+
+
+# ============================================================================
+# 자산별 실현/미실현 손익 컬럼 계약 테스트
+# ============================================================================
+
+
+class TestAssetPnlColumns:
+    """equity_df의 자산별 realized_pnl / unrealized_pnl 컬럼 계약 테스트."""
+
+    def test_pnl_columns_exist(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: equity_df에 자산별 _realized_pnl, _unrealized_pnl 컬럼이 존재함을 검증.
+
+        Given: GLD 100% 단일 자산 포트폴리오
+        When:  run_portfolio_backtest() 실행
+        Then:  gld_realized_pnl, gld_unrealized_pnl 컬럼 존재
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then
+        assert "gld_realized_pnl" in result.equity_df.columns
+        assert "gld_unrealized_pnl" in result.equity_df.columns
+
+    def test_pnl_zero_before_any_trade(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 거래 발생 전 realized_pnl과 unrealized_pnl 모두 0임을 검증.
+
+        Given: GLD 100% 포트폴리오, 초기 MA 워밍업 구간
+        When:  run_portfolio_backtest() 실행
+        Then:  첫 행에서 realized_pnl = 0, unrealized_pnl = 0
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: 첫 행은 아직 거래 발생 전
+        first_row = result.equity_df.iloc[0]
+        assert first_row["gld_realized_pnl"] == pytest.approx(0.0, abs=0.01)
+        assert first_row["gld_unrealized_pnl"] == pytest.approx(0.0, abs=0.01)
+
+    def test_realized_pnl_persists_after_sell(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 매도 후 realized_pnl이 유지되고 unrealized_pnl이 0이 됨을 검증.
+
+        Given: QQQ+TQQQ 50/50 포트폴리오, buy -> sell 시그널 전환
+        When:  run_portfolio_backtest() 실행
+        Then:  매도 후 realized_pnl != 0 (거래 발생), unrealized_pnl = 0 (포지션 없음)
+        """
+        # Given
+        stock_df = _make_stock_df_with_sell(n_rows=60)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+        tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", stock_df)
+
+        config = _make_portfolio_config(
+            asset_paths={
+                "qqq": (qqq_path, qqq_path),
+                "tqqq": (qqq_path, tqqq_path),
+            },
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.50, "tqqq": 0.50},
+            ma_window=5,
+            hold_days=0,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: 마지막 행 (매도 후 상태)
+        last_row = result.equity_df.iloc[-1]
+        # value = 0이면 포지션 없음 → unrealized_pnl = 0
+        if last_row["qqq_value"] == pytest.approx(0.0, abs=0.01):
+            assert last_row["qqq_unrealized_pnl"] == pytest.approx(0.0, abs=0.01), "포지션 없으면 unrealized_pnl = 0이어야 함"
+            # 거래가 있었으므로 realized_pnl은 0이 아님
+            assert last_row["qqq_realized_pnl"] != pytest.approx(0.0, abs=0.01), "매도 후 realized_pnl이 유지되어야 함"
+
+    def test_total_contribution_equals_realized_plus_unrealized(
+        self, tmp_path: Path, create_csv_file
+    ):  # type: ignore[no-untyped-def]
+        """
+        목적: realized_pnl + unrealized_pnl이 자산의 진정한 수익 기여도임을 검증.
+
+        Given: GLD 100% 포트폴리오, buy 시그널 발생 후 보유 중
+        When:  run_portfolio_backtest() 실행
+        Then:  보유 중일 때 unrealized_pnl = value - (avg_price * shares)
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # Then: 보유 중인 행에서 unrealized = value - cost_basis
+        holding_rows = equity_df[equity_df["gld_shares"] > 0]
+        if len(holding_rows) > 0:
+            row = holding_rows.iloc[-1]
+            cost_basis = row["gld_avg_price"] * row["gld_shares"]
+            expected_unrealized = row["gld_value"] - cost_basis
+            assert row["gld_unrealized_pnl"] == pytest.approx(expected_unrealized, abs=1.0)
