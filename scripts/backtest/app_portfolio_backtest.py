@@ -15,16 +15,25 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import DEFAULT_PORTFOLIO_EXPERIMENTS
-from qbt.common_constants import PORTFOLIO_RESULTS_DIR
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    PORTFOLIO_RESULTS_DIR,
+)
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
@@ -34,6 +43,19 @@ from qbt.common_constants import PORTFOLIO_RESULTS_DIR
 _CHART_HEIGHT = 500
 _SUB_CHART_HEIGHT = 300
 _SMALL_CHART_HEIGHT = 250
+_SIGNAL_CHART_HEIGHT = 500
+
+# --- 시그널 차트 색상 ---
+_COLOR_UP = "rgb(38, 166, 154)"
+_COLOR_DOWN = "rgb(239, 83, 80)"
+_COLOR_MA_LINE = "rgba(255, 152, 0, 0.9)"
+_COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.6)"
+_COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.6)"
+_COLOR_BUY_MARKER = "#26a69a"
+_COLOR_SELL_MARKER = "#ef5350"
+
+# --- 시그널 차트 줌 ---
+_DEFAULT_ZOOM_LEVEL = 99999
 
 # --- 성과 지표 테이블 컬럼 레이블 ---
 _COL_DISPLAY_NAME = "실험"
@@ -662,6 +684,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             trades_df=exp.trades_df,
             asset_id=selected_signal_asset,
             experiment_name=exp.experiment_name,
+            summary=exp.summary,
         )
     else:
         st.info("시그널 데이터가 없습니다.")
@@ -673,8 +696,174 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
 
 
 # ============================================================
-# 시그널 차트 (Plotly 캔들스틱)
+# 시그널 차트 (lightweight-charts 캔들스틱)
 # ============================================================
+
+
+def _find_asset_config(summary: dict[str, Any], asset_id: str) -> dict[str, Any] | None:
+    """summary.json의 portfolio_config.assets에서 해당 자산의 설정을 찾는다."""
+    config = summary.get("portfolio_config", {})
+    assets: list[dict[str, Any]] = config.get("assets", [])
+    for asset_cfg in assets:
+        if asset_cfg.get("asset_id") == asset_id:
+            return asset_cfg
+    return None
+
+
+def _compute_bands_for_signal(
+    signal_df: pd.DataFrame,
+    ma_col: str,
+    buy_buffer_zone_pct: float,
+    sell_buffer_zone_pct: float,
+) -> pd.DataFrame:
+    """signal_df에 상단/하단 밴드 컬럼을 추가한 복사본을 반환한다.
+
+    Args:
+        signal_df: 시그널 데이터 (ma_col 포함)
+        ma_col: 이동평균 컬럼명 (예: "ma_200")
+        buy_buffer_zone_pct: 매수 버퍼존 비율 (0.03 = 3%)
+        sell_buffer_zone_pct: 매도 버퍼존 비율 (0.05 = 5%)
+
+    Returns:
+        upper_band, lower_band 컬럼이 추가된 DataFrame 복사본
+    """
+    df = signal_df.copy()
+    df["upper_band"] = df[ma_col] * (1 + sell_buffer_zone_pct)
+    df["lower_band"] = df[ma_col] * (1 - buy_buffer_zone_pct)
+    return df
+
+
+def _detect_ma_col(signal_df: pd.DataFrame) -> str | None:
+    """signal_df에서 ma_* 컬럼을 탐지한다."""
+    ma_cols = [c for c in signal_df.columns if c.startswith("ma_")]
+    return ma_cols[0] if ma_cols else None
+
+
+def _build_portfolio_candle_data(
+    signal_df: pd.DataFrame,
+    ma_col: str | None,
+) -> list[dict[str, object]]:
+    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
+
+    customValues를 포함하여 tooltip에서 OHLC, 전일대비%, MA, 밴드를 표시한다.
+    """
+    has_upper_band = "upper_band" in signal_df.columns
+    has_lower_band = "lower_band" in signal_df.columns
+
+    # 전일종가 시리즈 (전일대비% 계산용)
+    prev_close = signal_df[COL_CLOSE].shift(1)
+
+    candle_data: list[dict[str, object]] = []
+    for i, row in enumerate(signal_df.itertuples(index=False)):
+        d: date = getattr(row, COL_DATE)
+        open_val = float(getattr(row, COL_OPEN))
+        high_val = float(getattr(row, COL_HIGH))
+        low_val = float(getattr(row, COL_LOW))
+        close_val = float(getattr(row, COL_CLOSE))
+
+        candle_entry: dict[str, object] = {
+            "time": d.strftime("%Y-%m-%d"),
+            "open": open_val,
+            "high": high_val,
+            "low": low_val,
+            "close": close_val,
+        }
+
+        # customValues 구성 (Record<string, string>)
+        cv: dict[str, str] = {}
+
+        # OHLC 가격
+        cv["open"] = f"{open_val:.2f}"
+        cv["high"] = f"{high_val:.2f}"
+        cv["low"] = f"{low_val:.2f}"
+        cv["close"] = f"{close_val:.2f}"
+
+        # 전일종가대비% (첫날 제외)
+        pc = prev_close.iloc[i]
+        if pd.notna(pc) and pc != 0:
+            pc_float = float(pc)
+            cv["open_pct"] = f"{(open_val / pc_float - 1) * 100:+.2f}"
+            cv["high_pct"] = f"{(high_val / pc_float - 1) * 100:+.2f}"
+            cv["low_pct"] = f"{(low_val / pc_float - 1) * 100:+.2f}"
+            cv["close_pct"] = f"{(close_val / pc_float - 1) * 100:+.2f}"
+
+        # MA
+        if ma_col and ma_col in signal_df.columns:
+            ma_val = getattr(row, ma_col)
+            if pd.notna(ma_val):
+                cv["ma"] = f"{ma_val:.2f}"
+
+        # 밴드
+        if has_upper_band:
+            upper_val = row.upper_band  # type: ignore[attr-defined]
+            if pd.notna(upper_val):
+                cv["upper"] = f"{float(upper_val):.2f}"
+        if has_lower_band:
+            lower_val = row.lower_band  # type: ignore[attr-defined]
+            if pd.notna(lower_val):
+                cv["lower"] = f"{float(lower_val):.2f}"
+
+        if cv:
+            candle_entry["customValues"] = cv
+
+        candle_data.append(candle_entry)
+
+    return candle_data
+
+
+def _build_lwc_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
+    """DataFrame의 특정 컬럼에서 lightweight-charts Line 시리즈 데이터를 생성한다."""
+    data: list[dict[str, object]] = []
+    for row in df.itertuples(index=False):
+        val = getattr(row, col)
+        if pd.notna(val):
+            d: date = getattr(row, COL_DATE)
+            data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
+    return data
+
+
+def _build_portfolio_markers(
+    trades_df: pd.DataFrame,
+    asset_id: str,
+) -> list[dict[str, object]]:
+    """해당 자산의 trades에서 Buy/Sell 마커를 생성한다."""
+    markers: list[dict[str, object]] = []
+    if trades_df.empty or "asset_id" not in trades_df.columns:
+        return markers
+
+    asset_trades = trades_df[trades_df["asset_id"] == asset_id]
+    if asset_trades.empty or "entry_date" not in asset_trades.columns:
+        return markers
+
+    for trade in asset_trades.itertuples(index=False):
+        entry_d = trade.entry_date
+        if pd.notna(entry_d) and pd.notna(trade.entry_price):
+            markers.append(
+                {
+                    "time": pd.Timestamp(entry_d).strftime("%Y-%m-%d"),
+                    "position": "belowBar",
+                    "color": _COLOR_BUY_MARKER,
+                    "shape": "arrowUp",
+                    "text": f"Buy ${trade.entry_price:.1f}",
+                    "size": 2,
+                }
+            )
+
+        exit_d = trade.exit_date
+        if pd.notna(exit_d) and pd.notna(trade.exit_price):
+            pnl_pct = float(trade.pnl_pct) * 100 if pd.notna(trade.pnl_pct) else 0.0
+            markers.append(
+                {
+                    "time": pd.Timestamp(exit_d).strftime("%Y-%m-%d"),
+                    "position": "aboveBar",
+                    "color": _COLOR_SELL_MARKER,
+                    "shape": "arrowDown",
+                    "text": f"Sell {pnl_pct:+.1f}%",
+                    "size": 2,
+                }
+            )
+
+    return markers
 
 
 def _render_signal_chart(
@@ -682,116 +871,146 @@ def _render_signal_chart(
     trades_df: pd.DataFrame,
     asset_id: str,
     experiment_name: str,
+    summary: dict[str, Any],
 ) -> None:
-    """Plotly 캔들스틱 + MA + 밴드 + 거래 마커를 표시한다.
+    """lightweight-charts 캔들스틱 + MA + 밴드 + Buy/Sell 마커를 표시한다.
 
     Args:
-        signal_df: 시그널 데이터 (OHLCV + ma_{N} + upper_band + lower_band)
+        signal_df: 시그널 데이터 (OHLCV + ma_{N})
         trades_df: 거래 내역 (asset_id 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
+        summary: summary.json 데이터 (자산별 buffer params 추출용)
     """
-    fig = go.Figure()
+    # 1. MA 컬럼 탐지
+    ma_col = _detect_ma_col(signal_df)
 
-    # 캔들스틱
-    if all(c in signal_df.columns for c in ("Open", "High", "Low", "Close")):
-        fig.add_trace(
-            go.Candlestick(
-                x=signal_df["Date"],
-                open=signal_df["Open"],
-                high=signal_df["High"],
-                low=signal_df["Low"],
-                close=signal_df["Close"],
-                name=asset_id.upper(),
-                increasing_line_color="rgb(38, 166, 154)",
-                decreasing_line_color="rgb(239, 83, 80)",
+    # 2. 밴드 계산 (buffer_zone 전략 자산만)
+    asset_config = _find_asset_config(summary, asset_id)
+    display_df = signal_df
+    if ma_col and asset_config and asset_config.get("strategy_id") == "buffer_zone":
+        buy_pct = float(asset_config.get("buy_buffer_zone_pct", 0.03))
+        sell_pct = float(asset_config.get("sell_buffer_zone_pct", 0.05))
+        display_df = _compute_bands_for_signal(signal_df, ma_col, buy_pct, sell_pct)
+
+    # 3. 데이터 준비
+    candle_data = _build_portfolio_candle_data(display_df, ma_col)
+    markers = _build_portfolio_markers(trades_df, asset_id)
+
+    # 4. 차트 테마
+    chart_theme: dict[str, object] = {
+        "layout": {
+            "background": {"color": "#131722"},
+            "textColor": "#D1D4DC",
+            "fontFamily": "Arial",
+            "fontSize": 12,
+        },
+        "grid": {
+            "vertLines": {"color": "#1e222d", "visible": True},
+            "horzLines": {"color": "#1e222d", "visible": True},
+        },
+        "crosshair": {
+            "mode": 0,
+            "vertLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
+            "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
+        },
+        "timeScale": {"minBarSpacing": 0.2},
+        "localization": {"dateFormat": "yyyy-MM-dd"},
+    }
+
+    # 5. 캔들스틱 시리즈 + 마커
+    candle_series: dict[str, object] = {
+        "type": "Candlestick",
+        "data": candle_data,
+        "options": {
+            "upColor": _COLOR_UP,
+            "downColor": _COLOR_DOWN,
+            "borderVisible": False,
+            "wickUpColor": _COLOR_UP,
+            "wickDownColor": _COLOR_DOWN,
+            "priceLineVisible": False,
+        },
+    }
+    if markers:
+        candle_series["markers"] = markers
+
+    pane_series: list[dict[str, object]] = [candle_series]
+
+    # 6. MA 오버레이
+    if ma_col:
+        ma_data = _build_lwc_series_data(display_df, ma_col)
+        if ma_data:
+            window = ma_col.removeprefix("ma_")
+            pane_series.append(
+                {
+                    "type": "Line",
+                    "data": ma_data,
+                    "options": {
+                        "color": _COLOR_MA_LINE,
+                        "lineWidth": 2,
+                        "priceLineVisible": False,
+                        "lastValueVisible": False,
+                        "crosshairMarkerVisible": False,
+                        "title": f"EMA-{window}",
+                    },
+                }
             )
-        )
 
-    # MA 라인 (ma_200 등)
-    ma_cols = [c for c in signal_df.columns if c.startswith("ma_")]
-    for ma_col in ma_cols:
-        window = ma_col.removeprefix("ma_")
-        fig.add_trace(
-            go.Scatter(
-                x=signal_df["Date"],
-                y=signal_df[ma_col],
-                mode="lines",
-                name=f"EMA-{window}",
-                line={"color": "rgba(255, 152, 0, 0.9)", "width": 1.5},
-                hovertemplate=f"%{{x|%Y-%m-%d}}<br>EMA-{window}: %{{y:.2f}}<extra></extra>",
+    # 7. 상단 밴드
+    if "upper_band" in display_df.columns:
+        upper_data = _build_lwc_series_data(display_df, "upper_band")
+        if upper_data:
+            pane_series.append(
+                {
+                    "type": "Line",
+                    "data": upper_data,
+                    "options": {
+                        "color": _COLOR_UPPER_BAND,
+                        "lineWidth": 2,
+                        "lineStyle": 2,
+                        "priceLineVisible": False,
+                        "lastValueVisible": False,
+                        "crosshairMarkerVisible": False,
+                    },
+                }
             )
-        )
 
-    # 상단 밴드
-    if "upper_band" in signal_df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=signal_df["Date"],
-                y=signal_df["upper_band"],
-                mode="lines",
-                name="상단 밴드",
-                line={"color": "rgba(33, 150, 243, 0.6)", "width": 1, "dash": "dash"},
-                hovertemplate="%{x|%Y-%m-%d}<br>상단 밴드: %{y:.2f}<extra></extra>",
+    # 8. 하단 밴드
+    if "lower_band" in display_df.columns:
+        lower_data = _build_lwc_series_data(display_df, "lower_band")
+        if lower_data:
+            pane_series.append(
+                {
+                    "type": "Line",
+                    "data": lower_data,
+                    "options": {
+                        "color": _COLOR_LOWER_BAND,
+                        "lineWidth": 2,
+                        "lineStyle": 2,
+                        "priceLineVisible": False,
+                        "lastValueVisible": False,
+                        "crosshairMarkerVisible": False,
+                    },
+                }
             )
-        )
 
-    # 하단 밴드
-    if "lower_band" in signal_df.columns:
-        fig.add_trace(
-            go.Scatter(
-                x=signal_df["Date"],
-                y=signal_df["lower_band"],
-                mode="lines",
-                name="하단 밴드",
-                line={"color": "rgba(244, 67, 54, 0.6)", "width": 1, "dash": "dash"},
-                hovertemplate="%{x|%Y-%m-%d}<br>하단 밴드: %{y:.2f}<extra></extra>",
-            )
-        )
+    # 9. 렌더링
+    chart_title = f"{asset_id.upper()} 시그널 차트"
+    pane = {
+        "chart": chart_theme,
+        "series": pane_series,
+        "height": _SIGNAL_CHART_HEIGHT,
+        "title": chart_title,
+    }
 
-    # 거래 마커 (해당 자산만 필터링)
-    if not trades_df.empty and "asset_id" in trades_df.columns:
-        asset_trades = trades_df[trades_df["asset_id"] == asset_id]
-
-        if not asset_trades.empty and "entry_date" in asset_trades.columns:
-            # 매수 마커
-            entry_df = asset_trades.dropna(subset=["entry_date", "entry_price"])
-            if not entry_df.empty:
-                fig.add_trace(
-                    go.Scatter(
-                        x=entry_df["entry_date"],
-                        y=entry_df["entry_price"],
-                        mode="markers",
-                        name="매수",
-                        marker={"symbol": "triangle-up", "color": "#26a69a", "size": 8},
-                        hovertemplate=("%{x|%Y-%m-%d}<br>매수: %{y:.2f}<extra></extra>"),
-                    )
-                )
-
-            # 매도 마커
-            exit_df = asset_trades.dropna(subset=["exit_date", "exit_price"])
-            if not exit_df.empty:
-                fig.add_trace(
-                    go.Scatter(
-                        x=exit_df["exit_date"],
-                        y=exit_df["exit_price"],
-                        mode="markers",
-                        name="매도",
-                        marker={"symbol": "triangle-down", "color": "#ef5350", "size": 8},
-                        hovertemplate=("%{x|%Y-%m-%d}<br>매도: %{y:.2f}<extra></extra>"),
-                    )
-                )
-
-    fig.update_layout(
-        title=f"{asset_id.upper()} 시그널 차트",
-        xaxis_title="날짜",
-        yaxis_title="가격",
-        height=_CHART_HEIGHT,
-        xaxis_rangeslider_visible=False,
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        hovermode="x unified",
+    lightweight_charts_v5_component(
+        name=f"portfolio_signal_{experiment_name}_{asset_id}",
+        charts=[pane],
+        height=_SIGNAL_CHART_HEIGHT,
+        zoom_level=_DEFAULT_ZOOM_LEVEL,
+        scroll_padding=60,
+        key=f"signal_chart_{experiment_name}_{asset_id}",
     )
-    st.plotly_chart(fig, width="stretch", key=f"signal_chart_{experiment_name}_{asset_id}")
 
 
 # ============================================================

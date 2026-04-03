@@ -159,13 +159,8 @@ DEFAULT_PORTFOLIO_EXPERIMENTS: Final[list[str]] = [
     "portfolio_d2",
     "portfolio_e2",
     "portfolio_f1",
-    # 추가 (F 시리즈 확장: TQQQ 25~35% 구간, GLD/TLT BZ vs B&H 팩토리얼)
-    "portfolio_f5",
-    "portfolio_f5h",
     "portfolio_f6",
     "portfolio_f6h",
-    "portfolio_f7",
-    "portfolio_f7h",
 ]
 
 # ============================================================
