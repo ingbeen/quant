@@ -249,6 +249,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
     # next_day_intents: 전일 생성된 merged intents → 당일 체결 대상
     next_day_intents: dict[str, OrderIntent] = {}
+    # 전일 리밸런싱 결정 사유 (익일 체결 시 equity 행에 기록)
+    next_day_rebalance_reason: str = ""
 
     # 6. 메인 루프: 전일 intents 체결 → 당일 에쿼티 → 당일 signal → projected → rebalance → merge
     # 신호와 체결을 하루씩 분리(Lookahead 방지): i일 종가 시그널 → i+1일 시가 체결
@@ -277,6 +279,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         entry_hold_days = exec_result.updated_entry_hold_days
         all_trades.extend(exec_result.new_trades)
         rebalanced_today = exec_result.rebalanced_today
+        # 전일 결정된 리밸런싱 사유 (체결된 경우에만 기록)
+        rebalance_reason_today = next_day_rebalance_reason if rebalanced_today else ""
 
         # Step C: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
         # 체결 후에 계산해야 리밸런싱 판정 시 목표 비중 편차가 정확히 반영된다
@@ -308,8 +312,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             rebalance_intents = DEFAULT_REBALANCE_POLICY.build_rebalance_intents(
                 projected, slot_dict, total_equity_projected, current_date
             )
+            next_day_rebalance_reason = "monthly" if is_month_start else "daily"
         else:
             rebalance_intents = {}
+            next_day_rebalance_reason = ""
 
         # D.4: signal + rebalance 통합 (우선순위 규칙 적용, 자산당 1개 보장)
         merged_intents = merge_intents(signal_intents, rebalance_intents)
@@ -324,18 +330,21 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         # D.6: 익일 체결용 intents 저장
         next_day_intents = merged_intents
 
-        # Step E: 에쿼티 행 기록 (자산별 value/weight/signal 포함)
+        # Step E: 에쿼티 행 기록 (자산별 value/weight/signal/shares/avg_price 포함)
         row: dict[str, Any] = {
             COL_DATE: current_date,
             COL_EQUITY: current_equity,
             "cash": shared_cash,
             "rebalanced": rebalanced_today,
+            "rebalance_reason": rebalance_reason_today,
         }
         for asset_id, st in asset_states.items():
             val = st.position * asset_closes_map[asset_id]
             row[f"{asset_id}_value"] = val
             row[f"{asset_id}_weight"] = val / (current_equity + EPSILON)
             row[f"{asset_id}_signal"] = st.signal_state
+            row[f"{asset_id}_shares"] = st.position
+            row[f"{asset_id}_avg_price"] = entry_prices[asset_id]
         equity_rows.append(row)
 
     # 8. 결과 조합

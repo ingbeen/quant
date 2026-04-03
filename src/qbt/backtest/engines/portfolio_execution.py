@@ -108,6 +108,9 @@ def execute_orders(
             sell_price, sell_amount, pnl, pnl_pct = execute_sell_order(open_price, shares_sold, e_price)
             cash += sell_amount
 
+            pre_shares = position
+            post_shares_val = position - shares_sold
+
             assert e_date is not None, "position > 0이면 entry_date는 항상 존재해야 함"
             trade_record: PortfolioTradeRecord = {
                 COL_ENTRY_DATE: e_date,
@@ -121,10 +124,13 @@ def execute_orders(
                 "hold_days_used": e_hold_days.get(asset_id, 0),
                 "asset_id": asset_id,
                 "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
+                "pre_shares": pre_shares,
+                "post_shares": post_shares_val,
+                "order_amount": sell_amount,
             }
             new_trades.append(trade_record)
 
-            positions[asset_id] = position - shares_sold
+            positions[asset_id] = post_shares_val
 
             # 전량 매도(position=0)인 경우에만 진입 정보 초기화
             if positions[asset_id] == 0:

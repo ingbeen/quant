@@ -16,25 +16,33 @@
       "asset_id": "spy",
       "target_weight": 0.3,
       "total_trades": 40,
-      "win_rate": 92.5
+      "win_rate": 92.5,
+      "final_shares": 78627,
+      "final_avg_price": 594.214591
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.3,
       "total_trades": 72,
-      "win_rate": 91.67
+      "win_rate": 91.67,
+      "final_shares": 1087948,
+      "final_avg_price": 36.554019
     },
     {
       "asset_id": "gld",
       "target_weight": 0.2,
       "total_trades": 49,
-      "win_rate": 85.71
+      "win_rate": 85.71,
+      "final_shares": 72658,
+      "final_avg_price": 194.124047
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.2,
       "total_trades": 39,
-      "win_rate": 79.49
+      "win_rate": 79.49,
+      "final_shares": 401830,
+      "final_avg_price": 87.950908
     }
   ],
   "portfolio_config": {

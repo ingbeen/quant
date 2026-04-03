@@ -16,7 +16,9 @@
       "asset_id": "qqq",
       "target_weight": 1.0,
       "total_trades": 10,
-      "win_rate": 80.0
+      "win_rate": 80.0,
+      "final_shares": 180578,
+      "final_avg_price": 519.706317
     }
   ],
   "portfolio_config": {

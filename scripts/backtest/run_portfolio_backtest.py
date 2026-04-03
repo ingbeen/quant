@@ -73,12 +73,16 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             equity_round[col] = ROUND_CAPITAL
         elif col.endswith("_weight"):
             equity_round[col] = ROUND_RATIO
+        elif col.endswith("_avg_price"):
+            equity_round[col] = ROUND_PRICE
 
     equity_export = equity_export.round(equity_round)
-    # int 변환 (자본금)
+    # int 변환 (자본금 + 보유 주수)
     for col in ["equity", "cash"] + [c for c in equity_export.columns if c.endswith("_value")]:
         if col in equity_export.columns:
             equity_export[col] = equity_export[col].astype(int)
+    for col in [c for c in equity_export.columns if c.endswith("_shares")]:
+        equity_export[col] = equity_export[col].astype(int)
 
     equity_export.to_csv(equity_path, index=False)
     logger.debug(f"에쿼티 데이터 저장 완료: {equity_path}")
@@ -143,12 +147,24 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
                 ROUND_PERCENT,
             )
 
+        # 최종일 기준 보유 정보 (equity_df에서 추출)
+        final_shares = 0
+        final_avg_price = 0.0
+        shares_col = f"{asset_result.asset_id}_shares"
+        avg_price_col = f"{asset_result.asset_id}_avg_price"
+        if shares_col in result.equity_df.columns and not result.equity_df.empty:
+            final_shares = int(result.equity_df[shares_col].iloc[-1])
+        if avg_price_col in result.equity_df.columns and not result.equity_df.empty:
+            final_avg_price = round(float(result.equity_df[avg_price_col].iloc[-1]), ROUND_PRICE)
+
         per_asset_data.append(
             {
                 "asset_id": asset_result.asset_id,
                 "target_weight": round(slot.target_weight, ROUND_RATIO) if slot else 0.0,
                 "total_trades": total_asset_trades,
                 "win_rate": win_rate,
+                "final_shares": final_shares,
+                "final_avg_price": final_avg_price,
             }
         )
 

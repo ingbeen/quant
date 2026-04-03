@@ -108,7 +108,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
 - `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json)
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, rebalanced
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price
 
 ### 7. engines/ 패키지
 
@@ -130,7 +130,7 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, {asset_id}_value, {asset_id}
 
 - `PendingOrder`: 예약 주문 (order_type, signal_date). 신호일과 체결일 분리
 - `TradeRecord`: 거래 기록 TypedDict. buy_buffer_pct, hold_days_used 포함 (CSV 호환)
-- `PortfolioTradeRecord(TradeRecord)`: 포트폴리오 전용 거래 기록. TradeRecord를 확장하여 asset_id, trade_type 필드 추가
+- `PortfolioTradeRecord(TradeRecord)`: 포트폴리오 전용 거래 기록. TradeRecord를 확장하여 asset_id, trade_type, pre_shares, post_shares, order_amount 필드 추가
 - `EquityRecord`: equity 기록 TypedDict. Date, equity, position만 포함
 
 공통 함수 (순수 계산 함수 — 상태 변경 없음):

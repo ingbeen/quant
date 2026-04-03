@@ -58,6 +58,9 @@ class PortfolioTradeRecord(TradeRecord):
 
     asset_id: str
     trade_type: str  # "signal" | "rebalance"
+    pre_shares: int  # 체결 전 보유 주수
+    post_shares: int  # 체결 후 보유 주수
+    order_amount: float  # 체결 금액 (주수 x 체결가)
 
 
 # ============================================================================

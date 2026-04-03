@@ -16,7 +16,9 @@
       "asset_id": "tqqq",
       "target_weight": 1.0,
       "total_trades": 10,
-      "win_rate": 70.0
+      "win_rate": 70.0,
+      "final_shares": 23666629,
+      "final_avg_price": 35.472617
     }
   ],
   "portfolio_config": {
