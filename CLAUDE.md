@@ -86,16 +86,23 @@ quant/
 │   │   ├── walkforward.py        # 워크포워드 검증(WFO) 비즈니스 로직
 │   │   ├── parameter_stability.py # 파라미터 고원 분석
 │   │   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
-│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (9가지 실험)
+│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (A~H 시리즈)
 │   │   ├── runners.py            # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
+│   │   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
+│   │   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)
 │   │   ├── strategies/           # 전략 클래스 (SignalStrategy Protocol 기반)
-│   │   │   ├── strategy_common.py  # SignalStrategy Protocol, HoldState, 신호 계산 함수
-│   │   │   ├── buffer_zone.py      # 버퍼존 통합 전략
-│   │   │   └── buy_and_hold.py     # Buy & Hold 벤치마크 전략
+│   │   │   ├── strategy_common.py      # SignalStrategy Protocol, HoldState, 신호 계산 함수
+│   │   │   ├── buffer_zone_helpers.py  # 밴드 계산, 매수/매도 시그널 감지
+│   │   │   ├── buffer_zone.py          # 버퍼존 통합 전략
+│   │   │   └── buy_and_hold.py         # Buy & Hold 벤치마크 전략
 │   │   └── engines/              # 백테스트 엔진
-│   │       ├── engine_common.py    # 공통 체결/equity 기록 함수 (execute_buy/sell_order)
-│   │       ├── backtest_engine.py  # 단일 자산 백테스트 엔진 + 그리드 서치
-│   │       └── portfolio_engine.py # 포트폴리오 백테스트 엔진 (이중 트리거 리밸런싱)
+│   │       ├── engine_common.py       # 공통 체결/equity 기록 함수 (execute_buy/sell_order)
+│   │       ├── backtest_engine.py     # 단일 자산 백테스트 엔진 + 그리드 서치
+│   │       ├── portfolio_engine.py    # 포트폴리오 백테스트 엔진 (facade)
+│   │       ├── portfolio_planning.py  # 주문 의도(OrderIntent) 생성 및 시그널 흐름
+│   │       ├── portfolio_rebalance.py # 이중 트리거 리밸런싱 로직
+│   │       ├── portfolio_execution.py # SELL→BUY 체결 실행
+│   │       └── portfolio_data.py      # 포트폴리오 데이터 로딩 및 검증
 │   ├── tqqq/          # 레버리지 ETF 시뮬레이션
 │   │   ├── constants.py        # 시뮬레이션 전용 상수
 │   │   ├── simulation.py       # 시뮬레이션 엔진 (코어)
@@ -134,6 +141,7 @@ quant/
         │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
         │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
         │   └── param_plateau/         # 파라미터 고원 분석 결과 (hold_days/sell/buy/ma 통합)
+        ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더)
         └── tqqq/              # TQQQ 시뮬레이션 결과
             └── spread_lab/  # 스프레드 모델 검증 결과
 ```

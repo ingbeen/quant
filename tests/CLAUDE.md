@@ -51,6 +51,8 @@ tests/
 ├── test_tqqq_simulation_outputs.py    # TQQQ 출력 테스트 (검증 지표, CSV 저장)
 ├── test_tqqq_spread_lab_helpers.py # TQQQ Spread Lab 앱 전용 함수 테스트
 ├── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
+├── test_strategy_interface.py # SignalStrategy Protocol 인터페이스 테스트
+├── test_strategy_registry.py # 전략 레지스트리 테스트
 ├── test_stock_downloader.py # 주식 데이터 다운로드/검증 테스트
 └── test_wfo_stitched.py # WFO CSV 로딩/build_params_schedule 연결 테스트
 
@@ -98,13 +100,13 @@ poetry run python validate_project.py --cov
 
 ```bash
 # 특정 모듈만 실행
-poetry run pytest tests/test_buffer_zone_helpers.py -v
+poetry run pytest tests/test_buffer_zone_run.py -v
 
 # 특정 클래스만 실행
-poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy -v
+poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy -v
 
 # 특정 테스트만 실행
-poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
+poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
@@ -168,6 +170,8 @@ poetry run pytest tests/test_xxx.py -s -vv
 - [test_formatting.py](test_formatting.py)
 - [test_logger.py](test_logger.py)
 - [test_numpy_warnings.py](test_numpy_warnings.py)
+- [test_strategy_interface.py](test_strategy_interface.py)
+- [test_strategy_registry.py](test_strategy_registry.py)
 
 ---
 

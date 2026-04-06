@@ -44,7 +44,7 @@ poetry run python scripts/data/download_data.py QQQ
 
 # 2. 단일 전략 검증 + 결과 저장
 # 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_spy / ... / buy_and_hold_qqq 등, 기본값: all)
+# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_tlt / ... / buy_and_hold_qqq 등, 기본값: all)
 poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
 
@@ -162,10 +162,10 @@ poetry run python validate_project.py --only-pyright
 
 ```bash
 # 특정 모듈만 테스트
-poetry run pytest tests/test_buffer_zone_helpers.py -v
+poetry run pytest tests/test_buffer_zone_run.py -v
 
 # 특정 클래스만 테스트
-poetry run pytest tests/test_buffer_zone_helpers.py::TestRunBufferStrategy -v
+poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
@@ -233,9 +233,13 @@ quant/
 │   │   │   ├── buffer_zone.py       # BufferZoneStrategy (stateful, 내부 prev 상태 관리)
 │   │   │   └── buy_and_hold.py      # BuyAndHoldStrategy (stateless)
 │   │   └── engines/               # 엔진 계층 (전략 의존성 없음)
-│   │       ├── engine_common.py     # PendingOrder, TradeRecord, execute_buy/sell_order
-│   │       ├── backtest_engine.py   # 단일 백테스트 + 그리드 서치
-│   │       └── portfolio_engine.py  # 포트폴리오 백테스트 엔진
+│   │       ├── engine_common.py       # PendingOrder, TradeRecord, execute_buy/sell_order
+│   │       ├── backtest_engine.py     # 단일 백테스트 + 그리드 서치
+│   │       ├── portfolio_engine.py    # 포트폴리오 백테스트 엔진 (facade)
+│   │       ├── portfolio_planning.py  # 주문 의도 생성 및 시그널 흐름
+│   │       ├── portfolio_rebalance.py # 이중 트리거 리밸런싱
+│   │       ├── portfolio_execution.py # SELL→BUY 체결 실행
+│   │       └── portfolio_data.py      # 포트폴리오 데이터 로딩
 │   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
 │   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소

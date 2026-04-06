@@ -101,7 +101,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="ema"`
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, result_dir)
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)는 슬롯 레벨(AssetSlotConfig)로 이동.
-  - 리밸런싱 정책은 엔진 레벨의 `_DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며 PortfolioConfig에서 제거됨.
+  - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며 PortfolioConfig에서 제거됨.
 
 결과 데이터클래스:
 
@@ -118,7 +118,7 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason
 포트폴리오 엔진은 책임 단위로 4개 모듈로 분리되어 있다:
 - `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
 - `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 월 첫 거래일 판정 함수
-- `portfolio_execution.py`: 자산 상태(_AssetState), SELL→BUY 순 체결 함수
+- `portfolio_execution.py`: 체결 결과(ExecutionResult), SELL→BUY 순 체결 함수
 - `portfolio_data.py`: 데이터 로딩/검증, 에쿼티 DataFrame 빌드 함수
 - `portfolio_engine.py`: facade (공개 API 2개 + 내부 헬퍼: `_load_portfolio_data_with_common_period`, `compute_portfolio_effective_start_date`, `run_portfolio_backtest`)
 
@@ -162,37 +162,37 @@ TypedDict:
 포트폴리오 백테스트 엔진을 제공한다.
 복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
 
-내부 데이터클래스:
+데이터클래스 (각 하위 모듈에 정의, portfolio_engine.py가 import하여 사용):
 
-- `OrderIntent`: 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
+- `OrderIntent` (portfolio_planning.py): 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
   - intent_type: `EXIT_ALL` (signal sell 전량 청산) / `ENTER_TO_TARGET` (signal buy 신규 진입) / `REDUCE_TO_TARGET` (rebalance 초과분 매도) / `INCREASE_TO_TARGET` (rebalance 미달분 매수)
-- `_ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets)
+- `ProjectedPortfolio` (portfolio_planning.py): signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets)
   - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
   - ENTER_TO_TARGET 자산은 active_assets에 추가 (position=0이므로 amount=0 유지)
-- `_AssetState`: 자산별 런타임 상태 (position, signal_state)
-- `_ExecutionResult`: `_execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
-- `RebalancePolicy`: 이중 트리거 리밸런싱 정책 (frozen=True)
+- `AssetState` (portfolio_types.py): 자산별 런타임 상태 (position, signal_state)
+- `ExecutionResult` (portfolio_execution.py): `execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
+- `RebalancePolicy` (portfolio_rebalance.py): 이중 트리거 리밸런싱 정책 (frozen=True)
   - `monthly_threshold_rate`: 월 첫 거래일 임계값 (기본 0.10 = 10%)
   - `daily_threshold_rate`: 매일 긴급 임계값 (기본 0.20 = 20%)
   - `get_threshold(is_month_start) -> float`: 해당 거래일 기준 임계값 반환
   - `should_rebalance(projected, slot_dict, total_equity_projected, is_month_start) -> bool`: 임계값 초과 여부 판정
   - `build_rebalance_intents(projected, slot_dict, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성)
-- `_DEFAULT_REBALANCE_POLICY`: 기본 RebalancePolicy 인스턴스 (monthly=0.10, daily=0.20). `run_portfolio_backtest`에서 사용
+- `DEFAULT_REBALANCE_POLICY` (portfolio_rebalance.py): 기본 RebalancePolicy 인스턴스 (monthly=0.10, daily=0.20). `run_portfolio_backtest`에서 사용
 
-주문 흐름 함수:
+주문 흐름 함수 (portfolio_planning.py / portfolio_execution.py):
 
-- `_generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
-- `_compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> _ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
-- `_merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
-- `_execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> _ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
+- `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
+- `compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
+- `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
+- `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
 
-공개 함수:
+공개 함수 (portfolio_engine.py facade + 하위 모듈):
 
 - `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
-- `_is_first_trading_day_of_month(trade_dates, i) -> bool`: 월 첫 거래일 판정
-- `_compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float`: 에쿼티 산식 계산
-- `_create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy`: STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)
+- `is_first_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 월 첫 거래일 판정
+- `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
+- `create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy` (portfolio_planning.py): STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)
 
 설계 특징:
 
@@ -200,7 +200,7 @@ TypedDict:
 - 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
-- 이중 트리거 리밸런싱: `_DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 첫날 10% / 매일 20% 긴급 트리거
+- 이중 트리거 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 첫날 10% / 매일 20% 긴급 트리거
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
 - projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
 - 부분 매도: REDUCE_TO_TARGET은 delta_amount 기준 수량, EXIT_ALL은 전량
@@ -351,7 +351,7 @@ export 심볼: `BufferZoneConfig`, `resolve_params_for_config`, `BufferStrategyP
 
 PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직접 import한다 (re-export 하지 않음).
 
-### 10. runners.py
+### 11. runners.py
 
 전략 설정(Config)을 받아 실행 가능한 Callable을 반환하는 팩토리 함수를 제공합니다.
 `buffer_zone.py`와 `backtest_engine.py` 사이의 순환 의존성을 해소하기 위해 분리된 모듈입니다.

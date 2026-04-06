@@ -54,6 +54,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 
 - `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
 - `"backtest_walkforward"`: 백테스트 워크포워드 검증
+- `"portfolio_backtest"`: 포트폴리오 백테스트 결과
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
 
