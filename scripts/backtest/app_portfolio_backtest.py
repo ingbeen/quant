@@ -531,7 +531,7 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
             delta_shares = int(row["delta_shares"])
             delta_value = int(row["delta_value"])
 
-            # 리밸런싱 사유 변환
+            # 체결 사유 변환
             reason = str(row.get("rebalance_reason", ""))
             if reason == "nan":
                 reason = ""
@@ -540,11 +540,8 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
                 reason_text = "월초 정기"
             elif reason == "daily":
                 reason_text = "긴급"
-
-            # 거래 내역 (NaN 처리)
-            trade_info = str(row.get("trade_info", ""))
-            if trade_info == "nan":
-                trade_info = ""
+            else:
+                reason_text = "시그널"
 
             display_rows.append(
                 {
@@ -559,7 +556,6 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
                     "당일 평가액": f"{int(row['post_value']):,}",
                     "주수 변동": "-" if is_cash else (f"{delta_shares:+d}" if delta_shares != 0 else "-"),
                     "금액 변동": f"{delta_value:+,}" if delta_value != 0 else "-",
-                    "거래 내역": trade_info if trade_info else "-",
                 }
             )
 

@@ -53,12 +53,12 @@ def _build_execution_comparison_df(
 ) -> pd.DataFrame:
     """모든 체결일의 전후 비교 데이터를 생성한다.
 
-    equity_df와 trades_df를 교차 참조하여, 체결 발생일(exit_date)마다
+    trades_df에서 체결 발생일(exit_date)을 추출하고, equity_df에서
     자산별 전일/당일 보유수, 비중, 평가액 변화를 계산한다.
 
     Args:
         equity_df: 포트폴리오 에쿼티 DataFrame (Date, equity, cash, {asset}_shares 등)
-        trades_df: 포트폴리오 거래 내역 DataFrame (exit_date, asset_id, trade_type, shares 등)
+        trades_df: 포트폴리오 거래 내역 DataFrame (체결일 목록 추출용, exit_date 필수)
 
     Returns:
         체결 전후 비교 DataFrame (date x asset_id 행). 거래가 없으면 빈 DataFrame.
@@ -99,9 +99,6 @@ def _build_execution_comparison_df(
             if pd.notna(val):
                 rebalance_reason = str(val)
 
-        # 해당일 거래 내역
-        day_trades = trades_df[trades_df["exit_date"] == trade_date]
-
         # 4. 자산별 행
         for asset_id in asset_ids:
             shares_col = f"{asset_id}_shares"
@@ -115,17 +112,6 @@ def _build_execution_comparison_df(
             pre_value = int(prev_row.get(value_col, 0)) if value_col in equity_df.columns else 0
             post_value = int(current_row.get(value_col, 0)) if value_col in equity_df.columns else 0
 
-            # 거래 내역 텍스트
-            trade_info = ""
-            if "asset_id" in day_trades.columns:
-                asset_day_trades = day_trades[day_trades["asset_id"] == asset_id]
-                for _, t in asset_day_trades.iterrows():
-                    tt = str(t.get("trade_type", ""))
-                    s = int(t.get("shares", 0))
-                    label = "매도" if tt == "signal" else "리밸런싱"
-                    trade_info += f"{label} {s}주 "
-                trade_info = trade_info.strip()
-
             rows.append(
                 {
                     "date": date_str,
@@ -138,7 +124,6 @@ def _build_execution_comparison_df(
                     "post_value": post_value,
                     "delta_shares": post_shares - pre_shares,
                     "delta_value": post_value - pre_value,
-                    "trade_info": trade_info,
                     "rebalance_reason": rebalance_reason,
                 }
             )
@@ -163,7 +148,6 @@ def _build_execution_comparison_df(
                 "post_value": post_cash,
                 "delta_shares": 0,
                 "delta_value": post_cash - pre_cash,
-                "trade_info": "",
                 "rebalance_reason": rebalance_reason,
             }
         )
