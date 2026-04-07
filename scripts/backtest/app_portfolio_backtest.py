@@ -1555,19 +1555,24 @@ def _build_portfolio_markers(
     if asset_trades.empty or "entry_date" not in asset_trades.columns:
         return markers
 
+    # 분할 매도 시 동일 entry_date가 여러 행에 반복되므로, Buy 마커는 진입일당 1회만 생성
+    seen_entry_dates: set[str] = set()
     for trade in asset_trades.itertuples(index=False):
         entry_d = trade.entry_date
         if pd.notna(entry_d) and pd.notna(trade.entry_price):
-            markers.append(
-                {
-                    "time": pd.Timestamp(entry_d).strftime("%Y-%m-%d"),
-                    "position": "belowBar",
-                    "color": _COLOR_BUY_MARKER,
-                    "shape": "arrowUp",
-                    "text": f"Buy ${trade.entry_price:.1f}",
-                    "size": 2,
-                }
-            )
+            entry_key = pd.Timestamp(entry_d).strftime("%Y-%m-%d")
+            if entry_key not in seen_entry_dates:
+                seen_entry_dates.add(entry_key)
+                markers.append(
+                    {
+                        "time": entry_key,
+                        "position": "belowBar",
+                        "color": _COLOR_BUY_MARKER,
+                        "shape": "arrowUp",
+                        "text": f"Buy ${trade.entry_price:.1f}",
+                        "size": 2,
+                    }
+                )
 
         exit_d = trade.exit_date
         if pd.notna(exit_d) and pd.notna(trade.exit_price):
