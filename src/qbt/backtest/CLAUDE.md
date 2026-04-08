@@ -112,6 +112,15 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason
 
 state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_start, rebalanced, rebalance_reason, {aid}_close, {aid}_shares, {aid}_weight, {aid}_signal_today, {aid}_pending_intent, {aid}_pending_reason, {aid}_pending_delta, {aid}_executed_intent, {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price
 
+### 6-1. portfolio_validation.py
+
+PortfolioResult에 대한 5개 정합성 규칙 검증을 제공한다. `run_portfolio_backtest.py`에서 각 실험 실행 직후 호출되어 위반 시 WARNING 로그를 남긴다.
+
+주요 함수:
+- `validate_portfolio_result(result) -> list[str]`: 5개 규칙 검증, 위반 메시지 리스트 반환
+
+검증 규칙: 시그널-체결 1일 lag, 리밸런싱 비중 정합성, EXIT_ALL 주수 0, 현금 비음수, 에쿼티 등식
+
 ### 7. engines/ 패키지
 
 백테스트 엔진을 엔진 공통 로직 / 단일 백테스트 엔진 / 포트폴리오 엔진으로 분리한 패키지입니다.

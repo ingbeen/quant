@@ -27,6 +27,7 @@ from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import PortfolioResult
+from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
     COL_CLOSE,
     COL_HIGH,
@@ -436,8 +437,20 @@ def main() -> int:
         logger.debug(f"실험 시작: {config.experiment_name} ({config.display_name})")
         result = run_portfolio_backtest(config, start_date=global_start_date)
         _print_summary(result)
+
+        # 정합성 자동 검증 (5개 규칙) -- 위반 시 결과 저장 후 스크립트 중지
+        violations = validate_portfolio_result(result)
         _save_portfolio_results(result)
         logger.debug(f"{config.display_name} 결과 파일 저장 완료: {config.result_dir}")
+
+        if violations:
+            for v in violations:
+                logger.error(f"  {v}")
+            raise ValueError(
+                f"[{config.experiment_name}] 정합성 검증 위반 {len(violations)}건 발견. "
+                f"상세 내역은 위 로그를 확인하세요."
+            )
+        logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (5개 규칙 모두 정상)")
 
     return 0
 
