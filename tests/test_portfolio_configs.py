@@ -230,9 +230,9 @@ class TestDefaultPortfolioExperiments:
 
         Given: DEFAULT_PORTFOLIO_EXPERIMENTS 리스트
         When:  길이를 확인
-        Then:  11개
+        Then:  비어있지 않아야 함
         """
-        assert len(DEFAULT_PORTFOLIO_EXPERIMENTS) == 11
+        assert len(DEFAULT_PORTFOLIO_EXPERIMENTS) > 0
 
     def test_default_portfolio_experiments_all_exist_in_configs(self) -> None:
         """

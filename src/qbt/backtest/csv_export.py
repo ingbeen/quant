@@ -9,9 +9,14 @@ from __future__ import annotations
 import pandas as pd
 
 from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
     COL_ENTRY_DATE,
+    COL_ENTRY_PRICE,
     COL_EXIT_DATE,
+    COL_EXIT_PRICE,
+    COL_HOLDING_DAYS,
     COL_PNL,
+    COL_PNL_PCT,
     ROUND_CAPITAL,
     ROUND_PRICE,
     ROUND_RATIO,
@@ -37,20 +42,20 @@ def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
 
     # holding_days 추가
     if COL_ENTRY_DATE in export.columns and COL_EXIT_DATE in export.columns:
-        export["holding_days"] = export.apply(lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1)
+        export[COL_HOLDING_DAYS] = export.apply(lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1)
 
     # 반올림 규칙 적용
     round_dict: dict[str, int] = {}
-    if "entry_price" in export.columns:
-        round_dict["entry_price"] = ROUND_PRICE
-    if "exit_price" in export.columns:
-        round_dict["exit_price"] = ROUND_PRICE
+    if COL_ENTRY_PRICE in export.columns:
+        round_dict[COL_ENTRY_PRICE] = ROUND_PRICE
+    if COL_EXIT_PRICE in export.columns:
+        round_dict[COL_EXIT_PRICE] = ROUND_PRICE
     if COL_PNL in export.columns:
         round_dict[COL_PNL] = ROUND_CAPITAL
-    if "pnl_pct" in export.columns:
-        round_dict["pnl_pct"] = ROUND_RATIO
-    if "buy_buffer_pct" in export.columns:
-        round_dict["buy_buffer_pct"] = ROUND_RATIO
+    if COL_PNL_PCT in export.columns:
+        round_dict[COL_PNL_PCT] = ROUND_RATIO
+    if COL_BUY_BUFFER_PCT in export.columns:
+        round_dict[COL_BUY_BUFFER_PCT] = ROUND_RATIO
 
     export = export.round(round_dict)
 

@@ -25,7 +25,9 @@ import pandas as pd
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
     COL_LOWER_BAND,
+    COL_SELL_BUFFER_PCT,
     COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
     ma_col_name,
@@ -85,8 +87,8 @@ def _enrich_equity_with_bands(
     bands = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct))
     band_df[COL_UPPER_BAND] = bands.apply(lambda b: b[0])
     band_df[COL_LOWER_BAND] = bands.apply(lambda b: b[1])
-    band_df["buy_buffer_pct"] = buy_buffer_pct
-    band_df["sell_buffer_pct"] = sell_buffer_pct
+    band_df[COL_BUY_BUFFER_PCT] = buy_buffer_pct
+    band_df[COL_SELL_BUFFER_PCT] = sell_buffer_pct
     band_df = band_df.drop(columns=[ma_col])
 
     # equity_df에 Date 기준으로 join

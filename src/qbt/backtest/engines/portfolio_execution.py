@@ -3,7 +3,17 @@
 from dataclasses import dataclass
 from datetime import date
 
-from qbt.backtest.constants import COL_ENTRY_DATE, COL_EXIT_DATE
+from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
+    COL_ENTRY_DATE,
+    COL_ENTRY_PRICE,
+    COL_EXIT_DATE,
+    COL_EXIT_PRICE,
+    COL_HOLD_DAYS_USED,
+    COL_PNL,
+    COL_PNL_PCT,
+    COL_SHARES,
+)
 from qbt.backtest.engines.engine_common import (
     PortfolioTradeRecord,
     execute_buy_order,
@@ -115,13 +125,13 @@ def execute_orders(
             trade_record: PortfolioTradeRecord = {
                 COL_ENTRY_DATE: e_date,
                 COL_EXIT_DATE: current_date,
-                "entry_price": e_price,
-                "exit_price": sell_price,
-                "shares": shares_sold,
-                "pnl": pnl,
-                "pnl_pct": pnl_pct,
-                "buy_buffer_pct": 0.0,
-                "hold_days_used": e_hold_days.get(asset_id, 0),
+                COL_ENTRY_PRICE: e_price,
+                COL_EXIT_PRICE: sell_price,
+                COL_SHARES: shares_sold,
+                COL_PNL: pnl,
+                COL_PNL_PCT: pnl_pct,
+                COL_BUY_BUFFER_PCT: 0.0,
+                COL_HOLD_DAYS_USED: e_hold_days.get(asset_id, 0),
                 "asset_id": asset_id,
                 "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
                 "pre_shares": pre_shares,

@@ -21,7 +21,9 @@ from qbt.backtest.constants import (
     COL_ENTRY_DATE,
     COL_EQUITY,
     COL_EXIT_DATE,
+    COL_HOLDING_DAYS,
     COL_PNL,
+    ROUND_PERCENT,
     ma_col_name,
 )
 from qbt.backtest.types import MarketRegimeDict, RegimeSummaryDict, SummaryDict
@@ -240,7 +242,7 @@ def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]
         return []
 
     # 1. 에쿼티 데이터를 날짜 인덱스로 변환
-    eq = equity_df[[COL_DATE, "equity"]].copy()
+    eq = equity_df[[COL_DATE, COL_EQUITY]].copy()
     eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
     eq = eq.set_index(COL_DATE)
 
@@ -260,7 +262,7 @@ def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]
             {
                 "year": int(dt_index[i].year),
                 "month": int(dt_index[i].month),
-                "return_pct": round(float(monthly_returns.iloc[i]), 2),
+                "return_pct": round(float(monthly_returns.iloc[i]), ROUND_PERCENT),
             }
         )
 
@@ -321,15 +323,15 @@ def calculate_regime_summaries(
         # 7. 추가 지표 계산
         # 평균 보유기간
         # holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
-        if not regime_trades.empty and "holding_days" not in regime_trades.columns:
+        if not regime_trades.empty and COL_HOLDING_DAYS not in regime_trades.columns:
             if COL_ENTRY_DATE in regime_trades.columns and COL_EXIT_DATE in regime_trades.columns:
-                regime_trades["holding_days"] = regime_trades.apply(
+                regime_trades[COL_HOLDING_DAYS] = regime_trades.apply(
                     lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1
                 )
 
         avg_holding_days = 0.0
-        if not regime_trades.empty and "holding_days" in regime_trades.columns:
-            avg_holding_days = float(regime_trades["holding_days"].mean())
+        if not regime_trades.empty and COL_HOLDING_DAYS in regime_trades.columns:
+            avg_holding_days = float(regime_trades[COL_HOLDING_DAYS].mean())
 
         # 수익팩터 (profit_factor)
         profit_factor = 0.0

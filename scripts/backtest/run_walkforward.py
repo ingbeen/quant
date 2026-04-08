@@ -19,6 +19,13 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
+    COL_CHANGE_PCT,
+    COL_DRAWDOWN_PCT,
+    COL_EQUITY,
+    COL_LOWER_BAND,
+    COL_SELL_BUFFER_PCT,
+    COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
     DEFAULT_WFO_HOLD_DAYS_LIST,
@@ -26,6 +33,10 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_MA_WINDOW_LIST,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
     SLIPPAGE_RATE,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
@@ -45,7 +56,11 @@ from qbt.backtest.walkforward import (
     run_window_detail_backtests,
 )
 from qbt.common_constants import (
+    COL_CLOSE,
     COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
     META_JSON_PATH,
 )
 from qbt.utils import get_logger
@@ -221,32 +236,32 @@ def _save_window_detail_csvs(
         ma_col = detail.ma_col
 
         # --- signal CSV 저장 ---
-        signal_cols = [COL_DATE, "Open", "High", "Low", "Close", ma_col, "change_pct"]
+        signal_cols = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, ma_col, COL_CHANGE_PCT]
         signal_export = detail.signal_df[[c for c in signal_cols if c in detail.signal_df.columns]].copy()
         signal_round: dict[str, int] = {
-            "Open": 6,
-            "High": 6,
-            "Low": 6,
-            "Close": 6,
-            "change_pct": 2,
+            COL_OPEN: ROUND_PRICE,
+            COL_HIGH: ROUND_PRICE,
+            COL_LOW: ROUND_PRICE,
+            COL_CLOSE: ROUND_PRICE,
+            COL_CHANGE_PCT: ROUND_PERCENT,
         }
         if ma_col in signal_export.columns:
-            signal_round[ma_col] = 6
+            signal_round[ma_col] = ROUND_PRICE
         signal_export = signal_export.round(signal_round)
         signal_export.to_csv(window_dir / f"w{idx:02d}_signal.csv", index=False)
 
         # --- equity CSV 저장 ---
         equity_export = detail.equity_df.copy()
         equity_round: dict[str, int] = {
-            "equity": 0,
-            "upper_band": 6,
-            "lower_band": 6,
-            "buy_buffer_pct": 4,
-            "sell_buffer_pct": 4,
-            "drawdown_pct": 2,
+            COL_EQUITY: ROUND_CAPITAL,
+            COL_UPPER_BAND: ROUND_PRICE,
+            COL_LOWER_BAND: ROUND_PRICE,
+            COL_BUY_BUFFER_PCT: ROUND_RATIO,
+            COL_SELL_BUFFER_PCT: ROUND_RATIO,
+            COL_DRAWDOWN_PCT: ROUND_PERCENT,
         }
         equity_export = equity_export.round(equity_round)
-        equity_export["equity"] = equity_export["equity"].astype(int)
+        equity_export[COL_EQUITY] = equity_export[COL_EQUITY].astype(int)
         equity_export.to_csv(window_dir / f"w{idx:02d}_equity.csv", index=False)
 
         # --- trades CSV 저장 ---

@@ -22,10 +22,13 @@ from qbt.backtest.analysis import (
     calculate_drawdown_pct_series,
 )
 from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
     COL_CAGR,
+    COL_DRAWDOWN_PCT,
     COL_EQUITY,
     COL_LOWER_BAND,
     COL_MDD,
+    COL_SELL_BUFFER_PCT,
     COL_TOTAL_TRADES,
     COL_UPPER_BAND,
     DEFAULT_BUFFER_MA_TYPE,
@@ -676,7 +679,7 @@ def run_stitched_equity(
 
     signal_df_with_ma = signal_df.copy()
     for window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type="ema")
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
     # OOS 구간 데이터 슬라이스 (독립 날짜 기반 마스크)
     oos_signal_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
@@ -744,7 +747,7 @@ def run_window_detail_backtests(
 
     signal_df_with_ma = signal_df.copy()
     for ma_window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type="ema")
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
     # 2. 각 윈도우별 백테스트 실행
     results: list[WindowDetailData] = []
@@ -787,14 +790,14 @@ def run_window_detail_backtests(
         band_df = win_signal[[COL_DATE, ma_col]].copy()
         band_df[COL_UPPER_BAND] = band_df[ma_col] * (1 + buy_pct)
         band_df[COL_LOWER_BAND] = band_df[ma_col] * (1 - sell_pct)
-        band_df["buy_buffer_pct"] = buy_pct
-        band_df["sell_buffer_pct"] = sell_pct
+        band_df[COL_BUY_BUFFER_PCT] = buy_pct
+        band_df[COL_SELL_BUFFER_PCT] = sell_pct
         band_df = band_df.drop(columns=[ma_col])
 
         equity_enriched = equity_df_w.merge(band_df, on=COL_DATE, how="left")
 
         # 드로우다운 계산
-        equity_enriched["drawdown_pct"] = calculate_drawdown_pct_series(equity_enriched[COL_EQUITY].astype(float))
+        equity_enriched[COL_DRAWDOWN_PCT] = calculate_drawdown_pct_series(equity_enriched[COL_EQUITY].astype(float))
 
         results.append(
             WindowDetailData(
