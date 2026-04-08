@@ -22,15 +22,11 @@ from qbt.backtest.analysis import (
     calculate_drawdown_pct_series,
 )
 from qbt.backtest.constants import (
-    COL_BUY_BUFFER_PCT,
     COL_CAGR,
     COL_DRAWDOWN_PCT,
     COL_EQUITY,
-    COL_LOWER_BAND,
     COL_MDD,
-    COL_SELL_BUFFER_PCT,
     COL_TOTAL_TRADES,
-    COL_UPPER_BAND,
     DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
@@ -43,6 +39,7 @@ from qbt.backtest.constants import (
     ma_col_name,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
+from qbt.backtest.runners import enrich_equity_with_bands
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BestGridParams, WfoModeSummaryDict, WfoWindowResultDict
@@ -117,7 +114,6 @@ def generate_wfo_windows(
         else _last_day_of_month(is_end_year - 1, 12)
     )
 
-    window_idx = 0
     while True:
         # OOS 시작 = IS 종료 다음 달 1일
         oos_start_year = is_end.year + (is_end.month) // 12
@@ -145,7 +141,6 @@ def generate_wfo_windows(
             actual_is_start = max(data_start, rolling_start)
 
         windows.append((actual_is_start, is_end, oos_start, oos_end))
-        window_idx += 1
 
         # 다음 윈도우: IS 확장 (OOS 기간만큼)
         next_is_end_year = is_end.year + (is_end.month - 1 + oos_months) // 12
@@ -786,15 +781,8 @@ def run_window_detail_backtests(
             log_trades=False,
         )
 
-        # 밴드 계산: MA x (1 +/- buffer) 벡터화 연산
-        band_df = win_signal[[COL_DATE, ma_col]].copy()
-        band_df[COL_UPPER_BAND] = band_df[ma_col] * (1 + buy_pct)
-        band_df[COL_LOWER_BAND] = band_df[ma_col] * (1 - sell_pct)
-        band_df[COL_BUY_BUFFER_PCT] = buy_pct
-        band_df[COL_SELL_BUFFER_PCT] = sell_pct
-        band_df = band_df.drop(columns=[ma_col])
-
-        equity_enriched = equity_df_w.merge(band_df, on=COL_DATE, how="left")
+        # 밴드 계산: runners.py의 공용 함수 재사용
+        equity_enriched = enrich_equity_with_bands(equity_df_w, win_signal, ma_col, buy_pct, sell_pct)
 
         # 드로우다운 계산
         equity_enriched[COL_DRAWDOWN_PCT] = calculate_drawdown_pct_series(equity_enriched[COL_EQUITY].astype(float))

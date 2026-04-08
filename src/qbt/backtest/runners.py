@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 # ============================================================================
 
 
-def _enrich_equity_with_bands(
+def enrich_equity_with_bands(
     equity_df: pd.DataFrame,
     signal_df: pd.DataFrame,
     ma_col: str,
@@ -152,7 +152,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         )
 
         # 6. equity_df에 밴드 컬럼 post-processing으로 보강
-        equity_df = _enrich_equity_with_bands(
+        equity_df = enrich_equity_with_bands(
             equity_df,
             filtered_signal,
             ma_col,

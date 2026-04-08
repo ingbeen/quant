@@ -313,6 +313,10 @@ class BufferZoneStrategy(SignalStrategy):
         check_buy와 check_sell 모두 이 메서드를 통해 밴드를 계산하므로
         _prev_upper와 _prev_lower가 항상 동시에 갱신된다.
 
+        주의: 같은 인덱스 i에서 check_buy와 check_sell을 모두 호출하면
+        두 번째 호출 시 prev 값이 이미 현재 값으로 덮어써져 돌파 감지가 실패한다.
+        엔진은 포지션 유무에 따라 한쪽만 호출해야 한다.
+
         Args:
             signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
             i: 현재 인덱스 (0부터 시작)

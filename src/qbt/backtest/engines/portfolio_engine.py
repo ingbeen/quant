@@ -352,7 +352,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         for asset_id, st in asset_states.items():
             val = st.position * asset_closes_map[asset_id]
             row[f"{asset_id}_value"] = val
-            row[f"{asset_id}_weight"] = val / (current_equity + EPSILON)
+            row[f"{asset_id}_weight"] = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
             row[f"{asset_id}_signal"] = st.signal_state
             row[f"{asset_id}_shares"] = st.position
             row[f"{asset_id}_avg_price"] = entry_prices[asset_id]
@@ -439,8 +439,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # trades_df 정리
     if all_trades:
         trades_df = pd.DataFrame(all_trades)
-        if "trade_type" not in trades_df.columns:
-            trades_df["trade_type"] = "signal"
     else:
         trades_df = pd.DataFrame(
             columns=[

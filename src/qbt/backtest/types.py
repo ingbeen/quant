@@ -14,7 +14,7 @@
 
 전략 전용 타입은 각 전략 모듈에 정의한다:
 - engine_common.py: EquityRecord, TradeRecord
-- strategy_common.py: HoldState
+- buffer_zone_helpers.py: HoldState
 - backtest_engine.py: GridSearchResult
 - buffer_zone.py: BufferStrategyResultDict
 - buy_and_hold.py: BuyAndHoldConfig

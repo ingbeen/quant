@@ -91,8 +91,8 @@ STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
 def _load_data(strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """전략에 맞는 데이터를 로딩한다."""
     config = STRATEGY_CONFIG[strategy_name]
-    signal_path = Path(str(config["signal_path"]))
-    trade_path = Path(str(config["trade_path"]))
+    signal_path = config["signal_path"]
+    trade_path = config["trade_path"]
 
     signal_df = load_stock_data(signal_path)
 
@@ -392,7 +392,7 @@ def main() -> int:
 
     # 3. 전략별 WFO 실행
     for strategy_name in strategy_names:
-        result_dir = Path(str(STRATEGY_CONFIG[strategy_name]["result_dir"]))
+        result_dir = STRATEGY_CONFIG[strategy_name]["result_dir"]
         total_start = time.time()
 
         logger.debug("=" * 60)
