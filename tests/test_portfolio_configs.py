@@ -225,13 +225,14 @@ class TestDefaultPortfolioExperiments:
 
     def test_default_portfolio_experiments_count(self) -> None:
         """
-        목적: DEFAULT_PORTFOLIO_EXPERIMENTS에 정확히 8개의 활성 실험이 정의되어 있어야 한다.
+        목적: DEFAULT_PORTFOLIO_EXPERIMENTS에 정확히 11개의 활성 실험이 정의되어 있어야 한다.
+              기존 8개 + Q 시리즈 3개 = 11개
 
         Given: DEFAULT_PORTFOLIO_EXPERIMENTS 리스트
         When:  길이를 확인
-        Then:  8개
+        Then:  11개
         """
-        assert len(DEFAULT_PORTFOLIO_EXPERIMENTS) == 8
+        assert len(DEFAULT_PORTFOLIO_EXPERIMENTS) == 11
 
     def test_default_portfolio_experiments_all_exist_in_configs(self) -> None:
         """

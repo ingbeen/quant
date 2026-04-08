@@ -2697,6 +2697,228 @@
   "portfolio_backtest": [
     {
       "params": {
+        "experiment_name": "portfolio_q3",
+        "display_name": "Q-3 (SPY 30% / QQQ 35% / GLD 20%(B&H) / TLT 15%(B&H))",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "spy",
+            "target_weight": 0.3,
+            "signal_data_path": "storage/stock/SPY_max.csv",
+            "trade_data_path": "storage/stock/SPY_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "qqq",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QQQ_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "gld",
+            "target_weight": 0.2,
+            "signal_data_path": "storage/stock/GLD_max.csv",
+            "trade_data_path": "storage/stock/GLD_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "tlt",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/TLT_max.csv",
+            "trade_data_path": "storage/stock/TLT_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 649.98,
+        "cagr": 9.89,
+        "mdd": -15.84,
+        "calmar": 0.62,
+        "total_trades": 132
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_q3/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q3/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q3/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q3/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q3/summary.json"
+      },
+      "timestamp": "2026-04-08T16:08:48+09:00"
+    },
+    {
+      "params": {
+        "experiment_name": "portfolio_q2",
+        "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "spy",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/SPY_max.csv",
+            "trade_data_path": "storage/stock/SPY_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "qqq",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QQQ_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "gld",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/GLD_max.csv",
+            "trade_data_path": "storage/stock/GLD_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "tlt",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/TLT_max.csv",
+            "trade_data_path": "storage/stock/TLT_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 613.64,
+        "cagr": 9.64,
+        "mdd": -16.21,
+        "calmar": 0.59,
+        "total_trades": 133
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_q2/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q2/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
+      },
+      "timestamp": "2026-04-08T16:08:42+09:00"
+    },
+    {
+      "params": {
+        "experiment_name": "portfolio_q1",
+        "display_name": "Q-1 (SPY 30% / QQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "spy",
+            "target_weight": 0.3,
+            "signal_data_path": "storage/stock/SPY_max.csv",
+            "trade_data_path": "storage/stock/SPY_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "qqq",
+            "target_weight": 0.3,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QQQ_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "gld",
+            "target_weight": 0.2,
+            "signal_data_path": "storage/stock/GLD_max.csv",
+            "trade_data_path": "storage/stock/GLD_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "tlt",
+            "target_weight": 0.2,
+            "signal_data_path": "storage/stock/TLT_max.csv",
+            "trade_data_path": "storage/stock/TLT_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 596.31,
+        "cagr": 9.51,
+        "mdd": -17.12,
+        "calmar": 0.56,
+        "total_trades": 131
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_q1/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q1/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q1/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q1/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q1/summary.json"
+      },
+      "timestamp": "2026-04-08T16:08:37+09:00"
+    },
+    {
+      "params": {
         "experiment_name": "portfolio_f6h",
         "display_name": "F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
         "total_capital": 10000000.0,
@@ -2767,7 +2989,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-08T15:34:25+09:00"
+      "timestamp": "2026-04-08T16:08:31+09:00"
     },
     {
       "params": {
@@ -2841,181 +3063,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6/summary.json"
       },
-      "timestamp": "2026-04-08T15:34:21+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_f1",
-        "display_name": "F-1 (SPY 40% / TQQQ 20% / GLD 25% / TLT 15%)",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "spy",
-            "target_weight": 0.4,
-            "signal_data_path": "storage/stock/SPY_max.csv",
-            "trade_data_path": "storage/stock/SPY_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "tqqq",
-            "target_weight": 0.2,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "gld",
-            "target_weight": 0.25,
-            "signal_data_path": "storage/stock/GLD_max.csv",
-            "trade_data_path": "storage/stock/GLD_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "tlt",
-            "target_weight": 0.15,
-            "signal_data_path": "storage/stock/TLT_max.csv",
-            "trade_data_path": "storage/stock/TLT_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 1148.11,
-        "cagr": 12.57,
-        "mdd": -21.81,
-        "calmar": 0.58,
-        "total_trades": 214
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_f1/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_f1/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_f1/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_f1/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_f1/summary.json"
-      },
-      "timestamp": "2026-04-08T15:34:15+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_e2",
-        "display_name": "E-2 (SPY 60% / GLD 20% / TLT 20%)",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "spy",
-            "target_weight": 0.6,
-            "signal_data_path": "storage/stock/SPY_max.csv",
-            "trade_data_path": "storage/stock/SPY_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "gld",
-            "target_weight": 0.2,
-            "signal_data_path": "storage/stock/GLD_max.csv",
-            "trade_data_path": "storage/stock/GLD_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "tlt",
-            "target_weight": 0.2,
-            "signal_data_path": "storage/stock/TLT_max.csv",
-            "trade_data_path": "storage/stock/TLT_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 362.72,
-        "cagr": 7.43,
-        "mdd": -13.84,
-        "calmar": 0.54,
-        "total_trades": 95
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_e2/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_e2/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_e2/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_e2/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_e2/summary.json"
-      },
-      "timestamp": "2026-04-08T15:34:10+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_d2",
-        "display_name": "D-2 (TQQQ 100%)",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "tqqq",
-            "target_weight": 1.0,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/TQQQ_synthetic_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 10983.08,
-        "cagr": 24.72,
-        "mdd": -65.39,
-        "calmar": 0.38,
-        "total_trades": 10
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_d2/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_d2/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_d2/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_d2/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_d2/summary.json"
-      },
-      "timestamp": "2026-04-08T15:34:07+09:00"
+      "timestamp": "2026-04-08T16:08:25+09:00"
     }
   ]
 }

@@ -152,7 +152,6 @@ def ma_col_name(window: int) -> str:
 
 # run_portfolio_backtest.py / app_portfolio_backtest.py에서 실행·표출할 실험 목록
 DEFAULT_PORTFOLIO_EXPERIMENTS: Final[list[str]] = [
-    # 유지 (기존)
     "portfolio_a2",
     "portfolio_b3",
     "portfolio_d1",
@@ -161,6 +160,7 @@ DEFAULT_PORTFOLIO_EXPERIMENTS: Final[list[str]] = [
     "portfolio_f1",
     "portfolio_f6",
     "portfolio_f6h",
+    "portfolio_q2",
 ]
 
 # ============================================================
