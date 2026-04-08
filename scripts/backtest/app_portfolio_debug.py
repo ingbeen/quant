@@ -127,40 +127,55 @@ def _render_daily_navigator(
     """거래일을 선택하여 해당일의 상세 상태를 표시한다.
 
     select_slider + date_input 병행으로 슬라이드 탐색과 수동 날짜 입력을 모두 지원한다.
+    session_state + on_change 콜백으로 양방향 동기화한다.
     """
     st.subheader("일별 상태 네비게이터")
 
     trading_dates: list[date] = pd.to_datetime(state_log_df["Date"]).dt.date.tolist()
     trading_dates_set = set(trading_dates)
 
-    # 날짜 선택: select_slider + date_input 병행
+    # session_state 초기화 (단일 진실 소스)
+    slider_key = f"debug_slider_{exp_name}"
+    input_key = f"debug_input_{exp_name}"
+    if slider_key not in st.session_state:
+        st.session_state[slider_key] = trading_dates[-1]
+    if input_key not in st.session_state:
+        st.session_state[input_key] = trading_dates[-1]
+
+    def _on_slider_change() -> None:
+        """슬라이더 변경 시 date_input도 동기화한다."""
+        st.session_state[input_key] = st.session_state[slider_key]
+
+    def _on_input_change() -> None:
+        """date_input 변경 시 가장 가까운 거래일로 보정 후 슬라이더 동기화한다."""
+        input_val = st.session_state[input_key]
+        if input_val in trading_dates_set:
+            snapped = input_val
+        else:
+            prev = [d for d in trading_dates if d <= input_val]
+            snapped = prev[-1] if prev else trading_dates[0]
+        st.session_state[slider_key] = snapped
+        st.session_state[input_key] = snapped
+
+    # 날짜 선택: select_slider + date_input 양방향 동기화
     slider_col, input_col = st.columns([3, 1])
     with slider_col:
-        slider_date = st.select_slider(
+        st.select_slider(
             "거래일 슬라이더",
             options=trading_dates,
-            value=trading_dates[-1],
-            key=f"debug_slider_{exp_name}",
+            key=slider_key,
+            on_change=_on_slider_change,
         )
     with input_col:
-        input_date = st.date_input(
+        st.date_input(
             "직접 입력",
-            value=slider_date,
             min_value=trading_dates[0],
             max_value=trading_dates[-1],
-            key=f"debug_input_{exp_name}",
+            key=input_key,
+            on_change=_on_input_change,
         )
 
-    # date_input 값이 거래일이 아니면 가장 가까운 이전 거래일로 보정
-    if input_date != slider_date:
-        if input_date in trading_dates_set:
-            selected_date = input_date
-        else:
-            # 입력 날짜 이전의 가장 가까운 거래일
-            prev_dates = [d for d in trading_dates if d <= input_date]
-            selected_date = prev_dates[-1] if prev_dates else trading_dates[0]
-    else:
-        selected_date = slider_date
+    selected_date: date = st.session_state[slider_key]
 
     date_mask = pd.to_datetime(state_log_df["Date"]).dt.date == selected_date
     row = state_log_df[date_mask.values].iloc[0]
@@ -234,12 +249,12 @@ def _render_synchronized_charts(
     st.subheader("동기화 시계열 차트")
 
     fig = make_subplots(
-        rows=4,
+        rows=3,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.35, 0.25, 0.15, 0.25],
-        vertical_spacing=0.03,
-        subplot_titles=["에쿼티 (원)", "자산별 비중 (%)", "현금 잔고 (원)", "자산별 주수"],
+        row_heights=[0.45, 0.35, 0.20],
+        vertical_spacing=0.04,
+        subplot_titles=["에쿼티 (원)", "자산별 비중 (%)", "현금 잔고 (원)"],
     )
 
     dates = equity_df["Date"]
@@ -350,27 +365,8 @@ def _render_synchronized_charts(
         col=1,
     )
 
-    # (4) 자산별 주수
-    for aid in asset_ids:
-        shares_col = f"{aid}_shares"
-        if shares_col not in equity_df.columns:
-            continue
-        color = _get_asset_color(aid)
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=equity_df[shares_col],
-                mode="lines",
-                name=f"{aid.upper()} 주수",
-                line={"color": color, "width": 1.5},
-                hovertemplate=f"%{{x|%Y-%m-%d}}<br>{aid.upper()}: %{{y:,.0f}}주<extra></extra>",
-            ),
-            row=4,
-            col=1,
-        )
-
     fig.update_layout(
-        height=_CHART_HEIGHT + _SUB_CHART_HEIGHT * 2,
+        height=_CHART_HEIGHT + _SUB_CHART_HEIGHT,
         hovermode="x unified",
         showlegend=True,
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.01, "xanchor": "right", "x": 1},
