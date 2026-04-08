@@ -52,7 +52,9 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone
 # A~H 시리즈 실험 (실험 구성은 portfolio_configs.py 참고)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
 # 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
-# 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id})
+# 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, execution_comparison)
+# 실행 직후 5개 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식)
+# 위반 발견 시 결과 저장 후 스크립트 중지 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 실험 선택 가능 (기본값: all)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
@@ -75,9 +77,13 @@ poetry run python scripts/backtest/run_param_plateau_all.py
 # 6. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
-# 7. 포트폴리오 비교 대시보드 (선행: 8)
+# 7. 포트폴리오 비교 대시보드 (선행: 3)
 poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
 # 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 거래 현황, 시그널 차트)
+
+# 7-1. 포트폴리오 디버그 대시보드 (선행: 3)
+poetry run streamlit run scripts/backtest/app_portfolio_debug.py
+# 시각화: 일별 상태 네비게이터, 동기화 시계열 차트(에쿼티/비중/현금/주수), 체결 상세 테이블, 시그널-체결 추적
 
 # 8. WFO 결과 시각화 대시보드 (선행: 3)
 poetry run streamlit run scripts/backtest/app_walkforward.py
@@ -216,7 +222,7 @@ quant/
 │   └── archive/       # 완료/폐기 계획서
 ├── scripts/           # CLI 스크립트 (사용자 실행)
 │   ├── data/          # download_data.py
-│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, run_portfolio_backtest.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py, app_portfolio_backtest.py
+│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, run_portfolio_backtest.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py, app_portfolio_backtest.py, app_portfolio_debug.py
 │   └── tqqq/          # generate_*.py, app_daily_comparison.py
 │       ├── app_daily_comparison.py        # 일별 비교 대시보드
 │       └── spread_lab/                    # 스프레드 모델 검증 결과 열람
@@ -225,7 +231,7 @@ quant/
 │   ├── common_constants.py  # 공통 상수
 │   ├── backtest/      # 백테스트 도메인
 │   │   ├── constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py
-│   │   ├── portfolio_types.py, portfolio_configs.py
+│   │   ├── portfolio_types.py, portfolio_configs.py, portfolio_validation.py
 │   │   ├── runners.py             # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
 │   │   ├── strategies/            # 전략 계층 (SignalStrategy Protocol 기반)
 │   │   │   ├── strategy_common.py   # SignalStrategy Protocol, PendingOrderConflictError
@@ -294,6 +300,8 @@ quant/
 - `trades.csv`: 전 자산 거래 내역 (asset_id, trade_type, holding_days 포함)
 - `summary.json`: 전체 포트폴리오 요약 + 자산별 요약(target_weight, 거래수, 승률) + 설정 파라미터
 - `signal_{asset_id}.csv`: 자산별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
+- `state_log.csv`: 일별 엔진 내부 상태 (시그널 판정, 주문 의도, 체결 결과, 포지션/비중 변화)
+- `execution_comparison.csv`: 체결 발생일의 자산별 전후 비중/주수/평가액 비교
 
 실험 구성 및 자산 배분 상세는 [portfolio_configs.py](src/qbt/backtest/portfolio_configs.py)를 참고하세요.
 

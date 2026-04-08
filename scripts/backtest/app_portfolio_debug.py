@@ -124,21 +124,48 @@ def _render_daily_navigator(
     summary: dict[str, Any],
     exp_name: str,
 ) -> None:
-    """select_slider로 거래일을 이동하며 해당일의 상세 상태를 표시한다."""
+    """거래일을 선택하여 해당일의 상세 상태를 표시한다.
+
+    select_slider + date_input 병행으로 슬라이드 탐색과 수동 날짜 입력을 모두 지원한다.
+    """
     st.subheader("일별 상태 네비게이터")
 
     trading_dates: list[date] = pd.to_datetime(state_log_df["Date"]).dt.date.tolist()
-    selected_date = st.select_slider(
-        "거래일 선택",
-        options=trading_dates,
-        value=trading_dates[-1],
-        key=f"debug_date_{exp_name}",
-    )
+    trading_dates_set = set(trading_dates)
+
+    # 날짜 선택: select_slider + date_input 병행
+    slider_col, input_col = st.columns([3, 1])
+    with slider_col:
+        slider_date = st.select_slider(
+            "거래일 슬라이더",
+            options=trading_dates,
+            value=trading_dates[-1],
+            key=f"debug_slider_{exp_name}",
+        )
+    with input_col:
+        input_date = st.date_input(
+            "직접 입력",
+            value=slider_date,
+            min_value=trading_dates[0],
+            max_value=trading_dates[-1],
+            key=f"debug_input_{exp_name}",
+        )
+
+    # date_input 값이 거래일이 아니면 가장 가까운 이전 거래일로 보정
+    if input_date != slider_date:
+        if input_date in trading_dates_set:
+            selected_date = input_date
+        else:
+            # 입력 날짜 이전의 가장 가까운 거래일
+            prev_dates = [d for d in trading_dates if d <= input_date]
+            selected_date = prev_dates[-1] if prev_dates else trading_dates[0]
+    else:
+        selected_date = slider_date
 
     date_mask = pd.to_datetime(state_log_df["Date"]).dt.date == selected_date
     row = state_log_df[date_mask.values].iloc[0]
 
-    # 기본 정보
+    # 기본 정보 (컴팩트)
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("에쿼티", f"{int(row['equity']):,}원")
     col2.metric("현금", f"{int(row['cash']):,}원")
@@ -149,13 +176,13 @@ def _render_daily_navigator(
     col3.metric("리밸런싱", reb_text if reb_text else "없음")
     col4.metric("월 첫 거래일", "예" if row.get("is_month_start") else "아니오")
 
-    # 자산별 카드
+    # 자산별 요약 (컴팩트 테이블 형태)
     target_weights: dict[str, float] = {}
     for pa in summary.get("per_asset", []):
         target_weights[str(pa.get("asset_id", ""))] = float(pa.get("target_weight", 0))
 
+    asset_rows: list[dict[str, str]] = []
     for aid in asset_ids:
-        color = _get_asset_color(aid)
         signal_today = str(row.get(f"{aid}_signal_today", "hold"))
         pending = str(row.get(f"{aid}_pending_intent", ""))
         executed = str(row.get(f"{aid}_executed_intent", ""))
@@ -164,28 +191,31 @@ def _render_daily_navigator(
         close = float(row.get(f"{aid}_close", 0))
         tw = target_weights.get(aid, 0)
 
-        with st.container(border=True):
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.markdown(f"**:{color[1:]}[{aid.upper()}]**")
-            c2.metric("보유", f"{shares:,}주")
-            c3.metric("비중", f"{weight * 100:.1f}% (목표 {tw * 100:.0f}%)")
-            c4.metric("종가", f"${close:.2f}")
+        # 이벤트 요약
+        events: list[str] = []
+        if signal_today != "hold":
+            events.append(_SIGNAL_LABELS.get(signal_today, signal_today))
+        if executed and executed != "nan" and executed != "":
+            exec_side = str(row.get(f"{aid}_exec_side", ""))
+            exec_shares = int(row.get(f"{aid}_exec_shares", 0))
+            label = _INTENT_LABELS.get(executed, executed)
+            events.append(f"{label} ({exec_side} {exec_shares:,}주)")
+        if pending and pending != "nan" and pending != "":
+            events.append(f"익일: {_INTENT_LABELS.get(pending, pending)}")
 
-            # 시그널/체결/pending 요약
-            parts: list[str] = []
-            if signal_today != "hold":
-                parts.append(f"시그널: {_SIGNAL_LABELS.get(signal_today, signal_today)}")
-            if executed and executed != "nan":
-                exec_side = str(row.get(f"{aid}_exec_side", ""))
-                exec_shares = int(row.get(f"{aid}_exec_shares", 0))
-                exec_price = float(row.get(f"{aid}_exec_price", 0))
-                label = _INTENT_LABELS.get(executed, executed)
-                parts.append(f"체결: {label} ({exec_side} {exec_shares}주 @${exec_price:.2f})")
-            if pending and pending != "nan":
-                label = _INTENT_LABELS.get(pending, pending)
-                parts.append(f"익일 예정: {label}")
+        asset_rows.append(
+            {
+                "자산": aid.upper(),
+                "종가": f"${close:.2f}",
+                "보유": f"{shares:,}주",
+                "비중": f"{weight * 100:.1f}%",
+                "목표": f"{tw * 100:.0f}%",
+                "이벤트": " | ".join(events) if events else "-",
+            }
+        )
 
-            c5.caption(" | ".join(parts) if parts else "변동 없음")
+    if asset_rows:
+        st.dataframe(pd.DataFrame(asset_rows), hide_index=True, width="stretch")
 
 
 # ============================================================
@@ -506,21 +536,24 @@ def main() -> None:
     st.divider()
     _render_daily_navigator(state_log_df, asset_ids, summary, str(selected_exp))
 
-    # 뷰 2: 동기화 시계열 차트
-    st.divider()
-    _render_synchronized_charts(state_log_df, equity_df, asset_ids, summary, str(selected_exp))
-
-    # 뷰 3: 체결 상세 테이블
+    # 뷰 2: 체결 상세 테이블 (네비게이터 바로 아래)
     st.divider()
     _render_execution_detail_table(state_log_df, asset_ids, str(selected_exp))
+
+    # 뷰 3: 동기화 시계열 차트
+    st.divider()
+    _render_synchronized_charts(state_log_df, equity_df, asset_ids, summary, str(selected_exp))
 
     # 뷰 4: 시그널-체결 추적
     st.divider()
     _render_signal_execution_tracking(state_log_df, asset_ids, str(selected_exp))
 
-    # Raw state_log 테이블 (접힘)
+    # Raw state_log 테이블 (접힘, 날짜를 yyyy-mm-dd 문자열로 표시)
     with st.expander("Raw State Log (전체 데이터)", expanded=False):
-        st.dataframe(state_log_df, hide_index=True, width="stretch")
+        raw_display = state_log_df.copy()
+        if "Date" in raw_display.columns:
+            raw_display["Date"] = pd.to_datetime(raw_display["Date"]).dt.strftime("%Y-%m-%d")
+        st.dataframe(raw_display, hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":
