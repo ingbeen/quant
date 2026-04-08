@@ -2764,9 +2764,10 @@
         "equity_csv": "storage/results/portfolio/portfolio_f6h/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_f6h/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_f6h/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-07T10:26:00+09:00"
+      "timestamp": "2026-04-08T09:16:20+09:00"
     },
     {
       "params": {
@@ -2837,9 +2838,10 @@
         "equity_csv": "storage/results/portfolio/portfolio_f6/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_f6/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_f6/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_f6/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6/summary.json"
       },
-      "timestamp": "2026-04-07T10:25:57+09:00"
+      "timestamp": "2026-04-08T09:16:17+09:00"
     },
     {
       "params": {
@@ -2910,9 +2912,10 @@
         "equity_csv": "storage/results/portfolio/portfolio_f1/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_f1/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_f1/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_f1/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f1/summary.json"
       },
-      "timestamp": "2026-04-07T10:25:53+09:00"
+      "timestamp": "2026-04-08T09:16:13+09:00"
     },
     {
       "params": {
@@ -2971,9 +2974,10 @@
         "equity_csv": "storage/results/portfolio/portfolio_e2/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_e2/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_e2/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_e2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_e2/summary.json"
       },
-      "timestamp": "2026-04-07T10:25:49+09:00"
+      "timestamp": "2026-04-08T09:16:09+09:00"
     },
     {
       "params": {
@@ -3008,9 +3012,10 @@
         "equity_csv": "storage/results/portfolio/portfolio_d2/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_d2/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_d2/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_d2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_d2/summary.json"
       },
-      "timestamp": "2026-04-07T10:25:46+09:00"
+      "timestamp": "2026-04-08T09:16:06+09:00"
     }
   ]
 }

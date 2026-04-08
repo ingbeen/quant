@@ -24,6 +24,7 @@ import pandas as pd
 
 from qbt.backtest.analysis import calculate_summary
 from qbt.backtest.constants import COL_EQUITY, ma_col_name
+from qbt.backtest.engines.engine_common import PortfolioTradeRecord
 from qbt.backtest.engines.portfolio_data import (
     build_combined_equity,
     load_and_prepare_data,
@@ -246,6 +247,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # 거래 기록 및 에쿼티 기록
     all_trades: list[Any] = []
     equity_rows: list[dict[str, Any]] = []
+    state_log_rows: list[dict[str, Any]] = []
 
     # 자산별 누적 실현손익 추적 (매도 후에도 기여 이력 유지)
     cumulative_realized_pnl: dict[str, float] = {slot.asset_id: 0.0 for slot in config.asset_slots}
@@ -262,6 +264,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         rebalanced_today = False
 
         # Step A+B: SELL → BUY 순 체결 (SELL 확보 현금 → BUY에 활용, 부족 시 비례 축소)
+        # state_log용: 체결 예정 intents + 체결 전 포지션 보관
+        intents_to_execute = dict(next_day_intents)
+        pre_exec_positions = {aid: st.position for aid, st in asset_states.items()}
         open_prices_map: dict[str, float] = {aid: float(asset_trade_dfs[aid].iloc[i][COL_OPEN]) for aid in asset_states}
         exec_result = execute_orders(
             order_intents=next_day_intents,
@@ -357,6 +362,77 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             row[f"{asset_id}_unrealized_pnl"] = unrealized
         equity_rows.append(row)
 
+        # Step F: state_log 행 수집 (디버깅/검증용, 비즈니스 로직 변경 없음)
+        state_row: dict[str, Any] = {
+            COL_DATE: current_date,
+            COL_EQUITY: current_equity,
+            "cash": shared_cash,
+            "is_month_start": is_month_start,
+            "rebalanced": rebalanced_today,
+            "rebalance_reason": rebalance_reason_today,
+        }
+        # 당일 체결 정보: intents_to_execute (전일 결정) + 포지션 변화 + new_trades (매도 기록)
+        # new_trades는 매도 거래만 포함하므로, 매수는 포지션 변화로 감지한다
+        executed_trades_by_asset: dict[str, list[PortfolioTradeRecord]] = {}
+        for trade in exec_result.new_trades:
+            aid = trade["asset_id"]
+            executed_trades_by_asset.setdefault(aid, []).append(trade)
+
+        for aid in asset_states:
+            close_val = asset_closes_map[aid]
+            st = asset_states[aid]
+            val = st.position * close_val
+            weight = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
+
+            state_row[f"{aid}_close"] = close_val
+            state_row[f"{aid}_shares"] = st.position
+            state_row[f"{aid}_weight"] = weight
+
+            # 당일 시그널 판정: signal_intents에서 추출
+            signal_intent = signal_intents.get(aid)
+            if signal_intent and signal_intent.intent_type == "EXIT_ALL":
+                state_row[f"{aid}_signal_today"] = "sell"
+            elif signal_intent and signal_intent.intent_type == "ENTER_TO_TARGET":
+                state_row[f"{aid}_signal_today"] = "buy"
+            else:
+                state_row[f"{aid}_signal_today"] = "hold"
+
+            # 익일 체결 예정 (merged_intents)
+            pending = merged_intents.get(aid)
+            state_row[f"{aid}_pending_intent"] = pending.intent_type if pending else ""
+            state_row[f"{aid}_pending_reason"] = pending.reason if pending else ""
+            state_row[f"{aid}_pending_delta"] = pending.delta_amount if pending else 0.0
+
+            # 당일 체결 결과: intents_to_execute + new_trades(매도) + 포지션 변화(매수)
+            intent_executed = intents_to_execute.get(aid)
+            trades_for_asset = executed_trades_by_asset.get(aid, [])
+            pre_pos = pre_exec_positions.get(aid, 0)
+            post_pos = st.position
+            position_changed = pre_pos != post_pos
+
+            if intent_executed and (trades_for_asset or position_changed):
+                intent_type = intent_executed.intent_type
+                is_sell = intent_type in ("EXIT_ALL", "REDUCE_TO_TARGET")
+                if is_sell and trades_for_asset:
+                    # 매도: new_trades에서 체결 상세 추출
+                    total_shares = sum(int(t["shares"]) for t in trades_for_asset)
+                    exec_price = float(trades_for_asset[0]["exit_price"])
+                else:
+                    # 매수: 포지션 변화에서 추출
+                    total_shares = abs(post_pos - pre_pos)
+                    exec_price = open_prices_map.get(aid, 0.0)
+                state_row[f"{aid}_executed_intent"] = intent_type
+                state_row[f"{aid}_exec_side"] = "sell" if is_sell else "buy"
+                state_row[f"{aid}_exec_shares"] = total_shares
+                state_row[f"{aid}_exec_price"] = exec_price
+            else:
+                state_row[f"{aid}_executed_intent"] = ""
+                state_row[f"{aid}_exec_side"] = ""
+                state_row[f"{aid}_exec_shares"] = 0
+                state_row[f"{aid}_exec_price"] = 0.0
+
+        state_log_rows.append(state_row)
+
     # 8. 결과 조합
     equity_df = build_combined_equity(equity_rows, config.total_capital)
 
@@ -427,6 +503,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         f"총 거래={len(trades_df)}, 총 수익률={summary.get('total_return_pct', 0):.2f}%"
     )
 
+    # state_log DataFrame 구성
+    state_log_df = pd.DataFrame(state_log_rows) if state_log_rows else pd.DataFrame()
+
     return PortfolioResult(
         experiment_name=config.experiment_name,
         display_name=config.display_name,
@@ -436,4 +515,5 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         per_asset=per_asset,
         config=config,
         params_json=params_json,
+        state_log_df=state_log_df,
     )

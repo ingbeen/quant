@@ -235,6 +235,33 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         comparison_df.to_csv(comparison_path, index=False)
         logger.debug(f"체결 전후 비교 데이터 저장 완료: {comparison_path}")
 
+    # 4-1. state_log.csv 저장 (일별 엔진 내부 상태: 시그널/intent/체결/포지션)
+    state_log_path = result.config.result_dir / "state_log.csv"
+    if not result.state_log_df.empty:
+        state_log_export = result.state_log_df.copy()
+        # 반올림 규칙 적용
+        state_log_round: dict[str, int] = {
+            "equity": ROUND_CAPITAL,
+            "cash": ROUND_CAPITAL,
+        }
+        for col in state_log_export.columns:
+            if col.endswith("_close") or col.endswith("_exec_price"):
+                state_log_round[col] = ROUND_PRICE
+            elif col.endswith("_weight"):
+                state_log_round[col] = ROUND_RATIO
+            elif col.endswith("_pending_delta"):
+                state_log_round[col] = ROUND_CAPITAL
+        state_log_export = state_log_export.round(state_log_round)
+        # int 변환 (자본금, 보유 수량, 체결 수량)
+        for col in ["equity", "cash"]:
+            if col in state_log_export.columns:
+                state_log_export[col] = state_log_export[col].astype(int)
+        for col in state_log_export.columns:
+            if col.endswith("_shares") or col.endswith("_exec_shares"):
+                state_log_export[col] = state_log_export[col].astype(int)
+        state_log_export.to_csv(state_log_path, index=False)
+        logger.debug(f"State Log 저장 완료: {state_log_path}")
+
     # 5. summary.json 저장
     summary_path = result.config.result_dir / "summary.json"
     s = result.summary
@@ -313,6 +340,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             "equity_csv": str(equity_path),
             "trades_csv": str(trades_path),
             "execution_comparison_csv": str(comparison_path),
+            "state_log_csv": str(state_log_path),
             "summary_json": str(summary_path),
         },
     }

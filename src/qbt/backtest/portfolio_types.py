@@ -141,6 +141,16 @@ class PortfolioResult:
         - asset_id: 자산 식별자
         - trade_type: 거래 원인 ("signal" 또는 "rebalance")
 
+    state_log_df 컬럼 명세 (매 거래일 1행):
+        기본: Date, equity, cash, is_month_start, rebalanced, rebalance_reason
+        자산별 ({asset_id}_ 접두사):
+        - {aid}_close, {aid}_shares, {aid}_weight: 당일 상태
+        - {aid}_signal_today: 당일 시그널 판정 ("buy"/"sell"/"hold")
+        - {aid}_pending_intent: 익일 체결 예정 intent_type
+        - {aid}_pending_reason, {aid}_pending_delta: pending intent 상세
+        - {aid}_executed_intent: 당일 체결된 intent_type
+        - {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price: 체결 상세
+
     Attributes:
         experiment_name: 실험 식별자
         display_name: 표시 이름
@@ -150,6 +160,7 @@ class PortfolioResult:
         per_asset: 자산별 결과 리스트
         config: 포트폴리오 설정
         params_json: JSON 저장용 파라미터 딕셔너리
+        state_log_df: 일별 상태 로그 DataFrame (디버깅/검증용)
     """
 
     experiment_name: str
@@ -160,3 +171,4 @@ class PortfolioResult:
     config: PortfolioConfig
     per_asset: list[PortfolioAssetResult] = field(default_factory=list)
     params_json: dict[str, Any] = field(default_factory=dict)
+    state_log_df: pd.DataFrame = field(default_factory=pd.DataFrame)
