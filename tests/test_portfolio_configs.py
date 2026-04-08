@@ -30,18 +30,18 @@ class TestPortfolioConfigsList:
 
     def test_portfolio_configs_count(self) -> None:
         """
-        목적: PORTFOLIO_CONFIGS에 정확히 31개의 실험이 정의되어 있어야 한다.
-              A 3개 + B 3개 + C 1개 + D 2개 + E 5개 + F 10개 + G 4개 + H 3개 = 31개
+        목적: PORTFOLIO_CONFIGS에 정확히 34개의 실험이 정의되어 있어야 한다.
+              A 3개 + B 3개 + C 1개 + D 2개 + E 5개 + F 10개 + G 4개 + H 3개 + Q 3개 = 34개
 
         Given: PORTFOLIO_CONFIGS 리스트
         When:  길이를 확인
-        Then:  31개
+        Then:  34개
         """
         # When
         count = len(PORTFOLIO_CONFIGS)
 
         # Then
-        assert count == 31
+        assert count == 34
 
     def test_all_portfolio_configs_target_weights_valid(self) -> None:
         """

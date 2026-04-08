@@ -11,6 +11,7 @@
 - F 시리즈: SPY + TQQQ + GLD + TLT (레버리지 혼합)
 - G 시리즈: SPY/GLD/TLT 구성 고정 + 버퍼존 vs B&H 팩토리얼 (기여도 격리)
 - H 시리즈: TQQQ 60% 집중 + 방어 자산 조합
+- Q 시리즈: F-6H의 TQQQ→QQQ 교체 (합성 데이터 제거) + 방어 비중 민감도
 """
 
 from pathlib import Path
@@ -980,6 +981,120 @@ _CONFIG_H3 = PortfolioConfig(
 )
 
 # ============================================================================
+# Q 시리즈: TQQQ→QQQ 교체 (합성 데이터 제거) + 방어 비중 민감도
+# F-6H 구조에서 TQQQ를 QQQ로 교체하여 실데이터만 사용.
+# GLD/TLT는 B&H 유지 (F 시리즈 결론 적용).
+# ============================================================================
+
+# Q-1: SPY 30% / QQQ 30% / GLD 20%(B&H) / TLT 20%(B&H) — F-6H 직접 대체
+_CONFIG_Q1 = PortfolioConfig(
+    experiment_name="portfolio_q1",
+    display_name="Q-1 (SPY 30% / QQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="qqq",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QQQ_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q1"),
+)
+
+# Q-2: SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H) — 방어 축소, 수익 확대
+_CONFIG_Q2 = PortfolioConfig(
+    experiment_name="portfolio_q2",
+    display_name="Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="qqq",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QQQ_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2"),
+)
+
+# Q-3: SPY 30% / QQQ 35% / GLD 20%(B&H) / TLT 15%(B&H) — QQQ 비중 확대
+_CONFIG_Q3 = PortfolioConfig(
+    experiment_name="portfolio_q3",
+    display_name="Q-3 (SPY 30% / QQQ 35% / GLD 20%(B&H) / TLT 15%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="spy",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SPY_DATA_PATH,
+            target_weight=0.30,
+        ),
+        AssetSlotConfig(
+            asset_id="qqq",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QQQ_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.20,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q3"),
+)
+
+# ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
 
@@ -1023,6 +1138,10 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_H1,
     _CONFIG_H2,
     _CONFIG_H3,
+    # Q 시리즈: TQQQ→QQQ 교체 (합성 데이터 제거) + 방어 비중 민감도
+    _CONFIG_Q1,
+    _CONFIG_Q2,
+    _CONFIG_Q3,
 ]
 
 

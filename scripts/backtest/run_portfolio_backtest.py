@@ -446,10 +446,7 @@ def main() -> int:
         if violations:
             for v in violations:
                 logger.error(f"  {v}")
-            raise ValueError(
-                f"[{config.experiment_name}] 정합성 검증 위반 {len(violations)}건 발견. "
-                f"상세 내역은 위 로그를 확인하세요."
-            )
+            raise ValueError(f"[{config.experiment_name}] 정합성 검증 위반 {len(violations)}건 발견. " f"상세 내역은 위 로그를 확인하세요.")
         logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (5개 규칙 모두 정상)")
 
     return 0
