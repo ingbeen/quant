@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -157,7 +157,26 @@ def _render_daily_navigator(
         st.session_state[slider_key] = snapped
         st.session_state[input_key] = snapped
 
-    # 날짜 선택: select_slider + date_input 양방향 동기화
+    def _snap_to_nearest_trading_day(target: date) -> date:
+        """target 이하의 가장 가까운 거래일을 반환한다. 초과 시 마지막 거래일."""
+        if target >= trading_dates[-1]:
+            return trading_dates[-1]
+        if target <= trading_dates[0]:
+            return trading_dates[0]
+        if target in trading_dates_set:
+            return target
+        prev = [d for d in trading_dates if d <= target]
+        return prev[-1] if prev else trading_dates[0]
+
+    def _jump(days: int) -> None:
+        """현재 날짜에서 days만큼 점프 후 가장 가까운 거래일로 동기화한다."""
+        current = st.session_state[slider_key]
+        target = current + timedelta(days=days)
+        snapped = _snap_to_nearest_trading_day(target)
+        st.session_state[slider_key] = snapped
+        st.session_state[input_key] = snapped
+
+    # 날짜 선택: select_slider + date_input
     slider_col, input_col = st.columns([3, 1])
     with slider_col:
         st.select_slider(
@@ -174,6 +193,23 @@ def _render_daily_navigator(
             key=input_key,
             on_change=_on_input_change,
         )
+
+    # 점프 버튼 + 자동 재생 (좌측 밀착 배치)
+    jump_buttons = [
+        ("-1Y", -365),
+        ("-1M", -30),
+        ("-1W", -7),
+        ("-1D", -1),
+        ("+1D", 1),
+        ("+1W", 7),
+        ("+1M", 30),
+        ("+1Y", 365),
+    ]
+    # 버튼 8개 + 빈 공간(왼쪽 밀착용)
+    cols = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 6], gap="small")
+    for idx, (label, days) in enumerate(jump_buttons):
+        safe_label = label.replace("+", "f").replace("-", "b")
+        cols[idx].button(label, key=f"j_{safe_label}_{exp_name}", on_click=_jump, args=(days,))
 
     selected_date: date = st.session_state[slider_key]
 
