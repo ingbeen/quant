@@ -24,6 +24,32 @@ from qbt.backtest.constants import (
 from qbt.common_constants import COL_CLOSE
 
 
+def add_holding_days(df: pd.DataFrame) -> pd.DataFrame:
+    """trades DataFrame에 holding_days 컬럼을 추가한다.
+
+    entry_date와 exit_date 사이의 달력일 수를 계산한다.
+    이미 COL_HOLDING_DAYS 컬럼이 있으면 그대로 반환한다.
+
+    Args:
+        df: 거래 내역 DataFrame (entry_date, exit_date 컬럼 필요)
+
+    Returns:
+        holding_days 컬럼이 추가된 DataFrame (원본 변경 없음)
+    """
+    if df.empty or COL_HOLDING_DAYS in df.columns:
+        return df
+
+    if COL_ENTRY_DATE in df.columns and COL_EXIT_DATE in df.columns:
+        result = df.copy()
+        result[COL_HOLDING_DAYS] = result.apply(
+            lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days,
+            axis=1,
+        )
+        return result
+
+    return df
+
+
 def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
     """거래 DataFrame에 holding_days 추가, 반올림, 정수 변환을 적용한다.
 
@@ -41,8 +67,7 @@ def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
         return export
 
     # holding_days 추가
-    if COL_ENTRY_DATE in export.columns and COL_EXIT_DATE in export.columns:
-        export[COL_HOLDING_DAYS] = export.apply(lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1)
+    export = add_holding_days(export)
 
     # 반올림 규칙 적용
     round_dict: dict[str, int] = {}

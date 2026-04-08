@@ -22,11 +22,16 @@ from qbt.backtest.analysis import (
     calculate_drawdown_pct_series,
 )
 from qbt.backtest.constants import (
+    COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_DRAWDOWN_PCT,
     COL_EQUITY,
+    COL_HOLD_DAYS,
+    COL_MA_WINDOW,
     COL_MDD,
+    COL_SELL_BUFFER_ZONE_PCT,
     COL_TOTAL_TRADES,
+    COL_WIN_RATE,
     DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
@@ -314,24 +319,24 @@ def run_walkforward(
 
         # 5. Calmar 기준 최적 파라미터 추출 (min_trades 필터링 적용)
         best = select_best_calmar_params(grid_df, min_trades=min_trades)
-        best_ma = best["ma_window"]
-        best_buy_buf = best["buy_buffer_zone_pct"]
-        best_sell_buf = best["sell_buffer_zone_pct"]
-        best_hold = best["hold_days"]
+        best_ma = best[COL_MA_WINDOW]
+        best_buy_buf = best[COL_BUY_BUFFER_ZONE_PCT]
+        best_sell_buf = best[COL_SELL_BUFFER_ZONE_PCT]
+        best_hold = best[COL_HOLD_DAYS]
 
         # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd — run_grid_search 내부에서 MA 재계산)
         best_row_mask = (
-            (grid_df["ma_window"] == best_ma)
-            & (grid_df["buy_buffer_zone_pct"] == best_buy_buf)
-            & (grid_df["sell_buffer_zone_pct"] == best_sell_buf)
-            & (grid_df["hold_days"] == best_hold)
+            (grid_df[COL_MA_WINDOW] == best_ma)
+            & (grid_df[COL_BUY_BUFFER_ZONE_PCT] == best_buy_buf)
+            & (grid_df[COL_SELL_BUFFER_ZONE_PCT] == best_sell_buf)
+            & (grid_df[COL_HOLD_DAYS] == best_hold)
         )
 
         best_row = grid_df[best_row_mask].iloc[0]
         is_cagr = float(best_row[COL_CAGR])
         is_mdd = float(best_row[COL_MDD])
-        is_trades = int(best_row["total_trades"])
-        is_win_rate = float(best_row["win_rate"])
+        is_trades = int(best_row[COL_TOTAL_TRADES])
+        is_win_rate = float(best_row[COL_WIN_RATE])
         is_calmar = calculate_calmar(is_cagr, is_mdd)
 
         # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — EMA 연속성 보장)

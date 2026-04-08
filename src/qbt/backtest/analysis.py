@@ -323,11 +323,10 @@ def calculate_regime_summaries(
         # 7. 추가 지표 계산
         # 평균 보유기간
         # holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
-        if not regime_trades.empty and COL_HOLDING_DAYS not in regime_trades.columns:
-            if COL_ENTRY_DATE in regime_trades.columns and COL_EXIT_DATE in regime_trades.columns:
-                regime_trades[COL_HOLDING_DAYS] = regime_trades.apply(
-                    lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days, axis=1
-                )
+        from qbt.backtest.csv_export import add_holding_days
+
+        if not regime_trades.empty:
+            regime_trades = add_holding_days(regime_trades)
 
         avg_holding_days = 0.0
         if not regime_trades.empty and COL_HOLDING_DAYS in regime_trades.columns:

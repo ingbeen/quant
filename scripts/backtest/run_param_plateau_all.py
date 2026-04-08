@@ -35,7 +35,7 @@ from qbt.backtest.strategies.buffer_zone import (
 from qbt.common_constants import BACKTEST_RESULTS_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_signal_trade_pair
 from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
@@ -155,16 +155,7 @@ def _load_asset_data(
         (signal_df, trade_df) 튜플
     """
     base_config = get_config(config_name)
-
-    if base_config.signal_data_path == base_config.trade_data_path:
-        trade_df = load_stock_data(base_config.trade_data_path)
-        signal_df = trade_df.copy()
-    else:
-        signal_df = load_stock_data(base_config.signal_data_path)
-        trade_df = load_stock_data(base_config.trade_data_path)
-        signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-    return signal_df, trade_df
+    return load_signal_trade_pair(base_config.signal_data_path, base_config.trade_data_path)
 
 
 def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:

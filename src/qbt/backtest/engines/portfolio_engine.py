@@ -23,7 +23,18 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import calculate_summary
-from qbt.backtest.constants import COL_EQUITY, ma_col_name
+from qbt.backtest.constants import (
+    COL_ENTRY_DATE,
+    COL_ENTRY_PRICE,
+    COL_EQUITY,
+    COL_EXIT_DATE,
+    COL_EXIT_PRICE,
+    COL_HOLD_DAYS_USED,
+    COL_PNL,
+    COL_PNL_PCT,
+    COL_SHARES,
+    ma_col_name,
+)
 from qbt.backtest.engines.engine_common import PortfolioTradeRecord
 from qbt.backtest.engines.portfolio_data import (
     build_combined_equity,
@@ -442,14 +453,14 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     else:
         trades_df = pd.DataFrame(
             columns=[
-                "entry_date",
-                "exit_date",
-                "entry_price",
-                "exit_price",
-                "shares",
-                "pnl",
-                "pnl_pct",
-                "hold_days_used",
+                COL_ENTRY_DATE,
+                COL_EXIT_DATE,
+                COL_ENTRY_PRICE,
+                COL_EXIT_PRICE,
+                COL_SHARES,
+                COL_PNL,
+                COL_PNL_PCT,
+                COL_HOLD_DAYS_USED,
                 "asset_id",
                 "trade_type",
             ]

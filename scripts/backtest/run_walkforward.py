@@ -65,7 +65,7 @@ from qbt.common_constants import (
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_signal_trade_pair
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
@@ -91,18 +91,7 @@ STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
 def _load_data(strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """전략에 맞는 데이터를 로딩한다."""
     config = STRATEGY_CONFIG[strategy_name]
-    signal_path = config["signal_path"]
-    trade_path = config["trade_path"]
-
-    signal_df = load_stock_data(signal_path)
-
-    if signal_path == trade_path:
-        trade_df = signal_df.copy()
-    else:
-        trade_df = load_stock_data(trade_path)
-        signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-    return signal_df, trade_df
+    return load_signal_trade_pair(config["signal_path"], config["trade_path"])
 
 
 def _run_single_mode(
