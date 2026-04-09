@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from qbt.common_constants import PORTFOLIO_RESULTS_DIR
+from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 
 # ============================================================
 # 로컬 상수
@@ -64,13 +64,11 @@ _INTENT_LABELS: dict[str, str] = {
 
 
 def _discover_experiments() -> list[Path]:
-    """활성 실험 중 state_log.csv가 있는 폴더를 탐색한다."""
-    if not PORTFOLIO_RESULTS_DIR.exists():
-        return []
+    """PORTFOLIO_CONFIGS에 등록된 실험 중 state_log.csv가 있는 폴더를 탐색한다."""
     result: list[Path] = []
-    for sub_dir in sorted(PORTFOLIO_RESULTS_DIR.iterdir()):
-        if sub_dir.is_dir() and (sub_dir / "state_log.csv").exists():
-            result.append(sub_dir)
+    for cfg in PORTFOLIO_CONFIGS:
+        if cfg.result_dir.is_dir() and (cfg.result_dir / "state_log.csv").exists():
+            result.append(cfg.result_dir)
     return result
 
 
@@ -550,7 +548,7 @@ def main() -> None:
     # 실험 선택 (단일)
     exp_names = [d.name for d in experiment_dirs]
     selected_exp = st.selectbox("실험 선택", options=exp_names, key="debug_exp_select")
-    exp_dir = PORTFOLIO_RESULTS_DIR / str(selected_exp)
+    exp_dir = next(d for d in experiment_dirs if d.name == str(selected_exp))
     dir_str = str(exp_dir)
 
     # 데이터 로드

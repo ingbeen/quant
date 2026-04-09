@@ -129,10 +129,10 @@ _CONFIG_Q2 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2"),
 )
 
-# Q-2-2X: Q-2의 2배 레버리지 버전 -- SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H)
+# Q-2-2X: Q-2의 전 자산 2배 레버리지 버전 (전 자산 버퍼존, 1x 시그널 기반)
 _CONFIG_Q2_2X = PortfolioConfig(
     experiment_name="portfolio_q2_2x",
-    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
     asset_slots=(
         AssetSlotConfig(
             asset_id="sso",
@@ -151,24 +151,22 @@ _CONFIG_Q2_2X = PortfolioConfig(
             signal_data_path=GLD_DATA_PATH,
             trade_data_path=UGL_DATA_PATH,
             target_weight=0.15,
-            strategy_id="buy_and_hold",
         ),
         AssetSlotConfig(
             asset_id="ubt",
             signal_data_path=TLT_DATA_PATH,
             trade_data_path=UBT_DATA_PATH,
             target_weight=0.15,
-            strategy_id="buy_and_hold",
         ),
     ),
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_q2_2x"),
 )
 
-# Q-2-2XH: Q-2-2X에서 UGL/UBT도 버퍼존 적용 (전 자산 버퍼존, 1x 시그널 기반)
+# Q-2-2XH: Q-2-2X에서 UGL/UBT를 B&H로 변경 -- SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H)
 _CONFIG_Q2_2XH = PortfolioConfig(
     experiment_name="portfolio_q2_2xh",
-    display_name="Q-2-2XH (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+    display_name="Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
     asset_slots=(
         AssetSlotConfig(
             asset_id="sso",
@@ -187,16 +185,54 @@ _CONFIG_Q2_2XH = PortfolioConfig(
             signal_data_path=GLD_DATA_PATH,
             trade_data_path=UGL_DATA_PATH,
             target_weight=0.15,
+            strategy_id="buy_and_hold",
         ),
         AssetSlotConfig(
             asset_id="ubt",
             signal_data_path=TLT_DATA_PATH,
             trade_data_path=UBT_DATA_PATH,
             target_weight=0.15,
+            strategy_id="buy_and_hold",
         ),
     ),
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_q2_2xh"),
+)
+
+# Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H)
+_CONFIG_Q2_2XS = PortfolioConfig(
+    experiment_name="portfolio_q2_2xs",
+    display_name="Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
 
 # ============================================================================
@@ -209,6 +245,7 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_Q2,
     _CONFIG_Q2_2X,
     _CONFIG_Q2_2XH,
+    _CONFIG_Q2_2XS,
 ]
 
 

@@ -177,30 +177,30 @@ class TestQSeriesConfigs:
         total = sum(slot.target_weight for slot in config.asset_slots)
         assert total == pytest.approx(1.0, abs=1e-9)
 
-    def test_q2_2x_ugl_ubt_buy_and_hold(self) -> None:
+    def test_q2_2x_all_buffer_zone(self) -> None:
         """
-        목적: Q-2-2X는 UGL/UBT가 B&H이어야 한다.
+        목적: Q-2-2X는 전 자산이 버퍼존이어야 한다.
 
         Given: portfolio_q2_2x 설정
-        When:  UGL/UBT slot의 strategy_id 확인
-        Then:  strategy_id == "buy_and_hold"
-        """
-        config = get_portfolio_config("portfolio_q2_2x")
-        for slot in config.asset_slots:
-            if slot.asset_id in ("ugl", "ubt"):
-                assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
-
-    def test_q2_2xh_all_buffer_zone(self) -> None:
-        """
-        목적: Q-2-2XH는 전 자산이 버퍼존이어야 한다.
-
-        Given: portfolio_q2_2xh 설정
         When:  각 slot의 strategy_id 확인
         Then:  모두 "buffer_zone"
         """
-        config = get_portfolio_config("portfolio_q2_2xh")
+        config = get_portfolio_config("portfolio_q2_2x")
         for slot in config.asset_slots:
             assert slot.strategy_id == "buffer_zone", f"{slot.asset_id}: strategy_id가 buffer_zone이 아닙니다"
+
+    def test_q2_2xh_ugl_ubt_buy_and_hold(self) -> None:
+        """
+        목적: Q-2-2XH는 UGL/UBT가 B&H이어야 한다.
+
+        Given: portfolio_q2_2xh 설정
+        When:  UGL/UBT slot의 strategy_id 확인
+        Then:  strategy_id == "buy_and_hold"
+        """
+        config = get_portfolio_config("portfolio_q2_2xh")
+        for slot in config.asset_slots:
+            if slot.asset_id in ("ugl", "ubt"):
+                assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
 
     def test_q2_2xh_full_investment(self) -> None:
         """
@@ -213,6 +213,38 @@ class TestQSeriesConfigs:
         config = get_portfolio_config("portfolio_q2_2xh")
         total = sum(slot.target_weight for slot in config.asset_slots)
         assert total == pytest.approx(1.0, abs=1e-9)
+
+    def test_q2_2xs_full_investment(self) -> None:
+        """
+        목적: Q-2-2XS는 전액 투자(target_weight 합 == 1.0)이어야 한다.
+
+        Given: portfolio_q2_2xs 설정
+        When:  target_weight 합산
+        Then:  합 == 1.0
+        """
+        config = get_portfolio_config("portfolio_q2_2xs")
+        total = sum(slot.target_weight for slot in config.asset_slots)
+        assert total == pytest.approx(1.0, abs=1e-9)
+
+    def test_q2_2xs_gld_tlt_buy_and_hold(self) -> None:
+        """
+        목적: Q-2-2XS는 GLD/TLT가 1x B&H이어야 한다.
+
+        Given: portfolio_q2_2xs 설정
+        When:  GLD/TLT slot 확인
+        Then:  strategy_id == "buy_and_hold", trade_data_path가 1x 경로
+        """
+        from qbt.common_constants import GLD_DATA_PATH, TLT_DATA_PATH
+
+        config = get_portfolio_config("portfolio_q2_2xs")
+        for slot in config.asset_slots:
+            if slot.asset_id in ("gld", "tlt"):
+                assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
+        # GLD/TLT는 1x 경로 사용
+        gld_slot = next(s for s in config.asset_slots if s.asset_id == "gld")
+        tlt_slot = next(s for s in config.asset_slots if s.asset_id == "tlt")
+        assert gld_slot.trade_data_path == GLD_DATA_PATH
+        assert tlt_slot.trade_data_path == TLT_DATA_PATH
 
 
 class TestGetPortfolioConfig:

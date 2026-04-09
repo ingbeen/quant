@@ -1,13 +1,13 @@
 {
-  "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+  "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 138506291,
-    "total_return_pct": 1285.06,
-    "cagr": 17.61,
-    "mdd": -30.51,
+    "final_capital": 112802532,
+    "total_return_pct": 1028.03,
+    "cagr": 16.12,
+    "mdd": -27.67,
     "calmar": 0.58,
-    "total_trades": 232,
+    "total_trades": 165,
     "start_date": "2010-01-21",
     "end_date": "2026-04-07"
   },
@@ -15,39 +15,39 @@
     {
       "asset_id": "sso",
       "target_weight": 0.35,
-      "total_trades": 61,
-      "win_rate": 90.16,
-      "final_shares": 906034,
-      "final_avg_price": 46.027801
+      "total_trades": 45,
+      "win_rate": 91.11,
+      "final_shares": 744090,
+      "final_avg_price": 45.386012
     },
     {
       "asset_id": "qld",
       "target_weight": 0.35,
-      "total_trades": 64,
-      "win_rate": 93.75,
-      "final_shares": 755285,
-      "final_avg_price": 55.3634
+      "total_trades": 52,
+      "win_rate": 94.23,
+      "final_shares": 627807,
+      "final_avg_price": 53.305805
     },
     {
-      "asset_id": "ugl",
+      "asset_id": "gld",
       "target_weight": 0.15,
-      "total_trades": 57,
-      "win_rate": 71.93,
-      "final_shares": 353832,
-      "final_avg_price": 27.778736
+      "total_trades": 36,
+      "win_rate": 88.89,
+      "final_shares": 38284,
+      "final_avg_price": 184.700413
     },
     {
-      "asset_id": "ubt",
+      "asset_id": "tlt",
       "target_weight": 0.15,
-      "total_trades": 50,
-      "win_rate": 74.0,
-      "final_shares": 1251814,
-      "final_avg_price": 22.342815
+      "total_trades": 32,
+      "win_rate": 71.88,
+      "final_shares": 194501,
+      "final_avg_price": 94.181433
     }
   ],
   "portfolio_config": {
-    "experiment_name": "portfolio_q2_2xh",
-    "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+    "experiment_name": "portfolio_q2_2xs",
+    "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
     "total_capital": 10000000.0,
     "monthly_rebalance_threshold_rate": 0.1,
     "daily_rebalance_threshold_rate": 0.2,
@@ -77,10 +77,10 @@
         "hold_days": 3
       },
       {
-        "asset_id": "ugl",
+        "asset_id": "gld",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/GLD_max.csv",
-        "trade_data_path": "storage/stock/UGL_max.csv",
+        "trade_data_path": "storage/stock/GLD_max.csv",
         "strategy_id": "buy_and_hold",
         "ma_window": 200,
         "ma_type": "ema",
@@ -89,10 +89,10 @@
         "hold_days": 3
       },
       {
-        "asset_id": "ubt",
+        "asset_id": "tlt",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/TLT_max.csv",
-        "trade_data_path": "storage/stock/UBT_max.csv",
+        "trade_data_path": "storage/stock/TLT_max.csv",
         "strategy_id": "buy_and_hold",
         "ma_window": 200,
         "ma_type": "ema",

@@ -2692,8 +2692,8 @@
   "portfolio_backtest": [
     {
       "params": {
-        "experiment_name": "portfolio_q2_2xh",
-        "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+        "experiment_name": "portfolio_q2_2xs",
+        "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
         "total_capital": 10000000.0,
         "monthly_rebalance_threshold_rate": 0.1,
         "daily_rebalance_threshold_rate": 0.2,
@@ -2723,11 +2723,11 @@
             "hold_days": 3
           },
           {
-            "asset_id": "ugl",
+            "asset_id": "gld",
             "target_weight": 0.15,
             "signal_data_path": "storage/stock/GLD_max.csv",
-            "trade_data_path": "storage/stock/UGL_max.csv",
-            "strategy_id": "buffer_zone",
+            "trade_data_path": "storage/stock/GLD_max.csv",
+            "strategy_id": "buy_and_hold",
             "ma_window": 200,
             "ma_type": "ema",
             "buy_buffer_zone_pct": 0.03,
@@ -2735,11 +2735,11 @@
             "hold_days": 3
           },
           {
-            "asset_id": "ubt",
+            "asset_id": "tlt",
             "target_weight": 0.15,
             "signal_data_path": "storage/stock/TLT_max.csv",
-            "trade_data_path": "storage/stock/UBT_max.csv",
-            "strategy_id": "buffer_zone",
+            "trade_data_path": "storage/stock/TLT_max.csv",
+            "strategy_id": "buy_and_hold",
             "ma_window": 200,
             "ma_type": "ema",
             "buy_buffer_zone_pct": 0.03,
@@ -2749,25 +2749,25 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1099.95,
-        "cagr": 16.57,
-        "mdd": -26.45,
-        "calmar": 0.63,
-        "total_trades": 190
+        "total_return_pct": 1028.03,
+        "cagr": 16.12,
+        "mdd": -27.67,
+        "calmar": 0.58,
+        "total_trades": 165
       },
       "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_q2_2xh/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_q2_2xh/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2xh/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_q2_2xh/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_q2_2xh/summary.json"
+        "equity_csv": "storage/results/portfolio/portfolio_q2_2xs/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q2_2xs/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2xs/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-04-09T13:01:53+09:00"
+      "timestamp": "2026-04-09T15:21:35+09:00"
     },
     {
       "params": {
-        "experiment_name": "portfolio_q2_2x",
-        "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+        "experiment_name": "portfolio_q2_2xh",
+        "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
         "total_capital": 10000000.0,
         "monthly_rebalance_threshold_rate": 0.1,
         "daily_rebalance_threshold_rate": 0.2,
@@ -2830,13 +2830,87 @@
         "total_trades": 232
       },
       "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_q2_2xh/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q2_2xh/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2xh/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q2_2xh/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q2_2xh/summary.json"
+      },
+      "timestamp": "2026-04-09T15:21:31+09:00"
+    },
+    {
+      "params": {
+        "experiment_name": "portfolio_q2_2x",
+        "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "sso",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/SPY_max.csv",
+            "trade_data_path": "storage/stock/SSO_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "qld",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QLD_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "ugl",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/GLD_max.csv",
+            "trade_data_path": "storage/stock/UGL_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "ubt",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/TLT_max.csv",
+            "trade_data_path": "storage/stock/UBT_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "ma_type": "ema",
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 1099.95,
+        "cagr": 16.57,
+        "mdd": -26.45,
+        "calmar": 0.63,
+        "total_trades": 190
+      },
+      "output_files": {
         "equity_csv": "storage/results/portfolio/portfolio_q2_2x/equity.csv",
         "trades_csv": "storage/results/portfolio/portfolio_q2_2x/trades.csv",
         "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2x/execution_comparison.csv",
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2x/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2x/summary.json"
       },
-      "timestamp": "2026-04-09T13:01:48+09:00"
+      "timestamp": "2026-04-09T15:21:26+09:00"
     },
     {
       "params": {
@@ -2910,7 +2984,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
       },
-      "timestamp": "2026-04-09T13:01:44+09:00"
+      "timestamp": "2026-04-09T15:21:22+09:00"
     },
     {
       "params": {
@@ -2984,45 +3058,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-09T13:01:41+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_d1",
-        "display_name": "D-1 (QQQ 100%)",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "qqq",
-            "target_weight": 1.0,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/QQQ_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "ema",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 682.96,
-        "cagr": 13.54,
-        "mdd": -25.18,
-        "calmar": 0.54,
-        "total_trades": 7
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_d1/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_d1/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_d1/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_d1/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_d1/summary.json"
-      },
-      "timestamp": "2026-04-09T13:01:38+09:00"
+      "timestamp": "2026-04-09T15:21:19+09:00"
     }
   ]
 }

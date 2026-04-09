@@ -1,13 +1,13 @@
 {
-  "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+  "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 138506291,
-    "total_return_pct": 1285.06,
-    "cagr": 17.61,
-    "mdd": -30.51,
-    "calmar": 0.58,
-    "total_trades": 232,
+    "final_capital": 119995463,
+    "total_return_pct": 1099.95,
+    "cagr": 16.57,
+    "mdd": -26.45,
+    "calmar": 0.63,
+    "total_trades": 190,
     "start_date": "2010-01-21",
     "end_date": "2026-04-07"
   },
@@ -15,39 +15,39 @@
     {
       "asset_id": "sso",
       "target_weight": 0.35,
-      "total_trades": 61,
-      "win_rate": 90.16,
-      "final_shares": 906034,
-      "final_avg_price": 46.027801
+      "total_trades": 52,
+      "win_rate": 90.38,
+      "final_shares": 784946,
+      "final_avg_price": 45.872838
     },
     {
       "asset_id": "qld",
       "target_weight": 0.35,
-      "total_trades": 64,
-      "win_rate": 93.75,
-      "final_shares": 755285,
-      "final_avg_price": 55.3634
+      "total_trades": 56,
+      "win_rate": 92.86,
+      "final_shares": 654344,
+      "final_avg_price": 55.517874
     },
     {
       "asset_id": "ugl",
       "target_weight": 0.15,
-      "total_trades": 57,
-      "win_rate": 71.93,
-      "final_shares": 353832,
-      "final_avg_price": 27.778736
+      "total_trades": 45,
+      "win_rate": 86.67,
+      "final_shares": 306544,
+      "final_avg_price": 27.187781
     },
     {
       "asset_id": "ubt",
       "target_weight": 0.15,
-      "total_trades": 50,
-      "win_rate": 74.0,
-      "final_shares": 1251814,
-      "final_avg_price": 22.342815
+      "total_trades": 37,
+      "win_rate": 70.27,
+      "final_shares": 1084514,
+      "final_avg_price": 17.367443
     }
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_q2_2x",
-    "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+    "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
     "total_capital": 10000000.0,
     "monthly_rebalance_threshold_rate": 0.1,
     "daily_rebalance_threshold_rate": 0.2,
@@ -81,7 +81,7 @@
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/GLD_max.csv",
         "trade_data_path": "storage/stock/UGL_max.csv",
-        "strategy_id": "buy_and_hold",
+        "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
         "buy_buffer_zone_pct": 0.03,
@@ -93,7 +93,7 @@
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/TLT_max.csv",
         "trade_data_path": "storage/stock/UBT_max.csv",
-        "strategy_id": "buy_and_hold",
+        "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
         "buy_buffer_zone_pct": 0.03,

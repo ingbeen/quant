@@ -26,13 +26,13 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots
 
+from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    PORTFOLIO_RESULTS_DIR,
 )
 
 # ============================================================
@@ -152,6 +152,7 @@ class _ExperimentData:
 
     experiment_name: str
     display_name: str
+    result_dir: Path
     equity_df: pd.DataFrame
     trades_df: pd.DataFrame
     summary: dict[str, Any]
@@ -164,18 +165,15 @@ class _ExperimentData:
 
 
 def _discover_experiments() -> list[Path]:
-    """PORTFOLIO_RESULTS_DIR 하위에서 summary.json이 있는 폴더를 탐색한다.
+    """PORTFOLIO_CONFIGS에 등록된 실험의 결과 폴더를 탐색한다.
 
     Returns:
-        유효한 실험 결과 폴더 경로 리스트 (알파벳 순 정렬)
+        유효한 실험 결과 폴더 경로 리스트 (CONFIGS 등록 순서)
     """
-    if not PORTFOLIO_RESULTS_DIR.exists():
-        return []
-
     result: list[Path] = []
-    for sub_dir in sorted(PORTFOLIO_RESULTS_DIR.iterdir()):
-        if sub_dir.is_dir() and (sub_dir / "summary.json").exists():
-            result.append(sub_dir)
+    for cfg in PORTFOLIO_CONFIGS:
+        if cfg.result_dir.is_dir() and (cfg.result_dir / "summary.json").exists():
+            result.append(cfg.result_dir)
 
     return result
 
@@ -289,6 +287,7 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
     return _ExperimentData(
         experiment_name=experiment_dir.name,
         display_name=display_name,
+        result_dir=experiment_dir,
         equity_df=equity_df,
         trades_df=trades_df,
         summary=summary,
@@ -512,7 +511,7 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
     데이터가 많으므로 기본 숨김(expander collapsed) 상태로 제공한다.
     """
     with st.expander("체결 전후 비교", expanded=False):
-        experiment_dir = PORTFOLIO_RESULTS_DIR / exp.experiment_name
+        experiment_dir = exp.result_dir
         comparison_df = _load_execution_comparison_csv(str(experiment_dir))
 
         if comparison_df is None or comparison_df.empty:
