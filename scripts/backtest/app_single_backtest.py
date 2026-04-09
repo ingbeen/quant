@@ -1,8 +1,7 @@
 """백테스트 전략별 시각화 대시보드 (동적 탭)
 
-BACKTEST_RESULTS_DIR 하위 전략별 결과 폴더를 자동 탐색하여
-각 전략마다 독립된 탭에서 시각화를 제공한다.
-전략이 추가되면 결과 폴더만 있으면 자동으로 탭이 생성된다.
+buffer_zone.CONFIGS와 buy_and_hold.CONFIGS에 등록된 전략의
+결과 폴더를 탐색하여 각 전략마다 독립된 탭에서 시각화를 제공한다.
 
 선행 스크립트:
     poetry run python scripts/backtest/run_single_backtest.py
@@ -21,8 +20,9 @@ import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 
+from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
+from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
 from qbt.common_constants import (
-    BACKTEST_RESULTS_DIR,
     COL_CLOSE,
     COL_DATE,
     COL_HIGH,
@@ -121,28 +121,28 @@ def _load_json(path_str: str) -> dict[str, Any]:
 
 
 def _discover_strategies() -> list[StrategyData]:
-    """
-    BACKTEST_RESULTS_DIR 하위 디렉토리를 스캔하여 전략 데이터를 자동 탐색한다.
+    """CONFIGS에 등록된 전략의 결과 폴더를 탐색하여 전략 데이터를 로드한다.
 
-    각 디렉토리에 summary.json이 존재하면 유효한 전략 결과로 간주한다.
-    display_name은 summary.json에서 필수로 읽으며, 없으면 ValueError를 발생시킨다.
+    buffer_zone.CONFIGS와 buy_and_hold.CONFIGS의 result_dir을 순회하며,
+    summary.json이 존재하는 전략만 로드한다.
 
     Returns:
-        전략 데이터 리스트 (디렉토리명 정렬)
+        전략 데이터 리스트 (CONFIGS 등록 순서)
     """
-    if not BACKTEST_RESULTS_DIR.exists():
-        return []
+    # CONFIGS에서 (strategy_name, result_dir) 수집
+    config_dirs: list[tuple[str, Path]] = []
+    for cfg in BZ_CONFIGS:
+        config_dirs.append((cfg.strategy_name, cfg.result_dir))
+    for cfg in BH_CONFIGS:
+        config_dirs.append((cfg.strategy_name, cfg.result_dir))
 
     strategies: list[StrategyData] = []
 
-    for subdir in sorted(BACKTEST_RESULTS_DIR.iterdir()):
-        if not subdir.is_dir():
-            continue
-
-        summary_path = subdir / "summary.json"
-        signal_path = subdir / "signal.csv"
-        equity_path = subdir / "equity.csv"
-        trades_path = subdir / "trades.csv"
+    for strategy_name, result_dir in config_dirs:
+        summary_path = result_dir / "summary.json"
+        signal_path = result_dir / "signal.csv"
+        equity_path = result_dir / "equity.csv"
+        trades_path = result_dir / "trades.csv"
 
         # summary.json, signal.csv, equity.csv 필수
         if not summary_path.exists() or not signal_path.exists() or not equity_path.exists():
@@ -169,9 +169,9 @@ def _discover_strategies() -> list[StrategyData]:
 
         strategies.append(
             StrategyData(
-                strategy_name=subdir.name,
+                strategy_name=strategy_name,
                 display_name=display_name,
-                result_dir=subdir,
+                result_dir=result_dir,
                 summary_data=summary_data,
                 signal_df=signal_df,
                 equity_df=equity_df,
