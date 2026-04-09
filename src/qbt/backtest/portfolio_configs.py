@@ -132,7 +132,7 @@ _CONFIG_Q2 = PortfolioConfig(
 # Q-2-2X: Q-2의 전 자산 2배 레버리지 버전 (전 자산 버퍼존, 1x 시그널 기반)
 _CONFIG_Q2_2X = PortfolioConfig(
     experiment_name="portfolio_q2_2x",
-    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
     asset_slots=(
         AssetSlotConfig(
             asset_id="sso",

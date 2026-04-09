@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import plotly.colors as pc
 import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
@@ -84,61 +85,11 @@ _TRADE_COLUMN_RENAME: dict[str, str] = {
     "order_amount": "체결금액",
 }
 
-# --- 자산별 색상 ---
-_ASSET_COLORS: dict[str, str] = {
-    "qqq": "#1f77b4",  # 파랑
-    "tqqq": "#ff7f0e",  # 주황
-    "spy": "#2ca02c",  # 초록
-    "gld": "#d62728",  # 빨강
-    "tlt": "#9467bd",  # 보라 (채권)
-    "iwm": "#8c564b",  # 갈색 (소형주)
-    "efa": "#e377c2",  # 분홍 (선진국 국제)
-    "eem": "#7f7f7f",  # 회색 (신흥국)
-}
-_ASSET_COLOR_FALLBACK = "#888888"  # 매핑 없는 자산
-
-# --- 실험별 색상 (전체 비교 에쿼티 차트용) ---
-_EXPERIMENT_COLORS: dict[str, str] = {
-    # A 시리즈: QQQ / SPY / GLD (파랑 계열)
-    "portfolio_a1": "#aec7e8",
-    "portfolio_a2": "#1f77b4",
-    "portfolio_a3": "#17becf",
-    # B 시리즈: TQQQ 포함 (주황-빨강 계열)
-    "portfolio_b1": "#ffbb78",
-    "portfolio_b2": "#ff7f0e",
-    "portfolio_b3": "#d62728",
-    # C/D 시리즈: 단일 자산 비교군
-    "portfolio_c1": "#9467bd",  # 보라 (QQQ + TQQQ)
-    "portfolio_d1": "#2ca02c",  # 진한 초록 (QQQ 단일)
-    "portfolio_d2": "#8c4f00",  # 진한 갈색 (TQQQ 단일)
-    # E 시리즈: SPY / GLD / TLT (초록 계열, 연→진)
-    "portfolio_e1": "#c7e9c0",
-    "portfolio_e2": "#74c476",
-    "portfolio_e3": "#238b45",
-    "portfolio_e4": "#006d2c",
-    "portfolio_e5": "#00441b",
-    # F 시리즈: SPY / TQQQ / GLD / TLT (분홍-장미 계열)
-    "portfolio_f1": "#e7b8d4",
-    "portfolio_f2": "#d46b98",
-    "portfolio_f3": "#b52b6e",
-    "portfolio_f4": "#7a1446",
-    "portfolio_f5": "#e066a0",
-    "portfolio_f5h": "#f0a0c4",
-    "portfolio_f6": "#c84080",
-    "portfolio_f6h": "#e880b0",
-    "portfolio_f7": "#a01060",
-    "portfolio_f7h": "#d06090",
-    # G 시리즈: SPY / GLD / TLT B&H 변형 (청록 계열)
-    "portfolio_g1": "#c7fbf8",
-    "portfolio_g2": "#66d4cf",
-    "portfolio_g3": "#1aada8",
-    "portfolio_g4": "#0e7470",
-    # H 시리즈: TQQQ / GLD / TLT 공격적 (황금-갈색 계열)
-    "portfolio_h1": "#e6c880",
-    "portfolio_h2": "#c8912a",
-    "portfolio_h3": "#8c5e00",
-}
-_EXPERIMENT_COLOR_FALLBACK = "#888888"
+# --- 동적 색상 팔레트 ---
+# 자산/실험 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
+# 신규 자산이나 실험이 추가되어도 코드 수정 없이 자동으로 구분되는 색을 받는다.
+# 팔레트 길이를 초과하면 wrap-around(% len)로 순환한다.
+_COLOR_PALETTE: tuple[str, ...] = tuple(pc.qualitative.Light24)
 
 
 # ============================================================
@@ -317,14 +268,55 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r}, {g}, {b}, {alpha})"
 
 
-def _get_asset_color(asset_id: str) -> str:
-    """자산 ID에 대한 색상을 반환한다."""
-    return _ASSET_COLORS.get(asset_id, _ASSET_COLOR_FALLBACK)
+@st.cache_data
+def _build_color_map(ids: tuple[str, ...]) -> dict[str, str]:
+    """ID 집합을 정렬된 순서로 팔레트 색상에 매핑한다.
+
+    동일한 입력 tuple에 대해 결정적으로 동일한 색상 맵을 반환한다.
+    팔레트보다 ID가 많으면 wrap-around로 순환하며, 이 경우 일부 색상이
+    중복될 수 있다.
+
+    Args:
+        ids: 색상을 할당할 ID 집합 (해시를 위해 tuple)
+
+    Returns:
+        {id: hex_color} 형태의 매핑
+    """
+    sorted_ids = sorted(set(ids))
+    palette_len = len(_COLOR_PALETTE)
+    return {id_: _COLOR_PALETTE[i % palette_len] for i, id_ in enumerate(sorted_ids)}
 
 
-def _get_experiment_color(experiment_name: str) -> str:
-    """실험명에 대한 색상을 반환한다."""
-    return _EXPERIMENT_COLORS.get(experiment_name, _EXPERIMENT_COLOR_FALLBACK)
+def _get_asset_color(asset_id: str, asset_ids: tuple[str, ...]) -> str:
+    """자산 ID에 대한 색상을 반환한다.
+
+    asset_ids 컨텍스트(해당 차트에 등장하는 전체 자산 집합)를 기준으로
+    정렬 인덱스 팔레트에서 색상을 할당한다.
+
+    Args:
+        asset_id: 색상을 조회할 자산 ID
+        asset_ids: 색상 할당 컨텍스트 (해당 차트의 전체 자산 집합)
+
+    Returns:
+        hex 색상 문자열
+    """
+    return _build_color_map(asset_ids)[asset_id]
+
+
+def _get_experiment_color(experiment_name: str, experiment_names: tuple[str, ...]) -> str:
+    """실험명에 대한 색상을 반환한다.
+
+    experiment_names 컨텍스트(해당 차트에 등장하는 전체 실험 집합)를 기준으로
+    정렬 인덱스 팔레트에서 색상을 할당한다.
+
+    Args:
+        experiment_name: 색상을 조회할 실험명
+        experiment_names: 색상 할당 컨텍스트 (해당 차트의 전체 실험 집합)
+
+    Returns:
+        hex 색상 문자열
+    """
+    return _build_color_map(experiment_names)[experiment_name]
 
 
 def _extract_portfolio_summary(summary: dict[str, Any]) -> dict[str, Any]:
@@ -462,7 +454,8 @@ def _render_holdings_section(exp: _ExperimentData) -> None:
     target_values = [target_weights.get(aid, 0) * 100 for aid in asset_ids] + [
         max(0, 100 - sum(target_weights.get(aid, 0) * 100 for aid in asset_ids))
     ]
-    actual_colors = [_get_asset_color(aid) for aid in asset_ids] + ["#b4b4b4"]
+    asset_ids_tuple = tuple(asset_ids)
+    actual_colors = [_get_asset_color(aid, asset_ids_tuple) for aid in asset_ids] + ["#b4b4b4"]
     target_colors = actual_colors
 
     fig_donut = make_subplots(
@@ -642,6 +635,7 @@ def _render_rebalancing_history_section(exp: _ExperimentData) -> None:
     if len(recent_reb) > 0 and _has_holdings_data(equity_df):
         st.caption("최근 리밸런싱 전후 비중 변화")
         fig_reb = go.Figure()
+        asset_ids_tuple = tuple(asset_ids)
 
         for _, reb_row in recent_reb.iterrows():
             reb_idx = equity_df.index[equity_df["Date"] == reb_row["Date"]]
@@ -661,7 +655,7 @@ def _render_rebalancing_history_section(exp: _ExperimentData) -> None:
                     continue
                 pre_w = float(prev_r.get(weight_col, 0)) * 100
                 post_w = float(curr_r.get(weight_col, 0)) * 100
-                color = _get_asset_color(asset_id)
+                color = _get_asset_color(asset_id, asset_ids_tuple)
 
                 fig_reb.add_trace(
                     go.Bar(
@@ -842,12 +836,13 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
 
     fig_contrib = go.Figure()
     quarter_labels = [f"{d.year}Q{(d.month - 1) // 3 + 1}" for d in quarterly_diff.index]
+    asset_ids_tuple = tuple(asset_ids)
 
     for aid in asset_ids:
         col = f"{aid}_contribution"
         if col not in quarterly_diff.columns:
             continue
-        color = _get_asset_color(aid)
+        color = _get_asset_color(aid, asset_ids_tuple)
         fig_contrib.add_trace(
             go.Bar(
                 x=quarter_labels,
@@ -874,7 +869,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         col = f"{aid}_contribution"
         if col not in df.columns:
             continue
-        color = _get_asset_color(aid)
+        color = _get_asset_color(aid, asset_ids_tuple)
         r = int(color[1:3], 16)
         g = int(color[3:5], 16)
         b = int(color[5:7], 16)
@@ -959,11 +954,12 @@ def _render_contribution_section_legacy(exp: _ExperimentData, asset_ids: list[st
         cumulative[col] = cumulative[col] - cumulative[col].iloc[0]
 
     fig_cum = go.Figure()
+    asset_ids_tuple = tuple(asset_ids)
     for aid in asset_ids:
         col = f"{aid}_value"
         if col not in cumulative.columns:
             continue
-        color = _get_asset_color(aid)
+        color = _get_asset_color(aid, asset_ids_tuple)
         r = int(color[1:3], 16)
         g = int(color[3:5], 16)
         b = int(color[5:7], 16)
@@ -1040,9 +1036,13 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
         return
 
     # ---- 에쿼티 곡선 비교 ----
+    # 색상 할당 컨텍스트는 전체 experiments 기준으로 고정한다.
+    # multiselect 선택이 변해도 같은 실험은 항상 동일한 색상을 받는다.
+    all_experiment_names_tuple = tuple(e.experiment_name for e in experiments)
+
     fig_equity = go.Figure()
     for exp in selected_exps:
-        color = _get_experiment_color(exp.experiment_name)
+        color = _get_experiment_color(exp.experiment_name, all_experiment_names_tuple)
         fig_equity.add_trace(
             go.Scatter(
                 x=exp.equity_df["Date"],
@@ -1069,7 +1069,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 
     fig_dd = go.Figure()
     for exp in selected_exps:
-        color = _get_experiment_color(exp.experiment_name)
+        color = _get_experiment_color(exp.experiment_name, all_experiment_names_tuple)
         fig_dd.add_trace(
             go.Scatter(
                 x=exp.equity_df["Date"],
@@ -1217,6 +1217,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     weight_cols = _weight_columns(exp.equity_df)
     if weight_cols:
         fig_weight = go.Figure()
+        weight_asset_ids_tuple = tuple(_asset_id_from_weight_col(c) for c in weight_cols)
 
         # 현금 비중 계산 (1 - 합산 비중)
         total_weight = exp.equity_df[weight_cols].sum(axis=1)
@@ -1239,7 +1240,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         # 자산별 비중 (스택)
         for col in weight_cols:
             asset_id = _asset_id_from_weight_col(col)
-            color = _get_asset_color(asset_id)
+            color = _get_asset_color(asset_id, weight_asset_ids_tuple)
             # hex → rgba 변환
             r = int(color[1:3], 16)
             g = int(color[3:5], 16)
@@ -1269,7 +1270,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             asset_id = _asset_id_from_weight_col(col)
             tw = target_weights_map.get(asset_id, 0)
             if tw > 0:
-                color = _get_asset_color(asset_id)
+                color = _get_asset_color(asset_id, weight_asset_ids_tuple)
                 fig_weight.add_hline(
                     y=tw * 100,
                     line_dash="dash",
