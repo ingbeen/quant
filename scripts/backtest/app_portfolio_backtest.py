@@ -26,7 +26,6 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots
 
-from qbt.backtest.constants import DEFAULT_PORTFOLIO_EXPERIMENTS
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
@@ -165,9 +164,7 @@ class _ExperimentData:
 
 
 def _discover_experiments() -> list[Path]:
-    """PORTFOLIO_RESULTS_DIR 하위에서 활성 실험의 summary.json이 있는 폴더를 탐색한다.
-
-    DEFAULT_PORTFOLIO_EXPERIMENTS에 포함된 실험만 반환한다.
+    """PORTFOLIO_RESULTS_DIR 하위에서 summary.json이 있는 폴더를 탐색한다.
 
     Returns:
         유효한 실험 결과 폴더 경로 리스트 (알파벳 순 정렬)
@@ -177,7 +174,7 @@ def _discover_experiments() -> list[Path]:
 
     result: list[Path] = []
     for sub_dir in sorted(PORTFOLIO_RESULTS_DIR.iterdir()):
-        if sub_dir.is_dir() and (sub_dir / "summary.json").exists() and sub_dir.name in DEFAULT_PORTFOLIO_EXPERIMENTS:
+        if sub_dir.is_dir() and (sub_dir / "summary.json").exists():
             result.append(sub_dir)
 
     return result

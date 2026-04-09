@@ -50,12 +50,10 @@ _RESULT_DIR = BACKTEST_RESULTS_DIR / "param_plateau"
 # 자산별 설정 (config_name, 표시 레이블)
 _ASSET_CONFIGS: list[tuple[str, str]] = [
     ("buffer_zone_qqq", "QQQ"),
-    ("buffer_zone_spy", "SPY"),
-    ("buffer_zone_iwm", "IWM"),
-    ("buffer_zone_efa", "EFA"),
-    ("buffer_zone_eem", "EEM"),
     ("buffer_zone_gld", "GLD"),
     ("buffer_zone_tlt", "TLT"),
+    ("buffer_zone_ugl", "UGL"),
+    ("buffer_zone_ubt", "UBT"),
 ]
 
 

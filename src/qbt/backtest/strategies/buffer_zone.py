@@ -37,14 +37,12 @@ from qbt.backtest.types import BufferStrategyParams
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
-    EEM_DATA_PATH,
-    EFA_DATA_PATH,
     GLD_DATA_PATH,
-    IWM_DATA_PATH,
     QQQ_DATA_PATH,
-    SPY_DATA_PATH,
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
+    UBT_DATA_PATH,
+    UGL_DATA_PATH,
 )
 from qbt.utils import get_logger
 
@@ -151,35 +149,7 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq",
     ),
-    # --- cross-asset ---
-    BufferZoneConfig(
-        strategy_name="buffer_zone_spy",
-        display_name="버퍼존 전략 (SPY)",
-        signal_data_path=SPY_DATA_PATH,
-        trade_data_path=SPY_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_spy",
-    ),
-    BufferZoneConfig(
-        strategy_name="buffer_zone_iwm",
-        display_name="버퍼존 전략 (IWM)",
-        signal_data_path=IWM_DATA_PATH,
-        trade_data_path=IWM_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_iwm",
-    ),
-    BufferZoneConfig(
-        strategy_name="buffer_zone_efa",
-        display_name="버퍼존 전략 (EFA)",
-        signal_data_path=EFA_DATA_PATH,
-        trade_data_path=EFA_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_efa",
-    ),
-    BufferZoneConfig(
-        strategy_name="buffer_zone_eem",
-        display_name="버퍼존 전략 (EEM)",
-        signal_data_path=EEM_DATA_PATH,
-        trade_data_path=EEM_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_eem",
-    ),
+    # --- GLD ---
     BufferZoneConfig(
         strategy_name="buffer_zone_gld",
         display_name="버퍼존 전략 (GLD)",
@@ -187,12 +157,29 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=GLD_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_gld",
     ),
+    # --- TLT ---
     BufferZoneConfig(
         strategy_name="buffer_zone_tlt",
         display_name="버퍼존 전략 (TLT)",
         signal_data_path=TLT_DATA_PATH,
         trade_data_path=TLT_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tlt",
+    ),
+    # --- UGL (GLD 시그널 + UGL 2x 레버리지 매매) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_ugl",
+        display_name="버퍼존 전략 (UGL)",
+        signal_data_path=GLD_DATA_PATH,
+        trade_data_path=UGL_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_ugl",
+    ),
+    # --- UBT (TLT 시그널 + UBT 2x 레버리지 매매) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_ubt",
+        display_name="버퍼존 전략 (UBT)",
+        signal_data_path=TLT_DATA_PATH,
+        trade_data_path=UBT_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_ubt",
     ),
 ]
 

@@ -7,7 +7,7 @@
 실행 명령어:
     poetry run python scripts/backtest/run_single_backtest.py
     poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
-    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_spy
+    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_gld
 """
 
 import argparse
@@ -24,7 +24,6 @@ from qbt.backtest.analysis import (
     calculate_regime_summaries,
 )
 from qbt.backtest.constants import (
-    DEFAULT_SINGLE_BACKTEST_STRATEGIES,
     MARKET_REGIMES,
     ROUND_CAPITAL,
     ROUND_PERCENT,
@@ -52,21 +51,16 @@ from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
-# 전략 레지스트리 (CONFIGS 전체에서 빌드 후 활성 전략만 필터링)
-_ALL_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {}
+# 전략 레지스트리 (CONFIGS 기반 자동 등록)
+STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {}
 
 # Buffer zone: CONFIGS 기반 자동 등록
 for _config in buffer_zone.CONFIGS:
-    _ALL_RUNNERS[_config.strategy_name] = runners.create_buffer_zone_runner(_config)
+    STRATEGY_RUNNERS[_config.strategy_name] = runners.create_buffer_zone_runner(_config)
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록
 for _config in buy_and_hold.CONFIGS:
-    _ALL_RUNNERS[_config.strategy_name] = runners.create_buy_and_hold_runner(_config)
-
-# 활성 전략만 필터링
-STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {
-    name: runner for name, runner in _ALL_RUNNERS.items() if name in DEFAULT_SINGLE_BACKTEST_STRATEGIES
-}
+    STRATEGY_RUNNERS[_config.strategy_name] = runners.create_buy_and_hold_runner(_config)
 
 
 def print_summary(summary: Mapping[str, object], title: str) -> None:

@@ -157,31 +157,3 @@ def ma_col_name(window: int) -> str:
     return f"ma_{window}"
 
 
-# ============================================================
-# 포트폴리오 실험 활성 필터
-# ============================================================
-
-# run_portfolio_backtest.py / app_portfolio_backtest.py에서 실행·표출할 실험 목록
-DEFAULT_PORTFOLIO_EXPERIMENTS: Final[list[str]] = [
-    "portfolio_d1",
-    "portfolio_f6h",
-    "portfolio_q2",
-    "portfolio_q2_2x",
-    "portfolio_q2_2xh",
-]
-
-# ============================================================
-# 단일 백테스트 활성 전략 필터
-# ============================================================
-
-# run_single_backtest.py / app_single_backtest.py에서 실행·표출할 전략 목록
-DEFAULT_SINGLE_BACKTEST_STRATEGIES: Final[list[str]] = [
-    "buffer_zone_tqqq",
-    "buffer_zone_qqq",
-    "buffer_zone_tlt",
-    "buffer_zone_gld",
-    "buy_and_hold_qqq",
-    "buy_and_hold_tqqq",
-    "buy_and_hold_tlt",
-    "buy_and_hold_gld",
-]

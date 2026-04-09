@@ -23,7 +23,6 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from qbt.backtest.constants import DEFAULT_PORTFOLIO_EXPERIMENTS
 from qbt.common_constants import PORTFOLIO_RESULTS_DIR
 
 # ============================================================
@@ -70,7 +69,7 @@ def _discover_experiments() -> list[Path]:
         return []
     result: list[Path] = []
     for sub_dir in sorted(PORTFOLIO_RESULTS_DIR.iterdir()):
-        if sub_dir.is_dir() and (sub_dir / "state_log.csv").exists() and sub_dir.name in DEFAULT_PORTFOLIO_EXPERIMENTS:
+        if sub_dir.is_dir() and (sub_dir / "state_log.csv").exists():
             result.append(sub_dir)
     return result
 

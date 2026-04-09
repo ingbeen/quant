@@ -341,36 +341,22 @@ class TestBuyAndHoldConfigs:
         assert "buy_and_hold_qqq" in names, "QQQ 설정이 CONFIGS에 포함되어야 합니다"
         assert "buy_and_hold_tqqq" in names, "TQQQ 설정이 CONFIGS에 포함되어야 합니다"
 
-    def test_configs_contains_cross_asset_tickers(self):
+    def test_configs_contains_additional_tickers(self):
         """
-        목적: CONFIGS에 cross-asset 6개 자산의 B&H 설정이 모두 존재하는지 검증
+        목적: CONFIGS에 GLD, TLT, UGL, UBT B&H 설정이 모두 존재하는지 검증
 
         Given: buy_and_hold.CONFIGS
         When: strategy_name 확인
-        Then: SPY, IWM, EFA, EEM, GLD, TLT 모두 포함
+        Then: GLD, TLT, UGL, UBT 모두 포함
         """
         from qbt.backtest.strategies.buy_and_hold import CONFIGS
 
         names = {c.strategy_name for c in CONFIGS}
         expected = [
-            "buy_and_hold_spy",
-            "buy_and_hold_iwm",
-            "buy_and_hold_efa",
-            "buy_and_hold_eem",
             "buy_and_hold_gld",
             "buy_and_hold_tlt",
+            "buy_and_hold_ugl",
+            "buy_and_hold_ubt",
         ]
         for name in expected:
             assert name in names, f"{name} 설정이 CONFIGS에 포함되어야 합니다"
-
-    def test_configs_total_count(self):
-        """
-        목적: CONFIGS의 전체 항목 수가 8개인지 검증 (QQQ + TQQQ + 6개 cross-asset)
-
-        Given: buy_and_hold.CONFIGS
-        When: 길이 확인
-        Then: 비어있지 않아야 함
-        """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
-        assert len(CONFIGS) > 0, f"CONFIGS가 비어있으면 안 됩니다. 실제: {len(CONFIGS)}"

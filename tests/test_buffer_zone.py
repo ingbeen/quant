@@ -190,8 +190,8 @@ class TestResolveParamsForConfig:
         When: resolve_params_for_config 호출
         Then: hold_days=3 확인
         """
-        # Given: 4P 패턴 (SPY 예시)
-        config = get_config("buffer_zone_spy")
+        # Given: 4P 패턴 (GLD 예시)
+        config = get_config("buffer_zone_gld")
 
         # When
         params = resolve_params_for_config(config)
