@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import plotly.colors as pc
 import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
@@ -32,17 +33,11 @@ from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 _CHART_HEIGHT = 500
 _SUB_CHART_HEIGHT = 300
 
-_ASSET_COLORS: dict[str, str] = {
-    "qqq": "#1f77b4",
-    "tqqq": "#ff7f0e",
-    "spy": "#2ca02c",
-    "gld": "#d62728",
-    "tlt": "#9467bd",
-    "iwm": "#8c564b",
-    "efa": "#e377c2",
-    "eem": "#7f7f7f",
-}
-_COLOR_FALLBACK = "#888888"
+# --- 동적 색상 팔레트 ---
+# 자산 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
+# 신규 자산이 추가되어도 코드 수정 없이 자동으로 구분되는 색을 받는다.
+# 팔레트 길이를 초과하면 wrap-around(% len)로 순환한다.
+_COLOR_PALETTE: tuple[str, ...] = tuple(pc.qualitative.Light24)
 
 _SIGNAL_LABELS: dict[str, str] = {
     "buy": "매수 시그널",
@@ -104,9 +99,39 @@ def _get_asset_ids(state_log_df: pd.DataFrame) -> list[str]:
     return [c.removesuffix("_close") for c in state_log_df.columns if c.endswith("_close")]
 
 
-def _get_asset_color(asset_id: str) -> str:
-    """자산 색상을 반환한다."""
-    return _ASSET_COLORS.get(asset_id, _COLOR_FALLBACK)
+@st.cache_data
+def _build_color_map(ids: tuple[str, ...]) -> dict[str, str]:
+    """ID 집합을 정렬된 순서로 팔레트 색상에 매핑한다.
+
+    동일한 입력 tuple에 대해 결정적으로 동일한 색상 맵을 반환한다.
+    팔레트보다 ID가 많으면 wrap-around로 순환하며, 이 경우 일부 색상이
+    중복될 수 있다.
+
+    Args:
+        ids: 색상을 할당할 ID 집합 (해시를 위해 tuple)
+
+    Returns:
+        {id: hex_color} 형태의 매핑
+    """
+    sorted_ids = sorted(set(ids))
+    palette_len = len(_COLOR_PALETTE)
+    return {id_: _COLOR_PALETTE[i % palette_len] for i, id_ in enumerate(sorted_ids)}
+
+
+def _get_asset_color(asset_id: str, asset_ids: tuple[str, ...]) -> str:
+    """자산 ID에 대한 색상을 반환한다.
+
+    asset_ids 컨텍스트(해당 차트에 등장하는 전체 자산 집합)를 기준으로
+    정렬 인덱스 팔레트에서 색상을 할당한다.
+
+    Args:
+        asset_id: 색상을 조회할 자산 ID
+        asset_ids: 색상 할당 컨텍스트 (해당 차트의 전체 자산 집합)
+
+    Returns:
+        hex 색상 문자열
+    """
+    return _build_color_map(asset_ids)[asset_id]
 
 
 # ============================================================
@@ -291,6 +316,7 @@ def _render_synchronized_charts(
     )
 
     dates = equity_df["Date"]
+    asset_ids_tuple = tuple(asset_ids)
 
     # (1) 에쿼티 곡선 + 리밸런싱 마커
     fig.add_trace(
@@ -330,7 +356,7 @@ def _render_synchronized_charts(
         exec_rows = state_log_df[state_log_df[exec_col].astype(str).isin(["ENTER_TO_TARGET", "EXIT_ALL"])]
         if exec_rows.empty:
             continue
-        color = _get_asset_color(aid)
+        color = _get_asset_color(aid, asset_ids_tuple)
         for _, er in exec_rows.iterrows():
             intent = str(er[exec_col])
             marker_symbol = "triangle-up" if intent == "ENTER_TO_TARGET" else "triangle-down"
@@ -357,7 +383,7 @@ def _render_synchronized_charts(
         weight_col = f"{aid}_weight"
         if weight_col not in equity_df.columns:
             continue
-        color = _get_asset_color(aid)
+        color = _get_asset_color(aid, asset_ids_tuple)
         fig.add_trace(
             go.Scatter(
                 x=dates,
