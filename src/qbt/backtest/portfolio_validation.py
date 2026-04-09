@@ -12,10 +12,12 @@ PortfolioResult의 state_log_df, equity_df를 기반으로
 
 import pandas as pd
 
+from qbt.backtest.engines.portfolio_rebalance import DEFAULT_REBALANCE_POLICY
 from qbt.backtest.portfolio_types import PortfolioResult
 
-# 리밸런싱 후 비중 편차 허용 임계값 (정수 주수 제약 + 슬리피지 감안)
-_REBALANCE_WEIGHT_DEVIATION_THRESHOLD = 0.15
+# 리밸런싱 후 비중 편차 허용 임계값: 매일 긴급 트리거와 동일
+# (체결은 시가, 검증은 종가 기준이므로 긴급 트리거 이하 편차는 시스템이 허용하는 범위)
+_REBALANCE_WEIGHT_DEVIATION_THRESHOLD = DEFAULT_REBALANCE_POLICY.daily_threshold_rate
 
 # 에쿼티 등식 허용 오차 (원)
 _EQUITY_EQUATION_TOLERANCE = 1.0

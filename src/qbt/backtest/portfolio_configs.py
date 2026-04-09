@@ -21,10 +21,14 @@ from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import (
     GLD_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
+    QLD_DATA_PATH,
     QQQ_DATA_PATH,
     SPY_DATA_PATH,
+    SSO_DATA_PATH,
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
+    UBT_DATA_PATH,
+    UGL_DATA_PATH,
 )
 
 
@@ -1058,6 +1062,76 @@ _CONFIG_Q2 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2"),
 )
 
+# Q-2-2X: Q-2의 2배 레버리지 버전 — SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H)
+_CONFIG_Q2_2X = PortfolioConfig(
+    experiment_name="portfolio_q2_2x",
+    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="ugl",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=UGL_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="ubt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=UBT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2x"),
+)
+
+# Q-2-2XH: Q-2-2X에서 UGL/UBT도 버퍼존 적용 (전 자산 버퍼존, 1x 시그널 기반)
+_CONFIG_Q2_2XH = PortfolioConfig(
+    experiment_name="portfolio_q2_2xh",
+    display_name="Q-2-2XH (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="ugl",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=UGL_DATA_PATH,
+            target_weight=0.15,
+        ),
+        AssetSlotConfig(
+            asset_id="ubt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=UBT_DATA_PATH,
+            target_weight=0.15,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xh"),
+)
+
 # Q-3: SPY 30% / QQQ 35% / GLD 20%(B&H) / TLT 15%(B&H) — QQQ 비중 확대
 _CONFIG_Q3 = PortfolioConfig(
     experiment_name="portfolio_q3",
@@ -1141,6 +1215,8 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     # Q 시리즈: TQQQ→QQQ 교체 (합성 데이터 제거) + 방어 비중 민감도
     _CONFIG_Q1,
     _CONFIG_Q2,
+    _CONFIG_Q2_2X,
+    _CONFIG_Q2_2XH,
     _CONFIG_Q3,
 ]
 

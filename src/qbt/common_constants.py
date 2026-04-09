@@ -47,6 +47,12 @@ EEM_DATA_PATH: Final = STOCK_DIR / "EEM_max.csv"
 GLD_DATA_PATH: Final = STOCK_DIR / "GLD_max.csv"
 TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 
+# 2배 레버리지 ETF 데이터 파일 경로
+SSO_DATA_PATH: Final = STOCK_DIR / "SSO_max.csv"
+QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
+UGL_DATA_PATH: Final = STOCK_DIR / "UGL_max.csv"
+UBT_DATA_PATH: Final = STOCK_DIR / "UBT_max.csv"
+
 # --- 실행 이력 메타데이터 저장 경로 (JSON 형식) ---
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"
 

@@ -1,62 +1,62 @@
 {
-  "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+  "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 47772304,
-    "total_return_pct": 377.72,
-    "cagr": 10.13,
-    "mdd": -16.21,
-    "calmar": 0.62,
-    "total_trades": 108,
+    "final_capital": 119995463,
+    "total_return_pct": 1099.95,
+    "cagr": 16.57,
+    "mdd": -26.45,
+    "calmar": 0.63,
+    "total_trades": 190,
     "start_date": "2010-01-21",
     "end_date": "2026-04-07"
   },
   "per_asset": [
     {
-      "asset_id": "spy",
+      "asset_id": "sso",
       "target_weight": 0.35,
-      "total_trades": 28,
-      "win_rate": 89.29,
-      "final_shares": 25620,
-      "final_avg_price": 593.094768
+      "total_trades": 52,
+      "win_rate": 90.38,
+      "final_shares": 784946,
+      "final_avg_price": 45.872838
     },
     {
-      "asset_id": "qqq",
+      "asset_id": "qld",
       "target_weight": 0.35,
-      "total_trades": 31,
-      "win_rate": 93.55,
-      "final_shares": 28886,
-      "final_avg_price": 526.169915
+      "total_trades": 56,
+      "win_rate": 92.86,
+      "final_shares": 654344,
+      "final_avg_price": 55.517874
     },
     {
-      "asset_id": "gld",
+      "asset_id": "ugl",
       "target_weight": 0.15,
-      "total_trades": 28,
-      "win_rate": 85.71,
-      "final_shares": 15259,
-      "final_avg_price": 185.42374
+      "total_trades": 45,
+      "win_rate": 86.67,
+      "final_shares": 306544,
+      "final_avg_price": 27.187781
     },
     {
-      "asset_id": "tlt",
+      "asset_id": "ubt",
       "target_weight": 0.15,
-      "total_trades": 21,
-      "win_rate": 76.19,
-      "final_shares": 84161,
-      "final_avg_price": 91.823051
+      "total_trades": 37,
+      "win_rate": 70.27,
+      "final_shares": 1084514,
+      "final_avg_price": 17.367443
     }
   ],
   "portfolio_config": {
-    "experiment_name": "portfolio_q2",
-    "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+    "experiment_name": "portfolio_q2_2xh",
+    "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
     "total_capital": 10000000.0,
     "monthly_rebalance_threshold_rate": 0.1,
     "daily_rebalance_threshold_rate": 0.2,
     "assets": [
       {
-        "asset_id": "spy",
+        "asset_id": "sso",
         "target_weight": 0.35,
         "signal_data_path": "storage/stock/SPY_max.csv",
-        "trade_data_path": "storage/stock/SPY_max.csv",
+        "trade_data_path": "storage/stock/SSO_max.csv",
         "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
@@ -65,10 +65,10 @@
         "hold_days": 3
       },
       {
-        "asset_id": "qqq",
+        "asset_id": "qld",
         "target_weight": 0.35,
         "signal_data_path": "storage/stock/QQQ_max.csv",
-        "trade_data_path": "storage/stock/QQQ_max.csv",
+        "trade_data_path": "storage/stock/QLD_max.csv",
         "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
@@ -77,11 +77,11 @@
         "hold_days": 3
       },
       {
-        "asset_id": "gld",
+        "asset_id": "ugl",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/GLD_max.csv",
-        "trade_data_path": "storage/stock/GLD_max.csv",
-        "strategy_id": "buy_and_hold",
+        "trade_data_path": "storage/stock/UGL_max.csv",
+        "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
         "buy_buffer_zone_pct": 0.03,
@@ -89,11 +89,11 @@
         "hold_days": 3
       },
       {
-        "asset_id": "tlt",
+        "asset_id": "ubt",
         "target_weight": 0.15,
         "signal_data_path": "storage/stock/TLT_max.csv",
-        "trade_data_path": "storage/stock/TLT_max.csv",
-        "strategy_id": "buy_and_hold",
+        "trade_data_path": "storage/stock/UBT_max.csv",
+        "strategy_id": "buffer_zone",
         "ma_window": 200,
         "ma_type": "ema",
         "buy_buffer_zone_pct": 0.03,

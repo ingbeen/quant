@@ -1448,8 +1448,8 @@ def _compute_bands_for_signal(
         upper_band, lower_band 컬럼이 추가된 DataFrame 복사본
     """
     df = signal_df.copy()
-    df["upper_band"] = df[ma_col] * (1 + sell_buffer_zone_pct)
-    df["lower_band"] = df[ma_col] * (1 - buy_buffer_zone_pct)
+    df["upper_band"] = df[ma_col] * (1 + buy_buffer_zone_pct)
+    df["lower_band"] = df[ma_col] * (1 - sell_buffer_zone_pct)
     return df
 
 

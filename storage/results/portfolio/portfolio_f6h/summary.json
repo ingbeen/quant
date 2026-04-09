@@ -2,47 +2,47 @@
   "display_name": "F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 203576508,
-    "total_return_pct": 1935.77,
-    "cagr": 15.19,
+    "final_capital": 123266672,
+    "total_return_pct": 1132.67,
+    "cagr": 16.84,
     "mdd": -27.17,
-    "calmar": 0.56,
-    "total_trades": 188,
-    "start_date": "2004-11-18",
+    "calmar": 0.62,
+    "total_trades": 154,
+    "start_date": "2010-01-21",
     "end_date": "2026-03-12"
   },
   "per_asset": [
     {
       "asset_id": "spy",
       "target_weight": 0.3,
-      "total_trades": 33,
-      "win_rate": 90.91,
-      "final_shares": 93108,
-      "final_avg_price": 597.672358
+      "total_trades": 26,
+      "win_rate": 84.62,
+      "final_shares": 56377,
+      "final_avg_price": 597.671014
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.3,
-      "total_trades": 67,
-      "win_rate": 91.04,
-      "final_shares": 1288504,
-      "final_avg_price": 38.179715
+      "total_trades": 57,
+      "win_rate": 91.23,
+      "final_shares": 780196,
+      "final_avg_price": 38.179749
     },
     {
       "asset_id": "gld",
       "target_weight": 0.2,
-      "total_trades": 46,
-      "win_rate": 89.13,
-      "final_shares": 86038,
-      "final_avg_price": 182.085108
+      "total_trades": 38,
+      "win_rate": 84.21,
+      "final_shares": 52097,
+      "final_avg_price": 182.726841
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.2,
-      "total_trades": 42,
-      "win_rate": 80.95,
-      "final_shares": 475841,
-      "final_avg_price": 95.772135
+      "total_trades": 33,
+      "win_rate": 78.79,
+      "final_shares": 288124,
+      "final_avg_price": 95.826847
     }
   ],
   "portfolio_config": {
