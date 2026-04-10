@@ -395,8 +395,10 @@ def _render_holdings_section(exp: _ExperimentData) -> None:
     row = equity_df[date_mask.values].iloc[0]
     total_equity = int(row["equity"])
     cash = int(row["cash"])
-    total_pnl = total_equity - initial_capital
-    total_return_pct = (total_pnl / initial_capital * 100) if initial_capital > 0 else 0.0
+    # 엔진이 미리 계산한 파생 컬럼을 직접 사용 (CLI 계층의 도메인 로직 침범 방지).
+    # 컬럼이 없으면 사용자가 run_portfolio_backtest.py를 재실행해 최신 결과로 갱신해야 한다.
+    total_pnl = int(row["total_pnl"])
+    total_return_pct = float(row["total_return_pct"])
 
     # 요약 카드
     col1, col2, col3, col4 = st.columns(4)
@@ -424,10 +426,10 @@ def _render_holdings_section(exp: _ExperimentData) -> None:
         value = int(row.get(value_col, 0)) if value_col in equity_df.columns else 0
         weight = float(row.get(weight_col, 0)) if weight_col in equity_df.columns else 0.0
 
-        # 현재가 = 평가액 / 주수 (0 방지)
-        current_price = value / shares if shares > 0 else 0.0
-        # 종목별 수익률
-        asset_return_pct = ((current_price / avg_price - 1) * 100) if avg_price > 0 and shares > 0 else 0.0
+        # 엔진이 미리 계산한 파생 컬럼을 직접 사용. 컬럼이 없으면 KeyError로 즉시 실패하여
+        # 사용자가 run_portfolio_backtest.py 재실행 필요성을 인지할 수 있도록 한다.
+        current_price = float(row[f"{asset_id}_current_price"])
+        asset_return_pct = float(row[f"{asset_id}_return_pct"])
 
         holdings_rows.append(
             {

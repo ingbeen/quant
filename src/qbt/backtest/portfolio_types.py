@@ -135,6 +135,12 @@ class PortfolioResult:
         - {asset_id}_value: 자산별 주식 평가액 (position × close)
         - {asset_id}_weight: 자산별 실제 비중 (value / equity)
         - {asset_id}_signal: 자산별 시그널 ("buy" 또는 "sell")
+        - {asset_id}_shares, {asset_id}_avg_price: 자산별 보유 상태
+        - {asset_id}_realized_pnl, {asset_id}_unrealized_pnl: 자산별 손익 추적
+        - {asset_id}_current_price: 보유 시 value/shares, 미보유 시 0.0 (build_combined_equity SSoT)
+        - {asset_id}_return_pct: 보유 + 유효 평균가 시 (current/avg - 1)*100, 그 외 0.0
+        - total_pnl: equity - initial_capital (포트폴리오 누적 손익)
+        - total_return_pct: total_pnl / initial_capital * 100 (포트폴리오 누적 수익률 %)
         - rebalanced: 해당일 리밸런싱 실행 여부 (bool)
 
     trades_df 추가 컬럼:

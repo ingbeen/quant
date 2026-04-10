@@ -863,3 +863,139 @@ class TestAssetPnlColumns:
             cost_basis = row["gld_avg_price"] * row["gld_shares"]
             expected_unrealized = row["gld_value"] - cost_basis
             assert row["gld_unrealized_pnl"] == pytest.approx(expected_unrealized, abs=1.0)
+
+
+class TestPortfolioHoldingViewColumns:
+    """포트폴리오 엔진이 equity_df에 보유 현황 파생 컬럼을 포함하는지 검증.
+
+    파생 컬럼:
+    - {asset_id}_current_price: shares > 0이면 value/shares, 아니면 0.0
+    - {asset_id}_return_pct: avg_price > 0 and shares > 0이면 (current/avg - 1)*100, 아니면 0.0
+    - total_pnl: equity - initial_capital
+    - total_return_pct: total_pnl/initial_capital * 100
+
+    이전에는 app_portfolio_backtest.py가 직접 계산했으나, 단일 진실 공급원 확립을 위해
+    엔진(build_combined_equity)에서 산출한다.
+    """
+
+    def test_equity_df_has_derived_holding_view_columns(
+        self, tmp_path: Path, create_csv_file
+    ):  # type: ignore[no-untyped-def]
+        """
+        목적: equity_df에 4종 파생 컬럼이 모든 자산에 대해 존재함을 검증.
+
+        Given: GLD 단일 자산 포트폴리오
+        When:  run_portfolio_backtest 실행
+        Then:  gld_current_price, gld_return_pct, total_pnl, total_return_pct 컬럼 존재
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+
+        # Then
+        assert "gld_current_price" in equity_df.columns, "{aid}_current_price 컬럼이 존재해야 함"
+        assert "gld_return_pct" in equity_df.columns, "{aid}_return_pct 컬럼이 존재해야 함"
+        assert "total_pnl" in equity_df.columns, "total_pnl 컬럼이 존재해야 함"
+        assert "total_return_pct" in equity_df.columns, "total_return_pct 컬럼이 존재해야 함"
+
+    def test_current_price_equals_value_div_shares_when_holding(
+        self, tmp_path: Path, create_csv_file
+    ):  # type: ignore[no-untyped-def]
+        """
+        목적: shares > 0인 행에서 current_price * shares == value 등식 검증.
+
+        Given: 보유가 발생한 단일 자산 포트폴리오
+        When:  파생 컬럼 계산 후
+        Then:  모든 보유 행에서 current_price * shares ≈ value
+               (shares > 0이고 avg_price > 0이면 return_pct = (current/avg - 1)*100)
+        """
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+        holding_rows = equity_df[equity_df["gld_shares"] > 0]
+
+        # 보유 행이 최소 1개는 있어야 한다 (이 시나리오에서)
+        assert len(holding_rows) > 0, "테스트 시나리오에서 보유 행이 발생해야 함"
+
+        for _, row in holding_rows.iterrows():
+            # current_price * shares == value
+            assert row["gld_current_price"] * row["gld_shares"] == pytest.approx(row["gld_value"], abs=0.01)
+            # return_pct = (current_price / avg_price - 1) * 100
+            if row["gld_avg_price"] > 0:
+                expected_return = (row["gld_current_price"] / row["gld_avg_price"] - 1) * 100
+                assert row["gld_return_pct"] == pytest.approx(expected_return, abs=0.1)
+
+    def test_current_price_zero_when_no_position(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: shares == 0인 행에서 current_price 와 return_pct가 0.0임을 검증.
+
+        Given: 매수 신호 발생 전(초기) 행이 존재하는 포트폴리오
+        When:  파생 컬럼 계산 후
+        Then:  shares == 0인 행에서 current_price == 0.0 and return_pct == 0.0
+        """
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+        non_holding_rows = equity_df[equity_df["gld_shares"] == 0]
+
+        # 매수 신호 전에는 shares == 0인 행이 존재해야 한다
+        assert len(non_holding_rows) > 0, "매수 신호 발생 전 보유 없음 행이 존재해야 함"
+
+        for _, row in non_holding_rows.iterrows():
+            assert row["gld_current_price"] == pytest.approx(0.0, abs=1e-12)
+            assert row["gld_return_pct"] == pytest.approx(0.0, abs=1e-12)
+
+    def test_total_pnl_and_return_pct(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: total_pnl과 total_return_pct가 equity와 initial_capital로부터 정확히 산출됨을 검증.
+
+        Given: total_capital이 명시된 포트폴리오
+        When:  파생 컬럼 계산 후
+        Then:  total_pnl == equity - initial_capital
+               total_return_pct == total_pnl / initial_capital * 100
+        """
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = _make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+            total_capital=10_000_000.0,
+        )
+
+        result = run_portfolio_backtest(config)
+        equity_df = result.equity_df
+        initial_capital = config.total_capital
+
+        for _, row in equity_df.iterrows():
+            expected_pnl = row["equity"] - initial_capital
+            expected_return_pct = (expected_pnl / initial_capital) * 100
+            assert row["total_pnl"] == pytest.approx(expected_pnl, abs=0.5)
+            assert row["total_return_pct"] == pytest.approx(expected_return_pct, abs=0.1)

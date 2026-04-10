@@ -108,7 +108,15 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
 - `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json, state_log_df)
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price, {asset_id}_realized_pnl, {asset_id}_unrealized_pnl
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price, {asset_id}_realized_pnl, {asset_id}_unrealized_pnl, {asset_id}_current_price, {asset_id}_return_pct, total_pnl, total_return_pct
+
+파생 뷰 컬럼 (보유 현황 표시 용도, `build_combined_equity`에서 SSoT로 계산):
+- `{asset_id}_current_price`: shares > 0이면 `value / shares`, 아니면 0.0
+- `{asset_id}_return_pct`: shares > 0 and avg_price > 0이면 `(current_price / avg_price - 1) * 100`, 아니면 0.0
+- `total_pnl`: `equity - initial_capital`
+- `total_return_pct`: `total_pnl / initial_capital * 100`
+
+대시보드 등 CLI 계층은 위 파생 컬럼을 직접 읽어 사용하며, 동일한 계산을 자체 수행하지 않는다.
 
 state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_start, rebalanced, rebalance_reason, {aid}_close, {aid}_shares, {aid}_weight, {aid}_signal_today, {aid}_pending_intent, {aid}_pending_reason, {aid}_pending_delta, {aid}_executed_intent, {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price
 
