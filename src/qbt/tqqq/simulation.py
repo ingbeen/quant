@@ -542,14 +542,20 @@ def _calculate_cumul_multiple_log_diff(
     simulated_prices: pd.Series,
 ) -> pd.Series:
     """
-    누적배수 기반 로그차이를 계산한다.
+    누적배수 기반 로그차이(abs)를 계산한다.
 
-    스케일 무관성을 가진 추적오차 지표로, 첫날 기준 누적 자산배수의 로그 비율을 측정한다.
+    스케일 무관성을 가진 추적오차 크기 지표로, 첫날 기준 누적 자산배수의
+    로그 비율의 절댓값을 측정한다. signed 버전은
+    `analysis_helpers.calculate_signed_log_diff_from_cumulative_returns` 참고.
 
     계산 방식:
       - M_actual(t) = actual_close(t) / actual_close(0)  (누적 자산배수)
       - M_sim(t) = simul_close(t) / simul_close(0)
-      - 로그차이(%) = |ln(M_actual(t) / M_sim(t))| × 100
+      - abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100
+
+    비고:
+      - 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
+      - 부호 의미가 필요한 경우 signed 버전을 사용해야 한다.
 
     특징:
       - 스케일 무관: 실제 10 vs 시뮬 9 = 실제 1000 vs 시뮬 900 (동일한 비율)

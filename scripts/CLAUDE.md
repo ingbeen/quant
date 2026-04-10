@@ -138,7 +138,7 @@ main 함수:
     - 윈도우별 상세 CSV 저장: `wfo_windows_dynamic/` 및 `wfo_windows_fully_fixed/` 하위에 w{idx}_signal.csv, w{idx}_equity.csv, w{idx}_trades.csv (캔들차트 시각화용)
 - 포트폴리오 실험:
   - `run_portfolio_backtest.py`: 포트폴리오 실험 실행
-    - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all, 실험 목록은 PORTFOLIO_CONFIGS 참고)
+    - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all). 실험 목록은 변경 빈도가 높아 본 문서에 직접 명시하지 않으며, 최신 값은 `src/qbt/backtest/portfolio_configs.py`의 `PORTFOLIO_CONFIGS`를 직접 확인할 것.
     - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 메타데이터 타입: `"portfolio_backtest"`

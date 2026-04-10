@@ -48,7 +48,7 @@ def run_ruff() -> tuple[bool, int]:
     success = result.returncode == 0
 
     if success:
-        print("✓ Ruff 체크 통과")
+        print("[OK] Ruff 체크 통과")
         return True, 0
 
     # Ruff 출력에서 오류 개수 파싱: "Found X error." 또는 "Found X errors."
@@ -72,7 +72,7 @@ def run_ruff() -> tuple[bool, int]:
     if error_count == 0:
         error_count = 1
 
-    print(f"✗ Ruff 체크 실패 (오류/경고: {error_count}개)")
+    print(f"[FAIL] Ruff 체크 실패 (오류/경고: {error_count}개)")
     return False, error_count
 
 
@@ -99,7 +99,7 @@ def run_pyright() -> tuple[bool, int]:
     success = result.returncode == 0
 
     if success:
-        print("✓ PyRight 체크 통과")
+        print("[OK] PyRight 체크 통과")
         return True, 0
 
     # PyRight 출력에서 오류 개수 파싱: "X error, Y warnings, Z informations"
@@ -123,7 +123,7 @@ def run_pyright() -> tuple[bool, int]:
     if error_count == 0:
         error_count = 1
 
-    print(f"✗ PyRight 체크 실패 (오류: {error_count}개)")
+    print(f"[FAIL] PyRight 체크 실패 (오류: {error_count}개)")
     return False, error_count
 
 
@@ -188,9 +188,9 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
                     break
 
     if success:
-        print(f"✓ Pytest 통과 (passed={passed}, failed={failed}, skipped={skipped})")
+        print(f"[OK] Pytest 통과 (passed={passed}, failed={failed}, skipped={skipped})")
     else:
-        print(f"✗ Pytest 실패 (passed={passed}, failed={failed}, skipped={skipped})")
+        print(f"[FAIL] Pytest 실패 (passed={passed}, failed={failed}, skipped={skipped})")
 
     return success, passed, failed, skipped
 
@@ -317,27 +317,29 @@ def main() -> int:
         ruff_success, ruff_errors = results["ruff"]
         total_errors += ruff_errors
         all_success &= ruff_success
-        print(f"Ruff:    {'✓ 통과' if ruff_success else f'✗ 실패 (오류/경고: {ruff_errors}개)'}")
+        print(f"Ruff:    {'[OK] 통과' if ruff_success else f'[FAIL] 실패 (오류/경고: {ruff_errors}개)'}")
 
     if "pyright" in results:
         pyright_success, pyright_errors = results["pyright"]
         total_errors += pyright_errors
         all_success &= pyright_success
-        print(f"PyRight: {'✓ 통과' if pyright_success else f'✗ 실패 (오류: {pyright_errors}개)'}")
+        print(f"PyRight: {'[OK] 통과' if pyright_success else f'[FAIL] 실패 (오류: {pyright_errors}개)'}")
 
     if "pytest" in results:
         pytest_success, passed, failed, skipped = results["pytest"]
         total_errors += failed
         all_success &= pytest_success
-        print(f"Pytest:  {'✓ 통과' if pytest_success else '✗ 실패'} (passed={passed}, failed={failed}, skipped={skipped})")
+        print(
+            f"Pytest:  {'[OK] 통과' if pytest_success else '[FAIL] 실패'} (passed={passed}, failed={failed}, skipped={skipped})"
+        )
 
     print(f"\n총 오류/경고: {total_errors}개")
 
     if all_success:
-        print("\n🎉 모든 품질 검증 통과!")
+        print("\n[SUCCESS] 모든 품질 검증 통과!")
         return 0
     else:
-        print("\n❌ 품질 검증 실패. 위 오류를 수정해주세요.")
+        print("\n[FAILED] 품질 검증 실패. 위 오류를 수정해주세요.")
         return 1
 
 

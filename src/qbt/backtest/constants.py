@@ -17,7 +17,9 @@ from qbt.backtest.types import MarketRegimeDict
 # ============================================================
 
 # 거래 비용 상수 (슬리피지에 수수료 포함)
-SLIPPAGE_RATE: Final = 0.003  # 0.3% / 매수 or 매도 1회
+# 매수 또는 매도 1회당 0.3%. 왕복(매수 + 매도) 비용은 2 * SLIPPAGE_RATE 이며,
+# 매수와 매도가 각각 별도의 비용 이벤트로 누적되는 것이 의도된 설계이다.
+SLIPPAGE_RATE: Final = 0.003  # 0.3% / 매수 or 매도 1회 (왕복 0.6%)
 
 # 초기 자본금
 DEFAULT_INITIAL_CAPITAL: Final = 10_000_000.0  # 1천만원
@@ -155,5 +157,3 @@ def ma_col_name(window: int) -> str:
         MA 컬럼명 문자열. 예: ma_col_name(200) -> 'ma_200'
     """
     return f"ma_{window}"
-
-

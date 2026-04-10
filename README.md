@@ -6,7 +6,7 @@
 
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
 - 이동평균 기반 버퍼존 거래 전략 백테스트 — 엔진-전략 분리 아키텍처 (`SignalStrategy` Protocol, stateful 전략 클래스)
-- 멀티자산 포트폴리오 백테스트 (A~H 시리즈 실험, 목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정)
+- 멀티자산 포트폴리오 백테스트 (목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정 — 실험 구성은 `src/qbt/backtest/portfolio_configs.py`의 `PORTFOLIO_CONFIGS` 참고)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
 
@@ -49,15 +49,15 @@ poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
 
 # 3. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
-# A~H 시리즈 실험 (실험 구성은 portfolio_configs.py 참고)
+# 실험 구성은 src/qbt/backtest/portfolio_configs.py의 PORTFOLIO_CONFIGS 참고 (목록은 자주 변경됨)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)
 # 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, execution_comparison)
 # 실행 직후 5개 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식)
 # 위반 발견 시 결과 저장 후 스크립트 중지 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
-# --experiment 인자로 실험 선택 가능 (기본값: all)
-poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
+# --experiment 인자로 특정 실험 선택 가능 (실험명은 PORTFOLIO_CONFIGS 참고, 기본값: all)
+poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
 # 4. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
@@ -303,16 +303,7 @@ quant/
 - `state_log.csv`: 일별 엔진 내부 상태 (시그널 판정, 주문 의도, 체결 결과, 포지션/비중 변화)
 - `execution_comparison.csv`: 체결 발생일의 자산별 전후 비중/주수/평가액 비교
 
-실험 구성 및 자산 배분 상세는 [portfolio_configs.py](src/qbt/backtest/portfolio_configs.py)를 참고하세요.
-
-- **A 시리즈**: QQQ / SPY / GLD 비중 변형 탐색
-- **B 시리즈**: TQQQ 소량 포함 + 현금 버퍼 구성
-- **C 시리즈**: 레버리지 기준선 (분산 없음)
-- **D 시리즈**: 단일 자산 비교군
-- **E 시리즈**: SPY / GLD / TLT (레버리지 없음, TLT 순효과 측정)
-- **F 시리즈**: SPY / TQQQ / GLD / TLT (레버리지 혼합)
-- **G 시리즈**: 버퍼존 vs B&H 팩토리얼 (전략 기여도 격리)
-- **H 시리즈**: TQQQ 집중 + 방어 자산 조합
+실험 구성 및 자산 배분 상세는 [portfolio_configs.py](src/qbt/backtest/portfolio_configs.py)의 `PORTFOLIO_CONFIGS`를 직접 참고하세요. 실험 목록은 변경 빈도가 높아 README에 직접 명시하지 않습니다.
 
 ### TQQQ 시뮬레이션
 

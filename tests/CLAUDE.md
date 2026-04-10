@@ -27,6 +27,8 @@ tests/
 ├── test_portfolio_strategy_types.py     # 포트폴리오 strategy_id 동작 계약 테스트
 ├── test_portfolio_planning.py           # 포트폴리오 planning 로직 테스트 (OrderIntent, signal/projected/merge)
 ├── test_portfolio_execution.py          # 포트폴리오 체결 로직 테스트 (SELL→BUY, 부분 매도)
+├── test_portfolio_state_log.py          # 포트폴리오 state_log 정합성 검증
+├── test_portfolio_validation.py         # 포트폴리오 정합성 검증 함수 단위 테스트
 ├── test_walkforward_windows.py   # WFO 윈도우 생성 테스트
 ├── test_walkforward_schedule.py  # WFO 파라미터 스케줄 및 실행 테스트
 ├── test_walkforward_selection.py # WFO 파라미터 선택 및 WFE 테스트

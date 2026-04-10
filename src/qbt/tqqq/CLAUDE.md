@@ -175,17 +175,32 @@ funding_spread = softplus(a + b * FFR_pct)  # 기본값: a=-6.1, b=0.37
 
 ## 핵심 계산 로직
 
-### 누적배수 로그차이 계산
+### 누적배수 로그차이 지표 (2종)
 
-목적: 스케일에 무관한 추적오차 측정
+두 지표는 동일한 누적배수 정의를 공유하지만, 용도가 다르다.
 
-수식:
+공통 정의:
 
 ```
-M_actual(t) = actual_close(t) / actual_close(0)  # 누적 자산배수
-M_sim(t) = simul_close(t) / simul_close(0)
-로그차이(%) = ln(M_actual(t) / M_sim(t)) * 100
+M(t) = Close(t) / Close(0)   # 첫날 종가 기준 누적 자산배수
 ```
+
+#### 1) 추적오차 크기 (abs)
+
+- 함수: `simulation._calculate_cumul_multiple_log_diff`
+- 수식: `abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100`
+- 용도: RMSE 최적화, 절대 오차 크기 측정 (부호 무관)
+- 비고: 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
+
+#### 2) 방향성 (signed)
+
+- 함수: `analysis_helpers.calculate_signed_log_diff_from_cumulative_returns`
+- 수식: `signed_log_diff(%) = 100 × ln(M_sim / M_real)`
+- 용도: 금리-오차 회귀 분석 등 부호가 의미를 갖는 분석
+- 부호 해석:
+  - 양수: 시뮬레이션이 실제보다 높음(오버슈트)
+  - 음수: 시뮬레이션이 실제보다 낮음(언더슈트)
+- 비고: 부호 의미를 고정하기 위해 `M_sim / M_real` 순서를 반드시 준수한다.
 
 오차 지표:
 

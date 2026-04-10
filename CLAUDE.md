@@ -86,7 +86,7 @@ quant/
 │   │   ├── walkforward.py        # 워크포워드 검증(WFO) 비즈니스 로직
 │   │   ├── parameter_stability.py # 파라미터 고원 분석
 │   │   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
-│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (A~H 시리즈)
+│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (목록은 PORTFOLIO_CONFIGS 직접 참고)
 │   │   ├── runners.py            # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
 │   │   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
 │   │   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)

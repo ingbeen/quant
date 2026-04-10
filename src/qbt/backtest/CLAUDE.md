@@ -35,7 +35,7 @@
 
 주요 상수 카테고리:
 
-- 거래 비용: `SLIPPAGE_RATE` (0.3%, 슬리피지 + 수수료 통합)
+- 거래 비용: `SLIPPAGE_RATE` (매수 또는 매도 1회당 0.3%, 슬리피지 + 수수료 통합. 왕복 = 매수 + 매도 = 2 × `SLIPPAGE_RATE` ≈ 0.6%)
 - 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_BUFFER_MA_TYPE` (버퍼존/그리드서치 기본 MA 유형, `"ema"`)
 - 수치 안정성: `CALMAR_MDD_ZERO_SUBSTITUTE` (Calmar MDD=0 처리 대용값, `1e10`)
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
@@ -220,20 +220,14 @@ TypedDict:
 ### 8. portfolio_configs.py
 
 포트폴리오 백테스트 실험 설정을 제공한다.
-A~H 시리즈 포트폴리오 실험을 PortfolioConfig로 구현한다.
 
 설정 목록:
-- PORTFOLIO_CONFIGS: list[PortfolioConfig]
-  - A 시리즈: QQQ / SPY / GLD (비중 변형)
-  - B 시리즈: QQQ / TQQQ / SPY / GLD (레버리지 포함)
-  - C/D 시리즈: 단일 자산 비교군 (QQQ·TQQQ 50:50, QQQ 100%, TQQQ 100%)
-  - E 시리즈: SPY / GLD / TLT (SPY 비중 변형)
-  - F 시리즈: SPY / TQQQ / GLD / TLT (TQQQ 포함 공격적)
-  - G 시리즈: SPY / GLD / TLT — B&H 전략 조합 변형 (GLD·TLT strategy_type 혼합)
-  - H 시리즈: TQQQ / GLD / TLT (TQQQ 집중 + 헤지 비중 변형)
+- `PORTFOLIO_CONFIGS: list[PortfolioConfig]`
+  - 실험 구성과 자산 비중은 변경 빈도가 매우 높으므로 본 문서에 직접 나열하지 않는다.
+  - 최신 실험 목록·자산 슬롯·target_weight·strategy_id는 `src/qbt/backtest/portfolio_configs.py`를 직접 확인할 것.
 
 주요 함수:
-- get_portfolio_config(experiment_name): 이름으로 PortfolioConfig 조회. 없으면 ValueError
+- `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
 
 ---
 
@@ -409,6 +403,7 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 
 - 매수: `price_raw * (1 + SLIPPAGE_RATE)`
 - 매도: `price_raw * (1 - SLIPPAGE_RATE)`
+- 왕복(매수+매도) 비용은 `2 × SLIPPAGE_RATE` ≈ 0.6%로, 매수와 매도가 각각 별도의 비용 이벤트로 누적된다. 이는 의도된 설계이며 슬리피지 이중 적용이 아니다.
 
 ### 3. 체결 타이밍 규칙 (절대 규칙)
 
