@@ -925,6 +925,45 @@ class TestCalculateRegimeSummaries:
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             calculate_regime_summaries(equity_df, trades_df, regimes)
 
+    def test_analysis_module_has_no_runtime_imports_to_csv_export(self):
+        """
+        analysis.calculate_regime_summaries 함수 본문에 함수 내부 import가 없어야 한다.
+
+        정책: 함수 내부 import는 가독성 저하·정적 분석 오작동·의존 그래프 추적 곤란을 유발한다.
+              과거에는 csv_export.add_holding_days를 runtime import했으나 top-level로 정리했다.
+
+        Given: qbt.backtest.analysis 모듈을 import
+        When:  calculate_regime_summaries의 소스 코드를 inspect로 추출
+        Then:  함수 본문 내 'import' 키워드가 포함된 라인이 없음
+        """
+        import inspect
+
+        from qbt.backtest import analysis
+
+        source = inspect.getsource(analysis.calculate_regime_summaries)
+        # 들여쓰기된 import 라인이 없는지 확인 (들여쓰기되지 않은 def 라인은 함수 시그니처)
+        offending_lines = [line for line in source.splitlines() if line.lstrip().startswith(("import ", "from "))]
+        assert offending_lines == [], f"calculate_regime_summaries 내부에 함수 내 import 발견: {offending_lines!r}"
+
+    def test_csv_export_does_not_depend_on_analysis(self):
+        """
+        csv_export 모듈은 analysis를 import해서는 안 된다 (단방향 의존).
+
+        정책: 저장 계층(csv_export) → 계산 계층(analysis) 방향이 자연스럽다.
+              역방향 의존이 생기면 순환 가능성이 발생한다.
+
+        Given: qbt.backtest.csv_export 모듈을 fresh import
+        When:  csv_export 모듈의 import 그래프를 점검
+        Then:  analysis 모듈을 직접 import하지 않음
+        """
+        import qbt.backtest.csv_export as csv_export
+
+        # csv_export 모듈의 namespace에 analysis 관련 심볼이 없는지 확인
+        assert "analysis" not in csv_export.__dict__, "csv_export가 analysis 모듈을 import해서는 안 됨"
+        # analysis의 핵심 함수 이름들이 csv_export 네임스페이스에 노출되어 있지 않은지 확인
+        for forbidden in ("calculate_summary", "calculate_regime_summaries", "add_single_moving_average"):
+            assert forbidden not in csv_export.__dict__, f"csv_export가 analysis의 {forbidden}를 import해서는 안 됨 (단방향 의존 위반)"
+
     def test_calculate_summary_zero_years_raises(self):
         """
         equity_df의 시작일과 종료일이 동일한 경우 RuntimeError 발생

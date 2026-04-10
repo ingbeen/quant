@@ -26,6 +26,7 @@ from qbt.backtest.constants import (
     ROUND_PERCENT,
     ma_col_name,
 )
+from qbt.backtest.csv_export import add_holding_days
 from qbt.backtest.types import MarketRegimeDict, RegimeSummaryDict, SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
@@ -331,10 +332,7 @@ def calculate_regime_summaries(
         summary = calculate_summary(regime_trades, regime_equity, initial_capital)
 
         # 7. 추가 지표 계산
-        # 평균 보유기간
-        # holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
-        from qbt.backtest.csv_export import add_holding_days
-
+        # 평균 보유기간 — holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
         if not regime_trades.empty:
             regime_trades = add_holding_days(regime_trades)
 
