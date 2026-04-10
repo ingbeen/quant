@@ -239,3 +239,43 @@ class TestSaveDailyComparisonCsv:
         # 실제 종가 확인 (소수점 4자리로 반올림)
         assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=0.0001)
         assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=0.0001)
+
+
+class TestCumulMultipleLogDiffInvariant:
+    """abs 누적배수 로그차이의 사전 검증 (M > 0) 회귀 테스트.
+
+    내부 함수이지만, signed 버전(analysis_helpers)과 일관된 fail-fast 정책을 보장하기 위해
+    음수/0 누적배수 입력 시 ValueError가 발생해야 한다.
+    """
+
+    def test_negative_actual_price_raises(self):
+        """
+        목적: actual_prices에 0 이하 값이 있으면 ValueError 발생.
+
+        Given: actual_prices의 두 번째 값이 음수 → m_actual <= 0 발생
+        When:  _calculate_cumul_multiple_log_diff 호출
+        Then:  ValueError (메시지에 "M_actual" 또는 누적배수 관련 키워드 포함)
+        """
+        from qbt.tqqq.simulation import _calculate_cumul_multiple_log_diff  # pyright: ignore[reportPrivateUsage]
+
+        actual_prices = pd.Series([100.0, -10.0, 90.0])
+        simulated_prices = pd.Series([100.0, 95.0, 92.0])
+
+        with pytest.raises(ValueError, match="M_actual"):
+            _calculate_cumul_multiple_log_diff(actual_prices, simulated_prices)
+
+    def test_negative_simulated_price_raises(self):
+        """
+        목적: simulated_prices에 0 이하 값이 있으면 ValueError 발생.
+
+        Given: simulated_prices의 두 번째 값이 0 → m_simul <= 0 발생
+        When:  _calculate_cumul_multiple_log_diff 호출
+        Then:  ValueError (메시지에 "M_sim" 키워드 포함)
+        """
+        from qbt.tqqq.simulation import _calculate_cumul_multiple_log_diff  # pyright: ignore[reportPrivateUsage]
+
+        actual_prices = pd.Series([100.0, 105.0, 110.0])
+        simulated_prices = pd.Series([100.0, 0.0, 95.0])
+
+        with pytest.raises(ValueError, match="M_sim"):
+            _calculate_cumul_multiple_log_diff(actual_prices, simulated_prices)

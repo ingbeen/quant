@@ -54,7 +54,7 @@
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
-- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨
+- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨. regime 시작 equity가 0 이하면 `RuntimeError("내부 불변조건 위반")` 발생 (`calculate_summary`의 `final_capital`/`years` 가드와 동일한 fail-fast 정책)
 
 ### 4. parameter_stability.py
 
@@ -195,7 +195,7 @@ TypedDict:
 - `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
 - `compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
 - `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
-- `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다
+- `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다. order_intents에 있는 자산이 `open_prices`에 누락되면 `RuntimeError("내부 불변조건 위반")` 발생 — 호출부가 동일 자산 집합으로 채워야 한다는 호출 계약을 강제한다
 
 공개 함수 (portfolio_engine.py facade + 하위 모듈):
 

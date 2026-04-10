@@ -895,3 +895,58 @@ class TestCalculateRegimeSummaries:
         assert len(results) == 1
         result = results[0]
         assert result["profit_factor"] == pytest.approx(0.0, abs=EPSILON), "손실 거래 없으면 profit_factor = 0.0"
+
+    def test_regime_summaries_zero_initial_equity_raises(self):
+        """
+        구간 시작 equity가 0 이하이면 RuntimeError 발생 (내부 불변조건 위반)
+
+        정책: regime 시작 equity가 0 이하인 것은 비레버리지 백테스트에서
+              자본 소멸을 의미하며, calculate_summary와 동일한 fail-fast 정책을 적용해야 한다.
+              과거에는 1.0으로 무음 대체되었으나 이는 정책 위반이다.
+
+        Given:
+          - regime 시작일의 equity 값이 0
+        When: calculate_regime_summaries 호출
+        Then: RuntimeError("내부 불변조건 위반") + 메시지에 regime 이름 포함
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2021, 1, 4), date(2021, 6, 30), date(2021, 12, 31)],
+                "equity": [0.0, 5000.0, 10000.0],
+            }
+        )
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2021-01-01", "end": "2021-12-31", "regime_type": "bull", "name": "테스트구간"},
+        ]
+
+        # When / Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            calculate_regime_summaries(equity_df, trades_df, regimes)
+
+    def test_calculate_summary_zero_years_raises(self):
+        """
+        equity_df의 시작일과 종료일이 동일한 경우 RuntimeError 발생
+
+        정책: years == 0은 정상 백테스트에서 발생할 수 없는 조건(MIN_VALID_ROWS=2 보장).
+              과거에는 cagr=0.0으로 무음 반환되었으나 fail-fast로 강화한다.
+
+        Given:
+          - equity_df의 모든 행이 같은 날짜
+        When: calculate_summary 호출
+        Then: RuntimeError("내부 불변조건 위반")
+        """
+        # Given
+        same_date = date(2023, 6, 15)
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [same_date, same_date],
+                "equity": [10000.0, 11000.0],
+            }
+        )
+
+        # When / Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            calculate_summary(trades_df, equity_df, initial_capital=10000.0)

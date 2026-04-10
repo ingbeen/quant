@@ -570,7 +570,8 @@ def _calculate_cumul_multiple_log_diff(
         누적배수 로그차이 시계열 (단위: %)
 
     Raises:
-        ValueError: 입력 시계열 길이가 다를 때
+        ValueError: 입력 시계열 길이가 다를 때, 또는 m_actual <= 0 / m_simul <= 0인 경우
+            (자산 가치가 0 이하로 떨어졌다는 뜻이며 로그 정의역 밖)
     """
     if len(actual_prices) != len(simulated_prices):
         raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
@@ -579,12 +580,41 @@ def _calculate_cumul_multiple_log_diff(
     initial_actual = float(actual_prices.iloc[0])
     initial_simul = float(simulated_prices.iloc[0])
 
+    if initial_actual <= 0 or initial_simul <= 0:
+        raise ValueError(
+            f"M_actual 또는 M_sim 초기값 <= 0 (로그 계산 불가): " f"initial_actual={initial_actual}, initial_simul={initial_simul}"
+        )
+
     m_actual = actual_prices / initial_actual
     m_simul = simulated_prices / initial_simul
 
-    # 로그 비율의 절대값 (%)
+    # M <= 0 사전 검증 (analysis_helpers의 signed 버전과 일관된 fail-fast 정책)
+    invalid_actual = m_actual <= 0
+    invalid_simul = m_simul <= 0
+
+    if invalid_actual.any():
+        num_invalid = int(invalid_actual.sum())
+        invalid_indices = m_actual[invalid_actual].index.tolist()
+        raise ValueError(
+            f"M_actual <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
+            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
+            f"원인: actual_prices에 0 이하 값 존재 (자산 가치 0 이하)\n"
+            f"조치: 입력 데이터 정합성 확인 필요"
+        )
+
+    if invalid_simul.any():
+        num_invalid = int(invalid_simul.sum())
+        invalid_indices = m_simul[invalid_simul].index.tolist()
+        raise ValueError(
+            f"M_sim <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
+            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
+            f"원인: simulated_prices에 0 이하 값 존재 (시뮬레이션 자산 가치 0 이하)\n"
+            f"조치: 시뮬레이션 로직 또는 입력 데이터 확인 필요"
+        )
+
+    # 로그 비율의 절대값 (%) - 사전 검증 통과 후에는 EPSILON clip 불필요
     ratio = m_actual / m_simul
-    log_diff_pct = pd.Series(np.abs(np.log(np.maximum(ratio, EPSILON))) * 100.0, index=actual_prices.index)
+    log_diff_pct = pd.Series(np.abs(np.log(ratio)) * 100.0, index=actual_prices.index)
 
     return log_diff_pct
 

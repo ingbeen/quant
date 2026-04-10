@@ -191,6 +191,7 @@ M(t) = Close(t) / Close(0)   # 첫날 종가 기준 누적 자산배수
 - 수식: `abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100`
 - 용도: RMSE 최적화, 절대 오차 크기 측정 (부호 무관)
 - 비고: 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
+- fail-fast: `M_actual` 또는 `M_sim`이 0 이하인 행이 있으면 `ValueError`로 즉시 중단 (signed 버전과 동일한 정책)
 
 #### 2) 방향성 (signed)
 

@@ -100,8 +100,15 @@ def execute_orders(
         position = positions.get(asset_id, 0)
         if position <= 0:
             raise RuntimeError(f"내부 불변조건 위반: SELL intent 대상의 position <= 0 (asset_id={asset_id}, position={position})")
+        if asset_id not in open_prices:
+            # 호출부에서 동일 자산 집합으로 open_prices를 채워야 한다.
+            # 누락은 호출부 버그이며 0.0 대체 시 후속 체결 계산이 잘못된 값으로 진행될 수 있다.
+            raise RuntimeError(
+                f"내부 불변조건 위반: SELL intent 자산이 open_prices에 없음 "
+                f"(asset_id={asset_id}, available_keys={sorted(open_prices.keys())})"
+            )
 
-        open_price = open_prices.get(asset_id, 0.0)
+        open_price = open_prices[asset_id]
         e_date = e_dates.get(asset_id)
         e_price = e_prices.get(asset_id, 0.0)
 
@@ -169,7 +176,14 @@ def execute_orders(
             raise RuntimeError(
                 f"내부 불변조건 위반: BUY intent의 delta_amount <= 0 (asset_id={asset_id}, delta_amount={intent.delta_amount})"
             )
-        open_price = open_prices.get(asset_id, 0.0)
+        if asset_id not in open_prices:
+            # 호출부에서 동일 자산 집합으로 open_prices를 채워야 한다.
+            # 누락은 호출부 버그이며 0.0 대체 시 buy_price=0으로 ZeroDivision 또는 비정상 수량을 유발할 수 있다.
+            raise RuntimeError(
+                f"내부 불변조건 위반: BUY intent 자산이 open_prices에 없음 "
+                f"(asset_id={asset_id}, available_keys={sorted(open_prices.keys())})"
+            )
+        open_price = open_prices[asset_id]
         raw_shares, buy_price, _ = execute_buy_order(open_price, intent.delta_amount)
         if raw_shares > 0:
             buy_order_ids.append(asset_id)

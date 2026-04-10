@@ -1008,3 +1008,90 @@ class TestExecuteOrders:
             f"INCREASE_TO_TARGET 후 entry_price가 가중평균({expected_entry_price:.4f})이어야 함, "
             f"실제: {result.updated_entry_prices['qqq']:.4f}"
         )
+
+
+class TestExecuteOrdersOpenPriceInvariant:
+    """open_prices 누락 시 RuntimeError 발생 회귀 테스트.
+
+    호출부에서 동일 자산 집합으로 open_prices를 채워야 하므로,
+    order_intents에 있는 자산이 open_prices에 누락된 것은 내부 불변조건 위반이다.
+    """
+
+    def test_buy_intent_missing_open_price_raises(self) -> None:
+        """
+        목적: ENTER_TO_TARGET intent의 자산이 open_prices에 없으면 RuntimeError 발생.
+
+        Given: SPY 매수 intent, open_prices에 SPY 누락 (QQQ만 존재)
+        When:  execute_orders() 호출
+        Then:  RuntimeError("내부 불변조건 위반")
+        """
+        current_date = date(2024, 3, 1)
+        order_intents: dict[str, OrderIntent] = {
+            "spy": OrderIntent(
+                asset_id="spy",
+                intent_type="ENTER_TO_TARGET",
+                current_amount=0.0,
+                target_amount=10_000.0,
+                delta_amount=10_000.0,
+                target_weight=1.0,
+                reason="signal buy",
+                hold_days_used=0,
+            ),
+        }
+        open_prices = {"qqq": 100.0}  # spy 누락
+        current_positions = {"spy": 0}
+        current_cash = 10_000.0
+        entry_prices = {"spy": 0.0}
+        entry_dates: dict[str, date | None] = {"spy": None}
+        entry_hold_days = {"spy": 0}
+
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            execute_orders(
+                order_intents=order_intents,
+                open_prices=open_prices,
+                current_positions=current_positions,
+                current_cash=current_cash,
+                entry_prices=entry_prices,
+                entry_dates=entry_dates,
+                entry_hold_days=entry_hold_days,
+                current_date=current_date,
+            )
+
+    def test_sell_intent_missing_open_price_raises(self) -> None:
+        """
+        목적: EXIT_ALL intent의 자산이 open_prices에 없으면 RuntimeError 발생.
+
+        Given: QQQ EXIT_ALL intent, open_prices에 QQQ 누락
+        When:  execute_orders() 호출
+        Then:  RuntimeError("내부 불변조건 위반")
+        """
+        current_date = date(2024, 3, 1)
+        order_intents: dict[str, OrderIntent] = {
+            "qqq": OrderIntent(
+                asset_id="qqq",
+                intent_type="EXIT_ALL",
+                current_amount=10_000.0,
+                target_amount=0.0,
+                delta_amount=-10_000.0,
+                target_weight=0.0,
+                reason="signal sell",
+            )
+        }
+        open_prices: dict[str, float] = {}  # qqq 누락
+        current_positions = {"qqq": 100}
+        current_cash = 0.0
+        entry_prices = {"qqq": 90.0}
+        entry_dates: dict[str, date | None] = {"qqq": date(2024, 1, 1)}
+        entry_hold_days = {"qqq": 3}
+
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            execute_orders(
+                order_intents=order_intents,
+                open_prices=open_prices,
+                current_positions=current_positions,
+                current_cash=current_cash,
+                entry_prices=entry_prices,
+                entry_dates=entry_dates,
+                entry_hold_days=entry_hold_days,
+                current_date=current_date,
+            )

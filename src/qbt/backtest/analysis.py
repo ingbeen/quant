@@ -183,7 +183,12 @@ def calculate_summary(
     elif years > 0 and final_capital <= 0:
         raise RuntimeError(f"내부 불변조건 위반: final_capital <= 0 (비레버리지 백테스트에서 전액 손실 불가, final_capital={final_capital})")
     else:
-        cagr = 0.0
+        # years <= 0: 정상 백테스트는 MIN_VALID_ROWS=2와 서로 다른 시작/종료 날짜를 보장하므로 도달 불가
+        raise RuntimeError(
+            f"내부 불변조건 위반: years <= 0 "
+            f"(equity_df 시작/종료 날짜가 같으면 CAGR 정의 불가, "
+            f"start_date={start_date.date()}, end_date={end_date.date()}, years={years})"
+        )
 
     # MDD 계산
     equity_df = equity_df.copy()
@@ -307,7 +312,12 @@ def calculate_regime_summaries(
         # 4. 구간 시작 에쿼티를 initial_capital로 사용
         initial_capital = float(regime_equity.iloc[0][COL_EQUITY])
         if initial_capital <= 0:
-            initial_capital = 1.0  # 안전 처리
+            # 비레버리지 백테스트에서 자본 소멸은 불가능. fail-fast로 사용자에게 즉시 알린다.
+            raise RuntimeError(
+                f"내부 불변조건 위반: regime 시작 equity <= 0 "
+                f"(비레버리지 백테스트에서 자본 소멸 불가, "
+                f"regime='{regime['name']}', initial_capital={initial_capital})"
+            )
 
         # 5. trades_df를 entry_date 기준으로 구간 필터링
         if not trades_df.empty and COL_ENTRY_DATE in trades_df.columns:
