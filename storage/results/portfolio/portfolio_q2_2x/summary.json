@@ -1,5 +1,5 @@
 {
-  "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+  "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
     "final_capital": 119995463,
@@ -47,7 +47,7 @@
   ],
   "portfolio_config": {
     "experiment_name": "portfolio_q2_2x",
-    "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+    "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
     "total_capital": 10000000.0,
     "monthly_rebalance_threshold_rate": 0.1,
     "daily_rebalance_threshold_rate": 0.2,

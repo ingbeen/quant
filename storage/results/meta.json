@@ -2762,7 +2762,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-04-09T15:21:35+09:00"
+      "timestamp": "2026-04-10T11:14:48+09:00"
     },
     {
       "params": {
@@ -2836,12 +2836,12 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xh/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xh/summary.json"
       },
-      "timestamp": "2026-04-09T15:21:31+09:00"
+      "timestamp": "2026-04-10T11:14:42+09:00"
     },
     {
       "params": {
         "experiment_name": "portfolio_q2_2x",
-        "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%) 전 자산 버퍼존",
+        "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
         "total_capital": 10000000.0,
         "monthly_rebalance_threshold_rate": 0.1,
         "daily_rebalance_threshold_rate": 0.2,
@@ -2910,7 +2910,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2x/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2x/summary.json"
       },
-      "timestamp": "2026-04-09T15:21:26+09:00"
+      "timestamp": "2026-04-10T11:14:37+09:00"
     },
     {
       "params": {
@@ -2984,7 +2984,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
       },
-      "timestamp": "2026-04-09T15:21:22+09:00"
+      "timestamp": "2026-04-10T11:14:30+09:00"
     },
     {
       "params": {
@@ -3058,7 +3058,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-09T15:21:19+09:00"
+      "timestamp": "2026-04-10T11:14:25+09:00"
     }
   ]
 }

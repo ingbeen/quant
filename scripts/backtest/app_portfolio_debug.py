@@ -52,6 +52,29 @@ _INTENT_LABELS: dict[str, str] = {
     "INCREASE_TO_TARGET": "비중 확대",
 }
 
+# --- Raw State Log long 포맷 변환용 컬럼 정의 ---
+# state_log_df는 자산별로 9개 컬럼이 반복되는 wide 구조라 가로 스크롤이 길어진다.
+# 공통 컬럼 + 자산별 컬럼 집합을 고정 상수로 정의하고, 자산축을 행으로 펼쳐 long 포맷으로 표시한다.
+_RAW_LOG_COMMON_COLS: tuple[str, ...] = (
+    "Date",
+    "equity",
+    "cash",
+    "rebalanced",
+    "rebalance_reason",
+    "is_month_start",
+)
+_RAW_LOG_ASSET_COLS: tuple[str, ...] = (
+    "close",
+    "signal_today",
+    "pending_intent",
+    "executed_intent",
+    "exec_side",
+    "exec_shares",
+    "exec_price",
+    "shares",
+    "weight",
+)
+
 
 # ============================================================
 # 데이터 로딩
@@ -132,6 +155,69 @@ def _get_asset_color(asset_id: str, asset_ids: tuple[str, ...]) -> str:
         hex 색상 문자열
     """
     return _build_color_map(asset_ids)[asset_id]
+
+
+def _build_raw_state_log_long(state_log_df: pd.DataFrame, asset_ids: list[str]) -> pd.DataFrame:
+    """state_log_df를 long 포맷으로 변환한다.
+
+    wide 구조(공통 컬럼 + 자산별 9개 컬럼의 반복)를 (날짜 x 자산) 조합 단위의 long 포맷으로 펼쳐
+    가로 스크롤을 제거한다. 자산별 prefix 컬럼은 prefix가 제거된 표준 컬럼명으로 rename되며,
+    자산 식별자는 별도 '자산' 컬럼(대문자)으로 들어간다.
+
+    자산별 prefix 컬럼이 일부 누락된 경우에도 존재하는 컬럼만 선택하여 안전하게 동작한다.
+
+    Args:
+        state_log_df: run_portfolio_backtest가 저장한 state_log.csv를 로드한 DataFrame
+        asset_ids: 처리할 자산 ID 목록 (prefix 없는 형태)
+
+    Returns:
+        Date 오름차순 -> 자산 알파벳순으로 정렬된 long 포맷 DataFrame
+    """
+    display_df = state_log_df.copy()
+    if "Date" in display_df.columns:
+        display_df["Date"] = pd.to_datetime(display_df["Date"]).dt.strftime("%Y-%m-%d")
+
+    available_common_cols = [c for c in _RAW_LOG_COMMON_COLS if c in display_df.columns]
+
+    per_asset_frames: list[pd.DataFrame] = []
+    for aid in asset_ids:
+        asset_col_map: dict[str, str] = {}
+        for std_col in _RAW_LOG_ASSET_COLS:
+            src_col = f"{aid}_{std_col}"
+            if src_col in display_df.columns:
+                asset_col_map[src_col] = std_col
+        if not asset_col_map:
+            continue
+
+        sub = display_df[available_common_cols + list(asset_col_map.keys())].copy()
+        sub = sub.rename(columns=asset_col_map)
+        sub.insert(1, "자산", aid.upper())
+        per_asset_frames.append(sub)
+
+    if not per_asset_frames:
+        return pd.DataFrame()
+
+    long_df = pd.concat(per_asset_frames, ignore_index=True)
+
+    # 최종 컬럼 순서: Date | 자산 | 공통 나머지 | 자산별 표준 컬럼
+    ordered_cols: list[str] = []
+    if "Date" in long_df.columns:
+        ordered_cols.append("Date")
+    ordered_cols.append("자산")
+    for c in available_common_cols:
+        if c != "Date" and c in long_df.columns:
+            ordered_cols.append(c)
+    for c in _RAW_LOG_ASSET_COLS:
+        if c in long_df.columns:
+            ordered_cols.append(c)
+    long_df = long_df[ordered_cols]
+
+    sort_keys: list[str] = []
+    if "Date" in long_df.columns:
+        sort_keys.append("Date")
+    sort_keys.append("자산")
+    long_df = long_df.sort_values(by=sort_keys, ascending=[True] * len(sort_keys)).reset_index(drop=True)
+    return long_df
 
 
 # ============================================================
@@ -542,6 +628,8 @@ def _render_signal_execution_tracking(
             st.warning(f"불일치 {mismatch_count}건 발견")
         else:
             st.success(f"총 {len(df)}건 모두 정상 매칭")
+        # 시그널일 오름차순 -> 같은 날짜 내 자산 알파벳순으로 정렬 (시간 흐름 기준 검증 편의성)
+        df = df.sort_values(by=["시그널일", "자산"], ascending=[True, True]).reset_index(drop=True)
         st.dataframe(df, hide_index=True, width="stretch")
     else:
         st.info("시그널-체결 쌍이 없습니다.")
@@ -603,12 +691,14 @@ def main() -> None:
     st.divider()
     _render_signal_execution_tracking(state_log_df, asset_ids, str(selected_exp))
 
-    # Raw state_log 테이블 (접힘, 날짜를 yyyy-mm-dd 문자열로 표시)
+    # Raw state_log 테이블 (접힘, long 포맷: 행 = 거래일 x 자산)
     with st.expander("Raw State Log (전체 데이터)", expanded=False):
-        raw_display = state_log_df.copy()
-        if "Date" in raw_display.columns:
-            raw_display["Date"] = pd.to_datetime(raw_display["Date"]).dt.strftime("%Y-%m-%d")
-        st.dataframe(raw_display, hide_index=True, width="stretch")
+        st.caption("자산 축 기준 long 포맷 — 행 = 거래일 x 자산 (Date 오름차순, 자산 알파벳순)")
+        raw_long = _build_raw_state_log_long(state_log_df, asset_ids)
+        if raw_long.empty:
+            st.info("표시할 Raw State Log 데이터가 없습니다.")
+        else:
+            st.dataframe(raw_long, hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":
