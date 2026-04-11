@@ -259,8 +259,8 @@ equity/positions/cash 일치 (pytest.approx(abs=1.0))
 프라이빗 리포: https://github.com/ingbeen/qbt-live-state.git
 ```
 
-- [ ] 🤖 `cli.py` 전체 명령어 구현
-- [ ] 🤖 에러 발생 시 자동 복구 없이 즉시 중단 + 알림 발송 확인
+- [x] 🤖 `cli.py` 전체 명령어 구현 (Step 11~15 미완성 명령은 placeholder)
+- [x] 🤖 에러 발생 시 자동 복구 없이 즉시 중단 + 알림 발송 확인
 
 **테스트 시나리오 (🤖):**
 
