@@ -26,10 +26,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout QBT (this repo)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -38,7 +38,7 @@ jobs:
           pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Cache Poetry virtualenv
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pypoetry/virtualenvs
           key: poetry-venv-${{ runner.os }}-${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
@@ -102,10 +102,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout QBT
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
