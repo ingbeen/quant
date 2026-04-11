@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict
 
+import pandas as pd
+
 # QBT 본체 타입 재사용 (SSoT) ------------------------------------------------
 from qbt.backtest.engines.portfolio_execution import ExecutionResult
 from qbt.backtest.engines.portfolio_planning import OrderIntent
@@ -40,6 +42,8 @@ __all__ = [
     "AssetDrift",
     "DriftReport",
     "DailyResult",
+    "AssetMarketData",
+    "MarketBundle",
 ]
 
 
@@ -278,7 +282,7 @@ class DailyResult:
 
     execution_date: str  # ISO 8601 날짜
     updated_state: LiveState
-    updated_applied_fill_ids: set[str]
+    updated_applied_fill_ids: dict[str, str]  # Step 3 D1: ID → ISO 타임스탬프
     signals: dict[str, SignalDetection]
     order_intents: dict[str, OrderIntent]
     executions: ExecutionResult | None
@@ -290,3 +294,27 @@ class DailyResult:
     notification_body: str
     pending_fill_reminders: list[str]
     chart_series: dict[str, ChartSeries] = field(default_factory=dict)
+
+
+# ============================================================================
+# MarketBundle — run_daily 에 전달되는 자산별 가격 데이터 묶음
+# ============================================================================
+
+
+@dataclass
+class AssetMarketData:
+    """자산별 시그널/체결 DataFrame 묶음.
+
+    - ``signal_df``: 시그널 계산용 CSV (MA 컬럼 포함, 예: ``ma_200``)
+    - ``trade_df``: 체결 가격 CSV (Open/Close 사용)
+
+    QBT 포트폴리오 엔진의 ``load_and_prepare_data`` 결과와 동일한 구조이다.
+    """
+
+    signal_df: pd.DataFrame
+    trade_df: pd.DataFrame
+
+
+# run_daily 의 market_bundle 파라미터 타입.
+# 호출자는 자산 ID 를 키로 하여 ``AssetMarketData`` 를 준비해야 한다.
+type MarketBundle = dict[str, AssetMarketData]

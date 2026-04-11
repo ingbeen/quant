@@ -545,7 +545,7 @@ def build_chart_series(csv_dir, user_trades) -> dict[str, ChartSeries]
 class DailyResult:
     execution_date: date
     updated_state: LiveState
-    updated_applied_fill_ids: set[str]
+    updated_applied_fill_ids: dict[str, str]  # ID → ISO 타임스탬프
     signals: dict[str, SignalDetection]
     order_intents: dict[str, OrderIntent]
     executions: ExecutionResult | None

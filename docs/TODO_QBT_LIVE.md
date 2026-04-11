@@ -186,9 +186,9 @@ fetch_recent_ohlc, append_today_to_csv, rebuild_full_csv, load_csv
 run_daily() 구현. QBT 코어 import. I/O 없음.
 ```
 
-- [ ] 🤖 `run_daily` 구현
-- [ ] 🤖 QBT 코어 import 정상
-- [ ] 🤖 `test_daily_runner.py` 통과
+- [x] 🤖 `run_daily` 구현
+- [x] 🤖 QBT 코어 import 정상
+- [x] 🤖 `test_daily_runner.py` 통과
 
 **테스트 시나리오 (🤖):**
 
