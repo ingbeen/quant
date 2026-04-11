@@ -29,9 +29,13 @@ import argparse
 import json
 import os
 import sys
-from datetime import date
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -43,6 +47,8 @@ from live.constants import (
     DEFAULT_DATA_STOCK_SUBDIR,
     DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
+    KST_TZ_NAME,
+    STATE_REPO_URL,
     get_live_portfolio_config,
 )
 from live.daily_runner import run_daily
@@ -75,12 +81,12 @@ __all__ = ["main"]
 # 환경변수 키
 # ============================================================================
 
-_ENV_FIREBASE_DB_URL = "FIREBASE_DB_URL"
 _ENV_FIREBASE_CRED = "GOOGLE_APPLICATION_CREDENTIALS"
 _ENV_TG_TOKEN = "TELEGRAM_BOT_TOKEN"
 _ENV_TG_CHAT = "TELEGRAM_CHAT_ID"
+_ENV_STATE_REPO_PAT = "STATE_REPO_PAT"
 
-_DEFAULT_FIREBASE_DB_URL = "https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app"
+FIREBASE_DB_URL = "https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # 프로젝트 루트 (live/src/live/cli.py 로부터 4단계 위)
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -100,6 +106,55 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
         return
     load_dotenv(dotenv_path=dotenv_path, override=False)
     logger.debug(f".env 자동 로드 완료: {dotenv_path}")
+
+
+def _now_kst_for_commit() -> str:
+    """커밋 메시지용 KST 타임스탬프 (``YYYY-MM-DD HH:MM:SS KST``)."""
+    return datetime.now(ZoneInfo(KST_TZ_NAME)).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
+@contextmanager
+def ephemeral_state_repo(*, push_on_success: bool, commit_subcommand: str) -> Iterator[Path]:
+    """매 CLI 실행마다 ``qbt-live-state`` 리포를 shallow clone → yield → (쓰기 명령만)
+    commit + push → tempdir cleanup 하는 컨텍스트 매니저.
+
+    로컬과 GitHub Actions 가 **동일한 코드 경로**로 state 리포를 다루도록 하여
+    실행 결과가 둘 다 원격 리포의 새 커밋으로 수렴하게 한다.
+
+    Args:
+        push_on_success: ``True`` 면 컨텍스트 종료 시 변경사항을 commit & push.
+            읽기 전용 명령(``drift``, ``history``)은 ``False``.
+        commit_subcommand: 커밋 메시지에 포함될 서브명령 이름 (예: ``run-daily``).
+
+    Yields:
+        tempdir 내부의 clone 루트 경로 (``Path``). 이 경로를 ``state_dir`` 로 사용.
+
+    Raises:
+        ValueError: ``STATE_REPO_PAT`` 환경변수 미설정.
+        RuntimeError: git clone / commit / push 실패 시. 자동 복구 금지 원칙에 따라
+            예외는 호출자에게 전파된다.
+    """
+    pat = os.environ.get(_ENV_STATE_REPO_PAT, "")
+    if not pat:
+        raise ValueError(f"{_ENV_STATE_REPO_PAT} 환경변수가 설정되지 않았습니다. " "로컬: .env 파일, Actions: workflow env: 블록 확인")
+
+    with tempfile.TemporaryDirectory(prefix="qbt-live-") as td:
+        clone_root = Path(td) / DEFAULT_LIVE_STATE_DIR.name
+        logger.debug(f"ephemeral state repo clone 시작: {clone_root}")
+        git_state.git_clone_shallow(STATE_REPO_URL, clone_root, pat=pat)
+        logger.debug("clone 완료")
+
+        # 명령 수행 — 컨텍스트 내부에서 예외 발생 시 push 건너뜀
+        yield clone_root
+
+        if push_on_success:
+            message = f"auto: live {commit_subcommand} {_now_kst_for_commit()}"
+            pushed = git_state.git_commit_and_push(clone_root, message)
+            if pushed:
+                logger.debug(f"원격 push 완료: {message}")
+            else:
+                logger.debug("변경사항 없음 — push skip")
+    # TemporaryDirectory 의 __exit__ 가 tempdir 자동 삭제
 
 
 # ============================================================================
@@ -146,9 +201,8 @@ def _initialize_rtdb_app() -> Any | None:
     if not cred_path_str:
         logger.warning(f"{_ENV_FIREBASE_CRED} 미설정 — RTDB 비활성화")
         return None
-    db_url = os.environ.get(_ENV_FIREBASE_DB_URL, _DEFAULT_FIREBASE_DB_URL)
     try:
-        return rtdb_gateway.initialize_firebase_app(Path(cred_path_str), db_url)
+        return rtdb_gateway.initialize_firebase_app(Path(cred_path_str), FIREBASE_DB_URL)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"Firebase 초기화 실패: {exc}")
         return None
@@ -225,13 +279,12 @@ def _send_daily_notifications(rtdb_app: Any | None, result: DailyResult) -> None
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
     capital: float = args.capital
-
-    state = create_initial_state(capital)
-    state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
-    save_state(state, state_path)
-    logger.debug(f"live_state.json 생성 완료: {state_path}")
+    with ephemeral_state_repo(push_on_success=True, commit_subcommand="init") as state_dir:
+        state = create_initial_state(capital)
+        state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
+        save_state(state, state_path)
+        logger.debug(f"live_state.json 생성 완료: {state_path}")
     return 0
 
 
@@ -245,95 +298,91 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
     어떤 단계든 예외 발생 시 ``_safe_notify_failure`` 호출 후 재전파.
     """
-    state_dir: Path = args.state_dir
     trade_date_str: str | None = args.trade_date
-    no_rtdb: bool = args.no_rtdb
-    no_notify: bool = args.no_notify
-
     rtdb_app: Any | None = None
 
     try:
-        # 1. 상태 로드
-        state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
-        applied_path = state_dir / DEFAULT_APPLIED_FILL_IDS_FILENAME
-        try:
-            state = load_state(state_path)
-            applied_ids = load_applied_fill_ids(applied_path)
-        except (FileNotFoundError, ValueError) as exc:
-            raise RuntimeError(f"상태 파일 로드 실패: {exc}") from exc
+        with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
+            # 1. 상태 로드
+            state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
+            applied_path = state_dir / DEFAULT_APPLIED_FILL_IDS_FILENAME
+            try:
+                state = load_state(state_path)
+                applied_ids = load_applied_fill_ids(applied_path)
+            except (FileNotFoundError, ValueError) as exc:
+                raise RuntimeError(f"상태 파일 로드 실패: {exc}") from exc
 
-        # 2. trade_date 결정
-        trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
+            # 2. trade_date 결정
+            trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
 
-        # 3. CSV append (data_fetcher)
-        try:
-            _refresh_live_csvs(state_dir, trade_date)
-        except ValueError as exc:
-            raise RuntimeError(f"데이터 검증 실패: {exc}") from exc
+            # 3. CSV append (data_fetcher)
+            try:
+                _refresh_live_csvs(state_dir, trade_date)
+            except ValueError as exc:
+                raise RuntimeError(f"데이터 검증 실패: {exc}") from exc
 
-        # 4. market_bundle 준비
-        try:
-            bundle = _build_market_bundle(state_dir)
-        except (FileNotFoundError, ValueError) as exc:
-            raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
+            # 4. market_bundle 준비
+            try:
+                bundle = _build_market_bundle(state_dir)
+            except (FileNotFoundError, ValueError) as exc:
+                raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
 
-        # 5. RTDB 초기화 (옵션)
-        if not no_rtdb:
+            # 5. RTDB 초기화
             rtdb_app = _initialize_rtdb_app()
 
-        # 6. RTDB fills 가져오기
-        pending_fills: list[ActualFill] = []
-        if rtdb_app is not None:
-            try:
-                pending_fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
+            # 6. RTDB fills 가져오기
+            pending_fills: list[ActualFill] = []
+            if rtdb_app is not None:
+                try:
+                    pending_fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
+                except Exception as exc:  # noqa: BLE001
+                    raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
 
-        # 7. run_daily (순수 계산)
-        try:
-            result = run_daily(
-                trade_date=trade_date,
-                state=state,
-                market_bundle=bundle,
-                pending_fills=pending_fills,
-                applied_fill_ids=applied_ids,
+            # 7. run_daily (순수 계산)
+            try:
+                result = run_daily(
+                    trade_date=trade_date,
+                    state=state,
+                    market_bundle=bundle,
+                    pending_fills=pending_fills,
+                    applied_fill_ids=applied_ids,
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
+
+            # 8. 상태 저장 + applied_ids 정리
+            save_state(result.updated_state, state_path)
+            cleaned_ids = cleanup_old_fill_ids(
+                result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS
             )
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
+            save_applied_fill_ids(cleaned_ids, applied_path)
 
-        # 8. 상태 저장 + applied_ids 정리
-        save_state(result.updated_state, state_path)
-        cleaned_ids = cleanup_old_fill_ids(result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
-        save_applied_fill_ids(cleaned_ids, applied_path)
-
-        # 9. 영구 히스토리 저장
-        try:
-            _persist_history(state_dir, trade_date, result)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"히스토리 저장 실패 (계속 진행): {exc}")
-
-        # 10. RTDB 갱신 (선택)
-        if rtdb_app is not None:
+            # 9. 영구 히스토리 저장
             try:
-                _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+                _persist_history(state_dir, trade_date, result)
             except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
+                logger.error(f"히스토리 저장 실패 (계속 진행): {exc}")
 
-        # 11. 알림 발송 (옵션)
-        if not no_notify:
+            # 10. RTDB 갱신
+            if rtdb_app is not None:
+                try:
+                    _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+                except Exception as exc:  # noqa: BLE001
+                    raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
+
+            # 11. 알림 발송
             _send_daily_notifications(rtdb_app, result)
 
-        logger.debug(
-            f"run-daily 완료: equity={result.model_equity:,.0f}, "
-            f"pending={len(result.order_intents)}, drift={result.drift_pct:.2f}%, "
-            f"reminders={len(result.pending_fill_reminders)}"
-        )
+            logger.debug(
+                f"run-daily 완료: equity={result.model_equity:,.0f}, "
+                f"pending={len(result.order_intents)}, drift={result.drift_pct:.2f}%, "
+                f"reminders={len(result.pending_fill_reminders)}"
+            )
         return 0
 
     except Exception as exc:
         # 어떤 단계든 실패하면 알림 발송 후 재전파
-        if not no_notify:
-            _safe_notify_failure(rtdb_app, str(exc))
+        _safe_notify_failure(rtdb_app, str(exc))
         raise
 
 
@@ -397,21 +446,21 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
 
 
 def _cmd_init_data(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
-    for ticker in _collect_all_tickers():
-        csv_path = _live_csv_path(state_dir, ticker)
-        rebuild_full_csv(ticker, csv_path, period="max")
-        logger.debug(f"init-data: {ticker} → {csv_path}")
+    del args  # 사용하지 않음
+    with ephemeral_state_repo(push_on_success=True, commit_subcommand="init-data") as state_dir:
+        for ticker in _collect_all_tickers():
+            csv_path = _live_csv_path(state_dir, ticker)
+            rebuild_full_csv(ticker, csv_path, period="max")
+            logger.debug(f"init-data: {ticker} → {csv_path}")
     return 0
 
 
 def _cmd_rebuild_data(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
     ticker: str = args.ticker.upper()
-    period: str = args.period
-    csv_path = _live_csv_path(state_dir, ticker)
-    rebuild_full_csv(ticker, csv_path, period=period)
-    logger.debug(f"rebuild-data: {ticker} ({period}) → {csv_path}")
+    with ephemeral_state_repo(push_on_success=True, commit_subcommand=f"rebuild-data {ticker}") as state_dir:
+        csv_path = _live_csv_path(state_dir, ticker)
+        rebuild_full_csv(ticker, csv_path, period="max")
+        logger.debug(f"rebuild-data: {ticker} → {csv_path}")
     return 0
 
 
@@ -421,42 +470,20 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
 
 
 def _cmd_drift(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
-    state = load_state(state_dir / DEFAULT_LIVE_STATE_FILENAME)
+    del args  # 사용하지 않음
+    with ephemeral_state_repo(push_on_success=False, commit_subcommand="drift") as state_dir:
+        state = load_state(state_dir / DEFAULT_LIVE_STATE_FILENAME)
 
-    bundle = _build_market_bundle(state_dir)
-    closes: dict[str, float] = {}
-    for asset_id, md in bundle.items():
-        closes[asset_id] = float(md.trade_df["Close"].iloc[-1])
+        bundle = _build_market_bundle(state_dir)
+        closes: dict[str, float] = {}
+        for asset_id, md in bundle.items():
+            closes[asset_id] = float(md.trade_df["Close"].iloc[-1])
 
-    report = compute_drift(state, closes)
-    logger.debug(
-        f"drift: model={report.model_equity:,.0f}, actual={report.actual_equity:,.0f}, "
-        f"{report.drift_pct:.2f}% [{report.recommendation}]"
-    )
-    return 0
-
-
-# ============================================================================
-# fetch-state / push-state
-# ============================================================================
-
-
-def _cmd_fetch_state(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
-    git_state.git_pull(state_dir)
-    logger.debug(f"fetch-state 완료: {state_dir}")
-    return 0
-
-
-def _cmd_push_state(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
-    message: str = args.message
-    pushed = git_state.git_commit_and_push(state_dir, message)
-    if pushed:
-        logger.debug(f"push-state 완료: {state_dir}")
-    else:
-        logger.debug(f"push-state 변경 없음 (skip): {state_dir}")
+        report = compute_drift(state, closes)
+        logger.debug(
+            f"drift: model={report.model_equity:,.0f}, actual={report.actual_equity:,.0f}, "
+            f"{report.drift_pct:.2f}% [{report.recommendation}]"
+        )
     return 0
 
 
@@ -493,15 +520,15 @@ def _cmd_fetch_fills(args: argparse.Namespace) -> int:
 
 
 def _cmd_history(args: argparse.Namespace) -> int:
-    state_dir: Path = args.state_dir
     n: int = args.tail
-    summary_path = _history_dir(state_dir) / "summary.jsonl"
-    if not summary_path.exists():
-        logger.debug(f"summary.jsonl 없음: {summary_path}")
-        return 0
-    lines = summary_path.read_text(encoding="utf-8").strip().splitlines()
-    tail_lines = lines[-n:] if n > 0 else lines
-    sys.stdout.write("\n".join(tail_lines) + "\n")
+    with ephemeral_state_repo(push_on_success=False, commit_subcommand="history") as state_dir:
+        summary_path = _history_dir(state_dir) / "summary.jsonl"
+        if not summary_path.exists():
+            logger.debug(f"summary.jsonl 없음: {summary_path}")
+            return 0
+        lines = summary_path.read_text(encoding="utf-8").strip().splitlines()
+        tail_lines = lines[-n:] if n > 0 else lines
+        sys.stdout.write("\n".join(tail_lines) + "\n")
     return 0
 
 
@@ -530,64 +557,42 @@ def _build_parser() -> argparse.ArgumentParser:
     # init
     p_init = sub.add_parser("init", help="초기 LiveState 생성")
     p_init.add_argument("--capital", type=float, required=True)
-    p_init.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_init.set_defaults(func=_cmd_init)
 
     # run-daily
     p_run = sub.add_parser("run-daily", help="일일 실행 통합 루프")
-    p_run.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
-    p_run.add_argument("--trade-date", type=str, default=None)
-    p_run.add_argument("--no-rtdb", action="store_true", help="RTDB 호출 비활성화 (오프라인 dry-run)")
-    p_run.add_argument("--no-notify", action="store_true", help="알림 발송 비활성화")
+    p_run.add_argument(
+        "--trade-date",
+        type=str,
+        default=None,
+        help="선택. ISO 날짜로 과거 재현 디버깅 (기본: 오늘)",
+    )
     p_run.set_defaults(func=_cmd_run_daily)
 
     # init-data
     p_init_data = sub.add_parser("init-data", help="yfinance 전체 기간 다운로드 (6종)")
-    p_init_data.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_init_data.set_defaults(func=_cmd_init_data)
 
     # rebuild-data
     p_rebuild = sub.add_parser("rebuild-data", help="단일 티커 재다운로드 (스플릿 대응)")
     p_rebuild.add_argument("ticker")
-    p_rebuild.add_argument("--period", type=str, default="max")
-    p_rebuild.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_rebuild.set_defaults(func=_cmd_rebuild_data)
 
     # drift
     p_drift = sub.add_parser("drift", help="현재 drift 지표 출력")
-    p_drift.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_drift.set_defaults(func=_cmd_drift)
-
-    # fetch-state
-    p_fetch_state = sub.add_parser("fetch-state", help="qbt-live-state git pull")
-    p_fetch_state.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
-    p_fetch_state.set_defaults(func=_cmd_fetch_state)
-
-    # push-state
-    p_push_state = sub.add_parser("push-state", help="qbt-live-state git add/commit/push")
-    p_push_state.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
-    p_push_state.add_argument(
-        "--message",
-        "-m",
-        type=str,
-        default=f"auto: live update {date.today().isoformat()}",
-    )
-    p_push_state.set_defaults(func=_cmd_push_state)
 
     # fetch-fills
     p_fetch_fills = sub.add_parser("fetch-fills", help="RTDB 미처리 fill 목록 출력")
-    p_fetch_fills.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_fetch_fills.set_defaults(func=_cmd_fetch_fills)
 
     # history
     p_hist = sub.add_parser("history", help="history/summary.jsonl 최근 N 줄 출력")
-    p_hist.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_hist.add_argument("--tail", type=int, default=10)
     p_hist.set_defaults(func=_cmd_history)
 
     # notify-failure
     p_notify = sub.add_parser("notify-failure", help="수동 실패 알림 발송")
-    p_notify.add_argument("--state-dir", type=Path, default=DEFAULT_LIVE_STATE_DIR)
     p_notify.add_argument(
         "--message",
         "-m",

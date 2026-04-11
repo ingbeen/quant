@@ -138,16 +138,29 @@ poetry install -E live
 ## 실행 방법
 
 ```bash
-# 초기 1회
+# 초기 1회 (원격 qbt-live-state 리포에 초기 상태 push)
 poetry run python -m live.cli init --capital 100000000
 poetry run python -m live.cli init-data
 
-# 매일 (GitHub Actions)
+# 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
 poetry run python -m live.cli run-daily
+
+# 디버깅 / 조회
+poetry run python -m live.cli drift
+poetry run python -m live.cli history --tail 20
+poetry run python -m live.cli fetch-fills
+poetry run python -m live.cli notify-failure -m "수동 테스트"
 ```
 
-로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드되어 `TELEGRAM_BOT_TOKEN` 등의 환경변수를 공급합니다.
-양식은 루트의 `.env.example` 참고. 이미 `os.environ` 에 값이 있으면 `.env` 가 덮어쓰지 않으므로 GitHub Actions 의 `env:` 블록이 항상 우선됩니다.
+**ephemeral state repo**: CLI 는 state 가 필요한 모든 명령에 대해 매 실행마다 `qbt-live-state` 프라이빗 리포를 임시 디렉토리에 `--depth 1` shallow clone 하고, 작업 후 변경사항을 자동 commit/push 한 뒤 임시 디렉토리를 삭제합니다. **로컬과 GitHub Actions 가 동일한 코드 경로**를 타므로 두 환경의 실행 결과는 항상 같은 원격 커밋으로 수렴합니다. 프로젝트 폴더에는 어떤 state 파일도 남지 않습니다.
+
+**환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다 (`python-dotenv`). 필요한 변수:
+
+- `STATE_REPO_PAT` — `qbt-live-state` 리포에 clone/push 할 GitHub Personal Access Token
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — 알림 발송용
+- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로
+
+이미 `os.environ` 에 값이 있으면 `.env` 가 덮어쓰지 않으므로 GitHub Actions 의 `env:` 블록이 항상 우선됩니다.
 
 ## 인프라 정보
 

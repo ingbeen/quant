@@ -53,8 +53,11 @@ DRIFT_CORRECTION_RATIO: Final[float] = 0.05
 # 파일 시스템 기본 경로 / 파일명
 # ============================================================================
 
-# 프라이빗 상태 리포의 기본 디렉토리명.
-# 실제 경로는 CLI 파라미터 또는 환경변수로 덮어쓴다. 테스트에서는 tmp_path 로 격리한다.
+# 프라이빗 상태 리포의 원격 HTTPS URL.
+# CLI 는 매 실행마다 이 리포를 tempdir 에 shallow clone 한 뒤 작업한다.
+STATE_REPO_URL: Final[str] = "https://github.com/ingbeen/qbt-live-state.git"
+
+# 프라이빗 상태 리포의 기본 디렉토리명 (ephemeral tempdir 내부 이름).
 DEFAULT_LIVE_STATE_DIR: Final[Path] = Path("qbt-live-state")
 
 # 주가 CSV 가 저장되는 하위 디렉토리.

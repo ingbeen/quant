@@ -124,3 +124,110 @@ class TestGitCommitAndPush:
         assert any("user.name" in args for args in config_calls)
         assert any("user.email" in args for args in config_calls)
         assert any("my-bot" in args for args in config_calls)
+
+
+# ============================================================================
+# embed_pat_in_url
+# ============================================================================
+
+
+class TestEmbedPatInUrl:
+    def test_embeds_pat_into_https_netloc(self) -> None:
+        """Given HTTPS URL + PAT When embed 호출 Then netloc 에 PAT@host 형태."""
+        url = "https://github.com/ingbeen/qbt-live-state.git"
+        out = git_state.embed_pat_in_url(url, "ghp_abc123")
+        assert out == "https://ghp_abc123@github.com/ingbeen/qbt-live-state.git"
+
+    def test_rejects_non_https_scheme(self) -> None:
+        """Given SSH URL When embed 호출 Then ValueError."""
+        url = "git@github.com:ingbeen/qbt-live-state.git"
+        with pytest.raises(ValueError, match="HTTPS"):
+            git_state.embed_pat_in_url(url, "ghp_abc")
+
+    def test_rejects_empty_pat(self) -> None:
+        """Given 빈 PAT When embed 호출 Then ValueError."""
+        with pytest.raises(ValueError, match="pat"):
+            git_state.embed_pat_in_url("https://github.com/a/b.git", "")
+
+    def test_replaces_existing_userinfo(self) -> None:
+        """Given 이미 userinfo 가 있는 URL 에도 새 PAT 가 덮어쓰기."""
+        url = "https://olduser@github.com/a/b.git"
+        out = git_state.embed_pat_in_url(url, "newpat")
+        assert "newpat@" in out
+        assert "olduser" not in out
+
+
+# ============================================================================
+# git_clone_shallow
+# ============================================================================
+
+
+class TestGitCloneShallow:
+    def test_clone_invokes_git_clone_depth_1(self, tmp_path: Path, monkeypatch):
+        """Given 원격 URL + PAT When clone 호출 Then git clone --depth 1 <url>."""
+        captured: list[list[str]] = []
+
+        def _spy_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+            captured.append(list(args))
+            return _FakeCompleted(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _spy_run)
+
+        dest = tmp_path / "clone-dest"
+        git_state.git_clone_shallow("https://github.com/a/b.git", dest, pat="ghp_xyz")
+
+        assert len(captured) == 1
+        cmd = captured[0]
+        assert cmd[:4] == ["git", "clone", "--depth", "1"]
+        # PAT 가 URL 에 embed 되어 전달됐는지
+        assert any("ghp_xyz@github.com" in part for part in cmd)
+        # dest 경로가 마지막 인자
+        assert cmd[-1] == str(dest)
+
+    def test_clone_without_pat_uses_raw_url(self, tmp_path: Path, monkeypatch):
+        captured: list[list[str]] = []
+
+        def _spy_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+            captured.append(list(args))
+            return _FakeCompleted(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _spy_run)
+
+        git_state.git_clone_shallow("https://github.com/a/b.git", tmp_path / "c", pat=None)
+
+        assert len(captured) == 1
+        cmd = captured[0]
+        # PAT 없이 원본 URL 그대로 사용
+        assert "https://github.com/a/b.git" in cmd
+
+    def test_clone_failure_raises_runtime_error_without_leaking_pat(self, tmp_path: Path, monkeypatch):
+        """Given git clone 실패 When 호출 Then RuntimeError 전파.
+
+        에러 메시지는 PAT 를 포함하면 안 된다 (로그 / 알림 누출 방지).
+        """
+
+        def _failing_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+            return _FakeCompleted(returncode=128, stderr="authentication failed")
+
+        monkeypatch.setattr(subprocess, "run", _failing_run)
+
+        dest = tmp_path / "c"
+        with pytest.raises(RuntimeError) as exc_info:
+            git_state.git_clone_shallow("https://github.com/a/b.git", dest, pat="ghp_secret_token_XYZ")
+
+        assert "git clone" in str(exc_info.value)
+        assert "ghp_secret_token_XYZ" not in str(exc_info.value)
+
+    def test_clone_creates_parent_directory(self, tmp_path: Path, monkeypatch):
+        def _ok_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+            return _FakeCompleted(returncode=0)
+
+        monkeypatch.setattr(subprocess, "run", _ok_run)
+
+        dest = tmp_path / "nested" / "deeper" / "clone-here"
+        assert not dest.parent.exists()
+
+        git_state.git_clone_shallow("https://github.com/a/b.git", dest, pat="tok")
+
+        # clone 실행 전에 parent 디렉토리가 생성되어야 함
+        assert dest.parent.is_dir()

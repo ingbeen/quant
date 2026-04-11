@@ -58,10 +58,25 @@ class TestDailyRunWorkflow:
         assert "actions/cache@v4" in daily_run_yaml
         assert "pypoetry" in daily_run_yaml
 
-    def test_state_repo_checkout(self, daily_run_yaml: str):
-        """qbt-live-state private repo 체크아웃."""
-        assert "ingbeen/qbt-live-state" in daily_run_yaml
-        assert "STATE_REPO_PAT" in daily_run_yaml
+    def test_state_repo_pat_injected_to_cli_env(self, daily_run_yaml: str):
+        """CLI 가 ephemeral mode 로 state repo 를 clone 하므로 STATE_REPO_PAT 을
+        workflow env 에 주입해야 한다 (별도 checkout step 은 더 이상 없음)."""
+        assert "STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}" in daily_run_yaml
+
+    def test_no_explicit_state_repo_checkout(self, daily_run_yaml: str):
+        """CLI 가 shallow clone 을 담당하므로 actions/checkout 으로 state repo 를
+        받지 않는다."""
+        assert "repository: ingbeen/qbt-live-state" not in daily_run_yaml
+
+    def test_no_shell_git_commit_push(self, daily_run_yaml: str):
+        """CLI 가 commit/push 를 담당하므로 workflow shell step 에 git 명령이
+        들어있지 않아야 한다."""
+        assert "git add -A" not in daily_run_yaml
+        assert "git push" not in daily_run_yaml
+
+    def test_run_daily_has_no_state_dir_flag(self, daily_run_yaml: str):
+        """CLI 가 ephemeral 이므로 --state-dir 인자가 사용되지 않는다."""
+        assert "--state-dir" not in daily_run_yaml
 
     def test_retry_step_present(self, daily_run_yaml: str):
         """1 차 시도 실패 시 5분 대기 후 재시도."""
@@ -87,11 +102,6 @@ class TestDailyRunWorkflow:
             "TELEGRAM_CHAT_ID",
         ):
             assert secret in daily_run_yaml, f"{secret} 누락"
-
-    def test_state_commit_and_push(self, daily_run_yaml: str):
-        """성공 시 qbt-live-state 에 자동 commit + push."""
-        assert "git add" in daily_run_yaml
-        assert "git push" in daily_run_yaml
 
 
 # ============================================================================

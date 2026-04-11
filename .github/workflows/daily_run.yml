@@ -21,13 +21,6 @@ jobs:
       - name: Checkout QBT (this repo)
         uses: actions/checkout@v4
 
-      - name: Checkout qbt-live-state (private)
-        uses: actions/checkout@v4
-        with:
-          repository: ingbeen/qbt-live-state
-          token: ${{ secrets.STATE_REPO_PAT }}
-          path: qbt-live-state
-
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
@@ -64,8 +57,9 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/secrets/firebase_admin.json
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}
         continue-on-error: true
-        run: poetry run python -m live run-daily --state-dir qbt-live-state
+        run: poetry run python -m live run-daily
 
       - name: Wait 5 minutes before retry
         if: steps.run_first.outcome == 'failure'
@@ -78,19 +72,8 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/secrets/firebase_admin.json
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: poetry run python -m live run-daily --state-dir qbt-live-state
-
-      - name: Commit & push state changes
-        if: steps.run_first.outcome == 'success' || steps.run_retry.outcome == 'success'
-        working-directory: qbt-live-state
-        run: |
-          git config user.name "qbt-live-bot"
-          git config user.email "qbt-live-bot@noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "auto: daily run $(date -u +%Y-%m-%d)"
-            git push
-          fi
+          STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}
+        run: poetry run python -m live run-daily
 
   notify-failure:
     name: Notify failure (FCM + Telegram)
