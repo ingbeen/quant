@@ -140,8 +140,8 @@ QBT BufferZoneStrategy import. QBT 수정 금지.
 fetch_recent_ohlc, append_today_to_csv, rebuild_full_csv, load_csv
 ```
 
-- [ ] 🤖 `data_fetcher.py` 구현
-- [ ] 🤖 테스트 통과
+- [x] 🤖 `data_fetcher.py` 구현
+- [x] 🤖 테스트 통과
 
 **테스트 시나리오 (🤖, mock yfinance):**
 
