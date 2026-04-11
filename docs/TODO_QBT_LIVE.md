@@ -78,10 +78,10 @@ constants.py: LIVE_TICKERS, SIGNAL_TRADE_MAP, DRIFT 임계값
 models.py: 설계서 부록 B 전체 dataclass
 ```
 
-- [ ] 🤖 `constants.py` 구현
-- [ ] 🤖 `models.py` 전체 dataclass 구현
-- [ ] 🤖 PendingOrderDict에 execute_on 없음 확인
-- [ ] 🤖 model/actual 필드 분리 확인
+- [x] 🤖 `constants.py` 구현
+- [x] 🤖 `models.py` 전체 dataclass 구현
+- [x] 🤖 PendingOrderDict에 execute_on 없음 확인
+- [x] 🤖 model/actual 필드 분리 확인
 
 ---
 

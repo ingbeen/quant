@@ -138,9 +138,19 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
         tuple[bool, int, int, int]: (성공 여부, passed 수, failed 수, skipped 수)
     """
     if with_coverage:
-        cmd = ["poetry", "run", "pytest", "--cov=src/qbt", "--cov-report=term-missing", "tests/", "-v"]
+        cmd = [
+            "poetry",
+            "run",
+            "pytest",
+            "--cov=src/qbt",
+            "--cov=live/src/live",
+            "--cov-report=term-missing",
+            "tests/",
+            "live/tests/",
+            "-v",
+        ]
     else:
-        cmd = ["poetry", "run", "pytest", "tests/", "-v"]
+        cmd = ["poetry", "run", "pytest", "tests/", "live/tests/", "-v"]
 
     result = subprocess.run(
         cmd,
