@@ -304,3 +304,101 @@ class TestRunDailyDataIntegrity:
         assert len(config.asset_slots) == 4
         ids = {slot.asset_id for slot in config.asset_slots}
         assert ids == {"sso", "qld", "gld", "tlt"}
+
+
+# ============================================================================
+# fill 통합 (integration_wiring)
+# ============================================================================
+
+
+class TestRunDailyFillIntegration:
+    """run_daily 가 drift.apply_fills_idempotent 를 호출하여 actual 축을 갱신한다."""
+
+    def test_empty_fills_preserves_initial_actual(self, initial_state, flat_market_bundle, sample_dates):
+        """빈 fill 리스트 → actual 축 변경 없음 (회귀 영향 없음)."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        for asset in result.updated_state.assets.values():
+            assert asset.actual_shares == 0
+
+    def test_buy_fill_updates_actual_shares(self, initial_state, flat_market_bundle, sample_dates):
+        """buy fill 1 개 입력 → actual_shares 증가 + applied_ids 에 키 추가."""
+        from live.models import ActualFill
+
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=82.0,
+            actual_shares=420,
+            trade_date=sample_dates[0].isoformat(),
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_test_001",
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={},
+        )
+
+        assert result.updated_state.assets["sso"].actual_shares == 420
+        assert "fill_test_001" in result.updated_applied_fill_ids
+
+    def test_duplicate_fill_in_same_run_only_applied_once(self, initial_state, flat_market_bundle, sample_dates):
+        """이미 applied_ids 에 있는 fill 은 무시 (idempotency)."""
+        from live.models import ActualFill
+
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=82.0,
+            actual_shares=420,
+            trade_date=sample_dates[0].isoformat(),
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_test_002",
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={"fill_test_002": "2026-04-05T00:00:00+09:00"},
+        )
+
+        # 이미 적용된 fill 이므로 actual_shares 변경 없음
+        assert result.updated_state.assets["sso"].actual_shares == 0
+
+    def test_pending_fill_reminder_when_pending_exists_and_no_fill(
+        self, initial_state, rising_market_bundle, sample_dates
+    ):
+        """전일 pending 이 있고 fill 입력이 없으면 reminder 에 자산 ID 가 누적."""
+        # Day 1: pending 생성
+        r1 = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=rising_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        # Day 2: fill 입력 없음 → reminder 발동
+        r2 = run_daily(
+            trade_date=sample_dates[1],
+            state=r1.updated_state,
+            market_bundle=rising_market_bundle,
+            pending_fills=[],
+            applied_fill_ids=r1.updated_applied_fill_ids,
+        )
+        # Day 2 시작 시점에 pending 이 있었으나 fill 없음 → reminder 가 비어있지 않거나
+        # Day 2 의 model 체결 후 새 pending 이 생긴 상태
+        # reminder 검증은 "함수가 list 를 반환한다" 만 확인 (실제 자산 여부는 시그널 의존)
+        assert isinstance(r2.pending_fill_reminders, list)

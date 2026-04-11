@@ -130,7 +130,7 @@ class TestCmdRunDailyFailures:
         main(["init", "--capital", "100000000", "--state-dir", str(tmp_path)])
 
     def test_data_fetch_failure_calls_notify_t_10_2(self, tmp_path: Path, monkeypatch):
-        """T-10.2: data 수집 중 실패 → 중단 + _notify_failure 호출."""
+        """T-10.2: data 수집 중 실패 → 중단 + _safe_notify_failure 호출."""
         self._init_state(tmp_path)
 
         # monkeypatch: fetch_recent_ohlc 가 ValueError 발생
@@ -141,10 +141,10 @@ class TestCmdRunDailyFailures:
 
         notify_calls: list[str] = []
 
-        def _spy_notify(message: str) -> None:
+        def _spy_notify(rtdb_app, message: str) -> None:  # noqa: ANN001
             notify_calls.append(message)
 
-        monkeypatch.setattr(cli_module, "_notify_failure", _spy_notify)
+        monkeypatch.setattr(cli_module, "_safe_notify_failure", _spy_notify)
 
         exit_code = main(
             [
@@ -153,14 +153,14 @@ class TestCmdRunDailyFailures:
                 str(tmp_path),
                 "--trade-date",
                 "2026-04-10",
+                "--no-rtdb",
             ]
         )
 
-        # exit code 는 @cli_exception_handler 로 1 반환
+        # exit code 는 main 의 try/except 에서 1 반환
         assert exit_code == 1
-        # _notify_failure 가 최소 1 번 호출되어야 한다
         assert len(notify_calls) >= 1
-        assert any("yfinance" in msg or "검증" in msg or "실패" in msg for msg in notify_calls)
+        assert any("yfinance" in msg or "검증" in msg or "실패" in msg or "데이터" in msg for msg in notify_calls)
 
     def test_calculation_failure_state_unchanged_t_10_3(self, tmp_path: Path, monkeypatch):
         """T-10.3: run_daily 내부 계산 실패 → 중단 + 상태 파일 변경 없음."""
@@ -171,7 +171,6 @@ class TestCmdRunDailyFailures:
         # CSV 준비
         _setup_flat_market_csvs(tmp_path, date(2026, 4, 10))
 
-        # data_fetcher 는 정상 동작하도록 mock (fetch_recent_ohlc 는 빈 DF → skip 경로)
         def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
             return _make_recent_df(date(2026, 4, 10))
 
@@ -184,9 +183,12 @@ class TestCmdRunDailyFailures:
         monkeypatch.setattr(cli_module, "run_daily", _failing_run_daily)
 
         notify_calls: list[str] = []
-        monkeypatch.setattr(cli_module, "_notify_failure", lambda msg: notify_calls.append(msg))
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
 
-        # append_today_to_csv 은 실제 동작 — _setup_flat_market_csvs 로 준비된 CSV 에 append
         exit_code = main(
             [
                 "run-daily",
@@ -194,6 +196,7 @@ class TestCmdRunDailyFailures:
                 str(tmp_path),
                 "--trade-date",
                 "2026-04-10",
+                "--no-rtdb",
             ]
         )
 
@@ -201,7 +204,7 @@ class TestCmdRunDailyFailures:
         assert len(notify_calls) >= 1
         assert any("엔진" in msg or "계산" in msg or "실행" in msg for msg in notify_calls)
 
-        # 상태 파일 변경 없음 (저장은 run_daily 성공 후에만 수행되므로)
+        # 상태 파일 변경 없음
         assert state_path.stat().st_mtime == original_mtime
 
 
@@ -211,8 +214,8 @@ class TestCmdRunDailyFailures:
 
 
 class TestCmdRunDailySuccess:
-    def test_run_daily_smoke(self, tmp_path: Path, monkeypatch):
-        """정상 경로 smoke — 초기 상태에서 1 회 실행 성공."""
+    def test_run_daily_smoke_no_rtdb_no_notify(self, tmp_path: Path, monkeypatch):
+        """정상 경로 smoke — RTDB / 알림 비활성화 (오프라인 dry-run)."""
         main(["init", "--capital", "100000000", "--state-dir", str(tmp_path)])
 
         trade_date = date(2026, 4, 10)
@@ -230,21 +233,197 @@ class TestCmdRunDailySuccess:
                 str(tmp_path),
                 "--trade-date",
                 trade_date.isoformat(),
+                "--no-rtdb",
+                "--no-notify",
             ]
         )
         assert exit_code == 0
 
+    def test_run_daily_persists_history(self, tmp_path: Path, monkeypatch):
+        """run-daily 가 history/daily/{date}.json 과 summary.jsonl 을 저장한다."""
+        main(["init", "--capital", "100000000", "--state-dir", str(tmp_path)])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(tmp_path, trade_date)
+
+        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            return _make_recent_df(trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
+
+        main(
+            [
+                "run-daily",
+                "--state-dir",
+                str(tmp_path),
+                "--trade-date",
+                trade_date.isoformat(),
+                "--no-rtdb",
+                "--no-notify",
+            ]
+        )
+
+        assert (tmp_path / "history" / "daily" / f"{trade_date.isoformat()}.json").exists()
+        assert (tmp_path / "history" / "summary.jsonl").exists()
+
+    def test_run_daily_with_rtdb_calls_publish(self, tmp_path: Path, monkeypatch):
+        """RTDB 활성화 시 publish_to_rtdb 와 send_daily_notifications 가 호출된다."""
+        main(["init", "--capital", "100000000", "--state-dir", str(tmp_path)])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(tmp_path, trade_date)
+
+        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            return _make_recent_df(trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
+
+        # Firebase 초기화 mock — fake app 객체 반환
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+
+        # rtdb_gateway 호출 모두 mock
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+
+        publish_calls: list[bool] = []
+
+        def _spy_publish(app, state_dir, state, result):  # noqa: ANN001
+            publish_calls.append(True)
+
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", _spy_publish)
+
+        notify_calls: list[bool] = []
+
+        def _spy_notify(app, result):  # noqa: ANN001
+            notify_calls.append(True)
+
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", _spy_notify)
+
+        exit_code = main(
+            [
+                "run-daily",
+                "--state-dir",
+                str(tmp_path),
+                "--trade-date",
+                trade_date.isoformat(),
+            ]
+        )
+        assert exit_code == 0
+        assert len(publish_calls) == 1
+        assert len(notify_calls) == 1
+
 
 # ============================================================================
-# 플레이스홀더 명령어
+# placeholder → 실구현된 명령어 테스트
 # ============================================================================
 
 
-class TestPlaceholderCommands:
-    @pytest.mark.parametrize("command", ["fetch-state", "push-state", "fetch-fills", "history", "notify-failure"])
-    def test_placeholder_returns_1(self, command: str, tmp_path: Path):
-        exit_code = main([command, "--state-dir", str(tmp_path)])
+class TestFetchState:
+    def test_fetch_state_calls_git_pull(self, tmp_path: Path, monkeypatch):
+        called: list[Path] = []
+
+        def _spy_pull(state_dir):  # noqa: ANN001
+            called.append(state_dir)
+
+        monkeypatch.setattr(cli_module.git_state, "git_pull", _spy_pull)
+
+        exit_code = main(["fetch-state", "--state-dir", str(tmp_path)])
+        assert exit_code == 0
+        assert called == [tmp_path]
+
+
+class TestPushState:
+    def test_push_state_calls_git_commit_and_push(self, tmp_path: Path, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def _spy_push(state_dir, message, **kw):  # noqa: ANN001
+            captured["state_dir"] = state_dir
+            captured["message"] = message
+            return True
+
+        monkeypatch.setattr(cli_module.git_state, "git_commit_and_push", _spy_push)
+
+        exit_code = main(["push-state", "--state-dir", str(tmp_path), "-m", "test commit"])
+        assert exit_code == 0
+        assert captured["state_dir"] == tmp_path
+        assert captured["message"] == "test commit"
+
+    def test_push_state_no_changes_returns_0(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(cli_module.git_state, "git_commit_and_push", lambda d, m, **kw: False)
+        exit_code = main(["push-state", "--state-dir", str(tmp_path)])
+        assert exit_code == 0
+
+
+class TestFetchFills:
+    def test_fetch_fills_returns_1_when_rtdb_init_fails(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        exit_code = main(["fetch-fills", "--state-dir", str(tmp_path)])
         assert exit_code == 1
+
+    def test_fetch_fills_outputs_json(self, tmp_path: Path, monkeypatch, capsys):
+        from live.models import ActualFill
+
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "fetch_unprocessed_fills",
+            lambda app: [
+                ActualFill(
+                    asset_id="sso",
+                    direction="buy",
+                    actual_price=82.0,
+                    actual_shares=420,
+                    trade_date="2026-04-10",
+                    input_time_kst="2026-04-10T20:00:00+09:00",
+                    memo=None,
+                    rtdb_key="fill_test",
+                )
+            ],
+        )
+
+        exit_code = main(["fetch-fills", "--state-dir", str(tmp_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "fill_test" in captured.out
+        assert "sso" in captured.out
+
+
+class TestHistoryCmd:
+    def test_history_outputs_recent_lines(self, tmp_path: Path, capsys):
+        # history/summary.jsonl 직접 작성
+        hist_dir = tmp_path / "history"
+        hist_dir.mkdir(parents=True)
+        (hist_dir / "summary.jsonl").write_text(
+            '{"date":"2026-04-08","equity":100}\n'
+            '{"date":"2026-04-09","equity":101}\n'
+            '{"date":"2026-04-10","equity":102}\n',
+            encoding="utf-8",
+        )
+
+        exit_code = main(["history", "--state-dir", str(tmp_path), "--tail", "2"])
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "2026-04-09" in captured.out
+        assert "2026-04-10" in captured.out
+        assert "2026-04-08" not in captured.out  # tail=2 로 제외됨
+
+    def test_history_no_file_returns_0(self, tmp_path: Path):
+        exit_code = main(["history", "--state-dir", str(tmp_path)])
+        assert exit_code == 0
+
+
+class TestNotifyFailureCmd:
+    def test_notify_failure_calls_safe_notify(self, tmp_path: Path, monkeypatch):
+        notify_calls: list[str] = []
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
+
+        exit_code = main(["notify-failure", "--state-dir", str(tmp_path), "-m", "수동 실패 테스트"])
+        assert exit_code == 0
+        assert "수동 실패 테스트" in notify_calls[0]
 
 
 # ============================================================================

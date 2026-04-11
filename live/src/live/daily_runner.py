@@ -24,6 +24,7 @@ import pandas as pd
 
 from live.buffer_serializer import extract_buffer_state, restore_buffer_state
 from live.constants import get_live_portfolio_config
+from live.drift import apply_fills_idempotent
 from live.models import (
     ActualFill,
     AssetLiveState,
@@ -235,22 +236,31 @@ def run_daily(
     working_state = copy.deepcopy(state)
     working_applied_ids = dict(applied_fill_ids)
 
+    # 1. Step 5 (설계서 4.2): RTDB fills → actual 축 반영 + idempotency
+    #    drift.apply_fills_idempotent 가 새 state / 새 applied_ids 를 반환한다.
+    #    빈 리스트인 경우 노옵 (회귀 검증 영향 없음).
+    if pending_fills:
+        working_state, working_applied_ids = apply_fills_idempotent(working_state, pending_fills, working_applied_ids)
+
     slot_dict = _build_slot_dict()
 
-    # 1. 전략 객체 생성 및 저장된 버퍼존 상태 복원
+    # 2. 전략 객체 생성 및 저장된 버퍼존 상태 복원
     strategies = _create_strategies(slot_dict)
     _restore_buffer_strategies(strategies, working_state)
 
-    # 2. Step 5 (fill 처리) — Step 8 에서 실제 로직 연결 예정.
-    #    현재는 pending_fills 를 받기만 하고 실제 actual 반영은 하지 않는다.
-    #    applied_fill_ids 에 rtdb_key 만 기록하는 것도 Step 8 에서 수행한다.
-    pending_fill_reminders: list[str] = []
+    # 3. 미입력 체결 리마인더 (설계서 4.2 단계 10)
+    #    전일 pending 이 있는데 fill 이 들어오지 않은 자산을 검출.
+    pending_fill_reminders: list[str] = [
+        asset_id
+        for asset_id, asset in working_state.assets.items()
+        if asset.pending_order is not None and not pending_fills
+    ]
 
-    # 3. 인덱스 결정 (자산별 trade_df 는 동일 날짜 집합이라 가정)
+    # 4. 인덱스 결정 (자산별 trade_df 는 동일 날짜 집합이라 가정)
     first_asset_id = next(iter(market_bundle))
     i = _find_trade_index(market_bundle[first_asset_id].trade_df, trade_date)
 
-    # 4. Step 6 (전일 pending → 당일 시가 체결, model 축)
+    # 5. Step 6 (전일 pending → 당일 시가 체결, model 축)
     #    state.assets[].pending_order 가 있으면 OrderIntent 로 변환 후 execute_orders 호출.
     next_day_intents: dict[str, OrderIntent] = {}
     for asset_id, asset in working_state.assets.items():
