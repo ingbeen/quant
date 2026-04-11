@@ -34,6 +34,7 @@ live/
 │   ├── data_validator.py   # OHLC / 종가 연속성 / 날짜 누락 검증
 │   ├── daily_runner.py     # run_daily (순수 계산)
 │   ├── drift.py            # fill 자동 매칭 + drift
+│   ├── buffer_serializer.py # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 │   ├── rtdb_gateway.py     # Firebase RTDB 게이트웨이
 │   ├── notifier.py         # FCM + 텔레그램 동시 발송
 │   ├── chart_data.py       # TradingView Lightweight Charts 시계열
@@ -56,6 +57,7 @@ live/
 | `data_validator.py` | 설계서 3장의 3가지 검증 (OHLC / 종가 / 날짜 누락) | 3장, 부록 A |
 | `daily_runner.py` | 순수 계산 기반 `run_daily` (파일 I/O 금지) | 4.2, 부록 A |
 | `drift.py` | fill → system_fill / personal_trade 분류, idempotency, drift 계산 | 6장, 14장, 부록 A |
+| `buffer_serializer.py` | QBT `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (`getattr`/`setattr`, QBT 수정 없음) | 4.3 |
 | `rtdb_gateway.py` | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 | 10장, 부록 A |
 | `notifier.py` | FCM + 텔레그램 동시 발송 (일일 리포트, 에러, 리마인더) | 8장, 부록 A |
 | `chart_data.py` | 자산별 전체 기간 차트 시계열 생성 | 7장, 부록 A |

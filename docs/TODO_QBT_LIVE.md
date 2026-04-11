@@ -118,9 +118,9 @@ extract_buffer_state, restore_buffer_state
 QBT BufferZoneStrategy import. QBT 수정 금지.
 ```
 
-- [ ] 🤖 `extract_buffer_state` 구현
-- [ ] 🤖 `restore_buffer_state` 구현
-- [ ] 🤖 테스트 통과
+- [x] 🤖 `extract_buffer_state` 구현
+- [x] 🤖 `restore_buffer_state` 구현
+- [x] 🤖 테스트 통과
 
 **테스트 시나리오 (🤖):**
 

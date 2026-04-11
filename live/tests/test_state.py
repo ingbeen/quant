@@ -201,6 +201,268 @@ class TestSaveLoadRoundtrip:
 
 
 # ============================================================================
+# T-3.2: 수동 작성 JSON → load → 필드 검증
+# ============================================================================
+
+
+# 수동으로 작성한 live_state.json 예시. 설계서 5.1 스키마에 맞춰 다양한 상태를 포함:
+# - sso: pending_order + buffer_zone_state(hold_state 있음) 보유 (체결 대기 중)
+# - qld: buffer_zone_state(hold_state 없음) 보유 (정상 관찰 중)
+# - gld: buy & hold 초기 진입 완료 (pending 없음, buffer_zone_state 없음)
+# - tlt: 완전 초기 상태 (포지션 없음)
+_HANDCRAFTED_LIVE_STATE_JSON = """
+{
+  "schema_version": 1,
+  "portfolio_id": "portfolio_q2_2xs",
+  "last_signal_date": "2026-04-10",
+  "last_model_execution_date": "2026-04-10",
+  "last_rebalance_date": "2026-04-01",
+  "shared_cash_model": 12345678.5,
+  "shared_cash_actual": 12000000.0,
+  "assets": {
+    "sso": {
+      "asset_id": "sso",
+      "model_shares": 420,
+      "model_avg_entry_price": 82.05,
+      "model_entry_date": "2026-03-15",
+      "actual_shares": 420,
+      "actual_avg_entry_price": 82.05,
+      "actual_entry_date": "2026-03-15",
+      "pending_order": {
+        "asset_id": "sso",
+        "intent_type": "INCREASE_TO_TARGET",
+        "signal_date": "2026-04-10",
+        "current_amount": 34500.0,
+        "target_amount": 35000000.0,
+        "delta_amount": 500000.0,
+        "target_weight": 0.35,
+        "hold_days_used": 3,
+        "reason": "buffer zone rebalance"
+      },
+      "signal_state": "buy",
+      "entry_hold_days": 3,
+      "buffer_zone_state": {
+        "prev_upper": 82.5,
+        "prev_lower": 76.0,
+        "hold_state": {
+          "start_date": "2026-04-08",
+          "days_passed": 2,
+          "buffer_pct": 0.03,
+          "hold_days_required": 3
+        },
+        "last_buy_buffer_pct": 0.03,
+        "last_hold_days_used": 3,
+        "schema_version": 1
+      }
+    },
+    "qld": {
+      "asset_id": "qld",
+      "model_shares": 380,
+      "model_avg_entry_price": 92.0,
+      "model_entry_date": "2026-02-20",
+      "actual_shares": 378,
+      "actual_avg_entry_price": 91.8,
+      "actual_entry_date": "2026-02-20",
+      "pending_order": null,
+      "signal_state": "hold",
+      "entry_hold_days": 0,
+      "buffer_zone_state": {
+        "prev_upper": 94.0,
+        "prev_lower": 88.0,
+        "hold_state": null,
+        "last_buy_buffer_pct": 0.03,
+        "last_hold_days_used": 0,
+        "schema_version": 1
+      }
+    },
+    "gld": {
+      "asset_id": "gld",
+      "model_shares": 80,
+      "model_avg_entry_price": 185.5,
+      "model_entry_date": "2026-01-05",
+      "actual_shares": 80,
+      "actual_avg_entry_price": 185.5,
+      "actual_entry_date": "2026-01-05",
+      "pending_order": null,
+      "signal_state": "hold",
+      "entry_hold_days": 0,
+      "buffer_zone_state": null
+    },
+    "tlt": {
+      "asset_id": "tlt",
+      "model_shares": 0,
+      "model_avg_entry_price": 0.0,
+      "model_entry_date": null,
+      "actual_shares": 0,
+      "actual_avg_entry_price": 0.0,
+      "actual_entry_date": null,
+      "pending_order": null,
+      "signal_state": "hold",
+      "entry_hold_days": 0,
+      "buffer_zone_state": null
+    }
+  },
+  "created_at": "2025-12-01T09:00:00+09:00",
+  "updated_at": "2026-04-10T18:00:00+09:00"
+}
+"""
+
+
+class TestLoadFromHandcraftedJson:
+    """T-3.2: 외부(사용자/운영자) 가 수동 작성한 JSON 파일을 load 하여 필드 검증.
+
+    이 테스트는 load_state 가 T-3.1 의 save 출력만 복원 가능한 것이 아니라
+    사람이 손으로 작성한 임의의 유효 JSON 도 올바르게 역직렬화함을 고정한다.
+    장애 대응(상태 파일 수동 편집) 시나리오의 계약을 보장한다.
+    """
+
+    def test_load_handcrafted_json_top_level_fields_t_3_2(self, tmp_path: Path):
+        """T-3.2: 수동 JSON load → LiveState 최상위 필드 값 검증."""
+        # Given
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        # When
+        state = load_state(path)
+
+        # Then
+        assert state.schema_version == 1
+        assert state.portfolio_id == "portfolio_q2_2xs"
+        assert state.last_signal_date == "2026-04-10"
+        assert state.last_model_execution_date == "2026-04-10"
+        assert state.last_rebalance_date == "2026-04-01"
+        assert state.shared_cash_model == pytest.approx(12345678.5)
+        assert state.shared_cash_actual == pytest.approx(12000000.0)
+        assert state.created_at == "2025-12-01T09:00:00+09:00"
+        assert state.updated_at == "2026-04-10T18:00:00+09:00"
+        assert set(state.assets.keys()) == {"sso", "qld", "gld", "tlt"}
+
+    def test_load_handcrafted_json_sso_asset_with_pending_and_buffer_zone(self, tmp_path: Path):
+        """T-3.2: sso 슬롯은 pending_order + buffer_zone_state(hold_state 포함)."""
+        # Given
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        # When
+        state = load_state(path)
+        sso = state.assets["sso"]
+
+        # Then: 기본 필드
+        assert sso.asset_id == "sso"
+        assert sso.model_shares == 420
+        assert sso.model_avg_entry_price == pytest.approx(82.05)
+        assert sso.model_entry_date == "2026-03-15"
+        assert sso.actual_shares == 420
+        assert sso.actual_avg_entry_price == pytest.approx(82.05)
+        assert sso.actual_entry_date == "2026-03-15"
+        assert sso.signal_state == "buy"
+        assert sso.entry_hold_days == 3
+
+        # Then: pending_order (TypedDict) 필드
+        assert sso.pending_order is not None
+        pending = sso.pending_order
+        assert pending["asset_id"] == "sso"
+        assert pending["intent_type"] == "INCREASE_TO_TARGET"
+        assert pending["signal_date"] == "2026-04-10"
+        assert pending["current_amount"] == pytest.approx(34500.0)
+        assert pending["target_amount"] == pytest.approx(35000000.0)
+        assert pending["delta_amount"] == pytest.approx(500000.0)
+        assert pending["target_weight"] == pytest.approx(0.35)
+        assert pending["hold_days_used"] == 3
+        assert pending["reason"] == "buffer zone rebalance"
+        assert "execute_on" not in pending  # 설계서 핵심 계약
+
+        # Then: buffer_zone_state + hold_state
+        assert sso.buffer_zone_state is not None
+        bzs = sso.buffer_zone_state
+        assert bzs.prev_upper == pytest.approx(82.5)
+        assert bzs.prev_lower == pytest.approx(76.0)
+        assert bzs.last_buy_buffer_pct == pytest.approx(0.03)
+        assert bzs.last_hold_days_used == 3
+        assert bzs.schema_version == 1
+        assert bzs.hold_state is not None
+        assert bzs.hold_state["start_date"] == "2026-04-08"
+        assert bzs.hold_state["days_passed"] == 2
+        assert bzs.hold_state["buffer_pct"] == pytest.approx(0.03)
+        assert bzs.hold_state["hold_days_required"] == 3
+
+    def test_load_handcrafted_json_qld_with_buffer_zone_no_hold_state(self, tmp_path: Path):
+        """T-3.2: qld 슬롯은 buffer_zone_state 있으나 hold_state 는 null.
+
+        또한 model_shares 와 actual_shares 가 다른 drift 상태를 표현한다.
+        """
+        # Given
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        # When
+        qld = load_state(path).assets["qld"]
+
+        # Then: drift 표현 (model 380 vs actual 378)
+        assert qld.model_shares == 380
+        assert qld.actual_shares == 378
+        assert qld.model_avg_entry_price == pytest.approx(92.0)
+        assert qld.actual_avg_entry_price == pytest.approx(91.8)
+        assert qld.pending_order is None
+        assert qld.signal_state == "hold"
+
+        # Then: buffer_zone_state 존재하나 hold_state 는 null
+        assert qld.buffer_zone_state is not None
+        assert qld.buffer_zone_state.hold_state is None
+        assert qld.buffer_zone_state.prev_upper == pytest.approx(94.0)
+        assert qld.buffer_zone_state.prev_lower == pytest.approx(88.0)
+
+    def test_load_handcrafted_json_gld_buy_and_hold_without_buffer_zone(self, tmp_path: Path):
+        """T-3.2: gld 는 buy & hold 이므로 buffer_zone_state 가 null."""
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        gld = load_state(path).assets["gld"]
+        assert gld.model_shares == 80
+        assert gld.buffer_zone_state is None
+        assert gld.pending_order is None
+
+    def test_load_handcrafted_json_tlt_completely_empty(self, tmp_path: Path):
+        """T-3.2: tlt 는 완전 초기 상태 (포지션 0, 모든 선택 필드 null)."""
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        tlt = load_state(path).assets["tlt"]
+        assert tlt.model_shares == 0
+        assert tlt.actual_shares == 0
+        assert tlt.model_entry_date is None
+        assert tlt.actual_entry_date is None
+        assert tlt.pending_order is None
+        assert tlt.buffer_zone_state is None
+        assert tlt.entry_hold_days == 0
+
+    def test_load_handcrafted_json_save_again_matches_original(self, tmp_path: Path):
+        """T-3.2 보강: 수동 JSON load → save → load 하여 2 회차도 동일."""
+        # Given
+        path = tmp_path / "live_state.json"
+        path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
+
+        # When
+        first = load_state(path)
+        resave_path = tmp_path / "resaved.json"
+        save_state(first, resave_path)
+        second = load_state(resave_path)
+
+        # Then: 두 번 로드한 결과가 동일
+        assert second.schema_version == first.schema_version
+        assert second.portfolio_id == first.portfolio_id
+        assert second.shared_cash_model == pytest.approx(first.shared_cash_model)
+        assert second.shared_cash_actual == pytest.approx(first.shared_cash_actual)
+        for asset_id in ("sso", "qld", "gld", "tlt"):
+            a1 = first.assets[asset_id]
+            a2 = second.assets[asset_id]
+            assert a2.model_shares == a1.model_shares
+            assert a2.actual_shares == a1.actual_shares
+            assert a2.pending_order == a1.pending_order
+            assert a2.buffer_zone_state == a1.buffer_zone_state
+
+
+# ============================================================================
 # load_state 에러 매트릭스
 # ============================================================================
 
