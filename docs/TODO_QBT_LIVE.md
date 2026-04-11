@@ -376,93 +376,18 @@ CSV 전체 -> ChartSeries. 자산별 전체 기간. user_buys/user_sells 포함.
 
 ## Phase 3: Android 앱
 
-### Step 16: React Native 프로젝트 초기화 🤖
-
-```
-qbt-live-app/ 디렉토리에 생성.
-Firebase SDK, react-native-webview, bottom-tabs.
-google-services.json (com.ingbeen.qbtlive)
-```
-
-- [ ] 🤖 RN 프로젝트 생성
-- [ ] 🤖 Firebase SDK 연동
-- [ ] 🤖 4탭 네비게이션
+> Android 앱은 **별도 프로젝트**(`qbt-live-app`, 추후 생성) 에서 구현한다. 본 TODO 및 연관 설계/구현/테스트 문서는 **백엔드/서버 측 (`quant` 리포 + `qbt-live-state` 리포)** 만 다룬다. 앱 전용 계획서는 앱 프로젝트가 생성될 때 거기서 관리한다.
 
 ---
 
-### Step 17: 인증 + FCM 🤖
+## Phase 4: 운영 안정화
 
-```
-LoginScreen: Firebase Auth Email/Password
-FCM 토큰 -> RTDB /device_tokens/
-```
+### Step 22: 운영 안정화
 
-- [ ] 🤖 LoginScreen 구현
-- [ ] 🤖 FCM 토큰 등록 로직
-
----
-
-### Step 18: 홈 화면 🤖
-
-```
-RTDB /latest/portfolio 읽기. 포트폴리오, 200일선, 신호, 마지막 실행 시각.
-```
-
-- [ ] 🤖 HomeScreen 구현
-
----
-
-### Step 19: 차트 화면 🤖
-
-```
-RTDB /latest/chart_data/ 읽기. WebView + TradingView Lightweight Charts.
-기간 [3M/6M/1Y/전체]. 자산 선택.
-```
-
-- [ ] 🤖 ChartScreen 구현
-- [ ] 🤖 TradingViewChart 컴포넌트
-
----
-
-### Step 20: 거래 화면 🤖
-
-```
-체결 입력 (과거 날짜, 자동 매칭), 자산 직접 수정, 체결 히스토리, Drift.
-```
-
-- [ ] 🤖 TradeScreen 구현
-
----
-
-### Step 21: 설정 + APK 빌드 🤖
-
-```
-SettingsScreen. APK 빌드.
-```
-
-- [ ] 🤖 SettingsScreen 구현
-- [ ] 🤖 APK 빌드 설정
-
----
-
-### Phase 3 완료 조건
-
-- [ ] 🤖 Step 16~21 완료
-
----
-
-## Phase 4: 체결 + Drift E2E
-
-### Step 22: 엔드투엔드 테스트 👤
-
----
-
-## Phase 5: 안정화
-
-### Step 23: 운영 안정화
+사용자 수동 시뮬레이션 테스트 시나리오는 [TEST_QBT_LIVE_MANUAL.md](TEST_QBT_LIVE_MANUAL.md) Phase C 를 참고합니다.
 
 ---
 
 ## 최종 완료
 
-- [ ] Phase 1~5 전체 완료
+- [ ] Phase 1, 2, 4 전체 완료

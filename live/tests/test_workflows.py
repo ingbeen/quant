@@ -103,6 +103,30 @@ class TestDailyRunWorkflow:
         ):
             assert secret in daily_run_yaml, f"{secret} 누락"
 
+    def test_workflow_dispatch_accepts_trade_date_input(self, daily_run_yaml: str):
+        """주말 / 과거 재현 수동 테스트를 위해 workflow_dispatch 에 trade_date
+        입력이 선언되어 있어야 한다."""
+        assert "trade_date:" in daily_run_yaml
+        assert "YYYY-MM-DD" in daily_run_yaml
+        # required: false / type: string 형태
+        assert "required: false" in daily_run_yaml
+        assert "type: string" in daily_run_yaml
+
+    def test_run_step_uses_trade_date_env_and_conditional_flag(self, daily_run_yaml: str):
+        """run step 에 TRADE_DATE 환경변수 주입 + shell 조건부 분기로 flag 전달."""
+        assert "TRADE_DATE: ${{ github.event.inputs.trade_date }}" in daily_run_yaml
+        # shell 에서 $TRADE_DATE 값에 따라 --trade-date 인자 조건부 전달
+        assert 'if [ -n "$TRADE_DATE" ]; then' in daily_run_yaml
+        assert 'poetry run python -m live run-daily --trade-date "$TRADE_DATE"' in daily_run_yaml
+
+    def test_legacy_commands_kept_as_comments(self, daily_run_yaml: str):
+        """변경 전 코드는 검색 용이하도록 `테스트 코드` 키워드와 함께 주석으로 유지."""
+        assert "테스트 코드" in daily_run_yaml
+        # 주석 처리된 기존 빈 dispatch
+        assert "#   workflow_dispatch: {}" in daily_run_yaml
+        # 주석 처리된 기존 한 줄 run 명령
+        assert "#   run: poetry run python -m live run-daily" in daily_run_yaml
+
 
 # ============================================================================
 # keepalive.yml
@@ -110,6 +134,10 @@ class TestDailyRunWorkflow:
 
 
 class TestKeepaliveWorkflow:
+    """keepalive.yml 은 quant (퍼블릭) 리포에 월 1회 빈 commit 을 남겨
+    GitHub Actions 의 60일 비활성 정책으로부터 daily_run 스케줄을 보호한다.
+    """
+
     def test_file_exists(self):
         assert KEEPALIVE_PATH.exists()
 
@@ -120,8 +148,25 @@ class TestKeepaliveWorkflow:
     def test_workflow_dispatch_supported(self, keepalive_yaml: str):
         assert "workflow_dispatch" in keepalive_yaml
 
-    def test_state_repo_checkout(self, keepalive_yaml: str):
-        assert "ingbeen/qbt-live-state" in keepalive_yaml
+    def test_targets_quant_with_allow_empty_commit(self, keepalive_yaml: str):
+        """quant 리포 자체를 checkout 하고 빈 commit 을 남긴다. qbt-live-state
+        는 더 이상 건드리지 않는다. 주석 블록은 제외하고 실행 코드 영역만 확인."""
+        code_lines = [line for line in keepalive_yaml.splitlines() if not line.lstrip().startswith("#")]
+        code = "\n".join(code_lines)
 
-    def test_heartbeat_log(self, keepalive_yaml: str):
-        assert "heartbeat" in keepalive_yaml
+        # 실행 코드에 빈 commit 명령
+        assert "git commit --allow-empty" in code
+        # 실행 코드에는 qbt-live-state 언급이 없다
+        assert "qbt-live-state" not in code
+        assert "STATE_REPO_PAT" not in code
+        # 기본 GITHUB_TOKEN 에 push 권한 부여
+        assert "contents: write" in code
+
+    def test_legacy_version_preserved_as_comment(self, keepalive_yaml: str):
+        """이전 버전 (qbt-live-state heartbeat) 이 검색 가능하도록 주석 블록으로 유지."""
+        assert "이전 버전" in keepalive_yaml
+        assert "heartbeat" in keepalive_yaml  # 주석 안에 존재
+
+    def test_keepalive_commit_message(self, keepalive_yaml: str):
+        """커밋 메시지 포맷: ``keepalive: YYYY-MM-DD``."""
+        assert "keepalive: $(date -u +%Y-%m-%d)" in keepalive_yaml

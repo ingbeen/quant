@@ -15,7 +15,7 @@
 
 ## Phase A: 로컬 파이프라인 + GitHub Actions (Step 1~15 검증)
 
-### 1. 원격 `qbt-live-state` 리포 초기 상태 확인
+### 1. 원격 `qbt-live-state` 리포 초기 상태 확인 ✅
 
 **목적**: GitHub Actions 가 읽을 원격 리포에 초기 상태(`live_state.json`, `data/stock/*.csv`) 가 커밋되어 있는지 확인.
 
@@ -35,9 +35,9 @@ poetry run python -m live.cli init-data
 
 **확인 사항** (GitHub 웹에서):
 
-- [ ] `https://github.com/ingbeen/qbt-live-state` 에 `live_state.json` 존재
-- [ ] `data/stock/` 하위에 SPY / QQQ / SSO / QLD / GLD / TLT CSV 6 종 존재
-- [ ] 커밋 메시지가 `auto: live init ...` / `auto: live init-data ...` 형식
+- [x] `https://github.com/ingbeen/qbt-live-state` 에 `live_state.json` 존재
+- [x] `data/stock/` 하위에 SPY / QQQ / SSO / QLD / GLD / TLT CSV 6 종 존재
+- [x] 커밋 메시지가 `auto: live init ...` / `auto: live init-data ...` 형식
 
 ---
 
@@ -99,14 +99,18 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **목적**: 스케줄러 없이 워크플로우를 직접 실행해 전체 파이프라인을 검증. 이 단계가 성공하면 `run-daily` 의 모든 후속 동작 (상태 업데이트, RTDB write, history 파일 생성, `qbt-live-state` 리포 push) 이 한 번에 검증됩니다.
 
-**사전 조건**: 2, 3 번 완료. GitHub 의 `ingbeen/qbt-live-state` 프라이빗 리포에 `live_state.json` 과 `data/stock/*.csv` 가 최소 1 회 이상 커밋되어 있어야 합니다 (없다면 로컬에서 한 번 push 후 진행).
+**사전 조건**: 2, 3 번 완료. GitHub 의 `ingbeen/qbt-live-state` 프라이빗 리포에 `live_state.json` 과 `data/stock/*.csv` 가 최소 1 회 이상 커밋되어 있어야 합니다 (Phase A #1 에서 시드 완료됨).
 
 **절차**:
 
 1. `https://github.com/ingbeen/quant/actions` 접속
 2. 좌측 목록에서 **`Daily Run`** 선택
-3. 우측 상단 **[Run workflow]** 드롭다운 → Branch `main` → **[Run workflow]** 클릭
-4. 페이지 새로고침하여 새 실행 항목이 큐에 올라오는지 확인
+3. 우측 상단 **[Run workflow]** 드롭다운 클릭 → Branch `main` 선택
+4. `trade_date` 입력란 처리:
+   - **평일 정상 테스트**: 비워둠 (기본값 "오늘" 사용)
+   - **주말 또는 과거 재현 테스트**: `YYYY-MM-DD` 형식으로 최근 거래일 지정 (예: `2026-04-10`). 휴장일 / 주말에 수동 테스트를 돌릴 때 사용
+5. **[Run workflow]** 녹색 버튼 클릭
+6. 페이지 새로고침하여 새 실행 항목이 큐에 올라오는지 확인
 
 **확인 사항**:
 
@@ -236,258 +240,9 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 ---
 
-## Phase B: Android 앱 검증 (Step 16~21 구현 후 진행)
+## Phase B: 운영 안정화 시뮬레이션
 
-### 11. 앱 실행
-
-**목적**: React Native 프로젝트가 에뮬레이터 / 디바이스에서 정상 기동.
-
-**사전 조건**: Step 16 구현 완료.
-
-**절차**:
-
-```bash
-cd qbt-live-app
-npx react-native run-android
-```
-
-**확인 사항**:
-
-- [ ] 에뮬레이터 또는 디바이스에서 앱이 실행됨
-- [ ] 4 탭 네비게이션 (홈 / 차트 / 거래 / 설정) 이동 가능
-
----
-
-### 12. 로그인 + FCM 토큰 등록
-
-**목적**: Firebase Auth 로그인과 FCM 토큰의 RTDB 등록 검증.
-
-**사전 조건**: Step 17 구현 완료, 11 번 완료.
-
-**절차**:
-
-1. 앱 LoginScreen 에서 이메일 / 비밀번호 입력 후 로그인
-2. Firebase 콘솔 RTDB 에서 `/device_tokens/` 경로 확인
-3. 앱 종료 후 재시작
-
-**확인 사항**:
-
-- [ ] 로그인 성공
-- [ ] RTDB `/device_tokens/` 에 토큰 등록됨
-- [ ] 앱 재시작 후에도 로그인 상태 유지
-
----
-
-### 13. FCM 수신 확인
-
-**목적**: 서버 → FCM → 앱 수신 경로 검증.
-
-**사전 조건**: 12 번 완료.
-
-**절차**:
-
-```bash
-poetry run python -m live.cli notify-failure --message "FCM 수동 테스트"
-```
-
-**확인 사항**:
-
-- [ ] 앱이 설치된 기기에서 FCM 푸시 알림 수신
-- [ ] 알림 탭 시 앱으로 이동
-
----
-
-### 14. FCM / 텔레그램 내용 일치 확인
-
-**목적**: 두 채널의 메시지 본문이 동일 포맷인지 확인.
-
-**사전 조건**: 13 번 완료.
-
-**절차**: 13 번 실행 시점에 텔레그램 채팅도 열어두고 두 메시지 비교.
-
-**확인 사항**:
-
-- [ ] FCM 알림 본문과 텔레그램 메시지 본문이 동일
-
----
-
-### 15. 홈 화면 확인
-
-**사전 조건**: Step 18 구현 완료, 12 번 완료.
-
-**절차**: 앱 홈 탭 이동.
-
-**확인 사항**:
-
-- [ ] 4 개 자산 포트폴리오 데이터 표시
-- [ ] 200 일선 근접도 표시
-- [ ] 마지막 실행 시각 표시
-
----
-
-### 16. 차트 화면 확인
-
-**사전 조건**: Step 19 구현 완료, 12 번 완료.
-
-**절차**: 앱 차트 탭 이동, 기간 / 자산 변경.
-
-**확인 사항**:
-
-- [ ] SPY 종가 + EMA-200 + 밴드 표시
-- [ ] 기간 변경 (3M → 1Y → 전체) 동작
-- [ ] 자산 변경 (SPY → QQQ → GLD) 동작
-- [ ] 신호 마커 / 체결 마커 표시
-
----
-
-### 17. 거래 화면 - 체결 입력
-
-**사전 조건**: Step 20 구현 완료, 12 번 완료.
-
-**절차**: 거래 탭에서 체결 입력 폼 사용.
-
-**확인 사항**:
-
-- [ ] SSO 매수 42 주 $82.05 제출
-- [ ] Firebase 콘솔 `/fills/inbox/` 에 데이터 확인
-- [ ] 과거 날짜 선택하여 체결 입력 가능
-- [ ] 자산 직접 수정 (주수 / 현금 변경) → 저장 → RTDB 반영
-- [ ] 체결 히스토리 필터 (전체 / 시스템 / 개인 / 보정) 동작
-- [ ] Drift 상세 화면 표시
-
----
-
-### 18. APK 빌드 + 전체 화면 순회
-
-**사전 조건**: Step 21 구현 완료.
-
-**절차**:
-
-```bash
-cd qbt-live-app/android && ./gradlew assembleRelease
-```
-
-**확인 사항**:
-
-- [ ] APK 빌드 성공
-- [ ] 디바이스에 APK 설치 성공
-- [ ] 로그인 → 홈 → 차트 → 거래 → 설정 전 화면 순회 정상
-
----
-
-## Phase C: E2E 시나리오 (Phase 4)
-
-### 19. pending 생성 테스트 데이터 주입
-
-**목적**: 실제 장 신호를 기다리지 않고 인위적으로 pending 을 만들어 E2E 흐름 검증.
-
-**사전 조건**: Phase B 완료.
-
-**절차**: CSV 수동 편집 또는 과거 날짜 `run-daily` 등으로 pending 발생 조건 강제.
-
-**확인 사항**:
-
-- [ ] `live_state.json` 에 pending_order 기록
-- [ ] FCM 알림 수신
-- [ ] 텔레그램 알림 수신 (FCM 과 내용 동일)
-
----
-
-### 20. 시스템 체결 자동 매칭
-
-**사전 조건**: 19 번 완료.
-
-**절차**:
-
-1. 앱 거래 화면에서 pending 과 일치하는 체결 입력
-2. 다음 `run-daily` 실행
-
-**확인 사항**:
-
-- [ ] Firebase 콘솔 `/fills/inbox/` 에서 `processed=true`
-- [ ] 앱 Drift 화면에서 actual 반영
-- [ ] 알림에 drift % 표시
-
----
-
-### 21. idempotency 확인
-
-**사전 조건**: 20 번 완료.
-
-**절차**: 같은 체결을 다시 입력.
-
-**확인 사항**:
-
-- [ ] 중복 반영되지 않음 (actual 변경 없음)
-
----
-
-### 22. 개인 매매 분류
-
-**사전 조건**: Phase B 완료.
-
-**절차**: pending 이 없는 자산을 매도 체결로 입력.
-
-**확인 사항**:
-
-- [ ] `personal_trade` 로 분류됨
-
----
-
-### 23. 밀린 체결 처리
-
-**사전 조건**: Phase B 완료.
-
-**절차**: 2 건 이상의 체결을 밀린 상태로 한꺼번에 입력.
-
-**확인 사항**:
-
-- [ ] 각 체결이 올바른 pending 과 매칭
-
----
-
-### 24. 미입력 리마인더
-
-**사전 조건**: 19 번 완료 + 다음 거래일 대기.
-
-**절차**: 체결 미입력 상태로 다음 거래일 `run-daily` 실행.
-
-**확인 사항**:
-
-- [ ] 리마인더 알림 수신
-
----
-
-### 25. 자산 직접 수정 → drift 변화
-
-**사전 조건**: Phase B 완료.
-
-**절차**: 거래 화면에서 자산 주수 / 현금 직접 수정.
-
-**확인 사항**:
-
-- [ ] drift 수치가 즉시 반영
-
----
-
-## Phase D: 운영 안정화 (Phase 5)
-
-### 26. FCM 실패 시뮬레이션
-
-**목적**: FCM 과 텔레그램이 상호 독립적으로 동작하는지 확인.
-
-**사전 조건**: Phase B 완료.
-
-**절차**: Firebase 콘솔에서 앱 삭제 → 재설치하여 토큰 무효화 → `run-daily` 실행.
-
-**확인 사항**:
-
-- [ ] FCM 실패해도 텔레그램은 정상 수신
-- [ ] 다음 로그인 시 새 토큰 등록됨
-
----
-
-### 27. 데이터 검증 실패 시뮬레이션
+### 11. 데이터 검증 실패 시뮬레이션
 
 **목적**: 데이터 검증 실패 시 자동 복구 없이 중단되는지 확인.
 
@@ -510,7 +265,7 @@ cd qbt-live-app/android && ./gradlew assembleRelease
 
 ---
 
-### 28. live_state.json 손상 시뮬레이션
+### 12. live_state.json 손상 시뮬레이션
 
 **목적**: 상태 파일 손상 시 중단 동작 확인.
 
@@ -533,24 +288,53 @@ cd qbt-live-app/android && ./gradlew assembleRelease
 
 ---
 
-### 29. keepalive commit 동작 확인
+### 13. keepalive commit 동작 확인
 
-**목적**: Firebase Spark 플랜의 비활성 프로젝트 제거를 방지하는 keepalive 동작 검증.
+**목적**: GitHub Actions 의 **60일 비활성 정책** 으로부터 `daily_run.yml` 의 cron 스케줄을 보호하기 위한 keepalive 동작 검증. `quant` (퍼블릭) 리포에 월 1 회 빈 commit (`git commit --allow-empty`) 을 남겨 activity 를 유지한다.
 
-**사전 조건**: Step 11 `keepalive.yml` 배포 완료.
+**사전 조건**: `keepalive.yml` 배포 완료.
 
-**절차**: 매월 1 일 이후 Actions 탭에서 `Keepalive` 워크플로우 실행 이력 확인.
+**절차**:
+
+1. `https://github.com/ingbeen/quant/actions` → 좌측 `Keepalive` 워크플로우 선택
+2. 실행 이력에서 매월 1 일자 실행 로그 확인
+3. `quant` 리포 커밋 히스토리 (`https://github.com/ingbeen/quant/commits/main`) 에서 `keepalive: YYYY-MM-DD` 메시지 커밋 존재 여부 확인
 
 **확인 사항**:
 
-- [ ] 매월 1 일 `Keepalive` 실행 로그 존재
+- [ ] 매월 1 일 `Keepalive` 실행 로그 존재 (또는 workflow_dispatch 수동 실행)
 - [ ] 실행 결과 정상 (녹색)
+- [ ] `quant` 리포에 `keepalive: YYYY-MM-DD` 빈 commit 이 push 됨
+
+---
+
+## Phase C: Android 앱 연동 (앱 구현 후 진행)
+
+> Android 앱은 별도 프로젝트 (`qbt-live-app`) 에서 구현한다.
+> 앱 구현이 완료되어 FCM device token 이 RTDB `/device_tokens/` 에 등록된 이후에 아래 테스트를 진행한다.
+> 앱 자체의 기능 테스트 (UI / 로그인 / 차트 화면 등) 는 앱 프로젝트의 전용 테스트 문서에서 관리한다.
+
+### 14. FCM 수신 확인 (앱 구현 후)
+
+**목적**: 서버에서 발송한 FCM 메시지가 실제 디바이스에 도달하는지 end-to-end 검증.
+
+**사전 조건**: 앱 프로젝트가 구현되어 FCM device token 이 RTDB `/device_tokens/` 에 등록된 상태.
+
+**절차**:
+
+```bash
+poetry run python -m live.cli notify-failure --message "FCM 수동 테스트"
+```
+
+**확인 사항**:
+
+- [ ] 설치된 디바이스에서 FCM 푸시 알림 수신
+- [ ] 알림 내용이 동일 시점 텔레그램 메시지와 포맷 일치
 
 ---
 
 ## 최종 완료 체크
 
 - [ ] Phase A (1~10) 모두 완료
-- [ ] Phase B (11~18) 모두 완료
-- [ ] Phase C (19~25) 모두 완료
-- [ ] Phase D (26~29) 모두 완료
+- [ ] Phase B (11~13) 모두 완료
+- [ ] Phase C (14) 완료 — 앱 구현 후 진행

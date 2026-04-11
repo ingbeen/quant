@@ -1,7 +1,45 @@
 name: Keepalive
 
-# 매월 1일에 heartbeat commit 으로 GitHub Actions / Firebase 무료 한도 활성 유지
-# 설계서 12장
+# 매월 1일에 quant (퍼블릭) 리포에 빈 commit 을 남겨 GitHub Actions 의
+# 60일 비활성 정책으로부터 daily_run.yml 의 cron 스케줄을 보호한다.
+#
+# 정책 배경:
+#  - 퍼블릭 리포에서 60일간 activity (commit / PR / issue 등) 가 없으면
+#    scheduled workflows 가 자동으로 일시 정지된다.
+#  - Workflow run 자체는 activity 로 카운트되지 않는다 (GitHub 공식 문서).
+#  - 따라서 daily_run 이 매일 돌더라도 quant 리포에 commit 이 없으면
+#    60일 후 스케줄이 중단될 수 있다.
+#
+# 해결:
+#  - 매월 1일 빈 commit (--allow-empty) 하나로 activity 를 유지한다.
+#  - Firebase 관련 처리는 daily_run 이 매일 RTDB 를 건드리므로 불필요.
+#
+# === [이전 버전 — qbt-live-state 타겟 참고용 보관] ==========================
+# 과거에는 qbt-live-state (프라이빗) 에 heartbeat/keepalive.log 를 append 했다.
+# 하지만 프라이빗 리포는 60일 비활성 정책 자체의 대상이 아니고, 정작 보호가
+# 필요한 quant (퍼블릭) 에는 activity 가 남지 않아 효과가 없었다.
+#
+#   jobs:
+#     keepalive:
+#       steps:
+#         - name: Checkout qbt-live-state (private)
+#           uses: actions/checkout@v4
+#           with:
+#             repository: ingbeen/qbt-live-state
+#             token: ${{ secrets.STATE_REPO_PAT }}
+#             path: qbt-live-state
+#         - name: Append heartbeat
+#           working-directory: qbt-live-state
+#           run: |
+#             mkdir -p heartbeat
+#             date -u +"%Y-%m-%dT%H:%M:%SZ" >> heartbeat/keepalive.log
+#             git config user.name "qbt-live-bot"
+#             git config user.email "qbt-live-bot@noreply.github.com"
+#             git add heartbeat/keepalive.log
+#             git commit -m "keepalive: $(date -u +%Y-%m-%d)"
+#             git push
+# ============================================================================
+
 on:
   schedule:
     - cron: "0 0 1 * *"
@@ -9,24 +47,21 @@ on:
 
 jobs:
   keepalive:
-    name: Heartbeat commit
+    name: Empty commit on quant
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      # 기본 GITHUB_TOKEN 에 push 권한 부여 (같은 리포이므로 PAT 불필요)
+      contents: write
     steps:
-      - name: Checkout qbt-live-state (private)
+      - name: Checkout QBT (this repo)
         uses: actions/checkout@v4
         with:
-          repository: ingbeen/qbt-live-state
-          token: ${{ secrets.STATE_REPO_PAT }}
-          path: qbt-live-state
+          fetch-depth: 1
 
-      - name: Append heartbeat
-        working-directory: qbt-live-state
+      - name: Create empty keepalive commit
         run: |
-          mkdir -p heartbeat
-          date -u +"%Y-%m-%dT%H:%M:%SZ" >> heartbeat/keepalive.log
           git config user.name "qbt-live-bot"
           git config user.email "qbt-live-bot@noreply.github.com"
-          git add heartbeat/keepalive.log
-          git commit -m "keepalive: $(date -u +%Y-%m-%d)"
+          git commit --allow-empty -m "keepalive: $(date -u +%Y-%m-%d)"
           git push
