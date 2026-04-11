@@ -54,7 +54,7 @@ live/
 | `models.py` | `LiveState`, `DailyResult`, `ActualFill`, `ChartSeries`, `DriftReport` 등 데이터 모델 | 부록 B |
 | `state.py` | `LiveState` JSON 직렬화/역직렬화, 초기화, applied_fill_ids 관리 | 5장, 부록 A |
 | `data_fetcher.py` | yfinance 호출, CSV 누적 append, 전체 재다운로드 | 2장, 부록 A |
-| `data_validator.py` | 설계서 3장의 3가지 검증 (OHLC / 종가 / 날짜 누락) | 3장, 부록 A |
+| `data_validator.py` | 설계서 3장의 3가지 검증 (OHLC / 종가 / 날짜 누락). `cli._refresh_live_csvs` 가 매 `run-daily` 실행마다 yfinance 최근 5 일 × CSV 같은 날짜를 대조하여 호출 | 3장, 부록 A |
 | `daily_runner.py` | 순수 계산 기반 `run_daily` (파일 I/O 금지) | 4.2, 부록 A |
 | `drift.py` | fill → system_fill / personal_trade 분류, idempotency, drift 계산 | 6장, 14장, 부록 A |
 | `buffer_serializer.py` | QBT `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (`getattr`/`setattr`, QBT 수정 없음) | 4.3 |

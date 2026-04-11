@@ -16,7 +16,7 @@ OrderIntent`` 형태로 일관되게 접근할 수 있도록 한다.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 import pandas as pd
@@ -294,7 +294,6 @@ class DailyResult:
     ema_distances: dict[str, float]
     notification_body: str
     pending_fill_reminders: list[str]
-    chart_series: dict[str, ChartSeries] = field(default_factory=dict)
 
 
 # ============================================================================

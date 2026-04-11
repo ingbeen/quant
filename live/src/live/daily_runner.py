@@ -249,11 +249,14 @@ def run_daily(
     _restore_buffer_strategies(strategies, working_state)
 
     # 3. 미입력 체결 리마인더 (설계서 4.2 단계 10)
-    #    전일 pending 이 있는데 fill 이 들어오지 않은 자산을 검출.
+    #    pending_order 가 있는 자산 중 이번 실행에서 fill 이 들어오지 않은
+    #    자산을 검출. 일부 자산만 체결된 경우에도 나머지 미체결 자산은
+    #    모두 리마인더로 표시되어야 한다 (Gap 6 수정).
+    incoming_fill_asset_ids = {fill.asset_id for fill in pending_fills}
     pending_fill_reminders: list[str] = [
         asset_id
         for asset_id, asset in working_state.assets.items()
-        if asset.pending_order is not None and not pending_fills
+        if asset.pending_order is not None and asset_id not in incoming_fill_asset_ids
     ]
 
     # 4. 인덱스 결정 (자산별 trade_df 는 동일 날짜 집합이라 가정)
@@ -406,7 +409,6 @@ def run_daily(
         ema_distances=ema_distances,
         notification_body=notification_body,
         pending_fill_reminders=pending_fill_reminders,
-        chart_series={},
     )
 
 

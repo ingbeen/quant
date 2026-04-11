@@ -2,11 +2,12 @@
 
 설계서 10.1 "Git 정본" — 모든 히스토리 **영구 보존**. 자동 정리 없음.
 
-3 종 파일:
+4 종 파일:
 
 - ``history/daily/{YYYY-MM-DD}.json`` — 일별 상세 로그 (덮어쓰기 가능)
 - ``history/summary.jsonl`` — 일별 요약 (1 줄당 1 일, append-only)
 - ``history/user_trades.jsonl`` — 사용자 체결 입력 누적 (append-only)
+- ``history/signals.jsonl`` — 자산별 신호 이력 누적 (append-only, 차트 마커용)
 
 JSONL append 정책:
 
@@ -20,15 +21,21 @@ import json
 from pathlib import Path
 from typing import Any
 
+from live.models import UserTrade
+
 __all__ = [
     "save_daily_log",
     "append_summary",
     "append_user_trade",
+    "append_signal_history",
+    "load_user_trades",
+    "load_signal_history",
 ]
 
 _DAILY_SUBDIR = "daily"
 _SUMMARY_FILENAME = "summary.jsonl"
 _USER_TRADES_FILENAME = "user_trades.jsonl"
+_SIGNALS_FILENAME = "signals.jsonl"
 
 
 def _ensure_dir(path: Path) -> None:
@@ -77,3 +84,93 @@ def append_user_trade(trade: dict[str, Any], history_dir: Path) -> None:
     line = json.dumps(trade, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
         fp.write(line + "\n")
+
+
+def load_user_trades(history_dir: Path) -> dict[str, list[UserTrade]]:
+    """``history/user_trades.jsonl`` 을 로드하여 자산 ID 별 ``UserTrade`` 목록 반환.
+
+    파일이 존재하지 않으면 빈 dict 반환. 차트 빌더 (:func:`live.chart_data.build_chart_series`)
+    가 사용자 체결 마커를 표시하기 위해 호출한다.
+
+    JSONL 각 줄의 스키마: ``{"asset_id": str, "date": str, "direction": "buy"|"sell"}``.
+    ``UserTrade`` dataclass 자체에는 ``asset_id`` 필드가 없으므로 dict 의 key 로 사용한다.
+
+    Args:
+        history_dir: ``qbt-live-state/history`` 경로.
+
+    Returns:
+        ``{asset_id: [UserTrade, ...]}`` — 각 자산에 대한 체결 이력.
+    """
+    target = history_dir / _USER_TRADES_FILENAME
+    result: dict[str, list[UserTrade]] = {}
+    if not target.exists():
+        return result
+
+    content = target.read_text(encoding="utf-8").strip()
+    if not content:
+        return result
+
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        payload = json.loads(line)
+        asset_id = payload["asset_id"]
+        trade = UserTrade(
+            date=payload["date"],
+            direction=payload["direction"],
+        )
+        result.setdefault(asset_id, []).append(trade)
+    return result
+
+
+def append_signal_history(entries: list[dict[str, Any]], history_dir: Path) -> None:
+    """신호 이력 여러 줄을 ``history/signals.jsonl`` 에 append 한다.
+
+    매 ``run-daily`` 실행마다 자산별 신호 상태 (``buy``/``sell``/``hold``) 를 기록.
+    차트 빌더가 이 파일을 읽어 ``buy_signals`` / ``sell_signals`` 인덱스를 채운다.
+
+    Args:
+        entries: 각 원소는 ``{"date": "YYYY-MM-DD", "asset_id": str, "state": str}``
+            형태의 dict.
+        history_dir: ``qbt-live-state/history`` 경로.
+    """
+    if not entries:
+        return
+    target = history_dir / _SIGNALS_FILENAME
+    _ensure_dir(target)
+    with target.open("a", encoding="utf-8") as fp:
+        for entry in entries:
+            line = json.dumps(entry, ensure_ascii=False, default=str)
+            fp.write(line + "\n")
+
+
+def load_signal_history(history_dir: Path) -> dict[str, list[tuple[str, str]]]:
+    """``history/signals.jsonl`` 을 로드하여 자산 ID 별 ``(date, state)`` 튜플 목록 반환.
+
+    파일이 존재하지 않으면 빈 dict 반환. 차트 빌더가 ``buy_signals`` / ``sell_signals``
+    인덱스를 채우기 위해 호출한다.
+
+    Args:
+        history_dir: ``qbt-live-state/history`` 경로.
+
+    Returns:
+        ``{asset_id: [(date_iso, state), ...]}``.
+    """
+    target = history_dir / _SIGNALS_FILENAME
+    result: dict[str, list[tuple[str, str]]] = {}
+    if not target.exists():
+        return result
+
+    content = target.read_text(encoding="utf-8").strip()
+    if not content:
+        return result
+
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        payload = json.loads(line)
+        asset_id = payload["asset_id"]
+        result.setdefault(asset_id, []).append((payload["date"], payload["state"]))
+    return result

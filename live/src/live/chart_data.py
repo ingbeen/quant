@@ -56,17 +56,23 @@ def _to_optional_float_list(values: list[Any]) -> list[float | None]:
 def build_chart_series(
     state_dir: Path,
     user_trades: dict[str, list[UserTrade]] | None = None,
+    signal_history: dict[str, list[tuple[str, str]]] | None = None,
 ) -> dict[str, ChartSeries]:
     """자산별 전체 기간 :class:`ChartSeries` 를 생성한다.
 
     Args:
         state_dir: qbt-live-state 디렉토리 (CSV 위치).
         user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
+            각 날짜의 신호 상태가 ``"buy"`` / ``"sell"`` 인 경우 해당 날짜 인덱스를
+            ``buy_signals`` / ``sell_signals`` 에 기록한다. ``history.load_signal_history``
+            로 로드하여 전달한다.
 
     Returns:
         ``{asset_id: ChartSeries}`` (Q-2-2XS 4 자산).
     """
     user_trades = user_trades or {}
+    signal_history = signal_history or {}
     config = get_live_portfolio_config()
 
     series_map: dict[str, ChartSeries] = {}
@@ -111,14 +117,19 @@ def build_chart_series(
             date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "sell" and t.date in date_to_idx
         ]
 
+        # 과거 신호 이력 → dates 의 인덱스로 변환 (Gap 2)
+        signal_entries = signal_history.get(slot.asset_id, [])
+        buy_signals = [date_to_idx[d] for d, s in signal_entries if s == "buy" and d in date_to_idx]
+        sell_signals = [date_to_idx[d] for d, s in signal_entries if s == "sell" and d in date_to_idx]
+
         series_map[slot.asset_id] = ChartSeries(
             dates=dates,
             close=close_list,
             ema_200=ema_list,
             upper_band=upper_list,
             lower_band=lower_list,
-            buy_signals=[],
-            sell_signals=[],
+            buy_signals=buy_signals,
+            sell_signals=sell_signals,
             user_buys=user_buys,
             user_sells=user_sells,
         )

@@ -402,3 +402,118 @@ class TestRunDailyFillIntegration:
         # Day 2 의 model 체결 후 새 pending 이 생긴 상태
         # reminder 검증은 "함수가 list 를 반환한다" 만 확인 (실제 자산 여부는 시그널 의존)
         assert isinstance(r2.pending_fill_reminders, list)
+
+
+class TestPendingFillReminderLogic:
+    """Gap 6 수정: 일부 자산만 체결된 경우에도 나머지 pending 자산은 리마인더에 포함."""
+
+    def _state_with_two_pending(self) -> LiveState:
+        """sso, gld 두 자산에 pending_order 가 있는 state 생성."""
+        from live.models import PendingOrderDict
+
+        state = create_initial_state(100_000_000.0)
+        pending_sso: PendingOrderDict = {
+            "asset_id": "sso",
+            "intent_type": "ENTER_TO_TARGET",
+            "target_weight": 0.35,
+            "target_amount": 35_000_000.0,
+            "current_amount": 0.0,
+            "delta_amount": 35_000_000.0,
+            "reason": "test",
+            "signal_date": "2026-04-09",
+            "hold_days_used": 0,
+        }
+        pending_gld: PendingOrderDict = {
+            "asset_id": "gld",
+            "intent_type": "ENTER_TO_TARGET",
+            "target_weight": 0.15,
+            "target_amount": 15_000_000.0,
+            "current_amount": 0.0,
+            "delta_amount": 15_000_000.0,
+            "reason": "test",
+            "signal_date": "2026-04-09",
+            "hold_days_used": 0,
+        }
+        state.assets["sso"].pending_order = pending_sso
+        state.assets["gld"].pending_order = pending_gld
+        return state
+
+    def test_no_fill_both_pending_are_reminded(self, flat_market_bundle, sample_dates):
+        """Given 2 자산에 pending, fill 0 건 When run_daily Then 둘 다 reminder."""
+        state = self._state_with_two_pending()
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        assert set(result.pending_fill_reminders) == {"sso", "gld"}
+
+    def test_partial_fill_remaining_assets_are_reminded(self, flat_market_bundle, sample_dates):
+        """Given 2 자산에 pending, 1 자산(sso)만 fill 입력 When run_daily Then 나머지 gld 만 reminder.
+
+        Gap 6 수정 전에는 ``not pending_fills`` 가 False 라 reminder 가 빈 리스트였다.
+        수정 후에는 incoming_fill_asset_ids = {"sso"} 이므로 gld 는 여전히 reminder 로 표시.
+        """
+        from live.models import ActualFill
+
+        state = self._state_with_two_pending()
+        sso_fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=80.0,
+            actual_shares=420,
+            trade_date=sample_dates[1].isoformat(),
+            input_time_kst="2026-04-09T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_sso_partial",
+        )
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[sso_fill],
+            applied_fill_ids={},
+        )
+        # gld 는 여전히 pending, fill 미입력 → reminder 에 포함되어야 함
+        assert "gld" in result.pending_fill_reminders
+        # sso 는 이번 실행에서 fill 이 들어왔으므로 reminder 에서 제외
+        assert "sso" not in result.pending_fill_reminders
+
+    def test_all_fills_incoming_no_reminder(self, flat_market_bundle, sample_dates):
+        """Given 2 자산에 pending, 2 자산 모두 fill 입력 When run_daily Then reminder 없음."""
+        from live.models import ActualFill
+
+        state = self._state_with_two_pending()
+        fills = [
+            ActualFill(
+                asset_id="sso",
+                direction="buy",
+                actual_price=80.0,
+                actual_shares=420,
+                trade_date=sample_dates[1].isoformat(),
+                input_time_kst="2026-04-09T20:00:00+09:00",
+                memo=None,
+                rtdb_key="fill_sso_full",
+            ),
+            ActualFill(
+                asset_id="gld",
+                direction="buy",
+                actual_price=180.0,
+                actual_shares=83,
+                trade_date=sample_dates[1].isoformat(),
+                input_time_kst="2026-04-09T20:00:00+09:00",
+                memo=None,
+                rtdb_key="fill_gld_full",
+            ),
+        ]
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=fills,
+            applied_fill_ids={},
+        )
+        assert "sso" not in result.pending_fill_reminders
+        assert "gld" not in result.pending_fill_reminders

@@ -99,7 +99,17 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **목적**: 스케줄러 없이 워크플로우를 직접 실행해 전체 파이프라인을 검증. 이 단계가 성공하면 `run-daily` 의 모든 후속 동작 (상태 업데이트, RTDB write, history 파일 생성, `qbt-live-state` 리포 push) 이 한 번에 검증됩니다.
 
-**사전 조건**: 2, 3 번 완료. GitHub 의 `ingbeen/qbt-live-state` 프라이빗 리포에 `live_state.json` 과 `data/stock/*.csv` 가 최소 1 회 이상 커밋되어 있어야 합니다 (Phase A #1 에서 시드 완료됨).
+**사전 조건**:
+
+- 2, 3 번 완료
+- `ingbeen/qbt-live-state` 프라이빗 리포에 초기 상태 시드 완료 (Phase A #1)
+- **`quant` 리포의 `main` 브랜치에 `.github/workflows/daily_run.yml` 이 push 되어 있어야 함**. `workflow_dispatch` 모달에 `trade_date` 입력란이 보이려면 **GitHub 에 반영된 최신 yml 이 필요** 하므로, 로컬 수정이 있다면 먼저 commit + push:
+  ```bash
+  cd ~/workspace/quant
+  git add .github/workflows/daily_run.yml .github/workflows/keepalive.yml
+  git commit -m "ci / daily_run workflow_dispatch trade_date + keepalive quant target"
+  git push origin main
+  ```
 
 **절차**:
 
@@ -112,9 +122,11 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 5. **[Run workflow]** 녹색 버튼 클릭
 6. 페이지 새로고침하여 새 실행 항목이 큐에 올라오는지 확인
 
+> 만약 `trade_date` 입력란이 보이지 않는다면 워크플로우 yml 이 아직 `main` 에 push 되지 않은 것입니다. 위 사전 조건의 commit/push 명령을 먼저 실행하세요.
+
 **확인 사항**:
 
-- [ ] 새 실행 항목이 큐에 등록됨 (회색 원 또는 노란 원)
+- [x] 새 실행 항목이 큐에 등록됨 (회색 원 또는 노란 원)
 
 ---
 
@@ -132,14 +144,16 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항 (정상 케이스)**:
 
-- [ ] job 결과가 녹색 체크
-- [ ] `Run daily` step 로그에 `run-daily 완료: equity=..., pending=..., drift=...` 출력
-- [ ] `qbt-live-state` 리포에 새 커밋 `auto: daily run YYYY-MM-DD` 푸시됨 (push 동작 검증)
+- [x] job 결과가 녹색 체크
+- [x] `Run daily` step 로그에 `run-daily 완료: equity=..., pending=..., drift=...` 출력
+- [x] `qbt-live-state` 리포에 새 커밋 `auto: live run-daily YYYY-MM-DD HH:MM:SS KST` 푸시됨 (push 동작 검증 — ephemeral CLI 가 clone → 작업 → commit/push)
+- [x] 텔레그램에 `[QBT Live] {execution_date}` 수신, 본문에 model/actual equity, drift, 시그널, 200 일선 근접도, 리밸런싱 여부 포함
 
 **확인 사항 (실패 케이스)**:
 
 - [ ] job 결과가 빨간 X
 - [ ] 텔레그램에 `[QBT Live 실패]` 수신 (에러 상세 메시지 포함)
+- [ ] `qbt-live-state` 리포에 새 커밋이 **추가되지 않음** (실패 시 push 없음)
 
 ---
 
@@ -154,11 +168,33 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 1. `https://console.firebase.google.com/` → 프로젝트 `qbt-live` → Realtime Database 탭
 2. 루트 트리에서 `/latest/portfolio` 펼치기
 
+**실제 스키마** (from [rtdb_gateway.py::write_read_model](live/src/live/rtdb_gateway.py#L133)):
+
+```
+/latest/portfolio
+  ├─ execution_date       # "YYYY-MM-DD"
+  ├─ model_equity         # 정수
+  ├─ actual_equity        # 정수
+  ├─ drift_pct            # 0~1 비율
+  ├─ shared_cash_model    # 정수
+  ├─ shared_cash_actual   # 정수
+  └─ assets/
+       ├─ sso/            # trade ticker 기준 자산 ID
+       │   ├─ model_shares
+       │   ├─ actual_shares
+       │   └─ signal_state   # "holding" / "cash" 등
+       ├─ qld/
+       ├─ gld/
+       └─ tlt/
+```
+
 **확인 사항**:
 
-- [ ] 4 개 자산(SPY / QQQ / GLD / TLT) 별 shares / cash / close 필드 존재
-- [ ] `drift_pct` 필드 존재
-- [ ] `updated_at` 이 4 번 실행 시각과 일치
+- [x] `execution_date` 가 4 번 실행 시 선택한 거래일과 일치
+- [x] `model_equity`, `actual_equity`, `drift_pct` 필드 존재 및 숫자 값 확인
+- [x] `shared_cash_model`, `shared_cash_actual` 필드 존재
+- [x] `assets/` 하위에 `sso`, `qld`, `gld`, `tlt` 4 개 노드 존재
+- [x] 각 자산 하위에 `model_shares`, `actual_shares`, `signal_state` 필드 존재
 
 ---
 
@@ -171,16 +207,28 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 **절차**:
 
 1. 같은 RTDB 화면에서 `/latest/chart_data/` 펼치기
-2. 자산별(SPY / QQQ / GLD / TLT) 하위 노드 펼치기
-3. 배열이 길 경우 검색창에 `/latest/chart_data/SPY/dates/0` 형태의 구체 경로로 값 확인
+2. 자산별(sso / qld / gld / tlt) 하위 노드 펼치기 — **자산 ID 는 trade ticker 소문자**
+3. 배열이 길 경우 검색창에 `/latest/chart_data/sso/dates/0` 형태의 구체 경로로 값 확인
+
+**실제 스키마** (from [chart_data.py](live/src/live/chart_data.py)):
+
+```
+/latest/chart_data/{sso|qld|gld|tlt}
+  ├─ dates         # list[str]   — "YYYY-MM-DD"
+  ├─ close         # list[float] — 종가
+  ├─ ema_200       # list[float|null] — 초반 199 개는 null (워밍업)
+  ├─ upper_band    # list[float|null]
+  └─ lower_band    # list[float|null]
+```
+
+> Firebase RTDB 는 빈 배열을 저장하지 않으므로, `buy_signals` / `sell_signals` / `user_buys` / `user_sells` 가 모두 빈 상태라면 키 자체가 생성되지 않습니다. **보이지 않는 것이 정상**입니다.
 
 **확인 사항**:
 
-- [ ] 4 개 자산 노드가 모두 존재
-- [ ] 각 자산의 `dates`, `close`, `ema_200` 배열 길이가 동일
-- [ ] `ema_200` 앞쪽 199 개 값이 `null`
-- [ ] `dates` 마지막 원소가 최근 거래일
-- [ ] `buy_signals` / `sell_signals` 는 빈 배열이거나 `dates` 범위 내 인덱스만 포함
+- [x] 4 개 자산 노드 `sso`, `qld`, `gld`, `tlt` 모두 존재
+- [x] 각 자산의 `dates`, `close`, `ema_200`, `upper_band`, `lower_band` 배열 길이가 동일
+- [x] `ema_200` / `upper_band` / `lower_band` 앞쪽 199 개 값이 `null`, 200 번 인덱스부터 숫자
+- [x] `dates` 마지막 원소가 `4` 번에서 지정한 거래일 (`2026-04-10`) 과 일치
 
 ---
 
@@ -194,10 +242,20 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 1. RTDB 에서 `/history/summary/{YYYY-MM-DD}` 경로 펼치기
 
+**실제 스키마** (from [rtdb_gateway.py::write_read_model](live/src/live/rtdb_gateway.py#L185)):
+
+```
+/history/summary/{YYYY-MM-DD}
+  ├─ execution_date   # "YYYY-MM-DD"
+  ├─ model_equity     # 정수
+  ├─ actual_equity    # 정수
+  └─ drift_pct        # 0~1 비율
+```
+
 **확인 사항**:
 
-- [ ] 당일 날짜 키로 요약 1 건 존재
-- [ ] `model_equity`, `drift_pct`, `pending_count` 필드 포함
+- [x] 실행 날짜 키로 요약 1 건 존재 (예: `/history/summary/2026-04-10`)
+- [x] `execution_date`, `model_equity`, `actual_equity`, `drift_pct` 필드 모두 존재
 
 ---
 
@@ -214,10 +272,10 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] `history/daily/{YYYY-MM-DD}.json` 파일 존재
-- [ ] 해당 JSON 내용에 `date`, `model_equity`, `drift_pct`, `assets` 키 포함
-- [ ] `history/summary.jsonl` 마지막 줄이 당일 날짜 요약
-- [ ] 같은 날짜로 재실행 시 `summary.jsonl` 줄 수가 1 증가 (덮어쓰기 아님)
+- [x] `history/daily/{YYYY-MM-DD}.json` 파일 존재
+- [x] `history/summary.jsonl` 파일에 `date`, `model_equity`, `actual_equity`, `drift_pct` 필드 포함된 줄 존재
+- [x] `history/summary.jsonl` 마지막 줄이 최근 실행 날짜 요약
+- [x] 같은 날짜로 재실행 시 `summary.jsonl` 줄 수가 1 증가 (덮어쓰기 아님 — 영구 보존 원칙 검증됨)
 
 ---
 
@@ -235,8 +293,8 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] 쓰기가 permission_denied 없이 성공
-- [ ] 삭제도 성공
+- [x] 쓰기가 permission_denied 없이 성공
+- [x] 삭제도 성공
 
 ---
 
@@ -246,22 +304,33 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **목적**: 데이터 검증 실패 시 자동 복구 없이 중단되는지 확인.
 
-**사전 조건**: Phase A 완료.
+**검증 메커니즘**: `run-daily` 시작 시 `_refresh_live_csvs` → `_validate_against_csv` 가 yfinance 에서 받은 최근 5 거래일의 종가를 CSV 의 같은 날짜 종가와 비교합니다. 1% 이상 차이 나면 `RuntimeError("데이터 검증 실패: ...")` 로 중단 + 텔레그램 실패 알림 전송.
+
+**사전 조건**:
+
+- Phase A 완료
+- 이 plan 에 따른 `_validate_against_csv` wiring 이 `main` 브랜치에 push 되어 있어야 함
 
 **절차**:
 
 1. 브라우저에서 `https://github.com/ingbeen/qbt-live-state/blob/main/data/stock/SPY.csv` 접속
 2. 연필 아이콘 **Edit this file** 클릭
-3. 마지막 행의 종가를 10% 이상 변경 후 커밋 (예: `... , 450.12` → `... , 550.00`)
+3. **최근 5 거래일 이내** 행의 종가를 1% 이상 임의로 변경 후 커밋 (예: `2026-04-10, ..., 450.12` → `..., 550.00`). 1 주일보다 오래된 행은 yfinance 가 반환하는 5 일 범위 밖이라 감지 안 됨
 4. GitHub Actions `Daily Run` workflow_dispatch 수동 실행
+   - `trade_date` 입력란에 최근 거래일 지정 (주말이면 `2026-04-10` 같은 금요일)
 5. 검증 완료 후 해당 커밋을 GitHub 웹 Revert 로 원상복구
 
 **확인 사항**:
 
 - [ ] Actions job 이 빨간 X 로 종료
-- [ ] 텔레그램에 `[QBT Live 실패]` 수신 (상세 에러 메시지 포함)
-- [ ] `qbt-live-state` 리포에 `auto: live run-daily ...` 커밋이 **추가되지 않음** (자동 롤백 없음 = 부분 커밋도 없음)
-- [ ] revert 후 다음 실행이 정상
+- [ ] 텔레그램에 `[QBT Live 실패]` 수신, 메시지에 `데이터 검증 실패: SPY 2026-04-10: 전일 종가 불일치` 형식 포함
+- [ ] `qbt-live-state` 리포에 `auto: live run-daily ...` 커밋이 **추가되지 않음** (실패 시 push 없음)
+- [ ] Revert 후 재실행 시 정상 동작 — 녹색 체크 + 새 커밋 push + 텔레그램 정상 알림
+
+**참고 — 대체 감지 패턴**:
+
+- `High < Low` 같은 OHLC 논리 위반: `_validate_against_csv` 의 첫 번째 검증 (`validate_ohlc_logic`) 에서 감지
+- `Close = 0` 또는 음수: 동일하게 `validate_ohlc_logic` 감지. 단 이 케이스는 yfinance 원본에 실제로 없어서 재현이 어려움 — 재현하려면 `_make_recent_df` mock 을 써야 함 (단위 테스트 영역)
 
 ---
 

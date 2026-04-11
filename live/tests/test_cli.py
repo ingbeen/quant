@@ -553,3 +553,276 @@ class TestEphemeralStateRepo:
         clone_call = _fake_git["clone"][0]
         assert clone_call["remote_url"] == STATE_REPO_URL
         assert clone_call["pat"] == "ghp_test_token"
+
+
+# ============================================================================
+# data_validator wiring (Gap 1)
+# ============================================================================
+
+
+class TestValidateAgainstCsv:
+    """순수 함수 ``_validate_against_csv`` 단위 테스트 — OHLC 논리 + 동일 날짜
+    CSV vs yfinance 종가 일치를 검증한다."""
+
+    def _make_recent(self, rows: list[dict]) -> pd.DataFrame:
+        return pd.DataFrame(rows)
+
+    def _make_csv(self, rows: list[dict]) -> pd.DataFrame:
+        return pd.DataFrame(rows)
+
+    def test_passes_on_valid_inputs(self):
+        """Given 정상 OHLC + CSV 종가 일치 When 검증 Then 에러 없음."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 8), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+                {"Date": date(2026, 4, 9), "Open": 100.5, "High": 102.0, "Low": 100.0, "Close": 101.0, "Volume": 1000},
+            ]
+        )
+        csv_df = self._make_csv(
+            [
+                {"Date": date(2026, 4, 8), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+                {"Date": date(2026, 4, 9), "Open": 100.5, "High": 102.0, "Low": 100.0, "Close": 101.0, "Volume": 1000},
+            ]
+        )
+        cli_module._validate_against_csv("SPY", recent, csv_df)  # 예외 없음
+
+    def test_raises_on_high_lt_low(self):
+        """Given yfinance 행 중 High<Low 위반 When 검증 Then ValueError."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 10), "Open": 100.0, "High": 90.0, "Low": 95.0, "Close": 92.0, "Volume": 1000},
+            ]
+        )
+        with pytest.raises(ValueError, match="SPY"):
+            cli_module._validate_against_csv("SPY", recent, None)
+
+    def test_raises_on_csv_yfinance_close_mismatch(self):
+        """Given CSV 의 과거 날짜 종가가 yfinance 와 1% 이상 차이 When 검증 Then ValueError.
+
+        #11 시나리오 재현: 사용자가 CSV 를 $100 으로 조작한 경우.
+        """
+        recent = self._make_recent(
+            [
+                {
+                    "Date": date(2026, 4, 10),
+                    "Open": 450.0,
+                    "High": 452.0,
+                    "Low": 449.0,
+                    "Close": 450.12,
+                    "Volume": 1000,
+                },
+            ]
+        )
+        csv_df = self._make_csv(
+            [
+                {"Date": date(2026, 4, 10), "Open": 450.0, "High": 452.0, "Low": 449.0, "Close": 100.0, "Volume": 1000},
+            ]
+        )
+        with pytest.raises(ValueError, match=r"SPY.*전일 종가 불일치"):
+            cli_module._validate_against_csv("SPY", recent, csv_df)
+
+    def test_no_csv_skips_prev_close_check(self):
+        """Given csv_df=None When 검증 Then OHLC 만 검증하고 종가 비교는 skip."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 10), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        cli_module._validate_against_csv("SPY", recent, None)  # 예외 없음
+
+    def test_overlapping_dates_only(self):
+        """Given CSV 에 없는 yfinance 날짜는 종가 비교 skip When 겹치는 날짜만 체크."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 9), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+                {"Date": date(2026, 4, 10), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        # CSV 에는 4-9 만 있음 (4-10 은 새로 append 될 예정)
+        csv_df = self._make_csv(
+            [
+                {"Date": date(2026, 4, 9), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        cli_module._validate_against_csv("SPY", recent, csv_df)  # 예외 없음
+
+    def test_small_diff_below_threshold_passes(self):
+        """Given 차이율이 1% 미만 (정상 라운딩 오차) When 검증 Then 통과."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 10), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        csv_df = self._make_csv(
+            [
+                # 0.5% 차이 — 임계값 1% 미만
+                {"Date": date(2026, 4, 10), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.0, "Volume": 1000},
+            ]
+        )
+        cli_module._validate_against_csv("SPY", recent, csv_df)  # 예외 없음
+
+
+class TestRunDailyValidatorIntegration:
+    """``run-daily`` 파이프라인에서 validator 가 실패 시 RuntimeError 전파 +
+    notify_failure 호출까지 가는지 통합 검증."""
+
+    def _init_state(self, state_dir: Path) -> None:
+        main(["init", "--capital", "100000000"])
+        assert (state_dir / "live_state.json").exists()
+
+    def test_ohlc_logic_failure_aborts_and_notifies(self, state_dir: Path, monkeypatch):
+        """Given yfinance 가 High<Low 인 행을 반환 When run-daily Then RuntimeError + notify."""
+        self._init_state(state_dir)
+        _setup_flat_market_csvs(state_dir, date(2026, 4, 10))
+
+        def _bad_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            # High=90, Low=95 → 논리 위반
+            return pd.DataFrame(
+                {
+                    "Date": [date(2026, 4, 10)],
+                    "Open": [100.0],
+                    "High": [90.0],
+                    "Low": [95.0],
+                    "Close": [92.0],
+                    "Volume": [1000],
+                }
+            )
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _bad_fetch)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        notify_calls: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
+
+        exit_code = main(["run-daily", "--trade-date", "2026-04-10"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+        assert any("검증" in msg or "OHLC" in msg or "High" in msg for msg in notify_calls)
+
+    def test_newly_applied_fills_persist_to_user_trades_jsonl(self, state_dir: Path, monkeypatch):
+        """Given RTDB 에 새 fill 도착 When run-daily Then history/user_trades.jsonl 에 append (Gap 3/4)."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            return _make_recent_df(trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
+
+        # Firebase 초기화 mock — fake app 반환
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+
+        # 새 fill 1 건 주입 (sso buy)
+        from live.models import ActualFill
+
+        new_fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=82.0,
+            actual_shares=420,
+            trade_date="2026-04-10",
+            input_time_kst="2026-04-10T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_new_001",
+        )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [new_fill])
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+        assert exit_code == 0
+
+        # user_trades.jsonl 에 fill 기록 검증
+        user_trades_path = state_dir / "history" / "user_trades.jsonl"
+        assert user_trades_path.exists()
+        lines = user_trades_path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        assert '"asset_id": "sso"' in lines[0]
+        assert '"direction": "buy"' in lines[0]
+        assert '"date": "2026-04-10"' in lines[0]
+
+    def test_already_applied_fill_is_not_re_appended(self, state_dir: Path, monkeypatch):
+        """Given applied_fill_ids.json 에 이미 있는 fill When run-daily Then user_trades 에 추가되지 않음."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        # applied_fill_ids.json 에 fill_existing 을 미리 주입
+        import json
+
+        applied_path = state_dir / "applied_fill_ids.json"
+        applied_path.write_text(json.dumps({"fill_existing": "2026-04-09T00:00:00+09:00"}), encoding="utf-8")
+
+        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            return _make_recent_df(trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
+
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+
+        from live.models import ActualFill
+
+        existing_fill = ActualFill(
+            asset_id="gld",
+            direction="buy",
+            actual_price=180.0,
+            actual_shares=100,
+            trade_date="2026-04-09",
+            input_time_kst="2026-04-09T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_existing",
+        )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [existing_fill])
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        main(["run-daily", "--trade-date", trade_date.isoformat()])
+
+        # user_trades.jsonl 은 존재하지 않거나 비어있음 (기존 fill 은 skip)
+        user_trades_path = state_dir / "history" / "user_trades.jsonl"
+        if user_trades_path.exists():
+            content = user_trades_path.read_text(encoding="utf-8").strip()
+            assert content == "", f"기존 fill 이 중복 append 되었음: {content}"
+
+    def test_csv_manipulation_detected_as_prev_close_mismatch(self, state_dir: Path, monkeypatch):
+        """Given 사용자가 CSV 종가를 조작 (#11 시나리오) When run-daily Then RuntimeError.
+
+        yfinance 가 반환한 2026-04-10 종가(정상 100.5) 와 CSV 에 저장된 2026-04-10 종가
+        (조작된 50.0) 가 50% 차이 → validate_prev_close 트리거.
+        """
+        self._init_state(state_dir)
+        _setup_flat_market_csvs(state_dir, date(2026, 4, 10))
+
+        # CSV 의 2026-04-10 행을 직접 조작 (SPY 만)
+        spy_path = state_dir / "data" / "stock" / "SPY.csv"
+        df = pd.read_csv(spy_path)
+        df.loc[df["Date"].astype(str) == "2026-04-10", "Close"] = 50.0
+        df.to_csv(spy_path, index=False)
+
+        def _normal_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+            # yfinance 는 정상 값(100.5) 반환
+            return _make_recent_df(date(2026, 4, 10))
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _normal_fetch)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        notify_calls: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
+
+        exit_code = main(["run-daily", "--trade-date", "2026-04-10"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+        assert any("종가 불일치" in msg or "검증" in msg for msg in notify_calls)

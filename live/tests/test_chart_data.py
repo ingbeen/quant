@@ -168,3 +168,49 @@ class TestBuildChartSeriesDates:
                 assert isinstance(d, str)
                 # ISO 8601 형식이면 fromisoformat 로 파싱 가능
                 date.fromisoformat(d)
+
+
+# ============================================================================
+# Gap 2: signal_history 로 buy_signals / sell_signals 채우기
+# ============================================================================
+
+
+class TestBuildChartSeriesSignalMarkers:
+    def test_no_signal_history_returns_empty_lists(self, state_dir_with_csvs: Path):
+        """Given signal_history 인자 없음 When build Then buy/sell_signals 는 빈 리스트."""
+        series = build_chart_series(state_dir_with_csvs)
+        for cs in series.values():
+            assert cs.buy_signals == []
+            assert cs.sell_signals == []
+
+    def test_signal_history_fills_buy_sell_indices(self, state_dir_with_csvs: Path):
+        """Given 과거 신호 이력 When build Then dates 의 올바른 인덱스로 변환."""
+        signal_history: dict[str, list[tuple[str, str]]] = {
+            "sso": [
+                ("2025-04-01", "buy"),  # 존재하는 날짜
+                ("2025-06-15", "sell"),  # 존재하는 날짜
+                ("2025-06-16", "hold"),  # hold 는 마커 없음
+                ("2050-01-01", "buy"),  # dates 범위 밖 — skip
+            ],
+        }
+        series = build_chart_series(state_dir_with_csvs, signal_history=signal_history)
+        cs = series["sso"]
+        n = len(cs.dates)
+
+        assert len(cs.buy_signals) == 1
+        assert len(cs.sell_signals) == 1
+        for idx in cs.buy_signals + cs.sell_signals:
+            assert 0 <= idx < n
+        # dates 에서 해당 인덱스가 signal_history 의 날짜와 일치
+        assert cs.dates[cs.buy_signals[0]] == "2025-04-01"
+        assert cs.dates[cs.sell_signals[0]] == "2025-06-15"
+
+    def test_signal_history_for_other_assets_isolated(self, state_dir_with_csvs: Path):
+        """Given 한 자산에만 signal_history 전달 When build Then 다른 자산 영향 없음."""
+        signal_history = {"gld": [("2025-04-01", "buy")]}
+        series = build_chart_series(state_dir_with_csvs, signal_history=signal_history)
+
+        assert len(series["gld"].buy_signals) == 1
+        assert series["sso"].buy_signals == []
+        assert series["qld"].buy_signals == []
+        assert series["tlt"].buy_signals == []

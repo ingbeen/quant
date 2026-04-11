@@ -37,9 +37,10 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 from dotenv import load_dotenv
 
-from live import git_state, history, notifier, rtdb_gateway
+from live import data_validator, git_state, history, notifier, rtdb_gateway
 from live.chart_data import build_chart_series
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -238,8 +239,15 @@ def _publish_to_rtdb(
     # 1. read model 갱신
     rtdb_gateway.write_read_model(rtdb_app, state, result)
 
-    # 2. 차트 데이터 갱신
-    chart_series = build_chart_series(state_dir)
+    # 2. 차트 데이터 갱신 — 사용자 체결 이력 + 신호 이력 로드해 마커까지 포함
+    history_dir = _history_dir(state_dir)
+    user_trades = history.load_user_trades(history_dir)
+    signal_history = history.load_signal_history(history_dir)
+    chart_series = build_chart_series(
+        state_dir,
+        user_trades=user_trades,
+        signal_history=signal_history,
+    )
     rtdb_gateway.write_chart_data(rtdb_app, chart_series)
 
     # 3. 처리된 fill 마킹
@@ -357,6 +365,23 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
             )
             save_applied_fill_ids(cleaned_ids, applied_path)
 
+            # 8.5. 새로 반영된 fill 을 user_trades.jsonl 에 append (Gap 3/4)
+            #      run_daily 전후의 applied_ids 차분으로 신규 fill 을 식별한다.
+            prev_applied_set = set(applied_ids.keys())
+            newly_applied_ids = set(result.updated_applied_fill_ids.keys()) - prev_applied_set
+            if newly_applied_ids:
+                hist_dir = _history_dir(state_dir)
+                for fill in pending_fills:
+                    if fill.rtdb_key in newly_applied_ids:
+                        history.append_user_trade(
+                            {
+                                "asset_id": fill.asset_id,
+                                "date": fill.trade_date,
+                                "direction": fill.direction,
+                            },
+                            hist_dir,
+                        )
+
             # 9. 영구 히스토리 저장
             try:
                 _persist_history(state_dir, trade_date, result)
@@ -386,15 +411,64 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         raise
 
 
+def _validate_against_csv(ticker: str, recent_df: pd.DataFrame, csv_df: pd.DataFrame | None) -> None:
+    """yfinance 가 반환한 최근 OHLC 행들에 대해 검증 실행.
+
+    1. 각 행의 OHLC 논리 검증 (High/Low/Close 가 상식에 맞는지)
+    2. 기존 CSV 가 있으면, yfinance 와 **같은 날짜** 가 존재하는 행들에 대해
+       ``validate_prev_close`` 로 종가 일치 여부 검증.
+       이 비교는 **스플릿 감지** (yfinance 가 과거 값을 재조정) 와 **사용자 조작 감지**
+       (CSV 를 손으로 수정한 경우) 를 모두 잡아낸다.
+
+    Args:
+        ticker: 검증 대상 티커 (에러 메시지에 포함).
+        recent_df: ``fetch_recent_ohlc`` 반환값 (최근 ~5 거래일 OHLC).
+        csv_df: 기존 CSV 로드 결과. 파일이 없으면 ``None``.
+
+    Raises:
+        ValueError: 검증 실패 시. 메시지에 티커 / 날짜 / 원인 포함.
+    """
+    # 1. 각 yfinance 행의 OHLC 논리 검증
+    for _, yf_row in recent_df.iterrows():
+        errors = data_validator.validate_ohlc_logic(yf_row)
+        if errors:
+            yf_date = yf_row["Date"]
+            raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
+
+    # 2. CSV 와 겹치는 날짜에 대해 종가 일치 검증 (스플릿 + 사용자 조작 감지)
+    if csv_df is None or csv_df.empty:
+        return
+
+    csv_by_date = {row["Date"]: float(row["Close"]) for _, row in csv_df.iterrows()}
+    for _, yf_row in recent_df.iterrows():
+        yf_date = yf_row["Date"]
+        if yf_date not in csv_by_date:
+            continue
+        csv_close = csv_by_date[yf_date]
+        yf_close = float(yf_row["Close"])
+        errors = data_validator.validate_prev_close(csv_close, yf_close)
+        if errors:
+            raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
+
+
 def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
-    """각 자산 티커에 대해 최근 OHLC 를 가져와 CSV 에 append."""
+    """각 자산 티커에 대해 최근 OHLC 를 가져와 검증 후 CSV 에 append.
+
+    검증 실패 시 ``ValueError`` 를 전파하여 상위 ``_cmd_run_daily`` 가
+    ``RuntimeError("데이터 검증 실패: ...")`` 로 래핑한 뒤 알림을 발송한다.
+    """
     for ticker in _collect_all_tickers():
         recent = fetch_recent_ohlc(ticker, days=5)
+        csv_path = _live_csv_path(state_dir, ticker)
+        csv_df = load_csv(csv_path) if csv_path.exists() else None
+
+        # 검증 — 실패 시 ValueError 전파 (상위에서 RuntimeError 로 래핑)
+        _validate_against_csv(ticker, recent, csv_df)
+
         today_row = recent[recent["Date"] == trade_date]
         if today_row.empty:
             logger.debug(f"{ticker}: {trade_date} 데이터 없음 (휴장일?) — skip")
             continue
-        csv_path = _live_csv_path(state_dir, ticker)
         append_today_to_csv(csv_path, today_row.head(1))
 
 
@@ -417,7 +491,7 @@ def _build_market_bundle(state_dir: Path) -> MarketBundle:
 
 
 def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> None:
-    """일별 상세 + 요약을 history/ 에 영구 저장."""
+    """일별 상세 + 요약 + 신호 이력을 history/ 에 영구 저장."""
     hist_dir = _history_dir(state_dir)
     daily_payload = {
         "execution_date": result.execution_date,
@@ -438,6 +512,13 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
         },
         hist_dir,
     )
+
+    # 신호 이력 append — 차트 마커용 (Gap 2)
+    signal_entries = [
+        {"date": trade_date.isoformat(), "asset_id": asset_id, "state": sig.state}
+        for asset_id, sig in result.signals.items()
+    ]
+    history.append_signal_history(signal_entries, hist_dir)
 
 
 # ============================================================================

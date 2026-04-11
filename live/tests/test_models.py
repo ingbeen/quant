@@ -257,7 +257,11 @@ class TestDailyResult:
         assert is_dataclass(DailyResult)
 
     def test_fields(self):
-        """설계서 부록 B: DailyResult 전체 필드."""
+        """설계서 부록 B: DailyResult 전체 필드.
+
+        ``chart_series`` 는 한때 필드로 선언되었으나 사용되지 않아 제거됨 (Gap 5).
+        차트 시계열은 CLI 계층의 ``build_chart_series`` 가 직접 생성한다.
+        """
         expected = {
             "execution_date",
             "updated_state",
@@ -272,7 +276,6 @@ class TestDailyResult:
             "ema_distances",
             "notification_body",
             "pending_fill_reminders",
-            "chart_series",
         }
         actual = {f.name for f in fields(DailyResult)}
         assert expected == actual

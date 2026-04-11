@@ -8,7 +8,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from live.history import append_summary, append_user_trade, save_daily_log
+from live.history import (
+    append_signal_history,
+    append_summary,
+    append_user_trade,
+    load_signal_history,
+    load_user_trades,
+    save_daily_log,
+)
+from live.models import UserTrade
 
 # ============================================================================
 # T-15.1: save_daily_log
@@ -153,3 +161,83 @@ class TestEncoding:
 
         content = (tmp_path / "summary.jsonl").read_text(encoding="utf-8")
         assert "2026-04-10" in content
+
+
+# ============================================================================
+# Gap 2: signal history (append + load)
+# ============================================================================
+
+
+class TestSignalHistory:
+    def test_append_creates_file_and_lines(self, tmp_path: Path):
+        """Given 신호 entry 여러 개 When append Then signals.jsonl 에 줄 수 맞춤."""
+        entries = [
+            {"date": "2026-04-10", "asset_id": "sso", "state": "hold"},
+            {"date": "2026-04-10", "asset_id": "gld", "state": "buy"},
+        ]
+        append_signal_history(entries, tmp_path)
+
+        path = tmp_path / "signals.jsonl"
+        assert path.exists()
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+
+    def test_append_empty_list_is_noop(self, tmp_path: Path):
+        """Given 빈 list When append Then 파일 생성되지 않음."""
+        append_signal_history([], tmp_path)
+        assert not (tmp_path / "signals.jsonl").exists()
+
+    def test_load_returns_empty_when_missing(self, tmp_path: Path):
+        """Given 파일 없음 When load Then 빈 dict 반환."""
+        result = load_signal_history(tmp_path)
+        assert result == {}
+
+    def test_load_parses_by_asset(self, tmp_path: Path):
+        """Given 여러 날짜 / 여러 자산 When load Then 자산별 그룹핑."""
+        entries = [
+            {"date": "2026-04-08", "asset_id": "sso", "state": "hold"},
+            {"date": "2026-04-09", "asset_id": "sso", "state": "buy"},
+            {"date": "2026-04-09", "asset_id": "gld", "state": "sell"},
+            {"date": "2026-04-10", "asset_id": "gld", "state": "buy"},
+        ]
+        append_signal_history(entries, tmp_path)
+
+        result = load_signal_history(tmp_path)
+        assert set(result.keys()) == {"sso", "gld"}
+        assert result["sso"] == [("2026-04-08", "hold"), ("2026-04-09", "buy")]
+        assert result["gld"] == [("2026-04-09", "sell"), ("2026-04-10", "buy")]
+
+    def test_append_only_does_not_overwrite(self, tmp_path: Path):
+        """Given 2 번 append When 두 번째 호출 Then 이전 줄 유지 + 새 줄 추가."""
+        append_signal_history([{"date": "2026-04-09", "asset_id": "sso", "state": "hold"}], tmp_path)
+        append_signal_history([{"date": "2026-04-10", "asset_id": "sso", "state": "buy"}], tmp_path)
+
+        result = load_signal_history(tmp_path)
+        assert result["sso"] == [("2026-04-09", "hold"), ("2026-04-10", "buy")]
+
+
+# ============================================================================
+# Gap 3/4: user_trades load
+# ============================================================================
+
+
+class TestLoadUserTrades:
+    def test_load_returns_empty_when_missing(self, tmp_path: Path):
+        result = load_user_trades(tmp_path)
+        assert result == {}
+
+    def test_load_parses_by_asset(self, tmp_path: Path):
+        """Given append_user_trade 로 3 건 쓴 후 When load Then 자산별 UserTrade 목록."""
+        append_user_trade({"asset_id": "sso", "direction": "buy", "date": "2026-04-10"}, tmp_path)
+        append_user_trade({"asset_id": "sso", "direction": "sell", "date": "2026-04-11"}, tmp_path)
+        append_user_trade({"asset_id": "gld", "direction": "buy", "date": "2026-04-10"}, tmp_path)
+
+        result = load_user_trades(tmp_path)
+        assert set(result.keys()) == {"sso", "gld"}
+        assert len(result["sso"]) == 2
+        assert len(result["gld"]) == 1
+
+        sso_first = result["sso"][0]
+        assert isinstance(sso_first, UserTrade)
+        assert sso_first.direction == "buy"
+        assert sso_first.date == "2026-04-10"
