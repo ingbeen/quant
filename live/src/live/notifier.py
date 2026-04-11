@@ -1,16 +1,221 @@
-"""알림 모듈 (FCM + 텔레그램, 항상 동시 발송).
+"""FCM + 텔레그램 알림 (항상 동시 발송).
 
-Step 13에서 다음 함수들이 구현된다 (설계서 8장, 11장, 부록 A 참고).
+설계서 8장 ("알림") 의 5 종 알림을 처리한다. FCM 과 텔레그램은 **항상 독립
+발송** 되며, 한쪽 채널 실패가 다른 쪽 채널을 막지 않는다 (설계서 11장).
 
-- ``send_all(tokens, tg_token, tg_chat, result: DailyResult) -> None``
-    일일 리포트, 시그널, 리밸런싱, 미입력 리마인더 포함.
-- ``send_failure_all(tokens, tg_token, tg_chat, msg: str) -> None``
-    에러 상세 메시지를 포함한 실패 알림.
+발송 종류:
 
-원칙:
+- :func:`send_all` — 일일 리포트 (200 일선 근접도 포함, 시그널/리밸런싱 요약)
+- :func:`send_failure_all` — 에러 상세 메시지를 포함한 실패 알림
 
-- FCM 과 텔레그램은 **항상 동시 발송**. 하나가 실패해도 다른 하나는 독립적으로 시도.
-- 에러 알림에는 반드시 에러 상세 메시지 포함 (사용자 디버깅 용이).
-- 200일선 근접도(``(close - ema_200) / ema_200 * 100``) 를 본문에 포함.
-- 이모지 사용 금지, 한글 메시지 원칙.
+만료 토큰(`UnregisteredError`) 감지 시 ``NotificationOutcome.fcm_invalid_tokens`` 에
+누적되며, 호출자는 이를 ``rtdb_gateway.remove_invalid_tokens`` 로 정리할 수 있다.
 """
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from live.models import DailyResult
+
+__all__ = [
+    "NotificationOutcome",
+    "send_all",
+    "send_failure_all",
+]
+
+
+_TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/sendMessage"
+
+
+@dataclass
+class NotificationOutcome:
+    """알림 발송 결과 요약.
+
+    - ``fcm_sent_count``: 성공적으로 전송된 FCM 메시지 개수
+    - ``fcm_invalid_tokens``: 만료/등록 해제된 토큰 (호출자가 RTDB 에서 제거)
+    - ``telegram_ok``: 텔레그램 발송 성공 여부
+    """
+
+    fcm_sent_count: int = 0
+    fcm_invalid_tokens: list[str] = field(default_factory=list)
+    telegram_ok: bool = False
+
+
+# ============================================================================
+# 본문 빌더
+# ============================================================================
+
+
+def _format_pct(value: float) -> str:
+    """비율(0~1) 을 ``±X.XX%`` 형식으로 변환."""
+    return f"{value * 100:+.2f}%"
+
+
+def _build_daily_body(result: DailyResult) -> str:
+    """일일 리포트 본문 생성. 200 일선 근접도 포함 (설계서 8장)."""
+    lines: list[str] = []
+    lines.append(f"[QBT Live] {result.execution_date}")
+    lines.append(f"model equity: {result.model_equity:,.0f}")
+    lines.append(f"actual equity: {result.actual_equity:,.0f}")
+    lines.append(f"drift: {result.drift_pct:.2f}%")
+
+    if result.signals:
+        sig_summaries: list[str] = []
+        for asset_id, sig in result.signals.items():
+            if sig.state in ("buy", "sell"):
+                sig_summaries.append(f"{asset_id.upper()} {sig.state}")
+        if sig_summaries:
+            lines.append("시그널: " + ", ".join(sig_summaries))
+
+    if result.ema_distances:
+        ema_parts = [f"{aid.upper()} {_format_pct(dist)}" for aid, dist in result.ema_distances.items()]
+        lines.append("200일선 근접도: " + ", ".join(ema_parts))
+
+    if result.rebalance_triggered:
+        lines.append("리밸런싱: 발생")
+
+    if result.pending_fill_reminders:
+        lines.append(f"미입력 체결 리마인더: {len(result.pending_fill_reminders)} 건")
+
+    return "\n".join(lines)
+
+
+def _build_failure_body(message: str) -> str:
+    """실패 알림 본문 (에러 상세 포함)."""
+    return f"[QBT Live 실패]\n{message}"
+
+
+# ============================================================================
+# FCM / 텔레그램 발송 헬퍼
+# ============================================================================
+
+
+def _send_fcm_messages(tokens: list[str], body: str) -> tuple[int, list[str]]:
+    """FCM 으로 본문을 멀티 토큰 전송한다.
+
+    Args:
+        tokens: 발송 대상 device 토큰 리스트.
+        body: 메시지 본문.
+
+    Returns:
+        (성공 개수, 만료 토큰 리스트) 튜플.
+    """
+    if not tokens:
+        return 0, []
+
+    from firebase_admin import messaging  # lazy import
+    from firebase_admin.exceptions import FirebaseError
+
+    messages = [
+        messaging.Message(
+            notification=messaging.Notification(title="QBT Live", body=body),
+            token=token,
+        )
+        for token in tokens
+    ]
+    response = messaging.send_each(messages)
+
+    invalid: list[str] = []
+    for token, individual in zip(tokens, response.responses, strict=True):
+        if not individual.success:
+            err = individual.exception
+            if isinstance(err, FirebaseError):
+                code = getattr(err, "code", "")
+                if "UNREGISTERED" in str(code).upper() or "NOT_FOUND" in str(code).upper():
+                    invalid.append(token)
+    return response.success_count, invalid
+
+
+def _send_telegram_message(tg_token: str, tg_chat: str, body: str) -> bool:
+    """텔레그램 Bot API 로 본문 전송. 200 OK 면 True."""
+    import requests  # lazy import
+
+    url = _TELEGRAM_API_URL.format(token=tg_token)
+    response = requests.post(
+        url,
+        json={"chat_id": tg_chat, "text": body},
+        timeout=10,
+    )
+    return response.status_code == 200
+
+
+def _safe_fcm(tokens: list[str], body: str) -> tuple[int, list[str]]:
+    """FCM 발송을 try-except 로 감싼 안전 호출."""
+    try:
+        return _send_fcm_messages(tokens, body)
+    except Exception:  # noqa: BLE001
+        return 0, []
+
+
+def _safe_telegram(tg_token: str, tg_chat: str, body: str) -> bool:
+    """텔레그램 발송을 try-except 로 감싼 안전 호출."""
+    try:
+        return _send_telegram_message(tg_token, tg_chat, body)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# ============================================================================
+# 공개 API
+# ============================================================================
+
+
+def send_all(
+    tokens: list[str],
+    tg_token: str,
+    tg_chat: str,
+    result: DailyResult,
+) -> NotificationOutcome:
+    """일일 리포트를 FCM + 텔레그램으로 동시 발송한다.
+
+    한쪽 채널이 예외를 던져도 다른 쪽 채널에는 영향이 없다.
+
+    Args:
+        tokens: FCM device 토큰 목록.
+        tg_token: 텔레그램 봇 토큰.
+        tg_chat: 텔레그램 채팅 ID.
+        result: 당일 ``DailyResult``.
+
+    Returns:
+        :class:`NotificationOutcome` — 발송 결과 요약.
+    """
+    body = _build_daily_body(result)
+    fcm_count, invalid_tokens = _safe_fcm(tokens, body)
+    telegram_ok = _safe_telegram(tg_token, tg_chat, body)
+
+    return NotificationOutcome(
+        fcm_sent_count=fcm_count,
+        fcm_invalid_tokens=invalid_tokens,
+        telegram_ok=telegram_ok,
+    )
+
+
+def send_failure_all(
+    tokens: list[str],
+    tg_token: str,
+    tg_chat: str,
+    message: str,
+) -> NotificationOutcome:
+    """실패 알림을 FCM + 텔레그램으로 동시 발송한다.
+
+    Args:
+        tokens: FCM device 토큰 목록.
+        tg_token: 텔레그램 봇 토큰.
+        tg_chat: 텔레그램 채팅 ID.
+        message: 에러 상세 메시지 (stack trace 등).
+    """
+    body = _build_failure_body(message)
+    fcm_count, invalid_tokens = _safe_fcm(tokens, body)
+    telegram_ok = _safe_telegram(tg_token, tg_chat, body)
+
+    return NotificationOutcome(
+        fcm_sent_count=fcm_count,
+        fcm_invalid_tokens=invalid_tokens,
+        telegram_ok=telegram_ok,
+    )
+
+
+# 내부 헬퍼는 테스트 / 향후 확장에서 직접 import 가능
+_ = Any

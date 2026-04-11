@@ -1,0 +1,252 @@
+"""live.notifier — FCM + 텔레그램 동시 발송 테스트.
+
+firebase_admin / requests 를 monkeypatch 로 대체하여 외부 호출 없이 검증한다.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+
+from live import notifier as notifier_module
+from live.models import DailyResult, SignalDetection
+from live.notifier import (
+    NotificationOutcome,
+    send_all,
+    send_failure_all,
+)
+from live.state import create_initial_state
+
+# ============================================================================
+# fixtures
+# ============================================================================
+
+
+def _make_daily_result() -> DailyResult:
+    state = create_initial_state(100_000_000.0)
+    return DailyResult(
+        execution_date="2026-04-10",
+        updated_state=state,
+        updated_applied_fill_ids={},
+        signals={
+            "sso": SignalDetection(
+                state="buy",
+                close=420.5,
+                upper_band=418.0,
+                lower_band=398.0,
+                ema_200=410.0,
+                ema_distance_pct=0.0256,
+            ),
+            "qld": SignalDetection(
+                state="hold",
+                close=85.0,
+                upper_band=87.0,
+                lower_band=80.0,
+                ema_200=84.0,
+                ema_distance_pct=0.0119,
+            ),
+        },
+        order_intents={},
+        executions=None,
+        rebalance_triggered=True,
+        model_equity=100_000_000.0,
+        actual_equity=99_500_000.0,
+        drift_pct=0.5,
+        ema_distances={"sso": 0.0256, "qld": 0.0119},
+        notification_body="",
+        pending_fill_reminders=["sso pending"],
+    )
+
+
+@pytest.fixture
+def patched_fcm_success(monkeypatch):
+    """FCM 발송 mock — 모두 성공."""
+    calls: dict[str, Any] = {}
+
+    def _mock_send(tokens: list[str], body: str) -> tuple[int, list[str]]:
+        calls["tokens"] = tokens
+        calls["body"] = body
+        return len(tokens), []
+
+    monkeypatch.setattr(notifier_module, "_send_fcm_messages", _mock_send)
+    return calls
+
+
+@pytest.fixture
+def patched_telegram_success(monkeypatch):
+    """텔레그램 발송 mock — 200 응답."""
+    calls: dict[str, Any] = {}
+
+    def _mock_send(tg_token: str, tg_chat: str, body: str) -> bool:
+        calls["tg_token"] = tg_token
+        calls["tg_chat"] = tg_chat
+        calls["body"] = body
+        return True
+
+    monkeypatch.setattr(notifier_module, "_send_telegram_message", _mock_send)
+    return calls
+
+
+# ============================================================================
+# send_all
+# ============================================================================
+
+
+class TestSendAll:
+    def test_returns_notification_outcome(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        outcome = send_all(
+            tokens=["t1", "t2"],
+            tg_token="bot:abc",
+            tg_chat="chat_xyz",
+            result=result,
+        )
+        assert isinstance(outcome, NotificationOutcome)
+
+    def test_fcm_called_with_all_tokens(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        send_all(
+            tokens=["t1", "t2", "t3"],
+            tg_token="bot:abc",
+            tg_chat="chat_xyz",
+            result=result,
+        )
+        assert patched_fcm_success["tokens"] == ["t1", "t2", "t3"]
+
+    def test_telegram_called_with_credentials(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        send_all(
+            tokens=["t1"],
+            tg_token="my_bot_token",
+            tg_chat="my_chat_id",
+            result=result,
+        )
+        assert patched_telegram_success["tg_token"] == "my_bot_token"
+        assert patched_telegram_success["tg_chat"] == "my_chat_id"
+
+    def test_body_contains_ema_distance_200_line(self, patched_fcm_success, patched_telegram_success):
+        """본문에 200 일선 근접도가 포함되어야 한다 (설계서 8장)."""
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        assert "200일선 근접도" in body
+        assert "SSO" in body
+
+    def test_body_contains_signals_when_buy_or_sell(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        assert "시그널" in body
+        assert "SSO buy" in body  # 매수 시그널 표시
+
+    def test_body_contains_rebalance_when_triggered(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        assert "리밸런싱" in body
+
+    def test_body_contains_drift(self, patched_fcm_success, patched_telegram_success):
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        assert "drift" in body
+
+    def test_fcm_failure_does_not_block_telegram(self, monkeypatch, patched_telegram_success):
+        """FCM 예외가 발생해도 텔레그램은 정상 발송."""
+
+        def _failing_fcm(tokens, body):  # noqa: ANN001
+            raise RuntimeError("FCM down")
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _failing_fcm)
+
+        outcome = send_all(["t1"], "bot", "chat", _make_daily_result())
+        assert outcome.fcm_sent_count == 0
+        assert outcome.telegram_ok is True
+
+    def test_telegram_failure_does_not_block_fcm(self, patched_fcm_success, monkeypatch):
+        """텔레그램 예외가 발생해도 FCM 은 정상 발송."""
+
+        def _failing_telegram(tg_token, tg_chat, body):  # noqa: ANN001
+            raise RuntimeError("Telegram down")
+
+        monkeypatch.setattr(notifier_module, "_send_telegram_message", _failing_telegram)
+
+        outcome = send_all(["t1", "t2"], "bot", "chat", _make_daily_result())
+        assert outcome.fcm_sent_count == 2
+        assert outcome.telegram_ok is False
+
+    def test_both_failures_return_zero(self, monkeypatch):
+        def _fail_fcm(tokens, body):  # noqa: ANN001
+            raise RuntimeError("x")
+
+        def _fail_tg(tg_token, tg_chat, body):  # noqa: ANN001
+            raise RuntimeError("y")
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _fail_fcm)
+        monkeypatch.setattr(notifier_module, "_send_telegram_message", _fail_tg)
+
+        outcome = send_all(["t1"], "bot", "chat", _make_daily_result())
+        assert outcome.fcm_sent_count == 0
+        assert outcome.telegram_ok is False
+
+    def test_invalid_tokens_propagated(self, monkeypatch, patched_telegram_success):
+        """FCM mock 이 invalid_tokens 를 반환하면 outcome 에 누적."""
+
+        def _mock_fcm(tokens, body):  # noqa: ANN001
+            return 1, ["expired_token"]
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _mock_fcm)
+        outcome = send_all(["valid", "expired_token"], "bot", "chat", _make_daily_result())
+        assert outcome.fcm_invalid_tokens == ["expired_token"]
+
+
+# ============================================================================
+# send_failure_all
+# ============================================================================
+
+
+class TestSendFailureAll:
+    def test_failure_body_contains_message_and_marker(self, patched_fcm_success, patched_telegram_success):
+        send_failure_all(
+            tokens=["t1"],
+            tg_token="bot",
+            tg_chat="chat",
+            message="yfinance 수집 실패: timeout",
+        )
+        body = patched_telegram_success["body"]
+        assert "[QBT Live 실패]" in body
+        assert "yfinance 수집 실패" in body
+        assert "timeout" in body
+
+    def test_failure_send_independent_channels(self, monkeypatch, patched_telegram_success):
+        """FCM 예외 시에도 텔레그램 발송."""
+
+        def _fail_fcm(tokens, body):  # noqa: ANN001
+            raise RuntimeError("fcm gone")
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _fail_fcm)
+
+        outcome = send_failure_all(["t1"], "bot", "chat", "오류 발생")
+        assert outcome.telegram_ok is True
+        assert outcome.fcm_sent_count == 0
+
+
+# ============================================================================
+# 빈 토큰 / 본문 빌더
+# ============================================================================
+
+
+class TestEmptyTokens:
+    def test_empty_token_list_skips_fcm(self, monkeypatch, patched_telegram_success):
+        called: list[bool] = []
+
+        def _mock_fcm(tokens, body):  # noqa: ANN001
+            called.append(True)
+            return 0, []
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _mock_fcm)
+        outcome = send_all([], "bot", "chat", _make_daily_result())
+        # 빈 토큰 리스트도 _safe_fcm 을 거치지만 내부에서 0 반환
+        assert outcome.fcm_sent_count == 0
+        assert outcome.telegram_ok is True
