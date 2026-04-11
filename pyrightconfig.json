@@ -1,9 +1,9 @@
 {
   "pythonVersion": "3.12",
   "typeCheckingMode": "strict",
-  "include": ["src", "tests", "scripts"],
+  "include": ["src", "tests", "scripts", "live/src", "live/tests"],
   "exclude": ["storage", "**/__pycache__", "**/.ruff_cache", "**/node_modules", "**/.*"],
-  "extraPaths": ["src"],
+  "extraPaths": ["src", "live/src"],
   "reportMissingTypeStubs": "none",
   "reportUnknownMemberType": "none",
   "reportUnknownVariableType": "none",
@@ -36,6 +36,19 @@
       "reportUnusedVariable": "none",
       "reportGeneralTypeIssues": "none",
       "reportUntypedFunctionDecorator": "none",
+      "reportArgumentType": "none"
+    },
+    {
+      "root": "live/tests",
+      "reportMissingParameterType": "none",
+      "reportMissingTypeArgument": "none",
+      "reportPrivateUsage": "none",
+      "reportUnnecessaryIsInstance": "none",
+      "reportUnnecessaryComparison": "none",
+      "reportUnnecessaryTypeIgnoreComment": "none",
+      "reportImportCycles": "none",
+      "reportUnusedVariable": "none",
+      "reportGeneralTypeIssues": "none",
       "reportArgumentType": "none"
     }
   ]

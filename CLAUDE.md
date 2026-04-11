@@ -18,7 +18,15 @@
 
 - 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `src/qbt/utils/CLAUDE.md`(유틸), `tests/CLAUDE.md`(테스트)
 - 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
-  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md` 등
+  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `live/CLAUDE.md` 등
+
+### live 도메인의 특수 원칙 (QBT 본체 수정 제한)
+
+- `live/` 는 QBT 백테스트 전략의 실매매 알림 시스템 구현 도메인입니다.
+- 원칙: **QBT 본체(`src/qbt/`) 는 live 작업 중 수정 금지**. 모든 live 구현은 `live/` 내부에서만 수행합니다.
+- 예외: **사용자 승인이 명시적으로 있을 경우에만** QBT 본체 수정 가능.
+  - 수정 전 반드시 사용자에게 수정 범위 / 사유를 설명하고 승인 요청합니다.
+- 상세 가이드: [live/CLAUDE.md](live/CLAUDE.md)
 
 ---
 
@@ -118,6 +126,10 @@ quant/
 │       ├── parallel_executor.py # 병렬 처리
 │       ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
 │       └── meta_manager.py      # 실행 메타데이터 관리
+├── live/              # 실매매 알림 시스템 (QBT Live, 신규 도메인)
+│   ├── CLAUDE.md                # live 도메인 가이드
+│   ├── src/live/                # 비즈니스 로직 + CLI
+│   └── tests/                   # live 전용 테스트
 └── storage/           # 데이터 저장소
     ├── stock/         # 주식 데이터 CSV
     ├── etc/           # 기타 데이터 (금리 등)
