@@ -1,0 +1,32 @@
+name: Keepalive
+
+# 매월 1일에 heartbeat commit 으로 GitHub Actions / Firebase 무료 한도 활성 유지
+# 설계서 12장
+on:
+  schedule:
+    - cron: "0 0 1 * *"
+  workflow_dispatch: {}
+
+jobs:
+  keepalive:
+    name: Heartbeat commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout qbt-live-state (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ingbeen/qbt-live-state
+          token: ${{ secrets.STATE_REPO_PAT }}
+          path: qbt-live-state
+
+      - name: Append heartbeat
+        working-directory: qbt-live-state
+        run: |
+          mkdir -p heartbeat
+          date -u +"%Y-%m-%dT%H:%M:%SZ" >> heartbeat/keepalive.log
+          git config user.name "qbt-live-bot"
+          git config user.email "qbt-live-bot@noreply.github.com"
+          git add heartbeat/keepalive.log
+          git commit -m "keepalive: $(date -u +%Y-%m-%d)"
+          git push

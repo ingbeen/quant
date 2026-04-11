@@ -289,10 +289,10 @@ daily_run.yml: cron '50 17 * * 1-5', timezone America/New_York
 keepalive.yml: 매월 1일
 ```
 
-- [ ] 🤖 `daily_run.yml` 생성
-- [ ] 🤖 `keepalive.yml` 생성
-- [ ] 🤖 Poetry 캐싱 (actions/cache@v4) 포함
-- [ ] 🤖 retry + notify-failure job 포함
+- [x] 🤖 `daily_run.yml` 생성
+- [x] 🤖 `keepalive.yml` 생성
+- [x] 🤖 Poetry 캐싱 (actions/cache@v4) 포함
+- [x] 🤖 retry + notify-failure job 포함
 
 **수동 테스트 (👤):**
 
