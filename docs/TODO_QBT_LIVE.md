@@ -323,8 +323,8 @@ keepalive.yml: 매월 1일
 RTDB URL: https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app
 ```
 
-- [ ] 🤖 `rtdb_gateway.py` 구현
-- [ ] 🤖 Firebase Admin SDK 초기화 로직 포함
+- [x] 🤖 `rtdb_gateway.py` 구현
+- [x] 🤖 Firebase Admin SDK 초기화 로직 포함
 
 **수동 테스트 (👤):**
 
