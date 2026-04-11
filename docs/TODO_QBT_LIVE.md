@@ -235,8 +235,8 @@ run_daily() 구현. QBT 코어 import. I/O 없음.
 equity/positions/cash 일치 (pytest.approx(abs=1.0))
 ```
 
-- [ ] 🤖 `test_regression.py` 구현
-- [ ] 🤖 **회귀 검증 통과**
+- [x] 🤖 `test_regression.py` 구현
+- [x] 🤖 **회귀 검증 통과**
 
 **테스트 시나리오 (🤖):**
 
