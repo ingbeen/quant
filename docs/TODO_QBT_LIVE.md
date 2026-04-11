@@ -384,7 +384,7 @@ CSV 전체 -> ChartSeries. 자산별 전체 기간. user_buys/user_sells 포함.
 전체 영구 보존. 자동 정리 없음.
 ```
 
-- [ ] 🤖 `history.py` 구현
+- [x] 🤖 `history.py` 구현
 
 **테스트 시나리오 (🤖):**
 
