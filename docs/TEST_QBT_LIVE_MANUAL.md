@@ -1,0 +1,564 @@
+# QBT Live 수동 테스트 가이드
+
+> 실제 실행 가능한 순서대로 번호가 매겨져 있습니다.
+> 위에서부터 순서대로 진행하세요.
+> 각 테스트의 **사전 조건**이 성립한 후에만 다음 단계로 넘어갑니다.
+
+## 진행 원칙
+
+- 번호 순서대로 진행합니다.
+- 한 단계의 사전 조건이 성립하지 않으면 해당 단계는 대기 상태입니다.
+- 체크박스를 완료하면서 기록합니다.
+- 장애 시 자동 복구 금지 원칙에 따라, 에러가 발생하면 즉시 중단하고 원인을 확인합니다.
+
+---
+
+## Phase A: 로컬 파이프라인 + GitHub Actions (Step 1~15 검증)
+
+### 1. 로컬 초기화 완료 확인 ✅
+
+**목적**: `init` + `init-data` 로 초기 상태와 CSV 가 생성되었는지 확인.
+
+**사전 조건**: 없음.
+
+**절차**:
+
+1. `qbt-live-state/live_state.json` 존재 확인
+2. `qbt-live-state/data/stock/` 하위 6 개 CSV 존재 확인
+3. 각 CSV 행 수가 1000 초과인지 확인
+
+**확인 사항**:
+
+- [x] `live_state.json` 존재
+- [x] SPY / QQQ / SSO / QLD / GLD / TLT CSV 6 종 존재
+- [x] 각 CSV 행 수 > 1000
+
+---
+
+### 2. 텔레그램 실패 알림 수신 확인
+
+**목적**: 텔레그램 봇 연결과 환경변수 설정을 가장 단순한 경로로 검증.
+
+**사전 조건**: 1 번 완료.
+
+**절차**:
+
+1. 텔레그램 앱에서 `@qbt_live_alert_bot` 검색 → [Start] 버튼 누르기 (최초 1 회)
+2. 프로젝트 루트에서 환경변수 export:
+
+```bash
+export TELEGRAM_BOT_TOKEN="<봇 토큰>"
+export TELEGRAM_CHAT_ID="<본인 chat id>"
+```
+
+3. 수동 실패 알림 발송:
+
+```bash
+poetry run python -m live.cli notify-failure --message "수동 테스트 from local"
+```
+
+**확인 사항**:
+
+- [ ] 텔레그램 `@qbt_live_alert_bot` 채팅에 `[QBT Live 실패 알림]` 메시지 수신
+- [ ] 메시지 본문에 `수동 테스트 from local` 문구 포함
+
+---
+
+### 3. qbt-live-state 리포 초기 상태 푸시
+
+**목적**: GitHub Actions 가 읽을 수 있도록 `live_state.json` + CSV 를 프라이빗 리포에 푸시.
+
+**사전 조건**: 1 번 완료.
+
+**절차**:
+
+1. `qbt-live-state` 디렉토리가 이미 git 리포인지 확인 (`.git` 존재 여부)
+2. 아니라면 최초 1 회 원격 연결:
+
+```bash
+cd qbt-live-state
+git init
+git remote add origin https://github.com/ingbeen/qbt-live-state.git
+git branch -M main
+```
+
+3. 파일 스테이징 → 커밋 → 푸시:
+
+```bash
+git add live_state.json data/stock/
+git commit -m "init: local state + initial stock data"
+git push -u origin main
+```
+
+**확인 사항**:
+
+- [ ] `https://github.com/ingbeen/qbt-live-state` 페이지에서 `live_state.json` 보임
+- [ ] `data/stock/` 하위 6 개 CSV 파일 보임
+
+---
+
+### 4. GitHub Secrets 등록 확인
+
+**목적**: GitHub Actions 가 사용할 Secret 4 종이 등록되어 있는지 확인.
+
+**사전 조건**: Phase 0 에서 등록 완료 상태.
+
+**절차**:
+
+1. 브라우저에서 `https://github.com/ingbeen/quant/settings/secrets/actions` 접속
+2. 목록에 Secret 4 종 존재 확인
+
+**확인 사항**:
+
+- [ ] `FIREBASE_CONFIG` 존재
+- [ ] `STATE_REPO_PAT` 존재
+- [ ] `TELEGRAM_BOT_TOKEN` 존재
+- [ ] `TELEGRAM_CHAT_ID` 존재
+
+---
+
+### 5. GitHub Actions `daily_run` 수동 실행
+
+**목적**: 스케줄러 없이 워크플로우를 직접 실행해 전체 파이프라인을 검증.
+
+**사전 조건**: 2, 3, 4 번 완료.
+
+**절차**:
+
+1. `https://github.com/ingbeen/quant/actions` 접속
+2. 좌측 목록에서 **`Daily Run`** 선택
+3. 우측 상단 **[Run workflow]** 드롭다운 → Branch `main` → **[Run workflow]** 클릭
+4. 페이지 새로고침하여 새 실행 항목이 큐에 올라오는지 확인
+
+**확인 사항**:
+
+- [ ] 새 실행 항목이 큐에 등록됨 (회색 원 또는 노란 원)
+
+---
+
+### 6. GitHub Actions 실행 결과 확인
+
+**목적**: 5 번 실행의 성공 / 실패 여부를 확인하고 알림 동작 검증.
+
+**사전 조건**: 5 번 완료.
+
+**절차**:
+
+1. Actions 탭에서 5 번 실행 항목 클릭
+2. `run-daily` job 클릭 → 각 step 펼쳐가며 로그 확인
+3. 결과 상태 확인 (녹색 / 빨간색)
+
+**확인 사항 (정상 케이스)**:
+
+- [ ] job 결과가 녹색 체크
+- [ ] `Run daily` step 로그에 `run-daily 완료: equity=..., pending=..., drift=...` 출력
+- [ ] `qbt-live-state` 리포에 새 커밋 `auto: live update YYYY-MM-DD` 푸시됨
+
+**확인 사항 (실패 케이스)**:
+
+- [ ] job 결과가 빨간 X
+- [ ] 텔레그램에 `[QBT Live 실패 알림]` 수신 (에러 상세 메시지 포함)
+
+---
+
+### 7. RTDB 포트폴리오 read model 확인
+
+**목적**: Step 12 `rtdb_gateway` 와 `run-daily` 의 read model 쓰기 검증.
+
+**사전 조건**: 6 번 정상 완료.
+
+**절차**:
+
+1. `https://console.firebase.google.com/` → 프로젝트 `qbt-live` → Realtime Database 탭
+2. 루트 트리에서 `/latest/portfolio` 펼치기
+
+**확인 사항**:
+
+- [ ] 4 개 자산(SPY / QQQ / GLD / TLT) 별 shares / cash / close 필드 존재
+- [ ] `drift_pct` 필드 존재
+- [ ] `updated_at` 이 5 번 실행 시각과 일치
+
+---
+
+### 8. RTDB 차트 데이터 확인
+
+**목적**: Step 14 `chart_data` 의 RTDB 쓰기와 배열 형식 검증.
+
+**사전 조건**: 6 번 정상 완료.
+
+**절차**:
+
+1. 같은 RTDB 화면에서 `/latest/chart_data/` 펼치기
+2. 자산별(SPY / QQQ / GLD / TLT) 하위 노드 펼치기
+3. 배열이 길 경우 검색창에 `/latest/chart_data/SPY/dates/0` 형태의 구체 경로로 값 확인
+
+**확인 사항**:
+
+- [ ] 4 개 자산 노드가 모두 존재
+- [ ] 각 자산의 `dates`, `close`, `ema_200` 배열 길이가 동일
+- [ ] `ema_200` 앞쪽 199 개 값이 `null`
+- [ ] `dates` 마지막 원소가 최근 거래일
+- [ ] `buy_signals` / `sell_signals` 는 빈 배열이거나 `dates` 범위 내 인덱스만 포함
+
+---
+
+### 9. RTDB 히스토리 요약 확인
+
+**목적**: Step 15 `history.append_summary` 의 RTDB 쓰기 검증.
+
+**사전 조건**: 6 번 정상 완료.
+
+**절차**:
+
+1. RTDB 에서 `/history/summary/{YYYY-MM-DD}` 경로 펼치기
+
+**확인 사항**:
+
+- [ ] 당일 날짜 키로 요약 1 건 존재
+- [ ] `model_equity`, `drift_pct`, `pending_count` 필드 포함
+
+---
+
+### 10. qbt-live-state 히스토리 파일 확인
+
+**목적**: Step 15 `history` 의 파일 시스템 쓰기 + git push 검증.
+
+**사전 조건**: 6 번 정상 완료.
+
+**절차**:
+
+1. 로컬에서 `cd qbt-live-state && git pull`
+2. `history/` 디렉토리 확인
+
+**확인 사항**:
+
+- [ ] `history/daily/{YYYY-MM-DD}.json` 파일 존재
+- [ ] 해당 JSON 내용에 `date`, `model_equity`, `drift_pct`, `assets` 키 포함
+- [ ] `history/summary.jsonl` 마지막 줄이 당일 날짜 요약
+- [ ] 같은 날짜로 재실행 시 `summary.jsonl` 줄 수가 1 증가 (덮어쓰기 아님)
+
+---
+
+### 11. RTDB 쓰기 권한 점검
+
+**목적**: Firebase 콘솔에서 수동 쓰기/삭제가 규칙 위반 없이 수행되는지 확인.
+
+**사전 조건**: 없음.
+
+**절차**:
+
+1. Firebase 콘솔 RTDB 화면에서 루트 노드 옆 **+** 클릭
+2. 이름 `_debug_write_check`, 값 `"hello"` 로 추가
+3. 방금 만든 노드 옆 **X** 로 삭제
+
+**확인 사항**:
+
+- [ ] 쓰기가 permission_denied 없이 성공
+- [ ] 삭제도 성공
+
+---
+
+## Phase B: Android 앱 검증 (Step 16~21 구현 후 진행)
+
+### 12. 앱 실행
+
+**목적**: React Native 프로젝트가 에뮬레이터 / 디바이스에서 정상 기동.
+
+**사전 조건**: Step 16 구현 완료.
+
+**절차**:
+
+```bash
+cd qbt-live-app
+npx react-native run-android
+```
+
+**확인 사항**:
+
+- [ ] 에뮬레이터 또는 디바이스에서 앱이 실행됨
+- [ ] 4 탭 네비게이션 (홈 / 차트 / 거래 / 설정) 이동 가능
+
+---
+
+### 13. 로그인 + FCM 토큰 등록
+
+**목적**: Firebase Auth 로그인과 FCM 토큰의 RTDB 등록 검증.
+
+**사전 조건**: Step 17 구현 완료, 12 번 완료.
+
+**절차**:
+
+1. 앱 LoginScreen 에서 이메일 / 비밀번호 입력 후 로그인
+2. Firebase 콘솔 RTDB 에서 `/device_tokens/` 경로 확인
+3. 앱 종료 후 재시작
+
+**확인 사항**:
+
+- [ ] 로그인 성공
+- [ ] RTDB `/device_tokens/` 에 토큰 등록됨
+- [ ] 앱 재시작 후에도 로그인 상태 유지
+
+---
+
+### 14. FCM 수신 확인
+
+**목적**: 서버 → FCM → 앱 수신 경로 검증.
+
+**사전 조건**: 13 번 완료.
+
+**절차**:
+
+```bash
+poetry run python -m live.cli notify-failure --message "FCM 수동 테스트"
+```
+
+**확인 사항**:
+
+- [ ] 앱이 설치된 기기에서 FCM 푸시 알림 수신
+- [ ] 알림 탭 시 앱으로 이동
+
+---
+
+### 15. FCM / 텔레그램 내용 일치 확인
+
+**목적**: 두 채널의 메시지 본문이 동일 포맷인지 확인.
+
+**사전 조건**: 14 번 완료.
+
+**절차**: 14 번 실행 시점에 텔레그램 채팅도 열어두고 두 메시지 비교.
+
+**확인 사항**:
+
+- [ ] FCM 알림 본문과 텔레그램 메시지 본문이 동일
+
+---
+
+### 16. 홈 화면 확인
+
+**사전 조건**: Step 18 구현 완료, 13 번 완료.
+
+**절차**: 앱 홈 탭 이동.
+
+**확인 사항**:
+
+- [ ] 4 개 자산 포트폴리오 데이터 표시
+- [ ] 200 일선 근접도 표시
+- [ ] 마지막 실행 시각 표시
+
+---
+
+### 17. 차트 화면 확인
+
+**사전 조건**: Step 19 구현 완료, 13 번 완료.
+
+**절차**: 앱 차트 탭 이동, 기간 / 자산 변경.
+
+**확인 사항**:
+
+- [ ] SPY 종가 + EMA-200 + 밴드 표시
+- [ ] 기간 변경 (3M → 1Y → 전체) 동작
+- [ ] 자산 변경 (SPY → QQQ → GLD) 동작
+- [ ] 신호 마커 / 체결 마커 표시
+
+---
+
+### 18. 거래 화면 - 체결 입력
+
+**사전 조건**: Step 20 구현 완료, 13 번 완료.
+
+**절차**: 거래 탭에서 체결 입력 폼 사용.
+
+**확인 사항**:
+
+- [ ] SSO 매수 42 주 $82.05 제출
+- [ ] Firebase 콘솔 `/fills/inbox/` 에 데이터 확인
+- [ ] 과거 날짜 선택하여 체결 입력 가능
+- [ ] 자산 직접 수정 (주수 / 현금 변경) → 저장 → RTDB 반영
+- [ ] 체결 히스토리 필터 (전체 / 시스템 / 개인 / 보정) 동작
+- [ ] Drift 상세 화면 표시
+
+---
+
+### 19. APK 빌드 + 전체 화면 순회
+
+**사전 조건**: Step 21 구현 완료.
+
+**절차**:
+
+```bash
+cd qbt-live-app/android && ./gradlew assembleRelease
+```
+
+**확인 사항**:
+
+- [ ] APK 빌드 성공
+- [ ] 디바이스에 APK 설치 성공
+- [ ] 로그인 → 홈 → 차트 → 거래 → 설정 전 화면 순회 정상
+
+---
+
+## Phase C: E2E 시나리오 (Phase 4)
+
+### 20. pending 생성 테스트 데이터 주입
+
+**목적**: 실제 장 신호를 기다리지 않고 인위적으로 pending 을 만들어 E2E 흐름 검증.
+
+**사전 조건**: Phase B 완료.
+
+**절차**: CSV 수동 편집 또는 과거 날짜 `run-daily` 등으로 pending 발생 조건 강제.
+
+**확인 사항**:
+
+- [ ] `live_state.json` 에 pending_order 기록
+- [ ] FCM 알림 수신
+- [ ] 텔레그램 알림 수신 (FCM 과 내용 동일)
+
+---
+
+### 21. 시스템 체결 자동 매칭
+
+**사전 조건**: 20 번 완료.
+
+**절차**:
+
+1. 앱 거래 화면에서 pending 과 일치하는 체결 입력
+2. 다음 `run-daily` 실행
+
+**확인 사항**:
+
+- [ ] Firebase 콘솔 `/fills/inbox/` 에서 `processed=true`
+- [ ] 앱 Drift 화면에서 actual 반영
+- [ ] 알림에 drift % 표시
+
+---
+
+### 22. idempotency 확인
+
+**사전 조건**: 21 번 완료.
+
+**절차**: 같은 체결을 다시 입력.
+
+**확인 사항**:
+
+- [ ] 중복 반영되지 않음 (actual 변경 없음)
+
+---
+
+### 23. 개인 매매 분류
+
+**사전 조건**: Phase B 완료.
+
+**절차**: pending 이 없는 자산을 매도 체결로 입력.
+
+**확인 사항**:
+
+- [ ] `personal_trade` 로 분류됨
+
+---
+
+### 24. 밀린 체결 처리
+
+**사전 조건**: Phase B 완료.
+
+**절차**: 2 건 이상의 체결을 밀린 상태로 한꺼번에 입력.
+
+**확인 사항**:
+
+- [ ] 각 체결이 올바른 pending 과 매칭
+
+---
+
+### 25. 미입력 리마인더
+
+**사전 조건**: 20 번 완료 + 다음 거래일 대기.
+
+**절차**: 체결 미입력 상태로 다음 거래일 `run-daily` 실행.
+
+**확인 사항**:
+
+- [ ] 리마인더 알림 수신
+
+---
+
+### 26. 자산 직접 수정 → drift 변화
+
+**사전 조건**: Phase B 완료.
+
+**절차**: 거래 화면에서 자산 주수 / 현금 직접 수정.
+
+**확인 사항**:
+
+- [ ] drift 수치가 즉시 반영
+
+---
+
+## Phase D: 운영 안정화 (Phase 5)
+
+### 27. FCM 실패 시뮬레이션
+
+**목적**: FCM 과 텔레그램이 상호 독립적으로 동작하는지 확인.
+
+**사전 조건**: Phase B 완료.
+
+**절차**: Firebase 콘솔에서 앱 삭제 → 재설치하여 토큰 무효화 → `run-daily` 실행.
+
+**확인 사항**:
+
+- [ ] FCM 실패해도 텔레그램은 정상 수신
+- [ ] 다음 로그인 시 새 토큰 등록됨
+
+---
+
+### 28. 데이터 검증 실패 시뮬레이션
+
+**목적**: 데이터 검증 실패 시 자동 복구 없이 중단되는지 확인.
+
+**사전 조건**: Phase A 완료.
+
+**절차**: `qbt-live-state/data/stock/SPY.csv` 마지막 행 종가를 10% 이상 수동 변경 → `run-daily` 실행.
+
+**확인 사항**:
+
+- [ ] 실행 중단
+- [ ] 에러 알림 수신 (상세 메시지 포함)
+- [ ] 자동 복구 / 롤백 없음 (state 변경 없음)
+
+---
+
+### 29. live_state.json 손상 시뮬레이션
+
+**목적**: 상태 파일 손상 시 중단 동작 확인.
+
+**사전 조건**: Phase A 완료.
+
+**절차**: `qbt-live-state/live_state.json` 내용을 JSON 파싱이 실패하도록 일부 파손 → `run-daily` 실행.
+
+**확인 사항**:
+
+- [ ] 실행 중단
+- [ ] 에러 알림 수신
+- [ ] 자동 복구 없음
+
+---
+
+### 30. keepalive commit 동작 확인
+
+**목적**: Firebase Spark 플랜의 비활성 프로젝트 제거를 방지하는 keepalive 동작 검증.
+
+**사전 조건**: Step 11 `keepalive.yml` 배포 완료.
+
+**절차**: 매월 1 일 이후 Actions 탭에서 `Keepalive` 워크플로우 실행 이력 확인.
+
+**확인 사항**:
+
+- [ ] 매월 1 일 `Keepalive` 실행 로그 존재
+- [ ] 실행 결과 정상 (녹색)
+
+---
+
+## 최종 완료 체크
+
+- [ ] Phase A (1~11) 모두 완료
+- [ ] Phase B (12~19) 모두 완료
+- [ ] Phase C (20~26) 모두 완료
+- [ ] Phase D (27~30) 모두 완료

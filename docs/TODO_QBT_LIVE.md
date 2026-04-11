@@ -2,21 +2,24 @@
 
 > **필독**: 구현 전 반드시 `DESIGN_QBT_LIVE_FINAL.md` 설계서를 전체 정독할 것.
 > 문서 경로: `/home/yblee/workspace/quant/docs/`
+>
+> **사용자 수동 테스트는 [TEST_QBT_LIVE_MANUAL.md](TEST_QBT_LIVE_MANUAL.md) 참고.**
+> 이 문서는 AI 가 수행하는 구현 / 자동 테스트 체크리스트에 집중합니다.
 
 ---
 
 ## 인프라 정보 (사전 준비 완료)
 
-| 항목 | 값 |
-|------|---|
-| QBT 리포 (퍼블릭) | `https://github.com/ingbeen/quant` |
-| 상태 리포 (프라이빗) | `https://github.com/ingbeen/qbt-live-state.git` |
-| Firebase 프로젝트 | `qbt-live` (Spark) |
-| RTDB URL | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
-| Android 패키지 | `com.ingbeen.qbtlive` |
-| OWNER_UID | `SxwvCeg6fRUeUrK9IpyazTzrLJJ2` |
-| 텔레그램 봇 | `@qbt_live_alert_bot` |
-| GitHub Secrets | `FIREBASE_CONFIG`, `STATE_REPO_PAT`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+| 항목                 | 값                                                                            |
+| -------------------- | ----------------------------------------------------------------------------- |
+| QBT 리포 (퍼블릭)    | `https://github.com/ingbeen/quant`                                            |
+| 상태 리포 (프라이빗) | `https://github.com/ingbeen/qbt-live-state.git`                               |
+| Firebase 프로젝트    | `qbt-live` (Spark)                                                            |
+| RTDB URL             | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app`          |
+| Android 패키지       | `com.ingbeen.qbtlive`                                                         |
+| OWNER_UID            | `SxwvCeg6fRUeUrK9IpyazTzrLJJ2`                                                |
+| 텔레그램 봇          | `@qbt_live_alert_bot`                                                         |
+| GitHub Secrets       | `FIREBASE_CONFIG`, `STATE_REPO_PAT`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 
 ---
 
@@ -270,14 +273,6 @@ equity/positions/cash 일치 (pytest.approx(abs=1.0))
 [T-10.3] run-daily 에서 계산 실패 -> 중단 + 알림 호출, 상태 변경 없음
 ```
 
-**수동 테스트 (👤):**
-
-```
-[M-10.1] 👤 poetry run python -m live.cli init --capital 100000000 실행
-[M-10.2] 👤 poetry run python -m live.cli init-data 실행 (yfinance 실제 호출)
-[M-10.3] 👤 생성된 CSV 파일 확인 (6종, 행수 > 1000)
-```
-
 ---
 
 ### Step 11: GitHub Actions 🤖
@@ -294,14 +289,6 @@ keepalive.yml: 매월 1일
 - [x] 🤖 Poetry 캐싱 (actions/cache@v4) 포함
 - [x] 🤖 retry + notify-failure job 포함
 
-**수동 테스트 (👤):**
-
-```
-[M-11.1] 👤 GitHub Actions 탭에서 workflow_dispatch로 수동 실행
-[M-11.2] 👤 실행 로그 확인 (정상 완료 or 에러 알림 수신)
-[M-11.3] 👤 5거래일 연속 자동 실행 확인
-```
-
 ---
 
 ### Phase 1 완료 조건
@@ -309,7 +296,6 @@ keepalive.yml: 매월 1일
 - [ ] 🤖 Step 1~11 전체 완료
 - [ ] 🤖 `poetry run pytest live/tests/` 통과
 - [ ] 🤖 `test_regression.py` 통과
-- [ ] 👤 GitHub Actions 5거래일 연속 정상
 
 ---
 
@@ -326,13 +312,6 @@ RTDB URL: https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app
 - [x] 🤖 `rtdb_gateway.py` 구현
 - [x] 🤖 Firebase Admin SDK 초기화 로직 포함
 
-**수동 테스트 (👤):**
-
-```
-[M-12.1] 👤 Firebase 콘솔 RTDB 탭에서 데이터 확인
-[M-12.2] 👤 RTDB에 테스트 데이터 기록 -> 삭제 확인
-```
-
 ---
 
 ### Step 13: 알림 (notifier.py) 🤖
@@ -345,14 +324,6 @@ FCM + 텔레그램 항상 동시. 200일선 근접도 포함.
 ```
 
 - [x] 🤖 `notifier.py` 구현
-
-**수동 테스트 (👤):**
-
-```
-[M-13.1] 👤 notify-failure 명령으로 FCM 수신 확인 (핸드폰)
-[M-13.2] 👤 텔레그램 @qbt_live_alert_bot 채팅에서 메시지 수신 확인
-[M-13.3] 👤 FCM과 텔레그램 내용 동일한지 확인
-```
 
 ---
 
@@ -399,10 +370,7 @@ CSV 전체 -> ChartSeries. 자산별 전체 기간. user_buys/user_sells 포함.
 
 ### Phase 2 완료 조건
 
-- [ ] 🤖 Step 12~15 완료
-- [ ] 👤 FCM 푸시 수신 확인 (실제 디바이스)
-- [ ] 👤 텔레그램 메시지 수신 확인
-- [ ] 👤 RTDB 데이터 정상 확인 (Firebase 콘솔)
+- [x] 🤖 Step 12~15 완료
 
 ---
 
@@ -420,13 +388,6 @@ google-services.json (com.ingbeen.qbtlive)
 - [ ] 🤖 Firebase SDK 연동
 - [ ] 🤖 4탭 네비게이션
 
-**수동 테스트 (👤):**
-
-```
-[M-16.1] 👤 npx react-native run-android -> 에뮬레이터/디바이스에서 앱 실행
-[M-16.2] 👤 4탭 네비게이션 동작 확인
-```
-
 ---
 
 ### Step 17: 인증 + FCM 🤖
@@ -439,14 +400,6 @@ FCM 토큰 -> RTDB /device_tokens/
 - [ ] 🤖 LoginScreen 구현
 - [ ] 🤖 FCM 토큰 등록 로직
 
-**수동 테스트 (👤):**
-
-```
-[M-17.1] 👤 앱에서 이메일/비밀번호 로그인
-[M-17.2] 👤 Firebase 콘솔 RTDB > /device_tokens/ 에 토큰 등록 확인
-[M-17.3] 👤 앱 종료 후 재시작 -> 로그인 유지 확인
-```
-
 ---
 
 ### Step 18: 홈 화면 🤖
@@ -456,14 +409,6 @@ RTDB /latest/portfolio 읽기. 포트폴리오, 200일선, 신호, 마지막 실
 ```
 
 - [ ] 🤖 HomeScreen 구현
-
-**수동 테스트 (👤):**
-
-```
-[M-18.1] 👤 앱 홈에서 포트폴리오 데이터 표시 확인
-[M-18.2] 👤 200일선 근접도 표시 확인
-[M-18.3] 👤 마지막 실행 시각 표시 확인
-```
 
 ---
 
@@ -477,15 +422,6 @@ RTDB /latest/chart_data/ 읽기. WebView + TradingView Lightweight Charts.
 - [ ] 🤖 ChartScreen 구현
 - [ ] 🤖 TradingViewChart 컴포넌트
 
-**수동 테스트 (👤):**
-
-```
-[M-19.1] 👤 차트 화면에서 SPY 종가 + EMA-200 + 밴드 표시 확인
-[M-19.2] 👤 기간 변경 (3M -> 1Y -> 전체) 동작 확인
-[M-19.3] 👤 자산 변경 (SPY -> QQQ -> GLD) 동작 확인
-[M-19.4] 👤 신호 마커/체결 마커 표시 확인
-```
-
 ---
 
 ### Step 20: 거래 화면 🤖
@@ -495,17 +431,6 @@ RTDB /latest/chart_data/ 읽기. WebView + TradingView Lightweight Charts.
 ```
 
 - [ ] 🤖 TradeScreen 구현
-
-**수동 테스트 (👤):**
-
-```
-[M-20.1] 👤 체결 입력 폼에서 SSO 매수 42주 $82.05 제출
-[M-20.2] 👤 Firebase 콘솔 RTDB > /fills/inbox/ 에 데이터 확인
-[M-20.3] 👤 과거 날짜 선택하여 체결 입력
-[M-20.4] 👤 자산 직접 수정 (주수/현금 변경) -> 저장 -> RTDB 확인
-[M-20.5] 👤 체결 히스토리에서 필터 (전체/시스템/개인/보정) 동작 확인
-[M-20.6] 👤 Drift 상세 화면 표시 확인
-```
 
 ---
 
@@ -518,21 +443,11 @@ SettingsScreen. APK 빌드.
 - [ ] 🤖 SettingsScreen 구현
 - [ ] 🤖 APK 빌드 설정
 
-**수동 테스트 (👤):**
-
-```
-[M-21.1] 👤 APK 빌드: cd android && ./gradlew assembleRelease
-[M-21.2] 👤 디바이스에 APK 설치
-[M-21.3] 👤 전체 화면 순회: 로그인 -> 홈 -> 차트 -> 거래 -> 설정
-```
-
 ---
 
 ### Phase 3 완료 조건
 
 - [ ] 🤖 Step 16~21 완료
-- [ ] 👤 APK 설치 후 전 화면 정상
-- [ ] 👤 FCM 푸시 수신 -> 앱 이동
 
 ---
 
@@ -540,69 +455,14 @@ SettingsScreen. APK 빌드.
 
 ### Step 22: 엔드투엔드 테스트 👤
 
-```
-실제 운영 시나리오를 사용자가 직접 테스트한다.
-```
-
-**수동 테스트 (👤):**
-
-```
-[M-22.1] 👤 daily runner가 pending 생성하는 날을 기다림 (또는 테스트 데이터 주입)
-[M-22.2] 👤 FCM 알림 수신 확인
-[M-22.3] 👤 텔레그램 알림 수신 확인 + 내용 동일 확인
-[M-22.4] 👤 앱에서 체결 입력 (자산/수량/가격/체결일)
-[M-22.5] 👤 다음 daily runner 실행 후:
-         - Firebase 콘솔에서 fills processed=true 확인
-         - 앱 Drift 화면에서 actual 반영 확인
-         - 알림에 drift % 표시 확인
-[M-22.6] 👤 같은 체결 다시 입력 -> 중복 반영 안 되는지 확인
-[M-22.7] 👤 개인 매매 입력 (pending 없는 자산 매도) -> personal_trade 분류 확인
-[M-22.8] 👤 2건 이상 밀린 후 한꺼번에 입력 -> 각각 올바르게 매칭 확인
-[M-22.9] 👤 체결 미입력 상태 -> 다음 날 리마인더 알림 수신 확인
-[M-22.10] 👤 자산 직접 수정 (잔고 보정) -> drift 변화 확인
-```
-
-- [ ] 👤 시스템 체결 자동 매칭 정상
-- [ ] 👤 개인 매매 분류 정상
-- [ ] 👤 밀린 체결 처리 정상
-- [ ] 👤 idempotency 확인
-- [ ] 👤 미입력 리마인더 정상
-- [ ] 👤 자산 직접 수정 -> drift 반영
-
 ---
 
 ## Phase 5: 안정화
 
 ### Step 23: 운영 안정화
 
-**수동 테스트 (👤):**
-
-```
-[M-23.1] 👤 FCM 실패 시뮬레이션: Firebase 콘솔에서 앱 삭제 후 재설치
-         -> 텔레그램은 정상 수신 확인
-[M-23.2] 👤 데이터 검증 실패 시뮬레이션: CSV 마지막 행 종가를 수동 변경
-         -> 실행 중단 + 에러 알림 수신 확인 (자동 복구 없음)
-[M-23.3] 👤 live_state.json 손상 시뮬레이션: 파일 내용 깨뜨리기
-         -> 실행 중단 + 에러 알림 수신 확인 (자동 복구 없음)
-[M-23.4] 👤 keepalive commit 동작 확인 (매월 1일 이후 Actions 로그)
-[M-23.5] 👤 30거래일 연속 무중단 운영 달성
-```
-
-- [ ] 👤 FCM/텔레그램 상호 독립 확인
-- [ ] 👤 에러 시 자동 복구 없이 중단 + 알림 확인
-- [ ] 👤 keepalive 동작
-- [ ] 👤 30거래일 무중단
-
-### Step 24: 문서화 + App Check 🤖+👤
-
-- [ ] 🤖 README.md 작성
-- [ ] 🤖 장애 대응 절차 문서화
-- [ ] 👤 App Check 도입 검토
-
 ---
 
 ## 최종 완료
 
 - [ ] Phase 1~5 전체 완료
-- [ ] 👤 30거래일 무중단
-- [ ] 🤖 회귀 테스트 유지
