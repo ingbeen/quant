@@ -44,6 +44,7 @@ __all__ = [
     "DailyResult",
     "AssetMarketData",
     "MarketBundle",
+    "UserTrade",
 ]
 
 
@@ -318,3 +319,19 @@ class AssetMarketData:
 # run_daily 의 market_bundle 파라미터 타입.
 # 호출자는 자산 ID 를 키로 하여 ``AssetMarketData`` 를 준비해야 한다.
 type MarketBundle = dict[str, AssetMarketData]
+
+
+# ============================================================================
+# UserTrade — 차트 화면의 사용자 체결 마커
+# ============================================================================
+
+
+@dataclass
+class UserTrade:
+    """차트 화면에 표시할 사용자 체결 마커.
+
+    설계서 7장: ``ChartSeries.user_buys`` / ``user_sells`` 에 인덱스로 매핑된다.
+    """
+
+    date: str  # ISO 8601 날짜
+    direction: Literal["buy", "sell"]

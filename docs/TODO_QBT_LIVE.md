@@ -364,7 +364,7 @@ FCM + 텔레그램 항상 동시. 200일선 근접도 포함.
 CSV 전체 -> ChartSeries. 자산별 전체 기간. user_buys/user_sells 포함.
 ```
 
-- [ ] 🤖 `chart_data.py` 구현
+- [x] 🤖 `chart_data.py` 구현
 
 **테스트 시나리오 (🤖):**
 

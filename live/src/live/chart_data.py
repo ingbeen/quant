@@ -1,18 +1,126 @@
-"""차트 시계열 생성 모듈 (RTDB 업로드용).
+"""차트 시계열 빌더 (앱 차트 화면용).
 
-Step 14에서 다음 함수가 구현된다 (설계서 7장, 부록 A 참고).
+설계서 7장 "차트: TradingView Lightweight Charts" 에 정의된 자산별 전체 기간
+시계열을 생성하여 RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록
+:class:`ChartSeries` 형태로 반환한다.
 
-- ``build_chart_series(csv_dir: Path, user_trades) -> dict[str, ChartSeries]``
+본 모듈은 순수 데이터 변환만 담당한다 — 실제 RTDB 쓰기는
+:func:`live.rtdb_gateway.write_chart_data` 가 수행한다.
 
-생성 내용 (자산별 전체 기간):
+원칙:
 
-- ``dates``: 날짜 리스트
-- ``close``: 종가 리스트
-- ``ema_200``: 200일 EMA (초기 199일은 ``None``)
-- ``upper_band`` / ``lower_band``: 버퍼존 밴드
-- ``buy_signals`` / ``sell_signals``: 시스템 시그널 인덱스
-- ``user_buys`` / ``user_sells``: 사용자 체결 인덱스
-
-용도: RTDB ``/latest/chart_data/{asset_id}`` 에 매일 덮어쓰기 저장.
-앱(TradingView Lightweight Charts) 에서 기간 선택 렌더링.
+- 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv`` (Step 5 와 동일 경로)
+- EMA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
+- 워밍업 199 일은 ``None``
+- 사용자 체결 마커는 dates 에서 인덱스로 변환
 """
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any
+
+from live.constants import DEFAULT_DATA_STOCK_SUBDIR, get_live_portfolio_config
+from live.data_fetcher import load_csv
+from live.models import ChartSeries, UserTrade
+from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.portfolio_types import AssetSlotConfig
+from qbt.common_constants import COL_CLOSE, COL_DATE
+
+__all__ = ["build_chart_series"]
+
+
+def _ticker_for_chart(slot: AssetSlotConfig) -> str:
+    """차트는 trade_data_path 의 티커를 우선 사용 (실제 보유 자산 가격)."""
+    return slot.trade_data_path.stem.split("_", 1)[0].upper()
+
+
+def _live_csv_path(state_dir: Path, ticker: str) -> Path:
+    return state_dir / DEFAULT_DATA_STOCK_SUBDIR / f"{ticker}.csv"
+
+
+def _to_optional_float_list(values: list[Any]) -> list[float | None]:
+    """NaN → None 변환을 포함한 리스트화."""
+    out: list[float | None] = []
+    for v in values:
+        if v is None:
+            out.append(None)
+        elif isinstance(v, float) and math.isnan(v):
+            out.append(None)
+        else:
+            out.append(float(v))
+    return out
+
+
+def build_chart_series(
+    state_dir: Path,
+    user_trades: dict[str, list[UserTrade]] | None = None,
+) -> dict[str, ChartSeries]:
+    """자산별 전체 기간 :class:`ChartSeries` 를 생성한다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리 (CSV 위치).
+        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+
+    Returns:
+        ``{asset_id: ChartSeries}`` (Q-2-2XS 4 자산).
+    """
+    user_trades = user_trades or {}
+    config = get_live_portfolio_config()
+
+    series_map: dict[str, ChartSeries] = {}
+
+    for slot in config.asset_slots:
+        ticker = _ticker_for_chart(slot)
+        csv_path = _live_csv_path(state_dir, ticker)
+        df = load_csv(csv_path)
+
+        # MA 컬럼 추가
+        df = add_single_moving_average(df, window=slot.ma_window, ma_type=slot.ma_type)
+        ma_col = f"ma_{slot.ma_window}"
+
+        dates = [d.isoformat() if hasattr(d, "isoformat") else str(d) for d in df[COL_DATE].tolist()]
+        close_list = [float(c) for c in df[COL_CLOSE].tolist()]
+        raw_ema = _to_optional_float_list(df[ma_col].tolist())
+
+        # 설계서 7장: 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시
+        # QBT 의 EMA 계산은 첫 행부터 값을 채우지만, 차트 표시상 의미 있는 값으로
+        # 간주되지 않는 워밍업 구간을 명시적으로 None 으로 마스킹.
+        warmup = slot.ma_window - 1
+        ema_list: list[float | None] = [None] * min(warmup, len(raw_ema)) + raw_ema[warmup:]
+
+        # 밴드 계산
+        upper_list: list[float | None] = []
+        lower_list: list[float | None] = []
+        for ema in ema_list:
+            if ema is None:
+                upper_list.append(None)
+                lower_list.append(None)
+            else:
+                upper_list.append(ema * (1.0 + slot.buy_buffer_zone_pct))
+                lower_list.append(ema * (1.0 - slot.sell_buffer_zone_pct))
+
+        # 사용자 체결 마커 → dates 의 인덱스로 변환
+        date_to_idx = {d: i for i, d in enumerate(dates)}
+        user_trades_for_asset = user_trades.get(slot.asset_id, [])
+        user_buys = [
+            date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "buy" and t.date in date_to_idx
+        ]
+        user_sells = [
+            date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "sell" and t.date in date_to_idx
+        ]
+
+        series_map[slot.asset_id] = ChartSeries(
+            dates=dates,
+            close=close_list,
+            ema_200=ema_list,
+            upper_band=upper_list,
+            lower_band=lower_list,
+            buy_signals=[],
+            sell_signals=[],
+            user_buys=user_buys,
+            user_sells=user_sells,
+        )
+
+    return series_map
