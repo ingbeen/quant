@@ -503,9 +503,9 @@ def run_daily(trade_date, state, market_bundle, pending_fills, applied_fill_ids)
 def load_state(path) -> LiveState
 def save_state(state, path) -> None
 def create_initial_state(total_capital) -> LiveState
-def load_applied_fill_ids(path) -> set[str]
-def save_applied_fill_ids(ids, path) -> None
-def cleanup_old_fill_ids(ids, max_age_days=90) -> set[str]
+def load_applied_fill_ids(path) -> dict[str, str]  # ID → ISO 8601 KST 타임스탬프
+def save_applied_fill_ids(ids: dict[str, str], path) -> None
+def cleanup_old_fill_ids(ids: dict[str, str], max_age_days=90) -> dict[str, str]
 
 # data_fetcher.py
 def fetch_recent_ohlc(ticker, days=5) -> pd.DataFrame
