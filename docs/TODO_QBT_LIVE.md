@@ -208,8 +208,8 @@ run_daily() 구현. QBT 코어 import. I/O 없음.
 설계서: 6장
 ```
 
-- [ ] 🤖 `drift.py` 구현
-- [ ] 🤖 `test_drift.py` 통과
+- [x] 🤖 `drift.py` 구현
+- [x] 🤖 `test_drift.py` 통과
 
 **테스트 시나리오 (🤖):**
 
