@@ -54,6 +54,8 @@ __all__ = [
     "save_state",
     "load_applied_fill_ids",
     "save_applied_fill_ids",
+    "load_applied_balance_adjust_ids",
+    "save_applied_balance_adjust_ids",
     "cleanup_old_fill_ids",
 ]
 
@@ -364,31 +366,14 @@ def _buffer_zone_state_from_dict(data: dict[str, Any]) -> BufferZoneState:
 # ============================================================================
 
 
-def save_applied_fill_ids(ids: dict[str, str], path: Path) -> None:
-    """applied_fill_ids 원장을 JSON 으로 저장한다 (atomic).
-
-    Args:
-        ids: fill ID → ISO 타임스탬프 매핑.
-        path: 대상 파일 경로.
-    """
+def _save_applied_ids(ids: dict[str, str], path: Path) -> None:
+    """applied_*_ids 원장을 JSON 으로 저장하는 공용 구현 (atomic)."""
     content = json.dumps(ids, indent=2, ensure_ascii=False, sort_keys=True)
     _atomic_write_text(path, content)
 
 
-def load_applied_fill_ids(path: Path) -> dict[str, str]:
-    """applied_fill_ids 를 로드한다.
-
-    파일이 존재하지 않으면 빈 dict 를 반환한다 (초기 실행 대응).
-
-    Args:
-        path: 파일 경로.
-
-    Returns:
-        fill ID → ISO 타임스탬프 매핑.
-
-    Raises:
-        ValueError: JSON 파싱 실패 또는 루트가 dict 가 아닐 때.
-    """
+def _load_applied_ids(path: Path, label: str) -> dict[str, str]:
+    """applied_*_ids 원장을 로드하는 공용 구현. 존재하지 않으면 빈 dict."""
     if not path.exists():
         return {}
 
@@ -396,12 +381,32 @@ def load_applied_fill_ids(path: Path) -> dict[str, str]:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"applied_fill_ids.json 파싱 실패: {path} ({exc})") from exc
+        raise ValueError(f"{label} 파싱 실패: {path} ({exc})") from exc
 
     if not isinstance(data, dict):
-        raise ValueError(f"applied_fill_ids.json 루트는 dict 이어야 함: {type(data).__name__}")
+        raise ValueError(f"{label} 루트는 dict 이어야 함: {type(data).__name__}")
 
     return {str(k): str(v) for k, v in data.items()}
+
+
+def save_applied_fill_ids(ids: dict[str, str], path: Path) -> None:
+    """applied_fill_ids 원장을 JSON 으로 저장한다 (atomic)."""
+    _save_applied_ids(ids, path)
+
+
+def load_applied_fill_ids(path: Path) -> dict[str, str]:
+    """applied_fill_ids 를 로드한다. 파일이 없으면 빈 dict."""
+    return _load_applied_ids(path, "applied_fill_ids.json")
+
+
+def save_applied_balance_adjust_ids(ids: dict[str, str], path: Path) -> None:
+    """applied_balance_adjust_ids 원장을 JSON 으로 저장한다 (atomic)."""
+    _save_applied_ids(ids, path)
+
+
+def load_applied_balance_adjust_ids(path: Path) -> dict[str, str]:
+    """applied_balance_adjust_ids 를 로드한다. 파일이 없으면 빈 dict."""
+    return _load_applied_ids(path, "applied_balance_adjust_ids.json")
 
 
 def cleanup_old_fill_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_IDS_MAX_AGE_DAYS) -> dict[str, str]:

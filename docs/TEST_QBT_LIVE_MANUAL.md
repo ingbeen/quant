@@ -119,6 +119,8 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 4. `trade_date` 입력란 처리:
    - **평일 정상 테스트**: 비워둠 (기본값 "오늘" 사용)
    - **주말 또는 과거 재현 테스트**: `YYYY-MM-DD` 형식으로 최근 거래일 지정 (예: `2026-04-10`). 휴장일 / 주말에 수동 테스트를 돌릴 때 사용
+   - ⚠️ **중요**: `trade_date` 를 비워둔 상태로 주말에 실행하면 **휴장 체크** (NYSE) 에 걸려 즉시 조기 종료 (로그만 남고 state/알림 없음) 됩니다. 주말 수동 테스트는 반드시 `trade_date=2026-04-10` 같은 최근 영업일을 명시하세요
+   - ⚠️ **중요**: `trade_date` 를 비워둔 상태로 같은 날에 두 번 실행하면 **idempotency 체크** 에 걸려 두 번째는 조기 종료됩니다. 재실행이 필요하면 역시 `trade_date` 를 명시하여 bypass 하세요
 5. **[Run workflow]** 녹색 버튼 클릭
 6. 페이지 새로고침하여 새 실행 항목이 큐에 올라오는지 확인
 
@@ -322,10 +324,10 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] Actions job 이 빨간 X 로 종료
-- [ ] 텔레그램에 `[QBT Live 실패]` 수신, 메시지에 `데이터 검증 실패: SPY 2026-04-10: 전일 종가 불일치` 형식 포함
-- [ ] `qbt-live-state` 리포에 `auto: live run-daily ...` 커밋이 **추가되지 않음** (실패 시 push 없음)
-- [ ] Revert 후 재실행 시 정상 동작 — 녹색 체크 + 새 커밋 push + 텔레그램 정상 알림
+- [x] Actions job 이 빨간 X 로 종료
+- [x] 텔레그램에 `[QBT Live 실패]` 수신, 메시지에 `데이터 검증 실패: SPY 2026-04-10: 전일 종가 불일치` 형식 포함
+- [x] `qbt-live-state` 리포에 `auto: live run-daily ...` 커밋이 **추가되지 않음** (실패 시 push 없음)
+- [x] Revert 후 재실행 시 정상 동작 — 녹색 체크 + 새 커밋 push + 텔레그램 정상 알림
 
 **참고 — 대체 감지 패턴**:
 
@@ -350,10 +352,10 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] Actions job 이 빨간 X 로 종료
-- [ ] 텔레그램에 `[QBT Live 실패]` 수신 (JSON 파싱 관련 메시지)
-- [ ] `qbt-live-state` 리포에 새 run-daily 커밋 없음 (실패 시 push 없음)
-- [ ] revert 후 다음 실행이 정상
+- [x] Actions job 이 빨간 X 로 종료
+- [x] 텔레그램에 `[QBT Live 실패]` 수신 (`상태 파일 로드 실패: live_state.json 파싱 실패: ... Extra data: line 2 column 19`)
+- [x] `qbt-live-state` 리포에 새 run-daily 커밋 없음 (실패 시 push 없음)
+- [x] revert 후 다음 실행이 정상
 
 ---
 
@@ -371,9 +373,9 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] 매월 1 일 `Keepalive` 실행 로그 존재 (또는 workflow_dispatch 수동 실행)
-- [ ] 실행 결과 정상 (녹색)
-- [ ] `quant` 리포에 `keepalive: YYYY-MM-DD` 빈 commit 이 push 됨
+- [x] 매월 1 일 `Keepalive` 실행 로그 존재 (또는 workflow_dispatch 수동 실행)
+- [x] 실행 결과 정상 (녹색)
+- [x] `quant` 리포에 `keepalive: YYYY-MM-DD` 빈 commit 이 push 됨
 
 ---
 

@@ -41,9 +41,11 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from live import data_validator, git_state, history, notifier, rtdb_gateway
+from live.balance_adjust import apply_balance_adjusts_idempotent
 from live.chart_data import build_chart_series
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
+    DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
     DEFAULT_DATA_STOCK_SUBDIR,
     DEFAULT_LIVE_STATE_DIR,
@@ -60,12 +62,14 @@ from live.data_fetcher import (
     rebuild_full_csv,
 )
 from live.drift import compute_drift
-from live.models import ActualFill, AssetMarketData, DailyResult, MarketBundle
+from live.models import ActualFill, AssetMarketData, BalanceAdjust, DailyResult, MarketBundle
 from live.state import (
     cleanup_old_fill_ids,
     create_initial_state,
+    load_applied_balance_adjust_ids,
     load_applied_fill_ids,
     load_state,
+    save_applied_balance_adjust_ids,
     save_applied_fill_ids,
     save_state,
 )
@@ -112,6 +116,35 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
 def _now_kst_for_commit() -> str:
     """커밋 메시지용 KST 타임스탬프 (``YYYY-MM-DD HH:MM:SS KST``)."""
     return datetime.now(ZoneInfo(KST_TZ_NAME)).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
+def _get_nyse_calendar() -> Any:
+    """NYSE 영업일 달력 (``exchange_calendars`` ``XNYS``) 을 lazy 로드하여 반환.
+
+    첫 호출 시에만 ``exchange_calendars`` 를 import 하여 테스트 환경 및 휴장
+    체크 대상이 아닌 명령 (``notify-failure`` 등) 의 CLI start-up 시간을 절약한다.
+
+    Raises:
+        RuntimeError: ``exchange_calendars`` 가 설치되지 않았을 때.
+    """
+    try:
+        from exchange_calendars import get_calendar
+    except ImportError as exc:
+        raise RuntimeError(
+            "exchange_calendars 미설치 — 휴장 체크 / 거래일 gap 검증 불가. " "`poetry install -E live` 로 live extras 설치 확인"
+        ) from exc
+    return get_calendar("XNYS")
+
+
+def _is_nyse_session(trade_date: date) -> bool:
+    """``trade_date`` 가 NYSE 영업일인지 확인.
+
+    설계서 4.2 단계 1 "휴장 체크" 에 해당. cron 이 주말/공휴일에 돌거나
+    사용자가 workflow_dispatch 에서 휴장일을 지정해도 불필요한 전체 파이프라인
+    실행을 막는다.
+    """
+    calendar = _get_nyse_calendar()
+    return bool(calendar.is_session(pd.Timestamp(trade_date)))
 
 
 @contextmanager
@@ -305,9 +338,29 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
     """설계서 4.2 일일 실행 통합 루프.
 
     어떤 단계든 예외 발생 시 ``_safe_notify_failure`` 호출 후 재전파.
+
+    조기 정상 종료(exit 0) 조건:
+
+    - ``trade_date`` 가 NYSE 비영업일 (휴장 체크) — cron 이 주말/공휴일에 돌 때
+    - ``trade_date`` 가 이미 처리된 날짜 (``state.last_model_execution_date`` 와
+      동일) 이고 ``--trade-date`` 가 명시되지 않은 경우 (cron 중복 실행 방지)
+
+    ``--trade-date`` 를 명시적으로 전달한 경우 두 체크 모두 bypass 하여
+    주말/과거 재현 디버깅을 허용한다.
     """
     trade_date_str: str | None = args.trade_date
+    is_explicit_trade_date = trade_date_str is not None
     rtdb_app: Any | None = None
+
+    # 0a. trade_date 결정 (ephemeral clone 비용 전에 선제 판정)
+    trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
+
+    # 0b. 휴장 체크 — 비영업일이면 조기 정상 종료.
+    # --trade-date 가 명시되어 있으면 사용자가 의도적으로 해당 날짜를 지정한 것이므로
+    # 휴장 여부와 무관하게 진행한다 (주말 재현 테스트 허용).
+    if not is_explicit_trade_date and not _is_nyse_session(trade_date):
+        logger.debug(f"{trade_date} 는 NYSE 비영업일 — run-daily 조기 종료 (정상)")
+        return 0
 
     try:
         with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
@@ -320,8 +373,11 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
             except (FileNotFoundError, ValueError) as exc:
                 raise RuntimeError(f"상태 파일 로드 실패: {exc}") from exc
 
-            # 2. trade_date 결정
-            trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
+            # 1.5. idempotency 체크 — 같은 trade_date 가 이미 처리된 경우 조기 종료.
+            # --trade-date 명시 시 bypass (디버그/테스트 모드).
+            if not is_explicit_trade_date and state.last_model_execution_date == trade_date.isoformat():
+                logger.debug(f"{trade_date} 는 이미 처리됨 (last_model_execution_date) — " "run-daily 조기 종료 (정상, 중복 실행 방지)")
+                return 0
 
             # 3. CSV append (data_fetcher)
             try:
@@ -346,7 +402,15 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                 except Exception as exc:  # noqa: BLE001
                     raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
 
-            # 7. run_daily (순수 계산)
+            # 6.5. RTDB balance_adjusts 가져오기 (설계서 6.4)
+            pending_adjusts: list[BalanceAdjust] = []
+            if rtdb_app is not None:
+                try:
+                    pending_adjusts = rtdb_gateway.fetch_pending_balance_adjusts(rtdb_app)
+                except Exception as exc:  # noqa: BLE001
+                    raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
+
+            # 7. run_daily (순수 계산 — fills 처리 포함)
             try:
                 result = run_daily(
                     trade_date=trade_date,
@@ -358,12 +422,38 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
 
+            # 7.5. balance_adjusts 를 fills 반영 이후의 state 에 덧씌운다.
+            #      - fills 가 먼저 반영되고, balance_adjust 가 최종 잔고를 덮어쓰는 순서
+            #      - 별도 원장 applied_balance_adjust_ids.json 으로 idempotency 보장
+            adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
+            try:
+                applied_adjust_ids = load_applied_balance_adjust_ids(adjust_path)
+            except ValueError as exc:
+                raise RuntimeError(f"applied_balance_adjust_ids.json 로드 실패: {exc}") from exc
+
+            prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
+
+            if pending_adjusts:
+                import dataclasses as _dc
+
+                result_state_after_adjust, applied_adjust_ids = apply_balance_adjusts_idempotent(
+                    result.updated_state,
+                    pending_adjusts,
+                    applied_adjust_ids,
+                )
+                # DailyResult 는 dataclass 이므로 updated_state 를 교체한 새 DailyResult 로 갱신
+                result = _dc.replace(result, updated_state=result_state_after_adjust)
+
             # 8. 상태 저장 + applied_ids 정리
             save_state(result.updated_state, state_path)
             cleaned_ids = cleanup_old_fill_ids(
                 result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS
             )
             save_applied_fill_ids(cleaned_ids, applied_path)
+
+            # 8.1 balance_adjust 원장 정리 + 저장
+            cleaned_adjust_ids = cleanup_old_fill_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+            save_applied_balance_adjust_ids(cleaned_adjust_ids, adjust_path)
 
             # 8.5. 새로 반영된 fill 을 user_trades.jsonl 에 append (Gap 3/4)
             #      run_daily 전후의 applied_ids 차분으로 신규 fill 을 식별한다.
@@ -381,6 +471,32 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                             },
                             hist_dir,
                         )
+
+            # 8.6. 새로 반영된 balance_adjust 를 audit 히스토리에 append + RTDB mark.
+            #      prev 스냅샷과 apply 후 applied_adjust_ids 의 차분으로 신규 식별.
+            newly_applied_adjust_keys = set(applied_adjust_ids.keys()) - prev_adjust_keys_snapshot
+            if newly_applied_adjust_keys:
+                hist_dir = _history_dir(state_dir)
+                for adjust in pending_adjusts:
+                    if adjust.rtdb_key in newly_applied_adjust_keys:
+                        history.append_balance_adjust(
+                            {
+                                "rtdb_key": adjust.rtdb_key,
+                                "asset_id": adjust.asset_id,
+                                "new_shares": adjust.new_shares,
+                                "new_cash": adjust.new_cash,
+                                "reason": adjust.reason,
+                                "input_time_kst": adjust.input_time_kst,
+                            },
+                            hist_dir,
+                        )
+
+                # RTDB processed 마킹
+                if rtdb_app is not None:
+                    try:
+                        rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
+                    except Exception as exc:  # noqa: BLE001
+                        raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
 
             # 9. 영구 히스토리 저장
             try:
@@ -411,7 +527,14 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         raise
 
 
-def _validate_against_csv(ticker: str, recent_df: pd.DataFrame, csv_df: pd.DataFrame | None) -> None:
+def _validate_against_csv(
+    ticker: str,
+    recent_df: pd.DataFrame,
+    csv_df: pd.DataFrame | None,
+    *,
+    trade_date: date | None = None,
+    calendar: Any = None,
+) -> None:
     """yfinance 가 반환한 최근 OHLC 행들에 대해 검증 실행.
 
     1. 각 행의 OHLC 논리 검증 (High/Low/Close 가 상식에 맞는지)
@@ -419,11 +542,15 @@ def _validate_against_csv(ticker: str, recent_df: pd.DataFrame, csv_df: pd.DataF
        ``validate_prev_close`` 로 종가 일치 여부 검증.
        이 비교는 **스플릿 감지** (yfinance 가 과거 값을 재조정) 와 **사용자 조작 감지**
        (CSV 를 손으로 수정한 경우) 를 모두 잡아낸다.
+    3. ``trade_date`` + ``calendar`` 가 제공되면 ``validate_date_gap`` 으로
+       CSV 마지막 거래일과 trade_date 사이의 거래일 누락을 검증.
 
     Args:
         ticker: 검증 대상 티커 (에러 메시지에 포함).
         recent_df: ``fetch_recent_ohlc`` 반환값 (최근 ~5 거래일 OHLC).
         csv_df: 기존 CSV 로드 결과. 파일이 없으면 ``None``.
+        trade_date: 현재 처리 대상 거래일. 거래일 gap 검증에 사용.
+        calendar: NYSE 달력 인스턴스. 거래일 gap 검증에 사용.
 
     Raises:
         ValueError: 검증 실패 시. 메시지에 티커 / 날짜 / 원인 포함.
@@ -435,10 +562,10 @@ def _validate_against_csv(ticker: str, recent_df: pd.DataFrame, csv_df: pd.DataF
             yf_date = yf_row["Date"]
             raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
 
-    # 2. CSV 와 겹치는 날짜에 대해 종가 일치 검증 (스플릿 + 사용자 조작 감지)
     if csv_df is None or csv_df.empty:
         return
 
+    # 2. CSV 와 겹치는 날짜에 대해 종가 일치 검증 (스플릿 + 사용자 조작 감지)
     csv_by_date = {row["Date"]: float(row["Close"]) for _, row in csv_df.iterrows()}
     for _, yf_row in recent_df.iterrows():
         yf_date = yf_row["Date"]
@@ -450,20 +577,42 @@ def _validate_against_csv(ticker: str, recent_df: pd.DataFrame, csv_df: pd.DataF
         if errors:
             raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
 
+    # 3. 거래일 gap 검증 (trade_date / calendar 가 주입된 경우에만)
+    if trade_date is not None and calendar is not None:
+        csv_last = max(csv_by_date.keys())
+        errors = data_validator.validate_date_gap(csv_last, trade_date, calendar)
+        if errors:
+            raise ValueError(f"{ticker}: {errors[0]}")
+
 
 def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
     """각 자산 티커에 대해 최근 OHLC 를 가져와 검증 후 CSV 에 append.
 
     검증 실패 시 ``ValueError`` 를 전파하여 상위 ``_cmd_run_daily`` 가
     ``RuntimeError("데이터 검증 실패: ...")`` 로 래핑한 뒤 알림을 발송한다.
+
+    validate_date_gap 을 위한 NYSE 달력은 모든 티커가 공유한다 (싱글톤).
     """
+    # NYSE 달력 싱글톤 로드 (validate_date_gap 용). 테스트는 monkeypatch 로
+    # _get_nyse_calendar 를 가짜로 교체하여 네트워크 없이 검증할 수 있다.
+    try:
+        calendar = _get_nyse_calendar()
+    except RuntimeError:
+        calendar = None  # 극단적 fallback — live extras 미설치 시 gap 검증 skip
+
     for ticker in _collect_all_tickers():
         recent = fetch_recent_ohlc(ticker, days=5)
         csv_path = _live_csv_path(state_dir, ticker)
         csv_df = load_csv(csv_path) if csv_path.exists() else None
 
         # 검증 — 실패 시 ValueError 전파 (상위에서 RuntimeError 로 래핑)
-        _validate_against_csv(ticker, recent, csv_df)
+        _validate_against_csv(
+            ticker,
+            recent,
+            csv_df,
+            trade_date=trade_date,
+            calendar=calendar,
+        )
 
         today_row = recent[recent["Date"] == trade_date]
         if today_row.empty:

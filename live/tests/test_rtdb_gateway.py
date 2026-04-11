@@ -19,7 +19,9 @@ from live.models import (
     SignalDetection,
 )
 from live.rtdb_gateway import (
+    fetch_pending_balance_adjusts,
     fetch_unprocessed_fills,
+    mark_balance_adjusts_processed,
     mark_fills_processed,
     read_device_tokens,
     remove_invalid_tokens,
@@ -136,6 +138,74 @@ class TestMarkFillsProcessed:
 
     def test_empty_keys_is_noop(self, mock_db, mock_app):
         mark_fills_processed(mock_app, [])
+        assert mock_db == {}
+
+
+# ============================================================================
+# balance_adjust RTDB 경로 (Gap 2)
+# ============================================================================
+
+
+class TestFetchPendingBalanceAdjusts:
+    def test_returns_only_unprocessed(self, mock_db, mock_app):
+        mock_db["/balance_adjust/inbox"] = {
+            "adj_a": {
+                "asset_id": "sso",
+                "new_shares": 420,
+                "new_cash": None,
+                "reason": "년초 잔고 조정",
+                "input_time_kst": "2026-04-10T20:00:00+09:00",
+                "processed": False,
+            },
+            "adj_b": {
+                "asset_id": None,
+                "new_shares": None,
+                "new_cash": 95000000.0,
+                "reason": "cash 보정",
+                "input_time_kst": "2026-04-10T21:00:00+09:00",
+                "processed": True,  # 이미 처리됨
+            },
+        }
+
+        adjusts = fetch_pending_balance_adjusts(mock_app)
+        assert len(adjusts) == 1
+        assert adjusts[0].rtdb_key == "adj_a"
+        assert adjusts[0].asset_id == "sso"
+        assert adjusts[0].new_shares == 420
+        assert adjusts[0].new_cash is None
+
+    def test_cash_only_adjust(self, mock_db, mock_app):
+        mock_db["/balance_adjust/inbox"] = {
+            "adj_cash": {
+                "asset_id": None,
+                "new_shares": None,
+                "new_cash": 85000000.0,
+                "reason": "배당 반영",
+                "input_time_kst": "2026-04-10T22:00:00+09:00",
+                "processed": False,
+            },
+        }
+        adjusts = fetch_pending_balance_adjusts(mock_app)
+        assert len(adjusts) == 1
+        assert adjusts[0].asset_id is None
+        assert adjusts[0].new_cash == 85000000.0
+
+    def test_empty_inbox_returns_empty(self, mock_db, mock_app):
+        assert fetch_pending_balance_adjusts(mock_app) == []
+
+
+class TestMarkBalanceAdjustsProcessed:
+    def test_marks_each_key_processed(self, mock_db, mock_app):
+        mock_db["/balance_adjust/inbox/adj_a"] = {"processed": False, "asset_id": "sso"}
+        mock_db["/balance_adjust/inbox/adj_b"] = {"processed": False, "asset_id": "gld"}
+
+        mark_balance_adjusts_processed(mock_app, ["adj_a", "adj_b"])
+
+        assert mock_db["/balance_adjust/inbox/adj_a"]["processed"] is True
+        assert mock_db["/balance_adjust/inbox/adj_b"]["processed"] is True
+
+    def test_empty_keys_is_noop(self, mock_db, mock_app):
+        mark_balance_adjusts_processed(mock_app, [])
         assert mock_db == {}
 
 

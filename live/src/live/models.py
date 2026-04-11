@@ -37,6 +37,7 @@ __all__ = [
     "AssetLiveState",
     "LiveState",
     "ActualFill",
+    "BalanceAdjust",
     "SignalDetection",
     "ChartSeries",
     "AssetDrift",
@@ -180,6 +181,39 @@ class ActualFill:
     memo: str | None
     rtdb_key: str
     reason: str = ""
+
+
+# ============================================================================
+# BalanceAdjust — 앱에서 입력한 자산 직접 보정
+# ============================================================================
+
+
+@dataclass
+class BalanceAdjust:
+    """앱이 RTDB ``/balance_adjust/inbox/`` 에 기록한 자산 잔고 보정.
+
+    :class:`ActualFill` 과 다른 점: fill 은 "buy/sell 이벤트" 인 반면 balance_adjust
+    는 "현재 잔고를 이 값으로 덮어쓰기" 라는 의미. 사용자가 오프라인에서 여러 거래를
+    했거나 세금/배당 등으로 인한 잔고 조정을 입력할 때 사용한다.
+
+    필드 규칙:
+
+    - ``asset_id`` 와 ``new_shares`` 가 모두 set 이면 해당 자산의 ``actual_shares``
+      를 ``new_shares`` 로 교체.
+    - ``new_cash`` 가 set 이면 ``shared_cash_actual`` 을 ``new_cash`` 로 교체.
+    - 둘 다 set 된 경우 (자산 + cash 동시 보정) 한 번에 적용.
+    - 둘 다 ``None`` 이면 무효 (validation 에서 걸러짐).
+
+    idempotency: ``rtdb_key`` 는 ``applied_balance_adjust_ids.json`` 에 저장되어
+    중복 반영을 방지한다.
+    """
+
+    rtdb_key: str
+    input_time_kst: str  # ISO 8601 KST
+    reason: str
+    asset_id: str | None = None
+    new_shares: int | None = None
+    new_cash: float | None = None
 
 
 # ============================================================================

@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 from live.history import (
+    append_balance_adjust,
     append_signal_history,
     append_summary,
     append_user_trade,
@@ -241,3 +242,39 @@ class TestLoadUserTrades:
         assert isinstance(sso_first, UserTrade)
         assert sso_first.direction == "buy"
         assert sso_first.date == "2026-04-10"
+
+
+# ============================================================================
+# Gap 2: balance_adjust audit append
+# ============================================================================
+
+
+class TestAppendBalanceAdjust:
+    def test_append_creates_file_and_line(self, tmp_path: Path):
+        append_balance_adjust(
+            {
+                "rtdb_key": "adj_001",
+                "asset_id": "sso",
+                "new_shares": 420,
+                "new_cash": None,
+                "reason": "test",
+                "input_time_kst": "2026-04-10T20:00:00+09:00",
+            },
+            tmp_path,
+        )
+        path = tmp_path / "balance_adjusts.jsonl"
+        assert path.exists()
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        assert "adj_001" in lines[0]
+        assert '"asset_id": "sso"' in lines[0]
+
+    def test_append_only_accumulates(self, tmp_path: Path):
+        append_balance_adjust({"rtdb_key": "a1", "reason": "r1"}, tmp_path)
+        append_balance_adjust({"rtdb_key": "a2", "reason": "r2"}, tmp_path)
+
+        path = tmp_path / "balance_adjusts.jsonl"
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+        assert "a1" in lines[0]
+        assert "a2" in lines[1]

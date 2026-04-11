@@ -28,6 +28,7 @@ __all__ = [
     "append_summary",
     "append_user_trade",
     "append_signal_history",
+    "append_balance_adjust",
     "load_user_trades",
     "load_signal_history",
 ]
@@ -36,6 +37,7 @@ _DAILY_SUBDIR = "daily"
 _SUMMARY_FILENAME = "summary.jsonl"
 _USER_TRADES_FILENAME = "user_trades.jsonl"
 _SIGNALS_FILENAME = "signals.jsonl"
+_BALANCE_ADJUSTS_FILENAME = "balance_adjusts.jsonl"
 
 
 def _ensure_dir(path: Path) -> None:
@@ -82,6 +84,18 @@ def append_user_trade(trade: dict[str, Any], history_dir: Path) -> None:
     target = history_dir / _USER_TRADES_FILENAME
     _ensure_dir(target)
     line = json.dumps(trade, ensure_ascii=False, default=str)
+    with target.open("a", encoding="utf-8") as fp:
+        fp.write(line + "\n")
+
+
+def append_balance_adjust(adjust: dict[str, Any], history_dir: Path) -> None:
+    """자산 보정 1 줄을 ``history/balance_adjusts.jsonl`` 에 audit 용 append 한다.
+
+    차트 마커 대상이 아닌 audit / 디버깅 전용 로그. 설계서 6.4.
+    """
+    target = history_dir / _BALANCE_ADJUSTS_FILENAME
+    _ensure_dir(target)
+    line = json.dumps(adjust, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
         fp.write(line + "\n")
 

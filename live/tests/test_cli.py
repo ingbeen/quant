@@ -245,8 +245,9 @@ class TestCmdRunDailySuccess:
         fake_app = object()
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
 
-        # rtdb_gateway 호출 모두 mock
+        # rtdb_gateway 호출 모두 mock (fills + balance_adjusts 둘 다)
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
 
         publish_calls: list[bool] = []
 
@@ -661,6 +662,56 @@ class TestValidateAgainstCsv:
         )
         cli_module._validate_against_csv("SPY", recent, csv_df)  # 예외 없음
 
+    def test_date_gap_detected_when_calendar_provided(self):
+        """Given CSV 가 월요일까지 있고 trade_date 가 목요일 (수요일 거래일 누락)
+        When validate_date_gap 까지 검증 Then ValueError.
+
+        FakeCalendar 로 ``exchange_calendars`` 의존성을 주입 (실제 NYSE 호출 없음).
+        """
+
+        class _FakeCalendar:
+            """(csv_last, today) 사이의 모든 날짜를 영업일로 간주."""
+
+            def sessions_in_range(self, start, end):
+                import pandas as _pd
+
+                return _pd.date_range(start.date(), end.date(), freq="D")
+
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 9), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        csv_df = self._make_csv(
+            [
+                # CSV 마지막 = 4월 6일
+                {"Date": date(2026, 4, 6), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+
+        with pytest.raises(ValueError, match=r"SPY.*거래일 누락"):
+            cli_module._validate_against_csv(
+                "SPY",
+                recent,
+                csv_df,
+                trade_date=date(2026, 4, 9),
+                calendar=_FakeCalendar(),
+            )
+
+    def test_date_gap_not_checked_when_calendar_none(self):
+        """Given calendar 미주입 When 검증 Then gap 검증 skip (기존 동작 유지)."""
+        recent = self._make_recent(
+            [
+                {"Date": date(2026, 4, 9), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        csv_df = self._make_csv(
+            [
+                {"Date": date(2026, 4, 6), "Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 1000},
+            ]
+        )
+        cli_module._validate_against_csv("SPY", recent, csv_df, trade_date=None, calendar=None)  # 예외 없음
+
 
 class TestRunDailyValidatorIntegration:
     """``run-daily`` 파이프라인에서 validator 가 실패 시 RuntimeError 전파 +
@@ -733,6 +784,7 @@ class TestRunDailyValidatorIntegration:
             rtdb_key="fill_new_001",
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [new_fill])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -781,6 +833,7 @@ class TestRunDailyValidatorIntegration:
             rtdb_key="fill_existing",
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [existing_fill])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -791,6 +844,203 @@ class TestRunDailyValidatorIntegration:
         if user_trades_path.exists():
             content = user_trades_path.read_text(encoding="utf-8").strip()
             assert content == "", f"기존 fill 이 중복 append 되었음: {content}"
+
+    def test_holiday_early_exit_skips_ephemeral(self, state_dir: Path, monkeypatch):
+        """Given 휴장일 trade_date When run-daily (cron 모드) Then ephemeral clone 없이 exit 0."""
+        del state_dir  # fixture 설치만 필요
+        # 휴장 체크 강제: 항상 False
+        monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: False)
+
+        # ephemeral_state_repo 가 호출되면 실패하도록 sentinel 주입
+        def _fail_ephemeral(**kwargs):
+            raise AssertionError("휴장일에 ephemeral_state_repo 가 호출되면 안 됨")
+
+        monkeypatch.setattr(cli_module, "ephemeral_state_repo", _fail_ephemeral)
+
+        # cron 모드 (no --trade-date)
+        exit_code = main(["run-daily"])
+        assert exit_code == 0
+
+    def test_holiday_bypassed_when_trade_date_explicit(self, state_dir: Path, monkeypatch):
+        """Given 휴장 체크는 False 이지만 --trade-date 명시 When run-daily Then 정상 진행."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: False)  # 휴장으로 보여도
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        # --trade-date 명시 → 휴장 체크 bypass
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+        assert exit_code == 0
+
+    def test_idempotency_blocks_duplicate_cron_run(self, state_dir: Path, monkeypatch):
+        """Given state.last_model_execution_date == trade_date When cron 재실행 Then 조기 종료."""
+        main(["init", "--capital", "100000000"])
+
+        today = date.today()
+        # state 를 수동 수정: last_model_execution_date 를 오늘로 세팅
+        import json
+
+        state_path = state_dir / "live_state.json"
+        state_dict = json.loads(state_path.read_text(encoding="utf-8"))
+        state_dict["last_model_execution_date"] = today.isoformat()
+        state_path.write_text(json.dumps(state_dict, ensure_ascii=False), encoding="utf-8")
+
+        monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: True)  # 영업일 가정
+
+        # 이후 단계가 호출되면 실패하도록 sentinel
+        def _fail_fetch(*a, **kw):
+            raise AssertionError("idempotency 체크 통과 후 불필요한 단계 진입")
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _fail_fetch)
+
+        # cron 모드 (no --trade-date) → 조기 종료
+        exit_code = main(["run-daily"])
+        assert exit_code == 0
+
+    def test_balance_adjust_applied_and_audited(self, state_dir: Path, monkeypatch):
+        """Given RTDB 에 balance_adjust 1 건 When run-daily Then state 반영 + audit append + mark_processed."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+
+        from live.models import BalanceAdjust
+
+        adjust = BalanceAdjust(
+            rtdb_key="adj_001",
+            input_time_kst="2026-04-10T20:00:00+09:00",
+            reason="테스트 잔고 보정",
+            asset_id="sso",
+            new_shares=420,
+            new_cash=None,
+        )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [adjust])
+
+        mark_calls: list[list[str]] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "mark_balance_adjusts_processed",
+            lambda app, keys: mark_calls.append(list(keys)),
+        )
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+        assert exit_code == 0
+
+        # state 반영 확인
+        from live.state import load_state
+
+        new_state = load_state(state_dir / "live_state.json")
+        assert new_state.assets["sso"].actual_shares == 420
+
+        # audit 파일 생성 확인
+        audit_path = state_dir / "history" / "balance_adjusts.jsonl"
+        assert audit_path.exists()
+        content = audit_path.read_text(encoding="utf-8").strip()
+        assert "adj_001" in content
+        assert '"asset_id": "sso"' in content
+        assert '"new_shares": 420' in content
+
+        # RTDB mark 호출 확인
+        assert len(mark_calls) == 1
+        assert mark_calls[0] == ["adj_001"]
+
+        # applied_balance_adjust_ids.json 에 기록 확인
+        import json as _json
+
+        adjust_ids_path = state_dir / "applied_balance_adjust_ids.json"
+        assert adjust_ids_path.exists()
+        ids_data = _json.loads(adjust_ids_path.read_text(encoding="utf-8"))
+        assert "adj_001" in ids_data
+
+    def test_already_applied_balance_adjust_is_not_re_audited(self, state_dir: Path, monkeypatch):
+        """Given applied_balance_adjust_ids.json 에 이미 있음 When run-daily Then audit skip + mark skip."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        # applied_balance_adjust_ids.json 미리 세팅
+        import json as _json
+
+        adjust_ids_path = state_dir / "applied_balance_adjust_ids.json"
+        adjust_ids_path.write_text(
+            _json.dumps({"adj_existing": "2026-04-09T00:00:00+09:00"}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+
+        from live.models import BalanceAdjust
+
+        existing_adjust = BalanceAdjust(
+            rtdb_key="adj_existing",
+            input_time_kst="2026-04-09T20:00:00+09:00",
+            reason="이전 보정",
+            asset_id="gld",
+            new_shares=500,
+            new_cash=None,
+        )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [existing_adjust])
+        mark_calls: list[list[str]] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "mark_balance_adjusts_processed",
+            lambda app, keys: mark_calls.append(list(keys)),
+        )
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        main(["run-daily", "--trade-date", trade_date.isoformat()])
+
+        # state 변경 없음 (이미 처리된 adjust)
+        from live.state import load_state
+
+        new_state = load_state(state_dir / "live_state.json")
+        assert new_state.assets["gld"].actual_shares == 0
+
+        # audit jsonl 은 없거나 비어있음
+        audit_path = state_dir / "history" / "balance_adjusts.jsonl"
+        if audit_path.exists():
+            content = audit_path.read_text(encoding="utf-8").strip()
+            assert content == "", f"기존 adjust 가 중복 audit 되었음: {content}"
+
+        # RTDB mark 도 호출되지 않음
+        assert mark_calls == []
+
+    def test_idempotency_bypassed_when_trade_date_explicit(self, state_dir: Path, monkeypatch):
+        """Given 같은 날짜 state 이미 처리 + --trade-date 명시 When Then 실행 진행."""
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        # state 의 last_model_execution_date 를 trade_date 로 세팅
+        import json
+
+        state_path = state_dir / "live_state.json"
+        state_dict = json.loads(state_path.read_text(encoding="utf-8"))
+        state_dict["last_model_execution_date"] = trade_date.isoformat()
+        state_path.write_text(json.dumps(state_dict, ensure_ascii=False), encoding="utf-8")
+
+        monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: True)
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        # --trade-date 명시 → idempotency bypass
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+        assert exit_code == 0
 
     def test_csv_manipulation_detected_as_prev_close_mismatch(self, state_dir: Path, monkeypatch):
         """Given 사용자가 CSV 종가를 조작 (#11 시나리오) When run-daily Then RuntimeError.

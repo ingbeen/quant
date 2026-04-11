@@ -20,7 +20,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from live.models import ActualFill, ChartSeries, DailyResult, LiveState
+from live.models import ActualFill, BalanceAdjust, ChartSeries, DailyResult, LiveState
 
 # Firebase Admin SDK 의 ``App`` 객체는 모듈 import 없이도 인터페이스만 사용한다.
 # strict 타이핑을 위해 ``Any`` 로 통일하고, 런타임에 :func:`initialize_firebase_app`
@@ -31,6 +31,8 @@ __all__ = [
     "initialize_firebase_app",
     "fetch_unprocessed_fills",
     "mark_fills_processed",
+    "fetch_pending_balance_adjusts",
+    "mark_balance_adjusts_processed",
     "write_read_model",
     "write_chart_data",
     "read_device_tokens",
@@ -39,6 +41,7 @@ __all__ = [
 
 _LATEST_PATH = "/latest"
 _FILLS_INBOX_PATH = "/fills/inbox"
+_BALANCE_ADJUST_INBOX_PATH = "/balance_adjust/inbox"
 _DEVICE_TOKENS_PATH = "/device_tokens"
 _HISTORY_SUMMARY_PATH = "/history/summary"
 _CHART_DATA_PATH = "/latest/chart_data"
@@ -122,6 +125,59 @@ def mark_fills_processed(app: FirebaseAppLike, keys: list[str]) -> None:
     """
     for key in keys:
         ref = _db_reference(app, f"{_FILLS_INBOX_PATH}/{key}")
+        ref.update({"processed": True})
+
+
+# ============================================================================
+# balance_adjust (앱 → daily runner) — 자산 직접 보정
+# ============================================================================
+
+
+def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjust:
+    """RTDB ``/balance_adjust/inbox/{uuid}`` dict → :class:`BalanceAdjust`."""
+    new_shares_raw = data.get("new_shares")
+    new_cash_raw = data.get("new_cash")
+    return BalanceAdjust(
+        rtdb_key=rtdb_key,
+        input_time_kst=str(data.get("input_time_kst", "")),
+        reason=str(data.get("reason", "")),
+        asset_id=data.get("asset_id"),
+        new_shares=int(new_shares_raw) if new_shares_raw is not None else None,
+        new_cash=float(new_cash_raw) if new_cash_raw is not None else None,
+    )
+
+
+def fetch_pending_balance_adjusts(app: FirebaseAppLike) -> list[BalanceAdjust]:
+    """RTDB ``/balance_adjust/inbox`` 에서 ``processed=false`` 인 항목만 가져온다.
+
+    설계서 6.4 "자산 직접 수정" 경로. 앱이 queue 에 쓰고 daily runner 가 읽어 처리.
+
+    Args:
+        app: ``firebase_admin.App`` 인스턴스 (mock 가능).
+
+    Returns:
+        :class:`BalanceAdjust` 리스트. queue 가 비어있거나 존재하지 않으면 빈 리스트.
+    """
+    ref = _db_reference(app, _BALANCE_ADJUST_INBOX_PATH)
+    raw = ref.get() or {}
+
+    if not isinstance(raw, dict):
+        return []
+
+    adjusts: list[BalanceAdjust] = []
+    for rtdb_key, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        if data.get("processed", False):
+            continue
+        adjusts.append(_dict_to_balance_adjust(data, rtdb_key))
+    return adjusts
+
+
+def mark_balance_adjusts_processed(app: FirebaseAppLike, keys: list[str]) -> None:
+    """주어진 balance_adjust ID 들을 ``processed=true`` 로 마킹한다."""
+    for key in keys:
+        ref = _db_reference(app, f"{_BALANCE_ADJUST_INBOX_PATH}/{key}")
         ref.update({"processed": True})
 
 

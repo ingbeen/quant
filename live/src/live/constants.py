@@ -69,6 +69,9 @@ DEFAULT_LIVE_STATE_FILENAME: Final[str] = "live_state.json"
 # applied_fill_ids JSON 파일명.
 DEFAULT_APPLIED_FILL_IDS_FILENAME: Final[str] = "applied_fill_ids.json"
 
+# applied_balance_adjust_ids JSON 파일명 (자산 직접 보정 idempotency 원장).
+DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME: Final[str] = "applied_balance_adjust_ids.json"
+
 
 # ============================================================================
 # fill idempotency

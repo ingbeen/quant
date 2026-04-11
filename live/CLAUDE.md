@@ -3,7 +3,7 @@
 > CRITICAL: live 도메인 작업 전에 이 문서를 반드시 읽어야 합니다.
 > 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > 설계서: [docs/DESIGN_QBT_LIVE_FINAL.md](../docs/DESIGN_QBT_LIVE_FINAL.md)
-> 구현 체크리스트: [docs/TODO_QBT_LIVE.md](../docs/TODO_QBT_LIVE.md)
+> 구현 체크리스트 및 Phase 별 진행 상황: [docs/plans/](../docs/plans/) 하위 계획서
 
 ## 폴더 목적
 
@@ -48,21 +48,23 @@ live/
 
 ## 모듈별 역할 요약
 
-| 모듈 | 역할 | 관련 설계서 |
-|------|------|-------------|
-| `constants.py` | 티커 목록, SIGNAL_TRADE_MAP, DRIFT 임계값 등 상수 | 5.1, 부록 B |
-| `models.py` | `LiveState`, `DailyResult`, `ActualFill`, `ChartSeries`, `DriftReport` 등 데이터 모델 | 부록 B |
-| `state.py` | `LiveState` JSON 직렬화/역직렬화, 초기화, applied_fill_ids 관리 | 5장, 부록 A |
-| `data_fetcher.py` | yfinance 호출, CSV 누적 append, 전체 재다운로드 | 2장, 부록 A |
-| `data_validator.py` | 설계서 3장의 3가지 검증 (OHLC / 종가 / 날짜 누락). `cli._refresh_live_csvs` 가 매 `run-daily` 실행마다 yfinance 최근 5 일 × CSV 같은 날짜를 대조하여 호출 | 3장, 부록 A |
-| `daily_runner.py` | 순수 계산 기반 `run_daily` (파일 I/O 금지) | 4.2, 부록 A |
-| `drift.py` | fill → system_fill / personal_trade 분류, idempotency, drift 계산 | 6장, 14장, 부록 A |
-| `buffer_serializer.py` | QBT `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (`getattr`/`setattr`, QBT 수정 없음) | 4.3 |
-| `rtdb_gateway.py` | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 | 10장, 부록 A |
-| `notifier.py` | FCM + 텔레그램 동시 발송 (일일 리포트, 에러, 리마인더) | 8장, 부록 A |
-| `chart_data.py` | 자산별 전체 기간 차트 시계열 생성 | 7장, 부록 A |
-| `history.py` | Git 정본 히스토리 저장 (영구 보존) | 10.1 |
-| `cli.py` | `run-daily`, `init`, `init-data`, `notify-failure` 등 명령어 | 부록 A |
+| 모듈                   | 역할                                                                                                                               | 관련 설계서 |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `constants.py`         | 티커 목록, SIGNAL_TRADE_MAP, DRIFT 임계값, 파일명 상수, STATE_REPO_URL                                                             | 5.1         |
+| `models.py`            | `LiveState`, `DailyResult`, `ActualFill`, `BalanceAdjust`, `ChartSeries`, `DriftReport` 등 데이터 모델                             | §5, §6      |
+| `state.py`             | `LiveState` JSON 직렬화/역직렬화, 초기화, `applied_fill_ids` / `applied_balance_adjust_ids` 관리                                   | §5          |
+| `data_fetcher.py`      | yfinance 호출, CSV 누적 append, 전체 재다운로드                                                                                    | §2          |
+| `data_validator.py`    | 설계서 3장의 3가지 검증 (OHLC / 전일 종가 / 거래일 gap). 세 검증 모두 `cli._refresh_live_csvs` 에서 매 `run-daily` 실행 시 호출됨  | §3          |
+| `daily_runner.py`      | 순수 계산 기반 `run_daily` (파일 I/O 금지). fills 반영 + 시그널 + 리밸런싱 + pending 생성                                          | §4.2        |
+| `drift.py`             | fill → system_fill / personal_trade 분류, idempotency, drift 계산                                                                  | §6, §14     |
+| `balance_adjust.py`    | 자산/cash 직접 보정 (`BalanceAdjust`) idempotent 적용. 앱 → RTDB inbox → daily runner                                              | §6.4        |
+| `buffer_serializer.py` | QBT `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (QBT 수정 없음)                          | §4.3        |
+| `rtdb_gateway.py`      | Firebase Admin SDK 초기화, RTDB 읽기/쓰기 (fills / balance_adjusts / read model / chart / device tokens)                           | §10         |
+| `notifier.py`          | FCM + 텔레그램 동시 발송 (일일 리포트 / 실패 알림)                                                                                 | §8          |
+| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성. `signal_history` / `user_trades` 인자로 마커 포함                                               | §7          |
+| `history.py`           | Git 정본 히스토리 (daily/summary/user_trades/signals/balance_adjusts) 영구 append                                                  | §10.1       |
+| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼 (로컬 / Actions 공통 경로)                                                            | §1          |
+| `cli.py`               | CLI 엔트리. 휴장 체크 + idempotency + ephemeral 컨텍스트 + `run-daily` / `init` / `init-data` / `drift` / `notify-failure` 등 명령 | §4.2, §11   |
 
 ## 핵심 원칙
 
@@ -164,18 +166,17 @@ poetry run python -m live.cli notify-failure -m "수동 테스트"
 
 ## 인프라 정보
 
-| 항목 | 값 |
-|------|---|
-| QBT 리포 (퍼블릭) | `https://github.com/ingbeen/quant` |
-| 상태 리포 (프라이빗) | `https://github.com/ingbeen/qbt-live-state.git` |
-| Firebase 프로젝트 | `qbt-live` (Spark) |
-| RTDB URL | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
-| Android 패키지 | `com.ingbeen.qbtlive` |
-| OWNER_UID | `SxwvCeg6fRUeUrK9IpyazTzrLJJ2` |
-| 텔레그램 봇 | `@qbt_live_alert_bot` |
+| 항목                 | 값                                                                   |
+| -------------------- | -------------------------------------------------------------------- |
+| QBT 리포 (퍼블릭)    | `https://github.com/ingbeen/quant`                                   |
+| 상태 리포 (프라이빗) | `https://github.com/ingbeen/qbt-live-state.git`                      |
+| Firebase 프로젝트    | `qbt-live` (Spark)                                                   |
+| RTDB URL             | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
+| Android 패키지       | `com.ingbeen.qbtlive`                                                |
+| OWNER_UID            | `SxwvCeg6fRUeUrK9IpyazTzrLJJ2`                                       |
+| 텔레그램 봇          | `@qbt_live_alert_bot`                                                |
 
 ## 참고 문서
 
 - [docs/DESIGN_QBT_LIVE_FINAL.md](../docs/DESIGN_QBT_LIVE_FINAL.md): 전체 설계서 (반드시 정독)
-- [docs/TODO_QBT_LIVE.md](../docs/TODO_QBT_LIVE.md): Step 별 체크리스트
-- [docs/PROMPT_QBT_LIVE.md](../docs/PROMPT_QBT_LIVE.md): 구현 지시서
+- [docs/plans/](../docs/plans/): Phase 별 구현 계획서

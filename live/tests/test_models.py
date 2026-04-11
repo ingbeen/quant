@@ -22,6 +22,7 @@ from live.models import (
     ActualFill,
     AssetDrift,
     AssetLiveState,
+    BalanceAdjust,
     BufferZoneState,
     ChartSeries,
     DailyResult,
@@ -250,6 +251,48 @@ class TestActualFill:
         }
         actual = {f.name for f in fields(ActualFill)}
         assert expected == actual
+
+
+class TestBalanceAdjust:
+    """설계서 6.4 자산 직접 수정 / Gap 2."""
+
+    def test_is_dataclass(self):
+        assert is_dataclass(BalanceAdjust)
+
+    def test_fields(self):
+        expected = {
+            "rtdb_key",
+            "input_time_kst",
+            "reason",
+            "asset_id",
+            "new_shares",
+            "new_cash",
+        }
+        actual = {f.name for f in fields(BalanceAdjust)}
+        assert expected == actual
+
+    def test_construction_asset_only(self):
+        adj = BalanceAdjust(
+            rtdb_key="adj_001",
+            input_time_kst="2026-04-10T20:00:00+09:00",
+            reason="test",
+            asset_id="sso",
+            new_shares=420,
+        )
+        assert adj.asset_id == "sso"
+        assert adj.new_shares == 420
+        assert adj.new_cash is None
+
+    def test_construction_cash_only(self):
+        adj = BalanceAdjust(
+            rtdb_key="adj_002",
+            input_time_kst="2026-04-10T20:00:00+09:00",
+            reason="test",
+            new_cash=95000000.0,
+        )
+        assert adj.asset_id is None
+        assert adj.new_shares is None
+        assert adj.new_cash == 95000000.0
 
 
 class TestDailyResult:
