@@ -1,7 +1,8 @@
 """자산 직접 보정 (balance adjust) 적용 로직.
 
-설계서 6.4 "자산 직접 수정". 앱이 RTDB ``/balance_adjust/inbox/{uuid}`` 에
-기록한 잔고 보정 레코드를 읽어 :class:`LiveState` 의 ``actual_*`` 축을 덮어쓴다.
+앱이 RTDB ``/balance_adjust/inbox/{uuid}`` 에 기록한 잔고 보정 레코드를 읽어
+:class:`LiveState` 의 ``actual_*`` 축을 덮어쓴다. 호출 경로는
+:func:`live.daily_runner.run_daily` 내부에서 fills 반영 직후이다.
 
 :class:`ActualFill` 과의 차이:
 

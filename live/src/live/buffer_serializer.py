@@ -1,7 +1,8 @@
 """BufferZoneStrategy 직렬화/역직렬화 어댑터.
 
-설계서 4.3 "BufferZoneStrategy 직렬화" 에 따라 QBT 본체 수정 없이 어댑터로
-내부 상태를 추출/복원한다.
+QBT 본체 수정 없이 어댑터로 :class:`BufferZoneStrategy` 의 내부 상태를 추출하고
+복원한다. live 환경은 매일 프로세스가 중단/재개되므로 전략의 private 상태를
+``LiveState`` 에 저장/복원해야 한다.
 
 BufferZoneStrategy 는 매일 실행되는 live 환경에서 다음 5 개의 private 속성을 유지해야
 한다 (SSoT: ``src/qbt/backtest/strategies/buffer_zone.py``).

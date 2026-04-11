@@ -1,19 +1,17 @@
 """fill 자동 매칭 + idempotency + drift 계산.
 
-설계서 6장 "체결 입력: 자동 매칭" 과 14장 "Drift" 를 구현한다.
-
 책임:
 
 - :func:`classify_fill` — 사용자 입력 fill 을 pending_order 와 매칭하여
   ``"system_fill"`` 또는 ``"personal_trade"`` 로 분류
 - :func:`apply_fills_idempotent` — fill 리스트를 LiveState 의 actual 축에 반영하되,
-  ``applied_fill_ids`` 를 사용해 중복 방지 (설계서 6.2)
-- :func:`compute_drift` — model / actual equity 의 차이를 :class:`DriftReport` 로 요약
-  (설계서 14장 임계값 기준 recommendation 포함)
+  ``applied_fill_ids`` 로 중복 방지
+- :func:`compute_drift` — model / actual equity 의 차이를 :class:`DriftReport` 로 요약.
+  임계값 기준 recommendation 포함.
 
 설계 원칙:
 
-- 입력 ``LiveState`` 및 ``applied_ids`` 는 불변. 새 객체를 반환.
+- 입력 ``LiveState`` 및 ``applied_ids`` 는 불변. 새 객체를 반환한다.
 - 매수/매도 방향 판정은 pending_order 의 ``intent_type`` 을 기반으로 한다.
 - drift 계산은 ``cash + sum(shares * close)`` 기반.
 """
@@ -38,7 +36,7 @@ _SELL_INTENT_TYPES = {"EXIT_ALL", "REDUCE_TO_TARGET"}
 
 
 def classify_fill(fill: ActualFill, state: LiveState) -> Literal["system_fill", "personal_trade"]:
-    """fill 을 pending_order 와 매칭하여 분류한다 (설계서 6.1).
+    """fill 을 pending_order 와 매칭하여 분류한다.
 
     규칙:
 
@@ -140,11 +138,9 @@ def apply_fills_idempotent(
 def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
     """model / actual equity 의 차이를 :class:`DriftReport` 로 요약한다.
 
-    설계서 14장 임계값:
-
-    - 0 ~ 3% → "정상"
-    - 3 ~ 5% → "주의"
-    - 5% 이상 → "보정 필요"
+    ``DriftReport.recommendation`` 은 ``DRIFT_WARNING_RATIO`` /
+    ``DRIFT_CORRECTION_RATIO`` 임계값에 따라 "정상" / "주의" / "보정 필요" 중
+    하나로 결정된다.
 
     Args:
         state: 현재 LiveState.

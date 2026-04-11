@@ -1,17 +1,15 @@
 """live 도메인 데이터 모델.
 
-설계서 부록 B 의 dataclass / TypedDict 정의. 설계서 5.1 의 model / actual 분리 원칙과
-부록 B 의 PendingOrderDict (execute_on 없음) 계약을 준수한다.
+실매매 파이프라인이 사용하는 모든 dataclass / TypedDict 를 정의한다. 핵심 원칙:
 
-QBT 본체 타입 재사용 (SSoT 원칙):
-
-- :class:`OrderIntent` — ``qbt.backtest.engines.portfolio_planning``
-- :class:`ExecutionResult` — ``qbt.backtest.engines.portfolio_execution``
-- :class:`HoldState` — ``qbt.backtest.strategies.buffer_zone_helpers``
-
-live 에서는 위 타입들을 재정의하지 않고 import 재사용만 한다. 이 파일은 ``models``
-모듈 레벨에서 위 심볼을 re-export 하여 후속 Step 에서 ``from live.models import
-OrderIntent`` 형태로 일관되게 접근할 수 있도록 한다.
+- ``LiveState`` 는 ``model_*`` 와 ``actual_*`` 두 축을 명시적으로 분리한다.
+  두 축은 서로를 덮어쓰지 않는다.
+- ``PendingOrderDict`` 는 명시적 체결 예정일(``execute_on``) 을 저장하지 않는다.
+  체결은 다음 거래일 시가에 자동 수행된다.
+- QBT 본체 타입(:class:`OrderIntent`, :class:`ExecutionResult`, :class:`HoldState`)
+  을 재정의하지 않고 import 재사용하여 SSoT 원칙을 유지한다.
+- ``live`` 에서는 위 타입들을 ``from live.models import OrderIntent`` 형태로 일관되게
+  재노출하여 호출자가 단일 import 경로를 쓸 수 있게 한다.
 """
 
 from __future__ import annotations
@@ -54,16 +52,23 @@ __all__ = [
 # ============================================================================
 
 
+IntentTypeLiteral = Literal["EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "INCREASE_TO_TARGET"]
+"""주문 의도(``OrderIntent.intent_type``) 의 허용 값 집합.
+
+QBT 본체의 ``portfolio_planning.OrderIntent.intent_type`` 과 동일한 Literal 로
+좁혀 live 쪽 타입 체크와 완전히 일치시킨다.
+"""
+
+
 class PendingOrderDict(TypedDict):
     """익일 체결 예정 주문.
 
-    설계서 부록 B 명시: ``execute_on`` 필드를 포함하지 않는다. 체결은 다음 거래일
-    시가로 자동 실행되며, 명시적 체결 예정일을 저장하지 않는다 (신호 발생 다음 거래일
-    시가로 고정).
+    ``execute_on`` 필드는 포함하지 않는다. 체결은 다음 거래일 시가로 자동 실행되며,
+    명시적 체결 예정일을 저장하지 않는다 (신호 발생 다음 거래일 시가로 고정).
     """
 
     asset_id: str
-    intent_type: str  # "EXIT_ALL" | "ENTER_TO_TARGET" | "REDUCE_TO_TARGET" | "INCREASE_TO_TARGET"
+    intent_type: IntentTypeLiteral
     signal_date: str  # ISO 8601 날짜 (예: "2026-04-10")
     current_amount: float
     target_amount: float
@@ -85,8 +90,8 @@ class BufferZoneState:
     ``BufferZoneStrategy`` 는 백테스트 엔진 안에서 ``_prev_upper``, ``_prev_lower``,
     ``_hold_state``, ``_last_buy_buffer_pct``, ``_last_hold_days_used`` 5개의 내부
     상태를 유지한다. live 환경에서는 매일 실행이 중단되었다가 재개되므로 이 상태를
-    JSON 으로 저장/복원해야 한다. 복원 로직은 Step 4 의 어댑터 (``extract_buffer_state``,
-    ``restore_buffer_state``) 에서 구현한다.
+    JSON 으로 저장/복원해야 한다. 실제 추출/복원은 :mod:`live.buffer_serializer`
+    어댑터가 담당한다 (QBT 본체 수정 없음).
     """
 
     prev_upper: float | None
@@ -106,7 +111,7 @@ class BufferZoneState:
 class AssetLiveState:
     """자산별 live 상태.
 
-    설계서 5.1 model / actual 분리 원칙:
+    model / actual 분리 원칙:
 
     - ``model_*``: daily runner 가 계산한 이론적 포지션
     - ``actual_*``: 사용자가 입력한 실제 체결 포지션 (앱 → RTDB → runner)
@@ -142,8 +147,7 @@ class AssetLiveState:
 class LiveState:
     """전체 포트폴리오의 live 상태.
 
-    설계서 5.1 에 정의된 최상위 원장. qbt-live-state 리포의 ``live_state.json`` 에
-    직렬화되어 저장된다.
+    qbt-live-state 리포의 ``live_state.json`` 에 직렬화되어 저장되는 최상위 원장.
     """
 
     schema_version: int
@@ -225,8 +229,8 @@ class BalanceAdjust:
 class SignalDetection:
     """시그널 감지 결과. 알림 본문 및 차트 오버레이에서 재사용된다.
 
-    ``ema_distance_pct`` 는 설계서 8장의 "200일선 근접도" 지표이며
-    ``(close - ema_200) / ema_200`` 로 정의된다 (0~1 비율, 음수 가능).
+    ``ema_distance_pct`` 는 200일선 근접도 지표이며
+    ``(close - ema_200) / ema_200`` 로 정의된다 (비율, 음수 가능).
     """
 
     state: Literal["buy", "sell", "hold"]
@@ -270,8 +274,7 @@ class ChartSeries:
 class AssetDrift:
     """자산별 drift 지표.
 
-    설계서 본문에는 ``DriftReport.per_asset: dict[str, AssetDrift]`` 로만 언급되며
-    구체 필드는 본 계획서에서 확정한다 (B 안: 표준).
+    전체 포트폴리오 drift 요약(:class:`DriftReport`) 의 per_asset 엔트리 한 개를 나타낸다.
     """
 
     asset_id: str
@@ -288,11 +291,8 @@ class AssetDrift:
 class DriftReport:
     """전체 포트폴리오 drift 리포트.
 
-    ``recommendation`` 은 설계서 14장 기준 문자열:
-
-    - "정상" (0~3%)
-    - "주의" (3~5%)
-    - "보정 필요" (5%+)
+    ``recommendation`` 은 ``DRIFT_WARNING_RATIO`` / ``DRIFT_CORRECTION_RATIO``
+    임계값에 따라 "정상" / "주의" / "보정 필요" 중 하나가 된다.
     """
 
     model_equity: float
@@ -312,12 +312,13 @@ class DailyResult:
     """``daily_runner.run_daily`` 의 반환 컨테이너.
 
     파일 I/O 전의 순수 계산 결과이며, CLI 계층이 이 객체를 받아 Git push / RTDB /
-    알림 발송을 수행한다. 설계서 4.2 실행 순서 참고.
+    알림 발송을 수행한다.
     """
 
     execution_date: str  # ISO 8601 날짜
     updated_state: LiveState
-    updated_applied_fill_ids: dict[str, str]  # Step 3 D1: ID → ISO 타임스탬프
+    updated_applied_fill_ids: dict[str, str]  # fill rtdb_key → ISO 8601 KST 타임스탬프
+    updated_applied_balance_adjust_ids: dict[str, str]  # balance_adjust rtdb_key → ISO 타임스탬프
     signals: dict[str, SignalDetection]
     order_intents: dict[str, OrderIntent]
     executions: ExecutionResult | None
@@ -325,6 +326,7 @@ class DailyResult:
     model_equity: float
     actual_equity: float
     drift_pct: float
+    drift_report: DriftReport
     ema_distances: dict[str, float]
     notification_body: str
     pending_fill_reminders: list[str]
@@ -363,7 +365,7 @@ type MarketBundle = dict[str, AssetMarketData]
 class UserTrade:
     """차트 화면에 표시할 사용자 체결 마커.
 
-    설계서 7장: ``ChartSeries.user_buys`` / ``user_sells`` 에 인덱스로 매핑된다.
+    ``ChartSeries.user_buys`` / ``user_sells`` 에 dates 기준 인덱스로 매핑된다.
     """
 
     date: str  # ISO 8601 날짜

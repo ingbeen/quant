@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from live import notifier as notifier_module
-from live.models import DailyResult, SignalDetection
+from live.models import DailyResult, DriftReport, SignalDetection
 from live.notifier import (
     NotificationOutcome,
     send_all,
@@ -25,10 +25,18 @@ from live.state import create_initial_state
 
 def _make_daily_result() -> DailyResult:
     state = create_initial_state(100_000_000.0)
+    drift_report = DriftReport(
+        model_equity=100_000_000.0,
+        actual_equity=99_500_000.0,
+        drift_pct=0.5,
+        per_asset={},
+        recommendation="정상",
+    )
     return DailyResult(
         execution_date="2026-04-10",
         updated_state=state,
         updated_applied_fill_ids={},
+        updated_applied_balance_adjust_ids={},
         signals={
             "sso": SignalDetection(
                 state="buy",
@@ -53,6 +61,7 @@ def _make_daily_result() -> DailyResult:
         model_equity=100_000_000.0,
         actual_equity=99_500_000.0,
         drift_pct=0.5,
+        drift_report=drift_report,
         ema_distances={"sso": 0.0256, "qld": 0.0119},
         notification_body="",
         pending_fill_reminders=["sso pending"],
@@ -250,3 +259,87 @@ class TestEmptyTokens:
         # 빈 토큰 리스트도 _safe_fcm 을 거치지만 내부에서 0 반환
         assert outcome.fcm_sent_count == 0
         assert outcome.telegram_ok is True
+
+
+# ============================================================================
+# _safe_fcm / _safe_telegram — 실패 시 로그 기록 (알림 재발송 금지)
+# ============================================================================
+
+
+class TestNotifierErrorLogging:
+    """FCM / 텔레그램 발송 자체가 실패하면 **알림으로 재발송하지 않고 로그만
+    기록** 해야 한다. 알림 채널 실패에 대해 알림을 다시 보내는 것은 모순이며
+    무한 루프 / 토큰 낭비를 유발한다.
+
+    과거 구조: ``_safe_fcm`` / ``_safe_telegram`` 이 ``except Exception`` 으로
+    예외를 삼키면서 로그조차 기록하지 않아 실패 원인 추적이 불가능했다.
+    """
+
+    def test_safe_fcm_logs_error_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _send_fcm_messages 가 예외 When _safe_fcm Then logger.error 기록 + (0, []) 반환.
+
+        notifier 의 logger 는 ``qbt.utils.logger.get_logger`` 로 생성되며
+        ``propagate=False`` 로 설정되어 pytest caplog 가 자동으로 잡지 못한다.
+        따라서 logger 자체를 spy 로 monkeypatch 한다.
+        """
+        logged: list[str] = []
+
+        def _spy_error(message: str, *args, **kwargs) -> None:  # noqa: ANN001, ANN002, ANN003
+            logged.append(message)
+
+        def _failing_fcm(tokens, body):  # noqa: ANN001
+            raise RuntimeError("테스트: FCM 네트워크 에러")
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _failing_fcm)
+        monkeypatch.setattr(notifier_module.logger, "error", _spy_error)
+
+        result = notifier_module._safe_fcm(["t1"], "테스트 본문")
+
+        assert result == (0, [])
+        assert any("FCM" in msg or "fcm" in msg.lower() for msg in logged), "FCM 실패 시 logger.error 기록 누락"
+        assert any("테스트: FCM 네트워크 에러" in msg for msg in logged), "에러 메시지가 로그에 포함되지 않음 — 디버깅 정보 손실"
+
+    def test_safe_telegram_logs_error_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _send_telegram_message 가 예외 When _safe_telegram Then logger.error 기록 + False 반환."""
+        logged: list[str] = []
+
+        def _spy_error(message: str, *args, **kwargs) -> None:  # noqa: ANN001, ANN002, ANN003
+            logged.append(message)
+
+        def _failing_tg(tg_token, tg_chat, body):  # noqa: ANN001
+            raise RuntimeError("테스트: 텔레그램 API 에러")
+
+        monkeypatch.setattr(notifier_module, "_send_telegram_message", _failing_tg)
+        monkeypatch.setattr(notifier_module.logger, "error", _spy_error)
+
+        result = notifier_module._safe_telegram("bot", "chat", "테스트 본문")
+
+        assert result is False
+        assert any("텔레그램" in msg or "telegram" in msg.lower() for msg in logged), "텔레그램 실패 시 logger.error 기록 누락"
+        assert any("테스트: 텔레그램 API 에러" in msg for msg in logged), "에러 메시지가 로그에 포함되지 않음 — 디버깅 정보 손실"
+
+    def test_safe_fcm_does_not_raise_on_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _send_fcm_messages 가 예외 When _safe_fcm Then raise 하지 않음.
+
+        알림 실패가 상위 로직을 중단시키면 이미 실패한 흐름이 더 크게 깨진다.
+        """
+
+        def _failing_fcm(tokens, body):  # noqa: ANN001
+            raise RuntimeError("테스트")
+
+        monkeypatch.setattr(notifier_module, "_send_fcm_messages", _failing_fcm)
+
+        # raise 하지 않고 (0, []) 반환해야 함
+        result = notifier_module._safe_fcm(["t1"], "본문")
+        assert result == (0, [])
+
+    def test_safe_telegram_does_not_raise_on_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _send_telegram_message 가 예외 When _safe_telegram Then raise 하지 않음."""
+
+        def _failing_tg(tg_token, tg_chat, body):  # noqa: ANN001
+            raise RuntimeError("테스트")
+
+        monkeypatch.setattr(notifier_module, "_send_telegram_message", _failing_tg)
+
+        result = notifier_module._safe_telegram("bot", "chat", "본문")
+        assert result is False

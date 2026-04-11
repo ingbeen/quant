@@ -1,16 +1,16 @@
 """Firebase Realtime Database 게이트웨이.
 
-설계서 10장 ("상태 저장") 의 RTDB 진입점을 한 모듈에 캡슐화한다. 모든 RTDB 호출은
+live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화한다. 모든 RTDB 호출은
 호출자가 :class:`firebase_admin.App` 인스턴스를 명시적으로 전달하는 방식으로 동작한다
-(의존성 주입). 이를 통해 테스트에서는 mock App 으로 격리하고, 실제 환경에서는
+(의존성 주입). 테스트에서는 mock App 으로 격리하고, 실제 환경에서는
 :func:`initialize_firebase_app` 으로 초기화한다.
 
-지원 경로 (설계서 10.2):
+지원 경로:
 
 - ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``, ``/latest/drift``
 - ``/latest/chart_data/{asset_id}``
 - ``/history/summary/``
-- ``/fills/inbox/{uuid}``
+- ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
 """
 
@@ -150,7 +150,7 @@ def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjus
 def fetch_pending_balance_adjusts(app: FirebaseAppLike) -> list[BalanceAdjust]:
     """RTDB ``/balance_adjust/inbox`` 에서 ``processed=false`` 인 항목만 가져온다.
 
-    설계서 6.4 "자산 직접 수정" 경로. 앱이 queue 에 쓰고 daily runner 가 읽어 처리.
+    자산 직접 수정 경로: 앱이 queue 에 쓰고 daily runner 가 읽어 처리한다.
 
     Args:
         app: ``firebase_admin.App`` 인스턴스 (mock 가능).

@@ -1,8 +1,9 @@
 """qbt-live-state 프라이빗 리포 git 동기화 헬퍼.
 
-설계서 1.3 / 4.2 / 10.1: 모든 정본은 qbt-live-state 리포에 commit 된다.
-로컬과 GitHub Actions 양쪽에서 동일한 코드 경로로 동작하도록 ``git_clone_shallow``
-를 통해 실행 시마다 tempdir 에 clone → 작업 → commit/push → cleanup 흐름을 지원한다.
+live 정본(상태 / idempotency 원장 / 주가 CSV / 히스토리) 은 모두 qbt-live-state
+프라이빗 리포에 commit 된다. 로컬과 GitHub Actions 양쪽에서 동일한 코드 경로로
+동작하도록, 본 모듈은 실행 시마다 tempdir 에 clone → 작업 → commit/push → cleanup
+흐름을 지원하는 얇은 subprocess 래퍼를 제공한다.
 
 함수:
 

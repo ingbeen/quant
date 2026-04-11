@@ -1,0 +1,366 @@
+"""live.cli 알림 커버리지 테스트.
+
+루트 CLAUDE.md "에러 발생 시 자동 복구 금지" 원칙과 사용자 요구 "cli.py 가 실행되면
+에러 발생 시 중단 + 무조건 알림 발송" 을 고정한다.
+
+검증 대상:
+
+- ``main()`` 공통 알림 훅: 모든 CLI 커맨드의 예외가 ``_safe_notify_failure`` 를
+  통과해야 한다. ``_cmd_run_daily`` 만 예외 처리되던 과거 구조 회귀 방지.
+- ``notify-failure`` 재귀 방지: ``notify-failure`` 커맨드 자체는 실패 알림을
+  재귀 발송하지 않아야 한다 (무한 루프 방지).
+- ``_cmd_run_daily`` 의 try 진입 전 코드 (trade_date 파싱, NYSE 체크) 예외도
+  알림 훅을 통과해야 한다.
+- history 저장 실패 / calendar 로드 실패가 RuntimeError 로 전파되어 알림 훅에
+  도달해야 한다 (silent continue / fallback 금지).
+"""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import pytest
+
+from live import cli as cli_module
+from live.cli import main
+
+# ============================================================================
+# 공통 fixture / 헬퍼
+# ============================================================================
+
+
+@pytest.fixture
+def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """``cli_module.ephemeral_state_repo`` 를 ``tmp_path`` 로 교체.
+
+    test_cli.py 의 동일 fixture 와 같은 구조 — 네트워크 없이 state 격리.
+    """
+
+    @contextmanager
+    def fake_ephemeral(*, push_on_success: bool, commit_subcommand: str):
+        del push_on_success, commit_subcommand
+        yield tmp_path
+
+    monkeypatch.setattr(cli_module, "ephemeral_state_repo", fake_ephemeral)
+    return tmp_path
+
+
+def _spy_notify(calls: list[tuple[Any, str]]):
+    """``_safe_notify_failure`` 를 대체할 spy 함수."""
+
+    def _inner(rtdb_app: Any, message: str) -> None:
+        calls.append((rtdb_app, message))
+
+    return _inner
+
+
+def _install_notify_spy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[Any, str]]:
+    """테스트용 notify spy 를 설치하고 호출 기록 리스트를 반환한다."""
+    calls: list[tuple[Any, str]] = []
+    monkeypatch.setattr(cli_module, "_safe_notify_failure", _spy_notify(calls))
+    return calls
+
+
+def _make_recent_df(trade_date: date) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "Date": [trade_date],
+            "Open": [100.0],
+            "High": [101.0],
+            "Low": [99.0],
+            "Close": [100.5],
+            "Volume": [1_000_000],
+        }
+    )
+
+
+def _setup_flat_csvs(state_dir: Path, trade_date: date, rows: int = 210) -> None:
+    dates = [date.fromordinal(trade_date.toordinal() - rows + 1 + i) for i in range(rows)]
+    df = pd.DataFrame(
+        {
+            "Date": dates,
+            "Open": [100.0] * rows,
+            "High": [100.5] * rows,
+            "Low": [99.5] * rows,
+            "Close": [100.0] * rows,
+            "Volume": [1_000_000] * rows,
+        }
+    )
+    stock_dir = state_dir / "data" / "stock"
+    stock_dir.mkdir(parents=True, exist_ok=True)
+    for ticker in ("SPY", "QQQ", "SSO", "QLD", "GLD", "TLT"):
+        df.to_csv(stock_dir / f"{ticker}.csv", index=False)
+
+
+# ============================================================================
+# main() 공통 알림 훅: 각 커맨드별 예외 → notify 호출
+# ============================================================================
+
+
+class TestMainAlertHookCoversAllCommands:
+    """``main()`` 의 공통 try/except 가 모든 커맨드의 예외를 캐치하여 알림을
+    발송해야 한다. 과거에는 ``_cmd_run_daily`` 만 자체 try/except 로 알림을
+    호출했으나, 사용자 요구 "cli 실행 시 에러 발생 → 무조건 알림" 에 따라
+    모든 커맨드가 공통 훅을 통과해야 한다.
+    """
+
+    def test_init_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given init 중 예외 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail_save(*args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("테스트: init save_state 실패")
+
+        monkeypatch.setattr(cli_module, "save_state", _fail_save)
+
+        exit_code = main(["init", "--capital", "100000000"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+        assert any("init" in msg or "save" in msg or "실패" in msg for _, msg in notify_calls)
+
+    def test_drift_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given drift 커맨드 중 state 로드 실패 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail_load(path: Path) -> None:
+            raise RuntimeError("테스트: live_state.json 로드 실패")
+
+        monkeypatch.setattr(cli_module, "load_state", _fail_load)
+
+        exit_code = main(["drift"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_history_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given history 커맨드 중 ephemeral_state_repo 실패 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        @contextmanager
+        def _fail_ephemeral(*, push_on_success: bool, commit_subcommand: str):
+            del push_on_success, commit_subcommand
+            raise RuntimeError("테스트: state repo clone 실패")
+            yield  # pragma: no cover
+
+        monkeypatch.setattr(cli_module, "ephemeral_state_repo", _fail_ephemeral)
+
+        exit_code = main(["history", "--tail", "5"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_fetch_fills_failure_triggers_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given fetch-fills 중 RTDB 조회 실패 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+
+        def _fail_fetch(app: Any) -> list[Any]:
+            raise RuntimeError("테스트: fetch_unprocessed_fills 실패")
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", _fail_fetch)
+
+        exit_code = main(["fetch-fills"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_init_data_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given init-data 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
+            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
+
+        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
+
+        exit_code = main(["init-data"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_rebuild_data_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given rebuild-data 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
+            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
+
+        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
+
+        exit_code = main(["rebuild-data", "SPY"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+
+# ============================================================================
+# notify-failure 재귀 방지
+# ============================================================================
+
+
+class TestNotifyFailureCommandNoRecursion:
+    """``notify-failure`` 커맨드 자체가 실패해도 ``_safe_notify_failure`` 를
+    재귀 호출하지 않아야 한다. 알림 명령 자체의 실패에 대해 알림을 다시
+    보내는 것은 무한 루프 / 토큰 낭비를 유발한다.
+    """
+
+    def test_notify_failure_command_calls_safe_notify_exactly_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given notify-failure 커맨드 When 정상 실행 Then _safe_notify_failure 1 회만 호출."""
+        call_count = {"count": 0}
+
+        def _counting_notify(rtdb_app: Any, message: str) -> None:
+            call_count["count"] += 1
+
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        monkeypatch.setattr(cli_module, "_safe_notify_failure", _counting_notify)
+
+        exit_code = main(["notify-failure", "-m", "테스트 알림"])
+
+        assert exit_code == 0
+        assert call_count["count"] == 1  # main 훅에서 중복 호출되지 않아야 함
+
+    def test_notify_failure_command_even_on_rtdb_init_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given notify-failure 에서 rtdb_app 초기화 예외 When main 실행 Then
+        main 훅이 이를 캐치하더라도 _safe_notify_failure 가 재귀 호출되지 않아야 한다.
+
+        현재 _initialize_rtdb_app 는 실패 시 None 반환 (예외 아님) 이지만,
+        방어적으로 예외 케이스도 검증한다. main() 훅은 notify-failure 커맨드의 경우
+        재귀 방지를 위해 _safe_notify_failure 를 추가로 호출해서는 안 된다.
+        """
+        call_count = {"count": 0}
+
+        def _counting_notify(rtdb_app: Any, message: str) -> None:
+            call_count["count"] += 1
+
+        def _failing_init() -> Any:
+            raise RuntimeError("테스트: rtdb 초기화 중 예외")
+
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", _failing_init)
+        monkeypatch.setattr(cli_module, "_safe_notify_failure", _counting_notify)
+
+        exit_code = main(["notify-failure", "-m", "테스트"])
+
+        # notify-failure 에서 rtdb 초기화 실패 → main 훅이 캐치하더라도
+        # 재귀 방지로 _safe_notify_failure 는 호출되지 않아야 한다
+        assert exit_code == 1
+        assert call_count["count"] == 0, "notify-failure 커맨드 실패 시 _safe_notify_failure 재귀 호출 금지"
+
+
+# ============================================================================
+# _cmd_run_daily 진입 전 코드 알림 커버리지
+# ============================================================================
+
+
+class TestRunDailyPreTryCoverage:
+    """``_cmd_run_daily`` 의 try 블록 진입 전 코드 (trade_date 파싱, NYSE 체크,
+    휴장 분기) 에서 발생하는 예외도 알림 훅을 통과해야 한다. 과거에는 이 영역이
+    try 바깥이라 예외가 알림 없이 `main()` 으로 전파되었다.
+    """
+
+    def test_invalid_trade_date_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given 잘못된 --trade-date 문자열 When main 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        exit_code = main(["run-daily", "--trade-date", "2026-13-40"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_nyse_session_check_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _is_nyse_session 내부에서 예외 When cron 모드 실행 Then notify 호출."""
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _failing_session(d: date) -> bool:
+            raise RuntimeError("테스트: NYSE 달력 로드 실패")
+
+        monkeypatch.setattr(cli_module, "_is_nyse_session", _failing_session)
+
+        exit_code = main(["run-daily"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+
+# ============================================================================
+# history 저장 실패 → raise + notify (silent continue 금지)
+# ============================================================================
+
+
+class TestHistoryPersistFailureRaises:
+    """``_persist_history`` 실패 시 silent continue 하지 말고 RuntimeError 로
+    전파되어 알림 훅에 도달해야 한다.
+
+    과거 구조: cli.py:502-505 에서 `except Exception as exc: logger.error(...)`
+    로 예외를 삼키고 다음 단계로 진행 → 상위 알림 훅에 도달 못함.
+    """
+
+    def _init_state(self) -> None:
+        main(["init", "--capital", "100000000"])
+
+    def test_history_save_failure_aborts_run_daily(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _persist_history 실패 When run-daily Then exit 1 + notify."""
+        self._init_state()
+        trade_date = date(2026, 4, 10)
+        _setup_flat_csvs(state_dir, trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        def _failing_persist(*args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("테스트: 히스토리 저장 실패")
+
+        monkeypatch.setattr(cli_module, "_persist_history", _failing_persist)
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+
+        assert exit_code == 1, "history 저장 실패가 silent continue 되어 exit 0 반환 — fallback 제거 필요"
+        assert len(notify_calls) >= 1, "history 저장 실패 시 notify 호출 누락"
+
+
+# ============================================================================
+# calendar 로드 실패 → raise + notify (fallback 금지)
+# ============================================================================
+
+
+class TestCalendarLoadFailureRaises:
+    """``_get_nyse_calendar()`` 실패 시 ``calendar = None`` 으로 gap 검증을
+    skip 하지 말고 RuntimeError 로 전파되어야 한다.
+
+    과거 구조: cli.py:598-601 에서 `except RuntimeError: calendar = None` 으로
+    gap 검증을 무력화. 루트 CLAUDE.md "자동 복구 금지" 원칙 위반.
+    """
+
+    def _init_state(self) -> None:
+        main(["init", "--capital", "100000000"])
+
+    def test_calendar_load_failure_aborts_run_daily(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given _get_nyse_calendar 실패 When run-daily Then exit 1 + notify."""
+        self._init_state()
+        trade_date = date(2026, 4, 10)
+        _setup_flat_csvs(state_dir, trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        # _is_nyse_session 은 정상 통과 (휴장 체크용 별도 경로)
+        monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: True)
+
+        # _get_nyse_calendar 만 실패 → _refresh_live_csvs 경로에서 폭발
+        def _failing_calendar() -> Any:
+            raise RuntimeError("테스트: exchange_calendars 로드 실패")
+
+        monkeypatch.setattr(cli_module, "_get_nyse_calendar", _failing_calendar)
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+
+        assert exit_code == 1, "calendar 로드 실패가 fallback 으로 흡수되어 exit 0 반환 — fallback 제거 필요"
+        assert len(notify_calls) >= 1, "calendar 로드 실패 시 notify 호출 누락"

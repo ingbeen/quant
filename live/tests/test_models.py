@@ -300,15 +300,15 @@ class TestDailyResult:
         assert is_dataclass(DailyResult)
 
     def test_fields(self):
-        """설계서 부록 B: DailyResult 전체 필드.
+        """DailyResult 가 보유해야 하는 전체 필드 계약 고정.
 
-        ``chart_series`` 는 한때 필드로 선언되었으나 사용되지 않아 제거됨 (Gap 5).
         차트 시계열은 CLI 계층의 ``build_chart_series`` 가 직접 생성한다.
         """
         expected = {
             "execution_date",
             "updated_state",
             "updated_applied_fill_ids",
+            "updated_applied_balance_adjust_ids",
             "signals",
             "order_intents",
             "executions",
@@ -316,6 +316,7 @@ class TestDailyResult:
             "model_equity",
             "actual_equity",
             "drift_pct",
+            "drift_report",
             "ema_distances",
             "notification_body",
             "pending_fill_reminders",

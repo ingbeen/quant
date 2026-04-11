@@ -1,18 +1,19 @@
 """영구 히스토리 저장 (qbt-live-state/history/).
 
-설계서 10.1 "Git 정본" — 모든 히스토리 **영구 보존**. 자동 정리 없음.
+Git 정본 원장 — 모든 히스토리는 **영구 보존** 된다. 자동 정리는 하지 않는다.
 
-4 종 파일:
+파일 종류 (상수는 :mod:`live.constants` 참조):
 
 - ``history/daily/{YYYY-MM-DD}.json`` — 일별 상세 로그 (덮어쓰기 가능)
 - ``history/summary.jsonl`` — 일별 요약 (1 줄당 1 일, append-only)
-- ``history/user_trades.jsonl`` — 사용자 체결 입력 누적 (append-only)
-- ``history/signals.jsonl`` — 자산별 신호 이력 누적 (append-only, 차트 마커용)
+- ``history/user_trades.jsonl`` — 사용자 체결 입력 누적 (append-only, 차트 마커)
+- ``history/signals.jsonl`` — 자산별 신호 이력 누적 (append-only, 차트 마커)
+- ``history/balance_adjusts.jsonl`` — 자산 직접 보정 audit (append-only)
 
 JSONL append 정책:
 
 - 같은 날짜 / 같은 trade 가 두 번 호출되어도 **덮어쓰지 않고 줄을 추가**한다.
-- 호출자가 idempotency 를 보장해야 한다 (Step 8 ``apply_fills_idempotent`` 참고).
+- 호출자가 idempotency 를 보장해야 한다 (:func:`live.drift.apply_fills_idempotent`).
 """
 
 from __future__ import annotations
@@ -21,6 +22,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from live.constants import (
+    HISTORY_BALANCE_ADJUSTS_FILENAME,
+    HISTORY_DAILY_SUBDIR,
+    HISTORY_SIGNALS_FILENAME,
+    HISTORY_SUMMARY_FILENAME,
+    HISTORY_USER_TRADES_FILENAME,
+)
 from live.models import UserTrade
 
 __all__ = [
@@ -32,12 +40,6 @@ __all__ = [
     "load_user_trades",
     "load_signal_history",
 ]
-
-_DAILY_SUBDIR = "daily"
-_SUMMARY_FILENAME = "summary.jsonl"
-_USER_TRADES_FILENAME = "user_trades.jsonl"
-_SIGNALS_FILENAME = "signals.jsonl"
-_BALANCE_ADJUSTS_FILENAME = "balance_adjusts.jsonl"
 
 
 def _ensure_dir(path: Path) -> None:
@@ -58,7 +60,7 @@ def save_daily_log(date_iso: str, payload: dict[str, Any], history_dir: Path) ->
     Returns:
         저장된 파일 경로.
     """
-    target = history_dir / _DAILY_SUBDIR / f"{date_iso}.json"
+    target = history_dir / HISTORY_DAILY_SUBDIR / f"{date_iso}.json"
     _ensure_dir(target)
     target.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False, default=str),
@@ -72,7 +74,7 @@ def append_summary(summary: dict[str, Any], history_dir: Path) -> None:
 
     같은 날짜로 두 번 호출되어도 덮어쓰지 않고 줄을 추가한다 (T-15.4).
     """
-    target = history_dir / _SUMMARY_FILENAME
+    target = history_dir / HISTORY_SUMMARY_FILENAME
     _ensure_dir(target)
     line = json.dumps(summary, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
@@ -81,7 +83,7 @@ def append_summary(summary: dict[str, Any], history_dir: Path) -> None:
 
 def append_user_trade(trade: dict[str, Any], history_dir: Path) -> None:
     """사용자 체결 1 줄을 ``history/user_trades.jsonl`` 에 append 한다."""
-    target = history_dir / _USER_TRADES_FILENAME
+    target = history_dir / HISTORY_USER_TRADES_FILENAME
     _ensure_dir(target)
     line = json.dumps(trade, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
@@ -91,9 +93,9 @@ def append_user_trade(trade: dict[str, Any], history_dir: Path) -> None:
 def append_balance_adjust(adjust: dict[str, Any], history_dir: Path) -> None:
     """자산 보정 1 줄을 ``history/balance_adjusts.jsonl`` 에 audit 용 append 한다.
 
-    차트 마커 대상이 아닌 audit / 디버깅 전용 로그. 설계서 6.4.
+    차트 마커 대상이 아닌 audit / 디버깅 전용 로그.
     """
-    target = history_dir / _BALANCE_ADJUSTS_FILENAME
+    target = history_dir / HISTORY_BALANCE_ADJUSTS_FILENAME
     _ensure_dir(target)
     line = json.dumps(adjust, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
@@ -115,7 +117,7 @@ def load_user_trades(history_dir: Path) -> dict[str, list[UserTrade]]:
     Returns:
         ``{asset_id: [UserTrade, ...]}`` — 각 자산에 대한 체결 이력.
     """
-    target = history_dir / _USER_TRADES_FILENAME
+    target = history_dir / HISTORY_USER_TRADES_FILENAME
     result: dict[str, list[UserTrade]] = {}
     if not target.exists():
         return result
@@ -151,7 +153,7 @@ def append_signal_history(entries: list[dict[str, Any]], history_dir: Path) -> N
     """
     if not entries:
         return
-    target = history_dir / _SIGNALS_FILENAME
+    target = history_dir / HISTORY_SIGNALS_FILENAME
     _ensure_dir(target)
     with target.open("a", encoding="utf-8") as fp:
         for entry in entries:
@@ -171,7 +173,7 @@ def load_signal_history(history_dir: Path) -> dict[str, list[tuple[str, str]]]:
     Returns:
         ``{asset_id: [(date_iso, state), ...]}``.
     """
-    target = history_dir / _SIGNALS_FILENAME
+    target = history_dir / HISTORY_SIGNALS_FILENAME
     result: dict[str, list[tuple[str, str]]] = {}
     if not target.exists():
         return result

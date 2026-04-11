@@ -1,17 +1,17 @@
 """차트 시계열 빌더 (앱 차트 화면용).
 
-설계서 7장 "차트: TradingView Lightweight Charts" 에 정의된 자산별 전체 기간
-시계열을 생성하여 RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록
-:class:`ChartSeries` 형태로 반환한다.
+자산별 전체 기간 시계열(close / EMA / 버퍼 밴드 / 신호·체결 마커) 을 생성하여
+RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록 :class:`ChartSeries`
+형태로 반환한다.
 
-본 모듈은 순수 데이터 변환만 담당한다 — 실제 RTDB 쓰기는
+본 모듈은 순수 데이터 변환만 담당한다. 실제 RTDB 쓰기는
 :func:`live.rtdb_gateway.write_chart_data` 가 수행한다.
 
 원칙:
 
-- 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv`` (Step 5 와 동일 경로)
+- 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv``
 - EMA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
-- 워밍업 199 일은 ``None``
+- 이동평균 워밍업 구간은 ``None``
 - 사용자 체결 마커는 dates 에서 인덱스로 변환
 """
 
@@ -21,7 +21,11 @@ import math
 from pathlib import Path
 from typing import Any
 
-from live.constants import DEFAULT_DATA_STOCK_SUBDIR, get_live_portfolio_config
+from live.constants import (
+    DEFAULT_DATA_STOCK_SUBDIR,
+    extract_ticker_from_path,
+    get_live_portfolio_config,
+)
 from live.data_fetcher import load_csv
 from live.models import ChartSeries, UserTrade
 from qbt.backtest.analysis import add_single_moving_average
@@ -33,7 +37,7 @@ __all__ = ["build_chart_series"]
 
 def _ticker_for_chart(slot: AssetSlotConfig) -> str:
     """차트는 trade_data_path 의 티커를 우선 사용 (실제 보유 자산 가격)."""
-    return slot.trade_data_path.stem.split("_", 1)[0].upper()
+    return extract_ticker_from_path(slot.trade_data_path)
 
 
 def _live_csv_path(state_dir: Path, ticker: str) -> Path:
@@ -90,7 +94,7 @@ def build_chart_series(
         close_list = [float(c) for c in df[COL_CLOSE].tolist()]
         raw_ema = _to_optional_float_list(df[ma_col].tolist())
 
-        # 설계서 7장: 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시
+        # 이동평균 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시
         # QBT 의 EMA 계산은 첫 행부터 값을 채우지만, 차트 표시상 의미 있는 값으로
         # 간주되지 않는 워밍업 구간을 명시적으로 None 으로 마스킹.
         warmup = slot.ma_window - 1
@@ -117,7 +121,7 @@ def build_chart_series(
             date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "sell" and t.date in date_to_idx
         ]
 
-        # 과거 신호 이력 → dates 의 인덱스로 변환 (Gap 2)
+        # 과거 신호 이력 → dates 의 인덱스로 변환
         signal_entries = signal_history.get(slot.asset_id, [])
         buy_signals = [date_to_idx[d] for d, s in signal_entries if s == "buy" and d in date_to_idx]
         sell_signals = [date_to_idx[d] for d, s in signal_entries if s == "sell" and d in date_to_idx]

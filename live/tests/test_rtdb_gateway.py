@@ -16,6 +16,7 @@ from live.models import (
     ActualFill,
     ChartSeries,
     DailyResult,
+    DriftReport,
     SignalDetection,
 )
 from live.rtdb_gateway import (
@@ -234,6 +235,7 @@ class TestWriteReadModel:
             execution_date="2026-04-10",
             updated_state=state,
             updated_applied_fill_ids={},
+            updated_applied_balance_adjust_ids={},
             signals={
                 "sso": SignalDetection(
                     state="buy",
@@ -250,6 +252,13 @@ class TestWriteReadModel:
             model_equity=100_000_000.0,
             actual_equity=100_000_000.0,
             drift_pct=0.0,
+            drift_report=DriftReport(
+                model_equity=100_000_000.0,
+                actual_equity=100_000_000.0,
+                drift_pct=0.0,
+                per_asset={},
+                recommendation="정상",
+            ),
             ema_distances={"sso": 0.0244},
             notification_body="test",
             pending_fill_reminders=[],

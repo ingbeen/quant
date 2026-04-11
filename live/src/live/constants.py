@@ -1,12 +1,14 @@
 """live 도메인 상수 정의.
 
-- 포트폴리오 식별자: Q-2-2XS 전략 고정 (`LIVE_PORTFOLIO_ID`)
-- DRIFT 임계값: 0~3% 정상 / 3~5% 주의 / 5%+ 보정 필요 (설계서 14장)
-- 경로 기본값: qbt-live-state 프라이빗 리포 내부 구조 (CLI 에서 실제 경로를 파라미터로 전달)
-- applied_fill_ids 정리 주기: 90일 (설계서 6.2)
-- signal→trade 매핑 빌더: QBT 코어 `PORTFOLIO_CONFIGS` 에서 동적으로 파생하여 SSoT 유지
-
-설계서: ``docs/DESIGN_QBT_LIVE_FINAL.md`` 부록 B, 5.1, 14장.
+- 포트폴리오 식별자: 실매매 대상 PORTFOLIO_CONFIGS 키 (`LIVE_PORTFOLIO_ID`)
+- DRIFT 임계값: ``DRIFT_WARNING_RATIO`` / ``DRIFT_CORRECTION_RATIO``
+- 경로 기본값: qbt-live-state 프라이빗 리포 내부 구조
+  (CLI 에서 실제 경로를 파라미터로 전달)
+- idempotency 원장 자동 정리 주기 / history 파일명 / 출력 정밀도
+- signal→trade 매핑 빌더: QBT 코어 ``PORTFOLIO_CONFIGS`` 에서 동적으로 파생하여
+  SSoT 유지
+- 티커 추출 유틸(:func:`extract_ticker_from_path`): live 도메인 내 유일한 티커
+  추출 경로. 중복 재구현 금지.
 """
 
 from __future__ import annotations
@@ -22,8 +24,9 @@ from qbt.backtest.portfolio_types import PortfolioConfig
 # ============================================================================
 
 # 실매매 대상 포트폴리오 실험 식별자.
-# QBT 코어 PORTFOLIO_CONFIGS 에 존재해야 하며, 전략 변경 시 이 상수만 업데이트한다.
-# Q-2-2XS: SSO 35% / QLD 35% / GLD 15% B&H / TLT 15% B&H
+# QBT 코어 PORTFOLIO_CONFIGS 에 존재해야 하며, 전략을 바꾸려면 이 상수만 업데이트한다.
+# 포트폴리오 구성(자산 / 비중 / 전략 유형) 자체는 QBT 코어 ``portfolio_configs`` 가
+# 유일 정본이므로 본 파일에서는 구성 상세를 기재하지 않는다 (문서 내구성).
 LIVE_PORTFOLIO_ID: Final[str] = "portfolio_q2_2xs"
 
 
@@ -34,7 +37,7 @@ LIVE_PORTFOLIO_ID: Final[str] = "portfolio_q2_2xs"
 # LiveState JSON 직렬화 스키마 버전. 포맷 변경 시 증가시킨다.
 SCHEMA_VERSION: Final[int] = 1
 
-# 타임스탬프 표기용 타임존 이름 (설계서 12장).
+# 타임스탬프 표기용 타임존 이름 (state / history / 커밋 메시지 공통).
 KST_TZ_NAME: Final[str] = "Asia/Seoul"
 
 
@@ -42,10 +45,10 @@ KST_TZ_NAME: Final[str] = "Asia/Seoul"
 # DRIFT 임계값 (비율, 0~1)
 # ============================================================================
 
-# drift % 가 이 값 이상이면 "주의" 수준 (설계서 14장: 3~5% 주의).
+# drift 비율이 이 값 이상이면 "주의" 수준으로 분류.
 DRIFT_WARNING_RATIO: Final[float] = 0.03
 
-# drift % 가 이 값 이상이면 "보정 필요" 수준 (설계서 14장: 5%+ 보정 필요).
+# drift 비율이 이 값 이상이면 "보정 필요" 수준으로 분류.
 DRIFT_CORRECTION_RATIO: Final[float] = 0.05
 
 
@@ -74,10 +77,40 @@ DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME: Final[str] = "applied_balance_adjus
 
 
 # ============================================================================
-# fill idempotency
+# history 파일 이름 / 하위 디렉토리 (qbt-live-state/history/ 내부)
 # ============================================================================
 
-# applied_fill_ids 에서 이 일수 이상 경과한 ID 를 자동 정리한다 (설계서 6.2).
+# 일별 상세 로그(``{date}.json``) 가 저장되는 서브디렉토리 이름.
+HISTORY_DAILY_SUBDIR: Final[str] = "daily"
+
+# 일별 요약 append-only 파일 (1 줄당 1 일).
+HISTORY_SUMMARY_FILENAME: Final[str] = "summary.jsonl"
+
+# 사용자 체결 입력 audit append-only 파일 (차트 마커 원본).
+HISTORY_USER_TRADES_FILENAME: Final[str] = "user_trades.jsonl"
+
+# 신호 이력 append-only 파일 (차트 마커 원본).
+HISTORY_SIGNALS_FILENAME: Final[str] = "signals.jsonl"
+
+# 자산 직접 보정(balance_adjust) audit append-only 파일.
+HISTORY_BALANCE_ADJUSTS_FILENAME: Final[str] = "balance_adjusts.jsonl"
+
+
+# ============================================================================
+# 출력 정밀도
+# ============================================================================
+
+# CSV / JSON 에 저장되는 가격(종가/시가/밴드/체결가) 반올림 자릿수.
+# 루트 CLAUDE.md "출력 데이터 반올림 규칙" 의 가격 6자리 원칙을 반영.
+DEFAULT_PRICE_DECIMALS: Final[int] = 6
+
+
+# ============================================================================
+# idempotency ledger 자동 정리 주기
+# ============================================================================
+
+# applied_fill_ids / applied_balance_adjust_ids 에서 이 일수 이상 경과한 ID 를
+# 자동 정리한다. 두 원장 모두 동일 주기를 사용한다.
 APPLIED_FILL_IDS_MAX_AGE_DAYS: Final[int] = 90
 
 
@@ -122,14 +155,17 @@ def build_signal_trade_map() -> dict[str, str]:
     config = get_live_portfolio_config()
     mapping: dict[str, str] = {}
     for slot in config.asset_slots:
-        signal_ticker = _extract_ticker_from_path(slot.signal_data_path)
-        trade_ticker = _extract_ticker_from_path(slot.trade_data_path)
+        signal_ticker = extract_ticker_from_path(slot.signal_data_path)
+        trade_ticker = extract_ticker_from_path(slot.trade_data_path)
         mapping[signal_ticker] = trade_ticker
     return mapping
 
 
-def _extract_ticker_from_path(path: Path) -> str:
+def extract_ticker_from_path(path: Path) -> str:
     """경로 파일명에서 티커 기호를 추출한다 (``{TICKER}_...`` 규칙).
+
+    live 도메인의 모든 티커 추출은 본 함수를 거쳐야 한다. 규칙이 바뀌면 한 곳만
+    수정하면 되도록 SSoT 로 운영한다.
 
     Args:
         path: CSV 경로 (예: ``storage/stock/SPY_max.csv``).
@@ -138,7 +174,8 @@ def _extract_ticker_from_path(path: Path) -> str:
         대문자 티커 기호 (예: ``"SPY"``).
 
     Raises:
-        RuntimeError: 파일명에 ``_`` 구분자가 없어 티커를 추출할 수 없을 때.
+        RuntimeError: 파일명에 ``_`` 구분자가 없어 티커를 추출할 수 없을 때
+            (내부 불변조건 위반).
     """
     stem = path.stem
     if "_" not in stem:

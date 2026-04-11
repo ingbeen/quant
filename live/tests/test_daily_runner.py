@@ -517,3 +517,229 @@ class TestPendingFillReminderLogic:
         )
         assert "sso" not in result.pending_fill_reminders
         assert "gld" not in result.pending_fill_reminders
+
+
+# ============================================================================
+# balance_adjust 통합 (run_daily 내부에서 fills 직후 적용)
+# ============================================================================
+
+
+class TestRunDailyBalanceAdjustIntegration:
+    """``run_daily`` 가 ``pending_adjusts`` 파라미터를 받아 fills 적용 직후
+    actual 축을 덮어쓰는지 검증한다.
+
+    과거 구조: CLI 가 run_daily 호출 후 별도로 apply_balance_adjusts_idempotent 를
+    호출하여 DailyResult 를 replace 했다. 사용자 요구 A안: run_daily 내부에서
+    통합 처리하여 순수 계산 경계를 명확히 한다.
+    """
+
+    def test_empty_adjusts_preserves_initial_actual(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 빈 adjust 리스트 When run_daily Then actual 축 변경 없음."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_adjusts=[],
+            applied_balance_adjust_ids={},
+        )
+        for asset in result.updated_state.assets.values():
+            assert asset.actual_shares == 0
+        assert result.updated_applied_balance_adjust_ids == {}
+
+    def test_pending_adjusts_default_none_keeps_backward_compat(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 기본값 호출 (pending_adjusts 생략) When run_daily Then 기존 동작 유지.
+
+        기존 호출자(test_regression 등) 가 pending_adjusts 를 전달하지 않아도
+        기본값으로 noop 동작해야 한다.
+        """
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        for asset in result.updated_state.assets.values():
+            assert asset.actual_shares == 0
+
+    def test_adjust_overwrites_actual_shares(self, initial_state, flat_market_bundle, sample_dates):
+        """Given sso new_shares=420 adjust When run_daily Then actual_shares=420."""
+        from live.models import BalanceAdjust
+
+        adjust = BalanceAdjust(
+            rtdb_key="adj_001",
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            reason="테스트",
+            asset_id="sso",
+            new_shares=420,
+            new_cash=None,
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+        )
+
+        assert result.updated_state.assets["sso"].actual_shares == 420
+        assert "adj_001" in result.updated_applied_balance_adjust_ids
+
+    def test_fills_applied_before_adjusts(self, initial_state, flat_market_bundle, sample_dates):
+        """Given fill (buy 100) 과 adjust (new_shares 420) 동시 When run_daily Then
+        actual_shares == 420 (adjust 가 fill 을 덮어쓴다 — 순서 보장).
+
+        fills 먼저 적용 → actual_shares = 0 + 100 = 100
+        balance_adjust 적용 → actual_shares = 420 (교체)
+        """
+        from live.models import ActualFill, BalanceAdjust
+
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=80.0,
+            actual_shares=100,
+            trade_date=sample_dates[0].isoformat(),
+            input_time_kst="2026-04-06T19:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_order_test",
+        )
+        adjust = BalanceAdjust(
+            rtdb_key="adj_order_test",
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            reason="테스트",
+            asset_id="sso",
+            new_shares=420,
+            new_cash=None,
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+        )
+
+        assert result.updated_state.assets["sso"].actual_shares == 420
+
+    def test_already_applied_adjust_is_skipped(self, initial_state, flat_market_bundle, sample_dates):
+        """Given applied_balance_adjust_ids 에 이미 있음 When run_daily Then 무시."""
+        from live.models import BalanceAdjust
+
+        adjust = BalanceAdjust(
+            rtdb_key="adj_existing",
+            input_time_kst="2026-04-05T20:00:00+09:00",
+            reason="이전 보정",
+            asset_id="gld",
+            new_shares=500,
+            new_cash=None,
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={"adj_existing": "2026-04-05T00:00:00+09:00"},
+        )
+
+        # 이미 처리된 adjust 이므로 actual_shares 변경 없음
+        assert result.updated_state.assets["gld"].actual_shares == 0
+
+    def test_cash_adjust_overwrites_shared_cash_actual(self, initial_state, flat_market_bundle, sample_dates):
+        """Given new_cash adjust When run_daily Then shared_cash_actual 교체."""
+        from live.models import BalanceAdjust
+
+        adjust = BalanceAdjust(
+            rtdb_key="adj_cash",
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            reason="cash 보정",
+            asset_id=None,
+            new_shares=None,
+            new_cash=50_000_000.0,
+        )
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+        )
+
+        assert result.updated_state.shared_cash_actual == pytest.approx(50_000_000.0)
+
+
+# ============================================================================
+# DailyResult.drift_report — 완전 DriftReport 통합
+# ============================================================================
+
+
+class TestRunDailyDriftReport:
+    """``run_daily`` 가 ``drift.compute_drift`` 를 호출하여 완전 ``DriftReport``
+    를 반환해야 한다. 과거 간이 계산(daily_runner.py:320-324) 제거.
+    """
+
+    def test_daily_result_has_drift_report_field(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 정상 입력 When run_daily Then DailyResult.drift_report 존재."""
+        from live.models import DriftReport
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+
+        assert hasattr(result, "drift_report"), "DailyResult.drift_report 필드 누락"
+        assert isinstance(result.drift_report, DriftReport)
+
+    def test_drift_report_contains_per_asset_breakdown(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 정상 입력 When run_daily Then drift_report.per_asset 이 4 자산 포함."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+
+        per_asset = result.drift_report.per_asset
+        assert set(per_asset.keys()) == {"sso", "qld", "gld", "tlt"}
+
+    def test_drift_report_recommendation_is_valid(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 정상 입력 When run_daily Then recommendation 은 3 가지 중 하나."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+
+        assert result.drift_report.recommendation in ("정상", "주의", "보정 필요")
+
+    def test_drift_pct_scalar_matches_drift_report(self, initial_state, flat_market_bundle, sample_dates):
+        """Given 정상 입력 When run_daily Then 스칼라 drift_pct 가 drift_report.drift_pct 와 일치."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+
+        assert result.drift_pct == pytest.approx(result.drift_report.drift_pct)

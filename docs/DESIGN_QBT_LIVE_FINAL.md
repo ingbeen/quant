@@ -70,25 +70,30 @@ QBT 프로젝트의 포트폴리오 전략을 **Android 앱 + 일일 실행 엔�
         |
         v
 +-------------------------------------------------------------------+
-| Daily Runner (Python 3.12)                                         |
+| cli.main() (공통 알림 훅)                                          |
 |                                                                    |
-| [0a] 휴장 체크 (NYSE) → 비영업일이면 조기 정상 종료               |
-| [0b] idempotency 체크 (state.last_model_execution_date) → 중복 차단|
-| [1]  ephemeral_state_repo: qbt-live-state shallow clone           |
-| [2]  live_state.json 복원                                          |
-| [3]  yfinance 최근 5일 수집 → OHLC / prev_close / date_gap 검증   |
-| [4]  CSV append → EMA-200 계산                                     |
-| [5]  RTDB fills 수신 → pending 자동 매칭 → actual 반영            |
-| [6]  RTDB balance_adjusts 수신 → 자산/cash 직접 보정              |
-| [7]  당일 equity (model + actual)                                  |
-| [8]  signal intents → projected → 리밸런싱 → merge                |
-| [9]  익일 pending 생성                                             |
-| [10] 미입력 체크 → 리마인더                                        |
-| [11] state + history + CSV 저장                                    |
-| [12] RTDB 갱신 (/latest, /history, chart_data)                    |
-| [13] FCM + 텔레그램 동시 발송                                      |
-| [14] git add / commit / push (ephemeral 컨텍스트 exit)            |
-| [15] tempdir 자동 cleanup                                          |
+|  ├─ 휴장 체크 (NYSE)  → 비영업일이면 조기 정상 종료               |
+|  ├─ ephemeral_state_repo: qbt-live-state shallow clone            |
+|  │   ├─ live_state.json 로드 + idempotency 체크                    |
+|  │   ├─ yfinance 최근 OHLC → 검증 3 종 → CSV append                |
+|  │   ├─ market_bundle 준비 (EMA 재계산)                            |
+|  │   ├─ RTDB: fills / balance_adjusts 가져오기                     |
+|  │   ├─ run_daily() [순수 계산, 파일 I/O 없음]                     |
+|  │   │   1. fills → actual 축 반영 (idempotent)                    |
+|  │   │   2. 전일 pending → 당일 시가 체결 (model 축)               |
+|  │   │   3. 당일 종가 model_equity                                 |
+|  │   │   4. 시그널 → projected → 리밸런싱 → 익일 pending 생성     |
+|  │   │   5. balance_adjust → actual 축 교체 (idempotent)           |
+|  │   │   6. drift.compute_drift → DriftReport 생성                 |
+|  │   ├─ state + applied_*_ids 저장                                 |
+|  │   ├─ history 영구 append (fail-fast, silent continue 없음)      |
+|  │   ├─ RTDB /latest/* + chart_data 갱신                           |
+|  │   └─ FCM + 텔레그램 일일 리포트 동시 발송                      |
+|  └─ commit / push / tempdir cleanup                                |
+|                                                                    |
+|  어느 단계에서든 예외 발생 시:                                     |
+|     main() 공통 훅이 _safe_notify_failure 로 실패 알림 발송        |
+|     (notify-failure 커맨드 자체는 재귀 방지를 위해 제외)           |
 +-------------------------------------------------------------------+
          |                    |                    |
          v                    v                    v
@@ -104,14 +109,22 @@ QBT 프로젝트의 포트폴리오 전략을 **Android 앱 + 일일 실행 엔�
 - **앱이 유일한 UI**. 웹 없음
 - **Git = 정본, RTDB = 앱 버스**. 앱은 Git 에 직접 접근하지 않는다
 - **앱에 GitHub 토큰 절대 없음**
-- **model / actual 분리**. actual 은 앱 입력으로만 갱신
-- **CSV 에서 EMA-200 매일 재계산**. 중간값 의존 없음
+- **model / actual 분리**. actual 은 앱 입력(fills / balance_adjust) 으로만 갱신
+- **EMA 는 CSV 전체를 매일 재계산**. 중간값 의존 없음
 - **ephemeral 모드**: CLI 는 상태 리포를 매 실행 clone/push. 로컬 / Actions 가 동일 경로
-- **체결 입력은 pending 과 자동 매칭**
-- **알림은 FCM + 텔레그램 항상 동시**
-- **히스토리 전체 영구 보존**. 자동 정리는 `applied_*_ids.json` (90 일) 만
-- **장애 시 자동 복구하지 않는다**. 즉시 중단 + 알림
-- **원자성**: 모든 변경은 ephemeral 컨텍스트 내에서 원자적 — RTDB 쓰기가 실패하면 Git push 도 건너뛴다
+- **체결 입력은 pending 과 자동 매칭**. 분류 결과(system_fill / personal_trade) 는 audit
+- **알림은 FCM + 텔레그램 항상 동시 발송**. 한쪽 실패가 다른 쪽을 막지 않는다
+- **알림 채널 자체의 실패는 로그로만 기록** — 알림 발송이 실패한 상태에서 다시 알림을
+  보내는 것은 모순이므로 재발송 금지
+- **히스토리 전체 영구 보존**. 자동 정리는 `applied_*_ids.json` 만 (최대 보관 일수는
+  `constants.APPLIED_FILL_IDS_MAX_AGE_DAYS`)
+- **장애 시 자동 복구하지 않는다 + 무조건 알림**: 어떤 CLI 커맨드든 예외 발생 시
+  `cli.main()` 공통 훅이 `_safe_notify_failure` 로 실패 알림을 발송한 뒤 종료한다.
+  `notify-failure` 커맨드 자체는 재귀 방지를 위해 훅에서 제외된다.
+- **silent fallback 금지**: history 저장 실패 / NYSE 달력 로드 실패 등 어떤 fallback 도
+  삼키지 않고 예외를 상위로 전파한다
+- **원자성**: 모든 변경은 ephemeral 컨텍스트 내에서 원자적 — RTDB 쓰기가 실패하면
+  Git push 도 건너뛴다
 
 ### 1.3 리포지토리 구성
 
@@ -191,14 +204,41 @@ qbt-live-state/                    ← 프라이빗 상태 리포
 
 ### 4.2 일일 실행 순서 (run-daily)
 
-다이어그램 §1.1 의 0a ~ 15 단계를 순차 수행한다. 각 단계의 실제 구현은 `live/src/live/cli.py::_cmd_run_daily` 및 `live/src/live/daily_runner.py::run_daily` 에 있다.
+CLI 진입점(`cli.main()`) 이 공통 예외 훅으로 전 과정을 감싸고, 실제 계산은
+`daily_runner.run_daily()` 가 순수 함수로 수행한다.
+
+`run_daily()` 의 시그니처와 처리 순서:
+
+```python
+def run_daily(
+    trade_date,
+    state,
+    market_bundle,
+    pending_fills,
+    applied_fill_ids,
+    pending_adjusts=None,
+    applied_balance_adjust_ids=None,
+) -> DailyResult:
+```
+
+1. fills → actual 축 반영 (idempotent)
+2. 전일 pending → 당일 시가 체결 (model 축)
+3. 당일 종가 model_equity 산출
+4. 시그널 생성 → projected → 리밸런싱 → 익일 pending 저장
+5. balance_adjust → actual 축 교체 (idempotent) — fills 보다 나중
+6. `drift.compute_drift` 호출 → 완전 `DriftReport` 생성
 
 주요 원칙:
 
-- **0a, 0b 는 ephemeral clone 전** — 비영업일 / 중복 실행을 git clone 비용 없이 차단
-- **`run_daily` 는 순수 계산** (파일 I/O 없음). CLI 계층이 I/O 를 감싼다
-- **fills 먼저, balance_adjusts 나중** — 신호 기반 체결이 먼저 반영된 뒤 사용자 직접 보정이 덮어쓴다
+- **휴장 / idempotency 체크는 ephemeral clone 전** — 불필요한 git clone 비용 차단
+- **`run_daily` 는 순수 계산** — 파일 I/O / 네트워크 호출 없음. CLI 계층이 I/O 를 감싼다
+- **fills 먼저, balance_adjust 나중** — 신호 기반 체결이 먼저 반영된 뒤 사용자 직접
+  보정이 최종 잔고를 덮어쓴다. 이 순서는 `run_daily` **내부에서** 보장된다.
+- **drift 는 `drift.compute_drift` 가 유일 정본** — daily_runner 는 간이 계산을 하지
+  않고 `DailyResult.drift_report` 에 완전 `DriftReport` 를 담아 반환한다.
 - **모든 Git/RTDB 쓰기는 원자적** — 중간 실패 시 push 도 건너뛴다
+- **fail-fast**: history 저장 실패 / NYSE 달력 로드 실패 등은 silent continue 하지 않고
+  예외를 전파해 `cli.main()` 공통 알림 훅에 도달하게 한다
 
 ### 4.3 BufferZoneStrategy 직렬화
 
@@ -287,11 +327,22 @@ EMA-200 의 앞 199 개 인덱스는 워밍업 구간으로 `null` 이다. Fireb
 | 종류 | 내용 | 빈도 |
 |---|---|---|
 | **일일 리포트** | model/actual equity, drift, 시그널(buy/sell), 200일선 근접도, 리밸런싱 여부, 미입력 리마인더 건수 | 매 run-daily 정상 실행 |
-| **실패 알림** | 에러 상세 메시지 (stack trace 포함 가능) | 어떤 단계든 실패 시 |
+| **실패 알림** | 실패 커맨드 이름 + 에러 상세 메시지 | 어떤 CLI 커맨드든 예외 발생 시 (`notify-failure` 제외) |
 
 200 일선 근접도 = `(close − ema_200) / ema_200` (비율, 음수 가능).
 
-FCM 과 텔레그램은 **항상 동시 발송** 하며, 한쪽 실패가 다른 쪽에 영향을 주지 않는다. FCM 은 device_tokens 대상이 없어도 오류가 발생하지 않는다 (no-op). 만료 토큰은 RTDB `/device_tokens/` 에서 자동 정리된다.
+**발송 구조**:
+
+- `cli.main()` 의 공통 예외 훅이 모든 커맨드의 예외를 캐치하여
+  `_safe_notify_failure` 를 호출한다. 이 훅은 `notify-failure` 커맨드 자체는 재귀
+  방지를 위해 통과시키지 않는다.
+- FCM 과 텔레그램은 **항상 동시 발송** 하며, 한쪽 채널의 실패가 다른 쪽을 막지
+  않는다. FCM 은 device_tokens 대상이 없어도 오류가 발생하지 않는다 (no-op).
+  만료 토큰은 RTDB `/device_tokens/` 에서 자동 정리된다.
+- **알림 채널 자체의 실패는 로그로만 기록한다** (`logger.error(..., exc_info=True)`).
+  이미 실패한 흐름에서 알림 발송이 또 실패했다고 알림을 다시 보내는 것은 모순이며
+  무한 루프 / 토큰 낭비를 유발하므로 절대 재발송하지 않는다. 실제 구현은
+  `notifier._safe_fcm` / `_safe_telegram` 참고.
 
 ---
 
@@ -342,27 +393,33 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 ## 11. 실패 / 예외 대응
 
-**원칙: 자동 복구하지 않는다. 즉시 중단 + 알림.**
+**원칙: 자동 복구하지 않는다. 어떤 단계든 실패하면 즉시 중단 + 무조건 알림.**
 
 | 시나리오 | 대응 |
 |---|---|
 | 비영업일 trade_date (NYSE 휴장) | 조기 정상 종료 (알림 없음, 로그만) |
 | 같은 trade_date 재실행 (cron 모드) | 조기 정상 종료 (알림 없음, 로그만). `--trade-date` 명시 시 bypass |
+| 잘못된 `--trade-date` 입력 (ISO 파싱 실패) | 중단 + 알림 |
+| NYSE 달력 로드 실패 (`_get_nyse_calendar`) | 중단 + 알림 (fallback 금지 — gap 검증 skip 하지 않음) |
 | 데이터 수집 실패 (yfinance 에러) | 중단 + 알림 |
 | 데이터 검증 실패 (OHLC / 종가 / 날짜 gap) | 중단 + 알림 |
 | state 파일 파싱 실패 | 중단 + 알림 |
 | 계산 실패 (engine RuntimeError) | 중단 + 알림. state 는 저장되지 않음 |
 | RTDB 읽기 실패 (fills / balance_adjusts) | 중단 + 알림 |
+| history 저장 실패 (`_persist_history`) | 중단 + 알림 (silent continue 금지) |
 | RTDB 쓰기 실패 (`_publish_to_rtdb`) | 중단 + 알림. **ephemeral 컨텍스트 미종료 → Git push 도 건너뜀 (원자성)** |
 | Git clone / push 실패 | 중단 + 알림 |
-| FCM 전송 실패 | 텔레그램은 독립 발송, FCM 에러 로그만 기록 |
-| 텔레그램 전송 실패 | FCM 은 독립 발송, 에러 로그만 기록 |
+| 타 커맨드(`init`, `init-data`, `drift`, `fetch-fills`, `history` 등) 실패 | `main()` 공통 훅이 `_safe_notify_failure` 호출 |
+| FCM 전송 실패 | `logger.error` 기록만. 재발송 금지. 텔레그램은 독립 발송 |
+| 텔레그램 전송 실패 | `logger.error` 기록만. 재발송 금지. FCM 은 독립 발송 |
 | fill / balance_adjust 중복 수신 | `applied_*_ids.json` 으로 skip (정상 동작) |
 | FCM 토큰 만료 | RTDB `/device_tokens/` 에서 제거 (정상 동작) |
 | 체결 미입력 | 매 실행 리마인더 알림에 포함 |
-| GitHub Actions 실패 (retry 포함 2회 연속) | notify-failure job 에서 FCM + 텔레그램 |
+| `notify-failure` 커맨드 자체 실패 | 재귀 방지 — `main()` 훅에서 알림 발송 건너뜀, 예외만 로그 기록 후 exit 1 |
+| GitHub Actions 실패 (retry 포함 2회 연속) | `notify-failure` job 에서 FCM + 텔레그램 재전송 |
 
-모든 에러 알림에는 에러 상세 메시지를 포함하여 사용자가 원인을 파악할 수 있게 한다. 자동 롤백 / 자동 재시도 (Actions retry job 제외) 는 하지 않는다.
+모든 에러 알림에는 실패 커맨드 이름 + 에러 상세 메시지를 포함한다. 자동 롤백 /
+자동 재시도 (Actions retry job 제외) 는 하지 않는다.
 
 ---
 
@@ -393,29 +450,44 @@ GitHub Secrets 4 종:
 
 ## 14. Drift
 
-`drift_pct = |model_equity − actual_equity| / model_equity`
+drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 
-| 구간 | 상태 |
+```
+drift_ratio = |model_equity − actual_equity| / model_equity   (비율, 0~1)
+drift_pct   = drift_ratio × 100                               (%, 표시용)
+```
+
+**유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
+`daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를
+`DailyResult.drift_report` 에 채워 반환한다. daily_runner 에 간이 drift 계산은 없다.
+
+**임계값** (비율 기준, `constants.DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO`):
+
+| 구간 (비율) | 상태 (`recommendation`) |
 |---|---|
-| 0 ~ 3% | 정상 |
-| 3 ~ 5% | 주의 |
-| 5% 이상 | 보정 필요 |
+| 0 ~ 0.03 | "정상" |
+| 0.03 ~ 0.05 | "주의" |
+| 0.05 이상 | "보정 필요" |
 
-자산별 상세 drift 는 `drift.compute_drift` 가 반환하는 `DriftReport` 에 포함되며 `drift` 명령으로 조회할 수 있다. 일일 리포트 알림 본문에는 전체 `drift_pct` 만 포함된다.
+자산별 상세 drift (`AssetDrift` 리스트) 는 `DriftReport.per_asset` 에 포함되며,
+`drift` CLI 커맨드로 조회할 수 있다. 일일 리포트 알림 본문에는 전체 `drift_pct`
+스칼라 값만 포함된다.
 
 ---
 
-## 15. 구현 로드맵
+## 15. 구현 현황
 
-| Phase | 범위 |
-|---|---|
-| **1** | 엔진, state, CSV, 검증, regression, cron, keepalive |
-| **2** | FCM + 텔레그램, chart_data, RTDB read model |
-| **3** | Android 앱 (별도 프로젝트) |
-| **4** | 체결 자동 매칭, drift, 미입력 리마인더 E2E |
-| **5** | 운영 안정화, 문서화, App Check 검토 |
+본 설계서의 서버사이드 범위는 구현 완료 상태이며 `live/` 도메인 코드와
+`.github/workflows/` 의 GitHub Actions 워크플로우로 운영된다.
 
-각 Phase 의 세부 진행 상황 및 완료 체크리스트는 `docs/plans/` 하위의 Phase 별 구현 계획서를 참조한다.
+- **엔진 / state / CSV / 검증 / 회귀 / cron / keepalive**: 완료 (`live/src/live/`,
+  `test_regression.py`, `.github/workflows/daily_run.yml`, `keepalive.yml`)
+- **FCM + 텔레그램 / chart_data / RTDB read model**: 완료 (`notifier.py`,
+  `chart_data.py`, `rtdb_gateway.py`)
+- **체결 자동 매칭 / drift / 미입력 리마인더**: 완료 (`drift.py`, `daily_runner.py`)
+- **Android 앱**: 별도 프로젝트(`qbt-live-app`) 에서 유지
+
+변경 이력 및 세부 작업 계획은 `docs/plans/` 하위 계획서를 참조한다.
 
 ---
 

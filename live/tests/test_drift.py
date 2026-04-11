@@ -8,7 +8,13 @@ from __future__ import annotations
 import pytest
 
 from live.drift import apply_fills_idempotent, classify_fill, compute_drift
-from live.models import ActualFill, AssetDrift, DriftReport, PendingOrderDict
+from live.models import (
+    ActualFill,
+    AssetDrift,
+    DriftReport,
+    IntentTypeLiteral,
+    PendingOrderDict,
+)
 from live.state import create_initial_state
 
 # ============================================================================
@@ -18,7 +24,7 @@ from live.state import create_initial_state
 
 def _make_pending(
     asset_id: str = "sso",
-    intent_type: str = "ENTER_TO_TARGET",
+    intent_type: IntentTypeLiteral = "ENTER_TO_TARGET",
 ) -> PendingOrderDict:
     return {
         "asset_id": asset_id,

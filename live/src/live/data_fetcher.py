@@ -1,23 +1,26 @@
 """주가 데이터 수집 및 CSV 누적 append.
 
-설계서 2장 "주가 데이터: CSV 누적" 의 수집 로직을 구현한다. 매일 실행 모드에서
-yfinance 로 최근 N 일 데이터를 가져와 live 전용 CSV 에 1 행씩 append 한다.
+매일 실행 모드에서 yfinance 로 최근 N 일 데이터를 가져와 live 전용 CSV 에
+1 행씩 append 한다.
 
 QBT 본체 재사용:
+
 - :func:`qbt.utils.data_loader.load_stock_data` — CSV 파싱 / 정렬 / 필수 컬럼 검증
   (live :func:`load_csv` 가 이를 얇게 래핑)
 - :data:`qbt.common_constants.COL_DATE`, :data:`REQUIRED_COLUMNS`,
   :data:`PRICE_COLUMNS` — QBT 표준 컬럼 포맷
 
 QBT 본체 재사용하지 않는 이유:
+
 - :func:`qbt.utils.stock_downloader.download_stock_data` 는 "최근 2일 제외" 필터가
   하드코딩되어 live 매일 실행 모드와 충돌
 - 저장 경로가 ``STOCK_DIR`` 로 고정되어 qbt-live-state 리포 경로와 다름
 - 파일명 규칙이 달라짐 (QBT: ``{TICKER}_max.csv``, live: ``{TICKER}.csv``)
 
 검증 책임 분리:
-- 본 모듈은 "가져오기 / 쓰기" 만 담당. OHLC 논리 / 종가 연속성 / 날짜 누락 검증은
-  :mod:`live.data_validator` (Step 6) 소관. 본 모듈은 yfinance 빈 응답만 방어한다.
+
+- 본 모듈은 "가져오기 / 쓰기" 만 담당한다. OHLC 논리 / 종가 연속성 / 날짜 누락
+  검증은 :mod:`live.data_validator` 소관이다. 본 모듈은 yfinance 빈 응답만 방어한다.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
+from live.constants import DEFAULT_PRICE_DECIMALS
 from qbt.common_constants import COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.utils.data_loader import load_stock_data
 
@@ -36,10 +40,6 @@ __all__ = [
     "rebuild_full_csv",
     "load_csv",
 ]
-
-
-# CSV 저장 시 가격 반올림 자릿수 (CLAUDE.md 출력 데이터 반올림 규칙)
-_PRICE_DECIMALS = 6
 
 
 def _yf_history_to_qbt_df(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -70,7 +70,7 @@ def _yf_history_to_qbt_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
 
     df = df[REQUIRED_COLUMNS]
-    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(_PRICE_DECIMALS)
+    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
 
     df = df.sort_values(COL_DATE).reset_index(drop=True)
     return df
@@ -111,7 +111,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
 
     - ``today_row`` 는 반드시 1 행 DataFrame 이어야 한다.
     - 파일이 없거나 빈 경우 → 부모 디렉토리 생성 후 새 CSV 로 저장.
-    - 파일이 있고 해당 날짜가 이미 존재하면 → 변경 없이 return (중복 방지, 설계서 2.2).
+    - 파일이 있고 해당 날짜가 이미 존재하면 → 변경 없이 return (중복 append 방지).
     - 파일이 있고 해당 날짜가 없으면 → 기존 데이터와 concat 후 정렬하여 저장.
     - 가격 컬럼은 저장 직전에 6 자리 반올림.
 
@@ -128,7 +128,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     new_row = today_row.copy()
     new_row[COL_DATE] = pd.to_datetime(new_row[COL_DATE]).dt.date
-    new_row[PRICE_COLUMNS] = new_row[PRICE_COLUMNS].round(_PRICE_DECIMALS)
+    new_row[PRICE_COLUMNS] = new_row[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
     new_date = new_row[COL_DATE].iloc[0]
 
     if not csv_path.exists():
@@ -149,7 +149,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
 def rebuild_full_csv(ticker: str, csv_path: Path, period: str = "max") -> None:
     """yfinance 에서 전체 기간 데이터를 가져와 CSV 를 완전히 재작성한다.
 
-    설계서 2.3 "스플릿 대응" 시나리오에서 사용된다. 기존 CSV 는 덮어쓰기된다.
+    스플릿 대응 시나리오에서 사용된다. 기존 CSV 는 덮어쓰기된다.
     부모 디렉토리는 자동 생성.
 
     Args:

@@ -1,8 +1,8 @@
 """일일 실행 메인 (순수 계산, 파일 I/O 없음).
 
-설계서 4.2 의 실행 순서 중 **5 ~ 9 단계** (fill → 체결 → equity → 시그널 →
-익일 pending 생성) 를 담당하는 순수 계산 함수이다. 파일 I/O 및 외부 네트워크
-호출은 호출자(CLI 계층) 가 처리한다.
+fill 반영 → 전일 pending 체결 → 당일 equity 계산 → 시그널/리밸런싱 → 익일 pending
+생성 → balance_adjust 반영 → drift 계산까지를 담당하는 순수 계산 함수이다.
+파일 I/O 및 외부 네트워크 호출은 호출자(CLI 계층) 가 처리한다.
 
 구현 원칙:
 
@@ -19,15 +19,18 @@ from __future__ import annotations
 import copy
 from dataclasses import replace
 from datetime import date
+from typing import Literal
 
 import pandas as pd
 
+from live.balance_adjust import apply_balance_adjusts_idempotent
 from live.buffer_serializer import extract_buffer_state, restore_buffer_state
 from live.constants import get_live_portfolio_config
-from live.drift import apply_fills_idempotent
+from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
     ActualFill,
     AssetLiveState,
+    BalanceAdjust,
     BufferZoneState,
     DailyResult,
     LiveState,
@@ -51,7 +54,7 @@ from qbt.backtest.engines.portfolio_rebalance import (
 from qbt.backtest.portfolio_types import AssetSlotConfig, AssetState
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 
 __all__ = ["run_daily"]
 
@@ -122,7 +125,7 @@ def _pending_order_to_intent(pending: PendingOrderDict) -> OrderIntent:
     """PendingOrderDict → OrderIntent (execute_orders 호출용)."""
     return OrderIntent(
         asset_id=pending["asset_id"],
-        intent_type=pending["intent_type"],  # type: ignore[arg-type]
+        intent_type=pending["intent_type"],
         current_amount=pending["current_amount"],
         target_amount=pending["target_amount"],
         delta_amount=pending["delta_amount"],
@@ -177,7 +180,7 @@ def _build_signal_detections(
             upper_band = ema_200 * (1.0 + slot.buy_buffer_zone_pct)
             lower_band = ema_200 * (1.0 - slot.sell_buffer_zone_pct)
 
-        # EMA 근접도 (설계서 8장)
+        # EMA 근접도
         if ema_200 is not None and ema_200 > 0:
             ema_distance_pct = (close - ema_200) / ema_200
         else:
@@ -186,7 +189,7 @@ def _build_signal_detections(
 
         # 시그널 상태 결정
         intent = signal_intents.get(asset_id)
-        state_str: str = "hold"
+        state_str: Literal["buy", "sell", "hold"] = "hold"
         if intent is not None:
             if intent.intent_type == "ENTER_TO_TARGET":
                 state_str = "buy"
@@ -194,7 +197,7 @@ def _build_signal_detections(
                 state_str = "sell"
 
         signals[asset_id] = SignalDetection(
-            state=state_str,  # type: ignore[arg-type]
+            state=state_str,
             close=close,
             upper_band=upper_band,
             lower_band=lower_band,
@@ -216,29 +219,52 @@ def run_daily(
     market_bundle: MarketBundle,
     pending_fills: list[ActualFill],
     applied_fill_ids: dict[str, str],
+    pending_adjusts: list[BalanceAdjust] | None = None,
+    applied_balance_adjust_ids: dict[str, str] | None = None,
 ) -> DailyResult:
     """1 일치 live 실행을 수행한다 (순수 계산, 파일 I/O 없음).
 
-    설계서 4.2 의 5 ~ 9 단계를 담당한다. 입력 ``state`` 는 불변으로 다루고
-    새 ``LiveState`` 를 ``DailyResult.updated_state`` 로 반환한다.
+    입력 ``state`` 는 불변으로 다루고 새 ``LiveState`` 를 ``DailyResult.updated_state``
+    로 반환한다. 호출자는 결과를 저장/전송하기 전 순수 계산 결과를 검증할 수
+    있으며, 회귀 검증은 이 함수의 결과를 그대로 비교한다.
+
+    처리 순서:
+
+    1. fills 반영 (actual 축 갱신, idempotent)
+    2. 전일 pending 체결 (model 축 체결)
+    3. 당일 종가 equity 계산 (model + actual)
+    4. 시그널 생성 / 리밸런싱 / 익일 pending 저장
+    5. **balance_adjust 반영 (actual 축 교체, idempotent)** — fills 보다 나중
+    6. drift 계산 (compute_drift 를 호출해 완전 DriftReport 생성)
 
     Args:
         trade_date: 처리 대상 거래일.
         state: 현재 LiveState (전일 실행 결과).
         market_bundle: 자산별 signal_df / trade_df.
-        pending_fills: RTDB 에서 읽어온 미처리 fill 목록 (Step 8 에서 실제 반영).
-        applied_fill_ids: 기존 적용된 fill ID → 타임스탬프 맵.
+        pending_fills: RTDB 에서 읽어온 미처리 fill 목록.
+        applied_fill_ids: 기존 적용된 fill rtdb_key → 타임스탬프 맵.
+        pending_adjusts: RTDB 에서 읽어온 미처리 balance_adjust 목록.
+            ``None`` 또는 빈 리스트이면 noop. fills 반영 직후 actual 축을 덮어쓴다.
+        applied_balance_adjust_ids: 기존 적용된 adjust rtdb_key → 타임스탬프 맵.
+            ``None`` 이면 빈 dict 로 초기화된다.
 
     Returns:
-        DailyResult: 갱신된 LiveState + 시그널 / 체결 / drift 정보.
+        DailyResult: 갱신된 LiveState + 시그널 / 체결 / 완전 DriftReport.
     """
+    # 입력 정규화
+    if pending_adjusts is None:
+        pending_adjusts = []
+    if applied_balance_adjust_ids is None:
+        applied_balance_adjust_ids = {}
+
     # 0. 입력 복사 (원본 불변 유지)
     working_state = copy.deepcopy(state)
     working_applied_ids = dict(applied_fill_ids)
+    working_applied_adjust_ids = dict(applied_balance_adjust_ids)
 
-    # 1. Step 5 (설계서 4.2): RTDB fills → actual 축 반영 + idempotency
+    # 1. RTDB fills → actual 축 반영 + idempotency
     #    drift.apply_fills_idempotent 가 새 state / 새 applied_ids 를 반환한다.
-    #    빈 리스트인 경우 노옵 (회귀 검증 영향 없음).
+    #    빈 리스트인 경우 노옵.
     if pending_fills:
         working_state, working_applied_ids = apply_fills_idempotent(working_state, pending_fills, working_applied_ids)
 
@@ -248,10 +274,10 @@ def run_daily(
     strategies = _create_strategies(slot_dict)
     _restore_buffer_strategies(strategies, working_state)
 
-    # 3. 미입력 체결 리마인더 (설계서 4.2 단계 10)
+    # 3. 미입력 체결 리마인더
     #    pending_order 가 있는 자산 중 이번 실행에서 fill 이 들어오지 않은
-    #    자산을 검출. 일부 자산만 체결된 경우에도 나머지 미체결 자산은
-    #    모두 리마인더로 표시되어야 한다 (Gap 6 수정).
+    #    자산을 검출. 일부 자산만 체결된 경우에도 나머지 미체결 자산은 모두
+    #    리마인더로 표시되어야 한다.
     incoming_fill_asset_ids = {fill.asset_id for fill in pending_fills}
     pending_fill_reminders: list[str] = [
         asset_id
@@ -263,7 +289,7 @@ def run_daily(
     first_asset_id = next(iter(market_bundle))
     i = _find_trade_index(market_bundle[first_asset_id].trade_df, trade_date)
 
-    # 5. Step 6 (전일 pending → 당일 시가 체결, model 축)
+    # 5. 전일 pending → 당일 시가 체결 (model 축)
     #    state.assets[].pending_order 가 있으면 OrderIntent 로 변환 후 execute_orders 호출.
     next_day_intents: dict[str, OrderIntent] = {}
     for asset_id, asset in working_state.assets.items():
@@ -306,24 +332,14 @@ def run_daily(
     for asset in working_state.assets.values():
         asset.pending_order = None
 
-    # 5. Step 7 (당일 종가 equity, model 축)
+    # 5. 당일 종가 equity (model 축)
     asset_closes_map: dict[str, float] = {
         aid: float(market_bundle[aid].trade_df.iloc[i][COL_CLOSE]) for aid in asset_states
     }
     asset_positions = {aid: st.position for aid, st in asset_states.items()}
     model_equity = compute_portfolio_equity(shared_cash_model, asset_positions, asset_closes_map)
 
-    # actual 축 equity (actual_shares 기준; cash 는 shared_cash_actual)
-    actual_positions = {aid: asset.actual_shares for aid, asset in working_state.assets.items()}
-    actual_equity = compute_portfolio_equity(working_state.shared_cash_actual, actual_positions, asset_closes_map)
-
-    # drift_pct (단순 계산; Step 8 에서 정교화)
-    if model_equity > EPSILON:
-        drift_pct = abs(model_equity - actual_equity) / model_equity * 100.0
-    else:
-        drift_pct = 0.0
-
-    # 6. Step 8 (시그널 → projected → rebalance → merge → 익일 pending)
+    # 6. 시그널 → projected → rebalance → merge → 익일 pending
     equity_vals_now: dict[str, float] = {
         aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
     }
@@ -386,10 +402,22 @@ def run_daily(
     if rebalance_triggered:
         working_state.last_rebalance_date = trade_date.isoformat()
 
-    # 10. SignalDetection / ema_distances 구성
+    # 10. balance_adjust 반영 (actual 축 교체) — fills 보다 나중 순서.
+    #     fills 가 먼저 actual_shares 를 가감한 뒤, balance_adjust 가 최종 잔고를
+    #     덮어쓴다. idempotency 는 applied_balance_adjust_ids 로 보장한다.
+    if pending_adjusts:
+        working_state, working_applied_adjust_ids = apply_balance_adjusts_idempotent(
+            working_state, pending_adjusts, working_applied_adjust_ids
+        )
+
+    # 11. SignalDetection / ema_distances 구성
     signals_map, ema_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
 
-    # 11. 알림 본문 요약 (Step 13 notifier 에서 교체)
+    # 12. drift 계산 — drift.compute_drift 가 유일한 정본.
+    #     actual 축 (shares 및 cash) 은 위의 balance_adjust 반영이 완료된 상태를 쓴다.
+    drift_report = compute_drift(working_state, asset_closes_map)
+
+    # 13. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
     body_lines = [f"실행일: {trade_date.isoformat()}", f"model equity: {model_equity:,.0f}"]
     if merged_intents:
         body_lines.append(f"익일 체결 대기: {len(merged_intents)} 건")
@@ -399,13 +427,15 @@ def run_daily(
         execution_date=trade_date.isoformat(),
         updated_state=working_state,
         updated_applied_fill_ids=working_applied_ids,
+        updated_applied_balance_adjust_ids=working_applied_adjust_ids,
         signals=signals_map,
         order_intents=merged_intents,
         executions=executions,
         rebalance_triggered=rebalance_triggered,
         model_equity=float(model_equity),
-        actual_equity=float(actual_equity),
-        drift_pct=float(drift_pct),
+        actual_equity=float(drift_report.actual_equity),
+        drift_pct=float(drift_report.drift_pct),
+        drift_report=drift_report,
         ema_distances=ema_distances,
         notification_body=notification_body,
         pending_fill_reminders=pending_fill_reminders,

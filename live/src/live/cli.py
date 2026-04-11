@@ -1,6 +1,6 @@
 """live 도메인 CLI 엔트리포인트.
 
-설계서 부록 A 의 명령어를 argparse subcommand 구조로 구현한다.
+argparse subcommand 구조로 실매매 파이프라인의 모든 운영 명령을 제공한다.
 
 명령어:
 
@@ -41,7 +41,6 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from live import data_validator, git_state, history, notifier, rtdb_gateway
-from live.balance_adjust import apply_balance_adjusts_idempotent
 from live.chart_data import build_chart_series
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -50,8 +49,10 @@ from live.constants import (
     DEFAULT_DATA_STOCK_SUBDIR,
     DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
+    HISTORY_SUMMARY_FILENAME,
     KST_TZ_NAME,
     STATE_REPO_URL,
+    extract_ticker_from_path,
     get_live_portfolio_config,
 )
 from live.daily_runner import run_daily
@@ -139,9 +140,8 @@ def _get_nyse_calendar() -> Any:
 def _is_nyse_session(trade_date: date) -> bool:
     """``trade_date`` 가 NYSE 영업일인지 확인.
 
-    설계서 4.2 단계 1 "휴장 체크" 에 해당. cron 이 주말/공휴일에 돌거나
-    사용자가 workflow_dispatch 에서 휴장일을 지정해도 불필요한 전체 파이프라인
-    실행을 막는다.
+    cron 이 주말/공휴일에 돌거나 사용자가 workflow_dispatch 에서 휴장일을
+    지정해도 불필요한 전체 파이프라인 실행을 막는다.
     """
     calendar = _get_nyse_calendar()
     return bool(calendar.is_session(pd.Timestamp(trade_date)))
@@ -197,11 +197,11 @@ def ephemeral_state_repo(*, push_on_success: bool, commit_subcommand: str) -> It
 
 
 def _ticker_from_slot_signal(slot: AssetSlotConfig) -> str:
-    return slot.signal_data_path.stem.split("_", 1)[0].upper()
+    return extract_ticker_from_path(slot.signal_data_path)
 
 
 def _ticker_from_slot_trade(slot: AssetSlotConfig) -> str:
-    return slot.trade_data_path.stem.split("_", 1)[0].upper()
+    return extract_ticker_from_path(slot.trade_data_path)
 
 
 def _collect_all_tickers() -> list[str]:
@@ -335,9 +335,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 
 def _cmd_run_daily(args: argparse.Namespace) -> int:
-    """설계서 4.2 일일 실행 통합 루프.
-
-    어떤 단계든 예외 발생 시 ``_safe_notify_failure`` 호출 후 재전파.
+    """일일 실행 통합 루프.
 
     조기 정상 종료(exit 0) 조건:
 
@@ -347,184 +345,170 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
     ``--trade-date`` 를 명시적으로 전달한 경우 두 체크 모두 bypass 하여
     주말/과거 재현 디버깅을 허용한다.
+
+    예외 처리: 어떤 단계든 예외가 발생하면 그대로 전파한다. 상위 ``main()`` 의
+    공통 알림 훅이 ``_safe_notify_failure`` 를 호출한 뒤 exit 1 을 반환한다.
     """
     trade_date_str: str | None = args.trade_date
     is_explicit_trade_date = trade_date_str is not None
-    rtdb_app: Any | None = None
 
-    # 0a. trade_date 결정 (ephemeral clone 비용 전에 선제 판정)
+    # trade_date 결정 (ephemeral clone 비용 전에 선제 판정)
     trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
 
-    # 0b. 휴장 체크 — 비영업일이면 조기 정상 종료.
+    # 휴장 체크 — 비영업일이면 조기 정상 종료.
     # --trade-date 가 명시되어 있으면 사용자가 의도적으로 해당 날짜를 지정한 것이므로
     # 휴장 여부와 무관하게 진행한다 (주말 재현 테스트 허용).
     if not is_explicit_trade_date and not _is_nyse_session(trade_date):
         logger.debug(f"{trade_date} 는 NYSE 비영업일 — run-daily 조기 종료 (정상)")
         return 0
 
-    try:
-        with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
-            # 1. 상태 로드
-            state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
-            applied_path = state_dir / DEFAULT_APPLIED_FILL_IDS_FILENAME
+    with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
+        # 상태 로드
+        state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
+        applied_path = state_dir / DEFAULT_APPLIED_FILL_IDS_FILENAME
+        try:
+            state = load_state(state_path)
+            applied_ids = load_applied_fill_ids(applied_path)
+        except (FileNotFoundError, ValueError) as exc:
+            raise RuntimeError(f"상태 파일 로드 실패: {exc}") from exc
+
+        # idempotency 체크 — 같은 trade_date 가 이미 처리된 경우 조기 종료.
+        # --trade-date 명시 시 bypass (디버그/테스트 모드).
+        if not is_explicit_trade_date and state.last_model_execution_date == trade_date.isoformat():
+            logger.debug(f"{trade_date} 는 이미 처리됨 (last_model_execution_date) — " "run-daily 조기 종료 (정상, 중복 실행 방지)")
+            return 0
+
+        # 주가 CSV append (data_fetcher)
+        try:
+            _refresh_live_csvs(state_dir, trade_date)
+        except ValueError as exc:
+            raise RuntimeError(f"데이터 검증 실패: {exc}") from exc
+
+        # market_bundle 준비
+        try:
+            bundle = _build_market_bundle(state_dir)
+        except (FileNotFoundError, ValueError) as exc:
+            raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
+
+        # RTDB 초기화
+        rtdb_app: Any | None = _initialize_rtdb_app()
+
+        # RTDB fills 가져오기
+        pending_fills: list[ActualFill] = []
+        if rtdb_app is not None:
             try:
-                state = load_state(state_path)
-                applied_ids = load_applied_fill_ids(applied_path)
-            except (FileNotFoundError, ValueError) as exc:
-                raise RuntimeError(f"상태 파일 로드 실패: {exc}") from exc
-
-            # 1.5. idempotency 체크 — 같은 trade_date 가 이미 처리된 경우 조기 종료.
-            # --trade-date 명시 시 bypass (디버그/테스트 모드).
-            if not is_explicit_trade_date and state.last_model_execution_date == trade_date.isoformat():
-                logger.debug(f"{trade_date} 는 이미 처리됨 (last_model_execution_date) — " "run-daily 조기 종료 (정상, 중복 실행 방지)")
-                return 0
-
-            # 3. CSV append (data_fetcher)
-            try:
-                _refresh_live_csvs(state_dir, trade_date)
-            except ValueError as exc:
-                raise RuntimeError(f"데이터 검증 실패: {exc}") from exc
-
-            # 4. market_bundle 준비
-            try:
-                bundle = _build_market_bundle(state_dir)
-            except (FileNotFoundError, ValueError) as exc:
-                raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
-
-            # 5. RTDB 초기화
-            rtdb_app = _initialize_rtdb_app()
-
-            # 6. RTDB fills 가져오기
-            pending_fills: list[ActualFill] = []
-            if rtdb_app is not None:
-                try:
-                    pending_fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
-                except Exception as exc:  # noqa: BLE001
-                    raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
-
-            # 6.5. RTDB balance_adjusts 가져오기 (설계서 6.4)
-            pending_adjusts: list[BalanceAdjust] = []
-            if rtdb_app is not None:
-                try:
-                    pending_adjusts = rtdb_gateway.fetch_pending_balance_adjusts(rtdb_app)
-                except Exception as exc:  # noqa: BLE001
-                    raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
-
-            # 7. run_daily (순수 계산 — fills 처리 포함)
-            try:
-                result = run_daily(
-                    trade_date=trade_date,
-                    state=state,
-                    market_bundle=bundle,
-                    pending_fills=pending_fills,
-                    applied_fill_ids=applied_ids,
-                )
+                pending_fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
             except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
+                raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
 
-            # 7.5. balance_adjusts 를 fills 반영 이후의 state 에 덧씌운다.
-            #      - fills 가 먼저 반영되고, balance_adjust 가 최종 잔고를 덮어쓰는 순서
-            #      - 별도 원장 applied_balance_adjust_ids.json 으로 idempotency 보장
-            adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
+        # RTDB balance_adjusts 가져오기
+        pending_adjusts: list[BalanceAdjust] = []
+        if rtdb_app is not None:
             try:
-                applied_adjust_ids = load_applied_balance_adjust_ids(adjust_path)
-            except ValueError as exc:
-                raise RuntimeError(f"applied_balance_adjust_ids.json 로드 실패: {exc}") from exc
-
-            prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
-
-            if pending_adjusts:
-                import dataclasses as _dc
-
-                result_state_after_adjust, applied_adjust_ids = apply_balance_adjusts_idempotent(
-                    result.updated_state,
-                    pending_adjusts,
-                    applied_adjust_ids,
-                )
-                # DailyResult 는 dataclass 이므로 updated_state 를 교체한 새 DailyResult 로 갱신
-                result = _dc.replace(result, updated_state=result_state_after_adjust)
-
-            # 8. 상태 저장 + applied_ids 정리
-            save_state(result.updated_state, state_path)
-            cleaned_ids = cleanup_old_fill_ids(
-                result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS
-            )
-            save_applied_fill_ids(cleaned_ids, applied_path)
-
-            # 8.1 balance_adjust 원장 정리 + 저장
-            cleaned_adjust_ids = cleanup_old_fill_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
-            save_applied_balance_adjust_ids(cleaned_adjust_ids, adjust_path)
-
-            # 8.5. 새로 반영된 fill 을 user_trades.jsonl 에 append (Gap 3/4)
-            #      run_daily 전후의 applied_ids 차분으로 신규 fill 을 식별한다.
-            prev_applied_set = set(applied_ids.keys())
-            newly_applied_ids = set(result.updated_applied_fill_ids.keys()) - prev_applied_set
-            if newly_applied_ids:
-                hist_dir = _history_dir(state_dir)
-                for fill in pending_fills:
-                    if fill.rtdb_key in newly_applied_ids:
-                        history.append_user_trade(
-                            {
-                                "asset_id": fill.asset_id,
-                                "date": fill.trade_date,
-                                "direction": fill.direction,
-                            },
-                            hist_dir,
-                        )
-
-            # 8.6. 새로 반영된 balance_adjust 를 audit 히스토리에 append + RTDB mark.
-            #      prev 스냅샷과 apply 후 applied_adjust_ids 의 차분으로 신규 식별.
-            newly_applied_adjust_keys = set(applied_adjust_ids.keys()) - prev_adjust_keys_snapshot
-            if newly_applied_adjust_keys:
-                hist_dir = _history_dir(state_dir)
-                for adjust in pending_adjusts:
-                    if adjust.rtdb_key in newly_applied_adjust_keys:
-                        history.append_balance_adjust(
-                            {
-                                "rtdb_key": adjust.rtdb_key,
-                                "asset_id": adjust.asset_id,
-                                "new_shares": adjust.new_shares,
-                                "new_cash": adjust.new_cash,
-                                "reason": adjust.reason,
-                                "input_time_kst": adjust.input_time_kst,
-                            },
-                            hist_dir,
-                        )
-
-                # RTDB processed 마킹
-                if rtdb_app is not None:
-                    try:
-                        rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
-                    except Exception as exc:  # noqa: BLE001
-                        raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
-
-            # 9. 영구 히스토리 저장
-            try:
-                _persist_history(state_dir, trade_date, result)
+                pending_adjusts = rtdb_gateway.fetch_pending_balance_adjusts(rtdb_app)
             except Exception as exc:  # noqa: BLE001
-                logger.error(f"히스토리 저장 실패 (계속 진행): {exc}")
+                raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
 
-            # 10. RTDB 갱신
+        # applied_balance_adjust_ids 원장 로드 (run_daily 에 전달)
+        adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
+        try:
+            applied_adjust_ids = load_applied_balance_adjust_ids(adjust_path)
+        except ValueError as exc:
+            raise RuntimeError(f"applied_balance_adjust_ids.json 로드 실패: {exc}") from exc
+
+        prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
+
+        # run_daily (순수 계산 — fills + balance_adjust 처리 포함)
+        try:
+            result = run_daily(
+                trade_date=trade_date,
+                state=state,
+                market_bundle=bundle,
+                pending_fills=pending_fills,
+                applied_fill_ids=applied_ids,
+                pending_adjusts=pending_adjusts,
+                applied_balance_adjust_ids=applied_adjust_ids,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
+
+        # run_daily 결과의 최종 applied_adjust_ids 를 반영
+        applied_adjust_ids = result.updated_applied_balance_adjust_ids
+
+        # 상태 저장 + applied_ids 정리
+        save_state(result.updated_state, state_path)
+        cleaned_ids = cleanup_old_fill_ids(result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+        save_applied_fill_ids(cleaned_ids, applied_path)
+
+        # balance_adjust 원장 정리 + 저장
+        cleaned_adjust_ids = cleanup_old_fill_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+        save_applied_balance_adjust_ids(cleaned_adjust_ids, adjust_path)
+
+        # 새로 반영된 fill 을 user_trades.jsonl 에 append.
+        # run_daily 전후의 applied_fill_ids 차분으로 신규 fill 을 식별한다 (차트 마커용).
+        prev_applied_set = set(applied_ids.keys())
+        newly_applied_ids = set(result.updated_applied_fill_ids.keys()) - prev_applied_set
+        if newly_applied_ids:
+            hist_dir = _history_dir(state_dir)
+            for fill in pending_fills:
+                if fill.rtdb_key in newly_applied_ids:
+                    history.append_user_trade(
+                        {
+                            "asset_id": fill.asset_id,
+                            "date": fill.trade_date,
+                            "direction": fill.direction,
+                        },
+                        hist_dir,
+                    )
+
+        # 새로 반영된 balance_adjust 를 audit 히스토리에 append + RTDB mark.
+        # prev 스냅샷과 apply 후 applied_adjust_ids 의 차분으로 신규 식별.
+        newly_applied_adjust_keys = set(applied_adjust_ids.keys()) - prev_adjust_keys_snapshot
+        if newly_applied_adjust_keys:
+            hist_dir = _history_dir(state_dir)
+            for adjust in pending_adjusts:
+                if adjust.rtdb_key in newly_applied_adjust_keys:
+                    history.append_balance_adjust(
+                        {
+                            "rtdb_key": adjust.rtdb_key,
+                            "asset_id": adjust.asset_id,
+                            "new_shares": adjust.new_shares,
+                            "new_cash": adjust.new_cash,
+                            "reason": adjust.reason,
+                            "input_time_kst": adjust.input_time_kst,
+                        },
+                        hist_dir,
+                    )
+
+            # RTDB processed 마킹
             if rtdb_app is not None:
                 try:
-                    _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+                    rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
                 except Exception as exc:  # noqa: BLE001
-                    raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
+                    raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
 
-            # 11. 알림 발송
-            _send_daily_notifications(rtdb_app, result)
+        # 영구 히스토리 저장 — 실패 시 즉시 중단 + 알림 (자동 복구 금지)
+        try:
+            _persist_history(state_dir, trade_date, result)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"히스토리 저장 실패: {exc}") from exc
 
-            logger.debug(
-                f"run-daily 완료: equity={result.model_equity:,.0f}, "
-                f"pending={len(result.order_intents)}, drift={result.drift_pct:.2f}%, "
-                f"reminders={len(result.pending_fill_reminders)}"
-            )
-        return 0
+        # RTDB 갱신
+        if rtdb_app is not None:
+            try:
+                _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
 
-    except Exception as exc:
-        # 어떤 단계든 실패하면 알림 발송 후 재전파
-        _safe_notify_failure(rtdb_app, str(exc))
-        raise
+        # 알림 발송
+        _send_daily_notifications(rtdb_app, result)
+
+        logger.debug(
+            f"run-daily 완료: equity={result.model_equity:,.0f}, "
+            f"pending={len(result.order_intents)}, drift={result.drift_pct:.2f}%, "
+            f"reminders={len(result.pending_fill_reminders)}"
+        )
+    return 0
 
 
 def _validate_against_csv(
@@ -595,10 +579,8 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
     """
     # NYSE 달력 싱글톤 로드 (validate_date_gap 용). 테스트는 monkeypatch 로
     # _get_nyse_calendar 를 가짜로 교체하여 네트워크 없이 검증할 수 있다.
-    try:
-        calendar = _get_nyse_calendar()
-    except RuntimeError:
-        calendar = None  # 극단적 fallback — live extras 미설치 시 gap 검증 skip
+    # 로드 실패 시 RuntimeError 가 호출자로 전파되어 상위 알림 훅에 도달한다.
+    calendar = _get_nyse_calendar()
 
     for ticker in _collect_all_tickers():
         recent = fetch_recent_ohlc(ticker, days=5)
@@ -662,7 +644,7 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
         hist_dir,
     )
 
-    # 신호 이력 append — 차트 마커용 (Gap 2)
+    # 신호 이력 append — 차트 마커 원본
     signal_entries = [
         {"date": trade_date.isoformat(), "asset_id": asset_id, "state": sig.state}
         for asset_id, sig in result.signals.items()
@@ -752,7 +734,7 @@ def _cmd_fetch_fills(args: argparse.Namespace) -> int:
 def _cmd_history(args: argparse.Namespace) -> int:
     n: int = args.tail
     with ephemeral_state_repo(push_on_success=False, commit_subcommand="history") as state_dir:
-        summary_path = _history_dir(state_dir) / "summary.jsonl"
+        summary_path = _history_dir(state_dir) / HISTORY_SUMMARY_FILENAME
         if not summary_path.exists():
             logger.debug(f"summary.jsonl 없음: {summary_path}")
             return 0
@@ -837,11 +819,14 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """CLI 진입점. ``argv`` 가 None 이면 ``sys.argv[1:]`` 사용.
 
-    에러 처리 정책 (설계서 11장 + live/CLAUDE.md):
+    에러 처리 정책:
 
-    - 모든 비즈니스 예외를 ERROR 로그로 기록 후 exit code 1 반환
-    - 자동 복구 / 롤백 금지 — 호출자(GitHub Actions) 가 retry 정책 결정
-    - argparse 의 ``SystemExit`` 는 그대로 전파
+    - **모든** 커맨드의 예외는 이 함수의 공통 훅에서 ``_safe_notify_failure`` 를
+      통해 FCM + 텔레그램 실패 알림으로 전파된다. 알림 발송 후 exit code 1 반환.
+    - 자동 복구 / 롤백 금지 — 호출자(GitHub Actions) 가 retry 정책 결정.
+    - argparse 의 ``SystemExit`` 는 그대로 전파.
+    - ``notify-failure`` 커맨드 자체의 실패는 재귀 방지를 위해 알림을 재발송
+      하지 않는다 (알림 채널 자체가 막힌 상황에서 알림을 다시 보내면 무한 루프).
     """
     _load_dotenv_if_present()
     parser = _build_parser()
@@ -850,7 +835,10 @@ def main(argv: list[str] | None = None) -> int:
         return args.func(args)
     except SystemExit:
         raise
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        command_name = getattr(args, "command", None)
+        if command_name != "notify-failure":
+            _safe_notify_failure(None, f"{command_name or 'unknown'} 실패: {exc}")
         logger.error("예외 발생", exc_info=True)
         return 1
 

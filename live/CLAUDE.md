@@ -2,8 +2,8 @@
 
 > CRITICAL: live 도메인 작업 전에 이 문서를 반드시 읽어야 합니다.
 > 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
-> 설계서: [docs/DESIGN_QBT_LIVE_FINAL.md](../docs/DESIGN_QBT_LIVE_FINAL.md)
-> 구현 체크리스트 및 Phase 별 진행 상황: [docs/plans/](../docs/plans/) 하위 계획서
+> 이 문서가 live 도메인의 **현행 규칙 / 아키텍처 SoT** 입니다.
+> 구체 함수 시그니처 / dataclass 정의는 `live/src/live/` 하위 코드가 SoT 입니다.
 
 ## 폴더 목적
 
@@ -43,50 +43,59 @@ live/
 └── tests/
     ├── __init__.py
     ├── conftest.py         # 공통 픽스처 (mock Firebase / yfinance 등)
-    └── test_*.py           # 각 Step 에서 해당 모듈과 함께 추가
+    └── test_*.py           # 모듈별 단위/통합 테스트
 ```
 
 ## 모듈별 역할 요약
 
-| 모듈                   | 역할                                                                                                                               | 관련 설계서 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `constants.py`         | 티커 목록, SIGNAL_TRADE_MAP, DRIFT 임계값, 파일명 상수, STATE_REPO_URL                                                             | 5.1         |
-| `models.py`            | `LiveState`, `DailyResult`, `ActualFill`, `BalanceAdjust`, `ChartSeries`, `DriftReport` 등 데이터 모델                             | §5, §6      |
-| `state.py`             | `LiveState` JSON 직렬화/역직렬화, 초기화, `applied_fill_ids` / `applied_balance_adjust_ids` 관리                                   | §5          |
-| `data_fetcher.py`      | yfinance 호출, CSV 누적 append, 전체 재다운로드                                                                                    | §2          |
-| `data_validator.py`    | 설계서 3장의 3가지 검증 (OHLC / 전일 종가 / 거래일 gap). 세 검증 모두 `cli._refresh_live_csvs` 에서 매 `run-daily` 실행 시 호출됨  | §3          |
-| `daily_runner.py`      | 순수 계산 기반 `run_daily` (파일 I/O 금지). fills 반영 + 시그널 + 리밸런싱 + pending 생성                                          | §4.2        |
-| `drift.py`             | fill → system_fill / personal_trade 분류, idempotency, drift 계산                                                                  | §6, §14     |
-| `balance_adjust.py`    | 자산/cash 직접 보정 (`BalanceAdjust`) idempotent 적용. 앱 → RTDB inbox → daily runner                                              | §6.4        |
-| `buffer_serializer.py` | QBT `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (QBT 수정 없음)                          | §4.3        |
-| `rtdb_gateway.py`      | Firebase Admin SDK 초기화, RTDB 읽기/쓰기 (fills / balance_adjusts / read model / chart / device tokens)                           | §10         |
-| `notifier.py`          | FCM + 텔레그램 동시 발송 (일일 리포트 / 실패 알림)                                                                                 | §8          |
-| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성. `signal_history` / `user_trades` 인자로 마커 포함                                               | §7          |
-| `history.py`           | Git 정본 히스토리 (daily/summary/user_trades/signals/balance_adjusts) 영구 append                                                  | §10.1       |
-| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼 (로컬 / Actions 공통 경로)                                                            | §1          |
-| `cli.py`               | CLI 엔트리. 휴장 체크 + idempotency + ephemeral 컨텍스트 + `run-daily` / `init` / `init-data` / `drift` / `notify-failure` 등 명령 | §4.2, §11   |
+| 모듈                   | 역할                                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `constants.py`         | 포트폴리오 식별자, DRIFT 임계값, 파일명/경로 상수, 티커 추출 유틸, 출력 정밀도 등 도메인 공통 상수                                 |
+| `models.py`            | `LiveState`, `DailyResult`, `ActualFill`, `BalanceAdjust`, `DriftReport`, `ChartSeries` 등 모든 dataclass / TypedDict              |
+| `state.py`             | `LiveState` JSON 직렬화/역직렬화, 초기화, `applied_fill_ids` / `applied_balance_adjust_ids` 원장 관리                              |
+| `data_fetcher.py`      | yfinance 호출, CSV 누적 append, 전체 재다운로드                                                                                    |
+| `data_validator.py`    | OHLC 논리 / 전일 종가 연속성 / 거래일 gap 3 종 검증. `cli._refresh_live_csvs` 가 매 `run-daily` 실행 시 호출                       |
+| `daily_runner.py`      | 순수 계산 `run_daily` (파일 I/O 금지). fills → 전일 pending 체결 → equity → 시그널/리밸런싱 → 익일 pending → balance_adjust → drift |
+| `drift.py`             | fill 분류(system_fill / personal_trade), idempotent 적용, `compute_drift` 정본                                                     |
+| `balance_adjust.py`    | 자산/cash 직접 보정(`BalanceAdjust`) 의 idempotent 적용 (run_daily 내부에서 fills 직후 호출됨)                                     |
+| `buffer_serializer.py` | `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (QBT 수정 없음)                              |
+| `rtdb_gateway.py`      | Firebase Admin SDK 초기화, RTDB 읽기/쓰기 (fills / balance_adjusts / read model / chart / device tokens)                           |
+| `notifier.py`          | FCM + 텔레그램 동시 발송 (일일 리포트 / 실패 알림). 발송 실패는 로그만 기록 (재발송 금지)                                          |
+| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성. `signal_history` / `user_trades` 를 인자로 받아 마커 포함                                       |
+| `history.py`           | Git 정본 히스토리 (daily / summary / user_trades / signals / balance_adjusts) 영구 append                                          |
+| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼 (로컬 / Actions 공통 경로)                                                            |
+| `cli.py`               | CLI 엔트리. 휴장 체크 + idempotency + ephemeral 컨텍스트 + 각 커맨드 구현 + `main()` 공통 알림 훅                                  |
 
 ## 핵심 원칙
 
-### 1. 장애 시 자동 복구 금지
+### 1. 장애 시 자동 복구 금지 + 무조건 알림
 
-- 데이터 수집/검증/계산/RTDB/Git push 중 어떤 단계든 실패하면 **즉시 중단** 하고 알림만 보낸다.
+- 데이터 수집/검증/계산/RTDB/Git push 중 어떤 단계든 실패하면 **즉시 중단** 한다.
 - 자동 롤백, 자동 재시도(GitHub Actions retry job 제외), 자동 복원 **모두 금지**.
-- 사용자가 상황을 직접 파악하여 디버깅할 수 있도록 한다.
-- 에러 알림에는 **에러 상세 메시지(stack trace 포함 가능)** 를 반드시 포함.
+- `cli.py` 의 `main()` 공통 예외 훅이 모든 커맨드의 예외에 대해
+  `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다.
+  - 예외: `notify-failure` 커맨드 자체는 재귀 방지를 위해 알림을 다시 발송하지 않는다.
+- **알림 채널 자체의 실패는 로그로만 기록한다**. FCM / 텔레그램 발송이 실패한
+  상황에서 다시 알림을 보내는 것은 모순 / 무한 루프이므로 금지.
+- 에러 알림 본문에는 실패 원인(커맨드 이름 + 예외 메시지) 을 반드시 포함.
 
 ### 2. model / actual 분리
 
 - `LiveState` 에서 `model_*` 와 `actual_*` 필드는 명시적으로 분리.
 - model 체결은 actual 을 덮어쓰지 않는다.
-- actual 은 RTDB 로 들어오는 체결 입력(`fills/inbox/`) 으로만 갱신된다.
-- drift 계산은 `(model_equity - actual_equity) / model_equity * 100` 의 절대값.
+- actual 은 RTDB 로 들어오는 체결 입력(`fills/inbox/`) 또는 직접 보정
+  (`balance_adjust/inbox/`) 으로만 갱신된다.
+- drift 계산은 `drift.compute_drift` 가 유일 정본이며, 임계값은
+  `DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO` 를 따른다.
 
 ### 3. 순수 계산 / I/O 분리
 
 - `daily_runner.run_daily()` 는 파일 I/O / 네트워크 호출이 없다.
-- 모든 입력은 파라미터로 받고, 결과는 `DailyResult` 로 반환.
-- 회귀 검증(Step 9) 가능하도록 결정적(deterministic) 이어야 한다.
+- 모든 입력(`pending_fills`, `pending_adjusts`, `applied_*_ids` 등) 은 파라미터로
+  받고, 결과는 `DailyResult` 로 반환한다.
+- `run_daily` 내부 적용 순서: **fills 먼저 → balance_adjust 나중**. 사용자 직접
+  보정이 fill 이후의 최종 잔고를 덮어쓴다.
+- 회귀 검증(`test_regression.py`) 가능하도록 결정적(deterministic) 이어야 한다.
 
 ### 4. 백테스트 절대 규칙 보존
 
@@ -121,7 +130,8 @@ QBT 백테스트의 절대 규칙은 live 에서도 **예외 없이 동일**하�
 - **파일 I/O 격리**: `tmp_path` 또는 monkeypatch 로 qbt-live-state 디렉토리 경로 격리.
 - **결정적**: `@freeze_time` 으로 날짜 고정, RTDB mock 응답 고정.
 - Given-When-Then 패턴, `pytest.approx()` 로 부동소수점 비교.
-- 회귀 검증(`test_regression.py`, Step 9) 은 `run_daily()` 를 과거 1년 순차 호출하여 `run_portfolio_backtest()` 와 비교: 매일 equity / positions / cash 가 일치해야 한다 (`pytest.approx(abs=1.0)`).
+- 회귀 검증(`test_regression.py`): `run_daily()` 를 과거 구간에 대해 순차 호출하여
+  `run_portfolio_backtest()` 와 비교. 매일 equity / positions / cash 가 일치해야 한다.
 
 ## 의존성 설치
 
@@ -178,5 +188,7 @@ poetry run python -m live.cli notify-failure -m "수동 테스트"
 
 ## 참고 문서
 
-- [docs/DESIGN_QBT_LIVE_FINAL.md](../docs/DESIGN_QBT_LIVE_FINAL.md): 전체 설계서 (반드시 정독)
-- [docs/plans/](../docs/plans/): Phase 별 구현 계획서
+- [docs/plans/](../docs/plans/): 변경 계획서 (plan) 저장소
+- [live/src/live/models.py](src/live/models.py): 데이터 모델 SoT
+- [live/src/live/cli.py](src/live/cli.py): CLI 엔트리 및 `main()` 공통 알림 훅
+- [live/src/live/daily_runner.py](src/live/daily_runner.py): 순수 계산 `run_daily` SoT

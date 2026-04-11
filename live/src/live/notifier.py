@@ -1,7 +1,8 @@
 """FCM + 텔레그램 알림 (항상 동시 발송).
 
-설계서 8장 ("알림") 의 5 종 알림을 처리한다. FCM 과 텔레그램은 **항상 독립
-발송** 되며, 한쪽 채널 실패가 다른 쪽 채널을 막지 않는다 (설계서 11장).
+일일 리포트 및 실패 알림을 FCM 과 텔레그램 두 채널로 동시 발송한다. FCM 과
+텔레그램은 **항상 독립 발송** 되며, 한쪽 채널의 실패가 다른 쪽 채널을 막지
+않는다.
 
 발송 종류:
 
@@ -10,6 +11,11 @@
 
 만료 토큰(`UnregisteredError`) 감지 시 ``NotificationOutcome.fcm_invalid_tokens`` 에
 누적되며, 호출자는 이를 ``rtdb_gateway.remove_invalid_tokens`` 로 정리할 수 있다.
+
+**알림 채널 자체의 실패는 로그로만 기록한다**. 알림 발송이 실패한 상황에서
+다시 알림을 보내는 것은 모순이며 무한 루프 / 토큰 낭비를 유발한다. 따라서
+:func:`_safe_fcm` / :func:`_safe_telegram` 은 예외를 ``logger.error`` 로만
+기록하고 기본값을 반환한다.
 """
 
 from __future__ import annotations
@@ -18,6 +24,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from live.models import DailyResult
+from qbt.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "NotificationOutcome",
@@ -54,7 +63,7 @@ def _format_pct(value: float) -> str:
 
 
 def _build_daily_body(result: DailyResult) -> str:
-    """일일 리포트 본문 생성. 200 일선 근접도 포함 (설계서 8장)."""
+    """일일 리포트 본문 생성. 200 일선 근접도 / 시그널 / 리밸런싱 / 리마인더 포함."""
     lines: list[str] = []
     lines.append(f"[QBT Live] {result.execution_date}")
     lines.append(f"model equity: {result.model_equity:,.0f}")
@@ -142,18 +151,26 @@ def _send_telegram_message(tg_token: str, tg_chat: str, body: str) -> bool:
 
 
 def _safe_fcm(tokens: list[str], body: str) -> tuple[int, list[str]]:
-    """FCM 발송을 try-except 로 감싼 안전 호출."""
+    """FCM 발송을 try-except 로 감싼 안전 호출.
+
+    알림 채널 실패는 알림으로 재발송하지 않는다 — 로그만 기록하고 기본값 반환.
+    """
     try:
         return _send_fcm_messages(tokens, body)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"FCM 발송 실패 (로그만 기록, 재발송 없음): {exc}", exc_info=True)
         return 0, []
 
 
 def _safe_telegram(tg_token: str, tg_chat: str, body: str) -> bool:
-    """텔레그램 발송을 try-except 로 감싼 안전 호출."""
+    """텔레그램 발송을 try-except 로 감싼 안전 호출.
+
+    알림 채널 실패는 알림으로 재발송하지 않는다 — 로그만 기록하고 False 반환.
+    """
     try:
         return _send_telegram_message(tg_token, tg_chat, body)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"텔레그램 발송 실패 (로그만 기록, 재발송 없음): {exc}", exc_info=True)
         return False
 
 

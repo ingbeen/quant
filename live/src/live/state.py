@@ -1,9 +1,9 @@
 """LiveState JSON 직렬화/역직렬화 및 applied_fill_ids 관리.
 
-설계서 5장 및 6.2 의 원장 저장 계약을 구현한다. 모든 I/O 는 ``pathlib.Path`` 기반이며
+``live_state.json`` 원장의 직렬화/역직렬화를 담당한다. 모든 I/O 는 ``pathlib.Path`` 기반이며
 파일 저장은 ``temp → os.replace`` 패턴으로 원자적(atomic)으로 수행된다.
 
-주요 함수 (설계서 부록 A):
+주요 함수:
 
 - :func:`create_initial_state` — 초기 LiveState 생성 (QBT ``PORTFOLIO_CONFIGS`` SSoT 재사용)
 - :func:`load_state`, :func:`save_state` — LiveState JSON 왕복
@@ -31,7 +31,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -44,6 +44,7 @@ from live.models import (
     AssetLiveState,
     BufferZoneState,
     HoldState,
+    IntentTypeLiteral,
     LiveState,
     PendingOrderDict,
 )
@@ -64,7 +65,7 @@ __all__ = [
 # 내부 헬퍼 — 타임스탬프 및 파일 I/O
 # ============================================================================
 
-_KST = timezone(timedelta(hours=9))  # Asia/Seoul 고정 오프셋 (설계서 12장)
+_KST = timezone(timedelta(hours=9))  # Asia/Seoul 고정 오프셋
 
 
 def _now_kst_iso() -> str:
@@ -106,9 +107,9 @@ def _json_default(obj: Any) -> Any:
 def create_initial_state(total_capital: float) -> LiveState:
     """초기 LiveState 를 생성한다.
 
-    QBT 코어 ``PORTFOLIO_CONFIGS[LIVE_PORTFOLIO_ID]`` 의 자산 슬롯을 기반으로 4 개
-    자산(sso/qld/gld/tlt)을 0 포지션으로 초기화한다. model / actual 현금은 모두
-    ``total_capital`` 로 동일하게 세팅된다 (설계서 5.2 초기 규칙).
+    QBT 코어 ``PORTFOLIO_CONFIGS[LIVE_PORTFOLIO_ID]`` 의 자산 슬롯을 기반으로 각
+    자산을 0 포지션으로 초기화한다. model / actual 현금은 모두 ``total_capital`` 로
+    동일하게 세팅된다.
 
     Args:
         total_capital: 초기 자본금 (원). 반드시 양수.
@@ -293,6 +294,11 @@ def _asset_live_state_from_dict(data: dict[str, Any]) -> AssetLiveState:
     )
 
 
+_VALID_INTENT_TYPES: frozenset[str] = frozenset(
+    ("EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
+)
+
+
 def _pending_order_from_dict(data: dict[str, Any]) -> PendingOrderDict:
     """dict → PendingOrderDict. TypedDict 이므로 dict 를 그대로 반환하되 키 검증."""
     required = (
@@ -309,9 +315,17 @@ def _pending_order_from_dict(data: dict[str, Any]) -> PendingOrderDict:
     for key in required:
         if key not in data:
             raise ValueError(f"PendingOrderDict 필드 누락: {key}")
+
+    intent_type_raw = str(data["intent_type"])
+    if intent_type_raw not in _VALID_INTENT_TYPES:
+        raise ValueError(
+            f"PendingOrderDict intent_type 값이 유효하지 않음: {intent_type_raw!r} " f"(허용: {sorted(_VALID_INTENT_TYPES)})"
+        )
+    intent_type: IntentTypeLiteral = cast("IntentTypeLiteral", intent_type_raw)
+
     pending: PendingOrderDict = {
         "asset_id": str(data["asset_id"]),
-        "intent_type": str(data["intent_type"]),
+        "intent_type": intent_type,
         "signal_date": str(data["signal_date"]),
         "current_amount": float(data["current_amount"]),
         "target_amount": float(data["target_amount"]),
@@ -418,7 +432,7 @@ def cleanup_old_fill_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_I
 
     Args:
         ids: 현재 applied_fill_ids 매핑.
-        max_age_days: 이 값 이상 경과한 ID 를 제거 (기본 90 일, 설계서 6.2).
+        max_age_days: 이 값 이상 경과한 ID 를 제거 (기본 ``APPLIED_FILL_IDS_MAX_AGE_DAYS``).
 
     Returns:
         정리된 새 dict (입력 ``ids`` 는 변경되지 않음).

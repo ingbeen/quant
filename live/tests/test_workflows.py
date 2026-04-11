@@ -119,13 +119,15 @@ class TestDailyRunWorkflow:
         assert 'if [ -n "$TRADE_DATE" ]; then' in daily_run_yaml
         assert 'poetry run python -m live run-daily --trade-date "$TRADE_DATE"' in daily_run_yaml
 
-    def test_legacy_commands_kept_as_comments(self, daily_run_yaml: str):
-        """변경 전 코드는 검색 용이하도록 `테스트 코드` 키워드와 함께 주석으로 유지."""
-        assert "테스트 코드" in daily_run_yaml
-        # 주석 처리된 기존 빈 dispatch
-        assert "#   workflow_dispatch: {}" in daily_run_yaml
-        # 주석 처리된 기존 한 줄 run 명령
-        assert "#   run: poetry run python -m live run-daily" in daily_run_yaml
+    def test_no_legacy_or_history_comments(self, daily_run_yaml: str):
+        """루트 CLAUDE.md "주석 작성 원칙" — 변경 이력 / 과거 상태 주석 금지.
+
+        ``기존``, ``이전``, ``테스트 코드`` 같은 표현이 주석에 남아 있으면 문서
+        내구성 원칙 위반이다. 현재 상태만 기술하도록 강제한다.
+        """
+        forbidden = ("테스트 코드", "기존은", "기존 한 줄", "이전 버전")
+        for phrase in forbidden:
+            assert phrase not in daily_run_yaml, f"과거 상태 주석 남아있음: {phrase}"
 
 
 # ============================================================================
@@ -162,10 +164,11 @@ class TestKeepaliveWorkflow:
         # 기본 GITHUB_TOKEN 에 push 권한 부여
         assert "contents: write" in code
 
-    def test_legacy_version_preserved_as_comment(self, keepalive_yaml: str):
-        """이전 버전 (qbt-live-state heartbeat) 이 검색 가능하도록 주석 블록으로 유지."""
-        assert "이전 버전" in keepalive_yaml
-        assert "heartbeat" in keepalive_yaml  # 주석 안에 존재
+    def test_no_legacy_comment_block(self, keepalive_yaml: str):
+        """루트 CLAUDE.md "주석 작성 원칙" — 과거 버전 주석 블록 금지."""
+        forbidden = ("이전 버전", "heartbeat", "과거에는", "qbt-live-state 타겟")
+        for phrase in forbidden:
+            assert phrase not in keepalive_yaml, f"과거 상태 주석 남아있음: {phrase}"
 
     def test_keepalive_commit_message(self, keepalive_yaml: str):
         """커밋 메시지 포맷: ``keepalive: YYYY-MM-DD``."""
