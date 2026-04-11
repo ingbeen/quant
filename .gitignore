@@ -38,6 +38,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local secrets (Firebase service account JSON 등)
+secrets/
+
 # IDE
 .vscode/
 .idea/

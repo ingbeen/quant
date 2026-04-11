@@ -2242,6 +2242,20 @@ files = [
 six = ">=1.5"
 
 [[package]]
+name = "python-dotenv"
+version = "1.2.2"
+description = "Read key-value pairs from a .env file and set them as environment variables"
+optional = true
+python-versions = ">=3.10"
+files = [
+    {file = "python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a"},
+    {file = "python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3"},
+]
+
+[package.extras]
+cli = ["click (>=5.0)"]
+
+[[package]]
 name = "pytz"
 version = "2026.1.post1"
 description = "World timezone definitions, modern and historical"
@@ -2796,9 +2810,9 @@ nospam = ["requests_cache (>=1.0)", "requests_ratelimiter (>=0.3.1)"]
 repair = ["scipy (>=1.6.3)"]
 
 [extras]
-live = ["exchange-calendars", "firebase-admin", "requests"]
+live = ["exchange-calendars", "firebase-admin", "python-dotenv", "requests"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.12"
-content-hash = "3844528d3dbeba5cdeba7a0d0c90ffc2623617b5bf14d020e1697d348783dc91"
+content-hash = "3fcb58d07a518bf9cd0c2b8e4bfd18acbd48de94456b8adaef9e31af1178218a"

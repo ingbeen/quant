@@ -146,6 +146,9 @@ poetry run python -m live.cli init-data
 poetry run python -m live.cli run-daily
 ```
 
+로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드되어 `TELEGRAM_BOT_TOKEN` 등의 환경변수를 공급합니다.
+양식은 루트의 `.env.example` 참고. 이미 `os.environ` 에 값이 있으면 `.env` 가 덮어쓰지 않으므로 GitHub Actions 의 `env:` 블록이 항상 우선됩니다.
+
 ## 인프라 정보
 
 | 항목 | 값 |

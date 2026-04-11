@@ -33,6 +33,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 from live import git_state, history, notifier, rtdb_gateway
 from live.chart_data import build_chart_series
 from live.constants import (
@@ -79,6 +81,25 @@ _ENV_TG_TOKEN = "TELEGRAM_BOT_TOKEN"
 _ENV_TG_CHAT = "TELEGRAM_CHAT_ID"
 
 _DEFAULT_FIREBASE_DB_URL = "https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+# 프로젝트 루트 (live/src/live/cli.py 로부터 4단계 위)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_DOTENV_PATH = _PROJECT_ROOT / ".env"
+
+
+def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
+    """프로젝트 루트의 ``.env`` 파일을 자동 로드.
+
+    - 파일이 없으면 조용히 리턴 (GitHub Actions 등 파일이 없는 환경 대응).
+    - ``python-dotenv`` 미설치 시 ``ImportError`` 는 **잡지 않고 전파**한다.
+      live extras 가 설치되어 있지 않다는 뚜렷한 신호이므로 즉시 실패가 안전.
+    - ``override=False`` — 이미 설정된 환경변수는 덮어쓰지 않아 Actions 의
+      ``env:`` 블록이 항상 우선된다.
+    """
+    if not dotenv_path.is_file():
+        return
+    load_dotenv(dotenv_path=dotenv_path, override=False)
+    logger.debug(f".env 자동 로드 완료: {dotenv_path}")
 
 
 # ============================================================================
@@ -587,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
     - 자동 복구 / 롤백 금지 — 호출자(GitHub Actions) 가 retry 정책 결정
     - argparse 의 ``SystemExit`` 는 그대로 전파
     """
+    _load_dotenv_if_present()
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:

@@ -37,21 +37,21 @@
 
 ### 2. 텔레그램 실패 알림 수신 확인
 
-**목적**: 텔레그램 봇 연결과 환경변수 설정을 가장 단순한 경로로 검증.
+**목적**: 텔레그램 봇 연결과 `.env` 자동 로드가 정상 동작하는지 가장 단순한 경로로 검증.
 
 **사전 조건**: 1 번 완료.
 
 **절차**:
 
 1. 텔레그램 앱에서 `@qbt_live_alert_bot` 검색 → [Start] 버튼 누르기 (최초 1 회)
-2. 프로젝트 루트에서 환경변수 export:
+2. 프로젝트 루트에 `.env` 파일 생성 (최초 1 회):
 
 ```bash
-export TELEGRAM_BOT_TOKEN="<봇 토큰>"
-export TELEGRAM_CHAT_ID="<본인 chat id>"
+cp .env.example .env
 ```
 
-3. 수동 실패 알림 발송:
+3. `.env` 파일을 에디터로 열어 `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` 값을 실제 봇 토큰 / chat id 로 수정 후 저장.
+4. 수동 실패 알림 발송 (env export 불필요 — CLI 가 `.env` 를 자동 로드):
 
 ```bash
 poetry run python -m live.cli notify-failure --message "수동 테스트 from local"
@@ -59,8 +59,10 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 **확인 사항**:
 
-- [ ] 텔레그램 `@qbt_live_alert_bot` 채팅에 `[QBT Live 실패 알림]` 메시지 수신
-- [ ] 메시지 본문에 `수동 테스트 from local` 문구 포함
+- [x] 텔레그램 `@qbt_live_alert_bot` 채팅에 `[QBT Live 실패]` 메시지 수신
+- [x] 메시지 본문에 smoke test 문구 포함
+
+> `.env` 는 `.gitignore` 에 의해 커밋되지 않습니다. GitHub Actions 환경에서는 이 파일 대신 워크플로우 `env:` 블록이 사용되며, 동일한 CLI 코드가 양쪽에서 분기 없이 동작합니다.
 
 ---
 

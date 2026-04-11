@@ -441,3 +441,77 @@ class TestMainArgv:
         """subcommand 없이 호출 → SystemExit (argparse)."""
         with pytest.raises(SystemExit):
             main([])
+
+
+# ============================================================================
+# .env 자동 로드 (python-dotenv)
+# ============================================================================
+
+
+class TestDotenvLoading:
+    """``_load_dotenv_if_present`` 동작 검증.
+
+    로컬 수동 테스트에서 매번 ``export`` 하지 않고 프로젝트 루트의 ``.env``
+    파일로 환경변수를 공급할 수 있게 한 기능. GitHub Actions 는 파일 없이
+    동작해야 하고, 기존 환경변수를 덮어쓰면 안 된다.
+    """
+
+    def test_dotenv_injects_variables_when_file_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given `.env` 파일이 존재하면 When 로드 호출 시 Then os.environ 에 주입된다."""
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text(
+            "QBT_TEST_DOTENV_KEY=from_env_file\nQBT_TEST_DOTENV_OTHER=xyz\n",
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("QBT_TEST_DOTENV_KEY", raising=False)
+        monkeypatch.delenv("QBT_TEST_DOTENV_OTHER", raising=False)
+
+        cli_module._load_dotenv_if_present(dotenv_path=dotenv_path)
+
+        import os
+
+        assert os.environ.get("QBT_TEST_DOTENV_KEY") == "from_env_file"
+        assert os.environ.get("QBT_TEST_DOTENV_OTHER") == "xyz"
+
+    def test_dotenv_no_file_is_noop(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given `.env` 파일이 없으면 When 로드 호출 시 Then 예외 없이 통과한다."""
+        missing_path = tmp_path / "nonexistent.env"
+        assert not missing_path.exists()
+        monkeypatch.setenv("QBT_TEST_DOTENV_PREEXIST", "kept")
+
+        cli_module._load_dotenv_if_present(dotenv_path=missing_path)
+
+        import os
+
+        assert os.environ.get("QBT_TEST_DOTENV_PREEXIST") == "kept"
+
+    def test_dotenv_does_not_override_existing_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given 기존 env 가 있고 `.env` 에도 같은 키가 있을 때
+        When 로드 호출 시 Then 기존 env 값이 우선한다 (override=False).
+
+        이 동작이 없으면 GitHub Actions 의 ``env:`` 블록이 무력화될 수 있다.
+        """
+        dotenv_path = tmp_path / ".env"
+        dotenv_path.write_text(
+            "QBT_TEST_DOTENV_OVERRIDE=from_file\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("QBT_TEST_DOTENV_OVERRIDE", "from_actions")
+
+        cli_module._load_dotenv_if_present(dotenv_path=dotenv_path)
+
+        import os
+
+        assert os.environ.get("QBT_TEST_DOTENV_OVERRIDE") == "from_actions"
+
+    def test_project_root_constant_points_to_repo_root(self) -> None:
+        """``_PROJECT_ROOT`` 가 실제 프로젝트 루트를 가리키는지 확인.
+
+        루트에는 ``pyproject.toml`` 과 ``live`` 디렉토리가 존재해야 한다.
+        이 검사는 파일 레이아웃 변경으로 ``parents[3]`` 인덱스가 깨지는 사고를
+        방지한다.
+        """
+        root = cli_module._PROJECT_ROOT
+        assert (root / "pyproject.toml").is_file()
+        assert (root / "live").is_dir()
+        assert cli_module._DOTENV_PATH == root / ".env"
