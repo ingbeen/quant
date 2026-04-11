@@ -54,8 +54,8 @@ class TestDailyRunWorkflow:
         assert "3.12" in daily_run_yaml
 
     def test_poetry_cache_step(self, daily_run_yaml: str):
-        """actions/cache@v4 + Poetry venv 경로 캐싱."""
-        assert "actions/cache@v4" in daily_run_yaml
+        """actions/cache@v5 + Poetry venv 경로 캐싱."""
+        assert "actions/cache@v5" in daily_run_yaml
         assert "pypoetry" in daily_run_yaml
 
     def test_state_repo_pat_injected_to_cli_env(self, daily_run_yaml: str):

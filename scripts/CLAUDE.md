@@ -189,7 +189,6 @@ main 함수:
 
 - 대시보드 앱:
   - `app_rate_spread_lab.py`: 금리-오차 관계 분석 연구용 앱 (시각화 전용, 단일 흐름: 오차분석→튜닝→과최적화진단→상세분석)
-- CSV 생성 스크립트(tune, validate, generate)는 삭제됨 (`docs/archive/tqqq_removed_modules.md` 참고, git history에서 복원 가능)
 
 ---
 

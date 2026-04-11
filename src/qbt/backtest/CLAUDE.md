@@ -298,7 +298,7 @@ TypedDict:
 
 #### strategies/buffer_zone.py
 
-버퍼존 통합 config-driven 전략 모듈 (4P 고정). 기존 buffer_zone_tqqq, buffer_zone_qqq를 통합한다.
+버퍼존 통합 config-driven 전략 모듈 (4P 고정). 단일 전략 클래스로 전 자산의 버퍼존 전략을 처리한다.
 
 설정 데이터클래스:
 
@@ -376,8 +376,7 @@ PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직
 
 순환 의존성 해결:
 
-- 기존: `buffer_zone.py`가 `run_backtest`를 deferred import (순환 방지 목적)
-- 변경: `runners.py`가 두 모듈을 모두 top-level로 import (순환 없음)
+- `runners.py`가 `buffer_zone.py`와 `backtest_engine.py`를 모두 top-level로 import하여 순환 없이 팩토리 역할을 수행한다.
 
 주요 함수:
 

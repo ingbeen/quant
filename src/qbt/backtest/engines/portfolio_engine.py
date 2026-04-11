@@ -417,7 +417,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             # 당일 체결 결과: intents_to_execute + new_trades(매도) + 포지션 변화(매수)
             intent_executed = intents_to_execute.get(aid)
             trades_for_asset = executed_trades_by_asset.get(aid, [])
-            pre_pos = pre_exec_positions.get(aid, 0)
+            # pre_exec_positions/open_prices_map는 asset_states 전 자산으로 사전 초기화되므로
+            # 직접 인덱싱으로 fail-fast 한다.
+            pre_pos = pre_exec_positions[aid]
             post_pos = st.position
             position_changed = pre_pos != post_pos
 
@@ -431,7 +433,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 else:
                     # 매수: 포지션 변화에서 추출
                     total_shares = abs(post_pos - pre_pos)
-                    exec_price = open_prices_map.get(aid, 0.0)
+                    exec_price = open_prices_map[aid]
                 state_row[f"{aid}_executed_intent"] = intent_type
                 state_row[f"{aid}_exec_side"] = "sell" if is_sell else "buy"
                 state_row[f"{aid}_exec_shares"] = total_shares
@@ -509,7 +511,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
     logger.debug(
         f"포트폴리오 백테스트 완료: {config.experiment_name}, "
-        f"총 거래={len(trades_df)}, 총 수익률={summary.get('total_return_pct', 0):.2f}%"
+        f"총 거래={len(trades_df)}, 총 수익률={summary['total_return_pct']:.2f}%"
     )
 
     # state_log DataFrame 구성

@@ -94,23 +94,34 @@ def execute_orders(
     rebalanced_today = False
 
     # 2. SELL 선행 체결 (EXIT_ALL, REDUCE_TO_TARGET)
+    # 호출 계약: positions/open_prices/e_prices/e_dates/e_hold_days 는 order_intents 전 자산을 포함해야 한다.
+    # 누락 시 KeyError/RuntimeError로 즉시 중단(fail-fast)하여 silent 0/None 대체를 방지한다.
     for asset_id, intent in order_intents.items():
         if intent.intent_type not in ("EXIT_ALL", "REDUCE_TO_TARGET"):
             continue
-        position = positions.get(asset_id, 0)
+        if asset_id not in positions:
+            raise RuntimeError(
+                f"내부 불변조건 위반: SELL intent 자산이 positions에 없음 "
+                f"(asset_id={asset_id}, available_keys={sorted(positions.keys())})"
+            )
+        position = positions[asset_id]
         if position <= 0:
             raise RuntimeError(f"내부 불변조건 위반: SELL intent 대상의 position <= 0 (asset_id={asset_id}, position={position})")
         if asset_id not in open_prices:
-            # 호출부에서 동일 자산 집합으로 open_prices를 채워야 한다.
-            # 누락은 호출부 버그이며 0.0 대체 시 후속 체결 계산이 잘못된 값으로 진행될 수 있다.
             raise RuntimeError(
                 f"내부 불변조건 위반: SELL intent 자산이 open_prices에 없음 "
                 f"(asset_id={asset_id}, available_keys={sorted(open_prices.keys())})"
             )
+        if asset_id not in e_prices or asset_id not in e_dates or asset_id not in e_hold_days:
+            raise RuntimeError(
+                f"내부 불변조건 위반: SELL intent 자산이 entry 상태 dict에 없음 "
+                f"(asset_id={asset_id}, e_prices={asset_id in e_prices}, "
+                f"e_dates={asset_id in e_dates}, e_hold_days={asset_id in e_hold_days})"
+            )
 
         open_price = open_prices[asset_id]
-        e_date = e_dates.get(asset_id)
-        e_price = e_prices.get(asset_id, 0.0)
+        e_date = e_dates[asset_id]
+        e_price = e_prices[asset_id]
 
         if intent.intent_type == "EXIT_ALL":
             shares_sold = position
@@ -128,7 +139,11 @@ def execute_orders(
             pre_shares = position
             post_shares_val = position - shares_sold
 
-            assert e_date is not None, "position > 0이면 entry_date는 항상 존재해야 함"
+            if e_date is None:
+                raise RuntimeError(
+                    f"내부 불변조건 위반: position > 0인데 entry_date가 None "
+                    f"(asset_id={asset_id}, position={position})"
+                )
             trade_record: PortfolioTradeRecord = {
                 COL_ENTRY_DATE: e_date,
                 COL_EXIT_DATE: current_date,
@@ -138,7 +153,7 @@ def execute_orders(
                 COL_PNL: pnl,
                 COL_PNL_PCT: pnl_pct,
                 COL_BUY_BUFFER_PCT: 0.0,
-                COL_HOLD_DAYS_USED: e_hold_days.get(asset_id, 0),
+                COL_HOLD_DAYS_USED: e_hold_days[asset_id],
                 "asset_id": asset_id,
                 "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
                 "pre_shares": pre_shares,
@@ -214,7 +229,13 @@ def execute_orders(
             cost = shares * buy_price
             cash -= cost
 
-            prev_position = positions.get(asset_id, 0)
+            # 호출 계약: positions/e_prices 는 BUY intent 자산을 사전 포함해야 한다.
+            if asset_id not in positions or asset_id not in e_prices:
+                raise RuntimeError(
+                    f"내부 불변조건 위반: BUY intent 자산이 상태 dict에 없음 "
+                    f"(asset_id={asset_id}, in_positions={asset_id in positions}, in_e_prices={asset_id in e_prices})"
+                )
+            prev_position = positions[asset_id]
             if prev_position == 0:
                 # 신규 진입 (ENTER_TO_TARGET)
                 positions[asset_id] = shares
@@ -223,7 +244,7 @@ def execute_orders(
                 e_hold_days[asset_id] = intent.hold_days_used
             else:
                 # 리밸런싱 추가매수 (INCREASE_TO_TARGET): entry_price 가중평균 업데이트
-                prev_entry_price = e_prices.get(asset_id, 0.0)
+                prev_entry_price = e_prices[asset_id]
                 positions[asset_id] = prev_position + shares
                 e_prices[asset_id] = (prev_entry_price * prev_position + buy_price * shares) / positions[asset_id]
 

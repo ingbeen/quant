@@ -340,7 +340,8 @@ def calculate_regime_summaries(
         if not regime_trades.empty and COL_HOLDING_DAYS in regime_trades.columns:
             avg_holding_days = float(regime_trades[COL_HOLDING_DAYS].mean())
 
-        # 수익팩터 (profit_factor)
+        # 수익팩터 (profit_factor) = 이익 총합 / |손실 총합|
+        # PNL == 0인 거래는 이익/손실 어느 쪽에도 포함하지 않는다(업계 관행).
         profit_factor = 0.0
         if not regime_trades.empty and COL_PNL in regime_trades.columns:
             gains = regime_trades[regime_trades[COL_PNL] > 0][COL_PNL].sum()

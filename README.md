@@ -129,8 +129,7 @@ poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 
 ### 스프레드 모델 검증 결과 열람 (spread_lab/)
 
-스프레드 모델 파라미터가 확정되어 CSV 생성 스크립트는 삭제되었습니다. 결과 열람용 시각화 앱만 유지됩니다.
-재검증이 필요한 경우 git history에서 스크립트를 복원할 수 있습니다.
+스프레드 모델 파라미터는 확정 상태이며, 결과 열람용 시각화 앱만 제공합니다.
 
 ```bash
 # 금리-오차 관계 분석 앱 (시각화 전용)
@@ -252,7 +251,7 @@ quant/
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
 │   └── results/       # 분석 결과 + meta.json
-│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더: portfolio_a1 ~ portfolio_h3)
+│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더, 목록은 `src/qbt/backtest/portfolio_configs.py` 참고)
 │       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
 │       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
 │       │   ├── buffer_zone_qqq/       # 버퍼존 전략 (QQQ) 결과

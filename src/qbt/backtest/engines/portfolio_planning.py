@@ -145,7 +145,14 @@ def generate_signal_intents(
             # 매도 시그널 판정 (내부 prev 상태 갱신 포함)
             sell_now = strategy.check_sell(signal_df, i)
             if sell_now:
-                current_amount = equity_vals.get(asset_id, 0.0)
+                # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다.
+                # 누락 시 KeyError로 즉시 중단(fail-fast)하여 silent 0 대체를 방지한다.
+                if asset_id not in equity_vals:
+                    raise RuntimeError(
+                        f"내부 불변조건 위반: equity_vals에 asset_id 누락 "
+                        f"(asset_id={asset_id}, available_keys={sorted(equity_vals.keys())})"
+                    )
+                current_amount = equity_vals[asset_id]
                 intents[asset_id] = OrderIntent(
                     asset_id=asset_id,
                     intent_type="EXIT_ALL",
@@ -185,14 +192,23 @@ def compute_projected_portfolio(
     # 현재 active_assets: signal_state == "buy"인 자산
     active_assets: set[str] = {aid for aid, st in asset_states.items() if st.signal_state == "buy"}
 
+    # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다.
+    # 누락 시 KeyError로 즉시 중단(fail-fast)하여 silent 0 대체를 방지한다.
+    missing_vals = [aid for aid in asset_states if aid not in equity_vals]
+    if missing_vals:
+        raise RuntimeError(
+            f"내부 불변조건 위반: equity_vals에 asset 누락 "
+            f"(missing={missing_vals}, available_keys={sorted(equity_vals.keys())})"
+        )
+
     # projected_amounts: 현재 평가액에서 시작
-    projected_amounts: dict[str, float] = {aid: equity_vals.get(aid, 0.0) for aid in asset_states}
+    projected_amounts: dict[str, float] = {aid: equity_vals[aid] for aid in asset_states}
     projected_cash = shared_cash
 
     for asset_id, intent in signal_intents.items():
         if intent.intent_type == "EXIT_ALL":
             # 전량 청산: 평가액 → cash로 이동, active에서 제거
-            projected_cash += equity_vals.get(asset_id, 0.0)
+            projected_cash += equity_vals[asset_id]
             projected_amounts[asset_id] = 0.0
             active_assets.discard(asset_id)
 

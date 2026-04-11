@@ -112,6 +112,13 @@ def generate_wfo_windows(
     # 초기 IS 종료 = data_start + initial_is_months
     is_end_year = data_start.year + (data_start.month - 1 + initial_is_months) // 12
     is_end_month = (data_start.month - 1 + initial_is_months) % 12 + 1
+    # is_end_month == 1 분기에서 is_end_year - 1 이 유효 연도여야 한다
+    # (실제 주식 데이터 범위에서는 발생하지 않지만 내부 불변조건으로 강제)
+    if is_end_month == 1 and is_end_year <= 1:
+        raise RuntimeError(
+            f"내부 불변조건 위반: is_end_year <= 1 (data_start={data_start}, "
+            f"initial_is_months={initial_is_months}, is_end_year={is_end_year})"
+        )
     # IS 종료일 = IS 종료 월의 마지막 날 전일 (OOS 시작 전날)
     is_end = (
         _last_day_of_month(is_end_year, is_end_month - 1)
