@@ -168,6 +168,7 @@ poetry run python -m live init-data
 
 # 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
 poetry run python -m live run-daily
+poetry run python -m live run-daily --trade-date 2026-04-10
 
 # 디버깅 / 조회
 poetry run python -m live drift
