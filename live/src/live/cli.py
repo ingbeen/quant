@@ -6,7 +6,7 @@ argparse subcommand 구조로 실매매 파이프라인의 모든 운영 명령�
 
 - ``init`` — 초기 LiveState 생성 (capital 지정)
 - ``run-daily`` — 일일 실행 통합 루프 (data → daily_runner → state → RTDB → 알림 → history)
-- ``init-data`` — yfinance 로 6 종 티커 전체 기간 다운로드
+- ``init-data`` — yfinance 로 전체 티커 전체 기간 다운로드
 - ``rebuild-data`` — 단일 티커 재다운로드 (스플릿 대응)
 - ``drift`` — 현재 drift 지표 출력
 - ``fetch-state`` — qbt-live-state 리포 git pull
@@ -783,7 +783,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run.set_defaults(func=_cmd_run_daily)
 
     # init-data
-    p_init_data = sub.add_parser("init-data", help="yfinance 전체 기간 다운로드 (6종)")
+    p_init_data = sub.add_parser("init-data", help="yfinance 전체 티커 전체 기간 다운로드")
     p_init_data.set_defaults(func=_cmd_init_data)
 
     # rebuild-data

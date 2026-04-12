@@ -357,14 +357,14 @@ def run_daily(
     for asset in working_state.assets.values():
         asset.pending_order = None
 
-    # 5. 당일 종가 equity (model 축)
+    # 6. 당일 종가 equity (model 축)
     asset_closes_map: dict[str, float] = {
         aid: float(market_bundle[aid].trade_df.iloc[i][COL_CLOSE]) for aid in asset_states
     }
     asset_positions = {aid: st.position for aid, st in asset_states.items()}
     model_equity = compute_portfolio_equity(shared_cash_model, asset_positions, asset_closes_map)
 
-    # 6. 시그널 → projected → rebalance → merge → 익일 pending
+    # 7. 시그널 → projected → rebalance → merge → 익일 pending
     equity_vals_now: dict[str, float] = {
         aid: asset_states[aid].position * asset_closes_map[aid] for aid in asset_states
     }
@@ -398,7 +398,7 @@ def run_daily(
 
     merged_intents = merge_intents(signal_intents, rebalance_intents)
 
-    # 7. signal_state 갱신 + 익일 pending 저장
+    # 8. signal_state 갱신 + 익일 pending 저장
     #    signal_state 는 "포지션 보유 여부" 원장이므로 전량 매도/신규 진입만 전환.
     #    REDUCE_TO_TARGET (일부 매도) 는 포지션이 남아 있으므로 "buy" 유지,
     #    INCREASE_TO_TARGET (추가 매수) 는 이미 "buy" 이므로 변경 불필요.
@@ -410,12 +410,12 @@ def run_daily(
             asset_ls.signal_state = "buy"
         asset_ls.pending_order = _intent_to_pending_order(intent, trade_date)
 
-    # 8. BufferZoneStrategy 상태 추출 → working_state 에 저장
+    # 9. BufferZoneStrategy 상태 추출 → working_state 에 저장
     buffer_states = _extract_buffer_states(strategies)
     for asset_id, bzs in buffer_states.items():
         working_state.assets[asset_id].buffer_zone_state = bzs
 
-    # 9. LiveState 의 model 축 갱신 (AssetLiveState 재구성)
+    # 10. LiveState 의 model 축 갱신 (AssetLiveState 재구성)
     for asset_id, asset_state in asset_states.items():
         asset_ls = working_state.assets[asset_id]
         asset_ls.model_shares = int(asset_state.position)
@@ -430,7 +430,7 @@ def run_daily(
     if rebalance_triggered:
         working_state.last_rebalance_date = trade_date.isoformat()
 
-    # 10. balance_adjust 반영 (actual 축 교체) — fills 보다 나중 순서.
+    # 11. balance_adjust 반영 (actual 축 교체) — fills 보다 나중 순서.
     #     fills 가 먼저 actual_shares 를 가감한 뒤, balance_adjust 가 최종 잔고를
     #     덮어쓴다. idempotency 는 applied_balance_adjust_ids 로 보장한다.
     if pending_adjusts:
@@ -438,14 +438,14 @@ def run_daily(
             working_state, pending_adjusts, working_applied_adjust_ids
         )
 
-    # 11. SignalDetection / ma_distances 구성
+    # 12. SignalDetection / ma_distances 구성
     signals_map, ma_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
 
-    # 12. drift 계산 — drift.compute_drift 가 유일한 정본.
+    # 13. drift 계산 — drift.compute_drift 가 유일한 정본.
     #     actual 축 (shares 및 cash) 은 위의 balance_adjust 반영이 완료된 상태를 쓴다.
     drift_report = compute_drift(working_state, asset_closes_map)
 
-    # 13. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
+    # 14. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
     body_lines = [f"실행일: {trade_date.isoformat()}", f"model equity: {model_equity:,.0f}"]
     if merged_intents:
         body_lines.append(f"익일 체결 대기: {len(merged_intents)} 건")

@@ -124,6 +124,18 @@ DEFAULT_HISTORY_TAIL_LINES: Final[int] = 10
 
 
 # ============================================================================
+# 알림 제목 / Git 봇 정보
+# ============================================================================
+
+# FCM / 텔레그램 알림 제목 (일일 리포트 + 실패 알림 공통).
+NOTIFICATION_TITLE: Final[str] = "QBT Live"
+
+# ephemeral state repo commit 시 사용하는 Git 사용자 정보.
+GIT_BOT_NAME: Final[str] = "qbt-live-bot"
+GIT_BOT_EMAIL: Final[str] = "qbt-live-bot@noreply.github.com"
+
+
+# ============================================================================
 # idempotency ledger 자동 정리 주기
 # ============================================================================
 

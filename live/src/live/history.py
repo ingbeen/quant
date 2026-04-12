@@ -72,7 +72,7 @@ def save_daily_log(date_iso: str, payload: dict[str, Any], history_dir: Path) ->
 def append_summary(summary: dict[str, Any], history_dir: Path) -> None:
     """일별 요약 1 줄을 ``history/summary.jsonl`` 에 append 한다.
 
-    같은 날짜로 두 번 호출되어도 덮어쓰지 않고 줄을 추가한다 (T-15.4).
+    같은 날짜로 두 번 호출되어도 덮어쓰지 않고 줄을 추가한다.
     """
     target = history_dir / HISTORY_SUMMARY_FILENAME
     _ensure_dir(target)

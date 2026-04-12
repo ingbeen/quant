@@ -27,6 +27,7 @@ live/
 ├── CLAUDE.md               # 이 문서
 ├── src/live/               # 실매매 코드
 │   ├── __init__.py
+│   ├── __main__.py         # python -m live.cli 진입점
 │   ├── constants.py        # 티커, 임계값, 경로 상수
 │   ├── models.py           # dataclass / TypedDict
 │   ├── state.py            # LiveState 직렬화
@@ -34,11 +35,13 @@ live/
 │   ├── data_validator.py   # OHLC / 종가 연속성 / 날짜 누락 검증
 │   ├── daily_runner.py     # run_daily (순수 계산)
 │   ├── drift.py            # fill 자동 매칭 + drift
+│   ├── balance_adjust.py   # BalanceAdjust idempotent 반영
 │   ├── buffer_serializer.py # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 │   ├── rtdb_gateway.py     # Firebase RTDB 게이트웨이
 │   ├── notifier.py         # FCM + 텔레그램 동시 발송
 │   ├── chart_data.py       # TradingView Lightweight Charts 시계열
 │   ├── history.py          # 영구 히스토리 저장
+│   ├── git_state.py        # ephemeral shallow clone / commit / push 헬퍼
 │   └── cli.py              # CLI 엔트리포인트
 └── tests/
     ├── __init__.py
@@ -129,7 +132,16 @@ QBT 백테스트의 절대 규칙은 live 에서도 **예외 없이 동일**하�
 
 ## 코딩 규칙
 
-루트 [CLAUDE.md](../CLAUDE.md)의 "코딩 표준" 섹션과 동일하게 적용한다. 핵심만 재확인:
+루트 [CLAUDE.md](../CLAUDE.md)의 "코딩 표준" 섹션과 동일하게 적용한다. 아래는 live 전용 예외 및 핵심 재확인:
+
+### CLI 계층 예외 (live 전용)
+
+QBT 본체의 CLI 계층(`scripts/`)은 비즈니스 로직 포함 금지가 원칙이나,
+live 의 `cli.py` 는 데이터 준비·검증·히스토리 구성 등의 비즈니스 로직을
+포함할 수 있다. ephemeral state repo 컨텍스트 내에서 I/O 와 로직이
+밀접하게 결합되어 있어 분리 시 오히려 복잡도가 증가하기 때문이다.
+
+### 핵심 재확인
 
 - 타입 힌트 필수, `str | None` 문법 사용 (Optional 금지)
 - `pathlib.Path` 사용 (문자열 경로 금지)

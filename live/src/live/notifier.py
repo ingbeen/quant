@@ -26,7 +26,7 @@ import requests
 from firebase_admin import messaging
 from firebase_admin.exceptions import FirebaseError
 
-from live.constants import TELEGRAM_TIMEOUT_SECONDS
+from live.constants import NOTIFICATION_TITLE, TELEGRAM_TIMEOUT_SECONDS
 from live.models import DailyResult
 from qbt.utils.logger import get_logger
 
@@ -62,14 +62,14 @@ class NotificationOutcome:
 
 
 def _format_pct(value: float) -> str:
-    """비율(0~1) 을 ``±X.XX%`` 형식으로 변환."""
+    """비율을 ``±X.XX%`` 형식으로 변환. 음수 입력도 허용 (예: -0.03 → ``-3.00%``)."""
     return f"{value * 100:+.2f}%"
 
 
 def _build_daily_body(result: DailyResult) -> str:
     """일일 리포트 본문 생성. MA 근접도 / 시그널 / 리밸런싱 / 리마인더 포함."""
     lines: list[str] = []
-    lines.append(f"[QBT Live] {result.execution_date}")
+    lines.append(f"[{NOTIFICATION_TITLE}] {result.execution_date}")
     lines.append(f"model equity: {result.model_equity:,.0f}")
     lines.append(f"actual equity: {result.actual_equity:,.0f}")
     lines.append(f"drift: {result.drift_pct:.2f}%")
@@ -97,7 +97,7 @@ def _build_daily_body(result: DailyResult) -> str:
 
 def _build_failure_body(message: str) -> str:
     """실패 알림 본문 (에러 상세 포함)."""
-    return f"[QBT Live 실패]\n{message}"
+    return f"[{NOTIFICATION_TITLE} 실패]\n{message}"
 
 
 # ============================================================================
@@ -120,7 +120,7 @@ def _send_fcm_messages(tokens: list[str], body: str) -> tuple[int, list[str]]:
 
     messages = [
         messaging.Message(
-            notification=messaging.Notification(title="QBT Live", body=body),
+            notification=messaging.Notification(title=NOTIFICATION_TITLE, body=body),
             token=token,
         )
         for token in tokens

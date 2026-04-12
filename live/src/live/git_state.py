@@ -23,6 +23,8 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
+from live.constants import GIT_BOT_EMAIL, GIT_BOT_NAME
+
 __all__ = [
     "git_clone_shallow",
     "git_pull",
@@ -123,8 +125,8 @@ def git_commit_and_push(
     state_dir: Path,
     message: str,
     *,
-    user_name: str = "qbt-live-bot",
-    user_email: str = "qbt-live-bot@noreply.github.com",
+    user_name: str = GIT_BOT_NAME,
+    user_email: str = GIT_BOT_EMAIL,
 ) -> bool:
     """변경된 모든 파일을 commit & push 한다.
 
