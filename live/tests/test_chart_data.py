@@ -189,7 +189,7 @@ class TestBuildChartSeriesSignalMarkers:
             "sso": [
                 ("2025-04-01", "buy"),  # 존재하는 날짜
                 ("2025-06-15", "sell"),  # 존재하는 날짜
-                ("2025-06-16", "hold"),  # hold 는 마커 없음
+                ("2025-06-16", "none"),  # none 은 마커 없음
                 ("2050-01-01", "buy"),  # dates 범위 밖 — skip
             ],
         }

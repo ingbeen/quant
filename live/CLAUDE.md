@@ -89,6 +89,9 @@ live/
   (`balance_adjust/inbox/`) 으로만 갱신된다.
 - drift 계산은 `drift.compute_drift` 가 유일 정본이며, 임계값은
   `DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO` 를 따른다.
+- `signal_state` 값 집합은 `{"buy", "sell", "none"}` 이며 QBT 의 `_hold_state`
+  (내부 hold_days 상태머신) 와 이름이 같은 개념이 아니다. `"none"` 은
+  "신호 없음" 을 의미한다.
 
 ### 3. 순수 계산 / I/O 분리
 

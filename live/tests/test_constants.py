@@ -105,8 +105,9 @@ class TestAppliedFillIdsMaxAge:
 
 
 class TestSchemaVersion:
-    def test_schema_version_is_one(self):
-        assert SCHEMA_VERSION == 1
+    def test_schema_version_is_two(self):
+        """schema_version v2 = signal_state 값 집합 {buy, sell, none}."""
+        assert SCHEMA_VERSION == 2
 
 
 class TestKstTzName:

@@ -109,12 +109,29 @@ def _extract_buffer_states(
 def _build_asset_states(state: LiveState) -> dict[str, AssetState]:
     """LiveState → QBT AssetState (model 축 기준).
 
-    QBT ``AssetState.signal_state`` 는 ``Literal["buy", "sell"]`` 만 허용한다.
-    live 의 "hold" 상태는 QBT 로 전달 시 "sell" 로 매핑한다 (포지션 없음과 동일).
+    매핑 규칙:
+
+    - ``signal_state == "buy"`` → QBT ``"buy"``
+    - ``signal_state == "sell"`` → QBT ``"sell"``
+    - ``signal_state == "none"`` → QBT ``"sell"`` (포지션 없음과 동일 취급).
+      단, ``model_shares > 0`` 인 상태에서 ``"none"`` 이면 내부 불변조건
+      위반이므로 즉시 ``RuntimeError``.
+
+    QBT ``AssetState.signal_state`` 는 ``Literal["buy", "sell"]`` 만 허용하므로
+    live 쪽 3 값을 위와 같이 축소한다.
     """
     out: dict[str, AssetState] = {}
     for asset_id, asset in state.assets.items():
-        qbt_state = "buy" if asset.signal_state == "buy" else "sell"
+        if asset.signal_state == "buy":
+            qbt_state: Literal["buy", "sell"] = "buy"
+        elif asset.signal_state in ("sell", "none"):
+            qbt_state = "sell"
+        else:
+            raise RuntimeError(f"내부 불변조건 위반: 알 수 없는 signal_state={asset.signal_state!r} " f"asset_id={asset_id}")
+        if asset.signal_state == "none" and asset.model_shares > 0:
+            raise RuntimeError(
+                f"내부 불변조건 위반: signal_state='none' 인데 " f"model_shares={asset.model_shares}>0 asset_id={asset_id}"
+            )
         out[asset_id] = AssetState(position=asset.model_shares, signal_state=qbt_state)
     return out
 
@@ -187,7 +204,7 @@ def _build_signal_detections(
 
         # 시그널 상태 결정
         intent = signal_intents.get(asset_id)
-        state_str: Literal["buy", "sell", "hold"] = "hold"
+        state_str: Literal["buy", "sell", "none"] = "none"
         if intent is not None:
             if intent.intent_type == "ENTER_TO_TARGET":
                 state_str = "buy"

@@ -207,12 +207,12 @@ class TestSignalDetection:
         assert expected == actual
 
     def test_state_literal_values(self):
-        """state 필드는 'buy' | 'sell' | 'hold' 중 하나만 허용."""
+        """state 필드는 'buy' | 'sell' | 'none' 중 하나만 허용."""
         hints = get_type_hints(SignalDetection, include_extras=False)
         state_type = hints["state"]
         # typing.Literal 은 get_args 로 값 추출 가능
         allowed = set(get_args(state_type))
-        assert allowed == {"buy", "sell", "hold"}, f"SignalDetection.state 리터럴이 설계 선택과 다름: {allowed}"
+        assert allowed == {"buy", "sell", "none"}, f"SignalDetection.state 리터럴이 설계 선택과 다름: {allowed}"
 
     def test_create_buy_signal_detection(self):
         """Given: 정상 수치. When: buy SignalDetection 생성. Then: 필드 값 일치."""
@@ -474,7 +474,7 @@ class TestLiveStateCreation:
             actual_avg_entry_price=82.5,
             actual_entry_date=date(2026, 4, 1).isoformat(),
             pending_order=None,
-            signal_state="hold",
+            signal_state="buy",
             entry_hold_days=0,
             buffer_zone_state=None,
         )

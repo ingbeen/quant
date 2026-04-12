@@ -47,7 +47,7 @@ def _make_daily_result() -> DailyResult:
                 ema_distance_pct=0.0256,
             ),
             "qld": SignalDetection(
-                state="hold",
+                state="none",
                 close=85.0,
                 upper_band=87.0,
                 lower_band=80.0,

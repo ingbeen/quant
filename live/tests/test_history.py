@@ -173,7 +173,7 @@ class TestSignalHistory:
     def test_append_creates_file_and_lines(self, tmp_path: Path):
         """Given 신호 entry 여러 개 When append Then signals.jsonl 에 줄 수 맞춤."""
         entries = [
-            {"date": "2026-04-10", "asset_id": "sso", "state": "hold"},
+            {"date": "2026-04-10", "asset_id": "sso", "state": "none"},
             {"date": "2026-04-10", "asset_id": "gld", "state": "buy"},
         ]
         append_signal_history(entries, tmp_path)
@@ -196,7 +196,7 @@ class TestSignalHistory:
     def test_load_parses_by_asset(self, tmp_path: Path):
         """Given 여러 날짜 / 여러 자산 When load Then 자산별 그룹핑."""
         entries = [
-            {"date": "2026-04-08", "asset_id": "sso", "state": "hold"},
+            {"date": "2026-04-08", "asset_id": "sso", "state": "none"},
             {"date": "2026-04-09", "asset_id": "sso", "state": "buy"},
             {"date": "2026-04-09", "asset_id": "gld", "state": "sell"},
             {"date": "2026-04-10", "asset_id": "gld", "state": "buy"},
@@ -205,16 +205,16 @@ class TestSignalHistory:
 
         result = load_signal_history(tmp_path)
         assert set(result.keys()) == {"sso", "gld"}
-        assert result["sso"] == [("2026-04-08", "hold"), ("2026-04-09", "buy")]
+        assert result["sso"] == [("2026-04-08", "none"), ("2026-04-09", "buy")]
         assert result["gld"] == [("2026-04-09", "sell"), ("2026-04-10", "buy")]
 
     def test_append_only_does_not_overwrite(self, tmp_path: Path):
         """Given 2 번 append When 두 번째 호출 Then 이전 줄 유지 + 새 줄 추가."""
-        append_signal_history([{"date": "2026-04-09", "asset_id": "sso", "state": "hold"}], tmp_path)
+        append_signal_history([{"date": "2026-04-09", "asset_id": "sso", "state": "none"}], tmp_path)
         append_signal_history([{"date": "2026-04-10", "asset_id": "sso", "state": "buy"}], tmp_path)
 
         result = load_signal_history(tmp_path)
-        assert result["sso"] == [("2026-04-09", "hold"), ("2026-04-10", "buy")]
+        assert result["sso"] == [("2026-04-09", "none"), ("2026-04-10", "buy")]
 
 
 # ============================================================================

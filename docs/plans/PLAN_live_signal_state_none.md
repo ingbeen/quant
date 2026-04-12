@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 [docs/CLAUDE.md](../CLAUDE.md)를 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -41,12 +41,12 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `AssetLiveState.signal_state` 와 `SignalDetection.state` 의 허용 값을 `"buy" / "sell" / "none"` 으로 통일
-- [ ] `live/src/live/models.py` 에 공통 타입 별칭 `SignalStateLiteral = Literal["buy", "sell", "none"]` 도입
-- [ ] QBT 본체 수정 없이 `live.AssetLiveState.signal_state` 의 `"none"` 을 QBT 엔진 `AssetState.signal_state` 의 `"sell"` 로 매핑 (기존 `"hold"→"sell"` 과 동일 의미) + 매핑 계약을 방어벽으로 강제
-- [ ] `SCHEMA_VERSION` 을 `1 → 2` 로 bump, 기존 v1 상태 파일 로드 시 ValueError 전파
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 에 signal_state 값 집합 변경을 반영
-- [ ] live 전수 테스트에서 `"hold"` 문자열을 `"none"` 으로 치환하고 계약 테스트 추가
+- [x] `AssetLiveState.signal_state` 와 `SignalDetection.state` 의 허용 값을 `"buy" / "sell" / "none"` 으로 통일
+- [x] `live/src/live/models.py` 에 공통 타입 별칭 `SignalStateLiteral = Literal["buy", "sell", "none"]` 도입
+- [x] QBT 본체 수정 없이 `live.AssetLiveState.signal_state` 의 `"none"` 을 QBT 엔진 `AssetState.signal_state` 의 `"sell"` 로 매핑 (기존 `"hold"→"sell"` 과 동일 의미) + 매핑 계약을 방어벽으로 강제
+- [x] `SCHEMA_VERSION` 을 `1 → 2` 로 bump, 기존 v1 상태 파일 로드 시 ValueError 전파
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 에 signal_state 값 집합 변경을 반영
+- [x] live 전수 테스트에서 `"hold"` 문자열을 `"none"` 으로 치환하고 계약 테스트 추가
 
 ## 2) 비목표(Non-Goals)
 
@@ -80,22 +80,22 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `SignalStateLiteral = Literal["buy", "sell", "none"]` 이 `live.models` 에 정의되고 `AssetLiveState.signal_state` / `SignalDetection.state` 가 이 타입을 사용
-- [ ] `create_initial_state` 가 `signal_state="none"` 으로 초기화
-- [ ] `daily_runner._build_signal_detections` 의 기본 `state_str` 이 `"none"`
-- [ ] `daily_runner._build_asset_states` 의 매핑 규칙: `"buy" → "buy"`, `"sell"/"none" → "sell"`. 또한 `signal_state == "none" and model_shares > 0` 이면 `RuntimeError("내부 불변조건 위반: signal_state=none 이지만 model_shares>0")` 발생
-- [ ] `SCHEMA_VERSION = 2` 로 bump, `_live_state_from_dict` 가 v1 로드 시 기존 ValueError 경로로 실패
-- [ ] `_asset_live_state_from_dict` 가 `signal_state` 값이 `VALID_SIGNAL_STATES` 집합에 속하는지 검증, 아니면 ValueError
-- [ ] `notifier.send_all` / `rtdb_gateway.write_read_model` / `chart_data.build_chart_series` / `history` 모듈이 `"none"` 값을 자연스럽게 무시 (기존 `"buy"/"sell"` 필터 로직과 호환 확인)
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 에서 다음을 업데이트:
-  - [ ] 3절/6절(상태 원장) 설명에 `signal_state ∈ {"buy", "sell", "none"}` 명시
-  - [ ] `SCHEMA_VERSION` 정책을 "포맷 변경 시 bump, 기존 v1 파일 로드 불가" 로 보강
-- [ ] live 테스트 내 `"hold"` 문자열 검증 → `"none"` 으로 치환 (PLAN_live_tests_cleanup 에서 처리되는 주석 제거와는 별개로, **값 검증** 은 이 Plan 에서 즉시 처리)
-- [ ] 신규 테스트: `_build_asset_states` 가 `"none" + shares>0` 조합에서 `RuntimeError` 를 던지는 계약 고정
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `SignalStateLiteral = Literal["buy", "sell", "none"]` 이 `live.models` 에 정의되고 `AssetLiveState.signal_state` / `SignalDetection.state` 가 이 타입을 사용
+- [x] `create_initial_state` 가 `signal_state="none"` 으로 초기화
+- [x] `daily_runner._build_signal_detections` 의 기본 `state_str` 이 `"none"`
+- [x] `daily_runner._build_asset_states` 의 매핑 규칙: `"buy" → "buy"`, `"sell"/"none" → "sell"`. 또한 `signal_state == "none" and model_shares > 0` 이면 `RuntimeError("내부 불변조건 위반: signal_state=none 이지만 model_shares>0")` 발생
+- [x] `SCHEMA_VERSION = 2` 로 bump, `_live_state_from_dict` 가 v1 로드 시 기존 ValueError 경로로 실패
+- [x] `_asset_live_state_from_dict` 가 `signal_state` 값이 `VALID_SIGNAL_STATES` 집합에 속하는지 검증, 아니면 ValueError
+- [x] `notifier.send_all` / `rtdb_gateway.write_read_model` / `chart_data.build_chart_series` / `history` 모듈이 `"none"` 값을 자연스럽게 무시 (기존 `"buy"/"sell"` 필터 로직과 호환 확인)
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 에서 다음을 업데이트:
+  - [x] 3절/6절(상태 원장) 설명에 `signal_state ∈ {"buy", "sell", "none"}` 명시
+  - [x] `SCHEMA_VERSION` 정책을 "포맷 변경 시 bump, 기존 v1 파일 로드 불가" 로 보강
+- [x] live 테스트 내 `"hold"` 문자열 검증 → `"none"` 으로 치환 (PLAN_live_tests_cleanup 에서 처리되는 주석 제거와는 별개로, **값 검증** 은 이 Plan 에서 즉시 처리)
+- [x] 신규 테스트: `_build_asset_states` 가 `"none" + shares>0` 조합에서 `RuntimeError` 를 던지는 계약 고정
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -130,18 +130,18 @@
 
 **작업 내용**:
 
-- [ ] `live/tests/test_models.py` 또는 신규 `test_signal_state_literal.py` 에 다음 테스트 추가:
-  - [ ] `SignalStateLiteral` 허용 값 집합이 `{"buy", "sell", "none"}` 인지
-  - [ ] `AssetLiveState(signal_state="none")` 로 생성 가능
-  - [ ] `SignalDetection(state="none", ...)` 로 생성 가능
-- [ ] `live/tests/test_daily_runner.py` 에 다음 추가:
-  - [ ] `_build_asset_states` 가 `signal_state="none"` + `model_shares=0` 이면 QBT `signal_state="sell"` 로 매핑
-  - [ ] `_build_asset_states` 가 `signal_state="none"` + `model_shares=10` 이면 `RuntimeError("내부 불변조건 위반")` (match="내부 불변조건")
-- [ ] `live/tests/test_state.py` 에 다음 추가:
-  - [ ] `create_initial_state(capital=...)` 결과의 각 자산 `signal_state == "none"`
-  - [ ] v1 `schema_version` JSON 을 `load_state` 하면 ValueError (기존 검증 로직 확인용)
-  - [ ] `signal_state="hold"` 값이 섞인 JSON 을 load 하면 ValueError
-- [ ] 테스트는 이 Phase 에서 실행하지 않음 (Phase 1 이후 그린 유지)
+- [x] `live/tests/test_models.py` 또는 신규 `test_signal_state_literal.py` 에 다음 테스트 추가:
+  - [x] `SignalStateLiteral` 허용 값 집합이 `{"buy", "sell", "none"}` 인지
+  - [x] `AssetLiveState(signal_state="none")` 로 생성 가능
+  - [x] `SignalDetection(state="none", ...)` 로 생성 가능
+- [x] `live/tests/test_daily_runner.py` 에 다음 추가:
+  - [x] `_build_asset_states` 가 `signal_state="none"` + `model_shares=0` 이면 QBT `signal_state="sell"` 로 매핑
+  - [x] `_build_asset_states` 가 `signal_state="none"` + `model_shares=10` 이면 `RuntimeError("내부 불변조건 위반")` (match="내부 불변조건")
+- [x] `live/tests/test_state.py` 에 다음 추가:
+  - [x] `create_initial_state(capital=...)` 결과의 각 자산 `signal_state == "none"`
+  - [x] v1 `schema_version` JSON 을 `load_state` 하면 ValueError (기존 검증 로직 확인용)
+  - [x] `signal_state="hold"` 값이 섞인 JSON 을 load 하면 ValueError
+- [x] 테스트는 이 Phase 에서 실행하지 않음 (Phase 1 이후 그린 유지)
 
 ---
 
@@ -149,20 +149,20 @@
 
 **작업 내용**:
 
-- [ ] `live/src/live/models.py`:
-  - [ ] `SignalStateLiteral = Literal["buy", "sell", "none"]` 정의
-  - [ ] `VALID_SIGNAL_STATES: frozenset[str] = frozenset(get_args(SignalStateLiteral))` 파생
-  - [ ] `AssetLiveState.signal_state: SignalStateLiteral` (str → 좁히기)
-  - [ ] `SignalDetection.state: SignalStateLiteral` (기존 `Literal["buy", "sell", "hold"]` → 교체)
-  - [ ] `__all__` 에 `SignalStateLiteral`, `VALID_SIGNAL_STATES` 추가
-- [ ] `live/src/live/constants.py`:
-  - [ ] `SCHEMA_VERSION: Final[int] = 2` 로 bump, 주석에 "v1 → v2: signal_state 값 집합을 {buy,sell,hold} → {buy,sell,none} 으로 변경" 한 줄 추가
-- [ ] `live/src/live/state.py`:
-  - [ ] `create_initial_state`: `AssetLiveState(..., signal_state="none", ...)` 로 초기화
-  - [ ] `_asset_live_state_from_dict`: `signal_state_raw = data["signal_state"]` 를 `VALID_SIGNAL_STATES` 와 비교하여 유효하지 않으면 `ValueError("signal_state 값이 유효하지 않음: ...")`. 유효하면 `cast("SignalStateLiteral", ...)`
-- [ ] `live/src/live/daily_runner.py`:
-  - [ ] `_build_signal_detections`: `state_str: SignalStateLiteral = "none"`
-  - [ ] `_build_asset_states`:
+- [x] `live/src/live/models.py`:
+  - [x] `SignalStateLiteral = Literal["buy", "sell", "none"]` 정의
+  - [x] `VALID_SIGNAL_STATES: frozenset[str] = frozenset(get_args(SignalStateLiteral))` 파생
+  - [x] `AssetLiveState.signal_state: SignalStateLiteral` (str → 좁히기)
+  - [x] `SignalDetection.state: SignalStateLiteral` (기존 `Literal["buy", "sell", "hold"]` → 교체)
+  - [x] `__all__` 에 `SignalStateLiteral`, `VALID_SIGNAL_STATES` 추가
+- [x] `live/src/live/constants.py`:
+  - [x] `SCHEMA_VERSION: Final[int] = 2` 로 bump, 주석에 "v1 → v2: signal_state 값 집합을 {buy,sell,hold} → {buy,sell,none} 으로 변경" 한 줄 추가
+- [x] `live/src/live/state.py`:
+  - [x] `create_initial_state`: `AssetLiveState(..., signal_state="none", ...)` 로 초기화
+  - [x] `_asset_live_state_from_dict`: `signal_state_raw = data["signal_state"]` 를 `VALID_SIGNAL_STATES` 와 비교하여 유효하지 않으면 `ValueError("signal_state 값이 유효하지 않음: ...")`. 유효하면 `cast("SignalStateLiteral", ...)`
+- [x] `live/src/live/daily_runner.py`:
+  - [x] `_build_signal_detections`: `state_str: SignalStateLiteral = "none"`
+  - [x] `_build_asset_states`:
     ```python
     for asset_id, asset in state.assets.items():
         if asset.signal_state == "buy":
@@ -186,7 +186,7 @@
 
 **작업 내용**:
 
-- [ ] live 테스트 전수에서 기존 `signal_state="hold"` / `state="hold"` 문자열을 `"none"` 으로 치환. 대상 후보:
+- [x] live 테스트 전수에서 기존 `signal_state="hold"` / `state="hold"` 문자열을 `"none"` 으로 치환. 대상 후보:
   - `live/tests/test_state.py` — `create_initial_state` 결과 비교, 수동 JSON 로드 fixtures
   - `live/tests/test_daily_runner.py` — initial state 생성, pending 없는 날 시나리오
   - `live/tests/test_drift.py` — pending 없음 fill 케이스
@@ -197,8 +197,8 @@
   - `live/tests/test_notifier.py` — SignalDetection fixture
   - `live/tests/test_rtdb_gateway.py` — payload assertion
   - `live/tests/test_regression.py` — 필요 시 `schema_version` 기대값 조정
-- [ ] Phase 0 에서 추가한 테스트를 확인하여 그린 통과
-- [ ] 스키마 버전 변경으로 회귀 테스트 fixture JSON 이 `"schema_version": 2` 로 갱신되어야 하는 곳 확인
+- [x] Phase 0 에서 추가한 테스트를 확인하여 그린 통과
+- [x] 스키마 버전 변경으로 회귀 테스트 fixture JSON 이 `"schema_version": 2` 로 갱신되어야 하는 곳 확인
 
 ---
 
@@ -206,13 +206,13 @@
 
 **작업 내용**:
 
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md`:
-  - [ ] 상태 원장 / `LiveState` 관련 섹션에 `signal_state ∈ {"buy", "sell", "none"}` 명시
-  - [ ] `"none"` 의 의미를 "해당 자산에 대해 매수/매도 시그널이 한 번도 발생하지 않은 초기 상태 또는 당일 신호 없음" 으로 기술
-  - [ ] `SCHEMA_VERSION` 정책 한 문단 추가: "포맷 변경 시 `live.constants.SCHEMA_VERSION` 을 bump 한다. 기존 버전 파일은 `load_state` 가 ValueError 로 즉시 실패한다. 마이그레이션은 `init` 재실행 또는 수동 변환"
-  - [ ] `SignalDetection.state` 의 `"hold"` 가 사라졌음을 한 줄 기술 (`"오늘 신호 없음" = "none"`)
-  - [ ] QBT `BufferZoneStrategy._hold_state` (내부 hold_days 상태머신) 는 live 의 `signal_state` 와 무관한 개념임을 명시해 이름 충돌 해소를 설명
-- [ ] `live/CLAUDE.md`: 핵심 원칙 섹션에 "signal_state 값 집합은 `{buy, sell, none}` 이며 QBT 의 `_hold_state` 와 이름이 같은 개념이 아니다" 한 줄 추가
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md`:
+  - [x] 상태 원장 / `LiveState` 관련 섹션에 `signal_state ∈ {"buy", "sell", "none"}` 명시
+  - [x] `"none"` 의 의미를 "해당 자산에 대해 매수/매도 시그널이 한 번도 발생하지 않은 초기 상태 또는 당일 신호 없음" 으로 기술
+  - [x] `SCHEMA_VERSION` 정책 한 문단 추가: "포맷 변경 시 `live.constants.SCHEMA_VERSION` 을 bump 한다. 기존 버전 파일은 `load_state` 가 ValueError 로 즉시 실패한다. 마이그레이션은 `init` 재실행 또는 수동 변환"
+  - [x] `SignalDetection.state` 의 `"hold"` 가 사라졌음을 한 줄 기술 (`"오늘 신호 없음" = "none"`)
+  - [x] QBT `BufferZoneStrategy._hold_state` (내부 hold_days 상태머신) 는 live 의 `signal_state` 와 무관한 개념임을 명시해 이름 충돌 해소를 설명
+- [x] `live/CLAUDE.md`: 핵심 원칙 섹션에 "signal_state 값 집합은 `{buy, sell, none}` 이며 QBT 의 `_hold_state` 와 이름이 같은 개념이 아니다" 한 줄 추가
 
 ---
 
@@ -220,15 +220,15 @@
 
 **작업 내용**
 
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=874, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

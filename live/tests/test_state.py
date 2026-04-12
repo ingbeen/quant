@@ -80,7 +80,7 @@ class TestCreateInitialState:
             assert asset.actual_avg_entry_price == pytest.approx(0.0)
             assert asset.actual_entry_date is None
             assert asset.pending_order is None
-            assert asset.signal_state == "hold"
+            assert asset.signal_state == "none"
             assert asset.entry_hold_days == 0
             assert asset.buffer_zone_state is None
 
@@ -212,7 +212,7 @@ class TestSaveLoadRoundtrip:
 # - tlt: 완전 초기 상태 (포지션 없음)
 _HANDCRAFTED_LIVE_STATE_JSON = """
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "portfolio_id": "portfolio_q2_2xs",
   "last_signal_date": "2026-04-10",
   "last_model_execution_date": "2026-04-10",
@@ -264,7 +264,7 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "actual_avg_entry_price": 91.8,
       "actual_entry_date": "2026-02-20",
       "pending_order": null,
-      "signal_state": "hold",
+      "signal_state": "buy",
       "entry_hold_days": 0,
       "buffer_zone_state": {
         "prev_upper": 94.0,
@@ -284,7 +284,7 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "actual_avg_entry_price": 185.5,
       "actual_entry_date": "2026-01-05",
       "pending_order": null,
-      "signal_state": "hold",
+      "signal_state": "buy",
       "entry_hold_days": 0,
       "buffer_zone_state": null
     },
@@ -297,7 +297,7 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "actual_avg_entry_price": 0.0,
       "actual_entry_date": null,
       "pending_order": null,
-      "signal_state": "hold",
+      "signal_state": "none",
       "entry_hold_days": 0,
       "buffer_zone_state": null
     }
@@ -326,7 +326,7 @@ class TestLoadFromHandcraftedJson:
         state = load_state(path)
 
         # Then
-        assert state.schema_version == 1
+        assert state.schema_version == 2
         assert state.portfolio_id == "portfolio_q2_2xs"
         assert state.last_signal_date == "2026-04-10"
         assert state.last_model_execution_date == "2026-04-10"
@@ -404,7 +404,7 @@ class TestLoadFromHandcraftedJson:
         assert qld.model_avg_entry_price == pytest.approx(92.0)
         assert qld.actual_avg_entry_price == pytest.approx(91.8)
         assert qld.pending_order is None
-        assert qld.signal_state == "hold"
+        assert qld.signal_state == "buy"
 
         # Then: buffer_zone_state 존재하나 hold_state 는 null
         assert qld.buffer_zone_state is not None

@@ -258,6 +258,30 @@ QBT 코어를 수정하지 않고 어댑터 (`buffer_serializer.py`) 로 BufferZ
 
 실제 dataclass 정의 (`LiveState`, `AssetLiveState`, `BufferZoneState`, `PendingOrderDict`) 는 `live/src/live/models.py` 를 참조. 필드 변경 시 이 섹션은 업데이트하지 않아도 됨 — 코드가 SoT.
 
+**signal_state 값 집합**: `AssetLiveState.signal_state` 와 `SignalDetection.state` 는 모두
+`Literal["buy", "sell", "none"]` 을 사용한다 (`SignalStateLiteral`, `VALID_SIGNAL_STATES`
+참조). 의미는 다음과 같다.
+
+- `"buy"`: 가장 최근 signal intent 가 `ENTER_TO_TARGET` 이었다 (매수 방향으로 확정)
+- `"sell"`: 가장 최근 signal intent 가 `EXIT_ALL` 이었다 (매도 방향으로 확정)
+- `"none"`: 신호 없음. 초기 상태 혹은 당일 새로 뜬 시그널이 없는 경우
+
+QBT 본체 `BufferZoneStrategy._hold_state` 는 전략 내부의 hold_days 상태머신(매수 확정
+대기) 이며 live 의 `signal_state` 와는 **이름만 유사할 뿐 전혀 다른 개념**이다. 이름
+충돌을 피하기 위해 live 는 3 값 중 `"hold"` 대신 `"none"` 을 사용한다.
+
+QBT 포트폴리오 엔진의 `AssetState.signal_state` 는 `Literal["buy", "sell"]` 2 값만
+허용하므로 `daily_runner._build_asset_states` 가 live 쪽 3 값을 다음과 같이 축소한다:
+`"buy" → "buy"`, `"sell"/"none" → "sell"`. 단 `signal_state == "none"` 이면서
+`model_shares > 0` 인 조합은 내부 불변조건 위반이므로 `RuntimeError` 로 즉시
+중단된다.
+
+**SCHEMA_VERSION 정책**: `live.constants.SCHEMA_VERSION` 은 `live_state.json` 포맷이
+변경될 때마다 증가한다. 기존 버전 파일은 `state.load_state` 가 `ValueError` 로
+즉시 실패하며, 사용자는 `init` 재실행 또는 수동으로 JSON 을 마이그레이션해야 한다.
+v1 → v2 마이그레이션: 모든 `signal_state: "hold"` 를 `"none"` 으로 변경하고
+`schema_version` 을 2 로 올린다.
+
 ### 5.2 갱신 규칙
 
 | 이벤트 | model 갱신 | actual 갱신 |
