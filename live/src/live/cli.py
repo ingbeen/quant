@@ -508,7 +508,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
         logger.debug(
             f"run-daily 완료: equity={result.model_equity:,.0f}, "
-            f"pending={len(result.order_intents)}, drift={result.drift_pct:.2f}%, "
+            f"pending={len(result.order_intents)}, drift={result.drift_pct * 100:.2f}%, "
             f"reminders={len(result.pending_fill_reminders)}"
         )
     return 0
@@ -697,7 +697,7 @@ def _cmd_drift(args: argparse.Namespace) -> int:
         report = compute_drift(state, closes)
         logger.debug(
             f"drift: model={report.model_equity:,.0f}, actual={report.actual_equity:,.0f}, "
-            f"{report.drift_pct:.2f}% [{report.recommendation}]"
+            f"{report.drift_pct * 100:.2f}% [{report.recommendation}]"
         )
     return 0
 

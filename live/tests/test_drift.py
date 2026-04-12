@@ -234,7 +234,7 @@ class TestComputeDrift:
         # model_equity = 100_000_000 + 100*100 = 100_010_000
         # actual_equity = 100_000_000 + 90*100 = 100_009_000
         # diff = 1000, drift_pct ≈ 0.001%
-        expected_drift = 1000.0 / 100_010_000.0 * 100.0
+        expected_drift = 1000.0 / 100_010_000.0
         assert report.drift_pct == pytest.approx(expected_drift, abs=0.001)
 
     def test_large_drift_triggers_correction_recommendation(self):
@@ -251,7 +251,7 @@ class TestComputeDrift:
         closes = {"sso": 100.0, "qld": 100.0, "gld": 100.0, "tlt": 100.0}
         report = compute_drift(state, closes)
 
-        assert report.drift_pct > 5.0
+        assert report.drift_pct > 0.05
         assert report.recommendation == "보정 필요"
 
     def test_warning_recommendation_between_3_and_5_pct(self):

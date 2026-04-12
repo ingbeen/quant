@@ -293,7 +293,7 @@ class AssetDrift:
     model_value: float
     actual_value: float
     value_diff: float  # actual - model
-    drift_pct: float  # |value_diff| / model_value * 100 (%)
+    drift_pct: float  # |value_diff| / model_value (비율 0~1, 0.03 = 3%)
 
 
 @dataclass
@@ -306,7 +306,7 @@ class DriftReport:
 
     model_equity: float
     actual_equity: float
-    drift_pct: float  # |actual - model| / model * 100 (%)
+    drift_pct: float  # |actual - model| / model (비율 0~1, 0.03 = 3%)
     per_asset: dict[str, AssetDrift]
     recommendation: str
 

@@ -225,7 +225,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
         "execution_date": result.execution_date,
         "model_equity": result.model_equity,
         "actual_equity": result.actual_equity,
-        "drift_pct": result.drift_pct,
+        "drift_pct": round(result.drift_pct * 100, 2),
         "shared_cash_model": state.shared_cash_model,
         "shared_cash_actual": state.shared_cash_actual,
         "assets": {
@@ -258,7 +258,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
     _db_reference(app, f"{_LATEST_PATH}/pending_orders").set(pending_payload)
 
     drift_payload = {
-        "drift_pct": result.drift_pct,
+        "drift_pct": round(result.drift_pct * 100, 2),
         "model_equity": result.model_equity,
         "actual_equity": result.actual_equity,
     }
@@ -270,7 +270,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
             "execution_date": result.execution_date,
             "model_equity": result.model_equity,
             "actual_equity": result.actual_equity,
-            "drift_pct": result.drift_pct,
+            "drift_pct": round(result.drift_pct * 100, 2),
         }
     )
 

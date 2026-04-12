@@ -72,7 +72,7 @@ def _build_daily_body(result: DailyResult) -> str:
     lines.append(f"[{NOTIFICATION_TITLE}] {result.execution_date}")
     lines.append(f"model equity: {result.model_equity:,.0f}")
     lines.append(f"actual equity: {result.actual_equity:,.0f}")
-    lines.append(f"drift: {result.drift_pct:.2f}%")
+    lines.append(f"drift: {result.drift_pct * 100:.2f}%")
 
     if result.signals:
         sig_summaries: list[str] = []

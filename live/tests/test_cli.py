@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from live import cli as cli_module
-from live.cli import main
+from live.cli import _collect_all_tickers, main
 from live.state import load_state
 
 # ============================================================================
@@ -95,7 +95,7 @@ def _setup_flat_market_csvs(state_dir: Path, trade_date: date, rows: int = 210) 
     )
     stock_dir = state_dir / "data" / "stock"
     stock_dir.mkdir(parents=True, exist_ok=True)
-    for ticker in ("SPY", "QQQ", "SSO", "QLD", "GLD", "TLT"):
+    for ticker in _collect_all_tickers():
         df.to_csv(stock_dir / f"{ticker}.csv", index=False)
 
 

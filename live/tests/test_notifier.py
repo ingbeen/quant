@@ -28,7 +28,7 @@ def _make_daily_result() -> DailyResult:
     drift_report = DriftReport(
         model_equity=100_000_000.0,
         actual_equity=99_500_000.0,
-        drift_pct=0.5,
+        drift_pct=0.005,
         per_asset={},
         recommendation="정상",
     )
@@ -60,7 +60,7 @@ def _make_daily_result() -> DailyResult:
         rebalance_triggered=True,
         model_equity=100_000_000.0,
         actual_equity=99_500_000.0,
-        drift_pct=0.5,
+        drift_pct=0.005,
         drift_report=drift_report,
         ma_distances={"sso": 0.0256, "qld": 0.0119},
         notification_body="",
