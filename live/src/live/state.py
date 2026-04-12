@@ -431,8 +431,8 @@ def cleanup_old_applied_ids(ids: dict[str, str], max_age_days: int = APPLIED_FIL
 
     applied_fill_ids / applied_balance_adjust_ids 두 원장 모두에 재사용되는
     공용 정리 함수이다. 현재 시각(KST) 기준으로 각 ID 의 타임스탬프와 비교한다.
-    파싱 불가능한 타임스탬프를 가진 엔트리는 보수적으로 유지한다
-    (datetime 포맷 이슈로 데이터를 잃지 않도록).
+    파손된 타임스탬프를 발견하면 자동 복구하지 않고 즉시 ``ValueError`` 로
+    실패한다 (fail-fast).
 
     Args:
         ids: 현재 applied_*_ids 매핑.
@@ -440,6 +440,10 @@ def cleanup_old_applied_ids(ids: dict[str, str], max_age_days: int = APPLIED_FIL
 
     Returns:
         정리된 새 dict (입력 ``ids`` 는 변경되지 않음).
+
+    Raises:
+        ValueError: ``max_age_days`` 가 0 이하이거나, 엔트리의 ISO 타임스탬프가
+            파싱 불가능할 때.
     """
     if max_age_days <= 0:
         raise ValueError(f"max_age_days 는 양수여야 한다. 입력: {max_age_days}")
@@ -450,10 +454,8 @@ def cleanup_old_applied_ids(ids: dict[str, str], max_age_days: int = APPLIED_FIL
     for entry_id, iso_ts in ids.items():
         try:
             ts = datetime.fromisoformat(iso_ts)
-        except ValueError:
-            # 파싱 실패 시 보수적으로 유지
-            result[entry_id] = iso_ts
-            continue
+        except ValueError as exc:
+            raise ValueError(f"applied_ids 타임스탬프 파싱 실패: id={entry_id!r}, value={iso_ts!r}") from exc
         if ts >= cutoff:
             result[entry_id] = iso_ts
     return result

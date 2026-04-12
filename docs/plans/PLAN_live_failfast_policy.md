@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -40,16 +40,16 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `drift.compute_drift` 의 `closes.get(asset_id, 0.0)` silent fallback 제거 → `RuntimeError("내부 불변조건 위반")`
-- [ ] `drift._apply_single_fill` 의 unknown asset_id silent skip → `ValueError`
-- [ ] `drift._apply_single_fill` 의 매도 초과 시 `new_shares < 0 → 0` 클리핑 제거 → `ValueError`
-- [ ] `drift._apply_single_fill` 의 매수 시 shared_cash_actual 음수 방어 추가 (`ValueError`)
-- [ ] `balance_adjust._apply_single_adjust` 의 unknown asset_id silent skip → `ValueError`
-- [ ] `state._load_applied_ids` 의 타임스탬프 파싱 실패 시 "보수적 유지" → `ValueError` 전파
-- [ ] `cli._initialize_rtdb_app` 동작 분기: `run-daily` 경로에서는 실패 시 즉시 `RuntimeError`, 나머지 커맨드(`drift`, `fetch-fills`, `notify-failure`, `history`)는 기존 동작 유지
-- [ ] `cli._cmd_fetch_fills` 의 `return 1` → `RuntimeError` 전파 (알림 발송 경로 통합)
-- [ ] `notifier._send_fcm_messages` 에서 `UNREGISTERED/NOT_FOUND` 외 오류에 WARNING 로그 추가 (조용히 묻히지 않도록)
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 11절(실패/예외 대응) 표 업데이트
+- [x] `drift.compute_drift` 의 `closes.get(asset_id, 0.0)` silent fallback 제거 → `RuntimeError("내부 불변조건 위반")`
+- [x] `drift._apply_single_fill` 의 unknown asset_id silent skip → `ValueError`
+- [x] `drift._apply_single_fill` 의 매도 초과 시 `new_shares < 0 → 0` 클리핑 제거 → `ValueError`
+- [x] `drift._apply_single_fill` 의 매수 시 shared_cash_actual 음수 방어 추가 (`ValueError`)
+- [x] `balance_adjust._apply_single_adjust` 의 unknown asset_id silent skip → `ValueError`
+- [x] `state._load_applied_ids` 의 타임스탬프 파싱 실패 시 "보수적 유지" → `ValueError` 전파
+- [x] `cli._initialize_rtdb_app` 동작 분기: `run-daily` 경로에서는 실패 시 즉시 `RuntimeError`, 나머지 커맨드(`drift`, `fetch-fills`, `notify-failure`, `history`)는 기존 동작 유지
+- [x] `cli._cmd_fetch_fills` 의 `return 1` → `RuntimeError` 전파 (알림 발송 경로 통합)
+- [x] `notifier._send_fcm_messages` 에서 `UNREGISTERED/NOT_FOUND` 외 오류에 WARNING 로그 추가 (조용히 묻히지 않도록)
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 11절(실패/예외 대응) 표 업데이트
 
 ## 2) 비목표(Non-Goals)
 
@@ -85,32 +85,32 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `compute_drift` 에서 `closes` 에 `state.assets` 의 asset_id 가 누락되면 `RuntimeError("내부 불변조건 위반")`
-- [ ] `_apply_single_fill` 에서 `state.assets` 에 없는 `fill.asset_id` 는 `ValueError("알 수 없는 asset_id")` (테스트에서는 pending 없이도 처리되는 fill 과 구분 필요 — `classify_fill` 은 유지하되, 반영 함수에서만 실패)
-- [ ] `_apply_single_fill` 의 매도 초과 경우 (`new_shares < 0`) `ValueError("보유량 초과 매도")`
-- [ ] `_apply_single_fill` 의 매수 결과 `shared_cash_actual < 0` 이면 `ValueError("현금 부족")`
-- [ ] `_apply_single_adjust` 의 unknown asset_id → `ValueError("알 수 없는 asset_id")`
-- [ ] `_load_applied_ids` 의 타임스탬프 파싱 실패 시 `ValueError` 전파
-- [ ] `_initialize_rtdb_app` 의 시그니처/동작 변경 최소화 — 대신 `run-daily` 분기에서 "RTDB 필수" 를 강제하는 래퍼 또는 별도 함수 (`_require_rtdb_app()`) 를 추가해 `run-daily` 에서 호출. `fetch-fills`, `drift`, `history`, `notify-failure`, `init`, `init-data` 는 기존 `_initialize_rtdb_app` 사용
-- [ ] `_cmd_fetch_fills` 에서 RTDB 초기화 실패 시 `RuntimeError` 발생 → `main()` 공통 훅이 알림 발송하도록 통합
-- [ ] `_send_fcm_messages` 가 `UNREGISTERED/NOT_FOUND` 외 실패 토큰에 대해 `logger.warning("FCM 발송 실패: token=..., code=..., exc=...")` 1 줄 남김
-- [ ] 영향 받는 테스트 갱신 + 신규 계약 테스트 추가:
-  - [ ] `test_drift.py` — unknown asset, closes 누락, 매도 초과, 매수 초과 cash 각각의 예외 경로 검증
-  - [ ] `test_balance_adjust.py` — unknown asset 예외 경로
-  - [ ] `test_state.py` — 파손된 타임스탬프 로드 시 ValueError
-  - [ ] `test_cli.py` — `fetch-fills` 실패가 `main()` 훅을 거쳐 알림 발송되는지 (`_safe_notify_failure` 가 호출되었는지 mock 검증)
-  - [ ] `test_notifier.py` — `UNREGISTERED` 외 오류에 대해 `logger.warning` 호출 여부
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 11장 표:
-  - [ ] "unknown asset fill / balance_adjust" 행 추가 — "중단 + 알림"
-  - [ ] "매도 초과 / 매수 cash 부족" 행 추가 — "중단 + 알림"
-  - [ ] "closes 누락 (불변조건 위반)" 행 추가
-  - [ ] "applied_*_ids 타임스탬프 파싱 실패" 행 추가
-  - [ ] "RTDB 초기화 실패 (run-daily)" 행 추가 — "중단 + 알림"
-- [ ] `live/CLAUDE.md` 원칙 섹션에 "unknown asset / 보유량 초과 매도 / cash 부족 / closes 누락 은 즉시 실패" 한 줄 추가
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] plan 체크박스 최신화
+- [x] `compute_drift` 에서 `closes` 에 `state.assets` 의 asset_id 가 누락되면 `RuntimeError("내부 불변조건 위반")`
+- [x] `_apply_single_fill` 에서 `state.assets` 에 없는 `fill.asset_id` 는 `ValueError("알 수 없는 asset_id")` (테스트에서는 pending 없이도 처리되는 fill 과 구분 필요 — `classify_fill` 은 유지하되, 반영 함수에서만 실패)
+- [x] `_apply_single_fill` 의 매도 초과 경우 (`new_shares < 0`) `ValueError("보유량 초과 매도")`
+- [x] `_apply_single_fill` 의 매수 결과 `shared_cash_actual < 0` 이면 `ValueError("현금 부족")`
+- [x] `_apply_single_adjust` 의 unknown asset_id → `ValueError("알 수 없는 asset_id")`
+- [x] `_load_applied_ids` 의 타임스탬프 파싱 실패 시 `ValueError` 전파
+- [x] `_initialize_rtdb_app` 의 시그니처/동작 변경 최소화 — 대신 `run-daily` 분기에서 "RTDB 필수" 를 강제하는 래퍼 또는 별도 함수 (`_require_rtdb_app()`) 를 추가해 `run-daily` 에서 호출. `fetch-fills`, `drift`, `history`, `notify-failure`, `init`, `init-data` 는 기존 `_initialize_rtdb_app` 사용
+- [x] `_cmd_fetch_fills` 에서 RTDB 초기화 실패 시 `RuntimeError` 발생 → `main()` 공통 훅이 알림 발송하도록 통합
+- [x] `_send_fcm_messages` 가 `UNREGISTERED/NOT_FOUND` 외 실패 토큰에 대해 `logger.warning("FCM 발송 실패: token=..., code=..., exc=...")` 1 줄 남김
+- [x] 영향 받는 테스트 갱신 + 신규 계약 테스트 추가:
+  - [x] `test_drift.py` — unknown asset, closes 누락, 매도 초과, 매수 초과 cash 각각의 예외 경로 검증
+  - [x] `test_balance_adjust.py` — unknown asset 예외 경로
+  - [x] `test_state.py` — 파손된 타임스탬프 로드 시 ValueError
+  - [x] `test_cli.py` — `fetch-fills` 실패가 `main()` 훅을 거쳐 알림 발송되는지 (`_safe_notify_failure` 가 호출되었는지 mock 검증)
+  - [x] `test_notifier.py` — `UNREGISTERED` 외 오류에 대해 `logger.warning` 호출 여부
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 11장 표:
+  - [x] "unknown asset fill / balance_adjust" 행 추가 — "중단 + 알림"
+  - [x] "매도 초과 / 매수 cash 부족" 행 추가 — "중단 + 알림"
+  - [x] "closes 누락 (불변조건 위반)" 행 추가
+  - [x] "applied_*_ids 타임스탬프 파싱 실패" 행 추가
+  - [x] "RTDB 초기화 실패 (run-daily)" 행 추가 — "중단 + 알림"
+- [x] `live/CLAUDE.md` 원칙 섹션에 "unknown asset / 보유량 초과 매도 / cash 부족 / closes 누락 은 즉시 실패" 한 줄 추가
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -141,21 +141,21 @@
 
 **작업 내용**:
 
-- [ ] `test_drift.py`:
-  - [ ] `closes` 에 asset_id 가 누락된 경우 `RuntimeError` (match="내부 불변조건")
-  - [ ] `fills` 에 state 에 없는 asset_id 가 포함된 경우 `ValueError` (match="알 수 없는 asset_id")
-  - [ ] `fills` 의 sell 이 보유량 초과인 경우 `ValueError` (match="보유량 초과")
-  - [ ] `fills` 의 buy 로 `shared_cash_actual` 가 음수가 되는 경우 `ValueError` (match="현금 부족")
-- [ ] `test_balance_adjust.py`:
-  - [ ] unknown asset_id 가 포함된 `BalanceAdjust` → `ValueError`
-- [ ] `test_state.py`:
-  - [ ] `applied_fill_ids.json` 의 value 가 "파싱 불가" 타임스탬프일 때 `load_applied_fill_ids` 가 ValueError
-- [ ] `test_cli.py`:
-  - [ ] `_cmd_fetch_fills` 가 RTDB 초기화 실패 시 `RuntimeError` 발생 (monkeypatch 로 `_initialize_rtdb_app` 이 None 반환)
-  - [ ] `main()` 이 해당 RuntimeError 를 캐치하여 `_safe_notify_failure` 호출 (mock 으로 검증)
-  - [ ] `_cmd_run_daily` 에서 `_require_rtdb_app()` 이 None 일 때 `RuntimeError`
-- [ ] `test_notifier.py`:
-  - [ ] FirebaseError 가 `UNREGISTERED` 코드가 아닌 경우, `_send_fcm_messages` 후 `logger.warning` 호출 여부 (caplog 활용)
+- [x] `test_drift.py`:
+  - [x] `closes` 에 asset_id 가 누락된 경우 `RuntimeError` (match="내부 불변조건")
+  - [x] `fills` 에 state 에 없는 asset_id 가 포함된 경우 `ValueError` (match="알 수 없는 asset_id")
+  - [x] `fills` 의 sell 이 보유량 초과인 경우 `ValueError` (match="보유량 초과")
+  - [x] `fills` 의 buy 로 `shared_cash_actual` 가 음수가 되는 경우 `ValueError` (match="현금 부족")
+- [x] `test_balance_adjust.py`:
+  - [x] unknown asset_id 가 포함된 `BalanceAdjust` → `ValueError`
+- [x] `test_state.py`:
+  - [x] `applied_fill_ids.json` 의 value 가 "파싱 불가" 타임스탬프일 때 `load_applied_fill_ids` 가 ValueError
+- [x] `test_cli.py`:
+  - [x] `_cmd_fetch_fills` 가 RTDB 초기화 실패 시 `RuntimeError` 발생 (monkeypatch 로 `_initialize_rtdb_app` 이 None 반환)
+  - [x] `main()` 이 해당 RuntimeError 를 캐치하여 `_safe_notify_failure` 호출 (mock 으로 검증)
+  - [x] `_cmd_run_daily` 에서 `_require_rtdb_app()` 이 None 일 때 `RuntimeError`
+- [x] `test_notifier.py`:
+  - [x] FirebaseError 가 `UNREGISTERED` 코드가 아닌 경우, `_send_fcm_messages` 후 `logger.warning` 호출 여부 (caplog 활용)
 
 ---
 
@@ -163,22 +163,22 @@
 
 **작업 내용**:
 
-- [ ] `drift.compute_drift`:
-  - [ ] `closes.get(asset_id, 0.0)` → `if asset_id not in closes: raise RuntimeError(...)`; `close = float(closes[asset_id])`
-- [ ] `drift._apply_single_fill`:
-  - [ ] unknown asset_id 에 대해 `raise ValueError(f"알 수 없는 asset_id={fill.asset_id}")`
-  - [ ] buy 경로: 계산 후 `new_cash = state.shared_cash_actual - proceeds`; `if new_cash < 0: raise ValueError(...)`; 그 다음 `state.shared_cash_actual = new_cash`
-  - [ ] sell 경로: `new_shares = asset.actual_shares - fill.actual_shares`; `if new_shares < 0: raise ValueError(...)`; 클리핑 제거
-- [ ] `drift.apply_fills_idempotent`:
-  - [ ] 기존 deepcopy 를 통한 입력 불변성은 유지하되, 실제로는 `_apply_single_fill` 에서 raise 하면 예외가 호출자로 전파되어 deepcopy 된 working state 는 버려짐 — **호출자(state)의 불변성 유지 계약이 깨지지 않음** (raise 전 부분 반영된 state 는 호출자에게 전달되지 않음)
-- [ ] `balance_adjust._apply_single_adjust`:
-  - [ ] unknown asset_id 경우 `raise ValueError(f"알 수 없는 asset_id={adjust.asset_id}")`
-  - [ ] 단, `asset_id is None and new_cash is not None` 는 정상 케이스 (cash 만 보정) — 그대로 통과
-- [ ] `state._load_applied_ids`:
-  - [ ] 타임스탬프 파싱은 `_load_applied_ids` 에서 하지 않고 `cleanup_old_applied_ids` 에서 수행되므로, 본 DoD 항목은 `cleanup_old_applied_ids` 의 파싱 실패 ValueError 로 이동
-- [ ] `state.cleanup_old_applied_ids`:
-  - [ ] 파싱 실패 ID 는 `raise ValueError(f"applied_ids 타임스탬프 파싱 실패: id={fill_id!r}, value={iso_ts!r}")`
-  - [ ] docstring 업데이트: "파손된 타임스탬프 발견 시 보수적 유지 대신 ValueError 로 즉시 실패"
+- [x] `drift.compute_drift`:
+  - [x] `closes.get(asset_id, 0.0)` → `if asset_id not in closes: raise RuntimeError(...)`; `close = float(closes[asset_id])`
+- [x] `drift._apply_single_fill`:
+  - [x] unknown asset_id 에 대해 `raise ValueError(f"알 수 없는 asset_id={fill.asset_id}")`
+  - [x] buy 경로: 계산 후 `new_cash = state.shared_cash_actual - proceeds`; `if new_cash < 0: raise ValueError(...)`; 그 다음 `state.shared_cash_actual = new_cash`
+  - [x] sell 경로: `new_shares = asset.actual_shares - fill.actual_shares`; `if new_shares < 0: raise ValueError(...)`; 클리핑 제거
+- [x] `drift.apply_fills_idempotent`:
+  - [x] 기존 deepcopy 를 통한 입력 불변성은 유지하되, 실제로는 `_apply_single_fill` 에서 raise 하면 예외가 호출자로 전파되어 deepcopy 된 working state 는 버려짐 — **호출자(state)의 불변성 유지 계약이 깨지지 않음** (raise 전 부분 반영된 state 는 호출자에게 전달되지 않음)
+- [x] `balance_adjust._apply_single_adjust`:
+  - [x] unknown asset_id 경우 `raise ValueError(f"알 수 없는 asset_id={adjust.asset_id}")`
+  - [x] 단, `asset_id is None and new_cash is not None` 는 정상 케이스 (cash 만 보정) — 그대로 통과
+- [x] `state._load_applied_ids`:
+  - [x] 타임스탬프 파싱은 `_load_applied_ids` 에서 하지 않고 `cleanup_old_applied_ids` 에서 수행되므로, 본 DoD 항목은 `cleanup_old_applied_ids` 의 파싱 실패 ValueError 로 이동
+- [x] `state.cleanup_old_applied_ids`:
+  - [x] 파싱 실패 ID 는 `raise ValueError(f"applied_ids 타임스탬프 파싱 실패: id={fill_id!r}, value={iso_ts!r}")`
+  - [x] docstring 업데이트: "파손된 타임스탬프 발견 시 보수적 유지 대신 ValueError 로 즉시 실패"
 
 ---
 
@@ -186,16 +186,16 @@
 
 **작업 내용**:
 
-- [ ] `cli._initialize_rtdb_app` 은 기존 동작 유지 (경고 로그 + None 반환). 용도: 실패해도 계속 진행해도 되는 경로 (`drift`, `history`, `notify-failure`)
-- [ ] `cli._require_rtdb_app()` 신규 함수 추가:
-  - [ ] 내부에서 `_initialize_rtdb_app()` 호출 → None 이면 `raise RuntimeError("Firebase 초기화 실패 — run-daily 진행 불가")`
-- [ ] `cli._cmd_run_daily`: `rtdb_app = _initialize_rtdb_app()` → `rtdb_app = _require_rtdb_app()`. 이후 `if rtdb_app is not None:` 분기는 모두 삭제 (항상 존재한다는 전제)
-- [ ] `cli._cmd_fetch_fills`:
-  - [ ] `_initialize_rtdb_app()` 결과가 None 이면 `raise RuntimeError("Firebase 초기화 실패 — fetch-fills 진행 불가")`
-  - [ ] `return 1` 제거
-- [ ] `main()` 공통 훅은 현재 구조 그대로 작동 (RuntimeError 를 잡아 `_safe_notify_failure` 호출)
-- [ ] `notifier._send_fcm_messages`:
-  - [ ] invalid 검출 로직 분기에 else 분기 추가:
+- [x] `cli._initialize_rtdb_app` 은 기존 동작 유지 (경고 로그 + None 반환). 용도: 실패해도 계속 진행해도 되는 경로 (`drift`, `history`, `notify-failure`)
+- [x] `cli._require_rtdb_app()` 신규 함수 추가:
+  - [x] 내부에서 `_initialize_rtdb_app()` 호출 → None 이면 `raise RuntimeError("Firebase 초기화 실패 — run-daily 진행 불가")`
+- [x] `cli._cmd_run_daily`: `rtdb_app = _initialize_rtdb_app()` → `rtdb_app = _require_rtdb_app()`. 이후 `if rtdb_app is not None:` 분기는 모두 삭제 (항상 존재한다는 전제)
+- [x] `cli._cmd_fetch_fills`:
+  - [x] `_initialize_rtdb_app()` 결과가 None 이면 `raise RuntimeError("Firebase 초기화 실패 — fetch-fills 진행 불가")`
+  - [x] `return 1` 제거
+- [x] `main()` 공통 훅은 현재 구조 그대로 작동 (RuntimeError 를 잡아 `_safe_notify_failure` 호출)
+- [x] `notifier._send_fcm_messages`:
+  - [x] invalid 검출 로직 분기에 else 분기 추가:
     ```python
     if "UNREGISTERED" in code or "NOT_FOUND" in code:
         invalid.append(token)
@@ -209,10 +209,10 @@
 
 **작업 내용**:
 
-- [ ] Phase 0 의 계약 테스트가 Phase 1/2 구현 후 그린 통과하는지 확인
-- [ ] 기존 `test_alert_coverage.py` 의 "silent fallback 방어" 테스트를 본 Plan 의 강화 정책과 일관되게 조정 (과거 "silent skip 하지 않음" 에서 "즉시 예외 + 알림" 으로)
-- [ ] `test_regression.py` 가 unknown asset 시나리오를 다루지 않는지 확인 (실제 데이터 기반이라 영향 없음을 기대)
-- [ ] `test_cli.py` 에서 `_cmd_run_daily` mock 시나리오가 RTDB 성공 경로를 사용하도록 monkeypatch 조정
+- [x] Phase 0 의 계약 테스트가 Phase 1/2 구현 후 그린 통과하는지 확인
+- [x] 기존 `test_alert_coverage.py` 의 "silent fallback 방어" 테스트를 본 Plan 의 강화 정책과 일관되게 조정 (과거 "silent skip 하지 않음" 에서 "즉시 예외 + 알림" 으로)
+- [x] `test_regression.py` 가 unknown asset 시나리오를 다루지 않는지 확인 (실제 데이터 기반이라 영향 없음을 기대)
+- [x] `test_cli.py` 에서 `_cmd_run_daily` mock 시나리오가 RTDB 성공 경로를 사용하도록 monkeypatch 조정
 
 ---
 
@@ -220,16 +220,16 @@
 
 **작업 내용**:
 
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 11장:
-  - [ ] 기존 표에 아래 행 추가:
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 11장:
+  - [x] 기존 표에 아래 행 추가:
     - `unknown asset_id 가 포함된 fill/balance_adjust` → `중단 + 알림 (ValueError)`
     - `보유량 초과 매도 fill` → `중단 + 알림 (ValueError)`
     - `매수 체결로 shared_cash_actual < 0` → `중단 + 알림 (ValueError)`
     - `compute_drift 에 closes 누락 (내부 불변조건)` → `중단 + 알림 (RuntimeError)`
     - `applied_*_ids 타임스탬프 파싱 실패` → `중단 + 알림 (ValueError)`
     - `RTDB 초기화 실패 (run-daily / fetch-fills)` → `중단 + 알림 (RuntimeError)`
-  - [ ] 기존 "FCM 전송 실패" 행에 "UNREGISTERED 외 오류는 WARNING 로그 기록" 한 줄 추가
-- [ ] `live/CLAUDE.md` "핵심 원칙" 에 한 줄 추가:
+  - [x] 기존 "FCM 전송 실패" 행에 "UNREGISTERED 외 오류는 WARNING 로그 기록" 한 줄 추가
+- [x] `live/CLAUDE.md` "핵심 원칙" 에 한 줄 추가:
   - "unknown asset_id / 보유량 초과 매도 / 현금 부족 / closes 누락 / applied_ids 파싱 실패 는 자동 복구하지 않고 즉시 실패 + 알림"
 
 ---
@@ -238,15 +238,15 @@
 
 **작업 내용**
 
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=881, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

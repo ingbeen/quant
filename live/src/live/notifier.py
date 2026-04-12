@@ -131,9 +131,16 @@ def _send_fcm_messages(tokens: list[str], body: str) -> tuple[int, list[str]]:
         if not individual.success:
             err = individual.exception
             if isinstance(err, FirebaseError):
-                code = getattr(err, "code", "")
-                if "UNREGISTERED" in str(code).upper() or "NOT_FOUND" in str(code).upper():
+                code_raw = getattr(err, "code", "")
+                code_str = str(code_raw).upper()
+                if "UNREGISTERED" in code_str or "NOT_FOUND" in code_str:
                     invalid.append(token)
+                else:
+                    # 만료/등록 해제가 아닌 다른 실패(quota 초과 등) 는 조용히
+                    # 묻히면 안 된다. WARNING 로그로 남긴다 (자동 재발송 금지 원칙 유지).
+                    logger.warning(f"FCM 발송 실패 (정리 대상 아님): token={token[:8]}..., " f"code={code_raw!r}, exc={err}")
+            else:
+                logger.warning(f"FCM 발송 실패 (FirebaseError 아님): token={token[:8]}..., exc={err}")
     return response.success_count, invalid
 
 

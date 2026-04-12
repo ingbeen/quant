@@ -71,11 +71,16 @@ def _apply_single_fill(state: LiveState, fill: ActualFill) -> None:
 
     이 함수는 :func:`apply_fills_idempotent` 내부에서 deepcopy 된 state 에 대해
     호출되므로 입력 불변성 원칙을 깨지 않는다.
+
+    Raises:
+        ValueError: 다음 중 하나의 경우
+            - state 에 존재하지 않는 ``fill.asset_id`` 가 전달됨 (데이터 파손)
+            - 매도 수량이 보유량을 초과 (보유량 초과 매도)
+            - 매수 체결 후 ``shared_cash_actual`` 가 음수가 됨 (현금 부족)
     """
     asset = state.assets.get(fill.asset_id)
     if asset is None:
-        # 알 수 없는 자산 — 무시 (분류는 personal_trade 이나 실제 반영 대상 아님)
-        return
+        raise ValueError(f"알 수 없는 asset_id={fill.asset_id!r} — fill 반영 불가. " f"rtdb_key={fill.rtdb_key!r}")
 
     proceeds = fill.actual_price * fill.actual_shares
 
@@ -83,17 +88,28 @@ def _apply_single_fill(state: LiveState, fill: ActualFill) -> None:
         prev_shares = asset.actual_shares
         prev_avg = asset.actual_avg_entry_price
         new_shares = prev_shares + fill.actual_shares
+        new_cash = state.shared_cash_actual - proceeds
+        if new_cash < 0:
+            raise ValueError(
+                f"현금 부족 — asset_id={fill.asset_id!r} buy 체결 후 "
+                f"shared_cash_actual={new_cash:.2f} < 0 (proceeds={proceeds:.2f}). "
+                f"rtdb_key={fill.rtdb_key!r}"
+            )
         if new_shares > 0:
             total_cost = prev_avg * prev_shares + fill.actual_price * fill.actual_shares
             asset.actual_avg_entry_price = total_cost / new_shares
         asset.actual_shares = new_shares
         asset.actual_entry_date = fill.trade_date
-        state.shared_cash_actual -= proceeds
+        state.shared_cash_actual = new_cash
 
     elif fill.direction == "sell":
         new_shares = asset.actual_shares - fill.actual_shares
         if new_shares < 0:
-            new_shares = 0  # 방어: 음수 금지
+            raise ValueError(
+                f"보유량 초과 매도 — asset_id={fill.asset_id!r} "
+                f"actual_shares={asset.actual_shares} < fill.actual_shares={fill.actual_shares}. "
+                f"rtdb_key={fill.rtdb_key!r}"
+            )
         asset.actual_shares = new_shares
         state.shared_cash_actual += proceeds
         if new_shares == 0:
@@ -154,7 +170,9 @@ def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
     asset_actual_value_sum = 0.0
 
     for asset_id, asset in state.assets.items():
-        close = float(closes.get(asset_id, 0.0))
+        if asset_id not in closes:
+            raise RuntimeError(f"내부 불변조건 위반: compute_drift closes 에 asset_id={asset_id!r} 가 없음")
+        close = float(closes[asset_id])
         model_value = asset.model_shares * close
         actual_value = asset.actual_shares * close
 

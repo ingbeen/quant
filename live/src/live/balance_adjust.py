@@ -17,7 +17,7 @@
 - 입력 ``state`` / ``applied_ids`` 불변. 새 객체 반환.
 - idempotency: ``rtdb_key`` 가 ``applied_ids`` 에 있으면 skip.
 - 자산 + cash 동시 보정 가능 (한 레코드에 둘 다 set).
-- 알 수 없는 ``asset_id`` 는 무시 (로그 없이 skip).
+- 알 수 없는 ``asset_id`` 가 전달되면 즉시 ``ValueError`` 로 중단한다 (fail-fast).
 """
 
 from __future__ import annotations
@@ -75,17 +75,23 @@ def _apply_single_adjust(state: LiveState, adjust: BalanceAdjust) -> None:
 
     :func:`apply_balance_adjusts_idempotent` 내부에서 deepcopy 된 state 에만
     호출되므로 입력 불변성 원칙은 깨지지 않는다.
+
+    Raises:
+        ValueError: ``adjust.asset_id`` 가 state 에 존재하지 않을 때 (fail-fast).
     """
     # 자산 shares 보정
     if adjust.asset_id is not None and adjust.new_shares is not None:
         asset = state.assets.get(adjust.asset_id)
-        if asset is not None:
-            asset.actual_shares = int(adjust.new_shares)
-            if asset.actual_shares == 0:
-                asset.actual_avg_entry_price = 0.0
-                asset.actual_entry_date = None
-            # 양의 shares 인 경우 평균가 / entry_date 는 기존 값 유지
-            # (balance_adjust 는 "현재 잔고" 만 보정하고 원가 정보는 건드리지 않음)
+        if asset is None:
+            raise ValueError(
+                f"알 수 없는 asset_id={adjust.asset_id!r} — balance_adjust 반영 불가. " f"rtdb_key={adjust.rtdb_key!r}"
+            )
+        asset.actual_shares = int(adjust.new_shares)
+        if asset.actual_shares == 0:
+            asset.actual_avg_entry_price = 0.0
+            asset.actual_entry_date = None
+        # 양의 shares 인 경우 평균가 / entry_date 는 기존 값 유지
+        # (balance_adjust 는 "현재 잔고" 만 보정하고 원가 정보는 건드리지 않음)
 
     # 공유 cash 보정
     if adjust.new_cash is not None:

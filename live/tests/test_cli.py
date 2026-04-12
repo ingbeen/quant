@@ -45,6 +45,29 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+class _FakeRtdbApp:
+    """RTDB 통합 호출을 전부 무력화한 mock Firebase App."""
+
+
+def _mock_rtdb_for_cli(monkeypatch: pytest.MonkeyPatch) -> _FakeRtdbApp:
+    """CLI run-daily / fetch-fills 경로의 RTDB 의존성을 일괄 mock 한다.
+
+    ``_require_rtdb_app`` 은 fake app 을 반환하고, 모든 rtdb_gateway 함수는
+    no-op 으로 교체된다. _publish_to_rtdb 와 _send_daily_notifications 역시
+    no-op 으로 둔다.
+    """
+    fake_app = _FakeRtdbApp()
+    monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: fake_app)
+    monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+    monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+    monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
+    monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
+    monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
+    monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda app, sd, st, r: None)
+    monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+    return fake_app
+
+
 # ============================================================================
 # 공통 헬퍼
 # ============================================================================
@@ -164,13 +187,13 @@ class TestCmdRunDailyFailures:
             return _make_recent_df(date(2026, 4, 10))
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
+        _mock_rtdb_for_cli(monkeypatch)
 
         # run_daily 호출을 실패하도록 monkeypatch
         def _failing_run_daily(*args, **kwargs):  # noqa: ANN202
             raise RuntimeError("테스트: 엔진 내부 계산 실패")
 
         monkeypatch.setattr(cli_module, "run_daily", _failing_run_daily)
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
 
         notify_calls: list[str] = []
         monkeypatch.setattr(
@@ -206,8 +229,7 @@ class TestCmdRunDailySuccess:
             return _make_recent_df(trade_date)
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
-        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+        _mock_rtdb_for_cli(monkeypatch)
 
         exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
         assert exit_code == 0
@@ -222,8 +244,7 @@ class TestCmdRunDailySuccess:
             return _make_recent_df(trade_date)
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
-        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+        _mock_rtdb_for_cli(monkeypatch)
 
         main(["run-daily", "--trade-date", trade_date.isoformat()])
 
@@ -277,15 +298,29 @@ class TestCmdRunDailySuccess:
 class TestFetchFills:
     """fetch-fills 는 RTDB 만 읽으므로 state_dir 가 필요 없다."""
 
-    def test_fetch_fills_returns_1_when_rtdb_init_fails(self, monkeypatch):
+    def test_fetch_fills_rtdb_init_failure_triggers_notify(self, monkeypatch):
+        """Given Firebase 초기화 실패 When fetch-fills Then main 공통 훅이 알림 + exit 1.
+
+        과거 silent return 1 경로는 폐지. 이제 RuntimeError 전파 → main() 훅이
+        _safe_notify_failure 를 호출한 뒤 exit 1.
+        """
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+        notify_calls: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
         exit_code = main(["fetch-fills"])
         assert exit_code == 1
+        assert len(notify_calls) >= 1
+        assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
 
     def test_fetch_fills_outputs_json(self, monkeypatch, capsys):
         from live.models import ActualFill
 
         fake_app = object()
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: fake_app)
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -869,8 +904,7 @@ class TestRunDailyValidatorIntegration:
 
         monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: False)  # 휴장으로 보여도
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
-        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+        _mock_rtdb_for_cli(monkeypatch)
 
         # --trade-date 명시 → 휴장 체크 bypass
         exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
@@ -1035,8 +1069,7 @@ class TestRunDailyValidatorIntegration:
 
         monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: True)
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
-        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+        _mock_rtdb_for_cli(monkeypatch)
 
         # --trade-date 명시 → idempotency bypass
         exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])

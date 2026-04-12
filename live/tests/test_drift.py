@@ -310,3 +310,72 @@ class TestComputeDrift:
         closes = {"sso": 100.0, "qld": 100.0, "gld": 100.0, "tlt": 100.0}
         result = compute_drift(state, closes)
         assert isinstance(result, DriftReport)
+
+
+# ============================================================================
+# fail-fast 정책 계약 (Plan 4)
+# ============================================================================
+
+
+class TestComputeDriftFailFast:
+    """``compute_drift`` 는 closes 에 자산이 누락되면 RuntimeError 로 중단한다."""
+
+    def test_missing_asset_close_raises_runtime_error(self):
+        """Given closes 에 자산 키 누락 When compute_drift Then RuntimeError(match='내부 불변조건')."""
+        state = create_initial_state(100_000_000.0)
+        incomplete = {"sso": 100.0, "qld": 100.0, "gld": 100.0}  # tlt 누락
+        with pytest.raises(RuntimeError, match="내부 불변조건"):
+            compute_drift(state, incomplete)
+
+
+class TestApplyFillsFailFast:
+    """fill 반영 경로는 사용자 입력 오류 / 데이터 파손 시 ValueError 로 중단한다."""
+
+    def test_unknown_asset_raises(self):
+        """Given state 에 없는 asset_id When apply Then ValueError(알 수 없는 asset_id)."""
+        state = create_initial_state(100_000_000.0)
+        fill = ActualFill(
+            asset_id="ghost",
+            direction="buy",
+            actual_price=100.0,
+            actual_shares=10,
+            trade_date="2026-04-10",
+            input_time_kst="2026-04-10T10:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_ghost",
+        )
+        with pytest.raises(ValueError, match="알 수 없는 asset_id"):
+            apply_fills_idempotent(state, [fill], {})
+
+    def test_sell_over_holding_raises(self):
+        """Given 매도량 > 보유량 When apply Then ValueError(보유량 초과 매도)."""
+        state = create_initial_state(100_000_000.0)
+        state.assets["sso"].actual_shares = 10
+        fill = ActualFill(
+            asset_id="sso",
+            direction="sell",
+            actual_price=100.0,
+            actual_shares=20,  # 보유 10 보다 많음
+            trade_date="2026-04-10",
+            input_time_kst="2026-04-10T10:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_over_sell",
+        )
+        with pytest.raises(ValueError, match="보유량 초과 매도"):
+            apply_fills_idempotent(state, [fill], {})
+
+    def test_buy_cash_deficit_raises(self):
+        """Given 매수 체결 후 shared_cash_actual<0 When apply Then ValueError(현금 부족)."""
+        state = create_initial_state(100.0)  # 현금 100 뿐
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=50.0,
+            actual_shares=10,  # 비용 500 > 현금 100
+            trade_date="2026-04-10",
+            input_time_kst="2026-04-10T10:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_overspend",
+        )
+        with pytest.raises(ValueError, match="현금 부족"):
+            apply_fills_idempotent(state, [fill], {})

@@ -80,6 +80,13 @@ live/
 - **알림 채널 자체의 실패는 로그로만 기록한다**. FCM / 텔레그램 발송이 실패한
   상황에서 다시 알림을 보내는 것은 모순 / 무한 루프이므로 금지.
 - 에러 알림 본문에는 실패 원인(커맨드 이름 + 예외 메시지) 을 반드시 포함.
+- 다음 조건은 silent skip 대신 즉시 실패 (`ValueError` / `RuntimeError`) 로 처리하고
+  공통 알림 훅이 사용자에게 통보한다:
+  - unknown `asset_id` 가 포함된 fill / balance_adjust
+  - 보유량 초과 매도 / 매수 체결로 `shared_cash_actual < 0`
+  - `compute_drift` 에 종가 누락 (내부 불변조건 위반)
+  - `applied_*_ids` 원장의 파손된 타임스탬프
+  - `run-daily` / `fetch-fills` 의 Firebase 초기화 실패 (`_require_rtdb_app`)
 
 ### 2. model / actual 분리
 

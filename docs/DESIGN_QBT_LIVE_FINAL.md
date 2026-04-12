@@ -437,15 +437,21 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | 데이터 검증 실패 (OHLC / 종가 / 날짜 gap) | 중단 + 알림 |
 | state 파일 파싱 실패 | 중단 + 알림 |
 | 계산 실패 (engine RuntimeError) | 중단 + 알림. state 는 저장되지 않음 |
+| RTDB 초기화 실패 (`run-daily` / `fetch-fills`) | 중단 + 알림. `_require_rtdb_app` 가 RuntimeError 전파 |
 | RTDB 읽기 실패 (fills / balance_adjusts) | 중단 + 알림 |
+| `compute_drift` 에 closes 누락 (내부 불변조건) | 중단 + 알림 (`RuntimeError("내부 불변조건 위반")`) |
+| unknown asset_id 가 포함된 fill/balance_adjust | 중단 + 알림 (`ValueError("알 수 없는 asset_id")`) |
+| 보유량 초과 매도 fill (`actual_shares < fill.shares`) | 중단 + 알림 (`ValueError("보유량 초과 매도")`) |
+| 매수 체결로 `shared_cash_actual < 0` | 중단 + 알림 (`ValueError("현금 부족")`) |
+| `applied_*_ids.json` 의 타임스탬프 파싱 실패 | 중단 + 알림 (`ValueError`) |
 | history 저장 실패 (`_persist_history`) | 중단 + 알림 (silent continue 금지) |
 | RTDB 쓰기 실패 (`_publish_to_rtdb`) | 중단 + 알림. **ephemeral 컨텍스트 미종료 → Git push 도 건너뜀 (원자성)** |
 | Git clone / push 실패 | 중단 + 알림 |
-| 타 커맨드(`init`, `init-data`, `drift`, `fetch-fills`, `history` 등) 실패 | `main()` 공통 훅이 `_safe_notify_failure` 호출 |
-| FCM 전송 실패 | `logger.error` 기록만. 재발송 금지. 텔레그램은 독립 발송 |
+| 타 커맨드(`init`, `init-data`, `drift`, `history` 등) 실패 | `main()` 공통 훅이 `_safe_notify_failure` 호출 |
+| FCM 전송 실패 (`UNREGISTERED`/`NOT_FOUND` 외) | `logger.warning` 으로 기록 (조용히 묻히지 않게). 재발송 금지. 텔레그램은 독립 발송 |
+| FCM 토큰 만료 (`UNREGISTERED`/`NOT_FOUND`) | RTDB `/device_tokens/` 에서 자동 제거 (정상 동작) |
 | 텔레그램 전송 실패 | `logger.error` 기록만. 재발송 금지. FCM 은 독립 발송 |
 | fill / balance_adjust 중복 수신 | `applied_*_ids.json` 으로 skip (정상 동작) |
-| FCM 토큰 만료 | RTDB `/device_tokens/` 에서 제거 (정상 동작) |
 | 체결 미입력 | 매 실행 리마인더 알림에 포함 |
 | `notify-failure` 커맨드 자체 실패 | 재귀 방지 — `main()` 훅에서 알림 발송 건너뜀, 예외만 로그 기록 후 exit 1 |
 | GitHub Actions 실패 (retry 포함 2회 연속) | `notify-failure` job 에서 FCM + 텔레그램 재전송 |

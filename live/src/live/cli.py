@@ -217,7 +217,13 @@ def _history_dir(state_dir: Path) -> Path:
 
 
 def _initialize_rtdb_app() -> Any | None:
-    """환경변수에서 Firebase 자격증명을 읽어 App 초기화. 실패 시 ``None``."""
+    """환경변수에서 Firebase 자격증명을 읽어 App 초기화. 실패 시 ``None``.
+
+    실패해도 계속 진행해도 되는 경로(``drift``, ``history``, ``notify-failure``) 에서만
+    사용한다. ``run-daily`` / ``fetch-fills`` 와 같이 RTDB 가 필수인 경로는
+    :func:`_require_rtdb_app` 을 써서 실패 시 즉시 ``RuntimeError`` 로 중단하고
+    공통 알림 훅이 실패 알림을 발송하게 한다.
+    """
     cred_path_str = os.environ.get(FIREBASE_CRED_ENV_KEY)
     if not cred_path_str:
         logger.warning(f"{FIREBASE_CRED_ENV_KEY} 미설정 — RTDB 비활성화")
@@ -227,6 +233,18 @@ def _initialize_rtdb_app() -> Any | None:
     except Exception as exc:  # noqa: BLE001
         logger.error(f"Firebase 초기화 실패: {exc}")
         return None
+
+
+def _require_rtdb_app() -> Any:
+    """RTDB 가 필수인 경로에서 사용. 초기화 실패 시 ``RuntimeError`` 전파.
+
+    ``_initialize_rtdb_app`` 와 달리 ``None`` 반환을 허용하지 않는다.
+    RuntimeError 는 상위 ``main()`` 공통 알림 훅이 잡아 실패 알림을 발송한다.
+    """
+    app = _initialize_rtdb_app()
+    if app is None:
+        raise RuntimeError("Firebase 초기화 실패 — RTDB 가 필수인 명령(run-daily / fetch-fills)" " 은 진행 불가. 환경변수 / 자격증명 확인 필요")
+    return app
 
 
 def _safe_notify_failure(rtdb_app: Any | None, message: str) -> None:
@@ -377,24 +395,20 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         except (FileNotFoundError, ValueError) as exc:
             raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
 
-        # RTDB 초기화
-        rtdb_app: Any | None = _initialize_rtdb_app()
+        # RTDB 초기화 — run-daily 는 필수. 실패 시 즉시 RuntimeError 로 중단한다.
+        rtdb_app: Any = _require_rtdb_app()
 
         # RTDB fills 가져오기
-        pending_fills: list[ActualFill] = []
-        if rtdb_app is not None:
-            try:
-                pending_fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
+        try:
+            pending_fills: list[ActualFill] = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"RTDB fills 읽기 실패: {exc}") from exc
 
         # RTDB balance_adjusts 가져오기
-        pending_adjusts: list[BalanceAdjust] = []
-        if rtdb_app is not None:
-            try:
-                pending_adjusts = rtdb_gateway.fetch_pending_balance_adjusts(rtdb_app)
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
+        try:
+            pending_adjusts: list[BalanceAdjust] = rtdb_gateway.fetch_pending_balance_adjusts(rtdb_app)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
 
         # applied_balance_adjust_ids 원장 로드 (run_daily 에 전달)
         adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
@@ -470,11 +484,10 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                     )
 
             # RTDB processed 마킹
-            if rtdb_app is not None:
-                try:
-                    rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
-                except Exception as exc:  # noqa: BLE001
-                    raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
+            try:
+                rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
 
         # 영구 히스토리 저장 — 실패 시 즉시 중단 + 알림 (자동 복구 금지)
         try:
@@ -483,11 +496,10 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
             raise RuntimeError(f"히스토리 저장 실패: {exc}") from exc
 
         # RTDB 갱신
-        if rtdb_app is not None:
-            try:
-                _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
-            except Exception as exc:  # noqa: BLE001
-                raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
+        try:
+            _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
 
         # 알림 발송
         _send_daily_notifications(rtdb_app, result)
@@ -694,10 +706,8 @@ def _cmd_drift(args: argparse.Namespace) -> int:
 
 
 def _cmd_fetch_fills(args: argparse.Namespace) -> int:
-    rtdb_app = _initialize_rtdb_app()
-    if rtdb_app is None:
-        logger.error("RTDB 초기화 실패 — 환경변수 확인 필요")
-        return 1
+    del args  # 사용하지 않음
+    rtdb_app = _require_rtdb_app()
     fills = rtdb_gateway.fetch_unprocessed_fills(rtdb_app)
     payload = [
         {

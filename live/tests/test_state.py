@@ -584,10 +584,16 @@ class TestAppliedFillIds:
 
     def test_cleanup_does_not_mutate_input(self):
         """cleanup 함수는 원본 dict 를 변경하지 않아야 한다 (불변성)."""
-        ids = {"a": "2020-01-01T00:00:00+09:00"}
+        ids = {"a": "2026-04-01T00:00:00+09:00"}
         original_copy = dict(ids)
         _ = cleanup_old_applied_ids(ids, max_age_days=90)
         assert ids == original_copy
+
+    def test_cleanup_corrupt_timestamp_raises(self):
+        """Given 파손된 ISO 타임스탬프 When cleanup Then ValueError 전파 (fail-fast)."""
+        ids = {"broken": "not-a-valid-iso-timestamp"}
+        with pytest.raises(ValueError, match="타임스탬프 파싱 실패"):
+            cleanup_old_applied_ids(ids, max_age_days=90)
 
     def test_save_applied_fill_ids_creates_parent_dir(self, tmp_path: Path):
         """applied_fill_ids 저장 시 부모 디렉토리 자동 생성."""

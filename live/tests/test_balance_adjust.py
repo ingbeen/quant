@@ -96,16 +96,15 @@ class TestApplyBalanceAdjustsIdempotent:
         assert new_state.assets["sso"].actual_avg_entry_price == pytest.approx(0.0)
         assert new_state.assets["sso"].actual_entry_date is None
 
-    def test_unknown_asset_ignored(self, initial_state):
-        """Given 존재하지 않는 asset_id When apply Then 무시 (에러 없음)."""
-        adjust = _make_adjust("adj_ghost", asset_id="unknown_asset", new_shares=42)
-        new_state, new_ids = apply_balance_adjusts_idempotent(initial_state, [adjust], {})
+    def test_unknown_asset_raises(self, initial_state):
+        """Given 존재하지 않는 asset_id When apply Then ValueError (fail-fast).
 
-        # 다른 자산들 변경 없음
-        for aid in ("sso", "qld", "gld", "tlt"):
-            assert new_state.assets[aid].actual_shares == 0
-        # rtdb_key 는 applied_ids 에 기록됨 (중복 처리 방지 목적)
-        assert "adj_ghost" in new_ids
+        unknown asset_id 는 앱 버그 / 데이터 파손을 의미하므로 silent skip 대신
+        즉시 실패하여 상위 알림 훅이 사용자에게 통보한다.
+        """
+        adjust = _make_adjust("adj_ghost", asset_id="unknown_asset", new_shares=42)
+        with pytest.raises(ValueError, match="알 수 없는 asset_id"):
+            apply_balance_adjusts_idempotent(initial_state, [adjust], {})
 
     def test_input_state_immutable(self, initial_state):
         """Given apply 호출 후 Then 입력 state 는 변경되지 않는다."""
