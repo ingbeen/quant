@@ -371,3 +371,25 @@ class TestApplyFillsFailFast:
         )
         with pytest.raises(ValueError, match="현금 부족"):
             apply_fills_idempotent(state, [fill], {})
+
+
+class TestComputeDriftModelEquityInvariant:
+    """``model_equity <= 0`` 은 내부 불변조건 위반 → RuntimeError."""
+
+    def test_zero_model_equity_raises_runtime_error(self):
+        """Given model_equity == 0 (cash=0, shares=0) When compute_drift Then RuntimeError."""
+        state = create_initial_state(100_000_000.0)
+        state.shared_cash_model = 0.0
+        # 모든 자산 model_shares = 0 (기본값) → model_equity = 0
+        closes = {"sso": 100.0, "qld": 100.0, "gld": 100.0, "tlt": 100.0}
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            compute_drift(state, closes)
+
+    def test_negative_model_equity_raises_runtime_error(self):
+        """Given model_equity < 0 When compute_drift Then RuntimeError."""
+        state = create_initial_state(100_000_000.0)
+        state.shared_cash_model = -1_000_000.0
+        # 모든 자산 model_shares = 0 → model_equity = -1M
+        closes = {"sso": 100.0, "qld": 100.0, "gld": 100.0, "tlt": 100.0}
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            compute_drift(state, closes)

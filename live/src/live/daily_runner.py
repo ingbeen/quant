@@ -24,7 +24,7 @@ import pandas as pd
 
 from live.balance_adjust import apply_balance_adjusts_idempotent
 from live.buffer_serializer import extract_buffer_state, get_current_bands, restore_buffer_state
-from live.constants import get_live_portfolio_config
+from live.constants import BUY_INTENT_TYPES, SELL_INTENT_TYPES, get_live_portfolio_config
 from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
     ActualFill,
@@ -62,15 +62,35 @@ __all__ = ["run_daily"]
 # ============================================================================
 
 
+def _validate_trade_date_alignment(market_bundle: MarketBundle) -> None:
+    """모든 자산의 trade_df 날짜 집합이 동일한지 검증한다.
+
+    Raises:
+        RuntimeError: 자산 간 trade_df 날짜 집합이 불일치할 때.
+    """
+    date_sets: dict[str, set[date]] = {}
+    for asset_id, data in market_bundle.items():
+        date_sets[asset_id] = set(data.trade_df[COL_DATE].tolist())
+
+    reference_id = next(iter(date_sets))
+    reference = date_sets[reference_id]
+    for asset_id, dates in date_sets.items():
+        if dates != reference:
+            diff = reference.symmetric_difference(dates)
+            raise RuntimeError(
+                f"내부 불변조건 위반: trade_df 날짜 집합 불일치. " f"{reference_id} vs {asset_id}, 차이={sorted(diff)[:5]}"
+            )
+
+
 def _find_trade_index(trade_df: pd.DataFrame, trade_date: date) -> int:
     """trade_df 에서 주어진 날짜의 행 인덱스를 찾는다.
 
     Raises:
-        ValueError: 해당 날짜가 trade_df 에 존재하지 않을 때.
+        RuntimeError: 해당 날짜가 trade_df 에 존재하지 않을 때 (내부 불변조건 위반).
     """
     matches = trade_df.index[trade_df[COL_DATE] == trade_date].tolist()
     if not matches:
-        raise ValueError(f"trade_date {trade_date} 가 trade_df 에 없음")
+        raise RuntimeError(f"내부 불변조건 위반: trade_date {trade_date} 가 trade_df 에 없음")
     return int(matches[0])
 
 
@@ -195,9 +215,9 @@ def _build_signal_detections(
         intent = signal_intents.get(asset_id)
         state_str: Literal["buy", "sell", "none"] = "none"
         if intent is not None:
-            if intent.intent_type == "ENTER_TO_TARGET":
+            if intent.intent_type in BUY_INTENT_TYPES:
                 state_str = "buy"
-            elif intent.intent_type == "EXIT_ALL":
+            elif intent.intent_type in SELL_INTENT_TYPES:
                 state_str = "sell"
 
         signals[asset_id] = SignalDetection(
@@ -289,7 +309,8 @@ def run_daily(
         if asset.pending_order is not None and asset_id not in incoming_fill_asset_ids
     ]
 
-    # 4. 인덱스 결정 (자산별 trade_df 는 동일 날짜 집합이라 가정)
+    # 4. trade_df 날짜 집합 동일성 검증 + 인덱스 결정
+    _validate_trade_date_alignment(market_bundle)
     first_asset_id = next(iter(market_bundle))
     i = _find_trade_index(market_bundle[first_asset_id].trade_df, trade_date)
 
@@ -378,6 +399,9 @@ def run_daily(
     merged_intents = merge_intents(signal_intents, rebalance_intents)
 
     # 7. signal_state 갱신 + 익일 pending 저장
+    #    signal_state 는 "포지션 보유 여부" 원장이므로 전량 매도/신규 진입만 전환.
+    #    REDUCE_TO_TARGET (일부 매도) 는 포지션이 남아 있으므로 "buy" 유지,
+    #    INCREASE_TO_TARGET (추가 매수) 는 이미 "buy" 이므로 변경 불필요.
     for asset_id, intent in merged_intents.items():
         asset_ls = working_state.assets[asset_id]
         if intent.intent_type == "EXIT_ALL":

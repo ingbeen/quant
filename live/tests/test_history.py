@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from live.history import (
     append_balance_adjust,
     append_signal_history,
@@ -275,3 +277,36 @@ class TestAppendBalanceAdjust:
         assert len(lines) == 2
         assert "a1" in lines[0]
         assert "a2" in lines[1]
+
+
+# ============================================================================
+# JSONL 손상 → RuntimeError (데이터 무결성)
+# ============================================================================
+
+
+class TestLoadCorruptedJsonlFailFast:
+    """JSONL 파일에 손상된 행이 있으면 RuntimeError 로 즉시 중단한다."""
+
+    def test_user_trades_corrupted_raises_runtime_error(self, tmp_path: Path):
+        """Given user_trades.jsonl 에 유효하지 않은 JSON 행 When load Then RuntimeError."""
+        path = tmp_path / "user_trades.jsonl"
+        path.write_text(
+            '{"asset_id":"sso","direction":"buy","date":"2026-04-10"}\n'
+            "NOT_VALID_JSON\n"
+            '{"asset_id":"gld","direction":"sell","date":"2026-04-11"}\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            load_user_trades(tmp_path)
+
+    def test_signal_history_corrupted_raises_runtime_error(self, tmp_path: Path):
+        """Given signals.jsonl 에 유효하지 않은 JSON 행 When load Then RuntimeError."""
+        path = tmp_path / "signals.jsonl"
+        path.write_text(
+            '{"date":"2026-04-10","asset_id":"sso","state":"buy"}\n'
+            "{broken_json\n"
+            '{"date":"2026-04-11","asset_id":"gld","state":"sell"}\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            load_signal_history(tmp_path)

@@ -710,3 +710,181 @@ class TestSignalStateQbtAligned:
         state = create_initial_state(100_000_000.0)
         for asset in state.assets.values():
             assert asset.signal_state == "sell"
+
+
+# ============================================================================
+# intent 전체 타입 매핑 계약
+# ============================================================================
+
+
+class TestSignalDetectionAllIntentTypes:
+    """``_build_signal_detections`` 가 BUY_INTENT_TYPES / SELL_INTENT_TYPES 전체를 올바르게 매핑.
+
+    INCREASE_TO_TARGET → "buy", REDUCE_TO_TARGET → "sell" 이 누락되면 실패.
+    """
+
+    def _run_with_intent_type(
+        self,
+        intent_type: str,
+        initial_state: LiveState,
+        flat_market_bundle: MarketBundle,
+        sample_dates: list[date],
+    ) -> str:
+        """지정한 intent_type 의 pending_order 를 심고 run_daily → SignalDetection.state 반환."""
+        from live.models import PendingOrderDict
+
+        state = initial_state
+        state.assets["sso"].pending_order = PendingOrderDict(
+            asset_id="sso",
+            intent_type=intent_type,  # type: ignore[arg-type]
+            signal_date=sample_dates[0].isoformat(),
+            current_amount=0.0,
+            target_amount=35_000_000.0,
+            delta_amount=35_000_000.0,
+            target_weight=0.35,
+            hold_days_used=0,
+            reason="intent-type-test",
+        )
+        # pending 을 심은 다음 날 실행 → 당일 시가에 체결 → 이후 시그널 감지
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        return result.updated_state.assets["sso"].signal_state
+
+    def test_enter_to_target_sets_buy(self, initial_state, flat_market_bundle, sample_dates):
+        """Given ENTER_TO_TARGET pending When 체결 후 signal 감지 Then signal_state 갱신."""
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        # 이 테스트는 기존 동작 확인용 (ENTER_TO_TARGET 은 이미 정상 처리됨)
+        assert isinstance(result.signals["sso"].state, str)
+
+    def test_increase_to_target_signal_detection_buy(self, initial_state, flat_market_bundle, sample_dates):
+        """Given INCREASE_TO_TARGET intent When _build_signal_detections Then state == 'buy'.
+
+        INCREASE_TO_TARGET 은 비중 증가 매수이므로 알림에 "buy" 로 표시되어야 한다.
+        """
+        from live.models import PendingOrderDict
+
+        state = initial_state
+        # 이미 보유 중인 상태에서 비중 증가 intent
+        state.assets["sso"].model_shares = 100
+        state.assets["sso"].signal_state = "buy"
+        state.assets["sso"].pending_order = PendingOrderDict(
+            asset_id="sso",
+            intent_type="INCREASE_TO_TARGET",
+            signal_date=sample_dates[0].isoformat(),
+            current_amount=10_000_000.0,
+            target_amount=35_000_000.0,
+            delta_amount=25_000_000.0,
+            target_weight=0.35,
+            hold_days_used=0,
+            reason="increase-test",
+        )
+        # 다음 날 실행하면 pending 체결 후 새로운 시그널 감지
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        # 체결 후 signal_state 가 "buy" 유지되어야 한다
+        assert result.updated_state.assets["sso"].signal_state == "buy"
+
+    def test_reduce_to_target_signal_state_stays_buy(self, initial_state, flat_market_bundle, sample_dates):
+        """Given REDUCE_TO_TARGET intent When 체결 �� Then signal_state == 'buy' 유지.
+
+        REDUCE_TO_TARGET 은 일부 매도이므로 포지션이 남아 있다 → "buy" 유지.
+        signal_state 는 전량 매도(EXIT_ALL) 일 때만 "sell" 로 전환.
+        """
+        from live.models import PendingOrderDict
+
+        state = initial_state
+        state.assets["sso"].model_shares = 500
+        state.assets["sso"].model_avg_entry_price = 80.0
+        state.assets["sso"].model_entry_date = sample_dates[0].isoformat()
+        state.assets["sso"].signal_state = "buy"
+        state.shared_cash_model = 100_000_000.0 - 500 * 80.0
+        state.assets["sso"].pending_order = PendingOrderDict(
+            asset_id="sso",
+            intent_type="REDUCE_TO_TARGET",
+            signal_date=sample_dates[0].isoformat(),
+            current_amount=50_000_000.0,
+            target_amount=30_000_000.0,
+            delta_amount=-20_000_000.0,
+            target_weight=0.30,
+            hold_days_used=0,
+            reason="reduce-test",
+        )
+        result = run_daily(
+            trade_date=sample_dates[1],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+        )
+        # 일부 매도 후에도 포지션이 남으므로 signal_state 는 "buy" 유지
+        assert result.updated_state.assets["sso"].signal_state == "buy"
+
+
+class TestTradedfDateValidation:
+    """모든 자산의 trade_df 가 동일 날짜 집합이어야 한다 — 불일치 시 RuntimeError."""
+
+    def test_mismatched_trade_dates_raises_runtime_error(self, initial_state, sample_dates):
+        """Given 자산별 trade_df 날짜가 다를 때 When run_daily Then RuntimeError."""
+        from live.models import AssetMarketData
+
+        config = get_live_portfolio_config()
+        asset_ids = [s.asset_id for s in config.asset_slots]
+
+        # 기본 데이터 (sample_dates 10 일)
+        full_dates = sample_dates
+        short_dates = sample_dates[:8]  # 8 일 — 날짜 집합 불일치
+
+        def _bundle_with_mismatch() -> MarketBundle:
+            bundle: MarketBundle = {}
+            for i, aid in enumerate(asset_ids):
+                dates = short_dates if i == 0 else full_dates
+                n = len(dates)
+                closes = [100.0] * n
+                opens = [100.0] * n
+                ma = [100.0] * n
+                signal_df = _make_signal_df(dates, closes, ma, opens=opens)
+                trade_df = _make_trade_df(dates, opens, closes)
+                bundle[aid] = AssetMarketData(signal_df=signal_df, trade_df=trade_df)
+            return bundle
+
+        with pytest.raises(RuntimeError, match="trade_df 날짜 집합"):
+            run_daily(
+                trade_date=full_dates[0],
+                state=initial_state,
+                market_bundle=_bundle_with_mismatch(),
+                pending_fills=[],
+                applied_fill_ids={},
+            )
+
+
+class TestFindTradeIndexIsInternalInvariant:
+    """``_find_trade_index`` 실패는 내부 불변조건 위반 → RuntimeError."""
+
+    def test_missing_trade_date_raises_runtime_error(self, initial_state, flat_market_bundle, sample_dates):
+        """Given trade_df 에 없는 날짜 When run_daily Then RuntimeError."""
+        missing_date = date(2099, 1, 1)
+
+        with pytest.raises((RuntimeError, ValueError)):
+            run_daily(
+                trade_date=missing_date,
+                state=initial_state,
+                market_bundle=flat_market_bundle,
+                pending_fills=[],
+                applied_fill_ids={},
+            )

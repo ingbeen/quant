@@ -126,11 +126,14 @@ def load_user_trades(history_dir: Path) -> dict[str, list[UserTrade]]:
     if not content:
         return result
 
-    for line in content.splitlines():
+    for line_no, line in enumerate(content.splitlines(), start=1):
         line = line.strip()
         if not line:
             continue
-        payload = json.loads(line)
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"손상된 JSONL (user_trades, {line_no}행): {exc}") from exc
         asset_id = payload["asset_id"]
         trade = UserTrade(
             date=payload["date"],
@@ -182,11 +185,14 @@ def load_signal_history(history_dir: Path) -> dict[str, list[tuple[str, str]]]:
     if not content:
         return result
 
-    for line in content.splitlines():
+    for line_no, line in enumerate(content.splitlines(), start=1):
         line = line.strip()
         if not line:
             continue
-        payload = json.loads(line)
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"손상된 JSONL (signals, {line_no}행): {exc}") from exc
         asset_id = payload["asset_id"]
         result.setdefault(asset_id, []).append((payload["date"], payload["state"]))
     return result
