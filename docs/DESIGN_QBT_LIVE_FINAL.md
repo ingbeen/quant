@@ -333,14 +333,16 @@ balance_adjust 는 "이벤트" 가 아니라 "최종 잔고 교체" 이므로 �
 
 ## 7. 차트: TradingView Lightweight Charts
 
-CSV 전체를 읽어 자산별 시계열 (dates, close, ema_200, upper_band, lower_band) 을 생성하고 RTDB `/latest/chart_data/{asset_id}` 에 덮어쓴다. 자산 ID 는 소문자 (`sso`, `qld`, `gld`, `tlt`).
+CSV 전체를 읽어 자산별 시계열 (dates, close, ma_value, upper_band, lower_band) 을 생성하고 RTDB `/latest/chart_data/{asset_id}` 에 덮어쓴다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자).
 
 마커:
 
 - **buy_signals / sell_signals**: `history/signals.jsonl` 에 누적된 과거 신호 이력을 인덱스로 변환
 - **user_buys / user_sells**: `history/user_trades.jsonl` 에 누적된 fill 처리 기록을 인덱스로 변환
 
-EMA-200 의 앞 199 개 인덱스는 워밍업 구간으로 `null` 이다. Firebase RTDB 는 빈 배열을 저장하지 않으므로 마커 리스트가 비어 있으면 해당 키가 아예 생성되지 않는다.
+`ma_value` 는 자산 슬롯의 `ma_window` 에 독립적이며 (200 일 고정 아님), 앞
+`ma_window - 1` 개 인덱스는 워밍업 구간으로 `null` 이다. Firebase RTDB 는 빈 배열을
+저장하지 않으므로 마커 리스트가 비어 있으면 해당 키가 아예 생성되지 않는다.
 
 앱은 WebView + TradingView Lightweight Charts 로 시계열을 렌더링하며, 기간 선택 (3M / 6M / 1Y / 전체) 은 앱 측에서 처리한다.
 
@@ -350,10 +352,16 @@ EMA-200 의 앞 199 개 인덱스는 워밍업 구간으로 `null` 이다. Fireb
 
 | 종류 | 내용 | 빈도 |
 |---|---|---|
-| **일일 리포트** | model/actual equity, drift, 시그널(buy/sell), 200일선 근접도, 리밸런싱 여부, 미입력 리마인더 건수 | 매 run-daily 정상 실행 |
+| **일일 리포트** | model/actual equity, drift, 시그널(buy/sell), MA 근접도, 리밸런싱 여부, 미입력 리마인더 건수 | 매 run-daily 정상 실행 |
 | **실패 알림** | 실패 커맨드 이름 + 에러 상세 메시지 | 어떤 CLI 커맨드든 예외 발생 시 (`notify-failure` 제외) |
 
-200 일선 근접도 = `(close − ema_200) / ema_200` (비율, 음수 가능).
+MA 근접도 = `(close − ma_value) / ma_value` (비율, 음수 가능). `ma_value` 는 자산
+슬롯의 `ma_window` 에 따라 결정되므로 200 일 고정이 아니다.
+
+`SignalDetection.upper_band / lower_band` 는 live 에서 즉시 재계산하지 않고
+`BufferZoneStrategy._prev_upper / _prev_lower` (전략이 다음 거래일 판단에 사용하는
+밴드 값) 를 `buffer_serializer.get_current_bands` 어댑터로 읽어 그대로 노출한다.
+이를 통해 알림/차트에 표시되는 밴드 값과 전략의 실제 판단 기준이 일치한다.
 
 **발송 구조**:
 

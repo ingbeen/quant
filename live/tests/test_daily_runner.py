@@ -284,8 +284,8 @@ class TestRunDailyDataIntegrity:
         for asset in initial_state.assets.values():
             assert asset.pending_order is None
 
-    def test_signal_detection_has_ema_200(self, initial_state, rising_market_bundle, sample_dates):
-        """SignalDetection 에 ema_200 과 ema_distance_pct 가 채워져 있어야 한다."""
+    def test_signal_detection_has_ma_value(self, initial_state, rising_market_bundle, sample_dates):
+        """SignalDetection 에 ma_value 과 ma_distance_pct 가 채워져 있어야 한다."""
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,
@@ -295,7 +295,7 @@ class TestRunDailyDataIntegrity:
         )
         for asset_id in ("sso", "qld", "gld", "tlt"):
             sig = result.signals[asset_id]
-            assert sig.ema_200 is not None
+            assert sig.ma_value is not None
             assert sig.close > 0
 
     def test_portfolio_config_used(self):

@@ -194,14 +194,14 @@ class TestSignalDetection:
         assert is_dataclass(SignalDetection)
 
     def test_fields(self):
-        """B 안: state, close, upper_band, lower_band, ema_200, ema_distance_pct."""
+        """B 안: state, close, upper_band, lower_band, ma_value, ma_distance_pct."""
         expected = {
             "state",
             "close",
             "upper_band",
             "lower_band",
-            "ema_200",
-            "ema_distance_pct",
+            "ma_value",
+            "ma_distance_pct",
         }
         actual = {f.name for f in fields(SignalDetection)}
         assert expected == actual
@@ -222,14 +222,14 @@ class TestSignalDetection:
             close=420.5,
             upper_band=418.0,
             lower_band=398.0,
-            ema_200=410.0,
-            ema_distance_pct=0.0256,
+            ma_value=410.0,
+            ma_distance_pct=0.0256,
         )
 
         # Then
         assert detection.state == "buy"
         assert detection.close == pytest.approx(420.5)
-        assert detection.ema_distance_pct == pytest.approx(0.0256)
+        assert detection.ma_distance_pct == pytest.approx(0.0256)
 
 
 class TestActualFill:
@@ -317,7 +317,7 @@ class TestDailyResult:
             "actual_equity",
             "drift_pct",
             "drift_report",
-            "ema_distances",
+            "ma_distances",
             "notification_body",
             "pending_fill_reminders",
         }
@@ -334,7 +334,7 @@ class TestChartSeries:
         expected = {
             "dates",
             "close",
-            "ema_200",
+            "ma_value",
             "upper_band",
             "lower_band",
             "buy_signals",

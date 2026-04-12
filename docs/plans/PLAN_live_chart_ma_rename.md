@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -40,11 +40,11 @@
 
 ## 1) 목표(Goal)
 
-- [ ] `ChartSeries.ema_200`, `SignalDetection.ema_200`, `ema_distance_pct` 의 "200일 고정" 느낌을 제거하고 `ma_value`, `ma_distance_pct` 로 일반화
-- [ ] `ChartSeries` 필드명을 `ma_value / upper_band / lower_band` (기존 `ema_200`) 로 리네임하여 `slot.ma_window` 에 독립적이 되도록 함
-- [ ] 알림 본문의 `"200일선 근접도"` 문구를 `"이동평균(MA{N}) 근접도"` 또는 `"MA 근접도"` 로 일반화
-- [ ] `daily_runner._build_signal_detections` 에서 버퍼존 밴드값을 **즉시 계산(`ema * (1 ± buffer_pct)`)** 하는 대신 `BufferZoneStrategy._prev_upper / _prev_lower` 를 조회하여 실제 전략이 판단에 사용한 값을 사용
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 의 차트 / 알림 섹션을 업데이트 (`ema_200` → `ma_value`, "200 일선 근접도" → MA N 근접도)
+- [x] `ChartSeries.ema_200`, `SignalDetection.ema_200`, `ema_distance_pct` 의 "200일 고정" 느낌을 제거하고 `ma_value`, `ma_distance_pct` 로 일반화
+- [x] `ChartSeries` 필드명을 `ma_value / upper_band / lower_band` (기존 `ema_200`) 로 리네임하여 `slot.ma_window` 에 독립적이 되도록 함
+- [x] 알림 본문의 `"200일선 근접도"` 문구를 `"이동평균(MA{N}) 근접도"` 또는 `"MA 근접도"` 로 일반화
+- [x] `daily_runner._build_signal_detections` 에서 버퍼존 밴드값을 **즉시 계산(`ema * (1 ± buffer_pct)`)** 하는 대신 `BufferZoneStrategy._prev_upper / _prev_lower` 를 조회하여 실제 전략이 판단에 사용한 값을 사용
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 의 차트 / 알림 섹션을 업데이트 (`ema_200` → `ma_value`, "200 일선 근접도" → MA N 근접도)
 
 ## 2) 비목표(Non-Goals)
 
@@ -77,22 +77,22 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `ChartSeries` 필드: `ema_200: list[float | None]` → `ma_value: list[float | None]`
-- [ ] `SignalDetection` 필드: `ema_200: float | None` → `ma_value: float | None`, `ema_distance_pct: float` → `ma_distance_pct: float`
-- [ ] `chart_data.build_chart_series` 내부 변수/주석 업데이트 (`ema_list` → `ma_list`, 관련 docstring 의 "EMA 200" 표현 제거)
-- [ ] `daily_runner._build_signal_detections` 가 `BufferZoneStrategy._prev_upper / _prev_lower` 를 조회하여 `SignalDetection.upper_band / lower_band` 를 채운다. 전략이 BufferZoneStrategy 가 아니거나 prev 값이 `None` 인 경우 `upper_band / lower_band` 는 `None` 으로 설정
-- [ ] `daily_runner._build_signal_detections` 가 `ma_value` 와 `ma_distance_pct` 를 `(close - ma_value) / ma_value` 로 계산 (ma_value > 0 일 때만)
-- [ ] `DailyResult.ema_distances` → `DailyResult.ma_distances` 로 리네임
-- [ ] `notifier._build_daily_body` 의 `"200일선 근접도"` → `"MA 근접도"` (실제 ma_window 수치는 표시하지 않음 — slot 마다 다를 수 있으므로)
-- [ ] `rtdb_gateway.write_read_model` 의 `/latest/signals` payload 에서 `"ema_200"` 키를 `"ma_value"` 로, `"ema_distance_pct"` 를 `"ma_distance_pct"` 로 변경
-- [ ] `history._persist_history` 의 `daily_payload["ema_distances"]` → `"ma_distances"` 로 키 이름 변경 (jsonl 과거 레코드는 그대로 유지 — 읽기 루틴이 이 키를 쓰지 않음)
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 의 7장(차트) / 8장(알림) 업데이트
-- [ ] `daily_runner._build_signal_detections` 에 `BufferZoneStrategy._prev_upper/_prev_lower` 를 private 접근 대신 어댑터 형태로 읽는 헬퍼 추가 (`buffer_serializer.get_current_bands(strategy) -> tuple[float|None, float|None]`)
-- [ ] 회귀/신규 테스트 추가 (밴드값이 strategy 내부 상태와 일치하는지 계약 고정)
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+- [x] `ChartSeries` 필드: `ema_200: list[float | None]` → `ma_value: list[float | None]`
+- [x] `SignalDetection` 필드: `ema_200: float | None` → `ma_value: float | None`, `ema_distance_pct: float` → `ma_distance_pct: float`
+- [x] `chart_data.build_chart_series` 내부 변수/주석 업데이트 (`ema_list` → `ma_list`, 관련 docstring 의 "EMA 200" 표현 제거)
+- [x] `daily_runner._build_signal_detections` 가 `BufferZoneStrategy._prev_upper / _prev_lower` 를 조회하여 `SignalDetection.upper_band / lower_band` 를 채운다. 전략이 BufferZoneStrategy 가 아니거나 prev 값이 `None` 인 경우 `upper_band / lower_band` 는 `None` 으로 설정
+- [x] `daily_runner._build_signal_detections` 가 `ma_value` 와 `ma_distance_pct` 를 `(close - ma_value) / ma_value` 로 계산 (ma_value > 0 일 때만)
+- [x] `DailyResult.ema_distances` → `DailyResult.ma_distances` 로 리네임
+- [x] `notifier._build_daily_body` 의 `"200일선 근접도"` → `"MA 근접도"` (실제 ma_window 수치는 표시하지 않음 — slot 마다 다를 수 있으므로)
+- [x] `rtdb_gateway.write_read_model` 의 `/latest/signals` payload 에서 `"ema_200"` 키를 `"ma_value"` 로, `"ema_distance_pct"` 를 `"ma_distance_pct"` 로 변경
+- [x] `history._persist_history` 의 `daily_payload["ema_distances"]` → `"ma_distances"` 로 키 이름 변경 (jsonl 과거 레코드는 그대로 유지 — 읽기 루틴이 이 키를 쓰지 않음)
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 의 7장(차트) / 8장(알림) 업데이트
+- [x] `daily_runner._build_signal_detections` 에 `BufferZoneStrategy._prev_upper/_prev_lower` 를 private 접근 대신 어댑터 형태로 읽는 헬퍼 추가 (`buffer_serializer.get_current_bands(strategy) -> tuple[float|None, float|None]`)
+- [x] 회귀/신규 테스트 추가 (밴드값이 strategy 내부 상태와 일치하는지 계약 고정)
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -123,13 +123,13 @@
 
 **작업 내용**:
 
-- [ ] `live/tests/test_daily_runner.py` 에 다음 계약 테스트 추가:
-  - [ ] `_build_signal_detections` 가 반환하는 `SignalDetection.upper_band / lower_band` 가 `BufferZoneStrategy._prev_upper / _prev_lower` 와 정확히 일치 (strategy 인스턴스를 생성하고 `_update_bands` 를 수동 호출한 상태에서 비교)
-  - [ ] BuyAndHoldStrategy 자산은 `upper_band / lower_band` 가 `None`
-  - [ ] ma_window=200 이 아닌 슬롯을 실험 config 로 가정한 mock 시나리오에서 `ma_value` 필드가 올바르게 채워지고 `ma_distance_pct = (close - ma_value) / ma_value`
-- [ ] `live/tests/test_chart_data.py` 에 필드명이 `ma_value` 로 변경되었는지 검증
-- [ ] `live/tests/test_notifier.py` 에 본문 문구가 `"MA 근접도"` 포함하도록 업데이트 (기존 `"200일선 근접도"` 기대 제거)
-- [ ] `live/tests/test_buffer_serializer.py` 에 `get_current_bands(strategy)` 헬퍼 계약 추가 (초기 상태 None, _update_bands 호출 후 실제 값)
+- [x] `live/tests/test_daily_runner.py` 에 다음 계약 테스트 추가:
+  - [x] `_build_signal_detections` 가 반환하는 `SignalDetection.upper_band / lower_band` 가 `BufferZoneStrategy._prev_upper / _prev_lower` 와 정확히 일치 (strategy 인스턴스를 생성하고 `_update_bands` 를 수동 호출한 상태에서 비교)
+  - [x] BuyAndHoldStrategy 자산은 `upper_band / lower_band` 가 `None`
+  - [x] ma_window=200 이 아닌 슬롯을 실험 config 로 가정한 mock 시나리오에서 `ma_value` 필드가 올바르게 채워지고 `ma_distance_pct = (close - ma_value) / ma_value`
+- [x] `live/tests/test_chart_data.py` 에 필드명이 `ma_value` 로 변경되었는지 검증
+- [x] `live/tests/test_notifier.py` 에 본문 문구가 `"MA 근접도"` 포함하도록 업데이트 (기존 `"200일선 근접도"` 기대 제거)
+- [x] `live/tests/test_buffer_serializer.py` 에 `get_current_bands(strategy)` 헬퍼 계약 추가 (초기 상태 None, _update_bands 호출 후 실제 값)
 
 ---
 
@@ -137,30 +137,30 @@
 
 **작업 내용**:
 
-- [ ] `live/src/live/models.py`:
-  - [ ] `ChartSeries.ema_200` → `ma_value`
-  - [ ] `SignalDetection`: `ema_200` → `ma_value`, `ema_distance_pct` → `ma_distance_pct`, docstring 내 "200일선" 표현 일반화
-  - [ ] `DailyResult.ema_distances` → `ma_distances`
-- [ ] `live/src/live/buffer_serializer.py`:
-  - [ ] `get_current_bands(strategy: BufferZoneStrategy) -> tuple[float | None, float | None]` 헬퍼 추가 (docstring 에 `_prev_upper` 가 `_update_bands` 호출 직후 "당일 값" 이라는 점 명시)
-  - [ ] `__all__` 에 추가
-- [ ] `live/src/live/chart_data.py`:
-  - [ ] 내부 변수명/주석의 `ema` → `ma`
-  - [ ] `raw_ema` → `raw_ma`, `ema_list` → `ma_list`
-  - [ ] docstring 의 "EMA-200" / "200 일" 표현 제거
-- [ ] `live/src/live/daily_runner.py` `_build_signal_detections`:
-  - [ ] `ma_value` 계산: 기존 `ema_200` 로직 그대로이되 변수명만 변경
-  - [ ] `upper_band / lower_band`: `isinstance(strategy, BufferZoneStrategy)` 일 때 `get_current_bands(strategy)` 호출 결과 사용. 그 외는 `None`
-  - [ ] `ma_distance_pct = (close - ma_value) / ma_value if ma_value and ma_value > 0 else 0.0`
-  - [ ] `ma_distances: dict[str, float]` 반환 (기존 `ema_distances` 변수명 변경)
-- [ ] `live/src/live/notifier.py`:
-  - [ ] `_build_daily_body`: `"200일선 근접도"` → `"MA 근접도"` 로 변경
-  - [ ] `result.ma_distances` 참조
-- [ ] `live/src/live/rtdb_gateway.py` `write_read_model`:
-  - [ ] signals payload 의 `"ema_200"` → `"ma_value"`, `"ema_distance_pct"` → `"ma_distance_pct"`
-- [ ] `live/src/live/cli.py` `_persist_history`:
-  - [ ] `daily_payload["ema_distances"]` → `daily_payload["ma_distances"]`
-- [ ] `live/src/live/history.py`: 변경 없음. docstring 의 관련 표현만 한 번 훑어 정리
+- [x] `live/src/live/models.py`:
+  - [x] `ChartSeries.ema_200` → `ma_value`
+  - [x] `SignalDetection`: `ema_200` → `ma_value`, `ema_distance_pct` → `ma_distance_pct`, docstring 내 "200일선" 표현 일반화
+  - [x] `DailyResult.ema_distances` → `ma_distances`
+- [x] `live/src/live/buffer_serializer.py`:
+  - [x] `get_current_bands(strategy: BufferZoneStrategy) -> tuple[float | None, float | None]` 헬퍼 추가 (docstring 에 `_prev_upper` 가 `_update_bands` 호출 직후 "당일 값" 이라는 점 명시)
+  - [x] `__all__` 에 추가
+- [x] `live/src/live/chart_data.py`:
+  - [x] 내부 변수명/주석의 `ema` → `ma`
+  - [x] `raw_ema` → `raw_ma`, `ema_list` → `ma_list`
+  - [x] docstring 의 "EMA-200" / "200 일" 표현 제거
+- [x] `live/src/live/daily_runner.py` `_build_signal_detections`:
+  - [x] `ma_value` 계산: 기존 `ema_200` 로직 그대로이되 변수명만 변경
+  - [x] `upper_band / lower_band`: `isinstance(strategy, BufferZoneStrategy)` 일 때 `get_current_bands(strategy)` 호출 결과 사용. 그 외는 `None`
+  - [x] `ma_distance_pct = (close - ma_value) / ma_value if ma_value and ma_value > 0 else 0.0`
+  - [x] `ma_distances: dict[str, float]` 반환 (기존 `ema_distances` 변수명 변경)
+- [x] `live/src/live/notifier.py`:
+  - [x] `_build_daily_body`: `"200일선 근접도"` → `"MA 근접도"` 로 변경
+  - [x] `result.ma_distances` 참조
+- [x] `live/src/live/rtdb_gateway.py` `write_read_model`:
+  - [x] signals payload 의 `"ema_200"` → `"ma_value"`, `"ema_distance_pct"` → `"ma_distance_pct"`
+- [x] `live/src/live/cli.py` `_persist_history`:
+  - [x] `daily_payload["ema_distances"]` → `daily_payload["ma_distances"]`
+- [x] `live/src/live/history.py`: 변경 없음. docstring 의 관련 표현만 한 번 훑어 정리
 
 ---
 
@@ -168,12 +168,12 @@
 
 **작업 내용**:
 
-- [ ] Phase 0 에서 작성한 계약 테스트가 그린 통과하는지 확인
-- [ ] 기존 테스트의 `ema_200` / `ema_distance_pct` / `ema_distances` / `"200일선"` 참조를 새 이름으로 일괄 교체
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md`:
-  - [ ] 7장(차트): `dates, close, ema_200, upper_band, lower_band` → `dates, close, ma_value, upper_band, lower_band`. "EMA-200 의 앞 199 개 인덱스" 문구를 "MA 의 워밍업 구간 (slot.ma_window - 1 개 인덱스)" 으로 일반화
-  - [ ] 8장(알림): `"200일선 근접도"` 표현을 "MA 근접도 ((close − ma_value) / ma_value, 비율)" 로 변경. `SignalDetection.ma_distance_pct` 필드 언급
-  - [ ] 필요 시 `ChartSeries` 구조 설명 업데이트
+- [x] Phase 0 에서 작성한 계약 테스트가 그린 통과하는지 확인
+- [x] 기존 테스트의 `ema_200` / `ema_distance_pct` / `ema_distances` / `"200일선"` 참조를 새 이름으로 일괄 교체
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md`:
+  - [x] 7장(차트): `dates, close, ema_200, upper_band, lower_band` → `dates, close, ma_value, upper_band, lower_band`. "EMA-200 의 앞 199 개 인덱스" 문구를 "MA 의 워밍업 구간 (slot.ma_window - 1 개 인덱스)" 으로 일반화
+  - [x] 8장(알림): `"200일선 근접도"` 표현을 "MA 근접도 ((close − ma_value) / ma_value, 비율)" 로 변경. `SignalDetection.ma_distance_pct` 필드 언급
+  - [x] 필요 시 `ChartSeries` 구조 설명 업데이트
 
 ---
 
@@ -181,15 +181,15 @@
 
 **작업 내용**
 
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=876, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

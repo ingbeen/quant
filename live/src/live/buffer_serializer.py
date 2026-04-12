@@ -28,7 +28,7 @@ from __future__ import annotations
 from live.models import BufferZoneState, HoldState
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 
-__all__ = ["extract_buffer_state", "restore_buffer_state"]
+__all__ = ["extract_buffer_state", "restore_buffer_state", "get_current_bands"]
 
 
 # SSoT: BufferZoneStrategy 의 private 속성 이름 목록.
@@ -92,3 +92,25 @@ def restore_buffer_state(strategy: BufferZoneStrategy, state: BufferZoneState) -
     setattr(strategy, _HOLD_STATE_ATTR, state.hold_state)
     setattr(strategy, _LAST_BUY_BUFFER_PCT_ATTR, state.last_buy_buffer_pct)
     setattr(strategy, _LAST_HOLD_DAYS_USED_ATTR, state.last_hold_days_used)
+
+
+def get_current_bands(strategy: BufferZoneStrategy) -> tuple[float | None, float | None]:
+    """``BufferZoneStrategy`` 의 현재 상단/하단 밴드를 반환한다.
+
+    ``_update_bands`` 호출 직후에는 ``_prev_upper`` / ``_prev_lower`` 가
+    **당일 종가 기준 밴드 값** 을 보유한다 (함수 내부에서 prev 를 현재 값으로
+    갱신). 본 헬퍼는 이 내부 상태를 외부에 노출하여, live 가 "전략이 실제로
+    판단 기준으로 쓰고 있는 밴드" 를 그대로 보고할 수 있게 한다.
+
+    ``_update_bands`` 가 아직 호출되지 않은 초기 상태에서는 두 값 모두 ``None``
+    이다.
+
+    Args:
+        strategy: 조회할 전략 인스턴스.
+
+    Returns:
+        ``(upper_band, lower_band)``. 초기화 전이면 ``(None, None)``.
+    """
+    upper: float | None = getattr(strategy, _PREV_UPPER_ATTR)
+    lower: float | None = getattr(strategy, _PREV_LOWER_ATTR)
+    return upper, lower

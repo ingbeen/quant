@@ -214,8 +214,8 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
         aid: {
             "state": sig.state,
             "close": sig.close,
-            "ema_200": sig.ema_200,
-            "ema_distance_pct": sig.ema_distance_pct,
+            "ma_value": sig.ma_value,
+            "ma_distance_pct": sig.ma_distance_pct,
             "upper_band": sig.upper_band,
             "lower_band": sig.lower_band,
         }

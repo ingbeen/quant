@@ -64,7 +64,7 @@ def state_dir_with_csvs(tmp_path: Path) -> Path:
 
 class TestBuildChartSeriesLengths:
     def test_dates_close_ema_lengths_match_t_14_1(self, state_dir_with_csvs: Path):
-        """T-14.1: 1 년치 CSV → ChartSeries dates/close/ema_200 길이 일치."""
+        """T-14.1: 1 년치 CSV → ChartSeries dates/close/ma_value 길이 일치."""
         series = build_chart_series(state_dir_with_csvs)
 
         assert set(series.keys()) == {"sso", "qld", "gld", "tlt"}
@@ -73,7 +73,7 @@ class TestBuildChartSeriesLengths:
             n = len(cs.dates)
             assert n == 250
             assert len(cs.close) == n
-            assert len(cs.ema_200) == n
+            assert len(cs.ma_value) == n
             assert len(cs.upper_band) == n
             assert len(cs.lower_band) == n
 
@@ -134,12 +134,12 @@ class TestBuildChartSeriesEmaWarmup:
         series = build_chart_series(state_dir_with_csvs)
         for cs in series.values():
             # 첫 199 일 중 일부는 None 이어야 한다 (EMA 워밍업)
-            first_199 = cs.ema_200[:199]
+            first_199 = cs.ma_value[:199]
             assert any(v is None for v in first_199), "초기 EMA 워밍업이 None 으로 표현되어야 함"
 
             # 200 일째 부터는 None 이 아니어야 한다
-            if len(cs.ema_200) > 200:
-                assert cs.ema_200[200] is not None
+            if len(cs.ma_value) > 200:
+                assert cs.ma_value[200] is not None
 
 
 # ============================================================================
@@ -151,7 +151,7 @@ class TestBuildChartSeriesBands:
     def test_upper_band_greater_than_ema(self, state_dir_with_csvs: Path):
         series = build_chart_series(state_dir_with_csvs)
         for cs in series.values():
-            for ema, upper, lower in zip(cs.ema_200, cs.upper_band, cs.lower_band, strict=True):
+            for ema, upper, lower in zip(cs.ma_value, cs.upper_band, cs.lower_band, strict=True):
                 if ema is None:
                     assert upper is None
                     assert lower is None

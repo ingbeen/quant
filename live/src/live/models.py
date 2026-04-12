@@ -257,18 +257,20 @@ class BalanceAdjust:
 class SignalDetection:
     """시그널 감지 결과. 알림 본문 및 차트 오버레이에서 재사용된다.
 
-    ``ema_distance_pct`` 는 200일선 근접도 지표이며
-    ``(close - ema_200) / ema_200`` 로 정의된다 (비율, 음수 가능).
+    ``ma_distance_pct`` 는 MA 근접도 지표이며
+    ``(close - ma_value) / ma_value`` 로 정의된다 (비율, 음수 가능).
 
     ``state`` 의 ``"none"`` 은 "오늘 새로 뜬 신호 없음" 을 의미한다.
+    ``ma_value`` / ``upper_band`` / ``lower_band`` 는 자산 슬롯의
+    ``ma_window`` 에 독립적이다 (200 일 고정 아님).
     """
 
     state: SignalStateLiteral
     close: float
     upper_band: float | None
     lower_band: float | None
-    ema_200: float | None
-    ema_distance_pct: float
+    ma_value: float | None
+    ma_distance_pct: float
 
 
 # ============================================================================
@@ -280,13 +282,14 @@ class SignalDetection:
 class ChartSeries:
     """앱 차트 렌더링용 자산별 전체 기간 시계열.
 
-    RTDB ``/latest/chart_data/{asset_id}`` 에 저장된다. 200일 EMA 의 초기 199 개는
-    ``None`` 으로 채워진다.
+    RTDB ``/latest/chart_data/{asset_id}`` 에 저장된다. MA 워밍업 구간
+    (``slot.ma_window - 1`` 개 인덱스) 은 ``None`` 으로 채워진다.
+    ``ma_value`` 는 자산 슬롯의 ``ma_window`` 에 독립적이다 (200 일 고정 아님).
     """
 
     dates: list[str]
     close: list[float]
-    ema_200: list[float | None]
+    ma_value: list[float | None]
     upper_band: list[float | None]
     lower_band: list[float | None]
     buy_signals: list[int]
@@ -357,7 +360,7 @@ class DailyResult:
     actual_equity: float
     drift_pct: float
     drift_report: DriftReport
-    ema_distances: dict[str, float]
+    ma_distances: dict[str, float]
     notification_body: str
     pending_fill_reminders: list[str]
 

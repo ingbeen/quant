@@ -23,7 +23,7 @@ from typing import Literal
 import pandas as pd
 
 from live.balance_adjust import apply_balance_adjusts_idempotent
-from live.buffer_serializer import extract_buffer_state, restore_buffer_state
+from live.buffer_serializer import extract_buffer_state, get_current_bands, restore_buffer_state
 from live.constants import get_live_portfolio_config
 from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
@@ -165,7 +165,7 @@ def _intent_to_pending_order(intent: OrderIntent, signal_date: date) -> PendingO
     }
 
 
-def _ema_col_name(slot: AssetSlotConfig) -> str:
+def _ma_col_name(slot: AssetSlotConfig) -> str:
     """슬롯의 MA 컬럼명을 반환 (예: ``ma_200``)."""
     return f"ma_{slot.ma_window}"
 
@@ -177,30 +177,37 @@ def _build_signal_detections(
     slot_dict: dict[str, AssetSlotConfig],
     i: int,
 ) -> tuple[dict[str, SignalDetection], dict[str, float]]:
-    """signal_intents 와 시장 데이터를 기반으로 SignalDetection 및 ema_distance 를 계산."""
+    """signal_intents 와 시장 데이터를 기반으로 SignalDetection 및 ma_distance 를 계산.
+
+    ``SignalDetection.upper_band / lower_band`` 는 BufferZoneStrategy 일 때
+    전략 내부 상태 (`_prev_upper` / `_prev_lower`) 를 그대로 노출한다.
+    ``_update_bands`` 가 이미 호출되었으므로 이 값은 "당일 종가 기준" 이다.
+    즉시 계산이 아닌 전략 상태 기반으로 공급하여 "전략이 실제로 판단에 사용한
+    밴드" 와 공개 값이 일치하도록 한다.
+    """
     signals: dict[str, SignalDetection] = {}
-    ema_distances: dict[str, float] = {}
+    ma_distances: dict[str, float] = {}
 
     for asset_id, slot in slot_dict.items():
         signal_df = market_bundle[asset_id].signal_df
         close = float(signal_df.iloc[i][COL_CLOSE])
 
-        ma_col = _ema_col_name(slot)
-        ema_200 = float(signal_df.iloc[i][ma_col]) if ma_col in signal_df.columns else None
+        ma_col = _ma_col_name(slot)
+        ma_value = float(signal_df.iloc[i][ma_col]) if ma_col in signal_df.columns else None
 
-        # 버퍼존 밴드 (BufferZoneStrategy 일 때만)
+        # 버퍼존 밴드 (BufferZoneStrategy 일 때만, strategy 내부 상태 기반)
         upper_band: float | None = None
         lower_band: float | None = None
-        if ema_200 is not None and isinstance(strategies[asset_id], BufferZoneStrategy):
-            upper_band = ema_200 * (1.0 + slot.buy_buffer_zone_pct)
-            lower_band = ema_200 * (1.0 - slot.sell_buffer_zone_pct)
+        strategy = strategies[asset_id]
+        if isinstance(strategy, BufferZoneStrategy):
+            upper_band, lower_band = get_current_bands(strategy)
 
-        # EMA 근접도
-        if ema_200 is not None and ema_200 > 0:
-            ema_distance_pct = (close - ema_200) / ema_200
+        # MA 근접도
+        if ma_value is not None and ma_value > 0:
+            ma_distance_pct = (close - ma_value) / ma_value
         else:
-            ema_distance_pct = 0.0
-        ema_distances[asset_id] = ema_distance_pct
+            ma_distance_pct = 0.0
+        ma_distances[asset_id] = ma_distance_pct
 
         # 시그널 상태 결정
         intent = signal_intents.get(asset_id)
@@ -216,11 +223,11 @@ def _build_signal_detections(
             close=close,
             upper_band=upper_band,
             lower_band=lower_band,
-            ema_200=ema_200,
-            ema_distance_pct=ema_distance_pct,
+            ma_value=ma_value,
+            ma_distance_pct=ma_distance_pct,
         )
 
-    return signals, ema_distances
+    return signals, ma_distances
 
 
 # ============================================================================
@@ -425,8 +432,8 @@ def run_daily(
             working_state, pending_adjusts, working_applied_adjust_ids
         )
 
-    # 11. SignalDetection / ema_distances 구성
-    signals_map, ema_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
+    # 11. SignalDetection / ma_distances 구성
+    signals_map, ma_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
 
     # 12. drift 계산 — drift.compute_drift 가 유일한 정본.
     #     actual 축 (shares 및 cash) 은 위의 balance_adjust 반영이 완료된 상태를 쓴다.
@@ -451,7 +458,7 @@ def run_daily(
         actual_equity=float(drift_report.actual_equity),
         drift_pct=float(drift_report.drift_pct),
         drift_report=drift_report,
-        ema_distances=ema_distances,
+        ma_distances=ma_distances,
         notification_body=notification_body,
         pending_fill_reminders=pending_fill_reminders,
     )

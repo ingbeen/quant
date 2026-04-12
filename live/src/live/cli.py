@@ -619,7 +619,7 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
         "actual_equity": result.actual_equity,
         "drift_pct": result.drift_pct,
         "rebalance_triggered": result.rebalance_triggered,
-        "ema_distances": result.ema_distances,
+        "ma_distances": result.ma_distances,
         "pending_fill_reminders": result.pending_fill_reminders,
     }
     history.save_daily_log(trade_date.isoformat(), daily_payload, hist_dir)

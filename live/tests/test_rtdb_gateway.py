@@ -242,8 +242,8 @@ class TestWriteReadModel:
                     close=420.0,
                     upper_band=418.0,
                     lower_band=398.0,
-                    ema_200=410.0,
-                    ema_distance_pct=0.0244,
+                    ma_value=410.0,
+                    ma_distance_pct=0.0244,
                 ),
             },
             order_intents={},
@@ -259,7 +259,7 @@ class TestWriteReadModel:
                 per_asset={},
                 recommendation="정상",
             ),
-            ema_distances={"sso": 0.0244},
+            ma_distances={"sso": 0.0244},
             notification_body="test",
             pending_fill_reminders=[],
         )
@@ -292,7 +292,7 @@ class TestWriteChartData:
         chart = ChartSeries(
             dates=["2026-04-08", "2026-04-09"],
             close=[100.0, 101.0],
-            ema_200=[99.5, 99.6],
+            ma_value=[99.5, 99.6],
             upper_band=[102.0, 102.1],
             lower_band=[97.0, 97.1],
             buy_signals=[],

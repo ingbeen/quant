@@ -15,7 +15,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from live.buffer_serializer import extract_buffer_state, restore_buffer_state
+from live.buffer_serializer import extract_buffer_state, get_current_bands, restore_buffer_state
 from live.models import BufferZoneState
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.buffer_zone_helpers import HoldState
@@ -297,3 +297,25 @@ class TestRoundtrip:
         assert re_extracted.prev_lower == pytest.approx(extracted.prev_lower)
         assert re_extracted.last_buy_buffer_pct == pytest.approx(extracted.last_buy_buffer_pct)
         assert re_extracted.last_hold_days_used == extracted.last_hold_days_used
+
+
+class TestGetCurrentBands:
+    """get_current_bands 는 strategy 의 현재 내부 밴드 상태를 그대로 반환한다."""
+
+    def test_initial_strategy_returns_none_bands(self):
+        """Given 새 전략 When get_current_bands Then (None, None)."""
+        strategy = _make_fresh_strategy()
+        upper, lower = get_current_bands(strategy)
+        assert upper is None
+        assert lower is None
+
+    def test_bands_match_prev_upper_lower_after_check(self):
+        """Given 전략을 며칠 구동 When get_current_bands Then extract 결과와 동일."""
+        strategy = _make_fresh_strategy()
+        _run_strategy_for_a_few_days(strategy)
+
+        upper, lower = get_current_bands(strategy)
+        extracted = extract_buffer_state(strategy)
+
+        assert upper == pytest.approx(extracted.prev_upper)
+        assert lower == pytest.approx(extracted.prev_lower)

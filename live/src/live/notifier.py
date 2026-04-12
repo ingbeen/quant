@@ -6,7 +6,7 @@
 
 발송 종류:
 
-- :func:`send_all` — 일일 리포트 (200 일선 근접도 포함, 시그널/리밸런싱 요약)
+- :func:`send_all` — 일일 리포트 (MA 근접도 포함, 시그널/리밸런싱 요약)
 - :func:`send_failure_all` — 에러 상세 메시지를 포함한 실패 알림
 
 만료 토큰(`UnregisteredError`) 감지 시 ``NotificationOutcome.fcm_invalid_tokens`` 에
@@ -66,7 +66,7 @@ def _format_pct(value: float) -> str:
 
 
 def _build_daily_body(result: DailyResult) -> str:
-    """일일 리포트 본문 생성. 200 일선 근접도 / 시그널 / 리밸런싱 / 리마인더 포함."""
+    """일일 리포트 본문 생성. MA 근접도 / 시그널 / 리밸런싱 / 리마인더 포함."""
     lines: list[str] = []
     lines.append(f"[QBT Live] {result.execution_date}")
     lines.append(f"model equity: {result.model_equity:,.0f}")
@@ -81,9 +81,9 @@ def _build_daily_body(result: DailyResult) -> str:
         if sig_summaries:
             lines.append("시그널: " + ", ".join(sig_summaries))
 
-    if result.ema_distances:
-        ema_parts = [f"{aid.upper()} {_format_pct(dist)}" for aid, dist in result.ema_distances.items()]
-        lines.append("200일선 근접도: " + ", ".join(ema_parts))
+    if result.ma_distances:
+        ma_parts = [f"{aid.upper()} {_format_pct(dist)}" for aid, dist in result.ma_distances.items()]
+        lines.append("MA 근접도: " + ", ".join(ma_parts))
 
     if result.rebalance_triggered:
         lines.append("리밸런싱: 발생")

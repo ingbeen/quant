@@ -43,16 +43,16 @@ def _make_daily_result() -> DailyResult:
                 close=420.5,
                 upper_band=418.0,
                 lower_band=398.0,
-                ema_200=410.0,
-                ema_distance_pct=0.0256,
+                ma_value=410.0,
+                ma_distance_pct=0.0256,
             ),
             "qld": SignalDetection(
                 state="none",
                 close=85.0,
                 upper_band=87.0,
                 lower_band=80.0,
-                ema_200=84.0,
-                ema_distance_pct=0.0119,
+                ma_value=84.0,
+                ma_distance_pct=0.0119,
             ),
         },
         order_intents={},
@@ -62,7 +62,7 @@ def _make_daily_result() -> DailyResult:
         actual_equity=99_500_000.0,
         drift_pct=0.5,
         drift_report=drift_report,
-        ema_distances={"sso": 0.0256, "qld": 0.0119},
+        ma_distances={"sso": 0.0256, "qld": 0.0119},
         notification_body="",
         pending_fill_reminders=["sso pending"],
     )
@@ -134,12 +134,12 @@ class TestSendAll:
         assert patched_telegram_success["tg_token"] == "my_bot_token"
         assert patched_telegram_success["tg_chat"] == "my_chat_id"
 
-    def test_body_contains_ema_distance_200_line(self, patched_fcm_success, patched_telegram_success):
-        """본문에 200 일선 근접도가 포함되어야 한다 (설계서 8장)."""
+    def test_body_contains_ma_distance_line(self, patched_fcm_success, patched_telegram_success):
+        """본문에 MA 근접도 섹션이 포함되어야 한다."""
         result = _make_daily_result()
         send_all(["t1"], "bot", "chat", result)
         body = patched_telegram_success["body"]
-        assert "200일선 근접도" in body
+        assert "MA 근접도" in body
         assert "SSO" in body
 
     def test_body_contains_signals_when_buy_or_sell(self, patched_fcm_success, patched_telegram_success):

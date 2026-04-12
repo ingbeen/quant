@@ -1,6 +1,6 @@
 """차트 시계열 빌더 (앱 차트 화면용).
 
-자산별 전체 기간 시계열(close / EMA / 버퍼 밴드 / 신호·체결 마커) 을 생성하여
+자산별 전체 기간 시계열(close / MA / 버퍼 밴드 / 신호·체결 마커) 을 생성하여
 RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록 :class:`ChartSeries`
 형태로 반환한다.
 
@@ -10,9 +10,10 @@ RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록 :class:`Ch
 원칙:
 
 - 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv``
-- EMA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
-- 이동평균 워밍업 구간은 ``None``
+- MA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
+- 이동평균 워밍업 구간(``slot.ma_window - 1`` 개 인덱스) 은 ``None``
 - 사용자 체결 마커는 dates 에서 인덱스로 변환
+- ``slot.ma_window`` 에 독립적이다 (200 일 고정 아님)
 """
 
 from __future__ import annotations
@@ -69,7 +70,7 @@ def build_chart_series(
             로 로드하여 전달한다.
 
     Returns:
-        ``{asset_id: ChartSeries}`` (Q-2-2XS 4 자산).
+        ``{asset_id: ChartSeries}`` — live 포트폴리오 자산 전체.
     """
     user_trades = user_trades or {}
     signal_history = signal_history or {}
@@ -88,24 +89,24 @@ def build_chart_series(
 
         dates = [d.isoformat() if hasattr(d, "isoformat") else str(d) for d in df[COL_DATE].tolist()]
         close_list = [float(c) for c in df[COL_CLOSE].tolist()]
-        raw_ema = _to_optional_float_list(df[ma_col].tolist())
+        raw_ma = _to_optional_float_list(df[ma_col].tolist())
 
-        # 이동평균 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시
-        # QBT 의 EMA 계산은 첫 행부터 값을 채우지만, 차트 표시상 의미 있는 값으로
-        # 간주되지 않는 워밍업 구간을 명시적으로 None 으로 마스킹.
+        # 이동평균 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시.
+        # QBT 의 MA 계산은 첫 행부터 값을 채우지만, 차트 표시상 의미 있는 값으로
+        # 간주되지 않는 워밍업 구간을 명시적으로 None 으로 마스킹한다.
         warmup = slot.ma_window - 1
-        ema_list: list[float | None] = [None] * min(warmup, len(raw_ema)) + raw_ema[warmup:]
+        ma_list: list[float | None] = [None] * min(warmup, len(raw_ma)) + raw_ma[warmup:]
 
         # 밴드 계산
         upper_list: list[float | None] = []
         lower_list: list[float | None] = []
-        for ema in ema_list:
-            if ema is None:
+        for ma in ma_list:
+            if ma is None:
                 upper_list.append(None)
                 lower_list.append(None)
             else:
-                upper_list.append(ema * (1.0 + slot.buy_buffer_zone_pct))
-                lower_list.append(ema * (1.0 - slot.sell_buffer_zone_pct))
+                upper_list.append(ma * (1.0 + slot.buy_buffer_zone_pct))
+                lower_list.append(ma * (1.0 - slot.sell_buffer_zone_pct))
 
         # 사용자 체결 마커 → dates 의 인덱스로 변환
         date_to_idx = {d: i for i, d in enumerate(dates)}
@@ -125,7 +126,7 @@ def build_chart_series(
         series_map[slot.asset_id] = ChartSeries(
             dates=dates,
             close=close_list,
-            ema_200=ema_list,
+            ma_value=ma_list,
             upper_band=upper_list,
             lower_band=lower_list,
             buy_signals=buy_signals,
