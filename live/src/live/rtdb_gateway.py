@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import firebase_admin
 from firebase_admin import credentials, db
@@ -77,18 +77,29 @@ def _db_reference(app: FirebaseAppLike, path: str) -> Any:
 _FILL_REQUIRED_FIELDS = ("asset_id", "direction", "actual_price", "actual_shares", "trade_date", "input_time_kst")
 
 
+_VALID_FILL_DIRECTIONS = frozenset({"buy", "sell"})
+
+
 def _dict_to_actual_fill(data: dict[str, Any], rtdb_key: str) -> ActualFill:
     """RTDB ``/fills/inbox/{uuid}`` 의 dict 를 :class:`ActualFill` 로 변환.
 
     Raises:
-        ValueError: 필수 필드가 누락되었을 때.
+        ValueError: 필수 필드 누락 또는 direction 값이 유효하지 않을 때.
     """
     missing = [f for f in _FILL_REQUIRED_FIELDS if f not in data]
     if missing:
         raise ValueError(f"fill 필수 필드 누락: {missing} (rtdb_key={rtdb_key!r})")
+
+    direction_raw = str(data["direction"])
+    if direction_raw not in _VALID_FILL_DIRECTIONS:
+        raise ValueError(
+            f"fill direction 값이 유효하지 않음: {direction_raw!r} "
+            f"(허용: {sorted(_VALID_FILL_DIRECTIONS)}, rtdb_key={rtdb_key!r})"
+        )
+
     return ActualFill(
         asset_id=str(data["asset_id"]),
-        direction=str(data["direction"]),
+        direction=cast(Literal["buy", "sell"], direction_raw),
         actual_price=float(data["actual_price"]),
         actual_shares=int(data["actual_shares"]),
         trade_date=str(data["trade_date"]),
@@ -142,11 +153,17 @@ def mark_fills_processed(app: FirebaseAppLike, keys: list[str]) -> None:
 
 
 def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjust:
-    """RTDB ``/balance_adjust/inbox/{uuid}`` dict → :class:`BalanceAdjust`."""
-    if "new_shares" not in data and "new_cash" not in data:
-        raise ValueError(f"balance_adjust 에 new_shares 와 new_cash 둘 다 없음 (rtdb_key={rtdb_key!r})")
+    """RTDB ``/balance_adjust/inbox/{uuid}`` dict → :class:`BalanceAdjust`.
+
+    Raises:
+        ValueError: ``new_shares`` 와 ``new_cash`` 값이 둘 다 없거나 둘 다 null 일 때.
+    """
     new_shares_raw = data.get("new_shares")
     new_cash_raw = data.get("new_cash")
+    if new_shares_raw is None and new_cash_raw is None:
+        raise ValueError(
+            f"balance_adjust 에 유효한 new_shares / new_cash 값이 없음 (rtdb_key={rtdb_key!r})"
+        )
     return BalanceAdjust(
         rtdb_key=rtdb_key,
         input_time_kst=str(data.get("input_time_kst", "")),

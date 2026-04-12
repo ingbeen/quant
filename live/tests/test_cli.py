@@ -54,7 +54,7 @@ def _mock_rtdb_for_cli(monkeypatch: pytest.MonkeyPatch) -> _FakeRtdbApp:
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
-    monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda app, sd, st, r: None)
+    monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda app, sd, st, r, nk: None)
     monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
     return fake_app
 
@@ -256,7 +256,7 @@ class TestCmdRunDailySuccess:
 
         publish_calls: list[bool] = []
 
-        def _spy_publish(app: object, state_dir: Path, state: object, result: object) -> None:
+        def _spy_publish(app: object, state_dir: Path, state: object, result: object, newly_keys: object) -> None:
             publish_calls.append(True)
 
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", _spy_publish)

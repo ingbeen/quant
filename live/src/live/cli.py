@@ -274,8 +274,9 @@ def _publish_to_rtdb(
     state_dir: Path,
     state: Any,
     result: DailyResult,
+    newly_applied_fill_keys: set[str],
 ) -> None:
-    """RTDB 에 read model + chart_data 를 갱신하고 처리된 fill 을 마킹한다."""
+    """RTDB 에 read model + chart_data 를 갱신하고 신규 fill 을 processed 마킹한다."""
     # 1. read model 갱신
     rtdb_gateway.write_read_model(rtdb_app, state, result)
 
@@ -290,10 +291,9 @@ def _publish_to_rtdb(
     )
     rtdb_gateway.write_chart_data(rtdb_app, chart_series)
 
-    # 3. 처리된 fill 마킹
-    processed_keys = list(result.updated_applied_fill_ids.keys())
-    if processed_keys:
-        rtdb_gateway.mark_fills_processed(rtdb_app, processed_keys)
+    # 3. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
+    if newly_applied_fill_keys:
+        rtdb_gateway.mark_fills_processed(rtdb_app, list(newly_applied_fill_keys))
 
 
 def _send_daily_notifications(rtdb_app: Any | None, result: DailyResult) -> None:
@@ -499,7 +499,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
         # RTDB 갱신
         try:
-            _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result)
+            _publish_to_rtdb(rtdb_app, state_dir, result.updated_state, result, newly_applied_ids)
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"RTDB 갱신 실패: {exc}") from exc
 

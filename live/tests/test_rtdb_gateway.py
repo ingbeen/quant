@@ -380,5 +380,34 @@ class TestHelpers:
         from live.rtdb_gateway import _dict_to_balance_adjust
 
         empty_adjust = {"reason": "test"}
-        with pytest.raises(ValueError, match="new_shares 와 new_cash 둘 다 없음"):
+        with pytest.raises(ValueError, match="유효한 new_shares / new_cash 값이 없음"):
             _dict_to_balance_adjust(empty_adjust, rtdb_key="adj_bad")
+
+    def test_dict_to_balance_adjust_null_values_raises(self):
+        """Given adjust dict 에 new_shares/new_cash 키는 있지만 값이 null When 변환 Then ValueError.
+
+        키가 존재하더라도 값이 null 이면 무효한 adjust 이므로 즉시 실패해야 한다.
+        """
+        from live.rtdb_gateway import _dict_to_balance_adjust
+
+        null_adjust = {"new_shares": None, "new_cash": None, "reason": "test"}
+        with pytest.raises(ValueError, match="유효한 new_shares / new_cash 값이 없음"):
+            _dict_to_balance_adjust(null_adjust, rtdb_key="adj_null")
+
+    def test_dict_to_actual_fill_invalid_direction_raises(self):
+        """Given fill 의 direction 이 buy/sell 외 값 When 변환 Then ValueError.
+
+        RTDB 에서 잘못된 direction 이 들어오면 입구에서 즉시 차단해야 한다.
+        """
+        from live.rtdb_gateway import _dict_to_actual_fill
+
+        bad_fill = {
+            "asset_id": "sso",
+            "direction": "hold",
+            "actual_price": 82.0,
+            "actual_shares": 100,
+            "trade_date": "2026-04-10",
+            "input_time_kst": "2026-04-10T20:00:00+09:00",
+        }
+        with pytest.raises(ValueError, match="fill direction 값이 유효하지 않음"):
+            _dict_to_actual_fill(bad_fill, rtdb_key="fill_bad_dir")

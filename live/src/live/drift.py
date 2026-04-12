@@ -116,6 +116,12 @@ def _apply_single_fill(state: LiveState, fill: ActualFill) -> None:
             asset.actual_avg_entry_price = 0.0
             asset.actual_entry_date = None
 
+    else:
+        raise RuntimeError(
+            f"내부 불변조건 위반: fill.direction 이 'buy'/'sell' 이 아님. "
+            f"direction={fill.direction!r}, rtdb_key={fill.rtdb_key!r}"
+        )
+
 
 def apply_fills_idempotent(
     state: LiveState,

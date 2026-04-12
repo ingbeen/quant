@@ -393,3 +393,24 @@ class TestComputeDriftModelEquityInvariant:
         closes = {"sso": 100.0, "qld": 100.0, "gld": 100.0, "tlt": 100.0}
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             compute_drift(state, closes)
+
+
+# ============================================================================
+# _apply_single_fill unknown direction
+# ============================================================================
+
+
+class TestApplySingleFillUnknownDirection:
+    """unknown direction 이 _apply_single_fill 에 도달하면 RuntimeError 가 발생해야 한다."""
+
+    def test_unknown_direction_raises_runtime_error(self):
+        """Given direction='hold' When apply_fills Then RuntimeError (내부 불변조건 위반).
+
+        rtdb_gateway 입구 검증이 정상이면 이 경로에 도달할 수 없으나,
+        만약 도달하면 조용히 무시되지 않고 즉시 중단되어야 한다.
+        """
+        state = create_initial_state(100_000_000.0)
+        bad_fill = _make_fill(asset_id="sso", direction="hold", rtdb_key="bad_dir")  # type: ignore[arg-type]
+
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            apply_fills_idempotent(state, [bad_fill], {})

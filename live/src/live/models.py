@@ -182,7 +182,7 @@ class ActualFill:
     """
 
     asset_id: str
-    direction: str  # "buy" | "sell"
+    direction: Literal["buy", "sell"]
     actual_price: float
     actual_shares: int
     trade_date: str  # ISO 8601 날짜
