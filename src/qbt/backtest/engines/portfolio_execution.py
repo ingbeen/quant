@@ -141,8 +141,7 @@ def execute_orders(
 
             if e_date is None:
                 raise RuntimeError(
-                    f"내부 불변조건 위반: position > 0인데 entry_date가 None "
-                    f"(asset_id={asset_id}, position={position})"
+                    f"내부 불변조건 위반: position > 0인데 entry_date가 None " f"(asset_id={asset_id}, position={position})"
                 )
             trade_record: PortfolioTradeRecord = {
                 COL_ENTRY_DATE: e_date,

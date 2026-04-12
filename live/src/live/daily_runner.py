@@ -17,7 +17,6 @@ fill 반영 → 전일 pending 체결 → 당일 equity 계산 → 시그널/리
 from __future__ import annotations
 
 import copy
-from dataclasses import replace
 from datetime import date
 from typing import Literal
 
@@ -29,7 +28,6 @@ from live.constants import get_live_portfolio_config
 from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
     ActualFill,
-    AssetLiveState,
     BalanceAdjust,
     BufferZoneState,
     DailyResult,
@@ -77,7 +75,7 @@ def _find_trade_index(trade_df: pd.DataFrame, trade_date: date) -> int:
 
 
 def _build_slot_dict() -> dict[str, AssetSlotConfig]:
-    """Q-2-2XS 의 asset_id → AssetSlotConfig 매핑을 반환."""
+    """live 포트폴리오의 ``asset_id → AssetSlotConfig`` 매핑을 반환."""
     config = get_live_portfolio_config()
     return {slot.asset_id: slot for slot in config.asset_slots}
 
@@ -440,8 +438,3 @@ def run_daily(
         notification_body=notification_body,
         pending_fill_reminders=pending_fill_reminders,
     )
-
-
-# `replace` 는 향후 dataclass 부분 갱신 유틸로 사용될 수 있도록 import 유지
-_ = replace
-_ = AssetLiveState

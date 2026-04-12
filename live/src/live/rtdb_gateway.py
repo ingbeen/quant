@@ -20,11 +20,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import firebase_admin
+from firebase_admin import credentials, db
+
 from live.models import ActualFill, BalanceAdjust, ChartSeries, DailyResult, LiveState
 
-# Firebase Admin SDK 의 ``App`` 객체는 모듈 import 없이도 인터페이스만 사용한다.
-# strict 타이핑을 위해 ``Any`` 로 통일하고, 런타임에 :func:`initialize_firebase_app`
-# 가 실제 ``firebase_admin.App`` 을 반환한다.
+# Firebase Admin SDK 의 ``App`` 객체는 테스트에서 mock 으로 주입되는 경우가 많아
+# 정적 타입을 ``Any`` 로 유지한다. 런타임에는 :func:`initialize_firebase_app` 가
+# 실제 ``firebase_admin.App`` 을 반환한다.
 type FirebaseAppLike = Any
 
 __all__ = [
@@ -48,7 +51,7 @@ _CHART_DATA_PATH = "/latest/chart_data"
 
 
 def initialize_firebase_app(credentials_path: Path, db_url: str) -> FirebaseAppLike:
-    """Firebase Admin SDK 를 초기화한다 (lazy import).
+    """Firebase Admin SDK 를 초기화한다.
 
     Args:
         credentials_path: 서비스 계정 JSON 경로.
@@ -57,17 +60,12 @@ def initialize_firebase_app(credentials_path: Path, db_url: str) -> FirebaseAppL
     Returns:
         ``firebase_admin.App`` 인스턴스.
     """
-    import firebase_admin
-    from firebase_admin import credentials
-
     cred = credentials.Certificate(str(credentials_path))
     return firebase_admin.initialize_app(cred, {"databaseURL": db_url})
 
 
 def _db_reference(app: FirebaseAppLike, path: str) -> Any:
-    """firebase_admin.db.reference 의 lazy 래퍼."""
-    from firebase_admin import db
-
+    """``firebase_admin.db.reference`` 얇은 래퍼."""
     return db.reference(path, app=app)
 
 

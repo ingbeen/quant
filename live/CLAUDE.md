@@ -48,23 +48,25 @@ live/
 
 ## 모듈별 역할 요약
 
-| 모듈                   | 역할                                                                                                                               |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `constants.py`         | 포트폴리오 식별자, DRIFT 임계값, 파일명/경로 상수, 티커 추출 유틸, 출력 정밀도 등 도메인 공통 상수                                 |
-| `models.py`            | `LiveState`, `DailyResult`, `ActualFill`, `BalanceAdjust`, `DriftReport`, `ChartSeries` 등 모든 dataclass / TypedDict              |
-| `state.py`             | `LiveState` JSON 직렬화/역직렬화, 초기화, `applied_fill_ids` / `applied_balance_adjust_ids` 원장 관리                              |
-| `data_fetcher.py`      | yfinance 호출, CSV 누적 append, 전체 재다운로드                                                                                    |
-| `data_validator.py`    | OHLC 논리 / 전일 종가 연속성 / 거래일 gap 3 종 검증. `cli._refresh_live_csvs` 가 매 `run-daily` 실행 시 호출                       |
-| `daily_runner.py`      | 순수 계산 `run_daily` (파일 I/O 금지). fills → 전일 pending 체결 → equity → 시그널/리밸런싱 → 익일 pending → balance_adjust → drift |
-| `drift.py`             | fill 분류(system_fill / personal_trade), idempotent 적용, `compute_drift` 정본                                                     |
-| `balance_adjust.py`    | 자산/cash 직접 보정(`BalanceAdjust`) 의 idempotent 적용 (run_daily 내부에서 fills 직후 호출됨)                                     |
-| `buffer_serializer.py` | `BufferZoneStrategy` 의 private 내부 상태를 `BufferZoneState` 로 추출/복원하는 어댑터 (QBT 수정 없음)                              |
-| `rtdb_gateway.py`      | Firebase Admin SDK 초기화, RTDB 읽기/쓰기 (fills / balance_adjusts / read model / chart / device tokens)                           |
-| `notifier.py`          | FCM + 텔레그램 동시 발송 (일일 리포트 / 실패 알림). 발송 실패는 로그만 기록 (재발송 금지)                                          |
-| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성. `signal_history` / `user_trades` 를 인자로 받아 마커 포함                                       |
-| `history.py`           | Git 정본 히스토리 (daily / summary / user_trades / signals / balance_adjusts) 영구 append                                          |
-| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼 (로컬 / Actions 공통 경로)                                                            |
-| `cli.py`               | CLI 엔트리. 휴장 체크 + idempotency + ephemeral 컨텍스트 + 각 커맨드 구현 + `main()` 공통 알림 훅                                  |
+> 각 모듈의 공개 API / 내부 단계는 코드가 SSoT 이다. 아래 표는 "한 줄 책임" 만 담는다.
+
+| 모듈                   | 역할                                                                                |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `constants.py`         | 도메인 공통 상수 / 경로 / 환경변수 키 / 임계값 / 헬퍼 함수                          |
+| `models.py`            | dataclass / TypedDict / Literal 타입 정의 (QBT 본체 타입 재노출 포함)               |
+| `state.py`             | `LiveState` JSON 직렬화/역직렬화 및 `applied_*_ids` 원장 관리                       |
+| `data_fetcher.py`      | yfinance OHLC 수집 및 CSV 누적/재다운로드                                           |
+| `data_validator.py`    | OHLC / 전일 종가 / 거래일 gap 검증 (순수 함수)                                      |
+| `daily_runner.py`      | 순수 계산 `run_daily` (파일 I/O 없음, QBT 포트폴리오 엔진 1 일치 호출)              |
+| `drift.py`             | fill 분류 + idempotent 반영 + `compute_drift` 정본                                  |
+| `balance_adjust.py`    | `BalanceAdjust` idempotent 반영 (`run_daily` 내부 fills 직후 호출)                  |
+| `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
+| `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이                              |
+| `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
+| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성                                                   |
+| `history.py`           | Git 정본 히스토리 append / load                                                     |
+| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
+| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅              |
 
 ## 핵심 원칙
 

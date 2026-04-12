@@ -35,10 +35,10 @@ from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 from dotenv import load_dotenv
+from exchange_calendars import ExchangeCalendar, get_calendar
 
 from live import data_validator, git_state, history, notifier, rtdb_gateway
 from live.chart_data import build_chart_series
@@ -46,14 +46,20 @@ from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
-    DEFAULT_DATA_STOCK_SUBDIR,
     DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
+    FIREBASE_CRED_ENV_KEY,
+    FIREBASE_DB_URL,
     HISTORY_SUMMARY_FILENAME,
-    KST_TZ_NAME,
+    KST_TIMEZONE,
+    NYSE_CALENDAR_CODE,
+    STATE_REPO_PAT_ENV_KEY,
     STATE_REPO_URL,
+    TELEGRAM_CHAT_ENV_KEY,
+    TELEGRAM_TOKEN_ENV_KEY,
     extract_ticker_from_path,
     get_live_portfolio_config,
+    live_csv_path,
 )
 from live.daily_runner import run_daily
 from live.data_fetcher import (
@@ -65,7 +71,7 @@ from live.data_fetcher import (
 from live.drift import compute_drift
 from live.models import ActualFill, AssetMarketData, BalanceAdjust, DailyResult, MarketBundle
 from live.state import (
-    cleanup_old_fill_ids,
+    cleanup_old_applied_ids,
     create_initial_state,
     load_applied_balance_adjust_ids,
     load_applied_fill_ids,
@@ -76,6 +82,7 @@ from live.state import (
 )
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.portfolio_types import AssetSlotConfig
+from qbt.common_constants import COL_CLOSE, COL_DATE
 from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -84,15 +91,8 @@ __all__ = ["main"]
 
 
 # ============================================================================
-# 환경변수 키
+# 환경 / 경로
 # ============================================================================
-
-_ENV_FIREBASE_CRED = "GOOGLE_APPLICATION_CREDENTIALS"
-_ENV_TG_TOKEN = "TELEGRAM_BOT_TOKEN"
-_ENV_TG_CHAT = "TELEGRAM_CHAT_ID"
-_ENV_STATE_REPO_PAT = "STATE_REPO_PAT"
-
-FIREBASE_DB_URL = "https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 # 프로젝트 루트 (live/src/live/cli.py 로부터 4단계 위)
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -116,25 +116,16 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
 
 def _now_kst_for_commit() -> str:
     """커밋 메시지용 KST 타임스탬프 (``YYYY-MM-DD HH:MM:SS KST``)."""
-    return datetime.now(ZoneInfo(KST_TZ_NAME)).strftime("%Y-%m-%d %H:%M:%S KST")
+    return datetime.now(KST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S KST")
 
 
-def _get_nyse_calendar() -> Any:
-    """NYSE 영업일 달력 (``exchange_calendars`` ``XNYS``) 을 lazy 로드하여 반환.
+def _get_nyse_calendar() -> ExchangeCalendar:
+    """NYSE 영업일 달력 (``exchange_calendars`` ``XNYS``) 을 반환한다.
 
-    첫 호출 시에만 ``exchange_calendars`` 를 import 하여 테스트 환경 및 휴장
-    체크 대상이 아닌 명령 (``notify-failure`` 등) 의 CLI start-up 시간을 절약한다.
-
-    Raises:
-        RuntimeError: ``exchange_calendars`` 가 설치되지 않았을 때.
+    ``_is_nyse_session`` / ``_refresh_live_csvs`` 가 호출하며, 테스트에서는
+    ``monkeypatch`` 로 이 함수를 가짜 달력 객체를 반환하도록 교체할 수 있다.
     """
-    try:
-        from exchange_calendars import get_calendar
-    except ImportError as exc:
-        raise RuntimeError(
-            "exchange_calendars 미설치 — 휴장 체크 / 거래일 gap 검증 불가. " "`poetry install -E live` 로 live extras 설치 확인"
-        ) from exc
-    return get_calendar("XNYS")
+    return get_calendar(NYSE_CALENDAR_CODE)
 
 
 def _is_nyse_session(trade_date: date) -> bool:
@@ -168,9 +159,9 @@ def ephemeral_state_repo(*, push_on_success: bool, commit_subcommand: str) -> It
         RuntimeError: git clone / commit / push 실패 시. 자동 복구 금지 원칙에 따라
             예외는 호출자에게 전파된다.
     """
-    pat = os.environ.get(_ENV_STATE_REPO_PAT, "")
+    pat = os.environ.get(STATE_REPO_PAT_ENV_KEY, "")
     if not pat:
-        raise ValueError(f"{_ENV_STATE_REPO_PAT} 환경변수가 설정되지 않았습니다. " "로컬: .env 파일, Actions: workflow env: 블록 확인")
+        raise ValueError(f"{STATE_REPO_PAT_ENV_KEY} 환경변수가 설정되지 않았습니다. " "로컬: .env 파일, Actions: workflow env: 블록 확인")
 
     with tempfile.TemporaryDirectory(prefix="qbt-live-") as td:
         clone_root = Path(td) / DEFAULT_LIVE_STATE_DIR.name
@@ -216,10 +207,6 @@ def _collect_all_tickers() -> list[str]:
     return ordered
 
 
-def _live_csv_path(state_dir: Path, ticker: str) -> Path:
-    return state_dir / DEFAULT_DATA_STOCK_SUBDIR / f"{ticker}.csv"
-
-
 def _history_dir(state_dir: Path) -> Path:
     return state_dir / "history"
 
@@ -231,9 +218,9 @@ def _history_dir(state_dir: Path) -> Path:
 
 def _initialize_rtdb_app() -> Any | None:
     """환경변수에서 Firebase 자격증명을 읽어 App 초기화. 실패 시 ``None``."""
-    cred_path_str = os.environ.get(_ENV_FIREBASE_CRED)
+    cred_path_str = os.environ.get(FIREBASE_CRED_ENV_KEY)
     if not cred_path_str:
-        logger.warning(f"{_ENV_FIREBASE_CRED} 미설정 — RTDB 비활성화")
+        logger.warning(f"{FIREBASE_CRED_ENV_KEY} 미설정 — RTDB 비활성화")
         return None
     try:
         return rtdb_gateway.initialize_firebase_app(Path(cred_path_str), FIREBASE_DB_URL)
@@ -248,8 +235,8 @@ def _safe_notify_failure(rtdb_app: Any | None, message: str) -> None:
     토큰 조회나 발송이 실패해도 본 함수는 절대 raise 하지 않는다 (이미 메인 흐름이
     실패한 상태이므로 알림 자체가 실패해도 메인 예외를 가리지 않는다).
     """
-    tg_token = os.environ.get(_ENV_TG_TOKEN, "")
-    tg_chat = os.environ.get(_ENV_TG_CHAT, "")
+    tg_token = os.environ.get(TELEGRAM_TOKEN_ENV_KEY, "")
+    tg_chat = os.environ.get(TELEGRAM_CHAT_ENV_KEY, "")
     tokens: list[str] = []
     if rtdb_app is not None:
         try:
@@ -291,8 +278,8 @@ def _publish_to_rtdb(
 
 def _send_daily_notifications(rtdb_app: Any | None, result: DailyResult) -> None:
     """FCM + 텔레그램 동시 발송. 만료 토큰은 RTDB 에서 정리."""
-    tg_token = os.environ.get(_ENV_TG_TOKEN, "")
-    tg_chat = os.environ.get(_ENV_TG_CHAT, "")
+    tg_token = os.environ.get(TELEGRAM_TOKEN_ENV_KEY, "")
+    tg_chat = os.environ.get(TELEGRAM_CHAT_ENV_KEY, "")
 
     tokens: list[str] = []
     if rtdb_app is not None:
@@ -437,11 +424,13 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
         # 상태 저장 + applied_ids 정리
         save_state(result.updated_state, state_path)
-        cleaned_ids = cleanup_old_fill_ids(result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+        cleaned_ids = cleanup_old_applied_ids(
+            result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS
+        )
         save_applied_fill_ids(cleaned_ids, applied_path)
 
         # balance_adjust 원장 정리 + 저장
-        cleaned_adjust_ids = cleanup_old_fill_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+        cleaned_adjust_ids = cleanup_old_applied_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
         save_applied_balance_adjust_ids(cleaned_adjust_ids, adjust_path)
 
         # 새로 반영된 fill 을 user_trades.jsonl 에 append.
@@ -517,7 +506,7 @@ def _validate_against_csv(
     csv_df: pd.DataFrame | None,
     *,
     trade_date: date | None = None,
-    calendar: Any = None,
+    calendar: ExchangeCalendar | None = None,
 ) -> None:
     """yfinance 가 반환한 최근 OHLC 행들에 대해 검증 실행.
 
@@ -543,20 +532,20 @@ def _validate_against_csv(
     for _, yf_row in recent_df.iterrows():
         errors = data_validator.validate_ohlc_logic(yf_row)
         if errors:
-            yf_date = yf_row["Date"]
+            yf_date = yf_row[COL_DATE]
             raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
 
     if csv_df is None or csv_df.empty:
         return
 
     # 2. CSV 와 겹치는 날짜에 대해 종가 일치 검증 (스플릿 + 사용자 조작 감지)
-    csv_by_date = {row["Date"]: float(row["Close"]) for _, row in csv_df.iterrows()}
+    csv_by_date = {row[COL_DATE]: float(row[COL_CLOSE]) for _, row in csv_df.iterrows()}
     for _, yf_row in recent_df.iterrows():
-        yf_date = yf_row["Date"]
+        yf_date = yf_row[COL_DATE]
         if yf_date not in csv_by_date:
             continue
         csv_close = csv_by_date[yf_date]
-        yf_close = float(yf_row["Close"])
+        yf_close = float(yf_row[COL_CLOSE])
         errors = data_validator.validate_prev_close(csv_close, yf_close)
         if errors:
             raise ValueError(f"{ticker} {yf_date}: {errors[0]}")
@@ -584,7 +573,7 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
 
     for ticker in _collect_all_tickers():
         recent = fetch_recent_ohlc(ticker, days=5)
-        csv_path = _live_csv_path(state_dir, ticker)
+        csv_path = live_csv_path(state_dir, ticker)
         csv_df = load_csv(csv_path) if csv_path.exists() else None
 
         # 검증 — 실패 시 ValueError 전파 (상위에서 RuntimeError 로 래핑)
@@ -596,7 +585,7 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
             calendar=calendar,
         )
 
-        today_row = recent[recent["Date"] == trade_date]
+        today_row = recent[recent[COL_DATE] == trade_date]
         if today_row.empty:
             logger.debug(f"{ticker}: {trade_date} 데이터 없음 (휴장일?) — skip")
             continue
@@ -610,11 +599,11 @@ def _build_market_bundle(state_dir: Path) -> MarketBundle:
         signal_ticker = _ticker_from_slot_signal(slot)
         trade_ticker = _ticker_from_slot_trade(slot)
 
-        signal_df = load_csv(_live_csv_path(state_dir, signal_ticker))
+        signal_df = load_csv(live_csv_path(state_dir, signal_ticker))
         if signal_ticker == trade_ticker:
             trade_df = signal_df.copy()
         else:
-            trade_df = load_csv(_live_csv_path(state_dir, trade_ticker))
+            trade_df = load_csv(live_csv_path(state_dir, trade_ticker))
 
         signal_df = add_single_moving_average(signal_df, window=slot.ma_window, ma_type=slot.ma_type)
         bundle[slot.asset_id] = AssetMarketData(signal_df=signal_df, trade_df=trade_df)
@@ -661,7 +650,7 @@ def _cmd_init_data(args: argparse.Namespace) -> int:
     del args  # 사용하지 않음
     with ephemeral_state_repo(push_on_success=True, commit_subcommand="init-data") as state_dir:
         for ticker in _collect_all_tickers():
-            csv_path = _live_csv_path(state_dir, ticker)
+            csv_path = live_csv_path(state_dir, ticker)
             rebuild_full_csv(ticker, csv_path, period="max")
             logger.debug(f"init-data: {ticker} → {csv_path}")
     return 0
@@ -670,7 +659,7 @@ def _cmd_init_data(args: argparse.Namespace) -> int:
 def _cmd_rebuild_data(args: argparse.Namespace) -> int:
     ticker: str = args.ticker.upper()
     with ephemeral_state_repo(push_on_success=True, commit_subcommand=f"rebuild-data {ticker}") as state_dir:
-        csv_path = _live_csv_path(state_dir, ticker)
+        csv_path = live_csv_path(state_dir, ticker)
         rebuild_full_csv(ticker, csv_path, period="max")
         logger.debug(f"rebuild-data: {ticker} → {csv_path}")
     return 0
@@ -689,7 +678,7 @@ def _cmd_drift(args: argparse.Namespace) -> int:
         bundle = _build_market_bundle(state_dir)
         closes: dict[str, float] = {}
         for asset_id, md in bundle.items():
-            closes[asset_id] = float(md.trade_df["Close"].iloc[-1])
+            closes[asset_id] = float(md.trade_df[COL_CLOSE].iloc[-1])
 
         report = compute_drift(state, closes)
         logger.debug(

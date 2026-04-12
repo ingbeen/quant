@@ -19,20 +19,19 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Literal
 
-from live.constants import DRIFT_CORRECTION_RATIO, DRIFT_WARNING_RATIO
+from live.constants import (
+    BUY_INTENT_TYPES,
+    DRIFT_CORRECTION_RATIO,
+    DRIFT_WARNING_RATIO,
+    KST_TIMEZONE,
+    SELL_INTENT_TYPES,
+)
 from live.models import ActualFill, AssetDrift, DriftReport, LiveState
 
 __all__ = ["classify_fill", "apply_fills_idempotent", "compute_drift"]
-
-
-_KST = timezone(timedelta(hours=9))
-
-# intent_type 에 따른 방향 매핑
-_BUY_INTENT_TYPES = {"ENTER_TO_TARGET", "INCREASE_TO_TARGET"}
-_SELL_INTENT_TYPES = {"EXIT_ALL", "REDUCE_TO_TARGET"}
 
 
 def classify_fill(fill: ActualFill, state: LiveState) -> Literal["system_fill", "personal_trade"]:
@@ -55,8 +54,8 @@ def classify_fill(fill: ActualFill, state: LiveState) -> Literal["system_fill", 
     if asset is None or asset.pending_order is None:
         return "personal_trade"
 
-    pending_is_buy = asset.pending_order["intent_type"] in _BUY_INTENT_TYPES
-    pending_is_sell = asset.pending_order["intent_type"] in _SELL_INTENT_TYPES
+    pending_is_buy = asset.pending_order["intent_type"] in BUY_INTENT_TYPES
+    pending_is_sell = asset.pending_order["intent_type"] in SELL_INTENT_TYPES
     fill_is_buy = fill.direction == "buy"
     fill_is_sell = fill.direction == "sell"
 
@@ -123,7 +122,7 @@ def apply_fills_idempotent(
     """
     new_state = copy.deepcopy(state)
     new_ids = dict(applied_ids)
-    now_iso = datetime.now(_KST).replace(microsecond=0).isoformat()
+    now_iso = datetime.now(KST_TIMEZONE).replace(microsecond=0).isoformat()
 
     for fill in fills:
         if fill.rtdb_key in new_ids:

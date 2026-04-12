@@ -510,8 +510,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     }
 
     logger.debug(
-        f"포트폴리오 백테스트 완료: {config.experiment_name}, "
-        f"총 거래={len(trades_df)}, 총 수익률={summary['total_return_pct']:.2f}%"
+        f"포트폴리오 백테스트 완료: {config.experiment_name}, " f"총 거래={len(trades_df)}, 총 수익률={summary['total_return_pct']:.2f}%"
     )
 
     # state_log DataFrame 구성

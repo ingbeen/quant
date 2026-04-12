@@ -25,15 +25,14 @@ from typing import Any
 
 import pandas as pd
 
+from live.constants import PREV_CLOSE_DIFF_THRESHOLD
+from qbt.common_constants import COL_CLOSE, COL_HIGH, COL_LOW, COL_OPEN
+
 __all__ = [
     "validate_ohlc_logic",
     "validate_prev_close",
     "validate_date_gap",
 ]
-
-
-# 전일 종가 1% 이상 차이 시 스플릿 의심 (스플릿 / 무상증자 / 사용자 수동 조작 탐지)
-_PREV_CLOSE_DIFF_THRESHOLD = 0.01
 
 
 def validate_ohlc_logic(row: pd.Series | pd.DataFrame) -> list[str]:
@@ -61,15 +60,15 @@ def validate_ohlc_logic(row: pd.Series | pd.DataFrame) -> list[str]:
         series = row
 
     try:
-        open_ = float(series["Open"])
-        high = float(series["High"])
-        low = float(series["Low"])
-        close = float(series["Close"])
+        open_ = float(series[COL_OPEN])
+        high = float(series[COL_HIGH])
+        low = float(series[COL_LOW])
+        close = float(series[COL_CLOSE])
     except (KeyError, ValueError, TypeError) as exc:
         return [f"OHLC 필드 접근 실패: {exc}"]
 
     # 1. 가격 0 / 음수 검사
-    for name, value in (("Open", open_), ("High", high), ("Low", low), ("Close", close)):
+    for name, value in ((COL_OPEN, open_), (COL_HIGH, high), (COL_LOW, low), (COL_CLOSE, close)):
         if value <= 0:
             errors.append(f"OHLC 이상: {name}={value} (0 또는 음수)")
 
@@ -109,7 +108,7 @@ def validate_prev_close(csv_close: float, yf_close: float) -> list[str]:
         return [f"validate_prev_close: yf_close 는 양수여야 함. 입력: {yf_close}"]
 
     diff_ratio = abs(yf_close - csv_close) / csv_close
-    if diff_ratio >= _PREV_CLOSE_DIFF_THRESHOLD:
+    if diff_ratio >= PREV_CLOSE_DIFF_THRESHOLD:
         errors.append("전일 종가 불일치 (스플릿 의심): " f"CSV={csv_close}, yfinance={yf_close}, 차이율={diff_ratio:.4%}")
     return errors
 

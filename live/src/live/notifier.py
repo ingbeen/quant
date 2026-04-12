@@ -21,7 +21,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+
+import requests
+from firebase_admin import messaging
+from firebase_admin.exceptions import FirebaseError
 
 from live.models import DailyResult
 from qbt.utils.logger import get_logger
@@ -114,9 +117,6 @@ def _send_fcm_messages(tokens: list[str], body: str) -> tuple[int, list[str]]:
     if not tokens:
         return 0, []
 
-    from firebase_admin import messaging  # lazy import
-    from firebase_admin.exceptions import FirebaseError
-
     messages = [
         messaging.Message(
             notification=messaging.Notification(title="QBT Live", body=body),
@@ -139,8 +139,6 @@ def _send_fcm_messages(tokens: list[str], body: str) -> tuple[int, list[str]]:
 
 def _send_telegram_message(tg_token: str, tg_chat: str, body: str) -> bool:
     """텔레그램 Bot API 로 본문 전송. 200 OK 면 True."""
-    import requests  # lazy import
-
     url = _TELEGRAM_API_URL.format(token=tg_token)
     response = requests.post(
         url,
@@ -232,7 +230,3 @@ def send_failure_all(
         fcm_invalid_tokens=invalid_tokens,
         telegram_ok=telegram_ok,
     )
-
-
-# 내부 헬퍼는 테스트 / 향후 확장에서 직접 import 가능
-_ = Any

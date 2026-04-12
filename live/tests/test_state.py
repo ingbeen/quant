@@ -29,7 +29,7 @@ from live.models import (
     PendingOrderDict,
 )
 from live.state import (
-    cleanup_old_fill_ids,
+    cleanup_old_applied_ids,
     create_initial_state,
     load_applied_fill_ids,
     load_state,
@@ -543,7 +543,7 @@ class TestAppliedFillIds:
             load_applied_fill_ids(path)
 
     @freeze_time("2026-04-11 12:00:00", tz_offset=9)
-    def test_cleanup_old_fill_ids_removes_old_t_3_4(self):
+    def test_cleanup_old_applied_ids_removes_old_t_3_4(self):
         """T-3.4: 90 일 초과 ID 제거, 최근 ID 유지."""
         # Given
         ids = {
@@ -554,7 +554,7 @@ class TestAppliedFillIds:
         }
 
         # When
-        result = cleanup_old_fill_ids(ids, max_age_days=90)
+        result = cleanup_old_applied_ids(ids, max_age_days=90)
 
         # Then
         assert "very_old" not in result
@@ -562,13 +562,13 @@ class TestAppliedFillIds:
         assert "today" in result
 
     @freeze_time("2026-04-11 12:00:00", tz_offset=9)
-    def test_cleanup_old_fill_ids_keeps_recent(self):
+    def test_cleanup_old_applied_ids_keeps_recent(self):
         """최근 ID 는 유지되어야 한다."""
         ids = {
             "fill_1": "2026-04-10T10:00:00+09:00",
             "fill_2": "2026-04-11T09:00:00+09:00",
         }
-        result = cleanup_old_fill_ids(ids, max_age_days=90)
+        result = cleanup_old_applied_ids(ids, max_age_days=90)
         assert len(result) == 2
 
     @freeze_time("2026-04-11 12:00:00", tz_offset=9)
@@ -578,7 +578,7 @@ class TestAppliedFillIds:
             "old": "2025-10-01T10:00:00+09:00",
             "new": "2026-04-10T10:00:00+09:00",
         }
-        result = cleanup_old_fill_ids(ids)  # default
+        result = cleanup_old_applied_ids(ids)  # default
         assert "new" in result
         assert "old" not in result
 
@@ -586,7 +586,7 @@ class TestAppliedFillIds:
         """cleanup 함수는 원본 dict 를 변경하지 않아야 한다 (불변성)."""
         ids = {"a": "2020-01-01T00:00:00+09:00"}
         original_copy = dict(ids)
-        _ = cleanup_old_fill_ids(ids, max_age_days=90)
+        _ = cleanup_old_applied_ids(ids, max_age_days=90)
         assert ids == original_copy
 
     def test_save_applied_fill_ids_creates_parent_dir(self, tmp_path: Path):
@@ -639,7 +639,7 @@ class TestModuleSmoke:
             "save_state",
             "load_applied_fill_ids",
             "save_applied_fill_ids",
-            "cleanup_old_fill_ids",
+            "cleanup_old_applied_ids",
         ]
         for sym in expected:
             assert hasattr(state_module, sym), f"live.state 에 {sym} 이 없음"

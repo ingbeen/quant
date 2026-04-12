@@ -29,18 +29,19 @@ import json
 import os
 import uuid
 from dataclasses import asdict
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
-    KST_TZ_NAME,
+    KST_TIMEZONE,
     LIVE_PORTFOLIO_ID,
     SCHEMA_VERSION,
     get_live_portfolio_config,
 )
 from live.models import (
+    VALID_INTENT_TYPES,
     AssetLiveState,
     BufferZoneState,
     HoldState,
@@ -57,7 +58,7 @@ __all__ = [
     "save_applied_fill_ids",
     "load_applied_balance_adjust_ids",
     "save_applied_balance_adjust_ids",
-    "cleanup_old_fill_ids",
+    "cleanup_old_applied_ids",
 ]
 
 
@@ -65,15 +66,13 @@ __all__ = [
 # 내부 헬퍼 — 타임스탬프 및 파일 I/O
 # ============================================================================
 
-_KST = timezone(timedelta(hours=9))  # Asia/Seoul 고정 오프셋
-
 
 def _now_kst_iso() -> str:
     """현재 시각을 KST ISO 8601 문자열로 반환한다.
 
     예: ``"2026-04-11T12:35:22+09:00"``
     """
-    return datetime.now(_KST).replace(microsecond=0).isoformat()
+    return datetime.now(KST_TIMEZONE).replace(microsecond=0).isoformat()
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -294,11 +293,6 @@ def _asset_live_state_from_dict(data: dict[str, Any]) -> AssetLiveState:
     )
 
 
-_VALID_INTENT_TYPES: frozenset[str] = frozenset(
-    ("EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
-)
-
-
 def _pending_order_from_dict(data: dict[str, Any]) -> PendingOrderDict:
     """dict → PendingOrderDict. TypedDict 이므로 dict 를 그대로 반환하되 키 검증."""
     required = (
@@ -317,9 +311,9 @@ def _pending_order_from_dict(data: dict[str, Any]) -> PendingOrderDict:
             raise ValueError(f"PendingOrderDict 필드 누락: {key}")
 
     intent_type_raw = str(data["intent_type"])
-    if intent_type_raw not in _VALID_INTENT_TYPES:
+    if intent_type_raw not in VALID_INTENT_TYPES:
         raise ValueError(
-            f"PendingOrderDict intent_type 값이 유효하지 않음: {intent_type_raw!r} " f"(허용: {sorted(_VALID_INTENT_TYPES)})"
+            f"PendingOrderDict intent_type 값이 유효하지 않음: {intent_type_raw!r} " f"(허용: {sorted(VALID_INTENT_TYPES)})"
         )
     intent_type: IntentTypeLiteral = cast("IntentTypeLiteral", intent_type_raw)
 
@@ -423,15 +417,16 @@ def load_applied_balance_adjust_ids(path: Path) -> dict[str, str]:
     return _load_applied_ids(path, "applied_balance_adjust_ids.json")
 
 
-def cleanup_old_fill_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_IDS_MAX_AGE_DAYS) -> dict[str, str]:
-    """지정 일수 이상 경과한 fill ID 를 제거한 새 dict 를 반환한다.
+def cleanup_old_applied_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_IDS_MAX_AGE_DAYS) -> dict[str, str]:
+    """지정 일수 이상 경과한 applied_*_ids 원장 엔트리를 제거한 새 dict 를 반환한다.
 
-    현재 시각(KST) 기준으로 각 ID 의 타임스탬프와 비교하며, 파싱 불가능한
-    타임스탬프를 가진 ID 는 보수적으로 유지한다 (datetime 포맷 이슈로 데이터를
-    잃지 않도록).
+    applied_fill_ids / applied_balance_adjust_ids 두 원장 모두에 재사용되는
+    공용 정리 함수이다. 현재 시각(KST) 기준으로 각 ID 의 타임스탬프와 비교한다.
+    파싱 불가능한 타임스탬프를 가진 엔트리는 보수적으로 유지한다
+    (datetime 포맷 이슈로 데이터를 잃지 않도록).
 
     Args:
-        ids: 현재 applied_fill_ids 매핑.
+        ids: 현재 applied_*_ids 매핑.
         max_age_days: 이 값 이상 경과한 ID 를 제거 (기본 ``APPLIED_FILL_IDS_MAX_AGE_DAYS``).
 
     Returns:
@@ -440,20 +435,16 @@ def cleanup_old_fill_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_I
     if max_age_days <= 0:
         raise ValueError(f"max_age_days 는 양수여야 한다. 입력: {max_age_days}")
 
-    now = datetime.now(_KST)
+    now = datetime.now(KST_TIMEZONE)
     cutoff = now - timedelta(days=max_age_days)
     result: dict[str, str] = {}
-    for fill_id, iso_ts in ids.items():
+    for entry_id, iso_ts in ids.items():
         try:
             ts = datetime.fromisoformat(iso_ts)
         except ValueError:
             # 파싱 실패 시 보수적으로 유지
-            result[fill_id] = iso_ts
+            result[entry_id] = iso_ts
             continue
         if ts >= cutoff:
-            result[fill_id] = iso_ts
+            result[entry_id] = iso_ts
     return result
-
-
-# 모듈 임포트 시점에서 사용하지 않는 심볼이 있더라도 명시적으로 export 목록에 포함한다.
-_ = KST_TZ_NAME  # 향후 로깅/메시지에서 재사용 가능하도록 import 유지

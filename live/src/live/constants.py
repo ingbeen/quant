@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Final
+from zoneinfo import ZoneInfo
 
 from qbt.backtest.portfolio_configs import get_portfolio_config
 from qbt.backtest.portfolio_types import PortfolioConfig
@@ -39,6 +40,9 @@ SCHEMA_VERSION: Final[int] = 1
 
 # 타임스탬프 표기용 타임존 이름 (state / history / 커밋 메시지 공통).
 KST_TZ_NAME: Final[str] = "Asia/Seoul"
+
+# live 도메인의 KST 타임존 객체 단일 정본. datetime.now(KST_TIMEZONE) 로 사용한다.
+KST_TIMEZONE: Final[ZoneInfo] = ZoneInfo(KST_TZ_NAME)
 
 
 # ============================================================================
@@ -115,6 +119,44 @@ APPLIED_FILL_IDS_MAX_AGE_DAYS: Final[int] = 90
 
 
 # ============================================================================
+# 외부 서비스 / 인프라 상수
+# ============================================================================
+
+# Firebase RTDB 기본 URL (Admin SDK 초기화 시 사용).
+FIREBASE_DB_URL: Final[str] = "https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+# exchange_calendars NYSE 달력 코드.
+NYSE_CALENDAR_CODE: Final[str] = "XNYS"
+
+# GitHub Actions / 로컬 .env 에서 공급되는 환경변수 키 모음.
+FIREBASE_CRED_ENV_KEY: Final[str] = "GOOGLE_APPLICATION_CREDENTIALS"
+TELEGRAM_TOKEN_ENV_KEY: Final[str] = "TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_ENV_KEY: Final[str] = "TELEGRAM_CHAT_ID"
+STATE_REPO_PAT_ENV_KEY: Final[str] = "STATE_REPO_PAT"
+
+
+# ============================================================================
+# 데이터 검증 임계값
+# ============================================================================
+
+# 전일 종가 차이율 임계값 (비율, 0~1). CSV 마지막 종가 vs yfinance 재조회 종가의
+# 차이가 이 값 이상이면 스플릿 / 무상증자 / 사용자 수동 조작이 의심되므로
+# ``data_validator.validate_prev_close`` 가 에러로 취급한다.
+PREV_CLOSE_DIFF_THRESHOLD: Final[float] = 0.01
+
+
+# ============================================================================
+# Intent 타입 집합 (drift fill 분류 및 일반 검증용)
+# ============================================================================
+
+# ENTER_TO_TARGET / INCREASE_TO_TARGET 은 매수 방향 intent.
+BUY_INTENT_TYPES: Final[frozenset[str]] = frozenset({"ENTER_TO_TARGET", "INCREASE_TO_TARGET"})
+
+# EXIT_ALL / REDUCE_TO_TARGET 은 매도 방향 intent.
+SELL_INTENT_TYPES: Final[frozenset[str]] = frozenset({"EXIT_ALL", "REDUCE_TO_TARGET"})
+
+
+# ============================================================================
 # 헬퍼 함수
 # ============================================================================
 
@@ -125,7 +167,7 @@ def get_live_portfolio_config() -> PortfolioConfig:
     SSoT 원칙: 포트폴리오 구성은 ``qbt.backtest.portfolio_configs`` 가 정본이다.
 
     Returns:
-        Q-2-2XS PortfolioConfig 인스턴스.
+        ``LIVE_PORTFOLIO_ID`` 에 해당하는 ``PortfolioConfig`` 인스턴스.
 
     Raises:
         ValueError: ``LIVE_PORTFOLIO_ID`` 가 QBT PORTFOLIO_CONFIGS 에 존재하지 않을 때.
@@ -134,22 +176,16 @@ def get_live_portfolio_config() -> PortfolioConfig:
 
 
 def build_signal_trade_map() -> dict[str, str]:
-    """signal 티커 → trade 티커 매핑을 QBT Q-2-2XS 슬롯에서 빌드한다.
+    """signal 티커 → trade 티커 매핑을 live 포트폴리오 슬롯에서 빌드한다.
 
-    AssetSlotConfig 의 signal_data_path 및 trade_data_path 는 ``{TICKER}_max.csv``
-    형식을 따른다. 각 경로의 파일명에서 첫 ``_`` 이전 부분을 티커로 사용한다.
-
-    Q-2-2XS 예시:
-        - SPY → SSO
-        - QQQ → QLD
-        - GLD → GLD
-        - TLT → TLT
+    각 슬롯의 ``signal_data_path`` / ``trade_data_path`` 파일명에서 첫 ``_`` 이전
+    부분을 티커로 사용한다 (``{TICKER}_*.csv`` 규칙).
 
     Returns:
         ``{signal_ticker: trade_ticker}`` 형태의 새 dict (호출마다 독립 사본).
 
     Raises:
-        RuntimeError: Q-2-2XS config 의 경로에서 티커를 추출할 수 없을 때
+        RuntimeError: config 의 경로에서 티커를 추출할 수 없을 때
             (내부 불변조건 위반).
     """
     config = get_live_portfolio_config()
@@ -159,6 +195,22 @@ def build_signal_trade_map() -> dict[str, str]:
         trade_ticker = extract_ticker_from_path(slot.trade_data_path)
         mapping[signal_ticker] = trade_ticker
     return mapping
+
+
+def live_csv_path(state_dir: Path, ticker: str) -> Path:
+    """qbt-live-state 리포 내 주가 CSV 파일 경로를 반환한다.
+
+    live 도메인 내 주가 CSV 경로 규칙은 본 함수 한 곳에서 관리한다. 파일명 규칙이
+    바뀔 경우 이 함수만 수정하면 된다.
+
+    Args:
+        state_dir: qbt-live-state 작업 디렉토리 (ephemeral clone 루트).
+        ticker: 티커 기호 (대/소문자 무관, 파일명에는 그대로 사용).
+
+    Returns:
+        ``{state_dir}/data/stock/{TICKER}.csv`` 경로.
+    """
+    return state_dir / DEFAULT_DATA_STOCK_SUBDIR / f"{ticker}.csv"
 
 
 def extract_ticker_from_path(path: Path) -> str:

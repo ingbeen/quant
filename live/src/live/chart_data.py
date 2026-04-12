@@ -22,9 +22,9 @@ from pathlib import Path
 from typing import Any
 
 from live.constants import (
-    DEFAULT_DATA_STOCK_SUBDIR,
     extract_ticker_from_path,
     get_live_portfolio_config,
+    live_csv_path,
 )
 from live.data_fetcher import load_csv
 from live.models import ChartSeries, UserTrade
@@ -38,10 +38,6 @@ __all__ = ["build_chart_series"]
 def _ticker_for_chart(slot: AssetSlotConfig) -> str:
     """차트는 trade_data_path 의 티커를 우선 사용 (실제 보유 자산 가격)."""
     return extract_ticker_from_path(slot.trade_data_path)
-
-
-def _live_csv_path(state_dir: Path, ticker: str) -> Path:
-    return state_dir / DEFAULT_DATA_STOCK_SUBDIR / f"{ticker}.csv"
 
 
 def _to_optional_float_list(values: list[Any]) -> list[float | None]:
@@ -83,7 +79,7 @@ def build_chart_series(
 
     for slot in config.asset_slots:
         ticker = _ticker_for_chart(slot)
-        csv_path = _live_csv_path(state_dir, ticker)
+        csv_path = live_csv_path(state_dir, ticker)
         df = load_csv(csv_path)
 
         # MA 컬럼 추가

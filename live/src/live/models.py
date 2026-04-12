@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, get_args
 
 import pandas as pd
 
@@ -30,6 +30,8 @@ __all__ = [
     "ExecutionResult",
     "HoldState",
     # live 전용
+    "IntentTypeLiteral",
+    "VALID_INTENT_TYPES",
     "PendingOrderDict",
     "BufferZoneState",
     "AssetLiveState",
@@ -58,6 +60,9 @@ IntentTypeLiteral = Literal["EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "
 QBT 본체의 ``portfolio_planning.OrderIntent.intent_type`` 과 동일한 Literal 로
 좁혀 live 쪽 타입 체크와 완전히 일치시킨다.
 """
+
+# IntentTypeLiteral 에서 파생한 유효 값 집합. state.py 등에서 런타임 검증에 사용.
+VALID_INTENT_TYPES: frozenset[str] = frozenset(get_args(IntentTypeLiteral))
 
 
 class PendingOrderDict(TypedDict):

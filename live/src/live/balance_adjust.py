@@ -23,13 +23,12 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
+from live.constants import KST_TIMEZONE
 from live.models import BalanceAdjust, LiveState
 
 __all__ = ["apply_balance_adjusts_idempotent"]
-
-_KST = timezone(timedelta(hours=9))
 
 
 def apply_balance_adjusts_idempotent(
@@ -58,7 +57,7 @@ def apply_balance_adjusts_idempotent(
     """
     new_state = copy.deepcopy(state)
     new_ids = dict(applied_ids)
-    now_iso = datetime.now(_KST).replace(microsecond=0).isoformat()
+    now_iso = datetime.now(KST_TIMEZONE).replace(microsecond=0).isoformat()
 
     for adjust in adjusts:
         if adjust.rtdb_key in new_ids:
