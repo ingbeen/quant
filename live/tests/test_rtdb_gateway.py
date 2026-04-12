@@ -62,12 +62,8 @@ class _MockRef:
 
 
 @pytest.fixture
-def mock_db(monkeypatch):
-    """firebase_admin.db.reference 를 in-memory store 로 대체.
-
-    rtdb_gateway 모듈의 ``_db_reference`` 헬퍼 자체를 monkeypatch 하여 lazy
-    firebase_admin import 를 우회한다. 모든 경로 호출은 in-memory ``store`` 에 누적된다.
-    """
+def mock_db(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """firebase_admin.db.reference 를 in-memory store 로 대체한다."""
     store: dict[str, Any] = {}
     monkeypatch.setattr(rtdb_module, "_db_reference", lambda app, path: _MockRef(path, store))
     return store
@@ -143,7 +139,7 @@ class TestMarkFillsProcessed:
 
 
 # ============================================================================
-# balance_adjust RTDB 경로 (Gap 2)
+# balance_adjust RTDB 경로
 # ============================================================================
 
 

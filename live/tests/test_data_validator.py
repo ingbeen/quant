@@ -1,12 +1,4 @@
-"""live.data_validator — 설계서 3장의 3종 데이터 검증 테스트.
-
-TODO T-6.1 ~ T-6.8 시나리오 고정.
-
-테스트 원칙:
-- Given-When-Then
-- 외부 네트워크 금지 (exchange_calendars 는 로컬 달력 사용)
-- pytest.approx
-"""
+"""live.data_validator OHLC / 종가 / 거래일 gap 검증 계약을 고정한다."""
 
 from __future__ import annotations
 
@@ -45,27 +37,27 @@ def _make_ohlc_row(
 
 
 class TestValidateOhlcLogic:
-    def test_normal_ohlc_returns_empty_t_6_1(self):
-        """T-6.1: 정상 OHLC → 에러 없음."""
+    def test_normal_ohlc_returns_empty(self):
+        """Given 정상 OHLC When 검증 Then 에러 없음."""
         row = _make_ohlc_row(open_=100.0, high=101.0, low=99.0, close=100.5)
         assert validate_ohlc_logic(row) == []
 
-    def test_high_less_than_low_raises_t_6_2(self):
-        """T-6.2: High < Low → 에러."""
+    def test_high_less_than_low_raises(self):
+        """Given High < Low When 검증 Then 에러."""
         row = _make_ohlc_row(open_=100.0, high=98.0, low=99.0, close=99.5)
         errors = validate_ohlc_logic(row)
         assert len(errors) >= 1
         assert any("High" in msg and "Low" in msg for msg in errors)
 
-    def test_close_zero_raises_t_6_3(self):
-        """T-6.3: Close = 0 → 에러."""
+    def test_close_zero_raises(self):
+        """Given Close = 0 When 검증 Then 에러."""
         row = _make_ohlc_row(close=0.0)
         errors = validate_ohlc_logic(row)
         assert len(errors) >= 1
         assert any("Close" in msg for msg in errors)
 
-    def test_close_negative_raises_t_6_4(self):
-        """T-6.4: Close = -5 → 에러."""
+    def test_close_negative_raises(self):
+        """Given Close = -5 When 검증 Then 에러."""
         row = _make_ohlc_row(close=-5.0)
         errors = validate_ohlc_logic(row)
         assert len(errors) >= 1
@@ -100,19 +92,19 @@ class TestValidateOhlcLogic:
 
 
 class TestValidatePrevClose:
-    def test_half_value_difference_raises_t_6_5(self):
-        """T-6.5: CSV 580 vs yf 290 (50% 차이) → 에러."""
+    def test_half_value_difference_raises(self):
+        """Given CSV 580 vs yf 290 (50% 차이) When 검증 Then 에러."""
         errors = validate_prev_close(csv_close=580.0, yf_close=290.0)
         assert len(errors) >= 1
         assert any("종가" in msg or "close" in msg.lower() for msg in errors)
 
-    def test_tiny_difference_is_ok_t_6_6(self):
-        """T-6.6: CSV 580 vs yf 579.5 (0.09% 차이) → 에러 없음."""
+    def test_tiny_difference_is_ok(self):
+        """Given CSV 580 vs yf 579.5 (0.09% 차이) When 검증 Then 에러 없음."""
         errors = validate_prev_close(csv_close=580.0, yf_close=579.5)
         assert errors == []
 
     def test_one_percent_exactly_is_boundary(self):
-        """정확히 1% 차이는 경계값. 설계서는 '1%+' 라고 명시 → 1% 미만만 허용."""
+        """정확히 1% 차이는 경계값 — 1% 미만만 허용."""
         # 1% 정확히: csv=100, yf=101 → 1% 차이 → 에러 (>= 1%)
         errors = validate_prev_close(csv_close=100.0, yf_close=101.0)
         assert len(errors) >= 1
@@ -142,20 +134,16 @@ class TestValidatePrevClose:
 
 
 class TestValidateDateGap:
-    def test_fri_to_mon_no_gap_t_6_7(self, nyse_calendar):
-        """T-6.7: 금요일 → 월요일 (휴장 포함) → 에러 없음."""
+    def test_fri_to_mon_no_gap(self, nyse_calendar):
+        """Given 금요일 → 월요일 When 검증 Then 에러 없음."""
         # 2026-04-10 (금) → 2026-04-13 (월)
         csv_last = date(2026, 4, 10)
         today = date(2026, 4, 13)
         errors = validate_date_gap(csv_last, today, nyse_calendar)
         assert errors == []
 
-    def test_missing_trading_day_raises_t_6_8(self, nyse_calendar):
-        """T-6.8: 거래일 누락 → 에러.
-
-        CSV 마지막이 2026-04-06(월) 이고 오늘이 2026-04-10(금) 인 경우,
-        화-수-목(7/8/9) 3 거래일이 누락되어야 한다.
-        """
+    def test_missing_trading_day_raises(self, nyse_calendar):
+        """Given 거래일 누락 When 검증 Then 에러."""
         csv_last = date(2026, 4, 6)  # 월
         today = date(2026, 4, 10)  # 금
         errors = validate_date_gap(csv_last, today, nyse_calendar)

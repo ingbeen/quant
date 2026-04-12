@@ -1,18 +1,4 @@
-"""live.daily_runner 회귀 검증 — run_daily vs run_portfolio_backtest 동등성.
-
-설계서 4.4: 과거 1 년 구간에서 ``run_daily`` 를 일별 순차 호출한 결과가
-QBT 본체 ``run_portfolio_backtest`` 와 모든 거래일에서 equity / positions / cash 가
-일치해야 한다. 이는 live 엔진의 "경로 독립성" 을 보장하는 핵심 회귀 테스트.
-
-TODO:
-- T-9.1: 매일 equity 차이 < 1 원
-- T-9.2: 매일 positions (model_shares) 정수 일치
-- T-9.3: 매일 cash 차이 < 1 원
-
-실행 환경:
-- ``storage/stock/*.csv`` 6 종이 존재해야 테스트가 실행된다 (없으면 skip).
-- 1 년 구간은 약 252 거래일.
-"""
+"""live.daily_runner 회귀 검증 — ``run_daily`` vs ``run_portfolio_backtest`` 동등성."""
 
 from __future__ import annotations
 
@@ -80,7 +66,7 @@ def prepared_data(portfolio_config):
         signal_dfs[aid] = signal_dfs[aid].iloc[valid_start:].reset_index(drop=True)
         trade_dfs[aid] = trade_dfs[aid].iloc[valid_start:].reset_index(drop=True)
 
-    # 최근 1 년 (252 거래일) 구간만 유지
+    # 최근 1 년 구간만 유지
     first_aid = next(iter(trade_dfs))
     n = len(trade_dfs[first_aid])
     window_days = 252
@@ -148,13 +134,13 @@ def live_iteration_results(portfolio_config, prepared_data):
 
 
 # ============================================================================
-# 회귀 테스트 T-9.1 ~ T-9.3
+# 회귀 테스트
 # ============================================================================
 
 
 class TestRegression:
-    def test_equity_matches_daily_under_1_won_t_9_1(self, qbt_backtest_result, live_iteration_results):
-        """T-9.1: 매일 equity 차이 < 1 원."""
+    def test_equity_matches_daily_under_1_won(self, qbt_backtest_result, live_iteration_results):
+        """Given 동일 구간 When live vs QBT Then 매일 equity 차이 < 1 원."""
         qbt_equity = qbt_backtest_result.equity_df["equity"].tolist()
         live_equity = [r["model_equity"] for r in live_iteration_results]
 
@@ -163,8 +149,8 @@ class TestRegression:
         for i, (qbt_val, live_val) in enumerate(zip(qbt_equity, live_equity, strict=True)):
             assert live_val == pytest.approx(qbt_val, abs=1.0), f"Day {i}: equity qbt={qbt_val} vs live={live_val}"
 
-    def test_positions_match_daily_t_9_2(self, qbt_backtest_result, live_iteration_results):
-        """T-9.2: 매일 positions (model_shares) 정수 일치."""
+    def test_positions_match_daily(self, qbt_backtest_result, live_iteration_results):
+        """Given 동일 구간 When live vs QBT Then 매일 positions 정수 일치."""
         equity_df = qbt_backtest_result.equity_df
 
         for i, live_row in enumerate(live_iteration_results):
@@ -175,8 +161,8 @@ class TestRegression:
                 live_shares = int(live_row["shares"][asset_id])
                 assert qbt_shares == live_shares, f"Day {i} {asset_id}: qbt={qbt_shares} vs live={live_shares}"
 
-    def test_cash_matches_daily_under_1_won_t_9_3(self, qbt_backtest_result, live_iteration_results):
-        """T-9.3: 매일 cash 차이 < 1 원."""
+    def test_cash_matches_daily_under_1_won(self, qbt_backtest_result, live_iteration_results):
+        """Given 동일 구간 When live vs QBT Then 매일 cash 차이 < 1 원."""
         qbt_cash = qbt_backtest_result.equity_df["cash"].tolist()
         live_cash = [r["cash"] for r in live_iteration_results]
 
@@ -186,7 +172,7 @@ class TestRegression:
 
 class TestRegressionMeta:
     def test_one_year_window_size(self, prepared_data):
-        """1 년 구간이 대략 252 거래일 이하여야 한다 (윈도우 검증)."""
+        """회귀 테스트 윈도우는 1 년 거래일 이하여야 한다."""
         _, _, _, trade_dates, _ = prepared_data
         assert 100 <= len(trade_dates) <= 252
 
@@ -201,7 +187,7 @@ class TestRegressionMeta:
         assert start >= date(2000, 1, 1)
 
     def test_all_assets_present_in_bundle(self, prepared_data):
-        """4 자산 모두 데이터 준비 완료."""
+        """live 포트폴리오 자산 모두 데이터 준비 완료."""
         signal_dfs, trade_dfs, _, _, _ = prepared_data
         expected = {"sso", "qld", "gld", "tlt"}
         assert set(signal_dfs.keys()) == expected

@@ -1,10 +1,4 @@
-"""GitHub Actions workflow yaml 구조 검증.
-
-설계서 12장 cron / timezone / retry / notify-failure / Poetry 캐싱 요구사항을
-정적으로 확인한다 (실제 실행은 사용자 수동 테스트 M-11.1~M-11.3).
-
-PyYAML 미설치 환경 대응을 위해 문자열 기반 검증 사용.
-"""
+"""GitHub Actions workflow yaml 구조 계약을 문자열 기반으로 검증한다."""
 
 from __future__ import annotations
 
@@ -39,7 +33,7 @@ class TestDailyRunWorkflow:
         assert DAILY_RUN_PATH.exists()
 
     def test_cron_is_weekday_17_50(self, daily_run_yaml: str):
-        """설계서 12장: cron '50 17 * * 1-5' (월~금 17:50 ET)."""
+        """cron 은 '50 17 * * 1-5' (월~금 17:50 ET)."""
         assert "50 17 * * 1-5" in daily_run_yaml
 
     def test_timezone_america_new_york(self, daily_run_yaml: str):

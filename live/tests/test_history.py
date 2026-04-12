@@ -1,7 +1,4 @@
-"""live.history — 영구 히스토리 저장 테스트.
-
-TODO T-15.1 ~ T-15.4 시나리오 고정.
-"""
+"""live.history 영구 히스토리 저장/로드 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -20,13 +17,13 @@ from live.history import (
 from live.models import UserTrade
 
 # ============================================================================
-# T-15.1: save_daily_log
+# save_daily_log
 # ============================================================================
 
 
 class TestSaveDailyLog:
-    def test_creates_json_file_t_15_1(self, tmp_path: Path):
-        """T-15.1: save_daily_log → JSON 파일 생성 확인."""
+    def test_creates_json_file(self, tmp_path: Path):
+        """Given save_daily_log 호출 When 실행 Then JSON 파일 생성."""
         payload = {"execution_date": "2026-04-10", "model_equity": 100_000_000.0}
         path = save_daily_log("2026-04-10", payload, tmp_path)
 
@@ -51,13 +48,13 @@ class TestSaveDailyLog:
 
 
 # ============================================================================
-# T-15.2: append_summary
+# append_summary
 # ============================================================================
 
 
 class TestAppendSummary:
-    def test_appends_one_jsonl_line_t_15_2(self, tmp_path: Path):
-        """T-15.2: append_summary → JSONL 1행 추가."""
+    def test_appends_one_jsonl_line(self, tmp_path: Path):
+        """Given append_summary 호출 When 실행 Then JSONL 1행 추가."""
         append_summary({"date": "2026-04-10", "equity": 100_000_000.0}, tmp_path)
 
         target = tmp_path / "summary.jsonl"
@@ -74,13 +71,13 @@ class TestAppendSummary:
 
 
 # ============================================================================
-# T-15.3: append_user_trade
+# append_user_trade
 # ============================================================================
 
 
 class TestAppendUserTrade:
-    def test_appends_one_jsonl_line_t_15_3(self, tmp_path: Path):
-        """T-15.3: append_user_trade → JSONL 1행 추가."""
+    def test_appends_one_jsonl_line(self, tmp_path: Path):
+        """Given append_user_trade 호출 When 실행 Then JSONL 1행 추가."""
         append_user_trade(
             {
                 "asset_id": "sso",
@@ -102,13 +99,13 @@ class TestAppendUserTrade:
 
 
 # ============================================================================
-# T-15.4: 같은 날짜 2번 append → 2행
+# append-only 누적 정책
 # ============================================================================
 
 
 class TestJsonlAppendAccumulates:
-    def test_two_appends_summary_result_in_two_lines_t_15_4(self, tmp_path: Path):
-        """T-15.4: 같은 날짜로 2 번 append → 2 행 (덮어쓰기 아님)."""
+    def test_two_appends_summary_result_in_two_lines(self, tmp_path: Path):
+        """Given 같은 날짜로 2 번 append When 실행 Then 2 행 (덮어쓰기 아님)."""
         append_summary({"date": "2026-04-10", "v": 1}, tmp_path)
         append_summary({"date": "2026-04-10", "v": 2}, tmp_path)
 
@@ -165,7 +162,7 @@ class TestEncoding:
 
 
 # ============================================================================
-# Gap 2: signal history (append + load)
+# signal history (append + load)
 # ============================================================================
 
 
@@ -218,7 +215,7 @@ class TestSignalHistory:
 
 
 # ============================================================================
-# Gap 3/4: user_trades load
+# user_trades load
 # ============================================================================
 
 
@@ -245,7 +242,7 @@ class TestLoadUserTrades:
 
 
 # ============================================================================
-# Gap 2: balance_adjust audit append
+# balance_adjust audit append
 # ============================================================================
 
 

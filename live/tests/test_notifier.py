@@ -267,13 +267,7 @@ class TestEmptyTokens:
 
 
 class TestNotifierErrorLogging:
-    """FCM / 텔레그램 발송 자체가 실패하면 **알림으로 재발송하지 않고 로그만
-    기록** 해야 한다. 알림 채널 실패에 대해 알림을 다시 보내는 것은 모순이며
-    무한 루프 / 토큰 낭비를 유발한다.
-
-    과거 구조: ``_safe_fcm`` / ``_safe_telegram`` 이 ``except Exception`` 으로
-    예외를 삼키면서 로그조차 기록하지 않아 실패 원인 추적이 불가능했다.
-    """
+    """알림 채널 발송 실패 시 재발송 없이 logger.error 로만 기록해야 한다."""
 
     def test_safe_fcm_logs_error_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given _send_fcm_messages 가 예외 When _safe_fcm Then logger.error 기록 + (0, []) 반환.

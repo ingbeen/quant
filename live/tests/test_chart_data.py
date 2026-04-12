@@ -1,9 +1,4 @@
-"""live.chart_data — build_chart_series 테스트.
-
-TODO T-14.1 ~ T-14.3 시나리오 고정.
-
-테스트 환경: tmp_path 에 4 개 자산 (sso/qld/gld/tlt) 의 trade CSV 를 직접 생성.
-"""
+"""live.chart_data ``build_chart_series`` 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -22,7 +17,7 @@ from live.models import ChartSeries, UserTrade
 
 
 def _make_trade_csv(path: Path, n_days: int = 250, base_close: float = 100.0) -> None:
-    """trade CSV 생성 (Q-2-2XS 의 trade_data_path 와 동일 형식)."""
+    """trade CSV 를 생성한다 (live 포트폴리오 trade_data_path 형식)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     start = date(2025, 1, 1)
     rows = []
@@ -44,9 +39,8 @@ def _make_trade_csv(path: Path, n_days: int = 250, base_close: float = 100.0) ->
 
 @pytest.fixture
 def state_dir_with_csvs(tmp_path: Path) -> Path:
-    """tmp_path 에 4 자산 trade CSV 를 준비."""
+    """tmp_path 에 live 포트폴리오 자산 trade CSV 를 준비한다."""
     stock_dir = tmp_path / "data" / "stock"
-    # Q-2-2XS 의 trade_data_path 티커
     for ticker, base in (
         ("SSO", 80.0),
         ("QLD", 85.0),
@@ -57,14 +51,9 @@ def state_dir_with_csvs(tmp_path: Path) -> Path:
     return tmp_path
 
 
-# ============================================================================
-# T-14.1
-# ============================================================================
-
-
 class TestBuildChartSeriesLengths:
-    def test_dates_close_ema_lengths_match_t_14_1(self, state_dir_with_csvs: Path):
-        """T-14.1: 1 년치 CSV → ChartSeries dates/close/ma_value 길이 일치."""
+    def test_dates_close_ema_lengths_match(self, state_dir_with_csvs: Path):
+        """Given 연단위 CSV When build_chart_series Then 각 시리즈 길이가 일치한다."""
         series = build_chart_series(state_dir_with_csvs)
 
         assert set(series.keys()) == {"sso", "qld", "gld", "tlt"}
@@ -78,15 +67,9 @@ class TestBuildChartSeriesLengths:
             assert len(cs.lower_band) == n
 
 
-# ============================================================================
-# T-14.2
-# ============================================================================
-
-
 class TestBuildChartSeriesUserMarkers:
-    def test_user_trades_indices_within_range_t_14_2(self, state_dir_with_csvs: Path):
-        """T-14.2: user_buys/user_sells 인덱스가 dates 범위 내."""
-        # 임의 사용자 체결 마커 — Q-2-2XS 의 sso 자산
+    def test_user_trades_indices_within_range(self, state_dir_with_csvs: Path):
+        """Given 사용자 체결 마커 When build Then 인덱스가 dates 범위 내."""
         marker_dates = [date(2025, 4, 1), date(2025, 6, 15)]
         user_trades = {
             "sso": [
@@ -119,32 +102,16 @@ class TestBuildChartSeriesUserMarkers:
             assert cs.user_sells == []
 
 
-# ============================================================================
-# T-14.3
-# ============================================================================
-
-
 class TestBuildChartSeriesEmaWarmup:
-    def test_first_199_days_ema_is_none_t_14_3(self, state_dir_with_csvs: Path):
-        """T-14.3: EMA-200 초기 199 일은 None.
-
-        QBT 의 ``add_single_moving_average`` 에서 EMA 워밍업 동안 NaN 이 채워지며,
-        :func:`build_chart_series` 는 NaN → None 변환을 보장한다.
-        """
+    def test_first_199_days_ema_is_none(self, state_dir_with_csvs: Path):
+        """Given 짧은 구간 When build Then 이동평균 워밍업 구간은 None 으로 채워진다."""
         series = build_chart_series(state_dir_with_csvs)
         for cs in series.values():
-            # 첫 199 일 중 일부는 None 이어야 한다 (EMA 워밍업)
             first_199 = cs.ma_value[:199]
-            assert any(v is None for v in first_199), "초기 EMA 워밍업이 None 으로 표현되어야 함"
+            assert any(v is None for v in first_199), "이동평균 워밍업은 None 으로 표현되어야 함"
 
-            # 200 일째 부터는 None 이 아니어야 한다
             if len(cs.ma_value) > 200:
                 assert cs.ma_value[200] is not None
-
-
-# ============================================================================
-# 추가 sanity
-# ============================================================================
 
 
 class TestBuildChartSeriesBands:
@@ -171,7 +138,7 @@ class TestBuildChartSeriesDates:
 
 
 # ============================================================================
-# Gap 2: signal_history 로 buy_signals / sell_signals 채우기
+# signal_history 로 buy_signals / sell_signals 채우기
 # ============================================================================
 
 

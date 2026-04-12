@@ -1,13 +1,4 @@
-"""live.daily_runner — run_daily 순수 계산 테스트.
-
-TODO T-7.1 ~ T-7.5 시나리오 고정. 실제 QBT portfolio 엔진 1 iteration 과 동등한
-구조를 작은 fixture 로 검증한다.
-
-테스트 원칙:
-- 파일 I/O 및 외부 네트워크 호출 금지 (Path / open / yfinance 등)
-- pytest.approx 로 부동소수점 비교
-- Given-When-Then 패턴
-"""
+"""live.daily_runner ``run_daily`` 순수 계산 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -83,12 +74,7 @@ def sample_dates() -> list[date]:
 
 @pytest.fixture
 def flat_market_bundle(sample_dates: list[date]) -> MarketBundle:
-    """가격이 MA 근처에 머무르는 평온한 market bundle.
-
-    - ma_200 = 100 (고정)
-    - close = 100 (고정) → 상/하 밴드 돌파 없음 → 시그널 없음
-    - 4 자산 (sso/qld/gld/tlt) 동일 데이터
-    """
+    """가격이 MA 근처에 머무르는 평온한 market bundle (모든 자산 동일 데이터)."""
     flat_closes = [100.0] * len(sample_dates)
     flat_opens = [100.0] * len(sample_dates)
     ma = [100.0] * len(sample_dates)
@@ -103,12 +89,7 @@ def flat_market_bundle(sample_dates: list[date]) -> MarketBundle:
 
 @pytest.fixture
 def rising_market_bundle(sample_dates: list[date]) -> MarketBundle:
-    """buy_and_hold (gld/tlt) 가 즉시 매수 시그널을 내고,
-    sso/qld 는 상향 돌파가 발생하는 bundle.
-
-    - ma_200 = 100 (고정)
-    - close: 98 → 100 → 102 → 105 (상승) → 상단 밴드(103) 돌파
-    """
+    """buy_and_hold 자산은 즉시 매수 시그널, buffer_zone 자산은 상향 돌파가 발생한다."""
     n = len(sample_dates)
     closes = [98.0, 99.0, 100.0, 102.0, 104.0, 106.0, 108.0, 110.0, 112.0, 114.0][:n]
     opens = [c - 1.0 for c in closes]
@@ -133,10 +114,10 @@ def initial_state() -> LiveState:
 
 
 class TestRunDailyReturnsResult:
-    def test_initial_state_single_day_returns_daily_result_t_7_1(
-        self, initial_state, rising_market_bundle, sample_dates
-    ):
-        """T-7.1: 초기 상태 + 1 일 데이터 → DailyResult 정상 반환."""
+    def test_initial_state_single_day_returns_daily_result(self, initial_state, rising_market_bundle, sample_dates):
+        """Given 초기 상태 + 1 일 데이터 When run_daily Then DailyResult 정상 반환."""
+        from live.constants import LIVE_PORTFOLIO_ID
+
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,
@@ -146,12 +127,12 @@ class TestRunDailyReturnsResult:
         )
 
         assert result.execution_date == sample_dates[0].isoformat()
-        assert result.updated_state.portfolio_id == "portfolio_q2_2xs"
+        assert result.updated_state.portfolio_id == LIVE_PORTFOLIO_ID
         assert set(result.signals.keys()) == {"sso", "qld", "gld", "tlt"}
         assert result.model_equity > 0
 
-    def test_pending_none_day_model_unchanged_t_7_2(self, initial_state, flat_market_bundle, sample_dates):
-        """T-7.2: pending 없는 날 (초기 상태) → model_shares 모두 0 유지."""
+    def test_pending_none_day_model_unchanged(self, initial_state, flat_market_bundle, sample_dates):
+        """Given pending 없는 날 When run_daily Then model_shares 모두 0 유지."""
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,
@@ -166,8 +147,8 @@ class TestRunDailyReturnsResult:
             assert asset.model_shares == 0
         assert result.executions is None  # 전일 pending 없음 → executions 없음
 
-    def test_signal_generates_pending_order_t_7_3(self, initial_state, rising_market_bundle, sample_dates):
-        """T-7.3: signal 발생 시 → pending_order 가 state 에 저장."""
+    def test_signal_generates_pending_order(self, initial_state, rising_market_bundle, sample_dates):
+        """Given signal 발생 When run_daily Then pending_order 가 state 에 저장."""
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,
@@ -184,14 +165,8 @@ class TestRunDailyReturnsResult:
         assert gld_pending["intent_type"] == "ENTER_TO_TARGET"
         assert gld_pending["asset_id"] == "gld"
 
-    def test_pending_executes_next_day_model_shares_increase_t_7_4(
-        self, initial_state, rising_market_bundle, sample_dates
-    ):
-        """T-7.4: pending 있는 상태 + 다음 날 실행 → model_shares 증가.
-
-        1 일차: pending 생성 (gld/tlt 즉시 매수)
-        2 일차: 전일 pending 이 당일 시가에 체결 → model_shares > 0
-        """
+    def test_pending_executes_next_day_model_shares_increase(self, initial_state, rising_market_bundle, sample_dates):
+        """Given pending 보유 상태 When 다음 날 run_daily Then model_shares 증가."""
         # Day 1
         r1 = run_daily(
             trade_date=sample_dates[0],
@@ -216,12 +191,8 @@ class TestRunDailyReturnsResult:
         # Day 2 의 executions 는 None 이 아니어야 한다
         assert r2.executions is not None
 
-    def test_does_not_touch_filesystem_t_7_5(self, initial_state, flat_market_bundle, sample_dates, monkeypatch):
-        """T-7.5: run_daily 내부에서 파일 I/O 없음.
-
-        `pathlib.Path.read_text`, `write_text`, `write_bytes`, `open` 을 감시하여
-        호출되지 않음을 확인.
-        """
+    def test_does_not_touch_filesystem(self, initial_state, flat_market_bundle, sample_dates, monkeypatch):
+        """Given run_daily 호출 When 실행 Then 파일 I/O 호출 없음."""
         import builtins
         from pathlib import Path
 
@@ -299,7 +270,7 @@ class TestRunDailyDataIntegrity:
             assert sig.close > 0
 
     def test_portfolio_config_used(self):
-        """LIVE_PORTFOLIO_ID 의 config 가 4 개 자산을 가지는지 확인 (fixture 전제)."""
+        """Given LIVE_PORTFOLIO_ID When get_live_portfolio_config Then 예상 자산 slot 개수."""
         config = get_live_portfolio_config()
         assert len(config.asset_slots) == 4
         ids = {slot.asset_id for slot in config.asset_slots}
@@ -405,7 +376,7 @@ class TestRunDailyFillIntegration:
 
 
 class TestPendingFillReminderLogic:
-    """Gap 6 수정: 일부 자산만 체결된 경우에도 나머지 pending 자산은 리마인더에 포함."""
+    """일부 자산만 체결된 경우에도 나머지 pending 자산은 리마인더에 포함되어야 한다."""
 
     def _state_with_two_pending(self) -> LiveState:
         """sso, gld 두 자산에 pending_order 가 있는 state 생성."""
@@ -451,11 +422,7 @@ class TestPendingFillReminderLogic:
         assert set(result.pending_fill_reminders) == {"sso", "gld"}
 
     def test_partial_fill_remaining_assets_are_reminded(self, flat_market_bundle, sample_dates):
-        """Given 2 자산에 pending, 1 자산(sso)만 fill 입력 When run_daily Then 나머지 gld 만 reminder.
-
-        Gap 6 수정 전에는 ``not pending_fills`` 가 False 라 reminder 가 빈 리스트였다.
-        수정 후에는 incoming_fill_asset_ids = {"sso"} 이므로 gld 는 여전히 reminder 로 표시.
-        """
+        """Given 2 자산에 pending, 1 자산만 fill 입력 When run_daily Then 나머지만 reminder."""
         from live.models import ActualFill
 
         state = self._state_with_two_pending()
@@ -525,13 +492,7 @@ class TestPendingFillReminderLogic:
 
 
 class TestRunDailyBalanceAdjustIntegration:
-    """``run_daily`` 가 ``pending_adjusts`` 파라미터를 받아 fills 적용 직후
-    actual 축을 덮어쓰는지 검증한다.
-
-    과거 구조: CLI 가 run_daily 호출 후 별도로 apply_balance_adjusts_idempotent 를
-    호출하여 DailyResult 를 replace 했다. 사용자 요구 A안: run_daily 내부에서
-    통합 처리하여 순수 계산 경계를 명확히 한다.
-    """
+    """``run_daily`` 가 ``pending_adjusts`` 를 받아 fills 적용 직후 actual 축을 덮어쓰는 계약."""
 
     def test_empty_adjusts_preserves_initial_actual(self, initial_state, flat_market_bundle, sample_dates):
         """Given 빈 adjust 리스트 When run_daily Then actual 축 변경 없음."""
@@ -549,11 +510,7 @@ class TestRunDailyBalanceAdjustIntegration:
         assert result.updated_applied_balance_adjust_ids == {}
 
     def test_pending_adjusts_default_none_keeps_backward_compat(self, initial_state, flat_market_bundle, sample_dates):
-        """Given 기본값 호출 (pending_adjusts 생략) When run_daily Then 기존 동작 유지.
-
-        기존 호출자(test_regression 등) 가 pending_adjusts 를 전달하지 않아도
-        기본값으로 noop 동작해야 한다.
-        """
+        """Given 기본값 호출 (pending_adjusts 생략) When run_daily Then noop 동작."""
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,
@@ -708,7 +665,7 @@ class TestRunDailyDriftReport:
         assert isinstance(result.drift_report, DriftReport)
 
     def test_drift_report_contains_per_asset_breakdown(self, initial_state, flat_market_bundle, sample_dates):
-        """Given 정상 입력 When run_daily Then drift_report.per_asset 이 4 자산 포함."""
+        """Given 정상 입력 When run_daily Then drift_report.per_asset 에 모든 포트폴리오 자산 포함."""
         result = run_daily(
             trade_date=sample_dates[0],
             state=initial_state,

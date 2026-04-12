@@ -26,10 +26,10 @@ class _FakeCompleted:
 
 
 class TestGitPull:
-    def test_pull_calls_git_with_ff_only(self, tmp_path: Path, monkeypatch):
+    def test_pull_calls_git_with_ff_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[list[str]] = []
 
-        def _spy_run(args, cwd, check, capture_output, text):  # noqa: ANN001
+        def _spy_run(args: list[str], cwd: Path, check: bool, capture_output: bool, text: bool) -> _FakeCompleted:
             captured.append(list(args))
             return _FakeCompleted(returncode=0)
 
@@ -40,8 +40,8 @@ class TestGitPull:
         assert len(captured) == 1
         assert captured[0][:3] == ["git", "pull", "--ff-only"]
 
-    def test_pull_failure_raises_runtime_error(self, tmp_path: Path, monkeypatch):
-        def _failing_run(args, cwd, check, capture_output, text):  # noqa: ANN001
+    def test_pull_failure_raises_runtime_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _failing_run(args: list[str], cwd: Path, check: bool, capture_output: bool, text: bool) -> _FakeCompleted:
             return _FakeCompleted(returncode=1, stderr="conflict")
 
         monkeypatch.setattr(subprocess, "run", _failing_run)
@@ -56,11 +56,13 @@ class TestGitPull:
 
 
 class TestGitCommitAndPush:
-    def test_no_changes_returns_false(self, tmp_path: Path, monkeypatch):
+    def test_no_changes_returns_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """diff --cached --quiet 가 0 (변경 없음) → noop."""
         call_log: list[list[str]] = []
 
-        def _fake_run(args, cwd, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _fake_run(
+            args: list[str], cwd: Path, check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             call_log.append(list(args))
             # diff --cached --quiet 명령은 변경 없음 (returncode=0) 반환
             if args[:3] == ["git", "diff", "--cached"]:
@@ -75,10 +77,12 @@ class TestGitCommitAndPush:
         assert not any(args[:2] == ["git", "commit"] for args in call_log)
         assert not any(args[:2] == ["git", "push"] for args in call_log)
 
-    def test_with_changes_calls_commit_and_push(self, tmp_path: Path, monkeypatch):
+    def test_with_changes_calls_commit_and_push(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         call_log: list[list[str]] = []
 
-        def _fake_run(args, cwd, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _fake_run(
+            args: list[str], cwd: Path, check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             call_log.append(list(args))
             # diff --cached --quiet → 변경 있음 (returncode=1)
             if args[:3] == ["git", "diff", "--cached"]:
@@ -93,8 +97,10 @@ class TestGitCommitAndPush:
         assert any(args[:2] == ["git", "commit"] for args in call_log)
         assert any(args[:2] == ["git", "push"] for args in call_log)
 
-    def test_commit_failure_raises(self, tmp_path: Path, monkeypatch):
-        def _fake_run(args, cwd, check=False, capture_output=False, text=False):  # noqa: ANN001
+    def test_commit_failure_raises(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _fake_run(
+            args: list[str], cwd: Path, check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             if args[:3] == ["git", "diff", "--cached"]:
                 return _FakeCompleted(returncode=1)
             if args[:2] == ["git", "commit"]:
@@ -106,10 +112,12 @@ class TestGitCommitAndPush:
         with pytest.raises(RuntimeError, match="git commit"):
             git_state.git_commit_and_push(tmp_path, "test")
 
-    def test_user_config_set_before_commit(self, tmp_path: Path, monkeypatch):
+    def test_user_config_set_before_commit(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         call_log: list[list[str]] = []
 
-        def _fake_run(args, cwd, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _fake_run(
+            args: list[str], cwd: Path, check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             call_log.append(list(args))
             if args[:3] == ["git", "diff", "--cached"]:
                 return _FakeCompleted(returncode=1)
@@ -163,11 +171,13 @@ class TestEmbedPatInUrl:
 
 
 class TestGitCloneShallow:
-    def test_clone_invokes_git_clone_depth_1(self, tmp_path: Path, monkeypatch):
+    def test_clone_invokes_git_clone_depth_1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given 원격 URL + PAT When clone 호출 Then git clone --depth 1 <url>."""
         captured: list[list[str]] = []
 
-        def _spy_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _spy_run(
+            args: list[str], check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             captured.append(list(args))
             return _FakeCompleted(returncode=0)
 
@@ -184,10 +194,12 @@ class TestGitCloneShallow:
         # dest 경로가 마지막 인자
         assert cmd[-1] == str(dest)
 
-    def test_clone_without_pat_uses_raw_url(self, tmp_path: Path, monkeypatch):
+    def test_clone_without_pat_uses_raw_url(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[list[str]] = []
 
-        def _spy_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _spy_run(
+            args: list[str], check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             captured.append(list(args))
             return _FakeCompleted(returncode=0)
 
@@ -200,13 +212,17 @@ class TestGitCloneShallow:
         # PAT 없이 원본 URL 그대로 사용
         assert "https://github.com/a/b.git" in cmd
 
-    def test_clone_failure_raises_runtime_error_without_leaking_pat(self, tmp_path: Path, monkeypatch):
+    def test_clone_failure_raises_runtime_error_without_leaking_pat(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Given git clone 실패 When 호출 Then RuntimeError 전파.
 
         에러 메시지는 PAT 를 포함하면 안 된다 (로그 / 알림 누출 방지).
         """
 
-        def _failing_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+        def _failing_run(
+            args: list[str], check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             return _FakeCompleted(returncode=128, stderr="authentication failed")
 
         monkeypatch.setattr(subprocess, "run", _failing_run)
@@ -218,8 +234,10 @@ class TestGitCloneShallow:
         assert "git clone" in str(exc_info.value)
         assert "ghp_secret_token_XYZ" not in str(exc_info.value)
 
-    def test_clone_creates_parent_directory(self, tmp_path: Path, monkeypatch):
-        def _ok_run(args, check=False, capture_output=False, text=False):  # noqa: ANN001
+    def test_clone_creates_parent_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        def _ok_run(
+            args: list[str], check: bool = False, capture_output: bool = False, text: bool = False
+        ) -> _FakeCompleted:
             return _FakeCompleted(returncode=0)
 
         monkeypatch.setattr(subprocess, "run", _ok_run)

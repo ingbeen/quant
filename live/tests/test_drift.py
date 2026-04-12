@@ -1,7 +1,4 @@
-"""live.drift — fill 자동 매칭 / idempotency / drift 계산 테스트.
-
-TODO T-8.1 ~ T-8.8 시나리오 고정.
-"""
+"""live.drift — fill 자동 매칭 / idempotency / drift 계산 테스트."""
 
 from __future__ import annotations
 
@@ -64,24 +61,24 @@ def _make_fill(
 
 
 class TestClassifyFill:
-    def test_sso_pending_buy_and_sso_buy_fill_is_system_fill_t_8_1(self):
-        """T-8.1: SSO pending(매수) + SSO 매수 fill → system_fill."""
+    def test_sso_pending_buy_and_sso_buy_fill_is_system_fill(self):
+        """Given SSO pending(매수) + SSO 매수 fill When classify Then system_fill."""
         state = create_initial_state(100_000_000.0)
         state.assets["sso"].pending_order = _make_pending("sso", "ENTER_TO_TARGET")
         fill = _make_fill(asset_id="sso", direction="buy")
 
         assert classify_fill(fill, state) == "system_fill"
 
-    def test_sso_pending_buy_but_qld_sell_fill_is_personal_trade_t_8_2(self):
-        """T-8.2: SSO pending(매수) 가 있고 QLD 매도 fill → personal_trade."""
+    def test_sso_pending_buy_but_qld_sell_fill_is_personal_trade(self):
+        """Given SSO pending(매수) 가 있고 QLD 매도 fill When classify Then personal_trade."""
         state = create_initial_state(100_000_000.0)
         state.assets["sso"].pending_order = _make_pending("sso", "ENTER_TO_TARGET")
         fill = _make_fill(asset_id="qld", direction="sell")
 
         assert classify_fill(fill, state) == "personal_trade"
 
-    def test_no_pending_and_gld_buy_fill_is_personal_trade_t_8_3(self):
-        """T-8.3: pending 없음 + GLD 매수 fill → personal_trade."""
+    def test_no_pending_and_gld_buy_fill_is_personal_trade(self):
+        """Given pending 없음 + GLD 매수 fill When classify Then personal_trade."""
         state = create_initial_state(100_000_000.0)
         fill = _make_fill(asset_id="gld", direction="buy")
 
@@ -121,8 +118,8 @@ class TestClassifyFill:
 
 
 class TestApplyFillsIdempotent:
-    def test_new_fill_updates_actual_t_8_4(self):
-        """T-8.4: 새 fill 반영 → actual_shares 변경."""
+    def test_new_fill_updates_actual(self):
+        """Given 새 fill When apply Then actual_shares 변경."""
         state = create_initial_state(100_000_000.0)
         fill = _make_fill(asset_id="sso", direction="buy", actual_shares=420, actual_price=82.0)
 
@@ -133,8 +130,8 @@ class TestApplyFillsIdempotent:
         assert new_state.assets["sso"].actual_entry_date == "2026-04-11"
         assert "fill_001" in new_ids
 
-    def test_duplicate_fill_applied_only_once_t_8_5(self):
-        """T-8.5: 같은 fill 두 번 → 한 번만 반영."""
+    def test_duplicate_fill_applied_only_once(self):
+        """Given 같은 fill 두 번 When apply Then 한 번만 반영."""
         state = create_initial_state(100_000_000.0)
         fill = _make_fill(asset_id="sso", direction="buy", actual_shares=420)
 
@@ -206,8 +203,8 @@ class TestApplyFillsIdempotent:
 
 
 class TestComputeDrift:
-    def test_model_equals_actual_zero_drift_t_8_6(self):
-        """T-8.6: model = actual → drift 0%."""
+    def test_model_equals_actual_zero_drift(self):
+        """Given model = actual When compute_drift Then drift 0%."""
         state = create_initial_state(100_000_000.0)
         # 동일한 포지션
         for asset_id in ("sso", "qld", "gld", "tlt"):
@@ -222,8 +219,8 @@ class TestComputeDrift:
         assert report.drift_pct == pytest.approx(0.0)
         assert report.recommendation == "정상"
 
-    def test_model_not_equal_actual_correct_pct_t_8_7(self):
-        """T-8.7: model ≠ actual → 올바른 % 계산."""
+    def test_model_not_equal_actual_correct_pct(self):
+        """Given model ≠ actual When compute_drift Then 올바른 % 계산."""
         state = create_initial_state(100_000_000.0)
         # sso: model 100주, actual 90주 (10주 차이)
         state.assets["sso"].model_shares = 100
@@ -240,13 +237,8 @@ class TestComputeDrift:
         expected_drift = 1000.0 / 100_010_000.0 * 100.0
         assert report.drift_pct == pytest.approx(expected_drift, abs=0.001)
 
-    def test_large_drift_triggers_correction_recommendation_t_8_8(self):
-        """T-8.8: drift 5% 초과 → "보정 필요".
-
-        model: cash=0 + 100000주 × 100 = 10M
-        actual: cash=1M + 50000주 × 100 = 6M
-        diff = 4M / 10M = 40% → "보정 필요"
-        """
+    def test_large_drift_triggers_correction_recommendation(self):
+        """Given drift 5% 초과 When compute_drift Then recommendation='보정 필요'."""
         state = create_initial_state(100_000_000.0)
         state.assets["sso"].model_shares = 100_000
         state.assets["sso"].actual_shares = 50_000

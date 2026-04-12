@@ -1,13 +1,4 @@
-"""live.balance_adjust — apply_balance_adjusts_idempotent 테스트.
-
-설계서 6.4 자산 직접 수정 / Gap 2 remediation.
-
-원칙:
-- 입력 state / applied_ids 불변
-- idempotency: 동일 rtdb_key 는 중복 반영 안 됨
-- 자산 shares / shared_cash_actual 독립적으로 보정 가능
-- 알 수 없는 asset_id 는 무시
-"""
+"""live.balance_adjust ``apply_balance_adjusts_idempotent`` 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -20,7 +11,7 @@ from live.state import create_initial_state
 
 @pytest.fixture
 def initial_state():
-    """기본 state: cash 1 억, 자산 shares 모두 0."""
+    """기본 state 생성: cash 초기값, 자산 shares 0."""
     return create_initial_state(100_000_000.0)
 
 
@@ -97,11 +88,7 @@ class TestApplyBalanceAdjustsIdempotent:
         assert new_state.assets["sso"].actual_entry_date is None
 
     def test_unknown_asset_raises(self, initial_state):
-        """Given 존재하지 않는 asset_id When apply Then ValueError (fail-fast).
-
-        unknown asset_id 는 앱 버그 / 데이터 파손을 의미하므로 silent skip 대신
-        즉시 실패하여 상위 알림 훅이 사용자에게 통보한다.
-        """
+        """Given 존재하지 않는 asset_id When apply Then ValueError (fail-fast)."""
         adjust = _make_adjust("adj_ghost", asset_id="unknown_asset", new_shares=42)
         with pytest.raises(ValueError, match="알 수 없는 asset_id"):
             apply_balance_adjusts_idempotent(initial_state, [adjust], {})

@@ -1,12 +1,4 @@
-"""live.buffer_serializer — BufferZoneStrategy 직렬화 어댑터 테스트.
-
-설계서 4.3 및 TODO T-4.1 ~ T-4.3 시나리오를 고정한다.
-
-테스트 철학 (tests/CLAUDE.md):
-- Given-When-Then
-- QBT 본체 수정 없음을 간접 검증 (실제 BufferZoneStrategy 사용)
-- 부동소수점은 pytest.approx
-"""
+"""live.buffer_serializer ``BufferZoneStrategy`` 직렬화 어댑터 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -26,11 +18,7 @@ from qbt.backtest.strategies.buffer_zone_helpers import HoldState
 
 
 def _make_signal_df() -> pd.DataFrame:
-    """ma_200 과 Close 컬럼을 가진 최소 signal_df 를 생성한다.
-
-    Close 가 ma * 1.05 로 상승하여 상단 밴드(ma * 1.03) 돌파 매수 시그널을 유도한다.
-    """
-    # 10 개 행. ma=100 고정, close 는 상승 추세
+    """MA / Close 컬럼을 가진 최소 signal_df 를 생성한다."""
     ma_values = [100.0] * 10
     close_values = [98.0, 99.0, 100.0, 101.0, 102.5, 103.5, 104.5, 105.0, 106.0, 107.0]
     return pd.DataFrame({"ma_200": ma_values, "Close": close_values})
@@ -89,7 +77,6 @@ class TestExtractBufferState:
         state = extract_buffer_state(strategy)
         assert state.prev_upper is not None
         assert state.prev_lower is not None
-        # ma=100, buy=3%, sell=5% → upper=103, lower=95
         assert state.prev_upper == pytest.approx(103.0)
         assert state.prev_lower == pytest.approx(95.0)
 
@@ -105,8 +92,8 @@ class TestExtractBufferState:
 
 
 class TestRestoreBufferState:
-    def test_restore_none_hold_state_t_4_1(self):
-        """T-4.1: hold_state 없는 상태 왕복 → 원본과 일치."""
+    def test_restore_none_hold_state(self):
+        """Given hold_state 없는 상태 When 왕복 Then 원본과 일치."""
         # Given
         source = _make_fresh_strategy()
         _run_strategy_for_a_few_days(source, n_days=5)
@@ -125,8 +112,8 @@ class TestRestoreBufferState:
         assert restored.last_buy_buffer_pct == pytest.approx(saved.last_buy_buffer_pct)
         assert restored.last_hold_days_used == saved.last_hold_days_used
 
-    def test_restore_with_hold_state_t_4_2(self):
-        """T-4.2: hold_state 있는 상태 왕복."""
+    def test_restore_with_hold_state(self):
+        """Given hold_state 있는 상태 When 왕복 Then 필드가 보존된다."""
         # Given
         hold_state: HoldState = {
             "start_date": date(2026, 4, 5),
@@ -158,13 +145,8 @@ class TestRestoreBufferState:
         assert restored.last_buy_buffer_pct == pytest.approx(0.03)
         assert restored.last_hold_days_used == 3
 
-    def test_restore_all_private_fields_t_4_3(self):
-        """T-4.3: 모든 private 변수 왕복 검증.
-
-        Given: 수동으로 모든 필드에 non-default 값을 설정한 BufferZoneState.
-        When : fresh strategy 에 restore → 다시 extract.
-        Then : 5 개 private 필드가 원본과 정확히 일치.
-        """
+    def test_restore_all_private_fields(self):
+        """Given non-default 값을 가진 BufferZoneState When restore → extract Then 원본과 일치."""
         # Given
         hold_state: HoldState = {
             "start_date": date(2026, 3, 15),

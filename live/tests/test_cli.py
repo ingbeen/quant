@@ -1,13 +1,4 @@
-"""live.cli 진입점 및 명령어 통합 테스트.
-
-TODO T-10.1 ~ T-10.3 시나리오 고정.
-
-테스트 원칙:
-- 실제 yfinance 호출 금지 (monkeypatch 로 live.data_fetcher 내부 함수 교체)
-- 파일 I/O 는 tmp_path 로 격리
-- git 작업은 ``state_dir`` fixture 로 ephemeral_state_repo 전체 대체 — 네트워크 없음
-- notify_failure 훅은 monkeypatch 로 감시
-"""
+"""live.cli 진입점 및 명령어 통합 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -88,10 +79,7 @@ def _make_recent_df(trade_date: date) -> pd.DataFrame:
 
 
 def _setup_flat_market_csvs(state_dir: Path, trade_date: date, rows: int = 210) -> None:
-    """state_dir/data/stock/ 에 6 종 티커의 평탄 CSV 를 미리 준비한다.
-
-    MA(200) 워밍업을 위해 충분한 행을 생성.
-    """
+    """state_dir/data/stock/ 에 포트폴리오 티커별 평탄 CSV 를 준비한다."""
     import pandas as pd
 
     dates = [date.fromordinal(trade_date.toordinal() - rows + 1 + i) for i in range(rows)]
@@ -117,15 +105,17 @@ def _setup_flat_market_csvs(state_dir: Path, trade_date: date, rows: int = 210) 
 
 
 class TestCmdInit:
-    def test_init_creates_live_state_json_t_10_1(self, state_dir: Path):
-        """T-10.1: init --capital 100000000 → live_state.json 생성 + 4 자산 초기화."""
+    def test_init_creates_live_state_json(self, state_dir: Path) -> None:
+        """Given init --capital When main 실행 Then live_state.json 생성 + 자산 초기화."""
+        from live.constants import LIVE_PORTFOLIO_ID
+
         exit_code = main(["init", "--capital", "100000000"])
         assert exit_code == 0
         state_path = state_dir / "live_state.json"
         assert state_path.exists()
 
         loaded = load_state(state_path)
-        assert loaded.portfolio_id == "portfolio_q2_2xs"
+        assert loaded.portfolio_id == LIVE_PORTFOLIO_ID
         assert loaded.shared_cash_model == pytest.approx(100_000_000.0)
         assert loaded.shared_cash_actual == pytest.approx(100_000_000.0)
         assert set(loaded.assets.keys()) == {"sso", "qld", "gld", "tlt"}
@@ -148,21 +138,19 @@ class TestCmdRunDailyFailures:
         main(["init", "--capital", "100000000"])
         assert (state_dir / "live_state.json").exists()
 
-    def test_data_fetch_failure_calls_notify_t_10_2(self, state_dir: Path, monkeypatch):
-        """T-10.2: data 수집 중 실패 → 중단 + _safe_notify_failure 호출."""
+    def test_data_fetch_failure_calls_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given data 수집 중 실패 When run-daily Then 중단 + _safe_notify_failure 호출."""
         self._init_state(state_dir)
 
-        # monkeypatch: fetch_recent_ohlc 가 ValueError 발생
-        def _failing_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+        def _failing_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             raise ValueError(f"테스트: yfinance 실패 {ticker}")
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _failing_fetch)
-        # RTDB 초기화는 None 반환으로 강제 (실제 Firebase 연결 없음)
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
 
         notify_calls: list[str] = []
 
-        def _spy_notify(rtdb_app, message: str) -> None:  # noqa: ANN001
+        def _spy_notify(rtdb_app: object, message: str) -> None:
             notify_calls.append(message)
 
         monkeypatch.setattr(cli_module, "_safe_notify_failure", _spy_notify)
@@ -174,23 +162,21 @@ class TestCmdRunDailyFailures:
         assert len(notify_calls) >= 1
         assert any("yfinance" in msg or "검증" in msg or "실패" in msg or "데이터" in msg for msg in notify_calls)
 
-    def test_calculation_failure_state_unchanged_t_10_3(self, state_dir: Path, monkeypatch):
-        """T-10.3: run_daily 내부 계산 실패 → 중단 + 상태 파일 변경 없음."""
+    def test_calculation_failure_state_unchanged(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given run_daily 내부 계산 실패 When run-daily Then 중단 + 상태 파일 변경 없음."""
         self._init_state(state_dir)
         state_path = state_dir / "live_state.json"
         original_mtime = state_path.stat().st_mtime
 
-        # CSV 준비
         _setup_flat_market_csvs(state_dir, date(2026, 4, 10))
 
-        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+        def _mock_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             return _make_recent_df(date(2026, 4, 10))
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
         _mock_rtdb_for_cli(monkeypatch)
 
-        # run_daily 호출을 실패하도록 monkeypatch
-        def _failing_run_daily(*args, **kwargs):  # noqa: ANN202
+        def _failing_run_daily(*args: object, **kwargs: object) -> object:
             raise RuntimeError("테스트: 엔진 내부 계산 실패")
 
         monkeypatch.setattr(cli_module, "run_daily", _failing_run_daily)
@@ -218,14 +204,14 @@ class TestCmdRunDailyFailures:
 
 
 class TestCmdRunDailySuccess:
-    def test_run_daily_smoke(self, state_dir: Path, monkeypatch):
-        """정상 경로 smoke — RTDB/알림을 모두 mock 한다."""
+    def test_run_daily_smoke(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given 정상 파이프라인 When run-daily Then exit 0."""
         main(["init", "--capital", "100000000"])
 
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
-        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+        def _mock_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             return _make_recent_df(trade_date)
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
@@ -234,13 +220,13 @@ class TestCmdRunDailySuccess:
         exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
         assert exit_code == 0
 
-    def test_run_daily_persists_history(self, state_dir: Path, monkeypatch):
-        """run-daily 가 history/daily/{date}.json 과 summary.jsonl 을 저장한다."""
+    def test_run_daily_persists_history(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given run-daily When 정상 종료 Then history/daily/{date}.json 과 summary.jsonl 저장."""
         main(["init", "--capital", "100000000"])
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
-        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+        def _mock_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             return _make_recent_df(trade_date)
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
@@ -251,35 +237,33 @@ class TestCmdRunDailySuccess:
         assert (state_dir / "history" / "daily" / f"{trade_date.isoformat()}.json").exists()
         assert (state_dir / "history" / "summary.jsonl").exists()
 
-    def test_run_daily_with_rtdb_calls_publish(self, state_dir: Path, monkeypatch):
-        """RTDB 활성화 시 publish_to_rtdb 와 send_daily_notifications 가 호출된다."""
+    def test_run_daily_with_rtdb_calls_publish(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given RTDB 활성화 When run-daily Then publish_to_rtdb + send_daily_notifications 호출."""
         main(["init", "--capital", "100000000"])
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
-        def _mock_fetch(ticker: str, days: int = 5):  # noqa: ANN202
+        def _mock_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             return _make_recent_df(trade_date)
 
         monkeypatch.setattr(cli_module, "fetch_recent_ohlc", _mock_fetch)
 
-        # Firebase 초기화 mock — fake app 객체 반환
         fake_app = object()
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
 
-        # rtdb_gateway 호출 모두 mock (fills + balance_adjusts 둘 다)
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
 
         publish_calls: list[bool] = []
 
-        def _spy_publish(app, state_dir, state, result):  # noqa: ANN001
+        def _spy_publish(app: object, state_dir: Path, state: object, result: object) -> None:
             publish_calls.append(True)
 
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", _spy_publish)
 
         notify_calls: list[bool] = []
 
-        def _spy_notify(app, result):  # noqa: ANN001
+        def _spy_notify(app: object, result: object) -> None:
             notify_calls.append(True)
 
         monkeypatch.setattr(cli_module, "_send_daily_notifications", _spy_notify)
@@ -298,12 +282,8 @@ class TestCmdRunDailySuccess:
 class TestFetchFills:
     """fetch-fills 는 RTDB 만 읽으므로 state_dir 가 필요 없다."""
 
-    def test_fetch_fills_rtdb_init_failure_triggers_notify(self, monkeypatch):
-        """Given Firebase 초기화 실패 When fetch-fills Then main 공통 훅이 알림 + exit 1.
-
-        과거 silent return 1 경로는 폐지. 이제 RuntimeError 전파 → main() 훅이
-        _safe_notify_failure 를 호출한 뒤 exit 1.
-        """
+    def test_fetch_fills_rtdb_init_failure_triggers_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase 초기화 실패 When fetch-fills Then main 공통 훅이 알림 + exit 1."""
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
         notify_calls: list[str] = []
         monkeypatch.setattr(
@@ -316,7 +296,9 @@ class TestFetchFills:
         assert len(notify_calls) >= 1
         assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
 
-    def test_fetch_fills_outputs_json(self, monkeypatch, capsys):
+    def test_fetch_fills_outputs_json(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         from live.models import ActualFill
 
         fake_app = object()
@@ -347,7 +329,7 @@ class TestFetchFills:
 
 
 class TestHistoryCmd:
-    def test_history_outputs_recent_lines(self, state_dir: Path, capsys):
+    def test_history_outputs_recent_lines(self, state_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
         # history/summary.jsonl 직접 작성
         hist_dir = state_dir / "history"
         hist_dir.mkdir(parents=True)
@@ -365,7 +347,7 @@ class TestHistoryCmd:
         assert "2026-04-10" in captured.out
         assert "2026-04-08" not in captured.out  # tail=2 로 제외됨
 
-    def test_history_no_file_returns_0(self, state_dir: Path):
+    def test_history_no_file_returns_0(self, state_dir: Path) -> None:
         del state_dir  # fixture 설치만 필요
         exit_code = main(["history"])
         assert exit_code == 0
@@ -374,7 +356,7 @@ class TestHistoryCmd:
 class TestNotifyFailureCmd:
     """notify-failure 는 state_dir 가 필요 없다."""
 
-    def test_notify_failure_calls_safe_notify(self, monkeypatch):
+    def test_notify_failure_calls_safe_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
         notify_calls: list[str] = []
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
         monkeypatch.setattr(
@@ -394,13 +376,13 @@ class TestNotifyFailureCmd:
 
 
 class TestMainArgv:
-    def test_main_accepts_argv_list(self, state_dir: Path):
-        """main 은 argv 리스트를 직접 받을 수 있다 (테스트 용이)."""
+    def test_main_accepts_argv_list(self, state_dir: Path) -> None:
+        """Given argv 리스트 When main 호출 Then 정상 실행."""
         del state_dir  # fixture 설치만 필요
         exit_code = main(["init", "--capital", "10000000"])
         assert exit_code == 0
 
-    def test_main_missing_subcommand_exits_with_error(self):
+    def test_main_missing_subcommand_exits_with_error(self) -> None:
         """subcommand 없이 호출 → SystemExit (argparse)."""
         with pytest.raises(SystemExit):
             main([])
@@ -412,12 +394,7 @@ class TestMainArgv:
 
 
 class TestDotenvLoading:
-    """``_load_dotenv_if_present`` 동작 검증.
-
-    로컬 수동 테스트에서 매번 ``export`` 하지 않고 프로젝트 루트의 ``.env``
-    파일로 환경변수를 공급할 수 있게 한 기능. GitHub Actions 는 파일 없이
-    동작해야 하고, 기존 환경변수를 덮어쓰면 안 된다.
-    """
+    """``_load_dotenv_if_present`` 동작을 검증한다."""
 
     def test_dotenv_injects_variables_when_file_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given `.env` 파일이 존재하면 When 로드 호출 시 Then os.environ 에 주입된다."""
@@ -449,11 +426,7 @@ class TestDotenvLoading:
         assert os.environ.get("QBT_TEST_DOTENV_PREEXIST") == "kept"
 
     def test_dotenv_does_not_override_existing_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given 기존 env 가 있고 `.env` 에도 같은 키가 있을 때
-        When 로드 호출 시 Then 기존 env 값이 우선한다 (override=False).
-
-        이 동작이 없으면 GitHub Actions 의 ``env:`` 블록이 무력화될 수 있다.
-        """
+        """Given 기존 env + `.env` 동일 키 When 로드 Then 기존 env 우선 (override=False)."""
         dotenv_path = tmp_path / ".env"
         dotenv_path.write_text(
             "QBT_TEST_DOTENV_OVERRIDE=from_file\n",
@@ -468,12 +441,7 @@ class TestDotenvLoading:
         assert os.environ.get("QBT_TEST_DOTENV_OVERRIDE") == "from_actions"
 
     def test_project_root_constant_points_to_repo_root(self) -> None:
-        """``_PROJECT_ROOT`` 가 실제 프로젝트 루트를 가리키는지 확인.
-
-        루트에는 ``pyproject.toml`` 과 ``live`` 디렉토리가 존재해야 한다.
-        이 검사는 파일 레이아웃 변경으로 ``parents[3]`` 인덱스가 깨지는 사고를
-        방지한다.
-        """
+        """Given ``_PROJECT_ROOT`` 상수 Then 실제 프로젝트 루트를 가리킨다."""
         root = cli_module._PROJECT_ROOT
         assert (root / "pyproject.toml").is_file()
         assert (root / "live").is_dir()
@@ -486,14 +454,11 @@ class TestDotenvLoading:
 
 
 class TestEphemeralStateRepo:
-    """CLI 가 매 실행마다 qbt-live-state 리포를 tempdir 에 clone 하고,
-    쓰기 명령이면 commit/push 를 자동 수행하며, 어떤 경우에도 tempdir 을
-    정리하는지 검증한다.
-    """
+    """CLI 의 ephemeral state repo 컨텍스트 매니저 계약을 검증한다."""
 
     @pytest.fixture
     def _fake_git(self, monkeypatch: pytest.MonkeyPatch) -> dict:
-        """git_clone_shallow / git_commit_and_push 를 모킹하고 호출 기록을 수집."""
+        """git_clone_shallow / git_commit_and_push 를 모킹하고 호출 기록을 수집한다."""
         log: dict = {"clone": [], "push": []}
 
         def fake_clone(remote_url: str, dest: Path, *, pat: str | None = None) -> None:
@@ -524,7 +489,7 @@ class TestEphemeralStateRepo:
         monkeypatch.setenv("STATE_REPO_PAT", "ghp_test_token")
         return log
 
-    def test_write_command_clones_and_pushes(self, _fake_git: dict):
+    def test_write_command_clones_and_pushes(self, _fake_git: dict) -> None:
         """Given 쓰기 명령(push_on_success=True) When 컨텍스트 진입/탈출 Then clone + push 모두 호출."""
         with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
             assert state_dir.is_dir()
@@ -592,7 +557,7 @@ class TestEphemeralStateRepo:
 
 
 # ============================================================================
-# data_validator wiring (Gap 1)
+# data_validator wiring
 # ============================================================================
 
 
@@ -791,7 +756,7 @@ class TestRunDailyValidatorIntegration:
         assert any("검증" in msg or "OHLC" in msg or "High" in msg for msg in notify_calls)
 
     def test_newly_applied_fills_persist_to_user_trades_jsonl(self, state_dir: Path, monkeypatch):
-        """Given RTDB 에 새 fill 도착 When run-daily Then history/user_trades.jsonl 에 append (Gap 3/4)."""
+        """Given RTDB 에 새 fill 도착 When run-daily Then history/user_trades.jsonl 에 append."""
         main(["init", "--capital", "100000000"])
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)

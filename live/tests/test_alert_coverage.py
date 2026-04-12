@@ -1,19 +1,4 @@
-"""live.cli 알림 커버리지 테스트.
-
-루트 CLAUDE.md "에러 발생 시 자동 복구 금지" 원칙과 사용자 요구 "cli.py 가 실행되면
-에러 발생 시 중단 + 무조건 알림 발송" 을 고정한다.
-
-검증 대상:
-
-- ``main()`` 공통 알림 훅: 모든 CLI 커맨드의 예외가 ``_safe_notify_failure`` 를
-  통과해야 한다. ``_cmd_run_daily`` 만 예외 처리되던 과거 구조 회귀 방지.
-- ``notify-failure`` 재귀 방지: ``notify-failure`` 커맨드 자체는 실패 알림을
-  재귀 발송하지 않아야 한다 (무한 루프 방지).
-- ``_cmd_run_daily`` 의 try 진입 전 코드 (trade_date 파싱, NYSE 체크) 예외도
-  알림 훅을 통과해야 한다.
-- history 저장 실패 / calendar 로드 실패가 RuntimeError 로 전파되어 알림 훅에
-  도달해야 한다 (silent continue / fallback 금지).
-"""
+"""live.cli 알림 커버리지 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -35,10 +20,7 @@ from live.cli import main
 
 @pytest.fixture
 def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """``cli_module.ephemeral_state_repo`` 를 ``tmp_path`` 로 교체.
-
-    test_cli.py 의 동일 fixture 와 같은 구조 — 네트워크 없이 state 격리.
-    """
+    """``cli_module.ephemeral_state_repo`` 를 ``tmp_path`` 로 교체하여 state 를 격리한다."""
 
     @contextmanager
     def fake_ephemeral(*, push_on_success: bool, commit_subcommand: str):
@@ -104,11 +86,7 @@ def _setup_flat_csvs(state_dir: Path, trade_date: date, rows: int = 210) -> None
 
 
 class TestMainAlertHookCoversAllCommands:
-    """``main()`` 의 공통 try/except 가 모든 커맨드의 예외를 캐치하여 알림을
-    발송해야 한다. 과거에는 ``_cmd_run_daily`` 만 자체 try/except 로 알림을
-    호출했으나, 사용자 요구 "cli 실행 시 에러 발생 → 무조건 알림" 에 따라
-    모든 커맨드가 공통 훅을 통과해야 한다.
-    """
+    """``main()`` 공통 try/except 가 모든 커맨드의 예외를 캐치하여 알림을 발송해야 한다."""
 
     def test_init_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given init 중 예외 When main 실행 Then notify 호출."""
@@ -227,13 +205,7 @@ class TestNotifyFailureCommandNoRecursion:
         assert call_count["count"] == 1  # main 훅에서 중복 호출되지 않아야 함
 
     def test_notify_failure_command_even_on_rtdb_init_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given notify-failure 에서 rtdb_app 초기화 예외 When main 실행 Then
-        main 훅이 이를 캐치하더라도 _safe_notify_failure 가 재귀 호출되지 않아야 한다.
-
-        현재 _initialize_rtdb_app 는 실패 시 None 반환 (예외 아님) 이지만,
-        방어적으로 예외 케이스도 검증한다. main() 훅은 notify-failure 커맨드의 경우
-        재귀 방지를 위해 _safe_notify_failure 를 추가로 호출해서는 안 된다.
-        """
+        """Given notify-failure 에서 rtdb_app 초기화 예외 When main 실행 Then _safe_notify_failure 재귀 호출 없음."""
         call_count = {"count": 0}
 
         def _counting_notify(rtdb_app: Any, message: str) -> None:
@@ -259,10 +231,7 @@ class TestNotifyFailureCommandNoRecursion:
 
 
 class TestRunDailyPreTryCoverage:
-    """``_cmd_run_daily`` 의 try 블록 진입 전 코드 (trade_date 파싱, NYSE 체크,
-    휴장 분기) 에서 발생하는 예외도 알림 훅을 통과해야 한다. 과거에는 이 영역이
-    try 바깥이라 예외가 알림 없이 `main()` 으로 전파되었다.
-    """
+    """``_cmd_run_daily`` 의 try 블록 진입 전 코드에서 발생한 예외도 알림 훅을 통과해야 한다."""
 
     def test_invalid_trade_date_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given 잘못된 --trade-date 문자열 When main 실행 Then notify 호출."""
@@ -294,12 +263,7 @@ class TestRunDailyPreTryCoverage:
 
 
 class TestHistoryPersistFailureRaises:
-    """``_persist_history`` 실패 시 silent continue 하지 말고 RuntimeError 로
-    전파되어 알림 훅에 도달해야 한다.
-
-    과거 구조: cli.py:502-505 에서 `except Exception as exc: logger.error(...)`
-    로 예외를 삼키고 다음 단계로 진행 → 상위 알림 훅에 도달 못함.
-    """
+    """``_persist_history`` 실패 시 RuntimeError 로 전파되어 알림 훅에 도달해야 한다."""
 
     def _init_state(self) -> None:
         main(["init", "--capital", "100000000"])
@@ -331,12 +295,7 @@ class TestHistoryPersistFailureRaises:
 
 
 class TestCalendarLoadFailureRaises:
-    """``_get_nyse_calendar()`` 실패 시 ``calendar = None`` 으로 gap 검증을
-    skip 하지 말고 RuntimeError 로 전파되어야 한다.
-
-    과거 구조: cli.py:598-601 에서 `except RuntimeError: calendar = None` 으로
-    gap 검증을 무력화. 루트 CLAUDE.md "자동 복구 금지" 원칙 위반.
-    """
+    """``_get_nyse_calendar()`` 실패 시 RuntimeError 로 전파되어야 한다 (fallback 금지)."""
 
     def _init_state(self) -> None:
         main(["init", "--capital", "100000000"])

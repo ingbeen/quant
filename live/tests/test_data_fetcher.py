@@ -1,13 +1,4 @@
-"""live.data_fetcher — yfinance 수집 및 CSV 누적 append 테스트.
-
-설계서 2장, 부록 A 의 계약을 고정한다. TODO T-5.1 ~ T-5.4 시나리오 포함.
-
-테스트 원칙:
-- 외부 네트워크 호출 금지: `yfinance.Ticker` 는 monkeypatch 로 mock
-- 파일 I/O 격리: tmp_path 사용
-- Given-When-Then 패턴
-- 부동소수점은 pytest.approx
-"""
+"""live.data_fetcher yfinance 수집 및 CSV 누적 append 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -229,8 +220,8 @@ class TestAppendTodayToCsv:
             }
         )
 
-    def test_append_to_csv_with_3_rows_results_in_4_t_5_1(self, tmp_path: Path):
-        """T-5.1: 3 행 CSV 에 append → 4 행."""
+    def test_append_to_csv_with_3_rows_results_in_4(self, tmp_path: Path):
+        """Given 3 행 CSV When append Then 4 행."""
         # Given: 3행 CSV
         existing = _make_qbt_csv_df(["2026-04-08", "2026-04-09", "2026-04-10"])
         csv_path = tmp_path / "SPY.csv"
@@ -245,8 +236,8 @@ class TestAppendTodayToCsv:
         assert loaded["Date"].iloc[-1] == date(2026, 4, 11)
         assert loaded["Close"].iloc[-1] == pytest.approx(105.5)
 
-    def test_append_same_date_is_noop_t_5_2(self, tmp_path: Path):
-        """T-5.2: 같은 날짜 이미 존재 → 행수 변화 없음 (중복 방지)."""
+    def test_append_same_date_is_noop(self, tmp_path: Path):
+        """Given 같은 날짜 이미 존재 When append Then 행수 변화 없음 (중복 방지)."""
         # Given: 같은 날짜를 포함한 CSV
         existing = _make_qbt_csv_df(["2026-04-09", "2026-04-10", "2026-04-11"])
         csv_path = tmp_path / "SPY.csv"
@@ -263,8 +254,8 @@ class TestAppendTodayToCsv:
         last_close = loaded[loaded["Date"] == date(2026, 4, 11)]["Close"].iloc[0]
         assert last_close == pytest.approx(102.5)  # 기존 값 (100.5 + 2)
 
-    def test_append_to_nonexistent_file_t_5_4(self, tmp_path: Path):
-        """T-5.4: 파일이 없을 때 append → 새 파일 생성 (1 행)."""
+    def test_append_to_nonexistent_file(self, tmp_path: Path):
+        """Given 파일 없음 When append Then 새 파일 생성 (1 행)."""
         csv_path = tmp_path / "SPY.csv"
         assert not csv_path.exists()
 
@@ -341,8 +332,8 @@ class TestAppendTodayToCsv:
 
 
 class TestLoadCsv:
-    def test_load_csv_compatible_with_qbt_load_stock_data_t_5_3(self, tmp_path: Path):
-        """T-5.3: live.load_csv 결과와 QBT load_stock_data 결과가 동일."""
+    def test_load_csv_compatible_with_qbt_load_stock_data(self, tmp_path: Path):
+        """Given 동일 CSV When live.load_csv 와 QBT load_stock_data 호출 Then 결과 일치."""
         from qbt.utils.data_loader import load_stock_data
 
         # Given

@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -40,12 +40,12 @@
 
 ## 1) 목표(Goal)
 
-- [ ] live 테스트의 모든 `TODO T-X.Y`, `TODO_QBT_LIVE.md`, `설계서 X장/X.Y`, `Phase X`, `레드/그린` 과거 상태 표기 제거
-- [ ] 테스트 docstring/주석에서 `"과거 구조:"`, `"기존 구조:"`, `"이전에는"` 식 설명 제거
-- [ ] 하드코딩된 수치/리스트 복제 제거 (예: `"4 자산"`, `"6 종"`, `"Q-2-2XS"`, `"portfolio_q2_2xs"`, `"252 거래일"`, `"200 일"`)
-- [ ] 연산 결과 float 비교에 `pytest.approx()` 적용 (초기값/라벨/정수 비교는 `==` 유지)
-- [ ] `# noqa: ANN001` (함수 인자 타입 힌트 누락) 를 픽스처 타입힌트 추가로 제거
-- [ ] 테스트 docstring 은 "무엇을 검증하는가" 계약 중심으로 단순화 (Given-When-Then 구조 유지)
+- [x] live 테스트의 모든 `TODO T-X.Y`, `TODO_QBT_LIVE.md`, `설계서 X장/X.Y`, `Phase X`, `레드/그린` 과거 상태 표기 제거
+- [x] 테스트 docstring/주석에서 `"과거 구조:"`, `"기존 구조:"`, `"이전에는"` 식 설명 제거
+- [x] 하드코딩된 수치/리스트 복제 제거 (예: `"4 자산"`, `"6 종"`, `"Q-2-2XS"`, `"portfolio_q2_2xs"`, `"252 거래일"`, `"200 일"`)
+- [x] 연산 결과 float 비교에 `pytest.approx()` 적용 (초기값/라벨/정수 비교는 `==` 유지)
+- [x] `# noqa: ANN001` (함수 인자 타입 힌트 누락) 를 픽스처 타입힌트 추가로 제거
+- [x] 테스트 docstring 은 "무엇을 검증하는가" 계약 중심으로 단순화 (Given-When-Then 구조 유지)
 
 ## 2) 비목표(Non-Goals)
 
@@ -76,34 +76,34 @@
 
 ## 4) 완료 조건(Definition of Done)
 
-- [ ] `live/tests/` 하위 모든 `.py` 파일에서 다음 패턴 제거:
-  - [ ] `TODO T-X.Y` (및 변형 `T-X.Y`)
-  - [ ] `TODO_QBT_LIVE.md` 참조
-  - [ ] `설계서 X장`, `설계서 X.Y`, `부록 A/B`, `Gap N`
-  - [ ] `Phase X`, `레드`, `그린`, `1차/2차 마이그레이션` 등 단계 표현
-  - [ ] `"과거 구조:"`, `"기존 구조:"`, `"이전에는"`, `"과거에는"` 식 서술
-- [ ] live 테스트 docstring/주석에서 다음 하드코딩 수치/ID 제거 또는 "현재 포트폴리오 기준" 으로 일반화:
-  - [ ] `"4 자산"`, `"4 개 자산"`
-  - [ ] `"6 종"`, `"6 개 티커"`
-  - [ ] `"Q-2-2XS"`, `"portfolio_q2_2xs"` (상수 참조로 대체)
-  - [ ] `"252 거래일"` (필요 시 `ANNUAL_TRADING_DAYS` 상수 참조 혹은 docstring 에서 삭제)
-  - [ ] `"200 일"`, `"200일선"`, `"EMA-200"` (`slot.ma_window` 기반으로 일반화)
-  - [ ] `"SPY→SSO, QQQ→QLD, GLD→GLD, TLT→TLT"` (하드코딩된 매핑 예시)
-- [ ] 계산 결과 float 비교에 `pytest.approx()` 적용:
-  - [ ] `test_drift.py` 의 drift_pct / equity 계산 결과
-  - [ ] `test_daily_runner.py` 의 model_equity / ma_distance_pct 계산 결과
-  - [ ] `test_buffer_serializer.py` 의 `_prev_upper / _prev_lower` 왕복값 (단, 초기 상수값 복원은 `==` 허용)
-  - [ ] 초기값/정수/라벨/날짜 비교는 `==` 유지
-- [ ] `# noqa: ANN001` 제거:
-  - [ ] `test_daily_runner.py` — 픽스처 함수 반환 타입 힌트 추가
-  - [ ] `test_git_state.py` — subprocess 관련 mock 헬퍼 타입 힌트
-  - [ ] `test_rtdb_gateway.py` — mock 클래스에 적절한 Protocol / TypedDict
-  - [ ] `test_alert_coverage.py` — 픽스처 타입 힌트
-- [ ] 테스트 docstring 은 Given-When-Then 구조 유지 + 목적 한 줄 + 핵심 계약 한 줄 이상
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] plan 체크박스 최신화
+- [x] `live/tests/` 하위 모든 `.py` 파일에서 다음 패턴 제거:
+  - [x] `TODO T-X.Y` (및 변형 `T-X.Y`)
+  - [x] `TODO_QBT_LIVE.md` 참조
+  - [x] `설계서 X장`, `설계서 X.Y`, `부록 A/B`, `Gap N`
+  - [x] `Phase X`, `레드`, `그린`, `1차/2차 마이그레이션` 등 단계 표현
+  - [x] `"과거 구조:"`, `"기존 구조:"`, `"이전에는"`, `"과거에는"` 식 서술
+- [x] live 테스트 docstring/주석에서 다음 하드코딩 수치/ID 제거 또는 "현재 포트폴리오 기준" 으로 일반화:
+  - [x] `"4 자산"`, `"4 개 자산"`
+  - [x] `"6 종"`, `"6 개 티커"`
+  - [x] `"Q-2-2XS"`, `"portfolio_q2_2xs"` (상수 참조로 대체)
+  - [x] `"252 거래일"` (필요 시 `ANNUAL_TRADING_DAYS` 상수 참조 혹은 docstring 에서 삭제)
+  - [x] `"200 일"`, `"200일선"`, `"EMA-200"` (`slot.ma_window` 기반으로 일반화)
+  - [x] `"SPY→SSO, QQQ→QLD, GLD→GLD, TLT→TLT"` (하드코딩된 매핑 예시)
+- [x] 계산 결과 float 비교에 `pytest.approx()` 적용:
+  - [x] `test_drift.py` 의 drift_pct / equity 계산 결과
+  - [x] `test_daily_runner.py` 의 model_equity / ma_distance_pct 계산 결과
+  - [x] `test_buffer_serializer.py` 의 `_prev_upper / _prev_lower` 왕복값 (단, 초기 상수값 복원은 `==` 허용)
+  - [x] 초기값/정수/라벨/날짜 비교는 `==` 유지
+- [x] `# noqa: ANN001` 제거:
+  - [x] `test_daily_runner.py` — 픽스처 함수 반환 타입 힌트 추가
+  - [x] `test_git_state.py` — subprocess 관련 mock 헬퍼 타입 힌트
+  - [x] `test_rtdb_gateway.py` — mock 클래스에 적절한 Protocol / TypedDict
+  - [x] `test_alert_coverage.py` — 픽스처 타입 힌트
+- [x] 테스트 docstring 은 Given-When-Then 구조 유지 + 목적 한 줄 + 핵심 계약 한 줄 이상
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase에서 자동 포맷 적용)
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] plan 체크박스 최신화
 
 ## 5) 변경 범위(Scope)
 
@@ -141,11 +141,11 @@
 
 **작업 내용**:
 
-- [ ] 각 파일 상단 모듈 docstring 의 `TODO T-X.Y`, `TODO_QBT_LIVE.md`, `설계서 X장` 제거. 필요 시 한 줄 요약 ("buffer_serializer 어댑터 왕복 계약 테스트") 으로 대체
-- [ ] 각 테스트 메서드 docstring 의 `"T-X.Y:"` 접두사 제거
-- [ ] `"과거 구조:"`, `"기존 구조:"`, `"이전에는"` 식 주석/docstring 제거
-- [ ] `Phase X`, `레드`, `그린`, `1차` 등 단계 표현 제거
-- [ ] `부록 A/B`, `Gap N` 문구 제거
+- [x] 각 파일 상단 모듈 docstring 의 `TODO T-X.Y`, `TODO_QBT_LIVE.md`, `설계서 X장` 제거. 필요 시 한 줄 요약 ("buffer_serializer 어댑터 왕복 계약 테스트") 으로 대체
+- [x] 각 테스트 메서드 docstring 의 `"T-X.Y:"` 접두사 제거
+- [x] `"과거 구조:"`, `"기존 구조:"`, `"이전에는"` 식 주석/docstring 제거
+- [x] `Phase X`, `레드`, `그린`, `1차` 등 단계 표현 제거
+- [x] `부록 A/B`, `Gap N` 문구 제거
 
 ---
 
@@ -153,12 +153,12 @@
 
 **작업 내용**:
 
-- [ ] `"4 자산"`, `"4 개 자산"` → `"포트폴리오 자산"` 또는 삭제
-- [ ] `"6 종"`, `"6 개 티커"` → `"포트폴리오 자산 티커"` 또는 `len(_collect_all_tickers())` 참조
-- [ ] `"Q-2-2XS"`, `"portfolio_q2_2xs"` → `LIVE_PORTFOLIO_ID` 상수 참조. 테스트 내에서 실제 문자열 비교가 필요한 경우 `from live.constants import LIVE_PORTFOLIO_ID` 후 `assert config.experiment_name == LIVE_PORTFOLIO_ID` 식으로 변경
-- [ ] `"200 일"` / `"200일선"` / `"EMA-200"` → `slot.ma_window` 기반 표현 또는 MA 일반화. notifier 본문 테스트는 `"MA 근접도"` 로 이미 업데이트됨 (PLAN_live_chart_ma_rename)
-- [ ] `"SPY→SSO, QQQ→QLD"` 같은 매핑 예시 주석 제거 — `build_signal_trade_map()` 함수 실행 결과로 검증하되 구체 값은 주석에 남기지 않음
-- [ ] `"252 거래일"` 은 `ANNUAL_TRADING_DAYS` 라는 공통 상수가 있는지 확인 후 참조 또는 제거
+- [x] `"4 자산"`, `"4 개 자산"` → `"포트폴리오 자산"` 또는 삭제
+- [x] `"6 종"`, `"6 개 티커"` → `"포트폴리오 자산 티커"` 또는 `len(_collect_all_tickers())` 참조
+- [x] `"Q-2-2XS"`, `"portfolio_q2_2xs"` → `LIVE_PORTFOLIO_ID` 상수 참조. 테스트 내에서 실제 문자열 비교가 필요한 경우 `from live.constants import LIVE_PORTFOLIO_ID` 후 `assert config.experiment_name == LIVE_PORTFOLIO_ID` 식으로 변경
+- [x] `"200 일"` / `"200일선"` / `"EMA-200"` → `slot.ma_window` 기반 표현 또는 MA 일반화. notifier 본문 테스트는 `"MA 근접도"` 로 이미 업데이트됨 (PLAN_live_chart_ma_rename)
+- [x] `"SPY→SSO, QQQ→QLD"` 같은 매핑 예시 주석 제거 — `build_signal_trade_map()` 함수 실행 결과로 검증하되 구체 값은 주석에 남기지 않음
+- [x] `"252 거래일"` 은 `ANNUAL_TRADING_DAYS` 라는 공통 상수가 있는지 확인 후 참조 또는 제거
 
 ---
 
@@ -166,15 +166,15 @@
 
 **작업 내용**:
 
-- [ ] 각 테스트 파일에서 다음 패턴을 검토:
+- [x] 각 테스트 파일에서 다음 패턴을 검토:
   - `result.drift_pct == 0.0` → `result.drift_pct == pytest.approx(0.0)` (계산 결과인 경우)
   - `asset.model_avg_entry_price == 0.0` → **`==` 유지** (초기값 할당)
   - 밴드/equity/pnl 등 계산 결과 → `pytest.approx(expected, abs=적절한 허용오차)`
-- [ ] 허용오차 기준은 `tests/CLAUDE.md` 표 참조 (equity → 0.01~0.1, drift_pct → 0.1 등)
-- [ ] `# noqa: ANN001` 대상:
-  - [ ] 픽스처 함수의 인자 타입 힌트(`tmp_path: Path`, `monkeypatch: pytest.MonkeyPatch`, `caplog: pytest.LogCaptureFixture`) 추가
-  - [ ] mock 클래스의 `__init__` / 메서드 인자에 `Any` 또는 실제 타입 지정
-- [ ] lint 오류가 발생하면 ruff/pyright 메시지에 따라 수정
+- [x] 허용오차 기준은 `tests/CLAUDE.md` 표 참조 (equity → 0.01~0.1, drift_pct → 0.1 등)
+- [x] `# noqa: ANN001` 대상:
+  - [x] 픽스처 함수의 인자 타입 힌트(`tmp_path: Path`, `monkeypatch: pytest.MonkeyPatch`, `caplog: pytest.LogCaptureFixture`) 추가
+  - [x] mock 클래스의 `__init__` / 메서드 인자에 `Any` 또는 실제 타입 지정
+- [x] lint 오류가 발생하면 ruff/pyright 메시지에 따라 수정
 
 ---
 
@@ -182,10 +182,10 @@
 
 **작업 내용**:
 
-- [ ] 각 테스트 파일을 훑어 Given-When-Then 3 단계 주석이 누락된 부분이 있는지 확인, 필요 시 최소한 `# Given / # When / # Then` 주석 추가 (기존 구조가 이미 있으면 유지)
-- [ ] docstring 이 과도하게 장황한 경우 한두 줄로 압축
-- [ ] 테스트 파일 import 순서/알파벳 정렬 통일
-- [ ] `conftest.py` 의 픽스처 타입힌트 점검
+- [x] 각 테스트 파일을 훑어 Given-When-Then 3 단계 주석이 누락된 부분이 있는지 확인, 필요 시 최소한 `# Given / # When / # Then` 주석 추가 (기존 구조가 이미 있으면 유지)
+- [x] docstring 이 과도하게 장황한 경우 한두 줄로 압축
+- [x] 테스트 파일 import 순서/알파벳 정렬 통일
+- [x] `conftest.py` 의 픽스처 타입힌트 점검
 
 ---
 
@@ -193,15 +193,15 @@
 
 **작업 내용**
 
-- [ ] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
-- [ ] `poetry run black .` 실행(자동 포맷 적용)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 필요한 문서 업데이트 (`README.md` 변경 없음 명시)
+- [x] `poetry run black .` 실행(자동 포맷 적용)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=__, failed=__, skipped=__)
+- [x] `poetry run python validate_project.py` (passed=881, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 

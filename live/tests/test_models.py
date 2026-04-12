@@ -1,13 +1,4 @@
-"""live.models 데이터 모델 계약/불변조건 테스트.
-
-설계서 부록 B 에 정의된 dataclass / TypedDict 의 필드 구조를 고정하여
-회귀를 방지한다.
-
-테스트 철학 (tests/CLAUDE.md 참고):
-- Given-When-Then 패턴
-- 부동소수점 비교는 pytest.approx()
-- 외부 네트워크 호출 없음 (데이터 모델 구조 검증만 수행)
-"""
+"""live.models 데이터 모델 계약/불변조건을 고정한다."""
 
 from __future__ import annotations
 
@@ -34,15 +25,10 @@ from live.models import (
 
 
 class TestPendingOrderDict:
-    """PendingOrderDict 는 설계서 명시대로 execute_on 필드가 없어야 한다."""
+    """PendingOrderDict 는 execute_on 필드가 없는 순수 주문 의도 구조여야 한다."""
 
     def test_pending_order_dict_has_no_execute_on(self):
-        """설계서 5.1: execute_on 필드가 존재해서는 안 된다.
-
-        Given: PendingOrderDict TypedDict
-        When : __annotations__ 를 조회
-        Then : execute_on 키가 없음
-        """
+        """Given PendingOrderDict When __annotations__ 조회 Then execute_on 키 없음."""
         # Given / When
         annotations = PendingOrderDict.__annotations__
 
@@ -50,12 +36,7 @@ class TestPendingOrderDict:
         assert "execute_on" not in annotations, "PendingOrderDict 에 execute_on 필드가 있으면 안 된다"
 
     def test_pending_order_dict_required_keys(self):
-        """설계서 부록 B: PendingOrderDict 필수 키 검증.
-
-        Given: PendingOrderDict TypedDict
-        When : annotation 조회
-        Then : 설계서 명시 키 9 개 모두 존재
-        """
+        """Given PendingOrderDict When annotation 조회 Then 필수 키 모두 존재."""
         # Given
         expected_keys = {
             "asset_id",
@@ -73,7 +54,7 @@ class TestPendingOrderDict:
         annotations = set(PendingOrderDict.__annotations__.keys())
 
         # Then
-        assert expected_keys == annotations, f"PendingOrderDict 필드가 설계서와 다름. 기대: {expected_keys}, 실제: {annotations}"
+        assert expected_keys == annotations, f"PendingOrderDict 필드 불일치. 기대: {expected_keys}, 실제: {annotations}"
 
 
 class TestAssetLiveState:
@@ -84,13 +65,7 @@ class TestAssetLiveState:
         assert is_dataclass(AssetLiveState)
 
     def test_has_model_and_actual_fields_separated(self):
-        """설계서 5.1: model / actual 필드가 명시적으로 분리되어 있어야 한다.
-
-        Given: AssetLiveState dataclass
-        When : 필드 이름 수집
-        Then : model_shares, model_avg_entry_price, model_entry_date,
-               actual_shares, actual_avg_entry_price, actual_entry_date 모두 존재
-        """
+        """Given AssetLiveState When 필드 조회 Then model / actual 필드가 분리되어 존재."""
         # Given
         required_fields = {
             "model_shares",
@@ -109,7 +84,7 @@ class TestAssetLiveState:
         assert not missing, f"AssetLiveState 에 누락된 model/actual 필드: {missing}"
 
     def test_has_pending_order_and_buffer_zone_state(self):
-        """설계서 5.1: pending_order, buffer_zone_state 필드 존재."""
+        """Given AssetLiveState Then pending_order / buffer_zone_state 필드 존재."""
         field_names = {f.name for f in fields(AssetLiveState)}
         assert "pending_order" in field_names
         assert "buffer_zone_state" in field_names
@@ -125,13 +100,13 @@ class TestLiveState:
         assert is_dataclass(LiveState)
 
     def test_has_both_model_and_actual_cash(self):
-        """설계서 5.1: shared_cash_model 과 shared_cash_actual 분리."""
+        """Given LiveState Then shared_cash_model 과 shared_cash_actual 이 분리된다."""
         field_names = {f.name for f in fields(LiveState)}
         assert "shared_cash_model" in field_names
         assert "shared_cash_actual" in field_names
 
     def test_has_required_metadata(self):
-        """설계서 5.1: schema_version, portfolio_id, created_at, updated_at 필드."""
+        """Given LiveState Then schema_version / portfolio_id / created_at / updated_at 존재."""
         field_names = {f.name for f in fields(LiveState)}
         assert "schema_version" in field_names
         assert "portfolio_id" in field_names
@@ -139,7 +114,7 @@ class TestLiveState:
         assert "updated_at" in field_names
 
     def test_has_signal_and_execution_timestamps(self):
-        """설계서 5.1: last_signal_date, last_model_execution_date, last_rebalance_date."""
+        """Given LiveState Then last_signal_date / last_model_execution_date / last_rebalance_date 존재."""
         field_names = {f.name for f in fields(LiveState)}
         assert "last_signal_date" in field_names
         assert "last_model_execution_date" in field_names
@@ -157,13 +132,7 @@ class TestBufferZoneState:
         assert is_dataclass(BufferZoneState)
 
     def test_fields(self):
-        """설계서 5.1: BufferZoneState 필수 필드.
-
-        Given: BufferZoneState dataclass
-        When : 필드 이름 수집
-        Then : prev_upper, prev_lower, hold_state, last_buy_buffer_pct,
-               last_hold_days_used, schema_version 모두 존재
-        """
+        """Given BufferZoneState When 필드 조회 Then 필수 필드 세트와 정확히 일치."""
         expected = {
             "prev_upper",
             "prev_lower",
@@ -194,7 +163,7 @@ class TestSignalDetection:
         assert is_dataclass(SignalDetection)
 
     def test_fields(self):
-        """B 안: state, close, upper_band, lower_band, ma_value, ma_distance_pct."""
+        """Given SignalDetection Then state / close / 밴드 / ma / 거리% 필드가 모두 존재."""
         expected = {
             "state",
             "close",
@@ -207,12 +176,11 @@ class TestSignalDetection:
         assert expected == actual
 
     def test_state_literal_values(self):
-        """state 필드는 'buy' | 'sell' | 'none' 중 하나만 허용."""
+        """state 필드는 'buy' | 'sell' | 'none' 중 하나만 허용한다."""
         hints = get_type_hints(SignalDetection, include_extras=False)
         state_type = hints["state"]
-        # typing.Literal 은 get_args 로 값 추출 가능
         allowed = set(get_args(state_type))
-        assert allowed == {"buy", "sell", "none"}, f"SignalDetection.state 리터럴이 설계 선택과 다름: {allowed}"
+        assert allowed == {"buy", "sell", "none"}, f"SignalDetection.state 리터럴 불일치: {allowed}"
 
     def test_create_buy_signal_detection(self):
         """Given: 정상 수치. When: buy SignalDetection 생성. Then: 필드 값 일치."""
@@ -237,7 +205,7 @@ class TestActualFill:
         assert is_dataclass(ActualFill)
 
     def test_fields(self):
-        """설계서 부록 B: ActualFill 전체 필드."""
+        """Given ActualFill Then 전체 필드 세트가 고정되어 있다."""
         expected = {
             "asset_id",
             "direction",
@@ -254,7 +222,7 @@ class TestActualFill:
 
 
 class TestBalanceAdjust:
-    """설계서 6.4 자산 직접 수정 / Gap 2."""
+    """자산 직접 수정용 ``BalanceAdjust`` 필드 계약."""
 
     def test_is_dataclass(self):
         assert is_dataclass(BalanceAdjust)
@@ -330,7 +298,7 @@ class TestChartSeries:
         assert is_dataclass(ChartSeries)
 
     def test_fields(self):
-        """설계서 부록 B: ChartSeries 전체 필드."""
+        """Given ChartSeries Then 전체 필드 세트가 고정되어 있다."""
         expected = {
             "dates",
             "close",
@@ -351,7 +319,7 @@ class TestDriftReport:
         assert is_dataclass(DriftReport)
 
     def test_fields(self):
-        """설계서 부록 B: DriftReport 전체 필드."""
+        """Given DriftReport Then 전체 필드 세트가 고정되어 있다."""
         expected = {
             "model_equity",
             "actual_equity",
@@ -364,15 +332,13 @@ class TestDriftReport:
 
 
 class TestAssetDrift:
-    """설계서 부록 B 에 DriftReport.per_asset 의 타입으로만 언급됨.
-    필드 구성은 B 안(표준)으로 확정: 주수/평가액/drift % 포함.
-    """
+    """``AssetDrift`` 는 주수/평가액/drift % 필드를 포함하는 표준 구성이다."""
 
     def test_is_dataclass(self):
         assert is_dataclass(AssetDrift)
 
     def test_fields(self):
-        """B 안: asset_id, model/actual shares + diff, model/actual value + diff, drift_pct."""
+        """Given AssetDrift Then asset_id / shares / value / drift_pct 필드가 모두 존재."""
         expected = {
             "asset_id",
             "model_shares",
@@ -414,7 +380,7 @@ class TestQbtCoreTypeReuse:
 
 
 class TestPendingOrderDictCreation:
-    """PendingOrderDict 는 설계서 명시 키만으로 생성 가능해야 한다."""
+    """PendingOrderDict 는 필수 키만으로 생성 가능해야 한다."""
 
     def test_create_pending_order_dict(self):
         """Given: 모든 필수 키. When: dict 생성. Then: 정상 생성."""
@@ -441,11 +407,13 @@ class TestLiveStateCreation:
     """LiveState 인스턴스 생성 smoke test — model/actual cash 분리 동작 검증."""
 
     def test_create_empty_live_state(self):
-        """Given: 필수 필드. When: LiveState 생성. Then: 필드 접근 가능."""
+        """Given 필수 필드 When LiveState 생성 Then 필드 접근 가능."""
+        from live.constants import LIVE_PORTFOLIO_ID
+
         # Given / When
         state = LiveState(
             schema_version=1,
-            portfolio_id="portfolio_q2_2xs",
+            portfolio_id=LIVE_PORTFOLIO_ID,
             last_signal_date=None,
             last_model_execution_date=None,
             last_rebalance_date=None,
@@ -460,7 +428,7 @@ class TestLiveStateCreation:
         assert state.shared_cash_model == pytest.approx(100_000_000.0)
         assert state.shared_cash_actual == pytest.approx(100_000_000.0)
         assert state.shared_cash_model is not state.shared_cash_actual or True  # 명시적 분리
-        assert state.portfolio_id == "portfolio_q2_2xs"
+        assert state.portfolio_id == LIVE_PORTFOLIO_ID
 
     def test_asset_live_state_creation(self):
         """Given: 자산 필드. When: AssetLiveState 생성. Then: model/actual 독립 접근."""

@@ -1,7 +1,4 @@
-"""live.state JSON 직렬화/역직렬화 및 applied_fill_ids 관리 테스트.
-
-설계서 5장, 6.2, 부록 A 계약을 고정한다. TODO_QBT_LIVE.md 의 T-3.1 ~ T-3.5
-시나리오를 포함하며, 추가로 에러 매트릭스와 atomic save 를 검증한다.
+"""live.state — LiveState JSON 왕복 / applied_*_ids 원장 / 에러 매트릭스 테스트.
 
 원칙:
 - 파일 I/O 격리: tmp_path 사용
@@ -57,8 +54,8 @@ class TestCreateInitialState:
         assert state.created_at != ""
         assert state.updated_at != ""
 
-    def test_uses_q2_2xs_asset_slots(self):
-        """Q-2-2XS 의 4 개 asset_id 가 그대로 반영되어야 한다."""
+    def test_uses_live_portfolio_asset_slots(self):
+        """live 포트폴리오의 asset_id 가 그대로 반영되어야 한다."""
         state = create_initial_state(100_000_000.0)
         expected_asset_ids = {"sso", "qld", "gld", "tlt"}
         assert set(state.assets.keys()) == expected_asset_ids
@@ -87,7 +84,7 @@ class TestCreateInitialState:
     def test_portfolio_id_matches_constant(self):
         """portfolio_id 는 LIVE_PORTFOLIO_ID 상수와 일치."""
         state = create_initial_state(100_000_000.0)
-        assert state.portfolio_id == "portfolio_q2_2xs"
+        assert state.portfolio_id == LIVE_PORTFOLIO_ID
 
     def test_zero_capital_raises(self):
         """총 자본금 0 은 ValueError."""
@@ -106,8 +103,8 @@ class TestCreateInitialState:
 
 
 class TestSaveLoadRoundtrip:
-    def test_preserves_all_fields_t_3_1(self, tmp_path: Path):
-        """T-3.1: create_initial_state → save → load → 원본과 일치."""
+    def test_preserves_all_fields(self, tmp_path: Path):
+        """Given: create_initial_state → save → load. Then: 원본과 일치."""
         # Given
         original = create_initial_state(100_000_000.0)
         path = tmp_path / "live_state.json"
@@ -201,15 +198,11 @@ class TestSaveLoadRoundtrip:
 
 
 # ============================================================================
-# T-3.2: 수동 작성 JSON → load → 필드 검증
+# 수동 작성 JSON → load → 필드 검증
 # ============================================================================
 
 
-# 수동으로 작성한 live_state.json 예시. 설계서 5.1 스키마에 맞춰 다양한 상태를 포함:
-# - sso: pending_order + buffer_zone_state(hold_state 있음) 보유 (체결 대기 중)
-# - qld: buffer_zone_state(hold_state 없음) 보유 (정상 관찰 중)
-# - gld: buy & hold 초기 진입 완료 (pending 없음, buffer_zone_state 없음)
-# - tlt: 완전 초기 상태 (포지션 없음)
+# 수동으로 작성한 live_state.json 예시. 각 자산은 서로 다른 상태 조합을 표현한다.
 _HANDCRAFTED_LIVE_STATE_JSON = """
 {
   "schema_version": 2,
@@ -309,15 +302,10 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
 
 
 class TestLoadFromHandcraftedJson:
-    """T-3.2: 외부(사용자/운영자) 가 수동 작성한 JSON 파일을 load 하여 필드 검증.
+    """사람이 손으로 작성한 live_state.json 을 ``load_state`` 가 역직렬화하는 계약."""
 
-    이 테스트는 load_state 가 T-3.1 의 save 출력만 복원 가능한 것이 아니라
-    사람이 손으로 작성한 임의의 유효 JSON 도 올바르게 역직렬화함을 고정한다.
-    장애 대응(상태 파일 수동 편집) 시나리오의 계약을 보장한다.
-    """
-
-    def test_load_handcrafted_json_top_level_fields_t_3_2(self, tmp_path: Path):
-        """T-3.2: 수동 JSON load → LiveState 최상위 필드 값 검증."""
+    def test_load_handcrafted_json_top_level_fields(self, tmp_path: Path):
+        """Given 수동 JSON When load Then LiveState 최상위 필드 값 일치."""
         # Given
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
@@ -327,7 +315,7 @@ class TestLoadFromHandcraftedJson:
 
         # Then
         assert state.schema_version == 2
-        assert state.portfolio_id == "portfolio_q2_2xs"
+        assert state.portfolio_id == LIVE_PORTFOLIO_ID
         assert state.last_signal_date == "2026-04-10"
         assert state.last_model_execution_date == "2026-04-10"
         assert state.last_rebalance_date == "2026-04-01"
@@ -338,7 +326,7 @@ class TestLoadFromHandcraftedJson:
         assert set(state.assets.keys()) == {"sso", "qld", "gld", "tlt"}
 
     def test_load_handcrafted_json_sso_asset_with_pending_and_buffer_zone(self, tmp_path: Path):
-        """T-3.2: sso 슬롯은 pending_order + buffer_zone_state(hold_state 포함)."""
+        """Given sso 슬롯 When load Then pending_order + buffer_zone_state(hold_state 포함)."""
         # Given
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
@@ -370,7 +358,7 @@ class TestLoadFromHandcraftedJson:
         assert pending["target_weight"] == pytest.approx(0.35)
         assert pending["hold_days_used"] == 3
         assert pending["reason"] == "buffer zone rebalance"
-        assert "execute_on" not in pending  # 설계서 핵심 계약
+        assert "execute_on" not in pending  # 핵심 계약
 
         # Then: buffer_zone_state + hold_state
         assert sso.buffer_zone_state is not None
@@ -387,10 +375,7 @@ class TestLoadFromHandcraftedJson:
         assert bzs.hold_state["hold_days_required"] == 3
 
     def test_load_handcrafted_json_qld_with_buffer_zone_no_hold_state(self, tmp_path: Path):
-        """T-3.2: qld 슬롯은 buffer_zone_state 있으나 hold_state 는 null.
-
-        또한 model_shares 와 actual_shares 가 다른 drift 상태를 표현한다.
-        """
+        """Given qld 슬롯 When load Then buffer_zone_state 있고 hold_state null, drift 상태 표현."""
         # Given
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
@@ -413,7 +398,7 @@ class TestLoadFromHandcraftedJson:
         assert qld.buffer_zone_state.prev_lower == pytest.approx(88.0)
 
     def test_load_handcrafted_json_gld_buy_and_hold_without_buffer_zone(self, tmp_path: Path):
-        """T-3.2: gld 는 buy & hold 이므로 buffer_zone_state 가 null."""
+        """Given gld 는 buy & hold When load Then buffer_zone_state 가 null."""
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
 
@@ -423,7 +408,7 @@ class TestLoadFromHandcraftedJson:
         assert gld.pending_order is None
 
     def test_load_handcrafted_json_tlt_completely_empty(self, tmp_path: Path):
-        """T-3.2: tlt 는 완전 초기 상태 (포지션 0, 모든 선택 필드 null)."""
+        """Given tlt 는 완전 초기 상태 When load Then 포지션 0, 모든 선택 필드 null."""
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
 
@@ -437,7 +422,7 @@ class TestLoadFromHandcraftedJson:
         assert tlt.entry_hold_days == 0
 
     def test_load_handcrafted_json_save_again_matches_original(self, tmp_path: Path):
-        """T-3.2 보강: 수동 JSON load → save → load 하여 2 회차도 동일."""
+        """Given 수동 JSON When load → save → load Then 2 회차도 동일."""
         # Given
         path = tmp_path / "live_state.json"
         path.write_text(_HANDCRAFTED_LIVE_STATE_JSON, encoding="utf-8")
@@ -468,8 +453,8 @@ class TestLoadFromHandcraftedJson:
 
 
 class TestLoadStateErrors:
-    def test_file_not_found_raises_t_3_5(self, tmp_path: Path):
-        """T-3.5: 존재하지 않는 파일 → FileNotFoundError 전파."""
+    def test_file_not_found_raises(self, tmp_path: Path):
+        """Given 존재하지 않는 파일 When load Then FileNotFoundError 전파."""
         path = tmp_path / "nonexistent.json"
         with pytest.raises(FileNotFoundError):
             load_state(path)
@@ -513,8 +498,8 @@ class TestLoadStateErrors:
 
 
 class TestAppliedFillIds:
-    def test_save_load_roundtrip_t_3_3(self, tmp_path: Path):
-        """T-3.3: 저장/로드 왕복."""
+    def test_save_load_roundtrip(self, tmp_path: Path):
+        """Given applied_fill_ids dict When save → load Then 값 일치."""
         # Given
         ids = {
             "fill_a": "2026-04-01T10:00:00+09:00",
@@ -543,8 +528,8 @@ class TestAppliedFillIds:
             load_applied_fill_ids(path)
 
     @freeze_time("2026-04-11 12:00:00", tz_offset=9)
-    def test_cleanup_old_applied_ids_removes_old_t_3_4(self):
-        """T-3.4: 90 일 초과 ID 제거, 최근 ID 유지."""
+    def test_cleanup_old_applied_ids_removes_old(self):
+        """Given 90 일 초과 ID When cleanup Then 제거되고 최근 ID 는 유지."""
         # Given
         ids = {
             "very_old": "2025-10-01T10:00:00+09:00",  # 약 6 개월 전
@@ -573,7 +558,7 @@ class TestAppliedFillIds:
 
     @freeze_time("2026-04-11 12:00:00", tz_offset=9)
     def test_cleanup_default_max_age_is_90_days(self):
-        """max_age_days 기본값은 90 일 (설계서 6.2)."""
+        """max_age_days 기본값은 90 일."""
         ids = {
             "old": "2025-10-01T10:00:00+09:00",
             "new": "2026-04-10T10:00:00+09:00",
