@@ -32,8 +32,6 @@ __all__ = [
     # live 전용
     "IntentTypeLiteral",
     "VALID_INTENT_TYPES",
-    "SignalStateLiteral",
-    "VALID_SIGNAL_STATES",
     "PendingOrderDict",
     "BufferZoneState",
     "AssetLiveState",
@@ -65,27 +63,6 @@ QBT 본체의 ``portfolio_planning.OrderIntent.intent_type`` 과 동일한 Liter
 
 # IntentTypeLiteral 에서 파생한 유효 값 집합. state.py 등에서 런타임 검증에 사용.
 VALID_INTENT_TYPES: frozenset[str] = frozenset(get_args(IntentTypeLiteral))
-
-
-# ============================================================================
-# SignalStateLiteral — signal_state 축의 허용 값 집합
-# ============================================================================
-
-
-SignalStateLiteral = Literal["buy", "sell", "none"]
-"""``AssetLiveState.signal_state`` 및 ``SignalDetection.state`` 가 가질 수 있는 값.
-
-- ``"buy"``: 가장 최근 signal intent 가 ``ENTER_TO_TARGET``, 즉 매수 방향으로 확정
-- ``"sell"``: 가장 최근 signal intent 가 ``EXIT_ALL``, 즉 매도 방향으로 확정
-- ``"none"``: 신호 없음. 초기 상태 혹은 당일 새로 뜬 시그널이 없는 경우
-
-주의: QBT 본체 ``BufferZoneStrategy._hold_state`` 는 전략 내부의 hold_days 상태머신
-(매수 확정 대기) 이며 본 Literal 의 ``"none"`` 과 무관하다. 이름 충돌을 피하기
-위해 live 는 3 값 중 ``"hold"`` 대신 ``"none"`` 을 사용한다.
-"""
-
-# SignalStateLiteral 에서 파생한 유효 값 집합. state 역직렬화 시 런타임 검증에 사용.
-VALID_SIGNAL_STATES: frozenset[str] = frozenset(get_args(SignalStateLiteral))
 
 
 class PendingOrderDict(TypedDict):
@@ -161,7 +138,7 @@ class AssetLiveState:
 
     # --- 전략 상태 ---
     pending_order: PendingOrderDict | None
-    signal_state: SignalStateLiteral
+    signal_state: Literal["buy", "sell"]  # QBT AssetState.signal_state 와 동일
     entry_hold_days: int
     buffer_zone_state: BufferZoneState | None
 
@@ -260,12 +237,11 @@ class SignalDetection:
     ``ma_distance_pct`` 는 MA 근접도 지표이며
     ``(close - ma_value) / ma_value`` 로 정의된다 (비율, 음수 가능).
 
-    ``state`` 의 ``"none"`` 은 "오늘 새로 뜬 신호 없음" 을 의미한다.
-    ``ma_value`` / ``upper_band`` / ``lower_band`` 는 자산 슬롯의
-    ``ma_window`` 에 독립적이다 (200 일 고정 아님).
+    ``state`` 는 당일 감지된 신호이며 ``AssetLiveState.signal_state`` (누적 원장)
+    와는 별도 타입이다. ``"none"`` 은 "오늘 새로 뜬 신호 없음" 을 의미한다.
     """
 
-    state: SignalStateLiteral
+    state: Literal["buy", "sell", "none"]
     close: float
     upper_band: float | None
     lower_band: float | None

@@ -31,7 +31,7 @@ import uuid
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -42,14 +42,12 @@ from live.constants import (
 )
 from live.models import (
     VALID_INTENT_TYPES,
-    VALID_SIGNAL_STATES,
     AssetLiveState,
     BufferZoneState,
     HoldState,
     IntentTypeLiteral,
     LiveState,
     PendingOrderDict,
-    SignalStateLiteral,
 )
 
 __all__ = [
@@ -138,7 +136,7 @@ def create_initial_state(total_capital: float) -> LiveState:
             actual_avg_entry_price=0.0,
             actual_entry_date=None,
             pending_order=None,
-            signal_state="none",
+            signal_state="sell",
             entry_hold_days=0,
             buffer_zone_state=None,
         )
@@ -280,12 +278,13 @@ def _asset_live_state_from_dict(data: dict[str, Any]) -> AssetLiveState:
     bzs_raw = data["buffer_zone_state"]
     bzs: BufferZoneState | None = None if bzs_raw is None else _buffer_zone_state_from_dict(bzs_raw)
 
+    _VALID_SIGNAL_STATES = frozenset({"buy", "sell"})
     signal_state_raw = str(data["signal_state"])
-    if signal_state_raw not in VALID_SIGNAL_STATES:
+    if signal_state_raw not in _VALID_SIGNAL_STATES:
         raise ValueError(
-            f"AssetLiveState signal_state 값이 유효하지 않음: {signal_state_raw!r} " f"(허용: {sorted(VALID_SIGNAL_STATES)})"
+            f"AssetLiveState signal_state 값이 유효하지 않음: {signal_state_raw!r} " f"(허용: {sorted(_VALID_SIGNAL_STATES)})"
         )
-    signal_state: SignalStateLiteral = cast("SignalStateLiteral", signal_state_raw)
+    signal_state = cast(Literal["buy", "sell"], signal_state_raw)
 
     return AssetLiveState(
         asset_id=str(data["asset_id"]),

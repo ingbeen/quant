@@ -36,9 +36,9 @@ LIVE_PORTFOLIO_ID: Final[str] = "portfolio_q2_2xs"
 # ============================================================================
 
 # LiveState JSON 직렬화 스키마 버전. 포맷 변경 시 증가시킨다.
-# v1 → v2: signal_state 값 집합을 {buy, sell, hold} → {buy, sell, none} 으로 변경.
-# 기존 v1 파일은 ``load_state`` 에서 ValueError 로 즉시 실패한다.
-SCHEMA_VERSION: Final[int] = 2
+# v2 → v3: AssetLiveState.signal_state 를 {buy, sell} 2 값으로 축소 (QBT 동일).
+#           초기값은 "sell" (포지션 없음). "none" 은 SignalDetection.state 에만 사용.
+SCHEMA_VERSION: Final[int] = 3
 
 # 타임스탬프 표기용 타임존 이름 (state / history / 커밋 메시지 공통).
 KST_TZ_NAME: Final[str] = "Asia/Seoul"

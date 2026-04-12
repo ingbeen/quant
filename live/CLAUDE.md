@@ -96,9 +96,11 @@ live/
   (`balance_adjust/inbox/`) 으로만 갱신된다.
 - drift 계산은 `drift.compute_drift` 가 유일 정본이며, 임계값은
   `DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO` 를 따른다.
-- `signal_state` 값 집합은 `{"buy", "sell", "none"}` 이며 QBT 의 `_hold_state`
-  (내부 hold_days 상태머신) 와 이름이 같은 개념이 아니다. `"none"` 은
-  "신호 없음" 을 의미한다.
+- `AssetLiveState.signal_state` 는 QBT 와 동일한 `Literal["buy", "sell"]` 2 값.
+  초기값은 `"sell"` (포지션 없음). "초기 상태" 파악이 필요하면 `model_entry_date`,
+  `last_signal_date` 등 다른 필드를 조회한다.
+- `SignalDetection.state` 는 당일 감지 전용 `Literal["buy", "sell", "none"]`.
+  원장에 저장되지 않고 알림/차트에만 쓰인다. `"none"` = "오늘 신호 없음".
 
 ### 3. 순수 계산 / I/O 분리
 

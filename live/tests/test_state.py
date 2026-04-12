@@ -77,7 +77,7 @@ class TestCreateInitialState:
             assert asset.actual_avg_entry_price == pytest.approx(0.0)
             assert asset.actual_entry_date is None
             assert asset.pending_order is None
-            assert asset.signal_state == "none"
+            assert asset.signal_state == "sell"
             assert asset.entry_hold_days == 0
             assert asset.buffer_zone_state is None
 
@@ -205,7 +205,7 @@ class TestSaveLoadRoundtrip:
 # 수동으로 작성한 live_state.json 예시. 각 자산은 서로 다른 상태 조합을 표현한다.
 _HANDCRAFTED_LIVE_STATE_JSON = """
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "portfolio_id": "portfolio_q2_2xs",
   "last_signal_date": "2026-04-10",
   "last_model_execution_date": "2026-04-10",
@@ -290,7 +290,7 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "actual_avg_entry_price": 0.0,
       "actual_entry_date": null,
       "pending_order": null,
-      "signal_state": "none",
+      "signal_state": "sell",
       "entry_hold_days": 0,
       "buffer_zone_state": null
     }
@@ -314,7 +314,7 @@ class TestLoadFromHandcraftedJson:
         state = load_state(path)
 
         # Then
-        assert state.schema_version == 2
+        assert state.schema_version == 3
         assert state.portfolio_id == LIVE_PORTFOLIO_ID
         assert state.last_signal_date == "2026-04-10"
         assert state.last_model_execution_date == "2026-04-10"

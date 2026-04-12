@@ -100,9 +100,9 @@ class TestAppliedFillIdsMaxAge:
 
 
 class TestSchemaVersion:
-    def test_schema_version_is_two(self):
-        """schema_version v2 = signal_state 값 집합 {buy, sell, none}."""
-        assert SCHEMA_VERSION == 2
+    def test_schema_version_is_three(self):
+        """schema_version v3 = AssetLiveState.signal_state {buy, sell} QBT 동일."""
+        assert SCHEMA_VERSION == 3
 
 
 class TestKstTzName:

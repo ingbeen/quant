@@ -702,38 +702,11 @@ class TestRunDailyDriftReport:
         assert result.drift_pct == pytest.approx(result.drift_report.drift_pct)
 
 
-# ============================================================================
-# signal_state "none" + shares 불변조건 (Plan 2)
-# ============================================================================
+class TestSignalStateQbtAligned:
+    """``AssetLiveState.signal_state`` 는 QBT 와 동일한 ``Literal["buy", "sell"]`` 이다."""
 
-
-class TestSignalStateNoneInvariant:
-    """``signal_state == 'none' + model_shares > 0`` 조합은 내부 불변조건 위반이다.
-
-    daily_runner 내부 ``_build_asset_states`` 가 QBT ``AssetState`` 로 매핑할 때
-    모순된 상태를 발견하면 즉시 RuntimeError 를 던져야 한다.
-    """
-
-    def test_none_with_positive_shares_raises(self, flat_market_bundle, sample_dates):
-        """Given signal_state='none' + model_shares>0 When run_daily Then RuntimeError."""
-        # Given
-        state = create_initial_state(100_000_000.0)
-        # 첫 자산의 model_shares 만 양수로 조작하여 불변조건 위반 상태 구성
-        first_asset_id = next(iter(state.assets))
-        state.assets[first_asset_id].model_shares = 10
-
-        # When / Then
-        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
-            run_daily(
-                trade_date=sample_dates[0],
-                state=state,
-                market_bundle=flat_market_bundle,
-                pending_fills=[],
-                applied_fill_ids={},
-            )
-
-    def test_initial_state_signal_state_is_none(self):
-        """Given create_initial_state Then 모든 자산의 signal_state == 'none'."""
+    def test_initial_state_signal_state_is_sell(self):
+        """Given create_initial_state Then 모든 자산의 signal_state == 'sell' (QBT 동일)."""
         state = create_initial_state(100_000_000.0)
         for asset in state.assets.values():
-            assert asset.signal_state == "none"
+            assert asset.signal_state == "sell"
