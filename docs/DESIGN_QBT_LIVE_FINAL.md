@@ -436,6 +436,8 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | RTDB 초기화 실패 (`run-daily` / `fetch-fills`) | 중단 + 알림. `_require_rtdb_app` 가 RuntimeError 전파 |
 | RTDB 읽기 실패 (fills / balance_adjusts) | 중단 + 알림 |
 | `compute_drift` 에 closes 누락 (내부 불변조건) | 중단 + 알림 (`RuntimeError("내부 불변조건 위반")`) |
+| fill 의 direction 이 buy/sell 외 값 | 입구(`rtdb_gateway`) 에서 `ValueError`, 내부(`drift`) 에서 `RuntimeError("내부 불변조건 위반")` |
+| balance_adjust 의 new_shares/new_cash 가 둘 다 null | 중단 + 알림 (`ValueError`) |
 | unknown asset_id 가 포함된 fill/balance_adjust | 중단 + 알림 (`ValueError("알 수 없는 asset_id")`) |
 | 보유량 초과 매도 fill (`actual_shares < fill.shares`) | 중단 + 알림 (`ValueError("보유량 초과 매도")`) |
 | 매수 체결로 `shared_cash_actual < 0` | 중단 + 알림 (`ValueError("현금 부족")`) |
@@ -487,9 +489,11 @@ GitHub Secrets 4 종:
 drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 
 ```
-drift_ratio = |model_equity − actual_equity| / model_equity   (비율, 0~1)
-drift_pct   = drift_ratio × 100                               (%, 표시용)
+drift_pct = |model_equity − actual_equity| / model_equity   (비율, 0~1. 0.03 = 3%)
 ```
+
+QBT 비율 원칙(`_pct` = 0~1)에 따라 `drift_pct` 는 0~1 범위의 비율이다.
+RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다.
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를
@@ -503,9 +507,10 @@ drift_pct   = drift_ratio × 100                               (%, 표시용)
 | 0.03 ~ 0.05 | "주의" |
 | 0.05 이상 | "보정 필요" |
 
-자산별 상세 drift (`AssetDrift` 리스트) 는 `DriftReport.per_asset` 에 포함되며,
-`drift` CLI 커맨드로 조회할 수 있다. 일일 리포트 알림 본문에는 전체 `drift_pct`
-스칼라 값만 포함된다.
+**자산별 drift**: `DriftReport.per_asset` 에 `AssetDrift` 리스트로 포함된다.
+모델이 0 주인데 실제 보유 중인 경우(`model_value=0, actual_value>0`)
+`asset_drift_pct = 1.0` (100% 이탈) 을 반환하여 사용자가 차이를 인지할 수 있다.
+일일 리포트 알림 본문에는 전체 `drift_pct` 스칼라 값만 포함된다.
 
 ---
 
