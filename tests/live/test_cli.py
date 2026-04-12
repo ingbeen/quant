@@ -1074,3 +1074,107 @@ class TestRunDailyValidatorIntegration:
         assert exit_code == 1
         assert len(notify_calls) >= 1
         assert any("종가 불일치" in msg or "검증" in msg for msg in notify_calls)
+
+
+# ============================================================================
+# _build_market_bundle 공통 기간 필터링
+# ============================================================================
+
+
+class TestBuildMarketBundleCommonPeriod:
+    """_build_market_bundle 이 서로 다른 날짜 범위를 가진 자산들을
+    공통 기간(교집합)으로 정렬하는지 검증한다."""
+
+    def test_different_date_ranges_aligned_to_common_period(self, tmp_path: Path) -> None:
+        """
+        목적: trade_df 시작일이 다른 자산들이 교집합으로 정렬되는지 검증.
+
+        Given: SSO(2006-06-21~), GLD(2004-11-18~) 등 서로 다른 시작일을 가진 CSV
+        When: _build_market_bundle 호출
+        Then: 모든 자산의 trade_df 날짜 집합이 동일 (교집합)
+        """
+        from live.cli import _build_market_bundle
+
+        stock_dir = tmp_path / "data" / "stock"
+        stock_dir.mkdir(parents=True, exist_ok=True)
+
+        # 공통 기간 (5일)
+        common_dates = [date(2026, 4, i) for i in range(1, 6)]
+        # GLD 에만 있는 추가 날짜 (2일)
+        extra_dates = [date(2026, 3, 30), date(2026, 3, 31)]
+
+        def _make_csv(dates: list[date]) -> pd.DataFrame:
+            n = len(dates)
+            return pd.DataFrame(
+                {
+                    "Date": dates,
+                    "Open": [100.0] * n,
+                    "High": [100.5] * n,
+                    "Low": [99.5] * n,
+                    "Close": [100.0] * n,
+                    "Volume": [1_000_000] * n,
+                }
+            )
+
+        # GLD 는 extra_dates + common_dates, 나머지 티커는 common_dates 만
+        for ticker in _collect_all_tickers():
+            if ticker == "GLD":
+                df = _make_csv(extra_dates + common_dates)
+            else:
+                df = _make_csv(common_dates)
+            df.to_csv(stock_dir / f"{ticker}.csv", index=False)
+
+        bundle = _build_market_bundle(tmp_path)
+
+        # 모든 자산의 trade_df 날짜 집합이 동일해야 한다
+        date_sets = [set(data.trade_df["Date"].tolist()) for data in bundle.values()]
+        reference = date_sets[0]
+        for ds in date_sets[1:]:
+            assert ds == reference
+
+        # 교집합 = common_dates (5일)
+        assert reference == set(common_dates)
+
+    def test_signal_df_also_filtered_to_common_period(self, tmp_path: Path) -> None:
+        """
+        목적: signal_df 도 공통 기간으로 필터링되는지 검증.
+
+        Given: signal 티커와 trade 티커가 다른 자산 (예: SSO → SPY signal)
+        When: _build_market_bundle 호출
+        Then: signal_df 도 trade_df 와 동일한 공통 기간으로 필터링됨
+        """
+        from live.cli import _build_market_bundle
+
+        stock_dir = tmp_path / "data" / "stock"
+        stock_dir.mkdir(parents=True, exist_ok=True)
+
+        common_dates = [date(2026, 4, i) for i in range(1, 6)]
+        extra_dates = [date(2026, 3, 30), date(2026, 3, 31)]
+
+        def _make_csv(dates: list[date]) -> pd.DataFrame:
+            n = len(dates)
+            return pd.DataFrame(
+                {
+                    "Date": dates,
+                    "Open": [100.0] * n,
+                    "High": [100.5] * n,
+                    "Low": [99.5] * n,
+                    "Close": [100.0] * n,
+                    "Volume": [1_000_000] * n,
+                }
+            )
+
+        for ticker in _collect_all_tickers():
+            if ticker == "GLD":
+                df = _make_csv(extra_dates + common_dates)
+            else:
+                df = _make_csv(common_dates)
+            df.to_csv(stock_dir / f"{ticker}.csv", index=False)
+
+        bundle = _build_market_bundle(tmp_path)
+
+        # signal_df 도 공통 기간으로 잘려야 한다
+        for asset_id, data in bundle.items():
+            signal_dates = set(data.signal_df["Date"].tolist())
+            trade_dates = set(data.trade_df["Date"].tolist())
+            assert signal_dates == trade_dates, f"{asset_id}: signal_df/trade_df 날짜 불일치"

@@ -58,29 +58,7 @@ jobs:
           mkdir -p secrets
           printf '%s' "$FIREBASE_CONFIG" > secrets/firebase_admin.json
 
-      - name: Run live.cli run-daily (1차 시도)
-        id: run_first
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/secrets/firebase_admin.json
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}
-          TRADE_DATE: ${{ github.event.inputs.trade_date }}
-        continue-on-error: true
-        run: |
-          if [ -n "$TRADE_DATE" ]; then
-            poetry run python -m live run-daily --trade-date "$TRADE_DATE"
-          else
-            poetry run python -m live run-daily
-          fi
-
-      - name: Wait 5 minutes before retry
-        if: steps.run_first.outcome == 'failure'
-        run: sleep 300
-
-      - name: Run live.cli run-daily (2차 재시도)
-        id: run_retry
-        if: steps.run_first.outcome == 'failure'
+      - name: Run live.cli run-daily
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/secrets/firebase_admin.json
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

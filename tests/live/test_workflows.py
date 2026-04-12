@@ -72,11 +72,12 @@ class TestDailyRunWorkflow:
         """CLI 가 ephemeral 이므로 --state-dir 인자가 사용되지 않는다."""
         assert "--state-dir" not in daily_run_yaml
 
-    def test_retry_step_present(self, daily_run_yaml: str):
-        """1 차 시도 실패 시 5분 대기 후 재시도."""
-        assert "run_first" in daily_run_yaml
-        assert "run_retry" in daily_run_yaml
-        assert "sleep 300" in daily_run_yaml
+    def test_no_retry_logic(self, daily_run_yaml: str):
+        """장애 시 자동 복구 금지 원칙에 따라 재시도 로직이 없어야 한다."""
+        assert "run_first" not in daily_run_yaml
+        assert "run_retry" not in daily_run_yaml
+        assert "sleep 300" not in daily_run_yaml
+        assert "continue-on-error" not in daily_run_yaml
 
     def test_notify_failure_job(self, daily_run_yaml: str):
         """notify-failure job 이 if: failure() 로 트리거."""

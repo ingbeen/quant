@@ -607,8 +607,17 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
 
 
 def _build_market_bundle(state_dir: Path) -> MarketBundle:
+    """자산별 시그널/체결 DataFrame 을 로드하고, 전 자산 공통 기간으로 정렬한다.
+
+    QBT 포트폴리오 엔진의 ``_load_portfolio_data_with_common_period`` 와 동일한
+    패턴으로, 모든 자산의 trade_df 날짜 교집합을 계산한 뒤 signal_df / trade_df 를
+    공통 기간으로 필터링한다. 이를 통해 ``_validate_trade_date_alignment`` 에서
+    요구하는 날짜 집합 동일성 불변조건을 보장한다.
+    """
     config = get_live_portfolio_config()
-    bundle: MarketBundle = {}
+
+    # 1. 자산별 데이터 로드 + MA 계산
+    raw_bundle: dict[str, AssetMarketData] = {}
     for slot in config.asset_slots:
         signal_ticker = _ticker_from_slot_signal(slot)
         trade_ticker = _ticker_from_slot_trade(slot)
@@ -620,7 +629,27 @@ def _build_market_bundle(state_dir: Path) -> MarketBundle:
             trade_df = load_csv(live_csv_path(state_dir, trade_ticker))
 
         signal_df = add_single_moving_average(signal_df, window=slot.ma_window, ma_type=slot.ma_type)
-        bundle[slot.asset_id] = AssetMarketData(signal_df=signal_df, trade_df=trade_df)
+        raw_bundle[slot.asset_id] = AssetMarketData(signal_df=signal_df, trade_df=trade_df)
+
+    # 2. 전 자산 trade_df 날짜 교집합 계산
+    date_sets = [set(data.trade_df[COL_DATE]) for data in raw_bundle.values()]
+    common_dates: set[date] = date_sets[0]
+    for ds in date_sets[1:]:
+        common_dates &= ds
+
+    if not common_dates:
+        raise ValueError("전 자산의 공통 거래 기간이 없습니다.")
+
+    # 3. 공통 기간으로 필터링
+    bundle: MarketBundle = {}
+    for asset_id, data in raw_bundle.items():
+        signal_mask = data.signal_df[COL_DATE].isin(common_dates)
+        trade_mask = data.trade_df[COL_DATE].isin(common_dates)
+        bundle[asset_id] = AssetMarketData(
+            signal_df=data.signal_df[signal_mask].reset_index(drop=True),
+            trade_df=data.trade_df[trade_mask].reset_index(drop=True),
+        )
+
     return bundle
 
 
