@@ -166,10 +166,10 @@ qbt-live-state/                    ← 프라이빗 상태 리포
 
 ### 2.2 매일 실행
 
-1. yfinance 로 최근 5 거래일 다운로드
+1. yfinance 로 최근 N 거래일 다운로드 (`DEFAULT_RECENT_FETCH_DAYS` 참고)
 2. 데이터 검증 3 종 (§3 참고)
 3. 검증 통과 시 오늘 1 행을 기존 CSV 에 append
-4. EMA-200 은 매일 CSV 전체를 기반으로 재계산 (중간값 의존 없음)
+4. MA 는 매일 CSV 전체를 기반으로 재계산 (중간값 의존 없음)
 
 ### 2.3 스플릿 대응
 
@@ -266,9 +266,10 @@ QBT 코어를 수정하지 않고 어댑터 (`buffer_serializer.py`) 로 BufferZ
 - `"sell"`: 가장 최근 signal intent 가 `EXIT_ALL` 이었다 (매도 방향). 초기 상태도 `"sell"` (포지션 없음)
 
 참고: `SignalDetection.state` 는 **당일 감지 결과** 를 나타내는 별도 타입이며
-`Literal["buy", "sell", "none"]` 3 값을 가진다. `"none"` 은 "오늘 새 신호 없음"
-의미이다. `AssetLiveState.signal_state` (누적 원장) 와는 수명 / 저장 여부 / 값 집합이
-모두 다르다.
+`Literal["buy", "sell", "none"]` 3 값을 가진다. `BUY_INTENT_TYPES`
+(`ENTER_TO_TARGET`, `INCREASE_TO_TARGET`) 이면 `"buy"`, `SELL_INTENT_TYPES`
+(`EXIT_ALL`, `REDUCE_TO_TARGET`) 이면 `"sell"`, 없으면 `"none"` (오늘 새 신호 없음).
+`AssetLiveState.signal_state` (누적 원장) 와는 수명 / 저장 여부 / 값 집합이 모두 다르다.
 
 참고: QBT `BufferZoneStrategy._hold_state` 는 전략 내부의 hold_days 상태머신(매수
 확정 대기) 이며 live 의 `signal_state` 와는 전혀 다른 개념이다.
@@ -335,7 +336,7 @@ CSV 전체를 읽어 자산별 시계열 (dates, close, ma_value, upper_band, lo
 - **buy_signals / sell_signals**: `history/signals.jsonl` 에 누적된 과거 신호 이력을 인덱스로 변환
 - **user_buys / user_sells**: `history/user_trades.jsonl` 에 누적된 fill 처리 기록을 인덱스로 변환
 
-`ma_value` 는 자산 슬롯의 `ma_window` 에 독립적이며 (200 일 고정 아님), 앞
+`ma_value` 는 자산 슬롯의 `ma_window` 에 독립적이며, 앞
 `ma_window - 1` 개 인덱스는 워밍업 구간으로 `null` 이다. Firebase RTDB 는 빈 배열을
 저장하지 않으므로 마커 리스트가 비어 있으면 해당 키가 아예 생성되지 않는다.
 
@@ -351,7 +352,7 @@ CSV 전체를 읽어 자산별 시계열 (dates, close, ma_value, upper_band, lo
 | **실패 알림** | 실패 커맨드 이름 + 에러 상세 메시지 | 어떤 CLI 커맨드든 예외 발생 시 (`notify-failure` 제외) |
 
 MA 근접도 = `(close − ma_value) / ma_value` (비율, 음수 가능). `ma_value` 는 자산
-슬롯의 `ma_window` 에 따라 결정되므로 200 일 고정이 아니다.
+슬롯의 `ma_window` 에 따라 결정된다.
 
 `SignalDetection.upper_band / lower_band` 는 live 에서 즉시 재계산하지 않고
 `BufferZoneStrategy._prev_upper / _prev_lower` (전략이 다음 거래일 판단에 사용하는

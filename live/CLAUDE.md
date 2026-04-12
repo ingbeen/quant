@@ -85,8 +85,13 @@ live/
   - unknown `asset_id` 가 포함된 fill / balance_adjust
   - 보유량 초과 매도 / 매수 체결로 `shared_cash_actual < 0`
   - `compute_drift` 에 종가 누락 (내부 불변조건 위반)
+  - `compute_drift` 에서 `model_equity <= 0` (내부 불변조건 위반)
   - `applied_*_ids` 원장의 파손된 타임스탬프
   - `run-daily` / `fetch-fills` 의 Firebase 초기화 실패 (`_require_rtdb_app`)
+  - 자산 간 `trade_df` 날짜 집합 불일치 (내부 불변조건 위반)
+  - `trade_df` 에서 지정 날짜 미발견 (내부 불변조건 위반)
+  - JSONL 히스토리 파일 손상 (JSON 파싱 실패)
+  - RTDB fill / balance_adjust 필수 필드 누락
 
 ### 2. model / actual 분리
 
