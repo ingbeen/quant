@@ -5,7 +5,7 @@ version = "0.1.0"
 description = "Stock backtesting framework with CSV data management"
 packages = [
     {include = "qbt", from = "src"},
-    {include = "live", from = "live/src"},
+    {include = "live", from = "src"},
 ]
 
 [tool.poetry.dependencies]
@@ -63,7 +63,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["qbt"]
+known-first-party = ["qbt", "live"]
 
 [tool.coverage.run]
 omit = [

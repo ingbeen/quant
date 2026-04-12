@@ -16,17 +16,36 @@
 
 각 작업 전에 해당 도메인의 CLAUDE.md를 반드시 읽습니다
 
-- 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `src/qbt/utils/CLAUDE.md`(유틸), `tests/CLAUDE.md`(테스트)
+- 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `tests/CLAUDE.md`(테스트)
+- 패키지 규칙: `src/qbt/CLAUDE.md`(qbt 패키지), `src/live/CLAUDE.md`(live 패키지)
 - 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
-  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `live/CLAUDE.md` 등
+  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `src/qbt/utils/CLAUDE.md`
 
-### live 도메인의 특수 원칙 (QBT 본체 수정 제한)
+---
 
-- `live/` 는 QBT 백테스트 전략의 실매매 알림 시스템 구현 도메인입니다.
-- 원칙: **QBT 본체(`src/qbt/`) 는 live 작업 중 수정 금지**. 모든 live 구현은 `live/` 내부에서만 수행합니다.
+## 패키지 간 의존 관계
+
+프로젝트는 두 개의 독립 패키지로 구성됩니다:
+
+- **qbt**: 주식 백테스팅 CLI 도구 코어 (backtest, tqqq, utils)
+- **live**: QBT 포트폴리오 전략의 실매매 알림 시스템
+
+### 의존 방향 (단방향)
+
+- **live → qbt**: import 허용. live는 qbt에 이미 정의된 함수/상수를 적극 활용하며, 동일한 기능을 독립 재구현하지 않는다.
+- **qbt → live**: import 금지. qbt는 live에 대한 어떤 의존도 갖지 않는다.
+
+### 리팩토링 시 영향도 고려
+
+qbt의 핵심 비즈니스 로직이나 대규모 리팩토링을 진행할 때는 live 패키지의 영향도를 함께 고려해야 한다.
+live가 qbt의 어떤 심볼을 import하는지 확인하고, 시그니처/타입 변경 시 live 코드도 함께 수정한다.
+
+### QBT 본체 수정 제한 (live 작업 중)
+
+- 원칙: **QBT 본체(`src/qbt/`) 는 live 작업 중 수정 금지**. 모든 live 구현은 `src/live/` 내부에서만 수행한다.
 - 예외: **사용자 승인이 명시적으로 있을 경우에만** QBT 본체 수정 가능.
-  - 수정 전 반드시 사용자에게 수정 범위 / 사유를 설명하고 승인 요청합니다.
-- 상세 가이드: [live/CLAUDE.md](live/CLAUDE.md)
+  - 수정 전 반드시 사용자에게 수정 범위 / 사유를 설명하고 승인 요청한다.
+- 상세 가이드: [src/live/CLAUDE.md](src/live/CLAUDE.md)
 
 ---
 
@@ -48,14 +67,10 @@
 
 ## 프로젝트 개요
 
-QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다.
+QBT(Quant BackTest) 프로젝트는 두 개의 패키지로 구성됩니다:
 
-핵심 기능 도메인:
-
-- 시계열 데이터 수집 및 검증
-- 이동평균 기반 거래 전략 백테스트
-- 레버리지 상품 시뮬레이션 및 최적화
-- 대화형 시각화 대시보드
+- **qbt** (`src/qbt/`): 주식 백테스팅 CLI 도구. 시계열 데이터 수집, 이동평균 기반 전략 백테스트, 레버리지 ETF 시뮬레이션, 대화형 시각화 대시보드를 제공합니다.
+- **live** (`src/live/`): QBT 포트폴리오 전략의 실매매 알림 시스템. GitHub Actions에서 매일 장 마감 후 실행되어 주가 수집, 시그널 감지, FCM/텔레그램 알림을 수행합니다.
 
 기술 환경:
 
@@ -71,94 +86,33 @@ QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다.
 
 ```
 quant/
-├── docs/              # 프로젝트 문서 및 계획서
-│   ├── plans/         # 작업 계획서 저장소
-│   └── archive/       # 완료/폐기 계획서
-├── tests/             # 테스트 코드
-│   └── conftest.py    # pytest 픽스처
-├── scripts/           # CLI 스크립트 (도메인별 분리)
-│   ├── data/          # 데이터 다운로드
-│   ├── backtest/      # 백테스트 실행 + 대시보드 앱
-│   └── tqqq/          # 레버리지 ETF 관련
-│       ├── generate_synthetic.py          # 합성 데이터 생성
-│       ├── generate_daily_comparison.py   # 일별 비교 데이터 생성
-│       ├── app_daily_comparison.py        # 일별 비교 대시보드
-│       └── spread_lab/                           # 스프레드 모델 검증 결과 열람
-│           └── app_rate_spread_lab.py             # 금리-오차 분석 앱 (시각화 전용)
-├── src/qbt/           # 비즈니스 로직
-│   ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
-│   ├── backtest/      # 백테스트 도메인
-│   │   ├── constants.py          # 백테스트 전용 상수
-│   │   ├── types.py              # TypedDict 정의 (성과 요약, 최적 파라미터, 공통 결과 컨테이너, BufferStrategyParams)
-│   │   ├── analysis.py           # 이동평균 계산 및 성과 지표
-│   │   ├── walkforward.py        # 워크포워드 검증(WFO) 비즈니스 로직
-│   │   ├── parameter_stability.py # 파라미터 고원 분석
-│   │   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
-│   │   ├── portfolio_configs.py  # 포트폴리오 실험 설정 (목록은 PORTFOLIO_CONFIGS 직접 참고)
-│   │   ├── runners.py            # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
-│   │   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
-│   │   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)
-│   │   ├── strategies/           # 전략 클래스 (SignalStrategy Protocol 기반)
-│   │   │   ├── strategy_common.py      # SignalStrategy Protocol, HoldState, 신호 계산 함수
-│   │   │   ├── buffer_zone_helpers.py  # 밴드 계산, 매수/매도 시그널 감지
-│   │   │   ├── buffer_zone.py          # 버퍼존 통합 전략
-│   │   │   └── buy_and_hold.py         # Buy & Hold 벤치마크 전략
-│   │   └── engines/              # 백테스트 엔진
-│   │       ├── engine_common.py       # 공통 체결/equity 기록 함수 (execute_buy/sell_order)
-│   │       ├── backtest_engine.py     # 단일 자산 백테스트 엔진 + 그리드 서치
-│   │       ├── portfolio_engine.py    # 포트폴리오 백테스트 엔진 (facade)
-│   │       ├── portfolio_planning.py  # 주문 의도(OrderIntent) 생성 및 시그널 흐름
-│   │       ├── portfolio_rebalance.py # 이중 트리거 리밸런싱 로직
-│   │       ├── portfolio_execution.py # SELL→BUY 체결 실행
-│   │       └── portfolio_data.py      # 포트폴리오 데이터 로딩 및 검증
-│   ├── tqqq/          # 레버리지 ETF 시뮬레이션
-│   │   ├── constants.py        # 시뮬레이션 전용 상수
-│   │   ├── simulation.py       # 시뮬레이션 엔진 (코어)
-│   │   ├── analysis_helpers.py # 금리-오차 분석 함수
-│   │   ├── spread_lab_helpers.py # Spread Lab 앱 전용 분석 함수
-│   │   ├── visualization.py    # Plotly 차트 생성
-│   │   └── data_loader.py      # TQQQ 전용 데이터 로더
-│   └── utils/         # 공통 유틸리티
-│       ├── logger.py
-│       ├── formatting.py
-│       ├── data_loader.py       # CSV 로딩 통합
-│       ├── cli_helpers.py       # 예외 처리 데코레이터
-│       ├── parallel_executor.py # 병렬 처리
-│       ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
-│       └── meta_manager.py      # 실행 메타데이터 관리
-├── live/              # 실매매 알림 시스템 (QBT Live, 신규 도메인)
-│   ├── CLAUDE.md                # live 도메인 가이드
-│   ├── src/live/                # 비즈니스 로직 + CLI
-│   └── tests/                   # live 전용 테스트
-└── storage/           # 데이터 저장소
-    ├── stock/         # 주식 데이터 CSV
-    ├── etc/           # 기타 데이터 (금리 등)
-    └── results/       # 분석 결과 CSV 및 메타데이터
-        ├── meta.json  # 실행 이력 메타데이터
-        ├── backtest/              # 백테스트 결과 (전략별 하위 폴더)
-        │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
-        │   ├── buffer_zone_qqq/          # 버퍼존 전략 (QQQ) 결과
-        │   ├── buffer_zone_spy/          # 버퍼존 전략 (SPY) 결과
-        │   ├── buffer_zone_iwm/          # 버퍼존 전략 (IWM) 결과
-        │   ├── buffer_zone_efa/          # 버퍼존 전략 (EFA) 결과
-        │   ├── buffer_zone_eem/          # 버퍼존 전략 (EEM) 결과
-        │   ├── buffer_zone_gld/          # 버퍼존 전략 (GLD) 결과
-        │   ├── buffer_zone_tlt/          # 버퍼존 전략 (TLT) 결과
-        │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
-        │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
-        │   ├── buy_and_hold_spy/      # Buy & Hold (SPY) 전략 결과
-        │   ├── buy_and_hold_iwm/      # Buy & Hold (IWM) 전략 결과
-        │   ├── buy_and_hold_efa/      # Buy & Hold (EFA) 전략 결과
-        │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
-        │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
-        │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
-        │   └── param_plateau/         # 파라미터 고원 분석 결과 (hold_days/sell/buy/ma 통합)
-        ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더)
-        └── tqqq/              # TQQQ 시뮬레이션 결과
-            └── spread_lab/  # 스프레드 모델 검증 결과
+├── src/                # 패키지 소스 코드
+│   ├── qbt/            # 백테스트 코어 패키지 (상세: src/qbt/CLAUDE.md)
+│   │   ├── common_constants.py
+│   │   ├── backtest/   # 백테스트 도메인
+│   │   ├── tqqq/       # 레버리지 ETF 시뮬레이션
+│   │   └── utils/      # 공통 유틸리티
+│   └── live/           # 실매매 알림 패키지 (상세: src/live/CLAUDE.md)
+├── tests/              # 테스트 코드 (상세: tests/CLAUDE.md)
+│   ├── qbt/            # qbt 패키지 테스트
+│   └── live/           # live 패키지 테스트
+├── scripts/            # CLI 스크립트 (qbt 전용, 도메인별 분리)
+│   ├── data/           # 데이터 다운로드
+│   ├── backtest/       # 백테스트 실행 + 대시보드 앱
+│   └── tqqq/           # 레버리지 ETF 관련
+├── docs/               # 프로젝트 문서 및 계획서
+│   ├── plans/          # 작업 계획서 저장소
+│   └── archive/        # 완료/폐기 계획서
+├── storage/            # 데이터 저장소 (stock, etc, results)
+└── vendor/             # 서드파티 포크 (streamlit-lightweight-charts-v5)
 ```
 
 ---
+
+## 실행 명령어 관리 원칙
+
+> CRITICAL: 모든 실행 명령어(`poetry run`, `streamlit run` 등)는 **[README.md](README.md)에서 단일 관리**합니다.
+> CLAUDE.md 파일에는 실행 명령어를 기재하지 않으며, 필요 시 README.md를 참조합니다.
 
 ## 스크립트 실행 규칙
 
@@ -171,134 +125,9 @@ quant/
 
 ---
 
-## 아키텍처 원칙
+## 구현 원칙
 
-### 1. 계층 분리 원칙
-
-프로젝트는 명확한 2계층 구조를 따릅니다:
-
-CLI 계층 (`scripts/`):
-
-- 사용자 인터페이스 제공
-- argparse로 명령행 인자 파싱
-- 로거 초기화
-- `@cli_exception_handler` 데코레이터로 예외 처리
-- 비즈니스 로직 호출
-- 종료 코드 반환 (0=성공, 1=실패)
-
-비즈니스 로직 계층 (`src/qbt/`):
-
-- 핵심 도메인 로직 구현
-- 데이터 검증 및 변환
-- ERROR 로그 금지 (CLI에서만 로깅)
-- 예외는 `raise`로 전파
-
-### 2. 상수 관리 (3계층)
-
-상수 배치 규칙 (사용 범위 기반):
-
-| 사용 범위                        | 배치 위치             |
-| -------------------------------- | --------------------- |
-| 2개 이상 도메인에서 사용         | `common_constants.py` |
-| 도메인 내 2개 이상 파일에서 사용 | `도메인/constants.py` |
-| 1개 파일에서만 사용              | 해당 파일 상단        |
-
-카운트 규칙:
-
-- 제외: 테스트 코드 (`tests/`), 단순 로그 출력
-- 포함: 비즈니스 로직 (`src/`, `scripts/`)
-
-공통 상수 (`common_constants.py`): 모든 도메인에서 공유하는 공통 상수
-
-- 경로 상수 (디렉토리, 데이터 파일, 결과 파일)
-- 데이터 상수 (컬럼명, 연간 영업일 수 등)
-- 수치 안정성 상수 (분모 0 방지 및 로그 계산 안정성 확보)
-
-도메인 상수 (`도메인/constants.py`): 도메인 내 여러 파일에서 공유하는 상수
-
-- 백테스트 파라미터 (초기 자본, 비용 비율, 그리드 서치 범위 등)
-- 시뮬레이션 기본값 (레버리지 배율, 비용 모델 파라미터 등)
-
-로컬 상수 (해당 파일 상단): 단일 파일에서만 사용되는 상수
-
-- 예: 특정 모듈의 DISPLAY*\* 상수, 스크립트 전용 DEFAULT*\* 상수
-- 코드 근접성 향상으로 가독성 개선
-
-원칙: 상수 중복 금지 - 계층 간 중복 정의 시 즉시 통합
-
-상수 명명 규칙:
-
-4가지 접두사만 사용합니다:
-
-- `COL_`: DataFrame 컬럼명 (내부 계산용 영문 토큰, 예: `COL_DATE`, `COL_CLOSE`, `COL_MONTH`)
-- `KEY_`: 딕셔너리나 JSON 형태의 키값 (예: `KEY_OVERLAP_START`, `KEY_FINAL_CLOSE_ACTUAL`)
-- `DISPLAY_`: CSV 출력이나 UI 표시용 한글 레이블 (예: `DISPLAY_DATE`, `DISPLAY_CAGR`, `DISPLAY_MONTH`)
-- `DEFAULT_`: 분석/시뮬레이션 기본값 파라미터 (예: `DEFAULT_MIN_MONTHS`, `DEFAULT_HISTOGRAM_BINS`)
-
-내부/출력 분리 원칙 (특히 Rate Spread Lab 등 CSV 저장이 필요한 모듈):
-
-- 내부 계산: `COL_*` (영문 토큰, 예: `COL_RATE_PCT = "rate_pct"`)
-- CSV 출력 헤더: `DISPLAY_*` (한글, 예: `DISPLAY_RATE_PCT = "금리수준(%)"`)
-- 저장 직전에 `rename(COL -> DISPLAY)` 적용
-
-지양하는 접두사 (새로 사용하지 않음):
-
-- `PARAM_*` -> `DEFAULT_*` 사용
-- `COL_TEMP_*`, `KEY_TEMP_*` -> 필요 시 `COL_*` 또는 로컬 변수 사용
-- `CATEGORY_VALUE_*`, `TEMPLATE_*` -> 리터럴 또는 f-string 사용
-
-### 3. 핵심 패턴
-
-#### CSV 데이터 로딩
-
-- 중앙 집중식: `utils/data_loader.py`에서 모든 CSV 로딩
-- 로딩 시 자동 전처리 (날짜 파싱, 정렬, 중복 제거)
-- 순환 임포트 방지
-
-#### CLI 예외 처리
-
-- 데코레이터 패턴: `@cli_exception_handler` 사용
-- 자동 로거 감지
-- 스택 트레이스 포함
-- try-except 블록 불필요
-
-#### 데이터 검증
-
-- 다운로드 시 엄격한 검증 (결측치, 0값, 음수, 급등락)
-- 보간 금지: 이상 발견 시 즉시 예외
-- 검증 통과 후에만 저장
-
-#### 병렬 처리
-
-- 중앙 집중식: `utils/parallel_executor.py` 모듈 사용
-- ProcessPoolExecutor 기반 CPU 집약적 작업 병렬화
-- 입력 순서 보장된 결과 반환
-- 단일 인자 함수용, 키워드 인자 함수용 두 가지 제공
-- Windows 환경 대응 (pickle 가능한 함수만 사용)
-- 예외 처리: 병렬 워커에서 예외 발생 시 즉시 전파하여 스크립트 실패 종료
-  - 예외를 숨기고 None 반환하는 패턴 금지
-  - 디버깅 용이성 및 잘못된 결과 방지
-
-병렬 처리 적합성 판단 기준:
-
-ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재한다.
-작업의 계산량이 이 오버헤드보다 충분히 클 때만 병렬 처리가 유리하다.
-
-| 조건             | 병렬 유리                   | 순차 유리                    |
-| ---------------- | --------------------------- | ---------------------------- |
-| Pool 생성 횟수   | 1~2회 (일괄 배치)           | 다수 (반복 생성/소멸)        |
-| 작업당 계산량    | 높음 (Python 루프, 초 단위) | 낮음 (numpy 벡터화, ms 단위) |
-| 작업 개수        | 수백 개 이상                | 소수                         |
-| 오버헤드 vs 계산 | 오버헤드 << 계산            | 오버헤드 >= 계산             |
-
-적용 사례:
-
-- 병렬 유리: 그리드 서치 (1회 Pool 생성, 수백 개 Python 루프 작업 분배)
-- 순차 유리: 워크포워드 최적화 (반복 호출마다 Pool 재생성, numpy 벡터화된 빠른 작업)
-
-### 4. 구현 원칙
-
-프로젝트 전반의 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
+프로젝트 전반(qbt + live)의 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
 
 #### 데이터 불변성
 
@@ -311,19 +140,6 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - 파라미터 유효성 즉시 검증
 - 유효하지 않은 입력 시 즉시 예외 발생 (ValueError)
 - 암묵적 가정 금지
-
-#### 상태 비저장
-
-- 함수는 상태를 유지하지 않음
-- 모든 입력을 파라미터로 전달
-- 순수 함수 스타일 지향
-
-#### 병렬 처리 지원
-
-- 독립적인 연산은 병렬 실행 가능하도록 설계
-- 순서 보장 필요 시 중앙 병렬 처리 모듈 사용 (`utils/parallel_executor.py`)
-- pickle 가능한 함수만 사용 (모듈 최상위 레벨 정의)
-- 워커 초기화 시 WORKER_CACHE 활용
 
 #### 불가능 조건 처리
 
@@ -403,22 +219,10 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 
 품질 검증:
 
-- 모든 품질 검증은 `validate_project.py`를 통해서만 수행
-  - 통합 스크립트: Ruff (린트) + PyRight (타입 체크) + Pytest (테스트)
-  - 위치: 프로젝트 루트 `./validate_project.py`
-- 직접 명령어 실행 금지 (원칙):
-  - 금지: `poetry run ruff check .`
-  - 금지: `poetry run pyright`
-  - 금지: `poetry run pytest tests/`
-- 표준 진입점:
-  - 전체 검증: `poetry run python validate_project.py` (Ruff + PyRight + Pytest)
-  - Ruff만: `poetry run python validate_project.py --only-lint`
-  - PyRight만: `poetry run python validate_project.py --only-pyright`
-  - Pytest만: `poetry run python validate_project.py --only-tests`
-  - 커버리지 포함 테스트: `poetry run python validate_project.py --cov`
+- 모든 품질 검증은 `validate_project.py`를 통해서만 수행 (Ruff + PyRight + Pytest 통합)
+- 직접 명령어 실행 금지 (원칙): `poetry run ruff check .`, `poetry run pyright`, `poetry run pytest tests/` 등
 - 예외: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
-  - 예: `poetry run pytest tests/test_buffer_zone_helpers.py -v`
-  - 예: `poetry run pytest tests/test_analysis.py::TestClass::test_method -v`
+- 실행 명령어는 [README.md](README.md)를 참고
 - 타입 체커: PyRight 단일 사용 (Mypy 제거됨)
   - 설정 파일: `pyrightconfig.json` (`executionEnvironments` 방식)
   - 전역: strict 모드, reportUnknown\* 5개 규칙 + reportMissingTypeStubs는 none (pandas/Plotly 타입 스텁 한계 대응)
@@ -438,95 +242,9 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 - 이모지 사용 금지
 - 함수명 중복 기재 금지 (로그 포맷에 자동 포함)
 
-테이블 출력:
-
-- 한글/영문 혼용 시 터미널 폭 정확 계산 (한글=2칸)
-- `TableLogger` 클래스 사용
-- 컬럼 정의 (이름, 폭, 정렬) -> 인스턴스 생성 -> 데이터 출력
-
-요약 통계:
-
-- 주요 지표를 간결하게 표시
-- 구분선으로 섹션 분리
-
 ### 테스트
 
 - 테스트 코드도 동일한 품질 기준 적용
-
----
-
-## 데이터 처리 규칙
-
-### CSV 파일 저장 위치
-
-주식 데이터 (`storage/stock/`):
-
-- `{TICKER}_max.csv`: 전체 기간
-- `{TICKER}_{START}_{END}.csv`: 기간 지정
-- `{TICKER}_{START}_latest.csv`: 시작일만
-- `{TICKER}_synthetic_max.csv`: 합성 데이터
-
-기타 데이터 (`storage/etc/`):
-
-- `federal_funds_rate_monthly.csv`: 연방기금금리 월별 데이터
-- `tqqq_net_expense_ratio_monthly.csv`: TQQQ 운용비율 월별 데이터
-
-분석 결과 - 공통 (`storage/results/`):
-
-- `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
-
-분석 결과 - 백테스트 (`storage/results/backtest/{strategy_name}/`):
-
-각 전략의 결과는 전략명 하위 폴더에 저장된다 (예: `buffer_zone_tqqq/`, `buffer_zone_qqq/`, `buy_and_hold_qqq/`, `buy_and_hold_tqqq/`).
-
-- `signal.csv`: 시그널 데이터 (OHLC + MA + 전일대비%)
-- `equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
-- `trades.csv`: 거래 내역 + 보유기간
-- `summary.json`: 요약 지표 + 파라미터 + 월별 수익률
-- `walkforward_dynamic.csv`: WFO Dynamic 모드 윈도우별 결과 (버퍼존 전략 전용)
-- `walkforward_fully_fixed.csv`: WFO Fully Fixed 모드 윈도우별 결과 (버퍼존 전략 전용)
-- `walkforward_equity_dynamic.csv`: WFO Dynamic Stitched Equity (버퍼존 전략 전용)
-- `walkforward_equity_fully_fixed.csv`: WFO Fully Fixed Stitched Equity (버퍼존 전략 전용)
-- `walkforward_summary.json`: WFO 모드별 요약 통계 (버퍼존 전략 전용)
-
-분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
-
-- `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터 (softplus 동적 스프레드)
-
-스프레드 모델 검증 결과 (`storage/results/tqqq/spread_lab/`):
-
-- `tqqq_softplus_tuning.csv`: Softplus 튜닝 결과 (a, b 파라미터)
-- `tqqq_softplus_spread_series_static.csv`: 정적 spread 시계열 (전체기간 최적 a,b 기준)
-- `tqqq_rate_spread_lab_*.csv`: 금리-오차 분석 결과 (monthly, summary, model)
-- `tqqq_rate_spread_lab_walkforward.csv`: 워크포워드 검증 결과 (ffr_pct_test, spread_test 포함)
-- `tqqq_rate_spread_lab_walkforward_fixed_b.csv`: b 고정 워크포워드 검증 결과
-- `tqqq_rate_spread_lab_walkforward_fixed_ab.csv`: 완전 고정 (a,b) 워크포워드 검증 결과
-- 각 워크포워드 CSV에 대응하는 `*_summary.csv` 파일 존재
-
-### 데이터 로딩 (utils/data_loader.py)
-
-모든 CSV 로딩은 이 모듈을 통해 수행:
-
-1. 파일 존재 확인
-2. CSV 읽기
-3. 필수 컬럼 검증
-4. 날짜 파싱
-5. 정렬
-6. 중복 제거
-7. DataFrame 반환
-
-### 데이터 검증 (다운로드 시)
-
-- 결측치, 0값, 음수값, 급등락 검사
-- 보간 금지
-- 즉시 커스텀 예외 발생
-- 검증 통과 시에만 저장
-
-### 데이터 정제
-
-- 최근 일정 기간 제외 (데이터 소스 안정성 고려)
-- 날짜는 `date` 객체로 통일
-- 가격 정밀도는 소수점 자리 통일
 
 ---
 
@@ -534,5 +252,5 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 
 1. YAGNI: 필요성이 확인될 때 구현
 2. 간결성: 불필요한 추상화 지양
-3. 확장성: 도메인별 모듈 독립성 유지
+3. 확장성: 패키지/도메인별 모듈 독립성 유지
 4. 사용자 중심: 한글 메시지, 명확한 오류 정보

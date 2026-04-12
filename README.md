@@ -4,11 +4,20 @@
 
 ## 주요 기능
 
+### qbt 패키지 (`src/qbt/`)
+
 - 시계열 데이터 수집 및 검증 (Yahoo Finance 기반)
 - 이동평균 기반 버퍼존 거래 전략 백테스트 — 엔진-전략 분리 아키텍처 (`SignalStrategy` Protocol, stateful 전략 클래스)
 - 멀티자산 포트폴리오 백테스트 (목표 비중 배분 + 이중 트리거 리밸런싱, 자산 슬롯별 전략 파라미터 독립 설정 — 실험 구성은 `src/qbt/backtest/portfolio_configs.py`의 `PORTFOLIO_CONFIGS` 참고)
 - 레버리지 ETF 시뮬레이션 및 비용 모델 최적화
 - 대화형 시각화 대시보드 (Streamlit + Plotly)
+
+### live 패키지 (`src/live/`)
+
+- QBT 포트폴리오 전략의 실매매 알림 시스템
+- GitHub Actions 자동 실행 (매일 장 마감 후)
+- 주가 수집, 시그널 감지, FCM/텔레그램 알림
+- Firebase RTDB 기반 Android 앱 연동
 
 ## 기술 스택
 
@@ -23,8 +32,11 @@
 ## 빠른 시작
 
 ```bash
-# 의존성 설치
+# 의존성 설치 (qbt만)
 poetry install
+
+# live 패키지 포함 설치
+poetry install -E live
 
 # 품질 검증 (Ruff + PyRight + Pytest)
 poetry run python validate_project.py
@@ -142,6 +154,38 @@ poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 
 ---
 
+## 워크플로우 3: QBT Live (실매매 알림)
+
+QBT 포트폴리오 전략의 실매매 알림 시스템입니다. GitHub Actions에서 매일 장 마감 후 자동 실행됩니다.
+
+```bash
+# 의존성 설치 (live extras 포함)
+poetry install -E live
+
+# 초기 1회 (원격 qbt-live-state 리포에 초기 상태 push)
+poetry run python -m live init --capital 100000000
+poetry run python -m live init-data
+
+# 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
+poetry run python -m live run-daily
+
+# 디버깅 / 조회
+poetry run python -m live drift
+poetry run python -m live history --tail 20
+poetry run python -m live fetch-fills
+poetry run python -m live notify-failure -m "수동 테스트"
+```
+
+**환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다. 필요한 변수:
+
+- `STATE_REPO_PAT` — `qbt-live-state` 리포 clone/push용 GitHub PAT
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — 알림 발송용
+- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로
+
+상세 가이드: [src/live/CLAUDE.md](src/live/CLAUDE.md)
+
+---
+
 ## 주요 명령어
 
 ### 품질 검증 (통합)
@@ -166,17 +210,20 @@ poetry run python validate_project.py --only-pyright
 ### 테스트 (특정 모듈/파일)
 
 ```bash
-# 특정 모듈만 테스트
-poetry run pytest tests/test_buffer_zone_run.py -v
+# qbt 특정 모듈만 테스트
+poetry run pytest tests/qbt/test_buffer_zone_run.py -v
 
 # 특정 클래스만 테스트
-poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy -v
+poetry run pytest tests/qbt/test_buffer_zone_run.py::TestRunBufferStrategy -v
+
+# live 테스트만 실행
+poetry run pytest tests/live/ -v
 
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
 
 # 디버깅 모드 (print 출력 포함)
-poetry run pytest tests/test_xxx.py -s -vv
+poetry run pytest tests/qbt/test_xxx.py -s -vv
 ```
 
 ### 코드 포맷
@@ -187,6 +234,19 @@ poetry run black .
 
 # ruff 자동 수정 (예외적 사용)
 poetry run ruff check --fix .
+```
+
+### 커버리지
+
+```bash
+# 커버리지 포함 검증 (권장)
+poetry run python validate_project.py --cov
+
+# HTML 리포트 생성 (직접 pytest 사용)
+poetry run pytest --cov=src/qbt --cov-report=html tests/qbt/
+poetry run pytest --cov=src/live --cov-report=html tests/live/
+poetry run pytest --cov=src/qbt --cov=src/live --cov-report=html tests/
+# 결과: htmlcov/index.html 브라우저로 열기
 ```
 
 ---
@@ -216,63 +276,28 @@ poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 
 ```
 quant/
+├── src/               # 패키지 소스 코드
+│   ├── qbt/           # 백테스트 코어 패키지
+│   │   ├── common_constants.py  # 공통 상수
+│   │   ├── backtest/  # 백테스트 도메인 (strategies/, engines/)
+│   │   ├── tqqq/      # TQQQ 시뮬레이션
+│   │   └── utils/     # 공통 유틸리티
+│   └── live/          # 실매매 알림 패키지
+├── tests/             # 테스트 코드
+│   ├── qbt/           # qbt 패키지 테스트
+│   └── live/          # live 패키지 테스트
+├── scripts/           # CLI 스크립트 (사용자 실행)
+│   ├── data/          # download_data.py
+│   ├── backtest/      # 백테스트 실행 + 대시보드 앱
+│   └── tqqq/          # generate_*.py, app_daily_comparison.py
 ├── docs/              # 프로젝트 문서 및 계획서
 │   ├── plans/         # 작업 계획서 저장소
 │   └── archive/       # 완료/폐기 계획서
-├── scripts/           # CLI 스크립트 (사용자 실행)
-│   ├── data/          # download_data.py
-│   ├── backtest/      # run_single_backtest.py, run_walkforward.py, run_param_plateau_all.py, run_portfolio_backtest.py, app_single_backtest.py, app_walkforward.py, app_parameter_stability.py, app_portfolio_backtest.py, app_portfolio_debug.py
-│   └── tqqq/          # generate_*.py, app_daily_comparison.py
-│       ├── app_daily_comparison.py        # 일별 비교 대시보드
-│       └── spread_lab/                    # 스프레드 모델 검증 결과 열람
-│           └── app_rate_spread_lab.py     # 금리-오차 분석 앱 (시각화 전용)
-├── src/qbt/           # 비즈니스 로직
-│   ├── common_constants.py  # 공통 상수
-│   ├── backtest/      # 백테스트 도메인
-│   │   ├── constants.py, types.py, analysis.py, walkforward.py, parameter_stability.py
-│   │   ├── portfolio_types.py, portfolio_configs.py, portfolio_validation.py
-│   │   ├── runners.py             # 전략 러너 팩토리 (create_buffer_zone_runner, create_buy_and_hold_runner)
-│   │   ├── strategies/            # 전략 계층 (SignalStrategy Protocol 기반)
-│   │   │   ├── strategy_common.py   # SignalStrategy Protocol, PendingOrderConflictError
-│   │   │   ├── buffer_zone_helpers.py # HoldState, compute_bands, detect_buy/sell_signal
-│   │   │   ├── buffer_zone.py       # BufferZoneStrategy (stateful, 내부 prev 상태 관리)
-│   │   │   └── buy_and_hold.py      # BuyAndHoldStrategy (stateless)
-│   │   └── engines/               # 엔진 계층 (전략 의존성 없음)
-│   │       ├── engine_common.py       # PendingOrder, TradeRecord, execute_buy/sell_order
-│   │       ├── backtest_engine.py     # 단일 백테스트 + 그리드 서치
-│   │       ├── portfolio_engine.py    # 포트폴리오 백테스트 엔진 (facade)
-│   │       ├── portfolio_planning.py  # 주문 의도 생성 및 시그널 흐름
-│   │       ├── portfolio_rebalance.py # 이중 트리거 리밸런싱
-│   │       ├── portfolio_execution.py # SELL→BUY 체결 실행
-│   │       └── portfolio_data.py      # 포트폴리오 데이터 로딩
-│   ├── tqqq/          # TQQQ 시뮬레이션 (constants.py)
-│   └── utils/         # 공통 유틸리티
 ├── storage/           # 데이터 저장소
 │   ├── stock/         # 주식 데이터 CSV
 │   ├── etc/           # 금리 데이터
-│   └── results/       # 분석 결과 + meta.json
-│       ├── portfolio/         # 포트폴리오 백테스트 결과 (실험별 하위 폴더, 목록은 `src/qbt/backtest/portfolio_configs.py` 참고)
-│       ├── backtest/          # 백테스트 결과 (전략별 하위 폴더)
-│       │   ├── buffer_zone_tqqq/      # 버퍼존 전략 (TQQQ) 결과
-│       │   ├── buffer_zone_qqq/       # 버퍼존 전략 (QQQ) 결과
-│       │   ├── buffer_zone_spy/       # 버퍼존 전략 (SPY) 결과
-│       │   ├── buffer_zone_iwm/       # 버퍼존 전략 (IWM) 결과
-│       │   ├── buffer_zone_efa/       # 버퍼존 전략 (EFA) 결과
-│       │   ├── buffer_zone_eem/       # 버퍼존 전략 (EEM) 결과
-│       │   ├── buffer_zone_gld/       # 버퍼존 전략 (GLD) 결과
-│       │   ├── buffer_zone_tlt/       # 버퍼존 전략 (TLT) 결과
-│       │   ├── buy_and_hold_qqq/      # Buy & Hold (QQQ) 전략 결과
-│       │   ├── buy_and_hold_tqqq/     # Buy & Hold (TQQQ) 전략 결과
-│       │   ├── buy_and_hold_spy/      # Buy & Hold (SPY) 전략 결과
-│       │   ├── buy_and_hold_iwm/      # Buy & Hold (IWM) 전략 결과
-│       │   ├── buy_and_hold_efa/      # Buy & Hold (EFA) 전략 결과
-│       │   ├── buy_and_hold_eem/      # Buy & Hold (EEM) 전략 결과
-│       │   ├── buy_and_hold_gld/      # Buy & Hold (GLD) 전략 결과
-│       │   ├── buy_and_hold_tlt/      # Buy & Hold (TLT) 전략 결과
-│       │   └── param_plateau/         # 파라미터(hold/sell/buy/ma) 고원 분석 결과
-│       └── tqqq/              # TQQQ 시뮬레이션 결과
-│           └── spread_lab/    # 스프레드 모델 검증 결과
-└── tests/             # 테스트 코드
+│   └── results/       # 분석 결과 (backtest/, portfolio/, tqqq/)
+└── vendor/            # 서드파티 포크
 ```
 
 ---
@@ -342,12 +367,14 @@ quant/
 
 프로젝트의 상세 규칙과 아키텍처는 각 디렉토리의 `CLAUDE.md` 파일을 참고하세요:
 
-- [프로젝트 가이드라인](CLAUDE.md): 전체 프로젝트 규칙
+- [프로젝트 가이드라인](CLAUDE.md): 전체 프로젝트 공통 규칙
+- [qbt 패키지 가이드](src/qbt/CLAUDE.md): qbt 패키지 아키텍처 및 규칙
+- [live 패키지 가이드](src/live/CLAUDE.md): live 도메인 규칙
 - [문서 및 계획서 가이드](docs/CLAUDE.md): 계획서 작성 및 운영 규칙
 - [CLI 스크립트 가이드](scripts/CLAUDE.md): CLI 스크립트 계층 규칙
-- [유틸리티 가이드](src/qbt/utils/CLAUDE.md): 공통 유틸리티 규칙
 - [백테스트 도메인](src/qbt/backtest/CLAUDE.md): 백테스트 로직
 - [TQQQ 시뮬레이션](src/qbt/tqqq/CLAUDE.md): 레버리지 ETF 시뮬레이션
+- [유틸리티 가이드](src/qbt/utils/CLAUDE.md): 공통 유틸리티 규칙
 - [테스트 가이드](tests/CLAUDE.md): 테스트 작성 규칙
 
 ---

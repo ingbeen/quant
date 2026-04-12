@@ -96,8 +96,8 @@ __all__ = ["main"]
 # 환경 / 경로
 # ============================================================================
 
-# 프로젝트 루트 (live/src/live/cli.py 로부터 4단계 위)
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# 프로젝트 루트 (src/live/cli.py 로부터 3단계 위)
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DOTENV_PATH = _PROJECT_ROOT / ".env"
 
 

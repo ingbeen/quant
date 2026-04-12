@@ -266,7 +266,7 @@ class TestJsonRounding:
 
         spec = importlib.util.spec_from_file_location(
             "run_walkforward",
-            Path(__file__).parent.parent / "scripts" / "backtest" / "run_walkforward.py",
+            Path(__file__).parent.parent.parent / "scripts" / "backtest" / "run_walkforward.py",
         )
         assert spec is not None and spec.loader is not None
         mod = importlib.util.module_from_spec(spec)

@@ -143,14 +143,13 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
             "run",
             "pytest",
             "--cov=src/qbt",
-            "--cov=live/src/live",
+            "--cov=src/live",
             "--cov-report=term-missing",
             "tests/",
-            "live/tests/",
             "-v",
         ]
     else:
-        cmd = ["poetry", "run", "pytest", "tests/", "live/tests/", "-v"]
+        cmd = ["poetry", "run", "pytest", "tests/", "-v"]
 
     result = subprocess.run(
         cmd,

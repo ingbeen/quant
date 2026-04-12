@@ -30,7 +30,8 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from live.constants import DEFAULT_PRICE_DECIMALS, DEFAULT_RECENT_FETCH_DAYS
+from live.constants import DEFAULT_RECENT_FETCH_DAYS
+from qbt.backtest.constants import ROUND_PRICE
 from qbt.common_constants import COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.utils.data_loader import load_stock_data
 
@@ -70,7 +71,7 @@ def _yf_history_to_qbt_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
 
     df = df[REQUIRED_COLUMNS]
-    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
+    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(ROUND_PRICE)
 
     df = df.sort_values(COL_DATE).reset_index(drop=True)
     return df
@@ -128,7 +129,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     new_row = today_row.copy()
     new_row[COL_DATE] = pd.to_datetime(new_row[COL_DATE]).dt.date
-    new_row[PRICE_COLUMNS] = new_row[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
+    new_row[PRICE_COLUMNS] = new_row[PRICE_COLUMNS].round(ROUND_PRICE)
     new_date = new_row[COL_DATE].iloc[0]
 
     if not csv_path.exists():
@@ -143,7 +144,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
 
     combined = pd.concat([existing, new_row[REQUIRED_COLUMNS]], ignore_index=True)
     combined = combined.sort_values(COL_DATE).reset_index(drop=True)
-    combined[PRICE_COLUMNS] = combined[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
+    combined[PRICE_COLUMNS] = combined[PRICE_COLUMNS].round(ROUND_PRICE)
     combined.to_csv(csv_path, index=False)
 
 

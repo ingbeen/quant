@@ -30,6 +30,7 @@ from live.constants import (
     SELL_INTENT_TYPES,
 )
 from live.models import ActualFill, AssetDrift, DriftReport, LiveState
+from qbt.backtest.constants import ROUND_RATIO
 
 __all__ = ["classify_fill", "apply_fills_idempotent", "compute_drift"]
 
@@ -187,7 +188,7 @@ def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
 
         value_diff = actual_value - model_value
         if model_value > 0:
-            asset_drift_pct = round(abs(value_diff) / model_value, 4)
+            asset_drift_pct = round(abs(value_diff) / model_value, ROUND_RATIO)
         elif actual_value > 0:
             # 모델이 0주인데 실제 보유 중 → 100% 이탈
             asset_drift_pct = 1.0
@@ -213,7 +214,7 @@ def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
             f"내부 불변조건 위반: model_equity={model_equity:.2f} 은 양수여야 함. " f"shared_cash_model={state.shared_cash_model:.2f}"
         )
     drift_ratio = abs(actual_equity - model_equity) / model_equity
-    drift_pct = round(drift_ratio, 4)
+    drift_pct = round(drift_ratio, ROUND_RATIO)
 
     if drift_ratio >= DRIFT_CORRECTION_RATIO:
         recommendation = "보정 필요"

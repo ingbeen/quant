@@ -444,7 +444,7 @@ class TestDotenvLoading:
         """Given ``_PROJECT_ROOT`` 상수 Then 실제 프로젝트 루트를 가리킨다."""
         root = cli_module._PROJECT_ROOT
         assert (root / "pyproject.toml").is_file()
-        assert (root / "live").is_dir()
+        assert (root / "src" / "live").is_dir()
         assert cli_module._DOTENV_PATH == root / ".env"
 
 

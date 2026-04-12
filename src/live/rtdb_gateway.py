@@ -24,6 +24,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 from live.models import ActualFill, BalanceAdjust, ChartSeries, DailyResult, LiveState
+from qbt.backtest.constants import ROUND_PERCENT
 
 # Firebase Admin SDK 의 ``App`` 객체는 테스트에서 mock 으로 주입되는 경우가 많아
 # 정적 타입을 ``Any`` 로 유지한다. 런타임에는 :func:`initialize_firebase_app` 가
@@ -161,9 +162,7 @@ def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjus
     new_shares_raw = data.get("new_shares")
     new_cash_raw = data.get("new_cash")
     if new_shares_raw is None and new_cash_raw is None:
-        raise ValueError(
-            f"balance_adjust 에 유효한 new_shares / new_cash 값이 없음 (rtdb_key={rtdb_key!r})"
-        )
+        raise ValueError(f"balance_adjust 에 유효한 new_shares / new_cash 값이 없음 (rtdb_key={rtdb_key!r})")
     return BalanceAdjust(
         rtdb_key=rtdb_key,
         input_time_kst=str(data.get("input_time_kst", "")),
@@ -225,7 +224,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
         "execution_date": result.execution_date,
         "model_equity": result.model_equity,
         "actual_equity": result.actual_equity,
-        "drift_pct": round(result.drift_pct * 100, 2),
+        "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
         "shared_cash_model": state.shared_cash_model,
         "shared_cash_actual": state.shared_cash_actual,
         "assets": {
@@ -258,7 +257,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
     _db_reference(app, f"{_LATEST_PATH}/pending_orders").set(pending_payload)
 
     drift_payload = {
-        "drift_pct": round(result.drift_pct * 100, 2),
+        "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
         "model_equity": result.model_equity,
         "actual_equity": result.actual_equity,
     }
@@ -270,7 +269,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
             "execution_date": result.execution_date,
             "model_equity": result.model_equity,
             "actual_equity": result.actual_equity,
-            "drift_pct": round(result.drift_pct * 100, 2),
+            "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
         }
     )
 

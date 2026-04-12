@@ -104,9 +104,8 @@ HISTORY_BALANCE_ADJUSTS_FILENAME: Final[str] = "balance_adjusts.jsonl"
 # 출력 정밀도
 # ============================================================================
 
-# CSV / JSON 에 저장되는 가격(종가/시가/밴드/체결가) 반올림 자릿수.
-# 루트 CLAUDE.md "출력 데이터 반올림 규칙" 의 가격 6자리 원칙을 반영.
-DEFAULT_PRICE_DECIMALS: Final[int] = 6
+# 반올림 상수는 qbt.backtest.constants 의 ROUND_* 를 직접 사용한다.
+# live 독자 상수를 정의하지 않고, qbt 것을 적극 재사용하는 원칙.
 
 
 # ============================================================================

@@ -27,8 +27,8 @@
 
 ```bash
 cd ~/workspace/quant
-poetry run python -m live.cli init --capital 100000000
-poetry run python -m live.cli init-data
+poetry run python -m live init --capital 100000000
+poetry run python -m live init-data
 ```
 
 각 명령은 자동으로 원격 리포에 새 커밋을 push 합니다.
@@ -63,7 +63,7 @@ poetry run python -m live.cli init-data
 
 ```bash
 cd ~/workspace/quant
-poetry run python -m live.cli notify-failure --message "수동 테스트 from local"
+poetry run python -m live notify-failure --message "수동 테스트 from local"
 ```
 
 **확인 사항**:
@@ -170,7 +170,7 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 1. `https://console.firebase.google.com/` → 프로젝트 `qbt-live` → Realtime Database 탭
 2. 루트 트리에서 `/latest/portfolio` 펼치기
 
-**실제 스키마** (from [rtdb_gateway.py::write_read_model](live/src/live/rtdb_gateway.py#L133)):
+**실제 스키마** (from [rtdb_gateway.py::write_read_model](src/live/rtdb_gateway.py#L133)):
 
 ```
 /latest/portfolio
@@ -212,7 +212,7 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 2. 자산별(sso / qld / gld / tlt) 하위 노드 펼치기 — **자산 ID 는 trade ticker 소문자**
 3. 배열이 길 경우 검색창에 `/latest/chart_data/sso/dates/0` 형태의 구체 경로로 값 확인
 
-**실제 스키마** (from [chart_data.py](live/src/live/chart_data.py)):
+**실제 스키마** (from [chart_data.py](src/live/chart_data.py)):
 
 ```
 /latest/chart_data/{sso|qld|gld|tlt}
@@ -244,7 +244,7 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 
 1. RTDB 에서 `/history/summary/{YYYY-MM-DD}` 경로 펼치기
 
-**실제 스키마** (from [rtdb_gateway.py::write_read_model](live/src/live/rtdb_gateway.py#L185)):
+**실제 스키마** (from [rtdb_gateway.py::write_read_model](src/live/rtdb_gateway.py#L185)):
 
 ```
 /history/summary/{YYYY-MM-DD}
@@ -394,7 +394,7 @@ poetry run python -m live.cli notify-failure --message "수동 테스트 from lo
 **절차**:
 
 ```bash
-poetry run python -m live.cli notify-failure --message "FCM 수동 테스트"
+poetry run python -m live notify-failure --message "FCM 수동 테스트"
 ```
 
 **확인 사항**:

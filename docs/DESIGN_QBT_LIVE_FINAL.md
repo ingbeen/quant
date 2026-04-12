@@ -3,9 +3,9 @@
 > 이 문서는 **역할 / 원칙 / 아키텍처** 를 담당합니다.
 > 구체적인 함수 시그니처 / dataclass 정의 / 구현 디테일은 코드가 SoT (Source of Truth) 입니다.
 >
-> - 모듈별 역할: [live/CLAUDE.md](../live/CLAUDE.md)
-> - 데이터 모델: [live/src/live/models.py](../live/src/live/models.py)
-> - CLI 명령: [live/src/live/cli.py](../live/src/live/cli.py)
+> - 모듈별 역할: [src/live/CLAUDE.md](../src/live/CLAUDE.md)
+> - 데이터 모델: [src/live/models.py](../src/live/models.py)
+> - CLI 명령: [src/live/cli.py](../src/live/cli.py)
 
 ## 0. 개요
 
@@ -130,10 +130,10 @@ QBT 프로젝트의 포트폴리오 전략을 **Android 앱 + 일일 실행 엔�
 
 ```
 quant/                              ← QBT 모노리포 (퍼블릭)
-├── src/qbt/                        ← 기존 백테스트 코드
-├── live/                           ← 실매매 도메인
-│   ├── src/live/                   ← 모듈 목록은 live/CLAUDE.md 참고
-│   └── tests/
+├── src/qbt/                        ← 백테스트 코어 패키지
+├── src/live/                       ← 실매매 알림 패키지 (모듈 목록은 src/live/CLAUDE.md 참고)
+├── tests/qbt/                      ← qbt 테스트
+├── tests/live/                     ← live 테스트
 ├── docs/
 │   ├── DESIGN_QBT_LIVE_FINAL.md    ← 본 문서
 │   ├── TEST_QBT_LIVE_MANUAL.md     ← 수동 테스트 가이드
@@ -184,7 +184,7 @@ qbt-live-state/                    ← 프라이빗 상태 리포
 
 ## 3. 데이터 검증 (3 종)
 
-모든 검증 함수는 `live/src/live/data_validator.py` 에 정의되고 `_refresh_live_csvs` 가 매 실행마다 호출한다.
+모든 검증 함수는 `src/live/data_validator.py` 에 정의되고 `_refresh_live_csvs` 가 매 실행마다 호출한다.
 
 | 검증 | 트리거 | 대응 |
 |------|------|------|
@@ -200,7 +200,7 @@ qbt-live-state/                    ← 프라이빗 상태 리포
 
 시그널 / 체결 / 리밸런싱 로직은 새로 구현하지 않는다. QBT 백테스트 코어 (`qbt.backtest.*`) 를 직접 import 하여 재사용한다.
 
-재사용 모듈의 종류 (`strategies/buffer_zone`, `engines/portfolio_planning`, `engines/portfolio_rebalance`, `engines/portfolio_execution`, `portfolio_configs` 등) 는 시간이 지나며 변화할 수 있으므로, 항상 `live/src/live/daily_runner.py` 의 import 선언을 SoT 로 참조한다.
+재사용 모듈의 종류 (`strategies/buffer_zone`, `engines/portfolio_planning`, `engines/portfolio_rebalance`, `engines/portfolio_execution`, `portfolio_configs` 등) 는 시간이 지나며 변화할 수 있으므로, 항상 `src/live/daily_runner.py` 의 import 선언을 SoT 로 참조한다.
 
 ### 4.2 일일 실행 순서 (run-daily)
 
@@ -256,7 +256,7 @@ QBT 코어를 수정하지 않고 어댑터 (`buffer_serializer.py`) 로 BufferZ
 
 `live_state.json` 은 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유지한다. model 은 daily runner 의 이론 포지션이고, actual 은 사용자가 실제로 체결한 포지션이다. 두 축은 서로를 덮어쓰지 않는다.
 
-실제 dataclass 정의 (`LiveState`, `AssetLiveState`, `BufferZoneState`, `PendingOrderDict`) 는 `live/src/live/models.py` 를 참조. 필드 변경 시 이 섹션은 업데이트하지 않아도 됨 — 코드가 SoT.
+실제 dataclass 정의 (`LiveState`, `AssetLiveState`, `BufferZoneState`, `PendingOrderDict`) 는 `src/live/models.py` 를 참조. 필드 변경 시 이 섹션은 업데이트하지 않아도 됨 — 코드가 SoT.
 
 **signal_state**: `AssetLiveState.signal_state` 는 QBT 포트폴리오 엔진의
 `AssetState.signal_state` 와 **동일한** `Literal["buy", "sell"]` 2 값을 사용한다.
@@ -519,7 +519,7 @@ RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다.
 본 설계서의 서버사이드 범위는 구현 완료 상태이며 `live/` 도메인 코드와
 `.github/workflows/` 의 GitHub Actions 워크플로우로 운영된다.
 
-- **엔진 / state / CSV / 검증 / 회귀 / cron / keepalive**: 완료 (`live/src/live/`,
+- **엔진 / state / CSV / 검증 / 회귀 / cron / keepalive**: 완료 (`src/live/`,
   `test_regression.py`, `.github/workflows/daily_run.yml`, `keepalive.yml`)
 - **FCM + 텔레그램 / chart_data / RTDB read model**: 완료 (`notifier.py`,
   `chart_data.py`, `rtdb_gateway.py`)
@@ -549,9 +549,9 @@ RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다.
 
 함수 시그니처 / dataclass / 내부 구현 디테일은 아래를 참조:
 
-- [live/CLAUDE.md](../live/CLAUDE.md) — 모듈별 역할 / 코딩 규칙 / 실행 방법
-- [live/src/live/models.py](../live/src/live/models.py) — 데이터 모델
-- [live/src/live/cli.py](../live/src/live/cli.py) — CLI 엔트리
-- [live/src/live/daily_runner.py](../live/src/live/daily_runner.py) — 일일 실행 로직
+- [src/live/CLAUDE.md](../src/live/CLAUDE.md) — 모듈별 역할 / 코딩 규칙
+- [src/live/models.py](../src/live/models.py) — 데이터 모델
+- [src/live/cli.py](../src/live/cli.py) — CLI 엔트리
+- [src/live/daily_runner.py](../src/live/daily_runner.py) — 일일 실행 로직
 - [docs/TEST_QBT_LIVE_MANUAL.md](TEST_QBT_LIVE_MANUAL.md) — 수동 테스트 가이드
 - [docs/plans/](plans/) — Phase 별 구현 계획서

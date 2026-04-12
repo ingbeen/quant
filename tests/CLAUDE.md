@@ -5,65 +5,29 @@
 
 ## 폴더 목적
 
-tests 폴더(`tests/`)는 QBT 프로젝트의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
+tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
+
+- `tests/qbt/`: qbt 패키지(`src/qbt/`) 테스트 (백테스트, TQQQ 시뮬레이션, 공통 유틸리티)
+- `tests/live/`: live 패키지(`src/live/`) 테스트 (실매매 알림 시스템)
+
+두 디렉토리 모두 `__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지).
 
 테스트 철학: 정책/불변조건/계약을 코드로 고정하여 회귀 방지
 
 폴더 구조:
 
 ```
-
 tests/
-├── CLAUDE.md # tests 관련 규칙 (이 문서)
-├── conftest.py # 공통 픽스처
-├── test_analysis.py # 성과 지표/분석 로직 테스트
-├── test_buffer_zone_contracts.py # 버퍼존 필드 및 밴드 분리 계약 테스트
-├── test_buffer_zone_run.py       # 버퍼존 실행 및 그리드 서치 테스트
-├── test_buffer_zone_execution_rules.py # 버퍼존 체결 규칙 테스트
-├── test_buffer_zone_dual_ticker.py     # 버퍼존 듀얼 티커 전략 테스트
-├── test_buffer_zone.py    # 버퍼존 통합 모듈 테스트 (config, resolve_params, create_runner)
-├── test_portfolio_configs.py # 포트폴리오 실험 설정 불변조건 테스트 (target_weight 합, asset_id 중복 등)
-├── test_portfolio_backtest_scenarios.py # 포트폴리오 백테스트 시나리오 및 edge case 테스트
-├── test_portfolio_strategy_types.py     # 포트폴리오 strategy_id 동작 계약 테스트
-├── test_portfolio_planning.py           # 포트폴리오 planning 로직 테스트 (OrderIntent, signal/projected/merge)
-├── test_portfolio_execution.py          # 포트폴리오 체결 로직 테스트 (SELL→BUY, 부분 매도)
-├── test_portfolio_state_log.py          # 포트폴리오 state_log 정합성 검증
-├── test_portfolio_validation.py         # 포트폴리오 정합성 검증 함수 단위 테스트
-├── test_walkforward_windows.py   # WFO 윈도우 생성 테스트
-├── test_walkforward_schedule.py  # WFO 파라미터 스케줄 및 실행 테스트
-├── test_walkforward_selection.py # WFO 파라미터 선택 및 WFE 테스트
-├── test_walkforward_summary.py   # WFO 모드 요약 통계 테스트
-├── test_buy_and_hold.py # Buy & Hold 전략 테스트
-├── test_engine_common.py  # 엔진 공통 함수 계약 테스트 (execute_buy/sell_order, create_trade_record)
-├── test_backtest_engine.py # 백테스트 엔진 테스트 (params_schedule, filter_valid_rows)
-├── test_csv_export.py # 백테스트 CSV 저장용 변환 유틸리티 테스트
-├── test_cli_helpers.py # CLI 예외 처리 데코레이터 테스트
-├── test_data_loader.py # 데이터 로더 테스트
-├── test_formatting.py # 터미널 출력 포맷팅 테스트
-├── test_integration.py # 통합 테스트 (백테스트/TQQQ 파이프라인)
-├── test_logger.py # 로거 테스트
-├── test_meta_manager.py # 메타데이터 관리 테스트
-├── test_numpy_warnings.py # NumPy 부동소수점 경고 테스트
-├── test_parameter_stability.py # 파라미터 고원 분석 모듈 테스트
-├── test_parallel_executor.py # 병렬 처리 테스트
-├── test_tqqq_analysis_helpers.py # TQQQ 금리-오차 분석 테스트
-├── test_tqqq_data_loader.py # TQQQ 데이터 로더 테스트
-├── test_tqqq_simulation_cost_model.py # TQQQ 비용 모델 테스트 (일일 비용, FFR, softplus, 스프레드)
-├── test_tqqq_simulation_core.py       # TQQQ 시뮬레이션 코어 테스트 (simulate, 오버나이트)
-├── test_tqqq_simulation_outputs.py    # TQQQ 출력 테스트 (검증 지표, CSV 저장)
-├── test_tqqq_spread_lab_helpers.py # TQQQ Spread Lab 앱 전용 함수 테스트
-├── test_tqqq_visualization.py # TQQQ 차트 생성 테스트
-├── test_strategy_interface.py # SignalStrategy Protocol 인터페이스 테스트
-├── test_strategy_registry.py # 전략 레지스트리 테스트
-├── test_stock_downloader.py # 주식 데이터 다운로드/검증 테스트
-└── test_wfo_stitched.py # WFO CSV 로딩/build_params_schedule 연결 테스트
-
-# pytest 설정 (루트 디렉토리)
-
-../pytest.ini # pytest 기본 설정/마커 정의
-../validate_project.py # 통합 품질 검증 스크립트 (Ruff + PyRight + Pytest)
-
+├── CLAUDE.md           # 공통 테스트 규칙 (이 문서)
+├── qbt/                # qbt 패키지 테스트
+│   ├── conftest.py     # qbt 공통 픽스처
+│   └── test_*.py       # qbt 모듈별 테스트
+└── live/               # live 패키지 테스트
+    ├── conftest.py     # live 공통 픽스처 (네트워크 격리 autouse)
+    └── test_*.py       # live 모듈별 테스트
 ```
+
+각 디렉토리의 구체적인 테스트 파일 목록은 해당 디렉토리를 직접 참조하세요.
 
 ---
 
@@ -71,7 +35,7 @@ tests/
 
 pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
-- 테스트 탐색 경로: `tests/`
+- 테스트 탐색 경로: `tests` (qbt/, live/ 하위 디렉토리를 재귀적으로 탐색)
 - 파일 패턴: `test_*.py`
 - pytest.ini의 마커 설정은 참고용이며, 테스트 실행은 기본적으로 전체 실행을 기준으로 한다.
 
@@ -81,41 +45,7 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 ## 테스트 실행 방법
 
-### 통합 품질 검증 (권장)
-
-테스트 실행 예시:
-
-```bash
-# 전체 검증 (Ruff + Pyright + Pytest)
-poetry run python validate_project.py
-
-# 테스트만 실행
-poetry run python validate_project.py --only-tests
-
-# 커버리지 포함 테스트만 실행
-poetry run python validate_project.py --cov
-```
-
-### 특정 모듈/파일 테스트 (예외)
-
-특정 모듈이나 파일만 테스트할 때는 직접 pytest 명령을 사용할 수 있습니다:
-
-```bash
-# 특정 모듈만 실행
-poetry run pytest tests/test_buffer_zone_run.py -v
-
-# 특정 클래스만 실행
-poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy -v
-
-# 특정 테스트만 실행
-poetry run pytest tests/test_buffer_zone_run.py::TestRunBufferStrategy::test_normal_execution_with_trades -v
-
-# 실패한 테스트만 재실행
-poetry run pytest --lf -v
-
-# 디버깅 모드 (print 출력 포함)
-poetry run pytest tests/test_xxx.py -s -vv
-```
+실행 명령어는 [README.md](../README.md)의 "주요 명령어" 섹션을 참고한다.
 
 ---
 
@@ -148,32 +78,7 @@ poetry run pytest tests/test_xxx.py -s -vv
   - 겹치는 기간 추출 (`extract_overlap_period`)
   - 병렬 처리/결과 정렬(입력 순서 보장)
 
-근거 위치:
-
-- [test_buffer_zone_contracts.py](test_buffer_zone_contracts.py)
-- [test_buffer_zone_run.py](test_buffer_zone_run.py)
-- [test_buffer_zone_execution_rules.py](test_buffer_zone_execution_rules.py)
-- [test_buffer_zone_dual_ticker.py](test_buffer_zone_dual_ticker.py)
-- [test_buffer_zone.py](test_buffer_zone.py)
-- [test_buy_and_hold.py](test_buy_and_hold.py)
-- [test_engine_common.py](test_engine_common.py)
-- [test_analysis.py](test_analysis.py)
-- [test_tqqq_simulation_cost_model.py](test_tqqq_simulation_cost_model.py)
-- [test_tqqq_simulation_core.py](test_tqqq_simulation_core.py)
-- [test_tqqq_simulation_outputs.py](test_tqqq_simulation_outputs.py)
-- [test_tqqq_analysis_helpers.py](test_tqqq_analysis_helpers.py)
-- [test_tqqq_data_loader.py](test_tqqq_data_loader.py)
-- [test_tqqq_spread_lab_helpers.py](test_tqqq_spread_lab_helpers.py)
-- [test_tqqq_visualization.py](test_tqqq_visualization.py)
-- [test_data_loader.py](test_data_loader.py)
-- [test_meta_manager.py](test_meta_manager.py)
-- [test_parallel_executor.py](test_parallel_executor.py)
-- [test_cli_helpers.py](test_cli_helpers.py)
-- [test_formatting.py](test_formatting.py)
-- [test_logger.py](test_logger.py)
-- [test_numpy_warnings.py](test_numpy_warnings.py)
-- [test_strategy_interface.py](test_strategy_interface.py)
-- [test_strategy_registry.py](test_strategy_registry.py)
+근거 위치: `tests/qbt/` 디렉토리의 각 `test_*.py` 파일 참조
 
 ---
 
@@ -306,9 +211,9 @@ def test_with_temp_files(self, mock_storage_paths):
 
 - 모듈이 import 시점에 경로 상수를 캡처할 수 있으므로,
   필요한 경우 관련 모듈도 함께 monkeypatch 되어야 합니다.
-  (현재 `conftest.py`는 `meta_manager.META_JSON_PATH`도 패치합니다.)
+  (현재 `qbt/conftest.py`는 `meta_manager.META_JSON_PATH`도 패치합니다.)
 
-근거 위치: [conftest.py](conftest.py)
+근거 위치: [conftest.py](qbt/conftest.py)
 
 ---
 
@@ -361,9 +266,9 @@ def test_with_temp_files(self, mock_storage_paths):
 
 ---
 
-## 주요 픽스처 (conftest.py)
+## 주요 픽스처 (qbt/conftest.py)
 
-공통 픽스처: 모든 테스트에서 재사용 가능한 설정과 테스트 데이터
+qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스트 데이터
 
 - `sample_stock_df`: 기본 주식 데이터(OHLCV, 3행), `Date`는 `datetime.date`
 - `integration_stock_df`: 통합 테스트용 주식 데이터(OHLCV, 25행), MA 계산에 충분한 크기
@@ -405,7 +310,9 @@ def test_with_temp_files(self, mock_storage_paths):
 - 컬럼명 대소문자 확인 (예: `equity` vs `Equity`)
 - FFR 데이터 형식 (`date` vs `"yyyy-mm"` 문자열)
 
-근거 위치: [conftest.py](conftest.py)
+근거 위치: [conftest.py](qbt/conftest.py)
+
+live 픽스처: `tests/live/conftest.py`에 live 전용 픽스처 정의 (네트워크 격리 autouse 등)
 
 ---
 
@@ -415,15 +322,18 @@ def test_with_temp_files(self, mock_storage_paths):
 
 1. 테스트 코드만 유지: tests 폴더는 테스트 코드(`.py`)와 문서만 포함
 
-   - `conftest.py`: 공통 픽스처
-   - `test_*.py`: 도메인별 테스트 모듈
-   - 이 문서(`CLAUDE.md`): 테스트 규칙/철학
+   - `tests/CLAUDE.md`: 공통 테스트 규칙 (이 문서)
+   - `tests/qbt/conftest.py`: qbt 공통 픽스처
+   - `tests/qbt/test_*.py`: qbt 모듈별 테스트
+   - `tests/live/conftest.py`: live 공통 픽스처
+   - `tests/live/test_*.py`: live 모듈별 테스트
 
 2. 커버리지 목표: 핵심 모듈 최대한 높게 유지
 
    - 백테스트 도메인: `src/qbt/backtest/`
    - TQQQ 시뮬레이션: `src/qbt/tqqq/`
    - 공통 유틸리티: `src/qbt/utils/`
+   - 실매매 알림: `src/live/`
 
 외부 의존성 금지(원칙):
 
@@ -449,21 +359,7 @@ def test_pending_order_conflict_raises(...):
 
 ## 커버리지
 
-### 현재 커버리지 확인
-
-```bash
-# 통합 검증 스크립트 사용 (권장)
-poetry run python validate_project.py --cov  # 테스트 + 커버리지만 실행
-```
-
-### HTML 리포트 생성
-
-커버리지 HTML 리포트가 필요한 경우 직접 pytest 명령 사용 (예외):
-
-```bash
-poetry run pytest --cov=src/qbt --cov-report=html tests/
-# 결과: htmlcov/index.html 브라우저로 열기
-```
+커버리지 실행 명령어는 [README.md](../README.md)의 "주요 명령어" 섹션을 참고한다.
 
 목표:
 

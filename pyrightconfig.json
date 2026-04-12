@@ -1,9 +1,9 @@
 {
   "pythonVersion": "3.12",
   "typeCheckingMode": "strict",
-  "include": ["src", "tests", "scripts", "live/src", "live/tests"],
+  "include": ["src", "tests", "scripts"],
   "exclude": ["storage", "**/__pycache__", "**/.ruff_cache", "**/node_modules", "**/.*"],
-  "extraPaths": ["src", "live/src"],
+  "extraPaths": ["src"],
   "reportMissingTypeStubs": "none",
   "reportUnknownMemberType": "none",
   "reportUnknownVariableType": "none",
@@ -12,7 +12,20 @@
   "reportUnknownLambdaType": "none",
   "executionEnvironments": [
     {
-      "root": "tests",
+      "root": "tests/qbt",
+      "reportMissingParameterType": "none",
+      "reportMissingTypeArgument": "none",
+      "reportPrivateUsage": "none",
+      "reportUnnecessaryIsInstance": "none",
+      "reportUnnecessaryComparison": "none",
+      "reportUnnecessaryTypeIgnoreComment": "none",
+      "reportImportCycles": "none",
+      "reportUnusedVariable": "none",
+      "reportGeneralTypeIssues": "none",
+      "reportArgumentType": "none"
+    },
+    {
+      "root": "tests/live",
       "reportMissingParameterType": "none",
       "reportMissingTypeArgument": "none",
       "reportPrivateUsage": "none",
@@ -36,19 +49,6 @@
       "reportUnusedVariable": "none",
       "reportGeneralTypeIssues": "none",
       "reportUntypedFunctionDecorator": "none",
-      "reportArgumentType": "none"
-    },
-    {
-      "root": "live/tests",
-      "reportMissingParameterType": "none",
-      "reportMissingTypeArgument": "none",
-      "reportPrivateUsage": "none",
-      "reportUnnecessaryIsInstance": "none",
-      "reportUnnecessaryComparison": "none",
-      "reportUnnecessaryTypeIgnoreComment": "none",
-      "reportImportCycles": "none",
-      "reportUnusedVariable": "none",
-      "reportGeneralTypeIssues": "none",
       "reportArgumentType": "none"
     }
   ]

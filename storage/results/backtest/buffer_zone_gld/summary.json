@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (GLD)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 67197969,
-    "total_return_pct": 571.98,
-    "cagr": 9.32,
+    "final_capital": 68025863,
+    "total_return_pct": 580.26,
+    "cagr": 9.38,
     "mdd": -41.44,
-    "calmar": 0.22,
+    "calmar": 0.23,
     "total_trades": 8,
     "winning_trades": 3,
     "losing_trades": 5,
     "win_rate": 37.5,
     "start_date": "2004-11-18",
-    "end_date": "2026-04-07",
+    "end_date": "2026-04-10",
     "open_position": {
       "entry_date": "2023-01-06",
       "entry_price": 172.275275,
@@ -1312,7 +1312,7 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 0.35
+      "return_pct": 1.59
     }
   ],
   "regime_summaries": [],

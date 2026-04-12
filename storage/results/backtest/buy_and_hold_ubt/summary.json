@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (UBT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 11261082,
-    "total_return_pct": 12.61,
-    "cagr": 0.74,
+    "final_capital": 11254218,
+    "total_return_pct": 12.54,
+    "cagr": 0.73,
     "mdd": -78.9,
     "calmar": 0.01,
     "total_trades": 0,
@@ -12,10 +12,10 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2010-01-21",
-    "end_date": "2026-04-07",
+    "end_date": "2026-04-10",
     "open_position": {
       "entry_date": "2010-01-22",
-      "entry_price": 14.563431,
+      "entry_price": 14.563427,
       "shares": 686651
     }
   },
@@ -582,7 +582,7 @@
     {
       "year": 2019,
       "month": 5,
-      "return_pct": 13.9
+      "return_pct": 13.91
     },
     {
       "year": 2019,
@@ -997,7 +997,7 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 0.61
+      "return_pct": 0.55
     }
   ],
   "regime_summaries": [],

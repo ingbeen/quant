@@ -1,19 +1,19 @@
 # live 도메인 가이드
 
 > CRITICAL: live 도메인 작업 전에 이 문서를 반드시 읽어야 합니다.
-> 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
+> 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../../CLAUDE.md)를 참고하세요.
 > 이 문서가 live 도메인의 **현행 규칙 / 아키텍처 SoT** 입니다.
-> 구체 함수 시그니처 / dataclass 정의는 `live/src/live/` 하위 코드가 SoT 입니다.
+> 구체 함수 시그니처 / dataclass 정의는 `src/live/` 하위 코드가 SoT 입니다.
 
 ## 폴더 목적
 
-`live/` 는 QBT 포트폴리오 전략의 **실매매 알림 시스템** 을 담당하는 신규 도메인입니다.
+`src/live/` 는 QBT 포트폴리오 전략의 **실매매 알림 시스템** 을 담당하는 도메인입니다.
 GitHub Actions 에서 매일 장 마감 후 실행되어 주가 수집 → 시그널 감지 → FCM/텔레그램 알림을 수행하며,
 Android 앱에서 포트폴리오 확인 / 차트 / 체결 입력 인터페이스를 제공합니다.
 
 ## QBT 본체 수정 원칙
 
-- 원칙: **QBT 본체(`src/qbt/`) 코드는 절대 수정 금지**. 모든 live 작업은 `live/` 내부에서만 수행한다.
+- 원칙: **QBT 본체(`src/qbt/`) 코드는 절대 수정 금지**. 모든 live 작업은 `src/live/` 내부에서만 수행한다.
 - 예외: **사용자 승인이 명시적으로 있을 경우에만** QBT 본체 수정 가능.
   - 수정 전 반드시 사용자에게 수정 범위/이유를 설명하고 승인 요청.
   - 승인 없이 임의로 QBT 본체를 변경하지 않는다.
@@ -23,30 +23,30 @@ Android 앱에서 포트폴리오 확인 / 차트 / 체결 입력 인터페이�
 ## 폴더 구조
 
 ```
-live/
-├── CLAUDE.md               # 이 문서
-├── src/live/               # 실매매 코드
-│   ├── __init__.py
-│   ├── __main__.py         # python -m live.cli 진입점
-│   ├── constants.py        # 티커, 임계값, 경로 상수
-│   ├── models.py           # dataclass / TypedDict
-│   ├── state.py            # LiveState 직렬화
-│   ├── data_fetcher.py     # yfinance → CSV 누적
-│   ├── data_validator.py   # OHLC / 종가 연속성 / 날짜 누락 검증
-│   ├── daily_runner.py     # run_daily (순수 계산)
-│   ├── drift.py            # fill 자동 매칭 + drift
-│   ├── balance_adjust.py   # BalanceAdjust idempotent 반영
-│   ├── buffer_serializer.py # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
-│   ├── rtdb_gateway.py     # Firebase RTDB 게이트웨이
-│   ├── notifier.py         # FCM + 텔레그램 동시 발송
-│   ├── chart_data.py       # TradingView Lightweight Charts 시계열
-│   ├── history.py          # 영구 히스토리 저장
-│   ├── git_state.py        # ephemeral shallow clone / commit / push 헬퍼
-│   └── cli.py              # CLI 엔트리포인트
-└── tests/
-    ├── __init__.py
-    ├── conftest.py         # 공통 픽스처 (mock Firebase / yfinance 등)
-    └── test_*.py           # 모듈별 단위/통합 테스트
+src/live/                       # 실매매 코드
+├── CLAUDE.md                   # 이 문서
+├── __init__.py
+├── __main__.py                 # python -m live.cli 진입점
+├── constants.py                # 티커, 임계값, 경로 상수
+├── models.py                   # dataclass / TypedDict
+├── state.py                    # LiveState 직렬화
+├── data_fetcher.py             # yfinance → CSV 누적
+├── data_validator.py           # OHLC / 종가 연속성 / 날짜 누락 검증
+├── daily_runner.py             # run_daily (순수 계산)
+├── drift.py                    # fill 자동 매칭 + drift
+├── balance_adjust.py           # BalanceAdjust idempotent 반영
+├── buffer_serializer.py        # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
+├── rtdb_gateway.py             # Firebase RTDB 게이트웨이
+├── notifier.py                 # FCM + 텔레그램 동시 발송
+├── chart_data.py               # TradingView Lightweight Charts 시계열
+├── history.py                  # 영구 히스토리 저장
+├── git_state.py                # ephemeral shallow clone / commit / push 헬퍼
+└── cli.py                      # CLI 엔트리포인트
+
+tests/live/                     # live 전용 테스트
+├── __init__.py
+├── conftest.py                 # 공통 픽스처 (mock Firebase / yfinance 등)
+└── test_*.py                   # 모듈별 단위/통합 테스트
 ```
 
 ## 모듈별 역할 요약
@@ -132,7 +132,7 @@ QBT 백테스트의 절대 규칙은 live 에서도 **예외 없이 동일**하�
 
 ## 코딩 규칙
 
-루트 [CLAUDE.md](../CLAUDE.md)의 "코딩 표준" 섹션과 동일하게 적용한다. 아래는 live 전용 예외 및 핵심 재확인:
+루트 [CLAUDE.md](../../CLAUDE.md)의 "코딩 표준" 섹션과 동일하게 적용한다. 아래는 live 전용 예외 및 핵심 재확인:
 
 ### CLI 계층 예외 (live 전용)
 
@@ -153,9 +153,18 @@ live 의 `cli.py` 는 데이터 준비·검증·히스토리 구성 등의 비�
 - 입력 검증 실패 → `ValueError`
 - CLI 계층(`cli.py`) 만 ERROR 로그 사용 가능. 비즈니스 로직은 예외 전파만.
 
+### qbt 상수 재사용 원칙
+
+live 는 qbt 에 이미 정의된 상수를 적극 재사용한다. 동일한 값을 live 내부에
+독립적으로 정의하지 않는다.
+
+- 반올림: `from qbt.backtest.constants import ROUND_PRICE, ROUND_CAPITAL, ROUND_RATIO, ROUND_PERCENT`
+- 컬럼명: `from qbt.common_constants import COL_CLOSE, COL_DATE, ...`
+- 전략/엔진: `from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy`
+
 ## 테스트 원칙
 
-테스트 작성 규칙은 [tests/CLAUDE.md](../tests/CLAUDE.md) 를 그대로 따르며, live 만의 추가 규칙:
+테스트 작성 규칙은 [tests/CLAUDE.md](../../tests/CLAUDE.md) 를 그대로 따르며, live 만의 추가 규칙:
 
 - **외부 네트워크 호출 금지**: Firebase Admin SDK, yfinance, 텔레그램 Bot API 는 **항상 mock**.
 - **파일 I/O 격리**: `tmp_path` 또는 monkeypatch 로 qbt-live-state 디렉토리 경로 격리.
@@ -180,20 +189,7 @@ poetry install -E live
 
 ## 실행 방법
 
-```bash
-# 초기 1회 (원격 qbt-live-state 리포에 초기 상태 push)
-poetry run python -m live.cli init --capital 100000000
-poetry run python -m live.cli init-data
-
-# 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
-poetry run python -m live.cli run-daily
-
-# 디버깅 / 조회
-poetry run python -m live.cli drift
-poetry run python -m live.cli history --tail 20
-poetry run python -m live.cli fetch-fills
-poetry run python -m live.cli notify-failure -m "수동 테스트"
-```
+실행 명령어는 [README.md](../../README.md)의 "워크플로우 3: QBT Live" 섹션을 참고한다.
 
 **ephemeral state repo**: CLI 는 state 가 필요한 모든 명령에 대해 매 실행마다 `qbt-live-state` 프라이빗 리포를 임시 디렉토리에 `--depth 1` shallow clone 하고, 작업 후 변경사항을 자동 commit/push 한 뒤 임시 디렉토리를 삭제합니다. **로컬과 GitHub Actions 가 동일한 코드 경로**를 타므로 두 환경의 실행 결과는 항상 같은 원격 커밋으로 수렴합니다. 프로젝트 폴더에는 어떤 state 파일도 남지 않습니다.
 
@@ -219,7 +215,7 @@ poetry run python -m live.cli notify-failure -m "수동 테스트"
 
 ## 참고 문서
 
-- [docs/plans/](../docs/plans/): 변경 계획서 (plan) 저장소
-- [live/src/live/models.py](src/live/models.py): 데이터 모델 SoT
-- [live/src/live/cli.py](src/live/cli.py): CLI 엔트리 및 `main()` 공통 알림 훅
-- [live/src/live/daily_runner.py](src/live/daily_runner.py): 순수 계산 `run_daily` SoT
+- [docs/plans/](../../docs/plans/): 변경 계획서 (plan) 저장소
+- [src/live/models.py](models.py): 데이터 모델 SoT
+- [src/live/cli.py](cli.py): CLI 엔트리 및 `main()` 공통 알림 훅
+- [src/live/daily_runner.py](daily_runner.py): 순수 계산 `run_daily` SoT
