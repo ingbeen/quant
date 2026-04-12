@@ -46,8 +46,10 @@ from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
+    DEFAULT_HISTORY_TAIL_LINES,
     DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
+    DEFAULT_RECENT_FETCH_DAYS,
     FIREBASE_CRED_ENV_KEY,
     FIREBASE_DB_URL,
     HISTORY_SUMMARY_FILENAME,
@@ -584,7 +586,7 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
     calendar = _get_nyse_calendar()
 
     for ticker in _collect_all_tickers():
-        recent = fetch_recent_ohlc(ticker, days=5)
+        recent = fetch_recent_ohlc(ticker, days=DEFAULT_RECENT_FETCH_DAYS)
         csv_path = live_csv_path(state_dir, ticker)
         csv_df = load_csv(csv_path) if csv_path.exists() else None
 
@@ -799,7 +801,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # history
     p_hist = sub.add_parser("history", help="history/summary.jsonl 최근 N 줄 출력")
-    p_hist.add_argument("--tail", type=int, default=10)
+    p_hist.add_argument("--tail", type=int, default=DEFAULT_HISTORY_TAIL_LINES)
     p_hist.set_defaults(func=_cmd_history)
 
     # notify-failure

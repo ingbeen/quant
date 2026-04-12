@@ -204,6 +204,8 @@ def load_state(path: Path) -> LiveState:
 # 역직렬화 헬퍼
 # ============================================================================
 
+_VALID_SIGNAL_STATES: frozenset[str] = frozenset({"buy", "sell"})
+
 _LIVE_STATE_REQUIRED_FIELDS = (
     "schema_version",
     "portfolio_id",
@@ -278,7 +280,6 @@ def _asset_live_state_from_dict(data: dict[str, Any]) -> AssetLiveState:
     bzs_raw = data["buffer_zone_state"]
     bzs: BufferZoneState | None = None if bzs_raw is None else _buffer_zone_state_from_dict(bzs_raw)
 
-    _VALID_SIGNAL_STATES = frozenset({"buy", "sell"})
     signal_state_raw = str(data["signal_state"])
     if signal_state_raw not in _VALID_SIGNAL_STATES:
         raise ValueError(

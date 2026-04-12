@@ -30,7 +30,7 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from live.constants import DEFAULT_PRICE_DECIMALS
+from live.constants import DEFAULT_PRICE_DECIMALS, DEFAULT_RECENT_FETCH_DAYS
 from qbt.common_constants import COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.utils.data_loader import load_stock_data
 
@@ -76,7 +76,7 @@ def _yf_history_to_qbt_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def fetch_recent_ohlc(ticker: str, days: int = 5) -> pd.DataFrame:
+def fetch_recent_ohlc(ticker: str, days: int = DEFAULT_RECENT_FETCH_DAYS) -> pd.DataFrame:
     """yfinance 에서 최근 ``days`` 일의 OHLCV 를 가져온다.
 
     QBT 와 달리 "최근 2 일 제외" 필터를 적용하지 않는다. live 매일 실행 모드는

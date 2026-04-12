@@ -26,6 +26,7 @@ import requests
 from firebase_admin import messaging
 from firebase_admin.exceptions import FirebaseError
 
+from live.constants import TELEGRAM_TIMEOUT_SECONDS
 from live.models import DailyResult
 from qbt.utils.logger import get_logger
 
@@ -150,7 +151,7 @@ def _send_telegram_message(tg_token: str, tg_chat: str, body: str) -> bool:
     response = requests.post(
         url,
         json={"chat_id": tg_chat, "text": body},
-        timeout=10,
+        timeout=TELEGRAM_TIMEOUT_SECONDS,
     )
     return response.status_code == 200
 

@@ -36,8 +36,6 @@ LIVE_PORTFOLIO_ID: Final[str] = "portfolio_q2_2xs"
 # ============================================================================
 
 # LiveState JSON 직렬화 스키마 버전. 포맷 변경 시 증가시킨다.
-# v2 → v3: AssetLiveState.signal_state 를 {buy, sell} 2 값으로 축소 (QBT 동일).
-#           초기값은 "sell" (포지션 없음). "none" 은 SignalDetection.state 에만 사용.
 SCHEMA_VERSION: Final[int] = 3
 
 # 타임스탬프 표기용 타임존 이름 (state / history / 커밋 메시지 공통).
@@ -109,6 +107,20 @@ HISTORY_BALANCE_ADJUSTS_FILENAME: Final[str] = "balance_adjusts.jsonl"
 # CSV / JSON 에 저장되는 가격(종가/시가/밴드/체결가) 반올림 자릿수.
 # 루트 CLAUDE.md "출력 데이터 반올림 규칙" 의 가격 6자리 원칙을 반영.
 DEFAULT_PRICE_DECIMALS: Final[int] = 6
+
+
+# ============================================================================
+# 기타 기본값
+# ============================================================================
+
+# yfinance 에서 최근 OHLCV 를 조회할 때 기본 일수 (``fetch_recent_ohlc`` 용).
+DEFAULT_RECENT_FETCH_DAYS: Final[int] = 5
+
+# 텔레그램 Bot API 호출 시 HTTP 타임아웃 (초).
+TELEGRAM_TIMEOUT_SECONDS: Final[int] = 10
+
+# ``cli.py`` history 커맨드에서 --tail 의 기본값.
+DEFAULT_HISTORY_TAIL_LINES: Final[int] = 10
 
 
 # ============================================================================

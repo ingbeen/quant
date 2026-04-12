@@ -13,7 +13,7 @@ RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록 :class:`Ch
 - MA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
 - 이동평균 워밍업 구간(``slot.ma_window - 1`` 개 인덱스) 은 ``None``
 - 사용자 체결 마커는 dates 에서 인덱스로 변환
-- ``slot.ma_window`` 에 독립적이다 (200 일 고정 아님)
+- ``slot.ma_window`` 에 독립적이다
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def build_chart_series(
         df = add_single_moving_average(df, window=slot.ma_window, ma_type=slot.ma_type)
         ma_col = f"ma_{slot.ma_window}"
 
-        dates = [d.isoformat() if hasattr(d, "isoformat") else str(d) for d in df[COL_DATE].tolist()]
+        dates = [d.isoformat() for d in df[COL_DATE].tolist()]
         close_list = [round(float(c), DEFAULT_PRICE_DECIMALS) for c in df[COL_CLOSE].tolist()]
         raw_ma = _to_optional_float_list(df[ma_col].tolist())
 

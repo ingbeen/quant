@@ -142,7 +142,7 @@ def validate_date_gap(csv_last: date, today: date, calendar: Any) -> list[str]:
             pd.Timestamp(start),
             pd.Timestamp(end),
         )
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, KeyError, TypeError) as exc:
         return [f"거래일 달력 조회 실패: {exc}"]
 
     if len(sessions) == 0:
