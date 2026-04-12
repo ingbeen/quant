@@ -74,8 +74,18 @@ def _db_reference(app: FirebaseAppLike, path: str) -> Any:
 # ============================================================================
 
 
+_FILL_REQUIRED_FIELDS = ("asset_id", "direction", "actual_price", "actual_shares", "trade_date", "input_time_kst")
+
+
 def _dict_to_actual_fill(data: dict[str, Any], rtdb_key: str) -> ActualFill:
-    """RTDB ``/fills/inbox/{uuid}`` 의 dict 를 :class:`ActualFill` 로 변환."""
+    """RTDB ``/fills/inbox/{uuid}`` 의 dict 를 :class:`ActualFill` 로 변환.
+
+    Raises:
+        ValueError: 필수 필드가 누락되었을 때.
+    """
+    missing = [f for f in _FILL_REQUIRED_FIELDS if f not in data]
+    if missing:
+        raise ValueError(f"fill 필수 필드 누락: {missing} (rtdb_key={rtdb_key!r})")
     return ActualFill(
         asset_id=str(data["asset_id"]),
         direction=str(data["direction"]),
@@ -133,6 +143,8 @@ def mark_fills_processed(app: FirebaseAppLike, keys: list[str]) -> None:
 
 def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjust:
     """RTDB ``/balance_adjust/inbox/{uuid}`` dict → :class:`BalanceAdjust`."""
+    if "new_shares" not in data and "new_cash" not in data:
+        raise ValueError(f"balance_adjust 에 new_shares 와 new_cash 둘 다 없음 (rtdb_key={rtdb_key!r})")
     new_shares_raw = data.get("new_shares")
     new_cash_raw = data.get("new_cash")
     return BalanceAdjust(

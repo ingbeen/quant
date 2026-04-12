@@ -143,6 +143,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
 
     combined = pd.concat([existing, new_row[REQUIRED_COLUMNS]], ignore_index=True)
     combined = combined.sort_values(COL_DATE).reset_index(drop=True)
+    combined[PRICE_COLUMNS] = combined[PRICE_COLUMNS].round(DEFAULT_PRICE_DECIMALS)
     combined.to_csv(csv_path, index=False)
 
 

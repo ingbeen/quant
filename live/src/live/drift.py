@@ -181,7 +181,7 @@ def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
 
         value_diff = actual_value - model_value
         if model_value > 0:
-            asset_drift_pct = abs(value_diff) / model_value * 100.0
+            asset_drift_pct = round(abs(value_diff) / model_value * 100.0, 2)
         else:
             asset_drift_pct = 0.0
 
@@ -204,7 +204,7 @@ def compute_drift(state: LiveState, closes: dict[str, float]) -> DriftReport:
             f"내부 불변조건 위반: model_equity={model_equity:.2f} 은 양수여야 함. " f"shared_cash_model={state.shared_cash_model:.2f}"
         )
     drift_ratio = abs(actual_equity - model_equity) / model_equity
-    drift_pct = drift_ratio * 100.0
+    drift_pct = round(drift_ratio * 100.0, 2)
 
     if drift_ratio >= DRIFT_CORRECTION_RATIO:
         recommendation = "보정 필요"

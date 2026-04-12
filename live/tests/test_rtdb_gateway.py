@@ -366,3 +366,19 @@ class TestHelpers:
         assert fill.asset_id == "sso"
         assert fill.actual_shares == 100
         assert fill.rtdb_key == "fill_xyz"
+
+    def test_dict_to_actual_fill_missing_required_raises(self):
+        """Given fill dict 에 필수 필드 누락 When 변환 Then ValueError."""
+        from live.rtdb_gateway import _dict_to_actual_fill
+
+        incomplete = {"asset_id": "sso", "direction": "buy"}
+        with pytest.raises(ValueError, match="fill 필수 필드 누락"):
+            _dict_to_actual_fill(incomplete, rtdb_key="fill_bad")
+
+    def test_dict_to_balance_adjust_no_shares_no_cash_raises(self):
+        """Given adjust dict 에 new_shares/new_cash 둘 다 없음 When 변환 Then ValueError."""
+        from live.rtdb_gateway import _dict_to_balance_adjust
+
+        empty_adjust = {"reason": "test"}
+        with pytest.raises(ValueError, match="new_shares 와 new_cash 둘 다 없음"):
+            _dict_to_balance_adjust(empty_adjust, rtdb_key="adj_bad")

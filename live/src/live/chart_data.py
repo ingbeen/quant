@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from live.constants import (
+    DEFAULT_PRICE_DECIMALS,
     extract_ticker_from_path,
     get_live_portfolio_config,
     live_csv_path,
@@ -41,8 +42,8 @@ def _ticker_for_chart(slot: AssetSlotConfig) -> str:
     return extract_ticker_from_path(slot.trade_data_path)
 
 
-def _to_optional_float_list(values: list[Any]) -> list[float | None]:
-    """NaN → None 변환을 포함한 리스트화."""
+def _to_optional_float_list(values: list[Any], decimals: int = DEFAULT_PRICE_DECIMALS) -> list[float | None]:
+    """NaN → None 변환 + 가격 반올림을 포함한 리스트화."""
     out: list[float | None] = []
     for v in values:
         if v is None:
@@ -50,7 +51,7 @@ def _to_optional_float_list(values: list[Any]) -> list[float | None]:
         elif isinstance(v, float) and math.isnan(v):
             out.append(None)
         else:
-            out.append(float(v))
+            out.append(round(float(v), decimals))
     return out
 
 
@@ -88,7 +89,7 @@ def build_chart_series(
         ma_col = f"ma_{slot.ma_window}"
 
         dates = [d.isoformat() if hasattr(d, "isoformat") else str(d) for d in df[COL_DATE].tolist()]
-        close_list = [float(c) for c in df[COL_CLOSE].tolist()]
+        close_list = [round(float(c), DEFAULT_PRICE_DECIMALS) for c in df[COL_CLOSE].tolist()]
         raw_ma = _to_optional_float_list(df[ma_col].tolist())
 
         # 이동평균 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시.
@@ -105,8 +106,8 @@ def build_chart_series(
                 upper_list.append(None)
                 lower_list.append(None)
             else:
-                upper_list.append(ma * (1.0 + slot.buy_buffer_zone_pct))
-                lower_list.append(ma * (1.0 - slot.sell_buffer_zone_pct))
+                upper_list.append(round(ma * (1.0 + slot.buy_buffer_zone_pct), DEFAULT_PRICE_DECIMALS))
+                lower_list.append(round(ma * (1.0 - slot.sell_buffer_zone_pct), DEFAULT_PRICE_DECIMALS))
 
         # 사용자 체결 마커 → dates 의 인덱스로 변환
         date_to_idx = {d: i for i, d in enumerate(dates)}

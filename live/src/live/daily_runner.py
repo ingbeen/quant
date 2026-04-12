@@ -204,9 +204,9 @@ def _build_signal_detections(
         if isinstance(strategy, BufferZoneStrategy):
             upper_band, lower_band = get_current_bands(strategy)
 
-        # MA 근접도
+        # MA 근접도 (비율 0~1, 4자리 반올림)
         if ma_value is not None and ma_value > 0:
-            ma_distance_pct = (close - ma_value) / ma_value
+            ma_distance_pct = round((close - ma_value) / ma_value, 4)
         else:
             ma_distance_pct = 0.0
         ma_distances[asset_id] = ma_distance_pct
@@ -460,8 +460,8 @@ def run_daily(
         order_intents=merged_intents,
         executions=executions,
         rebalance_triggered=rebalance_triggered,
-        model_equity=float(model_equity),
-        actual_equity=float(drift_report.actual_equity),
+        model_equity=round(float(model_equity)),
+        actual_equity=round(float(drift_report.actual_equity)),
         drift_pct=float(drift_report.drift_pct),
         drift_report=drift_report,
         ma_distances=ma_distances,

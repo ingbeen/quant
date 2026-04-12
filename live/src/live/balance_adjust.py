@@ -93,6 +93,6 @@ def _apply_single_adjust(state: LiveState, adjust: BalanceAdjust) -> None:
         # 양의 shares 인 경우 평균가 / entry_date 는 기존 값 유지
         # (balance_adjust 는 "현재 잔고" 만 보정하고 원가 정보는 건드리지 않음)
 
-    # 공유 cash 보정
+    # 공유 cash 보정 (자본금이므로 정수 반올림)
     if adjust.new_cash is not None:
-        state.shared_cash_actual = float(adjust.new_cash)
+        state.shared_cash_actual = round(float(adjust.new_cash))
