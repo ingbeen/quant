@@ -1,20 +1,14 @@
 name: Keepalive
 
-# 매월 1일에 quant (퍼블릭) 리포에 빈 commit 을 남겨 GitHub Actions 의
-# 60일 비활성 정책으로부터 daily_run.yml 의 cron 스케줄을 보호한다.
-#
-# 정책 배경:
-#  - 퍼블릭 리포에서 60일간 activity (commit / PR / issue 등) 가 없으면
-#    scheduled workflows 가 자동으로 일시 정지된다.
-#  - Workflow run 자체는 activity 로 카운트되지 않는다.
-#  - 따라서 daily_run 이 매일 돌더라도 quant 리포에 commit 이 없으면
-#    60일 후 스케줄이 중단될 수 있다.
-#
-# 해결: 매월 1일 빈 commit (--allow-empty) 하나로 activity 를 유지한다.
+# cron "0 1 1 * *" 로 매월 UTC 1일 01:00 (= KST 1일 10:00) 에 quant (퍼블릭) 리포에
+# 빈 commit 을 남긴다. GitHub Actions 는 퍼블릭 리포에서 60일간 activity (commit /
+# PR / issue) 가 없으면 scheduled workflow 를 자동 정지하며, workflow run 은
+# activity 로 카운트되지 않는다. 이 월 1회 빈 commit 으로 daily_run.yml 의 cron
+# 스케줄이 비활성화되지 않도록 유지한다.
 
 on:
   schedule:
-    - cron: "0 0 1 * *"
+    - cron: "0 1 1 * *"
   workflow_dispatch: {}
 
 jobs:

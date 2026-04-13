@@ -32,12 +32,19 @@ class TestDailyRunWorkflow:
     def test_file_exists(self):
         assert DAILY_RUN_PATH.exists()
 
-    def test_cron_is_weekday_17_50(self, daily_run_yaml: str):
-        """cron 은 '50 17 * * 1-5' (월~금 17:50 ET)."""
-        assert "50 17 * * 1-5" in daily_run_yaml
+    def test_cron_is_utc_weekday_22_50(self, daily_run_yaml: str):
+        """cron 은 '50 22 * * 1-5' (UTC 월~금 22:50 = KST 화~토 07:50).
+
+        GitHub Actions cron 은 항상 UTC 로 해석된다. env.TZ 는 job 런타임에만
+        영향이 있을 뿐 스케줄 해석에는 무관하므로, 한국 시각 고정을 위해
+        반드시 UTC 기준 값을 사용해야 한다.
+        """
+        assert "50 22 * * 1-5" in daily_run_yaml
+        # 과거의 UTC 17:50(= KST 익일 02:50) 값이 남아있으면 안 된다.
+        assert "50 17 * * 1-5" not in daily_run_yaml
 
     def test_timezone_america_new_york(self, daily_run_yaml: str):
-        """timezone: America/New_York."""
+        """timezone: America/New_York (job 런타임 TZ; cron 해석과는 무관)."""
         assert "America/New_York" in daily_run_yaml
 
     def test_workflow_dispatch_supported(self, daily_run_yaml: str):
@@ -138,9 +145,26 @@ class TestKeepaliveWorkflow:
     def test_file_exists(self):
         assert KEEPALIVE_PATH.exists()
 
-    def test_monthly_cron(self, keepalive_yaml: str):
-        """매월 1일 cron."""
-        assert "0 0 1 * *" in keepalive_yaml
+    def test_monthly_cron_utc_day1(self, keepalive_yaml: str):
+        """cron 은 UTC 매월 1일 01:00 에 월 1회 fire.
+
+        keepalive 의 목적은 단순히 "월 1회 활동" 을 GitHub 에 알리는 것이므로,
+        정확한 시각/시간대는 중요하지 않다. UTC 기준 1일 01:00 을 쓰면 월 정확히
+        한 번만 발화되고 가드 로직이 필요 없어 구조가 단순하다.
+        """
+        assert "0 1 1 * *" in keepalive_yaml
+        # 과거의 복잡한 UTC 28-31 방식이 남아있으면 안 된다.
+        assert "30 16 28-31 * *" not in keepalive_yaml
+        # 오래된 UTC 1일 00:00 값도 남아있으면 안 된다.
+        assert "0 0 1 * *" not in keepalive_yaml
+
+    def test_no_kst_guard(self, keepalive_yaml: str):
+        """단순화 후에는 KST 일자 가드가 존재하지 않는다.
+
+        cron 자체가 월 1회만 발화하므로 내부 가드로 스킵할 이유가 없다.
+        """
+        assert "TZ=Asia/Seoul date +%d" not in keepalive_yaml
+        assert "steps.guard.outputs.skip" not in keepalive_yaml
 
     def test_workflow_dispatch_supported(self, keepalive_yaml: str):
         assert "workflow_dispatch" in keepalive_yaml
@@ -166,5 +190,5 @@ class TestKeepaliveWorkflow:
             assert phrase not in keepalive_yaml, f"과거 상태 주석 남아있음: {phrase}"
 
     def test_keepalive_commit_message(self, keepalive_yaml: str):
-        """커밋 메시지 포맷: ``keepalive: YYYY-MM-DD``."""
+        """커밋 메시지 포맷: ``keepalive: YYYY-MM-DD`` (UTC 기준 날짜)."""
         assert "keepalive: $(date -u +%Y-%m-%d)" in keepalive_yaml
