@@ -242,15 +242,9 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 
 ## 테스트 커버리지
 
-**주요 테스트 파일**:
+tqqq 도메인 테스트 파일은 [tests/qbt/](../../../tests/qbt/) 디렉토리의 `test_tqqq_*.py` 파일들에 위치한다. 파일 목록은 변경 빈도가 높으므로 본 문서에 나열하지 않으며, 디렉토리를 직접 참조할 것.
 
-- `tests/test_tqqq_simulation.py`: 시뮬레이션 core (비용 계산, simulate, 검증 지표)
-- `tests/test_tqqq_data_loader.py`: FFR/Expense 데이터 로딩, 딕셔너리 생성/조회
-- `tests/test_tqqq_analysis_helpers.py`: 금리-오차 분석 함수
-- `tests/test_tqqq_spread_lab_helpers.py`: Spread Lab 앱 전용 함수 (월별 집계, lag 생성)
-- `tests/test_tqqq_visualization.py`: Plotly 차트 생성
-
-**테스트 범위**:
+**테스트 범위** (계약/불변조건 단위):
 
 - 일일 비용 계산 로직
 - 레버리지 수익률 적용 및 복리 효과

@@ -390,8 +390,11 @@ PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직
 CLI 스크립트에서 반복되는 trades CSV 준비, change_pct 계산 패턴을 공용 함수로 제공한다.
 CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 
+의존 방향 (고정): `analysis.py` → `csv_export.py` 단방향. `csv_export.py`는 `analysis.py`를 import하지 않는다. 회귀 방지 테스트로 고정되어 있으며, 역방향 의존이 발생하면 순환 import 위험이 있으므로 절대 금지한다.
+
 주요 함수:
 
+- `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `analysis.py`의 `calculate_regime_summaries`와 `prepare_trades_for_csv`가 공유 사용
 - `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 정수 변환). 빈 DataFrame 입력 시 빈 복사본 반환
 - `calculate_change_pct(df, close_col) -> pd.Series`: 전일대비 변동률(%) 계산
 
@@ -538,9 +541,9 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 
 ## 테스트 커버리지
 
-주요 테스트 파일: `tests/test_buffer_zone_helpers.py`, `tests/test_buffer_zone.py`, `tests/test_buy_and_hold.py`, `tests/test_analysis.py`, `tests/test_backtest_walkforward.py`, `tests/test_strategy_interface.py`
+테스트 파일은 [tests/qbt/](../../../tests/qbt/) 디렉토리에 위치한다. 구체적인 파일 목록은 변경 빈도가 높으므로 본 문서에 나열하지 않으며, 디렉토리를 직접 참조할 것.
 
-테스트 범위:
+테스트 범위 (계약/불변조건 단위):
 
 - 신호 생성 로직 및 거래 체결 타이밍
 - Pending Order 충돌 감지
@@ -549,4 +552,6 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - 그리드 서치 병렬 처리
 - resolve_params 파라미터 결정 (FIXED 고정값)
 - run_single → SingleBacktestResult 구조 검증
+- 워크포워드 윈도우 생성 / 파라미터 선택 / 요약 집계 / 일정 스케줄링
+- 포트폴리오 엔진 (계획 / 체결 / 검증 / 전략 타입 / 상태 로그)
 - 미청산 포지션 (open_position): 포지션 보유 시 포함 / 미보유 시 미포함 검증
