@@ -15,6 +15,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -204,6 +205,9 @@ def _build_candle_data(
 
     customValues를 포함하여 tooltip에서 표시할 수 있게 한다.
     OHLC 가격, 전일종가대비%, MA, 밴드, 에쿼티, 드로우다운을 포함한다.
+
+    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`)는
+    `run_single_backtest.py`가 사전 계산하여 signal CSV에 저장한 컬럼을 직접 읽는다.
     """
     # 1. 밴드 + 에쿼티 + 드로우다운 데이터를 날짜 기준으로 매핑
     has_upper_band = "upper_band" in equity_df.columns
@@ -226,8 +230,12 @@ def _build_candle_data(
         if entry:
             equity_map[d] = entry
 
-    # 2. 전일종가 시리즈 (각 OHLC의 전일종가대비% 계산용)
-    prev_close = signal_df[COL_CLOSE].shift(1)
+    # 4종 전일대비% 컬럼은 numpy 배열로 미리 추출해 인덱스 접근.
+    # itertuples namedtuple 속성은 정적 타입 체커가 인식하지 못하므로 배열 추출이 가장 클린하다.
+    pct_arrays: dict[str, np.ndarray[Any, Any]] = {}
+    for pct_col in ("open_pct", "high_pct", "low_pct", "close_pct"):
+        if pct_col in signal_df.columns:
+            pct_arrays[pct_col] = signal_df[pct_col].to_numpy()
 
     candle_data: list[dict[str, object]] = []
     for i, row in enumerate(signal_df.itertuples(index=False)):
@@ -245,7 +253,7 @@ def _build_candle_data(
             "close": close_val,
         }
 
-        # 3. customValues 구성 (Record<string, string>)
+        # 2. customValues 구성 (Record<string, string>)
         cv: dict[str, str] = {}
 
         # OHLC 가격
@@ -254,14 +262,11 @@ def _build_candle_data(
         cv["low"] = f"{low_val:.2f}"
         cv["close"] = f"{close_val:.2f}"
 
-        # 전일종가대비% (첫날 제외)
-        pc = prev_close.iloc[i]
-        if pd.notna(pc) and pc != 0:
-            pc_float = float(pc)
-            cv["open_pct"] = f"{(open_val / pc_float - 1) * 100:+.2f}"
-            cv["high_pct"] = f"{(high_val / pc_float - 1) * 100:+.2f}"
-            cv["low_pct"] = f"{(low_val / pc_float - 1) * 100:+.2f}"
-            cv["close_pct"] = f"{(close_val / pc_float - 1) * 100:+.2f}"
+        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
+        for pct_col, pct_arr in pct_arrays.items():
+            v = pct_arr[i]
+            if pd.notna(v):
+                cv[pct_col] = f"{float(v):+.2f}"
 
         # MA
         if ma_col and ma_col in signal_df.columns:

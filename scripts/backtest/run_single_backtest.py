@@ -29,7 +29,11 @@ from qbt.backtest.constants import (
     ROUND_PRICE,
     ROUND_RATIO,
 )
-from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
+from qbt.backtest.csv_export import (
+    OHLC_CHANGE_PCT_COLUMNS,
+    add_ohlc_change_pct,
+    prepare_trades_for_csv,
+)
 from qbt.backtest.strategies import (
     buffer_zone,
     buy_and_hold,
@@ -88,9 +92,11 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
 
 def _save_signal_csv(result: SingleBacktestResult) -> Path:
     """
-    시그널 데이터를 CSV로 저장한다 (OHLC + MA + change_pct).
+    시그널 데이터를 CSV로 저장한다 (OHLC + MA + 4종 전일대비%).
 
     컬럼 감지 기반 반올림: 가격 6자리, MA 6자리, % 2자리.
+    4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`)은
+    `add_ohlc_change_pct` 헬퍼로 사전 계산되어 대시보드의 SSoT 역할을 한다.
 
     Args:
         result: SingleBacktestResult 컨테이너
@@ -100,10 +106,9 @@ def _save_signal_csv(result: SingleBacktestResult) -> Path:
     """
     signal_path = result.result_dir / "signal.csv"
 
-    signal_export = result.signal_df.copy()
-    signal_export["change_pct"] = calculate_change_pct(signal_export)
+    signal_export = add_ohlc_change_pct(result.signal_df)
 
-    signal_round: dict[str, int] = {"change_pct": ROUND_PERCENT}
+    signal_round: dict[str, int] = {col: ROUND_PERCENT for col in OHLC_CHANGE_PCT_COLUMNS}
     for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
         if col in signal_export.columns:
             signal_round[col] = ROUND_PRICE

@@ -1645,6 +1645,120 @@
       "return_pct": -5.43
     }
   ],
+  "yearly_returns": [
+    {
+      "year": 1999,
+      "return_pct": 282.91
+    },
+    {
+      "year": 2000,
+      "return_pct": -92.03
+    },
+    {
+      "year": 2001,
+      "return_pct": -89.03
+    },
+    {
+      "year": 2002,
+      "return_pct": -86.08
+    },
+    {
+      "year": 2003,
+      "return_pct": 168.61
+    },
+    {
+      "year": 2004,
+      "return_pct": 18.18
+    },
+    {
+      "year": 2005,
+      "return_pct": -9.05
+    },
+    {
+      "year": 2006,
+      "return_pct": -0.25
+    },
+    {
+      "year": 2007,
+      "return_pct": 33.01
+    },
+    {
+      "year": 2008,
+      "return_pct": -88.5
+    },
+    {
+      "year": 2009,
+      "return_pct": 198.83
+    },
+    {
+      "year": 2010,
+      "return_pct": 52.28
+    },
+    {
+      "year": 2011,
+      "return_pct": -8.06
+    },
+    {
+      "year": 2012,
+      "return_pct": 52.3
+    },
+    {
+      "year": 2013,
+      "return_pct": 139.72
+    },
+    {
+      "year": 2014,
+      "return_pct": 57.09
+    },
+    {
+      "year": 2015,
+      "return_pct": 17.23
+    },
+    {
+      "year": 2016,
+      "return_pct": 11.39
+    },
+    {
+      "year": 2017,
+      "return_pct": 118.02
+    },
+    {
+      "year": 2018,
+      "return_pct": -19.79
+    },
+    {
+      "year": 2019,
+      "return_pct": 133.81
+    },
+    {
+      "year": 2020,
+      "return_pct": 110.03
+    },
+    {
+      "year": 2021,
+      "return_pct": 83.01
+    },
+    {
+      "year": 2022,
+      "return_pct": -79.09
+    },
+    {
+      "year": 2023,
+      "return_pct": 198.09
+    },
+    {
+      "year": 2024,
+      "return_pct": 58.3
+    },
+    {
+      "year": 2025,
+      "return_pct": 34.34
+    },
+    {
+      "year": 2026,
+      "return_pct": -11.17
+    }
+  ],
   "data_info": {
     "trade_path": "storage/stock/TQQQ_synthetic_max.csv"
   }

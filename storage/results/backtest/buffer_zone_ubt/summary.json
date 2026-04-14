@@ -1005,6 +1005,76 @@
       "return_pct": 0.55
     }
   ],
+  "yearly_returns": [
+    {
+      "year": 2010,
+      "return_pct": -1.97
+    },
+    {
+      "year": 2011,
+      "return_pct": 61.03
+    },
+    {
+      "year": 2012,
+      "return_pct": 2.74
+    },
+    {
+      "year": 2013,
+      "return_pct": -16.91
+    },
+    {
+      "year": 2014,
+      "return_pct": 34.51
+    },
+    {
+      "year": 2015,
+      "return_pct": -21.79
+    },
+    {
+      "year": 2016,
+      "return_pct": 6.41
+    },
+    {
+      "year": 2017,
+      "return_pct": -1.28
+    },
+    {
+      "year": 2018,
+      "return_pct": -14.46
+    },
+    {
+      "year": 2019,
+      "return_pct": 24.48
+    },
+    {
+      "year": 2020,
+      "return_pct": 31.88
+    },
+    {
+      "year": 2021,
+      "return_pct": -13.07
+    },
+    {
+      "year": 2022,
+      "return_pct": -14.48
+    },
+    {
+      "year": 2023,
+      "return_pct": -1.18
+    },
+    {
+      "year": 2024,
+      "return_pct": -34.13
+    },
+    {
+      "year": 2025,
+      "return_pct": -5.45
+    },
+    {
+      "year": 2026,
+      "return_pct": -0.51
+    }
+  ],
   "data_info": {
     "signal_path": "storage/stock/TLT_max.csv",
     "trade_path": "storage/stock/UBT_max.csv"

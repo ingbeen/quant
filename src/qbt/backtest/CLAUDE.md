@@ -107,10 +107,11 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 
 equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_current_price, {asset_id}\_return_pct, total_pnl, total_return_pct
 
-파생 뷰 컬럼 (보유 현황 표시 용도, `build_combined_equity`에서 SSoT로 계산):
+파생 뷰 컬럼 (보유 현황·기여도 표시 용도, `build_combined_equity`에서 SSoT로 계산):
 
 - `{asset_id}_current_price`: shares > 0이면 `value / shares`, 아니면 0.0
 - `{asset_id}_return_pct`: shares > 0 and avg_price > 0이면 `(current_price / avg_price - 1) * 100`, 아니면 0.0
+- `{asset_id}_contribution`: `realized_pnl + unrealized_pnl` (자산별 누적 기여 손익)
 - `total_pnl`: `equity - initial_capital`
 - `total_return_pct`: `total_pnl / initial_capital * 100`
 
@@ -389,7 +390,9 @@ PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직
 ### 12. csv_export.py
 
 백테스트 CSV 저장용 DataFrame 변환 유틸리티를 제공한다.
-CLI 스크립트에서 반복되는 trades CSV 준비, change_pct 계산 패턴을 공용 함수로 제공한다.
+CLI 스크립트에서 반복되는 trades CSV 준비, OHLC 전일대비% 계산, buffer_zone 밴드
+컬럼 추가 패턴을 공용 함수로 제공한다. 대시보드(`scripts/backtest/app_*.py`)가
+도메인 연산을 직접 수행하지 않도록, signal CSV 저장 단계의 SSoT 역할을 한다.
 CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 
 의존 방향 (고정): `analysis.py` → `csv_export.py` 단방향. `csv_export.py`는 `analysis.py`를 import하지 않는다. 회귀 방지 테스트로 고정되어 있으며, 역방향 의존이 발생하면 순환 import 위험이 있으므로 절대 금지한다.
@@ -398,7 +401,13 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 
 - `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `prepare_trades_for_csv`가 사용
 - `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 정수 변환). 빈 DataFrame 입력 시 빈 복사본 반환
-- `calculate_change_pct(df, close_col) -> pd.Series`: 전일대비 변동률(%) 계산
+- `add_ohlc_change_pct(df) -> pd.DataFrame`: signal DataFrame에 OHLC 4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 추가. 첫 행은 NaN. 대시보드 캔들 tooltip의 SSoT
+- `add_buffer_zone_bands(df, ma_col, buy_buffer_zone_pct, sell_buffer_zone_pct) -> pd.DataFrame`: signal DataFrame에 `upper_band`/`lower_band` 컬럼 추가. 산식: `ma * (1 ± buffer)`. buffer_zone 전략 자산의 시그널 CSV에만 적용
+
+상수:
+
+- `OHLC_CHANGE_PCT_COLUMNS`: 4종 % 컬럼명 튜플 (`open_pct`, `high_pct`, `low_pct`, `close_pct`)
+- `BUFFER_BAND_COLUMNS`: 밴드 컬럼명 튜플 (`upper_band`, `lower_band`)
 
 ---
 
@@ -498,13 +507,13 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - **전략 자동 탐색**: `_discover_strategies()`가 하위 디렉토리의 `summary.json` 존재 여부로 유효한 전략 결과를 판별
 - **Feature Detection**: 전략명 분기(`if strategy == "buffer_zone"`) 없이 데이터 존재 여부로 차트 오버레이 결정
   - `ma_*` 컬럼 존재 → MA 오버레이 추가
-  - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가
+  - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가 (단일 백테스트는 equity_df, 포트폴리오는 signal_df의 컬럼을 본다 — buffer_zone 자산만 컬럼 존재)
   - `trades_df`가 비어있지 않음 → 완료된 거래 Buy/Sell 마커 추가
   - `summary.open_position` 존재 → 미청산 포지션 Buy 마커 추가 (`"Buy $XX.X (보유중)"`)
 - **날짜 표기**: `localization.dateFormat: "yyyy-MM-dd"` 설정으로 한국식 날짜 형식 적용
 - **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
   - OHLC 가격: `open`, `high`, `low`, `close`
-  - 전일종가대비%: `open_pct`, `high_pct`, `low_pct`, `close_pct`
+  - 전일종가대비%: `open_pct`, `high_pct`, `low_pct`, `close_pct` — 모두 `run_*.py`가 사전 계산해 signal CSV에 저장한 컬럼을 직접 읽는다 (대시보드는 산식을 자체 수행하지 않는다)
   - 지표: `ma`, `upper`, `lower`
   - 포트폴리오: `equity`, `dd`
 - **display_name 필수**: `summary.json`에 `display_name`이 없으면 `ValueError` 발생

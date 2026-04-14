@@ -139,6 +139,7 @@ class PortfolioResult:
         - {asset_id}_realized_pnl, {asset_id}_unrealized_pnl: 자산별 손익 추적
         - {asset_id}_current_price: 보유 시 value/shares, 미보유 시 0.0 (build_combined_equity SSoT)
         - {asset_id}_return_pct: 보유 + 유효 평균가 시 (current/avg - 1)*100, 그 외 0.0
+        - {asset_id}_contribution: realized_pnl + unrealized_pnl (자산별 누적 기여 손익, build_combined_equity SSoT)
         - total_pnl: equity - initial_capital (포트폴리오 누적 손익)
         - total_return_pct: total_pnl / initial_capital * 100 (포트폴리오 누적 수익률 %)
         - rebalanced: 해당일 리밸런싱 실행 여부 (bool)

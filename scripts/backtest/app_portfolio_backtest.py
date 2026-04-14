@@ -19,6 +19,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.colors as pc
 import plotly.graph_objects as go
@@ -777,9 +778,9 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
 def _render_contribution_section(exp: _ExperimentData) -> None:
     """자산별 수익 기여도를 실현+미실현 손익 기반으로 표시한다.
 
-    총 기여도 = 누적 실현손익 + 미실현손익.
+    총 기여도 = 누적 실현손익 + 미실현손익이며, `run_portfolio_backtest.py`가
+    `{asset_id}_contribution` 컬럼을 equity CSV에 사전 계산해 둔다.
     매도 후에도 실현손익이 유지되어 자산별 기여 이력이 끊기지 않는다.
-    신규 컬럼(_realized_pnl, _unrealized_pnl)이 없으면 기존 방식(value 기반)으로 fallback.
     """
     st.subheader("자산별 수익 기여도")
 
@@ -790,22 +791,18 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
 
     asset_ids = _get_asset_ids_from_equity(equity_df)
 
-    # PnL 컬럼 존재 여부 확인 (graceful fallback)
-    has_pnl_cols = all(
-        f"{aid}_realized_pnl" in equity_df.columns and f"{aid}_unrealized_pnl" in equity_df.columns for aid in asset_ids
-    )
-
-    if not has_pnl_cols:
-        _render_contribution_section_legacy(exp, asset_ids)
+    # contribution 컬럼은 엔진이 사전 계산. 컬럼 부재 시 사용자가 재실행해야 한다.
+    missing = [f"{aid}_contribution" for aid in asset_ids if f"{aid}_contribution" not in equity_df.columns]
+    if missing:
+        st.error("기여도 컬럼이 누락되었습니다: " + ", ".join(missing) + ". run_portfolio_backtest.py를 재실행하세요.")
         return
 
-    # 총 기여도 = realized_pnl + unrealized_pnl (자산별)
     df = equity_df[["Date"]].copy()
     df["Date"] = pd.to_datetime(df["Date"])
     contrib_cols: list[str] = []
     for aid in asset_ids:
         col = f"{aid}_contribution"
-        df[col] = equity_df[f"{aid}_realized_pnl"].to_numpy() + equity_df[f"{aid}_unrealized_pnl"].to_numpy()
+        df[col] = equity_df[col].to_numpy()
         contrib_cols.append(col)
 
     df = df.set_index("Date")
@@ -917,60 +914,6 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
     st.plotly_chart(fig_decomp, width="stretch", key=f"contrib_decomp_{exp.experiment_name}")
-
-
-def _render_contribution_section_legacy(exp: _ExperimentData, asset_ids: list[str]) -> None:
-    """기존 방식(value 기반) 자산별 수익 기여도 fallback."""
-    equity_df = exp.equity_df
-    value_cols = [f"{aid}_value" for aid in asset_ids if f"{aid}_value" in equity_df.columns]
-
-    if not value_cols:
-        st.info("자산별 평가액 데이터가 없습니다.")
-        return
-
-    st.caption("(PnL 컬럼 미존재 -- 기존 방식으로 표시)")
-
-    df = equity_df[["Date"] + value_cols].copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df.set_index("Date")
-
-    cumulative = df[value_cols].copy()
-    for col in value_cols:
-        cumulative[col] = cumulative[col] - cumulative[col].iloc[0]
-
-    fig_cum = go.Figure()
-    asset_ids_tuple = tuple(asset_ids)
-    for aid in asset_ids:
-        col = f"{aid}_value"
-        if col not in cumulative.columns:
-            continue
-        color = _get_asset_color(aid, asset_ids_tuple)
-        r = int(color[1:3], 16)
-        g = int(color[3:5], 16)
-        b = int(color[5:7], 16)
-
-        fig_cum.add_trace(
-            go.Scatter(
-                x=cumulative.index,
-                y=cumulative[col],
-                mode="lines",
-                name=aid.upper(),
-                stackgroup="one",
-                line={"width": 0},
-                fillcolor=f"rgba({r}, {g}, {b}, 0.6)",
-                hovertemplate=f"{aid.upper()}: %{{y:+,.0f}}원<extra></extra>",
-            )
-        )
-
-    fig_cum.update_layout(
-        title="누적 자산별 기여도 (초기 대비 평가액 변동)",
-        height=_SUB_CHART_HEIGHT,
-        xaxis_title="날짜",
-        yaxis_title="누적 기여 금액 (원)",
-        hovermode="x unified",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-    )
-    st.plotly_chart(fig_cum, width="stretch", key=f"contrib_cum_legacy_{exp.experiment_name}")
 
 
 # ============================================================
@@ -1366,7 +1309,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             trades_df=exp.trades_df,
             asset_id=selected_signal_asset,
             experiment_name=exp.experiment_name,
-            summary=exp.summary,
         )
     else:
         st.info("시그널 데이터가 없습니다.")
@@ -1402,39 +1344,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
 # ============================================================
 
 
-def _find_asset_config(summary: dict[str, Any], asset_id: str) -> dict[str, Any] | None:
-    """summary.json의 portfolio_config.assets에서 해당 자산의 설정을 찾는다."""
-    config = summary.get("portfolio_config", {})
-    assets: list[dict[str, Any]] = config.get("assets", [])
-    for asset_cfg in assets:
-        if asset_cfg.get("asset_id") == asset_id:
-            return asset_cfg
-    return None
-
-
-def _compute_bands_for_signal(
-    signal_df: pd.DataFrame,
-    ma_col: str,
-    buy_buffer_zone_pct: float,
-    sell_buffer_zone_pct: float,
-) -> pd.DataFrame:
-    """signal_df에 상단/하단 밴드 컬럼을 추가한 복사본을 반환한다.
-
-    Args:
-        signal_df: 시그널 데이터 (ma_col 포함)
-        ma_col: 이동평균 컬럼명 (예: "ma_200")
-        buy_buffer_zone_pct: 매수 버퍼존 비율 (0.03 = 3%)
-        sell_buffer_zone_pct: 매도 버퍼존 비율 (0.05 = 5%)
-
-    Returns:
-        upper_band, lower_band 컬럼이 추가된 DataFrame 복사본
-    """
-    df = signal_df.copy()
-    df["upper_band"] = df[ma_col] * (1 + buy_buffer_zone_pct)
-    df["lower_band"] = df[ma_col] * (1 - sell_buffer_zone_pct)
-    return df
-
-
 def _detect_ma_col(signal_df: pd.DataFrame) -> str | None:
     """signal_df에서 ma_* 컬럼을 탐지한다."""
     ma_cols = [c for c in signal_df.columns if c.startswith("ma_")]
@@ -1448,12 +1357,19 @@ def _build_portfolio_candle_data(
     """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
 
     customValues를 포함하여 tooltip에서 OHLC, 전일대비%, MA, 밴드를 표시한다.
+    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 및 buffer_zone 자산의
+    `upper_band`/`lower_band`는 `run_portfolio_backtest.py`가 사전 계산해 signal CSV에
+    저장한 컬럼을 직접 읽는다.
     """
     has_upper_band = "upper_band" in signal_df.columns
     has_lower_band = "lower_band" in signal_df.columns
 
-    # 전일종가 시리즈 (전일대비% 계산용)
-    prev_close = signal_df[COL_CLOSE].shift(1)
+    # 4종 전일대비% 컬럼은 numpy 배열로 미리 추출해 인덱스 접근.
+    # itertuples namedtuple 속성은 정적 타입 체커가 인식하지 못하므로 배열 추출이 가장 클린하다.
+    pct_arrays: dict[str, np.ndarray[Any, Any]] = {}
+    for pct_col in ("open_pct", "high_pct", "low_pct", "close_pct"):
+        if pct_col in signal_df.columns:
+            pct_arrays[pct_col] = signal_df[pct_col].to_numpy()
 
     candle_data: list[dict[str, object]] = []
     for i, row in enumerate(signal_df.itertuples(index=False)):
@@ -1480,14 +1396,11 @@ def _build_portfolio_candle_data(
         cv["low"] = f"{low_val:.2f}"
         cv["close"] = f"{close_val:.2f}"
 
-        # 전일종가대비% (첫날 제외)
-        pc = prev_close.iloc[i]
-        if pd.notna(pc) and pc != 0:
-            pc_float = float(pc)
-            cv["open_pct"] = f"{(open_val / pc_float - 1) * 100:+.2f}"
-            cv["high_pct"] = f"{(high_val / pc_float - 1) * 100:+.2f}"
-            cv["low_pct"] = f"{(low_val / pc_float - 1) * 100:+.2f}"
-            cv["close_pct"] = f"{(close_val / pc_float - 1) * 100:+.2f}"
+        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
+        for pct_col, pct_arr in pct_arrays.items():
+            v = pct_arr[i]
+            if pd.notna(v):
+                cv[pct_col] = f"{float(v):+.2f}"
 
         # MA
         if ma_col and ma_col in signal_df.columns:
@@ -1580,30 +1493,24 @@ def _render_signal_chart(
     trades_df: pd.DataFrame,
     asset_id: str,
     experiment_name: str,
-    summary: dict[str, Any],
 ) -> None:
     """lightweight-charts 캔들스틱 + MA + 밴드 + Buy/Sell 마커를 표시한다.
 
+    `signal_df`의 `upper_band`/`lower_band` 컬럼은 `run_portfolio_backtest.py`가
+    buffer_zone 자산에 한해 사전 계산해 둔 값이며, buy_and_hold 자산은 컬럼이
+    존재하지 않으므로 Feature Detection으로 자동 분기된다.
+
     Args:
-        signal_df: 시그널 데이터 (OHLCV + ma_{N})
+        signal_df: 시그널 데이터 (OHLCV + ma_{N} + 4종 % + buffer_zone일 경우 밴드)
         trades_df: 거래 내역 (asset_id 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
-        summary: summary.json 데이터 (자산별 buffer params 추출용)
     """
     # 1. MA 컬럼 탐지
     ma_col = _detect_ma_col(signal_df)
 
-    # 2. 밴드 계산 (buffer_zone 전략 자산만)
-    asset_config = _find_asset_config(summary, asset_id)
-    display_df = signal_df
-    if ma_col and asset_config and asset_config.get("strategy_id") == "buffer_zone":
-        buy_pct = float(asset_config.get("buy_buffer_zone_pct", 0.03))
-        sell_pct = float(asset_config.get("sell_buffer_zone_pct", 0.05))
-        display_df = _compute_bands_for_signal(signal_df, ma_col, buy_pct, sell_pct)
-
-    # 3. 데이터 준비
-    candle_data = _build_portfolio_candle_data(display_df, ma_col)
+    # 2. 데이터 준비 (밴드 컬럼은 CSV에서 직접 읽음)
+    candle_data = _build_portfolio_candle_data(signal_df, ma_col)
     markers = _build_portfolio_markers(trades_df, asset_id)
 
     # 4. 차트 테마
@@ -1647,7 +1554,7 @@ def _render_signal_chart(
 
     # 6. MA 오버레이
     if ma_col:
-        ma_data = _build_lwc_series_data(display_df, ma_col)
+        ma_data = _build_lwc_series_data(signal_df, ma_col)
         if ma_data:
             window = ma_col.removeprefix("ma_")
             pane_series.append(
@@ -1666,8 +1573,8 @@ def _render_signal_chart(
             )
 
     # 7. 상단 밴드
-    if "upper_band" in display_df.columns:
-        upper_data = _build_lwc_series_data(display_df, "upper_band")
+    if "upper_band" in signal_df.columns:
+        upper_data = _build_lwc_series_data(signal_df, "upper_band")
         if upper_data:
             pane_series.append(
                 {
@@ -1685,8 +1592,8 @@ def _render_signal_chart(
             )
 
     # 8. 하단 밴드
-    if "lower_band" in display_df.columns:
-        lower_data = _build_lwc_series_data(display_df, "lower_band")
+    if "lower_band" in signal_df.columns:
+        lower_data = _build_lwc_series_data(signal_df, "lower_band")
         if lower_data:
             pane_series.append(
                 {

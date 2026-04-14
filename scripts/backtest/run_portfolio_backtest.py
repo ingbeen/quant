@@ -23,10 +23,16 @@ from qbt.backtest.constants import (
     ROUND_PRICE,
     ROUND_RATIO,
 )
-from qbt.backtest.csv_export import calculate_change_pct, prepare_trades_for_csv
+from qbt.backtest.csv_export import (
+    BUFFER_BAND_COLUMNS,
+    OHLC_CHANGE_PCT_COLUMNS,
+    add_buffer_zone_bands,
+    add_ohlc_change_pct,
+    prepare_trades_for_csv,
+)
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_types import PortfolioResult
+from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioResult
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
     COL_CLOSE,
@@ -184,12 +190,16 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             equity_round[col] = ROUND_RATIO
         elif col.endswith("_avg_price"):
             equity_round[col] = ROUND_PRICE
-        elif col.endswith("_realized_pnl") or col.endswith("_unrealized_pnl"):
+        elif col.endswith("_realized_pnl") or col.endswith("_unrealized_pnl") or col.endswith("_contribution"):
             equity_round[col] = ROUND_CAPITAL
 
     equity_export = equity_export.round(equity_round)
-    # int 변환 (자본금 + 보유 주수 + 손익)
-    pnl_cols = [c for c in equity_export.columns if c.endswith("_realized_pnl") or c.endswith("_unrealized_pnl")]
+    # int 변환 (자본금 + 보유 주수 + 손익 + 기여도)
+    pnl_cols = [
+        c
+        for c in equity_export.columns
+        if c.endswith("_realized_pnl") or c.endswith("_unrealized_pnl") or c.endswith("_contribution")
+    ]
     for col in ["equity", "cash"] + [c for c in equity_export.columns if c.endswith("_value")] + pnl_cols:
         if col in equity_export.columns:
             equity_export[col] = equity_export[col].astype(int)
@@ -205,23 +215,32 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
 
     # 3. signal_{asset_id}.csv 저장 (자산별)
+    # asset_id -> AssetSlotConfig 매핑 (밴드 계산 시 슬롯의 전략 파라미터 조회용)
+    slot_by_asset: dict[str, AssetSlotConfig] = {slot.asset_id: slot for slot in result.config.asset_slots}
     for asset_result in result.per_asset:
         signal_path = result.config.result_dir / f"signal_{asset_result.asset_id}.csv"
-        signal_export = asset_result.signal_df.copy()
 
-        # 전일종가대비% 계산 (저장 직전)
-        if COL_CLOSE in signal_export.columns:
-            signal_export["change_pct"] = calculate_change_pct(signal_export)
+        # 4종 OHLC 전일대비% 사전 계산 (대시보드 SSoT)
+        signal_export = add_ohlc_change_pct(asset_result.signal_df)
 
-        signal_round: dict[str, int] = {}
+        # buffer_zone 자산은 upper_band / lower_band 컬럼 사전 계산 (대시보드 SSoT)
+        slot = slot_by_asset[asset_result.asset_id]
+        if slot.strategy_id == "buffer_zone":
+            ma_col = f"ma_{slot.ma_window}"
+            signal_export = add_buffer_zone_bands(
+                signal_export,
+                ma_col,
+                buy_buffer_zone_pct=slot.buy_buffer_zone_pct,
+                sell_buffer_zone_pct=slot.sell_buffer_zone_pct,
+            )
+
+        signal_round: dict[str, int] = {col: ROUND_PERCENT for col in OHLC_CHANGE_PCT_COLUMNS}
         for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
             if col in signal_export.columns:
                 signal_round[col] = ROUND_PRICE
         for col in signal_export.columns:
-            if col.startswith("ma_") or col in ("upper_band", "lower_band"):
+            if col.startswith("ma_") or col in BUFFER_BAND_COLUMNS:
                 signal_round[col] = ROUND_PRICE
-        if "change_pct" in signal_export.columns:
-            signal_round["change_pct"] = ROUND_PERCENT
 
         signal_export = signal_export.round(signal_round)
         signal_export.to_csv(signal_path, index=False)
