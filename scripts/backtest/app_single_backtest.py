@@ -577,8 +577,17 @@ def _render_main_chart(
     )
 
 
-def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key: str) -> None:
-    """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다."""
+def _render_monthly_heatmap(
+    monthly_returns: list[dict[str, Any]],
+    yearly_returns: list[dict[str, Any]],
+    *,
+    chart_key: str,
+) -> None:
+    """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다.
+
+    12월 오른쪽에 "연간" 컬럼을 추가하여 연도별 복리 수익률을 함께 표시한다.
+    연간 수익률은 `run_*.py` 스크립트가 미리 계산하여 summary.json에 저장한 값을 사용한다.
+    """
     if not monthly_returns:
         st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
         return
@@ -589,6 +598,11 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key:
     years = sorted(pivot.index.tolist())
     months = list(range(1, 13))
 
+    # 연간 수익률 매핑 (year -> return_pct)
+    yearly_map: dict[int, float] = {}
+    for entry in yearly_returns:
+        yearly_map[int(str(entry["year"]))] = float(str(entry["return_pct"]))
+
     z_values: list[list[float | None]] = []
     for year in years:
         row: list[float | None] = []
@@ -598,6 +612,8 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key:
                 row.append(float(str(raw_val)) if pd.notna(raw_val) else None)
             else:
                 row.append(None)
+        # 12월 오른쪽: 연간 수익률
+        row.append(yearly_map.get(int(year)))
         z_values.append(row)
 
     flat_values = [v for row in z_values for v in row if v is not None]
@@ -607,10 +623,12 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key:
 
     max_abs = max(abs(v) for v in flat_values)
 
+    x_labels = MONTH_LABELS + ["연간"]
+
     fig = go.Figure(
         data=go.Heatmap(
             z=z_values,  # type: ignore[arg-type]
-            x=MONTH_LABELS,  # type: ignore[arg-type]
+            x=x_labels,  # type: ignore[arg-type]
             y=[str(y) for y in years],  # type: ignore[arg-type]
             colorscale="RdYlGn",
             zmid=0,
@@ -619,7 +637,7 @@ def _render_monthly_heatmap(monthly_returns: list[dict[str, Any]], *, chart_key:
             text=[[f"{v:.1f}%" if v is not None else "" for v in row] for row in z_values],  # type: ignore[arg-type]
             texttemplate="%{text}",
             textfont={"size": 11},
-            hovertemplate="연도: %{y}<br>월: %{x}<br>수익률: %{z:.2f}%<extra></extra>",
+            hovertemplate="연도: %{y}<br>구간: %{x}<br>수익률: %{z:.2f}%<extra></extra>",
             colorbar={"title": "수익률 (%)"},
         )
     )
@@ -697,6 +715,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     summary = summary_data["summary"]
     params = summary_data.get("params", {})
     monthly_returns: list[dict[str, Any]] = summary_data.get("monthly_returns", [])
+    yearly_returns: list[dict[str, Any]] = summary_data.get("yearly_returns", [])
     trades_df = strategy["trades_df"]
     has_trades = not trades_df.empty and "entry_date" in trades_df.columns
 
@@ -750,7 +769,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     st.header("4. 월별/연도별 수익률 히트맵")
     st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
     strategy_name = strategy["strategy_name"]
-    _render_monthly_heatmap(monthly_returns, chart_key=f"heatmap_{strategy_name}")
+    _render_monthly_heatmap(monthly_returns, yearly_returns, chart_key=f"heatmap_{strategy_name}")
 
     st.divider()
 

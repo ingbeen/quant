@@ -21,6 +21,7 @@ from qbt.backtest import runners
 from qbt.backtest.analysis import (
     calculate_drawdown_pct_series,
     calculate_monthly_returns,
+    calculate_yearly_returns,
 )
 from qbt.backtest.constants import (
     ROUND_CAPITAL,
@@ -171,6 +172,7 @@ def _save_trades_csv(result: SingleBacktestResult) -> Path:
 def _save_summary_json(
     result: SingleBacktestResult,
     monthly_returns: list[dict[str, Any]],
+    yearly_returns: list[dict[str, Any]],
 ) -> Path:
     """
     요약 지표를 JSON으로 저장한다.
@@ -178,6 +180,7 @@ def _save_summary_json(
     Args:
         result: SingleBacktestResult 컨테이너
         monthly_returns: 월별 수익률 리스트
+        yearly_returns: 연간 수익률 리스트
 
     Returns:
         저장된 JSON 파일 경로
@@ -214,6 +217,7 @@ def _save_summary_json(
         "summary": summary_dict,
         "params": result.params_json,
         "monthly_returns": monthly_returns,
+        "yearly_returns": yearly_returns,
         "data_info": result.data_info,
     }
 
@@ -239,8 +243,9 @@ def _save_results(result: SingleBacktestResult) -> None:
     equity_path = _save_equity_csv(result)
     trades_path = _save_trades_csv(result)
     monthly_returns = calculate_monthly_returns(result.equity_df)
+    yearly_returns = calculate_yearly_returns(monthly_returns)
 
-    summary_path = _save_summary_json(result, monthly_returns)
+    summary_path = _save_summary_json(result, monthly_returns, yearly_returns)
 
     # 메타데이터 저장
     metadata: dict[str, Any] = {

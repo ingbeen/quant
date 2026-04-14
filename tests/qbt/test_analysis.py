@@ -21,6 +21,7 @@ from qbt.backtest.analysis import (
     add_single_moving_average,
     calculate_calmar,
     calculate_summary,
+    calculate_yearly_returns,
 )
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
@@ -627,6 +628,169 @@ class TestCalculateCalmar:
 
         # Then
         assert result == pytest.approx(0.0, abs=EPSILON)
+
+
+class TestCalculateYearlyReturns:
+    """calculate_yearly_returns 단위 테스트
+
+    정책: 같은 연도의 월별 수익률(%)을 복리 누적하여 연간 수익률(%)을 산출한다.
+    공식: yearly_pct = (prod(1 + monthly_pct/100) - 1) * 100
+    """
+
+    def test_full_year_uniform_one_percent(self):
+        """
+        목적: 12개월 모두 1%인 경우 연간 복리 수익률 검증
+
+        정책: (1.01)^12 - 1 ≈ 0.12683 = 12.6825...%
+
+        Given: 2023년 12개월, 모든 월 return_pct=1.0
+        When: calculate_yearly_returns 호출
+        Then: 연간 수익률 약 12.68% (반올림 2자리 = 12.68)
+        """
+        # Given
+        monthly_returns: list[dict[str, object]] = [{"year": 2023, "month": m, "return_pct": 1.0} for m in range(1, 13)]
+
+        # When
+        result = calculate_yearly_returns(monthly_returns)
+
+        # Then
+        assert len(result) == 1, "1개 연도만 있어야 합니다"
+        assert result[0]["year"] == 2023
+        # (1.01)^12 = 1.12682503... → 12.6825%
+        expected_pct = ((1.01**12) - 1) * 100
+        assert result[0]["return_pct"] == pytest.approx(round(expected_pct, 2), abs=EPSILON)
+
+    def test_partial_year(self):
+        """
+        목적: 한 해의 일부 월만 있는 경우에도 정상 처리되는지 검증
+
+        정책: 존재하는 월만 누적 곱한다.
+
+        Given: 2023년 1~3월만 (1%, 2%, -1%)
+        When: calculate_yearly_returns 호출
+        Then: (1.01 * 1.02 * 0.99 - 1) * 100 = 1.9898%
+        """
+        # Given
+        monthly_returns: list[dict[str, object]] = [
+            {"year": 2023, "month": 1, "return_pct": 1.0},
+            {"year": 2023, "month": 2, "return_pct": 2.0},
+            {"year": 2023, "month": 3, "return_pct": -1.0},
+        ]
+
+        # When
+        result = calculate_yearly_returns(monthly_returns)
+
+        # Then
+        assert len(result) == 1
+        expected_pct = (1.01 * 1.02 * 0.99 - 1) * 100  # ≈ 1.9898
+        assert result[0]["return_pct"] == pytest.approx(round(expected_pct, 2), abs=EPSILON)
+
+    def test_multi_year_sorted_ascending(self):
+        """
+        목적: 여러 연도가 섞여 있을 때 연도 오름차순으로 정렬되어 반환되는지 검증
+
+        Given: 2024년 + 2022년 + 2023년 (입력 순서 무작위)
+        When: calculate_yearly_returns 호출
+        Then: result는 [2022, 2023, 2024] 순서
+        """
+        # Given (입력 순서를 일부러 섞는다)
+        monthly_returns: list[dict[str, object]] = [
+            {"year": 2024, "month": 1, "return_pct": 5.0},
+            {"year": 2022, "month": 12, "return_pct": -3.0},
+            {"year": 2023, "month": 6, "return_pct": 2.0},
+        ]
+
+        # When
+        result = calculate_yearly_returns(monthly_returns)
+
+        # Then
+        years = [int(str(r["year"])) for r in result]
+        assert years == [2022, 2023, 2024], "연도 오름차순으로 정렬되어야 합니다"
+
+    def test_empty_input(self):
+        """
+        목적: 빈 입력 시 빈 리스트 반환 검증
+
+        정책: monthly_returns가 빈 리스트면 yearly_returns도 빈 리스트.
+
+        Given: 빈 리스트
+        When: calculate_yearly_returns 호출
+        Then: 빈 리스트 반환
+        """
+        # Given / When
+        result = calculate_yearly_returns([])
+
+        # Then
+        assert result == []
+
+    def test_mixed_positive_negative(self):
+        """
+        목적: 양수 + 음수 수익률이 섞여 있을 때 복리 누적이 정확한지 검증
+
+        Given: 2023년 1월 +10%, 2월 -10%
+        When: calculate_yearly_returns 호출
+        Then: 1.10 * 0.90 = 0.99 → -1%
+        """
+        # Given
+        monthly_returns: list[dict[str, object]] = [
+            {"year": 2023, "month": 1, "return_pct": 10.0},
+            {"year": 2023, "month": 2, "return_pct": -10.0},
+        ]
+
+        # When
+        result = calculate_yearly_returns(monthly_returns)
+
+        # Then
+        assert len(result) == 1
+        # 1.10 * 0.90 = 0.99 → -1%
+        assert result[0]["return_pct"] == pytest.approx(-1.0, abs=EPSILON)
+
+    def test_consistency_with_calculate_monthly_returns(self):
+        """
+        목적: calculate_monthly_returns 결과를 입력으로 받아 연간 수익률이
+              equity 직접 비율과 거의 일치하는지 검증 (왕복 일관성)
+
+        정책: monthly compound ≈ 연초 대비 연말 비율
+
+        Given:
+          - 12개월 equity 데이터 (월말마다 1% 상승)
+        When:
+          - calculate_monthly_returns → calculate_yearly_returns
+        Then:
+          - equity[12]/equity[0] - 1 비율과 거의 동일
+        """
+        from qbt.backtest.analysis import calculate_monthly_returns
+
+        # Given: 2023년 12월말 ~ 2024년 12월말 (총 13개 월말 시점)
+        # 매월 1% 복리 상승
+        dates = [
+            date(2023, 12, 31),
+            date(2024, 1, 31),
+            date(2024, 2, 29),
+            date(2024, 3, 31),
+            date(2024, 4, 30),
+            date(2024, 5, 31),
+            date(2024, 6, 30),
+            date(2024, 7, 31),
+            date(2024, 8, 31),
+            date(2024, 9, 30),
+            date(2024, 10, 31),
+            date(2024, 11, 30),
+            date(2024, 12, 31),
+        ]
+        equities = [10000.0 * (1.01**i) for i in range(13)]
+        equity_df = pd.DataFrame({COL_DATE: dates, "equity": equities})
+
+        # When
+        monthly = calculate_monthly_returns(equity_df)
+        yearly = calculate_yearly_returns(monthly)
+
+        # Then: 2024년 한 해 12번 1% 복리 → ≈ 12.68%
+        assert len(yearly) == 1
+        assert int(str(yearly[0]["year"])) == 2024
+        expected_pct = ((1.01**12) - 1) * 100
+        # 반올림 2자리 적용으로 인한 미세한 누적 오차 허용 (0.05 이내)
+        assert float(str(yearly[0]["return_pct"])) == pytest.approx(expected_pct, abs=0.05)
 
 
 class TestAnalysisModuleInvariants:

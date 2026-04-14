@@ -16,6 +16,7 @@ from typing import Any
 
 import pandas as pd
 
+from qbt.backtest.analysis import calculate_monthly_returns, calculate_yearly_returns
 from qbt.backtest.constants import (
     ROUND_CAPITAL,
     ROUND_PERCENT,
@@ -313,11 +314,17 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             }
         )
 
+    # 월별/연간 수익률 계산 (대시보드에서 히트맵 표시용)
+    monthly_returns = calculate_monthly_returns(result.equity_df)
+    yearly_returns = calculate_yearly_returns(monthly_returns)
+
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
         "portfolio_summary": portfolio_summary,
         "per_asset": per_asset_data,
         "portfolio_config": result.params_json,
+        "monthly_returns": monthly_returns,
+        "yearly_returns": yearly_returns,
     }
 
     with summary_path.open("w", encoding="utf-8") as f:

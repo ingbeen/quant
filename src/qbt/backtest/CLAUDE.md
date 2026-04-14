@@ -51,6 +51,7 @@
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
+- `calculate_yearly_returns`: 월별 수익률 리스트로부터 연간 복리 수익률 계산 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
 
 ### 4. parameter_stability.py
 

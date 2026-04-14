@@ -19,7 +19,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import plotly.colors as pc
 import plotly.graph_objects as go
@@ -687,74 +686,58 @@ def _render_rebalancing_history_section(exp: _ExperimentData) -> None:
 
 
 def _render_monthly_returns_section(exp: _ExperimentData) -> None:
-    """월별 수익률을 히트맵으로 표시한다."""
+    """월별 수익률을 히트맵으로 표시한다.
+
+    월별/연간 수익률은 `run_portfolio_backtest.py`가 계산하여 summary.json에
+    저장한 값을 사용한다. 이 함수는 데이터를 읽어 시각화만 담당한다.
+    """
     st.subheader("월별 수익률")
 
-    equity_df = exp.equity_df
-    if equity_df.empty or "equity" not in equity_df.columns:
-        st.info("에쿼티 데이터가 없습니다.")
+    monthly_returns: list[dict[str, Any]] = exp.summary.get("monthly_returns", [])
+    yearly_returns: list[dict[str, Any]] = exp.summary.get("yearly_returns", [])
+
+    if not monthly_returns:
+        st.info("월별 수익률 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
         return
 
-    # 월별 수익률 계산
-    df = equity_df[["Date", "equity"]].copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df.set_index("Date")
+    # 1. 연도 x 월 피벗 구성
+    returns_df = pd.DataFrame(monthly_returns)
+    pivot = returns_df.pivot_table(values="return_pct", index="year", columns="month")
+    years = sorted(pivot.index.tolist())
 
-    # 월말 에쿼티 기준 수익률
-    monthly = df["equity"].resample("ME").last()
-    monthly_return = monthly.pct_change() * 100
-    monthly_return = monthly_return.dropna()
+    # 2. 연간 수익률 매핑 (year -> return_pct)
+    yearly_map: dict[int, float] = {}
+    for entry in yearly_returns:
+        yearly_map[int(str(entry["year"]))] = float(str(entry["return_pct"]))
 
-    if monthly_return.empty:
-        st.info("월별 수익률을 계산할 수 없습니다.")
-        return
-
-    # 년도 x 월 피벗
-    dt_index = pd.DatetimeIndex(monthly_return.index)
-    mr_df = pd.DataFrame(
-        {
-            "year": dt_index.year,
-            "month": dt_index.month,
-            "return_pct": monthly_return.values,
-        }
-    )
-
-    pivot = mr_df.pivot(index="year", columns="month", values="return_pct")
-
-    # 연간 수익률 계산 (월별 복리)
-    yearly_returns: list[float] = []
-    for year in pivot.index:
-        monthly_vals = pivot.loc[year].dropna().values
-        if len(monthly_vals) > 0:
-            cumulative = np.prod(1 + monthly_vals / 100) - 1
-            yearly_returns.append(cumulative * 100)
-        else:
-            yearly_returns.append(0.0)
-
-    # 13열 (1~12월 + 연간)
+    # 3. 13열 히트맵 데이터 구성 (1~12월 + 연간)
     month_labels = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
-    year_labels = [str(y) for y in pivot.index]
+    year_labels = [str(y) for y in years]
 
-    # 히트맵 데이터 (NaN → None)
     z_data: list[list[float | None]] = []
     text_data: list[list[str]] = []
 
-    for i, year in enumerate(pivot.index):
+    for year in years:
         row_z: list[float | None] = []
         row_text: list[str] = []
         for m in range(1, 13):
-            val = pivot.loc[year, m] if m in pivot.columns and pd.notna(pivot.loc[year].get(m)) else None
-            row_z.append(round(float(val), 2) if val is not None else None)
-            row_text.append(f"{float(val):.2f}%" if val is not None else "")
-        # 연간 합계
-        row_z.append(round(yearly_returns[i], 2))
-        row_text.append(f"{yearly_returns[i]:.2f}%")
+            val: float | None = None
+            if m in pivot.columns:
+                cell = pivot.loc[year, m]
+                if pd.notna(cell):
+                    val = float(str(cell))
+            row_z.append(val)
+            row_text.append(f"{val:.2f}%" if val is not None else "")
+        # 연간 합계 (summary.json에 저장된 값)
+        yearly_val = yearly_map.get(int(year))
+        row_z.append(yearly_val)
+        row_text.append(f"{yearly_val:.2f}%" if yearly_val is not None else "")
         z_data.append(row_z)
         text_data.append(row_text)
 
     x_labels = month_labels + ["연간"]
 
-    # 색상 범위 (대칭)
+    # 4. 색상 범위 (대칭)
     all_vals = [v for row in z_data for v in row if v is not None]
     max_abs = max(abs(min(all_vals)), abs(max(all_vals))) if all_vals else 10
 

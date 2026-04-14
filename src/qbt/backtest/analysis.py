@@ -268,3 +268,45 @@ def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]
         )
 
     return result
+
+
+def calculate_yearly_returns(monthly_returns: list[dict[str, object]]) -> list[dict[str, object]]:
+    """
+    월별 수익률 리스트로부터 연간 복리 수익률을 계산한다.
+
+    같은 연도에 속한 월별 수익률(%)을 복리 누적하여 연간 수익률(%)을 산출한다.
+    공식: yearly_pct = (prod(1 + monthly_pct / 100) - 1) * 100
+
+    Args:
+        monthly_returns: `calculate_monthly_returns()`의 반환값과 동일한 구조
+                        ([{year, month, return_pct}, ...])
+
+    Returns:
+        연간 수익률 리스트 [{year, return_pct}, ...] (year 오름차순).
+        빈 입력 시 빈 리스트 반환.
+    """
+    if not monthly_returns:
+        return []
+
+    # 1. 연도별 월간 수익률 그룹핑
+    grouped: dict[int, list[float]] = {}
+    for entry in monthly_returns:
+        year = int(str(entry["year"]))
+        return_pct = float(str(entry["return_pct"]))
+        grouped.setdefault(year, []).append(return_pct)
+
+    # 2. 연도 오름차순으로 복리 누적
+    result: list[dict[str, object]] = []
+    for year in sorted(grouped.keys()):
+        cumulative = 1.0
+        for monthly_pct in grouped[year]:
+            cumulative *= 1.0 + monthly_pct / 100.0
+        yearly_pct = (cumulative - 1.0) * 100.0
+        result.append(
+            {
+                "year": year,
+                "return_pct": round(yearly_pct, ROUND_PERCENT),
+            }
+        )
+
+    return result

@@ -228,7 +228,7 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - `signal.csv`: 시그널 데이터 (OHLC + MA + 전일대비%)
 - `equity.csv`: 에쿼티 곡선 + 밴드 + 드로우다운
 - `trades.csv`: 거래 내역 + 보유기간
-- `summary.json`: 요약 지표 + 파라미터 + 월별 수익률
+- `summary.json`: 요약 지표 + 파라미터 + 월별/연간 수익률
 - `walkforward_*.csv`: WFO 모드별 윈도우 결과 및 Stitched Equity (버퍼존 전략 전용)
 - `walkforward_summary.json`: WFO 모드별 요약 통계 (버퍼존 전략 전용)
 
