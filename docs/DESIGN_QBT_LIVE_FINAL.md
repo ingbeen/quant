@@ -225,12 +225,11 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 ### 8.2 RTDB 경로 구조
 
 ```
-/latest/portfolio              ← 전체 자산 요약 + assets/{asset_id}
+/latest/portfolio              ← 전체 자산 요약 + drift 스칼라 + assets/{asset_id}
 /latest/signals/{asset_id}     ← 시그널 상태 / 종가 / MA / 밴드
 /latest/pending_orders/{asset_id} ← 익일 체결 예정 주문 (pending 있는 자산만)
-/latest/drift                  ← model vs actual 스칼라 요약 (per_asset 미포함)
 /latest/chart_data/{asset_id}  ← 차트용 시계열 + 신호/체결 마커
-/history/summary/{YYYY-MM-DD}  ← 일별 요약 (영구 누적, 앱은 최근 N 개만 표시)
+/history/summary/{YYYY-MM-DD}  ← 일별 요약 (rolling window, 최근 90 일만 유지)
 /fills/inbox/{uuid}            ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}   ← 앱이 쓰는 잔고 보정 queue
 /device_tokens/{device_id}     ← FCM 토큰
@@ -240,7 +239,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
-**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/latest/drift`, `/history/summary/{date}`) 는 모두 `× 100` 스케일이다. 정의 / 임계값 / 라벨은 §12 참고.
+**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/history/summary/{date}`) 는 모두 `× 100` 스케일이다. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
 
 #### 8.2.1 `/latest/portfolio` — 전체 포트폴리오 요약
 
@@ -338,25 +337,11 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | `hold_days_used` | int                                                                            | BufferZone hold_days 누적 (매수 확정 대기 일수)        |
 | `reason`         | str                                                                            | 신호 이유 설명 (앱 리마인더 본문)                      |
 
-#### 8.2.4 `/latest/drift` — 스칼라 요약
+#### 8.2.4 `/latest/drift` — (삭제됨)
 
-**SoT**: `live.rtdb_gateway.write_read_model`. 매 실행 덮어쓰기.
+이 경로는 제거되었다. 과거에는 `drift_pct` / `model_equity` / `actual_equity` 세 필드를 별도 경로로 노출했으나 모든 필드가 `/latest/portfolio` (§8.2.1) 에 이미 존재하는 완전한 중복이었고, per_asset 정보도 포함하지 않아 독립 경로로 유지할 정당성이 없었다. 앱은 drift 스칼라 요약을 `/latest/portfolio` 에서 직접 읽는다. 자산별 drift 가 필요하면 `/latest/portfolio` + `/latest/signals` 로 앱에서 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
 
-```json
-{
-  "drift_pct": 0.37,
-  "model_equity": 12345678,
-  "actual_equity": 12300000
-}
-```
-
-| 필드            | 타입   | 설명                                                                |
-| --------------- | ------ | ------------------------------------------------------------------- |
-| `drift_pct`     | number | drift 값 (× 100 스케일). §12 참고                                   |
-| `model_equity`  | number | model 축 총 자산가치                                                |
-| `actual_equity` | number | actual 축 총 자산가치                                               |
-
-`/latest/drift` 는 스칼라 요약 전용이며 자산별 drift (`per_asset`) 를 포함하지 않는다 (§12 참고).
+섹션 번호는 뒤 섹션들이 흩어지지 않도록 그대로 유지한다.
 
 #### 8.2.5 `/latest/chart_data/{asset_id}` — 차트 시계열 + 마커
 
@@ -392,9 +377,12 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **기간 필터링**: 3M / 6M / 1Y / 전체 필터는 앱 측에서 `dates` 배열을 슬라이싱하여 처리한다 (서버는 전체 기간 전송).
 
-#### 8.2.6 `/history/summary/{YYYY-MM-DD}` — 일별 요약 (RTDB)
+#### 8.2.6 `/history/summary/{YYYY-MM-DD}` — 일별 요약 (RTDB, rolling window)
 
-**SoT**: `live.rtdb_gateway.write_read_model`. 매 실행 해당 날짜 키 덮어쓰기 (영구 누적).
+**SoT**:
+
+- 쓰기: `live.rtdb_gateway.write_read_model` — 매 실행 해당 날짜 키 덮어쓰기.
+- 정리: `live.rtdb_gateway.prune_history_summary` — 매 실행 직후 호출되어 retention 을 초과한 오래된 날짜 키를 삭제한다.
 
 ```json
 {
@@ -412,7 +400,9 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | `actual_equity` | number | actual 축 총 자산가치                                               |
 | `drift_pct`     | number | drift 값 (× 100 스케일). §12 참고                                    |
 
-**중요**: RTDB 의 `/history/summary/` 는 **영구 누적** 되며 자동 정리되지 않는다. 앱은 최근 N 개(권장 30~90 일) 만 읽어 홈 탭에 표시한다. 자산별 상세·전체 히스토리는 Git 정본(`history/summary.jsonl`, `history/daily/{date}.json`) 이 정본이다.
+**Retention (rolling window)**: RTDB 의 `/history/summary/` 는 **앱 홈 탭 표시용 rolling cache** 이며, daily runner 가 매 실행 직후 `prune_history_summary` 를 호출하여 `RTDB_HISTORY_SUMMARY_RETENTION_DAYS = 90` 일을 초과한 과거 날짜 키를 삭제한다. 정확한 경계 규칙: `cutoff = execution_date - retention_days`, `entry_date < cutoff` 이면 삭제 (cutoff 일자 자체는 보존). 앱은 최근 30~90 일을 읽어 표시한다.
+
+**정본 위치**: 자산별 상세·전체 히스토리는 Git 정본(`history/summary.jsonl`, `history/daily/{date}.json`) 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 캐시이므로 언제든지 재빌드 가능한 소비용 데이터로만 취급한다.
 
 #### 8.2.7 `/fills/inbox/{uuid}` — 체결 입력 (앱 → 서버)
 
@@ -594,7 +584,7 @@ drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 drift_pct = |model_equity − actual_equity| / model_equity   (내부 비율, 0~1. 0.03 = 3%)
 ```
 
-QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산과 Git 정본(`live_state.json`, `history/*`) 의 `drift_pct` 는 **0~1 범위의 비율** 이다. RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다 — `/latest/portfolio`, `/latest/drift`, `/history/summary/{date}` 의 `drift_pct` 는 모두 **× 100 스케일** (`ROUND_PERCENT = 2` 자리, 예: `3.50`). 앱 개발자는 이 값을 그대로 `X.XX%` 로 표시하면 된다.
+QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산과 Git 정본(`live_state.json`, `history/*`) 의 `drift_pct` 는 **0~1 범위의 비율** 이다. RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다 — `/latest/portfolio`, `/history/summary/{date}` 의 `drift_pct` 는 모두 **× 100 스케일** (`ROUND_PERCENT = 2` 자리, 예: `3.50`). 앱 개발자는 이 값을 그대로 `X.XX%` 로 표시하면 된다.
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를
@@ -613,7 +603,7 @@ QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산과 Git 정본(`live_stat
 **자산별 drift**: `DriftReport.per_asset` 에 `AssetDrift` 리스트로 포함된다.
 모델이 0 주인데 실제 보유 중인 경우(`model_value=0, actual_value>0`)
 `asset_drift_pct = 1.0` (100% 이탈) 을 반환하여 사용자가 차이를 인지할 수 있다.
-일일 리포트 알림 본문에는 전체 `drift_pct` 스칼라 값만 포함되며, **RTDB `/latest/drift` 도 per_asset 을 포함하지 않는다** (§8.2.4 참고). 자산별 상세가 필요하면 앱이 `/latest/portfolio` + `/latest/signals` 로 자체 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
+일일 리포트 알림 본문에는 전체 `drift_pct` 스칼라 값만 포함되며, **RTDB `/latest/portfolio` 도 per_asset drift 를 포함하지 않는다**. 자산별 상세가 필요하면 앱이 `/latest/portfolio` + `/latest/signals` 로 자체 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
 
 ---
 

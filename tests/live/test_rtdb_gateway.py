@@ -6,6 +6,7 @@ RTDB 진입점 호출 시그니처와 페이로드 구조를 검증한다.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -24,6 +25,7 @@ from live.rtdb_gateway import (
     fetch_unprocessed_fills,
     mark_balance_adjusts_processed,
     mark_fills_processed,
+    prune_history_summary,
     read_device_tokens,
     remove_invalid_tokens,
     write_chart_data,
@@ -37,14 +39,36 @@ from live.state import create_initial_state
 
 
 class _MockRef:
-    """firebase_admin.db.reference 가 반환하는 객체의 mock."""
+    """firebase_admin.db.reference 가 반환하는 객체의 mock.
+
+    ``get()`` 은 RTDB 의 계층적 읽기를 느슨하게 흉내낸다:
+
+    1. 정확히 해당 경로에 값이 저장되어 있으면 그 값을 반환.
+    2. 그렇지 않으면 ``{path}/...`` 하위 경로들을 스캔하여 **즉시 자식** 을
+       dict 로 묶어 반환한다. 자식이 하나도 없으면 ``None``.
+
+    이 규칙 덕분에 ``write_read_model`` 처럼 ``/history/summary/{date}`` 단위로
+    ``set`` 한 결과를 ``/history/summary`` 의 부모 ``get`` 에서 dict 로 되돌려
+    읽을 수 있다. 실제 Firebase RTDB 의 트리 구조 동작을 단순화한 모방이다.
+    """
 
     def __init__(self, path: str, store: dict[str, Any]) -> None:
         self.path = path
         self.store = store
 
     def get(self) -> Any:
-        return self.store.get(self.path)
+        if self.path in self.store:
+            return self.store[self.path]
+        prefix = self.path + "/"
+        children: dict[str, Any] = {}
+        for key, value in self.store.items():
+            if not key.startswith(prefix):
+                continue
+            remainder = key[len(prefix) :]
+            if "/" in remainder:
+                continue
+            children[remainder] = value
+        return children if children else None
 
     def set(self, value: Any) -> None:
         self.store[self.path] = value
@@ -272,10 +296,125 @@ class TestWriteReadModel:
         assert "/latest/pending_orders" in mock_db
         assert "sso" in mock_db["/latest/pending_orders"]
 
-        assert "/latest/drift" in mock_db
-        assert mock_db["/latest/drift"]["drift_pct"] == 0.0
+        # /latest/drift 경로는 제거됨 — drift_pct 는 /latest/portfolio 에서 읽는다.
+        assert "/latest/drift" not in mock_db
+        assert mock_db["/latest/portfolio"]["drift_pct"] == 0.0
 
         assert "/history/summary/2026-04-10" in mock_db
+
+
+# ============================================================================
+# prune_history_summary
+# ============================================================================
+
+
+class TestPruneHistorySummary:
+    """``/history/summary/{date}`` rolling window 정리 정책.
+
+    정책:
+
+    - ``today - retention_days`` **이전** 날짜 키는 삭제된다.
+    - 그 이상 ("오늘 이후" 포함) 날짜 키는 보존된다.
+    - ``/history/summary`` 가 비어 있거나 존재하지 않으면 no-op.
+    - 날짜 포맷이 ISO 8601 이 아닌 키는 무시한다 (파싱 실패 시 건너뜀).
+    """
+
+    def test_removes_entries_older_than_retention(self, mock_db, mock_app):
+        """
+        목적: retention 기간을 넘긴 날짜 키만 삭제되고 최신 키는 보존된다.
+
+        경계 정책: ``cutoff = today - retention_days``, ``entry_date < cutoff`` 이면 삭제.
+        따라서 retention 경계일(정확히 today - retention_days) 자체는 **보존** 된다.
+
+        Given: /history/summary 에 경계 전후 여러 날짜 키가 존재한다.
+        When:  retention_days=90, today=2026-04-14 로 prune 호출 → cutoff=2026-01-14.
+        Then:  cutoff 미만 키(2025-12-31, 2026-01-13)는 삭제, cutoff 이상 키는 보존.
+        """
+        # Given
+        mock_db["/history/summary/2025-12-31"] = {"execution_date": "2025-12-31"}  # cutoff 미만
+        mock_db["/history/summary/2026-01-13"] = {"execution_date": "2026-01-13"}  # cutoff 미만
+        mock_db["/history/summary/2026-01-14"] = {"execution_date": "2026-01-14"}  # cutoff 정확 일치
+        mock_db["/history/summary/2026-01-15"] = {"execution_date": "2026-01-15"}  # cutoff 초과
+        mock_db["/history/summary/2026-04-10"] = {"execution_date": "2026-04-10"}
+
+        # When
+        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+
+        # Then
+        assert "/history/summary/2025-12-31" not in mock_db  # cutoff 미만 → 삭제
+        assert "/history/summary/2026-01-13" not in mock_db  # cutoff 미만 → 삭제
+        assert "/history/summary/2026-01-14" in mock_db  # cutoff 일치 → 보존
+        assert "/history/summary/2026-01-15" in mock_db  # cutoff 초과 → 보존
+        assert "/history/summary/2026-04-10" in mock_db  # 최근 → 보존
+
+    def test_empty_history_summary_is_noop(self, mock_db, mock_app):
+        """
+        목적: /history/summary 가 비어 있으면 아무 일도 하지 않는다.
+
+        Given: mock store 가 비어 있음.
+        When:  prune 호출.
+        Then:  예외 없이 종료, store 변화 없음.
+        """
+        # Given / When
+        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+
+        # Then
+        assert mock_db == {}
+
+    def test_invalid_date_keys_are_ignored(self, mock_db, mock_app):
+        """
+        목적: ISO 8601 파싱 실패 키는 건너뛴다 (삭제/오류 모두 없음).
+
+        Given: /history/summary 아래에 파싱 불가능한 키가 존재.
+        When:  prune 호출.
+        Then:  해당 키는 그대로 유지, 예외 없음.
+        """
+        # Given
+        mock_db["/history/summary/not-a-date"] = {"execution_date": "invalid"}
+        mock_db["/history/summary/2026-04-10"] = {"execution_date": "2026-04-10"}
+
+        # When
+        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+
+        # Then
+        assert "/history/summary/not-a-date" in mock_db  # 파싱 실패 → 건너뜀
+        assert "/history/summary/2026-04-10" in mock_db
+
+    def test_keeps_today_and_future_entries(self, mock_db, mock_app):
+        """
+        목적: 오늘 이후 날짜는 무조건 보존한다 (retention 기준이 음수가 되는 경우 없음).
+
+        Given: 오늘 / 오늘 이후 키가 존재.
+        When:  prune 호출.
+        Then:  모두 보존.
+        """
+        # Given
+        mock_db["/history/summary/2026-04-14"] = {"execution_date": "2026-04-14"}
+        mock_db["/history/summary/2026-04-15"] = {"execution_date": "2026-04-15"}
+
+        # When
+        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+
+        # Then
+        assert "/history/summary/2026-04-14" in mock_db
+        assert "/history/summary/2026-04-15" in mock_db
+
+    def test_non_dict_root_is_noop(self, mock_db, mock_app):
+        """
+        목적: /history/summary 가 dict 가 아닌 예상 외 타입이면 조용히 건너뛴다.
+
+        Given: /history/summary 가 문자열로 저장됨 (이상 케이스).
+        When:  prune 호출.
+        Then:  예외 없이 종료, 원본 보존.
+        """
+        # Given
+        mock_db["/history/summary"] = "not a dict"
+
+        # When
+        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+
+        # Then
+        assert mock_db["/history/summary"] == "not a dict"
 
 
 # ============================================================================

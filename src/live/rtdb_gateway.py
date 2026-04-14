@@ -7,9 +7,9 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 
 지원 경로:
 
-- ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``, ``/latest/drift``
+- ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``
 - ``/latest/chart_data/{asset_id}``
-- ``/history/summary/``
+- ``/history/summary/`` (rolling window — :func:`prune_history_summary`)
 - ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
 """
@@ -17,6 +17,7 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -39,6 +40,7 @@ __all__ = [
     "mark_balance_adjusts_processed",
     "write_read_model",
     "write_chart_data",
+    "prune_history_summary",
     "read_device_tokens",
     "remove_invalid_tokens",
 ]
@@ -213,7 +215,11 @@ def mark_balance_adjusts_processed(app: FirebaseAppLike, keys: list[str]) -> Non
 
 
 def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult) -> None:
-    """``/latest/*`` 에 read model (포트폴리오 / 시그널 / pending / drift) 을 기록한다.
+    """``/latest/*`` 에 read model (포트폴리오 / 시그널 / pending) 을 기록한다.
+
+    drift 스칼라 값 (``drift_pct`` / ``model_equity`` / ``actual_equity``) 은
+    ``/latest/portfolio`` 에 포함되어 있으므로 별도 ``/latest/drift`` 경로는
+    사용하지 않는다.
 
     Args:
         app: Firebase App 인스턴스.
@@ -256,14 +262,7 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
     }
     _db_reference(app, f"{_LATEST_PATH}/pending_orders").set(pending_payload)
 
-    drift_payload = {
-        "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
-        "model_equity": result.model_equity,
-        "actual_equity": result.actual_equity,
-    }
-    _db_reference(app, f"{_LATEST_PATH}/drift").set(drift_payload)
-
-    # 일일 요약은 history/summary 에도 누적
+    # 일일 요약은 history/summary 에도 누적 (rolling window 는 prune_history_summary 로 정리)
     _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{result.execution_date}").set(
         {
             "execution_date": result.execution_date,
@@ -272,6 +271,42 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
             "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
         }
     )
+
+
+def prune_history_summary(app: FirebaseAppLike, retention_days: int, today: date) -> None:
+    """``/history/summary/{YYYY-MM-DD}`` 에서 retention 초과 키를 삭제한다.
+
+    RTDB 쪽 history summary 는 앱 홈 탭의 rolling cache 이며, 전체 정본은
+    Git ``history/summary.jsonl`` 이다. 이 함수는 ``today - retention_days``
+    **미만** 인 날짜 키를 삭제하여 용량 누수를 방지한다.
+
+    Args:
+        app: Firebase App 인스턴스.
+        retention_days: 유지할 최대 일수 (이 일수를 초과한 과거 키는 삭제).
+        today: 기준 날짜. daily runner 의 ``execution_date`` 를 그대로 전달하여
+            backfill / historical 재실행 시에도 retention 창이 그 날짜 기준으로
+            움직이게 한다.
+
+    동작:
+
+    - ``/history/summary`` 가 없거나 dict 가 아니면 no-op.
+    - 날짜 포맷이 ISO 8601 이 아닌 키는 건너뛴다 (파손 키 보호).
+    - retention 경계일 자체도 삭제 대상이다 (미만 기준: cutoff = today - retention_days,
+      `date_key < cutoff` 이면 삭제).
+    """
+    ref = _db_reference(app, _HISTORY_SUMMARY_PATH)
+    raw = ref.get()
+    if not isinstance(raw, dict):
+        return
+
+    cutoff = today - timedelta(days=retention_days)
+    for date_key in list(raw.keys()):
+        try:
+            entry_date = date.fromisoformat(str(date_key))
+        except ValueError:
+            continue
+        if entry_date < cutoff:
+            _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{date_key}").delete()
 
 
 def write_chart_data(app: FirebaseAppLike, series: dict[str, ChartSeries]) -> None:

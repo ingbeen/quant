@@ -273,6 +273,51 @@ class TestCmdRunDailySuccess:
         assert len(publish_calls) == 1
         assert len(notify_calls) == 1
 
+    def test_publish_to_rtdb_invokes_prune_history_summary(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """
+        목적: ``_publish_to_rtdb`` 가 내부에서 ``prune_history_summary`` 를 호출한다.
+
+        Given: run-daily 의 RTDB 쓰기 단계를 전부 mock 하고 prune 만 스파이로 교체.
+        When:  _publish_to_rtdb 를 직접 호출한다.
+        Then:  prune_history_summary 가 execution_date 와 retention 상수로 호출된다.
+        """
+        from live.constants import RTDB_HISTORY_SUMMARY_RETENTION_DAYS
+
+        # Given — write_read_model / write_chart_data / build_chart_series / history 로더를 전부 no-op
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_read_model", lambda app, state, result: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_data", lambda app, series: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module, "build_chart_series", lambda *a, **kw: {})
+        monkeypatch.setattr(cli_module.history, "load_user_trades", lambda d: {})
+        monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
+
+        prune_calls: list[tuple[int, date]] = []
+
+        def _spy_prune(app: object, retention_days: int, today: date) -> None:
+            prune_calls.append((retention_days, today))
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "prune_history_summary", _spy_prune)
+
+        fake_app = object()
+
+        class _StubResult:
+            execution_date = "2026-04-14"
+
+        # When
+        cli_module._publish_to_rtdb(
+            rtdb_app=fake_app,
+            state_dir=tmp_path,
+            state=object(),
+            result=_StubResult(),  # type: ignore[arg-type]
+            newly_applied_fill_keys=set(),
+        )
+
+        # Then
+        assert len(prune_calls) == 1
+        assert prune_calls[0] == (RTDB_HISTORY_SUMMARY_RETENTION_DAYS, date(2026, 4, 14))
+
 
 # ============================================================================
 # placeholder → 실구현된 명령어 테스트

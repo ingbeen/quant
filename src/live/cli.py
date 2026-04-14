@@ -55,6 +55,7 @@ from live.constants import (
     HISTORY_SUMMARY_FILENAME,
     KST_TIMEZONE,
     NYSE_CALENDAR_CODE,
+    RTDB_HISTORY_SUMMARY_RETENTION_DAYS,
     STATE_REPO_PAT_ENV_KEY,
     STATE_REPO_URL,
     TELEGRAM_CHAT_ENV_KEY,
@@ -280,7 +281,15 @@ def _publish_to_rtdb(
     # 1. read model 갱신
     rtdb_gateway.write_read_model(rtdb_app, state, result)
 
-    # 2. 차트 데이터 갱신 — 사용자 체결 이력 + 신호 이력 로드해 마커까지 포함
+    # 2. history summary rolling window 정리 (RTDB 는 앱 표시용 캐시, 정본은 Git)
+    execution_date = date.fromisoformat(result.execution_date)
+    rtdb_gateway.prune_history_summary(
+        rtdb_app,
+        retention_days=RTDB_HISTORY_SUMMARY_RETENTION_DAYS,
+        today=execution_date,
+    )
+
+    # 3. 차트 데이터 갱신 — 사용자 체결 이력 + 신호 이력 로드해 마커까지 포함
     history_dir = _history_dir(state_dir)
     user_trades = history.load_user_trades(history_dir)
     signal_history = history.load_signal_history(history_dir)
@@ -291,7 +300,7 @@ def _publish_to_rtdb(
     )
     rtdb_gateway.write_chart_data(rtdb_app, chart_series)
 
-    # 3. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
+    # 4. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
     if newly_applied_fill_keys:
         rtdb_gateway.mark_fills_processed(rtdb_app, list(newly_applied_fill_keys))
 
