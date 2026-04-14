@@ -2,7 +2,7 @@
   "display_name": "버퍼존 전략 (UBT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 9517015,
+    "final_capital": 9517018,
     "total_return_pct": -4.83,
     "cagr": -0.3,
     "mdd": -64.58,
@@ -15,8 +15,8 @@
     "end_date": "2026-04-10",
     "open_position": {
       "entry_date": "2025-09-16",
-      "entry_price": 17.422282,
-      "shares": 580659
+      "entry_price": 17.42228,
+      "shares": 580660
     }
   },
   "params": {
@@ -587,7 +587,7 @@
     {
       "year": 2019,
       "month": 5,
-      "return_pct": 13.91
+      "return_pct": 13.9
     },
     {
       "year": 2019,
@@ -1044,7 +1044,7 @@
     },
     {
       "year": 2019,
-      "return_pct": 24.48
+      "return_pct": 24.47
     },
     {
       "year": 2020,

@@ -2,7 +2,7 @@
   "display_name": "F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 123266720,
+    "final_capital": 123266627,
     "total_return_pct": 1132.67,
     "cagr": 16.84,
     "mdd": -27.17,
@@ -25,8 +25,8 @@
       "target_weight": 0.3,
       "total_trades": 57,
       "win_rate": 91.23,
-      "final_shares": 780192,
-      "final_avg_price": 38.17968
+      "final_shares": 780196,
+      "final_avg_price": 38.17973
     },
     {
       "asset_id": "gld",
@@ -41,8 +41,8 @@
       "target_weight": 0.2,
       "total_trades": 33,
       "win_rate": 78.79,
-      "final_shares": 288123,
-      "final_avg_price": 95.826941
+      "final_shares": 288124,
+      "final_avg_price": 95.826866
     }
   ],
   "portfolio_config": {

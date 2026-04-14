@@ -2,7 +2,7 @@
   "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 126108429,
+    "final_capital": 126108463,
     "total_return_pct": 1161.08,
     "cagr": 16.92,
     "mdd": -26.45,
@@ -26,7 +26,7 @@
       "total_trades": 56,
       "win_rate": 92.86,
       "final_shares": 654344,
-      "final_avg_price": 55.517874
+      "final_avg_price": 55.517878
     },
     {
       "asset_id": "ugl",
@@ -34,7 +34,7 @@
       "total_trades": 45,
       "win_rate": 86.67,
       "final_shares": 306544,
-      "final_avg_price": 27.187838
+      "final_avg_price": 27.187809
     },
     {
       "asset_id": "ubt",
@@ -42,7 +42,7 @@
       "total_trades": 37,
       "win_rate": 70.27,
       "final_shares": 1084514,
-      "final_avg_price": 17.367444
+      "final_avg_price": 17.367443
     }
   ],
   "portfolio_config": {
@@ -711,7 +711,7 @@
     {
       "year": 2020,
       "month": 3,
-      "return_pct": -7.71
+      "return_pct": -7.72
     },
     {
       "year": 2020,
@@ -1122,7 +1122,7 @@
     },
     {
       "year": 2020,
-      "return_pct": 40.32
+      "return_pct": 40.3
     },
     {
       "year": 2021,

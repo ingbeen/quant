@@ -2,7 +2,7 @@
   "display_name": "Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 145562222,
+    "final_capital": 145562332,
     "total_return_pct": 1355.62,
     "cagr": 17.96,
     "mdd": -30.51,
@@ -17,8 +17,8 @@
       "target_weight": 0.35,
       "total_trades": 61,
       "win_rate": 90.16,
-      "final_shares": 906034,
-      "final_avg_price": 46.02779
+      "final_shares": 906035,
+      "final_avg_price": 46.027807
     },
     {
       "asset_id": "qld",
@@ -26,23 +26,23 @@
       "total_trades": 64,
       "win_rate": 93.75,
       "final_shares": 755285,
-      "final_avg_price": 55.36338
+      "final_avg_price": 55.363401
     },
     {
       "asset_id": "ugl",
       "target_weight": 0.15,
       "total_trades": 57,
       "win_rate": 71.93,
-      "final_shares": 353832,
-      "final_avg_price": 27.778728
+      "final_shares": 353833,
+      "final_avg_price": 27.778854
     },
     {
       "asset_id": "ubt",
       "target_weight": 0.15,
       "total_trades": 50,
       "win_rate": 74.0,
-      "final_shares": 1251814,
-      "final_avg_price": 22.342823
+      "final_shares": 1251815,
+      "final_avg_price": 22.342815
     }
   ],
   "portfolio_config": {

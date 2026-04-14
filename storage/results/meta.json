@@ -1810,7 +1810,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_ubt/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_ubt/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:38+09:00"
+      "timestamp": "2026-04-14T20:39:46+09:00"
     },
     {
       "params": {
@@ -1831,7 +1831,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_ugl/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_ugl/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:38+09:00"
+      "timestamp": "2026-04-14T20:39:45+09:00"
     },
     {
       "params": {
@@ -1852,7 +1852,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tlt/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tlt/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:37+09:00"
+      "timestamp": "2026-04-14T20:39:45+09:00"
     },
     {
       "params": {
@@ -1873,7 +1873,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_gld/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_gld/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:37+09:00"
+      "timestamp": "2026-04-14T20:39:45+09:00"
     },
     {
       "params": {
@@ -1894,7 +1894,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:36+09:00"
+      "timestamp": "2026-04-14T20:39:45+09:00"
     }
   ],
   "backtest_walkforward": [
@@ -2762,7 +2762,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-04-14T16:19:12+09:00"
+      "timestamp": "2026-04-14T20:39:37+09:00"
     },
     {
       "params": {
@@ -2836,7 +2836,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xh/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xh/summary.json"
       },
-      "timestamp": "2026-04-14T16:19:07+09:00"
+      "timestamp": "2026-04-14T20:39:34+09:00"
     },
     {
       "params": {
@@ -2910,7 +2910,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2x/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2x/summary.json"
       },
-      "timestamp": "2026-04-14T16:19:02+09:00"
+      "timestamp": "2026-04-14T20:39:32+09:00"
     },
     {
       "params": {
@@ -2984,7 +2984,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:57+09:00"
+      "timestamp": "2026-04-14T20:39:29+09:00"
     },
     {
       "params": {
@@ -3058,7 +3058,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-14T16:18:52+09:00"
+      "timestamp": "2026-04-14T20:39:26+09:00"
     }
   ]
 }

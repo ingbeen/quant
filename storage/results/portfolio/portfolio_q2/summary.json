@@ -2,7 +2,7 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 49008761,
+    "final_capital": 49008763,
     "total_return_pct": 390.09,
     "cagr": 10.3,
     "mdd": -16.21,
@@ -34,7 +34,7 @@
       "total_trades": 28,
       "win_rate": 85.71,
       "final_shares": 15259,
-      "final_avg_price": 185.42417
+      "final_avg_price": 185.423852
     },
     {
       "asset_id": "tlt",
@@ -42,7 +42,7 @@
       "total_trades": 21,
       "win_rate": 76.19,
       "final_shares": 84161,
-      "final_avg_price": 91.823225
+      "final_avg_price": 91.82294
     }
   ],
   "portfolio_config": {

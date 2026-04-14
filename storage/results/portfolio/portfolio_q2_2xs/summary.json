@@ -2,7 +2,7 @@
   "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 118393888,
+    "final_capital": 118393893,
     "total_return_pct": 1083.94,
     "cagr": 16.46,
     "mdd": -27.67,
@@ -18,7 +18,7 @@
       "total_trades": 45,
       "win_rate": 91.11,
       "final_shares": 744090,
-      "final_avg_price": 45.386012
+      "final_avg_price": 45.386009
     },
     {
       "asset_id": "qld",
@@ -34,7 +34,7 @@
       "total_trades": 36,
       "win_rate": 88.89,
       "final_shares": 38284,
-      "final_avg_price": 184.699862
+      "final_avg_price": 184.700413
     },
     {
       "asset_id": "tlt",
@@ -42,7 +42,7 @@
       "total_trades": 32,
       "win_rate": 71.88,
       "final_shares": 194500,
-      "final_avg_price": 94.181465
+      "final_avg_price": 94.181374
     }
   ],
   "portfolio_config": {
