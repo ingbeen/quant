@@ -306,6 +306,61 @@ class TestWriteReadModel:
 
         assert "/history/summary/2026-04-10" in mock_db
 
+    def test_drift_pct_is_stored_as_0_to_1_ratio(self, mock_db, mock_app):
+        """
+        목적: 프로젝트 네이밍 관례(`_pct` = 0~1 ratio) 에 따라 `/latest/portfolio`
+              와 `/history/summary/{date}` 의 ``drift_pct`` 는 **0~1 ratio** 로
+              저장된다 (과거 `× 100 스케일` 에서 0~1 ratio 로 통일됨).
+
+        Given: drift_pct=0.0350 (3.5%) 인 DailyResult.
+        When:  write_read_model 호출.
+        Then:  저장된 값이 0.0350 (× 100 스케일이 아님), [0, 1] 범위 내.
+        """
+        # Given
+        state = create_initial_state(100_000_000.0)
+        state.assets["sso"].model_shares = 100
+        drift_ratio = 0.0350
+
+        result = DailyResult(
+            execution_date="2026-04-10",
+            updated_state=state,
+            updated_applied_fill_ids={},
+            updated_applied_balance_adjust_ids={},
+            signals={},
+            order_intents={},
+            executions=None,
+            rebalance_triggered=False,
+            model_equity=100_000_000.0,
+            actual_equity=96_500_000.0,
+            drift_pct=drift_ratio,
+            drift_report=DriftReport(
+                model_equity=100_000_000.0,
+                actual_equity=96_500_000.0,
+                drift_pct=drift_ratio,
+                per_asset={},
+                recommendation="주의",
+            ),
+            ma_distances={},
+            notification_body="test",
+            pending_fill_reminders=[],
+        )
+
+        # When
+        write_read_model(mock_app, state, result)
+
+        # Then
+        portfolio_drift = mock_db["/latest/portfolio"]["drift_pct"]
+        history_drift = mock_db["/history/summary/2026-04-10"]["drift_pct"]
+
+        assert portfolio_drift == pytest.approx(
+            drift_ratio, abs=1e-6
+        ), f"/latest/portfolio drift_pct 는 0~1 ratio 여야 함 (expected≈{drift_ratio})"
+        assert history_drift == pytest.approx(
+            drift_ratio, abs=1e-6
+        ), f"/history/summary drift_pct 는 0~1 ratio 여야 함 (expected≈{drift_ratio})"
+        assert 0.0 <= portfolio_drift <= 1.0
+        assert 0.0 <= history_drift <= 1.0
+
 
 # ============================================================================
 # prune_history_summary
@@ -394,9 +449,7 @@ class TestPruneHistorySummary:
         assert "/history/summary/not-a-date" in mock_db  # 파싱 실패 → 건너뜀
         assert "/history/summary/2026-04-10" in mock_db
         warnings = [rec.getMessage() for rec in caplog.records if rec.levelname == "WARNING"]
-        assert any(
-            "not-a-date" in msg for msg in warnings
-        ), f"파손 키 WARNING 로그가 없음. 현재 WARNING 로그: {warnings!r}"
+        assert any("not-a-date" in msg for msg in warnings), f"파손 키 WARNING 로그가 없음. 현재 WARNING 로그: {warnings!r}"
 
     def test_keeps_today_and_future_entries(self, mock_db, mock_app):
         """

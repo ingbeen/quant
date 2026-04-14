@@ -27,7 +27,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, LiveState
-from qbt.backtest.constants import ROUND_PERCENT
+from qbt.backtest.constants import ROUND_RATIO
 from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -237,7 +237,9 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
         "execution_date": result.execution_date,
         "model_equity": result.model_equity,
         "actual_equity": result.actual_equity,
-        "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
+        # drift_pct 는 프로젝트 네이밍 관례(`_pct` = 0~1 ratio) 를 따라 RTDB 에도
+        # 0~1 ratio 그대로 저장한다. 앱 표시 시 × 100 변환은 앱 계층 책임.
+        "drift_pct": round(result.drift_pct, ROUND_RATIO),
         "shared_cash_model": state.shared_cash_model,
         "shared_cash_actual": state.shared_cash_actual,
         "assets": {
@@ -275,7 +277,8 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
             "execution_date": result.execution_date,
             "model_equity": result.model_equity,
             "actual_equity": result.actual_equity,
-            "drift_pct": round(result.drift_pct * 100, ROUND_PERCENT),
+            # drift_pct 0~1 ratio 저장 (위 portfolio_payload 와 동일 규칙).
+            "drift_pct": round(result.drift_pct, ROUND_RATIO),
         }
     )
 

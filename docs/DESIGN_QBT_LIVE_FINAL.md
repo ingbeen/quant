@@ -261,7 +261,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
-**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/history/summary/{date}`) 는 모두 `× 100` 스케일이다. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
+**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/history/summary/{date}`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
 
 #### 8.2.1 `/latest/portfolio` — 전체 포트폴리오 요약
 
@@ -272,7 +272,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
   "execution_date": "2026-04-10",
   "model_equity": 12345678,
   "actual_equity": 12300000,
-  "drift_pct": 0.37,
+  "drift_pct": 0.0037,
   "shared_cash_model": 500000.0,
   "shared_cash_actual": 498500.0,
   "assets": {
@@ -293,7 +293,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | `execution_date`                 | str                    | 불가 | ISO 8601 날짜 (예: `"2026-04-10"`)                              |
 | `model_equity`                   | number                 | 불가 | model 축 총 자산가치 (자본금 반올림, `ROUND_CAPITAL = 0` 자리)  |
 | `actual_equity`                  | number                 | 불가 | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                |
-| `drift_pct`                      | number                 | 불가 | drift 값 (× 100 스케일). §12 참고                                |
+| `drift_pct`                      | number                 | 불가 | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리, 예: `0.0037` = 0.37%). §12 참고 |
 | `shared_cash_model`              | number                 | 불가 | model 축 공유 현금                                              |
 | `shared_cash_actual`             | number                 | 불가 | actual 축 공유 현금                                             |
 | `assets.{asset_id}.model_shares` | int                    | 불가 | model 축 보유 주식 수                                           |
@@ -468,7 +468,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
   "execution_date": "2026-04-10",
   "model_equity": 12345678,
   "actual_equity": 12300000,
-  "drift_pct": 0.37
+  "drift_pct": 0.0037
 }
 ```
 
@@ -477,7 +477,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 | `execution_date` | str    | ISO 8601 날짜 (최상위 key 와 동일)                                  |
 | `model_equity`  | number | model 축 총 자산가치                                                |
 | `actual_equity` | number | actual 축 총 자산가치                                               |
-| `drift_pct`     | number | drift 값 (× 100 스케일). §12 참고                                    |
+| `drift_pct`     | number | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리, 예: `0.0037`). §12 참고 |
 
 **Retention (rolling window)**: RTDB 의 `/history/summary/` 는 **앱 홈 탭 표시용 rolling cache** 이며, daily runner 가 매 실행 직후 `prune_history_summary` 를 호출하여 `RTDB_HISTORY_SUMMARY_RETENTION_DAYS = 90` 일을 초과한 과거 날짜 키를 삭제한다. 정확한 경계 규칙: `cutoff = execution_date - retention_days`, `entry_date < cutoff` 이면 삭제 (cutoff 일자 자체는 보존). 앱은 최근 30~90 일을 읽어 표시한다.
 
@@ -692,7 +692,7 @@ drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 drift_pct = |model_equity − actual_equity| / model_equity   (내부 비율, 0~1. 0.03 = 3%)
 ```
 
-QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산과 Git 정본(`live_state.json`, `history/*`) 의 `drift_pct` 는 **0~1 범위의 비율** 이다. RTDB 에 쓸 때만 `× 100` 변환하여 앱 호환성을 유지한다 — `/latest/portfolio`, `/history/summary/{date}` 의 `drift_pct` 는 모두 **× 100 스케일** (`ROUND_PERCENT = 2` 자리, 예: `3.50`). 앱 개발자는 이 값을 그대로 `X.XX%` 로 표시하면 된다.
+QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`, `/history/summary/{date}`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다).
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를
@@ -700,13 +700,13 @@ QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산과 Git 정본(`live_stat
 
 **임계값과 recommendation 라벨** (비율 기준, `constants.DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO`):
 
-| 내부 비율 구간     | `recommendation` (한글 라벨) | 앱 표시 예 (× 100 스케일) |
-| ------------------ | ---------------------------- | ------------------------- |
-| 0 ~ 0.03 (미만)    | `"정상"`                     | `0.00%` ~ `2.99%`         |
-| 0.03 ~ 0.05 (미만) | `"주의"`                     | `3.00%` ~ `4.99%`         |
-| 0.05 이상          | `"보정 필요"`                | `5.00%` 이상              |
+| 비율 구간 (0~1)    | `recommendation` (한글 라벨) | 앱 표시 예 (× 100 변환 후) |
+| ------------------ | ---------------------------- | -------------------------- |
+| 0 ~ 0.03 (미만)    | `"정상"`                     | `0.00%` ~ `2.99%`          |
+| 0.03 ~ 0.05 (미만) | `"주의"`                     | `3.00%` ~ `4.99%`          |
+| 0.05 이상          | `"보정 필요"`                | `5.00%` 이상               |
 
-`recommendation` 문자열은 한글 리터럴이며 RTDB 에 저장되지 않는다 (Git 정본 `history/daily/{date}.json` 및 일일 리포트 알림에만 노출). 앱이 상태 라벨을 자체 렌더링할 경우 `drift_pct / 100` 을 임계값과 비교해 동일한 규칙을 적용해야 한다.
+`recommendation` 문자열은 한글 리터럴이며 RTDB 에 저장되지 않는다 (Git 정본 `history/daily/{date}.json` 및 일일 리포트 알림에만 노출). 앱이 상태 라벨을 자체 렌더링할 경우 저장된 `drift_pct` (0~1 ratio) 를 임계값과 **동일 스케일로 직접 비교** 하면 된다 (별도 스케일 변환 불필요).
 
 **자산별 drift**: `DriftReport.per_asset` 에 `AssetDrift` 리스트로 포함된다.
 모델이 0 주인데 실제 보유 중인 경우(`model_value=0, actual_value>0`)
