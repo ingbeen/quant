@@ -367,8 +367,13 @@ def calculate_regime_summaries(
         trading_days = len(regime_equity)
 
         # 9. RegimeSummaryDict 조합
+        #    end=None "진행중 구간" 의 출력 name 은 "진행중" 으로 자동 치환한다.
+        #    constants 의 원본 이름(예: "회복기") 은 보존되며, 나중에 end 가 날짜로
+        #    확정되면 자동으로 원본 이름으로 복원된다.
+        display_name = "진행중" if regime_end_raw is None else regime["name"]
+
         regime_summary: RegimeSummaryDict = {
-            "name": regime["name"],
+            "name": display_name,
             "regime_type": regime["regime_type"],
             "start_date": actual_start,
             "end_date": actual_end,

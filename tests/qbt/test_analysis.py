@@ -923,10 +923,71 @@ class TestCalculateRegimeSummaries:
         # Then
         assert len(results) == 1
         result = results[0]
-        assert result["name"] == "회복기"
         assert result["start_date"] == "2025-05-13"
         assert result["end_date"] == "2026-04-14"
         assert result["trading_days"] == 3
+
+    def test_regime_summaries_end_none_name_is_ongoing(self):
+        """
+        목적: end=None (진행중 구간) 의 출력 name 은 constants 원본 이름과 무관하게
+              "진행중" 으로 자동 치환된다.
+
+        Given: name="회복기", end=None 인 regime
+        When:  calculate_regime_summaries 호출
+        Then:  결과 name 이 "진행중" (원본 "회복기" 대신)
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2025, 5, 13), date(2026, 4, 14)],
+                "equity": [10_000_000.0, 11_500_000.0],
+            }
+        )
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2025-05-13", "end": None, "regime_type": "bull", "name": "회복기"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        assert results[0]["name"] == "진행중", "end=None 인 진행중 구간의 name 은 '진행중' 으로 자동 치환되어야 한다"
+        # regime_type 은 원본 유지 — 유형 정보 손실 없음을 확인
+        assert results[0]["regime_type"] == "bull"
+
+    def test_regime_summaries_end_str_name_preserved(self):
+        """
+        목적: end 가 문자열(확정된 과거 구간) 이면 원본 name 을 그대로 보존한다.
+
+        Given: name="닷컴 붕괴", end="2002-10-09" 인 regime (확정 구간)
+        When:  calculate_regime_summaries 호출
+        Then:  결과 name 이 원본 "닷컴 붕괴" 로 유지 (치환되지 않음)
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2000, 4, 1), date(2001, 6, 1), date(2002, 10, 1)],
+                "equity": [10_000_000.0, 7_000_000.0, 5_000_000.0],
+            }
+        )
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+        regimes: list[MarketRegimeDict] = [
+            {
+                "start": "2000-03-28",
+                "end": "2002-10-09",
+                "regime_type": "bear",
+                "name": "닷컴 붕괴",
+            },
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        assert results[0]["name"] == "닷컴 붕괴", "end 가 문자열(확정 구간) 이면 name 치환이 일어나지 않아야 한다"
 
     def test_regime_summaries_end_none_with_empty_equity_returns_empty(self):
         """
