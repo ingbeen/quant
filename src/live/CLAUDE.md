@@ -38,7 +38,7 @@ src/live/                       # 실매매 코드
 ├── buffer_serializer.py        # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 ├── rtdb_gateway.py             # Firebase RTDB 게이트웨이
 ├── notifier.py                 # FCM + 텔레그램 동시 발송
-├── chart_data.py               # TradingView Lightweight Charts 시계열
+├── chart_data.py               # TradingView Lightweight Charts 시계열 (meta + recent + archive/{YYYY})
 ├── history.py                  # 영구 히스토리 저장
 ├── git_state.py                # ephemeral shallow clone / commit / push 헬퍼
 └── cli.py                      # CLI 엔트리포인트
@@ -66,7 +66,7 @@ tests/live/                     # live 전용 테스트
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
 | `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이                              |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
-| `chart_data.py`        | 자산별 전체 기간 차트 시계열 생성                                                   |
+| `chart_data.py`        | 자산별 차트 시계열 빌더 (`build_chart_meta` / `build_chart_recent` / `build_chart_archive_year`) |
 | `history.py`           | Git 정본 히스토리 append / load                                                     |
 | `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
 | `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅              |
@@ -95,6 +95,20 @@ tests/live/                     # live 전용 테스트
   - `trade_df` 에서 지정 날짜 미발견 (내부 불변조건 위반)
   - JSONL 히스토리 파일 손상 (JSON 파싱 실패)
   - RTDB fill / balance_adjust 필수 필드 누락
+  - 전일 종가 대비 1% 이상 괴리 (스플릿/무상증자 의심 — `validate_prev_close`)
+
+**스플릿 / 무상증자 수동 대응**: 위 `validate_prev_close` 가 의심 케이스를 감지하면
+운영자가 수동으로 대응한다. 절차 요약:
+
+1. yfinance / 증권사 공시로 스플릿 사실 / 비율 확인
+2. `python -m live rebuild-data {TICKER}` 로 CSV 재다운로드
+3. `qbt-live-state` 의 `live_state.json` 에서 영향 자산의 `*_shares` / `*_avg_entry_price`
+   수동 조정 (shares × ratio, avg_price / ratio). `buffer_zone_state` 내부 가격 필드도 함께.
+4. Git commit / push (조정 사유 + 비율 명시)
+5. `python -m live backfill-chart-archive` 로 차트 archive 전체 재생성
+
+자동 조정 모듈은 의도적으로 제공하지 않는다 (원칙 1: 자동 복구 금지 + 운영자 개입
+비용이 낮음). 상세 절차 본문은 [설계서 §9.1](../../docs/DESIGN_QBT_LIVE_FINAL.md) 참고.
 
 ### 2. model / actual 분리
 

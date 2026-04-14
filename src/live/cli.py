@@ -791,6 +791,65 @@ def _cmd_fetch_fills(args: argparse.Namespace) -> int:
 # ============================================================================
 
 
+def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
+    """차트 archive 를 일괄 재생성한다 (최초 배포 / 스플릿 대응 수동 명령).
+
+    daily runner 는 매 실행마다 meta + recent + archive/{현재_연도} 만 갱신하므로,
+    (1) 최초 배포 직후 과거 연도 archive 가 아예 없는 상태이거나,
+    (2) 스플릿/무상증자 발생으로 과거 연도 archive 를 새 조정가 기준으로 다시
+    쓸 필요가 있을 때, 운영자가 이 명령을 수동 실행한다.
+
+    옵션:
+
+    - ``--year YYYY``: 단일 연도만 재생성 (기본: meta.archive_years 전체).
+    - ``--dry-run``: 실제 RTDB 쓰기 없이 대상 연도만 출력.
+
+    본 명령은 ephemeral state repo 를 read-only 로 clone 하여 CSV 만 사용한다.
+    Git push 는 수행하지 않는다.
+    """
+    year_arg: int | None = args.year
+    dry_run: bool = args.dry_run
+
+    with ephemeral_state_repo(push_on_success=False, commit_subcommand="backfill-chart-archive") as state_dir:
+        history_dir = _history_dir(state_dir)
+        user_trades = history.load_user_trades(history_dir)
+        signal_history = history.load_signal_history(history_dir)
+
+        meta_map = build_chart_meta(state_dir)
+
+        # meta 에서 archive_years 합집합을 계산 (자산마다 동일해야 하지만 방어적으로 합집합).
+        all_years: set[int] = set()
+        for meta in meta_map.values():
+            all_years.update(meta.archive_years)
+
+        if year_arg is not None:
+            if year_arg not in all_years:
+                logger.warning(f"--year={year_arg} 가 meta.archive_years 에 없음. 대상 연도 없음.")
+                return 0
+            target_years = [year_arg]
+        else:
+            target_years = sorted(all_years)
+
+        if dry_run:
+            sys.stdout.write(f"[dry-run] 대상 자산: {sorted(meta_map.keys())} × 대상 연도: {target_years}\n")
+            return 0
+
+        rtdb_app = _require_rtdb_app()
+
+        for year in target_years:
+            archive_map = build_chart_archive_year(
+                state_dir,
+                year=year,
+                user_trades=user_trades,
+                signal_history=signal_history,
+            )
+            rtdb_gateway.write_chart_archive_year(rtdb_app, year=year, year_map=archive_map)
+            logger.debug(f"archive/{year} 재생성 완료")
+
+        rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+    return 0
+
+
 def _cmd_history(args: argparse.Namespace) -> int:
     n: int = args.tail
     with ephemeral_state_repo(push_on_success=False, commit_subcommand="history") as state_dir:
@@ -857,6 +916,24 @@ def _build_parser() -> argparse.ArgumentParser:
     # fetch-fills
     p_fetch_fills = sub.add_parser("fetch-fills", help="RTDB 미처리 fill 목록 출력")
     p_fetch_fills.set_defaults(func=_cmd_fetch_fills)
+
+    # backfill-chart-archive
+    p_backfill = sub.add_parser(
+        "backfill-chart-archive",
+        help="차트 archive 전체 재생성 (최초 배포 / 스플릿 대응 수동 명령)",
+    )
+    p_backfill.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="선택. 단일 연도만 재생성 (기본: meta.archive_years 전체)",
+    )
+    p_backfill.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="실제 RTDB 쓰기 없이 대상 연도 목록만 출력",
+    )
+    p_backfill.set_defaults(func=_cmd_backfill_chart_archive)
 
     # history
     p_hist = sub.add_parser("history", help="history/summary.jsonl 최근 N 줄 출력")

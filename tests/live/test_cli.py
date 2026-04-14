@@ -445,6 +445,179 @@ class TestFetchFills:
         assert "sso" in captured.out
 
 
+class TestCmdBackfillChartArchive:
+    """``backfill-chart-archive`` 수동 CLI 의 계약 테스트.
+
+    정상 경로 / --year 옵션 / --dry-run / RTDB 초기화 실패 네 가지 케이스를 고정한다.
+    """
+
+    def _stub_meta(self, archive_years: list[int]) -> dict[str, object]:
+        """build_chart_meta 의 반환값을 모사한다 (자산별 ChartMeta)."""
+        from live.models import ChartMeta
+
+        return {
+            "sso": ChartMeta(
+                first_date="2013-01-02",
+                last_date="2026-04-14",
+                ma_window=200,
+                recent_months=6,
+                archive_years=archive_years,
+            ),
+            "qld": ChartMeta(
+                first_date="2013-01-02",
+                last_date="2026-04-14",
+                ma_window=200,
+                recent_months=6,
+                archive_years=archive_years,
+            ),
+        }
+
+    def _setup_common_mocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        archive_years: list[int],
+    ) -> tuple[list[int], list[tuple[int, object]], list[object]]:
+        """build_chart_meta / build_chart_archive_year / write 함수 스파이를 설정한다.
+
+        Returns:
+            (write_meta_call_years_placeholder, write_archive_calls, write_meta_calls)
+            — 실제로는 각 스파이 리스트. 테스트에서 assertion 에 사용.
+        """
+        meta_stub = self._stub_meta(archive_years)
+        monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: meta_stub)
+
+        def _fake_build_archive(state_dir: Path, year: int, **kwargs: object) -> dict[str, object]:
+            del state_dir, kwargs
+            return {"sso": f"sso_{year}", "qld": f"qld_{year}"}
+
+        monkeypatch.setattr(cli_module, "build_chart_archive_year", _fake_build_archive)
+
+        write_archive_calls: list[tuple[int, object]] = []
+
+        def _spy_write_archive(app: object, year: int, year_map: object) -> None:
+            del app
+            write_archive_calls.append((year, year_map))
+
+        write_meta_calls: list[object] = []
+
+        def _spy_write_meta(app: object, meta_map: object) -> None:
+            del app
+            write_meta_calls.append(meta_map)
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_archive_year", _spy_write_archive)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_meta", _spy_write_meta)
+
+        # history 로더는 사용되지 않을 수 있지만 안전하게 no-op
+        monkeypatch.setattr(cli_module.history, "load_user_trades", lambda d: {})
+        monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
+
+        return ([], write_archive_calls, write_meta_calls)
+
+    def test_backfill_full_covers_all_years(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        목적: 인자 없이 실행하면 meta.archive_years 전체를 순회 재생성한다.
+
+        Given: archive_years=[2024, 2025, 2026], RTDB / 빌더 스파이.
+        When:  main(["backfill-chart-archive"])
+        Then:  write_chart_archive_year 가 3 연도에 각각 1 회, write_chart_meta 가 1 회.
+        """
+        del state_dir  # fixture 설치만 필요
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+
+        _, archive_calls, meta_calls = self._setup_common_mocks(monkeypatch, archive_years=[2024, 2025, 2026])
+
+        exit_code = main(["backfill-chart-archive"])
+        assert exit_code == 0
+        assert sorted(year for year, _ in archive_calls) == [2024, 2025, 2026]
+        assert len(meta_calls) == 1
+
+    def test_backfill_year_option_targets_single_year(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        목적: --year 지정 시 해당 연도만 재생성한다.
+
+        Given: archive_years=[2024, 2025, 2026].
+        When:  main(["backfill-chart-archive", "--year", "2025"])
+        Then:  write_chart_archive_year 가 2025 에만 1 회, write_chart_meta 는 여전히 1 회 호출.
+        """
+        del state_dir
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+
+        _, archive_calls, meta_calls = self._setup_common_mocks(monkeypatch, archive_years=[2024, 2025, 2026])
+
+        exit_code = main(["backfill-chart-archive", "--year", "2025"])
+        assert exit_code == 0
+        assert [year for year, _ in archive_calls] == [2025]
+        assert len(meta_calls) == 1
+
+    def test_backfill_dry_run_skips_write(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """
+        목적: --dry-run 시 write 함수를 단 한 번도 호출하지 않고 대상 연도를 출력한다.
+
+        Given: archive_years=[2024, 2025, 2026].
+        When:  main(["backfill-chart-archive", "--dry-run"])
+        Then:  write_chart_archive_year / write_chart_meta 가 0 회 호출되고
+               stdout 에 대상 연도 목록이 포함된다.
+        """
+        del state_dir
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+
+        _, archive_calls, meta_calls = self._setup_common_mocks(monkeypatch, archive_years=[2024, 2025, 2026])
+
+        exit_code = main(["backfill-chart-archive", "--dry-run"])
+        assert exit_code == 0
+        assert archive_calls == []
+        assert meta_calls == []
+        out = capsys.readouterr().out
+        assert "2024" in out
+        assert "2025" in out
+        assert "2026" in out
+
+    def test_backfill_rtdb_init_failure_triggers_notify(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """
+        목적: Firebase 초기화 실패 시 main 공통 훅이 실패 알림 + exit 1.
+
+        Given: _initialize_rtdb_app → None
+        When:  backfill-chart-archive 실행
+        Then:  _safe_notify_failure 가 호출되고 exit=1.
+        """
+        del state_dir
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        self._setup_common_mocks(monkeypatch, archive_years=[2025])
+
+        notify_calls: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "_safe_notify_failure",
+            lambda app, msg: notify_calls.append(msg),
+        )
+
+        exit_code = main(["backfill-chart-archive"])
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+        assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
+
+
 class TestHistoryCmd:
     def test_history_outputs_recent_lines(self, state_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
         # history/summary.jsonl 직접 작성

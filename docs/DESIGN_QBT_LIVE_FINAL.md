@@ -639,6 +639,35 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 / Git push / RTDB / fill 검증 / idempotency 등) 는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
+### 9.1 스플릿 / 무상증자 수동 대응 절차
+
+스플릿 / 무상증자는 드문 이벤트이고 오탐지 리스크가 있어, live 는 "자동 복구 금지 + 무조건 알림" 원칙에 따라 **감지만 하고 대응은 운영자가 수동으로 수행** 한다. 자동 조정 모듈은 제공하지 않는다 (의도된 선택).
+
+**감지**:
+
+- `data_validator.validate_prev_close` 가 전일 종가 대비 **1% 이상 괴리** 를 감지하면 `ValueError("전일 종가 불일치 (스플릿 의심): ...")` 를 던져 run-daily 가 즉시 중단된다.
+- 공통 예외 훅이 FCM + 텔레그램으로 실패 알림을 발송한다.
+
+**확인**:
+
+1. 운영자는 알림을 받고 yfinance 또는 증권사 공시에서 해당 자산의 스플릿 / 무상증자 사실과 비율을 확인한다.
+2. 실제 스플릿이면 비율 (예: `2:1`) 을 메모한다.
+
+**수동 보정 절차** (정본 → 캐시 순):
+
+1. **CSV 재다운로드**: `python -m live rebuild-data {TICKER}` — yfinance 에서 조정된 전체 주가를 다시 받아 CSV 를 덮어쓴다.
+2. **live_state.json 수동 조정**: `qbt-live-state` 리포를 clone 하고 영향받은 자산에 대해:
+   - `model_shares *= ratio`, `model_avg_entry_price /= ratio`
+   - `actual_shares *= ratio`, `actual_avg_entry_price /= ratio`
+   - `buffer_zone_state` 내부 가격 필드 (있다면) 도 동일 비율로 조정. BufferZoneStrategy 내부 상태는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 의 직렬화 규약을 따른다.
+3. **Git commit + push**: 조정 사유와 비율을 commit 메시지에 기록 (예: `live / SSO 2:1 split 조정`).
+4. **차트 archive 재생성**: `python -m live backfill-chart-archive` 실행 — 자산별 `/latest/chart_data/{asset_id}/archive/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 meta 의 archive_years 전체 순회이며, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
+5. **다음 run-daily 확인**: 다음날 자동 실행 (또는 수동 `run-daily`) 에서 정상 진행을 확인한다.
+
+**history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
+
+**backfill-chart-archive 는 최초 배포 직후에도 1 회 실행** 해야 한다 (과거 연도 archive 를 처음 생성). daily runner 는 매일 `archive/{현재_연도}` 만 덮어쓰므로, backfill 없이는 이전 연도 archive 가 영구 누락된다.
+
 ---
 
 ## 10. 스케쥴링
