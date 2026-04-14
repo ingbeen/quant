@@ -5,12 +5,9 @@
 - 백테스트 기본 설정 (거래 비용, 초기 자본)
 - 전략 파라미터 (버퍼존 기본값, 제약 조건, 그리드 서치)
 - 결과 데이터 컬럼 및 표시
-- 시장 구간 정의 (QQQ 기준)
 """
 
 from typing import Final
-
-from qbt.backtest.types import MarketRegimeDict
 
 # ============================================================
 # 백테스트 기본 설정
@@ -69,37 +66,6 @@ WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 # --- WFO 윈도우별 상세 CSV 디렉토리명 ---
 WFO_WINDOWS_DYNAMIC_DIR: Final = "wfo_windows_dynamic"
 WFO_WINDOWS_FULLY_FIXED_DIR: Final = "wfo_windows_fully_fixed"
-
-# ============================================================
-# 시장 구간 정의 (QQQ 기준, 수동 분류)
-# ============================================================
-
-# QQQ 기준 수동 분류 (상승/횡보/하락)
-MARKET_REGIMES: Final[list[MarketRegimeDict]] = [
-    {"start": "1999-03-10", "end": "2000-03-27", "regime_type": "bull", "name": "닷컴 버블 상승기"},
-    {"start": "2000-03-28", "end": "2002-10-09", "regime_type": "bear", "name": "닷컴 붕괴"},
-    {"start": "2002-10-10", "end": "2004-01-26", "regime_type": "bull", "name": "닷컴 후 초기 회복"},
-    {"start": "2004-01-27", "end": "2006-07-21", "regime_type": "sideways", "name": "금리인상기 박스권"},
-    {"start": "2006-07-24", "end": "2007-10-31", "regime_type": "bull", "name": "글로벌 성장기"},
-    {"start": "2007-11-01", "end": "2009-03-09", "regime_type": "bear", "name": "글로벌 금융위기"},
-    {"start": "2009-03-10", "end": "2011-07-25", "regime_type": "bull", "name": "QE1/QE2 상승기"},
-    {"start": "2011-07-26", "end": "2012-09-18", "regime_type": "sideways", "name": "유럽 재정위기 횡보"},
-    {"start": "2012-09-19", "end": "2015-07-20", "regime_type": "bull", "name": "QE3 상승기"},
-    {"start": "2015-07-21", "end": "2016-06-30", "regime_type": "sideways", "name": "중국/유가 불안"},
-    {"start": "2016-07-01", "end": "2018-09-28", "regime_type": "bull", "name": "트럼프 랠리"},
-    {"start": "2018-10-01", "end": "2018-12-24", "regime_type": "bear", "name": "2018 Q4 조정"},
-    {"start": "2018-12-26", "end": "2020-02-19", "regime_type": "bull", "name": "2019 회복 랠리"},
-    {"start": "2020-02-20", "end": "2020-03-23", "regime_type": "bear", "name": "코로나 급락"},
-    {"start": "2020-03-24", "end": "2021-11-19", "regime_type": "bull", "name": "포스트코로나 랠리"},
-    {"start": "2021-11-22", "end": "2022-10-13", "regime_type": "bear", "name": "금리인상 약세장"},
-    {"start": "2022-10-14", "end": "2025-02-18", "regime_type": "bull", "name": "AI 랠리"},
-    {"start": "2025-02-19", "end": "2025-05-12", "regime_type": "bear", "name": "관세 충격"},
-    # 마지막 구간은 end=None 으로 "진행중" 을 표현한다. calculate_regime_summaries 가
-    # equity_df 의 마지막 거래일까지 자동으로 슬라이스하므로 상수를 매번 수동 갱신하지
-    # 않아도 최신 데이터를 덮는다. 새로운 regime 전환이 확인되면 이 구간의 end 를
-    # 실제 전환일로 채우고 새 구간을 아래에 추가한다.
-    {"start": "2025-05-13", "end": None, "regime_type": "bull", "name": "회복기"},
-]
 
 # ============================================================
 # 반올림 규칙 상수 (루트 CLAUDE.md "출력 데이터 반올림 규칙" 참조)

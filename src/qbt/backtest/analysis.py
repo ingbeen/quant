@@ -11,23 +11,18 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import Literal
 
 import pandas as pd
 
 from qbt.backtest.constants import (
     CALMAR_MDD_ZERO_SUBSTITUTE,
-    COL_ENTRY_DATE,
     COL_EQUITY,
-    COL_EXIT_DATE,
-    COL_HOLDING_DAYS,
     COL_PNL,
     ROUND_PERCENT,
     ma_col_name,
 )
-from qbt.backtest.csv_export import add_holding_days
-from qbt.backtest.types import MarketRegimeDict, RegimeSummaryDict, SummaryDict
+from qbt.backtest.types import SummaryDict
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
 from qbt.utils import get_logger
 
@@ -273,122 +268,3 @@ def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]
         )
 
     return result
-
-
-def calculate_regime_summaries(
-    equity_df: pd.DataFrame,
-    trades_df: pd.DataFrame,
-    regimes: list[MarketRegimeDict],
-) -> list[RegimeSummaryDict]:
-    """
-    시장 구간별 성과 요약을 계산한다.
-
-    각 구간에 대해 equity_df를 슬라이스하고 calculate_summary()를 재사용하여
-    기본 지표를 획득한 뒤, 추가 지표(평균 보유기간, 수익팩터)를 계산한다.
-
-    Args:
-        equity_df: 전체 기간 자본 곡선 DataFrame (Date, equity 컬럼 필수)
-        trades_df: 전체 기간 거래 내역 DataFrame (entry_date, pnl 컬럼 필수)
-        regimes: 시장 구간 정의 리스트
-
-    Returns:
-        구간별 성과 요약 리스트 (데이터 2행 미만인 구간은 제외)
-    """
-    results: list[RegimeSummaryDict] = []
-
-    # equity_df 마지막 거래일 — "진행중" 구간 (end=None) 의 종료일로 사용한다.
-    if equity_df.empty:
-        return results
-    equity_last_date_raw = equity_df.iloc[-1][COL_DATE]
-    equity_last_date = (
-        equity_last_date_raw
-        if isinstance(equity_last_date_raw, date)
-        else date.fromisoformat(str(equity_last_date_raw))
-    )
-
-    for regime in regimes:
-        # 1. 구간 날짜 파싱
-        #    end 가 None 이면 "진행중 구간" → equity_df 마지막 거래일로 대체.
-        regime_start = date.fromisoformat(regime["start"])
-        regime_end_raw = regime["end"]
-        regime_end = date.fromisoformat(regime_end_raw) if regime_end_raw is not None else equity_last_date
-
-        # 2. equity_df를 구간 날짜로 필터링
-        equity_dates = pd.Series(equity_df[COL_DATE])
-        mask = equity_dates.apply(lambda d, s=regime_start, e=regime_end: s <= d <= e)
-        regime_equity = equity_df[mask].copy()
-
-        # 3. 필터링된 행이 2개 미만이면 스킵
-        if len(regime_equity) < 2:
-            continue
-
-        # 4. 구간 시작 에쿼티를 initial_capital로 사용
-        initial_capital = float(regime_equity.iloc[0][COL_EQUITY])
-        if initial_capital <= 0:
-            # 비레버리지 백테스트에서 자본 소멸은 불가능. fail-fast로 사용자에게 즉시 알린다.
-            raise RuntimeError(
-                f"내부 불변조건 위반: regime 시작 equity <= 0 "
-                f"(비레버리지 백테스트에서 자본 소멸 불가, "
-                f"regime='{regime['name']}', initial_capital={initial_capital})"
-            )
-
-        # 5. trades_df를 entry_date 기준으로 구간 필터링
-        if not trades_df.empty and COL_ENTRY_DATE in trades_df.columns:
-            trade_dates = pd.Series(trades_df[COL_ENTRY_DATE])
-            trade_mask = trade_dates.apply(lambda d, s=regime_start, e=regime_end: s <= d <= e)
-            regime_trades = trades_df[trade_mask].copy()
-        else:
-            regime_trades = pd.DataFrame(columns=[COL_ENTRY_DATE, COL_EXIT_DATE, COL_PNL])
-
-        # 6. calculate_summary()로 기본 지표 획득
-        summary = calculate_summary(regime_trades, regime_equity, initial_capital)
-
-        # 7. 추가 지표 계산
-        # 평균 보유기간 — holding_days 자동 계산 (컬럼 미존재 시 entry_date/exit_date로 폴백)
-        if not regime_trades.empty:
-            regime_trades = add_holding_days(regime_trades)
-
-        avg_holding_days = 0.0
-        if not regime_trades.empty and COL_HOLDING_DAYS in regime_trades.columns:
-            avg_holding_days = float(regime_trades[COL_HOLDING_DAYS].mean())
-
-        # 수익팩터 (profit_factor) = 이익 총합 / |손실 총합|
-        # PNL == 0인 거래는 이익/손실 어느 쪽에도 포함하지 않는다(업계 관행).
-        profit_factor = 0.0
-        if not regime_trades.empty and COL_PNL in regime_trades.columns:
-            gains = regime_trades[regime_trades[COL_PNL] > 0][COL_PNL].sum()
-            losses = abs(regime_trades[regime_trades[COL_PNL] < 0][COL_PNL].sum())
-            if losses > 0:
-                profit_factor = float(gains / losses)
-
-        # 8. 실제 데이터 존재 날짜
-        actual_start = str(regime_equity.iloc[0][COL_DATE])
-        actual_end = str(regime_equity.iloc[-1][COL_DATE])
-        trading_days = len(regime_equity)
-
-        # 9. RegimeSummaryDict 조합
-        #    end=None "진행중 구간" 의 출력 name 은 "진행중" 으로 자동 치환한다.
-        #    constants 의 원본 이름(예: "회복기") 은 보존되며, 나중에 end 가 날짜로
-        #    확정되면 자동으로 원본 이름으로 복원된다.
-        display_name = "진행중" if regime_end_raw is None else regime["name"]
-
-        regime_summary: RegimeSummaryDict = {
-            "name": display_name,
-            "regime_type": regime["regime_type"],
-            "start_date": actual_start,
-            "end_date": actual_end,
-            "trading_days": trading_days,
-            "total_return_pct": summary["total_return_pct"],
-            "cagr": summary["cagr"],
-            "mdd": summary["mdd"],
-            "calmar": summary["calmar"],
-            "total_trades": summary["total_trades"],
-            "winning_trades": summary["winning_trades"],
-            "win_rate": summary["win_rate"],
-            "avg_holding_days": avg_holding_days,
-            "profit_factor": profit_factor,
-        }
-
-        results.append(regime_summary)
-
-    return results

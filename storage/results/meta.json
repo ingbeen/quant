@@ -1810,7 +1810,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_ubt/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_ubt/summary.json"
       },
-      "timestamp": "2026-04-12T18:51:00+09:00"
+      "timestamp": "2026-04-14T15:23:48+09:00"
     },
     {
       "params": {
@@ -1831,7 +1831,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_ugl/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_ugl/summary.json"
       },
-      "timestamp": "2026-04-12T18:51:00+09:00"
+      "timestamp": "2026-04-14T15:23:48+09:00"
     },
     {
       "params": {
@@ -1852,7 +1852,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tlt/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tlt/summary.json"
       },
-      "timestamp": "2026-04-12T18:51:00+09:00"
+      "timestamp": "2026-04-14T15:23:47+09:00"
     },
     {
       "params": {
@@ -1873,7 +1873,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_gld/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_gld/summary.json"
       },
-      "timestamp": "2026-04-12T18:50:59+09:00"
+      "timestamp": "2026-04-14T15:23:47+09:00"
     },
     {
       "params": {
@@ -1894,7 +1894,7 @@
         "trades_csv": "storage/results/backtest/buy_and_hold_tqqq/trades.csv",
         "summary_json": "storage/results/backtest/buy_and_hold_tqqq/summary.json"
       },
-      "timestamp": "2026-04-12T18:50:59+09:00"
+      "timestamp": "2026-04-14T15:23:46+09:00"
     }
   ],
   "backtest_walkforward": [

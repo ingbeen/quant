@@ -1315,7 +1315,6 @@
       "return_pct": 1.59
     }
   ],
-  "regime_summaries": [],
   "data_info": {
     "signal_path": "storage/stock/GLD_max.csv",
     "trade_path": "storage/stock/GLD_max.csv"

@@ -1005,7 +1005,6 @@
       "return_pct": 0.55
     }
   ],
-  "regime_summaries": [],
   "data_info": {
     "signal_path": "storage/stock/TLT_max.csv",
     "trade_path": "storage/stock/UBT_max.csv"

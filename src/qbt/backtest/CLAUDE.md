@@ -26,8 +26,6 @@
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 - `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params, is/oos 성과 지표, wfe_calmar, wfe_cagr)
 - `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, gap_calmar_median, profit_concentration, 파라미터별 리스트(param_ma_windows 등), stitched 지표)
-- `MarketRegimeDict`: 시장 구간 정의 (start, end, regime_type, name). QQQ 기준 수동 분류한 구간 정보. `end`는 `str | None` 이며, `None` 이면 "진행중 구간" 을 의미하고 `calculate_regime_summaries()` 가 equity_df 의 마지막 거래일까지 자동으로 슬라이스한다. 진행중 구간의 출력 `RegimeSummaryDict.name` 은 constants 원본 이름(예: "회복기") 과 무관하게 **"진행중"** 으로 자동 치환되며, 나중에 constants 에서 `end` 가 실제 날짜로 확정되면 자동으로 원본 이름으로 복원된다
-- `RegimeSummaryDict`: 구간별 성과 요약 (name, regime_type, start_date, end_date, trading_days, 기본 지표 + avg_holding_days, profit_factor)
 
 ### 2. constants.py
 
@@ -42,7 +40,6 @@
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
 - WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등
-- 시장 구간: `MARKET_REGIMES` (QQQ 기준 수동 분류, `list[MarketRegimeDict]`)
 - 전략 필터링: `DEFAULT_SINGLE_BACKTEST_STRATEGIES` (단일 백테스트/대시보드에서 실행·표출할 전략 목록)
 
 ### 3. analysis.py
@@ -54,7 +51,6 @@
 - `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
-- `calculate_regime_summaries`: 시장 구간별 성과 요약 계산 (equity_df + trades_df를 구간별로 슬라이스하여 calculate_summary() 재사용 + 추가 지표(avg_holding_days, profit_factor) 계산). holding_days 컬럼 미존재 시 entry_date/exit_date로 자동 계산하는 폴백 지원. 결과는 `run_single_backtest.py`에서 호출하여 `summary.json`에 `regime_summaries` 키로 사전 저장됨. regime 시작 equity가 0 이하면 `RuntimeError("내부 불변조건 위반")` 발생 (`calculate_summary`의 `final_capital`/`years` 가드와 동일한 fail-fast 정책)
 
 ### 4. parameter_stability.py
 
@@ -108,9 +104,10 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
 - `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json, state_log_df)
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}_value, {asset_id}_weight, {asset_id}_signal, {asset_id}_shares, {asset_id}_avg_price, {asset_id}_realized_pnl, {asset_id}_unrealized_pnl, {asset_id}_current_price, {asset_id}_return_pct, total_pnl, total_return_pct
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_current_price, {asset_id}\_return_pct, total_pnl, total_return_pct
 
 파생 뷰 컬럼 (보유 현황 표시 용도, `build_combined_equity`에서 SSoT로 계산):
+
 - `{asset_id}_current_price`: shares > 0이면 `value / shares`, 아니면 0.0
 - `{asset_id}_return_pct`: shares > 0 and avg_price > 0이면 `(current_price / avg_price - 1) * 100`, 아니면 0.0
 - `total_pnl`: `equity - initial_capital`
@@ -118,13 +115,14 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason
 
 대시보드 등 CLI 계층은 위 파생 컬럼을 직접 읽어 사용하며, 동일한 계산을 자체 수행하지 않는다.
 
-state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_start, rebalanced, rebalance_reason, {aid}_close, {aid}_shares, {aid}_weight, {aid}_signal_today, {aid}_pending_intent, {aid}_pending_reason, {aid}_pending_delta, {aid}_executed_intent, {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price
+state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_start, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price
 
 ### 6-1. portfolio_validation.py
 
 PortfolioResult에 대한 5개 정합성 규칙 검증을 제공한다. `run_portfolio_backtest.py`에서 각 실험 실행 직후 호출되어 위반 시 WARNING 로그를 남긴다.
 
 주요 함수:
+
 - `validate_portfolio_result(result) -> list[str]`: 5개 규칙 검증, 위반 메시지 리스트 반환
 
 검증 규칙: 시그널-체결 1일 lag, 리밸런싱 비중 정합성, EXIT_ALL 주수 0, 현금 비음수, 에쿼티 등식
@@ -135,6 +133,7 @@ PortfolioResult에 대한 5개 정합성 규칙 검증을 제공한다. `run_por
 `SignalStrategy` Protocol을 통해 전략을 의존성 주입 방식으로 사용하므로, 새 전략 추가 시 엔진 파일 수정이 불필요합니다.
 
 포트폴리오 엔진은 책임 단위로 4개 모듈로 분리되어 있다:
+
 - `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
 - `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 월 첫 거래일 판정 함수
 - `portfolio_execution.py`: 체결 결과(ExecutionResult), SELL→BUY 순 체결 함수
@@ -230,11 +229,13 @@ TypedDict:
 포트폴리오 백테스트 실험 설정을 제공한다.
 
 설정 목록:
+
 - `PORTFOLIO_CONFIGS: list[PortfolioConfig]`
   - 실험 구성과 자산 비중은 변경 빈도가 매우 높으므로 본 문서에 직접 나열하지 않는다.
   - 최신 실험 목록·자산 슬롯·target_weight·strategy_id는 `src/qbt/backtest/portfolio_configs.py`를 직접 확인할 것.
 
 주요 함수:
+
 - `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
 
 ---
@@ -394,7 +395,7 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 
 주요 함수:
 
-- `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `analysis.py`의 `calculate_regime_summaries`와 `prepare_trades_for_csv`가 공유 사용
+- `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `prepare_trades_for_csv`가 사용
 - `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 정수 변환). 빈 DataFrame 입력 시 빈 복사본 반환
 - `calculate_change_pct(df, close_col) -> pd.Series`: 전일대비 변동률(%) 계산
 

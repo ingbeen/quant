@@ -1587,7 +1587,6 @@
       "return_pct": -5.36
     }
   ],
-  "regime_summaries": [],
   "data_info": {
     "signal_path": "storage/stock/IWM_max.csv",
     "trade_path": "storage/stock/IWM_max.csv"

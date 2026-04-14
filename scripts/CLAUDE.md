@@ -238,7 +238,7 @@ width 파라미터 사용:
   - 이유: 다양한 종목/기간에 대한 유연한 데이터 수집 필요
 - 예외 사례 2: 단일 백테스트 스크립트(`scripts/backtest/run_single_backtest.py`)
   - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_spy / ... / buy_and_hold_qqq 등, 기본값: all)
-  - cross-asset 전략은 CONFIGS 기반 자동 등록, regime_summaries는 QQQ 시그널 전략에만 적용
+  - cross-asset 전략은 CONFIGS 기반 자동 등록
   - 이유: 전략별 독립 실행 및 비교 실행 지원
     근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py)
 

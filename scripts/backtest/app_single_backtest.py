@@ -673,169 +673,6 @@ def _render_holding_period_histogram(trades_df: pd.DataFrame, *, chart_key: str)
 
 
 # ============================================================
-# 시장 구간별 분석 렌더링
-# ============================================================
-
-# 구간 유형별 색상 매핑
-_REGIME_COLORS: dict[str, str] = {
-    "bull": "#26a69a",
-    "bear": "#ef5350",
-    "sideways": "#ffc107",
-}
-
-_REGIME_BG_COLORS: dict[str, str] = {
-    "bull": "rgba(38, 166, 154, 0.15)",
-    "bear": "rgba(239, 83, 80, 0.15)",
-    "sideways": "rgba(255, 193, 7, 0.15)",
-}
-
-# 구간 유형 한글 매핑
-_REGIME_TYPE_DISPLAY: dict[str, str] = {
-    "bull": "상승",
-    "bear": "하락",
-    "sideways": "횡보",
-}
-
-# RegimeSummaryDict → 한글 컬럼 매핑
-_REGIME_COLUMN_RENAME: dict[str, str] = {
-    "name": "구간명",
-    "regime_type": "유형",
-    "start_date": "시작일",
-    "end_date": "종료일",
-    "trading_days": "영업일",
-    "total_return_pct": "수익률(%)",
-    "cagr": "CAGR(%)",
-    "mdd": "MDD(%)",
-    "calmar": "Calmar",
-    "total_trades": "거래수",
-    "win_rate": "승률(%)",
-    "avg_holding_days": "평균보유기간(일)",
-    "profit_factor": "수익팩터",
-}
-
-
-_ALT_ROW_BG = "background-color: rgba(128, 128, 128, 0.06)"
-
-
-def _style_regime_rows(row: pd.Series) -> list[str]:
-    """구간명/유형은 regime 색상, 나머지는 홀짝 교대 연회색 배경을 반환한다."""
-    name_col = _REGIME_COLUMN_RENAME.get("name", "구간명")
-    regime_type_col = _REGIME_COLUMN_RENAME.get("regime_type", "유형")
-
-    # regime 색상 결정
-    regime_display = row.get(regime_type_col, "")
-    regime_bg = ""
-    for eng_type, kor_display in _REGIME_TYPE_DISPLAY.items():
-        if regime_display == kor_display:
-            regime_bg = f"background-color: {_REGIME_BG_COLORS[eng_type]}"
-            break
-
-    # 홀수행 교대 배경
-    is_odd = int(cast(int, row.name)) % 2 == 1
-    alt_bg = _ALT_ROW_BG if is_odd else ""
-
-    styles: list[str] = []
-    for col in row.index:
-        if col in (name_col, regime_type_col):
-            styles.append(regime_bg)
-        else:
-            styles.append(alt_bg)
-    return styles
-
-
-def _render_regime_table(
-    regime_summaries: list[dict[str, object]],
-    *,
-    chart_key: str,
-) -> None:
-    """시장 구간별 요약 테이블을 렌더링한다."""
-    if not regime_summaries:
-        st.info("시장 구간별 분석을 표시할 데이터가 부족합니다.")
-        return
-
-    df = pd.DataFrame(regime_summaries)
-
-    # 유형을 한글로 변환
-    df["regime_type"] = df["regime_type"].map(_REGIME_TYPE_DISPLAY)
-
-    # winning_trades 컬럼 제거 (테이블에 불필요)
-    if "winning_trades" in df.columns:
-        df = df.drop(columns=["winning_trades"])
-
-    # 숫자 반올림
-    df["total_return_pct"] = df["total_return_pct"].round(2)
-    df["cagr"] = df["cagr"].round(2)
-    df["mdd"] = df["mdd"].round(2)
-    df["calmar"] = df["calmar"].round(2)
-    df["win_rate"] = df["win_rate"].round(1)
-    df["avg_holding_days"] = df["avg_holding_days"].round(1)
-    df["profit_factor"] = df["profit_factor"].round(2)
-
-    # 거래수 0인 행: 거래 관련 지표를 "-"로 표시
-    no_trades_mask = df["total_trades"] == 0
-    trade_related_cols = ["total_trades", "win_rate", "avg_holding_days", "profit_factor"]
-    for col in trade_related_cols:
-        df[col] = df[col].astype(str)
-    df.loc[no_trades_mask, trade_related_cols] = "-"
-    # 거래가 있는 행에서도 profit_factor 0.0(손실 거래 없음)은 "-"로 표시
-    pf_has_trades = df.loc[~no_trades_mask, "profit_factor"]
-    df.loc[~no_trades_mask, "profit_factor"] = pf_has_trades.apply(lambda x: "-" if x == "0.0" else x)
-
-    # 한글 컬럼명 매핑
-    df = df.rename(columns=_REGIME_COLUMN_RENAME)
-
-    styled_df = df.style.apply(_style_regime_rows, axis=1)
-    st.dataframe(styled_df, width="stretch", key=f"regime_table_{chart_key}")  # type: ignore[call-overload]
-
-
-def _render_cagr_bar_chart(
-    regime_summaries: list[dict[str, object]],
-    *,
-    chart_key: str,
-) -> None:
-    """구간별 CAGR 비교 수평 바 차트를 렌더링한다."""
-    if not regime_summaries:
-        return
-
-    names: list[str] = []
-    cagr_values: list[float] = []
-    colors: list[str] = []
-
-    # 역순으로 (바 차트에서 위→아래 순서가 데이터 순서와 반대)
-    for item in reversed(regime_summaries):
-        names.append(str(item["name"]))
-        cagr_values.append(round(float(str(item["cagr"])), 2))
-        regime_type = str(item["regime_type"])
-        colors.append(_REGIME_COLORS.get(regime_type, "#999999"))
-
-    fig = go.Figure(
-        data=go.Bar(
-            x=cagr_values,
-            y=names,  # type: ignore[arg-type]
-            orientation="h",
-            marker_color=colors,
-            text=[f"{v:+.1f}%" for v in cagr_values],
-            textposition="outside",
-            hovertemplate="구간: %{y}<br>CAGR: %{x:.2f}%<extra></extra>",
-        )
-    )
-
-    fig.update_layout(
-        xaxis_title="CAGR (%)",
-        yaxis_title="",
-        height=max(400, len(regime_summaries) * 35 + 100),
-        margin={"l": 180, "r": 60, "t": 30, "b": 60},
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#0e1117",
-        font={"color": "#D1D4DC"},
-        xaxis={"gridcolor": "#1e222d", "zeroline": True, "zerolinecolor": "#D1D4DC", "zerolinewidth": 1},
-        yaxis={"gridcolor": "#1e222d"},
-    )
-
-    st.plotly_chart(fig, width="stretch", key=f"cagr_bar_{chart_key}")
-
-
-# ============================================================
 # 전략 탭 렌더링
 # ============================================================
 
@@ -889,20 +726,8 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     st.divider()
 
-    # ---- Section 2: 시장 구간별 분석 ----
-    st.header("2. 시장 구간별 분석")
-    regime_summaries = summary_data.get("regime_summaries", [])
-    if regime_summaries:
-        _render_regime_table(regime_summaries, chart_key=strategy["strategy_name"])
-        _render_cagr_bar_chart(regime_summaries, chart_key=strategy["strategy_name"])
-        st.caption("QQQ 기준 시장 구간 분류")
-    else:
-        st.info("시장 구간별 분석 데이터가 없습니다. 백테스트를 재실행하세요.")
-
-    st.divider()
-
-    # ---- Section 3: 전체 거래 상세 내역 ----
-    st.header("3. 전체 거래 상세 내역")
+    # ---- Section 2: 전체 거래 상세 내역 ----
+    st.header("2. 전체 거래 상세 내역")
     if has_trades:
         display_df = trades_df.copy()
         display_df["pnl_pct"] = display_df["pnl_pct"] * 100
@@ -915,22 +740,22 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     st.divider()
 
-    # ---- Section 4: 사용 파라미터 ----
-    st.header("4. 사용 파라미터")
+    # ---- Section 3: 사용 파라미터 ----
+    st.header("3. 사용 파라미터")
     st.json(params)
 
     st.divider()
 
-    # ---- Section 5: 월별 수익률 히트맵 ----
-    st.header("5. 월별/연도별 수익률 히트맵")
+    # ---- Section 4: 월별 수익률 히트맵 ----
+    st.header("4. 월별/연도별 수익률 히트맵")
     st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
     strategy_name = strategy["strategy_name"]
     _render_monthly_heatmap(monthly_returns, chart_key=f"heatmap_{strategy_name}")
 
     st.divider()
 
-    # ---- Section 6: 포지션 보유 기간 분포 ----
-    st.header("6. 포지션 보유 기간 분포")
+    # ---- Section 5: 포지션 보유 기간 분포 ----
+    st.header("5. 포지션 보유 기간 분포")
     if has_trades:
         st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
         _render_holding_period_histogram(trades_df, chart_key=f"histogram_{strategy_name}")

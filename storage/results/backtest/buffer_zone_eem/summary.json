@@ -1412,7 +1412,6 @@
       "return_pct": -9.0
     }
   ],
-  "regime_summaries": [],
   "data_info": {
     "signal_path": "storage/stock/EEM_max.csv",
     "trade_path": "storage/stock/EEM_max.csv"

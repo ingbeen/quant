@@ -2027,7 +2027,6 @@
       "return_pct": -2.91
     }
   ],
-  "regime_summaries": [],
   "data_info": {
     "signal_path": "storage/stock/SPY_max.csv",
     "trade_path": "storage/stock/SPY_max.csv"
