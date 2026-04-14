@@ -8,7 +8,9 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 지원 경로:
 
 - ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``
-- ``/latest/chart_data/{asset_id}``
+- ``/latest/chart_data/{asset_id}/meta``
+- ``/latest/chart_data/{asset_id}/recent``
+- ``/latest/chart_data/{asset_id}/archive/{YYYY}``
 - ``/history/summary/`` (rolling window — :func:`prune_history_summary`)
 - ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
@@ -24,7 +26,7 @@ from typing import Any, Literal, cast
 import firebase_admin
 from firebase_admin import credentials, db
 
-from live.models import ActualFill, BalanceAdjust, ChartSeries, DailyResult, LiveState
+from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, LiveState
 from qbt.backtest.constants import ROUND_PERCENT
 
 # Firebase Admin SDK 의 ``App`` 객체는 테스트에서 mock 으로 주입되는 경우가 많아
@@ -39,7 +41,9 @@ __all__ = [
     "fetch_pending_balance_adjusts",
     "mark_balance_adjusts_processed",
     "write_read_model",
-    "write_chart_data",
+    "write_chart_meta",
+    "write_chart_recent",
+    "write_chart_archive_year",
     "prune_history_summary",
     "read_device_tokens",
     "remove_invalid_tokens",
@@ -309,11 +313,41 @@ def prune_history_summary(app: FirebaseAppLike, retention_days: int, today: date
             _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{date_key}").delete()
 
 
-def write_chart_data(app: FirebaseAppLike, series: dict[str, ChartSeries]) -> None:
-    """``/latest/chart_data/{asset_id}`` 에 자산별 시계열 덮어쓰기."""
-    for asset_id, chart_series in series.items():
+def write_chart_meta(app: FirebaseAppLike, meta_map: dict[str, ChartMeta]) -> None:
+    """``/latest/chart_data/{asset_id}/meta`` 에 자산별 차트 메타를 덮어쓴다.
+
+    앱은 차트 진입 시 이 메타를 먼저 읽어 recent / archive 로딩 전략을 결정한다.
+    """
+    for asset_id, meta in meta_map.items():
+        payload = asdict(meta)
+        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/meta").set(payload)
+
+
+def write_chart_recent(app: FirebaseAppLike, recent_map: dict[str, ChartSeries]) -> None:
+    """``/latest/chart_data/{asset_id}/recent`` 에 자산별 최근 슬라이스를 덮어쓴다.
+
+    앱이 차트 초기 진입 시 가장 먼저 로드하는 구간이다.
+    """
+    for asset_id, chart_series in recent_map.items():
         payload = asdict(chart_series)
-        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}").set(payload)
+        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/recent").set(payload)
+
+
+def write_chart_archive_year(
+    app: FirebaseAppLike,
+    year: int,
+    year_map: dict[str, ChartSeries],
+) -> None:
+    """``/latest/chart_data/{asset_id}/archive/{YYYY}`` 에 자산별 연도 슬라이스를 덮어쓴다.
+
+    Args:
+        app: Firebase App.
+        year: 4 자리 연도 (예: 2026).
+        year_map: 자산 ID → 해당 연도 슬라이스.
+    """
+    for asset_id, chart_series in year_map.items():
+        payload = asdict(chart_series)
+        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/archive/{year}").set(payload)
 
 
 # ============================================================================

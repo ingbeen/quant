@@ -15,6 +15,7 @@ import pytest
 from live import rtdb_gateway as rtdb_module
 from live.models import (
     ActualFill,
+    ChartMeta,
     ChartSeries,
     DailyResult,
     DriftReport,
@@ -28,7 +29,9 @@ from live.rtdb_gateway import (
     prune_history_summary,
     read_device_tokens,
     remove_invalid_tokens,
-    write_chart_data,
+    write_chart_archive_year,
+    write_chart_meta,
+    write_chart_recent,
     write_read_model,
 )
 from live.state import create_initial_state
@@ -418,28 +421,118 @@ class TestPruneHistorySummary:
 
 
 # ============================================================================
-# write_chart_data
+# write_chart_meta / write_chart_recent / write_chart_archive_year
 # ============================================================================
 
 
-class TestWriteChartData:
-    def test_writes_each_asset_chart_series(self, mock_db, mock_app):
-        chart = ChartSeries(
-            dates=["2026-04-08", "2026-04-09"],
-            close=[100.0, 101.0],
-            ma_value=[99.5, 99.6],
-            upper_band=[102.0, 102.1],
-            lower_band=[97.0, 97.1],
+def _sample_chart_series() -> ChartSeries:
+    """테스트용 ChartSeries (마커는 ISO 날짜 문자열)."""
+    return ChartSeries(
+        dates=["2026-04-08", "2026-04-09"],
+        close=[100.0, 101.0],
+        ma_value=[99.5, 99.6],
+        upper_band=[102.0, 102.1],
+        lower_band=[97.0, 97.1],
+        buy_signals=["2026-04-08"],
+        sell_signals=[],
+        user_buys=["2026-04-09"],
+        user_sells=[],
+    )
+
+
+class TestWriteChartMeta:
+    def test_writes_meta_per_asset(self, mock_db, mock_app):
+        """
+        목적: write_chart_meta 가 /latest/chart_data/{asset_id}/meta 에 자산별로 쓴다.
+
+        Given: 두 자산에 대한 ChartMeta 맵
+        When:  write_chart_meta
+        Then:  각 자산의 /latest/chart_data/{asset_id}/meta 에 payload 존재, 필드 일치.
+        """
+        meta_map = {
+            "sso": ChartMeta(
+                first_date="2013-01-02",
+                last_date="2026-04-14",
+                ma_window=200,
+                recent_months=6,
+                archive_years=[2013, 2014, 2015],
+            ),
+            "qld": ChartMeta(
+                first_date="2013-01-02",
+                last_date="2026-04-14",
+                ma_window=200,
+                recent_months=6,
+                archive_years=[2013, 2014, 2015],
+            ),
+        }
+
+        write_chart_meta(mock_app, meta_map)
+
+        assert "/latest/chart_data/sso/meta" in mock_db
+        assert "/latest/chart_data/qld/meta" in mock_db
+        assert mock_db["/latest/chart_data/sso/meta"]["archive_years"] == [2013, 2014, 2015]
+        assert mock_db["/latest/chart_data/sso/meta"]["recent_months"] == 6
+        assert mock_db["/latest/chart_data/sso/meta"]["ma_window"] == 200
+
+
+class TestWriteChartRecent:
+    def test_writes_recent_per_asset(self, mock_db, mock_app):
+        """
+        목적: write_chart_recent 가 /latest/chart_data/{asset_id}/recent 에 자산별로 쓴다.
+
+        Given: 두 자산에 대한 ChartSeries (recent slice)
+        When:  write_chart_recent
+        Then:  각 자산의 /latest/chart_data/{asset_id}/recent 에 payload 존재, 마커는 ISO 날짜 문자열.
+        """
+        chart = _sample_chart_series()
+        write_chart_recent(mock_app, {"sso": chart, "qld": chart})
+
+        assert "/latest/chart_data/sso/recent" in mock_db
+        assert "/latest/chart_data/qld/recent" in mock_db
+        assert mock_db["/latest/chart_data/sso/recent"]["close"] == [100.0, 101.0]
+        assert mock_db["/latest/chart_data/sso/recent"]["buy_signals"] == ["2026-04-08"]
+        assert mock_db["/latest/chart_data/sso/recent"]["user_buys"] == ["2026-04-09"]
+
+
+class TestWriteChartArchiveYear:
+    def test_writes_archive_year_per_asset(self, mock_db, mock_app):
+        """
+        목적: write_chart_archive_year 가 /latest/chart_data/{asset_id}/archive/{YYYY} 에 쓴다.
+
+        Given: 특정 연도 ChartSeries 맵
+        When:  write_chart_archive_year(year=2026)
+        Then:  경로에 /archive/2026 이 포함된다.
+        """
+        chart = _sample_chart_series()
+        write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart, "qld": chart})
+
+        assert "/latest/chart_data/sso/archive/2026" in mock_db
+        assert "/latest/chart_data/qld/archive/2026" in mock_db
+        assert mock_db["/latest/chart_data/sso/archive/2026"]["close"] == [100.0, 101.0]
+
+    def test_writes_archive_year_different_years_independent(self, mock_db, mock_app):
+        """
+        목적: 동일 자산에 대해 서로 다른 연도 write 는 서로 덮어쓰지 않는다.
+        """
+        chart_a = _sample_chart_series()
+        chart_b = ChartSeries(
+            dates=["2025-12-30", "2025-12-31"],
+            close=[50.0, 51.0],
+            ma_value=[49.0, 49.5],
+            upper_band=[52.0, 52.5],
+            lower_band=[46.0, 46.5],
             buy_signals=[],
             sell_signals=[],
             user_buys=[],
             user_sells=[],
         )
-        write_chart_data(mock_app, {"sso": chart, "qld": chart})
+        write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart_a})
+        write_chart_archive_year(mock_app, year=2025, year_map={"sso": chart_b})
 
-        assert "/latest/chart_data/sso" in mock_db
-        assert "/latest/chart_data/qld" in mock_db
-        assert mock_db["/latest/chart_data/sso"]["close"] == [100.0, 101.0]
+        assert "/latest/chart_data/sso/archive/2026" in mock_db
+        assert "/latest/chart_data/sso/archive/2025" in mock_db
+        assert mock_db["/latest/chart_data/sso/archive/2026"]["close"] == [100.0, 101.0]
+        assert mock_db["/latest/chart_data/sso/archive/2025"]["close"] == [50.0, 51.0]
 
 
 # ============================================================================

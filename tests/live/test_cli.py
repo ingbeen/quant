@@ -285,11 +285,19 @@ class TestCmdRunDailySuccess:
         """
         from live.constants import RTDB_HISTORY_SUMMARY_RETENTION_DAYS
 
-        # Given — write_read_model / write_chart_data / build_chart_series / history 로더를 전부 no-op
+        # Given — write_read_model / chart write 3 종 / chart 빌더 3 종 / history 로더를 전부 no-op
         monkeypatch.setattr(cli_module.rtdb_gateway, "write_read_model", lambda app, state, result: None)
-        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_data", lambda app, series: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_meta", lambda app, meta_map: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_recent", lambda app, recent_map: None)
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_chart_archive_year",
+            lambda app, year, year_map: None,
+        )
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
-        monkeypatch.setattr(cli_module, "build_chart_series", lambda *a, **kw: {})
+        monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: {})
+        monkeypatch.setattr(cli_module, "build_chart_recent", lambda *a, **kw: {})
+        monkeypatch.setattr(cli_module, "build_chart_archive_year", lambda *a, **kw: {})
         monkeypatch.setattr(cli_module.history, "load_user_trades", lambda d: {})
         monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
 
@@ -317,6 +325,70 @@ class TestCmdRunDailySuccess:
         # Then
         assert len(prune_calls) == 1
         assert prune_calls[0] == (RTDB_HISTORY_SUMMARY_RETENTION_DAYS, date(2026, 4, 14))
+
+    def test_publish_to_rtdb_writes_chart_meta_recent_archive(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """
+        목적: ``_publish_to_rtdb`` 가 chart meta / recent / archive/{current_year}
+        3 경로를 모두 호출한다.
+
+        Given: 빌더와 write 함수들을 스파이로 교체.
+        When:  _publish_to_rtdb 호출.
+        Then:  write_chart_meta / write_chart_recent / write_chart_archive_year 모두
+               호출되며, archive 는 execution_date 의 연도로 호출된다.
+        """
+        # Given
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_read_model", lambda app, state, result: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "prune_history_summary", lambda app, **kw: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.history, "load_user_trades", lambda d: {})
+        monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
+
+        sentinel_meta = {"sso": object()}
+        sentinel_recent = {"sso": object()}
+        sentinel_archive = {"sso": object()}
+
+        monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: sentinel_meta)
+        monkeypatch.setattr(cli_module, "build_chart_recent", lambda *a, **kw: sentinel_recent)
+        monkeypatch.setattr(cli_module, "build_chart_archive_year", lambda *a, **kw: sentinel_archive)
+
+        meta_calls: list[object] = []
+        recent_calls: list[object] = []
+        archive_calls: list[tuple[int, object]] = []
+
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_chart_meta",
+            lambda app, meta_map: meta_calls.append(meta_map),
+        )
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_chart_recent",
+            lambda app, recent_map: recent_calls.append(recent_map),
+        )
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_chart_archive_year",
+            lambda app, year, year_map: archive_calls.append((year, year_map)),
+        )
+
+        class _StubResult:
+            execution_date = "2026-04-14"
+
+        # When
+        cli_module._publish_to_rtdb(
+            rtdb_app=object(),
+            state_dir=tmp_path,
+            state=object(),
+            result=_StubResult(),  # type: ignore[arg-type]
+            newly_applied_fill_keys=set(),
+        )
+
+        # Then
+        assert meta_calls == [sentinel_meta]
+        assert recent_calls == [sentinel_recent]
+        assert archive_calls == [(2026, sentinel_archive)]
 
 
 # ============================================================================

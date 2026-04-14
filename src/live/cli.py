@@ -41,7 +41,11 @@ from dotenv import load_dotenv
 from exchange_calendars import ExchangeCalendar, get_calendar
 
 from live import data_validator, git_state, history, notifier, rtdb_gateway
-from live.chart_data import build_chart_series
+from live.chart_data import (
+    build_chart_archive_year,
+    build_chart_meta,
+    build_chart_recent,
+)
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
@@ -277,7 +281,9 @@ def _publish_to_rtdb(
     result: DailyResult,
     newly_applied_fill_keys: set[str],
 ) -> None:
-    """RTDB 에 read model + chart_data 를 갱신하고 신규 fill 을 processed 마킹한다."""
+    """RTDB 에 read model + chart_data (meta/recent/archive/{현재_연도}) 를 갱신하고
+    신규 fill 을 processed 마킹한다.
+    """
     # 1. read model 갱신
     rtdb_gateway.write_read_model(rtdb_app, state, result)
 
@@ -289,16 +295,31 @@ def _publish_to_rtdb(
         today=execution_date,
     )
 
-    # 3. 차트 데이터 갱신 — 사용자 체결 이력 + 신호 이력 로드해 마커까지 포함
+    # 3. 차트 데이터 갱신 — meta + recent + 현재 연도 archive
+    #    (이전 연도 archive 는 backfill CLI 가 1 회 생성하고 스플릿 등 이벤트 시
+    #    수동 재생성한다. daily runner 는 건드리지 않는다.)
     history_dir = _history_dir(state_dir)
     user_trades = history.load_user_trades(history_dir)
     signal_history = history.load_signal_history(history_dir)
-    chart_series = build_chart_series(
+
+    meta_map = build_chart_meta(state_dir)
+    rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+
+    recent_map = build_chart_recent(
         state_dir,
         user_trades=user_trades,
         signal_history=signal_history,
     )
-    rtdb_gateway.write_chart_data(rtdb_app, chart_series)
+    rtdb_gateway.write_chart_recent(rtdb_app, recent_map)
+
+    current_year = execution_date.year
+    archive_map = build_chart_archive_year(
+        state_dir,
+        year=current_year,
+        user_trades=user_trades,
+        signal_history=signal_history,
+    )
+    rtdb_gateway.write_chart_archive_year(rtdb_app, year=current_year, year_map=archive_map)
 
     # 4. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
     if newly_applied_fill_keys:

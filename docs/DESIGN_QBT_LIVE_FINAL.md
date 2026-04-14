@@ -128,23 +128,43 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 ## 5. 차트: TradingView Lightweight Charts
 
-CSV 전체를 읽어 자산별 시계열을 생성하고 RTDB `/latest/chart_data/{asset_id}` 에 덮어쓴다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자).
+자산별 CSV 를 읽어 차트 시계열을 생성하고 RTDB `/latest/chart_data/{asset_id}/` 하위에 **3 분할 구조** 로 저장한다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자).
 
-**시계열 필드**: `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
-**마커 필드**: `buy_signals`, `sell_signals`, `user_buys`, `user_sells` (모두 `dates` 배열에 대한 정수 인덱스)
+**RTDB 구조 (3 경로)**:
+
+```
+/latest/chart_data/{asset_id}/meta                ← 차트 메타 (first/last 날짜, archive_years 등)
+/latest/chart_data/{asset_id}/recent              ← 최근 N 개월 slice (매일 덮어쓰기)
+/latest/chart_data/{asset_id}/archive/{YYYY}      ← 연도별 slice (연 1 회 또는 이벤트 시 재생성)
+```
+
+**시계열 필드** (recent / archive 공통): `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
+**마커 필드** (recent / archive 공통): `buy_signals`, `sell_signals`, `user_buys`, `user_sells` — 모두 **ISO 8601 날짜 문자열 배열** (인덱스 아님). 분할된 슬라이스 사이에서 위치 독립적.
 
 | 마커 종류                      | 출처                                    | 의미                                 |
 | ------------------------------ | --------------------------------------- | ------------------------------------ |
-| `buy_signals` / `sell_signals` | Git 정본 `history/signals.jsonl`        | 과거 신호 발생일                     |
-| `user_buys` / `user_sells`     | Git 정본 `history/user_trades.jsonl`    | 사용자 체결 발생일 (fill 처리 기록)  |
+| `buy_signals` / `sell_signals` | Git 정본 `history/signals.jsonl`        | 과거 신호 발생일 (ISO 날짜)          |
+| `user_buys` / `user_sells`     | Git 정본 `history/user_trades.jsonl`    | 사용자 체결 발생일 (ISO 날짜)        |
 
-정확한 페이로드 스키마와 필드 타입은 §8.2.5 `/latest/chart_data/{asset_id}` 섹션을 참고한다.
+정확한 페이로드 스키마와 필드 타입은 §8.2.5 를 참고한다.
+
+**recent 정책**: `recent_months = 6` (상수 `CHART_RECENT_MONTHS`). daily runner 는 매 실행마다 `recent` 를 덮어쓴다.
+
+**archive 정책**: 연도 단위 고정 slice. daily runner 는 "현재 연도" archive 만 매 실행 덮어쓰고, 이전 연도 archive 는 건드리지 않는다. 최초 배포 시와 스플릿/무상증자 감지 시에는 운영자가 backfill CLI 로 전체 archive 를 재생성한다.
+
+**recent ↔ archive 경계 중복 허용**: recent 와 archive/{현재_연도} 는 같은 날짜를 양쪽에 포함할 수 있다. 앱은 두 소스를 읽은 후 `Map<date, point>` 로 dedupe 하여 차트에 넣는다. 이 정책은 서버 쪽 구현 단순성과 정합성 안정을 우선한 선택.
+
+**앱 로딩 플로우 (권장)**:
+
+1. 앱 진입: `meta` 로드 → `recent` 로드 → Lightweight Charts `setData(recent)`.
+2. 사용자가 좌측 끝으로 줌아웃: `meta.archive_years` 참고하여 필요한 연도 `archive/{YYYY}` 병렬 로드, Map 으로 병합 후 `setData(merged)`.
+3. 전체 보기: `archive_years` 전체를 순회 로드 (로컬 캐시 재사용).
 
 `ma_value` 는 자산 슬롯의 `ma_window` 에 독립적이며, 앞 `ma_window - 1` 개 인덱스는 워밍업 구간으로 `null` 이다. `upper_band` / `lower_band` 는 `ma_value × (1 ± buffer_zone_pct)` 로 계산되며 MA 가 null 이면 밴드도 null 이다. Firebase RTDB 는 빈 배열을 저장하지 않으므로 마커 리스트가 비어 있으면 해당 키가 아예 생성되지 않는다 (앱은 키 부재를 "빈 배열" 로 해석).
 
 `balance_adjust` 는 이벤트가 아니라 "최종 잔고 교체" 이므로 차트 마커 대상이 **아니다** (§4.3 참고).
 
-앱은 WebView + TradingView Lightweight Charts 로 시계열을 렌더링하며, 기간 선택 (3M / 6M / 1Y / 전체) 은 앱 측에서 처리한다 (서버는 전체 기간 전송).
+앱은 WebView + TradingView Lightweight Charts 로 시계열을 렌더링한다.
 
 ---
 
@@ -225,14 +245,16 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 ### 8.2 RTDB 경로 구조
 
 ```
-/latest/portfolio              ← 전체 자산 요약 + drift 스칼라 + assets/{asset_id}
-/latest/signals/{asset_id}     ← 시그널 상태 / 종가 / MA / 밴드
-/latest/pending_orders/{asset_id} ← 익일 체결 예정 주문 (pending 있는 자산만)
-/latest/chart_data/{asset_id}  ← 차트용 시계열 + 신호/체결 마커
-/history/summary/{YYYY-MM-DD}  ← 일별 요약 (rolling window, 최근 90 일만 유지)
-/fills/inbox/{uuid}            ← 앱이 쓰는 체결 queue
-/balance_adjust/inbox/{uuid}   ← 앱이 쓰는 잔고 보정 queue
-/device_tokens/{device_id}     ← FCM 토큰
+/latest/portfolio                                ← 전체 자산 요약 + drift 스칼라 + assets/{asset_id}
+/latest/signals/{asset_id}                       ← 시그널 상태 / 종가 / MA / 밴드
+/latest/pending_orders/{asset_id}                ← 익일 체결 예정 주문 (pending 있는 자산만)
+/latest/chart_data/{asset_id}/meta               ← 차트 메타 (first/last 날짜, archive_years 등)
+/latest/chart_data/{asset_id}/recent             ← 차트 최근 N 개월 slice (매일 덮어쓰기)
+/latest/chart_data/{asset_id}/archive/{YYYY}     ← 차트 연도별 slice (현재 연도만 daily 갱신)
+/history/summary/{YYYY-MM-DD}                    ← 일별 요약 (rolling window, 최근 90 일만 유지)
+/fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
+/balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
+/device_tokens/{device_id}                       ← FCM 토큰
 ```
 
 RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 매 실행마다 전체 갱신되므로 앱이 직접 쓰면 다음 실행에서 덮어써진다 (inbox 패턴을 쓰는 이유).
@@ -343,39 +365,96 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 섹션 번호는 뒤 섹션들이 흩어지지 않도록 그대로 유지한다.
 
-#### 8.2.5 `/latest/chart_data/{asset_id}` — 차트 시계열 + 마커
+#### 8.2.5 `/latest/chart_data/{asset_id}/` — 차트 데이터 (meta + recent + archive/{YYYY})
 
-**SoT**: `live.chart_data.build_chart_series`, `live.models.ChartSeries`. 매 실행 자산 전체 덮어쓰기.
+**SoT**:
+
+- meta: `live.chart_data.build_chart_meta`, `live.models.ChartMeta`, `live.rtdb_gateway.write_chart_meta`
+- recent: `live.chart_data.build_chart_recent`, `live.models.ChartSeries`, `live.rtdb_gateway.write_chart_recent`
+- archive: `live.chart_data.build_chart_archive_year`, `live.models.ChartSeries`, `live.rtdb_gateway.write_chart_archive_year`
+
+**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 backfill CLI 로 재생성한다.
+
+##### 8.2.5.1 `/latest/chart_data/{asset_id}/meta`
 
 ```json
 {
-  "dates": ["2013-01-02", "2013-01-03", "…", "2026-04-10"],
-  "close": [12.345678, 12.456789, null],
-  "ma_value": [null, null, 120.500000],
-  "upper_band": [null, null, 126.525000],
-  "lower_band": [null, null, 114.475000],
-  "buy_signals": [1205, 1788, 2456],
-  "sell_signals": [1320, 1850],
-  "user_buys": [1206, 2457],
-  "user_sells": [1321]
+  "first_date": "2013-01-02",
+  "last_date": "2026-04-14",
+  "ma_window": 200,
+  "recent_months": 6,
+  "archive_years": [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 }
 ```
 
-| 필드           | 타입                  | 설명                                                                                    |
-| -------------- | --------------------- | --------------------------------------------------------------------------------------- |
-| `dates`        | list[str]             | 전체 거래일 ISO 8601 날짜 배열                                                          |
-| `close`        | list[number]          | 종가 배열 (`ROUND_PRICE = 6` 자리)                                                      |
-| `ma_value`     | list[number \| null]  | 자산 슬롯 `ma_window` 기준 MA. 앞 `ma_window - 1` 개 인덱스는 워밍업으로 `null`         |
-| `upper_band`   | list[number \| null]  | `ma_value × (1 + buy_buffer_zone_pct)`. MA 가 null 이면 null                            |
-| `lower_band`   | list[number \| null]  | `ma_value × (1 - sell_buffer_zone_pct)`. MA 가 null 이면 null                           |
-| `buy_signals`  | list[int]             | 과거 매수 신호가 발생한 `dates` 의 인덱스 (Git `history/signals.jsonl` 에서 변환)       |
-| `sell_signals` | list[int]             | 과거 매도 신호가 발생한 `dates` 의 인덱스                                               |
-| `user_buys`    | list[int]             | 사용자 매수 체결이 발생한 `dates` 의 인덱스 (Git `history/user_trades.jsonl` 에서 변환) |
-| `user_sells`   | list[int]             | 사용자 매도 체결이 발생한 `dates` 의 인덱스                                             |
+| 필드           | 타입        | 설명                                                                                 |
+| -------------- | ----------- | ------------------------------------------------------------------------------------ |
+| `first_date`   | str         | 자산 CSV 의 첫 거래일 (ISO 8601)                                                     |
+| `last_date`    | str         | 자산 CSV 의 마지막 거래일 (ISO 8601)                                                 |
+| `ma_window`    | int         | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                            |
+| `recent_months`| int         | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6`                    |
+| `archive_years`| list[int]   | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 archive 경로를 결정       |
 
-**중요**: Firebase RTDB 는 **빈 배열 `[]` 을 저장하지 않는다**. 마커 리스트가 비어 있으면 해당 키(`buy_signals` 등) 가 아예 생성되지 않으므로, 앱은 키 부재를 "빈 배열" 로 해석해야 한다. `ma_value` 의 워밍업 구간 null 처리도 동일 원칙 (배열 인덱스는 유지, 값만 null).
+앱은 `meta` 를 가장 먼저 한 번 읽고, 필요한 시점에 `recent` / `archive/{YYYY}` 로드 전략을 결정한다.
 
-**기간 필터링**: 3M / 6M / 1Y / 전체 필터는 앱 측에서 `dates` 배열을 슬라이싱하여 처리한다 (서버는 전체 기간 전송).
+##### 8.2.5.2 `/latest/chart_data/{asset_id}/recent`
+
+최근 `recent_months` 개월 슬라이스. 매 `run-daily` 실행마다 덮어쓰기.
+
+```json
+{
+  "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
+  "close": [123.450000, 124.000000, 124.500000],
+  "ma_value": [120.500000, 120.650000, 120.800000],
+  "upper_band": [124.115000, 124.270000, 124.424000],
+  "lower_band": [114.475000, 114.618000, 114.760000],
+  "buy_signals": ["2025-11-03"],
+  "sell_signals": ["2026-01-21"],
+  "user_buys": ["2025-11-04"],
+  "user_sells": ["2026-01-22"]
+}
+```
+
+| 필드           | 타입                 | 설명                                                                                    |
+| -------------- | -------------------- | --------------------------------------------------------------------------------------- |
+| `dates`        | list[str]            | recent 구간 거래일 (ISO 8601)                                                           |
+| `close`        | list[number]         | 종가 (`ROUND_PRICE = 6` 자리)                                                           |
+| `ma_value`     | list[number \| null] | MA. recent 는 보통 워밍업을 지난 구간이므로 전부 값이 채워진다                          |
+| `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)`                                                  |
+| `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)`                                                 |
+| `buy_signals`  | list[str]            | 해당 구간 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생           |
+| `sell_signals` | list[str]            | 해당 구간 내 매도 신호 발생일 (ISO 8601)                                                |
+| `user_buys`    | list[str]            | 해당 구간 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생    |
+| `user_sells`   | list[str]            | 해당 구간 내 사용자 매도 체결일 (ISO 8601)                                              |
+
+##### 8.2.5.3 `/latest/chart_data/{asset_id}/archive/{YYYY}`
+
+특정 연도 전체 슬라이스 (1월 1일 ~ 12월 31일 범위 내 거래일). daily runner 는 **현재 연도 만** 갱신하고, 이전 연도 archive 는 backfill CLI 또는 수동 재생성 시에만 쓴다.
+
+payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band`, `lower_band`, 마커 4 종). 마커도 해당 연도 범위 내 날짜만 포함한다.
+
+```json
+{
+  "dates": ["2025-01-02", "…", "2025-12-31"],
+  "close": [...],
+  "ma_value": [...],
+  "upper_band": [...],
+  "lower_band": [...],
+  "buy_signals": ["2025-03-15"],
+  "sell_signals": [],
+  "user_buys": ["2025-03-16"],
+  "user_sells": []
+}
+```
+
+##### 8.2.5.4 경계 중복 허용 정책
+
+`recent` 와 `archive/{현재_연도}` 는 같은 날짜 범위를 일부 공유한다 (예: 2026-01-01 ~ 2026-04-14 구간은 양쪽에 모두 존재). 서버는 두 slice 를 독립 규칙으로 생성하고, **앱이 `Map<date, point>` 로 dedupe** 한다. 이 정책의 이유는 서버 구현을 단순하게 유지하고 경계 버그 리스크를 차단하기 위함이다.
+
+##### 8.2.5.5 중요 사항 (빈 배열 / null 처리)
+
+- Firebase RTDB 는 **빈 배열 `[]` 을 저장하지 않는다**. 마커 리스트가 비어 있으면 해당 키(`buy_signals` 등) 가 아예 생성되지 않으므로, 앱은 키 부재를 "빈 배열" 로 해석해야 한다.
+- `ma_value` / `upper_band` / `lower_band` 의 워밍업 구간은 `null` 값으로 채워진다 (배열 인덱스는 유지, 값만 null).
 
 #### 8.2.6 `/history/summary/{YYYY-MM-DD}` — 일별 요약 (RTDB, rolling window)
 

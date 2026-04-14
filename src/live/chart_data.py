@@ -1,26 +1,30 @@
-"""차트 시계열 빌더 (앱 차트 화면용).
+"""차트 시계열 빌더 (앱 차트 화면용, meta + recent + archive/{YYYY} 3 분할).
 
-자산별 전체 기간 시계열(close / MA / 버퍼 밴드 / 신호·체결 마커) 을 생성하여
-RTDB ``/latest/chart_data/{asset_id}`` 에 업로드할 수 있도록 :class:`ChartSeries`
-형태로 반환한다.
+앱이 초기에 recent (최근 N 개월) 만 빠르게 로드하고, 줌아웃 시 필요한 연도
+archive 를 추가 로드할 수 있도록 슬라이스 단위로 데이터를 생성한다. 실제 RTDB
+쓰기는 :mod:`live.rtdb_gateway` 의 ``write_chart_meta`` / ``write_chart_recent`` /
+``write_chart_archive_year`` 가 수행한다.
 
-본 모듈은 순수 데이터 변환만 담당한다. 실제 RTDB 쓰기는
-:func:`live.rtdb_gateway.write_chart_data` 가 수행한다.
+본 모듈은 순수 데이터 변환만 담당한다.
 
 원칙:
 
 - 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv``
 - MA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
 - 이동평균 워밍업 구간(``slot.ma_window - 1`` 개 인덱스) 은 ``None``
-- 사용자 체결 마커는 dates 에서 인덱스로 변환
-- ``slot.ma_window`` 에 독립적이다
+- 마커는 ISO 8601 날짜 문자열 (``list[str]``). 슬라이스 분할에 독립적.
+- recent 와 archive/{현재_연도} 는 경계 구간이 겹쳐도 무방하며, 앱이 Map 으로
+  날짜 기준 dedupe 한다 (설계서 §8.2.5).
 """
 
 from __future__ import annotations
 
 import math
+from datetime import date
 from pathlib import Path
 from typing import Any
+
+from dateutil.relativedelta import relativedelta
 
 from live.constants import (
     extract_ticker_from_path,
@@ -28,13 +32,22 @@ from live.constants import (
     live_csv_path,
 )
 from live.data_fetcher import load_csv
-from live.models import ChartSeries, UserTrade
+from live.models import ChartMeta, ChartSeries, UserTrade
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import ROUND_PRICE
 from qbt.backtest.portfolio_types import AssetSlotConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE
 
-__all__ = ["build_chart_series"]
+__all__ = [
+    "build_chart_meta",
+    "build_chart_recent",
+    "build_chart_archive_year",
+]
+
+
+# ============================================================================
+# 내부 헬퍼
+# ============================================================================
 
 
 def _ticker_for_chart(slot: AssetSlotConfig) -> str:
@@ -55,85 +68,290 @@ def _to_optional_float_list(values: list[Any], decimals: int = ROUND_PRICE) -> l
     return out
 
 
-def build_chart_series(
-    state_dir: Path,
-    user_trades: dict[str, list[UserTrade]] | None = None,
-    signal_history: dict[str, list[tuple[str, str]]] | None = None,
-) -> dict[str, ChartSeries]:
-    """자산별 전체 기간 :class:`ChartSeries` 를 생성한다.
+def _load_slot_frame(
+    state_dir: Path, slot: AssetSlotConfig
+) -> tuple[list[date], list[float | None], list[float | None]]:
+    """자산 CSV 를 로드하여 (dates, close, ma_value) 를 반환한다.
+
+    MA 는 QBT 의 ``add_single_moving_average`` 로 계산되며, 워밍업 구간
+    (``ma_window - 1`` 개) 은 ``None`` 으로 마스킹된다.
+    """
+    ticker = _ticker_for_chart(slot)
+    csv_path = live_csv_path(state_dir, ticker)
+    df = load_csv(csv_path)
+
+    df = add_single_moving_average(df, window=slot.ma_window, ma_type=slot.ma_type)
+    ma_col = f"ma_{slot.ma_window}"
+
+    dates: list[date] = list(df[COL_DATE].tolist())
+    close_list = [round(float(c), ROUND_PRICE) for c in df[COL_CLOSE].tolist()]
+    raw_ma = _to_optional_float_list(df[ma_col].tolist())
+
+    warmup = slot.ma_window - 1
+    ma_list: list[float | None] = [None] * min(warmup, len(raw_ma)) + raw_ma[warmup:]
+
+    # close 는 CSV 의 원본 값이므로 None 이 발생할 일 없지만, 타입 일관성을 위해
+    # list[float | None] 로 확장 가능한 구조로 반환한다.
+    close_nullable: list[float | None] = [float(c) for c in close_list]
+    return dates, close_nullable, ma_list
+
+
+def _compute_bands(
+    ma_list: list[float | None],
+    buy_buffer_pct: float,
+    sell_buffer_pct: float,
+) -> tuple[list[float | None], list[float | None]]:
+    """MA 배열에서 buffer 밴드 쌍을 계산한다. MA 가 None 이면 밴드도 None."""
+    upper: list[float | None] = []
+    lower: list[float | None] = []
+    for ma in ma_list:
+        if ma is None:
+            upper.append(None)
+            lower.append(None)
+        else:
+            upper.append(round(ma * (1.0 + buy_buffer_pct), ROUND_PRICE))
+            lower.append(round(ma * (1.0 - sell_buffer_pct), ROUND_PRICE))
+    return upper, lower
+
+
+def _slice_range(dates: list[date], start: date, end: date) -> tuple[int, int]:
+    """dates 배열에서 [start, end] (양쪽 inclusive) 범위 인덱스 [lo, hi) 를 반환한다."""
+    lo = 0
+    hi = len(dates)
+    while lo < len(dates) and dates[lo] < start:
+        lo += 1
+    while hi > 0 and dates[hi - 1] > end:
+        hi -= 1
+    if hi < lo:
+        hi = lo
+    return lo, hi
+
+
+def _filter_markers_in_range(
+    markers: list[tuple[str, str]] | list[str],
+    *,
+    start: date,
+    end: date,
+    predicate: str | None = None,
+) -> list[str]:
+    """마커 목록에서 [start, end] 범위 내 항목만 ISO 날짜 문자열로 반환.
+
+    Args:
+        markers: ``list[(date_iso, state)]`` (signal_history) 또는
+            ``list[str]`` (이미 날짜만 있는 경우 — 본 구현에서는 미사용).
+        start / end: 필터 범위 (양쪽 inclusive).
+        predicate: signal_history 의 경우 ``"buy"`` / ``"sell"`` 필터. None 이면 전체.
+    """
+    out: list[str] = []
+    for entry in markers:
+        if isinstance(entry, tuple):
+            iso, state = entry
+            if predicate is not None and state != predicate:
+                continue
+        else:
+            iso = entry
+        try:
+            d = date.fromisoformat(iso)
+        except ValueError:
+            continue
+        if start <= d <= end:
+            out.append(iso)
+    return out
+
+
+def _build_slice(
+    slot: AssetSlotConfig,
+    dates: list[date],
+    close_list: list[float | None],
+    ma_list: list[float | None],
+    *,
+    start: date,
+    end: date,
+    asset_user_trades: list[UserTrade],
+    asset_signal_history: list[tuple[str, str]],
+) -> ChartSeries:
+    """[start, end] 구간 슬라이스를 ChartSeries 로 빌드.
+
+    마커 4 종은 ISO 날짜 문자열 리스트로 저장된다.
+    """
+    lo, hi = _slice_range(dates, start, end)
+
+    sliced_dates = [d.isoformat() for d in dates[lo:hi]]
+    sliced_close_nullable = close_list[lo:hi]
+    # ChartSeries.close 는 list[float] 이므로 None 은 발생하지 않는 CSV 계약 하에
+    # float 로 캐스팅한다. (CSV 의 Close 는 항상 값을 가진다)
+    sliced_close = [float(c) if c is not None else 0.0 for c in sliced_close_nullable]
+    sliced_ma = ma_list[lo:hi]
+    upper, lower = _compute_bands(sliced_ma, slot.buy_buffer_zone_pct, slot.sell_buffer_zone_pct)
+
+    user_buys = _filter_markers_in_range(
+        [t.date for t in asset_user_trades if t.direction == "buy"],
+        start=start,
+        end=end,
+    )
+    user_sells = _filter_markers_in_range(
+        [t.date for t in asset_user_trades if t.direction == "sell"],
+        start=start,
+        end=end,
+    )
+    buy_signals = _filter_markers_in_range(
+        asset_signal_history,
+        start=start,
+        end=end,
+        predicate="buy",
+    )
+    sell_signals = _filter_markers_in_range(
+        asset_signal_history,
+        start=start,
+        end=end,
+        predicate="sell",
+    )
+
+    return ChartSeries(
+        dates=sliced_dates,
+        close=sliced_close,
+        ma_value=sliced_ma,
+        upper_band=upper,
+        lower_band=lower,
+        buy_signals=buy_signals,
+        sell_signals=sell_signals,
+        user_buys=user_buys,
+        user_sells=user_sells,
+    )
+
+
+# ============================================================================
+# 공개 빌더
+# ============================================================================
+
+
+def build_chart_meta(state_dir: Path) -> dict[str, ChartMeta]:
+    """자산별 :class:`ChartMeta` 를 생성한다.
+
+    CSV 를 1 회 훑어 first/last 날짜와 존재하는 연도 목록을 계산한다.
 
     Args:
         state_dir: qbt-live-state 디렉토리 (CSV 위치).
-        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
-        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
-            각 날짜의 신호 상태가 ``"buy"`` / ``"sell"`` 인 경우 해당 날짜 인덱스를
-            ``buy_signals`` / ``sell_signals`` 에 기록한다. ``history.load_signal_history``
-            로 로드하여 전달한다.
 
     Returns:
-        ``{asset_id: ChartSeries}`` — live 포트폴리오 자산 전체.
+        ``{asset_id: ChartMeta}``.
+    """
+    from live.constants import CHART_RECENT_MONTHS
+
+    config = get_live_portfolio_config()
+    meta_map: dict[str, ChartMeta] = {}
+
+    for slot in config.asset_slots:
+        dates, _close, _ma = _load_slot_frame(state_dir, slot)
+        if not dates:
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart meta 생성 불가)")
+        first = dates[0]
+        last = dates[-1]
+        years: set[int] = {d.year for d in dates}
+        archive_years = sorted(years)
+
+        meta_map[slot.asset_id] = ChartMeta(
+            first_date=first.isoformat(),
+            last_date=last.isoformat(),
+            ma_window=slot.ma_window,
+            recent_months=CHART_RECENT_MONTHS,
+            archive_years=archive_years,
+        )
+
+    return meta_map
+
+
+def build_chart_recent(
+    state_dir: Path,
+    user_trades: dict[str, list[UserTrade]] | None = None,
+    signal_history: dict[str, list[tuple[str, str]]] | None = None,
+    months: int | None = None,
+) -> dict[str, ChartSeries]:
+    """자산별 최근 ``months`` 개월 :class:`ChartSeries` 슬라이스를 생성한다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
+        months: 슬라이스에 포함할 최근 개월 수. None 이면
+            :data:`live.constants.CHART_RECENT_MONTHS` 를 사용.
+
+    Returns:
+        ``{asset_id: ChartSeries}``.
+    """
+    from live.constants import CHART_RECENT_MONTHS
+
+    user_trades = user_trades or {}
+    signal_history = signal_history or {}
+    months_effective = CHART_RECENT_MONTHS if months is None else months
+    config = get_live_portfolio_config()
+
+    slice_map: dict[str, ChartSeries] = {}
+
+    for slot in config.asset_slots:
+        dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
+        if not dates:
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart recent 생성 불가)")
+
+        last = dates[-1]
+        start = last - relativedelta(months=months_effective)
+
+        slice_map[slot.asset_id] = _build_slice(
+            slot,
+            dates,
+            close_list,
+            ma_list,
+            start=start,
+            end=last,
+            asset_user_trades=user_trades.get(slot.asset_id, []),
+            asset_signal_history=signal_history.get(slot.asset_id, []),
+        )
+
+    return slice_map
+
+
+def build_chart_archive_year(
+    state_dir: Path,
+    year: int,
+    user_trades: dict[str, list[UserTrade]] | None = None,
+    signal_history: dict[str, list[tuple[str, str]]] | None = None,
+) -> dict[str, ChartSeries]:
+    """자산별 특정 연도 :class:`ChartSeries` 슬라이스를 생성한다.
+
+    해당 연도에 거래일이 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        year: 슬라이스할 연도 (예: 2025).
+        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
+
+    Returns:
+        ``{asset_id: ChartSeries}``.
     """
     user_trades = user_trades or {}
     signal_history = signal_history or {}
     config = get_live_portfolio_config()
 
-    series_map: dict[str, ChartSeries] = {}
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
+
+    slice_map: dict[str, ChartSeries] = {}
 
     for slot in config.asset_slots:
-        ticker = _ticker_for_chart(slot)
-        csv_path = live_csv_path(state_dir, ticker)
-        df = load_csv(csv_path)
+        dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
+        if not dates:
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart archive 생성 불가)")
 
-        # MA 컬럼 추가
-        df = add_single_moving_average(df, window=slot.ma_window, ma_type=slot.ma_type)
-        ma_col = f"ma_{slot.ma_window}"
-
-        dates = [d.isoformat() for d in df[COL_DATE].tolist()]
-        close_list = [round(float(c), ROUND_PRICE) for c in df[COL_CLOSE].tolist()]
-        raw_ma = _to_optional_float_list(df[ma_col].tolist())
-
-        # 이동평균 초기 워밍업 (ma_window - 1 일) 은 None 으로 표시.
-        # QBT 의 MA 계산은 첫 행부터 값을 채우지만, 차트 표시상 의미 있는 값으로
-        # 간주되지 않는 워밍업 구간을 명시적으로 None 으로 마스킹한다.
-        warmup = slot.ma_window - 1
-        ma_list: list[float | None] = [None] * min(warmup, len(raw_ma)) + raw_ma[warmup:]
-
-        # 밴드 계산
-        upper_list: list[float | None] = []
-        lower_list: list[float | None] = []
-        for ma in ma_list:
-            if ma is None:
-                upper_list.append(None)
-                lower_list.append(None)
-            else:
-                upper_list.append(round(ma * (1.0 + slot.buy_buffer_zone_pct), ROUND_PRICE))
-                lower_list.append(round(ma * (1.0 - slot.sell_buffer_zone_pct), ROUND_PRICE))
-
-        # 사용자 체결 마커 → dates 의 인덱스로 변환
-        date_to_idx = {d: i for i, d in enumerate(dates)}
-        user_trades_for_asset = user_trades.get(slot.asset_id, [])
-        user_buys = [
-            date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "buy" and t.date in date_to_idx
-        ]
-        user_sells = [
-            date_to_idx[t.date] for t in user_trades_for_asset if t.direction == "sell" and t.date in date_to_idx
-        ]
-
-        # 과거 신호 이력 → dates 의 인덱스로 변환
-        signal_entries = signal_history.get(slot.asset_id, [])
-        buy_signals = [date_to_idx[d] for d, s in signal_entries if s == "buy" and d in date_to_idx]
-        sell_signals = [date_to_idx[d] for d, s in signal_entries if s == "sell" and d in date_to_idx]
-
-        series_map[slot.asset_id] = ChartSeries(
-            dates=dates,
-            close=close_list,
-            ma_value=ma_list,
-            upper_band=upper_list,
-            lower_band=lower_list,
-            buy_signals=buy_signals,
-            sell_signals=sell_signals,
-            user_buys=user_buys,
-            user_sells=user_sells,
+        slice_map[slot.asset_id] = _build_slice(
+            slot,
+            dates,
+            close_list,
+            ma_list,
+            start=start,
+            end=end,
+            asset_user_trades=user_trades.get(slot.asset_id, []),
+            asset_signal_history=signal_history.get(slot.asset_id, []),
         )
 
-    return series_map
+    return slice_map
