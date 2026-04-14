@@ -632,54 +632,6 @@ def _render_rebalancing_history_section(exp: _ExperimentData) -> None:
 
     st.dataframe(pd.DataFrame(reb_rows), hide_index=True, width="stretch")
 
-    # 리밸런싱 전후 비중 변화 차트 (최근 5건)
-    recent_reb = reb_df.tail(5)
-    if len(recent_reb) > 0 and _has_holdings_data(equity_df):
-        st.caption("최근 리밸런싱 전후 비중 변화")
-        fig_reb = go.Figure()
-        asset_ids_tuple = tuple(asset_ids)
-
-        for _, reb_row in recent_reb.iterrows():
-            reb_idx = equity_df.index[equity_df["Date"] == reb_row["Date"]]
-            if reb_idx.empty:
-                continue
-            idx = reb_idx[0]
-            if idx == 0:
-                continue
-
-            prev_r = equity_df.iloc[idx - 1]
-            curr_r = equity_df.iloc[idx]
-            date_label = pd.Timestamp(reb_row["Date"]).strftime("%m/%d")
-
-            for asset_id in asset_ids:
-                weight_col = f"{asset_id}_weight"
-                if weight_col not in equity_df.columns:
-                    continue
-                pre_w = float(prev_r.get(weight_col, 0)) * 100
-                post_w = float(curr_r.get(weight_col, 0)) * 100
-                color = _get_asset_color(asset_id, asset_ids_tuple)
-
-                fig_reb.add_trace(
-                    go.Bar(
-                        x=[f"{date_label} 전", f"{date_label} 후"],
-                        y=[pre_w, post_w],
-                        name=asset_id.upper(),
-                        marker_color=color,
-                        showlegend=bool(_ == recent_reb.index[0]),
-                        legendgroup=asset_id,
-                        hovertemplate=f"{asset_id.upper()}: %{{y:.1f}}%<extra></extra>",
-                    )
-                )
-
-        fig_reb.update_layout(
-            barmode="stack",
-            height=_SMALL_CHART_HEIGHT,
-            yaxis_title="비중 (%)",
-            yaxis={"range": [0, 100]},
-            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        )
-        st.plotly_chart(fig_reb, width="stretch", key=f"reb_chart_{exp.experiment_name}")
-
 
 # ============================================================
 # 신규 섹션: 월별 수익률 히트맵 (Monthly Returns)
