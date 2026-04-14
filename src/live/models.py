@@ -78,7 +78,7 @@ class PendingOrderDict(TypedDict):
     signal_date: str  # ISO 8601 날짜 (예: "2026-04-10")
     current_amount: float
     target_amount: float
-    delta_amount: float  # 음수 = 매도, 양수 = 매수
+    delta_amount: float  # 금액(원). 음수 = 매도, 양수 = 매수
     target_weight: float  # 0~1 비율
     hold_days_used: int
     reason: str

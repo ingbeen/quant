@@ -27,6 +27,7 @@ from typing import Any
 from dateutil.relativedelta import relativedelta
 
 from live.constants import (
+    CHART_RECENT_MONTHS,
     extract_ticker_from_path,
     get_live_portfolio_config,
     live_csv_path,
@@ -236,8 +237,6 @@ def build_chart_meta(state_dir: Path) -> dict[str, ChartMeta]:
     Returns:
         ``{asset_id: ChartMeta}``.
     """
-    from live.constants import CHART_RECENT_MONTHS
-
     config = get_live_portfolio_config()
     meta_map: dict[str, ChartMeta] = {}
 
@@ -279,8 +278,6 @@ def build_chart_recent(
     Returns:
         ``{asset_id: ChartSeries}``.
     """
-    from live.constants import CHART_RECENT_MONTHS
-
     user_trades = user_trades or {}
     signal_history = signal_history or {}
     months_effective = CHART_RECENT_MONTHS if months is None else months
