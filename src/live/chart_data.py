@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from dateutil.relativedelta import relativedelta
 
@@ -133,15 +133,29 @@ def _filter_markers_in_range(
     *,
     start: date,
     end: date,
+    source_kind: Literal["signal_history", "user_trades"],
     predicate: str | None = None,
 ) -> list[str]:
     """마커 목록에서 [start, end] 범위 내 항목만 ISO 날짜 문자열로 반환.
 
+    ISO 날짜 파싱 실패는 소스별로 다르게 처리한다 (루트 CLAUDE.md
+    "불가능 값 처리" 원칙 및 live CLAUDE.md "즉시 실패" 원칙 준수):
+
+    - ``signal_history`` 는 live 시스템 내부(:func:`live.history.append_signal_history`)
+      에서 생성되므로 파싱 실패는 **내부 불변조건 위반** → :class:`RuntimeError`.
+    - ``user_trades`` 는 앱이 RTDB 로 입력한 **외부 데이터** 이므로 파싱 실패는
+      입력 검증 실패 → :class:`ValueError`.
+
     Args:
         markers: ``list[(date_iso, state)]`` (signal_history) 또는
-            ``list[str]`` (이미 날짜만 있는 경우 — 본 구현에서는 미사용).
+            ``list[str]`` (user_trades 의 날짜만 추출된 목록).
         start / end: 필터 범위 (양쪽 inclusive).
+        source_kind: 마커의 출처. 예외 타입 결정에 사용된다.
         predicate: signal_history 의 경우 ``"buy"`` / ``"sell"`` 필터. None 이면 전체.
+
+    Raises:
+        RuntimeError: ``source_kind="signal_history"`` 이고 ISO 파싱 실패 시.
+        ValueError: ``source_kind="user_trades"`` 이고 ISO 파싱 실패 시.
     """
     out: list[str] = []
     for entry in markers:
@@ -153,8 +167,10 @@ def _filter_markers_in_range(
             iso = entry
         try:
             d = date.fromisoformat(iso)
-        except ValueError:
-            continue
+        except ValueError as exc:
+            if source_kind == "signal_history":
+                raise RuntimeError(f"내부 불변조건 위반: signal_history 의 ISO 날짜 파싱 실패 — iso={iso!r}") from exc
+            raise ValueError(f"user_trades 의 ISO 날짜 형식이 잘못되었다 — iso={iso!r}") from exc
         if start <= d <= end:
             out.append(iso)
     return out
@@ -189,22 +205,26 @@ def _build_slice(
         [t.date for t in asset_user_trades if t.direction == "buy"],
         start=start,
         end=end,
+        source_kind="user_trades",
     )
     user_sells = _filter_markers_in_range(
         [t.date for t in asset_user_trades if t.direction == "sell"],
         start=start,
         end=end,
+        source_kind="user_trades",
     )
     buy_signals = _filter_markers_in_range(
         asset_signal_history,
         start=start,
         end=end,
+        source_kind="signal_history",
         predicate="buy",
     )
     sell_signals = _filter_markers_in_range(
         asset_signal_history,
         start=start,
         end=end,
+        source_kind="signal_history",
         predicate="sell",
     )
 

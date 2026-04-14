@@ -96,6 +96,9 @@ tests/live/                     # live 전용 테스트
   - JSONL 히스토리 파일 손상 (JSON 파싱 실패)
   - RTDB fill / balance_adjust 필수 필드 누락
   - 전일 종가 대비 1% 이상 괴리 (스플릿/무상증자 의심 — `validate_prev_close`)
+  - `chart_data._filter_markers_in_range` 에서 `signal_history` 마커의 ISO 날짜
+    파싱 실패 (내부 불변조건 위반 — `RuntimeError`) 또는 `user_trades` 마커의
+    ISO 날짜 파싱 실패 (외부 입력 검증 실패 — `ValueError`)
 
 **스플릿 / 무상증자 수동 대응**: 위 `validate_prev_close` 가 의심 케이스를 감지하면
 운영자가 수동으로 대응한다. 절차 요약:

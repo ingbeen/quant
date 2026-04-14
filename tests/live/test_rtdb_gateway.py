@@ -6,6 +6,7 @@ RTDB 진입점 호출 시그니처와 페이로드 구조를 검증한다.
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 from unittest.mock import MagicMock
@@ -364,24 +365,38 @@ class TestPruneHistorySummary:
         # Then
         assert mock_db == {}
 
-    def test_invalid_date_keys_are_ignored(self, mock_db, mock_app):
+    def test_invalid_date_keys_are_skipped_with_warning(self, mock_db, mock_app, caplog):
         """
-        목적: ISO 8601 파싱 실패 키는 건너뛴다 (삭제/오류 모두 없음).
+        목적: ISO 8601 파싱 실패 키는 건너뛰되, 운영자가 침해를 인지할 수 있도록
+              WARNING 로그로 기록한다 (파손 키 보호 의도 유지 + 침해 가시화).
 
         Given: /history/summary 아래에 파싱 불가능한 키가 존재.
         When:  prune 호출.
-        Then:  해당 키는 그대로 유지, 예외 없음.
+        Then:  해당 키는 그대로 유지, 예외 없음, WARNING 로그에 파손 키가 포함.
+
+        주의: qbt ``setup_logger`` 는 ``propagate=False`` 이므로 caplog 기본 캡처가
+        닿지 않는다. 본 테스트는 ``caplog.handler`` 를 live 로거에 직접 부착한다.
         """
         # Given
         mock_db["/history/summary/not-a-date"] = {"execution_date": "invalid"}
         mock_db["/history/summary/2026-04-10"] = {"execution_date": "2026-04-10"}
 
-        # When
-        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+        rtdb_logger = logging.getLogger("live.rtdb_gateway")
+        caplog.set_level(logging.WARNING, logger="live.rtdb_gateway")
+        rtdb_logger.addHandler(caplog.handler)
+        try:
+            # When
+            prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
+        finally:
+            rtdb_logger.removeHandler(caplog.handler)
 
         # Then
         assert "/history/summary/not-a-date" in mock_db  # 파싱 실패 → 건너뜀
         assert "/history/summary/2026-04-10" in mock_db
+        warnings = [rec.getMessage() for rec in caplog.records if rec.levelname == "WARNING"]
+        assert any(
+            "not-a-date" in msg for msg in warnings
+        ), f"파손 키 WARNING 로그가 없음. 현재 WARNING 로그: {warnings!r}"
 
     def test_keeps_today_and_future_entries(self, mock_db, mock_app):
         """

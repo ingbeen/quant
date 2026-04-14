@@ -309,3 +309,75 @@ class TestRecentArchiveOverlap:
             year_dates = set(year_map[asset_id].dates)
             overlap = recent_dates & year_dates
             assert len(overlap) > 0, "recent 와 archive/{현재_연도} 는 경계에서 교집합이 있어야 한다"
+
+
+# ============================================================================
+# 마커 ISO 파싱 실패 정책 (루트 CLAUDE.md "불가능 값 처리")
+# ============================================================================
+
+
+class TestMarkerDateParsingFailures:
+    """``_filter_markers_in_range`` 가 ISO 파싱 실패를 소스별로 다르게 처리한다.
+
+    - signal_history 는 live 시스템이 내부 생성하므로 파싱 실패는 내부 불변조건
+      위반 → ``RuntimeError``.
+    - user_trades 는 앱이 RTDB 로 입력하는 외부 데이터이므로 파싱 실패는
+      입력 검증 실패 → ``ValueError``.
+    """
+
+    def test_signal_history_with_broken_iso_raises_runtime_error(self, state_dir_with_csvs: Path):
+        """
+        목적: signal_history 의 ISO 날짜가 파손되면 RuntimeError 로 즉시 실패한다.
+
+        Given: signal_history 에 파싱 불가능한 문자열이 포함된다.
+        When:  build_chart_recent 호출.
+        Then:  RuntimeError("내부 불변조건 위반") 발생.
+        """
+        # Given
+        signal_history: dict[str, list[tuple[str, str]]] = {
+            "sso": [("not-a-date", "buy")],
+        }
+
+        # When / Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            build_chart_recent(
+                state_dir_with_csvs,
+                signal_history=signal_history,
+                months=CHART_RECENT_MONTHS,
+            )
+
+    def test_user_trades_with_broken_iso_raises_value_error(self, state_dir_with_csvs: Path):
+        """
+        목적: user_trades 의 ISO 날짜가 파손되면 ValueError 로 즉시 실패한다.
+
+        Given: user_trades 에 파싱 불가능한 문자열이 포함된다.
+        When:  build_chart_recent 호출.
+        Then:  ValueError 발생 (외부 입력 검증 실패).
+        """
+        # Given
+        user_trades = {
+            "sso": [UserTrade(date="bogus", direction="buy")],
+        }
+
+        # When / Then
+        with pytest.raises(ValueError, match="user_trades"):
+            build_chart_recent(
+                state_dir_with_csvs,
+                user_trades=user_trades,
+                months=CHART_RECENT_MONTHS,
+            )
+
+    def test_archive_year_signal_history_broken_iso_raises_runtime_error(self, state_dir_with_csvs: Path):
+        """
+        목적: archive_year 경로에서도 signal_history 파손 시 RuntimeError 로 실패한다.
+        """
+        signal_history: dict[str, list[tuple[str, str]]] = {
+            "sso": [("broken-iso", "sell")],
+        }
+
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            build_chart_archive_year(
+                state_dir_with_csvs,
+                year=_last_date().year,
+                signal_history=signal_history,
+            )

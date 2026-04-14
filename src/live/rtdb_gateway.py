@@ -28,6 +28,9 @@ from firebase_admin import credentials, db
 
 from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, LiveState
 from qbt.backtest.constants import ROUND_PERCENT
+from qbt.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Firebase Admin SDK 의 ``App`` 객체는 테스트에서 mock 으로 주입되는 경우가 많아
 # 정적 타입을 ``Any`` 로 유지한다. 런타임에는 :func:`initialize_firebase_app` 가
@@ -294,7 +297,8 @@ def prune_history_summary(app: FirebaseAppLike, retention_days: int, today: date
     동작:
 
     - ``/history/summary`` 가 없거나 dict 가 아니면 no-op.
-    - 날짜 포맷이 ISO 8601 이 아닌 키는 건너뛴다 (파손 키 보호).
+    - 날짜 포맷이 ISO 8601 이 아닌 키는 건너뛴다 (파손 키 보호). 단, 운영자가
+      침해를 인지할 수 있도록 **WARNING 로그로 기록**한다.
     - retention 경계일 자체도 삭제 대상이다 (미만 기준: cutoff = today - retention_days,
       `date_key < cutoff` 이면 삭제).
     """
@@ -308,6 +312,7 @@ def prune_history_summary(app: FirebaseAppLike, retention_days: int, today: date
         try:
             entry_date = date.fromisoformat(str(date_key))
         except ValueError:
+            logger.warning(f"history/summary 파손 키 발견 — date_key={date_key!r} " f"(ISO 8601 파싱 실패, prune 스킵)")
             continue
         if entry_date < cutoff:
             _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{date_key}").delete()
