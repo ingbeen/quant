@@ -296,10 +296,22 @@ def calculate_regime_summaries(
     """
     results: list[RegimeSummaryDict] = []
 
+    # equity_df 마지막 거래일 — "진행중" 구간 (end=None) 의 종료일로 사용한다.
+    if equity_df.empty:
+        return results
+    equity_last_date_raw = equity_df.iloc[-1][COL_DATE]
+    equity_last_date = (
+        equity_last_date_raw
+        if isinstance(equity_last_date_raw, date)
+        else date.fromisoformat(str(equity_last_date_raw))
+    )
+
     for regime in regimes:
         # 1. 구간 날짜 파싱
+        #    end 가 None 이면 "진행중 구간" → equity_df 마지막 거래일로 대체.
         regime_start = date.fromisoformat(regime["start"])
-        regime_end = date.fromisoformat(regime["end"])
+        regime_end_raw = regime["end"]
+        regime_end = date.fromisoformat(regime_end_raw) if regime_end_raw is not None else equity_last_date
 
         # 2. equity_df를 구간 날짜로 필터링
         equity_dates = pd.Series(equity_df[COL_DATE])

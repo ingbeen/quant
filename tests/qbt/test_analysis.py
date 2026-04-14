@@ -896,6 +896,59 @@ class TestCalculateRegimeSummaries:
         result = results[0]
         assert result["profit_factor"] == pytest.approx(0.0, abs=EPSILON), "손실 거래 없으면 profit_factor = 0.0"
 
+    def test_regime_summaries_end_none_uses_equity_last_date(self):
+        """
+        목적: regime.end 가 None 이면 equity_df 의 마지막 거래일까지 자동으로
+              슬라이스되어 "진행중 구간" 으로 집계된다.
+
+        Given: regime 1 개 (end=None), equity_df 는 2025-05-13 ~ 2026-04-14 범위
+        When:  calculate_regime_summaries 호출
+        Then:  결과가 1 개 반환되고, end_date 가 equity_df 의 마지막 날짜와 일치
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2025, 5, 13), date(2025, 12, 1), date(2026, 4, 14)],
+                "equity": [10_000_000.0, 10_800_000.0, 11_500_000.0],
+            }
+        )
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2025-05-13", "end": None, "regime_type": "bull", "name": "회복기"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert len(results) == 1
+        result = results[0]
+        assert result["name"] == "회복기"
+        assert result["start_date"] == "2025-05-13"
+        assert result["end_date"] == "2026-04-14"
+        assert result["trading_days"] == 3
+
+    def test_regime_summaries_end_none_with_empty_equity_returns_empty(self):
+        """
+        목적: equity_df 가 비어 있으면 end=None 처리 대상이 없으므로 빈 결과를 반환한다.
+
+        Given: 빈 equity_df, end=None 인 regime
+        When:  calculate_regime_summaries 호출
+        Then:  빈 리스트 반환 (예외 없음)
+        """
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [], "equity": []})
+        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "holding_days"])
+        regimes: list[MarketRegimeDict] = [
+            {"start": "2025-05-13", "end": None, "regime_type": "bull", "name": "회복기"},
+        ]
+
+        # When
+        results = calculate_regime_summaries(equity_df, trades_df, regimes)
+
+        # Then
+        assert results == []
+
     def test_regime_summaries_zero_initial_equity_raises(self):
         """
         구간 시작 equity가 0 이하이면 RuntimeError 발생 (내부 불변조건 위반)

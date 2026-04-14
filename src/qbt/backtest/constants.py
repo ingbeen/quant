@@ -94,7 +94,11 @@ MARKET_REGIMES: Final[list[MarketRegimeDict]] = [
     {"start": "2021-11-22", "end": "2022-10-13", "regime_type": "bear", "name": "금리인상 약세장"},
     {"start": "2022-10-14", "end": "2025-02-18", "regime_type": "bull", "name": "AI 랠리"},
     {"start": "2025-02-19", "end": "2025-05-12", "regime_type": "bear", "name": "관세 충격"},
-    {"start": "2025-05-13", "end": "2026-02-17", "regime_type": "bull", "name": "회복기"},
+    # 마지막 구간은 end=None 으로 "진행중" 을 표현한다. calculate_regime_summaries 가
+    # equity_df 의 마지막 거래일까지 자동으로 슬라이스하므로 상수를 매번 수동 갱신하지
+    # 않아도 최신 데이터를 덮는다. 새로운 regime 전환이 확인되면 이 구간의 end 를
+    # 실제 전환일로 채우고 새 구간을 아래에 추가한다.
+    {"start": "2025-05-13", "end": None, "regime_type": "bull", "name": "회복기"},
 ]
 
 # ============================================================

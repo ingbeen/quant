@@ -26,7 +26,7 @@
 - `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
 - `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params, is/oos 성과 지표, wfe_calmar, wfe_cagr)
 - `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, gap_calmar_median, profit_concentration, 파라미터별 리스트(param_ma_windows 등), stitched 지표)
-- `MarketRegimeDict`: 시장 구간 정의 (start, end, regime_type, name). QQQ 기준 수동 분류한 구간 정보
+- `MarketRegimeDict`: 시장 구간 정의 (start, end, regime_type, name). QQQ 기준 수동 분류한 구간 정보. `end`는 `str | None` 이며, `None` 이면 "진행중 구간" 을 의미하고 `calculate_regime_summaries()` 가 equity_df 의 마지막 거래일까지 자동으로 슬라이스한다
 - `RegimeSummaryDict`: 구간별 성과 요약 (name, regime_type, start_date, end_date, trading_days, 기본 지표 + avg_holding_days, profit_factor)
 
 ### 2. constants.py

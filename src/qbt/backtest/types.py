@@ -33,10 +33,14 @@ class MarketRegimeDict(TypedDict):
 
     QQQ 기준으로 수동 분류한 시장 구간(상승/하락/횡보) 정보를 담는다.
     constants.py의 MARKET_REGIMES에서 사용한다.
+
+    `end` 가 `None` 이면 해당 구간은 "진행중" 으로 취급되며,
+    `calculate_regime_summaries()` 가 equity_df 의 마지막 거래일까지 자동으로
+    슬라이스한다. 매번 상수를 수동 갱신하지 않아도 최신 구간을 덮을 수 있다.
     """
 
     start: str  # ISO format "YYYY-MM-DD"
-    end: str  # ISO format "YYYY-MM-DD"
+    end: str | None  # ISO format "YYYY-MM-DD" 또는 None (진행중 구간)
     regime_type: str  # "bull", "bear", "sideways"
     name: str  # 한글 구간명 (예: "닷컴 붕괴")
 
