@@ -67,12 +67,21 @@ def _format_pct(value: float) -> str:
 
 
 def _build_daily_body(result: DailyResult) -> str:
-    """일일 리포트 본문 생성. MA 근접도 / 시그널 / 리밸런싱 / 리마인더 포함."""
+    """일일 리포트 본문 생성.
+
+    레이아웃 순서:
+
+    1. 제목 + 날짜
+    2. (빈 줄) 강조 블록 — 사용자 행동이 필요한 항목 (시그널 / 리밸런싱 / 미입력 리마인더)
+    3. (빈 줄) 일반 블록 — equity / drift / MA 근접도
+
+    강조 블록이 비어있으면 빈 줄과 블록 자체를 생성하지 않는다.
+    """
     lines: list[str] = []
     lines.append(f"[{NOTIFICATION_TITLE}] {result.execution_date}")
-    lines.append(f"model equity: {result.model_equity:,.0f}")
-    lines.append(f"actual equity: {result.actual_equity:,.0f}")
-    lines.append(f"drift: {result.drift_pct * 100:.2f}%")
+
+    # 강조 블록: 사용자 행동이 필요한 항목을 상단에 배치
+    highlights: list[str] = []
 
     if result.signals:
         sig_summaries: list[str] = []
@@ -80,17 +89,27 @@ def _build_daily_body(result: DailyResult) -> str:
             if sig.state in ("buy", "sell"):
                 sig_summaries.append(f"{asset_id.upper()} {sig.state}")
         if sig_summaries:
-            lines.append("시그널: " + ", ".join(sig_summaries))
+            highlights.append("시그널: " + ", ".join(sig_summaries))
+
+    if result.rebalance_triggered:
+        highlights.append("리밸런싱: 발생")
+
+    if result.pending_fill_reminders:
+        highlights.append(f"미입력 체결 리마인더: {len(result.pending_fill_reminders)} 건")
+
+    if highlights:
+        lines.append("")  # 제목과 강조 블록 사이 빈 줄
+        lines.extend(highlights)
+
+    # 일반 블록: equity / drift / MA 근접도
+    lines.append("")  # 강조 블록(또는 제목)과 일반 블록 사이 빈 줄
+    lines.append(f"model equity: {result.model_equity:,.0f}")
+    lines.append(f"actual equity: {result.actual_equity:,.0f}")
+    lines.append(f"drift: {result.drift_pct * 100:.2f}%")
 
     if result.ma_distances:
         ma_parts = [f"{aid.upper()} {_format_pct(dist)}" for aid, dist in result.ma_distances.items()]
         lines.append("MA 근접도: " + ", ".join(ma_parts))
-
-    if result.rebalance_triggered:
-        lines.append("리밸런싱: 발생")
-
-    if result.pending_fill_reminders:
-        lines.append(f"미입력 체결 리마인더: {len(result.pending_fill_reminders)} 건")
 
     return "\n".join(lines)
 

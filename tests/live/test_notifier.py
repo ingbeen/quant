@@ -246,6 +246,63 @@ class TestSendFailureAll:
 # ============================================================================
 
 
+class TestDailyBodyLayout:
+    """_build_daily_body 레이아웃 계약: 강조 블록(시그널/리밸런싱/리마인더) 이
+    equity/drift 보다 상단에 위치하고 빈 줄로 구분된다."""
+
+    def test_highlights_appear_before_equity(self, patched_fcm_success, patched_telegram_success):
+        """Given 시그널 + 리밸런싱 + 리마인더 전부 있는 결과
+        When send_all
+        Then 강조 항목이 equity 줄보다 위에 있다."""
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        lines = body.splitlines()
+
+        signal_idx = next(i for i, l in enumerate(lines) if "시그널" in l)
+        rebalance_idx = next(i for i, l in enumerate(lines) if "리밸런싱" in l)
+        reminder_idx = next(i for i, l in enumerate(lines) if "미입력 체결 리마인더" in l)
+        equity_idx = next(i for i, l in enumerate(lines) if "model equity" in l)
+
+        assert signal_idx < equity_idx
+        assert rebalance_idx < equity_idx
+        assert reminder_idx < equity_idx
+
+    def test_blank_line_separates_highlights_from_equity(self, patched_fcm_success, patched_telegram_success):
+        """Given 강조 항목이 있는 결과
+        When send_all
+        Then 강조 블록과 equity 블록 사이에 빈 줄이 존재한다."""
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        lines = body.splitlines()
+
+        reminder_idx = next(i for i, l in enumerate(lines) if "미입력 체결 리마인더" in l)
+        equity_idx = next(i for i, l in enumerate(lines) if "model equity" in l)
+
+        # 강조 블록 마지막과 equity 사이에 빈 줄
+        assert lines[equity_idx - 1].strip() == ""
+
+    def test_no_extra_blank_line_when_no_highlights(self, patched_fcm_success, patched_telegram_success):
+        """Given 강조 항목이 하나도 없는 결과
+        When send_all
+        Then 제목 직후 빈 줄 1 개만 있고 equity 가 바로 따라온다."""
+        result = _make_daily_result()
+        # 강조 항목 전부 제거
+        result.signals = {}
+        result.rebalance_triggered = False
+        result.pending_fill_reminders = []
+
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        lines = body.splitlines()
+
+        # 첫 줄: 제목, 둘째 줄: 빈 줄, 셋째 줄: model equity
+        assert "[QBT Live]" in lines[0]
+        assert lines[1].strip() == ""
+        assert "model equity" in lines[2]
+
+
 class TestEmptyTokens:
     def test_empty_token_list_skips_fcm(self, monkeypatch, patched_telegram_success):
         called: list[bool] = []
