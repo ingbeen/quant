@@ -26,7 +26,7 @@ import requests
 from firebase_admin import messaging
 from firebase_admin.exceptions import FirebaseError
 
-from live.constants import NOTIFICATION_TITLE, TELEGRAM_TIMEOUT_SECONDS
+from live.constants import NOTIFICATION_TITLE, TELEGRAM_TIMEOUT_SECONDS, build_asset_signal_ticker_map
 from live.models import DailyResult
 from qbt.utils.logger import get_logger
 
@@ -108,7 +108,11 @@ def _build_daily_body(result: DailyResult) -> str:
     lines.append(f"drift: {result.drift_pct * 100:.2f}%")
 
     if result.ma_distances:
-        ma_parts = [f"{aid.upper()} {_format_pct(dist)}" for aid, dist in result.ma_distances.items()]
+        signal_ticker_map = build_asset_signal_ticker_map()
+        ma_parts = [
+            f"{signal_ticker_map.get(aid, aid.upper())} {_format_pct(dist)}"
+            for aid, dist in result.ma_distances.items()
+        ]
         lines.append("MA 근접도: " + ", ".join(ma_parts))
 
     return "\n".join(lines)

@@ -245,6 +245,28 @@ def build_signal_trade_map() -> dict[str, str]:
     return mapping
 
 
+def build_asset_signal_ticker_map() -> dict[str, str]:
+    """asset_id → signal 티커 매핑을 live 포트폴리오 슬롯에서 빌드한다.
+
+    MA 근접도 등 signal 데이터 기반 지표를 표시할 때, asset_id(sso, qld) 대신
+    실제 signal 티커(SPY, QQQ)를 사용하기 위한 매핑이다.
+
+    Returns:
+        ``{asset_id: signal_ticker}`` 형태의 새 dict (호출마다 독립 사본).
+        예: ``{"sso": "SPY", "qld": "QQQ", "gld": "GLD", "tlt": "TLT"}``
+
+    Raises:
+        RuntimeError: config 의 경로에서 티커를 추출할 수 없을 때
+            (내부 불변조건 위반).
+    """
+    config = get_live_portfolio_config()
+    mapping: dict[str, str] = {}
+    for slot in config.asset_slots:
+        signal_ticker = extract_ticker_from_path(slot.signal_data_path)
+        mapping[slot.asset_id] = signal_ticker
+    return mapping
+
+
 def live_csv_path(state_dir: Path, ticker: str) -> Path:
     """qbt-live-state 리포 내 주가 CSV 파일 경로를 반환한다.
 

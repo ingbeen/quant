@@ -197,7 +197,7 @@ live 는 매 실행 끝에 FCM + 텔레그램을 동시 발송한다. 두 채널
 model equity: 12,345,678
 actual equity: 12,300,000
 drift: 0.37%
-MA 근접도: SSO +2.45%, QLD -1.05%, GLD +0.80%, TLT -1.20%
+MA 근접도: SPY +2.45%, QQQ -1.05%, GLD +0.80%, TLT -1.20%
 ```
 
 본문은 **강조 블록** (사용자 행동 필요 항목) 과 **일반 블록** (equity / drift / MA) 으로 구성되며, 빈 줄로 구분된다. 강조 블록이 비어있으면 빈 줄과 블록 자체를 생성하지 않는다.
@@ -212,7 +212,7 @@ MA 근접도: SSO +2.45%, QLD -1.05%, GLD +0.80%, TLT -1.20%
 - (빈 줄) → 일반 블록:
   - `model equity` / `actual equity`: 천 단위 콤마 정수
   - `drift`: `{drift_pct * 100:.2f}%` (§11 참고)
-  - `MA 근접도`: `{ASSET_UPPER} ±X.XX%` (자산별 `(close - ma_value) / ma_value`)
+  - `MA 근접도`: `{SIGNAL_TICKER} ±X.XX%` (자산별 signal 티커 기준, `(close - ma_value) / ma_value`)
 
 ### 6.3 실패 알림 본문 (예시)
 

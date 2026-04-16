@@ -141,7 +141,26 @@ class TestSendAll:
         send_all(["t1"], "bot", "chat", result)
         body = patched_telegram_success["body"]
         assert "MA 근접도" in body
-        assert "SSO" in body
+        assert "SPY" in body
+
+    def test_ma_distance_uses_signal_tickers(self, patched_fcm_success, patched_telegram_success):
+        """MA 근접도는 signal 티커(SPY, QQQ)로 표시되어야 하며, trade 티커(SSO, QLD)는 표시되지 않아야 한다.
+
+        Given: sso/qld 의 ma_distances 가 포함된 DailyResult
+        When: send_all 호출
+        Then: 본문에 SPY/QQQ 가 표시되고, MA 근접도 라인에 SSO/QLD 는 없다
+        """
+        result = _make_daily_result()
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+
+        ma_line = [line for line in body.splitlines() if "MA 근접도" in line]
+        assert len(ma_line) == 1
+        ma_text = ma_line[0]
+        assert "SPY" in ma_text
+        assert "QQQ" in ma_text
+        assert "SSO" not in ma_text
+        assert "QLD" not in ma_text
 
     def test_body_contains_signals_when_buy_or_sell(self, patched_fcm_success, patched_telegram_success):
         result = _make_daily_result()
