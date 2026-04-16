@@ -76,14 +76,16 @@ from live.data_fetcher import (
     rebuild_full_csv,
 )
 from live.drift import compute_drift
-from live.models import ActualFill, AssetMarketData, BalanceAdjust, DailyResult, MarketBundle
+from live.models import ActualFill, AssetMarketData, BalanceAdjust, DailyResult, FillDismiss, MarketBundle
 from live.state import (
     cleanup_old_applied_ids,
     create_initial_state,
     load_applied_balance_adjust_ids,
+    load_applied_fill_dismiss_ids,
     load_applied_fill_ids,
     load_state,
     save_applied_balance_adjust_ids,
+    save_applied_fill_dismiss_ids,
     save_applied_fill_ids,
     save_state,
 )
@@ -442,6 +444,12 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"RTDB balance_adjusts 읽기 실패: {exc}") from exc
 
+        # RTDB fill_dismisses 가져오기
+        try:
+            pending_dismisses: list[FillDismiss] = rtdb_gateway.fetch_pending_fill_dismisses(rtdb_app)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"RTDB fill_dismisses 읽기 실패: {exc}") from exc
+
         # applied_balance_adjust_ids 원장 로드 (run_daily 에 전달)
         adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
         try:
@@ -449,9 +457,17 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         except ValueError as exc:
             raise RuntimeError(f"applied_balance_adjust_ids.json 로드 실패: {exc}") from exc
 
-        prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
+        # applied_fill_dismiss_ids 원장 로드
+        dismiss_path = state_dir / "applied_fill_dismiss_ids.json"
+        try:
+            applied_dismiss_ids = load_applied_fill_dismiss_ids(dismiss_path)
+        except ValueError as exc:
+            raise RuntimeError(f"applied_fill_dismiss_ids.json 로드 실패: {exc}") from exc
 
-        # run_daily (순수 계산 — fills + balance_adjust 처리 포함)
+        prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
+        prev_dismiss_keys_snapshot = set(applied_dismiss_ids.keys())
+
+        # run_daily (순수 계산 — fills + balance_adjust + fill_dismiss 처리 포함)
         try:
             result = run_daily(
                 trade_date=trade_date,
@@ -461,12 +477,15 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                 applied_fill_ids=applied_ids,
                 pending_adjusts=pending_adjusts,
                 applied_balance_adjust_ids=applied_adjust_ids,
+                pending_dismisses=pending_dismisses,
+                applied_fill_dismiss_ids=applied_dismiss_ids,
             )
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
 
-        # run_daily 결과의 최종 applied_adjust_ids 를 반영
+        # run_daily 결과의 최종 applied_*_ids 를 반영
         applied_adjust_ids = result.updated_applied_balance_adjust_ids
+        applied_dismiss_ids = result.updated_applied_fill_dismiss_ids
 
         # 상태 저장 + applied_ids 정리
         save_state(result.updated_state, state_path)
@@ -478,6 +497,10 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         # balance_adjust 원장 정리 + 저장
         cleaned_adjust_ids = cleanup_old_applied_ids(applied_adjust_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
         save_applied_balance_adjust_ids(cleaned_adjust_ids, adjust_path)
+
+        # fill_dismiss 원장 정리 + 저장
+        cleaned_dismiss_ids = cleanup_old_applied_ids(applied_dismiss_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
+        save_applied_fill_dismiss_ids(cleaned_dismiss_ids, dismiss_path)
 
         # 새로 반영된 fill 을 user_trades.jsonl 에 append.
         # run_daily 전후의 applied_fill_ids 차분으로 신규 fill 을 식별한다 (차트 마커용).
@@ -522,6 +545,28 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                 rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
+
+        # 새로 반영된 fill_dismiss 를 audit 히스토리에 append + RTDB mark.
+        newly_applied_dismiss_keys = set(applied_dismiss_ids.keys()) - prev_dismiss_keys_snapshot
+        if newly_applied_dismiss_keys:
+            hist_dir = _history_dir(state_dir)
+            for dismiss in pending_dismisses:
+                if dismiss.rtdb_key in newly_applied_dismiss_keys:
+                    history.append_fill_dismiss(
+                        {
+                            "rtdb_key": dismiss.rtdb_key,
+                            "asset_id": dismiss.asset_id,
+                            "reason": dismiss.reason,
+                            "input_time_kst": dismiss.input_time_kst,
+                        },
+                        hist_dir,
+                    )
+
+            # RTDB processed 마킹
+            try:
+                rtdb_gateway.mark_fill_dismisses_processed(rtdb_app, list(newly_applied_dismiss_keys))
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB fill_dismisses mark_processed 실패: {exc}") from exc
 
         # 영구 히스토리 저장 — 실패 시 즉시 중단 + 알림 (자동 복구 금지)
         try:

@@ -22,7 +22,7 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
 | 정본 원장             | Git 프라이빗 리포 (앱은 접근하지 않음) |
 | model / actual 분리   | 두 축을 RTDB 에서 별도로 읽고 표시 |
 | PendingOrder          | 단일 슬롯, `execute_on` 없음 (익일 시가 자동 확정) |
-| 스케쥴                | 평일 ET 17:50 cron, 매일 1 회 `/latest/*` 갱신 |
+| 스케쥴                | 평일 ET 17:27 cron, 매일 1 회 `/latest/*` 갱신 |
 
 ### 인프라 정보 (앱 설정에 필요)
 
@@ -43,7 +43,7 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
 
 ```
                       [GitHub Actions cron]
-                       평일 ET 17:50 1회
+                       평일 ET 17:27 1회
                               |
                               v
                       +----------------+
@@ -189,24 +189,30 @@ live 는 매 실행 끝에 FCM + 텔레그램을 동시 발송한다. 두 채널
 
 ```
 [QBT Live] 2026-04-10
+
+시그널: SSO buy, QLD sell
+리밸런싱: 발생
+미입력 체결 리마인더: 1 건
+
 model equity: 12,345,678
 actual equity: 12,300,000
 drift: 0.37%
-시그널: SSO buy, QLD sell
 MA 근접도: SSO +2.45%, QLD -1.05%, GLD +0.80%, TLT -1.20%
-리밸런싱: 발생
-미입력 체결 리마인더: 1 건
 ```
+
+본문은 **강조 블록** (사용자 행동 필요 항목) 과 **일반 블록** (equity / drift / MA) 으로 구성되며, 빈 줄로 구분된다. 강조 블록이 비어있으면 빈 줄과 블록 자체를 생성하지 않는다.
 
 행 구성 규칙:
 
 - 1 행: `[QBT Live] {execution_date}` (prefix 고정)
-- `model equity` / `actual equity`: 천 단위 콤마 정수
-- `drift`: `{drift_pct * 100:.2f}%` (§11 참고)
-- `시그널`: 자산별 `state in ("buy","sell")` 만 `{ASSET_UPPER} {state}` 로 나열. 없으면 라인 생략
-- `MA 근접도`: `{ASSET_UPPER} ±X.XX%` (자산별 `(close - ma_value) / ma_value`)
-- `리밸런싱: 발생`: 리밸런싱 발생 시에만 출력
-- `미입력 체결 리마인더: N 건`: pending fill 미입력 자산이 있을 때만. 상세는 `/latest/pending_orders/{asset_id}` 참고
+- (빈 줄) → 강조 블록 (있을 때만):
+  - `시그널`: 자산별 `state in ("buy","sell")` 만 `{ASSET_UPPER} {state}` 로 나열. 없으면 라인 생략
+  - `리밸런싱: 발생`: 리밸런싱 발생 시에만 출력
+  - `미입력 체결 리마인더: N 건`: fill 입력 또는 스킵(`/fill_dismiss/inbox/`) 전까지 **매일 반복** 표출. §8.2.9 참고
+- (빈 줄) → 일반 블록:
+  - `model equity` / `actual equity`: 천 단위 콤마 정수
+  - `drift`: `{drift_pct * 100:.2f}%` (§11 참고)
+  - `MA 근접도`: `{ASSET_UPPER} ±X.XX%` (자산별 `(close - ma_value) / ma_value`)
 
 ### 6.3 실패 알림 본문 (예시)
 
@@ -254,6 +260,7 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /history/summary/{YYYY-MM-DD}                    ← 일별 요약 (rolling window, 최근 90 일만 유지)
 /fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
+/fill_dismiss/inbox/{uuid}                       ← 앱이 쓰는 체결 리마인더 스킵 queue
 /device_tokens/{device_id}                       ← FCM 토큰
 ```
 
@@ -639,7 +646,41 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 - 2 단계만 있으면: 사용자는 하루 뒤 장마감 후 cron 실행 시점에야 "보정 실패" 알림을 받는다. UX 가 나쁘고, 그동안 다른 보정 입력도 쌓여서 어느 것이 문제인지 추적이 어려워진다.
 - 두 단계 모두 있으면: 1 단계가 UX 즉시 피드백을 담당하고, 2 단계가 안전성과 감사(audit) 를 담당한다. 이 역할 분담은 본 설계서의 핵심 원칙 §1.2 "inbox 패턴" 및 `src/live/CLAUDE.md` 의 "silent skip 금지 + 무조건 알림" 원칙과 일관된다.
 
-#### 8.2.9 `/device_tokens/{device_id}` — FCM 토큰 등록 (앱 → 서버)
+#### 8.2.9 `/fill_dismiss/inbox/{uuid}` — 체결 리마인더 스킵 (앱 → 서버)
+
+**SoT**: `live.rtdb_gateway._dict_to_fill_dismiss`, `live.models.FillDismiss`. 앱이 UUID key 를 생성하여 append, daily runner 가 `processed=false` 만 필터링해 읽는다.
+
+사용자가 시그널에 따른 체결을 입력하지 않기로 결정했을 때 "스킵" 버튼으로 전송한다. live 는 이 레코드를 처리하여 해당 자산의 `unfilled_order_date` 를 `None` 으로 해제하고 리마인더를 중지한다. **잔고(actual 축)는 일체 변경하지 않는다.**
+
+**예시**:
+
+```json
+{
+  "asset_id": "sso",
+  "reason": "수동 스킵",
+  "input_time_kst": "2026-04-15T20:00:00+09:00"
+}
+```
+
+**필드**:
+
+| 필드             | 타입   | 필수 여부 | 설명                                                        |
+| ---------------- | ------ | --------- | ----------------------------------------------------------- |
+| `asset_id`       | str    | 필수      | 리마인더를 해제할 자산 ID. unknown → live 에서 무시 (로그만) |
+| `reason`         | str    | 권장      | 스킵 사유 (audit 로그용)                                    |
+| `input_time_kst` | str    | 권장      | ISO 8601 KST 타임스탬프                                     |
+
+**핵심 제약**:
+
+1. `asset_id` 가 없으면 `ValueError` (fail-fast).
+2. fill_dismiss 는 `actual_shares` / `actual_avg_entry_price` / `shared_cash_actual` 등 **잔고를 일체 변경하지 않는다**. 리마인더 해제 전용.
+3. `balance_adjust` 와 독립: balance_adjust 로 주수를 보정해도 리마인더는 해제되지 않으며, fill_dismiss 로 리마인더를 해제해도 잔고는 변하지 않는다.
+
+**리마인더 지속성**: model 이 pending_order 를 체결한 뒤 fill 이 미도착하면 `AssetLiveState.unfilled_order_date` 가 set 된다. 이 플래그는 **fill 입력 또는 fill_dismiss** 가 도착할 때까지 매일 유지되며, 일일 리포트 알림에 "미입력 체결 리마인더: N 건" 으로 반복 표출된다.
+
+**idempotency**: `rtdb_key` (UUID) 기반. `applied_fill_dismiss_ids.json` 에 기록. 90 일 자동 정리. `processed` 필드 규칙은 §8.3 참고.
+
+#### 8.2.10 `/device_tokens/{device_id}` — FCM 토큰 등록 (앱 → 서버)
 
 **SoT**: `live.rtdb_gateway.read_device_tokens`, `live.rtdb_gateway.remove_invalid_tokens`. 앱이 device_id 를 key 로 등록, daily runner 는 알림 발송 시 읽고 만료 토큰은 자동 삭제.
 
@@ -729,7 +770,7 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
 
 ## 10. 스케쥴링
 
-live 는 평일 ET 17:50 (cron, `timezone: America/New_York`) 에 GitHub Actions 로 자동 실행된다. 앱이 알아야 할 유일한 의미는 "장 마감 후 매일 한 번 `/latest/*` 데이터가 갱신된다" 는 것이다. cron / keepalive / 재시도 정책 등 상세는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
+live 는 평일 ET 17:27 (cron, `timezone: America/New_York`) 에 GitHub Actions 로 자동 실행된다. 앱이 알아야 할 유일한 의미는 "장 마감 후 매일 한 번 `/latest/*` 데이터가 갱신된다" 는 것이다. cron / keepalive / 재시도 정책 등 상세는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
 ---
 

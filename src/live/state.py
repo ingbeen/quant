@@ -58,6 +58,8 @@ __all__ = [
     "save_applied_fill_ids",
     "load_applied_balance_adjust_ids",
     "save_applied_balance_adjust_ids",
+    "load_applied_fill_dismiss_ids",
+    "save_applied_fill_dismiss_ids",
     "cleanup_old_applied_ids",
 ]
 
@@ -139,6 +141,7 @@ def create_initial_state(total_capital: float) -> LiveState:
             signal_state="sell",
             entry_hold_days=0,
             buffer_zone_state=None,
+            unfilled_order_date=None,
         )
 
     return LiveState(
@@ -231,6 +234,7 @@ _ASSET_REQUIRED_FIELDS = (
     "signal_state",
     "entry_hold_days",
     "buffer_zone_state",
+    "unfilled_order_date",
 )
 
 
@@ -299,6 +303,7 @@ def _asset_live_state_from_dict(data: dict[str, Any]) -> AssetLiveState:
         signal_state=signal_state,
         entry_hold_days=int(data["entry_hold_days"]),
         buffer_zone_state=bzs,
+        unfilled_order_date=data["unfilled_order_date"],
     )
 
 
@@ -424,6 +429,16 @@ def save_applied_balance_adjust_ids(ids: dict[str, str], path: Path) -> None:
 def load_applied_balance_adjust_ids(path: Path) -> dict[str, str]:
     """applied_balance_adjust_ids 를 로드한다. 파일이 없으면 빈 dict."""
     return _load_applied_ids(path, "applied_balance_adjust_ids.json")
+
+
+def save_applied_fill_dismiss_ids(ids: dict[str, str], path: Path) -> None:
+    """applied_fill_dismiss_ids 원장을 JSON 으로 저장한다 (atomic)."""
+    _save_applied_ids(ids, path)
+
+
+def load_applied_fill_dismiss_ids(path: Path) -> dict[str, str]:
+    """applied_fill_dismiss_ids 를 로드한다. 파일이 없으면 빈 dict."""
+    return _load_applied_ids(path, "applied_fill_dismiss_ids.json")
 
 
 def cleanup_old_applied_ids(ids: dict[str, str], max_age_days: int = APPLIED_FILL_IDS_MAX_AGE_DAYS) -> dict[str, str]:

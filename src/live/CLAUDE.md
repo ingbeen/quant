@@ -63,6 +63,7 @@ tests/live/                     # live 전용 테스트
 | `daily_runner.py`      | 순수 계산 `run_daily` (파일 I/O 없음, QBT 포트폴리오 엔진 1 일치 호출)              |
 | `drift.py`             | fill 분류 + idempotent 반영 + `compute_drift` 정본                                  |
 | `balance_adjust.py`    | `BalanceAdjust` idempotent 반영 (`run_daily` 내부 fills 직후 호출)                  |
+| (fill_dismiss 처리)    | `FillDismiss` idempotent 반영 (`run_daily` 내부, 리마인더 해제 전용, 잔고 불변)     |
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
 | `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이                              |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
@@ -88,6 +89,7 @@ tests/live/                     # live 전용 테스트
   - unknown `asset_id` 가 포함된 fill / balance_adjust
   - balance_adjust 에서 `new_avg_price` / `new_entry_date` 지정 시 `asset_id` 누락
   - balance_adjust 에서 `actual_shares == 0` 인 자산에 `new_avg_price` / `new_entry_date` 단독 지정
+  - fill_dismiss 에서 `asset_id` 누락
   - 보유량 초과 매도 / 매수 체결로 `shared_cash_actual < 0`
   - `compute_drift` 에 종가 누락 (내부 불변조건 위반)
   - `compute_drift` 에서 `model_equity <= 0` (내부 불변조건 위반)

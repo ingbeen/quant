@@ -260,6 +260,7 @@ class TestWriteReadModel:
             updated_state=state,
             updated_applied_fill_ids={},
             updated_applied_balance_adjust_ids={},
+            updated_applied_fill_dismiss_ids={},
             signals={
                 "sso": SignalDetection(
                     state="buy",
@@ -326,6 +327,7 @@ class TestWriteReadModel:
             updated_state=state,
             updated_applied_fill_ids={},
             updated_applied_balance_adjust_ids={},
+            updated_applied_fill_dismiss_ids={},
             signals={},
             order_intents={},
             executions=None,

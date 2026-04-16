@@ -25,6 +25,7 @@ from typing import Any
 from live.constants import (
     HISTORY_BALANCE_ADJUSTS_FILENAME,
     HISTORY_DAILY_SUBDIR,
+    HISTORY_FILL_DISMISSES_FILENAME,
     HISTORY_SIGNALS_FILENAME,
     HISTORY_SUMMARY_FILENAME,
     HISTORY_USER_TRADES_FILENAME,
@@ -37,6 +38,7 @@ __all__ = [
     "append_user_trade",
     "append_signal_history",
     "append_balance_adjust",
+    "append_fill_dismiss",
     "load_user_trades",
     "load_signal_history",
 ]
@@ -98,6 +100,15 @@ def append_balance_adjust(adjust: dict[str, Any], history_dir: Path) -> None:
     target = history_dir / HISTORY_BALANCE_ADJUSTS_FILENAME
     _ensure_dir(target)
     line = json.dumps(adjust, ensure_ascii=False, default=str)
+    with target.open("a", encoding="utf-8") as fp:
+        fp.write(line + "\n")
+
+
+def append_fill_dismiss(dismiss: dict[str, Any], history_dir: Path) -> None:
+    """체결 스킵 1 줄을 ``history/fill_dismisses.jsonl`` 에 audit 용 append 한다."""
+    target = history_dir / HISTORY_FILL_DISMISSES_FILENAME
+    _ensure_dir(target)
+    line = json.dumps(dismiss, ensure_ascii=False, default=str)
     with target.open("a", encoding="utf-8") as fp:
         fp.write(line + "\n")
 

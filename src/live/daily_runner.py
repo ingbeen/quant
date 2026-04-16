@@ -17,20 +17,21 @@ fill 반영 → 전일 pending 체결 → 당일 equity 계산 → 시그널/리
 from __future__ import annotations
 
 import copy
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 import pandas as pd
 
 from live.balance_adjust import apply_balance_adjusts_idempotent
 from live.buffer_serializer import extract_buffer_state, get_current_bands, restore_buffer_state
-from live.constants import BUY_INTENT_TYPES, SELL_INTENT_TYPES, get_live_portfolio_config
+from live.constants import BUY_INTENT_TYPES, KST_TIMEZONE, SELL_INTENT_TYPES, get_live_portfolio_config
 from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
     ActualFill,
     BalanceAdjust,
     BufferZoneState,
     DailyResult,
+    FillDismiss,
     LiveState,
     MarketBundle,
     OrderIntent,
@@ -246,6 +247,8 @@ def run_daily(
     applied_fill_ids: dict[str, str],
     pending_adjusts: list[BalanceAdjust] | None = None,
     applied_balance_adjust_ids: dict[str, str] | None = None,
+    pending_dismisses: list[FillDismiss] | None = None,
+    applied_fill_dismiss_ids: dict[str, str] | None = None,
 ) -> DailyResult:
     """1 일치 live 실행을 수행한다 (순수 계산, 파일 I/O 없음).
 
@@ -262,6 +265,13 @@ def run_daily(
     5. **balance_adjust 반영 (actual 축 교체, idempotent)** — fills 보다 나중
     6. drift 계산 (compute_drift 를 호출해 완전 DriftReport 생성)
 
+    미입력 체결 리마인더:
+
+    - fill / fill_dismiss 도착 시 ``unfilled_order_date`` 해제
+    - pending_order 가 model 에 의해 체결되었는데 fill 미도착 → ``unfilled_order_date`` set
+    - ``unfilled_order_date is not None`` 인 자산은 매일 리마인더에 포함
+    - balance_adjust 는 리마인더를 해제하지 않음 (관심사 분리)
+
     Args:
         trade_date: 처리 대상 거래일.
         state: 현재 LiveState (전일 실행 결과).
@@ -269,8 +279,12 @@ def run_daily(
         pending_fills: RTDB 에서 읽어온 미처리 fill 목록.
         applied_fill_ids: 기존 적용된 fill rtdb_key → 타임스탬프 맵.
         pending_adjusts: RTDB 에서 읽어온 미처리 balance_adjust 목록.
-            ``None`` 또는 빈 리스트이면 noop. fills 반영 직후 actual 축을 덮어쓴다.
+            ``None`` 또는 빈 리스트이면 noop.
         applied_balance_adjust_ids: 기존 적용된 adjust rtdb_key → 타임스탬프 맵.
+            ``None`` 이면 빈 dict 로 초기화된다.
+        pending_dismisses: RTDB 에서 읽어온 미처리 fill_dismiss 목록.
+            ``None`` 또는 빈 리스트이면 noop.
+        applied_fill_dismiss_ids: 기존 적용된 dismiss rtdb_key → 타임스탬프 맵.
             ``None`` 이면 빈 dict 로 초기화된다.
 
     Returns:
@@ -281,6 +295,10 @@ def run_daily(
         pending_adjusts = []
     if applied_balance_adjust_ids is None:
         applied_balance_adjust_ids = {}
+    if pending_dismisses is None:
+        pending_dismisses = []
+    if applied_fill_dismiss_ids is None:
+        applied_fill_dismiss_ids = {}
 
     # 0. 입력 복사 (원본 불변 유지)
     working_state = copy.deepcopy(state)
@@ -299,15 +317,36 @@ def run_daily(
     strategies = _create_strategies(slot_dict)
     _restore_buffer_strategies(strategies, working_state)
 
-    # 3. 미입력 체결 리마인더
-    #    pending_order 가 있는 자산 중 이번 실행에서 fill 이 들어오지 않은
-    #    자산을 검출. 일부 자산만 체결된 경우에도 나머지 미체결 자산은 모두
-    #    리마인더로 표시되어야 한다.
+    # 2.5 fill_dismiss 처리 (idempotent, 잔고 불변 — 리마인더 해제만)
+    working_applied_dismiss_ids = dict(applied_fill_dismiss_ids)
+    now_iso = datetime.now(KST_TIMEZONE).replace(microsecond=0).isoformat()
+    for dismiss in pending_dismisses:
+        if dismiss.rtdb_key in working_applied_dismiss_ids:
+            continue
+        asset = working_state.assets.get(dismiss.asset_id)
+        if asset is not None:
+            asset.unfilled_order_date = None
+        working_applied_dismiss_ids[dismiss.rtdb_key] = now_iso
+
+    # 3. 미입력 체결 리마인더 (unfilled_order_date 기반, 매일 반복)
+    #    (a) fill 도착한 자산 → unfilled_order_date 해제
+    #    (b) pending_order 가 있는데 fill/dismiss 미도착 → unfilled_order_date set (신규)
+    #    (c) unfilled_order_date 가 이미 set 이고 fill/dismiss 미도착 → 유지 (반복)
     incoming_fill_asset_ids = {fill.asset_id for fill in pending_fills}
+    incoming_dismiss_asset_ids = {d.asset_id for d in pending_dismisses if d.rtdb_key not in applied_fill_dismiss_ids}
+    cleared_asset_ids = incoming_fill_asset_ids | incoming_dismiss_asset_ids
+
+    for asset_id, asset in working_state.assets.items():
+        if asset_id in cleared_asset_ids:
+            # (a) fill 또는 dismiss 도착 → 리마인더 해제
+            asset.unfilled_order_date = None
+        elif asset.pending_order is not None and asset_id not in cleared_asset_ids:
+            # (b) 신규 감지: model 이 곧 체결할 pending 이 있는데 fill 미도착
+            asset.unfilled_order_date = trade_date.isoformat()
+
+    # (c) 이미 set 된 unfilled_order_date 는 그대로 유지됨 (별도 코드 불필요)
     pending_fill_reminders: list[str] = [
-        asset_id
-        for asset_id, asset in working_state.assets.items()
-        if asset.pending_order is not None and asset_id not in incoming_fill_asset_ids
+        asset_id for asset_id, asset in working_state.assets.items() if asset.unfilled_order_date is not None
     ]
 
     # 4. trade_df 날짜 집합 동일성 검증 + 인덱스 결정
@@ -457,6 +496,7 @@ def run_daily(
         updated_state=working_state,
         updated_applied_fill_ids=working_applied_ids,
         updated_applied_balance_adjust_ids=working_applied_adjust_ids,
+        updated_applied_fill_dismiss_ids=working_applied_dismiss_ids,
         signals=signals_map,
         order_intents=merged_intents,
         executions=executions,

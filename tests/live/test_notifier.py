@@ -37,6 +37,7 @@ def _make_daily_result() -> DailyResult:
         updated_state=state,
         updated_applied_fill_ids={},
         updated_applied_balance_adjust_ids={},
+        updated_applied_fill_dismiss_ids={},
         signals={
             "sso": SignalDetection(
                 state="buy",
@@ -259,10 +260,10 @@ class TestDailyBodyLayout:
         body = patched_telegram_success["body"]
         lines = body.splitlines()
 
-        signal_idx = next(i for i, l in enumerate(lines) if "시그널" in l)
-        rebalance_idx = next(i for i, l in enumerate(lines) if "리밸런싱" in l)
-        reminder_idx = next(i for i, l in enumerate(lines) if "미입력 체결 리마인더" in l)
-        equity_idx = next(i for i, l in enumerate(lines) if "model equity" in l)
+        signal_idx = next(i for i, line in enumerate(lines) if "시그널" in line)
+        rebalance_idx = next(i for i, line in enumerate(lines) if "리밸런싱" in line)
+        reminder_idx = next(i for i, line in enumerate(lines) if "미입력 체결 리마인더" in line)
+        equity_idx = next(i for i, line in enumerate(lines) if "model equity" in line)
 
         assert signal_idx < equity_idx
         assert rebalance_idx < equity_idx
@@ -277,10 +278,10 @@ class TestDailyBodyLayout:
         body = patched_telegram_success["body"]
         lines = body.splitlines()
 
-        reminder_idx = next(i for i, l in enumerate(lines) if "미입력 체결 리마인더" in l)
-        equity_idx = next(i for i, l in enumerate(lines) if "model equity" in l)
+        equity_idx = next(i for i, line in enumerate(lines) if "model equity" in line)
 
         # 강조 블록 마지막과 equity 사이에 빈 줄
+        assert equity_idx >= 2  # 제목 + 빈 줄 + 강조 항목 + 빈 줄 이후
         assert lines[equity_idx - 1].strip() == ""
 
     def test_no_extra_blank_line_when_no_highlights(self, patched_fcm_success, patched_telegram_success):

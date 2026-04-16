@@ -26,7 +26,7 @@ from typing import Any, Literal, cast
 import firebase_admin
 from firebase_admin import credentials, db
 
-from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, LiveState
+from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, FillDismiss, LiveState
 from qbt.backtest.constants import ROUND_RATIO
 from qbt.utils.logger import get_logger
 
@@ -43,6 +43,8 @@ __all__ = [
     "mark_fills_processed",
     "fetch_pending_balance_adjusts",
     "mark_balance_adjusts_processed",
+    "fetch_pending_fill_dismisses",
+    "mark_fill_dismisses_processed",
     "write_read_model",
     "write_chart_meta",
     "write_chart_recent",
@@ -55,6 +57,7 @@ __all__ = [
 _LATEST_PATH = "/latest"
 _FILLS_INBOX_PATH = "/fills/inbox"
 _BALANCE_ADJUST_INBOX_PATH = "/balance_adjust/inbox"
+_FILL_DISMISS_INBOX_PATH = "/fill_dismiss/inbox"
 _DEVICE_TOKENS_PATH = "/device_tokens"
 _HISTORY_SUMMARY_PATH = "/history/summary"
 _CHART_DATA_PATH = "/latest/chart_data"
@@ -227,6 +230,60 @@ def mark_balance_adjusts_processed(app: FirebaseAppLike, keys: list[str]) -> Non
     """주어진 balance_adjust ID 들을 ``processed=true`` 로 마킹한다."""
     for key in keys:
         ref = _db_reference(app, f"{_BALANCE_ADJUST_INBOX_PATH}/{key}")
+        ref.update({"processed": True})
+
+
+# ============================================================================
+# fill_dismiss RTDB 경로
+# ============================================================================
+
+
+def _dict_to_fill_dismiss(data: dict[str, Any], rtdb_key: str) -> FillDismiss:
+    """RTDB ``/fill_dismiss/inbox/{uuid}`` dict → :class:`FillDismiss`.
+
+    Raises:
+        ValueError: ``asset_id`` 가 없거나 null 일 때.
+    """
+    asset_id = data.get("asset_id")
+    if asset_id is None:
+        raise ValueError(f"fill_dismiss 에 asset_id 필수 (rtdb_key={rtdb_key!r})")
+    return FillDismiss(
+        rtdb_key=rtdb_key,
+        input_time_kst=str(data.get("input_time_kst", "")),
+        asset_id=str(asset_id),
+        reason=str(data.get("reason", "")),
+    )
+
+
+def fetch_pending_fill_dismisses(app: FirebaseAppLike) -> list[FillDismiss]:
+    """RTDB ``/fill_dismiss/inbox`` 에서 ``processed=false`` 인 항목만 가져온다.
+
+    Args:
+        app: ``firebase_admin.App`` 인스턴스 (mock 가능).
+
+    Returns:
+        :class:`FillDismiss` 리스트. queue 가 비어있거나 존재하지 않으면 빈 리스트.
+    """
+    ref = _db_reference(app, _FILL_DISMISS_INBOX_PATH)
+    raw = ref.get() or {}
+
+    if not isinstance(raw, dict):
+        return []
+
+    dismisses: list[FillDismiss] = []
+    for rtdb_key, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        if data.get("processed", False):
+            continue
+        dismisses.append(_dict_to_fill_dismiss(data, rtdb_key))
+    return dismisses
+
+
+def mark_fill_dismisses_processed(app: FirebaseAppLike, keys: list[str]) -> None:
+    """주어진 fill_dismiss ID 들을 ``processed=true`` 로 마킹한다."""
+    for key in keys:
+        ref = _db_reference(app, f"{_FILL_DISMISS_INBOX_PATH}/{key}")
         ref.update({"processed": True})
 
 

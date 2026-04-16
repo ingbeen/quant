@@ -99,6 +99,9 @@ HISTORY_SIGNALS_FILENAME: Final[str] = "signals.jsonl"
 # 자산 직접 보정(balance_adjust) audit append-only 파일.
 HISTORY_BALANCE_ADJUSTS_FILENAME: Final[str] = "balance_adjusts.jsonl"
 
+# 체결 스킵(fill_dismiss) audit append-only 파일.
+HISTORY_FILL_DISMISSES_FILENAME: Final[str] = "fill_dismisses.jsonl"
+
 
 # ============================================================================
 # 출력 정밀도

@@ -38,6 +38,7 @@ __all__ = [
     "LiveState",
     "ActualFill",
     "BalanceAdjust",
+    "FillDismiss",
     "SignalDetection",
     "ChartMeta",
     "ChartSeries",
@@ -143,6 +144,9 @@ class AssetLiveState:
     entry_hold_days: int
     buffer_zone_state: BufferZoneState | None
 
+    # --- 미입력 체결 추적 ---
+    unfilled_order_date: str | None = None  # ISO 8601 날짜. model 체결 후 fill 미도착 시 set, fill/dismiss 시 clear
+
 
 # ============================================================================
 # LiveState — 전체 포트폴리오 상태
@@ -244,6 +248,35 @@ class BalanceAdjust:
     new_avg_price: float | None = None
     new_entry_date: str | None = None  # ISO 8601 날짜
     new_cash: float | None = None
+
+
+# ============================================================================
+# FillDismiss — 앱에서 체결 리마인더를 명시적으로 스킵
+# ============================================================================
+
+
+@dataclass
+class FillDismiss:
+    """앱이 RTDB ``/fill_dismiss/inbox/`` 에 기록한 체결 스킵 레코드.
+
+    사용자가 시그널에 따른 체결을 입력하지 않기로 결정했을 때 "스킵" 버튼으로
+    전송한다. live 는 이 레코드를 처리하여 해당 자산의 ``unfilled_order_date`` 를
+    ``None`` 으로 해제하고 리마인더를 중지한다. **잔고는 일체 변경하지 않는다.**
+
+    :class:`ActualFill` / :class:`BalanceAdjust` 와의 차이:
+
+    - fill: 실제 체결 이벤트 — actual 축 가감
+    - balance_adjust: 잔고 직접 교체 — actual 축 덮어쓰기
+    - fill_dismiss: 리마인더 해제 전용 — actual 축 불변
+
+    idempotency: ``rtdb_key`` 는 ``applied_fill_dismiss_ids.json`` 에 저장되어
+    중복 반영을 방지한다.
+    """
+
+    rtdb_key: str
+    input_time_kst: str  # ISO 8601 KST
+    asset_id: str
+    reason: str = ""
 
 
 # ============================================================================
@@ -370,6 +403,7 @@ class DailyResult:
     updated_state: LiveState
     updated_applied_fill_ids: dict[str, str]  # fill rtdb_key → ISO 8601 KST 타임스탬프
     updated_applied_balance_adjust_ids: dict[str, str]  # balance_adjust rtdb_key → ISO 타임스탬프
+    updated_applied_fill_dismiss_ids: dict[str, str]  # fill_dismiss rtdb_key → ISO 타임스탬프
     signals: dict[str, SignalDetection]
     order_intents: dict[str, OrderIntent]
     executions: ExecutionResult | None

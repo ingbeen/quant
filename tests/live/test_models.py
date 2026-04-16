@@ -88,6 +88,11 @@ class TestAssetLiveState:
         field_names = {f.name for f in fields(AssetLiveState)}
         assert "pending_order" in field_names
         assert "buffer_zone_state" in field_names
+
+    def test_has_unfilled_order_date(self):
+        """Given AssetLiveState Then unfilled_order_date 필드 존재."""
+        field_names = {f.name for f in fields(AssetLiveState)}
+        assert "unfilled_order_date" in field_names
         assert "signal_state" in field_names
         assert "entry_hold_days" in field_names
         assert "asset_id" in field_names
@@ -265,6 +270,22 @@ class TestBalanceAdjust:
         assert adj.new_cash == 95000000.0
 
 
+class TestFillDismiss:
+    """FillDismiss 필드 계약 고정."""
+
+    def test_is_dataclass(self):
+        from live.models import FillDismiss
+
+        assert is_dataclass(FillDismiss)
+
+    def test_fields(self):
+        from live.models import FillDismiss
+
+        expected = {"rtdb_key", "input_time_kst", "asset_id", "reason"}
+        actual = {f.name for f in fields(FillDismiss)}
+        assert expected == actual
+
+
 class TestDailyResult:
     def test_is_dataclass(self):
         assert is_dataclass(DailyResult)
@@ -279,6 +300,7 @@ class TestDailyResult:
             "updated_state",
             "updated_applied_fill_ids",
             "updated_applied_balance_adjust_ids",
+            "updated_applied_fill_dismiss_ids",
             "signals",
             "order_intents",
             "executions",

@@ -52,8 +52,10 @@ def _mock_rtdb_for_cli(monkeypatch: pytest.MonkeyPatch) -> _FakeRtdbApp:
     monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
+    monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
+    monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda app, sd, st, r, nk: None)
     monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
     return fake_app
@@ -253,6 +255,10 @@ class TestCmdRunDailySuccess:
 
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
 
         publish_calls: list[bool] = []
 
@@ -1075,6 +1081,8 @@ class TestRunDailyValidatorIntegration:
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [new_fill])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1124,6 +1132,8 @@ class TestRunDailyValidatorIntegration:
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [existing_fill])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1212,6 +1222,7 @@ class TestRunDailyValidatorIntegration:
             new_cash=None,
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [adjust])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
 
         mark_calls: list[list[str]] = []
         monkeypatch.setattr(
@@ -1219,6 +1230,7 @@ class TestRunDailyValidatorIntegration:
             "mark_balance_adjusts_processed",
             lambda app, keys: mark_calls.append(list(keys)),
         )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1282,12 +1294,14 @@ class TestRunDailyValidatorIntegration:
             new_cash=None,
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [existing_adjust])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
         mark_calls: list[list[str]] = []
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
             "mark_balance_adjusts_processed",
             lambda app, keys: mark_calls.append(list(keys)),
         )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 

@@ -246,7 +246,8 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
         "last_buy_buffer_pct": 0.03,
         "last_hold_days_used": 3,
         "schema_version": 1
-      }
+      },
+      "unfilled_order_date": null
     },
     "qld": {
       "asset_id": "qld",
@@ -266,7 +267,8 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
         "last_buy_buffer_pct": 0.03,
         "last_hold_days_used": 0,
         "schema_version": 1
-      }
+      },
+      "unfilled_order_date": null
     },
     "gld": {
       "asset_id": "gld",
@@ -279,7 +281,8 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "pending_order": null,
       "signal_state": "buy",
       "entry_hold_days": 0,
-      "buffer_zone_state": null
+      "buffer_zone_state": null,
+      "unfilled_order_date": null
     },
     "tlt": {
       "asset_id": "tlt",
@@ -292,7 +295,8 @@ _HANDCRAFTED_LIVE_STATE_JSON = """
       "pending_order": null,
       "signal_state": "sell",
       "entry_hold_days": 0,
-      "buffer_zone_state": null
+      "buffer_zone_state": null,
+      "unfilled_order_date": null
     }
   },
   "created_at": "2025-12-01T09:00:00+09:00",
