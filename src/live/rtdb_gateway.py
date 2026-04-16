@@ -166,18 +166,32 @@ def _dict_to_balance_adjust(data: dict[str, Any], rtdb_key: str) -> BalanceAdjus
     """RTDB ``/balance_adjust/inbox/{uuid}`` dict → :class:`BalanceAdjust`.
 
     Raises:
-        ValueError: ``new_shares`` 와 ``new_cash`` 값이 둘 다 없거나 둘 다 null 일 때.
+        ValueError: ``new_shares`` / ``new_avg_price`` / ``new_entry_date`` /
+            ``new_cash`` 네 필드가 모두 없거나 모두 null 일 때 (빈 보정 레코드는
+            무효).
     """
     new_shares_raw = data.get("new_shares")
+    new_avg_price_raw = data.get("new_avg_price")
+    new_entry_date_raw = data.get("new_entry_date")
     new_cash_raw = data.get("new_cash")
-    if new_shares_raw is None and new_cash_raw is None:
-        raise ValueError(f"balance_adjust 에 유효한 new_shares / new_cash 값이 없음 (rtdb_key={rtdb_key!r})")
+
+    # 빈 문자열 진입일은 None 취급 (UI 에서 미입력 시 빈 문자열이 들어올 수 있음)
+    if isinstance(new_entry_date_raw, str) and new_entry_date_raw.strip() == "":
+        new_entry_date_raw = None
+
+    if new_shares_raw is None and new_avg_price_raw is None and new_entry_date_raw is None and new_cash_raw is None:
+        raise ValueError(
+            f"balance_adjust 에 유효한 new_shares / new_avg_price / new_entry_date / new_cash 값이 없음 "
+            f"(rtdb_key={rtdb_key!r})"
+        )
     return BalanceAdjust(
         rtdb_key=rtdb_key,
         input_time_kst=str(data.get("input_time_kst", "")),
         reason=str(data.get("reason", "")),
         asset_id=data.get("asset_id"),
         new_shares=int(new_shares_raw) if new_shares_raw is not None else None,
+        new_avg_price=float(new_avg_price_raw) if new_avg_price_raw is not None else None,
+        new_entry_date=str(new_entry_date_raw) if new_entry_date_raw is not None else None,
         new_cash=float(new_cash_raw) if new_cash_raw is not None else None,
     )
 

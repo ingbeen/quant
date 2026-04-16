@@ -204,15 +204,33 @@ class BalanceAdjust:
 
     :class:`ActualFill` 과 다른 점: fill 은 "buy/sell 이벤트" 인 반면 balance_adjust
     는 "현재 잔고를 이 값으로 덮어쓰기" 라는 의미. 사용자가 오프라인에서 여러 거래를
-    했거나 세금/배당 등으로 인한 잔고 조정을 입력할 때 사용한다.
+    했거나 세금/배당 등으로 인한 잔고 조정, 평균가 / 진입일 재입력이 필요할 때 사용한다.
+
+    **actual 축 전용**: balance_adjust 는 ``actual_*`` / ``shared_cash_actual`` 만
+    건드리며 ``model_*`` / ``shared_cash_model`` 은 절대 변경하지 않는다
+    (model/actual 분리 원칙, :mod:`src/live/CLAUDE.md` §핵심원칙 2 참고).
 
     필드 규칙:
 
-    - ``asset_id`` 와 ``new_shares`` 가 모두 set 이면 해당 자산의 ``actual_shares``
-      를 ``new_shares`` 로 교체.
-    - ``new_cash`` 가 set 이면 ``shared_cash_actual`` 을 ``new_cash`` 로 교체.
-    - 둘 다 set 된 경우 (자산 + cash 동시 보정) 한 번에 적용.
-    - 둘 다 ``None`` 이면 무효 (validation 에서 걸러짐).
+    - ``asset_id`` + ``new_shares`` 지정 시 해당 자산의 ``actual_shares`` 를 교체.
+      ``new_shares == 0`` 이면 ``actual_avg_entry_price`` / ``actual_entry_date``
+      도 함께 리셋된다 (포지션 없음 규칙).
+    - ``asset_id`` + ``new_avg_price`` 지정 시 ``actual_avg_entry_price`` 교체.
+      ``new_shares > 0`` 과 동시 지정 시 두 필드 모두 갱신된다. 단독 지정도 가능.
+    - ``asset_id`` + ``new_entry_date`` 지정 시 ``actual_entry_date`` 교체.
+      ``new_shares > 0`` 과 동시 지정 시 두 필드 모두 갱신된다. 단독 지정도 가능.
+    - ``new_cash`` 지정 시 ``shared_cash_actual`` 을 교체.
+    - 여러 필드를 동시에 지정하면 한 번에 적용된다.
+    - 네 필드가 모두 ``None`` 이면 무효 (validation 에서 걸러짐).
+
+    제약 (fail-fast ValueError):
+
+    - ``new_avg_price`` / ``new_entry_date`` 지정 시 ``asset_id`` 는 필수이다
+      (어느 자산의 값을 바꿀지 특정할 수 없으므로).
+    - 현재 ``actual_shares == 0`` 인 자산에 ``new_avg_price`` / ``new_entry_date``
+      단독 지정은 불가하다 (포지션 없이 평균가 / 진입일만 있는 것은 논리적 오류).
+    - ``new_shares=0`` 리셋 규칙은 ``new_avg_price`` / ``new_entry_date`` 보다 우선
+      (포지션이 없는데 평균가 / 진입일이 남는 것은 논리적 오류).
 
     idempotency: ``rtdb_key`` 는 ``applied_balance_adjust_ids.json`` 에 저장되어
     중복 반영을 방지한다.
@@ -223,6 +241,8 @@ class BalanceAdjust:
     reason: str
     asset_id: str | None = None
     new_shares: int | None = None
+    new_avg_price: float | None = None
+    new_entry_date: str | None = None  # ISO 8601 날짜
     new_cash: float | None = None
 
 

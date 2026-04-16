@@ -234,6 +234,8 @@ class TestBalanceAdjust:
             "reason",
             "asset_id",
             "new_shares",
+            "new_avg_price",
+            "new_entry_date",
             "new_cash",
         }
         actual = {f.name for f in fields(BalanceAdjust)}

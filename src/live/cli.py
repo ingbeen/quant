@@ -508,6 +508,8 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                             "rtdb_key": adjust.rtdb_key,
                             "asset_id": adjust.asset_id,
                             "new_shares": adjust.new_shares,
+                            "new_avg_price": adjust.new_avg_price,
+                            "new_entry_date": adjust.new_entry_date,
                             "new_cash": adjust.new_cash,
                             "reason": adjust.reason,
                             "input_time_kst": adjust.input_time_kst,

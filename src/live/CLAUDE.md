@@ -86,6 +86,8 @@ tests/live/                     # live 전용 테스트
 - 다음 조건은 silent skip 대신 즉시 실패 (`ValueError` / `RuntimeError`) 로 처리하고
   공통 알림 훅이 사용자에게 통보한다:
   - unknown `asset_id` 가 포함된 fill / balance_adjust
+  - balance_adjust 에서 `new_avg_price` / `new_entry_date` 지정 시 `asset_id` 누락
+  - balance_adjust 에서 `actual_shares == 0` 인 자산에 `new_avg_price` / `new_entry_date` 단독 지정
   - 보유량 초과 매도 / 매수 체결로 `shared_cash_actual < 0`
   - `compute_drift` 에 종가 누락 (내부 불변조건 위반)
   - `compute_drift` 에서 `model_equity <= 0` (내부 불변조건 위반)
@@ -119,6 +121,11 @@ tests/live/                     # live 전용 테스트
 - model 체결은 actual 을 덮어쓰지 않는다.
 - actual 은 RTDB 로 들어오는 체결 입력(`fills/inbox/`) 또는 직접 보정
   (`balance_adjust/inbox/`) 으로만 갱신된다.
+- `balance_adjust` 는 **`actual_*` / `shared_cash_actual` 만** 건드린다.
+  `new_shares` / `new_avg_price` / `new_entry_date` / `new_cash` 네 필드를 통해
+  각각 `actual_shares` / `actual_avg_entry_price` / `actual_entry_date` /
+  `shared_cash_actual` 을 교체하며, `model_*` 축은 절대 변경하지 않는다.
+  상세 계약은 [설계서 §8.2.8](../../docs/DESIGN_QBT_LIVE_FINAL.md) 참고.
 - drift 계산은 `drift.compute_drift` 가 유일 정본이며, 임계값은
   `DRIFT_WARNING_RATIO` / `DRIFT_CORRECTION_RATIO` 를 따른다.
 - `AssetLiveState.signal_state` 는 QBT 와 동일한 `Literal["buy", "sell"]` 2 값.

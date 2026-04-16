@@ -675,24 +675,64 @@ class TestHelpers:
         with pytest.raises(ValueError, match="fill 필수 필드 누락"):
             _dict_to_actual_fill(incomplete, rtdb_key="fill_bad")
 
-    def test_dict_to_balance_adjust_no_shares_no_cash_raises(self):
-        """Given adjust dict 에 new_shares/new_cash 둘 다 없음 When 변환 Then ValueError."""
+    def test_dict_to_balance_adjust_no_fields_raises(self):
+        """Given adjust dict 에 4 개 보정 필드 모두 없음 When 변환 Then ValueError."""
         from live.rtdb_gateway import _dict_to_balance_adjust
 
         empty_adjust = {"reason": "test"}
-        with pytest.raises(ValueError, match="유효한 new_shares / new_cash 값이 없음"):
+        with pytest.raises(ValueError, match="유효한"):
             _dict_to_balance_adjust(empty_adjust, rtdb_key="adj_bad")
 
     def test_dict_to_balance_adjust_null_values_raises(self):
-        """Given adjust dict 에 new_shares/new_cash 키는 있지만 값이 null When 변환 Then ValueError.
+        """Given adjust dict 에 모든 보정 필드 키는 있지만 값이 null When 변환 Then ValueError.
 
         키가 존재하더라도 값이 null 이면 무효한 adjust 이므로 즉시 실패해야 한다.
         """
         from live.rtdb_gateway import _dict_to_balance_adjust
 
-        null_adjust = {"new_shares": None, "new_cash": None, "reason": "test"}
-        with pytest.raises(ValueError, match="유효한 new_shares / new_cash 값이 없음"):
+        null_adjust = {
+            "new_shares": None,
+            "new_avg_price": None,
+            "new_entry_date": None,
+            "new_cash": None,
+            "reason": "test",
+        }
+        with pytest.raises(ValueError, match="유효한"):
             _dict_to_balance_adjust(null_adjust, rtdb_key="adj_null")
+
+    def test_dict_to_balance_adjust_new_avg_price_parsed(self):
+        """Given adjust dict 에 new_avg_price 지정 When 변환 Then float 으로 파싱된다."""
+        from live.rtdb_gateway import _dict_to_balance_adjust
+
+        raw = {
+            "asset_id": "sso",
+            "new_avg_price": 85.0,
+            "reason": "평균가 재입력",
+            "input_time_kst": "2026-04-10T20:00:00+09:00",
+        }
+        adjust = _dict_to_balance_adjust(raw, rtdb_key="adj_avg")
+
+        assert adjust.new_avg_price == pytest.approx(85.0)
+        assert adjust.new_shares is None
+        assert adjust.new_entry_date is None
+        assert adjust.new_cash is None
+        assert adjust.asset_id == "sso"
+
+    def test_dict_to_balance_adjust_new_entry_date_parsed(self):
+        """Given adjust dict 에 new_entry_date 지정 When 변환 Then str 로 파싱된다."""
+        from live.rtdb_gateway import _dict_to_balance_adjust
+
+        raw = {
+            "asset_id": "sso",
+            "new_entry_date": "2026-04-01",
+            "reason": "진입일 재입력",
+            "input_time_kst": "2026-04-10T20:00:00+09:00",
+        }
+        adjust = _dict_to_balance_adjust(raw, rtdb_key="adj_date")
+
+        assert adjust.new_entry_date == "2026-04-01"
+        assert adjust.new_shares is None
+        assert adjust.new_avg_price is None
 
     def test_dict_to_actual_fill_invalid_direction_raises(self):
         """Given fill 의 direction 이 buy/sell 외 값 When 변환 Then ValueError.

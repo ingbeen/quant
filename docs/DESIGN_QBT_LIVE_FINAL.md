@@ -530,6 +530,8 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 **SoT**: `live.rtdb_gateway._dict_to_balance_adjust`, `live.models.BalanceAdjust`, `live.balance_adjust.apply_balance_adjusts_idempotent`. 앱이 UUID key 를 생성하여 append, daily runner 가 `processed=false` 만 필터링해 읽는다.
 
+**actual 축 전용**: balance_adjust 는 `AssetLiveState.actual_*` / `shared_cash_actual` 만 건드리며 `model_*` / `shared_cash_model` 은 절대 변경하지 않는다 (§1.2 "model / actual 분리" 원칙).
+
 **예시 1** — 자산 + 현금 동시 보정:
 
 ```json
@@ -563,24 +565,79 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
+**예시 4** — 평균가만 직접 보정 (주수는 유지):
+
+```json
+{
+  "asset_id": "sso",
+  "new_avg_price": 82.55,
+  "reason": "평균가 재입력",
+  "input_time_kst": "2026-04-10T15:30:22+09:00"
+}
+```
+
+**예시 5** — 주수 + 평균가 + 진입일 동시 보정 (포지션 재집계):
+
+```json
+{
+  "asset_id": "sso",
+  "new_shares": 500,
+  "new_avg_price": 82.55,
+  "new_entry_date": "2026-04-01",
+  "reason": "오프라인 거래 재집계",
+  "input_time_kst": "2026-04-10T15:30:22+09:00"
+}
+```
+
 **필드**:
 
 | 필드             | 타입            | 필수 여부    | 설명                                                                                 |
 | ---------------- | --------------- | ------------ | ------------------------------------------------------------------------------------ |
-| `asset_id`       | str \| null     | 조건부       | 자산 shares 를 보정할 때 필수. 현금만 보정하면 null / 생략 가능. unknown → `ValueError` |
-| `new_shares`     | int \| null     | 조건부       | 자산 shares 교체값. `asset_id` 와 짝으로 지정. `0` 이면 평균가 / entry_date 리셋      |
+| `asset_id`       | str \| null     | 조건부       | 자산 축 보정 시 필수 (`new_shares` / `new_avg_price` / `new_entry_date` 중 하나라도 지정 시). 현금만 보정하면 null / 생략 가능. unknown → `ValueError` |
+| `new_shares`     | int \| null     | 조건부       | 자산 shares 교체값. `0` 이면 평균가 / entry_date 리셋 (평균가 / 진입일 보정보다 우선) |
+| `new_avg_price`  | number \| null  | 조건부       | `actual_avg_entry_price` 교체값. `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨 |
+| `new_entry_date` | str \| null     | 조건부       | `actual_entry_date` 교체값 (ISO 8601 날짜 `YYYY-MM-DD`). `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨 |
 | `new_cash`       | number \| null  | 조건부       | `shared_cash_actual` 교체값                                                           |
 | `reason`         | str             | 권장         | 보정 사유 (audit 로그용)                                                              |
 | `input_time_kst` | str             | 권장         | ISO 8601 KST 타임스탬프                                                               |
 
-**핵심 제약** (앱이 반드시 지켜야 할 조건):
+**핵심 제약** (live daily runner 가 검증하며, 위반 시 즉시 `ValueError` fail-fast):
 
-1. **`new_shares` 와 `new_cash` 가 둘 다 null 이면 `ValueError("balance_adjust 에 유효한 new_shares / new_cash 값이 없음")`** — 앱은 빈 adjust 를 절대 전송하지 말 것.
-2. `asset_id + new_shares` 지정 시 `asset_id` 가 live 포트폴리오에 존재해야 한다 (unknown → `ValueError`).
-3. `new_shares > 0` 시 기존 `actual_avg_entry_price` / `actual_entry_date` 는 **유지** 된다. 앱 UI 에서 "평균가도 변경하려면 어떻게?" 라는 질문이 나오면 답: 현재 경로에서는 불가능. 체결을 여러 건의 fill 로 쪼개 입력해야 한다.
-4. `balance_adjust` 는 차트 마커 대상이 **아니다** (교체 이벤트이므로 과거 시점에 표시되지 않는다).
+1. **`new_shares` / `new_avg_price` / `new_entry_date` / `new_cash` 네 필드 모두 null 이면 `ValueError("balance_adjust 에 유효한 new_shares / new_avg_price / new_entry_date / new_cash 값이 없음")`** — 앱은 빈 adjust 를 절대 전송하지 말 것.
+2. 자산 축 보정 (`new_shares` / `new_avg_price` / `new_entry_date` 중 하나라도 지정) 시 `asset_id` 가 live 포트폴리오에 존재해야 한다 (unknown → `ValueError`).
+3. `new_avg_price` / `new_entry_date` 지정 시 `asset_id` 는 필수 (`None` 이면 `ValueError`). 어느 자산의 값을 바꿀지 특정할 수 없기 때문.
+4. 현재 `actual_shares == 0` 인 자산에 `new_avg_price` / `new_entry_date` 를 **단독** 지정하면 `ValueError("보유 주수가 0 인 자산의 평균가 / 진입일을 설정할 수 없음")`. 포지션이 없는데 평균가 / 진입일이 있는 것은 논리적 오류이기 때문.
+5. `new_shares=0` 리셋 규칙은 `new_avg_price` / `new_entry_date` 보다 우선 — `new_shares=0` + `new_avg_price` 동시 지정 시 평균가 / 진입일은 무시되고 0.0 / None 으로 리셋된다.
+6. `new_shares > 0` + `new_avg_price` / `new_entry_date` 동시 지정 시 해당 필드가 함께 갱신된다. 동시 지정하지 않으면 기존 값이 유지된다.
+7. `balance_adjust` 는 차트 마커 대상이 **아니다** (교체 이벤트이므로 과거 시점에 표시되지 않는다).
 
 **idempotency**: `rtdb_key` (UUID) 기반. `applied_balance_adjust_ids.json` 에 기록. 90 일 자동 정리. `processed` 필드 규칙은 §8.3 참고.
+
+##### 8.2.8.1 입력 검증 역할 분담 (앱 ↔ live)
+
+balance_adjust 의 입력 유효성 검사는 **2 단계** 로 이루어진다. 앱과 live 가 각기 다른 목적의 검증을 담당한다.
+
+**1 단계 — 앱 (Android) 클라이언트 측 즉시 검증 (UX 목적)**
+
+앱 UI 에서 사용자가 "잔고 보정" 입력 버튼을 누르는 순간 클라이언트 측에서 즉시 검증하고, 실패 시 사용자에게 인라인 피드백을 표시한다. **잘못된 데이터가 애초에 RTDB `/balance_adjust/inbox/` 에 도달하지 않도록 차단** 하는 것이 목적이다.
+
+앱이 강제해야 할 규칙:
+
+- `new_shares` / `new_avg_price` / `new_entry_date` / `new_cash` 중 적어도 하나는 값이 있어야 한다 (저장 버튼 비활성화).
+- `new_avg_price` / `new_entry_date` 가 입력되면 자산 선택 (`asset_id`) 필수 (드롭다운 필수 선택).
+- 선택한 자산의 현재 `actual_shares == 0` 이면 `new_avg_price` / `new_entry_date` 단독 입력 버튼 비활성화 ("포지션 없음" 안내).
+- `new_entry_date` 는 ISO 8601 날짜 (`YYYY-MM-DD`) 형식 (date picker 로 입력 강제).
+- `new_shares=0` 선택 시 "평균가 / 진입일은 함께 리셋됩니다" 안내 표시.
+
+**2 단계 — live `daily_runner` 측 최후 방어선 (안전성 목적)**
+
+GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/inbox/` 를 읽어 반영하기 직전에 `live.rtdb_gateway._dict_to_balance_adjust` + `live.balance_adjust._apply_single_adjust` 두 지점에서 계약을 재검증한다. 위반 시 silent skip 대신 즉시 `ValueError` 를 발생시키고, `cli.py` 의 `main()` 공통 예외 훅이 FCM + 텔레그램으로 실패 알림을 발송한다. **앱 검증이 우회되었거나(구버전 앱 / 조작된 요청 / 앱 버그) 앱 로직에 허점이 있을 경우의 마지막 안전 장치** 역할이다.
+
+**왜 두 단계가 모두 필요한가**:
+
+- 1 단계만 있으면: 앱 버그 / 구버전 앱 / 수동 RTDB 조작 등으로 잘못된 데이터가 서버에 도달할 수 있다. live 가 이를 무심코 처리하면 actual 상태가 깨진다.
+- 2 단계만 있으면: 사용자는 하루 뒤 장마감 후 cron 실행 시점에야 "보정 실패" 알림을 받는다. UX 가 나쁘고, 그동안 다른 보정 입력도 쌓여서 어느 것이 문제인지 추적이 어려워진다.
+- 두 단계 모두 있으면: 1 단계가 UX 즉시 피드백을 담당하고, 2 단계가 안전성과 감사(audit) 를 담당한다. 이 역할 분담은 본 설계서의 핵심 원칙 §1.2 "inbox 패턴" 및 `src/live/CLAUDE.md` 의 "silent skip 금지 + 무조건 알림" 원칙과 일관된다.
 
 #### 8.2.9 `/device_tokens/{device_id}` — FCM 토큰 등록 (앱 → 서버)
 
