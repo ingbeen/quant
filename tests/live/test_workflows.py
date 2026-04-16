@@ -32,16 +32,18 @@ class TestDailyRunWorkflow:
     def test_file_exists(self):
         assert DAILY_RUN_PATH.exists()
 
-    def test_cron_is_utc_weekday_22_50(self, daily_run_yaml: str):
-        """cron 은 '50 22 * * 1-5' (UTC 월~금 22:50 = KST 화~토 07:50).
+    def test_cron_is_utc_weekday_22_27(self, daily_run_yaml: str):
+        """cron 은 '27 22 * * 1-5' (UTC 월~금 22:27 = KST 화~토 07:27).
 
         GitHub Actions cron 은 항상 UTC 로 해석된다. env.TZ 는 job 런타임에만
         영향이 있을 뿐 스케줄 해석에는 무관하므로, 한국 시각 고정을 위해
-        반드시 UTC 기준 값을 사용해야 한다.
+        반드시 UTC 기준 값을 사용해야 한다. 라운드 분 (`:00`, `:30`, `:50`) 은
+        GitHub 스케줄러 큐 혼잡으로 지연이 크므로, 비인기 분을 사용한다.
         """
-        assert "50 22 * * 1-5" in daily_run_yaml
-        # 과거의 UTC 17:50(= KST 익일 02:50) 값이 남아있으면 안 된다.
+        assert "27 22 * * 1-5" in daily_run_yaml
+        # 과거 값이 남아있으면 안 된다.
         assert "50 17 * * 1-5" not in daily_run_yaml
+        assert "50 22 * * 1-5" not in daily_run_yaml
 
     def test_timezone_america_new_york(self, daily_run_yaml: str):
         """timezone: America/New_York (job 런타임 TZ; cron 해석과는 무관)."""

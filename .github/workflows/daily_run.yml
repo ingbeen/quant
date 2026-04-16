@@ -1,13 +1,13 @@
 name: Daily Live Run
 
 # 평일 미국장 마감 후 live 시스템을 자동 실행한다.
-# cron "50 22 * * 1-5" 는 UTC 월~금 22:50 실행 (= KST 화~토 07:50).
+# cron "27 22 * * 1-5" 는 UTC 월~금 22:27 실행 (= KST 화~토 07:27).
 # env.TZ 는 job 런타임 TZ 만 설정하며 cron 해석과 무관하다.
 # workflow_dispatch 의 trade_date 입력으로 휴장 체크 / idempotency 를 bypass 하여
 # 과거 날짜 재현 테스트에 사용할 수 있다.
 on:
   schedule:
-    - cron: "50 22 * * 1-5"
+    - cron: "27 22 * * 1-5"
   workflow_dispatch:
     inputs:
       trade_date:
