@@ -166,6 +166,9 @@ poetry install -E live
 poetry run python -m live init --capital 100000000
 poetry run python -m live init-data
 
+# 전체 초기화 (state + CSV + history + applied_ids + RTDB 일괄 리셋)
+poetry run python -m live reset --capital 100000000
+
 # 최초 배포 직후 또는 스플릿/무상증자 대응 후 1회 (과거 연도 차트 archive 일괄 생성)
 poetry run python -m live backfill-chart-archive
 poetry run python -m live backfill-chart-archive --dry-run

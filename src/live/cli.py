@@ -368,6 +368,59 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_reset(args: argparse.Namespace) -> int:
+    """전체 초기화: state + CSV + applied_ids + history + RTDB 를 한 번에 리셋.
+
+    실행 순서:
+
+    1. RTDB 초기화 (device_tokens 제외) — 실패 시 state repo push 전에 중단
+    2. qbt-live-state 리포 초기화
+       - live_state.json 새로 생성
+       - applied_*_ids.json 삭제
+       - history/ 삭제
+       - CSV 전체 재다운로드
+       - commit/push
+    """
+    import shutil
+
+    capital: float = args.capital
+
+    # 1. RTDB 초기화 (state push 전에 수행 — RTDB 실패 시 state 가 깨끗한 채로 push 되는 것 방지)
+    rtdb_app: Any = _require_rtdb_app()
+    rtdb_gateway.delete_all_except_device_tokens(rtdb_app)
+    logger.debug("RTDB 초기화 완료 (device_tokens 유지)")
+
+    # 2. state repo 초기화
+    with ephemeral_state_repo(push_on_success=True, commit_subcommand="reset") as state_dir:
+        # 2-1. live_state.json 초기화
+        state = create_initial_state(capital)
+        save_state(state, state_dir / DEFAULT_LIVE_STATE_FILENAME)
+
+        # 2-2. applied_*_ids.json 삭제
+        for filename in [
+            DEFAULT_APPLIED_FILL_IDS_FILENAME,
+            DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
+            "applied_fill_dismiss_ids.json",
+        ]:
+            p = state_dir / filename
+            if p.exists():
+                p.unlink()
+
+        # 2-3. history/ 삭제
+        hist_dir = _history_dir(state_dir)
+        if hist_dir.exists():
+            shutil.rmtree(hist_dir)
+
+        # 2-4. CSV 전체 재다운로드
+        for ticker in _collect_all_tickers():
+            csv_path = live_csv_path(state_dir, ticker)
+            rebuild_full_csv(ticker, csv_path, period="max")
+            logger.debug(f"reset: {ticker} CSV 재다운로드 → {csv_path}")
+
+    logger.debug(f"reset 완료: capital={capital:,.0f}")
+    return 0
+
+
 # ============================================================================
 # run-daily — 통합 흐름
 # ============================================================================
@@ -936,6 +989,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="초기 LiveState 생성")
     p_init.add_argument("--capital", type=float, required=True)
     p_init.set_defaults(func=_cmd_init)
+
+    # reset
+    p_reset = sub.add_parser("reset", help="전체 초기화 (state + CSV + history + RTDB)")
+    p_reset.add_argument("--capital", type=float, required=True)
+    p_reset.set_defaults(func=_cmd_reset)
 
     # run-daily
     p_run = sub.add_parser("run-daily", help="일일 실행 통합 루프")

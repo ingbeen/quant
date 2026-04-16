@@ -52,6 +52,7 @@ __all__ = [
     "prune_history_summary",
     "read_device_tokens",
     "remove_invalid_tokens",
+    "delete_all_except_device_tokens",
 ]
 
 _LATEST_PATH = "/latest"
@@ -474,3 +475,20 @@ def remove_invalid_tokens(app: FirebaseAppLike, tokens: list[str]) -> None:
             token = str(value.get("token", ""))
         if token and token in invalid_set:
             _db_reference(app, f"{_DEVICE_TOKENS_PATH}/{device_id}").delete()
+
+
+def delete_all_except_device_tokens(app: FirebaseAppLike) -> None:
+    """RTDB 의 모든 데이터를 삭제한다 (``/device_tokens`` 는 유지).
+
+    전체 초기화(reset) 시 사용한다. ``/device_tokens`` 는 기기별 FCM 토큰으로
+    앱 재실행 시 자동 재등록되므로 삭제 대상에서 제외한다.
+    """
+    paths_to_delete = [
+        _LATEST_PATH,
+        _HISTORY_SUMMARY_PATH,
+        _FILLS_INBOX_PATH,
+        _BALANCE_ADJUST_INBOX_PATH,
+        _FILL_DISMISS_INBOX_PATH,
+    ]
+    for path in paths_to_delete:
+        _db_reference(app, path).delete()
