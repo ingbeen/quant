@@ -19,6 +19,7 @@ archive 를 추가 로드할 수 있도록 슬라이스 단위로 데이터를 �
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import date
 from pathlib import Path
@@ -28,14 +29,15 @@ from dateutil.relativedelta import relativedelta
 
 from live.constants import (
     CHART_RECENT_MONTHS,
+    HISTORY_SUMMARY_FILENAME,
     extract_ticker_from_path,
     get_live_portfolio_config,
     live_csv_path,
 )
 from live.data_fetcher import load_csv
-from live.models import ChartMeta, ChartSeries, UserTrade
+from live.models import ChartMeta, ChartSeries, EquityChartMeta, EquityChartSeries, UserTrade
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.constants import ROUND_PRICE
+from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
 from qbt.backtest.portfolio_types import AssetSlotConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE
 
@@ -43,6 +45,9 @@ __all__ = [
     "build_chart_meta",
     "build_chart_recent",
     "build_chart_archive_year",
+    "build_equity_meta",
+    "build_equity_recent",
+    "build_equity_archive_year",
 ]
 
 
@@ -372,3 +377,120 @@ def build_chart_archive_year(
         )
 
     return slice_map
+
+
+# ============================================================================
+# equity 차트 빌더 (/charts/equity/)
+# ============================================================================
+
+
+def _load_summary_rows(history_dir: Path) -> list[dict[str, Any]]:
+    """``history/summary.jsonl`` 을 로드하여 날짜 오름차순 dict 리스트 반환.
+
+    파일이 없거나 비어 있으면 :class:`RuntimeError` 전파 — daily runner 는 본 함수
+    호출 시점에 당일 1 줄이 이미 append 되어 있음을 전제한다 (run-daily 의
+    ``_persist_history`` → ``_publish_to_rtdb`` 순서).
+
+    Raises:
+        RuntimeError:
+            - ``summary.jsonl`` 이 없거나 비어 있을 때 (내부 불변조건 위반).
+            - JSONL 파싱 실패 시 (손상된 파일).
+    """
+    target = history_dir / HISTORY_SUMMARY_FILENAME
+    if not target.exists():
+        raise RuntimeError(f"내부 불변조건 위반: equity 차트 빌더 호출 시 {target} 가 없음 " "(run-daily 순서상 _persist_history 가 선행되어야 함)")
+
+    content = target.read_text(encoding="utf-8").strip()
+    if not content:
+        raise RuntimeError(f"내부 불변조건 위반: {target} 가 비어 있음 (equity 차트 생성 불가)")
+
+    rows: list[dict[str, Any]] = []
+    for line_no, line in enumerate(content.splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"손상된 JSONL (summary, {line_no}행): {exc}") from exc
+
+    rows.sort(key=lambda r: str(r["date"]))
+    return rows
+
+
+def _equity_series_from_rows(rows: list[dict[str, Any]]) -> EquityChartSeries:
+    """summary 로우 리스트를 :class:`EquityChartSeries` 로 변환 (반올림 포함)."""
+    dates: list[str] = []
+    model_equity: list[float] = []
+    actual_equity: list[float] = []
+    drift_pct: list[float] = []
+    for row in rows:
+        dates.append(str(row["date"]))
+        model_equity.append(round(float(row["model_equity"]), ROUND_CAPITAL))
+        actual_equity.append(round(float(row["actual_equity"]), ROUND_CAPITAL))
+        drift_pct.append(round(float(row["drift_pct"]), ROUND_RATIO))
+    return EquityChartSeries(
+        dates=dates,
+        model_equity=model_equity,
+        actual_equity=actual_equity,
+        drift_pct=drift_pct,
+    )
+
+
+def build_equity_meta(state_dir: Path) -> EquityChartMeta:
+    """`history/summary.jsonl` 전체를 읽어 :class:`EquityChartMeta` 를 생성한다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리 (``history/`` 하위).
+
+    Returns:
+        :class:`EquityChartMeta` 인스턴스.
+    """
+    rows = _load_summary_rows(state_dir / "history")
+    first = str(rows[0]["date"])
+    last = str(rows[-1]["date"])
+    years = sorted({date.fromisoformat(str(r["date"])).year for r in rows})
+    return EquityChartMeta(
+        first_date=first,
+        last_date=last,
+        recent_months=CHART_RECENT_MONTHS,
+        archive_years=years,
+    )
+
+
+def build_equity_recent(state_dir: Path, months: int | None = None) -> EquityChartSeries:
+    """최근 ``months`` 개월 equity 슬라이스를 생성한다.
+
+    last_date 기준으로 ``relativedelta(months=N)`` 범위의 로우만 포함한다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        months: 슬라이스에 포함할 최근 개월 수. None 이면
+            :data:`live.constants.CHART_RECENT_MONTHS` 를 사용.
+
+    Returns:
+        :class:`EquityChartSeries` 인스턴스.
+    """
+    months_effective = CHART_RECENT_MONTHS if months is None else months
+    rows = _load_summary_rows(state_dir / "history")
+    last = date.fromisoformat(str(rows[-1]["date"]))
+    start = last - relativedelta(months=months_effective)
+    filtered = [r for r in rows if date.fromisoformat(str(r["date"])) >= start]
+    return _equity_series_from_rows(filtered)
+
+
+def build_equity_archive_year(state_dir: Path, year: int) -> EquityChartSeries:
+    """특정 연도 equity 슬라이스를 생성한다.
+
+    해당 연도에 summary 로우가 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        year: 슬라이스할 연도 (예: 2025).
+
+    Returns:
+        :class:`EquityChartSeries` 인스턴스.
+    """
+    rows = _load_summary_rows(state_dir / "history")
+    filtered = [r for r in rows if date.fromisoformat(str(r["date"])).year == year]
+    return _equity_series_from_rows(filtered)

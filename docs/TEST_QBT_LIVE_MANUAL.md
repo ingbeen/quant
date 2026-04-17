@@ -200,64 +200,69 @@ poetry run python -m live notify-failure --message "수동 테스트 from local"
 
 ---
 
-### 7. RTDB 차트 데이터 확인
+### 7. RTDB 주가 차트 데이터 확인
 
-**목적**: Step 14 `chart_data` 의 RTDB 쓰기와 배열 형식 검증.
+**목적**: Step 14 `chart_data` (주가 차트) 의 RTDB 쓰기 및 경로 이동 검증.
 
 **사전 조건**: 5 번 정상 완료.
 
 **절차**:
 
-1. 같은 RTDB 화면에서 `/latest/chart_data/` 펼치기
+1. 같은 RTDB 화면에서 `/charts/prices/` 펼치기
 2. 자산별(sso / qld / gld / tlt) 하위 노드 펼치기 — **자산 ID 는 trade ticker 소문자**
-3. 배열이 길 경우 검색창에 `/latest/chart_data/sso/dates/0` 형태의 구체 경로로 값 확인
+3. 각 자산의 `meta` / `recent` / `archive/{현재_연도}` 3 노드가 존재하는지 확인
+4. 배열이 길 경우 검색창에 `/charts/prices/sso/recent/dates/0` 형태의 구체 경로로 값 확인
 
 **실제 스키마** (from [chart_data.py](src/live/chart_data.py)):
 
 ```
-/latest/chart_data/{sso|qld|gld|tlt}
-  ├─ dates         # list[str]   — "YYYY-MM-DD"
-  ├─ close         # list[float] — 종가
-  ├─ ema_200       # list[float|null] — 초반 199 개는 null (워밍업)
-  ├─ upper_band    # list[float|null]
-  └─ lower_band    # list[float|null]
+/charts/prices/{sso|qld|gld|tlt}/
+  ├─ meta      # first_date / last_date / ma_window / recent_months / archive_years
+  ├─ recent    # dates / close / ma_value / upper_band / lower_band / 마커 4 종
+  └─ archive/{YYYY}  # 연도별 slice
 ```
 
 > Firebase RTDB 는 빈 배열을 저장하지 않으므로, `buy_signals` / `sell_signals` / `user_buys` / `user_sells` 가 모두 빈 상태라면 키 자체가 생성되지 않습니다. **보이지 않는 것이 정상**입니다.
 
 **확인 사항**:
 
-- [x] 4 개 자산 노드 `sso`, `qld`, `gld`, `tlt` 모두 존재
-- [x] 각 자산의 `dates`, `close`, `ema_200`, `upper_band`, `lower_band` 배열 길이가 동일
-- [x] `ema_200` / `upper_band` / `lower_band` 앞쪽 199 개 값이 `null`, 200 번 인덱스부터 숫자
-- [x] `dates` 마지막 원소가 `4` 번에서 지정한 거래일 (`2026-04-10`) 과 일치
+- [x] 4 개 자산 노드 `sso`, `qld`, `gld`, `tlt` 모두 존재 (`/charts/prices/` 하위)
+- [x] 각 자산의 `meta` / `recent` / `archive/{현재_연도}` 3 노드 존재
+- [x] `recent.dates`, `recent.close`, `recent.ma_value`, `recent.upper_band`, `recent.lower_band` 배열 길이 동일
+- [x] `recent.ma_value` / `recent.upper_band` / `recent.lower_band` 의 워밍업 구간은 `null`
+- [x] **구 경로 `/latest/chart_data/*` 는 더 이상 존재하지 않음** (Breaking change — reset 후 재생성 기준)
 
 ---
 
-### 8. RTDB 히스토리 요약 확인
+### 8. RTDB equity 차트 데이터 확인
 
-**목적**: Step 15 `history.append_summary` 의 RTDB 쓰기 검증.
+**목적**: `/charts/equity/` 3 분할(meta + recent + archive/{YYYY}) RTDB 쓰기 검증.
 
 **사전 조건**: 5 번 정상 완료.
 
 **절차**:
 
-1. RTDB 에서 `/history/summary/{YYYY-MM-DD}` 경로 펼치기
+1. RTDB 화면에서 `/charts/equity/` 펼치기
+2. `meta` / `recent` / `archive/{현재_연도}` 3 노드가 존재하는지 확인
+3. `recent` 의 배열 4 개 (`dates`, `model_equity`, `actual_equity`, `drift_pct`) 길이가 같은지 확인
 
-**실제 스키마** (from [rtdb_gateway.py::write_read_model](src/live/rtdb_gateway.py#L185)):
+**실제 스키마** (from [chart_data.py](src/live/chart_data.py) equity 빌더):
 
 ```
-/history/summary/{YYYY-MM-DD}
-  ├─ execution_date   # "YYYY-MM-DD"
-  ├─ model_equity     # 정수
-  ├─ actual_equity    # 정수
-  └─ drift_pct        # 0~1 비율
+/charts/equity/
+  ├─ meta            # first_date / last_date / recent_months / archive_years
+  ├─ recent          # dates / model_equity / actual_equity / drift_pct
+  └─ archive/{YYYY}  # 연도별 slice (구조는 recent 와 동일)
 ```
 
 **확인 사항**:
 
-- [x] 실행 날짜 키로 요약 1 건 존재 (예: `/history/summary/2026-04-10`)
-- [x] `execution_date`, `model_equity`, `actual_equity`, `drift_pct` 필드 모두 존재
+- [x] `/charts/equity/meta` 의 `archive_years` 에 현재 연도가 포함됨
+- [x] `/charts/equity/recent` 의 `dates` / `model_equity` / `actual_equity` / `drift_pct` 길이 동일
+- [x] `/charts/equity/archive/{현재_연도}` 존재 (daily runner 가 매 실행 재생성)
+- [x] `model_equity` / `actual_equity` 는 정수, `drift_pct` 는 0~1 범위의 소수점 4 자리
+- [x] **구 경로 `/history/summary/*` 는 더 이상 존재하지 않음** (Breaking change — reset 후 재생성 기준)
+- [x] `python -m live backfill-chart-archive --target equity --year <과거_연도>` 실행 후 해당 연도 archive 가 신규 생성/갱신됨
 
 ---
 

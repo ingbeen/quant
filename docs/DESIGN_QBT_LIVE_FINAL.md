@@ -55,16 +55,17 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
                         v            v
               [qbt-live-state]   [Firebase RTDB]  --- FCM/텔레그램 알림 --->  [Android 앱]
                (Git 프라이빗)    /latest/*                                           ^
-               (앱 접근 불가)    /history/summary                                    |
+               (앱 접근 불가)    /charts/prices/*                                    |
+                                 /charts/equity/*                                    |
                                  /fills/inbox       <------ 체결 / 보정 입력 --------+
                                  /balance_adjust/                                    |
                                  /device_tokens                                      |
-                                                    <------ /latest/* read ----------+
+                                                    <------ /latest/*, /charts/* ----+
 ```
 
 - **live** 는 평일 장 마감 후 GitHub Actions 에서 1 회 실행되어 Git 원장과 RTDB 를 갱신한다.
 - **qbt-live-state** (Git 프라이빗 리포) 는 live 전용 정본 원장이며 **앱은 접근하지 않는다**.
-- **Firebase RTDB** 는 앱 ↔ live 양방향 버스이다. 앱은 `/latest/*` 와 `/history/summary/*` 를 읽고, `/fills/inbox/*` 와 `/balance_adjust/inbox/*` 에 쓰며, `/device_tokens/*` 로 FCM 토큰을 등록한다.
+- **Firebase RTDB** 는 앱 ↔ live 양방향 버스이다. 앱은 `/latest/*` 와 `/charts/*` 를 읽고, `/fills/inbox/*` 와 `/balance_adjust/inbox/*` 에 쓰며, `/device_tokens/*` 로 FCM 토큰을 등록한다.
 - **FCM + 텔레그램** 은 live 가 매 실행 끝에 동시 발송한다 (일일 리포트 + 실패 알림).
 
 live 내부 실행 순서 / 예외 훅 / ephemeral clone 메커니즘 등은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
@@ -84,7 +85,7 @@ live 내부 실행 순서 / 예외 훅 / ephemeral clone 메커니즘 등은 [sr
 
 live 는 QBT 백테스트 코어 (`qbt.backtest.*`) 를 직접 재사용하여 매일 신호 / 체결 / 리밸런싱을 계산하고, yfinance OHLC 수집 / 데이터 검증 (OHLC 논리 / 전일 종가 연속성 / 거래일 gap) / MA·밴드 계산 / `run_daily` 실행 순서 등의 내부 동작은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 와 `src/live/` 코드가 정본이다.
 
-**앱이 알아야 할 것은 결과물뿐이다** — live 가 매일 계산한 포지션 / 시그널 / 밴드 / drift 는 RTDB `/latest/*` 와 `/history/summary/{date}` 로 노출된다 (§8.2 참고). 스플릿·무상증자 감지 / 회귀 검증 / BufferZoneStrategy 직렬화 같은 live 내부 로직은 앱에 영향을 주지 않는다.
+**앱이 알아야 할 것은 결과물뿐이다** — live 가 매일 계산한 포지션 / 시그널 / 밴드 / drift 는 RTDB `/latest/*` 와 `/charts/equity/*` 로 노출된다 (§8.2 참고). 스플릿·무상증자 감지 / 회귀 검증 / BufferZoneStrategy 직렬화 같은 live 내부 로직은 앱에 영향을 주지 않는다.
 
 ---
 
@@ -128,14 +129,14 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 ## 5. 차트: TradingView Lightweight Charts
 
-자산별 CSV 를 읽어 차트 시계열을 생성하고 RTDB `/latest/chart_data/{asset_id}/` 하위에 **3 분할 구조** 로 저장한다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자).
+자산별 CSV 를 읽어 차트 시계열을 생성하고 RTDB `/charts/prices/{asset_id}/` 하위에 **3 분할 구조** 로 저장한다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자). equity(포트폴리오 평가액) 시계열은 별도의 `/charts/equity/` 경로로 노출된다 (§8.2.6).
 
-**RTDB 구조 (3 경로)**:
+**RTDB 구조 (주가 차트 3 경로)**:
 
 ```
-/latest/chart_data/{asset_id}/meta                ← 차트 메타 (first/last 날짜, archive_years 등)
-/latest/chart_data/{asset_id}/recent              ← 최근 N 개월 slice (매일 덮어쓰기)
-/latest/chart_data/{asset_id}/archive/{YYYY}      ← 연도별 slice (연 1 회 또는 이벤트 시 재생성)
+/charts/prices/{asset_id}/meta                ← 차트 메타 (first/last 날짜, archive_years 등)
+/charts/prices/{asset_id}/recent              ← 최근 N 개월 slice (매일 덮어쓰기)
+/charts/prices/{asset_id}/archive/{YYYY}      ← 연도별 slice (연 1 회 또는 이벤트 시 재생성)
 ```
 
 **시계열 필드** (recent / archive 공통): `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
@@ -254,21 +255,23 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /latest/portfolio                                ← 전체 자산 요약 + drift 스칼라 + assets/{asset_id}
 /latest/signals/{asset_id}                       ← 시그널 상태 / 종가 / MA / 밴드
 /latest/pending_orders/{asset_id}                ← 익일 체결 예정 주문 (pending 있는 자산만)
-/latest/chart_data/{asset_id}/meta               ← 차트 메타 (first/last 날짜, archive_years 등)
-/latest/chart_data/{asset_id}/recent             ← 차트 최근 N 개월 slice (매일 덮어쓰기)
-/latest/chart_data/{asset_id}/archive/{YYYY}     ← 차트 연도별 slice (현재 연도만 daily 갱신)
-/history/summary/{YYYY-MM-DD}                    ← 일별 요약 (rolling window, 최근 90 일만 유지)
+/charts/prices/{asset_id}/meta                   ← 주가 차트 메타 (first/last 날짜, archive_years 등)
+/charts/prices/{asset_id}/recent                 ← 주가 차트 최근 N 개월 slice (매일 덮어쓰기)
+/charts/prices/{asset_id}/archive/{YYYY}         ← 주가 차트 연도별 slice (현재 연도만 daily 갱신)
+/charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / archive_years)
+/charts/equity/recent                            ← equity 최근 N 개월 slice (model / actual / drift)
+/charts/equity/archive/{YYYY}                    ← equity 연도별 slice (현재 연도만 daily 갱신)
 /fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
 /fill_dismiss/inbox/{uuid}                       ← 앱이 쓰는 체결 리마인더 스킵 queue
 /device_tokens/{device_id}                       ← FCM 토큰
 ```
 
-RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 매 실행마다 전체 갱신되므로 앱이 직접 쓰면 다음 실행에서 덮어써진다 (inbox 패턴을 쓰는 이유).
+RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 "오늘의 스냅샷" 이고 매 실행마다 전체 갱신되며 (inbox 패턴을 쓰는 이유), `/charts/*` 는 "시계열 데이터" 로 매일 meta + recent + 현재 연도 archive 만 daily 갱신된다.
 
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
-**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/history/summary/{date}`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
+**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/charts/equity/*`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
 
 #### 8.2.1 `/latest/portfolio` — 전체 포트폴리오 요약
 
@@ -372,7 +375,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 섹션 번호는 뒤 섹션들이 흩어지지 않도록 그대로 유지한다.
 
-#### 8.2.5 `/latest/chart_data/{asset_id}/` — 차트 데이터 (meta + recent + archive/{YYYY})
+#### 8.2.5 `/charts/prices/{asset_id}/` — 주가 차트 데이터 (meta + recent + archive/{YYYY})
 
 **SoT**:
 
@@ -382,7 +385,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 backfill CLI 로 재생성한다.
 
-##### 8.2.5.1 `/latest/chart_data/{asset_id}/meta`
+##### 8.2.5.1 `/charts/prices/{asset_id}/meta`
 
 ```json
 {
@@ -404,7 +407,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 앱은 `meta` 를 가장 먼저 한 번 읽고, 필요한 시점에 `recent` / `archive/{YYYY}` 로드 전략을 결정한다.
 
-##### 8.2.5.2 `/latest/chart_data/{asset_id}/recent`
+##### 8.2.5.2 `/charts/prices/{asset_id}/recent`
 
 최근 `recent_months` 개월 슬라이스. 매 `run-daily` 실행마다 덮어쓰기.
 
@@ -434,7 +437,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 | `user_buys`    | list[str]            | 해당 구간 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생    |
 | `user_sells`   | list[str]            | 해당 구간 내 사용자 매도 체결일 (ISO 8601)                                              |
 
-##### 8.2.5.3 `/latest/chart_data/{asset_id}/archive/{YYYY}`
+##### 8.2.5.3 `/charts/prices/{asset_id}/archive/{YYYY}`
 
 특정 연도 전체 슬라이스 (1월 1일 ~ 12월 31일 범위 내 거래일). daily runner 는 **현재 연도 만** 갱신하고, 이전 연도 archive 는 backfill CLI 또는 수동 재생성 시에만 쓴다.
 
@@ -463,32 +466,79 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 - Firebase RTDB 는 **빈 배열 `[]` 을 저장하지 않는다**. 마커 리스트가 비어 있으면 해당 키(`buy_signals` 등) 가 아예 생성되지 않으므로, 앱은 키 부재를 "빈 배열" 로 해석해야 한다.
 - `ma_value` / `upper_band` / `lower_band` 의 워밍업 구간은 `null` 값으로 채워진다 (배열 인덱스는 유지, 값만 null).
 
-#### 8.2.6 `/history/summary/{YYYY-MM-DD}` — 일별 요약 (RTDB, rolling window)
+#### 8.2.6 `/charts/equity/` — equity 차트 (meta + recent + archive/{YYYY})
 
 **SoT**:
 
-- 쓰기: `live.rtdb_gateway.write_read_model` — 매 실행 해당 날짜 키 덮어쓰기.
-- 정리: `live.rtdb_gateway.prune_history_summary` — 매 실행 직후 호출되어 retention 을 초과한 오래된 날짜 키를 삭제한다.
+- meta: `live.chart_data.build_equity_meta`, `live.models.EquityChartMeta`, `live.rtdb_gateway.write_equity_meta`
+- recent: `live.chart_data.build_equity_recent`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_recent`
+- archive: `live.chart_data.build_equity_archive_year`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_archive_year`
+
+**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, 최근 구간은 `recent`, 줌아웃 시에는 `archive/{YYYY}` 를 필요에 따라 추가 로드한다. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `model_equity` / `actual_equity` / `drift_pct` 세 배열을 같은 날짜 인덱스로 저장한다.
+
+**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 `backfill-chart-archive --target equity` 로 재생성한다 (§9.1 참고).
+
+##### 8.2.6.1 `/charts/equity/meta`
 
 ```json
 {
-  "execution_date": "2026-04-10",
-  "model_equity": 12345678,
-  "actual_equity": 12300000,
-  "drift_pct": 0.0037
+  "first_date": "2024-01-02",
+  "last_date": "2026-04-14",
+  "recent_months": 6,
+  "archive_years": [2024, 2025, 2026]
 }
 ```
 
-| 필드            | 타입   | 설명                                                                |
-| --------------- | ------ | ------------------------------------------------------------------- |
-| `execution_date` | str    | ISO 8601 날짜 (최상위 key 와 동일)                                  |
-| `model_equity`  | number | model 축 총 자산가치                                                |
-| `actual_equity` | number | actual 축 총 자산가치                                               |
-| `drift_pct`     | number | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리, 예: `0.0037`). §12 참고 |
+| 필드           | 타입      | 설명                                                                       |
+| -------------- | --------- | -------------------------------------------------------------------------- |
+| `first_date`   | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                           |
+| `last_date`    | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                    |
+| `recent_months`| int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6` (주가 공용) |
+| `archive_years`| list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                              |
 
-**Retention (rolling window)**: RTDB 의 `/history/summary/` 는 **앱 홈 탭 표시용 rolling cache** 이며, daily runner 가 매 실행 직후 `prune_history_summary` 를 호출하여 `RTDB_HISTORY_SUMMARY_RETENTION_DAYS = 90` 일을 초과한 과거 날짜 키를 삭제한다. 정확한 경계 규칙: `cutoff = execution_date - retention_days`, `entry_date < cutoff` 이면 삭제 (cutoff 일자 자체는 보존). 앱은 최근 30~90 일을 읽어 표시한다.
+##### 8.2.6.2 `/charts/equity/recent`
 
-**정본 위치**: 자산별 상세·전체 히스토리는 Git 정본(`history/summary.jsonl`, `history/daily/{date}.json`) 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 캐시이므로 언제든지 재빌드 가능한 소비용 데이터로만 취급한다.
+최근 `recent_months` 개월 슬라이스. 매 `run-daily` 실행마다 덮어쓰기.
+
+```json
+{
+  "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
+  "model_equity": [12000000, "…", 12345678],
+  "actual_equity": [11950000, "…", 12300000],
+  "drift_pct": [0.0042, "…", 0.0037]
+}
+```
+
+| 필드            | 타입          | 설명                                                                                        |
+| --------------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `dates`         | list[str]     | 해당 구간 거래일 (ISO 8601)                                                                 |
+| `model_equity`  | list[number]  | model 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                                              |
+| `actual_equity` | list[number]  | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                                             |
+| `drift_pct`     | list[number]  | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리)                                               |
+
+**불변조건**: 4 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
+
+##### 8.2.6.3 `/charts/equity/archive/{YYYY}`
+
+특정 연도 전체 슬라이스. 해당 연도에 summary 로우가 없으면 모든 배열이 빈 슬라이스가 반환된다. payload 구조는 `recent` 와 동일.
+
+```json
+{
+  "dates": ["2025-01-02", "…", "2025-12-31"],
+  "model_equity": [...],
+  "actual_equity": [...],
+  "drift_pct": [...]
+}
+```
+
+##### 8.2.6.4 경계 중복 허용 정책
+
+주가 차트와 동일 원칙: `recent` 와 `archive/{현재_연도}` 는 같은 날짜 범위를 일부 공유할 수 있다. 서버는 두 slice 를 독립 규칙으로 생성하고, **앱이 `Map<date, point>` 로 dedupe** 한다 (§8.2.5.4 와 동일 정책).
+
+##### 8.2.6.5 중요 사항
+
+- **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 4 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `archive/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
+- **정본 위치**: 자산별 상세·전체 equity 시계열은 Git 정본 `history/summary.jsonl` 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 앱 표시용 소비 데이터로만 취급한다.
 
 #### 8.2.7 `/fills/inbox/{uuid}` — 체결 입력 (앱 → 서버)
 
@@ -718,7 +768,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 | 경로 | 쓰기 주체 | 읽기 주체 |
 |---|---|---|
 | qbt-live-state (Git) | daily runner (ephemeral) | daily runner |
-| `/latest/*`, `/history/*` | daily runner (Admin SDK) | 앱 |
+| `/latest/*`, `/charts/*` | daily runner (Admin SDK) | 앱 |
 | `/fills/*`, `/balance_adjust/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/device_tokens/*` | 앱 (등록) / daily runner (만료 토큰 삭제) | daily runner (Admin SDK) |
 
@@ -733,7 +783,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 앱 측 영향은 다음 두 가지뿐이다.
 
 1. **실패 알림 수신**: 앱은 §6.3 형식의 본문을 FCM / 텔레그램으로 받는다. 추가 조치 없음.
-2. **RTDB 데이터 미갱신**: live 가 중단되면 `/latest/*` 와 `/history/summary/{date}` 가 그날 업데이트되지 않는다. 앱은 `execution_date` 필드로 최신 여부를 판단한다.
+2. **RTDB 데이터 미갱신**: live 가 중단되면 `/latest/*` 와 `/charts/*` 가 그날 업데이트되지 않는다. 앱은 `/latest/portfolio.execution_date` 필드로 최신 여부를 판단한다.
 
 live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 / Git push / RTDB / fill 검증 / idempotency 등) 는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
@@ -759,7 +809,7 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
    - `actual_shares *= ratio`, `actual_avg_entry_price /= ratio`
    - `buffer_zone_state` 내부 가격 필드 (있다면) 도 동일 비율로 조정. BufferZoneStrategy 내부 상태는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 의 직렬화 규약을 따른다.
 3. **Git commit + push**: 조정 사유와 비율을 commit 메시지에 기록 (예: `live / SSO 2:1 split 조정`).
-4. **차트 archive 재생성**: `python -m live backfill-chart-archive` 실행 — 자산별 `/latest/chart_data/{asset_id}/archive/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 meta 의 archive_years 전체 순회이며, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
+4. **차트 archive 재생성**: `python -m live backfill-chart-archive` 실행 — 주가 차트 `/charts/prices/{asset_id}/archive/{YYYY}` 와 equity 차트 `/charts/equity/archive/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 `--target all` (주가 + equity) × archive_years 전체 순회이며, `--target prices|equity` 로 한쪽만, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
 5. **다음 run-daily 확인**: 다음날 자동 실행 (또는 수동 `run-daily`) 에서 정상 진행을 확인한다.
 
 **history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
@@ -790,7 +840,7 @@ drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 drift_pct = |model_equity − actual_equity| / model_equity   (내부 비율, 0~1. 0.03 = 3%)
 ```
 
-QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`, `/history/summary/{date}`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다).
+QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`, `/charts/equity/*`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다).
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를

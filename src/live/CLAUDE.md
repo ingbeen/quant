@@ -67,7 +67,7 @@ tests/live/                     # live 전용 테스트
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
 | `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이                              |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
-| `chart_data.py`        | 자산별 차트 시계열 빌더 (`build_chart_meta` / `build_chart_recent` / `build_chart_archive_year`) |
+| `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
 | `history.py`           | Git 정본 히스토리 append / load                                                     |
 | `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
 | `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅              |

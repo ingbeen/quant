@@ -11,14 +11,18 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from dateutil.relativedelta import relativedelta
 
 from live.chart_data import (
     build_chart_archive_year,
     build_chart_meta,
     build_chart_recent,
+    build_equity_archive_year,
+    build_equity_meta,
+    build_equity_recent,
 )
 from live.constants import CHART_RECENT_MONTHS
-from live.models import ChartMeta, ChartSeries, UserTrade
+from live.models import ChartMeta, ChartSeries, EquityChartMeta, EquityChartSeries, UserTrade
 
 # ============================================================================
 # fixture
@@ -381,3 +385,217 @@ class TestMarkerDateParsingFailures:
                 year=_last_date().year,
                 signal_history=signal_history,
             )
+
+
+# ============================================================================
+# equity 차트 빌더 (PLAN_LIVE_CHARTS_RESTRUCTURE)
+# ============================================================================
+
+
+def _write_summary_jsonl(state_dir: Path, rows: list[dict[str, object]]) -> None:
+    """``history/summary.jsonl`` 파일을 생성하여 equity 빌더 fixture 역할.
+
+    실제 `history.append_summary` 와 동일한 포맷 (date / model_equity /
+    actual_equity / drift_pct) 을 줄 단위로 작성한다.
+    """
+    import json
+
+    history_dir = state_dir / "history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    target = history_dir / "summary.jsonl"
+    with target.open("w", encoding="utf-8") as fp:
+        for row in rows:
+            fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+class TestBuildEquityMeta:
+    def test_meta_reflects_first_last_years(self, tmp_path: Path):
+        """
+        목적: build_equity_meta 가 summary.jsonl 의 첫/마지막 날짜와 연도 집합을
+              올바르게 계산한다.
+
+        Given: 2024-01-02, 2024-12-31, 2025-03-15, 2026-04-10 네 줄짜리 summary.
+        When:  build_equity_meta 호출.
+        Then:  first_date/last_date 가 각각 시작/끝 날짜, archive_years 오름차순.
+        """
+        # Given
+        rows = [
+            {"date": "2024-01-02", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+            {"date": "2024-12-31", "model_equity": 10_500_000, "actual_equity": 10_400_000, "drift_pct": 0.0095},
+            {"date": "2025-03-15", "model_equity": 11_000_000, "actual_equity": 10_900_000, "drift_pct": 0.0091},
+            {"date": "2026-04-10", "model_equity": 12_345_678, "actual_equity": 12_300_000, "drift_pct": 0.0037},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        # When
+        meta = build_equity_meta(tmp_path)
+
+        # Then
+        assert isinstance(meta, EquityChartMeta)
+        assert meta.first_date == "2024-01-02"
+        assert meta.last_date == "2026-04-10"
+        assert meta.archive_years == [2024, 2025, 2026]
+        assert meta.recent_months == CHART_RECENT_MONTHS
+
+    def test_missing_summary_raises_runtime_error(self, tmp_path: Path):
+        """
+        목적: summary.jsonl 이 없을 때 RuntimeError 전파 (내부 불변조건 위반).
+        """
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            build_equity_meta(tmp_path)
+
+    def test_empty_summary_raises_runtime_error(self, tmp_path: Path):
+        """
+        목적: summary.jsonl 이 존재하지만 비어 있을 때 RuntimeError 전파.
+        """
+        # Given — 빈 파일 생성
+        history_dir = tmp_path / "history"
+        history_dir.mkdir(parents=True)
+        (history_dir / "summary.jsonl").write_text("", encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            build_equity_meta(tmp_path)
+
+    def test_corrupted_jsonl_raises_runtime_error(self, tmp_path: Path):
+        """
+        목적: JSONL 파싱 실패 시 RuntimeError("손상된 JSONL ...") 전파.
+        """
+        # Given — 유효 1 줄 + 파손 1 줄
+        history_dir = tmp_path / "history"
+        history_dir.mkdir(parents=True)
+        (history_dir / "summary.jsonl").write_text(
+            '{"date":"2026-04-10","model_equity":1,"actual_equity":1,"drift_pct":0}\n' "not a json line\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            build_equity_meta(tmp_path)
+
+
+class TestBuildEquityRecent:
+    def test_recent_filters_by_months_window(self, tmp_path: Path):
+        """
+        목적: build_equity_recent 가 last_date 기준 최근 N 개월만 포함한다.
+
+        Given: 2025-10-01 ~ 2026-04-10 약 6.3 개월짜리 summary.
+        When:  months=6 으로 호출.
+        Then:  dates 의 최소값 >= 2025-10-10 (= 2026-04-10 - 6개월), 최대값 = last.
+               배열 4 개의 길이가 동일.
+        """
+        import datetime as _dt
+
+        # Given — 2025-10-01 부터 주 1 회 엔트리, 2026-04-10 까지
+        rows: list[dict[str, object]] = []
+        d = _dt.date(2025, 10, 1)
+        end = _dt.date(2026, 4, 10)
+        model = 10_000_000
+        while d <= end:
+            rows.append(
+                {
+                    "date": d.isoformat(),
+                    "model_equity": model,
+                    "actual_equity": model - 50_000,
+                    "drift_pct": 0.005,
+                }
+            )
+            d = d + _dt.timedelta(days=7)
+            model += 100_000
+        _write_summary_jsonl(tmp_path, rows)
+
+        # summary.jsonl 마지막 엔트리 = 루프 종료 직전 날짜 (주 1 회 스텝이라
+        # 2026-04-10 자체는 포함되지 않을 수 있다). 실제 last_date 로 검증한다.
+        expected_last = rows[-1]["date"]
+
+        # When
+        series = build_equity_recent(tmp_path, months=6)
+
+        # Then
+        assert isinstance(series, EquityChartSeries)
+        assert series.dates[-1] == expected_last
+        assert len(series.dates) == len(series.model_equity) == len(series.actual_equity) == len(series.drift_pct)
+        # 6 개월 경계: last - 6 개월 이후만 포함 — 시작 경계보다 앞선 날짜는 제외되어야 함
+        last_dt = _dt.date.fromisoformat(str(expected_last))
+        cutoff = last_dt - relativedelta(months=6)
+        assert _dt.date.fromisoformat(series.dates[0]) >= cutoff
+
+    def test_recent_rounding_rules(self, tmp_path: Path):
+        """
+        목적: equity 는 자본금(ROUND_CAPITAL=0) 반올림, drift_pct 는 0~1 ratio
+              ROUND_RATIO=4 자리 반올림.
+
+        Given: 소수점이 있는 equity / 긴 정밀도 drift_pct.
+        When:  build_equity_recent 호출.
+        Then:  equity 는 정수 값, drift_pct 는 4 자리로 반올림.
+        """
+        # Given — banker's rounding 경계가 아닌 값으로 구성한다.
+        rows = [
+            {
+                "date": "2026-04-09",
+                "model_equity": 12_345_678.789,  # → 12_345_679
+                "actual_equity": 12_300_000.2,  # → 12_300_000
+                "drift_pct": 0.00374999,  # 4 자리 반올림 → 0.0037
+            },
+            {
+                "date": "2026-04-10",
+                "model_equity": 12_400_000.0,  # → 12_400_000
+                "actual_equity": 12_350_001.6,  # → 12_350_002
+                "drift_pct": 0.00419999,  # 4 자리 반올림 → 0.0042
+            },
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        # When
+        series = build_equity_recent(tmp_path, months=12)
+
+        # Then — equity 는 정수 (ROUND_CAPITAL=0), drift_pct 4 자리
+        assert series.model_equity == [12_345_679, 12_400_000]
+        assert series.actual_equity == [12_300_000, 12_350_002]
+        assert series.drift_pct == [pytest.approx(0.0037, abs=1e-6), pytest.approx(0.0042, abs=1e-6)]
+
+
+class TestBuildEquityArchiveYear:
+    def test_archive_year_filters_by_year(self, tmp_path: Path):
+        """
+        목적: build_equity_archive_year 가 해당 연도의 로우만 포함한다.
+
+        Given: 2024 / 2025 / 2026 세 해에 걸친 summary.
+        When:  year=2025 로 호출.
+        Then:  dates 의 연도가 전부 2025, 갯수 = 입력의 2025 로우 수.
+        """
+        # Given
+        rows = [
+            {"date": "2024-12-31", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+            {"date": "2025-01-02", "model_equity": 10_100_000, "actual_equity": 10_080_000, "drift_pct": 0.002},
+            {"date": "2025-06-15", "model_equity": 10_500_000, "actual_equity": 10_400_000, "drift_pct": 0.0095},
+            {"date": "2025-12-30", "model_equity": 11_000_000, "actual_equity": 10_950_000, "drift_pct": 0.0045},
+            {"date": "2026-04-10", "model_equity": 12_000_000, "actual_equity": 12_000_000, "drift_pct": 0.0},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        # When
+        series = build_equity_archive_year(tmp_path, year=2025)
+
+        # Then
+        assert series.dates == ["2025-01-02", "2025-06-15", "2025-12-30"]
+        assert all(d.startswith("2025-") for d in series.dates)
+        assert len(series.model_equity) == 3
+
+    def test_archive_year_empty_year_returns_empty_series(self, tmp_path: Path):
+        """
+        목적: 해당 연도에 로우가 없으면 모든 배열이 비어 있다 (에러 없음).
+        """
+        # Given
+        rows = [
+            {"date": "2024-12-31", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+            {"date": "2026-04-10", "model_equity": 12_000_000, "actual_equity": 12_000_000, "drift_pct": 0.0},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        # When
+        series = build_equity_archive_year(tmp_path, year=2025)
+
+        # Then
+        assert series.dates == []
+        assert series.model_equity == []
+        assert series.actual_equity == []
+        assert series.drift_pct == []

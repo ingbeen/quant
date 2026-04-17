@@ -18,6 +18,8 @@ from live.models import (
     ChartSeries,
     DailyResult,
     DriftReport,
+    EquityChartMeta,
+    EquityChartSeries,
     LiveState,
     PendingOrderDict,
     SignalDetection,
@@ -475,3 +477,98 @@ class TestLiveStateCreation:
         assert asset.model_shares == 100
         assert asset.actual_shares == 100
         assert asset.pending_order is None
+
+
+# ============================================================================
+# EquityChartMeta / EquityChartSeries (PLAN_LIVE_CHARTS_RESTRUCTURE)
+# ============================================================================
+
+
+class TestEquityChartMeta:
+    def test_equity_chart_meta_is_dataclass_with_expected_fields(self):
+        """
+        목적: EquityChartMeta 는 dataclass 이며 4 개 필드(first_date, last_date,
+              recent_months, archive_years) 만 가진다. ma_window 필드는 없다.
+
+        Given: EquityChartMeta 인스턴스.
+        When:  dataclass 필드 이름 집합 조회.
+        Then:  기대 필드 집합과 정확히 일치.
+        """
+        # Given / When
+        assert is_dataclass(EquityChartMeta), "EquityChartMeta 는 dataclass 여야 한다"
+        field_names = {f.name for f in fields(EquityChartMeta)}
+
+        # Then
+        assert field_names == {"first_date", "last_date", "recent_months", "archive_years"}
+        # 주가 차트 ChartMeta 와 달리 ma_window 필드는 없다 (equity 는 MA 개념 없음)
+        assert "ma_window" not in field_names
+
+    def test_equity_chart_meta_roundtrip_with_asdict(self):
+        """
+        목적: asdict 로 직렬화 → dict 로 복원 시 값이 보존된다 (RTDB 쓰기 패턴).
+        """
+        from dataclasses import asdict as _asdict
+
+        # Given
+        meta = EquityChartMeta(
+            first_date="2024-01-02",
+            last_date="2026-04-10",
+            recent_months=6,
+            archive_years=[2024, 2025, 2026],
+        )
+
+        # When
+        payload = _asdict(meta)
+
+        # Then
+        assert payload == {
+            "first_date": "2024-01-02",
+            "last_date": "2026-04-10",
+            "recent_months": 6,
+            "archive_years": [2024, 2025, 2026],
+        }
+
+
+class TestEquityChartSeries:
+    def test_equity_chart_series_has_equity_timeseries_fields(self):
+        """
+        목적: EquityChartSeries 는 주가 차트(ChartSeries)와 달리 dates /
+              model_equity / actual_equity / drift_pct 4 필드만 가진다.
+              close / ma_value / upper_band / lower_band / 마커 4 종은 포함하지
+              않는다.
+
+        Given: EquityChartSeries 인스턴스.
+        When:  dataclass 필드 이름 집합 조회.
+        Then:  기대 필드 집합과 일치, 주가 전용 필드는 없음.
+        """
+        assert is_dataclass(EquityChartSeries)
+        field_names = {f.name for f in fields(EquityChartSeries)}
+        assert field_names == {"dates", "model_equity", "actual_equity", "drift_pct"}
+        # 주가 전용 필드는 없다.
+        assert "close" not in field_names
+        assert "ma_value" not in field_names
+        assert "upper_band" not in field_names
+        assert "buy_signals" not in field_names
+
+    def test_equity_chart_series_asdict_preserves_arrays(self):
+        """
+        목적: asdict 호출 후 dict 에 4 배열이 그대로 담긴다.
+        """
+        from dataclasses import asdict as _asdict
+
+        # Given
+        series = EquityChartSeries(
+            dates=["2026-04-09", "2026-04-10"],
+            model_equity=[12_345_678, 12_400_000],
+            actual_equity=[12_300_000, 12_350_001],
+            drift_pct=[0.0037, 0.0041],
+        )
+
+        # When
+        payload = _asdict(series)
+
+        # Then
+        assert payload["dates"] == ["2026-04-09", "2026-04-10"]
+        assert payload["model_equity"] == [12_345_678, 12_400_000]
+        assert payload["actual_equity"] == [12_300_000, 12_350_001]
+        assert payload["drift_pct"] == [0.0037, 0.0041]

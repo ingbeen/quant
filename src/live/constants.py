@@ -152,22 +152,12 @@ APPLIED_FILL_IDS_MAX_AGE_DAYS: Final[int] = 90
 
 
 # ============================================================================
-# RTDB history summary retention (rolling window)
+# Chart data (RTDB /charts/prices/{asset_id} 및 /charts/equity)
 # ============================================================================
 
-# RTDB ``/history/summary/{YYYY-MM-DD}`` 는 앱 홈 탭의 최근 기록 표시용 캐시이며
-# 전체 정본은 Git ``history/summary.jsonl`` 이다. RTDB 쪽은 이 일수만큼만 유지하고
-# 오래된 키는 매 실행 후 자동 삭제한다. 값은 설계서 §8.2.6 권고 상한(90 일).
-RTDB_HISTORY_SUMMARY_RETENTION_DAYS: Final[int] = 90
-
-
-# ============================================================================
-# Chart data (RTDB /latest/chart_data/{asset_id})
-# ============================================================================
-
-# ``/latest/chart_data/{asset_id}/recent`` 가 포함할 최근 기간 (개월). 앱이 초기
-# 차트 진입 시 이 범위를 먼저 로드하고, 줌아웃 시 archive/{YYYY} 를 점진 로드한다.
-# 값은 설계서 §8.2.5 에서 확정된 기본값이며, 앱 UX 가 변경되기 전까지 고정.
+# ``/charts/prices/{asset_id}/recent`` 와 ``/charts/equity/recent`` 가 공통으로
+# 포함할 최근 기간 (개월). 앱이 초기 차트 진입 시 이 범위를 먼저 로드하고,
+# 줌아웃 시 archive/{YYYY} 를 점진 로드한다. 주가 / equity 차트 공통 상수.
 CHART_RECENT_MONTHS: Final[int] = 6
 
 

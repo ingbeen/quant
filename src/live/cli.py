@@ -45,6 +45,9 @@ from live.chart_data import (
     build_chart_archive_year,
     build_chart_meta,
     build_chart_recent,
+    build_equity_archive_year,
+    build_equity_meta,
+    build_equity_recent,
 )
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -59,7 +62,6 @@ from live.constants import (
     HISTORY_SUMMARY_FILENAME,
     KST_TIMEZONE,
     NYSE_CALENDAR_CODE,
-    RTDB_HISTORY_SUMMARY_RETENTION_DAYS,
     STATE_REPO_PAT_ENV_KEY,
     STATE_REPO_URL,
     TELEGRAM_CHAT_ENV_KEY,
@@ -290,17 +292,10 @@ def _publish_to_rtdb(
     # 1. read model 갱신
     rtdb_gateway.write_read_model(rtdb_app, state, result)
 
-    # 2. history summary rolling window 정리 (RTDB 는 앱 표시용 캐시, 정본은 Git)
-    execution_date = date.fromisoformat(result.execution_date)
-    rtdb_gateway.prune_history_summary(
-        rtdb_app,
-        retention_days=RTDB_HISTORY_SUMMARY_RETENTION_DAYS,
-        today=execution_date,
-    )
-
-    # 3. 차트 데이터 갱신 — meta + recent + 현재 연도 archive
+    # 2. 차트 데이터 갱신 — meta + recent + 현재 연도 archive
     #    (이전 연도 archive 는 backfill CLI 가 1 회 생성하고 스플릿 등 이벤트 시
     #    수동 재생성한다. daily runner 는 건드리지 않는다.)
+    execution_date = date.fromisoformat(result.execution_date)
     history_dir = _history_dir(state_dir)
     user_trades = history.load_user_trades(history_dir)
     signal_history = history.load_signal_history(history_dir)
@@ -323,6 +318,17 @@ def _publish_to_rtdb(
         signal_history=signal_history,
     )
     rtdb_gateway.write_chart_archive_year(rtdb_app, year=current_year, year_map=archive_map)
+
+    # 3-b. equity 차트 갱신 — meta + recent + 현재 연도 archive (/charts/equity/)
+    #      데이터 소스는 Git 정본 history/summary.jsonl. run-daily 는 이 시점에
+    #      _persist_history 를 통해 당일 1 줄을 이미 append 했으므로 파일이 최소
+    #      1 줄 이상 보장된다. 과거 연도 archive 는 backfill CLI 로만 재생성.
+    equity_meta = build_equity_meta(state_dir)
+    rtdb_gateway.write_equity_meta(rtdb_app, equity_meta)
+    equity_recent = build_equity_recent(state_dir)
+    rtdb_gateway.write_equity_recent(rtdb_app, equity_recent)
+    equity_archive = build_equity_archive_year(state_dir, year=current_year)
+    rtdb_gateway.write_equity_archive_year(rtdb_app, year=current_year, series=equity_archive)
 
     # 4. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
     if newly_applied_fill_keys:
@@ -905,12 +911,14 @@ def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
 
     옵션:
 
-    - ``--year YYYY``: 단일 연도만 재생성 (기본: meta.archive_years 전체).
+    - ``--target prices|equity|all``: 재생성 대상 차트 종류 (기본값 ``all``).
+    - ``--year YYYY``: 단일 연도만 재생성 (기본: 대상 차트의 archive_years 전체).
     - ``--dry-run``: 실제 RTDB 쓰기 없이 대상 연도만 출력.
 
-    본 명령은 ephemeral state repo 를 read-only 로 clone 하여 CSV 만 사용한다.
-    Git push 는 수행하지 않는다.
+    본 명령은 ephemeral state repo 를 read-only 로 clone 하여 CSV / summary.jsonl
+    만 사용한다. Git push 는 수행하지 않는다.
     """
+    target: str = args.target
     year_arg: int | None = args.year
     dry_run: bool = args.dry_run
 
@@ -919,28 +927,46 @@ def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
         user_trades = history.load_user_trades(history_dir)
         signal_history = history.load_signal_history(history_dir)
 
-        meta_map = build_chart_meta(state_dir)
+        do_prices = target in ("prices", "all")
+        do_equity = target in ("equity", "all")
 
-        # meta 에서 archive_years 합집합을 계산 (자산마다 동일해야 하지만 방어적으로 합집합).
-        all_years: set[int] = set()
-        for meta in meta_map.values():
-            all_years.update(meta.archive_years)
+        meta_map: dict[str, Any] = {}
+        prices_years: list[int] = []
+        if do_prices:
+            meta_map = build_chart_meta(state_dir)
+            prices_year_set: set[int] = set()
+            for meta in meta_map.values():
+                prices_year_set.update(meta.archive_years)
+            prices_years = sorted(prices_year_set)
 
+        equity_meta = None
+        equity_years: list[int] = []
+        if do_equity:
+            equity_meta = build_equity_meta(state_dir)
+            equity_years = sorted(equity_meta.archive_years)
+
+        target_prices_years: list[int]
+        target_equity_years: list[int]
         if year_arg is not None:
-            if year_arg not in all_years:
-                logger.warning(f"--year={year_arg} 가 meta.archive_years 에 없음. 대상 연도 없음.")
+            if do_prices and year_arg not in prices_years and not (do_equity and year_arg in equity_years):
+                logger.warning(f"--year={year_arg} 가 주가 / equity archive_years 어디에도 없음. 대상 연도 없음.")
                 return 0
-            target_years = [year_arg]
+            target_prices_years = [year_arg] if (do_prices and year_arg in prices_years) else []
+            target_equity_years = [year_arg] if (do_equity and year_arg in equity_years) else []
         else:
-            target_years = sorted(all_years)
+            target_prices_years = prices_years if do_prices else []
+            target_equity_years = equity_years if do_equity else []
 
         if dry_run:
-            sys.stdout.write(f"[dry-run] 대상 자산: {sorted(meta_map.keys())} × 대상 연도: {target_years}\n")
+            sys.stdout.write(
+                f"[dry-run] target={target} | 주가 자산 {sorted(meta_map.keys())} × 연도 {target_prices_years} "
+                f"| equity 연도 {target_equity_years}\n"
+            )
             return 0
 
         rtdb_app = _require_rtdb_app()
 
-        for year in target_years:
+        for year in target_prices_years:
             archive_map = build_chart_archive_year(
                 state_dir,
                 year=year,
@@ -948,9 +974,18 @@ def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
                 signal_history=signal_history,
             )
             rtdb_gateway.write_chart_archive_year(rtdb_app, year=year, year_map=archive_map)
-            logger.debug(f"archive/{year} 재생성 완료")
+            logger.debug(f"prices/archive/{year} 재생성 완료")
 
-        rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+        if do_prices:
+            rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+
+        for year in target_equity_years:
+            equity_archive = build_equity_archive_year(state_dir, year=year)
+            rtdb_gateway.write_equity_archive_year(rtdb_app, year=year, series=equity_archive)
+            logger.debug(f"equity/archive/{year} 재생성 완료")
+
+        if do_equity and equity_meta is not None:
+            rtdb_gateway.write_equity_meta(rtdb_app, equity_meta)
     return 0
 
 
@@ -1032,10 +1067,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="차트 archive 전체 재생성 (최초 배포 / 스플릿 대응 수동 명령)",
     )
     p_backfill.add_argument(
+        "--target",
+        choices=["prices", "equity", "all"],
+        default="all",
+        help="선택. 재생성 대상 차트 종류 (기본: all = 주가 + equity)",
+    )
+    p_backfill.add_argument(
         "--year",
         type=int,
         default=None,
-        help="선택. 단일 연도만 재생성 (기본: meta.archive_years 전체)",
+        help="선택. 단일 연도만 재생성 (기본: 대상 차트의 archive_years 전체)",
     )
     p_backfill.add_argument(
         "--dry-run",

@@ -6,8 +6,6 @@ RTDB 진입점 호출 시그니처와 페이로드 구조를 검증한다.
 
 from __future__ import annotations
 
-import logging
-from datetime import date
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -20,19 +18,24 @@ from live.models import (
     ChartSeries,
     DailyResult,
     DriftReport,
+    EquityChartMeta,
+    EquityChartSeries,
     SignalDetection,
 )
 from live.rtdb_gateway import (
+    delete_all_except_device_tokens,
     fetch_pending_balance_adjusts,
     fetch_unprocessed_fills,
     mark_balance_adjusts_processed,
     mark_fills_processed,
-    prune_history_summary,
     read_device_tokens,
     remove_invalid_tokens,
     write_chart_archive_year,
     write_chart_meta,
     write_chart_recent,
+    write_equity_archive_year,
+    write_equity_meta,
+    write_equity_recent,
     write_read_model,
 )
 from live.state import create_initial_state
@@ -51,9 +54,7 @@ class _MockRef:
     2. 그렇지 않으면 ``{path}/...`` 하위 경로들을 스캔하여 **즉시 자식** 을
        dict 로 묶어 반환한다. 자식이 하나도 없으면 ``None``.
 
-    이 규칙 덕분에 ``write_read_model`` 처럼 ``/history/summary/{date}`` 단위로
-    ``set`` 한 결과를 ``/history/summary`` 의 부모 ``get`` 에서 dict 로 되돌려
-    읽을 수 있다. 실제 Firebase RTDB 의 트리 구조 동작을 단순화한 모방이다.
+    실제 Firebase RTDB 의 트리 구조 동작을 단순화한 모방이다.
     """
 
     def __init__(self, path: str, store: dict[str, Any]) -> None:
@@ -240,7 +241,12 @@ class TestMarkBalanceAdjustsProcessed:
 
 
 class TestWriteReadModel:
-    def test_writes_portfolio_signals_pending_drift_history(self, mock_db, mock_app):
+    def test_writes_portfolio_signals_pending(self, mock_db, mock_app):
+        """write_read_model 은 `/latest/portfolio|signals|pending_orders` 3 경로만 쓴다.
+
+        ``/history/summary/{date}`` 쓰기는 PLAN_LIVE_CHARTS_RESTRUCTURE 로 제거됨
+        — equity 시계열은 별도 `/charts/equity/` 경로가 담당한다.
+        """
         state = create_initial_state(100_000_000.0)
         state.assets["sso"].model_shares = 100
         state.assets["sso"].pending_order = {
@@ -305,13 +311,14 @@ class TestWriteReadModel:
         assert "/latest/drift" not in mock_db
         assert mock_db["/latest/portfolio"]["drift_pct"] == 0.0
 
-        assert "/history/summary/2026-04-10" in mock_db
+        # /history/summary/ RTDB 경로는 제거됨 — equity 시계열은 /charts/equity/ 소관.
+        assert "/history/summary/2026-04-10" not in mock_db
+        assert not any(key.startswith("/history/summary") for key in mock_db)
 
     def test_drift_pct_is_stored_as_0_to_1_ratio(self, mock_db, mock_app):
         """
         목적: 프로젝트 네이밍 관례(`_pct` = 0~1 ratio) 에 따라 `/latest/portfolio`
-              와 `/history/summary/{date}` 의 ``drift_pct`` 는 **0~1 ratio** 로
-              저장된다 (과거 `× 100 스케일` 에서 0~1 ratio 로 통일됨).
+              의 ``drift_pct`` 는 **0~1 ratio** 로 저장된다.
 
         Given: drift_pct=0.0350 (3.5%) 인 DailyResult.
         When:  write_read_model 호출.
@@ -352,142 +359,10 @@ class TestWriteReadModel:
 
         # Then
         portfolio_drift = mock_db["/latest/portfolio"]["drift_pct"]
-        history_drift = mock_db["/history/summary/2026-04-10"]["drift_pct"]
-
         assert portfolio_drift == pytest.approx(
             drift_ratio, abs=1e-6
         ), f"/latest/portfolio drift_pct 는 0~1 ratio 여야 함 (expected≈{drift_ratio})"
-        assert history_drift == pytest.approx(
-            drift_ratio, abs=1e-6
-        ), f"/history/summary drift_pct 는 0~1 ratio 여야 함 (expected≈{drift_ratio})"
         assert 0.0 <= portfolio_drift <= 1.0
-        assert 0.0 <= history_drift <= 1.0
-
-
-# ============================================================================
-# prune_history_summary
-# ============================================================================
-
-
-class TestPruneHistorySummary:
-    """``/history/summary/{date}`` rolling window 정리 정책.
-
-    정책:
-
-    - ``today - retention_days`` **이전** 날짜 키는 삭제된다.
-    - 그 이상 ("오늘 이후" 포함) 날짜 키는 보존된다.
-    - ``/history/summary`` 가 비어 있거나 존재하지 않으면 no-op.
-    - 날짜 포맷이 ISO 8601 이 아닌 키는 무시한다 (파싱 실패 시 건너뜀).
-    """
-
-    def test_removes_entries_older_than_retention(self, mock_db, mock_app):
-        """
-        목적: retention 기간을 넘긴 날짜 키만 삭제되고 최신 키는 보존된다.
-
-        경계 정책: ``cutoff = today - retention_days``, ``entry_date < cutoff`` 이면 삭제.
-        따라서 retention 경계일(정확히 today - retention_days) 자체는 **보존** 된다.
-
-        Given: /history/summary 에 경계 전후 여러 날짜 키가 존재한다.
-        When:  retention_days=90, today=2026-04-14 로 prune 호출 → cutoff=2026-01-14.
-        Then:  cutoff 미만 키(2025-12-31, 2026-01-13)는 삭제, cutoff 이상 키는 보존.
-        """
-        # Given
-        mock_db["/history/summary/2025-12-31"] = {"execution_date": "2025-12-31"}  # cutoff 미만
-        mock_db["/history/summary/2026-01-13"] = {"execution_date": "2026-01-13"}  # cutoff 미만
-        mock_db["/history/summary/2026-01-14"] = {"execution_date": "2026-01-14"}  # cutoff 정확 일치
-        mock_db["/history/summary/2026-01-15"] = {"execution_date": "2026-01-15"}  # cutoff 초과
-        mock_db["/history/summary/2026-04-10"] = {"execution_date": "2026-04-10"}
-
-        # When
-        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
-
-        # Then
-        assert "/history/summary/2025-12-31" not in mock_db  # cutoff 미만 → 삭제
-        assert "/history/summary/2026-01-13" not in mock_db  # cutoff 미만 → 삭제
-        assert "/history/summary/2026-01-14" in mock_db  # cutoff 일치 → 보존
-        assert "/history/summary/2026-01-15" in mock_db  # cutoff 초과 → 보존
-        assert "/history/summary/2026-04-10" in mock_db  # 최근 → 보존
-
-    def test_empty_history_summary_is_noop(self, mock_db, mock_app):
-        """
-        목적: /history/summary 가 비어 있으면 아무 일도 하지 않는다.
-
-        Given: mock store 가 비어 있음.
-        When:  prune 호출.
-        Then:  예외 없이 종료, store 변화 없음.
-        """
-        # Given / When
-        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
-
-        # Then
-        assert mock_db == {}
-
-    def test_invalid_date_keys_are_skipped_with_warning(self, mock_db, mock_app, caplog):
-        """
-        목적: ISO 8601 파싱 실패 키는 건너뛰되, 운영자가 침해를 인지할 수 있도록
-              WARNING 로그로 기록한다 (파손 키 보호 의도 유지 + 침해 가시화).
-
-        Given: /history/summary 아래에 파싱 불가능한 키가 존재.
-        When:  prune 호출.
-        Then:  해당 키는 그대로 유지, 예외 없음, WARNING 로그에 파손 키가 포함.
-
-        주의: qbt ``setup_logger`` 는 ``propagate=False`` 이므로 caplog 기본 캡처가
-        닿지 않는다. 본 테스트는 ``caplog.handler`` 를 live 로거에 직접 부착한다.
-        """
-        # Given
-        mock_db["/history/summary/not-a-date"] = {"execution_date": "invalid"}
-        mock_db["/history/summary/2026-04-10"] = {"execution_date": "2026-04-10"}
-
-        rtdb_logger = logging.getLogger("live.rtdb_gateway")
-        caplog.set_level(logging.WARNING, logger="live.rtdb_gateway")
-        rtdb_logger.addHandler(caplog.handler)
-        try:
-            # When
-            prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
-        finally:
-            rtdb_logger.removeHandler(caplog.handler)
-
-        # Then
-        assert "/history/summary/not-a-date" in mock_db  # 파싱 실패 → 건너뜀
-        assert "/history/summary/2026-04-10" in mock_db
-        warnings = [rec.getMessage() for rec in caplog.records if rec.levelname == "WARNING"]
-        assert any("not-a-date" in msg for msg in warnings), f"파손 키 WARNING 로그가 없음. 현재 WARNING 로그: {warnings!r}"
-
-    def test_keeps_today_and_future_entries(self, mock_db, mock_app):
-        """
-        목적: 오늘 이후 날짜는 무조건 보존한다 (retention 기준이 음수가 되는 경우 없음).
-
-        Given: 오늘 / 오늘 이후 키가 존재.
-        When:  prune 호출.
-        Then:  모두 보존.
-        """
-        # Given
-        mock_db["/history/summary/2026-04-14"] = {"execution_date": "2026-04-14"}
-        mock_db["/history/summary/2026-04-15"] = {"execution_date": "2026-04-15"}
-
-        # When
-        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
-
-        # Then
-        assert "/history/summary/2026-04-14" in mock_db
-        assert "/history/summary/2026-04-15" in mock_db
-
-    def test_non_dict_root_is_noop(self, mock_db, mock_app):
-        """
-        목적: /history/summary 가 dict 가 아닌 예상 외 타입이면 조용히 건너뛴다.
-
-        Given: /history/summary 가 문자열로 저장됨 (이상 케이스).
-        When:  prune 호출.
-        Then:  예외 없이 종료, 원본 보존.
-        """
-        # Given
-        mock_db["/history/summary"] = "not a dict"
-
-        # When
-        prune_history_summary(mock_app, retention_days=90, today=date(2026, 4, 14))
-
-        # Then
-        assert mock_db["/history/summary"] == "not a dict"
 
 
 # ============================================================================
@@ -513,11 +388,11 @@ def _sample_chart_series() -> ChartSeries:
 class TestWriteChartMeta:
     def test_writes_meta_per_asset(self, mock_db, mock_app):
         """
-        목적: write_chart_meta 가 /latest/chart_data/{asset_id}/meta 에 자산별로 쓴다.
+        목적: write_chart_meta 가 /charts/prices/{asset_id}/meta 에 자산별로 쓴다.
 
         Given: 두 자산에 대한 ChartMeta 맵
         When:  write_chart_meta
-        Then:  각 자산의 /latest/chart_data/{asset_id}/meta 에 payload 존재, 필드 일치.
+        Then:  각 자산의 /charts/prices/{asset_id}/meta 에 payload 존재, 필드 일치.
         """
         meta_map = {
             "sso": ChartMeta(
@@ -538,36 +413,39 @@ class TestWriteChartMeta:
 
         write_chart_meta(mock_app, meta_map)
 
-        assert "/latest/chart_data/sso/meta" in mock_db
-        assert "/latest/chart_data/qld/meta" in mock_db
-        assert mock_db["/latest/chart_data/sso/meta"]["archive_years"] == [2013, 2014, 2015]
-        assert mock_db["/latest/chart_data/sso/meta"]["recent_months"] == 6
-        assert mock_db["/latest/chart_data/sso/meta"]["ma_window"] == 200
+        assert "/charts/prices/sso/meta" in mock_db
+        assert "/charts/prices/qld/meta" in mock_db
+        assert mock_db["/charts/prices/sso/meta"]["archive_years"] == [2013, 2014, 2015]
+        assert mock_db["/charts/prices/sso/meta"]["recent_months"] == 6
+        assert mock_db["/charts/prices/sso/meta"]["ma_window"] == 200
+        # 구 경로는 쓰지 않는다.
+        assert "/latest/chart_data/sso/meta" not in mock_db
 
 
 class TestWriteChartRecent:
     def test_writes_recent_per_asset(self, mock_db, mock_app):
         """
-        목적: write_chart_recent 가 /latest/chart_data/{asset_id}/recent 에 자산별로 쓴다.
+        목적: write_chart_recent 가 /charts/prices/{asset_id}/recent 에 자산별로 쓴다.
 
         Given: 두 자산에 대한 ChartSeries (recent slice)
         When:  write_chart_recent
-        Then:  각 자산의 /latest/chart_data/{asset_id}/recent 에 payload 존재, 마커는 ISO 날짜 문자열.
+        Then:  각 자산의 /charts/prices/{asset_id}/recent 에 payload 존재, 마커는 ISO 날짜 문자열.
         """
         chart = _sample_chart_series()
         write_chart_recent(mock_app, {"sso": chart, "qld": chart})
 
-        assert "/latest/chart_data/sso/recent" in mock_db
-        assert "/latest/chart_data/qld/recent" in mock_db
-        assert mock_db["/latest/chart_data/sso/recent"]["close"] == [100.0, 101.0]
-        assert mock_db["/latest/chart_data/sso/recent"]["buy_signals"] == ["2026-04-08"]
-        assert mock_db["/latest/chart_data/sso/recent"]["user_buys"] == ["2026-04-09"]
+        assert "/charts/prices/sso/recent" in mock_db
+        assert "/charts/prices/qld/recent" in mock_db
+        assert mock_db["/charts/prices/sso/recent"]["close"] == [100.0, 101.0]
+        assert mock_db["/charts/prices/sso/recent"]["buy_signals"] == ["2026-04-08"]
+        assert mock_db["/charts/prices/sso/recent"]["user_buys"] == ["2026-04-09"]
+        assert "/latest/chart_data/sso/recent" not in mock_db
 
 
 class TestWriteChartArchiveYear:
     def test_writes_archive_year_per_asset(self, mock_db, mock_app):
         """
-        목적: write_chart_archive_year 가 /latest/chart_data/{asset_id}/archive/{YYYY} 에 쓴다.
+        목적: write_chart_archive_year 가 /charts/prices/{asset_id}/archive/{YYYY} 에 쓴다.
 
         Given: 특정 연도 ChartSeries 맵
         When:  write_chart_archive_year(year=2026)
@@ -576,9 +454,10 @@ class TestWriteChartArchiveYear:
         chart = _sample_chart_series()
         write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart, "qld": chart})
 
-        assert "/latest/chart_data/sso/archive/2026" in mock_db
-        assert "/latest/chart_data/qld/archive/2026" in mock_db
-        assert mock_db["/latest/chart_data/sso/archive/2026"]["close"] == [100.0, 101.0]
+        assert "/charts/prices/sso/archive/2026" in mock_db
+        assert "/charts/prices/qld/archive/2026" in mock_db
+        assert mock_db["/charts/prices/sso/archive/2026"]["close"] == [100.0, 101.0]
+        assert "/latest/chart_data/sso/archive/2026" not in mock_db
 
     def test_writes_archive_year_different_years_independent(self, mock_db, mock_app):
         """
@@ -599,10 +478,141 @@ class TestWriteChartArchiveYear:
         write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart_a})
         write_chart_archive_year(mock_app, year=2025, year_map={"sso": chart_b})
 
-        assert "/latest/chart_data/sso/archive/2026" in mock_db
-        assert "/latest/chart_data/sso/archive/2025" in mock_db
-        assert mock_db["/latest/chart_data/sso/archive/2026"]["close"] == [100.0, 101.0]
-        assert mock_db["/latest/chart_data/sso/archive/2025"]["close"] == [50.0, 51.0]
+        assert "/charts/prices/sso/archive/2026" in mock_db
+        assert "/charts/prices/sso/archive/2025" in mock_db
+        assert mock_db["/charts/prices/sso/archive/2026"]["close"] == [100.0, 101.0]
+        assert mock_db["/charts/prices/sso/archive/2025"]["close"] == [50.0, 51.0]
+
+
+# ============================================================================
+# equity 차트 write (/charts/equity/)
+# ============================================================================
+
+
+def _sample_equity_meta() -> EquityChartMeta:
+    return EquityChartMeta(
+        first_date="2024-01-02",
+        last_date="2026-04-10",
+        recent_months=6,
+        archive_years=[2024, 2025, 2026],
+    )
+
+
+def _sample_equity_series() -> EquityChartSeries:
+    return EquityChartSeries(
+        dates=["2026-04-09", "2026-04-10"],
+        model_equity=[12_345_678, 12_400_000],
+        actual_equity=[12_300_000, 12_350_001],
+        drift_pct=[0.0037, 0.0041],
+    )
+
+
+class TestWriteEquityMeta:
+    def test_writes_meta_to_charts_equity_path(self, mock_db, mock_app):
+        """
+        목적: write_equity_meta 가 /charts/equity/meta 단일 경로에 쓴다.
+
+        Given: EquityChartMeta 인스턴스.
+        When:  write_equity_meta 호출.
+        Then:  /charts/equity/meta 에 payload, 주가 경로 아님.
+        """
+        meta = _sample_equity_meta()
+        write_equity_meta(mock_app, meta)
+
+        assert "/charts/equity/meta" in mock_db
+        assert mock_db["/charts/equity/meta"]["first_date"] == "2024-01-02"
+        assert mock_db["/charts/equity/meta"]["archive_years"] == [2024, 2025, 2026]
+        # 주가 차트 경로에는 쓰지 않는다.
+        assert "/charts/prices/meta" not in mock_db
+
+
+class TestWriteEquityRecent:
+    def test_writes_recent_to_charts_equity_path(self, mock_db, mock_app):
+        """
+        목적: write_equity_recent 가 /charts/equity/recent 에 쓴다.
+
+        Given: EquityChartSeries (recent).
+        When:  write_equity_recent 호출.
+        Then:  /charts/equity/recent 에 3 시계열이 그대로 보존된다.
+        """
+        series = _sample_equity_series()
+        write_equity_recent(mock_app, series)
+
+        payload = mock_db["/charts/equity/recent"]
+        assert payload["dates"] == ["2026-04-09", "2026-04-10"]
+        assert payload["model_equity"] == [12_345_678, 12_400_000]
+        assert payload["actual_equity"] == [12_300_000, 12_350_001]
+        assert payload["drift_pct"] == [0.0037, 0.0041]
+
+
+class TestWriteEquityArchiveYear:
+    def test_writes_archive_year_to_charts_equity_path(self, mock_db, mock_app):
+        """
+        목적: write_equity_archive_year 가 /charts/equity/archive/{YYYY} 에 쓴다.
+        """
+        series = _sample_equity_series()
+        write_equity_archive_year(mock_app, year=2026, series=series)
+
+        assert "/charts/equity/archive/2026" in mock_db
+        assert mock_db["/charts/equity/archive/2026"]["dates"] == ["2026-04-09", "2026-04-10"]
+
+    def test_writes_different_years_independent(self, mock_db, mock_app):
+        """
+        목적: 서로 다른 연도 write 는 독립적으로 저장된다.
+        """
+        series_a = _sample_equity_series()
+        series_b = EquityChartSeries(
+            dates=["2025-12-30"],
+            model_equity=[11_000_000],
+            actual_equity=[10_950_000],
+            drift_pct=[0.0045],
+        )
+        write_equity_archive_year(mock_app, year=2026, series=series_a)
+        write_equity_archive_year(mock_app, year=2025, series=series_b)
+
+        assert mock_db["/charts/equity/archive/2026"]["model_equity"] == [12_345_678, 12_400_000]
+        assert mock_db["/charts/equity/archive/2025"]["model_equity"] == [11_000_000]
+
+
+# ============================================================================
+# delete_all_except_device_tokens (reset 초기화 경로)
+# ============================================================================
+
+
+class TestDeleteAllExceptDeviceTokens:
+    """``reset`` CLI 가 호출하는 RTDB 전체 초기화 경로 정책.
+
+    - /device_tokens 는 삭제하지 않는다 (FCM 토큰 유지).
+    - /charts 최상위를 삭제한다 (주가 + equity 차트 전부).
+    - /history/summary 는 더 이상 RTDB 에 쓰지 않으므로 삭제 대상 목록에 포함되지 않는다
+      (PLAN_LIVE_CHARTS_RESTRUCTURE).
+    """
+
+    def test_deletes_expected_paths_and_keeps_device_tokens(self, monkeypatch, mock_app):
+        # Given — 삭제 호출을 추적할 수 있는 fake _db_reference
+        deleted_paths: list[str] = []
+
+        class _RecordingRef:
+            def __init__(self, path: str) -> None:
+                self._path = path
+
+            def delete(self) -> None:
+                deleted_paths.append(self._path)
+
+        monkeypatch.setattr(rtdb_module, "_db_reference", lambda app, path: _RecordingRef(path))
+
+        # When
+        delete_all_except_device_tokens(mock_app)
+
+        # Then — /device_tokens 는 포함되지 않고, 신규 /charts 가 포함된다.
+        assert "/device_tokens" not in deleted_paths
+        assert "/latest" in deleted_paths
+        assert "/charts" in deleted_paths
+        assert "/fills/inbox" in deleted_paths
+        assert "/balance_adjust/inbox" in deleted_paths
+        assert "/fill_dismiss/inbox" in deleted_paths
+        # /history/summary 는 더 이상 RTDB 에 존재하지 않으므로 삭제 목록에 없다.
+        assert "/history/summary" not in deleted_paths
 
 
 # ============================================================================

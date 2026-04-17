@@ -8,25 +8,36 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 지원 경로:
 
 - ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``
-- ``/latest/chart_data/{asset_id}/meta``
-- ``/latest/chart_data/{asset_id}/recent``
-- ``/latest/chart_data/{asset_id}/archive/{YYYY}``
-- ``/history/summary/`` (rolling window — :func:`prune_history_summary`)
-- ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``
+- ``/charts/prices/{asset_id}/meta``
+- ``/charts/prices/{asset_id}/recent``
+- ``/charts/prices/{asset_id}/archive/{YYYY}``
+- ``/charts/equity/meta``
+- ``/charts/equity/recent``
+- ``/charts/equity/archive/{YYYY}``
+- ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``, ``/fill_dismiss/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal, cast
 
 import firebase_admin
 from firebase_admin import credentials, db
 
-from live.models import ActualFill, BalanceAdjust, ChartMeta, ChartSeries, DailyResult, FillDismiss, LiveState
+from live.models import (
+    ActualFill,
+    BalanceAdjust,
+    ChartMeta,
+    ChartSeries,
+    DailyResult,
+    EquityChartMeta,
+    EquityChartSeries,
+    FillDismiss,
+    LiveState,
+)
 from qbt.backtest.constants import ROUND_RATIO
 from qbt.utils.logger import get_logger
 
@@ -49,19 +60,22 @@ __all__ = [
     "write_chart_meta",
     "write_chart_recent",
     "write_chart_archive_year",
-    "prune_history_summary",
+    "write_equity_meta",
+    "write_equity_recent",
+    "write_equity_archive_year",
     "read_device_tokens",
     "remove_invalid_tokens",
     "delete_all_except_device_tokens",
 ]
 
 _LATEST_PATH = "/latest"
+_CHARTS_PATH = "/charts"
 _FILLS_INBOX_PATH = "/fills/inbox"
 _BALANCE_ADJUST_INBOX_PATH = "/balance_adjust/inbox"
 _FILL_DISMISS_INBOX_PATH = "/fill_dismiss/inbox"
 _DEVICE_TOKENS_PATH = "/device_tokens"
-_HISTORY_SUMMARY_PATH = "/history/summary"
-_CHART_DATA_PATH = "/latest/chart_data"
+_CHART_PRICES_PATH = "/charts/prices"
+_CHART_EQUITY_PATH = "/charts/equity"
 
 
 def initialize_firebase_app(credentials_path: Path, db_url: str) -> FirebaseAppLike:
@@ -343,74 +357,25 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
     }
     _db_reference(app, f"{_LATEST_PATH}/pending_orders").set(pending_payload)
 
-    # 일일 요약은 history/summary 에도 누적 (rolling window 는 prune_history_summary 로 정리)
-    _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{result.execution_date}").set(
-        {
-            "execution_date": result.execution_date,
-            "model_equity": result.model_equity,
-            "actual_equity": result.actual_equity,
-            # drift_pct 0~1 ratio 저장 (위 portfolio_payload 와 동일 규칙).
-            "drift_pct": round(result.drift_pct, ROUND_RATIO),
-        }
-    )
-
-
-def prune_history_summary(app: FirebaseAppLike, retention_days: int, today: date) -> None:
-    """``/history/summary/{YYYY-MM-DD}`` 에서 retention 초과 키를 삭제한다.
-
-    RTDB 쪽 history summary 는 앱 홈 탭의 rolling cache 이며, 전체 정본은
-    Git ``history/summary.jsonl`` 이다. 이 함수는 ``today - retention_days``
-    **미만** 인 날짜 키를 삭제하여 용량 누수를 방지한다.
-
-    Args:
-        app: Firebase App 인스턴스.
-        retention_days: 유지할 최대 일수 (이 일수를 초과한 과거 키는 삭제).
-        today: 기준 날짜. daily runner 의 ``execution_date`` 를 그대로 전달하여
-            backfill / historical 재실행 시에도 retention 창이 그 날짜 기준으로
-            움직이게 한다.
-
-    동작:
-
-    - ``/history/summary`` 가 없거나 dict 가 아니면 no-op.
-    - 날짜 포맷이 ISO 8601 이 아닌 키는 건너뛴다 (파손 키 보호). 단, 운영자가
-      침해를 인지할 수 있도록 **WARNING 로그로 기록**한다.
-    - retention 경계일 자체도 삭제 대상이다 (미만 기준: cutoff = today - retention_days,
-      `date_key < cutoff` 이면 삭제).
-    """
-    ref = _db_reference(app, _HISTORY_SUMMARY_PATH)
-    raw = ref.get()
-    if not isinstance(raw, dict):
-        return
-
-    cutoff = today - timedelta(days=retention_days)
-    for date_key in list(raw.keys()):
-        try:
-            entry_date = date.fromisoformat(str(date_key))
-        except ValueError:
-            logger.warning(f"history/summary 파손 키 발견 — date_key={date_key!r} " f"(ISO 8601 파싱 실패, prune 스킵)")
-            continue
-        if entry_date < cutoff:
-            _db_reference(app, f"{_HISTORY_SUMMARY_PATH}/{date_key}").delete()
-
 
 def write_chart_meta(app: FirebaseAppLike, meta_map: dict[str, ChartMeta]) -> None:
-    """``/latest/chart_data/{asset_id}/meta`` 에 자산별 차트 메타를 덮어쓴다.
+    """``/charts/prices/{asset_id}/meta`` 에 자산별 차트 메타를 덮어쓴다.
 
     앱은 차트 진입 시 이 메타를 먼저 읽어 recent / archive 로딩 전략을 결정한다.
     """
     for asset_id, meta in meta_map.items():
         payload = asdict(meta)
-        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/meta").set(payload)
+        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/meta").set(payload)
 
 
 def write_chart_recent(app: FirebaseAppLike, recent_map: dict[str, ChartSeries]) -> None:
-    """``/latest/chart_data/{asset_id}/recent`` 에 자산별 최근 슬라이스를 덮어쓴다.
+    """``/charts/prices/{asset_id}/recent`` 에 자산별 최근 슬라이스를 덮어쓴다.
 
     앱이 차트 초기 진입 시 가장 먼저 로드하는 구간이다.
     """
     for asset_id, chart_series in recent_map.items():
         payload = asdict(chart_series)
-        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/recent").set(payload)
+        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/recent").set(payload)
 
 
 def write_chart_archive_year(
@@ -418,7 +383,7 @@ def write_chart_archive_year(
     year: int,
     year_map: dict[str, ChartSeries],
 ) -> None:
-    """``/latest/chart_data/{asset_id}/archive/{YYYY}`` 에 자산별 연도 슬라이스를 덮어쓴다.
+    """``/charts/prices/{asset_id}/archive/{YYYY}`` 에 자산별 연도 슬라이스를 덮어쓴다.
 
     Args:
         app: Firebase App.
@@ -427,7 +392,38 @@ def write_chart_archive_year(
     """
     for asset_id, chart_series in year_map.items():
         payload = asdict(chart_series)
-        _db_reference(app, f"{_CHART_DATA_PATH}/{asset_id}/archive/{year}").set(payload)
+        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/archive/{year}").set(payload)
+
+
+# ============================================================================
+# equity 차트 쓰기 (/charts/equity/)
+# ============================================================================
+
+
+def write_equity_meta(app: FirebaseAppLike, meta: EquityChartMeta) -> None:
+    """``/charts/equity/meta`` 에 equity 차트 메타를 덮어쓴다.
+
+    앱은 차트 진입 시 이 메타를 먼저 읽어 recent / archive 로딩 전략을 결정한다.
+    주가 차트(:func:`write_chart_meta`) 와 달리 포트폴리오 전체를 대상으로 하므로
+    자산 반복 없이 단일 payload 를 쓴다.
+    """
+    _db_reference(app, f"{_CHART_EQUITY_PATH}/meta").set(asdict(meta))
+
+
+def write_equity_recent(app: FirebaseAppLike, series: EquityChartSeries) -> None:
+    """``/charts/equity/recent`` 에 equity 최근 슬라이스를 덮어쓴다.
+
+    매 ``run-daily`` 실행마다 전체 재생성된다.
+    """
+    _db_reference(app, f"{_CHART_EQUITY_PATH}/recent").set(asdict(series))
+
+
+def write_equity_archive_year(app: FirebaseAppLike, year: int, series: EquityChartSeries) -> None:
+    """``/charts/equity/archive/{YYYY}`` 에 equity 연도 슬라이스를 덮어쓴다.
+
+    daily runner 는 현재 연도만 매일 재생성하며, 과거 연도는 backfill CLI 로만 재생성.
+    """
+    _db_reference(app, f"{_CHART_EQUITY_PATH}/archive/{year}").set(asdict(series))
 
 
 # ============================================================================
@@ -485,7 +481,7 @@ def delete_all_except_device_tokens(app: FirebaseAppLike) -> None:
     """
     paths_to_delete = [
         _LATEST_PATH,
-        _HISTORY_SUMMARY_PATH,
+        _CHARTS_PATH,
         _FILLS_INBOX_PATH,
         _BALANCE_ADJUST_INBOX_PATH,
         _FILL_DISMISS_INBOX_PATH,
