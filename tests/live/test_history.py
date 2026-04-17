@@ -12,8 +12,11 @@ from live.history import (
     append_signal_history,
     append_summary,
     append_user_trade,
+    load_balance_adjusts_raw,
     load_signal_history,
+    load_signal_history_raw,
     load_user_trades,
+    load_user_trades_raw,
     save_daily_log,
 )
 from live.models import UserTrade
@@ -310,3 +313,195 @@ class TestLoadCorruptedJsonlFailFast:
         )
         with pytest.raises(RuntimeError, match="손상된 JSONL"):
             load_signal_history(tmp_path)
+
+
+# ============================================================================
+# raw 로더 (backfill-history CLI 가 RTDB 미러용으로 사용)
+# ============================================================================
+
+
+class TestLoadUserTradesRaw:
+    """``load_user_trades_raw`` — JSONL dict 그대로 반환."""
+
+    def test_returns_empty_when_missing(self, tmp_path: Path):
+        assert load_user_trades_raw(tmp_path) == []
+
+    def test_returns_empty_when_file_blank(self, tmp_path: Path):
+        (tmp_path / "user_trades.jsonl").write_text("\n  \n", encoding="utf-8")
+        assert load_user_trades_raw(tmp_path) == []
+
+    def test_returns_each_line_as_dict_in_order(self, tmp_path: Path):
+        """Given append_user_trade 로 2 건 쓴 후 When raw 로드 Then 입력 순서 + 모든 필드 보존."""
+        append_user_trade(
+            {
+                "asset_id": "sso",
+                "date": "2026-04-10",
+                "direction": "buy",
+                "actual_price": 82.0,
+                "actual_shares": 100,
+                "trade_date": "2026-04-10",
+                "input_time_kst": "2026-04-10T20:00:00+09:00",
+                "memo": None,
+                "reason": "",
+                "rtdb_key": "fill_001",
+                "applied_at": "2026-04-11T07:27:15+09:00",
+            },
+            tmp_path,
+        )
+        append_user_trade(
+            {"asset_id": "qld", "date": "2026-04-11", "direction": "sell", "rtdb_key": "fill_002"},
+            tmp_path,
+        )
+
+        rows = load_user_trades_raw(tmp_path)
+        assert len(rows) == 2
+        assert rows[0]["rtdb_key"] == "fill_001"
+        assert rows[0]["actual_price"] == 82.0
+        assert rows[0]["applied_at"] == "2026-04-11T07:27:15+09:00"
+        assert rows[1]["rtdb_key"] == "fill_002"
+
+    def test_old_schema_lines_preserved(self, tmp_path: Path):
+        """Given 옛 스키마 (rtdb_key/applied_at 누락) 줄 When raw 로드 Then 그대로 dict 반환."""
+        path = tmp_path / "user_trades.jsonl"
+        path.write_text(
+            '{"asset_id":"sso","date":"2026-04-08","direction":"buy"}\n',
+            encoding="utf-8",
+        )
+
+        rows = load_user_trades_raw(tmp_path)
+        assert rows == [{"asset_id": "sso", "date": "2026-04-08", "direction": "buy"}]
+        # 옛 줄에는 rtdb_key 가 없다 — backfill CLI 측에서 skip 정책 적용 책임.
+        assert "rtdb_key" not in rows[0]
+
+    def test_corrupted_raises(self, tmp_path: Path):
+        (tmp_path / "user_trades.jsonl").write_text(
+            '{"asset_id":"sso"}\n' "NOT_VALID_JSON\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            load_user_trades_raw(tmp_path)
+
+
+class TestLoadBalanceAdjustsRaw:
+    def test_returns_empty_when_missing(self, tmp_path: Path):
+        assert load_balance_adjusts_raw(tmp_path) == []
+
+    def test_returns_each_line_with_applied_at(self, tmp_path: Path):
+        append_balance_adjust(
+            {
+                "rtdb_key": "adj_001",
+                "asset_id": "sso",
+                "new_shares": 420,
+                "new_avg_price": None,
+                "new_entry_date": None,
+                "new_cash": None,
+                "reason": "조정",
+                "input_time_kst": "2026-04-10T20:00:00+09:00",
+                "applied_at": "2026-04-11T07:27:15+09:00",
+            },
+            tmp_path,
+        )
+
+        rows = load_balance_adjusts_raw(tmp_path)
+        assert len(rows) == 1
+        assert rows[0]["rtdb_key"] == "adj_001"
+        assert rows[0]["applied_at"] == "2026-04-11T07:27:15+09:00"
+
+    def test_corrupted_raises(self, tmp_path: Path):
+        (tmp_path / "balance_adjusts.jsonl").write_text("NOT_JSON\n", encoding="utf-8")
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            load_balance_adjusts_raw(tmp_path)
+
+
+class TestLoadSignalHistoryRaw:
+    def test_returns_empty_when_missing(self, tmp_path: Path):
+        assert load_signal_history_raw(tmp_path) == []
+
+    def test_returns_each_line_with_full_payload(self, tmp_path: Path):
+        """Given 확장 스키마 entries When raw 로드 Then close / ma_value / 밴드 모두 보존."""
+        entries = [
+            {
+                "date": "2026-04-10",
+                "asset_id": "sso",
+                "state": "buy",
+                "close": 82.0,
+                "ma_value": 80.0,
+                "ma_distance_pct": 0.025,
+                "upper_band": 85.0,
+                "lower_band": 78.0,
+            },
+        ]
+        append_signal_history(entries, tmp_path)
+
+        rows = load_signal_history_raw(tmp_path)
+        assert len(rows) == 1
+        assert rows[0]["close"] == 82.0
+        assert rows[0]["upper_band"] == 85.0
+
+    def test_old_schema_lines_preserved(self, tmp_path: Path):
+        """Given 옛 스키마 (close 등 누락) 줄 When raw 로드 Then 가공 없이 그대로 반환."""
+        append_signal_history(
+            [{"date": "2026-04-08", "asset_id": "sso", "state": "none"}],
+            tmp_path,
+        )
+
+        rows = load_signal_history_raw(tmp_path)
+        assert rows == [{"date": "2026-04-08", "asset_id": "sso", "state": "none"}]
+
+    def test_corrupted_raises(self, tmp_path: Path):
+        (tmp_path / "signals.jsonl").write_text("BAD_JSON\n", encoding="utf-8")
+        with pytest.raises(RuntimeError, match="손상된 JSONL"):
+            load_signal_history_raw(tmp_path)
+
+
+# ============================================================================
+# 차트 마커 빌더는 새 필드를 무시하고 기존 동작을 유지해야 한다 (호환 회귀 테스트)
+# ============================================================================
+
+
+class TestChartMarkerBuildersIgnoreExtraFields:
+    """확장 스키마(extra fields) 가 추가되어도 ``load_user_trades`` /
+    ``load_signal_history`` 의 차트 마커 동작은 그대로여야 한다.
+    """
+
+    def test_load_user_trades_ignores_extra_fields(self, tmp_path: Path):
+        append_user_trade(
+            {
+                "asset_id": "sso",
+                "date": "2026-04-10",
+                "direction": "buy",
+                "actual_price": 82.0,
+                "actual_shares": 100,
+                "trade_date": "2026-04-10",
+                "input_time_kst": "2026-04-10T20:00:00+09:00",
+                "memo": "extra",
+                "reason": "",
+                "rtdb_key": "fill_extra",
+                "applied_at": "2026-04-11T07:27:15+09:00",
+            },
+            tmp_path,
+        )
+        result = load_user_trades(tmp_path)
+
+        assert set(result.keys()) == {"sso"}
+        trade = result["sso"][0]
+        assert trade.date == "2026-04-10"
+        assert trade.direction == "buy"
+
+    def test_load_signal_history_ignores_extra_fields(self, tmp_path: Path):
+        entries = [
+            {
+                "date": "2026-04-10",
+                "asset_id": "sso",
+                "state": "buy",
+                "close": 82.0,
+                "ma_value": 80.0,
+                "ma_distance_pct": 0.025,
+                "upper_band": 85.0,
+                "lower_band": 78.0,
+            },
+        ]
+        append_signal_history(entries, tmp_path)
+
+        result = load_signal_history(tmp_path)
+        assert result == {"sso": [("2026-04-10", "buy")]}

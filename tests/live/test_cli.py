@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -332,6 +333,7 @@ class TestCmdRunDailySuccess:
         equity_meta_calls: list[object] = []
         equity_recent_calls: list[object] = []
         equity_archive_calls: list[tuple[int, object]] = []
+        history_signals_calls: list[tuple[str, dict[str, object]]] = []
 
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -363,9 +365,17 @@ class TestCmdRunDailySuccess:
             "write_equity_archive_year",
             lambda app, year, series: equity_archive_calls.append((year, series)),
         )
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_history_signals",
+            lambda app, execution_date, signals: history_signals_calls.append((execution_date, signals)),
+        )
+
+        sentinel_signals = {"sso": object(), "qld": object(), "gld": object(), "tlt": object()}
 
         class _StubResult:
             execution_date = "2026-04-14"
+            signals = sentinel_signals
 
         # When
         cli_module._publish_to_rtdb(
@@ -384,6 +394,8 @@ class TestCmdRunDailySuccess:
         assert equity_meta_calls == [sentinel_equity_meta]
         assert equity_recent_calls == [sentinel_equity_recent]
         assert equity_archive_calls == [(2026, sentinel_equity_archive)]
+        # Then — /history/signals/ 미러 (PLAN_LIVE_HISTORY_RTDB_MIRROR 신규)
+        assert history_signals_calls == [("2026-04-14", sentinel_signals)]
 
 
 # ============================================================================
@@ -707,6 +719,293 @@ class TestCmdBackfillChartArchive:
         assert exit_code == 1
         assert len(notify_calls) >= 1
         assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
+
+
+class TestCmdBackfillHistory:
+    """``backfill-history`` 수동 CLI 의 계약 테스트.
+
+    Git 정본 JSONL → RTDB ``/history/{*}/`` 미러. dry-run / target 옵션 / 옛 스키마
+    skip / RTDB 쓰기 경로 / 빈 JSONL 처리.
+    """
+
+    def _setup_history_jsonls(
+        self,
+        history_dir: Path,
+        *,
+        fills: list[dict[str, Any]] | None = None,
+        adjusts: list[dict[str, Any]] | None = None,
+        signals: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """history 디렉토리에 JSONL 파일들을 직접 작성한다."""
+        import json as _json
+
+        history_dir.mkdir(parents=True, exist_ok=True)
+        if fills is not None:
+            (history_dir / "user_trades.jsonl").write_text(
+                "\n".join(_json.dumps(row, ensure_ascii=False) for row in fills) + "\n",
+                encoding="utf-8",
+            )
+        if adjusts is not None:
+            (history_dir / "balance_adjusts.jsonl").write_text(
+                "\n".join(_json.dumps(row, ensure_ascii=False) for row in adjusts) + "\n",
+                encoding="utf-8",
+            )
+        if signals is not None:
+            (history_dir / "signals.jsonl").write_text(
+                "\n".join(_json.dumps(row, ensure_ascii=False) for row in signals) + "\n",
+                encoding="utf-8",
+            )
+
+    def _stub_rtdb(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+        """rtdb_gateway._db_reference 를 in-memory store 로 대체. 반환 store 에서 set 호출 검증."""
+        store: dict[str, Any] = {}
+
+        class _Ref:
+            def __init__(self, path: str) -> None:
+                self.path = path
+
+            def set(self, value: Any) -> None:
+                store[self.path] = value
+
+            def delete(self) -> None:
+                store.pop(self.path, None)
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "_db_reference", lambda app, path: _Ref(path))
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+        return store
+
+    def test_dry_run_no_rtdb_write(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Given JSONL 존재 + --dry-run When backfill-history Then RTDB 호출 없음 + 카운트 출력."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            fills=[
+                {
+                    "asset_id": "sso",
+                    "direction": "buy",
+                    "trade_date": "2026-04-10",
+                    "rtdb_key": "fill_001",
+                    "applied_at": "2026-04-11T07:00:00+09:00",
+                }
+            ],
+            signals=[{"date": "2026-04-10", "asset_id": "sso", "state": "buy", "close": 82.0}],
+        )
+
+        # _db_reference 가 호출되면 즉시 실패
+        def _fail_ref(app: Any, path: str) -> Any:
+            raise AssertionError(f"dry-run 인데 RTDB 호출됨: path={path}")
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "_db_reference", _fail_ref)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
+
+        exit_code = main(["backfill-history", "--dry-run"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "[dry-run]" in captured.out
+        assert "fills=1" in captured.out
+        assert "signals=1" in captured.out
+
+    def test_target_fills_writes_only_fills(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Given fills + signals JSONL When --target=fills Then fills 만 RTDB 쓰기."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            fills=[
+                {
+                    "asset_id": "sso",
+                    "direction": "buy",
+                    "actual_price": 82.0,
+                    "actual_shares": 100,
+                    "trade_date": "2026-04-10",
+                    "input_time_kst": "2026-04-10T20:00:00+09:00",
+                    "memo": None,
+                    "reason": "",
+                    "rtdb_key": "fill_a",
+                    "applied_at": "2026-04-11T07:00:00+09:00",
+                },
+            ],
+            signals=[{"date": "2026-04-10", "asset_id": "sso", "state": "buy"}],
+        )
+        store = self._stub_rtdb(monkeypatch)
+
+        exit_code = main(["backfill-history", "--target", "fills"])
+        assert exit_code == 0
+
+        # fills 만 기록되고 signals 는 기록되지 않음
+        assert "/history/fills/2026-04-10/fill_a" in store
+        assert "/history/signals/2026-04-10/sso" not in store
+
+        payload = store["/history/fills/2026-04-10/fill_a"]
+        assert payload["asset_id"] == "sso"
+        assert payload["actual_price"] == 82.0
+        assert payload["applied_at"] == "2026-04-11T07:00:00+09:00"
+        assert "rtdb_key" not in payload  # 페이로드에서 제외됨
+
+    def test_target_balance_adjusts_uses_applied_at_date(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Given balance_adjusts JSONL When backfill Then 폴더 키는 applied_at[:10]."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            adjusts=[
+                {
+                    "rtdb_key": "adj_001",
+                    "asset_id": "sso",
+                    "new_shares": 420,
+                    "new_avg_price": None,
+                    "new_entry_date": None,
+                    "new_cash": None,
+                    "reason": "조정",
+                    "input_time_kst": "2026-04-10T20:00:00+09:00",
+                    "applied_at": "2026-04-11T07:30:00+09:00",
+                }
+            ],
+        )
+        store = self._stub_rtdb(monkeypatch)
+
+        main(["backfill-history", "--target", "balance_adjusts"])
+
+        assert "/history/balance_adjusts/2026-04-11/adj_001" in store
+        payload = store["/history/balance_adjusts/2026-04-11/adj_001"]
+        assert payload["new_shares"] == 420
+        assert payload["applied_at"] == "2026-04-11T07:30:00+09:00"
+        assert "rtdb_key" not in payload
+
+    def test_target_signals_uses_date_and_asset_keys(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Given signals JSONL When backfill Then 키는 {date}/{asset_id}, payload 는 그 외 필드."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            signals=[
+                {
+                    "date": "2026-04-10",
+                    "asset_id": "sso",
+                    "state": "buy",
+                    "close": 82.0,
+                    "ma_value": 80.0,
+                    "ma_distance_pct": 0.025,
+                    "upper_band": 85.0,
+                    "lower_band": 78.0,
+                }
+            ],
+        )
+        store = self._stub_rtdb(monkeypatch)
+
+        main(["backfill-history", "--target", "signals"])
+
+        payload = store["/history/signals/2026-04-10/sso"]
+        assert payload["state"] == "buy"
+        assert payload["close"] == 82.0
+        assert payload["ma_value"] == 80.0
+        # 키로 사용된 필드는 payload 에서 제외
+        assert "date" not in payload
+        assert "asset_id" not in payload
+
+    def test_target_all_writes_all_three_paths(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Given 3 종 JSONL 모두 존재 When --target=all Then 3 경로에 모두 기록."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            fills=[
+                {
+                    "asset_id": "sso",
+                    "direction": "buy",
+                    "trade_date": "2026-04-10",
+                    "rtdb_key": "fill_x",
+                    "applied_at": "2026-04-11T07:00:00+09:00",
+                }
+            ],
+            adjusts=[
+                {
+                    "rtdb_key": "adj_x",
+                    "asset_id": "sso",
+                    "new_shares": 100,
+                    "applied_at": "2026-04-11T07:00:00+09:00",
+                }
+            ],
+            signals=[{"date": "2026-04-10", "asset_id": "sso", "state": "buy"}],
+        )
+        store = self._stub_rtdb(monkeypatch)
+
+        main(["backfill-history"])  # default --target=all
+
+        assert "/history/fills/2026-04-10/fill_x" in store
+        assert "/history/balance_adjusts/2026-04-11/adj_x" in store
+        assert "/history/signals/2026-04-10/sso" in store
+
+    def test_old_schema_rows_skipped(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Given 옛 스키마 줄 (rtdb_key/applied_at 누락) When backfill Then skip + 카운트 출력."""
+        history_dir = state_dir / "history"
+        self._setup_history_jsonls(
+            history_dir,
+            fills=[
+                # 옛 스키마: rtdb_key 없음 → skip
+                {"asset_id": "sso", "direction": "buy", "date": "2026-04-08"},
+                # 신규 스키마: 정상
+                {
+                    "asset_id": "qld",
+                    "direction": "sell",
+                    "trade_date": "2026-04-10",
+                    "rtdb_key": "fill_new",
+                    "applied_at": "2026-04-11T07:00:00+09:00",
+                },
+            ],
+            adjusts=[
+                # applied_at 없음 → skip
+                {"rtdb_key": "adj_old", "asset_id": "sso", "new_shares": 100, "reason": "old"},
+            ],
+        )
+        store = self._stub_rtdb(monkeypatch)
+
+        exit_code = main(["backfill-history"])
+        assert exit_code == 0
+
+        # 신규 스키마만 RTDB 에 기록
+        assert "/history/fills/2026-04-10/fill_new" in store
+        # 옛 스키마는 RTDB 에 없음
+        assert not any("adj_old" in p for p in store)
+
+        captured = capsys.readouterr()
+        assert "fills=1" in captured.out
+        assert "skipped 1" in captured.out
+
+    def test_empty_history_dir_no_writes(
+        self,
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Given history JSONL 미존재 When backfill Then RTDB 호출 없음 + exit 0."""
+        del state_dir  # history 디렉토리 자체가 없음
+        store = self._stub_rtdb(monkeypatch)
+
+        exit_code = main(["backfill-history"])
+        assert exit_code == 0
+        assert store == {}
 
 
 class TestHistoryCmd:
@@ -1168,13 +1467,22 @@ class TestRunDailyValidatorIntegration:
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+
+        # /history/fills/ 미러 호출 추적 (PLAN_LIVE_HISTORY_RTDB_MIRROR)
+        history_fill_calls: list[tuple[list[Any], str]] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_history_fills",
+            lambda app, fills, applied_at: history_fill_calls.append((list(fills), applied_at)),
+        )
+
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
         exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
         assert exit_code == 0
 
-        # user_trades.jsonl 에 fill 기록 검증
+        # user_trades.jsonl 에 fill 기록 검증 (확장 스키마)
         user_trades_path = state_dir / "history" / "user_trades.jsonl"
         assert user_trades_path.exists()
         lines = user_trades_path.read_text(encoding="utf-8").strip().splitlines()
@@ -1182,6 +1490,19 @@ class TestRunDailyValidatorIntegration:
         assert '"asset_id": "sso"' in lines[0]
         assert '"direction": "buy"' in lines[0]
         assert '"date": "2026-04-10"' in lines[0]
+        # 확장 스키마: actual_price / actual_shares / rtdb_key / applied_at 포함
+        assert '"actual_price": 82.0' in lines[0]
+        assert '"actual_shares": 420' in lines[0]
+        assert '"rtdb_key": "fill_new_001"' in lines[0]
+        assert '"applied_at"' in lines[0]
+
+        # /history/fills/ 미러 호출: 신규 fill 1 건만 전달
+        assert len(history_fill_calls) == 1
+        mirrored_fills, applied_at_value = history_fill_calls[0]
+        assert len(mirrored_fills) == 1
+        assert mirrored_fills[0].rtdb_key == "fill_new_001"
+        # applied_at 은 KST ISO 8601 형식
+        assert applied_at_value.endswith("+09:00")
 
     def test_already_applied_fill_is_not_re_appended(self, state_dir: Path, monkeypatch):
         """Given applied_fill_ids.json 에 이미 있는 fill When run-daily Then user_trades 에 추가되지 않음."""
@@ -1316,6 +1637,15 @@ class TestRunDailyValidatorIntegration:
             lambda app, keys: mark_calls.append(list(keys)),
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+
+        # /history/balance_adjusts/ 미러 호출 추적 (PLAN_LIVE_HISTORY_RTDB_MIRROR)
+        history_adjust_calls: list[tuple[list[Any], str]] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_history_balance_adjusts",
+            lambda app, adjusts, applied_at: history_adjust_calls.append((list(adjusts), applied_at)),
+        )
+
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1328,17 +1658,25 @@ class TestRunDailyValidatorIntegration:
         new_state = load_state(state_dir / "live_state.json")
         assert new_state.assets["sso"].actual_shares == 420
 
-        # audit 파일 생성 확인
+        # audit 파일 생성 확인 (확장 스키마: applied_at 포함)
         audit_path = state_dir / "history" / "balance_adjusts.jsonl"
         assert audit_path.exists()
         content = audit_path.read_text(encoding="utf-8").strip()
         assert "adj_001" in content
         assert '"asset_id": "sso"' in content
         assert '"new_shares": 420' in content
+        assert '"applied_at"' in content
 
         # RTDB mark 호출 확인
         assert len(mark_calls) == 1
         assert mark_calls[0] == ["adj_001"]
+
+        # /history/balance_adjusts/ 미러 호출 — 신규 adjust 1 건 + applied_at 동일 부여
+        assert len(history_adjust_calls) == 1
+        mirrored_adjusts, applied_at_value = history_adjust_calls[0]
+        assert len(mirrored_adjusts) == 1
+        assert mirrored_adjusts[0].rtdb_key == "adj_001"
+        assert applied_at_value.endswith("+09:00")
 
         # applied_balance_adjust_ids.json 에 기록 확인
         import json as _json

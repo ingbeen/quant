@@ -57,10 +57,14 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
                (Git 프라이빗)    /latest/*                                           ^
                (앱 접근 불가)    /charts/prices/*                                    |
                                  /charts/equity/*                                    |
+                                 /history/fills/*                                    |
+                                 /history/balance_adjusts/*                          |
+                                 /history/signals/*                                  |
                                  /fills/inbox       <------ 체결 / 보정 입력 --------+
                                  /balance_adjust/                                    |
                                  /device_tokens                                      |
-                                                    <------ /latest/*, /charts/* ----+
+                                                    <------ /latest/*, /charts/*,    |
+                                                            /history/* --------------+
 ```
 
 - **live** 는 평일 장 마감 후 GitHub Actions 에서 1 회 실행되어 Git 원장과 RTDB 를 갱신한다.
@@ -261,6 +265,9 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / archive_years)
 /charts/equity/recent                            ← equity 최근 N 개월 slice (model / actual / drift)
 /charts/equity/archive/{YYYY}                    ← equity 연도별 slice (현재 연도만 daily 갱신)
+/history/fills/{YYYY-MM-DD}/{uuid}               ← 체결 이력 영구 보존 (Git 정본 user_trades.jsonl 미러)
+/history/balance_adjusts/{YYYY-MM-DD}/{uuid}     ← 잔고 보정 이력 영구 보존 (Git 정본 미러)
+/history/signals/{YYYY-MM-DD}/{asset_id}         ← 신호 이력 영구 보존 (Git 정본 signals.jsonl 미러)
 /fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
 /fill_dismiss/inbox/{uuid}                       ← 앱이 쓰는 체결 리마인더 스킵 queue
@@ -763,16 +770,126 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **device_id 선택 원칙**: 앱이 기기별로 고유한 키를 선택한다 (예: 설치 UUID). 동일 기기에서 재설치하면 새 UUID 를 쓰는 것이 안전하다 (이전 토큰이 invalid 로 남을 수 있으나 서버가 자동 정리).
 
+#### 8.2.11 `/history/fills/{YYYY-MM-DD}/{uuid}` — 체결 이력 영구 보존
+
+**SoT**: `live.rtdb_gateway.write_history_fills`, `live.models.ActualFill`. Git 정본 `history/user_trades.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **이번 실행에서 새로 적용된 fill 만** 추가하고, 기존 레코드는 idempotent 덮어쓰기.
+
+```json
+{
+  "asset_id": "sso",
+  "direction": "buy",
+  "actual_price": 82.05,
+  "actual_shares": 420,
+  "trade_date": "2026-04-10",
+  "input_time_kst": "2026-04-10T20:00:00+09:00",
+  "memo": null,
+  "reason": "",
+  "applied_at": "2026-04-11T07:27:15+09:00"
+}
+```
+
+| 필드             | 타입                  | null | 설명                                                                                       |
+| ---------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------ |
+| `asset_id`       | str                   | 불가 | 자산 ID 소문자 (sso/qld/gld/tlt)                                                           |
+| `direction`      | `"buy"`\|`"sell"`     | 불가 | 체결 방향                                                                                  |
+| `actual_price`   | number                | 불가 | 체결 단가 (`ROUND_PRICE = 6` 자리)                                                         |
+| `actual_shares`  | int                   | 불가 | 체결 주식 수                                                                               |
+| `trade_date`     | str                   | 불가 | 사용자가 입력한 체결 일자 (ISO 8601). 폴더 키와 동일                                       |
+| `input_time_kst` | str                   | 불가 | 사용자가 앱에서 입력한 시각 (ISO 8601 KST)                                                 |
+| `memo`           | str                   | 가능 | 사용자 메모 (UI 입력)                                                                      |
+| `reason`         | str                   | 불가 | 분류 사유 (앱 입력 또는 빈 문자열)                                                         |
+| `applied_at`     | str                   | 불가 | run-daily 가 이 fill 을 반영한 시각 (ISO 8601 KST). 같은 배치 내 모든 신규 레코드에 동일 부여 |
+
+**키 전략**:
+- 폴더 키 = `trade_date` (사용자 입력 체결 일자).
+- 레코드 키 = `ActualFill.rtdb_key` (앱이 생성한 UUID). 본문 페이로드에는 중복 저장하지 않는다 (상위 노드 키이므로).
+
+**idempotency**: UUID 가 `applied_fill_ids.json` 에 이미 있으면 run-daily 가 fill 자체를 skip 하므로 RTDB history 에도 추가되지 않는다 (자연 방지). 같은 UUID 로 재호출되면 set 으로 덮어쓰기.
+
+**보존 정책**: 영구. rolling 삭제 / cleanup 없음. 운영자가 `reset` 으로 RTDB 를 초기화한 뒤 `backfill-history --target fills` 로 Git 정본에서 복원 가능.
+
+#### 8.2.12 `/history/balance_adjusts/{YYYY-MM-DD}/{uuid}` — 잔고 보정 이력 영구 보존
+
+**SoT**: `live.rtdb_gateway.write_history_balance_adjusts`, `live.models.BalanceAdjust`. Git 정본 `history/balance_adjusts.jsonl` 의 RTDB 미러.
+
+```json
+{
+  "asset_id": "sso",
+  "new_shares": 420,
+  "new_avg_price": null,
+  "new_entry_date": null,
+  "new_cash": null,
+  "reason": "년초 잔고 조정",
+  "input_time_kst": "2026-04-10T20:00:00+09:00",
+  "applied_at": "2026-04-11T07:27:15+09:00"
+}
+```
+
+| 필드             | 타입   | null | 설명                                                                                  |
+| ---------------- | ------ | ---- | ------------------------------------------------------------------------------------- |
+| `asset_id`       | str    | 가능 | 보정 대상 자산 ID. cash 단독 보정 시 null                                            |
+| `new_shares`     | int    | 가능 | 교체할 actual_shares. 미지정 시 null                                                  |
+| `new_avg_price`  | number | 가능 | 교체할 actual_avg_entry_price                                                         |
+| `new_entry_date` | str    | 가능 | 교체할 actual_entry_date (ISO 8601)                                                   |
+| `new_cash`       | number | 가능 | 교체할 shared_cash_actual                                                             |
+| `reason`         | str    | 불가 | 보정 사유 (앱 입력)                                                                   |
+| `input_time_kst` | str    | 불가 | 사용자 입력 시각                                                                       |
+| `applied_at`     | str    | 불가 | run-daily 반영 시각 (배치 통일)                                                       |
+
+**키 전략**:
+- 폴더 키 = `applied_at` 의 날짜 부분 (`YYYY-MM-DD`). fill 은 사용자 체결일 기준이지만 balance_adjust 는 "교체 시점" 기준.
+- 레코드 키 = `BalanceAdjust.rtdb_key` (UUID). 본문 페이로드 미포함.
+
+**idempotency**: `applied_balance_adjust_ids.json` 으로 1 차 방어, RTDB set 으로 2 차 방어. 영구 보존.
+
+#### 8.2.13 `/history/signals/{YYYY-MM-DD}/{asset_id}` — 신호 이력 영구 보존
+
+**SoT**: `live.rtdb_gateway.write_history_signals`, `live.models.SignalDetection`. Git 정본 `history/signals.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **당일 4 자산 전체** 를 덮어쓴다 (idempotent).
+
+```json
+{
+  "state": "buy",
+  "close": 82.05,
+  "ma_value": 80.0,
+  "ma_distance_pct": 0.0256,
+  "upper_band": 84.0,
+  "lower_band": 76.0
+}
+```
+
+| 필드               | 타입                            | null | 설명                                            |
+| ------------------ | ------------------------------- | ---- | ----------------------------------------------- |
+| `state`            | `"buy"`\|`"sell"`\|`"none"`     | 불가 | 당일 감지된 신호 상태                           |
+| `close`            | number                          | 불가 | 당일 종가 (`ROUND_PRICE = 6` 자리)              |
+| `ma_value`         | number                          | 가능 | MA 값 (워밍업 구간 null)                        |
+| `ma_distance_pct`  | number                          | 불가 | MA 근접도 (비율 0~1, `ROUND_RATIO = 4` 자리)    |
+| `upper_band`       | number                          | 가능 | BufferZone 상단 밴드                            |
+| `lower_band`       | number                          | 가능 | BufferZone 하단 밴드                            |
+
+**키 전략 — UUID 없음**:
+- 폴더 키 = `execution_date`.
+- 레코드 키 = `asset_id` 소문자.
+- 서버 결정론적 계산이라 경쟁 조건이 없고, 자산당 하루 1 건이 보장되므로 자연스러운 키. Firebase 콘솔에서 자산명으로 즉시 펼쳐볼 수 있어 가독성 우선.
+
+**보존 정책**: 영구. 4 자산 × 일 1 건 × 252 거래일 / 년 = 1008 레코드 / 년 — Spark 한도 대비 충분.
+
+#### 8.2.14 `/history/` 비미러 항목
+
+`fill_dismiss` (체결 리마인더 스킵) 는 **RTDB `/history/` 에 미러하지 않는다**. fill_dismiss 는 "리마인더 해제" 관리 행위이고 앱에서 사후 조회할 실질 수요가 없기 때문이다 (Git 정본 `applied_fill_dismiss_ids.json` + `fill_dismisses.jsonl` 만 유지).
+
 ### 8.3 역할 분리
 
 | 경로 | 쓰기 주체 | 읽기 주체 |
 |---|---|---|
 | qbt-live-state (Git) | daily runner (ephemeral) | daily runner |
 | `/latest/*`, `/charts/*` | daily runner (Admin SDK) | 앱 |
+| `/history/{fills|balance_adjusts|signals}/*` | daily runner (Admin SDK, Git 정본 미러) | 앱 (이력 조회) |
 | `/fills/*`, `/balance_adjust/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/device_tokens/*` | 앱 (등록) / daily runner (만료 토큰 삭제) | daily runner (Admin SDK) |
 
 **`processed` 필드 규칙**: `/fills/inbox/{uuid}` 와 `/balance_adjust/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 반영 상태는 `/latest/portfolio` 의 `actual_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다.
+
+**`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 으로 RTDB 가 초기화되어도 `backfill-history --target all` 명령으로 Git 정본에서 전체 재생성 가능 (§9.1 / §12 참고).
 
 ---
 
@@ -815,6 +932,8 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
 **history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
 
 **backfill-chart-archive 는 최초 배포 직후에도 1 회 실행** 해야 한다 (과거 연도 archive 를 처음 생성). daily runner 는 매일 `archive/{현재_연도}` 만 덮어쓰므로, backfill 없이는 이전 연도 archive 가 영구 누락된다.
+
+**backfill-history 는 최초 배포 / `reset` 후 1 회 실행** 해야 한다. 명령은 `python -m live backfill-history --target all` (기본) 으로 Git 정본 JSONL 3 종 (`user_trades.jsonl` / `balance_adjusts.jsonl` / `signals.jsonl`) 을 RTDB `/history/{fills|balance_adjusts|signals}/` 에 일괄 미러한다. `--target fills|balance_adjusts|signals` 로 한 종류만, `--dry-run` 으로 사전 확인 가능. daily runner 는 매 실행마다 "이번 실행에서 새로 적용된 분만" 미러하므로, backfill 없이는 과거 분이 RTDB 에 영구 누락된다.
 
 ---
 

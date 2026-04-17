@@ -17,6 +17,21 @@ JSONL append 정책:
 
 - 같은 날짜 / 같은 trade 가 두 번 호출되어도 **덮어쓰지 않고 줄을 추가**한다.
 - 호출자가 idempotency 를 보장해야 한다 (:func:`live.drift.apply_fills_idempotent`).
+
+확장 스키마 (RTDB ``/history/`` 미러를 위한 정보량 동등화):
+
+- ``user_trades.jsonl``: 차트 마커용 ``asset_id`` / ``date`` / ``direction`` 외에
+  ``actual_price`` / ``actual_shares`` / ``trade_date`` / ``input_time_kst`` /
+  ``memo`` / ``reason`` / ``rtdb_key`` / ``applied_at`` 을 함께 기록한다.
+- ``balance_adjusts.jsonl``: 기존 필드 + ``applied_at``.
+- ``signals.jsonl``: 기존 ``date`` / ``asset_id`` / ``state`` 외에 ``close`` /
+  ``ma_value`` / ``ma_distance_pct`` / ``upper_band`` / ``lower_band``.
+
+raw 로더 (:func:`load_user_trades_raw` / :func:`load_balance_adjusts_raw` /
+:func:`load_signal_history_raw`) 는 dict 그대로 반환하여 ``backfill-history`` CLI
+가 RTDB 페이로드로 그대로 사용할 수 있게 한다. 차트 마커 빌더 전용 로더
+(:func:`load_user_trades` / :func:`load_signal_history`) 는 새 필드를 무시하고
+기존 필드만 추출한다 (호환).
 """
 
 from __future__ import annotations
@@ -44,6 +59,9 @@ __all__ = [
     "append_fill_dismiss",
     "load_user_trades",
     "load_signal_history",
+    "load_user_trades_raw",
+    "load_balance_adjusts_raw",
+    "load_signal_history_raw",
 ]
 
 
@@ -210,3 +228,65 @@ def load_signal_history(history_dir: Path) -> dict[str, list[tuple[str, str]]]:
         asset_id = payload["asset_id"]
         result.setdefault(asset_id, []).append((payload["date"], payload["state"]))
     return result
+
+
+def _load_jsonl_raw(target: Path, label: str) -> list[dict[str, Any]]:
+    """JSONL 파일을 dict 리스트 그대로 로드한다 (필드 가공 없음).
+
+    Args:
+        target: 로드할 JSONL 파일 경로.
+        label: 손상 시 에러 메시지에 포함할 식별자 (예: ``"user_trades"``).
+
+    Returns:
+        파일이 없거나 비어 있으면 빈 리스트. 그 외에는 각 줄을 ``json.loads`` 한
+        dict 의 리스트.
+
+    Raises:
+        RuntimeError: JSONL 파싱 실패 시 (다른 raw 로더와 동일 패턴, 자동 복구 금지).
+    """
+    if not target.exists():
+        return []
+
+    content = target.read_text(encoding="utf-8").strip()
+    if not content:
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for line_no, line in enumerate(content.splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"손상된 JSONL ({label}, {line_no}행): {exc}") from exc
+        rows.append(payload)
+    return rows
+
+
+def load_user_trades_raw(history_dir: Path) -> list[dict[str, Any]]:
+    """``history/user_trades.jsonl`` 의 모든 줄을 dict 리스트로 반환.
+
+    ``backfill-history`` CLI 가 RTDB ``/history/fills/`` 에 그대로 미러하기 위한
+    원본 페이로드 로더. :func:`load_user_trades` 와 달리 가공 없이 모든 필드를
+    보존한다.
+    """
+    return _load_jsonl_raw(history_dir / HISTORY_USER_TRADES_FILENAME, "user_trades")
+
+
+def load_balance_adjusts_raw(history_dir: Path) -> list[dict[str, Any]]:
+    """``history/balance_adjusts.jsonl`` 의 모든 줄을 dict 리스트로 반환.
+
+    ``backfill-history`` CLI 가 RTDB ``/history/balance_adjusts/`` 에 미러하기
+    위한 원본 페이로드 로더.
+    """
+    return _load_jsonl_raw(history_dir / HISTORY_BALANCE_ADJUSTS_FILENAME, "balance_adjusts")
+
+
+def load_signal_history_raw(history_dir: Path) -> list[dict[str, Any]]:
+    """``history/signals.jsonl`` 의 모든 줄을 dict 리스트로 반환.
+
+    ``backfill-history`` CLI 가 RTDB ``/history/signals/`` 에 미러하기 위한 원본
+    페이로드 로더.
+    """
+    return _load_jsonl_raw(history_dir / HISTORY_SIGNALS_FILENAME, "signals")

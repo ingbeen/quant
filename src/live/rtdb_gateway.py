@@ -14,6 +14,9 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 - ``/charts/equity/meta``
 - ``/charts/equity/recent``
 - ``/charts/equity/archive/{YYYY}``
+- ``/history/fills/{YYYY-MM-DD}/{uuid}``
+- ``/history/balance_adjusts/{YYYY-MM-DD}/{uuid}``
+- ``/history/signals/{YYYY-MM-DD}/{asset_id}``
 - ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``, ``/fill_dismiss/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
 """
@@ -37,6 +40,7 @@ from live.models import (
     EquityChartSeries,
     FillDismiss,
     LiveState,
+    SignalDetection,
 )
 from qbt.backtest.constants import ROUND_RATIO
 from qbt.utils.logger import get_logger
@@ -63,6 +67,12 @@ __all__ = [
     "write_equity_meta",
     "write_equity_recent",
     "write_equity_archive_year",
+    "write_history_fills",
+    "write_history_balance_adjusts",
+    "write_history_signals",
+    "write_history_fills_raw",
+    "write_history_balance_adjusts_raw",
+    "write_history_signals_raw",
     "read_device_tokens",
     "remove_invalid_tokens",
     "delete_all_except_device_tokens",
@@ -70,12 +80,16 @@ __all__ = [
 
 _LATEST_PATH = "/latest"
 _CHARTS_PATH = "/charts"
+_HISTORY_PATH = "/history"
 _FILLS_INBOX_PATH = "/fills/inbox"
 _BALANCE_ADJUST_INBOX_PATH = "/balance_adjust/inbox"
 _FILL_DISMISS_INBOX_PATH = "/fill_dismiss/inbox"
 _DEVICE_TOKENS_PATH = "/device_tokens"
 _CHART_PRICES_PATH = "/charts/prices"
 _CHART_EQUITY_PATH = "/charts/equity"
+_HISTORY_FILLS_PATH = "/history/fills"
+_HISTORY_BALANCE_ADJUSTS_PATH = "/history/balance_adjusts"
+_HISTORY_SIGNALS_PATH = "/history/signals"
 
 
 def initialize_firebase_app(credentials_path: Path, db_url: str) -> FirebaseAppLike:
@@ -427,6 +441,150 @@ def write_equity_archive_year(app: FirebaseAppLike, year: int, series: EquityCha
 
 
 # ============================================================================
+# history 미러 쓰기 (/history/{fills|balance_adjusts|signals}/)
+# ============================================================================
+#
+# Git 정본 (history/user_trades.jsonl, balance_adjusts.jsonl, signals.jsonl) 의
+# RTDB 미러. daily runner 가 매 실행마다 이번 실행에서 새로 반영된 fill /
+# balance_adjust 만 기록하고, signals 는 당일 4 자산을 덮어쓴다. 영구 보존이며
+# rolling 정리 / cleanup 은 없다 (Firebase Spark 한도 대비 충분).
+#
+# idempotency: 모든 쓰기는 ``set`` (덮어쓰기). 동일 날짜/UUID/asset_id 재호출 시
+# 자연 수렴. 빈 리스트 입력은 RTDB 호출 없이 즉시 반환 (no-op).
+
+
+def write_history_fills(app: FirebaseAppLike, fills: list[ActualFill], applied_at: str) -> None:
+    """``/history/fills/{trade_date}/{rtdb_key}`` 에 신규 fill 을 미러 기록한다.
+
+    Args:
+        app: Firebase App 인스턴스.
+        fills: 이번 실행에서 새로 적용된 ``ActualFill`` 목록 (이미 적용된 것은 제외).
+        applied_at: 이번 run-daily 배치의 단일 KST ISO 8601 타임스탬프.
+
+    payload 는 :class:`ActualFill` 의 dataclass 필드에서 ``rtdb_key`` 를 제거하고
+    ``applied_at`` 을 추가한 dict. 날짜 폴더 키는 fill 의 ``trade_date`` (사용자
+    입력 체결 일자). 빈 리스트 입력 시 RTDB 호출 없이 즉시 반환.
+    """
+    if not fills:
+        return
+    for fill in fills:
+        payload = asdict(fill)
+        payload.pop("rtdb_key", None)
+        payload["applied_at"] = applied_at
+        _db_reference(
+            app,
+            f"{_HISTORY_FILLS_PATH}/{fill.trade_date}/{fill.rtdb_key}",
+        ).set(payload)
+
+
+def write_history_balance_adjusts(
+    app: FirebaseAppLike,
+    adjusts: list[BalanceAdjust],
+    applied_at: str,
+) -> None:
+    """``/history/balance_adjusts/{applied_at_date}/{rtdb_key}`` 에 신규 adjust 를 미러 기록한다.
+
+    Args:
+        app: Firebase App 인스턴스.
+        adjusts: 이번 실행에서 새로 반영된 ``BalanceAdjust`` 목록.
+        applied_at: 이번 run-daily 배치의 단일 KST ISO 8601 타임스탬프.
+
+    폴더 키는 ``applied_at`` 의 날짜 부분 (``YYYY-MM-DD`` 슬라이스) 로, fill 과 달리
+    "교체 시점" 기준이다. payload 는 :class:`BalanceAdjust` dataclass 필드에서
+    ``rtdb_key`` 를 제거하고 ``applied_at`` 을 추가한 dict. 빈 리스트 입력 시 no-op.
+    """
+    if not adjusts:
+        return
+    applied_at_date = applied_at[:10]
+    for adjust in adjusts:
+        payload = asdict(adjust)
+        payload.pop("rtdb_key", None)
+        payload["applied_at"] = applied_at
+        _db_reference(
+            app,
+            f"{_HISTORY_BALANCE_ADJUSTS_PATH}/{applied_at_date}/{adjust.rtdb_key}",
+        ).set(payload)
+
+
+def write_history_signals(
+    app: FirebaseAppLike,
+    execution_date: str,
+    signals: dict[str, SignalDetection],
+) -> None:
+    """``/history/signals/{execution_date}/{asset_id}`` 에 당일 시그널 전체를 덮어쓴다.
+
+    Args:
+        app: Firebase App 인스턴스.
+        execution_date: 당일 실행 날짜 (ISO 8601, ``result.execution_date``).
+        signals: 자산 ID → :class:`SignalDetection` 매핑. 보통 4 자산 전체.
+
+    fill / balance_adjust 와 달리 UUID 가 없다. 서버 결정론적 계산이고 자산당 하루
+    1 건이 보장되므로 asset_id 를 자연 키로 사용한다. 매일 4 자산 전체를 덮어쓰므로
+    idempotent.
+    """
+    for asset_id, signal in signals.items():
+        payload = asdict(signal)
+        _db_reference(
+            app,
+            f"{_HISTORY_SIGNALS_PATH}/{execution_date}/{asset_id}",
+        ).set(payload)
+
+
+def write_history_fills_raw(app: FirebaseAppLike, rows: list[dict[str, Any]]) -> None:
+    """``backfill-history`` CLI 가 Git 정본 dict 줄을 그대로 RTDB 에 일괄 미러한다.
+
+    Args:
+        app: Firebase App 인스턴스.
+        rows: ``user_trades.jsonl`` raw dict 리스트. 각 dict 는 ``rtdb_key`` 와
+            ``trade_date`` 를 반드시 포함해야 한다 (호출자 보장).
+
+    각 row 의 폴더 키는 ``trade_date``, 레코드 키는 ``rtdb_key``. 페이로드는 row 에서
+    ``rtdb_key`` 를 제거한 dict (필드 누락 시 그대로 ``null`` 기록). 빈 리스트 입력 시 no-op.
+    """
+    if not rows:
+        return
+    for row in rows:
+        payload = {k: v for k, v in row.items() if k != "rtdb_key"}
+        _db_reference(
+            app,
+            f"{_HISTORY_FILLS_PATH}/{row['trade_date']}/{row['rtdb_key']}",
+        ).set(payload)
+
+
+def write_history_balance_adjusts_raw(app: FirebaseAppLike, rows: list[dict[str, Any]]) -> None:
+    """``backfill-history`` CLI 가 dict 줄을 그대로 RTDB 에 일괄 미러한다.
+
+    각 row 의 폴더 키는 ``applied_at[:10]``, 레코드 키는 ``rtdb_key``. 호출자가
+    두 필드를 보장해야 한다. 빈 리스트 입력 시 no-op.
+    """
+    if not rows:
+        return
+    for row in rows:
+        payload = {k: v for k, v in row.items() if k != "rtdb_key"}
+        applied_at_date = str(row["applied_at"])[:10]
+        _db_reference(
+            app,
+            f"{_HISTORY_BALANCE_ADJUSTS_PATH}/{applied_at_date}/{row['rtdb_key']}",
+        ).set(payload)
+
+
+def write_history_signals_raw(app: FirebaseAppLike, rows: list[dict[str, Any]]) -> None:
+    """``backfill-history`` CLI 가 dict 줄을 그대로 RTDB 에 일괄 미러한다.
+
+    각 row 의 폴더 키는 ``date``, 레코드 키는 ``asset_id``. 호출자가 두 필드를
+    보장해야 한다. 페이로드는 row 에서 두 키를 제거한 dict. 빈 리스트 입력 시 no-op.
+    """
+    if not rows:
+        return
+    for row in rows:
+        payload = {k: v for k, v in row.items() if k not in ("date", "asset_id")}
+        _db_reference(
+            app,
+            f"{_HISTORY_SIGNALS_PATH}/{row['date']}/{row['asset_id']}",
+        ).set(payload)
+
+
+# ============================================================================
 # device tokens (FCM)
 # ============================================================================
 
@@ -482,6 +640,7 @@ def delete_all_except_device_tokens(app: FirebaseAppLike) -> None:
     paths_to_delete = [
         _LATEST_PATH,
         _CHARTS_PATH,
+        _HISTORY_PATH,
         _FILLS_INBOX_PATH,
         _BALANCE_ADJUST_INBOX_PATH,
         _FILL_DISMISS_INBOX_PATH,

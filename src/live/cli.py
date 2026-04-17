@@ -12,6 +12,8 @@ argparse subcommand 구조로 실매매 파이프라인의 모든 운영 명령�
 - ``fetch-state`` — qbt-live-state 리포 git pull
 - ``push-state`` — qbt-live-state 리포 git add/commit/push
 - ``fetch-fills`` — RTDB 의 미처리 fill 목록 조회 출력
+- ``backfill-history`` — Git 정본 JSONL 을 RTDB ``/history/{*}`` 에 일괄 미러
+  (최초 배포 직후 / ``reset`` 후 복원)
 - ``history`` — history/summary.jsonl 의 최근 N 줄 출력
 - ``notify-failure`` — 수동 실패 알림 발송 (Actions retry job 등에서 호출)
 
@@ -129,6 +131,16 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
 def _now_kst_for_commit() -> str:
     """커밋 메시지용 KST 타임스탬프 (``YYYY-MM-DD HH:MM:SS KST``)."""
     return datetime.now(KST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S KST")
+
+
+def _now_kst_iso() -> str:
+    """RTDB / Git 정본 history 미러용 KST ISO 8601 타임스탬프.
+
+    예: ``"2026-04-11T07:27:15+09:00"``. ``run-daily`` 진입 시 1 회 산출하여
+    이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 으로
+    동일하게 부여한다 (배치 단위 통일). 마이크로초는 잘라 가독성 우선.
+    """
+    return datetime.now(KST_TIMEZONE).replace(microsecond=0).isoformat()
 
 
 def _get_nyse_calendar() -> ExchangeCalendar:
@@ -330,6 +342,11 @@ def _publish_to_rtdb(
     equity_archive = build_equity_archive_year(state_dir, year=current_year)
     rtdb_gateway.write_equity_archive_year(rtdb_app, year=current_year, series=equity_archive)
 
+    # 3-c. /history/signals/ 미러 — 당일 4 자산 전체 덮어쓰기 (idempotent).
+    #      fills / balance_adjusts 미러는 cli 본문(run-daily)에서 신규 키만 선별해
+    #      처리하지만, signals 는 매 실행마다 4 자산 보장이 되므로 여기서 일괄 처리.
+    rtdb_gateway.write_history_signals(rtdb_app, result.execution_date, result.signals)
+
     # 4. 신규 fill 만 processed 마킹 (기존 적용 ID 는 skip)
     if newly_applied_fill_keys:
         rtdb_gateway.mark_fills_processed(rtdb_app, list(newly_applied_fill_keys))
@@ -461,6 +478,10 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         logger.debug(f"{trade_date} 는 NYSE 비영업일 — run-daily 조기 종료 (정상)")
         return 0
 
+    # RTDB / Git 정본 history 미러용 단일 KST timestamp.
+    # 이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 에 동일 부여.
+    applied_at_kst = _now_kst_iso()
+
     with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
         # 상태 로드
         state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
@@ -565,49 +586,78 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         cleaned_dismiss_ids = cleanup_old_applied_ids(applied_dismiss_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS)
         save_applied_fill_dismiss_ids(cleaned_dismiss_ids, dismiss_path)
 
-        # 새로 반영된 fill 을 user_trades.jsonl 에 append.
+        # 새로 반영된 fill 을 user_trades.jsonl 에 append + RTDB /history/fills/ 미러.
         # run_daily 전후의 applied_fill_ids 차분으로 신규 fill 을 식별한다 (차트 마커용).
         prev_applied_set = set(applied_ids.keys())
         newly_applied_ids = set(result.updated_applied_fill_ids.keys()) - prev_applied_set
+        newly_applied_fills: list[ActualFill] = []
         if newly_applied_ids:
             hist_dir = _history_dir(state_dir)
             for fill in pending_fills:
-                if fill.rtdb_key in newly_applied_ids:
-                    history.append_user_trade(
-                        {
-                            "asset_id": fill.asset_id,
-                            "date": fill.trade_date,
-                            "direction": fill.direction,
-                        },
-                        hist_dir,
-                    )
+                if fill.rtdb_key not in newly_applied_ids:
+                    continue
+                newly_applied_fills.append(fill)
+                # JSONL 페이로드: 차트 마커 빌더 호환 (asset_id/date/direction) +
+                # RTDB /history/fills/ 미러용 풀 페이로드.
+                history.append_user_trade(
+                    {
+                        "asset_id": fill.asset_id,
+                        "date": fill.trade_date,
+                        "direction": fill.direction,
+                        "actual_price": fill.actual_price,
+                        "actual_shares": fill.actual_shares,
+                        "trade_date": fill.trade_date,
+                        "input_time_kst": fill.input_time_kst,
+                        "memo": fill.memo,
+                        "reason": fill.reason,
+                        "rtdb_key": fill.rtdb_key,
+                        "applied_at": applied_at_kst,
+                    },
+                    hist_dir,
+                )
 
-        # 새로 반영된 balance_adjust 를 audit 히스토리에 append + RTDB mark.
+            # RTDB /history/fills/ 미러 — 실패 시 즉시 중단, 공통 알림 훅이 처리.
+            try:
+                rtdb_gateway.write_history_fills(rtdb_app, newly_applied_fills, applied_at_kst)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB /history/fills/ 미러 실패: {exc}") from exc
+
+        # 새로 반영된 balance_adjust 를 audit 히스토리에 append + RTDB mark + /history 미러.
         # prev 스냅샷과 apply 후 applied_adjust_ids 의 차분으로 신규 식별.
         newly_applied_adjust_keys = set(applied_adjust_ids.keys()) - prev_adjust_keys_snapshot
+        newly_applied_adjusts: list[BalanceAdjust] = []
         if newly_applied_adjust_keys:
             hist_dir = _history_dir(state_dir)
             for adjust in pending_adjusts:
-                if adjust.rtdb_key in newly_applied_adjust_keys:
-                    history.append_balance_adjust(
-                        {
-                            "rtdb_key": adjust.rtdb_key,
-                            "asset_id": adjust.asset_id,
-                            "new_shares": adjust.new_shares,
-                            "new_avg_price": adjust.new_avg_price,
-                            "new_entry_date": adjust.new_entry_date,
-                            "new_cash": adjust.new_cash,
-                            "reason": adjust.reason,
-                            "input_time_kst": adjust.input_time_kst,
-                        },
-                        hist_dir,
-                    )
+                if adjust.rtdb_key not in newly_applied_adjust_keys:
+                    continue
+                newly_applied_adjusts.append(adjust)
+                history.append_balance_adjust(
+                    {
+                        "rtdb_key": adjust.rtdb_key,
+                        "asset_id": adjust.asset_id,
+                        "new_shares": adjust.new_shares,
+                        "new_avg_price": adjust.new_avg_price,
+                        "new_entry_date": adjust.new_entry_date,
+                        "new_cash": adjust.new_cash,
+                        "reason": adjust.reason,
+                        "input_time_kst": adjust.input_time_kst,
+                        "applied_at": applied_at_kst,
+                    },
+                    hist_dir,
+                )
 
             # RTDB processed 마킹
             try:
                 rtdb_gateway.mark_balance_adjusts_processed(rtdb_app, list(newly_applied_adjust_keys))
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"RTDB balance_adjusts mark_processed 실패: {exc}") from exc
+
+            # RTDB /history/balance_adjusts/ 미러
+            try:
+                rtdb_gateway.write_history_balance_adjusts(rtdb_app, newly_applied_adjusts, applied_at_kst)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB /history/balance_adjusts/ 미러 실패: {exc}") from exc
 
         # 새로 반영된 fill_dismiss 를 audit 히스토리에 append + RTDB mark.
         newly_applied_dismiss_keys = set(applied_dismiss_ids.keys()) - prev_dismiss_keys_snapshot
@@ -816,9 +866,19 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
         hist_dir,
     )
 
-    # 신호 이력 append — 차트 마커 원본
+    # 신호 이력 append — 차트 마커 원본 + RTDB /history/signals/ 미러용 풀 페이로드.
+    # 차트 마커 빌더(load_signal_history)는 date/asset_id/state 만 사용하며 새 필드는 무시.
     signal_entries = [
-        {"date": trade_date.isoformat(), "asset_id": asset_id, "state": sig.state}
+        {
+            "date": trade_date.isoformat(),
+            "asset_id": asset_id,
+            "state": sig.state,
+            "close": sig.close,
+            "ma_value": sig.ma_value,
+            "ma_distance_pct": sig.ma_distance_pct,
+            "upper_band": sig.upper_band,
+            "lower_band": sig.lower_band,
+        }
         for asset_id, sig in result.signals.items()
     ]
     history.append_signal_history(signal_entries, hist_dir)
@@ -989,6 +1049,91 @@ def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_backfill_history(args: argparse.Namespace) -> int:
+    """Git 정본 JSONL 을 RTDB ``/history/{fills|balance_adjusts|signals}/`` 에 일괄 미러한다.
+
+    daily runner 는 매 실행마다 "이번 실행에서 새로 적용된" 분만 RTDB 에 기록하므로,
+    (1) 최초 배포 직후 RTDB 가 비어 있는 상태에서 과거 이력을 한 번에 채우거나,
+    (2) ``reset`` 으로 RTDB 가 초기화된 뒤 복원할 때 운영자가 이 명령을 수동 실행한다.
+
+    옵션:
+
+    - ``--target fills|balance_adjusts|signals|all``: 미러 대상 (기본 ``all``).
+    - ``--dry-run``: 실제 RTDB 쓰기 없이 대상 줄 수만 출력.
+
+    옛 스키마 줄 (``rtdb_key`` / ``applied_at`` 등 키 산출 필수 필드 누락) 은 skip
+    하고 stdout 에 카운트를 출력한다. 페이로드 필드만 누락된 경우는 ``null`` 로 기록.
+
+    본 명령은 ephemeral state repo 를 read-only 로 clone 한다 (push 없음).
+    """
+    target: str = args.target
+    dry_run: bool = args.dry_run
+
+    do_fills = target in ("fills", "all")
+    do_adjusts = target in ("balance_adjusts", "all")
+    do_signals = target in ("signals", "all")
+
+    with ephemeral_state_repo(push_on_success=False, commit_subcommand="backfill-history") as state_dir:
+        history_dir = _history_dir(state_dir)
+
+        fills_rows = history.load_user_trades_raw(history_dir) if do_fills else []
+        adjusts_rows = history.load_balance_adjusts_raw(history_dir) if do_adjusts else []
+        signals_rows = history.load_signal_history_raw(history_dir) if do_signals else []
+
+        # 미러에 필요한 키 산출 가능한 줄 / 옛 스키마로 skip 할 줄 분리
+        fills_ready: list[dict[str, Any]] = []
+        fills_skipped = 0
+        for row in fills_rows:
+            if not row.get("rtdb_key") or not row.get("trade_date"):
+                fills_skipped += 1
+                continue
+            fills_ready.append(row)
+
+        adjusts_ready: list[dict[str, Any]] = []
+        adjusts_skipped = 0
+        for row in adjusts_rows:
+            if not row.get("rtdb_key") or not row.get("applied_at"):
+                adjusts_skipped += 1
+                continue
+            adjusts_ready.append(row)
+
+        signals_ready: list[dict[str, Any]] = []
+        signals_skipped = 0
+        for row in signals_rows:
+            if not row.get("date") or not row.get("asset_id"):
+                signals_skipped += 1
+                continue
+            signals_ready.append(row)
+
+        if dry_run:
+            sys.stdout.write(
+                f"[dry-run] target={target} | "
+                f"fills={len(fills_ready)} (skipped {fills_skipped}) | "
+                f"balance_adjusts={len(adjusts_ready)} (skipped {adjusts_skipped}) | "
+                f"signals={len(signals_ready)} (skipped {signals_skipped})\n"
+            )
+            return 0
+
+        rtdb_app: Any = _require_rtdb_app()
+
+        rtdb_gateway.write_history_fills_raw(rtdb_app, fills_ready)
+        rtdb_gateway.write_history_balance_adjusts_raw(rtdb_app, adjusts_ready)
+        rtdb_gateway.write_history_signals_raw(rtdb_app, signals_ready)
+
+        sys.stdout.write(
+            f"[backfill-history] target={target} | "
+            f"fills={len(fills_ready)} (skipped {fills_skipped}) | "
+            f"balance_adjusts={len(adjusts_ready)} (skipped {adjusts_skipped}) | "
+            f"signals={len(signals_ready)} (skipped {signals_skipped})\n"
+        )
+        if fills_skipped or adjusts_skipped or signals_skipped:
+            logger.warning(
+                f"backfill-history: 옛 스키마 줄 skip — "
+                f"fills={fills_skipped} balance_adjusts={adjusts_skipped} signals={signals_skipped}"
+            )
+    return 0
+
+
 def _cmd_history(args: argparse.Namespace) -> int:
     n: int = args.tail
     with ephemeral_state_repo(push_on_success=False, commit_subcommand="history") as state_dir:
@@ -1084,6 +1229,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="실제 RTDB 쓰기 없이 대상 연도 목록만 출력",
     )
     p_backfill.set_defaults(func=_cmd_backfill_chart_archive)
+
+    # backfill-history
+    p_backfill_hist = sub.add_parser(
+        "backfill-history",
+        help="Git 정본 JSONL 을 RTDB /history/ 에 일괄 미러 (최초 배포 / 리셋 후 복원)",
+    )
+    p_backfill_hist.add_argument(
+        "--target",
+        choices=["fills", "balance_adjusts", "signals", "all"],
+        default="all",
+        help="선택. 미러 대상 (기본: all = fills + balance_adjusts + signals)",
+    )
+    p_backfill_hist.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="실제 RTDB 쓰기 없이 대상 줄 수만 출력",
+    )
+    p_backfill_hist.set_defaults(func=_cmd_backfill_history)
 
     # history
     p_hist = sub.add_parser("history", help="history/summary.jsonl 최근 N 줄 출력")

@@ -14,6 +14,7 @@ import pytest
 from live import rtdb_gateway as rtdb_module
 from live.models import (
     ActualFill,
+    BalanceAdjust,
     ChartMeta,
     ChartSeries,
     DailyResult,
@@ -36,6 +37,9 @@ from live.rtdb_gateway import (
     write_equity_archive_year,
     write_equity_meta,
     write_equity_recent,
+    write_history_balance_adjusts,
+    write_history_fills,
+    write_history_signals,
     write_read_model,
 )
 from live.state import create_initial_state
@@ -575,6 +579,201 @@ class TestWriteEquityArchiveYear:
 
 
 # ============================================================================
+# /history 미러 쓰기 (fills / balance_adjusts / signals)
+# ============================================================================
+
+
+def _make_actual_fill(
+    *,
+    rtdb_key: str = "fill_xyz",
+    asset_id: str = "sso",
+    direction: str = "buy",
+    actual_price: float = 82.0,
+    actual_shares: int = 100,
+    trade_date: str = "2026-04-10",
+    input_time_kst: str = "2026-04-10T20:00:00+09:00",
+    memo: str | None = None,
+    reason: str = "",
+) -> ActualFill:
+    """ActualFill 테스트 헬퍼."""
+    return ActualFill(
+        asset_id=asset_id,
+        direction=direction,  # type: ignore[arg-type]
+        actual_price=actual_price,
+        actual_shares=actual_shares,
+        trade_date=trade_date,
+        input_time_kst=input_time_kst,
+        memo=memo,
+        rtdb_key=rtdb_key,
+        reason=reason,
+    )
+
+
+def _make_balance_adjust(
+    *,
+    rtdb_key: str = "adj_xyz",
+    asset_id: str | None = "sso",
+    new_shares: int | None = 420,
+    new_avg_price: float | None = None,
+    new_entry_date: str | None = None,
+    new_cash: float | None = None,
+    reason: str = "test",
+    input_time_kst: str = "2026-04-10T20:00:00+09:00",
+) -> BalanceAdjust:
+    """BalanceAdjust 테스트 헬퍼."""
+    return BalanceAdjust(
+        rtdb_key=rtdb_key,
+        input_time_kst=input_time_kst,
+        reason=reason,
+        asset_id=asset_id,
+        new_shares=new_shares,
+        new_avg_price=new_avg_price,
+        new_entry_date=new_entry_date,
+        new_cash=new_cash,
+    )
+
+
+class TestWriteHistoryFills:
+    """``/history/fills/{trade_date}/{rtdb_key}`` 쓰기 계약."""
+
+    def test_empty_list_is_noop(self, mock_db, mock_app):
+        """Given 빈 fills 리스트 When write Then RTDB 호출 없음."""
+        write_history_fills(mock_app, [], applied_at="2026-04-11T07:27:15+09:00")
+        assert mock_db == {}
+
+    def test_single_fill_writes_to_expected_path(self, mock_db, mock_app):
+        """Given 단일 fill When write Then trade_date 폴더 + rtdb_key 키에 기록."""
+        fill = _make_actual_fill(rtdb_key="fill_001", trade_date="2026-04-10")
+        write_history_fills(mock_app, [fill], applied_at="2026-04-11T07:27:15+09:00")
+
+        payload = mock_db["/history/fills/2026-04-10/fill_001"]
+        assert payload["asset_id"] == "sso"
+        assert payload["direction"] == "buy"
+        assert payload["actual_price"] == pytest.approx(82.0)
+        assert payload["actual_shares"] == 100
+        assert payload["trade_date"] == "2026-04-10"
+
+    def test_payload_includes_applied_at_and_excludes_rtdb_key(self, mock_db, mock_app):
+        """Given fill When write Then payload 에 applied_at 포함, rtdb_key 미포함.
+
+        rtdb_key 는 상위 노드 키이므로 레코드 본문에 중복 저장하지 않는다.
+        """
+        fill = _make_actual_fill(rtdb_key="fill_abc")
+        write_history_fills(mock_app, [fill], applied_at="2026-04-11T07:27:15+09:00")
+
+        payload = mock_db["/history/fills/2026-04-10/fill_abc"]
+        assert payload["applied_at"] == "2026-04-11T07:27:15+09:00"
+        assert "rtdb_key" not in payload
+
+    def test_multiple_fills_routed_by_trade_date(self, mock_db, mock_app):
+        """Given 서로 다른 trade_date 의 다수 fill When write Then 각 trade_date 폴더에 분리 저장."""
+        fill_a = _make_actual_fill(rtdb_key="fa", trade_date="2026-04-10")
+        fill_b = _make_actual_fill(rtdb_key="fb", trade_date="2026-04-11", asset_id="qld")
+
+        write_history_fills(mock_app, [fill_a, fill_b], applied_at="2026-04-11T07:27:15+09:00")
+
+        assert mock_db["/history/fills/2026-04-10/fa"]["asset_id"] == "sso"
+        assert mock_db["/history/fills/2026-04-11/fb"]["asset_id"] == "qld"
+
+    def test_same_uuid_overwrites(self, mock_db, mock_app):
+        """Given 같은 UUID 로 두 번 write When 호출 Then 두 번째 값으로 덮어쓰기 (idempotent)."""
+        fill_v1 = _make_actual_fill(rtdb_key="fill_dup", actual_shares=100)
+        fill_v2 = _make_actual_fill(rtdb_key="fill_dup", actual_shares=200)
+
+        write_history_fills(mock_app, [fill_v1], applied_at="2026-04-11T07:00:00+09:00")
+        write_history_fills(mock_app, [fill_v2], applied_at="2026-04-11T07:30:00+09:00")
+
+        payload = mock_db["/history/fills/2026-04-10/fill_dup"]
+        assert payload["actual_shares"] == 200
+        assert payload["applied_at"] == "2026-04-11T07:30:00+09:00"
+
+
+class TestWriteHistoryBalanceAdjusts:
+    """``/history/balance_adjusts/{applied_at_date}/{rtdb_key}`` 쓰기 계약."""
+
+    def test_empty_list_is_noop(self, mock_db, mock_app):
+        write_history_balance_adjusts(mock_app, [], applied_at="2026-04-11T07:27:15+09:00")
+        assert mock_db == {}
+
+    def test_folder_key_is_applied_at_date_part(self, mock_db, mock_app):
+        """Given adjust When write Then 폴더 키는 applied_at 의 YYYY-MM-DD 부분."""
+        adjust = _make_balance_adjust(rtdb_key="adj_001")
+        write_history_balance_adjusts(mock_app, [adjust], applied_at="2026-04-11T07:27:15+09:00")
+
+        assert "/history/balance_adjusts/2026-04-11/adj_001" in mock_db
+
+    def test_payload_includes_applied_at_and_excludes_rtdb_key(self, mock_db, mock_app):
+        adjust = _make_balance_adjust(rtdb_key="adj_002", new_shares=500, new_avg_price=85.0)
+        write_history_balance_adjusts(mock_app, [adjust], applied_at="2026-04-11T07:27:15+09:00")
+
+        payload = mock_db["/history/balance_adjusts/2026-04-11/adj_002"]
+        assert payload["applied_at"] == "2026-04-11T07:27:15+09:00"
+        assert payload["new_shares"] == 500
+        assert payload["new_avg_price"] == pytest.approx(85.0)
+        assert payload["asset_id"] == "sso"
+        assert "rtdb_key" not in payload
+
+    def test_same_uuid_overwrites(self, mock_db, mock_app):
+        adjust_v1 = _make_balance_adjust(rtdb_key="adj_dup", new_shares=100)
+        adjust_v2 = _make_balance_adjust(rtdb_key="adj_dup", new_shares=200)
+
+        write_history_balance_adjusts(mock_app, [adjust_v1], applied_at="2026-04-11T07:00:00+09:00")
+        write_history_balance_adjusts(mock_app, [adjust_v2], applied_at="2026-04-11T07:30:00+09:00")
+
+        payload = mock_db["/history/balance_adjusts/2026-04-11/adj_dup"]
+        assert payload["new_shares"] == 200
+
+
+class TestWriteHistorySignals:
+    """``/history/signals/{execution_date}/{asset_id}`` 쓰기 계약."""
+
+    def test_writes_each_asset_under_date(self, mock_db, mock_app):
+        """Given 4 자산 signals When write Then 각 자산 키에 separately 저장."""
+        signals = {
+            "sso": SignalDetection(
+                state="buy", close=82.0, upper_band=85.0, lower_band=78.0, ma_value=80.0, ma_distance_pct=0.025
+            ),
+            "qld": SignalDetection(
+                state="none", close=90.0, upper_band=92.0, lower_band=88.0, ma_value=90.0, ma_distance_pct=0.0
+            ),
+        }
+
+        write_history_signals(mock_app, execution_date="2026-04-10", signals=signals)
+
+        sso_payload = mock_db["/history/signals/2026-04-10/sso"]
+        assert sso_payload["state"] == "buy"
+        assert sso_payload["close"] == pytest.approx(82.0)
+        assert sso_payload["ma_value"] == pytest.approx(80.0)
+        assert sso_payload["upper_band"] == pytest.approx(85.0)
+        assert sso_payload["lower_band"] == pytest.approx(78.0)
+
+        qld_payload = mock_db["/history/signals/2026-04-10/qld"]
+        assert qld_payload["state"] == "none"
+        assert qld_payload["ma_distance_pct"] == pytest.approx(0.0)
+
+    def test_same_asset_overwrites(self, mock_db, mock_app):
+        """Given 같은 날짜+asset_id 로 두 번 write When 호출 Then 두 번째 값으로 덮어쓰기."""
+        sig_v1 = SignalDetection(
+            state="buy", close=80.0, upper_band=None, lower_band=None, ma_value=78.0, ma_distance_pct=0.025
+        )
+        sig_v2 = SignalDetection(
+            state="sell", close=82.0, upper_band=None, lower_band=None, ma_value=78.0, ma_distance_pct=0.05
+        )
+
+        write_history_signals(mock_app, execution_date="2026-04-10", signals={"sso": sig_v1})
+        write_history_signals(mock_app, execution_date="2026-04-10", signals={"sso": sig_v2})
+
+        payload = mock_db["/history/signals/2026-04-10/sso"]
+        assert payload["state"] == "sell"
+        assert payload["close"] == pytest.approx(82.0)
+
+    def test_empty_signals_dict_is_noop(self, mock_db, mock_app):
+        """Given 빈 signals dict When write Then RTDB 호출 없음 (호출자 보장 케이스)."""
+        write_history_signals(mock_app, execution_date="2026-04-10", signals={})
+        assert mock_db == {}
+
+
+# ============================================================================
 # delete_all_except_device_tokens (reset 초기화 경로)
 # ============================================================================
 
@@ -584,8 +783,8 @@ class TestDeleteAllExceptDeviceTokens:
 
     - /device_tokens 는 삭제하지 않는다 (FCM 토큰 유지).
     - /charts 최상위를 삭제한다 (주가 + equity 차트 전부).
-    - /history/summary 는 더 이상 RTDB 에 쓰지 않으므로 삭제 대상 목록에 포함되지 않는다
-      (PLAN_LIVE_CHARTS_RESTRUCTURE).
+    - /history 최상위를 삭제한다 (PLAN_LIVE_HISTORY_RTDB_MIRROR — fills /
+      balance_adjusts / signals 신규 3 경로 포함 일괄 초기화).
     """
 
     def test_deletes_expected_paths_and_keeps_device_tokens(self, monkeypatch, mock_app):
@@ -604,15 +803,14 @@ class TestDeleteAllExceptDeviceTokens:
         # When
         delete_all_except_device_tokens(mock_app)
 
-        # Then — /device_tokens 는 포함되지 않고, 신규 /charts 가 포함된다.
+        # Then — /device_tokens 는 포함되지 않고, 신규 /charts / /history 가 포함된다.
         assert "/device_tokens" not in deleted_paths
         assert "/latest" in deleted_paths
         assert "/charts" in deleted_paths
+        assert "/history" in deleted_paths
         assert "/fills/inbox" in deleted_paths
         assert "/balance_adjust/inbox" in deleted_paths
         assert "/fill_dismiss/inbox" in deleted_paths
-        # /history/summary 는 더 이상 RTDB 에 존재하지 않으므로 삭제 목록에 없다.
-        assert "/history/summary" not in deleted_paths
 
 
 # ============================================================================

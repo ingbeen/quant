@@ -65,12 +65,12 @@ tests/live/                     # live 전용 테스트
 | `balance_adjust.py`    | `BalanceAdjust` idempotent 반영 (`run_daily` 내부 fills 직후 호출)                  |
 | (fill_dismiss 처리)    | `FillDismiss` idempotent 반영 (`run_daily` 내부, 리마인더 해제 전용, 잔고 불변)     |
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
-| `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이                              |
+| `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이 (`/latest`, `/charts`, `/history`, `/fills/inbox`, `/balance_adjust/inbox`, `/fill_dismiss/inbox`, `/device_tokens`) |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
 | `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
-| `history.py`           | Git 정본 히스토리 append / load                                                     |
+| `history.py`           | Git 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
 | `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
-| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅              |
+| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-history` 수동 명령 |
 
 ## 핵심 원칙
 

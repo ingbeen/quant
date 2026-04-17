@@ -266,6 +266,38 @@ poetry run python -m live notify-failure --message "수동 테스트 from local"
 
 ---
 
+### 8b. RTDB `/history/*` 미러 (fills / balance_adjusts / signals) 확인
+
+**목적**: `/history/fills/`, `/history/balance_adjusts/`, `/history/signals/` 3 경로가 daily runner 의 미러 쓰기로 채워지는지 확인 + `backfill-history` 명령으로 Git 정본 전체가 RTDB 에 복원되는지 확인.
+
+**사전 조건**: 5 번 정상 완료. RTDB `/fills/inbox/` 또는 `/balance_adjust/inbox/` 에 새 레코드 1 건 이상 주입 후 `run-daily` 실행 (없으면 signals 만 검증 가능).
+
+**절차**:
+
+1. RTDB 화면에서 `/history/` 를 펼쳐 `fills/`, `balance_adjusts/`, `signals/` 3 노드 확인
+2. `signals/{오늘_날짜}/` 하위에 4 자산 (`sso`, `qld`, `gld`, `tlt`) 모두 존재 확인
+3. fill 을 새로 처리한 경우 `fills/{trade_date}/{UUID}/` 페이로드에 `applied_at` 포함 + `rtdb_key` 미포함 확인
+4. balance_adjust 를 새로 처리한 경우 `balance_adjusts/{applied_at[:10]}/{UUID}/` 에 동일 검증
+
+**확인 사항**:
+
+- [ ] `/history/signals/{오늘_날짜}/{sso|qld|gld|tlt}` 4 자산 모두 존재 + `state` / `close` / `ma_value` / `ma_distance_pct` / `upper_band` / `lower_band` 필드 포함
+- [ ] (fill 처리한 경우) `/history/fills/{trade_date}/{UUID}` 의 페이로드에 `applied_at` 존재, `rtdb_key` 미존재
+- [ ] (balance_adjust 처리한 경우) `/history/balance_adjusts/{applied_at_date}/{UUID}` 페이로드 검증
+- [ ] 같은 run-daily 배치에서 처리된 모든 신규 레코드의 `applied_at` 이 동일 timestamp
+
+**backfill 검증 (`reset` 후 복원 시나리오)**:
+
+1. `python -m live backfill-history --dry-run` 실행 → stdout 에 `fills=N (skipped K) | balance_adjusts=N | signals=N` 카운트 출력 확인
+2. (테스트 환경 한정) `python -m live reset --capital 100000000` 실행 후 `python -m live backfill-history --target all` 실행
+3. RTDB `/history/{*}/*` 에 Git 정본 전체 이력이 복원되었는지 Firebase 콘솔에서 확인
+
+- [ ] `--dry-run` 출력 카운트가 Git 정본 JSONL 줄 수와 일치 (옛 스키마 줄은 skip)
+- [ ] `--target fills` 단독 실행 시 `/history/fills/` 만 갱신, 다른 경로 무영향
+- [ ] `reset` → `backfill-history --target all` 후 RTDB 가 Git 정본과 정보 동등
+
+---
+
 ### 9. qbt-live-state 히스토리 파일 확인
 
 **목적**: Step 15 `history` 의 파일 시스템 쓰기 + git push 검증.
