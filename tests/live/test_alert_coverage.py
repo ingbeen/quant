@@ -81,91 +81,77 @@ def _setup_flat_csvs(state_dir: Path, trade_date: date, rows: int = 210) -> None
 
 
 # ============================================================================
-# main() 공통 알림 훅: 각 커맨드별 예외 → notify 호출
+# main() 공통 알림 훅: allow-list 정책 (run-daily 만 알림)
 # ============================================================================
 
 
-class TestMainAlertHookCoversAllCommands:
-    """``main()`` 공통 try/except 가 모든 커맨드의 예외를 캐치하여 알림을 발송해야 한다."""
+class TestMainAllowListNotifyPolicy:
+    """``main()`` 공통 예외 훅은 **자동 실행 커맨드 (run-daily)** 실패에만
+    FCM + 텔레그램 알림을 발송한다 (allow-list 정책).
 
-    def test_init_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given init 중 예외 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
+    사용자 직접 실행 커맨드 (init / reset / rebuild-data / drift / fetch-fills /
+    backfill-chart-archive) 는 터미널 stderr + ERROR 로그로만 실패를 노출하며,
+    알림은 발송하지 않는다. ``notify-failure`` 는 재귀 방지를 위해 allow-list 에
+    포함하지 않는다 (allow-list 에 없으므로 자동 제외).
+    """
 
-        def _fail_save(*args: Any, **kwargs: Any) -> None:
-            raise RuntimeError("테스트: init save_state 실패")
-
-        monkeypatch.setattr(cli_module, "save_state", _fail_save)
-
-        exit_code = main(["init", "--capital", "100000000"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-        assert any("init" in msg or "save" in msg or "실패" in msg for _, msg in notify_calls)
-
-    def test_drift_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given drift 커맨드 중 state 로드 실패 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
-
-        def _fail_load(path: Path) -> None:
-            raise RuntimeError("테스트: live_state.json 로드 실패")
-
-        monkeypatch.setattr(cli_module, "load_state", _fail_load)
-
-        exit_code = main(["drift"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-
-    def test_fetch_fills_failure_triggers_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given fetch-fills 중 RTDB 조회 실패 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
-        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
-
-        def _fail_fetch(app: Any) -> list[Any]:
-            raise RuntimeError("테스트: fetch_unprocessed_fills 실패")
-
-        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", _fail_fetch)
-
-        exit_code = main(["fetch-fills"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-
-    def test_rebuild_data_single_ticker_failure_triggers_notify(
-        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize(
+        "command_args",
+        [
+            ["init", "--capital", "100000000"],
+            ["reset", "--capital", "100000000"],
+            ["rebuild-data", "SPY"],
+            ["rebuild-data"],
+            ["drift"],
+            ["fetch-fills"],
+            ["backfill-chart-archive"],
+        ],
+    )
+    def test_user_executed_command_failure_does_not_notify(
+        self,
+        command_args: list[str],
+        state_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Given rebuild-data SPY 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
-
-        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
-            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
-
-        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
-
-        exit_code = main(["rebuild-data", "SPY"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-
-    def test_rebuild_data_all_tickers_failure_triggers_notify(
-        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Given rebuild-data (티커 생략) 중 rebuild_full_csv 실패 When main 실행 Then notify 호출.
-
-        티커 인자 생략 시 `_collect_all_tickers()` 전체 순회가 수행되는지 간접 검증한다.
+        """Given 사용자 직접 실행 커맨드의 func 가 예외 raise When main 실행
+        Then _safe_notify_failure 호출되지 않고 exit 1 반환.
         """
+        del state_dir
         notify_calls = _install_notify_spy(monkeypatch)
 
-        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
-            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
+        def _fail(_args: Any) -> int:
+            raise RuntimeError("테스트용 강제 실패")
 
-        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
+        for attr_name in (
+            "_cmd_init",
+            "_cmd_reset",
+            "_cmd_rebuild_data",
+            "_cmd_drift",
+            "_cmd_fetch_fills",
+            "_cmd_backfill_chart_archive",
+        ):
+            monkeypatch.setattr(cli_module, attr_name, _fail)
 
-        exit_code = main(["rebuild-data"])
+        exit_code = main(command_args)
 
         assert exit_code == 1
-        assert len(notify_calls) >= 1
+        assert notify_calls == [], f"{command_args[0]} 실패 시 notify 호출되면 안 됨 (allow-list 정책)"
+
+    def test_run_daily_failure_still_notifies(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given run-daily 실행 중 예외 When main 실행 Then _safe_notify_failure 1 회 호출."""
+        del state_dir
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail(_args: Any) -> int:
+            raise RuntimeError("테스트용 run-daily 실패")
+
+        monkeypatch.setattr(cli_module, "_cmd_run_daily", _fail)
+
+        exit_code = main(["run-daily"])
+
+        assert exit_code == 1
+        assert len(notify_calls) == 1
+        assert "run-daily" in notify_calls[0][1]
 
 
 # ============================================================================

@@ -74,18 +74,22 @@ tests/live/                     # live 전용 테스트
 
 ## 핵심 원칙
 
-### 1. 장애 시 자동 복구 금지 + 무조건 알림
+### 1. 장애 시 자동 복구 금지 + (자동 실행 커맨드만) 알림
 
 - 데이터 수집/검증/계산/RTDB/Git push 중 어떤 단계든 실패하면 **즉시 중단** 한다.
 - 자동 롤백, 자동 재시도(GitHub Actions retry job 제외), 자동 복원 **모두 금지**.
-- `cli.py` 의 `main()` 공통 예외 훅이 모든 커맨드의 예외에 대해
-  `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다.
-  - 예외: `notify-failure` 커맨드 자체는 재귀 방지를 위해 알림을 다시 발송하지 않는다.
+- `cli.py` 의 `main()` 공통 예외 훅은 **자동 실행 커맨드 (`run-daily`)** 의 예외에 대해서만
+  `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다
+  (allow-list 정책 — `_NOTIFY_FAILURE_COMMANDS` 상수).
+  - 사용자 직접 실행 커맨드 (`init` / `reset` / `rebuild-data` / `drift` / `fetch-fills` /
+    `backfill-chart-archive`) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다 (알림 없음).
+  - `notify-failure` 는 allow-list 에 없으므로 자체 실패 시에도 재귀 알림을 발송하지 않는다.
 - **알림 채널 자체의 실패는 로그로만 기록한다**. FCM / 텔레그램 발송이 실패한
   상황에서 다시 알림을 보내는 것은 모순 / 무한 루프이므로 금지.
 - 에러 알림 본문에는 실패 원인(커맨드 이름 + 예외 메시지) 을 반드시 포함.
-- 다음 조건은 silent skip 대신 즉시 실패 (`ValueError` / `RuntimeError`) 로 처리하고
-  공통 알림 훅이 사용자에게 통보한다:
+- 다음 조건은 silent skip 대신 즉시 실패 (`ValueError` / `RuntimeError`) 로 처리한다.
+  `run-daily` 경로에서 발생하면 공통 알림 훅이 사용자에게 통보하고, 수동 명령 경로에서
+  발생하면 터미널 stderr 로 즉시 노출된다:
   - unknown `asset_id` 가 포함된 fill / balance_adjust
   - balance_adjust 에서 `new_avg_price` / `new_entry_date` 지정 시 `asset_id` 누락
   - balance_adjust 에서 `actual_shares == 0` 인 자산에 `new_avg_price` / `new_entry_date` 단독 지정

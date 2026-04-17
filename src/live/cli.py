@@ -1179,17 +1179,29 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+#: 실패 시 FCM + 텔레그램 알림을 발송할 **자동 실행 커맨드 allow-list**.
+#: GitHub Actions cron 으로 무인 실행되는 커맨드만 포함한다. 사용자 직접 실행
+#: 커맨드 (``init`` / ``reset`` / ``rebuild-data`` / ``drift`` / ``fetch-fills`` /
+#: ``backfill-chart-archive``) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다.
+#: ``notify-failure`` 는 재귀 방지를 위해 allow-list 에 포함하지 않는다.
+_NOTIFY_FAILURE_COMMANDS: frozenset[str] = frozenset({"run-daily"})
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI 진입점. ``argv`` 가 None 이면 ``sys.argv[1:]`` 사용.
 
     에러 처리 정책:
 
-    - **모든** 커맨드의 예외는 이 함수의 공통 훅에서 ``_safe_notify_failure`` 를
-      통해 FCM + 텔레그램 실패 알림으로 전파된다. 알림 발송 후 exit code 1 반환.
+    - **자동 실행 커맨드 (`run-daily`)** 의 예외만 이 함수의 공통 훅에서
+      ``_safe_notify_failure`` 를 통해 FCM + 텔레그램 실패 알림으로 전파된다.
+      사용자가 터미널을 보고 있지 않은 상황 (Actions cron) 을 위한 최후 알림.
+    - 사용자 직접 실행 커맨드 (``init`` / ``reset`` / ``rebuild-data`` /
+      ``drift`` / ``fetch-fills`` / ``backfill-chart-archive``) 의 실패는
+      터미널 stderr + ERROR 로그로만 노출한다 (FCM / 텔레그램 알림 없음).
     - 자동 복구 / 롤백 금지 — 호출자(GitHub Actions) 가 retry 정책 결정.
     - argparse 의 ``SystemExit`` 는 그대로 전파.
-    - ``notify-failure`` 커맨드 자체의 실패는 재귀 방지를 위해 알림을 재발송
-      하지 않는다 (알림 채널 자체가 막힌 상황에서 알림을 다시 보내면 무한 루프).
+    - ``notify-failure`` 는 allow-list 에 없으므로 자체 실패 시에도 재귀
+      알림을 발송하지 않는다 (알림 채널 실패 상황에서 알림을 다시 보내면 무한 루프).
     """
     _load_dotenv_if_present()
     parser = _build_parser()
@@ -1200,8 +1212,8 @@ def main(argv: list[str] | None = None) -> int:
         raise
     except Exception as exc:  # noqa: BLE001
         command_name = getattr(args, "command", None)
-        if command_name != "notify-failure":
-            _safe_notify_failure(None, f"{command_name or 'unknown'} 실패: {exc}")
+        if command_name in _NOTIFY_FAILURE_COMMANDS:
+            _safe_notify_failure(None, f"{command_name} 실패: {exc}")
         logger.error("예외 발생", exc_info=True)
         return 1
 

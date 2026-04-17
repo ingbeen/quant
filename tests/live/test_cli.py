@@ -760,8 +760,12 @@ class TestCmdRunDailySuccess:
 class TestFetchFills:
     """fetch-fills 는 RTDB 만 읽으므로 state_dir 가 필요 없다."""
 
-    def test_fetch_fills_rtdb_init_failure_triggers_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given Firebase 초기화 실패 When fetch-fills Then main 공통 훅이 알림 + exit 1."""
+    def test_fetch_fills_rtdb_init_failure_exits_without_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase 초기화 실패 When fetch-fills Then exit 1 + allow-list 정책으로 알림 미발송.
+
+        fetch-fills 는 사용자 직접 실행 커맨드이므로 ``_NOTIFY_FAILURE_COMMANDS`` 에
+        포함되지 않는다. 실패 시 터미널 stderr + ERROR 로그로만 노출된다.
+        """
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
         notify_calls: list[str] = []
         monkeypatch.setattr(
@@ -771,8 +775,7 @@ class TestFetchFills:
         )
         exit_code = main(["fetch-fills"])
         assert exit_code == 1
-        assert len(notify_calls) >= 1
-        assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
+        assert notify_calls == []
 
     def test_fetch_fills_outputs_json(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -1045,17 +1048,21 @@ class TestCmdBackfillChartArchive:
         # dry-run 출력에 target 표시가 포함된다.
         assert "target=all" in out
 
-    def test_backfill_rtdb_init_failure_triggers_notify(
+    def test_backfill_rtdb_init_failure_exits_without_notify(
         self,
         state_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """
-        목적: Firebase 초기화 실패 시 main 공통 훅이 실패 알림 + exit 1.
+        목적: Firebase 초기화 실패 시 exit 1 + allow-list 정책으로 알림 미발송.
+
+        backfill-chart-archive 는 사용자 직접 실행 커맨드이므로
+        ``_NOTIFY_FAILURE_COMMANDS`` 에 포함되지 않는다. 실패 시 터미널 stderr +
+        ERROR 로그로만 노출된다.
 
         Given: _initialize_rtdb_app → None
         When:  backfill-chart-archive 실행
-        Then:  _safe_notify_failure 가 호출되고 exit=1.
+        Then:  exit=1, _safe_notify_failure 호출되지 않음.
         """
         del state_dir
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
@@ -1071,8 +1078,7 @@ class TestCmdBackfillChartArchive:
 
         exit_code = main(["backfill-chart-archive"])
         assert exit_code == 1
-        assert len(notify_calls) >= 1
-        assert any("Firebase" in m or "RTDB" in m for m in notify_calls)
+        assert notify_calls == []
 
 
 class TestNotifyFailureCmd:
