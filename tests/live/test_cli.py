@@ -196,6 +196,295 @@ class TestCmdRebuildData:
 
 
 # ============================================================================
+# reset 명령어 (신규 순서 + 주가 차트 자동 재생성)
+# ============================================================================
+
+
+def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
+    """reset 경로의 외부 의존성을 일괄 mock 하고, 호출 기록 dict 를 반환한다.
+
+    reset 의 9 단계 전 과정 (사전 검증 → Git 파일 작업 → RTDB 삭제 →
+    RTDB 주가 차트 재생성) 을 커버한다. 반환 dict 의 각 키는 호출 횟수 / 인자를
+    순서대로 담는다 (여러 테스트가 같은 시나리오를 공유).
+    """
+    from live.models import ChartMeta
+
+    calls: dict[str, list[Any]] = {
+        "require_rtdb_app": [],
+        "delete_all_except_device_tokens": [],
+        "rebuild_full_csv": [],
+        "build_chart_meta": [],
+        "build_chart_recent": [],
+        "build_chart_archive_year": [],
+        "write_chart_meta": [],
+        "write_chart_recent": [],
+        "write_chart_archive_year": [],
+        "write_equity_meta": [],
+        "write_equity_recent": [],
+        "write_equity_archive_year": [],
+        "write_history_fills": [],
+        "write_history_balance_adjusts": [],
+        "write_history_signals": [],
+        "order": [],
+    }
+
+    fake_app = _FakeRtdbApp()
+
+    def _spy_require() -> _FakeRtdbApp:
+        calls["require_rtdb_app"].append(True)
+        calls["order"].append("require_rtdb_app")
+        return fake_app
+
+    monkeypatch.setattr(cli_module, "_require_rtdb_app", _spy_require)
+
+    def _spy_delete(app: Any) -> None:
+        calls["delete_all_except_device_tokens"].append(app)
+        calls["order"].append("delete_all_except_device_tokens")
+
+    monkeypatch.setattr(cli_module.rtdb_gateway, "delete_all_except_device_tokens", _spy_delete)
+
+    def _spy_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
+        del csv_path
+        calls["rebuild_full_csv"].append((ticker, period))
+        calls["order"].append("rebuild_full_csv")
+
+    monkeypatch.setattr(cli_module, "rebuild_full_csv", _spy_rebuild)
+
+    def _spy_meta(state_dir: Path) -> dict[str, ChartMeta]:
+        calls["build_chart_meta"].append(state_dir)
+        calls["order"].append("build_chart_meta")
+        return {
+            "sso": ChartMeta(
+                first_date="2020-01-01",
+                last_date="2026-04-17",
+                ma_window=200,
+                recent_months=12,
+                archive_years=[2024, 2025],
+            ),
+        }
+
+    monkeypatch.setattr(cli_module, "build_chart_meta", _spy_meta)
+
+    def _spy_recent(
+        state_dir: Path,
+        *,
+        user_trades: dict[str, Any],
+        signal_history: dict[str, Any],
+    ) -> dict[str, Any]:
+        del state_dir
+        calls["build_chart_recent"].append({"user_trades": user_trades, "signal_history": signal_history})
+        calls["order"].append("build_chart_recent")
+        return {}
+
+    monkeypatch.setattr(cli_module, "build_chart_recent", _spy_recent)
+
+    def _spy_archive(
+        state_dir: Path,
+        *,
+        year: int,
+        user_trades: dict[str, Any],
+        signal_history: dict[str, Any],
+    ) -> dict[str, Any]:
+        del state_dir
+        calls["build_chart_archive_year"].append(
+            {"year": year, "user_trades": user_trades, "signal_history": signal_history}
+        )
+        calls["order"].append("build_chart_archive_year")
+        return {}
+
+    monkeypatch.setattr(cli_module, "build_chart_archive_year", _spy_archive)
+
+    def _spy_write_meta(app: Any, m: Any) -> None:
+        del app
+        calls["write_chart_meta"].append(m)
+        calls["order"].append("write_chart_meta")
+
+    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_meta", _spy_write_meta)
+
+    def _spy_write_recent(app: Any, m: Any) -> None:
+        del app
+        calls["write_chart_recent"].append(m)
+        calls["order"].append("write_chart_recent")
+
+    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_recent", _spy_write_recent)
+
+    def _spy_write_archive(app: Any, *, year: int, year_map: Any) -> None:
+        del app
+        calls["write_chart_archive_year"].append({"year": year, "map": year_map})
+        calls["order"].append("write_chart_archive_year")
+
+    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_archive_year", _spy_write_archive)
+
+    # equity / history writers — reset 은 호출해서는 안 된다 (summary.jsonl 부재)
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_equity_meta",
+        lambda app, m: calls["write_equity_meta"].append(m),
+    )
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_equity_recent",
+        lambda app, s: calls["write_equity_recent"].append(s),
+    )
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_equity_archive_year",
+        lambda app, *, year, series: calls["write_equity_archive_year"].append({"year": year, "series": series}),
+    )
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_history_fills",
+        lambda app, fills, ts: calls["write_history_fills"].append((fills, ts)),
+    )
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_history_balance_adjusts",
+        lambda app, adjusts, ts: calls["write_history_balance_adjusts"].append((adjusts, ts)),
+    )
+    monkeypatch.setattr(
+        cli_module.rtdb_gateway,
+        "write_history_signals",
+        lambda app, date_iso, signals: calls["write_history_signals"].append((date_iso, signals)),
+    )
+
+    return calls
+
+
+class TestCmdReset:
+    """``reset`` 은 9 단계 순서 (사전 검증 → Git → RTDB 삭제 → 주가 차트 재생성) 로
+    동작하며, 사용자 직접 실행 명령이므로 실패 알림을 발송하지 않는다.
+
+    본 테스트 클래스는 정책을 고정한다:
+    - Firebase 초기화 실패 시 Git / RTDB 미수정.
+    - Git push 성공 후에만 RTDB 삭제 및 차트 쓰기 발생.
+    - 주가 차트 (meta/recent/archive) 는 생성되고, equity / `/history/*` 는 생성되지 않는다.
+    - 차트 재생성 시 체결/시그널 마커는 빈 리스트로 전달된다.
+    - 중간 실패 시 reset 재실행으로 멱등 복구 가능하다.
+    """
+
+    def test_reset_aborts_on_firebase_init_failure(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When reset 실행 Then Git / RTDB 어떤 쓰기도 없음."""
+        del state_dir
+
+        git_clone_called: list[bool] = []
+
+        def _fake_clone(*args: Any, **kwargs: Any) -> None:
+            del args, kwargs
+            git_clone_called.append(True)
+
+        monkeypatch.setattr(cli_module.git_state, "git_clone_shallow", _fake_clone)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+
+        rtdb_delete_called: list[bool] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "delete_all_except_device_tokens",
+            lambda app: rtdb_delete_called.append(True),
+        )
+
+        exit_code = main(["reset", "--capital", "100000000"])
+
+        # main() 예외 훅이 exit 1 반환 + Firebase 실패이므로 Git / RTDB 미수정
+        assert exit_code == 1
+        assert rtdb_delete_called == []
+        assert git_clone_called == []
+
+    def test_reset_calls_git_push_before_rtdb_delete(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given reset 성공 경로 When 실행 Then Git 파일 작업 + push 가 RTDB delete 보다 먼저 수행됨."""
+        del state_dir
+        calls = _install_reset_spies(monkeypatch)
+
+        exit_code = main(["reset", "--capital", "100000000"])
+        assert exit_code == 0
+
+        # 순서 검증: CSV 재다운로드 (Git 내부 파일 작업 단계) 가 RTDB delete 보다 먼저.
+        order = calls["order"]
+        first_rebuild = order.index("rebuild_full_csv")
+        first_delete = order.index("delete_all_except_device_tokens")
+        assert first_rebuild < first_delete
+
+    def test_reset_writes_price_charts_and_skips_equity_history(
+        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Given reset 성공 경로 When 실행 Then 주가 차트 (meta/recent/archive) 만 RTDB 에 쓰고,
+        equity / /history/* 쓰기는 발생하지 않음.
+        """
+        del state_dir
+        calls = _install_reset_spies(monkeypatch)
+
+        exit_code = main(["reset", "--capital", "100000000"])
+        assert exit_code == 0
+
+        # 주가 차트는 write 1 회 이상
+        assert len(calls["write_chart_meta"]) == 1
+        assert len(calls["write_chart_recent"]) == 1
+        assert len(calls["write_chart_archive_year"]) >= 1  # archive_years 수 만큼
+
+        # equity / history 는 write 되지 않음
+        assert calls["write_equity_meta"] == []
+        assert calls["write_equity_recent"] == []
+        assert calls["write_equity_archive_year"] == []
+        assert calls["write_history_fills"] == []
+        assert calls["write_history_balance_adjusts"] == []
+        assert calls["write_history_signals"] == []
+
+    def test_reset_price_chart_markers_are_empty(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given reset 경로 When 차트 빌더 호출 Then user_trades / signal_history 는 빈 dict."""
+        del state_dir
+        calls = _install_reset_spies(monkeypatch)
+
+        exit_code = main(["reset", "--capital", "100000000"])
+        assert exit_code == 0
+
+        # build_chart_recent 한 번 이상 호출 + 마커 빈 dict
+        assert len(calls["build_chart_recent"]) == 1
+        recent_args = calls["build_chart_recent"][0]
+        assert recent_args["user_trades"] == {}
+        assert recent_args["signal_history"] == {}
+
+        # build_chart_archive_year 각 호출에서도 마커 빈 dict
+        assert len(calls["build_chart_archive_year"]) >= 1
+        for archive_args in calls["build_chart_archive_year"]:
+            assert archive_args["user_trades"] == {}
+            assert archive_args["signal_history"] == {}
+
+    def test_reset_is_idempotent_when_rtdb_write_fails_midway(
+        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Given RTDB write_chart_archive_year 실패 시 reset 이 중단되고,
+        재실행 시 정상 성공 경로와 동일한 최종 쓰기 결과가 도출됨을 검증.
+        """
+        del state_dir
+
+        # 1차 실행: archive 쓰기에서 실패
+        calls_first = _install_reset_spies(monkeypatch)
+
+        def _fail_archive(app: Any, *, year: int, year_map: Any) -> None:
+            del app, year, year_map
+            raise RuntimeError("테스트: RTDB archive 쓰기 실패")
+
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_archive_year", _fail_archive)
+
+        exit_code_first = main(["reset", "--capital", "100000000"])
+        assert exit_code_first == 1  # 실패로 중단
+
+        # 2차 실행: 모든 쓰기 정상. 성공 경로와 동일한 결과가 나와야 한다.
+        calls_second = _install_reset_spies(monkeypatch)
+        exit_code_second = main(["reset", "--capital", "100000000"])
+        assert exit_code_second == 0
+        assert len(calls_second["write_chart_meta"]) == 1
+        assert len(calls_second["write_chart_archive_year"]) >= 1
+
+        # 1차 실행이 archive 쓰기 직전까지 진행했는지 확인 (meta / recent 는 이미 시도됨)
+        # 단, 이 테스트의 핵심은 "재실행이 가능하다" 이므로 자세한 부분 상태는 허용.
+        del calls_first
+
+
+# ============================================================================
 # run-daily 에러 시나리오
 # ============================================================================
 

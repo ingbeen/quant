@@ -806,7 +806,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **idempotency**: UUID 가 `applied_fill_ids.json` 에 이미 있으면 run-daily 가 fill 자체를 skip 하므로 RTDB history 에도 추가되지 않는다 (자연 방지). 같은 UUID 로 재호출되면 set 으로 덮어쓰기.
 
-**보존 정책**: 영구. rolling 삭제 / cleanup 없음. 운영자가 `reset` 으로 RTDB 를 초기화한 뒤 `backfill-history --target fills` 로 Git 정본에서 복원 가능.
+**보존 정책**: 영구. rolling 삭제 / cleanup 없음. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 모두 초기화하며, 이후 `run-daily` 가 매일 당일분을 Git + RTDB 양쪽에 누적한다.
 
 #### 8.2.12 `/history/balance_adjusts/{YYYY-MM-DD}/{uuid}` — 잔고 보정 이력 영구 보존
 
@@ -889,7 +889,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **`processed` 필드 규칙**: `/fills/inbox/{uuid}` 와 `/balance_adjust/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 반영 상태는 `/latest/portfolio` 의 `actual_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다.
 
-**`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 으로 RTDB 가 초기화되어도 `backfill-history --target all` 명령으로 Git 정본에서 전체 재생성 가능 (§9.1 / §12 참고).
+**`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 같은 트랜잭션으로 초기화한다. 과거 이력은 `qbt-live-state` 리포의 이전 커밋에서 조회할 수 있으며 (git log), `run-daily` 가 reset 이후 시점부터 다시 누적한다.
 
 ---
 
@@ -931,9 +931,9 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
 
 **history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
 
-**backfill-chart-archive 는 최초 배포 직후에도 1 회 실행** 해야 한다 (과거 연도 archive 를 처음 생성). daily runner 는 매일 `archive/{현재_연도}` 만 덮어쓰므로, backfill 없이는 이전 연도 archive 가 영구 누락된다.
+**backfill-chart-archive 는 스플릿/무상증자 대응 시 수동 실행한다** (과거 연도 archive 를 새 조정가 기준으로 재생성). daily runner 는 매일 `archive/{현재_연도}` 만 덮어쓰므로, 이전 연도는 스플릿 후 값이 재조정된 CSV 를 기준으로 별도 재생성 필요. 최초 배포 및 `reset` 직후에는 `reset` 자체가 주가 차트 (meta/recent/archive 전체 연도) 를 자동 재생성하므로 별도 `backfill-chart-archive` 실행은 불필요하다.
 
-**backfill-history 는 최초 배포 / `reset` 후 1 회 실행** 해야 한다. 명령은 `python -m live backfill-history --target all` (기본) 으로 Git 정본 JSONL 3 종 (`user_trades.jsonl` / `balance_adjusts.jsonl` / `signals.jsonl`) 을 RTDB `/history/{fills|balance_adjusts|signals}/` 에 일괄 미러한다. `--target fills|balance_adjusts|signals` 로 한 종류만, `--dry-run` 으로 사전 확인 가능. daily runner 는 매 실행마다 "이번 실행에서 새로 적용된 분만" 미러하므로, backfill 없이는 과거 분이 RTDB 에 영구 누락된다.
+**`/history/*` 및 equity 차트는 매일 `run-daily` 가 누적**. `reset` 으로 Git 정본 `history/` 와 RTDB `/history/*` / `/charts/equity/*` 가 모두 초기화된 뒤에는 별도 backfill 명령이 없으며, `run-daily` 가 매일 당일분을 양쪽에 기록한다. 연말에 해가 바뀌면 새 연도의 equity archive 도 자연스럽게 생성된다.
 
 ---
 

@@ -167,6 +167,8 @@ poetry run python -m live init --capital 100000000
 poetry run python -m live rebuild-data          # 티커 생략 시 전체 운영 티커 다운로드
 
 # 전체 초기화 (state + CSV + history + applied_ids + RTDB 일괄 리셋)
+# 실행 종료 시 RTDB 주가 차트 archive 까지 자동 재생성되어 앱의 주가 차트가 바로 표시됨.
+# equity 차트 / 체결 이력은 비워지며, 매일 `run-daily` 로 점진 누적된다.
 poetry run python -m live reset --capital 100000000
 
 # 스플릿/무상증자 대응 (단일 티커 재다운로드 + 차트 archive 재생성)

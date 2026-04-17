@@ -433,8 +433,35 @@ poetry run python -m live notify-failure --message "FCM 수동 테스트"
 
 ---
 
+### 15. reset 실행 시 주가 차트 자동 복원 확인 (위험 — 테스트 환경 한정)
+
+> 경고: `reset` 은 RTDB `/device_tokens` 제외 전체 + state repo 의 history / CSV / applied_ids 를
+> 모두 초기화합니다. 실매매 환경에서는 절대 실행하지 말고, 테스트 계정 / 별도 환경에서만 수행하세요.
+
+**목적**: `reset` 이 state 초기화 후 RTDB 주가 차트까지 자동 재생성하여, 별도 후속 명령 없이
+앱의 주가 차트 화면이 정상 표출되는지 검증.
+
+**사전 조건**: 테스트용 Firebase 프로젝트 + 테스트용 `qbt-live-state` 리포 연결.
+
+**절차**:
+
+```bash
+poetry run python -m live reset --capital 100000000
+```
+
+**확인 사항**:
+
+- [ ] 앱의 주가 차트 화면에서 4 자산 (SSO / QLD / GLD / TLT) 의 과거 전체 범위 라인이 표시됨 (마커 없음)
+- [ ] 앱의 equity 차트 화면은 비어있음 (`run-daily` 1 회 후 1 점, N 일 후 N 점)
+- [ ] 앱의 체결 이력 / 시그널 이력 화면도 비어있음 (`/history/fills` / `/history/signals` 양쪽 모두)
+- [ ] RTDB 콘솔에서 `/charts/prices/{자산}/archive/{연도}` 각 연도 노드가 생성됨
+- [ ] RTDB 콘솔에서 `/charts/equity/*` 는 존재하지 않음 (summary.jsonl 부재)
+
+---
+
 ## 최종 완료 체크
 
 - [ ] Phase A (1~10) 모두 완료
 - [ ] Phase B (11~13) 모두 완료
 - [ ] Phase C (14) 완료 — 앱 구현 후 진행
+- [ ] Phase D (15) 완료 — 테스트 환경 한정

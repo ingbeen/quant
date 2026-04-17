@@ -388,34 +388,41 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 
 def _cmd_reset(args: argparse.Namespace) -> int:
-    """전체 초기화: state + CSV + applied_ids + history + RTDB 를 한 번에 리셋.
+    """전체 초기화 (state + CSV + applied_ids + history + RTDB) + RTDB 주가 차트 재생성.
 
-    실행 순서:
+    신규 9 단계 순서 (안정성 우선):
 
-    1. RTDB 초기화 (device_tokens 제외) — 실패 시 state repo push 전에 중단
-    2. qbt-live-state 리포 초기화
-       - live_state.json 새로 생성
-       - applied_*_ids.json 삭제
-       - history/ 삭제
-       - CSV 전체 재다운로드
-       - commit/push
+    1. 사전 검증 — Firebase 초기화 가능 여부 확인. 실패 시 Git / RTDB 미수정.
+    2. Git state repo shallow clone (ephemeral 컨텍스트 진입)
+    3. ``live_state.json`` 초기값 저장
+    4. ``applied_*_ids.json`` 3 개 파일 삭제
+    5. ``history/`` 디렉토리 삭제 (summary / user_trades / signals / balance_adjusts 포함)
+    6. CSV 전체 재다운로드 (``period="max"``)
+    7. RTDB 전체 삭제 (``device_tokens`` 제외)
+    8. RTDB 주가 차트 재생성 — meta / recent / 연도별 archive. 체결/시그널 마커는 빈 리스트.
+    9. Git commit + push (ephemeral 컨텍스트 종료 시 자동)
+
+    equity 차트 / ``/history/*`` 는 summary.jsonl 이 없어 이 시점에 생성 불가.
+    매일 ``run-daily`` 가 당일분을 누적하면서 자연스럽게 채워진다.
+
+    실패 정책 (루트 CLAUDE.md 원칙 1): 어떤 단계든 예외 발생 시 즉시 중단.
+    reset 은 사용자 직접 실행 명령이므로 실패 알림을 발송하지 않는다 (터미널 stderr +
+    ERROR 로그로만 노출). 재실행 시 멱등 복구 가능하다 (모든 단계가 덮어쓰기).
     """
     import shutil
 
     capital: float = args.capital
 
-    # 1. RTDB 초기화 (state push 전에 수행 — RTDB 실패 시 state 가 깨끗한 채로 push 되는 것 방지)
+    # 1. 사전 검증: Firebase 초기화 가능 여부. 실패 시 아무것도 건드리지 않고 중단.
     rtdb_app: Any = _require_rtdb_app()
-    rtdb_gateway.delete_all_except_device_tokens(rtdb_app)
-    logger.debug("RTDB 초기화 완료 (device_tokens 유지)")
 
-    # 2. state repo 초기화
+    # 2~6, 7~8, 9. Git clone → 파일 작업 → RTDB 삭제 → 차트 재생성 → commit+push (컨텍스트 종료 시).
     with ephemeral_state_repo(push_on_success=True, commit_subcommand="reset") as state_dir:
-        # 2-1. live_state.json 초기화
+        # 3. live_state.json 초기화
         state = create_initial_state(capital)
         save_state(state, state_dir / DEFAULT_LIVE_STATE_FILENAME)
 
-        # 2-2. applied_*_ids.json 삭제
+        # 4. applied_*_ids.json 삭제
         for filename in [
             DEFAULT_APPLIED_FILL_IDS_FILENAME,
             DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
@@ -425,16 +432,40 @@ def _cmd_reset(args: argparse.Namespace) -> int:
             if p.exists():
                 p.unlink()
 
-        # 2-3. history/ 삭제
+        # 5. history/ 삭제
         hist_dir = _history_dir(state_dir)
         if hist_dir.exists():
             shutil.rmtree(hist_dir)
 
-        # 2-4. CSV 전체 재다운로드
+        # 6. CSV 전체 재다운로드
         for ticker in _collect_all_tickers():
             csv_path = live_csv_path(state_dir, ticker)
             rebuild_full_csv(ticker, csv_path, period="max")
             logger.debug(f"reset: {ticker} CSV 재다운로드 → {csv_path}")
+
+        # 7. RTDB 전체 삭제 (device_tokens 제외)
+        rtdb_gateway.delete_all_except_device_tokens(rtdb_app)
+        logger.debug("RTDB 초기화 완료 (device_tokens 유지)")
+
+        # 8. RTDB 주가 차트 재생성 — 체결/시그널 마커는 빈 리스트.
+        #    summary.jsonl 이 없어 equity 차트는 생성하지 않는다 (run-daily 가 누적).
+        meta_map = build_chart_meta(state_dir)
+        rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+
+        recent_map = build_chart_recent(state_dir, user_trades={}, signal_history={})
+        rtdb_gateway.write_chart_recent(rtdb_app, recent_map)
+
+        archive_years: set[int] = set()
+        for meta in meta_map.values():
+            archive_years.update(meta.archive_years)
+        for year in sorted(archive_years):
+            archive_map = build_chart_archive_year(
+                state_dir,
+                year=year,
+                user_trades={},
+                signal_history={},
+            )
+            rtdb_gateway.write_chart_archive_year(rtdb_app, year=year, year_map=archive_map)
 
     logger.debug(f"reset 완료: capital={capital:,.0f}")
     return 0
