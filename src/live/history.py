@@ -5,6 +5,9 @@ Git 정본 원장 — 모든 히스토리는 **영구 보존** 된다. 자동 �
 파일 종류 (상수는 :mod:`live.constants` 참조):
 
 - ``history/daily/{YYYY-MM-DD}.json`` — 일별 상세 로그 (덮어쓰기 가능)
+- ``history/states/{YYYY-MM-DD}.json`` — 일별 ``live_state.json`` 전체 스냅샷
+  (덮어쓰기 가능). ``run-daily`` 종료 시점의 LiveState 를 날짜 키 파일로 보존하며,
+  저장 로직은 :func:`live.state.save_state_snapshot` 이 담당한다.
 - ``history/summary.jsonl`` — 일별 요약 (1 줄당 1 일, append-only)
 - ``history/user_trades.jsonl`` — 사용자 체결 입력 누적 (append-only, 차트 마커)
 - ``history/signals.jsonl`` — 자산별 신호 이력 누적 (append-only, 차트 마커)

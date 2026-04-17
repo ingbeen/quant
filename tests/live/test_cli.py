@@ -223,7 +223,7 @@ class TestCmdRunDailySuccess:
         assert exit_code == 0
 
     def test_run_daily_persists_history(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given run-daily When 정상 종료 Then history/daily/{date}.json 과 summary.jsonl 저장."""
+        """Given run-daily When 정상 종료 Then history/daily, summary.jsonl, states/{date}.json 저장."""
         main(["init", "--capital", "100000000"])
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
@@ -238,6 +238,13 @@ class TestCmdRunDailySuccess:
 
         assert (state_dir / "history" / "daily" / f"{trade_date.isoformat()}.json").exists()
         assert (state_dir / "history" / "summary.jsonl").exists()
+
+        # history/states/{date}.json 스냅샷이 생성되고, 같은 시점 live_state.json 과
+        # 바이트 단위로 동일해야 한다 (save_state 직렬화 규칙 재사용 계약).
+        snapshot_path = state_dir / "history" / "states" / f"{trade_date.isoformat()}.json"
+        live_state_path = state_dir / "live_state.json"
+        assert snapshot_path.exists()
+        assert snapshot_path.read_bytes() == live_state_path.read_bytes()
 
     def test_run_daily_with_rtdb_calls_publish(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given RTDB 활성화 When run-daily Then publish_to_rtdb + send_daily_notifications 호출."""

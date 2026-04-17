@@ -87,6 +87,11 @@ DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME: Final[str] = "applied_balance_adjus
 # 일별 상세 로그(``{date}.json``) 가 저장되는 서브디렉토리 이름.
 HISTORY_DAILY_SUBDIR: Final[str] = "daily"
 
+# 일별 ``live_state.json`` 스냅샷(``{date}.json``) 이 저장되는 서브디렉토리 이름.
+# run-daily 종료 시점의 LiveState 전체를 날짜 키 파일로 보존하여, 과거 시점의 상태를
+# git log 파싱 없이 직접 조회할 수 있게 한다. 같은 날 재실행 시 덮어쓴다 (영구 보존).
+HISTORY_STATES_SUBDIR: Final[str] = "states"
+
 # 일별 요약 append-only 파일 (1 줄당 1 일).
 HISTORY_SUMMARY_FILENAME: Final[str] = "summary.jsonl"
 

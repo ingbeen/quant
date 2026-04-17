@@ -270,7 +270,8 @@ poetry run python -m live notify-failure --message "수동 테스트 from local"
 **절차**:
 
 1. 브라우저에서 `https://github.com/ingbeen/qbt-live-state/tree/main/history` 접속
-2. `history/daily/` 와 `history/summary.jsonl` 존재 확인
+2. `history/daily/`, `history/states/`, `history/summary.jsonl` 존재 확인
+3. `history/states/{실행 날짜}.json` 파일 내용을 같은 커밋의 `live_state.json` 과 비교
 
 **확인 사항**:
 
@@ -278,6 +279,7 @@ poetry run python -m live notify-failure --message "수동 테스트 from local"
 - [x] `history/summary.jsonl` 파일에 `date`, `model_equity`, `actual_equity`, `drift_pct` 필드 포함된 줄 존재
 - [x] `history/summary.jsonl` 마지막 줄이 최근 실행 날짜 요약
 - [x] 같은 날짜로 재실행 시 `summary.jsonl` 줄 수가 1 증가 (덮어쓰기 아님 — 영구 보존 원칙 검증됨)
+- [ ] `history/states/{실행 날짜}.json` 파일 존재 + 내용이 같은 커밋의 `live_state.json` 과 바이트 단위로 동일
 
 ---
 

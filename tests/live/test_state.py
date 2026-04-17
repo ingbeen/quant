@@ -32,6 +32,7 @@ from live.state import (
     load_state,
     save_applied_fill_ids,
     save_state,
+    save_state_snapshot,
 )
 
 # ============================================================================
@@ -195,6 +196,104 @@ class TestSaveLoadRoundtrip:
         path = tmp_path / "subdir" / "nested" / "live_state.json"
         save_state(state, path)
         assert path.exists()
+
+
+# ============================================================================
+# save_state_snapshot — 일별 상태 스냅샷
+# ============================================================================
+
+
+class TestSaveStateSnapshot:
+    """``history/states/{YYYY-MM-DD}.json`` 스냅샷 저장 계약.
+
+    - 파일이 정확한 경로로 생성되어야 한다 (``history/states/`` 아래 ISO 날짜 파일명).
+    - 저장된 내용은 같은 state 를 ``save_state`` 로 저장한 결과와 **바이트 단위로 일치**한다
+      (Git diff 잡음 방지 / 동일 직렬화 규칙 재사용 계약).
+    - 같은 날짜로 재호출되면 덮어쓰기로 최신 상태가 반영된다 (suffix 추가 없음).
+    """
+
+    def test_creates_snapshot_under_states_subdir(self, tmp_path: Path):
+        """Given: LiveState + history_dir. When: snapshot 저장. Then: states/{date}.json 생성."""
+        # Given
+        state = create_initial_state(100_000_000.0)
+        history_dir = tmp_path / "history"
+        execution_date = date(2026, 4, 10)
+
+        # When
+        result_path = save_state_snapshot(state, history_dir, execution_date)
+
+        # Then
+        expected_path = history_dir / "states" / "2026-04-10.json"
+        assert result_path == expected_path
+        assert expected_path.exists()
+
+    def test_content_matches_save_state_bytes(self, tmp_path: Path):
+        """스냅샷 내용이 같은 시점 live_state.json 과 바이트 단위로 동일해야 한다."""
+        # Given — pending_order / buffer_zone_state 를 포함한 비자명한 상태
+        state = create_initial_state(100_000_000.0)
+        pending: PendingOrderDict = {
+            "asset_id": "sso",
+            "intent_type": "ENTER_TO_TARGET",
+            "signal_date": "2026-04-10",
+            "current_amount": 0.0,
+            "target_amount": 35_000_000.0,
+            "delta_amount": 35_000_000.0,
+            "target_weight": 0.35,
+            "hold_days_used": 3,
+            "reason": "buffer zone breakout",
+        }
+        state.assets["sso"].pending_order = pending
+        hold_state: HoldState = {
+            "start_date": date(2026, 4, 1),
+            "days_passed": 2,
+            "buffer_pct": 0.03,
+            "hold_days_required": 3,
+        }
+        state.assets["qld"].buffer_zone_state = BufferZoneState(
+            prev_upper=425.0,
+            prev_lower=395.0,
+            hold_state=hold_state,
+            last_buy_buffer_pct=0.03,
+            last_hold_days_used=3,
+        )
+
+        live_state_path = tmp_path / "live_state.json"
+        history_dir = tmp_path / "history"
+
+        # When
+        save_state(state, live_state_path)
+        snapshot_path = save_state_snapshot(state, history_dir, date(2026, 4, 10))
+
+        # Then — 바이트 단위 동일성
+        assert snapshot_path.read_bytes() == live_state_path.read_bytes()
+
+    def test_same_date_overwrites(self, tmp_path: Path):
+        """같은 날짜로 두 번째 호출 시 이전 내용이 남지 않고 최신 상태로 덮어쓴다."""
+        # Given — 첫 번째 상태
+        state_v1 = create_initial_state(100_000_000.0)
+        history_dir = tmp_path / "history"
+        execution_date = date(2026, 4, 10)
+        snapshot_path = save_state_snapshot(state_v1, history_dir, execution_date)
+        v1_bytes = snapshot_path.read_bytes()
+
+        # When — 같은 날짜에 다른 상태로 재저장
+        state_v2 = create_initial_state(100_000_000.0)
+        state_v2.shared_cash_model = 77_777_777.0  # v1 과 구별되는 마커
+        save_state_snapshot(state_v2, history_dir, execution_date)
+
+        # Then — 같은 경로, v1 내용은 사라지고 v2 내용으로 대체
+        v2_bytes = snapshot_path.read_bytes()
+        assert v2_bytes != v1_bytes
+        loaded = load_state(snapshot_path)
+        assert loaded.shared_cash_model == pytest.approx(77_777_777.0)
+
+    def test_creates_states_subdir_automatically(self, tmp_path: Path):
+        """history_dir 또는 states/ 서브디렉토리가 없어도 자동 생성되어야 한다."""
+        state = create_initial_state(100_000_000.0)
+        history_dir = tmp_path / "does_not_exist_yet" / "history"
+        snapshot_path = save_state_snapshot(state, history_dir, date(2026, 4, 10))
+        assert snapshot_path.exists()
+        assert snapshot_path.parent == history_dir / "states"
 
 
 # ============================================================================

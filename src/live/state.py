@@ -35,6 +35,7 @@ from typing import Any, Literal, cast
 
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
+    HISTORY_STATES_SUBDIR,
     KST_TIMEZONE,
     LIVE_PORTFOLIO_ID,
     SCHEMA_VERSION,
@@ -54,6 +55,7 @@ __all__ = [
     "create_initial_state",
     "load_state",
     "save_state",
+    "save_state_snapshot",
     "load_applied_fill_ids",
     "save_applied_fill_ids",
     "load_applied_balance_adjust_ids",
@@ -173,6 +175,27 @@ def save_state(state: LiveState, path: Path) -> None:
     data = asdict(state)
     content = json.dumps(data, indent=2, ensure_ascii=False, default=_json_default)
     _atomic_write_text(path, content)
+
+
+def save_state_snapshot(state: LiveState, history_dir: Path, execution_date: date) -> Path:
+    """LiveState 를 ``{history_dir}/states/{YYYY-MM-DD}.json`` 로 저장한다.
+
+    일별 상태 스냅샷 전용 thin wrapper. 경로 규칙만 담당하고 직렬화는 ``save_state`` 와
+    완전히 동일한 규칙(indent=2, ensure_ascii=False)을 재사용하므로, 같은 시점의
+    ``live_state.json`` 과 바이트 단위로 일치한다. 같은 날짜로 재호출되면 덮어쓴다
+    (``run-daily`` 는 idempotent 하므로 결과가 논리적으로 동일).
+
+    Args:
+        state: 저장할 ``LiveState``.
+        history_dir: ``qbt-live-state/history`` 디렉토리 경로.
+        execution_date: 스냅샷 파일명에 사용할 거래일.
+
+    Returns:
+        저장된 스냅샷 파일 경로.
+    """
+    target = history_dir / HISTORY_STATES_SUBDIR / f"{execution_date.isoformat()}.json"
+    save_state(state, target)
+    return target
 
 
 def load_state(path: Path) -> LiveState:

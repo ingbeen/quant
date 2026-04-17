@@ -88,6 +88,7 @@ from live.state import (
     save_applied_fill_dismiss_ids,
     save_applied_fill_ids,
     save_state,
+    save_state_snapshot,
 )
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.portfolio_types import AssetSlotConfig
@@ -542,6 +543,9 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
 
         # 상태 저장 + applied_ids 정리
         save_state(result.updated_state, state_path)
+        # 일별 상태 스냅샷 저장 (history/states/{YYYY-MM-DD}.json). 실패 시 예외 전파 →
+        # 공통 예외 훅이 실패 알림 발송. 자동 재시도 / 롤백 없음 (원칙 1).
+        save_state_snapshot(result.updated_state, _history_dir(state_dir), trade_date)
         cleaned_ids = cleanup_old_applied_ids(
             result.updated_applied_fill_ids, max_age_days=APPLIED_FILL_IDS_MAX_AGE_DAYS
         )
