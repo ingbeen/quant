@@ -5,16 +5,13 @@ argparse subcommand 구조로 실매매 파이프라인의 모든 운영 명령�
 명령어:
 
 - ``init`` — 초기 LiveState 생성 (capital 지정)
+- ``reset`` — 전체 초기화 (state + CSV + history + RTDB)
 - ``run-daily`` — 일일 실행 통합 루프 (data → daily_runner → state → RTDB → 알림 → history)
-- ``init-data`` — yfinance 로 전체 티커 전체 기간 다운로드
-- ``rebuild-data`` — 단일 티커 재다운로드 (스플릿 대응)
+- ``rebuild-data`` — 티커 CSV 재다운로드. 티커 생략 시 전체 운영 티커 재다운로드
+  (스플릿 대응 및 최초 배포 데이터 초기화)
 - ``drift`` — 현재 drift 지표 출력
-- ``fetch-state`` — qbt-live-state 리포 git pull
-- ``push-state`` — qbt-live-state 리포 git add/commit/push
 - ``fetch-fills`` — RTDB 의 미처리 fill 목록 조회 출력
-- ``backfill-history`` — Git 정본 JSONL 을 RTDB ``/history/{*}`` 에 일괄 미러
-  (최초 배포 직후 / ``reset`` 후 복원)
-- ``history`` — history/summary.jsonl 의 최근 N 줄 출력
+- ``backfill-chart-archive`` — 차트 archive 전체 재생성 (스플릿 대응 수동 명령)
 - ``notify-failure`` — 수동 실패 알림 발송 (Actions retry job 등에서 호출)
 
 원칙:
@@ -55,13 +52,11 @@ from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
-    DEFAULT_HISTORY_TAIL_LINES,
     DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
     DEFAULT_RECENT_FETCH_DAYS,
     FIREBASE_CRED_ENV_KEY,
     FIREBASE_DB_URL,
-    HISTORY_SUMMARY_FILENAME,
     KST_TIMEZONE,
     NYSE_CALENDAR_CODE,
     STATE_REPO_PAT_ENV_KEY,
@@ -885,22 +880,26 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
 
 
 # ============================================================================
-# init-data / rebuild-data
+# rebuild-data
 # ============================================================================
 
 
-def _cmd_init_data(args: argparse.Namespace) -> int:
-    del args  # 사용하지 않음
-    with ephemeral_state_repo(push_on_success=True, commit_subcommand="init-data") as state_dir:
-        for ticker in _collect_all_tickers():
-            csv_path = live_csv_path(state_dir, ticker)
-            rebuild_full_csv(ticker, csv_path, period="max")
-            logger.debug(f"init-data: {ticker} → {csv_path}")
-    return 0
-
-
 def _cmd_rebuild_data(args: argparse.Namespace) -> int:
-    ticker: str = args.ticker.upper()
+    """단일 또는 전체 티커 CSV 재다운로드.
+
+    - ``ticker`` 생략 시: 모든 운영 티커를 ``period="max"`` 로 전체 재다운로드.
+    - ``ticker`` 명시 시: 해당 티커만 재다운로드 (스플릿 대응 시나리오).
+    """
+    ticker_arg: str | None = args.ticker
+    if ticker_arg is None:
+        with ephemeral_state_repo(push_on_success=True, commit_subcommand="rebuild-data") as state_dir:
+            for ticker in _collect_all_tickers():
+                csv_path = live_csv_path(state_dir, ticker)
+                rebuild_full_csv(ticker, csv_path, period="max")
+                logger.debug(f"rebuild-data: {ticker} → {csv_path}")
+        return 0
+
+    ticker = ticker_arg.upper()
     with ephemeral_state_repo(push_on_success=True, commit_subcommand=f"rebuild-data {ticker}") as state_dir:
         csv_path = live_csv_path(state_dir, ticker)
         rebuild_full_csv(ticker, csv_path, period="max")
@@ -1049,104 +1048,6 @@ def _cmd_backfill_chart_archive(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_backfill_history(args: argparse.Namespace) -> int:
-    """Git 정본 JSONL 을 RTDB ``/history/{fills|balance_adjusts|signals}/`` 에 일괄 미러한다.
-
-    daily runner 는 매 실행마다 "이번 실행에서 새로 적용된" 분만 RTDB 에 기록하므로,
-    (1) 최초 배포 직후 RTDB 가 비어 있는 상태에서 과거 이력을 한 번에 채우거나,
-    (2) ``reset`` 으로 RTDB 가 초기화된 뒤 복원할 때 운영자가 이 명령을 수동 실행한다.
-
-    옵션:
-
-    - ``--target fills|balance_adjusts|signals|all``: 미러 대상 (기본 ``all``).
-    - ``--dry-run``: 실제 RTDB 쓰기 없이 대상 줄 수만 출력.
-
-    옛 스키마 줄 (``rtdb_key`` / ``applied_at`` 등 키 산출 필수 필드 누락) 은 skip
-    하고 stdout 에 카운트를 출력한다. 페이로드 필드만 누락된 경우는 ``null`` 로 기록.
-
-    본 명령은 ephemeral state repo 를 read-only 로 clone 한다 (push 없음).
-    """
-    target: str = args.target
-    dry_run: bool = args.dry_run
-
-    do_fills = target in ("fills", "all")
-    do_adjusts = target in ("balance_adjusts", "all")
-    do_signals = target in ("signals", "all")
-
-    with ephemeral_state_repo(push_on_success=False, commit_subcommand="backfill-history") as state_dir:
-        history_dir = _history_dir(state_dir)
-
-        fills_rows = history.load_user_trades_raw(history_dir) if do_fills else []
-        adjusts_rows = history.load_balance_adjusts_raw(history_dir) if do_adjusts else []
-        signals_rows = history.load_signal_history_raw(history_dir) if do_signals else []
-
-        # 미러에 필요한 키 산출 가능한 줄 / 옛 스키마로 skip 할 줄 분리
-        fills_ready: list[dict[str, Any]] = []
-        fills_skipped = 0
-        for row in fills_rows:
-            if not row.get("rtdb_key") or not row.get("trade_date"):
-                fills_skipped += 1
-                continue
-            fills_ready.append(row)
-
-        adjusts_ready: list[dict[str, Any]] = []
-        adjusts_skipped = 0
-        for row in adjusts_rows:
-            if not row.get("rtdb_key") or not row.get("applied_at"):
-                adjusts_skipped += 1
-                continue
-            adjusts_ready.append(row)
-
-        signals_ready: list[dict[str, Any]] = []
-        signals_skipped = 0
-        for row in signals_rows:
-            if not row.get("date") or not row.get("asset_id"):
-                signals_skipped += 1
-                continue
-            signals_ready.append(row)
-
-        if dry_run:
-            sys.stdout.write(
-                f"[dry-run] target={target} | "
-                f"fills={len(fills_ready)} (skipped {fills_skipped}) | "
-                f"balance_adjusts={len(adjusts_ready)} (skipped {adjusts_skipped}) | "
-                f"signals={len(signals_ready)} (skipped {signals_skipped})\n"
-            )
-            return 0
-
-        rtdb_app: Any = _require_rtdb_app()
-
-        rtdb_gateway.write_history_fills_raw(rtdb_app, fills_ready)
-        rtdb_gateway.write_history_balance_adjusts_raw(rtdb_app, adjusts_ready)
-        rtdb_gateway.write_history_signals_raw(rtdb_app, signals_ready)
-
-        sys.stdout.write(
-            f"[backfill-history] target={target} | "
-            f"fills={len(fills_ready)} (skipped {fills_skipped}) | "
-            f"balance_adjusts={len(adjusts_ready)} (skipped {adjusts_skipped}) | "
-            f"signals={len(signals_ready)} (skipped {signals_skipped})\n"
-        )
-        if fills_skipped or adjusts_skipped or signals_skipped:
-            logger.warning(
-                f"backfill-history: 옛 스키마 줄 skip — "
-                f"fills={fills_skipped} balance_adjusts={adjusts_skipped} signals={signals_skipped}"
-            )
-    return 0
-
-
-def _cmd_history(args: argparse.Namespace) -> int:
-    n: int = args.tail
-    with ephemeral_state_repo(push_on_success=False, commit_subcommand="history") as state_dir:
-        summary_path = _history_dir(state_dir) / HISTORY_SUMMARY_FILENAME
-        if not summary_path.exists():
-            logger.debug(f"summary.jsonl 없음: {summary_path}")
-            return 0
-        lines = summary_path.read_text(encoding="utf-8").strip().splitlines()
-        tail_lines = lines[-n:] if n > 0 else lines
-        sys.stdout.write("\n".join(tail_lines) + "\n")
-    return 0
-
-
 # ============================================================================
 # notify-failure
 # ============================================================================
@@ -1189,13 +1090,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_run.set_defaults(func=_cmd_run_daily)
 
-    # init-data
-    p_init_data = sub.add_parser("init-data", help="yfinance 전체 티커 전체 기간 다운로드")
-    p_init_data.set_defaults(func=_cmd_init_data)
-
     # rebuild-data
-    p_rebuild = sub.add_parser("rebuild-data", help="단일 티커 재다운로드 (스플릿 대응)")
-    p_rebuild.add_argument("ticker")
+    p_rebuild = sub.add_parser(
+        "rebuild-data",
+        help="티커 CSV 재다운로드. 티커 생략 시 전체 운영 티커 재다운로드 (스플릿 대응 / 최초 배포 초기화)",
+    )
+    p_rebuild.add_argument(
+        "ticker",
+        nargs="?",
+        default=None,
+        help="선택. 티커 생략 시 모든 운영 티커를 period=max 로 재다운로드",
+    )
     p_rebuild.set_defaults(func=_cmd_rebuild_data)
 
     # drift
@@ -1229,29 +1134,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="실제 RTDB 쓰기 없이 대상 연도 목록만 출력",
     )
     p_backfill.set_defaults(func=_cmd_backfill_chart_archive)
-
-    # backfill-history
-    p_backfill_hist = sub.add_parser(
-        "backfill-history",
-        help="Git 정본 JSONL 을 RTDB /history/ 에 일괄 미러 (최초 배포 / 리셋 후 복원)",
-    )
-    p_backfill_hist.add_argument(
-        "--target",
-        choices=["fills", "balance_adjusts", "signals", "all"],
-        default="all",
-        help="선택. 미러 대상 (기본: all = fills + balance_adjusts + signals)",
-    )
-    p_backfill_hist.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="실제 RTDB 쓰기 없이 대상 줄 수만 출력",
-    )
-    p_backfill_hist.set_defaults(func=_cmd_backfill_history)
-
-    # history
-    p_hist = sub.add_parser("history", help="history/summary.jsonl 최근 N 줄 출력")
-    p_hist.add_argument("--tail", type=int, default=DEFAULT_HISTORY_TAIL_LINES)
-    p_hist.set_defaults(func=_cmd_history)
 
     # notify-failure
     p_notify = sub.add_parser("notify-failure", help="수동 실패 알림 발송")

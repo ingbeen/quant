@@ -164,12 +164,13 @@ poetry install -E live
 
 # 초기 1회 (원격 qbt-live-state 리포에 초기 상태 push)
 poetry run python -m live init --capital 100000000
-poetry run python -m live init-data
+poetry run python -m live rebuild-data          # 티커 생략 시 전체 운영 티커 다운로드
 
 # 전체 초기화 (state + CSV + history + applied_ids + RTDB 일괄 리셋)
 poetry run python -m live reset --capital 100000000
 
-# 최초 배포 직후 또는 스플릿/무상증자 대응 후 1회 (과거 연도 차트 archive 일괄 생성)
+# 스플릿/무상증자 대응 (단일 티커 재다운로드 + 차트 archive 재생성)
+poetry run python -m live rebuild-data SPY      # 특정 티커만
 poetry run python -m live backfill-chart-archive
 poetry run python -m live backfill-chart-archive --dry-run
 poetry run python -m live backfill-chart-archive --year 2025
@@ -180,9 +181,10 @@ poetry run python -m live run-daily --trade-date 2026-04-10
 
 # 디버깅 / 조회
 poetry run python -m live drift
-poetry run python -m live history --tail 20
 poetry run python -m live fetch-fills
 poetry run python -m live notify-failure -m "수동 테스트"
+# summary.jsonl / user_trades.jsonl 등 영구 이력은 GitHub UI 에서
+# qbt-live-state 리포의 history/ 폴더를 직접 조회한다
 ```
 
 **환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다. 필요한 변수:

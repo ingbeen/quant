@@ -28,7 +28,7 @@
 ```bash
 cd ~/workspace/quant
 poetry run python -m live init --capital 100000000
-poetry run python -m live init-data
+poetry run python -m live rebuild-data   # 티커 생략 시 전체 운영 티커 다운로드
 ```
 
 각 명령은 자동으로 원격 리포에 새 커밋을 push 합니다.
@@ -37,7 +37,7 @@ poetry run python -m live init-data
 
 - [x] `https://github.com/ingbeen/qbt-live-state` 에 `live_state.json` 존재
 - [x] `data/stock/` 하위에 SPY / QQQ / SSO / QLD / GLD / TLT CSV 6 종 존재
-- [x] 커밋 메시지가 `auto: live init ...` / `auto: live init-data ...` 형식
+- [x] 커밋 메시지가 `auto: live init ...` / `auto: live rebuild-data ...` 형식
 
 ---
 
@@ -285,16 +285,6 @@ poetry run python -m live notify-failure --message "수동 테스트 from local"
 - [ ] (fill 처리한 경우) `/history/fills/{trade_date}/{UUID}` 의 페이로드에 `applied_at` 존재, `rtdb_key` 미존재
 - [ ] (balance_adjust 처리한 경우) `/history/balance_adjusts/{applied_at_date}/{UUID}` 페이로드 검증
 - [ ] 같은 run-daily 배치에서 처리된 모든 신규 레코드의 `applied_at` 이 동일 timestamp
-
-**backfill 검증 (`reset` 후 복원 시나리오)**:
-
-1. `python -m live backfill-history --dry-run` 실행 → stdout 에 `fills=N (skipped K) | balance_adjusts=N | signals=N` 카운트 출력 확인
-2. (테스트 환경 한정) `python -m live reset --capital 100000000` 실행 후 `python -m live backfill-history --target all` 실행
-3. RTDB `/history/{*}/*` 에 Git 정본 전체 이력이 복원되었는지 Firebase 콘솔에서 확인
-
-- [ ] `--dry-run` 출력 카운트가 Git 정본 JSONL 줄 수와 일치 (옛 스키마 줄은 skip)
-- [ ] `--target fills` 단독 실행 시 `/history/fills/` 만 갱신, 다른 경로 무영향
-- [ ] `reset` → `backfill-history --target all` 후 RTDB 가 Git 정본과 정보 동등
 
 ---
 

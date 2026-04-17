@@ -117,23 +117,6 @@ class TestMainAlertHookCoversAllCommands:
         assert exit_code == 1
         assert len(notify_calls) >= 1
 
-    def test_history_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given history 커맨드 중 ephemeral_state_repo 실패 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
-
-        @contextmanager
-        def _fail_ephemeral(*, push_on_success: bool, commit_subcommand: str):
-            del push_on_success, commit_subcommand
-            raise RuntimeError("테스트: state repo clone 실패")
-            yield  # pragma: no cover
-
-        monkeypatch.setattr(cli_module, "ephemeral_state_repo", _fail_ephemeral)
-
-        exit_code = main(["history", "--tail", "5"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-
     def test_fetch_fills_failure_triggers_notify(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given fetch-fills 중 RTDB 조회 실패 When main 실행 Then notify 호출."""
         notify_calls = _install_notify_spy(monkeypatch)
@@ -149,22 +132,10 @@ class TestMainAlertHookCoversAllCommands:
         assert exit_code == 1
         assert len(notify_calls) >= 1
 
-    def test_init_data_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given init-data 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
-        notify_calls = _install_notify_spy(monkeypatch)
-
-        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
-            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
-
-        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
-
-        exit_code = main(["init-data"])
-
-        assert exit_code == 1
-        assert len(notify_calls) >= 1
-
-    def test_rebuild_data_failure_triggers_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given rebuild-data 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
+    def test_rebuild_data_single_ticker_failure_triggers_notify(
+        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Given rebuild-data SPY 중 rebuild_full_csv 실패 When main 실행 Then notify 호출."""
         notify_calls = _install_notify_spy(monkeypatch)
 
         def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
@@ -173,6 +144,25 @@ class TestMainAlertHookCoversAllCommands:
         monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
 
         exit_code = main(["rebuild-data", "SPY"])
+
+        assert exit_code == 1
+        assert len(notify_calls) >= 1
+
+    def test_rebuild_data_all_tickers_failure_triggers_notify(
+        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Given rebuild-data (티커 생략) 중 rebuild_full_csv 실패 When main 실행 Then notify 호출.
+
+        티커 인자 생략 시 `_collect_all_tickers()` 전체 순회가 수행되는지 간접 검증한다.
+        """
+        notify_calls = _install_notify_spy(monkeypatch)
+
+        def _fail_rebuild(ticker: str, csv_path: Path, period: str = "max") -> None:
+            raise RuntimeError(f"테스트: rebuild {ticker} 실패")
+
+        monkeypatch.setattr(cli_module, "rebuild_full_csv", _fail_rebuild)
+
+        exit_code = main(["rebuild-data"])
 
         assert exit_code == 1
         assert len(notify_calls) >= 1

@@ -70,7 +70,7 @@ tests/live/                     # live 전용 테스트
 | `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
 | `history.py`           | Git 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
 | `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
-| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-history` 수동 명령 |
+| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-chart-archive` 수동 명령 |
 
 ## 핵심 원칙
 
