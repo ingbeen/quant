@@ -28,6 +28,7 @@ from firebase_admin.exceptions import FirebaseError
 
 from live.constants import NOTIFICATION_TITLE, TELEGRAM_TIMEOUT_SECONDS, build_asset_signal_ticker_map
 from live.models import DailyResult
+from qbt.backtest.constants import ROUND_PERCENT
 from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -62,8 +63,11 @@ class NotificationOutcome:
 
 
 def _format_pct(value: float) -> str:
-    """비율을 ``±X.XX%`` 형식으로 변환. 음수 입력도 허용 (예: -0.03 → ``-3.00%``)."""
-    return f"{value * 100:+.2f}%"
+    """비율을 ``±X.XX%`` 형식으로 변환. 음수 입력도 허용 (예: -0.03 → ``-3.00%``).
+
+    반올림 자릿수는 ``qbt.backtest.constants.ROUND_PERCENT`` 를 재사용한다.
+    """
+    return f"{value * 100:+.{ROUND_PERCENT}f}%"
 
 
 def _build_daily_body(result: DailyResult) -> str:

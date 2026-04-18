@@ -96,7 +96,7 @@ def generate_wfo_windows(
         initial_is_months: 초기 IS 기간 (개월, 기본값: 72)
         oos_months: OOS 기간 (개월, 기본값: 24)
         rolling_is_months: Rolling IS 최대 길이 (개월).
-            None이면 Expanding 모드 (기존 동작). int이면 Rolling 모드.
+            None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
 
     Returns:
         (is_start, is_end, oos_start, oos_end) 튜플 리스트
@@ -270,7 +270,7 @@ def run_walkforward(
         initial_capital: 초기 자본금
         min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
         rolling_is_months: Rolling IS 최대 길이 (개월).
-            None이면 Expanding 모드 (기존 동작). int이면 Rolling 모드.
+            None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
 
     Returns:
         윈도우별 결과 리스트

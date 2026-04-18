@@ -15,18 +15,26 @@ from qbt.backtest.constants import (
     COL_EXIT_DATE,
     COL_EXIT_PRICE,
     COL_HOLDING_DAYS,
+    COL_LOWER_BAND,
     COL_PNL,
     COL_PNL_PCT,
+    COL_UPPER_BAND,
     ROUND_CAPITAL,
     ROUND_PRICE,
     ROUND_RATIO,
 )
 from qbt.common_constants import COL_CLOSE, COL_HIGH, COL_LOW, COL_OPEN
 
-OHLC_CHANGE_PCT_COLUMNS: tuple[str, ...] = ("open_pct", "high_pct", "low_pct", "close_pct")
+# OHLC 전일대비% 컬럼명 (signal CSV에 저장되어 대시보드가 tooltip에 사용)
+COL_OPEN_PCT: str = "open_pct"
+COL_HIGH_PCT: str = "high_pct"
+COL_LOW_PCT: str = "low_pct"
+COL_CLOSE_PCT: str = "close_pct"
+
+OHLC_CHANGE_PCT_COLUMNS: tuple[str, ...] = (COL_OPEN_PCT, COL_HIGH_PCT, COL_LOW_PCT, COL_CLOSE_PCT)
 """signal CSV에 저장되는 OHLC 전일대비% 컬럼명. 대시보드가 직접 참조한다."""
 
-BUFFER_BAND_COLUMNS: tuple[str, ...] = ("upper_band", "lower_band")
+BUFFER_BAND_COLUMNS: tuple[str, ...] = (COL_UPPER_BAND, COL_LOWER_BAND)
 """buffer_zone 전략의 시그널 CSV에 저장되는 밴드 컬럼명."""
 
 
@@ -128,10 +136,10 @@ def add_ohlc_change_pct(df: pd.DataFrame) -> pd.DataFrame:
         return result
 
     prev_close = result[COL_CLOSE].shift(1)
-    result["open_pct"] = (result[COL_OPEN] / prev_close - 1.0) * 100.0
-    result["high_pct"] = (result[COL_HIGH] / prev_close - 1.0) * 100.0
-    result["low_pct"] = (result[COL_LOW] / prev_close - 1.0) * 100.0
-    result["close_pct"] = (result[COL_CLOSE] / prev_close - 1.0) * 100.0
+    result[COL_OPEN_PCT] = (result[COL_OPEN] / prev_close - 1.0) * 100.0
+    result[COL_HIGH_PCT] = (result[COL_HIGH] / prev_close - 1.0) * 100.0
+    result[COL_LOW_PCT] = (result[COL_LOW] / prev_close - 1.0) * 100.0
+    result[COL_CLOSE_PCT] = (result[COL_CLOSE] / prev_close - 1.0) * 100.0
     return result
 
 
@@ -164,6 +172,6 @@ def add_buffer_zone_bands(
         raise ValueError(f"add_buffer_zone_bands: ma_col='{ma_col}' 컬럼이 DataFrame에 존재하지 않습니다")
 
     result = df.copy()
-    result["upper_band"] = result[ma_col] * (1.0 + buy_buffer_zone_pct)
-    result["lower_band"] = result[ma_col] * (1.0 - sell_buffer_zone_pct)
+    result[COL_UPPER_BAND] = result[ma_col] * (1.0 + buy_buffer_zone_pct)
+    result[COL_LOWER_BAND] = result[ma_col] * (1.0 - sell_buffer_zone_pct)
     return result

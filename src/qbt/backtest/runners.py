@@ -6,16 +6,9 @@
 - buffer_zone.py / buy_and_hold.py: 전략 클래스 + 설정 데이터클래스 + CONFIGS 목록
 - runners.py: 데이터 로딩 + MA 계산 + 전략 실행 로직 (팩토리)
 
-순환 의존성 해결:
-- 기존: buffer_zone.py가 run_backtest를 deferred import (순환 방지 목적)
-  backtest_engine.py → buffer_zone.py (BufferStrategyParams)
-  buffer_zone.create_runner → backtest_engine.py (run_backtest)   [deferred]
-- 변경: runners.py가 두 모듈을 모두 top-level로 import (순환 없음)
-  runners.py → backtest_engine.py (run_backtest)
-  runners.py → buffer_zone.py (BufferZoneStrategy, ...)
-  runners.py → buy_and_hold.py (BuyAndHoldStrategy, ...)
-  backtest_engine.py → types.py (BufferStrategyParams)            [순환 아님]
-  buffer_zone.py: backtest_engine 관련 import 없음
+runners.py가 backtest_engine, buffer_zone, buy_and_hold 세 모듈을 모두 top-level로
+import하여 팩토리 역할을 수행한다. 전략 모듈(buffer_zone.py 등)은 엔진(run_backtest)
+을 import하지 않으므로 순환 참조가 발생하지 않는다.
 """
 
 from collections.abc import Callable

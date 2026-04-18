@@ -56,9 +56,11 @@ poetry run python scripts/data/download_data.py QQQ
 
 # 2. 단일 전략 검증 + 결과 저장
 # 출력: 콘솔 (버퍼존 vs Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_tlt / ... / buy_and_hold_qqq 등, 기본값: all)
+# --strategy 인자로 특정 전략만 실행 가능 (기본값: all)
+# 전략명은 src/qbt/backtest/strategies/buffer_zone.py::CONFIGS 및
+#           src/qbt/backtest/strategies/buy_and_hold.py::CONFIGS 를 직접 참고 (변경 빈도 높음)
 poetry run python scripts/backtest/run_single_backtest.py
-poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
+poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_name>
 
 # 3. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
 # 실험 구성은 src/qbt/backtest/portfolio_configs.py의 PORTFOLIO_CONFIGS 참고 (목록은 자주 변경됨)
@@ -77,8 +79,9 @@ poetry run python scripts/backtest/run_walkforward.py
 # 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
 # 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
 
-# --strategy 인자로 특정 전략만 실행 가능 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
-poetry run python scripts/backtest/run_walkforward.py --strategy buffer_zone_tqqq
+# --strategy 인자로 특정 전략만 실행 가능 (기본값: all)
+# 대상 전략은 src/qbt/backtest/strategies/buffer_zone.py::CONFIGS 를 직접 참고
+poetry run python scripts/backtest/run_walkforward.py --strategy <strategy_name>
 
 # 5. 파라미터 고원 분석 (선행: 1)
 poetry run python scripts/backtest/run_param_plateau_all.py

@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -417,8 +418,6 @@ def _cmd_reset(args: argparse.Namespace) -> int:
     reset 은 사용자 직접 실행 명령이므로 실패 알림을 발송하지 않는다 (터미널 stderr +
     ERROR 로그로만 노출). 재실행 시 멱등 복구 가능하다 (모든 단계가 덮어쓰기).
     """
-    import shutil
-
     capital: float = args.capital
 
     # 1. 사전 검증: Firebase 초기화 가능 여부. 실패 시 아무것도 건드리지 않고 중단.

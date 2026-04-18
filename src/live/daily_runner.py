@@ -1,8 +1,11 @@
 """일일 실행 메인 (순수 계산, 파일 I/O 없음).
 
-fill 반영 → 전일 pending 체결 → 당일 equity 계산 → 시그널/리밸런싱 → 익일 pending
-생성 → balance_adjust 반영 → drift 계산까지를 담당하는 순수 계산 함수이다.
-파일 I/O 및 외부 네트워크 호출은 호출자(CLI 계층) 가 처리한다.
+fills 반영 → fill_dismiss 반영 → balance_adjust 반영 → model_sync 반영 → 전일
+pending 체결 → 당일 종가 equity 계산 → 시그널 / 리밸런싱 → 익일 pending 생성 →
+drift 계산까지를 담당하는 순수 계산 함수이다. 파일 I/O 및 외부 네트워크 호출은
+호출자(CLI 계층) 가 처리한다.
+
+상세 처리 단계와 각 단계별 계약은 :func:`run_daily` 의 docstring 을 SoT 로 참조한다.
 
 구현 원칙:
 
