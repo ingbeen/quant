@@ -226,7 +226,7 @@ poetry install -E live
 
 ## 실행 방법
 
-실행 명령어는 [README.md](../../README.md)의 "워크플로우 3: QBT Live" 섹션을 참고한다.
+실행 명령어는 [docs/COMMANDS.md](../../docs/COMMANDS.md)의 "워크플로우 3: QBT Live (실매매 알림)" 섹션을 참고한다.
 
 **ephemeral state repo**: CLI 는 state 가 필요한 모든 명령에 대해 매 실행마다 `qbt-live-state` 프라이빗 리포를 임시 디렉토리에 `--depth 1` shallow clone 하고, 작업 후 변경사항을 자동 commit/push 한 뒤 임시 디렉토리를 삭제합니다. **로컬과 GitHub Actions 가 동일한 코드 경로**를 타므로 두 환경의 실행 결과는 항상 같은 원격 커밋으로 수렴합니다. 프로젝트 폴더에는 어떤 state 파일도 남지 않습니다.
 

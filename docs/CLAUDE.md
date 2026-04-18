@@ -75,7 +75,8 @@ AI 모델은 scripts 폴더의 스크립트를 직접 실행하지 않으며, �
 - Context: 배경/필요성/영향 받는 규칙 + "전체 숙지" 선언
 - Definition of Done: 완료 조건 체크리스트
 - Scope: 변경 범위(변경 대상 파일, 데이터/결과 영향)
-  - `README.md` 업데이트 필요 여부를 반드시 명시한다. 불필요하면 `README.md 변경 없음`으로 기록한다.
+  - `README.md` 및 `docs/COMMANDS.md` 업데이트 필요 여부를 반드시 각각 명시한다. 불필요하면 각각 `README.md 변경 없음`, `docs/COMMANDS.md 변경 없음`으로 기록한다.
+  - `docs/COMMANDS.md` 는 모든 실행 명령어(`poetry run`, `streamlit run` 등)의 단일 SoT 이다. 실행 방법/CLI 옵션이 바뀌면 이 문서도 반드시 함께 갱신한다.
 - Phases: 단계별 계획(각 Phase의 할 일 + Validation)
 - Risks: 리스크와 완화책
 - Notes: 메모/결정사항/링크/진행 로그

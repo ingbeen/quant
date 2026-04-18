@@ -111,8 +111,8 @@ quant/
 
 ## 실행 명령어 관리 원칙
 
-> CRITICAL: 모든 실행 명령어(`poetry run`, `streamlit run` 등)는 **[README.md](README.md)에서 단일 관리**합니다.
-> CLAUDE.md 파일에는 실행 명령어를 기재하지 않으며, 필요 시 README.md를 참조합니다.
+> CRITICAL: 모든 실행 명령어(`poetry run`, `streamlit run` 등)는 **[docs/COMMANDS.md](docs/COMMANDS.md)에서 단일 관리**합니다.
+> README.md 와 CLAUDE.md 파일에는 실행 명령어를 기재하지 않으며, 필요 시 `docs/COMMANDS.md` 를 참조합니다.
 
 ## 스크립트 실행 규칙
 
@@ -222,7 +222,7 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 - 모든 품질 검증은 `validate_project.py`를 통해서만 수행 (Ruff + PyRight + Pytest 통합)
 - 직접 명령어 실행 금지 (원칙): `poetry run ruff check .`, `poetry run pyright`, `poetry run pytest tests/` 등
 - 예외: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
-- 실행 명령어는 [README.md](README.md)를 참고
+- 실행 명령어는 [docs/COMMANDS.md](docs/COMMANDS.md)를 참고
 - 타입 체커: PyRight 단일 사용 (Mypy 제거됨)
   - 설정 파일: `pyrightconfig.json` (`executionEnvironments` 방식)
   - 전역: strict 모드, reportUnknown\* 5개 규칙 + reportMissingTypeStubs는 none (pandas/Plotly 타입 스텁 한계 대응)

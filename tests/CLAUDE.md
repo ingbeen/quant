@@ -45,7 +45,7 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 ## 테스트 실행 방법
 
-실행 명령어는 [README.md](../README.md)의 "주요 명령어" 섹션을 참고한다.
+실행 명령어는 [docs/COMMANDS.md](../docs/COMMANDS.md)의 "품질 검증" 및 "테스트 (특정 모듈/파일)" 섹션을 참고한다.
 
 ---
 
@@ -359,7 +359,7 @@ def test_pending_order_conflict_raises(...):
 
 ## 커버리지
 
-커버리지 실행 명령어는 [README.md](../README.md)의 "주요 명령어" 섹션을 참고한다.
+커버리지 실행 명령어는 [docs/COMMANDS.md](../docs/COMMANDS.md)의 "커버리지" 섹션을 참고한다.
 
 목표:
 
