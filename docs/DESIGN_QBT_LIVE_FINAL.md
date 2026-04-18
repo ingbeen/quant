@@ -129,6 +129,33 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 적용 순서는 `run_daily` **내부에서** 고정되어 있다 — **fills 먼저, balance_adjust 나중** (사용자 직접 보정이 신호 기반 체결을 덮어쓰는 구조). 자산 shares / 현금의 실제 교체 규칙과 idempotency 는 §8.2.8 을 정본으로 한다.
 
+### 4.4 model_sync 의미와 적용 순서
+
+`ModelSync` 는 "지금 내 실제 포지션을 새 출발점으로 삼겠다" 는 사용자 선언이다. model 축과 actual 축이 체결 타이밍 차이 / 슬리피지 / 개인 매매 누적으로 점진적으로 벌어진 상태에서, 앱이 `/model_sync/inbox/{uuid}` 에 요청을 쓰면 다음 `run-daily` 가 **model 축 전체를 actual 값으로 일괄 교체**한다.
+
+`run_daily` 내부 적용 순서:
+
+1. fills 반영 (Stage 1, actual 축 누적)
+2. balance_adjust 반영 (Stage 2, actual 축 덮어쓰기)
+3. **model_sync 반영 (Stage 3, 신규)** — 모든 자산의 `model_shares` / `model_avg_entry_price` / `model_entry_date` 를 actual 값으로 복사하고 `shared_cash_model = shared_cash_actual` 로 교체. 동시에 모든 자산의 `pending_order = None`, `unfilled_order_date = None` 으로 초기화.
+4. 전일 pending → 당일 시가 체결 (Stage 4). Stage 3 이 적용되면 pending 이 모두 비어 자연스럽게 skip.
+5. 시그널 / 리밸런싱 / 익일 pending 생성 (Stage 5~7). 새 model 기준으로 재계산된다.
+
+**pending 취소 규칙**: Stage 3 직전에 존재하던 모든 `pending_order` 는 **예외 없이** None 으로 초기화된다. 이전 model 기준으로 만들어진 pending 은 동기화 후 새 model 기준과 일관되지 않기 때문이다. 필요한 pending 은 Stage 7 에서 새로 생성된다.
+
+**BufferZoneStrategy 내부 상태는 교체하지 않는다** — `buffer_zone_state` (prev_upper / prev_lower / hold_state 등) 는 유지해야 hold_days 상태머신이 끊기지 않는다. model_sync 는 "포지션(주수 / 가격 / 진입일 / 현금)" 만 교체한다.
+
+**멱등성**: "model = actual" 덮어쓰기이므로 같은 요청을 여러 번 처리해도 결과가 같다. 같은 배치 안에 `ModelSync` 가 N 건 있으면 1 회만 적용 (N 회 반복하지 않음). 별도 `applied_model_sync_ids.json` 원장을 두지 않고 RTDB `processed` 플래그만으로 중복 방지한다 — 상세는 §8.2.9a.
+
+**엣지 케이스**:
+
+| 케이스 | 결과 |
+|---|---|
+| fill + model_sync 동일 배치 | Stage 1 이 actual 을 먼저 갱신, Stage 3 가 갱신된 actual 복사 |
+| balance_adjust + model_sync 동일 배치 | Stage 2 가 actual 을 먼저 덮어쓰고, Stage 3 가 덮어쓴 actual 복사 |
+| 전일 pending + model_sync | Stage 3 이 pending 모두 해제 → Stage 4 에서 체결 없음 (`executions is None`) |
+| model_sync 연속 2 일 | 멱등 — 동일 결과 |
+
 ---
 
 ## 5. 차트: TradingView Lightweight Charts
@@ -195,6 +222,7 @@ live 는 매 실행 끝에 FCM + 텔레그램을 동시 발송한다. 두 채널
 ```
 [QBT Live] 2026-04-10
 
+Model 동기화 적용
 시그널: SSO buy, QLD sell
 리밸런싱: 발생
 미입력 체결 리마인더: 1 건
@@ -211,6 +239,7 @@ MA 근접도: SPY +2.45%, QQQ -1.05%, GLD +0.80%, TLT -1.20%
 
 - 1 행: `[QBT Live] {execution_date}` (prefix 고정)
 - (빈 줄) → 강조 블록 (있을 때만):
+  - `Model 동기화 적용`: 이번 실행에서 model_sync (§4.4 / §8.2.9a) 가 적용된 경우에만 **최상단** 에 노출. 이벤트의 원인이 되는 항목이므로 시그널 / 리밸런싱 / 리마인더보다 먼저 배치
   - `시그널`: 자산별 `state in ("buy","sell")` 만 `{ASSET_UPPER} {state}` 로 나열. 없으면 라인 생략
   - `리밸런싱: 발생`: 리밸런싱 발생 시에만 출력
   - `미입력 체결 리마인더: N 건`: fill 입력 또는 스킵(`/fill_dismiss/inbox/`) 전까지 **매일 반복** 표출. §8.2.9 참고
@@ -271,6 +300,7 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
 /fill_dismiss/inbox/{uuid}                       ← 앱이 쓰는 체결 리마인더 스킵 queue
+/model_sync/inbox/{uuid}                         ← 앱이 쓰는 model 동기화 요청 queue
 /device_tokens/{device_id}                       ← FCM 토큰
 ```
 
@@ -737,6 +767,41 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **idempotency**: `rtdb_key` (UUID) 기반. `applied_fill_dismiss_ids.json` 에 기록. 90 일 자동 정리. `processed` 필드 규칙은 §8.3 참고.
 
+#### 8.2.9a `/model_sync/inbox/{uuid}` — model 동기화 요청 (앱 → 서버)
+
+**SoT**: `live.rtdb_gateway._dict_to_model_sync`, `live.models.ModelSync`. 앱이 UUID key 를 생성하여 append, daily runner 가 `processed=false` 만 필터링해 읽는다.
+
+사용자가 "지금 내 실제 포지션을 새 출발점으로 삼겠다" 고 선언했을 때 앱이 확인 다이얼로그 1 회를 거쳐 전송한다. live 는 다음 `run-daily` 에서 **모든 자산의 `model_*` 축을 `actual_*` 값으로 일괄 교체**하고, 동시에 모든 `pending_order` / `unfilled_order_date` 를 `None` 으로 해제한다. 적용 순서 / pending 취소 규칙은 §4.4 참고.
+
+**예시**:
+
+```json
+{
+  "input_time_kst": "2026-04-15T20:00:00+09:00"
+}
+```
+
+**필드**:
+
+| 필드             | 타입 | 필수 여부 | 설명                                                    |
+| ---------------- | ---- | --------- | ------------------------------------------------------- |
+| `input_time_kst` | str  | 필수      | 사용자가 앱에서 동기화 버튼을 누른 시각 (ISO 8601 KST)   |
+
+**의도적으로 두지 않은 필드**:
+
+- `asset_id` — 전체 동기화 전용이므로 자산을 지정하지 않는다.
+- `reason` — 확인 다이얼로그 1 회로 충분하므로 사유 입력 UI 가 없다.
+
+**핵심 제약**:
+
+1. `input_time_kst` 가 없거나 빈 문자열이면 `ValueError` (fail-fast).
+2. 여러 건이 동시에 쌓여도 1 회만 적용 (멱등). "model = actual" 덮어쓰기이므로 N 회 반복 의미가 없다.
+3. 별도 `applied_model_sync_ids.json` 원장을 두지 않는다 — RTDB `processed` 플래그가 유일한 중복 방지 수단.
+
+**idempotency**: `rtdb_key` (UUID) 기반. 적용 여부와 무관하게 읽어온 모든 key 는 `processed=true` 로 마킹된다. `processed` 필드 규칙은 §8.3 참고.
+
+**이력 추적**: `/history/model_syncs/` RTDB 미러 / 별도 JSONL 은 제공하지 않는다. 발생 빈도가 월 0~1 회 수준이며, Git 정본 `history/daily/{date}.json` 의 `model_sync_applied: bool` 과 `history/states/{date}.json` 전후 스냅샷으로 충분히 추적 가능하다 (§8.2.14 비미러 항목 참고).
+
 #### 8.2.10 `/device_tokens/{device_id}` — FCM 토큰 등록 (앱 → 서버)
 
 **SoT**: `live.rtdb_gateway.read_device_tokens`, `live.rtdb_gateway.remove_invalid_tokens`. 앱이 device_id 를 key 로 등록, daily runner 는 알림 발송 시 읽고 만료 토큰은 자동 삭제.
@@ -875,7 +940,10 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 #### 8.2.14 `/history/` 비미러 항목
 
-`fill_dismiss` (체결 리마인더 스킵) 는 **RTDB `/history/` 에 미러하지 않는다**. fill_dismiss 는 "리마인더 해제" 관리 행위이고 앱에서 사후 조회할 실질 수요가 없기 때문이다 (Git 정본 `applied_fill_dismiss_ids.json` + `fill_dismisses.jsonl` 만 유지).
+다음 두 항목은 **RTDB `/history/` 에 미러하지 않는다**:
+
+- **`fill_dismiss`** (체결 리마인더 스킵): "리마인더 해제" 관리 행위이고 앱에서 사후 조회할 실질 수요가 없기 때문 (Git 정본 `applied_fill_dismiss_ids.json` + `fill_dismisses.jsonl` 만 유지).
+- **`model_sync`** (model 축 동기화 요청): 발생 빈도가 월 0~1 회 수준으로 매우 낮고, 이벤트의 결과(동기화 직전/직후 상태)는 `history/daily/{date}.json` 의 `model_sync_applied` 플래그와 `history/states/{date}.json` 전후 스냅샷 diff 로 이미 추적 가능하기 때문. 별도 JSONL 원장도 두지 않는다.
 
 ### 8.3 역할 분리
 
@@ -885,9 +953,11 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 | `/latest/*`, `/charts/*` | daily runner (Admin SDK) | 앱 |
 | `/history/{fills|balance_adjusts|signals}/*` | daily runner (Admin SDK, Git 정본 미러) | 앱 (이력 조회) |
 | `/fills/*`, `/balance_adjust/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
+| `/fill_dismiss/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
+| `/model_sync/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/device_tokens/*` | 앱 (등록) / daily runner (만료 토큰 삭제) | daily runner (Admin SDK) |
 
-**`processed` 필드 규칙**: `/fills/inbox/{uuid}` 와 `/balance_adjust/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 반영 상태는 `/latest/portfolio` 의 `actual_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다.
+**`processed` 필드 규칙**: `/fills/inbox/{uuid}` / `/balance_adjust/inbox/{uuid}` / `/fill_dismiss/inbox/{uuid}` / `/model_sync/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 / 보정 반영 상태는 `/latest/portfolio` 의 `actual_shares` / `model_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다. model_sync 는 `model_shares` 가 `actual_shares` 와 일치하는 것으로 반영 여부를 판단할 수 있다.
 
 **`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 같은 트랜잭션으로 초기화한다. 과거 이력은 `qbt-live-state` 리포의 이전 커밋에서 조회할 수 있으며 (git log), `run-daily` 가 reset 이후 시점부터 다시 누적한다.
 

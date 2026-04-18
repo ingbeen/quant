@@ -39,6 +39,7 @@ __all__ = [
     "ActualFill",
     "BalanceAdjust",
     "FillDismiss",
+    "ModelSync",
     "SignalDetection",
     "ChartMeta",
     "ChartSeries",
@@ -282,6 +283,37 @@ class FillDismiss:
 
 
 # ============================================================================
+# ModelSync — 앱에서 요청한 model 축 동기화 (model = actual 덮어쓰기)
+# ============================================================================
+
+
+@dataclass
+class ModelSync:
+    """앱이 RTDB ``/model_sync/inbox/`` 에 기록한 model 동기화 요청.
+
+    사용자가 "지금 내 실제 포지션을 새 출발점으로 삼겠다" 고 선언했을 때 앱이
+    UUID 를 key 로 생성하는 요청이다. daily runner 는 이 레코드가 하나라도
+    존재하면 **모든 자산의 model 축 (주수 / 평균가 / 진입일) 과 model 현금을
+    actual 값으로 일괄 교체**하고, 동기화 시점의 모든 ``pending_order`` /
+    ``unfilled_order_date`` 를 ``None`` 으로 해제한다.
+
+    **전체 동기화 전용**: ``asset_id`` 필드는 없다. 자산별 / 선택 동기화는
+    지원하지 않는다.
+
+    **사유 필드 없음**: 앱 UI 의 확인 다이얼로그 1 회 만으로 충분하므로
+    ``reason`` 필드를 두지 않는다.
+
+    멱등성: "model = actual" 덮어쓰기이므로 같은 요청을 여러 번 처리해도 결과가
+    동일하다. 따라서 별도 ``applied_model_sync_ids.json`` 원장은 두지 않고 RTDB
+    ``processed`` 플래그만으로 중복 처리를 방지한다 (:class:`ActualFill` /
+    :class:`BalanceAdjust` 와 달리 idempotency 원장이 없다).
+    """
+
+    rtdb_key: str
+    input_time_kst: str  # ISO 8601 KST
+
+
+# ============================================================================
 # SignalDetection — 시그널 감지 결과 (알림/차트 재사용)
 # ============================================================================
 
@@ -456,6 +488,7 @@ class DailyResult:
     ma_distances: dict[str, float]
     notification_body: str
     pending_fill_reminders: list[str]
+    model_sync_applied: bool  # 이번 run_daily 에서 model_sync Stage 3 이 1 회 이상 적용되었는지 여부
 
 
 # ============================================================================

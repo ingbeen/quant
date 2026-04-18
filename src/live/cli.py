@@ -75,7 +75,15 @@ from live.data_fetcher import (
     rebuild_full_csv,
 )
 from live.drift import compute_drift
-from live.models import ActualFill, AssetMarketData, BalanceAdjust, DailyResult, FillDismiss, MarketBundle
+from live.models import (
+    ActualFill,
+    AssetMarketData,
+    BalanceAdjust,
+    DailyResult,
+    FillDismiss,
+    MarketBundle,
+    ModelSync,
+)
 from live.state import (
     cleanup_old_applied_ids,
     create_initial_state,
@@ -557,6 +565,12 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"RTDB fill_dismisses 읽기 실패: {exc}") from exc
 
+        # RTDB model_sync 가져오기 (전체 model=actual 동기화 요청, 멱등)
+        try:
+            pending_model_syncs: list[ModelSync] = rtdb_gateway.fetch_unprocessed_model_syncs(rtdb_app)
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"RTDB model_syncs 읽기 실패: {exc}") from exc
+
         # applied_balance_adjust_ids 원장 로드 (run_daily 에 전달)
         adjust_path = state_dir / DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME
         try:
@@ -574,7 +588,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         prev_adjust_keys_snapshot = set(applied_adjust_ids.keys())
         prev_dismiss_keys_snapshot = set(applied_dismiss_ids.keys())
 
-        # run_daily (순수 계산 — fills + balance_adjust + fill_dismiss 처리 포함)
+        # run_daily (순수 계산 — fills + balance_adjust + model_sync + fill_dismiss 처리 포함)
         try:
             result = run_daily(
                 trade_date=trade_date,
@@ -586,6 +600,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                 applied_balance_adjust_ids=applied_adjust_ids,
                 pending_dismisses=pending_dismisses,
                 applied_fill_dismiss_ids=applied_dismiss_ids,
+                pending_model_syncs=pending_model_syncs,
             )
         except Exception as exc:  # noqa: BLE001
             raise RuntimeError(f"엔진 실행 실패: {exc}. 상태 변경 없음") from exc
@@ -706,6 +721,15 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
                 rtdb_gateway.mark_fill_dismisses_processed(rtdb_app, list(newly_applied_dismiss_keys))
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(f"RTDB fill_dismisses mark_processed 실패: {exc}") from exc
+
+        # model_sync 는 applied_ids 원장이 없으며 "model = actual" 덮어쓰기로 멱등이므로
+        # 읽어온 모든 key 를 적용 여부와 무관하게 processed 마킹한다. 별도 history 파일
+        # 저장 없이 DailyResult.model_sync_applied + history/states/{date}.json 스냅샷으로 추적한다.
+        if pending_model_syncs:
+            try:
+                rtdb_gateway.mark_model_syncs_processed(rtdb_app, [s.rtdb_key for s in pending_model_syncs])
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(f"RTDB model_syncs mark_processed 실패: {exc}") from exc
 
         # 영구 히스토리 저장 — 실패 시 즉시 중단 + 알림 (자동 복구 금지)
         try:
@@ -880,6 +904,7 @@ def _persist_history(state_dir: Path, trade_date: date, result: DailyResult) -> 
         "rebalance_triggered": result.rebalance_triggered,
         "ma_distances": result.ma_distances,
         "pending_fill_reminders": result.pending_fill_reminders,
+        "model_sync_applied": result.model_sync_applied,
     }
     history.save_daily_log(trade_date.isoformat(), daily_payload, hist_dir)
     history.append_summary(

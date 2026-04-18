@@ -64,8 +64,9 @@ tests/live/                     # live 전용 테스트
 | `drift.py`             | fill 분류 + idempotent 반영 + `compute_drift` 정본                                  |
 | `balance_adjust.py`    | `BalanceAdjust` idempotent 반영 (`run_daily` 내부 fills 직후 호출)                  |
 | (fill_dismiss 처리)    | `FillDismiss` idempotent 반영 (`run_daily` 내부, 리마인더 해제 전용, 잔고 불변)     |
+| (model_sync 처리)      | `ModelSync` 적용 (`run_daily` 내부 Stage 3, model=actual 덮어쓰기 + pending/unfilled 해제, 멱등) |
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
-| `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이 (`/latest`, `/charts`, `/history`, `/fills/inbox`, `/balance_adjust/inbox`, `/fill_dismiss/inbox`, `/device_tokens`) |
+| `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이 (`/latest`, `/charts`, `/history`, `/fills/inbox`, `/balance_adjust/inbox`, `/fill_dismiss/inbox`, `/model_sync/inbox`, `/device_tokens`) |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
 | `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
 | `history.py`           | Git 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
@@ -143,10 +144,16 @@ tests/live/                     # live 전용 테스트
 ### 3. 순수 계산 / I/O 분리
 
 - `daily_runner.run_daily()` 는 파일 I/O / 네트워크 호출이 없다.
-- 모든 입력(`pending_fills`, `pending_adjusts`, `applied_*_ids` 등) 은 파라미터로
-  받고, 결과는 `DailyResult` 로 반환한다.
-- `run_daily` 내부 적용 순서: **fills 먼저 → balance_adjust 나중**. 사용자 직접
-  보정이 fill 이후의 최종 잔고를 덮어쓴다.
+- 모든 입력(`pending_fills`, `pending_adjusts`, `pending_dismisses`,
+  `pending_model_syncs`, `applied_*_ids` 등) 은 파라미터로 받고, 결과는
+  `DailyResult` (`model_sync_applied: bool` 포함) 로 반환한다.
+- `run_daily` 내부 적용 순서: **fills → balance_adjust → model_sync → 전일
+  pending 체결 → 시그널 → 리밸런싱 → 익일 pending 생성**. 사용자 직접
+  보정이 fill 이후의 잔고를 덮어쓰고, `model_sync` 가 있다면 그 직후
+  `model = actual` 로 수렴하며 이전 pending 이 일괄 취소된다.
+- `model_sync` 는 `pending_model_syncs` 리스트가 1 건 이상이면 1 회만 적용
+  (멱등). 별도 `applied_model_sync_ids.json` 원장을 두지 않고 RTDB
+  `processed` 플래그만으로 중복 처리를 방지한다.
 - 회귀 검증(`test_regression.py`) 가능하도록 결정적(deterministic) 이어야 한다.
 
 ### 4. 백테스트 절대 규칙 보존

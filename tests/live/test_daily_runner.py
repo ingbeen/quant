@@ -888,3 +888,325 @@ class TestFindTradeIndexIsInternalInvariant:
                 pending_fills=[],
                 applied_fill_ids={},
             )
+
+
+# ============================================================================
+# model_sync 통합 (Stage 3: model = actual + pending 일괄 해제)
+# ============================================================================
+
+
+def _state_with_position_gap() -> LiveState:
+    """model / actual 이 다른 상태 + pending / unfilled_order_date 설정된 state 를 만든다.
+
+    - sso: model_shares=500 / actual_shares=450, model/actual 평균가/진입일 모두 다름, pending_order + unfilled_order_date set
+    - gld: model_shares=100 / actual_shares=120, pending_order 없음, unfilled_order_date set
+    - qld / tlt: 기본값 (0, 0)
+    - shared_cash_model=10_000_000, shared_cash_actual=9_500_000 (차이)
+    """
+    from live.models import PendingOrderDict
+
+    state = create_initial_state(100_000_000.0)
+    state.shared_cash_model = 10_000_000.0
+    state.shared_cash_actual = 9_500_000.0
+
+    state.assets["sso"].model_shares = 500
+    state.assets["sso"].model_avg_entry_price = 80.0
+    state.assets["sso"].model_entry_date = "2026-03-01"
+    state.assets["sso"].actual_shares = 450
+    state.assets["sso"].actual_avg_entry_price = 82.5
+    state.assets["sso"].actual_entry_date = "2026-03-05"
+    state.assets["sso"].signal_state = "buy"
+    sso_pending: PendingOrderDict = {
+        "asset_id": "sso",
+        "intent_type": "REDUCE_TO_TARGET",
+        "signal_date": "2026-04-09",
+        "current_amount": 50_000_000.0,
+        "target_amount": 30_000_000.0,
+        "delta_amount": -20_000_000.0,
+        "target_weight": 0.30,
+        "hold_days_used": 1,
+        "reason": "sync-test",
+    }
+    state.assets["sso"].pending_order = sso_pending
+    state.assets["sso"].unfilled_order_date = "2026-04-09"
+
+    state.assets["gld"].model_shares = 100
+    state.assets["gld"].model_avg_entry_price = 180.0
+    state.assets["gld"].model_entry_date = "2026-02-15"
+    state.assets["gld"].actual_shares = 120
+    state.assets["gld"].actual_avg_entry_price = 175.0
+    state.assets["gld"].actual_entry_date = "2026-02-20"
+    state.assets["gld"].signal_state = "buy"
+    state.assets["gld"].unfilled_order_date = "2026-04-08"
+    return state
+
+
+class TestRunDailyModelSync:
+    """Stage 3 (model_sync) 계약 — model = actual + pending 일괄 해제."""
+
+    def test_model_sync_none_preserves_existing_behavior(self, initial_state, flat_market_bundle, sample_dates):
+        """[T-SYNC.1] Given model_sync 없음 / None / [] When run_daily Then 기존 동작 동일."""
+        from live.models import ActualFill, BalanceAdjust
+
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=80.0,
+            actual_shares=100,
+            trade_date=sample_dates[0].isoformat(),
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            memo=None,
+            rtdb_key="fill_sync1",
+        )
+        adjust = BalanceAdjust(
+            rtdb_key="adj_sync1",
+            input_time_kst="2026-04-06T20:00:00+09:00",
+            reason="cash",
+            asset_id=None,
+            new_cash=98_000_000.0,
+        )
+
+        r_none = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+            pending_model_syncs=None,
+        )
+        r_empty = run_daily(
+            trade_date=sample_dates[0],
+            state=initial_state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+            pending_model_syncs=[],
+        )
+
+        assert r_none.model_sync_applied is False
+        assert r_empty.model_sync_applied is False
+        # 두 실행 결과의 핵심 필드가 동일해야 한다 (pending_model_syncs 의 값이 noop 임을 증명).
+        assert r_none.model_equity == pytest.approx(r_empty.model_equity)
+        assert r_none.updated_state.shared_cash_model == pytest.approx(r_empty.updated_state.shared_cash_model)
+        assert r_none.updated_state.shared_cash_actual == pytest.approx(r_empty.updated_state.shared_cash_actual)
+
+    def test_model_sync_applied_copies_actual_to_model(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.2] Given ModelSync 1 건 When run_daily Then 모든 자산 model=actual."""
+        from live.models import ModelSync
+
+        state = _state_with_position_gap()
+        sync = ModelSync(rtdb_key="sync_a", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        assert result.model_sync_applied is True
+        # shared_cash_model 은 Stage 3 에서 actual 로 교체된 뒤, 당일 pending 이 없으므로 그 값이 유지된다.
+        assert result.updated_state.shared_cash_model == pytest.approx(state.shared_cash_actual)
+        # sso / gld 모두 Stage 3 후 model=actual 상태로 당일 pending 체결이 없었으므로 그대로 유지.
+        assert result.updated_state.assets["sso"].model_shares == state.assets["sso"].actual_shares
+        assert result.updated_state.assets["sso"].model_avg_entry_price == pytest.approx(
+            state.assets["sso"].actual_avg_entry_price
+        )
+        assert result.updated_state.assets["sso"].model_entry_date == state.assets["sso"].actual_entry_date
+        assert result.updated_state.assets["gld"].model_shares == state.assets["gld"].actual_shares
+        assert result.updated_state.assets["gld"].model_avg_entry_price == pytest.approx(
+            state.assets["gld"].actual_avg_entry_price
+        )
+        assert result.updated_state.assets["gld"].model_entry_date == state.assets["gld"].actual_entry_date
+
+    def test_model_sync_clears_pending_and_unfilled(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.3] Given ModelSync + pending 존재 When run_daily Then pending / unfilled 전부 None."""
+        from live.models import ModelSync
+
+        state = _state_with_position_gap()
+        sync = ModelSync(rtdb_key="sync_b", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        # Stage 3 이후에 Stage 5~7 에서 새 pending 이 생길 수 있으나, 기존 pending 은 반드시 취소되어야 하며
+        # 그 결과 Stage 4 의 전일 pending 체결은 발생하지 않는다 (executions == None).
+        assert result.executions is None
+        # unfilled_order_date 는 Stage 3 에서 전부 None 으로 초기화된다.
+        #   → 이후 Stage 에서 "새 pending 이 생긴 자산" 은 trade_date 로 다시 set 될 수 있다.
+        #   따라서 "이전 date (2026-04-09 / 2026-04-08)" 값은 남아 있지 않음을 검증.
+        for asset in result.updated_state.assets.values():
+            assert asset.unfilled_order_date != "2026-04-09"
+            assert asset.unfilled_order_date != "2026-04-08"
+
+    def test_model_sync_after_fill_uses_updated_actual(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.4] Given fill + ModelSync 같은 배치 When run_daily Then model 은 fill 반영된 actual 을 복사."""
+        from live.models import ActualFill, ModelSync
+
+        state = _state_with_position_gap()
+        # sso 에 buy 50 → actual_shares: 450 + 50 = 500
+        fill = ActualFill(
+            asset_id="sso",
+            direction="buy",
+            actual_price=81.0,
+            actual_shares=50,
+            trade_date=sample_dates[0].isoformat(),
+            input_time_kst="2026-04-06T19:30:00+09:00",
+            memo=None,
+            rtdb_key="fill_sync4",
+        )
+        sync = ModelSync(rtdb_key="sync_c", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[fill],
+            applied_fill_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        assert result.model_sync_applied is True
+        # fill 먼저 → sso actual_shares = 500, 그 후 sync 가 model_shares = 500 으로 세팅.
+        assert result.updated_state.assets["sso"].actual_shares == 500
+        assert result.updated_state.assets["sso"].model_shares == 500
+
+    def test_model_sync_after_balance_adjust_uses_updated_actual(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.5] Given balance_adjust + ModelSync 같은 배치 When run_daily Then model 은 보정된 actual 을 복사."""
+        from live.models import BalanceAdjust, ModelSync
+
+        state = _state_with_position_gap()
+        # sso actual_shares 를 777 로 강제 교체
+        adjust = BalanceAdjust(
+            rtdb_key="adj_sync5",
+            input_time_kst="2026-04-06T19:45:00+09:00",
+            reason="rebase",
+            asset_id="sso",
+            new_shares=777,
+            new_avg_price=79.0,
+            new_entry_date="2026-03-20",
+        )
+        sync = ModelSync(rtdb_key="sync_d", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_adjusts=[adjust],
+            applied_balance_adjust_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        assert result.updated_state.assets["sso"].actual_shares == 777
+        assert result.updated_state.assets["sso"].model_shares == 777
+        assert result.updated_state.assets["sso"].model_avg_entry_price == pytest.approx(79.0)
+        assert result.updated_state.assets["sso"].model_entry_date == "2026-03-20"
+
+    def test_model_sync_signal_recomputed_on_new_model(self, rising_market_bundle, sample_dates):
+        """[T-SYNC.6] Given ModelSync + 시그널 발생 조건 When run_daily Then 새 model 기준으로 시그널 계산.
+
+        - 초기 상태는 초기 자본만 (4 자산 모두 shares=0)
+        - actual 은 상승 추세 직전에 gld/tlt 에 이미 일부 보유 (actual_shares=100)
+          하지만 이것은 Stage 3 에 의해 model 로 복사될 뿐, 시그널 로직은 그 후의 Stage 5 에서 수행된다.
+        - rising_market_bundle 에서 gld / tlt 는 BuyAndHold 시그널 전략이라 shares=0 이던 자산은 즉시 ENTER_TO_TARGET 을 내지만,
+          model_sync 후에는 이미 보유 중으로 보이므로 INCREASE_TO_TARGET 또는 pending 유지 등 다른 시그널을 낼 수 있다.
+          본 테스트는 "model_sync_applied == True 여도 Stage 5 시그널이 오류 없이 계산되어 signals dict 가 정상 반환되는지" 를 계약으로 고정한다.
+        """
+        from live.models import ModelSync
+
+        state = create_initial_state(100_000_000.0)
+        state.assets["gld"].actual_shares = 100
+        state.assets["gld"].actual_avg_entry_price = 180.0
+        state.assets["gld"].actual_entry_date = "2026-03-01"
+        state.assets["tlt"].actual_shares = 200
+        state.assets["tlt"].actual_avg_entry_price = 95.0
+        state.assets["tlt"].actual_entry_date = "2026-03-01"
+
+        sync = ModelSync(rtdb_key="sync_signal", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=rising_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        assert result.model_sync_applied is True
+        # 시그널 계산이 성공하여 dict 에 4 자산이 모두 있어야 한다.
+        assert set(result.signals.keys()) == {"sso", "qld", "gld", "tlt"}
+        # 동기화 후 gld/tlt 의 model_shares 는 actual 과 일치.
+        assert result.updated_state.assets["gld"].model_shares == 100
+        assert result.updated_state.assets["tlt"].model_shares == 200
+
+    def test_model_sync_is_idempotent_for_multiple_requests(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.7] Given ModelSync 2 건 When run_daily Then 1 건일 때와 결과 동일."""
+        from live.models import ModelSync
+
+        state = _state_with_position_gap()
+        sync_a = ModelSync(rtdb_key="sync_e1", input_time_kst="2026-04-06T20:00:00+09:00")
+        sync_b = ModelSync(rtdb_key="sync_e2", input_time_kst="2026-04-06T20:05:00+09:00")
+
+        r_single = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync_a],
+        )
+        r_double = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync_a, sync_b],
+        )
+
+        assert r_single.model_sync_applied is True
+        assert r_double.model_sync_applied is True
+        assert r_single.model_equity == pytest.approx(r_double.model_equity)
+        assert r_single.updated_state.shared_cash_model == pytest.approx(r_double.updated_state.shared_cash_model)
+        for aid in ("sso", "qld", "gld", "tlt"):
+            assert r_single.updated_state.assets[aid].model_shares == r_double.updated_state.assets[aid].model_shares
+            assert r_single.updated_state.assets[aid].model_avg_entry_price == pytest.approx(
+                r_double.updated_state.assets[aid].model_avg_entry_price
+            )
+            assert (
+                r_single.updated_state.assets[aid].model_entry_date
+                == r_double.updated_state.assets[aid].model_entry_date
+            )
+
+    def test_daily_result_model_sync_applied_true_when_applied(self, flat_market_bundle, sample_dates):
+        """[T-SYNC.8] Given ModelSync 1 건 When run_daily Then DailyResult.model_sync_applied == True."""
+        from live.models import ModelSync
+
+        state = _state_with_position_gap()
+        sync = ModelSync(rtdb_key="sync_flag", input_time_kst="2026-04-06T20:00:00+09:00")
+
+        result = run_daily(
+            trade_date=sample_dates[0],
+            state=state,
+            market_bundle=flat_market_bundle,
+            pending_fills=[],
+            applied_fill_ids={},
+            pending_model_syncs=[sync],
+        )
+
+        assert result.model_sync_applied is True

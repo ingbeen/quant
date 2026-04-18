@@ -80,8 +80,12 @@ def _build_daily_body(result: DailyResult) -> str:
     lines: list[str] = []
     lines.append(f"[{NOTIFICATION_TITLE}] {result.execution_date}")
 
-    # 강조 블록: 사용자 행동이 필요한 항목을 상단에 배치
+    # 강조 블록: 사용자 행동이 필요한 항목을 상단에 배치.
+    # "Model 동기화 적용" 은 이번 실행의 원인이 되는 이벤트이므로 최상단에 위치한다.
     highlights: list[str] = []
+
+    if result.model_sync_applied:
+        highlights.append("Model 동기화 적용")
 
     if result.signals:
         sig_summaries: list[str] = []

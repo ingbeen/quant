@@ -34,6 +34,7 @@ from live.models import (
     FillDismiss,
     LiveState,
     MarketBundle,
+    ModelSync,
     OrderIntent,
     PendingOrderDict,
     SignalDetection,
@@ -249,6 +250,7 @@ def run_daily(
     applied_balance_adjust_ids: dict[str, str] | None = None,
     pending_dismisses: list[FillDismiss] | None = None,
     applied_fill_dismiss_ids: dict[str, str] | None = None,
+    pending_model_syncs: list[ModelSync] | None = None,
 ) -> DailyResult:
     """1 일치 live 실행을 수행한다 (순수 계산, 파일 I/O 없음).
 
@@ -259,11 +261,12 @@ def run_daily(
     처리 순서:
 
     1. fills 반영 (actual 축 갱신, idempotent)
-    2. 전일 pending 체결 (model 축 체결)
-    3. 당일 종가 equity 계산 (model + actual)
-    4. 시그널 생성 / 리밸런싱 / 익일 pending 저장
-    5. **balance_adjust 반영 (actual 축 교체, idempotent)** — fills 보다 나중
-    6. drift 계산 (compute_drift 를 호출해 완전 DriftReport 생성)
+    2. balance_adjust 반영 (actual 축 교체, idempotent) — fills 보다 나중, pending 체결보다 먼저
+    3. model_sync 반영 (model = actual 덮어쓰기, pending_order / unfilled_order_date 일괄 해제)
+    4. 전일 pending 체결 (model 축 체결, model_sync 가 있었으면 pending 이 비어 자연 skip)
+    5. 당일 종가 equity 계산 (model + actual)
+    6. 시그널 생성 / 리밸런싱 / 익일 pending 저장
+    7. drift 계산 (compute_drift 를 호출해 완전 DriftReport 생성)
 
     미입력 체결 리마인더:
 
@@ -286,9 +289,14 @@ def run_daily(
             ``None`` 또는 빈 리스트이면 noop.
         applied_fill_dismiss_ids: 기존 적용된 dismiss rtdb_key → 타임스탬프 맵.
             ``None`` 이면 빈 dict 로 초기화된다.
+        pending_model_syncs: RTDB 에서 읽어온 미처리 model_sync 요청 목록.
+            ``None`` 또는 빈 리스트이면 noop. 1 건 이상이면 Stage 3 에서 1 회
+            적용 (멱등 — 여러 건이어도 결과 동일). 별도 applied_ids 원장 없이
+            ``processed`` 플래그만으로 중복 처리를 방지한다.
 
     Returns:
         DailyResult: 갱신된 LiveState + 시그널 / 체결 / 완전 DriftReport.
+            ``model_sync_applied`` 는 이번 실행에서 Stage 3 이 적용되었는지 여부.
     """
     # 입력 정규화
     if pending_adjusts is None:
@@ -299,6 +307,8 @@ def run_daily(
         pending_dismisses = []
     if applied_fill_dismiss_ids is None:
         applied_fill_dismiss_ids = {}
+    if pending_model_syncs is None:
+        pending_model_syncs = []
 
     # 0. 입력 복사 (원본 불변 유지)
     working_state = copy.deepcopy(state)
@@ -327,6 +337,30 @@ def run_daily(
         if asset is not None:
             asset.unfilled_order_date = None
         working_applied_dismiss_ids[dismiss.rtdb_key] = now_iso
+
+    # 2.6 balance_adjust 반영 (actual 축 교체) — fills 보다 나중, pending 체결보다 먼저.
+    #     fills 가 먼저 actual_shares 를 가감한 뒤, balance_adjust 가 최종 잔고를
+    #     덮어쓴다. idempotency 는 applied_balance_adjust_ids 로 보장한다.
+    if pending_adjusts:
+        working_state, working_applied_adjust_ids = apply_balance_adjusts_idempotent(
+            working_state, pending_adjusts, working_applied_adjust_ids
+        )
+
+    # 2.7 model_sync 반영 (Stage 3) — "model = actual" 덮어쓰기 + pending/unfilled 일괄 해제.
+    #     fills / balance_adjust 이후의 최신 actual 축 을 기준으로 model 축을 복사하며,
+    #     이전 model 기준으로 생성된 pending_order / unfilled_order_date 는 모두 None 으로
+    #     초기화한다. 리스트에 1 건 이상이면 1 회만 적용되고 (멱등) 별도 applied_ids 원장
+    #     없이 RTDB ``processed`` 플래그로 중복 방지한다.
+    model_sync_applied = False
+    if pending_model_syncs:
+        working_state.shared_cash_model = working_state.shared_cash_actual
+        for asset in working_state.assets.values():
+            asset.model_shares = asset.actual_shares
+            asset.model_avg_entry_price = asset.actual_avg_entry_price
+            asset.model_entry_date = asset.actual_entry_date
+            asset.pending_order = None
+            asset.unfilled_order_date = None
+        model_sync_applied = True
 
     # 3. 미입력 체결 리마인더 (unfilled_order_date 기반, 매일 반복)
     #    (a) fill 도착한 자산 → unfilled_order_date 해제
@@ -470,19 +504,12 @@ def run_daily(
     if rebalance_triggered:
         working_state.last_rebalance_date = trade_date.isoformat()
 
-    # 11. balance_adjust 반영 (actual 축 교체) — fills 보다 나중 순서.
-    #     fills 가 먼저 actual_shares 를 가감한 뒤, balance_adjust 가 최종 잔고를
-    #     덮어쓴다. idempotency 는 applied_balance_adjust_ids 로 보장한다.
-    if pending_adjusts:
-        working_state, working_applied_adjust_ids = apply_balance_adjusts_idempotent(
-            working_state, pending_adjusts, working_applied_adjust_ids
-        )
-
     # 12. SignalDetection / ma_distances 구성
     signals_map, ma_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
 
     # 13. drift 계산 — drift.compute_drift 가 유일한 정본.
-    #     actual 축 (shares 및 cash) 은 위의 balance_adjust 반영이 완료된 상태를 쓴다.
+    #     actual 축 (shares 및 cash) 은 위 Stage 2.6 의 balance_adjust 반영이 완료된 상태를 쓴다.
+    #     Stage 2.7 의 model_sync 가 적용되었다면 model = actual 상태이므로 drift_pct ≈ 0 에 수렴한다.
     drift_report = compute_drift(working_state, asset_closes_map)
 
     # 14. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
@@ -508,4 +535,5 @@ def run_daily(
         ma_distances=ma_distances,
         notification_body=notification_body,
         pending_fill_reminders=pending_fill_reminders,
+        model_sync_applied=model_sync_applied,
     )

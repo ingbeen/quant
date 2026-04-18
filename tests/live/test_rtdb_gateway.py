@@ -297,6 +297,7 @@ class TestWriteReadModel:
             ma_distances={"sso": 0.0244},
             notification_body="test",
             pending_fill_reminders=[],
+            model_sync_applied=False,
         )
 
         write_read_model(mock_app, state, result)
@@ -356,6 +357,7 @@ class TestWriteReadModel:
             ma_distances={},
             notification_body="test",
             pending_fill_reminders=[],
+            model_sync_applied=False,
         )
 
         # When
@@ -778,6 +780,101 @@ class TestWriteHistorySignals:
 # ============================================================================
 
 
+# ============================================================================
+# model_sync RTDB 경로 — 전체 동기화 요청
+# ============================================================================
+
+
+class TestFetchUnprocessedModelSyncs:
+    """``fetch_unprocessed_model_syncs`` — ``processed=false`` 만 읽는 계약."""
+
+    def test_returns_only_unprocessed(self, mock_db, mock_app):
+        """[T-SYNC-GW.1] Given inbox 에 processed true/false 혼합 When fetch Then false 만 반환."""
+        from live.rtdb_gateway import fetch_unprocessed_model_syncs
+
+        mock_db["/model_sync/inbox"] = {
+            "sync_a": {
+                "input_time_kst": "2026-04-15T20:00:00+09:00",
+                "processed": False,
+            },
+            "sync_b": {
+                "input_time_kst": "2026-04-14T20:00:00+09:00",
+                "processed": True,
+            },
+        }
+
+        syncs = fetch_unprocessed_model_syncs(mock_app)
+        assert len(syncs) == 1
+        assert syncs[0].rtdb_key == "sync_a"
+        assert syncs[0].input_time_kst == "2026-04-15T20:00:00+09:00"
+
+    def test_empty_inbox_returns_empty_list(self, mock_db, mock_app):
+        """[T-SYNC-GW.3] Given inbox 비어있음 When fetch Then 빈 리스트."""
+        from live.rtdb_gateway import fetch_unprocessed_model_syncs
+
+        assert fetch_unprocessed_model_syncs(mock_app) == []
+
+    def test_invalid_root_type_returns_empty(self, mock_db, mock_app):
+        """Given inbox root 가 dict 아님 When fetch Then 빈 리스트."""
+        from live.rtdb_gateway import fetch_unprocessed_model_syncs
+
+        mock_db["/model_sync/inbox"] = "not a dict"
+        assert fetch_unprocessed_model_syncs(mock_app) == []
+
+
+class TestMarkModelSyncsProcessed:
+    """``mark_model_syncs_processed`` — processed=true 업데이트."""
+
+    def test_marks_each_key_processed(self, mock_db, mock_app):
+        """[T-SYNC-GW.2] Given 2 건 key When mark Then 모두 processed=True."""
+        from live.rtdb_gateway import mark_model_syncs_processed
+
+        mock_db["/model_sync/inbox/sync_a"] = {
+            "processed": False,
+            "input_time_kst": "2026-04-15T20:00:00+09:00",
+        }
+        mock_db["/model_sync/inbox/sync_b"] = {
+            "processed": False,
+            "input_time_kst": "2026-04-14T20:00:00+09:00",
+        }
+
+        mark_model_syncs_processed(mock_app, ["sync_a", "sync_b"])
+
+        assert mock_db["/model_sync/inbox/sync_a"]["processed"] is True
+        assert mock_db["/model_sync/inbox/sync_b"]["processed"] is True
+
+    def test_empty_keys_is_noop(self, mock_db, mock_app):
+        """Given 빈 key 리스트 When mark Then RTDB 미변경."""
+        from live.rtdb_gateway import mark_model_syncs_processed
+
+        mark_model_syncs_processed(mock_app, [])
+        assert mock_db == {}
+
+
+class TestDictToModelSync:
+    """``_dict_to_model_sync`` 헬퍼 계약 (입력 검증)."""
+
+    def test_minimum_fields_parsed(self):
+        """Given input_time_kst 만 있는 dict When 변환 Then ModelSync 객체."""
+        from live.models import ModelSync
+        from live.rtdb_gateway import _dict_to_model_sync
+
+        sync = _dict_to_model_sync(
+            {"input_time_kst": "2026-04-15T20:00:00+09:00"},
+            rtdb_key="sync_ok",
+        )
+        assert isinstance(sync, ModelSync)
+        assert sync.rtdb_key == "sync_ok"
+        assert sync.input_time_kst == "2026-04-15T20:00:00+09:00"
+
+    def test_missing_input_time_kst_raises(self):
+        """Given input_time_kst 누락 When 변환 Then ValueError."""
+        from live.rtdb_gateway import _dict_to_model_sync
+
+        with pytest.raises(ValueError, match="input_time_kst"):
+            _dict_to_model_sync({}, rtdb_key="sync_bad")
+
+
 class TestDeleteAllExceptDeviceTokens:
     """``reset`` CLI 가 호출하는 RTDB 전체 초기화 경로 정책.
 
@@ -811,6 +908,7 @@ class TestDeleteAllExceptDeviceTokens:
         assert "/fills/inbox" in deleted_paths
         assert "/balance_adjust/inbox" in deleted_paths
         assert "/fill_dismiss/inbox" in deleted_paths
+        assert "/model_sync/inbox" in deleted_paths
 
 
 # ============================================================================

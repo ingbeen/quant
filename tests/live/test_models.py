@@ -314,6 +314,7 @@ class TestDailyResult:
             "ma_distances",
             "notification_body",
             "pending_fill_reminders",
+            "model_sync_applied",
         }
         actual = {f.name for f in fields(DailyResult)}
         assert expected == actual
@@ -572,3 +573,61 @@ class TestEquityChartSeries:
         assert payload["model_equity"] == [12_345_678, 12_400_000]
         assert payload["actual_equity"] == [12_300_000, 12_350_001]
         assert payload["drift_pct"] == [0.0037, 0.0041]
+
+
+class TestModelSyncDataclass:
+    """
+    목적: :class:`ModelSync` 의 필드 구조를 고정한다 (최소 계약).
+
+    ``asset_id`` / ``reason`` / ``new_*`` 등 다른 inbox dataclass 에 있는 필드는
+    **의도적으로 존재하지 않는다** — 전체 동기화 전용이며 사유 입력 UI 없음.
+    """
+
+    def test_model_sync_has_minimal_fields(self):
+        """
+        목적: ModelSync 필드 = {rtdb_key, input_time_kst} 뿐.
+        """
+        from dataclasses import fields, is_dataclass
+
+        from live.models import ModelSync
+
+        assert is_dataclass(ModelSync)
+        field_names = {f.name for f in fields(ModelSync)}
+        assert field_names == {"rtdb_key", "input_time_kst"}
+
+    def test_model_sync_does_not_have_asset_or_reason(self):
+        """
+        목적: 전체 동기화 / 사유 없음 원칙 — asset_id / reason 필드는 없다.
+        """
+        from dataclasses import fields
+
+        from live.models import ModelSync
+
+        field_names = {f.name for f in fields(ModelSync)}
+        assert "asset_id" not in field_names
+        assert "reason" not in field_names
+
+    def test_model_sync_instantiation(self):
+        """
+        목적: 최소 인자로 ModelSync 가 정상 구성된다.
+        """
+        from live.models import ModelSync
+
+        sync = ModelSync(rtdb_key="sync_abc", input_time_kst="2026-04-15T20:00:00+09:00")
+        assert sync.rtdb_key == "sync_abc"
+        assert sync.input_time_kst == "2026-04-15T20:00:00+09:00"
+
+
+class TestDailyResultModelSyncAppliedField:
+    """
+    목적: :class:`DailyResult` 에 ``model_sync_applied: bool`` 필드가 존재함을
+    고정한다. 일일 리포트 강조 블록 / 히스토리 추적이 이 필드에 의존한다.
+    """
+
+    def test_daily_result_has_model_sync_applied_field(self):
+        from dataclasses import fields
+
+        from live.models import DailyResult
+
+        field_names = {f.name for f in fields(DailyResult)}
+        assert "model_sync_applied" in field_names

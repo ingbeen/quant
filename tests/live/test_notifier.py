@@ -66,6 +66,7 @@ def _make_daily_result() -> DailyResult:
         ma_distances={"sso": 0.0256, "qld": 0.0119},
         notification_body="",
         pending_fill_reminders=["sso pending"],
+        model_sync_applied=False,
     )
 
 
@@ -321,6 +322,44 @@ class TestDailyBodyLayout:
         assert "[QBT Live]" in lines[0]
         assert lines[1].strip() == ""
         assert "model equity" in lines[2]
+
+    def test_model_sync_applied_shown_when_true(self, patched_fcm_success, patched_telegram_success):
+        """Given model_sync_applied=True When send_all Then 강조 블록에 'Model 동기화 적용' 라인 노출."""
+        result = _make_daily_result()
+        result.model_sync_applied = True
+
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+
+        assert "Model 동기화 적용" in body
+
+    def test_model_sync_applied_hidden_when_false(self, patched_fcm_success, patched_telegram_success):
+        """Given model_sync_applied=False When send_all Then 본문에 'Model 동기화 적용' 문자열 없음."""
+        result = _make_daily_result()
+        result.model_sync_applied = False
+
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+
+        assert "Model 동기화 적용" not in body
+
+    def test_model_sync_appears_first_in_highlights(self, patched_fcm_success, patched_telegram_success):
+        """Given 동기화 + 시그널 + 리밸런싱 + 리마인더 모두 존재 When send_all Then 동기화 라인이 최상단."""
+        result = _make_daily_result()
+        result.model_sync_applied = True
+
+        send_all(["t1"], "bot", "chat", result)
+        body = patched_telegram_success["body"]
+        lines = body.splitlines()
+
+        sync_idx = next(i for i, line in enumerate(lines) if "Model 동기화 적용" in line)
+        signal_idx = next(i for i, line in enumerate(lines) if "시그널" in line)
+        rebalance_idx = next(i for i, line in enumerate(lines) if "리밸런싱" in line)
+        reminder_idx = next(i for i, line in enumerate(lines) if "미입력 체결 리마인더" in line)
+
+        assert sync_idx < signal_idx
+        assert sync_idx < rebalance_idx
+        assert sync_idx < reminder_idx
 
 
 class TestEmptyTokens:

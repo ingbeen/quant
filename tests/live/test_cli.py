@@ -54,9 +54,11 @@ def _mock_rtdb_for_cli(monkeypatch: pytest.MonkeyPatch) -> _FakeRtdbApp:
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+    monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+    monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
     monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda app, sd, st, r, nk: None)
     monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
     return fake_app
@@ -618,9 +620,11 @@ class TestCmdRunDailySuccess:
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fills_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
 
         publish_calls: list[bool] = []
 
@@ -1514,7 +1518,9 @@ class TestRunDailyValidatorIntegration:
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [new_fill])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
 
         # /history/fills/ 미러 호출 추적 (PLAN_LIVE_HISTORY_RTDB_MIRROR)
         history_fill_calls: list[tuple[list[Any], str]] = []
@@ -1587,7 +1593,9 @@ class TestRunDailyValidatorIntegration:
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [existing_fill])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1677,6 +1685,8 @@ class TestRunDailyValidatorIntegration:
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [adjust])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
 
         mark_calls: list[list[str]] = []
         monkeypatch.setattr(
@@ -1766,6 +1776,7 @@ class TestRunDailyValidatorIntegration:
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [existing_adjust])
         monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [])
         mark_calls: list[list[str]] = []
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -1773,6 +1784,7 @@ class TestRunDailyValidatorIntegration:
             lambda app, keys: mark_calls.append(list(keys)),
         )
         monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_model_syncs_processed", lambda app, keys: None)
         monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
         monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
 
@@ -1792,6 +1804,82 @@ class TestRunDailyValidatorIntegration:
 
         # RTDB mark 도 호출되지 않음
         assert mark_calls == []
+
+    def test_model_sync_inbox_applied_and_marked(self, state_dir: Path, monkeypatch):
+        """Given RTDB model_sync inbox 1 건 When run-daily Then model=actual 반영 + mark_processed 호출.
+
+        앱이 /model_sync/inbox/{uuid} 에 요청 1 건을 썼다고 가정.
+        - Stage 2.6 balance_adjust 로 actual 만 먼저 수정 (sso new_shares=200).
+        - Stage 2.7 model_sync 가 "model = actual" 덮어쓰기 → model_shares=200 으로 수렴.
+        - 실행 후 mark_model_syncs_processed 가 해당 rtdb_key 와 함께 호출되어야 한다.
+        """
+        main(["init", "--capital", "100000000"])
+        trade_date = date(2026, 4, 10)
+        _setup_flat_market_csvs(state_dir, trade_date)
+
+        monkeypatch.setattr(cli_module, "fetch_recent_ohlc", lambda t, days=5: _make_recent_df(trade_date))
+        fake_app = object()
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_fills", lambda app: [])
+
+        from live.models import BalanceAdjust, ModelSync
+
+        # 같은 배치에 balance_adjust + model_sync → actual 을 먼저 수정한 뒤 model 복사.
+        adjust = BalanceAdjust(
+            rtdb_key="adj_pre_sync",
+            input_time_kst="2026-04-10T19:00:00+09:00",
+            reason="sync rehearsal",
+            asset_id="sso",
+            new_shares=200,
+            new_avg_price=80.0,
+            new_entry_date="2026-03-15",
+        )
+        sync = ModelSync(
+            rtdb_key="sync_cli_001",
+            input_time_kst="2026-04-10T20:00:00+09:00",
+        )
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_balance_adjusts", lambda app: [adjust])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_pending_fill_dismisses", lambda app: [])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "fetch_unprocessed_model_syncs", lambda app: [sync])
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_balance_adjusts_processed", lambda app, keys: None)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "mark_fill_dismisses_processed", lambda app, keys: None)
+
+        mark_sync_calls: list[list[str]] = []
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "mark_model_syncs_processed",
+            lambda app, keys: mark_sync_calls.append(list(keys)),
+        )
+        monkeypatch.setattr(
+            cli_module.rtdb_gateway,
+            "write_history_balance_adjusts",
+            lambda app, adjusts, applied_at: None,
+        )
+
+        monkeypatch.setattr(cli_module, "_publish_to_rtdb", lambda *a, **kw: None)
+        monkeypatch.setattr(cli_module, "_send_daily_notifications", lambda app, result: None)
+
+        exit_code = main(["run-daily", "--trade-date", trade_date.isoformat()])
+        assert exit_code == 0
+
+        # state 반영 확인 — Stage 2.6 의 adjust 로 actual 변경, Stage 2.7 의 sync 로 model = actual.
+        from live.state import load_state
+
+        new_state = load_state(state_dir / "live_state.json")
+        assert new_state.assets["sso"].actual_shares == 200
+        assert new_state.assets["sso"].model_shares == 200
+
+        # mark_model_syncs_processed 가 rtdb_key 와 함께 호출되었는지 검증
+        assert len(mark_sync_calls) == 1
+        assert mark_sync_calls[0] == ["sync_cli_001"]
+
+        # history/daily/{date}.json 에 model_sync_applied=True 기록 (영구 추적)
+        import json as _json
+
+        daily_path = state_dir / "history" / "daily" / f"{trade_date.isoformat()}.json"
+        assert daily_path.exists()
+        daily_payload = _json.loads(daily_path.read_text(encoding="utf-8"))
+        assert daily_payload.get("model_sync_applied") is True
 
     def test_idempotency_bypassed_when_trade_date_explicit(self, state_dir: Path, monkeypatch):
         """Given 같은 날짜 state 이미 처리 + --trade-date 명시 When Then 실행 진행."""

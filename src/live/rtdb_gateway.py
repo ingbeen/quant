@@ -18,6 +18,7 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 - ``/history/balance_adjusts/{YYYY-MM-DD}/{uuid}``
 - ``/history/signals/{YYYY-MM-DD}/{asset_id}``
 - ``/fills/inbox/{uuid}``, ``/balance_adjust/inbox/{uuid}``, ``/fill_dismiss/inbox/{uuid}``
+- ``/model_sync/inbox/{uuid}``
 - ``/device_tokens/{device_id}``
 """
 
@@ -40,6 +41,7 @@ from live.models import (
     EquityChartSeries,
     FillDismiss,
     LiveState,
+    ModelSync,
     SignalDetection,
 )
 from qbt.backtest.constants import ROUND_RATIO
@@ -60,6 +62,8 @@ __all__ = [
     "mark_balance_adjusts_processed",
     "fetch_pending_fill_dismisses",
     "mark_fill_dismisses_processed",
+    "fetch_unprocessed_model_syncs",
+    "mark_model_syncs_processed",
     "write_read_model",
     "write_chart_meta",
     "write_chart_recent",
@@ -84,6 +88,7 @@ _HISTORY_PATH = "/history"
 _FILLS_INBOX_PATH = "/fills/inbox"
 _BALANCE_ADJUST_INBOX_PATH = "/balance_adjust/inbox"
 _FILL_DISMISS_INBOX_PATH = "/fill_dismiss/inbox"
+_MODEL_SYNC_INBOX_PATH = "/model_sync/inbox"
 _DEVICE_TOKENS_PATH = "/device_tokens"
 _CHART_PRICES_PATH = "/charts/prices"
 _CHART_EQUITY_PATH = "/charts/equity"
@@ -313,6 +318,58 @@ def mark_fill_dismisses_processed(app: FirebaseAppLike, keys: list[str]) -> None
     """주어진 fill_dismiss ID 들을 ``processed=true`` 로 마킹한다."""
     for key in keys:
         ref = _db_reference(app, f"{_FILL_DISMISS_INBOX_PATH}/{key}")
+        ref.update({"processed": True})
+
+
+# ============================================================================
+# model_sync RTDB 경로 — 앱이 요청하는 전체 동기화
+# ============================================================================
+
+
+def _dict_to_model_sync(data: dict[str, Any], rtdb_key: str) -> ModelSync:
+    """RTDB ``/model_sync/inbox/{uuid}`` dict → :class:`ModelSync`.
+
+    Raises:
+        ValueError: ``input_time_kst`` 필드가 없거나 빈 값일 때.
+    """
+    input_time_kst = data.get("input_time_kst")
+    if not isinstance(input_time_kst, str) or not input_time_kst.strip():
+        raise ValueError(f"model_sync 에 input_time_kst 필수 (rtdb_key={rtdb_key!r})")
+    return ModelSync(rtdb_key=rtdb_key, input_time_kst=input_time_kst)
+
+
+def fetch_unprocessed_model_syncs(app: FirebaseAppLike) -> list[ModelSync]:
+    """RTDB ``/model_sync/inbox`` 에서 ``processed=false`` 인 항목만 가져온다.
+
+    model_sync 는 "model = actual" 덮어쓰기로 멱등이므로 별도 applied_ids 원장을
+    두지 않는다. ``processed`` 플래그만으로 중복 처리 방지.
+
+    Args:
+        app: ``firebase_admin.App`` 인스턴스 (mock 가능).
+
+    Returns:
+        :class:`ModelSync` 리스트. queue 가 비어있거나 존재하지 않으면 빈 리스트.
+    """
+    ref = _db_reference(app, _MODEL_SYNC_INBOX_PATH)
+    raw = ref.get() or {}
+
+    if not isinstance(raw, dict):
+        return []
+
+    syncs: list[ModelSync] = []
+    for rtdb_key, data in raw.items():
+        if not isinstance(data, dict):
+            continue
+        if data.get("processed", False):
+            continue
+        syncs.append(_dict_to_model_sync(data, rtdb_key))
+    return syncs
+
+
+def mark_model_syncs_processed(app: FirebaseAppLike, keys: list[str]) -> None:
+    """주어진 model_sync ID 들을 ``processed=true`` 로 마킹한다."""
+    for key in keys:
+        ref = _db_reference(app, f"{_MODEL_SYNC_INBOX_PATH}/{key}")
         ref.update({"processed": True})
 
 
@@ -644,6 +701,7 @@ def delete_all_except_device_tokens(app: FirebaseAppLike) -> None:
         _FILLS_INBOX_PATH,
         _BALANCE_ADJUST_INBOX_PATH,
         _FILL_DISMISS_INBOX_PATH,
+        _MODEL_SYNC_INBOX_PATH,
     ]
     for path in paths_to_delete:
         _db_reference(app, path).delete()
