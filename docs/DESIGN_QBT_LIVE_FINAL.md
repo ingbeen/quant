@@ -9,29 +9,29 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
 
 ### 앱 관점 확정 사항
 
-| 항목                  | 확정 |
-|-----------------------|------|
-| UI                    | Android 앱 (React Native). 웹 없음 |
-| 앱 인증               | Firebase Auth Email/Password |
-| 푸시 알림             | FCM (텍스트) + 텔레그램 봇 (동시 발송) |
-| 앱 데이터 버스        | Firebase RTDB (Spark 무료) |
-| 체결 입력             | 앱 → RTDB `/fills/inbox/{uuid}` (자동 매칭 + idempotency) |
-| 자산 직접 수정        | 앱 → RTDB `/balance_adjust/inbox/{uuid}` |
-| 차트                  | RTDB 시계열 + TradingView Lightweight Charts |
-| FCM 토큰              | RTDB `/device_tokens/{device_id}` (복수 기기 대응) |
-| 정본 원장             | Git 프라이빗 리포 (앱은 접근하지 않음) |
-| model / actual 분리   | 두 축을 RTDB 에서 별도로 읽고 표시 |
-| PendingOrder          | 단일 슬롯, `execute_on` 없음 (익일 시가 자동 확정) |
-| 스케쥴                | 평일 ET 17:27 cron, 매일 1 회 `/latest/*` 갱신 |
+| 항목                | 확정                                                      |
+| ------------------- | --------------------------------------------------------- |
+| UI                  | Android 앱 (React Native). 웹 없음                        |
+| 앱 인증             | Firebase Auth Email/Password                              |
+| 푸시 알림           | FCM (텍스트) + 텔레그램 봇 (동시 발송)                    |
+| 앱 데이터 버스      | Firebase RTDB (Spark 무료)                                |
+| 체결 입력           | 앱 → RTDB `/fills/inbox/{uuid}` (자동 매칭 + idempotency) |
+| 자산 직접 수정      | 앱 → RTDB `/balance_adjust/inbox/{uuid}`                  |
+| 차트                | RTDB 시계열 + TradingView Lightweight Charts              |
+| FCM 토큰            | RTDB `/device_tokens/{device_id}` (복수 기기 대응)        |
+| 정본 원장           | Git 프라이빗 리포 (앱은 접근하지 않음)                    |
+| model / actual 분리 | 두 축을 RTDB 에서 별도로 읽고 표시                        |
+| PendingOrder        | 단일 슬롯, `execute_on` 없음 (익일 시가 자동 확정)        |
+| 스케쥴              | 평일 ET 17:27 cron, 매일 1 회 `/latest/*` 갱신            |
 
 ### 인프라 정보 (앱 설정에 필요)
 
-| 항목                  | 값 |
-|-----------------------|---|
-| Firebase 프로젝트     | `qbt-live` (Spark 요금제) |
-| RTDB URL              | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
-| Android 패키지        | `com.ingbeen.qbtlive` |
-| 텔레그램 봇           | `@qbt_live_alert_bot` |
+| 항목              | 값                                                                   |
+| ----------------- | -------------------------------------------------------------------- |
+| Firebase 프로젝트 | `qbt-live` (Spark 요금제)                                            |
+| RTDB URL          | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
+| Android 패키지    | `com.ingbeen.qbtlive`                                                |
+| 텔레그램 봇       | `@qbt_live_alert_bot`                                                |
 
 **식별자 규칙**: RTDB 경로의 `{asset_id}` 는 항상 **소문자** (예: `sso`, `qld`, `gld`, `tlt`). 자산 목록과 live 서버 내부 상수 (`LIVE_PORTFOLIO_ID`, `SCHEMA_VERSION`, 드리프트 임계값 등) 는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
@@ -149,12 +149,12 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 **엣지 케이스**:
 
-| 케이스 | 결과 |
-|---|---|
-| fill + model_sync 동일 배치 | Stage 1 이 actual 을 먼저 갱신, Stage 3 가 갱신된 actual 복사 |
-| balance_adjust + model_sync 동일 배치 | Stage 2 가 actual 을 먼저 덮어쓰고, Stage 3 가 덮어쓴 actual 복사 |
-| 전일 pending + model_sync | Stage 3 이 pending 모두 해제 → Stage 4 에서 체결 없음 (`executions is None`) |
-| model_sync 연속 2 일 | 멱등 — 동일 결과 |
+| 케이스                                | 결과                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------- |
+| fill + model_sync 동일 배치           | Stage 1 이 actual 을 먼저 갱신, Stage 3 가 갱신된 actual 복사                |
+| balance_adjust + model_sync 동일 배치 | Stage 2 가 actual 을 먼저 덮어쓰고, Stage 3 가 덮어쓴 actual 복사            |
+| 전일 pending + model_sync             | Stage 3 이 pending 모두 해제 → Stage 4 에서 체결 없음 (`executions is None`) |
+| model_sync 연속 2 일                  | 멱등 — 동일 결과                                                             |
 
 ---
 
@@ -173,10 +173,10 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 **시계열 필드** (recent / archive 공통): `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
 **마커 필드** (recent / archive 공통): `buy_signals`, `sell_signals`, `user_buys`, `user_sells` — 모두 **ISO 8601 날짜 문자열 배열** (인덱스 아님). 분할된 슬라이스 사이에서 위치 독립적.
 
-| 마커 종류                      | 출처                                    | 의미                                 |
-| ------------------------------ | --------------------------------------- | ------------------------------------ |
-| `buy_signals` / `sell_signals` | Git 정본 `history/signals.jsonl`        | 과거 신호 발생일 (ISO 날짜)          |
-| `user_buys` / `user_sells`     | Git 정본 `history/user_trades.jsonl`    | 사용자 체결 발생일 (ISO 날짜)        |
+| 마커 종류                      | 출처                                 | 의미                          |
+| ------------------------------ | ------------------------------------ | ----------------------------- |
+| `buy_signals` / `sell_signals` | Git 정본 `history/signals.jsonl`     | 과거 신호 발생일 (ISO 날짜)   |
+| `user_buys` / `user_sells`     | Git 정본 `history/user_trades.jsonl` | 사용자 체결 발생일 (ISO 날짜) |
 
 정확한 페이로드 스키마와 필드 타입은 §8.2.5 를 참고한다.
 
@@ -184,7 +184,7 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 **archive 정책**: 연도 단위 고정 slice. daily runner 는 "현재 연도" archive 만 매 실행 덮어쓰고, 이전 연도 archive 는 건드리지 않는다. 최초 배포 시와 스플릿/무상증자 감지 시에는 운영자가 backfill CLI 로 전체 archive 를 재생성한다.
 
-**recent ↔ archive 경계 중복 허용**: recent 와 archive/{현재_연도} 는 같은 날짜를 양쪽에 포함할 수 있다. 앱은 두 소스를 읽은 후 `Map<date, point>` 로 dedupe 하여 차트에 넣는다. 이 정책은 서버 쪽 구현 단순성과 정합성 안정을 우선한 선택.
+**recent ↔ archive 경계 중복 허용**: recent 와 archive/{현재\_연도} 는 같은 날짜를 양쪽에 포함할 수 있다. 앱은 두 소스를 읽은 후 `Map<date, point>` 로 dedupe 하여 차트에 넣는다. 이 정책은 서버 쪽 구현 단순성과 정합성 안정을 우선한 선택.
 
 **앱 로딩 플로우 (권장)**:
 
@@ -204,10 +204,10 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 live 는 매 실행 끝에 FCM + 텔레그램을 동시 발송한다. 두 채널은 독립이며 한쪽 실패가 다른 쪽을 막지 않는다. 본문 텍스트는 두 채널이 동일하다.
 
-| 종류           | 내용                                                                          | 빈도                                      |
-|----------------|-------------------------------------------------------------------------------|-------------------------------------------|
-| 일일 리포트    | model/actual equity, drift, 시그널, MA 근접도, 리밸런싱 여부, 리마인더 건수   | 매 run-daily 정상 실행                    |
-| 실패 알림      | 실패한 커맨드 이름 + 예외 메시지                                              | live 실행 중 예외 발생 시                 |
+| 종류        | 내용                                                                        | 빈도                      |
+| ----------- | --------------------------------------------------------------------------- | ------------------------- |
+| 일일 리포트 | model/actual equity, drift, 시그널, MA 근접도, 리밸런싱 여부, 리마인더 건수 | 매 run-daily 정상 실행    |
+| 실패 알림   | 실패한 커맨드 이름 + 예외 메시지                                            | live 실행 중 예외 발생 시 |
 
 ### 6.1 FCM 메시지 구조 (앱 파싱 계약)
 
@@ -335,17 +335,17 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 }
 ```
 
-| 필드                             | 타입                   | null | 설명                                                            |
-| -------------------------------- | ---------------------- | ---- | --------------------------------------------------------------- |
-| `execution_date`                 | str                    | 불가 | ISO 8601 날짜 (예: `"2026-04-10"`)                              |
-| `model_equity`                   | number                 | 불가 | model 축 총 자산가치 (자본금 반올림, `ROUND_CAPITAL = 0` 자리)  |
-| `actual_equity`                  | number                 | 불가 | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                |
-| `drift_pct`                      | number                 | 불가 | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리, 예: `0.0037` = 0.37%). §12 참고 |
-| `shared_cash_model`              | number                 | 불가 | model 축 공유 현금                                              |
-| `shared_cash_actual`             | number                 | 불가 | actual 축 공유 현금                                             |
-| `assets.{asset_id}.model_shares` | int                    | 불가 | model 축 보유 주식 수                                           |
-| `assets.{asset_id}.actual_shares`| int                    | 불가 | actual 축 보유 주식 수                                          |
-| `assets.{asset_id}.signal_state` | `"buy"`\|`"sell"`      | 불가 | 누적 원장 신호 상태. 초기값 `"sell"` (포지션 없음). §3 참고    |
+| 필드                              | 타입              | null | 설명                                                                           |
+| --------------------------------- | ----------------- | ---- | ------------------------------------------------------------------------------ |
+| `execution_date`                  | str               | 불가 | ISO 8601 날짜 (예: `"2026-04-10"`)                                             |
+| `model_equity`                    | number            | 불가 | model 축 총 자산가치 (자본금 반올림, `ROUND_CAPITAL = 0` 자리)                 |
+| `actual_equity`                   | number            | 불가 | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                               |
+| `drift_pct`                       | number            | 불가 | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리, 예: `0.0037` = 0.37%). §12 참고 |
+| `shared_cash_model`               | number            | 불가 | model 축 공유 현금                                                             |
+| `shared_cash_actual`              | number            | 불가 | actual 축 공유 현금                                                            |
+| `assets.{asset_id}.model_shares`  | int               | 불가 | model 축 보유 주식 수                                                          |
+| `assets.{asset_id}.actual_shares` | int               | 불가 | actual 축 보유 주식 수                                                         |
+| `assets.{asset_id}.signal_state`  | `"buy"`\|`"sell"` | 불가 | 누적 원장 신호 상태. 초기값 `"sell"` (포지션 없음). §3 참고                    |
 
 #### 8.2.2 `/latest/signals/{asset_id}` — 당일 시그널 / MA / 밴드
 
@@ -355,24 +355,31 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 {
   "sso": {
     "state": "buy",
-    "close": 123.450000,
-    "ma_value": 120.500000,
+    "close": 123.45,
+    "ma_value": 120.5,
     "ma_distance_pct": 0.0245,
-    "upper_band": 126.525000,
-    "lower_band": 114.475000
+    "upper_band": 126.525,
+    "lower_band": 114.475
   },
-  "qld": { "state": "none", "close": 85.200000, "ma_value": 86.100000, "ma_distance_pct": -0.0105, "upper_band": null, "lower_band": null }
+  "qld": {
+    "state": "none",
+    "close": 85.2,
+    "ma_value": 86.1,
+    "ma_distance_pct": -0.0105,
+    "upper_band": null,
+    "lower_band": null
+  }
 }
 ```
 
-| 필드               | 타입                         | null | 설명                                                                                               |
-| ------------------ | ---------------------------- | ---- | -------------------------------------------------------------------------------------------------- |
-| `state`            | `"buy"`\|`"sell"`\|`"none"`  | 불가 | **당일 감지** 된 신호. `"none"` = 오늘 새 신호 없음. 누적 원장(`signal_state`) 과는 별개. §3 참고 |
-| `close`            | number                       | 불가 | 당일 종가 (`ROUND_PRICE = 6` 자리)                                                                 |
-| `ma_value`         | number                       | 가능 | 자산 슬롯의 `ma_window` 기준 MA 값 (워밍업 구간은 null)                                            |
-| `ma_distance_pct`  | number                       | 불가 | `(close - ma_value) / ma_value` (비율 0~1, 음수 가능, `ROUND_RATIO = 4` 자리)                       |
-| `upper_band`       | number                       | 가능 | BufferZone 상단 밴드 (버퍼존 미사용 자산은 null). 전략이 다음 거래일 판단에 사용할 값과 동일       |
-| `lower_band`       | number                       | 가능 | BufferZone 하단 밴드 (버퍼존 미사용 자산은 null)                                                    |
+| 필드              | 타입                        | null | 설명                                                                                              |
+| ----------------- | --------------------------- | ---- | ------------------------------------------------------------------------------------------------- |
+| `state`           | `"buy"`\|`"sell"`\|`"none"` | 불가 | **당일 감지** 된 신호. `"none"` = 오늘 새 신호 없음. 누적 원장(`signal_state`) 과는 별개. §3 참고 |
+| `close`           | number                      | 불가 | 당일 종가 (`ROUND_PRICE = 6` 자리)                                                                |
+| `ma_value`        | number                      | 가능 | 자산 슬롯의 `ma_window` 기준 MA 값 (워밍업 구간은 null)                                           |
+| `ma_distance_pct` | number                      | 불가 | `(close - ma_value) / ma_value` (비율 0~1, 음수 가능, `ROUND_RATIO = 4` 자리)                     |
+| `upper_band`      | number                      | 가능 | BufferZone 상단 밴드 (버퍼존 미사용 자산은 null). 전략이 다음 거래일 판단에 사용할 값과 동일      |
+| `lower_band`      | number                      | 가능 | BufferZone 하단 밴드 (버퍼존 미사용 자산은 null)                                                  |
 
 #### 8.2.3 `/latest/pending_orders/{asset_id}` — 익일 체결 예정 주문
 
@@ -394,17 +401,17 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 }
 ```
 
-| 필드             | 타입                                                                           | 설명                                                   |
-| ---------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| `asset_id`       | str                                                                            | 소문자 자산 ID (중복 저장 — 최상위 key 와 동일)        |
-| `intent_type`    | `"EXIT_ALL"`\|`"ENTER_TO_TARGET"`\|`"REDUCE_TO_TARGET"`\|`"INCREASE_TO_TARGET"` | QBT `OrderIntent.intent_type` 과 동일한 Literal         |
-| `signal_date`    | str                                                                            | 신호 발생 날짜 (ISO 8601). 체결 예정일은 **다음 거래일 시가** 자동 확정 — `execute_on` 필드 없음 |
-| `current_amount` | number                                                                         | 현재 자산 평가액                                       |
-| `target_amount`  | number                                                                         | 목표 자산 평가액                                       |
-| `delta_amount`   | number                                                                         | 증감량 (음수=매도, 양수=매수)                          |
-| `target_weight`  | number                                                                         | 목표 비중 (0~1 비율)                                   |
-| `hold_days_used` | int                                                                            | BufferZone hold_days 누적 (매수 확정 대기 일수)        |
-| `reason`         | str                                                                            | 신호 이유 설명 (앱 리마인더 본문)                      |
+| 필드             | 타입                                                                            | 설명                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `asset_id`       | str                                                                             | 소문자 자산 ID (중복 저장 — 최상위 key 와 동일)                                                  |
+| `intent_type`    | `"EXIT_ALL"`\|`"ENTER_TO_TARGET"`\|`"REDUCE_TO_TARGET"`\|`"INCREASE_TO_TARGET"` | QBT `OrderIntent.intent_type` 과 동일한 Literal                                                  |
+| `signal_date`    | str                                                                             | 신호 발생 날짜 (ISO 8601). 체결 예정일은 **다음 거래일 시가** 자동 확정 — `execute_on` 필드 없음 |
+| `current_amount` | number                                                                          | 현재 자산 평가액                                                                                 |
+| `target_amount`  | number                                                                          | 목표 자산 평가액                                                                                 |
+| `delta_amount`   | number                                                                          | 증감량 (음수=매도, 양수=매수)                                                                    |
+| `target_weight`  | number                                                                          | 목표 비중 (0~1 비율)                                                                             |
+| `hold_days_used` | int                                                                             | BufferZone hold_days 누적 (매수 확정 대기 일수)                                                  |
+| `reason`         | str                                                                             | 신호 이유 설명 (앱 리마인더 본문)                                                                |
 
 #### 8.2.4 `/latest/drift` — (삭제됨)
 
@@ -430,17 +437,20 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
   "last_date": "2026-04-14",
   "ma_window": 200,
   "recent_months": 6,
-  "archive_years": [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+  "archive_years": [
+    2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024,
+    2025, 2026
+  ]
 }
 ```
 
-| 필드           | 타입        | 설명                                                                                 |
-| -------------- | ----------- | ------------------------------------------------------------------------------------ |
-| `first_date`   | str         | 자산 CSV 의 첫 거래일 (ISO 8601)                                                     |
-| `last_date`    | str         | 자산 CSV 의 마지막 거래일 (ISO 8601)                                                 |
-| `ma_window`    | int         | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                            |
-| `recent_months`| int         | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6`                    |
-| `archive_years`| list[int]   | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 archive 경로를 결정       |
+| 필드            | 타입      | 설명                                                                            |
+| --------------- | --------- | ------------------------------------------------------------------------------- |
+| `first_date`    | str       | 자산 CSV 의 첫 거래일 (ISO 8601)                                                |
+| `last_date`     | str       | 자산 CSV 의 마지막 거래일 (ISO 8601)                                            |
+| `ma_window`     | int       | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                      |
+| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6`              |
+| `archive_years` | list[int] | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 archive 경로를 결정 |
 
 앱은 `meta` 를 가장 먼저 한 번 읽고, 필요한 시점에 `recent` / `archive/{YYYY}` 로드 전략을 결정한다.
 
@@ -451,10 +461,10 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 ```json
 {
   "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
-  "close": [123.450000, 124.000000, 124.500000],
-  "ma_value": [120.500000, 120.650000, 120.800000],
-  "upper_band": [124.115000, 124.270000, 124.424000],
-  "lower_band": [114.475000, 114.618000, 114.760000],
+  "close": [123.45, 124.0, 124.5],
+  "ma_value": [120.5, 120.65, 120.8],
+  "upper_band": [124.115, 124.27, 124.424],
+  "lower_band": [114.475, 114.618, 114.76],
   "buy_signals": ["2025-11-03"],
   "sell_signals": ["2026-01-21"],
   "user_buys": ["2025-11-04"],
@@ -462,17 +472,17 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 }
 ```
 
-| 필드           | 타입                 | 설명                                                                                    |
-| -------------- | -------------------- | --------------------------------------------------------------------------------------- |
-| `dates`        | list[str]            | recent 구간 거래일 (ISO 8601)                                                           |
-| `close`        | list[number]         | 종가 (`ROUND_PRICE = 6` 자리)                                                           |
-| `ma_value`     | list[number \| null] | MA. recent 는 보통 워밍업을 지난 구간이므로 전부 값이 채워진다                          |
-| `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)`                                                  |
-| `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)`                                                 |
-| `buy_signals`  | list[str]            | 해당 구간 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생           |
-| `sell_signals` | list[str]            | 해당 구간 내 매도 신호 발생일 (ISO 8601)                                                |
-| `user_buys`    | list[str]            | 해당 구간 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생    |
-| `user_sells`   | list[str]            | 해당 구간 내 사용자 매도 체결일 (ISO 8601)                                              |
+| 필드           | 타입                 | 설명                                                                                  |
+| -------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `dates`        | list[str]            | recent 구간 거래일 (ISO 8601)                                                         |
+| `close`        | list[number]         | 종가 (`ROUND_PRICE = 6` 자리)                                                         |
+| `ma_value`     | list[number \| null] | MA. recent 는 보통 워밍업을 지난 구간이므로 전부 값이 채워진다                        |
+| `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)`                                                |
+| `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)`                                               |
+| `buy_signals`  | list[str]            | 해당 구간 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생       |
+| `sell_signals` | list[str]            | 해당 구간 내 매도 신호 발생일 (ISO 8601)                                              |
+| `user_buys`    | list[str]            | 해당 구간 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생 |
+| `user_sells`   | list[str]            | 해당 구간 내 사용자 매도 체결일 (ISO 8601)                                            |
 
 ##### 8.2.5.3 `/charts/prices/{asset_id}/archive/{YYYY}`
 
@@ -526,12 +536,12 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
-| 필드           | 타입      | 설명                                                                       |
-| -------------- | --------- | -------------------------------------------------------------------------- |
-| `first_date`   | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                           |
-| `last_date`    | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                    |
-| `recent_months`| int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6` (주가 공용) |
-| `archive_years`| list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                              |
+| 필드            | 타입      | 설명                                                                           |
+| --------------- | --------- | ------------------------------------------------------------------------------ |
+| `first_date`    | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                               |
+| `last_date`     | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                        |
+| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6` (주가 공용) |
+| `archive_years` | list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                                 |
 
 ##### 8.2.6.2 `/charts/equity/recent`
 
@@ -546,12 +556,12 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
-| 필드            | 타입          | 설명                                                                                        |
-| --------------- | ------------- | ------------------------------------------------------------------------------------------- |
-| `dates`         | list[str]     | 해당 구간 거래일 (ISO 8601)                                                                 |
-| `model_equity`  | list[number]  | model 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                                              |
-| `actual_equity` | list[number]  | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)                                             |
-| `drift_pct`     | list[number]  | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리)                                               |
+| 필드            | 타입         | 설명                                             |
+| --------------- | ------------ | ------------------------------------------------ |
+| `dates`         | list[str]    | 해당 구간 거래일 (ISO 8601)                      |
+| `model_equity`  | list[number] | model 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리)  |
+| `actual_equity` | list[number] | actual 축 총 자산가치 (`ROUND_CAPITAL = 0` 자리) |
+| `drift_pct`     | list[number] | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리)   |
 
 **불변조건**: 4 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
 
@@ -596,21 +606,21 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 **필수 필드** (누락 시 `ValueError("fill 필수 필드 누락: [...]")`):
 
-| 필드             | 타입              | 설명                                                                                              |
-| ---------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
-| `asset_id`       | str               | 소문자 자산 ID. live 포트폴리오에 존재해야 함 (미보유 → `ValueError`)                             |
-| `direction`      | `"buy"`\|`"sell"` | **대소문자 민감**. 다른 값은 `ValueError("fill direction 값이 유효하지 않음")`                    |
-| `actual_price`   | number            | 체결 가격                                                                                         |
-| `actual_shares`  | int               | 체결 수량                                                                                         |
-| `trade_date`     | str               | ISO 8601 날짜 (예: `"2026-04-10"`)                                                                |
-| `input_time_kst` | str               | ISO 8601 KST 타임스탬프 (예: `"2026-04-10T15:30:22+09:00"`)                                       |
+| 필드             | 타입              | 설명                                                                           |
+| ---------------- | ----------------- | ------------------------------------------------------------------------------ |
+| `asset_id`       | str               | 소문자 자산 ID. live 포트폴리오에 존재해야 함 (미보유 → `ValueError`)          |
+| `direction`      | `"buy"`\|`"sell"` | **대소문자 민감**. 다른 값은 `ValueError("fill direction 값이 유효하지 않음")` |
+| `actual_price`   | number            | 체결 가격                                                                      |
+| `actual_shares`  | int               | 체결 수량                                                                      |
+| `trade_date`     | str               | ISO 8601 날짜 (예: `"2026-04-10"`)                                             |
+| `input_time_kst` | str               | ISO 8601 KST 타임스탬프 (예: `"2026-04-10T15:30:22+09:00"`)                    |
 
 **선택 필드**:
 
-| 필드     | 타입        | 설명                                      |
-| -------- | ----------- | ----------------------------------------- |
-| `memo`   | str \| null | 사용자 자유 메모 (기본 null)              |
-| `reason` | str         | 체결 사유 (기본 `""`)                     |
+| 필드     | 타입        | 설명                         |
+| -------- | ----------- | ---------------------------- |
+| `memo`   | str \| null | 사용자 자유 메모 (기본 null) |
+| `reason` | str         | 체결 사유 (기본 `""`)        |
 
 **서버측 검증 (거부 조건)** — 위반 시 `run-daily` 가 즉시 중단되고 FCM + 텔레그램 실패 알림 발송:
 
@@ -624,7 +634,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 **SoT**: `live.rtdb_gateway._dict_to_balance_adjust`, `live.models.BalanceAdjust`, `live.balance_adjust.apply_balance_adjusts_idempotent`. 앱이 UUID key 를 생성하여 append, daily runner 가 `processed=false` 만 필터링해 읽는다.
 
-**actual 축 전용**: balance_adjust 는 `AssetLiveState.actual_*` / `shared_cash_actual` 만 건드리며 `model_*` / `shared_cash_model` 은 절대 변경하지 않는다 (§1.2 "model / actual 분리" 원칙).
+**actual 축 전용**: balance*adjust 는 `AssetLiveState.actual*_`/`shared*cash_actual`만 건드리며`model*_`/`shared_cash_model` 은 절대 변경하지 않는다 (§1.2 "model / actual 분리" 원칙).
 
 **예시 1** — 자산 + 현금 동시 보정:
 
@@ -685,15 +695,15 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 **필드**:
 
-| 필드             | 타입            | 필수 여부    | 설명                                                                                 |
-| ---------------- | --------------- | ------------ | ------------------------------------------------------------------------------------ |
-| `asset_id`       | str \| null     | 조건부       | 자산 축 보정 시 필수 (`new_shares` / `new_avg_price` / `new_entry_date` 중 하나라도 지정 시). 현금만 보정하면 null / 생략 가능. unknown → `ValueError` |
-| `new_shares`     | int \| null     | 조건부       | 자산 shares 교체값. `0` 이면 평균가 / entry_date 리셋 (평균가 / 진입일 보정보다 우선) |
-| `new_avg_price`  | number \| null  | 조건부       | `actual_avg_entry_price` 교체값. `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨 |
-| `new_entry_date` | str \| null     | 조건부       | `actual_entry_date` 교체값 (ISO 8601 날짜 `YYYY-MM-DD`). `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨 |
-| `new_cash`       | number \| null  | 조건부       | `shared_cash_actual` 교체값                                                           |
-| `reason`         | str             | 권장         | 보정 사유 (audit 로그용)                                                              |
-| `input_time_kst` | str             | 권장         | ISO 8601 KST 타임스탬프                                                               |
+| 필드             | 타입           | 필수 여부 | 설명                                                                                                                                                         |
+| ---------------- | -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `asset_id`       | str \| null    | 조건부    | 자산 축 보정 시 필수 (`new_shares` / `new_avg_price` / `new_entry_date` 중 하나라도 지정 시). 현금만 보정하면 null / 생략 가능. unknown → `ValueError`       |
+| `new_shares`     | int \| null    | 조건부    | 자산 shares 교체값. `0` 이면 평균가 / entry_date 리셋 (평균가 / 진입일 보정보다 우선)                                                                        |
+| `new_avg_price`  | number \| null | 조건부    | `actual_avg_entry_price` 교체값. `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨                         |
+| `new_entry_date` | str \| null    | 조건부    | `actual_entry_date` 교체값 (ISO 8601 날짜 `YYYY-MM-DD`). `asset_id` 필수. `actual_shares == 0` 인 자산에 단독 지정 시 `ValueError`. `new_shares=0` 시 무시됨 |
+| `new_cash`       | number \| null | 조건부    | `shared_cash_actual` 교체값                                                                                                                                  |
+| `reason`         | str            | 권장      | 보정 사유 (audit 로그용)                                                                                                                                     |
+| `input_time_kst` | str            | 권장      | ISO 8601 KST 타임스탬프                                                                                                                                      |
 
 **핵심 제약** (live daily runner 가 검증하며, 위반 시 즉시 `ValueError` fail-fast):
 
@@ -751,11 +761,11 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **필드**:
 
-| 필드             | 타입   | 필수 여부 | 설명                                                        |
-| ---------------- | ------ | --------- | ----------------------------------------------------------- |
-| `asset_id`       | str    | 필수      | 리마인더를 해제할 자산 ID. unknown → live 에서 무시 (로그만) |
-| `reason`         | str    | 권장      | 스킵 사유 (audit 로그용)                                    |
-| `input_time_kst` | str    | 권장      | ISO 8601 KST 타임스탬프                                     |
+| 필드             | 타입 | 필수 여부 | 설명                                                         |
+| ---------------- | ---- | --------- | ------------------------------------------------------------ |
+| `asset_id`       | str  | 필수      | 리마인더를 해제할 자산 ID. unknown → live 에서 무시 (로그만) |
+| `reason`         | str  | 권장      | 스킵 사유 (audit 로그용)                                     |
+| `input_time_kst` | str  | 권장      | ISO 8601 KST 타임스탬프                                      |
 
 **핵심 제약**:
 
@@ -783,9 +793,9 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **필드**:
 
-| 필드             | 타입 | 필수 여부 | 설명                                                    |
-| ---------------- | ---- | --------- | ------------------------------------------------------- |
-| `input_time_kst` | str  | 필수      | 사용자가 앱에서 동기화 버튼을 누른 시각 (ISO 8601 KST)   |
+| 필드             | 타입 | 필수 여부 | 설명                                                   |
+| ---------------- | ---- | --------- | ------------------------------------------------------ |
+| `input_time_kst` | str  | 필수      | 사용자가 앱에서 동기화 버튼을 누른 시각 (ISO 8601 KST) |
 
 **의도적으로 두지 않은 필드**:
 
@@ -826,10 +836,10 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 }
 ```
 
-| 필드        | 타입           | 설명                                                                                             |
-| ----------- | -------------- | ------------------------------------------------------------------------------------------------ |
-| `{device_id}` 값 | str \| object  | str 이면 토큰 그 자체. object 면 `token` 필드에서 추출 (다른 필드는 무시되지만 저장 가능)         |
-| `token`     | str            | FCM registration token (객체 형식에서만 사용)                                                    |
+| 필드             | 타입          | 설명                                                                                      |
+| ---------------- | ------------- | ----------------------------------------------------------------------------------------- |
+| `{device_id}` 값 | str \| object | str 이면 토큰 그 자체. object 면 `token` 필드에서 추출 (다른 필드는 무시되지만 저장 가능) |
+| `token`          | str           | FCM registration token (객체 형식에서만 사용)                                             |
 
 **자동 정리**: daily runner 가 FCM 발송 시 `UnregisteredError` / `NOT_FOUND` 코드를 받으면 해당 토큰을 `remove_invalid_tokens` 로 `/device_tokens/` 에서 삭제한다. 앱은 앱 실행 시 자신의 토큰이 여전히 등록되어 있는지 확인하고 없으면 재등록하는 로직을 구현해야 한다.
 
@@ -853,19 +863,20 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 }
 ```
 
-| 필드             | 타입                  | null | 설명                                                                                       |
-| ---------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------ |
-| `asset_id`       | str                   | 불가 | 자산 ID 소문자 (sso/qld/gld/tlt)                                                           |
-| `direction`      | `"buy"`\|`"sell"`     | 불가 | 체결 방향                                                                                  |
-| `actual_price`   | number                | 불가 | 체결 단가 (`ROUND_PRICE = 6` 자리)                                                         |
-| `actual_shares`  | int                   | 불가 | 체결 주식 수                                                                               |
-| `trade_date`     | str                   | 불가 | 사용자가 입력한 체결 일자 (ISO 8601). 폴더 키와 동일                                       |
-| `input_time_kst` | str                   | 불가 | 사용자가 앱에서 입력한 시각 (ISO 8601 KST)                                                 |
-| `memo`           | str                   | 가능 | 사용자 메모 (UI 입력)                                                                      |
-| `reason`         | str                   | 불가 | 분류 사유 (앱 입력 또는 빈 문자열)                                                         |
-| `applied_at`     | str                   | 불가 | run-daily 가 이 fill 을 반영한 시각 (ISO 8601 KST). 같은 배치 내 모든 신규 레코드에 동일 부여 |
+| 필드             | 타입              | null | 설명                                                                                          |
+| ---------------- | ----------------- | ---- | --------------------------------------------------------------------------------------------- |
+| `asset_id`       | str               | 불가 | 자산 ID 소문자 (sso/qld/gld/tlt)                                                              |
+| `direction`      | `"buy"`\|`"sell"` | 불가 | 체결 방향                                                                                     |
+| `actual_price`   | number            | 불가 | 체결 단가 (`ROUND_PRICE = 6` 자리)                                                            |
+| `actual_shares`  | int               | 불가 | 체결 주식 수                                                                                  |
+| `trade_date`     | str               | 불가 | 사용자가 입력한 체결 일자 (ISO 8601). 폴더 키와 동일                                          |
+| `input_time_kst` | str               | 불가 | 사용자가 앱에서 입력한 시각 (ISO 8601 KST)                                                    |
+| `memo`           | str               | 가능 | 사용자 메모 (UI 입력)                                                                         |
+| `reason`         | str               | 불가 | 분류 사유 (앱 입력 또는 빈 문자열)                                                            |
+| `applied_at`     | str               | 불가 | run-daily 가 이 fill 을 반영한 시각 (ISO 8601 KST). 같은 배치 내 모든 신규 레코드에 동일 부여 |
 
 **키 전략**:
+
 - 폴더 키 = `trade_date` (사용자 입력 체결 일자).
 - 레코드 키 = `ActualFill.rtdb_key` (앱이 생성한 UUID). 본문 페이로드에는 중복 저장하지 않는다 (상위 노드 키이므로).
 
@@ -890,18 +901,19 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 }
 ```
 
-| 필드             | 타입   | null | 설명                                                                                  |
-| ---------------- | ------ | ---- | ------------------------------------------------------------------------------------- |
-| `asset_id`       | str    | 가능 | 보정 대상 자산 ID. cash 단독 보정 시 null                                            |
-| `new_shares`     | int    | 가능 | 교체할 actual_shares. 미지정 시 null                                                  |
-| `new_avg_price`  | number | 가능 | 교체할 actual_avg_entry_price                                                         |
-| `new_entry_date` | str    | 가능 | 교체할 actual_entry_date (ISO 8601)                                                   |
-| `new_cash`       | number | 가능 | 교체할 shared_cash_actual                                                             |
-| `reason`         | str    | 불가 | 보정 사유 (앱 입력)                                                                   |
-| `input_time_kst` | str    | 불가 | 사용자 입력 시각                                                                       |
-| `applied_at`     | str    | 불가 | run-daily 반영 시각 (배치 통일)                                                       |
+| 필드             | 타입   | null | 설명                                      |
+| ---------------- | ------ | ---- | ----------------------------------------- |
+| `asset_id`       | str    | 가능 | 보정 대상 자산 ID. cash 단독 보정 시 null |
+| `new_shares`     | int    | 가능 | 교체할 actual_shares. 미지정 시 null      |
+| `new_avg_price`  | number | 가능 | 교체할 actual_avg_entry_price             |
+| `new_entry_date` | str    | 가능 | 교체할 actual_entry_date (ISO 8601)       |
+| `new_cash`       | number | 가능 | 교체할 shared_cash_actual                 |
+| `reason`         | str    | 불가 | 보정 사유 (앱 입력)                       |
+| `input_time_kst` | str    | 불가 | 사용자 입력 시각                          |
+| `applied_at`     | str    | 불가 | run-daily 반영 시각 (배치 통일)           |
 
 **키 전략**:
+
 - 폴더 키 = `applied_at` 의 날짜 부분 (`YYYY-MM-DD`). fill 은 사용자 체결일 기준이지만 balance_adjust 는 "교체 시점" 기준.
 - 레코드 키 = `BalanceAdjust.rtdb_key` (UUID). 본문 페이로드 미포함.
 
@@ -922,16 +934,17 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 }
 ```
 
-| 필드               | 타입                            | null | 설명                                            |
-| ------------------ | ------------------------------- | ---- | ----------------------------------------------- |
-| `state`            | `"buy"`\|`"sell"`\|`"none"`     | 불가 | 당일 감지된 신호 상태                           |
-| `close`            | number                          | 불가 | 당일 종가 (`ROUND_PRICE = 6` 자리)              |
-| `ma_value`         | number                          | 가능 | MA 값 (워밍업 구간 null)                        |
-| `ma_distance_pct`  | number                          | 불가 | MA 근접도 (비율 0~1, `ROUND_RATIO = 4` 자리)    |
-| `upper_band`       | number                          | 가능 | BufferZone 상단 밴드                            |
-| `lower_band`       | number                          | 가능 | BufferZone 하단 밴드                            |
+| 필드              | 타입                        | null | 설명                                         |
+| ----------------- | --------------------------- | ---- | -------------------------------------------- |
+| `state`           | `"buy"`\|`"sell"`\|`"none"` | 불가 | 당일 감지된 신호 상태                        |
+| `close`           | number                      | 불가 | 당일 종가 (`ROUND_PRICE = 6` 자리)           |
+| `ma_value`        | number                      | 가능 | MA 값 (워밍업 구간 null)                     |
+| `ma_distance_pct` | number                      | 불가 | MA 근접도 (비율 0~1, `ROUND_RATIO = 4` 자리) |
+| `upper_band`      | number                      | 가능 | BufferZone 상단 밴드                         |
+| `lower_band`      | number                      | 가능 | BufferZone 하단 밴드                         |
 
 **키 전략 — UUID 없음**:
+
 - 폴더 키 = `execution_date`.
 - 레코드 키 = `asset_id` 소문자.
 - 서버 결정론적 계산이라 경쟁 조건이 없고, 자산당 하루 1 건이 보장되므로 자연스러운 키. Firebase 콘솔에서 자산명으로 즉시 펼쳐볼 수 있어 가독성 우선.
@@ -947,15 +960,15 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 ### 8.3 역할 분리
 
-| 경로 | 쓰기 주체 | 읽기 주체 |
-|---|---|---|
-| qbt-live-state (Git) | daily runner (ephemeral) | daily runner |
-| `/latest/*`, `/charts/*` | daily runner (Admin SDK) | 앱 |
-| `/history/{fills|balance_adjusts|signals}/*` | daily runner (Admin SDK, Git 정본 미러) | 앱 (이력 조회) |
+| 경로                            | 쓰기 주체                                          | 읽기 주체                |
+| ------------------------------- | -------------------------------------------------- | ------------------------ | --------------------------------------- | -------------- |
+| qbt-live-state (Git)            | daily runner (ephemeral)                           | daily runner             |
+| `/latest/*`, `/charts/*`        | daily runner (Admin SDK)                           | 앱                       |
+| `/history/{fills                | balance_adjusts                                    | signals}/\*`             | daily runner (Admin SDK, Git 정본 미러) | 앱 (이력 조회) |
 | `/fills/*`, `/balance_adjust/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
-| `/fill_dismiss/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
-| `/model_sync/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
-| `/device_tokens/*` | 앱 (등록) / daily runner (만료 토큰 삭제) | daily runner (Admin SDK) |
+| `/fill_dismiss/*`               | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
+| `/model_sync/*`                 | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
+| `/device_tokens/*`              | 앱 (등록) / daily runner (만료 토큰 삭제)          | daily runner (Admin SDK) |
 
 **`processed` 필드 규칙**: `/fills/inbox/{uuid}` / `/balance_adjust/inbox/{uuid}` / `/fill_dismiss/inbox/{uuid}` / `/model_sync/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 / 보정 반영 상태는 `/latest/portfolio` 의 `actual_shares` / `model_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다. model_sync 는 `model_shares` 가 `actual_shares` 와 일치하는 것으로 반영 여부를 판단할 수 있다.
 
@@ -1058,4 +1071,3 @@ live 서버 내부 구현 / 운영 상세 (모듈 / CLI / 상수 / 실패 처리
 
 - [src/live/CLAUDE.md](../src/live/CLAUDE.md) — live 도메인 규칙·모듈 역할·인프라 정보
 - [src/live/](../src/live/) — 코드 SoT
-- [docs/TEST_QBT_LIVE_MANUAL.md](TEST_QBT_LIVE_MANUAL.md) — 수동 테스트 가이드
