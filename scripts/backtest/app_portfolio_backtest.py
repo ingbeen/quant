@@ -565,6 +565,10 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         g = int(color[3:5], 16)
         b = int(color[5:7], 16)
 
+        # stackgroup/hovermode=x unified 조합에서 d3-format(:+,.0f)이 불안정하게 적용되는
+        # 사례가 있어, Python 측에서 미리 포맷한 문자열을 text로 전달하고 %{text}를 참조한다.
+        # mode="lines"라 text가 라인 위에 표시되지 않고 hover 라벨 용도로만 쓰인다.
+        preformatted = [f"{v:+,.0f}" for v in df[col]]
         fig_cum.add_trace(
             go.Scatter(
                 x=df.index,
@@ -574,7 +578,8 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
                 stackgroup="one",
                 line={"width": 0},
                 fillcolor=f"rgba({r}, {g}, {b}, 0.6)",
-                hovertemplate=f"{aid.upper()}: %{{y:+,.0f}}원<extra></extra>",
+                text=preformatted,
+                hovertemplate=f"{aid.upper()}: %{{text}}원<extra></extra>",
             )
         )
 
@@ -595,6 +600,11 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
     unrealized_vals = [float(final_row.get(f"{aid}_unrealized_pnl", 0)) for aid in asset_ids]
     labels = [aid.upper() for aid in asset_ids]
 
+    # barmode="stack" stacked bar 에서도 d3-format이 불안정할 수 있어 text 방식으로 통일한다.
+    # textposition="none"으로 바 위에 라벨이 노출되는 것을 차단하고 hover 라벨에만 사용한다.
+    realized_text = [f"{v:+,.0f}" for v in realized_vals]
+    unrealized_text = [f"{v:+,.0f}" for v in unrealized_vals]
+
     fig_decomp = go.Figure()
     fig_decomp.add_trace(
         go.Bar(
@@ -603,7 +613,9 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
             name="실현손익",
             orientation="h",
             marker_color="rgba(55, 128, 191, 0.8)",
-            hovertemplate="%{y}: %{x:+,.0f}원<extra>실현손익</extra>",
+            text=realized_text,
+            textposition="none",
+            hovertemplate="%{y}: %{text}원<extra>실현손익</extra>",
         )
     )
     fig_decomp.add_trace(
@@ -613,7 +625,9 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
             name="미실현손익",
             orientation="h",
             marker_color="rgba(219, 64, 82, 0.8)",
-            hovertemplate="%{y}: %{x:+,.0f}원<extra>미실현손익</extra>",
+            text=unrealized_text,
+            textposition="none",
+            hovertemplate="%{y}: %{text}원<extra>미실현손익</extra>",
         )
     )
     fig_decomp.update_layout(
