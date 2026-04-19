@@ -68,23 +68,6 @@ _COL_TOTAL_TRADES = "총 거래 수"
 _COL_START_DATE = "시작일"
 _COL_END_DATE = "종료일"
 
-# --- 거래 내역 한글 컬럼 매핑 ---
-_TRADE_COLUMN_RENAME: dict[str, str] = {
-    "asset_id": "자산",
-    "trade_type": "거래유형",
-    "entry_date": "진입일",
-    "entry_price": "진입가",
-    "exit_date": "청산일",
-    "exit_price": "청산가",
-    "shares": "수량",
-    "pnl": "손익금액",
-    "pnl_pct": "손익률",
-    "holding_days": "보유기간(일)",
-    "pre_shares": "체결전수량",
-    "post_shares": "체결후수량",
-    "order_amount": "체결금액",
-}
-
 # --- 동적 색상 팔레트 ---
 # 자산/실험 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
 # 신규 자산이나 실험이 추가되어도 코드 수정 없이 자동으로 구분되는 색을 받는다.
@@ -566,6 +549,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         height=_SUB_CHART_HEIGHT,
         xaxis_title="분기",
         yaxis_title="기여 금액 (원)",
+        yaxis_hoverformat="+,.0f",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
     st.plotly_chart(fig_contrib, width="stretch", key=f"contrib_bar_{exp.experiment_name}")
@@ -599,6 +583,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         height=_SUB_CHART_HEIGHT,
         xaxis_title="날짜",
         yaxis_title="누적 기여 금액 (원)",
+        yaxis_hoverformat="+,.0f",
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
@@ -636,6 +621,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         barmode="stack",
         height=max(250, len(asset_ids) * 60 + 100),
         xaxis_title="손익 (원)",
+        xaxis_hoverformat="+,.0f",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
     st.plotly_chart(fig_decomp, width="stretch", key=f"contrib_decomp_{exp.experiment_name}")
@@ -760,7 +746,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     ps = _extract_portfolio_summary(exp.summary)
     per_asset = _extract_per_asset(exp.summary)
 
-    # ---- 섹션 1: 요약 지표 ----
+    # ---- 요약 지표 ----
     st.subheader("요약 지표")
 
     col1, col2, col3, col4 = st.columns(4)
@@ -784,7 +770,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         f"| 최종 자본: {int(ps.get('final_capital', 0)):,}원"
     )
 
-    # ---- 섹션 2: 에쿼티 + 드로우다운 ----
+    # ---- 에쿼티 + 드로우다운 ----
     st.subheader("에쿼티 및 드로우다운")
 
     fig = make_subplots(
@@ -864,7 +850,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     )
     st.plotly_chart(fig, width="stretch", key=f"equity_chart_{exp.experiment_name}")
 
-    # ---- 섹션 3: 자산별 비중 추이 ----
+    # ---- 자산별 비중 추이 ----
     st.subheader("자산별 비중 추이")
 
     weight_cols = _weight_columns(exp.equity_df)
@@ -949,74 +935,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     else:
         st.info("비중 데이터가 없습니다.")
 
-    # ---- 섹션 4: 자산별 거래 현황 ----
-    st.subheader("자산별 거래 현황")
-
-    if not exp.trades_df.empty and "asset_id" in exp.trades_df.columns:
-        trade_count_df = exp.trades_df.groupby(["asset_id", "trade_type"]).size().reset_index(name="count")
-
-        asset_ids = trade_count_df["asset_id"].unique().tolist()
-        trade_types = trade_count_df["trade_type"].unique().tolist()
-
-        fig_bar = go.Figure()
-        type_colors = {"signal": "#1f77b4", "rebalance": "#ff7f0e"}
-
-        for trade_type in trade_types:
-            sub = trade_count_df[trade_count_df["trade_type"] == trade_type]
-            counts = []
-            for aid in asset_ids:
-                row = sub[sub["asset_id"] == aid]
-                counts.append(int(row["count"].values[0]) if not row.empty else 0)
-
-            fig_bar.add_trace(
-                go.Bar(
-                    x=[aid.upper() for aid in asset_ids],
-                    y=counts,
-                    name="신호 거래" if trade_type == "signal" else "리밸런싱 거래",
-                    marker_color=type_colors.get(trade_type, "#888888"),
-                )
-            )
-
-        fig_bar.update_layout(
-            title="자산별 거래 수 (신호 거래 vs 리밸런싱 거래)",
-            xaxis_title="자산",
-            yaxis_title="거래 수",
-            barmode="group",
-            height=_SMALL_CHART_HEIGHT,
-            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        )
-        st.plotly_chart(fig_bar, width="stretch", key=f"bar_chart_{exp.experiment_name}")
-    else:
-        st.info("거래 데이터가 없습니다.")
-
-    # ---- 섹션 5: 거래 내역 테이블 ----
-    st.subheader("거래 내역")
-
-    if not exp.trades_df.empty:
-        # 자산 필터
-        asset_filter_options = ["전체"]
-        if "asset_id" in exp.trades_df.columns:
-            asset_filter_options += sorted(exp.trades_df["asset_id"].unique().tolist())
-
-        selected_asset = st.selectbox(
-            "자산 필터",
-            options=asset_filter_options,
-            key=f"asset_filter_{exp.experiment_name}",
-        )
-
-        display_df = exp.trades_df.copy()
-        if selected_asset != "전체":
-            display_df = display_df[display_df["asset_id"] == selected_asset]
-
-        # 표시할 컬럼만 선택 후 한글 변환
-        display_cols = [c for c in _TRADE_COLUMN_RENAME if c in display_df.columns]
-        display_df = display_df[display_cols].rename(columns=_TRADE_COLUMN_RENAME)
-
-        st.dataframe(display_df, hide_index=True, width="stretch")
-    else:
-        st.info("거래 내역이 없습니다.")
-
-    # ---- 섹션 6: 시그널 차트 ----
+    # ---- 시그널 차트 ----
     st.subheader("시그널 차트")
 
     if exp.signal_dfs:
@@ -1038,7 +957,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     else:
         st.info("시그널 데이터가 없습니다.")
 
-    # ---- 섹션 7: 파라미터 정보 ----
+    # ---- 파라미터 정보 ----
     with st.expander("파라미터 상세 정보"):
         portfolio_config = exp.summary.get("portfolio_config", {})
         st.json(portfolio_config)
