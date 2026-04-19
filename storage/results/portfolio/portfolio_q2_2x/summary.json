@@ -2,14 +2,14 @@
   "display_name": "Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 126108463,
-    "total_return_pct": 1161.08,
-    "cagr": 16.92,
+    "final_capital": 136671237,
+    "total_return_pct": 1266.71,
+    "cagr": 17.48,
     "mdd": -26.45,
-    "calmar": 0.64,
+    "calmar": 0.66,
     "total_trades": 190,
     "start_date": "2010-01-21",
-    "end_date": "2026-04-10"
+    "end_date": "2026-04-17"
   },
   "per_asset": [
     {
@@ -17,8 +17,8 @@
       "target_weight": 0.35,
       "total_trades": 52,
       "win_rate": 90.38,
-      "final_shares": 784947,
-      "final_avg_price": 45.872837
+      "final_shares": 784946,
+      "final_avg_price": 45.872835
     },
     {
       "asset_id": "qld",
@@ -26,7 +26,7 @@
       "total_trades": 56,
       "win_rate": 92.86,
       "final_shares": 654344,
-      "final_avg_price": 55.517878
+      "final_avg_price": 55.517874
     },
     {
       "asset_id": "ugl",
@@ -34,7 +34,7 @@
       "total_trades": 45,
       "win_rate": 86.67,
       "final_shares": 306544,
-      "final_avg_price": 27.187809
+      "final_avg_price": 27.187781
     },
     {
       "asset_id": "ubt",
@@ -42,7 +42,7 @@
       "total_trades": 37,
       "win_rate": 70.27,
       "final_shares": 1084514,
-      "final_avg_price": 17.367443
+      "final_avg_price": 17.367442
     }
   ],
   "portfolio_config": {
@@ -711,7 +711,7 @@
     {
       "year": 2020,
       "month": 3,
-      "return_pct": -7.72
+      "return_pct": -7.71
     },
     {
       "year": 2020,
@@ -1076,7 +1076,7 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 7.64
+      "return_pct": 16.66
     }
   ],
   "yearly_returns": [
@@ -1122,7 +1122,7 @@
     },
     {
       "year": 2020,
-      "return_pct": 40.3
+      "return_pct": 40.32
     },
     {
       "year": 2021,
@@ -1146,7 +1146,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 1.24
+      "return_pct": 9.72
     }
   ]
 }

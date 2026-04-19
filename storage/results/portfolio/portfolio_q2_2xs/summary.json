@@ -2,14 +2,14 @@
   "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 118393893,
-    "total_return_pct": 1083.94,
-    "cagr": 16.46,
+    "final_capital": 128029723,
+    "total_return_pct": 1180.3,
+    "cagr": 17.0,
     "mdd": -27.67,
-    "calmar": 0.59,
+    "calmar": 0.61,
     "total_trades": 165,
     "start_date": "2010-01-21",
-    "end_date": "2026-04-10"
+    "end_date": "2026-04-17"
   },
   "per_asset": [
     {
@@ -25,8 +25,8 @@
       "target_weight": 0.35,
       "total_trades": 52,
       "win_rate": 94.23,
-      "final_shares": 627808,
-      "final_avg_price": 53.305816
+      "final_shares": 627807,
+      "final_avg_price": 53.305805
     },
     {
       "asset_id": "gld",
@@ -41,8 +41,8 @@
       "target_weight": 0.15,
       "total_trades": 32,
       "win_rate": 71.88,
-      "final_shares": 194500,
-      "final_avg_price": 94.181374
+      "final_shares": 194501,
+      "final_avg_price": 94.181368
     }
   ],
   "portfolio_config": {
@@ -1076,7 +1076,7 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 7.47
+      "return_pct": 16.22
     }
   ],
   "yearly_returns": [
@@ -1146,7 +1146,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 0.26
+      "return_pct": 8.42
     }
   ]
 }

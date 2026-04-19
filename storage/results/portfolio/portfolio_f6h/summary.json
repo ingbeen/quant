@@ -2,8 +2,8 @@
   "display_name": "F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 123266627,
-    "total_return_pct": 1132.67,
+    "final_capital": 123266454,
+    "total_return_pct": 1132.66,
     "cagr": 16.84,
     "mdd": -27.17,
     "calmar": 0.62,
@@ -18,15 +18,15 @@
       "total_trades": 26,
       "win_rate": 84.62,
       "final_shares": 56377,
-      "final_avg_price": 597.671013
+      "final_avg_price": 597.671977
     },
     {
       "asset_id": "tqqq",
       "target_weight": 0.3,
       "total_trades": 57,
       "win_rate": 91.23,
-      "final_shares": 780196,
-      "final_avg_price": 38.17973
+      "final_shares": 780195,
+      "final_avg_price": 38.179715
     },
     {
       "asset_id": "gld",
@@ -34,15 +34,15 @@
       "total_trades": 38,
       "win_rate": 84.21,
       "final_shares": 52097,
-      "final_avg_price": 182.726843
+      "final_avg_price": 182.72417
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.2,
       "total_trades": 33,
       "win_rate": 78.79,
-      "final_shares": 288124,
-      "final_avg_price": 95.826866
+      "final_shares": 288123,
+      "final_avg_price": 95.826872
     }
   ],
   "portfolio_config": {

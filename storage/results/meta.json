@@ -2749,10 +2749,10 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1083.94,
-        "cagr": 16.46,
+        "total_return_pct": 1180.3,
+        "cagr": 17.0,
         "mdd": -27.67,
-        "calmar": 0.59,
+        "calmar": 0.61,
         "total_trades": 165
       },
       "output_files": {
@@ -2762,7 +2762,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-04-14T20:39:37+09:00"
+      "timestamp": "2026-04-20T00:12:07+09:00"
     },
     {
       "params": {
@@ -2823,10 +2823,10 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1355.62,
-        "cagr": 17.96,
+        "total_return_pct": 1477.55,
+        "cagr": 18.52,
         "mdd": -30.51,
-        "calmar": 0.59,
+        "calmar": 0.61,
         "total_trades": 232
       },
       "output_files": {
@@ -2836,7 +2836,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xh/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xh/summary.json"
       },
-      "timestamp": "2026-04-14T20:39:34+09:00"
+      "timestamp": "2026-04-20T00:12:05+09:00"
     },
     {
       "params": {
@@ -2897,10 +2897,10 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1161.08,
-        "cagr": 16.92,
+        "total_return_pct": 1266.71,
+        "cagr": 17.48,
         "mdd": -26.45,
-        "calmar": 0.64,
+        "calmar": 0.66,
         "total_trades": 190
       },
       "output_files": {
@@ -2910,7 +2910,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2x/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2x/summary.json"
       },
-      "timestamp": "2026-04-14T20:39:32+09:00"
+      "timestamp": "2026-04-20T00:12:02+09:00"
     },
     {
       "params": {
@@ -2971,10 +2971,10 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 390.09,
-        "cagr": 10.3,
+        "total_return_pct": 410.69,
+        "cagr": 10.57,
         "mdd": -16.21,
-        "calmar": 0.64,
+        "calmar": 0.65,
         "total_trades": 108
       },
       "output_files": {
@@ -2984,7 +2984,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
       },
-      "timestamp": "2026-04-14T20:39:29+09:00"
+      "timestamp": "2026-04-20T00:11:59+09:00"
     },
     {
       "params": {
@@ -3045,7 +3045,7 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1132.67,
+        "total_return_pct": 1132.66,
         "cagr": 16.84,
         "mdd": -27.17,
         "calmar": 0.62,
@@ -3058,7 +3058,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_f6h/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_f6h/summary.json"
       },
-      "timestamp": "2026-04-14T20:39:26+09:00"
+      "timestamp": "2026-04-20T00:11:57+09:00"
     }
   ]
 }

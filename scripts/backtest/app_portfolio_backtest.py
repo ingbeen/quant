@@ -341,157 +341,9 @@ def _asset_id_from_weight_col(col: str) -> str:
     return col.removesuffix("_weight")
 
 
-def _shares_columns(equity_df: pd.DataFrame) -> list[str]:
-    """equity_df에서 {asset_id}_shares 컬럼명 리스트를 반환한다."""
-    return [c for c in equity_df.columns if c.endswith("_shares")]
-
-
-def _has_holdings_data(equity_df: pd.DataFrame) -> bool:
-    """equity_df에 보유 상세 데이터(shares, avg_price)가 존재하는지 확인한다."""
-    return len(_shares_columns(equity_df)) > 0
-
-
 def _get_asset_ids_from_equity(equity_df: pd.DataFrame) -> list[str]:
     """equity_df의 weight 컬럼에서 자산 ID 리스트를 추출한다."""
     return [_asset_id_from_weight_col(c) for c in _weight_columns(equity_df)]
-
-
-# ============================================================
-# 신규 섹션: 포트폴리오 보유 현황 (My Holdings)
-# ============================================================
-
-
-@st.fragment
-def _render_holdings_section(exp: _ExperimentData) -> None:
-    """특정 날짜의 포트폴리오 보유 현황을 표시한다.
-
-    거래일 전용 select_slider로 선택한 일자의 종목별 보유수, 평균매수가,
-    현재가, 평가금액, 비중, 수익률을 보여준다.
-    @st.fragment로 격리되어 날짜 변경 시 이 섹션만 재렌더링된다.
-    """
-    st.subheader("포트폴리오 보유 현황")
-
-    if not _has_holdings_data(exp.equity_df):
-        st.info("보유 상세 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
-        return
-
-    equity_df = exp.equity_df
-    ps = _extract_portfolio_summary(exp.summary)
-    per_asset = _extract_per_asset(exp.summary)
-    initial_capital = int(ps.get("initial_capital", 0))
-
-    # 거래일 전용 선택 슬라이더 (equity_df에 존재하는 날짜만 옵션으로 제공)
-    trading_dates: list[date] = pd.to_datetime(equity_df["Date"]).dt.date.tolist()
-
-    selected_date = st.select_slider(
-        "조회 날짜",
-        options=trading_dates,
-        value=trading_dates[-1],
-        key=f"holdings_date_{exp.experiment_name}",
-    )
-
-    # 선택 날짜의 데이터 행 (select_slider이므로 항상 유효한 거래일)
-    date_mask = pd.to_datetime(equity_df["Date"]).dt.date == selected_date
-    row = equity_df[date_mask.values].iloc[0]
-    total_equity = int(row["equity"])
-    cash = int(row["cash"])
-    # 엔진이 미리 계산한 파생 컬럼을 직접 사용 (CLI 계층의 도메인 로직 침범 방지).
-    # 컬럼이 없으면 사용자가 run_portfolio_backtest.py를 재실행해 최신 결과로 갱신해야 한다.
-    total_pnl = int(row["total_pnl"])
-    total_return_pct = float(row["total_return_pct"])
-
-    # 요약 카드
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("총 평가금액", f"{total_equity:,}원", f"{total_return_pct:+.2f}%")
-    col2.metric("투자원금", f"{initial_capital:,}원")
-    col3.metric("평가손익", f"{total_pnl:+,}원")
-    col4.metric("현금 잔고", f"{cash:,}원", f"{cash / total_equity * 100:.1f}%" if total_equity > 0 else "0%")
-
-    # 보유 종목 테이블
-    asset_ids = _get_asset_ids_from_equity(equity_df)
-    target_weights: dict[str, float] = {}
-    for pa in per_asset:
-        aid = str(pa.get("asset_id", ""))
-        target_weights[aid] = float(pa.get("target_weight", 0))
-
-    holdings_rows: list[dict[str, Any]] = []
-    for asset_id in asset_ids:
-        shares_col = f"{asset_id}_shares"
-        avg_price_col = f"{asset_id}_avg_price"
-        value_col = f"{asset_id}_value"
-        weight_col = f"{asset_id}_weight"
-
-        shares = int(row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
-        avg_price = float(row.get(avg_price_col, 0)) if avg_price_col in equity_df.columns else 0.0
-        value = int(row.get(value_col, 0)) if value_col in equity_df.columns else 0
-        weight = float(row.get(weight_col, 0)) if weight_col in equity_df.columns else 0.0
-
-        # 엔진이 미리 계산한 파생 컬럼을 직접 사용. 컬럼이 없으면 KeyError로 즉시 실패하여
-        # 사용자가 run_portfolio_backtest.py 재실행 필요성을 인지할 수 있도록 한다.
-        current_price = float(row[f"{asset_id}_current_price"])
-        asset_return_pct = float(row[f"{asset_id}_return_pct"])
-
-        holdings_rows.append(
-            {
-                "종목": asset_id.upper(),
-                "보유수": shares,
-                "평균매수가": f"${avg_price:.2f}" if avg_price > 0 else "-",
-                "현재가": f"${current_price:.2f}" if shares > 0 else "-",
-                "평가금액": f"{value:,}원",
-                "실제비중": f"{weight * 100:.1f}%",
-                "목표비중": f"{target_weights.get(asset_id, 0) * 100:.1f}%",
-                "수익률": f"{asset_return_pct:+.2f}%" if shares > 0 else "-",
-            }
-        )
-
-    if holdings_rows:
-        st.dataframe(pd.DataFrame(holdings_rows), hide_index=True, width="stretch")
-
-    # 목표 비중 vs 실제 비중 이중 도넛 차트
-    actual_labels = [r["종목"] for r in holdings_rows] + ["현금"]
-    actual_values = [float(row.get(f"{aid}_weight", 0)) * 100 for aid in asset_ids] + [
-        cash / total_equity * 100 if total_equity > 0 else 0
-    ]
-    target_labels = [aid.upper() for aid in asset_ids] + ["현금"]
-    target_values = [target_weights.get(aid, 0) * 100 for aid in asset_ids] + [
-        max(0, 100 - sum(target_weights.get(aid, 0) * 100 for aid in asset_ids))
-    ]
-    asset_ids_tuple = tuple(asset_ids)
-    actual_colors = [_get_asset_color(aid, asset_ids_tuple) for aid in asset_ids] + ["#b4b4b4"]
-    target_colors = actual_colors
-
-    fig_donut = make_subplots(
-        rows=1,
-        cols=2,
-        specs=[[{"type": "domain"}, {"type": "domain"}]],
-        subplot_titles=["실제 비중", "목표 비중"],
-    )
-    fig_donut.add_trace(
-        go.Pie(
-            labels=actual_labels,
-            values=actual_values,
-            hole=0.5,
-            marker={"colors": actual_colors},
-            textinfo="label+percent",
-            hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
-        ),
-        row=1,
-        col=1,
-    )
-    fig_donut.add_trace(
-        go.Pie(
-            labels=target_labels,
-            values=target_values,
-            hole=0.5,
-            marker={"colors": target_colors},
-            textinfo="label+percent",
-            hovertemplate="%{label}: %{value:.1f}%<extra></extra>",
-        ),
-        row=1,
-        col=2,
-    )
-    fig_donut.update_layout(height=_SMALL_CHART_HEIGHT, showlegend=False)
-    st.plotly_chart(fig_donut, width="stretch", key=f"donut_{exp.experiment_name}")
 
 
 # ============================================================
@@ -552,85 +404,6 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
 
         st.caption(f"총 {len(comparison_df['date'].unique())}개 체결일")
         st.dataframe(pd.DataFrame(display_rows), hide_index=True, width="stretch")
-
-
-# ============================================================
-# 신규 섹션: 리밸런싱 히스토리 (Rebalancing Log)
-# ============================================================
-
-
-def _render_rebalancing_history_section(exp: _ExperimentData) -> None:
-    """리밸런싱 이벤트 타임라인을 표시한다."""
-    st.subheader("리밸런싱 히스토리")
-
-    equity_df = exp.equity_df
-    trades_df = exp.trades_df
-
-    if "rebalanced" not in equity_df.columns:
-        st.info("리밸런싱 데이터가 없습니다.")
-        return
-
-    reb_df = equity_df[equity_df["rebalanced"] == True].copy()  # noqa: E712
-    if reb_df.empty:
-        st.info("리밸런싱이 발생하지 않았습니다.")
-        return
-
-    # 기간 정보
-    total_days = len(equity_df)
-    reb_count = len(reb_df)
-    months_approx = total_days / 21  # 영업일 기준 대략 월수
-    freq_text = f"{months_approx / reb_count:.1f}개월당 1회" if reb_count > 0 else "N/A"
-
-    st.caption(f"총 {reb_count}회 리밸런싱 | 평균 빈도: {freq_text}")
-
-    # 리밸런싱 이벤트 테이블
-    has_reason = "rebalance_reason" in equity_df.columns
-    asset_ids = _get_asset_ids_from_equity(equity_df)
-    per_asset = _extract_per_asset(exp.summary)
-    target_weights: dict[str, float] = {}
-    for pa in per_asset:
-        target_weights[str(pa.get("asset_id", ""))] = float(pa.get("target_weight", 0))
-
-    reb_rows: list[dict[str, Any]] = []
-    for _, row in reb_df.iterrows():
-        d = row["Date"]
-        date_str = pd.Timestamp(d).strftime("%Y-%m-%d") if pd.notna(d) else "N/A"
-
-        trigger = ""
-        if has_reason:
-            reason = str(row.get("rebalance_reason", ""))
-            trigger = "월초 정기" if reason == "monthly" else ("긴급" if reason == "daily" else "")
-
-        # 비중 편차 사유 분석
-        deviation_parts: list[str] = []
-        for asset_id in asset_ids:
-            weight_col = f"{asset_id}_weight"
-            if weight_col in equity_df.columns:
-                actual_w = float(row.get(weight_col, 0))
-                target_w = target_weights.get(asset_id, 0)
-                if target_w > 0:
-                    deviation = abs(actual_w / target_w - 1.0)
-                    if deviation > 0.08:  # 8% 이상 편차 표시
-                        deviation_parts.append(f"{asset_id.upper()} {actual_w * 100:.1f}% (목표 {target_w * 100:.0f}%)")
-
-        detail = ", ".join(deviation_parts) if deviation_parts else "-"
-
-        # 해당 일자 리밸런싱 거래 수
-        reb_trades_count = 0
-        if not trades_df.empty and "exit_date" in trades_df.columns and "trade_type" in trades_df.columns:
-            reb_day_trades = trades_df[(trades_df["exit_date"] == d) & (trades_df["trade_type"] == "rebalance")]
-            reb_trades_count = len(reb_day_trades)
-
-        reb_rows.append(
-            {
-                "리밸런싱일": date_str,
-                "트리거": trigger if trigger else "-",
-                "거래 수": reb_trades_count,
-                "비중 편차 상세": detail,
-            }
-        )
-
-    st.dataframe(pd.DataFrame(reb_rows), hide_index=True, width="stretch")
 
 
 # ============================================================
@@ -1270,17 +1043,9 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         portfolio_config = exp.summary.get("portfolio_config", {})
         st.json(portfolio_config)
 
-    # ---- 신규 섹션: 포트폴리오 보유 현황 ----
-    st.divider()
-    _render_holdings_section(exp)
-
     # ---- 신규 섹션: 체결 전후 비교 ----
     st.divider()
     _render_execution_comparison_section(exp)
-
-    # ---- 신규 섹션: 리밸런싱 히스토리 ----
-    st.divider()
-    _render_rebalancing_history_section(exp)
 
     # ---- 신규 섹션: 월별 수익률 히트맵 ----
     st.divider()
