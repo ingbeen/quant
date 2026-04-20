@@ -2,49 +2,49 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 51069197,
-    "total_return_pct": 410.69,
-    "cagr": 10.57,
+    "final_capital": 77267258,
+    "total_return_pct": 672.67,
+    "cagr": 10.02,
     "mdd": -16.21,
-    "calmar": 0.65,
-    "sharpe_ratio": 1.05,
-    "sortino_ratio": 1.46,
-    "total_trades": 108,
-    "start_date": "2010-01-21",
+    "calmar": 0.62,
+    "sharpe_ratio": 1.01,
+    "sortino_ratio": 1.42,
+    "total_trades": 133,
+    "start_date": "2004-11-18",
     "end_date": "2026-04-17"
   },
   "per_asset": [
     {
       "asset_id": "spy",
       "target_weight": 0.35,
-      "total_trades": 28,
-      "win_rate": 89.29,
-      "final_shares": 25620,
-      "final_avg_price": 593.094824
+      "total_trades": 31,
+      "win_rate": 93.55,
+      "final_shares": 38763,
+      "final_avg_price": 593.098653
     },
     {
       "asset_id": "qqq",
       "target_weight": 0.35,
-      "total_trades": 31,
-      "win_rate": 93.55,
-      "final_shares": 28886,
-      "final_avg_price": 526.169915
+      "total_trades": 38,
+      "win_rate": 92.11,
+      "final_shares": 43705,
+      "final_avg_price": 526.169492
     },
     {
       "asset_id": "gld",
       "target_weight": 0.15,
-      "total_trades": 28,
-      "win_rate": 85.71,
-      "final_shares": 15259,
-      "final_avg_price": 185.423004
+      "total_trades": 36,
+      "win_rate": 100.0,
+      "final_shares": 23086,
+      "final_avg_price": 179.179013
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.15,
-      "total_trades": 21,
-      "win_rate": 76.19,
-      "final_shares": 84161,
-      "final_avg_price": 91.823216
+      "total_trades": 28,
+      "win_rate": 82.14,
+      "final_shares": 127334,
+      "final_avg_price": 91.291157
     }
   ],
   "portfolio_config": {
@@ -106,34 +106,344 @@
   },
   "monthly_returns": [
     {
+      "year": 2004,
+      "month": 12,
+      "return_pct": -0.05
+    },
+    {
+      "year": 2005,
+      "month": 1,
+      "return_pct": -0.04
+    },
+    {
+      "year": 2005,
+      "month": 2,
+      "return_pct": 0.97
+    },
+    {
+      "year": 2005,
+      "month": 3,
+      "return_pct": -0.96
+    },
+    {
+      "year": 2005,
+      "month": 4,
+      "return_pct": 0.1
+    },
+    {
+      "year": 2005,
+      "month": 5,
+      "return_pct": 0.97
+    },
+    {
+      "year": 2005,
+      "month": 6,
+      "return_pct": -0.14
+    },
+    {
+      "year": 2005,
+      "month": 7,
+      "return_pct": 3.17
+    },
+    {
+      "year": 2005,
+      "month": 8,
+      "return_pct": -0.16
+    },
+    {
+      "year": 2005,
+      "month": 9,
+      "return_pct": 1.31
+    },
+    {
+      "year": 2005,
+      "month": 10,
+      "return_pct": -1.77
+    },
+    {
+      "year": 2005,
+      "month": 11,
+      "return_pct": 4.69
+    },
+    {
+      "year": 2005,
+      "month": 12,
+      "return_pct": 0.54
+    },
+    {
+      "year": 2006,
+      "month": 1,
+      "return_pct": 3.51
+    },
+    {
+      "year": 2006,
+      "month": 2,
+      "return_pct": -0.55
+    },
+    {
+      "year": 2006,
+      "month": 3,
+      "return_pct": 1.18
+    },
+    {
+      "year": 2006,
+      "month": 4,
+      "return_pct": 1.75
+    },
+    {
+      "year": 2006,
+      "month": 5,
+      "return_pct": -3.81
+    },
+    {
+      "year": 2006,
+      "month": 6,
+      "return_pct": -1.08
+    },
+    {
+      "year": 2006,
+      "month": 7,
+      "return_pct": 0.97
+    },
+    {
+      "year": 2006,
+      "month": 8,
+      "return_pct": 1.06
+    },
+    {
+      "year": 2006,
+      "month": 9,
+      "return_pct": 0.3
+    },
+    {
+      "year": 2006,
+      "month": 10,
+      "return_pct": 3.08
+    },
+    {
+      "year": 2006,
+      "month": 11,
+      "return_pct": 3.27
+    },
+    {
+      "year": 2006,
+      "month": 12,
+      "return_pct": -0.87
+    },
+    {
+      "year": 2007,
+      "month": 1,
+      "return_pct": 1.52
+    },
+    {
+      "year": 2007,
+      "month": 2,
+      "return_pct": -0.43
+    },
+    {
+      "year": 2007,
+      "month": 3,
+      "return_pct": 0.17
+    },
+    {
+      "year": 2007,
+      "month": 4,
+      "return_pct": 3.96
+    },
+    {
+      "year": 2007,
+      "month": 5,
+      "return_pct": 1.65
+    },
+    {
+      "year": 2007,
+      "month": 6,
+      "return_pct": -0.8
+    },
+    {
+      "year": 2007,
+      "month": 7,
+      "return_pct": -0.29
+    },
+    {
+      "year": 2007,
+      "month": 8,
+      "return_pct": 1.88
+    },
+    {
+      "year": 2007,
+      "month": 9,
+      "return_pct": 4.79
+    },
+    {
+      "year": 2007,
+      "month": 10,
+      "return_pct": 4.36
+    },
+    {
+      "year": 2007,
+      "month": 11,
+      "return_pct": -3.24
+    },
+    {
+      "year": 2007,
+      "month": 12,
+      "return_pct": 0.52
+    },
+    {
+      "year": 2008,
+      "month": 1,
+      "return_pct": -3.69
+    },
+    {
+      "year": 2008,
+      "month": 2,
+      "return_pct": 0.71
+    },
+    {
+      "year": 2008,
+      "month": 3,
+      "return_pct": -0.62
+    },
+    {
+      "year": 2008,
+      "month": 4,
+      "return_pct": -0.99
+    },
+    {
+      "year": 2008,
+      "month": 5,
+      "return_pct": 0.4
+    },
+    {
+      "year": 2008,
+      "month": 6,
+      "return_pct": -2.33
+    },
+    {
+      "year": 2008,
+      "month": 7,
+      "return_pct": -0.53
+    },
+    {
+      "year": 2008,
+      "month": 8,
+      "return_pct": -1.06
+    },
+    {
+      "year": 2008,
+      "month": 9,
+      "return_pct": 0.84
+    },
+    {
+      "year": 2008,
+      "month": 10,
+      "return_pct": -2.74
+    },
+    {
+      "year": 2008,
+      "month": 11,
+      "return_pct": 3.98
+    },
+    {
+      "year": 2008,
+      "month": 12,
+      "return_pct": 3.23
+    },
+    {
+      "year": 2009,
+      "month": 1,
+      "return_pct": -1.25
+    },
+    {
+      "year": 2009,
+      "month": 2,
+      "return_pct": 0.02
+    },
+    {
+      "year": 2009,
+      "month": 3,
+      "return_pct": 0.13
+    },
+    {
+      "year": 2009,
+      "month": 4,
+      "return_pct": -1.48
+    },
+    {
+      "year": 2009,
+      "month": 5,
+      "return_pct": 0.98
+    },
+    {
+      "year": 2009,
+      "month": 6,
+      "return_pct": -0.77
+    },
+    {
+      "year": 2009,
+      "month": 7,
+      "return_pct": 3.63
+    },
+    {
+      "year": 2009,
+      "month": 8,
+      "return_pct": 2.15
+    },
+    {
+      "year": 2009,
+      "month": 9,
+      "return_pct": 4.44
+    },
+    {
+      "year": 2009,
+      "month": 10,
+      "return_pct": -1.59
+    },
+    {
+      "year": 2009,
+      "month": 11,
+      "return_pct": 6.51
+    },
+    {
+      "year": 2009,
+      "month": 12,
+      "return_pct": 0.48
+    },
+    {
+      "year": 2010,
+      "month": 1,
+      "return_pct": -3.44
+    },
+    {
       "year": 2010,
       "month": 2,
-      "return_pct": 0.55
+      "return_pct": 3.14
     },
     {
       "year": 2010,
       "month": 3,
-      "return_pct": 1.75
+      "return_pct": 4.56
     },
     {
       "year": 2010,
       "month": 4,
-      "return_pct": 1.91
+      "return_pct": 2.63
     },
     {
       "year": 2010,
       "month": 5,
-      "return_pct": -3.12
+      "return_pct": -4.41
     },
     {
       "year": 2010,
       "month": 6,
-      "return_pct": -2.54
+      "return_pct": -2.67
     },
     {
       "year": 2010,
       "month": 7,
-      "return_pct": 1.44
+      "return_pct": 1.46
     },
     {
       "year": 2010,
@@ -228,7 +538,7 @@
     {
       "year": 2012,
       "month": 2,
-      "return_pct": 2.91
+      "return_pct": 2.92
     },
     {
       "year": 2012,
@@ -1008,7 +1318,7 @@
     {
       "year": 2025,
       "month": 2,
-      "return_pct": -0.28
+      "return_pct": -0.27
     },
     {
       "year": 2025,
@@ -1083,8 +1393,32 @@
   ],
   "yearly_returns": [
     {
+      "year": 2004,
+      "return_pct": -0.05
+    },
+    {
+      "year": 2005,
+      "return_pct": 8.85
+    },
+    {
+      "year": 2006,
+      "return_pct": 8.91
+    },
+    {
+      "year": 2007,
+      "return_pct": 14.69
+    },
+    {
+      "year": 2008,
+      "return_pct": -3.04
+    },
+    {
+      "year": 2009,
+      "return_pct": 13.68
+    },
+    {
       "year": 2010,
-      "return_pct": 13.51
+      "return_pct": 14.67
     },
     {
       "year": 2011,
@@ -1092,7 +1426,7 @@
     },
     {
       "year": 2012,
-      "return_pct": 13.09
+      "return_pct": 13.1
     },
     {
       "year": 2013,
@@ -1144,7 +1478,7 @@
     },
     {
       "year": 2025,
-      "return_pct": 8.28
+      "return_pct": 8.29
     },
     {
       "year": 2026,

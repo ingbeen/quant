@@ -7,17 +7,14 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 2. 모든 config의 target_weight 합 <= 1.0
 3. 모든 config에서 asset_id 중복 없음
 4. D-1: QQQ 100% 전액 투자
-5. F-6H: SPY/TQQQ/GLD/TLT 전액 투자, GLD/TLT B&H, TQQQ QQQ 시그널
-6. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
-7. Q-2-2X: SSO/QLD/UGL/UBT 전액 투자, UGL/UBT B&H
-8. Q-2-2XH: SSO/QLD/UGL/UBT 전액 투자, 전 자산 버퍼존
-9. get_portfolio_config 정상 조회 / 에러 처리
+5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
+6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
+7. get_portfolio_config 정상 조회 / 에러 처리
 """
 
 import pytest
 
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.common_constants import QQQ_DATA_PATH
 
 
 class TestPortfolioConfigsList:
@@ -94,49 +91,6 @@ class TestDSeriesConfigs:
         assert "tqqq" not in asset_ids
 
 
-class TestF6HConfig:
-    """F-6H 설정 계약 테스트."""
-
-    def test_f6h_full_investment(self) -> None:
-        """
-        목적: F-6H는 전액 투자(target_weight 합 == 1.0)이어야 한다.
-
-        Given: portfolio_f6h 설정
-        When:  target_weight 합산
-        Then:  합 == 1.0
-        """
-        config = get_portfolio_config("portfolio_f6h")
-        total = sum(slot.target_weight for slot in config.asset_slots)
-        assert total == pytest.approx(1.0, abs=1e-9)
-
-    def test_f6h_tqqq_signal_is_qqq(self) -> None:
-        """
-        목적: F-6H의 TQQQ는 QQQ 시그널을 사용해야 한다.
-
-        Given: portfolio_f6h 설정
-        When:  TQQQ slot의 signal_data_path 확인
-        Then:  signal_data_path == QQQ_DATA_PATH
-        """
-        config = get_portfolio_config("portfolio_f6h")
-        tqqq_slot = next(s for s in config.asset_slots if s.asset_id == "tqqq")
-        assert tqqq_slot.signal_data_path == QQQ_DATA_PATH
-
-    def test_f6h_gld_tlt_buy_and_hold(self) -> None:
-        """
-        목적: F-6H는 GLD/TLT만 B&H이고, SPY/TQQQ는 버퍼존이어야 한다.
-
-        Given: portfolio_f6h 설정
-        When:  각 slot의 strategy_id 확인
-        Then:  GLD/TLT -> "buy_and_hold", SPY/TQQQ -> "buffer_zone"
-        """
-        config = get_portfolio_config("portfolio_f6h")
-        for slot in config.asset_slots:
-            if slot.asset_id in ("gld", "tlt"):
-                assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
-            else:
-                assert slot.strategy_id == "buffer_zone", f"{slot.asset_id}: strategy_id가 buffer_zone이 아닙니다"
-
-
 class TestQSeriesConfigs:
     """Q 시리즈 설정 계약 테스트."""
 
@@ -164,55 +118,6 @@ class TestQSeriesConfigs:
         for slot in config.asset_slots:
             if slot.asset_id in ("gld", "tlt"):
                 assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
-
-    def test_q2_2x_full_investment(self) -> None:
-        """
-        목적: Q-2-2X는 전액 투자(target_weight 합 == 1.0)이어야 한다.
-
-        Given: portfolio_q2_2x 설정
-        When:  target_weight 합산
-        Then:  합 == 1.0
-        """
-        config = get_portfolio_config("portfolio_q2_2x")
-        total = sum(slot.target_weight for slot in config.asset_slots)
-        assert total == pytest.approx(1.0, abs=1e-9)
-
-    def test_q2_2x_all_buffer_zone(self) -> None:
-        """
-        목적: Q-2-2X는 전 자산이 버퍼존이어야 한다.
-
-        Given: portfolio_q2_2x 설정
-        When:  각 slot의 strategy_id 확인
-        Then:  모두 "buffer_zone"
-        """
-        config = get_portfolio_config("portfolio_q2_2x")
-        for slot in config.asset_slots:
-            assert slot.strategy_id == "buffer_zone", f"{slot.asset_id}: strategy_id가 buffer_zone이 아닙니다"
-
-    def test_q2_2xh_ugl_ubt_buy_and_hold(self) -> None:
-        """
-        목적: Q-2-2XH는 UGL/UBT가 B&H이어야 한다.
-
-        Given: portfolio_q2_2xh 설정
-        When:  UGL/UBT slot의 strategy_id 확인
-        Then:  strategy_id == "buy_and_hold"
-        """
-        config = get_portfolio_config("portfolio_q2_2xh")
-        for slot in config.asset_slots:
-            if slot.asset_id in ("ugl", "ubt"):
-                assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
-
-    def test_q2_2xh_full_investment(self) -> None:
-        """
-        목적: Q-2-2XH는 전액 투자(target_weight 합 == 1.0)이어야 한다.
-
-        Given: portfolio_q2_2xh 설정
-        When:  target_weight 합산
-        Then:  합 == 1.0
-        """
-        config = get_portfolio_config("portfolio_q2_2xh")
-        total = sum(slot.target_weight for slot in config.asset_slots)
-        assert total == pytest.approx(1.0, abs=1e-9)
 
     def test_q2_2xs_full_investment(self) -> None:
         """

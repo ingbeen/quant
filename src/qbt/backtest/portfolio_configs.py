@@ -4,8 +4,8 @@
 
 실험 목적:
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
-- F 시리즈: SPY + TQQQ + GLD + TLT (레버리지 혼합, B&H 변형)
-- Q 시리즈: TQQQ->QQQ 교체 (합성 데이터 제거) + 2x 레버리지 변형
+- Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
+  수익·위험 프로필을 비교한다.
 """
 
 from pathlib import Path
@@ -20,9 +20,6 @@ from qbt.common_constants import (
     SPY_DATA_PATH,
     SSO_DATA_PATH,
     TLT_DATA_PATH,
-    TQQQ_SYNTHETIC_DATA_PATH,
-    UBT_DATA_PATH,
-    UGL_DATA_PATH,
 )
 
 
@@ -51,49 +48,12 @@ _CONFIG_D1 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_d1"),
 )
 
-# F-6H: SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H)
-_CONFIG_F6H = PortfolioConfig(
-    experiment_name="portfolio_f6h",
-    display_name="F-6H (SPY 30% / TQQQ 30% / GLD 20%(B&H) / TLT 20%(B&H))",
-    asset_slots=(
-        AssetSlotConfig(
-            asset_id="spy",
-            signal_data_path=SPY_DATA_PATH,
-            trade_data_path=SPY_DATA_PATH,
-            target_weight=0.30,
-        ),
-        AssetSlotConfig(
-            asset_id="tqqq",
-            signal_data_path=QQQ_DATA_PATH,  # TQQQ는 QQQ 시그널 사용
-            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
-            target_weight=0.30,
-        ),
-        AssetSlotConfig(
-            asset_id="gld",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=GLD_DATA_PATH,
-            target_weight=0.20,
-            strategy_id="buy_and_hold",  # GLD: B&H
-        ),
-        AssetSlotConfig(
-            asset_id="tlt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=TLT_DATA_PATH,
-            target_weight=0.20,
-            strategy_id="buy_and_hold",  # TLT: B&H
-        ),
-    ),
-    total_capital=DEFAULT_INITIAL_CAPITAL,
-    result_dir=_make_result_dir("portfolio_f6h"),
-)
-
 # ============================================================================
-# Q 시리즈: TQQQ->QQQ 교체 (합성 데이터 제거) + 방어 비중 민감도
-# F-6H 구조에서 TQQQ를 QQQ로 교체하여 실데이터만 사용.
-# GLD/TLT는 B&H 유지 (F 시리즈 결론 적용).
+# Q 시리즈: SPY/QQQ 주식 + 방어자산(GLD·TLT, B&H) 혼합
+# 주식 구간을 1x(Q-2) 또는 2x(Q-2-2XS)로 교체하여 비교한다.
 # ============================================================================
 
-# Q-2: SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H) -- 방어 축소, 수익 확대
+# Q-2: SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H) -- 1x 주식 + 방어자산 B&H
 _CONFIG_Q2 = PortfolioConfig(
     experiment_name="portfolio_q2",
     display_name="Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
@@ -127,76 +87,6 @@ _CONFIG_Q2 = PortfolioConfig(
     ),
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_q2"),
-)
-
-# Q-2-2X: Q-2의 전 자산 2배 레버리지 버전 (전 자산 버퍼존, 1x 시그널 기반)
-_CONFIG_Q2_2X = PortfolioConfig(
-    experiment_name="portfolio_q2_2x",
-    display_name="Q-2-2X (SSO 35% / QLD 35% / UGL 15% / UBT 15%)",
-    asset_slots=(
-        AssetSlotConfig(
-            asset_id="sso",
-            signal_data_path=SPY_DATA_PATH,
-            trade_data_path=SSO_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="qld",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QLD_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="ugl",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=UGL_DATA_PATH,
-            target_weight=0.15,
-        ),
-        AssetSlotConfig(
-            asset_id="ubt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=UBT_DATA_PATH,
-            target_weight=0.15,
-        ),
-    ),
-    total_capital=DEFAULT_INITIAL_CAPITAL,
-    result_dir=_make_result_dir("portfolio_q2_2x"),
-)
-
-# Q-2-2XH: Q-2-2X에서 UGL/UBT를 B&H로 변경 -- SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H)
-_CONFIG_Q2_2XH = PortfolioConfig(
-    experiment_name="portfolio_q2_2xh",
-    display_name="Q-2-2XH (SSO 35% / QLD 35% / UGL 15%(B&H) / UBT 15%(B&H))",
-    asset_slots=(
-        AssetSlotConfig(
-            asset_id="sso",
-            signal_data_path=SPY_DATA_PATH,
-            trade_data_path=SSO_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="qld",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QLD_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="ugl",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=UGL_DATA_PATH,
-            target_weight=0.15,
-            strategy_id="buy_and_hold",
-        ),
-        AssetSlotConfig(
-            asset_id="ubt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=UBT_DATA_PATH,
-            target_weight=0.15,
-            strategy_id="buy_and_hold",
-        ),
-    ),
-    total_capital=DEFAULT_INITIAL_CAPITAL,
-    result_dir=_make_result_dir("portfolio_q2_2xh"),
 )
 
 # Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H)
@@ -241,10 +131,7 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 
 PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1,
-    _CONFIG_F6H,
     _CONFIG_Q2,
-    _CONFIG_Q2_2X,
-    _CONFIG_Q2_2XH,
     _CONFIG_Q2_2XS,
 ]
 

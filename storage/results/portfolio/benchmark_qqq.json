@@ -1,11 +1,55 @@
 {
   "ticker": "QQQ",
-  "start_date": "2010-01-21",
+  "start_date": "1999-03-10",
   "end_date": "2026-04-17",
   "yearly_returns": [
     {
+      "year": 1999,
+      "return_pct": 74.16
+    },
+    {
+      "year": 2000,
+      "return_pct": -36.11
+    },
+    {
+      "year": 2001,
+      "return_pct": -33.34
+    },
+    {
+      "year": 2002,
+      "return_pct": -37.38
+    },
+    {
+      "year": 2003,
+      "return_pct": 49.67
+    },
+    {
+      "year": 2004,
+      "return_pct": 10.54
+    },
+    {
+      "year": 2005,
+      "return_pct": 1.55
+    },
+    {
+      "year": 2006,
+      "return_pct": 7.14
+    },
+    {
+      "year": 2007,
+      "return_pct": 19.01
+    },
+    {
+      "year": 2008,
+      "return_pct": -41.73
+    },
+    {
+      "year": 2009,
+      "return_pct": 54.7
+    },
+    {
       "year": 2010,
-      "return_pct": 28.45
+      "return_pct": 20.14
     },
     {
       "year": 2011,
