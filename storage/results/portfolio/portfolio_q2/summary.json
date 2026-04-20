@@ -20,7 +20,12 @@
       "total_trades": 31,
       "win_rate": 93.55,
       "final_shares": 38946,
-      "final_avg_price": 593.096081
+      "final_avg_price": 593.096081,
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 593.096081,
+        "shares": 38946
+      }
     },
     {
       "asset_id": "qqq",
@@ -28,7 +33,12 @@
       "total_trades": 38,
       "win_rate": 92.11,
       "final_shares": 43911,
-      "final_avg_price": 526.167664
+      "final_avg_price": 526.167664,
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 526.167664,
+        "shares": 43911
+      }
     },
     {
       "asset_id": "gld",
@@ -36,7 +46,12 @@
       "total_trades": 36,
       "win_rate": 100.0,
       "final_shares": 23196,
-      "final_avg_price": 179.045728
+      "final_avg_price": 179.045728,
+      "open_position": {
+        "entry_date": "2005-01-04",
+        "entry_price": 179.045728,
+        "shares": 23196
+      }
     },
     {
       "asset_id": "tlt",
@@ -44,7 +59,12 @@
       "total_trades": 28,
       "win_rate": 82.14,
       "final_shares": 127937,
-      "final_avg_price": 91.299486
+      "final_avg_price": 91.299486,
+      "open_position": {
+        "entry_date": "2005-01-04",
+        "entry_price": 91.299486,
+        "shares": 127937
+      }
     }
   ],
   "portfolio_config": {

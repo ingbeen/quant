@@ -20,7 +20,12 @@
       "total_trades": 10,
       "win_rate": 80.0,
       "final_shares": 180578,
-      "final_avg_price": 519.706378
+      "final_avg_price": 519.706378,
+      "open_position": {
+        "entry_date": "2025-05-16",
+        "entry_price": 519.706378,
+        "shares": 180578
+      }
     }
   ],
   "portfolio_config": {

@@ -209,6 +209,43 @@ def _save_benchmark_qqq_json(start_date: Any) -> None:
     logger.debug(f"QQQ 벤치마크 연간 수익률 저장 완료: {benchmark_path}")
 
 
+def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str | None:
+    """자산의 shares가 마지막으로 0 → 양수로 전환된 거래일을 반환한다.
+
+    미청산 포지션의 entry_date 파생용. shares 컬럼이 없거나 모든 값이 0이면 None.
+    shares가 한 번도 0이 되지 않고 시작부터 양수인 경우(예: buy_and_hold)에는
+    첫 번째 양수 행의 Date를 폴백으로 반환한다.
+
+    Args:
+        equity_df: 포트폴리오 에쿼티 DataFrame (Date, {asset_id}_shares 포함)
+        asset_id: 자산 식별자
+
+    Returns:
+        entry_date 문자열 (YYYY-MM-DD) 또는 None
+    """
+    shares_col = f"{asset_id}_shares"
+    if shares_col not in equity_df.columns or equity_df.empty:
+        return None
+
+    shares = equity_df[shares_col].astype(int)
+    if (shares <= 0).all():
+        return None
+
+    prev = shares.shift(1).fillna(0).astype(int)
+    transition_mask = (prev == 0) & (shares > 0)
+    if transition_mask.any():
+        entry_row = equity_df.loc[transition_mask].iloc[-1]
+        return str(entry_row[COL_DATE])
+
+    # 폴백: 시작부터 양수인 경우 첫 행 Date
+    first_positive_mask = shares > 0
+    if first_positive_mask.any():
+        first_row = equity_df.loc[first_positive_mask].iloc[0]
+        return str(first_row[COL_DATE])
+
+    return None
+
+
 def _save_portfolio_results(result: PortfolioResult) -> None:
     """포트폴리오 백테스트 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
 
@@ -377,16 +414,27 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         if avg_price_col in result.equity_df.columns and not result.equity_df.empty:
             final_avg_price = round(float(result.equity_df[avg_price_col].iloc[-1]), ROUND_PRICE)
 
-        per_asset_data.append(
-            {
-                "asset_id": asset_result.asset_id,
-                "target_weight": round(slot.target_weight, ROUND_RATIO) if slot else 0.0,
-                "total_trades": total_asset_trades,
-                "win_rate": win_rate,
-                "final_shares": final_shares,
-                "final_avg_price": final_avg_price,
-            }
-        )
+        asset_entry: dict[str, Any] = {
+            "asset_id": asset_result.asset_id,
+            "target_weight": round(slot.target_weight, ROUND_RATIO) if slot else 0.0,
+            "total_trades": total_asset_trades,
+            "win_rate": win_rate,
+            "final_shares": final_shares,
+            "final_avg_price": final_avg_price,
+        }
+
+        # 미청산 포지션(open_position): final_shares > 0 인 자산만 기록
+        # 대시보드의 시그널 차트가 "Buy $XX.X (보유중)" 마커로 표시하는 데 사용
+        if final_shares > 0:
+            entry_date = _find_last_entry_date(result.equity_df, asset_result.asset_id)
+            if entry_date is not None:
+                asset_entry["open_position"] = {
+                    "entry_date": entry_date,
+                    "entry_price": final_avg_price,
+                    "shares": final_shares,
+                }
+
+        per_asset_data.append(asset_entry)
 
     # 월별/연간 수익률 계산 (대시보드에서 히트맵 표시용)
     monthly_returns = calculate_monthly_returns(result.equity_df)

@@ -1146,11 +1146,18 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         )
 
         signal_df = exp.signal_dfs[selected_signal_asset]
+        per_asset_list: list[dict[str, Any]] = exp.summary.get("per_asset", [])
+        asset_meta = next(
+            (a for a in per_asset_list if a.get("asset_id") == selected_signal_asset),
+            None,
+        )
+        open_position_meta: dict[str, Any] | None = asset_meta.get("open_position") if asset_meta else None
         _render_signal_chart(
             signal_df=signal_df,
             trades_df=exp.trades_df,
             asset_id=selected_signal_asset,
             experiment_name=exp.experiment_name,
+            open_position=open_position_meta,
         )
     else:
         st.info("시그널 데이터가 없습니다.")
@@ -1278,48 +1285,78 @@ def _build_lwc_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]
 def _build_portfolio_markers(
     trades_df: pd.DataFrame,
     asset_id: str,
+    open_position: dict[str, Any] | None = None,
 ) -> list[dict[str, object]]:
-    """해당 자산의 trades에서 Buy/Sell 마커를 생성한다."""
-    markers: list[dict[str, object]] = []
-    if trades_df.empty or "asset_id" not in trades_df.columns:
-        return markers
+    """해당 자산의 trades에서 Buy/Sell 마커를 생성한다.
 
-    asset_trades = trades_df[trades_df["asset_id"] == asset_id]
-    if asset_trades.empty or "entry_date" not in asset_trades.columns:
-        return markers
+    완료된 거래의 Buy/Sell에 더해, `open_position`이 주어지면 미청산 매수
+    체결일에도 "Buy $XX.X (보유중)" 마커를 추가한다 (단일 백테스트와 동일 규약).
+
+    Args:
+        trades_df: 포트폴리오 전체 거래 내역 (asset_id 컬럼 포함)
+        asset_id: 마커를 생성할 자산 ID
+        open_position: summary.per_asset[asset_id].open_position. `None`이면 미청산 없음.
+            존재 시 dict 형태 {"entry_date": str, "entry_price": float, "shares": int}
+
+    Returns:
+        시간 순 정렬된 마커 리스트.
+    """
+    markers: list[dict[str, object]] = []
 
     # 분할 매도 시 동일 entry_date가 여러 행에 반복되므로, Buy 마커는 진입일당 1회만 생성
     seen_entry_dates: set[str] = set()
-    for trade in asset_trades.itertuples(index=False):
-        entry_d = trade.entry_date
-        if pd.notna(entry_d) and pd.notna(trade.entry_price):
-            entry_key = pd.Timestamp(entry_d).strftime("%Y-%m-%d")
+
+    if not trades_df.empty and "asset_id" in trades_df.columns:
+        asset_trades = trades_df[trades_df["asset_id"] == asset_id]
+        if not asset_trades.empty and "entry_date" in asset_trades.columns:
+            for trade in asset_trades.itertuples(index=False):
+                entry_d = trade.entry_date
+                if pd.notna(entry_d) and pd.notna(trade.entry_price):
+                    entry_key = pd.Timestamp(entry_d).strftime("%Y-%m-%d")
+                    if entry_key not in seen_entry_dates:
+                        seen_entry_dates.add(entry_key)
+                        markers.append(
+                            {
+                                "time": entry_key,
+                                "position": "belowBar",
+                                "color": _COLOR_BUY_MARKER,
+                                "shape": "arrowUp",
+                                "text": f"Buy ${trade.entry_price:.1f}",
+                                "size": 2,
+                            }
+                        )
+
+                exit_d = trade.exit_date
+                if pd.notna(exit_d) and pd.notna(trade.exit_price):
+                    pnl_pct = float(trade.pnl_pct) * 100 if pd.notna(trade.pnl_pct) else 0.0
+                    markers.append(
+                        {
+                            "time": pd.Timestamp(exit_d).strftime("%Y-%m-%d"),
+                            "position": "aboveBar",
+                            "color": _COLOR_SELL_MARKER,
+                            "shape": "arrowDown",
+                            "text": f"Sell {pnl_pct:+.1f}%",
+                            "size": 2,
+                        }
+                    )
+
+    # 미청산 포지션 Buy 마커 (trades_df의 Buy와 중복되지 않을 때만 추가)
+    if open_position is not None:
+        entry_date_val = open_position.get("entry_date")
+        entry_price_val = open_position.get("entry_price")
+        if entry_date_val and entry_price_val is not None:
+            entry_key = pd.Timestamp(str(entry_date_val)).strftime("%Y-%m-%d")
             if entry_key not in seen_entry_dates:
-                seen_entry_dates.add(entry_key)
                 markers.append(
                     {
                         "time": entry_key,
                         "position": "belowBar",
                         "color": _COLOR_BUY_MARKER,
                         "shape": "arrowUp",
-                        "text": f"Buy ${trade.entry_price:.1f}",
+                        "text": f"Buy ${float(entry_price_val):.1f} (보유중)",
                         "size": 2,
                     }
                 )
-
-        exit_d = trade.exit_date
-        if pd.notna(exit_d) and pd.notna(trade.exit_price):
-            pnl_pct = float(trade.pnl_pct) * 100 if pd.notna(trade.pnl_pct) else 0.0
-            markers.append(
-                {
-                    "time": pd.Timestamp(exit_d).strftime("%Y-%m-%d"),
-                    "position": "aboveBar",
-                    "color": _COLOR_SELL_MARKER,
-                    "shape": "arrowDown",
-                    "text": f"Sell {pnl_pct:+.1f}%",
-                    "size": 2,
-                }
-            )
 
     # lightweight-charts는 마커가 시간순 정렬되어야 정상 표시된다
     markers.sort(key=lambda m: str(m["time"]))
@@ -1331,6 +1368,7 @@ def _render_signal_chart(
     trades_df: pd.DataFrame,
     asset_id: str,
     experiment_name: str,
+    open_position: dict[str, Any] | None = None,
 ) -> None:
     """lightweight-charts 캔들스틱 + MA + 밴드 + Buy/Sell 마커를 표시한다.
 
@@ -1343,13 +1381,14 @@ def _render_signal_chart(
         trades_df: 거래 내역 (asset_id 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
+        open_position: 미청산 포지션 정보. 존재 시 "Buy $XX.X (보유중)" 마커 추가.
     """
     # 1. MA 컬럼 탐지
     ma_col = _detect_ma_col(signal_df)
 
     # 2. 데이터 준비 (밴드 컬럼은 CSV에서 직접 읽음)
     candle_data = _build_portfolio_candle_data(signal_df, ma_col)
-    markers = _build_portfolio_markers(trades_df, asset_id)
+    markers = _build_portfolio_markers(trades_df, asset_id, open_position=open_position)
 
     # 4. 차트 테마
     chart_theme: dict[str, object] = {
