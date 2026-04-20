@@ -1417,7 +1417,6 @@ def _render_signal_chart(
     if ma_col:
         ma_data = _build_lwc_series_data(signal_df, ma_col)
         if ma_data:
-            window = ma_col.removeprefix("ma_")
             pane_series.append(
                 {
                     "type": "Line",
@@ -1428,7 +1427,6 @@ def _render_signal_chart(
                         "priceLineVisible": False,
                         "lastValueVisible": False,
                         "crosshairMarkerVisible": False,
-                        "title": f"EMA-{window}",
                     },
                 }
             )
