@@ -143,7 +143,8 @@ main 함수:
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 메타데이터 타입: `"portfolio_backtest"`
     - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다. 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
-    - QQQ 벤치마크 공유 정책: `benchmark_qqq.json`은 전체 `PORTFOLIO_CONFIGS`의 유효 시작일 중 가장 이른 날짜(`min`) 기준으로 1회 계산하여 공유 파일 하나로 저장한다. 대시보드의 "연간 수익률 vs QQQ" 섹션은 실험별 `summary.yearly_returns`와 공유 QQQ `yearly_returns`를 연도 기준 inner join 하므로, QQQ 연간 수익률 범위가 실험 기간보다 넓어도 공통 연도만 비교된다. 단일 실험 실행 시에도 동일하게 전체 configs 기준 `min`을 사용한다.
+    - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다.
+    - QQQ 벤치마크 공유 정책: `benchmark_qqq.json`은 전체 `PORTFOLIO_CONFIGS`의 유효 시작일 중 가장 이른 날짜(`min`)에 동일한 정책 하한을 적용한 값(`max(min, DEFAULT_PORTFOLIO_START_DATE)`)을 기준으로 1회 계산하여 공유 파일 하나로 저장한다. 대시보드의 "연간 수익률 vs QQQ" 섹션은 실험별 `summary.yearly_returns`와 공유 QQQ `yearly_returns`를 연도 기준 inner join 하므로, QQQ 연간 수익률 범위가 실험 기간보다 넓어도 공통 연도만 비교된다. 단일 실험 실행 시에도 동일하게 전체 configs 기준으로 계산한다.
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

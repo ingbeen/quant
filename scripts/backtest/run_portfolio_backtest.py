@@ -62,6 +62,11 @@ logger = get_logger(__name__)
 # 실험명 -> config 매핑
 _CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
 
+# 포트폴리오 백테스트 최소 시작일 하한
+# 각 실험의 effective_start_date가 이 날짜 이전이어도 이 날짜부터 실행한다
+# (2005년 이전 데이터는 포트폴리오 비교 범위에서 제외).
+DEFAULT_PORTFOLIO_START_DATE: date = date(2005, 1, 1)
+
 
 def _build_execution_comparison_df(
     equity_df: pd.DataFrame,
@@ -496,26 +501,33 @@ def main() -> int:
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
     # 3. 실험별 유효 시작일 계산
-    # 각 실험은 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 사용한다.
-    # QQQ 벤치마크 JSON은 전체 실험 중 가장 이른 시작일(min) 기준으로 한 번만 계산하여
+    # 각 실험은 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 사용하되,
+    # 정책 하한인 DEFAULT_PORTFOLIO_START_DATE로 끌어올린다 (2005년 이전 데이터는 스킵).
+    # QQQ 벤치마크 JSON은 전체 실험 중 가장 이른 시작일(min)에 동일 하한을 적용하여
     # 공유 파일로 저장한다. 대시보드는 연도별 inner join으로 각 실험 기간에 공통되는
     # 연도만 비교하므로 별도 분리 저장이 불필요하다.
     logger.debug("실험별 유효 시작일 계산 중...")
     effective_start_dates: dict[str, date] = {
         cfg.experiment_name: compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS
     }
-    min_start_date = min(effective_start_dates.values())
-    logger.debug(f"실험별 유효 시작일: {effective_start_dates}")
-    logger.debug(f"QQQ 벤치마크 기준 최소 시작일: {min_start_date}")
+    min_effective = min(effective_start_dates.values())
+    benchmark_start_date = max(min_effective, DEFAULT_PORTFOLIO_START_DATE)
+    logger.debug(f"실험별 유효 시작일(데이터 기준): {effective_start_dates}")
+    logger.debug(f"정책 하한: {DEFAULT_PORTFOLIO_START_DATE}")
+    logger.debug(f"QQQ 벤치마크 기준 시작일: {benchmark_start_date} (min(effective)={min_effective}, 하한 적용 후)")
 
-    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (전체 실험의 최소 시작일 기준 공유)
-    _save_benchmark_qqq_json(min_start_date)
+    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (하한 적용된 최소 시작일 기준 공유)
+    _save_benchmark_qqq_json(benchmark_start_date)
 
-    # 4. 실험별 실행 (각 실험의 고유 시작일 적용)
+    # 4. 실험별 실행 (각 실험의 고유 시작일 + 정책 하한 적용)
     for config in target_configs:
-        exp_start_date = effective_start_dates[config.experiment_name]
+        raw_start_date = effective_start_dates[config.experiment_name]
+        exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)
         logger.debug("=" * 70)
-        logger.debug(f"실험 시작: {config.experiment_name} ({config.display_name}) — start_date={exp_start_date}")
+        logger.debug(
+            f"실험 시작: {config.experiment_name} ({config.display_name}) — "
+            f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE})"
+        )
         result = run_portfolio_backtest(config, start_date=exp_start_date)
         _print_summary(result)
 
