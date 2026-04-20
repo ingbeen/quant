@@ -469,12 +469,14 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
     ]
 
     # 5. make_subplots로 월별(12열) + 연간(1열) 분리, y축(연도) 공유
+    # horizontal_spacing을 넉넉히 잡아 두 subplot 사이에 월별 컬러바가 들어갈 공간을 확보.
+    # 레이아웃: [월별 히트맵] [월별 컬러바] [연간 히트맵] [연간 컬러바]
     fig_heatmap = make_subplots(
         rows=1,
         cols=2,
         column_widths=[12, 1],
         shared_yaxes=True,
-        horizontal_spacing=0.02,
+        horizontal_spacing=0.12,
     )
 
     fig_heatmap.add_trace(
@@ -511,21 +513,26 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
     fig_heatmap.update_yaxes(autorange="reversed", row=1, col=1)
     fig_heatmap.update_yaxes(autorange="reversed", row=1, col=2)
 
+    # 컬러바 위치 계산 근거 (paper 좌표, xanchor="left" 기본값):
+    # column_widths=[12,1], horizontal_spacing=0.12 →
+    #   월별 subplot 영역: [0, 0.812], 연간 subplot 영역: [0.932, 1.000]
+    # 월별 컬러바는 월별 subplot 바로 우측(~0.83)에 두어 월별 히트맵 옆에 정렬.
+    # 연간 컬러바는 figure 오른쪽(연간 subplot 우측 여백)에 둔다.
     fig_heatmap.update_layout(
         height=max(_SMALL_CHART_HEIGHT, len(year_labels) * 40 + 100),
         coloraxis={
             "colorscale": _heatmap_colorscale,
             "cmin": -max_abs_monthly,
             "cmax": max_abs_monthly,
-            "colorbar": {"title": "월별 (%)", "x": 1.02, "len": 0.9},
+            "colorbar": {"title": "월별 (%)", "x": 0.83, "xanchor": "left", "len": 0.9, "thickness": 14},
         },
         coloraxis2={
             "colorscale": _heatmap_colorscale,
             "cmin": -max_abs_yearly,
             "cmax": max_abs_yearly,
-            "colorbar": {"title": "연간 (%)", "x": 1.14, "len": 0.9},
+            "colorbar": {"title": "연간 (%)", "x": 1.02, "xanchor": "left", "len": 0.9, "thickness": 14},
         },
-        margin={"r": 160},
+        margin={"r": 120},
     )
     st.plotly_chart(fig_heatmap, width="stretch", key=f"monthly_heatmap_{exp.experiment_name}")
 
@@ -1096,29 +1103,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
                     hovertemplate=(f"%{{x|%Y-%m-%d}}<br>{asset_id.upper()}: %{{y:.1f}}%<extra></extra>"),
                 )
             )
-
-        # 목표 비중 수평선 오버레이
-        target_weights_map: dict[str, float] = {}
-        for pa_info in per_asset:
-            aid = str(pa_info.get("asset_id", ""))
-            tw = float(pa_info.get("target_weight", 0))
-            target_weights_map[aid] = tw
-        for col in weight_cols:
-            asset_id = _asset_id_from_weight_col(col)
-            tw = target_weights_map.get(asset_id, 0)
-            if tw > 0:
-                color = _get_asset_color(asset_id, weight_asset_ids_tuple)
-                fig_weight.add_hline(
-                    y=tw * 100,
-                    line_dash="dash",
-                    line_color=color,
-                    line_width=1,
-                    opacity=0.5,
-                    annotation_text=f"{asset_id.upper()} 목표",
-                    annotation_position="right",
-                    annotation_font_size=9,
-                    annotation_font_color=color,
-                )
 
         fig_weight.update_layout(
             title="자산별 비중 추이 (리밸런싱 효과 포함)",
