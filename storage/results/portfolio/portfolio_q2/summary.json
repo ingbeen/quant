@@ -7,6 +7,8 @@
     "cagr": 10.57,
     "mdd": -16.21,
     "calmar": 0.65,
+    "sharpe_ratio": 1.05,
+    "sortino_ratio": 1.46,
     "total_trades": 108,
     "start_date": "2010-01-21",
     "end_date": "2026-04-17"

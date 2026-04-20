@@ -34,6 +34,7 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    PORTFOLIO_RESULTS_DIR,
 )
 
 # ============================================================
@@ -63,10 +64,17 @@ _COL_DISPLAY_NAME = "실험"
 _COL_CAGR = "CAGR (%)"
 _COL_MDD = "MDD (%)"
 _COL_CALMAR = "Calmar"
+_COL_SHARPE = "Sharpe"
+_COL_SORTINO = "Sortino"
 _COL_TOTAL_RETURN = "총 수익률 (%)"
 _COL_TOTAL_TRADES = "총 거래 수"
 _COL_START_DATE = "시작일"
 _COL_END_DATE = "종료일"
+
+# --- 벤치마크 ---
+_BENCHMARK_QQQ_FILENAME = "benchmark_qqq.json"
+_COLOR_PORTFOLIO_BAR = "rgb(33, 150, 243)"
+_COLOR_BENCHMARK_BAR = "rgb(255, 152, 0)"
 
 # --- 동적 색상 팔레트 ---
 # 자산/실험 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
@@ -479,6 +487,134 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
 
 
 # ============================================================
+# 신규 섹션: 연간 수익률 벤치마크 비교 (vs QQQ)
+# ============================================================
+
+
+@st.cache_data
+def _load_benchmark_qqq_json() -> dict[str, Any] | None:
+    """benchmark_qqq.json을 로드한다. 파일이 없으면 None 반환."""
+    path = PORTFOLIO_RESULTS_DIR / _BENCHMARK_QQQ_FILENAME
+    if not path.exists():
+        return None
+    with path.open(encoding="utf-8") as f:
+        result: dict[str, Any] = json.load(f)
+    return result
+
+
+def _render_benchmark_comparison_section(exp: _ExperimentData) -> None:
+    """연간 수익률을 QQQ 벤치마크와 비교하는 바차트 섹션.
+
+    포트폴리오 연간 수익률과 QQQ 연간 수익률을 연도별 grouped bar로 표시하고,
+    각 연도의 초과 수익(%p)을 별도 라인으로 병기한다.
+    """
+    st.subheader("연간 수익률 vs QQQ")
+
+    benchmark = _load_benchmark_qqq_json()
+    if benchmark is None:
+        st.info(f"{_BENCHMARK_QQQ_FILENAME} 파일이 없습니다. " "먼저 run_portfolio_backtest.py를 실행하세요.")
+        return
+
+    yearly_returns: list[dict[str, Any]] = exp.summary.get("yearly_returns", [])
+    bench_yearly: list[dict[str, Any]] = benchmark.get("yearly_returns", [])
+    if not yearly_returns or not bench_yearly:
+        st.info("연간 수익률 데이터가 없습니다.")
+        return
+
+    # 연도별 매핑 (inner join)
+    port_map: dict[int, float] = {int(str(e["year"])): float(str(e["return_pct"])) for e in yearly_returns}
+    bench_map: dict[int, float] = {int(str(e["year"])): float(str(e["return_pct"])) for e in bench_yearly}
+    common_years = sorted(set(port_map.keys()) & set(bench_map.keys()))
+
+    if not common_years:
+        st.info("포트폴리오와 QQQ 벤치마크의 공통 연도가 없습니다.")
+        return
+
+    port_vals = [port_map[y] for y in common_years]
+    bench_vals = [bench_map[y] for y in common_years]
+    excess_vals = [p - b for p, b in zip(port_vals, bench_vals, strict=True)]
+    year_labels = [str(y) for y in common_years]
+
+    # grouped bar: 포트폴리오 vs QQQ
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.08,
+        subplot_titles=["연간 수익률 (%)", "초과 수익 (%p)"],
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=year_labels,
+            y=port_vals,
+            name=exp.display_name,
+            marker_color=_COLOR_PORTFOLIO_BAR,
+            text=[f"{v:+.2f}%" for v in port_vals],
+            textposition="outside",
+            hovertemplate=f"%{{x}}<br>{exp.display_name}: %{{y:+.2f}}%<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Bar(
+            x=year_labels,
+            y=bench_vals,
+            name="QQQ",
+            marker_color=_COLOR_BENCHMARK_BAR,
+            text=[f"{v:+.2f}%" for v in bench_vals],
+            textposition="outside",
+            hovertemplate="%{x}<br>QQQ: %{y:+.2f}%<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    # 초과 수익(%p) — 양수/음수 색상 분기
+    excess_colors = [_COLOR_UP if v >= 0 else _COLOR_DOWN for v in excess_vals]
+    fig.add_trace(
+        go.Bar(
+            x=year_labels,
+            y=excess_vals,
+            name="초과 수익 (%p)",
+            marker_color=excess_colors,
+            text=[f"{v:+.2f}" for v in excess_vals],
+            textposition="outside",
+            hovertemplate="%{x}<br>초과: %{y:+.2f}%p<extra></extra>",
+            showlegend=False,
+        ),
+        row=2,
+        col=1,
+    )
+
+    fig.update_layout(
+        height=_CHART_HEIGHT,
+        barmode="group",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+        margin={"t": 60},
+    )
+    fig.update_yaxes(title_text="수익률 (%)", row=1, col=1)
+    fig.update_yaxes(title_text="초과 (%p)", row=2, col=1)
+    fig.update_xaxes(title_text="연도", row=2, col=1)
+
+    st.plotly_chart(fig, width="stretch", key=f"benchmark_compare_{exp.experiment_name}")
+
+    # 승/패 요약 caption
+    wins = sum(1 for v in excess_vals if v > 0)
+    losses = sum(1 for v in excess_vals if v < 0)
+    ties = sum(1 for v in excess_vals if v == 0)
+    avg_excess = sum(excess_vals) / len(excess_vals) if excess_vals else 0.0
+    st.caption(
+        f"비교 기간 {benchmark.get('start_date', 'N/A')} ~ {benchmark.get('end_date', 'N/A')} "
+        f"| 공통 연도 {len(common_years)}개 | QQQ 대비 승 {wins} / 패 {losses} / 무 {ties} "
+        f"| 평균 초과 수익 {avg_excess:+.2f}%p "
+        "(첫/마지막 해는 부분 기간일 수 있음)"
+    )
+
+
+# ============================================================
 # 신규 섹션: 자산별 수익 기여도 (Asset Contribution)
 # ============================================================
 
@@ -661,6 +797,8 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
                 _COL_CAGR: ps.get("cagr", "N/A"),
                 _COL_MDD: ps.get("mdd", "N/A"),
                 _COL_CALMAR: ps.get("calmar", "N/A"),
+                _COL_SHARPE: ps.get("sharpe_ratio", "N/A"),
+                _COL_SORTINO: ps.get("sortino_ratio", "N/A"),
                 _COL_TOTAL_RETURN: ps.get("total_return_pct", "N/A"),
                 _COL_TOTAL_TRADES: ps.get("total_trades", "N/A"),
                 _COL_START_DATE: ps.get("start_date", "N/A"),
@@ -763,11 +901,13 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     # ---- 요약 지표 ----
     st.subheader("요약 지표")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     col1.metric("CAGR", f"{ps.get('cagr', 'N/A')}%")
     col2.metric("MDD", f"{ps.get('mdd', 'N/A')}%")
     col3.metric("Calmar", str(ps.get("calmar", "N/A")))
-    col4.metric("총 수익률", f"{ps.get('total_return_pct', 'N/A')}%")
+    col4.metric("Sharpe", str(ps.get("sharpe_ratio", "N/A")))
+    col5.metric("Sortino", str(ps.get("sortino_ratio", "N/A")))
+    col6.metric("총 수익률", f"{ps.get('total_return_pct', 'N/A')}%")
 
     # 자산별 목표 비중
     if per_asset:
@@ -983,6 +1123,10 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     # ---- 신규 섹션: 월별 수익률 히트맵 ----
     st.divider()
     _render_monthly_returns_section(exp)
+
+    # ---- 신규 섹션: 연간 수익률 벤치마크 비교 (vs QQQ) ----
+    st.divider()
+    _render_benchmark_comparison_section(exp)
 
     # ---- 신규 섹션: 자산별 수익 기여도 ----
     st.divider()

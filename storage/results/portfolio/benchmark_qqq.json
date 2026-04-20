@@ -1,0 +1,75 @@
+{
+  "ticker": "QQQ",
+  "start_date": "2010-01-21",
+  "end_date": "2026-04-17",
+  "yearly_returns": [
+    {
+      "year": 2010,
+      "return_pct": 28.45
+    },
+    {
+      "year": 2011,
+      "return_pct": 3.48
+    },
+    {
+      "year": 2012,
+      "return_pct": 18.12
+    },
+    {
+      "year": 2013,
+      "return_pct": 36.61
+    },
+    {
+      "year": 2014,
+      "return_pct": 19.18
+    },
+    {
+      "year": 2015,
+      "return_pct": 9.45
+    },
+    {
+      "year": 2016,
+      "return_pct": 7.08
+    },
+    {
+      "year": 2017,
+      "return_pct": 32.66
+    },
+    {
+      "year": 2018,
+      "return_pct": -0.11
+    },
+    {
+      "year": 2019,
+      "return_pct": 38.95
+    },
+    {
+      "year": 2020,
+      "return_pct": 48.4
+    },
+    {
+      "year": 2021,
+      "return_pct": 27.43
+    },
+    {
+      "year": 2022,
+      "return_pct": -32.59
+    },
+    {
+      "year": 2023,
+      "return_pct": 54.84
+    },
+    {
+      "year": 2024,
+      "return_pct": 25.56
+    },
+    {
+      "year": 2025,
+      "return_pct": 20.77
+    },
+    {
+      "year": 2026,
+      "return_pct": 5.76
+    }
+  ]
+}

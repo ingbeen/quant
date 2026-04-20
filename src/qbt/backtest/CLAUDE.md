@@ -52,6 +52,9 @@
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 - `calculate_yearly_returns`: 월별 수익률 리스트로부터 연간 복리 수익률 계산 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
+- `calculate_sharpe_ratio`: 일별 수익률 기반 연율화 샤프 비율 (rf=0 기준, std=0 또는 데이터 부족 시 0.0 반환)
+- `calculate_sortino_ratio`: 일별 수익률 기반 연율화 소르티노 비율 (하방 편차 기준, 하방 편차=0 시 0.0 반환)
+- `calculate_benchmark_yearly_returns`: 벤치마크(QQQ 등) Close 컬럼과 기간으로부터 연간 복리 수익률 리스트 계산 (대시보드 "연간 수익률 vs QQQ" 섹션에서 사용)
 
 ### 4. parameter_stability.py
 
@@ -529,7 +532,7 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - **Plotly 전용**: lightweight-charts 없이 Plotly만 사용 (멀티 시리즈 라인 차트가 주목적)
 - **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
 - **전체 비교 탭 주요 기능**: 성과 지표 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교, 실험 해설(행동 가이드)
-- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이(스택 에어리어), 거래 현황 바차트, 거래 내역 테이블(자산 필터), 시그널 차트(Plotly 캔들스틱, 자산 선택), 파라미터 expander
+- **실험별 탭 주요 기능**: 요약 지표(Sharpe/Sortino 포함), 에쿼티+드로우다운 서브플롯, 자산별 비중 추이(스택 에어리어), 거래 현황 바차트, 거래 내역 테이블(자산 필터), 시그널 차트(Plotly 캔들스틱, 자산 선택), 파라미터 expander, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
 
 선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요
 

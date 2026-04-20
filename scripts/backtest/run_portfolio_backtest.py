@@ -16,7 +16,13 @@ from typing import Any
 
 import pandas as pd
 
-from qbt.backtest.analysis import calculate_monthly_returns, calculate_yearly_returns
+from qbt.backtest.analysis import (
+    calculate_benchmark_yearly_returns,
+    calculate_monthly_returns,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+    calculate_yearly_returns,
+)
 from qbt.backtest.constants import (
     ROUND_CAPITAL,
     ROUND_PERCENT,
@@ -36,13 +42,17 @@ from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioResult
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
     COL_CLOSE,
+    COL_DATE,
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
     META_JSON_PATH,
+    PORTFOLIO_RESULTS_DIR,
+    QQQ_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
+from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
@@ -158,6 +168,36 @@ def _build_execution_comparison_df(
         )
 
     return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def _save_benchmark_qqq_json(start_date: Any) -> None:
+    """QQQ 벤치마크의 연간 복리 수익률을 산출해 포트폴리오 결과 디렉토리에 저장한다.
+
+    모든 실험이 동일 글로벌 시작일을 공유하므로, 실험마다 중복 저장하지 않고
+    공유 JSON 하나(`storage/results/portfolio/benchmark_qqq.json`)를 생성한다.
+    종료일은 QQQ 데이터의 마지막 날짜를 사용한다.
+
+    Args:
+        start_date: 글로벌 시작일 (포트폴리오 실험이 공통으로 사용하는 시작일)
+    """
+    PORTFOLIO_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    qqq_df = load_stock_data(QQQ_DATA_PATH)
+    end_date = qqq_df[COL_DATE].max()
+
+    yearly = calculate_benchmark_yearly_returns(qqq_df, start_date, end_date)
+
+    benchmark_data: dict[str, Any] = {
+        "ticker": "QQQ",
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "yearly_returns": yearly,
+    }
+
+    benchmark_path = PORTFOLIO_RESULTS_DIR / "benchmark_qqq.json"
+    with benchmark_path.open("w", encoding="utf-8") as f:
+        json.dump(benchmark_data, f, indent=2, ensure_ascii=False)
+    logger.debug(f"QQQ 벤치마크 연간 수익률 저장 완료: {benchmark_path}")
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
@@ -284,6 +324,10 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     summary_path = result.config.result_dir / "summary.json"
     s = result.summary
 
+    # Sharpe/Sortino: 일별 수익률 기반 연율화 리스크 조정 지표 (rf=0 기준)
+    sharpe = calculate_sharpe_ratio(result.equity_df)
+    sortino = calculate_sortino_ratio(result.equity_df)
+
     portfolio_summary: dict[str, Any] = {
         "initial_capital": round(float(str(s["initial_capital"]))),
         "final_capital": round(float(str(s["final_capital"]))),
@@ -291,6 +335,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "cagr": round(float(str(s["cagr"])), ROUND_PERCENT),
         "mdd": round(float(str(s["mdd"])), ROUND_PERCENT),
         "calmar": round(float(str(s["calmar"])), ROUND_PERCENT),
+        "sharpe_ratio": round(sharpe, ROUND_PERCENT),
+        "sortino_ratio": round(sortino, ROUND_PERCENT),
         "total_trades": s["total_trades"],
         "start_date": str(s.get("start_date", "")),
         "end_date": str(s.get("end_date", "")),
@@ -451,6 +497,9 @@ def main() -> int:
     effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS]
     global_start_date = max(effective_start_dates)
     logger.debug(f"글로벌 시작일 결정: {global_start_date} ({len(PORTFOLIO_CONFIGS)}개 실험 기준)")
+
+    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (글로벌 시작일 기준 공유)
+    _save_benchmark_qqq_json(global_start_date)
 
     # 4. 실험별 실행 (글로벌 시작일 적용)
     for config in target_configs:

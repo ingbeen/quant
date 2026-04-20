@@ -19,7 +19,10 @@ import pytest
 
 from qbt.backtest.analysis import (
     add_single_moving_average,
+    calculate_benchmark_yearly_returns,
     calculate_calmar,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
     calculate_summary,
     calculate_yearly_returns,
 )
@@ -843,3 +846,132 @@ class TestAnalysisModuleInvariants:
         # When / Then
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             calculate_summary(trades_df, equity_df, initial_capital=10000.0)
+
+
+class TestCalculateSharpeRatio:
+    """샤프 비율 계산 테스트 클래스."""
+
+    def _build_equity_df(self, values: list[float]) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 1 + i) for i in range(len(values))],
+                "equity": values,
+            }
+        )
+
+    def test_normal_calculation(self):
+        """
+        Given: 변동이 있는 에쿼티 시계열
+        When: calculate_sharpe_ratio 호출 (rf=0)
+        Then: 유한한 float 반환, std=0 아님 → 0.0이 아님
+        """
+        eq = self._build_equity_df([100.0, 102.0, 101.0, 103.0, 102.5, 104.0])
+
+        result = calculate_sharpe_ratio(eq, risk_free_rate=0.0)
+
+        assert isinstance(result, float)
+        assert result != 0.0
+
+    def test_empty_equity_returns_zero(self):
+        """빈 DataFrame이면 0.0 반환."""
+        eq = pd.DataFrame({COL_DATE: [], "equity": []})
+        assert calculate_sharpe_ratio(eq) == 0.0
+
+    def test_single_row_returns_zero(self):
+        """1행만 있으면 수익률 계산 불가 → 0.0 반환."""
+        eq = self._build_equity_df([100.0])
+        assert calculate_sharpe_ratio(eq) == 0.0
+
+    def test_constant_equity_returns_zero(self):
+        """
+        Given: 에쿼티가 변동 없이 일정 (std=0)
+        When: calculate_sharpe_ratio 호출
+        Then: 분모 0 경계로 0.0 반환
+        """
+        eq = self._build_equity_df([100.0, 100.0, 100.0, 100.0])
+        assert calculate_sharpe_ratio(eq) == 0.0
+
+
+class TestCalculateSortinoRatio:
+    """소르티노 비율 계산 테스트 클래스."""
+
+    def _build_equity_df(self, values: list[float]) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 1 + i) for i in range(len(values))],
+                "equity": values,
+            }
+        )
+
+    def test_normal_calculation(self):
+        """
+        Given: 하락 구간이 포함된 에쿼티 시계열
+        When: calculate_sortino_ratio 호출 (rf=0)
+        Then: 유한한 float 반환, downside != 0 → 0.0 아님
+        """
+        eq = self._build_equity_df([100.0, 102.0, 98.0, 103.0, 99.0, 105.0])
+
+        result = calculate_sortino_ratio(eq, risk_free_rate=0.0)
+
+        assert isinstance(result, float)
+        assert result != 0.0
+
+    def test_all_positive_returns_returns_zero(self):
+        """
+        Given: 모든 일별 수익률이 양수 (하방 편차 = 0)
+        When: calculate_sortino_ratio 호출
+        Then: 정의상 0.0 반환
+        """
+        eq = self._build_equity_df([100.0, 101.0, 102.0, 103.0, 104.0])
+        assert calculate_sortino_ratio(eq) == 0.0
+
+    def test_empty_equity_returns_zero(self):
+        """빈 DataFrame이면 0.0 반환."""
+        eq = pd.DataFrame({COL_DATE: [], "equity": []})
+        assert calculate_sortino_ratio(eq) == 0.0
+
+    def test_constant_equity_returns_zero(self):
+        """에쿼티가 일정하면 모든 수익률 0 → downside=0 → 0.0 반환."""
+        eq = self._build_equity_df([100.0, 100.0, 100.0, 100.0])
+        assert calculate_sortino_ratio(eq) == 0.0
+
+
+class TestCalculateBenchmarkYearlyReturns:
+    """벤치마크 연간 수익률 계산 테스트 클래스."""
+
+    def test_normal_calculation(self):
+        """
+        Given: 2023-01 ~ 2024-12 벤치마크 Close 데이터
+        When: calculate_benchmark_yearly_returns 호출
+        Then: 연도별 수익률 리스트 반환, year 오름차순
+        """
+        # 24개월 월말 데이터 구성 (매월 2% 상승 가정)
+        dates = pd.date_range("2023-01-01", periods=24, freq="ME")
+        closes = [100.0 * (1.02**i) for i in range(24)]
+        df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes})
+
+        result = calculate_benchmark_yearly_returns(df, "2023-01-01", "2024-12-31")
+
+        assert len(result) >= 1
+        years = [int(str(e["year"])) for e in result]
+        assert years == sorted(years)
+
+    def test_empty_df_returns_empty_list(self):
+        """빈 DataFrame이면 빈 리스트."""
+        df = pd.DataFrame({COL_DATE: [], COL_CLOSE: []})
+        assert calculate_benchmark_yearly_returns(df, "2023-01-01", "2024-12-31") == []
+
+    def test_out_of_range_returns_empty_list(self):
+        """
+        Given: 지정 기간 밖 데이터만 존재
+        When: calculate_benchmark_yearly_returns 호출
+        Then: 빈 리스트 반환 (필터 후 2행 미만)
+        """
+        df = pd.DataFrame(
+            {
+                COL_DATE: pd.date_range("2020-01-01", periods=5, freq="D"),
+                COL_CLOSE: [100.0, 101.0, 102.0, 103.0, 104.0],
+            }
+        )
+        result = calculate_benchmark_yearly_returns(df, "2023-01-01", "2023-12-31")
+        assert result == []

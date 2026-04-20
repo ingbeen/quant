@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 
 from qbt.backtest.constants import (
@@ -23,7 +24,7 @@ from qbt.backtest.constants import (
     ma_col_name,
 )
 from qbt.backtest.types import SummaryDict
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON
+from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON, TRADING_DAYS_PER_YEAR
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
@@ -310,3 +311,113 @@ def calculate_yearly_returns(monthly_returns: list[dict[str, object]]) -> list[d
         )
 
     return result
+
+
+def _daily_returns_from_equity(equity_df: pd.DataFrame) -> np.ndarray:
+    """에쿼티 DataFrame에서 일별 수익률 numpy 배열을 계산한다.
+
+    equity 컬럼의 pct_change() 결과에서 NaN을 제거해 반환한다.
+
+    Args:
+        equity_df: 자본 곡선 DataFrame (equity 컬럼 필수)
+
+    Returns:
+        일별 수익률 배열 (길이 = len(equity_df) - 1)
+    """
+    if equity_df.empty or len(equity_df) < 2:
+        return np.array([], dtype=float)
+    series = equity_df[COL_EQUITY].astype(float)
+    returns = series.pct_change().dropna().to_numpy()
+    return returns
+
+
+def calculate_sharpe_ratio(equity_df: pd.DataFrame, risk_free_rate: float = 0.0) -> float:
+    """일별 수익률 기반 연율화 샤프 비율을 계산한다.
+
+    공식: (mean(r) - rf_daily) / std(r) * sqrt(TRADING_DAYS_PER_YEAR)
+
+    Args:
+        equity_df: 자본 곡선 DataFrame (equity 컬럼 필수)
+        risk_free_rate: 연간 무위험 수익률 (0.03 = 3%). 기본 0.0.
+
+    Returns:
+        연율화 샤프 비율. 데이터가 부족(2행 미만)하거나 std가 EPSILON 미만이면 0.0 반환.
+    """
+    returns = _daily_returns_from_equity(equity_df)
+    if returns.size < 2:
+        return 0.0
+
+    std = float(np.std(returns, ddof=1))
+    if std < EPSILON:
+        return 0.0
+
+    rf_daily = risk_free_rate / TRADING_DAYS_PER_YEAR
+    excess_mean = float(np.mean(returns)) - rf_daily
+    sharpe = excess_mean / std * np.sqrt(TRADING_DAYS_PER_YEAR)
+    return float(sharpe)
+
+
+def calculate_sortino_ratio(equity_df: pd.DataFrame, risk_free_rate: float = 0.0) -> float:
+    """일별 수익률 기반 연율화 소르티노 비율을 계산한다.
+
+    하방 편차(downside deviation)만으로 리스크를 측정한다. 하방 편차는
+    `sqrt(mean(min(r - rf_daily, 0) ** 2))`로 정의되며, 상승 변동은 리스크에 포함하지 않는다.
+
+    Args:
+        equity_df: 자본 곡선 DataFrame (equity 컬럼 필수)
+        risk_free_rate: 연간 무위험 수익률 (0.03 = 3%). 기본 0.0.
+
+    Returns:
+        연율화 소르티노 비율. 데이터가 부족하거나 하방 편차가 EPSILON 미만이면 0.0 반환
+        (모든 수익이 양수이거나 손실 변동성이 없는 경우).
+    """
+    returns = _daily_returns_from_equity(equity_df)
+    if returns.size < 2:
+        return 0.0
+
+    rf_daily = risk_free_rate / TRADING_DAYS_PER_YEAR
+    excess = returns - rf_daily
+    downside = np.minimum(excess, 0.0)
+    downside_dev = float(np.sqrt(np.mean(downside**2)))
+    if downside_dev < EPSILON:
+        return 0.0
+
+    sortino = float(np.mean(excess)) / downside_dev * np.sqrt(TRADING_DAYS_PER_YEAR)
+    return float(sortino)
+
+
+def calculate_benchmark_yearly_returns(
+    benchmark_df: pd.DataFrame,
+    start_date: pd.Timestamp | str,
+    end_date: pd.Timestamp | str,
+) -> list[dict[str, object]]:
+    """벤치마크(예: QQQ) 종가로부터 지정 기간의 연간 복리 수익률을 계산한다.
+
+    Close 컬럼을 equity 개념으로 취급하여 `calculate_monthly_returns` 및
+    `calculate_yearly_returns`와 동일한 방식으로 월별→연간 수익률을 산출한다.
+
+    Args:
+        benchmark_df: 벤치마크 OHLCV DataFrame (Date, Close 컬럼 필수)
+        start_date: 시작일 (inclusive)
+        end_date: 종료일 (inclusive)
+
+    Returns:
+        연간 수익률 리스트 [{year, return_pct}, ...] (year 오름차순).
+        기간 내 데이터가 2행 미만이면 빈 리스트 반환.
+    """
+    if benchmark_df.empty:
+        return []
+
+    df = benchmark_df[[COL_DATE, COL_CLOSE]].copy()
+    df[COL_DATE] = pd.to_datetime(df[COL_DATE])
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date)
+    mask = (df[COL_DATE] >= start_ts) & (df[COL_DATE] <= end_ts)
+    df = df.loc[mask].reset_index(drop=True)
+    if len(df) < 2:
+        return []
+
+    # Close 컬럼을 equity 컬럼명으로 바꾸어 기존 월별/연간 계산 파이프라인 재사용
+    df = df.rename(columns={COL_CLOSE: COL_EQUITY})
+    monthly = calculate_monthly_returns(df)
+    return calculate_yearly_returns(monthly)
