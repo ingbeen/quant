@@ -158,7 +158,8 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
 
     전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 완료 이후
     첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
-    여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
+    각 실험은 자기 자산 조합의 고유 시작일을 사용하므로, 실험마다 결과 기간이
+    달라질 수 있다 (CLI 러너에서 이 값을 `run_portfolio_backtest`의 `start_date`로 전달).
 
     Args:
         config: 포트폴리오 실험 설정
@@ -200,7 +201,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     Args:
         config: 포트폴리오 실험 설정
         start_date: 백테스트 시작일 하한 (None이면 MA 워밍업 완료 시점부터 자동 결정).
-            여러 실험을 동일 기간으로 정렬할 때 global_start_date를 전달한다.
+            CLI 러너에서는 각 실험의 `compute_portfolio_effective_start_date(config)`
+            결과를 전달하여 실험별 독립 기간으로 실행한다.
 
     Returns:
         PortfolioResult (equity_df, trades_df, summary, per_asset 포함)

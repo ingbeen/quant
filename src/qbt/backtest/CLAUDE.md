@@ -211,8 +211,8 @@ TypedDict:
 
 공개 함수 (portfolio_engine.py facade + 하위 모듈):
 
-- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 여러 실험을 동일 기간으로 정렬할 때 글로벌 시작일을 결정하는 데 사용한다.
-- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (여러 실험 동일 기간 정렬 시 사용).
+- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 각 실험이 자기 자산 조합 기준으로 독립 시작일을 산출하므로 CLI 러너에서 실험마다 호출하여 `run_portfolio_backtest`에 전달한다.
+- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를 전달).
 - `is_first_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 월 첫 거래일 판정
 - `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
 - `create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy` (portfolio_planning.py): STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)

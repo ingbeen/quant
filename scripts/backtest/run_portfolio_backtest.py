@@ -12,6 +12,7 @@
 import argparse
 import json
 import sys
+from datetime import date
 from typing import Any
 
 import pandas as pd
@@ -173,12 +174,15 @@ def _build_execution_comparison_df(
 def _save_benchmark_qqq_json(start_date: Any) -> None:
     """QQQ 벤치마크의 연간 복리 수익률을 산출해 포트폴리오 결과 디렉토리에 저장한다.
 
-    모든 실험이 동일 글로벌 시작일을 공유하므로, 실험마다 중복 저장하지 않고
-    공유 JSON 하나(`storage/results/portfolio/benchmark_qqq.json`)를 생성한다.
+    실험별로 백테스트 시작일이 달라질 수 있으므로, 전체 실험 중 가장 이른 유효
+    시작일(min) 기준으로 한 번만 계산하여 공유 JSON 하나
+    (`storage/results/portfolio/benchmark_qqq.json`)를 생성한다. 대시보드는
+    연도별 inner join으로 각 실험 기간과 공통되는 연도만 비교하므로,
+    가장 이른 시작일 기준으로 연간 수익률을 생성해도 실험별 비교에 문제가 없다.
     종료일은 QQQ 데이터의 마지막 날짜를 사용한다.
 
     Args:
-        start_date: 글로벌 시작일 (포트폴리오 실험이 공통으로 사용하는 시작일)
+        start_date: QQQ 연간 수익률 계산 시작일 (전체 실험 중 가장 이른 유효 시작일)
     """
     PORTFOLIO_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -491,21 +495,28 @@ def main() -> int:
 
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
-    # 3. 글로벌 시작일 계산 (전체 실험 기준)
-    # 모든 실험이 동일한 기간에서 비교될 수 있도록 유효 시작일 중 가장 늦은 날짜 적용
-    logger.debug("글로벌 시작일 계산 중...")
-    effective_start_dates = [compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS]
-    global_start_date = max(effective_start_dates)
-    logger.debug(f"글로벌 시작일 결정: {global_start_date} ({len(PORTFOLIO_CONFIGS)}개 실험 기준)")
+    # 3. 실험별 유효 시작일 계산
+    # 각 실험은 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 사용한다.
+    # QQQ 벤치마크 JSON은 전체 실험 중 가장 이른 시작일(min) 기준으로 한 번만 계산하여
+    # 공유 파일로 저장한다. 대시보드는 연도별 inner join으로 각 실험 기간에 공통되는
+    # 연도만 비교하므로 별도 분리 저장이 불필요하다.
+    logger.debug("실험별 유효 시작일 계산 중...")
+    effective_start_dates: dict[str, date] = {
+        cfg.experiment_name: compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS
+    }
+    min_start_date = min(effective_start_dates.values())
+    logger.debug(f"실험별 유효 시작일: {effective_start_dates}")
+    logger.debug(f"QQQ 벤치마크 기준 최소 시작일: {min_start_date}")
 
-    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (글로벌 시작일 기준 공유)
-    _save_benchmark_qqq_json(global_start_date)
+    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (전체 실험의 최소 시작일 기준 공유)
+    _save_benchmark_qqq_json(min_start_date)
 
-    # 4. 실험별 실행 (글로벌 시작일 적용)
+    # 4. 실험별 실행 (각 실험의 고유 시작일 적용)
     for config in target_configs:
+        exp_start_date = effective_start_dates[config.experiment_name]
         logger.debug("=" * 70)
-        logger.debug(f"실험 시작: {config.experiment_name} ({config.display_name})")
-        result = run_portfolio_backtest(config, start_date=global_start_date)
+        logger.debug(f"실험 시작: {config.experiment_name} ({config.display_name}) — start_date={exp_start_date}")
+        result = run_portfolio_backtest(config, start_date=exp_start_date)
         _print_summary(result)
 
         # 정합성 자동 검증 (5개 규칙) -- 위반 시 결과 저장 후 스크립트 중지
