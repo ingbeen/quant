@@ -427,12 +427,16 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
     for entry in yearly_returns:
         yearly_map[int(str(entry["year"]))] = float(str(entry["return_pct"]))
 
-    # 3. 13열 히트맵 데이터 구성 (1~12월 + 연간)
+    # 3. 월별(12열)과 연간(1열) 데이터 분리 구성
+    # 색상 스케일을 각각 자기 데이터 기준으로 독립 적용하여
+    # 연간 변동폭이 월별 셀의 대비를 압도하지 않도록 한다.
     month_labels = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
     year_labels = [str(y) for y in years]
 
-    z_data: list[list[float | None]] = []
-    text_data: list[list[str]] = []
+    z_monthly: list[list[float | None]] = []
+    text_monthly: list[list[str]] = []
+    z_yearly: list[list[float | None]] = []
+    text_yearly: list[list[str]] = []
 
     for year in years:
         row_z: list[float | None] = []
@@ -445,43 +449,83 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
                     val = float(str(cell))
             row_z.append(val)
             row_text.append(f"{val:.2f}%" if val is not None else "")
-        # 연간 합계 (summary.json에 저장된 값)
+        z_monthly.append(row_z)
+        text_monthly.append(row_text)
+
         yearly_val = yearly_map.get(int(year))
-        row_z.append(yearly_val)
-        row_text.append(f"{yearly_val:.2f}%" if yearly_val is not None else "")
-        z_data.append(row_z)
-        text_data.append(row_text)
+        z_yearly.append([yearly_val])
+        text_yearly.append([f"{yearly_val:.2f}%" if yearly_val is not None else ""])
 
-    x_labels = month_labels + ["연간"]
+    # 4. 색상 범위 (월별/연간 각자 대칭)
+    monthly_vals = [v for row in z_monthly for v in row if v is not None]
+    yearly_vals = [v for row in z_yearly for v in row if v is not None]
+    max_abs_monthly = max(abs(min(monthly_vals)), abs(max(monthly_vals))) if monthly_vals else 10.0
+    max_abs_yearly = max(abs(min(yearly_vals)), abs(max(yearly_vals))) if yearly_vals else 10.0
 
-    # 4. 색상 범위 (대칭)
-    all_vals = [v for row in z_data for v in row if v is not None]
-    max_abs = max(abs(min(all_vals)), abs(max(all_vals))) if all_vals else 10
+    _heatmap_colorscale = [
+        [0.0, "rgb(239, 83, 80)"],
+        [0.5, "rgb(255, 255, 255)"],
+        [1.0, "rgb(38, 166, 154)"],
+    ]
 
-    fig_heatmap = go.Figure(
-        data=go.Heatmap(
-            z=z_data,
-            x=x_labels,
+    # 5. make_subplots로 월별(12열) + 연간(1열) 분리, y축(연도) 공유
+    fig_heatmap = make_subplots(
+        rows=1,
+        cols=2,
+        column_widths=[12, 1],
+        shared_yaxes=True,
+        horizontal_spacing=0.02,
+    )
+
+    fig_heatmap.add_trace(
+        go.Heatmap(
+            z=z_monthly,
+            x=month_labels,
             y=year_labels,
-            text=text_data,
+            text=text_monthly,
             texttemplate="%{text}",
             textfont={"size": 11},
-            colorscale=[
-                [0, "rgb(239, 83, 80)"],
-                [0.5, "rgb(255, 255, 255)"],
-                [1, "rgb(38, 166, 154)"],
-            ],
-            zmin=-max_abs,
-            zmax=max_abs,
+            coloraxis="coloraxis",
             hovertemplate="%{y}년 %{x}: %{text}<extra></extra>",
-            colorbar={"title": "수익률 (%)"},
-        )
+        ),
+        row=1,
+        col=1,
     )
+    fig_heatmap.add_trace(
+        go.Heatmap(
+            z=z_yearly,
+            x=["연간"],
+            y=year_labels,
+            text=text_yearly,
+            texttemplate="%{text}",
+            textfont={"size": 11},
+            coloraxis="coloraxis2",
+            hovertemplate="%{y}년 %{x}: %{text}<extra></extra>",
+        ),
+        row=1,
+        col=2,
+    )
+
+    fig_heatmap.update_xaxes(side="top", row=1, col=1)
+    fig_heatmap.update_xaxes(side="top", row=1, col=2)
+    fig_heatmap.update_yaxes(autorange="reversed", row=1, col=1)
+    fig_heatmap.update_yaxes(autorange="reversed", row=1, col=2)
 
     fig_heatmap.update_layout(
         height=max(_SMALL_CHART_HEIGHT, len(year_labels) * 40 + 100),
-        xaxis={"side": "top"},
-        yaxis={"autorange": "reversed"},
+        coloraxis={
+            "colorscale": _heatmap_colorscale,
+            "cmin": -max_abs_monthly,
+            "cmax": max_abs_monthly,
+            "colorbar": {"title": "월별 (%)", "x": 1.02, "len": 0.9},
+        },
+        coloraxis2={
+            "colorscale": _heatmap_colorscale,
+            "cmin": -max_abs_yearly,
+            "cmax": max_abs_yearly,
+            "colorbar": {"title": "연간 (%)", "x": 1.14, "len": 0.9},
+        },
+        margin={"r": 160},
     )
     st.plotly_chart(fig_heatmap, width="stretch", key=f"monthly_heatmap_{exp.experiment_name}")
 

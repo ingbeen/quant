@@ -2,15 +2,15 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 77267258,
-    "total_return_pct": 672.67,
-    "cagr": 10.02,
+    "final_capital": 77633167,
+    "total_return_pct": 676.33,
+    "cagr": 10.11,
     "mdd": -16.21,
     "calmar": 0.62,
-    "sharpe_ratio": 1.01,
-    "sortino_ratio": 1.42,
+    "sharpe_ratio": 1.02,
+    "sortino_ratio": 1.43,
     "total_trades": 133,
-    "start_date": "2004-11-18",
+    "start_date": "2005-01-03",
     "end_date": "2026-04-17"
   },
   "per_asset": [
@@ -19,32 +19,32 @@
       "target_weight": 0.35,
       "total_trades": 31,
       "win_rate": 93.55,
-      "final_shares": 38763,
-      "final_avg_price": 593.098653
+      "final_shares": 38946,
+      "final_avg_price": 593.096081
     },
     {
       "asset_id": "qqq",
       "target_weight": 0.35,
       "total_trades": 38,
       "win_rate": 92.11,
-      "final_shares": 43705,
-      "final_avg_price": 526.169492
+      "final_shares": 43911,
+      "final_avg_price": 526.167664
     },
     {
       "asset_id": "gld",
       "target_weight": 0.15,
       "total_trades": 36,
       "win_rate": 100.0,
-      "final_shares": 23086,
-      "final_avg_price": 179.179013
+      "final_shares": 23196,
+      "final_avg_price": 179.045728
     },
     {
       "asset_id": "tlt",
       "target_weight": 0.15,
       "total_trades": 28,
       "win_rate": 82.14,
-      "final_shares": 127334,
-      "final_avg_price": 91.291157
+      "final_shares": 127937,
+      "final_avg_price": 91.299486
     }
   ],
   "portfolio_config": {
@@ -105,16 +105,6 @@
     ]
   },
   "monthly_returns": [
-    {
-      "year": 2004,
-      "month": 12,
-      "return_pct": -0.05
-    },
-    {
-      "year": 2005,
-      "month": 1,
-      "return_pct": -0.04
-    },
     {
       "year": 2005,
       "month": 2,
@@ -538,7 +528,7 @@
     {
       "year": 2012,
       "month": 2,
-      "return_pct": 2.92
+      "return_pct": 2.91
     },
     {
       "year": 2012,
@@ -1393,12 +1383,8 @@
   ],
   "yearly_returns": [
     {
-      "year": 2004,
-      "return_pct": -0.05
-    },
-    {
       "year": 2005,
-      "return_pct": 8.85
+      "return_pct": 8.9
     },
     {
       "year": 2006,
@@ -1426,7 +1412,7 @@
     },
     {
       "year": 2012,
-      "return_pct": 13.1
+      "return_pct": 13.09
     },
     {
       "year": 2013,
