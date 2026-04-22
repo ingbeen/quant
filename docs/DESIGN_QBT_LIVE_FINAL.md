@@ -991,7 +991,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 | `/model_sync/*`                 | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/device_tokens/*`              | 앱 (등록) / daily runner (만료 토큰 삭제)          | daily runner (Admin SDK) |
 
-**`processed` 필드 규칙**: `/fills/inbox/{uuid}` / `/balance_adjust/inbox/{uuid}` / `/fill_dismiss/inbox/{uuid}` / `/model_sync/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓰고 읽는다**. 앱은 이 필드를 읽지도 쓰지도 않으며, 체결 / 보정 반영 상태는 `/latest/portfolio` 의 `actual_shares` / `model_shares` 변화나 `/latest/pending_orders` 의 소멸로 확인한다. model_sync 는 `model_shares` 가 `actual_shares` 와 일치하는 것으로 반영 여부를 판단할 수 있다.
+**`processed` 필드 규칙**: `/fills/inbox/{uuid}` / `/balance_adjust/inbox/{uuid}` / `/fill_dismiss/inbox/{uuid}` / `/model_sync/inbox/{uuid}` 의 `processed` 필드는 **daily runner 만 쓴다**. 앱은 이 필드를 쓰지 않으며, 읽기는 허용한다. 앱은 "미처리 inbox 레코드" 를 필터링할 때 `processed !== true` 조건을 사용할 수 있으며, 실제 사용처는 앱의 `ReminderBlock` 에서 사용자가 이미 체결 / 스킵을 입력한 자산을 리마인더 목록에서 숨기는 용도다. 체결 / 보정 반영 상태는 `/latest/portfolio` 의 `actual_shares` / `model_shares` 변화나 `/latest/pending_orders` 의 소멸로도 확인 가능하며, 두 경로를 보조적으로 병용한다. model_sync 는 `model_shares` 가 `actual_shares` 와 일치하는 것으로 반영 여부를 판단할 수 있다.
 
 **`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 같은 트랜잭션으로 초기화한다. 과거 이력은 `qbt-live-state` 리포의 이전 커밋에서 조회할 수 있으며 (git log), `run-daily` 가 reset 이후 시점부터 다시 누적한다.
 
