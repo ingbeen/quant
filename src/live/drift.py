@@ -1,9 +1,7 @@
-"""fill 자동 매칭 + idempotency + drift 계산.
+"""fill idempotent 반영 + drift 계산.
 
 책임:
 
-- :func:`classify_fill` — 사용자 입력 fill 을 pending_order 와 매칭하여
-  ``"system_fill"`` 또는 ``"personal_trade"`` 로 분류
 - :func:`apply_fills_idempotent` — fill 리스트를 LiveState 의 actual 축에 반영하되,
   ``applied_fill_ids`` 로 중복 방지
 - :func:`compute_drift` — model / actual equity 의 차이를 :class:`DriftReport` 로 요약.
@@ -12,7 +10,6 @@
 설계 원칙:
 
 - 입력 ``LiveState`` 및 ``applied_ids`` 는 불변. 새 객체를 반환한다.
-- 매수/매도 방향 판정은 pending_order 의 ``intent_type`` 을 기반으로 한다.
 - drift 계산은 ``cash + sum(shares * close)`` 기반.
 """
 
@@ -20,51 +17,16 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime
-from typing import Literal
 
 from live.constants import (
-    BUY_INTENT_TYPES,
     DRIFT_CORRECTION_RATIO,
     DRIFT_WARNING_RATIO,
     KST_TIMEZONE,
-    SELL_INTENT_TYPES,
 )
 from live.models import ActualFill, AssetDrift, DriftReport, LiveState
 from qbt.backtest.constants import ROUND_RATIO
 
-__all__ = ["classify_fill", "apply_fills_idempotent", "compute_drift"]
-
-
-def classify_fill(fill: ActualFill, state: LiveState) -> Literal["system_fill", "personal_trade"]:
-    """fill 을 pending_order 와 매칭하여 분류한다.
-
-    규칙:
-
-    - state 에 해당 asset_id 가 없으면 ``personal_trade``
-    - pending_order 가 없으면 ``personal_trade``
-    - pending 방향 == fill 방향 이면 ``system_fill``, 아니면 ``personal_trade``
-
-    Args:
-        fill: 사용자 입력 체결.
-        state: 현재 LiveState.
-
-    Returns:
-        ``"system_fill"`` 또는 ``"personal_trade"``.
-    """
-    asset = state.assets.get(fill.asset_id)
-    if asset is None or asset.pending_order is None:
-        return "personal_trade"
-
-    pending_is_buy = asset.pending_order["intent_type"] in BUY_INTENT_TYPES
-    pending_is_sell = asset.pending_order["intent_type"] in SELL_INTENT_TYPES
-    fill_is_buy = fill.direction == "buy"
-    fill_is_sell = fill.direction == "sell"
-
-    if pending_is_buy and fill_is_buy:
-        return "system_fill"
-    if pending_is_sell and fill_is_sell:
-        return "system_fill"
-    return "personal_trade"
+__all__ = ["apply_fills_idempotent", "compute_drift"]
 
 
 def _apply_single_fill(state: LiveState, fill: ActualFill) -> None:

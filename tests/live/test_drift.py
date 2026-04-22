@@ -1,39 +1,20 @@
-"""live.drift — fill 자동 매칭 / idempotency / drift 계산 테스트."""
+"""live.drift — fill idempotent 반영 / drift 계산 테스트."""
 
 from __future__ import annotations
 
 import pytest
 
-from live.drift import apply_fills_idempotent, classify_fill, compute_drift
+from live.drift import apply_fills_idempotent, compute_drift
 from live.models import (
     ActualFill,
     AssetDrift,
     DriftReport,
-    IntentTypeLiteral,
-    PendingOrderDict,
 )
 from live.state import create_initial_state
 
 # ============================================================================
 # 헬퍼
 # ============================================================================
-
-
-def _make_pending(
-    asset_id: str = "sso",
-    intent_type: IntentTypeLiteral = "ENTER_TO_TARGET",
-) -> PendingOrderDict:
-    return {
-        "asset_id": asset_id,
-        "intent_type": intent_type,
-        "signal_date": "2026-04-10",
-        "current_amount": 0.0,
-        "target_amount": 35_000_000.0,
-        "delta_amount": 35_000_000.0,
-        "target_weight": 0.35,
-        "hold_days_used": 3,
-        "reason": "buffer zone breakout",
-    }
 
 
 def _make_fill(
@@ -53,63 +34,6 @@ def _make_fill(
         memo=None,
         rtdb_key=rtdb_key,
     )
-
-
-# ============================================================================
-# classify_fill
-# ============================================================================
-
-
-class TestClassifyFill:
-    def test_sso_pending_buy_and_sso_buy_fill_is_system_fill(self):
-        """Given SSO pending(매수) + SSO 매수 fill When classify Then system_fill."""
-        state = create_initial_state(100_000_000.0)
-        state.assets["sso"].pending_order = _make_pending("sso", "ENTER_TO_TARGET")
-        fill = _make_fill(asset_id="sso", direction="buy")
-
-        assert classify_fill(fill, state) == "system_fill"
-
-    def test_sso_pending_buy_but_qld_sell_fill_is_personal_trade(self):
-        """Given SSO pending(매수) 가 있고 QLD 매도 fill When classify Then personal_trade."""
-        state = create_initial_state(100_000_000.0)
-        state.assets["sso"].pending_order = _make_pending("sso", "ENTER_TO_TARGET")
-        fill = _make_fill(asset_id="qld", direction="sell")
-
-        assert classify_fill(fill, state) == "personal_trade"
-
-    def test_no_pending_and_gld_buy_fill_is_personal_trade(self):
-        """Given pending 없음 + GLD 매수 fill When classify Then personal_trade."""
-        state = create_initial_state(100_000_000.0)
-        fill = _make_fill(asset_id="gld", direction="buy")
-
-        assert classify_fill(fill, state) == "personal_trade"
-
-    def test_increase_to_target_is_buy(self):
-        """INCREASE_TO_TARGET + buy fill → system_fill."""
-        state = create_initial_state(100_000_000.0)
-        state.assets["sso"].pending_order = _make_pending("sso", "INCREASE_TO_TARGET")
-        fill = _make_fill(asset_id="sso", direction="buy")
-        assert classify_fill(fill, state) == "system_fill"
-
-    def test_exit_all_and_sell_fill_is_system_fill(self):
-        """EXIT_ALL + sell fill → system_fill."""
-        state = create_initial_state(100_000_000.0)
-        state.assets["sso"].pending_order = _make_pending("sso", "EXIT_ALL")
-        fill = _make_fill(asset_id="sso", direction="sell")
-        assert classify_fill(fill, state) == "system_fill"
-
-    def test_pending_buy_but_fill_sell_is_personal_trade(self):
-        """방향 반대 → personal_trade."""
-        state = create_initial_state(100_000_000.0)
-        state.assets["sso"].pending_order = _make_pending("sso", "ENTER_TO_TARGET")
-        fill = _make_fill(asset_id="sso", direction="sell")
-        assert classify_fill(fill, state) == "personal_trade"
-
-    def test_unknown_asset_id_is_personal_trade(self):
-        """없는 asset_id → personal_trade (방어)."""
-        state = create_initial_state(100_000_000.0)
-        fill = _make_fill(asset_id="unknown_asset", direction="buy")
-        assert classify_fill(fill, state) == "personal_trade"
 
 
 # ============================================================================

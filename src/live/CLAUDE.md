@@ -33,7 +33,7 @@ src/live/                       # 실매매 코드
 ├── data_fetcher.py             # yfinance → CSV 누적
 ├── data_validator.py           # OHLC / 종가 연속성 / 날짜 누락 검증
 ├── daily_runner.py             # run_daily (순수 계산)
-├── drift.py                    # fill 자동 매칭 + drift
+├── drift.py                    # fill idempotent 반영 + drift
 ├── balance_adjust.py           # BalanceAdjust idempotent 반영
 ├── buffer_serializer.py        # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 ├── rtdb_gateway.py             # Firebase RTDB 게이트웨이
@@ -61,7 +61,7 @@ tests/live/                     # live 전용 테스트
 | `data_fetcher.py`      | yfinance OHLC 수집 및 CSV 누적/재다운로드                                           |
 | `data_validator.py`    | OHLC / 전일 종가 / 거래일 gap 검증 (순수 함수)                                      |
 | `daily_runner.py`      | 순수 계산 `run_daily` (파일 I/O 없음, QBT 포트폴리오 엔진 1 일치 호출)              |
-| `drift.py`             | fill 분류 + idempotent 반영 + `compute_drift` 정본                                  |
+| `drift.py`             | fill idempotent 반영 + `compute_drift` 정본                                         |
 | `balance_adjust.py`    | `BalanceAdjust` idempotent 반영 (`run_daily` 내부 fills 직후 호출)                  |
 | (fill_dismiss 처리)    | `FillDismiss` idempotent 반영 (`run_daily` 내부, 리마인더 해제 전용, 잔고 불변)     |
 | (model_sync 처리)      | `ModelSync` 적용 (`run_daily` 내부 Stage 3, model=actual 덮어쓰기 + pending/unfilled 해제, 멱등) |

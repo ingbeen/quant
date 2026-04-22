@@ -189,7 +189,7 @@ PREV_CLOSE_DIFF_THRESHOLD: Final[float] = 0.01
 
 
 # ============================================================================
-# Intent 타입 집합 (drift fill 분류 및 일반 검증용)
+# Intent 타입 집합 (signal_state 매핑 및 일반 검증용)
 # ============================================================================
 
 # ENTER_TO_TARGET / INCREASE_TO_TARGET 은 매수 방향 intent.
