@@ -318,6 +318,8 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 
 RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 "오늘의 스냅샷" 이고 매 실행마다 전체 갱신되며 (inbox 패턴을 쓰는 이유), `/charts/*` 는 "시계열 데이터" 로 매일 meta + recent + 현재 연도 archive 만 daily 갱신된다.
 
+**예제 JSON 표기 주의**: 본 절 이하의 예제 JSON 에 등장하는 날짜 / 연도 / 가격 등 구체값은 작성 시점의 예시이며, 실제 값은 RTDB 에서 동적 결정된다. 필드 의미와 타입만 계약 SoT 로 본다.
+
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
 **drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 는 RTDB 에 스칼라 형태로만 노출되며 시계열은 제공하지 않는다 (§8.2.4 / §8.2.6 참고).
@@ -461,7 +463,7 @@ drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/la
 | `first_date`    | str       | 자산 CSV 의 첫 거래일 (ISO 8601)                                                |
 | `last_date`     | str       | 자산 CSV 의 마지막 거래일 (ISO 8601)                                            |
 | `ma_window`     | int       | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                      |
-| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6`              |
+| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS` 참조             |
 | `archive_years` | list[int] | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 archive 경로를 결정 |
 
 앱은 `meta` 를 가장 먼저 한 번 읽고, 필요한 시점에 `recent` / `archive/{YYYY}` 로드 전략을 결정한다.
@@ -548,12 +550,12 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
-| 필드            | 타입      | 설명                                                                           |
-| --------------- | --------- | ------------------------------------------------------------------------------ |
-| `first_date`    | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                               |
-| `last_date`     | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                        |
-| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS = 6` (주가 공용) |
-| `archive_years` | list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                                 |
+| 필드            | 타입      | 설명                                                                            |
+| --------------- | --------- | ------------------------------------------------------------------------------- |
+| `first_date`    | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                                |
+| `last_date`     | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                         |
+| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS` 참조 (주가 공용) |
+| `archive_years` | list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                                  |
 
 ##### 8.2.6.2 `/charts/equity/recent`
 
