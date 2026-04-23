@@ -509,7 +509,6 @@ def _sample_equity_series() -> EquityChartSeries:
         dates=["2026-04-09", "2026-04-10"],
         model_equity=[12_345_678, 12_400_000],
         actual_equity=[12_300_000, 12_350_001],
-        drift_pct=[0.0037, 0.0041],
     )
 
 
@@ -535,11 +534,13 @@ class TestWriteEquityMeta:
 class TestWriteEquityRecent:
     def test_writes_recent_to_charts_equity_path(self, mock_db, mock_app):
         """
-        목적: write_equity_recent 가 /charts/equity/recent 에 쓴다.
+        목적: write_equity_recent 가 /charts/equity/recent 에 dates /
+              model_equity / actual_equity 3 시계열을 그대로 보존하여 쓴다.
+              drift_pct 시계열은 페이로드에 포함되지 않는다 (앱 미사용으로 제거).
 
         Given: EquityChartSeries (recent).
         When:  write_equity_recent 호출.
-        Then:  /charts/equity/recent 에 3 시계열이 그대로 보존된다.
+        Then:  /charts/equity/recent 에 3 시계열만 저장 + drift_pct 키 부재.
         """
         series = _sample_equity_series()
         write_equity_recent(mock_app, series)
@@ -548,7 +549,7 @@ class TestWriteEquityRecent:
         assert payload["dates"] == ["2026-04-09", "2026-04-10"]
         assert payload["model_equity"] == [12_345_678, 12_400_000]
         assert payload["actual_equity"] == [12_300_000, 12_350_001]
-        assert payload["drift_pct"] == [0.0037, 0.0041]
+        assert "drift_pct" not in payload
 
 
 class TestWriteEquityArchiveYear:
@@ -564,20 +565,22 @@ class TestWriteEquityArchiveYear:
 
     def test_writes_different_years_independent(self, mock_db, mock_app):
         """
-        목적: 서로 다른 연도 write 는 독립적으로 저장된다.
+        목적: 서로 다른 연도 write 는 독립적으로 저장된다. 양쪽 페이로드 모두에
+              drift_pct 시계열 키가 없음을 함께 확인한다 (앱 미사용으로 제거).
         """
         series_a = _sample_equity_series()
         series_b = EquityChartSeries(
             dates=["2025-12-30"],
             model_equity=[11_000_000],
             actual_equity=[10_950_000],
-            drift_pct=[0.0045],
         )
         write_equity_archive_year(mock_app, year=2026, series=series_a)
         write_equity_archive_year(mock_app, year=2025, series=series_b)
 
         assert mock_db["/charts/equity/archive/2026"]["model_equity"] == [12_345_678, 12_400_000]
         assert mock_db["/charts/equity/archive/2025"]["model_equity"] == [11_000_000]
+        assert "drift_pct" not in mock_db["/charts/equity/archive/2026"]
+        assert "drift_pct" not in mock_db["/charts/equity/archive/2025"]
 
 
 # ============================================================================

@@ -37,7 +37,7 @@ from live.constants import (
 from live.data_fetcher import load_csv
 from live.models import ChartMeta, ChartSeries, EquityChartMeta, EquityChartSeries, UserTrade
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
+from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PRICE
 from qbt.backtest.portfolio_types import AssetSlotConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE
 
@@ -419,21 +419,23 @@ def _load_summary_rows(history_dir: Path) -> list[dict[str, Any]]:
 
 
 def _equity_series_from_rows(rows: list[dict[str, Any]]) -> EquityChartSeries:
-    """summary 로우 리스트를 :class:`EquityChartSeries` 로 변환 (반올림 포함)."""
+    """summary 로우 리스트를 :class:`EquityChartSeries` 로 변환 (반올림 포함).
+
+    summary.jsonl 의 ``drift_pct`` 컬럼은 Git 정본의 영구 누적 데이터이며
+    equity 차트 시계열에는 포함하지 않는다 (앱 미사용 — drift 스칼라는
+    ``/latest/portfolio.drift_pct`` 에서 노출).
+    """
     dates: list[str] = []
     model_equity: list[float] = []
     actual_equity: list[float] = []
-    drift_pct: list[float] = []
     for row in rows:
         dates.append(str(row["date"]))
         model_equity.append(round(float(row["model_equity"]), ROUND_CAPITAL))
         actual_equity.append(round(float(row["actual_equity"]), ROUND_CAPITAL))
-        drift_pct.append(round(float(row["drift_pct"]), ROUND_RATIO))
     return EquityChartSeries(
         dates=dates,
         model_equity=model_equity,
         actual_equity=actual_equity,
-        drift_pct=drift_pct,
     )
 
 

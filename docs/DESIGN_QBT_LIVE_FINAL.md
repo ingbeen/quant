@@ -109,7 +109,7 @@ cash_weight    = shared_cash_actual / actual_equity
 
 live 는 QBT 백테스트 코어 (`qbt.backtest.*`) 를 직접 재사용하여 매일 신호 / 체결 / 리밸런싱을 계산하고, yfinance OHLC 수집 / 데이터 검증 (OHLC 논리 / 전일 종가 연속성 / 거래일 gap) / MA·밴드 계산 / `run_daily` 실행 순서 등의 내부 동작은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 와 `src/live/` 코드가 정본이다.
 
-**앱이 알아야 할 것은 결과물뿐이다** — live 가 매일 계산한 포지션 / 시그널 / 밴드 / drift 는 RTDB `/latest/*` 와 `/charts/equity/*` 로 노출된다 (§8.2 참고). 스플릿·무상증자 감지 / 회귀 검증 / BufferZoneStrategy 직렬화 같은 live 내부 로직은 앱에 영향을 주지 않는다.
+**앱이 알아야 할 것은 결과물뿐이다** — live 가 매일 계산한 포지션 / 시그널 / 밴드 / drift 스칼라는 RTDB `/latest/*` 로, equity 시계열(`model_equity` / `actual_equity`) 은 `/charts/equity/*` 로 노출된다 (§8.2 참고). 스플릿·무상증자 감지 / 회귀 검증 / BufferZoneStrategy 직렬화 같은 live 내부 로직은 앱에 영향을 주지 않는다.
 
 ---
 
@@ -303,7 +303,7 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /charts/prices/{asset_id}/recent                 ← 주가 차트 최근 N 개월 slice (매일 덮어쓰기)
 /charts/prices/{asset_id}/archive/{YYYY}         ← 주가 차트 연도별 slice (현재 연도만 daily 갱신)
 /charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / archive_years)
-/charts/equity/recent                            ← equity 최근 N 개월 slice (model / actual / drift)
+/charts/equity/recent                            ← equity 최근 N 개월 slice (model / actual)
 /charts/equity/archive/{YYYY}                    ← equity 연도별 slice (현재 연도만 daily 갱신)
 /history/fills/{YYYY-MM-DD}/{uuid}               ← 체결 이력 영구 보존 (Git 정본 user_trades.jsonl 미러)
 /history/balance_adjusts/{YYYY-MM-DD}/{uuid}     ← 잔고 보정 이력 영구 보존 (Git 정본 미러)
@@ -319,7 +319,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
-**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`, `/charts/equity/*`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 스칼라 요약은 `/latest/portfolio` 에만 포함되며 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨).
+**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 는 스칼라 형태로만 RTDB 에 노출되며 별도 시계열 / 별도 경로로 중복 저장하지 않는다 (§8.2.4 삭제됨, §8.2.6 시계열 미포함).
 
 #### 8.2.1 `/latest/portfolio` — 전체 포트폴리오 요약
 
@@ -534,7 +534,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 - recent: `live.chart_data.build_equity_recent`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_recent`
 - archive: `live.chart_data.build_equity_archive_year`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_archive_year`
 
-**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, 최근 구간은 `recent`, 줌아웃 시에는 `archive/{YYYY}` 를 필요에 따라 추가 로드한다. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `model_equity` / `actual_equity` / `drift_pct` 세 배열을 같은 날짜 인덱스로 저장한다.
+**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, 최근 구간은 `recent`, 줌아웃 시에는 `archive/{YYYY}` 를 필요에 따라 추가 로드한다. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `dates` / `model_equity` / `actual_equity` 세 배열을 같은 날짜 인덱스로 저장한다. drift 스칼라는 `/latest/portfolio.drift_pct` 에서 별도 노출되며 시계열 형태로는 제공하지 않는다.
 
 **갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 `backfill-chart-archive --target equity` 로 재생성한다 (§9.1 참고).
 
@@ -564,8 +564,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 {
   "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
   "model_equity": [12000, "…", 12345],
-  "actual_equity": [11950, "…", 12300],
-  "drift_pct": [0.0042, "…", 0.0037]
+  "actual_equity": [11950, "…", 12300]
 }
 ```
 
@@ -574,9 +573,8 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 | `dates`         | list[str]    | 해당 구간 거래일 (ISO 8601)                      |
 | `model_equity`  | list[number] | model 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리)  |
 | `actual_equity` | list[number] | actual 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리) |
-| `drift_pct`     | list[number] | drift 비율 (0~1 ratio, `ROUND_RATIO = 4` 자리)   |
 
-**불변조건**: 4 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
+**불변조건**: 3 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
 
 ##### 8.2.6.3 `/charts/equity/archive/{YYYY}`
 
@@ -586,8 +584,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 {
   "dates": ["2025-01-02", "…", "2025-12-31"],
   "model_equity": [...],
-  "actual_equity": [...],
-  "drift_pct": [...]
+  "actual_equity": [...]
 }
 ```
 
@@ -597,7 +594,7 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 
 ##### 8.2.6.5 중요 사항
 
-- **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 4 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `archive/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
+- **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 3 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `archive/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
 - **정본 위치**: 자산별 상세·전체 equity 시계열은 Git 정본 `history/summary.jsonl` 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 앱 표시용 소비 데이터로만 취급한다.
 
 #### 8.2.7 `/fills/inbox/{uuid}` — 체결 입력 (앱 → 서버)
@@ -1071,7 +1068,7 @@ drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 drift_pct = |model_equity − actual_equity| / model_equity   (내부 비율, 0~1. 0.03 = 3%)
 ```
 
-QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`, `/charts/equity/*`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다).
+QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다). drift 는 RTDB 에 스칼라(`/latest/portfolio.drift_pct`) 형태로만 노출되며 시계열로는 제공하지 않는다 (§8.2.6).
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를

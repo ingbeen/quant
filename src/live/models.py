@@ -408,18 +408,18 @@ class EquityChartSeries:
     """equity 차트 슬라이스 (recent 또는 archive/{YYYY}).
 
     RTDB ``/charts/equity/recent`` 또는 ``/charts/equity/archive/{YYYY}`` 에 저장된다.
-    주가 차트와 달리 포트폴리오 전체 1 개 시계열만 담으며, 한 경로에 ``model_equity``
-    / ``actual_equity`` / ``drift_pct`` 세 배열을 같은 날짜 인덱스로 저장한다.
+    주가 차트와 달리 포트폴리오 전체 1 개 시계열만 담으며, 한 경로에 ``dates`` /
+    ``model_equity`` / ``actual_equity`` 세 배열을 같은 날짜 인덱스로 저장한다.
+    drift 스칼라는 ``/latest/portfolio.drift_pct`` 로 별도 노출되며 시계열 형태로는
+    제공하지 않는다 (앱 미사용).
 
     - 모든 배열은 같은 길이 / 같은 날짜 인덱스.
     - ``model_equity`` / ``actual_equity`` 는 자본금 반올림(``ROUND_CAPITAL = 0`` 자리).
-    - ``drift_pct`` 는 0~1 ratio 로 저장하며 ``ROUND_RATIO = 4`` 자리.
     """
 
     dates: list[str]
     model_equity: list[float]
     actual_equity: list[float]
-    drift_pct: list[float]
 
 
 # ============================================================================

@@ -395,8 +395,10 @@ class TestMarkerDateParsingFailures:
 def _write_summary_jsonl(state_dir: Path, rows: list[dict[str, object]]) -> None:
     """``history/summary.jsonl`` 파일을 생성하여 equity 빌더 fixture 역할.
 
-    실제 `history.append_summary` 와 동일한 포맷 (date / model_equity /
-    actual_equity / drift_pct) 을 줄 단위로 작성한다.
+    실제 ``history.append_summary`` 와 동일한 포맷 (date / model_equity /
+    actual_equity / drift_pct 4 컬럼) 을 줄 단위로 작성한다. ``drift_pct`` 는
+    Git 정본의 영구 누적 컬럼이며 equity 빌더가 이 컬럼을 무시하고 RTDB
+    페이로드에는 싣지 않는 것이 본 테스트의 핵심 검증 대상이다.
     """
     import json
 
@@ -480,7 +482,7 @@ class TestBuildEquityRecent:
         Given: 2025-10-01 ~ 2026-04-10 약 6.3 개월짜리 summary.
         When:  months=6 으로 호출.
         Then:  dates 의 최소값 >= 2025-10-10 (= 2026-04-10 - 6개월), 최대값 = last.
-               배열 4 개의 길이가 동일.
+               배열 3 개 (dates / model_equity / actual_equity) 의 길이가 동일.
         """
         import datetime as _dt
 
@@ -512,7 +514,9 @@ class TestBuildEquityRecent:
         # Then
         assert isinstance(series, EquityChartSeries)
         assert series.dates[-1] == expected_last
-        assert len(series.dates) == len(series.model_equity) == len(series.actual_equity) == len(series.drift_pct)
+        assert len(series.dates) == len(series.model_equity) == len(series.actual_equity)
+        # drift_pct 시계열은 EquityChartSeries 에 포함되지 않는다 (앱 미사용으로 제거).
+        assert not hasattr(series, "drift_pct")
         # 6 개월 경계: last - 6 개월 이후만 포함 — 시작 경계보다 앞선 날짜는 제외되어야 함
         last_dt = _dt.date.fromisoformat(str(expected_last))
         cutoff = last_dt - relativedelta(months=6)
@@ -520,12 +524,13 @@ class TestBuildEquityRecent:
 
     def test_recent_rounding_rules(self, tmp_path: Path):
         """
-        목적: equity 는 자본금(ROUND_CAPITAL=0) 반올림, drift_pct 는 0~1 ratio
-              ROUND_RATIO=4 자리 반올림.
+        목적: equity 는 자본금(ROUND_CAPITAL=0) 반올림. summary.jsonl 의
+              drift_pct 컬럼은 equity 빌더가 무시하므로 EquityChartSeries 에
+              나타나지 않는다.
 
-        Given: 소수점이 있는 equity / 긴 정밀도 drift_pct.
+        Given: 소수점이 있는 equity + Git 정본 컬럼인 drift_pct (무시 대상).
         When:  build_equity_recent 호출.
-        Then:  equity 는 정수 값, drift_pct 는 4 자리로 반올림.
+        Then:  equity 는 정수 값, EquityChartSeries 에 drift_pct 속성 없음.
         """
         # Given — banker's rounding 경계가 아닌 값으로 구성한다.
         rows = [
@@ -547,10 +552,10 @@ class TestBuildEquityRecent:
         # When
         series = build_equity_recent(tmp_path, months=12)
 
-        # Then — equity 는 정수 (ROUND_CAPITAL=0), drift_pct 4 자리
+        # Then — equity 는 정수 (ROUND_CAPITAL=0), drift_pct 시계열은 미포함
         assert series.model_equity == [12_345_679, 12_400_000]
         assert series.actual_equity == [12_300_000, 12_350_002]
-        assert series.drift_pct == [pytest.approx(0.0037, abs=1e-6), pytest.approx(0.0042, abs=1e-6)]
+        assert not hasattr(series, "drift_pct")
 
 
 class TestBuildEquityArchiveYear:
@@ -598,4 +603,5 @@ class TestBuildEquityArchiveYear:
         assert series.dates == []
         assert series.model_equity == []
         assert series.actual_equity == []
-        assert series.drift_pct == []
+        # drift_pct 시계열은 EquityChartSeries 에 포함되지 않는다 (앱 미사용으로 제거).
+        assert not hasattr(series, "drift_pct")

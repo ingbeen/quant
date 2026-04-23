@@ -534,17 +534,20 @@ class TestEquityChartSeries:
     def test_equity_chart_series_has_equity_timeseries_fields(self):
         """
         목적: EquityChartSeries 는 주가 차트(ChartSeries)와 달리 dates /
-              model_equity / actual_equity / drift_pct 4 필드만 가진다.
-              close / ma_value / upper_band / lower_band / 마커 4 종은 포함하지
+              model_equity / actual_equity 3 필드만 가진다. drift_pct 시계열은
+              앱 미사용으로 제거되었다 (스칼라는 /latest/portfolio 에서 제공).
+              close / ma_value / upper_band / lower_band / 마커 4 종도 포함하지
               않는다.
 
         Given: EquityChartSeries 인스턴스.
         When:  dataclass 필드 이름 집합 조회.
-        Then:  기대 필드 집합과 일치, 주가 전용 필드는 없음.
+        Then:  기대 필드 집합과 일치, drift 시계열 / 주가 전용 필드는 없음.
         """
         assert is_dataclass(EquityChartSeries)
         field_names = {f.name for f in fields(EquityChartSeries)}
-        assert field_names == {"dates", "model_equity", "actual_equity", "drift_pct"}
+        assert field_names == {"dates", "model_equity", "actual_equity"}
+        # drift_pct 시계열은 제거되었다 (앱 미사용 — 스칼라는 /latest/portfolio).
+        assert "drift_pct" not in field_names
         # 주가 전용 필드는 없다.
         assert "close" not in field_names
         assert "ma_value" not in field_names
@@ -553,7 +556,8 @@ class TestEquityChartSeries:
 
     def test_equity_chart_series_asdict_preserves_arrays(self):
         """
-        목적: asdict 호출 후 dict 에 4 배열이 그대로 담긴다.
+        목적: asdict 호출 후 dict 에 dates / model_equity / actual_equity 3 배열이
+              그대로 담기며, drift_pct 키는 페이로드에 존재하지 않는다.
         """
         from dataclasses import asdict as _asdict
 
@@ -562,7 +566,6 @@ class TestEquityChartSeries:
             dates=["2026-04-09", "2026-04-10"],
             model_equity=[12_345_678, 12_400_000],
             actual_equity=[12_300_000, 12_350_001],
-            drift_pct=[0.0037, 0.0041],
         )
 
         # When
@@ -572,7 +575,7 @@ class TestEquityChartSeries:
         assert payload["dates"] == ["2026-04-09", "2026-04-10"]
         assert payload["model_equity"] == [12_345_678, 12_400_000]
         assert payload["actual_equity"] == [12_300_000, 12_350_001]
-        assert payload["drift_pct"] == [0.0037, 0.0041]
+        assert "drift_pct" not in payload
 
 
 class TestModelSyncDataclass:
