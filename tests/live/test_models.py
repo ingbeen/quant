@@ -488,8 +488,8 @@ class TestLiveStateCreation:
 class TestEquityChartMeta:
     def test_equity_chart_meta_is_dataclass_with_expected_fields(self):
         """
-        목적: EquityChartMeta 는 dataclass 이며 4 개 필드(first_date, last_date,
-              recent_months, archive_years) 만 가진다. ma_window 필드는 없다.
+        목적: EquityChartMeta 는 dataclass 이며 3 개 필드(first_date, last_date,
+              years) 만 가진다. ma_window / recent_months / archive_years 필드는 없다.
 
         Given: EquityChartMeta 인스턴스.
         When:  dataclass 필드 이름 집합 조회.
@@ -500,9 +500,12 @@ class TestEquityChartMeta:
         field_names = {f.name for f in fields(EquityChartMeta)}
 
         # Then
-        assert field_names == {"first_date", "last_date", "recent_months", "archive_years"}
+        assert field_names == {"first_date", "last_date", "years"}
         # 주가 차트 ChartMeta 와 달리 ma_window 필드는 없다 (equity 는 MA 개념 없음)
         assert "ma_window" not in field_names
+        # recent 슬라이스 폐지로 recent_months / archive_years 필드는 제거됨.
+        assert "recent_months" not in field_names
+        assert "archive_years" not in field_names
 
     def test_equity_chart_meta_roundtrip_with_asdict(self):
         """
@@ -514,8 +517,7 @@ class TestEquityChartMeta:
         meta = EquityChartMeta(
             first_date="2024-01-02",
             last_date="2026-04-10",
-            recent_months=6,
-            archive_years=[2024, 2025, 2026],
+            years=[2024, 2025, 2026],
         )
 
         # When
@@ -525,8 +527,7 @@ class TestEquityChartMeta:
         assert payload == {
             "first_date": "2024-01-02",
             "last_date": "2026-04-10",
-            "recent_months": 6,
-            "archive_years": [2024, 2025, 2026],
+            "years": [2024, 2025, 2026],
         }
 
 

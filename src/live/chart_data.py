@@ -1,9 +1,8 @@
-"""차트 시계열 빌더 (앱 차트 화면용, meta + recent + archive/{YYYY} 3 분할).
+"""차트 시계열 빌더 (앱 차트 화면용, meta + years/{YYYY} 2 분할).
 
-앱이 초기에 recent (최근 N 개월) 만 빠르게 로드하고, 줌아웃 시 필요한 연도
-archive 를 추가 로드할 수 있도록 슬라이스 단위로 데이터를 생성한다. 실제 RTDB
-쓰기는 :mod:`live.rtdb_gateway` 의 ``write_chart_meta`` / ``write_chart_recent`` /
-``write_chart_archive_year`` 가 수행한다.
+앱이 메타에서 존재 연도 목록을 읽고 필요한 연도 슬라이스를 그때그때 로드하도록
+연도 단위로 데이터를 생성한다. 실제 RTDB 쓰기는 :mod:`live.rtdb_gateway` 의
+``write_chart_meta`` / ``write_chart_year_slice`` 가 수행한다.
 
 본 모듈은 순수 데이터 변환만 담당한다.
 
@@ -12,9 +11,7 @@ archive 를 추가 로드할 수 있도록 슬라이스 단위로 데이터를 �
 - 데이터 소스: ``{state_dir}/data/stock/{TICKER}.csv``
 - MA / 밴드는 QBT 의 :func:`add_single_moving_average` 재사용 (SSoT)
 - 이동평균 워밍업 구간(``slot.ma_window - 1`` 개 인덱스) 은 ``None``
-- 마커는 ISO 8601 날짜 문자열 (``list[str]``). 슬라이스 분할에 독립적.
-- recent 와 archive/{현재_연도} 는 경계 구간이 겹쳐도 무방하며, 앱이 Map 으로
-  날짜 기준 dedupe 한다 (설계서 §8.2.5).
+- 마커는 ISO 8601 날짜 문자열 (``list[str]``). 연도 슬라이스 분할에 독립적.
 """
 
 from __future__ import annotations
@@ -25,10 +22,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from dateutil.relativedelta import relativedelta
-
 from live.constants import (
-    CHART_RECENT_MONTHS,
     HISTORY_SUMMARY_FILENAME,
     extract_ticker_from_path,
     get_live_portfolio_config,
@@ -43,11 +37,9 @@ from qbt.common_constants import COL_CLOSE, COL_DATE
 
 __all__ = [
     "build_chart_meta",
-    "build_chart_recent",
-    "build_chart_archive_year",
+    "build_chart_year_slice",
     "build_equity_meta",
-    "build_equity_recent",
-    "build_equity_archive_year",
+    "build_equity_year_slice",
 ]
 
 
@@ -271,68 +263,20 @@ def build_chart_meta(state_dir: Path) -> dict[str, ChartMeta]:
             raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart meta 생성 불가)")
         first = dates[0]
         last = dates[-1]
-        years: set[int] = {d.year for d in dates}
-        archive_years = sorted(years)
+        years_set: set[int] = {d.year for d in dates}
+        years = sorted(years_set)
 
         meta_map[slot.asset_id] = ChartMeta(
             first_date=first.isoformat(),
             last_date=last.isoformat(),
             ma_window=slot.ma_window,
-            recent_months=CHART_RECENT_MONTHS,
-            archive_years=archive_years,
+            years=years,
         )
 
     return meta_map
 
 
-def build_chart_recent(
-    state_dir: Path,
-    user_trades: dict[str, list[UserTrade]] | None = None,
-    signal_history: dict[str, list[tuple[str, str]]] | None = None,
-    months: int | None = None,
-) -> dict[str, ChartSeries]:
-    """자산별 최근 ``months`` 개월 :class:`ChartSeries` 슬라이스를 생성한다.
-
-    Args:
-        state_dir: qbt-live-state 디렉토리.
-        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
-        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
-        months: 슬라이스에 포함할 최근 개월 수. None 이면
-            :data:`live.constants.CHART_RECENT_MONTHS` 를 사용.
-
-    Returns:
-        ``{asset_id: ChartSeries}``.
-    """
-    user_trades = user_trades or {}
-    signal_history = signal_history or {}
-    months_effective = CHART_RECENT_MONTHS if months is None else months
-    config = get_live_portfolio_config()
-
-    slice_map: dict[str, ChartSeries] = {}
-
-    for slot in config.asset_slots:
-        dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
-        if not dates:
-            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart recent 생성 불가)")
-
-        last = dates[-1]
-        start = last - relativedelta(months=months_effective)
-
-        slice_map[slot.asset_id] = _build_slice(
-            slot,
-            dates,
-            close_list,
-            ma_list,
-            start=start,
-            end=last,
-            asset_user_trades=user_trades.get(slot.asset_id, []),
-            asset_signal_history=signal_history.get(slot.asset_id, []),
-        )
-
-    return slice_map
-
-
-def build_chart_archive_year(
+def build_chart_year_slice(
     state_dir: Path,
     year: int,
     user_trades: dict[str, list[UserTrade]] | None = None,
@@ -363,7 +307,7 @@ def build_chart_archive_year(
     for slot in config.asset_slots:
         dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
         if not dates:
-            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart archive 생성 불가)")
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart year slice 생성 불가)")
 
         slice_map[slot.asset_id] = _build_slice(
             slot,
@@ -455,33 +399,11 @@ def build_equity_meta(state_dir: Path) -> EquityChartMeta:
     return EquityChartMeta(
         first_date=first,
         last_date=last,
-        recent_months=CHART_RECENT_MONTHS,
-        archive_years=years,
+        years=years,
     )
 
 
-def build_equity_recent(state_dir: Path, months: int | None = None) -> EquityChartSeries:
-    """최근 ``months`` 개월 equity 슬라이스를 생성한다.
-
-    last_date 기준으로 ``relativedelta(months=N)`` 범위의 로우만 포함한다.
-
-    Args:
-        state_dir: qbt-live-state 디렉토리.
-        months: 슬라이스에 포함할 최근 개월 수. None 이면
-            :data:`live.constants.CHART_RECENT_MONTHS` 를 사용.
-
-    Returns:
-        :class:`EquityChartSeries` 인스턴스.
-    """
-    months_effective = CHART_RECENT_MONTHS if months is None else months
-    rows = _load_summary_rows(state_dir / "history")
-    last = date.fromisoformat(str(rows[-1]["date"]))
-    start = last - relativedelta(months=months_effective)
-    filtered = [r for r in rows if date.fromisoformat(str(r["date"])) >= start]
-    return _equity_series_from_rows(filtered)
-
-
-def build_equity_archive_year(state_dir: Path, year: int) -> EquityChartSeries:
+def build_equity_year_slice(state_dir: Path, year: int) -> EquityChartSeries:
     """특정 연도 equity 슬라이스를 생성한다.
 
     해당 연도에 summary 로우가 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.

@@ -90,7 +90,7 @@ class TestMainAllowListNotifyPolicy:
     FCM + 텔레그램 알림을 발송한다 (allow-list 정책).
 
     사용자 직접 실행 커맨드 (init / reset / rebuild-data / drift / fetch-fills /
-    backfill-chart-archive) 는 터미널 stderr + ERROR 로그로만 실패를 노출하며,
+    backfill-chart-years) 는 터미널 stderr + ERROR 로그로만 실패를 노출하며,
     알림은 발송하지 않는다. ``notify-failure`` 는 재귀 방지를 위해 allow-list 에
     포함하지 않는다 (allow-list 에 없으므로 자동 제외).
     """
@@ -104,7 +104,7 @@ class TestMainAllowListNotifyPolicy:
             ["rebuild-data"],
             ["drift"],
             ["fetch-fills"],
-            ["backfill-chart-archive"],
+            ["backfill-chart-years"],
         ],
     )
     def test_user_executed_command_failure_does_not_notify(
@@ -128,7 +128,7 @@ class TestMainAllowListNotifyPolicy:
             "_cmd_rebuild_data",
             "_cmd_drift",
             "_cmd_fetch_fills",
-            "_cmd_backfill_chart_archive",
+            "_cmd_backfill_chart_years",
         ):
             monkeypatch.setattr(cli_module, attr_name, _fail)
 

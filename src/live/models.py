@@ -338,7 +338,7 @@ class SignalDetection:
 
 
 # ============================================================================
-# ChartMeta / ChartSeries — 차트 시계열 (meta + recent + archive/{YYYY})
+# ChartMeta / ChartSeries — 차트 시계열 (meta + years/{YYYY})
 # ============================================================================
 
 
@@ -347,28 +347,26 @@ class ChartMeta:
     """앱 차트의 자산별 메타데이터.
 
     RTDB ``/charts/prices/{asset_id}/meta`` 에 저장된다. 앱은 이 메타를 먼저
-    읽어 (a) recent 로딩, (b) 줌아웃 시 어느 archive 연도를 로드할지, (c) 워밍업
-    길이 (``ma_window``) 를 판단한다.
+    읽어 (a) 어느 연도 슬라이스를 로드할지, (b) 워밍업 길이 (``ma_window``) 를
+    판단한다.
     """
 
     first_date: str  # CSV 의 첫 거래일 (ISO 8601)
     last_date: str  # CSV 의 마지막 거래일 (ISO 8601)
     ma_window: int
-    recent_months: int  # /recent 슬라이스가 포함한 개월 수
-    archive_years: list[int]  # /archive/{YYYY} 가 존재하는 연도 목록 (오름차순)
+    years: list[int]  # /years/{YYYY} 가 존재하는 연도 목록 (오름차순)
 
 
 @dataclass
 class ChartSeries:
-    """자산별 차트 슬라이스 (recent 또는 archive/{YYYY}).
+    """자산별 연도 차트 슬라이스.
 
-    RTDB ``/charts/prices/{asset_id}/recent`` 또는
-    ``/charts/prices/{asset_id}/archive/{YYYY}`` 에 저장된다.
+    RTDB ``/charts/prices/{asset_id}/years/{YYYY}`` 에 저장된다.
 
     - ``dates`` 는 ISO 8601 날짜 배열이며, ``close`` / ``ma_value`` /
       ``upper_band`` / ``lower_band`` 는 같은 길이 / 같은 인덱스의 값 배열이다.
     - MA 워밍업 구간 (``slot.ma_window - 1`` 개) 은 ``None`` 으로 채워진다.
-    - 마커 4 종은 **ISO 날짜 문자열 배열** 이다 (인덱스 기반 아님). 분할된 슬라이스
+    - 마커 4 종은 **ISO 날짜 문자열 배열** 이다 (인덱스 기반 아님). 연도 슬라이스
       사이에서 위치 독립적으로 표현하기 위함.
     """
 
@@ -399,15 +397,14 @@ class EquityChartMeta:
 
     first_date: str  # summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)
     last_date: str  # summary.jsonl 의 마지막 날짜 (ISO 8601)
-    recent_months: int  # /recent 슬라이스가 포함한 개월 수
-    archive_years: list[int]  # /archive/{YYYY} 가 존재하는 연도 목록 (오름차순)
+    years: list[int]  # /years/{YYYY} 가 존재하는 연도 목록 (오름차순)
 
 
 @dataclass
 class EquityChartSeries:
-    """equity 차트 슬라이스 (recent 또는 archive/{YYYY}).
+    """equity 연도 차트 슬라이스.
 
-    RTDB ``/charts/equity/recent`` 또는 ``/charts/equity/archive/{YYYY}`` 에 저장된다.
+    RTDB ``/charts/equity/years/{YYYY}`` 에 저장된다.
     주가 차트와 달리 포트폴리오 전체 1 개 시계열만 담으며, 한 경로에 ``dates`` /
     ``model_equity`` / ``actual_equity`` 세 배열을 같은 날짜 인덱스로 저장한다.
     drift 스칼라는 ``/latest/portfolio.drift_pct`` 로 별도 노출되며 시계열 형태로는

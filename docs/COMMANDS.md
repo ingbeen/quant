@@ -143,19 +143,19 @@ QBT 포트폴리오 전략의 실매매 알림 시스템입니다. GitHub Action
 poetry install -E live
 
 # 초기 1회 (원격 qbt-live-state 리포에 초기 상태 push)
-poetry run python -m live init --capital 100000000
+poetry run python -m live init --capital 1000000
 poetry run python -m live rebuild-data          # 티커 생략 시 전체 운영 티커 다운로드
 
 # 전체 초기화 (state + CSV + history + applied_ids + RTDB 일괄 리셋)
-# 실행 종료 시 RTDB 주가 차트 archive 까지 자동 재생성되어 앱의 주가 차트가 바로 표시됨.
+# 실행 종료 시 RTDB 주가 차트 연도 슬라이스까지 자동 재생성되어 앱의 주가 차트가 바로 표시됨.
 # equity 차트 / 체결 이력은 비워지며, 매일 `run-daily` 로 점진 누적된다.
-poetry run python -m live reset --capital 100000000
+poetry run python -m live reset --capital 1000000
 
-# 스플릿/무상증자 대응 (단일 티커 재다운로드 + 차트 archive 재생성)
+# 스플릿/무상증자 대응 (단일 티커 재다운로드 + 차트 연도 슬라이스 재생성)
 poetry run python -m live rebuild-data SPY      # 특정 티커만
-poetry run python -m live backfill-chart-archive
-poetry run python -m live backfill-chart-archive --dry-run
-poetry run python -m live backfill-chart-archive --year 2025
+poetry run python -m live backfill-chart-years
+poetry run python -m live backfill-chart-years --dry-run
+poetry run python -m live backfill-chart-years --year 2025
 
 # 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
 poetry run python -m live run-daily

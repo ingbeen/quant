@@ -90,7 +90,7 @@ live 내부 실행 순서 / 예외 훅 / ephemeral clone 메커니즘 등은 [sr
 
 - 자본금 / 현금: `model_equity`, `actual_equity`, `shared_cash_model`, `shared_cash_actual`
 - 가격: `close`, `ma_value`, `upper_band`, `lower_band`, `actual_price` (체결 단가)
-- 시계열: `/charts/*/recent.close`, `/charts/equity/*/{recent,archive}.{model_equity,actual_equity}`
+- 시계열: `/charts/prices/{asset_id}/years/{YYYY}.close`, `/charts/equity/years/{YYYY}.{model_equity,actual_equity}`
 - inbox 입력값: 앱이 쓰는 체결 단가 / 보정 금액도 모두 USD
 
 **비중 계산 (앱 계층 수식)**: 자산별 비중은 USD 단위 내에서 직접 계산 가능하다.
@@ -172,18 +172,17 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 ## 5. 차트: TradingView Lightweight Charts
 
-자산별 CSV 를 읽어 차트 시계열을 생성하고 RTDB `/charts/prices/{asset_id}/` 하위에 **3 분할 구조** 로 저장한다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자). equity(포트폴리오 평가액) 시계열은 별도의 `/charts/equity/` 경로로 노출된다 (§8.2.6).
+자산별 CSV 를 읽어 차트 시계열을 생성하고 RTDB `/charts/prices/{asset_id}/` 하위에 **2 분할 구조** 로 저장한다. 자산 ID 는 live 포트폴리오의 각 슬롯 `asset_id` 를 그대로 사용한다 (소문자). equity(포트폴리오 평가액) 시계열은 별도의 `/charts/equity/` 경로로 노출된다 (§8.2.6).
 
-**RTDB 구조 (주가 차트 3 경로)**:
+**RTDB 구조 (주가 차트 2 경로)**:
 
 ```
-/charts/prices/{asset_id}/meta                ← 차트 메타 (first/last 날짜, archive_years 등)
-/charts/prices/{asset_id}/recent              ← 최근 N 개월 slice (매일 덮어쓰기)
-/charts/prices/{asset_id}/archive/{YYYY}      ← 연도별 slice (연 1 회 또는 이벤트 시 재생성)
+/charts/prices/{asset_id}/meta                ← 차트 메타 (first/last 날짜, years 등)
+/charts/prices/{asset_id}/years/{YYYY}        ← 연도별 slice (현재 연도만 daily 갱신)
 ```
 
-**시계열 필드** (recent / archive 공통): `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
-**마커 필드** (recent / archive 공통): `buy_signals`, `sell_signals`, `user_buys`, `user_sells` — 모두 **ISO 8601 날짜 문자열 배열** (인덱스 아님). 분할된 슬라이스 사이에서 위치 독립적.
+**시계열 필드** (years): `dates`, `close`, `ma_value`, `upper_band`, `lower_band`
+**마커 필드** (years): `buy_signals`, `sell_signals`, `user_buys`, `user_sells` — 모두 **ISO 8601 날짜 문자열 배열** (인덱스 아님). 분할된 연도 사이에서 위치 독립적.
 
 | 마커 종류                      | 출처                                 | 의미                          |
 | ------------------------------ | ------------------------------------ | ----------------------------- |
@@ -192,17 +191,13 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 정확한 페이로드 스키마와 필드 타입은 §8.2.5 를 참고한다.
 
-**recent 정책**: `recent_months = 6` (상수 `CHART_RECENT_MONTHS`). daily runner 는 매 실행마다 `recent` 를 덮어쓴다.
-
-**archive 정책**: 연도 단위 고정 slice. daily runner 는 "현재 연도" archive 만 매 실행 덮어쓰고, 이전 연도 archive 는 건드리지 않는다. 최초 배포 시와 스플릿/무상증자 감지 시에는 운영자가 backfill CLI 로 전체 archive 를 재생성한다.
-
-**recent ↔ archive 경계 중복 허용**: recent 와 archive/{현재\_연도} 는 같은 날짜를 양쪽에 포함할 수 있다. 앱은 두 소스를 읽은 후 `Map<date, point>` 로 dedupe 하여 차트에 넣는다. 이 정책은 서버 쪽 구현 단순성과 정합성 안정을 우선한 선택.
+**연도 슬라이스 정책**: 연도 단위 고정 slice. daily runner 는 "현재 연도" 슬라이스만 매 실행 덮어쓰고, 이전 연도는 건드리지 않는다. 최초 배포 시와 스플릿/무상증자 감지 시에는 운영자가 backfill CLI 로 전체 연도를 재생성한다. 연도별로 비중첩이라 dedupe 가 불필요하다.
 
 **앱 로딩 플로우 (권장)**:
 
-1. 앱 진입: `meta` 로드 → `recent` 로드 → Lightweight Charts `setData(recent)`.
-2. 사용자가 좌측 끝으로 줌아웃: `meta.archive_years` 참고하여 필요한 연도 `archive/{YYYY}` 병렬 로드, Map 으로 병합 후 `setData(merged)`.
-3. 전체 보기: `archive_years` 전체를 순회 로드 (로컬 캐시 재사용).
+1. 앱 진입: `meta` 로드 → `meta.last_date - 12개월` 이 속한 연도부터 현재 연도까지의 `years/{YYYY}` 병렬 fetch (보통 2개) → 결합 후 `setData(merged)`. 진입 직후 최소 12개월 표시 보장.
+2. 사용자가 좌측 끝으로 줌아웃: `meta.years` 참고하여 추가 연도 `years/{YYYY}` 점진 로드, 결합 후 `setData(merged)`.
+3. 전체 보기: `meta.years` 전체를 순회 로드 (로컬 캐시 재사용).
 
 `ma_value` 는 자산 슬롯의 `ma_window` 에 독립적이며, 앞 `ma_window - 1` 개 인덱스는 워밍업 구간으로 `null` 이다. `upper_band` / `lower_band` 는 `ma_value × (1 ± buffer_zone_pct)` 로 계산되며 MA 가 null 이면 밴드도 null 이다. Firebase RTDB 는 빈 배열을 저장하지 않으므로 마커 리스트가 비어 있으면 해당 키가 아예 생성되지 않는다 (앱은 키 부재를 "빈 배열" 로 해석).
 
@@ -300,12 +295,10 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /latest/portfolio                                ← 전체 자산 요약 + drift 스칼라 + assets/{asset_id}
 /latest/signals/{asset_id}                       ← 시그널 상태 / 종가 / MA / 밴드
 /latest/pending_orders/{asset_id}                ← 익일 체결 예정 주문 (pending 있는 자산만)
-/charts/prices/{asset_id}/meta                   ← 주가 차트 메타 (first/last 날짜, archive_years 등)
-/charts/prices/{asset_id}/recent                 ← 주가 차트 최근 N 개월 slice (매일 덮어쓰기)
-/charts/prices/{asset_id}/archive/{YYYY}         ← 주가 차트 연도별 slice (현재 연도만 daily 갱신)
-/charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / archive_years)
-/charts/equity/recent                            ← equity 최근 N 개월 slice (model / actual)
-/charts/equity/archive/{YYYY}                    ← equity 연도별 slice (현재 연도만 daily 갱신)
+/charts/prices/{asset_id}/meta                   ← 주가 차트 메타 (first/last 날짜, years 등)
+/charts/prices/{asset_id}/years/{YYYY}           ← 주가 차트 연도별 slice (현재 연도만 daily 갱신)
+/charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / years)
+/charts/equity/years/{YYYY}                      ← equity 연도별 slice (현재 연도만 daily 갱신)
 /history/fills/{YYYY-MM-DD}/{uuid}               ← 체결 이력 영구 보존 (Git 정본 user_trades.jsonl 미러)
 /history/balance_adjusts/{YYYY-MM-DD}/{uuid}     ← 잔고 보정 이력 영구 보존 (Git 정본 미러)
 /history/signals/{YYYY-MM-DD}/{asset_id}         ← 신호 이력 영구 보존 (Git 정본 signals.jsonl 미러)
@@ -316,7 +309,7 @@ live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + histo
 /device_tokens/{device_id}                       ← FCM 토큰
 ```
 
-RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 "오늘의 스냅샷" 이고 매 실행마다 전체 갱신되며 (inbox 패턴을 쓰는 이유), `/charts/*` 는 "시계열 데이터" 로 매일 meta + recent + 현재 연도 archive 만 daily 갱신된다.
+RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/latest/*` 는 "오늘의 스냅샷" 이고 매 실행마다 전체 갱신되며 (inbox 패턴을 쓰는 이유), `/charts/*` 는 "시계열 데이터" 로 매일 meta + 현재 연도 슬라이스만 daily 갱신된다.
 
 **예제 JSON 표기 주의**: 본 절 이하의 예제 JSON 에 등장하는 날짜 / 연도 / 가격 등 구체값은 작성 시점의 예시이며, 실제 값은 RTDB 에서 동적 결정된다. 필드 의미와 타입만 계약 SoT 로 본다.
 
@@ -433,15 +426,14 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/latest/portfolio` (§8.2.1) 에서 읽는다. 자산별 drift 가 필요하면 `/latest/portfolio` + `/latest/signals` 로 앱에서 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
 
-#### 8.2.5 `/charts/prices/{asset_id}/` — 주가 차트 데이터 (meta + recent + archive/{YYYY})
+#### 8.2.5 `/charts/prices/{asset_id}/` — 주가 차트 데이터 (meta + years/{YYYY})
 
 **SoT**:
 
 - meta: `live.chart_data.build_chart_meta`, `live.models.ChartMeta`, `live.rtdb_gateway.write_chart_meta`
-- recent: `live.chart_data.build_chart_recent`, `live.models.ChartSeries`, `live.rtdb_gateway.write_chart_recent`
-- archive: `live.chart_data.build_chart_archive_year`, `live.models.ChartSeries`, `live.rtdb_gateway.write_chart_archive_year`
+- years: `live.chart_data.build_chart_year_slice`, `live.models.ChartSeries`, `live.rtdb_gateway.write_chart_year_slice`
 
-**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 backfill CLI 로 재생성한다.
+**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `years/{현재_연도}` 를 덮어쓴다. 이전 연도 슬라이스는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 backfill CLI 로 재생성한다.
 
 ##### 8.2.5.1 `/charts/prices/{asset_id}/meta`
 
@@ -450,59 +442,25 @@ drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/la
   "first_date": "2013-01-02",
   "last_date": "2026-04-14",
   "ma_window": 200,
-  "recent_months": 6,
-  "archive_years": [
+  "years": [
     2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024,
     2025, 2026
   ]
 }
 ```
 
-| 필드            | 타입      | 설명                                                                            |
-| --------------- | --------- | ------------------------------------------------------------------------------- |
-| `first_date`    | str       | 자산 CSV 의 첫 거래일 (ISO 8601)                                                |
-| `last_date`     | str       | 자산 CSV 의 마지막 거래일 (ISO 8601)                                            |
-| `ma_window`     | int       | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                      |
-| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS` 참조             |
-| `archive_years` | list[int] | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 archive 경로를 결정 |
+| 필드         | 타입      | 설명                                                                         |
+| ------------ | --------- | ---------------------------------------------------------------------------- |
+| `first_date` | str       | 자산 CSV 의 첫 거래일 (ISO 8601)                                             |
+| `last_date`  | str       | 자산 CSV 의 마지막 거래일 (ISO 8601)                                         |
+| `ma_window`  | int       | 자산 슬롯의 MA 윈도우 (워밍업 길이 계산용)                                   |
+| `years`      | list[int] | CSV 가 포함하는 연도 목록 (오름차순). 앱이 줌아웃 시 로드할 연도 경로를 결정 |
 
-앱은 `meta` 를 가장 먼저 한 번 읽고, 필요한 시점에 `recent` / `archive/{YYYY}` 로드 전략을 결정한다.
+앱은 `meta` 를 가장 먼저 한 번 읽고, `last_date - 12개월` 이 속한 연도부터 현재 연도까지의 `years/{YYYY}` 를 병렬 로드한다 (진입 시 12개월 보장). 이후 사용자 좌측 스크롤 시 추가 연도를 점진 로드.
 
-##### 8.2.5.2 `/charts/prices/{asset_id}/recent`
+##### 8.2.5.2 `/charts/prices/{asset_id}/years/{YYYY}`
 
-최근 `recent_months` 개월 슬라이스. 매 `run-daily` 실행마다 덮어쓰기.
-
-```json
-{
-  "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
-  "close": [123.45, 124.0, 124.5],
-  "ma_value": [120.5, 120.65, 120.8],
-  "upper_band": [124.115, 124.27, 124.424],
-  "lower_band": [114.475, 114.618, 114.76],
-  "buy_signals": ["2025-11-03"],
-  "sell_signals": ["2026-01-21"],
-  "user_buys": ["2025-11-04"],
-  "user_sells": ["2026-01-22"]
-}
-```
-
-| 필드           | 타입                 | 설명                                                                                  |
-| -------------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `dates`        | list[str]            | recent 구간 거래일 (ISO 8601)                                                         |
-| `close`        | list[number]         | 종가 (**USD**, `ROUND_PRICE = 6` 자리)                                                |
-| `ma_value`     | list[number \| null] | MA (**USD**). recent 는 보통 워밍업을 지난 구간이므로 전부 값이 채워진다              |
-| `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)` (**USD**)                                      |
-| `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)` (**USD**)                                     |
-| `buy_signals`  | list[str]            | 해당 구간 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생       |
-| `sell_signals` | list[str]            | 해당 구간 내 매도 신호 발생일 (ISO 8601)                                              |
-| `user_buys`    | list[str]            | 해당 구간 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생 |
-| `user_sells`   | list[str]            | 해당 구간 내 사용자 매도 체결일 (ISO 8601)                                            |
-
-##### 8.2.5.3 `/charts/prices/{asset_id}/archive/{YYYY}`
-
-특정 연도 전체 슬라이스 (1월 1일 ~ 12월 31일 범위 내 거래일). daily runner 는 **현재 연도 만** 갱신하고, 이전 연도 archive 는 backfill CLI 또는 수동 재생성 시에만 쓴다.
-
-payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band`, `lower_band`, 마커 4 종). 마커도 해당 연도 범위 내 날짜만 포함한다.
+특정 연도 전체 슬라이스 (1월 1일 ~ 12월 31일 범위 내 거래일). daily runner 는 **현재 연도 만** 갱신하고, 이전 연도 슬라이스는 backfill CLI 또는 수동 재생성 시에만 쓴다.
 
 ```json
 {
@@ -518,26 +476,34 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
-##### 8.2.5.4 경계 중복 허용 정책
+| 필드           | 타입                 | 설명                                                                                  |
+| -------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `dates`        | list[str]            | 해당 연도 거래일 (ISO 8601)                                                           |
+| `close`        | list[number]         | 종가 (**USD**, `ROUND_PRICE = 6` 자리)                                                |
+| `ma_value`     | list[number \| null] | MA (**USD**). 워밍업 구간은 null                                                      |
+| `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)` (**USD**)                                      |
+| `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)` (**USD**)                                     |
+| `buy_signals`  | list[str]            | 해당 연도 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생       |
+| `sell_signals` | list[str]            | 해당 연도 내 매도 신호 발생일 (ISO 8601)                                              |
+| `user_buys`    | list[str]            | 해당 연도 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생 |
+| `user_sells`   | list[str]            | 해당 연도 내 사용자 매도 체결일 (ISO 8601)                                            |
 
-`recent` 와 `archive/{현재_연도}` 는 같은 날짜 범위를 일부 공유한다 (예: 2026-01-01 ~ 2026-04-14 구간은 양쪽에 모두 존재). 서버는 두 slice 를 독립 규칙으로 생성하고, **앱이 `Map<date, point>` 로 dedupe** 한다. 이 정책의 이유는 서버 구현을 단순하게 유지하고 경계 버그 리스크를 차단하기 위함이다.
-
-##### 8.2.5.5 중요 사항 (빈 배열 / null 처리)
+##### 8.2.5.3 중요 사항 (빈 배열 / null 처리)
 
 - Firebase RTDB 는 **빈 배열 `[]` 을 저장하지 않는다**. 마커 리스트가 비어 있으면 해당 키(`buy_signals` 등) 가 아예 생성되지 않으므로, 앱은 키 부재를 "빈 배열" 로 해석해야 한다.
 - `ma_value` / `upper_band` / `lower_band` 의 워밍업 구간은 `null` 값으로 채워진다 (배열 인덱스는 유지, 값만 null).
+- 슬라이스는 연도별로 **비중첩**이라 dedupe 가 불필요하다. 앱은 단순 정렬 + 결합으로 충분.
 
-#### 8.2.6 `/charts/equity/` — equity 차트 (meta + recent + archive/{YYYY})
+#### 8.2.6 `/charts/equity/` — equity 차트 (meta + years/{YYYY})
 
 **SoT**:
 
 - meta: `live.chart_data.build_equity_meta`, `live.models.EquityChartMeta`, `live.rtdb_gateway.write_equity_meta`
-- recent: `live.chart_data.build_equity_recent`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_recent`
-- archive: `live.chart_data.build_equity_archive_year`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_archive_year`
+- years: `live.chart_data.build_equity_year_slice`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_year_slice`
 
-**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, 최근 구간은 `recent`, 줌아웃 시에는 `archive/{YYYY}` 를 필요에 따라 추가 로드한다. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `dates` / `model_equity` / `actual_equity` 세 배열을 같은 날짜 인덱스로 저장한다. drift 스칼라는 `/latest/portfolio.drift_pct` 에서 별도 노출되며 시계열 형태로는 제공하지 않는다.
+**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, `last_date - 12개월` 이 속한 연도부터 현재 연도까지의 `years/{YYYY}` 를 병렬 로드한다 (12개월 보장). 줌아웃 시에는 추가 연도를 점진 로드. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `dates` / `model_equity` / `actual_equity` 세 배열을 같은 날짜 인덱스로 저장한다. drift 스칼라는 `/latest/portfolio.drift_pct` 에서 별도 노출되며 시계열 형태로는 제공하지 않는다.
 
-**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `recent` / `archive/{현재_연도}` 를 덮어쓴다. 이전 연도 archive 는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 `backfill-chart-archive --target equity` 로 재생성한다 (§9.1 참고).
+**갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `years/{현재_연도}` 를 덮어쓴다. 이전 연도 슬라이스는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 `backfill-chart-years --target equity` 로 재생성한다 (§9.1 참고).
 
 ##### 8.2.6.1 `/charts/equity/meta`
 
@@ -545,41 +511,19 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 {
   "first_date": "2024-01-02",
   "last_date": "2026-04-14",
-  "recent_months": 6,
-  "archive_years": [2024, 2025, 2026]
+  "years": [2024, 2025, 2026]
 }
 ```
 
-| 필드            | 타입      | 설명                                                                            |
-| --------------- | --------- | ------------------------------------------------------------------------------- |
-| `first_date`    | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)                                |
-| `last_date`     | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)                                         |
-| `recent_months` | int       | `recent` slice 가 포함하는 개월 수. 상수 `CHART_RECENT_MONTHS` 참조 (주가 공용) |
-| `archive_years` | list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)                                  |
+| 필드         | 타입      | 설명                                             |
+| ------------ | --------- | ------------------------------------------------ |
+| `first_date` | str       | summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일) |
+| `last_date`  | str       | summary.jsonl 의 마지막 날짜 (ISO 8601)          |
+| `years`      | list[int] | summary.jsonl 이 포함하는 연도 목록 (오름차순)   |
 
-##### 8.2.6.2 `/charts/equity/recent`
+##### 8.2.6.2 `/charts/equity/years/{YYYY}`
 
-최근 `recent_months` 개월 슬라이스. 매 `run-daily` 실행마다 덮어쓰기.
-
-```json
-{
-  "dates": ["2025-10-15", "2025-10-16", "…", "2026-04-14"],
-  "model_equity": [12000, "…", 12345],
-  "actual_equity": [11950, "…", 12300]
-}
-```
-
-| 필드            | 타입         | 설명                                                      |
-| --------------- | ------------ | --------------------------------------------------------- |
-| `dates`         | list[str]    | 해당 구간 거래일 (ISO 8601)                               |
-| `model_equity`  | list[number] | model 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리)  |
-| `actual_equity` | list[number] | actual 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리) |
-
-**불변조건**: 3 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
-
-##### 8.2.6.3 `/charts/equity/archive/{YYYY}`
-
-특정 연도 전체 슬라이스. 해당 연도에 summary 로우가 없으면 모든 배열이 빈 슬라이스가 반환된다. payload 구조는 `recent` 와 동일.
+특정 연도 전체 슬라이스. 해당 연도에 summary 로우가 없으면 모든 배열이 빈 슬라이스가 반환된다.
 
 ```json
 {
@@ -589,14 +533,19 @@ payload 구조는 `recent` 와 동일 (`dates`, `close`, `ma_value`, `upper_band
 }
 ```
 
-##### 8.2.6.4 경계 중복 허용 정책
+| 필드            | 타입         | 설명                                                      |
+| --------------- | ------------ | --------------------------------------------------------- |
+| `dates`         | list[str]    | 해당 연도 거래일 (ISO 8601)                               |
+| `model_equity`  | list[number] | model 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리)  |
+| `actual_equity` | list[number] | actual 축 총 자산가치 (**USD**, `ROUND_CAPITAL = 0` 자리) |
 
-주가 차트와 동일 원칙: `recent` 와 `archive/{현재_연도}` 는 같은 날짜 범위를 일부 공유할 수 있다. 서버는 두 slice 를 독립 규칙으로 생성하고, **앱이 `Map<date, point>` 로 dedupe** 한다 (§8.2.5.4 와 동일 정책).
+**불변조건**: 3 배열은 모두 같은 길이 / 같은 날짜 인덱스. summary.jsonl 스키마상 null 이 나올 수 없다.
 
-##### 8.2.6.5 중요 사항
+##### 8.2.6.3 중요 사항
 
-- **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 3 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `archive/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
+- **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 3 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `years/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
 - **정본 위치**: 자산별 상세·전체 equity 시계열은 Git 정본 `history/summary.jsonl` 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 앱 표시용 소비 데이터로만 취급한다.
+- 슬라이스는 연도별로 비중첩이라 dedupe 가 불필요하다 (§8.2.5.3 과 동일).
 
 #### 8.2.7 `/fills/inbox/{uuid}` — 체결 입력 (앱 → 서버)
 
@@ -1024,14 +973,14 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
    - `actual_shares *= ratio`, `actual_avg_entry_price /= ratio`
    - `buffer_zone_state` 내부 가격 필드 (있다면) 도 동일 비율로 조정. BufferZoneStrategy 내부 상태는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 의 직렬화 규약을 따른다.
 3. **Git commit + push**: 조정 사유와 비율을 commit 메시지에 기록 (예: `live / SSO 2:1 split 조정`).
-4. **차트 archive 재생성**: `python -m live backfill-chart-archive` 실행 — 주가 차트 `/charts/prices/{asset_id}/archive/{YYYY}` 와 equity 차트 `/charts/equity/archive/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 `--target all` (주가 + equity) × archive_years 전체 순회이며, `--target prices|equity` 로 한쪽만, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
+4. **차트 연도 슬라이스 재생성**: `python -m live backfill-chart-years` 실행 — 주가 차트 `/charts/prices/{asset_id}/years/{YYYY}` 와 equity 차트 `/charts/equity/years/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 `--target all` (주가 + equity) × years 전체 순회이며, `--target prices|equity` 로 한쪽만, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
 5. **다음 run-daily 확인**: 다음날 자동 실행 (또는 수동 `run-daily`) 에서 정상 진행을 확인한다.
 
 **history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
 
-**backfill-chart-archive 는 스플릿/무상증자 대응 시 수동 실행한다** (과거 연도 archive 를 새 조정가 기준으로 재생성). daily runner 는 매일 `archive/{현재_연도}` 만 덮어쓰므로, 이전 연도는 스플릿 후 값이 재조정된 CSV 를 기준으로 별도 재생성 필요. 최초 배포 및 `reset` 직후에는 `reset` 자체가 주가 차트 (meta/recent/archive 전체 연도) 를 자동 재생성하므로 별도 `backfill-chart-archive` 실행은 불필요하다.
+**backfill-chart-years 는 스플릿/무상증자 대응 시 수동 실행한다** (과거 연도 슬라이스를 새 조정가 기준으로 재생성). daily runner 는 매일 `years/{현재_연도}` 만 덮어쓰므로, 이전 연도는 스플릿 후 값이 재조정된 CSV 를 기준으로 별도 재생성 필요. 최초 배포 및 `reset` 직후에는 `reset` 자체가 주가 차트 (meta + years 전체 연도) 를 자동 재생성하므로 별도 `backfill-chart-years` 실행은 불필요하다.
 
-**`/history/*` 및 equity 차트는 매일 `run-daily` 가 누적**. `reset` 으로 Git 정본 `history/` 와 RTDB `/history/*` / `/charts/equity/*` 가 모두 초기화된 뒤에는 별도 backfill 명령이 없으며, `run-daily` 가 매일 당일분을 양쪽에 기록한다. 연말에 해가 바뀌면 새 연도의 equity archive 도 자연스럽게 생성된다.
+**`/history/*` 및 equity 차트는 매일 `run-daily` 가 누적**. `reset` 으로 Git 정본 `history/` 와 RTDB `/history/*` / `/charts/equity/*` 가 모두 초기화된 뒤에는 별도 backfill 명령이 없으며, `run-daily` 가 매일 당일분을 양쪽에 기록한다. 연말에 해가 바뀌면 새 연도의 equity 슬라이스도 자연스럽게 생성된다.
 
 ---
 

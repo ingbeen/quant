@@ -9,11 +9,9 @@ live 도메인이 RTDB 를 드나드는 모든 경로를 한 모듈에 캡슐화
 
 - ``/latest/portfolio``, ``/latest/signals``, ``/latest/pending_orders``
 - ``/charts/prices/{asset_id}/meta``
-- ``/charts/prices/{asset_id}/recent``
-- ``/charts/prices/{asset_id}/archive/{YYYY}``
+- ``/charts/prices/{asset_id}/years/{YYYY}``
 - ``/charts/equity/meta``
-- ``/charts/equity/recent``
-- ``/charts/equity/archive/{YYYY}``
+- ``/charts/equity/years/{YYYY}``
 - ``/history/fills/{YYYY-MM-DD}/{uuid}``
 - ``/history/balance_adjusts/{YYYY-MM-DD}/{uuid}``
 - ``/history/signals/{YYYY-MM-DD}/{asset_id}``
@@ -66,11 +64,9 @@ __all__ = [
     "mark_model_syncs_processed",
     "write_read_model",
     "write_chart_meta",
-    "write_chart_recent",
-    "write_chart_archive_year",
+    "write_chart_year_slice",
     "write_equity_meta",
-    "write_equity_recent",
-    "write_equity_archive_year",
+    "write_equity_year_slice",
     "write_history_fills",
     "write_history_balance_adjusts",
     "write_history_signals",
@@ -432,29 +428,19 @@ def write_read_model(app: FirebaseAppLike, state: LiveState, result: DailyResult
 def write_chart_meta(app: FirebaseAppLike, meta_map: dict[str, ChartMeta]) -> None:
     """``/charts/prices/{asset_id}/meta`` 에 자산별 차트 메타를 덮어쓴다.
 
-    앱은 차트 진입 시 이 메타를 먼저 읽어 recent / archive 로딩 전략을 결정한다.
+    앱은 차트 진입 시 이 메타를 먼저 읽어 어느 연도 슬라이스를 로드할지 결정한다.
     """
     for asset_id, meta in meta_map.items():
         payload = asdict(meta)
         _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/meta").set(payload)
 
 
-def write_chart_recent(app: FirebaseAppLike, recent_map: dict[str, ChartSeries]) -> None:
-    """``/charts/prices/{asset_id}/recent`` 에 자산별 최근 슬라이스를 덮어쓴다.
-
-    앱이 차트 초기 진입 시 가장 먼저 로드하는 구간이다.
-    """
-    for asset_id, chart_series in recent_map.items():
-        payload = asdict(chart_series)
-        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/recent").set(payload)
-
-
-def write_chart_archive_year(
+def write_chart_year_slice(
     app: FirebaseAppLike,
     year: int,
     year_map: dict[str, ChartSeries],
 ) -> None:
-    """``/charts/prices/{asset_id}/archive/{YYYY}`` 에 자산별 연도 슬라이스를 덮어쓴다.
+    """``/charts/prices/{asset_id}/years/{YYYY}`` 에 자산별 연도 슬라이스를 덮어쓴다.
 
     Args:
         app: Firebase App.
@@ -463,7 +449,7 @@ def write_chart_archive_year(
     """
     for asset_id, chart_series in year_map.items():
         payload = asdict(chart_series)
-        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/archive/{year}").set(payload)
+        _db_reference(app, f"{_CHART_PRICES_PATH}/{asset_id}/years/{year}").set(payload)
 
 
 # ============================================================================
@@ -474,27 +460,19 @@ def write_chart_archive_year(
 def write_equity_meta(app: FirebaseAppLike, meta: EquityChartMeta) -> None:
     """``/charts/equity/meta`` 에 equity 차트 메타를 덮어쓴다.
 
-    앱은 차트 진입 시 이 메타를 먼저 읽어 recent / archive 로딩 전략을 결정한다.
+    앱은 차트 진입 시 이 메타를 먼저 읽어 어느 연도 슬라이스를 로드할지 결정한다.
     주가 차트(:func:`write_chart_meta`) 와 달리 포트폴리오 전체를 대상으로 하므로
     자산 반복 없이 단일 payload 를 쓴다.
     """
     _db_reference(app, f"{_CHART_EQUITY_PATH}/meta").set(asdict(meta))
 
 
-def write_equity_recent(app: FirebaseAppLike, series: EquityChartSeries) -> None:
-    """``/charts/equity/recent`` 에 equity 최근 슬라이스를 덮어쓴다.
-
-    매 ``run-daily`` 실행마다 전체 재생성된다.
-    """
-    _db_reference(app, f"{_CHART_EQUITY_PATH}/recent").set(asdict(series))
-
-
-def write_equity_archive_year(app: FirebaseAppLike, year: int, series: EquityChartSeries) -> None:
-    """``/charts/equity/archive/{YYYY}`` 에 equity 연도 슬라이스를 덮어쓴다.
+def write_equity_year_slice(app: FirebaseAppLike, year: int, series: EquityChartSeries) -> None:
+    """``/charts/equity/years/{YYYY}`` 에 equity 연도 슬라이스를 덮어쓴다.
 
     daily runner 는 현재 연도만 매일 재생성하며, 과거 연도는 backfill CLI 로만 재생성.
     """
-    _db_reference(app, f"{_CHART_EQUITY_PATH}/archive/{year}").set(asdict(series))
+    _db_reference(app, f"{_CHART_EQUITY_PATH}/years/{year}").set(asdict(series))
 
 
 # ============================================================================

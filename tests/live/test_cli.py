@@ -216,14 +216,11 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
         "delete_all_except_device_tokens": [],
         "rebuild_full_csv": [],
         "build_chart_meta": [],
-        "build_chart_recent": [],
-        "build_chart_archive_year": [],
+        "build_chart_year_slice": [],
         "write_chart_meta": [],
-        "write_chart_recent": [],
-        "write_chart_archive_year": [],
+        "write_chart_year_slice": [],
         "write_equity_meta": [],
-        "write_equity_recent": [],
-        "write_equity_archive_year": [],
+        "write_equity_year_slice": [],
         "write_history_fills": [],
         "write_history_balance_adjusts": [],
         "write_history_signals": [],
@@ -260,27 +257,13 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
                 first_date="2020-01-01",
                 last_date="2026-04-17",
                 ma_window=200,
-                recent_months=12,
-                archive_years=[2024, 2025],
+                years=[2024, 2025],
             ),
         }
 
     monkeypatch.setattr(cli_module, "build_chart_meta", _spy_meta)
 
-    def _spy_recent(
-        state_dir: Path,
-        *,
-        user_trades: dict[str, Any],
-        signal_history: dict[str, Any],
-    ) -> dict[str, Any]:
-        del state_dir
-        calls["build_chart_recent"].append({"user_trades": user_trades, "signal_history": signal_history})
-        calls["order"].append("build_chart_recent")
-        return {}
-
-    monkeypatch.setattr(cli_module, "build_chart_recent", _spy_recent)
-
-    def _spy_archive(
+    def _spy_year_slice(
         state_dir: Path,
         *,
         year: int,
@@ -288,13 +271,13 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
         signal_history: dict[str, Any],
     ) -> dict[str, Any]:
         del state_dir
-        calls["build_chart_archive_year"].append(
+        calls["build_chart_year_slice"].append(
             {"year": year, "user_trades": user_trades, "signal_history": signal_history}
         )
-        calls["order"].append("build_chart_archive_year")
+        calls["order"].append("build_chart_year_slice")
         return {}
 
-    monkeypatch.setattr(cli_module, "build_chart_archive_year", _spy_archive)
+    monkeypatch.setattr(cli_module, "build_chart_year_slice", _spy_year_slice)
 
     def _spy_write_meta(app: Any, m: Any) -> None:
         del app
@@ -303,19 +286,12 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
 
     monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_meta", _spy_write_meta)
 
-    def _spy_write_recent(app: Any, m: Any) -> None:
+    def _spy_write_year_slice(app: Any, *, year: int, year_map: Any) -> None:
         del app
-        calls["write_chart_recent"].append(m)
-        calls["order"].append("write_chart_recent")
+        calls["write_chart_year_slice"].append({"year": year, "map": year_map})
+        calls["order"].append("write_chart_year_slice")
 
-    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_recent", _spy_write_recent)
-
-    def _spy_write_archive(app: Any, *, year: int, year_map: Any) -> None:
-        del app
-        calls["write_chart_archive_year"].append({"year": year, "map": year_map})
-        calls["order"].append("write_chart_archive_year")
-
-    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_archive_year", _spy_write_archive)
+    monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_year_slice", _spy_write_year_slice)
 
     # equity / history writers — reset 은 호출해서는 안 된다 (summary.jsonl 부재)
     monkeypatch.setattr(
@@ -325,13 +301,8 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
     )
     monkeypatch.setattr(
         cli_module.rtdb_gateway,
-        "write_equity_recent",
-        lambda app, s: calls["write_equity_recent"].append(s),
-    )
-    monkeypatch.setattr(
-        cli_module.rtdb_gateway,
-        "write_equity_archive_year",
-        lambda app, *, year, series: calls["write_equity_archive_year"].append({"year": year, "series": series}),
+        "write_equity_year_slice",
+        lambda app, *, year, series: calls["write_equity_year_slice"].append({"year": year, "series": series}),
     )
     monkeypatch.setattr(
         cli_module.rtdb_gateway,
@@ -359,7 +330,7 @@ class TestCmdReset:
     본 테스트 클래스는 정책을 고정한다:
     - Firebase 초기화 실패 시 Git / RTDB 미수정.
     - Git push 성공 후에만 RTDB 삭제 및 차트 쓰기 발생.
-    - 주가 차트 (meta/recent/archive) 는 생성되고, equity / `/history/*` 는 생성되지 않는다.
+    - 주가 차트 (meta + 연도 슬라이스) 는 생성되고, equity / `/history/*` 는 생성되지 않는다.
     - 차트 재생성 시 체결/시그널 마커는 빈 리스트로 전달된다.
     - 중간 실패 시 reset 재실행으로 멱등 복구 가능하다.
     """
@@ -412,7 +383,7 @@ class TestCmdReset:
     def test_reset_writes_price_charts_and_skips_equity_history(
         self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Given reset 성공 경로 When 실행 Then 주가 차트 (meta/recent/archive) 만 RTDB 에 쓰고,
+        """Given reset 성공 경로 When 실행 Then 주가 차트 (meta + 연도 슬라이스) 만 RTDB 에 쓰고,
         equity / /history/* 쓰기는 발생하지 않음.
         """
         del state_dir
@@ -423,13 +394,11 @@ class TestCmdReset:
 
         # 주가 차트는 write 1 회 이상
         assert len(calls["write_chart_meta"]) == 1
-        assert len(calls["write_chart_recent"]) == 1
-        assert len(calls["write_chart_archive_year"]) >= 1  # archive_years 수 만큼
+        assert len(calls["write_chart_year_slice"]) >= 1  # meta.years 수 만큼
 
         # equity / history 는 write 되지 않음
         assert calls["write_equity_meta"] == []
-        assert calls["write_equity_recent"] == []
-        assert calls["write_equity_archive_year"] == []
+        assert calls["write_equity_year_slice"] == []
         assert calls["write_history_fills"] == []
         assert calls["write_history_balance_adjusts"] == []
         assert calls["write_history_signals"] == []
@@ -442,34 +411,28 @@ class TestCmdReset:
         exit_code = main(["reset", "--capital", "100000000"])
         assert exit_code == 0
 
-        # build_chart_recent 한 번 이상 호출 + 마커 빈 dict
-        assert len(calls["build_chart_recent"]) == 1
-        recent_args = calls["build_chart_recent"][0]
-        assert recent_args["user_trades"] == {}
-        assert recent_args["signal_history"] == {}
-
-        # build_chart_archive_year 각 호출에서도 마커 빈 dict
-        assert len(calls["build_chart_archive_year"]) >= 1
-        for archive_args in calls["build_chart_archive_year"]:
-            assert archive_args["user_trades"] == {}
-            assert archive_args["signal_history"] == {}
+        # build_chart_year_slice 각 호출에서 마커 빈 dict
+        assert len(calls["build_chart_year_slice"]) >= 1
+        for year_args in calls["build_chart_year_slice"]:
+            assert year_args["user_trades"] == {}
+            assert year_args["signal_history"] == {}
 
     def test_reset_is_idempotent_when_rtdb_write_fails_midway(
         self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Given RTDB write_chart_archive_year 실패 시 reset 이 중단되고,
+        """Given RTDB write_chart_year_slice 실패 시 reset 이 중단되고,
         재실행 시 정상 성공 경로와 동일한 최종 쓰기 결과가 도출됨을 검증.
         """
         del state_dir
 
-        # 1차 실행: archive 쓰기에서 실패
+        # 1차 실행: 연도 슬라이스 쓰기에서 실패
         calls_first = _install_reset_spies(monkeypatch)
 
-        def _fail_archive(app: Any, *, year: int, year_map: Any) -> None:
+        def _fail_year_slice(app: Any, *, year: int, year_map: Any) -> None:
             del app, year, year_map
-            raise RuntimeError("테스트: RTDB archive 쓰기 실패")
+            raise RuntimeError("테스트: RTDB year_slice 쓰기 실패")
 
-        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_archive_year", _fail_archive)
+        monkeypatch.setattr(cli_module.rtdb_gateway, "write_chart_year_slice", _fail_year_slice)
 
         exit_code_first = main(["reset", "--capital", "100000000"])
         assert exit_code_first == 1  # 실패로 중단
@@ -479,9 +442,9 @@ class TestCmdReset:
         exit_code_second = main(["reset", "--capital", "100000000"])
         assert exit_code_second == 0
         assert len(calls_second["write_chart_meta"]) == 1
-        assert len(calls_second["write_chart_archive_year"]) >= 1
+        assert len(calls_second["write_chart_year_slice"]) >= 1
 
-        # 1차 실행이 archive 쓰기 직전까지 진행했는지 확인 (meta / recent 는 이미 시도됨)
+        # 1차 실행이 year_slice 쓰기 직전까지 진행했는지 확인 (meta 는 이미 시도됨)
         # 단, 이 테스트의 핵심은 "재실행이 가능하다" 이므로 자세한 부분 상태는 허용.
         del calls_first
 
@@ -645,17 +608,18 @@ class TestCmdRunDailySuccess:
         assert len(publish_calls) == 1
         assert len(notify_calls) == 1
 
-    def test_publish_to_rtdb_writes_chart_meta_recent_archive(
+    def test_publish_to_rtdb_writes_chart_meta_and_year_slice(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """
-        목적: ``_publish_to_rtdb`` 가 주가 / equity 차트의 meta / recent /
-        archive/{current_year} 를 모두 호출한다.
+        목적: ``_publish_to_rtdb`` 가 주가 / equity 차트의 meta + 현재 연도 슬라이스를
+              모두 호출한다.
 
         Given: 빌더와 write 함수들을 스파이로 교체.
         When:  _publish_to_rtdb 호출.
-        Then:  write_chart_* 3 종 + write_equity_* 3 종이 모두 호출되며,
-               archive 는 execution_date 의 연도로 호출된다.
+        Then:  write_chart_meta + write_chart_year_slice + write_equity_meta +
+               write_equity_year_slice 가 호출되며, 연도 슬라이스는 execution_date
+               의 연도로 호출된다.
         """
         # Given
         monkeypatch.setattr(cli_module.rtdb_gateway, "write_read_model", lambda app, state, result: None)
@@ -664,33 +628,23 @@ class TestCmdRunDailySuccess:
         monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
 
         sentinel_meta = {"sso": object()}
-        sentinel_recent = {"sso": object()}
-        sentinel_archive = {"sso": object()}
+        sentinel_year_map = {"sso": object()}
         sentinel_equity_meta = object()
-        sentinel_equity_recent = object()
-        sentinel_equity_archive = object()
+        sentinel_equity_year = object()
 
         monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: sentinel_meta)
-        monkeypatch.setattr(cli_module, "build_chart_recent", lambda *a, **kw: sentinel_recent)
-        monkeypatch.setattr(cli_module, "build_chart_archive_year", lambda *a, **kw: sentinel_archive)
+        monkeypatch.setattr(cli_module, "build_chart_year_slice", lambda *a, **kw: sentinel_year_map)
         monkeypatch.setattr(cli_module, "build_equity_meta", lambda state_dir: sentinel_equity_meta)
         monkeypatch.setattr(
             cli_module,
-            "build_equity_recent",
-            lambda state_dir, months=None: sentinel_equity_recent,
-        )
-        monkeypatch.setattr(
-            cli_module,
-            "build_equity_archive_year",
-            lambda state_dir, year: sentinel_equity_archive,
+            "build_equity_year_slice",
+            lambda state_dir, year: sentinel_equity_year,
         )
 
         meta_calls: list[object] = []
-        recent_calls: list[object] = []
-        archive_calls: list[tuple[int, object]] = []
+        year_slice_calls: list[tuple[int, object]] = []
         equity_meta_calls: list[object] = []
-        equity_recent_calls: list[object] = []
-        equity_archive_calls: list[tuple[int, object]] = []
+        equity_year_calls: list[tuple[int, object]] = []
         history_signals_calls: list[tuple[str, dict[str, object]]] = []
 
         monkeypatch.setattr(
@@ -700,13 +654,8 @@ class TestCmdRunDailySuccess:
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
-            "write_chart_recent",
-            lambda app, recent_map: recent_calls.append(recent_map),
-        )
-        monkeypatch.setattr(
-            cli_module.rtdb_gateway,
-            "write_chart_archive_year",
-            lambda app, year, year_map: archive_calls.append((year, year_map)),
+            "write_chart_year_slice",
+            lambda app, year, year_map: year_slice_calls.append((year, year_map)),
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -715,13 +664,8 @@ class TestCmdRunDailySuccess:
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
-            "write_equity_recent",
-            lambda app, series: equity_recent_calls.append(series),
-        )
-        monkeypatch.setattr(
-            cli_module.rtdb_gateway,
-            "write_equity_archive_year",
-            lambda app, year, series: equity_archive_calls.append((year, series)),
+            "write_equity_year_slice",
+            lambda app, year, series: equity_year_calls.append((year, series)),
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -746,13 +690,11 @@ class TestCmdRunDailySuccess:
 
         # Then — 주가 차트
         assert meta_calls == [sentinel_meta]
-        assert recent_calls == [sentinel_recent]
-        assert archive_calls == [(2026, sentinel_archive)]
-        # Then — equity 차트 (PLAN_LIVE_CHARTS_RESTRUCTURE 신규)
+        assert year_slice_calls == [(2026, sentinel_year_map)]
+        # Then — equity 차트
         assert equity_meta_calls == [sentinel_equity_meta]
-        assert equity_recent_calls == [sentinel_equity_recent]
-        assert equity_archive_calls == [(2026, sentinel_equity_archive)]
-        # Then — /history/signals/ 미러 (PLAN_LIVE_HISTORY_RTDB_MIRROR 신규)
+        assert equity_year_calls == [(2026, sentinel_equity_year)]
+        # Then — /history/signals/ 미러
         assert history_signals_calls == [("2026-04-14", sentinel_signals)]
 
 
@@ -813,14 +755,14 @@ class TestFetchFills:
         assert "sso" in captured.out
 
 
-class TestCmdBackfillChartArchive:
-    """``backfill-chart-archive`` 수동 CLI 의 계약 테스트.
+class TestCmdBackfillChartYears:
+    """``backfill-chart-years`` 수동 CLI 의 계약 테스트.
 
     정상 경로 / --year 옵션 / --dry-run / --target 옵션 / RTDB 초기화 실패를
     고정한다.
     """
 
-    def _stub_meta(self, archive_years: list[int]) -> dict[str, object]:
+    def _stub_meta(self, years: list[int]) -> dict[str, object]:
         """build_chart_meta 의 반환값을 모사한다 (자산별 ChartMeta)."""
         from live.models import ChartMeta
 
@@ -829,68 +771,65 @@ class TestCmdBackfillChartArchive:
                 first_date="2013-01-02",
                 last_date="2026-04-14",
                 ma_window=200,
-                recent_months=6,
-                archive_years=archive_years,
+                years=years,
             ),
             "qld": ChartMeta(
                 first_date="2013-01-02",
                 last_date="2026-04-14",
                 ma_window=200,
-                recent_months=6,
-                archive_years=archive_years,
+                years=years,
             ),
         }
 
-    def _stub_equity_meta(self, archive_years: list[int]) -> object:
+    def _stub_equity_meta(self, years: list[int]) -> object:
         """build_equity_meta 의 반환값을 모사한다."""
         from live.models import EquityChartMeta
 
         return EquityChartMeta(
             first_date="2024-01-02",
             last_date="2026-04-14",
-            recent_months=6,
-            archive_years=archive_years,
+            years=years,
         )
 
     def _setup_common_mocks(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        archive_years: list[int],
-        equity_archive_years: list[int] | None = None,
+        years: list[int],
+        equity_years: list[int] | None = None,
     ) -> tuple[list[tuple[int, object]], list[object], list[tuple[int, object]], list[object],]:
         """주가 / equity 빌더 및 write 함수를 모두 스파이로 세팅한다.
 
         Returns:
-            (price_archive_calls, price_meta_calls, equity_archive_calls, equity_meta_calls)
+            (price_year_calls, price_meta_calls, equity_year_calls, equity_meta_calls)
         """
-        meta_stub = self._stub_meta(archive_years)
+        meta_stub = self._stub_meta(years)
         monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: meta_stub)
 
-        def _fake_build_archive(state_dir: Path, year: int, **kwargs: object) -> dict[str, object]:
+        def _fake_build_year_slice(state_dir: Path, year: int, **kwargs: object) -> dict[str, object]:
             del state_dir, kwargs
             return {"sso": f"sso_{year}", "qld": f"qld_{year}"}
 
-        monkeypatch.setattr(cli_module, "build_chart_archive_year", _fake_build_archive)
+        monkeypatch.setattr(cli_module, "build_chart_year_slice", _fake_build_year_slice)
 
         # equity 빌더 스텁
-        eq_years = equity_archive_years if equity_archive_years is not None else archive_years
+        eq_years = equity_years if equity_years is not None else years
         equity_meta_stub = self._stub_equity_meta(eq_years)
         monkeypatch.setattr(cli_module, "build_equity_meta", lambda state_dir: equity_meta_stub)
         monkeypatch.setattr(
             cli_module,
-            "build_equity_archive_year",
+            "build_equity_year_slice",
             lambda state_dir, year: f"equity_series_{year}",
         )
 
-        price_archive_calls: list[tuple[int, object]] = []
+        price_year_calls: list[tuple[int, object]] = []
         price_meta_calls: list[object] = []
-        equity_archive_calls: list[tuple[int, object]] = []
+        equity_year_calls: list[tuple[int, object]] = []
         equity_meta_calls: list[object] = []
 
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
-            "write_chart_archive_year",
-            lambda app, year, year_map: price_archive_calls.append((year, year_map)),
+            "write_chart_year_slice",
+            lambda app, year, year_map: price_year_calls.append((year, year_map)),
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -899,8 +838,8 @@ class TestCmdBackfillChartArchive:
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
-            "write_equity_archive_year",
-            lambda app, year, series: equity_archive_calls.append((year, series)),
+            "write_equity_year_slice",
+            lambda app, year, series: equity_year_calls.append((year, series)),
         )
         monkeypatch.setattr(
             cli_module.rtdb_gateway,
@@ -912,7 +851,7 @@ class TestCmdBackfillChartArchive:
         monkeypatch.setattr(cli_module.history, "load_user_trades", lambda d: {})
         monkeypatch.setattr(cli_module.history, "load_signal_history", lambda d: {})
 
-        return (price_archive_calls, price_meta_calls, equity_archive_calls, equity_meta_calls)
+        return (price_year_calls, price_meta_calls, equity_year_calls, equity_meta_calls)
 
     def test_backfill_full_covers_all_years(
         self,
@@ -921,25 +860,25 @@ class TestCmdBackfillChartArchive:
     ) -> None:
         """
         목적: 인자 없이 실행(기본 --target=all)하면 주가 / equity 양쪽의
-              archive_years 전체를 순회 재생성한다.
+              years 전체를 순회 재생성한다.
 
-        Given: archive_years=[2024, 2025, 2026], RTDB / 빌더 스파이.
-        When:  main(["backfill-chart-archive"])
-        Then:  주가 + equity 각각 3 연도 archive write + meta 1 회.
+        Given: years=[2024, 2025, 2026], RTDB / 빌더 스파이.
+        When:  main(["backfill-chart-years"])
+        Then:  주가 + equity 각각 3 연도 슬라이스 write + meta 1 회.
         """
         del state_dir  # fixture 설치만 필요
         monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
 
-        price_archive, price_meta, equity_archive, equity_meta = self._setup_common_mocks(
-            monkeypatch, archive_years=[2024, 2025, 2026]
+        price_years, price_meta, equity_years, equity_meta = self._setup_common_mocks(
+            monkeypatch, years=[2024, 2025, 2026]
         )
 
-        exit_code = main(["backfill-chart-archive"])
+        exit_code = main(["backfill-chart-years"])
         assert exit_code == 0
-        assert sorted(year for year, _ in price_archive) == [2024, 2025, 2026]
+        assert sorted(year for year, _ in price_years) == [2024, 2025, 2026]
         assert len(price_meta) == 1
-        assert sorted(year for year, _ in equity_archive) == [2024, 2025, 2026]
+        assert sorted(year for year, _ in equity_years) == [2024, 2025, 2026]
         assert len(equity_meta) == 1
 
     def test_backfill_year_option_targets_single_year(
@@ -950,22 +889,22 @@ class TestCmdBackfillChartArchive:
         """
         목적: --year 지정 시 해당 연도만 재생성한다 (기본 target=all).
 
-        Given: archive_years=[2024, 2025, 2026].
-        When:  main(["backfill-chart-archive", "--year", "2025"])
+        Given: years=[2024, 2025, 2026].
+        When:  main(["backfill-chart-years", "--year", "2025"])
         Then:  주가 / equity 각각 2025 연도만 write, meta 는 1 회씩.
         """
         del state_dir
         monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
 
-        price_archive, price_meta, equity_archive, equity_meta = self._setup_common_mocks(
-            monkeypatch, archive_years=[2024, 2025, 2026]
+        price_years, price_meta, equity_years, equity_meta = self._setup_common_mocks(
+            monkeypatch, years=[2024, 2025, 2026]
         )
 
-        exit_code = main(["backfill-chart-archive", "--year", "2025"])
+        exit_code = main(["backfill-chart-years", "--year", "2025"])
         assert exit_code == 0
-        assert [year for year, _ in price_archive] == [2025]
-        assert [year for year, _ in equity_archive] == [2025]
+        assert [year for year, _ in price_years] == [2025]
+        assert [year for year, _ in equity_years] == [2025]
         assert len(price_meta) == 1
         assert len(equity_meta) == 1
 
@@ -981,16 +920,14 @@ class TestCmdBackfillChartArchive:
         monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
 
-        price_archive, price_meta, equity_archive, equity_meta = self._setup_common_mocks(
-            monkeypatch, archive_years=[2024, 2025]
-        )
+        price_years, price_meta, equity_years, equity_meta = self._setup_common_mocks(monkeypatch, years=[2024, 2025])
 
-        exit_code = main(["backfill-chart-archive", "--target", "prices"])
+        exit_code = main(["backfill-chart-years", "--target", "prices"])
         assert exit_code == 0
-        assert sorted(year for year, _ in price_archive) == [2024, 2025]
+        assert sorted(year for year, _ in price_years) == [2024, 2025]
         assert len(price_meta) == 1
         # equity 는 손대지 않는다.
-        assert equity_archive == []
+        assert equity_years == []
         assert equity_meta == []
 
     def test_backfill_target_equity_only(
@@ -1005,16 +942,14 @@ class TestCmdBackfillChartArchive:
         monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
 
-        price_archive, price_meta, equity_archive, equity_meta = self._setup_common_mocks(
-            monkeypatch, archive_years=[2024, 2025]
-        )
+        price_years, price_meta, equity_years, equity_meta = self._setup_common_mocks(monkeypatch, years=[2024, 2025])
 
-        exit_code = main(["backfill-chart-archive", "--target", "equity"])
+        exit_code = main(["backfill-chart-years", "--target", "equity"])
         assert exit_code == 0
-        assert sorted(year for year, _ in equity_archive) == [2024, 2025]
+        assert sorted(year for year, _ in equity_years) == [2024, 2025]
         assert len(equity_meta) == 1
         # 주가는 손대지 않는다.
-        assert price_archive == []
+        assert price_years == []
         assert price_meta == []
 
     def test_backfill_dry_run_skips_write(
@@ -1026,8 +961,8 @@ class TestCmdBackfillChartArchive:
         """
         목적: --dry-run 시 write 함수를 단 한 번도 호출하지 않고 대상 연도를 출력한다.
 
-        Given: archive_years=[2024, 2025, 2026].
-        When:  main(["backfill-chart-archive", "--dry-run"])
+        Given: years=[2024, 2025, 2026].
+        When:  main(["backfill-chart-years", "--dry-run"])
         Then:  write_chart_* / write_equity_* 가 0 회 호출되고 stdout 에
                대상 연도 목록(주가 + equity) 이 포함된다.
         """
@@ -1035,15 +970,15 @@ class TestCmdBackfillChartArchive:
         monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: object())
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: object())
 
-        price_archive, price_meta, equity_archive, equity_meta = self._setup_common_mocks(
-            monkeypatch, archive_years=[2024, 2025, 2026]
+        price_years, price_meta, equity_years, equity_meta = self._setup_common_mocks(
+            monkeypatch, years=[2024, 2025, 2026]
         )
 
-        exit_code = main(["backfill-chart-archive", "--dry-run"])
+        exit_code = main(["backfill-chart-years", "--dry-run"])
         assert exit_code == 0
-        assert price_archive == []
+        assert price_years == []
         assert price_meta == []
-        assert equity_archive == []
+        assert equity_years == []
         assert equity_meta == []
         out = capsys.readouterr().out
         assert "2024" in out
@@ -1060,18 +995,18 @@ class TestCmdBackfillChartArchive:
         """
         목적: Firebase 초기화 실패 시 exit 1 + allow-list 정책으로 알림 미발송.
 
-        backfill-chart-archive 는 사용자 직접 실행 커맨드이므로
+        backfill-chart-years 는 사용자 직접 실행 커맨드이므로
         ``_NOTIFY_FAILURE_COMMANDS`` 에 포함되지 않는다. 실패 시 터미널 stderr +
         ERROR 로그로만 노출된다.
 
         Given: _initialize_rtdb_app → None
-        When:  backfill-chart-archive 실행
+        When:  backfill-chart-years 실행
         Then:  exit=1, _safe_notify_failure 호출되지 않음.
         """
         del state_dir
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
 
-        self._setup_common_mocks(monkeypatch, archive_years=[2025])  # type: ignore[func-returns-value]
+        self._setup_common_mocks(monkeypatch, years=[2025])  # type: ignore[func-returns-value]
 
         notify_calls: list[str] = []
         monkeypatch.setattr(
@@ -1080,7 +1015,7 @@ class TestCmdBackfillChartArchive:
             lambda app, msg: notify_calls.append(msg),
         )
 
-        exit_code = main(["backfill-chart-archive"])
+        exit_code = main(["backfill-chart-years"])
         assert exit_code == 1
         assert notify_calls == []
 

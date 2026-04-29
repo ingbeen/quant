@@ -31,12 +31,10 @@ from live.rtdb_gateway import (
     mark_fills_processed,
     read_device_tokens,
     remove_invalid_tokens,
-    write_chart_archive_year,
     write_chart_meta,
-    write_chart_recent,
-    write_equity_archive_year,
+    write_chart_year_slice,
     write_equity_meta,
-    write_equity_recent,
+    write_equity_year_slice,
     write_history_balance_adjusts,
     write_history_fills,
     write_history_signals,
@@ -372,7 +370,7 @@ class TestWriteReadModel:
 
 
 # ============================================================================
-# write_chart_meta / write_chart_recent / write_chart_archive_year
+# write_chart_meta / write_chart_year_slice
 # ============================================================================
 
 
@@ -405,15 +403,13 @@ class TestWriteChartMeta:
                 first_date="2013-01-02",
                 last_date="2026-04-14",
                 ma_window=200,
-                recent_months=6,
-                archive_years=[2013, 2014, 2015],
+                years=[2013, 2014, 2015],
             ),
             "qld": ChartMeta(
                 first_date="2013-01-02",
                 last_date="2026-04-14",
                 ma_window=200,
-                recent_months=6,
-                archive_years=[2013, 2014, 2015],
+                years=[2013, 2014, 2015],
             ),
         }
 
@@ -421,51 +417,38 @@ class TestWriteChartMeta:
 
         assert "/charts/prices/sso/meta" in mock_db
         assert "/charts/prices/qld/meta" in mock_db
-        assert mock_db["/charts/prices/sso/meta"]["archive_years"] == [2013, 2014, 2015]
-        assert mock_db["/charts/prices/sso/meta"]["recent_months"] == 6
+        assert mock_db["/charts/prices/sso/meta"]["years"] == [2013, 2014, 2015]
         assert mock_db["/charts/prices/sso/meta"]["ma_window"] == 200
+        # recent 슬라이스 폐지로 recent_months / archive_years 키는 더 이상 존재하지 않는다.
+        assert "recent_months" not in mock_db["/charts/prices/sso/meta"]
+        assert "archive_years" not in mock_db["/charts/prices/sso/meta"]
         # 구 경로는 쓰지 않는다.
         assert "/latest/chart_data/sso/meta" not in mock_db
 
 
-class TestWriteChartRecent:
-    def test_writes_recent_per_asset(self, mock_db, mock_app):
+class TestWriteChartYearSlice:
+    def test_writes_year_slice_per_asset(self, mock_db, mock_app):
         """
-        목적: write_chart_recent 가 /charts/prices/{asset_id}/recent 에 자산별로 쓴다.
-
-        Given: 두 자산에 대한 ChartSeries (recent slice)
-        When:  write_chart_recent
-        Then:  각 자산의 /charts/prices/{asset_id}/recent 에 payload 존재, 마커는 ISO 날짜 문자열.
-        """
-        chart = _sample_chart_series()
-        write_chart_recent(mock_app, {"sso": chart, "qld": chart})
-
-        assert "/charts/prices/sso/recent" in mock_db
-        assert "/charts/prices/qld/recent" in mock_db
-        assert mock_db["/charts/prices/sso/recent"]["close"] == [100.0, 101.0]
-        assert mock_db["/charts/prices/sso/recent"]["buy_signals"] == ["2026-04-08"]
-        assert mock_db["/charts/prices/sso/recent"]["user_buys"] == ["2026-04-09"]
-        assert "/latest/chart_data/sso/recent" not in mock_db
-
-
-class TestWriteChartArchiveYear:
-    def test_writes_archive_year_per_asset(self, mock_db, mock_app):
-        """
-        목적: write_chart_archive_year 가 /charts/prices/{asset_id}/archive/{YYYY} 에 쓴다.
+        목적: write_chart_year_slice 가 /charts/prices/{asset_id}/years/{YYYY} 에 쓴다.
 
         Given: 특정 연도 ChartSeries 맵
-        When:  write_chart_archive_year(year=2026)
-        Then:  경로에 /archive/2026 이 포함된다.
+        When:  write_chart_year_slice(year=2026)
+        Then:  경로에 /years/2026 이 포함된다.
         """
         chart = _sample_chart_series()
-        write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart, "qld": chart})
+        write_chart_year_slice(mock_app, year=2026, year_map={"sso": chart, "qld": chart})
 
-        assert "/charts/prices/sso/archive/2026" in mock_db
-        assert "/charts/prices/qld/archive/2026" in mock_db
-        assert mock_db["/charts/prices/sso/archive/2026"]["close"] == [100.0, 101.0]
-        assert "/latest/chart_data/sso/archive/2026" not in mock_db
+        assert "/charts/prices/sso/years/2026" in mock_db
+        assert "/charts/prices/qld/years/2026" in mock_db
+        assert mock_db["/charts/prices/sso/years/2026"]["close"] == [100.0, 101.0]
+        assert mock_db["/charts/prices/sso/years/2026"]["buy_signals"] == ["2026-04-08"]
+        assert mock_db["/charts/prices/sso/years/2026"]["user_buys"] == ["2026-04-09"]
+        # 구 경로(archive / recent) 는 쓰지 않는다.
+        assert "/charts/prices/sso/archive/2026" not in mock_db
+        assert "/charts/prices/sso/recent" not in mock_db
+        assert "/latest/chart_data/sso/years/2026" not in mock_db
 
-    def test_writes_archive_year_different_years_independent(self, mock_db, mock_app):
+    def test_writes_year_slice_different_years_independent(self, mock_db, mock_app):
         """
         목적: 동일 자산에 대해 서로 다른 연도 write 는 서로 덮어쓰지 않는다.
         """
@@ -481,13 +464,13 @@ class TestWriteChartArchiveYear:
             user_buys=[],
             user_sells=[],
         )
-        write_chart_archive_year(mock_app, year=2026, year_map={"sso": chart_a})
-        write_chart_archive_year(mock_app, year=2025, year_map={"sso": chart_b})
+        write_chart_year_slice(mock_app, year=2026, year_map={"sso": chart_a})
+        write_chart_year_slice(mock_app, year=2025, year_map={"sso": chart_b})
 
-        assert "/charts/prices/sso/archive/2026" in mock_db
-        assert "/charts/prices/sso/archive/2025" in mock_db
-        assert mock_db["/charts/prices/sso/archive/2026"]["close"] == [100.0, 101.0]
-        assert mock_db["/charts/prices/sso/archive/2025"]["close"] == [50.0, 51.0]
+        assert "/charts/prices/sso/years/2026" in mock_db
+        assert "/charts/prices/sso/years/2025" in mock_db
+        assert mock_db["/charts/prices/sso/years/2026"]["close"] == [100.0, 101.0]
+        assert mock_db["/charts/prices/sso/years/2025"]["close"] == [50.0, 51.0]
 
 
 # ============================================================================
@@ -499,8 +482,7 @@ def _sample_equity_meta() -> EquityChartMeta:
     return EquityChartMeta(
         first_date="2024-01-02",
         last_date="2026-04-10",
-        recent_months=6,
-        archive_years=[2024, 2025, 2026],
+        years=[2024, 2025, 2026],
     )
 
 
@@ -526,42 +508,32 @@ class TestWriteEquityMeta:
 
         assert "/charts/equity/meta" in mock_db
         assert mock_db["/charts/equity/meta"]["first_date"] == "2024-01-02"
-        assert mock_db["/charts/equity/meta"]["archive_years"] == [2024, 2025, 2026]
+        assert mock_db["/charts/equity/meta"]["years"] == [2024, 2025, 2026]
+        # recent 슬라이스 폐지로 recent_months / archive_years 키는 더 이상 존재하지 않는다.
+        assert "recent_months" not in mock_db["/charts/equity/meta"]
+        assert "archive_years" not in mock_db["/charts/equity/meta"]
         # 주가 차트 경로에는 쓰지 않는다.
         assert "/charts/prices/meta" not in mock_db
 
 
-class TestWriteEquityRecent:
-    def test_writes_recent_to_charts_equity_path(self, mock_db, mock_app):
+class TestWriteEquityYearSlice:
+    def test_writes_year_slice_to_charts_equity_path(self, mock_db, mock_app):
         """
-        목적: write_equity_recent 가 /charts/equity/recent 에 dates /
-              model_equity / actual_equity 3 시계열을 그대로 보존하여 쓴다.
-              drift_pct 시계열은 페이로드에 포함되지 않는다 (앱 미사용으로 제거).
-
-        Given: EquityChartSeries (recent).
-        When:  write_equity_recent 호출.
-        Then:  /charts/equity/recent 에 3 시계열만 저장 + drift_pct 키 부재.
+        목적: write_equity_year_slice 가 /charts/equity/years/{YYYY} 에 쓴다.
         """
         series = _sample_equity_series()
-        write_equity_recent(mock_app, series)
+        write_equity_year_slice(mock_app, year=2026, series=series)
 
-        payload = mock_db["/charts/equity/recent"]
+        assert "/charts/equity/years/2026" in mock_db
+        payload = mock_db["/charts/equity/years/2026"]
         assert payload["dates"] == ["2026-04-09", "2026-04-10"]
         assert payload["model_equity"] == [12_345_678, 12_400_000]
         assert payload["actual_equity"] == [12_300_000, 12_350_001]
+        # drift_pct 시계열은 페이로드에 포함되지 않는다 (앱 미사용으로 제거).
         assert "drift_pct" not in payload
-
-
-class TestWriteEquityArchiveYear:
-    def test_writes_archive_year_to_charts_equity_path(self, mock_db, mock_app):
-        """
-        목적: write_equity_archive_year 가 /charts/equity/archive/{YYYY} 에 쓴다.
-        """
-        series = _sample_equity_series()
-        write_equity_archive_year(mock_app, year=2026, series=series)
-
-        assert "/charts/equity/archive/2026" in mock_db
-        assert mock_db["/charts/equity/archive/2026"]["dates"] == ["2026-04-09", "2026-04-10"]
+        # 구 경로(archive / recent) 는 쓰지 않는다.
+        assert "/charts/equity/archive/2026" not in mock_db
+        assert "/charts/equity/recent" not in mock_db
 
     def test_writes_different_years_independent(self, mock_db, mock_app):
         """
@@ -574,13 +546,13 @@ class TestWriteEquityArchiveYear:
             model_equity=[11_000_000],
             actual_equity=[10_950_000],
         )
-        write_equity_archive_year(mock_app, year=2026, series=series_a)
-        write_equity_archive_year(mock_app, year=2025, series=series_b)
+        write_equity_year_slice(mock_app, year=2026, series=series_a)
+        write_equity_year_slice(mock_app, year=2025, series=series_b)
 
-        assert mock_db["/charts/equity/archive/2026"]["model_equity"] == [12_345_678, 12_400_000]
-        assert mock_db["/charts/equity/archive/2025"]["model_equity"] == [11_000_000]
-        assert "drift_pct" not in mock_db["/charts/equity/archive/2026"]
-        assert "drift_pct" not in mock_db["/charts/equity/archive/2025"]
+        assert mock_db["/charts/equity/years/2026"]["model_equity"] == [12_345_678, 12_400_000]
+        assert mock_db["/charts/equity/years/2025"]["model_equity"] == [11_000_000]
+        assert "drift_pct" not in mock_db["/charts/equity/years/2026"]
+        assert "drift_pct" not in mock_db["/charts/equity/years/2025"]
 
 
 # ============================================================================

@@ -38,7 +38,7 @@ src/live/                       # 실매매 코드
 ├── buffer_serializer.py        # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 ├── rtdb_gateway.py             # Firebase RTDB 게이트웨이
 ├── notifier.py                 # FCM + 텔레그램 동시 발송
-├── chart_data.py               # TradingView Lightweight Charts 시계열 (meta + recent + archive/{YYYY})
+├── chart_data.py               # TradingView Lightweight Charts 시계열 (meta + years/{YYYY})
 ├── history.py                  # 영구 히스토리 저장
 ├── git_state.py                # ephemeral shallow clone / commit / push 헬퍼
 └── cli.py                      # CLI 엔트리포인트
@@ -71,7 +71,7 @@ tests/live/                     # live 전용 테스트
 | `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
 | `history.py`           | Git 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
 | `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
-| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-chart-archive` 수동 명령 |
+| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-chart-years` 수동 명령 |
 
 ## 핵심 원칙
 
@@ -83,7 +83,7 @@ tests/live/                     # live 전용 테스트
   `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다
   (allow-list 정책 — `_NOTIFY_FAILURE_COMMANDS` 상수).
   - 사용자 직접 실행 커맨드 (`init` / `reset` / `rebuild-data` / `drift` / `fetch-fills` /
-    `backfill-chart-archive`) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다 (알림 없음).
+    `backfill-chart-years`) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다 (알림 없음).
   - `notify-failure` 는 allow-list 에 없으므로 자체 실패 시에도 재귀 알림을 발송하지 않는다.
 - **알림 채널 자체의 실패는 로그로만 기록한다**. FCM / 텔레그램 발송이 실패한
   상황에서 다시 알림을 보내는 것은 모순 / 무한 루프이므로 금지.
@@ -117,7 +117,7 @@ tests/live/                     # live 전용 테스트
 3. `qbt-live-state` 의 `live_state.json` 에서 영향 자산의 `*_shares` / `*_avg_entry_price`
    수동 조정 (shares × ratio, avg_price / ratio). `buffer_zone_state` 내부 가격 필드도 함께.
 4. Git commit / push (조정 사유 + 비율 명시)
-5. `python -m live backfill-chart-archive` 로 차트 archive 전체 재생성
+5. `python -m live backfill-chart-years` 로 차트 연도 슬라이스 전체 재생성
 
 자동 조정 모듈은 의도적으로 제공하지 않는다 (원칙 1: 자동 복구 금지 + 운영자 개입
 비용이 낮음). 상세 절차 본문은 [설계서 §9.1](../../docs/DESIGN_QBT_LIVE_FINAL.md) 참고.
