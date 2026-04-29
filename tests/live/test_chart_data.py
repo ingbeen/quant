@@ -15,6 +15,7 @@ import pytest
 from live import chart_data as chart_data_module
 from live.chart_data import (
     build_chart_meta,
+    build_chart_meta_and_year_slices,
     build_chart_year_slice,
     build_chart_year_slices,
     build_equity_meta,
@@ -335,6 +336,88 @@ class TestBuildChartYearSlices:
         assert result[2025]["sso"].user_sells == []
         assert result[2026]["sso"].user_buys == []
         assert result[2026]["sso"].user_sells == ["2026-02-10"]
+
+
+# ============================================================================
+# build_chart_meta_and_year_slices (meta + 연도 슬라이스 통합)
+# ============================================================================
+
+
+class TestBuildChartMetaAndYearSlices:
+    """``build_chart_meta_and_year_slices`` 는 자산 frame 을 1 회 로드하고
+    meta 와 연도 슬라이스를 동시에 빌드한다.
+
+    개별 함수 (`build_chart_meta` + `build_chart_year_slices`) 를 따로 호출하면
+    자산 CSV 가 2 번 로드되는데, 본 통합 함수는 정확히 1 번만 로드한다.
+    """
+
+    def test_returns_meta_and_slices_tuple(self, state_dir_with_csvs: Path):
+        """결과는 ``(meta_map, slices_map)`` 튜플."""
+        meta_map, slices_map = build_chart_meta_and_year_slices(state_dir_with_csvs, years=[2025, 2026])
+        assert set(meta_map.keys()) == {"sso", "qld", "gld", "tlt"}
+        for meta in meta_map.values():
+            assert isinstance(meta, ChartMeta)
+        assert set(slices_map.keys()) == {2025, 2026}
+
+    def test_results_match_individual_functions(self, state_dir_with_csvs: Path):
+        """통합 함수 결과는 개별 함수 결과와 동일 (회귀 보호)."""
+        # 개별 함수
+        single_meta = build_chart_meta(state_dir_with_csvs)
+        single_slices = build_chart_year_slices(state_dir_with_csvs, years=[2025, 2026])
+        # 통합 함수
+        meta_map, slices_map = build_chart_meta_and_year_slices(state_dir_with_csvs, years=[2025, 2026])
+
+        # meta 동등성
+        for asset_id in single_meta:
+            assert meta_map[asset_id].first_date == single_meta[asset_id].first_date
+            assert meta_map[asset_id].last_date == single_meta[asset_id].last_date
+            assert meta_map[asset_id].ma_window == single_meta[asset_id].ma_window
+            assert meta_map[asset_id].years == single_meta[asset_id].years
+
+        # slices 동등성
+        for year in [2025, 2026]:
+            for asset_id in single_slices[year]:
+                a = single_slices[year][asset_id]
+                b = slices_map[year][asset_id]
+                assert a.dates == b.dates
+                assert a.close == b.close
+                assert a.ma_value == b.ma_value
+
+    def test_loads_each_asset_frame_only_once(self, state_dir_with_csvs: Path, monkeypatch: pytest.MonkeyPatch):
+        """
+        목적: 통합 함수는 자산 frame 을 자산당 정확히 1 회만 로드한다.
+
+        Given: 4 자산 × 5 연도 슬라이스 입력.
+        When:  build_chart_meta_and_year_slices 호출.
+        Then:  ``_load_slot_frame`` 호출이 자산 수와 같음 (= 4). 연도 수와 무관.
+        """
+        load_count = {"n": 0}
+        original = chart_data_module._load_slot_frame
+
+        def _spy(state_dir, slot):  # noqa: ANN001, ANN202
+            load_count["n"] += 1
+            return original(state_dir, slot)
+
+        monkeypatch.setattr(chart_data_module, "_load_slot_frame", _spy)
+
+        build_chart_meta_and_year_slices(state_dir_with_csvs, years=[2025, 2026, 2099, 2100, 2101])
+
+        assert load_count["n"] == 4, f"_load_slot_frame 이 {load_count['n']} 회 호출됨 (예상: 4)"
+
+    def test_years_none_uses_meta_years_union(self, state_dir_with_csvs: Path):
+        """``years=None`` → 자산별 meta.years 의 합집합 자동 사용."""
+        meta_map, slices_map = build_chart_meta_and_year_slices(state_dir_with_csvs, years=None)
+        # 모든 자산의 years 합집합과 slices_map.keys() 가 일치해야 한다.
+        union = set()
+        for meta in meta_map.values():
+            union.update(meta.years)
+        assert set(slices_map.keys()) == union
+
+    def test_empty_years_returns_meta_only(self, state_dir_with_csvs: Path):
+        """``years=[]`` → meta 만 만들고 slices 는 빈 dict."""
+        meta_map, slices_map = build_chart_meta_and_year_slices(state_dir_with_csvs, years=[])
+        assert len(meta_map) == 4
+        assert slices_map == {}
 
 
 # ============================================================================

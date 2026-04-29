@@ -39,6 +39,7 @@ __all__ = [
     "build_chart_meta",
     "build_chart_year_slice",
     "build_chart_year_slices",
+    "build_chart_meta_and_year_slices",
     "build_equity_meta",
     "build_equity_year_slice",
     "build_equity_year_slices",
@@ -328,6 +329,93 @@ def build_chart_year_slice(
         )
 
     return slice_map
+
+
+def build_chart_meta_and_year_slices(
+    state_dir: Path,
+    years: list[int] | None = None,
+    user_trades: dict[str, list[UserTrade]] | None = None,
+    signal_history: dict[str, list[tuple[str, str]]] | None = None,
+) -> tuple[dict[str, ChartMeta], dict[int, dict[str, ChartSeries]]]:
+    """``meta_map`` 과 연도 슬라이스를 한 번에 생성한다 (자산 frame 1 회 로드).
+
+    `build_chart_meta` + `build_chart_year_slices` 를 따로 호출하면 자산 CSV 가
+    각각 1 번씩 총 2 번 로드된다. 본 함수는 자산 frame 을 **자산당 정확히 1 회만**
+    로드하고, meta 와 연도 슬라이스를 동시에 빌드한다. ``run-daily`` /
+    ``reset`` / ``backfill-chart-years`` 의 차트 재생성 단계에서 사용한다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        years: 슬라이싱할 연도 리스트.
+
+            - ``None`` (기본): meta 를 만든 뒤 자산별 ``meta.years`` 의 합집합을 자동
+              사용. ``reset`` / ``backfill --target=all`` 처럼 "모든 가능 연도"를
+              슬라이스할 때 사용한다 (자산 frame 1 회 로드 보장).
+            - 빈 리스트: meta 만 만들고 슬라이스는 빈 dict 반환.
+            - 명시 리스트: 해당 연도들만 슬라이스 (``run-daily`` 의 단일 연도 등).
+        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
+
+    Returns:
+        ``(meta_map, slices_map)`` 튜플:
+
+        - ``meta_map``: ``{asset_id: ChartMeta}``
+        - ``slices_map``: ``{year: {asset_id: ChartSeries}}``.
+    """
+    user_trades = user_trades or {}
+    signal_history = signal_history or {}
+    config = get_live_portfolio_config()
+
+    # 자산별 frame 을 1 회만 로드 (CSV + MA 계산)
+    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float | None], list[float | None]]] = {}
+    for slot in config.asset_slots:
+        dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
+        if not dates:
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart meta+slices 생성 불가)")
+        asset_frames[slot.asset_id] = (slot, dates, close_list, ma_list)
+
+    # meta 빌드 (frame 재사용)
+    meta_map: dict[str, ChartMeta] = {}
+    for asset_id, (slot, dates, _close, _ma) in asset_frames.items():
+        first = dates[0]
+        last = dates[-1]
+        years_set: set[int] = {d.year for d in dates}
+        meta_map[asset_id] = ChartMeta(
+            first_date=first.isoformat(),
+            last_date=last.isoformat(),
+            ma_window=slot.ma_window,
+            years=sorted(years_set),
+        )
+
+    # years 가 None 이면 자산별 meta.years 의 합집합을 자동 사용 (reset / backfill 전체 모드)
+    if years is None:
+        union_years: set[int] = set()
+        for meta in meta_map.values():
+            union_years.update(meta.years)
+        target_years = sorted(union_years)
+    else:
+        target_years = years
+
+    # 연도별 슬라이스 빌드 (frame 재사용)
+    slices_map: dict[int, dict[str, ChartSeries]] = {}
+    for year in target_years:
+        start = date(year, 1, 1)
+        end = date(year, 12, 31)
+        slice_map: dict[str, ChartSeries] = {}
+        for asset_id, (slot, dates, close_list, ma_list) in asset_frames.items():
+            slice_map[asset_id] = _build_slice(
+                slot,
+                dates,
+                close_list,
+                ma_list,
+                start=start,
+                end=end,
+                asset_user_trades=user_trades.get(asset_id, []),
+                asset_signal_history=signal_history.get(asset_id, []),
+            )
+        slices_map[year] = slice_map
+
+    return meta_map, slices_map
 
 
 def build_chart_year_slices(

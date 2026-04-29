@@ -41,9 +41,7 @@ from exchange_calendars import ExchangeCalendar, get_calendar
 
 from live import data_validator, git_state, history, notifier, rtdb_gateway
 from live.chart_data import (
-    build_chart_meta,
-    build_chart_year_slice,
-    build_chart_year_slices,
+    build_chart_meta_and_year_slices,
     build_equity_meta,
     build_equity_year_slice,
     build_equity_year_slices,
@@ -315,17 +313,16 @@ def _publish_to_rtdb(
     user_trades = history.load_user_trades(history_dir)
     signal_history = history.load_signal_history(history_dir)
 
-    meta_map = build_chart_meta(state_dir)
-    rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
-
     current_year = execution_date.year
-    year_map = build_chart_year_slice(
+    # 자산 frame 1 회 로드로 meta + 현재 연도 슬라이스 동시 생성 (N+1 회피).
+    meta_map, slices_map = build_chart_meta_and_year_slices(
         state_dir,
-        year=current_year,
+        years=[current_year],
         user_trades=user_trades,
         signal_history=signal_history,
     )
-    rtdb_gateway.write_chart_year_slice(rtdb_app, year=current_year, year_map=year_map)
+    rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+    rtdb_gateway.write_chart_year_slice(rtdb_app, year=current_year, year_map=slices_map[current_year])
 
     # 3-b. equity 차트 갱신 — meta + 현재 연도 슬라이스 (/charts/equity/)
     #      데이터 소스는 Git 정본 history/summary.jsonl. run-daily 는 이 시점에
@@ -436,22 +433,16 @@ def _cmd_reset(args: argparse.Namespace) -> int:
 
         # 8. RTDB 주가 차트 재생성 — 체결/시그널 마커는 빈 리스트.
         #    summary.jsonl 이 없어 equity 차트는 생성하지 않는다 (run-daily 가 누적).
-        meta_map = build_chart_meta(state_dir)
-        rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
-
-        years_set: set[int] = set()
-        for meta in meta_map.values():
-            years_set.update(meta.years)
-        sorted_years = sorted(years_set)
-        # 자산 frame 1 회 로드 + 연도별 메모리 슬라이싱 (N+1 회피)
-        year_slices_map = build_chart_year_slices(
+        #    years=None 으로 호출 → 자산 frame 1 회 로드로 meta + 전체 연도 슬라이스 동시 생성.
+        meta_map, slices_map = build_chart_meta_and_year_slices(
             state_dir,
-            years=sorted_years,
+            years=None,
             user_trades={},
             signal_history={},
         )
-        for year in sorted_years:
-            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=year_slices_map[year])
+        rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+        for year in sorted(slices_map.keys()):
+            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=slices_map[year])
 
     logger.debug(f"reset 완료: capital={capital:,.0f}")
     return 0
@@ -821,7 +812,8 @@ def _refresh_live_csvs(state_dir: Path, trade_date: date) -> None:
         if today_row.empty:
             logger.debug(f"{ticker}: {trade_date} 데이터 없음 (휴장일?) — skip")
             continue
-        append_today_to_csv(csv_path, today_row.head(1))
+        # 이미 위에서 로드한 csv_df 를 전달하여 append_today_to_csv 내부의 재로드를 피한다.
+        append_today_to_csv(csv_path, today_row.head(1), existing_df=csv_df)
 
 
 def _build_market_bundle(state_dir: Path) -> MarketBundle:
@@ -1023,20 +1015,26 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
         do_prices = target in ("prices", "all")
         do_equity = target in ("equity", "all")
 
-        meta_map: dict[str, Any] = {}
+        # 주가 차트: 자산 frame 1 회 로드로 meta + 전체 연도 슬라이스 동시 빌드.
+        prices_meta_map: dict[str, Any] = {}
+        prices_slices_map: dict[int, dict[str, Any]] = {}
         prices_years: list[int] = []
         if do_prices:
-            meta_map = build_chart_meta(state_dir)
-            prices_year_set: set[int] = set()
-            for meta in meta_map.values():
-                prices_year_set.update(meta.years)
-            prices_years = sorted(prices_year_set)
+            prices_meta_map, prices_slices_map = build_chart_meta_and_year_slices(
+                state_dir,
+                years=None,
+                user_trades=user_trades,
+                signal_history=signal_history,
+            )
+            prices_years = sorted(prices_slices_map.keys())
 
         equity_meta = None
+        equity_slices_map: dict[int, Any] = {}
         equity_years: list[int] = []
         if do_equity:
             equity_meta = build_equity_meta(state_dir)
             equity_years = sorted(equity_meta.years)
+            equity_slices_map = build_equity_year_slices(state_dir, years=equity_years)
 
         target_prices_years: list[int]
         target_equity_years: list[int]
@@ -1052,34 +1050,23 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
 
         if dry_run:
             sys.stdout.write(
-                f"[dry-run] target={target} | 주가 자산 {sorted(meta_map.keys())} × 연도 {target_prices_years} "
+                f"[dry-run] target={target} | 주가 자산 {sorted(prices_meta_map.keys())} × 연도 {target_prices_years} "
                 f"| equity 연도 {target_equity_years}\n"
             )
             return 0
 
         rtdb_app = _require_rtdb_app()
 
-        # 주가 차트: 자산 frame 1 회 로드 + 연도별 메모리 슬라이싱 (N+1 회피)
-        if target_prices_years:
-            prices_year_map = build_chart_year_slices(
-                state_dir,
-                years=target_prices_years,
-                user_trades=user_trades,
-                signal_history=signal_history,
-            )
-            for year in target_prices_years:
-                rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=prices_year_map[year])
-                logger.debug(f"prices/years/{year} 재생성 완료")
+        for year in target_prices_years:
+            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=prices_slices_map[year])
+            logger.debug(f"prices/years/{year} 재생성 완료")
 
         if do_prices:
-            rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
+            rtdb_gateway.write_chart_meta(rtdb_app, prices_meta_map)
 
-        # equity 차트: summary.jsonl 1 회 로드 + 연도별 메모리 필터링
-        if target_equity_years:
-            equity_year_map = build_equity_year_slices(state_dir, years=target_equity_years)
-            for year in target_equity_years:
-                rtdb_gateway.write_equity_year_slice(rtdb_app, year=year, series=equity_year_map[year])
-                logger.debug(f"equity/years/{year} 재생성 완료")
+        for year in target_equity_years:
+            rtdb_gateway.write_equity_year_slice(rtdb_app, year=year, series=equity_slices_map[year])
+            logger.debug(f"equity/years/{year} 재생성 완료")
 
         if do_equity and equity_meta is not None:
             rtdb_gateway.write_equity_meta(rtdb_app, equity_meta)

@@ -325,6 +325,70 @@ class TestAppendTodayToCsv:
         with pytest.raises(ValueError, match="1 행"):
             append_today_to_csv(csv_path, multi_row)
 
+    def test_append_with_existing_df_skips_internal_load(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """
+        목적: ``existing_df`` 가 주어지면 내부 ``load_stock_data`` 를 호출하지 않는다.
+
+        N+1 회피의 핵심 — 호출자가 이미 CSV 를 로드했다면 그 frame 을 전달하여
+        디스크 재로드를 막는다 (run-daily 의 _refresh_live_csvs 패턴).
+        """
+        from live import data_fetcher as data_fetcher_module
+
+        existing = _make_qbt_csv_df(["2026-04-10"])
+        csv_path = tmp_path / "SPY.csv"
+        _write_csv(csv_path, existing)
+
+        load_count = {"n": 0}
+        original = data_fetcher_module.load_stock_data
+
+        def _spy(path):  # noqa: ANN001, ANN202
+            load_count["n"] += 1
+            return original(path)
+
+        monkeypatch.setattr(data_fetcher_module, "load_stock_data", _spy)
+
+        # 호출자가 이미 로드한 frame 을 전달
+        existing_df = data_fetcher_module.load_stock_data(csv_path)
+        load_count_baseline = load_count["n"]  # 외부 1 회 로드
+
+        append_today_to_csv(
+            csv_path,
+            self._make_today_row("2026-04-11"),
+            existing_df=existing_df,
+        )
+
+        # append_today_to_csv 안에서 추가 load_stock_data 호출이 없어야 한다.
+        assert load_count["n"] == load_count_baseline, (
+            f"existing_df 가 주어졌는데도 내부 load_stock_data 가 추가 호출됨 "
+            f"(baseline={load_count_baseline}, after={load_count['n']})"
+        )
+
+        # 그래도 결과는 정상 — 새 행이 정확히 추가되었는지 확인
+        loaded = load_csv(csv_path)
+        assert date(2026, 4, 11) in set(loaded["Date"])
+
+    def test_append_without_existing_df_loads_internally(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """``existing_df=None`` (기본) 이면 내부적으로 load_stock_data 호출 (기존 동작 보존)."""
+        from live import data_fetcher as data_fetcher_module
+
+        existing = _make_qbt_csv_df(["2026-04-10"])
+        csv_path = tmp_path / "SPY.csv"
+        _write_csv(csv_path, existing)
+
+        load_count = {"n": 0}
+        original = data_fetcher_module.load_stock_data
+
+        def _spy(path):  # noqa: ANN001, ANN202
+            load_count["n"] += 1
+            return original(path)
+
+        monkeypatch.setattr(data_fetcher_module, "load_stock_data", _spy)
+
+        # existing_df 미전달 → 내부에서 load_stock_data 1 회 호출
+        append_today_to_csv(csv_path, self._make_today_row("2026-04-11"))
+
+        assert load_count["n"] == 1
+
 
 # ============================================================================
 # load_csv

@@ -12,6 +12,7 @@ import pytest
 
 from live import cli as cli_module
 from live.cli import _collect_all_tickers, main
+from live.models import ChartMeta
 
 # ============================================================================
 # 공통 fixture
@@ -195,14 +196,11 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
     RTDB 주가 차트 재생성) 을 커버한다. 반환 dict 의 각 키는 호출 횟수 / 인자를
     순서대로 담는다 (여러 테스트가 같은 시나리오를 공유).
     """
-    from live.models import ChartMeta
-
     calls: dict[str, list[Any]] = {
         "require_rtdb_app": [],
         "delete_all_except_device_tokens": [],
         "rebuild_full_csv": [],
-        "build_chart_meta": [],
-        "build_chart_year_slices": [],
+        "build_chart_meta_and_year_slices": [],
         "write_chart_meta": [],
         "write_chart_year_slice": [],
         "write_equity_meta": [],
@@ -235,36 +233,35 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
 
     monkeypatch.setattr(cli_module, "rebuild_full_csv", _spy_rebuild)
 
-    def _spy_meta(state_dir: Path) -> dict[str, ChartMeta]:
-        calls["build_chart_meta"].append(state_dir)
-        calls["order"].append("build_chart_meta")
-        return {
-            "sso": ChartMeta(
-                first_date="2020-01-01",
-                last_date="2026-04-17",
-                ma_window=200,
-                years=[2024, 2025],
-            ),
-        }
+    stub_meta = {
+        "sso": ChartMeta(
+            first_date="2020-01-01",
+            last_date="2026-04-17",
+            ma_window=200,
+            years=[2024, 2025],
+        ),
+    }
 
-    monkeypatch.setattr(cli_module, "build_chart_meta", _spy_meta)
-
-    def _spy_year_slices(
+    def _spy_meta_and_slices(
         state_dir: Path,
         *,
-        years: list[int],
+        years: list[int] | None,
         user_trades: dict[str, Any],
         signal_history: dict[str, Any],
-    ) -> dict[int, dict[str, Any]]:
+    ) -> tuple[dict[str, ChartMeta], dict[int, dict[str, Any]]]:
         del state_dir
-        calls["build_chart_year_slices"].append(
-            {"years": list(years), "user_trades": user_trades, "signal_history": signal_history}
+        calls["build_chart_meta_and_year_slices"].append(
+            {"years": years, "user_trades": user_trades, "signal_history": signal_history}
         )
-        calls["order"].append("build_chart_year_slices")
-        # 빈 dict 페이로드를 반환 — write_chart_year_slice 가 수신해 인덱싱 가능해야 함
-        return {year: {} for year in years}
+        calls["order"].append("build_chart_meta_and_year_slices")
+        # years=None 이면 stub_meta 의 자산별 years 합집합을 자동 사용 (실제 함수와 동일 의미론)
+        if years is None:
+            target = sorted({y for m in stub_meta.values() for y in m.years})
+        else:
+            target = list(years)
+        return stub_meta, {y: {} for y in target}
 
-    monkeypatch.setattr(cli_module, "build_chart_year_slices", _spy_year_slices)
+    monkeypatch.setattr(cli_module, "build_chart_meta_and_year_slices", _spy_meta_and_slices)
 
     def _spy_write_meta(app: Any, m: Any) -> None:
         del app
@@ -393,8 +390,8 @@ class TestCmdReset:
     def test_reset_price_chart_markers_are_empty(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given reset 경로 When 차트 빌더 호출 Then user_trades / signal_history 는 빈 dict.
 
-        N+1 회피를 위해 build_chart_year_slices 가 **1 회만** 호출되어야 한다
-        (자산 frame 1 회 로드 + 연도별 메모리 슬라이싱).
+        N+1 회피 + meta/slices 통합으로 build_chart_meta_and_year_slices 가
+        **정확히 1 회만** 호출되어야 한다 (자산 frame 1 회 로드 보장).
         """
         del state_dir
         calls = _install_reset_spies(monkeypatch)
@@ -402,13 +399,13 @@ class TestCmdReset:
         exit_code = main(["reset", "--capital", "100000000"])
         assert exit_code == 0
 
-        # 복수 연도 빌더는 정확히 1 회 호출되어야 한다 (자산 frame 1 회 로드 보장).
-        assert len(calls["build_chart_year_slices"]) == 1
-        args = calls["build_chart_year_slices"][0]
+        # 통합 빌더는 정확히 1 회 호출되어야 한다.
+        assert len(calls["build_chart_meta_and_year_slices"]) == 1
+        args = calls["build_chart_meta_and_year_slices"][0]
         assert args["user_trades"] == {}
         assert args["signal_history"] == {}
-        # years 인자는 meta.years 의 합집합 정렬 결과여야 한다 (스파이 meta 가 [2024, 2025]).
-        assert args["years"] == [2024, 2025]
+        # reset 은 자산 frame 1 회 로드 + 자동 years 합집합을 위해 years=None 으로 호출한다.
+        assert args["years"] is None
 
     def test_reset_is_idempotent_when_rtdb_write_fails_midway(
         self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -625,8 +622,15 @@ class TestCmdRunDailySuccess:
         sentinel_equity_meta = object()
         sentinel_equity_year = object()
 
-        monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: sentinel_meta)
-        monkeypatch.setattr(cli_module, "build_chart_year_slice", lambda *a, **kw: sentinel_year_map)
+        # 통합 함수 1 회 호출로 meta + 현재 연도 슬라이스를 모두 받는다 (자산 frame 1 회 로드).
+        meta_and_slices_call_count = {"n": 0}
+
+        def _spy_meta_and_slices(state_dir, *, years, user_trades, signal_history):  # noqa: ANN001, ANN202
+            del state_dir, user_trades, signal_history
+            meta_and_slices_call_count["n"] += 1
+            return sentinel_meta, {y: sentinel_year_map for y in years}
+
+        monkeypatch.setattr(cli_module, "build_chart_meta_and_year_slices", _spy_meta_and_slices)
         monkeypatch.setattr(cli_module, "build_equity_meta", lambda state_dir: sentinel_equity_meta)
         monkeypatch.setattr(
             cli_module,
@@ -684,6 +688,8 @@ class TestCmdRunDailySuccess:
         # Then — 주가 차트
         assert meta_calls == [sentinel_meta]
         assert year_slice_calls == [(2026, sentinel_year_map)]
+        # 통합 함수는 정확히 1 회만 호출 (자산 frame 1 회 로드 보장).
+        assert meta_and_slices_call_count["n"] == 1
         # Then — equity 차트
         assert equity_meta_calls == [sentinel_equity_meta]
         assert equity_year_calls == [(2026, sentinel_equity_year)]
@@ -755,10 +761,8 @@ class TestCmdBackfillChartYears:
     고정한다.
     """
 
-    def _stub_meta(self, years: list[int]) -> dict[str, object]:
+    def _stub_meta(self, years: list[int]) -> dict[str, ChartMeta]:
         """build_chart_meta 의 반환값을 모사한다 (자산별 ChartMeta)."""
-        from live.models import ChartMeta
-
         return {
             "sso": ChartMeta(
                 first_date="2013-01-02",
@@ -796,15 +800,20 @@ class TestCmdBackfillChartYears:
             (price_year_calls, price_meta_calls, equity_year_calls, equity_meta_calls)
         """
         meta_stub = self._stub_meta(years)
-        monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: meta_stub)
 
-        def _fake_build_year_slices(
-            state_dir: Path, *, years: list[int], **kwargs: object
-        ) -> dict[int, dict[str, object]]:
-            del state_dir, kwargs
-            return {y: {"sso": f"sso_{y}", "qld": f"qld_{y}"} for y in years}
+        def _fake_meta_and_slices(
+            state_dir: Path,
+            *,
+            years: list[int] | None,
+            user_trades: object,
+            signal_history: object,
+        ) -> tuple[dict[str, ChartMeta], dict[int, dict[str, object]]]:
+            del state_dir, user_trades, signal_history
+            # backfill 은 years=None 으로 호출하여 자동 합집합 사용한다.
+            target = sorted({y for m in meta_stub.values() for y in m.years}) if years is None else list(years)
+            return meta_stub, {y: {"sso": f"sso_{y}", "qld": f"qld_{y}"} for y in target}
 
-        monkeypatch.setattr(cli_module, "build_chart_year_slices", _fake_build_year_slices)
+        monkeypatch.setattr(cli_module, "build_chart_meta_and_year_slices", _fake_meta_and_slices)
 
         # equity 빌더 스텁
         eq_years = equity_years if equity_years is not None else years

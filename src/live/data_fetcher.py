@@ -105,7 +105,11 @@ def fetch_recent_ohlc(ticker: str, days: int = DEFAULT_RECENT_FETCH_DAYS) -> pd.
     return _yf_history_to_qbt_df(raw)
 
 
-def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
+def append_today_to_csv(
+    csv_path: Path,
+    today_row: pd.DataFrame,
+    existing_df: pd.DataFrame | None = None,
+) -> None:
     """기존 CSV 에 1 행을 append 한다 (중복 날짜 방지).
 
     규칙:
@@ -119,6 +123,10 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
     Args:
         csv_path: 대상 CSV 파일 경로.
         today_row: 저장할 1 행 DataFrame (Date / Open / High / Low / Close / Volume).
+        existing_df: 호출자가 이미 로드한 기존 CSV DataFrame. ``None`` 이면 본 함수가
+            ``load_stock_data(csv_path)`` 로 다시 로드한다. 호출자가 직전에 이미 같은
+            CSV 를 로드해 검증에 사용했다면, 그 frame 을 전달하여 디스크 재로드를 피할 수
+            있다 (run-daily 의 ``_refresh_live_csvs`` 에서 사용).
 
     Raises:
         ValueError: ``today_row`` 가 1 행이 아닐 때.
@@ -137,7 +145,7 @@ def append_today_to_csv(csv_path: Path, today_row: pd.DataFrame) -> None:
         out.to_csv(csv_path, index=False)
         return
 
-    existing = load_stock_data(csv_path)
+    existing = existing_df if existing_df is not None else load_stock_data(csv_path)
     if new_date in set(existing[COL_DATE]):
         # 중복 날짜 — 기존 값을 덮어쓰지 않고 그대로 유지
         return
