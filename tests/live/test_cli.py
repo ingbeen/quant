@@ -202,7 +202,7 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
         "delete_all_except_device_tokens": [],
         "rebuild_full_csv": [],
         "build_chart_meta": [],
-        "build_chart_year_slice": [],
+        "build_chart_year_slices": [],
         "write_chart_meta": [],
         "write_chart_year_slice": [],
         "write_equity_meta": [],
@@ -249,21 +249,22 @@ def _install_reset_spies(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]
 
     monkeypatch.setattr(cli_module, "build_chart_meta", _spy_meta)
 
-    def _spy_year_slice(
+    def _spy_year_slices(
         state_dir: Path,
         *,
-        year: int,
+        years: list[int],
         user_trades: dict[str, Any],
         signal_history: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> dict[int, dict[str, Any]]:
         del state_dir
-        calls["build_chart_year_slice"].append(
-            {"year": year, "user_trades": user_trades, "signal_history": signal_history}
+        calls["build_chart_year_slices"].append(
+            {"years": list(years), "user_trades": user_trades, "signal_history": signal_history}
         )
-        calls["order"].append("build_chart_year_slice")
-        return {}
+        calls["order"].append("build_chart_year_slices")
+        # 빈 dict 페이로드를 반환 — write_chart_year_slice 가 수신해 인덱싱 가능해야 함
+        return {year: {} for year in years}
 
-    monkeypatch.setattr(cli_module, "build_chart_year_slice", _spy_year_slice)
+    monkeypatch.setattr(cli_module, "build_chart_year_slices", _spy_year_slices)
 
     def _spy_write_meta(app: Any, m: Any) -> None:
         del app
@@ -390,18 +391,24 @@ class TestCmdReset:
         assert calls["write_history_signals"] == []
 
     def test_reset_price_chart_markers_are_empty(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given reset 경로 When 차트 빌더 호출 Then user_trades / signal_history 는 빈 dict."""
+        """Given reset 경로 When 차트 빌더 호출 Then user_trades / signal_history 는 빈 dict.
+
+        N+1 회피를 위해 build_chart_year_slices 가 **1 회만** 호출되어야 한다
+        (자산 frame 1 회 로드 + 연도별 메모리 슬라이싱).
+        """
         del state_dir
         calls = _install_reset_spies(monkeypatch)
 
         exit_code = main(["reset", "--capital", "100000000"])
         assert exit_code == 0
 
-        # build_chart_year_slice 각 호출에서 마커 빈 dict
-        assert len(calls["build_chart_year_slice"]) >= 1
-        for year_args in calls["build_chart_year_slice"]:
-            assert year_args["user_trades"] == {}
-            assert year_args["signal_history"] == {}
+        # 복수 연도 빌더는 정확히 1 회 호출되어야 한다 (자산 frame 1 회 로드 보장).
+        assert len(calls["build_chart_year_slices"]) == 1
+        args = calls["build_chart_year_slices"][0]
+        assert args["user_trades"] == {}
+        assert args["signal_history"] == {}
+        # years 인자는 meta.years 의 합집합 정렬 결과여야 한다 (스파이 meta 가 [2024, 2025]).
+        assert args["years"] == [2024, 2025]
 
     def test_reset_is_idempotent_when_rtdb_write_fails_midway(
         self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -791,11 +798,13 @@ class TestCmdBackfillChartYears:
         meta_stub = self._stub_meta(years)
         monkeypatch.setattr(cli_module, "build_chart_meta", lambda state_dir: meta_stub)
 
-        def _fake_build_year_slice(state_dir: Path, year: int, **kwargs: object) -> dict[str, object]:
+        def _fake_build_year_slices(
+            state_dir: Path, *, years: list[int], **kwargs: object
+        ) -> dict[int, dict[str, object]]:
             del state_dir, kwargs
-            return {"sso": f"sso_{year}", "qld": f"qld_{year}"}
+            return {y: {"sso": f"sso_{y}", "qld": f"qld_{y}"} for y in years}
 
-        monkeypatch.setattr(cli_module, "build_chart_year_slice", _fake_build_year_slice)
+        monkeypatch.setattr(cli_module, "build_chart_year_slices", _fake_build_year_slices)
 
         # equity 빌더 스텁
         eq_years = equity_years if equity_years is not None else years
@@ -803,8 +812,8 @@ class TestCmdBackfillChartYears:
         monkeypatch.setattr(cli_module, "build_equity_meta", lambda state_dir: equity_meta_stub)
         monkeypatch.setattr(
             cli_module,
-            "build_equity_year_slice",
-            lambda state_dir, year: f"equity_series_{year}",
+            "build_equity_year_slices",
+            lambda state_dir, *, years: {y: f"equity_series_{y}" for y in years},
         )
 
         price_year_calls: list[tuple[int, object]] = []

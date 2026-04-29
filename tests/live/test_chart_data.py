@@ -12,11 +12,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from live import chart_data as chart_data_module
 from live.chart_data import (
     build_chart_meta,
     build_chart_year_slice,
+    build_chart_year_slices,
     build_equity_meta,
     build_equity_year_slice,
+    build_equity_year_slices,
 )
 from live.models import ChartMeta, ChartSeries, EquityChartMeta, EquityChartSeries, UserTrade
 
@@ -238,6 +241,100 @@ class TestBuildChartYearSlice:
             year=2026,
         )
         assert year_map["sso"].buy_signals == [in_range]
+
+
+# ============================================================================
+# build_chart_year_slices (복수 연도 일괄)
+# ============================================================================
+
+
+class TestBuildChartYearSlices:
+    """``build_chart_year_slices`` 는 자산 frame 을 1 회 로드하고 연도별로 슬라이싱한다.
+
+    단일 연도 함수를 N 회 호출하는 N+1 패턴을 회피하기 위한 일괄 빌더의 계약을
+    고정한다.
+    """
+
+    def test_returns_dict_keyed_by_year(self, state_dir_with_csvs: Path):
+        """
+        목적: 입력 ``years`` 의 모든 연도가 결과 dict 의 키로 정확히 들어간다.
+        """
+        result = build_chart_year_slices(state_dir_with_csvs, years=[2025, 2026])
+        assert set(result.keys()) == {2025, 2026}
+        # 각 연도별로 4 자산이 모두 포함된다
+        for year in (2025, 2026):
+            assert set(result[year].keys()) == {"sso", "qld", "gld", "tlt"}
+            for cs in result[year].values():
+                assert isinstance(cs, ChartSeries)
+
+    def test_single_year_call_matches_single_function(self, state_dir_with_csvs: Path):
+        """
+        목적: 복수 함수의 단일 연도 결과는 단일 함수의 결과와 동일해야 한다 (회귀 보호).
+        """
+        single = build_chart_year_slice(state_dir_with_csvs, year=2026)
+        batch = build_chart_year_slices(state_dir_with_csvs, years=[2026])
+        for asset_id in single:
+            assert single[asset_id].dates == batch[2026][asset_id].dates
+            assert single[asset_id].close == batch[2026][asset_id].close
+            assert single[asset_id].ma_value == batch[2026][asset_id].ma_value
+            assert single[asset_id].upper_band == batch[2026][asset_id].upper_band
+            assert single[asset_id].lower_band == batch[2026][asset_id].lower_band
+
+    def test_loads_each_asset_frame_only_once(self, state_dir_with_csvs: Path, monkeypatch: pytest.MonkeyPatch):
+        """
+        목적: N+1 회피의 핵심 — 자산별 ``_load_slot_frame`` 호출이 자산 수만큼 (= 4)
+              만 발생하고, 연도 수에 비례해 늘어나지 않는다.
+
+        Given: 4 자산 × 5 연도 입력.
+        When:  build_chart_year_slices 호출.
+        Then:  ``_load_slot_frame`` 호출 횟수 == 4 (자산 수). 5 × 4 = 20 이 아님.
+        """
+        load_count = {"n": 0}
+        original = chart_data_module._load_slot_frame
+
+        def _spy(state_dir, slot):  # noqa: ANN001, ANN202
+            load_count["n"] += 1
+            return original(state_dir, slot)
+
+        monkeypatch.setattr(chart_data_module, "_load_slot_frame", _spy)
+
+        years = [2025, 2026, 2099, 2100, 2101]  # 5 연도 (일부는 빈 슬라이스)
+        build_chart_year_slices(state_dir_with_csvs, years=years)
+
+        # 자산 수와 같아야 함 (= 4). 연도 수와 무관.
+        assert load_count["n"] == 4, f"_load_slot_frame 이 {load_count['n']} 회 호출됨 (예상: 4)"
+
+    def test_empty_years_returns_empty_dict(self, state_dir_with_csvs: Path):
+        """빈 연도 리스트 → 빈 dict (no-op)."""
+        result = build_chart_year_slices(state_dir_with_csvs, years=[])
+        assert result == {}
+
+    def test_year_without_data_returns_empty_slice(self, state_dir_with_csvs: Path):
+        """CSV 가 포함하지 않는 연도 → 빈 배열 슬라이스 (에러 없음)."""
+        result = build_chart_year_slices(state_dir_with_csvs, years=[2099])
+        for cs in result[2099].values():
+            assert cs.dates == []
+            assert cs.close == []
+
+    def test_markers_filtered_per_year(self, state_dir_with_csvs: Path):
+        """
+        목적: user_trades / signal_history 마커가 각 연도 범위에 맞게 필터링된다.
+        """
+        user_trades = {
+            "sso": [
+                UserTrade(date="2025-03-15", direction="buy"),
+                UserTrade(date="2026-02-10", direction="sell"),
+            ]
+        }
+        result = build_chart_year_slices(
+            state_dir_with_csvs,
+            years=[2025, 2026],
+            user_trades=user_trades,
+        )
+        assert result[2025]["sso"].user_buys == ["2025-03-15"]
+        assert result[2025]["sso"].user_sells == []
+        assert result[2026]["sso"].user_buys == []
+        assert result[2026]["sso"].user_sells == ["2026-02-10"]
 
 
 # ============================================================================
@@ -470,3 +567,80 @@ class TestBuildEquityYearSlice:
         assert series.actual_equity == []
         # drift_pct 시계열은 EquityChartSeries 에 포함되지 않는다 (앱 미사용으로 제거).
         assert not hasattr(series, "drift_pct")
+
+
+class TestBuildEquityYearSlices:
+    """``build_equity_year_slices`` 는 ``summary.jsonl`` 을 1 회 파싱하고 연도별로 필터링한다."""
+
+    def test_returns_dict_keyed_by_year(self, tmp_path: Path):
+        """입력 ``years`` 의 모든 연도가 결과 dict 의 키로 들어간다."""
+        rows = [
+            {"date": "2024-12-31", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+            {"date": "2025-06-15", "model_equity": 10_500_000, "actual_equity": 10_400_000, "drift_pct": 0.0095},
+            {"date": "2026-04-10", "model_equity": 12_000_000, "actual_equity": 12_000_000, "drift_pct": 0.0},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        result = build_equity_year_slices(tmp_path, years=[2024, 2025, 2026])
+
+        assert set(result.keys()) == {2024, 2025, 2026}
+        for series in result.values():
+            assert isinstance(series, EquityChartSeries)
+
+    def test_single_year_call_matches_single_function(self, tmp_path: Path):
+        """복수 함수의 단일 연도 결과는 단일 함수의 결과와 동일해야 한다."""
+        rows = [
+            {"date": "2025-01-02", "model_equity": 10_100_000, "actual_equity": 10_080_000, "drift_pct": 0.002},
+            {"date": "2025-06-15", "model_equity": 10_500_000, "actual_equity": 10_400_000, "drift_pct": 0.0095},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        single = build_equity_year_slice(tmp_path, year=2025)
+        batch = build_equity_year_slices(tmp_path, years=[2025])
+
+        assert single.dates == batch[2025].dates
+        assert single.model_equity == batch[2025].model_equity
+        assert single.actual_equity == batch[2025].actual_equity
+
+    def test_loads_summary_only_once(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """
+        목적: N+1 회피 — ``_load_summary_rows`` 가 연도 수와 무관하게 정확히 1 회만 호출된다.
+        """
+        rows = [
+            {"date": "2024-12-31", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+            {"date": "2025-06-15", "model_equity": 10_500_000, "actual_equity": 10_400_000, "drift_pct": 0.0095},
+            {"date": "2026-04-10", "model_equity": 12_000_000, "actual_equity": 12_000_000, "drift_pct": 0.0},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        load_count = {"n": 0}
+        original = chart_data_module._load_summary_rows
+
+        def _spy(history_dir):  # noqa: ANN001, ANN202
+            load_count["n"] += 1
+            return original(history_dir)
+
+        monkeypatch.setattr(chart_data_module, "_load_summary_rows", _spy)
+
+        build_equity_year_slices(tmp_path, years=[2024, 2025, 2026])
+
+        assert load_count["n"] == 1, f"_load_summary_rows 가 {load_count['n']} 회 호출됨 (예상: 1)"
+
+    def test_empty_years_returns_empty_dict(self, tmp_path: Path):
+        """빈 연도 리스트 → 빈 dict (no-op). summary.jsonl 부재여도 에러 없음."""
+        # summary.jsonl 이 없어도 빈 입력은 즉시 빈 dict 반환
+        result = build_equity_year_slices(tmp_path, years=[])
+        assert result == {}
+
+    def test_year_without_data_returns_empty_slice(self, tmp_path: Path):
+        """summary 에 해당 연도가 없으면 빈 슬라이스 반환."""
+        rows = [
+            {"date": "2024-12-31", "model_equity": 10_000_000, "actual_equity": 10_000_000, "drift_pct": 0.0},
+        ]
+        _write_summary_jsonl(tmp_path, rows)
+
+        result = build_equity_year_slices(tmp_path, years=[2025])
+
+        assert result[2025].dates == []
+        assert result[2025].model_equity == []
+        assert result[2025].actual_equity == []

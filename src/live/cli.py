@@ -43,8 +43,10 @@ from live import data_validator, git_state, history, notifier, rtdb_gateway
 from live.chart_data import (
     build_chart_meta,
     build_chart_year_slice,
+    build_chart_year_slices,
     build_equity_meta,
     build_equity_year_slice,
+    build_equity_year_slices,
 )
 from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
@@ -437,17 +439,19 @@ def _cmd_reset(args: argparse.Namespace) -> int:
         meta_map = build_chart_meta(state_dir)
         rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
 
-        years: set[int] = set()
+        years_set: set[int] = set()
         for meta in meta_map.values():
-            years.update(meta.years)
-        for year in sorted(years):
-            year_map = build_chart_year_slice(
-                state_dir,
-                year=year,
-                user_trades={},
-                signal_history={},
-            )
-            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=year_map)
+            years_set.update(meta.years)
+        sorted_years = sorted(years_set)
+        # 자산 frame 1 회 로드 + 연도별 메모리 슬라이싱 (N+1 회피)
+        year_slices_map = build_chart_year_slices(
+            state_dir,
+            years=sorted_years,
+            user_trades={},
+            signal_history={},
+        )
+        for year in sorted_years:
+            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=year_slices_map[year])
 
     logger.debug(f"reset 완료: capital={capital:,.0f}")
     return 0
@@ -1055,23 +1059,27 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
 
         rtdb_app = _require_rtdb_app()
 
-        for year in target_prices_years:
-            year_map = build_chart_year_slice(
+        # 주가 차트: 자산 frame 1 회 로드 + 연도별 메모리 슬라이싱 (N+1 회피)
+        if target_prices_years:
+            prices_year_map = build_chart_year_slices(
                 state_dir,
-                year=year,
+                years=target_prices_years,
                 user_trades=user_trades,
                 signal_history=signal_history,
             )
-            rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=year_map)
-            logger.debug(f"prices/years/{year} 재생성 완료")
+            for year in target_prices_years:
+                rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=prices_year_map[year])
+                logger.debug(f"prices/years/{year} 재생성 완료")
 
         if do_prices:
             rtdb_gateway.write_chart_meta(rtdb_app, meta_map)
 
-        for year in target_equity_years:
-            equity_year = build_equity_year_slice(state_dir, year=year)
-            rtdb_gateway.write_equity_year_slice(rtdb_app, year=year, series=equity_year)
-            logger.debug(f"equity/years/{year} 재생성 완료")
+        # equity 차트: summary.jsonl 1 회 로드 + 연도별 메모리 필터링
+        if target_equity_years:
+            equity_year_map = build_equity_year_slices(state_dir, years=target_equity_years)
+            for year in target_equity_years:
+                rtdb_gateway.write_equity_year_slice(rtdb_app, year=year, series=equity_year_map[year])
+                logger.debug(f"equity/years/{year} 재생성 완료")
 
         if do_equity and equity_meta is not None:
             rtdb_gateway.write_equity_meta(rtdb_app, equity_meta)

@@ -38,8 +38,10 @@ from qbt.common_constants import COL_CLOSE, COL_DATE
 __all__ = [
     "build_chart_meta",
     "build_chart_year_slice",
+    "build_chart_year_slices",
     "build_equity_meta",
     "build_equity_year_slice",
+    "build_equity_year_slices",
 ]
 
 
@@ -282,7 +284,12 @@ def build_chart_year_slice(
     user_trades: dict[str, list[UserTrade]] | None = None,
     signal_history: dict[str, list[tuple[str, str]]] | None = None,
 ) -> dict[str, ChartSeries]:
-    """자산별 특정 연도 :class:`ChartSeries` 슬라이스를 생성한다.
+    """자산별 특정 연도 :class:`ChartSeries` 슬라이스를 생성한다 (단일 연도).
+
+    매 호출마다 자산별 CSV 를 로드하고 MA 를 재계산하므로, **여러 연도를 일괄
+    생성할 때는** :func:`build_chart_year_slices` 를 사용하라 (자산 frame 을 1회만
+    로드). 본 함수는 ``run-daily`` 가 현재 연도 1개만 갱신하는 등 단일 호출 케이스
+    전용이다.
 
     해당 연도에 거래일이 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
 
@@ -321,6 +328,67 @@ def build_chart_year_slice(
         )
 
     return slice_map
+
+
+def build_chart_year_slices(
+    state_dir: Path,
+    years: list[int],
+    user_trades: dict[str, list[UserTrade]] | None = None,
+    signal_history: dict[str, list[tuple[str, str]]] | None = None,
+) -> dict[int, dict[str, ChartSeries]]:
+    """**여러 연도** 의 자산별 :class:`ChartSeries` 슬라이스를 일괄 생성한다.
+
+    자산별 CSV 로드 + MA 계산을 **자산당 1회** 만 수행하고, 각 연도별로 메모리
+    내에서 슬라이싱한다. ``reset`` / ``backfill-chart-years`` 처럼 N 개 연도를
+    한 번에 재생성할 때 사용한다.
+
+    빈 ``years`` 리스트는 빈 dict 를 반환한다 (no-op). 해당 연도에 거래일이
+    하나도 없는 경우 그 연도 슬라이스는 빈 배열로 채워진다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        years: 슬라이싱할 연도 리스트 (정렬 권장).
+        user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
+        signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
+
+    Returns:
+        ``{year: {asset_id: ChartSeries}}``. 입력 ``years`` 의 모든 연도가 키로 포함된다.
+    """
+    user_trades = user_trades or {}
+    signal_history = signal_history or {}
+    config = get_live_portfolio_config()
+
+    if not years:
+        return {}
+
+    # 자산별 frame 을 1 회만 로드 (CSV + MA 계산)
+    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float | None], list[float | None]]] = {}
+    for slot in config.asset_slots:
+        dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
+        if not dates:
+            raise RuntimeError(f"내부 불변조건 위반: 자산 {slot.asset_id!r} CSV 가 비어 있음 (chart year slices 생성 불가)")
+        asset_frames[slot.asset_id] = (slot, dates, close_list, ma_list)
+
+    # 연도별로 메모리 내 슬라이싱
+    result: dict[int, dict[str, ChartSeries]] = {}
+    for year in years:
+        start = date(year, 1, 1)
+        end = date(year, 12, 31)
+        slice_map: dict[str, ChartSeries] = {}
+        for asset_id, (slot, dates, close_list, ma_list) in asset_frames.items():
+            slice_map[asset_id] = _build_slice(
+                slot,
+                dates,
+                close_list,
+                ma_list,
+                start=start,
+                end=end,
+                asset_user_trades=user_trades.get(asset_id, []),
+                asset_signal_history=signal_history.get(asset_id, []),
+            )
+        result[year] = slice_map
+
+    return result
 
 
 # ============================================================================
@@ -404,7 +472,11 @@ def build_equity_meta(state_dir: Path) -> EquityChartMeta:
 
 
 def build_equity_year_slice(state_dir: Path, year: int) -> EquityChartSeries:
-    """특정 연도 equity 슬라이스를 생성한다.
+    """특정 연도 equity 슬라이스를 생성한다 (단일 연도).
+
+    매 호출마다 ``summary.jsonl`` 을 다시 파싱하므로, **여러 연도를 일괄 생성할 때**
+    는 :func:`build_equity_year_slices` 를 사용하라 (1회 파싱). 본 함수는
+    ``run-daily`` 가 현재 연도 1개만 갱신하는 단일 호출 케이스 전용이다.
 
     해당 연도에 summary 로우가 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
 
@@ -418,3 +490,30 @@ def build_equity_year_slice(state_dir: Path, year: int) -> EquityChartSeries:
     rows = _load_summary_rows(state_dir / "history")
     filtered = [r for r in rows if date.fromisoformat(str(r["date"])).year == year]
     return _equity_series_from_rows(filtered)
+
+
+def build_equity_year_slices(state_dir: Path, years: list[int]) -> dict[int, EquityChartSeries]:
+    """**여러 연도** 의 equity :class:`EquityChartSeries` 슬라이스를 일괄 생성한다.
+
+    ``summary.jsonl`` 을 1 회만 파싱하고, 각 연도별로 메모리 내에서 필터링한다.
+    ``reset`` / ``backfill-chart-years`` 처럼 N 개 연도를 한 번에 재생성할 때
+    사용한다.
+
+    빈 ``years`` 리스트는 빈 dict 를 반환한다 (no-op). 해당 연도에 summary 로우가
+    하나도 없는 경우 그 연도 슬라이스는 빈 배열로 채워진다.
+
+    Args:
+        state_dir: qbt-live-state 디렉토리.
+        years: 슬라이싱할 연도 리스트.
+
+    Returns:
+        ``{year: EquityChartSeries}``. 입력 ``years`` 의 모든 연도가 키로 포함된다.
+    """
+    if not years:
+        return {}
+    rows = _load_summary_rows(state_dir / "history")
+    result: dict[int, EquityChartSeries] = {}
+    for year in years:
+        filtered = [r for r in rows if date.fromisoformat(str(r["date"])).year == year]
+        result[year] = _equity_series_from_rows(filtered)
+    return result
