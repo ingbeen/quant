@@ -4,7 +4,6 @@ argparse subcommand 구조로 실매매 파이프라인의 모든 운영 명령�
 
 명령어:
 
-- ``init`` — 초기 LiveState 생성 (capital 지정)
 - ``reset`` — 전체 초기화 (state + CSV + history + RTDB)
 - ``run-daily`` — 일일 실행 통합 루프 (data → daily_runner → state → RTDB → 알림 → history)
 - ``rebuild-data`` — 티커 CSV 재다운로드. 티커 생략 시 전체 운영 티커 재다운로드
@@ -371,18 +370,8 @@ def _send_daily_notifications(rtdb_app: Any | None, result: DailyResult) -> None
 
 
 # ============================================================================
-# init
+# reset
 # ============================================================================
-
-
-def _cmd_init(args: argparse.Namespace) -> int:
-    capital: float = args.capital
-    with ephemeral_state_repo(push_on_success=True, commit_subcommand="init") as state_dir:
-        state = create_initial_state(capital)
-        state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
-        save_state(state, state_path)
-        logger.debug(f"live_state.json 생성 완료: {state_path}")
-    return 0
 
 
 def _cmd_reset(args: argparse.Namespace) -> int:
@@ -1111,11 +1100,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="live.cli")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # init
-    p_init = sub.add_parser("init", help="초기 LiveState 생성")
-    p_init.add_argument("--capital", type=float, required=True)
-    p_init.set_defaults(func=_cmd_init)
-
     # reset
     p_reset = sub.add_parser("reset", help="전체 초기화 (state + CSV + history + RTDB)")
     p_reset.add_argument("--capital", type=float, required=True)
@@ -1191,7 +1175,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 #: 실패 시 FCM + 텔레그램 알림을 발송할 **자동 실행 커맨드 allow-list**.
 #: GitHub Actions cron 으로 무인 실행되는 커맨드만 포함한다. 사용자 직접 실행
-#: 커맨드 (``init`` / ``reset`` / ``rebuild-data`` / ``drift`` / ``fetch-fills`` /
+#: 커맨드 (``reset`` / ``rebuild-data`` / ``drift`` / ``fetch-fills`` /
 #: ``backfill-chart-years``) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다.
 #: ``notify-failure`` 는 재귀 방지를 위해 allow-list 에 포함하지 않는다.
 _NOTIFY_FAILURE_COMMANDS: frozenset[str] = frozenset({"run-daily"})
@@ -1205,8 +1189,8 @@ def main(argv: list[str] | None = None) -> int:
     - **자동 실행 커맨드 (`run-daily`)** 의 예외만 이 함수의 공통 훅에서
       ``_safe_notify_failure`` 를 통해 FCM + 텔레그램 실패 알림으로 전파된다.
       사용자가 터미널을 보고 있지 않은 상황 (Actions cron) 을 위한 최후 알림.
-    - 사용자 직접 실행 커맨드 (``init`` / ``reset`` / ``rebuild-data`` /
-      ``drift`` / ``fetch-fills`` / ``backfill-chart-years``) 의 실패는
+    - 사용자 직접 실행 커맨드 (``reset`` / ``rebuild-data`` / ``drift`` /
+      ``fetch-fills`` / ``backfill-chart-years``) 의 실패는
       터미널 stderr + ERROR 로그로만 노출한다 (FCM / 텔레그램 알림 없음).
     - 자동 복구 / 롤백 금지 — 호출자(GitHub Actions) 가 retry 정책 결정.
     - argparse 의 ``SystemExit`` 는 그대로 전파.

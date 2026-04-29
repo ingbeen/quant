@@ -31,6 +31,19 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+def _create_state_file(state_dir: Path, capital: float = 100_000_000) -> None:
+    """``state_dir`` 에 초기 ``live_state.json`` 을 직접 생성한다.
+
+    init 명령 제거 후, 테스트 fixture 셋업용으로 사용하던 ``main(["init", ...])``
+    호출을 대체한다.
+    """
+    from live.constants import DEFAULT_LIVE_STATE_FILENAME
+    from live.state import create_initial_state, save_state
+
+    state = create_initial_state(capital)
+    save_state(state, state_dir / DEFAULT_LIVE_STATE_FILENAME)
+
+
 def _spy_notify(calls: list[tuple[Any, str]]):
     """``_safe_notify_failure`` 를 대체할 spy 함수."""
 
@@ -89,7 +102,7 @@ class TestMainAllowListNotifyPolicy:
     """``main()`` 공통 예외 훅은 **자동 실행 커맨드 (run-daily)** 실패에만
     FCM + 텔레그램 알림을 발송한다 (allow-list 정책).
 
-    사용자 직접 실행 커맨드 (init / reset / rebuild-data / drift / fetch-fills /
+    사용자 직접 실행 커맨드 (reset / rebuild-data / drift / fetch-fills /
     backfill-chart-years) 는 터미널 stderr + ERROR 로그로만 실패를 노출하며,
     알림은 발송하지 않는다. ``notify-failure`` 는 재귀 방지를 위해 allow-list 에
     포함하지 않는다 (allow-list 에 없으므로 자동 제외).
@@ -98,7 +111,6 @@ class TestMainAllowListNotifyPolicy:
     @pytest.mark.parametrize(
         "command_args",
         [
-            ["init", "--capital", "100000000"],
             ["reset", "--capital", "100000000"],
             ["rebuild-data", "SPY"],
             ["rebuild-data"],
@@ -123,7 +135,6 @@ class TestMainAllowListNotifyPolicy:
             raise RuntimeError("테스트용 강제 실패")
 
         for attr_name in (
-            "_cmd_init",
             "_cmd_reset",
             "_cmd_rebuild_data",
             "_cmd_drift",
@@ -241,12 +252,9 @@ class TestRunDailyPreTryCoverage:
 class TestHistoryPersistFailureRaises:
     """``_persist_history`` 실패 시 RuntimeError 로 전파되어 알림 훅에 도달해야 한다."""
 
-    def _init_state(self) -> None:
-        main(["init", "--capital", "100000000"])
-
     def test_history_save_failure_aborts_run_daily(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given _persist_history 실패 When run-daily Then exit 1 + notify."""
-        self._init_state()
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_csvs(state_dir, trade_date)
 
@@ -273,12 +281,9 @@ class TestHistoryPersistFailureRaises:
 class TestCalendarLoadFailureRaises:
     """``_get_nyse_calendar()`` 실패 시 RuntimeError 로 전파되어야 한다 (fallback 금지)."""
 
-    def _init_state(self) -> None:
-        main(["init", "--capital", "100000000"])
-
     def test_calendar_load_failure_aborts_run_daily(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given _get_nyse_calendar 실패 When run-daily Then exit 1 + notify."""
-        self._init_state()
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_csvs(state_dir, trade_date)
 

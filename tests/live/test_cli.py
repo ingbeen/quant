@@ -12,7 +12,6 @@ import pytest
 
 from live import cli as cli_module
 from live.cli import _collect_all_tickers, main
-from live.state import load_state
 
 # ============================================================================
 # 공통 fixture
@@ -83,6 +82,21 @@ def _make_recent_df(trade_date: date) -> pd.DataFrame:
     )
 
 
+def _create_state_file(state_dir: Path, capital: float = 100_000_000) -> None:
+    """``state_dir`` 안에 초기 ``live_state.json`` 을 직접 생성한다.
+
+    init 명령 제거 후, 다른 테스트들이 fixture 상태 셋업용으로 사용하던
+    ``main(["init", "--capital", N])`` 호출을 대체한다. CLI 진입점 / argparse /
+    ephemeral_state_repo 컨텍스트를 거치지 않고 ``create_initial_state`` +
+    ``save_state`` 만 직접 호출하므로 더 가볍다.
+    """
+    from live.constants import DEFAULT_LIVE_STATE_FILENAME
+    from live.state import create_initial_state, save_state
+
+    state = create_initial_state(capital)
+    save_state(state, state_dir / DEFAULT_LIVE_STATE_FILENAME)
+
+
 def _setup_flat_market_csvs(state_dir: Path, trade_date: date, rows: int = 210) -> None:
     """state_dir/data/stock/ 에 포트폴리오 티커별 평탄 CSV 를 준비한다."""
     import pandas as pd
@@ -102,34 +116,6 @@ def _setup_flat_market_csvs(state_dir: Path, trade_date: date, rows: int = 210) 
     stock_dir.mkdir(parents=True, exist_ok=True)
     for ticker in _collect_all_tickers():
         df.to_csv(stock_dir / f"{ticker}.csv", index=False)
-
-
-# ============================================================================
-# init 명령어
-# ============================================================================
-
-
-class TestCmdInit:
-    def test_init_creates_live_state_json(self, state_dir: Path) -> None:
-        """Given init --capital When main 실행 Then live_state.json 생성 + 자산 초기화."""
-        from live.constants import LIVE_PORTFOLIO_ID
-
-        exit_code = main(["init", "--capital", "100000000"])
-        assert exit_code == 0
-        state_path = state_dir / "live_state.json"
-        assert state_path.exists()
-
-        loaded = load_state(state_path)
-        assert loaded.portfolio_id == LIVE_PORTFOLIO_ID
-        assert loaded.shared_cash_model == pytest.approx(100_000_000.0)
-        assert loaded.shared_cash_actual == pytest.approx(100_000_000.0)
-        assert set(loaded.assets.keys()) == {"sso", "qld", "gld", "tlt"}
-
-    def test_init_negative_capital_fails(self, state_dir: Path):
-        """음수 capital → 실패 (exit code 1)."""
-        del state_dir  # fixture 설치만 필요
-        exit_code = main(["init", "--capital", "-1000"])
-        assert exit_code == 1
 
 
 # ============================================================================
@@ -455,14 +441,14 @@ class TestCmdReset:
 
 
 class TestCmdRunDailyFailures:
-    def _init_state(self, state_dir: Path) -> None:
+    def _setup_state(self, state_dir: Path) -> None:
         """상태 파일 초기화."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         assert (state_dir / "live_state.json").exists()
 
     def test_data_fetch_failure_calls_notify(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given data 수집 중 실패 When run-daily Then 중단 + _safe_notify_failure 호출."""
-        self._init_state(state_dir)
+        self._setup_state(state_dir)
 
         def _failing_fetch(ticker: str, days: int = 5) -> pd.DataFrame:
             raise ValueError(f"테스트: yfinance 실패 {ticker}")
@@ -486,7 +472,7 @@ class TestCmdRunDailyFailures:
 
     def test_calculation_failure_state_unchanged(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given run_daily 내부 계산 실패 When run-daily Then 중단 + 상태 파일 변경 없음."""
-        self._init_state(state_dir)
+        self._setup_state(state_dir)
         state_path = state_dir / "live_state.json"
         original_mtime = state_path.stat().st_mtime
 
@@ -528,7 +514,7 @@ class TestCmdRunDailyFailures:
 class TestCmdRunDailySuccess:
     def test_run_daily_smoke(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given 정상 파이프라인 When run-daily Then exit 0."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
 
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
@@ -544,7 +530,7 @@ class TestCmdRunDailySuccess:
 
     def test_run_daily_persists_history(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given run-daily When 정상 종료 Then history/daily, summary.jsonl, states/{date}.json 저장."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -568,7 +554,7 @@ class TestCmdRunDailySuccess:
 
     def test_run_daily_with_rtdb_calls_publish(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given RTDB 활성화 When run-daily Then publish_to_rtdb + send_daily_notifications 호출."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1043,10 +1029,15 @@ class TestNotifyFailureCmd:
 
 
 class TestMainArgv:
-    def test_main_accepts_argv_list(self, state_dir: Path) -> None:
-        """Given argv 리스트 When main 호출 Then 정상 실행."""
+    def test_main_accepts_argv_list(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given argv 리스트 When main 호출 Then 정상 실행.
+
+        argparse 처리 + dispatch 가 정상 동작하는지만 검증하므로 가장 가벼운
+        커맨드(``rebuild-data SPY``) 를 사용하고 외부 의존성은 mock 한다.
+        """
         del state_dir  # fixture 설치만 필요
-        exit_code = main(["init", "--capital", "10000000"])
+        monkeypatch.setattr(cli_module, "rebuild_full_csv", lambda ticker, csv_path, period="max": None)
+        exit_code = main(["rebuild-data", "SPY"])
         assert exit_code == 0
 
     def test_main_missing_subcommand_exits_with_error(self) -> None:
@@ -1215,7 +1206,7 @@ class TestEphemeralStateRepo:
         """Given 정상 호출 Then clone 에 상수 STATE_REPO_URL 과 env PAT 가 전달된다."""
         from live.constants import STATE_REPO_URL
 
-        with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="init"):
+        with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="reset"):
             pass
 
         clone_call = _fake_git["clone"][0]
@@ -1384,13 +1375,13 @@ class TestRunDailyValidatorIntegration:
     """``run-daily`` 파이프라인에서 validator 가 실패 시 RuntimeError 전파 +
     notify_failure 호출까지 가는지 통합 검증."""
 
-    def _init_state(self, state_dir: Path) -> None:
-        main(["init", "--capital", "100000000"])
+    def _setup_state(self, state_dir: Path) -> None:
+        _create_state_file(state_dir)
         assert (state_dir / "live_state.json").exists()
 
     def test_ohlc_logic_failure_aborts_and_notifies(self, state_dir: Path, monkeypatch):
         """Given yfinance 가 High<Low 인 행을 반환 When run-daily Then RuntimeError + notify."""
-        self._init_state(state_dir)
+        self._setup_state(state_dir)
         _setup_flat_market_csvs(state_dir, date(2026, 4, 10))
 
         def _bad_fetch(ticker: str, days: int = 5):  # noqa: ANN202
@@ -1424,7 +1415,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_newly_applied_fills_persist_to_user_trades_jsonl(self, state_dir: Path, monkeypatch):
         """Given RTDB 에 새 fill 도착 When run-daily Then history/user_trades.jsonl 에 append."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1495,7 +1486,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_already_applied_fill_is_not_re_appended(self, state_dir: Path, monkeypatch):
         """Given applied_fill_ids.json 에 이미 있는 fill When run-daily Then user_trades 에 추가되지 않음."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1560,7 +1551,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_holiday_bypassed_when_trade_date_explicit(self, state_dir: Path, monkeypatch):
         """Given 휴장 체크는 False 이지만 --trade-date 명시 When run-daily Then 정상 진행."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1574,7 +1565,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_idempotency_blocks_duplicate_cron_run(self, state_dir: Path, monkeypatch):
         """Given state.last_model_execution_date == trade_date When cron 재실행 Then 조기 종료."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
 
         today = date.today()
         # state 를 수동 수정: last_model_execution_date 를 오늘로 세팅
@@ -1599,7 +1590,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_balance_adjust_applied_and_audited(self, state_dir: Path, monkeypatch):
         """Given RTDB 에 balance_adjust 1 건 When run-daily Then state 반영 + audit append + mark_processed."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1681,7 +1672,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_already_applied_balance_adjust_is_not_re_audited(self, state_dir: Path, monkeypatch):
         """Given applied_balance_adjust_ids.json 에 이미 있음 When run-daily Then audit skip + mark skip."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1748,7 +1739,7 @@ class TestRunDailyValidatorIntegration:
         - Stage 2.7 model_sync 가 "model = actual" 덮어쓰기 → model_shares=200 으로 수렴.
         - 실행 후 mark_model_syncs_processed 가 해당 rtdb_key 와 함께 호출되어야 한다.
         """
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1818,7 +1809,7 @@ class TestRunDailyValidatorIntegration:
 
     def test_idempotency_bypassed_when_trade_date_explicit(self, state_dir: Path, monkeypatch):
         """Given 같은 날짜 state 이미 처리 + --trade-date 명시 When Then 실행 진행."""
-        main(["init", "--capital", "100000000"])
+        _create_state_file(state_dir)
         trade_date = date(2026, 4, 10)
         _setup_flat_market_csvs(state_dir, trade_date)
 
@@ -1844,7 +1835,7 @@ class TestRunDailyValidatorIntegration:
         yfinance 가 반환한 2026-04-10 종가(정상 100.5) 와 CSV 에 저장된 2026-04-10 종가
         (조작된 50.0) 가 50% 차이 → validate_prev_close 트리거.
         """
-        self._init_state(state_dir)
+        self._setup_state(state_dir)
         _setup_flat_market_csvs(state_dir, date(2026, 4, 10))
 
         # CSV 의 2026-04-10 행을 직접 조작 (SPY 만)

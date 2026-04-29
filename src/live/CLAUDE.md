@@ -82,7 +82,7 @@ tests/live/                     # live 전용 테스트
 - `cli.py` 의 `main()` 공통 예외 훅은 **자동 실행 커맨드 (`run-daily`)** 의 예외에 대해서만
   `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다
   (allow-list 정책 — `_NOTIFY_FAILURE_COMMANDS` 상수).
-  - 사용자 직접 실행 커맨드 (`init` / `reset` / `rebuild-data` / `drift` / `fetch-fills` /
+  - 사용자 직접 실행 커맨드 (`reset` / `rebuild-data` / `drift` / `fetch-fills` /
     `backfill-chart-years`) 는 터미널 stderr + ERROR 로그로만 실패를 노출한다 (알림 없음).
   - `notify-failure` 는 allow-list 에 없으므로 자체 실패 시에도 재귀 알림을 발송하지 않는다.
 - **알림 채널 자체의 실패는 로그로만 기록한다**. FCM / 텔레그램 발송이 실패한
