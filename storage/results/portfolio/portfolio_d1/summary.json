@@ -2,16 +2,16 @@
   "display_name": "D-1 (QQQ 100%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 117168385,
-    "total_return_pct": 1071.68,
-    "cagr": 12.26,
+    "final_capital": 120579471,
+    "total_return_pct": 1105.79,
+    "cagr": 12.39,
     "mdd": -27.42,
     "calmar": 0.45,
-    "sharpe_ratio": 0.81,
-    "sortino_ratio": 1.12,
+    "sharpe_ratio": 0.82,
+    "sortino_ratio": 1.13,
     "total_trades": 10,
     "start_date": "2005-01-03",
-    "end_date": "2026-04-17"
+    "end_date": "2026-04-30"
   },
   "per_asset": [
     {
@@ -1323,7 +1323,7 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 12.42
+      "return_pct": 15.69
     }
   ],
   "yearly_returns": [
@@ -1413,7 +1413,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 5.76
+      "return_pct": 8.84
     }
   ]
 }
