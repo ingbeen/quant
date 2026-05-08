@@ -33,14 +33,14 @@
 
 ### 1.2 git 으로 관리되는 데이터 (총 약 5MB 규모)
 
-| 카테고리 | 파일 / 패턴 | 특성 |
-|---|---|---|
-| 상태 | `live_state.json` | 작은 단일 JSON, 매일 갱신 (덮어쓰기) |
-| 멱등 원장 | `applied_fill_ids.json`, `applied_balance_adjust_ids.json` | 작음, 90일 자동 정리 |
-| 시계열 | `data/stock/{TICKER}.csv` | 누적 append, 티커당 수십~수백 KB |
-| 일별 스냅샷 | `history/daily/{date}.json`, `history/states/{date}.json` | 매일 1개 추가 (영구 보존) |
-| 감사 로그 | `history/{summary,user_trades,signals,balance_adjusts,fill_dismisses}.jsonl` | append-only |
-| 차트 슬라이스 | (chart_data.py 가 RTDB 에 직접 write — git 미관리) | RTDB `/charts/...` |
+| 카테고리      | 파일 / 패턴                                                                  | 특성                                 |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------------ |
+| 상태          | `live_state.json`                                                            | 작은 단일 JSON, 매일 갱신 (덮어쓰기) |
+| 멱등 원장     | `applied_fill_ids.json`, `applied_balance_adjust_ids.json`                   | 작음, 90일 자동 정리                 |
+| 시계열        | `data/stock/{TICKER}.csv`                                                    | 누적 append, 티커당 수십~수백 KB     |
+| 일별 스냅샷   | `history/daily/{date}.json`, `history/states/{date}.json`                    | 매일 1개 추가 (영구 보존)            |
+| 감사 로그     | `history/{summary,user_trades,signals,balance_adjusts,fill_dismisses}.jsonl` | append-only                          |
+| 차트 슬라이스 | (chart_data.py 가 RTDB 에 직접 write — git 미관리)                           | RTDB `/charts/...`                   |
 
 ### 1.3 git 사용의 어뷰징 측면
 
@@ -60,13 +60,13 @@
 
 ## 2. 옵션 비교 (검토 내역)
 
-| 옵션 | 변경 비용 | 인프라 추가 | 무료 한도 | 데이터 적합성 | 비고 |
-|---|---|---|---|---|---|
-| **A. GCS 단독** | 낮음 | 없음 (이미 Firebase 프로젝트 보유) | 5GB / 1GB-day | 매우 높음 | 파일 단위 1:1 매핑 |
-| B. RTDB(작은 상태) + GCS(큰 파일) 하이브리드 | 중간 | 없음 | RTDB 1GB + GCS 5GB | 높음 | 정본 위치 분산 |
-| C. RTDB 단독 | 높음 | 없음 | 1GB / 10GB-month | 낮음 | CSV 누적/JSONL 부적합 |
-| D. Cloudflare R2 | 중간 | 새 계정 / boto3 | 10GB / egress 무한 | 매우 높음 | Firebase 외부 |
-| 현행 git 유지 | 0 | 없음 | 무료 | 어뷰징 | 결정적 단점 |
+| 옵션                                         | 변경 비용 | 인프라 추가                        | 무료 한도          | 데이터 적합성 | 비고                  |
+| -------------------------------------------- | --------- | ---------------------------------- | ------------------ | ------------- | --------------------- |
+| **A. GCS 단독**                              | 낮음      | 없음 (이미 Firebase 프로젝트 보유) | 5GB / 1GB-day      | 매우 높음     | 파일 단위 1:1 매핑    |
+| B. RTDB(작은 상태) + GCS(큰 파일) 하이브리드 | 중간      | 없음                               | RTDB 1GB + GCS 5GB | 높음          | 정본 위치 분산        |
+| C. RTDB 단독                                 | 높음      | 없음                               | 1GB / 10GB-month   | 낮음          | CSV 누적/JSONL 부적합 |
+| D. Cloudflare R2                             | 중간      | 새 계정 / boto3                    | 10GB / egress 무한 | 매우 높음     | Firebase 외부         |
+| 현행 git 유지                                | 0         | 없음                               | 무료               | 어뷰징        | 결정적 단점           |
 
 ### 2.1 Firebase 무료 정책 변동 (검토 시점에 발견)
 
@@ -91,6 +91,7 @@
 **옵션 A — Firebase Cloud Storage(GCS) 단독으로 이관**
 
 근거:
+
 1. 이미 보유한 Firebase 프로젝트 (`qbt-live`) / 자격증명
    (`GOOGLE_APPLICATION_CREDENTIALS`) 을 그대로 재활용
    → `STATE_REPO_PAT` 환경변수 제거로 운영 단순화
@@ -107,6 +108,7 @@
 **Soft Delete 30일만 ON (Object Versioning 은 사용하지 않음)**
 
 근거:
+
 - 일별 이력은 이미 애플리케이션 레이어 (`history/states/{date}.json`,
   `history/daily/{date}.json`, `history/*.jsonl`) 에서 영구 보존하고 있어,
   git 의 commit 이력은 **재해 복구 관점에서 중복**이다.
@@ -123,6 +125,7 @@
 **`us-central1`**
 
 근거:
+
 - 무료 한도 적용 리전: `us-central1`, `us-west1`, `us-east1`
 - 데이터 규모(~5MB)가 작아 latency 차이 무시 가능
 - GitHub Actions 의 기본 러너도 us 권역이라 자연스러움
@@ -135,12 +138,52 @@
 - `STATE_REPO_PAT` 는 GCS 이관 후 **제거**
 - 새 환경변수 도입은 없음 (버킷 이름은 코드 상수로 관리)
 
+### 3.5 자동 차단 정책
+
+**예산 100% 도달 시 결제 계정 전체 자동 차단 + GitHub Actions 실패 시 텔레그램 봇 알림**
+
+근거 (사용자 의사결정):
+
+- 코드 버그 / 자격증명 유출로 인한 청구 폭탄 시나리오를 인프라 레벨에서 막고 싶다는
+  사용자 명시적 요구.
+- 데이터 규모(~5MB) 대비 발생 가능성은 낮으나, 보수적 안전장치를 채택한다.
+
+설계:
+
+- **차단 트리거**: §4 의 4단계 예산 알림이 100% 도달 시점에 Pub/Sub 메시지를 발행
+  → Cloud Function 이 결제 계정을 비활성화 (Google 표준 "disable billing on
+  threshold" 패턴).
+- **차단 영향 범위**: 모든 GCP 서비스 중단. 즉 GCS / RTDB / FCM 까지 동시에 정지된다.
+  Storage 만 부분 차단하는 옵션은 명시적으로 채택하지 않는다.
+- **차단 인지 경로**: 차단 이후 다음 GitHub Actions daily run 이 실행되면 GCS 접근이
+  401/403 으로 실패하고 워크플로우가 `failure()` 상태로 종료된다.
+  워크플로우 말미의 `if: failure()` 스텝이 텔레그램 봇으로 알림을 보낸다.
+- **알림 위치 — GH Actions 워크플로우 내부**:
+  - 이유 1: 결제가 차단되면 GCP 내부의 Cloud Function 자체도 정지될 수 있어,
+    "차단 + 알림" 을 같은 GCP 프로젝트에 두면 이중 의존성이 발생한다.
+  - 이유 2: 텔레그램 API (`api.telegram.org`) 는 GCP 외부 서비스라 차단 영향을
+    받지 않는다.
+  - 이유 3: live 는 이미 GH Actions 에서 텔레그램 봇을 사용 중 (`TELEGRAM_BOT_TOKEN`,
+    `TELEGRAM_CHAT_ID` secret 보유) → 추가 비용 0.
+
+부작용 인정 (사용자 명시 동의):
+
+- 차단 후에는 RTDB/FCM 도 정지되어 매매 신호 알림 발송이 중단된다.
+- 차단 후에도 GH Actions 는 매일 동일 에러를 반환하므로, 알림 폭탄 방지를 위한
+  "이미 알림 보냄" 마커 처리가 필요하다 (구현 디테일은 정식 계획서에서 분해).
+
+자동 차단 포기 옵션 (참고용 기록):
+
+- 코드 레벨 안전장치 (`storage_gateway` 일별 작업 횟수/사이즈 상한) 만으로 사고
+  가능성을 낮추는 단순한 안도 검토되었으나, 사용자가 인프라 레벨 차단을 명시적으로
+  선택했다.
+
 ---
 
 ## 4. 사용자가 직접 해야 할 일 (Pre-Code Setup)
 
 > 본 섹션은 사용자가 Firebase / Google Cloud 콘솔에서 직접 수행해야 하는 작업이다.
-> 코드 변경에 앞서 5단계가 모두 완료되어야 한다.
+> 코드 변경에 앞서 6단계가 모두 완료되어야 한다.
 > 각 단계는 **액션(클릭 흐름)** 과 **결과(완료 후 상태)** 형식으로 기술한다.
 
 ### 1단계 — Blaze 플랜 업그레이드
@@ -164,7 +207,8 @@
 **주의**:
 
 - 결제수단 등록 자체는 청구가 아니다. 무료 한도 초과 시에만 결제.
-- 이후 단계 (4단계 예산 알림) 까지 진행하면 사고 위험을 사실상 제로화.
+- 이후 단계 (4단계 예산 알림 + 5단계 자동 차단, §3.5) 까지 진행하면 사고 위험을
+  사실상 제로화.
 
 ---
 
@@ -226,7 +270,7 @@
 
 **액션**:
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → 좌측 메뉴 **"결제(Billing)"** 진입
+1. [Google Cloud Console](https://console.cloud.googl e.com/) → 좌측 메뉴 **"결제(Billing)"** 진입
 2. 결제 계정 선택 (1단계에서 연결한 계정)
 3. 좌측 메뉴 **"예산 및 알림(Budgets & alerts)"** 클릭
 4. **"예산 만들기(Create budget)"** 클릭
@@ -246,13 +290,119 @@
 
 **주의**:
 
-- 예산 알림은 **알림만** 한다. 자동 차단(예: 한도 초과 시 서비스 중단) 은 하지 않는다.
-  자동 차단을 원하면 별도로 "Pub/Sub + Cloud Functions" 설정이 필요하나, 본 사례
-  데이터 규모상 불필요.
+- 4단계 자체는 **알림만** 설정한다 (50% / 90% / 100% 메일 발송).
+- 본 프로젝트는 §3.5 결정에 따라 100% 도달 시점에 결제 계정을 자동 비활성화한다.
+  관련 인프라(Pub/Sub 토픽 + Cloud Function) 설정은 **5단계** 에서 별도로 진행한다.
+- 즉, 4단계의 산출물(예산 + Pub/Sub 알림 채널)이 5단계의 입력으로 사용된다.
 
 ---
 
-### 5단계 — Service Account 권한 확인
+### 5단계 — 결제 자동 차단 인프라 설정 (Pub/Sub + Cloud Function)
+
+**목적**: 예산 100% 도달 시점에 결제 계정을 자동 비활성화하여 사고성 청구 폭탄을
+원천 차단한다 (§3.5 결정사항).
+
+**액션**:
+
+1. **Pub/Sub 토픽 생성**:
+   - [Google Cloud Console](https://console.cloud.google.com/) → 좌측 메뉴 또는
+     검색에서 **"Pub/Sub > 주제(Topics)"** 진입
+   - **"주제 만들기(Create topic)"** 클릭
+   - 주제 ID: `qbt-live-budget-alert`
+   - "기본 구독 추가" 옵션 체크 (자동으로 `qbt-live-budget-alert-sub` 구독 생성)
+   - 만들기 클릭
+
+2. **Cloud Function 배포** (결제 계정 비활성화 함수):
+   - 좌측 메뉴 → **"Cloud Run 함수"** (또는 "Cloud Functions > 함수") 진입
+   - **"함수 만들기(Create function)"** 클릭
+   - 환경: 2nd gen
+   - 함수 이름: `disable-billing-on-budget`
+   - 리전: `us-central1`
+   - 트리거: **Cloud Pub/Sub** → 주제 `qbt-live-budget-alert` 선택
+   - 런타임: Python 3.12
+   - 진입점(entry point): `disable_billing`
+   - 소스코드: 본 단계 아래의 `main.py` / `requirements.txt` 내용 그대로 붙여넣기
+   - 서비스 계정: 기본 Compute 서비스 계정 또는 신규 서비스 계정 사용 (다음
+     3번 단계에서 권한 부여)
+   - 배포
+
+3. **결제 계정에 위 서비스 계정 권한 부여**:
+   - 좌측 메뉴 → **"결제(Billing)"** → 결제 계정 선택 → **"권한"** 진입
+   - 위 Function 의 서비스 계정을 추가하고 역할로 **"Project Billing Manager"**
+     (또는 더 넓게 `Billing Account Administrator`) 부여
+
+4. **예산에 Pub/Sub 알림 연결**:
+   - 좌측 메뉴 → **"결제 > 예산 및 알림"** 진입
+   - 4단계에서 만든 `qbt-live-monthly` 예산 클릭 → 편집
+   - **"알림 관리"** 또는 **"이 예산에 Pub/Sub 주제 연결(Connect a Pub/Sub topic
+     to this budget)"** 옵션 활성화
+   - 토픽 `qbt-live-budget-alert` 선택
+   - 저장
+
+**Cloud Function 소스코드** (`main.py`):
+
+```python
+import base64
+import json
+
+from googleapiclient import discovery
+
+PROJECT_ID = "qbt-live"
+PROJECT_NAME = f"projects/{PROJECT_ID}"
+
+
+def disable_billing(event, context):
+    """예산 임계값 초과 시 호출되어 프로젝트의 결제를 비활성화한다."""
+    pubsub_data = base64.b64decode(event["data"]).decode("utf-8")
+    payload = json.loads(pubsub_data)
+    cost_amount = payload.get("costAmount", 0.0)
+    budget_amount = payload.get("budgetAmount", 0.0)
+
+    # 50% / 90% 도 같은 토픽으로 들어오므로 100% 초과만 처리한다.
+    if cost_amount <= budget_amount:
+        return f"No action: cost={cost_amount}, budget={budget_amount}"
+
+    billing = discovery.build("cloudbilling", "v1", cache_discovery=False)
+    projects = billing.projects()
+    billing_info = projects.getBillingInfo(name=PROJECT_NAME).execute()
+
+    if billing_info.get("billingEnabled"):
+        body = {"billingAccountName": ""}
+        projects.updateBillingInfo(name=PROJECT_NAME, body=body).execute()
+        return f"Billing disabled: cost={cost_amount}, budget={budget_amount}"
+
+    return "Billing already disabled"
+```
+
+`requirements.txt`:
+
+```
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+```
+
+**결과**:
+
+- Pub/Sub 토픽 `qbt-live-budget-alert` 1개 생성됨
+- Cloud Function `disable-billing-on-budget` 1개 배포됨 (트리거: 위 토픽)
+- 4단계 예산이 위 토픽으로 알림을 발행하도록 연결됨
+- 예산 100% 초과 시점에 자동으로 결제 계정이 비활성화됨
+
+**주의**:
+
+- 소스코드의 `PROJECT_ID` 가 실제 프로젝트 ID(`qbt-live`)와 일치하는지 확인.
+- 한 번 결제가 비활성화되면 GCS / RTDB / FCM 모두 정지된다. 복구는 콘솔에서
+  결제 계정을 다시 연결해야 하며, 자동 복구 경로는 없다 (의도된 안전장치).
+- 본 단계의 Function 동작을 실제 트리거하려면 예산을 한도까지 도달시켜야 하므로,
+  배포 시점에서는 호출 검증을 하지 않는다. 동작 검증은 §6.7 의 GH Actions
+  텔레그램 알림 스텝과 함께 코드 작업 단계에서 dry-run 으로 확인한다.
+- Pub/Sub 메시지에는 50% / 90% / 100% 임계값 도달 시점에 모두 호출되므로,
+  Function 코드는 `cost_amount > budget_amount` 인 경우만 차단 동작을 수행해야
+  한다 (위 코드 반영됨).
+
+---
+
+### 6단계 — Service Account 권한 확인
 
 **액션**:
 
@@ -285,16 +435,17 @@
 
 ## 5. 사용자가 다음 세션에 공유할 정보
 
-5단계가 모두 완료된 후, 다음 세션의 작성자에게 다음 정보를 공유한다.
+6단계가 모두 완료된 후, 다음 세션의 작성자에게 다음 정보를 공유한다.
 
-| 항목 | 형식 | 비고 |
-|---|---|---|
-| Blaze 업그레이드 완료 여부 | 예 / 아니오 | 1단계 결과 |
-| 버킷 이름 | `qbt-live.appspot.com` 또는 `qbt-live.firebasestorage.app` | 2단계 결과, 정확한 문자열 |
-| 버킷 리전 | `us-central1` | 2단계에서 잘 설정되었는지 재확인 |
-| Soft Delete 30일 적용 여부 | 예 / 아니오 | 3단계 결과 |
-| Service Account Storage 권한 | 자동 포함 / 추가 부여 필요 | 5단계 결과 |
-| 예산 알림 설정 여부 | 예 / 아니오 | 4단계 결과 (선택사항이지만 권장) |
+| 항목                                             | 형식                                                       | 비고                              |
+| ------------------------------------------------ | ---------------------------------------------------------- | --------------------------------- |
+| Blaze 업그레이드 완료 여부                       | 예 / 아니오                                                | 1단계 결과                        |
+| 버킷 이름                                        | `qbt-live.appspot.com` 또는 `qbt-live.firebasestorage.app` | 2단계 결과, 정확한 문자열         |
+| 버킷 리전                                        | `us-central1`                                              | 2단계에서 잘 설정되었는지 재확인  |
+| Soft Delete 30일 적용 여부                       | 예 / 아니오                                                | 3단계 결과                        |
+| 예산 알림 설정 여부                              | 예 / 아니오                                                | 4단계 결과                        |
+| Pub/Sub 토픽 + Cloud Function 자동 차단 설정 여부 | 예 / 아니오                                                | 5단계 결과 (§3.5 자동 차단 정책)  |
+| Service Account Storage 권한                     | 자동 포함 / 추가 부여 필요                                 | 6단계 결과                        |
 
 ---
 
@@ -404,14 +555,27 @@ GCS 는 다중-객체 atomic 트랜잭션이 없다. 다음 두 가지 보호 �
 - 자격증명은 기존 `GOOGLE_APPLICATION_CREDENTIALS` 만 유지 (`secrets.FIREBASE_CRED_JSON`
   등 기존 패턴 유지)
 - 워크플로우 yaml 의 `env:` 블록 정리
+- **`if: failure()` 텔레그램 알림 스텝 추가** (§3.5 결정의 알림 채널):
+  - 워크플로우 종료 시점에 `if: failure()` 조건의 step 을 둔다.
+  - 메시지에는 워크플로우 이름 / 실행 URL / 실패 잡 이름을 포함시켜 사용자가
+    원인을 즉시 추적할 수 있도록 한다.
+  - 사용 secret: 기존 `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` 재사용 (추가 secret
+    불필요).
+  - **알림 폭탄 방지**: 결제 차단 후에도 daily run 은 매일 실패하므로, "이미 알림
+    보냄" 마커 처리가 필요하다. 후보 메커니즘:
+    1. GitHub Actions Variables (조직/리포 단위 mutable 변수) 에 `last_failure_date`
+       기록 → 같은 날짜는 알림 skip.
+    2. 워크플로우 실행 단위 캐시 / artifact 에 마커 저장.
+    3. 사용자가 복구 후 수동으로 마커를 리셋.
+  - 위 메커니즘 중 어떤 것을 채택할지는 정식 계획서에서 분해.
 
 ### 6.8 환경변수 / 시크릿 변화
 
-| 항목 | 변경 전 | 변경 후 |
-|---|---|---|
-| `STATE_REPO_PAT` | 필수 | **제거** |
-| `GOOGLE_APPLICATION_CREDENTIALS` | 필수 | 그대로 유지 |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 필수 | 그대로 유지 |
+| 항목                                     | 변경 전 | 변경 후     |
+| ---------------------------------------- | ------- | ----------- |
+| `STATE_REPO_PAT`                         | 필수    | **제거**    |
+| `GOOGLE_APPLICATION_CREDENTIALS`         | 필수    | 그대로 유지 |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 필수    | 그대로 유지 |
 
 ### 6.9 테스트 변화
 
@@ -428,21 +592,21 @@ GCS 는 다중-객체 atomic 트랜잭션이 없다. 다음 두 가지 보호 �
 
 ### 7.1 변경 대상 파일 (예상)
 
-| 카테고리 | 파일 | 변경 형태 |
-|---|---|---|
-| 신설 | `src/live/storage_gateway.py` | 신규 작성 |
-| 신설 | `tests/live/test_storage_gateway.py` | 신규 작성 |
-| 신설 | `scripts/migrate/git_state_to_gcs.py` (또는 동등) | 신규 작성 (1회성) |
-| 수정 | `src/live/cli.py` | ephemeral 컨텍스트 교체, import 정리 |
-| 수정 | `src/live/constants.py` | git 관련 상수 제거, 버킷 상수 추가 |
-| 수정 | `src/live/CLAUDE.md` | "ephemeral state repo" 섹션 → "GCS 버킷" 섹션으로 갱신 |
-| 수정 | `tests/live/conftest.py` | storage mock 픽스처 추가 |
-| 수정 | `.github/workflows/*.yml` (daily run) | `STATE_REPO_PAT` 사용 제거 |
-| 수정 | `README.md` | live 섹션의 인프라 설명 갱신 |
-| 수정 | `docs/COMMANDS.md` | live 워크플로우 환경변수 안내 갱신 |
-| 수정 | `docs/DESIGN_QBT_LIVE_FINAL.md` | git 정본 → GCS 정본 기술 변경 (관련 절만) |
-| 제거 | `src/live/git_state.py` | 전체 삭제 |
-| 제거 | `tests/live/test_git_state.py` | 전체 삭제 |
+| 카테고리 | 파일                                              | 변경 형태                                              |
+| -------- | ------------------------------------------------- | ------------------------------------------------------ |
+| 신설     | `src/live/storage_gateway.py`                     | 신규 작성                                              |
+| 신설     | `tests/live/test_storage_gateway.py`              | 신규 작성                                              |
+| 신설     | `scripts/migrate/git_state_to_gcs.py` (또는 동등) | 신규 작성 (1회성)                                      |
+| 수정     | `src/live/cli.py`                                 | ephemeral 컨텍스트 교체, import 정리                   |
+| 수정     | `src/live/constants.py`                           | git 관련 상수 제거, 버킷 상수 추가                     |
+| 수정     | `src/live/CLAUDE.md`                              | "ephemeral state repo" 섹션 → "GCS 버킷" 섹션으로 갱신 |
+| 수정     | `tests/live/conftest.py`                          | storage mock 픽스처 추가                               |
+| 수정     | `.github/workflows/*.yml` (daily run)             | `STATE_REPO_PAT` 사용 제거                             |
+| 수정     | `README.md`                                       | live 섹션의 인프라 설명 갱신                           |
+| 수정     | `docs/COMMANDS.md`                                | live 워크플로우 환경변수 안내 갱신                     |
+| 수정     | `docs/DESIGN_QBT_LIVE_FINAL.md`                   | git 정본 → GCS 정본 기술 변경 (관련 절만)              |
+| 제거     | `src/live/git_state.py`                           | 전체 삭제                                              |
+| 제거     | `tests/live/test_git_state.py`                    | 전체 삭제                                              |
 
 ### 7.2 검증 (Definition of Done 후보 — 정식 계획서에서 확정)
 
@@ -456,15 +620,18 @@ GCS 는 다중-객체 atomic 트랜잭션이 없다. 다음 두 가지 보호 �
 
 ## 8. 리스크 및 완화
 
-| 리스크 | 발생 시나리오 | 완화책 |
-|---|---|---|
-| 부분 업로드로 LiveState 일관성 깨짐 | 명령 중간에 네트워크/프로세스 장애 | `live_state.json` 을 마지막에 업로드. 다음 실행 시 download 로 정합 복원 |
-| 동시 실행 (Actions + 수동) 으로 덮어쓰기 충돌 | 사용자가 GH Actions 도는 시각에 수동 명령 실행 | `if_generation_match` precondition (선택). 1차로는 운영 가이드로 회피 |
-| Blaze 한도 초과로 청구 발생 | 코드 버그로 무한 루프 업로드 | 4단계 예산 알림 + GCS 작업 횟수 한도 인지 + 코드 리뷰 |
-| Service Account 권한 부족 | 자동 권한 부여가 안 된 케이스 | 5단계 사전 확인. 부족 시 `Storage Object Admin` 부여 |
-| 데이터 이관 누락 | 마이그레이션 스크립트가 일부 파일 빠뜨림 | 이관 후 객체 수 / 총 사이즈 비교 검증 단계 필수 |
-| Soft Delete 만으로 복구 불가능한 사고 | 30일 초과 후 발견되는 corruption | 일별 스냅샷 (`history/states/{date}.json`) 이 1차 복구 수단 — 그대로 보존 |
-| GitHub Actions 의 OIDC vs key-file 인증 충돌 | 인증 방식 변경 영향 | 현재 `GOOGLE_APPLICATION_CREDENTIALS` 방식 그대로 유지 |
+| 리스크                                        | 발생 시나리오                                  | 완화책                                                                                              |
+| --------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 부분 업로드로 LiveState 일관성 깨짐           | 명령 중간에 네트워크/프로세스 장애             | `live_state.json` 을 마지막에 업로드. 다음 실행 시 download 로 정합 복원                            |
+| 동시 실행 (Actions + 수동) 으로 덮어쓰기 충돌 | 사용자가 GH Actions 도는 시각에 수동 명령 실행 | `if_generation_match` precondition (선택). 1차로는 운영 가이드로 회피                               |
+| Blaze 한도 초과로 청구 발생                   | 코드 버그로 무한 루프 업로드                   | 4단계 예산 알림 + 5단계 자동 차단 (결제 계정 비활성화, §3.5) + 코드 리뷰                            |
+| 자동 차단 후 알림 폭탄                        | 결제 정지 후에도 GH Actions 가 매일 실행       | §6.7 의 텔레봇 알림 스텝에 "이미 알림 보냄" 마커 처리. 정식 계획서에서 메커니즘 확정                |
+| 자동 차단 잘못된 트리거                       | 외부 다운로드 / 대량 작업으로 한도 도달        | $1 예산은 정상 사용 대비 충분한 마진. 50%/90% 사전 메일 알림으로 인지 가능                          |
+| 자동 차단 시 RTDB/FCM 동반 정지               | 결제 차단 시 매매 신호 알림 발송 중단          | 사용자 명시 동의 (§3.5 부작용 인정). GH Actions 텔레봇 알림으로 사용자가 즉시 인지하고 수동 복구    |
+| Service Account 권한 부족                     | 자동 권한 부여가 안 된 케이스                  | 6단계 사전 확인. 부족 시 `Storage Object Admin` 부여                                                |
+| 데이터 이관 누락                              | 마이그레이션 스크립트가 일부 파일 빠뜨림       | 이관 후 객체 수 / 총 사이즈 비교 검증 단계 필수                                                     |
+| Soft Delete 만으로 복구 불가능한 사고         | 30일 초과 후 발견되는 corruption               | 일별 스냅샷 (`history/states/{date}.json`) 이 1차 복구 수단 — 그대로 보존                           |
+| GitHub Actions 의 OIDC vs key-file 인증 충돌  | 인증 방식 변경 영향                            | 현재 `GOOGLE_APPLICATION_CREDENTIALS` 방식 그대로 유지                                              |
 
 ---
 
@@ -488,7 +655,7 @@ GCS 는 다중-객체 atomic 트랜잭션이 없다. 다음 두 가지 보호 �
 
 - [루트 CLAUDE.md](../CLAUDE.md) — 프로젝트 전반 규칙 / 코딩 표준
 - [docs/CLAUDE.md](CLAUDE.md) — 계획서 작성 / 운영 규칙 (필수)
-- [docs/plans/_template.md](plans/_template.md) — 계획서 템플릿
+- [docs/plans/\_template.md](plans/_template.md) — 계획서 템플릿
 - [src/live/CLAUDE.md](../src/live/CLAUDE.md) — live 도메인 SoT (특히 "ephemeral state
   repo" 섹션은 본 이관으로 사라짐)
 - [src/live/git_state.py](../src/live/git_state.py) — 제거 대상의 현행 구현
@@ -534,10 +701,30 @@ GCS 는 다중-객체 atomic 트랜잭션이 없다. 다음 두 가지 보호 �
 8. AI: 일별 이력 중복 확인 → "Soft Delete 30일만" 안 추천
 9. 사용자: 소프트 안 채택 + 인프라 사전 작업 안내 요청
 10. AI: 사용자가 직접 해야 할 5단계 안내
-11. 사용자: 본 사전 합의 문서 작성 의뢰 → **이 문서**
+11. 사용자: 본 사전 합의 문서 작성 의뢰 → **이 문서** (2026-05-06)
+12. 사용자 (2026-05-08): 1~3 단계 직접 수행 완료 확인 (Blaze 업그레이드 / 버킷 생성 /
+    Soft Delete 30일 적용)
+13. 사용자: 4단계(예산 알림) 수행 후 "예산 도달 시 자동 차단까지 원한다 + 차단 시
+    텔레봇 알림" 추가 요구
+14. AI: 푸시백 (데이터 규모 대비 과다 방어, 인프라 복잡도 상승, 부작용=전체 GCP 정지)
+    + 자동 차단 형태와 알림 위치 옵션 4×3 안내
+15. 사용자: "결제 계정 전체 차단 + GH Actions `if: failure()` 텔레봇 알림" 명시 선택
+    + "코드 구현은 나중, 지금은 문서만 갱신" 지시
+16. AI: 본 문서에 §3.5 / 5단계 / §6.7 GH Actions failure 알림 / §8 리스크 / §10.4 /
+    §11 갱신 (2026-05-08)
 
 ---
 
 ## 11. 변경 로그 (본 문서 자체)
 
 - 2026-05-06: 최초 작성 (사전 합의 확정 시점)
+- 2026-05-08: 자동 차단 정책 추가
+  - §3.5 신설 — 결제 계정 전체 차단 + GH Actions `if: failure()` 텔레봇 알림 결정
+  - §4 4단계 "주의" 갱신 — 5단계 연계 안내
+  - §4 5단계 신설 — Pub/Sub 토픽 + Cloud Function 인프라 설정 절차
+  - §4 기존 5단계 → 6단계로 번호 이동 (Service Account 권한 확인)
+  - §5 사용자 공유 정보 표 갱신 — 자동 차단 인프라 항목 추가, 단계 번호 정렬
+  - §6.7 GitHub Actions workflow — `if: failure()` 텔레봇 알림 스텝 + 알림 폭탄
+    방지 마커 메커니즘 후보 추가
+  - §8 리스크 표 — 자동 차단 관련 신규 리스크 3건 추가, "Blaze 한도 초과" 완화책에
+    자동 차단 항목 추가
