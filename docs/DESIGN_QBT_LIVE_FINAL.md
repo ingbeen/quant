@@ -968,12 +968,12 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
 
 **수동 보정 절차** (정본 → 캐시 순):
 
-1. **CSV 재다운로드**: `python -m live rebuild-data {TICKER}` — yfinance 에서 조정된 전체 주가를 다시 받아 CSV 를 덮어쓴다.
-2. **live_state.json 수동 조정**: `qbt-live-state` 리포를 clone 하고 영향받은 자산에 대해:
+1. **CSV 재다운로드**: `python -m live rebuild-data {TICKER}` — yfinance 에서 조정된 전체 주가를 다시 받아 CSV 를 덮어쓴다 (GCS 정본으로 자동 업로드).
+2. **live_state.json 수동 조정**: GCS 콘솔에서 `gs://qbt-live.firebasestorage.app/live_state.json` 을 다운로드 (또는 `gsutil cp gs://qbt-live.firebasestorage.app/live_state.json -`) 한 뒤 영향받은 자산에 대해:
    - `model_shares *= ratio`, `model_avg_entry_price /= ratio`
    - `actual_shares *= ratio`, `actual_avg_entry_price /= ratio`
    - `buffer_zone_state` 내부 가격 필드 (있다면) 도 동일 비율로 조정. BufferZoneStrategy 내부 상태는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 의 직렬화 규약을 따른다.
-3. **Git commit + push**: 조정 사유와 비율을 commit 메시지에 기록 (예: `live / SSO 2:1 split 조정`).
+3. **GCS 재업로드**: 수정한 `live_state.json` 을 `gsutil cp live_state.json gs://qbt-live.firebasestorage.app/live_state.json` 으로 다시 올린다 (덮어쓰기). Soft Delete 30일 보호로 이전 버전은 자동 보관된다.
 4. **차트 연도 슬라이스 재생성**: `python -m live backfill-chart-years` 실행 — 주가 차트 `/charts/prices/{asset_id}/years/{YYYY}` 와 equity 차트 `/charts/equity/years/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 `--target all` (주가 + equity) × years 전체 순회이며, `--target prices|equity` 로 한쪽만, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
 5. **다음 run-daily 확인**: 다음날 자동 실행 (또는 수동 `run-daily`) 에서 정상 진행을 확인한다.
 

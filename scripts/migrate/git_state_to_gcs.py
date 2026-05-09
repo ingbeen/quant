@@ -36,6 +36,7 @@ from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import firebase_admin
+from dotenv import load_dotenv
 from firebase_admin import credentials
 from firebase_admin import storage as fa_storage
 
@@ -156,6 +157,19 @@ def _verify(files: list[Path], root: Path) -> None:
     print(f"[OK] 총 사이즈 일치 — {local_size} bytes")
 
 
+def _load_dotenv_if_present() -> None:
+    """프로젝트 루트의 ``.env`` 파일이 존재하면 자동 로드한다.
+
+    ``cli.py`` 와 동일한 패턴 — 로컬 cutover 시 사용자가 별도로 ``export`` 하지
+    않아도 ``.env`` 의 ``STATE_REPO_PAT`` / ``GOOGLE_APPLICATION_CREDENTIALS`` 가
+    자동 적용되도록 한다. ``override=False`` 로 셸의 기존 환경변수는 우선한다.
+    """
+    project_root = Path(__file__).resolve().parents[2]
+    dotenv_path = project_root / ".env"
+    if dotenv_path.is_file():
+        load_dotenv(dotenv_path=dotenv_path, override=False)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="qbt-live-state git → GCS 1회성 마이그레이션")
     parser.add_argument(
@@ -164,6 +178,8 @@ def main() -> int:
         help="실제 업로드 없이 대상 파일 목록 / 사이즈만 출력",
     )
     args = parser.parse_args()
+
+    _load_dotenv_if_present()
 
     pat = os.environ.get("STATE_REPO_PAT")
     if not pat:

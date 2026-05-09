@@ -256,15 +256,16 @@ Phase 0 테스트가 통과하도록 storage_gateway 를 구현한다.
 
 **작업 내용**:
 
-- [ ] `scripts/migrate/` 디렉토리 신설 (또는 `scripts/live/` 안에 위치 — 폴더 분류 규칙은 [scripts/CLAUDE.md](../../scripts/CLAUDE.md) 확인 후 결정)
-- [ ] `scripts/migrate/git_state_to_gcs.py` 작성:
-  - [ ] 기존 `qbt-live-state` 리포를 일반 clone (depth 미지정)
-  - [ ] 모든 파일을 GCS 버킷에 업로드 (디렉토리 구조 1:1 미러링)
-  - [ ] 업로드 검증: 객체 수 비교 / 총 사이즈 비교 / 핵심 파일(`live_state.json`) sha256 비교
-  - [ ] 검증 실패 시 즉시 stderr + `sys.exit(1)`
-  - [ ] dry-run 옵션 (실제 업로드 전 카운트 / 사이즈만 출력)
-- [ ] `docs/COMMANDS.md` 에 실행 가이드 추가 (사용자가 직접 실행)
-- [ ] 본 스크립트 자체는 1회 실행 후 더 이상 필요 없으나, 폐기 / 보존은 사용자 결정 (Notes 에 기록)
+- [x] `scripts/migrate/` 디렉토리 신설 (`scripts/CLAUDE.md` 의 도메인 분류와 별개로 1회성 이관 도구임을 명시)
+- [x] `scripts/migrate/git_state_to_gcs.py` 작성:
+  - [x] 기존 `qbt-live-state` 리포를 일반 clone (depth 미지정)
+  - [x] `.git/` 제외 모든 파일을 GCS 버킷에 업로드 (디렉토리 구조 1:1 미러링)
+  - [x] 업로드 검증: 객체 이름 집합 / 총 사이즈 / `live_state.json` sha256 비교
+  - [x] 검증 실패 시 즉시 stderr + `sys.exit(1)`
+  - [x] dry-run 옵션 (실제 업로드 전 대상 파일 / 사이즈만 출력)
+  - [x] `.env` 자동 로딩 (`_load_dotenv_if_present`) — cutover 시 사용자 편의
+- [x] `docs/COMMANDS.md` 에 실행 가이드 추가 ("1회성 마이그레이션" 서브섹션)
+- [x] **사용자 실제 실행 완료** (2026-05-09): 31 파일 / 2,223,750 bytes / `live_state.json` sha256 일치 — 검증 3건 모두 통과
 
 > 주의: AI 모델은 [루트 CLAUDE.md "스크립트 실행 규칙"](../../CLAUDE.md) 에 따라 본 스크립트를 직접 실행하지 않는다. 사용자가 cutover 시점에 직접 실행한다.
 
@@ -276,17 +277,27 @@ Phase 0 테스트가 통과하도록 storage_gateway 를 구현한다.
 
 **작업 내용**:
 
-- [ ] `src/live/CLAUDE.md`:
-  - [ ] "폴더 구조" 의 `git_state.py` 행 제거, `storage_gateway.py` 행 추가
-  - [ ] "모듈별 역할 요약" 표에서 `git_state.py` 제거, `storage_gateway.py` 추가
-  - [ ] "실행 방법" 의 ephemeral state repo 단락 → GCS 버킷 워크스페이스 단락으로 갱신
-  - [ ] "환경변수" 목록에서 `STATE_REPO_PAT` 제거
-  - [ ] "인프라 정보" 표의 "상태 리포 (프라이빗)" 행 제거 또는 "GCS 버킷" 으로 교체
-- [ ] `README.md` 의 live 섹션 인프라 설명 갱신
-- [ ] `docs/COMMANDS.md`:
-  - [ ] live 워크플로우 환경변수 안내 (STATE_REPO_PAT 제거)
-  - [ ] 마이그레이션 스크립트 실행 가이드 추가 (Phase 4 와 함께)
-- [ ] `docs/DESIGN_QBT_LIVE_FINAL.md` 의 git 정본 기술 부분 갱신 (해당 절 검색 후 GCS 정본으로 정정)
+- [x] `src/live/CLAUDE.md`:
+  - [x] "폴더 구조" 의 `git_state.py` 행 제거, `storage_gateway.py` 행 추가
+  - [x] "모듈별 역할 요약" 표에서 `git_state.py` 제거, `storage_gateway.py` 추가
+  - [x] "실행 방법" 의 ephemeral state repo 단락 → GCS 정본 워크스페이스 단락으로 갱신
+  - [x] "환경변수" 목록에서 `STATE_REPO_PAT` 제거
+  - [x] "인프라 정보" 표의 "상태 리포 (프라이빗)" → "상태 정본 (GCS)" 으로 교체, Spark → Blaze 정정
+- [x] `README.md` 검토 — git 정본 직접 언급 잔재 없음 (변경 불필요 확인)
+- [x] `docs/COMMANDS.md`:
+  - [x] live 워크플로우 환경변수 안내 정정 — `STATE_REPO_PAT` 제거, `GOOGLE_APPLICATION_CREDENTIALS` 단일화
+  - [x] 영구 이력 조회 안내 — GitHub UI → Firebase/GCS 콘솔로 변경
+  - [x] "1회성 마이그레이션" 서브섹션 추가 (Phase 4 스크립트 사용 가이드)
+- [x] `docs/DESIGN_QBT_LIVE_FINAL.md` 갱신:
+  - [x] §0 개요 — Git 정본 → GCS 정본
+  - [x] §0 앱 관점 확정 사항 표 — "정본 원장" 행
+  - [x] §0 인프라 정보 표 — Spark → Blaze
+  - [x] §1.1 컴포넌트 다이어그램
+  - [x] §1.2 핵심 원칙 — "Git = 정본" → "GCS = 정본" (replace_all)
+  - [x] §8.1 절 제목 + 본문 (`Git 정본 (qbt-live-state)` → `GCS 정본 (qbt-live.firebasestorage.app)`)
+  - [x] §8.3 역할 분리 표 — Git 정본 → GCS 정본 버킷
+  - [x] `/history/*` 정본 관계 단락
+  - [x] §9 스플릿 대응 수동 보정 절차 — git clone → GCS 콘솔 / gsutil
 
 ---
 
