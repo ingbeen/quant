@@ -64,6 +64,11 @@ DRIFT_CORRECTION_RATIO: Final[float] = 0.05
 # CLI 는 매 실행마다 이 리포를 tempdir 에 shallow clone 한 뒤 작업한다.
 STATE_REPO_URL: Final[str] = "https://github.com/ingbeen/qbt-live-state.git"
 
+# Firebase Cloud Storage 정본 버킷 이름.
+# CLI 는 매 실행마다 이 버킷의 모든 blob 을 tempdir 로 download 한 뒤 작업한다
+# (storage_gateway.state_workspace).
+STATE_BUCKET_NAME: Final[str] = "qbt-live.firebasestorage.app"
+
 # 프라이빗 상태 리포의 기본 디렉토리명 (ephemeral tempdir 내부 이름).
 DEFAULT_LIVE_STATE_DIR: Final[Path] = Path("qbt-live-state")
 
