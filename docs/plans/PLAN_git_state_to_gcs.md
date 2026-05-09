@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🟡 Draft
+**상태**: 🔄 In Progress
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-05-09 16:00
-**마지막 업데이트**: 2026-05-09 16:00
+**마지막 업데이트**: 2026-05-09 17:30
 **관련 범위**: live (storage_gateway 신설, cli ephemeral 컨텍스트 교체, git_state 제거)
 **관련 문서**:
 
@@ -229,14 +229,24 @@ Phase 0 테스트가 통과하도록 storage_gateway 를 구현한다.
 
 **작업 내용**:
 
-- [ ] `src/live/git_state.py` 삭제
-- [ ] `tests/live/test_git_state.py` 삭제
-- [ ] `.github/workflows/daily_run.yml` 갱신:
-  - [ ] `run-daily` job 의 `env:` 블록에서 `STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}` 라인 제거
-  - [ ] `notify-failure` job 도 동일하게 STATE_REPO_PAT 사용 시 제거
-  - [ ] `GOOGLE_APPLICATION_CREDENTIALS` 등 기존 패턴 그대로 유지
-- [ ] live 관련 다른 워크플로우 (`keepalive.yml` 등) 에서 STATE_REPO_PAT 참조 여부 확인 및 정리
-- [ ] grep 으로 잔존 참조 확인: `git_state` / `STATE_REPO_PAT` / `STATE_REPO_URL` / `GIT_BOT_NAME` 가 코드 / 테스트 / 문서 / yaml 어디에도 남지 않았는지 (단, BRIEFING 문서의 변경 이력 / docs/archive 는 예외)
+- [x] `src/live/git_state.py` 삭제
+- [x] `tests/live/test_git_state.py` 삭제
+- [x] `src/live/constants.py` 의 `GIT_BOT_NAME` / `GIT_BOT_EMAIL` 제거 (Phase 2 에서 미뤘던 항목)
+- [x] `.github/workflows/daily_run.yml` 갱신:
+  - [x] `run-daily` job 의 `env:` 블록에서 `STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}` 라인 제거
+  - [x] `notify-failure` job 은 STATE_REPO_PAT 미참조 (확인 완료)
+  - [x] `GOOGLE_APPLICATION_CREDENTIALS` 등 기존 패턴 그대로 유지
+- [x] live 관련 다른 워크플로우 확인 — `keepalive.yml` 은 자체 GITHUB_TOKEN 사용, STATE_REPO_PAT 미참조
+- [x] 테스트 픽스처 / 검증 정정 (Phase 2 잔재):
+  - [x] `tests/live/test_alert_coverage.py` 의 `state_dir` 픽스처 → `storage_gateway.state_workspace` mock
+  - [x] `tests/live/test_workflows.py` 의 `STATE_REPO_PAT` 주입 검증 → 미참조 검증으로 교체
+  - [x] `tests/live/test_workflows.py` 의 `test_secrets_referenced` 에서 `STATE_REPO_PAT` 제거 (3종 시크릿)
+- [x] grep 으로 잔존 참조 확인:
+  - [x] 코드 (`src/`) — `git_state` / `STATE_REPO_PAT` / `STATE_REPO_URL` / `GIT_BOT_*` 잔존 없음 (단, `storage_gateway.py` docstring 의 BRIEFING 문서 이름 참조는 정상)
+  - [x] 테스트 (`tests/`) — 잔존 없음
+  - [x] yaml (`.github/workflows/`) — 잔존 없음
+  - [ ] 문서 (`src/live/CLAUDE.md`) — `git_state.py` 모듈 표 / `STATE_REPO_PAT` 환경변수 안내가 남아있음 → **Phase 5 에서 정리 예정**
+- [x] 회귀 테스트 통과 확인 — `tests/live/` 전체 **501 passed**
 
 ---
 
@@ -345,5 +355,8 @@ BRIEFING §8 의 리스크 표를 본 plan 의 검증 단계에 매핑.
 ### 진행 로그 (KST)
 
 - 2026-05-09 16:00: 본 plan 신설 (사전 합의 [BRIEFING_git_state_to_gcs.md](../BRIEFING_git_state_to_gcs.md) 입력)
+- 2026-05-09 16:30: Phase 0~1 완료 — storage_gateway 신설 + FakeBucket 픽스처 + 17 tests 통과. 별도 commit `610df6e` 으로 push.
+- 2026-05-09 17:00: Phase 2 완료 — `cli.py` 의 `ephemeral_state_repo` 함수 제거 + 호출 측 6곳을 `storage_gateway.state_workspace` 직접 호출로 교체. `STATE_REPO_URL` / `STATE_REPO_PAT_ENV_KEY` / `DEFAULT_LIVE_STATE_DIR` 상수 제거. 테스트 mock 정정. **85 passed**.
+- 2026-05-09 17:30: Phase 3 완료 — `git_state.py` / `test_git_state.py` 삭제. `GIT_BOT_NAME` / `GIT_BOT_EMAIL` 제거. `daily_run.yml` 의 `STATE_REPO_PAT` env 라인 제거. `test_alert_coverage` / `test_workflows` mock·검증 정정. **`tests/live/` 501 passed**. 단, `src/live/CLAUDE.md` 의 `git_state` / `STATE_REPO_PAT` 잔재는 Phase 5 (도메인 문서 갱신) 에서 정리 예정.
 
 ---

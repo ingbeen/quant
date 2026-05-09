@@ -61,10 +61,9 @@ class TestDailyRunWorkflow:
         assert "actions/cache@v5" in daily_run_yaml
         assert "pypoetry" in daily_run_yaml
 
-    def test_state_repo_pat_injected_to_cli_env(self, daily_run_yaml: str):
-        """CLI 가 ephemeral mode 로 state repo 를 clone 하므로 STATE_REPO_PAT 을
-        workflow env 에 주입해야 한다 (별도 checkout step 은 더 이상 없음)."""
-        assert "STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}" in daily_run_yaml
+    def test_state_repo_pat_not_referenced(self, daily_run_yaml: str):
+        """STATE_REPO_PAT 은 GCS 이관으로 제거됨. 자격증명은 GOOGLE_APPLICATION_CREDENTIALS 단일."""
+        assert "STATE_REPO_PAT" not in daily_run_yaml
 
     def test_no_explicit_state_repo_checkout(self, daily_run_yaml: str):
         """CLI 가 shallow clone 을 담당하므로 actions/checkout 으로 state repo 를
@@ -98,10 +97,9 @@ class TestDailyRunWorkflow:
         assert "python -m live run-daily" in daily_run_yaml
 
     def test_secrets_referenced(self, daily_run_yaml: str):
-        """4 종 시크릿이 모두 참조되어야 한다."""
+        """3 종 시크릿이 모두 참조되어야 한다 (STATE_REPO_PAT 은 GCS 이관으로 제거)."""
         for secret in (
             "FIREBASE_CONFIG",
-            "STATE_REPO_PAT",
             "TELEGRAM_BOT_TOKEN",
             "TELEGRAM_CHAT_ID",
         ):
