@@ -65,7 +65,6 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/secrets/firebase_admin.json
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          STATE_REPO_PAT: ${{ secrets.STATE_REPO_PAT }}
           TRADE_DATE: ${{ github.event.inputs.trade_date }}
         run: |
           if [ -n "$TRADE_DATE" ]; then

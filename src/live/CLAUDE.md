@@ -37,10 +37,10 @@ src/live/                       # 실매매 코드
 ├── balance_adjust.py           # BalanceAdjust idempotent 반영
 ├── buffer_serializer.py        # BufferZoneStrategy 직렬화 어댑터 (extract/restore)
 ├── rtdb_gateway.py             # Firebase RTDB 게이트웨이
+├── storage_gateway.py          # GCS 정본 게이트웨이 (download/upload/list/delete + state_workspace 컨텍스트)
 ├── notifier.py                 # FCM + 텔레그램 동시 발송
 ├── chart_data.py               # TradingView Lightweight Charts 시계열 (meta + years/{YYYY})
 ├── history.py                  # 영구 히스토리 저장
-├── git_state.py                # ephemeral shallow clone / commit / push 헬퍼
 └── cli.py                      # CLI 엔트리포인트
 
 tests/live/                     # live 전용 테스트
@@ -67,11 +67,11 @@ tests/live/                     # live 전용 테스트
 | (model_sync 처리)      | `ModelSync` 적용 (`run_daily` 내부 Stage 3, model=actual 덮어쓰기 + pending/unfilled 해제, 멱등) |
 | `buffer_serializer.py` | `BufferZoneStrategy` 내부 상태 추출/복원 어댑터 (QBT 본체 수정 없음)                |
 | `rtdb_gateway.py`      | Firebase Admin SDK 초기화 및 RTDB 읽기/쓰기 게이트웨이 (`/latest`, `/charts`, `/history`, `/fills/inbox`, `/balance_adjust/inbox`, `/fill_dismiss/inbox`, `/model_sync/inbox`, `/device_tokens`) |
+| `storage_gateway.py`   | GCS 정본 게이트웨이 — 단일 객체 download/upload/list/delete + `state_workspace` ephemeral 컨텍스트 (변경된 파일만 upload, `live_state.json` 마지막) |
 | `notifier.py`          | FCM + 텔레그램 동시 발송 (발송 실패는 로그만)                                       |
 | `chart_data.py`        | 주가 + equity 차트 시계열 빌더 (`build_chart_*` = 자산별 주가, `build_equity_*` = 포트폴리오 equity) |
-| `history.py`           | Git 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
-| `git_state.py`         | ephemeral shallow clone / commit / push 헬퍼                                        |
-| `cli.py`               | CLI 엔트리포인트, 휴장 체크, ephemeral 컨텍스트, `main()` 공통 알림 훅, `backfill-chart-years` 수동 명령 |
+| `history.py`           | 정본 히스토리 append / load (확장 스키마 + raw 로더 — `/history/*` RTDB 미러 정보원) |
+| `cli.py`               | CLI 엔트리포인트, 휴장 체크, `storage_gateway.state_workspace` 사용, `main()` 공통 알림 훅, `backfill-chart-years` 수동 명령 |
 
 ## 핵심 원칙
 
@@ -228,13 +228,12 @@ poetry install -E live
 
 실행 명령어는 [docs/COMMANDS.md](../../docs/COMMANDS.md)의 "워크플로우 3: QBT Live (실매매 알림)" 섹션을 참고한다.
 
-**ephemeral state repo**: CLI 는 state 가 필요한 모든 명령에 대해 매 실행마다 `qbt-live-state` 프라이빗 리포를 임시 디렉토리에 `--depth 1` shallow clone 하고, 작업 후 변경사항을 자동 commit/push 한 뒤 임시 디렉토리를 삭제합니다. **로컬과 GitHub Actions 가 동일한 코드 경로**를 타므로 두 환경의 실행 결과는 항상 같은 원격 커밋으로 수렴합니다. 프로젝트 폴더에는 어떤 state 파일도 남지 않습니다.
+**GCS 정본 워크스페이스**: CLI 는 state 가 필요한 모든 명령에 대해 매 실행마다 GCS 버킷의 모든 blob 을 임시 디렉토리로 download 하고, 작업 후 sha256 비교로 **변경된 파일만** 자동 upload 한 뒤 임시 디렉토리를 삭제합니다 (`storage_gateway.state_workspace`). `live_state.json` 은 항상 마지막에 upload 되어 LiveState 일관성을 보호합니다. **로컬과 GitHub Actions 가 동일한 코드 경로**를 타므로 두 환경의 실행 결과는 항상 같은 GCS 정본으로 수렴합니다. 프로젝트 폴더에는 어떤 state 파일도 남지 않습니다.
 
 **환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다 (`python-dotenv`). 필요한 변수:
 
-- `STATE_REPO_PAT` — `qbt-live-state` 리포에 clone/push 할 GitHub Personal Access Token
+- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로 (RTDB / GCS / FCM 공용)
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — 알림 발송용
-- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로
 
 이미 `os.environ` 에 값이 있으면 `.env` 가 덮어쓰지 않으므로 GitHub Actions 의 `env:` 블록이 항상 우선됩니다.
 
@@ -243,8 +242,8 @@ poetry install -E live
 | 항목                 | 값                                                                   |
 | -------------------- | -------------------------------------------------------------------- |
 | QBT 리포 (퍼블릭)    | `https://github.com/ingbeen/quant`                                   |
-| 상태 리포 (프라이빗) | `https://github.com/ingbeen/qbt-live-state.git`                      |
-| Firebase 프로젝트    | `qbt-live` (Spark)                                                   |
+| 상태 정본 (GCS)      | `gs://qbt-live.firebasestorage.app` (us-central1, Soft Delete 30일)  |
+| Firebase 프로젝트    | `qbt-live` (Blaze)                                                   |
 | RTDB URL             | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
 | Android 패키지       | `com.ingbeen.qbtlive`                                                |
 | OWNER_UID            | `SxwvCeg6fRUeUrK9IpyazTzrLJJ2`                                       |

@@ -21,19 +21,19 @@ from live.models import ChartMeta
 
 @pytest.fixture
 def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """``cli_module.ephemeral_state_repo`` 를 ``tmp_path`` 를 yield 하는 가짜 컨텍스트
-    매니저로 교체한다. 실제 git clone/push 는 절대 호출되지 않는다.
+    """``storage_gateway.state_workspace`` 를 ``tmp_path`` 를 yield 하는 가짜 컨텍스트
+    매니저로 교체한다. 실제 GCS download/upload 는 절대 호출되지 않는다.
 
     Returns:
         ``tmp_path`` 와 동일한 ``Path`` — 테스트는 이 경로를 state_dir 로 사용.
     """
 
     @contextmanager
-    def fake_ephemeral(*, push_on_success: bool, commit_subcommand: str):
-        del push_on_success, commit_subcommand
+    def fake_state_workspace(*, push_on_success: bool):
+        del push_on_success
         yield tmp_path
 
-    monkeypatch.setattr(cli_module, "ephemeral_state_repo", fake_ephemeral)
+    monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", fake_state_workspace)
     return tmp_path
 
 
@@ -88,7 +88,7 @@ def _create_state_file(state_dir: Path, capital: float = 100_000_000) -> None:
 
     init 명령 제거 후, 다른 테스트들이 fixture 상태 셋업용으로 사용하던
     ``main(["init", "--capital", N])`` 호출을 대체한다. CLI 진입점 / argparse /
-    ephemeral_state_repo 컨텍스트를 거치지 않고 ``create_initial_state`` +
+    state_workspace 컨텍스트를 거치지 않고 ``create_initial_state`` +
     ``save_state`` 만 직접 호출하므로 더 가볍다.
     """
     from live.constants import DEFAULT_LIVE_STATE_FILENAME
@@ -319,17 +319,17 @@ class TestCmdReset:
     - 중간 실패 시 reset 재실행으로 멱등 복구 가능하다.
     """
 
-    def test_reset_aborts_on_firebase_init_failure(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given Firebase init 실패 When reset 실행 Then Git / RTDB 어떤 쓰기도 없음."""
-        del state_dir
+    def test_reset_aborts_on_firebase_init_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When reset 실행 Then storage workspace / RTDB 어떤 쓰기도 없음."""
+        workspace_called: list[bool] = []
 
-        git_clone_called: list[bool] = []
+        @contextmanager
+        def _record_workspace(**kwargs: Any):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
 
-        def _fake_clone(*args: Any, **kwargs: Any) -> None:
-            del args, kwargs
-            git_clone_called.append(True)
-
-        monkeypatch.setattr(cli_module.git_state, "git_clone_shallow", _fake_clone)
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
 
         def _raise() -> None:
             raise RuntimeError("Firebase 초기화 실패")
@@ -345,10 +345,10 @@ class TestCmdReset:
 
         exit_code = main(["reset", "--capital", "100000000"])
 
-        # main() 예외 훅이 exit 1 반환 + Firebase 실패이므로 Git / RTDB 미수정
+        # main() 예외 훅이 exit 1 반환 + Firebase 실패이므로 workspace / RTDB 미진입
         assert exit_code == 1
         assert rtdb_delete_called == []
-        assert git_clone_called == []
+        assert workspace_called == []
 
     def test_reset_calls_git_push_before_rtdb_delete(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Given reset 성공 경로 When 실행 Then Git 파일 작업 + push 가 RTDB delete 보다 먼저 수행됨."""
@@ -1125,115 +1125,11 @@ class TestDotenvLoading:
 
 
 # ============================================================================
-# ephemeral_state_repo 컨텍스트 매니저
-# ============================================================================
-
-
-class TestEphemeralStateRepo:
-    """CLI 의 ephemeral state repo 컨텍스트 매니저 계약을 검증한다."""
-
-    @pytest.fixture
-    def _fake_git(self, monkeypatch: pytest.MonkeyPatch) -> dict:
-        """git_clone_shallow / git_commit_and_push 를 모킹하고 호출 기록을 수집한다."""
-        log: dict = {"clone": [], "push": []}
-
-        def fake_clone(remote_url: str, dest: Path, *, pat: str | None = None) -> None:
-            log["clone"].append({"remote_url": remote_url, "dest": dest, "pat": pat})
-            # 실제 clone 을 시뮬레이션 — 빈 디렉토리 생성
-            dest.mkdir(parents=True, exist_ok=True)
-            (dest / "live_state.json").write_text("{}", encoding="utf-8")
-
-        def fake_push(
-            state_dir: Path,
-            message: str,
-            *,
-            user_name: str = "qbt-live-bot",
-            user_email: str = "qbt-live-bot@noreply.github.com",
-        ) -> bool:
-            log["push"].append(
-                {
-                    "state_dir": state_dir,
-                    "message": message,
-                    "user_name": user_name,
-                    "user_email": user_email,
-                }
-            )
-            return True
-
-        monkeypatch.setattr("live.git_state.git_clone_shallow", fake_clone)
-        monkeypatch.setattr("live.git_state.git_commit_and_push", fake_push)
-        monkeypatch.setenv("STATE_REPO_PAT", "ghp_test_token")
-        return log
-
-    def test_write_command_clones_and_pushes(self, _fake_git: dict) -> None:
-        """Given 쓰기 명령(push_on_success=True) When 컨텍스트 진입/탈출 Then clone + push 모두 호출."""
-        with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
-            assert state_dir.is_dir()
-            assert (state_dir / "live_state.json").is_file()
-
-        assert len(_fake_git["clone"]) == 1
-        assert len(_fake_git["push"]) == 1
-        push_call = _fake_git["push"][0]
-        assert push_call["message"].startswith("auto: live run-daily")
-        assert "KST" in push_call["message"]
-
-    def test_read_only_command_clones_but_does_not_push(self, _fake_git: dict):
-        """Given 읽기 전용 명령(push_on_success=False) Then clone 은 호출, push 는 skip."""
-        with cli_module.ephemeral_state_repo(push_on_success=False, commit_subcommand="drift") as state_dir:
-            assert state_dir.is_dir()
-
-        assert len(_fake_git["clone"]) == 1
-        assert len(_fake_git["push"]) == 0
-
-    def test_exception_in_context_skips_push(self, _fake_git: dict):
-        """Given 컨텍스트 내부에서 예외 발생 Then push 호출되지 않고 예외 전파."""
-        with pytest.raises(RuntimeError, match="내부 에러"):
-            with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily"):
-                raise RuntimeError("내부 에러")
-
-        assert len(_fake_git["clone"]) == 1
-        assert len(_fake_git["push"]) == 0
-
-    def test_tempdir_is_cleaned_up_on_success(self, _fake_git: dict):
-        """Given 정상 종료 Then tempdir 은 더 이상 존재하지 않는다."""
-        captured_path: list[Path] = []
-        with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
-            captured_path.append(state_dir)
-
-        assert captured_path[0].exists() is False
-
-    def test_tempdir_is_cleaned_up_on_exception(self, _fake_git: dict):
-        """Given 내부 예외 Then tempdir 은 정리되어야 한다."""
-        captured_path: list[Path] = []
-        with pytest.raises(RuntimeError):
-            with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
-                captured_path.append(state_dir)
-                raise RuntimeError("boom")
-
-        assert captured_path[0].exists() is False
-
-    def test_missing_pat_raises_value_error(self, monkeypatch: pytest.MonkeyPatch):
-        """Given STATE_REPO_PAT 미설정 Then 즉시 ValueError."""
-        monkeypatch.delenv("STATE_REPO_PAT", raising=False)
-
-        with pytest.raises(ValueError, match="STATE_REPO_PAT"):
-            with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily"):
-                pass
-
-    def test_clone_receives_state_repo_url_and_pat(self, _fake_git: dict):
-        """Given 정상 호출 Then clone 에 상수 STATE_REPO_URL 과 env PAT 가 전달된다."""
-        from live.constants import STATE_REPO_URL
-
-        with cli_module.ephemeral_state_repo(push_on_success=True, commit_subcommand="reset"):
-            pass
-
-        clone_call = _fake_git["clone"][0]
-        assert clone_call["remote_url"] == STATE_REPO_URL
-        assert clone_call["pat"] == "ghp_test_token"
-
-
-# ============================================================================
 # data_validator wiring
+#
+# 참고: ``state_workspace`` 컨텍스트 매니저 자체의 단위 계약(다운로드/업로드/변경
+# 감지/예외 시 upload skip 등)은 ``tests/live/test_storage_gateway.py`` 가 검증한다.
+# 본 파일은 cli 명령이 그 컨텍스트를 통해 정상 동작하는지에 집중한다.
 # ============================================================================
 
 
@@ -1551,17 +1447,17 @@ class TestRunDailyValidatorIntegration:
             content = user_trades_path.read_text(encoding="utf-8").strip()
             assert content == "", f"기존 fill 이 중복 append 되었음: {content}"
 
-    def test_holiday_early_exit_skips_ephemeral(self, state_dir: Path, monkeypatch):
-        """Given 휴장일 trade_date When run-daily (cron 모드) Then ephemeral clone 없이 exit 0."""
+    def test_holiday_early_exit_skips_state_workspace(self, state_dir: Path, monkeypatch):
+        """Given 휴장일 trade_date When run-daily (cron 모드) Then state_workspace 진입 없이 exit 0."""
         del state_dir  # fixture 설치만 필요
         # 휴장 체크 강제: 항상 False
         monkeypatch.setattr(cli_module, "_is_nyse_session", lambda d: False)
 
-        # ephemeral_state_repo 가 호출되면 실패하도록 sentinel 주입
-        def _fail_ephemeral(**kwargs):
-            raise AssertionError("휴장일에 ephemeral_state_repo 가 호출되면 안 됨")
+        # storage_gateway.state_workspace 가 호출되면 실패하도록 sentinel 주입
+        def _fail_workspace(**kwargs):
+            raise AssertionError("휴장일에 state_workspace 가 호출되면 안 됨")
 
-        monkeypatch.setattr(cli_module, "ephemeral_state_repo", _fail_ephemeral)
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _fail_workspace)
 
         # cron 모드 (no --trade-date)
         exit_code = main(["run-daily"])

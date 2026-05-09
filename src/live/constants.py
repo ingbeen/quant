@@ -60,12 +60,10 @@ DRIFT_CORRECTION_RATIO: Final[float] = 0.05
 # 파일 시스템 기본 경로 / 파일명
 # ============================================================================
 
-# 프라이빗 상태 리포의 원격 HTTPS URL.
-# CLI 는 매 실행마다 이 리포를 tempdir 에 shallow clone 한 뒤 작업한다.
-STATE_REPO_URL: Final[str] = "https://github.com/ingbeen/qbt-live-state.git"
-
-# 프라이빗 상태 리포의 기본 디렉토리명 (ephemeral tempdir 내부 이름).
-DEFAULT_LIVE_STATE_DIR: Final[Path] = Path("qbt-live-state")
+# Firebase Cloud Storage 정본 버킷 이름.
+# CLI 는 매 실행마다 이 버킷의 모든 blob 을 tempdir 로 download 한 뒤 작업한다
+# (storage_gateway.state_workspace).
+STATE_BUCKET_NAME: Final[str] = "qbt-live.firebasestorage.app"
 
 # 주가 CSV 가 저장되는 하위 디렉토리.
 DEFAULT_DATA_STOCK_SUBDIR: Final[Path] = Path("data/stock")
@@ -131,15 +129,11 @@ DEFAULT_HISTORY_TAIL_LINES: Final[int] = 10
 
 
 # ============================================================================
-# 알림 제목 / Git 봇 정보
+# 알림 제목
 # ============================================================================
 
 # FCM / 텔레그램 알림 제목 (일일 리포트 + 실패 알림 공통).
 NOTIFICATION_TITLE: Final[str] = "QBT Live"
-
-# ephemeral state repo commit 시 사용하는 Git 사용자 정보.
-GIT_BOT_NAME: Final[str] = "qbt-live-bot"
-GIT_BOT_EMAIL: Final[str] = "qbt-live-bot@noreply.github.com"
 
 
 # ============================================================================
@@ -165,7 +159,6 @@ NYSE_CALENDAR_CODE: Final[str] = "XNYS"
 FIREBASE_CRED_ENV_KEY: Final[str] = "GOOGLE_APPLICATION_CREDENTIALS"
 TELEGRAM_TOKEN_ENV_KEY: Final[str] = "TELEGRAM_BOT_TOKEN"
 TELEGRAM_CHAT_ENV_KEY: Final[str] = "TELEGRAM_CHAT_ID"
-STATE_REPO_PAT_ENV_KEY: Final[str] = "STATE_REPO_PAT"
 
 
 # ============================================================================

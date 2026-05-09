@@ -20,14 +20,14 @@ from live.cli import _collect_all_tickers, main
 
 @pytest.fixture
 def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """``cli_module.ephemeral_state_repo`` 를 ``tmp_path`` 로 교체하여 state 를 격리한다."""
+    """``storage_gateway.state_workspace`` 를 ``tmp_path`` 로 교체하여 state 를 격리한다."""
 
     @contextmanager
-    def fake_ephemeral(*, push_on_success: bool, commit_subcommand: str):
-        del push_on_success, commit_subcommand
+    def fake_state_workspace(*, push_on_success: bool):
+        del push_on_success
         yield tmp_path
 
-    monkeypatch.setattr(cli_module, "ephemeral_state_repo", fake_ephemeral)
+    monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", fake_state_workspace)
     return tmp_path
 
 
