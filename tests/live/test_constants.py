@@ -11,13 +11,13 @@ from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
     DEFAULT_DATA_STOCK_SUBDIR,
-    DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
     DRIFT_CORRECTION_RATIO,
     DRIFT_WARNING_RATIO,
     KST_TZ_NAME,
     LIVE_PORTFOLIO_ID,
     SCHEMA_VERSION,
+    STATE_BUCKET_NAME,
     build_signal_trade_map,
     get_live_portfolio_config,
 )
@@ -72,15 +72,8 @@ class TestDriftThresholds:
 class TestDefaultPaths:
     """경로 상수는 모두 pathlib.Path 이어야 한다 (CLAUDE.md 필수 규칙)."""
 
-    def test_default_live_state_dir_is_path(self):
-        assert isinstance(DEFAULT_LIVE_STATE_DIR, Path)
-
     def test_default_data_stock_subdir_is_path(self):
         assert isinstance(DEFAULT_DATA_STOCK_SUBDIR, Path)
-
-    def test_default_live_state_dir_points_to_qbt_live_state(self):
-        """DEFAULT_LIVE_STATE_DIR 은 'qbt-live-state' 디렉토리명이어야 한다."""
-        assert DEFAULT_LIVE_STATE_DIR == Path("qbt-live-state")
 
     def test_data_stock_subdir_is_relative(self):
         """data/stock 서브디렉토리."""
@@ -91,6 +84,14 @@ class TestDefaultPaths:
         assert isinstance(DEFAULT_APPLIED_FILL_IDS_FILENAME, str)
         assert DEFAULT_LIVE_STATE_FILENAME == "live_state.json"
         assert DEFAULT_APPLIED_FILL_IDS_FILENAME == "applied_fill_ids.json"
+
+
+class TestStateBucketName:
+    """STATE_BUCKET_NAME 은 GCS 정본 버킷의 정확한 문자열이어야 한다."""
+
+    def test_state_bucket_name_is_calibrated(self):
+        """버킷 이름 변경은 인프라 마이그레이션이 필요하므로 calibration lock 으로 고정."""
+        assert STATE_BUCKET_NAME == "qbt-live.firebasestorage.app"
 
 
 class TestAppliedFillIdsMaxAge:
@@ -152,12 +153,12 @@ class TestModuleSmoke:
             "DRIFT_WARNING_RATIO",
             "DRIFT_CORRECTION_RATIO",
             "APPLIED_FILL_IDS_MAX_AGE_DAYS",
-            "DEFAULT_LIVE_STATE_DIR",
             "DEFAULT_DATA_STOCK_SUBDIR",
             "DEFAULT_LIVE_STATE_FILENAME",
             "DEFAULT_APPLIED_FILL_IDS_FILENAME",
             "SCHEMA_VERSION",
             "KST_TZ_NAME",
+            "STATE_BUCKET_NAME",
             "build_signal_trade_map",
             "get_live_portfolio_config",
         ]

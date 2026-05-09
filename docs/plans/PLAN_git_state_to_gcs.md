@@ -201,19 +201,25 @@ Phase 0 테스트가 통과하도록 storage_gateway 를 구현한다.
 
 **작업 내용**:
 
-- [ ] `src/live/constants.py` 갱신:
+- [x] `src/live/constants.py` 갱신:
   - [x] 추가: `STATE_BUCKET_NAME: Final[str] = "qbt-live.firebasestorage.app"` (Phase 1 에서 미리 처리)
-  - [ ] 제거: `STATE_REPO_URL` / `STATE_REPO_PAT_ENV_KEY` / `GIT_BOT_NAME` / `GIT_BOT_EMAIL`
-- [ ] `src/live/cli.py` 갱신:
-  - [ ] `from live import data_validator, git_state, history, ...` → `git_state` 제거, `storage_gateway` 추가
-  - [ ] `ephemeral_state_repo` 컨텍스트를 `storage_gateway.state_workspace` 위임 형태로 교체 (이름은 기존 `ephemeral_state_repo` 유지하되 내부 구현만 GCS 기반으로)
-  - [ ] `_now_kst_for_commit` 함수 제거 (commit message 불필요)
-  - [ ] `STATE_REPO_PAT` 환경변수 검사 로직 제거 (자격증명은 `GOOGLE_APPLICATION_CREDENTIALS` 가 firebase_admin 초기화 시점에 검증됨)
-  - [ ] read-only 명령 (`drift` / `backfill-chart-years`) 의 `push_on_success=False` 그대로 유지 — workspace 컨텍스트가 upload skip 처리
-- [ ] 회귀 테스트 (`test_regression.py`) 로컬 실행으로 통과 확인 (전체 validate 는 마지막 Phase 에서만)
-- [ ] 기존 통합 테스트 (`test_cli_*.py`) 의 mock 을 storage 버전으로 교체
+  - [x] 제거: `STATE_REPO_URL` / `STATE_REPO_PAT_ENV_KEY` / `DEFAULT_LIVE_STATE_DIR` (그린 유지를 위해 `GIT_BOT_NAME` / `GIT_BOT_EMAIL` 은 Phase 3 의 `git_state.py` 제거와 함께 정리)
+- [x] `src/live/cli.py` 갱신:
+  - [x] `from live import data_validator, git_state, history, ...` → `git_state` 제거, `storage_gateway` 추가
+  - [x] `ephemeral_state_repo` 컨텍스트 함수 자체를 제거하고 호출 측 6곳을 `storage_gateway.state_workspace(push_on_success=...)` 직접 호출로 교체 (PLAN 본문은 "이름 유지" 표현이지만, dead code 잔존 방지를 위해 함수 자체 제거가 더 깔끔)
+  - [x] `_now_kst_for_commit` 함수 제거 (commit message 불필요)
+  - [x] `STATE_REPO_PAT` 환경변수 검사 로직 제거 — `ephemeral_state_repo` 함수와 함께 사라짐
+  - [x] orphan import 정리 — `tempfile`, `from collections.abc import Iterator`, `from contextlib import contextmanager`
+  - [x] read-only 명령 (`drift` / `backfill-chart-years`) 의 `push_on_success=False` 그대로 유지
+- [x] 회귀 테스트 통과 확인 — `test_storage_gateway` 17 + `test_constants` 18 + `test_cli` 50 = **85 passed**
+- [x] 기존 통합 테스트의 mock 을 storage 버전으로 교체:
+  - [x] `state_dir` 픽스처 — `cli_module.storage_gateway.state_workspace` 를 mock
+  - [x] `test_reset_aborts_on_firebase_init_failure` — git_clone 검증 → workspace 진입 검증
+  - [x] `test_holiday_early_exit_skips_state_workspace` (이름 변경) — `_fail_workspace` sentinel
+  - [x] `TestEphemeralStateRepo` 클래스 전체 폐기 (storage_gateway 단위 테스트로 대체)
+  - [x] `test_constants.py` — `DEFAULT_LIVE_STATE_DIR` 검증 항목 제거, `STATE_BUCKET_NAME` 검증 추가
 
-> 주의: 이 시점에 `git_state.py` 파일은 아직 존재하지만 cli.py 에서 import 하지 않으므로 dead code. Phase 3 에서 삭제.
+> 주의: 이 시점에 `git_state.py` 파일과 `GIT_BOT_*` 상수는 아직 존재하지만 cli.py 에서 import 하지 않으므로 dead code. Phase 3 에서 삭제.
 
 ---
 

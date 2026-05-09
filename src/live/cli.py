@@ -28,9 +28,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -39,7 +36,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from exchange_calendars import ExchangeCalendar, get_calendar
 
-from live import data_validator, git_state, history, notifier, rtdb_gateway
+from live import data_validator, history, notifier, rtdb_gateway, storage_gateway
 from live.chart_data import (
     build_chart_meta_and_year_slices,
     build_equity_meta,
@@ -50,15 +47,12 @@ from live.constants import (
     APPLIED_FILL_IDS_MAX_AGE_DAYS,
     DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME,
     DEFAULT_APPLIED_FILL_IDS_FILENAME,
-    DEFAULT_LIVE_STATE_DIR,
     DEFAULT_LIVE_STATE_FILENAME,
     DEFAULT_RECENT_FETCH_DAYS,
     FIREBASE_CRED_ENV_KEY,
     FIREBASE_DB_URL,
     KST_TIMEZONE,
     NYSE_CALENDAR_CODE,
-    STATE_REPO_PAT_ENV_KEY,
-    STATE_REPO_URL,
     TELEGRAM_CHAT_ENV_KEY,
     TELEGRAM_TOKEN_ENV_KEY,
     extract_ticker_from_path,
@@ -129,11 +123,6 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
     logger.debug(f".env 자동 로드 완료: {dotenv_path}")
 
 
-def _now_kst_for_commit() -> str:
-    """커밋 메시지용 KST 타임스탬프 (``YYYY-MM-DD HH:MM:SS KST``)."""
-    return datetime.now(KST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S KST")
-
-
 def _now_kst_iso() -> str:
     """RTDB / Git 정본 history 미러용 KST ISO 8601 타임스탬프.
 
@@ -161,50 +150,6 @@ def _is_nyse_session(trade_date: date) -> bool:
     """
     calendar = _get_nyse_calendar()
     return bool(calendar.is_session(pd.Timestamp(trade_date)))
-
-
-@contextmanager
-def ephemeral_state_repo(*, push_on_success: bool, commit_subcommand: str) -> Iterator[Path]:
-    """매 CLI 실행마다 ``qbt-live-state`` 리포를 shallow clone → yield → (쓰기 명령만)
-    commit + push → tempdir cleanup 하는 컨텍스트 매니저.
-
-    로컬과 GitHub Actions 가 **동일한 코드 경로**로 state 리포를 다루도록 하여
-    실행 결과가 둘 다 원격 리포의 새 커밋으로 수렴하게 한다.
-
-    Args:
-        push_on_success: ``True`` 면 컨텍스트 종료 시 변경사항을 commit & push.
-            읽기 전용 명령(``drift``, ``history``)은 ``False``.
-        commit_subcommand: 커밋 메시지에 포함될 서브명령 이름 (예: ``run-daily``).
-
-    Yields:
-        tempdir 내부의 clone 루트 경로 (``Path``). 이 경로를 ``state_dir`` 로 사용.
-
-    Raises:
-        ValueError: ``STATE_REPO_PAT`` 환경변수 미설정.
-        RuntimeError: git clone / commit / push 실패 시. 자동 복구 금지 원칙에 따라
-            예외는 호출자에게 전파된다.
-    """
-    pat = os.environ.get(STATE_REPO_PAT_ENV_KEY, "")
-    if not pat:
-        raise ValueError(f"{STATE_REPO_PAT_ENV_KEY} 환경변수가 설정되지 않았습니다. " "로컬: .env 파일, Actions: workflow env: 블록 확인")
-
-    with tempfile.TemporaryDirectory(prefix="qbt-live-") as td:
-        clone_root = Path(td) / DEFAULT_LIVE_STATE_DIR.name
-        logger.debug(f"ephemeral state repo clone 시작: {clone_root}")
-        git_state.git_clone_shallow(STATE_REPO_URL, clone_root, pat=pat)
-        logger.debug("clone 완료")
-
-        # 명령 수행 — 컨텍스트 내부에서 예외 발생 시 push 건너뜀
-        yield clone_root
-
-        if push_on_success:
-            message = f"auto: live {commit_subcommand} {_now_kst_for_commit()}"
-            pushed = git_state.git_commit_and_push(clone_root, message)
-            if pushed:
-                logger.debug(f"원격 push 완료: {message}")
-            else:
-                logger.debug("변경사항 없음 — push skip")
-    # TemporaryDirectory 의 __exit__ 가 tempdir 자동 삭제
 
 
 # ============================================================================
@@ -401,7 +346,7 @@ def _cmd_reset(args: argparse.Namespace) -> int:
     rtdb_app: Any = _require_rtdb_app()
 
     # 2~6, 7~8, 9. Git clone → 파일 작업 → RTDB 삭제 → 차트 재생성 → commit+push (컨텍스트 종료 시).
-    with ephemeral_state_repo(push_on_success=True, commit_subcommand="reset") as state_dir:
+    with storage_gateway.state_workspace(push_on_success=True) as state_dir:
         # 3. live_state.json 초기화
         state = create_initial_state(capital)
         save_state(state, state_dir / DEFAULT_LIVE_STATE_FILENAME)
@@ -485,7 +430,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
     # 이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 에 동일 부여.
     applied_at_kst = _now_kst_iso()
 
-    with ephemeral_state_repo(push_on_success=True, commit_subcommand="run-daily") as state_dir:
+    with storage_gateway.state_workspace(push_on_success=True) as state_dir:
         # 상태 로드
         state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
         applied_path = state_dir / DEFAULT_APPLIED_FILL_IDS_FILENAME
@@ -918,7 +863,7 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
     """
     ticker_arg: str | None = args.ticker
     if ticker_arg is None:
-        with ephemeral_state_repo(push_on_success=True, commit_subcommand="rebuild-data") as state_dir:
+        with storage_gateway.state_workspace(push_on_success=True) as state_dir:
             for ticker in _collect_all_tickers():
                 csv_path = live_csv_path(state_dir, ticker)
                 rebuild_full_csv(ticker, csv_path, period="max")
@@ -926,7 +871,7 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
         return 0
 
     ticker = ticker_arg.upper()
-    with ephemeral_state_repo(push_on_success=True, commit_subcommand=f"rebuild-data {ticker}") as state_dir:
+    with storage_gateway.state_workspace(push_on_success=True) as state_dir:
         csv_path = live_csv_path(state_dir, ticker)
         rebuild_full_csv(ticker, csv_path, period="max")
         logger.debug(f"rebuild-data: {ticker} → {csv_path}")
@@ -940,7 +885,7 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
 
 def _cmd_drift(args: argparse.Namespace) -> int:
     del args  # 사용하지 않음
-    with ephemeral_state_repo(push_on_success=False, commit_subcommand="drift") as state_dir:
+    with storage_gateway.state_workspace(push_on_success=False) as state_dir:
         state = load_state(state_dir / DEFAULT_LIVE_STATE_FILENAME)
 
         bundle = _build_market_bundle(state_dir)
@@ -1007,7 +952,7 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
     year_arg: int | None = args.year
     dry_run: bool = args.dry_run
 
-    with ephemeral_state_repo(push_on_success=False, commit_subcommand="backfill-chart-years") as state_dir:
+    with storage_gateway.state_workspace(push_on_success=False) as state_dir:
         history_dir = _history_dir(state_dir)
         user_trades = history.load_user_trades(history_dir)
         signal_history = history.load_signal_history(history_dir)
