@@ -161,17 +161,30 @@ poetry run python -m live run-daily --trade-date 2026-04-10
 poetry run python -m live drift
 poetry run python -m live fetch-fills
 poetry run python -m live notify-failure -m "수동 테스트"
-# summary.jsonl / user_trades.jsonl 등 영구 이력은 GitHub UI 에서
-# qbt-live-state 리포의 history/ 폴더를 직접 조회한다
+# summary.jsonl / user_trades.jsonl 등 영구 이력은 Firebase Console / GCS 콘솔에서
+# gs://qbt-live.firebasestorage.app/history/ 폴더를 직접 조회한다
 ```
 
 **환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다. 필요한 변수:
 
-- `STATE_REPO_PAT` — `qbt-live-state` 리포 clone/push용 GitHub PAT
+- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로 (RTDB / GCS 정본 / FCM 공용)
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — 알림 발송용
-- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로
 
 상세 가이드: [src/live/CLAUDE.md](../src/live/CLAUDE.md)
+
+### 1회성 마이그레이션 (qbt-live-state git → GCS)
+
+`qbt-live-state` git 리포의 정본 데이터를 GCS 버킷으로 1회 이관할 때만 사용합니다 (cutover 직전 1회).
+
+```bash
+# 사전 시뮬레이션 (실제 업로드 없이 대상 파일 / 사이즈 출력)
+poetry run python scripts/migrate/git_state_to_gcs.py --dry-run
+
+# 실제 업로드 + 검증 (객체 수 / 사이즈 / live_state.json sha256 비교)
+poetry run python scripts/migrate/git_state_to_gcs.py
+```
+
+**1회성 환경변수**: `STATE_REPO_PAT` — `qbt-live-state` private repo clone 전용. 본 스크립트가 끝나면 더 이상 필요하지 않습니다.
 
 ---
 

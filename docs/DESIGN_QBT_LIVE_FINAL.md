@@ -5,7 +5,7 @@
 
 ## 0. 개요
 
-QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구조로 실매매 알림 시스템으로 이식한다. live 는 평일 장 마감 후 GitHub Actions 로 실행되어 Git 정본(`qbt-live-state`) 과 Firebase RTDB 를 갱신하고, 앱은 RTDB 를 통해 데이터를 읽고 체결을 입력한다.
+QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구조로 실매매 알림 시스템으로 이식한다. live 는 평일 장 마감 후 GitHub Actions 로 실행되어 GCS 정본(`gs://qbt-live.firebasestorage.app`) 과 Firebase RTDB 를 갱신하고, 앱은 RTDB 를 통해 데이터를 읽고 체결을 입력한다.
 
 ### 앱 관점 확정 사항
 
@@ -19,7 +19,7 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
 | 자산 직접 수정      | 앱 → RTDB `/balance_adjust/inbox/{uuid}`                  |
 | 차트                | RTDB 시계열 + TradingView Lightweight Charts              |
 | FCM 토큰            | RTDB `/device_tokens/{device_id}` (복수 기기 대응)        |
-| 정본 원장           | Git 프라이빗 리포 (앱은 접근하지 않음)                    |
+| 정본 원장           | GCS 버킷 (앱은 접근하지 않음)                             |
 | model / actual 분리 | 두 축을 RTDB 에서 별도로 읽고 표시                        |
 | PendingOrder        | 단일 슬롯, `execute_on` 없음 (익일 시가 자동 확정)        |
 | 스케쥴              | 평일 ET 17:27 cron, 매일 1 회 `/latest/*` 갱신            |
@@ -28,7 +28,7 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
 
 | 항목              | 값                                                                   |
 | ----------------- | -------------------------------------------------------------------- |
-| Firebase 프로젝트 | `qbt-live` (Spark 요금제)                                            |
+| Firebase 프로젝트 | `qbt-live` (Blaze 요금제 — GCS 사용을 위한 결제수단 등록)            |
 | RTDB URL          | `https://qbt-live-default-rtdb.asia-southeast1.firebasedatabase.app` |
 | Android 패키지    | `com.ingbeen.qbtlive`                                                |
 | 텔레그램 봇       | `@qbt_live_alert_bot`                                                |
@@ -53,9 +53,10 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
                         |            |
            원장 read/write            read/write
                         v            v
-              [qbt-live-state]   [Firebase RTDB]  --- FCM/텔레그램 알림 --->  [Android 앱]
-               (Git 프라이빗)    /latest/*                                           ^
-               (앱 접근 불가)    /charts/prices/*                                    |
+              [GCS 정본]          [Firebase RTDB]  --- FCM/텔레그램 알림 --->  [Android 앱]
+               (qbt-live.fire-    /latest/*                                          ^
+                storage.app)      /charts/prices/*                                   |
+               (앱 접근 불가)                                                         |
                                  /charts/equity/*                                    |
                                  /history/fills/*                                    |
                                  /history/balance_adjusts/*                          |
@@ -67,17 +68,17 @@ QBT 포트폴리오 전략을 **Android 앱 + 일일 실행 엔진(live)** 구�
                                                             /history/* --------------+
 ```
 
-- **live** 는 평일 장 마감 후 GitHub Actions 에서 1 회 실행되어 Git 원장과 RTDB 를 갱신한다.
-- **qbt-live-state** (Git 프라이빗 리포) 는 live 전용 정본 원장이며 **앱은 접근하지 않는다**.
+- **live** 는 평일 장 마감 후 GitHub Actions 에서 1 회 실행되어 GCS 정본과 RTDB 를 갱신한다.
+- **GCS 정본** (`gs://qbt-live.firebasestorage.app`) 은 live 전용 정본 원장이며 **앱은 접근하지 않는다**.
 - **Firebase RTDB** 는 앱 ↔ live 양방향 버스이다. 앱은 `/latest/*` 와 `/charts/*` 를 읽고, `/fills/inbox/*` 와 `/balance_adjust/inbox/*` 에 쓰며, `/device_tokens/*` 로 FCM 토큰을 등록한다.
 - **FCM + 텔레그램** 은 live 가 매 실행 끝에 동시 발송한다 (일일 리포트 + 실패 알림).
 
-live 내부 실행 순서 / 예외 훅 / ephemeral clone 메커니즘 등은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
+live 내부 실행 순서 / 예외 훅 / GCS ephemeral 워크스페이스 메커니즘 등은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
 ### 1.2 앱 관점 핵심 원칙
 
 - **앱이 유일한 UI** — 웹 없음.
-- **Git = 정본, RTDB = 앱 버스** — 앱은 Git 에 직접 접근하지 않는다. **앱에 GitHub 토큰 절대 없음**.
+- **GCS = 정본, RTDB = 앱 버스** — 앱은 GCS 에 직접 접근하지 않는다. **앱에 GCS 자격증명 절대 없음**.
 - **model / actual 분리** — actual 축은 앱 입력(`/fills/inbox/` 또는 `/balance_adjust/inbox/`) 으로만 갱신된다. live 는 actual 을 덮어쓰지 않는다.
 - **inbox 패턴** — `/latest/*` 는 live 가 매 실행마다 전체 덮어쓰므로 앱이 직접 쓰면 다음 실행에서 사라진다. 앱의 모든 쓰기는 `/fills/inbox/` / `/balance_adjust/inbox/` / `/device_tokens/` 세 경로에만 가능하다.
 - **알림 동시 발송** — FCM + 텔레그램 은 독립 채널로 동시 발송된다. 한쪽 채널 실패는 다른 쪽을 막지 않는다.
@@ -285,9 +286,9 @@ live 는 `/device_tokens/` 전체를 읽어 발송하며, 만료 토큰 (`UNREGI
 
 ## 8. 상태 저장
 
-### 8.1 Git 정본 (qbt-live-state)
+### 8.1 GCS 정본 (qbt-live.firebasestorage.app)
 
-live 서버는 `qbt-live-state` 프라이빗 리포를 원장(JSON + CSV + history) 으로 사용한다. **앱은 Git 정본에 접근하지 않으며**, 앱이 보는 모든 데이터는 RTDB 경로(§8.2) 로만 전달된다. Git 정본의 파일 트리 / 내부 스키마 / idempotency 원장 / history JSONL 포맷은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 및 `src/live/` 코드가 정본이다.
+live 서버는 `gs://qbt-live.firebasestorage.app` GCS 버킷을 원장(JSON + CSV + history) 으로 사용한다. **앱은 GCS 정본에 접근하지 않으며**, 앱이 보는 모든 데이터는 RTDB 경로(§8.2) 로만 전달된다. GCS 정본의 객체 키 트리 / 내부 스키마 / idempotency 원장 / history JSONL 포맷은 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 및 `src/live/` 코드가 정본이다. 매 CLI 실행마다 `storage_gateway.state_workspace` 가 버킷을 임시 디렉토리에 download → 작업 → 변경된 파일만 upload 하는 ephemeral 워크스페이스 방식으로 동작한다 (`live_state.json` 마지막 upload). 사고 복구는 GCS Soft Delete 30일 보호 + 일별 스냅샷 (`history/states/{date}.json`) 으로 수행한다.
 
 ### 8.2 RTDB 경로 구조
 
@@ -922,9 +923,9 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 | 경로                            | 쓰기 주체                                          | 읽기 주체                |
 | ------------------------------- | -------------------------------------------------- | ------------------------ | --------------------------------------- | -------------- |
-| qbt-live-state (Git)            | daily runner (ephemeral)                           | daily runner             |
+| GCS 정본 버킷                    | daily runner (ephemeral)                           | daily runner             |
 | `/latest/*`, `/charts/*`        | daily runner (Admin SDK)                           | 앱                       |
-| `/history/{fills                | balance_adjusts                                    | signals}/\*`             | daily runner (Admin SDK, Git 정본 미러) | 앱 (이력 조회) |
+| `/history/{fills                | balance_adjusts                                    | signals}/\*`             | daily runner (Admin SDK, GCS 정본 미러) | 앱 (이력 조회) |
 | `/fills/*`, `/balance_adjust/*` | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/fill_dismiss/*`               | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
 | `/model_sync/*`                 | 앱 (레코드 본문) / daily runner (`processed` 필드) | daily runner (Admin SDK) |
@@ -936,7 +937,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **실패 처리 계약**: 실패 시 자동 DLQ / 재시도 큐 / per-UUID 결과 채널은 없다. 다음 cron 실행 또는 `workflow_dispatch` 수동 재실행이 재시도를 담당하며, `applied_*_ids.json` 원장과 RTDB `set()` 덮어쓰기가 중복 반영을 방지한다. 반영 실패는 전체 `run-daily` 실패와 동일하게 FCM + 텔레그램 실패 알림 (§6.3) 으로만 전달된다.
 
-**`/history/*` 정본 관계**: Git 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 같은 트랜잭션으로 초기화한다. 과거 이력은 `qbt-live-state` 리포의 이전 커밋에서 조회할 수 있으며 (git log), `run-daily` 가 reset 이후 시점부터 다시 누적한다.
+**`/history/*` 정본 관계**: GCS 정본 (`history/user_trades.jsonl`, `balance_adjusts.jsonl`, `signals.jsonl`) 이 단일 정본이며 RTDB 는 미러. `reset` 은 GCS 정본 `history/` 와 RTDB `/history/*` 를 같은 워크스페이스에서 초기화한다. 과거 이력은 GCS Soft Delete 30일 보호로 복원 가능하며 (그 이상은 일별 스냅샷 `history/states/{date}.json` 으로 시점 복원), `run-daily` 가 reset 이후 시점부터 다시 누적한다.
 
 ---
 
