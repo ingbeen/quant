@@ -172,20 +172,6 @@ poetry run python -m live notify-failure -m "수동 테스트"
 
 상세 가이드: [src/live/CLAUDE.md](../src/live/CLAUDE.md)
 
-### 1회성 마이그레이션 (qbt-live-state git → GCS)
-
-`qbt-live-state` git 리포의 정본 데이터를 GCS 버킷으로 1회 이관할 때만 사용합니다 (cutover 직전 1회).
-
-```bash
-# 사전 시뮬레이션 (실제 업로드 없이 대상 파일 / 사이즈 출력)
-poetry run python scripts/migrate/git_state_to_gcs.py --dry-run
-
-# 실제 업로드 + 검증 (객체 수 / 사이즈 / live_state.json sha256 비교)
-poetry run python scripts/migrate/git_state_to_gcs.py
-```
-
-**1회성 환경변수**: `STATE_REPO_PAT` — `qbt-live-state` private repo clone 전용. 본 스크립트가 끝나면 더 이상 필요하지 않습니다.
-
 ---
 
 ## 품질 검증 (통합)

@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Any
 
 from firebase_admin import storage as fa_storage
 
@@ -95,20 +96,21 @@ def upload_blob(
     name = str(blob_path)
     bucket = _bucket()
     blob = bucket.blob(name)
-    kwargs: dict = {}
-    if if_generation_match is not None:
-        kwargs["if_generation_match"] = if_generation_match
     try:
-        blob.upload_from_filename(str(local_path), **kwargs)
+        if if_generation_match is not None:
+            blob.upload_from_filename(str(local_path), if_generation_match=if_generation_match)
+        else:
+            blob.upload_from_filename(str(local_path))
     except Exception as exc:
         raise RuntimeError(
-            f"GCS upload 실패: blob={name}, local={local_path}, "
-            f"if_generation_match={if_generation_match}, exc={exc}"
+            f"GCS upload 실패: blob={name}, local={local_path}, " f"if_generation_match={if_generation_match}, exc={exc}"
         ) from exc
-    return blob.generation
+    # ``blob.generation`` 은 업로드 직후 서버 응답으로 항상 채워지지만, 타입 스텁은
+    # ``int | None`` 으로 표기되어 있다. 호출자에게는 항상 ``int`` 를 반환한다.
+    return int(blob.generation or 0)
 
 
-def list_blobs_with_prefix(prefix: str) -> list:
+def list_blobs_with_prefix(prefix: str) -> list[Any]:
     """``prefix`` 로 시작하는 blob 들을 반환한다.
 
     Args:

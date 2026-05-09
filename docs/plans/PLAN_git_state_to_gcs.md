@@ -2,7 +2,7 @@
 
 > 작성/운영 규칙(SoT): 반드시 [docs/CLAUDE.md](../CLAUDE.md)를 참고하세요.
 
-**상태**: 🔄 In Progress
+**상태**: ✅ Done
 
 ---
 
@@ -19,7 +19,7 @@
 ---
 
 **작성일**: 2026-05-09 16:00
-**마지막 업데이트**: 2026-05-09 17:30
+**마지막 업데이트**: 2026-05-09 18:30
 **관련 범위**: live (storage_gateway 신설, cli ephemeral 컨텍스트 교체, git_state 제거)
 **관련 문서**:
 
@@ -97,23 +97,23 @@ BRIEFING §4 의 5단계가 모두 완료된 상태:
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다.
 
-- [ ] `src/live/storage_gateway.py` 신설 + 단위 테스트 통과
-- [ ] `cli.py` 의 `ephemeral_state_repo` 컨텍스트 → GCS 다운로드 / 업로드 기반으로 교체 완료
-- [ ] `live_state.json` 마지막 업로드 순서 보호 (BRIEFING §6.5)
-- [ ] `constants.py` 에서 git 관련 상수 제거 + `STATE_BUCKET_NAME` 추가
-- [ ] `git_state.py` + `tests/live/test_git_state.py` 제거
-- [ ] `.github/workflows/daily_run.yml` 의 `STATE_REPO_PAT` secret 사용 제거
-- [ ] 1회성 마이그레이션 스크립트 작성 (사용자가 cutover 직전 1회 실행)
-- [ ] 회귀 테스트 (`test_regression.py`) 통과 — equity / positions / cash 이관 전후 일치
-- [ ] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
-- [ ] `poetry run black .` 실행 완료 (마지막 Phase 에서)
-- [ ] 문서 업데이트:
+- [x] `src/live/storage_gateway.py` 신설 + 단위 테스트 통과 (Phase 1, 17 tests)
+- [x] `cli.py` 의 `ephemeral_state_repo` 컨텍스트 → GCS 다운로드 / 업로드 기반으로 교체 완료
+- [x] `live_state.json` 마지막 업로드 순서 보호 (BRIEFING §6.5)
+- [x] `constants.py` 에서 git 관련 상수 제거 + `STATE_BUCKET_NAME` 추가
+- [x] `git_state.py` + `tests/live/test_git_state.py` 제거
+- [x] `.github/workflows/daily_run.yml` 의 `STATE_REPO_PAT` secret 사용 제거
+- [x] 1회성 마이그레이션 스크립트 작성 (사용자가 cutover 직전 1회 실행)
+- [x] 회귀 테스트 (`test_regression.py`) 통과 — equity / positions / cash 이관 전후 일치
+- [x] `poetry run python validate_project.py` 통과 (failed=0, skipped=0; passed/failed/skipped 수 기록)
+- [x] `poetry run black .` 실행 완료 (마지막 Phase 에서)
+- [x] 문서 업데이트:
   - `README.md`: **변경 있음** (live 섹션 인프라 설명에서 git 정본 → GCS 정본 표현 갱신)
   - `docs/COMMANDS.md`: **변경 있음** (live 워크플로우 환경변수 안내 갱신, 마이그레이션 스크립트 사용법 추가)
   - `src/live/CLAUDE.md`: **변경 있음** ("ephemeral state repo" 섹션 → "GCS 버킷 워크스페이스" 섹션, 모듈 표에서 `git_state.py` 제거, 환경변수 목록에서 `STATE_REPO_PAT` 제거)
   - `docs/DESIGN_QBT_LIVE_FINAL.md`: **변경 있음** (git 정본 기술 부분 GCS 정본으로 갱신)
   - `docs/BRIEFING_git_state_to_gcs.md`: **변경 없음** (사전 합의 문서, 본 plan 의 입력)
-- [ ] plan 체크박스 최신화 (Phase / DoD / Validation 모두 반영)
+- [x] plan 체크박스 최신화 (Phase / DoD / Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -303,18 +303,23 @@ Phase 0 테스트가 통과하도록 storage_gateway 를 구현한다.
 
 ### 마지막 Phase — 최종 검증 (그린 + 포맷)
 
-DoD 체크리스트 / Validation 마무리 + 자동 포맷 적용.
+DoD 체크리스트 / Validation 마무리 + 자동 포맷 적용 + 1회성 마이그레이션 산출물 폐기.
 
 **작업 내용**:
 
-- [ ] `poetry run black .` 실행 (자동 포맷 적용 — 본 plan 에서 처음으로 한 번만)
-- [ ] DoD 체크리스트 최종 업데이트
-- [ ] 전체 Phase 체크리스트 최종 업데이트
-- [ ] 상태 → ✅ Done
+- [x] `poetry run black .` 실행 — `storage_gateway.py` / `test_storage_gateway.py` / `git_state_to_gcs.py` 3개 reformat
+- [x] PyRight 정정 (`storage_gateway.upload_blob` 의 `**kwargs` 분기, `list_blobs_with_prefix` 반환 타입에 `list[Any]`)
+- [x] **1회성 마이그레이션 산출물 폐기** (사용자 cutover 검증 완료 후 2026-05-09 18:30):
+  - [x] `scripts/migrate/git_state_to_gcs.py` 삭제
+  - [x] `scripts/migrate/` 디렉토리 삭제
+  - [x] `docs/COMMANDS.md` 의 "1회성 마이그레이션" 서브섹션 제거 (가이드 무효)
+- [x] DoD 체크리스트 최종 업데이트
+- [x] 전체 Phase 체크리스트 최종 업데이트
+- [x] 상태 → ✅ Done
 
 **Validation**:
 
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
+- [x] `poetry run python validate_project.py` — **passed=1020, failed=0, skipped=0**
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
@@ -369,5 +374,8 @@ BRIEFING §8 의 리스크 표를 본 plan 의 검증 단계에 매핑.
 - 2026-05-09 16:30: Phase 0~1 완료 — storage_gateway 신설 + FakeBucket 픽스처 + 17 tests 통과. 별도 commit `610df6e` 으로 push.
 - 2026-05-09 17:00: Phase 2 완료 — `cli.py` 의 `ephemeral_state_repo` 함수 제거 + 호출 측 6곳을 `storage_gateway.state_workspace` 직접 호출로 교체. `STATE_REPO_URL` / `STATE_REPO_PAT_ENV_KEY` / `DEFAULT_LIVE_STATE_DIR` 상수 제거. 테스트 mock 정정. **85 passed**.
 - 2026-05-09 17:30: Phase 3 완료 — `git_state.py` / `test_git_state.py` 삭제. `GIT_BOT_NAME` / `GIT_BOT_EMAIL` 제거. `daily_run.yml` 의 `STATE_REPO_PAT` env 라인 제거. `test_alert_coverage` / `test_workflows` mock·검증 정정. **`tests/live/` 501 passed**. 단, `src/live/CLAUDE.md` 의 `git_state` / `STATE_REPO_PAT` 잔재는 Phase 5 (도메인 문서 갱신) 에서 정리 예정.
+- 2026-05-09 18:00: Phase 4 완료 — `scripts/migrate/git_state_to_gcs.py` 신설 (1회성, dotenv 자동 로딩 포함) + `docs/COMMANDS.md` 가이드 추가. **사용자 실제 실행 완료**: 31 파일 / 2,223,750 bytes / `live_state.json` sha256 일치 — 검증 3건 모두 통과.
+- 2026-05-09 18:15: Phase 5 완료 — `src/live/CLAUDE.md` / `docs/COMMANDS.md` / `docs/DESIGN_QBT_LIVE_FINAL.md` 일괄 갱신 (git 정본 → GCS 정본). `README.md` 검토 결과 잔재 없음.
+- 2026-05-09 18:30: 마지막 Phase 완료 — `poetry run black .` 적용 (3 파일 reformat), PyRight 정정 (`storage_gateway` 의 `**kwargs` 분기 + `list[Any]` 타입 인자), `poetry run python validate_project.py` **passed=1020, failed=0, skipped=0**. 사용자 cutover 검증 완료 후 `scripts/migrate/` 1회성 산출물 폐기 + `docs/COMMANDS.md` 가이드 제거. **PLAN 상태 ✅ Done**.
 
 ---

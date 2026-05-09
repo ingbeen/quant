@@ -19,12 +19,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from live import storage_gateway
-
 
 # ============================================================================
 # download_blob
@@ -115,9 +112,7 @@ class TestUploadBlob:
         gen2 = storage_gateway.upload_blob(local, "x.json", if_generation_match=gen1)
         assert gen2 > gen1
 
-    def test_generation_precondition_mismatch_raises_runtime_error(
-        self, fake_gcs_bucket, tmp_path
-    ):
+    def test_generation_precondition_mismatch_raises_runtime_error(self, fake_gcs_bucket, tmp_path):
         """
         목적: generation mismatch (412 PreconditionFailed) 시 RuntimeError 전파.
 
@@ -223,10 +218,7 @@ class TestStateWorkspace:
         # When + Then
         with storage_gateway.state_workspace(push_on_success=False) as workspace:
             assert (workspace / "live_state.json").read_bytes() == b'{"v":1}'
-            assert (
-                (workspace / "data/stock/SPY.csv").read_bytes()
-                == b"date,close\n2026-01-01,100\n"
-            )
+            assert (workspace / "data/stock/SPY.csv").read_bytes() == b"date,close\n2026-01-01,100\n"
 
     def test_uploads_only_modified_files(self, fake_gcs_bucket):
         """

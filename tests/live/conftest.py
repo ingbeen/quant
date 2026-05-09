@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
@@ -58,7 +58,7 @@ class FakeBlob:
     ``google.api_core.exceptions.PreconditionFailed`` 와 동일 위치).
     """
 
-    def __init__(self, name: str, *, _bucket: "FakeBucket | None" = None) -> None:
+    def __init__(self, name: str, *, _bucket: FakeBucket | None = None) -> None:
         self.name = name
         self._bucket = _bucket
         self._data: bytes | None = None
