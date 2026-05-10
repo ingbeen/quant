@@ -258,7 +258,7 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 적용 패턴:
 
 - DataFrame: `df.round({컬럼명: 자릿수, ...})` (to_csv 직전)
-- JSON: `round(float(str(value)), 자릿수)` (dict 구성 시)
+- JSON: `round(float(str(value)), 자릿수)` (dict 구성 시). `str()` 우회는 값 타입이 불명확한 경우(TypedDict의 Any, numpy/pandas scalar 등) 안전 변환을 위함이며, 값 타입이 명확한 dataclass 필드 / typed float 변수는 `round(float(value), 자릿수)` 로 충분하다.
 
 문서화:
 

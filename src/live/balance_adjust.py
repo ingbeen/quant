@@ -32,7 +32,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 
-from live.constants import KST_TIMEZONE
+from live.constants import EMPTY_POSITION_AVG_PRICE, KST_TIMEZONE
 from live.models import BalanceAdjust, LiveState
 
 __all__ = ["apply_balance_adjusts_idempotent"]
@@ -117,7 +117,7 @@ def _apply_single_adjust(state: LiveState, adjust: BalanceAdjust) -> None:
             asset.actual_shares = int(adjust.new_shares)
             if asset.actual_shares == 0:
                 # new_shares=0 리셋 규칙이 평균가 / 진입일 보정보다 우선
-                asset.actual_avg_entry_price = 0.0
+                asset.actual_avg_entry_price = EMPTY_POSITION_AVG_PRICE
                 asset.actual_entry_date = None
             else:
                 # new_shares > 0: 동시 지정된 평균가 / 진입일을 적용 (없으면 기존 값 유지)

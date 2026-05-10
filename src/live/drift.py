@@ -21,6 +21,7 @@ from datetime import datetime
 from live.constants import (
     DRIFT_CORRECTION_RATIO,
     DRIFT_WARNING_RATIO,
+    EMPTY_POSITION_AVG_PRICE,
     KST_TIMEZONE,
 )
 from live.models import ActualFill, AssetDrift, DriftReport, LiveState
@@ -76,7 +77,7 @@ def _apply_single_fill(state: LiveState, fill: ActualFill) -> None:
         asset.actual_shares = new_shares
         state.shared_cash_actual += proceeds
         if new_shares == 0:
-            asset.actual_avg_entry_price = 0.0
+            asset.actual_avg_entry_price = EMPTY_POSITION_AVG_PRICE
             asset.actual_entry_date = None
 
     else:

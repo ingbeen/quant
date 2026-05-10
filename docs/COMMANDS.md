@@ -240,7 +240,7 @@ poetry run pytest --cov=src/qbt --cov=src/live --cov-report=html tests/
 ## 데이터 다운로드 옵션
 
 ```bash
-# 전체 종목 일괄 다운로드 (SPY, IWM, EFA, EEM, GLD, TLT, QQQ, TQQQ)
+# 전체 종목 일괄 다운로드 (대상 티커는 scripts/data/download_data.py 의 DEFAULT_TICKERS 참조)
 poetry run python scripts/data/download_data.py
 
 # 특정 종목 전체 기간

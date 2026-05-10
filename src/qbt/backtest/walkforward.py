@@ -119,7 +119,8 @@ def generate_wfo_windows(
             f"내부 불변조건 위반: is_end_year <= 1 (data_start={data_start}, "
             f"initial_is_months={initial_is_months}, is_end_year={is_end_year})"
         )
-    # IS 종료일 = IS 종료 월의 마지막 날 전일 (OOS 시작 전날)
+    # is_end_year / is_end_month 는 OOS 시작 월(1 일)을 가리킨다.
+    # IS 종료일 = OOS 시작 월의 직전 달 마지막 날 (= OOS 시작 전날).
     is_end = (
         _last_day_of_month(is_end_year, is_end_month - 1)
         if is_end_month > 1

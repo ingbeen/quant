@@ -313,9 +313,7 @@ TypedDict:
 설정 목록:
 
 - `CONFIGS`: `list[BufferZoneConfig]` (전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가. config당 필수 필드(strategy_name, display_name, 경로)만 명시, 나머지는 기본값 활용
-  - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
-  - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
-  - cross-asset 6개: buffer_zone_spy, buffer_zone_iwm, buffer_zone_efa, buffer_zone_eem, buffer_zone_gld, buffer_zone_tlt (4P 고정)
+  - 자산 라인업은 변경 빈도가 높으므로 본 문서에 직접 나열하지 않는다. 최신 자산 목록·시그널/매매 데이터 경로·표시명은 [src/qbt/backtest/strategies/buffer_zone.py](strategies/buffer_zone.py)의 `CONFIGS`를 직접 확인할 것.
 
 전략 클래스:
 
@@ -347,9 +345,7 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 티커별 설정 목록:
 
 - `CONFIGS`: `list[BuyAndHoldConfig]`. 새 티커 추가 시 여기에 한 줄 추가
-  - `buy_and_hold_qqq`: QQQ 데이터 (`QQQ_DATA_PATH`) 사용
-  - `buy_and_hold_tqqq`: TQQQ 합성 데이터 (`TQQQ_SYNTHETIC_DATA_PATH`) 사용
-  - cross-asset: buy_and_hold_spy, buy_and_hold_iwm, buy_and_hold_efa, buy_and_hold_eem, buy_and_hold_gld, buy_and_hold_tlt
+  - 자산 라인업은 변경 빈도가 높으므로 본 문서에 직접 나열하지 않는다. 최신 티커 목록은 [src/qbt/backtest/strategies/buy_and_hold.py](strategies/buy_and_hold.py)의 `CONFIGS`를 직접 확인할 것.
 
 전략 클래스:
 

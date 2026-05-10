@@ -6,7 +6,13 @@ import pandas as pd
 
 from qbt.backtest.analysis import calculate_drawdown_pct_series
 from qbt.backtest.constants import COL_EQUITY
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
+from qbt.backtest.portfolio_types import (
+    ASSET_COL_SUFFIX_SHARES,
+    AssetSlotConfig,
+    PortfolioConfig,
+    asset_shares_col,
+    asset_value_col,
+)
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 from qbt.common_constants import EPSILON
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
@@ -122,13 +128,14 @@ def _attach_holding_view_columns(equity_df: pd.DataFrame, initial_capital: float
         initial_capital: 초기 자본금 (양수)
     """
     # 1. 자산 식별: {asset_id}_shares 컬럼에서 asset_id 추출
-    suffix = "_shares"
-    asset_ids = [col[: -len(suffix)] for col in equity_df.columns if col.endswith(suffix)]
+    asset_ids = [
+        col[: -len(ASSET_COL_SUFFIX_SHARES)] for col in equity_df.columns if col.endswith(ASSET_COL_SUFFIX_SHARES)
+    ]
 
     # 2. 자산별 current_price / return_pct / contribution
     for asset_id in asset_ids:
-        shares_col = f"{asset_id}_shares"
-        value_col = f"{asset_id}_value"
+        shares_col = asset_shares_col(asset_id)
+        value_col = asset_value_col(asset_id)
         avg_price_col = f"{asset_id}_avg_price"
         realized_pnl_col = f"{asset_id}_realized_pnl"
         unrealized_pnl_col = f"{asset_id}_unrealized_pnl"

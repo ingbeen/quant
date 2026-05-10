@@ -201,7 +201,8 @@ def _build_signal_detections(
         close = float(signal_df.iloc[i][COL_CLOSE])
 
         ma_col = _ma_col_name(slot)
-        ma_value = float(signal_df.iloc[i][ma_col]) if ma_col in signal_df.columns else None
+        ma_col_present = ma_col in signal_df.columns
+        ma_value = float(signal_df.iloc[i][ma_col]) if ma_col_present else None
 
         # 버퍼존 밴드 (BufferZoneStrategy 일 때만, strategy 내부 상태 기반)
         upper_band: float | None = None
@@ -211,10 +212,18 @@ def _build_signal_detections(
             upper_band, lower_band = get_current_bands(strategy)
 
         # MA 근접도 (비율 0~1)
+        # - ma_col 미존재(buy_and_hold 자산): MA 자체가 의미 없으므로 placeholder 0.0
+        # - ma_col 존재 + 워밍업 구간(인덱스 < ma_window - 1): MA NaN 이 정상, placeholder 0.0
+        # - ma_col 존재 + 워밍업 이후: 양수 MA 가 보장되므로 None/0/음수면 내부 불변조건 위반
         if ma_value is not None and ma_value > 0:
             ma_distance_pct = round((close - ma_value) / ma_value, ROUND_RATIO)
-        else:
+        elif not ma_col_present or i < slot.ma_window - 1:
             ma_distance_pct = 0.0
+        else:
+            raise RuntimeError(
+                f"내부 불변조건 위반: 워밍업 이후 ma_value 가 비양수 (asset_id={asset_id}, "
+                f"i={i}, ma_window={slot.ma_window}, ma_value={ma_value})"
+            )
         ma_distances[asset_id] = ma_distance_pct
 
         # 시그널 상태 결정
@@ -507,15 +516,15 @@ def run_daily(
     if rebalance_triggered:
         working_state.last_rebalance_date = trade_date.isoformat()
 
-    # 12. SignalDetection / ma_distances 구성
+    # 11. SignalDetection / ma_distances 구성
     signals_map, ma_distances = _build_signal_detections(strategies, market_bundle, signal_intents, slot_dict, i)
 
-    # 13. drift 계산 — drift.compute_drift 가 유일한 정본.
+    # 12. drift 계산 — drift.compute_drift 가 유일한 정본.
     #     actual 축 (shares 및 cash) 은 위 Stage 2.6 의 balance_adjust 반영이 완료된 상태를 쓴다.
     #     Stage 2.7 의 model_sync 가 적용되었다면 model = actual 상태이므로 drift_pct ≈ 0 에 수렴한다.
     drift_report = compute_drift(working_state, asset_closes_map)
 
-    # 14. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
+    # 13. 알림 본문 요약 (notifier 에서 최종 본문으로 교체됨)
     body_lines = [f"실행일: {trade_date.isoformat()}", f"model equity: {model_equity:,.0f}"]
     if merged_intents:
         body_lines.append(f"익일 체결 대기: {len(merged_intents)} 건")

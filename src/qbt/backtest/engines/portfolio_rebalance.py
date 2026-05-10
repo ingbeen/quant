@@ -58,9 +58,11 @@ class RebalancePolicy:
                 f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
             )
         threshold = self.get_threshold(is_month_start)
+        # active_assets 는 asset_states 키의 부분집합이며 asset_states 는 slot_dict 와
+        # 동일한 자산 집합으로 초기화되므로 slot_dict[asset_id] 는 항상 존재한다.
         for asset_id in projected.active_assets:
-            slot = slot_dict.get(asset_id)
-            if slot is None or slot.target_weight == 0:
+            slot = slot_dict[asset_id]
+            if slot.target_weight == 0:
                 continue
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
             actual_weight = current_amount / total_equity_projected
@@ -103,10 +105,9 @@ class RebalancePolicy:
         sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}
         buy_intents: dict[str, float] = {}  # {asset_id: 매수 필요 금액}
 
+        # active_assets ⊆ slot_dict.keys() 가 항상 성립한다 (should_rebalance 동일 가정).
         for asset_id in projected.active_assets:
-            slot = slot_dict.get(asset_id)
-            if slot is None:
-                continue
+            slot = slot_dict[asset_id]
             target_amount = total_equity_projected * slot.target_weight
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
             delta = target_amount - current_amount

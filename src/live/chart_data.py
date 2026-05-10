@@ -20,7 +20,7 @@ import json
 import math
 from datetime import date
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from live.constants import (
     HISTORY_SUMMARY_FILENAME,
@@ -46,6 +46,13 @@ __all__ = [
 ]
 
 
+# 마커 출처 식별자 (예외 타입 / 분기 결정에 사용).
+# Literal 타입은 그대로 유지하여 호출부의 정적 검사를 보존하면서, 비교 / 메시지에는
+# 본 모듈 상수를 사용해 문자열 중복을 제거한다.
+SOURCE_KIND_SIGNAL_HISTORY: Final[Literal["signal_history"]] = "signal_history"
+SOURCE_KIND_USER_TRADES: Final[Literal["user_trades"]] = "user_trades"
+
+
 # ============================================================================
 # 내부 헬퍼
 # ============================================================================
@@ -69,11 +76,10 @@ def _to_optional_float_list(values: list[Any], decimals: int = ROUND_PRICE) -> l
     return out
 
 
-def _load_slot_frame(
-    state_dir: Path, slot: AssetSlotConfig
-) -> tuple[list[date], list[float | None], list[float | None]]:
+def _load_slot_frame(state_dir: Path, slot: AssetSlotConfig) -> tuple[list[date], list[float], list[float | None]]:
     """자산 CSV 를 로드하여 (dates, close, ma_value) 를 반환한다.
 
+    close 는 CSV 의 원본 값이므로 항상 값을 가진다 (`list[float]`).
     MA 는 QBT 의 ``add_single_moving_average`` 로 계산되며, 워밍업 구간
     (``ma_window - 1`` 개) 은 ``None`` 으로 마스킹된다.
     """
@@ -91,10 +97,7 @@ def _load_slot_frame(
     warmup = slot.ma_window - 1
     ma_list: list[float | None] = [None] * min(warmup, len(raw_ma)) + raw_ma[warmup:]
 
-    # close 는 CSV 의 원본 값이므로 None 이 발생할 일 없지만, 타입 일관성을 위해
-    # list[float | None] 로 확장 가능한 구조로 반환한다.
-    close_nullable: list[float | None] = [float(c) for c in close_list]
-    return dates, close_nullable, ma_list
+    return dates, close_list, ma_list
 
 
 def _compute_bands(
@@ -168,7 +171,7 @@ def _filter_markers_in_range(
         try:
             d = date.fromisoformat(iso)
         except ValueError as exc:
-            if source_kind == "signal_history":
+            if source_kind == SOURCE_KIND_SIGNAL_HISTORY:
                 raise RuntimeError(f"내부 불변조건 위반: signal_history 의 ISO 날짜 파싱 실패 — iso={iso!r}") from exc
             raise ValueError(f"user_trades 의 ISO 날짜 형식이 잘못되었다 — iso={iso!r}") from exc
         if start <= d <= end:
@@ -179,7 +182,7 @@ def _filter_markers_in_range(
 def _build_slice(
     slot: AssetSlotConfig,
     dates: list[date],
-    close_list: list[float | None],
+    close_list: list[float],
     ma_list: list[float | None],
     *,
     start: date,
@@ -194,10 +197,7 @@ def _build_slice(
     lo, hi = _slice_range(dates, start, end)
 
     sliced_dates = [d.isoformat() for d in dates[lo:hi]]
-    sliced_close_nullable = close_list[lo:hi]
-    # ChartSeries.close 는 list[float] 이므로 None 은 발생하지 않는 CSV 계약 하에
-    # float 로 캐스팅한다. (CSV 의 Close 는 항상 값을 가진다)
-    sliced_close = [float(c) if c is not None else 0.0 for c in sliced_close_nullable]
+    sliced_close = close_list[lo:hi]
     sliced_ma = ma_list[lo:hi]
     upper, lower = _compute_bands(sliced_ma, slot.buy_buffer_zone_pct, slot.sell_buffer_zone_pct)
 
@@ -205,26 +205,26 @@ def _build_slice(
         [t.date for t in asset_user_trades if t.direction == "buy"],
         start=start,
         end=end,
-        source_kind="user_trades",
+        source_kind=SOURCE_KIND_USER_TRADES,
     )
     user_sells = _filter_markers_in_range(
         [t.date for t in asset_user_trades if t.direction == "sell"],
         start=start,
         end=end,
-        source_kind="user_trades",
+        source_kind=SOURCE_KIND_USER_TRADES,
     )
     buy_signals = _filter_markers_in_range(
         asset_signal_history,
         start=start,
         end=end,
-        source_kind="signal_history",
+        source_kind=SOURCE_KIND_SIGNAL_HISTORY,
         predicate="buy",
     )
     sell_signals = _filter_markers_in_range(
         asset_signal_history,
         start=start,
         end=end,
-        source_kind="signal_history",
+        source_kind=SOURCE_KIND_SIGNAL_HISTORY,
         predicate="sell",
     )
 
@@ -367,7 +367,7 @@ def build_chart_meta_and_year_slices(
     config = get_live_portfolio_config()
 
     # 자산별 frame 을 1 회만 로드 (CSV + MA 계산)
-    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float | None], list[float | None]]] = {}
+    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float], list[float | None]]] = {}
     for slot in config.asset_slots:
         dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
         if not dates:
@@ -450,7 +450,7 @@ def build_chart_year_slices(
         return {}
 
     # 자산별 frame 을 1 회만 로드 (CSV + MA 계산)
-    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float | None], list[float | None]]] = {}
+    asset_frames: dict[str, tuple[AssetSlotConfig, list[date], list[float], list[float | None]]] = {}
     for slot in config.asset_slots:
         dates, close_list, ma_list = _load_slot_frame(state_dir, slot)
         if not dates:

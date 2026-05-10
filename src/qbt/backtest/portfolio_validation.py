@@ -13,7 +13,15 @@ PortfolioResult의 state_log_df, equity_df를 기반으로
 import pandas as pd
 
 from qbt.backtest.engines.portfolio_rebalance import DEFAULT_REBALANCE_POLICY
-from qbt.backtest.portfolio_types import PortfolioResult
+from qbt.backtest.portfolio_types import (
+    ASSET_COL_SUFFIX_CLOSE,
+    ASSET_COL_SUFFIX_VALUE,
+    PortfolioResult,
+    asset_executed_intent_col,
+    asset_pending_intent_col,
+    asset_shares_col,
+    asset_weight_col,
+)
 
 # 리밸런싱 후 비중 편차 허용 임계값: 매일 긴급 트리거와 동일
 # (체결은 시가, 검증은 종가 기준이므로 긴급 트리거 이하 편차는 시스템이 허용하는 범위)
@@ -28,7 +36,7 @@ def _get_asset_ids_from_state_log(state_log_df: pd.DataFrame) -> list[str]:
 
     {asset_id}_close 컬럼 기준으로 탐지한다.
     """
-    return [c.removesuffix("_close") for c in state_log_df.columns if c.endswith("_close")]
+    return [c.removesuffix(ASSET_COL_SUFFIX_CLOSE) for c in state_log_df.columns if c.endswith(ASSET_COL_SUFFIX_CLOSE)]
 
 
 def _check_signal_execution_lag(
@@ -46,8 +54,8 @@ def _check_signal_execution_lag(
     """
     violations: list[str] = []
     for aid in asset_ids:
-        pending_col = f"{aid}_pending_intent"
-        executed_col = f"{aid}_executed_intent"
+        pending_col = asset_pending_intent_col(aid)
+        executed_col = asset_executed_intent_col(aid)
         if pending_col not in state_log_df.columns or executed_col not in state_log_df.columns:
             continue
 
@@ -82,15 +90,17 @@ def _check_rebalance_weight_consistency(
         return violations
 
     reb_rows = state_log_df[state_log_df["rebalanced"] == True]  # noqa: E712
+    # asset_ids 는 state_log_df 컬럼에서 추출되었고 target_weights 는 동일 config 에서
+    # 만들어졌으므로 두 키 집합은 일치한다. 따라서 .get default 는 dead branch.
     for _, row in reb_rows.iterrows():
         for aid in asset_ids:
-            target_w = target_weights.get(aid, 0)
+            target_w = target_weights[aid]
             if target_w <= 0:
                 continue
-            shares = int(row.get(f"{aid}_shares", 0))
+            shares = int(row[asset_shares_col(aid)])
             if shares <= 0:
                 continue
-            actual_w = float(row.get(f"{aid}_weight", 0))
+            actual_w = float(row[asset_weight_col(aid)])
             deviation = abs(actual_w / target_w - 1.0)
             if deviation > _REBALANCE_WEIGHT_DEVIATION_THRESHOLD:
                 violations.append(
@@ -115,14 +125,15 @@ def _check_exit_all_shares_zero(
     """
     violations: list[str] = []
     for aid in asset_ids:
-        executed_col = f"{aid}_executed_intent"
-        shares_col = f"{aid}_shares"
+        executed_col = asset_executed_intent_col(aid)
+        shares_col = asset_shares_col(aid)
         if executed_col not in state_log_df.columns:
             continue
 
         exit_rows = state_log_df[state_log_df[executed_col] == "EXIT_ALL"]
+        # shares_col 은 state_log_df 가 항상 갖는 자산별 컬럼이다.
         for _, row in exit_rows.iterrows():
-            shares = int(row.get(shares_col, -1))
+            shares = int(row[shares_col])
             if shares != 0:
                 violations.append(f"[규칙3] {row['Date']} {aid}: EXIT_ALL 후 shares={shares}")
     return violations
@@ -152,7 +163,7 @@ def _check_equity_equation(equity_df: pd.DataFrame) -> list[str]:
     Returns:
         위반 메시지 리스트
     """
-    value_cols = [c for c in equity_df.columns if c.endswith("_value")]
+    value_cols = [c for c in equity_df.columns if c.endswith(ASSET_COL_SUFFIX_VALUE)]
     violations: list[str] = []
     for _, row in equity_df.iterrows():
         computed = float(row["cash"]) + sum(float(row[vc]) for vc in value_cols)

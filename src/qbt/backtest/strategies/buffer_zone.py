@@ -1,12 +1,9 @@
 """버퍼존 통합 전략 모듈
 
 config-driven 방식으로 멀티 자산의 버퍼존 전략을 통합 관리한다.
-전 자산 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일한다.
-
-CONFIGS 목록:
-    - buffer_zone_tqqq: QQQ 시그널 + TQQQ 합성 매매 (4P 고정, ma_type=ema)
-    - buffer_zone_qqq: QQQ 시그널 + QQQ 매매 (4P 고정)
-    - buffer_zone_spy ~ buffer_zone_tlt: 교차 자산 검증 (4P 고정)
+전 자산 4P 고정 파라미터(``FIXED_4P_*`` 상수 참조)로 통일한다. 자산 추가/삭제는
+``CONFIGS`` 리스트에 한 줄을 추가/삭제하면 된다 — 자세한 자산 라인업은 본
+파일의 ``CONFIGS`` 정의를 직접 확인할 것.
 """
 
 from dataclasses import dataclass

@@ -59,6 +59,13 @@ from qbt.backtest.portfolio_types import (
     PortfolioAssetResult,
     PortfolioConfig,
     PortfolioResult,
+    asset_close_col,
+    asset_executed_intent_col,
+    asset_pending_intent_col,
+    asset_shares_col,
+    asset_signal_today_col,
+    asset_value_col,
+    asset_weight_col,
 )
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
@@ -364,10 +371,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         }
         for asset_id, st in asset_states.items():
             val = st.position * asset_closes_map[asset_id]
-            row[f"{asset_id}_value"] = val
-            row[f"{asset_id}_weight"] = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
+            row[asset_value_col(asset_id)] = val
+            row[asset_weight_col(asset_id)] = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
             row[f"{asset_id}_signal"] = st.signal_state
-            row[f"{asset_id}_shares"] = st.position
+            row[asset_shares_col(asset_id)] = st.position
             row[f"{asset_id}_avg_price"] = entry_prices[asset_id]
             # 자산별 손익 추적 (매도 후에도 기여 이력 유지)
             row[f"{asset_id}_realized_pnl"] = cumulative_realized_pnl[asset_id]
@@ -397,22 +404,22 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             val = st.position * close_val
             weight = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
 
-            state_row[f"{aid}_close"] = close_val
-            state_row[f"{aid}_shares"] = st.position
-            state_row[f"{aid}_weight"] = weight
+            state_row[asset_close_col(aid)] = close_val
+            state_row[asset_shares_col(aid)] = st.position
+            state_row[asset_weight_col(aid)] = weight
 
             # 당일 시그널 판정: signal_intents에서 추출
             signal_intent = signal_intents.get(aid)
             if signal_intent and signal_intent.intent_type == "EXIT_ALL":
-                state_row[f"{aid}_signal_today"] = "sell"
+                state_row[asset_signal_today_col(aid)] = "sell"
             elif signal_intent and signal_intent.intent_type == "ENTER_TO_TARGET":
-                state_row[f"{aid}_signal_today"] = "buy"
+                state_row[asset_signal_today_col(aid)] = "buy"
             else:
-                state_row[f"{aid}_signal_today"] = "hold"
+                state_row[asset_signal_today_col(aid)] = "hold"
 
             # 익일 체결 예정 (merged_intents)
             pending = merged_intents.get(aid)
-            state_row[f"{aid}_pending_intent"] = pending.intent_type if pending else ""
+            state_row[asset_pending_intent_col(aid)] = pending.intent_type if pending else ""
             state_row[f"{aid}_pending_reason"] = pending.reason if pending else ""
             state_row[f"{aid}_pending_delta"] = pending.delta_amount if pending else 0.0
 
@@ -436,12 +443,12 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                     # 매수: 포지션 변화에서 추출
                     total_shares = abs(post_pos - pre_pos)
                     exec_price = open_prices_map[aid]
-                state_row[f"{aid}_executed_intent"] = intent_type
+                state_row[asset_executed_intent_col(aid)] = intent_type
                 state_row[f"{aid}_exec_side"] = "sell" if is_sell else "buy"
                 state_row[f"{aid}_exec_shares"] = total_shares
                 state_row[f"{aid}_exec_price"] = exec_price
             else:
-                state_row[f"{aid}_executed_intent"] = ""
+                state_row[asset_executed_intent_col(aid)] = ""
                 state_row[f"{aid}_exec_side"] = ""
                 state_row[f"{aid}_exec_shares"] = 0
                 state_row[f"{aid}_exec_price"] = 0.0

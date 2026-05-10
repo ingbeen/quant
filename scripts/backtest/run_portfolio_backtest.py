@@ -39,7 +39,14 @@ from qbt.backtest.csv_export import (
 )
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioResult
+from qbt.backtest.portfolio_types import (
+    ASSET_COL_SUFFIX_WEIGHT,
+    AssetSlotConfig,
+    PortfolioResult,
+    asset_shares_col,
+    asset_value_col,
+    asset_weight_col,
+)
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
     COL_CLOSE,
@@ -88,7 +95,9 @@ def _build_execution_comparison_df(
         return pd.DataFrame()
 
     # 1. 자산 ID 추출 (weight 컬럼 기반)
-    asset_ids = [c.removesuffix("_weight") for c in equity_df.columns if c.endswith("_weight")]
+    asset_ids = [
+        c.removesuffix(ASSET_COL_SUFFIX_WEIGHT) for c in equity_df.columns if c.endswith(ASSET_COL_SUFFIX_WEIGHT)
+    ]
     if not asset_ids:
         return pd.DataFrame()
 
@@ -122,16 +131,18 @@ def _build_execution_comparison_df(
 
         # 4. 자산별 행
         for asset_id in asset_ids:
-            shares_col = f"{asset_id}_shares"
-            weight_col = f"{asset_id}_weight"
-            value_col = f"{asset_id}_value"
+            shares_col = asset_shares_col(asset_id)
+            weight_col = asset_weight_col(asset_id)
+            value_col = asset_value_col(asset_id)
 
-            pre_shares = int(prev_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
-            post_shares = int(current_row.get(shares_col, 0)) if shares_col in equity_df.columns else 0
-            pre_weight = float(prev_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
-            post_weight = float(current_row.get(weight_col, 0)) * 100 if weight_col in equity_df.columns else 0.0
-            pre_value = int(prev_row.get(value_col, 0)) if value_col in equity_df.columns else 0
-            post_value = int(current_row.get(value_col, 0)) if value_col in equity_df.columns else 0
+            # 포트폴리오 엔진이 자산별 컬럼(_shares/_weight/_value)을 항상 생성하므로
+            # 컬럼 존재 여부 분기와 .get() default 는 dead branch 다.
+            pre_shares = int(prev_row[shares_col])
+            post_shares = int(current_row[shares_col])
+            pre_weight = float(prev_row[weight_col]) * 100
+            post_weight = float(current_row[weight_col]) * 100
+            pre_value = int(prev_row[value_col])
+            post_value = int(current_row[value_col])
 
             rows.append(
                 {
@@ -149,11 +160,16 @@ def _build_execution_comparison_df(
                 }
             )
 
-        # 5. 현금 행
-        pre_cash = int(prev_row.get("cash", 0))
-        post_cash = int(current_row.get("cash", 0))
-        pre_equity_val = int(prev_row.get("equity", 1))
-        post_equity_val = int(current_row.get("equity", 1))
+        # 5. 현금 행 — equity / cash 컬럼은 포트폴리오 엔진이 항상 생성한다.
+        # equity > 0 은 비레버리지 포트폴리오의 불변조건이다 (소멸 불가).
+        pre_cash = int(prev_row["cash"])
+        post_cash = int(current_row["cash"])
+        pre_equity_val = int(prev_row["equity"])
+        post_equity_val = int(current_row["equity"])
+        if pre_equity_val <= 0 or post_equity_val <= 0:
+            raise RuntimeError(
+                f"내부 불변조건 위반: equity <= 0 (date={date_str}, " f"pre={pre_equity_val}, post={post_equity_val})"
+            )
 
         rows.append(
             {
@@ -161,10 +177,8 @@ def _build_execution_comparison_df(
                 "asset_id": "cash",
                 "pre_shares": 0,
                 "post_shares": 0,
-                "pre_weight_pct": round(pre_cash / pre_equity_val * 100 if pre_equity_val > 0 else 0.0, ROUND_PERCENT),
-                "post_weight_pct": round(
-                    post_cash / post_equity_val * 100 if post_equity_val > 0 else 0.0, ROUND_PERCENT
-                ),
+                "pre_weight_pct": round(pre_cash / pre_equity_val * 100, ROUND_PERCENT),
+                "post_weight_pct": round(post_cash / post_equity_val * 100, ROUND_PERCENT),
                 "pre_value": pre_cash,
                 "post_value": post_cash,
                 "delta_shares": 0,
@@ -223,7 +237,7 @@ def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str | None:
     Returns:
         entry_date 문자열 (YYYY-MM-DD) 또는 None
     """
-    shares_col = f"{asset_id}_shares"
+    shares_col = asset_shares_col(asset_id)
     if shares_col not in equity_df.columns or equity_df.empty:
         return None
 
@@ -407,7 +421,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         # 최종일 기준 보유 정보 (equity_df에서 추출)
         final_shares = 0
         final_avg_price = 0.0
-        shares_col = f"{asset_result.asset_id}_shares"
+        shares_col = asset_shares_col(asset_result.asset_id)
         avg_price_col = f"{asset_result.asset_id}_avg_price"
         if shares_col in result.equity_df.columns and not result.equity_df.empty:
             final_shares = int(result.equity_df[shares_col].iloc[-1])

@@ -13,9 +13,59 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import pandas as pd
+
+# ============================================================================
+# 자산별 컬럼 접미사 (equity_df / state_log_df 공용)
+# ============================================================================
+# 포트폴리오 엔진이 생성하는 자산별 컬럼명 규칙. 검증 / CSV 저장 / 대시보드 등
+# 모든 호출부가 동일 규칙으로 컬럼을 만들고/읽어야 하므로 SSoT 로 중앙화한다.
+
+ASSET_COL_SUFFIX_CLOSE: Final[str] = "_close"
+ASSET_COL_SUFFIX_SHARES: Final[str] = "_shares"
+ASSET_COL_SUFFIX_WEIGHT: Final[str] = "_weight"
+ASSET_COL_SUFFIX_VALUE: Final[str] = "_value"
+ASSET_COL_SUFFIX_SIGNAL_TODAY: Final[str] = "_signal_today"
+ASSET_COL_SUFFIX_PENDING_INTENT: Final[str] = "_pending_intent"
+ASSET_COL_SUFFIX_EXECUTED_INTENT: Final[str] = "_executed_intent"
+
+
+def asset_close_col(asset_id: str) -> str:
+    """state_log_df 의 ``{asset_id}_close`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_CLOSE}"
+
+
+def asset_shares_col(asset_id: str) -> str:
+    """equity_df / state_log_df 의 ``{asset_id}_shares`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_SHARES}"
+
+
+def asset_weight_col(asset_id: str) -> str:
+    """equity_df / state_log_df 의 ``{asset_id}_weight`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_WEIGHT}"
+
+
+def asset_value_col(asset_id: str) -> str:
+    """equity_df 의 ``{asset_id}_value`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_VALUE}"
+
+
+def asset_signal_today_col(asset_id: str) -> str:
+    """state_log_df 의 ``{asset_id}_signal_today`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_SIGNAL_TODAY}"
+
+
+def asset_pending_intent_col(asset_id: str) -> str:
+    """state_log_df 의 ``{asset_id}_pending_intent`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_PENDING_INTENT}"
+
+
+def asset_executed_intent_col(asset_id: str) -> str:
+    """state_log_df 의 ``{asset_id}_executed_intent`` 컬럼명을 반환한다."""
+    return f"{asset_id}{ASSET_COL_SUFFIX_EXECUTED_INTENT}"
+
 
 # ============================================================================
 # 런타임 상태

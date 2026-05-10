@@ -193,6 +193,9 @@ def _save_summary_json(
     summary_path = result.result_dir / "summary.json"
 
     # 1. 성과 지표 반올림
+    # winning_trades / losing_trades / win_rate 는 SummaryDict 의 필수 필드이므로
+    # silent default 를 적용하지 않는다. start_date / end_date 만 NotRequired (equity_df 가
+    # 빈 경우) 라 Mapping.get default 를 유지한다.
     summary_dict: dict[str, Any] = {
         "initial_capital": round(float(str(result.summary["initial_capital"]))),
         "final_capital": round(float(str(result.summary["final_capital"]))),
@@ -201,9 +204,9 @@ def _save_summary_json(
         "mdd": round(float(str(result.summary["mdd"])), 2),
         "calmar": round(float(str(result.summary["calmar"])), 2),
         "total_trades": result.summary["total_trades"],
-        "winning_trades": result.summary.get("winning_trades", 0),
-        "losing_trades": result.summary.get("losing_trades", 0),
-        "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
+        "winning_trades": result.summary["winning_trades"],
+        "losing_trades": result.summary["losing_trades"],
+        "win_rate": round(float(str(result.summary["win_rate"])), 2),
         "start_date": result.summary.get("start_date", ""),
         "end_date": result.summary.get("end_date", ""),
     }

@@ -350,7 +350,9 @@ class TestCmdReset:
         assert rtdb_delete_called == []
         assert workspace_called == []
 
-    def test_reset_calls_storage_upload_before_rtdb_delete(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_reset_calls_storage_upload_before_rtdb_delete(
+        self, state_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Given reset 성공 경로 When 실행 Then GCS 정본 작업 (state_workspace 내 CSV 재구성 + upload) 이 RTDB delete 보다 먼저 수행됨."""
         del state_dir
         calls = _install_reset_spies(monkeypatch)
