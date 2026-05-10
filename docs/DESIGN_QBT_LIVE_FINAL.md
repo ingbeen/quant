@@ -484,9 +484,9 @@ drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/la
 | `ma_value`     | list[number \| null] | MA (**USD**). 워밍업 구간은 null                                                      |
 | `upper_band`   | list[number \| null] | `ma_value × (1 + buy_buffer_zone_pct)` (**USD**)                                      |
 | `lower_band`   | list[number \| null] | `ma_value × (1 - sell_buffer_zone_pct)` (**USD**)                                     |
-| `buy_signals`  | list[str]            | 해당 연도 내 매수 신호 발생일 (ISO 8601). Git `history/signals.jsonl` 에서 파생       |
+| `buy_signals`  | list[str]            | 해당 연도 내 매수 신호 발생일 (ISO 8601). GCS 정본 `history/signals.jsonl` 에서 파생  |
 | `sell_signals` | list[str]            | 해당 연도 내 매도 신호 발생일 (ISO 8601)                                              |
-| `user_buys`    | list[str]            | 해당 연도 내 사용자 매수 체결일 (ISO 8601). Git `history/user_trades.jsonl` 에서 파생 |
+| `user_buys`    | list[str]            | 해당 연도 내 사용자 매수 체결일 (ISO 8601). GCS 정본 `history/user_trades.jsonl` 에서 파생 |
 | `user_sells`   | list[str]            | 해당 연도 내 사용자 매도 체결일 (ISO 8601)                                            |
 
 ##### 8.2.5.3 중요 사항 (빈 배열 / null 처리)
@@ -843,7 +843,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **idempotency**: UUID 가 `applied_fill_ids.json` 에 이미 있으면 run-daily 가 fill 자체를 skip 하므로 RTDB history 에도 추가되지 않는다 (자연 방지). 같은 UUID 로 재호출되면 set 으로 덮어쓰기.
 
-**보존 정책**: 영구. rolling 삭제 / cleanup 없음. `reset` 은 GCS 정본 `history/` 와 RTDB `/history/*` 를 모두 초기화하며, 이후 `run-daily` 가 매일 당일분을 Git + RTDB 양쪽에 누적한다.
+**보존 정책**: 영구. rolling 삭제 / cleanup 없음. `reset` 은 GCS 정본 `history/` 와 RTDB `/history/*` 를 모두 초기화하며, 이후 `run-daily` 가 매일 당일분을 GCS 정본 + RTDB 양쪽에 누적한다.
 
 #### 8.2.12 `/history/balance_adjusts/{YYYY-MM-DD}/{uuid}` — 잔고 보정 이력 영구 보존
 
