@@ -350,15 +350,15 @@ class TestCmdReset:
         assert rtdb_delete_called == []
         assert workspace_called == []
 
-    def test_reset_calls_git_push_before_rtdb_delete(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Given reset 성공 경로 When 실행 Then Git 파일 작업 + push 가 RTDB delete 보다 먼저 수행됨."""
+    def test_reset_calls_storage_upload_before_rtdb_delete(self, state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given reset 성공 경로 When 실행 Then GCS 정본 작업 (state_workspace 내 CSV 재구성 + upload) 이 RTDB delete 보다 먼저 수행됨."""
         del state_dir
         calls = _install_reset_spies(monkeypatch)
 
         exit_code = main(["reset", "--capital", "100000000"])
         assert exit_code == 0
 
-        # 순서 검증: CSV 재다운로드 (Git 내부 파일 작업 단계) 가 RTDB delete 보다 먼저.
+        # 순서 검증: CSV 재구성 (state_workspace 내 정본 작업 단계) 가 RTDB delete 보다 먼저.
         order = calls["order"]
         first_rebuild = order.index("rebuild_full_csv")
         first_delete = order.index("delete_all_except_device_tokens")
