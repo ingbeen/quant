@@ -87,7 +87,7 @@ live 내부 실행 순서 / 예외 훅 / GCS ephemeral 워크스페이스 메커
 
 **모든 금액 필드는 `USD` (미국 달러) 기준으로 저장된다.** 본 시스템은 환율 변환을 수행하지 않으며, 데이터 소스인 yfinance 에서 미국 상장 ETF 의 USD 원본 가격을 그대로 사용한다.
 
-**적용 대상 필드** (RTDB / Git 정본 공통):
+**적용 대상 필드** (RTDB / GCS 정본 공통):
 
 - 자본금 / 현금: `model_equity`, `actual_equity`, `shared_cash_model`, `shared_cash_actual`
 - 가격: `close`, `ma_value`, `upper_band`, `lower_band`, `actual_price` (체결 단가)
@@ -187,8 +187,8 @@ live 는 model 축과 actual 축을 **두 개의 독립된 원장** 으로 유�
 
 | 마커 종류                      | 출처                                 | 의미                          |
 | ------------------------------ | ------------------------------------ | ----------------------------- |
-| `buy_signals` / `sell_signals` | Git 정본 `history/signals.jsonl`     | 과거 신호 발생일 (ISO 날짜)   |
-| `user_buys` / `user_sells`     | Git 정본 `history/user_trades.jsonl` | 사용자 체결 발생일 (ISO 날짜) |
+| `buy_signals` / `sell_signals` | GCS 정본 `history/signals.jsonl`     | 과거 신호 발생일 (ISO 날짜)   |
+| `user_buys` / `user_sells`     | GCS 정본 `history/user_trades.jsonl` | 사용자 체결 발생일 (ISO 날짜) |
 
 정확한 페이로드 스키마와 필드 타입은 §8.2.5 를 참고한다.
 
@@ -300,9 +300,9 @@ live 서버는 `gs://qbt-live.firebasestorage.app` GCS 버킷을 원장(JSON + C
 /charts/prices/{asset_id}/years/{YYYY}           ← 주가 차트 연도별 slice (현재 연도만 daily 갱신)
 /charts/equity/meta                              ← equity 차트 메타 (운영 시작일 / 마지막일 / years)
 /charts/equity/years/{YYYY}                      ← equity 연도별 slice (현재 연도만 daily 갱신)
-/history/fills/{YYYY-MM-DD}/{uuid}               ← 체결 이력 영구 보존 (Git 정본 user_trades.jsonl 미러)
-/history/balance_adjusts/{YYYY-MM-DD}/{uuid}     ← 잔고 보정 이력 영구 보존 (Git 정본 미러)
-/history/signals/{YYYY-MM-DD}/{asset_id}         ← 신호 이력 영구 보존 (Git 정본 signals.jsonl 미러)
+/history/fills/{YYYY-MM-DD}/{uuid}               ← 체결 이력 영구 보존 (GCS 정본 user_trades.jsonl 미러)
+/history/balance_adjusts/{YYYY-MM-DD}/{uuid}     ← 잔고 보정 이력 영구 보존 (GCS 정본 미러)
+/history/signals/{YYYY-MM-DD}/{asset_id}         ← 신호 이력 영구 보존 (GCS 정본 signals.jsonl 미러)
 /fills/inbox/{uuid}                              ← 앱이 쓰는 체결 queue
 /balance_adjust/inbox/{uuid}                     ← 앱이 쓰는 잔고 보정 queue
 /fill_dismiss/inbox/{uuid}                       ← 앱이 쓰는 체결 리마인더 스킵 queue
@@ -316,7 +316,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 **식별자 규칙**: asset_id 소문자 / ticker 대문자 규칙은 §0 "식별자 규칙" 참고.
 
-**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`) 는 내부 계산 / Git 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 는 RTDB 에 스칼라 형태로만 노출되며 시계열은 제공하지 않는다 (§8.2.4 / §8.2.6 참고).
+**drift_pct 스케일**: RTDB 의 `drift_pct` 필드(`/latest/portfolio`) 는 내부 계산 / GCS 정본과 동일하게 **0~1 ratio** 로 저장된다 (프로젝트 네이밍 관례: `_pct` 접미사 = 0~1 범위. 루트 CLAUDE.md "비율 표기 규칙" 참고). 정밀도는 `ROUND_RATIO = 4` 자리. 앱이 표시할 때 `× 100` 변환은 앱 계층의 책임. 정의 / 임계값 / 라벨은 §12 참고. drift 는 RTDB 에 스칼라 형태로만 노출되며 시계열은 제공하지 않는다 (§8.2.4 / §8.2.6 참고).
 
 #### 8.2.1 `/latest/portfolio` — 전체 포트폴리오 요약
 
@@ -425,7 +425,7 @@ RTDB 는 "앱 ↔ daily runner" 버스이며, 정본 저장소가 아니다. `/l
 
 #### 8.2.4 drift 스칼라 — `/latest/portfolio` 에 통합
 
-drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/latest/portfolio` (§8.2.1) 에서 읽는다. 자산별 drift 가 필요하면 `/latest/portfolio` + `/latest/signals` 로 앱에서 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
+drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/latest/portfolio` (§8.2.1) 에서 읽는다. 자산별 drift 가 필요하면 `/latest/portfolio` + `/latest/signals` 로 앱에서 계산하거나, 운영자가 GCS 정본 `history/daily/{date}.json` 을 조회한다.
 
 #### 8.2.5 `/charts/prices/{asset_id}/` — 주가 차트 데이터 (meta + years/{YYYY})
 
@@ -502,7 +502,7 @@ drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/la
 - meta: `live.chart_data.build_equity_meta`, `live.models.EquityChartMeta`, `live.rtdb_gateway.write_equity_meta`
 - years: `live.chart_data.build_equity_year_slice`, `live.models.EquityChartSeries`, `live.rtdb_gateway.write_equity_year_slice`
 
-**데이터 소스**: Git 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, `last_date - 12개월` 이 속한 연도부터 현재 연도까지의 `years/{YYYY}` 를 병렬 로드한다 (12개월 보장). 줌아웃 시에는 추가 연도를 점진 로드. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `dates` / `model_equity` / `actual_equity` 세 배열을 같은 날짜 인덱스로 저장한다. drift 스칼라는 `/latest/portfolio.drift_pct` 에서 별도 노출되며 시계열 형태로는 제공하지 않는다.
+**데이터 소스**: GCS 정본 `history/summary.jsonl` 전체. 앱은 차트 진입 시 `meta` 를 먼저 읽고, `last_date - 12개월` 이 속한 연도부터 현재 연도까지의 `years/{YYYY}` 를 병렬 로드한다 (12개월 보장). 줌아웃 시에는 추가 연도를 점진 로드. 주가 차트와 달리 **포트폴리오 전체 1 개 시계열** 을 대상으로 하므로 자산 반복이 없으며, 한 경로에 `dates` / `model_equity` / `actual_equity` 세 배열을 같은 날짜 인덱스로 저장한다. drift 스칼라는 `/latest/portfolio.drift_pct` 에서 별도 노출되며 시계열 형태로는 제공하지 않는다.
 
 **갱신 주체**: daily runner (`run-daily`) 가 매 실행마다 `meta` / `years/{현재_연도}` 를 덮어쓴다. 이전 연도 슬라이스는 daily 갱신 대상이 아니며, 최초 배포 / 스플릿 / 무상증자 시 운영자가 `backfill-chart-years --target equity` 로 재생성한다 (§9.1 참고).
 
@@ -545,7 +545,7 @@ drift 스칼라 요약 (`drift_pct` / `model_equity` / `actual_equity`) 은 `/la
 ##### 8.2.6.3 중요 사항
 
 - **Firebase RTDB 의 빈 배열 저장 정책**: equity 차트는 summary.jsonl 상 각 날짜에 3 필드 모두 값이 존재하므로 null / 빈 값 케이스는 발생하지 않는다. 단 `years/{YYYY}` 에 해당 연도 데이터가 아예 없는 경우 모든 배열이 비어 있을 수 있다.
-- **정본 위치**: 자산별 상세·전체 equity 시계열은 Git 정본 `history/summary.jsonl` 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 앱 표시용 소비 데이터로만 취급한다.
+- **정본 위치**: 자산별 상세·전체 equity 시계열은 GCS 정본 `history/summary.jsonl` 이 유일 정본이며 **영구 누적** 된다. RTDB 쪽은 앱 표시용 소비 데이터로만 취급한다.
 - 슬라이스는 연도별로 비중첩이라 dedupe 가 불필요하다 (§8.2.5.3 과 동일).
 
 #### 8.2.7 `/fills/inbox/{uuid}` — 체결 입력 (앱 → 서버)
@@ -771,7 +771,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **idempotency**: `rtdb_key` (UUID) 기반. 적용 여부와 무관하게 읽어온 모든 key 는 `processed=true` 로 마킹된다. `processed` 필드 규칙은 §8.3 참고.
 
-**이력 추적**: `/history/model_syncs/` RTDB 미러 / 별도 JSONL 은 제공하지 않는다. 발생 빈도가 월 0~1 회 수준이며, Git 정본 `history/daily/{date}.json` 의 `model_sync_applied: bool` 과 `history/states/{date}.json` 전후 스냅샷으로 충분히 추적 가능하다 (§8.2.14 비미러 항목 참고).
+**이력 추적**: `/history/model_syncs/` RTDB 미러 / 별도 JSONL 은 제공하지 않는다. 발생 빈도가 월 0~1 회 수준이며, GCS 정본 `history/daily/{date}.json` 의 `model_sync_applied: bool` 과 `history/states/{date}.json` 전후 스냅샷으로 충분히 추적 가능하다 (§8.2.14 비미러 항목 참고).
 
 #### 8.2.10 `/device_tokens/{device_id}` — FCM 토큰 등록 (앱 → 서버)
 
@@ -808,7 +808,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 #### 8.2.11 `/history/fills/{YYYY-MM-DD}/{uuid}` — 체결 이력 영구 보존
 
-**SoT**: `live.rtdb_gateway.write_history_fills`, `live.models.ActualFill`. Git 정본 `history/user_trades.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **이번 실행에서 새로 적용된 fill 만** 추가하고, 기존 레코드는 idempotent 덮어쓰기.
+**SoT**: `live.rtdb_gateway.write_history_fills`, `live.models.ActualFill`. GCS 정본 `history/user_trades.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **이번 실행에서 새로 적용된 fill 만** 추가하고, 기존 레코드는 idempotent 덮어쓰기.
 
 ```json
 {
@@ -843,11 +843,11 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 **idempotency**: UUID 가 `applied_fill_ids.json` 에 이미 있으면 run-daily 가 fill 자체를 skip 하므로 RTDB history 에도 추가되지 않는다 (자연 방지). 같은 UUID 로 재호출되면 set 으로 덮어쓰기.
 
-**보존 정책**: 영구. rolling 삭제 / cleanup 없음. `reset` 은 Git 정본 `history/` 와 RTDB `/history/*` 를 모두 초기화하며, 이후 `run-daily` 가 매일 당일분을 Git + RTDB 양쪽에 누적한다.
+**보존 정책**: 영구. rolling 삭제 / cleanup 없음. `reset` 은 GCS 정본 `history/` 와 RTDB `/history/*` 를 모두 초기화하며, 이후 `run-daily` 가 매일 당일분을 Git + RTDB 양쪽에 누적한다.
 
 #### 8.2.12 `/history/balance_adjusts/{YYYY-MM-DD}/{uuid}` — 잔고 보정 이력 영구 보존
 
-**SoT**: `live.rtdb_gateway.write_history_balance_adjusts`, `live.models.BalanceAdjust`. Git 정본 `history/balance_adjusts.jsonl` 의 RTDB 미러.
+**SoT**: `live.rtdb_gateway.write_history_balance_adjusts`, `live.models.BalanceAdjust`. GCS 정본 `history/balance_adjusts.jsonl` 의 RTDB 미러.
 
 ```json
 {
@@ -882,7 +882,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 #### 8.2.13 `/history/signals/{YYYY-MM-DD}/{asset_id}` — 신호 이력 영구 보존
 
-**SoT**: `live.rtdb_gateway.write_history_signals`, `live.models.SignalDetection`. Git 정본 `history/signals.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **당일 4 자산 전체** 를 덮어쓴다 (idempotent).
+**SoT**: `live.rtdb_gateway.write_history_signals`, `live.models.SignalDetection`. GCS 정본 `history/signals.jsonl` 의 RTDB 미러. daily runner 가 매 실행마다 **당일 4 자산 전체** 를 덮어쓴다 (idempotent).
 
 ```json
 {
@@ -916,7 +916,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 
 다음 두 항목은 **RTDB `/history/` 에 미러하지 않는다**:
 
-- **`fill_dismiss`** (체결 리마인더 스킵): "리마인더 해제" 관리 행위이고 앱에서 사후 조회할 실질 수요가 없기 때문 (Git 정본 `applied_fill_dismiss_ids.json` + `fill_dismisses.jsonl` 만 유지).
+- **`fill_dismiss`** (체결 리마인더 스킵): "리마인더 해제" 관리 행위이고 앱에서 사후 조회할 실질 수요가 없기 때문 (GCS 정본 `applied_fill_dismiss_ids.json` + `fill_dismisses.jsonl` 만 유지).
 - **`model_sync`** (model 축 동기화 요청): 발생 빈도가 월 0~1 회 수준으로 매우 낮고, 이벤트의 결과(동기화 직전/직후 상태)는 `history/daily/{date}.json` 의 `model_sync_applied` 플래그와 `history/states/{date}.json` 전후 스냅샷 diff 로 이미 추적 가능하기 때문. 별도 JSONL 원장도 두지 않는다.
 
 ### 8.3 역할 분리
@@ -950,7 +950,7 @@ GitHub Actions cron 으로 실행되는 daily runner 가 RTDB `/balance_adjust/i
 1. **실패 알림 수신**: 앱은 §6.3 형식의 본문을 FCM / 텔레그램으로 받는다. 추가 조치 없음.
 2. **RTDB 데이터 미갱신**: live 가 중단되면 `/latest/*` 와 `/charts/*` 가 그날 업데이트되지 않는다. 앱은 `/latest/portfolio.execution_date` 필드로 최신 여부를 판단한다.
 
-live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 / Git push / RTDB / fill 검증 / idempotency 등) 는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
+live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 / GCS 동기화 / RTDB / fill 검증 / idempotency 등) 는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
 ### 9.1 스플릿 / 무상증자 수동 대응 절차
 
@@ -977,11 +977,11 @@ live 내부 예외 시나리오 전체 매트릭스(yfinance / 데이터 검증 
 4. **차트 연도 슬라이스 재생성**: `python -m live backfill-chart-years` 실행 — 주가 차트 `/charts/prices/{asset_id}/years/{YYYY}` 와 equity 차트 `/charts/equity/years/{YYYY}` 를 전체 연도 재생성 / 업로드한다. 기본 동작은 `--target all` (주가 + equity) × years 전체 순회이며, `--target prices|equity` 로 한쪽만, `--year YYYY` 로 단일 연도만, `--dry-run` 으로 사전 확인도 가능.
 5. **다음 run-daily 확인**: 다음날 자동 실행 (또는 수동 `run-daily`) 에서 정상 진행을 확인한다.
 
-**history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. Git commit 이력 자체가 조정 audit log 역할을 한다.
+**history JSONL 은 건드리지 않는다**. `history/signals.jsonl` / `history/user_trades.jsonl` / `history/summary.jsonl` / `history/daily/{date}.json` 은 **과거 사실의 증거** 이며, 날짜 / 금액 기반이라 스플릿 영향이 없다. `history/balance_adjusts.jsonl` 의 append-only 기록이 조정 audit log 역할을 한다.
 
 **backfill-chart-years 는 스플릿/무상증자 대응 시 수동 실행한다** (과거 연도 슬라이스를 새 조정가 기준으로 재생성). daily runner 는 매일 `years/{현재_연도}` 만 덮어쓰므로, 이전 연도는 스플릿 후 값이 재조정된 CSV 를 기준으로 별도 재생성 필요. 최초 배포 및 `reset` 직후에는 `reset` 자체가 주가 차트 (meta + years 전체 연도) 를 자동 재생성하므로 별도 `backfill-chart-years` 실행은 불필요하다.
 
-**`/history/*` 및 equity 차트는 매일 `run-daily` 가 누적**. `reset` 으로 Git 정본 `history/` 와 RTDB `/history/*` / `/charts/equity/*` 가 모두 초기화된 뒤에는 별도 backfill 명령이 없으며, `run-daily` 가 매일 당일분을 양쪽에 기록한다. 연말에 해가 바뀌면 새 연도의 equity 슬라이스도 자연스럽게 생성된다.
+**`/history/*` 및 equity 차트는 매일 `run-daily` 가 누적**. `reset` 으로 GCS 정본 `history/` 와 RTDB `/history/*` / `/charts/equity/*` 가 모두 초기화된 뒤에는 별도 backfill 명령이 없으며, `run-daily` 가 매일 당일분을 양쪽에 기록한다. 연말에 해가 바뀌면 새 연도의 equity 슬라이스도 자연스럽게 생성된다.
 
 ---
 
@@ -1007,7 +1007,7 @@ live 는 평일 ET 17:27 (cron, `timezone: America/New_York`) 에 GitHub Actions
 - 앱은 Firebase Auth Email/Password 로 로그인한 `OWNER_UID` 계정으로만 접근한다.
 - `/device_tokens/{device_id}` 의 "타 사용자 deviceId 덮어쓰기" 리스크는 `OWNER_UID` 단일 계정 전제하에서 자연 차단된다. 같은 사용자의 기기 간 `device_id` 고유성은 앱이 UUID 등으로 보장한다.
 
-앱에는 **GitHub 토큰이 절대 들어가지 않는다** (Git 정본 접근은 live 서버 전용). 서버 측 GitHub Secrets / `.env` / PAT / App Check 등 운영 상세는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
+앱에는 **GitHub 토큰이 절대 들어가지 않는다** (GCS 정본 접근은 live 서버 전용). 서버 측 GitHub Secrets / `.env` / PAT / App Check 등 운영 상세는 [src/live/CLAUDE.md](../src/live/CLAUDE.md) 참고.
 
 ---
 
@@ -1019,7 +1019,7 @@ drift 는 **model equity 와 actual equity 의 상대 차이** 이다.
 drift_pct = |model_equity − actual_equity| / model_equity   (내부 비율, 0~1. 0.03 = 3%)
 ```
 
-QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다). drift 는 RTDB 에 스칼라(`/latest/portfolio.drift_pct`) 형태로만 노출되며 시계열로는 제공하지 않는다 (§8.2.6).
+QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, GCS 정본(`live_state.json`, `history/*`), RTDB (`/latest/portfolio`) 의 `drift_pct` 는 **모두 0~1 범위의 비율** 로 통일된다. 정밀도는 `ROUND_RATIO = 4` 자리 (예: `0.0350` = 3.5%). 앱이 화면에 `X.XX%` 로 표시할 때 `× 100` 변환은 **앱 계층의 책임** 이다 (서버/데이터 저장 계층에서는 변환하지 않는다). drift 는 RTDB 에 스칼라(`/latest/portfolio.drift_pct`) 형태로만 노출되며 시계열로는 제공하지 않는다 (§8.2.6).
 
 **유일 정본**: `drift.compute_drift(state, closes)` 가 완전 `DriftReport` 를 생성한다.
 `daily_runner.run_daily()` 는 내부적으로 이 함수를 호출하여 결과를
@@ -1033,12 +1033,12 @@ QBT 비율 원칙(`_pct` = 0~1)에 따라 내부 계산, Git 정본(`live_state.
 | 0.03 ~ 0.05 (미만) | `"주의"`                     | `3.00%` ~ `4.99%`          |
 | 0.05 이상          | `"보정 필요"`                | `5.00%` 이상               |
 
-`recommendation` 문자열은 한글 리터럴이며 RTDB 에 저장되지 않는다 (Git 정본 `history/daily/{date}.json` 및 일일 리포트 알림에만 노출). 앱이 상태 라벨을 자체 렌더링할 경우 저장된 `drift_pct` (0~1 ratio) 를 임계값과 **동일 스케일로 직접 비교** 하면 된다 (별도 스케일 변환 불필요).
+`recommendation` 문자열은 한글 리터럴이며 RTDB 에 저장되지 않는다 (GCS 정본 `history/daily/{date}.json` 및 일일 리포트 알림에만 노출). 앱이 상태 라벨을 자체 렌더링할 경우 저장된 `drift_pct` (0~1 ratio) 를 임계값과 **동일 스케일로 직접 비교** 하면 된다 (별도 스케일 변환 불필요).
 
 **자산별 drift**: `DriftReport.per_asset` 에 `AssetDrift` 리스트로 포함된다.
 모델이 0 주인데 실제 보유 중인 경우(`model_value=0, actual_value>0`)
 `asset_drift_pct = 1.0` (100% 이탈) 을 반환하여 사용자가 차이를 인지할 수 있다.
-일일 리포트 알림 본문에는 전체 `drift_pct` 스칼라 값만 포함되며, **RTDB `/latest/portfolio` 도 per_asset drift 를 포함하지 않는다**. 자산별 상세가 필요하면 앱이 `/latest/portfolio` + `/latest/signals` 로 자체 계산하거나, 운영자가 Git 정본 `history/daily/{date}.json` 을 조회한다.
+일일 리포트 알림 본문에는 전체 `drift_pct` 스칼라 값만 포함되며, **RTDB `/latest/portfolio` 도 per_asset drift 를 포함하지 않는다**. 자산별 상세가 필요하면 앱이 `/latest/portfolio` + `/latest/signals` 로 자체 계산하거나, 운영자가 GCS 정본 `history/daily/{date}.json` 을 조회한다.
 
 ---
 

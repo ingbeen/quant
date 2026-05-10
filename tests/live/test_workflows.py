@@ -61,23 +61,21 @@ class TestDailyRunWorkflow:
         assert "actions/cache@v5" in daily_run_yaml
         assert "pypoetry" in daily_run_yaml
 
-    def test_state_repo_pat_not_referenced(self, daily_run_yaml: str):
-        """STATE_REPO_PAT 은 GCS 이관으로 제거됨. 자격증명은 GOOGLE_APPLICATION_CREDENTIALS 단일."""
-        assert "STATE_REPO_PAT" not in daily_run_yaml
+    def test_credentials_use_gcp_application_default(self, daily_run_yaml: str):
+        """자격증명은 ``GOOGLE_APPLICATION_CREDENTIALS`` 단일 (Firebase Admin SDK 가 RTDB / GCS / FCM 공용)."""
+        assert "GOOGLE_APPLICATION_CREDENTIALS" in daily_run_yaml
 
-    def test_no_explicit_state_repo_checkout(self, daily_run_yaml: str):
-        """CLI 가 shallow clone 을 담당하므로 actions/checkout 으로 state repo 를
-        받지 않는다."""
-        assert "repository: ingbeen/qbt-live-state" not in daily_run_yaml
+    def test_no_external_repo_checkout(self, daily_run_yaml: str):
+        """CLI 가 GCS 정본을 직접 동기화하므로 외부 repo 를 actions/checkout 으로 받지 않는다."""
+        assert "repository:" not in daily_run_yaml
 
-    def test_no_shell_git_commit_push(self, daily_run_yaml: str):
-        """CLI 가 commit/push 를 담당하므로 workflow shell step 에 git 명령이
-        들어있지 않아야 한다."""
-        assert "git add -A" not in daily_run_yaml
+    def test_no_shell_git_commands(self, daily_run_yaml: str):
+        """workflow shell step 에 git 명령이 들어있지 않아야 한다 (정본 동기화는 storage_gateway)."""
+        assert "git add" not in daily_run_yaml
         assert "git push" not in daily_run_yaml
 
     def test_run_daily_has_no_state_dir_flag(self, daily_run_yaml: str):
-        """CLI 가 ephemeral 이므로 --state-dir 인자가 사용되지 않는다."""
+        """CLI 가 매 실행마다 자체 state workspace 를 생성하므로 ``--state-dir`` 인자가 없다."""
         assert "--state-dir" not in daily_run_yaml
 
     def test_no_retry_logic(self, daily_run_yaml: str):
@@ -97,7 +95,7 @@ class TestDailyRunWorkflow:
         assert "python -m live run-daily" in daily_run_yaml
 
     def test_secrets_referenced(self, daily_run_yaml: str):
-        """3 종 시크릿이 모두 참조되어야 한다 (STATE_REPO_PAT 은 GCS 이관으로 제거)."""
+        """3 종 시크릿이 모두 참조되어야 한다 (Firebase 자격증명 + 텔레그램 봇/채팅)."""
         for secret in (
             "FIREBASE_CONFIG",
             "TELEGRAM_BOT_TOKEN",
@@ -170,22 +168,23 @@ class TestKeepaliveWorkflow:
         assert "workflow_dispatch" in keepalive_yaml
 
     def test_targets_quant_with_allow_empty_commit(self, keepalive_yaml: str):
-        """quant 리포 자체를 checkout 하고 빈 commit 을 남긴다. qbt-live-state
-        는 더 이상 건드리지 않는다. 주석 블록은 제외하고 실행 코드 영역만 확인."""
+        """quant 리포 자체를 checkout 하고 빈 commit 을 남긴다 (외부 repo 참조 없음).
+
+        주석 블록은 제외하고 실행 코드 영역만 확인.
+        """
         code_lines = [line for line in keepalive_yaml.splitlines() if not line.lstrip().startswith("#")]
         code = "\n".join(code_lines)
 
         # 실행 코드에 빈 commit 명령
         assert "git commit --allow-empty" in code
-        # 실행 코드에는 qbt-live-state 언급이 없다
-        assert "qbt-live-state" not in code
-        assert "STATE_REPO_PAT" not in code
+        # 외부 repo 참조 없음 (자기 자신만 checkout)
+        assert "repository:" not in code
         # 기본 GITHUB_TOKEN 에 push 권한 부여
         assert "contents: write" in code
 
     def test_no_legacy_comment_block(self, keepalive_yaml: str):
         """루트 CLAUDE.md "주석 작성 원칙" — 과거 버전 주석 블록 금지."""
-        forbidden = ("이전 버전", "heartbeat", "과거에는", "qbt-live-state 타겟")
+        forbidden = ("이전 버전", "heartbeat", "과거에는")
         for phrase in forbidden:
             assert phrase not in keepalive_yaml, f"과거 상태 주석 남아있음: {phrase}"
 

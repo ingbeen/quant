@@ -187,7 +187,7 @@ def save_state_snapshot(state: LiveState, history_dir: Path, execution_date: dat
 
     Args:
         state: 저장할 ``LiveState``.
-        history_dir: ``qbt-live-state/history`` 디렉토리 경로.
+        history_dir: ``(정본)/history`` 디렉토리 경로.
         execution_date: 스냅샷 파일명에 사용할 거래일.
 
     Returns:

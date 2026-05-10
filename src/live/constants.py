@@ -2,7 +2,7 @@
 
 - 포트폴리오 식별자: 실매매 대상 PORTFOLIO_CONFIGS 키 (`LIVE_PORTFOLIO_ID`)
 - DRIFT 임계값: ``DRIFT_WARNING_RATIO`` / ``DRIFT_CORRECTION_RATIO``
-- 경로 기본값: qbt-live-state 프라이빗 리포 내부 구조
+- 경로 기본값: GCS 정본 버킷 내부 구조
   (CLI 에서 실제 경로를 파라미터로 전달)
 - idempotency 원장 자동 정리 주기 / history 파일명 / 출력 정밀도
 - signal→trade 매핑 빌더: QBT 코어 ``PORTFOLIO_CONFIGS`` 에서 동적으로 파생하여
@@ -79,7 +79,7 @@ DEFAULT_APPLIED_BALANCE_ADJUST_IDS_FILENAME: Final[str] = "applied_balance_adjus
 
 
 # ============================================================================
-# history 파일 이름 / 하위 디렉토리 (qbt-live-state/history/ 내부)
+# history 파일 이름 / 하위 디렉토리 (정본 워크스페이스의 history/ 내부)
 # ============================================================================
 
 # 일별 상세 로그(``{date}.json``) 가 저장되는 서브디렉토리 이름.
@@ -246,13 +246,13 @@ def build_asset_signal_ticker_map() -> dict[str, str]:
 
 
 def live_csv_path(state_dir: Path, ticker: str) -> Path:
-    """qbt-live-state 리포 내 주가 CSV 파일 경로를 반환한다.
+    """정본 워크스페이스 내 주가 CSV 파일 경로를 반환한다.
 
     live 도메인 내 주가 CSV 경로 규칙은 본 함수 한 곳에서 관리한다. 파일명 규칙이
     바뀔 경우 이 함수만 수정하면 된다.
 
     Args:
-        state_dir: qbt-live-state 작업 디렉토리 (ephemeral clone 루트).
+        state_dir: 정본 워크스페이스 루트 (state_workspace 가 yield 한 tempdir 경로).
         ticker: 티커 기호 (대/소문자 무관, 파일명에는 그대로 사용).
 
     Returns:

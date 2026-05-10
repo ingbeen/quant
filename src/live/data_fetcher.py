@@ -14,7 +14,7 @@ QBT 본체 재사용하지 않는 이유:
 
 - :func:`qbt.utils.stock_downloader.download_stock_data` 는 "최근 2일 제외" 필터가
   하드코딩되어 live 매일 실행 모드와 충돌
-- 저장 경로가 ``STOCK_DIR`` 로 고정되어 qbt-live-state 리포 경로와 다름
+- 저장 경로가 ``STOCK_DIR`` 로 고정되어 GCS 정본 버킷 경로와 다름
 - 파일명 규칙이 달라짐 (QBT: ``{TICKER}_max.csv``, live: ``{TICKER}.csv``)
 
 검증 책임 분리:

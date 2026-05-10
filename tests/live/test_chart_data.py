@@ -487,7 +487,7 @@ def _write_summary_jsonl(state_dir: Path, rows: list[dict[str, object]]) -> None
 
     실제 ``history.append_summary`` 와 동일한 포맷 (date / model_equity /
     actual_equity / drift_pct 4 컬럼) 을 줄 단위로 작성한다. ``drift_pct`` 는
-    Git 정본의 영구 누적 컬럼이며 equity 빌더가 이 컬럼을 무시하고 RTDB
+    GCS 정본의 영구 누적 컬럼이며 equity 빌더가 이 컬럼을 무시하고 RTDB
     페이로드에는 싣지 않는 것이 본 테스트의 핵심 검증 대상이다.
     """
     import json
@@ -601,7 +601,7 @@ class TestBuildEquityYearSlice:
               drift_pct 컬럼은 equity 빌더가 무시하므로 EquityChartSeries 에
               나타나지 않는다.
 
-        Given: 소수점이 있는 equity + Git 정본 컬럼인 drift_pct (무시 대상).
+        Given: 소수점이 있는 equity + GCS 정본 컬럼인 drift_pct (무시 대상).
         When:  build_equity_year_slice 호출.
         Then:  equity 는 정수 값, EquityChartSeries 에 drift_pct 속성 없음.
         """

@@ -1,7 +1,5 @@
 """GCS 기반 정본 저장소 게이트웨이.
 
-[BRIEFING §6.1 / §6.5](../../docs/BRIEFING_git_state_to_gcs.md) 의 정책 구현.
-
 핵심:
 
 - 단일 객체 download / upload / list / delete + ephemeral 워크스페이스 컨텍스트.
@@ -176,8 +174,6 @@ def _sort_for_upload(names: list[str]) -> list[str]:
 @contextmanager
 def state_workspace(*, push_on_success: bool) -> Iterator[Path]:
     """매 CLI 실행마다 GCS 버킷 ↔ tempdir 동기화 흐름.
-
-    [BRIEFING §6.2 / §6.5](../../docs/BRIEFING_git_state_to_gcs.md) 의 정책 구현.
 
     흐름:
 

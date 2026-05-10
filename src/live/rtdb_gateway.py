@@ -479,7 +479,7 @@ def write_equity_year_slice(app: FirebaseAppLike, year: int, series: EquityChart
 # history 미러 쓰기 (/history/{fills|balance_adjusts|signals}/)
 # ============================================================================
 #
-# Git 정본 (history/user_trades.jsonl, balance_adjusts.jsonl, signals.jsonl) 의
+# GCS 정본 (history/user_trades.jsonl, balance_adjusts.jsonl, signals.jsonl) 의
 # RTDB 미러. daily runner 가 매 실행마다 이번 실행에서 새로 반영된 fill /
 # balance_adjust 만 기록하고, signals 는 당일 4 자산을 덮어쓴다. 영구 보존이며
 # rolling 정리 / cleanup 은 없다 (Firebase Spark 한도 대비 충분).
@@ -566,7 +566,7 @@ def write_history_signals(
 
 
 def write_history_fills_raw(app: FirebaseAppLike, rows: list[dict[str, Any]]) -> None:
-    """``backfill-history`` CLI 가 Git 정본 dict 줄을 그대로 RTDB 에 일괄 미러한다.
+    """``backfill-history`` CLI 가 GCS 정본 dict 줄을 그대로 RTDB 에 일괄 미러한다.
 
     Args:
         app: Firebase App 인스턴스.

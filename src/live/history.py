@@ -1,6 +1,6 @@
-"""영구 히스토리 저장 (qbt-live-state/history/).
+"""영구 히스토리 저장 (정본 워크스페이스의 history/).
 
-Git 정본 원장 — 모든 히스토리는 **영구 보존** 된다. 자동 정리는 하지 않는다.
+GCS 정본 원장 — 모든 히스토리는 **영구 보존** 된다. 자동 정리는 하지 않는다.
 
 파일 종류 (상수는 :mod:`live.constants` 참조):
 
@@ -78,7 +78,7 @@ def save_daily_log(date_iso: str, payload: dict[str, Any], history_dir: Path) ->
     Args:
         date_iso: ISO 8601 날짜 문자열 (예: "2026-04-10").
         payload: 저장할 dict.
-        history_dir: ``qbt-live-state/history`` 경로.
+        history_dir: ``(정본)/history`` 경로.
 
     Returns:
         저장된 파일 경로.
@@ -144,7 +144,7 @@ def load_user_trades(history_dir: Path) -> dict[str, list[UserTrade]]:
     ``UserTrade`` dataclass 자체에는 ``asset_id`` 필드가 없으므로 dict 의 key 로 사용한다.
 
     Args:
-        history_dir: ``qbt-live-state/history`` 경로.
+        history_dir: ``(정본)/history`` 경로.
 
     Returns:
         ``{asset_id: [UserTrade, ...]}`` — 각 자산에 대한 체결 이력.
@@ -184,7 +184,7 @@ def append_signal_history(entries: list[dict[str, Any]], history_dir: Path) -> N
     Args:
         entries: 각 원소는 ``{"date": "YYYY-MM-DD", "asset_id": str, "state": str}``
             형태의 dict.
-        history_dir: ``qbt-live-state/history`` 경로.
+        history_dir: ``(정본)/history`` 경로.
     """
     if not entries:
         return
@@ -203,7 +203,7 @@ def load_signal_history(history_dir: Path) -> dict[str, list[tuple[str, str]]]:
     인덱스를 채우기 위해 호출한다.
 
     Args:
-        history_dir: ``qbt-live-state/history`` 경로.
+        history_dir: ``(정본)/history`` 경로.
 
     Returns:
         ``{asset_id: [(date_iso, state), ...]}``.

@@ -252,7 +252,7 @@ def build_chart_meta(state_dir: Path) -> dict[str, ChartMeta]:
     CSV 를 1 회 훑어 first/last 날짜와 존재하는 연도 목록을 계산한다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리 (CSV 위치).
+        state_dir: 정본 워크스페이스 디렉토리 (CSV 위치).
 
     Returns:
         ``{asset_id: ChartMeta}``.
@@ -295,7 +295,7 @@ def build_chart_year_slice(
     해당 연도에 거래일이 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리.
+        state_dir: 정본 워크스페이스 디렉토리.
         year: 슬라이스할 연도 (예: 2025).
         user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
         signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
@@ -345,7 +345,7 @@ def build_chart_meta_and_year_slices(
     ``reset`` / ``backfill-chart-years`` 의 차트 재생성 단계에서 사용한다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리.
+        state_dir: 정본 워크스페이스 디렉토리.
         years: 슬라이싱할 연도 리스트.
 
             - ``None`` (기본): meta 를 만든 뒤 자산별 ``meta.years`` 의 합집합을 자동
@@ -434,7 +434,7 @@ def build_chart_year_slices(
     하나도 없는 경우 그 연도 슬라이스는 빈 배열로 채워진다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리.
+        state_dir: 정본 워크스페이스 디렉토리.
         years: 슬라이싱할 연도 리스트 (정렬 권장).
         user_trades: 자산 ID → 사용자 체결 마커 리스트 (선택).
         signal_history: 자산 ID → ``(date_iso, state)`` 튜플 리스트 (선택).
@@ -521,7 +521,7 @@ def _load_summary_rows(history_dir: Path) -> list[dict[str, Any]]:
 def _equity_series_from_rows(rows: list[dict[str, Any]]) -> EquityChartSeries:
     """summary 로우 리스트를 :class:`EquityChartSeries` 로 변환 (반올림 포함).
 
-    summary.jsonl 의 ``drift_pct`` 컬럼은 Git 정본의 영구 누적 데이터이며
+    summary.jsonl 의 ``drift_pct`` 컬럼은 GCS 정본의 영구 누적 데이터이며
     equity 차트 시계열에는 포함하지 않는다 (앱 미사용 — drift 스칼라는
     ``/latest/portfolio.drift_pct`` 에서 노출).
     """
@@ -543,7 +543,7 @@ def build_equity_meta(state_dir: Path) -> EquityChartMeta:
     """`history/summary.jsonl` 전체를 읽어 :class:`EquityChartMeta` 를 생성한다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리 (``history/`` 하위).
+        state_dir: 정본 워크스페이스 디렉토리 (``history/`` 하위).
 
     Returns:
         :class:`EquityChartMeta` 인스턴스.
@@ -569,7 +569,7 @@ def build_equity_year_slice(state_dir: Path, year: int) -> EquityChartSeries:
     해당 연도에 summary 로우가 하나도 없으면 모든 배열이 빈 슬라이스가 반환된다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리.
+        state_dir: 정본 워크스페이스 디렉토리.
         year: 슬라이스할 연도 (예: 2025).
 
     Returns:
@@ -591,7 +591,7 @@ def build_equity_year_slices(state_dir: Path, years: list[int]) -> dict[int, Equ
     하나도 없는 경우 그 연도 슬라이스는 빈 배열로 채워진다.
 
     Args:
-        state_dir: qbt-live-state 디렉토리.
+        state_dir: 정본 워크스페이스 디렉토리.
         years: 슬라이싱할 연도 리스트.
 
     Returns:

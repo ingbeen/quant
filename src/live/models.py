@@ -160,7 +160,7 @@ class AssetLiveState:
 class LiveState:
     """전체 포트폴리오의 live 상태.
 
-    qbt-live-state 리포의 ``live_state.json`` 에 직렬화되어 저장되는 최상위 원장.
+    GCS 정본 버킷의 ``live_state.json`` 에 직렬화되어 저장되는 최상위 원장.
     """
 
     schema_version: int
@@ -392,7 +392,7 @@ class EquityChartMeta:
 
     RTDB ``/charts/equity/meta`` 에 저장된다. 주가 차트(:class:`ChartMeta`) 와 달리
     포트폴리오 전체를 대상으로 하므로 자산 반복 / ``ma_window`` 가 없다.
-    데이터 소스는 Git 정본 ``history/summary.jsonl``.
+    데이터 소스는 GCS 정본 ``history/summary.jsonl``.
     """
 
     first_date: str  # summary.jsonl 의 첫 날짜 (ISO 8601, 운영 시작일)
@@ -465,7 +465,7 @@ class DriftReport:
 class DailyResult:
     """``daily_runner.run_daily`` 의 반환 컨테이너.
 
-    파일 I/O 전의 순수 계산 결과이며, CLI 계층이 이 객체를 받아 Git push / RTDB /
+    파일 I/O 전의 순수 계산 결과이며, CLI 계층이 이 객체를 받아 GCS 동기화 / RTDB /
     알림 발송을 수행한다.
     """
 

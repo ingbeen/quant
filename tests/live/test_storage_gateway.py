@@ -1,8 +1,5 @@
 """live.storage_gateway — GCS 기반 정본 저장소 게이트웨이 테스트.
 
-본 테스트는 [docs/BRIEFING_git_state_to_gcs.md](../../docs/BRIEFING_git_state_to_gcs.md)
-§6.1 / §6.5 의 정책을 코드로 고정한다 (Phase 0).
-
 핵심 정책:
 
 - 단일 객체 read / write / list / delete 시그니처
@@ -12,7 +9,7 @@
 
   - tempdir 생성 → 모든 blob download → yield → 변경된 파일만 upload → tempdir 삭제
   - 변경 감지: download 시점 sha256 스냅샷 vs 종료 시점 sha256 비교
-  - write 순서 보호: ``live_state.json`` 을 가장 마지막에 upload (BRIEFING §6.5)
+  - write 순서 보호: ``live_state.json`` 을 가장 마지막에 upload (LiveState 일관성)
   - read-only (``push_on_success=False``) 시 upload skip
   - 컨텍스트 본문 예외 시 upload skip (LiveState 일관성 보호)
 """

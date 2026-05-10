@@ -313,7 +313,7 @@ class TestCmdReset:
 
     본 테스트 클래스는 정책을 고정한다:
     - Firebase 초기화 실패 시 Git / RTDB 미수정.
-    - Git push 성공 후에만 RTDB 삭제 및 차트 쓰기 발생.
+    - GCS 동기화 성공 후에만 RTDB 삭제 및 차트 쓰기 발생.
     - 주가 차트 (meta + 연도 슬라이스) 는 생성되고, equity / `/history/*` 는 생성되지 않는다.
     - 차트 재생성 시 체결/시그널 마커는 빈 리스트로 전달된다.
     - 중간 실패 시 reset 재실행으로 멱등 복구 가능하다.

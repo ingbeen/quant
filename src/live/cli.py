@@ -124,7 +124,7 @@ def _load_dotenv_if_present(dotenv_path: Path = _DOTENV_PATH) -> None:
 
 
 def _now_kst_iso() -> str:
-    """RTDB / Git 정본 history 미러용 KST ISO 8601 타임스탬프.
+    """RTDB / GCS 정본 history 미러용 KST ISO 8601 타임스탬프.
 
     예: ``"2026-04-11T07:27:15+09:00"``. ``run-daily`` 진입 시 1 회 산출하여
     이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 으로
@@ -270,7 +270,7 @@ def _publish_to_rtdb(
     rtdb_gateway.write_chart_year_slice(rtdb_app, year=current_year, year_map=slices_map[current_year])
 
     # 3-b. equity 차트 갱신 — meta + 현재 연도 슬라이스 (/charts/equity/)
-    #      데이터 소스는 Git 정본 history/summary.jsonl. run-daily 는 이 시점에
+    #      데이터 소스는 GCS 정본 history/summary.jsonl. run-daily 는 이 시점에
     #      _persist_history 를 통해 당일 1 줄을 이미 append 했으므로 파일이 최소
     #      1 줄 이상 보장된다. 과거 연도 슬라이스는 backfill CLI 로만 재생성.
     equity_meta = build_equity_meta(state_dir)
@@ -323,15 +323,15 @@ def _cmd_reset(args: argparse.Namespace) -> int:
 
     신규 9 단계 순서 (안정성 우선):
 
-    1. 사전 검증 — Firebase 초기화 가능 여부 확인. 실패 시 Git / RTDB 미수정.
-    2. Git state repo shallow clone (ephemeral 컨텍스트 진입)
+    1. 사전 검증 — Firebase 초기화 가능 여부 확인. 실패 시 정본 / RTDB 미수정.
+    2. GCS 정본 다운로드 (state workspace 컨텍스트 진입)
     3. ``live_state.json`` 초기값 저장
     4. ``applied_*_ids.json`` 3 개 파일 삭제
     5. ``history/`` 디렉토리 삭제 (summary / user_trades / signals / balance_adjusts 포함)
     6. CSV 전체 재다운로드 (``period="max"``)
     7. RTDB 전체 삭제 (``device_tokens`` 제외)
     8. RTDB 주가 차트 재생성 — meta / 연도별 슬라이스. 체결/시그널 마커는 빈 리스트.
-    9. Git commit + push (ephemeral 컨텍스트 종료 시 자동)
+    9. GCS 정본 업로드 (state workspace 컨텍스트 종료 시 변경분 자동 동기화)
 
     equity 차트 / ``/history/*`` 는 summary.jsonl 이 없어 이 시점에 생성 불가.
     매일 ``run-daily`` 가 당일분을 누적하면서 자연스럽게 채워진다.
@@ -345,7 +345,7 @@ def _cmd_reset(args: argparse.Namespace) -> int:
     # 1. 사전 검증: Firebase 초기화 가능 여부. 실패 시 아무것도 건드리지 않고 중단.
     rtdb_app: Any = _require_rtdb_app()
 
-    # 2~6, 7~8, 9. Git clone → 파일 작업 → RTDB 삭제 → 차트 재생성 → commit+push (컨텍스트 종료 시).
+    # 2~6, 7~8, 9. GCS 다운로드 → 파일 작업 → RTDB 삭제 → 차트 재생성 → 변경분 GCS 업로드.
     with storage_gateway.state_workspace(push_on_success=True) as state_dir:
         # 3. live_state.json 초기화
         state = create_initial_state(capital)
@@ -416,7 +416,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
     trade_date_str: str | None = args.trade_date
     is_explicit_trade_date = trade_date_str is not None
 
-    # trade_date 결정 (ephemeral clone 비용 전에 선제 판정)
+    # trade_date 결정 (state workspace 비용 전에 선제 판정)
     trade_date = date.fromisoformat(trade_date_str) if trade_date_str else date.today()
 
     # 휴장 체크 — 비영업일이면 조기 정상 종료.
@@ -426,7 +426,7 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
         logger.debug(f"{trade_date} 는 NYSE 비영업일 — run-daily 조기 종료 (정상)")
         return 0
 
-    # RTDB / Git 정본 history 미러용 단일 KST timestamp.
+    # RTDB / GCS 정본 history 미러용 단일 KST timestamp.
     # 이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 에 동일 부여.
     applied_at_kst = _now_kst_iso()
 
@@ -945,8 +945,8 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
     - ``--year YYYY``: 단일 연도만 재생성 (기본: 대상 차트의 years 전체).
     - ``--dry-run``: 실제 RTDB 쓰기 없이 대상 연도만 출력.
 
-    본 명령은 ephemeral state repo 를 read-only 로 clone 하여 CSV / summary.jsonl
-    만 사용한다. Git push 는 수행하지 않는다.
+    본 명령은 state workspace 를 read-only 로 clone 하여 CSV / summary.jsonl
+    만 사용한다. GCS 업로드는 수행하지 않는다.
     """
     target: str = args.target
     year_arg: int | None = args.year

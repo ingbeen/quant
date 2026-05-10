@@ -77,7 +77,7 @@ tests/live/                     # live 전용 테스트
 
 ### 1. 장애 시 자동 복구 금지 + (자동 실행 커맨드만) 알림
 
-- 데이터 수집/검증/계산/RTDB/Git push 중 어떤 단계든 실패하면 **즉시 중단** 한다.
+- 데이터 수집/검증/계산/RTDB/GCS 동기화 중 어떤 단계든 실패하면 **즉시 중단** 한다.
 - 자동 롤백, 자동 재시도(GitHub Actions retry job 제외), 자동 복원 **모두 금지**.
 - `cli.py` 의 `main()` 공통 예외 훅은 **자동 실행 커맨드 (`run-daily`)** 의 예외에 대해서만
   `_safe_notify_failure` 를 호출하여 FCM + 텔레그램으로 실패 알림을 발송한다
@@ -114,9 +114,9 @@ tests/live/                     # live 전용 테스트
 
 1. yfinance / 증권사 공시로 스플릿 사실 / 비율 확인
 2. `python -m live rebuild-data {TICKER}` 로 CSV 재다운로드
-3. `qbt-live-state` 의 `live_state.json` 에서 영향 자산의 `*_shares` / `*_avg_entry_price`
+3. GCS 정본 `live_state.json` 에서 영향 자산의 `*_shares` / `*_avg_entry_price`
    수동 조정 (shares × ratio, avg_price / ratio). `buffer_zone_state` 내부 가격 필드도 함께.
-4. Git commit / push (조정 사유 + 비율 명시)
+4. 수정한 `live_state.json` 을 GCS 콘솔 / `gsutil` 로 다시 업로드 (Soft Delete 30일 보호)
 5. `python -m live backfill-chart-years` 로 차트 연도 슬라이스 전체 재생성
 
 자동 조정 모듈은 의도적으로 제공하지 않는다 (원칙 1: 자동 복구 금지 + 운영자 개입
@@ -175,7 +175,7 @@ QBT 백테스트의 절대 규칙은 live 에서도 **예외 없이 동일**하�
 
 QBT 본체의 CLI 계층(`scripts/`)은 비즈니스 로직 포함 금지가 원칙이나,
 live 의 `cli.py` 는 데이터 준비·검증·히스토리 구성 등의 비즈니스 로직을
-포함할 수 있다. ephemeral state repo 컨텍스트 내에서 I/O 와 로직이
+포함할 수 있다. state workspace 컨텍스트 내에서 I/O 와 로직이
 밀접하게 결합되어 있어 분리 시 오히려 복잡도가 증가하기 때문이다.
 
 ### 핵심 재확인
@@ -204,7 +204,7 @@ live 는 qbt 에 이미 정의된 상수를 적극 재사용한다. 동일한 �
 테스트 작성 규칙은 [tests/CLAUDE.md](../../tests/CLAUDE.md) 를 그대로 따르며, live 만의 추가 규칙:
 
 - **외부 네트워크 호출 금지**: Firebase Admin SDK, yfinance, 텔레그램 Bot API 는 **항상 mock**.
-- **파일 I/O 격리**: `tmp_path` 또는 monkeypatch 로 qbt-live-state 디렉토리 경로 격리.
+- **파일 I/O 격리**: `tmp_path` 또는 monkeypatch 로 정본 워크스페이스 디렉토리 경로 격리.
 - **결정적**: `@freeze_time` 으로 날짜 고정, RTDB mock 응답 고정.
 - Given-When-Then 패턴, `pytest.approx()` 로 부동소수점 비교.
 - 회귀 검증(`test_regression.py`): `run_daily()` 를 과거 구간에 대해 순차 호출하여
