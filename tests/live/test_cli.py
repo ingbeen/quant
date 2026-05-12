@@ -19,10 +19,19 @@ from live.models import ChartMeta
 # ============================================================================
 
 
+class _FakeRtdbApp:
+    """RTDB 통합 호출을 전부 무력화한 mock Firebase App."""
+
+
 @pytest.fixture
 def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """``storage_gateway.state_workspace`` 를 ``tmp_path`` 를 yield 하는 가짜 컨텍스트
     매니저로 교체한다. 실제 GCS download/upload 는 절대 호출되지 않는다.
+
+    또한 GCS state_workspace 진입의 사전조건인 Firebase Admin SDK 초기화도 함께
+    no-op 으로 교체한다 (``_require_rtdb_app`` / ``_initialize_rtdb_app``). 회귀
+    테스트가 raise 동작을 검증해야 할 경우, 테스트 내부에서 monkeypatch 로 다시
+    덮어쓸 수 있다 (테스트 내부의 setattr 가 fixture 보다 우선 적용된다).
 
     Returns:
         ``tmp_path`` 와 동일한 ``Path`` — 테스트는 이 경로를 state_dir 로 사용.
@@ -34,11 +43,11 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         yield tmp_path
 
     monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", fake_state_workspace)
+
+    fake_app = _FakeRtdbApp()
+    monkeypatch.setattr(cli_module, "_require_rtdb_app", lambda: fake_app)
+    monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: fake_app)
     return tmp_path
-
-
-class _FakeRtdbApp:
-    """RTDB 통합 호출을 전부 무력화한 mock Firebase App."""
 
 
 def _mock_rtdb_for_cli(monkeypatch: pytest.MonkeyPatch) -> _FakeRtdbApp:
@@ -182,6 +191,104 @@ class TestCmdRebuildData:
 
         assert exit_code == 0
         assert calls == ["SPY"]
+
+    def test_rebuild_data_single_aborts_on_firebase_init_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When rebuild-data SPY Then state_workspace 미진입 + exit 1.
+
+        GCS state_workspace 는 Firebase Admin SDK default app 을 요구하므로,
+        rebuild-data 는 컨텍스트 진입 전에 _require_rtdb_app 으로 초기화를 보장해야 한다.
+        """
+        workspace_called: list[bool] = []
+
+        @contextmanager
+        def _record_workspace(**kwargs: Any):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
+
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+
+        rebuild_called: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "rebuild_full_csv",
+            lambda ticker, csv_path, period="max": rebuild_called.append(ticker),
+        )
+
+        exit_code = main(["rebuild-data", "SPY"])
+
+        assert exit_code == 1
+        assert workspace_called == []
+        assert rebuild_called == []
+
+    def test_rebuild_data_all_aborts_on_firebase_init_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When rebuild-data (전체) Then state_workspace 미진입 + exit 1."""
+        workspace_called: list[bool] = []
+
+        @contextmanager
+        def _record_workspace(**kwargs: Any):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
+
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+
+        rebuild_called: list[str] = []
+        monkeypatch.setattr(
+            cli_module,
+            "rebuild_full_csv",
+            lambda ticker, csv_path, period="max": rebuild_called.append(ticker),
+        )
+
+        exit_code = main(["rebuild-data"])
+
+        assert exit_code == 1
+        assert workspace_called == []
+        assert rebuild_called == []
+
+
+# ============================================================================
+# drift 명령어 (GCS state_workspace 진입 전 Firebase 초기화 강제)
+# ============================================================================
+
+
+class TestCmdDrift:
+    """``drift`` 는 RTDB 를 직접 사용하지 않지만, GCS state_workspace 진입을 위해
+    Firebase Admin SDK 가 초기화되어 있어야 한다 (default app 이 GCS bucket 핸들의
+    전제 조건).
+    """
+
+    def test_drift_aborts_on_firebase_init_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When drift Then state_workspace 미진입 + exit 1."""
+        workspace_called: list[bool] = []
+
+        @contextmanager
+        def _record_workspace(**kwargs: Any):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
+
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+
+        exit_code = main(["drift"])
+
+        assert exit_code == 1
+        assert workspace_called == []
 
 
 # ============================================================================
@@ -510,6 +617,36 @@ class TestCmdRunDailyFailures:
 
         # 상태 파일 변경 없음
         assert state_path.stat().st_mtime == original_mtime
+
+    def test_run_daily_aborts_on_firebase_init_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Given Firebase init 실패 When run-daily Then state_workspace 미진입 + exit 1.
+
+        GCS state_workspace 는 Firebase Admin SDK default app 을 요구하므로,
+        run-daily 는 컨텍스트 진입 전에 _require_rtdb_app 으로 초기화를 보장해야 한다.
+        ``--trade-date`` 를 명시하여 NYSE 휴장 체크를 우회한다.
+        """
+        workspace_called: list[bool] = []
+
+        @contextmanager
+        def _record_workspace(**kwargs: Any):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
+
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+        # 실패 알림 발송 자체는 본 회귀 범위 밖이므로 no-op 로 둔다.
+        monkeypatch.setattr(cli_module, "_safe_notify_failure", lambda app, msg: None)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        exit_code = main(["run-daily", "--trade-date", "2026-04-10"])
+
+        assert exit_code == 1
+        assert workspace_called == []
 
 
 # ============================================================================
@@ -1005,11 +1142,17 @@ class TestCmdBackfillChartYears:
         ``_NOTIFY_FAILURE_COMMANDS`` 에 포함되지 않는다. 실패 시 터미널 stderr +
         ERROR 로그로만 노출된다.
 
-        Given: _initialize_rtdb_app → None
+        Given: _require_rtdb_app → RuntimeError raise (실제 환경의
+               _initialize_rtdb_app=None 시나리오를 직접 모사)
         When:  backfill-chart-years 실행
         Then:  exit=1, _safe_notify_failure 호출되지 않음.
         """
         del state_dir
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
         monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
 
         self._setup_common_mocks(monkeypatch, years=[2025])  # type: ignore[func-returns-value]
@@ -1024,6 +1167,39 @@ class TestCmdBackfillChartYears:
         exit_code = main(["backfill-chart-years"])
         assert exit_code == 1
         assert notify_calls == []
+
+    def test_backfill_aborts_on_firebase_init_failure_before_workspace(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        목적: Firebase 초기화가 실패하면 GCS state_workspace 진입 자체가 일어나지 않는다.
+
+        GCS state_workspace 는 Firebase Admin SDK default app 을 요구하므로,
+        backfill-chart-years 는 컨텍스트 진입 전에 _require_rtdb_app 으로 초기화를
+        보장해야 한다.
+
+        Given: _require_rtdb_app 이 RuntimeError 를 raise.
+        When:  backfill-chart-years 실행.
+        Then:  state_workspace 미진입 + exit 1.
+        """
+        workspace_called: list[bool] = []
+
+        @contextmanager
+        def _record_workspace(**kwargs: object):
+            del kwargs
+            workspace_called.append(True)
+            yield Path("/unused")
+
+        monkeypatch.setattr(cli_module.storage_gateway, "state_workspace", _record_workspace)
+
+        def _raise() -> None:
+            raise RuntimeError("Firebase 초기화 실패")
+
+        monkeypatch.setattr(cli_module, "_require_rtdb_app", _raise)
+        monkeypatch.setattr(cli_module, "_initialize_rtdb_app", lambda: None)
+
+        exit_code = main(["backfill-chart-years"])
+
+        assert exit_code == 1
+        assert workspace_called == []
 
 
 class TestNotifyFailureCmd:

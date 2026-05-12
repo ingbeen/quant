@@ -430,6 +430,12 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
     # 이번 실행에서 새로 적용된 모든 fill / balance_adjust 의 ``applied_at`` 에 동일 부여.
     applied_at_kst = _now_kst_iso()
 
+    # Firebase Admin SDK 초기화는 state_workspace 진입 전에 수행한다.
+    # state_workspace 내부의 GCS bucket 핸들 획득(firebase_admin.storage.bucket)이
+    # default Firebase app 의 존재를 요구하기 때문이다. 실패 시 즉시 RuntimeError 로
+    # 중단되고, 상위 main() 공통 알림 훅이 실패 알림을 발송한다.
+    rtdb_app: Any = _require_rtdb_app()
+
     with storage_gateway.state_workspace(push_on_success=True) as state_dir:
         # 상태 로드
         state_path = state_dir / DEFAULT_LIVE_STATE_FILENAME
@@ -457,9 +463,6 @@ def _cmd_run_daily(args: argparse.Namespace) -> int:
             bundle = _build_market_bundle(state_dir)
         except (FileNotFoundError, ValueError) as exc:
             raise RuntimeError(f"market_bundle 준비 실패: {exc}") from exc
-
-        # RTDB 초기화 — run-daily 는 필수. 실패 시 즉시 RuntimeError 로 중단한다.
-        rtdb_app: Any = _require_rtdb_app()
 
         # RTDB fills 가져오기
         try:
@@ -861,6 +864,12 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
     - ``ticker`` 생략 시: 모든 운영 티커를 ``period="max"`` 로 전체 재다운로드.
     - ``ticker`` 명시 시: 해당 티커만 재다운로드 (스플릿 대응 시나리오).
     """
+    # Firebase Admin SDK 초기화는 state_workspace 진입 전에 수행한다.
+    # state_workspace 내부의 GCS bucket 핸들 획득이 default Firebase app 의 존재를
+    # 요구하기 때문이다. rebuild-data 는 RTDB 를 직접 사용하지 않지만 GCS 접근을 위해
+    # 초기화가 필요하다.
+    _require_rtdb_app()
+
     ticker_arg: str | None = args.ticker
     if ticker_arg is None:
         with storage_gateway.state_workspace(push_on_success=True) as state_dir:
@@ -885,6 +894,11 @@ def _cmd_rebuild_data(args: argparse.Namespace) -> int:
 
 def _cmd_drift(args: argparse.Namespace) -> int:
     del args  # 사용하지 않음
+    # Firebase Admin SDK 초기화는 state_workspace 진입 전에 수행한다.
+    # state_workspace 내부의 GCS bucket 핸들 획득이 default Firebase app 의 존재를
+    # 요구하기 때문이다. drift 자체는 RTDB 를 직접 사용하지 않지만 GCS 접근을 위해
+    # 초기화가 필요하다.
+    _require_rtdb_app()
     with storage_gateway.state_workspace(push_on_success=False) as state_dir:
         state = load_state(state_dir / DEFAULT_LIVE_STATE_FILENAME)
 
@@ -952,6 +966,11 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
     year_arg: int | None = args.year
     dry_run: bool = args.dry_run
 
+    # Firebase Admin SDK 초기화는 state_workspace 진입 전에 수행한다.
+    # state_workspace 내부의 GCS bucket 핸들 획득이 default Firebase app 의 존재를
+    # 요구하기 때문이다.
+    rtdb_app = _require_rtdb_app()
+
     with storage_gateway.state_workspace(push_on_success=False) as state_dir:
         history_dir = _history_dir(state_dir)
         user_trades = history.load_user_trades(history_dir)
@@ -999,8 +1018,6 @@ def _cmd_backfill_chart_years(args: argparse.Namespace) -> int:
                 f"| equity 연도 {target_equity_years}\n"
             )
             return 0
-
-        rtdb_app = _require_rtdb_app()
 
         for year in target_prices_years:
             rtdb_gateway.write_chart_year_slice(rtdb_app, year=year, year_map=prices_slices_map[year])
