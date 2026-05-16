@@ -7,6 +7,7 @@ portfolio_validation.py의 개별 검증 규칙을 독립적으로 테스트한�
 from datetime import date
 
 import pandas as pd
+import pytest
 
 from qbt.backtest.portfolio_validation import (
     _check_cash_non_negative,
@@ -293,3 +294,28 @@ class TestCheckEquityEquation:
         # Then
         assert len(violations) == 1
         assert "규칙5" in violations[0]
+
+    def test_empty_value_cols_raises_runtime_error(self):
+        """
+        목적: 자산 평가액 컬럼(_value 접미사)이 하나도 없으면
+              내부 불변조건 위반으로 즉시 중단한다 (silent pass 금지).
+
+        Given: cash/equity만 있고 *_value 컬럼이 전혀 없는 equity_df.
+               정상 흐름에서는 portfolio_engine이 항상 자산별 _value 컬럼을
+               생성하므로 발생 불가한 비정상 입력이다.
+        When: _check_equity_equation() 호출
+        Then: RuntimeError 발생. value_cols가 비면 sum=0.0으로 등식 검증이
+              우회되어 가드가 무력화되므로 즉시 실패해야 한다.
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2024, 1, 2)],
+                "cash": [10000],
+                "equity": [10000],
+            }
+        )
+
+        # When & Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            _check_equity_equation(df)

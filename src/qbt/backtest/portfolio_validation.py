@@ -164,6 +164,13 @@ def _check_equity_equation(equity_df: pd.DataFrame) -> list[str]:
         위반 메시지 리스트
     """
     value_cols = [c for c in equity_df.columns if c.endswith(ASSET_COL_SUFFIX_VALUE)]
+    if not value_cols:
+        raise RuntimeError(
+            f"내부 불변조건 위반: equity_df에 자산 평가액 컬럼"
+            f"('{ASSET_COL_SUFFIX_VALUE}' 접미사)이 하나도 없음 "
+            f"(columns={list(equity_df.columns)}). "
+            f"value_cols가 비면 sum=0.0으로 등식 검증이 우회되므로 즉시 중단한다."
+        )
     violations: list[str] = []
     for _, row in equity_df.iterrows():
         computed = float(row["cash"]) + sum(float(row[vc]) for vc in value_cols)
