@@ -264,3 +264,26 @@ class TestAddRateChangeLags:
 
         # Then: 원본 변경 없음
         assert set(monthly_df.columns) == original_columns
+
+    def test_unmapped_lag_raises_value_error(self):
+        """
+        목적: lag_col_map에 없는 lag 값이 들어오면 silent skip 대신
+              ValueError로 즉시 중단한다 (컬럼 누락 silent skip 금지).
+
+        Given: dr_m 컬럼이 있는 월별 DataFrame, lag_list=[1, 3]
+               (3은 lag_col_map={1, 2}에 없는 값 — 외부 입력 검증 실패)
+        When: add_rate_change_lags() 호출
+        Then: ValueError 발생. 매핑 외 lag가 조용히 누락되면 결과 컬럼이
+              비결정적으로 비므로, 외부 입력 검증으로 즉시 실패해야 한다.
+        """
+        # Given
+        monthly_df = pd.DataFrame(
+            {
+                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
+                COL_DR_M: [0.1, 0.2, 0.3, 0.4, 0.5],
+            }
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match="lag"):
+            add_rate_change_lags(monthly_df, lag_list=[1, 3])

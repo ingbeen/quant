@@ -97,7 +97,8 @@ def add_rate_change_lags(
 
     Args:
         df_monthly: 월별 DataFrame (dr_m 컬럼 필수)
-        lag_list: 생성할 lag 값 리스트 (기본값: [1, 2])
+        lag_list: 생성할 lag 값 리스트 (기본값: [1, 2]). 지원 값은 1, 2 뿐이며
+            그 외 값이 포함되면 ValueError.
 
     Returns:
         lag 컬럼이 추가된 DataFrame (원본 불변)
@@ -105,7 +106,8 @@ def add_rate_change_lags(
         - dr_lag2: dr_m.shift(2)
 
     Raises:
-        ValueError: dr_m 컬럼이 없는 경우
+        ValueError: dr_m 컬럼이 없는 경우, 또는 lag_list에 지원하지 않는
+            lag 값(1, 2 외)이 포함된 경우
     """
     if lag_list is None:
         lag_list = DEFAULT_LAG_LIST
@@ -119,9 +121,12 @@ def add_rate_change_lags(
 
     # lag 컬럼 생성
     lag_col_map = {1: COL_DR_LAG1, 2: COL_DR_LAG2}
+    unsupported = [lag for lag in lag_list if lag not in lag_col_map]
+    if unsupported:
+        raise ValueError(
+            f"지원하지 않는 lag 값: {unsupported} " f"(지원 값: {sorted(lag_col_map)}). " f"매핑 외 lag는 컬럼 생성이 조용히 누락되므로 즉시 중단한다."
+        )
     for lag in lag_list:
-        col_name = lag_col_map.get(lag)
-        if col_name:
-            result[col_name] = result[COL_DR_M].shift(lag)
+        result[lag_col_map[lag]] = result[COL_DR_M].shift(lag)
 
     return result
