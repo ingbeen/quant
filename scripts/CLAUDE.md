@@ -213,7 +213,7 @@ main 함수:
 
 width 파라미터 사용:
 
-- `use_container_width` 파라미터는 deprecated됨 (사용 금지)
+- 너비 지정은 `width` 파라미터로만 한다 (`use_container_width`는 사용하지 않는다)
 - 전체 너비 사용 시: `width="stretch"`
 - 콘텐츠 크기 맞춤 시: `width="content"`
 
