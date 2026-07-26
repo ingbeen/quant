@@ -2,22 +2,17 @@
   "display_name": "버퍼존 전략 (UGL)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 67778997,
-    "total_return_pct": 577.79,
-    "cagr": 11.66,
+    "final_capital": 48592053,
+    "total_return_pct": 385.92,
+    "cagr": 9.38,
     "mdd": -70.78,
-    "calmar": 0.16,
-    "total_trades": 7,
-    "winning_trades": 2,
+    "calmar": 0.13,
+    "total_trades": 8,
+    "winning_trades": 3,
     "losing_trades": 5,
-    "win_rate": 28.57,
+    "win_rate": 37.5,
     "start_date": "2008-12-03",
-    "end_date": "2026-04-10",
-    "open_position": {
-      "entry_date": "2023-01-06",
-      "entry_price": 14.187435,
-      "shares": 1072113
-    }
+    "end_date": "2026-07-24"
   },
   "params": {
     "ma_window": 200,
@@ -1067,7 +1062,22 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 2.86
+      "return_pct": -3.71
+    },
+    {
+      "year": 2026,
+      "month": 5,
+      "return_pct": -3.85
+    },
+    {
+      "year": 2026,
+      "month": 6,
+      "return_pct": -20.35
+    },
+    {
+      "year": 2026,
+      "month": 7,
+      "return_pct": 0.0
     }
   ],
   "yearly_returns": [
@@ -1141,7 +1151,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 13.86
+      "return_pct": -18.37
     }
   ],
   "data_info": {

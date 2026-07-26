@@ -2,21 +2,21 @@
   "display_name": "Buy & Hold (UBT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 11254218,
-    "total_return_pct": 12.54,
-    "cagr": 0.73,
+    "final_capital": 10492135,
+    "total_return_pct": 4.92,
+    "cagr": 0.29,
     "mdd": -78.9,
-    "calmar": 0.01,
+    "calmar": 0.0,
     "total_trades": 0,
     "winning_trades": 0,
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2010-01-21",
-    "end_date": "2026-04-10",
+    "end_date": "2026-07-24",
     "open_position": {
       "entry_date": "2010-01-22",
-      "entry_price": 14.563427,
-      "shares": 686651
+      "entry_price": 14.458449,
+      "shares": 691637
     }
   },
   "params": {
@@ -582,7 +582,7 @@
     {
       "year": 2019,
       "month": 5,
-      "return_pct": 13.9
+      "return_pct": 13.91
     },
     {
       "year": 2019,
@@ -997,7 +997,22 @@
     {
       "year": 2026,
       "month": 4,
-      "return_pct": 0.55
+      "return_pct": -2.15
+    },
+    {
+      "year": 2026,
+      "month": 5,
+      "return_pct": 0.56
+    },
+    {
+      "year": 2026,
+      "month": 6,
+      "return_pct": 2.42
+    },
+    {
+      "year": 2026,
+      "month": 7,
+      "return_pct": -6.99
     }
   ],
   "yearly_returns": [
@@ -1039,7 +1054,7 @@
     },
     {
       "year": 2019,
-      "return_pct": 24.47
+      "return_pct": 24.48
     },
     {
       "year": 2020,
@@ -1067,7 +1082,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -0.51
+      "return_pct": -7.25
     }
   ],
   "data_info": {
