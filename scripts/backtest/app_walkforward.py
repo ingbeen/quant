@@ -674,6 +674,9 @@ def _load_window_csv_detail(path_str: str) -> pd.DataFrame | None:
     df = pd.read_csv(path)
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
+    for col in ("entry_date", "exit_date"):
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col]).dt.date
     return df
 
 

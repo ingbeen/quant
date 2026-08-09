@@ -57,9 +57,9 @@ class TestDailyRunWorkflow:
         assert "3.12" in daily_run_yaml
 
     def test_poetry_cache_step(self, daily_run_yaml: str):
-        """actions/cache@v5 + Poetry venv 경로 캐싱."""
+        """actions/cache@v5 + 프로젝트 내 .venv 경로 캐싱."""
         assert "actions/cache@v5" in daily_run_yaml
-        assert "pypoetry" in daily_run_yaml
+        assert ".venv" in daily_run_yaml
 
     def test_credentials_use_gcp_application_default(self, daily_run_yaml: str):
         """자격증명은 ``GOOGLE_APPLICATION_CREDENTIALS`` 단일 (Firebase Admin SDK 가 RTDB / GCS / FCM 공용)."""
