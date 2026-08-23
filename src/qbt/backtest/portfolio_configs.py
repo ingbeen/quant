@@ -5,7 +5,8 @@
 실험 목적:
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
 - Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
-  수익·위험 프로필을 비교한다.
+  수익·위험 프로필을 비교한다. 방어자산 슬롯을 현금 또는 주식으로 교체한 대조군을 두어
+  방어자산 자체의 기여분을 분리 측정한다.
 """
 
 from pathlib import Path
@@ -125,6 +126,51 @@ _CONFIG_Q2_2XS = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
 
+# Q-2-2XS-CASH: Q-2-2XS의 방어자산 슬롯을 현금으로 대체 -- SSO 35% / QLD 35% / 현금 30%
+# target_weight 합 = 0.70 → 잔여 30%는 엔진이 현금으로 유지한다.
+_CONFIG_Q2_2XS_CASH = PortfolioConfig(
+    experiment_name="portfolio_q2_2xs_cash",
+    display_name="Q-2-2XS-CASH (SSO 35% / QLD 35% / 현금 30%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.35,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xs_cash"),
+)
+
+# Q-2-2XS-FULL: Q-2-2XS의 방어자산 몫을 주식으로 흡수 -- SSO 50% / QLD 50%
+_CONFIG_Q2_2XS_FULL = PortfolioConfig(
+    experiment_name="portfolio_q2_2xs_full",
+    display_name="Q-2-2XS-FULL (SSO 50% / QLD 50%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.50,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.50,
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xs_full"),
+)
+
 # ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
@@ -133,6 +179,8 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
+    _CONFIG_Q2_2XS_CASH,
+    _CONFIG_Q2_2XS_FULL,
 ]
 
 

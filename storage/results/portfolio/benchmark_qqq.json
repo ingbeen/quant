@@ -1,7 +1,7 @@
 {
   "ticker": "QQQ",
   "start_date": "2005-01-01",
-  "end_date": "2026-07-24",
+  "end_date": "2026-08-21",
   "yearly_returns": [
     {
       "year": 2005,
@@ -89,7 +89,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 11.65
+      "return_pct": 16.42
     }
   ]
 }
