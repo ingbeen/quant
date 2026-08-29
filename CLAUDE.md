@@ -23,6 +23,13 @@
 - 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
   - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `src/qbt/utils/CLAUDE.md`
 
+> **자동 로드는 `Read` 도구로 열었을 때만 걸립니다.** `cat`·`head`·`sed -n` 으로 읽으면
+> 그 경로의 규칙이 따라오지 않고, **auto 모드는 그 셸 읽기를 권장합니다.**
+> **코드 파일은 `Read` 도구로 엽니다.** 셸은 검색·집계에 씁니다.
+>
+> 2026-08-29 실측: 같은 `.py` 를 `cat -n` 으로 읽으면 아무것도 안 붙고,
+> `Read` 로 열면 `.claude/rules/python.md` 와 그 계층의 `CLAUDE.md` 가 함께 주입됩니다.
+
 ---
 
 ## 패키지 간 의존 관계
