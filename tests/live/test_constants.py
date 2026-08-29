@@ -64,13 +64,13 @@ class TestDriftThresholds:
         assert DRIFT_WARNING_RATIO < DRIFT_CORRECTION_RATIO
 
     def test_both_ratios_are_in_zero_to_one_range(self):
-        """CLAUDE.md 비율 표기 규칙: 0~1 소수."""
+        """.claude/rules/python.md 비율 표기 규칙: 0~1 소수."""
         assert 0.0 <= DRIFT_WARNING_RATIO <= 1.0
         assert 0.0 <= DRIFT_CORRECTION_RATIO <= 1.0
 
 
 class TestDefaultPaths:
-    """경로 상수는 모두 pathlib.Path 이어야 한다 (CLAUDE.md 필수 규칙)."""
+    """경로 상수는 모두 pathlib.Path 이어야 한다 (.claude/rules/python.md 필수 규칙)."""
 
     def test_default_data_stock_subdir_is_path(self):
         assert isinstance(DEFAULT_DATA_STOCK_SUBDIR, Path)

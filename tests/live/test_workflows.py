@@ -120,7 +120,7 @@ class TestDailyRunWorkflow:
         assert 'poetry run python -m live run-daily --trade-date "$TRADE_DATE"' in daily_run_yaml
 
     def test_no_legacy_or_history_comments(self, daily_run_yaml: str):
-        """루트 CLAUDE.md "주석 작성 원칙" — 변경 이력 / 과거 상태 주석 금지.
+        """.claude/rules/python.md "주석 작성 원칙" — 변경 이력 / 과거 상태 주석 금지.
 
         ``기존``, ``이전``, ``테스트 코드`` 같은 표현이 주석에 남아 있으면 문서
         내구성 원칙 위반이다. 현재 상태만 기술하도록 강제한다.
@@ -183,7 +183,7 @@ class TestKeepaliveWorkflow:
         assert "contents: write" in code
 
     def test_no_legacy_comment_block(self, keepalive_yaml: str):
-        """루트 CLAUDE.md "주석 작성 원칙" — 과거 버전 주석 블록 금지."""
+        """.claude/rules/python.md "주석 작성 원칙" — 과거 버전 주석 블록 금지."""
         forbidden = ("이전 버전", "heartbeat", "과거에는")
         for phrase in forbidden:
             assert phrase not in keepalive_yaml, f"과거 상태 주석 남아있음: {phrase}"

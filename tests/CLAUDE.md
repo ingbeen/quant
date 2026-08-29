@@ -234,7 +234,7 @@ def test_with_temp_files(self, mock_storage_paths):
 
 문서화 목적: 테스트 자체가 도메인 규칙의 "실행 가능한 문서" 역할을 합니다.
 
-주석 작성 원칙: [루트 CLAUDE.md](../CLAUDE.md#코딩-표준)의 문서화 규칙을 참고하세요.
+주석 작성 원칙: [.claude/rules/python.md](../.claude/rules/python.md)의 문서화 규칙을 참고하세요.
 
 ---
 
@@ -451,7 +451,7 @@ expense_df = pd.DataFrame({
 
 정밀도 가이드라인:
 
-소수점 자릿수 기준은 루트 [`CLAUDE.md`](../CLAUDE.md)의 "출력 데이터 반올림 규칙" 참고.
+소수점 자릿수 기준은 [.claude/rules/python.md](../.claude/rules/python.md)의 "출력 데이터 반올림 규칙" 참고.
 테스트 데이터 작성 시에도 동일한 자릿수 기준을 따릅니다.
 
 부동소수점 오차 처리:
