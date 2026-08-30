@@ -41,9 +41,6 @@ TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 
 # 교차 자산 검증용 데이터 파일 경로
 SPY_DATA_PATH: Final = STOCK_DIR / "SPY_max.csv"
-IWM_DATA_PATH: Final = STOCK_DIR / "IWM_max.csv"
-EFA_DATA_PATH: Final = STOCK_DIR / "EFA_max.csv"
-EEM_DATA_PATH: Final = STOCK_DIR / "EEM_max.csv"
 GLD_DATA_PATH: Final = STOCK_DIR / "GLD_max.csv"
 TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 

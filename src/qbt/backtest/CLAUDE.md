@@ -40,7 +40,6 @@
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
 - WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등
-- 전략 필터링: `DEFAULT_SINGLE_BACKTEST_STRATEGIES` (단일 백테스트/대시보드에서 실행·표출할 전략 목록)
 
 ### 3. analysis.py
 

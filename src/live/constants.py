@@ -135,7 +135,6 @@ DEFAULT_RECENT_FETCH_DAYS: Final[int] = 5
 TELEGRAM_TIMEOUT_SECONDS: Final[int] = 10
 
 # ``cli.py`` history 커맨드에서 --tail 의 기본값.
-DEFAULT_HISTORY_TAIL_LINES: Final[int] = 10
 
 
 # ============================================================================

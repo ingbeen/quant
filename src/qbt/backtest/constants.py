@@ -94,7 +94,6 @@ COL_HOLD_DAYS_USED: Final = "hold_days_used"
 COL_HOLDING_DAYS: Final = "holding_days"
 COL_DRAWDOWN_PCT: Final = "drawdown_pct"
 COL_CHANGE_PCT: Final = "change_pct"
-COL_POSITION: Final = "position"
 
 # --- DataFrame 컬럼명 (내부용) ---
 COL_MA_WINDOW: Final = "ma_window"
