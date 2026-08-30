@@ -125,6 +125,44 @@ _CONFIG_Q2_2XS = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
 
+# Q-2-2XS sell10: Q-2-2XS 와 동일하되 주식 슬롯의 매도 버퍼만 10% (부록 G.7.2 쟁점 검증용 대조군)
+_CONFIG_Q2_2XS_SELL10 = PortfolioConfig(
+    experiment_name="portfolio_q2_2xs_sell10",
+    display_name="Q-2-2XS sell10 (주식 슬롯 매도버퍼 10%)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso",
+            signal_data_path=SPY_DATA_PATH,
+            trade_data_path=SSO_DATA_PATH,
+            target_weight=0.35,
+            sell_buffer_zone_pct=0.10,
+        ),
+        AssetSlotConfig(
+            asset_id="qld",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QLD_DATA_PATH,
+            target_weight=0.35,
+            sell_buffer_zone_pct=0.10,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xs_sell10"),
+)
+
 # ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
@@ -133,6 +171,7 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
+    _CONFIG_Q2_2XS_SELL10,
 ]
 
 

@@ -35,6 +35,7 @@ from qbt.common_constants import (
     COL_CLOSE,
     GLD_DATA_PATH,
     QQQ_DATA_PATH,
+    SPY_DATA_PATH,
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
     UBT_DATA_PATH,
@@ -143,6 +144,23 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=QQQ_DATA_PATH,
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq",
+    ),
+    # --- QQQ (sell_buffer 10% 대조군, 부록 G.7.2 쟁점 검증용) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_qqq_sell10",
+        display_name="버퍼존 전략 (QQQ, sell 10%)",
+        signal_data_path=QQQ_DATA_PATH,
+        trade_data_path=QQQ_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq_sell10",
+        sell_buffer_zone_pct=0.10,
+    ),
+    # --- SPY ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_spy",
+        display_name="버퍼존 전략 (SPY)",
+        signal_data_path=SPY_DATA_PATH,
+        trade_data_path=SPY_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_spy",
     ),
     # --- GLD ---
     BufferZoneConfig(
