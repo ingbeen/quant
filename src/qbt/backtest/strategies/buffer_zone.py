@@ -145,15 +145,6 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=QQQ_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq",
     ),
-    # --- QQQ (sell_buffer 10% 대조군, 부록 G.7.2 쟁점 검증용) ---
-    BufferZoneConfig(
-        strategy_name="buffer_zone_qqq_sell10",
-        display_name="버퍼존 전략 (QQQ, sell 10%)",
-        signal_data_path=QQQ_DATA_PATH,
-        trade_data_path=QQQ_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq_sell10",
-        sell_buffer_zone_pct=0.10,
-    ),
     # --- SPY ---
     BufferZoneConfig(
         strategy_name="buffer_zone_spy",

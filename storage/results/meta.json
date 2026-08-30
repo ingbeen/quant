@@ -2700,6 +2700,150 @@
   "portfolio_backtest": [
     {
       "params": {
+        "experiment_name": "portfolio_q2_2xs_qld_sell10",
+        "display_name": "Q-2-2XS qld_sell10 (QLD 슬롯만 매도버퍼 10%)",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "sso",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/SPY_max.csv",
+            "trade_data_path": "storage/stock/SSO_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "qld",
+            "target_weight": 0.35,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QLD_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.1,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "gld",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/GLD_max.csv",
+            "trade_data_path": "storage/stock/GLD_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          },
+          {
+            "asset_id": "tlt",
+            "target_weight": 0.15,
+            "signal_data_path": "storage/stock/TLT_max.csv",
+            "trade_data_path": "storage/stock/TLT_max.csv",
+            "strategy_id": "buy_and_hold",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 1562.7,
+        "cagr": 15.62,
+        "mdd": -31.6,
+        "calmar": 0.49,
+        "total_trades": 176
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_q2_2xs_qld_sell10/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_q2_2xs_qld_sell10/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2xs_qld_sell10/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs_qld_sell10/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_q2_2xs_qld_sell10/summary.json"
+      },
+      "timestamp": "2026-08-30T16:39:51+09:00"
+    },
+    {
+      "params": {
+        "experiment_name": "portfolio_d1_2x_sell10",
+        "display_name": "D-1-2X sell10 (QLD 100%, 매도버퍼 10%)",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "qld",
+            "target_weight": 1.0,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QLD_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.1,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 3347.42,
+        "cagr": 20.06,
+        "mdd": -47.3,
+        "calmar": 0.42,
+        "total_trades": 7
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_d1_2x_sell10/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_d1_2x_sell10/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_d1_2x_sell10/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_d1_2x_sell10/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_d1_2x_sell10/summary.json"
+      },
+      "timestamp": "2026-08-30T16:39:46+09:00"
+    },
+    {
+      "params": {
+        "experiment_name": "portfolio_d1_2x",
+        "display_name": "D-1-2X (QLD 100%)",
+        "total_capital": 10000000.0,
+        "monthly_rebalance_threshold_rate": 0.1,
+        "daily_rebalance_threshold_rate": 0.2,
+        "assets": [
+          {
+            "asset_id": "qld",
+            "target_weight": 1.0,
+            "signal_data_path": "storage/stock/QQQ_max.csv",
+            "trade_data_path": "storage/stock/QLD_max.csv",
+            "strategy_id": "buffer_zone",
+            "ma_window": 200,
+            "buy_buffer_zone_pct": 0.03,
+            "sell_buffer_zone_pct": 0.05,
+            "hold_days": 3
+          }
+        ]
+      },
+      "results_summary": {
+        "total_return_pct": 3252.32,
+        "cagr": 19.88,
+        "mdd": -46.37,
+        "calmar": 0.43,
+        "total_trades": 10
+      },
+      "output_files": {
+        "equity_csv": "storage/results/portfolio/portfolio_d1_2x/equity.csv",
+        "trades_csv": "storage/results/portfolio/portfolio_d1_2x/trades.csv",
+        "execution_comparison_csv": "storage/results/portfolio/portfolio_d1_2x/execution_comparison.csv",
+        "state_log_csv": "storage/results/portfolio/portfolio_d1_2x/state_log.csv",
+        "summary_json": "storage/results/portfolio/portfolio_d1_2x/summary.json"
+      },
+      "timestamp": "2026-08-30T16:39:42+09:00"
+    },
+    {
+      "params": {
         "experiment_name": "portfolio_q2_2xs_sell10",
         "display_name": "Q-2-2XS sell10 (주식 슬롯 매도버퍼 10%)",
         "total_capital": 10000000.0,
@@ -2837,187 +2981,6 @@
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
       "timestamp": "2026-08-30T10:48:30+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_q2",
-        "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "spy",
-            "target_weight": 0.35,
-            "signal_data_path": "storage/stock/SPY_max.csv",
-            "trade_data_path": "storage/stock/SPY_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "qqq",
-            "target_weight": 0.35,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/QQQ_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "gld",
-            "target_weight": 0.15,
-            "signal_data_path": "storage/stock/GLD_max.csv",
-            "trade_data_path": "storage/stock/GLD_max.csv",
-            "strategy_id": "buy_and_hold",
-            "ma_window": 200,
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "tlt",
-            "target_weight": 0.15,
-            "signal_data_path": "storage/stock/TLT_max.csv",
-            "trade_data_path": "storage/stock/TLT_max.csv",
-            "strategy_id": "buy_and_hold",
-            "ma_window": 200,
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 679.38,
-        "cagr": 9.96,
-        "mdd": -15.76,
-        "calmar": 0.63,
-        "total_trades": 131
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_q2/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_q2/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
-      },
-      "timestamp": "2026-08-30T10:48:28+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_d1",
-        "display_name": "D-1 (QQQ 100%)",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "qqq",
-            "target_weight": 1.0,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/QQQ_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 924.16,
-        "cagr": 11.36,
-        "mdd": -26.43,
-        "calmar": 0.43,
-        "total_trades": 11
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_d1/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_d1/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_d1/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_d1/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_d1/summary.json"
-      },
-      "timestamp": "2026-08-30T10:48:25+09:00"
-    },
-    {
-      "params": {
-        "experiment_name": "portfolio_q2_2xs",
-        "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
-        "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
-        "assets": [
-          {
-            "asset_id": "sso",
-            "target_weight": 0.35,
-            "signal_data_path": "storage/stock/SPY_max.csv",
-            "trade_data_path": "storage/stock/SSO_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "sma",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "qld",
-            "target_weight": 0.35,
-            "signal_data_path": "storage/stock/QQQ_max.csv",
-            "trade_data_path": "storage/stock/QLD_max.csv",
-            "strategy_id": "buffer_zone",
-            "ma_window": 200,
-            "ma_type": "sma",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "gld",
-            "target_weight": 0.15,
-            "signal_data_path": "storage/stock/GLD_max.csv",
-            "trade_data_path": "storage/stock/GLD_max.csv",
-            "strategy_id": "buy_and_hold",
-            "ma_window": 200,
-            "ma_type": "sma",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          },
-          {
-            "asset_id": "tlt",
-            "target_weight": 0.15,
-            "signal_data_path": "storage/stock/TLT_max.csv",
-            "trade_data_path": "storage/stock/TLT_max.csv",
-            "strategy_id": "buy_and_hold",
-            "ma_window": 200,
-            "ma_type": "sma",
-            "buy_buffer_zone_pct": 0.03,
-            "sell_buffer_zone_pct": 0.05,
-            "hold_days": 3
-          }
-        ]
-      },
-      "results_summary": {
-        "total_return_pct": 1510.39,
-        "cagr": 15.43,
-        "mdd": -27.56,
-        "calmar": 0.56,
-        "total_trades": 179
-      },
-      "output_files": {
-        "equity_csv": "storage/results/portfolio/portfolio_q2_2xs/equity.csv",
-        "trades_csv": "storage/results/portfolio/portfolio_q2_2xs/trades.csv",
-        "execution_comparison_csv": "storage/results/portfolio/portfolio_q2_2xs/execution_comparison.csv",
-        "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
-        "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
-      },
-      "timestamp": "2026-08-30T08:51:25+09:00"
     }
   ]
 }
