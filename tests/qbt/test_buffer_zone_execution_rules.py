@@ -663,14 +663,16 @@ class TestBacktestAccuracy:
         # Given: 상향돌파 후 계속 상승 (매도 신호 없음)
         from qbt.backtest.analysis import add_single_moving_average
 
+        # 앞 3행을 평탄하게 두어 MA 워밍업(window-1=2행 NaN) 이후에도
+        # 밴드 아래에서 출발하도록 한다. 그 뒤 지속 상승하여 매도 신호가 없다.
         df = pd.DataFrame(
             {
-                "Date": [date(2023, 1, d) for d in range(1, 11)],
-                "Open": [100.0] * 10,
-                "Close": [90, 95, 105, 110, 115, 120, 125, 130, 135, 140],  # 지속 상승
+                "Date": [date(2023, 1, d) for d in range(1, 13)],
+                "Open": [100.0] * 12,
+                "Close": [90, 90, 90, 95, 105, 110, 115, 120, 125, 130, 135, 140],
             }
         )
-        df = add_single_moving_average(df, window=3, ma_type="ema")
+        df = add_single_moving_average(df, window=3)
 
         params = BufferStrategyParams(
             initial_capital=100000.0,
@@ -728,7 +730,7 @@ class TestBacktestAccuracy:
                 "Close": [90, 95, 105, 108, 102, 100, 98],
             }
         )
-        df = add_single_moving_average(df, window=3, ma_type="ema")
+        df = add_single_moving_average(df, window=3)
 
         params = BufferStrategyParams(
             initial_capital=100000.0,
@@ -763,13 +765,13 @@ class TestBacktestAccuracy:
         # Given: 첫 유효 구간에서 즉시 상향돌파
         df = pd.DataFrame(
             {
-                "Date": [date(2023, 1, d) for d in range(1, 8)],
-                "Open": [100.0] * 7,
-                # ma_window=3이므로 i=2부터 유효, i=2에서 즉시 돌파
-                "Close": [90, 95, 105, 110, 95, 90, 85],
+                "Date": [date(2023, 1, d) for d in range(1, 10)],
+                "Open": [100.0] * 9,
+                # ma_window=3이므로 i=2부터 유효. i=2는 밴드 아래(초기화), i=3에서 상향돌파한다.
+                "Close": [90, 90, 90, 105, 110, 95, 90, 85, 80],
             }
         )
-        df = add_single_moving_average(df, window=3, ma_type="ema")
+        df = add_single_moving_average(df, window=3)
 
         params = BufferStrategyParams(
             initial_capital=100000.0,

@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (QQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 157391393,
-    "total_return_pct": 1473.91,
-    "cagr": 10.59,
+    "final_capital": 164110483,
+    "total_return_pct": 1541.1,
+    "cagr": 10.73,
     "mdd": -82.96,
     "calmar": 0.13,
     "total_trades": 0,
@@ -12,10 +12,10 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "1999-03-10",
-    "end_date": "2026-07-24",
+    "end_date": "2026-08-21",
     "open_position": {
       "entry_date": "1999-03-11",
-      "entry_price": 43.473056,
+      "entry_price": 43.473071,
       "shares": 230027
     }
   },
@@ -1662,7 +1662,12 @@
     {
       "year": 2026,
       "month": 7,
-      "return_pct": -7.08
+      "return_pct": -6.57
+    },
+    {
+      "year": 2026,
+      "month": 8,
+      "return_pct": 3.7
     }
   ],
   "yearly_returns": [
@@ -1776,7 +1781,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 11.65
+      "return_pct": 16.42
     }
   ],
   "data_info": {

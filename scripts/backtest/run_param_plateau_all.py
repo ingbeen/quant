@@ -174,7 +174,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
         base_config = get_config(config_name)
 
         # MA=200 사전 계산 (hold_days, sell_buffer, buy_buffer 실험용)
-        signal_ma200 = add_single_moving_average(signal_df, FIXED_4P_MA_WINDOW, ma_type="sma")
+        signal_ma200 = add_single_moving_average(signal_df, FIXED_4P_MA_WINDOW)
 
         logger.debug(f"[{asset_label}] 데이터 로딩 완료: {len(signal_df)}행")
 
@@ -248,7 +248,7 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
         # 실험 4: ma_window (MA 재계산 필요)
         if "ma_window" in selected_experiments:
             for ma_val in _MA_WINDOW_VALUES:
-                signal_with_ma = add_single_moving_average(signal_df, ma_val, ma_type="sma")
+                signal_with_ma = add_single_moving_average(signal_df, ma_val)
                 config = replace(
                     base_config,
                     ma_window=ma_val,

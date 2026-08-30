@@ -34,7 +34,7 @@
 주요 상수 카테고리:
 
 - 거래 비용: `SLIPPAGE_RATE` (매수 또는 매도 1회당 0.3%, 슬리피지 + 수수료 통합. 왕복 = 매수 + 매도 = 2 × `SLIPPAGE_RATE` ≈ 0.6%)
-- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_BUFFER_MA_TYPE` (버퍼존/그리드서치 기본 MA 유형, `"sma"`)
+- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`
 - 수치 안정성: `CALMAR_MDD_ZERO_SUBSTITUTE` (Calmar MDD=0 처리 대용값, `1e10`)
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
@@ -48,7 +48,7 @@
 
 주요 함수:
 
-- `add_single_moving_average`: 단일 이동평균(SMA/EMA) 계산
+- `add_single_moving_average`: 단순이동평균(SMA) 계산. 유형 선택 파라미터가 없다 (「도메인 규칙 1-1」 참고)
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
 - `calculate_yearly_returns`: 월별 수익률 리스트로부터 연간 복리 수익률 계산 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
@@ -98,9 +98,9 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
   - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
   - 유효하지 않은 strategy_id는 엔진이 registry 조회 후 ValueError로 처리
-  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="sma"`
+  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, result_dir)
-  - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)는 슬롯 레벨(AssetSlotConfig)로 이동.
+  - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days)는 슬롯 레벨(AssetSlotConfig)로 이동.
   - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며 PortfolioConfig에서 제거됨.
 
 결과 데이터클래스:
@@ -308,7 +308,7 @@ TypedDict:
 
 설정 데이터클래스:
 
-- `BufferZoneConfig`: 자산별 전략 설정 (strategy*name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days, ma_type). frozen=True. 기본값은 `constants.py`의 `FIXED_4P*\*` 참조
+- `BufferZoneConfig`: 자산별 전략 설정 (strategy*name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days). frozen=True. 기본값은 `constants.py`의 `FIXED_4P*\*` 참조
 
 설정 목록:
 
@@ -418,12 +418,14 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - 매수 버퍼존 (`buy_buffer_zone_pct`): upper_band 기준 매수 진입 허용 범위 (비율, 0~1)
 - 매도 버퍼존 (`sell_buffer_zone_pct`): lower_band 기준 매도 청산 허용 범위 (비율, 0~1)
 - 유지 조건 (`hold_days`): 신호 확정까지 대기 기간 (일), 0 = 버퍼존만 모드
-- 이동평균 유형 (`ma_type`): **SMA(단순이동평균)를 사용한다** (아래 규칙 참고)
 
-### 1-1. 이동평균 유형은 SMA로 통일한다 (절대 규칙)
+> 이동평균 유형은 파라미터가 아니다. **SMA 로 고정**되어 있다 (아래 규칙 참고).
 
-이 프로젝트의 모든 프로덕션 계산 경로는 **SMA** 를 사용한다. `ma_type` 파라미터에 `"ema"` 가 남아 있으나
-비교 실험 용도이며, 신규 설정에서 EMA 를 선택하지 않는다.
+### 1-1. 이동평균은 SMA 하나뿐이다 (절대 규칙)
+
+`add_single_moving_average` 는 **유형을 고르는 파라미터를 갖지 않으며**, 항상 단순이동평균을 계산한다.
+EMA 계산 경로와 `ma_type` 파라미터·상수·필드는 코드베이스에서 제거되었다.
+`tests/qbt/test_ma_type_policy.py` 가 시그니처에 `ma_type` 이 없음을 검증하여 재도입을 막는다.
 
 채택 근거 (상세는 `docs/research/전략_검증_보고서.md` 부록 G):
 
@@ -437,8 +439,9 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
    사실상 그날 종가다. 밴드가 가격에 밀착해 "추세 돌파" 가 아닌 신호가 발생한다.
    SMA 는 `ma_window` 미만 구간을 NaN 으로 두어 `filter_valid_rows` 가 자동 제외한다.
 
-**부작용**: SMA 는 앞 `ma_window - 1` 행이 NaN 이므로 백테스트 유효 시작일이 EMA 보다 뒤로 밀린다.
-서로 다른 `ma_type` 의 결과를 비교할 때는 **반드시 공통 기간으로 잘라 재계산**한다.
+**부작용**: SMA 는 앞 `ma_window - 1` 행이 NaN 이므로 백테스트 유효 시작일이 EMA 시절보다 뒤로 밀린다.
+전환 이전(EMA 기준) 결과와 비교할 때는 **반드시 공통 기간으로 잘라 재계산**한다.
+짧은 합성 데이터로 테스트를 만들 때도 `ma_window` 를 데이터 길이에 맞춰 지정해야 워밍업 구간에 갇히지 않는다.
 
 ### 2. 비용 모델
 

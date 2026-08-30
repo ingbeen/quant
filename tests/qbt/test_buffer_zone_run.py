@@ -314,7 +314,7 @@ class TestRunGridSearch:
 
         # 그리드 서치에 필요한 모든 MA 미리 계산
         for window in [5, 10]:
-            df = add_single_moving_average(df, window=window, ma_type="ema")
+            df = add_single_moving_average(df, window=window)
 
         # When: 작은 그리드로 테스트
         results_df = run_grid_search(
@@ -380,7 +380,7 @@ class TestRunGridSearch:
 
         # MA 계산
         for window in [5, 10]:
-            df = add_single_moving_average(df, window=window, ma_type="ema")
+            df = add_single_moving_average(df, window=window)
 
         # When
         results_df = run_grid_search(

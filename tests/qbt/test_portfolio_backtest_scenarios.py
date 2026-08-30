@@ -647,7 +647,6 @@ class TestComputeEffectiveStartDate:
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         data_start = stock_df[COL_DATE].iloc[0]
 
-        # ma_type="sma"로 명시 (SMA는 처음 window-1행이 NaN → 워밍업 기간 명확)
         config = PortfolioConfig(
             experiment_name="test_sma",
             display_name="Test SMA",
@@ -657,8 +656,7 @@ class TestComputeEffectiveStartDate:
                     signal_data_path=qqq_path,
                     trade_data_path=qqq_path,
                     target_weight=1.0,
-                    ma_window=5,
-                    ma_type="sma",  # SMA: 처음 4행(window-1=4)이 NaN
+                    ma_window=5,  # 처음 4행(window-1=4)이 NaN
                 ),
             ),
             total_capital=10_000_000.0,

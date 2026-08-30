@@ -28,7 +28,6 @@ from qbt.backtest.constants import (
     COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     MIN_BUY_BUFFER_ZONE_PCT,
     MIN_HOLD_DAYS,
@@ -443,7 +442,7 @@ def run_grid_search(
 ) -> pd.DataFrame:
     """버퍼존 전략 파라미터 그리드 탐색을 수행한다.
 
-    모든 파라미터 조합에 대해 EMA 기반 버퍼존 전략을 실행하고
+    모든 파라미터 조합에 대해 이동평균 기반 버퍼존 전략을 실행하고
     성과 지표를 기록한다.
 
     Args:
@@ -465,13 +464,13 @@ def run_grid_search(
         f"hold_days={hold_days_list}"
     )
 
-    # 1. signal_df에 모든 이동평균 기간에 대해 EMA 미리 계산
+    # 1. signal_df에 모든 이동평균 기간을 미리 계산
     signal_df = signal_df.copy()
     trade_df = trade_df.copy()
-    logger.debug(f"이동평균 사전 계산 (EMA): {sorted(ma_window_list)}")
+    logger.debug(f"이동평균 사전 계산: {sorted(ma_window_list)}")
 
     for window in ma_window_list:
-        signal_df = add_single_moving_average(signal_df, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        signal_df = add_single_moving_average(signal_df, window)
 
     logger.debug("이동평균 사전 계산 완료")
 
@@ -567,7 +566,7 @@ def run_buffer_strategy(
     trade_df = trade_df.copy()
 
     if ma_col not in signal_df.columns:
-        signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        signal_df = add_single_moving_average(signal_df, params.ma_window)
 
     # 3. MA 유효 구간 필터링 (초기 MA 기준)
     filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)

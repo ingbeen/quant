@@ -473,7 +473,6 @@ class TestCreateRunner:
         assert isinstance(result.summary, dict)
         assert isinstance(result.params_json, dict)
         assert "ma_window" in result.params_json
-        assert "ma_type" in result.params_json
 
     @patch("qbt.backtest.runners.load_signal_trade_pair")
     def test_signal_equals_trade_no_overlap(self, mock_load_pair, tmp_path):
@@ -619,7 +618,6 @@ class TestCreateRunner:
         assert isinstance(result.summary, dict)
         assert isinstance(result.params_json, dict)
         assert "ma_window" in result.params_json
-        assert "ma_type" in result.params_json
         assert isinstance(result.data_info, dict)
         assert "signal_path" in result.data_info
         assert "trade_path" in result.data_info
@@ -664,7 +662,6 @@ class TestCreateRunner:
         assert isinstance(result.summary, dict)
         assert isinstance(result.params_json, dict)
         assert "ma_window" in result.params_json
-        assert "ma_type" in result.params_json
         assert isinstance(result.data_info, dict)
         assert "signal_path" in result.data_info
         assert "trade_path" in result.data_info

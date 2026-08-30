@@ -136,7 +136,6 @@ class TestMaContinuity:
         Then: 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다.
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import DEFAULT_BUFFER_MA_TYPE
         from qbt.backtest.walkforward import run_walkforward
 
         # Given — IS 상승(800 거래일, 100→222) + OOS 진동(300 거래일, 60±10)
@@ -146,7 +145,7 @@ class TestMaContinuity:
 
         # 전체 히스토리 MA 사전 계산 (두 번째 실행에서 OOS 슬라이스에 포함됨)
         # 프로덕션 기본 MA 유형을 그대로 써야 run_walkforward 내부 계산과 비교가 성립한다.
-        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window)
 
         wfo_kwargs: dict[str, object] = {
             "trade_df": raw_df,
@@ -184,7 +183,7 @@ class TestMaContinuity:
         Then: stitched CAGR과 참조 CAGR이 동일해야 한다.
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import DEFAULT_BUFFER_MA_TYPE, DEFAULT_INITIAL_CAPITAL
+        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
         from qbt.backtest.engines.backtest_engine import run_backtest
         from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
         from qbt.backtest.walkforward import run_stitched_equity
@@ -226,7 +225,7 @@ class TestMaContinuity:
         ]
 
         # 참조: 전체 히스토리 MA 기반 OOS 백테스트
-        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window)
         oos_mask = (raw_df[COL_DATE] >= oos_start_date) & (raw_df[COL_DATE] <= oos_end_date)
         oos_signal_ref = full_df_with_ma[oos_mask].reset_index(drop=True)
         oos_trade_ref = raw_df[oos_mask].reset_index(drop=True)
@@ -278,7 +277,7 @@ class TestParamsSchedule:
         df = _make_stock_df(date(2000, 1, 3), 300, base_price=100.0, daily_return=0.001)
         from qbt.backtest.analysis import add_single_moving_average
 
-        signal_df = add_single_moving_average(df.copy(), 50, ma_type="ema")
+        signal_df = add_single_moving_average(df.copy(), 50)
         trade_df = df.copy()
 
         params = BufferStrategyParams(
@@ -309,8 +308,8 @@ class TestParamsSchedule:
         from qbt.backtest.analysis import add_single_moving_average
 
         # 두 MA 모두 사전 계산
-        signal_df = add_single_moving_average(df.copy(), 50, ma_type="ema")
-        signal_df = add_single_moving_average(signal_df, 100, ma_type="ema")
+        signal_df = add_single_moving_average(df.copy(), 50)
+        signal_df = add_single_moving_average(signal_df, 100)
         trade_df = df.copy()
 
         # 첫 구간 파라미터
@@ -358,8 +357,8 @@ class TestParamsSchedule:
         df = _make_stock_df(date(2000, 1, 3), 500, base_price=100.0, daily_return=0.0005)
         from qbt.backtest.analysis import add_single_moving_average
 
-        signal_df = add_single_moving_average(df.copy(), 50, ma_type="ema")
-        signal_df = add_single_moving_average(signal_df, 100, ma_type="ema")
+        signal_df = add_single_moving_average(df.copy(), 50)
+        signal_df = add_single_moving_average(signal_df, 100)
         trade_df = df.copy()
 
         params = BufferStrategyParams(

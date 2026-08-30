@@ -87,7 +87,7 @@ def _load_slot_frame(state_dir: Path, slot: AssetSlotConfig) -> tuple[list[date]
     csv_path = live_csv_path(state_dir, ticker)
     df = load_csv(csv_path)
 
-    df = add_single_moving_average(df, window=slot.ma_window, ma_type=slot.ma_type)
+    df = add_single_moving_average(df, window=slot.ma_window)
     ma_col = f"ma_{slot.ma_window}"
 
     dates: list[date] = list(df[COL_DATE].tolist())

@@ -89,7 +89,7 @@ class AssetState:
 class AssetSlotConfig:
     """자산 슬롯 설정.
 
-    EMA-200 시그널 소스와 실제 매매 대상을 분리하여 정의한다.
+    이동평균 시그널 소스와 실제 매매 대상을 분리하여 정의한다.
     예: TQQQ는 QQQ 데이터로 시그널을 생성하고, 합성 TQQQ 데이터로 매매한다.
 
     Attributes:
@@ -105,7 +105,6 @@ class AssetSlotConfig:
         buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.03)
         sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.05)
         hold_days: 유지일수 (buffer_zone 슬롯에서 사용, 기본값 3)
-        ma_type: 이동평균 유형 (buffer_zone 슬롯에서 사용, 기본값 "sma")
     """
 
     asset_id: str
@@ -118,7 +117,6 @@ class AssetSlotConfig:
     buy_buffer_zone_pct: float = 0.03
     sell_buffer_zone_pct: float = 0.05
     hold_days: int = 3
-    ma_type: Literal["ema", "sma"] = "sma"
 
 
 @dataclass(frozen=True)

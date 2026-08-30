@@ -81,7 +81,6 @@
         "trade_data_path": "storage/stock/SSO_max.csv",
         "strategy_id": "buffer_zone",
         "ma_window": 200,
-        "ma_type": "sma",
         "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
         "hold_days": 3
@@ -93,7 +92,6 @@
         "trade_data_path": "storage/stock/QLD_max.csv",
         "strategy_id": "buffer_zone",
         "ma_window": 200,
-        "ma_type": "sma",
         "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
         "hold_days": 3
@@ -105,7 +103,6 @@
         "trade_data_path": "storage/stock/GLD_max.csv",
         "strategy_id": "buy_and_hold",
         "ma_window": 200,
-        "ma_type": "sma",
         "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
         "hold_days": 3
@@ -117,7 +114,6 @@
         "trade_data_path": "storage/stock/TLT_max.csv",
         "strategy_id": "buy_and_hold",
         "ma_window": 200,
-        "ma_type": "sma",
         "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
         "hold_days": 3

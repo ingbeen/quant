@@ -21,7 +21,6 @@
   },
   "params": {
     "ma_window": 200,
-    "ma_type": "sma",
     "buy_buffer_zone_pct": 0.03,
     "sell_buffer_zone_pct": 0.05,
     "hold_days": 3,

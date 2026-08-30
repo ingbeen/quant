@@ -122,7 +122,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         ma_col = ma_col_name(params.ma_window)
 
         # 3. 이동평균 계산
-        signal_df = add_single_moving_average(signal_df, params.ma_window, ma_type=config.ma_type)
+        signal_df = add_single_moving_average(signal_df, params.ma_window)
 
         # 4. MA 유효 구간 필터링
         valid_mask = signal_df[ma_col].notna()
@@ -156,7 +156,6 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         # 7. JSON 저장용 파라미터
         params_json: dict[str, Any] = {
             "ma_window": params.ma_window,
-            "ma_type": config.ma_type,
             "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, 4),
             "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
             "hold_days": params.hold_days,

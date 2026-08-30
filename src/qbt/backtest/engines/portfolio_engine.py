@@ -102,7 +102,7 @@ def _load_portfolio_data_with_common_period(
     slot_dict: dict[str, Any] = {slot.asset_id: slot for slot in config.asset_slots}
 
     for slot in config.asset_slots:
-        signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}::{slot.ma_type}"
+        signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}"
         if signal_key not in signal_cache:
             signal_df_raw, trade_df = load_and_prepare_data(slot)
             signal_cache[signal_key] = signal_df_raw
@@ -509,7 +509,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 "trade_data_path": str(slot.trade_data_path),
                 "strategy_id": slot.strategy_id,
                 "ma_window": slot.ma_window,
-                "ma_type": slot.ma_type,
                 "buy_buffer_zone_pct": slot.buy_buffer_zone_pct,
                 "sell_buffer_zone_pct": slot.sell_buffer_zone_pct,
                 "hold_days": slot.hold_days,

@@ -786,7 +786,7 @@ def _build_market_bundle(state_dir: Path) -> MarketBundle:
         else:
             trade_df = load_csv(live_csv_path(state_dir, trade_ticker))
 
-        signal_df = add_single_moving_average(signal_df, window=slot.ma_window, ma_type=slot.ma_type)
+        signal_df = add_single_moving_average(signal_df, window=slot.ma_window)
         raw_bundle[slot.asset_id] = AssetMarketData(signal_df=signal_df, trade_df=trade_df)
 
     # 2. 전 자산 trade_df 날짜 교집합 계산

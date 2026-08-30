@@ -32,7 +32,6 @@ from qbt.backtest.constants import (
     COL_SELL_BUFFER_ZONE_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
-    DEFAULT_BUFFER_MA_TYPE,
     DEFAULT_INITIAL_CAPITAL,
     DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST,
     DEFAULT_WFO_HOLD_DAYS_LIST,
@@ -257,7 +256,7 @@ def run_walkforward(
     1. 루프 진입 전, ma_window_list의 모든 윈도우에 대해 전체 signal_df에 MA를 사전 계산한다.
     2. IS/OOS 슬라이스는 이 사전 계산된 DataFrame에서 수행한다.
     3. IS 그리드 서치(run_grid_search)는 내부적으로 MA를 재계산하므로 IS 평가에는 영향이 없다.
-    4. OOS 독립 평가는 전체 히스토리 기반 EMA 값을 그대로 사용하여 EMA 연속성을 보장한다.
+    4. OOS 독립 평가는 전체 히스토리 기반 MA 값을 그대로 사용하여 MA 연속성을 보장한다.
 
     Args:
         signal_df: 시그널용 DataFrame (MA 컬럼 미포함, 내부에서 계산)
@@ -295,14 +294,15 @@ def run_walkforward(
 
     results: list[WfoWindowResultDict] = []
 
-    # 2. 루프 전: 전체 signal_df에 모든 MA 윈도우 사전 계산 (EMA 연속성 보장)
-    # EMA는 전달된 시리즈의 첫 행부터 새로 계산되므로, OOS 슬라이스 후 계산하면
-    # 전체 히스토리를 이어받지 못한다. 슬라이스 전에 전체 데이터로 먼저 계산한다.
+    # 2. 루프 전: 전체 signal_df에 모든 MA 윈도우 사전 계산 (MA 연속성 보장)
+    # 이동평균은 전달된 시리즈 기준으로 계산되므로, OOS 슬라이스 후 계산하면
+    # 앞 window-1 행이 NaN이 되어 전체 히스토리를 이어받지 못한다.
+    # 슬라이스 전에 전체 데이터로 먼저 계산한다.
     signal_df_with_ma = signal_df.copy()
     for _ma_window in ma_window_list:
         _ma_col = ma_col_name(_ma_window)
         if _ma_col not in signal_df_with_ma.columns:
-            signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+            signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window)
 
     for idx, (is_start, is_end, oos_start, oos_end) in enumerate(windows):
         logger.debug(f"WFO [{idx + 1}/{len(windows)}] " f"IS={is_start}~{is_end}, OOS={oos_start}~{oos_end}")
@@ -347,7 +347,7 @@ def run_walkforward(
         is_win_rate = float(best_row[COL_WIN_RATE])
         is_calmar = calculate_calmar(is_cagr, is_mdd)
 
-        # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — EMA 연속성 보장)
+        # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — MA 연속성 보장)
         # 방어적 설계: trade_df에 독립 날짜 마스크 적용
         oos_mask = (signal_df_with_ma[COL_DATE] >= oos_start) & (signal_df_with_ma[COL_DATE] <= oos_end)
         oos_signal = signal_df_with_ma[oos_mask].reset_index(drop=True)
@@ -661,7 +661,7 @@ def run_stitched_equity(
     """WFO 결과의 params_schedule로 Stitched Equity를 생성한다.
 
     첫 OOS 시작일부터 마지막 OOS 종료일까지 연속 자본곡선을 생성한다.
-    전체 signal_df에 먼저 MA를 계산하여 EMA 연속성을 보장한 후 OOS 구간만 슬라이싱한다.
+    전체 signal_df에 먼저 MA를 계산하여 MA 연속성을 보장한 후 OOS 구간만 슬라이싱한다.
 
     Args:
         signal_df: 시그널용 원본 DataFrame (MA 미포함)
@@ -682,12 +682,12 @@ def run_stitched_equity(
     oos_start_date = date.fromisoformat(str(first_oos_start))
     oos_end_date = date.fromisoformat(str(last_oos_end))
 
-    # 모든 MA 윈도우 사전 계산 (EMA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
+    # 모든 MA 윈도우 사전 계산 (MA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
     all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
 
     signal_df_with_ma = signal_df.copy()
     for window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window)
 
     # OOS 구간 데이터 슬라이스 (독립 날짜 기반 마스크)
     oos_signal_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
@@ -750,12 +750,12 @@ def run_window_detail_backtests(
     Returns:
         윈도우별 WindowDetailData 리스트 (빈 윈도우는 건너뜀)
     """
-    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (EMA 연속성 보장)
+    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (MA 연속성 보장)
     all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
 
     signal_df_with_ma = signal_df.copy()
     for ma_window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window)
 
     # 2. 각 윈도우별 백테스트 실행
     results: list[WindowDetailData] = []

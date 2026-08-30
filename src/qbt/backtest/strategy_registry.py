@@ -78,12 +78,12 @@ def _prepare_buffer_zone_signal_df(df: pd.DataFrame, slot: AssetSlotConfig) -> p
 
     Args:
         df: 원본 OHLCV DataFrame
-        slot: 자산 슬롯 설정 (ma_window, ma_type 참조)
+        slot: 자산 슬롯 설정 (ma_window 참조)
 
     Returns:
         MA 컬럼(ma_{ma_window})이 추가된 DataFrame
     """
-    return add_single_moving_average(df, slot.ma_window, slot.ma_type)
+    return add_single_moving_average(df, slot.ma_window)
 
 
 def _get_buffer_zone_warmup_periods(slot: AssetSlotConfig) -> int:
