@@ -34,7 +34,7 @@
 주요 상수 카테고리:
 
 - 거래 비용: `SLIPPAGE_RATE` (매수 또는 매도 1회당 0.3%, 슬리피지 + 수수료 통합. 왕복 = 매수 + 매도 = 2 × `SLIPPAGE_RATE` ≈ 0.6%)
-- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_BUFFER_MA_TYPE` (버퍼존/그리드서치 기본 MA 유형, `"ema"`)
+- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`, `DEFAULT_BUFFER_MA_TYPE` (버퍼존/그리드서치 기본 MA 유형, `"sma"`)
 - 수치 안정성: `CALMAR_MDD_ZERO_SUBSTITUTE` (Calmar MDD=0 처리 대용값, `1e10`)
 - 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
@@ -84,7 +84,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `load_wfo_results_from_csv`: WFO 결과 CSV를 읽어 WfoWindowResultDict 리스트로 반환 (필수 컬럼 검증, 정수 타입 보정)
 - `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
 - `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
-- `run_stitched_equity`: WFO params_schedule 기반 Stitched Equity 생성. 전체 signal_df에 먼저 EMA를 계산하여 연속성 보장 후 OOS 구간 슬라이싱. window_end_equities 반환 (Profit Concentration 계산용)
+- `run_stitched_equity`: WFO params_schedule 기반 Stitched Equity 생성. 전체 signal_df에 먼저 MA를 계산하여 연속성 보장 후 OOS 구간 슬라이싱. window_end_equities 반환 (Profit Concentration 계산용)
 - `run_window_detail_backtests`: 각 윈도우의 best params로 IS_start~OOS_end 백테스트 실행. equity_df에 밴드/드로우다운 포함. `WindowDetailData` 리스트 반환
 - `WindowDetailData`: 윈도우별 상세 백테스트 결과 dataclass (window_idx, signal_df, equity_df, trades_df, ma_col)
 
@@ -98,7 +98,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
   - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
   - 유효하지 않은 strategy_id는 엔진이 registry 조회 후 ValueError로 처리
-  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="ema"`
+  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`, `ma_type="sma"`
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, result_dir)
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days, ma_type)는 슬롯 레벨(AssetSlotConfig)로 이동.
   - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며 PortfolioConfig에서 제거됨.
@@ -418,6 +418,27 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - 매수 버퍼존 (`buy_buffer_zone_pct`): upper_band 기준 매수 진입 허용 범위 (비율, 0~1)
 - 매도 버퍼존 (`sell_buffer_zone_pct`): lower_band 기준 매도 청산 허용 범위 (비율, 0~1)
 - 유지 조건 (`hold_days`): 신호 확정까지 대기 기간 (일), 0 = 버퍼존만 모드
+- 이동평균 유형 (`ma_type`): **SMA(단순이동평균)를 사용한다** (아래 규칙 참고)
+
+### 1-1. 이동평균 유형은 SMA로 통일한다 (절대 규칙)
+
+이 프로젝트의 모든 프로덕션 계산 경로는 **SMA** 를 사용한다. `ma_type` 파라미터에 `"ema"` 가 남아 있으나
+비교 실험 용도이며, 신규 설정에서 EMA 를 선택하지 않는다.
+
+채택 근거 (상세는 `docs/research/전략_검증_보고서.md` 부록 G):
+
+1. **대중성** — "200일 이동평균" 의 경제적 논거는 자기실현적 예언(많은 참여자가 같은 선을 본다)에 기반한다.
+   더 널리 쓰이는 SMA 가 그 논거에 더 부합한다.
+2. **과최적화 자유도 축소** — 검증 보고서가 "EMA vs SMA 선택" 을 실질 시행 횟수 `+2` 로 카운트한다.
+   대중적 기본값으로 고정하면 자유도가 줄어든다.
+3. **연속성 함정 제거** — EMA 는 재귀식이라 구간을 슬라이스하면 워밍업이 리셋된다.
+   SMA 는 `ma_window` 개 행만 확보되면 그 이전 데이터가 결과에 영향을 주지 않으므로 이 계열의 버그가 성립하지 않는다.
+4. **워밍업 미완료 구간의 가짜 신호 제거** — EMA 는 1행째부터 값이 나오지만 그 값은 이동평균이 아니라
+   사실상 그날 종가다. 밴드가 가격에 밀착해 "추세 돌파" 가 아닌 신호가 발생한다.
+   SMA 는 `ma_window` 미만 구간을 NaN 으로 두어 `filter_valid_rows` 가 자동 제외한다.
+
+**부작용**: SMA 는 앞 `ma_window - 1` 행이 NaN 이므로 백테스트 유효 시작일이 EMA 보다 뒤로 밀린다.
+서로 다른 `ma_type` 의 결과를 비교할 때는 **반드시 공통 기간으로 잘라 재계산**한다.
 
 ### 2. 비용 모델
 

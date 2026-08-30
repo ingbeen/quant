@@ -94,7 +94,7 @@ class AssetSlotConfig:
 
     Attributes:
         asset_id: 자산 식별자 ("qqq", "tqqq", "spy", "gld" 등)
-        signal_data_path: EMA-200 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
+        signal_data_path: 이동평균 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
         trade_data_path: 실제 매매 대상 데이터 경로 (TQQQ → 합성 데이터 경로)
         target_weight: 목표 비중 (예: 0.30 = 30%)
         strategy_id: STRATEGY_REGISTRY 키. 유효하지 않은 값은 엔진이 ValueError로 처리한다.
@@ -105,7 +105,7 @@ class AssetSlotConfig:
         buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.03)
         sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.05)
         hold_days: 유지일수 (buffer_zone 슬롯에서 사용, 기본값 3)
-        ma_type: 이동평균 유형 (buffer_zone 슬롯에서 사용, 기본값 "ema")
+        ma_type: 이동평균 유형 (buffer_zone 슬롯에서 사용, 기본값 "sma")
     """
 
     asset_id: str
@@ -118,7 +118,7 @@ class AssetSlotConfig:
     buy_buffer_zone_pct: float = 0.03
     sell_buffer_zone_pct: float = 0.05
     hold_days: int = 3
-    ma_type: Literal["ema", "sma"] = "ema"
+    ma_type: Literal["ema", "sma"] = "sma"
 
 
 @dataclass(frozen=True)

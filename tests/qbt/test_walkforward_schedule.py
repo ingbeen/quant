@@ -113,29 +113,30 @@ def _make_trend_and_oscillating_df(
     )
 
 
-class TestEmaContiniuty:
-    """EMA 연속성 인바리언트 테스트.
+class TestMaContinuity:
+    """이동평균 연속성 인바리언트 테스트.
 
     핵심 인바리언트:
-    "OOS 구간의 EMA 값은 전체 히스토리 기반으로 계산된 EMA를 해당 구간만 잘랐을 때의 값과 동일해야 한다."
+    "OOS 구간의 MA 값은 전체 히스토리 기반으로 계산된 MA를 해당 구간만 잘랐을 때의 값과 동일해야 한다."
 
-    현재 구현은 이 인바리언트를 위반한다 (Phase 0에서 FAILED 확인).
+    구간을 먼저 슬라이스한 뒤 MA를 계산하면 워밍업이 리셋되어 OOS 앞부분이 왜곡된다.
+    루프 진입 전에 전체 signal_df에 MA를 계산한 뒤 슬라이스해야 한다.
     """
 
-    def test_oos_ema_matches_full_history_ema(self):
+    def test_oos_ma_matches_full_history_ma(self):
         """
-        목적: run_walkforward() OOS 평가의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
+        목적: run_walkforward() OOS 평가의 MA가 전체 히스토리 기반 MA와 일치함을 검증
 
         Given: IS 상승(~220) + OOS 진동(60±10) 데이터.
-               전체 히스토리 EMA는 OOS 기간에 ~200+를 유지하여 OOS 가격과 크게 달라진다.
+               전체 히스토리 MA는 OOS 기간에 ~200+를 유지하여 OOS 가격과 크게 달라진다.
         When:
-          1) raw_df로 run_walkforward() 실행 — 현재 구현은 OOS에서 EMA를 리셋한다
+          1) raw_df로 run_walkforward() 실행 — 내부에서 MA를 계산한다
           2) 전체 히스토리 MA를 미리 계산한 full_df_with_ma로 run_walkforward() 실행
-             — MA 컬럼이 이미 있으므로 OOS 슬라이스가 전체 히스토리 EMA를 유지한다
+             — MA 컬럼이 이미 있으므로 OOS 슬라이스가 전체 히스토리 MA를 유지한다
         Then: 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다.
-              현재 구현에서는 OOS EMA 리셋으로 결과가 달라지므로 이 테스트가 실패한다.
         """
         from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.constants import DEFAULT_BUFFER_MA_TYPE
         from qbt.backtest.walkforward import run_walkforward
 
         # Given — IS 상승(800 거래일, 100→222) + OOS 진동(300 거래일, 60±10)
@@ -144,7 +145,8 @@ class TestEmaContiniuty:
         ma_window = 100
 
         # 전체 히스토리 MA 사전 계산 (두 번째 실행에서 OOS 슬라이스에 포함됨)
-        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type="ema")
+        # 프로덕션 기본 MA 유형을 그대로 써야 run_walkforward 내부 계산과 비교가 성립한다.
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
 
         wfo_kwargs: dict[str, object] = {
             "trade_df": raw_df,
@@ -171,18 +173,18 @@ class TestEmaContiniuty:
         first_with_ma = results_with_ma[0]
         assert first_raw["oos_calmar"] == pytest.approx(first_with_ma["oos_calmar"], abs=0.01)
 
-    def test_stitched_equity_ema_matches_full_history_ema(self):
+    def test_stitched_equity_ma_matches_full_history_ma(self):
         """
-        목적: run_stitched_equity() stitched 자본곡선의 EMA가 전체 히스토리 기반 EMA와 일치함을 검증
+        목적: run_stitched_equity() stitched 자본곡선의 MA가 전체 히스토리 기반 MA와 일치함을 검증
 
         Given: IS 상승(800 거래일) + OOS 진동(300 거래일) 데이터 + 1개 윈도우 결과
         When:
-          - run_stitched_equity(raw_df, ...) 실행 → 전체 히스토리 EMA 기반 stitched 자본곡선 생성
-          - 전체 히스토리 EMA 기반 참조 실행
+          - run_stitched_equity(raw_df, ...) 실행 → 전체 히스토리 MA 기반 stitched 자본곡선 생성
+          - 전체 히스토리 MA 기반 참조 실행
         Then: stitched CAGR과 참조 CAGR이 동일해야 한다.
         """
         from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
+        from qbt.backtest.constants import DEFAULT_BUFFER_MA_TYPE, DEFAULT_INITIAL_CAPITAL
         from qbt.backtest.engines.backtest_engine import run_backtest
         from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
         from qbt.backtest.walkforward import run_stitched_equity
@@ -223,8 +225,8 @@ class TestEmaContiniuty:
             }
         ]
 
-        # 참조: 전체 히스토리 EMA 기반 OOS 백테스트
-        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type="ema")
+        # 참조: 전체 히스토리 MA 기반 OOS 백테스트
+        full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window, ma_type=DEFAULT_BUFFER_MA_TYPE)
         oos_mask = (raw_df[COL_DATE] >= oos_start_date) & (raw_df[COL_DATE] <= oos_end_date)
         oos_signal_ref = full_df_with_ma[oos_mask].reset_index(drop=True)
         oos_trade_ref = raw_df[oos_mask].reset_index(drop=True)

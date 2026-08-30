@@ -85,4 +85,4 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 - 프로젝트 전체 규칙 → [CLAUDE.md](CLAUDE.md)
 - 백테스트 패키지 규칙 → [src/qbt/CLAUDE.md](src/qbt/CLAUDE.md)
 - 실매매 알림 규칙 → [src/live/CLAUDE.md](src/live/CLAUDE.md)
-- 계획서 운영 규칙 → [docs/CLAUDE.md](docs/CLAUDE.md)
+- 계획서 운영 규칙 → 전역 `/impl-plan` 스킬 (프로젝트 고유 값은 [CLAUDE.md](CLAUDE.md) 「계획서 규약」 절)

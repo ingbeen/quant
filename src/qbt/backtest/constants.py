@@ -29,7 +29,7 @@ DEFAULT_INITIAL_CAPITAL: Final = 10_000_000.0  # 1천만원
 CALMAR_MDD_ZERO_SUBSTITUTE: Final = 1e10
 
 # --- 버퍼존/그리드서치 기본 이동평균 유형 ---
-DEFAULT_BUFFER_MA_TYPE: Final = "ema"
+DEFAULT_BUFFER_MA_TYPE: Final = "sma"
 
 # --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
 FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간

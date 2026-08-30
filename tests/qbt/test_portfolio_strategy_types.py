@@ -158,6 +158,9 @@ class TestStrategyTypeBehavior:
                     trade_data_path=csv_path,
                     target_weight=1.0,
                     strategy_id="buffer_zone",
+                    # 20행 데이터에 맞춘 MA 기간. 기본값(200)은 워밍업을 채우지 못해
+                    # MA가 전 구간 NaN이 되고, 신호 판정 자체가 성립하지 않는다.
+                    ma_window=5,
                 ),
             ),
             total_capital=1_000_000.0,

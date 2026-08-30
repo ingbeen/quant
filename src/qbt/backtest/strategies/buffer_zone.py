@@ -122,7 +122,7 @@ class BufferZoneConfig:
     buy_buffer_zone_pct: float = FIXED_4P_BUY_BUFFER_ZONE_PCT  # 매수 버퍼존 비율
     sell_buffer_zone_pct: float = FIXED_4P_SELL_BUFFER_ZONE_PCT  # 매도 버퍼존 비율
     hold_days: int = FIXED_4P_HOLD_DAYS  # 유지일수
-    ma_type: Literal["ema", "sma"] = "ema"  # 이동평균 유형
+    ma_type: Literal["ema", "sma"] = "sma"  # 이동평균 유형
 
 
 # ============================================================================
