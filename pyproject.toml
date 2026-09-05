@@ -5,7 +5,6 @@ version = "0.1.0"
 description = "Stock backtesting framework with CSV data management"
 packages = [
     {include = "qbt", from = "src"},
-    {include = "live", from = "src"},
 ]
 
 [tool.poetry.dependencies]
@@ -15,15 +14,6 @@ yfinance = "^0.2.0"
 streamlit = "^1.30.0"
 plotly = "^5.18.0"
 streamlit-lightweight-charts-v5 = {path = "vendor/streamlit-lightweight-charts-v5", develop = true}
-
-# live 도메인 전용 extras (poetry install -E live 로 설치)
-firebase-admin = {version = "^7.0.0", optional = true}
-exchange-calendars = {version = "^4.5.0", optional = true}
-requests = {version = "^2.31.0", optional = true}
-python-dotenv = {version = "^1.0.0", optional = true}
-
-[tool.poetry.extras]
-live = ["firebase-admin", "exchange-calendars", "requests", "python-dotenv"]
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.0.0"
@@ -63,7 +53,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["qbt", "live"]
+known-first-party = ["qbt"]
 
 [tool.coverage.run]
 omit = [

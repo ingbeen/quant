@@ -1,37 +1,11 @@
 # QBT (Quant BackTest)
 
-백테스트로 검증한 매매 전략을 GitHub Actions로 매일 자동 실행하여 시그널 알림을 발송하고, Android 앱으로 포트폴리오 / 차트 / 알림을 제공하는 퀀트 시스템입니다.
+이동평균 기반 매매 전략을 백테스트하고, **과최적화가 아님을 확인하는 데 무게를 둔** 퀀트 백테스팅 도구입니다.
 
 ## 프로젝트 목표
 
-- **서버 운영 비용 부담 없는 시그널 알림 체계** 구축을 핵심 목표로, 처음부터 **서버리스 환경**으로 설계
+- **검증 가능한 백테스트 파이프라인** 구축 — 전략을 만드는 것보다, 그 전략이 과거에만 좋았던 것이 아님을 확인하는 절차(워크포워드 · 파라미터 고원 · 정합성 자동 검증)를 갖추는 데 무게를 둡니다
 - **Claude Code를 안정적으로 활용하기 위한 하네스 엔지니어링**을 함께 도입하여, AI 협업의 일관성과 코드 품질을 확보
-
-## 시스템 아키텍처
-
-별도 서버 없이 GitHub Actions의 정기 실행과 Firebase 서비스만으로 엔진을 운영하면서, **데이터 보관(GCS 정본)** 과 **앱 전달(Firebase RTDB)** 역할을 분리하여 앱과 서버 간 양방향 통신 구조를 확보했습니다.
-
-### 데이터 흐름
-
-```
-[GitHub Actions]  평일 장 마감 후 엔진 자동 실행
-       │
-       ├─→ [GCS 정본 버킷]  매일 GCS 업로드로 누적 보존
-       │
-       ├─→ [Firebase RTDB]  매일 덮어쓰기 → 앱이 최신 상태 조회
-       │         ↑
-       │         └── [Android 앱]  체결 데이터를 별도 입력 경로로 저장
-       │                          (다음 실행 시 엔진이 처리)
-       │
-       ├─→ [FCM]            주 채널 (앱 푸시)
-       └─→ [Telegram Bot]   백업 채널 (한쪽 장애 시에도 도달 보장)
-```
-
-### 설계 결정
-
-- **GitHub Actions**: 평일 장 마감 후 엔진을 자동 실행하여 GCS 정본 + Firebase RTDB를 동시 갱신. 알림은 FCM(주 채널)과 텔레그램 Bot API(백업 채널)로 **이중 발송**하여 한쪽 장애 시에도 사용자 도달을 보장
-- **Firebase RTDB**: 앱이 매일 최신 데이터를 읽도록 매 실행마다 **덮어쓰기**로 갱신. 앱에서 입력한 체결 데이터는 별도 입력 경로에 저장되어 다음 실행 시 엔진이 처리하는 **양방향 구조**
-- **GCS 정본 버킷**: Firebase RTDB는 갱신 시 과거 데이터를 볼 수 없는 단점이 있어, 모든 데이터를 매일 객체로 업로드하여 **누적 보존**하고 Soft Delete 30일 보호로 사고 시 복구를 보장
 
 ## Claude Code 하네스 엔지니어링
 
@@ -43,13 +17,12 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 
 ## 관련 저장소
 
-- 백테스트 / 매매 시그널 엔진 (이 저장소) — https://github.com/ingbeen/quant
-- Android 앱 — https://github.com/ingbeen/qbt-live-app
+- 백테스트 엔진 (이 저장소) — https://github.com/ingbeen/quant
+- 실매매 알림 — https://github.com/ingbeen/quant-notify
 
 ## 기술 스택
 
-- **언어 / 런타임**: Python 3.12 (`str | None` 문법), React Native (앱)
-- **인프라 / 자동화**: GitHub Actions, Firebase RTDB, FCM, Telegram Bot API
+- **언어 / 런타임**: Python 3.12 (`str | None` 문법)
 - **데이터 / 분석**: pandas, yfinance
 - **시각화**: Plotly, Streamlit, matplotlib
 - **코드 품질**: PyRight (strict for `src/`), Ruff, Black
@@ -68,12 +41,6 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 - **TQQQ 레버리지 ETF 시뮬레이션** — softplus 동적 스프레드 비용 모델
 - **Streamlit + Plotly 대시보드** — 단일 전략, 포트폴리오, 디버그, 워크포워드, 파라미터 고원
 
-### live — 실매매 알림 시스템 (`src/live/`)
-
-- QBT 포트폴리오 전략의 실매매 알림을 GitHub Actions에서 매일 장 마감 후 자동 실행
-- 주가 수집 → 시그널 감지 → FCM / 텔레그램 알림
-- 원격 state 리포 기반 상태 관리, Firebase RTDB를 통해 Android 앱과 연동
-
 ### 과최적화 방어 / 정합성 검증
 
 - **과최적화 방어 장치**: Walk-Forward Optimization (Dynamic / Fully Fixed 2-Mode 비교) · WFE · Profit Concentration · 멀티자산 파라미터 고원 분석을 결합해, IS에서 좋아 보이는 값을 그대로 믿지 않도록 설계
@@ -84,5 +51,4 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 - 실행 명령어 레퍼런스 → [docs/COMMANDS.md](docs/COMMANDS.md)
 - 프로젝트 전체 규칙 → [CLAUDE.md](CLAUDE.md)
 - 백테스트 패키지 규칙 → [src/qbt/CLAUDE.md](src/qbt/CLAUDE.md)
-- 실매매 알림 규칙 → [src/live/CLAUDE.md](src/live/CLAUDE.md)
 - 계획서 운영 규칙 → 전역 `/impl-plan` 스킬 (프로젝트 고유 값은 [CLAUDE.md](CLAUDE.md) 「계획서 규약」 절)

@@ -8,9 +8,8 @@
 tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
 
 - `tests/qbt/`: qbt 패키지(`src/qbt/`) 테스트 (백테스트, TQQQ 시뮬레이션, 공통 유틸리티)
-- `tests/live/`: live 패키지(`src/live/`) 테스트 (실매매 알림 시스템)
 
-두 디렉토리 모두 `__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지).
+`__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지).
 
 테스트 철학: 정책/불변조건/계약을 코드로 고정하여 회귀 방지
 
@@ -19,15 +18,12 @@ tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리�
 ```
 tests/
 ├── CLAUDE.md           # 공통 테스트 규칙 (이 문서)
-├── qbt/                # qbt 패키지 테스트
-│   ├── conftest.py     # qbt 공통 픽스처
-│   └── test_*.py       # qbt 모듈별 테스트
-└── live/               # live 패키지 테스트
-    ├── conftest.py     # live 공통 픽스처 (네트워크 격리 autouse)
-    └── test_*.py       # live 모듈별 테스트
+└── qbt/                # qbt 패키지 테스트
+    ├── conftest.py     # qbt 공통 픽스처
+    └── test_*.py       # qbt 모듈별 테스트
 ```
 
-각 디렉토리의 구체적인 테스트 파일 목록은 해당 디렉토리를 직접 참조하세요.
+구체적인 테스트 파일 목록은 해당 디렉토리를 직접 참조하세요.
 
 ---
 
@@ -35,7 +31,7 @@ tests/
 
 pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
-- 테스트 탐색 경로: `tests` (qbt/, live/ 하위 디렉토리를 재귀적으로 탐색)
+- 테스트 탐색 경로: `tests` (하위 디렉토리를 재귀적으로 탐색)
 - 파일 패턴: `test_*.py`
 - pytest.ini의 마커 설정은 참고용이며, 테스트 실행은 기본적으로 전체 실행을 기준으로 한다.
 
@@ -312,8 +308,6 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 
 근거 위치: [conftest.py](qbt/conftest.py)
 
-live 픽스처: `tests/live/conftest.py`에 live 전용 픽스처 정의 (네트워크 격리 autouse 등)
-
 ---
 
 ## tests 폴더 운영 원칙
@@ -325,15 +319,12 @@ live 픽스처: `tests/live/conftest.py`에 live 전용 픽스처 정의 (네트
    - `tests/CLAUDE.md`: 공통 테스트 규칙 (이 문서)
    - `tests/qbt/conftest.py`: qbt 공통 픽스처
    - `tests/qbt/test_*.py`: qbt 모듈별 테스트
-   - `tests/live/conftest.py`: live 공통 픽스처
-   - `tests/live/test_*.py`: live 모듈별 테스트
 
 2. 커버리지 목표: 핵심 모듈 최대한 높게 유지
 
    - 백테스트 도메인: `src/qbt/backtest/`
    - TQQQ 시뮬레이션: `src/qbt/tqqq/`
    - 공통 유틸리티: `src/qbt/utils/`
-   - 실매매 알림: `src/live/`
 
 외부 의존성 금지(원칙):
 

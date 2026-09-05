@@ -9,11 +9,8 @@
 ## 빠른 시작
 
 ```bash
-# 의존성 설치 (qbt만)
+# 의존성 설치
 poetry install
-
-# live 패키지 포함 설치
-poetry install -E live
 
 # 품질 검증 (Ruff + PyRight + Pytest)
 poetry run python validate_project.py
@@ -132,48 +129,6 @@ poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 
 **파라미터 변경**: [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py)
 
----
-
-## 워크플로우 3: QBT Live (실매매 알림)
-
-QBT 포트폴리오 전략의 실매매 알림 시스템입니다. GitHub Actions에서 매일 장 마감 후 자동 실행됩니다.
-
-```bash
-# 의존성 설치 (live extras 포함)
-poetry install -E live
-
-# 초기 1회 또는 전체 폐기 후 새로 시작 (state + CSV + history + applied_ids + RTDB 일괄 리셋)
-# 실행 종료 시 RTDB 주가 차트 연도 슬라이스까지 자동 재생성되어 앱의 주가 차트가 바로 표시됨.
-# equity 차트 / 체결 이력은 비워지며, 매일 `run-daily` 로 점진 누적된다.
-poetry run python -m live reset --capital 1000000
-
-# 스플릿/무상증자 대응 (단일 티커 재다운로드 + 차트 연도 슬라이스 재생성)
-poetry run python -m live rebuild-data SPY      # 특정 티커만
-poetry run python -m live backfill-chart-years
-poetry run python -m live backfill-chart-years --dry-run
-poetry run python -m live backfill-chart-years --year 2025
-
-# 매일 (GitHub Actions 가 자동 실행, 로컬에서 수동 실행도 가능)
-poetry run python -m live run-daily
-poetry run python -m live run-daily --trade-date 2026-04-10
-
-# 디버깅 / 조회
-poetry run python -m live drift
-poetry run python -m live fetch-fills
-poetry run python -m live notify-failure -m "수동 테스트"
-# summary.jsonl / user_trades.jsonl 등 영구 이력은 Firebase Console / GCS 콘솔에서
-# gs://qbt-live.firebasestorage.app/history/ 폴더를 직접 조회한다
-```
-
-**환경변수**: 로컬 실행 시 프로젝트 루트의 `.env` 파일이 자동 로드됩니다. 필요한 변수:
-
-- `GOOGLE_APPLICATION_CREDENTIALS` — Firebase service account JSON 절대 경로 (RTDB / GCS 정본 / FCM 공용)
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — 알림 발송용
-
-상세 가이드: [src/live/CLAUDE.md](../src/live/CLAUDE.md)
-
----
-
 ## 품질 검증 (통합)
 
 ```bash
@@ -202,9 +157,6 @@ poetry run pytest tests/qbt/test_buffer_zone_run.py -v
 # 특정 클래스만 테스트
 poetry run pytest tests/qbt/test_buffer_zone_run.py::TestRunBufferStrategy -v
 
-# live 테스트만 실행
-poetry run pytest tests/live/ -v
-
 # 실패한 테스트만 재실행
 poetry run pytest --lf -v
 
@@ -229,9 +181,7 @@ poetry run ruff check --fix .
 poetry run python validate_project.py --cov
 
 # HTML 리포트 생성 (직접 pytest 사용)
-poetry run pytest --cov=src/qbt --cov-report=html tests/qbt/
-poetry run pytest --cov=src/live --cov-report=html tests/live/
-poetry run pytest --cov=src/qbt --cov=src/live --cov-report=html tests/
+poetry run pytest --cov=src/qbt --cov-report=html tests/
 # 결과: htmlcov/index.html 브라우저로 열기
 ```
 
