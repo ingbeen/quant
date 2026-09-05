@@ -24,7 +24,7 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 
 - **언어 / 런타임**: Python 3.12 (`str | None` 문법)
 - **데이터 / 분석**: pandas, yfinance
-- **시각화**: Plotly, Streamlit, matplotlib
+- **시각화**: Plotly, Streamlit
 - **코드 품질**: PyRight (strict for `src/`), Ruff, Black
 - **테스트**: pytest, pytest-cov, freezegun
 - **의존성 관리**: Poetry

@@ -105,11 +105,11 @@ CSV/JSON 결과 파일 저장 시 적절한 소수점 자릿수로 반올림합�
 - 모든 품질 검증은 `validate_project.py`를 통해서만 수행 (Ruff + PyRight + Pytest 통합)
 - 직접 명령어 실행 금지 (원칙): `poetry run ruff check .`, `poetry run pyright`, `poetry run pytest tests/` 등
 - 예외: 특정 모듈/파일만 테스트할 때 직접 pytest 명령 허용
-- 실행 명령어는 [docs/COMMANDS.md](docs/COMMANDS.md)를 참고
+- 실행 명령어는 [docs/COMMANDS.md](../../docs/COMMANDS.md)를 참고
 - 타입 체커: PyRight 단일 사용
   - 설정 파일: `pyrightconfig.json` (`executionEnvironments` 방식)
   - 전역: strict 모드, reportUnknown\* 5개 규칙 + reportMissingTypeStubs는 none (pandas/Plotly 타입 스텁 한계 대응)
-  - tests, scripts 폴더: `executionEnvironments`로 추가 규칙 완화 (테스트/스크립트 특성에 맞게)
+  - `tests/qbt`, `scripts` 폴더: `executionEnvironments`로 추가 규칙 완화 (테스트/스크립트 특성에 맞게)
 
 ### 로깅 정책
 

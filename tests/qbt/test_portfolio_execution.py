@@ -159,12 +159,12 @@ def _make_portfolio_config(
 
 
 class TestPartialSellInvariant:
-    """리밸런싱 부분 매도 인바리언트 테스트 (Phase 0: RED).
+    """리밸런싱 부분 매도 인바리언트 테스트.
 
     핵심 계약:
     - 리밸런싱 매도 시 rebalance_sell_amount = excess_value (> 0.0) — 부분 매도
     - 리밸런싱 후 초과 자산의 position > 0 유지 (전량 매도 금지)
-    - 신호 기반 매도는 여전히 전량 매도 (변경 없음)
+    - 신호 기반 매도는 전량 매도
     """
 
     def test_rebalancing_sell_sets_rebalance_sell_amount(self) -> None:
@@ -289,12 +289,11 @@ class TestPartialSellInvariant:
 
 
 class TestRebalancingTopUpBuy:
-    """리밸런싱 추가매수 체결 계약 테스트 (Phase 0 RED).
+    """리밸런싱 추가매수 체결 계약 테스트.
 
     핵심 계약:
     - 리밸런싱으로 생성된 buy pending_order는 position > 0인 자산에도 체결되어야 한다.
     - 체결 완료 후 position이 실제로 증가해야 한다.
-    - 수정 전에는 position == 0 조건 때문에 미체결 → 테스트 실패.
     """
 
     def test_top_up_buy_executes_when_position_exists(
@@ -309,8 +308,7 @@ class TestRebalancingTopUpBuy:
         Then:  rebalanced=True인 날(체결 완료일)에 GLD value가 전날보다 증가해야 함
                (GLD 가격 고정 → value 증가 = 추가매수 체결 완료)
 
-        RED 사유: 현재 체결 루프에 `if state.position == 0:` 조건이 있어
-                  position > 0이면 리밸런싱 buy pending_order가 체결되지 않음.
+        이 계약은 체결 루프가 position > 0인 자산의 리밸런싱 buy도 처리해야 함을 고정한다.
         """
         # Given
         qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
@@ -333,7 +331,7 @@ class TestRebalancingTopUpBuy:
         rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
         assert len(rebalanced_rows) > 0, "QQQ 급등 편차 >20%이므로 리밸런싱이 발생해야 함"
 
-        # Then: rebalanced=True인 날(수정 후: 체결 완료일)에 GLD value가 전날보다 증가해야 함
+        # Then: rebalanced=True인 날(체결 완료일)에 GLD value가 전날보다 증가해야 함
         # GLD 가격은 110.0으로 고정 → value 증가 = position(수량) 증가 = 추가매수 체결 완료
         first_reb_idx = int(rebalanced_rows.index[0])
         assert first_reb_idx > 0, "리밸런싱 발생 전에 최소 1일 이상의 데이터가 있어야 함"
@@ -343,18 +341,16 @@ class TestRebalancingTopUpBuy:
 
         assert gld_value_on_reb > gld_value_before, (
             f"rebalanced=True인 날은 체결 완료일이므로 GLD 추가매수가 체결되어야 함. "
-            f"이전: {gld_value_before:.0f}, 리밸런싱일: {gld_value_on_reb:.0f}. "
-            f"현재 버그: position > 0인 자산의 리밸런싱 buy가 체결되지 않음"
+            f"이전: {gld_value_before:.0f}, 리밸런싱일: {gld_value_on_reb:.0f}"
         )
 
 
 class TestWeightRecoveryAfterRebalancing:
-    """리밸런싱 후 과소 자산 비중 회복 계약 테스트 (Phase 0 RED).
+    """리밸런싱 후 과소 자산 비중 회복 계약 테스트.
 
     핵심 계약:
     - 리밸런싱 완료 후 과소 비중 자산의 weight가 리밸런싱 전보다 증가해야 한다.
     - 과대 자산은 매도 체결, 과소 자산은 추가매수 체결이 모두 이루어져야 한다.
-    - 수정 전에는 과소 자산 추가매수가 미체결 → weight 회복 안 됨 → 테스트 실패.
     """
 
     def test_underweight_asset_weight_increases_after_rebalancing(
@@ -366,8 +362,6 @@ class TestWeightRecoveryAfterRebalancing:
         Given: QQQ/GLD 각 50% 포트폴리오, QQQ 급등으로 GLD 과소 비중 형성
         When:  run_portfolio_backtest() 실행
         Then:  리밸런싱 체결 완료 후 GLD weight가 리밸런싱 트리거 직전보다 증가해야 함
-
-        RED 사유: 현재 버그로 GLD 추가매수가 체결되지 않아 weight가 회복되지 않음.
         """
         # Given
         qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
@@ -395,24 +389,21 @@ class TestWeightRecoveryAfterRebalancing:
 
         # 리밸런싱 트리거 직전 GLD weight (과소 비중)
         gld_weight_before = float(equity_df.iloc[first_reb_idx - 1]["gld_weight"])
-        # 리밸런싱 체결 완료일(수정 후: rebalanced=True 날) GLD weight
+        # 리밸런싱 체결 완료일(rebalanced=True 날) GLD weight
         gld_weight_on_reb = float(equity_df.iloc[first_reb_idx]["gld_weight"])
 
         # Then: 체결 완료 후 GLD weight가 회복되어야 함 (과소 → 더 큰 비중)
         assert gld_weight_on_reb > gld_weight_before, (
-            f"리밸런싱 체결 완료 후 GLD weight가 증가해야 함. "
-            f"직전: {gld_weight_before:.4f}, 체결일: {gld_weight_on_reb:.4f}. "
-            f"현재 버그: 추가매수 미체결로 weight 회복 안 됨"
+            f"리밸런싱 체결 완료 후 GLD weight가 증가해야 함. " f"직전: {gld_weight_before:.4f}, 체결일: {gld_weight_on_reb:.4f}"
         )
 
 
 class TestRebalancedColumnMeaning:
-    """rebalanced 컬럼 의미 계약 테스트 (Phase 0 RED).
+    """rebalanced 컬럼 의미 계약 테스트.
 
     핵심 계약:
     - rebalanced=True는 리밸런싱 주문이 "실제 체결 완료된 날"에 기록되어야 한다.
     - pending_order 생성일(트리거일)에는 rebalanced=False이어야 한다.
-    - 수정 전에는 pending 생성일에 True → 체결 완료일과 1일 어긋남 → 테스트 실패.
     """
 
     def test_rebalanced_true_on_execution_day_not_pending_day(
@@ -425,9 +416,6 @@ class TestRebalancedColumnMeaning:
         When:  run_portfolio_backtest() 실행
         Then:  rebalanced=True인 날에 실제 포지션 변화(QQQ value 감소 또는 GLD value 증가)가 있어야 함
                즉, 체결 없는 날(pending 생성만)에는 rebalanced=True가 기록되지 않아야 함
-
-        RED 사유: 현재 rebalanced=True가 pending 생성일(체결 전날)에 기록되므로,
-                  그 날은 실제 포지션 변화가 없음 → 검증 실패.
         """
         # Given
         qqq_closes, gld_closes, dates_list = _make_diverge_stock_dfs(n_rows=55)
@@ -468,8 +456,7 @@ class TestRebalancedColumnMeaning:
         assert qqq_sold or gld_bought, (
             f"rebalanced=True인 날은 체결 완료일이므로 포지션 변화가 있어야 함. "
             f"QQQ value: {qqq_value_before:.0f} → {qqq_value_on_reb:.0f}, "
-            f"GLD value: {gld_value_before:.0f} → {gld_value_on_reb:.0f}. "
-            f"현재 버그: rebalanced=True가 pending 생성일(체결 전날)에 기록됨"
+            f"GLD value: {gld_value_before:.0f} → {gld_value_on_reb:.0f}"
         )
 
     def test_initial_entry_not_marked_as_rebalanced(
@@ -512,12 +499,12 @@ class TestRebalancedColumnMeaning:
 
 
 # ============================================================================
-# Phase 0: execute_orders 계약 고정 (레드 허용)
+# execute_orders 계약 고정
 # ============================================================================
 
 
 class TestExecuteOrders:
-    """execute_orders() 계약 테스트 (Phase 0: RED).
+    """execute_orders() 계약 테스트.
 
     핵심 계약:
     1. SELL이 BUY보다 먼저 체결되어 sell_proceeds가 available_cash에 반영됨

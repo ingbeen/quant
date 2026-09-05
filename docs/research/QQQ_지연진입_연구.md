@@ -391,7 +391,6 @@ poetry run python docs/research/late_entry_rally_opportunities.py --asset qqq
 ## 13. 정책 5종 실측: 분할·부분비중·미진입
 
 > 측정일: 2026-08-31 (KST) / 결과 파일 기준일 2026-08-21 / 완료 트레이드 14건
-> 계획서: `docs/plans/PLAN_late_entry_sizing_review.md`
 
 운용자가 제기한 질문 — **"분할매수를 하거나, 낮은 비중으로 들어가거나, 아예 안 들어가거나"** —
 에 답하기 위해 실행 가능한 정책들을 **트레이드 단위**로 실측했다.
@@ -425,8 +424,8 @@ poetry run python docs/research/late_entry_rally_opportunities.py --asset qqq
 
 ### 13.3 판정 기준 — 측정 **전에** 고정했다
 
-수치를 본 뒤 기준을 정하면 "좋아 보이는 쪽"을 고르게 된다. 부록 G.4가 경고하는 상황이며,
-`PLAN_sell_buffer_review.md` 와 동일한 사전 등록 방식을 썼다.
+수치를 본 뒤 기준을 정하면 "좋아 보이는 쪽"을 고르게 된다. 부록 G.4가 경고하는 상황이므로,
+sell_buffer 재검토 때와 같이 **판정 기준을 측정 전에 사전 등록**하는 방식을 썼다.
 
 | # | 조건 | 이유 |
 | --- | --- | --- |

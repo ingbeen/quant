@@ -47,7 +47,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
   - ISO 8601 타임스탬프 (KST)
   - 실행 파라미터 (전략 설정, 그리드 범위 등)
   - 핵심 통계 (검증 기간, 거래일 수, 오차 지표 등)
-- 순환 저장: 최근 N개만 유지 (`MAX_HISTORY_COUNT = 5`)
+- 순환 저장: 최근 N개만 유지 (개수는 `meta_manager.MAX_HISTORY_COUNT`)
 - 저장 위치: `storage/results/meta.json`
 
 지원 타입:
@@ -133,7 +133,7 @@ main 함수:
 - 데이터 로딩: `load_stock_data` + `extract_overlap_period` (공통 유틸 사용)
 - 워크포워드 검증:
   - `run_walkforward.py`: WFO 2-Mode 비교 실행 (Dynamic/Fully Fixed)
-    - `--strategy` 인자로 실행 전략 선택 (all / buffer_zone_tqqq / buffer_zone_qqq, 기본값: all)
+    - `--strategy` 인자로 실행 전략 선택 (기본값: all). 대상 전략 목록은 변경될 수 있으므로 `run_walkforward.py`의 `STRATEGY_CONFIG`를 직접 확인할 것.
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
     - 윈도우별 상세 CSV 저장: `wfo_windows_dynamic/` 및 `wfo_windows_fully_fixed/` 하위에 w{idx}_signal.csv, w{idx}_equity.csv, w{idx}_trades.csv (캔들차트 시각화용)
 - 포트폴리오 실험:
@@ -165,14 +165,14 @@ main 함수:
     - 선행: `run_walkforward.py` 실행 필요 (WFO 결과 CSV/JSON 로드)
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
     - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, 윈도우별 상세 차트
-    - 윈도우별 상세 차트: Selectbox 네비게이션 (4개 지표 × 11 윈도우), IS+OOS 결합 캔들차트 + Buy/Sell 마커 + MA + 밴드 + 에쿼티 + 드로우다운, OOS 시작일 경계 마커, lightweight-charts 사용
+    - 윈도우별 상세 차트: Selectbox 네비게이션 (지표 × 윈도우 조합), IS+OOS 결합 캔들차트 + Buy/Sell 마커 + MA + 밴드 + 에쿼티 + 드로우다운, OOS 시작일 경계 마커, lightweight-charts 사용
     - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
   - `app_portfolio_backtest.py`: 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
     - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성
     - 주요 섹션:
-      - 전체 비교 탭: 성과 지표 테이블(CAGR/MDD/Calmar/Sharpe/Sortino/총수익률), 에쿼티 곡선 비교, 드로우다운 비교, 실험 해설
-      - 실험별 탭: 요약 지표(Sharpe/Sortino 포함), 에쿼티+드로우다운 서브플롯, 자산별 비중 추이(목표비중 수평선), 시그널 차트(자산 선택), 파라미터 정보, 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
+      - 전체 비교 탭: 성과 지표 비교 테이블, 에쿼티 곡선 비교, 드로우다운 비교
+      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
   - `app_portfolio_debug.py`: 포트폴리오 디버그 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (state_log.csv 로드)
     - 목적: 엔진 내부 상태(시그널/intent/체결) 일별 추적, 정합성 시각적 검증

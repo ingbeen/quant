@@ -61,6 +61,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
 - `simulate`: 기초 자산 데이터로부터 레버리지 ETF 가격 시뮬레이션
 - `calculate_validation_metrics`: 시뮬레이션 결과와 실제 데이터 비교 및 오차 분석
+- `_calculate_daily_cost`: 일일 비용(자금 조달 + 운용) 계산 (private)
 - `_compute_softplus_spread`: softplus 모델로 funding spread 계산 (private)
 - `build_monthly_spread_map`: FFR 데이터로 월별 spread 딕셔너리 생성
 - `_validate_ffr_coverage`: FFR 데이터 커버리지 검증 (private)
@@ -128,7 +129,7 @@ Plotly 기반 차트 생성 함수를 제공합니다.
 자금 조달 비용:
 
 ```
-funding_spread = softplus(a + b * FFR_pct)  # 기본값: a=-6.1, b=0.37
+funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 참조
 일일 자금 조달 비용 = (FFR + funding_spread) * (leverage - 1) / TRADING_DAYS_PER_YEAR
 ```
 
@@ -235,7 +236,7 @@ TQQQ 시뮬레이션 일별 비교 대시보드
 
 금리-오차 관계 분석 연구용 앱 (시각화 전용)
 
-- 결과 CSV를 로드하여 시각화 (CSV 생성 스크립트는 삭제됨, git history에서 복원 가능)
+- 결과 CSV를 로드하여 시각화 (CSV 생성 스크립트는 이 저장소에 없으며, git history에서 복원할 수 있다)
 - 단일 흐름: 오차분석 -> 튜닝 -> 과최적화진단 -> 상세분석
 
 ---

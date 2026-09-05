@@ -78,8 +78,7 @@ class TestExecuteSellOrder:
 class TestExecuteBuyOrderPure:
     """execute_buy_order 순수 계산 함수 계약 테스트.
 
-    Phase 2에서 함수 시그니처가 변경된 후 GREEN으로 전환된다.
-    변경 후 시그니처: execute_buy_order(open_price, amount) -> (shares, buy_price, cost)
+    시그니처: execute_buy_order(open_price, amount) -> (shares, buy_price, cost)
     """
 
     def test_execute_buy_order_pure_calculation(self) -> None:
@@ -125,9 +124,8 @@ class TestExecuteBuyOrderPure:
 class TestExecuteSellOrderPure:
     """execute_sell_order 순수 계산 함수 계약 테스트.
 
-    Phase 2에서 함수 시그니처가 변경된 후 GREEN으로 전환된다.
-    변경 후 시그니처: execute_sell_order(open_price, shares_to_sell, entry_price)
-                      -> (sell_price, proceeds, pnl, pnl_pct)
+    시그니처: execute_sell_order(open_price, shares_to_sell, entry_price)
+              -> (sell_price, proceeds, pnl, pnl_pct)
     """
 
     def test_execute_sell_order_pure_calculation(self) -> None:

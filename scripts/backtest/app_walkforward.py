@@ -37,6 +37,13 @@ from qbt.backtest.constants import (
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
 )
+from qbt.backtest.walkforward_verdict import (
+    build_is_vs_oos_verdict,
+    build_mode_summary_verdict,
+    build_param_drift_verdict,
+    build_stitched_equity_verdict,
+    build_window_schedule_table,
+)
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
@@ -176,6 +183,21 @@ def _get_display_name(strategy_name: str) -> str:
     return _STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name)
 
 
+def _label_by_display_name(summaries: dict[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+    """전략명 키를 표시명 키로 바꾼 딕셔너리를 반환한다 (판단 문구 생성용)."""
+    return {_get_display_name(name): summary for name, summary in summaries.items()}
+
+
+def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFrame]:
+    """전략별 Dynamic 윈도우 결과를 표시명 키로 로드한다 (판단 문구·기간 표 공용)."""
+    windows: dict[str, pd.DataFrame] = {}
+    for strat_name, result_dir in strategy_dirs.items():
+        window_df = _load_window_csv(str(result_dir), WALKFORWARD_DYNAMIC_FILENAME)
+        if window_df is not None:
+            windows[_get_display_name(strat_name)] = window_df
+    return windows
+
+
 # ============================================================
 # 섹션 1: 모드별 요약 비교
 # ============================================================
@@ -244,24 +266,11 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
 - **Dynamic vs Fully Fixed 비교**: Dynamic이 Fully Fixed보다 현저히 좋다면 파라미터 적응이 유효한 것이고, 비슷하거나 나쁘다면 고정 파라미터로도 충분함을 시사합니다
 - **Stitched Calmar**: 1 이상이면 위험 대비 수익이 양호, 0에 가까우면 수익 대비 손실이 크다는 의미
 - **WFE Calmar Robust**: 1에 가까우면 IS 성과가 OOS에서도 유지됨을 의미 (과최적화 아님). 0 또는 음수면 IS 성과가 OOS에서 재현되지 않음 (과최적화 의심)
-- **PC 최대**: 0.5 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요
-
-## 현재 지표 해석 & 판단(결과)
-
-**QQQ** (현재 결과 기준):
-
-- 한 줄 요약: **파라미터를 매번 바꾸든 처음 것을 고정하든 결과 차이는 크지 않습니다.** 고정 파라미터(4P)가 충분히 안정적입니다.
-- Dynamic CAGR 11.33%와 Fixed CAGR 11.97%는 0.64%p 차이로 사실상 비슷합니다. Fixed가 오히려 약간 높은 것은 "파라미터를 바꾸지 않아도 된다"는 해석과 잘 맞습니다.
-- WFE Calmar Robust가 Dynamic/Fixed 모두 0.93입니다. IS 성과의 약 93%가 OOS에서 재현된다는 뜻으로 양호한 수준입니다. 다만 이 지표 하나만으로 전략의 robustness를 강하게 주장하기보다는, 보조 검증 근거로 해석하는 것이 적절합니다.
-- PC 최대 0.45는 0.5 미만으로 수익이 비교적 고르게 분산되어 있어 양호합니다.
-
-**TQQQ** (현재 결과 기준):
-
-- 한 줄 요약: **Dynamic과 Fixed의 상대 성과 차이는 작아 동적 재최적화의 가치는 낮습니다.** 다만 WFO 기준 OOS 재현성이 낮아 실전 기대치는 보수적으로 봐야 합니다.
-- Dynamic CAGR 24.84%와 Fixed CAGR 26.27%는 Fixed가 약간 높습니다. 이 관계는 "동적으로 파라미터를 계속 바꾼다고 해서 더 좋아지지 않는다"는 해석과 일치합니다.
-- WFE Calmar Robust는 Dynamic 0.19, Fixed 0.04로 매우 낮습니다. 이는 IS 성과의 19%(Dynamic) 또는 4%(Fixed)만 OOS에서 재현된다는 뜻으로, TQQQ는 stitched 성과와 별개로 OOS 재현성이 낮습니다.
-- PC 최대 0.69는 0.5를 초과하여 수익이 특정 윈도우(W9, 2023~2025 AI 랠리)에 집중되어 있습니다. 레버리지 상품의 구조적 특성이 반영된 결과일 수 있으나, 특정 구간 의존성이 크다는 점에서 리스크 요인으로 해석해야 합니다."""
+- **PC 최대**: 0.5 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요"""
     )
+
+    # 판단은 결과 파일에서 생성한다 (재실행으로 수치가 바뀌면 문구도 함께 갱신된다)
+    st.markdown("## 현재 지표 해석 & 판단(결과)\n\n" + build_mode_summary_verdict(_label_by_display_name(summaries)))
 
     st.divider()
 
@@ -271,7 +280,7 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
 # ============================================================
 
 
-def _render_stitched_equity(strategy_dirs: dict[str, Path]) -> None:
+def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str, dict[str, object]]) -> None:
     """QQQ/TQQQ Stitched Equity 곡선을 좌우 서브플롯으로 비교한다."""
     st.header("Stitched Equity 곡선 비교")
 
@@ -357,24 +366,11 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path]) -> None:
 - 두 곡선이 **비슷한 궤적**이면: 파라미터 변경의 효과가 작아 고정 파라미터로도 충분
 - **Dynamic이 현저히 위에** 있으면: 파라미터 적응(re-optimization)이 유효
 - **Fully Fixed가 위에** 있으면: Dynamic 모드에서 과최적화가 발생하여 오히려 성과 악화
-- 큰 낙폭 구간이 있다면 해당 시기의 시장 상황(금융위기, 급락장 등)과 대조하여 해석
-
-## 현재 지표 해석 & 판단(결과)
-
-**QQQ** (현재 결과 기준):
-
-- 한 줄 요약: **두 곡선의 큰 흐름은 유사하지만, 후반부 성과와 낙폭은 Fully Fixed가 더 낫습니다.**
-- 파란선(Dynamic)과 주황선(Fully Fixed)은 방향 자체는 거의 비슷합니다. 다만 2020년 이후에는 Fixed가 위쪽에 위치하는 구간이 더 많고, 낙폭도 더 얕습니다.
-- 따라서 이 차트의 핵심 메시지는 "둘이 완전히 같다"가 아니라 **"재최적화가 추가 가치를 만들지 못하고, Fixed가 오히려 더 유리하다"** 입니다.
-- 이 차트는 QQQ의 고정 파라미터가 충분히 안정적이라는 점을 시각적으로 보여주는 자료로 해석합니다.
-
-**TQQQ** (현재 결과 기준):
-
-- 한 줄 요약: **Dynamic이 Fixed를 압도하지 못하며, 시각적으로도 Fully Fixed가 더 우세한 구간이 많습니다.**
-- 레버리지 특성상 두 곡선 모두 변동 폭이 매우 크지만, 상승 국면과 회복 국면에서 Fixed가 더 높은 자본곡선을 유지하는 구간이 반복됩니다.
-- 이 차트는 "적응형 최적화가 필요하다"기보다 **"동적으로 바꿔도 추가 이점이 없고, 오히려 Fixed가 더 낫다"** 는 쪽으로 읽는 것이 맞습니다.
-- 다만 TQQQ는 곡선 자체가 몇 개 강한 랠리 구간에 크게 의존하므로, stitched 곡선이 높다고 해서 OOS 재현성까지 좋다고 해석하면 안 됩니다."""
+- 큰 낙폭 구간이 있다면 해당 시기의 시장 상황(금융위기, 급락장 등)과 대조하여 해석"""
     )
+
+    # 판단은 결과 파일에서 생성한다 (재실행으로 수치가 바뀌면 문구도 함께 갱신된다)
+    st.markdown("## 현재 지표 해석 & 판단(결과)\n\n" + build_stitched_equity_verdict(_label_by_display_name(summaries)))
 
     st.divider()
 
@@ -519,22 +515,11 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
 - OOS가 **음수**: 해당 기간에 전략이 손실을 기록했음을 의미
 - 특정 윈도우만 OOS가 극단적: 해당 시기의 시장 환경(금융위기 등)이 전략에 불리했을 가능성
 
-## 현재 지표 해석 & 판단(결과)
-
-**그래프 읽는 법**: 각 윈도우(W0~W10)마다 녹색(IS)과 빨간색(OOS) 막대가 나란히 서 있습니다. 녹색은 "연습 성적", 빨간색은 "본시험 성적"이라고 생각하면 됩니다. 빨간색이 녹색과 비슷하거나 높으면 과최적화 우려가 낮고, 빨간색이 훨씬 낮으면 IS에서만 좋고 OOS에서 무너지는 과최적화를 의심해야 합니다.
-
-**QQQ** (현재 결과 기준):
-
-- 일부 윈도우는 OOS 성과가 IS보다 강하고, 일부 윈도우는 OOS가 낮거나 음수입니다. 따라서 현재 패턴은 "전 구간에서 OOS가 더 좋다"기보다 **윈도우별 편차는 있으나 전체적으로는 버틸 만한 수준**으로 해석하는 것이 맞습니다.
-- 초기 일부 윈도우의 부진은 존재하지만, 전체적으로 극단적인 IS→OOS 붕괴 패턴은 아닙니다.
-- 이 섹션은 QQQ가 강하게 과최적화됐다는 증거는 아니라는 점을 보여주는 **보조 자료**로 해석합니다.
-
-**TQQQ** (현재 결과 기준):
-
-- 몇몇 윈도우는 OOS가 매우 강하지만, 다른 윈도우는 음수이거나 부진합니다. 따라서 현재 패턴은 **일부 강한 랠리 구간이 전체 stitched 성과를 끌어올리는 비대칭 구조**에 가깝습니다.
-- 이 섹션이 보여주는 것은 높은 일반화 능력이라기보다, **TQQQ가 시장 국면에 매우 민감하고 레짐 의존성이 크다**는 점입니다.
-- 따라서 TQQQ는 stitched 성과만 보고 낙관적으로 해석하면 안 되며, OOS 재현성은 보수적으로 봐야 합니다."""
+**그래프 읽는 법**: 각 윈도우마다 녹색(IS)과 빨간색(OOS) 막대가 나란히 서 있습니다. 녹색은 "연습 성적", 빨간색은 "본시험 성적"이라고 생각하면 됩니다. 빨간색이 녹색과 비슷하거나 높으면 과최적화 우려가 낮고, 빨간색이 훨씬 낮으면 IS에서만 좋고 OOS에서 무너지는 과최적화를 의심해야 합니다."""
     )
+
+    # 판단은 윈도우별 결과에서 생성한다 (재실행으로 수치가 바뀌면 문구도 함께 갱신된다)
+    st.markdown("## 현재 지표 해석 & 판단(결과)\n\n" + build_is_vs_oos_verdict(_load_dynamic_windows(strategy_dirs)))
 
     st.divider()
 
@@ -629,26 +614,11 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
 - 특정 시점에서 **급격히 변화**: 시장 구조 변화(regime change)와 맞물릴 가능성
 - Fully Fixed 모드는 파라미터가 항상 동일하므로 시각화 불필요 (모든 윈도우 동일값)
 
-## 현재 지표 해석 & 판단(결과)
-
-**그래프 읽는 법**: 선이 수평에 가까우면 "어떤 시기든 같은 파라미터가 최적"이라는 뜻이고, 위아래로 요동치면 "시기마다 최적 파라미터가 달라진다"는 뜻입니다. 선이 안정적일수록 고정 파라미터를 사용해도 안전합니다.
-
-**QQQ** (현재 결과 기준):
-
-- **MA Window = 200:** 전 윈도우에서 동일합니다.
-- **Buy Buffer:** W1만 1%이고, 나머지는 3%입니다.
-- **Sell Buffer = 5%:** 전 윈도우에서 동일합니다.
-- **Hold Days:** 3 → 5 → 3으로 움직인 뒤 빠르게 3에 수렴합니다.
-- 의미: 파라미터는 초반 노이즈 이후 현재 확정값(MA=200, buy=3%, sell=5%, hold=3)으로 자연스럽게 수렴합니다. 이는 **4P 동결 원칙의 근거**입니다.
-
-**TQQQ** (현재 결과 기준):
-
-- **MA Window:** 초기에 150 → 100 → 150으로 흔들린 뒤 150에 수렴합니다.
-- **Buy Buffer = 3%:** 전 윈도우에서 동일합니다.
-- **Sell Buffer:** W1만 1%이고, 나머지는 5%입니다.
-- **Hold Days:** 5 → 0 → 5 이후, W3부터 3으로 수렴합니다.
-- 의미: 시간이 지나며 파라미터 불안정성은 줄고, 고정값으로 수렴합니다. 다만 **파라미터 안정성은 동결 원칙의 근거일 뿐, TQQQ의 OOS 재현성이 높다는 뜻은 아닙니다.** 파라미터 안정성과 전략 성과 robustness는 분리해서 해석해야 합니다."""
+**그래프 읽는 법**: 선이 수평에 가까우면 "어떤 시기든 같은 파라미터가 최적"이라는 뜻이고, 위아래로 요동치면 "시기마다 최적 파라미터가 달라진다"는 뜻입니다. 선이 안정적일수록 고정 파라미터를 사용해도 안전합니다."""
     )
+
+    # 판단은 결과 파일의 윈도우별 선택 파라미터에서 생성한다
+    st.markdown("## 현재 지표 해석 & 판단(결과)\n\n" + build_param_drift_verdict(_label_by_display_name(summaries)))
 
     st.divider()
 
@@ -1134,6 +1104,20 @@ def main() -> None:
 | **윈도우별 상세 차트** | 윈도우별 Buy/Sell 마커 시각 검증 | 검증 |"""
     )
 
+    # 전략 탐색 (개념 설명의 윈도우 기간 표를 실제 결과로 생성하므로 먼저 로드한다)
+    strategy_dirs = _discover_wfo_strategies()
+
+    if not strategy_dirs:
+        st.error(
+            "WFO 결과가 존재하는 전략이 없습니다.\n\n"
+            "먼저 워크포워드 검증을 실행하세요:\n"
+            "```bash\n"
+            "poetry run python scripts/backtest/run_walkforward.py\n"
+            "```"
+        )
+        st.stop()
+        return
+
     with st.expander("WFO 기본 개념 (펼쳐서 보기)"):
         st.markdown(
             r"""### WFO(Walk-Forward Optimization)란?
@@ -1148,39 +1132,13 @@ def main() -> None:
 
 ### Expanding Anchored Window 방식
 
-IS 시작점은 데이터 최초(1999-03)로 고정, IS 종료점이 매 윈도우마다 2년씩 확장됩니다.
+IS 시작점은 데이터 최초 시점으로 고정하고, IS 종료점이 매 윈도우마다 확장됩니다.
 후반 윈도우일수록 IS에 더 많은 시장 사이클이 포함되어 파라미터 선택이 안정화됩니다.
-
-| W | IS 기간 | IS 길이 | OOS 기간 | OOS 길이 |
-|---|---------|---------|----------|----------|
-| W0 | 1999-03 \~ 2005-02 | 약 6년 | 2005-03 \~ 2007-02 | 2년 |
-| W1 | 1999-03 \~ 2007-02 | 약 8년 | 2007-03 \~ 2009-02 | 2년 |
-| W2 | 1999-03 \~ 2009-02 | 약 10년 | 2009-03 \~ 2011-02 | 2년 |
-| W3 | 1999-03 \~ 2011-02 | 약 12년 | 2011-03 \~ 2013-02 | 2년 |
-| W4 | 1999-03 \~ 2013-02 | 약 14년 | 2013-03 \~ 2015-02 | 2년 |
-| W5 | 1999-03 \~ 2015-02 | 약 16년 | 2015-03 \~ 2017-02 | 2년 |
-| W6 | 1999-03 \~ 2017-02 | 약 18년 | 2017-03 \~ 2019-02 | 2년 |
-| W7 | 1999-03 \~ 2019-02 | 약 20년 | 2019-03 \~ 2021-02 | 2년 |
-| W8 | 1999-03 \~ 2021-02 | 약 22년 | 2021-03 \~ 2023-02 | 2년 |
-| W9 | 1999-03 \~ 2023-02 | 약 24년 | 2023-03 \~ 2025-02 | 2년 |
-| W10 | 1999-03 \~ 2025-02 | 약 26년 | 2025-03 \~ 2026-03 | 약 1년 |"""
+아래 표는 현재 결과 파일의 실제 윈도우 구간입니다."""
         )
+        st.markdown(build_window_schedule_table(_load_dynamic_windows(strategy_dirs)))
 
     st.divider()
-
-    # 전략 탐색
-    strategy_dirs = _discover_wfo_strategies()
-
-    if not strategy_dirs:
-        st.error(
-            "WFO 결과가 존재하는 전략이 없습니다.\n\n"
-            "먼저 워크포워드 검증을 실행하세요:\n"
-            "```bash\n"
-            "poetry run python scripts/backtest/run_walkforward.py\n"
-            "```"
-        )
-        st.stop()
-        return
 
     # 전략별 요약 로드
     summaries: dict[str, dict[str, object]] = {}
@@ -1196,7 +1154,7 @@ IS 시작점은 데이터 최초(1999-03)로 고정, IS 종료점이 매 윈도�
 
     # 5개 섹션 순서대로 렌더링 (통합 뷰)
     _render_mode_summary(summaries)
-    _render_stitched_equity(strategy_dirs)
+    _render_stitched_equity(strategy_dirs, summaries)
     _render_is_vs_oos(strategy_dirs)
     _render_param_drift(summaries)
     _render_window_detail(strategy_dirs)

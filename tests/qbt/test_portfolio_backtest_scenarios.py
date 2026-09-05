@@ -316,7 +316,7 @@ class TestB1CashBuffer:
 
 
 # ============================================================================
-# Phase 2: 엣지 케이스 테스트
+# 엣지 케이스 테스트
 # ============================================================================
 
 
@@ -520,7 +520,7 @@ class TestC1FullCashOnSell:
 
 
 # ============================================================================
-# Phase 0: start_date 파라미터 계약 + compute_portfolio_effective_start_date 계약
+# start_date 파라미터 계약 + compute_portfolio_effective_start_date 계약
 # ============================================================================
 
 
@@ -679,12 +679,12 @@ class TestComputeEffectiveStartDate:
 
 
 class TestCacheKeyWithDifferentMAParams:
-    """signal cache key 충돌 방지 계약 테스트 (Phase 0 RED).
+    """signal cache key 충돌 방지 계약 테스트.
 
     핵심 계약:
     - 동일 signal_data_path를 공유하는 슬롯이 서로 다른 ma_window를 사용해도
       각자 올바른 MA 컬럼을 가진 signal_df를 사용해야 한다.
-    - 수정 전에는 캐시 키가 경로만이므로 나중 슬롯이 잘못된 MA 컬럼을 참조 → 실패.
+    - 따라서 캐시 키는 경로만이 아니라 ma_window까지 포함해야 한다.
     """
 
     def test_same_path_different_ma_window_no_collision(
@@ -697,9 +697,7 @@ class TestCacheKeyWithDifferentMAParams:
                슬롯 A는 ma_window=5, 슬롯 B는 ma_window=10 사용
         When:  run_portfolio_backtest() 실행
         Then:  예외 없이 완료, 각 슬롯이 자기 MA 컬럼(ma_5 / ma_10)을 사용
-
-        RED 사유: 현재 캐시 키 = str(signal_data_path)만 사용 → 슬롯 A의 ma_5 계산 결과가
-                  슬롯 B에 재사용 → 슬롯 B가 ma_10 컬럼을 찾지 못함 → KeyError 발생.
+               (캐시 키가 경로만이면 슬롯 B가 ma_10 컬럼을 찾지 못해 KeyError가 난다)
         """
         # Given: 두 슬롯 모두 같은 CSV를 signal 소스로 사용하되 ma_window가 다름
         stock_df = _make_stock_df(n_rows=30)
@@ -729,7 +727,7 @@ class TestCacheKeyWithDifferentMAParams:
         )
 
         # When & Then: 예외 없이 실행 완료해야 함
-        # 현재 버그: KeyError (ma_10 컬럼이 캐시된 signal_df에 없음)
+        # 캐시 키가 경로만이면 ma_10 컬럼이 없어 KeyError가 난다
         result = run_portfolio_backtest(config)
         assert result is not None, "캐시 키 충돌 없이 정상 실행되어야 함"
         assert isinstance(result.equity_df, pd.DataFrame)

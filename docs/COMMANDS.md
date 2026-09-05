@@ -39,9 +39,9 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_n
 # 3. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
 # 실험 구성은 src/qbt/backtest/portfolio_configs.py의 PORTFOLIO_CONFIGS 참고 (목록은 자주 변경됨)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days)
-# 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일 편차 10% 초과 / 매일 편차 20% 초과 (실험 설정으로 변경 불가)
+# 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일/매일 편차 임계값 2단 (실험 설정으로 변경 불가, 값은 DEFAULT_REBALANCE_POLICY 참조)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, execution_comparison)
-# 실행 직후 5개 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식)
+# 실행 직후 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식)
 # 위반 발견 시 결과 저장 후 스크립트 중지 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 특정 실험 선택 가능 (실험명은 PORTFOLIO_CONFIGS 참고, 기본값: all)
@@ -68,7 +68,7 @@ poetry run streamlit run scripts/backtest/app_single_backtest.py
 
 # 7. 포트폴리오 비교 대시보드 (선행: 3)
 poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
-# 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 거래 현황, 시그널 차트)
+# 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 시그널 차트, 수익 기여도)
 
 # 7-1. 포트폴리오 디버그 대시보드 (선행: 3)
 poetry run streamlit run scripts/backtest/app_portfolio_debug.py

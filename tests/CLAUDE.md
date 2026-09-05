@@ -63,7 +63,7 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 - TQQQ 시뮬레이션 도메인:
 
-  - 일일 비용 계산 (`calculate_daily_cost`)
+  - 일일 비용 계산 (`_calculate_daily_cost`)
   - 레버리지 수익률 적용 (`simulate`)
   - 복리 효과 검증
   - 누적배수 로그차이 계산 (스케일 무관 추적오차)
