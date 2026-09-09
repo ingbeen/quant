@@ -215,22 +215,7 @@ def test_with_temp_files(self, mock_storage_paths):
 
 ### 6. 문서화
 
-테스트 가독성: 초보자도 이해 가능하도록 작성합니다.
-
-- Docstring 권장(테스트가 짧아도 "무엇을 고정하는지"는 남기기)
-
-  - 테스트 목적(검증 계약)
-  - Given-When-Then 구조
-  - 예외 케이스인 경우 "왜 예외가 맞는가"
-
-- 복잡한 계산/로직: 인라인 주석으로 단계별 설명
-- 필요 시 Python 기초 문법 설명(최소한으로):
-
-  - 예: 리스트 컴프리헨션, `pytest.raises`, `@freeze_time`, `monkeypatch`
-
-문서화 목적: 테스트 자체가 도메인 규칙의 "실행 가능한 문서" 역할을 합니다.
-
-주석 작성 원칙: [.claude/rules/python.md](../.claude/rules/python.md)의 문서화 규칙을 참고하세요.
+테스트 자체가 도메인 규칙의 "실행 가능한 문서" 역할을 합니다.
 
 ---
 
@@ -468,7 +453,6 @@ expense_df = pd.DataFrame({
 - [ ] 결정적 테스트(시간 고정/파일 격리/순서 안정화)
 - [ ] 부동소수점 비교는 `approx/rtol/atol` 고려
 - [ ] 네트워크/외부 의존성 없음 확인
-- [ ] 명확한 주석 및(가능하면) docstring
 
 ---
 
