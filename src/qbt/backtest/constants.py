@@ -65,10 +65,11 @@ WFO_WINDOWS_DYNAMIC_DIR: Final = "wfo_windows_dynamic"
 WFO_WINDOWS_FULLY_FIXED_DIR: Final = "wfo_windows_fully_fixed"
 
 # ============================================================
-# 반올림 규칙 상수 (루트 CLAUDE.md "출력 데이터 반올림 규칙" 참조)
+# 반올림 규칙 상수 — 이 저장소의 자릿수 SoT
+# CSV/JSON 저장 직전에만 적용하며, 계산 정밀도는 바꾸지 않는다
 # ============================================================
 
-ROUND_PRICE: Final = 6  # 가격 (종가, 시가, 밴드, 체결가 등)
+ROUND_PRICE: Final = 4  # 가격 (종가, 시가, 밴드, 체결가 등)
 ROUND_CAPITAL: Final = 0  # 자본금 (equity, pnl) -> 정수
 ROUND_PERCENT: Final = 2  # 백분율 (수익률, MDD, 승률, 드로우다운)
 ROUND_RATIO: Final = 4  # 비율 (0~1, buy_buffer_zone_pct, pnl_pct)

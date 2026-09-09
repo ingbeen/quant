@@ -94,19 +94,19 @@ def _make_trend_and_oscillating_df(
             d = d + timedelta(days=1)
         dates.append(d)
         if i < n_is:
-            prices.append(round(p, 6))
+            prices.append(round(p, 4))
             p *= 1 + is_daily_return
         else:
             oos_i = i - n_is
-            prices.append(round(oos_center + oos_amplitude * math.sin(oos_i * 0.4), 6))
+            prices.append(round(oos_center + oos_amplitude * math.sin(oos_i * 0.4), 4))
         d = d + timedelta(days=1)
 
     return pd.DataFrame(
         {
             COL_DATE: dates,
-            COL_OPEN: [round(px * 0.999, 6) for px in prices],
-            COL_HIGH: [round(px * 1.01, 6) for px in prices],
-            COL_LOW: [round(px * 0.99, 6) for px in prices],
+            COL_OPEN: [round(px * 0.999, 4) for px in prices],
+            COL_HIGH: [round(px * 1.01, 4) for px in prices],
+            COL_LOW: [round(px * 0.99, 4) for px in prices],
             COL_CLOSE: prices,
             COL_VOLUME: [1_000_000] * len(prices),
         }

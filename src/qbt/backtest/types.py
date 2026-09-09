@@ -35,7 +35,7 @@ class OpenPositionDict(TypedDict):
     """
 
     entry_date: str  # ISO format "YYYY-MM-DD"
-    entry_price: float  # 진입가 (슬리피지 반영, 소수점 6자리)
+    entry_price: float  # 진입가 (슬리피지 반영, ROUND_PRICE 자릿수로 반올림)
     shares: int  # 보유 수량
 
 

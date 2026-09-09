@@ -427,7 +427,7 @@ expense_df = pd.DataFrame({
 
 정밀도 가이드라인:
 
-소수점 자릿수 기준은 [.claude/rules/python.md](../.claude/rules/python.md)의 "출력 데이터 반올림 규칙" 참고.
+소수점 자릿수의 SoT는 [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py)의 `ROUND_*` 상수입니다.
 테스트 데이터 작성 시에도 동일한 자릿수 기준을 따릅니다.
 
 부동소수점 오차 처리:

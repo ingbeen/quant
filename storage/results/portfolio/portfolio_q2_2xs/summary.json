@@ -20,10 +20,10 @@
       "total_trades": 46,
       "win_rate": 95.65,
       "final_shares": 837589,
-      "final_avg_price": 44.570588,
+      "final_avg_price": 44.5706,
       "open_position": {
         "entry_date": "2025-05-21",
-        "entry_price": 44.570588,
+        "entry_price": 44.5706,
         "shares": 837589
       }
     },
@@ -33,10 +33,10 @@
       "total_trades": 56,
       "win_rate": 94.64,
       "final_shares": 585617,
-      "final_avg_price": 76.177028,
+      "final_avg_price": 76.177,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 76.177028,
+        "entry_price": 76.177,
         "shares": 585617
       }
     },
@@ -46,10 +46,10 @@
       "total_trades": 41,
       "win_rate": 92.68,
       "final_shares": 60676,
-      "final_avg_price": 245.094445,
+      "final_avg_price": 245.0944,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 245.094445,
+        "entry_price": 245.0944,
         "shares": 60676
       }
     },
@@ -59,10 +59,10 @@
       "total_trades": 36,
       "win_rate": 75.0,
       "final_shares": 294497,
-      "final_avg_price": 91.579993,
+      "final_avg_price": 91.58,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 91.579993,
+        "entry_price": 91.58,
         "shares": 294497
       }
     }

@@ -216,7 +216,7 @@ def _save_summary_json(
     if open_position_raw is not None and isinstance(open_position_raw, dict):
         summary_dict["open_position"] = {
             "entry_date": str(open_position_raw["entry_date"]),
-            "entry_price": round(float(str(open_position_raw["entry_price"])), 6),
+            "entry_price": round(float(str(open_position_raw["entry_price"])), ROUND_PRICE),
             "shares": int(str(open_position_raw["shares"])),
         }
 
@@ -300,8 +300,8 @@ def _print_trades_table(result: SingleBacktestResult) -> None:
                 [
                     str(trade["entry_date"]),
                     str(trade["exit_date"]),
-                    f"{trade['entry_price']:.6f}",
-                    f"{trade['exit_price']:.6f}",
+                    f"{trade['entry_price']:.{ROUND_PRICE}f}",
+                    f"{trade['exit_price']:.{ROUND_PRICE}f}",
                     f"{trade['pnl_pct'] * 100:+.2f}%",
                 ]
             )

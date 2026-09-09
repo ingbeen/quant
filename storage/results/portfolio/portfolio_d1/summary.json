@@ -20,10 +20,10 @@
       "total_trades": 11,
       "win_rate": 90.91,
       "final_shares": 143552,
-      "final_avg_price": 646.815969,
+      "final_avg_price": 646.816,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 646.815969,
+        "entry_price": 646.816,
         "shares": 143552
       }
     }

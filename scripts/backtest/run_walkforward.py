@@ -304,7 +304,13 @@ def _save_results(
     ]:
         if not eq_df.empty:
             eq_export = eq_df.round(
-                {"equity": 0, "buy_buffer_pct": 4, "sell_buffer_pct": 4, "upper_band": 6, "lower_band": 6}
+                {
+                    COL_EQUITY: ROUND_CAPITAL,
+                    COL_BUY_BUFFER_PCT: ROUND_RATIO,
+                    COL_SELL_BUFFER_PCT: ROUND_RATIO,
+                    COL_UPPER_BAND: ROUND_PRICE,
+                    COL_LOWER_BAND: ROUND_PRICE,
+                }
             )
             eq_export.to_csv(result_dir / filename, index=False)
 

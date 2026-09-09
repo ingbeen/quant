@@ -33,6 +33,7 @@ from qbt.backtest.constants import (
     MIN_HOLD_DAYS,
     MIN_SELL_BUFFER_ZONE_PCT,
     MIN_VALID_ROWS,
+    ROUND_PRICE,
     ma_col_name,
 )
 from qbt.backtest.engines.engine_common import (
@@ -421,7 +422,7 @@ def run_backtest(
     if position > 0 and entry_date is not None:
         summary["open_position"] = {
             "entry_date": str(entry_date),
-            "entry_price": round(entry_price, 6),
+            "entry_price": round(entry_price, ROUND_PRICE),
             "shares": position,
         }
 
