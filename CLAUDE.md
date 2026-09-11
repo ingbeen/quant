@@ -22,6 +22,9 @@
 - 패키지 규칙: `src/qbt/CLAUDE.md`(qbt 패키지)
 - 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
   - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `src/qbt/utils/CLAUDE.md`
+- **축적 지식**: [docs/MEMORY.md](docs/MEMORY.md) — 작업하며 알아낸 함정·인계사항·환경 노하우. 아래 `@import` 로 **매 세션 자동 로드**됩니다
+
+@docs/MEMORY.md
 
 > **자동 로드는 `Read` 도구로 열었을 때만 걸립니다.** `cat`·`head`·`sed -n` 으로 읽으면
 > 그 경로의 규칙이 따라오지 않고, **auto 모드는 그 셸 읽기를 권장합니다.**
