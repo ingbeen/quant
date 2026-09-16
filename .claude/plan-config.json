@@ -1,0 +1,16 @@
+{
+  "quality_check": "poetry run python validate_project.py",
+  "auto_format": "poetry run black .",
+  "scope_extras": ["README.md", "docs/COMMANDS.md"],
+  "evidence_promotion": {
+    "측정·연구 결과와 판정": "docs/research/",
+    "설계 결정과 탈락안": "docs/research/ (해당 주제 보고서 본문 또는 부록)",
+    "실행 명령어": "docs/COMMANDS.md"
+  },
+  "commit_scopes": {
+    "src/qbt/backtest/": "백테스트 / ",
+    "src/qbt/tqqq/": "TQQQ시뮬레이션 / ",
+    "문서": "문서 / ",
+    ".claude/ · 설정 파일": "하네스 / "
+  }
+}
