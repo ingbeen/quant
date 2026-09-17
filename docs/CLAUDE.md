@@ -42,8 +42,8 @@ docs/
 파일 위치와 네이밍, KST 표기, 필수 구성, Phase 구성 원칙, 스킵·Done 규칙, 근거 승격,
 Commit Messages 규칙이 모두 거기 있습니다. 계획서 템플릿도 그 스킬 폴더의 `template.md`를 씁니다.
 
-이 프로젝트 고유의 값(검증 명령, Scope 에 적을 것, 근거 승격 목적지, 커밋 기능명)은
-[루트 CLAUDE.md](../CLAUDE.md)의 「계획서 규약 — 이 프로젝트의 설정」 절이 SoT입니다.
+이 프로젝트 고유의 **값**은 [.claude/plan-config.json](../.claude/plan-config.json)이 SoT이고,
+그 값이 담지 못하는 **판단 근거**는 [루트 CLAUDE.md](../CLAUDE.md)의 「계획서 규약」 절에 있습니다.
 
 > **`docs/plans/` 폴더는 비어도 유지합니다.** 계획서 게이트 훅이 이 폴더의 존재로 규약 채택을 판정하므로,
 > 폴더가 사라지면 게이트가 조용히 꺼집니다.
