@@ -2,16 +2,16 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 77937995,
-    "total_return_pct": 679.38,
-    "cagr": 9.96,
+    "final_capital": 77922163,
+    "total_return_pct": 679.22,
+    "cagr": 9.91,
     "mdd": -15.76,
     "calmar": 0.63,
-    "sharpe_ratio": 1.01,
-    "sortino_ratio": 1.41,
+    "sharpe_ratio": 1.0,
+    "sortino_ratio": 1.4,
     "total_trades": 131,
     "start_date": "2005-01-03",
-    "end_date": "2026-08-21"
+    "end_date": "2026-09-24"
   },
   "per_asset": [
     {
@@ -19,12 +19,12 @@
       "target_weight": 0.35,
       "total_trades": 32,
       "win_rate": 100.0,
-      "final_shares": 36419,
-      "final_avg_price": 585.8688,
+      "final_shares": 36527,
+      "final_avg_price": 584.4155,
       "open_position": {
         "entry_date": "2025-05-21",
-        "entry_price": 585.8688,
-        "shares": 36419
+        "entry_price": 584.4155,
+        "shares": 36527
       }
     },
     {
@@ -32,12 +32,12 @@
       "target_weight": 0.35,
       "total_trades": 39,
       "win_rate": 97.44,
-      "final_shares": 37131,
-      "final_avg_price": 646.816,
+      "final_shares": 37188,
+      "final_avg_price": 646.1427,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 646.816,
-        "shares": 37131
+        "entry_price": 646.1427,
+        "shares": 37188
       }
     },
     {
@@ -45,12 +45,12 @@
       "target_weight": 0.15,
       "total_trades": 35,
       "win_rate": 97.14,
-      "final_shares": 28678,
-      "final_avg_price": 193.2799,
+      "final_shares": 28692,
+      "final_avg_price": 193.2824,
       "open_position": {
         "entry_date": "2005-01-04",
-        "entry_price": 193.2799,
-        "shares": 28678
+        "entry_price": 193.2824,
+        "shares": 28692
       }
     },
     {
@@ -58,12 +58,12 @@
       "target_weight": 0.15,
       "total_trades": 25,
       "win_rate": 88.0,
-      "final_shares": 139173,
-      "final_avg_price": 89.2683,
+      "final_shares": 139774,
+      "final_avg_price": 88.9202,
       "open_position": {
         "entry_date": "2005-01-04",
-        "entry_price": 89.2683,
-        "shares": 139173
+        "entry_price": 88.9202,
+        "shares": 139774
       }
     }
   ],
@@ -369,22 +369,22 @@
     {
       "year": 2009,
       "month": 3,
-      "return_pct": 0.18
+      "return_pct": 0.13
     },
     {
       "year": 2009,
       "month": 4,
-      "return_pct": -1.56
+      "return_pct": -1.48
     },
     {
       "year": 2009,
       "month": 5,
-      "return_pct": 0.96
+      "return_pct": 0.98
     },
     {
       "year": 2009,
       "month": 6,
-      "return_pct": -1.27
+      "return_pct": -1.28
     },
     {
       "year": 2009,
@@ -1324,7 +1324,7 @@
     {
       "year": 2025,
       "month": 2,
-      "return_pct": -0.27
+      "return_pct": -0.28
     },
     {
       "year": 2025,
@@ -1414,7 +1414,12 @@
     {
       "year": 2026,
       "month": 8,
-      "return_pct": 4.18
+      "return_pct": 3.93
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "return_pct": 0.18
     }
   ],
   "yearly_returns": [
@@ -1436,7 +1441,7 @@
     },
     {
       "year": 2009,
-      "return_pct": 15.51
+      "return_pct": 15.56
     },
     {
       "year": 2010,
@@ -1500,11 +1505,11 @@
     },
     {
       "year": 2025,
-      "return_pct": 10.96
+      "return_pct": 10.95
     },
     {
       "year": 2026,
-      "return_pct": 6.11
+      "return_pct": 6.05
     }
   ]
 }

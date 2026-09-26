@@ -2,9 +2,9 @@
   "display_name": "Buy & Hold (TLT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 22799400,
-    "total_return_pct": 127.99,
-    "cagr": 3.48,
+    "final_capital": 22153122,
+    "total_return_pct": 121.53,
+    "cagr": 3.35,
     "mdd": -48.35,
     "calmar": 0.07,
     "total_trades": 0,
@@ -12,11 +12,11 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2002-07-30",
-    "end_date": "2026-08-21",
+    "end_date": "2026-09-24",
     "open_position": {
       "entry_date": "2002-07-31",
-      "entry_price": 35.9878,
-      "shares": 277872
+      "entry_price": 35.8504,
+      "shares": 278936
     }
   },
   "params": {
@@ -272,7 +272,7 @@
     {
       "year": 2006,
       "month": 9,
-      "return_pct": 1.91
+      "return_pct": 1.92
     },
     {
       "year": 2006,
@@ -1177,7 +1177,7 @@
     {
       "year": 2021,
       "month": 10,
-      "return_pct": 2.47
+      "return_pct": 2.46
     },
     {
       "year": 2021,
@@ -1467,7 +1467,12 @@
     {
       "year": 2026,
       "month": 8,
-      "return_pct": 0.16
+      "return_pct": 0.73
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "return_pct": -3.39
     }
   ],
   "yearly_returns": [
@@ -1489,7 +1494,7 @@
     },
     {
       "year": 2006,
-      "return_pct": 0.71
+      "return_pct": 0.72
     },
     {
       "year": 2007,
@@ -1549,7 +1554,7 @@
     },
     {
       "year": 2021,
-      "return_pct": -4.59
+      "return_pct": -4.6
     },
     {
       "year": 2022,
@@ -1569,7 +1574,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -3.33
+      "return_pct": -6.08
     }
   ],
   "data_info": {

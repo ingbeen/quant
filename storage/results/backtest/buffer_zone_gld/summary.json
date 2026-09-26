@@ -4,7 +4,7 @@
     "initial_capital": 10000000,
     "final_capital": 47096697,
     "total_return_pct": 370.97,
-    "cagr": 7.67,
+    "cagr": 7.64,
     "mdd": -41.12,
     "calmar": 0.19,
     "total_trades": 11,
@@ -12,7 +12,7 @@
     "losing_trades": 6,
     "win_rate": 45.45,
     "start_date": "2005-09-02",
-    "end_date": "2026-08-21"
+    "end_date": "2026-09-24"
   },
   "params": {
     "ma_window": 200,
@@ -1276,6 +1276,11 @@
     {
       "year": 2026,
       "month": 8,
+      "return_pct": 0.0
+    },
+    {
+      "year": 2026,
+      "month": 9,
       "return_pct": 0.0
     }
   ],

@@ -2,17 +2,17 @@
   "display_name": "Buy & Hold (UGL)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 92891428,
-    "total_return_pct": 828.91,
-    "cagr": 13.41,
+    "final_capital": 78833243,
+    "total_return_pct": 688.33,
+    "cagr": 12.29,
     "mdd": -75.93,
-    "calmar": 0.18,
+    "calmar": 0.16,
     "total_trades": 0,
     "winning_trades": 0,
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2008-12-03",
-    "end_date": "2026-08-21",
+    "end_date": "2026-09-24",
     "open_position": {
       "entry_date": "2008-12-04",
       "entry_price": 6.1459,
@@ -1082,7 +1082,12 @@
     {
       "year": 2026,
       "month": 8,
-      "return_pct": 29.19
+      "return_pct": 19.73
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "return_pct": -8.43
     }
   ],
   "yearly_returns": [
@@ -1156,7 +1161,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 2.82
+      "return_pct": -12.74
     }
   ],
   "data_info": {

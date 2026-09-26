@@ -2,16 +2,16 @@
   "display_name": "D-1 (QQQ 100%)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 102416049,
-    "total_return_pct": 924.16,
-    "cagr": 11.36,
+    "final_capital": 106497267,
+    "total_return_pct": 964.97,
+    "cagr": 11.51,
     "mdd": -26.43,
-    "calmar": 0.43,
-    "sharpe_ratio": 0.77,
-    "sortino_ratio": 1.06,
+    "calmar": 0.44,
+    "sharpe_ratio": 0.78,
+    "sortino_ratio": 1.07,
     "total_trades": 11,
     "start_date": "2005-01-03",
-    "end_date": "2026-08-21"
+    "end_date": "2026-09-24"
   },
   "per_asset": [
     {
@@ -19,12 +19,12 @@
       "target_weight": 1.0,
       "total_trades": 11,
       "win_rate": 90.91,
-      "final_shares": 143552,
-      "final_avg_price": 646.816,
+      "final_shares": 143701,
+      "final_avg_price": 646.1427,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 646.816,
-        "shares": 143552
+        "entry_price": 646.1427,
+        "shares": 143701
       }
     }
   ],
@@ -1342,7 +1342,12 @@
     {
       "year": 2026,
       "month": 8,
-      "return_pct": 3.7
+      "return_pct": 4.18
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "return_pct": 3.5
     }
   ],
   "yearly_returns": [
@@ -1432,7 +1437,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 1.71
+      "return_pct": 5.76
     }
   ]
 }
