@@ -39,7 +39,7 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_n
 # 3. 포트폴리오 백테스트 (선행: 1, TQQQ 합성 데이터 필요)
 # 실험 구성은 src/qbt/backtest/portfolio_configs.py의 PORTFOLIO_CONFIGS 참고 (목록은 자주 변경됨)
 # 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days)
-# 리밸런싱: 엔진 레벨 고정 — 월 첫 거래일/매일 편차 임계값 2단 (실험 설정으로 변경 불가, 값은 DEFAULT_REBALANCE_POLICY 참조)
+# 리밸런싱: 엔진 레벨 고정 — 월 마지막 거래일 종가 판단 → 다음 거래일 시가 체결, 월중 리밸런싱 없음 (실험 설정으로 변경 불가, 임계값은 DEFAULT_REBALANCE_POLICY 참조)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, execution_comparison)
 # 실행 직후 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식)
 # 위반 발견 시 결과 저장 후 스크립트 중지 (ValueError)

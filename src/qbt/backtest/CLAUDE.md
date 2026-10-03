@@ -119,7 +119,7 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason
 
 대시보드 등 CLI 계층은 위 파생 컬럼을 직접 읽어 사용하며, 동일한 계산을 자체 수행하지 않는다.
 
-state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_start, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price
+state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_end, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price
 
 ### 6-1. portfolio_validation.py
 
@@ -139,7 +139,7 @@ PortfolioResult에 대한 정합성 규칙 검증을 제공한다. `run_portfoli
 포트폴리오 엔진은 책임 단위의 하위 모듈 4개와 이를 묶는 facade로 분리되어 있다:
 
 - `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
-- `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 월 첫 거래일 판정 함수
+- `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 판단일(월 마지막 거래일) 판정 함수
 - `portfolio_execution.py`: 체결 결과(ExecutionResult), SELL→BUY 순 체결 함수
 - `portfolio_data.py`: 데이터 로딩/검증, 에쿼티 DataFrame 빌드 함수
 - `portfolio_engine.py`: facade — 공개 API는 `compute_portfolio_effective_start_date`·`run_portfolio_backtest` 2개이며, 내부 헬퍼로 `_load_portfolio_data_with_common_period`를 둔다
@@ -182,7 +182,7 @@ TypedDict:
 #### engines/portfolio_engine.py
 
 포트폴리오 백테스트 엔진을 제공한다.
-복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
+복수 자산의 독립 시그널 + 목표 비중 배분 + 월말 판단 리밸런싱을 처리한다.
 
 데이터클래스 (각 하위 모듈에 정의, portfolio_engine.py가 import하여 사용):
 
@@ -193,11 +193,9 @@ TypedDict:
   - ENTER_TO_TARGET 자산은 active_assets에 추가 (position=0이므로 amount=0 유지)
 - `AssetState` (portfolio_types.py): 자산별 런타임 상태 (position, signal_state)
 - `ExecutionResult` (portfolio_execution.py): `execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
-- `RebalancePolicy` (portfolio_rebalance.py): 이중 트리거 리밸런싱 정책 (frozen=True)
-  - `monthly_threshold_rate`: 월 첫 거래일 임계값 (기본 0.10 = 10%)
-  - `daily_threshold_rate`: 매일 긴급 임계값 (기본 0.20 = 20%)
-  - `get_threshold(is_month_start) -> float`: 해당 거래일 기준 임계값 반환
-  - `should_rebalance(projected, slot_dict, total_equity_projected, is_month_start) -> bool`: 임계값 초과 여부 판정
+- `RebalancePolicy` (portfolio_rebalance.py): 월말 판단 리밸런싱 정책 (frozen=True)
+  - `threshold_rate`: 목표 비중 대비 상대 편차 임계값
+  - `should_rebalance(projected, slot_dict, total_equity_projected) -> bool`: 임계값 초과 여부 판정 (판단일 여부는 엔진이 정한다)
   - `build_rebalance_intents(projected, slot_dict, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성)
 - `DEFAULT_REBALANCE_POLICY` (portfolio_rebalance.py): 기본 RebalancePolicy 인스턴스. `run_portfolio_backtest`에서 사용하며, 임계값은 이 상수 정의를 참조
 
@@ -212,7 +210,7 @@ TypedDict:
 
 - `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 각 실험이 자기 자산 조합 기준으로 독립 시작일을 산출하므로 CLI 러너에서 실험마다 호출하여 `run_portfolio_backtest`에 전달한다.
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를 전달).
-- `is_first_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 월 첫 거래일 판정
+- `is_last_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 리밸런싱 판단일(월 마지막 거래일) 판정. 다음 거래일의 날짜만 보며, 마지막 행은 체결할 날이 없어 False
 - `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
 - `create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy` (portfolio_planning.py): STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)
 
@@ -222,7 +220,7 @@ TypedDict:
 - 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
-- 이중 트리거 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 첫 거래일 임계값과 매일 긴급 임계값 2단 구성
+- 월말 판단 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 마지막 거래일 종가에 판단해 다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 재진입 신호가 판단일에 겹치면 진입 자산의 편차가 100% 로 계산돼 그날 전체 리밸런싱이 함께 일어난다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
 - projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
 - 부분 매도: REDUCE_TO_TARGET은 delta_amount 기준 수량, EXIT_ALL은 전량

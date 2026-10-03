@@ -372,8 +372,6 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
             reason_text = ""
             if reason == "monthly":
                 reason_text = "월초 정기"
-            elif reason == "daily":
-                reason_text = "긴급"
             else:
                 reason_text = "시그널"
 
@@ -1027,9 +1025,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             for _, reb_row in reb_df.iterrows():
                 d_str = pd.Timestamp(reb_row["Date"]).strftime("%Y-%m-%d")
                 if has_reason and str(reb_row.get("rebalance_reason", "")):
-                    reason = str(reb_row["rebalance_reason"])
-                    reason_label = "월초 정기" if reason == "monthly" else "긴급"
-                    hover_texts.append(f"{d_str}<br>리밸런싱 ({reason_label})")
+                    hover_texts.append(f"{d_str}<br>리밸런싱 (월초 정기)")
                 else:
                     hover_texts.append(f"{d_str}<br>리밸런싱")
 

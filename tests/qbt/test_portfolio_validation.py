@@ -149,6 +149,59 @@ class TestCheckRebalanceWeightConsistency:
         assert len(violations) == 1
         assert "규칙2" in violations[0]
 
+    def test_tolerance_boundary_19pct_passes(self):
+        """
+        목적: 허용 오차가 상대 편차 0.20 임을 고정한다 (경계 아래 통과).
+              리밸런싱 정책의 임계값과 무관한 검사 기준이다.
+
+        Given: target=0.50, actual=0.405 (상대 편차 19%)
+        When: _check_rebalance_weight_consistency() 호출
+        Then: 빈 리스트
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2024, 1, 2)],
+                "rebalanced": [True],
+                "qqq_close": [100.0],
+                "qqq_shares": [405],
+                "qqq_weight": [0.405],
+            }
+        )
+
+        # When
+        violations = _check_rebalance_weight_consistency(df, ["qqq"], {"qqq": 0.50})
+
+        # Then
+        assert violations == []
+
+    def test_tolerance_boundary_21pct_fails(self):
+        """
+        목적: 허용 오차가 상대 편차 0.20 임을 고정한다 (경계 위 위반).
+              허용 오차가 무한대로 바뀌어 검사가 늘 통과하는 회귀를 막는다.
+
+        Given: target=0.50, actual=0.395 (상대 편차 21%)
+        When: _check_rebalance_weight_consistency() 호출
+        Then: 위반 1건
+        """
+        # Given
+        df = pd.DataFrame(
+            {
+                "Date": [date(2024, 1, 2)],
+                "rebalanced": [True],
+                "qqq_close": [100.0],
+                "qqq_shares": [395],
+                "qqq_weight": [0.395],
+            }
+        )
+
+        # When
+        violations = _check_rebalance_weight_consistency(df, ["qqq"], {"qqq": 0.50})
+
+        # Then
+        assert len(violations) == 1
+        assert "규칙2" in violations[0]
+
 
 class TestCheckExitAllSharesZero:
     """규칙 3: EXIT_ALL 후 주수 0 검증 함수 테스트."""

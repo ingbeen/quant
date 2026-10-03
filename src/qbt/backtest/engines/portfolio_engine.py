@@ -1,13 +1,12 @@
 """포트폴리오 백테스트 엔진
 
-복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 처리한다.
+복수 자산의 독립 시그널 + 목표 비중 배분 + 월말 판단 리밸런싱을 처리한다.
 
 주요 설계 결정:
 - 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
 - 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
-- 리밸런싱: 이중 트리거 체계 (RebalancePolicy)
-    - 월 첫 거래일: 편차 10% 초과 시 트리거 (monthly_threshold_rate)
-    - 매일: 편차 20% 초과 시 긴급 트리거 (daily_threshold_rate)
+- 리밸런싱: 월 마지막 거래일 종가에 편차가 임계값(RebalancePolicy.threshold_rate)을 넘으면
+  다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않는다
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장
 - projected state: signal intent 반영 후 리밸런싱 계획 → planning 왜곡 방지
 - 체결 기준: 익일 open 가격 (Lookahead 방지)
@@ -52,7 +51,7 @@ from qbt.backtest.engines.portfolio_planning import (
 )
 from qbt.backtest.engines.portfolio_rebalance import (
     DEFAULT_REBALANCE_POLICY,
-    is_first_trading_day_of_month,
+    is_last_trading_day_of_month,
 )
 from qbt.backtest.portfolio_types import (
     AssetState,
@@ -195,7 +194,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
 def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
     """포트폴리오 백테스트를 실행한다.
 
-    복수 자산의 독립 시그널 + 목표 비중 배분 + 이중 트리거 리밸런싱을 수행한다.
+    복수 자산의 독립 시그널 + 목표 비중 배분 + 월말 판단 리밸런싱을 수행한다.
     OrderIntent 기반 주문 모델로 signal과 rebalance 충돌을 merge_intents가 해소한다.
 
     메인 루프 흐름:
@@ -336,14 +335,14 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         # D.2: projected portfolio 계산 (signal intents 반영 후 예상 상태)
         projected = compute_projected_portfolio(asset_states, signal_intents, equity_vals_now, shared_cash)
 
-        # D.3: rebalance intents 생성 (projected 기준, 이중 트리거 임계값 적용)
+        # D.3: rebalance intents 생성 (월 마지막 거래일에만, projected 기준 임계값 적용)
         total_equity_projected = projected.projected_cash + sum(projected.projected_amounts.values())
-        is_month_start = is_first_trading_day_of_month(trade_dates, i)
-        if DEFAULT_REBALANCE_POLICY.should_rebalance(projected, slot_dict, total_equity_projected, is_month_start):
+        is_month_end = is_last_trading_day_of_month(trade_dates, i)
+        if is_month_end and DEFAULT_REBALANCE_POLICY.should_rebalance(projected, slot_dict, total_equity_projected):
             rebalance_intents = DEFAULT_REBALANCE_POLICY.build_rebalance_intents(
                 projected, slot_dict, total_equity_projected, current_date
             )
-            next_day_rebalance_reason = "monthly" if is_month_start else "daily"
+            next_day_rebalance_reason = "monthly"
         else:
             rebalance_intents = {}
             next_day_rebalance_reason = ""
@@ -387,7 +386,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             COL_DATE: current_date,
             COL_EQUITY: current_equity,
             "cash": shared_cash,
-            "is_month_start": is_month_start,
+            "is_month_end": is_month_end,
             "rebalanced": rebalanced_today,
             "rebalance_reason": rebalance_reason_today,
         }
@@ -498,9 +497,9 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         "experiment_name": config.experiment_name,
         "display_name": config.display_name,
         "total_capital": config.total_capital,
-        # 리밸런싱 임계값: 엔진 레벨 상수로 고정 (모든 실험에 동일하게 적용됨)
-        "monthly_rebalance_threshold_rate": DEFAULT_REBALANCE_POLICY.monthly_threshold_rate,
-        "daily_rebalance_threshold_rate": DEFAULT_REBALANCE_POLICY.daily_threshold_rate,
+        # 리밸런싱 규칙: 엔진 레벨 상수로 고정 (모든 실험에 동일하게 적용됨)
+        "rebalance_check_day": "last_trading_day_of_month",
+        "rebalance_threshold_rate": DEFAULT_REBALANCE_POLICY.threshold_rate,
         "assets": [
             {
                 "asset_id": slot.asset_id,

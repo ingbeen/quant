@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from qbt.backtest.constants import SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
     run_portfolio_backtest,
@@ -17,7 +18,7 @@ from qbt.backtest.engines.portfolio_planning import (
     compute_portfolio_equity,
 )
 from qbt.backtest.engines.portfolio_rebalance import (
-    is_first_trading_day_of_month,
+    is_last_trading_day_of_month,
 )
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
@@ -217,22 +218,22 @@ class TestPortfolioEquityFormula:
         assert equity == pytest.approx(8_000_000.0, abs=0.01), f"에쿼티가 8,000,000이어야 함 (현재: {equity})"
 
 
-class TestMonthlyRebalancing:
-    """월 첫 거래일 판정 테스트.
+class TestMonthEndRebalanceCheckDay:
+    """리밸런싱 판단일(월 마지막 거래일) 판정 테스트.
 
-    핵심 계약: 전일 월 != 당일 월이면 True (월 첫 거래일).
+    핵심 계약: 다음 거래일의 월이 바뀌면 True (그 달의 마지막 거래일).
+    다음 거래일이 없는 마지막 행은 체결할 날이 없으므로 False.
     """
 
-    def test_monthly_rebalancing_only_on_first_day(self):
+    def test_true_only_on_last_trading_day_of_month(self):
         """
-        목적: is_first_trading_day_of_month()가 월 전환일만 True를 반환하는지 검증.
+        목적: is_last_trading_day_of_month()가 달의 마지막 거래일만 True를 반환하는지 검증.
 
         Given: 날짜 목록 [2024-01-30, 2024-01-31, 2024-02-01, 2024-02-02]
-        When:  각 인덱스에 대해 is_first_trading_day_of_month() 호출
-        Then:  인덱스 0 (2024-01-30) → False (첫 번째 행, 이전 날 없음)
-               인덱스 1 (2024-01-31) → False (전 거래일 1월)
-               인덱스 2 (2024-02-01) → True  (전 거래일 1월 → 2월로 전환)
-               인덱스 3 (2024-02-02) → False (전 거래일 2월)
+        When:  인덱스 0 ~ 2 에 대해 is_last_trading_day_of_month() 호출
+        Then:  인덱스 0 (2024-01-30) → False (다음 거래일도 1월)
+               인덱스 1 (2024-01-31) → True  (다음 거래일이 2월)
+               인덱스 2 (2024-02-01) → False (다음 거래일도 2월)
         """
         # Given
         trade_dates = [
@@ -243,10 +244,139 @@ class TestMonthlyRebalancing:
         ]
 
         # When & Then
-        assert is_first_trading_day_of_month(trade_dates, 0) is False, "첫 번째 행(i=0)은 이전 행이 없으므로 False이어야 함"
-        assert is_first_trading_day_of_month(trade_dates, 1) is False, "2024-01-31: 전 거래일도 1월이므로 False이어야 함"
-        assert is_first_trading_day_of_month(trade_dates, 2) is True, "2024-02-01: 전 거래일 1월 → 2월 전환이므로 True이어야 함"
-        assert is_first_trading_day_of_month(trade_dates, 3) is False, "2024-02-02: 전 거래일도 2월이므로 False이어야 함"
+        assert is_last_trading_day_of_month(trade_dates, 0) is False, "2024-01-30: 다음 거래일도 1월이므로 False이어야 함"
+        assert is_last_trading_day_of_month(trade_dates, 1) is True, "2024-01-31: 다음 거래일이 2월이므로 True이어야 함"
+        assert is_last_trading_day_of_month(trade_dates, 2) is False, "2024-02-01: 다음 거래일도 2월이므로 False이어야 함"
+
+    def test_last_row_is_false(self):
+        """
+        목적: 데이터의 마지막 행은 달력상 월말이어도 False 임을 검증 (체결할 다음 거래일이 없다).
+
+        Given: 날짜 목록 [2024-01-30, 2024-01-31] (1월 31일에서 데이터 종료)
+        When:  마지막 인덱스 1 에 대해 is_last_trading_day_of_month() 호출
+        Then:  False
+        """
+        # Given
+        trade_dates = [date(2024, 1, 30), date(2024, 1, 31)]
+
+        # When & Then
+        assert is_last_trading_day_of_month(trade_dates, 1) is False, "마지막 행은 다음 거래일이 없으므로 False이어야 함"
+
+
+def _make_jump_df(jump_date: date, price_before: float, price_after: float) -> pd.DataFrame:
+    """2024-01-02 ~ 2024-02-29 평일 데이터. jump_date 부터 시가·종가가 price_after 로 바뀐다."""
+    dates: list[date] = []
+    current = date(2024, 1, 2)
+    while current <= date(2024, 2, 29):
+        if current.weekday() < 5:
+            dates.append(current)
+        current += timedelta(days=1)
+
+    closes = [price_after if d >= jump_date else price_before for d in dates]
+    return pd.DataFrame(
+        {
+            COL_DATE: dates,
+            COL_OPEN: closes,
+            COL_HIGH: [c + 1.0 for c in closes],
+            COL_LOW: [c - 1.0 for c in closes],
+            COL_CLOSE: closes,
+            COL_VOLUME: [1_000_000] * len(dates),
+        }
+    )
+
+
+class TestMonthEndRebalanceSchedule:
+    """엔진의 리밸런싱 시점 계약 테스트.
+
+    핵심 계약: 리밸런싱은 월 마지막 거래일 종가로 판단해 다음 거래일 시가에 체결한다.
+    월중에는 편차가 아무리 커도 리밸런싱하지 않는다 (평일 긴급 리밸런싱 없음).
+
+    시나리오: 보유(B&H) 자산 a·b 50:50. a 가 2024-01-15 시가부터 100 → 160 (+60%).
+    a 비중 ≈ 0.8 / 1.3 = 0.615, 목표 대비 상대 편차 ≈ 23% — 판단 임계값 10% 의 두 배를 넘는 큰 이탈.
+    """
+
+    def _run(self, tmp_path: Path, create_csv_file, a_price_after: float = 160.0):  # type: ignore[no-untyped-def]
+        a_path = create_csv_file("A_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, a_price_after))
+        b_path = create_csv_file("B_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, 100.0))
+        config = PortfolioConfig(
+            experiment_name="test_month_end",
+            display_name="Test Month End",
+            asset_slots=(
+                AssetSlotConfig("a", a_path, a_path, target_weight=0.50, strategy_id="buy_and_hold"),
+                AssetSlotConfig("b", b_path, b_path, target_weight=0.50, strategy_id="buy_and_hold"),
+            ),
+            total_capital=10_000_000.0,
+            result_dir=tmp_path,
+        )
+        return run_portfolio_backtest(config)
+
+    def test_rebalances_only_on_next_day_after_month_end(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 월중 편차가 20% 를 넘어도 그 달에는 리밸런싱하지 않고,
+              월 마지막 거래일(2024-01-31) 판단 → 다음 거래일(2024-02-01) 한 번만 체결됨을 검증.
+
+        Given: a 가 2024-01-15 에 +60% (상대 편차 약 23%)
+        When:  run_portfolio_backtest() 실행
+        Then:  rebalanced=True 인 날짜 == [2024-02-01]
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file)
+
+        # Then
+        equity_df = result.equity_df
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        assert rebalanced_dates == [date(2024, 2, 1)], f"리밸런싱은 2024-02-01 하루뿐이어야 함 (실제: {rebalanced_dates})"
+
+    def test_no_rebalance_on_month_end_within_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 판단일이어도 편차가 임계값 10% 이하이면 리밸런싱하지 않음을 엔진 수준에서 검증
+              (판단일마다 무조건 맞추는 규칙과 구분된다).
+
+        Given: a 가 2024-01-15 에 +15% → a 비중 ≈ 0.575 / 1.075 = 0.535, 상대 편차 ≈ 7%
+        When:  run_portfolio_backtest() 실행
+        Then:  rebalanced=True 인 날이 없다
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file, a_price_after=115.0)
+
+        # Then
+        equity_df = result.equity_df
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        assert rebalanced_dates == [], f"편차 7% 는 임계값 10% 이하이므로 리밸런싱이 없어야 함 (실제: {rebalanced_dates})"
+
+    def test_check_day_logged_on_month_end(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: state_log 의 판단일 컬럼이 월 마지막 거래일에만 True 임을 검증.
+
+        Given: 2024-01-02 ~ 2024-02-29 데이터 (2024-02-29 는 데이터 마지막 행)
+        When:  run_portfolio_backtest() 실행
+        Then:  is_month_end=True 인 날짜 == [2024-01-31]
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file)
+
+        # Then
+        state_log_df = result.state_log_df
+        check_days = list(state_log_df.loc[state_log_df["is_month_end"] == True, COL_DATE])  # noqa: E712
+        assert check_days == [date(2024, 1, 31)], f"판단일은 2024-01-31 하루뿐이어야 함 (실제: {check_days})"
+
+    def test_rebalance_sell_executes_at_next_day_open(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 리밸런싱 매도가 판단 다음 거래일 시가 × (1 - 슬리피지)로 체결됨을 검증.
+
+        Given: a 의 2024-02-01 시가 = 160
+        When:  run_portfolio_backtest() 실행
+        Then:  a 의 REDUCE 매도 체결가 == 160 × (1 - SLIPPAGE_RATE), 체결일 2024-02-01
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file)
+
+        # Then
+        trades_df = result.trades_df
+        a_sells = trades_df[(trades_df["asset_id"] == "a") & (trades_df["trade_type"] == "rebalance")]
+        assert len(a_sells) == 1, f"a 의 리밸런싱 매도는 1건이어야 함 (실제: {len(a_sells)})"
+        assert a_sells["exit_date"].iloc[0] == date(2024, 2, 1)
+        assert a_sells["exit_price"].iloc[0] == pytest.approx(160.0 * (1 - SLIPPAGE_RATE), abs=1e-6)
 
 
 class TestB1CashBuffer:

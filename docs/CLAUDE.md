@@ -13,9 +13,10 @@
 ```
 
 docs/
-├── CLAUDE.md           # docs 관련 규칙(SoT) (이 문서)
-├── plans/              # 변경 계획서 저장소
-└── research/           # 연구/검증 보고서 저장소
+├── CLAUDE.md             # docs 관련 규칙(SoT) (이 문서)
+├── DEFERRED_FINDINGS.md  # 계획서가 고치지 않고 넘긴 코드 리뷰 지적 (판단 대기열)
+├── plans/                # 변경 계획서 저장소
+└── research/             # 연구/검증 보고서 저장소
 
 ```
 

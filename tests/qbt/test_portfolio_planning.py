@@ -1,7 +1,7 @@
 """포트폴리오 플래닝 로직 테스트
 
 OrderIntent 모델, 시그널 intent 생성, projected portfolio, 리밸런싱 intent 생성,
-intent 병합 및 이중 트리거 임계값을 검증한다.
+intent 병합 및 리밸런싱 임계값을 검증한다.
 """
 
 from datetime import date
@@ -392,14 +392,14 @@ class TestBuildRebalanceIntents:
 
     def test_no_rebalance_when_threshold_not_exceeded(self) -> None:
         """
-        목적: active 자산 편차가 daily_threshold_rate 이하이면 should_rebalance=False 검증.
+        목적: active 자산 편차가 threshold_rate 이하이면 should_rebalance=False 검증.
 
-        Given: QQQ 31% (target 30%), daily_threshold_rate=0.20
-               |31/30 - 1| = 0.033 < 0.20
-        When:  policy.should_rebalance(..., is_month_start=False)
+        Given: QQQ 31% (target 30%), threshold_rate=0.10
+               |31/30 - 1| = 0.033 < 0.10
+        When:  policy.should_rebalance()
         Then:  False → 리밸런싱 인텐트 없음
         """
-        # Given: QQQ 31% (편차 3.3% < 20%)
+        # Given: QQQ 31% (편차 3.3% < 10%)
         total_equity = 1_000_000.0
         projected = self._make_projected(
             active_assets={"qqq"},
@@ -407,11 +407,11 @@ class TestBuildRebalanceIntents:
             projected_cash=690_000.0,
         )
         slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
+        policy = RebalancePolicy(threshold_rate=0.10)
 
-        # When: 일중 기준(is_month_start=False) → daily_threshold_rate=0.20 적용
+        # When
         result_intents: dict[str, Any] = {}
-        if policy.should_rebalance(projected, slot_dict, total_equity, is_month_start=False):
+        if policy.should_rebalance(projected, slot_dict, total_equity):
             result_intents = policy.build_rebalance_intents(projected, slot_dict, total_equity, date(2024, 1, 2))
 
         # Then
@@ -422,7 +422,7 @@ class TestBuildRebalanceIntents:
         목적: threshold 초과 시 REDUCE_TO_TARGET/INCREASE_TO_TARGET 생성 검증.
 
         Given: QQQ 50% (target 30%), GLD 10% (target 30%)
-               |50/30 - 1| = 0.667 > 0.20 → daily threshold 초과
+               |50/30 - 1| = 0.667 > 0.10 → threshold 초과
                total_equity=1,000,000, projected_cash=400,000
         When:  policy.should_rebalance() → True → policy.build_rebalance_intents() 호출
         Then:  QQQ → REDUCE_TO_TARGET
@@ -439,11 +439,11 @@ class TestBuildRebalanceIntents:
             "qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30),
             "gld": AssetSlotConfig("gld", Path("dummy"), Path("dummy"), target_weight=0.30),
         }
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
+        policy = RebalancePolicy(threshold_rate=0.10)
 
-        # When: 일중 기준(is_month_start=False) → daily_threshold_rate=0.20 적용, 편차 66.7% > 20% → 트리거
+        # When: 편차 66.7% > 10% → 트리거
         result: dict[str, Any] = {}
-        if policy.should_rebalance(projected, slot_dict, total_equity, is_month_start=False):
+        if policy.should_rebalance(projected, slot_dict, total_equity):
             result = policy.build_rebalance_intents(projected, slot_dict, total_equity, date(2024, 1, 2))
 
         # Then
@@ -553,36 +553,31 @@ class TestMergeIntents:
         assert merged["qqq"].intent_type == "REDUCE_TO_TARGET"
 
 
-class TestDualTriggerThreshold:
-    """이중 트리거 임계값 계약 테스트.
+class TestRebalanceThreshold:
+    """리밸런싱 임계값 계약 테스트.
 
     핵심 계약:
-    - DEFAULT_REBALANCE_POLICY.monthly_threshold_rate = 0.10 (월 첫날 임계값)
-    - DEFAULT_REBALANCE_POLICY.daily_threshold_rate = 0.20 (매일 임계값)
-    - RebalancePolicy.should_rebalance(): is_month_start에 따라 임계값 결정
-    - 10%~20% 편차 구간: 월 첫날에만 트리거, 일중에는 패스
+    - DEFAULT_REBALANCE_POLICY.threshold_rate = 0.10 (목표 대비 상대 편차)
+    - 판단일(월 마지막 거래일) 여부는 엔진이 정하고, 정책은 편차만 본다
     """
 
-    def test_default_rebalance_policy_threshold_values(self) -> None:
+    def test_default_rebalance_policy_threshold_value(self) -> None:
         """
-        목적: DEFAULT_REBALANCE_POLICY의 임계값이 정확한지 검증.
+        목적: DEFAULT_REBALANCE_POLICY의 임계값이 0.10 임을 검증.
 
         Given: qbt.backtest.engines.portfolio_rebalance 모듈의 DEFAULT_REBALANCE_POLICY
-        When:  monthly_threshold_rate, daily_threshold_rate 조회
-        Then:  monthly_threshold_rate == 0.10
-               daily_threshold_rate == 0.20
+        When:  threshold_rate 조회
+        Then:  0.10
         """
-        assert DEFAULT_REBALANCE_POLICY.monthly_threshold_rate == pytest.approx(0.10, abs=1e-9)
-        assert DEFAULT_REBALANCE_POLICY.daily_threshold_rate == pytest.approx(0.20, abs=1e-9)
+        assert DEFAULT_REBALANCE_POLICY.threshold_rate == pytest.approx(0.10, abs=1e-9)
 
-    def test_check_rebalancing_monthly_threshold_triggers_at_11pct(self) -> None:
+    def test_triggers_above_threshold(self) -> None:
         """
-        목적: monthly_threshold_rate=0.10 기준, 편차 11%에서 월 첫날 트리거됨을 검증.
+        목적: threshold_rate=0.10 기준, 편차 11% 에서 트리거됨을 검증.
 
         Given: target=0.30, actual=0.333 → |0.333/0.30 - 1| ≈ 0.11 > 0.10
-               RebalancePolicy(monthly_threshold_rate=0.10, ...)
-        When:  policy.should_rebalance(..., is_month_start=True)
-        Then:  True (월 임계값 초과 → 트리거)
+        When:  policy.should_rebalance()
+        Then:  True
         """
         # Given: QQQ 33.3% (target 30%, 편차 11%)
         total_equity = 100_000.0
@@ -592,47 +587,21 @@ class TestDualTriggerThreshold:
             active_assets={"qqq"},
         )
         slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
+        policy = RebalancePolicy(threshold_rate=0.10)
 
-        # When: 월 첫 거래일 기준(is_month_start=True) → monthly_threshold_rate=0.10 적용
-        triggers = policy.should_rebalance(projected, slot_dict, total_equity, is_month_start=True)
-
-        # Then
-        assert triggers, "편차 11% > 월 임계값 10%이면 트리거되어야 함"
-
-    def test_check_rebalancing_daily_no_trigger_at_15pct(self) -> None:
-        """
-        목적: daily_threshold_rate=0.20 기준, 편차 15%에서 트리거 없음을 검증.
-
-        Given: target=0.30, actual=0.345 → |0.345/0.30 - 1| = 0.15 < 0.20
-               RebalancePolicy(daily_threshold_rate=0.20)
-        When:  policy.should_rebalance(..., is_month_start=False)
-        Then:  False (월 중간 임계값 미달 → 패스)
-        """
-        # Given: QQQ 34.5% (target 30%, 편차 15%)
-        total_equity = 100_000.0
-        projected = ProjectedPortfolio(
-            projected_amounts={"qqq": 34_500.0},
-            projected_cash=65_500.0,
-            active_assets={"qqq"},
-        )
-        slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
-
-        # When: 일중 기준(is_month_start=False) → daily_threshold_rate=0.20 적용
-        triggers = policy.should_rebalance(projected, slot_dict, total_equity, is_month_start=False)
+        # When
+        triggers = policy.should_rebalance(projected, slot_dict, total_equity)
 
         # Then
-        assert not triggers, "편차 15% < 매일 임계값 20%이면 트리거 없어야 함"
+        assert triggers, "편차 11% > 임계값 10%이면 트리거되어야 함"
 
-    def test_check_rebalancing_monthly_no_trigger_below_10pct(self) -> None:
+    def test_no_trigger_below_threshold(self) -> None:
         """
-        목적: monthly_threshold_rate=0.10 기준, 편차 9%에서 월 첫날 트리거 없음을 검증.
+        목적: threshold_rate=0.10 기준, 편차 9% 에서 트리거 없음을 검증.
 
         Given: target=0.30, actual=0.327 → |0.327/0.30 - 1| = 0.09 < 0.10
-               RebalancePolicy(monthly_threshold_rate=0.10)
-        When:  policy.should_rebalance(..., is_month_start=True)
-        Then:  False (편차 < 월 임계값 → 패스)
+        When:  policy.should_rebalance()
+        Then:  False
         """
         # Given: QQQ 32.7% (target 30%, 편차 9%)
         total_equity = 100_000.0
@@ -642,10 +611,10 @@ class TestDualTriggerThreshold:
             active_assets={"qqq"},
         )
         slot_dict = {"qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.30)}
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
+        policy = RebalancePolicy(threshold_rate=0.10)
 
-        # When: 월 첫 거래일 기준(is_month_start=True) → monthly_threshold_rate=0.10 적용
-        triggers = policy.should_rebalance(projected, slot_dict, total_equity, is_month_start=True)
+        # When
+        triggers = policy.should_rebalance(projected, slot_dict, total_equity)
 
         # Then
-        assert not triggers, "편차 9% < 월 임계값 10%이면 트리거 없어야 함"
+        assert not triggers, "편차 9% < 임계값 10%이면 트리거 없어야 함"

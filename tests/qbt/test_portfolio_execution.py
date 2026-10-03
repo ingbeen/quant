@@ -189,7 +189,7 @@ class TestPartialSellInvariant:
         total_equity = 1_000_000.0
 
         # When: QQQ 60% vs target 40% → 50% 편차 > 10% → build_rebalance_intents 직접 호출
-        policy = RebalancePolicy(monthly_threshold_rate=0.10, daily_threshold_rate=0.20)
+        policy = RebalancePolicy(threshold_rate=0.10)
         result = policy.build_rebalance_intents(projected, slot_dict, total_equity, current_date=date(2024, 1, 2))
 
         # Then: REDUCE_TO_TARGET, delta_amount = 400,000 - 600,000 = -200,000 (전량 아닌 초과분)

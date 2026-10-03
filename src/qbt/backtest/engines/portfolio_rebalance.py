@@ -1,4 +1,4 @@
-"""포트폴리오 리밸런싱 정책 — 이중 트리거 리밸런싱 정책과 월 첫 거래일 판정 함수"""
+"""포트폴리오 리밸런싱 정책 — 월말 판단 리밸런싱 정책과 판단일(월 마지막 거래일) 판정 함수"""
 
 from dataclasses import dataclass
 from datetime import date
@@ -10,36 +10,22 @@ from qbt.common_constants import EPSILON
 
 @dataclass(frozen=True)
 class RebalancePolicy:
-    """이중 트리거 리밸런싱 정책.
+    """월말 판단 리밸런싱 정책.
 
-    monthly_threshold_rate와 daily_threshold_rate를 기반으로
-    리밸런싱 발동 여부를 판단하고 intent를 생성한다.
+    판단일(월 마지막 거래일)인지는 엔진이 `is_last_trading_day_of_month` 로 정하고,
+    이 정책은 판단일에 리밸런싱이 필요한지(편차)와 intent 생성만 맡는다.
 
     Attributes:
-        monthly_threshold_rate: 월 첫 거래일 리밸런싱 임계값 (0.10 = 10%)
-        daily_threshold_rate: 매일 긴급 리밸런싱 임계값 (0.20 = 20%)
+        threshold_rate: 목표 비중 대비 상대 편차 임계값 (0.10 = 10%)
     """
 
-    monthly_threshold_rate: float
-    daily_threshold_rate: float
-
-    def get_threshold(self, is_month_start: bool) -> float:
-        """is_month_start에 따라 적용할 리밸런싱 임계값을 반환한다.
-
-        Args:
-            is_month_start: True이면 월 첫 거래일
-
-        Returns:
-            월 첫 거래일이면 monthly_threshold_rate, 그 외이면 daily_threshold_rate
-        """
-        return self.monthly_threshold_rate if is_month_start else self.daily_threshold_rate
+    threshold_rate: float
 
     def should_rebalance(
         self,
         projected: ProjectedPortfolio,
         slot_dict: dict[str, AssetSlotConfig],
         total_equity_projected: float,
-        is_month_start: bool,
     ) -> bool:
         """active 자산 중 임계값 초과 자산이 있는지 판정한다.
 
@@ -47,7 +33,6 @@ class RebalancePolicy:
             projected: signal intents 반영 후 예상 포트폴리오 상태
             slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
             total_equity_projected: projected 상태 기준 총 에쿼티
-            is_month_start: True이면 monthly_threshold_rate 사용, False이면 daily_threshold_rate 사용
 
         Returns:
             True이면 리밸런싱 실행 필요, False이면 스킵
@@ -57,7 +42,6 @@ class RebalancePolicy:
                 f"내부 불변조건 위반: total_equity_projected < EPSILON "
                 f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
             )
-        threshold = self.get_threshold(is_month_start)
         # active_assets 는 asset_states 키의 부분집합이며 asset_states 는 slot_dict 와
         # 동일한 자산 집합으로 초기화되므로 slot_dict[asset_id] 는 항상 존재한다.
         for asset_id in projected.active_assets:
@@ -67,7 +51,7 @@ class RebalancePolicy:
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
             actual_weight = current_amount / total_equity_projected
             deviation = abs(actual_weight / slot.target_weight - 1.0)
-            if deviation > threshold:
+            if deviation > self.threshold_rate:
                 return True
         return False
 
@@ -160,25 +144,25 @@ class RebalancePolicy:
 
 
 # 기본 리밸런싱 정책 인스턴스
-# 월 첫 거래일: 편차 10% 초과 시 트리거 (정기 리밸런싱)
-# 매일: 편차 20% 초과 시 긴급 트리거
-DEFAULT_REBALANCE_POLICY = RebalancePolicy(
-    monthly_threshold_rate=0.10,
-    daily_threshold_rate=0.20,
-)
+# 월 마지막 거래일 종가에 편차 10% 초과 자산이 있으면 다음 거래일 시가에 리밸런싱한다.
+# 평일 긴급 리밸런싱은 두지 않는다 — 실제 운용(월말 종가 확인 → 다음 달 첫 시가에 한 번)과 맞추기 위해서다.
+# 결정 근거와 측정값: docs/research/전략_검증_보고서.md 부록 L
+DEFAULT_REBALANCE_POLICY = RebalancePolicy(threshold_rate=0.10)
 
 
-def is_first_trading_day_of_month(trade_dates: list[date], i: int) -> bool:
-    """월 첫 거래일 여부를 판정한다.
+def is_last_trading_day_of_month(trade_dates: list[date], i: int) -> bool:
+    """리밸런싱 판단일(그 달의 마지막 거래일) 여부를 판정한다.
+
+    다음 거래일의 «날짜»(거래소 달력)만 보고 가격은 보지 않으므로 미래 참조가 아니다.
+    마지막 행은 체결할 다음 거래일이 없으므로 False 다.
 
     Args:
         trade_dates: 전체 거래일 목록
         i: 현재 인덱스 (0-based)
 
     Returns:
-        True이면 이전 거래일과 월이 다름 (= 월 첫 거래일)
-        False이면 i=0이거나 동일 월
+        True이면 다음 거래일과 월이 다름 (= 그 달의 마지막 거래일)
     """
-    if i <= 0:
+    if i >= len(trade_dates) - 1:
         return False
-    return trade_dates[i].month != trade_dates[i - 1].month
+    return trade_dates[i + 1].month != trade_dates[i].month

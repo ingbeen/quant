@@ -127,9 +127,8 @@ class PortfolioConfig:
     전략 파라미터(ma_window, buffer_pct 등)는 슬롯 레벨(AssetSlotConfig)로 이동하였다.
     target_weight 합이 1.0 미만인 경우 잔여분은 현금으로 유지된다 (B시리즈).
 
-    리밸런싱 정책은 엔진 레벨 상수로 고정된다:
-        - 월 첫 거래일: MONTHLY_REBALANCE_THRESHOLD_RATE (10%) 초과 시 트리거
-        - 매일: DAILY_REBALANCE_THRESHOLD_RATE (20%) 초과 시 긴급 트리거
+    리밸런싱 정책은 엔진 레벨 상수로 고정되며 실험 설정으로 바꿀 수 없다
+    (월 마지막 거래일 판단, 임계값은 portfolio_rebalance.DEFAULT_REBALANCE_POLICY).
 
     Attributes:
         experiment_name: 실험 식별자 ("portfolio_a2" 등)
@@ -197,7 +196,7 @@ class PortfolioResult:
         - trade_type: 거래 원인 ("signal" 또는 "rebalance")
 
     state_log_df 컬럼 명세 (매 거래일 1행):
-        기본: Date, equity, cash, is_month_start, rebalanced, rebalance_reason
+        기본: Date, equity, cash, is_month_end, rebalanced, rebalance_reason
         자산별 ({asset_id}_ 접두사):
         - {aid}_close, {aid}_shares, {aid}_weight: 당일 상태
         - {aid}_signal_today: 당일 시그널 판정 ("buy"/"sell"/"hold")

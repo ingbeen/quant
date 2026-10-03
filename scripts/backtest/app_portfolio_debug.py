@@ -61,7 +61,7 @@ _RAW_LOG_COMMON_COLS: tuple[str, ...] = (
     "cash",
     "rebalanced",
     "rebalance_reason",
-    "is_month_start",
+    "is_month_end",
 )
 _RAW_LOG_ASSET_COLS: tuple[str, ...] = (
     "close",
@@ -331,9 +331,9 @@ def _render_daily_navigator(
     reb_text = ""
     if row.get("rebalanced"):
         reason = str(row.get("rebalance_reason", ""))
-        reb_text = "월초 정기" if reason == "monthly" else ("긴급" if reason == "daily" else "예")
+        reb_text = "월초 정기" if reason == "monthly" else "예"
     col3.metric("리밸런싱", reb_text if reb_text else "없음")
-    col4.metric("월 첫 거래일", "예" if row.get("is_month_start") else "아니오")
+    col4.metric("리밸런싱 판단일(월말)", "예" if row.get("is_month_end") else "아니오")
 
     # 자산별 요약 (컴팩트 테이블 형태)
     target_weights: dict[str, float] = {}
@@ -545,12 +545,11 @@ def _render_execution_detail_table(
             weight_after = float(log_row.get(f"{aid}_weight", 0))
             reason = str(log_row.get("rebalance_reason", ""))
             reason_text = ""
-            if reason == "monthly":
-                reason_text = "월초 정기"
-            elif reason == "daily":
-                reason_text = "긴급"
-            elif executed in ("EXIT_ALL", "ENTER_TO_TARGET"):
+            # 정기 리밸런싱일에도 신호 체결이 섞이므로 자산별 체결 유형을 먼저 본다
+            if executed in ("EXIT_ALL", "ENTER_TO_TARGET"):
                 reason_text = "시그널"
+            elif reason == "monthly":
+                reason_text = "월초 정기"
             else:
                 reason_text = "리밸런싱"
 

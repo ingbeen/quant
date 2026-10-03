@@ -32,8 +32,8 @@
     "experiment_name": "portfolio_d1",
     "display_name": "D-1 (QQQ 100%)",
     "total_capital": 10000000.0,
-    "monthly_rebalance_threshold_rate": 0.1,
-    "daily_rebalance_threshold_rate": 0.2,
+    "rebalance_check_day": "last_trading_day_of_month",
+    "rebalance_threshold_rate": 0.1,
     "assets": [
       {
         "asset_id": "qqq",
