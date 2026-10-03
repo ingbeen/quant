@@ -2745,11 +2745,11 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1532.21,
+        "total_return_pct": 1532.06,
         "cagr": 15.43,
         "mdd": -27.93,
         "calmar": 0.55,
-        "total_trades": 148
+        "total_trades": 147
       },
       "output_files": {
         "equity_csv": "storage/results/portfolio/portfolio_q2_2xs/equity.csv",
@@ -2758,7 +2758,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-10-03T21:15:23+09:00"
+      "timestamp": "2026-10-04T00:00:44+09:00"
     },
     {
       "params": {
@@ -2815,11 +2815,11 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 695.87,
+        "total_return_pct": 696.39,
         "cagr": 10.02,
         "mdd": -15.72,
         "calmar": 0.64,
-        "total_trades": 127
+        "total_trades": 126
       },
       "output_files": {
         "equity_csv": "storage/results/portfolio/portfolio_q2/equity.csv",
@@ -2828,7 +2828,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2/summary.json"
       },
-      "timestamp": "2026-10-03T21:15:21+09:00"
+      "timestamp": "2026-10-04T00:00:43+09:00"
     },
     {
       "params": {
@@ -2865,7 +2865,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_d1_2x/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_d1_2x/summary.json"
       },
-      "timestamp": "2026-10-03T21:15:20+09:00"
+      "timestamp": "2026-10-04T00:00:42+09:00"
     },
     {
       "params": {
@@ -2902,15 +2902,15 @@
         "state_log_csv": "storage/results/portfolio/portfolio_d1/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_d1/summary.json"
       },
-      "timestamp": "2026-10-03T21:15:19+09:00"
+      "timestamp": "2026-10-04T00:00:41+09:00"
     },
     {
       "params": {
         "experiment_name": "portfolio_q2_2xs",
         "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
         "total_capital": 10000000.0,
-        "monthly_rebalance_threshold_rate": 0.1,
-        "daily_rebalance_threshold_rate": 0.2,
+        "rebalance_check_day": "last_trading_day_of_month",
+        "rebalance_threshold_rate": 0.1,
         "assets": [
           {
             "asset_id": "sso",
@@ -2959,11 +2959,11 @@
         ]
       },
       "results_summary": {
-        "total_return_pct": 1524.85,
-        "cagr": 15.4,
-        "mdd": -27.56,
-        "calmar": 0.56,
-        "total_trades": 179
+        "total_return_pct": 1532.21,
+        "cagr": 15.43,
+        "mdd": -27.93,
+        "calmar": 0.55,
+        "total_trades": 148
       },
       "output_files": {
         "equity_csv": "storage/results/portfolio/portfolio_q2_2xs/equity.csv",
@@ -2972,7 +2972,7 @@
         "state_log_csv": "storage/results/portfolio/portfolio_q2_2xs/state_log.csv",
         "summary_json": "storage/results/portfolio/portfolio_q2_2xs/summary.json"
       },
-      "timestamp": "2026-09-26T19:22:14+09:00"
+      "timestamp": "2026-10-03T21:15:23+09:00"
     }
   ]
 }

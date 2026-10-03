@@ -367,6 +367,57 @@ class TestComputeProjectedPortfolio:
         assert projected.projected_amounts.get("qqq", 0.0) == pytest.approx(0.0, abs=0.01)
         assert projected.projected_cash == pytest.approx(500_000.0, abs=0.01)
 
+    def test_enter_to_target_is_marked_entering(self) -> None:
+        """
+        목적: ENTER_TO_TARGET 자산이 entering_assets 에 들어가는지 검증
+              (리밸런싱 편차 판정에서 뺄 자산 — 전략_검증_보고서 부록 L.5).
+
+        Given: QQQ position=0, ENTER_TO_TARGET intent
+        When:  compute_projected_portfolio() 호출
+        Then:  projected.entering_assets == {"qqq"}
+        """
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            AssetState as NewAssetState,
+        )
+
+        # Given
+        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        signal_intents = {
+            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
+        }
+
+        # When
+        projected = compute_projected_portfolio(asset_states, signal_intents, {"qqq": 0.0}, 500_000.0)
+
+        # Then
+        assert projected.entering_assets == {"qqq"}
+
+    def test_exit_and_held_assets_are_not_entering(self) -> None:
+        """
+        목적: EXIT_ALL 자산과 신호 없는 보유 자산은 entering_assets 에 들어가지 않음을 검증.
+
+        Given: QQQ 보유 + EXIT_ALL intent, GLD 보유 + intent 없음
+        When:  compute_projected_portfolio() 호출
+        Then:  projected.entering_assets == set()
+        """
+        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
+            AssetState as NewAssetState,
+        )
+
+        # Given
+        asset_states = {
+            "qqq": NewAssetState(position=100, signal_state="buy"),
+            "gld": NewAssetState(position=50, signal_state="buy"),
+        }
+        signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
+        equity_vals = {"qqq": 100_000.0, "gld": 50_000.0}
+
+        # When
+        projected = compute_projected_portfolio(asset_states, signal_intents, equity_vals, 0.0)
+
+        # Then
+        assert projected.entering_assets == set()
+
 
 class TestBuildRebalanceIntents:
     """RebalancePolicy.should_rebalance + build_rebalance_intents 계약 검증.
@@ -618,3 +669,61 @@ class TestRebalanceThreshold:
 
         # Then
         assert not triggers, "편차 9% < 임계값 10%이면 트리거 없어야 함"
+
+
+class TestEnteringAssetExcludedFromCheck:
+    """판단일 진입 자산의 편차 판정 제외 계약 (전략_검증_보고서 부록 L.5).
+
+    핵심 계약: 그날 진입 신호가 난 자산(보유 0)은 편차가 100% 로 계산되므로 판정에서 뺀다.
+    남은 자산의 편차만으로 리밸런싱 여부를 정한다.
+
+    시나리오: 목표 gld 50% · qqq 50%, 총자산 1,000,000. qqq 는 진입 예정(보유 0).
+    """
+
+    def _make_projected(self, gld_amount: float) -> ProjectedPortfolio:
+        return ProjectedPortfolio(
+            projected_amounts={"gld": gld_amount, "qqq": 0.0},
+            projected_cash=1_000_000.0 - gld_amount,
+            active_assets={"gld", "qqq"},
+            entering_assets={"qqq"},
+        )
+
+    def _slot_dict(self) -> dict[str, AssetSlotConfig]:
+        return {
+            "gld": AssetSlotConfig("gld", Path("dummy"), Path("dummy"), target_weight=0.50),
+            "qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.50),
+        }
+
+    def test_entering_asset_alone_does_not_trigger(self) -> None:
+        """
+        목적: 진입 자산의 편차(100%)만으로는 리밸런싱이 일어나지 않음을 검증.
+
+        Given: gld 52.5% (상대 편차 5%), qqq 진입 예정(보유 0)
+        When:  policy.should_rebalance()
+        Then:  False
+        """
+        # Given
+        projected = self._make_projected(gld_amount=525_000.0)
+
+        # When
+        triggers = RebalancePolicy(threshold_rate=0.10).should_rebalance(projected, self._slot_dict(), 1_000_000.0)
+
+        # Then
+        assert not triggers, "진입 자산을 빼면 gld 편차 5% 뿐이므로 트리거되면 안 됨"
+
+    def test_remaining_asset_above_threshold_triggers(self) -> None:
+        """
+        목적: 남은 자산의 편차가 임계값을 넘으면 진입 자산이 있어도 리밸런싱이 일어남을 검증.
+
+        Given: gld 57.5% (상대 편차 15%), qqq 진입 예정(보유 0)
+        When:  policy.should_rebalance()
+        Then:  True
+        """
+        # Given
+        projected = self._make_projected(gld_amount=575_000.0)
+
+        # When
+        triggers = RebalancePolicy(threshold_rate=0.10).should_rebalance(projected, self._slot_dict(), 1_000_000.0)
+
+        # Then
+        assert triggers, "gld 편차 15% > 10% 이므로 트리거되어야 함"

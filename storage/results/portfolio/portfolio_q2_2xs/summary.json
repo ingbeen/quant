@@ -2,14 +2,14 @@
   "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 163221216,
-    "total_return_pct": 1532.21,
+    "final_capital": 163205615,
+    "total_return_pct": 1532.06,
     "cagr": 15.43,
     "mdd": -27.93,
     "calmar": 0.55,
     "sharpe_ratio": 0.86,
     "sortino_ratio": 1.18,
-    "total_trades": 148,
+    "total_trades": 147,
     "start_date": "2007-04-09",
     "end_date": "2026-09-24"
   },
@@ -19,12 +19,12 @@
       "target_weight": 0.35,
       "total_trades": 41,
       "win_rate": 92.68,
-      "final_shares": 843072,
+      "final_shares": 842991,
       "final_avg_price": 44.6205,
       "open_position": {
         "entry_date": "2025-05-21",
         "entry_price": 44.6205,
-        "shares": 843072
+        "shares": 842991
       }
     },
     {
@@ -32,25 +32,25 @@
       "target_weight": 0.35,
       "total_trades": 51,
       "win_rate": 96.08,
-      "final_shares": 592663,
+      "final_shares": 592606,
       "final_avg_price": 76.304,
       "open_position": {
         "entry_date": "2026-04-17",
         "entry_price": 76.304,
-        "shares": 592663
+        "shares": 592606
       }
     },
     {
       "asset_id": "gld",
       "target_weight": 0.15,
-      "total_trades": 32,
-      "win_rate": 93.75,
-      "final_shares": 60032,
-      "final_avg_price": 232.57,
+      "total_trades": 31,
+      "win_rate": 93.55,
+      "final_shares": 60026,
+      "final_avg_price": 232.5463,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 232.57,
-        "shares": 60032
+        "entry_price": 232.5463,
+        "shares": 60026
       }
     },
     {
@@ -58,12 +58,12 @@
       "target_weight": 0.15,
       "total_trades": 24,
       "win_rate": 83.33,
-      "final_shares": 296123,
-      "final_avg_price": 90.8509,
+      "final_shares": 296094,
+      "final_avg_price": 90.8517,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 90.8509,
-        "shares": 296123
+        "entry_price": 90.8517,
+        "shares": 296094
       }
     }
   ],
@@ -249,17 +249,17 @@
     {
       "year": 2009,
       "month": 6,
-      "return_pct": -1.9
+      "return_pct": -1.99
     },
     {
       "year": 2009,
       "month": 7,
-      "return_pct": 11.5
+      "return_pct": 11.57
     },
     {
       "year": 2009,
       "month": 8,
-      "return_pct": 3.9
+      "return_pct": 3.92
     },
     {
       "year": 2009,
@@ -1298,7 +1298,7 @@
     },
     {
       "year": 2009,
-      "return_pct": 32.59
+      "return_pct": 32.57
     },
     {
       "year": 2010,

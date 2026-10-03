@@ -262,6 +262,37 @@ class TestMonthEndRebalanceCheckDay:
         # When & Then
         assert is_last_trading_day_of_month(trade_dates, 1) is False, "마지막 행은 다음 거래일이 없으므로 False이어야 함"
 
+    def test_true_when_next_row_is_same_month_of_later_year(self):
+        """
+        목적: 데이터가 비어 이웃한 두 거래일이 정확히 12개월 떨어져도 판단일을 놓치지 않음을 검증
+              (월만 비교하면 같은 3월로 보여 False 가 된다).
+
+        Given: 날짜 목록 [2008-03-28, 2008-03-31, 2009-03-02]
+        When:  인덱스 1 (2008-03-31) 에 대해 is_last_trading_day_of_month() 호출
+        Then:  True (다음 거래일이 다른 해의 3월)
+        """
+        # Given
+        trade_dates = [date(2008, 3, 28), date(2008, 3, 31), date(2009, 3, 2)]
+
+        # When & Then
+        assert is_last_trading_day_of_month(trade_dates, 1) is True, "2008-03-31 다음 거래일이 2009-03 이므로 True이어야 함"
+
+    @pytest.mark.parametrize("index", [-1, 3])
+    def test_out_of_range_index_raises(self, index: int):
+        """
+        목적: 범위 밖 인덱스를 조용히 False 로 처리하지 않고 ValueError 로 알림을 검증.
+
+        Given: 날짜 3개
+        When:  인덱스 -1 또는 3(길이) 으로 호출
+        Then:  ValueError
+        """
+        # Given
+        trade_dates = [date(2024, 1, 30), date(2024, 1, 31), date(2024, 2, 1)]
+
+        # When & Then
+        with pytest.raises(ValueError, match="인덱스"):
+            is_last_trading_day_of_month(trade_dates, index)
+
 
 def _make_jump_df(jump_date: date, price_before: float, price_after: float) -> pd.DataFrame:
     """2024-01-02 ~ 2024-02-29 평일 데이터. jump_date 부터 시가·종가가 price_after 로 바뀐다."""
@@ -377,6 +408,77 @@ class TestMonthEndRebalanceSchedule:
         assert len(a_sells) == 1, f"a 의 리밸런싱 매도는 1건이어야 함 (실제: {len(a_sells)})"
         assert a_sells["exit_date"].iloc[0] == date(2024, 2, 1)
         assert a_sells["exit_price"].iloc[0] == pytest.approx(160.0 * (1 - SLIPPAGE_RATE), abs=1e-6)
+
+
+class TestEnteringAssetOnCheckDay:
+    """판단일에 진입 신호가 난 자산의 엔진 수준 계약 (전략_검증_보고서 부록 L.5).
+
+    핵심 계약: 진입 자산은 리밸런싱 편차 판정에서 빠진다. 남은 자산의 편차가 10% 이하면
+    진입 자산만 사고, 10% 를 넘으면 진입 자산까지 보유 자산 전부를 맞춘다.
+
+    시나리오: 버퍼존 자산 a(MA5, hold_days 0) 50% · 보유 자산 b 50%.
+    a 는 2024-01-31(월 마지막 거래일) 종가에 100 → 110 으로 뛰어 매수 신호가 난다
+    (MA5 = 102, 상단 밴드 105.06 돌파). b 는 2024-01-15 부터 b_price_after 로 바뀐다.
+    """
+
+    def _run(self, tmp_path: Path, create_csv_file, b_price_after: float):  # type: ignore[no-untyped-def]
+        a_path = create_csv_file("A_max.csv", _make_jump_df(date(2024, 1, 31), 100.0, 110.0))
+        b_path = create_csv_file("B_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, b_price_after))
+        config = PortfolioConfig(
+            experiment_name="test_entering_on_check_day",
+            display_name="Test Entering On Check Day",
+            asset_slots=(
+                AssetSlotConfig("a", a_path, a_path, target_weight=0.50, ma_window=5, hold_days=0),
+                AssetSlotConfig("b", b_path, b_path, target_weight=0.50, strategy_id="buy_and_hold"),
+            ),
+            total_capital=10_000_000.0,
+            result_dir=tmp_path,
+        )
+        return run_portfolio_backtest(config)
+
+    def _shares_on(self, result, asset_id: str, d: date) -> int:  # type: ignore[no-untyped-def]
+        equity_df = result.equity_df
+        return int(equity_df.loc[equity_df[COL_DATE] == d, f"{asset_id}_shares"].iloc[0])
+
+    def test_only_entering_asset_trades_when_others_within_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 남은 자산의 편차가 0 보다 크고 10% 이하면 판단일 진입이 리밸런싱을 일으키지 않음을 검증.
+
+        Given: b 가 +5% → b 비중 ≈ 0.5114, 상대 편차 ≈ 2.3% (0 이 아니어야 지금 코드에서 b 주문이 생긴다)
+        When:  run_portfolio_backtest() 실행
+        Then:  리밸런싱한 날이 없고, 2024-02-01 에 a 만 매수되며 b 주수는 그대로다
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file, b_price_after=105.0)
+
+        # Then
+        equity_df = result.equity_df
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        assert rebalanced_dates == [], f"진입 자산만으로는 리밸런싱이 없어야 함 (실제: {rebalanced_dates})"
+        assert self._shares_on(result, "a", date(2024, 2, 1)) > 0, "a 는 2024-02-01 시가에 진입해야 함"
+        assert self._shares_on(result, "b", date(2024, 2, 1)) == self._shares_on(
+            result, "b", date(2024, 1, 31)
+        ), "b 는 편차 10% 이하이므로 주수가 그대로여야 함"
+
+    def test_all_assets_rebalanced_when_other_exceeds_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+        """
+        목적: 남은 자산의 편차가 10% 를 넘으면 진입 자산과 함께 보유 자산도 맞춰짐을 검증.
+
+        Given: b 가 +30% → b 비중 ≈ 0.5645, 상대 편차 ≈ 12.9%
+        When:  run_portfolio_backtest() 실행
+        Then:  2024-02-01 하루 리밸런싱, a 진입, b 주수 감소
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file, b_price_after=130.0)
+
+        # Then
+        equity_df = result.equity_df
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        assert rebalanced_dates == [date(2024, 2, 1)], f"리밸런싱은 2024-02-01 하루여야 함 (실제: {rebalanced_dates})"
+        assert self._shares_on(result, "a", date(2024, 2, 1)) > 0, "a 는 2024-02-01 시가에 진입해야 함"
+        assert self._shares_on(result, "b", date(2024, 2, 1)) < self._shares_on(
+            result, "b", date(2024, 1, 31)
+        ), "b 는 편차 12.9% 이므로 줄여야 함"
 
 
 class TestB1CashBuffer:

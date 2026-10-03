@@ -29,6 +29,9 @@ class RebalancePolicy:
     ) -> bool:
         """active 자산 중 임계값 초과 자산이 있는지 판정한다.
 
+        그날 진입 신호가 난 자산(projected.entering_assets)은 판정에서 뺀다. 판정이 걸리면
+        build_rebalance_intents 가 진입 자산까지 포함해 맞춘다.
+
         Args:
             projected: signal intents 반영 후 예상 포트폴리오 상태
             slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
@@ -45,6 +48,8 @@ class RebalancePolicy:
         # active_assets 는 asset_states 키의 부분집합이며 asset_states 는 slot_dict 와
         # 동일한 자산 집합으로 초기화되므로 slot_dict[asset_id] 는 항상 존재한다.
         for asset_id in projected.active_assets:
+            if asset_id in projected.entering_assets:
+                continue
             slot = slot_dict[asset_id]
             if slot.target_weight == 0:
                 continue
@@ -155,14 +160,24 @@ def is_last_trading_day_of_month(trade_dates: list[date], i: int) -> bool:
 
     다음 거래일의 «날짜»(거래소 달력)만 보고 가격은 보지 않으므로 미래 참조가 아니다.
     마지막 행은 체결할 다음 거래일이 없으므로 False 다.
+    월만 비교하면 데이터가 비어 이웃한 두 거래일이 12개월 배수만큼 떨어질 때 판단일을 놓치므로
+    (연, 월)로 비교한다.
 
     Args:
         trade_dates: 전체 거래일 목록
         i: 현재 인덱스 (0-based)
 
     Returns:
-        True이면 다음 거래일과 월이 다름 (= 그 달의 마지막 거래일)
+        True이면 다음 거래일과 (연, 월)이 다름 (= 그 달의 마지막 거래일)
+
+    Raises:
+        ValueError: i 가 0 이상 len(trade_dates) 미만이 아닐 때
     """
-    if i >= len(trade_dates) - 1:
+    if not 0 <= i < len(trade_dates):
+        raise ValueError(
+            f"거래일 인덱스가 범위를 벗어났습니다: i={i}, 거래일 수={len(trade_dates)} " f"(0 이상 {len(trade_dates)} 미만의 인덱스를 넘겨야 합니다)"
+        )
+    if i == len(trade_dates) - 1:
         return False
-    return trade_dates[i + 1].month != trade_dates[i].month
+    current, following = trade_dates[i], trade_dates[i + 1]
+    return (following.year, following.month) != (current.year, current.month)

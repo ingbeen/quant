@@ -1107,7 +1107,7 @@ Date,equity,cash,is_month_end,rebalanced,rebalance_reason,qqq_close,qqq_shares,q
 2009-05-26,11137521,11137521,False,False,,30.0156,0,0.0,hold,,,0.0,,,0,0.0
 2009-05-27,11137521,11137521,False,False,,29.8086,0,0.0,hold,,,0.0,,,0,0.0
 2009-05-28,11137521,11137521,False,False,,30.1537,0,0.0,hold,,,0.0,,,0,0.0
-2009-05-29,11137521,11137521,True,False,,30.5247,0,0.0,buy,ENTER_TO_TARGET,signal_buy+rebalance,11137521.0,,,0,0.0
+2009-05-29,11137521,11137521,True,False,,30.5247,0,0.0,buy,ENTER_TO_TARGET,signal buy,11137521.0,,,0,0.0
 2009-06-01,11299837,10,False,False,,31.3961,359912,1.0,hold,,,0.0,ENTER_TO_TARGET,buy,359912,30.8525
 2009-06-02,11315364,10,False,False,,31.4392,359912,1.0,hold,,,0.0,,,0,0.0
 2009-06-03,11281209,10,False,False,,31.3443,359912,1.0,hold,,,0.0,,,0,0.0

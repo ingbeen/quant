@@ -2,14 +2,14 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 79587110,
-    "total_return_pct": 695.87,
+    "final_capital": 79638899,
+    "total_return_pct": 696.39,
     "cagr": 10.02,
     "mdd": -15.72,
     "calmar": 0.64,
     "sharpe_ratio": 1.01,
     "sortino_ratio": 1.42,
-    "total_trades": 127,
+    "total_trades": 126,
     "start_date": "2005-01-03",
     "end_date": "2026-09-24"
   },
@@ -19,12 +19,12 @@
       "target_weight": 0.35,
       "total_trades": 33,
       "win_rate": 96.97,
-      "final_shares": 36971,
-      "final_avg_price": 584.2932,
+      "final_shares": 36995,
+      "final_avg_price": 584.2933,
       "open_position": {
         "entry_date": "2025-05-21",
-        "entry_price": 584.2932,
-        "shares": 36971
+        "entry_price": 584.2933,
+        "shares": 36995
       }
     },
     {
@@ -32,25 +32,25 @@
       "target_weight": 0.35,
       "total_trades": 39,
       "win_rate": 97.44,
-      "final_shares": 37406,
-      "final_avg_price": 646.5334,
+      "final_shares": 37431,
+      "final_avg_price": 646.5337,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 646.5334,
-        "shares": 37406
+        "entry_price": 646.5337,
+        "shares": 37431
       }
     },
     {
       "asset_id": "gld",
       "target_weight": 0.15,
-      "total_trades": 31,
+      "total_trades": 30,
       "win_rate": 100.0,
-      "final_shares": 31985,
-      "final_avg_price": 201.8157,
+      "final_shares": 32005,
+      "final_avg_price": 201.8803,
       "open_position": {
         "entry_date": "2005-01-04",
-        "entry_price": 201.8157,
-        "shares": 31985
+        "entry_price": 201.8803,
+        "shares": 32005
       }
     },
     {
@@ -58,12 +58,12 @@
       "target_weight": 0.15,
       "total_trades": 24,
       "win_rate": 79.17,
-      "final_shares": 138173,
-      "final_avg_price": 88.6419,
+      "final_shares": 138263,
+      "final_avg_price": 88.6437,
       "open_position": {
         "entry_date": "2005-01-04",
-        "entry_price": 88.6419,
-        "shares": 138173
+        "entry_price": 88.6437,
+        "shares": 138263
       }
     }
   ],
@@ -384,12 +384,12 @@
     {
       "year": 2009,
       "month": 6,
-      "return_pct": -1.32
+      "return_pct": -1.39
     },
     {
       "year": 2009,
       "month": 7,
-      "return_pct": 6.03
+      "return_pct": 6.04
     },
     {
       "year": 2009,
@@ -399,17 +399,17 @@
     {
       "year": 2009,
       "month": 9,
-      "return_pct": 4.47
+      "return_pct": 4.45
     },
     {
       "year": 2009,
       "month": 10,
-      "return_pct": -1.66
+      "return_pct": -1.58
     },
     {
       "year": 2009,
       "month": 11,
-      "return_pct": 6.49
+      "return_pct": 6.54
     },
     {
       "year": 2009,
@@ -429,7 +429,7 @@
     {
       "year": 2010,
       "month": 3,
-      "return_pct": 4.58
+      "return_pct": 4.57
     },
     {
       "year": 2010,
@@ -1441,11 +1441,11 @@
     },
     {
       "year": 2009,
-      "return_pct": 15.61
+      "return_pct": 15.67
     },
     {
       "year": 2010,
-      "return_pct": 9.31
+      "return_pct": 9.3
     },
     {
       "year": 2011,

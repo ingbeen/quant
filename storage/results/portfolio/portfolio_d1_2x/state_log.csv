@@ -539,7 +539,7 @@ Date,equity,cash,is_month_end,rebalanced,rebalance_reason,qld_close,qld_shares,q
 2009-05-26,8829875,8829875,False,False,,0.5339,0,0.0,hold,,,0.0,,,0,0.0
 2009-05-27,8829875,8829875,False,False,,0.5251,0,0.0,hold,,,0.0,,,0,0.0
 2009-05-28,8829875,8829875,False,False,,0.5393,0,0.0,hold,,,0.0,,,0,0.0
-2009-05-29,8829875,8829875,True,False,,0.551,0,0.0,buy,ENTER_TO_TARGET,signal_buy+rebalance,8829875.0,,,0,0.0
+2009-05-29,8829875,8829875,True,False,,0.551,0,0.0,buy,ENTER_TO_TARGET,signal buy,8829875.0,,,0,0.0
 2009-06-01,9137642,0,False,False,,0.5843,15639149,1.0,hold,,,0.0,ENTER_TO_TARGET,buy,15639149,0.5629
 2009-06-02,9137642,0,False,False,,0.5843,15639149,1.0,hold,,,0.0,,,0,0.0
 2009-06-03,9113792,0,False,False,,0.5828,15639149,1.0,hold,,,0.0,,,0,0.0
