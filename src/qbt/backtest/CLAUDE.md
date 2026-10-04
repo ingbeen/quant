@@ -100,7 +100,8 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`
 - `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
 - `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플, allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
-- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods)
+- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods, min_start_date)
+  - `min_start_date`: 이 날짜보다 앞서 시작하지 않는다. 포트폴리오 러너만 읽고 엔진은 읽지 않는다 — 보완 전략 등록 실험의 기간을 그리드 비교 기간과 맞출 때 쓴다
   - `asset_slots` 와 `methods` 중 정확히 하나를 채운다. `asset_slots` 는 매매법 하나짜리 실험의 줄임 표기이며 `resolve_methods(config)` 가 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다. `methods` 의 몫 합은 1.0
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days)는 슬롯 레벨(AssetSlotConfig)에서 지정한다.
   - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며, PortfolioConfig에서는 지정하지 않는다. 매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
@@ -259,6 +260,8 @@ TypedDict:
 
 - `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
 
+보완 전략 등록 실험은 `supplement_experiment.build_experiment_config` 로 만든다 — 그리드와 같은 구성 · 같은 시작일 하한이라 대시보드 숫자가 그리드 결과와 같다.
+
 ---
 
 ### 8-1. allocator_registry.py
@@ -279,6 +282,17 @@ TypedDict:
 - `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서
 - `us_weakness_rotation.py` `UsWeaknessRotationAllocator`: 「위험 자산 ÷ 기준 시세」 비율이 그 이동평균(`add_single_moving_average`)보다 위면 위험 자산, 아니면 안전 자산. 첫 호출에서 판단하고 그 뒤는 판단일에만
 - `ewy_buffer_zone.py` `EwyBufferZoneAllocator`: `BufferZoneStrategy` 신호로 위험 자산 ↔ 안전 자산. 미보유면 check_buy, 보유면 check_sell 을 하루 한 번 — 버퍼존 슬롯과 같은 호출 순서라 신호 날짜가 같다. 첫 호출은 안전 자산
+
+### 8-3. supplement_experiment.py
+
+보완 전략 실험 — 「Q-2-2XS (100−w)% + 후보 w%」 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 러너(`scripts/backtest/run_supplement_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5).
+
+- `build_experiment_config(q2_2xs_slots, candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. Q-2-2XS 슬롯을 인자로 받는다 — `portfolio_configs` 가 이 함수로 등록 실험을 만들어, 여기서 `portfolio_configs` 를 import 하면 순환한다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
+- `build_grid_cases()` · `run_grid_case(case, q2_2xs_slots)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다. 실제 시작일이 묶음 시작일과 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다
+- `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율
+- `extract_decision_targets` · `decision_agreement`: 신호 일치율 — 월 마지막 거래일 다음 거래일의 목표 비중만 비교한다(날마다 세면 월 1회 판단이 부풀려진다)
+- `compute_advantages` · `judge` · `gate_agreement`: 같은 시작일 · 같은 w 의 기준선 대비 Calmar 우위, 통과 판정(두 기간 모두 높은 w 가 연속 3단계 이상, 엄격한 `>`), 대용판 · 실물판 판정 일치
+- `collect_judgments` · `collect_gates`: 어느 실행을 어느 실행과 비교하는지 모은다. 대용을 쓰는 후보는 판정 기준 둘(주 비교 + 보조 / 보조만)을 모두 낸다 — 그리드가 대용 탈락 여부(사용자 판단)보다 먼저 돈다
 
 ---
 

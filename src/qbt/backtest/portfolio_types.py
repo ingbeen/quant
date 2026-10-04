@@ -14,6 +14,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any, Final, Literal
 
@@ -204,6 +205,8 @@ class PortfolioConfig:
         result_dir: 결과 저장 디렉토리
         asset_slots: 매매법 하나짜리 실험의 자산 슬롯
         methods: 여러 매매법 (각 매매법 target_weight 합 1.0)
+        min_start_date: 이 날짜보다 앞서 시작하지 않는다. 포트폴리오 러너만 읽고 엔진은 읽지 않는다 —
+            등록 실험의 기간을 보완 전략 그리드의 비교 기간과 맞출 때 쓴다
     """
 
     experiment_name: str
@@ -212,6 +215,7 @@ class PortfolioConfig:
     result_dir: Path
     asset_slots: tuple[AssetSlotConfig, ...] = ()
     methods: tuple[MethodConfig, ...] = ()
+    min_start_date: date | None = None
 
 
 def resolve_methods(config: PortfolioConfig) -> tuple[MethodConfig, ...]:

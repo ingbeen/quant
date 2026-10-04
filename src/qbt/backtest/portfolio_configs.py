@@ -12,7 +12,16 @@
 from pathlib import Path
 
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig, SlotMethodConfig
+from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
+from qbt.backtest.supplement_experiment import (
+    CANDIDATE_BASELINE,
+    CANDIDATE_GOLD,
+    CANDIDATE_HAA,
+    CANDIDATE_ROTATION,
+    MAIN_START_DATE,
+    VARIANT_SPLICED,
+    build_experiment_config,
+)
 from qbt.common_constants import (
     GLD_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
@@ -144,34 +153,16 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 )
 
 # ============================================================================
-# 매매법이 여럿인 실험
+# 매매법이 여럿인 실험: 보완 전략 그리드의 통과 후보 · 기준선 (Q-2-2XS 75% + 후보 25%)
 # ============================================================================
 
-# Q-2-2XS 70% + 금 30% (예시): 여러 매매법 · 매매법 사이 비중 되돌리기 · 같은 종목(GLD) 상계를 보는 확인용 실험.
-# 금 비중 확대 후보의 w=30 이기도 하며, 공식 후보로 남길지는 보완 전략 실험의 판정 뒤에 정한다.
-_CONFIG_Q2_2XS_GOLD30 = PortfolioConfig(
-    experiment_name="portfolio_q2_2xs_gold30",
-    display_name="Q-2-2XS 70% + 금 30% (예시: 매매법 2개)",
-    total_capital=DEFAULT_INITIAL_CAPITAL,
-    result_dir=_make_result_dir("portfolio_q2_2xs_gold30"),
-    methods=(
-        SlotMethodConfig("q2_2xs", "Q-2-2XS", 0.70, _CONFIG_Q2_2XS.asset_slots),
-        SlotMethodConfig(
-            "gold",
-            "금 보유",
-            0.30,
-            (
-                AssetSlotConfig(
-                    asset_id="gld",
-                    signal_data_path=GLD_DATA_PATH,
-                    trade_data_path=GLD_DATA_PATH,
-                    target_weight=1.00,
-                    strategy_id="buy_and_hold",
-                ),
-            ),
-        ),
-    ),
-)
+# 그리드와 같은 함수 · 같은 시작일 하한(주 비교 시작일)으로 만들어 대시보드 숫자가 그리드 결과와 같다.
+# 후보와 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D50.
+_SUPPLEMENT_W_PCT = 25
+_SUPPLEMENT_CONFIGS = [
+    build_experiment_config(_CONFIG_Q2_2XS.asset_slots, candidate, _SUPPLEMENT_W_PCT, VARIANT_SPLICED, MAIN_START_DATE)
+    for candidate in (CANDIDATE_BASELINE, CANDIDATE_GOLD, CANDIDATE_HAA, CANDIDATE_ROTATION)
+]
 
 # ============================================================================
 # 공개 컬렉션 및 함수
@@ -182,7 +173,7 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1_2X,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
-    _CONFIG_Q2_2XS_GOLD30,
+    *_SUPPLEMENT_CONFIGS,
 ]
 
 

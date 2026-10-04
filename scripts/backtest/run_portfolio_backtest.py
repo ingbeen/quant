@@ -77,6 +77,10 @@ _CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
 # (2005년 이전 데이터는 포트폴리오 비교 범위에서 제외).
 DEFAULT_PORTFOLIO_START_DATE: date = date(2005, 1, 1)
 
+# 체결 전후 표의 사유 — 엔진은 배분 규칙 매매법이 비중만 조정한 날 사유를 빈 값으로 남기는데,
+# 신호만 있는 날도 빈 값이라 표에서 둘을 가를 수 없다. 리밸런싱한 날의 빈 사유를 이 값으로 적는다
+_REBALANCE_REASON_ALLOCATION = "allocation"
+
 
 def _build_execution_comparison_df(
     equity_df: pd.DataFrame,
@@ -131,6 +135,8 @@ def _build_execution_comparison_df(
             val = current_row.get("rebalance_reason")
             if pd.notna(val):
                 rebalance_reason = str(val)
+        if rebalance_reason == "" and bool(current_row.get("rebalanced", False)):
+            rebalance_reason = _REBALANCE_REASON_ALLOCATION
 
         # 4. 자산별 행
         for asset_id in asset_ids:
@@ -644,10 +650,13 @@ def main() -> int:
     for config in target_configs:
         raw_start_date = effective_start_dates[config.experiment_name]
         exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)
+        if config.min_start_date is not None:
+            exp_start_date = max(exp_start_date, config.min_start_date)
         logger.debug("=" * 70)
         logger.debug(
             f"실험 시작: {config.experiment_name} ({config.display_name}) — "
-            f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE})"
+            f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE}, "
+            f"실험 하한 {config.min_start_date})"
         )
         result = run_portfolio_backtest(config, start_date=exp_start_date)
         _print_summary(result)

@@ -31,6 +31,8 @@ RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토�
 BACKTEST_RESULTS_DIR: Final = RESULTS_DIR / "backtest"  # 백테스트 결과 저장 디렉토리
 TQQQ_RESULTS_DIR: Final = RESULTS_DIR / "tqqq"  # TQQQ 시뮬레이션 결과 저장 디렉토리
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
+# 보완 전략 비중 그리드 요약 (포트폴리오 결과 폴더 밖 — 대시보드 실험 탐색에 섞이지 않는다)
+PORTFOLIO_GRID_RESULTS_DIR: Final = RESULTS_DIR / "portfolio_grid"
 
 # --- 데이터 파일 경로 ---
 # 나스닥 100 추종 ETF 데이터 파일 경로
@@ -59,6 +61,14 @@ SHY_DATA_PATH: Final = STOCK_DIR / "SHY_max.csv"
 BIL_DATA_PATH: Final = STOCK_DIR / "BIL_max.csv"
 DBC_DATA_PATH: Final = STOCK_DIR / "DBC_max.csv"
 PDBC_DATA_PATH: Final = STOCK_DIR / "PDBC_max.csv"
+
+# 보완 전략 배분 규칙(HAA · EWY 200일선)이 매매 · 신호에 쓰는 ETF 데이터 파일 경로
+IWM_DATA_PATH: Final = STOCK_DIR / "IWM_max.csv"
+VWO_DATA_PATH: Final = STOCK_DIR / "VWO_max.csv"
+VNQ_DATA_PATH: Final = STOCK_DIR / "VNQ_max.csv"
+IEF_DATA_PATH: Final = STOCK_DIR / "IEF_max.csv"
+TIP_DATA_PATH: Final = STOCK_DIR / "TIP_max.csv"
+EWY_DATA_PATH: Final = STOCK_DIR / "EWY_max.csv"
 
 # 상장 전 구간을 대용으로 채운 이어 붙인 판 (scripts/data/generate_proxy_series.py 생성)
 VEA_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "VEA_synthetic_max.csv"

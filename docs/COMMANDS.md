@@ -47,6 +47,13 @@ poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 특정 실험 선택 가능 (실험명은 PORTFOLIO_CONFIGS 참고, 기본값: all)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
+# 3-1. 보완 전략 비중 그리드 (선행: 1, 대용 시계열 생성 — 아래 「데이터 다운로드 옵션」)
+# 「Q-2-2XS (100−w)% + 후보 w%」를 주 비교 · 보조 기간과 대용 검증 관문으로 돌려 요약 CSV 만 저장 (실험별 결과 폴더는 만들지 않음)
+# 실행 목록 · 판정 · 대용 검증은 src/qbt/backtest/supplement_experiment.py 참고. 실행마다 정합성 검증, 위반 시 중지
+# 출력: storage/results/portfolio_grid/ (grid_runs.csv 실행별 지표, judgment.csv 통과 판정, proxy_gate.csv 대용 검증)
+# 소요: 병렬로 1 – 2분 (2026-10-04 실측 76초, 워커 = CPU 수 − 1)
+poetry run python scripts/backtest/run_supplement_grid.py
+
 # 4. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
 # 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity

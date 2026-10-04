@@ -58,6 +58,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
 - `"proxy_series"`: 대용 시계열 생성 (파일별 이음매 날짜 · 스케일)
+- `"portfolio_grid"`: 보완 전략 비중 그리드 (실행 수 · 묶음별 기간 · 통과 후보)
 
 근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 
@@ -146,8 +147,14 @@ main 함수:
     - 매매법이 여럿인 실험: 자산 키가 `{method_id}.{asset_id}` 이고 ledger.csv(매매법별 장부) · netting.csv(종목 단위 상계 내역)와 summary.json 의 per_method · netting · account_holdings · pnl_check 를 더한다. 계산은 `src/`(portfolio_methods 의 summarize_methods · account_target_weights)가 하고 러너는 반올림 · 저장만 한다
     - 메타데이터 타입: `"portfolio_backtest"`
     - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다. 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
-    - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다.
+    - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다. 설정에 `min_start_date` 가 있으면 그 날짜보다도 앞서지 않는다 (보완 전략 등록 실험이 그리드와 같은 기간으로 돈다)
+    - 체결 전후 표(`execution_comparison.csv`)의 사유: 리밸런싱한 날인데 엔진 사유가 빈 값이면(배분 규칙 매매법의 비중 조정) `allocation` 으로 적는다 — 신호만 있는 날도 사유가 빈 값이라 표만으로는 둘을 가를 수 없다. 대시보드는 「배분 조정」으로 보인다
     - QQQ 벤치마크 공유 정책: `benchmark_qqq.json`은 전체 `PORTFOLIO_CONFIGS`의 유효 시작일 중 가장 이른 날짜(`min`)에 동일한 정책 하한을 적용한 값(`max(min, DEFAULT_PORTFOLIO_START_DATE)`)을 기준으로 1회 계산하여 공유 파일 하나로 저장한다. 대시보드의 "연간 수익률 vs QQQ" 섹션은 실험별 `summary.yearly_returns`와 공유 QQQ `yearly_returns`를 연도 기준 inner join 하므로, QQQ 연간 수익률 범위가 실험 기간보다 넓어도 공통 연도만 비교된다. 단일 실험 실행 시에도 동일하게 전체 configs 기준으로 계산한다.
+- 보완 전략 비중 그리드:
+  - `run_supplement_grid.py`: 「Q-2-2XS (100−w)% + 후보 w%」 실행 목록을 병렬로 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대용 검증 계산은 `src/qbt/backtest/supplement_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
+    - 실행마다 정합성 검사기를 돌려 위반이 있으면 그 구성과 함께 ERROR 로그를 남기고 중단한다 (포트폴리오 러너와 같은 정책). 실제 시작일이 묶음 시작일과 다르면 워커가 멈춘다
+    - 결과: `storage/results/portfolio_grid/` 의 `grid_runs.csv` · `judgment.csv` · `proxy_gate.csv` (한글 헤더, UTF-8 BOM — 사람이 읽는 산출물이고 대시보드는 읽지 않는다)
+    - 메타데이터 타입: `"portfolio_grid"`
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

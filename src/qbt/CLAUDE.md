@@ -34,6 +34,7 @@ src/qbt/
 │   ├── parameter_stability.py # 파라미터 고원 분석
 │   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
 │   ├── portfolio_configs.py  # 포트폴리오 실험 설정
+│   ├── supplement_experiment.py # 보완 전략 실험 (비중 그리드 구성 · 실행 목록 · 판정 · 대용 검증)
 │   ├── runners.py            # 전략 러너 팩토리
 │   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
 │   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)
@@ -239,6 +240,10 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 분석 결과 - 포트폴리오 (`storage/results/portfolio/`):
 
 - 포트폴리오 백테스트 결과 (실험별 하위 폴더)
+
+분석 결과 - 보완 전략 비중 그리드 (`storage/results/portfolio_grid/`):
+
+- 실행별 지표 · 통과 판정 · 대용 검증 요약 CSV (실험별 결과 폴더 없음, 포트폴리오 폴더 밖이라 대시보드 탐색에 섞이지 않는다)
 
 분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
 

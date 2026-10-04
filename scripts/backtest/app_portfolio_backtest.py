@@ -78,6 +78,8 @@ _COLOR_BENCHMARK_BAR = "rgb(255, 152, 0)"
 
 # --- 리밸런싱 사유 (엔진의 rebalance_reason 값) ---
 _REBALANCE_REASON_METHODS = "methods"
+# 체결 전후 표에서만 쓰는 값 — 러너가 리밸런싱한 날의 빈 사유(배분 규칙의 비중 조정)를 이 값으로 적는다
+_REBALANCE_REASON_ALLOCATION = "allocation"
 
 # --- 동적 색상 팔레트 ---
 # 자산/실험 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
@@ -398,6 +400,8 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
                 reason_text = "월초 정기"
             elif reason == _REBALANCE_REASON_METHODS:
                 reason_text = "매매법 사이 비중"
+            elif reason == _REBALANCE_REASON_ALLOCATION:
+                reason_text = "배분 조정"
             else:
                 reason_text = "시그널"
 
@@ -1214,12 +1218,17 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
             has_reason = "rebalance_reason" in reb_df.columns
             for _, reb_row in reb_df.iterrows():
                 d_str = pd.Timestamp(reb_row["Date"]).strftime("%Y-%m-%d")
-                if has_reason and str(reb_row.get("rebalance_reason", "")) == _REBALANCE_REASON_METHODS:
-                    hover_texts.append(f"{d_str}<br>리밸런싱 (매매법 사이 비중)")
-                elif has_reason and str(reb_row.get("rebalance_reason", "")):
-                    hover_texts.append(f"{d_str}<br>리밸런싱 (월초 정기)")
-                else:
+                # 빈 사유는 CSV 에서 NaN 으로 읽힌다. 리밸런싱한 날의 빈 사유는 배분 규칙 매매법의 비중 조정이다
+                reason = reb_row.get("rebalance_reason") if has_reason else None
+                reason_str = "" if reason is None or pd.isna(reason) else str(reason)
+                if not has_reason:
                     hover_texts.append(f"{d_str}<br>리밸런싱")
+                elif reason_str == _REBALANCE_REASON_METHODS:
+                    hover_texts.append(f"{d_str}<br>리밸런싱 (매매법 사이 비중)")
+                elif reason_str == "":
+                    hover_texts.append(f"{d_str}<br>리밸런싱 (배분 조정)")
+                else:
+                    hover_texts.append(f"{d_str}<br>리밸런싱 (월초 정기)")
 
             fig.add_trace(
                 go.Scatter(

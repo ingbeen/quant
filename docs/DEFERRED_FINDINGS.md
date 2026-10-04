@@ -32,13 +32,6 @@
 - **종류**: 가벼운 버그 (검사 범위의 빈틈)
 - **출처**: PLAN_multi_method_engine (2026-10-04) 수정분 검증 F8 과, F3(장부 `share` 열 미대조)을 고칠 때 같은 모양 찾기
 
-## 배분 규칙 매매법이 비중만 조정한 날 리밸런싱 사유가 틀리게 표시된다
-
-- **자리**: `src/qbt/backtest/engines/portfolio_engine.py:632` (계좌 `rebalance_reason_today`) · `scripts/backtest/app_portfolio_backtest.py:1217` (에쿼티 차트 리밸런싱 마커 hover)
-- **무엇**: ① 계좌의 `rebalance_reason` 은 «설정 순서상 처음으로 리밸런싱한 매매법»의 사유다. 배분 규칙 매매법의 비중 조정은 사유가 빈 값이라, 그 매매법이 앞에 있으면 같은 날 다른 매매법의 정기 리밸런싱(`monthly`)을 가린다 — `equity.csv` · 상태 로그에 빈 사유로 남고 체결 전후 표는 「시그널」, 진단 대시보드는 「예」로 보인다. ② 빈 사유는 CSV 에서 NaN 으로 읽혀 `str()` 이 `'nan'` 이 되고 참으로 판정돼, hover 가 비중 조정일을 「리밸런싱 (월초 정기)」로 보인다. 성과 수치는 맞다. 2026-10-04 기준 배분 규칙 등록 0 개, 실제 산출물 5개의 리밸런싱일 빈 사유 0건 — 계획서 ③ 이 HAA 등을 등록하면 바로 나타난다. 아래 「체결 전후 비교」 항목 ②(날 단위 사유 하나로 여러 체결을 대표)와 뿌리가 같다
-- **종류**: 가벼운 버그 (표시만 틀린다)
-- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 1회차 · 2회차
-
 ## 같은 매매 데이터를 매매법마다 다른 자산 id 로 들면 상계되지 않는다
 
 - **자리**: `src/qbt/backtest/engines/portfolio_data.py:170` `validate_portfolio_config`(같은 자산 id → 같은 매매 데이터만 검사)
@@ -87,3 +80,24 @@
 - **무엇**: `EwyBufferZoneAllocator(0, -0.1, 0.05, -1)` 처럼 잘못된 값으로도 만들어진다. 이동평균 기간 0 은 첫 호출의 `add_single_moving_average` 에서야 ValueError 가 나고, 음수 버퍼 · 유지일이나 퍼센트로 착각한 버퍼(5 = 500%)는 끝까지 엉뚱한 밴드로 돈다. 같은 검증을 하는 `resolve_buffer_params`(`src/qbt/backtest/strategies/buffer_zone.py:54`)가 이미 있다. 지금은 레지스트리가 `FIXED_4P_*` 상수만 넘겨 생기지 않는다(2026-10-04)
 - **종류**: 가벼운 버그 (잘못된 파라미터가 에러 없이 결과를 낸다)
 - **출처**: PLAN_supplement_allocators (2026-10-04) 코드 리뷰 1회차 · 2회차
+
+## 보완 전략 등록 실험의 실제 시작일을 min_start_date 와 대조하지 않아, 데이터가 바뀌면 대시보드 숫자가 그리드와 조용히 어긋날 수 있다
+
+- **자리**: `scripts/backtest/run_portfolio_backtest.py:653` `main`(시작일 = max(엔진 유효 시작일, 2005-01-01, `min_start_date`)) · `src/qbt/backtest/portfolio_types.py` `PortfolioConfig.min_start_date`
+- **무엇**: `min_start_date` 는 하한이라, 시세가 바뀌어 등록 실험(`portfolio_q2_2xs_{shy,gold,haa,rotation}25`)의 엔진 유효 시작일이 그 날짜(2007-06-22)보다 늦어지면 실험이 그 늦은 날부터 돌고 대시보드 숫자가 그리드 결과(`storage/results/portfolio_grid/`)와 기간만큼 달라진다. 러너는 실제 시작일이 `min_start_date` 와 같은지 보지 않는다(그리드 워커 `run_grid_case` 는 같은 상황에서 ValueError 로 멈춘다). 엔진은 이 칸을 읽지 않으므로 포트폴리오 러너 밖에서 `run_portfolio_backtest(config)` 를 부르는 코드는 칸 자체를 무시한다. 2026-10-04 실제 산출물: 등록 넷 모두 2007-06-22 시작(0건)
+- **종류**: 가벼운 버그 (기간이 다른 숫자가 에러 없이 보인다)
+- **출처**: PLAN_supplement_grid_judgment (2026-10-04) 코드 리뷰 1회차
+
+## 배분 규칙 매매법의 비중 조정 사유를 「리밸런싱한 날 + 빈 사유」로 추론해, 설정 순서에 따라 정기 리밸런싱이 「배분 조정」으로 보이거나 조정이 「월초 정기」에 가려진다
+
+- **자리**: `scripts/backtest/run_portfolio_backtest.py:139` `_build_execution_comparison_df`(빈 사유 → `allocation`) · `scripts/backtest/app_portfolio_backtest.py:1228` 리밸런싱 마커 hover · `src/qbt/backtest/engines/portfolio_engine.py:632`(계좌 사유 = 설정 순서상 처음으로 리밸런싱한 매매법의 사유) · `scripts/backtest/app_portfolio_debug.py:334` · `:546`
+- **무엇**: 엔진은 배분 규칙 매매법이 비중만 조정한 날 사유를 빈 값으로 남기고, 소비자 두 곳이 「리밸런싱했는데 사유가 빈 날 = 배분 조정」으로 추론한다(설계서 D40 — 엔진은 고치지 않는다). ① 배분 규칙 매매법이 슬롯 매매법보다 **앞에** 있는 설정이면, 같은 날 슬롯 매매법의 정기 리밸런싱이 계좌 사유에서 가려져 그날이 「배분 조정」으로 보인다 — 「Q-2-2XS 매매법이 앞」은 `build_experiment_config` 만 지키고 설정 순서를 검사하는 곳은 없다 ② 반대로 슬롯 매매법이 앞이면 같은 날의 배분 조정은 「월초 정기」에 가려진다(D40 이 받아들인 범위) — 2026-10-04 `portfolio_q2_2xs_haa25` 에서 HAA 장부가 조정한 18일 중 5일(2009-01-02 · 2009-02-02 · 2012-06-01 · 2020-03-02 · 2022-03-01)이 「월초 정기」, 13일이 「배분 조정」으로 보인다 ③ 앞으로 사유 없이 `rebalanced` 를 세우는 엔진 경로가 생기면 그날도 「배분 조정」으로 잘못 보인다 ④ 진단 대시보드는 같은 날을 「예」 · 「리밸런싱」으로 보여 성과 대시보드와 표기가 다르다. 성과 수치는 모두 맞다. 2026-10-04 실제 산출물에서 ① · ③ 은 0건(등록 설정 모두 Q-2-2XS 가 앞). 근원 수정은 엔진이 조정 의도를 쓸 때 사유를 남기는 것이다(엔진 변경)
+- **종류**: 가벼운 버그 (표시만 틀린다)
+- **출처**: PLAN_supplement_grid_judgment (2026-10-04) 코드 리뷰 1회차 · 2회차. PLAN_multi_method_engine (2026-10-04) 코드 리뷰에서 옮겼던 「배분 규칙 매매법이 비중만 조정한 날 리밸런싱 사유가 틀리게 표시된다」 중 D40 으로 고치지 않은 부분
+
+## 신호 일치율이 배분 규칙의 판단 보류 달(첫 판단 전의 0 비중)도 판단으로 센다
+
+- **자리**: `src/qbt/backtest/supplement_experiment.py:462` `extract_decision_targets` · `:145` `HAA_GATE_START_DATE`
+- **무엇**: 판단 비중표는 「월 마지막 거래일 다음 거래일 행」을 모두 그 달의 판단으로 센다. 배분 규칙이 판단을 보류(None)한 달에는 직전 목표(첫 판단 전이면 전부 0)가 그대로 들어가, 한쪽 판만 보류한 달이 「불일치」로 에러 없이 세진다. HAA 관문 시작일 2015-11-09 는 실물 PDBC(2014-11-07 시작)로 첫 판단일 2015-11-30 의 이전 월말이 정확히 12개라 여유가 0 이다 — PDBC 첫 행이 한 달만 늦어도 실물판 첫 달이 0 비중이 된다. HAA 관문 ② 는 0.9462(130달 중 123달, 95% 는 123.5달)라 한 달이 통과 · 탈락을 가른다. 2026-10-04 실제 산출물: 관문 실물판 · VEA 쌍 · BIL 쌍 모두 첫 행 비중 합 1.0, 합 0 인 판단 행 0건
+- **종류**: 가벼운 버그 (일치율이 에러 없이 낮게 나올 수 있다)
+- **출처**: PLAN_supplement_grid_judgment (2026-10-04) 코드 리뷰 2회차

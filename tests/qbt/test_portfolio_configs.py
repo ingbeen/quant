@@ -10,7 +10,7 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
 6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
-8. Q-2-2XS + 금 예시: 매매법 2개(0.70 / 0.30), Q-2-2XS 슬롯 그대로 + GLD 보유 1.0
+8. 보완 전략 등록 실험: 매매법 2개(0.75 / 0.25), Q-2-2XS 슬롯 그대로, 시작일 하한은 주 비교 시작일
 """
 
 import pytest
@@ -18,6 +18,7 @@ import pytest
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
+from qbt.backtest.supplement_experiment import MAIN_START_DATE
 
 
 class TestPortfolioConfigsList:
@@ -165,29 +166,40 @@ class TestQSeriesConfigs:
         assert tlt_slot.trade_data_path == TLT_DATA_PATH
 
 
-class TestQ22xsGold30Config:
-    """Q-2-2XS 70% + 금 30% 예시 실험 (매매법 2개) 계약 테스트."""
+class TestSupplementConfigs:
+    """보완 전략 등록 실험 (Q-2-2XS 75% + 후보 25%, 설계서 D50) 계약 테스트."""
 
-    def test_two_methods_with_q2_2xs_slots_and_gold(self) -> None:
+    def test_registered_candidates_and_baseline(self) -> None:
         """
-        목적: 예시 실험이 Q-2-2XS 슬롯 그대로의 매매법 0.70 과 GLD 보유 1.0 매매법 0.30 으로 이뤄져 있다.
+        목적: 통과 후보 셋과 같은 비중의 기준선이 그리드와 같은 구성 · 같은 시작일 하한으로 등록돼 있다.
 
-        When:  get_portfolio_config("portfolio_q2_2xs_gold30")
-        Then:  매매법 (q2_2xs 0.70, gold 0.30), q2_2xs 슬롯 = Q-2-2XS 슬롯, gold = gld buy_and_hold 1.0, 설정 검증 통과
+        Given: 등록 실험 이름 넷
+        When:  get_portfolio_config 로 조회
+        Then:  매매법 (q2_2xs 0.75 · 후보 0.25), q2_2xs 슬롯 = Q-2-2XS 슬롯, min_start_date = 주 비교 시작일, 설정 검증 통과
         """
-        config = get_portfolio_config("portfolio_q2_2xs_gold30")
         q2_2xs = get_portfolio_config("portfolio_q2_2xs")
+        for candidate in ("shy", "gold", "haa", "rotation"):
+            config = get_portfolio_config(f"portfolio_q2_2xs_{candidate}25")
 
-        methods = resolve_methods(config)
-        assert [(m.method_id, m.target_weight) for m in methods] == [("q2_2xs", 0.70), ("gold", 0.30)]
-        q2_method, gold_method = methods
-        assert isinstance(q2_method, SlotMethodConfig)
-        assert isinstance(gold_method, SlotMethodConfig)
-        assert q2_method.asset_slots == q2_2xs.asset_slots
-        assert [(s.asset_id, s.target_weight, s.strategy_id) for s in gold_method.asset_slots] == [
-            ("gld", 1.0, "buy_and_hold")
-        ]
-        validate_portfolio_config(config)
+            methods = resolve_methods(config)
+            assert [m.method_id for m in methods] == ["q2_2xs", candidate]
+            assert [m.target_weight for m in methods] == pytest.approx([0.75, 0.25], abs=1e-12)
+            q2_method = methods[0]
+            assert isinstance(q2_method, SlotMethodConfig)
+            assert q2_method.asset_slots == q2_2xs.asset_slots
+            assert config.min_start_date == MAIN_START_DATE
+            validate_portfolio_config(config)
+
+    def test_only_supplement_configs_have_start_date_floor(self) -> None:
+        """
+        목적: 시작일 하한 칸은 보완 전략 등록 실험만 쓴다 — 기존 실험의 시작일이 바뀌지 않는다.
+
+        Given: PORTFOLIO_CONFIGS
+        When:  min_start_date 가 있는 실험을 고른다
+        Then:  portfolio_q2_2xs_*25 넷뿐
+        """
+        names = {c.experiment_name for c in PORTFOLIO_CONFIGS if c.min_start_date is not None}
+        assert names == {f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation")}
 
 
 class TestGetPortfolioConfig:
