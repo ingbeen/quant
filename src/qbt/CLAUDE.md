@@ -53,6 +53,7 @@ src/qbt/
     ├── cli_helpers.py       # 예외 처리 데코레이터
     ├── parallel_executor.py # 병렬 처리
     ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
+    ├── proxy_series.py      # 대용 시계열 (실물 상장 전 구간 채우기)
     └── meta_manager.py      # 실행 메타데이터 관리
 ```
 
@@ -210,7 +211,8 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - `{TICKER}_max.csv`: 전체 기간
 - `{TICKER}_{START}_{END}.csv`: 기간 지정
 - `{TICKER}_{START}_latest.csv`: 시작일만
-- `{TICKER}_synthetic_max.csv`: 합성 데이터
+- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션 또는 대용, 상장 후는 실물)
+- `{TICKER}_proxy_max.csv`: 전 구간이 대용인 합성 데이터 (실물 구간 없음)
 
 기타 데이터 (`storage/etc/`):
 

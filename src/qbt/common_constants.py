@@ -50,6 +50,25 @@ QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
 UGL_DATA_PATH: Final = STOCK_DIR / "UGL_max.csv"
 UBT_DATA_PATH: Final = STOCK_DIR / "UBT_max.csv"
 
+# 미국 외 주식 · 단기채 · 원자재 ETF 데이터 파일 경로 (대용 시계열의 대상과 대용)
+EFA_DATA_PATH: Final = STOCK_DIR / "EFA_max.csv"
+EEM_DATA_PATH: Final = STOCK_DIR / "EEM_max.csv"
+VEA_DATA_PATH: Final = STOCK_DIR / "VEA_max.csv"
+VXUS_DATA_PATH: Final = STOCK_DIR / "VXUS_max.csv"
+SHY_DATA_PATH: Final = STOCK_DIR / "SHY_max.csv"
+BIL_DATA_PATH: Final = STOCK_DIR / "BIL_max.csv"
+DBC_DATA_PATH: Final = STOCK_DIR / "DBC_max.csv"
+PDBC_DATA_PATH: Final = STOCK_DIR / "PDBC_max.csv"
+
+# 상장 전 구간을 대용으로 채운 이어 붙인 판 (scripts/data/generate_proxy_series.py 생성)
+VEA_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "VEA_synthetic_max.csv"
+BIL_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "BIL_synthetic_max.csv"
+PDBC_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "PDBC_synthetic_max.csv"
+VXUS_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "VXUS_synthetic_max.csv"
+
+# 전 구간이 대용인 VXUS 합성 (실물 구간 없음, 같은 스크립트 생성)
+VXUS_PROXY_DATA_PATH: Final = STOCK_DIR / "VXUS_proxy_max.csv"
+
 # --- 실행 이력 메타데이터 저장 경로 (JSON 형식) ---
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"
 

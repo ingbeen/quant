@@ -67,6 +67,15 @@ CLI 예외 처리 데코레이터
 - 순환 저장: 최근 N개만 유지 (`MAX_HISTORY_COUNT = 5`)
 - ISO 8601 타임스탬프 자동 추가
 
+### 8. proxy_series.py
+
+실물 ETF 상장 전 구간을 비슷하게 움직이는 다른 시세(대용)로 채우는 시세 가공. 이음매는 실물 첫 거래일이다
+
+- `compute_seam_scale` · `rescale_to_actual`: 이음매 종가 비율로 대용 전 구간의 가격을 스케일 (수익률 · 거래량 불변)
+- `splice_proxy`: 이음매 앞은 스케일한 대용(거래량 0), 이음매부터는 실물 행 그대로
+- `build_daily_rebalanced_composite`: 매일 비율을 맞추는 바스켓 (첫 종가 1.0, 거래량 0, 고가 · 저가는 가중합 근사). 겹치는 기간 안에서 구성 종목의 날짜가 다르면 ValueError (보간 금지)
+- 입력 날짜가 중복 없는 오름차순이 아니면 ValueError
+
 ---
 
 ## 설계 원칙

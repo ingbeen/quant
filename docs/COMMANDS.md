@@ -205,3 +205,15 @@ poetry run python scripts/data/download_data.py TICKER --start YYYY-MM-DD --end 
 # 예시
 poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 ```
+
+### 대용 시계열 생성 (실물 ETF 상장 전 구간 채우기)
+
+```bash
+# 선행: 대상 · 대용 티커를 위 「특정 종목 전체 기간」으로 하나씩 받는다
+#       목록은 scripts/data/generate_proxy_series.py 의 ONE_TO_ONE_PROXIES · VXUS_COMPOSITE_WEIGHTS 참고
+#       (DEFAULT_TICKERS 에 없어 인자 없는 전체 다운로드로는 받아지지 않는다)
+# 출력: storage/stock/{TICKER}_synthetic_max.csv (상장 전은 대용, 상장 후는 실물을 이어 붙인 판)
+#       storage/stock/VXUS_proxy_max.csv (전 구간 EFA · EEM 합성)
+# 대상 · 대용 원본을 다시 받으면 이 스크립트도 다시 실행한다 — 대용 파일은 생성 시점 원본으로 만든 사본이다
+poetry run python scripts/data/generate_proxy_series.py
+```

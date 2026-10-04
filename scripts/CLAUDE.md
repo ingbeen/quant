@@ -57,6 +57,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 - `"portfolio_backtest"`: 포트폴리오 백테스트 결과
 - `"tqqq_daily_comparison"`: TQQQ 일별 비교
 - `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
+- `"proxy_series"`: 대용 시계열 생성 (파일별 이음매 날짜 · 스케일)
 
 근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 
@@ -123,6 +124,7 @@ main 함수:
 - 엄격한 검증 수행
 - 검증 통과 후 저장
 - 다운로드 통계 출력
+- 대용 시계열 생성 (`generate_proxy_series.py`): 실물 ETF 상장 전 구간을 대용 시세로 채운 파일을 만든다 — 이어 붙인 판 `{TICKER}_synthetic_max.csv`, 전 구간 합성 `VXUS_proxy_max.csv`. 계산은 `src/qbt/utils/proxy_series.py` 가 하고, 저장은 다운로더와 같은 순서(가격 6자리 반올림 → `validate_stock_data` → 저장)다. 대상 · 대용 원본을 다시 받으면 다시 실행해야 한다
 
 ### 백테스트 (backtest/)
 
