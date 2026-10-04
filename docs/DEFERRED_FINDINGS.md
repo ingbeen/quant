@@ -66,3 +66,24 @@
 - **무엇**: ① 체결일 목록을 매도 거래의 `exit_date` 에서만 뽑는다. 매수만 있는 날(월중 버퍼존 재진입, 현금만으로 끝나는 리밸런싱)은 표에서 조용히 빠지고 「총 N개 체결일」 캡션도 줄어든 값이 나온다. 월말 판단 규칙에서는 월중 재진입이 매수만으로 끝나므로, 매수 진입(`ENTER_TO_TARGET`) 체결일(백테스트 첫 진입일 포함) 중 표에 나오는 날이 Q-2 는 21일 중 18일에서 1일로, Q-2-2XS 는 20일 중 16일에서 1일로 줄었다(예: Q-2-2XS 2007-08-27 qld, 2016-04-18 sso 누락). ② 사유를 그날의 `rebalance_reason` 하나로 붙여, 리밸런싱이 있는 날에는 같은 날 신호로 체결된 자산까지 「월초 정기」로 표시한다(예: Q-2-2XS 2010-07-01 qld 신호 매도). 진단 대시보드(`app_portfolio_debug.py`)의 체결 상세 표는 자산별 체결 유형을 먼저 보도록 고쳐져 이 문제가 없다
 - **종류**: 가벼운 버그 (표시만 틀리고 성과 수치는 맞다)
 - **출처**: PLAN_rebalance_month_end (2026-10-03) 코드 리뷰 1회차 · 2회차. 고치려면 러너가 만드는 `execution_comparison.csv` 형식(자산별 체결 유형)을 바꿔야 한다
+
+## EWY 200일선 배분 규칙의 매수 체결 기록에 hold_days_used 가 0 으로 남아, 같은 신호의 버퍼존 슬롯(3)과 다르다
+
+- **자리**: `src/qbt/backtest/allocators/ewy_buffer_zone.py:56` `EwyBufferZoneAllocator.target_weights` · `src/qbt/backtest/engines/portfolio_methods.py:217` `generate_allocation_intents`
+- **무엇**: 규칙은 `BufferZoneStrategy` 로 신호를 내지만 `get_buy_meta()`(유지일 정보)를 넘길 길이 없다 — 배분 규칙은 비중만 반환하고, 배분 변화로 만든 진입 의도에는 `hold_days_used` 칸을 채우지 않는다. 그래서 EWY 규칙 실험의 매수 거래는 `trades.csv` 의 `hold_days_used` 가 늘 0 이고, 체결일이 같은 EWY 버퍼존 슬롯은 3 을 기록한다. 성과 · 체결일은 같다(2026-10-04 실데이터 체결일 29개 일치). 2026-10-04 기준 EWY 규칙을 쓰는 저장된 실험 0 개 — 계획서 ③-3 이 EWY 실험을 등록하면 그 결과 파일에 나타난다. 고치려면 배분 규칙 인터페이스나 배분 의도 생성(엔진)을 바꿔야 해 「엔진 무변경」(설계서 D27)과 부딪힌다
+- **종류**: 가벼운 버그 (기록 칸이 에러 없이 틀린 값을 낸다, 성과 수치는 맞다)
+- **출처**: PLAN_supplement_allocators (2026-10-04) 코드 리뷰 2회차
+
+## HAA 배분 규칙이 입력 시세의 거래일 정렬을 확인하지 않는다 (로테이션 규칙은 확인한다)
+
+- **자리**: `src/qbt/backtest/allocators/haa.py:78` `HaaAllocator._past_month_ends` · `:35` `momentum_scores`
+- **무엇**: 월말 행을 TIP 시세의 날짜로 정하고, 다른 9개 시세는 같은 행 번호(`iloc`)로 읽는다. 10개 시세가 같은 거래일 행으로 정렬돼 있다는 엔진의 약속에 기대며 직접 확인하지 않는다 — 한 시세의 행이 하루 어긋나면 다른 날 종가로 수익률을 계산해 예외 없이 틀린 순위를 낸다. 로테이션 규칙(`us_weakness_rotation.py:58`)은 같은 가정을 날짜 대조로 확인하고 다르면 ValueError 를 낸다. 지금 엔진은 배분 규칙 시세를 공통 거래일로 맞춰 넘기므로 엔진 안에서는 생기지 않고(2026-10-04 실데이터 HAA 판단 231 개가 엔진 밖 단독 실행과 일치), 엔진의 자르기 방식이 바뀌거나 엔진 밖에서 정렬이 다른 시세로 부를 때 생긴다. 같은 자리의 작은 빈틈: TIP 점수가 NaN 이면 `NaN <= 0` 이 거짓이라 피신하지 않고 공격 자산으로 간다(다운로더 검증을 통과한 시세에는 NaN 이 없다)
+- **종류**: 가벼운 버그 (틀린 순위가 에러 없이 나간다 — 지금 경로에서는 일어나지 않음)
+- **출처**: PLAN_supplement_allocators (2026-10-04) 코드 리뷰 2회차
+
+## 배분 규칙 생성자가 이동평균 기간 · 버퍼 비율 · 유지일을 검증하지 않는다
+
+- **자리**: `src/qbt/backtest/allocators/ewy_buffer_zone.py:32` `EwyBufferZoneAllocator.__init__` · `src/qbt/backtest/allocators/us_weakness_rotation.py:30` `UsWeaknessRotationAllocator.__init__`
+- **무엇**: `EwyBufferZoneAllocator(0, -0.1, 0.05, -1)` 처럼 잘못된 값으로도 만들어진다. 이동평균 기간 0 은 첫 호출의 `add_single_moving_average` 에서야 ValueError 가 나고, 음수 버퍼 · 유지일이나 퍼센트로 착각한 버퍼(5 = 500%)는 끝까지 엉뚱한 밴드로 돈다. 같은 검증을 하는 `resolve_buffer_params`(`src/qbt/backtest/strategies/buffer_zone.py:54`)가 이미 있다. 지금은 레지스트리가 `FIXED_4P_*` 상수만 넘겨 생기지 않는다(2026-10-04)
+- **종류**: 가벼운 버그 (잘못된 파라미터가 에러 없이 결과를 낸다)
+- **출처**: PLAN_supplement_allocators (2026-10-04) 코드 리뷰 1회차 · 2회차

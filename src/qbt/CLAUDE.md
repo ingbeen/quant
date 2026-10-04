@@ -38,6 +38,8 @@ src/qbt/
 │   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
 │   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)
 │   ├── strategies/           # 전략 클래스 (SignalStrategy Protocol 기반)
+│   ├── allocator_registry.py # 배분 규칙 레지스트리 (AllocatorSpec, ALLOCATOR_REGISTRY)
+│   ├── allocators/           # 배분 규칙 (비중이 바뀌는 매매법, WeightAllocator Protocol 기반)
 │   └── engines/              # 백테스트 엔진 (단일 자산, 포트폴리오)
 ├── tqqq/                # 레버리지 ETF 시뮬레이션 도메인
 │   ├── constants.py        # 시뮬레이션 전용 상수

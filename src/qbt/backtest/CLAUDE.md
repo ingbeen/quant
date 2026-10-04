@@ -263,11 +263,22 @@ TypedDict:
 
 ### 8-1. allocator_registry.py
 
-비중이 바뀌는 매매법(AllocatorMethodConfig)의 배분 규칙 레지스트리. `strategy_registry.py` 와 같은 모양이며, 새 배분 규칙(HAA 등)은 여기 등록하고 엔진은 고치지 않는다.
+비중이 바뀌는 매매법(AllocatorMethodConfig)의 배분 규칙 레지스트리. `strategy_registry.py` 와 같은 모양이며, 새 배분 규칙은 `allocators/` 에 구현하고 여기 등록한다. 엔진은 고치지 않는다.
 
 - `WeightAllocator` Protocol: `target_weights(data, i, current_date, is_check_day) -> Mapping[str, float] | None` — i 행 종가 기준 매매법 자본 대비 목표 비중(합 1 이하, 없는 자산 0). None 은 목표 변경 없음. data 는 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키), is_check_day 는 월 마지막 거래일 여부
 - `AllocatorSpec` (frozen=True): allocator_id, create_allocator(method) → WeightAllocator, get_warmup_periods(method) → int (ma_window 와 같은 뜻)
 - `ALLOCATOR_REGISTRY: dict[str, AllocatorSpec]` — 등록된 규칙 목록은 이 모듈을 직접 확인할 것
+- 생성 함수가 설정을 검사한다: 규칙은 역할을 자산 · 시세 id 로 알아보므로(설정에 파라미터 칸이 없다) 설정의 자산 id · series id 집합이 규칙이 요구하는 것과 정확히 같아야 한다. 다르면 ValueError. 파라미터(이동평균 기간 · 버퍼존)는 `FIXED_4P_*` 를 넘긴다
+
+### 8-2. allocators/ 패키지
+
+배분 규칙 구현. 규칙마다 모듈 하나이고 설정을 모른다(시세만 받는다).
+
+- 요구 id 는 각 모듈의 `*_ASSET_IDS` · `*_SERIES_IDS` 상수가 정한다. Q-2-2XS 와 같은 종목(TLT 등)은 같은 자산 id 를 써야 종목 단위 상계가 된다
+- 이동평균 · 월말 행 목록 같은 파생 계산은 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 j 의 값은 j 이하 행만 쓰므로 미래를 읽지 않는다
+- `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서
+- `us_weakness_rotation.py` `UsWeaknessRotationAllocator`: 「위험 자산 ÷ 기준 시세」 비율이 그 이동평균(`add_single_moving_average`)보다 위면 위험 자산, 아니면 안전 자산. 첫 호출에서 판단하고 그 뒤는 판단일에만
+- `ewy_buffer_zone.py` `EwyBufferZoneAllocator`: `BufferZoneStrategy` 신호로 위험 자산 ↔ 안전 자산. 미보유면 check_buy, 보유면 check_sell 을 하루 한 번 — 버퍼존 슬롯과 같은 호출 순서라 신호 날짜가 같다. 첫 호출은 안전 자산
 
 ---
 
