@@ -13,6 +13,7 @@ import argparse
 import json
 import sys
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -38,14 +39,16 @@ from qbt.backtest.csv_export import (
     prepare_trades_for_csv,
 )
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
+from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import (
     ASSET_COL_SUFFIX_WEIGHT,
-    AssetSlotConfig,
     PortfolioResult,
     asset_shares_col,
     asset_value_col,
     asset_weight_col,
+    list_position_keys,
+    resolve_methods,
 )
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
@@ -264,10 +267,11 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     """포트폴리오 백테스트 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
 
     저장 파일:
-    - equity.csv: 합산 에쿼티 + 자산별 비중/시그널 + 리밸런싱 여부
+    - equity.csv: 합산 에쿼티 + 자산 키별 비중/시그널 + 리밸런싱 여부 (+ 매매법이 여럿이면 netting_savings)
     - trades.csv: 전 자산 거래 내역 + holding_days
-    - signal_{asset_id}.csv: 자산별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
-    - summary.json: 전체 + 자산별 요약 지표 + 설정 파라미터
+    - signal_{자산 키}.csv: 자산 키별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
+    - summary.json: 전체 + 자산 키별 요약 지표 + 설정 파라미터 (+ 매매법이 여럿이면 per_method · netting · account_holdings · pnl_check)
+    - ledger.csv · netting.csv: 매매법이 여럿일 때만 — 매매법별 장부, 종목 단위 상계 내역
 
     Args:
         result: PortfolioResult 컨테이너
@@ -283,6 +287,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "cash": ROUND_CAPITAL,
         "drawdown_pct": ROUND_PERCENT,
     }
+    if "netting_savings" in equity_export.columns:
+        equity_round["netting_savings"] = ROUND_CAPITAL
     for col in equity_export.columns:
         if col.endswith("_value"):
             equity_round[col] = ROUND_CAPITAL
@@ -300,7 +306,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         for c in equity_export.columns
         if c.endswith("_realized_pnl") or c.endswith("_unrealized_pnl") or c.endswith("_contribution")
     ]
-    for col in ["equity", "cash"] + [c for c in equity_export.columns if c.endswith("_value")] + pnl_cols:
+    capital_cols = ["equity", "cash", "netting_savings"] + [c for c in equity_export.columns if c.endswith("_value")]
+    for col in capital_cols + pnl_cols:
         if col in equity_export.columns:
             equity_export[col] = equity_export[col].astype(int)
     for col in [c for c in equity_export.columns if c.endswith("_shares")]:
@@ -315,8 +322,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
 
     # 3. signal_{asset_id}.csv 저장 (자산별)
-    # asset_id -> AssetSlotConfig 매핑 (밴드 계산 시 슬롯의 전략 파라미터 조회용)
-    slot_by_asset: dict[str, AssetSlotConfig] = {slot.asset_id: slot for slot in result.config.asset_slots}
+    # 자산 키 -> 슬롯 매핑 (밴드 계산 시 슬롯의 전략 파라미터 조회용, 비중이 바뀌는 매매법 자산은 None)
+    key_infos = {info.key: info for info in list_position_keys(result.config)}
     for asset_result in result.per_asset:
         signal_path = result.config.result_dir / f"signal_{asset_result.asset_id}.csv"
 
@@ -324,8 +331,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         signal_export = add_ohlc_change_pct(asset_result.signal_df)
 
         # buffer_zone 자산은 upper_band / lower_band 컬럼 사전 계산 (대시보드 SSoT)
-        slot = slot_by_asset[asset_result.asset_id]
-        if slot.strategy_id == "buffer_zone":
+        slot = key_infos[asset_result.asset_id].slot
+        if slot is not None and slot.strategy_id == "buffer_zone":
             ma_col = f"ma_{slot.ma_window}"
             signal_export = add_buffer_zone_bands(
                 signal_export,
@@ -404,11 +411,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
     # 자산별 요약
     per_asset_data: list[dict[str, Any]] = []
+    target_weights = account_target_weights(result)
     for asset_result in result.per_asset:
-        slot = next(
-            (sl for sl in result.config.asset_slots if sl.asset_id == asset_result.asset_id),
-            None,
-        )
         asset_trades = asset_result.trades_df
         total_asset_trades = len(asset_trades)
         win_rate = 0.0
@@ -430,7 +434,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
         asset_entry: dict[str, Any] = {
             "asset_id": asset_result.asset_id,
-            "target_weight": round(slot.target_weight, ROUND_RATIO) if slot else 0.0,
+            "target_weight": round(target_weights[asset_result.asset_id], ROUND_RATIO),
             "total_trades": total_asset_trades,
             "win_rate": win_rate,
             "final_shares": final_shares,
@@ -463,6 +467,14 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "yearly_returns": yearly_returns,
     }
 
+    # 매매법이 여럿이면 매매법 장부 · 상계 내역과 요약을 더한다 (하나면 장부 = 계좌라 내지 않는다)
+    multi_method = len(resolve_methods(result.config)) > 1
+    ledger_path = result.config.result_dir / "ledger.csv"
+    netting_path = result.config.result_dir / "netting.csv"
+    if multi_method:
+        _save_ledger_and_netting(result, ledger_path, netting_path)
+        summary_data.update(_round_method_summary(summarize_methods(result)))
+
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
     logger.debug(f"요약 JSON 저장 완료: {summary_path}")
@@ -485,8 +497,58 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
             "summary_json": str(summary_path),
         },
     }
+    if multi_method:
+        metadata["output_files"]["ledger_csv"] = str(ledger_path)
+        metadata["output_files"]["netting_csv"] = str(netting_path)
     save_metadata("portfolio_backtest", metadata)
     logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
+
+
+def _save_ledger_and_netting(result: PortfolioResult, ledger_path: Path, netting_path: Path) -> None:
+    """매매법 장부(ledger.csv)와 종목 단위 상계 내역(netting.csv)을 저장한다."""
+    ledger_export = result.ledger_df.copy()
+    money_cols = ["equity", "cash", "pnl", "cost", "transfers"]
+    ledger_export = ledger_export.round(
+        {**{c: ROUND_CAPITAL for c in money_cols}, "share": ROUND_RATIO, "target_share": ROUND_RATIO}
+    )
+    for col in money_cols:
+        ledger_export[col] = ledger_export[col].astype(int)
+    ledger_export.to_csv(ledger_path, index=False)
+    logger.debug(f"매매법 장부 저장 완료: {ledger_path}")
+
+    netting_export = result.netting_df.copy()
+    netting_export = netting_export.round({"open_price": ROUND_PRICE, "savings": ROUND_CAPITAL})
+    netting_export["savings"] = netting_export["savings"].astype(int)
+    netting_export.to_csv(netting_path, index=False)
+    logger.debug(f"상계 내역 저장 완료: {netting_path} ({len(netting_export)}행)")
+
+
+def _round_method_summary(method_summary: dict[str, Any]) -> dict[str, Any]:
+    """summarize_methods 결과를 저장 자릿수로 반올림한다 (자본금 정수, 비율 4자리)."""
+    per_method: list[dict[str, Any]] = []
+    for item in method_summary["per_method"]:
+        per_method.append(
+            {
+                **item,
+                "target_share": round(item["target_share"], ROUND_RATIO),
+                "final_share": round(item["final_share"], ROUND_RATIO),
+                "final_equity": round(item["final_equity"]),
+                "pnl": round(item["pnl"]),
+                "realized_pnl": round(item["realized_pnl"]),
+                "unrealized_pnl": round(item["unrealized_pnl"]),
+                "cost": round(item["cost"]),
+                "transfers": round(item["transfers"]),
+                "assets": [{"asset_id": a["asset_id"], "pnl": round(a["pnl"])} for a in item["assets"]],
+            }
+        )
+    netting = dict(method_summary["netting"])
+    netting["savings_total"] = round(netting["savings_total"])
+    holdings = [
+        {**h, "value": round(h["value"]), "weight": round(h["weight"], ROUND_RATIO)}
+        for h in method_summary["account_holdings"]
+    ]
+    pnl_check = {k: round(v) for k, v in method_summary["pnl_check"].items()}
+    return {"per_method": per_method, "netting": netting, "account_holdings": holdings, "pnl_check": pnl_check}
 
 
 def _print_summary(result: PortfolioResult) -> None:
@@ -510,18 +572,15 @@ def _print_summary(result: PortfolioResult) -> None:
 
     # 자산별 성과 테이블
     columns = [
-        ("자산", 8, Align.LEFT),
+        ("자산", 16, Align.LEFT),
         ("비중", 8, Align.RIGHT),
         ("거래수", 8, Align.RIGHT),
     ]
 
     rows = []
+    target_weights = account_target_weights(result)
     for asset_result in result.per_asset:
-        slot = next(
-            (sl for sl in result.config.asset_slots if sl.asset_id == asset_result.asset_id),
-            None,
-        )
-        target_weight = slot.target_weight if slot else 0.0
+        target_weight = target_weights[asset_result.asset_id]
         total_trades = len(asset_result.trades_df)
         rows.append(
             [
@@ -593,7 +652,7 @@ def main() -> int:
         result = run_portfolio_backtest(config, start_date=exp_start_date)
         _print_summary(result)
 
-        # 정합성 자동 검증 (5개 규칙) -- 위반 시 결과 저장 후 스크립트 중지
+        # 정합성 자동 검증 (7개 규칙) -- 위반 시 결과 저장 후 스크립트 중지
         violations = validate_portfolio_result(result)
         _save_portfolio_results(result)
         logger.debug(f"{config.display_name} 결과 파일 저장 완료: {config.result_dir}")
@@ -602,7 +661,7 @@ def main() -> int:
             for v in violations:
                 logger.error(f"  {v}")
             raise ValueError(f"[{config.experiment_name}] 정합성 검증 위반 {len(violations)}건 발견. " f"상세 내역은 위 로그를 확인하세요.")
-        logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (5개 규칙 모두 정상)")
+        logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (7개 규칙 모두 정상)")
 
     return 0
 

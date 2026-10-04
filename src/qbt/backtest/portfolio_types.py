@@ -5,7 +5,9 @@
 포함 내용:
 - AssetState: 자산별 런타임 상태
 - AssetSlotConfig: 자산 슬롯 설정 (frozen=True)
+- SlotMethodConfig / AllocatorMethodConfig: 매매법 설정 (frozen=True)
 - PortfolioConfig: 포트폴리오 실험 설정 (frozen=True)
+- resolve_methods / position_key: 매매법 목록 해석과 결과 파일의 자산 키
 - PortfolioAssetResult: 자산별 결과 (거래 내역 + 시그널 데이터)
 - PortfolioResult: 포트폴리오 전체 결과
 """
@@ -119,30 +121,153 @@ class AssetSlotConfig:
     hold_days: int = 3
 
 
+# 매매법이 둘 이상인 실험의 자산 키 구분자 ({method_id}.{asset_id}). 그래서 id 에 쓸 수 없다
+POSITION_KEY_SEPARATOR: Final[str] = "."
+
+
+@dataclass(frozen=True)
+class SlotMethodConfig:
+    """고정 비중 슬롯 묶음으로 매매하는 매매법 (예: Q-2-2XS).
+
+    매매법은 자기 몫(자본) · 현금 · 보유 주수를 따로 갖는다. 슬롯의 target_weight 는
+    계좌가 아니라 이 매매법 자본 대비 비중이다.
+
+    Attributes:
+        method_id: 매매법 식별자 (매매법이 둘 이상이면 결과 키 접두사)
+        display_name: 표시 이름
+        target_weight: 계좌 대비 목표 몫 (0.70 = 70%)
+        asset_slots: 매매법 안의 자산 슬롯
+    """
+
+    method_id: str
+    display_name: str
+    target_weight: float
+    asset_slots: tuple[AssetSlotConfig, ...]
+
+
+@dataclass(frozen=True)
+class AllocationAssetConfig:
+    """비중이 바뀌는 매매법이 매매하는 자산."""
+
+    asset_id: str
+    signal_data_path: Path
+    trade_data_path: Path
+
+
+@dataclass(frozen=True)
+class SignalSeriesConfig:
+    """배분 규칙이 판단에만 쓰고 보유하지 않는 시세 (예: HAA 의 TIP)."""
+
+    series_id: str
+    data_path: Path
+
+
+@dataclass(frozen=True)
+class AllocatorMethodConfig:
+    """배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (예: HAA).
+
+    Attributes:
+        method_id: 매매법 식별자
+        display_name: 표시 이름
+        target_weight: 계좌 대비 목표 몫
+        assets: 매매하는 자산
+        allocator_id: allocator_registry.ALLOCATOR_REGISTRY 키
+        signal_series: 판단에만 쓰는 시세. series_id 는 자산 id 와 겹칠 수 없다
+    """
+
+    method_id: str
+    display_name: str
+    target_weight: float
+    assets: tuple[AllocationAssetConfig, ...]
+    allocator_id: str
+    signal_series: tuple[SignalSeriesConfig, ...] = ()
+
+
+type MethodConfig = SlotMethodConfig | AllocatorMethodConfig
+
+
 @dataclass(frozen=True)
 class PortfolioConfig:
     """포트폴리오 실험 설정.
 
-    복수 자산의 목표 비중, 리밸런싱 정책을 담는다.
-    전략 파라미터(ma_window, buffer_pct 등)는 슬롯 레벨(AssetSlotConfig)로 이동하였다.
-    target_weight 합이 1.0 미만인 경우 잔여분은 현금으로 유지된다 (B시리즈).
+    asset_slots 와 methods 중 정확히 하나를 채운다. asset_slots 는 매매법 하나짜리 실험의
+    줄임 표기다(resolve_methods 참고). 슬롯 target_weight 합이 1.0 미만이면 잔여분은 현금이다 (B시리즈).
 
     리밸런싱 정책은 엔진 레벨 상수로 고정되며 실험 설정으로 바꿀 수 없다
     (월 마지막 거래일 판단, 임계값은 portfolio_rebalance.DEFAULT_REBALANCE_POLICY).
+    매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
 
     Attributes:
         experiment_name: 실험 식별자 ("portfolio_a2" 등)
         display_name: 표시 이름 ("A-2 (QQQ 30% / SPY 30% / GLD 40%)")
-        asset_slots: 자산 슬롯 설정 튜플
         total_capital: 총 초기 자본금
         result_dir: 결과 저장 디렉토리
+        asset_slots: 매매법 하나짜리 실험의 자산 슬롯
+        methods: 여러 매매법 (각 매매법 target_weight 합 1.0)
     """
 
     experiment_name: str
     display_name: str
-    asset_slots: tuple[AssetSlotConfig, ...]
     total_capital: float
     result_dir: Path
+    asset_slots: tuple[AssetSlotConfig, ...] = ()
+    methods: tuple[MethodConfig, ...] = ()
+
+
+def resolve_methods(config: PortfolioConfig) -> tuple[MethodConfig, ...]:
+    """실험의 매매법 목록을 반환한다.
+
+    asset_slots 줄임 표기는 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다.
+    """
+    if config.methods:
+        return config.methods
+    return (SlotMethodConfig(config.experiment_name, config.display_name, 1.0, config.asset_slots),)
+
+
+def position_key(method_id: str, asset_id: str, *, multi_method: bool) -> str:
+    """결과 파일의 자산 키를 반환한다.
+
+    매매법이 하나면 자산 id 그대로라 기존 결과 파일의 열 이름이 바뀌지 않는다.
+    """
+    if multi_method:
+        return f"{method_id}{POSITION_KEY_SEPARATOR}{asset_id}"
+    return asset_id
+
+
+@dataclass(frozen=True)
+class PositionKeyInfo:
+    """결과 파일의 자산 키 하나의 출처.
+
+    Attributes:
+        key: 자산 키 (position_key)
+        method_id: 매매법
+        method_share: 매매법의 계좌 대비 목표 몫
+        asset_id: 자산 id (같은 종목이면 매매법이 달라도 같다)
+        slot: 슬롯 매매법의 슬롯. 비중이 바뀌는 매매법 자산이면 None (목표 비중이 날마다 바뀐다)
+    """
+
+    key: str
+    method_id: str
+    method_share: float
+    asset_id: str
+    slot: AssetSlotConfig | None
+
+
+def list_position_keys(config: PortfolioConfig) -> list[PositionKeyInfo]:
+    """실험의 자산 키를 매매법 · 자산 순서대로 반환한다 (엔진의 결과 열 순서와 같다)."""
+    methods = resolve_methods(config)
+    multi_method = len(methods) > 1
+    infos: list[PositionKeyInfo] = []
+    for method in methods:
+        if isinstance(method, SlotMethodConfig):
+            for slot in method.asset_slots:
+                key = position_key(method.method_id, slot.asset_id, multi_method=multi_method)
+                infos.append(PositionKeyInfo(key, method.method_id, method.target_weight, slot.asset_id, slot))
+        else:
+            for asset in method.assets:
+                key = position_key(method.method_id, asset.asset_id, multi_method=multi_method)
+                infos.append(PositionKeyInfo(key, method.method_id, method.target_weight, asset.asset_id, None))
+    return infos
 
 
 # ============================================================================
@@ -202,8 +327,19 @@ class PortfolioResult:
         - {aid}_signal_today: 당일 시그널 판정 ("buy"/"sell"/"hold")
         - {aid}_pending_intent: 익일 체결 예정 intent_type
         - {aid}_pending_reason, {aid}_pending_delta: pending intent 상세
-        - {aid}_executed_intent: 당일 체결된 intent_type
-        - {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price: 체결 상세
+        - {aid}_executed_intent: 당일 처리된 intent_type (1주 미만이라 0주로 끝나도 기록)
+        - {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price: 체결 상세 (0주면 가격 0.0)
+        - {aid}_target_weight: 비중이 바뀌는 매매법 자산만 — 그날 매매법 자본 대비 목표 비중
+
+    자산 키({aid}): 매매법이 하나면 자산 id, 둘 이상이면 「매매법.자산」(position_key).
+
+    ledger_df 컬럼 명세 (매 거래일 × 매매법 1행):
+        Date, method_id, equity(매매법 자본), cash, share(Σ 매매법 자본 대비 몫), target_share,
+        pnl(실현 + 미실현 누적), cost(단독 매매로 매긴 비용 누적), transfers(매매법 사이 이전 누적),
+        rebalanced, rebalance_reason("monthly" | "methods" | "")
+
+    netting_df 컬럼 명세 (상계가 있던 날 × 자산 1행, 매매법이 둘 이상일 때만 행이 생긴다):
+        Date, asset_id, gross_shares(Σ|Δ|), net_shares(ΣΔ), open_price, savings
 
     Attributes:
         experiment_name: 실험 식별자
@@ -215,6 +351,8 @@ class PortfolioResult:
         config: 포트폴리오 설정
         params_json: JSON 저장용 파라미터 딕셔너리
         state_log_df: 일별 상태 로그 DataFrame (디버깅/검증용)
+        ledger_df: 매매법별 장부 DataFrame (매매법이 하나여도 만든다 — 검사기가 한 경로로 검사)
+        netting_df: 종목 단위 상계 내역 DataFrame
     """
 
     experiment_name: str
@@ -226,3 +364,5 @@ class PortfolioResult:
     per_asset: list[PortfolioAssetResult] = field(default_factory=list)
     params_json: dict[str, Any] = field(default_factory=dict)
     state_log_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    ledger_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    netting_df: pd.DataFrame = field(default_factory=pd.DataFrame)

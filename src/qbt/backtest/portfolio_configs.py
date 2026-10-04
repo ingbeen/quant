@@ -6,12 +6,13 @@
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
 - Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
   수익·위험 프로필을 비교한다.
+- 매매법이 여럿인 실험: Q-2-2XS 를 매매법 하나로 두고 보완 매매법과 몫을 나눈다.
 """
 
 from pathlib import Path
 
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
+from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig, SlotMethodConfig
 from qbt.common_constants import (
     GLD_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
@@ -143,6 +144,36 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 )
 
 # ============================================================================
+# 매매법이 여럿인 실험
+# ============================================================================
+
+# Q-2-2XS 70% + 금 30% (예시): 여러 매매법 · 매매법 사이 비중 되돌리기 · 같은 종목(GLD) 상계를 보는 확인용 실험.
+# 금 비중 확대 후보의 w=30 이기도 하며, 공식 후보로 남길지는 보완 전략 실험의 판정 뒤에 정한다.
+_CONFIG_Q2_2XS_GOLD30 = PortfolioConfig(
+    experiment_name="portfolio_q2_2xs_gold30",
+    display_name="Q-2-2XS 70% + 금 30% (예시: 매매법 2개)",
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_2xs_gold30"),
+    methods=(
+        SlotMethodConfig("q2_2xs", "Q-2-2XS", 0.70, _CONFIG_Q2_2XS.asset_slots),
+        SlotMethodConfig(
+            "gold",
+            "금 보유",
+            0.30,
+            (
+                AssetSlotConfig(
+                    asset_id="gld",
+                    signal_data_path=GLD_DATA_PATH,
+                    trade_data_path=GLD_DATA_PATH,
+                    target_weight=1.00,
+                    strategy_id="buy_and_hold",
+                ),
+            ),
+        ),
+    ),
+)
+
+# ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
 
@@ -151,6 +182,7 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1_2X,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
+    _CONFIG_Q2_2XS_GOLD30,
 ]
 
 

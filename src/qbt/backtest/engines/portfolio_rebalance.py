@@ -1,10 +1,10 @@
 """포트폴리오 리밸런싱 정책 — 월말 판단 리밸런싱 정책과 판단일(월 마지막 거래일) 판정 함수"""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 
 from qbt.backtest.engines.portfolio_planning import OrderIntent, ProjectedPortfolio
-from qbt.backtest.portfolio_types import AssetSlotConfig
 from qbt.common_constants import EPSILON
 
 
@@ -24,18 +24,18 @@ class RebalancePolicy:
     def should_rebalance(
         self,
         projected: ProjectedPortfolio,
-        slot_dict: dict[str, AssetSlotConfig],
+        target_weights: Mapping[str, float],
         total_equity_projected: float,
     ) -> bool:
         """active 자산 중 임계값 초과 자산이 있는지 판정한다.
 
-        그날 진입 신호가 난 자산(projected.entering_assets)은 판정에서 뺀다. 판정이 걸리면
-        build_rebalance_intents 가 진입 자산까지 포함해 맞춘다.
+        projected.check_excluded_assets(그날 들어오거나 목표가 바뀐 자산)는 판정에서 뺀다. 판정이 걸리면
+        build_rebalance_intents 가 그 자산까지 포함해 맞춘다.
 
         Args:
             projected: signal intents 반영 후 예상 포트폴리오 상태
-            slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
-            total_equity_projected: projected 상태 기준 총 에쿼티
+            target_weights: {asset_id: 목표 비중} (매매법 자본 대비)
+            total_equity_projected: projected 상태 기준 매매법 에쿼티
 
         Returns:
             True이면 리밸런싱 실행 필요, False이면 스킵
@@ -45,17 +45,17 @@ class RebalancePolicy:
                 f"내부 불변조건 위반: total_equity_projected < EPSILON "
                 f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
             )
-        # active_assets 는 asset_states 키의 부분집합이며 asset_states 는 slot_dict 와
-        # 동일한 자산 집합으로 초기화되므로 slot_dict[asset_id] 는 항상 존재한다.
+        # active_assets 는 매매법 자산 집합의 부분집합이고 target_weights 는 같은 집합으로
+        # 만들어지므로 target_weights[asset_id] 는 항상 존재한다.
         for asset_id in projected.active_assets:
-            if asset_id in projected.entering_assets:
+            if asset_id in projected.check_excluded_assets:
                 continue
-            slot = slot_dict[asset_id]
-            if slot.target_weight == 0:
+            target_weight = target_weights[asset_id]
+            if target_weight == 0:
                 continue
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
             actual_weight = current_amount / total_equity_projected
-            deviation = abs(actual_weight / slot.target_weight - 1.0)
+            deviation = abs(actual_weight / target_weight - 1.0)
             if deviation > self.threshold_rate:
                 return True
         return False
@@ -63,7 +63,7 @@ class RebalancePolicy:
     def build_rebalance_intents(
         self,
         projected: ProjectedPortfolio,
-        slot_dict: dict[str, AssetSlotConfig],
+        target_weights: Mapping[str, float],
         total_equity_projected: float,
         current_date: date,
     ) -> dict[str, OrderIntent]:
@@ -77,8 +77,8 @@ class RebalancePolicy:
 
         Args:
             projected: ProjectedPortfolio (signal intents 반영 후 예상 상태)
-            slot_dict: {asset_id: AssetSlotConfig} (target_weight 참조용)
-            total_equity_projected: projected 상태 기준 총 에쿼티
+            target_weights: {asset_id: 목표 비중} (매매법 자본 대비)
+            total_equity_projected: projected 상태 기준 매매법 에쿼티 (매매법 사이 이전이 있으면 이전 뒤 금액)
             current_date: 현재 날짜 (OrderIntent.reason 기록용)
 
         Returns:
@@ -90,14 +90,25 @@ class RebalancePolicy:
                 f"(비레버리지 포트폴리오에서 총 에쿼티 소멸 불가, total_equity_projected={total_equity_projected})"
             )
 
+        # active 자산은 target_weights 순서로 돌므로, 빠진 자산이 있으면 그 주문이 조용히 생략된다 — 멈춘다
+        missing = projected.active_assets - set(target_weights)
+        if missing:
+            raise RuntimeError(
+                f"내부 불변조건 위반: active 자산이 target_weights 에 없음 (missing={sorted(missing)}, "
+                f"target_weights={list(target_weights)})"
+            )
+
         # 1. active_assets 전체에 대해 매도/매수 금액 계산
         sell_intents: dict[str, float] = {}  # {asset_id: 매도 필요 금액}
         buy_intents: dict[str, float] = {}  # {asset_id: 매수 필요 금액}
 
-        # active_assets ⊆ slot_dict.keys() 가 항상 성립한다 (should_rebalance 동일 가정).
-        for asset_id in projected.active_assets:
-            slot = slot_dict[asset_id]
-            target_amount = total_equity_projected * slot.target_weight
+        # active_assets ⊆ target_weights.keys() 가 항상 성립한다 (should_rebalance 동일 가정).
+        # active_assets(집합) 대신 target_weights(설정) 순서로 돈다 — 이 순서가 같은 날 체결 순서가 되고,
+        # 집합 순서는 실행마다 바뀐다
+        for asset_id in target_weights:
+            if asset_id not in projected.active_assets:
+                continue
+            target_amount = total_equity_projected * target_weights[asset_id]
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
             delta = target_amount - current_amount
             if delta < 0:
@@ -118,30 +129,30 @@ class RebalancePolicy:
         result: dict[str, OrderIntent] = {}
 
         for asset_id, excess_value in sell_intents.items():
-            slot = slot_dict[asset_id]
+            target_weight = target_weights[asset_id]
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            target_amount = total_equity_projected * slot.target_weight
+            target_amount = total_equity_projected * target_weight
             result[asset_id] = OrderIntent(
                 asset_id=asset_id,
                 intent_type="REDUCE_TO_TARGET",
                 current_amount=current_amount,
                 target_amount=target_amount,
                 delta_amount=-excess_value,
-                target_weight=slot.target_weight,
+                target_weight=target_weight,
                 reason=f"rebalance {current_date}",
             )
 
         for asset_id, buy_amount in buy_intents.items():
-            slot = slot_dict[asset_id]
+            target_weight = target_weights[asset_id]
             current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            target_amount = total_equity_projected * slot.target_weight
+            target_amount = total_equity_projected * target_weight
             result[asset_id] = OrderIntent(
                 asset_id=asset_id,
                 intent_type="INCREASE_TO_TARGET",
                 current_amount=current_amount,
                 target_amount=target_amount,
                 delta_amount=buy_amount,
-                target_weight=slot.target_weight,
+                target_weight=target_weight,
                 reason=f"rebalance {current_date}",
             )
 

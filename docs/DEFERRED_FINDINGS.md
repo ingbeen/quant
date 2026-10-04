@@ -10,12 +10,55 @@
 
 ---
 
-## 포트폴리오 리밸런싱이 1주 미만 차이에도 주문을 만들어 정합성 검사기가 실행을 멈출 수 있다
+## 정합성 검사기가 엔진의 매매 판단을 다시 계산하지 않아, 엔진이 할 일을 «안 한» 경우를 정당하게 0 인 경우와 구별하지 못한다
 
-- **자리**: `src/qbt/backtest/engines/portfolio_rebalance.py:58` `RebalancePolicy.build_rebalance_intents` · `src/qbt/backtest/engines/portfolio_execution.py:132` · `:201` `execute_orders` · `src/qbt/backtest/portfolio_validation.py:43` `_check_signal_execution_lag`
-- **무엇**: 리밸런싱이 발동하면 활성 자산 전부에 목표와의 차액만큼 `REDUCE_TO_TARGET` / `INCREASE_TO_TARGET` 를 만든다. 차액이 1주 가격보다 작으면 다음 날 `execute_orders` 가 0주로 처리해 체결 기록(`{자산}_executed_intent`)이 빈 값이 된다. 그러면 검사기 규칙 1(「전날 pending 이 다음 날 그대로 체결」)이 위반으로 잡고, `run_portfolio_backtest.py` 가 결과를 저장한 뒤 `ValueError` 로 멈춘다. 2026-10-03 기준 공식 결과 4개에서는 가장 작은 리밸런싱이 약 91주라 0건이지만, 자본이 작거나 1주 가격이 높은 종목, 또는 한 자산 안의 비중이 작게 쪼개지는 구성(보완 전략처럼 4종목에 나눠 담는 경우)에서는 일어날 수 있다. 판단일마다 무조건 리밸런싱하도록 바꾼 엔진 사본에서 `tests/qbt/test_portfolio_state_log.py` 의 `test_pending_intent_executed_next_day` 가 `pending=INCREASE_TO_TARGET -> 다음날 executed=` 로 실패해 재현됐다
-- **종류**: 무거운 버그 (실행이 멈춘다)
-- **출처**: PLAN_rebalance_month_end (2026-10-03) 코드 리뷰 2회차. 후속 엔진 확장 계획서(매매법별 장부 · 종목 단위 상계 · 비중 변동)에서 함께 다룰 후보
+- **자리**: 세 곳이 뿌리가 같다
+  - 규칙 1 — `src/qbt/backtest/portfolio_validation.py:59` `_check_signal_execution_lag` 와 `src/qbt/backtest/engines/portfolio_engine.py:886` `_append_state_log_columns`(처리한 의도는 0주여도 `{키}_executed_intent` 에 남김)
+  - 규칙 2 — `src/qbt/backtest/portfolio_validation.py:109` `_check_rebalance_weight_consistency`(매매법 하나 · 계좌 단위) · `:230` `_check_method_rebalance_weight_consistency`(매매법 단위)
+  - 규칙 7 이전 — `src/qbt/backtest/portfolio_validation.py:344` `_check_capped_transfer`(상한 예외)
+- **무엇**: 검사기는 「엔진이 한 일이 계획대로인가」는 보지만 「엔진이 해야 할 일을 했는가」는 판단을 다시 계산하지 않아 보지 못한다. 그래서 엔진 결함으로 할 일이 빠져도 정당하게 0 인 경우와 같은 모양이면 통과한다
+  - 규칙 1: 0주 체결도 「처리됨」으로 기록하므로(1주 미만 주문이 검사기를 멈추던 문제의 수정) 「전날 의도를 다음 날 처리했나」만 본다. 모든 매수가 0주로 끝나는 엔진 결함을 넣으면 실제 설정 5개 모두 「위반 0 · 거래 0 · 최종 자본 10000000」이다(2026-10-04 재현). 0주가 정당했는지(목표 금액이 1주 값보다 작았나, 현금 부족으로 줄었나)를 보려면 엔진이 매수 축소 비율이나 0주 사유를 기록해야 한다. 이 수정 전(PLAN_rebalance_month_end 시점)에는 체결 기록이나 보유 변화가 있을 때만 기록해 규칙 1 이 이 결함을 잡았다
+  - 규칙 2: 검사할 날을 엔진이 남긴 리밸런싱 표시(`rebalanced == True`)로 고른다. 판단일(월 마지막 거래일)에 매매법 안 편차가 임계값(10%)을 넘었는데 다음 날 리밸런싱이 통째로 빠지면 검사 대상이 아니다. 매매법 안 판정은 신호 청산 · 판정 제외 자산(그날 진입하거나 목표가 바뀐 자산)을 반영한 예상 상태로 하므로, 막으려면 검사기가 그 예상 상태를 상태 로그에서 다시 만들어야 한다
+  - 규칙 7 이전: 판단일 장부로 계획 이전액을 다시 계산해 상한 규칙을 확인하지만, 「계획보다 적게 냈어도 그날 끝 현금이 0 이면 상한 때문」으로 인정하고 실제로 매도했는지는 보지 않는다. 판정이 넘었는데 엔진이 아무것도 안 했고 내주는 쪽이 원래 다 투자해 현금이 1 이하인 날을 통과시킨다. 「판정을 아예 안 하는」 엔진 결함으로 세면 판단일 1,619일 중 113일(7.0%)을 놓치고(예: 다 투자한 QLD 버퍼존 매매법, 남은 현금 0.21 – 0.31), 실행 단위로는 62회 중 61회를 잡는다(놓친 1회는 정상 이전액 0.14 로 허용 오차 1.0 아래). 장부만으로는 정당한 0 원 상한(내주는 쪽 매도가 1주 미만이라 0주 · 현금 0)과 구별되지 않는다 — `tests/qbt/test_portfolio_methods.py` 의 `TestMethodTransferCheck` `capped_to_zero` 가 그 모양을 통과로 고정한다. 막으려면 상태 로그에서 내주는 쪽이 그날 리밸런싱 의도를 처리했는지도 봐야 한다(위 규칙 1 의 0주 기록과 얽힌다)
+  - 같은 뿌리의 작은 자리: 규칙 2 는 리밸런싱 뒤 0주로 끝난 자산을 건너뛴다(`portfolio_validation.py:118` · `:246` 의 `shares <= 0: continue`), 규칙 3 은 `EXIT_ALL` 을 처리한 행만 본다(기존 코드)
+  - 지금 엔진은 이 셋을 빠뜨리지 않는다(실제 산출물 5개 위반 0). 계획서 ③ 은 엔진을 고치지 않으므로(설계서 D27) 드러날 계기는 엔진을 다시 고칠 때다
+- **종류**: 무거운 버그 (검사를 비켜 간다)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 수정분 검증 — 규칙 2 는 F5 를 고칠 때 같은 모양 찾기(계좌 단위는 PLAN_rebalance_month_end 부터 있던 코드, 매매법 단위는 그것을 옮긴 코드), 규칙 1 · 규칙 7 은 규칙 7 재설계의 수정분 검증. 사용자가 미루기로 정함
+
+## 매매법 장부의 cash · cost · target_share 열을 대조하는 검사 규칙이 없다
+
+- **자리**: `src/qbt/backtest/engines/portfolio_engine.py:765` · `:767` · `:769` (장부 행 기록) · `src/qbt/backtest/portfolio_validation.py:465` `_check_method_shares_after_transfer`(목표를 장부 `target_share` 열에서 읽음)
+- **무엇**: 장부의 `equity` · `pnl` · `transfers` 는 규칙 6, `share` 는 규칙 7 이 대조하지만 `cash`(매매법 자본 = 현금 + Σ 주수 × 종가), `cost`(단독 매매 비용 누적), `target_share`(설정의 몫)는 어떤 규칙도 대조하지 않는다. 엔진이 이 열을 잘못 기록해도 통과한다 — 예: 체결일 매매법 현금을 3,000,000 늘린 장부는 규칙 5 · 6 이 잡지 못하고 규칙 7 의 되돌리기 뒤 몫만 반응했다. `cash` 는 규칙 4(매매법) · 규칙 7 이, `target_share` 는 규칙 7 의 되돌리기 뒤 몫이 입력으로 쓰고, `cost` 는 `summary.json` 매매법 요약과 대시보드에 나간다. 2026-10-04 실제 산출물 5개에서 |자본 − (현금 + Σ주수×종가)| 최대 0, `target_share ≠ 설정` 0건(엔진은 맞게 기록한다)
+- **종류**: 가벼운 버그 (검사 범위의 빈틈)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 수정분 검증 F8 과, F3(장부 `share` 열 미대조)을 고칠 때 같은 모양 찾기
+
+## 배분 규칙 매매법이 비중만 조정한 날 리밸런싱 사유가 틀리게 표시된다
+
+- **자리**: `src/qbt/backtest/engines/portfolio_engine.py:632` (계좌 `rebalance_reason_today`) · `scripts/backtest/app_portfolio_backtest.py:1217` (에쿼티 차트 리밸런싱 마커 hover)
+- **무엇**: ① 계좌의 `rebalance_reason` 은 «설정 순서상 처음으로 리밸런싱한 매매법»의 사유다. 배분 규칙 매매법의 비중 조정은 사유가 빈 값이라, 그 매매법이 앞에 있으면 같은 날 다른 매매법의 정기 리밸런싱(`monthly`)을 가린다 — `equity.csv` · 상태 로그에 빈 사유로 남고 체결 전후 표는 「시그널」, 진단 대시보드는 「예」로 보인다. ② 빈 사유는 CSV 에서 NaN 으로 읽혀 `str()` 이 `'nan'` 이 되고 참으로 판정돼, hover 가 비중 조정일을 「리밸런싱 (월초 정기)」로 보인다. 성과 수치는 맞다. 2026-10-04 기준 배분 규칙 등록 0 개, 실제 산출물 5개의 리밸런싱일 빈 사유 0건 — 계획서 ③ 이 HAA 등을 등록하면 바로 나타난다. 아래 「체결 전후 비교」 항목 ②(날 단위 사유 하나로 여러 체결을 대표)와 뿌리가 같다
+- **종류**: 가벼운 버그 (표시만 틀린다)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 1회차 · 2회차
+
+## 같은 매매 데이터를 매매법마다 다른 자산 id 로 들면 상계되지 않는다
+
+- **자리**: `src/qbt/backtest/engines/portfolio_data.py:170` `validate_portfolio_config`(같은 자산 id → 같은 매매 데이터만 검사)
+- **무엇**: 설정 검증은 「같은 자산 id 면 같은 매매 데이터 경로」만 강제하고 반대(같은 경로 · 다른 자산 id)는 막지 않는다. 예: 매매법 q2_2xs 는 `gld`, 매매법 gold 는 `gold` 로 둘 다 GLD 데이터를 들면, 매매법 사이 되돌리기 날 한쪽이 팔고 다른 쪽이 사도 상계 행이 생기지 않아 절감이 빠지고(계좌 손익이 그만큼 낮게 나온다), `account_holdings` 에 같은 종목이 두 줄로 나온다. 경고 없이 검증을 통과한다. 2026-10-04 실제 산출물 5개 설정에서 0건. 계획서 ③ 에서 TLT 를 Q-2-2XS 와 HAA 가 같이 든다(D17)
+- **종류**: 가벼운 버그 (틀린 수치가 에러 없이 나간다)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 1회차
+
+## 매매법이 하나로 바뀐 실험을 다시 돌려도 이전 실행의 ledger.csv · netting.csv 가 남아 대시보드가 낡은 장부를 그린다
+
+- **자리**: `scripts/backtest/run_portfolio_backtest.py:474` `_save_portfolio_results` · `scripts/backtest/app_portfolio_backtest.py:212` `_load_ledger_csv`
+- **무엇**: 러너는 매매법이 여럿일 때만 두 파일을 쓰고, 하나일 때는 지우지 않는다. 대시보드는 파일이 있는지만 보고 「매매법별 손익」 섹션을 그린다. 그래서 매매법이 여럿이던 실험을 `asset_slots`(매매법 하나)로 바꾸거나 같은 `result_dir` 을 재사용해 다시 돌리면, 새 결과와 무관한 매매법 손익 · 몫 추이가 오류 없이 보인다. 2026-10-04 실제 산출물 5개 폴더에서 0건
+- **종류**: 가벼운 버그 (틀린 수치가 에러 없이 보인다)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 2회차
+
+## 배분 규칙의 새 비중을 직전 목표와 float 로 정확히 비교해, 연속값 비중 규칙은 매일 조정 주문을 낸다
+
+- **자리**: `src/qbt/backtest/engines/portfolio_methods.py:274` `generate_allocation_intents`
+- **무엇**: `new_weight != old_targets[asset_id]` 로 목표 변경을 판정한다. 변동성 역가중처럼 연속값 비중을 내는 규칙은 부동소수점 잡음만 다른 비중(0.33333 대 0.3333300000001)에도 매일 REDUCE / INCREASE 의도를 만든다 — 대부분 0주로 끝나 상태 로그에 0주 체결이 쌓이고, 가끔 1주 매매로 비용이 나며 리밸런싱일이 대량으로 생긴다. 계획서 ③ 후보(HAA 0.25 단위 · 로테이션과 EWY 0 또는 1)는 이산 비중이라 해당하지 않는다. 2026-10-04 배분 규칙 등록 0 개
+- **종류**: 가벼운 버그 (불필요한 매매 · 비용이 에러 없이 생긴다)
+- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 2회차
 
 ## 성과 대시보드 「체결 전후 비교」가 매수만 있는 체결일을 빠뜨리고, 같은 날의 신호 체결을 「월초 정기」로 표시한다
 

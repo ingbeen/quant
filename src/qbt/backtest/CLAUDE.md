@@ -98,16 +98,26 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
   - 유효하지 않은 strategy_id는 엔진이 registry 조회 후 ValueError로 처리
   - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`
-- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, asset_slots, total_capital, result_dir)
+- `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
+- `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플, allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
+- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods)
+  - `asset_slots` 와 `methods` 중 정확히 하나를 채운다. `asset_slots` 는 매매법 하나짜리 실험의 줄임 표기이며 `resolve_methods(config)` 가 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다. `methods` 의 몫 합은 1.0
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days)는 슬롯 레벨(AssetSlotConfig)에서 지정한다.
-  - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며, PortfolioConfig에서는 지정하지 않는다.
+  - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며, PortfolioConfig에서는 지정하지 않는다. 매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
+
+자산 키 (결과 파일의 `{asset_id}` 자리):
+
+- `position_key(method_id, asset_id, multi_method)`: 매매법이 하나면 자산 id 그대로(기존 결과 열 이름 유지), 둘 이상이면 `{method_id}.{asset_id}` — 그래서 매매법이 여럿이면 id 에 `.` 를 쓸 수 없다
+- `list_position_keys(config) -> list[PositionKeyInfo]`: 자산 키별 출처(매매법 · 몫 · 자산 id · 슬롯 | None). 검사기 · 러너가 키와 매매법을 잇는 단일 경로
 
 결과 데이터클래스:
 
-- `PortfolioAssetResult`: 자산별 결과 (asset_id, trades_df, signal_df)
-- `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json, state_log_df)
+- `PortfolioAssetResult`: 자산 키별 결과 (asset_id=자산 키, trades_df, signal_df)
+- `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json, state_log_df, ledger_df, netting_df)
+  - `ledger_df`: 날짜 × 매매법 장부 (equity, cash, share, target_share, pnl, cost, transfers, rebalanced, rebalance_reason). 매매법이 하나여도 만든다 — 검사기가 한 경로로 검사한다
+  - `netting_df`: 종목 단위 상계 내역 (날짜 × 자산: gross_shares, net_shares, open_price, savings). 매매법이 여럿일 때만 행이 생긴다
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_current_price, {asset_id}\_return_pct, total_pnl, total_return_pct
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, (매매법이 여럿이면 netting_savings), {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_current_price, {asset_id}\_return_pct, total_pnl, total_return_pct — 계좌 자본 = Σ 매매법 자본 + 상계 절감 누적
 
 파생 뷰 컬럼 (보유 현황·기여도 표시 용도, `build_combined_equity`에서 SSoT로 계산):
 
@@ -119,7 +129,7 @@ equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason
 
 대시보드 등 CLI 계층은 위 파생 컬럼을 직접 읽어 사용하며, 동일한 계산을 자체 수행하지 않는다.
 
-state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_end, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price
+state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_end, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price, (비중변동 매매법 자산만) {aid}\_target_weight. 처리한 의도는 1주 미만이라 0주로 끝나도 executed_intent 에 기록한다(exec_shares 0)
 
 ### 6-1. portfolio_validation.py
 
@@ -129,16 +139,17 @@ PortfolioResult에 대한 정합성 규칙 검증을 제공한다. `run_portfoli
 
 - `validate_portfolio_result(result) -> list[str]`: 아래 규칙을 검증하고 위반 메시지 리스트 반환
 
-검증 규칙: 시그널-체결 1일 lag, 리밸런싱 비중 정합성, EXIT_ALL 주수 0, 현금 비음수, 에쿼티 등식
+검증 규칙: 시그널-체결 1일 lag, 리밸런싱 비중 정합성(매매법 자본 대비), EXIT_ALL 주수 0, 현금 비음수(계좌 · 매매법), 에쿼티 등식, 장부 항등식(Σ 매매법 자본 + 상계 절감 = 계좌 자본, Σ 매매법 손익 + 상계 절감 = 계좌 손익, 매매법 자본 = 초기 몫 + 이전 + 손익), 매매법 사이 되돌리기 정합성(장부 몫 = 매매법 자본 ÷ 매매법 자본 합, 판단일 장부로 다시 계산한 계획 이전과 다음 거래일 실제 이전이 상한 규칙대로 맞음 · 판정이 없던 날은 이전 없음, 되돌리기 뒤 몫)
 
 ### 7. engines/ 패키지
 
 백테스트 엔진을 엔진 공통 로직 / 단일 백테스트 엔진 / 포트폴리오 엔진으로 분리한 패키지입니다.
 `SignalStrategy` Protocol을 통해 전략을 의존성 주입 방식으로 사용하므로, 새 전략 추가 시 엔진 파일 수정이 불필요합니다.
 
-포트폴리오 엔진은 책임 단위의 하위 모듈 4개와 이를 묶는 facade로 분리되어 있다:
+포트폴리오 엔진은 책임 단위의 하위 모듈 5개와 이를 묶는 facade로 분리되어 있다:
 
 - `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
+- `portfolio_methods.py`: 매매법 장부(MethodBook), 배분 변화 의도 · 예상 상태, 매매법 사이 비중 되돌리기(`plan_method_transfers` · `cap_transfers`), 종목 단위 상계(`compute_netting`), 결과 요약(`summarize_methods` · `account_target_weights`)
 - `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 판단일(월 마지막 거래일) 판정 함수
 - `portfolio_execution.py`: 체결 결과(ExecutionResult), SELL→BUY 순 체결 함수
 - `portfolio_data.py`: 데이터 로딩/검증, 에쿼티 DataFrame 빌드 함수
@@ -182,28 +193,32 @@ TypedDict:
 #### engines/portfolio_engine.py
 
 포트폴리오 백테스트 엔진을 제공한다.
-복수 자산의 독립 시그널 + 목표 비중 배분 + 월말 판단 리밸런싱을 처리한다.
+매매법마다 장부(몫 · 현금 · 보유 주수 · 손익)를 두고, 매매법별 신호(슬롯 전략 | 배분 규칙) + 목표 비중 배분 + 월말 판단 리밸런싱을 처리한다. 매매법이 여럿이면 매매법 사이 비중 되돌리기와 종목 단위 상계를 더한다. 매매법이 하나인 실험은 장부 하나가 곧 계좌다.
 
 데이터클래스 (각 하위 모듈에 정의, portfolio_engine.py가 import하여 사용):
 
 - `OrderIntent` (portfolio_planning.py): 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
   - intent_type: `EXIT_ALL` (signal sell 전량 청산) / `ENTER_TO_TARGET` (signal buy 신규 진입) / `REDUCE_TO_TARGET` (rebalance 초과분 매도) / `INCREASE_TO_TARGET` (rebalance 미달분 매수)
-- `ProjectedPortfolio` (portfolio_planning.py): signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets, entering_assets)
+- `ProjectedPortfolio` (portfolio_planning.py): signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets, check_excluded_assets)
   - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
-  - ENTER_TO_TARGET 자산은 active_assets와 entering_assets에 추가 (position=0이므로 amount=0 유지)
+  - ENTER_TO_TARGET 자산은 active_assets와 check_excluded_assets에 추가 (position=0이므로 amount=0 유지)
+  - check_excluded_assets: 그날 신호 · 배분 규칙으로 들어오거나 목표 비중이 바뀐 자산 — 리밸런싱 편차 판정에서 뺀다
+- `MethodBook` (portfolio_methods.py): 매매법 하나의 장부 (현금 · 자산 키별 상태 · 진입 정보 · 실현손익 · 목표 비중 · 장부 비용 · 이전 누적 · 다음 날 의도)
 - `AssetState` (portfolio_types.py): 자산별 런타임 상태 (position, signal_state)
 - `ExecutionResult` (portfolio_execution.py): `execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
 - `RebalancePolicy` (portfolio_rebalance.py): 월말 판단 리밸런싱 정책 (frozen=True)
   - `threshold_rate`: 목표 비중 대비 상대 편차 임계값
-  - `should_rebalance(projected, slot_dict, total_equity_projected) -> bool`: 임계값 초과 여부 판정 (판단일 여부는 엔진이 정한다). entering_assets(그날 진입 신호 자산)는 판정에서 뺀다
-  - `build_rebalance_intents(projected, slot_dict, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성)
+  - `should_rebalance(projected, target_weights, total_equity_projected) -> bool`: 임계값 초과 여부 판정 (판단일 여부는 엔진이 정한다). check_excluded_assets 는 판정에서 뺀다
+  - `build_rebalance_intents(projected, target_weights, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성). target_weights 순서로 돈다
+  - target_weights 는 매매법 자본 대비 {자산 키: 목표 비중} (슬롯 매매법은 슬롯 비중, 비중변동 매매법은 그날 배분)
 - `DEFAULT_REBALANCE_POLICY` (portfolio_rebalance.py): 기본 RebalancePolicy 인스턴스. `run_portfolio_backtest`에서 사용하며, 임계값은 이 상수 정의를 참조
 
 주문 흐름 함수 (portfolio_planning.py / portfolio_execution.py):
 
 - `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
 - `compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
-- `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과)
+- `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과). 삽입 순서(신호 → 리밸런싱)로 돈다
+- `generate_allocation_intents(old_targets, new_targets, positions, equity_vals, method_equity)` · `compute_allocation_projection(targets, allocation_intents, equity_vals, cash)` (portfolio_methods.py): 배분 규칙의 목표 변화 → 청산(목표 0) · 진입(보유 0) · 조정(목표 변경) 의도와 예상 상태. 진입 · 조정 자산은 판정에서 뺀다
 - `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다. order_intents에 있는 자산이 `open_prices`에 누락되면 `RuntimeError("내부 불변조건 위반")` 발생 — 호출부가 동일 자산 집합으로 채워야 한다는 호출 계약을 강제한다
 
 공개 함수 (portfolio_engine.py facade + 하위 모듈):
@@ -217,7 +232,11 @@ TypedDict:
 설계 특징:
 
 - 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
-- 흐름: Signal → ProjectedPortfolio → Rebalance → MergeIntents → Execution (next_day_intents)
+- 흐름: Signal(슬롯 전략 | 배분 규칙) → ProjectedPortfolio → (월말: 매매법 사이 판정) → Rebalance → MergeIntents → Execution (next_day_intents)
+- 체결 순서: 전 매매법 SELL → 매매법 사이 이전 → 전 매매법 BUY (매매법별 execute_orders). 이전은 내주는 쪽의 매도 뒤 현금 안에서만 하고 모자라면 받는 쪽을 계획 비율대로 줄인다 — 어느 장부도 현금 음수 없음
+- 매매법 사이 비중: 월 마지막 거래일에 어느 매매법이든 몫(매매법 자본 합 대비)의 상대 편차가 임계값을 넘으면 전 매매법을 목표 몫으로 되돌리고 각자 보유 종목 전부를 새 몫으로 맞춘다(사유 "methods")
+- 종목 단위 상계: 매매법 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × SLIPPAGE_RATE 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음)
+- 같은 날 체결 순서는 설정 순서로 고정된다 — 집합 순서(문자열 해시 무작위화)로 돌면 같은 코드에서도 결과 파일이 실행마다 달랐다
 - TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
 - 월말 판단 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 마지막 거래일 종가에 판단해 다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 판단일에 진입 신호가 난 자산은 편차 판정에서 빠진다 — 남은 자산의 편차가 임계값을 넘을 때만 리밸런싱하고, 그때는 진입 자산까지 맞춘다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
@@ -239,6 +258,16 @@ TypedDict:
 주요 함수:
 
 - `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
+
+---
+
+### 8-1. allocator_registry.py
+
+비중이 바뀌는 매매법(AllocatorMethodConfig)의 배분 규칙 레지스트리. `strategy_registry.py` 와 같은 모양이며, 새 배분 규칙(HAA 등)은 여기 등록하고 엔진은 고치지 않는다.
+
+- `WeightAllocator` Protocol: `target_weights(data, i, current_date, is_check_day) -> Mapping[str, float] | None` — i 행 종가 기준 매매법 자본 대비 목표 비중(합 1 이하, 없는 자산 0). None 은 목표 변경 없음. data 는 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키), is_check_day 는 월 마지막 거래일 여부
+- `AllocatorSpec` (frozen=True): allocator_id, create_allocator(method) → WeightAllocator, get_warmup_periods(method) → int (ma_window 와 같은 뜻)
+- `ALLOCATOR_REGISTRY: dict[str, AllocatorSpec]` — 등록된 규칙 목록은 이 모듈을 직접 확인할 것
 
 ---
 
@@ -544,6 +573,7 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
 - **전체 비교 탭 주요 기능**: 성과 지표 비교 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교
 - **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
+- **매매법이 여럿인 실험**: 기존 섹션은 자산 키(「매매법.종목」) 단위로 그대로 보이고, `ledger.csv` 가 있으면 「매매법별 손익」 섹션(매매법별 누적 손익 · 몫과 목표 몫 추이 · 최종일 매매법 요약 · 매매법 × 종목 손익 · 손익 대조 · 계좌 종목 합계)을 더한다. 숫자는 러너가 summary.json 에 미리 계산한다
 - **미청산 포지션 Buy 마커**: summary.json의 `per_asset[*].open_position`(= `{entry_date, entry_price, shares}`) 존재 시 시그널 차트에 `"Buy $XX.X (보유중)"` 마커를 표시. 단일 백테스트 대시보드(`summary.open_position`)와 동일 규약이며, 포트폴리오에서는 자산별 키(`per_asset`)에 담긴다. `run_portfolio_backtest.py`가 equity.csv의 `{asset_id}_shares` 변화(0→양수 마지막 전환)에서 `entry_date`를 파생하여 저장한다.
 
 선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요

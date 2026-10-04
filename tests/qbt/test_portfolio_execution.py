@@ -183,14 +183,12 @@ class TestPartialSellInvariant:
             projected_cash=400_000.0,
             active_assets={"qqq"},
         )
-        slot_dict = {
-            "qqq": AssetSlotConfig("qqq", Path("dummy"), Path("dummy"), target_weight=0.40),
-        }
+        target_weights = {"qqq": 0.40}
         total_equity = 1_000_000.0
 
         # When: QQQ 60% vs target 40% → 50% 편차 > 10% → build_rebalance_intents 직접 호출
         policy = RebalancePolicy(threshold_rate=0.10)
-        result = policy.build_rebalance_intents(projected, slot_dict, total_equity, current_date=date(2024, 1, 2))
+        result = policy.build_rebalance_intents(projected, target_weights, total_equity, current_date=date(2024, 1, 2))
 
         # Then: REDUCE_TO_TARGET, delta_amount = 400,000 - 600,000 = -200,000 (전량 아닌 초과분)
         assert "qqq" in result

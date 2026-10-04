@@ -44,15 +44,16 @@ class ProjectedPortfolio:
 
     signal intents를 적용한 뒤 리밸런싱 기준이 되는 "예상" 포트폴리오를 나타낸다.
     EXIT_ALL 자산의 평가액은 projected_cash로 이동하고, active_assets에서 제거된다.
-    ENTER_TO_TARGET 자산은 active_assets와 entering_assets에 추가된다 (아직 position=0이므로 amount=0).
+    ENTER_TO_TARGET 자산은 active_assets와 check_excluded_assets에 추가된다 (아직 position=0이므로 amount=0).
     """
 
     projected_amounts: dict[str, float]  # {asset_id: 예상 평가액}
     projected_cash: float  # EXIT_ALL 매도 예상 대금 포함 현금
     active_assets: set[str]  # 리밸런싱 대상 자산 집합 (signal_state == "buy" 기준)
-    # 그날 진입 신호가 난 자산. 보유가 0 이라 편차가 100% 로 계산되므로 리밸런싱 판정에서 뺀다
+    # 그날 신호 · 배분 규칙으로 들어오거나 목표 비중이 바뀐 자산. 리밸런싱 편차 판정에서 뺀다 —
+    # 진입 자산은 보유가 0 이라 편차가 100% 로 계산되고, 조정 자산은 그날 이미 목표로 매매한다
     # (결정 근거: docs/research/전략_검증_보고서.md 부록 L.5)
-    entering_assets: set[str] = field(default_factory=set)
+    check_excluded_assets: set[str] = field(default_factory=set)
 
 
 def create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
@@ -180,7 +181,7 @@ def compute_projected_portfolio(
     signal intent 실행 결과를 반영하여 리밸런싱의 기준이 되는 projected 상태를 구성한다.
 
     - EXIT_ALL 자산: projected_amounts[asset_id]=0, active에서 제거, cash 증가 (현재 평가액 추가)
-    - ENTER_TO_TARGET 자산: active와 entering에 추가 (아직 position=0이므로 projected_amounts=0 유지)
+    - ENTER_TO_TARGET 자산: active와 check_excluded에 추가 (아직 position=0이므로 projected_amounts=0 유지)
     - 기타 자산: 현재 상태 유지
 
     Args:
@@ -190,7 +191,7 @@ def compute_projected_portfolio(
         shared_cash: 현재 미투자 현금
 
     Returns:
-        ProjectedPortfolio (projected_amounts, projected_cash, active_assets, entering_assets)
+        ProjectedPortfolio (projected_amounts, projected_cash, active_assets, check_excluded_assets)
     """
     # 현재 active_assets: signal_state == "buy"인 자산
     active_assets: set[str] = {aid for aid, st in asset_states.items() if st.signal_state == "buy"}
@@ -207,7 +208,7 @@ def compute_projected_portfolio(
     # projected_amounts: 현재 평가액에서 시작
     projected_amounts: dict[str, float] = {aid: equity_vals[aid] for aid in asset_states}
     projected_cash = shared_cash
-    entering_assets: set[str] = set()
+    check_excluded_assets: set[str] = set()
 
     for asset_id, intent in signal_intents.items():
         if intent.intent_type == "EXIT_ALL":
@@ -219,14 +220,14 @@ def compute_projected_portfolio(
         elif intent.intent_type == "ENTER_TO_TARGET":
             # 신규 진입 예정: active에 추가 (아직 position=0)
             active_assets.add(asset_id)
-            entering_assets.add(asset_id)
+            check_excluded_assets.add(asset_id)
             # projected_amounts[asset_id]는 0.0 유지 (position 없음)
 
     return ProjectedPortfolio(
         projected_amounts=projected_amounts,
         projected_cash=projected_cash,
         active_assets=active_assets,
-        entering_assets=entering_assets,
+        check_excluded_assets=check_excluded_assets,
     )
 
 
@@ -253,7 +254,9 @@ def merge_intents(
         {asset_id: OrderIntent} — 자산당 1개 보장
     """
     merged: dict[str, OrderIntent] = {}
-    all_assets = set(signal_intents) | set(rebalance_intents)
+    # 집합 대신 삽입 순서(신호 → 리밸런싱)로 돈다. 이 순서가 같은 날 체결 순서가 되는데, 집합은
+    # 문자열 해시 무작위화로 실행마다 순서가 바뀌어 같은 코드에서도 결과 파일이 달라졌다
+    all_assets = list(dict.fromkeys([*signal_intents, *rebalance_intents]))
 
     for asset_id in all_assets:
         sig = signal_intents.get(asset_id)

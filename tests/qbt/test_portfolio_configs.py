@@ -4,17 +4,20 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 
 테스트 계약:
 1. PORTFOLIO_CONFIGS 개수 > 0
-2. 모든 config의 target_weight 합 <= 1.0
-3. 모든 config에서 asset_id 중복 없음
+2. 모든 config의 슬롯 매매법 target_weight 합 <= 1.0
+3. 모든 config의 매매법 안에서 asset_id 중복 없음
 4. D-1: QQQ 100% 전액 투자
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
 6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
+8. Q-2-2XS + 금 예시: 매매법 2개(0.70 / 0.30), Q-2-2XS 슬롯 그대로 + GLD 보유 1.0
 """
 
 import pytest
 
+from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
+from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
 
 
 class TestPortfolioConfigsList:
@@ -39,8 +42,13 @@ class TestPortfolioConfigsList:
         Then:  모든 config에서 합 <= 1.0
         """
         for config in PORTFOLIO_CONFIGS:
-            total = sum(slot.target_weight for slot in config.asset_slots)
-            assert total <= 1.0 + 1e-9, f"{config.experiment_name}: target_weight 합이 1.0을 초과했습니다 ({total:.6f})"
+            for method in resolve_methods(config):
+                if not isinstance(method, SlotMethodConfig):
+                    continue
+                total = sum(slot.target_weight for slot in method.asset_slots)
+                assert (
+                    total <= 1.0 + 1e-9
+                ), f"{config.experiment_name}.{method.method_id}: target_weight 합이 1.0을 초과했습니다 ({total:.6f})"
 
     def test_all_portfolio_configs_no_duplicate_asset_ids(self) -> None:
         """
@@ -51,9 +59,14 @@ class TestPortfolioConfigsList:
         Then:  set의 크기 == 리스트의 크기 (중복 없음)
         """
         for config in PORTFOLIO_CONFIGS:
-            asset_ids = [slot.asset_id for slot in config.asset_slots]
-            unique_ids = set(asset_ids)
-            assert len(unique_ids) == len(asset_ids), f"{config.experiment_name}: asset_id 중복이 있습니다: {asset_ids}"
+            for method in resolve_methods(config):
+                if isinstance(method, SlotMethodConfig):
+                    asset_ids = [slot.asset_id for slot in method.asset_slots]
+                else:
+                    asset_ids = [asset.asset_id for asset in method.assets]
+                assert len(set(asset_ids)) == len(
+                    asset_ids
+                ), f"{config.experiment_name}: asset_id 중복이 있습니다: {asset_ids}"
 
     def test_all_experiment_names_unique(self) -> None:
         """
@@ -150,6 +163,31 @@ class TestQSeriesConfigs:
         tlt_slot = next(s for s in config.asset_slots if s.asset_id == "tlt")
         assert gld_slot.trade_data_path == GLD_DATA_PATH
         assert tlt_slot.trade_data_path == TLT_DATA_PATH
+
+
+class TestQ22xsGold30Config:
+    """Q-2-2XS 70% + 금 30% 예시 실험 (매매법 2개) 계약 테스트."""
+
+    def test_two_methods_with_q2_2xs_slots_and_gold(self) -> None:
+        """
+        목적: 예시 실험이 Q-2-2XS 슬롯 그대로의 매매법 0.70 과 GLD 보유 1.0 매매법 0.30 으로 이뤄져 있다.
+
+        When:  get_portfolio_config("portfolio_q2_2xs_gold30")
+        Then:  매매법 (q2_2xs 0.70, gold 0.30), q2_2xs 슬롯 = Q-2-2XS 슬롯, gold = gld buy_and_hold 1.0, 설정 검증 통과
+        """
+        config = get_portfolio_config("portfolio_q2_2xs_gold30")
+        q2_2xs = get_portfolio_config("portfolio_q2_2xs")
+
+        methods = resolve_methods(config)
+        assert [(m.method_id, m.target_weight) for m in methods] == [("q2_2xs", 0.70), ("gold", 0.30)]
+        q2_method, gold_method = methods
+        assert isinstance(q2_method, SlotMethodConfig)
+        assert isinstance(gold_method, SlotMethodConfig)
+        assert q2_method.asset_slots == q2_2xs.asset_slots
+        assert [(s.asset_id, s.target_weight, s.strategy_id) for s in gold_method.asset_slots] == [
+            ("gld", 1.0, "buy_and_hold")
+        ]
+        validate_portfolio_config(config)
 
 
 class TestGetPortfolioConfig:

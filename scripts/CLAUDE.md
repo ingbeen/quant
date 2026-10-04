@@ -141,6 +141,7 @@ main 함수:
     - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all). 실험 목록은 변경 빈도가 높아 본 문서에 직접 명시하지 않으며, 최신 값은 `src/qbt/backtest/portfolio_configs.py`의 `PORTFOLIO_CONFIGS`를 직접 확인할 것.
     - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
+    - 매매법이 여럿인 실험: 자산 키가 `{method_id}.{asset_id}` 이고 ledger.csv(매매법별 장부) · netting.csv(종목 단위 상계 내역)와 summary.json 의 per_method · netting · account_holdings · pnl_check 를 더한다. 계산은 `src/`(portfolio_methods 의 summarize_methods · account_target_weights)가 하고 러너는 반올림 · 저장만 한다
     - 메타데이터 타입: `"portfolio_backtest"`
     - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다. 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
     - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다.
@@ -173,6 +174,7 @@ main 함수:
     - 주요 섹션:
       - 전체 비교 탭: 성과 지표 비교 테이블, 에쿼티 곡선 비교, 드로우다운 비교
       - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
+      - 매매법이 여럿인 실험(ledger.csv 존재): 「매매법별 손익」 섹션 추가
   - `app_portfolio_debug.py`: 포트폴리오 디버그 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (state_log.csv 로드)
     - 목적: 엔진 내부 상태(시그널/intent/체결) 일별 추적, 정합성 시각적 검증
