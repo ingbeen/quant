@@ -61,6 +61,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 - `"portfolio_grid"`: 보완 전략 비중 그리드 (실행 수 · 묶음별 기간 · 통과 후보)
 - `"long_proxy_series"`: 장기 대체 시계열 생성 (파일별 출처 · 이음매 날짜 · 스케일, 2배 합성의 배율 · 비용 모델)
 - `"proxy_comparison"`: 대체-실물 비교 (쌍 목록 · 기간 행 수 · 이동 상관 창)
+- `"portfolio_combo_grid"`: Q-2-2XS + HAA + 로테이션 조합 그리드 (실행 수 · 묶음별 기간 · 판정 기준별 통과 · 덩어리)
 
 근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
 
@@ -162,6 +163,10 @@ main 함수:
     - 실행마다 정합성 검사기를 돌려 위반이 있으면 그 구성과 함께 ERROR 로그를 남기고 중단한다 (포트폴리오 러너와 같은 정책). 실제 시작일이 묶음 시작일과 다르면 워커가 멈춘다
     - 결과: `storage/results/portfolio_grid/` 의 `grid_runs.csv` · `judgment.csv` · `proxy_gate.csv` (한글 헤더, UTF-8 BOM — 사람이 읽는 산출물이고 대시보드는 읽지 않는다)
     - 메타데이터 타입: `"portfolio_grid"`
+  - `run_combo_grid.py`: 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 비중 격자를 대체 판 · 이어 붙인 판 · 완전 실물판(과 대체 판 확인용 겹침 묶음)으로 돌리고, 같은 합계의 기준선 · HAA 단독 · 로테이션 단독 · Q-2-2XS 단독을 함께 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대체 판 확인 계산은 `src/qbt/backtest/combo_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
+    - 정합성 위반 · 실제 시작일 처리는 `run_supplement_grid.py` 와 같다
+    - 결과: `storage/results/portfolio_combo_grid/` 의 `combo_runs.csv` · `combo_judgment.csv` · `combo_alt_check.csv` (한글 헤더, UTF-8 BOM)
+    - 메타데이터 타입: `"portfolio_combo_grid"`
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

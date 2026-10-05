@@ -288,11 +288,24 @@ TypedDict:
 보완 전략 실험 — 「Q-2-2XS (100−w)% + 후보 w%」 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 러너(`scripts/backtest/run_supplement_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5).
 
 - `build_experiment_config(q2_2xs_slots, candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. Q-2-2XS 슬롯을 인자로 받는다 — `portfolio_configs` 가 이 함수로 등록 실험을 만들어, 여기서 `portfolio_configs` 를 import 하면 순환한다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
-- `build_grid_cases()` · `run_grid_case(case, q2_2xs_slots)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다. 실제 시작일이 묶음 시작일과 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다
-- `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율
+  - **대체 판(`VARIANT_ALT`)**: 실물판 설정을 만든 뒤 `ALT_PATH_MAP`(실물 파일 → 대체 파일)으로 슬롯 · 배분 자산의 신호 · 매매 경로와 신호용 시세를 모두 바꾼다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 `tlt` 가 같은 대체 파일로 남는다(상계 조건). 바꾼 뒤 대체 파일이나 SPY · QQQ · IWM 이 아닌 경로가 남으면 ValueError. Q-2-2XS 단독 · 기준선 · HAA · 로테이션만 받는다
+- `build_combo_config(q2_2xs_slots, haa_pct, rotation_pct, variant, start_date)`: 조합 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 설정(매매법 셋, Q-2-2XS 가 앞). h · r 는 `COMBO_PCTS`, 판은 이어 붙인 판 · 실물판 · 대체 판. HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다
+- `build_grid_cases()` · `run_grid_case(case, q2_2xs_slots)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다
+- `run_with_start_check(config, start_date)`: 실행하고 실제 시작일이 start_date 와 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다. 단독 · 조합 워커가 같이 쓴다
+- `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율. 국면은 `ALL_PHASE_WINDOWS`(2007 이후 `PHASE_WINDOWS` + 대체 판에만 기간 안인 `EARLY_PHASE_WINDOWS`)를 다 계산하고, 단독 그리드 러너는 `PHASE_WINDOWS` 만 열로 쓴다
 - `extract_decision_targets` · `decision_agreement`: 신호 일치율 — 월 마지막 거래일 다음 거래일의 목표 비중만 비교한다(날마다 세면 월 1회 판단이 부풀려진다)
 - `compute_advantages` · `judge` · `gate_agreement`: 같은 시작일 · 같은 w 의 기준선 대비 Calmar 우위, 통과 판정(두 기간 모두 높은 w 가 연속 3단계 이상, 엄격한 `>`), 대용판 · 실물판 판정 일치
 - `collect_judgments` · `collect_gates`: 어느 실행을 어느 실행과 비교하는지 모은다. 대용을 쓰는 후보는 판정 기준 둘(주 비교 + 보조 / 보조만)을 모두 낸다 — 그리드가 대용 탈락 여부(사용자 판단)보다 먼저 돈다
+
+### 8-4. combo_experiment.py
+
+조합 실험 — 「Q-2-2XS + HAA + 로테이션」 비중 격자(HAA · 로테이션 각 `COMBO_PCTS`)를 묶음(대체 판 · 이어 붙인 판 · 완전 실물판 · 대체 판 겹침)마다 돌리는 실행 목록 · 워커 · 판정 · 대체 판 확인. 구성은 `supplement_experiment` 의 두 구성 함수가 만들고, 러너(`scripts/backtest/run_combo_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D55 – D57 · D62 – D70, 9.6).
+
+- `build_combo_cases()` · `build_case_config(q2_2xs_slots, case)` · `run_combo_case(case, q2_2xs_slots)`: 묶음마다 조합 칸 전부 + 같은 합계(`W_PCTS`)의 기준선 · HAA 단독 · 로테이션 단독 + Q-2-2XS 단독. 워커는 요약 · 위반 · 배분 규칙 매매법별 판단 비중표만 돌려준다
+- `compute_combo_advantages`: 칸마다 같은 묶음 · 같은 합계의 셋(기준선 · HAA 단독 · 로테이션 단독) 대비 Calmar 우위. 비교 상대가 없거나 실제 기간이 다르면 ValueError. `CellAdvantage.above` = 셋 모두보다 엄격히 높다
+- `find_clusters` · `judge_combo`: 「높음」 칸이 상하좌우로 이어진 3칸 이상 덩어리(대각선은 이웃이 아니다). 판정 기준이 여러 묶음을 쓰면 모두에서 높은 칸만 센다
+- `collect_combo_judgments`: 판정 기준(`BASIS_GROUPS`) — 판 하나씩의 지도(보고용)와 판정(`BASIS_JUDGMENT` = 이어 붙인 판 · 완전 실물판 둘 다)
+- `collect_alt_check`: 대체 판 겹침과 이어 붙인 판의 칸별 「높음」 일치 · 조합 실행의 HAA · 로테이션 월말 판단 일치율. 보고용이고 관문이 아니다
 
 ---
 

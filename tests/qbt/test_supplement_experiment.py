@@ -1,7 +1,8 @@
 """보완 전략 실험 모듈 테스트
 
 Q-2-2XS (100−w)% + 후보 w% 비중 그리드의 구성 만들기 · 실행 목록 · 지표 · 신호 일치율 ·
-기준선 대비 우위 · 통과 판정(D24 · D47) · 대용 검증(D23 · D41 · D48)의 계약을 검증한다.
+기준선 대비 우위 · 통과 판정(D24 · D47) · 대용 검증(D23 · D41 · D48)의 계약과,
+조합 실험(D55 – D69)이 쓰는 대체 판 · 조합 구성 · 2001 – 2007 국면 구간의 계약을 검증한다.
 
 왜 중요한가요?
 통과 · 탈락은 사용자가 이 숫자를 보고 정한다. 비교 상대(같은 시작일 · 같은 w 의 기준선),
@@ -9,6 +10,7 @@ Q-2-2XS (100−w)% + 후보 w% 비중 그리드의 구성 만들기 · 실행 �
 판정이 에러 없이 바뀐다.
 """
 
+import dataclasses
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -29,17 +31,39 @@ from qbt.backtest.portfolio_types import (
 )
 from qbt.common_constants import (
     BIL_DATA_PATH,
+    BIL_PROXY_DATA_PATH,
     BIL_SYNTHETIC_DATA_PATH,
     COL_DATE,
     DBC_DATA_PATH,
+    DBC_SYNTHETIC_DATA_PATH,
     EFA_DATA_PATH,
     GLD_DATA_PATH,
+    GOLD_FUTURES_DATA_PATH,
+    IEF_DATA_PATH,
+    IWM_DATA_PATH,
     PDBC_DATA_PATH,
     PDBC_SYNTHETIC_DATA_PATH,
+    QLD_DATA_PATH,
+    QLD_PROXY_DATA_PATH,
+    QQQ_DATA_PATH,
     SHY_DATA_PATH,
+    SPY_DATA_PATH,
+    SSO_DATA_PATH,
+    SSO_PROXY_DATA_PATH,
+    TIP_DATA_PATH,
     TLT_DATA_PATH,
     VEA_DATA_PATH,
     VEA_SYNTHETIC_DATA_PATH,
+    VEIEX_DATA_PATH,
+    VFISX_DATA_PATH,
+    VFITX_DATA_PATH,
+    VGSIX_DATA_PATH,
+    VGTSX_DATA_PATH,
+    VIPSX_DATA_PATH,
+    VNQ_DATA_PATH,
+    VTMGX_DATA_PATH,
+    VUSTX_DATA_PATH,
+    VWO_DATA_PATH,
     VXUS_DATA_PATH,
     VXUS_PROXY_DATA_PATH,
     VXUS_SYNTHETIC_DATA_PATH,
@@ -84,6 +108,28 @@ def _advantages(values: list[float]) -> dict[int, float]:
 
 def _targets(dates: list[date], rows: list[dict[str, float]]) -> pd.DataFrame:
     return pd.DataFrame(rows, index=pd.Index(dates, name=COL_DATE))
+
+
+def _config_paths(config: PortfolioConfig) -> set[Path]:
+    """설정이 가리키는 모든 시세 경로 — 데이터클래스 필드를 재귀로 훑어 Path 값을 모은다(결과 폴더는 뺀다).
+
+    필드를 손으로 나열하지 않는다 — 설정 타입에 경로 칸이 새로 생겨도 대체 판 검사에서 빠지지 않게.
+    """
+    paths: set[Path] = set()
+
+    def visit(value: object) -> None:
+        if isinstance(value, Path):
+            paths.add(value)
+        elif isinstance(value, tuple):
+            for item in value:
+                visit(item)
+        elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+            for f in dataclasses.fields(value):
+                if f.name != "result_dir":
+                    visit(getattr(value, f.name))
+
+    visit(config)
+    return paths
 
 
 def _fake_results(
@@ -313,6 +359,295 @@ class TestBuildExperimentConfig:
             se.build_experiment_config(_Q2_SLOTS, candidate, w_pct, variant, _START)
 
 
+# 대체 판 후보 — 조합 실험(D55)에 쓰는 것만 대체 판을 받는다 (D69 ③)
+_ALT_CANDIDATES: list[tuple[str, int]] = [
+    (se.CANDIDATE_Q2_2XS, 0),
+    (se.CANDIDATE_BASELINE, 30),
+    (se.CANDIDATE_HAA, 30),
+    (se.CANDIDATE_ROTATION, 30),
+]
+# 2000-08-30 전부터 실물이 있어 대체 판에서도 그대로 쓰는 시세
+_KEPT_REAL_PATHS = {SPY_DATA_PATH, QQQ_DATA_PATH, IWM_DATA_PATH}
+
+
+class TestAltVariant:
+    """대체 판 — 실물판 설정의 경로를 「실물 파일 → 대체 파일」 표 하나로 바꾼다 (D57 · D59 · D69 ②)."""
+
+    def test_path_map_is_the_planned_table(self) -> None:
+        """
+        목적: 대체 판 경로 표가 설계서 8.4 의 13종이다 — 원자재는 실물판의 DBC → PDBC 이어 붙인 판을 GSCI → DBC 로 바꾼다.
+
+        Given: 경로 표
+        When:  그대로 읽는다
+        Then:  13줄이 계획한 짝과 같다
+        """
+        # Then
+        assert se.ALT_PATH_MAP == {
+            SSO_DATA_PATH: SSO_PROXY_DATA_PATH,
+            QLD_DATA_PATH: QLD_PROXY_DATA_PATH,
+            GLD_DATA_PATH: GOLD_FUTURES_DATA_PATH,
+            TLT_DATA_PATH: VUSTX_DATA_PATH,
+            VEA_DATA_PATH: VTMGX_DATA_PATH,
+            VWO_DATA_PATH: VEIEX_DATA_PATH,
+            VNQ_DATA_PATH: VGSIX_DATA_PATH,
+            PDBC_SYNTHETIC_DATA_PATH: DBC_SYNTHETIC_DATA_PATH,
+            IEF_DATA_PATH: VFITX_DATA_PATH,
+            BIL_DATA_PATH: BIL_PROXY_DATA_PATH,
+            TIP_DATA_PATH: VIPSX_DATA_PATH,
+            VXUS_DATA_PATH: VGTSX_DATA_PATH,
+            SHY_DATA_PATH: VFISX_DATA_PATH,
+        }
+
+    def test_alt_configs_use_only_alt_files_and_kept_real(self) -> None:
+        """
+        목적: 대체 판 설정에는 대체 파일과 SPY · QQQ · IWM 만 남는다 — 하나라도 실물이 남으면 「대체 판」이 실물 일부로 돈다.
+
+        Given: Q-2-2XS 단독 · 기준선 · HAA · 로테이션
+        When:  대체 판 설정을 만든다
+        Then:  모든 경로가 (표의 대체 파일 ∪ SPY · QQQ · IWM) 안에 있다
+        """
+        # Given
+        allowed = set(se.ALT_PATH_MAP.values()) | _KEPT_REAL_PATHS
+
+        for candidate, w in _ALT_CANDIDATES:
+            # When
+            config = se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START)
+
+            # Then
+            assert _config_paths(config) <= allowed, candidate
+
+    def test_every_table_row_is_used(self) -> None:
+        """
+        목적: 표의 13줄이 모두 쓰인다 — 실물판 네 설정이 쓰는 파일이 표의 왼쪽과 SPY · QQQ · IWM 로 정확히 덮인다.
+
+        Given: Q-2-2XS 단독 · 기준선 · HAA · 로테이션의 실물판 · 대체 판 설정
+        When:  경로를 모은다
+        Then:  실물판 합집합 = 표 왼쪽 ∪ 남기는 실물, 대체 판 합집합 = 표 오른쪽 ∪ 남기는 실물
+        """
+        # When
+        real_paths: set[Path] = set()
+        alt_paths: set[Path] = set()
+        for candidate, w in _ALT_CANDIDATES:
+            real_paths |= _config_paths(se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_REAL, _START))
+            alt_paths |= _config_paths(se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START))
+
+        # Then
+        assert real_paths == set(se.ALT_PATH_MAP) | _KEPT_REAL_PATHS
+        assert alt_paths == set(se.ALT_PATH_MAP.values()) | _KEPT_REAL_PATHS
+
+    def test_q2_2xs_slots_keep_index_signals(self) -> None:
+        """
+        목적: Q-2-2XS 의 SSO · QLD 는 매매만 2배 합성으로 바뀌고 신호는 SPY · QQQ 실물 그대로다 (D57 ①).
+
+        Given: Q-2-2XS 단독 대체 판
+        When:  구성을 만든다
+        Then:  (신호, 매매) — sso (SPY, SSO 합성) · qld (QQQ, QLD 합성) · gld (금 선물 둘) · tlt (VUSTX 둘)
+        """
+        # When
+        config = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
+
+        # Then
+        assert {s.asset_id: (s.signal_data_path, s.trade_data_path) for s in config.asset_slots} == {
+            "sso": (SPY_DATA_PATH, SSO_PROXY_DATA_PATH),
+            "qld": (QQQ_DATA_PATH, QLD_PROXY_DATA_PATH),
+            "gld": (GOLD_FUTURES_DATA_PATH, GOLD_FUTURES_DATA_PATH),
+            "tlt": (VUSTX_DATA_PATH, VUSTX_DATA_PATH),
+        }
+
+    def test_shared_tlt_is_same_alt_file(self) -> None:
+        """
+        목적: Q-2-2XS 와 HAA 의 tlt 가 대체 판에서도 같은 파일(VUSTX)이다 — 같은 자산 id 는 같은 매매 데이터여야 상계된다 (D17).
+
+        Given: HAA 대체 판
+        When:  구성을 만든다
+        Then:  Q-2-2XS 슬롯 tlt 와 HAA 자산 tlt 의 매매 경로가 둘 다 VUSTX, 설정 검증 통과
+        """
+        # When
+        config = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, se.VARIANT_ALT, _START)
+
+        # Then
+        q2, haa = config.methods
+        assert isinstance(q2, SlotMethodConfig)
+        assert isinstance(haa, AllocatorMethodConfig)
+        assert {s.asset_id: s.trade_data_path for s in q2.asset_slots}["tlt"] == VUSTX_DATA_PATH
+        assert {a.asset_id: a.trade_data_path for a in haa.assets}["tlt"] == VUSTX_DATA_PATH
+        validate_portfolio_config(config)
+
+    def test_alt_names_and_validation(self) -> None:
+        """
+        목적: 대체 판 이름은 접미사 _alt 이고 네 후보 모두 엔진 설정 검증을 통과한다.
+
+        Given: 네 후보의 대체 판
+        When:  구성을 만든다
+        Then:  이름이 _alt 로 끝나고 검증 예외 없음
+        """
+        for candidate, w in _ALT_CANDIDATES:
+            # When
+            config = se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START)
+
+            # Then
+            assert config.experiment_name.endswith("_alt")
+            validate_portfolio_config(config)
+
+    def test_unmapped_path_raises(self) -> None:
+        """
+        목적: 경로 표에 없고 그대로 써도 되는 실물(SPY · QQQ · IWM)도 아닌 파일이 남으면 ValueError — 조용히 실물로 돌지 않는다.
+
+        Given: TLT 슬롯을 표에 없는 EFA 파일로 바꾼 Q-2-2XS 슬롯
+        When:  Q-2-2XS 단독 대체 판 구성을 만든다
+        Then:  ValueError
+        """
+        # Given
+        slots = tuple(
+            dataclasses.replace(s, signal_data_path=EFA_DATA_PATH, trade_data_path=EFA_DATA_PATH)
+            if s.asset_id == "tlt"
+            else s
+            for s in _Q2_SLOTS
+        )
+
+        # When / Then
+        with pytest.raises(ValueError, match="대체 판 경로 표"):
+            se.build_experiment_config(slots, se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
+
+    @pytest.mark.parametrize("candidate", [se.CANDIDATE_GOLD, se.CANDIDATE_EWY])
+    def test_alt_is_not_for_other_candidates(self, candidate: str) -> None:
+        """
+        목적: 금 확대 · EWY 는 대체 판을 받지 않는다 (D69 ③).
+
+        Given: 금 확대 · EWY
+        When:  대체 판 구성을 만든다
+        Then:  ValueError
+        """
+        with pytest.raises(ValueError):
+            se.build_experiment_config(_Q2_SLOTS, candidate, 30, se.VARIANT_ALT, _START)
+
+
+_COMBO_VARIANTS = (se.VARIANT_SPLICED, se.VARIANT_REAL, se.VARIANT_ALT)
+
+
+class TestBuildComboConfig:
+    """build_combo_config — Q-2-2XS + HAA + 로테이션 세 매매법 구성 (D55 · D56 · D69 ④)."""
+
+    @pytest.mark.parametrize("variant", _COMBO_VARIANTS)
+    def test_shares_and_method_order(self, variant: str) -> None:
+        """
+        목적: 16칸 모두 매매법이 Q-2-2XS → HAA → 로테이션 순서이고 몫이 (100 − h − r)% · h% · r% 로 합 1 이다.
+
+        Given: 판 하나
+        When:  h · r 4단계씩 구성을 만든다
+        Then:  매매법 id 순서와 몫
+        """
+        for h in se.COMBO_PCTS:
+            for r in se.COMBO_PCTS:
+                # When
+                config = se.build_combo_config(_Q2_SLOTS, h, r, variant, _START)
+
+                # Then
+                assert [m.method_id for m in config.methods] == [
+                    se.CANDIDATE_Q2_2XS,
+                    se.CANDIDATE_HAA,
+                    se.CANDIDATE_ROTATION,
+                ]
+                shares = [m.target_weight for m in config.methods]
+                assert shares == pytest.approx([(100 - h - r) / 100, h / 100, r / 100], abs=1e-12)
+                assert sum(shares) == pytest.approx(1.0, abs=1e-12)
+
+    @pytest.mark.parametrize("variant", _COMBO_VARIANTS)
+    def test_methods_match_single_candidate_configs(self, variant: str) -> None:
+        """
+        목적: 조합의 각 매매법은 같은 판의 단독 설정의 매매법과 몫 말고 같다 — 조합과 단독이 같은 정의를 쓴다.
+
+        Given: HAA 10 + 로테이션 15 조합과, 같은 판의 HAA 단독 · 로테이션 단독 · Q-2-2XS 단독
+        When:  매매법을 비교한다
+        Then:  몫을 맞추면 같다, Q-2-2XS 슬롯은 같은 판의 Q-2-2XS 단독 슬롯과 같다
+        """
+        # Given
+        combo = se.build_combo_config(_Q2_SLOTS, 10, 15, variant, _START)
+        haa = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 25, variant, _START).methods[1]
+        rotation = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_ROTATION, 25, variant, _START).methods[1]
+        alone = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_Q2_2XS, 0, variant, _START)
+
+        # When
+        q2, combo_haa, combo_rotation = combo.methods
+
+        # Then
+        assert isinstance(q2, SlotMethodConfig)
+        assert q2.asset_slots == alone.asset_slots
+        assert dataclasses.replace(combo_haa, target_weight=haa.target_weight) == haa
+        assert dataclasses.replace(combo_rotation, target_weight=rotation.target_weight) == rotation
+
+    def test_alt_combo_uses_only_alt_files(self) -> None:
+        """
+        목적: 대체 판 조합에도 대체 파일과 SPY · QQQ · IWM 만 남는다.
+
+        Given: 대체 판 조합
+        When:  경로를 모은다
+        Then:  허용 집합 안
+        """
+        # When
+        config = se.build_combo_config(_Q2_SLOTS, 15, 15, se.VARIANT_ALT, _START)
+
+        # Then
+        assert _config_paths(config) <= set(se.ALT_PATH_MAP.values()) | _KEPT_REAL_PATHS
+
+    def test_every_cell_passes_config_validation(self) -> None:
+        """
+        목적: 세 판 · 16칸 모든 조합이 엔진 설정 검증(몫 합 · 같은 자산 id 같은 경로)을 통과한다.
+
+        Given: 판 셋 × 16칸
+        When:  validate_portfolio_config 를 부른다
+        Then:  예외 없음 (파일은 읽지 않는다)
+        """
+        for variant in _COMBO_VARIANTS:
+            for h in se.COMBO_PCTS:
+                for r in se.COMBO_PCTS:
+                    # When / Then
+                    validate_portfolio_config(se.build_combo_config(_Q2_SLOTS, h, r, variant, _START))
+
+    def test_names_and_min_start_date(self) -> None:
+        """
+        목적: 조합 이름은 portfolio_q2_2xs_haa{h}_rotation{r} 이고 이어 붙인 판이 아니면 판 접미사가 붙는다.
+
+        Given: HAA 15 + 로테이션 20 의 이어 붙인 판 · 완전 실물판 · 대체 판
+        When:  구성을 만든다
+        Then:  이름 · 결과 폴더 · 표시 이름 · min_start_date
+        """
+        # When
+        spliced = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_SPLICED, _START)
+        real = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_REAL, _START)
+        alt = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_ALT, _START)
+
+        # Then
+        assert spliced.experiment_name == "portfolio_q2_2xs_haa15_rotation20"
+        assert spliced.result_dir.name == "portfolio_q2_2xs_haa15_rotation20"
+        assert real.experiment_name == "portfolio_q2_2xs_haa15_rotation20_real"
+        assert alt.experiment_name == "portfolio_q2_2xs_haa15_rotation20_alt"
+        assert spliced.display_name == "Q-2-2XS 65% + HAA 15% + 미국 약세 로테이션 20%"
+        assert spliced.min_start_date == _START
+
+    @pytest.mark.parametrize(
+        ("haa_pct", "rotation_pct", "variant"),
+        [
+            (25, 10, se.VARIANT_SPLICED),
+            (10, 0, se.VARIANT_SPLICED),
+            (12, 10, se.VARIANT_SPLICED),
+            (10, 10, se.VARIANT_PURE),
+            (10, 10, se.VARIANT_GATE_REAL),
+            (10, 10, "unknown"),
+        ],
+    )
+    def test_invalid_combination_raises(self, haa_pct: int, rotation_pct: int, variant: str) -> None:
+        """
+        목적: 격자 밖 비중 · 정하지 않은 판은 즉시 ValueError (D56 ① · D69 ④).
+
+        Given: 잘못된 비중 또는 판
+        When:  조합 구성을 만든다
+        Then:  ValueError
+        """
+        with pytest.raises(ValueError):
+            se.build_combo_config(_Q2_SLOTS, haa_pct, rotation_pct, variant, _START)
+
+
 # ============================================================================
 # 실행 목록
 # ============================================================================
@@ -489,6 +824,69 @@ class TestPhaseMetrics:
         assert windows["us_weak_1"].start == windows["financial_crisis"].end + timedelta(days=1)
 
 
+class TestEarlyPhaseWindows:
+    """대체 판에만 있는 2001 – 2007 국면 두 구간 (D68)."""
+
+    def test_dates(self) -> None:
+        """
+        목적: 닷컴 하락 후반 2001-09-04 – 2002-10-09, 미국 약세 2002 – 07 2002-10-10 – 2007-10-08 (D68).
+
+        Given: 국면 구간 상수
+        When:  날짜를 읽는다
+        Then:  정한 날짜와 같고, 금융위기 · 미국 약세 ① 과 이어지며 겹치지 않는다
+        """
+        # Given
+        early = {w.phase_id: w for w in se.EARLY_PHASE_WINDOWS}
+        later = {w.phase_id: w for w in se.PHASE_WINDOWS}
+
+        # Then
+        assert [(w.start, w.end) for w in se.EARLY_PHASE_WINDOWS] == [
+            (date(2001, 9, 4), date(2002, 10, 9)),
+            (date(2002, 10, 10), date(2007, 10, 8)),
+        ]
+        dotcom, us_weak = se.EARLY_PHASE_WINDOWS
+        assert us_weak.start == dotcom.end + timedelta(days=1)
+        assert later["financial_crisis"].start == us_weak.end + timedelta(days=1)
+        assert set(early).isdisjoint(later)
+        assert se.ALL_PHASE_WINDOWS == (*se.EARLY_PHASE_WINDOWS, *se.PHASE_WINDOWS)
+
+    def test_dotcom_late_has_value_when_run_starts_on_previous_trading_day(self) -> None:
+        """
+        목적: 대체 판 조합이 2001-08-31 에 시작하면 닷컴 하락 후반 구간의 기준(전날 자본)이 실행 첫날이라 값이 나온다.
+
+        Given: 2001-08-31 · 2001-09-04 부터 이어지는 거래일(09-03 노동절 없음)과 자본
+        When:  닷컴 하락 후반 국면 지표를 잰다
+        Then:  수익률 = 2002-10-09 자본 ÷ 2001-08-31 자본 − 1
+        """
+        # Given
+        dates = [date(2001, 8, 31), *_weekdays(date(2001, 9, 4), date(2002, 10, 31))]
+        equity = [100.0] + [100.0 + i for i in range(1, len(dates))]
+        dotcom = se.EARLY_PHASE_WINDOWS[0]
+        last = max(i for i, d in enumerate(dates) if d <= dotcom.end)
+
+        # When
+        ret, mdd = se.phase_metrics(dates, equity, dotcom)
+
+        # Then
+        assert ret == pytest.approx((equity[last] / 100.0 - 1.0) * 100.0, abs=1e-9)
+        assert mdd == pytest.approx(0.0, abs=1e-12)
+
+    def test_dotcom_late_is_empty_when_run_starts_inside(self) -> None:
+        """
+        목적: 실행이 구간 첫날(2001-09-04)에 시작하면 전날 자본이 없어 빈 값 — D68 이 시작을 실행 첫날 다음 날로 둔 이유.
+
+        Given: 2001-09-04 부터의 거래일
+        When:  닷컴 하락 후반 국면 지표를 잰다
+        Then:  (None, None)
+        """
+        # Given
+        dates = _weekdays(date(2001, 9, 4), date(2002, 10, 31))
+        equity = [100.0] * len(dates)
+
+        # When / Then
+        assert se.phase_metrics(dates, equity, se.EARLY_PHASE_WINDOWS[0]) == (None, None)
+
+
 class TestAnnualTurnover:
     """annual_turnover 계약 — 매수 · 매도 금액을 모두 센다 (D48 ⑪)."""
 
@@ -556,7 +954,7 @@ class TestSummarizeRun:
         assert summary.sell_trades == 2
         assert summary.start_date == days[0]
         assert summary.end_date == days[-1]
-        assert set(summary.phase_returns) == {w.phase_id for w in se.PHASE_WINDOWS}
+        assert set(summary.phase_returns) == {w.phase_id for w in se.ALL_PHASE_WINDOWS}
         assert summary.trading_days == len(days)
 
     def test_datetime_dates_become_dates(self) -> None:

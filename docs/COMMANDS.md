@@ -54,6 +54,14 @@ poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <exper
 # 소요: 병렬로 1 – 2분 (2026-10-04 실측 76초, 워커 = CPU 수 − 1)
 poetry run python scripts/backtest/run_supplement_grid.py
 
+# 3-2. 조합 그리드 — Q-2-2XS + HAA + 로테이션, 세 판 (선행: 1, 대용 시계열 · 장기 대체 시계열 생성 — 아래 「데이터 다운로드 옵션」)
+# 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 비중 격자를 대체 판 · 이어 붙인 판 · 완전 실물판(과 대체 판 확인용 겹침)으로 돌리고
+# 같은 합계의 기준선 · HAA 단독 · 로테이션 단독과 비교해 요약 CSV 만 저장 (실험별 결과 폴더는 만들지 않음)
+# 실행 목록 · 판정 · 대체 판 확인은 src/qbt/backtest/combo_experiment.py 참고. 실행마다 정합성 검증, 위반 시 중지
+# 출력: storage/results/portfolio_combo_grid/ (combo_runs.csv 실행별 지표, combo_judgment.csv 판정 기준별 지도, combo_alt_check.csv 대체 판 확인)
+# 소요: 병렬로 2 – 3분 (2026-10-05 실측 123초, 워커 = CPU 수 − 1)
+poetry run python scripts/backtest/run_combo_grid.py
+
 # 4. 워크포워드 검증 (과최적화 검증, 선행: 1)
 poetry run python scripts/backtest/run_walkforward.py
 # 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity

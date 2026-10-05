@@ -195,6 +195,10 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 
 - 실행별 지표 · 통과 판정 · 대용 검증 요약 CSV (실험별 결과 폴더 없음, 포트폴리오 폴더 밖이라 대시보드 탐색에 섞이지 않는다)
 
+분석 결과 - 조합 그리드 (`storage/results/portfolio_combo_grid/`):
+
+- Q-2-2XS + HAA + 로테이션 비중 격자 · 세 판의 실행별 지표 · 판정 기준별 지도 · 대체 판 확인 요약 CSV (실험별 결과 폴더 없음)
+
 분석 결과 - 대체-실물 비교 (`storage/results/proxy_comparison/`):
 
 - `summary.csv` (쌍마다 한 행) · `periods.csv` (쌍 × 연도 · 국면). 대시보드는 등록 쌍 표만 읽고 차트는 즉석 계산한다

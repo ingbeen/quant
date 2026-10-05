@@ -4362,5 +4362,76 @@
       ],
       "timestamp": "2026-10-05T09:29:38+09:00"
     }
+  ],
+  "portfolio_combo_grid": [
+    {
+      "params": {
+        "combo_pcts": [
+          5,
+          10,
+          15,
+          20
+        ],
+        "w_pcts": [
+          10,
+          15,
+          20,
+          25,
+          30,
+          35,
+          40
+        ],
+        "run_count": 152,
+        "group_periods": [
+          [
+            "alt",
+            "2001-08-31",
+            "2026-09-24"
+          ],
+          [
+            "alt_overlap",
+            "2007-06-22",
+            "2026-09-24"
+          ],
+          [
+            "real",
+            "2012-01-30",
+            "2026-09-24"
+          ],
+          [
+            "spliced",
+            "2007-06-22",
+            "2026-09-24"
+          ]
+        ]
+      },
+      "results_summary": {
+        "verdicts": {
+          "alt": {
+            "passed": true,
+            "clusters": "5/15 · 5/20 · 10/20 · 15/15 · 15/20 · 20/10 · 20/15 · 20/20"
+          },
+          "spliced": {
+            "passed": true,
+            "clusters": "5/15 · 5/20 · 10/10 · 10/15 · 15/5 · 15/10 · 20/5"
+          },
+          "real": {
+            "passed": false,
+            "clusters": ""
+          },
+          "spliced_and_real": {
+            "passed": false,
+            "clusters": ""
+          }
+        },
+        "alt_check_match_count": 8
+      },
+      "output_files": {
+        "combo_runs_csv": "storage/results/portfolio_combo_grid/combo_runs.csv",
+        "combo_judgment_csv": "storage/results/portfolio_combo_grid/combo_judgment.csv",
+        "combo_alt_check_csv": "storage/results/portfolio_combo_grid/combo_alt_check.csv"
+      },
+      "timestamp": "2026-10-05T12:48:12+09:00"
+    }
   ]
 }

@@ -33,6 +33,7 @@ TQQQ_RESULTS_DIR: Final = RESULTS_DIR / "tqqq"  # TQQQ 시뮬레이션 결과 �
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
 # 보완 전략 비중 그리드 요약 (포트폴리오 결과 폴더 밖 — 대시보드 실험 탐색에 섞이지 않는다)
 PORTFOLIO_GRID_RESULTS_DIR: Final = RESULTS_DIR / "portfolio_grid"
+PORTFOLIO_COMBO_GRID_RESULTS_DIR: Final = RESULTS_DIR / "portfolio_combo_grid"  # Q-2-2XS + HAA + 로테이션 조합 그리드 요약
 PROXY_COMPARISON_RESULTS_DIR: Final = RESULTS_DIR / "proxy_comparison"  # 대체-실물 비교 요약
 
 # --- 데이터 파일 경로 ---

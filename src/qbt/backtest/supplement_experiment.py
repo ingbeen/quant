@@ -5,11 +5,15 @@
 대용 검증(D23 · D41 · D48)이 여기 있고, 러너(`scripts/backtest/run_supplement_grid.py`)는
 병렬 실행 · 반올림 · 저장만 한다.
 
+조합 실험(Q-2-2XS + HAA + 로테이션, D55 – D69)의 구성 만들기 — 대체 판 · `build_combo_config` — 도
+여기 있다. 단독 구성과 조합 구성이 같은 매매법 정의를 쓰도록 구성 만들기를 한 모듈에 둔다.
+조합의 실행 목록 · 판정은 `combo_experiment` 가 한다.
+
 판정 입력은 모두 반올림 전 값이다 — 우위 폭이 0.01 단위라 저장 자릿수로 다시 계산하면 판정이 바뀔 수 있다.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Final
@@ -41,24 +45,40 @@ from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.common_constants import (
     ANNUAL_DAYS,
     BIL_DATA_PATH,
+    BIL_PROXY_DATA_PATH,
     BIL_SYNTHETIC_DATA_PATH,
     COL_DATE,
     DBC_DATA_PATH,
+    DBC_SYNTHETIC_DATA_PATH,
     EFA_DATA_PATH,
     EWY_DATA_PATH,
     GLD_DATA_PATH,
+    GOLD_FUTURES_DATA_PATH,
     IEF_DATA_PATH,
     IWM_DATA_PATH,
     PDBC_DATA_PATH,
     PDBC_SYNTHETIC_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
+    QLD_DATA_PATH,
+    QLD_PROXY_DATA_PATH,
+    QQQ_DATA_PATH,
     SHY_DATA_PATH,
     SPY_DATA_PATH,
+    SSO_DATA_PATH,
+    SSO_PROXY_DATA_PATH,
     TIP_DATA_PATH,
     TLT_DATA_PATH,
     VEA_DATA_PATH,
     VEA_SYNTHETIC_DATA_PATH,
+    VEIEX_DATA_PATH,
+    VFISX_DATA_PATH,
+    VFITX_DATA_PATH,
+    VGSIX_DATA_PATH,
+    VGTSX_DATA_PATH,
+    VIPSX_DATA_PATH,
     VNQ_DATA_PATH,
+    VTMGX_DATA_PATH,
+    VUSTX_DATA_PATH,
     VWO_DATA_PATH,
     VXUS_DATA_PATH,
     VXUS_PROXY_DATA_PATH,
@@ -70,6 +90,7 @@ from qbt.common_constants import (
 # ============================================================================
 
 W_PCTS: Final[tuple[int, ...]] = (10, 15, 20, 25, 30, 35, 40)  # 후보 비중 w (%, D6)
+COMBO_PCTS: Final[tuple[int, ...]] = (5, 10, 15, 20)  # 조합의 HAA · 로테이션 비중 (%, D56 ①) — 합계가 W_PCTS 를 지난다
 MIN_PLATEAU_STEPS: Final = 3  # 고원 = 기준선보다 높은 w 가 연속 3단계 이상 (D24)
 SIGNAL_AGREEMENT_PASS_RATE: Final = 0.95  # 대용 관문 ② 신호 일치율 비율 (0.95 = 95%, D23)
 # 우위 절댓값이 이보다 작으면 소수 4자리 저장에서 0 이 된다 — 「경계」로 표시해 사용자가 판단한다 (D41 · D48 ⑥)
@@ -105,6 +126,7 @@ VARIANT_PURE: Final = "pure"  # 순수 대용판 (관문 비교)
 VARIANT_PAIR_VEA: Final = "pair_vea"  # HAA 쌍별 — 한 쌍만 실물
 VARIANT_PAIR_BIL: Final = "pair_bil"
 VARIANT_PAIR_PDBC: Final = "pair_pdbc"
+VARIANT_ALT: Final = "alt"  # 대체 판 — 실물판 파일을 대체 시세로 바꾼 판 (D57 · D59)
 
 # HAA 대용 3쌍의 판별 파일 (vea, bil, pdbc). 나머지 HAA 자산은 판과 무관하다
 _HAA_PROXY_PATHS: Final[dict[str, tuple[Path, Path, Path]]] = {
@@ -130,6 +152,28 @@ _ROTATION_VXUS_PATHS: Final[dict[str, Path]] = {
     VARIANT_PURE: VXUS_PROXY_DATA_PATH,
 }
 _PLAIN_VARIANTS: Final[tuple[str, ...]] = (VARIANT_SPLICED, VARIANT_REAL)  # 대용이 없는 후보는 두 판의 데이터가 같다
+
+# 대체 판 = 실물판 설정의 모든 경로를 이 표로 바꾼 것 (D69 ②). 2000-08-30 전에 실물이 없던 13종을
+# 실물이 생긴 뒤에도 대체 시세로 쓴다(D59). 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 tlt 가 같은 파일로 남는다
+ALT_PATH_MAP: Final[dict[Path, Path]] = {
+    SSO_DATA_PATH: SSO_PROXY_DATA_PATH,  # 매매만 — SSO 슬롯의 신호 SPY 는 표 밖이라 그대로
+    QLD_DATA_PATH: QLD_PROXY_DATA_PATH,
+    GLD_DATA_PATH: GOLD_FUTURES_DATA_PATH,
+    TLT_DATA_PATH: VUSTX_DATA_PATH,
+    VEA_DATA_PATH: VTMGX_DATA_PATH,
+    VWO_DATA_PATH: VEIEX_DATA_PATH,
+    VNQ_DATA_PATH: VGSIX_DATA_PATH,
+    PDBC_SYNTHETIC_DATA_PATH: DBC_SYNTHETIC_DATA_PATH,  # 실물판 원자재는 DBC → PDBC (D46 · D64), 대체는 GSCI → DBC (D58)
+    IEF_DATA_PATH: VFITX_DATA_PATH,
+    BIL_DATA_PATH: BIL_PROXY_DATA_PATH,
+    TIP_DATA_PATH: VIPSX_DATA_PATH,
+    VXUS_DATA_PATH: VGTSX_DATA_PATH,
+    SHY_DATA_PATH: VFISX_DATA_PATH,
+}
+# 대체 판에서도 그대로 쓰는 실물 — 2000-08-30 전부터 있다
+_ALT_KEPT_REAL_PATHS: Final[frozenset[Path]] = frozenset({SPY_DATA_PATH, QQQ_DATA_PATH, IWM_DATA_PATH})
+_ALT_ALLOWED_PATHS: Final[frozenset[Path]] = frozenset(ALT_PATH_MAP.values()) | _ALT_KEPT_REAL_PATHS
+_COMBO_VARIANTS: Final[tuple[str, ...]] = (VARIANT_SPLICED, VARIANT_REAL, VARIANT_ALT)
 
 GROUP_MAIN: Final = "main"
 GROUP_SUB: Final = "sub"
@@ -196,6 +240,15 @@ PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
     PhaseWindow("inflation_2022", "물가 약세장 2022", date(2022, 1, 3), date(2022, 10, 12)),
     PhaseWindow("gold_weak", "금 약세기 2013-15", date(2013, 1, 1), date(2015, 12, 31)),
 )
+# 대체 판(2001-08-31 부터)에만 기간 안인 구간 (D68). PHASE_WINDOWS 와 따로 두는 이유: 기존 그리드 러너는
+# PHASE_WINDOWS 만 열로 쓰므로, 거기 넣으면 기존 결과 CSV 에 빈 열이 생긴다 (D69 ⑨).
+# 닷컴 하락 후반이 2001-09-04 부터인 이유: 국면 수익률의 기준이 구간 첫 거래일의 전날 자본이라,
+# 대체 판 조합의 실행 첫날(2001-08-31)에 시작하면 늘 빈 값이 된다
+EARLY_PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
+    PhaseWindow("dotcom_late", "닷컴 하락 후반", date(2001, 9, 4), date(2002, 10, 9)),
+    PhaseWindow("us_weak_2002_07", "미국 약세 2002-07", date(2002, 10, 10), date(2007, 10, 8)),
+)
+ALL_PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (*EARLY_PHASE_WINDOWS, *PHASE_WINDOWS)
 
 
 # ============================================================================
@@ -204,13 +257,62 @@ PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
 
 
 def _allowed_variants(candidate: str) -> tuple[str, ...]:
+    # 대체 판은 조합 실험(D55)에 쓰는 후보만 받는다 — 금 확대 · EWY 는 받지 않는다 (D69 ③)
     if candidate == CANDIDATE_HAA:
-        return tuple(_HAA_PROXY_PATHS)
+        return (*_HAA_PROXY_PATHS, VARIANT_ALT)
     if candidate == CANDIDATE_ROTATION:
-        return tuple(_ROTATION_VXUS_PATHS)
-    if candidate in (CANDIDATE_Q2_2XS, CANDIDATE_BASELINE, CANDIDATE_GOLD, CANDIDATE_EWY):
+        return (*_ROTATION_VXUS_PATHS, VARIANT_ALT)
+    if candidate in (CANDIDATE_Q2_2XS, CANDIDATE_BASELINE):
+        return (*_PLAIN_VARIANTS, VARIANT_ALT)
+    if candidate in (CANDIDATE_GOLD, CANDIDATE_EWY):
         return _PLAIN_VARIANTS
     raise ValueError(f"알 수 없는 후보입니다: {candidate!r} (가능: {list(CANDIDATE_DISPLAY_NAMES)})")
+
+
+def _path_variant(variant: str) -> str:
+    """경로 표를 고를 판 — 대체 판은 실물판 설정을 만든 뒤 경로를 바꾼다."""
+    return VARIANT_REAL if variant == VARIANT_ALT else variant
+
+
+def _alt_path(path: Path) -> Path:
+    alt = ALT_PATH_MAP.get(path, path)
+    if alt not in _ALT_ALLOWED_PATHS:
+        raise ValueError(
+            f"대체 판 경로 표에 없는 파일입니다: {path} — 대체 판에 실물이 남습니다. " f"ALT_PATH_MAP 에 대체 파일을 더하거나 그 자산을 대체 판에서 빼세요"
+        )
+    return alt
+
+
+def _alt_slot(slot: AssetSlotConfig) -> AssetSlotConfig:
+    return replace(
+        slot, signal_data_path=_alt_path(slot.signal_data_path), trade_data_path=_alt_path(slot.trade_data_path)
+    )
+
+
+def _alt_method(method: MethodConfig) -> MethodConfig:
+    if isinstance(method, SlotMethodConfig):
+        return replace(method, asset_slots=tuple(_alt_slot(s) for s in method.asset_slots))
+    return replace(
+        method,
+        assets=tuple(
+            replace(a, signal_data_path=_alt_path(a.signal_data_path), trade_data_path=_alt_path(a.trade_data_path))
+            for a in method.assets
+        ),
+        signal_series=tuple(replace(s, data_path=_alt_path(s.data_path)) for s in method.signal_series),
+    )
+
+
+def _to_alt(config: PortfolioConfig) -> PortfolioConfig:
+    """실물판 설정 → 대체 판 설정. 슬롯 · 배분 자산의 신호 · 매매 경로와 신호용 시세를 모두 바꾼다.
+
+    Raises:
+        ValueError: 경로 표에 없고 그대로 써도 되는 실물(SPY · QQQ · IWM)도 아닌 파일이 있을 때
+    """
+    return replace(
+        config,
+        asset_slots=tuple(_alt_slot(s) for s in config.asset_slots),
+        methods=tuple(_alt_method(m) for m in config.methods),
+    )
 
 
 def _allocation_asset(asset_id: str, path: Path) -> AllocationAssetConfig:
@@ -294,7 +396,7 @@ def build_experiment_config(
         if w_pct != 0:
             raise ValueError(f"Q-2-2XS 단독은 w_pct=0 이어야 합니다: {w_pct}")
         name = f"portfolio_q2_2xs_alone{suffix}"
-        return PortfolioConfig(
+        config = PortfolioConfig(
             experiment_name=name,
             display_name=CANDIDATE_DISPLAY_NAMES[CANDIDATE_Q2_2XS],
             total_capital=DEFAULT_INITIAL_CAPITAL,
@@ -302,21 +404,62 @@ def build_experiment_config(
             asset_slots=q2_2xs_slots,
             min_start_date=start_date,
         )
+    else:
+        if w_pct not in W_PCTS:
+            raise ValueError(f"w_pct 는 {list(W_PCTS)} 중 하나여야 합니다: {w_pct}")
+        name = f"portfolio_q2_2xs_{candidate}{w_pct}{suffix}"
+        config = PortfolioConfig(
+            experiment_name=name,
+            display_name=f"Q-2-2XS {100 - w_pct}% + {CANDIDATE_DISPLAY_NAMES[candidate]} {w_pct}%",
+            total_capital=DEFAULT_INITIAL_CAPITAL,
+            result_dir=PORTFOLIO_RESULTS_DIR / name,
+            methods=(
+                SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", (100 - w_pct) / 100, q2_2xs_slots),
+                _candidate_method(candidate, w_pct / 100, _path_variant(variant)),
+            ),
+            min_start_date=start_date,
+        )
+    return _to_alt(config) if variant == VARIANT_ALT else config
 
-    if w_pct not in W_PCTS:
-        raise ValueError(f"w_pct 는 {list(W_PCTS)} 중 하나여야 합니다: {w_pct}")
-    name = f"portfolio_q2_2xs_{candidate}{w_pct}{suffix}"
-    return PortfolioConfig(
+
+def build_combo_config(
+    q2_2xs_slots: tuple[AssetSlotConfig, ...],
+    haa_pct: int,
+    rotation_pct: int,
+    variant: str,
+    start_date: date,
+) -> PortfolioConfig:
+    """「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 조합 설정 (D55 · D56 ①).
+
+    HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다 — 조합과 단독이 같은 매매법 정의를 쓴다.
+    q2_2xs_slots · start_date 는 build_experiment_config 와 같다.
+
+    Raises:
+        ValueError: h · r 가 COMBO_PCTS 밖이거나, 판이 이어 붙인 판 · 완전 실물판 · 대체 판이 아닐 때
+    """
+    if haa_pct not in COMBO_PCTS or rotation_pct not in COMBO_PCTS:
+        raise ValueError(f"HAA · 로테이션 비중은 {list(COMBO_PCTS)} 중 하나여야 합니다: {haa_pct}, {rotation_pct}")
+    if variant not in _COMBO_VARIANTS:
+        raise ValueError(f"조합에는 판 {variant!r} 이 없습니다 (가능: {list(_COMBO_VARIANTS)})")
+    suffix = "" if variant == VARIANT_SPLICED else f"_{variant}"
+    q2_pct = 100 - haa_pct - rotation_pct
+    name = f"portfolio_q2_2xs_haa{haa_pct}_rotation{rotation_pct}{suffix}"
+    config = PortfolioConfig(
         experiment_name=name,
-        display_name=f"Q-2-2XS {100 - w_pct}% + {CANDIDATE_DISPLAY_NAMES[candidate]} {w_pct}%",
+        display_name=(
+            f"Q-2-2XS {q2_pct}% + {CANDIDATE_DISPLAY_NAMES[CANDIDATE_HAA]} {haa_pct}% + "
+            f"{CANDIDATE_DISPLAY_NAMES[CANDIDATE_ROTATION]} {rotation_pct}%"
+        ),
         total_capital=DEFAULT_INITIAL_CAPITAL,
         result_dir=PORTFOLIO_RESULTS_DIR / name,
         methods=(
-            SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", (100 - w_pct) / 100, q2_2xs_slots),
-            _candidate_method(candidate, w_pct / 100, variant),
+            SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", q2_pct / 100, q2_2xs_slots),
+            _candidate_method(CANDIDATE_HAA, haa_pct / 100, _path_variant(variant)),
+            _candidate_method(CANDIDATE_ROTATION, rotation_pct / 100, _path_variant(variant)),
         ),
         min_start_date=start_date,
     )
+    return _to_alt(config) if variant == VARIANT_ALT else config
 
 
 # ============================================================================
@@ -439,7 +582,7 @@ def summarize_run(result: PortfolioResult) -> RunSummary:
     """엔진 결과에서 판정 · 표에 쓰는 지표를 뽑는다. CAGR · MDD · Calmar 는 엔진 요약의 반올림 전 값 그대로."""
     dates = [_to_date(d) for d in result.equity_df[COL_DATE]]
     equity = [float(v) for v in result.equity_df[COL_EQUITY]]
-    phases = {window.phase_id: phase_metrics(dates, equity, window) for window in PHASE_WINDOWS}
+    phases = {window.phase_id: phase_metrics(dates, equity, window) for window in ALL_PHASE_WINDOWS}
     return RunSummary(
         start_date=dates[0],
         end_date=dates[-1],
@@ -513,21 +656,31 @@ class GridCaseResult:
     decision_targets: pd.DataFrame | None
 
 
+def run_with_start_check(config: PortfolioConfig, start_date: date) -> PortfolioResult:
+    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (그리드 · 조합 워커가 같이 쓴다).
+
+    Raises:
+        ValueError: 실제 시작일이 start_date 와 다를 때 — 엔진의 start_date 는 하한이라 데이터가 늦게 시작하는
+            구성은 조용히 늦게 시작해 같은 기간 비교가 깨진다
+    """
+    result = run_portfolio_backtest(config, start_date=start_date)
+    actual_start = _to_date(result.equity_df[COL_DATE].iloc[0])
+    if actual_start != start_date:
+        raise ValueError(
+            f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 묶음 시작일 {start_date} 와 다릅니다 — "
+            f"이 구성의 데이터가 늦게 시작해 같은 기간 비교가 깨집니다. 묶음 시작일을 다시 재세요"
+        )
+    return result
+
+
 def run_grid_case(case: GridCase, q2_2xs_slots: tuple[AssetSlotConfig, ...]) -> GridCaseResult:
     """실행 → 시작일 확인 → 정합성 검사 → 요약 (병렬 워커, 모듈 최상위라 pickle 가능).
 
     Raises:
-        ValueError: 실제 시작일이 묶음 시작일과 다를 때 — 엔진의 start_date 는 하한이라 데이터가 늦게 시작하는
-            구성은 조용히 늦게 시작해 같은 기간 비교가 깨진다
+        ValueError: 실제 시작일이 묶음 시작일과 다를 때 (run_with_start_check)
     """
     config = build_experiment_config(q2_2xs_slots, case.candidate, case.w_pct, case.variant, case.start_date)
-    result = run_portfolio_backtest(config, start_date=case.start_date)
-    actual_start = _to_date(result.equity_df[COL_DATE].iloc[0])
-    if actual_start != case.start_date:
-        raise ValueError(
-            f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 묶음 시작일 {case.start_date} 와 다릅니다 — "
-            f"이 구성의 데이터가 늦게 시작해 같은 기간 비교가 깨집니다. 묶음 시작일을 다시 재세요"
-        )
+    result = run_with_start_check(config, case.start_date)
     violations = validate_portfolio_result(result)
     targets = (
         extract_decision_targets(result.state_log_df, case.candidate) if case.candidate in PROXY_CANDIDATES else None
