@@ -224,3 +224,31 @@ poetry run python scripts/data/download_data.py QQQ --start 2020-01-01
 # 대상 · 대용 원본을 다시 받으면 이 스크립트도 다시 실행한다 — 대용 파일은 생성 시점 원본으로 만든 사본이다
 poetry run python scripts/data/generate_proxy_series.py
 ```
+
+### 장기 대체 시계열 생성 (대체 판 — 2000-08 이전부터 전 기간 대체)
+
+```bash
+# 선행 1: 대체 시세를 위 「특정 종목 전체 기간」으로 하나씩 받는다
+#         VGTSX VTMGX VEIEX VGSIX VUSTX VFITX VFISX VIPSX "^SPGSCI" "GC=F"
+#         (특수 문자가 든 티커는 따옴표로 감싼다. 파일 이름도 티커 그대로 — ^SPGSCI_max.csv · GC=F_max.csv)
+# 선행 2: 기초 · 실물 시세(SPY · QQQ · SSO · QLD · BIL · DBC)와 storage/etc 의 금리 · 운용보수 파일
+# 출력: storage/stock/SSO_proxy_max.csv · QLD_proxy_max.csv (SPY · QQQ 2배 합성, TQQQ 비용 모델을 배율 2 로)
+#       storage/stock/BIL_proxy_max.csv (연방기금금리로 이자를 누적한 초단기채 대체)
+#       storage/stock/DBC_synthetic_max.csv (DBC 상장 전은 S&P GSCI 지수, 상장 후는 DBC 실물)
+# 기초 시세가 금리 파일 마지막 달보다 2개월 넘게 뒤까지 있으면 멈춘다 — 금리 파일을 먼저 갱신한다
+# 원본이나 금리 파일을 다시 받으면 이 스크립트와 아래 비교 계산을 다시 실행한다
+poetry run python scripts/data/generate_long_proxy_series.py
+```
+
+### 대체-실물 비교 (계산 · 대시보드)
+
+```bash
+# 선행: 위 두 생성 스크립트와 비교 쌍의 시세 (쌍 목록은 scripts/data/generate_proxy_comparison.py 의 PAIRS)
+# 비교는 기준(대개 실물) 첫 거래일부터 두 시세가 모두 있는 날만 쓴다
+# 출력: storage/results/proxy_comparison/summary.csv (쌍마다 전체 상관 · CAGR · MDD · 12개월 상관 최저)
+#       storage/results/proxy_comparison/periods.csv (쌍 × 연도 · 국면 상관 · 수익률)
+poetry run python scripts/data/generate_proxy_comparison.py
+
+# 대시보드 (선행: 위 계산 — 등록 쌍 표를 읽는다. 「직접 고르기」는 storage/stock 의 아무 두 시세나 비교)
+poetry run streamlit run scripts/data/app_proxy_comparison.py
+```

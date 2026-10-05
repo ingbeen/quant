@@ -57,6 +57,7 @@ src/qbt/
     ├── parallel_executor.py # 병렬 처리
     ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
     ├── proxy_series.py      # 대용 시계열 (실물 상장 전 구간 채우기)
+    ├── proxy_comparison.py  # 대체-실물 비교 (상관 · 수익 차 · 기간별)
     └── meta_manager.py      # 실행 메타데이터 관리
 ```
 
@@ -216,6 +217,7 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - `{TICKER}_{START}_latest.csv`: 시작일만
 - `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션 또는 대용, 상장 후는 실물)
 - `{TICKER}_proxy_max.csv`: 전 구간이 대용인 합성 데이터 (실물 구간 없음)
+- 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `^SPGSCI_max.csv` · `GC=F_max.csv`)
 
 기타 데이터 (`storage/etc/`):
 
@@ -244,6 +246,10 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 분석 결과 - 보완 전략 비중 그리드 (`storage/results/portfolio_grid/`):
 
 - 실행별 지표 · 통과 판정 · 대용 검증 요약 CSV (실험별 결과 폴더 없음, 포트폴리오 폴더 밖이라 대시보드 탐색에 섞이지 않는다)
+
+분석 결과 - 대체-실물 비교 (`storage/results/proxy_comparison/`):
+
+- `summary.csv` (쌍마다 한 행) · `periods.csv` (쌍 × 연도 · 국면). 대시보드는 등록 쌍 표만 읽고 차트는 즉석 계산한다
 
 분석 결과 - TQQQ 시뮬레이션 (`storage/results/tqqq/`):
 

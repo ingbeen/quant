@@ -74,7 +74,19 @@ CLI 예외 처리 데코레이터
 - `compute_seam_scale` · `rescale_to_actual`: 이음매 종가 비율로 대용 전 구간의 가격을 스케일 (수익률 · 거래량 불변)
 - `splice_proxy`: 이음매 앞은 스케일한 대용(거래량 0), 이음매부터는 실물 행 그대로
 - `build_daily_rebalanced_composite`: 매일 비율을 맞추는 바스켓 (첫 종가 1.0, 거래량 0, 고가 · 저가는 가중합 근사). 겹치는 기간 안에서 구성 종목의 날짜가 다르면 ValueError (보간 금지)
+- `build_rate_accrual_series`: 전날 연 금리로 하루치 이자(÷ `TRADING_DAYS_PER_YEAR`)를 붙여 가는 시세 (첫 종가 1.0, 시가 · 고가 · 저가 = 종가, 거래량 0) — 초단기 국채 대체. 금리 결측은 메우지 않고 ValueError, 음수 금리는 그대로 쓴다
 - 입력 날짜가 중복 없는 오름차순이 아니면 ValueError
+
+### 9. proxy_comparison.py
+
+대체 시세가 기준 시세(대개 실물 ETF)를 얼마나 잘 따르는지 잰다. 비교는 기준 첫 거래일부터 두 시세가 모두 있는 날만 쓴다(시장 달력이 다른 선물 · 펀드의 빈 날을 메우지 않는다)
+
+- `align_closes`: 두 시세의 종가를 위 규칙으로 맞춘다 (겹치는 날 2개 미만이면 ValueError). `before` 를 주면 그 날짜 앞까지만 — 실물 상장 전 구간만 보는 교차 확인용
+- 아래 비교 함수는 `align_closes` 가 만든 표만 받는다 (열 · 2행 이상 · 날짜 순서를 확인하고 아니면 ValueError)
+- `summarize_pair` → `PairSummary`: 일간 · 월간(월 마지막 거래일) 상관, CAGR · MDD(%), 12개월 이동 상관 최저값과 날짜. 정의되지 않는 값(수익률 2쌍 미만 · 분산 0)은 None
+- `summarize_periods` → `PeriodSummary`: 기간마다 겹치는 범위로 자른 상관 · 수익률 (기준은 기간 첫날의 전날 종가, 거래일 2개 미만 기간은 뺀다). `calendar_year_periods` 가 연도 기간을 만든다
+- `rolling_correlation` · `normalized_overlay`: 대시보드의 이동 상관 · 겹쳐 그리기 (대체의 상장 전 구간 포함)
+- 결과 표의 열 이름(`DISPLAY_*`)과 행 변환(`pair_summary_record` · `period_summary_records`), 자릿수를 고르는 열 종류(`RATIO_DISPLAY_COLUMNS` · `PERCENT_DISPLAY_COLUMNS`) — 계산 스크립트와 대시보드가 같은 열을 쓴다. 반올림 자릿수는 CLI 가 고른다
 
 ---
 

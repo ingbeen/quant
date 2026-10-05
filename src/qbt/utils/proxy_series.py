@@ -6,6 +6,7 @@
 
 import math
 from collections.abc import Sequence
+from datetime import date
 
 import pandas as pd
 
@@ -19,6 +20,7 @@ from qbt.common_constants import (
     EPSILON,
     PRICE_COLUMNS,
     REQUIRED_COLUMNS,
+    TRADING_DAYS_PER_YEAR,
 )
 
 
@@ -129,5 +131,37 @@ def build_daily_rebalanced_composite(components: Sequence[tuple[pd.DataFrame, fl
     for col in (COL_OPEN, COL_HIGH, COL_LOW):
         result[col] = prev_composite_close * weighted[col]
     result[COL_CLOSE] = close
+    result[COL_VOLUME] = 0
+    return result[REQUIRED_COLUMNS]
+
+
+def build_rate_accrual_series(dates: Sequence[date], annual_rates: Sequence[float]) -> pd.DataFrame:
+    """전날 연 금리로 하루치 이자를 붙여 가는 시세. 첫날 종가 1.0, 시가 · 고가 · 저가 = 종가, 거래량 0.
+
+    값이 이자만큼만 오르는 초단기 국채(BIL 등)의 대체다. 마지막 날의 금리는 쓰이지 않는다.
+
+    Args:
+        annual_rates: 날짜마다 그날 적용되는 연 금리 (비율, 0.05 = 5%). 음수도 그대로 쓴다
+
+    Raises:
+        ValueError: 날짜와 금리의 개수가 다를 때, 2개 미만일 때, 금리에 결측이 있을 때,
+            날짜가 중복 없는 오름차순이 아닐 때
+    """
+    if len(dates) != len(annual_rates):
+        raise ValueError(f"날짜와 금리의 개수가 다릅니다: 날짜 {len(dates)}개, 금리 {len(annual_rates)}개")
+    if len(dates) < 2:
+        raise ValueError(f"이자를 붙이려면 날짜가 2개 이상 필요합니다: {len(dates)}개")
+    rates = pd.Series(list(annual_rates), dtype=float)
+    if rates.isna().any():
+        missing = [dates[i] for i in rates.index[rates.isna()][:5]]
+        raise ValueError(f"금리에 결측이 있습니다 — 날짜: {missing}. 금리 원본을 확인하세요")
+    result = pd.DataFrame({COL_DATE: list(dates)})
+    _require_strictly_increasing_dates(result, "금리 누적")
+
+    growth = 1.0 + rates.shift(1) / TRADING_DAYS_PER_YEAR
+    growth.iloc[0] = 1.0
+    close = growth.cumprod()
+    for col in PRICE_COLUMNS:
+        result[col] = close
     result[COL_VOLUME] = 0
     return result[REQUIRED_COLUMNS]

@@ -3471,5 +3471,896 @@
       },
       "timestamp": "2026-10-04T16:42:42+09:00"
     }
+  ],
+  "long_proxy_series": [
+    {
+      "outputs": [
+        {
+          "path": "storage/stock/SSO_proxy_max.csv",
+          "sources": [
+            "SPY_max.csv",
+            "SSO_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 5.418769,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/QLD_proxy_max.csv",
+          "sources": [
+            "QQQ_max.csv",
+            "QLD_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6929,
+          "start_date": "1999-03-10",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 6.575763,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/BIL_proxy_max.csv",
+          "sources": [
+            "federal_funds_rate_monthly.csv",
+            "SPY_max.csv",
+            "BIL_max.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2007-05-30",
+          "seam_scale": 52.103459
+        },
+        {
+          "path": "storage/stock/DBC_synthetic_max.csv",
+          "sources": [
+            "^SPGSCI_max.csv",
+            "DBC_max.csv"
+          ],
+          "row_count": 10771,
+          "start_date": "1984-01-03",
+          "end_date": "2026-10-02",
+          "seam_date": "2006-02-06",
+          "seam_scale": 0.044004
+        }
+      ],
+      "timestamp": "2026-10-05T11:05:11+09:00"
+    },
+    {
+      "outputs": [
+        {
+          "path": "storage/stock/SSO_proxy_max.csv",
+          "sources": [
+            "SPY_max.csv",
+            "SSO_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 5.418769,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/QLD_proxy_max.csv",
+          "sources": [
+            "QQQ_max.csv",
+            "QLD_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6929,
+          "start_date": "1999-03-10",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 6.575763,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/BIL_proxy_max.csv",
+          "sources": [
+            "federal_funds_rate_monthly.csv",
+            "SPY_max.csv",
+            "BIL_max.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2007-05-30",
+          "seam_scale": 52.103459
+        },
+        {
+          "path": "storage/stock/DBC_synthetic_max.csv",
+          "sources": [
+            "^SPGSCI_max.csv",
+            "DBC_max.csv"
+          ],
+          "row_count": 10771,
+          "start_date": "1984-01-03",
+          "end_date": "2026-10-02",
+          "seam_date": "2006-02-06",
+          "seam_scale": 0.044004
+        }
+      ],
+      "timestamp": "2026-10-05T10:39:09+09:00"
+    },
+    {
+      "outputs": [
+        {
+          "path": "storage/stock/SSO_proxy_max.csv",
+          "sources": [
+            "SPY_max.csv",
+            "SSO_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 5.418769,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/QLD_proxy_max.csv",
+          "sources": [
+            "QQQ_max.csv",
+            "QLD_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6929,
+          "start_date": "1999-03-10",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 6.575763,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/BIL_proxy_max.csv",
+          "sources": [
+            "federal_funds_rate_monthly.csv",
+            "SPY_max.csv",
+            "BIL_max.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2007-05-30",
+          "seam_scale": 52.103459
+        },
+        {
+          "path": "storage/stock/DBC_synthetic_max.csv",
+          "sources": [
+            "^SPGSCI_max.csv",
+            "DBC_max.csv"
+          ],
+          "row_count": 10771,
+          "start_date": "1984-01-03",
+          "end_date": "2026-10-02",
+          "seam_date": "2006-02-06",
+          "seam_scale": 0.044004
+        }
+      ],
+      "timestamp": "2026-10-05T09:26:50+09:00"
+    },
+    {
+      "outputs": [
+        {
+          "path": "storage/stock/SSO_proxy_max.csv",
+          "sources": [
+            "SPY_max.csv",
+            "SSO_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 5.418769,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/QLD_proxy_max.csv",
+          "sources": [
+            "QQQ_max.csv",
+            "QLD_max.csv",
+            "federal_funds_rate_monthly.csv",
+            "tqqq_net_expense_ratio_monthly.csv"
+          ],
+          "row_count": 6929,
+          "start_date": "1999-03-10",
+          "end_date": "2026-09-24",
+          "seam_date": "2006-06-21",
+          "seam_scale": 6.575763,
+          "leverage": 2.0,
+          "softplus": {
+            "a": -6.1,
+            "b": 0.37
+          }
+        },
+        {
+          "path": "storage/stock/BIL_proxy_max.csv",
+          "sources": [
+            "federal_funds_rate_monthly.csv",
+            "SPY_max.csv",
+            "BIL_max.csv"
+          ],
+          "row_count": 6974,
+          "start_date": "1999-01-04",
+          "end_date": "2026-09-24",
+          "seam_date": "2007-05-30",
+          "seam_scale": 52.103459
+        },
+        {
+          "path": "storage/stock/DBC_synthetic_max.csv",
+          "sources": [
+            "^SPGSCI_max.csv",
+            "DBC_max.csv"
+          ],
+          "row_count": 10771,
+          "start_date": "1984-01-03",
+          "end_date": "2026-10-02",
+          "seam_date": "2006-02-06",
+          "seam_scale": 0.044004
+        }
+      ],
+      "timestamp": "2026-10-05T09:26:17+09:00"
+    }
+  ],
+  "proxy_comparison": [
+    {
+      "pair_count": 20,
+      "period_row_count": 559,
+      "rolling_window_days": 252,
+      "outputs": [
+        "storage/results/proxy_comparison/summary.csv",
+        "storage/results/proxy_comparison/periods.csv"
+      ],
+      "pairs": [
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "SSO_proxy_max.csv",
+          "base": "SSO_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "QLD_proxy_max.csv",
+          "base": "QLD_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "GC=F_max.csv",
+          "base": "GLD_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VUSTX_max.csv",
+          "base": "TLT_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFITX_max.csv",
+          "base": "IEF_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFISX_max.csv",
+          "base": "SHY_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "BIL_proxy_max.csv",
+          "base": "BIL_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VIPSX_max.csv",
+          "base": "TIP_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VTMGX_max.csv",
+          "base": "VEA_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VEIEX_max.csv",
+          "base": "VWO_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGSIX_max.csv",
+          "base": "VNQ_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "^SPGSCI_max.csv",
+          "base": "DBC_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "EFA_max.csv",
+          "base": "VEA_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "SHY_max.csv",
+          "base": "BIL_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "DBC_max.csv",
+          "base": "PDBC_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "VXUS_proxy_max.csv",
+          "base": "VXUS_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VTMGX_max.csv",
+          "base": "EFA_max.csv",
+          "before_listing_of": "VEA_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_proxy_max.csv",
+          "before_listing_of": "VXUS_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VEIEX_max.csv",
+          "base": "EEM_max.csv",
+          "before_listing_of": "VWO_max.csv"
+        }
+      ],
+      "timestamp": "2026-10-05T10:51:18+09:00"
+    },
+    {
+      "pair_count": 20,
+      "period_row_count": 559,
+      "rolling_window_days": 252,
+      "outputs": [
+        "storage/results/proxy_comparison/summary.csv",
+        "storage/results/proxy_comparison/periods.csv"
+      ],
+      "pairs": [
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "SSO_proxy_max.csv",
+          "base": "SSO_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "QLD_proxy_max.csv",
+          "base": "QLD_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "GC=F_max.csv",
+          "base": "GLD_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VUSTX_max.csv",
+          "base": "TLT_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFITX_max.csv",
+          "base": "IEF_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFISX_max.csv",
+          "base": "SHY_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "BIL_proxy_max.csv",
+          "base": "BIL_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VIPSX_max.csv",
+          "base": "TIP_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VTMGX_max.csv",
+          "base": "VEA_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VEIEX_max.csv",
+          "base": "VWO_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGSIX_max.csv",
+          "base": "VNQ_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "^SPGSCI_max.csv",
+          "base": "DBC_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "EFA_max.csv",
+          "base": "VEA_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "SHY_max.csv",
+          "base": "BIL_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "DBC_max.csv",
+          "base": "PDBC_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "VXUS_proxy_max.csv",
+          "base": "VXUS_max.csv",
+          "before_listing_of": null
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VTMGX_max.csv",
+          "base": "EFA_max.csv",
+          "before_listing_of": "VEA_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_proxy_max.csv",
+          "before_listing_of": "VXUS_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VEIEX_max.csv",
+          "base": "EEM_max.csv",
+          "before_listing_of": "VWO_max.csv"
+        }
+      ],
+      "timestamp": "2026-10-05T10:51:17+09:00"
+    },
+    {
+      "pair_count": 21,
+      "period_row_count": 665,
+      "rolling_window_days": 252,
+      "outputs": [
+        "storage/results/proxy_comparison/summary.csv",
+        "storage/results/proxy_comparison/periods.csv"
+      ],
+      "pairs": [
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "SSO_proxy_max.csv",
+          "base": "SSO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "QLD_proxy_max.csv",
+          "base": "QLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "GC=F_max.csv",
+          "base": "GLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VUSTX_max.csv",
+          "base": "TLT_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFITX_max.csv",
+          "base": "IEF_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFISX_max.csv",
+          "base": "SHY_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "BIL_proxy_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VIPSX_max.csv",
+          "base": "TIP_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VTMGX_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VEIEX_max.csv",
+          "base": "VWO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGSIX_max.csv",
+          "base": "VNQ_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "DBC_synthetic_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "EFA_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "SHY_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "DBC_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "VXUS_proxy_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VTMGX_max.csv",
+          "base": "EFA_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_proxy_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VEIEX_max.csv",
+          "base": "EEM_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "^SPGSCI_max.csv",
+          "base": "DBC_max.csv"
+        }
+      ],
+      "timestamp": "2026-10-05T10:40:08+09:00"
+    },
+    {
+      "pair_count": 21,
+      "period_row_count": 665,
+      "rolling_window_days": 252,
+      "outputs": [
+        "storage/results/proxy_comparison/summary.csv",
+        "storage/results/proxy_comparison/periods.csv"
+      ],
+      "pairs": [
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "SSO_proxy_max.csv",
+          "base": "SSO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "QLD_proxy_max.csv",
+          "base": "QLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "GC=F_max.csv",
+          "base": "GLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VUSTX_max.csv",
+          "base": "TLT_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFITX_max.csv",
+          "base": "IEF_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFISX_max.csv",
+          "base": "SHY_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "BIL_proxy_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VIPSX_max.csv",
+          "base": "TIP_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VTMGX_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VEIEX_max.csv",
+          "base": "VWO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGSIX_max.csv",
+          "base": "VNQ_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "DBC_synthetic_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "EFA_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "SHY_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "DBC_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "VXUS_proxy_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VTMGX_max.csv",
+          "base": "EFA_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_proxy_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VEIEX_max.csv",
+          "base": "EEM_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "^SPGSCI_max.csv",
+          "base": "DBC_max.csv"
+        }
+      ],
+      "timestamp": "2026-10-05T09:32:32+09:00"
+    },
+    {
+      "pair_count": 21,
+      "period_row_count": 665,
+      "rolling_window_days": 252,
+      "outputs": [
+        "storage/results/proxy_comparison/summary.csv",
+        "storage/results/proxy_comparison/periods.csv"
+      ],
+      "pairs": [
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "SSO_proxy_max.csv",
+          "base": "SSO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "QLD_proxy_max.csv",
+          "base": "QLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "GC=F_max.csv",
+          "base": "GLD_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VUSTX_max.csv",
+          "base": "TLT_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFITX_max.csv",
+          "base": "IEF_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VFISX_max.csv",
+          "base": "SHY_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "BIL_proxy_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VIPSX_max.csv",
+          "base": "TIP_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VTMGX_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VEIEX_max.csv",
+          "base": "VWO_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGSIX_max.csv",
+          "base": "VNQ_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "대체 판 (대체 ↔ 실물)",
+          "proxy": "DBC_synthetic_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "EFA_max.csv",
+          "base": "VEA_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "SHY_max.csv",
+          "base": "BIL_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "DBC_max.csv",
+          "base": "PDBC_max.csv"
+        },
+        {
+          "group": "이어 붙인 판 (기존 대용 ↔ 실물)",
+          "proxy": "VXUS_proxy_max.csv",
+          "base": "VXUS_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VTMGX_max.csv",
+          "base": "EFA_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VGTSX_max.csv",
+          "base": "VXUS_proxy_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "VEIEX_max.csv",
+          "base": "EEM_max.csv"
+        },
+        {
+          "group": "상장 전 교차 확인 (대체 ↔ 기존 대용)",
+          "proxy": "^SPGSCI_max.csv",
+          "base": "DBC_max.csv"
+        }
+      ],
+      "timestamp": "2026-10-05T09:29:38+09:00"
+    }
   ]
 }

@@ -13,9 +13,19 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, REQUIRED_COLUMNS
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    COL_VOLUME,
+    REQUIRED_COLUMNS,
+    TRADING_DAYS_PER_YEAR,
+)
 from qbt.utils.proxy_series import (
     build_daily_rebalanced_composite,
+    build_rate_accrual_series,
     compute_seam_scale,
     rescale_to_actual,
     splice_proxy,
@@ -624,3 +634,142 @@ class TestInputDateOrder:
         # When / Then
         with pytest.raises(ValueError, match="오름차순"):
             build_daily_rebalanced_composite([(good, 0.75), (bad, 0.25)])
+
+
+class TestBuildRateAccrualSeries:
+    """전날 연 금리로 하루치 이자를 붙여 가는 시세 (초단기채 대체)."""
+
+    RATES = [0.0252, 0.0504, -0.0252, 0.1]
+
+    def test_close_accrues_previous_day_rate(self) -> None:
+        """
+        목적: 첫날 종가 1.0, 이후 종가 = 전날 종가 × (1 + 전날 금리 ÷ TRADING_DAYS_PER_YEAR)
+
+        Given: 4일, 금리 2.52% · 5.04% · -2.52% · 10% (마지막 날 금리는 쓰이지 않는다)
+        When: build_rate_accrual_series
+        Then: 종가 = 1.0, 1.0001, 1.0001 × 1.0002, 1.0001 × 1.0002 × 0.9999
+        """
+        # Given
+        days = DAYS[:4]
+
+        # When
+        result = build_rate_accrual_series(days, self.RATES)
+
+        # Then
+        expected = [1.0]
+        for rate in self.RATES[:3]:
+            expected.append(expected[-1] * (1.0 + rate / TRADING_DAYS_PER_YEAR))
+        assert expected[1] == pytest.approx(1.0001, rel=REL_TOL)
+        assert result[COL_CLOSE].tolist() == pytest.approx(expected, rel=REL_TOL)
+
+    def test_open_high_low_equal_close_and_volume_zero(self) -> None:
+        """
+        목적: 하루 안의 움직임이 없으므로 시가 · 고가 · 저가 = 종가, 거래량 0, 열은 저장 형식
+
+        Given: 4일 금리
+        When: build_rate_accrual_series
+        Then: 가격 4열이 같고 거래량 0, 열 순서 = REQUIRED_COLUMNS, 날짜 = 입력
+        """
+        # Given
+        days = DAYS[:4]
+
+        # When
+        result = build_rate_accrual_series(days, self.RATES)
+
+        # Then
+        for col in (COL_OPEN, COL_HIGH, COL_LOW):
+            assert result[col].tolist() == result[COL_CLOSE].tolist()
+        assert result[COL_VOLUME].tolist() == [0, 0, 0, 0]
+        assert list(result.columns) == REQUIRED_COLUMNS
+        assert result[COL_DATE].tolist() == days
+
+    def test_negative_rate_is_allowed(self) -> None:
+        """
+        목적: 음수 금리는 그대로 쓴다 (가격이 줄어들 뿐 양수로 남는다)
+
+        Given: 금리 -1% 만 이어지는 3일
+        When: build_rate_accrual_series
+        Then: 종가가 줄어들고 양수
+        """
+        # Given
+        days = DAYS[:3]
+
+        # When
+        result = build_rate_accrual_series(days, [-0.01, -0.01, -0.01])
+
+        # Then
+        closes = result[COL_CLOSE].tolist()
+        assert closes[0] > closes[1] > closes[2] > 0
+
+    def test_length_mismatch_raises(self) -> None:
+        """
+        목적: 날짜와 금리의 개수가 다르면 예외
+
+        Given: 날짜 4개, 금리 3개
+        When: build_rate_accrual_series
+        Then: ValueError
+        """
+        # When / Then
+        with pytest.raises(ValueError, match="개수"):
+            build_rate_accrual_series(DAYS[:4], self.RATES[:3])
+
+    def test_fewer_than_two_days_raises(self) -> None:
+        """
+        목적: 이자를 붙일 하루가 없으면(1일 이하) 예외
+
+        Given: 날짜 1개
+        When: build_rate_accrual_series
+        Then: ValueError
+        """
+        # When / Then
+        with pytest.raises(ValueError, match="2개 이상"):
+            build_rate_accrual_series(DAYS[:1], [0.05])
+
+    def test_nan_rate_raises(self) -> None:
+        """
+        목적: 금리에 결측이 있으면 메우지 않고 예외 (보간 금지)
+
+        Given: 둘째 금리가 NaN
+        When: build_rate_accrual_series
+        Then: ValueError
+        """
+        # When / Then
+        with pytest.raises(ValueError, match="결측"):
+            build_rate_accrual_series(DAYS[:3], [0.05, float("nan"), 0.05])
+
+    @pytest.mark.parametrize(
+        "bad_days",
+        [[DAYS[0], DAYS[2], DAYS[1]], [DAYS[0], DAYS[1], DAYS[1]]],
+        ids=["unsorted", "duplicated"],
+    )
+    def test_bad_date_order_raises(self, bad_days: list[date]) -> None:
+        """
+        목적: 날짜가 중복 없는 오름차순이 아니면 예외
+
+        Given: 정렬되지 않았거나 중복된 날짜
+        When: build_rate_accrual_series
+        Then: ValueError
+        """
+        # When / Then
+        with pytest.raises(ValueError, match="오름차순"):
+            build_rate_accrual_series(bad_days, [0.05, 0.05, 0.05])
+
+    def test_inputs_not_mutated(self) -> None:
+        """
+        목적: 입력 날짜 · 금리를 바꾸지 않는다
+
+        Given: 날짜 · 금리 목록과 그 사본
+        When: build_rate_accrual_series
+        Then: 입력이 사본과 같다
+        """
+        # Given
+        days = list(DAYS[:4])
+        rates = list(self.RATES)
+        days_copy, rates_copy = list(days), list(rates)
+
+        # When
+        build_rate_accrual_series(days, rates)
+
+        # Then
+        assert days == days_copy
+        assert rates == rates_copy

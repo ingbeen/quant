@@ -33,6 +33,7 @@ TQQQ_RESULTS_DIR: Final = RESULTS_DIR / "tqqq"  # TQQQ 시뮬레이션 결과 �
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
 # 보완 전략 비중 그리드 요약 (포트폴리오 결과 폴더 밖 — 대시보드 실험 탐색에 섞이지 않는다)
 PORTFOLIO_GRID_RESULTS_DIR: Final = RESULTS_DIR / "portfolio_grid"
+PROXY_COMPARISON_RESULTS_DIR: Final = RESULTS_DIR / "proxy_comparison"  # 대체-실물 비교 요약
 
 # --- 데이터 파일 경로 ---
 # 나스닥 100 추종 ETF 데이터 파일 경로
@@ -78,6 +79,25 @@ VXUS_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "VXUS_synthetic_max.csv"
 
 # 전 구간이 대용인 VXUS 합성 (실물 구간 없음, 같은 스크립트 생성)
 VXUS_PROXY_DATA_PATH: Final = STOCK_DIR / "VXUS_proxy_max.csv"
+
+# 장기 대체 시세 — 2000-08 이전에 실물 ETF 가 없던 종목을 전 기간 대신한다 (대체 판)
+VGTSX_DATA_PATH: Final = STOCK_DIR / "VGTSX_max.csv"  # VXUS 와 같은 펀드의 뮤추얼 클래스
+VTMGX_DATA_PATH: Final = STOCK_DIR / "VTMGX_max.csv"  # VEA 와 같은 펀드
+VEIEX_DATA_PATH: Final = STOCK_DIR / "VEIEX_max.csv"  # VWO 와 같은 펀드
+VGSIX_DATA_PATH: Final = STOCK_DIR / "VGSIX_max.csv"  # VNQ 와 같은 펀드
+VUSTX_DATA_PATH: Final = STOCK_DIR / "VUSTX_max.csv"  # TLT 대체 (장기국채 펀드)
+VFITX_DATA_PATH: Final = STOCK_DIR / "VFITX_max.csv"  # IEF 대체 (중기국채 펀드)
+VFISX_DATA_PATH: Final = STOCK_DIR / "VFISX_max.csv"  # SHY 대체 (단기국채 펀드)
+VIPSX_DATA_PATH: Final = STOCK_DIR / "VIPSX_max.csv"  # TIP 대체 (물가연동채 펀드)
+# 다운로더가 티커를 그대로 파일 이름에 쓴다
+SPGSCI_DATA_PATH: Final = STOCK_DIR / "^SPGSCI_max.csv"  # S&P GSCI 원자재 지수
+GOLD_FUTURES_DATA_PATH: Final = STOCK_DIR / "GC=F_max.csv"  # 금 선물 연속물 (GLD 대체)
+
+# 대체 판 생성 파일 (scripts/data/generate_long_proxy_series.py 생성)
+SSO_PROXY_DATA_PATH: Final = STOCK_DIR / "SSO_proxy_max.csv"  # SPY 2배 합성, 전 구간
+QLD_PROXY_DATA_PATH: Final = STOCK_DIR / "QLD_proxy_max.csv"  # QQQ 2배 합성, 전 구간
+BIL_PROXY_DATA_PATH: Final = STOCK_DIR / "BIL_proxy_max.csv"  # 연방기금금리 누적, 전 구간
+DBC_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "DBC_synthetic_max.csv"  # S&P GSCI → DBC 이어 붙인 판
 
 # --- 실행 이력 메타데이터 저장 경로 (JSON 형식) ---
 META_JSON_PATH: Final = RESULTS_DIR / "meta.json"

@@ -143,7 +143,7 @@ quant/
 | 구분 | 지점 | 값 |
 |---|---|---|
 | **출력 — 집행 완료** | `src/qbt/backtest/constants.py` `ROUND_PRICE` (중앙 상수, 모든 저장 경로가 경유) | `4` |
-| **입력 — 미이행** | `src/qbt/utils/stock_downloader.py` · `scripts/tqqq/generate_synthetic.py` · `scripts/data/generate_proxy_series.py` | 직접 `.round(6)` |
+| **입력 — 미이행** | `src/qbt/utils/stock_downloader.py` · `scripts/tqqq/generate_synthetic.py` · `scripts/data/generate_proxy_series.py` · `scripts/data/generate_long_proxy_series.py` | 직접 `.round(6)` |
 
 **왜 입력만 남겼는가.** 출력 자릿수는 저장 직전 복사본에만 걸려 **성과 지표를 바꾸지 않는다**(재실행 전후 15,012개 필드 대조에서 차이 0건). 반면 입력 자릿수는 백테스트의 계산 입력 자체를 바꾸므로 **CAGR·MDD·Calmar 가 전부 미세하게 달라지고 `docs/research/` 의 기록이 재현되지 않는다.** 게다가 재다운로드하면 최신 데이터가 함께 유입되어 「자릿수 효과」와 「데이터 추가 효과」를 분리할 수 없다.
 
