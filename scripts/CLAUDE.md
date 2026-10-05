@@ -218,9 +218,7 @@ main 함수:
 
 데코레이터 사용:
 
-- main 함수에 데코레이터 적용
 - try-except 블록 불필요
-- 자동 로깅 및 종료 코드 처리
 
 예외 전파:
 
@@ -251,7 +249,7 @@ width 파라미터 사용:
 - 모든 파라미터는 상수 파일에서 정의
   - 공통 상수: `src/qbt/common_constants.py`
   - 도메인 상수: 각 도메인의 `constants.py` (예: `src/qbt/backtest/constants.py`)
-  - 상수 명명 규칙: 루트 CLAUDE.md 참고
+  - 상수 명명 규칙: [src/qbt/CLAUDE.md](../src/qbt/CLAUDE.md) 「2. 상수 관리」 참고
 - 예외 사례 1: 데이터 다운로드 스크립트(`scripts/data/download_data.py`)
   - ticker(선택), 시작일, 종료일을 명령행 인자로 받음
   - ticker 미지정 시 `DEFAULT_TICKERS` 전체 종목 일괄 다운로드
@@ -261,29 +259,3 @@ width 파라미터 사용:
   - cross-asset 전략은 CONFIGS 기반 자동 등록
   - 이유: 전략별 독립 실행 및 비교 실행 지원
     근거 위치: [scripts/data/download_data.py](data/download_data.py), [scripts/backtest/run_single_backtest.py](backtest/run_single_backtest.py)
-
----
-
-## 제약사항
-
-### 비즈니스 로직 분리
-
-- CLI 계층에 도메인 로직 포함 금지
-- 단순히 비즈니스 로직 호출만 담당
-
-### 에러 로깅
-
-- CLI 계층만 ERROR 레벨 로그 출력
-- 비즈니스 로직은 예외만 발생
-
-### 종료 코드
-
-- 성공 시 0 반환 필수
-- 실패 시 1 반환 필수
-- 데코레이터가 자동 처리
-
-### 사용자 메시지
-
-- 한글 사용
-- 명확하고 구체적
-- 액션 가능한 정보 포함

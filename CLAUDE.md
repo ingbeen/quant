@@ -1,63 +1,13 @@
 # QBT 프로젝트 가이드라인
 
-> CRITICAL: 특정 패키지 또는 폴더의 파일을 분석하거나 작업할 때는
-> 반드시 해당 폴더에 위치한 `CLAUDE.md`를 먼저 읽고 참고해야 합니다.
-> 이는 필수 요구사항입니다. 루트 문서는 프로젝트 전반의 공통 규칙을 제공하며,
-> 각 패키지 문서는 해당 도메인의 구체적인 맥락과 핵심 개념을 제공합니다.
-
-## 문서 목적
-
-이 문서는 AI 모델이 QBT 프로젝트를 정확히 이해하고, 일관성 있는 응답을 생성하도록 돕습니다.
-사람을 위한 상세 문서가 아닌, AI 모델의 판단 기준과 프로젝트 맥락을 제공합니다.
-
----
-
-## 규칙 문서 참고 순서
-
-각 작업 전에 해당 경로의 규칙 문서를 반드시 읽습니다
-
-- **전역 규칙**: `~/.claude/CLAUDE.md` — 사고 절차·수술적 변경·개발 원칙·목표 주도 실행·계획서 선행·검증 지침·문서 참조 방향의 SoT입니다. 이 문서는 QBT 고유 맥락만 담습니다
-- 공통 규칙: `CLAUDE.md`(루트), `scripts/CLAUDE.md`(스크립트), `tests/CLAUDE.md`(테스트)
-- 파이썬 구현: `.claude/rules/python.md` — 구현 원칙·코딩 표준·로깅 정책. `.py` 파일을 다룰 때 자동으로 로드됩니다
-- 패키지 규칙: `src/qbt/CLAUDE.md`(qbt 패키지)
-- 도메인 규칙: 작업 대상 경로의 `CLAUDE.md`
-  - 예: `src/qbt/backtest/CLAUDE.md`, `src/qbt/tqqq/CLAUDE.md`, `src/qbt/utils/CLAUDE.md`
-- **축적 지식**: [docs/MEMORY.md](docs/MEMORY.md) — 작업하며 알아낸 함정·인계사항·환경 노하우. 아래 `@import` 로 **매 세션 자동 로드**됩니다
-
 @docs/MEMORY.md
-
-> **자동 로드는 `Read` 도구로 열었을 때만 걸립니다.** `cat`·`head`·`sed -n` 으로 읽으면
-> 그 경로의 규칙이 따라오지 않고, **auto 모드는 그 셸 읽기를 권장합니다.**
-> **코드 파일은 `Read` 도구로 엽니다.** 셸은 검색·집계에 씁니다.
->
-> 2026-08-29 실측: 같은 `.py` 를 `cat -n` 으로 읽으면 아무것도 안 붙고,
-> `Read` 로 열면 `.claude/rules/python.md` 와 그 계층의 `CLAUDE.md` 가 함께 주입됩니다.
 
 ---
 
 ## 계획서 규약 — 이 프로젝트의 설정 (CRITICAL)
 
-**절차는 전역이 정합니다** — `~/.claude/CLAUDE.md` 「계획서 선행」과 `/impl-plan` 스킬이 SoT이고,
-**값의 SoT 는 [.claude/plan-config.json](.claude/plan-config.json) 입니다.**
-어느 쪽도 여기에 복제하지 않습니다 — 두 벌이 되면 한쪽이 낡습니다.
-
-아래는 두 곳이 담지 못하는 **이 저장소의 판단 근거**입니다.
-
 - **Scope 에 `README.md` 를 함께 적습니다.** 다른 저장소는 `docs/COMMANDS.md` 만 요구합니다 — README 를 함께 보는 것은 QBT 의 규칙입니다.
 - **별도의 설계 문서나 `docs/ROADMAP.md` 가 없습니다.** 설계 결정·탈락안·Phase 상태를 남길 곳이 필요하면 `docs/research/` 의 보고서 본문에 씁니다.
-- **인라인 plan 은 즉석 실행용입니다.** 코드 변경이 필요한 작업은 `docs/plans/` 에 공식 계획서를 씁니다.
-- **커밋 기능명 매핑표를 두지 않습니다.** `/commit` 이 변경된 경로와 내용을 보고 그때그때 정합니다.
-
----
-
-## 문서 보관 원칙
-
-- **아카이브 폴더를 만들지 않는다**. 역할을 다한 문서를 별도 보관소로 옮겨 쌓아두지 않는다.
-- 남길 가치가 있는 과거 이력(결론, 수치, 기각 사유, 폐기 근거)은 `docs/research/`의 보고서 본문에 기록한 뒤 원본 문서는 삭제한다.
-- 삭제된 코드의 스냅샷은 문서로 복제하지 않는다. git history가 원본을 보관한다.
-- `docs/research/` 문서의 파일명은 한글 + 언더스코어로 작성한다.
-
-상세 규칙: [`docs/CLAUDE.md`](docs/CLAUDE.md)
 
 ---
 
@@ -67,10 +17,6 @@ QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다 (`src/qbt/`). 시
 
 기술 환경:
 
-- Python 3.12 (`str | None` 문법 사용)
-- 의존성 관리: Poetry
-- 코드 품질: Black, Ruff
-- 타입 체커: PyRight (strict mode for src/)
 - 주요 라이브러리: pandas, yfinance, Plotly, Streamlit
 
 ---
@@ -100,14 +46,9 @@ quant/
 
 ---
 
-## 실행 명령어 관리 원칙
-
-> CRITICAL: 모든 실행 명령어(`poetry run`, `streamlit run` 등)는 **[docs/COMMANDS.md](docs/COMMANDS.md)에서 단일 관리**합니다.
-> README.md 와 CLAUDE.md 파일에는 실행 명령어를 기재하지 않으며, 필요 시 `docs/COMMANDS.md` 를 참조합니다.
-
 ## 스크립트 실행 규칙
 
-`scripts/` 폴더의 스크립트와 `validate_project.py` 는 **AI 모델이 직접 실행할 수 있습니다.**
+`scripts/` 폴더의 스크립트는 **AI 모델이 직접 실행할 수 있습니다.**
 단 **대시보드(`app_*.py`)는 사용자가 실행합니다**(아래 참고).
 실행 명령은 [docs/COMMANDS.md](docs/COMMANDS.md)를 따릅니다.
 
@@ -130,8 +71,6 @@ quant/
 ---
 
 ## 이 프로젝트의 개발 원칙
-
-전역 「개발 원칙」(YAGNI·간결성·재사용성·영향도 관리·자문 체크·사용자 중심)에 더해, QBT 고유로 하나를 더 본다.
 
 - **확장성**: 도메인별 모듈 독립성 유지 (`backtest`·`tqqq`·`utils` 경계)
 

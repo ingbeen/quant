@@ -27,38 +27,11 @@ qbt 패키지는 순수 비즈니스 로직만 담당합니다. CLI 인터페이
 src/qbt/
 ├── common_constants.py  # 공통 상수 (경로, 컬럼명, 연간 영업일 등)
 ├── backtest/            # 백테스트 도메인
-│   ├── constants.py          # 백테스트 전용 상수
-│   ├── types.py              # TypedDict 정의 (성과 요약, 최적 파라미터 등)
-│   ├── analysis.py           # 이동평균 계산 및 성과 지표
-│   ├── walkforward.py        # 워크포워드 검증(WFO) 비즈니스 로직
-│   ├── parameter_stability.py # 파라미터 고원 분석
-│   ├── portfolio_types.py    # 포트폴리오 백테스트 타입 정의
-│   ├── portfolio_configs.py  # 포트폴리오 실험 설정
-│   ├── supplement_experiment.py # 보완 전략 실험 (비중 그리드 구성 · 실행 목록 · 판정 · 대용 검증)
-│   ├── runners.py            # 전략 러너 팩토리
-│   ├── csv_export.py         # 백테스트 CSV 저장용 변환 유틸리티
-│   ├── strategy_registry.py  # 전략 레지스트리 (StrategySpec, STRATEGY_REGISTRY)
 │   ├── strategies/           # 전략 클래스 (SignalStrategy Protocol 기반)
-│   ├── allocator_registry.py # 배분 규칙 레지스트리 (AllocatorSpec, ALLOCATOR_REGISTRY)
 │   ├── allocators/           # 배분 규칙 (비중이 바뀌는 매매법, WeightAllocator Protocol 기반)
 │   └── engines/              # 백테스트 엔진 (단일 자산, 포트폴리오)
 ├── tqqq/                # 레버리지 ETF 시뮬레이션 도메인
-│   ├── constants.py        # 시뮬레이션 전용 상수
-│   ├── simulation.py       # 시뮬레이션 엔진 (코어)
-│   ├── analysis_helpers.py # 금리-오차 분석 함수
-│   ├── spread_lab_helpers.py # Spread Lab 앱 전용 분석 함수
-│   ├── visualization.py    # Plotly 차트 생성
-│   └── data_loader.py      # TQQQ 전용 데이터 로더
 └── utils/               # 공통 유틸리티
-    ├── logger.py            # 로거 설정
-    ├── formatting.py        # 출력 포맷팅 (TableLogger 포함)
-    ├── data_loader.py       # CSV 로딩 통합
-    ├── cli_helpers.py       # 예외 처리 데코레이터
-    ├── parallel_executor.py # 병렬 처리
-    ├── stock_downloader.py  # 주식 데이터 다운로드 및 검증
-    ├── proxy_series.py      # 대용 시계열 (실물 상장 전 구간 채우기)
-    ├── proxy_comparison.py  # 대체-실물 비교 (상관 · 수익 차 · 기간별)
-    └── meta_manager.py      # 실행 메타데이터 관리
 ```
 
 ---
@@ -69,14 +42,7 @@ src/qbt/
 
 프로젝트는 명확한 2계층 구조를 따릅니다.
 
-CLI 계층 (`scripts/`):
-
-- 사용자 인터페이스 제공
-- argparse로 명령행 인자 파싱
-- 로거 초기화
-- `@cli_exception_handler` 데코레이터로 예외 처리
-- 비즈니스 로직 호출
-- 종료 코드 반환 (0=성공, 1=실패)
+CLI 계층 (`scripts/`): [scripts/CLAUDE.md](../../scripts/CLAUDE.md) 참고
 
 비즈니스 로직 계층 (`src/qbt/`):
 
@@ -118,12 +84,7 @@ CLI 계층 (`scripts/`):
 
 원칙: 상수 중복 금지 - 계층 간 중복 정의 시 즉시 통합
 
-상수 명명 규칙 (4가지 접두사):
-
-- `COL_`: DataFrame 컬럼명 (내부 계산용 영문 토큰)
-- `KEY_`: 딕셔너리나 JSON 형태의 키값
-- `DISPLAY_`: CSV 출력이나 UI 표시용 한글 레이블
-- `DEFAULT_`: 분석/시뮬레이션 기본값 파라미터
+상수 명명 규칙 (4가지 접두사): 전역 `~/.claude/rules/python.md` 「네이밍」 참고
 
 내부/출력 분리 원칙:
 
@@ -144,19 +105,6 @@ CLI 계층 (`scripts/`):
 - 중앙 집중식: `utils/data_loader.py`에서 모든 CSV 로딩
 - 로딩 시 자동 전처리 (날짜 파싱, 정렬, 중복 제거)
 - 순환 임포트 방지
-
-#### CLI 예외 처리
-
-- 데코레이터 패턴: `@cli_exception_handler` 사용
-- 자동 로거 감지
-- 스택 트레이스 포함
-- try-except 블록 불필요
-
-#### 데이터 검증
-
-- 다운로드 시 엄격한 검증 (결측치, 0값, 음수, 급등락)
-- 보간 금지: 이상 발견 시 즉시 예외
-- 검증 통과 후에만 저장
 
 #### 병렬 처리
 
@@ -256,25 +204,6 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - `tqqq_daily_comparison.csv`: TQQQ 일별 비교 데이터
 - `spread_lab/`: 스프레드 모델 검증 결과 (튜닝, 시계열, 금리-오차 분석, 워크포워드 검증)
 
-### 데이터 로딩 (utils/data_loader.py)
-
-모든 CSV 로딩은 이 모듈을 통해 수행:
-
-1. 파일 존재 확인
-2. CSV 읽기
-3. 필수 컬럼 검증
-4. 날짜 파싱
-5. 정렬
-6. 중복 제거
-7. DataFrame 반환
-
-### 데이터 검증 (다운로드 시)
-
-- 결측치, 0값, 음수값, 급등락 검사
-- 보간 금지
-- 즉시 커스텀 예외 발생
-- 검증 통과 시에만 저장
-
 ### 데이터 정제
 
 - 최근 일정 기간 제외 (데이터 소스 안정성 고려)
@@ -289,13 +218,3 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 - `TableLogger` 클래스 사용
 - 컬럼 정의 (이름, 폭, 정렬) -> 인스턴스 생성 -> 데이터 출력
 - 요약 통계: 주요 지표를 간결하게 표시, 구분선으로 섹션 분리
-
----
-
-## 하위 도메인 CLAUDE.md 참조
-
-각 하위 도메인 작업 시 해당 CLAUDE.md를 반드시 읽어야 합니다:
-
-- [backtest/CLAUDE.md](backtest/CLAUDE.md): 백테스트 전략, 엔진, WFO, 포트폴리오 관련 규칙
-- [tqqq/CLAUDE.md](tqqq/CLAUDE.md): 레버리지 ETF 시뮬레이션, 스프레드 모델 관련 규칙
-- [utils/CLAUDE.md](utils/CLAUDE.md): 공통 유틸리티 모듈 관련 규칙

@@ -11,7 +11,7 @@ tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리�
 
 `__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지).
 
-테스트 철학: 정책/불변조건/계약을 코드로 고정하여 회귀 방지
+저장소를 가리지 않는 테스트 규칙은 전역 `~/.claude/rules/python.md` 「테스트」가 정합니다. 이 문서에는 QBT 고유의 것만 둡니다.
 
 폴더 구조:
 
@@ -78,85 +78,20 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 ---
 
-### 2. Given-When-Then 패턴
+### 2. 경계 조건 테스트
 
-모든 테스트는 명확한 3단계 구조를 따릅니다.
-
-```python
-def test_example(self):
-    """
-    목적: 무엇을 검증하는가(불변조건/계약)
-
-    Given: 어떤 입력/상태를 준비했는가
-    When: 어떤 함수를 실행했는가
-    Then: 어떤 결과/부작용을 검증했는가
-    """
-    # Given
-    df = ...
-
-    # When
-    result = function_under_test(df)
-
-    # Then
-    assert ...
-```
-
-규칙:
-
-- "Then"은 되도록 한 가지 계약을 명확히 고정합니다.
-- 복잡한 로직은 한 테스트에 여러 assert를 넣기보다, 테스트를 쪼개서 계약 단위로 고정하세요.
-
----
-
-### 3. 경계 조건 테스트
-
-정상 케이스뿐 아니라 엣지 케이스도 포함합니다.
-
-- 빈 데이터 / 최소 길이 데이터
-- 윈도우 크기 부족(이동평균 등)
 - 자본 부족/주문 불가 시나리오
-- 극단값 (0, 음수, 매우 큰 값)
 - 날짜 중복/정렬 불량(필요 시 입력 정규화 계약)
-- NaN/결측치(프로덕션 정책에 따라 허용/금지 명확히)
-
-> 중요: "엣지 케이스를 어떻게 처리해야 하는가"는 도메인 정책입니다.
-> 정책이 정해져 있다면 테스트는 그 정책을 고정해야 합니다.
 
 ---
 
-### 4. 결정적 테스트 (Deterministic)
-
-테스트는 환경/시간/순서에 상관없이 항상 같은 결과를 보장해야 합니다.
-
-```python
-from freezegun import freeze_time
-
-@freeze_time("2023-06-15 14:30:00")
-def test_with_fixed_time(self):
-    # 시간이 고정되어 타임스탬프가 항상 동일
-    save_metadata("grid_results", {"test": "data"})
-```
+### 3. 결정적 테스트 (Deterministic)
 
 주요 기법:
 
-- 시간 고정: `@freeze_time` 사용
-- 파일 격리: `tmp_path`, `mock_storage_paths` 사용
 - 랜덤성 제거: 랜덤을 쓰면 시드 고정(가능하면 랜덤 자체를 제거)
-- 순서 안정화: 결과가 리스트/딕트/DF 정렬에 민감하면 정렬 규칙을 테스트에서 명시
 
 #### 부동소수점/DF 비교 규칙(필수)
-
-부동소수점 오차가 발생할 수 있는 모든 연산 결과는 명시적 허용오차와 함께 비교합니다.
-
-**스칼라 비교** (모든 연산 결과):
-
-```python
-# 금지 패턴
-assert abs(a - b) < tolerance
-
-# 필수 패턴
-assert actual == pytest.approx(expected, abs=tolerance)
-```
 
 **허용오차 기준표**:
 
@@ -169,57 +104,9 @@ assert actual == pytest.approx(expected, abs=tolerance)
 | 비율(%) 지표 | `0.1` | total_return_pct, MDD |
 | CAGR (근사 계산) | `1.0` | 복리 연환산 |
 
-**예외** (변경 불필요):
-
-- 단순 부등식 상한/하한 검증: `assert value < threshold`
-- 정확히 일치해야 하는 값 (라벨, 컬럼명, 날짜 등): `assert value == expected`
-- 배열 비교: `np.allclose(actual, expected, rtol=...)` (허용)
-
-**DataFrame 비교**:
-
-- `pd.testing.assert_frame_equal(..., rtol=..., atol=...)`
-- 컬럼 순서/인덱스 정책을 함께 고정(필요 시 `check_like=True` 사용)
-
-> "정확히 일치"가 정책인 값은 `==`로 고정하고,
-> **모든 연산 결과는 `pytest.approx()` 사용이 필수**입니다.
-
 ---
 
-### 5. 파일 격리
-
-테스트는 실제 파일/실제 storage에 영향을 주지 않아야 합니다.
-
-```python
-def test_with_temp_files(self, mock_storage_paths):
-    # tmp_path 기반 임시 경로를 사용 (테스트 후 자동 삭제)
-    meta_path = mock_storage_paths["META_JSON_PATH"]
-    ...
-```
-
-규칙:
-
-- 테스트에서 `storage/` 실경로(프로덕션 경로) 접근 금지
-- 파일 기반 기능은 반드시:
-
-  - `tmp_path` 또는
-  - `mock_storage_paths`(= `common_constants` 경로 패치)
-    를 통해 격리합니다.
-
-- 모듈이 import 시점에 경로 상수를 캡처할 수 있으므로,
-  필요한 경우 관련 모듈도 함께 monkeypatch 되어야 합니다.
-  (현재 `qbt/conftest.py`는 `meta_manager.META_JSON_PATH`도 패치합니다.)
-
-근거 위치: [conftest.py](qbt/conftest.py)
-
----
-
-### 6. 문서화
-
-테스트 자체가 도메인 규칙의 "실행 가능한 문서" 역할을 합니다.
-
----
-
-### 7. 병렬처리 테스트 파라미터 최소화
+### 4. 병렬처리 테스트 파라미터 최소화
 
 병렬처리(`parallel_executor`) 테스트 시 실행 시간 단축을 위해 최소 파라미터를 사용합니다.
 
@@ -311,26 +198,6 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
    - TQQQ 시뮬레이션: `src/qbt/tqqq/`
    - 공통 유틸리티: `src/qbt/utils/`
 
-외부 의존성 금지(원칙):
-
-- 테스트에서 네트워크/외부 API 호출 금지
-- 환경 의존(로컬 파일, 사용자 홈, OS별 경로) 금지
-- 필요하면 `monkeypatch`로 외부 호출을 스텁/대체하고,
-  테스트 데이터는 `tmp_path` + CSV/DF로 구성합니다.
-
-예외(에러) 테스트 규칙(권장):
-
-- 예외 타입을 먼저 고정하고, 메시지는 정책인 경우에만 엄격하게 고정합니다.
-- 일반적으로는 핵심 키워드만 `match=`로 부분 매칭:
-
-```python
-import pytest
-
-def test_pending_order_conflict_raises(...):
-    with pytest.raises(PendingOrderConflictError, match="pending"):
-        ...
-```
-
 ---
 
 ## 커버리지
@@ -346,19 +213,7 @@ def test_pending_order_conflict_raises(...):
 
 ## 자주 발생하는 문제
 
-### 1. 컬럼명 불일치
-
-```python
-# 잘못된 예
-df["Equity"]  # 대문자
-
-# 올바른 예
-df["equity"]  # 소문자 (실제 프로덕션 코드 확인!)
-```
-
-중요: 프로덕션 코드의 실제 컬럼명을 반드시 확인하세요.
-
-### 2. FFR 데이터 형식
+### 1. FFR 데이터 형식
 
 ```python
 # 잘못된 예
@@ -368,29 +223,11 @@ df["equity"]  # 소문자 (실제 프로덕션 코드 확인!)
 "DATE": ["2023-01"]  # yyyy-mm 문자열
 ```
 
-### 3. 파라미터 단위
-
-```python
-# 잘못된 예
-buy_buffer_zone_pct=3.0  # 퍼센트
-
-# 올바른 예
-buy_buffer_zone_pct=0.03  # 비율 (3%)
-```
-
-### 4. 함수 시그니처
-
-프로덕션 코드가 데이터클래스/특정 구조를 사용하는 경우,
-테스트도 동일한 구조를 사용해야 "진짜 계약"을 고정할 수 있습니다.
-
-- 테스트에서 임의 dict를 쓰기 전에, 프로덕션 입력 타입을 먼저 확인하세요.
-
-### 5. 타임스탬프 검증
+### 2. 타임스탬프 검증
 
 - ISO 8601 형식/타임존 정책을 고려해 검증하세요.
-- 시간이 관여하면 `freezegun`을 기본으로 고려하세요.
 
-### 6. 부동소수점 값 정밀도
+### 3. 부동소수점 값 정밀도
 
 원칙: 테스트 데이터는 적절한 자릿수로 작성하여 가독성을 높입니다.
 
@@ -438,59 +275,6 @@ expense_df = pd.DataFrame({
   - 매우 작은 값 (로그 차이): `1e-6 ~ 1e-12` (EPSILON 기반)
   - 일반 수익률: `0.1 ~ 1.0`
   - 부동소수점 민감한 값: `pytest.approx()` 또는 `pd.testing.assert_frame_equal(rtol=...)`
-
----
-
-## 테스트 작성 체크리스트
-
-테스트 작성 전/작성 중 확인사항:
-
-- [ ] 프로덕션 코드의 실제 시그니처/입력 타입 확인
-- [ ] 실제 반환값 구조/컬럼명/정렬 정책 확인
-- [ ] 예외 타입/정책 확인 (`pytest.raises`로 고정)
-- [ ] Given-When-Then 패턴 적용
-- [ ] 엣지 케이스 포함(최소 1개 이상)
-- [ ] 결정적 테스트(시간 고정/파일 격리/순서 안정화)
-- [ ] 부동소수점 비교는 `approx/rtol/atol` 고려
-- [ ] 네트워크/외부 의존성 없음 확인
-
----
-
-## 지속적 개선
-
-### 새 기능 추가 시
-
-1. 테스트 먼저 작성 (가능하면 TDD)
-
-```python
-# 1. 실패하는 테스트 작성
-def test_new_feature(self):
-    result = new_feature()
-    assert result == expected
-
-# 2. 기능 구현
-# 3. 테스트 통과 확인
-```
-
-2. 기존 테스트 실행
-
-```bash
-poetry run python validate_project.py  # 회귀 방지 (전체 검증)
-```
-
-### 버그 발견 시
-
-1. 재현 테스트 작성
-
-```python
-def test_bug_reproduction(self):
-    # 버그를 재현하는 테스트
-    # 먼저 실패하는지 확인
-    ...
-```
-
-2. 버그 수정
-3. 테스트 통과 확인
 
 ---
 
