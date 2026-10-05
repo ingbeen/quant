@@ -41,10 +41,10 @@ TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제
 - `_create_monthly_data_dict`: 월별 데이터 DataFrame을 딕셔너리로 변환 (제네릭, private)
 - `_lookup_monthly_data`: 특정 날짜의 월별 데이터 값을 딕셔너리에서 조회 (제네릭, fallback 지원, private)
 - `create_ffr_dict`: FFR DataFrame을 딕셔너리로 변환
-- `lookup_ffr`: FFR 값 조회 (최대 2개월 fallback)
+- `lookup_ffr`: FFR 값 조회 (최대 `MAX_FFR_MONTHS_DIFF` fallback)
 - `create_expense_dict`: Expense Ratio DataFrame을 딕셔너리로 변환
-- `lookup_expense`: Expense Ratio 값 조회 (최대 12개월 fallback)
-- `lookup_funding_spread`: funding spread 값 조회 (최대 2개월 fallback)
+- `lookup_expense`: Expense Ratio 값 조회 (최대 `MAX_EXPENSE_MONTHS_DIFF` fallback)
+- `lookup_funding_spread`: funding spread 값 조회 (최대 `MAX_FFR_MONTHS_DIFF` fallback)
 - `build_extended_expense_dict`: 운용비율 딕셔너리를 1999-01부터 확장 (합성 데이터 생성용, `DEFAULT_PRE_LISTING_EXPENSE_RATIO` 적용)
 
 DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
@@ -121,7 +121,7 @@ Plotly 기반 차트 생성 함수를 제공합니다.
 
 레버리지 배율:
 
-- 목표 레버리지 배율: `DEFAULT_LEVERAGE_MULTIPLIER = 3.0`
+- 목표 레버리지 배율: `DEFAULT_LEVERAGE_MULTIPLIER`
 - 일일 수익률에 배율 적용: `leveraged_return = underlying_return * leverage - daily_cost`
 
 ### 2. 비용 구조 (동적 비용 모델)
@@ -134,7 +134,7 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 ```
 
 - funding_spread는 softplus 모델로 금리에 따라 동적 결정 (과최적화 검증 완료)
-- 기본 파라미터: `DEFAULT_SOFTPLUS_A = -6.1`, `DEFAULT_SOFTPLUS_B = 0.37`
+- 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B`
 - 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 -> 2배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
 
@@ -160,17 +160,17 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 금리 데이터 (FFR):
 
 - 형식: `DATE` (yyyy-mm 문자열), `VALUE` (0~1 비율)
-- 검증: 최근 데이터와의 시간 차이 `MAX_FFR_MONTHS_DIFF` (2개월) 이내
+- 검증: 최근 데이터와의 시간 차이 `MAX_FFR_MONTHS_DIFF` 이내
 
 운용비율 데이터 (Expense Ratio):
 
 - 형식: `DATE` (yyyy-mm 문자열), `VALUE` (0~1 비율)
-- 검증: 최근 데이터와의 시간 차이 `MAX_EXPENSE_MONTHS_DIFF` (12개월) 이내
+- 검증: 최근 데이터와의 시간 차이 `MAX_EXPENSE_MONTHS_DIFF` 이내
 
 ### 4. 검증 임계값
 
-- 금리 데이터 갭: `MAX_FFR_MONTHS_DIFF = 2` (초과 시 ValueError)
-- 무결성 허용 오차: `INTEGRITY_TOLERANCE = 1e-6` (0.000001%)
+- 금리 데이터 갭: `MAX_FFR_MONTHS_DIFF` (초과 시 ValueError)
+- 무결성 허용 오차: `INTEGRITY_TOLERANCE`
 
 ---
 

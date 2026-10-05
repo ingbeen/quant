@@ -64,7 +64,7 @@ CLI 예외 처리 데코레이터
 실행 메타데이터 관리
 
 - `save_metadata`: CSV 결과 파일의 생성 정보를 JSON으로 관리
-- 순환 저장: 최근 N개만 유지 (`MAX_HISTORY_COUNT = 5`)
+- 순환 저장: 최근 `MAX_HISTORY_COUNT` 개만 유지
 - ISO 8601 타임스탬프 자동 추가
 
 ### 8. proxy_series.py
@@ -101,8 +101,6 @@ CLI 예외 처리 데코레이터
 
 ## 제약사항
 
-### 병렬 처리 (Windows pickle 제약)
+### 병렬 처리
 
-- 병렬 실행 함수는 pickle 가능해야 함 (람다 함수 불가)
-- 모듈 레벨 함수 또는 클래스 메서드만 사용
-- CLI 스크립트는 `if __name__ == "__main__"` 보호 필수
+- 제약(pickle 가능한 함수 · `__main__` 보호)은 `src/qbt/CLAUDE.md` 「병렬 처리」
