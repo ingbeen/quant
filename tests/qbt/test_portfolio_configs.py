@@ -10,7 +10,8 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
 6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
-8. 보완 전략 등록 실험: 매매법 2개(0.75 / 0.25), Q-2-2XS 슬롯 그대로, 시작일 하한은 주 비교 시작일
+8. 보완 전략 등록 실험: 채택 조합(매매법 3개 0.8 / 0.1 / 0.1)과 같은 합계의 SHY 기준선(0.8 / 0.2)이
+   그리드와 같은 구성 함수 · 같은 시작일 하한(주 비교 시작일)으로 등록, 채택 전 25% 등록 넷은 없음
 """
 
 import pytest
@@ -18,7 +19,13 @@ import pytest
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
-from qbt.backtest.supplement_experiment import MAIN_START_DATE
+from qbt.backtest.supplement_experiment import (
+    CANDIDATE_BASELINE,
+    MAIN_START_DATE,
+    VARIANT_SPLICED,
+    build_combo_config,
+    build_experiment_config,
+)
 
 
 class TestPortfolioConfigsList:
@@ -167,28 +174,53 @@ class TestQSeriesConfigs:
 
 
 class TestSupplementConfigs:
-    """보완 전략 등록 실험 (Q-2-2XS 75% + 후보 25%, 설계서 D50) 계약 테스트."""
+    """보완 전략 등록 실험 (채택 조합 Q-2-2XS 80% + HAA 10% + 로테이션 10% 와 SHY 20% 기준선, 설계서 D52 · D75) 계약 테스트."""
 
-    def test_registered_candidates_and_baseline(self) -> None:
+    def test_adopted_combo_is_registered_as_grid_built(self) -> None:
         """
-        목적: 통과 후보 셋과 같은 비중의 기준선이 그리드와 같은 구성 · 같은 시작일 하한으로 등록돼 있다.
+        목적: 채택 조합이 조합 그리드와 같은 구성 함수 · 같은 시작일 하한으로 등록돼 대시보드 숫자가 그리드와 같다.
 
-        Given: 등록 실험 이름 넷
-        When:  get_portfolio_config 로 조회
-        Then:  매매법 (q2_2xs 0.75 · 후보 0.25), q2_2xs 슬롯 = Q-2-2XS 슬롯, min_start_date = 주 비교 시작일, 설정 검증 통과
+        Given: 등록 실험 portfolio_q2_2xs_haa10_rotation10
+        When:  get_portfolio_config 로 조회한다
+        Then:  build_combo_config(10, 10, 이어 붙인 판, 주 비교 시작일)과 같은 설정, 매매법 (q2_2xs 0.8 · haa 0.1 · rotation 0.1),
+               설정 검증 통과
         """
+        # Given
         q2_2xs = get_portfolio_config("portfolio_q2_2xs")
-        for candidate in ("shy", "gold", "haa", "rotation"):
-            config = get_portfolio_config(f"portfolio_q2_2xs_{candidate}25")
 
-            methods = resolve_methods(config)
-            assert [m.method_id for m in methods] == ["q2_2xs", candidate]
-            assert [m.target_weight for m in methods] == pytest.approx([0.75, 0.25], abs=1e-12)
-            q2_method = methods[0]
-            assert isinstance(q2_method, SlotMethodConfig)
-            assert q2_method.asset_slots == q2_2xs.asset_slots
-            assert config.min_start_date == MAIN_START_DATE
-            validate_portfolio_config(config)
+        # When
+        config = get_portfolio_config("portfolio_q2_2xs_haa10_rotation10")
+        methods = resolve_methods(config)
+
+        # Then
+        assert config == build_combo_config(q2_2xs.asset_slots, 10, 10, VARIANT_SPLICED, MAIN_START_DATE)
+        assert [m.method_id for m in methods] == ["q2_2xs", "haa", "rotation"]
+        assert [m.target_weight for m in methods] == pytest.approx([0.8, 0.1, 0.1], abs=1e-12)
+        validate_portfolio_config(config)
+
+    def test_baseline_has_the_adopted_total_weight(self) -> None:
+        """
+        목적: 기준선은 채택 조합과 같은 합계(20%)의 SHY 이고, 그리드와 같은 구성 함수 · 같은 시작일 하한으로 등록돼 있다.
+
+        Given: 등록 실험 portfolio_q2_2xs_shy20
+        When:  get_portfolio_config 로 조회한다
+        Then:  build_experiment_config(SHY, 20, 이어 붙인 판, 주 비교 시작일)과 같은 설정, 매매법 (q2_2xs 0.8 · shy 0.2),
+               설정 검증 통과
+        """
+        # Given
+        q2_2xs = get_portfolio_config("portfolio_q2_2xs")
+
+        # When
+        config = get_portfolio_config("portfolio_q2_2xs_shy20")
+        methods = resolve_methods(config)
+
+        # Then
+        assert config == build_experiment_config(
+            q2_2xs.asset_slots, CANDIDATE_BASELINE, 20, VARIANT_SPLICED, MAIN_START_DATE
+        )
+        assert [m.method_id for m in methods] == ["q2_2xs", "shy"]
+        assert [m.target_weight for m in methods] == pytest.approx([0.8, 0.2], abs=1e-12)
+        validate_portfolio_config(config)
 
     def test_only_supplement_configs_have_start_date_floor(self) -> None:
         """
@@ -196,10 +228,22 @@ class TestSupplementConfigs:
 
         Given: PORTFOLIO_CONFIGS
         When:  min_start_date 가 있는 실험을 고른다
-        Then:  portfolio_q2_2xs_*25 넷뿐
+        Then:  기준선 SHY 20% · 채택 조합 둘뿐
         """
         names = {c.experiment_name for c in PORTFOLIO_CONFIGS if c.min_start_date is not None}
-        assert names == {f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation")}
+        assert names == {"portfolio_q2_2xs_shy20", "portfolio_q2_2xs_haa10_rotation10"}
+
+    @pytest.mark.parametrize("name", [f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation")])
+    def test_pre_adoption_25pct_experiments_are_not_registered(self, name: str) -> None:
+        """
+        목적: 채택 전 25% 등록 넷은 공식 목록에 없다 — 채택 후보와 같은 비중의 기준선만 남긴다(D52).
+
+        Given: 채택 전 등록 실험 이름
+        When:  get_portfolio_config 로 조회한다
+        Then:  ValueError
+        """
+        with pytest.raises(ValueError, match=name):
+            get_portfolio_config(name)
 
 
 class TestGetPortfolioConfig:

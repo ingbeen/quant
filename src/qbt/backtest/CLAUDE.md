@@ -260,7 +260,7 @@ TypedDict:
 
 - `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
 
-보완 전략 등록 실험은 `supplement_experiment.build_experiment_config` 로 만든다 — 그리드와 같은 구성 · 같은 시작일 하한이라 대시보드 숫자가 그리드 결과와 같다.
+보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다 — 조합은 `build_combo_config`, 단독 후보 · 기준선은 `build_experiment_config`. 그리드와 같은 구성 · 같은 시작일 하한이라 대시보드 숫자가 그리드 결과와 같다.
 
 ---
 

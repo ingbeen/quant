@@ -15,11 +15,9 @@ from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.backtest.supplement_experiment import (
     CANDIDATE_BASELINE,
-    CANDIDATE_GOLD,
-    CANDIDATE_HAA,
-    CANDIDATE_ROTATION,
     MAIN_START_DATE,
     VARIANT_SPLICED,
+    build_combo_config,
     build_experiment_config,
 )
 from qbt.common_constants import (
@@ -153,15 +151,24 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 )
 
 # ============================================================================
-# 매매법이 여럿인 실험: 보완 전략 그리드의 통과 후보 · 기준선 (Q-2-2XS 75% + 후보 25%)
+# 매매법이 여럿인 실험: 보완 전략의 채택 조합 · 같은 합계의 기준선 (Q-2-2XS 80% + HAA 10% + 로테이션 10%)
 # ============================================================================
 
 # 그리드와 같은 함수 · 같은 시작일 하한(주 비교 시작일)으로 만들어 대시보드 숫자가 그리드 결과와 같다.
-# 후보와 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D50.
-_SUPPLEMENT_W_PCT = 25
+# 채택 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D75, 기준선만 함께 남기는 원칙은 D52.
+_ADOPTED_HAA_PCT = 10
+_ADOPTED_ROTATION_PCT = 10
 _SUPPLEMENT_CONFIGS = [
-    build_experiment_config(_CONFIG_Q2_2XS.asset_slots, candidate, _SUPPLEMENT_W_PCT, VARIANT_SPLICED, MAIN_START_DATE)
-    for candidate in (CANDIDATE_BASELINE, CANDIDATE_GOLD, CANDIDATE_HAA, CANDIDATE_ROTATION)
+    build_experiment_config(
+        _CONFIG_Q2_2XS.asset_slots,
+        CANDIDATE_BASELINE,
+        _ADOPTED_HAA_PCT + _ADOPTED_ROTATION_PCT,
+        VARIANT_SPLICED,
+        MAIN_START_DATE,
+    ),
+    build_combo_config(
+        _CONFIG_Q2_2XS.asset_slots, _ADOPTED_HAA_PCT, _ADOPTED_ROTATION_PCT, VARIANT_SPLICED, MAIN_START_DATE
+    ),
 ]
 
 # ============================================================================
