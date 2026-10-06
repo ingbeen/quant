@@ -85,10 +85,6 @@ poetry run streamlit run scripts/backtest/app_single_backtest.py
 poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
 # 시각화: 전체 비교(에쿼티 곡선/드로우다운 비교, 성과 지표 테이블), 실험별 탭(자산별 비중 추이, 시그널 차트, 수익 기여도)
 
-# 7-1. 포트폴리오 디버그 대시보드 (선행: 3)
-poetry run streamlit run scripts/backtest/app_portfolio_debug.py
-# 시각화: 일별 상태 네비게이터, 동기화 시계열 차트(에쿼티/비중/현금/주수), 체결 상세 테이블, 시그널-체결 추적
-
 # 8. WFO 결과 시각화 대시보드 (선행: 3)
 poetry run streamlit run scripts/backtest/app_walkforward.py
 # 시각화: QQQ vs TQQQ 나란히 비교 (모드 요약, Stitched Equity, IS/OOS, 파라미터 추이, WFE 분포)

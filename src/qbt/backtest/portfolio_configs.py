@@ -3,6 +3,7 @@
 정의된 실험을 PortfolioConfig 인스턴스로 구현한다.
 
 실험 목적:
+- QQQ B&H: 매매 규칙 없이 QQQ 100% 를 사서 보유하는 기준점
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
 - Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
   수익·위험 프로필을 비교한다.
@@ -14,11 +15,9 @@ from pathlib import Path
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.backtest.supplement_experiment import (
-    CANDIDATE_BASELINE,
     MAIN_START_DATE,
     VARIANT_SPLICED,
     build_combo_config,
-    build_experiment_config,
 )
 from qbt.common_constants import (
     GLD_DATA_PATH,
@@ -40,6 +39,23 @@ def _make_result_dir(experiment_name: str) -> Path:
 # 포트폴리오 실험 설정 정의
 # ============================================================================
 
+# QQQ B&H: QQQ 100% 매수 후 보유 (매매 규칙 없는 기준점) -- 같은 자산을 버퍼존으로 매매하는 D-1 과 같은 시작일 정책
+_CONFIG_QQQ_BH = PortfolioConfig(
+    experiment_name="portfolio_qqq_bh",
+    display_name="QQQ B&H (QQQ 100% 보유)",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="qqq",
+            signal_data_path=QQQ_DATA_PATH,
+            trade_data_path=QQQ_DATA_PATH,
+            target_weight=1.00,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_qqq_bh"),
+)
+
 # D-1: QQQ 단일 자산 (버퍼존 100%, 비교군) -- QQQ 100%
 _CONFIG_D1 = PortfolioConfig(
     experiment_name="portfolio_d1",
@@ -54,23 +70,6 @@ _CONFIG_D1 = PortfolioConfig(
     ),
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_d1"),
-)
-
-# D-1-2X: QLD 단일 자산 (QQQ 시그널 + QLD 2x 매매) -- QLD 100%
-# D-1과의 차이는 매매 대상뿐이므로, 두 실험 대조로 레버리지 효과만 분리된다.
-_CONFIG_D1_2X = PortfolioConfig(
-    experiment_name="portfolio_d1_2x",
-    display_name="D-1-2X (QLD 100%)",
-    asset_slots=(
-        AssetSlotConfig(
-            asset_id="qld",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QLD_DATA_PATH,
-            target_weight=1.00,
-        ),
-    ),
-    total_capital=DEFAULT_INITIAL_CAPITAL,
-    result_dir=_make_result_dir("portfolio_d1_2x"),
 )
 
 # ============================================================================
@@ -151,21 +150,14 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 )
 
 # ============================================================================
-# 매매법이 여럿인 실험: 보완 전략의 채택 조합 · 같은 합계의 기준선 (Q-2-2XS 80% + HAA 10% + 로테이션 10%)
+# 매매법이 여럿인 실험: 보완 전략의 채택 조합 (Q-2-2XS 80% + HAA 10% + 로테이션 10%)
 # ============================================================================
 
 # 그리드와 같은 함수 · 같은 시작일 하한(주 비교 시작일)으로 만들어 대시보드 숫자가 그리드 결과와 같다.
-# 채택 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D75, 기준선만 함께 남기는 원칙은 D52.
+# 채택 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D75.
 _ADOPTED_HAA_PCT = 10
 _ADOPTED_ROTATION_PCT = 10
 _SUPPLEMENT_CONFIGS = [
-    build_experiment_config(
-        _CONFIG_Q2_2XS.asset_slots,
-        CANDIDATE_BASELINE,
-        _ADOPTED_HAA_PCT + _ADOPTED_ROTATION_PCT,
-        VARIANT_SPLICED,
-        MAIN_START_DATE,
-    ),
     build_combo_config(
         _CONFIG_Q2_2XS.asset_slots, _ADOPTED_HAA_PCT, _ADOPTED_ROTATION_PCT, VARIANT_SPLICED, MAIN_START_DATE
     ),
@@ -176,8 +168,8 @@ _SUPPLEMENT_CONFIGS = [
 # ============================================================================
 
 PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
+    _CONFIG_QQQ_BH,
     _CONFIG_D1,
-    _CONFIG_D1_2X,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
     *_SUPPLEMENT_CONFIGS,

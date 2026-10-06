@@ -42,7 +42,7 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 - **워크포워드 검증** (Dynamic / Fully Fixed 2-Mode 비교, WFE · Profit Concentration)
 - **파라미터 고원 분석** (멀티자산 x 4개 파라미터 통합)
 - **TQQQ 레버리지 ETF 시뮬레이션** — softplus 동적 스프레드 비용 모델
-- **Streamlit + Plotly 대시보드** — 단일 전략, 포트폴리오, 디버그, 워크포워드, 파라미터 고원, 대체-실물 비교
+- **Streamlit + Plotly 대시보드** — 단일 전략, 포트폴리오, 워크포워드, 파라미터 고원, 대체-실물 비교
 
 ### 과최적화 방어 / 정합성 검증
 
