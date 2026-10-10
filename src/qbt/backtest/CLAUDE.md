@@ -184,8 +184,9 @@ TypedDict:
 주요 함수:
 
 - `filter_valid_rows(signal_df, trade_df, ma_col) -> tuple[pd.DataFrame, pd.DataFrame]`: MA 컬럼 기준 유효 행(NaN 아닌 행) 필터링
+- `prepare_common_period(signal_df, trade_df, ma_windows)`: 이동평균을 모두 계산하고 가장 긴 이동평균의 유효 구간으로 자른다 — 여러 이동평균을 같은 기간으로 평가할 때 (그리드 · 고원 이동평균 실험)
 - `run_backtest(strategy, signal_df, trade_df, initial_capital, log_trades, strategy_name, params_schedule) -> tuple[trades_df, equity_df, summary]`: SignalStrategy 의존성 주입 방식 실행. `initial_capital: float`를 직접 전달한다.
-- `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴)
+- `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴). 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`)
 - `run_buffer_strategy(signal_df, trade_df, params, ...) -> ...`: `BufferZoneStrategy` + `run_backtest` 편의 래퍼
 - `_run_backtest_for_grid(params)`: 그리드 서치용 module-level 병렬 헬퍼 (pickle 가능)
 - `_check_pending_conflict(pending_order, signal_type, signal_date)`: Pending Order 충돌 감지 (Critical Invariant 강제)

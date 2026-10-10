@@ -199,14 +199,14 @@ def _save_summary_json(
     summary_dict: dict[str, Any] = {
         "initial_capital": round(float(str(result.summary["initial_capital"]))),
         "final_capital": round(float(str(result.summary["final_capital"]))),
-        "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
-        "cagr": round(float(str(result.summary["cagr"])), 2),
-        "mdd": round(float(str(result.summary["mdd"])), 2),
-        "calmar": round(float(str(result.summary["calmar"])), 2),
+        "total_return_pct": round(float(str(result.summary["total_return_pct"])), ROUND_PERCENT),
+        "cagr": round(float(str(result.summary["cagr"])), ROUND_PERCENT),
+        "mdd": round(float(str(result.summary["mdd"])), ROUND_PERCENT),
+        "calmar": round(float(str(result.summary["calmar"])), ROUND_RATIO),
         "total_trades": result.summary["total_trades"],
         "winning_trades": result.summary["winning_trades"],
         "losing_trades": result.summary["losing_trades"],
-        "win_rate": round(float(str(result.summary["win_rate"])), 2),
+        "win_rate": round(float(str(result.summary["win_rate"])), ROUND_PERCENT),
         "start_date": result.summary.get("start_date", ""),
         "end_date": result.summary.get("end_date", ""),
     }
@@ -259,12 +259,12 @@ def _save_results(result: SingleBacktestResult) -> None:
     metadata: dict[str, Any] = {
         "params": result.params_json,
         "results_summary": {
-            "total_return_pct": round(float(str(result.summary["total_return_pct"])), 2),
-            "cagr": round(float(str(result.summary["cagr"])), 2),
-            "mdd": round(float(str(result.summary["mdd"])), 2),
-            "calmar": round(float(str(result.summary["calmar"])), 2),
+            "total_return_pct": round(float(str(result.summary["total_return_pct"])), ROUND_PERCENT),
+            "cagr": round(float(str(result.summary["cagr"])), ROUND_PERCENT),
+            "mdd": round(float(str(result.summary["mdd"])), ROUND_PERCENT),
+            "calmar": round(float(str(result.summary["calmar"])), ROUND_RATIO),
             "total_trades": int(str(result.summary["total_trades"])),
-            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), 2),
+            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), ROUND_PERCENT),
         },
         "output_files": {
             "signal_csv": str(signal_path),

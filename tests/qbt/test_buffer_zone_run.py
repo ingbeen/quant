@@ -395,3 +395,87 @@ class TestRunGridSearch:
 
         # Then
         assert len(results_df) == 8, "2x2x1x2 = 8개 조합이 생성되어야 함"
+
+    def test_grid_search_evaluates_all_combinations_over_same_period(self):
+        """
+        목적: 이동평균 기간이 다른 조합도 같은 기간(가장 긴 이동평균이 계산되는 첫날부터)으로 평가되는지 검증
+              — 짧은 이동평균 조합이 일찍 시작하면 조합마다 다른 기간의 성과를 비교하게 된다
+
+        Given: 60행 데이터, 그리드 이동평균 5 · 20
+        When: run_grid_search 실행
+        Then: 5일선 조합의 CAGR · MDD · 거래 수가, 20일선의 첫 유효일부터 자른 데이터로 돌린 단독 실행과 같다
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, COL_MDD, COL_TOTAL_TRADES
+        from qbt.backtest.engines.backtest_engine import run_grid_search
+
+        # Given
+        closes = [100, 105, 95, 110, 90, 115, 95, 120, 100, 125] * 6
+        df = pd.DataFrame(
+            {
+                "Date": pd.bdate_range("2023-01-02", periods=60).date,
+                "Open": closes,
+                "Close": closes,
+            }
+        )
+        with_ma = add_single_moving_average(add_single_moving_average(df, window=5), window=20)
+        long_ma_start = int(with_ma["ma_20"].first_valid_index())
+        sliced = with_ma.iloc[long_ma_start:].reset_index(drop=True)
+        _, _, expected = run_buffer_strategy(
+            sliced,
+            sliced,
+            BufferStrategyParams(
+                ma_window=5,
+                buy_buffer_zone_pct=0.01,
+                sell_buffer_zone_pct=0.03,
+                hold_days=0,
+                initial_capital=10000.0,
+            ),
+            log_trades=False,
+        )
+
+        # When
+        results_df = run_grid_search(
+            signal_df=df,
+            trade_df=df,
+            initial_capital=10000.0,
+            ma_window_list=[5, 20],
+            buy_buffer_zone_pct_list=[0.01],
+            sell_buffer_zone_pct_list=[0.03],
+            hold_days_list=[0],
+        )
+
+        # Then
+        short_row = results_df[results_df[COL_MA_WINDOW] == 5].iloc[0]
+        assert float(short_row[COL_CAGR]) == pytest.approx(expected["cagr"])
+        assert float(short_row[COL_MDD]) == pytest.approx(expected["mdd"])
+        assert int(short_row[COL_TOTAL_TRADES]) == expected["total_trades"]
+
+    def test_grid_worker_rejects_rows_without_moving_average(self):
+        """
+        목적: 그리드 워커가 이동평균이 비어 있는 행을 받으면 조용히 돌지 않고 멈추는지 검증
+              — 빈 행이 섞이면 신호 없이 기간만 늘어 성과가 에러 없이 희석된다
+
+        Given: 5일선이 앞 4행 비어 있는(자르지 않은) 데이터를 워커 캐시에 넣는다
+        When: 그리드 워커(_run_backtest_for_grid)를 5일선 조합으로 호출
+        Then: 「내부 불변조건 위반」 RuntimeError
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.engines.backtest_engine import _run_backtest_for_grid
+        from qbt.utils.parallel_executor import WORKER_CACHE, init_worker_cache
+
+        # Given
+        closes = [100, 105, 95, 110, 90, 115, 95, 120, 100, 125] * 3
+        df = pd.DataFrame({"Date": pd.bdate_range("2023-01-02", periods=30).date, "Open": closes, "Close": closes})
+        untrimmed = add_single_moving_average(df, window=5)
+        params = BufferStrategyParams(
+            ma_window=5, buy_buffer_zone_pct=0.01, sell_buffer_zone_pct=0.03, hold_days=0, initial_capital=10000.0
+        )
+        init_worker_cache({"signal_df": untrimmed, "trade_df": untrimmed})
+
+        # When / Then
+        try:
+            with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+                _run_backtest_for_grid(params)
+        finally:
+            WORKER_CACHE.clear()

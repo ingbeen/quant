@@ -6,9 +6,9 @@
     "total_return_pct": 2090.87,
     "cagr": 15.27,
     "mdd": -53.4,
-    "calmar": 0.29,
-    "sharpe_ratio": 0.77,
-    "sortino_ratio": 1.09,
+    "calmar": 0.2859,
+    "sharpe_ratio": 0.7669,
+    "sortino_ratio": 1.0937,
     "total_trades": 0,
     "start_date": "2005-01-03",
     "end_date": "2026-09-24"

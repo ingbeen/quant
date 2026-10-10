@@ -23,6 +23,7 @@ from qbt.backtest.constants import (
     COL_SELL_BUFFER_PCT,
     COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
+    ROUND_RATIO,
     ma_col_name,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
@@ -156,8 +157,8 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         # 7. JSON 저장용 파라미터
         params_json: dict[str, Any] = {
             "ma_window": params.ma_window,
-            "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, 4),
-            "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, 4),
+            "buy_buffer_zone_pct": round(params.buy_buffer_zone_pct, ROUND_RATIO),
+            "sell_buffer_zone_pct": round(params.sell_buffer_zone_pct, ROUND_RATIO),
             "hold_days": params.hold_days,
             "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
             "param_source": "FIXED",

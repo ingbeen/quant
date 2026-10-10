@@ -440,6 +440,57 @@ class TestRunWalkforward:
         assert "oos_calmar" in first
         assert "wfe_calmar" in first
 
+    def test_single_combo_is_measured_from_eval_ma_window_start(self):
+        """
+        목적: 조합 하나만 평가하는 모드(Fully Fixed)도 eval_ma_window 가 정한 날부터 IS 를 재,
+              전체 그리드(Dynamic)의 같은 조합과 같은 기간이 되는지 검증
+
+        Given: 추세 + 진동 데이터(약 6년), 전체 그리드 이동평균 20 · 60, 조합 하나는 20일선
+        When: ma_window_list=[20], eval_ma_window=60 으로 run_walkforward
+        Then: 첫 윈도우 is_start 가 60일선의 첫 유효일이고, IS CAGR 이 같은 IS 를 [20, 60] 그리드로 잰 20일선 조합과 같다
+              (eval_ma_window 를 주지 않으면 20일선 기준이라 값이 다르다 — 픽스처가 둘을 가르는지 함께 확인)
+        """
+        from qbt.backtest.analysis import add_single_moving_average
+        from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW
+        from qbt.backtest.engines.backtest_engine import run_grid_search
+        from qbt.backtest.walkforward import run_walkforward
+
+        # Given
+        n = 1500
+        closes = [100.0 * 1.0005**i * (1 + 0.15 * math.sin(2 * math.pi * i / 120)) for i in range(n)]
+        dates = [date(2000, 1, 3) + timedelta(days=i * 7 // 5) for i in range(n)]
+        df = pd.DataFrame(
+            {
+                COL_DATE: dates,
+                COL_OPEN: closes,
+                COL_HIGH: closes,
+                COL_LOW: closes,
+                COL_CLOSE: closes,
+                COL_VOLUME: [1_000_000] * n,
+            }
+        )
+        grid_kwargs: dict[str, list[float] | list[int]] = {
+            "buy_buffer_zone_pct_list": [0.03],
+            "sell_buffer_zone_pct_list": [0.03],
+            "hold_days_list": [0],
+        }
+        wfo_kwargs: dict[str, object] = {"initial_is_months": 24, "oos_months": 12, "min_trades": 0, **grid_kwargs}
+        with_ma60 = add_single_moving_average(df, 60)
+        ma60_start = with_ma60.loc[with_ma60["ma_60"].notna(), COL_DATE].iloc[0]
+
+        # When
+        results = run_walkforward(df, df, ma_window_list=[20], eval_ma_window=60, **wfo_kwargs)
+        results_default = run_walkforward(df, df, ma_window_list=[20], **wfo_kwargs)
+
+        # Then
+        first = results[0]
+        assert first["is_start"] == str(ma60_start)
+        is_df = df[df[COL_DATE] <= date.fromisoformat(first["is_end"])].reset_index(drop=True)
+        grid_df = run_grid_search(is_df, is_df, ma_window_list=[20, 60], **grid_kwargs)
+        expected_cagr = float(grid_df[grid_df[COL_MA_WINDOW] == 20].iloc[0][COL_CAGR])
+        assert first["is_cagr"] == pytest.approx(expected_cagr)
+        assert results_default[0]["is_cagr"] != pytest.approx(expected_cagr)
+
 
 class TestBuildParamsSchedule:
     """build_params_schedule() 함수 테스트."""

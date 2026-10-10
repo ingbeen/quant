@@ -176,6 +176,8 @@ def _render_tab(param_name: str, display_name: str) -> None:
     # sell_buffer: 거래 수 필터 적용 안내
     if param_name == "sell_buffer":
         st.caption(f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터는 사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다.")
+    if param_name == "ma_window":
+        st.caption("모든 이동평균 값을 가장 긴 이동평균이 계산되는 날부터 같은 기간으로 평가합니다. 다른 탭보다 시작일이 늦어 같은 확정값도 Calmar 가 다릅니다.")
 
     # 보조: CAGR, MDD (접을 수 있는 expander)
     with st.expander("보조 지표 (CAGR, MDD)", expanded=True):

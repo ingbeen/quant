@@ -247,6 +247,7 @@ def run_walkforward(
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     min_trades: int = DEFAULT_WFO_MIN_TRADES,
     rolling_is_months: int | None = None,
+    eval_ma_window: int | None = None,
 ) -> list[WfoWindowResultDict]:
     """핵심 WFO 루프를 실행한다.
 
@@ -255,7 +256,7 @@ def run_walkforward(
     MA 계산 순서:
     1. 루프 진입 전, ma_window_list의 모든 윈도우에 대해 전체 signal_df에 MA를 사전 계산한다.
     2. IS/OOS 슬라이스는 이 사전 계산된 DataFrame에서 수행한다.
-    3. IS 그리드 서치(run_grid_search)는 내부적으로 MA를 재계산하므로 IS 평가에는 영향이 없다.
+    3. IS 그리드 서치(run_grid_search)는 슬라이스에 담긴 전체 히스토리 MA 를 그대로 쓴다.
     4. OOS 독립 평가는 전체 히스토리 기반 MA 값을 그대로 사용하여 MA 연속성을 보장한다.
 
     Args:
@@ -271,9 +272,12 @@ def run_walkforward(
         min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
         rolling_is_months: Rolling IS 최대 길이 (개월).
             None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
+        eval_ma_window: IS 평가 시작일을 정하는 이동평균 기간 — 이 이동평균이 계산되는 첫날보다 앞서 IS 를 재지 않는다.
+            None 이면 ma_window_list 의 최댓값. 조합 하나만 평가하는 모드도 전체 그리드와 같은 기간으로 재려면
+            호출자가 전체 그리드의 최댓값을 넘긴다.
 
     Returns:
-        윈도우별 결과 리스트
+        윈도우별 결과 리스트. is_start 는 실제 IS 평가 시작일이다
     """
     # 기본값 설정
     if ma_window_list is None:
@@ -304,7 +308,15 @@ def run_walkforward(
         if _ma_col not in signal_df_with_ma.columns:
             signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window)
 
-    for idx, (is_start, is_end, oos_start, oos_end) in enumerate(windows):
+    # IS 평가 시작일 — 그리드는 넘겨받은 목록의 가장 긴 이동평균으로 자르므로, 목록이 다른 모드끼리 기간을 맞추려면 여기서 정한다
+    eval_window = max(ma_window_list) if eval_ma_window is None else eval_ma_window
+    eval_col = ma_col_name(eval_window)
+    if eval_col not in signal_df_with_ma.columns:
+        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, eval_window)
+    eval_start = signal_df_with_ma.loc[signal_df_with_ma[eval_col].notna(), COL_DATE].iloc[0]
+
+    for idx, (window_is_start, is_end, oos_start, oos_end) in enumerate(windows):
+        is_start = max(window_is_start, eval_start)
         logger.debug(f"WFO [{idx + 1}/{len(windows)}] " f"IS={is_start}~{is_end}, OOS={oos_start}~{oos_end}")
 
         # 3. IS 데이터 슬라이스 (전체 히스토리 MA 포함)
@@ -332,7 +344,7 @@ def run_walkforward(
         best_sell_buf = best[COL_SELL_BUFFER_ZONE_PCT]
         best_hold = best[COL_HOLD_DAYS]
 
-        # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd — run_grid_search 내부에서 MA 재계산)
+        # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd)
         best_row_mask = (
             (grid_df[COL_MA_WINDOW] == best_ma)
             & (grid_df[COL_BUY_BUFFER_ZONE_PCT] == best_buy_buf)

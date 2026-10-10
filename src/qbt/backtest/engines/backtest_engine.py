@@ -171,6 +171,33 @@ def filter_valid_rows(
     )
 
 
+def prepare_common_period(
+    signal_df: pd.DataFrame,
+    trade_df: pd.DataFrame,
+    ma_windows: list[int],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """이동평균을 모두 계산하고, 가장 긴 이동평균이 계산되는 첫날부터 자른다.
+
+    여러 이동평균을 비교할 때 모두 같은 기간으로 평가하려고 쓴다 — 이동평균마다 자기 유효 구간에서 재면
+    짧은 이동평균일수록 일찍 시작해 기간이 다른 성과를 비교하게 된다.
+    가장 긴 이동평균이 유효한 행은 그보다 짧은 이동평균도 유효하다(창 안의 종가가 모두 있다).
+    이미 있는 이동평균 열은 다시 계산하지 않는다 — 구간을 잘라 넘기는 호출자(워크포워드 IS)가 전체 기간으로
+    계산해 둔 값을 조각에서 다시 계산하면 앞부분이 비어 시작일이 한 번 더 밀린다.
+
+    Args:
+        signal_df: 시그널 DataFrame (MA 계산 대상)
+        trade_df: 매매 DataFrame (signal_df 와 같은 행 순서)
+        ma_windows: 이동평균 기간 목록
+
+    Returns:
+        (signal_df, trade_df) — 모든 이동평균 열이 있고 모든 행에서 유효하다
+    """
+    for window in ma_windows:
+        if ma_col_name(window) not in signal_df.columns:
+            signal_df = add_single_moving_average(signal_df, window)
+    return filter_valid_rows(signal_df, trade_df, ma_col_name(max(ma_windows)))
+
+
 # ============================================================================
 # 그리드 서치 병렬 헬퍼 (module-level, pickle 가능)
 # ============================================================================
@@ -183,7 +210,8 @@ def _run_backtest_for_grid(
 
     병렬 실행을 위한 헬퍼 함수. 예외 발생 시 즉시 전파한다.
     signal_df, trade_df는 WORKER_CACHE에서 조회한다.
-    signal_df에는 해당 ma_window 컬럼이 사전 계산되어 있어야 한다.
+    signal_df에는 해당 ma_window 컬럼이 사전 계산되어 있고, 모든 행에서 유효해야 한다
+    (`run_grid_search` 가 `prepare_common_period` 로 미리 자른다).
 
     Args:
         params: 전략 파라미터
@@ -197,10 +225,14 @@ def _run_backtest_for_grid(
     # WORKER_CACHE에서 DataFrame 조회
     signal_df = WORKER_CACHE["signal_df"]
     trade_df = WORKER_CACHE["trade_df"]
-
-    # MA 컬럼 기준으로 유효 행 필터링
     ma_col = ma_col_name(params.ma_window)
-    filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
+    empty_ma = signal_df[ma_col].isna()
+    if empty_ma.any():
+        # 비어 있는 이동평균 행이 섞이면 신호 없이 기간만 늘어 성과가 에러 없이 희석된다
+        raise RuntimeError(
+            f"내부 불변조건 위반: 그리드 데이터의 {ma_col} 에 빈 행 {int(empty_ma.sum())}개"
+            f"(첫 날짜 {signal_df.loc[empty_ma, COL_DATE].iloc[0]}) — 공통 기간으로 자르지 않았다"
+        )
 
     # BufferZoneStrategy 생성 (파라미터 포함)
     strategy = BufferZoneStrategy(
@@ -210,7 +242,7 @@ def _run_backtest_for_grid(
         hold_days=params.hold_days,
     )
 
-    _, _, summary = run_backtest(strategy, filtered_signal, filtered_trade, params.initial_capital, log_trades=False)
+    _, _, summary = run_backtest(strategy, signal_df, trade_df, params.initial_capital, log_trades=False)
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
     calmar = calculate_calmar(summary["cagr"], summary["mdd"])
@@ -444,7 +476,7 @@ def run_grid_search(
     """버퍼존 전략 파라미터 그리드 탐색을 수행한다.
 
     모든 파라미터 조합에 대해 이동평균 기반 버퍼존 전략을 실행하고
-    성과 지표를 기록한다.
+    성과 지표를 기록한다. 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`).
 
     Args:
         signal_df: 시그널용 DataFrame (MA 계산 대상)
@@ -465,14 +497,9 @@ def run_grid_search(
         f"hold_days={hold_days_list}"
     )
 
-    # 1. signal_df에 모든 이동평균 기간을 미리 계산
-    signal_df = signal_df.copy()
-    trade_df = trade_df.copy()
+    # 1. 모든 이동평균을 미리 계산하고 공통 기간으로 자른다
     logger.debug(f"이동평균 사전 계산: {sorted(ma_window_list)}")
-
-    for window in ma_window_list:
-        signal_df = add_single_moving_average(signal_df, window)
-
+    signal_df, trade_df = prepare_common_period(signal_df, trade_df, ma_window_list)
     logger.debug("이동평균 사전 계산 완료")
 
     # 2. 파라미터 조합 생성

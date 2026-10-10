@@ -26,8 +26,10 @@ from qbt.backtest.constants import (
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
+    ROUND_PERCENT,
+    ROUND_RATIO,
 )
-from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.engines.backtest_engine import prepare_common_period, run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import (
     get_config,
     resolve_params_for_config,
@@ -113,9 +115,9 @@ def _build_row(
         "param_name": param_name,
         "param_value": param_value,
         "asset": asset_label,
-        "cagr": round(float(str(summary["cagr"])), 2),
-        "mdd": round(float(str(summary["mdd"])), 2),
-        "calmar": round(float(str(summary["calmar"])), 2),
+        "cagr": round(float(str(summary["cagr"])), ROUND_PERCENT),
+        "mdd": round(float(str(summary["mdd"])), ROUND_PERCENT),
+        "calmar": round(float(str(summary["calmar"])), ROUND_RATIO),
         "trades": int(str(summary["total_trades"])),
         "period_start": str(summary.get("start_date", "")),
         "period_end": str(summary.get("end_date", "")),
@@ -246,10 +248,10 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                     f"  buy={buy_val:.2f}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%"
                 )
 
-        # 실험 4: ma_window (MA 재계산 필요)
+        # 실험 4: ma_window — 모든 값을 같은 기간으로 평가한다
         if "ma_window" in selected_experiments:
+            signal_common, trade_common = prepare_common_period(signal_df, trade_df, _MA_WINDOW_VALUES)
             for ma_val in _MA_WINDOW_VALUES:
-                signal_with_ma = add_single_moving_average(signal_df, ma_val)
                 config = replace(
                     base_config,
                     ma_window=ma_val,
@@ -259,8 +261,8 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
                 )
                 params = resolve_params_for_config(config)
                 _, _, summary = run_buffer_strategy(
-                    signal_with_ma,
-                    trade_df,
+                    signal_common,
+                    trade_common,
                     params,
                     log_trades=False,
                     strategy_name=config.strategy_name,

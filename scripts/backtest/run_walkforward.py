@@ -127,6 +127,8 @@ def _run_single_mode(
         initial_is_months=DEFAULT_WFO_INITIAL_IS_MONTHS,
         oos_months=DEFAULT_WFO_OOS_MONTHS,
         initial_capital=initial_capital,
+        # 조합 하나만 평가하는 Fully Fixed 도 Dynamic 과 같은 IS 기간으로 잰다
+        eval_ma_window=max(DEFAULT_WFO_MA_WINDOW_LIST),
     )
 
     # Stitched Equity 생성
@@ -141,7 +143,7 @@ def _run_single_mode(
     return window_results, mode_summary, equity_df
 
 
-# JSON 반올림 규칙: 백분율 2자리, 비율 4자리
+# JSON 반올림 규칙: 백분율 ROUND_PERCENT, 비율 ROUND_RATIO
 _PCT_FIELDS = {
     "oos_cagr_mean",
     "oos_cagr_std",
@@ -166,6 +168,22 @@ _RATIO_FIELDS = {
     "stitched_calmar",
 }
 
+# 윈도우 결과 CSV 반올림 규칙 — 열 이름으로 정한다(접미사로 고르면 `_buffer_zone_pct` 비율이 백분율 자릿수에 걸린다)
+_WINDOW_CSV_ROUND: dict[str, int] = {
+    "best_buy_buffer_zone_pct": ROUND_RATIO,
+    "best_sell_buffer_zone_pct": ROUND_RATIO,
+    "is_cagr": ROUND_PERCENT,
+    "is_mdd": ROUND_PERCENT,
+    "is_win_rate": ROUND_PERCENT,
+    "oos_cagr": ROUND_PERCENT,
+    "oos_mdd": ROUND_PERCENT,
+    "oos_win_rate": ROUND_PERCENT,
+    "is_calmar": ROUND_RATIO,
+    "oos_calmar": ROUND_RATIO,
+    "wfe_calmar": ROUND_RATIO,
+    "wfe_cagr": ROUND_RATIO,
+}
+
 
 def _round_summary_for_json(summary: dict[str, object]) -> dict[str, object]:
     """WfoModeSummaryDict를 JSON 저장용 반올림 규칙에 맞게 변환한다.
@@ -179,9 +197,9 @@ def _round_summary_for_json(summary: dict[str, object]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in summary.items():
         if key in _PCT_FIELDS and isinstance(value, int | float):
-            result[key] = round(float(value), 2)
+            result[key] = round(float(value), ROUND_PERCENT)
         elif key in _RATIO_FIELDS and isinstance(value, int | float):
-            result[key] = round(float(value), 4)
+            result[key] = round(float(value), ROUND_RATIO)
         else:
             result[key] = value
     return result
@@ -276,26 +294,7 @@ def _save_results(
         (WALKFORWARD_DYNAMIC_FILENAME, dynamic_results),
         (WALKFORWARD_FULLY_FIXED_FILENAME, fully_fixed_results),
     ]:
-        df = pd.DataFrame(results)
-        # 반올림 규칙 적용
-        round_cols = {}
-        for col in df.columns:
-            if col.endswith("_pct") or col in [
-                "is_cagr",
-                "oos_cagr",
-                "is_mdd",
-                "oos_mdd",
-                "is_win_rate",
-                "oos_win_rate",
-            ]:
-                round_cols[col] = 2
-            elif col in ["is_calmar", "oos_calmar", "wfe_calmar", "wfe_cagr"]:
-                round_cols[col] = 4
-            elif col.endswith("_buffer_zone_pct"):
-                round_cols[col] = 4
-        if round_cols:
-            df = df.round(round_cols)
-        df.to_csv(result_dir / filename, index=False)
+        pd.DataFrame(results).round(_WINDOW_CSV_ROUND).to_csv(result_dir / filename, index=False)
 
     # Equity CSV 저장
     for filename, eq_df in [
@@ -303,15 +302,7 @@ def _save_results(
         (WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME, fully_fixed_equity),
     ]:
         if not eq_df.empty:
-            eq_export = eq_df.round(
-                {
-                    COL_EQUITY: ROUND_CAPITAL,
-                    COL_BUY_BUFFER_PCT: ROUND_RATIO,
-                    COL_SELL_BUFFER_PCT: ROUND_RATIO,
-                    COL_UPPER_BAND: ROUND_PRICE,
-                    COL_LOWER_BAND: ROUND_PRICE,
-                }
-            )
+            eq_export = eq_df.round({COL_EQUITY: ROUND_CAPITAL}).astype({COL_EQUITY: int})
             eq_export.to_csv(result_dir / filename, index=False)
 
     # 요약 JSON 저장 (반올림 규칙 적용)
@@ -474,11 +465,11 @@ def main() -> int:
                 "initial_is_months": DEFAULT_WFO_INITIAL_IS_MONTHS,
                 "oos_months": DEFAULT_WFO_OOS_MONTHS,
                 "ma_window_list": list(DEFAULT_WFO_MA_WINDOW_LIST),
-                "buy_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST],
-                "sell_buffer_zone_pct_list": [round(x, 4) for x in DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST],
+                "buy_buffer_zone_pct_list": [round(x, ROUND_RATIO) for x in DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST],
+                "sell_buffer_zone_pct_list": [round(x, ROUND_RATIO) for x in DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST],
                 "hold_days_list": list(DEFAULT_WFO_HOLD_DAYS_LIST),
-                "initial_capital": round(DEFAULT_INITIAL_CAPITAL, 2),
-                "slippage_rate": round(SLIPPAGE_RATE, 4),
+                "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
+                "slippage_rate": round(SLIPPAGE_RATE, ROUND_RATIO),
             },
             "data_period": {
                 "start_date": str(signal_df[COL_DATE].min()),
@@ -487,8 +478,8 @@ def main() -> int:
             },
             "results_summary": {
                 "n_windows_dynamic": dynamic_summary["n_windows"],
-                "dynamic_oos_cagr_mean": round(dynamic_summary["oos_cagr_mean"], 2),
-                "fully_fixed_oos_cagr_mean": round(fully_fixed_summary["oos_cagr_mean"], 2),
+                "dynamic_oos_cagr_mean": round(dynamic_summary["oos_cagr_mean"], ROUND_PERCENT),
+                "fully_fixed_oos_cagr_mean": round(fully_fixed_summary["oos_cagr_mean"], ROUND_PERCENT),
             },
             "elapsed_seconds": round(total_elapsed, 1),
         }
