@@ -25,6 +25,11 @@
   "monthly_returns": [
     {
       "year": 2009,
+      "month": 9,
+      "return_pct": 0.0
+    },
+    {
+      "year": 2009,
       "month": 10,
       "return_pct": 0.0
     },
@@ -1055,7 +1060,7 @@
     },
     {
       "year": 2011,
-      "return_pct": 11.73
+      "return_pct": 11.72
     },
     {
       "year": 2012,
@@ -1067,7 +1072,7 @@
     },
     {
       "year": 2014,
-      "return_pct": -24.67
+      "return_pct": -24.69
     },
     {
       "year": 2015,
@@ -1075,7 +1080,7 @@
     },
     {
       "year": 2016,
-      "return_pct": -9.11
+      "return_pct": -9.12
     },
     {
       "year": 2017,
@@ -1087,11 +1092,11 @@
     },
     {
       "year": 2019,
-      "return_pct": 23.6
+      "return_pct": 23.62
     },
     {
       "year": 2020,
-      "return_pct": 39.03
+      "return_pct": 39.04
     },
     {
       "year": 2021,
@@ -1103,15 +1108,15 @@
     },
     {
       "year": 2023,
-      "return_pct": -13.18
+      "return_pct": -13.19
     },
     {
       "year": 2024,
-      "return_pct": 46.37
+      "return_pct": 46.36
     },
     {
       "year": 2025,
-      "return_pct": 137.58
+      "return_pct": 137.57
     },
     {
       "year": 2026,

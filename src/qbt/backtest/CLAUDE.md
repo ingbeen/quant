@@ -49,11 +49,10 @@
 
 - `add_single_moving_average`: 단순이동평균(SMA) 계산. 유형 선택 파라미터가 없다 (「도메인 규칙 1-1」 참고)
 - `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
-- `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산
-- `calculate_yearly_returns`: 월별 수익률 리스트로부터 연간 복리 수익률 계산 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
+- `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산. 첫 달은 첫 행 에쿼티 대비다 (시작일부터 첫 월말까지를 버리지 않는다)
+- `calculate_yearly_returns`: 에쿼티 데이터로부터 연간 수익률 계산. 첫 해는 첫 행 에쿼티 대비이고, 월별 수익률을 복리하지 않는다 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
 - `calculate_sharpe_ratio`: 일별 수익률 기반 연율화 샤프 비율 (rf=0 기준, std=0 또는 데이터 부족 시 0.0 반환)
 - `calculate_sortino_ratio`: 일별 수익률 기반 연율화 소르티노 비율 (하방 편차 기준, 하방 편차=0 시 0.0 반환)
-- `calculate_benchmark_yearly_returns`: 벤치마크(QQQ 등) Close 컬럼과 기간으로부터 연간 복리 수익률 리스트 계산 (대시보드 "연간 수익률 vs QQQ" 섹션에서 사용)
 
 ### 4. parameter_stability.py
 
@@ -66,7 +65,7 @@
 - `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (metric은 run_param_plateau_all.py에서 생성한 지표와 일치해야 함)
 - `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
 - `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
-- `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값 대비 threshold 이상인 연속 범위)
+- `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값을 포함하면서 최대값 대비 threshold 이상이 끊기지 않는 범위)
 - `find_plateau_range_with_trade_filter(metric_series, trades_series, min_trades, threshold_ratio)`: 거래 수 필터를 적용한 고원 구간 탐지 (극단 파라미터에서 거래 수 극소로 Calmar가 왜곡되는 경우에 사용)
 
 ### 5. walkforward.py
@@ -553,7 +552,7 @@ Lookahead 금지:
 - N-1일 종가에서 생성된 `pending`은 N일 시가에서 정상 체결
 - N일 종가에서 발생한 신호는 N+1일 시가가 없으므로 무시
 - 강제청산 없음: 마지막 날에 포지션이 남아있어도 강제 매도하지 않음
-- 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy $XX.X (보유중)"` 마커로 표시된다
+- 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy (보유중)"` 마커로 표시된다
 
 ---
 
@@ -590,7 +589,7 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
   - `ma_*` 컬럼 존재 → MA 오버레이 추가
   - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가 (단일 백테스트는 equity_df, 포트폴리오는 signal_df의 컬럼을 본다 — buffer_zone 자산만 컬럼 존재)
   - `trades_df`가 비어있지 않음 → 완료된 거래 Buy/Sell 마커 추가
-  - `summary.open_position` 존재 → 미청산 포지션 Buy 마커 추가 (`"Buy $XX.X (보유중)"`)
+  - `summary.open_position` 존재 → 미청산 포지션 Buy 마커 추가 (`"Buy (보유중)"`)
 - **날짜 표기**: `localization.dateFormat: "yyyy-MM-dd"` 설정으로 한국식 날짜 형식 적용
 - **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
   - OHLC 가격: `open`, `high`, `low`, `close`
@@ -610,9 +609,9 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - **Plotly 전용**: lightweight-charts 없이 Plotly만 사용 (멀티 시리즈 라인 차트가 주목적)
 - **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
 - **전체 비교 탭 주요 기능**: 성과 지표 비교 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교
-- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
+- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 자산별 수익 기여도
 - **매매법이 여럿인 실험**: 기존 섹션은 자산 키(「매매법.종목」) 단위로 그대로 보이고, `ledger.csv` 가 있으면 「매매법별 손익」 섹션(매매법별 누적 손익 · 몫과 목표 몫 추이 · 최종일 매매법 요약 · 매매법 × 종목 손익 · 손익 대조 · 계좌 종목 합계)을 더한다. 숫자는 러너가 summary.json 에 미리 계산한다
-- **미청산 포지션 Buy 마커**: summary.json의 `per_asset[*].open_position`(= `{entry_date, entry_price, shares}`) 존재 시 시그널 차트에 `"Buy $XX.X (보유중)"` 마커를 표시. 단일 백테스트 대시보드(`summary.open_position`)와 동일 규약이며, 포트폴리오에서는 자산별 키(`per_asset`)에 담긴다. `run_portfolio_backtest.py`가 equity.csv의 `{asset_id}_shares` 변화(0→양수 마지막 전환)에서 `entry_date`를 파생하여 저장한다.
+- **미청산 포지션 Buy 마커**: summary.json의 `per_asset[*].open_position`(= `{entry_date, entry_price, shares}`) 존재 시 시그널 차트의 그 진입일 Buy 마커를 `"Buy (보유중)"` 으로 표시. 시그널 차트는 신호 거래(`trade_type == "signal"`)만 마커로 그리고 리밸런싱 거래는 그리지 않는다. 포트폴리오에서는 미청산 정보가 자산별 키(`per_asset`)에 담긴다. `run_portfolio_backtest.py`가 equity.csv의 `{asset_id}_shares` 변화(0→양수 마지막 전환)에서 `entry_date`를 파생하여 저장한다.
 
 선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요
 

@@ -19,8 +19,8 @@ import pytest
 
 from qbt.backtest.analysis import (
     add_single_moving_average,
-    calculate_benchmark_yearly_returns,
     calculate_calmar,
+    calculate_monthly_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_summary,
@@ -633,167 +633,242 @@ class TestCalculateCalmar:
         assert result == pytest.approx(0.0, abs=EPSILON)
 
 
+class TestCalculateMonthlyReturns:
+    """calculate_monthly_returns 단위 테스트
+
+    정책: 월말 에쿼티 앞에 첫 행 에쿼티를 기준점으로 둔다. 첫 달 = 첫 월말 / 첫 행 - 1,
+    그 뒤는 직전 월말 대비.
+    """
+
+    def test_first_month_measured_from_first_row(self):
+        """
+        목적: 월중에 시작한 에쿼티의 첫 달 수익률이 빠지지 않는지 검증
+
+        Given: 2023-01-16 시작(100) → 01-31(110) → 02-28(121)
+        When: calculate_monthly_returns 호출
+        Then: 1월 +10.0%(첫 행 대비), 2월 +10.0%(1월 말 대비)
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 16), date(2023, 1, 31), date(2023, 2, 28)],
+                "equity": [100.0, 110.0, 121.0],
+            }
+        )
+
+        # When
+        result = calculate_monthly_returns(equity_df)
+
+        # Then
+        assert [(r["year"], r["month"]) for r in result] == [(2023, 1), (2023, 2)]
+        assert [r["return_pct"] for r in result] == pytest.approx([10.0, 10.0], abs=EPSILON)
+
+    def test_two_rows_in_same_month(self):
+        """
+        목적: 한 달 안의 두 행만 있어도 그 달 수익률이 나오는지 검증 (최소 길이 경계)
+
+        Given: 2023-03-10(100) → 03-20(105)
+        When: calculate_monthly_returns 호출
+        Then: 3월 +5.0% 한 건
+        """
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [date(2023, 3, 10), date(2023, 3, 20)], "equity": [100.0, 105.0]})
+
+        # When
+        result = calculate_monthly_returns(equity_df)
+
+        # Then
+        assert [(r["year"], r["month"]) for r in result] == [(2023, 3)]
+        assert [r["return_pct"] for r in result] == pytest.approx([5.0], abs=EPSILON)
+
+    def test_month_end_start_has_no_zero_length_first_month(self):
+        """
+        목적: 시작일이 그 달의 마지막 거래일이면 길이 0 인 첫 달을 내지 않는지 검증 (구간이 데이터 시작에 걸침)
+
+        Given: 2023-01-31 시작(100) → 02-28(110). 1월에는 첫 행 하나뿐이다
+        When: calculate_monthly_returns 호출
+        Then: 2월 +10.0% 한 건 (1월 0.00% 는 없다)
+        """
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [date(2023, 1, 31), date(2023, 2, 28)], "equity": [100.0, 110.0]})
+
+        # When
+        result = calculate_monthly_returns(equity_df)
+
+        # Then
+        assert [(r["year"], r["month"]) for r in result] == [(2023, 2)]
+        assert [r["return_pct"] for r in result] == pytest.approx([10.0], abs=EPSILON)
+
+    def test_row_order_does_not_change_result(self):
+        """
+        목적: 행 순서가 날짜순이 아니어도 가장 이른 날의 에쿼티를 기준점으로 쓰는지 검증
+
+        Given: 날짜가 뒤섞인 에쿼티 — 02-28(121), 01-16(100), 01-31(110)
+        When: calculate_monthly_returns 호출
+        Then: 날짜순 입력과 같다 — 1월 +10.0%, 2월 +10.0%
+        """
+        # Given
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 2, 28), date(2023, 1, 16), date(2023, 1, 31)],
+                "equity": [121.0, 100.0, 110.0],
+            }
+        )
+
+        # When
+        result = calculate_monthly_returns(equity_df)
+
+        # Then
+        assert [(r["year"], r["month"]) for r in result] == [(2023, 1), (2023, 2)]
+        assert [r["return_pct"] for r in result] == pytest.approx([10.0, 10.0], abs=EPSILON)
+
+    def test_single_row_returns_empty(self):
+        """
+        목적: 한 행뿐이면 수익률을 정의할 수 없어 빈 리스트인지 검증
+
+        Given: 1행 에쿼티
+        When: calculate_monthly_returns 호출
+        Then: 빈 리스트
+        """
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [date(2023, 3, 10)], "equity": [100.0]})
+
+        # When / Then
+        assert calculate_monthly_returns(equity_df) == []
+
+
 class TestCalculateYearlyReturns:
     """calculate_yearly_returns 단위 테스트
 
-    정책: 같은 연도의 월별 수익률(%)을 복리 누적하여 연간 수익률(%)을 산출한다.
-    공식: yearly_pct = (prod(1 + monthly_pct/100) - 1) * 100
+    정책: 연말 에쿼티 앞에 첫 행 에쿼티를 기준점으로 둔다. 첫 해 = 첫 연말 / 첫 행 - 1,
+    그 뒤는 직전 연말 대비. 반올림한 월 수익률을 복리하지 않고 에쿼티 비율로 계산한다.
     """
 
-    def test_full_year_uniform_one_percent(self):
+    def test_first_year_measured_from_first_row(self):
         """
-        목적: 12개월 모두 1%인 경우 연간 복리 수익률 검증
+        목적: 연중에 시작한 에쿼티의 첫 해가 시작일부터 계산되는지 검증
 
-        정책: (1.01)^12 - 1 ≈ 0.12683 = 12.6825...%
-
-        Given: 2023년 12개월, 모든 월 return_pct=1.0
+        Given: 2023-06-15 시작(100) → 2023-12-29(120) → 2024-12-31(150)
         When: calculate_yearly_returns 호출
-        Then: 연간 수익률 약 12.68% (반올림 2자리 = 12.68)
+        Then: 2023 +20.0%(첫 행 대비), 2024 +25.0%(2023 말 대비)
         """
         # Given
-        monthly_returns: list[dict[str, object]] = [{"year": 2023, "month": m, "return_pct": 1.0} for m in range(1, 13)]
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 6, 15), date(2023, 12, 29), date(2024, 12, 31)],
+                "equity": [100.0, 120.0, 150.0],
+            }
+        )
 
         # When
-        result = calculate_yearly_returns(monthly_returns)
+        result = calculate_yearly_returns(equity_df)
 
         # Then
-        assert len(result) == 1, "1개 연도만 있어야 합니다"
-        assert result[0]["year"] == 2023
-        # (1.01)^12 = 1.12682503... → 12.6825%
-        expected_pct = ((1.01**12) - 1) * 100
-        assert result[0]["return_pct"] == pytest.approx(round(expected_pct, 2), abs=EPSILON)
+        assert [r["year"] for r in result] == [2023, 2024]
+        assert [r["return_pct"] for r in result] == pytest.approx([20.0, 25.0], abs=EPSILON)
 
-    def test_partial_year(self):
+    def test_december_start_keeps_first_year(self):
         """
-        목적: 한 해의 일부 월만 있는 경우에도 정상 처리되는지 검증
+        목적: 12월에 시작해도 첫 해가 통째로 빠지지 않는지 검증 (구간이 데이터 시작에 걸침)
 
-        정책: 존재하는 월만 누적 곱한다.
-
-        Given: 2023년 1~3월만 (1%, 2%, -1%)
+        Given: 2008-12-10 시작(100) → 2008-12-31(110) → 2009-12-31(121)
         When: calculate_yearly_returns 호출
-        Then: (1.01 * 1.02 * 0.99 - 1) * 100 = 1.9898%
+        Then: 2008 +10.0%, 2009 +10.0%
         """
         # Given
-        monthly_returns: list[dict[str, object]] = [
-            {"year": 2023, "month": 1, "return_pct": 1.0},
-            {"year": 2023, "month": 2, "return_pct": 2.0},
-            {"year": 2023, "month": 3, "return_pct": -1.0},
-        ]
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2008, 12, 10), date(2008, 12, 31), date(2009, 12, 31)],
+                "equity": [100.0, 110.0, 121.0],
+            }
+        )
 
         # When
-        result = calculate_yearly_returns(monthly_returns)
+        result = calculate_yearly_returns(equity_df)
 
         # Then
-        assert len(result) == 1
-        expected_pct = (1.01 * 1.02 * 0.99 - 1) * 100  # ≈ 1.9898
-        assert result[0]["return_pct"] == pytest.approx(round(expected_pct, 2), abs=EPSILON)
+        assert [r["year"] for r in result] == [2008, 2009]
+        assert [r["return_pct"] for r in result] == pytest.approx([10.0, 10.0], abs=EPSILON)
+
+    def test_year_end_start_has_no_zero_length_first_year(self):
+        """
+        목적: 시작일이 그 해의 마지막 거래일이면 길이 0 인 첫 해를 내지 않는지 검증
+
+        Given: 2008-12-31 시작(100) → 2009-12-31(110). 2008년에는 첫 행 하나뿐이다
+        When: calculate_yearly_returns 호출
+        Then: 2009 +10.0% 한 건 (2008 0.00% 는 없다)
+        """
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [date(2008, 12, 31), date(2009, 12, 31)], "equity": [100.0, 110.0]})
+
+        # When
+        result = calculate_yearly_returns(equity_df)
+
+        # Then
+        assert [r["year"] for r in result] == [2009]
+        assert [r["return_pct"] for r in result] == pytest.approx([10.0], abs=EPSILON)
+
+    def test_yearly_is_equity_ratio_not_compound_of_rounded_monthly(self):
+        """
+        목적: 연간 수익률이 반올림한 월 수익률의 복리가 아니라 에쿼티 비율인지 검증
+
+        정책: 저장 자릿수(2자리)로 깎인 월 수익률을 복리하면 오차가 쌓인다.
+
+        Given: 2023-12-31 부터 13개 월말, 매월 1.234% 상승
+        When: calculate_yearly_returns 호출
+        Then: 2024 = (1.01234^12 - 1) * 100 의 2자리 반올림 (15.86).
+              월 수익률 1.23 을 복리한 값(15.80)과 다르다
+        """
+        # Given
+        month_ends = pd.date_range("2023-12-31", periods=13, freq="ME")
+        equity_df = pd.DataFrame(
+            {COL_DATE: [d.date() for d in month_ends], "equity": [10000.0 * (1.01234**i) for i in range(13)]}
+        )
+
+        # When
+        result = calculate_yearly_returns(equity_df)
+
+        # Then
+        expected_pct = round((1.01234**12 - 1) * 100, 2)
+        assert [r["year"] for r in result] == [2024]
+        assert result[0]["return_pct"] == pytest.approx(expected_pct, abs=EPSILON)
+        assert expected_pct != pytest.approx(round((1.0123**12 - 1) * 100, 2), abs=0.01)
 
     def test_multi_year_sorted_ascending(self):
         """
-        목적: 여러 연도가 섞여 있을 때 연도 오름차순으로 정렬되어 반환되는지 검증
+        목적: 여러 해가 연도 오름차순으로 반환되는지 검증
 
-        Given: 2024년 + 2022년 + 2023년 (입력 순서 무작위)
+        Given: 2022-01-03 ~ 2024-12-31 에 걸친 에쿼티
         When: calculate_yearly_returns 호출
-        Then: result는 [2022, 2023, 2024] 순서
-        """
-        # Given (입력 순서를 일부러 섞는다)
-        monthly_returns: list[dict[str, object]] = [
-            {"year": 2024, "month": 1, "return_pct": 5.0},
-            {"year": 2022, "month": 12, "return_pct": -3.0},
-            {"year": 2023, "month": 6, "return_pct": 2.0},
-        ]
-
-        # When
-        result = calculate_yearly_returns(monthly_returns)
-
-        # Then
-        years = [int(str(r["year"])) for r in result]
-        assert years == [2022, 2023, 2024], "연도 오름차순으로 정렬되어야 합니다"
-
-    def test_empty_input(self):
-        """
-        목적: 빈 입력 시 빈 리스트 반환 검증
-
-        정책: monthly_returns가 빈 리스트면 yearly_returns도 빈 리스트.
-
-        Given: 빈 리스트
-        When: calculate_yearly_returns 호출
-        Then: 빈 리스트 반환
-        """
-        # Given / When
-        result = calculate_yearly_returns([])
-
-        # Then
-        assert result == []
-
-    def test_mixed_positive_negative(self):
-        """
-        목적: 양수 + 음수 수익률이 섞여 있을 때 복리 누적이 정확한지 검증
-
-        Given: 2023년 1월 +10%, 2월 -10%
-        When: calculate_yearly_returns 호출
-        Then: 1.10 * 0.90 = 0.99 → -1%
+        Then: [2022, 2023, 2024] 순서
         """
         # Given
-        monthly_returns: list[dict[str, object]] = [
-            {"year": 2023, "month": 1, "return_pct": 10.0},
-            {"year": 2023, "month": 2, "return_pct": -10.0},
-        ]
+        equity_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2022, 1, 3), date(2022, 12, 30), date(2023, 12, 29), date(2024, 12, 31)],
+                "equity": [100.0, 90.0, 99.0, 108.9],
+            }
+        )
 
         # When
-        result = calculate_yearly_returns(monthly_returns)
+        result = calculate_yearly_returns(equity_df)
 
         # Then
-        assert len(result) == 1
-        # 1.10 * 0.90 = 0.99 → -1%
-        assert result[0]["return_pct"] == pytest.approx(-1.0, abs=EPSILON)
+        assert [r["year"] for r in result] == [2022, 2023, 2024]
 
-    def test_consistency_with_calculate_monthly_returns(self):
+    def test_single_row_returns_empty(self):
         """
-        목적: calculate_monthly_returns 결과를 입력으로 받아 연간 수익률이
-              equity 직접 비율과 거의 일치하는지 검증 (왕복 일관성)
+        목적: 한 행뿐이면 빈 리스트인지 검증
 
-        정책: monthly compound ≈ 연초 대비 연말 비율
-
-        Given:
-          - 12개월 equity 데이터 (월말마다 1% 상승)
-        When:
-          - calculate_monthly_returns → calculate_yearly_returns
-        Then:
-          - equity[12]/equity[0] - 1 비율과 거의 동일
+        Given: 1행 에쿼티
+        When: calculate_yearly_returns 호출
+        Then: 빈 리스트
         """
-        from qbt.backtest.analysis import calculate_monthly_returns
+        # Given
+        equity_df = pd.DataFrame({COL_DATE: [date(2023, 3, 10)], "equity": [100.0]})
 
-        # Given: 2023년 12월말 ~ 2024년 12월말 (총 13개 월말 시점)
-        # 매월 1% 복리 상승
-        dates = [
-            date(2023, 12, 31),
-            date(2024, 1, 31),
-            date(2024, 2, 29),
-            date(2024, 3, 31),
-            date(2024, 4, 30),
-            date(2024, 5, 31),
-            date(2024, 6, 30),
-            date(2024, 7, 31),
-            date(2024, 8, 31),
-            date(2024, 9, 30),
-            date(2024, 10, 31),
-            date(2024, 11, 30),
-            date(2024, 12, 31),
-        ]
-        equities = [10000.0 * (1.01**i) for i in range(13)]
-        equity_df = pd.DataFrame({COL_DATE: dates, "equity": equities})
-
-        # When
-        monthly = calculate_monthly_returns(equity_df)
-        yearly = calculate_yearly_returns(monthly)
-
-        # Then: 2024년 한 해 12번 1% 복리 → ≈ 12.68%
-        assert len(yearly) == 1
-        assert int(str(yearly[0]["year"])) == 2024
-        expected_pct = ((1.01**12) - 1) * 100
-        # 반올림 2자리 적용으로 인한 미세한 누적 오차 허용 (0.05 이내)
-        assert float(str(yearly[0]["return_pct"])) == pytest.approx(expected_pct, abs=0.05)
+        # When / Then
+        assert calculate_yearly_returns(equity_df) == []
 
 
 class TestAnalysisModuleInvariants:
@@ -934,44 +1009,3 @@ class TestCalculateSortinoRatio:
         """에쿼티가 일정하면 모든 수익률 0 → downside=0 → 0.0 반환."""
         eq = self._build_equity_df([100.0, 100.0, 100.0, 100.0])
         assert calculate_sortino_ratio(eq) == 0.0
-
-
-class TestCalculateBenchmarkYearlyReturns:
-    """벤치마크 연간 수익률 계산 테스트 클래스."""
-
-    def test_normal_calculation(self):
-        """
-        Given: 2023-01 ~ 2024-12 벤치마크 Close 데이터
-        When: calculate_benchmark_yearly_returns 호출
-        Then: 연도별 수익률 리스트 반환, year 오름차순
-        """
-        # 24개월 월말 데이터 구성 (매월 2% 상승 가정)
-        dates = pd.date_range("2023-01-01", periods=24, freq="ME")
-        closes = [100.0 * (1.02**i) for i in range(24)]
-        df = pd.DataFrame({COL_DATE: dates, COL_CLOSE: closes})
-
-        result = calculate_benchmark_yearly_returns(df, "2023-01-01", "2024-12-31")
-
-        assert len(result) >= 1
-        years = [int(str(e["year"])) for e in result]
-        assert years == sorted(years)
-
-    def test_empty_df_returns_empty_list(self):
-        """빈 DataFrame이면 빈 리스트."""
-        df = pd.DataFrame({COL_DATE: [], COL_CLOSE: []})
-        assert calculate_benchmark_yearly_returns(df, "2023-01-01", "2024-12-31") == []
-
-    def test_out_of_range_returns_empty_list(self):
-        """
-        Given: 지정 기간 밖 데이터만 존재
-        When: calculate_benchmark_yearly_returns 호출
-        Then: 빈 리스트 반환 (필터 후 2행 미만)
-        """
-        df = pd.DataFrame(
-            {
-                COL_DATE: pd.date_range("2020-01-01", periods=5, freq="D"),
-                COL_CLOSE: [100.0, 101.0, 102.0, 103.0, 104.0],
-            }
-        )
-        result = calculate_benchmark_yearly_returns(df, "2023-01-01", "2023-12-31")
-        assert result == []

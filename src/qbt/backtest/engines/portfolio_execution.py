@@ -13,6 +13,8 @@ from qbt.backtest.constants import (
     COL_PNL,
     COL_PNL_PCT,
     COL_SHARES,
+    TRADE_TYPE_REBALANCE,
+    TRADE_TYPE_SIGNAL,
 )
 from qbt.backtest.engines.engine_common import (
     PortfolioTradeRecord,
@@ -154,7 +156,7 @@ def execute_orders(
                 COL_BUY_BUFFER_PCT: 0.0,
                 COL_HOLD_DAYS_USED: e_hold_days[asset_id],
                 "asset_id": asset_id,
-                "trade_type": "rebalance" if intent.intent_type == "REDUCE_TO_TARGET" else "signal",
+                "trade_type": TRADE_TYPE_REBALANCE if intent.intent_type == "REDUCE_TO_TARGET" else TRADE_TYPE_SIGNAL,
                 "pre_shares": pre_shares,
                 "post_shares": post_shares_val,
                 "order_amount": sell_amount,

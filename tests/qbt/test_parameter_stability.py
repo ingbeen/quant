@@ -239,6 +239,87 @@ class TestFindPlateauRange:
         assert result is not None
         assert result == pytest.approx((0.0, 2.0), abs=1e-12)
 
+    def test_find_plateau_range_stops_at_first_value_below_threshold(self) -> None:
+        """
+        목적: 기준 미달 값을 건너뛰지 않고 최대값을 포함한 연속 범위만 반환하는지 검증
+
+        Given: 유지일별 Calmar (실측 QQQ 값). 최대 0.32(유지일 7), 기준 0.32 * 0.8 = 0.256,
+               유지일 1 만 0.24 로 기준 미달
+        When: find_plateau_range(series, threshold_ratio=0.8) 호출
+        Then: (2.0, 10.0) — 유지일 0 은 기준 이상이지만 미달인 1 너머라 고원이 아니다
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
+
+        # Given
+        series = pd.Series([0.30, 0.24, 0.28, 0.31, 0.29, 0.26, 0.32, 0.30], index=[0, 1, 2, 3, 4, 5, 7, 10])
+
+        # When
+        result = find_plateau_range(series, threshold_ratio=0.8)
+
+        # Then
+        assert result is not None
+        assert result == pytest.approx((2.0, 10.0), abs=1e-12)
+
+    def test_find_plateau_range_picks_segment_of_first_max_on_tie(self) -> None:
+        """
+        목적: 기준 이상 구간이 둘로 갈리고 최대값이 같으면 앞쪽 최대값의 구간을 반환하는지 검증
+
+        Given: [0.20, 0.10, 0.20] (가운데가 기준 0.18 미달)
+        When: find_plateau_range(series, threshold_ratio=0.9) 호출
+        Then: (0.0, 0.0)
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
+
+        # Given
+        series = pd.Series([0.20, 0.10, 0.20], index=[0, 1, 2])
+
+        # When
+        result = find_plateau_range(series, threshold_ratio=0.9)
+
+        # Then
+        assert result is not None
+        assert result == pytest.approx((0.0, 0.0), abs=1e-12)
+
+    def test_find_plateau_range_keeps_value_exactly_at_threshold(self) -> None:
+        """
+        목적: 정확히 기준과 같은 값이 부동소수 오차로 빠져 고원이 잘리지 않는지 검증
+
+        Given: 유지일별 Calmar (실측 TLT 값, 2자리 반올림). 최대 0.05, 기준 0.05 * 0.8 = 0.04.
+               부동소수로는 0.05 * 0.8 = 0.04000000000000001 이다
+        When: find_plateau_range(series, threshold_ratio=0.8) 호출
+        Then: (2.0, 7.0) — 0.04 인 유지일 3 · 4 · 5 가 고원 안에 든다
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
+
+        # Given
+        series = pd.Series([0.03, 0.03, 0.05, 0.04, 0.04, 0.04, 0.05, 0.02], index=[0, 1, 2, 3, 4, 5, 7, 10])
+
+        # When
+        result = find_plateau_range(series, threshold_ratio=0.8)
+
+        # Then
+        assert result is not None
+        assert result == pytest.approx((2.0, 7.0), abs=1e-12)
+
+    def test_find_plateau_range_returns_none_for_all_nan(self) -> None:
+        """
+        목적: 값이 전부 NaN 이면 고원이 없으므로 None 을 반환하는지 검증 (결측치 경계)
+
+        Given: 모든 값이 NaN 인 Series
+        When: find_plateau_range(series) 호출
+        Then: None 반환
+        """
+        from qbt.backtest.parameter_stability import find_plateau_range
+
+        # Given
+        series = pd.Series([float("nan"), float("nan")], index=[1, 2])
+
+        # When
+        result = find_plateau_range(series)
+
+        # Then
+        assert result is None
+
 
 class TestFindPlateauRangeWithTradeFilter:
     """거래 수 필터 적용 고원 구간 탐지 테스트."""

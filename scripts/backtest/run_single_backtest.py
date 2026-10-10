@@ -251,7 +251,7 @@ def _save_results(result: SingleBacktestResult) -> None:
     equity_path = _save_equity_csv(result)
     trades_path = _save_trades_csv(result)
     monthly_returns = calculate_monthly_returns(result.equity_df)
-    yearly_returns = calculate_yearly_returns(monthly_returns)
+    yearly_returns = calculate_yearly_returns(result.equity_df)
 
     summary_path = _save_summary_json(result, monthly_returns, yearly_returns)
 

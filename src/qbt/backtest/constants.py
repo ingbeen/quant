@@ -96,6 +96,10 @@ COL_HOLDING_DAYS: Final = "holding_days"
 COL_DRAWDOWN_PCT: Final = "drawdown_pct"
 COL_CHANGE_PCT: Final = "change_pct"
 
+# --- 포트폴리오 거래 기록의 trade_type 값 ---
+TRADE_TYPE_SIGNAL: Final = "signal"  # 신호 · 배분 변화에 따른 청산
+TRADE_TYPE_REBALANCE: Final = "rebalance"  # 목표 비중으로 줄이는 부분 매도
+
 # --- DataFrame 컬럼명 (내부용) ---
 COL_MA_WINDOW: Final = "ma_window"
 COL_BUY_BUFFER_ZONE_PCT: Final = "buy_buffer_zone_pct"

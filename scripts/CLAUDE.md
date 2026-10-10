@@ -157,7 +157,6 @@ main 함수:
     - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다. 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
     - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다. 설정에 `min_start_date` 가 있으면 그 날짜보다도 앞서지 않는다 (보완 전략 등록 실험이 그리드와 같은 기간으로 돈다)
     - 체결 전후 표(`execution_comparison.csv`)의 사유: 리밸런싱한 날인데 엔진 사유가 빈 값이면(배분 규칙 매매법의 비중 조정) `allocation` 으로 적는다 — 신호만 있는 날도 사유가 빈 값이라 표만으로는 둘을 가를 수 없다. 대시보드는 「배분 조정」으로 보인다
-    - QQQ 벤치마크 공유 정책: `benchmark_qqq.json`은 전체 `PORTFOLIO_CONFIGS`의 유효 시작일 중 가장 이른 날짜(`min`)에 동일한 정책 하한을 적용한 값(`max(min, DEFAULT_PORTFOLIO_START_DATE)`)을 기준으로 1회 계산하여 공유 파일 하나로 저장한다. 대시보드의 "연간 수익률 vs QQQ" 섹션은 실험별 `summary.yearly_returns`와 공유 QQQ `yearly_returns`를 연도 기준 inner join 하므로, QQQ 연간 수익률 범위가 실험 기간보다 넓어도 공통 연도만 비교된다. 단일 실험 실행 시에도 동일하게 전체 configs 기준으로 계산한다.
 - 보완 전략 비중 그리드:
   - `run_supplement_grid.py`: 「Q-2-2XS (100−w)% + 후보 w%」 실행 목록을 병렬로 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대용 검증 계산은 `src/qbt/backtest/supplement_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
     - 실행마다 정합성 검사기를 돌려 위반이 있으면 그 구성과 함께 ERROR 로그를 남기고 중단한다 (포트폴리오 러너와 같은 정책). 실제 시작일이 묶음 시작일과 다르면 워커가 멈춘다
@@ -176,7 +175,7 @@ main 함수:
     - 선행: `run_single_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
     - 전략 자동 탐색: `BACKTEST_RESULTS_DIR` 하위 폴더를 스캔하여 전략별 탭 자동 생성
     - Feature Detection: 데이터 존재 여부로 차트 오버레이 결정 (전략명 분기 없음)
-    - 미청산 포지션 마커: `summary.open_position` 존재 시 `"Buy $XX.X (보유중)"` 마커 자동 표시
+    - 미청산 포지션 마커: `summary.open_position` 존재 시 `"Buy (보유중)"` 마커 자동 표시
     - customValues 기반 tooltip: 전일대비%, 이평선, 상단/하단 밴드 표시
     - 날짜 표기: `localization.dateFormat` 설정으로 한국식 "yyyy-MM-dd" 형식 적용
     - vendor fork: `vendor/streamlit-lightweight-charts-v5/` (tooltip 지원 추가)
@@ -194,7 +193,7 @@ main 함수:
     - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성
     - 주요 섹션:
       - 전체 비교 탭: 성과 지표 비교 테이블, 에쿼티 곡선 비교, 드로우다운 비교
-      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 연간 수익률 vs QQQ 바차트, 자산별 수익 기여도
+      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 자산별 수익 기여도
       - 매매법이 여럿인 실험(ledger.csv 존재): 「매매법별 손익」 섹션 추가
 
 ### 레버리지 시뮬레이션 (tqqq/)

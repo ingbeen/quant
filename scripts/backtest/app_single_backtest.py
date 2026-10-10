@@ -100,13 +100,10 @@ class StrategyData(TypedDict):
 
 
 @st.cache_data
-def _load_csv(path_str: str) -> pd.DataFrame:
-    """CSV를 로드하고 날짜 컬럼을 파싱한다.
-
-    st.cache_data는 hashable 인자만 지원하므로 Path 대신 str을 사용한다.
-    """
+def _load_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """CSV를 로드하고 날짜 컬럼을 파싱한다. mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다."""
     try:
-        df = pd.read_csv(path_str)
+        df = pd.read_csv(path)
     except pd.errors.EmptyDataError:
         return pd.DataFrame()
     if COL_DATE in df.columns:
@@ -115,9 +112,9 @@ def _load_csv(path_str: str) -> pd.DataFrame:
 
 
 @st.cache_data
-def _load_json(path_str: str) -> dict[str, Any]:
-    """JSON 파일을 로드한다."""
-    with Path(path_str).open("r", encoding="utf-8") as f:
+def _load_json(path: Path, mtime: float) -> dict[str, Any]:
+    """JSON 파일을 로드한다. mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다."""
+    with path.open("r", encoding="utf-8") as f:
         return cast(dict[str, Any], json.load(f))
 
 
@@ -149,13 +146,13 @@ def _discover_strategies() -> list[StrategyData]:
         if not summary_path.exists() or not signal_path.exists() or not equity_path.exists():
             continue
 
-        summary_data = _load_json(str(summary_path))
-        signal_df = _load_csv(str(signal_path))
-        equity_df = _load_csv(str(equity_path))
+        summary_data = _load_json(summary_path, summary_path.stat().st_mtime)
+        signal_df = _load_csv(signal_path, signal_path.stat().st_mtime)
+        equity_df = _load_csv(equity_path, equity_path.stat().st_mtime)
 
         # trades는 선택 (Buy & Hold는 빈 파일)
         if trades_path.exists():
-            trades_df = _load_csv(str(trades_path))
+            trades_df = _load_csv(trades_path, trades_path.stat().st_mtime)
             if not trades_df.empty and "entry_date" in trades_df.columns:
                 trades_df["entry_date"] = pd.to_datetime(trades_df["entry_date"]).dt.date
             if not trades_df.empty and "exit_date" in trades_df.columns:
@@ -309,7 +306,11 @@ def _build_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
 
 
 def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
-    """trades_df에서 Buy/Sell 마커를 생성한다."""
+    """trades_df에서 Buy/Sell 마커를 생성한다.
+
+    Buy 마커에는 가격을 적지 않는다 — 캔들은 신호 시세라, 신호와 매매 종목이 다른 전략은
+    체결가가 캔들 가격대와 맞지 않는다(진입가는 거래 내역 표에 있다).
+    """
     markers: list[dict[str, object]] = []
     if trades_df.empty:
         return markers
@@ -322,7 +323,7 @@ def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
                 "position": "belowBar",
                 "color": COLOR_BUY_MARKER,
                 "shape": "arrowUp",
-                "text": f"Buy ${trade.entry_price:.1f}",
+                "text": "Buy",
                 "size": 2,
             }
         )
@@ -361,7 +362,7 @@ def _build_open_position_marker(
             "position": "belowBar",
             "color": COLOR_BUY_MARKER,
             "shape": "arrowUp",
-            "text": f"Buy ${open_pos['entry_price']:.1f} (보유중)",
+            "text": "Buy (보유중)",
             "size": 2,
         }
     ]
@@ -590,7 +591,7 @@ def _render_monthly_heatmap(
 ) -> None:
     """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다.
 
-    12월 오른쪽에 "연간" 컬럼을 추가하여 연도별 복리 수익률을 함께 표시한다.
+    12월 오른쪽에 "연간" 컬럼을 추가하여 연간 수익률을 함께 표시한다.
     연간 수익률은 `run_*.py` 스크립트가 미리 계산하여 summary.json에 저장한 값을 사용한다.
     """
     if not monthly_returns:

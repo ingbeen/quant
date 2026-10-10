@@ -124,17 +124,18 @@ def _discover_wfo_strategies() -> dict[str, Path]:
     return results
 
 
-@st.cache_data
-def _load_summary(result_dir_str: str) -> dict[str, object] | None:
-    """walkforward_summary.json을 로드한다.
+def _cache_args(path: Path) -> tuple[Path, float]:
+    """캐시 로더에 넘길 (경로, 수정 시각)을 만든다.
 
-    Args:
-        result_dir_str: 결과 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        요약 딕셔너리 또는 None
+    수정 시각은 캐시 키로만 쓰인다 — 러너가 파일을 다시 만들면 키가 바뀌어 새로 읽는다.
+    없는 파일은 0.0 이라, 나중에 생기면 역시 키가 바뀐다.
     """
-    path = Path(result_dir_str) / WALKFORWARD_SUMMARY_FILENAME
+    return path, (path.stat().st_mtime if path.exists() else 0.0)
+
+
+@st.cache_data
+def _load_summary(path: Path, mtime: float) -> dict[str, object] | None:
+    """walkforward_summary.json을 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
     if not path.exists():
         return None
     with path.open("r", encoding="utf-8") as f:
@@ -142,34 +143,16 @@ def _load_summary(result_dir_str: str) -> dict[str, object] | None:
 
 
 @st.cache_data
-def _load_window_csv(result_dir_str: str, filename: str) -> pd.DataFrame | None:
-    """윈도우 결과 CSV를 로드한다.
-
-    Args:
-        result_dir_str: 결과 디렉토리 경로 (문자열, 캐시 키용)
-        filename: CSV 파일명
-
-    Returns:
-        DataFrame 또는 None
-    """
-    path = Path(result_dir_str) / filename
+def _load_window_csv(path: Path, mtime: float) -> pd.DataFrame | None:
+    """윈도우 결과 CSV를 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
     if not path.exists():
         return None
     return pd.read_csv(path)
 
 
 @st.cache_data
-def _load_equity_csv(result_dir_str: str, filename: str) -> pd.DataFrame | None:
-    """Stitched Equity CSV를 로드한다.
-
-    Args:
-        result_dir_str: 결과 디렉토리 경로 (문자열, 캐시 키용)
-        filename: CSV 파일명
-
-    Returns:
-        DataFrame 또는 None
-    """
-    path = Path(result_dir_str) / filename
+def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame | None:
+    """Stitched Equity CSV를 로드한다 (Date 열 datetime 변환). 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
     if not path.exists():
         return None
     df = pd.read_csv(path)
@@ -192,7 +175,7 @@ def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFr
     """전략별 Dynamic 윈도우 결과를 표시명 키로 로드한다 (판단 문구·기간 표 공용)."""
     windows: dict[str, pd.DataFrame] = {}
     for strat_name, result_dir in strategy_dirs.items():
-        window_df = _load_window_csv(str(result_dir), WALKFORWARD_DYNAMIC_FILENAME)
+        window_df = _load_window_csv(*_cache_args(result_dir / WALKFORWARD_DYNAMIC_FILENAME))
         if window_df is not None:
             windows[_get_display_name(strat_name)] = window_df
     return windows
@@ -295,9 +278,9 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str,
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        result_dir_str = str(strategy_dirs[strat_name])
-        eq_dynamic = _load_equity_csv(result_dir_str, WALKFORWARD_EQUITY_DYNAMIC_FILENAME)
-        eq_fixed = _load_equity_csv(result_dir_str, WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME)
+        result_dir = strategy_dirs[strat_name]
+        eq_dynamic = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_DYNAMIC_FILENAME))
+        eq_fixed = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME))
 
         if eq_dynamic is None and eq_fixed is None:
             fig.add_annotation(
@@ -396,8 +379,7 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        result_dir_str = str(strategy_dirs[strat_name])
-        dynamic_df = _load_window_csv(result_dir_str, WALKFORWARD_DYNAMIC_FILENAME)
+        dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
 
         if dynamic_df is None:
             continue
@@ -451,8 +433,7 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        result_dir_str = str(strategy_dirs[strat_name])
-        dynamic_df = _load_window_csv(result_dir_str, WALKFORWARD_DYNAMIC_FILENAME)
+        dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
 
         if dynamic_df is None:
             continue
@@ -629,16 +610,8 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
 
 
 @st.cache_data
-def _load_window_csv_detail(path_str: str) -> pd.DataFrame | None:
-    """윈도우별 상세 CSV를 로드한다.
-
-    Args:
-        path_str: CSV 파일 경로 (문자열, 캐시 키용)
-
-    Returns:
-        DataFrame 또는 None
-    """
-    path = Path(path_str)
+def _load_window_csv_detail(path: Path, mtime: float) -> pd.DataFrame | None:
+    """윈도우별 상세 CSV를 로드한다 (날짜 열 date 변환). 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
     if not path.exists():
         return None
     df = pd.read_csv(path)
@@ -752,7 +725,11 @@ def _build_wfo_markers(
     trades_df: pd.DataFrame,
     oos_start_str: str,
 ) -> list[dict[str, object]]:
-    """trades_df에서 Buy/Sell 마커를 생성하고, OOS 시작일 경계 마커를 추가한다."""
+    """trades_df에서 Buy/Sell 마커를 생성하고, OOS 시작일 경계 마커를 추가한다.
+
+    Buy 마커에는 가격을 적지 않는다 — 캔들은 신호 시세라, 신호와 매매 종목이 다른 전략은
+    체결가가 캔들 가격대와 맞지 않는다.
+    """
     markers: list[dict[str, object]] = []
 
     # OOS 시작일 경계 마커
@@ -778,7 +755,7 @@ def _build_wfo_markers(
                 "position": "belowBar",
                 "color": _COLOR_BUY_MARKER,
                 "shape": "arrowUp",
-                "text": f"Buy ${trade.entry_price:.1f}",
+                "text": "Buy",
                 "size": 2,
             }
         )
@@ -854,7 +831,7 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
     window_dir = result_dir / mode_dir
 
     # 2. WFO 윈도우 정보 로드 (날짜 범위용)
-    wfo_df = _load_window_csv(str(result_dir), wfo_csv_filename)
+    wfo_df = _load_window_csv(*_cache_args(result_dir / wfo_csv_filename))
     if wfo_df is None or wfo_df.empty:
         st.warning("WFO 결과 CSV를 로드할 수 없습니다.")
         return
@@ -883,9 +860,9 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
 
     # 4. 윈도우별 CSV 로드
     idx = int(window_row["window_idx"])
-    signal_df = _load_window_csv_detail(str(window_dir / f"w{idx:02d}_signal.csv"))
-    equity_df = _load_window_csv_detail(str(window_dir / f"w{idx:02d}_equity.csv"))
-    trades_df = _load_window_csv_detail(str(window_dir / f"w{idx:02d}_trades.csv"))
+    signal_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_signal.csv"))
+    equity_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_equity.csv"))
+    trades_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_trades.csv"))
 
     if signal_df is None or equity_df is None:
         st.warning(f"W{idx} 상세 데이터를 찾을 수 없습니다. `run_walkforward.py`를 재실행하세요.")
@@ -1143,7 +1120,7 @@ IS 시작점은 데이터 최초 시점으로 고정하고, IS 종료점이 매 
     # 전략별 요약 로드
     summaries: dict[str, dict[str, object]] = {}
     for strat_name, result_dir in strategy_dirs.items():
-        summary = _load_summary(str(result_dir))
+        summary = _load_summary(*_cache_args(result_dir / WALKFORWARD_SUMMARY_FILENAME))
         if summary is not None:
             summaries[strat_name] = summary
 

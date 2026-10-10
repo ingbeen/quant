@@ -19,7 +19,6 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.analysis import (
-    calculate_benchmark_yearly_returns,
     calculate_monthly_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
@@ -58,12 +57,9 @@ from qbt.common_constants import (
     COL_LOW,
     COL_OPEN,
     META_JSON_PATH,
-    PORTFOLIO_RESULTS_DIR,
-    QQQ_DATA_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
 from qbt.utils.meta_manager import save_metadata
 
@@ -197,39 +193,6 @@ def _build_execution_comparison_df(
         )
 
     return pd.DataFrame(rows) if rows else pd.DataFrame()
-
-
-def _save_benchmark_qqq_json(start_date: Any) -> None:
-    """QQQ 벤치마크의 연간 복리 수익률을 산출해 포트폴리오 결과 디렉토리에 저장한다.
-
-    실험별로 백테스트 시작일이 달라질 수 있으므로, 전체 실험 중 가장 이른 유효
-    시작일(min) 기준으로 한 번만 계산하여 공유 JSON 하나
-    (`storage/results/portfolio/benchmark_qqq.json`)를 생성한다. 대시보드는
-    연도별 inner join으로 각 실험 기간과 공통되는 연도만 비교하므로,
-    가장 이른 시작일 기준으로 연간 수익률을 생성해도 실험별 비교에 문제가 없다.
-    종료일은 QQQ 데이터의 마지막 날짜를 사용한다.
-
-    Args:
-        start_date: QQQ 연간 수익률 계산 시작일 (전체 실험 중 가장 이른 유효 시작일)
-    """
-    PORTFOLIO_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    qqq_df = load_stock_data(QQQ_DATA_PATH)
-    end_date = qqq_df[COL_DATE].max()
-
-    yearly = calculate_benchmark_yearly_returns(qqq_df, start_date, end_date)
-
-    benchmark_data: dict[str, Any] = {
-        "ticker": "QQQ",
-        "start_date": str(start_date),
-        "end_date": str(end_date),
-        "yearly_returns": yearly,
-    }
-
-    benchmark_path = PORTFOLIO_RESULTS_DIR / "benchmark_qqq.json"
-    with benchmark_path.open("w", encoding="utf-8") as f:
-        json.dump(benchmark_data, f, indent=2, ensure_ascii=False)
-    logger.debug(f"QQQ 벤치마크 연간 수익률 저장 완료: {benchmark_path}")
 
 
 def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str | None:
@@ -448,7 +411,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         }
 
         # 미청산 포지션(open_position): final_shares > 0 인 자산만 기록
-        # 대시보드의 시그널 차트가 "Buy $XX.X (보유중)" 마커로 표시하는 데 사용
+        # 대시보드의 시그널 차트가 "Buy (보유중)" 마커로 표시하는 데 사용
         if final_shares > 0:
             entry_date = _find_last_entry_date(result.equity_df, asset_result.asset_id)
             if entry_date is not None:
@@ -462,7 +425,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
     # 월별/연간 수익률 계산 (대시보드에서 히트맵 표시용)
     monthly_returns = calculate_monthly_returns(result.equity_df)
-    yearly_returns = calculate_yearly_returns(monthly_returns)
+    yearly_returns = calculate_yearly_returns(result.equity_df)
 
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
@@ -628,25 +591,12 @@ def main() -> int:
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
     # 3. 실험별 유효 시작일 계산
+    # 실행 전에 한꺼번에 계산한다 — 시세 누락 같은 데이터 문제가 앞 실험의 결과 파일을 덮어쓴 뒤가 아니라 그 전에 드러난다.
+    effective_start_dates = {c.experiment_name: compute_portfolio_effective_start_date(c) for c in target_configs}
+
+    # 4. 실험별 실행
     # 각 실험은 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 사용하되,
     # 정책 하한인 DEFAULT_PORTFOLIO_START_DATE로 끌어올린다 (2005년 이전 데이터는 스킵).
-    # QQQ 벤치마크 JSON은 전체 실험 중 가장 이른 시작일(min)에 동일 하한을 적용하여
-    # 공유 파일로 저장한다. 대시보드는 연도별 inner join으로 각 실험 기간에 공통되는
-    # 연도만 비교하므로 별도 분리 저장이 불필요하다.
-    logger.debug("실험별 유효 시작일 계산 중...")
-    effective_start_dates: dict[str, date] = {
-        cfg.experiment_name: compute_portfolio_effective_start_date(cfg) for cfg in PORTFOLIO_CONFIGS
-    }
-    min_effective = min(effective_start_dates.values())
-    benchmark_start_date = max(min_effective, DEFAULT_PORTFOLIO_START_DATE)
-    logger.debug(f"실험별 유효 시작일(데이터 기준): {effective_start_dates}")
-    logger.debug(f"정책 하한: {DEFAULT_PORTFOLIO_START_DATE}")
-    logger.debug(f"QQQ 벤치마크 기준 시작일: {benchmark_start_date} (min(effective)={min_effective}, 하한 적용 후)")
-
-    # 3-1. QQQ 벤치마크 연간 수익률 JSON 생성 (하한 적용된 최소 시작일 기준 공유)
-    _save_benchmark_qqq_json(benchmark_start_date)
-
-    # 4. 실험별 실행 (각 실험의 고유 시작일 + 정책 하한 적용)
     for config in target_configs:
         raw_start_date = effective_start_dates[config.experiment_name]
         exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)

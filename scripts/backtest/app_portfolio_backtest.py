@@ -27,6 +27,7 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots
 
+from qbt.backtest.constants import TRADE_TYPE_SIGNAL
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 from qbt.common_constants import (
     COL_CLOSE,
@@ -34,7 +35,6 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    PORTFOLIO_RESULTS_DIR,
 )
 
 # ============================================================
@@ -70,11 +70,6 @@ _COL_TOTAL_RETURN = "총 수익률 (%)"
 _COL_TOTAL_TRADES = "총 거래 수"
 _COL_START_DATE = "시작일"
 _COL_END_DATE = "종료일"
-
-# --- 벤치마크 ---
-_BENCHMARK_QQQ_FILENAME = "benchmark_qqq.json"
-_COLOR_PORTFOLIO_BAR = "rgb(33, 150, 243)"
-_COLOR_BENCHMARK_BAR = "rgb(255, 152, 0)"
 
 # --- 리밸런싱 사유 (엔진의 rebalance_reason 값) ---
 _REBALANCE_REASON_METHODS = "methods"
@@ -127,17 +122,18 @@ def _discover_experiments() -> list[Path]:
     return result
 
 
-@st.cache_data
-def _load_equity_csv(experiment_dir_str: str) -> pd.DataFrame:
-    """equity.csv를 로드한다.
+def _cache_args(path: Path) -> tuple[Path, float]:
+    """캐시 로더에 넘길 (경로, 수정 시각)을 만든다.
 
-    Args:
-        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        equity DataFrame (Date 열 datetime 변환)
+    수정 시각은 캐시 키로만 쓰인다 — 러너가 파일을 다시 만들면 키가 바뀌어 새로 읽는다.
+    없는 파일은 0.0 이라, 나중에 생기면 역시 키가 바뀐다.
     """
-    path = Path(experiment_dir_str) / "equity.csv"
+    return path, (path.stat().st_mtime if path.exists() else 0.0)
+
+
+@st.cache_data
+def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """equity.csv를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
@@ -145,16 +141,8 @@ def _load_equity_csv(experiment_dir_str: str) -> pd.DataFrame:
 
 
 @st.cache_data
-def _load_trades_csv(experiment_dir_str: str) -> pd.DataFrame:
-    """trades.csv를 로드한다.
-
-    Args:
-        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        trades DataFrame (entry_date / exit_date datetime 변환)
-    """
-    path = Path(experiment_dir_str) / "trades.csv"
+def _load_trades_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """trades.csv를 로드한다 (entry_date / exit_date datetime 변환). 인자는 `_cache_args` 참고."""
     df = pd.read_csv(path)
     for col in ("entry_date", "exit_date"):
         if col in df.columns:
@@ -163,64 +151,36 @@ def _load_trades_csv(experiment_dir_str: str) -> pd.DataFrame:
 
 
 @st.cache_data
-def _load_summary_json(experiment_dir_str: str) -> dict[str, Any]:
-    """summary.json을 로드한다.
-
-    Args:
-        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        summary 딕셔너리
-    """
-    path = Path(experiment_dir_str) / "summary.json"
+def _load_summary_json(path: Path, mtime: float) -> dict[str, Any]:
+    """summary.json을 로드한다. 인자는 `_cache_args` 참고."""
     with path.open(encoding="utf-8") as f:
         result: dict[str, Any] = json.load(f)
     return result
 
 
 @st.cache_data
-def _load_signal_csv(signal_path_str: str) -> pd.DataFrame:
-    """signal_{asset_id}.csv를 로드한다.
-
-    Args:
-        signal_path_str: signal CSV 파일 경로 (문자열, 캐시 키용)
-
-    Returns:
-        signal DataFrame (Date 열 datetime 변환)
-    """
-    df = pd.read_csv(signal_path_str)
+def _load_signal_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """signal_{asset_id}.csv를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
+    df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
     return df
 
 
 @st.cache_data
-def _load_execution_comparison_csv(experiment_dir_str: str) -> pd.DataFrame | None:
-    """execution_comparison.csv를 로드한다.
-
-    Args:
-        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        execution_comparison DataFrame. 파일 미존재 시 None.
-    """
-    path = Path(experiment_dir_str) / "execution_comparison.csv"
+def _load_execution_comparison_csv(path: Path, mtime: float) -> pd.DataFrame | None:
+    """execution_comparison.csv를 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
     if not path.exists():
         return None
     return pd.read_csv(path)
 
 
 @st.cache_data
-def _load_ledger_csv(experiment_dir_str: str) -> pd.DataFrame | None:
-    """ledger.csv(매매법별 장부)를 로드한다. 매매법이 하나인 실험에는 없다.
+def _load_ledger_csv(path: Path, mtime: float) -> pd.DataFrame | None:
+    """ledger.csv(매매법별 장부)를 로드한다 (Date 열 datetime 변환). 매매법이 하나인 실험에는 없어 None.
 
-    Args:
-        experiment_dir_str: 실험 디렉토리 경로 (문자열, 캐시 키용)
-
-    Returns:
-        ledger DataFrame (Date 열 datetime 변환). 파일 미존재 시 None.
+    인자는 `_cache_args` 참고.
     """
-    path = Path(experiment_dir_str) / "ledger.csv"
     if not path.exists():
         return None
     df = pd.read_csv(path)
@@ -237,17 +197,16 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
     Returns:
         _ExperimentData 인스턴스
     """
-    dir_str = str(experiment_dir)
-    summary = _load_summary_json(dir_str)
-    equity_df = _load_equity_csv(dir_str)
-    trades_df = _load_trades_csv(dir_str)
+    summary = _load_summary_json(*_cache_args(experiment_dir / "summary.json"))
+    equity_df = _load_equity_csv(*_cache_args(experiment_dir / "equity.csv"))
+    trades_df = _load_trades_csv(*_cache_args(experiment_dir / "trades.csv"))
 
     # signal_{asset_id}.csv 탐색 및 로드
     signal_dfs: dict[str, pd.DataFrame] = {}
     for signal_path in sorted(experiment_dir.glob("signal_*.csv")):
         # "signal_qqq.csv" → asset_id = "qqq"
         asset_id = signal_path.stem.removeprefix("signal_")
-        signal_dfs[asset_id] = _load_signal_csv(str(signal_path))
+        signal_dfs[asset_id] = _load_signal_csv(*_cache_args(signal_path))
 
     display_name: str = str(summary.get("display_name", experiment_dir.name))
 
@@ -259,7 +218,7 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
         trades_df=trades_df,
         summary=summary,
         signal_dfs=signal_dfs,
-        ledger_df=_load_ledger_csv(dir_str),
+        ledger_df=_load_ledger_csv(*_cache_args(experiment_dir / "ledger.csv")),
     )
 
 
@@ -375,8 +334,7 @@ def _render_execution_comparison_section(exp: _ExperimentData) -> None:
     데이터가 많으므로 기본 숨김(expander collapsed) 상태로 제공한다.
     """
     with st.expander("체결 전후 비교", expanded=False):
-        experiment_dir = exp.result_dir
-        comparison_df = _load_execution_comparison_csv(str(experiment_dir))
+        comparison_df = _load_execution_comparison_csv(*_cache_args(exp.result_dir / "execution_comparison.csv"))
 
         if comparison_df is None or comparison_df.empty:
             st.info("체결 전후 비교 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
@@ -566,134 +524,6 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
 
 
 # ============================================================
-# 신규 섹션: 연간 수익률 벤치마크 비교 (vs QQQ)
-# ============================================================
-
-
-@st.cache_data
-def _load_benchmark_qqq_json() -> dict[str, Any] | None:
-    """benchmark_qqq.json을 로드한다. 파일이 없으면 None 반환."""
-    path = PORTFOLIO_RESULTS_DIR / _BENCHMARK_QQQ_FILENAME
-    if not path.exists():
-        return None
-    with path.open(encoding="utf-8") as f:
-        result: dict[str, Any] = json.load(f)
-    return result
-
-
-def _render_benchmark_comparison_section(exp: _ExperimentData) -> None:
-    """연간 수익률을 QQQ 벤치마크와 비교하는 바차트 섹션.
-
-    포트폴리오 연간 수익률과 QQQ 연간 수익률을 연도별 grouped bar로 표시하고,
-    각 연도의 초과 수익(%p)을 별도 라인으로 병기한다.
-    """
-    st.subheader("연간 수익률 vs QQQ")
-
-    benchmark = _load_benchmark_qqq_json()
-    if benchmark is None:
-        st.info(f"{_BENCHMARK_QQQ_FILENAME} 파일이 없습니다. " "먼저 run_portfolio_backtest.py를 실행하세요.")
-        return
-
-    yearly_returns: list[dict[str, Any]] = exp.summary.get("yearly_returns", [])
-    bench_yearly: list[dict[str, Any]] = benchmark.get("yearly_returns", [])
-    if not yearly_returns or not bench_yearly:
-        st.info("연간 수익률 데이터가 없습니다.")
-        return
-
-    # 연도별 매핑 (inner join)
-    port_map: dict[int, float] = {int(str(e["year"])): float(str(e["return_pct"])) for e in yearly_returns}
-    bench_map: dict[int, float] = {int(str(e["year"])): float(str(e["return_pct"])) for e in bench_yearly}
-    common_years = sorted(set(port_map.keys()) & set(bench_map.keys()))
-
-    if not common_years:
-        st.info("포트폴리오와 QQQ 벤치마크의 공통 연도가 없습니다.")
-        return
-
-    port_vals = [port_map[y] for y in common_years]
-    bench_vals = [bench_map[y] for y in common_years]
-    excess_vals = [p - b for p, b in zip(port_vals, bench_vals, strict=True)]
-    year_labels = [str(y) for y in common_years]
-
-    # grouped bar: 포트폴리오 vs QQQ
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.7, 0.3],
-        vertical_spacing=0.08,
-        subplot_titles=["연간 수익률 (%)", "초과 수익 (%p)"],
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=year_labels,
-            y=port_vals,
-            name=exp.display_name,
-            marker_color=_COLOR_PORTFOLIO_BAR,
-            text=[f"{v:+.2f}%" for v in port_vals],
-            textposition="outside",
-            hovertemplate=f"%{{x}}<br>{exp.display_name}: %{{y:+.2f}}%<extra></extra>",
-        ),
-        row=1,
-        col=1,
-    )
-    fig.add_trace(
-        go.Bar(
-            x=year_labels,
-            y=bench_vals,
-            name="QQQ",
-            marker_color=_COLOR_BENCHMARK_BAR,
-            text=[f"{v:+.2f}%" for v in bench_vals],
-            textposition="outside",
-            hovertemplate="%{x}<br>QQQ: %{y:+.2f}%<extra></extra>",
-        ),
-        row=1,
-        col=1,
-    )
-
-    # 초과 수익(%p) — 양수/음수 색상 분기
-    excess_colors = [_COLOR_UP if v >= 0 else _COLOR_DOWN for v in excess_vals]
-    fig.add_trace(
-        go.Bar(
-            x=year_labels,
-            y=excess_vals,
-            name="초과 수익 (%p)",
-            marker_color=excess_colors,
-            text=[f"{v:+.2f}" for v in excess_vals],
-            textposition="outside",
-            hovertemplate="%{x}<br>초과: %{y:+.2f}%p<extra></extra>",
-            showlegend=False,
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.update_layout(
-        height=_CHART_HEIGHT,
-        barmode="group",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        margin={"t": 60},
-    )
-    fig.update_yaxes(title_text="수익률 (%)", row=1, col=1)
-    fig.update_yaxes(title_text="초과 (%p)", row=2, col=1)
-    fig.update_xaxes(title_text="연도", row=2, col=1)
-
-    st.plotly_chart(fig, width="stretch", key=f"benchmark_compare_{exp.experiment_name}")
-
-    # 승/패 요약 caption
-    wins = sum(1 for v in excess_vals if v > 0)
-    losses = sum(1 for v in excess_vals if v < 0)
-    ties = sum(1 for v in excess_vals if v == 0)
-    avg_excess = sum(excess_vals) / len(excess_vals) if excess_vals else 0.0
-    st.caption(
-        f"비교 기간 {benchmark.get('start_date', 'N/A')} ~ {benchmark.get('end_date', 'N/A')} "
-        f"| 공통 연도 {len(common_years)}개 | QQQ 대비 승 {wins} / 패 {losses} / 무 {ties} "
-        f"| 평균 초과 수익 {avg_excess:+.2f}%p "
-        "(첫/마지막 해는 부분 기간일 수 있음)"
-    )
-
-
-# ============================================================
 # 신규 섹션: 자산별 수익 기여도 (Asset Contribution)
 # ============================================================
 
@@ -731,9 +561,9 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
     df = df.set_index("Date")
 
     # 분기별 기여도 변동분 (스택 바차트)
+    # 첫 분기는 직전 분기가 없으므로 그 분기 말 누적값이 곧 변동분이다 (기여도는 0 에서 출발)
     quarterly = df[contrib_cols].resample("QE").last()
-    quarterly_diff = quarterly.diff()
-    quarterly_diff = quarterly_diff.iloc[1:]
+    quarterly_diff = quarterly.diff().fillna(quarterly)
 
     if quarterly_diff.empty:
         st.info("분기별 기여도를 계산할 수 없습니다.")
@@ -1097,6 +927,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
         hovermode="x unified",
     )
     st.plotly_chart(fig_equity, width="stretch")
+    st.caption("실험마다 시작일이 다릅니다(위 표의 시작일). 늦게 시작한 실험의 곡선은 그 시작일의 초기 자본에서 출발합니다.")
 
     # ---- 드로우다운 비교 ----
     st.subheader("드로우다운 비교")
@@ -1356,10 +1187,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     st.divider()
     _render_monthly_returns_section(exp)
 
-    # ---- 신규 섹션: 연간 수익률 벤치마크 비교 (vs QQQ) ----
-    st.divider()
-    _render_benchmark_comparison_section(exp)
-
     # ---- 신규 섹션: 자산별 수익 기여도 ----
     st.divider()
     _render_contribution_section(exp)
@@ -1473,78 +1300,58 @@ def _build_portfolio_markers(
     asset_id: str,
     open_position: dict[str, Any] | None = None,
 ) -> list[dict[str, object]]:
-    """해당 자산의 trades에서 Buy/Sell 마커를 생성한다.
+    """해당 자산의 신호 거래에서 Buy/Sell 마커를 생성한다.
 
-    완료된 거래의 Buy/Sell에 더해, `open_position`이 주어지면 미청산 매수
-    체결일에도 "Buy $XX.X (보유중)" 마커를 추가한다 (단일 백테스트와 동일 규약).
+    리밸런싱 거래(`trade_type == "rebalance"`)는 그리지 않는다 — 비중을 맞추는 부분 매매라
+    화살표로 그리면 매수 후 보유 자산에도 Sell 이 줄지어 나온다(리밸런싱일은 에쿼티 차트 마커가 보인다).
+    Buy 마커에는 가격을 적지 않는다 — trades 의 entry_price 는 체결가가 아니라 매도 시점 평균 단가다.
 
     Args:
-        trades_df: 포트폴리오 전체 거래 내역 (asset_id 컬럼 포함)
+        trades_df: 포트폴리오 전체 거래 내역 (asset_id · trade_type 컬럼 포함)
         asset_id: 마커를 생성할 자산 ID
         open_position: summary.per_asset[asset_id].open_position. `None`이면 미청산 없음.
-            존재 시 dict 형태 {"entry_date": str, "entry_price": float, "shares": int}
+            있으면 그 진입일의 Buy 마커를 "Buy (보유중)" 으로 표시한다
 
     Returns:
         시간 순 정렬된 마커 리스트.
     """
-    markers: list[dict[str, object]] = []
+    # 분할 매도 시 같은 진입일이 여러 행에 반복되므로 Buy 마커는 진입일당 하나만 둔다
+    buy_markers: dict[str, dict[str, object]] = {}
+    sell_markers: list[dict[str, object]] = []
 
-    # 분할 매도 시 동일 entry_date가 여러 행에 반복되므로, Buy 마커는 진입일당 1회만 생성
-    seen_entry_dates: set[str] = set()
+    def buy_marker(entry_key: str) -> dict[str, object]:
+        return buy_markers.setdefault(
+            entry_key,
+            {
+                "time": entry_key,
+                "position": "belowBar",
+                "color": _COLOR_BUY_MARKER,
+                "shape": "arrowUp",
+                "text": "Buy",
+                "size": 2,
+            },
+        )
 
-    if not trades_df.empty and "asset_id" in trades_df.columns:
-        asset_trades = trades_df[trades_df["asset_id"] == asset_id]
-        if not asset_trades.empty and "entry_date" in asset_trades.columns:
-            for trade in asset_trades.itertuples(index=False):
-                entry_d = trade.entry_date
-                if pd.notna(entry_d) and pd.notna(trade.entry_price):
-                    entry_key = pd.Timestamp(entry_d).strftime("%Y-%m-%d")
-                    if entry_key not in seen_entry_dates:
-                        seen_entry_dates.add(entry_key)
-                        markers.append(
-                            {
-                                "time": entry_key,
-                                "position": "belowBar",
-                                "color": _COLOR_BUY_MARKER,
-                                "shape": "arrowUp",
-                                "text": f"Buy ${trade.entry_price:.1f}",
-                                "size": 2,
-                            }
-                        )
+    signal_trades = trades_df[(trades_df["asset_id"] == asset_id) & (trades_df["trade_type"] == TRADE_TYPE_SIGNAL)]
+    for trade in signal_trades.itertuples(index=False):
+        buy_marker(pd.Timestamp(trade.entry_date).strftime("%Y-%m-%d"))
+        sell_markers.append(
+            {
+                "time": pd.Timestamp(trade.exit_date).strftime("%Y-%m-%d"),
+                "position": "aboveBar",
+                "color": _COLOR_SELL_MARKER,
+                "shape": "arrowDown",
+                "text": f"Sell {float(trade.pnl_pct) * 100:+.1f}%",
+                "size": 2,
+            }
+        )
 
-                exit_d = trade.exit_date
-                if pd.notna(exit_d) and pd.notna(trade.exit_price):
-                    pnl_pct = float(trade.pnl_pct) * 100 if pd.notna(trade.pnl_pct) else 0.0
-                    markers.append(
-                        {
-                            "time": pd.Timestamp(exit_d).strftime("%Y-%m-%d"),
-                            "position": "aboveBar",
-                            "color": _COLOR_SELL_MARKER,
-                            "shape": "arrowDown",
-                            "text": f"Sell {pnl_pct:+.1f}%",
-                            "size": 2,
-                        }
-                    )
-
-    # 미청산 포지션 Buy 마커 (trades_df의 Buy와 중복되지 않을 때만 추가)
     if open_position is not None:
-        entry_date_val = open_position.get("entry_date")
-        entry_price_val = open_position.get("entry_price")
-        if entry_date_val and entry_price_val is not None:
-            entry_key = pd.Timestamp(str(entry_date_val)).strftime("%Y-%m-%d")
-            if entry_key not in seen_entry_dates:
-                markers.append(
-                    {
-                        "time": entry_key,
-                        "position": "belowBar",
-                        "color": _COLOR_BUY_MARKER,
-                        "shape": "arrowUp",
-                        "text": f"Buy ${float(entry_price_val):.1f} (보유중)",
-                        "size": 2,
-                    }
-                )
+        entry_key = pd.Timestamp(str(open_position["entry_date"])).strftime("%Y-%m-%d")
+        buy_marker(entry_key)["text"] = "Buy (보유중)"
 
     # lightweight-charts는 마커가 시간순 정렬되어야 정상 표시된다
+    markers = [*buy_markers.values(), *sell_markers]
     markers.sort(key=lambda m: str(m["time"]))
     return markers
 
@@ -1567,7 +1374,7 @@ def _render_signal_chart(
         trades_df: 거래 내역 (asset_id 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
-        open_position: 미청산 포지션 정보. 존재 시 "Buy $XX.X (보유중)" 마커 추가.
+        open_position: 미청산 포지션 정보. 존재 시 "Buy (보유중)" 마커 추가.
     """
     # 1. MA 컬럼 탐지
     ma_col = _detect_ma_col(signal_df)

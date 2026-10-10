@@ -17,7 +17,7 @@ from qbt.backtest.constants import (
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
 )
-from qbt.common_constants import BACKTEST_RESULTS_DIR
+from qbt.common_constants import BACKTEST_RESULTS_DIR, EPSILON
 
 # 고원 분석 결과 디렉토리
 _PLATEAU_DIR = BACKTEST_RESULTS_DIR / "param_plateau"
@@ -85,10 +85,11 @@ def find_plateau_range(
 ) -> tuple[float, float] | None:
     """고원 구간을 탐지한다.
 
-    최대값 대비 threshold_ratio 이상인 연속 범위를 찾는다.
+    최대값을 포함하면서 최대값 대비 threshold_ratio 이상이 끊기지 않는 범위를 찾는다.
+    기준 이상인 구간이 여럿이면 최대값(같은 값이 여럿이면 앞쪽)이 든 구간이다.
 
     Args:
-        series: 파라미터값을 인덱스, 지표값을 값으로 가지는 Series
+        series: 파라미터값을 인덱스(오름차순), 지표값을 값으로 가지는 Series
         threshold_ratio: 최대값 대비 임계 비율 (0.8 = 80%)
 
     Returns:
@@ -98,19 +99,22 @@ def find_plateau_range(
         return None
 
     max_val = float(series.max())
-    if max_val <= 0:
+    if not max_val > 0:
         return None
 
-    threshold = max_val * threshold_ratio
-
-    # threshold 이상인 값의 인덱스를 추출
-    above_mask = series >= threshold
-    above_indices = series.index[above_mask].tolist()
-
-    if not above_indices:
+    # 지표값이 정확히 기준과 같을 때 곱셈의 부동소수 오차로 빠지지 않게 EPSILON 만큼 여유를 둔다
+    # (0.05 * 0.8 = 0.04000000000000001 이라 여유가 없으면 0.04 가 기준 미달이 된다)
+    above = (series >= max_val * threshold_ratio - EPSILON).tolist()
+    start = end = int(series.reset_index(drop=True).idxmax())
+    if not above[start]:
         return None
 
-    return (float(above_indices[0]), float(above_indices[-1]))
+    while start > 0 and above[start - 1]:
+        start -= 1
+    while end < len(above) - 1 and above[end + 1]:
+        end += 1
+
+    return (float(series.index[start]), float(series.index[end]))
 
 
 def find_plateau_range_with_trade_filter(

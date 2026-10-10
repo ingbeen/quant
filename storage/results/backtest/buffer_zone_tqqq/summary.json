@@ -29,6 +29,11 @@
   },
   "monthly_returns": [
     {
+      "year": 1999,
+      "month": 12,
+      "return_pct": 0.0
+    },
+    {
       "year": 2000,
       "month": 1,
       "return_pct": 0.0
@@ -1636,6 +1641,10 @@
   ],
   "yearly_returns": [
     {
+      "year": 1999,
+      "return_pct": 0.0
+    },
+    {
       "year": 2000,
       "return_pct": -54.71
     },
@@ -1649,7 +1658,7 @@
     },
     {
       "year": 2003,
-      "return_pct": 113.78
+      "return_pct": 113.8
     },
     {
       "year": 2004,
@@ -1657,15 +1666,15 @@
     },
     {
       "year": 2005,
-      "return_pct": -9.08
+      "return_pct": -9.05
     },
     {
       "year": 2006,
-      "return_pct": -16.61
+      "return_pct": -16.6
     },
     {
       "year": 2007,
-      "return_pct": 33.01
+      "return_pct": 33.02
     },
     {
       "year": 2008,
@@ -1677,7 +1686,7 @@
     },
     {
       "year": 2010,
-      "return_pct": 8.63
+      "return_pct": 8.64
     },
     {
       "year": 2011,
@@ -1685,11 +1694,11 @@
     },
     {
       "year": 2012,
-      "return_pct": 35.52
+      "return_pct": 35.51
     },
     {
       "year": 2013,
-      "return_pct": 139.77
+      "return_pct": 139.73
     },
     {
       "year": 2014,
@@ -1697,19 +1706,19 @@
     },
     {
       "year": 2015,
-      "return_pct": -13.23
+      "return_pct": -13.22
     },
     {
       "year": 2016,
-      "return_pct": -12.14
+      "return_pct": -12.15
     },
     {
       "year": 2017,
-      "return_pct": 118.02
+      "return_pct": 118.06
     },
     {
       "year": 2018,
-      "return_pct": -10.04
+      "return_pct": -10.05
     },
     {
       "year": 2019,
@@ -1717,11 +1726,11 @@
     },
     {
       "year": 2020,
-      "return_pct": 67.31
+      "return_pct": 67.32
     },
     {
       "year": 2021,
-      "return_pct": 83.01
+      "return_pct": 82.98
     },
     {
       "year": 2022,
@@ -1729,15 +1738,15 @@
     },
     {
       "year": 2023,
-      "return_pct": 107.06
+      "return_pct": 107.04
     },
     {
       "year": 2024,
-      "return_pct": 58.3
+      "return_pct": 58.27
     },
     {
       "year": 2025,
-      "return_pct": -13.64
+      "return_pct": -13.63
     },
     {
       "year": 2026,

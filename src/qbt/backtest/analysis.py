@@ -218,89 +218,81 @@ def calculate_summary(
     }
 
 
+def _period_end_returns_pct(equity_df: pd.DataFrame, rule: str) -> pd.Series[float]:
+    """기간 말 에쿼티의 직전 기간 말 대비 수익률(%)을 계산한다.
+
+    첫 기간은 첫 행 에쿼티 대비다 — 시작일부터 첫 기간 말까지를 버리면 첫 달 · 첫 해 수익률이 빠진다.
+    기간 말은 첫 행 뒤의 행에서만 구한다 — 첫 행뿐인 기간(시작일 = 그 기간의 마지막 거래일)은 길이가 0 이라 내지 않는다.
+
+    Args:
+        equity_df: 자본 곡선 DataFrame (Date, equity 컬럼 필수, 2행 이상)
+        rule: 리샘플 주기 ("ME" 월말, "YE" 연말)
+
+    Returns:
+        기간 말 날짜를 인덱스로 하는 수익률(%) 시리즈
+    """
+    eq = equity_df[[COL_DATE, COL_EQUITY]].copy()
+    eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
+    equity = eq.set_index(COL_DATE)[COL_EQUITY].sort_index()
+
+    period_end = equity.iloc[1:].resample(rule).last().dropna()
+    previous = period_end.shift(1)
+    previous.iloc[0] = equity.iloc[0]
+    return (period_end / previous - 1) * 100
+
+
 def calculate_monthly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """
     에쿼티 데이터로부터 월별 수익률을 계산한다.
 
-    월말 리샘플링으로 에쿼티 값을 추출한 뒤, 월간 수익률(%)을 계산한다.
+    첫 달은 첫 행 에쿼티 대비, 그 뒤는 직전 월말 대비다.
 
     Args:
         equity_df: 자본 곡선 DataFrame (Date, equity 컬럼 필수)
 
     Returns:
-        월별 수익률 리스트 [{year, month, return_pct}, ...]
+        월별 수익률 리스트 [{year, month, return_pct}, ...]. 2행 미만이면 빈 리스트.
     """
-    if equity_df.empty or len(equity_df) < 2:
+    if len(equity_df) < 2:
         return []
 
-    # 1. 에쿼티 데이터를 날짜 인덱스로 변환
-    eq = equity_df[[COL_DATE, COL_EQUITY]].copy()
-    eq[COL_DATE] = pd.to_datetime(eq[COL_DATE])
-    eq = eq.set_index(COL_DATE)
-
-    # 2. 월말 리샘플링
-    monthly_equity = eq[COL_EQUITY].resample("ME").last().dropna()
-    if len(monthly_equity) < 2:
-        return []
-
-    # 3. 월간 수익률 계산 (%)
-    monthly_returns = monthly_equity.pct_change().dropna() * 100
-
-    # 4. 결과 리스트 생성
+    monthly_returns = _period_end_returns_pct(equity_df, "ME")
     dt_index = pd.DatetimeIndex(monthly_returns.index)
-    result: list[dict[str, object]] = []
-    for i in range(len(monthly_returns)):
-        result.append(
-            {
-                "year": int(dt_index[i].year),
-                "month": int(dt_index[i].month),
-                "return_pct": round(float(monthly_returns.iloc[i]), ROUND_PERCENT),
-            }
-        )
-
-    return result
+    return [
+        {
+            "year": int(dt_index[i].year),
+            "month": int(dt_index[i].month),
+            "return_pct": round(float(monthly_returns.iloc[i]), ROUND_PERCENT),
+        }
+        for i in range(len(monthly_returns))
+    ]
 
 
-def calculate_yearly_returns(monthly_returns: list[dict[str, object]]) -> list[dict[str, object]]:
+def calculate_yearly_returns(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """
-    월별 수익률 리스트로부터 연간 복리 수익률을 계산한다.
+    에쿼티 데이터로부터 연간 수익률을 계산한다.
 
-    같은 연도에 속한 월별 수익률(%)을 복리 누적하여 연간 수익률(%)을 산출한다.
-    공식: yearly_pct = (prod(1 + monthly_pct / 100) - 1) * 100
+    첫 해는 첫 행 에쿼티 대비, 그 뒤는 직전 연말 대비다.
+    월별 수익률을 복리하지 않는다 — 저장 자릿수로 깎인 월 수익률을 복리하면 오차가 쌓인다.
 
     Args:
-        monthly_returns: `calculate_monthly_returns()`의 반환값과 동일한 구조
-                        ([{year, month, return_pct}, ...])
+        equity_df: 자본 곡선 DataFrame (Date, equity 컬럼 필수)
 
     Returns:
-        연간 수익률 리스트 [{year, return_pct}, ...] (year 오름차순).
-        빈 입력 시 빈 리스트 반환.
+        연간 수익률 리스트 [{year, return_pct}, ...] (year 오름차순). 2행 미만이면 빈 리스트.
     """
-    if not monthly_returns:
+    if len(equity_df) < 2:
         return []
 
-    # 1. 연도별 월간 수익률 그룹핑
-    grouped: dict[int, list[float]] = {}
-    for entry in monthly_returns:
-        year = int(str(entry["year"]))
-        return_pct = float(str(entry["return_pct"]))
-        grouped.setdefault(year, []).append(return_pct)
-
-    # 2. 연도 오름차순으로 복리 누적
-    result: list[dict[str, object]] = []
-    for year in sorted(grouped.keys()):
-        cumulative = 1.0
-        for monthly_pct in grouped[year]:
-            cumulative *= 1.0 + monthly_pct / 100.0
-        yearly_pct = (cumulative - 1.0) * 100.0
-        result.append(
-            {
-                "year": year,
-                "return_pct": round(yearly_pct, ROUND_PERCENT),
-            }
-        )
-
-    return result
+    yearly_returns = _period_end_returns_pct(equity_df, "YE")
+    dt_index = pd.DatetimeIndex(yearly_returns.index)
+    return [
+        {
+            "year": int(dt_index[i].year),
+            "return_pct": round(float(yearly_returns.iloc[i]), ROUND_PERCENT),
+        }
+        for i in range(len(yearly_returns))
+    ]
 
 
 def _daily_returns_from_equity(equity_df: pd.DataFrame) -> np.ndarray:
@@ -374,40 +366,3 @@ def calculate_sortino_ratio(equity_df: pd.DataFrame, risk_free_rate: float = 0.0
 
     sortino = float(np.mean(excess)) / downside_dev * np.sqrt(TRADING_DAYS_PER_YEAR)
     return float(sortino)
-
-
-def calculate_benchmark_yearly_returns(
-    benchmark_df: pd.DataFrame,
-    start_date: pd.Timestamp | str,
-    end_date: pd.Timestamp | str,
-) -> list[dict[str, object]]:
-    """벤치마크(예: QQQ) 종가로부터 지정 기간의 연간 복리 수익률을 계산한다.
-
-    Close 컬럼을 equity 개념으로 취급하여 `calculate_monthly_returns` 및
-    `calculate_yearly_returns`와 동일한 방식으로 월별→연간 수익률을 산출한다.
-
-    Args:
-        benchmark_df: 벤치마크 OHLCV DataFrame (Date, Close 컬럼 필수)
-        start_date: 시작일 (inclusive)
-        end_date: 종료일 (inclusive)
-
-    Returns:
-        연간 수익률 리스트 [{year, return_pct}, ...] (year 오름차순).
-        기간 내 데이터가 2행 미만이면 빈 리스트 반환.
-    """
-    if benchmark_df.empty:
-        return []
-
-    df = benchmark_df[[COL_DATE, COL_CLOSE]].copy()
-    df[COL_DATE] = pd.to_datetime(df[COL_DATE])
-    start_ts = pd.Timestamp(start_date)
-    end_ts = pd.Timestamp(end_date)
-    mask = (df[COL_DATE] >= start_ts) & (df[COL_DATE] <= end_ts)
-    df = df.loc[mask].reset_index(drop=True)
-    if len(df) < 2:
-        return []
-
-    # Close 컬럼을 equity 컬럼명으로 바꾸어 기존 월별/연간 계산 파이프라인 재사용
-    df = df.rename(columns={COL_CLOSE: COL_EQUITY})
-    monthly = calculate_monthly_returns(df)
-    return calculate_yearly_returns(monthly)

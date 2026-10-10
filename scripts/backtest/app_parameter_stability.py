@@ -3,7 +3,7 @@
 4개 파라미터(ma_window, buy_buffer, sell_buffer, hold_days)의
 고원 분석 결과를 시각화한다.
 
-각 탭에서 7자산의 Calmar 라인차트를 표시하고,
+각 탭에서 자산별 Calmar 라인차트를 표시하고,
 확정값 마커와 고원 구간 하이라이트를 제공한다.
 
 선행 스크립트:
@@ -83,7 +83,7 @@ def _render_line_chart(
         val_str = col.split("=")[1]
         x_values.append(float(val_str))
 
-    # 7자산 각각 라인 추가
+    # 자산마다 라인 추가
     for asset in pivot.index:
         y_values = [float(v) for v in pivot.loc[asset].values]
         fig.add_trace(
@@ -117,19 +117,16 @@ def _render_line_chart(
 
         if trade_filter_min_trades is not None:
             # 거래 수 필터 적용 (sell_buffer 등 저거래 파라미터 제외)
-            try:
-                trades_pivot = load_plateau_pivot(param_name, "trades")
-                trades_row = trades_pivot.loc["QQQ"]
-                assert isinstance(trades_row, pd.Series)
-                trades_series = cast("pd.Series[float]", trades_row)
-                trades_series.index = cast("pd.Index", x_values)
-                plateau, _excluded = find_plateau_range_with_trade_filter(
-                    qqq_series,
-                    trades_series,
-                    min_trades=trade_filter_min_trades,
-                )
-            except (FileNotFoundError, KeyError):
-                plateau = find_plateau_range(qqq_series)
+            trades_pivot = load_plateau_pivot(param_name, "trades")
+            trades_row = trades_pivot.loc["QQQ"]
+            assert isinstance(trades_row, pd.Series)
+            trades_series = cast("pd.Series[float]", trades_row)
+            trades_series.index = cast("pd.Index", x_values)
+            plateau, _excluded = find_plateau_range_with_trade_filter(
+                qqq_series,
+                trades_series,
+                min_trades=trade_filter_min_trades,
+            )
             annotation_label = "고원 구간 (80%, 저거래 제외)"
         else:
             plateau = find_plateau_range(qqq_series)
@@ -178,7 +175,7 @@ def _render_tab(param_name: str, display_name: str) -> None:
 
     # sell_buffer: 거래 수 필터 적용 안내
     if param_name == "sell_buffer":
-        st.caption(f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터(예: sell=0.15)는 " "사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다.")
+        st.caption(f"거래 수 {_SELL_BUFFER_MIN_TRADES}회 미만인 파라미터는 사실상 Buy & Hold와 동일하여 고원 탐지 대상에서 제외됩니다.")
 
     # 보조: CAGR, MDD (접을 수 있는 expander)
     with st.expander("보조 지표 (CAGR, MDD)", expanded=True):
