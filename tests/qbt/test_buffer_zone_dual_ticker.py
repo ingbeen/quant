@@ -29,8 +29,8 @@ class TestDualTickerStrategy:
         When: run_buffer_strategy(signal_df, trade_df, params)
         Then:
           - 3일째(인덱스 2): position=0 (시그널만, 미체결)
-          - 4일째(인덱스 3): position>0 (trade_df 시가로 체결)
-          - 체결 가격은 trade_df의 Open 기반 (signal_df의 Open이 아님)
+          - 4일째(인덱스 3): 주수 = 자본 ÷ (trade_df 시가 65 × (1 + 슬리피지)) — signal_df 시가(105)였다면 주수가 다르다
+          - 미청산 포지션의 진입가 = trade_df 시가 × (1 + 슬리피지)
         """
         # Given: signal_df (QQQ) - 3일째에 상향돌파
         signal_df = pd.DataFrame(
@@ -60,7 +60,7 @@ class TestDualTickerStrategy:
         )
 
         # When
-        trades_df, equity_df, _summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
         # Then: 체결 타이밍 검증
         assert len(equity_df) >= 4, "에쿼티 기록이 4일 이상이어야 함"
@@ -69,18 +69,16 @@ class TestDualTickerStrategy:
         signal_day = equity_df.iloc[2]
         assert signal_day["position"] == 0, f"신호일에는 position=0이어야 함, 실제: {signal_day['position']}"
 
-        # 체결일(4일째, 인덱스 3) - trade_df 시가로 체결
+        # 체결일(4일째, 인덱스 3) - trade_df 시가(65)로 체결, 슬리피지 +0.3% (비용률은 정책 값이라 여기 고정한다)
+        buy_price = 65 * (1 + 0.003)
         execution_day = equity_df.iloc[3]
-        assert execution_day["position"] > 0, f"체결일에는 position>0이어야 함, 실제: {execution_day['position']}"
+        assert execution_day["position"] == int(params.initial_capital / buy_price)
 
-        # 체결 가격이 trade_df의 Open(65) 기반인지 확인
-        if not trades_df.empty:
-            entry_price = trades_df.iloc[0]["entry_price"]
-            # trade_df의 4일째 Open=65, 슬리피지 +0.3% 적용
-            expected_price = 65 * (1 + 0.003)
-            assert entry_price == pytest.approx(
-                expected_price, abs=0.01
-            ), f"체결가는 trade_df의 Open 기반이어야 함. 기대: {expected_price:.2f}, 실제: {entry_price:.2f}"
+        # 매도가 없어 거래 기록은 0행이다 — 체결가는 미청산 포지션의 진입가로 확인한다
+        assert trades_df.empty
+        open_position = summary.get("open_position")
+        assert open_position is not None
+        assert open_position["entry_price"] == pytest.approx(buy_price, abs=1e-6)
 
     def test_equity_uses_trade_df_close(self):
         """
@@ -122,17 +120,13 @@ class TestDualTickerStrategy:
         # When
         _trades_df, equity_df, _summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
-        # Then: 포지션 보유 시점의 equity가 trade_df 종가 기반인지 검증
-        position_rows = equity_df[equity_df["position"] > 0]
-        if len(position_rows) > 0:
-            # 5일째(인덱스 4): trade_df Close=86, signal_df Close=112
-            # equity는 trade_df 기준이어야 함
-            row = position_rows.iloc[0]
-            position_shares = row["position"]
-            equity_value = row["equity"]
-            # trade_df의 해당 날짜 종가로 계산된 equity 확인
-            # equity가 signal_df 종가(112) 기준이면 더 큰 값이 됨
-            assert equity_value < position_shares * 112, "에쿼티는 trade_df 종가(86) 기반이어야 하므로 signal_df 종가(112) 기반보다 작아야 함"
+        # Then: 체결일(인덱스 3) 에쿼티 = 남은 현금 + 주수 × trade_df 종가(80) — signal_df 종가(110)가 아니다
+        buy_price = 65 * (1 + 0.003)
+        shares = int(params.initial_capital / buy_price)
+        cash = params.initial_capital - shares * buy_price
+        row = equity_df.iloc[3]
+        assert row["position"] == shares
+        assert row["equity"] == pytest.approx(cash + shares * 80, abs=0.01)
 
     def test_date_alignment_validation(self):
         """

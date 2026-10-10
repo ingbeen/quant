@@ -12,6 +12,7 @@ backtest/analysis 모듈 테스트
 예: MDD가 실제보다 작게 계산되면 위험을 과소평가하게 됩니다.
 """
 
+import math
 from datetime import date
 
 import pandas as pd
@@ -940,6 +941,21 @@ class TestCalculateSharpeRatio:
         assert isinstance(result, float)
         assert result != 0.0
 
+    def test_value_matches_definition(self):
+        """
+        목적: 샤프 비율 = 일별 수익률 평균 ÷ 표본 표준편차 × √(연간 거래일)
+
+        Given: 에쿼티 100 → 110 → 99 → 108.9 (일별 수익률 +10% · −10% · +10%)
+        When: calculate_sharpe_ratio 호출 (rf=0)
+        Then: 평균 1/30, 표본 표준편차 √(4/300), 연간 거래일 252 → (1/30) ÷ √(4/300) × √252 = √21
+              (연율화 기준은 정책 값이라 252 를 여기 고정한다)
+        """
+        eq = self._build_equity_df([100.0, 110.0, 99.0, 108.9])
+
+        result = calculate_sharpe_ratio(eq, risk_free_rate=0.0)
+
+        assert result == pytest.approx(math.sqrt(21), abs=1e-9)
+
     def test_empty_equity_returns_zero(self):
         """빈 DataFrame이면 0.0 반환."""
         eq = pd.DataFrame({COL_DATE: [], "equity": []})
@@ -983,6 +999,21 @@ class TestCalculateSortinoRatio:
 
         assert isinstance(result, float)
         assert result != 0.0
+
+    def test_value_matches_definition(self):
+        """
+        목적: 소르티노 비율 = 일별 수익률 평균 ÷ 하방 편차 × √(연간 거래일), 하방 편차 = √(평균(min(수익률, 0)²))
+
+        Given: 에쿼티 100 → 110 → 99 → 108.9 (일별 수익률 +10% · −10% · +10%)
+        When: calculate_sortino_ratio 호출 (rf=0)
+        Then: 평균 1/30, 하방 편차 √(0.01/3), 연간 거래일 252 → (1/30) ÷ √(1/300) × √252 = √84
+              (연율화 기준은 정책 값이라 252 를 여기 고정한다)
+        """
+        eq = self._build_equity_df([100.0, 110.0, 99.0, 108.9])
+
+        result = calculate_sortino_ratio(eq, risk_free_rate=0.0)
+
+        assert result == pytest.approx(math.sqrt(84), abs=1e-9)
 
     def test_all_positive_returns_returns_zero(self):
         """

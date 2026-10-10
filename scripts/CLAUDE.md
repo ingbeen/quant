@@ -130,7 +130,7 @@ main 함수:
 - 다운로드 통계 출력
 - 대용 시계열 생성 (`generate_proxy_series.py`): 실물 ETF 상장 전 구간을 대용 시세로 채운 파일을 만든다 — 이어 붙인 판 `{TICKER}_synthetic_max.csv`, 전 구간 합성 `VXUS_proxy_max.csv`. 계산은 `src/qbt/utils/proxy_series.py` 가 하고, 저장은 다운로더와 같은 순서(가격 6자리 반올림 → `validate_stock_data` → 저장)다. 대상 · 대용 원본을 다시 받으면 다시 실행해야 한다
 - 장기 대체 시계열 생성 (`generate_long_proxy_series.py`): 대체 판(실물이 없던 2000-08 이전부터 전 기간 대체)이 쓰는 파일 중 계산이 필요한 것만 만든다 — `SSO_proxy_max.csv` · `QLD_proxy_max.csv`(SPY · QQQ 2배 합성, `qbt.tqqq.simulation.simulate` 를 배율 2 로), `BIL_proxy_max.csv`(연방기금금리 누적, `proxy_series.build_rate_accrual_series`), `DBC_synthetic_max.csv`(S&P GSCI → DBC 이어 붙임). 같은 펀드의 뮤추얼 클래스 · 금 선물처럼 받은 시세를 그대로 쓰는 대체는 만들지 않는다. 저장 순서는 위 스크립트와 같다
-- 대체-실물 비교 (`generate_proxy_comparison.py`): 등록 쌍(스크립트의 `PAIRS`)마다 전체 · 연도별 · 국면별 비교를 `storage/results/proxy_comparison/` 의 `summary.csv` · `periods.csv` 로 저장한다(한글 헤더, UTF-8 BOM). 계산과 열 이름은 `src/qbt/utils/proxy_comparison.py`, 스크립트는 쌍 목록 · 반올림 · 저장만 한다
+- 대체-실물 비교 (`generate_proxy_comparison.py`): 등록 쌍(스크립트의 묶음별 `*_PAIRS` 표)마다 전체 · 연도별 · 국면별 비교를 `storage/results/proxy_comparison/` 의 `summary.csv` · `periods.csv` 로 저장한다(한글 헤더, UTF-8 BOM). 계산과 열 이름은 `src/qbt/utils/proxy_comparison.py`, 스크립트는 쌍 목록 · 반올림 · 저장만 한다
 - 대시보드 앱 `app_proxy_comparison.py`: 대체-실물 비교 대시보드 (Streamlit + Plotly)
   - 선행: `generate_proxy_comparison.py` 실행 (등록 쌍 표를 읽는다). 요약 파일이 없어도 「직접 고르기」는 동작한다
   - 고른 쌍의 차트 · 기간별 표는 같은 `src` 함수로 즉석 계산한다 — 등록 쌍과 직접 고른 쌍이 같은 경로를 쓰고, 일별 CSV 를 저장하지 않는다

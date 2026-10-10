@@ -459,11 +459,26 @@ class TestTwoMethodNetting:
     매매법 몫은 a 약 0.535 (상대 편차 약 7%) 라 매매법 사이 되돌리기는 일어나지 않는다.
     """
 
-    def _run(self, tmp_path: Path, create_csv_file, allocator_id: str) -> PortfolioResult:
-        x = create_csv_file("X_max.csv", _price_df(date(2024, 1, 15), 100.0, 130.0))
-        y = create_csv_file("Y_max.csv", _flat_df(100.0))
-        z = create_csv_file("Z_max.csv", _flat_df(100.0))
-        s = create_csv_file("S_max.csv", _price_df(date(2024, 1, 31), 50.0, 150.0))
+    def _frames(self, open_offset: float = 0.0) -> dict[str, pd.DataFrame]:
+        """시나리오의 시세. open_offset 을 주면 시가만 그만큼 옮긴다 (시가와 종가를 구분해야 하는 검사용)."""
+        frames = {
+            "x": _price_df(date(2024, 1, 15), 100.0, 130.0),
+            "y": _flat_df(100.0),
+            "z": _flat_df(100.0),
+            "s": _price_df(date(2024, 1, 31), 50.0, 150.0),
+        }
+        for df in frames.values():
+            df[COL_OPEN] = df[COL_OPEN] + open_offset
+        return frames
+
+    def _run(
+        self, tmp_path: Path, create_csv_file, allocator_id: str, frames: dict[str, pd.DataFrame] | None = None
+    ) -> PortfolioResult:
+        frames = self._frames() if frames is None else frames
+        x = create_csv_file("X_max.csv", frames["x"])
+        y = create_csv_file("Y_max.csv", frames["y"])
+        z = create_csv_file("Z_max.csv", frames["z"])
+        s = create_csv_file("S_max.csv", frames["s"])
         config = PortfolioConfig(
             experiment_name="test_two_methods",
             display_name="Test Two Methods",
@@ -526,6 +541,40 @@ class TestTwoMethodNetting:
 
         assert bool(_ledger_value(result, "a", date(2024, 2, 1), "rebalanced")) is True
         assert bool(_ledger_value(result, "b", date(2024, 2, 1), "rebalanced")) is False
+
+    def test_ledger_cost_is_own_turnover_times_open_times_slippage(
+        self, tmp_path: Path, create_csv_file, series_switch_allocator: str
+    ) -> None:
+        """
+        목적: 장부 비용 = 그 매매법이 단독으로 매매했을 때의 비용 누적 — 날마다 Σ |주수 변화| × 시가 × SLIPPAGE_RATE
+              (상계로 계좌가 아낀 비용은 장부 비용에서 빼지 않는다)
+
+        Given: 두 매매법 시나리오에서 시가만 종가보다 1 낮춘 시세 (종가로 계산한 비용과 구분된다)
+        When: 실행
+        Then: 매매법마다 상태 로그의 주수 변화와 시가로 다시 계산한 비용이 마지막 날 장부 cost 와 같고 0 보다 크다
+        """
+        # Given
+        frames = self._frames(open_offset=-1.0)
+
+        # When
+        result = self._run(tmp_path, create_csv_file, series_switch_allocator, frames)
+
+        # Then: 상계가 일어난 실행이어야 「절감을 장부 비용에서 빼지 않는다」가 검사된다
+        assert not result.netting_df.empty
+        state = result.state_log_df
+        open_on = {asset_id: dict(zip(df[COL_DATE], df[COL_OPEN], strict=True)) for asset_id, df in frames.items()}
+        last_date = state[COL_DATE].iloc[-1]
+        for method_id, asset_ids in (("a", ("x", "y")), ("b", ("z", "x"))):
+            expected = 0.0
+            for asset_id in asset_ids:
+                shares = state[f"{method_id}.{asset_id}_shares"]
+                turnover = shares.diff().fillna(shares).abs()
+                expected += sum(
+                    float(moved) * open_on[asset_id][d] * SLIPPAGE_RATE
+                    for moved, d in zip(turnover, state[COL_DATE], strict=True)
+                )
+            assert expected > 0
+            assert float(_ledger_value(result, method_id, last_date, "cost")) == pytest.approx(expected, abs=1e-6)
 
 
 class TestInterMethodRebalance:

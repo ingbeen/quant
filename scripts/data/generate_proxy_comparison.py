@@ -14,6 +14,7 @@
 """
 
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any, Final
 
@@ -86,30 +87,42 @@ GROUP_LONG: Final = "대체 판 (대체 ↔ 실물)"
 GROUP_SPLICED: Final = "이어 붙인 판 (기존 대용 ↔ 실물)"
 GROUP_CROSS: Final = "상장 전 교차 확인 (대체 ↔ 기존 대용)"
 
-# (묶음, 대체, 기준, 비교를 그 첫 거래일 앞까지로 자를 실물 | None)
-# 대체 판의 원자재는 DBC 상장 전에만 S&P GSCI 를 쓰므로 그 대체를 DBC 와 잰다 (DBC → PDBC 는 이어 붙인 판 묶음)
-# 교차 확인은 실물이 없던 구간만 본다 — 실물 상장 뒤는 위 두 묶음이 실물과 직접 잰다
-PAIRS: Final = (
-    (GROUP_LONG, SSO_PROXY_DATA_PATH, SSO_DATA_PATH, None),
-    (GROUP_LONG, QLD_PROXY_DATA_PATH, QLD_DATA_PATH, None),
-    (GROUP_LONG, GOLD_FUTURES_DATA_PATH, GLD_DATA_PATH, None),
-    (GROUP_LONG, VUSTX_DATA_PATH, TLT_DATA_PATH, None),
-    (GROUP_LONG, VFITX_DATA_PATH, IEF_DATA_PATH, None),
-    (GROUP_LONG, VFISX_DATA_PATH, SHY_DATA_PATH, None),
-    (GROUP_LONG, BIL_PROXY_DATA_PATH, BIL_DATA_PATH, None),
-    (GROUP_LONG, VIPSX_DATA_PATH, TIP_DATA_PATH, None),
-    (GROUP_LONG, VTMGX_DATA_PATH, VEA_DATA_PATH, None),
-    (GROUP_LONG, VEIEX_DATA_PATH, VWO_DATA_PATH, None),
-    (GROUP_LONG, VGSIX_DATA_PATH, VNQ_DATA_PATH, None),
-    (GROUP_LONG, VGTSX_DATA_PATH, VXUS_DATA_PATH, None),
-    (GROUP_LONG, SPGSCI_DATA_PATH, DBC_DATA_PATH, None),
-    (GROUP_SPLICED, EFA_DATA_PATH, VEA_DATA_PATH, None),
-    (GROUP_SPLICED, SHY_DATA_PATH, BIL_DATA_PATH, None),
-    (GROUP_SPLICED, DBC_DATA_PATH, PDBC_DATA_PATH, None),
-    (GROUP_SPLICED, VXUS_PROXY_DATA_PATH, VXUS_DATA_PATH, None),
-    (GROUP_CROSS, VTMGX_DATA_PATH, EFA_DATA_PATH, VEA_DATA_PATH),
-    (GROUP_CROSS, VGTSX_DATA_PATH, VXUS_PROXY_DATA_PATH, VXUS_DATA_PATH),
-    (GROUP_CROSS, VEIEX_DATA_PATH, EEM_DATA_PATH, VWO_DATA_PATH),
+# 묶음마다 표를 따로 둔다 — 묶음 이름은 표가 정한다.
+# 「상장 전 교차 확인」으로 나가는 쌍은 CROSS_PAIRS 에만 있고, 그 표의 쌍은 자를 실물 칸을 반드시 가진다
+
+# (대체, 기준) — 대체 판. 실물과 직접 잰다
+# 원자재는 DBC 상장 전에만 S&P GSCI 를 쓰므로 그 대체를 DBC 와 잰다 (DBC → PDBC 는 이어 붙인 판 묶음)
+LONG_PAIRS: Final[tuple[tuple[Path, Path], ...]] = (
+    (SSO_PROXY_DATA_PATH, SSO_DATA_PATH),
+    (QLD_PROXY_DATA_PATH, QLD_DATA_PATH),
+    (GOLD_FUTURES_DATA_PATH, GLD_DATA_PATH),
+    (VUSTX_DATA_PATH, TLT_DATA_PATH),
+    (VFITX_DATA_PATH, IEF_DATA_PATH),
+    (VFISX_DATA_PATH, SHY_DATA_PATH),
+    (BIL_PROXY_DATA_PATH, BIL_DATA_PATH),
+    (VIPSX_DATA_PATH, TIP_DATA_PATH),
+    (VTMGX_DATA_PATH, VEA_DATA_PATH),
+    (VEIEX_DATA_PATH, VWO_DATA_PATH),
+    (VGSIX_DATA_PATH, VNQ_DATA_PATH),
+    (VGTSX_DATA_PATH, VXUS_DATA_PATH),
+    (SPGSCI_DATA_PATH, DBC_DATA_PATH),
+)
+
+# (기존 대용, 기준) — 이어 붙인 판. 실물과 직접 잰다
+SPLICED_PAIRS: Final[tuple[tuple[Path, Path], ...]] = (
+    (EFA_DATA_PATH, VEA_DATA_PATH),
+    (SHY_DATA_PATH, BIL_DATA_PATH),
+    (DBC_DATA_PATH, PDBC_DATA_PATH),
+    (VXUS_PROXY_DATA_PATH, VXUS_DATA_PATH),
+)
+
+# (대체, 기존 대용, 비교를 그 첫 거래일 앞까지로 자를 실물) — 상장 전 교차 확인
+# 실물이 없던 구간만 본다 — 실물 상장 뒤는 위 두 묶음이 실물과 직접 잰다.
+# 자를 실물이 빠지면 상장 뒤 구간이 섞이므로 이 표의 쌍은 그 칸을 반드시 가진다
+CROSS_PAIRS: Final[tuple[tuple[Path, Path, Path], ...]] = (
+    (VTMGX_DATA_PATH, EFA_DATA_PATH, VEA_DATA_PATH),
+    (VGTSX_DATA_PATH, VXUS_PROXY_DATA_PATH, VXUS_DATA_PATH),
+    (VEIEX_DATA_PATH, EEM_DATA_PATH, VWO_DATA_PATH),
 )
 
 PERIOD_KIND_YEAR: Final = "연도"
@@ -143,10 +156,20 @@ def main() -> int:
     summary_rows: list[dict[str, object]] = []
     period_rows: list[dict[str, object]] = []
 
-    for group, proxy_path, base_path, listing_path in PAIRS:
+    # (묶음, 대체, 기준, 자를 실물 파일 이름, 비교 제한일) — 교차 확인 쌍은 실물의 첫 거래일을 여기서 반드시 읽는다
+    jobs: list[tuple[str, Path, Path, str | None, date | None]] = [
+        (group, proxy, base, None, None)
+        for group, pairs in ((GROUP_LONG, LONG_PAIRS), (GROUP_SPLICED, SPLICED_PAIRS))
+        for proxy, base in pairs
+    ]
+    jobs += [
+        (GROUP_CROSS, proxy, base, listing.name, load_stock_data(listing)[COL_DATE].iloc[0])
+        for proxy, base, listing in CROSS_PAIRS
+    ]
+
+    for group, proxy_path, base_path, _listing_name, before in jobs:
         proxy_df = load_stock_data(proxy_path)
         base_df = load_stock_data(base_path)
-        before = None if listing_path is None else load_stock_data(listing_path)[COL_DATE].iloc[0]
         aligned = align_closes(proxy_df, base_df, before=before)
         summary = summarize_pair(aligned)
         identity = {
@@ -179,17 +202,17 @@ def main() -> int:
     _round(pd.DataFrame(period_rows)).to_csv(periods_path, index=False, encoding=_CSV_ENCODING)
 
     metadata: dict[str, Any] = {
-        "pair_count": len(PAIRS),
+        "pair_count": len(jobs),
         "period_row_count": len(period_rows),
         "rolling_window_days": ROLLING_WINDOW_DAYS,
         "outputs": [str(summary_path), str(periods_path)],
         "pairs": [
-            {"group": g, "proxy": p.name, "base": b.name, "before_listing_of": None if lst is None else lst.name}
-            for g, p, b, lst in PAIRS
+            {"group": g, "proxy": p.name, "base": b.name, "before_listing_of": listing_name}
+            for g, p, b, listing_name, _before in jobs
         ],
     }
     save_metadata("proxy_comparison", metadata)
-    logger.debug(f"대체-실물 비교 {len(PAIRS)}쌍 저장: {summary_path}, {periods_path}")
+    logger.debug(f"대체-실물 비교 {len(jobs)}쌍 저장: {summary_path}, {periods_path}")
     return 0
 
 

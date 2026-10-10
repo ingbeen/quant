@@ -325,6 +325,46 @@ class TestHaaTiming:
         assert actual == pytest.approx(dict(expected), abs=EPSILON)
 
 
+class TestHaaInputAlignment:
+    """시세 10개를 같은 행 번호로 읽으므로, 거래일이 어긋난 시세는 거부한다."""
+
+    @pytest.mark.parametrize("shifted_key", ["spy", "bil"])
+    def test_misaligned_trading_days_raise(self, shifted_key: str) -> None:
+        """
+        목적: 시세 하나의 거래일이 카나리아와 다르면 다른 날 종가로 점수를 내지 않고 멈춘다
+
+        Given: 점수를 낼 수 있는 시세 중 하나만 첫 거래일이 빠져 행이 하루씩 당겨짐
+        When: target_weights (판단일, 모든 시세에 있는 행 번호)
+        Then: ValueError
+        """
+        # Given
+        data = _haa_data({**_OFFENSIVE_DESCENDING, "tip": 0.05})
+        data[shifted_key] = data[shifted_key].iloc[1:].reset_index(drop=True)
+        i = len(data[shifted_key]) - 1
+
+        # When / Then
+        with pytest.raises(ValueError, match="거래일"):
+            HaaAllocator().target_weights(data, i, date(2021, 2, 25), True)
+
+    def test_same_length_but_different_days_raise(self) -> None:
+        """
+        목적: 행 수가 같아도 거래일이 다르면 멈춘다 — 길이만 견주는 대조로는 막지 못하는 어긋남
+
+        Given: 점수를 낼 수 있는 시세 중 spy 만 첫 거래일이 하루 이른 날짜 (행 수는 같다)
+        When: target_weights (판단일)
+        Then: ValueError
+        """
+        # Given
+        data = _haa_data({**_OFFENSIVE_DESCENDING, "tip": 0.05})
+        dates = data["spy"][COL_DATE].tolist()
+        dates[0] = dates[0] - timedelta(days=1)
+        data["spy"] = data["spy"].assign(**{COL_DATE: dates})
+
+        # When / Then
+        with pytest.raises(ValueError, match="거래일"):
+            HaaAllocator().target_weights(data, _last_row(data), date(2021, 2, 26), True)
+
+
 # ============================================================================
 # 미국 약세 감지 로테이션
 # ============================================================================

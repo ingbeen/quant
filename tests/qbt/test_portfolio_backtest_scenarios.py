@@ -190,6 +190,61 @@ class TestQQQTQQQSharedSignal:
         assert qqq_last_exit == tqqq_last_exit, f"QQQ({qqq_last_exit})와 TQQQ({tqqq_last_exit})의 마지막 매도 날짜가 동일해야 함"
 
 
+class TestSignalAndTradeDataSeparation:
+    """신호 시세와 매매 시세가 다른 슬롯은 매매 시세로 체결하고 평가한다.
+
+    핵심 계약: signal_data_path 는 신호만 정한다. 체결가는 매매 시세의 시가, 평가는 매매 시세의 종가다
+    (Q-2-2XS 의 SPY · QQQ 신호 → SSO · QLD 매매가 이 경로를 쓴다).
+    """
+
+    def test_signal_from_signal_data_fills_and_valuation_from_trade_data(self, tmp_path: Path, create_csv_file):
+        """
+        목적: 신호는 신호 시세에서, 체결 주수 · 평균 단가 · 평가액은 매매 시세에서 나오는지 검증
+
+        Given: 11번째 거래일에 상향 돌파하는 신호 시세(100 → 110)와, 돌파 없이 평탄한 매매 시세(종가 50 · 시가 49.5),
+               슬롯 하나(비중 1.0)
+        When:  run_portfolio_backtest() 실행
+        Then:  첫 보유일 = 신호 시세의 돌파 다음 거래일 — 매매 시세에는 돌파가 없으므로 신호가 매매 시세에서 나왔다면 매수가 없다
+               그날의 주수 = 자본 ÷ (매매 시가 × (1 + 슬리피지)), 평균 단가 = 매매 시가 × (1 + 슬리피지),
+               평가액 = 주수 × 매매 종가 — 체결을 신호 시세로 했다면 주수가 절반 아래로,
+               평가를 신호 시세로 했다면 평가액이 두 배 넘게 나온다
+        """
+        # Given
+        signal_df = _make_stock_df(n_rows=30, base_price=100.0)
+        trade_close, trade_open = 50.0, 49.5
+        trade_df = signal_df.assign(
+            **{COL_OPEN: trade_open, COL_HIGH: trade_close + 1.0, COL_LOW: trade_close - 1.0, COL_CLOSE: trade_close}
+        )
+        signal_path = create_csv_file("SIGNAL_max.csv", signal_df)
+        trade_path = create_csv_file("TRADE_max.csv", trade_df)
+        capital = 10_000_000.0
+        config = _make_portfolio_config(
+            asset_paths={"a": (signal_path, trade_path)},
+            result_dir=tmp_path,
+            target_weights={"a": 1.0},
+            ma_window=5,
+            hold_days=0,
+            total_capital=capital,
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then: _make_stock_df 의 신호 시세는 11번째 거래일(인덱스 10) 종가에 돌파한다 → 다음 거래일 시가에 체결
+        buy_price = trade_open * (1 + SLIPPAGE_RATE)
+        expected_shares = int(capital / buy_price)
+        held = result.equity_df[result.equity_df["a_shares"] > 0]
+        assert not held.empty, "매수 체결이 있어야 함"
+        first = held.iloc[0]
+        assert first[COL_DATE] == signal_df[COL_DATE].iloc[11]
+        assert first["a_shares"] == expected_shares
+        assert first["a_avg_price"] == pytest.approx(buy_price, abs=1e-6)
+        assert first["a_value"] == pytest.approx(expected_shares * trade_close, abs=0.01)
+        assert first["equity"] == pytest.approx(
+            capital - expected_shares * buy_price + expected_shares * trade_close, abs=0.01
+        )
+
+
 class TestPortfolioEquityFormula:
     """에쿼티 산식 검증.
 

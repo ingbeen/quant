@@ -307,4 +307,4 @@ class TestDownloadStockData:
 
         # Then: 소수점 6자리로 라운딩 확인
         result_df = pd.read_csv(csv_path)
-        assert result_df[COL_OPEN].iloc[0] == pytest.approx(100.123457, abs=1e-6)
+        assert result_df[COL_OPEN].iloc[0] == pytest.approx(100.123457, abs=1e-9)

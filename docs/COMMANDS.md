@@ -247,7 +247,7 @@ poetry run python scripts/data/generate_long_proxy_series.py
 ### 대체-실물 비교 (계산 · 대시보드)
 
 ```bash
-# 선행: 위 두 생성 스크립트와 비교 쌍의 시세 (쌍 목록은 scripts/data/generate_proxy_comparison.py 의 PAIRS)
+# 선행: 위 두 생성 스크립트와 비교 쌍의 시세 (쌍 목록은 scripts/data/generate_proxy_comparison.py 의 묶음별 *_PAIRS 표)
 # 비교는 기준(대개 실물) 첫 거래일부터 두 시세가 모두 있는 날만 쓴다
 # 출력: storage/results/proxy_comparison/summary.csv (쌍마다 전체 상관 · CAGR · MDD · 12개월 상관 최저)
 #       storage/results/proxy_comparison/periods.csv (쌍 × 연도 · 국면 상관 · 수익률)

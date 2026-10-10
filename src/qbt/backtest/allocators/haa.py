@@ -11,18 +11,18 @@ from typing import Final
 
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE
+from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
 
 # 동점이면 이 순서가 앞선다
 HAA_OFFENSIVE_ASSET_IDS: Final = ("spy", "iwm", "vea", "vwo", "vnq", "pdbc", "ief", "tlt")
 HAA_DEFENSIVE_ASSET_IDS: Final = ("ief", "bil")
-HAA_ASSET_IDS: Final = (*HAA_OFFENSIVE_ASSET_IDS, "bil")
+HAA_ASSET_IDS: Final = tuple(dict.fromkeys((*HAA_OFFENSIVE_ASSET_IDS, *HAA_DEFENSIVE_ASSET_IDS)))
 HAA_CANARY_SERIES_ID: Final = "tip"
 HAA_SERIES_IDS: Final = (HAA_CANARY_SERIES_ID,)
 HAA_LOOKBACK_MONTHS: Final = (1, 3, 6, 12)
 HAA_TOP_N: Final = 4
-# 12개월 × 21거래일 + 1. 점수가 달력 월말 기준이라 행 수로는 「이전 월말 12개」를 보장할 수 없다 — 모자라면 판단을 보류한다
-HAA_WARMUP_ROWS: Final = 253
+# 가장 긴 기간의 거래일 수 + 1. 점수가 달력 월말 기준이라 행 수로는 「이전 월말」 개수를 보장할 수 없다 — 모자라면 판단을 보류한다
+HAA_WARMUP_ROWS: Final = max(HAA_LOOKBACK_MONTHS) * (TRADING_DAYS_PER_YEAR // 12) + 1
 
 
 class HaaAllocator:
@@ -75,7 +75,12 @@ class HaaAllocator:
         그 행들은 i 이하 행만 보고 정해진다 — 다음 행이 i 의 달 안에 있거나 그보다 앞서기 때문이다.
         """
         if self._months is None:
-            self._months = [(d.year, d.month) for d in data[HAA_CANARY_SERIES_ID][COL_DATE]]
+            # 점수는 모든 시세를 같은 행 번호로 읽는다 — 거래일이 어긋나면 다른 날 종가로 순위를 낸다
+            canary_dates = data[HAA_CANARY_SERIES_ID][COL_DATE].tolist()
+            for key in HAA_ASSET_IDS:
+                if data[key][COL_DATE].tolist() != canary_dates:
+                    raise ValueError(f"{key} 와 {HAA_CANARY_SERIES_ID} 시세의 거래일이 다릅니다 — 모든 시세를 같은 거래일로 맞춰 넘기세요")
+            self._months = [(d.year, d.month) for d in canary_dates]
             self._month_end_rows = [
                 row for row in range(len(self._months) - 1) if self._months[row] != self._months[row + 1]
             ]

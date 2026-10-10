@@ -172,6 +172,24 @@ class TestAlignCloses:
         with pytest.raises(ValueError, match="겹치는"):
             align_closes(proxy, base, before=DAYS[3])
 
+    def test_before_after_all_common_dates_keeps_all(self) -> None:
+        """
+        목적: 겹치는 날이 모두 before 앞이면 하나도 자르지 않는다 — 그 비교는 이미 전부 상장 전 구간이다
+
+        Given: 대체 · 기준 DAYS[0] – DAYS[5], before = DAYS[6]
+        When: align_closes(before=DAYS[6])
+        Then: 날짜 = DAYS[0] – DAYS[5] (예외 없음)
+        """
+        # Given
+        proxy = _make_df(DAYS[:6], [10.0, 11.0, 12.0, 13.0, 14.0, 15.0])
+        base = _make_df(DAYS[:6], [60.0, 66.0, 61.0, 70.0, 72.0, 71.0])
+
+        # When
+        result = align_closes(proxy, base, before=DAYS[6])
+
+        # Then
+        assert result[COL_DATE].tolist() == DAYS[:6]
+
     def test_fewer_than_two_common_dates_raises(self) -> None:
         """
         목적: 겹치는 날이 2개 미만이면 수익률을 하나도 못 만들므로 예외

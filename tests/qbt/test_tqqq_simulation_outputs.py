@@ -232,8 +232,8 @@ class TestSaveDailyComparisonCsv:
 
         # 숫자 컬럼이 소수점 4자리 이하로 저장되었는지 확인
         # 실제 종가 확인 (소수점 4자리로 반올림)
-        assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=0.0001)
-        assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=0.0001)
+        assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=1e-9)
+        assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=1e-9)
 
 
 class TestCumulMultipleLogDiffInvariant:

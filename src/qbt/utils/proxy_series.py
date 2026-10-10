@@ -24,7 +24,7 @@ from qbt.common_constants import (
 )
 
 
-def _require_strictly_increasing_dates(df: pd.DataFrame, name: str) -> None:
+def require_strictly_increasing_dates(df: pd.DataFrame, name: str) -> None:
     if df.empty:
         raise ValueError(f"{name} 시세가 비어 있습니다")
     dates = df[COL_DATE]
@@ -38,8 +38,8 @@ def compute_seam_scale(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> float
     Raises:
         ValueError: 날짜가 중복 없는 오름차순이 아니거나, 이음매 날짜가 대용에 없을 때
     """
-    _require_strictly_increasing_dates(proxy_df, "대용")
-    _require_strictly_increasing_dates(actual_df, "실물")
+    require_strictly_increasing_dates(proxy_df, "대용")
+    require_strictly_increasing_dates(actual_df, "실물")
     seam_date = actual_df[COL_DATE].iloc[0]
     seam_rows = proxy_df[proxy_df[COL_DATE] == seam_date]
     if seam_rows.empty:
@@ -98,7 +98,7 @@ def build_daily_rebalanced_composite(components: Sequence[tuple[pd.DataFrame, fl
     if not math.isclose(sum(weights), 1.0, rel_tol=0.0, abs_tol=EPSILON):
         raise ValueError(f"구성 비중의 합이 1 이 아닙니다: {sum(weights)}")
     for number, (df, _) in enumerate(components, start=1):
-        _require_strictly_increasing_dates(df, f"구성 종목 {number}")
+        require_strictly_increasing_dates(df, f"구성 종목 {number}")
 
     start = max(df[COL_DATE].iloc[0] for df, _ in components)
     end = min(df[COL_DATE].iloc[-1] for df, _ in components)
@@ -156,7 +156,7 @@ def build_rate_accrual_series(dates: Sequence[date], annual_rates: Sequence[floa
         missing = [dates[i] for i in rates.index[rates.isna()][:5]]
         raise ValueError(f"금리에 결측이 있습니다 — 날짜: {missing}. 금리 원본을 확인하세요")
     result = pd.DataFrame({COL_DATE: list(dates)})
-    _require_strictly_increasing_dates(result, "금리 누적")
+    require_strictly_increasing_dates(result, "금리 누적")
 
     growth = 1.0 + rates.shift(1) / TRADING_DAYS_PER_YEAR
     growth.iloc[0] = 1.0

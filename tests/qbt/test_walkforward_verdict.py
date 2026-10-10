@@ -15,6 +15,8 @@ import pandas as pd
 from qbt.backtest.walkforward_verdict import (
     CAGR_SIMILAR_THRESHOLD_PP,
     PC_CONCENTRATION_THRESHOLD,
+    STITCHED_CALMAR_GOOD_THRESHOLD,
+    WFE_REPRODUCIBLE_THRESHOLD,
     build_is_vs_oos_verdict,
     build_mode_summary_verdict,
     build_param_drift_verdict,
@@ -22,6 +24,18 @@ from qbt.backtest.walkforward_verdict import (
     build_window_schedule_table,
     describe_param_series,
 )
+
+# 결론을 가르는 구절 — 수치가 달라 문구가 다른 것과, 결론이 다른 것을 구분해 단언한다
+_DYNAMIC_AHEAD = "Dynamic이 Fully Fixed(4P)를 앞섭니다"
+_FIXED_AHEAD = "Fully Fixed(4P)가 Dynamic을 앞섭니다"
+_SIMILAR = "결과 차이는 크지 않습니다"
+_PC_CONCENTRATED = "특정 윈도우에 집중되어 있습니다"
+_PC_SPREAD = "고르게 분산되어 있어 양호합니다"
+_WFE_NOT_REPRODUCED = "재현되지 않았습니다"
+_WFE_REPRODUCED = "그대로 또는 그 이상 재현됐다"
+_NO_COLLAPSE = "붕괴 패턴은 나타나지 않습니다"
+_MOSTLY_NEGATIVE = "음수 윈도우가 절반 이상"
+_MIXED_WINDOWS = "보조 자료로 봅니다"
 
 
 def _make_mode(
@@ -72,7 +86,7 @@ class TestModeSummaryVerdictDirection:
 
         Given: Dynamic 19.38%, Fixed 9.25%
         When: build_mode_summary_verdict 호출
-        Then: 두 수치가 모두 문구에 나타난다
+        Then: 두 수치가 모두 문구에 나타나고, 결론은 Dynamic 우세다
         """
         # Given
         summaries = {
@@ -88,14 +102,16 @@ class TestModeSummaryVerdictDirection:
         # Then
         assert "19.38" in result
         assert "9.25" in result
+        assert _DYNAMIC_AHEAD in result
+        assert _FIXED_AHEAD not in result
 
     def test_direction_flips_when_fixed_is_superior(self) -> None:
         """
-        목적: 대소관계가 뒤집히면 문구도 뒤집힌다 (이 모듈의 존재 이유)
+        목적: 대소관계가 뒤집히면 결론도 뒤집힌다 (이 모듈의 존재 이유)
 
         Given: 동일한 두 값을 Dynamic/Fixed에 서로 바꿔 넣은 두 입력
         When: 각각 build_mode_summary_verdict 호출
-        Then: 두 결과 문구가 서로 다르다
+        Then: 한쪽은 Dynamic 우세, 다른 쪽은 Fixed 우세로 서술된다
         """
         # Given
         dynamic_wins = {
@@ -116,15 +132,18 @@ class TestModeSummaryVerdictDirection:
         result_fixed = build_mode_summary_verdict(fixed_wins)
 
         # Then
-        assert result_dynamic != result_fixed
+        assert _DYNAMIC_AHEAD in result_dynamic
+        assert _FIXED_AHEAD not in result_dynamic
+        assert _FIXED_AHEAD in result_fixed
+        assert _DYNAMIC_AHEAD not in result_fixed
 
     def test_small_gap_is_described_as_similar(self) -> None:
         """
         목적: 임계값 미만의 차이는 "비슷"으로 서술된다
 
-        Given: 임계값(1.0%p)보다 작은 0.5%p 차이
+        Given: 임계값(1.0%p)보다 작은 0.5%p 차이와, 임계값의 10배 차이
         When: build_mode_summary_verdict 호출
-        Then: 큰 차이가 있는 입력과는 다른 문구가 나온다
+        Then: 작은 차이만 「차이는 크지 않다」로, 큰 차이는 우세로 서술된다
         """
         # Given
         small_gap = {
@@ -145,7 +164,10 @@ class TestModeSummaryVerdictDirection:
         result_large = build_mode_summary_verdict(large_gap)
 
         # Then
-        assert result_small != result_large
+        assert _SIMILAR in result_small
+        assert _DYNAMIC_AHEAD not in result_small
+        assert _SIMILAR not in result_large
+        assert _DYNAMIC_AHEAD in result_large
 
 
 class TestProfitConcentrationThreshold:
@@ -157,7 +179,7 @@ class TestProfitConcentrationThreshold:
 
         Given: PC 0.90
         When: build_mode_summary_verdict 호출
-        Then: 해당 수치가 문구에 포함된다
+        Then: 해당 수치와 집중 경고가 문구에 포함된다
         """
         # Given
         summaries = {
@@ -172,6 +194,29 @@ class TestProfitConcentrationThreshold:
 
         # Then
         assert "0.9" in result
+        assert _PC_CONCENTRATED in result
+
+    def test_pc_at_threshold_warns_concentration(self) -> None:
+        """
+        목적: PC가 기준과 정확히 같으면 집중 경고다 (기준 「이상」)
+
+        Given: PC = PC_CONCENTRATION_THRESHOLD
+        When: build_mode_summary_verdict 호출
+        Then: 집중 경고가 나온다
+        """
+        # Given
+        summaries = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(profit_concentration_max=PC_CONCENTRATION_THRESHOLD),
+                fully_fixed=_make_mode(),
+            )
+        }
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert _PC_CONCENTRATED in result
 
     def test_pc_below_and_above_threshold_differ(self) -> None:
         """
@@ -179,7 +224,7 @@ class TestProfitConcentrationThreshold:
 
         Given: PC가 임계값 바로 아래인 입력과 바로 위인 입력
         When: 각각 build_mode_summary_verdict 호출
-        Then: 두 문구가 서로 다르다
+        Then: 아래는 「고르게 분산」, 위는 「집중」으로 서술된다
         """
         # Given
         below = {
@@ -200,7 +245,10 @@ class TestProfitConcentrationThreshold:
         result_above = build_mode_summary_verdict(above)
 
         # Then
-        assert result_below != result_above
+        assert _PC_SPREAD in result_below
+        assert _PC_CONCENTRATED not in result_below
+        assert _PC_CONCENTRATED in result_above
+        assert _PC_SPREAD not in result_above
 
 
 class TestWfeReproducibility:
@@ -210,9 +258,9 @@ class TestWfeReproducibility:
         """
         목적: WFE가 음수면 OOS 재현 실패로 서술된다
 
-        Given: WFE Calmar Robust -0.0436 (음수)
+        Given: 두 모드 모두 WFE Calmar Robust -0.0436 (음수)인 입력과, 두 모드 모두 1.15 인 입력
         When: build_mode_summary_verdict 호출
-        Then: 양수 WFE 입력과 다른 문구가 나온다
+        Then: 음수는 「재현되지 않았다」, 1 이상은 「재현됐다」로 서술된다
         """
         # Given
         negative = {
@@ -233,7 +281,10 @@ class TestWfeReproducibility:
         result_positive = build_mode_summary_verdict(positive)
 
         # Then
-        assert result_negative != result_positive
+        assert _WFE_NOT_REPRODUCED in result_negative
+        assert _WFE_REPRODUCED not in result_negative
+        assert _WFE_REPRODUCED in result_positive
+        assert _WFE_NOT_REPRODUCED not in result_positive
 
 
 class TestDescribeParamSeries:
@@ -303,9 +354,9 @@ class TestParamDriftVerdict:
         """
         목적: summary의 파라미터 리스트 값이 문구에 반영된다
 
-        Given: ma_window가 100에서 200으로 바뀐 dynamic 요약
+        Given: ma_window가 100에서 200으로 바뀐 dynamic 요약 (나머지 셋은 고정)
         When: build_param_drift_verdict 호출
-        Then: 두 값이 모두 문구에 나타난다
+        Then: 두 값이 모두 문구에 나타나고, 넷 중 셋이 고정이라고 서술된다
         """
         # Given
         summaries = {
@@ -321,6 +372,39 @@ class TestParamDriftVerdict:
         # Then
         assert "100" in result
         assert "200" in result
+        assert "네 파라미터 중 3개는 전 구간 고정" in result
+
+    def test_all_fixed_and_all_changing_reach_opposite_conclusions(self) -> None:
+        """
+        목적: 네 파라미터가 모두 고정인 입력과 모두 바뀌는 입력은 반대 결론을 낸다
+
+        Given: 네 파라미터가 전 윈도우 같은 dynamic 요약과, 네 파라미터가 모두 바뀌는 dynamic 요약
+        When: 각각 build_param_drift_verdict 호출
+        Then: 앞은 「고정 파라미터 사용의 근거」, 뒤는 「고정값 사용은 신중」으로 서술된다
+        """
+        # Given
+        all_fixed = {"QQQ": _make_summary(dynamic=_make_mode(), fully_fixed=_make_mode())}
+        all_changing = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(
+                    param_ma_windows=[100, 150, 200],
+                    param_buy_buffers=[0.01, 0.03, 0.05],
+                    param_sell_buffers=[0.05, 0.03, 0.01],
+                    param_hold_days=[0, 3, 5],
+                ),
+                fully_fixed=_make_mode(),
+            )
+        }
+
+        # When
+        result_fixed = build_param_drift_verdict(all_fixed)
+        result_changing = build_param_drift_verdict(all_changing)
+
+        # Then
+        assert "고정 파라미터 사용의 근거" in result_fixed
+        assert "고정값 사용은 신중" not in result_fixed
+        assert "고정값 사용은 신중" in result_changing
+        assert "고정 파라미터 사용의 근거" not in result_changing
 
 
 class TestStitchedEquityVerdict:
@@ -328,11 +412,11 @@ class TestStitchedEquityVerdict:
 
     def test_verdict_flips_with_mode_superiority(self) -> None:
         """
-        목적: Stitched 성과의 우열이 바뀌면 문구도 바뀐다
+        목적: Stitched 성과의 우열이 바뀌면 결론도 바뀐다
 
-        Given: Dynamic 우세 입력과 Fixed 우세 입력
+        Given: Dynamic 우세 입력과 Fixed 우세 입력 (CAGR 이 높은 쪽의 낙폭이 더 깊다)
         When: 각각 build_stitched_equity_verdict 호출
-        Then: 두 문구가 서로 다르다
+        Then: CAGR 우세와 낙폭이 얕은 쪽이 입력을 따라 서로 반대로 서술된다
         """
         # Given
         dynamic_wins = {
@@ -353,7 +437,38 @@ class TestStitchedEquityVerdict:
         result_fixed = build_stitched_equity_verdict(fixed_wins)
 
         # Then
-        assert result_dynamic != result_fixed
+        assert _DYNAMIC_AHEAD in result_dynamic
+        assert _FIXED_AHEAD not in result_dynamic
+        assert "Fixed 쪽 낙폭이 더 얕습니다" in result_dynamic
+        assert _FIXED_AHEAD in result_fixed
+        assert _DYNAMIC_AHEAD not in result_fixed
+        assert "Dynamic 쪽 낙폭이 더 얕습니다" in result_fixed
+
+    def test_calmar_verdict_follows_threshold(self) -> None:
+        """
+        목적: Stitched Calmar 가 기준 이상이면 「양호」, 미만이면 「못 미친다」로 서술된다
+
+        Given: 두 모드 모두 Calmar 1.2 인 입력과, 두 모드 모두 0.5 인 입력
+        When: 각각 build_stitched_equity_verdict 호출
+        Then: 앞은 「양호한 수준」, 뒤는 「못 미쳐」로 서술된다
+        """
+        # Given
+        good = {
+            "QQQ": _make_summary(dynamic=_make_mode(stitched_calmar=1.2), fully_fixed=_make_mode(stitched_calmar=1.2))
+        }
+        poor = {
+            "QQQ": _make_summary(dynamic=_make_mode(stitched_calmar=0.5), fully_fixed=_make_mode(stitched_calmar=0.5))
+        }
+
+        # When
+        result_good = build_stitched_equity_verdict(good)
+        result_poor = build_stitched_equity_verdict(poor)
+
+        # Then
+        assert "양호한 수준" in result_good
+        assert "못 미쳐" not in result_good
+        assert "못 미쳐" in result_poor
+        assert "양호한 수준" not in result_poor
 
 
 class TestIsVsOosVerdict:
@@ -363,9 +478,9 @@ class TestIsVsOosVerdict:
         """
         목적: OOS가 전부 강한 경우와 전부 약한 경우는 다르게 서술된다
 
-        Given: OOS Calmar가 IS보다 모두 높은 DF와 모두 낮은 DF
+        Given: OOS Calmar가 IS보다 모두 높은 DF와 모두 낮은 DF (음수는 없음)
         When: 각각 build_is_vs_oos_verdict 호출
-        Then: 두 문구가 서로 다르다
+        Then: 앞은 3개 중 3개가 웃돌아 「붕괴 패턴 없음」, 뒤는 0개가 웃돌아 「보조 자료」로 서술된다
         """
         # Given
         stronger = pd.DataFrame({"window_idx": [0, 1, 2], "is_calmar": [1.0, 1.0, 1.0], "oos_calmar": [2.0, 2.0, 2.0]})
@@ -376,15 +491,19 @@ class TestIsVsOosVerdict:
         result_weaker = build_is_vs_oos_verdict({"QQQ": weaker})
 
         # Then
-        assert result_stronger != result_weaker
+        assert "3개 윈도우 중 3개에서" in result_stronger
+        assert _NO_COLLAPSE in result_stronger
+        assert "3개 윈도우 중 0개에서" in result_weaker
+        assert _NO_COLLAPSE not in result_weaker
+        assert _MIXED_WINDOWS in result_weaker
 
     def test_negative_oos_windows_are_counted(self) -> None:
         """
         목적: OOS가 음수인 윈도우 수가 판단에 반영된다
 
-        Given: 3개 윈도우 중 2개의 OOS Calmar가 음수
+        Given: 3개 윈도우 중 2개의 OOS Calmar가 음수인 DF와, 음수가 없는 DF
         When: build_is_vs_oos_verdict 호출
-        Then: 음수가 없는 입력과 다른 문구가 나온다
+        Then: 앞은 음수 2개 · 「음수 윈도우가 절반 이상」, 뒤는 음수 0개로 그 경고가 없다
         """
         # Given
         with_negative = pd.DataFrame(
@@ -399,7 +518,145 @@ class TestIsVsOosVerdict:
         result_without = build_is_vs_oos_verdict({"QQQ": without_negative})
 
         # Then
-        assert result_with != result_without
+        assert "2개 윈도우는 OOS가 음수" in result_with
+        assert _MOSTLY_NEGATIVE in result_with
+        assert "0개 윈도우는 OOS가 음수" in result_without
+        assert _MOSTLY_NEGATIVE not in result_without
+
+
+class TestVerdictThresholdBoundaries:
+    """값이 기준과 정확히 같을 때 어느 쪽 결론인지 고정한다 (수익 집중도의 경계는 위 클래스에 있다)."""
+
+    def test_cagr_gap_equal_to_threshold_is_not_similar(self) -> None:
+        """
+        목적: CAGR 차이가 기준과 같으면 「비슷」이 아니다 (기준 「미만」만 비슷)
+
+        Given: Dynamic = CAGR_SIMILAR_THRESHOLD_PP, Fixed = 0.0 (차이가 부동소수 오차 없이 기준과 같다)
+        When: build_mode_summary_verdict 호출
+        Then: Dynamic 우세로 서술된다
+        """
+        # Given
+        summaries = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(stitched_cagr=CAGR_SIMILAR_THRESHOLD_PP),
+                fully_fixed=_make_mode(stitched_cagr=0.0),
+            )
+        }
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert _DYNAMIC_AHEAD in result
+        assert _SIMILAR not in result
+
+    def test_wfe_equal_to_reproducible_threshold_is_reproduced(self) -> None:
+        """
+        목적: WFE 가 재현 기준과 같으면 「재현됐다」다 (기준 「이상」)
+
+        Given: 두 모드 모두 WFE Calmar Robust = WFE_REPRODUCIBLE_THRESHOLD
+        When: build_mode_summary_verdict 호출
+        Then: 「재현됐다」로 서술된다
+        """
+        # Given
+        mode = _make_mode(wfe_calmar_robust=WFE_REPRODUCIBLE_THRESHOLD)
+        summaries = {"QQQ": _make_summary(dynamic=mode, fully_fixed=mode)}
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert _WFE_REPRODUCED in result
+
+    def test_wfe_between_zero_and_threshold_is_partial_reproduction(self) -> None:
+        """
+        목적: WFE 가 0 초과 · 재현 기준 미만이면 「약 N% 재현」이다 — 「재현됐다」도 「재현되지 않았다」도 아니다
+
+        Given: 두 모드 모두 WFE Calmar Robust = 0.5
+        When: build_mode_summary_verdict 호출
+        Then: 「약 50%가 OOS에서 재현」으로 서술되고 나머지 두 결론은 없다
+        """
+        # Given
+        mode = _make_mode(wfe_calmar_robust=0.5)
+        summaries = {"QQQ": _make_summary(dynamic=mode, fully_fixed=mode)}
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert "약 50%가 OOS에서 재현" in result
+        assert _WFE_REPRODUCED not in result
+        assert _WFE_NOT_REPRODUCED not in result
+
+    def test_wfe_zero_is_not_reproduced(self) -> None:
+        """
+        목적: WFE 가 정확히 0 이면 「재현되지 않았다」다 (0 「이하」)
+
+        Given: 두 모드 모두 WFE Calmar Robust = 0.0
+        When: build_mode_summary_verdict 호출
+        Then: 「재현되지 않았다」로 서술된다
+        """
+        # Given
+        mode = _make_mode(wfe_calmar_robust=0.0)
+        summaries = {"QQQ": _make_summary(dynamic=mode, fully_fixed=mode)}
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert _WFE_NOT_REPRODUCED in result
+
+    def test_calmar_equal_to_threshold_is_good(self) -> None:
+        """
+        목적: Stitched Calmar 가 기준과 같으면 「양호」다 (기준 「이상」)
+
+        Given: 두 모드 모두 Stitched Calmar = STITCHED_CALMAR_GOOD_THRESHOLD
+        When: build_stitched_equity_verdict 호출
+        Then: 「양호한 수준」으로 서술된다
+        """
+        # Given
+        mode = _make_mode(stitched_calmar=STITCHED_CALMAR_GOOD_THRESHOLD)
+        summaries = {"QQQ": _make_summary(dynamic=mode, fully_fixed=mode)}
+
+        # When
+        result = build_stitched_equity_verdict(summaries)
+
+        # Then
+        assert "양호한 수준" in result
+
+    def test_exactly_half_windows_stronger_is_no_collapse(self) -> None:
+        """
+        목적: OOS 가 IS 를 웃돈 윈도우가 정확히 절반이고 음수가 없으면 「붕괴 패턴 없음」이다 (절반 「이상」)
+
+        Given: 윈도우 2개 — 하나만 OOS Calmar 가 IS 보다 높고 음수는 없음
+        When: build_is_vs_oos_verdict 호출
+        Then: 「붕괴 패턴은 나타나지 않습니다」로 서술된다
+        """
+        # Given
+        window_df = pd.DataFrame({"window_idx": [0, 1], "is_calmar": [1.0, 1.0], "oos_calmar": [2.0, 0.5]})
+
+        # When
+        result = build_is_vs_oos_verdict({"QQQ": window_df})
+
+        # Then
+        assert _NO_COLLAPSE in result
+
+    def test_exactly_half_windows_negative_is_mostly_negative(self) -> None:
+        """
+        목적: OOS 가 음수인 윈도우가 정확히 절반이면 「음수 윈도우가 절반 이상」이다
+
+        Given: 윈도우 2개 — 하나의 OOS Calmar 가 음수
+        When: build_is_vs_oos_verdict 호출
+        Then: 「음수 윈도우가 절반 이상」으로 서술된다
+        """
+        # Given
+        window_df = pd.DataFrame({"window_idx": [0, 1], "is_calmar": [1.0, 1.0], "oos_calmar": [-0.5, 2.0]})
+
+        # When
+        result = build_is_vs_oos_verdict({"QQQ": window_df})
+
+        # Then
+        assert _MOSTLY_NEGATIVE in result
 
 
 class TestWindowScheduleTable:

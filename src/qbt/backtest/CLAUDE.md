@@ -279,7 +279,7 @@ TypedDict:
 
 - 요구 id 는 각 모듈의 `*_ASSET_IDS` · `*_SERIES_IDS` 상수가 정한다. Q-2-2XS 와 같은 종목(TLT 등)은 같은 자산 id 를 써야 종목 단위 상계가 된다
 - 이동평균 · 월말 행 목록 같은 파생 계산은 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 j 의 값은 j 이하 행만 쓰므로 미래를 읽지 않는다
-- `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서
+- `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서. 모든 시세를 같은 행 번호로 읽으므로 점수를 처음 낼 때(첫 판단일) 자산 시세의 거래일이 카나리아와 같은지 확인하고 다르면 ValueError
 - `us_weakness_rotation.py` `UsWeaknessRotationAllocator`: 「위험 자산 ÷ 기준 시세」 비율이 그 이동평균(`add_single_moving_average`)보다 위면 위험 자산, 아니면 안전 자산. 첫 호출에서 판단하고 그 뒤는 판단일에만
 - `ewy_buffer_zone.py` `EwyBufferZoneAllocator`: `BufferZoneStrategy` 신호로 위험 자산 ↔ 안전 자산. 미보유면 check_buy, 보유면 check_sell 을 하루 한 번 — 버퍼존 슬롯과 같은 호출 순서라 신호 날짜가 같다. 첫 호출은 안전 자산
 

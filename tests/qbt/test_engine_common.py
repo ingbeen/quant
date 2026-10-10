@@ -177,8 +177,9 @@ class TestExecuteSellOrderPure:
 
         # Then: 정확한 나눗셈 (EPSILON 없음)
         expected_pnl_pct = (sell_price - 100.0) / 100.0
+        # 분모에 EPSILON 이 끼면 상대 차이가 약 1e-14 다 — 그보다 좁게 잡아야 구분된다
         assert pnl_pct == pytest.approx(
-            expected_pnl_pct, abs=1e-12
+            expected_pnl_pct, rel=1e-15, abs=0.0
         ), "pnl_pct는 (sell-entry)/entry 정확히 일치해야 함 (EPSILON 없음)"
 
 

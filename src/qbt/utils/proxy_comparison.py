@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
+from qbt.utils.proxy_series import require_strictly_increasing_dates
 
 COL_PROXY: Final = "proxy"
 COL_BASE: Final = "base"
@@ -113,14 +114,6 @@ class PeriodSummary:
         return self.proxy_return - self.base_return
 
 
-def _require_strictly_increasing_dates(df: pd.DataFrame, name: str) -> None:
-    if df.empty:
-        raise ValueError(f"{name} 시세가 비어 있습니다")
-    dates = df[COL_DATE]
-    if not (dates.is_monotonic_increasing and dates.is_unique):
-        raise ValueError(f"{name} 시세의 날짜가 중복 없는 오름차순이 아닙니다 — load_stock_data 로 읽은 시세를 넘기세요")
-
-
 def _require_aligned(aligned: pd.DataFrame) -> None:
     """align_closes 가 만든 표인지 확인한다 — 날짜가 어긋난 표를 받으면 전날 종가 · 월 묶음이 조용히 틀린다."""
     expected = [COL_DATE, COL_PROXY, COL_BASE]
@@ -158,18 +151,16 @@ def align_closes(proxy_df: pd.DataFrame, base_df: pd.DataFrame, before: date | N
     Raises:
         ValueError: 날짜가 중복 없는 오름차순이 아닐 때, 겹치는 날이 2개 미만일 때
     """
-    _require_strictly_increasing_dates(proxy_df, "대체")
-    _require_strictly_increasing_dates(base_df, "기준")
-    start = base_df[COL_DATE].iloc[0]
-    end = min(proxy_df[COL_DATE].iloc[-1], base_df[COL_DATE].iloc[-1])
+    require_strictly_increasing_dates(proxy_df, "대체")
+    require_strictly_increasing_dates(base_df, "기준")
 
     proxy = proxy_df[[COL_DATE, COL_CLOSE]].rename(columns={COL_CLOSE: COL_PROXY})
     base = base_df[[COL_DATE, COL_CLOSE]].rename(columns={COL_CLOSE: COL_BASE})
     merged = proxy.merge(base, on=COL_DATE, how="inner")
-    merged = merged[(merged[COL_DATE] >= start) & (merged[COL_DATE] <= end)].reset_index(drop=True)
     if before is not None:
         merged = merged[merged[COL_DATE] < before].reset_index(drop=True)
     if len(merged) < 2:
+        start = base_df[COL_DATE].iloc[0]
         raise ValueError(f"두 시세의 겹치는 날이 2개 미만입니다({len(merged)}개) — 기준 첫 거래일 {start} 이후에 대체 시세가 있는지 확인하세요")
     return merged[[COL_DATE, COL_PROXY, COL_BASE]]
 
