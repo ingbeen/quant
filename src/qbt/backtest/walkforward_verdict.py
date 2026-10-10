@@ -87,12 +87,16 @@ def _window_label(idx: float) -> str:
     return f"W{int(idx)}"
 
 
+# 4P 는 전 기간을 보고 정했으므로 OOS 구간도 4P 에게는 본 구간이다 — 4P 가 앞서는 것만으로 동결의 근거가 되지 않는다
+_HINDSIGHT_NOTE = "다만 4P 는 전 기간을 보고 정한 값이라 이 비교는 4P 에 유리하고, 4P 를 확정한 뒤의 구간에서만 독립적인 점검입니다."
+
+
 def _describe_cagr_gap(dynamic_cagr: float, fixed_cagr: float) -> tuple[str, str]:
     """두 모드의 Stitched CAGR 관계를 (한 줄 요약, 상세 서술)로 서술한다.
 
     Args:
         dynamic_cagr: Dynamic 모드 Stitched CAGR (%)
-        fixed_cagr: Fully Fixed 모드 Stitched CAGR (%)
+        fixed_cagr: Fully Fixed(4P 고정) 모드 Stitched CAGR (%)
 
     Returns:
         (한 줄 요약, 상세 서술) 튜플
@@ -102,16 +106,16 @@ def _describe_cagr_gap(dynamic_cagr: float, fixed_cagr: float) -> tuple[str, str
     detail_head = f"Stitched CAGR은 {_LABEL_DYNAMIC} {dynamic_cagr:.2f}%, {_LABEL_FIXED} {fixed_cagr:.2f}%입니다."
 
     if abs_gap < CAGR_SIMILAR_THRESHOLD_PP:
-        summary = "**파라미터를 매번 바꾸든 처음 것을 고정하든 결과 차이는 크지 않습니다.** 고정 파라미터가 충분히 안정적입니다."
+        summary = f"**파라미터를 매번 바꾸든 확정값(4P)으로 고정하든 결과 차이는 크지 않습니다.** {_HINDSIGHT_NOTE}"
         detail = f"{detail_head} 차이는 {abs_gap:.2f}%p로 사실상 비슷한 수준입니다."
         return summary, detail
 
     if gap > 0:
-        summary = "**Dynamic이 Fully Fixed를 앞섭니다.** 윈도우마다 파라미터를 다시 고른 것이 성과에 기여했습니다."
+        summary = "**Dynamic이 Fully Fixed(4P)를 앞섭니다.** 4P 에 유리한 비교인데도 윈도우마다 다시 고른 쪽이 앞섰습니다."
         detail = f"{detail_head} {_LABEL_DYNAMIC}이 {abs_gap:.2f}%p 높습니다."
         return summary, detail
 
-    summary = "**Fully Fixed가 Dynamic을 앞섭니다.** 동적 재최적화가 추가 가치를 만들지 못했습니다."
+    summary = f"**Fully Fixed(4P)가 Dynamic을 앞섭니다.** {_HINDSIGHT_NOTE}"
     detail = f"{detail_head} {_LABEL_FIXED}가 {abs_gap:.2f}%p 높습니다."
     return summary, detail
 
@@ -127,6 +131,8 @@ def _describe_wfe(dynamic_wfe: float | None, fixed_wfe: float | None) -> str:
         return ""
 
     head = f"WFE Calmar Robust는 {', '.join(parts)}입니다."
+    if fixed_wfe is not None:
+        head += f" {_LABEL_FIXED}(4P)의 값은 과최적화를 재지 않습니다 — 4P 는 OOS 를 포함한 전 기간을 보고 정했습니다."
 
     values = [v for v in (dynamic_wfe, fixed_wfe) if v is not None]
     worst = min(values)

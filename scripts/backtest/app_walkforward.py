@@ -233,7 +233,7 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
         r"""## 지표에 사용하는 용어에 대한 설명
 
 - **Dynamic 모드**: 매 WFO 윈도우마다 IS(In-Sample) 구간에서 그리드 서치로 최적 파라미터를 새로 선택하는 방식
-- **Fully Fixed 모드**: 첫 번째 윈도우의 IS 최적 파라미터를 모든 윈도우에 고정 적용하는 방식
+- **Fully Fixed 모드**: 확정 파라미터(4P)를 모든 윈도우에 고정 적용하는 방식
 - **Stitched Equity**: 각 윈도우의 OOS 구간을 연결하여 만든 연속 자본곡선
 - **Stitched CAGR(%)**: Stitched Equity의 연환산 복리 수익률
 - **Stitched MDD(%)**: Stitched Equity의 최대 낙폭 (음수가 클수록 큰 손실)
@@ -246,9 +246,9 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
 
 ## 지표를 해석하는 방법
 
-- **Dynamic vs Fully Fixed 비교**: Dynamic이 Fully Fixed보다 현저히 좋다면 파라미터 적응이 유효한 것이고, 비슷하거나 나쁘다면 고정 파라미터로도 충분함을 시사합니다
+- **Dynamic vs Fully Fixed 비교**: Dynamic이 Fully Fixed(4P)보다 현저히 좋다면 파라미터 적응이 유효한 것이고, 비슷하거나 나쁘다면 4P 로도 충분함을 시사합니다. 다만 4P 는 전 기간을 보고 정한 값이라 이 비교는 4P 에 유리합니다
 - **Stitched Calmar**: 1 이상이면 위험 대비 수익이 양호, 0에 가까우면 수익 대비 손실이 크다는 의미
-- **WFE Calmar Robust**: 1에 가까우면 IS 성과가 OOS에서도 유지됨을 의미 (과최적화 아님). 0 또는 음수면 IS 성과가 OOS에서 재현되지 않음 (과최적화 의심)
+- **WFE Calmar Robust**: 1에 가까우면 IS 성과가 OOS에서도 유지됨을 의미 (과최적화 아님). 0 또는 음수면 IS 성과가 OOS에서 재현되지 않음 (과최적화 의심). Fully Fixed(4P)의 값은 과최적화를 재지 않음 — 4P 는 OOS 를 포함한 전 기간을 보고 정했다
 - **PC 최대**: 0.5 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요"""
     )
 
@@ -342,13 +342,13 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str,
 
 - **Stitched Equity**: 각 WFO 윈도우의 OOS(Out-of-Sample) 구간 자본곡선을 시간순으로 이어붙인 연속 곡선
 - **Dynamic(파란색)**: 매 윈도우마다 IS에서 새로 최적화한 파라미터로 OOS를 실행한 결과
-- **Fully Fixed(주황색)**: 첫 윈도우의 IS 최적 파라미터를 모든 OOS 구간에 고정 적용한 결과
+- **Fully Fixed(주황색)**: 확정 파라미터(4P)를 모든 OOS 구간에 고정 적용한 결과
 
 ## 지표를 해석하는 방법
 
-- 두 곡선이 **비슷한 궤적**이면: 파라미터 변경의 효과가 작아 고정 파라미터로도 충분
+- 두 곡선이 **비슷한 궤적**이면: 파라미터 변경의 효과가 작아 4P 로도 충분 — 다만 4P 는 전 기간을 보고 정한 값이라 이 비교는 4P 에 유리하다
 - **Dynamic이 현저히 위에** 있으면: 파라미터 적응(re-optimization)이 유효
-- **Fully Fixed가 위에** 있으면: Dynamic 모드에서 과최적화가 발생하여 오히려 성과 악화
+- **Fully Fixed가 위에** 있으면: 윈도우마다 다시 고른 파라미터가 4P 를 넘지 못한 것 — 4P 는 전 기간을 보고 정한 값이라 이 비교는 4P 에 유리하다
 - 큰 낙폭 구간이 있다면 해당 시기의 시장 상황(금융위기, 급락장 등)과 대조하여 해석"""
     )
 
@@ -1105,11 +1105,11 @@ def main() -> None:
 - **OOS(Out-of-Sample)**: IS에서 찾은 파라미터를 **그대로 적용**하는 구간 (본시험)
 - **같은 윈도우 내에서 IS와 OOS는 동일한 파라미터를 사용**합니다. 파라미터가 바뀌는 것은 윈도우 간(Dynamic 모드에서 W0 → W1 → W2 …)입니다.
 - **Dynamic 모드**: 매 윈도우마다 IS에서 파라미터를 새로 최적화
-- **Fully Fixed 모드**: 첫 번째 윈도우(W0)의 IS 최적 파라미터를 모든 윈도우에 고정 적용
+- **Fully Fixed 모드**: 확정 파라미터(4P)를 모든 윈도우에 고정 적용
 
 ### Expanding Anchored Window 방식
 
-IS 시작점은 Dynamic 그리드의 가장 긴 이동평균이 계산되는 첫날로 고정하고(두 모드 공통), IS 종료점이 매 윈도우마다 확장됩니다.
+IS 시작점은 Dynamic 그리드와 4P 중 가장 긴 이동평균이 계산되는 첫날로 고정하고(두 모드 공통), IS 종료점이 매 윈도우마다 확장됩니다.
 후반 윈도우일수록 IS에 더 많은 시장 사이클이 포함되어 파라미터 선택이 안정화됩니다.
 아래 표는 현재 결과 파일의 실제 윈도우 구간입니다."""
         )

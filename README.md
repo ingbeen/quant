@@ -46,7 +46,7 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 
 ### 과최적화 방어 / 정합성 검증
 
-- **과최적화 방어 장치**: Walk-Forward Optimization (Dynamic / Fully Fixed 2-Mode 비교) · WFE · Profit Concentration · 멀티자산 파라미터 고원 분석을 결합해, IS에서 좋아 보이는 값을 그대로 믿지 않도록 설계
+- **과최적화 방어 장치**: Walk-Forward Optimization (Dynamic / Fully Fixed 2-Mode 비교) · WFE · Profit Concentration · 멀티자산 파라미터 고원 분석을 결합해, IS에서 좋아 보이는 값을 그대로 믿지 않도록 설계. Fully Fixed 는 확정 파라미터(4P) 고정이고, 4P 는 전 기간을 보고 정한 값이라 그 비교는 4P 에 유리하다
 - **정합성 자동 검증**: 포트폴리오 백테스트 실행 직후 시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식, 매매법 장부 항등식(Σ 매매법 손익 + 상계 절감 = 계좌 손익) 같은 핵심 불변조건을 자동으로 검증하고, 하나라도 위반하면 스크립트를 즉시 중지
 
 ## 관련 문서

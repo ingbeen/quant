@@ -70,7 +70,7 @@ class TestModeSummaryVerdictDirection:
         """
         목적: Dynamic CAGR이 명확히 높으면 Dynamic 우세로 서술된다
 
-        Given: Dynamic 19.38%, Fixed 9.25% (실제 SMA 기준 TQQQ 값)
+        Given: Dynamic 19.38%, Fixed 9.25%
         When: build_mode_summary_verdict 호출
         Then: 두 수치가 모두 문구에 나타난다
         """
@@ -155,7 +155,7 @@ class TestProfitConcentrationThreshold:
         """
         목적: PC가 기준 이상이면 집중 경고가 나온다
 
-        Given: PC 0.90 (실제 SMA 기준 TQQQ dynamic 값)
+        Given: PC 0.90
         When: build_mode_summary_verdict 호출
         Then: 해당 수치가 문구에 포함된다
         """
@@ -210,7 +210,7 @@ class TestWfeReproducibility:
         """
         목적: WFE가 음수면 OOS 재현 실패로 서술된다
 
-        Given: WFE Calmar Robust -0.0436 (실제 SMA 기준 TQQQ fully_fixed 값)
+        Given: WFE Calmar Robust -0.0436 (음수)
         When: build_mode_summary_verdict 호출
         Then: 양수 WFE 입력과 다른 문구가 나온다
         """
@@ -260,7 +260,7 @@ class TestDescribeParamSeries:
         """
         목적: 값이 바뀌는 계열은 고정 계열과 다르게 서술된다
 
-        Given: W0~W3=100, W4~=200 (실제 SMA 기준 QQQ ma_window)
+        Given: W0~W3=100, W4~=200
         When: describe_param_series 호출
         Then: 고정 계열의 서술과 다르고, 두 값이 모두 나타난다
         """

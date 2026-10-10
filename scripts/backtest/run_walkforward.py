@@ -31,8 +31,13 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_HOLD_DAYS_LIST,
     DEFAULT_WFO_INITIAL_IS_MONTHS,
     DEFAULT_WFO_MA_WINDOW_LIST,
+    DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
     ROUND_CAPITAL,
     ROUND_PERCENT,
     ROUND_PRICE,
@@ -103,6 +108,7 @@ def _run_single_mode(
     sell_buffer_zone_pct_list: list[float],
     hold_days_list: list[int],
     initial_capital: float,
+    min_trades: int,
 ) -> tuple[list[WfoWindowResultDict], WfoModeSummaryDict, pd.DataFrame]:
     """단일 WFO 모드를 실행한다.
 
@@ -111,6 +117,7 @@ def _run_single_mode(
         signal_df: 시그널 DataFrame
         trade_df: 매매 DataFrame
         기타: 파라미터 리스트들
+        min_trades: IS 최적 선택의 최소 거래 수 — 고를 조합이 하나뿐인 Fully Fixed 는 0
 
     Returns:
         (window_results, mode_summary, equity_df) 튜플
@@ -127,8 +134,9 @@ def _run_single_mode(
         initial_is_months=DEFAULT_WFO_INITIAL_IS_MONTHS,
         oos_months=DEFAULT_WFO_OOS_MONTHS,
         initial_capital=initial_capital,
-        # 조합 하나만 평가하는 Fully Fixed 도 Dynamic 과 같은 IS 기간으로 잰다
-        eval_ma_window=max(DEFAULT_WFO_MA_WINDOW_LIST),
+        min_trades=min_trades,
+        # 두 모드를 같은 IS 기간으로 잰다 — Dynamic 그리드와 4P 중 가장 긴 이동평균이 계산되는 첫날부터
+        eval_ma_window=max(*DEFAULT_WFO_MA_WINDOW_LIST, FIXED_4P_MA_WINDOW),
     )
 
     # Stitched Equity 생성
@@ -400,22 +408,25 @@ def main() -> int:
             list(DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST),
             list(DEFAULT_WFO_HOLD_DAYS_LIST),
             DEFAULT_INITIAL_CAPITAL,
+            min_trades=DEFAULT_WFO_MIN_TRADES,
         )
 
-        # 3-3. Mode 2: Fully Fixed (첫 윈도우 best params 고정)
+        # 3-3. Mode 2: Fully Fixed — 운영 중인 확정 파라미터(4P)를 모든 윈도우에 고정한다.
+        # 운영 점검(Dynamic 대 Fixed)이 4P 를 재려면 첫 윈도우의 IS 최적값이 아니라 4P 를 고정해야 한다
         logger.debug("-" * 40)
-        logger.debug("[Mode 2: Fully Fixed] 첫 IS 윈도우 최적 파라미터 고정")
-        first_best = dynamic_results[0]
+        logger.debug("[Mode 2: Fully Fixed] 확정 파라미터(4P) 고정")
 
         fully_fixed_results, fully_fixed_summary, fully_fixed_equity = _run_single_mode(
             "fully_fixed",
             signal_df,
             trade_df,
-            [first_best["best_ma_window"]],
-            [first_best["best_buy_buffer_zone_pct"]],
-            [first_best["best_sell_buffer_zone_pct"]],
-            [first_best["best_hold_days"]],
+            [FIXED_4P_MA_WINDOW],
+            [FIXED_4P_BUY_BUFFER_ZONE_PCT],
+            [FIXED_4P_SELL_BUFFER_ZONE_PCT],
+            [FIXED_4P_HOLD_DAYS],
             DEFAULT_INITIAL_CAPITAL,
+            # 거래 수 하한은 여러 조합 중 고를 때의 거름이다 — 4P 는 고르지 않으므로 걸지 않는다(걸면 거래가 적은 IS 에서 실행이 멈춘다)
+            min_trades=0,
         )
 
         # 3-4. 요약 출력

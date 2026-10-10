@@ -273,8 +273,8 @@ def run_walkforward(
         rolling_is_months: Rolling IS 최대 길이 (개월).
             None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
         eval_ma_window: IS 평가 시작일을 정하는 이동평균 기간 — 이 이동평균이 계산되는 첫날보다 앞서 IS 를 재지 않는다.
-            None 이면 ma_window_list 의 최댓값. 조합 하나만 평가하는 모드도 전체 그리드와 같은 기간으로 재려면
-            호출자가 전체 그리드의 최댓값을 넘긴다.
+            None 이면 ma_window_list 의 최댓값. 모드끼리 같은 기간으로 재려면 호출자가 모든 모드의 이동평균 중
+            최댓값을 넘긴다.
 
     Returns:
         윈도우별 결과 리스트. is_start 는 실제 IS 평가 시작일이다
@@ -445,7 +445,7 @@ def build_params_schedule(
     """WFO 결과에서 params_schedule을 구성한다.
 
     첫 윈도우의 최적 파라미터로 초기 전략을 생성하고,
-    두 번째 윈도우부터 OOS 시작일을 전환 키로 전략 객체를 매핑한다.
+    두 번째 윈도우부터 OOS 시작일을 전환 키로 전략 객체를 매핑한다. 파라미터가 직전 윈도우와 같은 윈도우는 넣지 않는다.
 
     호출 전제: 반환된 전략 객체들이 사용하는 MA 컬럼이 signal_df에
     사전 계산되어 있어야 한다. (예: "ma_150", "ma_200" 등)
@@ -456,7 +456,7 @@ def build_params_schedule(
     Returns:
         (initial_strategy, schedule) 튜플
             - initial_strategy: 첫 윈도우 기반 전략 객체
-            - schedule: {oos2_start: strategy2, oos3_start: strategy3, ...}
+            - schedule: {파라미터가 바뀐 윈도우의 oos_start: 그 윈도우의 전략, ...} — 모든 윈도우가 같으면 비어 있다
     """
     if not window_results:
         raise ValueError("window_results가 비어있습니다")
@@ -470,7 +470,15 @@ def build_params_schedule(
     )
 
     schedule: dict[date, SignalStrategy] = {}
+    prev_params = _window_params(first)
     for wr in window_results[1:]:
+        # 파라미터가 직전 윈도우와 같으면 전략을 바꾸지 않는다 — 새 객체는 유지일 대기 상태를 버려,
+        # 경계 직전 돌파의 확정이 경계 뒤로 넘어가면 진입 신호가 에러 없이 사라진다.
+        # 파라미터가 바뀌는 경계에서는 새 전략이 처음부터 센다 — 밴드가 달라지므로 그것이 「구간마다 다시 고른다」의 뜻이다(2026-10-10 확정)
+        params = _window_params(wr)
+        if params == prev_params:
+            continue
+        prev_params = params
         oos_start = date.fromisoformat(wr["oos_start"])
         schedule[oos_start] = BufferZoneStrategy(
             ma_col=ma_col_name(wr["best_ma_window"]),
@@ -480,6 +488,11 @@ def build_params_schedule(
         )
 
     return initial_strategy, schedule
+
+
+def _window_params(wr: WfoWindowResultDict) -> tuple[int, float, float, int]:
+    """윈도우 결과의 선택 파라미터 (ma, buy, sell, hold)."""
+    return (wr["best_ma_window"], wr["best_buy_buffer_zone_pct"], wr["best_sell_buffer_zone_pct"], wr["best_hold_days"])
 
 
 # WFO 결과 CSV 로딩 시 필수 컬럼

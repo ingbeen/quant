@@ -77,21 +77,21 @@
   },
   "fully_fixed": {
     "n_windows": 11,
-    "oos_cagr_mean": 27.66,
-    "oos_cagr_std": 34.63,
-    "oos_mdd_mean": -37.03,
-    "oos_mdd_worst": -54.39,
-    "oos_calmar_mean": 0.8337,
-    "oos_calmar_std": 1.1568,
-    "oos_trades_total": 12,
-    "oos_win_rate_mean": 45.45,
-    "wfe_calmar_mean": 5.9198,
-    "wfe_calmar_median": 1.353,
-    "wfe_cagr_mean": 1.6432,
-    "wfe_cagr_median": 0.7503,
-    "gap_calmar_median": 0.161,
-    "wfe_calmar_robust": 3.3548,
-    "profit_concentration_max": 0.4783,
+    "oos_cagr_mean": 25.93,
+    "oos_cagr_std": 37.4,
+    "oos_mdd_mean": -40.47,
+    "oos_mdd_worst": -62.09,
+    "oos_calmar_mean": 0.7419,
+    "oos_calmar_std": 1.2581,
+    "oos_trades_total": 9,
+    "oos_win_rate_mean": 27.27,
+    "wfe_calmar_mean": 6.7904,
+    "wfe_calmar_median": -0.1972,
+    "wfe_cagr_mean": 2.0748,
+    "wfe_cagr_median": -0.1199,
+    "gap_calmar_median": 0.093,
+    "wfe_calmar_robust": 1.5005,
+    "profit_concentration_max": 0.7702,
     "profit_concentration_window_idx": 9,
     "param_ma_windows": [
       200,
@@ -107,6 +107,19 @@
       200
     ],
     "param_buy_buffers": [
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03,
+      0.03
+    ],
+    "param_sell_buffers": [
       0.05,
       0.05,
       0.05,
@@ -118,19 +131,6 @@
       0.05,
       0.05,
       0.05
-    ],
-    "param_sell_buffers": [
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01,
-      0.01
     ],
     "param_hold_days": [
       3,
@@ -145,9 +145,9 @@
       3,
       3
     ],
-    "stitched_cagr": 24.05,
-    "stitched_mdd": -54.39,
-    "stitched_calmar": 0.4421,
-    "stitched_total_return_pct": 10333.11
+    "stitched_cagr": 24.13,
+    "stitched_mdd": -62.09,
+    "stitched_calmar": 0.3886,
+    "stitched_total_return_pct": 10480.5
   }
 }

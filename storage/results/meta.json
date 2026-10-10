@@ -1935,10 +1935,10 @@
       "results_summary": {
         "n_windows_dynamic": 11,
         "dynamic_oos_cagr_mean": 11.26,
-        "fully_fixed_oos_cagr_mean": 5.76
+        "fully_fixed_oos_cagr_mean": 10.74
       },
-      "elapsed_seconds": 68.7,
-      "timestamp": "2026-10-10T09:40:07+09:00"
+      "elapsed_seconds": 69.1,
+      "timestamp": "2026-10-10T11:24:46+09:00"
     },
     {
       "strategy": "buffer_zone_tqqq",
@@ -1977,10 +1977,10 @@
       "results_summary": {
         "n_windows_dynamic": 11,
         "dynamic_oos_cagr_mean": 26.92,
-        "fully_fixed_oos_cagr_mean": 27.66
+        "fully_fixed_oos_cagr_mean": 25.93
       },
-      "elapsed_seconds": 70.4,
-      "timestamp": "2026-10-10T09:38:58+09:00"
+      "elapsed_seconds": 70.0,
+      "timestamp": "2026-10-10T11:23:37+09:00"
     },
     {
       "strategy": "buffer_zone_qqq",
@@ -2008,7 +2008,7 @@
           3,
           5
         ],
-        "initial_capital": 10000000.0,
+        "initial_capital": 10000000,
         "slippage_rate": 0.003
       },
       "data_period": {
@@ -2019,10 +2019,10 @@
       "results_summary": {
         "n_windows_dynamic": 11,
         "dynamic_oos_cagr_mean": 11.26,
-        "fully_fixed_oos_cagr_mean": 5.76
+        "fully_fixed_oos_cagr_mean": 10.74
       },
-      "elapsed_seconds": 70.3,
-      "timestamp": "2026-10-10T09:18:12+09:00"
+      "elapsed_seconds": 72.8,
+      "timestamp": "2026-10-10T11:05:06+09:00"
     },
     {
       "strategy": "buffer_zone_tqqq",
@@ -2050,7 +2050,7 @@
           3,
           5
         ],
-        "initial_capital": 10000000.0,
+        "initial_capital": 10000000,
         "slippage_rate": 0.003
       },
       "data_period": {
@@ -2061,10 +2061,10 @@
       "results_summary": {
         "n_windows_dynamic": 11,
         "dynamic_oos_cagr_mean": 26.92,
-        "fully_fixed_oos_cagr_mean": 27.66
+        "fully_fixed_oos_cagr_mean": 25.93
       },
-      "elapsed_seconds": 72.7,
-      "timestamp": "2026-10-10T09:17:02+09:00"
+      "elapsed_seconds": 70.5,
+      "timestamp": "2026-10-10T11:03:53+09:00"
     },
     {
       "strategy": "buffer_zone_qqq",
@@ -2092,7 +2092,7 @@
           3,
           5
         ],
-        "initial_capital": 10000000.0,
+        "initial_capital": 10000000,
         "slippage_rate": 0.003
       },
       "data_period": {
@@ -2102,11 +2102,11 @@
       },
       "results_summary": {
         "n_windows_dynamic": 11,
-        "dynamic_oos_cagr_mean": 9.67,
+        "dynamic_oos_cagr_mean": 11.26,
         "fully_fixed_oos_cagr_mean": 5.76
       },
-      "elapsed_seconds": 73.5,
-      "timestamp": "2026-10-10T09:11:56+09:00"
+      "elapsed_seconds": 68.7,
+      "timestamp": "2026-10-10T09:40:07+09:00"
     }
   ],
   "cscv_analysis": [

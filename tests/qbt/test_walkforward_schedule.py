@@ -597,3 +597,62 @@ class TestBuildParamsSchedule:
 
         # 3번째 윈도우 파라미터 검증
         assert schedule[date(2010, 1, 1)]._ma_col == "ma_200"  # type: ignore[attr-defined]
+
+    def test_same_params_as_previous_window_do_not_switch_strategy(self):
+        """
+        목적: 파라미터가 직전 윈도우와 같으면 전략을 바꾸지 않는지(일정에 넣지 않는지) 검증
+              — 새 전략 객체는 유지일 대기 상태를 버려, 경계 직전 돌파의 진입이 에러 없이 사라진다
+
+        Given: 윈도우 5개 — A · A · B · B · A (A = (200, 0.03, 0.05, 3), B = (150, 0.05, 0.03, 3))
+        When: build_params_schedule 호출
+        Then: 일정에는 파라미터가 직전과 달라진 셋째(B) · 다섯째(A 로 돌아옴) 윈도우만 있다
+              — 비교 대상은 첫 윈도우가 아니라 직전 윈도우다
+        """
+        from qbt.backtest.walkforward import build_params_schedule
+
+        # Given
+        a = {
+            "best_ma_window": 200,
+            "best_buy_buffer_zone_pct": 0.03,
+            "best_sell_buffer_zone_pct": 0.05,
+            "best_hold_days": 3,
+        }
+        b = {
+            "best_ma_window": 150,
+            "best_buy_buffer_zone_pct": 0.05,
+            "best_sell_buffer_zone_pct": 0.03,
+            "best_hold_days": 3,
+        }
+        results = [{"oos_start": f"{y}-01-01", **p} for y, p in [(2006, a), (2008, a), (2010, b), (2012, b), (2014, a)]]
+
+        # When
+        _, schedule = build_params_schedule(results)
+
+        # Then
+        assert list(schedule) == [date(2010, 1, 1), date(2014, 1, 1)]
+        assert schedule[date(2014, 1, 1)]._ma_col == "ma_200"  # type: ignore[attr-defined]
+
+    def test_all_windows_same_params_give_empty_schedule(self):
+        """
+        목적: 모든 윈도우가 같은 파라미터(Fully Fixed 의 4P 고정)면 일정이 비어 한 번의 연속 실행이 되는지 검증
+
+        Given: 같은 파라미터 윈도우 3개
+        When: build_params_schedule 호출
+        Then: 일정이 비어 있다
+        """
+        from qbt.backtest.walkforward import build_params_schedule
+
+        # Given
+        a = {
+            "best_ma_window": 200,
+            "best_buy_buffer_zone_pct": 0.03,
+            "best_sell_buffer_zone_pct": 0.05,
+            "best_hold_days": 3,
+        }
+        results = [{"oos_start": f"{y}-01-01", **a} for y in (2006, 2008, 2010)]
+
+        # When
+        _, schedule = build_params_schedule(results)
+
+        # Then
+        assert schedule == {}
