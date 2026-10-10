@@ -8,7 +8,9 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.engines.backtest_engine import _check_pending_conflict, run_buffer_strategy
+from qbt.backtest.engines.engine_common import PendingOrder
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
 from qbt.backtest.strategies.strategy_common import PendingOrderConflictError
 
@@ -54,7 +56,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 체결 타이밍 검증
         # 3일째 (인덱스 2): 종가=107, ma=100, 상단밴드=103 → 돌파 신호
@@ -101,7 +103,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매도 타이밍 검증
         # 8일째 (인덱스 7): 종가=94, 하단밴드 돌파 → 매도 신호
@@ -145,7 +147,7 @@ class TestExecutionTiming:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 첫 날 포함 검증
         assert len(equity_df) == len(df), f"equity_df 길이는 전체 데이터 길이와 같아야 함. 기대: {len(df)}, 실제: {len(equity_df)}"
@@ -196,7 +198,7 @@ class TestForcedLiquidation:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: equity_df 마지막 값과 final_capital 일치 확인
         last_equity = equity_df.iloc[-1]["equity"]
@@ -328,7 +330,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 포지션 보유 중인 시점에서 equity가 양수이고 가격에 연동되어 변동하는지 검증
         assert len(equity_df) > 0, "에쿼티 기록이 있어야 함"
@@ -373,7 +375,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 포지션 없는 모든 날의 equity == initial_capital
         no_position_rows = equity_df[equity_df["position"] == 0]
@@ -414,7 +416,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: final_capital == equity_df 마지막 값
         # (현재 구현은 강제청산 로직이 있어 실패할 수 있음)
@@ -459,7 +461,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 3일째(인덱스 2) position=0, 4일째(인덱스 3) position>0
         assert len(equity_df) >= 4, f"equity_df는 최소 4행이어야 합니다. 실제: {len(equity_df)}"
@@ -504,7 +506,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 돌파일(인덱스 2), 확정일(인덱스 3), 체결일(인덱스 4)
         assert len(equity_df) >= 5, f"equity_df는 최소 5행이어야 합니다. 실제: {len(equity_df)}"
@@ -545,7 +547,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 날(인덱스 9)에 포지션 있어야 함
         assert len(equity_df) >= 10, f"equity_df는 최소 10행이어야 합니다. 실제: {len(equity_df)}"
@@ -581,7 +583,7 @@ class TestCoreExecutionRules:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막날 포지션 없어야 함 (체결 불가)
         last_day = equity_df.iloc[-1]
@@ -601,9 +603,6 @@ class TestCoreExecutionRules:
         이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
         통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
         """
-        from qbt.backtest.engines.backtest_engine import _check_pending_conflict
-        from qbt.backtest.engines.engine_common import PendingOrder
-
         # Given: 기존 pending이 존재
         existing_pending = PendingOrder(
             order_type="sell",
@@ -661,8 +660,6 @@ class TestBacktestAccuracy:
           - final_capital == cash + position x last_close
         """
         # Given: 상향돌파 후 계속 상승 (매도 신호 없음)
-        from qbt.backtest.analysis import add_single_moving_average
-
         # 앞 3행을 평탄하게 두어 MA 워밍업(window-1=2행 NaN) 이후에도
         # 밴드 아래에서 출발하도록 한다. 그 뒤 지속 상승하여 매도 신호가 없다.
         df = pd.DataFrame(
@@ -683,7 +680,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 날 포지션이 남아있어야 함
         last_equity_record = equity_df.iloc[-1]
@@ -720,8 +717,6 @@ class TestBacktestAccuracy:
         """
 
         # Given: hold_days=2, 돌파 후 1일 후 조건 실패
-        from qbt.backtest.analysis import add_single_moving_average
-
         df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, d) for d in range(1, 8)],
@@ -741,7 +736,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, _equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매수 거래가 없어야 함 (유지조건 실패)
         assert trades_df.empty or len(trades_df) == 0, "유지조건 실패로 매수 신호가 없어야 함"
@@ -760,8 +755,6 @@ class TestBacktestAccuracy:
           - 첫 신호가 정상적으로 감지되어야 함
           - trades_df가 비어있지 않아야 함
         """
-        from qbt.backtest.analysis import add_single_moving_average
-
         # Given: 첫 유효 구간에서 즉시 상향돌파
         df = pd.DataFrame(
             {
@@ -782,7 +775,7 @@ class TestBacktestAccuracy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, _equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 매수 신호가 감지되어야 함
         # prev_band가 올바르게 초기화되어 첫 유효 구간의 신호를 감지해야 함

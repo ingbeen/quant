@@ -11,10 +11,14 @@ Buy & Hold는 다른 전략의 벤치마크이므로 정확성이 특히 중요�
 """
 
 from datetime import date
+from pathlib import Path
+from typing import cast
 
 import pandas as pd
 
 from qbt.backtest import runners
+from qbt.backtest.strategies.buy_and_hold import CONFIGS, BuyAndHoldConfig
+from qbt.backtest.types import OpenPositionDict, SingleBacktestResult
 
 
 class TestCreateRunner:
@@ -31,11 +35,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(config)()로 실행
         Then: SingleBacktestResult 필드 정합성 확인, trades_df는 빈 DataFrame, data_info 포함
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-        from qbt.backtest.types import SingleBacktestResult
-
         # Given: 테스트용 DataFrame
         test_df = pd.DataFrame(
             {
@@ -85,11 +84,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(tqqq_config)()로 실행
         Then: strategy_name="buy_and_hold_tqqq", display_name="Buy & Hold (TQQQ)" 확인
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-        from qbt.backtest.types import SingleBacktestResult
-
         # Given: 테스트용 DataFrame
         test_df = pd.DataFrame(
             {
@@ -133,10 +127,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(config)() 실행
         Then: summary["open_position"] 존재 (entry_date, entry_price, shares)
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-
         test_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
@@ -157,10 +147,6 @@ class TestCreateRunner:
 
         result = runners.create_buy_and_hold_runner(config)()
 
-        from typing import cast
-
-        from qbt.backtest.types import OpenPositionDict
-
         assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
         open_pos = cast(OpenPositionDict, result.summary["open_position"])
         assert open_pos["shares"] > 0, "보유 수량은 양수"
@@ -173,10 +159,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(config)() 실행
         Then: result.trades_df.empty == True
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-
         test_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
@@ -207,10 +189,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(config)() 실행
         Then: signal_df에 "Date", "Open", "High", "Low", "Close" 존재, ma_* 없음
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-
         test_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
@@ -250,10 +228,6 @@ class TestCreateRunner:
         When: runners.create_buy_and_hold_runner(config)() 실행
         Then: open_position["entry_date"] == 2번째 날 날짜 (date(2023, 1, 2))
         """
-        from pathlib import Path
-
-        from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig
-
         test_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
@@ -274,10 +248,6 @@ class TestCreateRunner:
 
         result = runners.create_buy_and_hold_runner(config)()
 
-        from typing import cast
-
-        from qbt.backtest.types import OpenPositionDict
-
         assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
         open_pos = cast(OpenPositionDict, result.summary["open_position"])
         # 2번째 날이 entry_date여야 함 (i=0에서 신호 → i=1에서 체결)
@@ -297,8 +267,6 @@ class TestBuyAndHoldConfigs:
         When: 길이 확인
         Then: 최소 2개 이상
         """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
         assert len(CONFIGS) >= 2, f"CONFIGS에 최소 2개 항목이 필요합니다. 실제: {len(CONFIGS)}"
 
     def test_configs_strategy_names_unique(self):
@@ -309,8 +277,6 @@ class TestBuyAndHoldConfigs:
         When: strategy_name 중복 확인
         Then: 중복 없음
         """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
         names = [c.strategy_name for c in CONFIGS]
         assert len(names) == len(set(names)), f"strategy_name 중복 발견: {names}"
 
@@ -322,8 +288,6 @@ class TestBuyAndHoldConfigs:
         When: display_name 중복 확인
         Then: 중복 없음
         """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
         display_names = [c.display_name for c in CONFIGS]
         assert len(display_names) == len(set(display_names)), f"display_name 중복 발견: {display_names}"
 
@@ -335,8 +299,6 @@ class TestBuyAndHoldConfigs:
         When: strategy_name 확인
         Then: buy_and_hold_qqq와 buy_and_hold_tqqq 모두 포함
         """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
         names = {c.strategy_name for c in CONFIGS}
         assert "buy_and_hold_qqq" in names, "QQQ 설정이 CONFIGS에 포함되어야 합니다"
         assert "buy_and_hold_tqqq" in names, "TQQQ 설정이 CONFIGS에 포함되어야 합니다"
@@ -349,8 +311,6 @@ class TestBuyAndHoldConfigs:
         When: strategy_name 확인
         Then: GLD, TLT, UGL, UBT 모두 포함
         """
-        from qbt.backtest.strategies.buy_and_hold import CONFIGS
-
         names = {c.strategy_name for c in CONFIGS}
         expected = [
             "buy_and_hold_gld",

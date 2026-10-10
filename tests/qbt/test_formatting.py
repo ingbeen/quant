@@ -391,7 +391,7 @@ class TestTableLogger:
         Then: ValueError 발생
         """
         # Given
-        logger, stream = mock_logger
+        logger, _stream = mock_logger
         columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
         table = TableLogger(columns, logger, indent=2)
 

@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 
 from qbt.common_constants import DISPLAY_DATE
+from qbt.tqqq.analysis_helpers import calculate_daily_signed_log_diff
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
@@ -151,8 +152,6 @@ class TestPrepareMonthlyData:
             독립적으로 calculate_daily_signed_log_diff를 호출하여
             월별 합산 결과와 비교
         """
-        from qbt.tqqq.analysis_helpers import calculate_daily_signed_log_diff
-
         # Given
         daily_df = _build_daily_df(n_months=14)
         ffr_df = _build_ffr_df(n_months=14)

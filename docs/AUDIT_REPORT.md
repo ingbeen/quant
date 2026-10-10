@@ -278,6 +278,8 @@
 
 ## 10. 내부/runtime import 전수 조사와 근본 해결
 
+> **처리함(2026-10-10)** — 근본 해결 1 · 2 · 3 을 모두 했다. 그날 코드에서 다시 재니 205건(28파일)이었고(아래 190건은 기준 커밋 값), 동적 import 테스트는 지웠다 — 그래서 워크포워드 러너의 요약 반올림 함수(`_round_summary_for_json`)를 실행하는 테스트는 없다(지운 테스트도 자릿수는 못 잡았다. 반올림 테스트의 허용오차는 2-29). 함수 안 import 는 ruff `PLC0415` 가 품질 검증에서 막는다.
+
 - **전수(확인)**: 함수 안 import 는 190건이고 전부 `tests/` 의 28파일에 있다. src · scripts · `validate_project.py` · `docs/research/*.py` 는 0건이다(AST 집계 = `ruff --preview --select PLC0415` 집계 190).
   - 많은 순: `test_buy_and_hold.py` 23 · `test_tqqq_data_loader.py` 18 · `test_tqqq_simulation_cost_model.py` · `test_walkforward_schedule.py` · `test_parameter_stability.py` 각 14 · `test_walkforward_selection.py` 12 · `test_buffer_zone.py` 9.
   - 동적 import 1곳: `tests/qbt/test_walkforward_summary.py:267` 이 `importlib` 로 `scripts/backtest/run_walkforward.py` 를 읽는다. `scripts/backtest/__pycache__` 의 `.pyc` 가 그 부산물이다.
@@ -288,6 +290,8 @@
   3. **동적 import 제거.** `_round_summary_for_json` 을 쓰는 곳은 러너 :323 과 그 테스트(:264-274)뿐인데, **그 테스트는 반올림을 통째로 지워도 통과한다**(아무것도 막지 않는다). → 테스트만 지우거나(가장 단순), src 로 옮길 때 3-7 의 `ROUND_*` 상수와 함께 정확 비교로 다시 쓴다. 어느 쪽이든 `importlib` · ignore · `.pyc` 부산물이 사라진다.
 
 ## 11. `# type: ignore` 전수 조사와 근본 해결
+
+> **처리함(2026-10-10)** — 그날 코드의 153줄을 3줄(frozen 시험의 `pyright: ignore[reportAttributeAccessIssue]`)로 줄였다. 불필요한 타입 무시 주석은 pyright `reportUnnecessaryTypeIgnoreComment: error`, 쓰이지 않는 `noqa` 는 ruff `RUF100` 이 품질 검증에서 막는다. 코드 수정은 9줄이었다(아래 8줄 + 그 뒤 더해진 일정 테스트 1줄).
 
 - **전수(확인)**: 152줄 = `type: ignore` 100 · `pyright: ignore` 19 · `noqa` 33. 위치는 src 6(전부 noqa) · scripts 11 · tests 135.
 - **실측(메인 세션, 저장소 밖 사본)**
@@ -460,7 +464,7 @@ tests 의 이력 주석은 15-T, 연구 문서의 이력은 15-R 에 있다.
 
 - `tests/qbt/test_backtest_engine.py:92` · `107-108` `TestParamsScheduleWhile`(「if 로직에선 실패, while 로 바꾼 뒤 통과」): 테스트는 프로덕션 경로를 지키므로 남기고 이름과 두 줄만 고친다.
 - `test_analysis.py:829`(「과거에는 … 무음 반환되었으나」), `test_portfolio_backtest_scenarios.py:1105-1106`(「이전에는 앱이 직접 계산했으나」).
-- `NewAssetState`: 8곳이 아니라 15줄이다(`as NewAssetState` 별칭 import 7 + 사용 8, 전부 `test_portfolio_planning.py`). → `portfolio_types.AssetState` 를 상단에서 한 번 import(10절과 함께).
+- **처리함(2026-10-10)** `NewAssetState`: 8곳이 아니라 15줄이다(`as NewAssetState` 별칭 import 7 + 사용 8, 전부 `test_portfolio_planning.py`). → `portfolio_types.AssetState` 를 상단에서 한 번 import(10절과 함께).
 - 「기존 ~」 이력 문구 15줄: 클라우드 보고서의 9곳(`test_walkforward_schedule.py:264` · `270`, `test_walkforward_selection.py:208` · `235`, `test_portfolio_backtest_scenarios.py:764` · `805`, `test_tqqq_simulation_cost_model.py:547` · `559`, `test_tqqq_simulation_core.py:465`) + `test_tqqq_simulation_cost_model.py:551` · `test_walkforward_selection.py:212` · `test_walkforward_schedule.py:274` · `test_tqqq_simulation_core.py:430` · `test_parameter_stability.py:297` · `test_walkforward_windows.py:161`.
 - `test_walkforward_verdict.py:66` · `408-409` 「과거 사고」: 내용은 같은 파일 머리말 :3-6 에 있다(불명이 아니다). 한 줄로 줄인다. 그 계약을 지금 테스트가 못 지키는 것은 2-26.
 - 그 밖: 「새 / 이전 인터페이스」(`test_strategy_interface.py:3` · `46` · `51` · `249` · `254` · `363`), 「(정책 변경)」 · 「버그 재현」 · 주석 처리 코드(`test_buffer_zone_execution_rules.py:123` · `162` · `170` · `172` · `699-702` · `718-719`), 「(리포트 …)」(`test_buffer_zone.py:265` · `331`, `test_engine_common.py:173`), EMA 잔재(`test_walkforward_schedule.py:72` · `162` · `165`, `test_portfolio_backtest_scenarios.py:35` · `872` · `877`, `test_buffer_zone_run.py:77`), `test_portfolio_backtest_scenarios.py:954` · `test_portfolio_execution.py:262` · `test_csv_export.py:9-10` · `test_walkforward_summary.py:93`(「V2」) · `test_portfolio_strategy_types.py:23-26`.
@@ -655,7 +659,7 @@ tests 의 이력 주석은 15-T, 연구 문서의 이력은 15-R 에 있다.
 3. ~~표시 수치 바로잡기~~ **처리함(2026-10-10)** — 1-1 · 1-6 · 2-28 · 1-2(결정 3) · 1-3 · 12-1 · 2-17 · 1-4 · 1-12 · 1-13 · 1-14 · 2-18. `summary.json` 18개(단일 13 · 포트폴리오 5)를 재산출했고 바뀐 것은 월별 · 연간 수익률뿐이다. 고원 표 G.7.2 의 QQQ 유지일 칸도 (2, 10) 으로 고쳤다.
 4. ~~워크포워드 · 고원~~ **처리함(2026-10-10)** — 결정 1 대로 1-11 을 처리하고 WFO · 고원을 한 번 재실행한다(2-19 · 3-17 함께). 그 결과로 연구 문서 R1 · R6 · R8 을 고친다.
    - 4-1. ~~운영 점검표 체크 1 의 비교 대상을 4P 고정 성과로~~ **처리함(2026-10-10)** — Fully Fixed 모드를 4P 고정으로 바꿨다(사용자 결정). 연구 보고서 §2.5 · §22.3 · §23.2 기준 3 에 반영. 4P 는 전 기간을 보고 정해 이 비교가 4P 에 유리하다는 단서를 함께 적었다. Dynamic 이 고른 파라미터가 QQQ 고원 밖인 사실(QQQ 11개 윈도우 모두 · TQQQ w1 · w3 ~ w10)은 §2.5 에 적었다 — 점검표 체크 2 · 폐기 기준 4 에 해당하는 모양이고, 기준 4 의 「3회 연속」 해석은 정해지지 않았다
-5. **기계적 정리 한 커밋** — 10절(import 이동 + PLC0415) · 11절(ignore · noqa 126줄 삭제 · 설정 3줄 · 코드 수정 11줄 · E712 15줄). 동작 변화 0.
+5. ~~기계적 정리 한 커밋~~ **처리함(2026-10-10)** — 10절(import 이동 + PLC0415) · 11절(무시 주석 정리 + 재발 방지 설정) · 15-T 의 `NewAssetState` 별칭. 동작 변화 0 — 포트폴리오 결과 51개 파일이 재실행 전후로 같다.
 6. **검사 공백 보강** — 2-25 · 2-26 · 2-27 · 2-29 + DEFERRED 2 · 8 · 13. 보강한 검사는 결함을 일부러 넣어 실패하는 것을 본다. 같은 파일을 여는 김에 3-11 · 3-19(DEFERRED 8 의 `haa.py`)와 6-14 · 5-6 의 대체 비교 두 벌(DEFERRED 13 의 `proxy_comparison`)을 함께 한다(17절 묶음 제안).
 7. **설정 · 파라미터 검증 묶음** — 5-2 · 9-6 · 9-10 · 5-5 · 2-11 · 7-12(2-11 의 캐시 삭제 뒤) · 3-2 · DEFERRED 3(버린 9 도 5-2 로 덤으로 풀린다).
 8. **포트폴리오 러너 · 대시보드 묶음** — DEFERRED 4 · 6(결정 2) · 10 · 11 + 2-5 · 3-8 · 6-8(결정 16 포함) · 9-9 · 7-11 · 2-12 · 2-8 · 6-13(결정 8 — 열은 두고 `order_amount` 만 2-5 에서 반올림) · 8-8 · 13-B D6(DEFERRED 10 과 함께) · 12-8 의 포트폴리오 러너 부분 · 3-1(2-5 삭제 뒤). **2-4**(TQQQ 일별 비교 대시보드의 캐시 키 — 무거움 · 닿는다. 3단계 2-18 과 같은 결함인데 앱이 달라 그때 빠졌다)도 여기서 한다.

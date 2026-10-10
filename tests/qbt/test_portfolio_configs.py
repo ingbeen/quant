@@ -25,6 +25,7 @@ from qbt.backtest.supplement_experiment import (
     VARIANT_SPLICED,
     build_combo_config,
 )
+from qbt.common_constants import GLD_DATA_PATH, QQQ_DATA_PATH, TLT_DATA_PATH
 
 
 class TestPortfolioConfigsList:
@@ -122,8 +123,6 @@ class TestQqqBuyAndHoldConfig:
         When:  슬롯 · 전략 · 시작일 하한을 확인한다
         Then:  슬롯은 qqq 하나(목표 1.0, buy_and_hold), 신호 · 매매 경로 모두 QQQ, min_start_date 없음, 설정 검증 통과
         """
-        from qbt.common_constants import QQQ_DATA_PATH
-
         # Given
         config = get_portfolio_config("portfolio_qqq_bh")
 
@@ -187,8 +186,6 @@ class TestQSeriesConfigs:
         When:  GLD/TLT slot 확인
         Then:  strategy_id == "buy_and_hold", trade_data_path가 1x 경로
         """
-        from qbt.common_constants import GLD_DATA_PATH, TLT_DATA_PATH
-
         config = get_portfolio_config("portfolio_q2_2xs")
         for slot in config.asset_slots:
             if slot.asset_id in ("gld", "tlt"):

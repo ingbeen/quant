@@ -16,6 +16,7 @@ buffer_zone.py는 8개 자산의 config-driven 통합 전략 모듈입니다.
 설정 정합성과 팩토리 패턴의 정확성이 핵심입니다.
 """
 
+from dataclasses import FrozenInstanceError
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
@@ -24,13 +25,20 @@ import pandas as pd
 import pytest
 
 from qbt.backtest import runners
+from qbt.backtest.constants import (
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
+)
 from qbt.backtest.strategies.buffer_zone import (
     CONFIGS,
     BufferZoneConfig,
     get_config,
+    resolve_buffer_params,
     resolve_params_for_config,
 )
-from qbt.backtest.types import SingleBacktestResult
+from qbt.backtest.types import BufferStrategyParams, SingleBacktestResult
 
 
 class TestBufferZoneConfig:
@@ -45,7 +53,7 @@ class TestBufferZoneConfig:
 
         Given: BufferZoneConfig 인스턴스 생성
         When: 속성 변경 시도
-        Then: FrozenInstanceError 또는 AttributeError 발생
+        Then: FrozenInstanceError 발생
         """
         # Given
         config = BufferZoneConfig(
@@ -57,8 +65,8 @@ class TestBufferZoneConfig:
         )
 
         # When & Then: frozen이므로 속성 변경 시 예외 발생
-        with pytest.raises((AttributeError, Exception)):
-            config.strategy_name = "changed"  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            config.strategy_name = "changed"  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_configs_list_has_expected_count(self):
         """
@@ -157,13 +165,6 @@ class TestResolveParamsForConfig:
         When: resolve_params_for_config 호출
         Then: FIXED_4P_* 기본값 사용
         """
-        from qbt.backtest.constants import (
-            FIXED_4P_BUY_BUFFER_ZONE_PCT,
-            FIXED_4P_HOLD_DAYS,
-            FIXED_4P_MA_WINDOW,
-            FIXED_4P_SELL_BUFFER_ZONE_PCT,
-        )
-
         # Given
         config = BufferZoneConfig(
             strategy_name="test_default",
@@ -207,13 +208,6 @@ class TestResolveParamsForConfig:
         When: resolve_params_for_config 호출
         Then: FIXED_4P_* 기본값 사용
         """
-        from qbt.backtest.constants import (
-            FIXED_4P_BUY_BUFFER_ZONE_PCT,
-            FIXED_4P_HOLD_DAYS,
-            FIXED_4P_MA_WINDOW,
-            FIXED_4P_SELL_BUFFER_ZONE_PCT,
-        )
-
         # Given
         config = get_config("buffer_zone_tqqq")
 
@@ -273,8 +267,6 @@ class TestResolveBufferParamsMaWindowValidation:
         When: resolve_buffer_params 호출
         Then: ValueError 발생, "ma_window" 포함 메시지
         """
-        from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
-
         # When & Then
         with pytest.raises(ValueError, match="ma_window"):
             resolve_buffer_params(
@@ -292,8 +284,6 @@ class TestResolveBufferParamsMaWindowValidation:
         When: resolve_buffer_params 호출
         Then: ValueError 발생, "ma_window" 포함 메시지
         """
-        from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
-
         # When & Then
         with pytest.raises(ValueError, match="ma_window"):
             resolve_buffer_params(
@@ -311,8 +301,6 @@ class TestResolveBufferParamsMaWindowValidation:
         When: resolve_buffer_params 호출
         Then: 정상 반환, ValueError 미발생
         """
-        from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
-
         # When
         params = resolve_buffer_params(
             ma_window=1,
@@ -340,9 +328,6 @@ class TestResolveBufferParamsReturnType:
         When: resolve_buffer_params 호출
         Then: 반환값이 tuple이 아닌 BufferStrategyParams 인스턴스
         """
-        from qbt.backtest.strategies.buffer_zone import resolve_buffer_params
-        from qbt.backtest.types import BufferStrategyParams
-
         # When
         result = resolve_buffer_params(
             ma_window=200,
@@ -364,12 +349,6 @@ class TestResolveBufferParamsReturnType:
         When: resolve_params_for_config 호출
         Then: 반환값이 tuple이 아닌 BufferStrategyParams 인스턴스
         """
-        from qbt.backtest.strategies.buffer_zone import (
-            BufferZoneConfig,
-            resolve_params_for_config,
-        )
-        from qbt.backtest.types import BufferStrategyParams
-
         # Given
         config = BufferZoneConfig(
             strategy_name="test",

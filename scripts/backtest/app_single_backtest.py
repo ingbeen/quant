@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
+from lightweight_charts_v5 import lightweight_charts_v5_component
 
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
@@ -633,14 +633,14 @@ def _render_monthly_heatmap(
 
     fig = go.Figure(
         data=go.Heatmap(
-            z=z_values,  # type: ignore[arg-type]
-            x=x_labels,  # type: ignore[arg-type]
-            y=[str(y) for y in years],  # type: ignore[arg-type]
+            z=z_values,
+            x=x_labels,
+            y=[str(y) for y in years],
             colorscale="RdYlGn",
             zmid=0,
             zmin=-max_abs,
             zmax=max_abs,
-            text=[[f"{v:.1f}%" if v is not None else "" for v in row] for row in z_values],  # type: ignore[arg-type]
+            text=[[f"{v:.1f}%" if v is not None else "" for v in row] for row in z_values],
             texttemplate="%{text}",
             textfont={"size": 11},
             hovertemplate="연도: %{y}<br>구간: %{x}<br>수익률: %{z:.2f}%<extra></extra>",
@@ -758,7 +758,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
         display_df["pnl_pct"] = display_df["pnl_pct"] * 100
         display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
         styled_df = display_df.style.apply(_style_pnl_rows, axis=1)
-        st.dataframe(styled_df, width="stretch")  # type: ignore[call-overload]
+        st.dataframe(styled_df, width="stretch")
         st.caption(f"총 {len(trades_df)}건의 거래")
     else:
         st.info("이 전략에서는 거래 내역이 없습니다.")

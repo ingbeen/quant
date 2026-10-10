@@ -360,7 +360,7 @@ def summarize_methods(result: PortfolioResult) -> dict[str, Any]:
                 "unrealized_pnl": sum(float(last[f"{key}_unrealized_pnl"]) for key in keys),
                 "cost": float(row["cost"]),
                 "transfers": float(row["transfers"]),
-                "rebalanced_days": int((of_method & (ledger["rebalanced"] == True)).sum()),  # noqa: E712
+                "rebalanced_days": int((of_method & ledger["rebalanced"]).sum()),
                 "method_rebalance_days": int((of_method & (ledger["rebalance_reason"] == "methods")).sum()),
                 "assets": [{"asset_id": key, "pnl": float(last[f"{key}_contribution"])} for key in keys],
             }

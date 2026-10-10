@@ -60,7 +60,7 @@ class TestDualTickerStrategy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+        trades_df, equity_df, _summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
         # Then: 체결 타이밍 검증
         assert len(equity_df) >= 4, "에쿼티 기록이 4일 이상이어야 함"
@@ -120,7 +120,7 @@ class TestDualTickerStrategy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
         # Then: 포지션 보유 시점의 equity가 trade_df 종가 기반인지 검증
         position_rows = equity_df[equity_df["position"] > 0]

@@ -20,6 +20,7 @@ Note:
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -57,8 +58,6 @@ class TestCalculateSignedLogDiffFromCumulativeReturns:
             - 모든 값이 양수 (시뮬이 실제보다 높음)
         """
         # Given: synthetic 데이터 (%)
-        import numpy as np
-
         cumul_real = pd.Series([10.0, 20.0, 30.0], name="cumul_real")
         cumul_sim = pd.Series([11.0, 21.0, 31.0], name="cumul_sim")
 
@@ -152,8 +151,6 @@ class TestCalculateDailySignedLogDiff:
             - 모든 값이 양수 (시뮬이 더 벌었음)
         """
         # Given: % 단위
-        import numpy as np
-
         daily_real = pd.Series([1.0, 2.0, -1.0])
         daily_sim = pd.Series([1.5, 2.5, -0.5])  # 항상 실제보다 0.5%p 높음
 

@@ -36,7 +36,7 @@ class UsWeaknessRotationAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,  # noqa: ARG002
+        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if self._decided and not is_check_day:

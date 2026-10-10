@@ -617,7 +617,11 @@ def _wave(length: int, phase: float, period: float, drift: float) -> list[float]
 
 
 def _engine_config(
-    tmp_path: Path, create_csv_file, allocator_id: str, closes_by_id: dict[str, list[float]], series_ids: tuple[str, ...]  # type: ignore[no-untyped-def]
+    tmp_path: Path,
+    create_csv_file,
+    allocator_id: str,
+    closes_by_id: dict[str, list[float]],
+    series_ids: tuple[str, ...],
 ) -> PortfolioConfig:
     dates = _weekdays(date(2020, 1, 1), date(2021, 12, 31))[: len(next(iter(closes_by_id.values())))]
     paths = {key: create_csv_file(f"{key.upper()}_max.csv", _df(dates, closes)) for key, closes in closes_by_id.items()}
@@ -654,7 +658,7 @@ def _held_assets(result_equity: pd.DataFrame) -> set[str]:
 class TestEngineIntegration:
     """등록된 규칙을 슬롯 매매법과 섞어 엔진에 올리면 정합성 위반이 없다."""
 
-    def test_haa_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_haa_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:
         """
         Given: 고정 비중 매매법 70% + HAA 30%, 18개월 합성 시세(자산마다 다른 주기 · 위상, TIP 은 꾸준히 상승)
         When: run_portfolio_backtest → validate_portfolio_result
@@ -673,7 +677,7 @@ class TestEngineIntegration:
         assert validate_portfolio_result(result) == []
         assert len(_held_assets(result.equity_df)) >= 2
 
-    def test_rotation_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_rotation_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:
         """
         Given: 고정 비중 매매법 70% + 로테이션 30%, VXUS ÷ SPY 비율이 오르내리는 300일 합성 시세
         When: run_portfolio_backtest → validate_portfolio_result
@@ -692,7 +696,7 @@ class TestEngineIntegration:
         assert validate_portfolio_result(result) == []
         assert _held_assets(result.equity_df) == {"vxus", "shy"}
 
-    def test_ewy_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_ewy_runs_in_engine(self, tmp_path: Path, create_csv_file) -> None:
         """
         Given: 고정 비중 매매법 70% + EWY 30%, 오르내리는 400일 합성 EWY
         When: run_portfolio_backtest → validate_portfolio_result
@@ -710,7 +714,7 @@ class TestEngineIntegration:
         assert validate_portfolio_result(result) == []
         assert _held_assets(result.equity_df) == {"ewy", "shy"}
 
-    def test_ewy_matches_buffer_zone_slot_with_late_start(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_ewy_matches_buffer_zone_slot_with_late_start(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 시작일을 워밍업보다 늦게 줘도 EWY 규칙의 매수 · 매도 체결일이 같은 EWY 버퍼존 슬롯과 같다
 

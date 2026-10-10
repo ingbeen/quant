@@ -17,12 +17,33 @@ TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 �
 """
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
+from qbt.common_constants import DISPLAY_DATE
+from qbt.tqqq.constants import (
+    COL_ACTUAL_CLOSE,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_ACTUAL_DAILY_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
+    COL_DAILY_RETURN_ABS_DIFF,
+    COL_EXPENSE_DATE,
+    COL_EXPENSE_VALUE,
+    COL_FFR_DATE,
+    COL_FFR_VALUE,
+    COL_SIMUL_CLOSE,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_SIMUL_DAILY_RETURN,
+    DEFAULT_PRE_LISTING_EXPENSE_RATIO,
+)
 from qbt.tqqq.data_loader import (
+    COMPARISON_COLUMNS,
+    _create_monthly_data_dict,
+    _lookup_monthly_data,
+    build_extended_expense_dict,
     create_ffr_dict,
     load_comparison_data,
     load_expense_ratio_data,
@@ -170,19 +191,6 @@ class TestLoadComparisonData:
           - Date 파싱 및 정렬
         """
         # Given: 비교 데이터 생성 (실제 컬럼명 사용)
-        from qbt.common_constants import DISPLAY_DATE
-        from qbt.tqqq.constants import (
-            COL_ACTUAL_CLOSE,
-            COL_ACTUAL_CUMUL_RETURN,
-            COL_ACTUAL_DAILY_RETURN,
-            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-            COL_DAILY_RETURN_ABS_DIFF,
-            COL_SIMUL_CLOSE,
-            COL_SIMUL_CUMUL_RETURN,
-            COL_SIMUL_DAILY_RETURN,
-        )
-
         comparison_df = pd.DataFrame(
             {
                 DISPLAY_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
@@ -204,9 +212,6 @@ class TestLoadComparisonData:
         df = load_comparison_data(csv_path)
 
         # Then
-        from qbt.common_constants import DISPLAY_DATE
-        from qbt.tqqq.data_loader import COMPARISON_COLUMNS
-
         for col in COMPARISON_COLUMNS:
             assert col in df.columns, f"필수 컬럼 '{col}'이 없습니다"
 
@@ -223,9 +228,6 @@ class TestLoadComparisonData:
         Then: ValueError
         """
         # Given: 일부 컬럼 누락
-        from qbt.common_constants import DISPLAY_DATE
-        from qbt.tqqq.constants import COL_SIMUL_CLOSE
-
         incomplete_df = pd.DataFrame(
             {
                 DISPLAY_DATE: [date(2023, 1, 2)],
@@ -393,8 +395,6 @@ class TestExpenseRatioLoading:
         csv_path = create_csv_file("expense_ratio.csv", expense_df)
 
         # When: expense ratio 데이터 로딩
-        from qbt.tqqq.data_loader import load_expense_ratio_data
-
         result_df = load_expense_ratio_data(csv_path)
 
         # Then
@@ -412,13 +412,9 @@ class TestExpenseRatioLoading:
         Then: FileNotFoundError 발생
         """
         # Given
-        from pathlib import Path
-
         non_existent_path = Path("/non/existent/path.csv")
 
         # When & Then
-        from qbt.tqqq.data_loader import load_expense_ratio_data
-
         with pytest.raises(FileNotFoundError):
             load_expense_ratio_data(non_existent_path)
 
@@ -438,8 +434,6 @@ class TestGenericMonthlyDataDict:
         df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0095, 0.0088]})
 
         # When: 제네릭 함수 호출
-        from qbt.tqqq.data_loader import _create_monthly_data_dict
-
         result_dict = _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
 
         # Then
@@ -459,8 +453,6 @@ class TestGenericMonthlyDataDict:
         )
 
         # When & Then
-        from qbt.tqqq.data_loader import _create_monthly_data_dict
-
         with pytest.raises(ValueError, match="Expense.*2023-01.*중복"):
             _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
 
@@ -477,8 +469,6 @@ class TestGenericMonthlyDataDict:
         date_value = date(2024, 2, 15)  # 2024-02, 2023-01부터 13개월 차이
 
         # When & Then: max_months_diff=12 초과
-        from qbt.tqqq.data_loader import _lookup_monthly_data
-
         with pytest.raises(ValueError, match="Expense.*데이터 부족.*2024-02.*최대 12개월"):
             _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
 
@@ -495,8 +485,6 @@ class TestGenericMonthlyDataDict:
         date_value = date(2023, 12, 15)  # 2023-12, 2023-02부터 10개월 차이 (12개월 이내)
 
         # When
-        from qbt.tqqq.data_loader import _lookup_monthly_data
-
         result = _lookup_monthly_data(date_value, data_dict, max_months_diff=12, data_type="Expense")
 
         # Then: 2023-02 값 사용
@@ -526,16 +514,12 @@ class TestBuildExtendedExpenseDict:
         )
 
         # When
-        from qbt.tqqq.data_loader import build_extended_expense_dict
-
         result = build_extended_expense_dict(expense_df)
 
         # Then: 1999-01 키가 존재
         assert "1999-01" in result, "1999-01 키가 존재해야 합니다"
 
         # 확장 구간 값 검증 (DEFAULT_PRE_LISTING_EXPENSE_RATIO = 0.0095)
-        from qbt.tqqq.constants import DEFAULT_PRE_LISTING_EXPENSE_RATIO
-
         assert result["1999-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
         assert result["2005-06"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
         assert result["2010-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
@@ -562,8 +546,6 @@ class TestBuildExtendedExpenseDict:
         )
 
         # When
-        from qbt.tqqq.data_loader import build_extended_expense_dict
-
         result = build_extended_expense_dict(expense_df)
 
         # Then: 원본 값 정확히 보존
@@ -588,8 +570,6 @@ class TestBuildExtendedExpenseDict:
         )
 
         # When
-        from qbt.tqqq.data_loader import build_extended_expense_dict
-
         result = build_extended_expense_dict(expense_df)
 
         # Then: 1999-01 ~ 2010-01 = 11년 * 12 + 1 = 133개월 + 원본 3개월 = 136개
@@ -612,8 +592,6 @@ class TestBuildExtendedExpenseDict:
         )
 
         # When
-        from qbt.tqqq.data_loader import build_extended_expense_dict
-
         result = build_extended_expense_dict(expense_df)
 
         # Then: 원본 그대로 (확장 없음)

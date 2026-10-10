@@ -106,7 +106,7 @@ def _check_rebalance_weight_consistency(
     if "rebalanced" not in state_log_df.columns:
         return violations
 
-    reb_rows = state_log_df[state_log_df["rebalanced"] == True]  # noqa: E712
+    reb_rows = state_log_df[state_log_df["rebalanced"]]
     # asset_ids 는 state_log_df 컬럼에서 추출되었고 target_weights 는 동일 config 에서
     # 만들어졌으므로 두 키 집합은 일치한다. 따라서 .get default 는 dead branch.
     for _, row in reb_rows.iterrows():
@@ -227,7 +227,7 @@ def _check_method_rebalance_weight_consistency(
     """
     violations: list[str] = []
     state_by_date = state_log_df.set_index("Date")
-    rebalanced_rows = ledger_df[ledger_df["rebalanced"] == True]  # noqa: E712
+    rebalanced_rows = ledger_df[ledger_df["rebalanced"]]
     for _, ledger_row in rebalanced_rows.iterrows():
         current_date = ledger_row["Date"]
         method_id = str(ledger_row["method_id"])

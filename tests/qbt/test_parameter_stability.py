@@ -15,6 +15,14 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from qbt.backtest.parameter_stability import (
+    find_plateau_range,
+    find_plateau_range_with_trade_filter,
+    get_current_value,
+    get_plateau_dir,
+    load_plateau_pivot,
+)
+
 
 class TestLoadPlateauPivot:
     """피벗 CSV 로드 테스트."""
@@ -27,8 +35,6 @@ class TestLoadPlateauPivot:
         When: load_plateau_pivot("hold_days", "calmar") 호출
         Then: DataFrame 반환, index=자산, columns=파라미터값
         """
-        from qbt.backtest.parameter_stability import load_plateau_pivot
-
         # Given: 피벗 CSV 생성
         pivot_df = pd.DataFrame(
             {"hold=0": [0.15, 0.12], "hold=3": [0.20, 0.18], "hold=5": [0.19, 0.17]},
@@ -55,8 +61,6 @@ class TestLoadPlateauPivot:
         When: load_plateau_pivot("hold_days", "calmar") 호출
         Then: FileNotFoundError 발생
         """
-        from qbt.backtest.parameter_stability import load_plateau_pivot
-
         # When / Then
         with patch("qbt.backtest.parameter_stability._PLATEAU_DIR", tmp_path):
             with pytest.raises(FileNotFoundError, match="고원 분석 결과"):
@@ -74,8 +78,6 @@ class TestGetCurrentValue:
         When: get_current_value() 호출
         Then: 각 파라미터의 확정값 반환
         """
-        from qbt.backtest.parameter_stability import get_current_value
-
         # Then
         assert get_current_value("ma_window") == 200
         assert get_current_value("buy_buffer") == pytest.approx(0.03, abs=1e-12)
@@ -90,8 +92,6 @@ class TestGetCurrentValue:
         When: get_current_value("unknown_param") 호출
         Then: ValueError 발생
         """
-        from qbt.backtest.parameter_stability import get_current_value
-
         # When / Then
         with pytest.raises(ValueError, match="알 수 없는 파라미터"):
             get_current_value("unknown_param")
@@ -108,8 +108,6 @@ class TestGetPlateauDir:
         When: get_plateau_dir() 호출
         Then: Path 객체 반환, "param_plateau"로 끝남
         """
-        from qbt.backtest.parameter_stability import get_plateau_dir
-
         # When
         result = get_plateau_dir()
 
@@ -129,8 +127,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.9) 호출
         Then: (1.0, 3.0) 반환 (인덱스 1, 2, 3이 0.20 * 0.9 = 0.18 이상)
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given: 0.19, 0.20, 0.19는 모두 threshold(0.18) 이상
         series = pd.Series([0.10, 0.19, 0.20, 0.19, 0.12], index=[0, 1, 2, 3, 4])
 
@@ -149,8 +145,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series) 호출
         Then: None 반환
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([], dtype=float)
 
@@ -168,8 +162,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series) 호출
         Then: None 반환
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([-0.1, -0.2, -0.3], index=[0, 1, 2])
 
@@ -187,8 +179,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.9) 호출
         Then: (1.0, 1.0) 반환 (인덱스 1만 해당)
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([0.01, 0.50, 0.01], index=[0, 1, 2])
 
@@ -207,8 +197,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.75) 호출
         Then: 0.20 * 0.75 = 0.15 이상인 범위 (1.0, 3.0) 반환
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given: 0.16, 0.20, 0.16은 모두 threshold(0.15) 이상
         series = pd.Series([0.10, 0.16, 0.20, 0.16, 0.12], index=[0, 1, 2, 3, 4])
 
@@ -227,8 +215,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.9) 호출
         Then: (0.0, 2.0) 반환 (전체 범위)
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given: 모든 값이 threshold(0.18) 초과
         series = pd.Series([0.20, 0.19, 0.19], index=[0, 1, 2])
 
@@ -248,8 +234,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.8) 호출
         Then: (2.0, 10.0) — 유지일 0 은 기준 이상이지만 미달인 1 너머라 고원이 아니다
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([0.30, 0.24, 0.28, 0.31, 0.29, 0.26, 0.32, 0.30], index=[0, 1, 2, 3, 4, 5, 7, 10])
 
@@ -268,8 +252,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.9) 호출
         Then: (0.0, 0.0)
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([0.20, 0.10, 0.20], index=[0, 1, 2])
 
@@ -289,8 +271,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series, threshold_ratio=0.8) 호출
         Then: (2.0, 7.0) — 0.04 인 유지일 3 · 4 · 5 가 고원 안에 든다
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([0.03, 0.03, 0.05, 0.04, 0.04, 0.04, 0.05, 0.02], index=[0, 1, 2, 3, 4, 5, 7, 10])
 
@@ -309,8 +289,6 @@ class TestFindPlateauRange:
         When: find_plateau_range(series) 호출
         Then: None 반환
         """
-        from qbt.backtest.parameter_stability import find_plateau_range
-
         # Given
         series = pd.Series([float("nan"), float("nan")], index=[1, 2])
 
@@ -332,8 +310,6 @@ class TestFindPlateauRangeWithTradeFilter:
         When: find_plateau_range_with_trade_filter() 호출
         Then: sell=0.15 제외, sell=0.05 기준 고원 탐지
         """
-        from qbt.backtest.parameter_stability import find_plateau_range_with_trade_filter
-
         # Given: sell=0.15는 Calmar 최고(0.36)이나 거래 수 4회
         metric = pd.Series(
             [0.20, 0.24, 0.30, 0.22, 0.23, 0.36],
@@ -360,8 +336,6 @@ class TestFindPlateauRangeWithTradeFilter:
         When: find_plateau_range_with_trade_filter() 호출
         Then: plateau=None, 전체 인덱스 제외
         """
-        from qbt.backtest.parameter_stability import find_plateau_range_with_trade_filter
-
         # Given
         metric = pd.Series([0.20, 0.30], index=[0.05, 0.10])
         trades = pd.Series([2, 3], index=[0.05, 0.10])
@@ -381,11 +355,6 @@ class TestFindPlateauRangeWithTradeFilter:
         When: find_plateau_range_with_trade_filter() 호출
         Then: excluded=[], find_plateau_range와 동일 결과
         """
-        from qbt.backtest.parameter_stability import (
-            find_plateau_range,
-            find_plateau_range_with_trade_filter,
-        )
-
         # Given
         metric = pd.Series([0.10, 0.19, 0.20, 0.19], index=[1, 2, 3, 4])
         trades = pd.Series([20, 15, 10, 8], index=[1, 2, 3, 4])

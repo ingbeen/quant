@@ -16,8 +16,9 @@ import pytest
 from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY, AllocatorSpec
 from qbt.backtest.constants import SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
-from qbt.backtest.engines.portfolio_engine import run_portfolio_backtest
+from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.engines.portfolio_methods import (
+    account_target_weights,
     cap_transfers,
     compute_allocation_projection,
     compute_netting,
@@ -25,6 +26,8 @@ from qbt.backtest.engines.portfolio_methods import (
     plan_method_transfers,
     summarize_methods,
 )
+from qbt.backtest.engines.portfolio_planning import ProjectedPortfolio
+from qbt.backtest.engines.portfolio_rebalance import RebalancePolicy
 from qbt.backtest.portfolio_types import (
     AllocationAssetConfig,
     AllocatorMethodConfig,
@@ -88,8 +91,8 @@ class _SeriesSwitchAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,  # noqa: ARG002
-        is_check_day: bool,  # noqa: ARG002
+        current_date: date,
+        is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if float(data["s"].iloc[i][COL_CLOSE]) > 100.0:
             return {"x": 1.0}
@@ -126,7 +129,7 @@ class TestMethodConfigValidation:
     비중변동 매매법의 allocator_id 등록 · 신호용 시세 id 가 매매 자산 id 와 겹치지 않음.
     """
 
-    def _config(self, *, asset_slots: tuple[AssetSlotConfig, ...] = (), methods: tuple = ()) -> PortfolioConfig:  # type: ignore[type-arg]
+    def _config(self, *, asset_slots: tuple[AssetSlotConfig, ...] = (), methods: tuple = ()) -> PortfolioConfig:
         return PortfolioConfig(
             experiment_name="test_methods",
             display_name="Test Methods",
@@ -456,7 +459,7 @@ class TestTwoMethodNetting:
     매매법 몫은 a 약 0.535 (상대 편차 약 7%) 라 매매법 사이 되돌리기는 일어나지 않는다.
     """
 
-    def _run(self, tmp_path: Path, create_csv_file, allocator_id: str) -> PortfolioResult:  # type: ignore[no-untyped-def]
+    def _run(self, tmp_path: Path, create_csv_file, allocator_id: str) -> PortfolioResult:
         x = create_csv_file("X_max.csv", _price_df(date(2024, 1, 15), 100.0, 130.0))
         y = create_csv_file("Y_max.csv", _flat_df(100.0))
         z = create_csv_file("Z_max.csv", _flat_df(100.0))
@@ -480,7 +483,7 @@ class TestTwoMethodNetting:
         )
         return run_portfolio_backtest(config)
 
-    def test_netting_row_and_savings(self, tmp_path: Path, create_csv_file, series_switch_allocator: str) -> None:  # type: ignore[no-untyped-def]
+    def test_netting_row_and_savings(self, tmp_path: Path, create_csv_file, series_switch_allocator: str) -> None:
         """
         Then: 상계 행은 2024-02-01 x 하나, 절감 = 2 × a 의 x 매도 주수 × 시가 130 × SLIPPAGE_RATE
         """
@@ -496,7 +499,7 @@ class TestTwoMethodNetting:
         # 상계된 주수 = 사는 쪽과 파는 쪽이 서로 맞춘 주수 (a 가 판 만큼, 양쪽에서 두 번 세지 않는다)
         assert summarize_methods(result)["netting"]["netted_shares"] == sold
 
-    def test_keys_ledger_and_validation(self, tmp_path: Path, create_csv_file, series_switch_allocator: str) -> None:  # type: ignore[no-untyped-def]
+    def test_keys_ledger_and_validation(self, tmp_path: Path, create_csv_file, series_switch_allocator: str) -> None:
         """
         Then: 결과 키가 「매매법.종목」, 장부가 거래일 × 2 행, 계좌 자본 = Σ 매매법 자본 + 상계 절감, 검사기 위반 0건
         """
@@ -505,7 +508,7 @@ class TestTwoMethodNetting:
         assert {"a.x_shares", "a.y_shares", "b.x_shares", "b.z_shares"} <= set(result.equity_df.columns)
         assert len(result.ledger_df) == 2 * len(result.equity_df)
         last_date = result.equity_df[COL_DATE].iloc[-1]
-        methods_equity = sum(float(_ledger_value(result, m, last_date, "equity")) for m in ("a", "b"))  # type: ignore[arg-type]
+        methods_equity = sum(float(_ledger_value(result, m, last_date, "equity")) for m in ("a", "b"))
         savings = float(result.equity_df["netting_savings"].iloc[-1])
         # 누적 절감은 상계 행의 합과 같아야 한다 (계좌 자본 등식이 같은 누적 변수를 쓰므로 따로 고정한다)
         assert savings > 0
@@ -513,7 +516,9 @@ class TestTwoMethodNetting:
         assert float(result.equity_df["equity"].iloc[-1]) == pytest.approx(methods_equity + savings, abs=0.01)
         assert validate_portfolio_result(result) == []
 
-    def test_check_excluded_on_allocation_switch(self, tmp_path: Path, create_csv_file, series_switch_allocator: str) -> None:  # type: ignore[no-untyped-def]
+    def test_check_excluded_on_allocation_switch(
+        self, tmp_path: Path, create_csv_file, series_switch_allocator: str
+    ) -> None:
         """
         목적: b 의 갈아타기(진입)가 b 안의 리밸런싱을 일으키지 않음 — b 는 그날 리밸런싱 없음, a 는 정기 리밸런싱.
         """
@@ -530,7 +535,7 @@ class TestInterMethodRebalance:
     a 몫 약 0.583 (상대 편차 약 17%) → 2024-01-31 판단, 2024-02-01 체결로 a 가 b 에 자본을 넘긴다.
     """
 
-    def _run(self, tmp_path: Path, create_csv_file) -> PortfolioResult:  # type: ignore[no-untyped-def]
+    def _run(self, tmp_path: Path, create_csv_file) -> PortfolioResult:
         x = create_csv_file("X_max.csv", _price_df(date(2024, 1, 15), 100.0, 140.0))
         y = create_csv_file("Y_max.csv", _flat_df(100.0))
         config = PortfolioConfig(
@@ -545,7 +550,7 @@ class TestInterMethodRebalance:
         )
         return run_portfolio_backtest(config)
 
-    def test_transfer_recorded_and_shares_restored(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_transfer_recorded_and_shares_restored(self, tmp_path: Path, create_csv_file) -> None:
         """
         Then: 2024-02-01 장부 사유 methods, 이전 누적 a < 0 < b 이고 합 0, 그날 종가 몫이 목표 대비 20% 이내, 위반 0건
         """
@@ -554,20 +559,20 @@ class TestInterMethodRebalance:
 
         assert _ledger_value(result, "a", d, "rebalance_reason") == "methods"
         assert _ledger_value(result, "b", d, "rebalance_reason") == "methods"
-        a_transfer = float(_ledger_value(result, "a", d, "transfers"))  # type: ignore[arg-type]
-        b_transfer = float(_ledger_value(result, "b", d, "transfers"))  # type: ignore[arg-type]
+        a_transfer = float(_ledger_value(result, "a", d, "transfers"))
+        b_transfer = float(_ledger_value(result, "b", d, "transfers"))
         assert a_transfer < 0 < b_transfer
         assert a_transfer + b_transfer == pytest.approx(0.0, abs=0.01)
         for method_id in ("a", "b"):
-            share = float(_ledger_value(result, method_id, d, "share"))  # type: ignore[arg-type]
+            share = float(_ledger_value(result, method_id, d, "share"))
             assert abs(share / 0.5 - 1.0) <= 0.20
         assert validate_portfolio_result(result) == []
 
-    def test_no_transfer_before_check_day(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_no_transfer_before_check_day(self, tmp_path: Path, create_csv_file) -> None:
         """월중(2024-01-15 이후)에는 몫이 벌어져도 이전이 없다 — 2024-01-31 까지 이전 누적 0."""
         result = self._run(tmp_path, create_csv_file)
 
-        assert float(_ledger_value(result, "a", date(2024, 1, 31), "transfers")) == pytest.approx(0.0, abs=1e-9)  # type: ignore[arg-type]
+        assert float(_ledger_value(result, "a", date(2024, 1, 31), "transfers")) == pytest.approx(0.0, abs=1e-9)
 
 
 class TestZeroShareFill:
@@ -578,7 +583,7 @@ class TestZeroShareFill:
     b 의 증액 목표(약 48.8)는 1주(125.375)보다 작아 2024-02-01 에 0주 체결된다.
     """
 
-    def test_zero_share_fill_is_recorded_and_passes_validation(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_zero_share_fill_is_recorded_and_passes_validation(self, tmp_path: Path, create_csv_file) -> None:
         """
         Then: 2024-02-01 상태 로그 b_executed_intent = INCREASE_TO_TARGET, b_exec_shares = 0, 검사기 위반 0건
         """
@@ -612,7 +617,7 @@ class TestLedgerValidationRules:
     핵심 계약: 정상 결과는 위반 0건, 장부 값을 어긋나게 바꾼 결과는 해당 규칙 위반이 나온다.
     """
 
-    def test_rule6_detects_broken_identity(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_rule6_detects_broken_identity(self, tmp_path: Path, create_csv_file) -> None:
         """장부의 매매법 자본 한 칸을 1,000 늘리면 [규칙6] 위반."""
         result = TestInterMethodRebalance()._run(tmp_path, create_csv_file)
         ledger = result.ledger_df.copy()
@@ -622,7 +627,7 @@ class TestLedgerValidationRules:
 
         assert any(v.startswith("[규칙6]") for v in violations), violations
 
-    def test_rule7_detects_share_off_target_after_transfer(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_rule7_detects_share_off_target_after_transfer(self, tmp_path: Path, create_csv_file) -> None:
         """매매법 사이 되돌리기 체결일의 매매법 현금을 3,000,000 늘리면 (판단일 종가 평가 몫이 목표에서 벗어나) [규칙7] 위반."""
         result = TestInterMethodRebalance()._run(tmp_path, create_csv_file)
         ledger = result.ledger_df.copy()
@@ -633,7 +638,7 @@ class TestLedgerValidationRules:
 
         assert any(v.startswith("[규칙7]") for v in violations), violations
 
-    def test_rule7_ignores_price_gap_on_execution_day(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_rule7_ignores_price_gap_on_execution_day(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 체결일 시가 · 종가가 크게 빠져도(이전은 계획대로 체결) 규칙 7 이 거짓 위반을 내지 않는다.
 
@@ -675,11 +680,9 @@ class TestLedgerValidationRules:
     @pytest.mark.parametrize(
         "defect",
         [
-            pytest.param(lambda planned, cash: {m: 0.0 for m in planned}, id="skipped"),  # noqa: ARG005
+            pytest.param(lambda planned, cash: {m: 0.0 for m in planned}, id="skipped"),
             pytest.param(
-                lambda planned, cash: {
-                    m: (1.0 if v > 0 else -1.0 if v < 0 else 0.0) for m, v in planned.items()
-                },  # noqa: ARG005
+                lambda planned, cash: {m: (1.0 if v > 0 else -1.0 if v < 0 else 0.0) for m, v in planned.items()},
                 id="one_won",
             ),
             pytest.param(
@@ -687,7 +690,7 @@ class TestLedgerValidationRules:
             ),
         ],
     )
-    def test_rule7_detects_transfer_short_of_plan(  # type: ignore[no-untyped-def]
+    def test_rule7_detects_transfer_short_of_plan(
         self, tmp_path: Path, create_csv_file, monkeypatch: pytest.MonkeyPatch, defect
     ) -> None:
         """
@@ -705,7 +708,7 @@ class TestLedgerValidationRules:
         violations = validate_portfolio_result(result)
         assert any(v.startswith("[규칙7] 2024-02-01 a") and "적게" in v for v in violations), violations
 
-    def test_rule7_detects_transfer_without_trigger(  # type: ignore[no-untyped-def]
+    def test_rule7_detects_transfer_without_trigger(
         self, tmp_path: Path, create_csv_file, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """
@@ -718,7 +721,7 @@ class TestLedgerValidationRules:
         """
         monkeypatch.setattr(
             "qbt.backtest.engines.portfolio_engine.plan_method_transfers",
-            lambda equities, targets, threshold_rate: plan_method_transfers(equities, targets, 0.0),  # noqa: ARG005
+            lambda equities, targets, threshold_rate: plan_method_transfers(equities, targets, 0.0),
         )
         x = create_csv_file("X_max.csv", _price_df(date(2024, 1, 15), 100.0, 110.0))
         y = create_csv_file("Y_max.csv", _flat_df(100.0))
@@ -738,7 +741,7 @@ class TestLedgerValidationRules:
         violations = validate_portfolio_result(result)
         assert any(v.startswith("[규칙7] 2024-02-01") and "판정을 넘은 판단일이 아님" in v for v in violations), violations
 
-    def test_rule7_detects_share_column_mismatch(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_rule7_detects_share_column_mismatch(self, tmp_path: Path, create_csv_file) -> None:
         """판단일이 아닌 날(2024-01-10) 장부 몫 한 칸을 0.6 으로 바꾸면 「장부 몫 × 매매법 자본 합 != 매매법 자본」 [규칙7] 위반."""
         result = TestInterMethodRebalance()._run(tmp_path, create_csv_file)
         ledger = result.ledger_df.copy()
@@ -844,7 +847,7 @@ class _RecordingAllocator:
         data: Mapping[str, pd.DataFrame],
         i: int,
         current_date: date,
-        is_check_day: bool,  # noqa: ARG002
+        is_check_day: bool,
     ) -> Mapping[str, float] | None:
         x = data["x"]
         self.calls.append((i, current_date, x[COL_DATE].iloc[i], x[COL_DATE].iloc[0]))
@@ -856,10 +859,10 @@ class _AlternatingAllocator:
 
     def target_weights(
         self,
-        data: Mapping[str, pd.DataFrame],  # noqa: ARG002
+        data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,  # noqa: ARG002
-        is_check_day: bool,  # noqa: ARG002
+        current_date: date,
+        is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if i % 2 == 0:
             return {"x": 0.45, "y": 0.45, "z": 0.10}
@@ -869,7 +872,7 @@ class _AlternatingAllocator:
 def _register(monkeypatch: pytest.MonkeyPatch, allocator_id: str, allocator: object, warmup: int) -> None:
     spec = AllocatorSpec(
         allocator_id=allocator_id,
-        create_allocator=lambda method: allocator,  # type: ignore[arg-type, return-value]
+        create_allocator=lambda method: allocator,
         get_warmup_periods=lambda method: warmup,
     )
     monkeypatch.setitem(ALLOCATOR_REGISTRY, allocator_id, spec)
@@ -898,7 +901,7 @@ class TestAllocatorSeesHistory:
         ("start_date", "expected_first_index", "expected_first_date"),
         [(None, 4, date(2024, 1, 8)), (date(2024, 1, 15), 9, date(2024, 1, 15))],
     )
-    def test_first_call_index_points_into_full_history(  # type: ignore[no-untyped-def]
+    def test_first_call_index_points_into_full_history(
         self,
         tmp_path: Path,
         create_csv_file,
@@ -933,7 +936,9 @@ class TestAllocatorAdjustmentValidation:
     - 조정한 자산만 검사하고, 매매하지 않은 자산의 월중 이탈은 검사하지 않는다
     """
 
-    def test_daily_alternating_allocator_passes_validation(self, tmp_path: Path, create_csv_file, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
+    def test_daily_alternating_allocator_passes_validation(
+        self, tmp_path: Path, create_csv_file, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """
         Given: 날마다 x · y 비중을 번갈아 바꾸는 배분 규칙, z(목표 0.10)는 2024-01-15 부터 +35% (상대 이탈 20% 초과)
         When:  run_portfolio_backtest() → validate_portfolio_result()
@@ -969,7 +974,7 @@ class TestReviewGuards:
                 method_equity=10_000.0,
             )
 
-    def test_empty_ledger_raises(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_empty_ledger_raises(self, tmp_path: Path, create_csv_file) -> None:
         """장부가 빈 결과는 검사를 건너뛰지 않고 RuntimeError."""
         result = TestInterMethodRebalance()._run(tmp_path, create_csv_file)
 
@@ -978,8 +983,6 @@ class TestReviewGuards:
 
     def test_unknown_allocator_in_start_date_raises_value_error(self) -> None:
         """유효 시작일 계산도 설정 검증을 먼저 거쳐, 모르는 allocator_id 는 안내 메시지가 있는 ValueError."""
-        from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date
-
         config = _single_allocator_config(_DUMMY, (AllocationAssetConfig("x", _DUMMY, _DUMMY),), "not_registered")
 
         with pytest.raises(ValueError, match="allocator_id"):
@@ -1003,20 +1006,15 @@ class TestReviewGuards:
 
     def test_rebalance_intents_raise_when_active_asset_has_no_target(self) -> None:
         """active 자산이 목표 비중에 없으면 그 주문을 조용히 빼지 않고 RuntimeError."""
-        from qbt.backtest.engines.portfolio_planning import ProjectedPortfolio
-        from qbt.backtest.engines.portfolio_rebalance import RebalancePolicy
-
         projected = ProjectedPortfolio(projected_amounts={"x": 100.0}, projected_cash=0.0, active_assets={"x"})
 
         with pytest.raises(RuntimeError, match="target_weights"):
             RebalancePolicy(threshold_rate=0.10).build_rebalance_intents(projected, {}, 100.0, date(2024, 1, 2))
 
-    def test_account_target_weights_raise_without_state_log(  # type: ignore[no-untyped-def]
+    def test_account_target_weights_raise_without_state_log(
         self, tmp_path: Path, create_csv_file, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """비중변동 매매법 결과에 상태 로그가 없으면 목표 비중을 0 으로 대신하지 않고 RuntimeError."""
-        from qbt.backtest.engines.portfolio_methods import account_target_weights
-
         x = create_csv_file("X_max.csv", _flat_df(100.0))
         _register(monkeypatch, "test_recording", _RecordingAllocator(), warmup=0)
         result = run_portfolio_backtest(

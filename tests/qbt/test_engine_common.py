@@ -9,6 +9,7 @@ import pytest
 
 from qbt.backtest.engines.engine_common import (
     create_trade_record,
+    execute_buy_order,
     execute_sell_order,
 )
 
@@ -29,7 +30,7 @@ class TestExecuteSellOrder:
         Then: 매도가 = 100.0 * (1 - 0.003) = 99.7, pnl = (99.7 - 95.0) * 10 = 47.0
         """
         # When
-        sell_price, proceeds, pnl, pnl_pct = execute_sell_order(100.0, 10, 95.0)
+        sell_price, _proceeds, pnl, _pnl_pct = execute_sell_order(100.0, 10, 95.0)
 
         # Then: 슬리피지 적용 매도가 = 100.0 * (1 - 0.003) = 99.7
         assert sell_price == pytest.approx(99.7, abs=1e-6)
@@ -91,8 +92,6 @@ class TestExecuteBuyOrderPure:
               shares = int(10000 / 100.3) = 99
               cost = 99 * 100.3 = 9929.7
         """
-        from qbt.backtest.engines.engine_common import execute_buy_order
-
         # When
         shares, buy_price, cost = execute_buy_order(100.0, 10000.0)
 
@@ -110,8 +109,6 @@ class TestExecuteBuyOrderPure:
         When: execute_buy_order 호출
         Then: shares=0, cost=0.0
         """
-        from qbt.backtest.engines.engine_common import execute_buy_order
-
         # When
         shares, buy_price, cost = execute_buy_order(1000.0, 50.0)
 
@@ -139,8 +136,6 @@ class TestExecuteSellOrderPure:
               pnl = (99.7 - 95.0) * 10 = 47.0
               pnl_pct = (99.7 - 95.0) / 95.0
         """
-        from qbt.backtest.engines.engine_common import execute_sell_order
-
         # When
         sell_price, proceeds, pnl, pnl_pct = execute_sell_order(100.0, 10, 95.0)
 
@@ -158,8 +153,6 @@ class TestExecuteSellOrderPure:
         When: execute_sell_order(100.0, 5, 90.0) 호출
         Then: pnl = (sell_price - 90.0) * 5, proceeds = 5 * sell_price
         """
-        from qbt.backtest.engines.engine_common import execute_sell_order
-
         # When
         sell_price, proceeds, pnl, pnl_pct = execute_sell_order(100.0, 5, 90.0)
 
@@ -179,8 +172,6 @@ class TestExecuteSellOrderPure:
         When: execute_sell_order 호출
         Then: pnl_pct == (sell_price - 100.0) / 100.0 (EPSILON 없이)
         """
-        from qbt.backtest.engines.engine_common import execute_sell_order
-
         # When
         sell_price, _, _, pnl_pct = execute_sell_order(100.0, 10, 100.0)
 
@@ -237,8 +228,6 @@ class TestCreateTradeRecord:
         When: create_trade_record 호출
         Then: 모든 필드가 올바른 값으로 설정된 TradeRecord 반환
         """
-        from qbt.backtest.engines.engine_common import create_trade_record
-
         # When
         record = create_trade_record(
             entry_date=date(2020, 1, 5),
@@ -271,8 +260,6 @@ class TestCreateTradeRecord:
         When: create_trade_record 호출
         Then: buy_buffer_pct=0.0, hold_days_used=0
         """
-        from qbt.backtest.engines.engine_common import create_trade_record
-
         # When
         record = create_trade_record(
             entry_date=date(2020, 1, 1),

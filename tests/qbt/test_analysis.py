@@ -17,15 +17,18 @@ from datetime import date
 import pandas as pd
 import pytest
 
+import qbt.backtest.csv_export as csv_export
 from qbt.backtest.analysis import (
     add_single_moving_average,
     calculate_calmar,
+    calculate_drawdown_pct_series,
     calculate_monthly_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_summary,
     calculate_yearly_returns,
 )
+from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
 
@@ -511,8 +514,6 @@ class TestCalculateDrawdownPctSeries:
         When: calculate_drawdown_pct_series 호출
         Then: [0, 0, -(110-90)/110*100, 0]
         """
-        from qbt.backtest.analysis import calculate_drawdown_pct_series
-
         # Given
         equity = pd.Series([100.0, 110.0, 90.0, 120.0])
 
@@ -534,8 +535,6 @@ class TestCalculateDrawdownPctSeries:
         When: calculate_drawdown_pct_series 호출
         Then: 모든 값이 0
         """
-        from qbt.backtest.analysis import calculate_drawdown_pct_series
-
         # Given
         equity = pd.Series([100.0, 110.0, 120.0, 130.0])
 
@@ -555,8 +554,6 @@ class TestCalculateDrawdownPctSeries:
         When: calculate_drawdown_pct_series 호출
         Then: RuntimeError 발생
         """
-        from qbt.backtest.analysis import calculate_drawdown_pct_series
-
         # Given
         equity = pd.Series([0.0, 10.0, 5.0])
 
@@ -596,8 +593,6 @@ class TestCalculateCalmar:
         When: calculate_calmar 호출
         Then: 1e10 + 5.0 반환 (MDD=0인 전략들끼리 CAGR로 차별화)
         """
-        from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
-
         # Given / When
         result = calculate_calmar(cagr=5.0, mdd=0.0)
 
@@ -888,8 +883,6 @@ class TestAnalysisModuleInvariants:
         When:  csv_export 모듈의 import 그래프를 점검
         Then:  analysis 모듈을 직접 import하지 않음
         """
-        import qbt.backtest.csv_export as csv_export
-
         # csv_export 모듈의 namespace에 analysis 관련 심볼이 없는지 확인
         assert "analysis" not in csv_export.__dict__, "csv_export가 analysis 모듈을 import해서는 안 됨"
         # analysis의 핵심 함수 이름들이 csv_export 네임스페이스에 노출되어 있지 않은지 확인

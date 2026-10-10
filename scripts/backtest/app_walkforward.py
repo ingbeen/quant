@@ -25,7 +25,7 @@ from typing import cast
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
+from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import (

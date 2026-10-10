@@ -22,7 +22,7 @@ from qbt.backtest.engines.portfolio_rebalance import (
     DEFAULT_REBALANCE_POLICY,
     RebalancePolicy,
 )
-from qbt.backtest.portfolio_types import AssetSlotConfig
+from qbt.backtest.portfolio_types import AssetSlotConfig, AssetState
 from qbt.common_constants import COL_CLOSE, COL_DATE
 
 # ============================================================================
@@ -33,10 +33,10 @@ from qbt.common_constants import COL_CLOSE, COL_DATE
 class _MockBuyStrategy:
     """항상 buy signal을 반환하는 mock 전략 (SignalStrategy Protocol 구현)."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
         return True
 
-    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
         return False
 
     def get_buy_meta(self) -> dict[str, float | int]:
@@ -46,10 +46,10 @@ class _MockBuyStrategy:
 class _MockSellStrategy:
     """항상 sell signal을 반환하는 mock 전략."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
         return False
 
-    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
         return True
 
     def get_buy_meta(self) -> dict[str, float | int]:
@@ -59,10 +59,10 @@ class _MockSellStrategy:
 class _MockHoldStrategy:
     """아무 signal도 발생하지 않는 mock 전략."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:  # noqa: ARG002
+    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
         return False
 
-    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:  # noqa: ARG002
+    def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
         return False
 
     def get_buy_meta(self) -> dict[str, float | int]:
@@ -195,12 +195,8 @@ class TestGenerateSignalIntents:
         Then:  qqq에 ENTER_TO_TARGET intent 생성
                target_amount ≈ current_equity × 0.30 = 300,000
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
         strategies: dict[str, Any] = {"qqq": _MockBuyStrategy()}
         signal_dfs = {"qqq": self._make_signal_df()}
         equity_vals = {"qqq": 0.0}
@@ -227,12 +223,8 @@ class TestGenerateSignalIntents:
         Then:  qqq에 EXIT_ALL intent 생성
                current_amount == equity_vals["qqq"], target_amount == 0
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=100, signal_state="buy")}
+        asset_states = {"qqq": AssetState(position=100, signal_state="buy")}
         strategies: dict[str, Any] = {"qqq": _MockSellStrategy()}
         signal_dfs = {"qqq": self._make_signal_df()}
         equity_vals = {"qqq": 100_000.0}
@@ -258,12 +250,8 @@ class TestGenerateSignalIntents:
         When:  generate_signal_intents() 호출
         Then:  빈 dict 반환 (qqq에 intent 없음)
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
         strategies: dict[str, Any] = {"qqq": _MockHoldStrategy()}
         signal_dfs = {"qqq": self._make_signal_df()}
         equity_vals = {"qqq": 0.0}
@@ -299,7 +287,7 @@ class TestComputeProjectedPortfolio:
         """테스트용 OrderIntent 생성 헬퍼."""
         return OrderIntent(
             asset_id=asset_id,
-            intent_type=intent_type,  # type: ignore[arg-type]
+            intent_type=intent_type,
             current_amount=current_amount,
             target_amount=target_amount,
             delta_amount=delta_amount,
@@ -318,12 +306,8 @@ class TestComputeProjectedPortfolio:
                "qqq" not in projected.active_assets
                projected.projected_cash ≈ 50_000 + 100_000 = 150_000
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=100, signal_state="buy")}
+        asset_states = {"qqq": AssetState(position=100, signal_state="buy")}
         signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
         equity_vals = {"qqq": 100_000.0}
         shared_cash = 50_000.0
@@ -347,12 +331,8 @@ class TestComputeProjectedPortfolio:
                projected.projected_amounts["qqq"] == 0 (아직 position 없음)
                projected.projected_cash == 500_000 (변화 없음)
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
         signal_intents = {
             "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
         }
@@ -376,12 +356,8 @@ class TestComputeProjectedPortfolio:
         When:  compute_projected_portfolio() 호출
         Then:  projected.check_excluded_assets == {"qqq"}
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
-        asset_states = {"qqq": NewAssetState(position=0, signal_state="sell")}
+        asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
         signal_intents = {
             "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
         }
@@ -400,14 +376,10 @@ class TestComputeProjectedPortfolio:
         When:  compute_projected_portfolio() 호출
         Then:  projected.check_excluded_assets == set()
         """
-        from qbt.backtest.engines.portfolio_engine import (  # pyright: ignore[reportPrivateUsage]
-            AssetState as NewAssetState,
-        )
-
         # Given
         asset_states = {
-            "qqq": NewAssetState(position=100, signal_state="buy"),
-            "gld": NewAssetState(position=50, signal_state="buy"),
+            "qqq": AssetState(position=100, signal_state="buy"),
+            "gld": AssetState(position=50, signal_state="buy"),
         }
         signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
         equity_vals = {"qqq": 100_000.0, "gld": 50_000.0}
@@ -522,7 +494,7 @@ class TestMergeIntents:
         """테스트용 OrderIntent 생성 헬퍼."""
         return OrderIntent(
             asset_id=asset_id,
-            intent_type=intent_type,  # type: ignore[arg-type]
+            intent_type=intent_type,
             current_amount=0.0,
             target_amount=target_amount,
             delta_amount=delta_amount,

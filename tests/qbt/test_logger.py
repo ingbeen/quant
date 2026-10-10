@@ -9,6 +9,7 @@
 """
 
 import logging
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -181,8 +182,6 @@ class TestClickableFormatter:
         logger.handlers = []
 
         # StringIO 핸들러 추가
-        from io import StringIO
-
         stream = StringIO()
         handler = logging.StreamHandler(stream)
         handler.setFormatter(formatter)
@@ -244,8 +243,6 @@ class TestLoggerIntegration:
         Then: 레벨에 따라 모두 출력됨
         """
         # Given
-        from io import StringIO
-
         logger = setup_logger(name="test_workflow_integration", level="DEBUG")
 
         # 로그 캡처를 위한 StringIO 핸들러 추가

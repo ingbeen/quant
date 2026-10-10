@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from qbt.backtest.constants import SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_engine import (
     OrderIntent,
     run_portfolio_backtest,
@@ -195,9 +196,7 @@ class TestPartialSellInvariant:
         assert result["qqq"].intent_type == "REDUCE_TO_TARGET"
         assert result["qqq"].delta_amount == pytest.approx(-200_000.0, rel=1e-6)
 
-    def test_rebalancing_position_remains_after_partial_sell(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_rebalancing_position_remains_after_partial_sell(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 리밸런싱 매도 후 익일(체결일)에 초과 자산 qqq_value > 0 유지 검증 (전량 매도 금지).
 
@@ -248,7 +247,7 @@ class TestPartialSellInvariant:
         equity_df = result.equity_df
 
         # 리밸런싱이 발생했는지 확인 (편차 >20% 이므로 반드시 발생해야 함)
-        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        rebalanced_rows = equity_df[equity_df["rebalanced"]]
         assert len(rebalanced_rows) > 0, "QQQ 편차 >20%이므로 리밸런싱이 발생해야 함"
 
         # Then: 리밸런싱 체결일(rebalanced=True인 날) qqq_value > 0 (부분 매도로 포지션 유지)
@@ -259,7 +258,7 @@ class TestPartialSellInvariant:
             f"리밸런싱 매도 후 QQQ position이 유지되어야 함 (부분 매도). " f"실제 qqq_value={rebalanced_qqq_value}"
         )
 
-    def test_signal_sell_still_full_sell(self, tmp_path: Path, create_csv_file) -> None:  # type: ignore[no-untyped-def]
+    def test_signal_sell_still_full_sell(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 신호 기반 매도는 여전히 전량 매도임을 검증 (변경 없음).
 
@@ -294,9 +293,7 @@ class TestRebalancingTopUpBuy:
     - 체결 완료 후 position이 실제로 증가해야 한다.
     """
 
-    def test_top_up_buy_executes_when_position_exists(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_top_up_buy_executes_when_position_exists(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 이미 보유 중인(position > 0) 자산에 리밸런싱 추가매수가 실제로 체결됨을 검증.
 
@@ -326,7 +323,7 @@ class TestRebalancingTopUpBuy:
         equity_df = result.equity_df
 
         # 리밸런싱이 발생했는지 확인
-        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        rebalanced_rows = equity_df[equity_df["rebalanced"]]
         assert len(rebalanced_rows) > 0, "QQQ 급등 편차 >20%이므로 리밸런싱이 발생해야 함"
 
         # Then: rebalanced=True인 날(체결 완료일)에 GLD value가 전날보다 증가해야 함
@@ -351,9 +348,7 @@ class TestWeightRecoveryAfterRebalancing:
     - 과대 자산은 매도 체결, 과소 자산은 추가매수 체결이 모두 이루어져야 한다.
     """
 
-    def test_underweight_asset_weight_increases_after_rebalancing(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_underweight_asset_weight_increases_after_rebalancing(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 리밸런싱 후 과소 비중(GLD) weight가 실제로 증가함을 검증.
 
@@ -379,7 +374,7 @@ class TestWeightRecoveryAfterRebalancing:
         equity_df = result.equity_df
 
         # 리밸런싱 발생일 확인
-        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        rebalanced_rows = equity_df[equity_df["rebalanced"]]
         assert len(rebalanced_rows) > 0, "QQQ 급등 편차 >20%이므로 리밸런싱이 발생해야 함"
 
         first_reb_idx = int(rebalanced_rows.index[0])
@@ -404,9 +399,7 @@ class TestRebalancedColumnMeaning:
     - pending_order 생성일(트리거일)에는 rebalanced=False이어야 한다.
     """
 
-    def test_rebalanced_true_on_execution_day_not_pending_day(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_rebalanced_true_on_execution_day_not_pending_day(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: rebalanced=True가 체결 완료일(pending 생성일 +1)에 기록됨을 검증.
 
@@ -433,7 +426,7 @@ class TestRebalancedColumnMeaning:
         equity_df = result.equity_df
 
         # 리밸런싱 발생 확인
-        rebalanced_rows = equity_df[equity_df["rebalanced"] == True]  # noqa: E712
+        rebalanced_rows = equity_df[equity_df["rebalanced"]]
         assert len(rebalanced_rows) > 0, "리밸런싱이 발생해야 함"
 
         # Then: rebalanced=True인 날에 실제로 체결(포지션 변화)이 있어야 함
@@ -457,9 +450,7 @@ class TestRebalancedColumnMeaning:
             f"GLD value: {gld_value_before:.0f} → {gld_value_on_reb:.0f}"
         )
 
-    def test_initial_entry_not_marked_as_rebalanced(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_initial_entry_not_marked_as_rebalanced(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 초기 진입(첫 매수 체결일)이 rebalanced=True로 잘못 기록되지 않음을 검증.
 
@@ -491,7 +482,7 @@ class TestRebalancedColumnMeaning:
 
         # Then: 첫 매수 체결일은 리밸런싱이 아님
         rebalanced_on_entry = equity_df.iloc[first_invested_idx]["rebalanced"]
-        assert rebalanced_on_entry is False or rebalanced_on_entry == False, (  # noqa: E712
+        assert not rebalanced_on_entry, (
             f"초기 진입 체결일({equity_df.iloc[first_invested_idx][COL_DATE]})에 " f"rebalanced=True가 기록되면 안 됨"
         )
 
@@ -524,8 +515,6 @@ class TestExecuteOrders:
         Then:  updated_cash = 100주 × 100.0 × (1 - SLIPPAGE_RATE)
                updated_positions["qqq"] = 0
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
@@ -579,8 +568,6 @@ class TestExecuteOrders:
         Then:  updated_positions["spy"] > 0 (SELL 확보 현금으로 BUY 가능)
                updated_positions["qqq"] = 0
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given: QQQ 매도 후 약 9,970 현금 확보 → SPY 매수 capital=9,700 < 9,970 → 충분
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
@@ -640,8 +627,6 @@ class TestExecuteOrders:
         Then:  updated_positions["qqq"] = 99 (scale 없음)
                updated_cash = 10,000 - 99 × 50.15
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         open_price = 50.0
@@ -701,8 +686,6 @@ class TestExecuteOrders:
                updated_cash >= 0 (음수 현금 없음)
                두 자산의 shares 비율이 거의 동일 (동일 price → 동일 scale)
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         open_price = 100.0
@@ -829,8 +812,6 @@ class TestExecuteOrders:
         Then:  매도된 수량 = floor(3,000 / sell_price) = floor(3,000 / 99.7) = 30주
                updated_positions["qqq"] = 100 - 30 = 70주 (부분 매도)
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         open_price = 100.0
@@ -884,8 +865,6 @@ class TestExecuteOrders:
                updated_entry_dates["qqq"] = current_date
                updated_entry_hold_days["qqq"] = 3
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         open_price = 50.0
@@ -943,8 +922,6 @@ class TestExecuteOrders:
         Then:  updated_positions["qqq"] = 119
                updated_entry_prices["qqq"] = (80×100 + buy_price×19) / 119
         """
-        from qbt.backtest.constants import SLIPPAGE_RATE
-
         # Given
         current_date = date(2024, 3, 1)
         open_price = 100.0

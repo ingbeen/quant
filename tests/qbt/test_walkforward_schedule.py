@@ -9,9 +9,11 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.engines.backtest_engine import run_backtest, run_buffer_strategy, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, BufferZoneStrategy
+from qbt.backtest.walkforward import build_params_schedule, run_stitched_equity, run_walkforward
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
 
@@ -39,13 +41,10 @@ def _make_stock_df(
     for _ in range(n_days):
         # 주말 건너뛰기
         while d.weekday() >= 5:
-            from datetime import timedelta
-
             d = d + timedelta(days=1)
         dates.append(d)
         prices.append(current)
         current = current * (1 + daily_return)
-        from datetime import timedelta
 
         d = d + timedelta(days=1)
 
@@ -135,9 +134,6 @@ class TestMaContinuity:
              — MA 컬럼이 이미 있으므로 OOS 슬라이스가 전체 히스토리 MA를 유지한다
         Then: 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다.
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.walkforward import run_walkforward
-
         # Given — IS 상승(800 거래일, 100→222) + OOS 진동(300 거래일, 60±10)
         n_is = 800
         raw_df = _make_trend_and_oscillating_df(n_is=n_is, n_oos=300)
@@ -160,10 +156,10 @@ class TestMaContinuity:
 
         # When — 두 가지 실행
         # 실행 1: raw_df (MA 미포함) — 현재 구현은 OOS에서 EMA 리셋 발생
-        results_raw = run_walkforward(signal_df=raw_df, **wfo_kwargs)  # type: ignore[arg-type]
+        results_raw = run_walkforward(signal_df=raw_df, **wfo_kwargs)
 
         # 실행 2: full_df_with_ma (MA 포함) — OOS 슬라이스에 전체 히스토리 EMA가 담긴다
-        results_with_ma = run_walkforward(signal_df=full_df_with_ma, **wfo_kwargs)  # type: ignore[arg-type]
+        results_with_ma = run_walkforward(signal_df=full_df_with_ma, **wfo_kwargs)
 
         # Then — 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다
         assert len(results_raw) >= 1
@@ -182,12 +178,6 @@ class TestMaContinuity:
           - 전체 히스토리 MA 기반 참조 실행
         Then: stitched CAGR과 참조 CAGR이 동일해야 한다.
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
-        from qbt.backtest.engines.backtest_engine import run_backtest
-        from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-        from qbt.backtest.walkforward import run_stitched_equity
-
         # Given
         n_is = 800
         raw_df = _make_trend_and_oscillating_df(n_is=n_is, n_oos=300)
@@ -275,7 +265,6 @@ class TestParamsSchedule:
         """
         # Given
         df = _make_stock_df(date(2000, 1, 3), 300, base_price=100.0, daily_return=0.001)
-        from qbt.backtest.analysis import add_single_moving_average
 
         signal_df = add_single_moving_average(df.copy(), 50)
         trade_df = df.copy()
@@ -289,7 +278,7 @@ class TestParamsSchedule:
         )
 
         # When — params_schedule=None (기본값)
-        trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
+        _trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
 
         # Then — 정상 실행 확인
         assert len(equity_df) > 0
@@ -305,7 +294,6 @@ class TestParamsSchedule:
         """
         # Given — 충분한 데이터 (MA 100 이상)
         df = _make_stock_df(date(2000, 1, 3), 500, base_price=100.0, daily_return=0.001)
-        from qbt.backtest.analysis import add_single_moving_average
 
         # 두 MA 모두 사전 계산
         signal_df = add_single_moving_average(df.copy(), 50)
@@ -333,7 +321,7 @@ class TestParamsSchedule:
         }
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(
+        _trades_df, equity_df, summary = run_buffer_strategy(
             signal_df,
             trade_df,
             params,
@@ -355,7 +343,6 @@ class TestParamsSchedule:
         """
         # Given
         df = _make_stock_df(date(2000, 1, 3), 500, base_price=100.0, daily_return=0.0005)
-        from qbt.backtest.analysis import add_single_moving_average
 
         signal_df = add_single_moving_average(df.copy(), 50)
         signal_df = add_single_moving_average(signal_df, 100)
@@ -381,7 +368,7 @@ class TestParamsSchedule:
         }
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(
+        _trades_df, equity_df, _summary = run_buffer_strategy(
             signal_df,
             trade_df,
             params,
@@ -408,8 +395,6 @@ class TestRunWalkforward:
         When: run_walkforward() 실행
         Then: 결과 리스트의 각 아이템이 WfoWindowResultDict 구조를 가짐
         """
-        from qbt.backtest.walkforward import run_walkforward
-
         # Given — 약 10년 분량 (2500 거래일), 작은 윈도우로 빠른 실행
         df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
 
@@ -450,11 +435,6 @@ class TestRunWalkforward:
         Then: 첫 윈도우 is_start 가 60일선의 첫 유효일이고, IS CAGR 이 같은 IS 를 [20, 60] 그리드로 잰 20일선 조합과 같다
               (eval_ma_window 를 주지 않으면 20일선 기준이라 값이 다르다 — 픽스처가 둘을 가르는지 함께 확인)
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW
-        from qbt.backtest.engines.backtest_engine import run_grid_search
-        from qbt.backtest.walkforward import run_walkforward
-
         # Given
         n = 1500
         closes = [100.0 * 1.0005**i * (1 + 0.15 * math.sin(2 * math.pi * i / 120)) for i in range(n)]
@@ -503,8 +483,6 @@ class TestBuildParamsSchedule:
         When: build_params_schedule() 호출
         Then: schedule의 키가 2번째, 3번째 윈도우의 oos_start
         """
-        from qbt.backtest.walkforward import build_params_schedule
-
         # Given
         results: list[dict[str, object]] = [
             {
@@ -583,8 +561,9 @@ class TestBuildParamsSchedule:
 
         # Then — initial_strategy는 첫 윈도우 기반 BufferZoneStrategy
         # _ma_col, _buy_buffer_pct는 private 속성이지만 파라미터 계약 검증용으로 접근
-        assert initial_strategy._ma_col == "ma_100"  # type: ignore[attr-defined]
-        assert initial_strategy._buy_buffer_pct == pytest.approx(0.03, abs=EPSILON)  # type: ignore[attr-defined]
+        assert isinstance(initial_strategy, BufferZoneStrategy)
+        assert initial_strategy._ma_col == "ma_100"
+        assert initial_strategy._buy_buffer_pct == pytest.approx(0.03, abs=EPSILON)
 
         # schedule 키는 2번째, 3번째 윈도우의 oos_start
         assert len(schedule) == 2
@@ -592,11 +571,15 @@ class TestBuildParamsSchedule:
         assert date(2010, 1, 1) in schedule
 
         # 2번째 윈도우 파라미터 검증
-        assert schedule[date(2008, 1, 1)]._ma_col == "ma_150"  # type: ignore[attr-defined]
-        assert schedule[date(2008, 1, 1)]._buy_buffer_pct == pytest.approx(0.05, abs=EPSILON)  # type: ignore[attr-defined]
+        second_strategy = schedule[date(2008, 1, 1)]
+        assert isinstance(second_strategy, BufferZoneStrategy)
+        assert second_strategy._ma_col == "ma_150"
+        assert second_strategy._buy_buffer_pct == pytest.approx(0.05, abs=EPSILON)
 
         # 3번째 윈도우 파라미터 검증
-        assert schedule[date(2010, 1, 1)]._ma_col == "ma_200"  # type: ignore[attr-defined]
+        third_strategy = schedule[date(2010, 1, 1)]
+        assert isinstance(third_strategy, BufferZoneStrategy)
+        assert third_strategy._ma_col == "ma_200"
 
     def test_same_params_as_previous_window_do_not_switch_strategy(self):
         """
@@ -608,8 +591,6 @@ class TestBuildParamsSchedule:
         Then: 일정에는 파라미터가 직전과 달라진 셋째(B) · 다섯째(A 로 돌아옴) 윈도우만 있다
               — 비교 대상은 첫 윈도우가 아니라 직전 윈도우다
         """
-        from qbt.backtest.walkforward import build_params_schedule
-
         # Given
         a = {
             "best_ma_window": 200,
@@ -630,7 +611,9 @@ class TestBuildParamsSchedule:
 
         # Then
         assert list(schedule) == [date(2010, 1, 1), date(2014, 1, 1)]
-        assert schedule[date(2014, 1, 1)]._ma_col == "ma_200"  # type: ignore[attr-defined]
+        returned_strategy = schedule[date(2014, 1, 1)]
+        assert isinstance(returned_strategy, BufferZoneStrategy)
+        assert returned_strategy._ma_col == "ma_200"
 
     def test_all_windows_same_params_give_empty_schedule(self):
         """
@@ -640,8 +623,6 @@ class TestBuildParamsSchedule:
         When: build_params_schedule 호출
         Then: 일정이 비어 있다
         """
-        from qbt.backtest.walkforward import build_params_schedule
-
         # Given
         a = {
             "best_ma_window": 200,

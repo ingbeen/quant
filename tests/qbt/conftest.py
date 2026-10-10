@@ -19,7 +19,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from qbt import common_constants
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+from qbt.tqqq import constants as tqqq_constants
+from qbt.utils import meta_manager
 
 
 @pytest.fixture
@@ -142,10 +145,6 @@ def mock_results_dir(tmp_path, monkeypatch):
     tqqq_dir.mkdir()
 
     # common_constants 모듈의 경로 상수 패치
-    from qbt import common_constants
-    from qbt.tqqq import constants as tqqq_constants
-    from qbt.utils import meta_manager
-
     meta_json_path = results_dir / "meta.json"
 
     monkeypatch.setattr(common_constants, "RESULTS_DIR", results_dir)
@@ -211,10 +210,6 @@ def mock_storage_paths(tmp_path, monkeypatch):
     tqqq_dir.mkdir()
 
     # common_constants 모듈의 경로 상수들을 임시 경로로 변경
-    from qbt import common_constants
-    from qbt.tqqq import constants as tqqq_constants
-    from qbt.utils import meta_manager
-
     meta_json_path = results_dir / "meta.json"
 
     monkeypatch.setattr(common_constants, "STOCK_DIR", stock_dir)

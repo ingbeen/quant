@@ -111,7 +111,7 @@ def _get_asset_ids(state_log_df: pd.DataFrame) -> list[str]:
 
 
 @pytest.fixture
-def portfolio_result_with_sell(tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+def portfolio_result_with_sell(tmp_path: Path, create_csv_file):
     """buy -> sell 전환이 포함된 포트폴리오 백테스트 결과를 반환한다.
 
     자산 2개 (asset_a, asset_b), 각각 50% 비중.
@@ -150,7 +150,7 @@ class TestCashNonNegative:
     핵심 계약: 매수 시 비례 축소(scale_factor)로 음수 현금을 방지한다.
     """
 
-    def test_cash_always_non_negative(self, portfolio_result_with_sell):  # type: ignore[no-untyped-def]
+    def test_cash_always_non_negative(self, portfolio_result_with_sell):
         """
         목적: 전체 기간 동안 현금이 음수가 되는 날이 없는지 검증.
 
@@ -173,7 +173,7 @@ class TestEquityEquation:
     equity_df에 기록된 값으로 등식을 매일 검증한다.
     """
 
-    def test_equity_equals_cash_plus_asset_values(self, portfolio_result_with_sell):  # type: ignore[no-untyped-def]
+    def test_equity_equals_cash_plus_asset_values(self, portfolio_result_with_sell):
         """
         목적: 매 거래일 에쿼티 등식이 성립하는지 검증.
 
@@ -209,7 +209,7 @@ class TestSignalExecutionOneDayLag:
     (신호일 종가 판정 -> 익일 시가 체결)
     """
 
-    def test_pending_intent_executed_next_day(self, portfolio_result_with_sell):  # type: ignore[no-untyped-def]
+    def test_pending_intent_executed_next_day(self, portfolio_result_with_sell):
         """
         목적: pending intent가 다음 거래일에 정확히 체결되는지 검증.
 
@@ -251,7 +251,7 @@ class TestRebalanceWeightConsistency:
     (정수 주식 수량 제약 + 슬리피지로 정확 일치는 불가)
     """
 
-    def test_weight_deviation_within_threshold_after_rebalance(self, portfolio_result_with_sell):  # type: ignore[no-untyped-def]
+    def test_weight_deviation_within_threshold_after_rebalance(self, portfolio_result_with_sell):
         """
         목적: 리밸런싱 체결 후 비중 편차가 합리적 범위 내인지 검증.
 
@@ -273,7 +273,7 @@ class TestRebalanceWeightConsistency:
             pytest.skip("rebalanced 컬럼이 없어 리밸런싱 검증 불가")
             return
 
-        reb_rows = state_log_df[state_log_df["rebalanced"] == True]  # noqa: E712
+        reb_rows = state_log_df[state_log_df["rebalanced"]]
         if reb_rows.empty:
             # 리밸런싱이 발생하지 않았으면 검증 대상 없음 (통과)
             return
@@ -312,7 +312,7 @@ class TestExitAllSharesZero:
     해당 자산의 shares가 0이어야 한다.
     """
 
-    def test_shares_zero_after_exit_all(self, portfolio_result_with_sell):  # type: ignore[no-untyped-def]
+    def test_shares_zero_after_exit_all(self, portfolio_result_with_sell):
         """
         목적: EXIT_ALL 체결 후 해당 자산 보유 수량이 0인지 검증.
 

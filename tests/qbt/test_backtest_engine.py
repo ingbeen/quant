@@ -4,10 +4,13 @@ params_schedule 전환 로직, filter_valid_rows 헬퍼 함수의 계약을 고�
 """
 
 from datetime import date
+from unittest.mock import MagicMock
 
 import pandas as pd
 
 from qbt.backtest.constants import ma_col_name
+from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 
 
@@ -42,8 +45,6 @@ class TestFilterValidRows:
         )
 
         # When
-        from qbt.backtest.engines.backtest_engine import filter_valid_rows
-
         filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
         # Then
@@ -80,8 +81,6 @@ class TestFilterValidRows:
         )
 
         # When
-        from qbt.backtest.engines.backtest_engine import filter_valid_rows
-
         filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
         # Then
@@ -109,11 +108,6 @@ class TestParamsScheduleWhile:
         """
         # Given: 간단한 mock 전략으로 검증
         # 데이터 갭이 있는 시나리오: 1/1~1/4 정상, 1/5~1/11 갭, 1/12~1/20 재개
-        from unittest.mock import MagicMock
-
-        from qbt.backtest.engines.backtest_engine import run_backtest
-        from qbt.backtest.strategies.strategy_common import SignalStrategy
-
         dates = [date(2020, 1, d) for d in range(1, 5)] + [  # 1/1~1/4
             date(2020, 1, d) for d in range(12, 21)
         ]  # 1/12~1/20 (갭 후 재개)
@@ -134,7 +128,7 @@ class TestParamsScheduleWhile:
         )
 
         # 3개 전략 생성 (각각 check_buy=False, check_sell=False)
-        def make_mock_strategy(name: str) -> SignalStrategy:
+        def make_mock_strategy(name: str) -> MagicMock:
             s = MagicMock(spec=SignalStrategy)
             s.check_buy.return_value = False
             s.check_sell.return_value = False
@@ -168,16 +162,10 @@ class TestParamsScheduleWhile:
 
         # strategy_jan5는 1/5~1/9 사이에 적용되어야 하지만 데이터 없으므로
         # check_buy/check_sell이 호출되지 않아야 함
-        assert (
-            strategy_jan5.check_buy.call_count == 0  # pyright: ignore[reportAttributeAccessIssue]
-        ), "데이터 갭으로 건너뛴 jan5 전략은 호출되지 않아야 함"
+        assert strategy_jan5.check_buy.call_count == 0, "데이터 갭으로 건너뛴 jan5 전략은 호출되지 않아야 함"
 
         # strategy_jan10은 1/12~1/14 (3일) 동안 호출되어야 함
-        assert (
-            strategy_jan10.check_buy.call_count > 0  # pyright: ignore[reportAttributeAccessIssue]
-        ), "while 루프로 1/10 전환을 건너뛴 후 jan10 전략이 적용되어야 함"
+        assert strategy_jan10.check_buy.call_count > 0, "while 루프로 1/10 전환을 건너뛴 후 jan10 전략이 적용되어야 함"
 
         # strategy_jan15는 1/15~1/20 (6일) 동안 호출되어야 함
-        assert (
-            strategy_jan15.check_buy.call_count > 0  # pyright: ignore[reportAttributeAccessIssue]
-        ), "1/15 이후 jan15 전략이 적용되어야 함"
+        assert strategy_jan15.check_buy.call_count > 0, "1/15 이후 jan15 전략이 적용되어야 함"

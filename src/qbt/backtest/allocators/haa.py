@@ -49,7 +49,7 @@ class HaaAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,  # noqa: ARG002
+        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if not is_check_day:

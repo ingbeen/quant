@@ -3,11 +3,12 @@
 select_best_calmar_params()의 Calmar 기반 선택 계약과 WFE 지표 계산을 검증한다.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 import pytest
 
+from qbt.backtest.walkforward import calculate_wfo_mode_summary, run_walkforward, select_best_calmar_params
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
 
@@ -35,13 +36,10 @@ def _make_stock_df(
     for _ in range(n_days):
         # 주말 건너뛰기
         while d.weekday() >= 5:
-            from datetime import timedelta
-
             d = d + timedelta(days=1)
         dates.append(d)
         prices.append(current)
         current = current * (1 + daily_return)
-        from datetime import timedelta
 
         d = d + timedelta(days=1)
 
@@ -68,8 +66,6 @@ class TestCalmarSelection:
         When: Calmar 기준 정렬
         Then: MDD=0 + CAGR>0인 행이 1위
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given
         grid_df = pd.DataFrame(
             {
@@ -100,8 +96,6 @@ class TestCalmarSelection:
         When: Calmar 기준 정렬
         Then: calmar=0으로 처리되어 모두 동등
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given
         grid_df = pd.DataFrame(
             {
@@ -132,8 +126,6 @@ class TestCalmarSelection:
         When: Calmar 기준 정렬
         Then: CAGR/|MDD|가 가장 큰 행이 선택됨
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given
         # ma=100: calmar = 10 / 20 = 0.5
         # ma=150: calmar = 15 / 25 = 0.6  ← 최대
@@ -176,8 +168,6 @@ class TestCalmarSelectionMinTrades:
         When: select_best_calmar_params(grid_df, min_trades=3) 호출
         Then: ma=100은 탈락하고 ma=150이 선택됨
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given
         grid_df = pd.DataFrame(
             {
@@ -211,8 +201,6 @@ class TestCalmarSelectionMinTrades:
         When: select_best_calmar_params(grid_df, min_trades=0) 호출
         Then: total_trades=0인 행도 필터링되지 않고 기존 Calmar 기준 선택
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given — ma=100이 calmar 1위, trades=0
         grid_df = pd.DataFrame(
             {
@@ -243,8 +231,6 @@ class TestCalmarSelectionMinTrades:
         When: select_best_calmar_params(grid_df, min_trades=5) 호출
         Then: ValueError 발생 (충족 파라미터 없음 메시지 포함)
         """
-        from qbt.backtest.walkforward import select_best_calmar_params
-
         # Given — 모든 행이 trades < 5
         grid_df = pd.DataFrame(
             {
@@ -277,8 +263,6 @@ class TestWfeCagr:
         When: run_walkforward()에서 wfe_cagr 계산
         Then: wfe_cagr = 8.0 / 10.0 = 0.8
         """
-        from qbt.backtest.walkforward import run_walkforward
-
         # Given — 약 10년 분량, 작은 윈도우로 빠른 실행
         df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
 
@@ -318,8 +302,6 @@ class TestWfeCagr:
         # IS CAGR ≈ 0인 경우를 검증하기 위해 직접 계산 로직을 확인
         # run_walkforward는 실제로 IS CAGR=0을 만들기 어려우므로
         # calculate_wfo_mode_summary에 전달할 mock 데이터로 검증
-        from qbt.backtest.walkforward import calculate_wfo_mode_summary
-
         # Given — wfe_cagr=0.0인 윈도우 (IS CAGR ≤ EPSILON)
         results: list[dict[str, object]] = [
             {
@@ -366,8 +348,6 @@ class TestWfeCalmarRobust:
         When: calculate_wfo_mode_summary() 호출
         Then: wfe_calmar_robust = IS Calmar > 0인 윈도우(0.5, 0.3)만의 wfe_calmar 중앙값
         """
-        from qbt.backtest.walkforward import calculate_wfo_mode_summary
-
         # Given — IS Calmar > 0: 윈도우 0, 2만 해당
         results: list[dict[str, object]] = [
             {
@@ -456,8 +436,6 @@ class TestWfeCalmarRobust:
         When: calculate_wfo_mode_summary() 호출
         Then: wfe_calmar_robust = 0.0
         """
-        from qbt.backtest.walkforward import calculate_wfo_mode_summary
-
         # Given
         results: list[dict[str, object]] = [
             {

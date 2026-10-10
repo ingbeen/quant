@@ -41,7 +41,7 @@ class EwyBufferZoneAllocator:
         data: Mapping[str, pd.DataFrame],
         i: int,
         current_date: date,
-        is_check_day: bool,  # noqa: ARG002
+        is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if self._signal_df is None:
             # 이동평균은 잘리기 전 시세로 내고, 전략에는 첫 호출 행을 0 행으로 넘긴다 — 엔진이 슬롯에 시작일로 자른

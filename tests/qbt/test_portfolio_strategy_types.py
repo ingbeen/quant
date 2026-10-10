@@ -89,7 +89,7 @@ class TestStrategyTypeBehavior:
     4. AssetSlotConfig 기본값: strategy_id="buffer_zone"
     """
 
-    def test_buy_and_hold_buys_immediately(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buy_and_hold_buys_immediately(self, tmp_path: Path, create_csv_file):
         """
         목적: strategy_id="buy_and_hold" 자산이 버퍼존 매수 신호 없이도 즉시 매수됨을 검증.
 
@@ -130,7 +130,7 @@ class TestStrategyTypeBehavior:
         last_value = float(equity_df["asset_a_value"].iloc[-1])
         assert last_value > 0, f"strategy_id='buy_and_hold' 자산은 마지막 날 포지션을 보유해야 함, 실제: {last_value}"
 
-    def test_buffer_zone_does_not_buy_without_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buffer_zone_does_not_buy_without_signal(self, tmp_path: Path, create_csv_file):
         """
         목적: strategy_id="buffer_zone"(기본값)이면 버퍼존 신호 없이 절대 매수하지 않음을 검증.
 
@@ -175,7 +175,7 @@ class TestStrategyTypeBehavior:
         assert (equity_df["asset_b_value"] == 0).all(), "strategy_id='buffer_zone' 자산은 매수 신호 없이 포지션을 가지면 안 됨"
         assert result.trades_df.empty, "strategy_id='buffer_zone' 자산은 신호 없으면 거래가 없어야 함"
 
-    def test_buy_and_hold_does_not_sell_on_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_buy_and_hold_does_not_sell_on_signal(self, tmp_path: Path, create_csv_file):
         """
         목적: strategy_id="buy_and_hold" 자산이 매도 신호(하단 밴드 하향 돌파)에도 매도하지 않음을 검증.
 
@@ -244,7 +244,7 @@ class TestStrategyTypeBehavior:
             slot.strategy_id == "buffer_zone"
         ), f"AssetSlotConfig.strategy_id 기본값은 'buffer_zone'이어야 함, 실제: {slot.strategy_id}"
 
-    def test_params_json_includes_strategy_type_flag(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_params_json_includes_strategy_type_flag(self, tmp_path: Path, create_csv_file):
         """
         목적: params_json에 strategy_id 필드가 포함됨을 검증.
 
@@ -313,9 +313,7 @@ class TestStrategyType:
         # Then
         assert slot.strategy_id == "buffer_zone"
 
-    def test_strategy_type_buy_and_hold_buys_immediately(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_strategy_type_buy_and_hold_buys_immediately(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: strategy_id="buy_and_hold" 자산이 버퍼존 신호 없이 즉시 매수됨을 검증.
 
@@ -351,9 +349,7 @@ class TestStrategyType:
         last_value = float(result.equity_df["asset_bnh_value"].iloc[-1])
         assert last_value > 0, f"strategy_id='buy_and_hold' 자산은 즉시 매수되어야 함, 실제: {last_value}"
 
-    def test_strategy_type_buy_and_hold_ignores_sell_signal(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_strategy_type_buy_and_hold_ignores_sell_signal(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: strategy_id="buy_and_hold" 자산이 매도 신호에도 포지션 유지됨을 검증.
 
@@ -391,9 +387,7 @@ class TestStrategyType:
         assert last_value > 0, "strategy_id='buy_and_hold' 자산은 매도 신호에도 포지션을 유지해야 함"
         assert result.trades_df.empty, "strategy_id='buy_and_hold' 자산은 완료된 매도 기록이 없어야 함"
 
-    def test_params_json_includes_strategy_type(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_params_json_includes_strategy_type(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: params_json에 strategy_id 필드가 포함됨을 검증.
 

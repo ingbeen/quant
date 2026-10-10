@@ -24,7 +24,7 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.graph_objects as go
 import streamlit as st
-from lightweight_charts_v5 import lightweight_charts_v5_component  # type: ignore[import-untyped]
+from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import TRADE_TYPE_SIGNAL
@@ -1042,7 +1042,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
 
     # 리밸런싱 발생일 마커 (rebalanced=True인 행, 사유 hover 포함)
     if "rebalanced" in exp.equity_df.columns:
-        reb_df = exp.equity_df[exp.equity_df["rebalanced"] == True].copy()  # noqa: E712
+        reb_df = exp.equity_df[exp.equity_df["rebalanced"]].copy()
         if not reb_df.empty:
             # 리밸런싱 사유 hover 텍스트 구성
             hover_texts: list[str] = []
@@ -1268,11 +1268,11 @@ def _build_portfolio_candle_data(
 
         # 밴드
         if has_upper_band:
-            upper_val = row.upper_band  # type: ignore[attr-defined]
+            upper_val = row.upper_band
             if pd.notna(upper_val):
                 cv["upper"] = f"{float(upper_val):.2f}"
         if has_lower_band:
-            lower_val = row.lower_band  # type: ignore[attr-defined]
+            lower_val = row.lower_band
             if pd.notna(lower_val):
                 cv["lower"] = f"{float(lower_val):.2f}"
 

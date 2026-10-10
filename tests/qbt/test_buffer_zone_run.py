@@ -8,8 +8,21 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.backtest.engines.backtest_engine import run_buffer_strategy
+from qbt.backtest.analysis import add_single_moving_average
+from qbt.backtest.constants import (
+    COL_BUY_BUFFER_ZONE_PCT,
+    COL_CAGR,
+    COL_CALMAR,
+    COL_HOLD_DAYS,
+    COL_MA_WINDOW,
+    COL_MDD,
+    COL_SELL_BUFFER_ZONE_PCT,
+    COL_TOTAL_RETURN_PCT,
+    COL_TOTAL_TRADES,
+)
+from qbt.backtest.engines.backtest_engine import _run_backtest_for_grid, run_buffer_strategy, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
+from qbt.utils.parallel_executor import WORKER_CACHE, init_worker_cache
 
 
 class TestRunBufferStrategy:
@@ -93,7 +106,7 @@ class TestRunBufferStrategy:
         )
 
         # When & Then: 에러 없이 실행 (MA 자동 계산)
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         assert isinstance(equity_df, pd.DataFrame), "equity_df가 반환되어야 함"
         assert len(equity_df) > 0, "equity_df에 데이터가 있어야 함"
@@ -229,7 +242,7 @@ class TestRunBufferStrategy:
         )
 
         # When
-        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
         # Then: 마지막 equity 확인
         if not equity_df.empty:
@@ -300,9 +313,6 @@ class TestRunGridSearch:
           - 결과 DataFrame 반환
           - Calmar 기준 내림차순 정렬
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.engines.backtest_engine import run_grid_search
-
         # Given: 충분한 기간의 데이터
         df = pd.DataFrame(
             {
@@ -332,16 +342,6 @@ class TestRunGridSearch:
         assert len(results_df) == 8, "모든 파라미터 조합이 실행되어야 함"
 
         # 필수 컬럼 존재 확인
-        from qbt.backtest.constants import (
-            COL_BUY_BUFFER_ZONE_PCT,
-            COL_CAGR,
-            COL_CALMAR,
-            COL_HOLD_DAYS,
-            COL_MA_WINDOW,
-            COL_SELL_BUFFER_ZONE_PCT,
-            COL_TOTAL_RETURN_PCT,
-        )
-
         required_cols = [
             COL_MA_WINDOW,
             COL_BUY_BUFFER_ZONE_PCT,
@@ -366,9 +366,6 @@ class TestRunGridSearch:
         When: run_grid_search 실행
         Then: 정확히 8개 결과 생성
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.engines.backtest_engine import run_grid_search
-
         # Given
         df = pd.DataFrame(
             {
@@ -405,10 +402,6 @@ class TestRunGridSearch:
         When: run_grid_search 실행
         Then: 5일선 조합의 CAGR · MDD · 거래 수가, 20일선의 첫 유효일부터 자른 데이터로 돌린 단독 실행과 같다
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, COL_MDD, COL_TOTAL_TRADES
-        from qbt.backtest.engines.backtest_engine import run_grid_search
-
         # Given
         closes = [100, 105, 95, 110, 90, 115, 95, 120, 100, 125] * 6
         df = pd.DataFrame(
@@ -460,10 +453,6 @@ class TestRunGridSearch:
         When: 그리드 워커(_run_backtest_for_grid)를 5일선 조합으로 호출
         Then: 「내부 불변조건 위반」 RuntimeError
         """
-        from qbt.backtest.analysis import add_single_moving_average
-        from qbt.backtest.engines.backtest_engine import _run_backtest_for_grid
-        from qbt.utils.parallel_executor import WORKER_CACHE, init_worker_cache
-
         # Given
         closes = [100, 105, 95, 110, 90, 115, 95, 120, 100, 125] * 3
         df = pd.DataFrame({"Date": pd.bdate_range("2023-01-02", periods=30).date, "Open": closes, "Close": closes})

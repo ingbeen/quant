@@ -3,6 +3,7 @@
 일일 비용 계산, FFR 커버리지 검증, 동적 비용 계산, softplus 함수, 동적 펀딩 스프레드를 검증한다.
 """
 
+import math
 from datetime import date
 
 import pandas as pd
@@ -13,7 +14,10 @@ from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
 from qbt.tqqq.simulation import (
     _calculate_daily_cost,
+    _compute_softplus_spread,
+    _softplus,
     _validate_ffr_coverage,
+    build_monthly_spread_map,
 )
 
 
@@ -361,14 +365,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(1 + exp(2)) ≈ 2.1269 반환
         """
-        from qbt.tqqq.simulation import _softplus
-
         x = 2.0
         result = _softplus(x)
 
         # log(1 + exp(2)) = log(1 + 7.389) ≈ 2.1269
-        import math
-
         expected = math.log1p(math.exp(2.0))
         assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
@@ -380,14 +380,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(1 + exp(-2)) ≈ 0.1269 반환
         """
-        from qbt.tqqq.simulation import _softplus
-
         x = -2.0
         result = _softplus(x)
 
         # log(1 + exp(-2)) = log(1 + 0.135) ≈ 0.1269
-        import math
-
         expected = math.log1p(math.exp(-2.0))
         assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
@@ -399,14 +395,10 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: log(2) ≈ 0.693 반환
         """
-        from qbt.tqqq.simulation import _softplus
-
         x = 0.0
         result = _softplus(x)
 
         # log(1 + exp(0)) = log(2) ≈ 0.693
-        import math
-
         expected = math.log(2.0)
         assert result == pytest.approx(expected, abs=1e-10), f"기대={expected}, 실제={result}"
 
@@ -418,8 +410,6 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: 모든 결과 > 0
         """
-        from qbt.tqqq.simulation import _softplus
-
         test_values = [-100.0, -10.0, -1.0, 0.0, 1.0, 10.0, 100.0]
         for x in test_values:
             result = _softplus(x)
@@ -433,10 +423,6 @@ class TestSoftplusFunctions:
         When: softplus(x) 호출
         Then: overflow/underflow 없이 유한한 값 반환
         """
-        import math
-
-        from qbt.tqqq.simulation import _softplus
-
         # 큰 양수: softplus(x) ≈ x
         large_positive = 700.0  # exp(700)은 overflow 위험
         result_pos = _softplus(large_positive)
@@ -460,10 +446,6 @@ class TestSoftplusFunctions:
         When: _compute_softplus_spread 호출
         Then: softplus(-5 + 1*5) = softplus(0) ≈ 0.693 반환
         """
-        import math
-
-        from qbt.tqqq.simulation import _compute_softplus_spread
-
         a, b = -5.0, 1.0
         ffr_ratio = 0.05  # 5%
 
@@ -482,8 +464,6 @@ class TestSoftplusFunctions:
         When: _compute_softplus_spread 호출
         Then: 고금리 spread > 저금리 spread
         """
-        from qbt.tqqq.simulation import _compute_softplus_spread
-
         a, b = -5.0, 1.0
 
         spread_low = _compute_softplus_spread(a, b, 0.01)  # 1%
@@ -499,8 +479,6 @@ class TestSoftplusFunctions:
         When: build_monthly_spread_map 호출
         Then: 3개 월의 spread 딕셔너리 반환
         """
-        from qbt.tqqq.simulation import build_monthly_spread_map
-
         ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02", "2023-03"], COL_FFR_VALUE: [0.04, 0.045, 0.05]})
 
         a, b = -5.0, 1.0
@@ -527,8 +505,6 @@ class TestSoftplusFunctions:
         When: build_monthly_spread_map 호출
         Then: ValueError 발생
         """
-        from qbt.tqqq.simulation import build_monthly_spread_map
-
         ffr_df = pd.DataFrame({COL_FFR_DATE: [], COL_FFR_VALUE: []})
 
         with pytest.raises(ValueError, match="비어있습니다"):

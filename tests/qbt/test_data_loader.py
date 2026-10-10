@@ -15,6 +15,7 @@ data_loader 모듈 테스트
 결과적으로 신뢰할 수 없는 백테스트 결과를 초래합니다.
 """
 
+import logging
 from datetime import date
 
 import pandas as pd
@@ -130,8 +131,6 @@ class TestLoadStockData:
           - WARNING 로그 발생 ("중복 날짜" 메시지 포함)
           - 첫 번째 값 유지 확인
         """
-        import logging
-
         # 프로젝트 로거는 propagate=False로 설정되어 caplog이 캡처하지 못함
         # 테스트 중에만 propagate=True로 임시 변경
         target_logger = logging.getLogger("qbt.utils.data_loader")

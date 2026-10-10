@@ -8,8 +8,21 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.common_constants import COL_CLOSE, COL_DATE
+from qbt.common_constants import COL_CLOSE, COL_DATE, DISPLAY_DATE
+from qbt.tqqq.constants import (
+    COL_ACTUAL_CLOSE,
+    COL_ACTUAL_CUMUL_RETURN,
+    COL_ACTUAL_DAILY_RETURN,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
+    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
+    COL_DAILY_RETURN_ABS_DIFF,
+    COL_SIMUL_CLOSE,
+    COL_SIMUL_CUMUL_RETURN,
+    COL_SIMUL_DAILY_RETURN,
+)
 from qbt.tqqq.simulation import (
+    _calculate_cumul_multiple_log_diff,
+    _save_daily_comparison_csv,
     calculate_validation_metrics,
 )
 
@@ -137,20 +150,6 @@ class TestSaveDailyComparisonCsv:
           - 누적배수 로그차이 포함
           - 올바른 행 수
         """
-        from qbt.common_constants import DISPLAY_DATE
-        from qbt.tqqq.constants import (
-            COL_ACTUAL_CLOSE,
-            COL_ACTUAL_CUMUL_RETURN,
-            COL_ACTUAL_DAILY_RETURN,
-            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-            COL_DAILY_RETURN_ABS_DIFF,
-            COL_SIMUL_CLOSE,
-            COL_SIMUL_CUMUL_RETURN,
-            COL_SIMUL_DAILY_RETURN,
-        )
-        from qbt.tqqq.simulation import _save_daily_comparison_csv
-
         # Given
         actual_overlap = pd.DataFrame(
             {
@@ -208,8 +207,6 @@ class TestSaveDailyComparisonCsv:
         When: _save_daily_comparison_csv 호출
         Then: 숫자 컬럼이 소수점 4자리로 반올림됨
         """
-        from qbt.tqqq.simulation import _save_daily_comparison_csv
-
         # Given
         actual_overlap = pd.DataFrame(
             {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [100.123456, 105.789012]}
@@ -234,8 +231,6 @@ class TestSaveDailyComparisonCsv:
         result_df = pd.read_csv(output_path, encoding="utf-8-sig")
 
         # 숫자 컬럼이 소수점 4자리 이하로 저장되었는지 확인
-        from qbt.tqqq.constants import COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE
-
         # 실제 종가 확인 (소수점 4자리로 반올림)
         assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=0.0001)
         assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=0.0001)
@@ -256,8 +251,6 @@ class TestCumulMultipleLogDiffInvariant:
         When:  _calculate_cumul_multiple_log_diff 호출
         Then:  ValueError (메시지에 "M_actual" 또는 누적배수 관련 키워드 포함)
         """
-        from qbt.tqqq.simulation import _calculate_cumul_multiple_log_diff  # pyright: ignore[reportPrivateUsage]
-
         actual_prices = pd.Series([100.0, -10.0, 90.0])
         simulated_prices = pd.Series([100.0, 95.0, 92.0])
 
@@ -272,8 +265,6 @@ class TestCumulMultipleLogDiffInvariant:
         When:  _calculate_cumul_multiple_log_diff 호출
         Then:  ValueError (메시지에 "M_sim" 키워드 포함)
         """
-        from qbt.tqqq.simulation import _calculate_cumul_multiple_log_diff  # pyright: ignore[reportPrivateUsage]
-
         actual_prices = pd.Series([100.0, 105.0, 110.0])
         simulated_prices = pd.Series([100.0, 0.0, 95.0])
 

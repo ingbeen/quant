@@ -3,9 +3,12 @@
 buy_buffer_zone_pct 필드 계약과 upper/lower 밴드 분리 불변조건을 검증한다.
 """
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
+from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 
 
 class TestBuyBufferZonePctField:
@@ -62,7 +65,7 @@ class TestBufferStrategyParamsFrozen:
 
         Given: BufferStrategyParams 인스턴스 생성
         When: ma_window 필드 변경 시도
-        Then: FrozenInstanceError 또는 AttributeError 발생
+        Then: FrozenInstanceError 발생
         """
         # Given
         params = BufferStrategyParams(
@@ -74,8 +77,8 @@ class TestBufferStrategyParamsFrozen:
         )
 
         # When & Then: frozen이므로 속성 변경 시 예외 발생
-        with pytest.raises((AttributeError, Exception)):
-            params.ma_window = 100  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            params.ma_window = 100  # pyright: ignore[reportAttributeAccessIssue]
 
     def test_frozen_prevents_hold_days_modification(self):
         """
@@ -83,7 +86,7 @@ class TestBufferStrategyParamsFrozen:
 
         Given: BufferStrategyParams 인스턴스 생성
         When: hold_days 필드 변경 시도
-        Then: FrozenInstanceError 또는 AttributeError 발생
+        Then: FrozenInstanceError 발생
         """
         # Given
         params = BufferStrategyParams(
@@ -95,8 +98,8 @@ class TestBufferStrategyParamsFrozen:
         )
 
         # When & Then
-        with pytest.raises((AttributeError, Exception)):
-            params.hold_days = 5  # type: ignore[misc]
+        with pytest.raises(FrozenInstanceError):
+            params.hold_days = 5  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestUpperLowerBandSeparation:
@@ -119,8 +122,6 @@ class TestUpperLowerBandSeparation:
           - lower_band = 100.0 × (1 - 0.04) = 96.0
           - upper_band = 100.0 × (1 + 0.03) = 103.0
         """
-        from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
-
         # Given
         ma_value = 100.0
         buy_buffer_pct = 0.03
@@ -149,8 +150,6 @@ class TestUpperLowerBandSeparation:
         When: compute_bands() 호출
         Then: lower_band / MA = (1 - sell_buffer_pct) 일정
         """
-        from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
-
         buy_pct = 0.03
         sell_pct = 0.04
 

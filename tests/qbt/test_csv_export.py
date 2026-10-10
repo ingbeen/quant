@@ -14,6 +14,7 @@ CSV 저장 단계에서 사전 계산하는 SSoT를 유지하는 것이 핵심�
 
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -107,7 +108,6 @@ class TestPrepareTradeCsv:
 
         # Then
         assert result.iloc[0]["pnl"] == round(5864.567, ROUND_CAPITAL)
-        import numpy as np
 
         assert isinstance(result.iloc[0]["pnl"], int | np.integer)
 

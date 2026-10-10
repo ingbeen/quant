@@ -144,7 +144,7 @@ class TestQQQTQQQSharedSignal:
     QQQ 매도 시 TQQQ도 같은 날 매도 pending_order가 생성된다.
     """
 
-    def test_qqq_tqqq_shared_signal(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_qqq_tqqq_shared_signal(self, tmp_path: Path, create_csv_file):
         """
         목적: QQQ/TQQQ 공유 시그널 메커니즘 검증.
 
@@ -326,7 +326,7 @@ class TestMonthEndRebalanceSchedule:
     a 비중 ≈ 0.8 / 1.3 = 0.615, 목표 대비 상대 편차 ≈ 23% — 판단 임계값 10% 의 두 배를 넘는 큰 이탈.
     """
 
-    def _run(self, tmp_path: Path, create_csv_file, a_price_after: float = 160.0):  # type: ignore[no-untyped-def]
+    def _run(self, tmp_path: Path, create_csv_file, a_price_after: float = 160.0):
         a_path = create_csv_file("A_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, a_price_after))
         b_path = create_csv_file("B_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, 100.0))
         config = PortfolioConfig(
@@ -341,7 +341,7 @@ class TestMonthEndRebalanceSchedule:
         )
         return run_portfolio_backtest(config)
 
-    def test_rebalances_only_on_next_day_after_month_end(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_rebalances_only_on_next_day_after_month_end(self, tmp_path: Path, create_csv_file):
         """
         목적: 월중 편차가 20% 를 넘어도 그 달에는 리밸런싱하지 않고,
               월 마지막 거래일(2024-01-31) 판단 → 다음 거래일(2024-02-01) 한 번만 체결됨을 검증.
@@ -355,10 +355,10 @@ class TestMonthEndRebalanceSchedule:
 
         # Then
         equity_df = result.equity_df
-        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"], COL_DATE])
         assert rebalanced_dates == [date(2024, 2, 1)], f"리밸런싱은 2024-02-01 하루뿐이어야 함 (실제: {rebalanced_dates})"
 
-    def test_no_rebalance_on_month_end_within_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_no_rebalance_on_month_end_within_threshold(self, tmp_path: Path, create_csv_file):
         """
         목적: 판단일이어도 편차가 임계값 10% 이하이면 리밸런싱하지 않음을 엔진 수준에서 검증
               (판단일마다 무조건 맞추는 규칙과 구분된다).
@@ -372,10 +372,10 @@ class TestMonthEndRebalanceSchedule:
 
         # Then
         equity_df = result.equity_df
-        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"], COL_DATE])
         assert rebalanced_dates == [], f"편차 7% 는 임계값 10% 이하이므로 리밸런싱이 없어야 함 (실제: {rebalanced_dates})"
 
-    def test_check_day_logged_on_month_end(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_check_day_logged_on_month_end(self, tmp_path: Path, create_csv_file):
         """
         목적: state_log 의 판단일 컬럼이 월 마지막 거래일에만 True 임을 검증.
 
@@ -388,10 +388,10 @@ class TestMonthEndRebalanceSchedule:
 
         # Then
         state_log_df = result.state_log_df
-        check_days = list(state_log_df.loc[state_log_df["is_month_end"] == True, COL_DATE])  # noqa: E712
+        check_days = list(state_log_df.loc[state_log_df["is_month_end"], COL_DATE])
         assert check_days == [date(2024, 1, 31)], f"판단일은 2024-01-31 하루뿐이어야 함 (실제: {check_days})"
 
-    def test_rebalance_sell_executes_at_next_day_open(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_rebalance_sell_executes_at_next_day_open(self, tmp_path: Path, create_csv_file):
         """
         목적: 리밸런싱 매도가 판단 다음 거래일 시가 × (1 - 슬리피지)로 체결됨을 검증.
 
@@ -421,7 +421,7 @@ class TestEnteringAssetOnCheckDay:
     (MA5 = 102, 상단 밴드 105.06 돌파). b 는 2024-01-15 부터 b_price_after 로 바뀐다.
     """
 
-    def _run(self, tmp_path: Path, create_csv_file, b_price_after: float):  # type: ignore[no-untyped-def]
+    def _run(self, tmp_path: Path, create_csv_file, b_price_after: float):
         a_path = create_csv_file("A_max.csv", _make_jump_df(date(2024, 1, 31), 100.0, 110.0))
         b_path = create_csv_file("B_max.csv", _make_jump_df(date(2024, 1, 15), 100.0, b_price_after))
         config = PortfolioConfig(
@@ -436,11 +436,11 @@ class TestEnteringAssetOnCheckDay:
         )
         return run_portfolio_backtest(config)
 
-    def _shares_on(self, result, asset_id: str, d: date) -> int:  # type: ignore[no-untyped-def]
+    def _shares_on(self, result, asset_id: str, d: date) -> int:
         equity_df = result.equity_df
         return int(equity_df.loc[equity_df[COL_DATE] == d, f"{asset_id}_shares"].iloc[0])
 
-    def test_only_entering_asset_trades_when_others_within_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_only_entering_asset_trades_when_others_within_threshold(self, tmp_path: Path, create_csv_file):
         """
         목적: 남은 자산의 편차가 0 보다 크고 10% 이하면 판단일 진입이 리밸런싱을 일으키지 않음을 검증.
 
@@ -453,14 +453,14 @@ class TestEnteringAssetOnCheckDay:
 
         # Then
         equity_df = result.equity_df
-        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"], COL_DATE])
         assert rebalanced_dates == [], f"진입 자산만으로는 리밸런싱이 없어야 함 (실제: {rebalanced_dates})"
         assert self._shares_on(result, "a", date(2024, 2, 1)) > 0, "a 는 2024-02-01 시가에 진입해야 함"
         assert self._shares_on(result, "b", date(2024, 2, 1)) == self._shares_on(
             result, "b", date(2024, 1, 31)
         ), "b 는 편차 10% 이하이므로 주수가 그대로여야 함"
 
-    def test_all_assets_rebalanced_when_other_exceeds_threshold(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_all_assets_rebalanced_when_other_exceeds_threshold(self, tmp_path: Path, create_csv_file):
         """
         목적: 남은 자산의 편차가 10% 를 넘으면 진입 자산과 함께 보유 자산도 맞춰짐을 검증.
 
@@ -473,7 +473,7 @@ class TestEnteringAssetOnCheckDay:
 
         # Then
         equity_df = result.equity_df
-        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"] == True, COL_DATE])  # noqa: E712
+        rebalanced_dates = list(equity_df.loc[equity_df["rebalanced"], COL_DATE])
         assert rebalanced_dates == [date(2024, 2, 1)], f"리밸런싱은 2024-02-01 하루여야 함 (실제: {rebalanced_dates})"
         assert self._shares_on(result, "a", date(2024, 2, 1)) > 0, "a 는 2024-02-01 시가에 진입해야 함"
         assert self._shares_on(result, "b", date(2024, 2, 1)) < self._shares_on(
@@ -487,7 +487,7 @@ class TestB1CashBuffer:
     핵심 계약: target_weight 합이 1.0 미만이면 잔여분이 현금으로 유지된다.
     """
 
-    def test_b1_initial_cash_stays_uninvested(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_b1_initial_cash_stays_uninvested(self, tmp_path: Path, create_csv_file):
         """
         목적: B-1 포트폴리오에서 target_weight 합 = 0.86 → 14% 현금 유지 검증.
 
@@ -607,7 +607,7 @@ class TestInvalidConfig:
 class TestNoOverlapPeriod:
     """공통 기간 없음 오류 테스트."""
 
-    def test_no_overlap_period(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_no_overlap_period(self, tmp_path: Path, create_csv_file):
         """
         목적: 자산 간 공통 기간 없음 시 ValueError 발생 검증.
 
@@ -615,8 +615,6 @@ class TestNoOverlapPeriod:
         When:  run_portfolio_backtest() 호출
         Then:  ValueError 발생
         """
-        from datetime import timedelta
-
         # Given: 날짜가 겹치지 않는 두 개의 데이터셋
         start_a = date(2024, 1, 2)
         dates_a: list[date] = []
@@ -673,7 +671,7 @@ class TestNoOverlapPeriod:
 class TestSingleAssetPortfolio:
     """단일 자산 포트폴리오 정상 동작 테스트."""
 
-    def test_single_asset_portfolio(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_single_asset_portfolio(self, tmp_path: Path, create_csv_file):
         """
         목적: 자산 1개 포트폴리오가 오류 없이 실행되어야 함.
 
@@ -707,7 +705,7 @@ class TestSingleAssetPortfolio:
 class TestC1FullCashOnSell:
     """C-1 포트폴리오 매도 시 전액 현금화 테스트."""
 
-    def test_c1_full_cash_on_sell(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_c1_full_cash_on_sell(self, tmp_path: Path, create_csv_file):
         """
         목적: QQQ+TQQQ 전량 매도 후 shared_cash ≈ total_capital 검증.
 
@@ -764,7 +762,7 @@ class TestStartDateConstraint:
     - start_date=None이면 기존 동작과 동일하다 (자연 시작일 사용).
     """
 
-    def test_start_date_filters_early_data(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_start_date_filters_early_data(self, tmp_path: Path, create_csv_file):
         """
         목적: start_date가 주어지면 equity_df가 해당 날짜 이후부터 시작함을 검증.
 
@@ -800,7 +798,7 @@ class TestStartDateConstraint:
             f"start_date={constrained_start} 지정 시 equity_df 첫 날짜({first_date})가 " f"start_date 이상이어야 함"
         )
 
-    def test_start_date_none_uses_natural_start(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_start_date_none_uses_natural_start(self, tmp_path: Path, create_csv_file):
         """
         목적: start_date=None이면 기존 동작(자연 시작일)과 동일함을 검증.
 
@@ -839,7 +837,7 @@ class TestComputeEffectiveStartDate:
     - 반환된 날짜가 MA 워밍업 완료 이후(데이터의 ma_window번째 이후)이어야 한다.
     """
 
-    def test_returns_date_object(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_returns_date_object(self, tmp_path: Path, create_csv_file):
         """
         목적: compute_portfolio_effective_start_date()가 date 객체를 반환함을 검증.
 
@@ -864,7 +862,7 @@ class TestComputeEffectiveStartDate:
         # Then
         assert isinstance(result, date), f"반환값이 date 객체이어야 함 (현재: {type(result)})"
 
-    def test_effective_start_matches_backtest_start(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_effective_start_matches_backtest_start(self, tmp_path: Path, create_csv_file):
         """
         목적: compute_portfolio_effective_start_date()가 run_portfolio_backtest()의
               equity_df 첫 날짜와 동일함을 검증.
@@ -919,9 +917,7 @@ class TestCacheKeyWithDifferentMAParams:
     - 따라서 캐시 키는 경로만이 아니라 ma_window까지 포함해야 한다.
     """
 
-    def test_same_path_different_ma_window_no_collision(
-        self, tmp_path: Path, create_csv_file  # type: ignore[no-untyped-def]
-    ) -> None:
+    def test_same_path_different_ma_window_no_collision(self, tmp_path: Path, create_csv_file) -> None:
         """
         목적: 동일 signal_data_path + 다른 ma_window 슬롯이 각자 올바른 MA 컬럼 사용 검증.
 
@@ -974,7 +970,7 @@ class TestCacheKeyWithDifferentMAParams:
 class TestAssetPnlColumns:
     """equity_df의 자산별 realized_pnl / unrealized_pnl 컬럼 계약 테스트."""
 
-    def test_pnl_columns_exist(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_pnl_columns_exist(self, tmp_path: Path, create_csv_file):
         """
         목적: equity_df에 자산별 _realized_pnl, _unrealized_pnl 컬럼이 존재함을 검증.
 
@@ -999,7 +995,7 @@ class TestAssetPnlColumns:
         assert "gld_realized_pnl" in result.equity_df.columns
         assert "gld_unrealized_pnl" in result.equity_df.columns
 
-    def test_pnl_zero_before_any_trade(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_pnl_zero_before_any_trade(self, tmp_path: Path, create_csv_file):
         """
         목적: 거래 발생 전 realized_pnl과 unrealized_pnl 모두 0임을 검증.
 
@@ -1025,7 +1021,7 @@ class TestAssetPnlColumns:
         assert first_row["gld_realized_pnl"] == pytest.approx(0.0, abs=0.01)
         assert first_row["gld_unrealized_pnl"] == pytest.approx(0.0, abs=0.01)
 
-    def test_realized_pnl_persists_after_sell(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_realized_pnl_persists_after_sell(self, tmp_path: Path, create_csv_file):
         """
         목적: 매도 후 realized_pnl이 유지되고 unrealized_pnl이 0이 됨을 검증.
 
@@ -1060,9 +1056,7 @@ class TestAssetPnlColumns:
             # 거래가 있었으므로 realized_pnl은 0이 아님
             assert last_row["qqq_realized_pnl"] != pytest.approx(0.0, abs=0.01), "매도 후 realized_pnl이 유지되어야 함"
 
-    def test_total_contribution_equals_realized_plus_unrealized(
-        self, tmp_path: Path, create_csv_file
-    ):  # type: ignore[no-untyped-def]
+    def test_total_contribution_equals_realized_plus_unrealized(self, tmp_path: Path, create_csv_file):
         """
         목적: realized_pnl + unrealized_pnl이 자산의 진정한 수익 기여도임을 검증.
 
@@ -1106,9 +1100,7 @@ class TestPortfolioHoldingViewColumns:
     엔진(build_combined_equity)에서 산출한다.
     """
 
-    def test_equity_df_has_derived_holding_view_columns(
-        self, tmp_path: Path, create_csv_file
-    ):  # type: ignore[no-untyped-def]
+    def test_equity_df_has_derived_holding_view_columns(self, tmp_path: Path, create_csv_file):
         """
         목적: equity_df에 4종 파생 컬럼이 모든 자산에 대해 존재함을 검증.
 
@@ -1136,9 +1128,7 @@ class TestPortfolioHoldingViewColumns:
         assert "total_pnl" in equity_df.columns, "total_pnl 컬럼이 존재해야 함"
         assert "total_return_pct" in equity_df.columns, "total_return_pct 컬럼이 존재해야 함"
 
-    def test_current_price_equals_value_div_shares_when_holding(
-        self, tmp_path: Path, create_csv_file
-    ):  # type: ignore[no-untyped-def]
+    def test_current_price_equals_value_div_shares_when_holding(self, tmp_path: Path, create_csv_file):
         """
         목적: shares > 0인 행에서 current_price * shares == value 등식 검증.
 
@@ -1171,7 +1161,7 @@ class TestPortfolioHoldingViewColumns:
                 expected_return = (row["gld_current_price"] / row["gld_avg_price"] - 1) * 100
                 assert row["gld_return_pct"] == pytest.approx(expected_return, abs=0.1)
 
-    def test_current_price_zero_when_no_position(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_current_price_zero_when_no_position(self, tmp_path: Path, create_csv_file):
         """
         목적: shares == 0인 행에서 current_price 와 return_pct가 0.0임을 검증.
 
@@ -1199,7 +1189,7 @@ class TestPortfolioHoldingViewColumns:
             assert row["gld_current_price"] == pytest.approx(0.0, abs=1e-12)
             assert row["gld_return_pct"] == pytest.approx(0.0, abs=1e-12)
 
-    def test_total_pnl_and_return_pct(self, tmp_path: Path, create_csv_file):  # type: ignore[no-untyped-def]
+    def test_total_pnl_and_return_pct(self, tmp_path: Path, create_csv_file):
         """
         목적: total_pnl과 total_return_pct가 equity와 initial_capital로부터 정확히 산출됨을 검증.
 
@@ -1228,9 +1218,7 @@ class TestPortfolioHoldingViewColumns:
             assert row["total_pnl"] == pytest.approx(expected_pnl, abs=0.5)
             assert row["total_return_pct"] == pytest.approx(expected_return_pct, abs=0.1)
 
-    def test_contribution_column_equals_realized_plus_unrealized(
-        self, tmp_path: Path, create_csv_file
-    ):  # type: ignore[no-untyped-def]
+    def test_contribution_column_equals_realized_plus_unrealized(self, tmp_path: Path, create_csv_file):
         """
         목적: equity_df의 {asset_id}_contribution 컬럼이 realized_pnl + unrealized_pnl과 일치함을 검증.
 

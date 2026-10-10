@@ -7,6 +7,8 @@ from datetime import date
 
 import pytest
 
+from qbt.backtest.walkforward import generate_wfo_windows
+
 
 class TestGenerateWfoWindows:
     """WFO 윈도우 생성 함수 테스트."""
@@ -20,8 +22,6 @@ class TestGenerateWfoWindows:
         Then: 약 10개 윈도우, 모든 IS는 1999-03-01에서 시작,
               OOS 기간은 24개월씩
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
@@ -56,8 +56,6 @@ class TestGenerateWfoWindows:
         When: generate_wfo_windows(initial_is=72, oos=24) 호출
         Then: ValueError 발생
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given — 6년(72개월) IS + 2년(24개월) OOS = 최소 8년 필요, 5년만 제공
         data_start = date(2020, 1, 1)
         data_end = date(2025, 1, 1)
@@ -82,8 +80,6 @@ class TestRollingWfoWindows:
         When: Expanding과 Rolling 윈도우를 각각 생성
         Then: 모든 윈도우에서 oos_start, oos_end가 동일
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
@@ -108,8 +104,6 @@ class TestRollingWfoWindows:
         When: Expanding과 Rolling 윈도우를 각각 생성
         Then: 초기 윈도우에서는 동일하다가 IS가 120개월을 초과하는 시점부터 분기
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
@@ -139,8 +133,6 @@ class TestRollingWfoWindows:
         When: Rolling 윈도우를 생성
         Then: 모든 윈도우에서 IS 길이(개월) ≤ rolling_is_months
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
@@ -164,8 +156,6 @@ class TestRollingWfoWindows:
         When: rolling_is_months=None과 rolling_is_months 미지정으로 각각 생성
         Then: 두 결과가 완전히 동일
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
@@ -186,8 +176,6 @@ class TestRollingWfoWindows:
         When: 두 모드의 윈도우를 생성
         Then: IS 기간이 120개월 미만인 윈도우들은 두 모드에서 동일
         """
-        from qbt.backtest.walkforward import generate_wfo_windows
-
         # Given
         data_start = date(1999, 3, 1)
         data_end = date(2025, 2, 28)
