@@ -342,3 +342,28 @@ class TestExitAllSharesZero:
                     violations.append(f"{row['Date']} {aid}: EXIT_ALL 체결 후 shares={shares} (0이어야 함)")
 
         assert len(violations) == 0, f"EXIT_ALL 후 주수 비정상 {len(violations)}건:\n" + "\n".join(violations[:10])
+
+
+class TestStateLogWeightColumn:
+    """상태 로그의 자산별 비중 열: {자산}_weight = 주수 × 종가 ÷ 계좌 자본.
+
+    정합성 검사기는 이 열을 읽지 않고 비중을 다시 계산하므로, 저장되는 값의 정의는 이 테스트가 고정한다.
+    """
+
+    def test_weight_equals_shares_times_close_over_equity(self, portfolio_result_with_sell):
+        """
+        목적: 상태 로그에 기록되는 비중이 그날 주수 × 종가 ÷ 계좌 자본인지 검증.
+
+        Given: buy -> sell 전환이 포함된 포트폴리오 결과의 state_log_df (보유 중인 날이 있다)
+        When: 자산마다 {자산}_weight 열을 주수 × 종가 ÷ equity 와 견준다
+        Then: 모든 거래일에서 같다
+        """
+        # Given
+        state_log_df = portfolio_result_with_sell.state_log_df
+        asset_ids = _get_asset_ids(state_log_df)
+        assert all((state_log_df[f"{aid}_shares"] > 0).any() for aid in asset_ids), "자산마다 보유 중인 날이 있어야 함"
+
+        # When & Then
+        for aid in asset_ids:
+            expected = state_log_df[f"{aid}_shares"] * state_log_df[f"{aid}_close"] / state_log_df["equity"]
+            assert list(state_log_df[f"{aid}_weight"]) == pytest.approx(list(expected), abs=1e-9)

@@ -22,16 +22,13 @@ import pandas as pd
 from qbt.backtest.constants import REBALANCE_REASON_METHODS
 from qbt.backtest.engines.portfolio_rebalance import DEFAULT_REBALANCE_POLICY, is_last_trading_day_of_month
 from qbt.backtest.portfolio_types import (
-    ASSET_COL_SUFFIX_CLOSE,
     ASSET_COL_SUFFIX_VALUE,
     PortfolioConfig,
     PortfolioResult,
-    SlotMethodConfig,
     asset_close_col,
     asset_executed_intent_col,
     asset_pending_intent_col,
     asset_shares_col,
-    asset_weight_col,
     list_position_keys,
     resolve_methods,
 )
@@ -45,16 +42,8 @@ _REBALANCE_WEIGHT_DEVIATION_THRESHOLD = 0.20
 # 에쿼티 등식 허용 오차 (원)
 _EQUITY_EQUATION_TOLERANCE = 1.0
 
-# 그날 목표 비중으로 맞춘 체결 (규칙 2 의 매매법 단위 검사 대상)
+# 그날 목표 비중으로 맞춘 체결 (규칙 2 의 검사 대상)
 _REBALANCE_INTENT_TYPES = ("REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
-
-
-def _get_asset_ids_from_state_log(state_log_df: pd.DataFrame) -> list[str]:
-    """state_log_df에서 자산 ID 목록을 추출한다.
-
-    {asset_id}_close 컬럼 기준으로 탐지한다.
-    """
-    return [c.removesuffix(ASSET_COL_SUFFIX_CLOSE) for c in state_log_df.columns if c.endswith(ASSET_COL_SUFFIX_CLOSE)]
 
 
 def _check_signal_execution_lag(
@@ -62,6 +51,8 @@ def _check_signal_execution_lag(
     asset_ids: list[str],
 ) -> list[str]:
     """규칙 1: pending intent가 다음 거래일에 정확히 체결되는지 검증한다.
+
+    마지막 날의 pending 은 체결할 다음 거래일이 없어 보지 않는다.
 
     Args:
         state_log_df: 일별 상태 로그
@@ -71,60 +62,13 @@ def _check_signal_execution_lag(
         위반 메시지 리스트 (빈 리스트 = 통과)
     """
     violations: list[str] = []
+    dates = state_log_df["Date"].iloc[:-1]
     for aid in asset_ids:
-        pending_col = asset_pending_intent_col(aid)
-        executed_col = asset_executed_intent_col(aid)
-        if pending_col not in state_log_df.columns or executed_col not in state_log_df.columns:
-            continue
-
-        for i in range(len(state_log_df) - 1):
-            pending = str(state_log_df.iloc[i][pending_col])
-            if not pending or pending == "" or pending == "nan":
-                continue
-            next_executed = str(state_log_df.iloc[i + 1][executed_col])
-            if pending != next_executed:
-                d = state_log_df.iloc[i]["Date"]
-                violations.append(f"[규칙1] {aid}: {d} pending={pending} -> 다음날 executed={next_executed}")
-    return violations
-
-
-def _check_rebalance_weight_consistency(
-    state_log_df: pd.DataFrame,
-    asset_ids: list[str],
-    target_weights: dict[str, float],
-) -> list[str]:
-    """규칙 2: 리밸런싱 후 비중이 목표 대비 허용 범위 이내인지 검증한다.
-
-    Args:
-        state_log_df: 일별 상태 로그
-        asset_ids: 자산 ID 목록
-        target_weights: {asset_id: target_weight}
-
-    Returns:
-        위반 메시지 리스트
-    """
-    violations: list[str] = []
-    if "rebalanced" not in state_log_df.columns:
-        return violations
-
-    reb_rows = state_log_df[state_log_df["rebalanced"]]
-    # asset_ids 는 state_log_df 컬럼에서 추출되었고 target_weights 는 동일 config 에서
-    # 만들어졌으므로 두 키 집합은 일치한다. 따라서 .get default 는 dead branch.
-    for _, row in reb_rows.iterrows():
-        for aid in asset_ids:
-            target_w = target_weights[aid]
-            if target_w <= 0:
-                continue
-            shares = int(row[asset_shares_col(aid)])
-            if shares <= 0:
-                continue
-            actual_w = float(row[asset_weight_col(aid)])
-            deviation = abs(actual_w / target_w - 1.0)
-            if deviation > _REBALANCE_WEIGHT_DEVIATION_THRESHOLD:
-                violations.append(
-                    f"[규칙2] {row['Date']} {aid}: actual={actual_w:.4f}, "
-                    f"target={target_w:.4f}, deviation={deviation:.4f}"
-                )
+        pending = state_log_df[asset_pending_intent_col(aid)].iloc[:-1]
+        next_executed = state_log_df[asset_executed_intent_col(aid)].shift(-1).iloc[:-1]
+        lagged = (pending != "") & (pending != next_executed)
+        for d, p, e in zip(dates[lagged], pending[lagged], next_executed[lagged], strict=True):
+            violations.append(f"[규칙1] {aid}: {d} pending={p} -> 다음날 executed={e}")
     return violations
 
 
@@ -145,11 +89,8 @@ def _check_exit_all_shares_zero(
     for aid in asset_ids:
         executed_col = asset_executed_intent_col(aid)
         shares_col = asset_shares_col(aid)
-        if executed_col not in state_log_df.columns:
-            continue
 
         exit_rows = state_log_df[state_log_df[executed_col] == "EXIT_ALL"]
-        # shares_col 은 state_log_df 가 항상 갖는 자산별 컬럼이다.
         for _, row in exit_rows.iterrows():
             shares = int(row[shares_col])
             if shares != 0:
@@ -212,10 +153,15 @@ def _check_method_rebalance_weight_consistency(
     key_methods: Mapping[str, str],
     fixed_targets: Mapping[str, float | None],
 ) -> list[str]:
-    """규칙 2 (매매법 단위): 매매법이 리밸런싱한 날, 그날 목표로 맞춘(REDUCE/INCREASE 를 처리한) 자산의
-    매매법 자본 대비 비중이 목표 허용 범위 이내인지.
+    """규칙 2: 매매법이 리밸런싱한 날, 그 매매법 자산의 매매법 자본 대비 비중이 목표 허용 범위 이내인지.
 
-    배분 규칙의 조정만 있던 날에는 바뀐 자산만 매매하므로, 매매하지 않은 자산의 월중 이탈은 검사하지 않는다.
+    그날 목표로 맞춘(REDUCE/INCREASE 를 처리한) 자산을 본다. 월말 · 매매법 사이 리밸런싱(장부 사유가 있는 날)은
+    보유 자산 전부를 목표로 맞추므로 주문 없이 남은 보유 자산도 본다 — 주문에서 빠진 자산이 허용 범위를 벗어난 채
+    남으면 잡힌다(허용 범위 안에 머문 누락은 이 규칙이 보지 못한다). 배분 규칙의 조정만 있던 날(사유가 빈 날)에는
+    바뀐 자산만 매매하므로 매매하지 않은 자산의 월중 이탈은 검사하지 않는다.
+
+    그날 새로 진입한 자산은 어느 날에도 보지 않는다 — 진입 수량은 정수 주와 현금 부족 축소를 그대로 받아, 소액
+    계좌에서는 정상 체결도 허용 범위를 벗어난다. 매매법이 하나면 매매법 자본 = 계좌 자본이라 계좌 비중을 보는 것과 같다.
 
     Args:
         state_log_df: 일별 상태 로그 (자산 키별 주수 · 종가 · 비중변동 매매법의 목표 비중)
@@ -233,11 +179,15 @@ def _check_method_rebalance_weight_consistency(
         current_date = ledger_row["Date"]
         method_id = str(ledger_row["method_id"])
         method_equity = float(ledger_row["equity"])
+        whole_method_rebalanced = ledger_row["rebalance_reason"] != ""
         state_row = state_by_date.loc[current_date]
         for key, key_method in key_methods.items():
             if key_method != method_id:
                 continue
-            if state_row[asset_executed_intent_col(key)] not in _REBALANCE_INTENT_TYPES:
+            executed_intent = state_row[asset_executed_intent_col(key)]
+            adjusted_to_target = executed_intent in _REBALANCE_INTENT_TYPES
+            left_without_order = whole_method_rebalanced and executed_intent == ""
+            if not (adjusted_to_target or left_without_order):
                 continue
             fixed = fixed_targets[key]
             target_w = fixed if fixed is not None else float(state_row[f"{key}_target_weight"])
@@ -489,7 +439,7 @@ def validate_portfolio_result(result: PortfolioResult) -> list[str]:
     methods = resolve_methods(result.config)
     key_methods, fixed_targets = _key_targets(result.config)
 
-    # 규칙 4, 5: equity_df 기반 (state_log 없어도 검증 가능)
+    # 규칙 4, 5: equity_df 기반
     violations.extend(_check_cash_non_negative(equity_df))
     violations.extend(_check_equity_equation(equity_df))
 
@@ -497,30 +447,26 @@ def validate_portfolio_result(result: PortfolioResult) -> list[str]:
     if ledger_df.empty:
         raise RuntimeError(
             f"내부 불변조건 위반: ledger_df 가 비어 있음 (experiment_name={result.config.experiment_name}). "
-            f"장부 없이는 매매법 규칙(4 · 6 · 7, 매매법이 여럿이면 2)을 검사할 수 없다"
+            f"장부 없이는 매매법 규칙(2 · 4 · 6 · 7)을 검사할 수 없다"
         )
     violations.extend(_check_method_cash_non_negative(ledger_df))
     target_shares = {method.method_id: method.target_weight for method in methods}
     violations.extend(_check_ledger_identities(equity_df, ledger_df, result.config.total_capital, target_shares))
     violations.extend(_check_method_transfers(ledger_df, target_shares, DEFAULT_REBALANCE_POLICY.threshold_rate))
 
-    # 규칙 1, 2, 3, 7(되돌리기 뒤 몫): state_log_df 기반
+    # 규칙 1, 2, 3, 7(되돌리기 뒤 몫): state_log_df 기반. 엔진은 거래일마다 한 행을 쓴다 — 비어 있으면 검사를 건너뛰지 않고 멈춘다
     if state_log_df.empty:
-        return violations
+        raise RuntimeError(
+            f"내부 불변조건 위반: state_log_df 가 비어 있음 (experiment_name={result.config.experiment_name}). "
+            f"상태 로그 없이는 규칙 1 · 2 · 3 · 7(되돌리기 뒤 몫)을 검사할 수 없다"
+        )
 
-    asset_ids = _get_asset_ids_from_state_log(state_log_df)
+    # 자산 키는 설정에서 읽는다 — 상태 로그의 열 이름에서 뽑으면 열이 빠진 자산의 검사가 조용히 사라진다
+    asset_ids = list(key_methods)
 
     violations.extend(_check_signal_execution_lag(state_log_df, asset_ids))
     violations.extend(_check_method_shares_after_transfer(state_log_df, ledger_df, key_methods))
-    single_slot_method = len(methods) == 1 and isinstance(methods[0], SlotMethodConfig)
-    if single_slot_method:
-        # 매매법 하나면 계좌 비중 = 매매법 비중 — 기존 계좌 단위 검사를 그대로 쓴다
-        fixed = {key: target for key, target in fixed_targets.items() if target is not None}
-        violations.extend(_check_rebalance_weight_consistency(state_log_df, asset_ids, fixed))
-    else:
-        violations.extend(
-            _check_method_rebalance_weight_consistency(state_log_df, ledger_df, key_methods, fixed_targets)
-        )
+    violations.extend(_check_method_rebalance_weight_consistency(state_log_df, ledger_df, key_methods, fixed_targets))
     violations.extend(_check_exit_all_shares_zero(state_log_df, asset_ids))
 
     return violations

@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qbt.backtest.constants import SLIPPAGE_RATE
+from qbt.backtest.constants import REBALANCE_REASON_MONTHLY, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
     run_portfolio_backtest,
@@ -449,6 +449,25 @@ class TestMonthEndRebalanceSchedule:
         state_log_df = result.state_log_df
         check_days = list(state_log_df.loc[state_log_df["is_month_end"], COL_DATE])
         assert check_days == [date(2024, 1, 31)], f"판단일은 2024-01-31 하루뿐이어야 함 (실제: {check_days})"
+
+    def test_rebalance_logged_on_execution_day(self, tmp_path: Path, create_csv_file):
+        """
+        목적: state_log 의 리밸런싱 표시와 사유가 체결일에만 기록됨을 검증 — 정합성 검사기는 장부를 읽으므로
+              state_log 의 이 두 열은 이 테스트가 고정한다.
+
+        Given: a 가 2024-01-15 에 +60% → 2024-01-31 판단, 2024-02-01 체결
+        When:  run_portfolio_backtest() 실행
+        Then:  rebalanced=True 인 날짜 == [2024-02-01], 사유가 있는 날도 그날 하나이고 값은 월말 리밸런싱
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file)
+
+        # Then
+        state_log_df = result.state_log_df
+        rebalanced_dates = list(state_log_df.loc[state_log_df["rebalanced"], COL_DATE])
+        assert rebalanced_dates == [date(2024, 2, 1)], f"리밸런싱 표시는 2024-02-01 하루뿐이어야 함 (실제: {rebalanced_dates})"
+        reasons = state_log_df.loc[state_log_df["rebalance_reason"] != "", [COL_DATE, "rebalance_reason"]]
+        assert list(reasons.itertuples(index=False, name=None)) == [(date(2024, 2, 1), REBALANCE_REASON_MONTHLY)]
 
     def test_rebalance_sell_executes_at_next_day_open(self, tmp_path: Path, create_csv_file):
         """
