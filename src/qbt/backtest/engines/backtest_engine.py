@@ -441,7 +441,8 @@ def run_backtest(
                 )
 
     # 5. 백테스트 종료 (강제청산 없음)
-    trades_df = pd.DataFrame(trades)
+    # 거래가 없어도 열은 둔다 — 빈 표를 저장한 CSV 에 헤더가 남아 읽는 쪽이 따로 처리하지 않는다
+    trades_df = pd.DataFrame(trades, columns=list(TradeRecord.__annotations__))
     equity_df = pd.DataFrame(equity_records)
 
     # 6. 요약 지표 계산

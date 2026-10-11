@@ -14,12 +14,15 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.allocator_registry import WeightAllocator
-from qbt.backtest.constants import SLIPPAGE_RATE
+from qbt.backtest.constants import REBALANCE_REASON_METHODS, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_planning import OrderIntent, ProjectedPortfolio
 from qbt.backtest.portfolio_types import (
     AssetSlotConfig,
     AssetState,
     PortfolioResult,
+    asset_shares_col,
+    asset_value_col,
+    asset_weight_col,
     list_position_keys,
     resolve_methods,
 )
@@ -361,7 +364,9 @@ def summarize_methods(result: PortfolioResult) -> dict[str, Any]:
                 "cost": float(row["cost"]),
                 "transfers": float(row["transfers"]),
                 "rebalanced_days": int((of_method & ledger["rebalanced"]).sum()),
-                "method_rebalance_days": int((of_method & (ledger["rebalance_reason"] == "methods")).sum()),
+                "method_rebalance_days": int(
+                    (of_method & (ledger["rebalance_reason"] == REBALANCE_REASON_METHODS)).sum()
+                ),
                 "assets": [{"asset_id": key, "pnl": float(last[f"{key}_contribution"])} for key in keys],
             }
         )
@@ -378,9 +383,9 @@ def summarize_methods(result: PortfolioResult) -> dict[str, Any]:
     holdings: dict[str, dict[str, float]] = {}
     for info in infos:
         entry = holdings.setdefault(info.asset_id, {"shares": 0.0, "value": 0.0, "weight": 0.0})
-        entry["shares"] += float(last[f"{info.key}_shares"])
-        entry["value"] += float(last[f"{info.key}_value"])
-        entry["weight"] += float(last[f"{info.key}_weight"])
+        entry["shares"] += float(last[asset_shares_col(info.key)])
+        entry["value"] += float(last[asset_value_col(info.key)])
+        entry["weight"] += float(last[asset_weight_col(info.key)])
     account_holdings = [
         {"asset_id": asset_id, "shares": int(v["shares"]), "value": v["value"], "weight": v["weight"]}
         for asset_id, v in holdings.items()

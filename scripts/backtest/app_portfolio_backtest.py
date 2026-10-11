@@ -27,7 +27,7 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
-from qbt.backtest.constants import TRADE_TYPE_SIGNAL
+from qbt.backtest.constants import REBALANCE_REASON_METHODS, REBALANCE_REASON_MONTHLY, TRADE_TYPE_SIGNAL
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 from qbt.common_constants import (
     COL_CLOSE,
@@ -71,10 +71,13 @@ _COL_TOTAL_TRADES = "총 거래 수"
 _COL_START_DATE = "시작일"
 _COL_END_DATE = "종료일"
 
-# --- 리밸런싱 사유 (엔진의 rebalance_reason 값) ---
-_REBALANCE_REASON_METHODS = "methods"
-# 체결 전후 표에서만 쓰는 값 — 러너가 리밸런싱한 날의 빈 사유(배분 규칙의 비중 조정)를 이 값으로 적는다
-_REBALANCE_REASON_ALLOCATION = "allocation"
+# --- 리밸런싱 사유(엔진의 rebalance_reason 값) → 화면 문구 ---
+# 리밸런싱했는데 사유가 빈 값이면 배분 규칙 매매법이 목표 비중 변화에 맞춰 조정한 것이다
+_REBALANCE_REASON_LABELS: dict[str, str] = {
+    REBALANCE_REASON_MONTHLY: "월초 정기",
+    REBALANCE_REASON_METHODS: "매매법 사이 비중",
+    "": "배분 조정",
+}
 
 # --- 동적 색상 팔레트 ---
 # 자산/실험 ID를 정렬한 후 인덱스 기반으로 팔레트에서 색상을 할당한다.
@@ -133,10 +136,11 @@ def _cache_args(path: Path) -> tuple[Path, float]:
 
 @st.cache_data
 def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """equity.csv를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
+    """equity.csv를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열). 인자는 `_cache_args` 참고."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
+    df["rebalance_reason"] = df["rebalance_reason"].fillna("")
     return df
 
 
@@ -168,23 +172,16 @@ def _load_signal_csv(path: Path, mtime: float) -> pd.DataFrame:
 
 
 @st.cache_data
-def _load_execution_comparison_csv(path: Path, mtime: float) -> pd.DataFrame | None:
-    """execution_comparison.csv를 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
-    if not path.exists():
-        return None
-    return pd.read_csv(path)
-
-
-@st.cache_data
 def _load_ledger_csv(path: Path, mtime: float) -> pd.DataFrame | None:
-    """ledger.csv(매매법별 장부)를 로드한다 (Date 열 datetime 변환). 매매법이 하나인 실험에는 없어 None.
+    """ledger.csv(매매법별 장부)를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열).
 
-    인자는 `_cache_args` 참고.
+    매매법이 하나인 실험에는 없어 None. 인자는 `_cache_args` 참고.
     """
     if not path.exists():
         return None
     df = pd.read_csv(path)
     df["Date"] = pd.to_datetime(df["Date"])
+    df["rebalance_reason"] = df["rebalance_reason"].fillna("")
     return df
 
 
@@ -295,18 +292,6 @@ def _get_experiment_color(experiment_name: str, experiment_names: tuple[str, ...
     return _build_color_map(experiment_names)[experiment_name]
 
 
-def _extract_portfolio_summary(summary: dict[str, Any]) -> dict[str, Any]:
-    """summary.json에서 portfolio_summary 블록을 추출한다."""
-    ps = summary.get("portfolio_summary", {})
-    return ps if isinstance(ps, dict) else {}
-
-
-def _extract_per_asset(summary: dict[str, Any]) -> list[dict[str, Any]]:
-    """summary.json에서 per_asset 리스트를 추출한다."""
-    pa = summary.get("per_asset", [])
-    return pa if isinstance(pa, list) else []
-
-
 def _weight_columns(equity_df: pd.DataFrame) -> list[str]:
     """equity_df에서 {asset_id}_weight 컬럼명 리스트를 반환한다."""
     return [c for c in equity_df.columns if c.endswith("_weight")]
@@ -322,65 +307,9 @@ def _get_asset_ids_from_equity(equity_df: pd.DataFrame) -> list[str]:
     return [_asset_id_from_weight_col(c) for c in _weight_columns(equity_df)]
 
 
-# ============================================================
-# 신규 섹션: 체결 전후 비교 (Before/After Execution)
-# ============================================================
-
-
-def _render_execution_comparison_section(exp: _ExperimentData) -> None:
-    """체결 발생일의 자산별 전후 변화를 비교한다.
-
-    사전 생성된 execution_comparison.csv를 로드하여 긴 표 형태로 표시한다.
-    데이터가 많으므로 기본 숨김(expander collapsed) 상태로 제공한다.
-    """
-    with st.expander("체결 전후 비교", expanded=False):
-        comparison_df = _load_execution_comparison_csv(*_cache_args(exp.result_dir / "execution_comparison.csv"))
-
-        if comparison_df is None or comparison_df.empty:
-            st.info("체결 전후 비교 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
-            return
-
-        # 표시용 DataFrame 구성
-        display_rows: list[dict[str, str]] = []
-        for _, row in comparison_df.iterrows():
-            asset_id = str(row["asset_id"])
-            is_cash = asset_id == "cash"
-
-            delta_shares = int(row["delta_shares"])
-            delta_value = int(row["delta_value"])
-
-            # 체결 사유 변환
-            reason = str(row.get("rebalance_reason", ""))
-            if reason == "nan":
-                reason = ""
-            reason_text = ""
-            if reason == "monthly":
-                reason_text = "월초 정기"
-            elif reason == _REBALANCE_REASON_METHODS:
-                reason_text = "매매법 사이 비중"
-            elif reason == _REBALANCE_REASON_ALLOCATION:
-                reason_text = "배분 조정"
-            else:
-                reason_text = "시그널"
-
-            display_rows.append(
-                {
-                    "체결일": str(row["date"]),
-                    "사유": reason_text,
-                    "종목": "현금" if is_cash else asset_id.upper(),
-                    "전일 주수": "-" if is_cash else str(int(row["pre_shares"])),
-                    "전일 비중": f"{float(row['pre_weight_pct']):.1f}%",
-                    "전일 평가액": f"{int(row['pre_value']):,}",
-                    "당일 주수": "-" if is_cash else str(int(row["post_shares"])),
-                    "당일 비중": f"{float(row['post_weight_pct']):.1f}%",
-                    "당일 평가액": f"{int(row['post_value']):,}",
-                    "주수 변동": "-" if is_cash else (f"{delta_shares:+d}" if delta_shares != 0 else "-"),
-                    "금액 변동": f"{delta_value:+,}" if delta_value != 0 else "-",
-                }
-            )
-
-        st.caption(f"총 {len(comparison_df['date'].unique())}개 체결일")
-        st.dataframe(pd.DataFrame(display_rows), hide_index=True, width="stretch")
+def _method_display_names(summary: dict[str, Any]) -> dict[str, str]:
+    """summary.json 의 per_method 에서 {method_id: 표시 이름} 을 만든다 (매매법이 여럿인 실험만)."""
+    return {str(m["method_id"]): str(m["display_name"]) for m in summary["per_method"]}
 
 
 # ============================================================
@@ -711,14 +640,14 @@ def _render_method_section(exp: _ExperimentData) -> None:
 
     method_ids = list(dict.fromkeys(ledger_df["method_id"].astype(str)))
     method_ids_tuple = tuple(method_ids)
-    per_method: list[dict[str, Any]] = exp.summary.get("per_method", [])
-    names = {str(m.get("method_id")): str(m.get("display_name", m.get("method_id"))) for m in per_method}
+    per_method: list[dict[str, Any]] = exp.summary["per_method"]
+    names = _method_display_names(exp.summary)
 
     # 누적 손익 (실현 + 미실현)
     fig_pnl = go.Figure()
     for method_id in method_ids:
         rows = ledger_df[ledger_df["method_id"] == method_id]
-        label = names.get(method_id, method_id)
+        label = names[method_id]
         fig_pnl.add_trace(
             go.Scatter(
                 x=rows["Date"],
@@ -743,7 +672,7 @@ def _render_method_section(exp: _ExperimentData) -> None:
     fig_share = go.Figure()
     for method_id in method_ids:
         rows = ledger_df[ledger_df["method_id"] == method_id]
-        label = names.get(method_id, method_id)
+        label = names[method_id]
         color = _get_asset_color(method_id, method_ids_tuple)
         fig_share.add_trace(
             go.Scatter(
@@ -776,78 +705,75 @@ def _render_method_section(exp: _ExperimentData) -> None:
     st.plotly_chart(fig_share, width="stretch", key=f"method_share_{exp.experiment_name}")
 
     # 최종일 매매법 요약
-    if per_method:
-        summary_rows = [
-            {
-                "매매법": names.get(str(m.get("method_id")), str(m.get("method_id"))),
-                "목표 몫 (%)": round(float(m.get("target_share", 0)) * 100, 1),
-                "최종 몫 (%)": round(float(m.get("final_share", 0)) * 100, 1),
-                "최종 자본 (원)": int(m.get("final_equity", 0)),
-                "손익 (원)": int(m.get("pnl", 0)),
-                "실현 (원)": int(m.get("realized_pnl", 0)),
-                "미실현 (원)": int(m.get("unrealized_pnl", 0)),
-                "장부 비용 (원)": int(m.get("cost", 0)),
-                "이전 누적 (원)": int(m.get("transfers", 0)),
-                "몫 되돌리기 횟수": int(m.get("method_rebalance_days", 0)),
-            }
-            for m in per_method
-        ]
-        st.markdown("**최종일 매매법 요약**")
-        st.dataframe(pd.DataFrame(summary_rows), width="stretch", hide_index=True)
+    summary_rows = [
+        {
+            "매매법": names[m["method_id"]],
+            "목표 몫 (%)": round(float(m["target_share"]) * 100, 1),
+            "최종 몫 (%)": round(float(m["final_share"]) * 100, 1),
+            "최종 자본 (원)": int(m["final_equity"]),
+            "손익 (원)": int(m["pnl"]),
+            "실현 (원)": int(m["realized_pnl"]),
+            "미실현 (원)": int(m["unrealized_pnl"]),
+            "장부 비용 (원)": int(m["cost"]),
+            "이전 누적 (원)": int(m["transfers"]),
+            "몫 되돌리기 횟수": int(m["method_rebalance_days"]),
+        }
+        for m in per_method
+    ]
+    st.markdown("**최종일 매매법 요약**")
+    st.dataframe(pd.DataFrame(summary_rows), width="stretch", hide_index=True)
 
-        asset_rows = [
-            {
-                "매매법": names.get(str(m.get("method_id")), str(m.get("method_id"))),
-                "자산 키": str(a.get("asset_id")),
-                "손익 (원)": int(a.get("pnl", 0)),
-            }
-            for m in per_method
-            for a in m.get("assets", [])
-        ]
-        st.markdown("**매매법 × 종목 손익 (최종일, 실현 + 미실현)**")
-        st.dataframe(pd.DataFrame(asset_rows), width="stretch", hide_index=True)
+    asset_rows = [
+        {
+            "매매법": names[m["method_id"]],
+            "자산 키": str(a["asset_id"]),
+            "손익 (원)": int(a["pnl"]),
+        }
+        for m in per_method
+        for a in m["assets"]
+    ]
+    st.markdown("**매매법 × 종목 손익 (최종일, 실현 + 미실현)**")
+    st.dataframe(pd.DataFrame(asset_rows), width="stretch", hide_index=True)
 
     # 대조: 계좌 손익 = Σ 매매법 손익 + 상계 절감
-    pnl_check: dict[str, Any] = exp.summary.get("pnl_check", {})
-    netting: dict[str, Any] = exp.summary.get("netting", {})
-    if pnl_check:
-        st.markdown("**대조: 계좌 손익 = Σ 매매법 손익 + 상계 절감**")
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "계좌 손익 (원)": int(pnl_check.get("account_pnl", 0)),
-                        "Σ 매매법 손익 (원)": int(pnl_check.get("methods_pnl_sum", 0)),
-                        "상계 절감 (원)": int(pnl_check.get("netting_savings", 0)),
-                        "차이 (원)": int(pnl_check.get("difference", 0)),
-                        "상계가 있던 날": int(netting.get("netting_days", 0)),
-                        "상계된 주수": int(netting.get("netted_shares", 0)),
-                    }
-                ]
-            ),
-            width="stretch",
-            hide_index=True,
-        )
+    pnl_check: dict[str, Any] = exp.summary["pnl_check"]
+    netting: dict[str, Any] = exp.summary["netting"]
+    st.markdown("**대조: 계좌 손익 = Σ 매매법 손익 + 상계 절감**")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "계좌 손익 (원)": int(pnl_check["account_pnl"]),
+                    "Σ 매매법 손익 (원)": int(pnl_check["methods_pnl_sum"]),
+                    "상계 절감 (원)": int(pnl_check["netting_savings"]),
+                    "차이 (원)": int(pnl_check["difference"]),
+                    "상계가 있던 날": int(netting["netting_days"]),
+                    "상계된 주수": int(netting["netted_shares"]),
+                }
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
 
     # 계좌 종목 합계 (실제 계좌에 보이는 모습)
-    holdings: list[dict[str, Any]] = exp.summary.get("account_holdings", [])
-    if holdings:
-        st.markdown("**계좌 종목 합계 (최종일 — 실제 계좌에는 이렇게 보인다)**")
-        st.dataframe(
-            pd.DataFrame(
-                [
-                    {
-                        "종목": str(h.get("asset_id", "")).upper(),
-                        "주수": int(h.get("shares", 0)),
-                        "평가액 (원)": int(h.get("value", 0)),
-                        "비중 (%)": round(float(h.get("weight", 0)) * 100, 2),
-                    }
-                    for h in holdings
-                ]
-            ),
-            width="stretch",
-            hide_index=True,
-        )
+    holdings: list[dict[str, Any]] = exp.summary["account_holdings"]
+    st.markdown("**계좌 종목 합계 (최종일 — 실제 계좌에는 이렇게 보인다)**")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "종목": str(h["asset_id"]).upper(),
+                    "주수": int(h["shares"]),
+                    "평가액 (원)": int(h["value"]),
+                    "비중 (%)": round(float(h["weight"]) * 100, 2),
+                }
+                for h in holdings
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
 
 
 # ============================================================
@@ -863,19 +789,19 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 
     rows: list[dict[str, Any]] = []
     for exp in experiments:
-        ps = _extract_portfolio_summary(exp.summary)
+        ps: dict[str, Any] = exp.summary["portfolio_summary"]
         rows.append(
             {
                 _COL_DISPLAY_NAME: exp.display_name,
-                _COL_CAGR: ps.get("cagr", "N/A"),
-                _COL_MDD: ps.get("mdd", "N/A"),
-                _COL_CALMAR: ps.get("calmar", "N/A"),
-                _COL_SHARPE: ps.get("sharpe_ratio", "N/A"),
-                _COL_SORTINO: ps.get("sortino_ratio", "N/A"),
-                _COL_TOTAL_RETURN: ps.get("total_return_pct", "N/A"),
-                _COL_TOTAL_TRADES: ps.get("total_trades", "N/A"),
-                _COL_START_DATE: ps.get("start_date", "N/A"),
-                _COL_END_DATE: ps.get("end_date", "N/A"),
+                _COL_CAGR: ps["cagr"],
+                _COL_MDD: ps["mdd"],
+                _COL_CALMAR: ps["calmar"],
+                _COL_SHARPE: ps["sharpe_ratio"],
+                _COL_SORTINO: ps["sortino_ratio"],
+                _COL_TOTAL_RETURN: ps["total_return_pct"],
+                _COL_TOTAL_TRADES: ps["total_trades"],
+                _COL_START_DATE: ps["start_date"],
+                _COL_END_DATE: ps["end_date"],
             }
         )
 
@@ -966,36 +892,64 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 # ============================================================
 
 
+def _build_rebalance_hover_texts(exp: _ExperimentData, reb_df: pd.DataFrame) -> list[str]:
+    """리밸런싱한 날마다 사유를 적은 hover 문구를 만든다.
+
+    매매법이 여럿이면 장부의 매매법별 사유를 쓴다 — equity 의 사유는 그날 리밸런싱한 매매법 중 설정 순서상
+    첫 매매법의 사유 하나라, 같은 날 다른 매매법이 한 일을 가린다. 매매법이 하나면 장부 = 계좌라 equity 의 사유가 곧 그 사유다.
+
+    Args:
+        exp: 실험 데이터
+        reb_df: equity_df 에서 리밸런싱한 날의 행
+
+    Returns:
+        reb_df 의 행 순서대로 만든 hover 문구
+    """
+    days = [pd.Timestamp(d).strftime("%Y-%m-%d") for d in reb_df["Date"]]
+    if exp.ledger_df is None:
+        return [
+            f"{day}<br>리밸런싱 ({_REBALANCE_REASON_LABELS[reason]})"
+            for day, reason in zip(days, reb_df["rebalance_reason"], strict=True)
+        ]
+
+    names = _method_display_names(exp.summary)
+    reasons_by_date: dict[pd.Timestamp, list[str]] = {}
+    for row in exp.ledger_df[exp.ledger_df["rebalanced"]].itertuples(index=False):
+        line = f"{names[str(row.method_id)]}: {_REBALANCE_REASON_LABELS[str(row.rebalance_reason)]}"
+        reasons_by_date.setdefault(pd.Timestamp(row.Date), []).append(line)
+    return [
+        "<br>".join([f"{day}<br>리밸런싱", *reasons_by_date[pd.Timestamp(d)]])
+        for day, d in zip(days, reb_df["Date"], strict=True)
+    ]
+
+
 def _render_experiment_tab(exp: _ExperimentData) -> None:
     """개별 실험 탭 — 요약·에쿼티·비중 추이·거래·시그널을 상세 표시한다."""
 
-    ps = _extract_portfolio_summary(exp.summary)
-    per_asset = _extract_per_asset(exp.summary)
+    ps: dict[str, Any] = exp.summary["portfolio_summary"]
+    per_asset: list[dict[str, Any]] = exp.summary["per_asset"]
 
     # ---- 요약 지표 ----
     st.subheader("요약 지표")
 
     col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("CAGR", f"{ps.get('cagr', 'N/A')}%")
-    col2.metric("MDD", f"{ps.get('mdd', 'N/A')}%")
-    col3.metric("Calmar", str(ps.get("calmar", "N/A")))
-    col4.metric("Sharpe", str(ps.get("sharpe_ratio", "N/A")))
-    col5.metric("Sortino", str(ps.get("sortino_ratio", "N/A")))
-    col6.metric("총 수익률", f"{ps.get('total_return_pct', 'N/A')}%")
+    col1.metric("CAGR", f"{ps['cagr']}%")
+    col2.metric("MDD", f"{ps['mdd']}%")
+    col3.metric("Calmar", str(ps["calmar"]))
+    col4.metric("Sharpe", str(ps["sharpe_ratio"]))
+    col5.metric("Sortino", str(ps["sortino_ratio"]))
+    col6.metric("총 수익률", f"{ps['total_return_pct']}%")
 
     # 자산별 목표 비중
-    if per_asset:
-        asset_cols = st.columns(len(per_asset))
-        for col, asset_info in zip(asset_cols, per_asset, strict=False):
-            asset_id = str(asset_info.get("asset_id", ""))
-            target_weight = asset_info.get("target_weight", 0)
-            weight_pct = round(float(target_weight) * 100, 1) if isinstance(target_weight, int | float) else 0.0
-            col.metric(asset_id.upper(), f"{weight_pct}%")
+    asset_cols = st.columns(len(per_asset))
+    for col, asset_info in zip(asset_cols, per_asset, strict=False):
+        weight_pct = round(float(asset_info["target_weight"]) * 100, 1)
+        col.metric(str(asset_info["asset_id"]).upper(), f"{weight_pct}%")
 
     st.caption(
-        f"기간: {ps.get('start_date', 'N/A')} ~ {ps.get('end_date', 'N/A')} "
-        f"| 초기 자본: {int(ps.get('initial_capital', 0)):,}원 "
-        f"| 최종 자본: {int(ps.get('final_capital', 0)):,}원"
+        f"기간: {ps['start_date']} ~ {ps['end_date']} "
+        f"| 초기 자본: {int(ps['initial_capital']):,}원 "
+        f"| 최종 자본: {int(ps['final_capital']):,}원"
     )
 
     # ---- 에쿼티 + 드로우다운 ----
@@ -1041,39 +995,21 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     )
 
     # 리밸런싱 발생일 마커 (rebalanced=True인 행, 사유 hover 포함)
-    if "rebalanced" in exp.equity_df.columns:
-        reb_df = exp.equity_df[exp.equity_df["rebalanced"]].copy()
-        if not reb_df.empty:
-            # 리밸런싱 사유 hover 텍스트 구성
-            hover_texts: list[str] = []
-            has_reason = "rebalance_reason" in reb_df.columns
-            for _, reb_row in reb_df.iterrows():
-                d_str = pd.Timestamp(reb_row["Date"]).strftime("%Y-%m-%d")
-                # 빈 사유는 CSV 에서 NaN 으로 읽힌다. 리밸런싱한 날의 빈 사유는 배분 규칙 매매법의 비중 조정이다
-                reason = reb_row.get("rebalance_reason") if has_reason else None
-                reason_str = "" if reason is None or pd.isna(reason) else str(reason)
-                if not has_reason:
-                    hover_texts.append(f"{d_str}<br>리밸런싱")
-                elif reason_str == _REBALANCE_REASON_METHODS:
-                    hover_texts.append(f"{d_str}<br>리밸런싱 (매매법 사이 비중)")
-                elif reason_str == "":
-                    hover_texts.append(f"{d_str}<br>리밸런싱 (배분 조정)")
-                else:
-                    hover_texts.append(f"{d_str}<br>리밸런싱 (월초 정기)")
-
-            fig.add_trace(
-                go.Scatter(
-                    x=reb_df["Date"],
-                    y=reb_df["equity"],
-                    mode="markers",
-                    name="리밸런싱",
-                    marker={"symbol": "circle", "color": "orange", "size": 4, "opacity": 0.6},
-                    text=hover_texts,
-                    hovertemplate="%{text}<extra></extra>",
-                ),
-                row=1,
-                col=1,
-            )
+    reb_df = exp.equity_df[exp.equity_df["rebalanced"]]
+    if not reb_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=reb_df["Date"],
+                y=reb_df["equity"],
+                mode="markers",
+                name="리밸런싱",
+                marker={"symbol": "circle", "color": "orange", "size": 4, "opacity": 0.6},
+                text=_build_rebalance_hover_texts(exp, reb_df),
+                hovertemplate="%{text}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
 
     fig.update_layout(
         height=_CHART_HEIGHT,
@@ -1091,9 +1027,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         fig_weight = go.Figure()
         weight_asset_ids_tuple = tuple(_asset_id_from_weight_col(c) for c in weight_cols)
 
-        # 현금 비중 계산 (1 - 합산 비중)
-        total_weight = exp.equity_df[weight_cols].sum(axis=1)
-        cash_weight = (1.0 - total_weight).clip(lower=0.0)
+        cash_weight = exp.equity_df["cash"] / exp.equity_df["equity"]
 
         # 현금 (최하단)
         fig_weight.add_trace(
@@ -1158,9 +1092,8 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         )
 
         signal_df = exp.signal_dfs[selected_signal_asset]
-        per_asset_list: list[dict[str, Any]] = exp.summary.get("per_asset", [])
         asset_meta = next(
-            (a for a in per_asset_list if a.get("asset_id") == selected_signal_asset),
+            (a for a in per_asset if a["asset_id"] == selected_signal_asset),
             None,
         )
         open_position_meta: dict[str, Any] | None = asset_meta.get("open_position") if asset_meta else None
@@ -1178,10 +1111,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
     with st.expander("파라미터 상세 정보"):
         portfolio_config = exp.summary.get("portfolio_config", {})
         st.json(portfolio_config)
-
-    # ---- 신규 섹션: 체결 전후 비교 ----
-    st.divider()
-    _render_execution_comparison_section(exp)
 
     # ---- 신규 섹션: 월별 수익률 히트맵 ----
     st.divider()

@@ -16,8 +16,6 @@ from qbt.backtest.portfolio_types import (
     MethodConfig,
     PortfolioConfig,
     SlotMethodConfig,
-    asset_shares_col,
-    asset_value_col,
     resolve_methods,
 )
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
@@ -202,95 +200,21 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
             )
 
 
-def build_combined_equity(
-    equity_rows: list[dict[str, Any]],
-    initial_capital: float,
-) -> pd.DataFrame:
-    """에쿼티 행 목록을 DataFrame으로 변환하고 파생 뷰 컬럼을 계산한다.
+def build_combined_equity(equity_rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """에쿼티 행 목록을 DataFrame으로 변환하고 드로우다운과 자산별 기여 손익 컬럼을 더한다.
 
-    추가하는 파생 컬럼:
-        - drawdown_pct: equity 곡선 기준 드로우다운(%)
-        - {asset_id}_current_price: shares > 0이면 value/shares, 아니면 0.0
-        - {asset_id}_return_pct: avg_price > 0 and shares > 0이면 (current_price/avg_price - 1)*100, 아니면 0.0
-        - {asset_id}_contribution: realized_pnl + unrealized_pnl (자산별 누적 기여 손익)
-        - total_pnl: equity - initial_capital
-        - total_return_pct: total_pnl/initial_capital * 100
-
-    이 컬럼들은 보유 현황·수익률·기여도 표시 용도이며, 단일 진실 공급원(SSoT) 원칙에 따라
-    엔진에서 한 번만 계산한다 (대시보드 등 CLI 계층에서 동일 계산 중복 금지).
+    `{자산 키}_contribution` = 실현 + 미실현 누적 손익. 대시보드와 매매법 요약이 이 컬럼을 읽고
+    같은 계산을 다시 하지 않는다.
     """
     equity_df = pd.DataFrame(equity_rows)
 
     # drawdown 계산 (analysis.py의 공용 함수 사용 — 방어 로직 통일)
     equity_df["drawdown_pct"] = calculate_drawdown_pct_series(equity_df[COL_EQUITY])
 
-    # 파생 뷰 컬럼 계산
-    _attach_holding_view_columns(equity_df, initial_capital)
+    asset_keys = [
+        col.removesuffix(ASSET_COL_SUFFIX_SHARES) for col in equity_df.columns if col.endswith(ASSET_COL_SUFFIX_SHARES)
+    ]
+    for key in asset_keys:
+        equity_df[f"{key}_contribution"] = equity_df[f"{key}_realized_pnl"] + equity_df[f"{key}_unrealized_pnl"]
 
     return equity_df
-
-
-def _attach_holding_view_columns(equity_df: pd.DataFrame, initial_capital: float) -> None:
-    """equity_df에 보유 현황 파생 컬럼을 in-place로 추가한다.
-
-    자산 식별: `{asset_id}_shares` 패턴의 컬럼에서 asset_id를 추론한다.
-    각 자산에 대해 current_price, return_pct, contribution을 계산하고,
-    포트폴리오 단위로 total_pnl, total_return_pct를 계산한다.
-
-    Args:
-        equity_df: equity_rows로부터 만든 DataFrame (in-place로 컬럼 추가)
-        initial_capital: 초기 자본금 (양수)
-    """
-    # 1. 자산 식별: {asset_id}_shares 컬럼에서 asset_id 추출
-    asset_ids = [
-        col[: -len(ASSET_COL_SUFFIX_SHARES)] for col in equity_df.columns if col.endswith(ASSET_COL_SUFFIX_SHARES)
-    ]
-
-    # 2. 자산별 current_price / return_pct / contribution
-    for asset_id in asset_ids:
-        shares_col = asset_shares_col(asset_id)
-        value_col = asset_value_col(asset_id)
-        avg_price_col = f"{asset_id}_avg_price"
-        realized_pnl_col = f"{asset_id}_realized_pnl"
-        unrealized_pnl_col = f"{asset_id}_unrealized_pnl"
-        current_price_col = f"{asset_id}_current_price"
-        return_pct_col = f"{asset_id}_return_pct"
-        contribution_col = f"{asset_id}_contribution"
-
-        if value_col not in equity_df.columns or avg_price_col not in equity_df.columns:
-            # 입력 row가 표준 포맷이 아니면 안전하게 0 처리 — 정상 흐름에서는 도달 불가
-            equity_df[current_price_col] = 0.0
-            equity_df[return_pct_col] = 0.0
-            equity_df[contribution_col] = 0.0
-            continue
-
-        shares_series = equity_df[shares_col]
-        value_series = equity_df[value_col]
-        avg_price_series = equity_df[avg_price_col]
-
-        has_position = shares_series > 0
-        # current_price = value / shares (보유 시), 그 외 0.0
-        current_price_series = pd.Series(0.0, index=equity_df.index)
-        current_price_series.loc[has_position] = value_series.loc[has_position] / shares_series.loc[has_position]
-        equity_df[current_price_col] = current_price_series
-
-        # return_pct = (current_price / avg_price - 1) * 100 (보유 + 유효 평균가), 그 외 0.0
-        valid_for_return = has_position & (avg_price_series > 0)
-        return_pct_series = pd.Series(0.0, index=equity_df.index)
-        return_pct_series.loc[valid_for_return] = (
-            current_price_series.loc[valid_for_return] / avg_price_series.loc[valid_for_return] - 1.0
-        ) * 100.0
-        equity_df[return_pct_col] = return_pct_series
-
-        # contribution = realized_pnl + unrealized_pnl (자산별 누적 기여 손익)
-        # portfolio_engine이 매 거래일 두 컬럼을 모두 채워주므로 부재는 내부 불변조건 위반.
-        if realized_pnl_col not in equity_df.columns or unrealized_pnl_col not in equity_df.columns:
-            raise RuntimeError(
-                f"내부 불변조건 위반: {realized_pnl_col}/{unrealized_pnl_col} 컬럼이 누락되었습니다 "
-                f"(asset_id={asset_id}). portfolio_engine 출력 스키마를 확인하세요."
-            )
-        equity_df[contribution_col] = equity_df[realized_pnl_col] + equity_df[unrealized_pnl_col]
-
-    # 3. 포트폴리오 누적 손익
-    equity_df["total_pnl"] = equity_df[COL_EQUITY] - initial_capital
-    equity_df["total_return_pct"] = (equity_df["total_pnl"] / initial_capital) * 100.0

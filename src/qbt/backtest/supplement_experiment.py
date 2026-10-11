@@ -376,14 +376,14 @@ def build_experiment_config(
     variant: str,
     start_date: date,
 ) -> PortfolioConfig:
-    """「Q-2-2XS (100−w)% + 후보 w%」 실험 설정을 만든다. 그리드와 등록 실험이 같은 구성임을 이 함수 하나가 보장한다.
+    """「Q-2-2XS (100−w)% + 후보 w%」 실험 설정을 만든다 (단독 후보 · 기준선 그리드의 구성).
 
     Q-2-2XS 단독(candidate="q2_2xs")은 w_pct=0, 매매법 하나짜리 줄임 표기라 공식 portfolio_q2_2xs 와 같다.
 
     Args:
         q2_2xs_slots: Q-2-2XS 슬롯 (SoT 는 portfolio_configs 의 portfolio_q2_2xs —
-            portfolio_configs 가 이 함수로 등록 실험을 만들므로 여기서 import 하면 순환한다)
-        start_date: 설정의 min_start_date (등록 실험이 그리드와 같은 기간으로 돈다)
+            portfolio_configs 가 이 모듈의 구성 함수로 등록 실험을 만들므로 여기서 import 하면 순환한다)
+        start_date: 설정의 min_start_date (그리드 워커와 포트폴리오 러너가 실제 시작일을 이 날짜와 대조한다)
 
     Raises:
         ValueError: 정하지 않은 후보 · w · 판 조합 (대용이 없는 후보에 대용 판 등)
@@ -657,7 +657,7 @@ class GridCaseResult:
 
 
 def run_with_start_check(config: PortfolioConfig, start_date: date) -> PortfolioResult:
-    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (그리드 · 조합 워커가 같이 쓴다).
+    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (그리드 · 조합 워커와 포트폴리오 러너가 같이 쓴다).
 
     Raises:
         ValueError: 실제 시작일이 start_date 와 다를 때 — 엔진의 start_date 는 하한이라 데이터가 늦게 시작하는

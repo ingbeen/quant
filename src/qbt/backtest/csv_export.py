@@ -16,6 +16,7 @@ from qbt.backtest.constants import (
     COL_EXIT_PRICE,
     COL_HOLDING_DAYS,
     COL_LOWER_BAND,
+    COL_ORDER_AMOUNT,
     COL_PNL,
     COL_PNL_PCT,
     COL_UPPER_BAND,
@@ -48,17 +49,17 @@ def add_holding_days(df: pd.DataFrame) -> pd.DataFrame:
         df: 거래 내역 DataFrame (entry_date, exit_date 컬럼 필요)
 
     Returns:
-        holding_days 컬럼이 추가된 DataFrame (원본 변경 없음)
+        holding_days 컬럼이 추가된 DataFrame (원본 변경 없음). 행이 없어도 컬럼은 추가한다
     """
-    if df.empty or COL_HOLDING_DAYS in df.columns:
+    if COL_HOLDING_DAYS in df.columns:
         return df
 
     if COL_ENTRY_DATE in df.columns and COL_EXIT_DATE in df.columns:
         result = df.copy()
-        result[COL_HOLDING_DAYS] = result.apply(
-            lambda row: (row[COL_EXIT_DATE] - row[COL_ENTRY_DATE]).days,
-            axis=1,
-        )
+        result[COL_HOLDING_DAYS] = [
+            (exit_date - entry_date).days
+            for entry_date, exit_date in zip(result[COL_ENTRY_DATE], result[COL_EXIT_DATE], strict=True)
+        ]
         return result
 
     return df
@@ -67,7 +68,7 @@ def add_holding_days(df: pd.DataFrame) -> pd.DataFrame:
 def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
     """거래 DataFrame에 holding_days 추가, 반올림, 정수 변환을 적용한다.
 
-    빈 DataFrame 입력 시 빈 복사본을 반환한다.
+    행이 없어도 같은 변환을 거친다 — 거래가 없는 결과의 CSV 도 거래가 있는 결과와 같은 헤더를 갖는다.
 
     Args:
         trades_df: 거래 내역 DataFrame (entry_date, exit_date, entry_price, exit_price, pnl 등)
@@ -75,13 +76,8 @@ def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         CSV 저장용으로 변환된 DataFrame 복사본
     """
-    export = trades_df.copy()
-
-    if export.empty:
-        return export
-
     # holding_days 추가
-    export = add_holding_days(export)
+    export = add_holding_days(trades_df.copy())
 
     # 반올림 규칙 적용
     round_dict: dict[str, int] = {}
@@ -95,12 +91,15 @@ def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
         round_dict[COL_PNL_PCT] = ROUND_RATIO
     if COL_BUY_BUFFER_PCT in export.columns:
         round_dict[COL_BUY_BUFFER_PCT] = ROUND_RATIO
+    if COL_ORDER_AMOUNT in export.columns:
+        round_dict[COL_ORDER_AMOUNT] = ROUND_CAPITAL
 
     export = export.round(round_dict)
 
-    # pnl 정수 변환
-    if COL_PNL in export.columns:
-        export[COL_PNL] = export[COL_PNL].astype(int)
+    # 금액 컬럼 정수 변환
+    for col in (COL_PNL, COL_ORDER_AMOUNT):
+        if col in export.columns:
+            export[col] = export[col].astype(int)
 
     return export
 

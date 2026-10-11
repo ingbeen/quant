@@ -128,6 +128,50 @@ class TestPrepareTradeCsv:
         # Then
         assert result.empty
 
+    def test_empty_trades_get_same_columns_as_traded_result(self):
+        """
+        목적: 행이 없는 거래 표도 거래가 있는 표와 같은 열로 변환됨을 검증 —
+              열이 다르면 거래가 없는 결과의 CSV 만 헤더가 달라지거나 헤더 없는 빈 파일이 된다
+
+        Given: 열만 있고 행이 없는 trades
+        When: prepare_trades_for_csv 호출
+        Then: 빈 표이고, 열은 입력 열 뒤에 holding_days 가 붙는다
+        """
+        # Given
+        trades = pd.DataFrame(columns=["entry_date", "exit_date", "pnl", "order_amount"])
+
+        # When
+        result = prepare_trades_for_csv(trades)
+
+        # Then
+        assert result.empty
+        assert list(result.columns) == ["entry_date", "exit_date", "pnl", "order_amount", "holding_days"]
+
+    def test_order_amount_rounded_to_int(self):
+        """
+        목적: 포트폴리오 거래의 체결 금액(order_amount)이 자본금 자릿수(ROUND_CAPITAL)로 반올림된 정수가 됨을 검증
+
+        Given: order_amount=1234567.891
+        When: prepare_trades_for_csv 호출
+        Then: 1234568, 정수형
+        """
+        # Given
+        trades = pd.DataFrame(
+            {
+                "entry_date": [date(2023, 1, 2)],
+                "exit_date": [date(2023, 1, 5)],
+                "pnl": [1000.0],
+                "order_amount": [1234567.891],
+            }
+        )
+
+        # When
+        result = prepare_trades_for_csv(trades)
+
+        # Then
+        assert result.iloc[0]["order_amount"] == 1234568
+        assert isinstance(result.iloc[0]["order_amount"], int | np.integer)
+
     def test_original_not_modified(self):
         """
         목적: 원본 DataFrame이 변경되지 않음을 검증 (데이터 불변성)

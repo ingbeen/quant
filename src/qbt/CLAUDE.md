@@ -158,9 +158,7 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 
 주식 데이터 (`storage/stock/`):
 
-- `{TICKER}_max.csv`: 전체 기간
-- `{TICKER}_{START}_{END}.csv`: 기간 지정
-- `{TICKER}_{START}_latest.csv`: 시작일만
+- `{TICKER}_max.csv`: 전체 기간 (다운로더는 늘 전체 기간을 받는다 — 시세를 읽는 코드가 모두 `*_max.csv` 경로 상수를 쓰고, 분석 기간은 다운로드가 아니라 분석 단계에서 자른다)
 - `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션 또는 대용, 상장 후는 실물)
 - `{TICKER}_proxy_max.csv`: 전 구간이 대용인 합성 데이터 (실물 구간 없음)
 - 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `^SPGSCI_max.csv` · `GC=F_max.csv`)

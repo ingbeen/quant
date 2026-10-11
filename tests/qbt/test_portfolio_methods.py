@@ -5,6 +5,7 @@
 0주 체결 기록, 장부 항등식 검사 규칙을 다룬다.
 """
 
+import json
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import date, timedelta
@@ -643,6 +644,30 @@ class TestTwoMethodNetting:
                 )
             assert expected > 0
             assert float(_ledger_value(result, method_id, last_date, "cost")) == pytest.approx(expected, abs=1e-6)
+
+    def test_params_json_holds_nested_method_fields_as_plain_json(
+        self, tmp_path: Path, create_csv_file, series_switch_allocator: str
+    ) -> None:
+        """
+        목적: 매매법이 여럿인 설정의 params_json 도 JSON 값만 담음을 검증 — 매매법 안(슬롯 · 배분 자산 · 신호용 시세)의
+              경로가 문자열로 바뀌지 않으면 러너가 summary.json 을 쓰다 멈춘다
+
+        Given: 슬롯 매매법 a 와 배분 규칙 매매법 b 시나리오
+        When: 실행
+        Then: 변환 함수 없이 JSON 으로 저장되고(저장 모양으로 되읽어 견준다), 매매법 안 세 종류의 경로가 문자열,
+              비어 있는 asset_slots 는 빈 목록
+        """
+        # When
+        params_json = self._run(tmp_path, create_csv_file, series_switch_allocator).params_json
+
+        # Then
+        params = json.loads(json.dumps(params_json))
+        assert params["asset_slots"] == []
+        slot_method, allocator_method = params["methods"]
+        assert slot_method["asset_slots"][0]["trade_data_path"] == str(tmp_path / "X_max.csv")
+        assert allocator_method["assets"][0]["signal_data_path"] == str(tmp_path / "Z_max.csv")
+        assert allocator_method["signal_series"][0]["data_path"] == str(tmp_path / "S_max.csv")
+        assert allocator_method["allocator_id"] == series_switch_allocator
 
 
 class TestInterMethodRebalance:

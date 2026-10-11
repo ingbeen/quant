@@ -223,44 +223,6 @@ class TestDownloadStockData:
         result_df = pd.read_csv(csv_path)
         assert len(result_df) == 3, "3행이 저장되어야 합니다"
 
-    def test_download_with_start_date(self, monkeypatch, tmp_path):
-        """
-        시작 날짜 지정 다운로드 테스트
-
-        Given: yfinance가 정상 데이터를 반환하도록 모킹
-        When: download_stock_data("TEST", start_date="2023-01-01") 호출
-        Then: 파일명이 TEST_2023-01-01_latest.csv
-        """
-        # Given
-        mock_df = self._make_yfinance_df()
-        self._mock_yfinance(monkeypatch, mock_df)
-        monkeypatch.setattr("qbt.utils.stock_downloader.STOCK_DIR", tmp_path)
-
-        # When
-        csv_path = download_stock_data("TEST", start_date="2023-01-01")
-
-        # Then
-        assert csv_path.name == "TEST_2023-01-01_latest.csv"
-
-    def test_download_with_date_range(self, monkeypatch, tmp_path):
-        """
-        기간 지정 다운로드 테스트
-
-        Given: yfinance가 정상 데이터를 반환하도록 모킹
-        When: download_stock_data("TEST", start_date="2023-01-01", end_date="2023-12-31") 호출
-        Then: 파일명이 TEST_2023-01-01_2023-12-31.csv
-        """
-        # Given
-        mock_df = self._make_yfinance_df()
-        self._mock_yfinance(monkeypatch, mock_df)
-        monkeypatch.setattr("qbt.utils.stock_downloader.STOCK_DIR", tmp_path)
-
-        # When
-        csv_path = download_stock_data("TEST", start_date="2023-01-01", end_date="2023-12-31")
-
-        # Then
-        assert csv_path.name == "TEST_2023-01-01_2023-12-31.csv"
-
     def test_empty_data_raises_error(self, monkeypatch, tmp_path):
         """
         빈 데이터 반환 시 에러 발생 테스트

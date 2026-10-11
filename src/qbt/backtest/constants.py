@@ -92,6 +92,7 @@ COL_PNL_PCT: Final = "pnl_pct"
 COL_BUY_BUFFER_PCT: Final = "buy_buffer_pct"
 COL_SELL_BUFFER_PCT: Final = "sell_buffer_pct"
 COL_HOLD_DAYS_USED: Final = "hold_days_used"
+COL_ORDER_AMOUNT: Final = "order_amount"
 COL_HOLDING_DAYS: Final = "holding_days"
 COL_DRAWDOWN_PCT: Final = "drawdown_pct"
 COL_CHANGE_PCT: Final = "change_pct"
@@ -99,6 +100,11 @@ COL_CHANGE_PCT: Final = "change_pct"
 # --- 포트폴리오 거래 기록의 trade_type 값 ---
 TRADE_TYPE_SIGNAL: Final = "signal"  # 신호 · 배분 변화에 따른 청산
 TRADE_TYPE_REBALANCE: Final = "rebalance"  # 목표 비중으로 줄이는 부분 매도
+
+# --- 포트폴리오 결과의 rebalance_reason 값 ---
+# 리밸런싱했는데 사유가 빈 문자열이면 배분 규칙 매매법이 목표 비중 변화에 맞춰 조정한 것이다
+REBALANCE_REASON_MONTHLY: Final = "monthly"  # 월말에 판단해 다음 거래일에 체결하는 정기 리밸런싱
+REBALANCE_REASON_METHODS: Final = "methods"  # 매매법 사이 비중 되돌리기
 
 # --- DataFrame 컬럼명 (내부용) ---
 COL_MA_WINDOW: Final = "ma_window"

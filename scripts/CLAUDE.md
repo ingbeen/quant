@@ -154,9 +154,10 @@ main 함수:
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 매매법이 여럿인 실험: 자산 키가 `{method_id}.{asset_id}` 이고 ledger.csv(매매법별 장부) · netting.csv(종목 단위 상계 내역)와 summary.json 의 per_method · netting · account_holdings · pnl_check 를 더한다. 계산은 `src/`(portfolio_methods 의 summarize_methods · account_target_weights)가 하고 러너는 반올림 · 저장만 한다
     - 메타데이터 타입: `"portfolio_backtest"`
-    - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다. 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
-    - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다. 설정에 `min_start_date` 가 있으면 그 날짜보다도 앞서지 않는다 (보완 전략 등록 실험이 그리드와 같은 기간으로 돈다)
-    - 체결 전후 표(`execution_comparison.csv`)의 사유: 리밸런싱한 날인데 엔진 사유가 빈 값이면(배분 규칙 매매법의 비중 조정) `allocation` 으로 적는다 — 신호만 있는 날도 사유가 빈 값이라 표만으로는 둘을 가를 수 없다. 대시보드는 「배분 조정」으로 보인다
+    - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다(설정에 `min_start_date` 가 있는 실험은 아래). 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
+    - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다
+    - 설정에 `min_start_date` 가 있는 실험(보완 전략 등록 실험)은 하한 정책 대신 그 날짜에 시작한다 — 시세가 바뀌어 늦게 시작하면 대시보드 숫자가 그리드 결과와 기간만큼 어긋나기 때문이다. 두 번 대조한다: 실행 전에 계산한 데이터 기준 시작일이 그 날짜보다 늦은 실험이 하나라도 있으면 어느 실험도 돌리기 전에 ValueError 로 멈추고(데이터가 늦게 시작하는 경우를 앞 실험의 결과를 새 시세로 덮어쓰기 전에 잡는다 — 2026-10-11 사용자 결정), 실행 뒤에는 그리드 워커와 같은 `run_with_start_check` 가 실제 첫 거래일이 그날인지 본다. 데이터가 더 일찍 시작하는데 그날 행만 빠진 경우는 실행 뒤 대조에서야 멈춘다(앞 실험은 이미 저장됨 — 두 우연이 겹쳐야 생겨 받아들였다)
+    - 저장 전에 그 실험 폴더의 `signal_*.csv` · `ledger.csv` · `netting.csv` 를 지운다 — 구성에 따라 생기는 파일이라, 구성이 바뀐 실험을 같은 폴더에 다시 저장하면 지금 실험에 없는 자산 · 매매법의 파일이 남고 대시보드는 파일이 있으면 그린다. 폴더째 지우지 않는다(실험 이름이 비면 `result_dir` 이 결과 폴더 전체다)
 - 보완 전략 비중 그리드:
   - `run_supplement_grid.py`: 「Q-2-2XS (100−w)% + 후보 w%」 실행 목록을 병렬로 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대용 검증 계산은 `src/qbt/backtest/supplement_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
     - 실행마다 정합성 검사기를 돌려 위반이 있으면 그 구성과 함께 ERROR 로그를 남기고 중단한다 (포트폴리오 러너와 같은 정책). 실제 시작일이 묶음 시작일과 다르면 워커가 멈춘다
@@ -193,7 +194,7 @@ main 함수:
     - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성
     - 주요 섹션:
       - 전체 비교 탭: 성과 지표 비교 테이블, 에쿼티 곡선 비교, 드로우다운 비교
-      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 자산별 수익 기여도
+      - 실험별 탭: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 월별 수익률 히트맵, 자산별 수익 기여도
       - 매매법이 여럿인 실험(ledger.csv 존재): 「매매법별 손익」 섹션 추가
 
 ### 레버리지 시뮬레이션 (tqqq/)
@@ -251,9 +252,9 @@ width 파라미터 사용:
   - 도메인 상수: 각 도메인의 `constants.py` (예: `src/qbt/backtest/constants.py`)
   - 상수 명명 규칙: [src/qbt/CLAUDE.md](../src/qbt/CLAUDE.md) 「2. 상수 관리」 참고
 - 예외 사례 1: 데이터 다운로드 스크립트(`scripts/data/download_data.py`)
-  - ticker(선택), 시작일, 종료일을 명령행 인자로 받음
+  - ticker(선택)를 명령행 인자로 받음. 늘 전체 기간을 받아 `{TICKER}_max.csv` 로 저장한다
   - ticker 미지정 시 `DEFAULT_TICKERS` 전체 종목 일괄 다운로드
-  - 이유: 다양한 종목/기간에 대한 유연한 데이터 수집 필요
+  - 이유: 다양한 종목에 대한 유연한 데이터 수집 필요
 - 예외 사례 2: 단일 백테스트 스크립트(`scripts/backtest/run_single_backtest.py`)
   - `--strategy` 인자로 실행 전략 선택 (기본값: all). 선택 가능한 전략 목록은 변경 빈도가 높으므로 본 문서에 직접 나열하지 않으며, 최신 값은 `STRATEGY_RUNNERS` 키 (= buffer_zone / buy_and_hold CONFIGS 기반 자동 등록)를 직접 확인할 것.
   - cross-asset 전략은 CONFIGS 기반 자동 등록

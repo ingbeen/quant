@@ -17,10 +17,6 @@
     {
       "asset_id": "q2_2xs.sso",
       "target_weight": 0.28,
-      "total_trades": 46,
-      "win_rate": 93.48,
-      "final_shares": 522268,
-      "final_avg_price": 44.6205,
       "open_position": {
         "entry_date": "2025-05-21",
         "entry_price": 44.6205,
@@ -30,10 +26,6 @@
     {
       "asset_id": "q2_2xs.qld",
       "target_weight": 0.28,
-      "total_trades": 56,
-      "win_rate": 94.64,
-      "final_shares": 367144,
-      "final_avg_price": 76.304,
       "open_position": {
         "entry_date": "2026-04-17",
         "entry_price": 76.304,
@@ -43,10 +35,6 @@
     {
       "asset_id": "q2_2xs.gld",
       "target_weight": 0.12,
-      "total_trades": 39,
-      "win_rate": 94.87,
-      "final_shares": 37188,
-      "final_avg_price": 229.7466,
       "open_position": {
         "entry_date": "2007-06-25",
         "entry_price": 229.7466,
@@ -56,10 +44,6 @@
     {
       "asset_id": "q2_2xs.tlt",
       "target_weight": 0.12,
-      "total_trades": 28,
-      "win_rate": 85.71,
-      "final_shares": 183442,
-      "final_avg_price": 90.8,
       "open_position": {
         "entry_date": "2007-06-25",
         "entry_price": 90.8,
@@ -68,75 +52,39 @@
     },
     {
       "asset_id": "haa.spy",
-      "target_weight": 0.0,
-      "total_trades": 32,
-      "win_rate": 78.12,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.iwm",
-      "target_weight": 0.0,
-      "total_trades": 32,
-      "win_rate": 59.38,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.vea",
-      "target_weight": 0.0,
-      "total_trades": 27,
-      "win_rate": 51.85,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.vwo",
-      "target_weight": 0.0,
-      "total_trades": 29,
-      "win_rate": 58.62,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.vnq",
-      "target_weight": 0.0,
-      "total_trades": 29,
-      "win_rate": 68.97,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.pdbc",
-      "target_weight": 0.0,
-      "total_trades": 22,
-      "win_rate": 63.64,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.ief",
-      "target_weight": 0.0,
-      "total_trades": 40,
-      "win_rate": 72.5,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.tlt",
-      "target_weight": 0.0,
-      "total_trades": 25,
-      "win_rate": 72.0,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "haa.bil",
       "target_weight": 0.1,
-      "total_trades": 16,
-      "win_rate": 18.75,
-      "final_shares": 135676,
-      "final_avg_price": 91.4111,
       "open_position": {
         "entry_date": "2026-09-01",
         "entry_price": 91.4111,
@@ -145,19 +93,11 @@
     },
     {
       "asset_id": "rotation.vxus",
-      "target_weight": 0.0,
-      "total_trades": 17,
-      "win_rate": 76.47,
-      "final_shares": 0,
-      "final_avg_price": 0.0
+      "target_weight": 0.0
     },
     {
       "asset_id": "rotation.shy",
       "target_weight": 0.1,
-      "total_trades": 22,
-      "win_rate": 59.09,
-      "final_shares": 147078,
-      "final_avg_price": 81.5382,
       "open_position": {
         "entry_date": "2026-08-03",
         "entry_price": 81.5382,
@@ -169,19 +109,19 @@
     "experiment_name": "portfolio_q2_2xs_haa10_rotation10",
     "display_name": "Q-2-2XS 80% + HAA 10% + 미국 약세 로테이션 10%",
     "total_capital": 10000000.0,
-    "rebalance_check_day": "last_trading_day_of_month",
-    "rebalance_threshold_rate": 0.1,
+    "result_dir": "storage/results/portfolio/portfolio_q2_2xs_haa10_rotation10",
+    "asset_slots": [],
     "methods": [
       {
         "method_id": "q2_2xs",
         "display_name": "Q-2-2XS",
         "target_weight": 0.8,
-        "assets": [
+        "asset_slots": [
           {
             "asset_id": "sso",
-            "target_weight": 0.35,
             "signal_data_path": "storage/stock/SPY_max.csv",
             "trade_data_path": "storage/stock/SSO_max.csv",
+            "target_weight": 0.35,
             "strategy_id": "buffer_zone",
             "ma_window": 200,
             "buy_buffer_zone_pct": 0.03,
@@ -190,9 +130,9 @@
           },
           {
             "asset_id": "qld",
-            "target_weight": 0.35,
             "signal_data_path": "storage/stock/QQQ_max.csv",
             "trade_data_path": "storage/stock/QLD_max.csv",
+            "target_weight": 0.35,
             "strategy_id": "buffer_zone",
             "ma_window": 200,
             "buy_buffer_zone_pct": 0.03,
@@ -201,9 +141,9 @@
           },
           {
             "asset_id": "gld",
-            "target_weight": 0.15,
             "signal_data_path": "storage/stock/GLD_max.csv",
             "trade_data_path": "storage/stock/GLD_max.csv",
+            "target_weight": 0.15,
             "strategy_id": "buy_and_hold",
             "ma_window": 200,
             "buy_buffer_zone_pct": 0.03,
@@ -212,9 +152,9 @@
           },
           {
             "asset_id": "tlt",
-            "target_weight": 0.15,
             "signal_data_path": "storage/stock/TLT_max.csv",
             "trade_data_path": "storage/stock/TLT_max.csv",
+            "target_weight": 0.15,
             "strategy_id": "buy_and_hold",
             "ma_window": 200,
             "buy_buffer_zone_pct": 0.03,
@@ -227,7 +167,6 @@
         "method_id": "haa",
         "display_name": "HAA",
         "target_weight": 0.1,
-        "allocator_id": "haa",
         "assets": [
           {
             "asset_id": "spy",
@@ -275,6 +214,7 @@
             "trade_data_path": "storage/stock/BIL_synthetic_max.csv"
           }
         ],
+        "allocator_id": "haa",
         "signal_series": [
           {
             "series_id": "tip",
@@ -286,7 +226,6 @@
         "method_id": "rotation",
         "display_name": "미국 약세 감지 로테이션",
         "target_weight": 0.1,
-        "allocator_id": "us_weakness_rotation",
         "assets": [
           {
             "asset_id": "vxus",
@@ -299,6 +238,7 @@
             "trade_data_path": "storage/stock/SHY_max.csv"
           }
         ],
+        "allocator_id": "us_weakness_rotation",
         "signal_series": [
           {
             "series_id": "spy",
@@ -306,7 +246,10 @@
           }
         ]
       }
-    ]
+    ],
+    "min_start_date": "2007-06-22",
+    "rebalance_check_day": "last_trading_day_of_month",
+    "rebalance_threshold_rate": 0.1
   },
   "monthly_returns": [
     {

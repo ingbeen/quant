@@ -157,7 +157,7 @@ class TestCreateRunner:
 
         Given: 10일 데이터
         When: runners.create_buy_and_hold_runner(config)() 실행
-        Then: result.trades_df.empty == True
+        Then: result.trades_df.empty == True, 열은 거래 기록의 열 그대로
         """
         test_df = pd.DataFrame(
             {
@@ -180,6 +180,18 @@ class TestCreateRunner:
         result = runners.create_buy_and_hold_runner(config)()
 
         assert result.trades_df.empty, "B&H는 매도가 없으므로 trades_df가 비어있어야 함"
+        # 거래가 없어도 거래 기록의 열은 그대로다 — 열이 없으면 저장한 CSV 가 헤더 없는 빈 파일이 된다
+        assert list(result.trades_df.columns) == [
+            "entry_date",
+            "exit_date",
+            "entry_price",
+            "exit_price",
+            "shares",
+            "pnl",
+            "pnl_pct",
+            "buy_buffer_pct",
+            "hold_days_used",
+        ]
 
     def test_buy_and_hold_runner_signal_df_has_ohlc_no_ma(self, tmp_path, monkeypatch):
         """

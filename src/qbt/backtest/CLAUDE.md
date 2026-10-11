@@ -100,7 +100,7 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
 - `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플, allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods, min_start_date)
-  - `min_start_date`: 이 날짜보다 앞서 시작하지 않는다. 포트폴리오 러너만 읽고 엔진은 읽지 않는다 — 보완 전략 등록 실험의 기간을 그리드 비교 기간과 맞출 때 쓴다
+  - `min_start_date`: 이 날짜에 시작한다. 포트폴리오 러너와 그리드 워커가 실제 시작일을 대조해 다르면 멈추고(`run_with_start_check`), 엔진은 읽지 않는다 — 보완 전략 등록 실험의 기간을 그리드 비교 기간과 맞출 때 쓴다
   - `asset_slots` 와 `methods` 중 정확히 하나를 채운다. `asset_slots` 는 매매법 하나짜리 실험의 줄임 표기이며 `resolve_methods(config)` 가 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다. `methods` 의 몫 합은 1.0
   - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days)는 슬롯 레벨(AssetSlotConfig)에서 지정한다.
   - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며, PortfolioConfig에서는 지정하지 않는다. 매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
@@ -117,17 +117,13 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
   - `ledger_df`: 날짜 × 매매법 장부 (equity, cash, share, target_share, pnl, cost, transfers, rebalanced, rebalance_reason). 매매법이 하나여도 만든다 — 검사기가 한 경로로 검사한다
   - `netting_df`: 종목 단위 상계 내역 (날짜 × 자산: gross_shares, net_shares, open_price, savings). 매매법이 여럿일 때만 행이 생긴다
 
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, (매매법이 여럿이면 netting_savings), {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_current_price, {asset_id}\_return_pct, total_pnl, total_return_pct — 계좌 자본 = Σ 매매법 자본 + 상계 절감 누적
+equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, (매매법이 여럿이면 netting_savings), {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_contribution — 계좌 자본 = Σ 매매법 자본 + 상계 절감 누적
 
-파생 뷰 컬럼 (보유 현황·기여도 표시 용도, `build_combined_equity`에서 SSoT로 계산):
+`{asset_id}_contribution`(자산별 누적 기여 손익 = `realized_pnl + unrealized_pnl`)은 `build_combined_equity` 가 한 번만 계산한다. 대시보드와 매매법 요약은 이 컬럼을 읽고 같은 계산을 다시 하지 않는다.
 
-- `{asset_id}_current_price`: shares > 0이면 `value / shares`, 아니면 0.0
-- `{asset_id}_return_pct`: shares > 0 and avg_price > 0이면 `(current_price / avg_price - 1) * 100`, 아니면 0.0
-- `{asset_id}_contribution`: `realized_pnl + unrealized_pnl` (자산별 누적 기여 손익)
-- `total_pnl`: `equity - initial_capital`
-- `total_return_pct`: `total_pnl / initial_capital * 100`
+trades_df 는 거래가 없어도 `PortfolioTradeRecord` 의 키를 열로 갖는다(단일 엔진은 `TradeRecord`) — 저장한 CSV 의 헤더가 거래 유무와 무관하게 같다.
 
-대시보드 등 CLI 계층은 위 파생 컬럼을 직접 읽어 사용하며, 동일한 계산을 자체 수행하지 않는다.
+params_json 은 설정 전체(`dataclasses.asdict`, 경로 · 날짜는 문자열)에 엔진 상수인 리밸런싱 규칙 두 칸을 더한 것이다 — 설정에 칸이 늘면 결과 파일에도 함께 실린다.
 
 state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_end, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price, (비중변동 매매법 자산만) {aid}\_target_weight. 처리한 의도는 1주 미만이라 0주로 끝나도 executed_intent 에 기록한다(exec_shares 0)
 
@@ -224,8 +220,8 @@ TypedDict:
 
 공개 함수 (portfolio_engine.py facade + 하위 모듈):
 
-- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 각 실험이 자기 자산 조합 기준으로 독립 시작일을 산출하므로 CLI 러너에서 실험마다 호출하여 `run_portfolio_backtest`에 전달한다.
-- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를 전달).
+- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 각 실험이 자기 자산 조합 기준으로 독립 시작일을 산출하므로 CLI 러너에서 실험마다 호출하여 `run_portfolio_backtest`에 전달한다 (설정에 `min_start_date` 가 있는 실험은 그 날짜를 전달한다).
+- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를, `min_start_date` 가 있는 실험은 그 날짜를 전달).
 - `is_last_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 리밸런싱 판단일(월 마지막 거래일) 판정. 다음 거래일과 (연, 월)을 비교하며, 마지막 행은 체결할 날이 없어 False, 범위 밖 인덱스는 ValueError
 - `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
 
@@ -259,7 +255,7 @@ TypedDict:
 
 - `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
 
-보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다 — 조합은 `build_combo_config`, 단독 후보 · 기준선은 `build_experiment_config`. 그리드와 같은 구성 · 같은 시작일 하한이라 대시보드 숫자가 그리드 결과와 같다.
+보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다 — 조합은 `build_combo_config`, 단독 후보 · 기준선은 `build_experiment_config`. 그리드와 같은 구성 함수 · 같은 시작일로 만들고 포트폴리오 러너가 실제 시작일이 그날인지 대조하므로(`run_with_start_check`), 대시보드 숫자가 그리드 결과와 같다.
 
 ---
 
@@ -286,11 +282,11 @@ TypedDict:
 
 보완 전략 실험 — 「Q-2-2XS (100−w)% + 후보 w%」 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 러너(`scripts/backtest/run_supplement_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5).
 
-- `build_experiment_config(q2_2xs_slots, candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. Q-2-2XS 슬롯을 인자로 받는다 — `portfolio_configs` 가 이 함수로 등록 실험을 만들어, 여기서 `portfolio_configs` 를 import 하면 순환한다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
+- `build_experiment_config(q2_2xs_slots, candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. Q-2-2XS 슬롯을 인자로 받는다 — `portfolio_configs` 가 이 모듈의 구성 함수로 등록 실험을 만들어, 여기서 `portfolio_configs` 를 import 하면 순환한다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
   - **대체 판(`VARIANT_ALT`)**: 실물판 설정을 만든 뒤 `ALT_PATH_MAP`(실물 파일 → 대체 파일)으로 슬롯 · 배분 자산의 신호 · 매매 경로와 신호용 시세를 모두 바꾼다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 `tlt` 가 같은 대체 파일로 남는다(상계 조건). 바꾼 뒤 대체 파일이나 SPY · QQQ · IWM 이 아닌 경로가 남으면 ValueError. Q-2-2XS 단독 · 기준선 · HAA · 로테이션만 받는다
 - `build_combo_config(q2_2xs_slots, haa_pct, rotation_pct, variant, start_date)`: 조합 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 설정(매매법 셋, Q-2-2XS 가 앞). h · r 는 `COMBO_PCTS`, 판은 이어 붙인 판 · 실물판 · 대체 판. HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다
 - `build_grid_cases()` · `run_grid_case(case, q2_2xs_slots)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다
-- `run_with_start_check(config, start_date)`: 실행하고 실제 시작일이 start_date 와 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다. 단독 · 조합 워커가 같이 쓴다
+- `run_with_start_check(config, start_date)`: 실행하고 실제 시작일이 start_date 와 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다. 단독 · 조합 워커와 포트폴리오 러너(설정에 `min_start_date` 가 있는 실험)가 같이 쓴다
 - `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율. 국면은 `ALL_PHASE_WINDOWS`(2007 이후 `PHASE_WINDOWS` + 대체 판에만 기간 안인 `EARLY_PHASE_WINDOWS`)를 다 계산하고, 단독 그리드 러너는 `PHASE_WINDOWS` 만 열로 쓴다
 - `extract_decision_targets` · `decision_agreement`: 신호 일치율 — 월 마지막 거래일 다음 거래일의 목표 비중만 비교한다(날마다 세면 월 1회 판단이 부풀려진다)
 - `compute_advantages` · `judge` · `gate_agreement`: 같은 시작일 · 같은 w 의 기준선 대비 Calmar 우위, 통과 판정(두 기간 모두 높은 w 가 연속 3단계 이상, 엄격한 `>`), 대용판 · 실물판 판정 일치
@@ -460,7 +456,7 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 주요 함수:
 
 - `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `prepare_trades_for_csv`가 사용
-- `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 정수 변환). 빈 DataFrame 입력 시 빈 복사본 반환
+- `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 금액 열 정수 변환). 행이 없어도 같은 변환을 거쳐 열이 같다
 - `add_ohlc_change_pct(df) -> pd.DataFrame`: signal DataFrame에 OHLC 4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 추가. 첫 행은 NaN. 대시보드 캔들 tooltip의 SSoT
 - `add_buffer_zone_bands(df, ma_col, buy_buffer_zone_pct, sell_buffer_zone_pct) -> pd.DataFrame`: signal DataFrame에 `upper_band`/`lower_band` 컬럼 추가. 산식: `ma * (1 ± buffer)`. buffer_zone 전략 자산의 시그널 CSV에만 적용
 
@@ -610,8 +606,10 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - **Plotly 전용**: lightweight-charts 없이 Plotly만 사용 (멀티 시리즈 라인 차트가 주목적)
 - **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
 - **전체 비교 탭 주요 기능**: 성과 지표 비교 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교
-- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 체결 전후 비교, 월별 수익률 히트맵, 자산별 수익 기여도
-- **매매법이 여럿인 실험**: 기존 섹션은 자산 키(「매매법.종목」) 단위로 그대로 보이고, `ledger.csv` 가 있으면 「매매법별 손익」 섹션(매매법별 누적 손익 · 몫과 목표 몫 추이 · 최종일 매매법 요약 · 매매법 × 종목 손익 · 손익 대조 · 계좌 종목 합계)을 더한다. 숫자는 러너가 summary.json 에 미리 계산한다
+- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 월별 수익률 히트맵, 자산별 수익 기여도
+- **체결일별 전후 표는 두지 않는다**: 체결일의 자산별 주수 · 비중 · 평가액은 `equity.csv`(날마다) · `state_log.csv`(체결 의도 · 주수 · 가격)에 이미 있다. 따로 만든 표는 매도 거래의 청산일로만 체결일을 뽑아 매수만 있는 날을 빠뜨렸고 사유를 그날 계좌 사유 하나로 붙였다
+- **매매법이 여럿인 실험**: 기존 섹션은 자산 키(「매매법.종목」) 단위로 그대로 보이고, `ledger.csv` 가 있으면 「매매법별 손익」 섹션(매매법별 누적 손익 · 몫과 목표 몫 추이 · 최종일 매매법 요약 · 매매법 × 종목 손익 · 손익 대조 · 계좌 종목 합계)을 더한다. 숫자는 러너가 summary.json 에 미리 계산한다. 러너가 저장 전에 낡은 `ledger.csv` 를 지우므로 그 파일이 있으면 매매법이 여럿인 실험이다
+- **리밸런싱 마커의 사유**: 에쿼티 차트 마커의 hover 는 매매법이 여럿이면 장부의 매매법별 사유를 한 줄씩 보인다(빈 사유 = 배분 규칙의 비중 조정). equity 의 계좌 사유는 그날 리밸런싱한 매매법 중 설정 순서상 첫 매매법의 사유 하나라, 같은 날 다른 매매법이 한 일을 가린다. 사유 값은 `constants.py` 의 `REBALANCE_REASON_*`
 - **미청산 포지션 Buy 마커**: summary.json의 `per_asset[*].open_position`(= `{entry_date, entry_price, shares}`) 존재 시 시그널 차트의 그 진입일 Buy 마커를 `"Buy (보유중)"` 으로 표시. 시그널 차트는 신호 거래(`trade_type == "signal"`)만 마커로 그리고 리밸런싱 거래는 그리지 않는다. 포트폴리오에서는 미청산 정보가 자산별 키(`per_asset`)에 담긴다. `run_portfolio_backtest.py`가 equity.csv의 `{asset_id}_shares` 변화(0→양수 마지막 전환)에서 `entry_date`를 파생하여 저장한다.
 
 선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요

@@ -15,8 +15,9 @@
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary, state_log_df, ledger_df, netting_df)
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -24,15 +25,9 @@ import pandas as pd
 from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY
 from qbt.backtest.analysis import calculate_summary
 from qbt.backtest.constants import (
-    COL_ENTRY_DATE,
-    COL_ENTRY_PRICE,
     COL_EQUITY,
-    COL_EXIT_DATE,
-    COL_EXIT_PRICE,
-    COL_HOLD_DAYS_USED,
-    COL_PNL,
-    COL_PNL_PCT,
-    COL_SHARES,
+    REBALANCE_REASON_METHODS,
+    REBALANCE_REASON_MONTHLY,
     SLIPPAGE_RATE,
     ma_col_name,
 )
@@ -91,8 +86,6 @@ logger = get_logger(__name__)
 
 _SELL_INTENT_TYPES = ("EXIT_ALL", "REDUCE_TO_TARGET")
 _BUY_INTENT_TYPES = ("ENTER_TO_TARGET", "INCREASE_TO_TARGET")
-_REBALANCE_REASON_MONTHLY = "monthly"
-_REBALANCE_REASON_METHODS = "methods"
 _NETTING_COLUMNS = [COL_DATE, "asset_id", "gross_shares", "net_shares", "open_price", "savings"]
 
 
@@ -243,7 +236,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 · 배분 규칙의 워밍업 완료 이후
     첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
     각 실험은 자기 자산 조합의 고유 시작일을 사용하므로, 실험마다 결과 기간이
-    달라질 수 있다 (CLI 러너에서 이 값을 `run_portfolio_backtest`의 `start_date`로 전달).
+    달라질 수 있다 (CLI 러너는 설정에 min_start_date 가 없는 실험에 이 값을 `run_portfolio_backtest`의 `start_date`로 전달).
 
     Args:
         config: 포트폴리오 실험 설정
@@ -395,59 +388,9 @@ def _book_pnl(book: MethodBook, closes: dict[str, float]) -> float:
     return sum(book.realized_pnl.values()) + unrealized
 
 
-def _build_params_json(config: PortfolioConfig) -> dict[str, Any]:
-    """JSON 저장용 파라미터. 매매법 하나 줄임 표기는 기존 형식 그대로다."""
-    params_json: dict[str, Any] = {
-        "experiment_name": config.experiment_name,
-        "display_name": config.display_name,
-        "total_capital": config.total_capital,
-        # 리밸런싱 규칙: 엔진 레벨 상수로 고정 (모든 실험에 동일하게 적용됨)
-        "rebalance_check_day": "last_trading_day_of_month",
-        "rebalance_threshold_rate": DEFAULT_REBALANCE_POLICY.threshold_rate,
-    }
-    if not config.methods:
-        params_json["assets"] = [_slot_params(slot) for slot in config.asset_slots]
-        return params_json
-
-    methods_json: list[dict[str, Any]] = []
-    for method in config.methods:
-        entry: dict[str, Any] = {
-            "method_id": method.method_id,
-            "display_name": method.display_name,
-            "target_weight": method.target_weight,
-        }
-        if isinstance(method, SlotMethodConfig):
-            entry["assets"] = [_slot_params(slot) for slot in method.asset_slots]
-        else:
-            entry["allocator_id"] = method.allocator_id
-            entry["assets"] = [
-                {
-                    "asset_id": asset.asset_id,
-                    "signal_data_path": str(asset.signal_data_path),
-                    "trade_data_path": str(asset.trade_data_path),
-                }
-                for asset in method.assets
-            ]
-            entry["signal_series"] = [
-                {"series_id": series.series_id, "data_path": str(series.data_path)} for series in method.signal_series
-            ]
-        methods_json.append(entry)
-    params_json["methods"] = methods_json
-    return params_json
-
-
-def _slot_params(slot: AssetSlotConfig) -> dict[str, Any]:
-    return {
-        "asset_id": slot.asset_id,
-        "target_weight": slot.target_weight,
-        "signal_data_path": str(slot.signal_data_path),
-        "trade_data_path": str(slot.trade_data_path),
-        "strategy_id": slot.strategy_id,
-        "ma_window": slot.ma_window,
-        "buy_buffer_zone_pct": slot.buy_buffer_zone_pct,
-        "sell_buffer_zone_pct": slot.sell_buffer_zone_pct,
-        "hold_days": slot.hold_days,
-    }
+def _json_safe_dict(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """asdict 의 dict_factory — json 이 쓰지 못하는 경로 · 날짜를 문자열로 바꾼다."""
+    return {key: str(value) if isinstance(value, Path | date) else value for key, value in pairs}
 
 
 def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
@@ -465,8 +408,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     Args:
         config: 포트폴리오 실험 설정
         start_date: 백테스트 시작일 하한 (None이면 워밍업 완료 시점부터 자동 결정).
-            CLI 러너에서는 각 실험의 `compute_portfolio_effective_start_date(config)`
-            결과를 전달하여 실험별 독립 기간으로 실행한다.
+            CLI 러너는 각 실험의 `compute_portfolio_effective_start_date(config)` 결과를 전달하여
+            실험별 독립 기간으로 실행하고, 설정에 min_start_date 가 있는 실험은 그 날짜를 전달한다.
 
     Returns:
         PortfolioResult
@@ -666,7 +609,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 rebalance_intents = DEFAULT_REBALANCE_POLICY.build_rebalance_intents(
                     projected, book.targets, total_equity_projected + transfer, current_date
                 )
-                book.next_day_reason = _REBALANCE_REASON_METHODS
+                book.next_day_reason = REBALANCE_REASON_METHODS
                 book.next_day_transfer = transfer
             elif is_month_end and DEFAULT_REBALANCE_POLICY.should_rebalance(
                 projected, book.targets, total_equity_projected
@@ -674,7 +617,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 rebalance_intents = DEFAULT_REBALANCE_POLICY.build_rebalance_intents(
                     projected, book.targets, total_equity_projected, current_date
                 )
-                book.next_day_reason = _REBALANCE_REASON_MONTHLY
+                book.next_day_reason = REBALANCE_REASON_MONTHLY
             else:
                 rebalance_intents = {}
                 book.next_day_reason = ""
@@ -760,26 +703,10 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             )
 
     # 5. 결과 조합
-    equity_df = build_combined_equity(equity_rows, config.total_capital)
+    equity_df = build_combined_equity(equity_rows)
 
-    # trades_df 정리
-    if all_trades:
-        trades_df = pd.DataFrame(all_trades)
-    else:
-        trades_df = pd.DataFrame(
-            columns=[
-                COL_ENTRY_DATE,
-                COL_EXIT_DATE,
-                COL_ENTRY_PRICE,
-                COL_EXIT_PRICE,
-                COL_SHARES,
-                COL_PNL,
-                COL_PNL_PCT,
-                COL_HOLD_DAYS_USED,
-                "asset_id",
-                "trade_type",
-            ]
-        )
+    # 거래가 없어도 거래가 있는 실험과 같은 열을 둔다
+    trades_df = pd.DataFrame(all_trades, columns=list(PortfolioTradeRecord.__annotations__))
 
     # 성과 요약 (합산 에쿼티 기준)
     summary = calculate_summary(trades_df, equity_df, config.total_capital)
@@ -788,16 +715,20 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     per_asset: list[PortfolioAssetResult] = []
     for book in books:
         for key in book.asset_states:
-            asset_trades = trades_df[trades_df["asset_id"] == key] if len(trades_df) > 0 else pd.DataFrame()
             per_asset.append(
                 PortfolioAssetResult(
                     asset_id=key,
-                    trades_df=asset_trades,
+                    trades_df=trades_df[trades_df["asset_id"] == key],
                     signal_df=asset_signal_dfs[key],
                 )
             )
 
-    params_json = _build_params_json(config)
+    params_json = {
+        **asdict(config, dict_factory=_json_safe_dict),
+        # 리밸런싱 규칙은 엔진 상수라 설정에 없다 — 이 결과가 어떤 규칙으로 나왔는지 함께 남긴다
+        "rebalance_check_day": "last_trading_day_of_month",
+        "rebalance_threshold_rate": DEFAULT_REBALANCE_POLICY.threshold_rate,
+    }
 
     logger.debug(
         f"포트폴리오 백테스트 완료: {config.experiment_name}, " f"총 거래={len(trades_df)}, 총 수익률={summary['total_return_pct']:.2f}%"

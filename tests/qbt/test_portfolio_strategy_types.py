@@ -250,7 +250,7 @@ class TestStrategyTypeBehavior:
 
         Given: strategy_id="buy_and_hold" 자산을 포함한 포트폴리오 config
         When:  run_portfolio_backtest() 실행
-        Then:  result.params_json["assets"][0]["strategy_id"] == "buy_and_hold"
+        Then:  result.params_json["asset_slots"][0]["strategy_id"] == "buy_and_hold"
         """
         # Given
         df = _make_flat_price_df(n_rows=20, price=100.0)
@@ -276,9 +276,9 @@ class TestStrategyTypeBehavior:
         result = run_portfolio_backtest(config)
 
         # Then: params_json에 strategy_id 포함
-        assets_json = result.params_json.get("assets", [])
+        assets_json = result.params_json["asset_slots"]
         assert len(assets_json) == 1, "자산이 1개이어야 함"
-        assert "strategy_id" in assets_json[0], "params_json[assets][0]에 strategy_id 키가 있어야 함"
+        assert "strategy_id" in assets_json[0], "params_json[asset_slots][0]에 strategy_id 키가 있어야 함"
         assert assets_json[0]["strategy_id"] == "buy_and_hold", (
             f"strategy_id='buy_and_hold'가 params_json에 반영되어야 함, " f"실제: {assets_json[0].get('strategy_id')}"
         )
@@ -386,6 +386,25 @@ class TestStrategyType:
         last_value = float(result.equity_df["asset_bnh_s_value"].iloc[-1])
         assert last_value > 0, "strategy_id='buy_and_hold' 자산은 매도 신호에도 포지션을 유지해야 함"
         assert result.trades_df.empty, "strategy_id='buy_and_hold' 자산은 완료된 매도 기록이 없어야 함"
+        # 거래가 없어도 거래가 있는 실험과 같은 열을 갖는다 (계좌 전체 · 자산별 모두)
+        expected_columns = [
+            "entry_date",
+            "exit_date",
+            "entry_price",
+            "exit_price",
+            "shares",
+            "pnl",
+            "pnl_pct",
+            "buy_buffer_pct",
+            "hold_days_used",
+            "asset_id",
+            "trade_type",
+            "pre_shares",
+            "post_shares",
+            "order_amount",
+        ]
+        assert list(result.trades_df.columns) == expected_columns
+        assert list(result.per_asset[0].trades_df.columns) == expected_columns
 
     def test_params_json_includes_strategy_type(self, tmp_path: Path, create_csv_file) -> None:
         """
@@ -393,7 +412,7 @@ class TestStrategyType:
 
         Given: strategy_id="buy_and_hold" 자산 포함 config
         When:  run_portfolio_backtest() 실행
-        Then:  result.params_json["assets"][0]["strategy_id"] == "buy_and_hold"
+        Then:  result.params_json["asset_slots"][0]["strategy_id"] == "buy_and_hold"
         """
         # Given
         df = _make_flat_price_df(n_rows=20, price=100.0)
@@ -419,7 +438,7 @@ class TestStrategyType:
         result = run_portfolio_backtest(config)
 
         # Then
-        assets_json = result.params_json.get("assets", [])
+        assets_json = result.params_json["asset_slots"]
         assert len(assets_json) == 1
-        assert "strategy_id" in assets_json[0], "params_json[assets][0]에 strategy_id 키가 있어야 함"
+        assert "strategy_id" in assets_json[0], "params_json[asset_slots][0]에 strategy_id 키가 있어야 함"
         assert assets_json[0]["strategy_id"] == "buy_and_hold"

@@ -9,12 +9,6 @@ Yahoo Finance에서 주식 데이터를 다운로드하여 CSV로 저장한다.
 
     # 특정 종목 다운로드
     poetry run python scripts/data/download_data.py QQQ
-
-    # 시작 날짜 지정
-    poetry run python scripts/data/download_data.py SPY --start 2020-01-01
-
-    # 기간 지정
-    poetry run python scripts/data/download_data.py AAPL --start 2020-01-01 --end 2023-12-31
 """
 
 import argparse
@@ -43,9 +37,6 @@ def parse_args():
 
             # 특정 종목 다운로드
             poetry run python scripts/data/download_data.py QQQ
-
-            # 기간 지정 다운로드
-            poetry run python scripts/data/download_data.py SPY --start 2020-01-01 --end 2023-12-31
         """,
     )
     parser.add_argument(
@@ -54,20 +45,14 @@ def parse_args():
         default=None,
         help="주식 티커 심볼 (예: QQQ, SPY). 미지정 시 전체 종목 다운로드",
     )
-    parser.add_argument("--start", help="시작 날짜 (YYYY-MM-DD)")
-    parser.add_argument("--end", help="종료 날짜 (YYYY-MM-DD)")
 
     return parser.parse_args()
 
 
-def _download_single(ticker: str, start_date: str | None, end_date: str | None) -> None:
+def _download_single(ticker: str) -> None:
     """단일 종목을 다운로드한다."""
     logger.debug(f"데이터 다운로드 시작: {ticker}")
-    csv_path = download_stock_data(
-        ticker=ticker,
-        start_date=start_date,
-        end_date=end_date,
-    )
+    csv_path = download_stock_data(ticker)
     logger.debug(f"다운로드 완료: {csv_path}")
 
 
@@ -83,12 +68,12 @@ def main() -> int:
 
     if args.ticker is not None:
         # 단일 종목 다운로드
-        _download_single(args.ticker.upper(), args.start, args.end)
+        _download_single(args.ticker.upper())
     else:
         # 전체 종목 일괄 다운로드
         logger.debug(f"전체 종목 다운로드 시작: {len(DEFAULT_TICKERS)}개")
         for ticker in DEFAULT_TICKERS:
-            _download_single(ticker, args.start, args.end)
+            _download_single(ticker)
         logger.debug(f"전체 종목 다운로드 완료: {len(DEFAULT_TICKERS)}개")
 
     return 0

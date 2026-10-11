@@ -3,6 +3,8 @@
 run_portfolio_backtest()의 핵심 시나리오와 edge case를 검증한다.
 """
 
+import json
+from dataclasses import fields, replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from qbt.backtest.engines.portfolio_planning import (
     compute_portfolio_equity,
 )
 from qbt.backtest.engines.portfolio_rebalance import (
+    DEFAULT_REBALANCE_POLICY,
     is_last_trading_day_of_month,
 )
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
@@ -1221,136 +1224,8 @@ class TestAssetPnlColumns:
             assert row["gld_unrealized_pnl"] == pytest.approx(expected_unrealized, abs=1.0)
 
 
-class TestPortfolioHoldingViewColumns:
-    """포트폴리오 엔진이 equity_df에 보유 현황 파생 컬럼을 포함하는지 검증.
-
-    파생 컬럼:
-    - {asset_id}_current_price: shares > 0이면 value/shares, 아니면 0.0
-    - {asset_id}_return_pct: avg_price > 0 and shares > 0이면 (current/avg - 1)*100, 아니면 0.0
-    - total_pnl: equity - initial_capital
-    - total_return_pct: total_pnl/initial_capital * 100
-
-    이전에는 app_portfolio_backtest.py가 직접 계산했으나, 단일 진실 공급원 확립을 위해
-    엔진(build_combined_equity)에서 산출한다.
-    """
-
-    def test_equity_df_has_derived_holding_view_columns(self, tmp_path: Path, create_csv_file):
-        """
-        목적: equity_df에 4종 파생 컬럼이 모든 자산에 대해 존재함을 검증.
-
-        Given: GLD 단일 자산 포트폴리오
-        When:  run_portfolio_backtest 실행
-        Then:  gld_current_price, gld_return_pct, total_pnl, total_return_pct 컬럼 존재
-        """
-        # Given
-        stock_df = _make_stock_df(n_rows=30)
-        gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
-            asset_paths={"gld": (gld_path, gld_path)},
-            result_dir=tmp_path,
-            target_weights={"gld": 1.0},
-            ma_window=5,
-        )
-
-        # When
-        result = run_portfolio_backtest(config)
-        equity_df = result.equity_df
-
-        # Then
-        assert "gld_current_price" in equity_df.columns, "{aid}_current_price 컬럼이 존재해야 함"
-        assert "gld_return_pct" in equity_df.columns, "{aid}_return_pct 컬럼이 존재해야 함"
-        assert "total_pnl" in equity_df.columns, "total_pnl 컬럼이 존재해야 함"
-        assert "total_return_pct" in equity_df.columns, "total_return_pct 컬럼이 존재해야 함"
-
-    def test_current_price_equals_value_div_shares_when_holding(self, tmp_path: Path, create_csv_file):
-        """
-        목적: shares > 0인 행에서 current_price * shares == value 등식 검증.
-
-        Given: 보유가 발생한 단일 자산 포트폴리오
-        When:  파생 컬럼 계산 후
-        Then:  모든 보유 행에서 current_price * shares ≈ value
-               (shares > 0이고 avg_price > 0이면 return_pct = (current/avg - 1)*100)
-        """
-        stock_df = _make_stock_df(n_rows=30)
-        gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
-            asset_paths={"gld": (gld_path, gld_path)},
-            result_dir=tmp_path,
-            target_weights={"gld": 1.0},
-            ma_window=5,
-        )
-
-        result = run_portfolio_backtest(config)
-        equity_df = result.equity_df
-        holding_rows = equity_df[equity_df["gld_shares"] > 0]
-
-        # 보유 행이 최소 1개는 있어야 한다 (이 시나리오에서)
-        assert len(holding_rows) > 0, "테스트 시나리오에서 보유 행이 발생해야 함"
-
-        for _, row in holding_rows.iterrows():
-            # current_price * shares == value
-            assert row["gld_current_price"] * row["gld_shares"] == pytest.approx(row["gld_value"], abs=0.01)
-            # return_pct = (current_price / avg_price - 1) * 100
-            if row["gld_avg_price"] > 0:
-                expected_return = (row["gld_current_price"] / row["gld_avg_price"] - 1) * 100
-                assert row["gld_return_pct"] == pytest.approx(expected_return, abs=0.1)
-
-    def test_current_price_zero_when_no_position(self, tmp_path: Path, create_csv_file):
-        """
-        목적: shares == 0인 행에서 current_price 와 return_pct가 0.0임을 검증.
-
-        Given: 매수 신호 발생 전(초기) 행이 존재하는 포트폴리오
-        When:  파생 컬럼 계산 후
-        Then:  shares == 0인 행에서 current_price == 0.0 and return_pct == 0.0
-        """
-        stock_df = _make_stock_df(n_rows=30)
-        gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
-            asset_paths={"gld": (gld_path, gld_path)},
-            result_dir=tmp_path,
-            target_weights={"gld": 1.0},
-            ma_window=5,
-        )
-
-        result = run_portfolio_backtest(config)
-        equity_df = result.equity_df
-        non_holding_rows = equity_df[equity_df["gld_shares"] == 0]
-
-        # 매수 신호 전에는 shares == 0인 행이 존재해야 한다
-        assert len(non_holding_rows) > 0, "매수 신호 발생 전 보유 없음 행이 존재해야 함"
-
-        for _, row in non_holding_rows.iterrows():
-            assert row["gld_current_price"] == pytest.approx(0.0, abs=1e-12)
-            assert row["gld_return_pct"] == pytest.approx(0.0, abs=1e-12)
-
-    def test_total_pnl_and_return_pct(self, tmp_path: Path, create_csv_file):
-        """
-        목적: total_pnl과 total_return_pct가 equity와 initial_capital로부터 정확히 산출됨을 검증.
-
-        Given: total_capital이 명시된 포트폴리오
-        When:  파생 컬럼 계산 후
-        Then:  total_pnl == equity - initial_capital
-               total_return_pct == total_pnl / initial_capital * 100
-        """
-        stock_df = _make_stock_df(n_rows=30)
-        gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
-            asset_paths={"gld": (gld_path, gld_path)},
-            result_dir=tmp_path,
-            target_weights={"gld": 1.0},
-            ma_window=5,
-            total_capital=10_000_000.0,
-        )
-
-        result = run_portfolio_backtest(config)
-        equity_df = result.equity_df
-        initial_capital = config.total_capital
-
-        for _, row in equity_df.iterrows():
-            expected_pnl = row["equity"] - initial_capital
-            expected_return_pct = (expected_pnl / initial_capital) * 100
-            assert row["total_pnl"] == pytest.approx(expected_pnl, abs=0.5)
-            assert row["total_return_pct"] == pytest.approx(expected_return_pct, abs=0.1)
+class TestPortfolioContributionColumn:
+    """포트폴리오 엔진이 equity_df에 자산별 기여 손익 컬럼({asset_id}_contribution)을 넣는지 검증."""
 
     def test_contribution_column_equals_realized_plus_unrealized(self, tmp_path: Path, create_csv_file):
         """
@@ -1379,3 +1254,43 @@ class TestPortfolioHoldingViewColumns:
         for _, row in equity_df.iterrows():
             expected = row["gld_realized_pnl"] + row["gld_unrealized_pnl"]
             assert row["gld_contribution"] == pytest.approx(expected, abs=1e-9)
+
+
+class TestParamsJson:
+    """결과의 params_json(summary.json 의 portfolio_config)이 설정 전체를 담는지 검증."""
+
+    def test_params_json_holds_every_config_field_as_plain_json(self, tmp_path: Path, create_csv_file):
+        """
+        목적: params_json 이 설정의 모든 칸을 json 이 그대로 쓸 수 있는 값으로 담음을 검증 —
+              칸을 손으로 골라 옮기면 새로 생긴 칸(min_start_date)이 결과 파일에서 빠진다.
+
+        Given: min_start_date 가 있는 슬롯 하나짜리 설정
+        When:  run_portfolio_backtest 실행
+        Then:  설정의 칸 이름이 모두 있고, 경로 · 날짜는 문자열이며(변환 함수 없이 json.dumps 성공),
+               리밸런싱 규칙 두 칸이 함께 있다
+        """
+        # Given
+        stock_df = _make_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = replace(
+            _make_portfolio_config(
+                asset_paths={"gld": (gld_path, gld_path)},
+                result_dir=tmp_path,
+                target_weights={"gld": 1.0},
+                ma_window=5,
+            ),
+            min_start_date=date(2024, 1, 2),
+        )
+
+        # When
+        params = run_portfolio_backtest(config).params_json
+
+        # Then
+        json.dumps(params)
+        assert {f.name for f in fields(PortfolioConfig)} <= set(params)
+        assert params["min_start_date"] == "2024-01-02"
+        assert params["result_dir"] == str(tmp_path)
+        assert params["asset_slots"][0]["trade_data_path"] == str(gld_path)
+        assert params["asset_slots"][0]["ma_window"] == 5
+        assert params["rebalance_check_day"] == "last_trading_day_of_month"
+        assert params["rebalance_threshold_rate"] == DEFAULT_REBALANCE_POLICY.threshold_rate

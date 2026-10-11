@@ -10,6 +10,7 @@ from qbt.backtest.constants import (
     COL_EXIT_DATE,
     COL_EXIT_PRICE,
     COL_HOLD_DAYS_USED,
+    COL_ORDER_AMOUNT,
     COL_PNL,
     COL_PNL_PCT,
     COL_SHARES,
@@ -159,7 +160,7 @@ def execute_orders(
                 "trade_type": TRADE_TYPE_REBALANCE if intent.intent_type == "REDUCE_TO_TARGET" else TRADE_TYPE_SIGNAL,
                 "pre_shares": pre_shares,
                 "post_shares": post_shares_val,
-                "order_amount": sell_amount,
+                COL_ORDER_AMOUNT: sell_amount,
             }
             new_trades.append(trade_record)
 

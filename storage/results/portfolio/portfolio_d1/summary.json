@@ -17,10 +17,6 @@
     {
       "asset_id": "qqq",
       "target_weight": 1.0,
-      "total_trades": 11,
-      "win_rate": 90.91,
-      "final_shares": 143701,
-      "final_avg_price": 646.1427,
       "open_position": {
         "entry_date": "2026-04-17",
         "entry_price": 646.1427,
@@ -32,21 +28,24 @@
     "experiment_name": "portfolio_d1",
     "display_name": "D-1 (QQQ 100%)",
     "total_capital": 10000000.0,
-    "rebalance_check_day": "last_trading_day_of_month",
-    "rebalance_threshold_rate": 0.1,
-    "assets": [
+    "result_dir": "storage/results/portfolio/portfolio_d1",
+    "asset_slots": [
       {
         "asset_id": "qqq",
-        "target_weight": 1.0,
         "signal_data_path": "storage/stock/QQQ_max.csv",
         "trade_data_path": "storage/stock/QQQ_max.csv",
+        "target_weight": 1.0,
         "strategy_id": "buffer_zone",
         "ma_window": 200,
         "buy_buffer_zone_pct": 0.03,
         "sell_buffer_zone_pct": 0.05,
         "hold_days": 3
       }
-    ]
+    ],
+    "methods": [],
+    "min_start_date": null,
+    "rebalance_check_day": "last_trading_day_of_month",
+    "rebalance_threshold_rate": 0.1
   },
   "monthly_returns": [
     {

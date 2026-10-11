@@ -102,10 +102,7 @@ class StrategyData(TypedDict):
 @st.cache_data
 def _load_csv(path: Path, mtime: float) -> pd.DataFrame:
     """CSV를 로드하고 날짜 컬럼을 파싱한다. mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다."""
-    try:
-        df = pd.read_csv(path)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
+    df = pd.read_csv(path)
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
     return df
@@ -150,7 +147,7 @@ def _discover_strategies() -> list[StrategyData]:
         signal_df = _load_csv(signal_path, signal_path.stat().st_mtime)
         equity_df = _load_csv(equity_path, equity_path.stat().st_mtime)
 
-        # trades는 선택 (Buy & Hold는 빈 파일)
+        # trades는 선택 (Buy & Hold는 헤더만 있다)
         if trades_path.exists():
             trades_df = _load_csv(trades_path, trades_path.stat().st_mtime)
             if not trades_df.empty and "entry_date" in trades_df.columns:

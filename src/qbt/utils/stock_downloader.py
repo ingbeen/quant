@@ -91,18 +91,12 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     logger.debug("데이터 유효성 검증 완료: 이상 없음")
 
 
-def download_stock_data(
-    ticker: str,
-    start_date: str | None = None,
-    end_date: str | None = None,
-) -> Path:
+def download_stock_data(ticker: str) -> Path:
     """
-    주식 데이터를 다운로드하고 CSV로 저장한다.
+    주식 데이터를 전체 기간으로 다운로드하고 `{ticker}_max.csv` 로 저장한다.
 
     Args:
         ticker: 주식 티커 (예: QQQ, SPY)
-        start_date: 시작 날짜 (YYYY-MM-DD 형식)
-        end_date: 종료 날짜 (YYYY-MM-DD 형식)
 
     Returns:
         저장된 CSV 파일의 경로
@@ -114,16 +108,9 @@ def download_stock_data(
     # 2. yfinance Ticker 객체 생성
     yf_ticker = yf.Ticker(ticker)
 
-    # 3. 날짜 조건별 데이터 다운로드 및 파일명 생성
-    if start_date and end_date:
-        df = yf_ticker.history(start=start_date, end=end_date)
-        filename = f"{ticker}_{start_date}_{end_date}.csv"
-    elif start_date:
-        df = yf_ticker.history(start=start_date)
-        filename = f"{ticker}_{start_date}_latest.csv"
-    else:
-        df = yf_ticker.history(period="max")
-        filename = f"{ticker}_max.csv"
+    # 3. 전체 기간 데이터 다운로드
+    df = yf_ticker.history(period="max")
+    filename = f"{ticker}_max.csv"
 
     # 4. 데이터 유효성 검증
     if df.empty:

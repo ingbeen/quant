@@ -41,15 +41,13 @@ from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_st
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import (
-    ASSET_COL_SUFFIX_WEIGHT,
     PortfolioResult,
     asset_shares_col,
-    asset_value_col,
-    asset_weight_col,
     list_position_keys,
     resolve_methods,
 )
 from qbt.backtest.portfolio_validation import validate_portfolio_result
+from qbt.backtest.supplement_experiment import run_with_start_check
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
@@ -70,166 +68,25 @@ _CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
 
 # 포트폴리오 백테스트 최소 시작일 하한
 # 각 실험의 effective_start_date가 이 날짜 이전이어도 이 날짜부터 실행한다
-# (2005년 이전 데이터는 포트폴리오 비교 범위에서 제외).
+# (2005년 이전 데이터는 포트폴리오 비교 범위에서 제외). 설정에 min_start_date 가 있는 실험은 이 하한 대신 그 날짜에 시작한다.
 DEFAULT_PORTFOLIO_START_DATE: date = date(2005, 1, 1)
 
-# 체결 전후 표의 사유 — 엔진은 배분 규칙 매매법이 비중만 조정한 날 사유를 빈 값으로 남기는데,
-# 신호만 있는 날도 빈 값이라 표에서 둘을 가를 수 없다. 리밸런싱한 날의 빈 사유를 이 값으로 적는다
-_REBALANCE_REASON_ALLOCATION = "allocation"
 
+def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str:
+    """보유 주수가 마지막으로 0 → 양수로 바뀐 거래일을 반환한다 (미청산 포지션의 진입일).
 
-def _build_execution_comparison_df(
-    equity_df: pd.DataFrame,
-    trades_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """모든 체결일의 전후 비교 데이터를 생성한다.
-
-    trades_df에서 체결 발생일(exit_date)을 추출하고, equity_df에서
-    자산별 전일/당일 보유수, 비중, 평가액 변화를 계산한다.
-
-    Args:
-        equity_df: 포트폴리오 에쿼티 DataFrame (Date, equity, cash, {asset}_shares 등)
-        trades_df: 포트폴리오 거래 내역 DataFrame (체결일 목록 추출용, exit_date 필수)
-
-    Returns:
-        체결 전후 비교 DataFrame (date x asset_id 행). 거래가 없으면 빈 DataFrame.
-    """
-    if trades_df.empty or "exit_date" not in trades_df.columns:
-        return pd.DataFrame()
-
-    # 1. 자산 ID 추출 (weight 컬럼 기반)
-    asset_ids = [
-        c.removesuffix(ASSET_COL_SUFFIX_WEIGHT) for c in equity_df.columns if c.endswith(ASSET_COL_SUFFIX_WEIGHT)
-    ]
-    if not asset_ids:
-        return pd.DataFrame()
-
-    # 2. 체결 발생일 목록 (exit_date 기준)
-    trade_dates = sorted(trades_df["exit_date"].dropna().unique())
-    if not trade_dates:
-        return pd.DataFrame()
-
-    # 3. 날짜 -> 인덱스 매핑 (빠른 조회용)
-    date_to_idx: dict[Any, int] = {}
-    for i, d in enumerate(equity_df["Date"]):
-        date_to_idx[d] = i
-
-    rows: list[dict[str, Any]] = []
-    for trade_date in trade_dates:
-        current_idx = date_to_idx.get(trade_date)
-        if current_idx is None:
-            continue
-
-        current_row = equity_df.iloc[current_idx]
-        prev_row = equity_df.iloc[current_idx - 1] if current_idx > 0 else current_row
-
-        date_str = str(trade_date)
-
-        # 리밸런싱 사유
-        rebalance_reason = ""
-        if "rebalance_reason" in equity_df.columns:
-            val = current_row.get("rebalance_reason")
-            if pd.notna(val):
-                rebalance_reason = str(val)
-        if rebalance_reason == "" and bool(current_row.get("rebalanced", False)):
-            rebalance_reason = _REBALANCE_REASON_ALLOCATION
-
-        # 4. 자산별 행
-        for asset_id in asset_ids:
-            shares_col = asset_shares_col(asset_id)
-            weight_col = asset_weight_col(asset_id)
-            value_col = asset_value_col(asset_id)
-
-            # 포트폴리오 엔진이 자산별 컬럼(_shares/_weight/_value)을 항상 생성하므로
-            # 컬럼 존재 여부 분기와 .get() default 는 dead branch 다.
-            pre_shares = int(prev_row[shares_col])
-            post_shares = int(current_row[shares_col])
-            pre_weight = float(prev_row[weight_col]) * 100
-            post_weight = float(current_row[weight_col]) * 100
-            pre_value = int(prev_row[value_col])
-            post_value = int(current_row[value_col])
-
-            rows.append(
-                {
-                    "date": date_str,
-                    "asset_id": asset_id,
-                    "pre_shares": pre_shares,
-                    "post_shares": post_shares,
-                    "pre_weight_pct": round(pre_weight, ROUND_PERCENT),
-                    "post_weight_pct": round(post_weight, ROUND_PERCENT),
-                    "pre_value": pre_value,
-                    "post_value": post_value,
-                    "delta_shares": post_shares - pre_shares,
-                    "delta_value": post_value - pre_value,
-                    "rebalance_reason": rebalance_reason,
-                }
-            )
-
-        # 5. 현금 행 — equity / cash 컬럼은 포트폴리오 엔진이 항상 생성한다.
-        # equity > 0 은 비레버리지 포트폴리오의 불변조건이다 (소멸 불가).
-        pre_cash = int(prev_row["cash"])
-        post_cash = int(current_row["cash"])
-        pre_equity_val = int(prev_row["equity"])
-        post_equity_val = int(current_row["equity"])
-        if pre_equity_val <= 0 or post_equity_val <= 0:
-            raise RuntimeError(
-                f"내부 불변조건 위반: equity <= 0 (date={date_str}, " f"pre={pre_equity_val}, post={post_equity_val})"
-            )
-
-        rows.append(
-            {
-                "date": date_str,
-                "asset_id": "cash",
-                "pre_shares": 0,
-                "post_shares": 0,
-                "pre_weight_pct": round(pre_cash / pre_equity_val * 100, ROUND_PERCENT),
-                "post_weight_pct": round(post_cash / post_equity_val * 100, ROUND_PERCENT),
-                "pre_value": pre_cash,
-                "post_value": post_cash,
-                "delta_shares": 0,
-                "delta_value": post_cash - pre_cash,
-                "rebalance_reason": rebalance_reason,
-            }
-        )
-
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
-
-
-def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str | None:
-    """자산의 shares가 마지막으로 0 → 양수로 전환된 거래일을 반환한다.
-
-    미청산 포지션의 entry_date 파생용. shares 컬럼이 없거나 모든 값이 0이면 None.
-    shares가 한 번도 0이 되지 않고 시작부터 양수인 경우(예: buy_and_hold)에는
-    첫 번째 양수 행의 Date를 폴백으로 반환한다.
+    최종일에 보유 중인 자산에만 부른다 — 보유한 적이 없으면 바뀐 날이 없어 IndexError 로 멈춘다.
 
     Args:
         equity_df: 포트폴리오 에쿼티 DataFrame (Date, {asset_id}_shares 포함)
-        asset_id: 자산 식별자
+        asset_id: 자산 키
 
     Returns:
-        entry_date 문자열 (YYYY-MM-DD) 또는 None
+        entry_date 문자열 (YYYY-MM-DD)
     """
-    shares_col = asset_shares_col(asset_id)
-    if shares_col not in equity_df.columns or equity_df.empty:
-        return None
-
-    shares = equity_df[shares_col].astype(int)
-    if (shares <= 0).all():
-        return None
-
-    prev = shares.shift(1).fillna(0).astype(int)
-    transition_mask = (prev == 0) & (shares > 0)
-    if transition_mask.any():
-        entry_row = equity_df.loc[transition_mask].iloc[-1]
-        return str(entry_row[COL_DATE])
-
-    # 폴백: 시작부터 양수인 경우 첫 행 Date
-    first_positive_mask = shares > 0
-    if first_positive_mask.any():
-        first_row = equity_df.loc[first_positive_mask].iloc[0]
-        return str(first_row[COL_DATE])
-
-    return None
+    shares = equity_df[asset_shares_col(asset_id)].astype(int)
+    entered = (shares.shift(1, fill_value=0) == 0) & (shares > 0)
+    return str(equity_df.loc[entered, COL_DATE].iloc[-1])
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
@@ -246,6 +103,13 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         result: PortfolioResult 컨테이너
     """
     result.config.result_dir.mkdir(parents=True, exist_ok=True)
+
+    # 실험 구성에 따라 생기는 파일은 먼저 지운다 — 구성이 바뀐 실험을 같은 폴더에 다시 저장하면 지금 실험에 없는
+    # 자산 · 매매법의 파일이 남고, 대시보드는 파일이 있으면 그대로 그린다
+    ledger_path = result.config.result_dir / "ledger.csv"
+    netting_path = result.config.result_dir / "netting.csv"
+    for stale_path in [*result.config.result_dir.glob("signal_*.csv"), ledger_path, netting_path]:
+        stale_path.unlink(missing_ok=True)
 
     # 1. equity.csv 저장
     equity_path = result.config.result_dir / "equity.csv"
@@ -322,14 +186,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         signal_export.to_csv(signal_path, index=False)
         logger.debug(f"시그널 데이터 저장 완료: {signal_path} (asset_id={asset_result.asset_id})")
 
-    # 4. execution_comparison.csv 저장
-    comparison_df = _build_execution_comparison_df(result.equity_df, result.trades_df)
-    comparison_path = result.config.result_dir / "execution_comparison.csv"
-    if not comparison_df.empty:
-        comparison_df.to_csv(comparison_path, index=False)
-        logger.debug(f"체결 전후 비교 데이터 저장 완료: {comparison_path}")
-
-    # 4-1. state_log.csv 저장 (일별 엔진 내부 상태: 시그널/intent/체결/포지션)
+    # 4. state_log.csv 저장 (일별 엔진 내부 상태: 시그널/intent/체결/포지션)
     state_log_path = result.config.result_dir / "state_log.csv"
     if not result.state_log_df.empty:
         state_log_export = result.state_log_df.copy()
@@ -374,52 +231,30 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "sharpe_ratio": round(sharpe, ROUND_RATIO),
         "sortino_ratio": round(sortino, ROUND_RATIO),
         "total_trades": s["total_trades"],
-        "start_date": str(s.get("start_date", "")),
-        "end_date": str(s.get("end_date", "")),
+        "start_date": str(s["start_date"]),
+        "end_date": str(s["end_date"]),
     }
 
     # 자산별 요약
     per_asset_data: list[dict[str, Any]] = []
     target_weights = account_target_weights(result)
+    final_row = result.equity_df.iloc[-1]
     for asset_result in result.per_asset:
-        asset_trades = asset_result.trades_df
-        total_asset_trades = len(asset_trades)
-        win_rate = 0.0
-        if total_asset_trades > 0 and "pnl" in asset_trades.columns:
-            win_rate = round(
-                float((asset_trades["pnl"] > 0).sum()) / total_asset_trades * 100,
-                ROUND_PERCENT,
-            )
-
-        # 최종일 기준 보유 정보 (equity_df에서 추출)
-        final_shares = 0
-        final_avg_price = 0.0
-        shares_col = asset_shares_col(asset_result.asset_id)
-        avg_price_col = f"{asset_result.asset_id}_avg_price"
-        if shares_col in result.equity_df.columns and not result.equity_df.empty:
-            final_shares = int(result.equity_df[shares_col].iloc[-1])
-        if avg_price_col in result.equity_df.columns and not result.equity_df.empty:
-            final_avg_price = round(float(result.equity_df[avg_price_col].iloc[-1]), ROUND_PRICE)
-
+        asset_id = asset_result.asset_id
         asset_entry: dict[str, Any] = {
-            "asset_id": asset_result.asset_id,
-            "target_weight": round(target_weights[asset_result.asset_id], ROUND_RATIO),
-            "total_trades": total_asset_trades,
-            "win_rate": win_rate,
-            "final_shares": final_shares,
-            "final_avg_price": final_avg_price,
+            "asset_id": asset_id,
+            "target_weight": round(target_weights[asset_id], ROUND_RATIO),
         }
 
-        # 미청산 포지션(open_position): final_shares > 0 인 자산만 기록
+        # 미청산 포지션(open_position): 최종일에 보유 중인 자산만 기록
         # 대시보드의 시그널 차트가 "Buy (보유중)" 마커로 표시하는 데 사용
+        final_shares = int(final_row[asset_shares_col(asset_id)])
         if final_shares > 0:
-            entry_date = _find_last_entry_date(result.equity_df, asset_result.asset_id)
-            if entry_date is not None:
-                asset_entry["open_position"] = {
-                    "entry_date": entry_date,
-                    "entry_price": final_avg_price,
-                    "shares": final_shares,
-                }
+            asset_entry["open_position"] = {
+                "entry_date": _find_last_entry_date(result.equity_df, asset_id),
+                "entry_price": round(float(final_row[f"{asset_id}_avg_price"]), ROUND_PRICE),
+                "shares": final_shares,
+            }
 
         per_asset_data.append(asset_entry)
 
@@ -438,8 +273,6 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
     # 매매법이 여럿이면 매매법 장부 · 상계 내역과 요약을 더한다 (하나면 장부 = 계좌라 내지 않는다)
     multi_method = len(resolve_methods(result.config)) > 1
-    ledger_path = result.config.result_dir / "ledger.csv"
-    netting_path = result.config.result_dir / "netting.csv"
     if multi_method:
         _save_ledger_and_netting(result, ledger_path, netting_path)
         summary_data.update(_round_method_summary(summarize_methods(result)))
@@ -461,7 +294,6 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "output_files": {
             "equity_csv": str(equity_path),
             "trades_csv": str(trades_path),
-            "execution_comparison_csv": str(comparison_path),
             "state_log_csv": str(state_log_path),
             "summary_json": str(summary_path),
         },
@@ -529,7 +361,7 @@ def _print_summary(result: PortfolioResult) -> None:
     s = result.summary
     logger.debug("=" * 70)
     logger.debug(f"[{result.display_name}] 포트폴리오 백테스트 결과")
-    logger.debug(f"  기간: {s.get('start_date')} ~ {s.get('end_date')}")
+    logger.debug(f"  기간: {s['start_date']} ~ {s['end_date']}")
     logger.debug(f"  초기 자본: {s['initial_capital']:,.0f}원")
     logger.debug(f"  최종 자본: {s['final_capital']:,.0f}원")
     logger.debug(f"  총 수익률: {s['total_return_pct']:.2f}%")
@@ -593,22 +425,38 @@ def main() -> int:
     # 3. 실험별 유효 시작일 계산
     # 실행 전에 한꺼번에 계산한다 — 시세 누락 같은 데이터 문제가 앞 실험의 결과 파일을 덮어쓴 뒤가 아니라 그 전에 드러난다.
     effective_start_dates = {c.experiment_name: compute_portfolio_effective_start_date(c) for c in target_configs}
+    late_starts = [
+        f"{c.experiment_name}(설정 {c.min_start_date}, 데이터 기준 {effective_start_dates[c.experiment_name]})"
+        for c in target_configs
+        if c.min_start_date is not None and effective_start_dates[c.experiment_name] > c.min_start_date
+    ]
+    if late_starts:
+        raise ValueError(
+            "설정의 시작일(min_start_date)보다 데이터가 늦게 시작하는 실험이 있습니다 — 그대로 돌리면 그리드 결과와 "
+            f"기간이 달라집니다: {', '.join(late_starts)}. 시세를 다시 받았다면 supplement_experiment.py 의 묶음 시작일 "
+            "상수(MAIN_START_DATE 등)를 다시 재고 run_supplement_grid.py · run_combo_grid.py 를 다시 돌린 뒤 실행하세요"
+        )
 
     # 4. 실험별 실행
-    # 각 실험은 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 사용하되,
-    # 정책 하한인 DEFAULT_PORTFOLIO_START_DATE로 끌어올린다 (2005년 이전 데이터는 스킵).
     for config in target_configs:
         raw_start_date = effective_start_dates[config.experiment_name]
-        exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)
-        if config.min_start_date is not None:
-            exp_start_date = max(exp_start_date, config.min_start_date)
         logger.debug("=" * 70)
-        logger.debug(
-            f"실험 시작: {config.experiment_name} ({config.display_name}) — "
-            f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE}, "
-            f"실험 하한 {config.min_start_date})"
-        )
-        result = run_portfolio_backtest(config, start_date=exp_start_date)
+        if config.min_start_date is None:
+            # 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 쓰되, 정책 하한으로 끌어올린다 (2005년 이전 데이터는 스킵)
+            exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)
+            logger.debug(
+                f"실험 시작: {config.experiment_name} ({config.display_name}) — "
+                f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE})"
+            )
+            result = run_portfolio_backtest(config, start_date=exp_start_date)
+        else:
+            # 설정이 시작일을 정한 실험(보완 전략 등록 실험)은 그리드와 같은 날 시작해야 숫자가 그리드 결과와 같다.
+            # 데이터가 늦게 시작하는 경우는 위에서 실행 전에 멈추고, 여기서는 실제 첫 거래일이 그날인지 한 번 더 대조한다
+            logger.debug(
+                f"실험 시작: {config.experiment_name} ({config.display_name}) — "
+                f"start_date={config.min_start_date} (설정의 min_start_date, 데이터 기준 {raw_start_date})"
+            )
+            result = run_with_start_check(config, config.min_start_date)
         _print_summary(result)
 
         # 정합성 자동 검증 (7개 규칙) -- 위반 시 결과 저장 후 스크립트 중지

@@ -19,6 +19,7 @@ from datetime import date
 
 import pandas as pd
 
+from qbt.backtest.constants import REBALANCE_REASON_METHODS
 from qbt.backtest.engines.portfolio_rebalance import DEFAULT_REBALANCE_POLICY, is_last_trading_day_of_month
 from qbt.backtest.portfolio_types import (
     ASSET_COL_SUFFIX_CLOSE,
@@ -438,7 +439,7 @@ def _check_method_shares_after_transfer(
     비용 · 매도 대금 부족에 따른 이전 축소뿐이다. 허용 범위는 규칙 2 와 같은 상대 편차다.
     """
     violations: list[str] = []
-    rows = ledger_df[ledger_df["rebalance_reason"] == "methods"]
+    rows = ledger_df[ledger_df["rebalance_reason"] == REBALANCE_REASON_METHODS]
     if rows.empty:
         return violations
     dates = list(state_log_df["Date"])
