@@ -56,7 +56,6 @@ from qbt.backtest.engines.portfolio_planning import (
     ProjectedPortfolio,
     compute_portfolio_equity,
     compute_projected_portfolio,
-    create_strategy_for_slot,
     generate_signal_intents,
     merge_intents,
 )
@@ -86,7 +85,7 @@ from qbt.backtest.portfolio_types import (
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
 from qbt.utils import get_logger
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_signal_trade_pair, load_stock_data
 
 logger = get_logger(__name__)
 
@@ -118,8 +117,7 @@ class _PortfolioData:
 def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _PortfolioData:
     """매매법 · 자산별 데이터 로딩 → 공통 기간 필터링 → 워밍업 인덱스 계산.
 
-    signal_data_path 기준 캐시, 날짜 교집합 필터링(매매 데이터 + 신호용 시세), 워밍업 구간 계산을
-    한 곳에서 수행한다.
+    날짜 교집합 필터링(매매 데이터 + 신호용 시세), 워밍업 구간 계산을 한 곳에서 수행한다.
 
     Args:
         config: 포트폴리오 실험 설정
@@ -134,8 +132,7 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
     methods = resolve_methods(config)
     multi_method = len(methods) > 1
 
-    # 1. 자산별 데이터 로딩 + MA 계산 (signal_data_path 기준 캐시, 슬롯별 MA 파라미터 사용)
-    signal_cache: dict[str, pd.DataFrame] = {}
+    # 1. 자산별 데이터 로딩 + MA 계산 (슬롯별 MA 파라미터 사용)
     keys_by_method: dict[str, list[str]] = {}
     asset_of_key: dict[str, str] = {}
     slot_of_key: dict[str, AssetSlotConfig] = {}
@@ -149,16 +146,9 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
         if isinstance(method, SlotMethodConfig):
             for slot in method.asset_slots:
                 key = position_key(method.method_id, slot.asset_id, multi_method=multi_method)
-                signal_key = f"{slot.signal_data_path}::{slot.strategy_id}::{slot.ma_window}"
-                if signal_key not in signal_cache:
-                    signal_df_raw, trade_df = load_and_prepare_data(slot)
-                    signal_cache[signal_key] = signal_df_raw
-                else:
-                    signal_df_raw = signal_cache[signal_key]
-                    trade_df = load_stock_data(slot.trade_data_path)
-                    if slot.signal_data_path != slot.trade_data_path:
-                        signal_df_raw, trade_df = extract_overlap_period(signal_df_raw.copy(), trade_df)
-
+                # 슬롯마다 따로 읽는다 — 다른 슬롯이 자기 매매 데이터 기간으로 자른 신호 시세를 함께 쓰면
+                # 슬롯 순서에 따라 시작일이 달라진다
+                signal_df_raw, trade_df = load_and_prepare_data(slot)
                 asset_signal_dfs[key] = signal_df_raw
                 asset_trade_dfs[key] = trade_df
                 slot_of_key[key] = slot
@@ -167,10 +157,7 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
         else:
             for asset in method.assets:
                 key = position_key(method.method_id, asset.asset_id, multi_method=multi_method)
-                signal_df_raw = load_stock_data(asset.signal_data_path)
-                trade_df = load_stock_data(asset.trade_data_path)
-                if asset.signal_data_path != asset.trade_data_path:
-                    signal_df_raw, trade_df = extract_overlap_period(signal_df_raw, trade_df)
+                signal_df_raw, trade_df = load_signal_trade_pair(asset.signal_data_path, asset.trade_data_path)
                 asset_signal_dfs[key] = signal_df_raw
                 asset_trade_dfs[key] = trade_df
                 asset_of_key[key] = asset.asset_id
@@ -216,10 +203,7 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
         slot = slot_of_key.get(key)
         if slot is None:
             continue
-        spec = STRATEGY_REGISTRY.get(slot.strategy_id)
-        if spec is None:
-            raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
-        warmup = spec.get_warmup_periods(slot)
+        warmup = STRATEGY_REGISTRY[slot.strategy_id].get_warmup_periods(slot)
         if warmup == 0:
             continue
         ma_col = ma_col_name(slot.ma_window)
@@ -314,7 +298,9 @@ def _create_books(
         )
         if isinstance(method, SlotMethodConfig):
             book.slots = {key: data.slot_of_key[key] for key in keys}
-            book.strategies = {key: create_strategy_for_slot(data.slot_of_key[key]) for key in keys}
+            book.strategies = {
+                key: STRATEGY_REGISTRY[slot.strategy_id].create_strategy(slot) for key, slot in book.slots.items()
+            }
             book.targets = {key: data.slot_of_key[key].target_weight for key in keys}
         else:
             book.allocator = ALLOCATOR_REGISTRY[method.allocator_id].create_allocator(method)

@@ -41,62 +41,6 @@ from qbt.common_constants import (
     UBT_DATA_PATH,
     UGL_DATA_PATH,
 )
-from qbt.utils import get_logger
-
-logger = get_logger(__name__)
-
-
-# ============================================================================
-# 파라미터 결정 공통 함수
-# ============================================================================
-
-
-def resolve_buffer_params(
-    ma_window: int,
-    buy_buffer_zone_pct: float,
-    sell_buffer_zone_pct: float,
-    hold_days: int,
-) -> BufferStrategyParams:
-    """버퍼존 전략의 파라미터를 검증하고 BufferStrategyParams를 생성한다.
-
-    Args:
-        ma_window: 이동평균 기간
-        buy_buffer_zone_pct: 매수 버퍼존 비율
-        sell_buffer_zone_pct: 매도 버퍼존 비율
-        hold_days: 유지일수
-
-    Returns:
-        검증된 전략 파라미터
-
-    Raises:
-        ValueError: 파라미터 범위 위반 시
-    """
-    if ma_window < 1:
-        raise ValueError(f"ma_window는 1 이상이어야 합니다: {ma_window}")
-    if buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
-        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {buy_buffer_zone_pct}")
-    if sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
-        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {sell_buffer_zone_pct}")
-    if hold_days < MIN_HOLD_DAYS:
-        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {hold_days}")
-
-    params = BufferStrategyParams(
-        initial_capital=DEFAULT_INITIAL_CAPITAL,
-        ma_window=ma_window,
-        buy_buffer_zone_pct=buy_buffer_zone_pct,
-        sell_buffer_zone_pct=sell_buffer_zone_pct,
-        hold_days=hold_days,
-    )
-
-    logger.debug(
-        f"파라미터 결정: ma_window={ma_window}, "
-        f"buy_buffer={buy_buffer_zone_pct}, "
-        f"sell_buffer={sell_buffer_zone_pct}, "
-        f"hold_days={hold_days}"
-    )
-
-    return params
-
 
 # ============================================================================
 # 설정 데이터클래스
@@ -220,21 +164,23 @@ def get_config(strategy_name: str) -> BufferZoneConfig:
 def resolve_params_for_config(
     config: BufferZoneConfig,
 ) -> BufferStrategyParams:
-    """BufferZoneConfig에 따라 전략 파라미터를 결정한다.
+    """BufferZoneConfig 의 파라미터로 BufferStrategyParams 를 만든다.
 
-    config의 파라미터를 resolve_buffer_params()에 전달한다.
+    값의 범위는 보지 않는다 — 버퍼존 비율 · 유지일수는 BufferZoneStrategy 생성자가, 이동평균 기간은
+    add_single_moving_average 가 검증한다.
 
     Args:
         config: 버퍼존 전략 설정
 
     Returns:
-        검증된 전략 파라미터
+        전략 파라미터
     """
-    return resolve_buffer_params(
-        config.ma_window,
-        config.buy_buffer_zone_pct,
-        config.sell_buffer_zone_pct,
-        config.hold_days,
+    return BufferStrategyParams(
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
+        ma_window=config.ma_window,
+        buy_buffer_zone_pct=config.buy_buffer_zone_pct,
+        sell_buffer_zone_pct=config.sell_buffer_zone_pct,
+        hold_days=config.hold_days,
     )
 
 
@@ -256,6 +202,9 @@ class BufferZoneStrategy(SignalStrategy):
         sell_buffer_pct: 매도 버퍼존 비율 (0~1)
         hold_days: 상향돌파 후 유지일수 (0=즉시 신호)
 
+    Raises:
+        ValueError: 버퍼존 비율이 하한 미만이거나 1 이상일 때, 유지일수가 하한 미만일 때
+
     사용 예:
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
         buy = strategy.check_buy(signal_df, i, current_date)
@@ -271,6 +220,19 @@ class BufferZoneStrategy(SignalStrategy):
         sell_buffer_pct: float,
         hold_days: int,
     ) -> None:
+        # 전략을 만드는 모든 경로가 이 생성자를 지나므로 범위 검증은 여기 한 곳에 둔다.
+        # 범위 밖 값은 예외 없이 다른 결과를 낸다 — 음수 유지일은 유지일 1 처럼 돌고, 1 이상인 매도 버퍼는 밴드가 0 이하라 팔지 않는다
+        if not MIN_BUY_BUFFER_ZONE_PCT <= buy_buffer_pct < 1:
+            raise ValueError(
+                f"매수 버퍼존 비율(buy_buffer_pct)은 {MIN_BUY_BUFFER_ZONE_PCT} 이상 1 미만이어야 합니다(0.03 = 3%): {buy_buffer_pct}"
+            )
+        if not MIN_SELL_BUFFER_ZONE_PCT <= sell_buffer_pct < 1:
+            raise ValueError(
+                f"매도 버퍼존 비율(sell_buffer_pct)은 {MIN_SELL_BUFFER_ZONE_PCT} 이상 1 미만이어야 합니다(0.05 = 5%): {sell_buffer_pct}"
+            )
+        if not hold_days >= MIN_HOLD_DAYS:
+            raise ValueError(f"유지일수(hold_days)는 {MIN_HOLD_DAYS} 이상이어야 합니다: {hold_days}")
+
         self._ma_col = ma_col
         self._buy_buffer_pct = buy_buffer_pct
         self._sell_buffer_pct = sell_buffer_pct

@@ -124,8 +124,9 @@ def _ledger_value(result: PortfolioResult, method_id: str, d: date, column: str)
 class TestMethodConfigValidation:
     """설정 검증 계약.
 
-    핵심 계약: asset_slots(매매법 하나 줄임 표기) · methods 중 정확히 하나, 매매법 몫 합 1.0 · 각 몫 > 0,
-    id 중복 · '.' 금지, 같은 자산 id 는 매매법이 달라도 같은 매매 데이터 경로,
+    핵심 계약: 총 자본 > 0, asset_slots(매매법 하나 줄임 표기) · methods 중 정확히 하나, 매매법 몫 합 1.0 · 각 몫 > 0,
+    슬롯 비중 > 0 · strategy_id 등록 · 버퍼존 비율과 유지일수의 범위, id 중복 · '.' 금지,
+    같은 자산 id 는 매매법이 달라도 같은 매매 데이터 경로 · 여러 매매법이 함께 드는 매매 데이터는 자산 id 하나,
     비중변동 매매법의 allocator_id 등록 · 신호용 시세 id 가 매매 자산 id 와 겹치지 않음.
     """
 
@@ -158,7 +159,10 @@ class TestMethodConfigValidation:
                 "rot",
                 "ROT",
                 0.3,
-                (AllocationAssetConfig("x", _DUMMY, _DUMMY), AllocationAssetConfig("z", _DUMMY, _DUMMY)),
+                (
+                    AllocationAssetConfig("x", Path("X.csv"), Path("X.csv")),
+                    AllocationAssetConfig("z", Path("Z.csv"), Path("Z.csv")),
+                ),
                 allocator_id=series_switch_allocator,
                 signal_series=(SignalSeriesConfig("s", _DUMMY),),
             ),
@@ -208,6 +212,70 @@ class TestMethodConfigValidation:
         )
         with pytest.raises(ValueError, match="매매 데이터 경로"):
             validate_portfolio_config(self._config(methods=methods))
+
+    def test_same_trade_path_with_different_asset_id_across_methods_raises(self) -> None:
+        """같은 매매 데이터를 두 매매법이 다른 자산 id 로 들면 ValueError (같은 종목인데 상계되지 않는다)."""
+        methods = (
+            self._slot_method("a", 0.5, "gld", Path("GLD.csv")),
+            self._slot_method("b", 0.5, "gold", Path("GLD.csv")),
+        )
+        with pytest.raises(ValueError, match="다른 자산 id"):
+            validate_portfolio_config(self._config(methods=methods))
+
+    def test_same_trade_path_with_same_asset_id_across_methods_passes(self) -> None:
+        """같은 매매 데이터를 두 매매법이 같은 자산 id 로 드는 것은 정상이다 (상계되는 모양)."""
+        methods = (
+            self._slot_method("a", 0.5, "gld", Path("GLD.csv")),
+            self._slot_method("b", 0.5, "gld", Path("GLD.csv")),
+        )
+
+        validate_portfolio_config(self._config(methods=methods))
+
+    def test_same_trade_path_with_different_asset_id_within_one_method_passes(self) -> None:
+        """한 매매법 안에서는 같은 매매 데이터를 다른 자산 id 로 들 수 있다 (상계는 매매법 사이의 일이다)."""
+        slots = (_hold_slot("gld", Path("GLD.csv"), 0.5), _hold_slot("gold", Path("GLD.csv"), 0.5))
+
+        validate_portfolio_config(self._config(asset_slots=slots))
+
+    def test_two_asset_ids_on_trade_path_held_by_only_one_of_several_methods_pass(self) -> None:
+        """매매법이 여럿이어도 그 매매 데이터를 드는 매매법이 하나뿐이면 다른 자산 id 를 허용한다 (매매법 수는 매매 데이터마다 센다)."""
+        methods = (
+            SlotMethodConfig(
+                "a", "A", 0.5, (_hold_slot("gld", Path("GLD.csv"), 0.5), _hold_slot("gold", Path("GLD.csv"), 0.5))
+            ),
+            self._slot_method("b", 0.5, "tlt", Path("TLT.csv")),
+        )
+
+        validate_portfolio_config(self._config(methods=methods))
+
+    @pytest.mark.parametrize("total_capital", [0.0, -1.0, float("nan")])
+    def test_total_capital_must_be_positive(self, total_capital: float) -> None:
+        """총 자본이 0 이하 · NaN 이면 ValueError."""
+        config = replace(self._config(asset_slots=(_hold_slot("gld", _DUMMY, 1.0),)), total_capital=total_capital)
+        with pytest.raises(ValueError, match="total_capital"):
+            validate_portfolio_config(config)
+
+    @pytest.mark.parametrize("weight", [0.0, -0.1, float("nan")])
+    def test_slot_weight_must_be_positive(self, weight: float) -> None:
+        """슬롯 비중이 0 이하 · NaN 이면 ValueError (비중 0 인 슬롯은 첫 매수 신호에서 엔진이 멈춘다)."""
+        slots = (_hold_slot("gld", _DUMMY, 0.5), _hold_slot("tlt", _DUMMY, weight))
+        with pytest.raises(ValueError, match="target_weight는 0 보다 커야 합니다: asset_id=tlt"):
+            validate_portfolio_config(self._config(asset_slots=slots))
+
+    def test_unknown_strategy_id_raises(self) -> None:
+        """등록되지 않은 strategy_id 면 시세를 읽기 전에 ValueError."""
+        slots = (AssetSlotConfig("gld", _DUMMY, _DUMMY, target_weight=1.0, strategy_id="nope"),)
+        with pytest.raises(ValueError, match="strategy_id"):
+            validate_portfolio_config(self._config(asset_slots=slots))
+
+    def test_out_of_range_slot_strategy_params_raise_before_loading(self) -> None:
+        """슬롯의 전략 파라미터가 범위 밖이면 시세를 읽기 전에(더미 경로) 자산 id 와 함께 ValueError."""
+        slots = (
+            _hold_slot("tlt", _DUMMY, 0.5),
+            AssetSlotConfig("gld", _DUMMY, _DUMMY, target_weight=0.5, hold_days=-1),
+        )
+        with pytest.raises(ValueError, match="asset_id=gld.*hold_days"):
+            validate_portfolio_config(self._config(asset_slots=slots))
 
     def test_unknown_allocator_id_raises(self) -> None:
         """등록되지 않은 allocator_id 면 ValueError."""

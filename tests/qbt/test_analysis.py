@@ -118,6 +118,25 @@ class TestAddSingleMovingAverage:
         with pytest.raises(ValueError):
             add_single_moving_average(df, window=invalid_window)
 
+    def test_window_one_is_smallest_valid_window(self):
+        """
+        이동평균 기간 하한의 받는 쪽 경계 테스트
+
+        Given: 3행 데이터
+        When: window=1
+        Then: 예외 없이 계산되고 이동평균이 그날 종가와 같다
+        """
+        # Given
+        df = pd.DataFrame(
+            {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)], COL_CLOSE: [100.0, 110.0, 120.0]}
+        )
+
+        # When
+        result = add_single_moving_average(df, window=1)
+
+        # Then
+        assert list(result["ma_1"]) == pytest.approx([100.0, 110.0, 120.0], abs=EPSILON)
+
 
 class TestCalculateSummary:
     """백테스트 성과 지표 계산 테스트"""

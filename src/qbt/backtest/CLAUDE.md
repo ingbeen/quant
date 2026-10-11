@@ -95,8 +95,8 @@ Expanding Anchored 및 Rolling Window 모드를 지원한다.
 - `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_id)
   - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
   - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
-  - 유효하지 않은 strategy_id는 엔진이 registry 조회 후 ValueError로 처리
-  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window=200`, `buy_buffer_zone_pct=0.03`, `sell_buffer_zone_pct=0.05`, `hold_days=3`
+  - 등록되지 않은 strategy_id 는 설정 검증(`validate_portfolio_config`)이 시세를 읽기 전에 ValueError 로 막는다
+  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days` — 기본값은 `FIXED_4P_*`
 - `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
 - `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플, allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods, min_start_date)
@@ -228,7 +228,6 @@ TypedDict:
 - `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를 전달).
 - `is_last_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 리밸런싱 판단일(월 마지막 거래일) 판정. 다음 거래일과 (연, 월)을 비교하며, 마지막 행은 체결할 날이 없어 False, 범위 밖 인덱스는 ValueError
 - `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
-- `create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy` (portfolio_planning.py): STRATEGY_REGISTRY 경유 팩토리 (미등록 strategy_id → ValueError)
 
 설계 특징:
 
@@ -238,7 +237,7 @@ TypedDict:
 - 매매법 사이 비중: 월 마지막 거래일에 어느 매매법이든 몫(매매법 자본 합 대비)의 상대 편차가 임계값을 넘으면 전 매매법을 목표 몫으로 되돌리고 각자 보유 종목 전부를 새 몫으로 맞춘다(사유 "methods")
 - 종목 단위 상계: 매매법 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × SLIPPAGE_RATE 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음)
 - 같은 날 체결 순서는 설정 순서로 고정된다 — 집합 순서(문자열 해시 무작위화)로 돌면 같은 코드에서도 결과 파일이 실행마다 달랐다
-- TQQQ/QQQ 시그널 공유: signal_data_path가 동일하면 자동으로 같은 시그널 발생
+- 신호 시세 읽기: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다. 슬롯끼리 신호 시세를 함께 쓰지 않는다 — 함께 쓰면 먼저 읽은 슬롯의 기간으로 잘린 이동평균을 뒤 슬롯이 받아 슬롯 순서가 시작일을 바꾼다
 - 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
 - 월말 판단 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 마지막 거래일 종가에 판단해 다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 판단일에 진입 신호가 난 자산은 편차 판정에서 빠진다 — 남은 자산의 편차가 임계값을 넘을 때만 리밸런싱하고, 그때는 진입 자산까지 맞춘다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
@@ -277,7 +276,7 @@ TypedDict:
 
 배분 규칙 구현. 규칙마다 모듈 하나이고 설정을 모른다(시세만 받는다).
 
-- 요구 id 는 각 모듈의 `*_ASSET_IDS` · `*_SERIES_IDS` 상수가 정한다. Q-2-2XS 와 같은 종목(TLT 등)은 같은 자산 id 를 써야 종목 단위 상계가 된다
+- 요구 id 는 각 모듈의 `*_ASSET_IDS` · `*_SERIES_IDS` 상수가 정한다. Q-2-2XS 와 같은 종목(TLT 등)은 같은 자산 id 를 써야 종목 단위 상계가 된다 — 여러 매매법이 같은 매매 데이터를 다른 id 로 들면 설정 검증이 막는다
 - 이동평균 · 월말 행 목록 같은 파생 계산은 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 j 의 값은 j 이하 행만 쓰므로 미래를 읽지 않는다
 - `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서. 모든 시세를 같은 행 번호로 읽으므로 점수를 처음 낼 때(첫 판단일) 자산 시세의 거래일이 카나리아와 같은지 확인하고 다르면 ValueError
 - `us_weakness_rotation.py` `UsWeaknessRotationAllocator`: 「위험 자산 ÷ 기준 시세」 비율이 그 이동평균(`add_single_moving_average`)보다 위면 위험 자산, 아니면 안전 자산. 첫 호출에서 판단하고 그 뒤는 판단일에만
@@ -390,8 +389,7 @@ TypedDict:
 
 파라미터 결정 함수:
 
-- `resolve_buffer_params(ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days) -> BufferStrategyParams`: 파라미터 검증 후 BufferStrategyParams 생성
-- `resolve_params_for_config(config) -> BufferStrategyParams`: config의 파라미터를 resolve_buffer_params()에 전달
+- `resolve_params_for_config(config) -> BufferStrategyParams`: config 의 파라미터로 BufferStrategyParams 를 만든다 (범위 검증은 하지 않는다 — 「도메인 규칙 1」)
 
 주요 함수:
 
@@ -481,6 +479,8 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - 매수 버퍼존 (`buy_buffer_zone_pct`): upper_band 기준 매수 진입 허용 범위 (비율, 0~1)
 - 매도 버퍼존 (`sell_buffer_zone_pct`): lower_band 기준 매도 청산 허용 범위 (비율, 0~1)
 - 유지 조건 (`hold_days`): 신호 확정까지 대기 기간 (일), 0 = 버퍼존만 모드
+
+범위 검증은 파라미터마다 한 곳이다 — 버퍼존 비율(하한 `MIN_*_BUFFER_ZONE_PCT` 이상 1 미만)과 유지일수(`MIN_HOLD_DAYS` 이상)는 `BufferZoneStrategy` 생성자, 이동평균 기간은 `add_single_moving_average`. 전략을 만드는 모든 경로가 그 둘을 지나므로 호출부에 같은 검사를 다시 두지 않는다. 범위 밖 값은 검증이 없으면 예외 없이 다른 결과를 낸다. 포트폴리오 설정 검증은 슬롯마다 전략을 한 번 만들어 보아, 시세를 읽기 전에 어느 슬롯의 값인지와 함께 알린다.
 
 > 이동평균 유형은 파라미터가 아니다. **SMA 로 고정**되어 있다 (아래 규칙 참고).
 

@@ -245,6 +245,56 @@ class TestBufferZoneStrategyInterface:
         assert result is False
 
 
+class TestBufferZoneStrategyParamValidation:
+    """BufferZoneStrategy 생성자의 파라미터 범위 검증.
+
+    핵심 계약: 매수 · 매도 버퍼존 비율은 0.01 이상 1 미만, 유지일수는 0 이상이다. 범위 밖이면 ValueError.
+    전략을 만드는 모든 경로가 이 생성자를 지나므로 검증은 여기 한 곳에 둔다.
+    하한 0.01 은 정책 값이라 상수를 참조하지 않고 고정한다.
+    """
+
+    @pytest.mark.parametrize(
+        ("buy_buffer_pct", "sell_buffer_pct", "hold_days", "message"),
+        [
+            (0.005, 0.05, 3, "buy_buffer_pct"),
+            (1.0, 0.05, 3, "buy_buffer_pct"),
+            (5.0, 0.05, 3, "buy_buffer_pct"),
+            (float("nan"), 0.05, 3, "buy_buffer_pct"),
+            (0.03, 0.005, 3, "sell_buffer_pct"),
+            (0.03, 1.0, 3, "sell_buffer_pct"),
+            (0.03, 1.5, 3, "sell_buffer_pct"),
+            (0.03, float("nan"), 3, "sell_buffer_pct"),
+            (0.03, 0.05, -1, "hold_days"),
+        ],
+    )
+    def test_out_of_range_params_raise(
+        self, buy_buffer_pct: float, sell_buffer_pct: float, hold_days: int, message: str
+    ) -> None:
+        """
+        목적: 범위 밖 파라미터로는 전략을 만들 수 없음을 검증
+
+        Given: 하나만 범위 밖인 파라미터 (하한 미만 · 1 이상 · NaN · 음수 유지일)
+        When:  BufferZoneStrategy 생성
+        Then:  그 파라미터 이름이 든 ValueError
+        """
+        with pytest.raises(ValueError, match=message):
+            BufferZoneStrategy("ma_200", buy_buffer_pct, sell_buffer_pct, hold_days)
+
+    @pytest.mark.parametrize(
+        ("buy_buffer_pct", "sell_buffer_pct", "hold_days"),
+        [(0.01, 0.05, 3), (0.03, 0.01, 3), (0.03, 0.05, 0), (0.99, 0.99, 3)],
+    )
+    def test_boundary_params_are_accepted(self, buy_buffer_pct: float, sell_buffer_pct: float, hold_days: int) -> None:
+        """
+        목적: 경계값(하한 0.01 · 유지일 0 · 1 바로 아래)은 받는지 검증
+
+        Given: 경계에 놓인 파라미터
+        When:  BufferZoneStrategy 생성
+        Then:  예외 없음
+        """
+        BufferZoneStrategy("ma_200", buy_buffer_pct, sell_buffer_pct, hold_days)
+
+
 # ============================================================================
 # BuyAndHoldStrategy 테스트 (새 인터페이스)
 # ============================================================================

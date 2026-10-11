@@ -35,7 +35,6 @@ from qbt.backtest.strategies.buffer_zone import (
     CONFIGS,
     BufferZoneConfig,
     get_config,
-    resolve_buffer_params,
     resolve_params_for_config,
 )
 from qbt.backtest.types import BufferStrategyParams, SingleBacktestResult
@@ -251,95 +250,12 @@ class TestResolveParamsForConfig:
         assert params.hold_days == 3
 
 
-class TestResolveBufferParamsMaWindowValidation:
-    """resolve_buffer_params의 ma_window 양수 검증 테스트
-
-    핵심 계약: ma_window < 1이면 ValueError 발생.
-    buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days는 이미 최솟값 검증이 존재하나
-    ma_window는 검증 누락 상태 (리포트 3-13).
-    """
-
-    def test_ma_window_zero_raises_value_error(self):
-        """
-        목적: ma_window=0일 때 ValueError 발생 검증
-
-        Given: ma_window=0, 나머지 파라미터 유효
-        When: resolve_buffer_params 호출
-        Then: ValueError 발생, "ma_window" 포함 메시지
-        """
-        # When & Then
-        with pytest.raises(ValueError, match="ma_window"):
-            resolve_buffer_params(
-                ma_window=0,
-                buy_buffer_zone_pct=0.03,
-                sell_buffer_zone_pct=0.05,
-                hold_days=3,
-            )
-
-    def test_ma_window_negative_raises_value_error(self):
-        """
-        목적: ma_window < 0일 때 ValueError 발생 검증
-
-        Given: ma_window=-10, 나머지 파라미터 유효
-        When: resolve_buffer_params 호출
-        Then: ValueError 발생, "ma_window" 포함 메시지
-        """
-        # When & Then
-        with pytest.raises(ValueError, match="ma_window"):
-            resolve_buffer_params(
-                ma_window=-10,
-                buy_buffer_zone_pct=0.03,
-                sell_buffer_zone_pct=0.05,
-                hold_days=3,
-            )
-
-    def test_ma_window_one_is_valid(self):
-        """
-        목적: ma_window=1은 유효한 최솟값임을 검증
-
-        Given: ma_window=1, 나머지 파라미터 유효
-        When: resolve_buffer_params 호출
-        Then: 정상 반환, ValueError 미발생
-        """
-        # When
-        params = resolve_buffer_params(
-            ma_window=1,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=3,
-        )
-
-        # Then
-        assert params.ma_window == 1
-
-
-class TestResolveBufferParamsReturnType:
-    """resolve_buffer_params / resolve_params_for_config 반환타입 검증
+class TestResolveParamsForConfigReturnType:
+    """resolve_params_for_config 반환타입 검증
 
     핵심 계약: sources 딕셔너리 제거 후 BufferStrategyParams만 반환.
     (리포트 3-12, 확정 방침 5-5)
     """
-
-    def test_resolve_buffer_params_returns_params_only(self):
-        """
-        목적: resolve_buffer_params가 BufferStrategyParams만 반환하는지 검증
-
-        Given: 유효한 4P 파라미터
-        When: resolve_buffer_params 호출
-        Then: 반환값이 tuple이 아닌 BufferStrategyParams 인스턴스
-        """
-        # When
-        result = resolve_buffer_params(
-            ma_window=200,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.05,
-            hold_days=3,
-        )
-
-        # Then
-        assert isinstance(result, BufferStrategyParams)
-        assert not isinstance(result, tuple)
-        assert result.ma_window == 200
 
     def test_resolve_params_for_config_returns_params_only(self):
         """

@@ -152,25 +152,25 @@ class TestRunBufferStrategy:
                 "ma_window",
                 0,
                 {"buy_buffer_zone_pct": 0.03, "sell_buffer_zone_pct": 0.03, "hold_days": 0},
-                "ma_window는 1 이상",
+                "window는 1 이상",
             ),
             (
                 "buy_buffer_zone_pct",
                 0.005,
                 {"ma_window": 5, "sell_buffer_zone_pct": 0.03, "hold_days": 0},
-                "buy_buffer_zone_pct는.*이상",
+                "buy_buffer_pct.*이상",
             ),
             (
                 "sell_buffer_zone_pct",
                 0.005,
                 {"ma_window": 5, "buy_buffer_zone_pct": 0.03, "hold_days": 0},
-                "sell_buffer_zone_pct는.*이상",
+                "sell_buffer_pct.*이상",
             ),
             (
                 "hold_days",
                 -1,
                 {"ma_window": 5, "buy_buffer_zone_pct": 0.03, "sell_buffer_zone_pct": 0.03},
-                "hold_days는.*이상",
+                "hold_days.*이상",
             ),
         ],
         ids=[
@@ -201,7 +201,6 @@ class TestRunBufferStrategy:
                 "Open": [100, 101],
                 "Close": [100, 101],
                 "ma_5": [100, 101],
-                "ma_0": [100, 101],  # invalid ma_window 테스트용
             }
         )
 

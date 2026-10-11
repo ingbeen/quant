@@ -29,9 +29,6 @@ from qbt.backtest.constants import (
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
     DEFAULT_INITIAL_CAPITAL,
-    MIN_BUY_BUFFER_ZONE_PCT,
-    MIN_HOLD_DAYS,
-    MIN_SELL_BUFFER_ZONE_PCT,
     MIN_VALID_ROWS,
     ROUND_PRICE,
     ma_col_name,
@@ -578,17 +575,7 @@ def run_buffer_strategy(
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
         PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
-    # 1. 파라미터 검증
-    if params.ma_window < 1:
-        raise ValueError(f"ma_window는 1 이상이어야 합니다: {params.ma_window}")
-    if params.buy_buffer_zone_pct < MIN_BUY_BUFFER_ZONE_PCT:
-        raise ValueError(f"buy_buffer_zone_pct는 {MIN_BUY_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.buy_buffer_zone_pct}")
-    if params.sell_buffer_zone_pct < MIN_SELL_BUFFER_ZONE_PCT:
-        raise ValueError(f"sell_buffer_zone_pct는 {MIN_SELL_BUFFER_ZONE_PCT} 이상이어야 합니다: {params.sell_buffer_zone_pct}")
-    if params.hold_days < MIN_HOLD_DAYS:
-        raise ValueError(f"hold_days는 {MIN_HOLD_DAYS} 이상이어야 합니다: {params.hold_days}")
-
-    # 2. 초기 MA 계산
+    # 1. 초기 MA 계산
     ma_col = ma_col_name(params.ma_window)
     signal_df = signal_df.copy()
     trade_df = trade_df.copy()
@@ -596,10 +583,10 @@ def run_buffer_strategy(
     if ma_col not in signal_df.columns:
         signal_df = add_single_moving_average(signal_df, params.ma_window)
 
-    # 3. MA 유효 구간 필터링 (초기 MA 기준)
+    # 2. MA 유효 구간 필터링 (초기 MA 기준)
     filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
-    # 4. BufferZoneStrategy 생성 및 실행
+    # 3. BufferZoneStrategy 생성 및 실행
     strategy = BufferZoneStrategy(
         ma_col=ma_col,
         buy_buffer_pct=params.buy_buffer_zone_pct,

@@ -34,7 +34,8 @@ class StrategySpec:
 
     Attributes:
         strategy_id: 전략 식별자 (STRATEGY_REGISTRY의 키)
-        create_strategy: AssetSlotConfig를 받아 SignalStrategy 객체를 반환하는 팩토리
+        create_strategy: AssetSlotConfig를 받아 SignalStrategy 객체를 반환하는 팩토리.
+            설정 검증도 파라미터 범위를 확인하려고 슬롯마다 한 번 부르고 결과를 버린다 — 부작용이 없어야 한다
         prepare_signal_df: signal DataFrame에 전략별 전처리를 적용하는 함수
             - buffer_zone: MA 컬럼 추가
             - buy_and_hold: 원본 그대로 반환

@@ -20,6 +20,13 @@ from typing import Any, Final, Literal
 
 import pandas as pd
 
+from qbt.backtest.constants import (
+    FIXED_4P_BUY_BUFFER_ZONE_PCT,
+    FIXED_4P_HOLD_DAYS,
+    FIXED_4P_MA_WINDOW,
+    FIXED_4P_SELL_BUFFER_ZONE_PCT,
+)
+
 # ============================================================================
 # 자산별 컬럼 접미사 (equity_df / state_log_df 공용)
 # ============================================================================
@@ -100,14 +107,14 @@ class AssetSlotConfig:
         signal_data_path: 이동평균 계산 대상 데이터 경로 (TQQQ → QQQ 경로)
         trade_data_path: 실제 매매 대상 데이터 경로 (TQQQ → 합성 데이터 경로)
         target_weight: 목표 비중 (예: 0.30 = 30%)
-        strategy_id: STRATEGY_REGISTRY 키. 유효하지 않은 값은 엔진이 ValueError로 처리한다.
+        strategy_id: STRATEGY_REGISTRY 키. 등록되지 않은 값은 설정 검증(validate_portfolio_config)이 ValueError로 막는다.
             "buffer_zone" = 버퍼존 신호에 따라 매수/매도 (기본값).
             "buy_and_hold" = 즉시 매수 후 매도 신호 무시, 항상 투자 상태 유지.
             G 시리즈에서 GLD·TLT B&H 처리에 사용.
-        ma_window: 이동평균 기간 (buffer_zone 슬롯에서 사용, 기본값 200)
-        buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.03)
-        sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값 0.05)
-        hold_days: 유지일수 (buffer_zone 슬롯에서 사용, 기본값 3)
+        ma_window: 이동평균 기간 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
+        buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
+        sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
+        hold_days: 유지일수 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
     """
 
     asset_id: str
@@ -116,10 +123,10 @@ class AssetSlotConfig:
     target_weight: float  # 목표 비중 (0.30 = 30%)
     strategy_id: str = "buffer_zone"  # STRATEGY_REGISTRY 키 (예: "buffer_zone", "buy_and_hold")
     # 전략별 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시)
-    ma_window: int = 200
-    buy_buffer_zone_pct: float = 0.03
-    sell_buffer_zone_pct: float = 0.05
-    hold_days: int = 3
+    ma_window: int = FIXED_4P_MA_WINDOW
+    buy_buffer_zone_pct: float = FIXED_4P_BUY_BUFFER_ZONE_PCT
+    sell_buffer_zone_pct: float = FIXED_4P_SELL_BUFFER_ZONE_PCT
+    hold_days: int = FIXED_4P_HOLD_DAYS
 
 
 # 매매법이 둘 이상인 실험의 자산 키 구분자 ({method_id}.{asset_id}). 그래서 id 에 쓸 수 없다

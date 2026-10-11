@@ -11,7 +11,6 @@ import pandas as pd
 
 from qbt.backtest.portfolio_types import AssetSlotConfig, AssetState
 from qbt.backtest.strategies.strategy_common import SignalStrategy
-from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 
 
 @dataclass
@@ -54,24 +53,6 @@ class ProjectedPortfolio:
     # 진입 자산은 보유가 0 이라 편차가 100% 로 계산되고, 조정 자산은 그날 이미 목표로 매매한다
     # (결정 근거: docs/research/전략_검증_보고서.md 부록 L.5)
     check_excluded_assets: set[str] = field(default_factory=set)
-
-
-def create_strategy_for_slot(slot: AssetSlotConfig) -> SignalStrategy:
-    """STRATEGY_REGISTRY를 경유하여 전략 객체를 생성한다.
-
-    Args:
-        slot: 자산 슬롯 설정
-
-    Returns:
-        SignalStrategy를 구현한 전략 객체
-
-    Raises:
-        ValueError: 미등록 strategy_id인 경우
-    """
-    spec = STRATEGY_REGISTRY.get(slot.strategy_id)
-    if spec is None:
-        raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
-    return spec.create_strategy(slot)
 
 
 def compute_portfolio_equity(

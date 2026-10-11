@@ -22,7 +22,7 @@ from qbt.backtest.portfolio_types import (
 )
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
 from qbt.common_constants import EPSILON
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_signal_trade_pair
 
 
 def load_and_prepare_data(
@@ -34,23 +34,13 @@ def load_and_prepare_data(
     buffer_zone: MA 컬럼 추가, buy_and_hold: 원본 그대로 반환.
 
     Args:
-        slot: 자산 슬롯 설정
+        slot: 자산 슬롯 설정. strategy_id 는 등록된 값이어야 한다 — validate_portfolio_config 가 먼저 본다
 
     Returns:
         (signal_df, trade_df) — buffer_zone이면 MA 컬럼 포함
     """
-    signal_df = load_stock_data(slot.signal_data_path)
-    trade_df = load_stock_data(slot.trade_data_path)
-
-    # signal/trade 데이터 경로가 다르면 교집합 기간 추출
-    if slot.signal_data_path != slot.trade_data_path:
-        signal_df, trade_df = extract_overlap_period(signal_df, trade_df)
-
-    # MA 계산 (registry의 prepare_signal_df 경유)
-    spec = STRATEGY_REGISTRY.get(slot.strategy_id)
-    if spec is None:
-        raise ValueError(f"미등록 strategy_id: '{slot.strategy_id}'")
-    signal_df = spec.prepare_signal_df(signal_df, slot)
+    signal_df, trade_df = load_signal_trade_pair(slot.signal_data_path, slot.trade_data_path)
+    signal_df = STRATEGY_REGISTRY[slot.strategy_id].prepare_signal_df(signal_df, slot)
 
     return signal_df, trade_df
 
@@ -67,7 +57,11 @@ def _find_duplicates(ids: list[str]) -> list[str]:
 
 
 def _validate_slots(asset_slots: tuple[AssetSlotConfig, ...]) -> None:
-    """슬롯 묶음(매매법 하나 안)을 검증한다: 슬롯 1개 이상, target_weight 합 ≤ 1.0, 각 ≥ 0, asset_id 중복 없음."""
+    """슬롯 묶음(매매법 하나 안)을 검증한다.
+
+    슬롯 1개 이상, target_weight 합 ≤ 1.0, 각 > 0, strategy_id 등록, 전략 생성자가 보는 파라미터 범위(버퍼존 비율 · 유지일수),
+    asset_id 중복 없음. 이동평균 기간은 여기서 보지 않는다 — 시세를 읽어 이동평균을 계산할 때 걸린다.
+    """
     if not asset_slots:
         raise ValueError("슬롯이 없는 매매법입니다. asset_slots 에 자산을 1개 이상 넣으세요")
     total_weight = sum(slot.target_weight for slot in asset_slots)
@@ -77,10 +71,22 @@ def _validate_slots(asset_slots: tuple[AssetSlotConfig, ...]) -> None:
         )
 
     for slot in asset_slots:
-        if slot.target_weight < 0:
+        # 비중 0 인 슬롯은 첫 매수 신호에서 0원 주문이 되어 엔진이 멈춘다 — 쓰지 않을 자산은 슬롯에서 뺀다
+        if not slot.target_weight > 0:
             raise ValueError(
-                f"target_weight는 0 이상이어야 합니다: asset_id={slot.asset_id}, " f"target_weight={slot.target_weight}"
+                f"target_weight는 0 보다 커야 합니다: asset_id={slot.asset_id}, target_weight={slot.target_weight}"
             )
+        if slot.strategy_id not in STRATEGY_REGISTRY:
+            raise ValueError(
+                f"등록되지 않은 strategy_id 입니다: '{slot.strategy_id}' (asset_id={slot.asset_id}). "
+                f"strategy_registry.STRATEGY_REGISTRY 에 등록된 값: {sorted(STRATEGY_REGISTRY)}"
+            )
+        # 전략 파라미터의 범위는 전략 생성자가 정한다. 여기서 한 번 만들어 보아, 시세를 읽고 앞 실험의 결과를 덮어쓴 뒤가
+        # 아니라 그 전에 어느 슬롯의 값인지와 함께 알린다
+        try:
+            STRATEGY_REGISTRY[slot.strategy_id].create_strategy(slot)
+        except ValueError as e:
+            raise ValueError(f"슬롯의 전략 파라미터가 올바르지 않습니다: asset_id={slot.asset_id} — {e}") from e
 
     duplicates = _find_duplicates([slot.asset_id for slot in asset_slots])
     if duplicates:
@@ -124,6 +130,11 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
     Raises:
         ValueError: 검증 실패 시
     """
+    if not config.total_capital > 0:
+        raise ValueError(
+            f"total_capital 은 0 보다 커야 합니다: {config.total_capital} (experiment_name={config.experiment_name})"
+        )
+
     # 1. asset_slots(매매법 하나 줄임 표기)와 methods 중 정확히 하나
     if bool(config.asset_slots) == bool(config.methods):
         raise ValueError(
@@ -155,6 +166,8 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
 
     # 4. 매매법별 검증 + 자산 키 구분자 금지 + 같은 자산은 같은 매매 데이터
     trade_path_of_asset: dict[str, Path] = {}
+    asset_ids_of_trade_path: dict[Path, set[str]] = {}
+    method_ids_of_trade_path: dict[Path, set[str]] = {}
     for method in methods:
         if isinstance(method, SlotMethodConfig):
             _validate_slots(method.asset_slots)
@@ -176,6 +189,17 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
                     f"같은 자산 id '{asset_id}' 를 매매법들이 다른 매매 데이터 경로로 듭니다: {known} vs {trade_path}. "
                     f"상계는 자산 id 단위라 같은 종목은 같은 매매 데이터를 써야 합니다"
                 )
+            asset_ids_of_trade_path.setdefault(trade_path, set()).add(asset_id)
+            method_ids_of_trade_path.setdefault(trade_path, set()).add(method.method_id)
+
+    # 5. 여러 매매법이 함께 드는 매매 데이터는 자산 id 가 하나 — id 가 다르면 같은 종목인데 상계되지 않는다
+    for trade_path, asset_ids in asset_ids_of_trade_path.items():
+        if len(method_ids_of_trade_path[trade_path]) > 1 and len(asset_ids) > 1:
+            raise ValueError(
+                f"같은 매매 데이터 {trade_path} 를 매매법들이 다른 자산 id 로 듭니다: {sorted(asset_ids)} "
+                f"(매매법: {sorted(method_ids_of_trade_path[trade_path])}). "
+                f"상계는 자산 id 단위라 같은 종목은 같은 자산 id 를 써야 합니다"
+            )
 
 
 def build_combined_equity(
@@ -195,10 +219,6 @@ def build_combined_equity(
     이 컬럼들은 보유 현황·수익률·기여도 표시 용도이며, 단일 진실 공급원(SSoT) 원칙에 따라
     엔진에서 한 번만 계산한다 (대시보드 등 CLI 계층에서 동일 계산 중복 금지).
     """
-    if initial_capital <= 0:
-        # 입력 검증: PortfolioConfig.total_capital은 양수여야 한다.
-        raise ValueError(f"initial_capital은 양수여야 합니다: {initial_capital}")
-
     equity_df = pd.DataFrame(equity_rows)
 
     # drawdown 계산 (analysis.py의 공용 함수 사용 — 방어 로직 통일)

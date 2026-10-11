@@ -150,15 +150,16 @@ class TestQQQTQQQSharedSignal:
 
         Given: QQQ AssetSlotConfig(signal_data_path=QQQ_PATH)
                TQQQ AssetSlotConfig(signal_data_path=QQQ_PATH) ← 동일 경로
-               QQQ 데이터: buy → sell 전환 포함
+               QQQ 데이터: buy → sell 전환 포함, TQQQ 매매 데이터: 돌파 없이 평탄
         When:  run_portfolio_backtest() 실행
         Then:  QQQ와 TQQQ가 동일한 날짜에 exit (trades_df에 같은 exit_date)
                두 포지션 모두 청산되어 equity_df에서 QQQ/TQQQ 포지션 = 0
         """
-        # Given: buy → sell 전환이 있는 데이터
+        # Given: buy → sell 전환이 있는 신호 데이터. 매매 데이터에는 돌파가 없다 — TQQQ 가 사고판다면 신호가 QQQ 에서 온 것이다
         stock_df = _make_stock_df_with_sell(n_rows=60)
+        flat_df = stock_df.assign(**{COL_OPEN: 49.5, COL_HIGH: 51.0, COL_LOW: 49.0, COL_CLOSE: 50.0})
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
-        tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", stock_df)
+        tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", flat_df)
 
         # QQQ와 TQQQ 모두 QQQ 데이터를 시그널 소스로 사용
         config = _make_portfolio_config(
@@ -634,6 +635,51 @@ class TestInvalidConfig:
         with pytest.raises(ValueError, match="target_weight"):
             run_portfolio_backtest(config)
 
+    @pytest.mark.parametrize(
+        ("buy_buffer_zone_pct", "sell_buffer_zone_pct", "hold_days", "message"),
+        [(0.03, 0.05, -1, "hold_days"), (0.03, 1.5, 0, "sell_buffer_pct"), (5.0, 0.05, 0, "buy_buffer_pct")],
+    )
+    def test_out_of_range_slot_params_raise(
+        self,
+        tmp_path: Path,
+        create_csv_file,
+        buy_buffer_zone_pct: float,
+        sell_buffer_zone_pct: float,
+        hold_days: int,
+        message: str,
+    ):
+        """
+        목적: 슬롯의 버퍼존 비율 · 유지일수가 범위 밖이면 포트폴리오 백테스트가 멈추는지 검증.
+
+        Given: 버퍼존 슬롯 하나, 파라미터 하나만 범위 밖 (음수 유지일 · 1 이상인 매도 버퍼 · 1 이상인 매수 버퍼)
+        When:  run_portfolio_backtest() 호출
+        Then:  ValueError 발생 (검증이 없으면 예외 없이 다른 최종 자본이 나온다)
+        """
+        # Given
+        path = create_csv_file("QQQ_max.csv", _make_stock_df(n_rows=30))
+        config = PortfolioConfig(
+            experiment_name="test",
+            display_name="Test",
+            asset_slots=(
+                AssetSlotConfig(
+                    "qqq",
+                    path,
+                    path,
+                    target_weight=1.0,
+                    ma_window=5,
+                    buy_buffer_zone_pct=buy_buffer_zone_pct,
+                    sell_buffer_zone_pct=sell_buffer_zone_pct,
+                    hold_days=hold_days,
+                ),
+            ),
+            total_capital=10_000_000.0,
+            result_dir=tmp_path,
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match=message):
+            run_portfolio_backtest(config)
+
     def test_invalid_config_duplicate_asset_id(self):
         """
         목적: asset_id 중복 시 ValueError 발생 검증.
@@ -963,14 +1009,49 @@ class TestComputeEffectiveStartDate:
         )
 
 
-class TestCacheKeyWithDifferentMAParams:
-    """signal cache key 충돌 방지 계약 테스트.
+class TestSlotsSharingSignalData:
+    """같은 신호 시세를 드는 슬롯들의 계약 테스트.
 
-    핵심 계약:
-    - 동일 signal_data_path를 공유하는 슬롯이 서로 다른 ma_window를 사용해도
-      각자 올바른 MA 컬럼을 가진 signal_df를 사용해야 한다.
-    - 따라서 캐시 키는 경로만이 아니라 ma_window까지 포함해야 한다.
+    핵심 계약: 슬롯은 신호 시세를 각자 읽는다.
+    - 같은 signal_data_path 를 서로 다른 ma_window 로 써도 각자 자기 MA 컬럼을 가진다.
+    - 같은 signal_data_path 를 서로 다른 매매 데이터로 들어도 슬롯 순서가 결과를 바꾸지 않는다.
     """
+
+    def test_slot_order_does_not_change_start_date_or_equity(self, tmp_path: Path, create_csv_file) -> None:
+        """
+        목적: 같은 신호 시세를 다른 매매 데이터로 드는 두 슬롯의 순서를 바꿔도 시작일과 자본 곡선이 같은지 검증.
+
+        Given: 슬롯 a(신호 S · 매매 S), 슬롯 b(신호 S · 매매 T — T 는 S 보다 4거래일 늦게 시작)
+        When:  슬롯 순서 (a, b) 와 (b, a) 로 각각 실행
+        Then:  유효 시작일과 날짜별 계좌 자본이 같다
+               (슬롯끼리 신호 시세를 함께 쓰면, 먼저 읽은 슬롯의 매매 데이터 기간으로 잘린 이동평균을 뒤 슬롯이 받아 시작일이 달라진다)
+               시작일 = T 의 첫 거래일부터 이동평균 기간을 채운 날 — 신호 시세가 더 길어도 이동평균은 매매 시세와 겹치는 기간에서 계산한다
+        """
+        # Given
+        signal_df = _make_stock_df_with_sell(n_rows=60)
+        s_path = create_csv_file("S_max.csv", signal_df)
+        t_path = create_csv_file("T_max.csv", signal_df.iloc[4:].reset_index(drop=True))
+        paths = {"a": (s_path, s_path), "b": (s_path, t_path)}
+
+        def run(order: tuple[str, str]) -> tuple[date, pd.DataFrame]:
+            config = _make_portfolio_config(
+                asset_paths={asset_id: paths[asset_id] for asset_id in order},
+                result_dir=tmp_path,
+                target_weights={"a": 0.5, "b": 0.5},
+                ma_window=5,
+            )
+            return compute_portfolio_effective_start_date(config), run_portfolio_backtest(config).equity_df
+
+        # When
+        start_ab, equity_ab = run(("a", "b"))
+        start_ba, equity_ba = run(("b", "a"))
+
+        # Then: T 는 S 의 5번째 행에서 시작하고 ma_window=5 이므로 이동평균이 처음 나오는 날은 S 의 9번째 행이다
+        assert start_ab == start_ba
+        assert start_ab == signal_df[COL_DATE].iloc[8]
+        assert list(equity_ab[COL_DATE]) == list(equity_ba[COL_DATE])
+        assert equity_ab["equity"].iloc[-1] != pytest.approx(10_000_000.0, abs=1.0), "매매가 있어야 비교가 뜻이 있다"
+        pd.testing.assert_series_equal(equity_ab["equity"], equity_ba["equity"], rtol=1e-12)
 
     def test_same_path_different_ma_window_no_collision(self, tmp_path: Path, create_csv_file) -> None:
         """
@@ -980,7 +1061,6 @@ class TestCacheKeyWithDifferentMAParams:
                슬롯 A는 ma_window=5, 슬롯 B는 ma_window=10 사용
         When:  run_portfolio_backtest() 실행
         Then:  예외 없이 완료, 각 슬롯이 자기 MA 컬럼(ma_5 / ma_10)을 사용
-               (캐시 키가 경로만이면 슬롯 B가 ma_10 컬럼을 찾지 못해 KeyError가 난다)
         """
         # Given: 두 슬롯 모두 같은 CSV를 signal 소스로 사용하되 ma_window가 다름
         stock_df = _make_stock_df(n_rows=30)
@@ -1002,7 +1082,7 @@ class TestCacheKeyWithDifferentMAParams:
                     signal_data_path=qqq_path,  # 동일 경로
                     trade_data_path=qqq_path,
                     target_weight=0.50,
-                    ma_window=10,  # ma_10 컬럼 (현재 캐시 충돌 → 없는 컬럼 참조)
+                    ma_window=10,  # ma_10 컬럼
                 ),
             ),
             total_capital=10_000_000.0,
@@ -1010,9 +1090,8 @@ class TestCacheKeyWithDifferentMAParams:
         )
 
         # When & Then: 예외 없이 실행 완료해야 함
-        # 캐시 키가 경로만이면 ma_10 컬럼이 없어 KeyError가 난다
         result = run_portfolio_backtest(config)
-        assert result is not None, "캐시 키 충돌 없이 정상 실행되어야 함"
+        assert result is not None, "두 슬롯이 자기 MA 컬럼으로 정상 실행되어야 함"
         assert isinstance(result.equity_df, pd.DataFrame)
         assert len(result.equity_df) > 0
 

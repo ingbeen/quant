@@ -10,13 +10,6 @@
 
 ---
 
-## 같은 매매 데이터를 매매법마다 다른 자산 id 로 들면 상계되지 않는다
-
-- **자리**: `src/qbt/backtest/engines/portfolio_data.py:170` `validate_portfolio_config`(같은 자산 id → 같은 매매 데이터만 검사)
-- **무엇**: 설정 검증은 「같은 자산 id 면 같은 매매 데이터 경로」만 강제하고 반대(같은 경로 · 다른 자산 id)는 막지 않는다. 예: 매매법 q2_2xs 는 `gld`, 매매법 gold 는 `gold` 로 둘 다 GLD 데이터를 들면, 매매법 사이 되돌리기 날 한쪽이 팔고 다른 쪽이 사도 상계 행이 생기지 않아 절감이 빠지고(계좌 손익이 그만큼 낮게 나온다), `account_holdings` 에 같은 종목이 두 줄로 나온다. 경고 없이 검증을 통과한다. 2026-10-04 실제 산출물 5개 설정에서 0건. 계획서 ③ 에서 TLT 를 Q-2-2XS 와 HAA 가 같이 든다(D17)
-- **종류**: 가벼운 버그 (틀린 수치가 에러 없이 나간다)
-- **출처**: PLAN_multi_method_engine (2026-10-04) 코드 리뷰 1회차
-
 ## 매매법이 하나로 바뀐 실험을 다시 돌려도 이전 실행의 ledger.csv · netting.csv 가 남아 대시보드가 낡은 장부를 그린다
 
 - **자리**: `scripts/backtest/run_portfolio_backtest.py:474` `_save_portfolio_results` · `scripts/backtest/app_portfolio_backtest.py:212` `_load_ledger_csv`
