@@ -147,6 +147,21 @@ class TestPrepareTradeCsv:
         assert result.empty
         assert list(result.columns) == ["entry_date", "exit_date", "pnl", "order_amount", "holding_days"]
 
+    def test_missing_entry_exit_columns_raise(self):
+        """
+        목적: 진입 · 청산 날짜 열이 없으면 보유 기간 열 없이 넘어가지 않고 멈춤을 검증 — 두 엔진의 거래 표는 늘 그 열을 갖는다
+
+        Given: exit_date 열이 없는 trades
+        When: prepare_trades_for_csv 호출
+        Then: KeyError
+        """
+        # Given
+        trades = pd.DataFrame({"entry_date": [date(2023, 1, 2)], "pnl": [1000.0]})
+
+        # When & Then
+        with pytest.raises(KeyError, match="exit_date"):
+            prepare_trades_for_csv(trades)
+
     def test_order_amount_rounded_to_int(self):
         """
         목적: 포트폴리오 거래의 체결 금액(order_amount)이 자본금 자릿수(ROUND_CAPITAL)로 반올림된 정수가 됨을 검증

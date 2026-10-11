@@ -323,6 +323,37 @@ class TestSimulateValidation:
                 initial_price=100.0,
             )
 
+    def test_nan_underlying_return_raises(self):
+        """
+        목적: 기초 자산 수익률이 NaN 이면 첫 가격으로 되돌리지 않고 멈춤을 검증 — 시세 로더가 결측 가격을 막으므로
+              닿으면 내부 불변조건 위반이다
+
+        Given: 첫날 종가가 결측인 underlying_df (둘째 날 수익률이 NaN)
+        When: simulate 호출
+        Then: RuntimeError (「내부 불변조건 위반」)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_CLOSE: [float("nan"), 101.0, 102.0],
+            }
+        )
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+
+        # When & Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            simulate(
+                underlying_df=underlying_df,
+                ffr_df=ffr_df,
+                leverage=3.0,
+                funding_spread=0.005,
+                expense_df=expense_df,
+                initial_price=100.0,
+            )
+
 
 class TestSimulateOvernightOpen:
     """simulate() 함수의 오버나이트 갭 기반 Open 가격 계산 테스트

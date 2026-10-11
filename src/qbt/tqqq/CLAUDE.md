@@ -167,6 +167,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 - 형식: `DATE` (yyyy-mm 문자열), `VALUE` (0~1 비율)
 - 검증: 최근 데이터와의 시간 차이 `MAX_EXPENSE_MONTHS_DIFF` 이내
 
+두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 손으로 고치는 파일이라 % 로 적은 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다).
+
 ### 4. 검증 임계값
 
 - 금리 데이터 갭: `MAX_FFR_MONTHS_DIFF` (초과 시 ValueError)

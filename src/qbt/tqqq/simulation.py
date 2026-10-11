@@ -494,8 +494,8 @@ def simulate(
         underlying_return = df.iloc[i]["underlying_return"]
 
         if pd.isna(underlying_return):
-            # 첫 번째 행의 경우 수익률이 NaN이므로 initial_price 유지
-            leveraged_prices.append(initial_price)
+            # 시세 로더가 결측 · 0 이하 가격을 막으므로 둘째 행부터는 수익률이 늘 있다
+            raise RuntimeError(f"내부 불변조건 위반: 기초 자산 수익률이 NaN (날짜 {df.iloc[i][COL_DATE]})")
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]

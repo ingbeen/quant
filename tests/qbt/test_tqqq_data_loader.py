@@ -8,7 +8,7 @@ TQQQ 도메인 전용 데이터 로더 테스트
 4. 필수 컬럼이 없으면 즉시 실패하는가?
 5. 파일이 없을 때 명확한 에러를 내는가?
 6. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
-7. 월별 데이터 중복/갭 검증이 작동하는가?
+7. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
 8. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
 
 왜 중요한가요?
@@ -16,6 +16,7 @@ TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 �
 잘못된 데이터는 잘못된 비용 계산과 검증 결과를 초래합니다.
 """
 
+import math
 from datetime import date
 from pathlib import Path
 
@@ -41,9 +42,12 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.data_loader import (
     COMPARISON_COLUMNS,
+    MAX_EXPENSE_VALUE,
+    MAX_FFR_VALUE,
     _create_monthly_data_dict,
     _lookup_monthly_data,
     build_extended_expense_dict,
+    create_expense_dict,
     create_ffr_dict,
     load_comparison_data,
     load_expense_ratio_data,
@@ -434,7 +438,7 @@ class TestGenericMonthlyDataDict:
         df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0095, 0.0088]})
 
         # When: 제네릭 함수 호출
-        result_dict = _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+        result_dict = _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense", MAX_EXPENSE_VALUE)
 
         # Then
         assert result_dict == {"2023-01": 0.0095, "2023-02": 0.0088}
@@ -454,7 +458,70 @@ class TestGenericMonthlyDataDict:
 
         # When & Then
         with pytest.raises(ValueError, match="Expense.*2023-01.*중복"):
-            _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+            _create_monthly_data_dict(df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense", MAX_EXPENSE_VALUE)
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        [math.nan, math.inf, MAX_FFR_VALUE, 3.63],
+        ids=["nan", "inf", "upper_bound", "percent_unit"],
+    )
+    def test_create_ffr_dict_rejects_invalid_value(self, bad_value):
+        """
+        목적: 금리가 빈 칸 · inf · 상한 이상이면 멈춤을 검증 — 손으로 고치는 파일이라 % 로 적은 값(3.63)이나 빈 칸이
+              들어올 수 있고, 그대로 쓰면 시뮬 종가가 0 이하 · NaN 이 된다
+
+        Given: 2023-02 값만 잘못된 금리 DataFrame
+        When: create_ffr_dict 호출
+        Then: ValueError (data_type · 월 포함)
+        """
+        # Given
+        df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [0.045, bad_value]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 오류: 월 2023-02"):
+            create_ffr_dict(df)
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        [MAX_EXPENSE_VALUE, 0.84],
+        ids=["upper_bound", "prospectus_percent"],
+    )
+    def test_create_expense_dict_rejects_percent_unit(self, bad_value):
+        """
+        목적: 운용비율이 상한 이상이면 멈춤을 검증 — 설명서는 「Net 0.84」처럼 % 로 적어, 그대로 옮기면 1 미만이라도
+              비용이 백 배가 된다
+
+        Given: 2023-02 값만 % 표기인 운용비율 DataFrame
+        When: create_expense_dict 호출
+        Then: ValueError (data_type · 월 포함)
+        """
+        # Given
+        df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01", "2023-02"], COL_EXPENSE_VALUE: [0.0088, bad_value]})
+
+        # When & Then
+        with pytest.raises(ValueError, match="Expense 데이터 오류: 월 2023-02"):
+            create_expense_dict(df)
+
+    def test_realistic_values_accepted(self):
+        """
+        목적: 실제로 나올 수 있는 값은 받음을 검증 — 음수 금리(하한을 두지 않는 계약, 대체 시세의 금리 누적도 그대로 쓴다) ·
+              1980년대 초 수준의 금리(0.19) · 레버리지 ETF 로 높은 편인 운용비율(0.02). 상한을 너무 낮추면 여기서 실패한다
+
+        Given: 그 값이 든 금리 · 운용비율 DataFrame
+        When: create_ffr_dict · create_expense_dict 호출
+        Then: 값 그대로 딕셔너리에 들어간다
+        """
+        # Given
+        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02"], COL_FFR_VALUE: [-0.0005, 0.19]})
+        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.02]})
+
+        # When
+        ffr_dict = create_ffr_dict(ffr_df)
+        expense_dict = create_expense_dict(expense_df)
+
+        # Then
+        assert ffr_dict == {"2023-01": -0.0005, "2023-02": 0.19}
+        assert expense_dict == {"2023-01": 0.02}
 
     def test_lookup_monthly_data_with_gap(self):
         """

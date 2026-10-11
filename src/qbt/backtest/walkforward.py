@@ -98,7 +98,9 @@ def generate_wfo_windows(
             None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
 
     Returns:
-        (is_start, is_end, oos_start, oos_end) 튜플 리스트
+        (is_start, is_end, oos_start, oos_end) 튜플 리스트. 마지막 OOS 는 데이터 끝에서 잘릴 수 있고,
+        데이터가 OOS 시작 1년 뒤 같은 날에 닿지 않으면 그 윈도우는 만들지 않는다(OOS 가 12개월 이하인 설정에서는
+        잘린 윈도우가 늘 빠진다)
 
     Raises:
         ValueError: 데이터가 첫 OOS를 만들기에 부족한 경우
@@ -143,6 +145,10 @@ def generate_wfo_windows(
 
         # OOS 종료를 데이터 범위로 클리핑
         if oos_end > data_end:
+            # 데이터가 OOS 시작 1년 뒤 같은 날에 닿지 않으면 만들지 않는다 — CAGR · Calmar 의 연율화가 1년이 안 되는 구간을 늘려 잡아,
+            # 온전한 윈도우와 섞인 평균 · 중앙값을 흔든다(거래가 없는 몇 주는 0, 몇 달은 WFE 가 다른 윈도우의 몇 배)
+            if data_end < date(oos_start.year + 1, oos_start.month, 1):
+                break
             oos_end = data_end
 
         # Rolling 모드: IS 시작점 조정
@@ -737,8 +743,7 @@ def run_stitched_equity(
     for wr in window_results:
         oos_end_d = date.fromisoformat(str(wr["oos_end"]))
         mask = equity_df[COL_DATE] <= oos_end_d
-        if mask.any():
-            window_end_equities.append(float(equity_df[mask].iloc[-1][COL_EQUITY]))
+        window_end_equities.append(float(equity_df[mask].iloc[-1][COL_EQUITY]))
     result_summary["window_end_equities"] = window_end_equities
 
     return equity_df, result_summary

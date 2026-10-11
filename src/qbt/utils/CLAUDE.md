@@ -25,7 +25,8 @@
 중앙 집중식 CSV 로딩 및 DataFrame 전처리
 
 - `load_stock_data`: 주식 데이터 로딩
-- 자동 전처리: 파일 존재 확인, 필수 컬럼 검증, 날짜 파싱, 시간순 정렬, 중복 제거
+- 자동 전처리: 파일 존재 확인, 필수 컬럼 검증, 날짜 파싱, 시간순 정렬, 시세 표 검사
+- `validate_price_series`: 중복 날짜 · 가격 열의 결측 · 0 · 음수면 ValueError (지우거나 메우지 않는다, 거래량은 보지 않는다). 로더 · 다운로더(`validate_stock_data`) · 생성 스크립트가 저장 전에 같이 쓴다
 - `extract_overlap_period`: 두 DataFrame의 겹치는 기간 추출 (교집합 날짜 필터링, 정렬, 빈 결과 시 ValueError)
 
 ### 3. cli_helpers.py
@@ -55,7 +56,7 @@ CLI 예외 처리 데코레이터
 
 주식 데이터 다운로드 및 검증
 
-- `validate_stock_data`: 주식 데이터 유효성 검증 (결측치, 0값, 음수, 급등락)
+- `validate_stock_data`: 주식 데이터 유효성 검증 (`validate_price_series` 의 시세 표 검사 + 급등락)
 - `download_stock_data`: Yahoo Finance에서 주식 데이터 다운로드 + 전처리 + 검증 + CSV 저장
 - 검증 실패 시 즉시 ValueError (보간 금지)
 

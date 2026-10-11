@@ -12,6 +12,7 @@ TQQQ 시뮬레이션 및 검증에 필요한 데이터 로딩, 월별 데이터 
 프로젝트 전반의 공통 데이터 로딩은 utils/data_loader.py를 참고한다.
 """
 
+import math
 from datetime import date
 from pathlib import Path
 
@@ -54,6 +55,11 @@ COMPARISON_COLUMNS = [
     COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
 ]
+
+# 월별 값의 상한 — 손으로 고치는 파일이라 % 로 적은 값(금리 3.63 · 설명서 표기 그대로의 운용비율 0.82)을 잡는다.
+# 금리는 1980년대 초 최고치(비율 약 0.19 = 19%), 운용비율은 레버리지 ETF 의 비율 0.01(= 1%) 안팎보다 넉넉히 높게 둔다
+MAX_FFR_VALUE = 0.25  # 비율 (0.25 = 25%)
+MAX_EXPENSE_VALUE = 0.05  # 비율 (0.05 = 5%)
 
 
 def load_ffr_data(path: Path) -> pd.DataFrame:
@@ -137,7 +143,9 @@ def load_comparison_data(path: Path) -> pd.DataFrame:
 # ============================================================
 
 
-def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, data_type: str) -> dict[str, float]:
+def _create_monthly_data_dict(
+    df: pd.DataFrame, date_col: str, value_col: str, data_type: str, max_value: float
+) -> dict[str, float]:
     """
     월별 데이터 DataFrame을 딕셔너리로 변환한다 (O(1) 조회용).
 
@@ -148,12 +156,13 @@ def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, d
         date_col: 날짜 컬럼명 (yyyy-mm 문자열 형식)
         value_col: 값 컬럼명
         data_type: 데이터 타입 ("FFR", "Expense" 등, 에러 메시지용)
+        max_value: 값의 상한 (비율, 이 값 이상이면 ValueError)
 
     Returns:
         {"YYYY-MM": value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame 또는 중복 월 발견 시
+        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · max_value 이상인 값 발견 시
     """
     # 1. 빈 DataFrame 검증
     if df.empty:
@@ -164,6 +173,14 @@ def _create_monthly_data_dict(df: pd.DataFrame, date_col: str, value_col: str, d
     for _, row in df.iterrows():
         month_key = str(row[date_col])
         value = float(row[value_col])
+
+        # % 로 적은 값이나 빈 칸을 그대로 쓰면 시뮬 종가가 0 이하 · NaN 이 되거나 비용이 수십 배가 된다.
+        # 하한은 두지 않는다(음수 금리를 그대로 쓰는 계약)
+        if not (math.isfinite(value) and value < max_value):
+            raise ValueError(
+                f"{data_type} 데이터 오류: 월 {month_key}의 값 {value} — 비율로 {max_value} 미만이어야 합니다"
+                f"(% 로 적었는지 확인, 예: 3.63% → 0.0363)"
+            )
 
         # 중복 월 발견 시 즉시 예외 (데이터 무결성 보장)
         if month_key in data_dict:
@@ -240,9 +257,9 @@ def create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
         {"YYYY-MM": ffr_value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame 또는 중복 월 발견 시
+        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · MAX_FFR_VALUE 이상인 값 발견 시
     """
-    return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR")
+    return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR", MAX_FFR_VALUE)
 
 
 def lookup_ffr(date_value: date, ffr_dict: dict[str, float]) -> float:
@@ -277,9 +294,9 @@ def create_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
         {"YYYY-MM": expense_value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame 또는 중복 월 발견 시
+        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · MAX_EXPENSE_VALUE 이상인 값 발견 시
     """
-    return _create_monthly_data_dict(expense_df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense")
+    return _create_monthly_data_dict(expense_df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense", MAX_EXPENSE_VALUE)
 
 
 def lookup_expense(date_value: date, expense_dict: dict[str, float]) -> float:

@@ -43,7 +43,6 @@ def add_holding_days(df: pd.DataFrame) -> pd.DataFrame:
     """trades DataFrame에 holding_days 컬럼을 추가한다.
 
     entry_date와 exit_date 사이의 달력일 수를 계산한다.
-    이미 COL_HOLDING_DAYS 컬럼이 있으면 그대로 반환한다.
 
     Args:
         df: 거래 내역 DataFrame (entry_date, exit_date 컬럼 필요)
@@ -51,18 +50,12 @@ def add_holding_days(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         holding_days 컬럼이 추가된 DataFrame (원본 변경 없음). 행이 없어도 컬럼은 추가한다
     """
-    if COL_HOLDING_DAYS in df.columns:
-        return df
-
-    if COL_ENTRY_DATE in df.columns and COL_EXIT_DATE in df.columns:
-        result = df.copy()
-        result[COL_HOLDING_DAYS] = [
-            (exit_date - entry_date).days
-            for entry_date, exit_date in zip(result[COL_ENTRY_DATE], result[COL_EXIT_DATE], strict=True)
-        ]
-        return result
-
-    return df
+    result = df.copy()
+    result[COL_HOLDING_DAYS] = [
+        (exit_date - entry_date).days
+        for entry_date, exit_date in zip(result[COL_ENTRY_DATE], result[COL_EXIT_DATE], strict=True)
+    ]
+    return result
 
 
 def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:

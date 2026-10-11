@@ -103,7 +103,7 @@ CLI 계층 (`scripts/`): [scripts/CLAUDE.md](../../scripts/CLAUDE.md) 참고
 #### CSV 데이터 로딩
 
 - 중앙 집중식: `utils/data_loader.py`에서 모든 CSV 로딩
-- 로딩 시 자동 전처리 (날짜 파싱, 정렬, 중복 제거)
+- 로딩 시 날짜 파싱 · 정렬. 중복 날짜 · 가격의 결측 · 0 · 음수는 지우거나 메우지 않고 멈춘다(`validate_price_series`)
 - 순환 임포트 방지
 
 #### 병렬 처리

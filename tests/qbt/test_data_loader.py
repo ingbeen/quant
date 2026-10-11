@@ -5,7 +5,7 @@ data_loader 모듈 테스트
 1. CSV 파일에서 데이터를 정확히 로드하는가?
 2. 필수 컬럼이 없으면 즉시 실패하는가?
 3. 날짜가 올바르게 파싱되고 정렬되는가?
-4. 중복 날짜가 제거되고 경고 로그가 찍히는가?
+4. 중복 날짜 · 가격의 결측 · 0 · 음수가 있으면 멈추는가?
 5. 파일이 없을 때 명확한 에러를 내는가?
 6. 두 DataFrame의 겹치는 기간이 정확히 추출되는가?
 
@@ -15,9 +15,9 @@ data_loader 모듈 테스트
 결과적으로 신뢰할 수 없는 백테스트 결과를 초래합니다.
 """
 
-import logging
 from datetime import date
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -117,30 +117,19 @@ class TestLoadStockData:
         assert "필수 컬럼" in error_msg, "에러 메시지에 '필수 컬럼'이 포함되어야 합니다"
         assert "Close" in error_msg, "누락된 컬럼명이 에러 메시지에 있어야 합니다"
 
-    def test_duplicate_dates_removed(self, tmp_path, caplog, monkeypatch):
+    def test_duplicate_dates_raise(self, tmp_path):
         """
-        중복 날짜 제거 및 경고 로그 테스트
+        목적: 같은 날짜가 두 번 나오면 고르지 않고 멈춤을 검증 — 어느 행이 맞는지 알 수 없다
 
-        데이터 신뢰성: 중복 날짜는 백테스트 로직을 망가뜨릴 수 있습니다.
-        첫 번째 값만 유지하고, 사용자에게 경고해야 합니다.
-
-        Given: 같은 날짜가 2번 나오는 CSV
+        Given: 2023-01-02 가 두 행(값이 다름)인 CSV
         When: load_stock_data 호출
-        Then:
-          - 중복 제거되어 행 수 감소
-          - WARNING 로그 발생 ("중복 날짜" 메시지 포함)
-          - 첫 번째 값 유지 확인
+        Then: ValueError (「중복 날짜」와 그 날짜)
         """
-        # 프로젝트 로거는 propagate=False로 설정되어 caplog이 캡처하지 못함
-        # 테스트 중에만 propagate=True로 임시 변경
-        target_logger = logging.getLogger("qbt.utils.data_loader")
-        monkeypatch.setattr(target_logger, "propagate", True)
-
-        # Given: 중복 날짜 데이터
+        # Given
         dup_df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, 2), date(2023, 1, 2), date(2023, 1, 3)],
-                "Open": [100.0, 999.0, 102.0],  # 두 번째 행은 999로 다르게
+                "Open": [100.0, 999.0, 102.0],
                 "High": [105.0, 999.0, 107.0],
                 "Low": [99.0, 999.0, 101.0],
                 "Close": [103.0, 999.0, 105.0],
@@ -150,20 +139,53 @@ class TestLoadStockData:
         csv_path = tmp_path / "duplicate.csv"
         dup_df.to_csv(csv_path, index=False)
 
-        # When: 로그 캡처하면서 로딩
-        with caplog.at_level(logging.WARNING, logger="qbt.utils.data_loader"):
-            df = load_stock_data(csv_path)
+        # When & Then
+        with pytest.raises(ValueError, match=r"중복 날짜.*2023, 1, 2"):
+            load_stock_data(csv_path)
 
-        # Then: 중복 제거 확인
-        assert len(df) == 2, "중복 날짜 제거 후 2행이어야 합니다"
+    @pytest.mark.parametrize(
+        "col,bad_value,pattern",
+        [("Close", np.nan, "결측치 발견"), ("Open", 0.0, "0 값 발견"), ("Low", -1.0, "음수 값 발견")],
+        ids=["close_nan", "open_zero", "low_negative"],
+    )
+    def test_invalid_price_raises(self, tmp_path, sample_stock_df, col, bad_value, pattern):
+        """
+        목적: 가격 열에 결측 · 0 · 음수가 있으면 읽을 때 멈춤을 검증 — 그대로 넘기면 신호가 에러 없이 사라지거나
+              시뮬레이션이 그날을 0% 로 센다
 
-        # 첫 번째 값(100.0)이 유지되었는지 확인 (999.0이면 잘못됨)
-        first_row = df[df["Date"] == date(2023, 1, 2)].iloc[0]
-        assert first_row["Open"] == 100.0, "중복 시 첫 번째 값을 유지해야 합니다"
+        Given: 가운데 행의 가격 한 칸만 잘못된 CSV
+        When: load_stock_data 호출
+        Then: ValueError (어느 검사에 걸렸는지와 열 이름)
+        """
+        # Given
+        bad_df = sample_stock_df.copy()
+        bad_df.loc[1, col] = bad_value
+        csv_path = tmp_path / "bad.csv"
+        bad_df.to_csv(csv_path, index=False)
 
-        # 경고 로그 검증: "중복 날짜" 메시지가 WARNING 레벨로 출력되었는지 확인
-        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
-        assert any("중복 날짜" in msg for msg in warning_messages), f"'중복 날짜' 경고 로그가 출력되어야 합니다. 캡처된 경고: {warning_messages}"
+        # When & Then
+        with pytest.raises(ValueError, match=f"{pattern} - 컬럼: {col}"):
+            load_stock_data(csv_path)
+
+    def test_zero_volume_allowed(self, tmp_path, sample_stock_df):
+        """
+        목적: 거래량 0 은 받음을 검증 — 대용 · 합성 시세는 거래량이 0 이다
+
+        Given: 거래량이 모두 0 인 CSV
+        When: load_stock_data 호출
+        Then: 예외 없이 그대로 읽힌다
+        """
+        # Given
+        zero_volume_df = sample_stock_df.copy()
+        zero_volume_df["Volume"] = 0
+        csv_path = tmp_path / "zero_volume.csv"
+        zero_volume_df.to_csv(csv_path, index=False)
+
+        # When
+        df = load_stock_data(csv_path)
+
+        # Then
+        assert (df["Volume"] == 0).all()
 
     def test_date_sorting(self, tmp_path):
         """

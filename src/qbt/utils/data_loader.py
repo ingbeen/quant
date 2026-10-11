@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE, REQUIRED_COLUMNS
+from qbt.common_constants import COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
 from qbt.utils.logger import get_logger
 
 # 모듈 레벨 로거 생성
@@ -33,7 +33,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     3. 메서드 체이닝: .sort_values().reset_index() - 여러 작업을 연결
     4. raise: 예외를 발생시켜 오류 상황을 호출자에게 알림
 
-    날짜 파싱, 정렬, 필수 컬럼 검증, 중복 제거를 수행한다.
+    날짜 파싱, 정렬, 필수 컬럼 검증을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수가 있으면 멈춘다(지우거나 메우지 않는다).
 
     Args:
         path: CSV 파일 경로
@@ -43,7 +43,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
-        ValueError: 필수 컬럼이 누락되었을 때
+        ValueError: 필수 컬럼이 누락되었거나, 중복 날짜 · 가격의 결측 · 0 · 음수가 있을 때
     """
     # 1. 파일 존재 여부 확인
     # path.exists(): Path 객체가 가리키는 파일/디렉토리가 존재하는지 확인
@@ -85,21 +85,60 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     # 메서드 체이닝: 여러 메서드를 .으로 연결해서 호출
     df = df.sort_values(COL_DATE).reset_index(drop=True)
 
-    # 6. 중복 날짜 제거 (첫 번째 값 유지)
-    # .duplicated(): 중복된 행 찾기 (True/False 반환)
-    # subset: 특정 컬럼만 기준으로 중복 체크
-    # .sum(): True=1, False=0으로 계산하여 합계 (중복 개수)
-    duplicate_count = df.duplicated(subset=[COL_DATE]).sum()
-    if duplicate_count > 0:
-        logger.warning(f"중복 날짜 {duplicate_count}건 제거됨")
-        # .drop_duplicates(): 중복 행 제거
-        # keep="first": 첫 번째 행만 유지
-        df = df.drop_duplicates(subset=[COL_DATE], keep="first").reset_index(drop=True)
+    # 6. 중복 날짜 · 가격 값 검증
+    validate_price_series(df)
 
     # df[COL_DATE].min/max(): 컬럼의 최소/최대값
     logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
 
     return df
+
+
+def validate_price_series(df: pd.DataFrame) -> None:
+    """시세 표에 중복 날짜나 가격 열(`PRICE_COLUMNS`)의 결측 · 0 · 음수가 있으면 ValueError — 지우거나 메우지 않는다.
+
+    시세를 읽을 때(`load_stock_data`)와 받거나 만든 시세를 저장하기 전(`validate_stock_data` · 생성 스크립트)에
+    같은 검사를 쓴다. 거래량은 보지 않는다(대용 · 합성 시세는 거래량이 0 이다).
+
+    Raises:
+        ValueError: 중복 날짜(날짜 포함) · 결측 · 0 · 음수(열 · 인덱스 · 날짜 포함)가 있을 때
+    """
+    # 1. 중복 날짜 검사 — 어느 행이 맞는지 알 수 없으므로 고르지 않는다
+    duplicate_dates = df.loc[df.duplicated(subset=[COL_DATE]), COL_DATE].unique().tolist()
+    if duplicate_dates:
+        ellipsis = "..." if len(duplicate_dates) > 5 else ""
+        raise ValueError(f"중복 날짜 발견 - {len(duplicate_dates)}개, 날짜: {duplicate_dates[:5]}{ellipsis}")
+
+    # 2. 결측치 검사
+    for col in PRICE_COLUMNS:
+        null_mask = df[col].isna()
+        if null_mask.any():
+            null_indices = df.index[null_mask].tolist()
+            null_dates = df.loc[null_mask, COL_DATE].tolist()
+            raise ValueError(
+                f"결측치 발견 - 컬럼: {col}, 인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, 날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
+            )
+
+    # 3. 0 값 검사
+    for col in PRICE_COLUMNS:
+        zero_mask = df[col] == 0
+        if zero_mask.any():
+            zero_indices = df.index[zero_mask].tolist()
+            zero_dates = df.loc[zero_mask, COL_DATE].tolist()
+            raise ValueError(
+                f"0 값 발견 - 컬럼: {col}, 인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, 날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
+            )
+
+    # 4. 음수 값 검사
+    for col in PRICE_COLUMNS:
+        negative_mask = df[col] < 0
+        if negative_mask.any():
+            negative_indices = df.index[negative_mask].tolist()
+            negative_dates = df.loc[negative_mask, COL_DATE].tolist()
+            ellipsis = "..." if len(negative_indices) > 5 else ""
+            raise ValueError(
+                f"음수 값 발견 - 컬럼: {col}, 인덱스: {negative_indices[:5]}{ellipsis}, 날짜: {negative_dates[:5]}{ellipsis}"
+            )
 
 
 def extract_overlap_period(

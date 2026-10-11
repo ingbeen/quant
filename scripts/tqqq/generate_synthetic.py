@@ -44,7 +44,7 @@ from qbt.tqqq.data_loader import (
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data
+from qbt.utils.data_loader import load_stock_data, validate_price_series
 from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
@@ -134,6 +134,8 @@ def main() -> int:
         if col in merged_df.columns:
             merged_df[col] = merged_df[col].round(6)
 
+    # 다운로더의 급등락 검사(validate_stock_data)는 쓰지 않는다 — 3배 합성은 하루 50% 를 넘는 날이 있다(2001-01-03)
+    validate_price_series(merged_df)
     merged_df.to_csv(TQQQ_SYNTHETIC_DATA_PATH, index=False)
     logger.debug(f"병합 데이터 저장 완료: {TQQQ_SYNTHETIC_DATA_PATH}")
 

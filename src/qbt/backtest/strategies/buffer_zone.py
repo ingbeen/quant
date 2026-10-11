@@ -291,7 +291,8 @@ class BufferZoneStrategy(SignalStrategy):
             else:
                 self._init_prev_from_row(signal_df, i - 1)
 
-        assert self._prev_upper is not None and self._prev_lower is not None
+        if self._prev_upper is None or self._prev_lower is None:
+            raise RuntimeError(f"내부 불변조건 위반: 이전 밴드가 초기화되지 않았다 (i={i})")
         prev_upper = self._prev_upper
         prev_lower = self._prev_lower
         prev_close = float(signal_df.iloc[i - 1][COL_CLOSE])

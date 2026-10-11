@@ -380,7 +380,8 @@ def run_backtest(
                     )
 
             elif pending_order.order_type == "sell" and position > 0:
-                assert entry_date is not None, "포지션이 있으면 entry_date는 None이 아니어야 함"
+                if entry_date is None:
+                    raise RuntimeError(f"내부 불변조건 위반: 포지션 {position}주인데 entry_date 가 None ({current_date})")
                 sell_price, proceeds, pnl, pnl_pct = execute_sell_order(
                     float(trade_row[COL_OPEN]), position, entry_price
                 )

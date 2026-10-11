@@ -112,6 +112,22 @@ class TestValidateStockData:
         with pytest.raises(ValueError, match="음수 값 발견"):
             validate_stock_data(df)
 
+    def test_duplicate_dates_detected(self):
+        """
+        목적: 받은 시세에 같은 날짜가 두 번 있으면 저장 전에 멈춤을 검증 — 저장하면 그 파일을 읽는 모든 실행이 멈춘다
+
+        Given: 둘째 행의 날짜를 첫 행과 같게 바꾼 데이터
+        When: validate_stock_data 호출
+        Then: ValueError 발생 + "중복 날짜 발견" 메시지
+        """
+        # Given
+        df = _make_valid_df()
+        df.loc[1, COL_DATE] = df.loc[0, COL_DATE]
+
+        # When & Then
+        with pytest.raises(ValueError, match="중복 날짜 발견"):
+            validate_stock_data(df)
+
     def test_extreme_price_change_detected(self):
         """
         급등락 검출 테스트 (DEFAULT_PRICE_CHANGE_THRESHOLD 초과)

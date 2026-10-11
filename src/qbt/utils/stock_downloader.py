@@ -3,7 +3,7 @@
 Yahoo Finance에서 주식 데이터를 다운로드하고, 데이터 유효성을 검증하는 함수를 제공한다.
 
 주요 기능:
-1. 주식 데이터 유효성 검증 (결측치, 0값, 음수, 급등락)
+1. 주식 데이터 유효성 검증 (중복 날짜, 결측치, 0값, 음수, 급등락)
 2. Yahoo Finance에서 주식 데이터 다운로드 및 CSV 저장
 """
 
@@ -14,6 +14,7 @@ import pandas as pd
 import yfinance as yf
 
 from qbt.common_constants import COL_CLOSE, COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS, STOCK_DIR
+from qbt.utils.data_loader import validate_price_series
 from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +28,7 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     데이터 유효성을 검증한다.
 
     다음 항목을 검사하며, 이상 발견 시 즉시 예외를 발생시킨다:
-    - 가격 컬럼의 결측치, 0, 음수 값
+    - 중복 날짜, 가격 컬럼의 결측치, 0, 음수 값
     - 전일 대비 급등락 (임계값 이상)
 
     어떠한 형태의 보간도 수행하지 않는다.
@@ -38,38 +39,10 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     Raises:
         ValueError: 데이터 이상이 감지되었을 때
     """
-    # 1. 결측치 검사
-    for col in PRICE_COLUMNS:
-        null_mask = df[col].isna()
-        if null_mask.any():
-            null_indices = df.index[null_mask].tolist()
-            null_dates = df.loc[null_mask, COL_DATE].tolist()
-            raise ValueError(
-                f"결측치 발견 - 컬럼: {col}, 인덱스: {null_indices[:5]}{'...' if len(null_indices) > 5 else ''}, 날짜: {null_dates[:5]}{'...' if len(null_dates) > 5 else ''}"
-            )
+    # 1. 중복 날짜 · 가격의 결측치 · 0 · 음수 검사
+    validate_price_series(df)
 
-    # 2. 0 값 검사
-    for col in PRICE_COLUMNS:
-        zero_mask = df[col] == 0
-        if zero_mask.any():
-            zero_indices = df.index[zero_mask].tolist()
-            zero_dates = df.loc[zero_mask, COL_DATE].tolist()
-            raise ValueError(
-                f"0 값 발견 - 컬럼: {col}, 인덱스: {zero_indices[:5]}{'...' if len(zero_indices) > 5 else ''}, 날짜: {zero_dates[:5]}{'...' if len(zero_dates) > 5 else ''}"
-            )
-
-    # 3. 음수 값 검사
-    for col in PRICE_COLUMNS:
-        negative_mask = df[col] < 0
-        if negative_mask.any():
-            negative_indices = df.index[negative_mask].tolist()
-            negative_dates = df.loc[negative_mask, COL_DATE].tolist()
-            ellipsis = "..." if len(negative_indices) > 5 else ""
-            raise ValueError(
-                f"음수 값 발견 - 컬럼: {col}, 인덱스: {negative_indices[:5]}{ellipsis}, 날짜: {negative_dates[:5]}{ellipsis}"
-            )
-
-    # 4. 전일 대비 급등락 검사 (Close 기준)
+    # 2. 전일 대비 급등락 검사 (Close 기준)
     df_copy = df.copy()
     df_copy["pct_change"] = df_copy[COL_CLOSE].pct_change()
 
