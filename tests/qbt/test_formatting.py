@@ -4,7 +4,7 @@
 
 테스트 대상:
 - _get_display_width(): 문자열 터미널 폭 계산
-- _format_cell(): 셀 정렬 (LEFT/RIGHT/CENTER)
+- _format_cell(): 셀 정렬 (LEFT/RIGHT)
 - _format_row(): 행 포맷팅
 - TableLogger: 테이블 출력 클래스
 - Align: 정렬 방향 enum
@@ -97,7 +97,7 @@ class TestGetDisplayWidth:
 class TestFormatCell:
     """_format_cell() 함수 테스트
 
-    목적: 셀 정렬(LEFT/RIGHT/CENTER)과 폭 부족 케이스 검증
+    목적: 셀 정렬(LEFT/RIGHT)과 폭 부족 케이스 검증
     """
 
     def test_left_align_english(self):
@@ -138,27 +138,6 @@ class TestFormatCell:
 
         # Then
         assert result == "       ABC"
-        assert len(result) == 10
-
-    def test_center_align_english(self):
-        """
-        영문 문자열 중앙 정렬 시 좌우에 패딩이 균등 분배된다.
-
-        Given: "ABC", width=10, align=CENTER
-        When: _format_cell() 호출
-        Then: "   ABC    " 반환 (좌 3칸 + 3글자 + 우 4칸)
-        """
-        # Given
-        text = "ABC"
-        width = 10
-        align = Align.CENTER
-
-        # When
-        result = _format_cell(text, width, align)
-
-        # Then
-        # 좌우 패딩 균등 분배: 7칸 / 2 = 좌 3칸, 우 4칸
-        assert result == "   ABC    "
         assert len(result) == 10
 
     def test_left_align_korean(self):
@@ -224,23 +203,22 @@ class TestFormatCell:
 class TestFormatRow:
     """_format_row() 함수 테스트
 
-    목적: 다중 셀 포맷팅과 들여쓰기 검증
+    목적: 다중 셀 포맷팅과 들여쓰기(2칸) 검증
     """
 
     def test_single_cell(self):
         """
         단일 셀 행 포맷팅 시 들여쓰기가 적용된다.
 
-        Given: cells=[("ABC", 10, LEFT)], indent=2
+        Given: cells=[("ABC", 10, LEFT)]
         When: _format_row() 호출
         Then: "  ABC       " 반환 (2칸 들여쓰기 + 셀)
         """
         # Given
         cells = [("ABC", 10, Align.LEFT)]
-        indent = 2
 
         # When
-        result = _format_row(cells, indent)
+        result = _format_row(cells)
 
         # Then
         assert result == "  ABC       "
@@ -255,38 +233,19 @@ class TestFormatRow:
         """
         # Given
         cells = [("A", 5, Align.LEFT), ("B", 5, Align.RIGHT)]
-        indent = 2
 
         # When
-        result = _format_row(cells, indent)
+        result = _format_row(cells)
 
         # Then
         # indent(2) + "A    " + "    B"
         assert result == "  A        B"
 
-    def test_zero_indent(self):
-        """
-        들여쓰기가 0인 경우 셀만 출력된다.
-
-        Given: cells=[("ABC", 5, LEFT)], indent=0
-        When: _format_row() 호출
-        Then: "ABC  " 반환 (들여쓰기 없음)
-        """
-        # Given
-        cells = [("ABC", 5, Align.LEFT)]
-        indent = 0
-
-        # When
-        result = _format_row(cells, indent)
-
-        # Then
-        assert result == "ABC  "
-
 
 class TestTableLogger:
     """TableLogger 클래스 테스트
 
-    목적: 테이블 헤더/행/푸터 출력 및 컬럼 수 불일치 예외 검증
+    목적: 테이블 출력 줄과 컬럼 수 불일치 예외 검증
     """
 
     @pytest.fixture
@@ -307,141 +266,87 @@ class TestTableLogger:
 
         return logger, stream
 
-    def test_print_header_without_title(self, mock_logger):
+    def test_print_table_with_title(self, mock_logger):
         """
-        제목 없는 헤더 출력 시 구분선과 컬럼명만 출력된다.
+        전체 테이블 출력 시 구분선, 제목, 헤더, 구분선, 모든 행, 구분선이 순서대로 출력된다.
 
-        Given: 컬럼 정의, title=None
-        When: print_header() 호출
-        Then: 상단 구분선, 컬럼 헤더, 하단 구분선 출력
-        """
-        # Given
-        logger, stream = mock_logger
-        columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
-        table = TableLogger(columns, logger, indent=2)
-
-        # When
-        table.print_header()
-
-        # Then
-        output = stream.getvalue()
-        lines = output.strip().split("\n")
-
-        # 3줄 출력: 상단 구분선, 헤더, 하단 구분선
-        assert len(lines) == 3
-        # 상단 구분선: "=" * (indent + sum(widths)) = "=" * 20
-        assert "=" in lines[0]
-        # 헤더: "  이름      나이    "
-        assert "이름" in lines[1]
-        assert "나이" in lines[1]
-        # 하단 구분선: "-" * 20
-        assert "-" in lines[2]
-
-    def test_print_header_with_title(self, mock_logger):
-        """
-        제목이 있는 헤더 출력 시 제목도 함께 출력된다.
-
-        Given: 컬럼 정의, title="테스트 테이블"
-        When: print_header() 호출
-        Then: 상단 구분선, 제목, 컬럼 헤더, 하단 구분선 출력
-        """
-        # Given
-        logger, stream = mock_logger
-        columns = [("이름", 10, Align.LEFT)]
-        table = TableLogger(columns, logger, indent=2)
-
-        # When
-        table.print_header(title="테스트 테이블")
-
-        # Then
-        output = stream.getvalue()
-        lines = output.strip().split("\n")
-
-        # 4줄 출력: 상단 구분선, 제목, 헤더, 하단 구분선
-        assert len(lines) == 4
-        assert "테스트 테이블" in lines[1]
-
-    def test_print_row(self, mock_logger):
-        """
-        데이터 행 출력 시 각 셀이 정렬되어 출력된다.
-
-        Given: 컬럼 정의, data=["홍길동", 30]
-        When: print_row() 호출
-        Then: 정렬된 행이 출력됨
-        """
-        # Given
-        logger, stream = mock_logger
-        columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
-        table = TableLogger(columns, logger, indent=2)
-
-        # When
-        table.print_row(["홍길동", 30])
-
-        # Then
-        output = stream.getvalue()
-        assert "홍길동" in output
-        assert "30" in output
-
-    def test_print_row_column_mismatch(self, mock_logger):
-        """
-        데이터 길이가 컬럼 수와 일치하지 않으면 ValueError가 발생한다.
-
-        Given: 컬럼 2개, data 3개
-        When: print_row() 호출
-        Then: ValueError 발생
-        """
-        # Given
-        logger, _stream = mock_logger
-        columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
-        table = TableLogger(columns, logger, indent=2)
-
-        # When & Then
-        with pytest.raises(ValueError, match="데이터 길이.*컬럼 수"):
-            table.print_row(["홍길동", 30, "추가"])
-
-    def test_print_footer(self, mock_logger):
-        """
-        푸터 출력 시 하단 구분선이 출력된다.
-
-        Given: 컬럼 정의
-        When: print_footer() 호출
-        Then: "=" * total_width 출력
-        """
-        # Given
-        logger, stream = mock_logger
-        columns = [("이름", 10, Align.LEFT)]
-        table = TableLogger(columns, logger, indent=2)
-
-        # When
-        table.print_footer()
-
-        # Then
-        output = stream.getvalue()
-        assert "=" in output
-
-    def test_print_table(self, mock_logger):
-        """
-        전체 테이블 출력 시 헤더, 모든 행, 푸터가 순서대로 출력된다.
-
-        Given: 컬럼 정의, rows 데이터
+        Given: 컬럼 정의(폭 10 · 8), 행 2개, title="명단"
         When: print_table() 호출
-        Then: 헤더 + 행들 + 푸터 출력
+        Then: 7줄이 정해진 모양으로 출력된다 — 헤더와 행 모두 2칸 들여쓰기에서 시작한다
         """
         # Given
         logger, stream = mock_logger
         columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
-        table = TableLogger(columns, logger, indent=2)
+        table = TableLogger(columns, logger)
         rows = [["홍길동", 30], ["김철수", 25]]
 
         # When
         table.print_table(rows, title="명단")
 
         # Then
-        output = stream.getvalue()
-        lines = output.strip().split("\n")
+        assert stream.getvalue().splitlines() == [
+            "=" * 20,
+            "명단",
+            "  이름          나이",
+            "-" * 20,
+            "  홍길동          30",
+            "  김철수          25",
+            "=" * 20,
+        ]
 
-        # 최소 7줄: 상단 구분선, 제목, 헤더, 하단 구분선, 행1, 행2, 푸터
-        assert len(lines) >= 7
-        assert "명단" in output
-        assert "홍길동" in output
-        assert "김철수" in output
+    def test_print_table_without_title(self, mock_logger):
+        """
+        제목 없는 테이블 출력 시 제목 줄이 빠진다.
+
+        Given: 컬럼 정의, 행 1개, title=None
+        When: print_table() 호출
+        Then: 구분선, 헤더, 구분선, 행, 구분선 5줄 출력
+        """
+        # Given
+        logger, stream = mock_logger
+        table = TableLogger([("이름", 10, Align.LEFT)], logger)
+
+        # When
+        table.print_table([["홍길동"]])
+
+        # Then
+        assert stream.getvalue().splitlines() == ["=" * 12, "  이름      ", "-" * 12, "  홍길동    ", "=" * 12]
+
+    def test_all_lines_are_logged_from_same_function(self, mock_logger):
+        """
+        목적: 표의 모든 줄이 같은 함수에서 찍히는지 검증
+              — 로그 포맷이 함수 이름을 넣어, 헤더와 행을 다른 메서드가 찍으면 이름 길이 차이만큼 열이 어긋난다
+
+        Given: 함수 이름을 앞에 붙이는 로그 포맷
+        When: print_table() 호출
+        Then: 모든 줄의 함수 이름이 같다
+        """
+        # Given
+        logger, stream = mock_logger
+        logger.handlers[0].setFormatter(logging.Formatter("[%(funcName)s] %(message)s"))
+        table = TableLogger([("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)], logger)
+
+        # When
+        table.print_table([["홍길동", 30]], title="명단")
+
+        # Then
+        func_names = {line.split("] ", 1)[0] for line in stream.getvalue().splitlines()}
+        assert func_names == {"[print_table"}
+
+    def test_row_column_mismatch(self, mock_logger):
+        """
+        데이터 길이가 컬럼 수와 일치하지 않으면 ValueError가 발생하고 아무 줄도 출력하지 않는다.
+
+        Given: 컬럼 2개, 둘째 행의 data 3개
+        When: print_table() 호출
+        Then: ValueError 발생, 출력 없음
+        """
+        # Given
+        logger, stream = mock_logger
+        columns = [("이름", 10, Align.LEFT), ("나이", 8, Align.RIGHT)]
+        table = TableLogger(columns, logger)
+
+        # When & Then
+        with pytest.raises(ValueError, match="데이터 길이.*컬럼 수"):
+            table.print_table([["김철수", 25], ["홍길동", 30, "추가"]])
+        assert stream.getvalue() == ""

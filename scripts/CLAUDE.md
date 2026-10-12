@@ -37,35 +37,9 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 - 성공/실패 메시지
 - 요약 통계 출력
 - 테이블 형식 결과 표시
+- 실행 이력 파일은 남기지 않는다 — 실행 파라미터는 각 결과의 `summary.json` 에, 생성 시점은 git 이력에 있다. 이력을 쌓던 `meta.json` 은 읽는 코드가 0 이었고 최근 5칸이 한 번 실행(포트폴리오 실험 5개)으로 덮여 출처 기록으로도 쓸 수 없어 지웠다(2026-10-11)
 
-### 5. 메타데이터 관리
-
-책임: CSV 결과 생성 시 실행 이력 자동 저장
-
-- `meta_manager.save_metadata(csv_type, metadata)` 호출
-- 자동 기록 항목:
-  - ISO 8601 타임스탬프 (KST)
-  - 실행 파라미터 (전략 설정, 그리드 범위 등)
-  - 핵심 통계 (검증 기간, 거래일 수, 오차 지표 등)
-- 순환 저장: 최근 N개만 유지 (개수는 `meta_manager.MAX_HISTORY_COUNT`)
-- 저장 위치: `storage/results/meta.json`
-
-지원 타입:
-
-- `"single_backtest"`: 단일 백테스트 결과 (signal, equity, trades, summary)
-- `"backtest_walkforward"`: 백테스트 워크포워드 검증
-- `"portfolio_backtest"`: 포트폴리오 백테스트 결과
-- `"tqqq_daily_comparison"`: TQQQ 일별 비교
-- `"tqqq_synthetic"`: TQQQ 합성 데이터 생성
-- `"proxy_series"`: 대용 시계열 생성 (파일별 이음매 날짜 · 스케일)
-- `"portfolio_grid"`: 보완 전략 비중 그리드 (실행 수 · 묶음별 기간 · 통과 후보)
-- `"long_proxy_series"`: 장기 대체 시계열 생성 (파일별 출처 · 이음매 날짜 · 스케일, 2배 합성의 배율 · 비용 모델)
-- `"proxy_comparison"`: 대체-실물 비교 (쌍 목록 · 기간 행 수 · 이동 상관 창)
-- `"portfolio_combo_grid"`: Q-2-2XS + HAA + 로테이션 조합 그리드 (실행 수 · 묶음별 기간 · 판정 기준별 통과 · 덩어리)
-
-근거 위치: [src/qbt/utils/meta_manager.py](../src/qbt/utils/meta_manager.py), [src/qbt/common_constants.py](../src/qbt/common_constants.py)
-
-### 6. 예외 처리
+### 5. 예외 처리
 
 책임: 모든 예외를 사용자 친화적 메시지로 변환
 
@@ -74,7 +48,8 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
   - 예외 캐치 및 ERROR 로그 기록
   - 스택 트레이스 포함
   - 종료 코드 1 반환 (실패)
-- 데코레이터가 로거 자동 감지 (모듈 레벨 `logger` 변수)
+- 데코레이터는 스크립트의 모듈 레벨 `logger` 변수를 쓴다 (없으면 KeyError)
+- 실행 위치에 `storage` 폴더가 없으면 본문을 실행하지 않고 「저장소 루트에서 실행하세요」로 실패한다 — 입력 · 결과 경로가 실행 위치 기준이다
 - CLI 계층에서만 ERROR 로그 사용 가능 (비즈니스 로직에서는 금지)
 
 근거 위치: [src/qbt/utils/cli_helpers.py](../src/qbt/utils/cli_helpers.py)
@@ -94,8 +69,8 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 
 로거 초기화:
 
-- 모듈 레벨에서 로거 생성
-- 예외 처리 데코레이터가 자동 감지
+- 모듈 레벨에서 로거 생성 (변수 이름 `logger`)
+- 예외 처리 데코레이터가 이 로거를 쓴다
 
 main 함수:
 
@@ -115,8 +90,7 @@ main 함수:
 3. 데이터 로딩
 4. 비즈니스 로직 호출
 5. 결과 표시
-6. 메타데이터 저장 (CSV 생성 시)
-7. 성공 코드 반환
+6. 성공 코드 반환
 
 ---
 
@@ -153,7 +127,6 @@ main 함수:
     - 결과: `storage/results/portfolio/{experiment_name}/` 디렉토리에
       equity.csv, trades.csv, summary.json, signal_{asset_id}.csv 저장
     - 매매법이 여럿인 실험: 자산 키가 `{method_id}.{asset_id}` 이고 ledger.csv(매매법별 장부) · netting.csv(종목 단위 상계 내역)와 summary.json 의 per_method · netting · account_holdings · pnl_check 를 더한다. 계산은 `src/`(portfolio_methods 의 summarize_methods · account_target_weights)가 하고 러너는 반올림 · 저장만 한다
-    - 메타데이터 타입: `"portfolio_backtest"`
     - 실험별 독립 시작일: 각 실험은 자신의 자산 조합에 대해 `compute_portfolio_effective_start_date(config)`로 산출한 유효 시작일(자산 교집합 + MA 워밍업 이후 첫 거래일)을 사용한다(설정에 `min_start_date` 가 있는 실험은 아래). 실험마다 자산 구성이 다르면 백테스트 기간이 달라질 수 있으며, 이는 설계된 동작이다.
     - 시작일 하한 정책: 유효 시작일이 `DEFAULT_PORTFOLIO_START_DATE`(2005-01-01)보다 이르면 이 하한으로 끌어올려 실행한다 (2005년 이전 데이터는 스킵). 이 상수는 현재 스크립트 단일 파일에서만 사용되므로 `run_portfolio_backtest.py` 로컬 상수로 관리한다
     - 설정에 `min_start_date` 가 있는 실험(보완 전략 등록 실험)은 하한 정책 대신 그 날짜에 시작한다 — 시세가 바뀌어 늦게 시작하면 대시보드 숫자가 그리드 결과와 기간만큼 어긋나기 때문이다. 두 번 대조한다: 실행 전에 계산한 데이터 기준 시작일이 그 날짜보다 늦은 실험이 하나라도 있으면 어느 실험도 돌리기 전에 ValueError 로 멈추고(데이터가 늦게 시작하는 경우를 앞 실험의 결과를 새 시세로 덮어쓰기 전에 잡는다 — 2026-10-11 사용자 결정), 실행 뒤에는 그리드 워커와 같은 `run_with_start_check` 가 실제 첫 거래일이 그날인지 본다. 데이터가 더 일찍 시작하는데 그날 행만 빠진 경우는 실행 뒤 대조에서야 멈춘다(앞 실험은 이미 저장됨 — 두 우연이 겹쳐야 생겨 받아들였다)
@@ -162,11 +135,9 @@ main 함수:
   - `run_supplement_grid.py`: 「Q-2-2XS (100−w)% + 후보 w%」 실행 목록을 병렬로 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대용 검증 계산은 `src/qbt/backtest/supplement_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
     - 실행마다 정합성 검사기를 돌려 위반이 있으면 그 구성과 함께 ERROR 로그를 남기고 중단한다 (포트폴리오 러너와 같은 정책). 실제 시작일이 묶음 시작일과 다르면 워커가 멈춘다
     - 결과: `storage/results/portfolio_grid/` 의 `grid_runs.csv` · `judgment.csv` · `proxy_gate.csv` (한글 헤더, UTF-8 BOM — 사람이 읽는 산출물이고 대시보드는 읽지 않는다)
-    - 메타데이터 타입: `"portfolio_grid"`
   - `run_combo_grid.py`: 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 비중 격자를 대체 판 · 이어 붙인 판 · 완전 실물판(과 대체 판 확인용 겹침 묶음)으로 돌리고, 같은 합계의 기준선 · HAA 단독 · 로테이션 단독 · Q-2-2XS 단독을 함께 돌려 요약 CSV 만 저장한다 (인자 없음). 실행 목록 · 판정 · 대체 판 확인 계산은 `src/qbt/backtest/combo_experiment.py` 가 하고 러너는 반올림 · 한글 헤더 · 저장만 한다
     - 정합성 위반 · 실제 시작일 처리는 `run_supplement_grid.py` 와 같다
     - 결과: `storage/results/portfolio_combo_grid/` 의 `combo_runs.csv` · `combo_judgment.csv` · `combo_alt_check.csv` (한글 헤더, UTF-8 BOM)
-    - 메타데이터 타입: `"portfolio_combo_grid"`
 - 파라미터 고원 분석:
   - `run_param_plateau_all.py`: 파라미터(hold_days, sell_buffer, buy_buffer, ma_window) 통합 고원 분석
     - `--experiment` 인자: all(기본) / hold_days / sell_buffer / buy_buffer / ma_window

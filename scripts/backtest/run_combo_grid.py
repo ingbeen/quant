@@ -9,7 +9,6 @@ qbt.backtest.combo_experiment 가 하고, 이 스크립트는 병렬 실행 · �
     poetry run python scripts/backtest/run_combo_grid.py
 """
 
-import os
 import sys
 import time
 from typing import Any
@@ -48,13 +47,11 @@ from qbt.backtest.supplement_experiment import (
     CANDIDATE_Q2_2XS,
     CANDIDATE_ROTATION,
     COMBO_PCTS,
-    W_PCTS,
 )
-from qbt.common_constants import META_JSON_PATH, PORTFOLIO_COMBO_GRID_RESULTS_DIR
+from qbt.common_constants import PORTFOLIO_COMBO_GRID_RESULTS_DIR
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger
-from qbt.utils.meta_manager import save_metadata
 from qbt.utils.parallel_executor import execute_parallel_with_kwargs
 
 logger = get_logger(__name__)
@@ -298,15 +295,12 @@ def main() -> int:
     logger.debug(f"조합 그리드 실행 {len(cases)}회")
 
     # 2. 병렬 실행 (워커가 시작일 확인 · 정합성 검사 · 요약까지 한다)
-    raw_count = os.cpu_count()
-    max_workers = max(1, raw_count - 1) if raw_count is not None else None
     started = time.perf_counter()
     results: list[ComboCaseResult] = execute_parallel_with_kwargs(
         func=run_combo_case,
         inputs=[{"case": case, "q2_2xs_slots": q2_2xs_slots} for case in cases],
-        max_workers=max_workers,
     )
-    logger.debug(f"실행 완료: {len(results)}회, {time.perf_counter() - started:.1f}초 (워커 {max_workers})")
+    logger.debug(f"실행 완료: {len(results)}회, {time.perf_counter() - started:.1f}초")
 
     # 3. 정합성 위반이면 그 구성과 함께 멈춘다 (포트폴리오 러너와 같은 정책)
     violated = [r for r in results if r.violations]
@@ -337,31 +331,6 @@ def main() -> int:
     # 6. 요약 출력
     _print_maps(judgments)
     _print_alt_check(alt_check)
-
-    # 7. 메타데이터
-    verdicts = {
-        basis: {
-            "passed": next(r.passed for r in judgments if r.basis == basis),
-            "clusters": _format_clusters(next(r.clusters for r in judgments if r.basis == basis)),
-        }
-        for basis in BASIS_GROUPS
-    }
-    metadata: dict[str, Any] = {
-        "params": {
-            "combo_pcts": list(COMBO_PCTS),
-            "w_pcts": list(W_PCTS),
-            "run_count": len(results),
-            "group_periods": [list(item) for item in periods],
-        },
-        "results_summary": {"verdicts": verdicts, "alt_check_match_count": alt_check[0].match_count},
-        "output_files": {
-            "combo_runs_csv": str(runs_path),
-            "combo_judgment_csv": str(judgment_path),
-            "combo_alt_check_csv": str(alt_check_path),
-        },
-    }
-    save_metadata("portfolio_combo_grid", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
     return 0
 
 

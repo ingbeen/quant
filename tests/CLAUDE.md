@@ -69,7 +69,6 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
   - 누적배수 로그차이 계산 (스케일 무관 추적오차)
 - 공통 유틸리티:
 
-  - 메타데이터 저장/로드 (순환 저장 검증)
   - 데이터 로더 (CSV 로딩 및 전처리)
   - 겹치는 기간 추출 (`extract_overlap_period`)
   - 병렬 처리/결과 정렬(입력 순서 보장)
@@ -152,12 +151,7 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
   - `VALUE` 컬럼: 0~1 비율
 
 - `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
-- `mock_results_dir`: `RESULTS_DIR`, `META_JSON_PATH` 임시 경로로 패치 (meta_manager 포함)
-- `mock_storage_paths`: 통합 픽스처 — 모든 storage 경로를 임시 경로로 패치
-
-  - `tmp_path` 기반 디렉토리 생성 후 자동 삭제
-  - `common_constants.py`의 경로 상수를 임시 경로로 패치
-  - `meta_manager` 등 "import 시점에 상수를 들고 있는 모듈"도 함께 패치
+- storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.utils.stock_downloader.STOCK_DIR`)
 
 - `enable_numpy_warnings`: NumPy 부동소수점 경고 활성화 픽스처 (디버깅용)
 
@@ -204,4 +198,3 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 사용 중인 플러그인:
 
 - pytest-cov: 코드 커버리지 측정
-- freezegun: 시간 고정 (결정적 테스트)

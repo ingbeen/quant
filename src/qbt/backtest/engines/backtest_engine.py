@@ -9,7 +9,6 @@ SignalStrategy Protocol을 통해 전략을 의존성 주입 방식으로 사용
 - run_buffer_strategy: BufferStrategyParams 기반 버퍼존 백테스트 편의 래퍼
 """
 
-import os
 from datetime import date
 from typing import TypedDict
 
@@ -523,12 +522,9 @@ def run_grid_search(
     logger.debug(f"총 {len(param_combinations)}개 조합 병렬 실행 시작 (DataFrame 캐시 사용)")
 
     # 3. 병렬 실행 (signal_df, trade_df를 워커 캐시에 저장)
-    raw_count = os.cpu_count()
-    cpu_count = raw_count - 1 if raw_count is not None else None
     results = execute_parallel_with_kwargs(
         func=_run_backtest_for_grid,
         inputs=param_combinations,
-        max_workers=cpu_count,
         initializer=init_worker_cache,
         initargs=({"signal_df": signal_df, "trade_df": trade_df},),
     )

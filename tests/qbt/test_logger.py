@@ -20,14 +20,14 @@ from qbt.utils.logger import ClickableFormatter, get_logger, setup_logger
 class TestSetupLogger:
     """setup_logger() 함수 테스트
 
-    목적: 로거 생성, 레벨 설정, 핸들러 설정 계약 검증
+    목적: 로거 생성, 핸들러 설정 계약 검증
     """
 
     def test_creates_logger_with_default_level(self):
         """
-        레벨 지정 없이 로거 생성 시 DEBUG 레벨로 설정된다.
+        로거 생성 시 DEBUG 레벨로 설정된다.
 
-        Given: 레벨 미지정
+        Given: 새 로거 이름
         When: setup_logger() 호출
         Then: DEBUG 레벨 로거 반환
         """
@@ -36,23 +36,6 @@ class TestSetupLogger:
 
         # Then
         assert logger.level == logging.DEBUG
-
-    def test_creates_logger_with_specified_level(self):
-        """
-        지정된 레벨로 로거가 생성된다.
-
-        Given: level="WARNING"
-        When: setup_logger() 호출
-        Then: WARNING 레벨 로거 반환
-        """
-        # Given
-        level = "WARNING"
-
-        # When
-        logger = setup_logger(name="test_warning_level", level=level)
-
-        # Then
-        assert logger.level == logging.WARNING
 
     def test_prevents_duplicate_handlers(self):
         """
@@ -243,7 +226,7 @@ class TestLoggerIntegration:
         Then: 레벨에 따라 모두 출력됨
         """
         # Given
-        logger = setup_logger(name="test_workflow_integration", level="DEBUG")
+        logger = setup_logger(name="test_workflow_integration")
 
         # 로그 캡처를 위한 StringIO 핸들러 추가
         stream = StringIO()

@@ -17,7 +17,7 @@
 
 프로젝트 전역 로거 생성 및 관리
 
-- 레벨별 필터링, 포맷 표준화
+- DEBUG 레벨 · 포맷 표준화 (레벨을 고르는 인자는 없다)
 - VSCode 통합을 위한 클릭 가능한 경로 (파일:줄번호 형식)
 
 ### 2. data_loader.py
@@ -35,22 +35,23 @@ CLI 예외 처리 데코레이터
 
 - `@cli_exception_handler`: 일관된 예외 처리 로직
 - 스택 트레이스 자동 기록, 종료 코드 자동 반환 (성공 0, 실패 1)
-- 로거 자동 감지
+- 함수가 정의된 모듈의 `logger` 를 함수의 전역 이름공간에서 읽는다 (없으면 KeyError — 다른 로거로 바꾸지 않는다. `sys.modules` 로 찾지 않는다 — `python -m cProfile` 처럼 스크립트를 다른 이름공간으로 실행하면 그 모듈이 실행기다)
+- 실행 위치에 `STORAGE_DIR` 폴더가 없으면 함수를 실행하지 않고 실패한다 (「저장소 루트에서 실행하세요」 — 경로가 실행 위치 기준이다)
 
 ### 4. parallel_executor.py
 
 병렬 처리 지원
 
-- `execute_parallel`: 단일 인자 함수 병렬 실행
-- `execute_parallel_with_kwargs`: 키워드 인자 함수 병렬 실행
+- `execute_parallel_with_kwargs`: 입력마다 키워드 인자 딕셔너리를 함수에 넘겨 병렬 실행. 워커 수 기본값은 CPU 수 − 1(최소 1)
 - 입력 순서 보장된 결과 반환
+- 작업 하나가 예외를 내면 아직 워커에 넘어가지 않은 작업을 취소하고 전파한다 (`wait=False` 로 끊지 않는다 — `with` 블록의 종료가 취소 요청을 되돌려 남은 작업이 뒤에서 전부 돈다)
 
 ### 5. formatting.py
 
 터미널 출력 포맷팅
 
 - 다국어 문자폭 계산 (한글 = 2칸, 영문 = 1칸)
-- `TableLogger` 클래스: 컬럼 정의 기반 테이블 생성
+- `TableLogger` 클래스: 컬럼 정의 기반 테이블 생성. 출력은 `print_table` 하나다 — 로그 포맷이 함수 이름을 넣어, 헤더와 행을 다른 메서드가 찍으면 열이 어긋난다
 
 ### 6. stock_downloader.py
 
@@ -60,15 +61,7 @@ CLI 예외 처리 데코레이터
 - `download_stock_data`: Yahoo Finance에서 주식 데이터 다운로드 + 전처리 + 검증 + CSV 저장
 - 검증 실패 시 즉시 ValueError (보간 금지)
 
-### 7. meta_manager.py
-
-실행 메타데이터 관리
-
-- `save_metadata`: CSV 결과 파일의 생성 정보를 JSON으로 관리
-- 순환 저장: 최근 `MAX_HISTORY_COUNT` 개만 유지
-- ISO 8601 타임스탬프 자동 추가
-
-### 8. proxy_series.py
+### 7. proxy_series.py
 
 실물 ETF 상장 전 구간을 비슷하게 움직이는 다른 시세(대용)로 채우는 시세 가공. 이음매는 실물 첫 거래일이다
 
@@ -78,7 +71,7 @@ CLI 예외 처리 데코레이터
 - `build_rate_accrual_series`: 전날 연 금리로 하루치 이자(÷ `TRADING_DAYS_PER_YEAR`)를 붙여 가는 시세 (첫 종가 1.0, 시가 · 고가 · 저가 = 종가, 거래량 0) — 초단기 국채 대체. 금리 결측은 메우지 않고 ValueError, 음수 금리는 그대로 쓴다
 - 입력 날짜가 중복 없는 오름차순이 아니면 ValueError
 
-### 9. proxy_comparison.py
+### 8. proxy_comparison.py
 
 대체 시세가 기준 시세(대개 실물 ETF)를 얼마나 잘 따르는지 잰다. 비교는 기준 첫 거래일부터 두 시세가 모두 있는 날만 쓴다(시장 달력이 다른 선물 · 펀드의 빈 날을 메우지 않는다)
 

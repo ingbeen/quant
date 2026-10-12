@@ -14,7 +14,7 @@
 
 import sys
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import pandas as pd
 
@@ -38,10 +38,8 @@ from qbt.common_constants import (
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
-from qbt.utils.meta_manager import save_metadata
 from qbt.utils.proxy_series import (
     build_daily_rebalanced_composite,
-    compute_seam_scale,
     rescale_to_actual,
     splice_proxy,
 )
@@ -61,7 +59,7 @@ ONE_TO_ONE_PROXIES: Final = (
 VXUS_COMPOSITE_WEIGHTS: Final = ((EFA_DATA_PATH, 0.75), (EEM_DATA_PATH, 0.25))
 
 
-def _save_price_csv(df: pd.DataFrame, path: Path) -> pd.DataFrame:
+def _save_price_csv(df: pd.DataFrame, path: Path) -> None:
     """다운로더와 같은 순서로 저장한다: 가격 6자리 반올림 → 검증 → 저장."""
     rounded = df.copy()
     rounded[PRICE_COLUMNS] = rounded[PRICE_COLUMNS].round(6)
@@ -69,21 +67,6 @@ def _save_price_csv(df: pd.DataFrame, path: Path) -> pd.DataFrame:
     path.parent.mkdir(parents=True, exist_ok=True)
     rounded.to_csv(path, index=False)
     logger.debug(f"저장: {path} ({len(rounded):,}행, {rounded[COL_DATE].min()} ~ {rounded[COL_DATE].max()})")
-    return rounded
-
-
-def _describe(
-    path: Path, saved: pd.DataFrame, actual_df: pd.DataFrame, scale: float, sources: list[str]
-) -> dict[str, Any]:
-    return {
-        "path": str(path),
-        "sources": sources,
-        "row_count": len(saved),
-        "start_date": str(saved[COL_DATE].min()),
-        "end_date": str(saved[COL_DATE].max()),
-        "seam_date": str(actual_df[COL_DATE].iloc[0]),
-        "seam_scale": round(scale, 6),
-    }
 
 
 @cli_exception_handler
@@ -94,38 +77,19 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    outputs: list[dict[str, Any]] = []
-
     for actual_path, proxy_path, output_path in ONE_TO_ONE_PROXIES:
         actual_df = load_stock_data(actual_path)
         proxy_df = load_stock_data(proxy_path)
-        saved = _save_price_csv(splice_proxy(proxy_df, actual_df), output_path)
-        scale = compute_seam_scale(proxy_df, actual_df)
-        outputs.append(_describe(output_path, saved, actual_df, scale, [proxy_path.name, actual_path.name]))
+        _save_price_csv(splice_proxy(proxy_df, actual_df), output_path)
 
     composite = build_daily_rebalanced_composite(
         [(load_stock_data(path), weight) for path, weight in VXUS_COMPOSITE_WEIGHTS]
     )
     vxus_df = load_stock_data(VXUS_DATA_PATH)
-    scale = compute_seam_scale(composite, vxus_df)
-    composite_sources = [path.name for path, _ in VXUS_COMPOSITE_WEIGHTS]
+    _save_price_csv(splice_proxy(composite, vxus_df), VXUS_SYNTHETIC_DATA_PATH)
+    _save_price_csv(rescale_to_actual(composite, vxus_df), VXUS_PROXY_DATA_PATH)
 
-    saved = _save_price_csv(splice_proxy(composite, vxus_df), VXUS_SYNTHETIC_DATA_PATH)
-    outputs.append(
-        _describe(VXUS_SYNTHETIC_DATA_PATH, saved, vxus_df, scale, [*composite_sources, VXUS_DATA_PATH.name])
-    )
-
-    saved = _save_price_csv(rescale_to_actual(composite, vxus_df), VXUS_PROXY_DATA_PATH)
-    outputs.append(_describe(VXUS_PROXY_DATA_PATH, saved, vxus_df, scale, composite_sources))
-
-    save_metadata(
-        "proxy_series",
-        {
-            "vxus_composite_weights": {path.name: weight for path, weight in VXUS_COMPOSITE_WEIGHTS},
-            "outputs": outputs,
-        },
-    )
-    logger.debug(f"대용 시계열 {len(outputs)}개 생성 완료")
+    logger.debug("대용 시계열 생성 완료")
     return 0
 
 

@@ -19,7 +19,7 @@
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import pandas as pd
 
@@ -56,10 +56,8 @@ from qbt.tqqq.simulation import build_monthly_spread_map, simulate
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
-from qbt.utils.meta_manager import save_metadata
 from qbt.utils.proxy_series import (
     build_rate_accrual_series,
-    compute_seam_scale,
     rescale_to_actual,
     splice_proxy,
 )
@@ -76,7 +74,7 @@ LEVERAGED_PROXIES: Final = (
 )
 
 
-def _save_price_csv(df: pd.DataFrame, path: Path) -> pd.DataFrame:
+def _save_price_csv(df: pd.DataFrame, path: Path) -> None:
     """다운로더와 같은 순서로 저장한다: 가격 6자리 반올림 → 검증 → 저장."""
     rounded = df.copy()
     rounded[PRICE_COLUMNS] = rounded[PRICE_COLUMNS].round(6)
@@ -84,26 +82,11 @@ def _save_price_csv(df: pd.DataFrame, path: Path) -> pd.DataFrame:
     path.parent.mkdir(parents=True, exist_ok=True)
     rounded.to_csv(path, index=False)
     logger.debug(f"저장: {path} ({len(rounded):,}행, {rounded[COL_DATE].min()} ~ {rounded[COL_DATE].max()})")
-    return rounded
 
 
 def _month_first_day(month: str) -> date:
     """ "YYYY-MM" 월 키의 첫날."""
     return date(int(month[:4]), int(month[5:7]), 1)
-
-
-def _describe(
-    path: Path, saved: pd.DataFrame, actual_df: pd.DataFrame, scale: float, sources: list[str]
-) -> dict[str, Any]:
-    return {
-        "path": str(path),
-        "sources": sources,
-        "row_count": len(saved),
-        "start_date": str(saved[COL_DATE].min()),
-        "end_date": str(saved[COL_DATE].max()),
-        "seam_date": str(actual_df[COL_DATE].iloc[0]),
-        "seam_scale": round(scale, 6),
-    }
 
 
 @cli_exception_handler
@@ -114,8 +97,6 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    outputs: list[dict[str, Any]] = []
-
     ffr_df = load_ffr_data(FFR_DATA_PATH)
     expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
     expense_dict = build_extended_expense_dict(expense_df)
@@ -137,51 +118,20 @@ def main() -> int:
             expense_dict=expense_dict,
             funding_spread=spread_map,
         )
-        actual_df = load_stock_data(actual_path)
-        saved = _save_price_csv(rescale_to_actual(simulated, actual_df), output_path)
-        description = _describe(
-            output_path,
-            saved,
-            actual_df,
-            compute_seam_scale(simulated, actual_df),
-            [underlying_path.name, actual_path.name, FFR_DATA_PATH.name, EXPENSE_RATIO_DATA_PATH.name],
-        )
-        description["leverage"] = LEVERAGE_2X
-        description["softplus"] = {"a": DEFAULT_SOFTPLUS_A, "b": DEFAULT_SOFTPLUS_B}
-        outputs.append(description)
+        _save_price_csv(rescale_to_actual(simulated, load_stock_data(actual_path)), output_path)
 
     # 금리 누적은 SPY 거래일을 달력으로 쓴다
     calendar = load_stock_data(SPY_DATA_PATH)
     dates = calendar.loc[calendar[COL_DATE] >= ffr_first_day, COL_DATE].tolist()
     ffr_dict = create_ffr_dict(ffr_df)
     accrued = build_rate_accrual_series(dates, [lookup_ffr(day, ffr_dict) for day in dates])
-    bil_df = load_stock_data(BIL_DATA_PATH)
-    saved = _save_price_csv(rescale_to_actual(accrued, bil_df), BIL_PROXY_DATA_PATH)
-    outputs.append(
-        _describe(
-            BIL_PROXY_DATA_PATH,
-            saved,
-            bil_df,
-            compute_seam_scale(accrued, bil_df),
-            [FFR_DATA_PATH.name, SPY_DATA_PATH.name, BIL_DATA_PATH.name],
-        )
+    _save_price_csv(rescale_to_actual(accrued, load_stock_data(BIL_DATA_PATH)), BIL_PROXY_DATA_PATH)
+
+    _save_price_csv(
+        splice_proxy(load_stock_data(SPGSCI_DATA_PATH), load_stock_data(DBC_DATA_PATH)), DBC_SYNTHETIC_DATA_PATH
     )
 
-    spgsci_df = load_stock_data(SPGSCI_DATA_PATH)
-    dbc_df = load_stock_data(DBC_DATA_PATH)
-    saved = _save_price_csv(splice_proxy(spgsci_df, dbc_df), DBC_SYNTHETIC_DATA_PATH)
-    outputs.append(
-        _describe(
-            DBC_SYNTHETIC_DATA_PATH,
-            saved,
-            dbc_df,
-            compute_seam_scale(spgsci_df, dbc_df),
-            [SPGSCI_DATA_PATH.name, DBC_DATA_PATH.name],
-        )
-    )
-
-    save_metadata("long_proxy_series", {"outputs": outputs})
-    logger.debug(f"장기 대체 시계열 {len(outputs)}개 생성 완료")
+    logger.debug("장기 대체 시계열 생성 완료")
     return 0
 
 

@@ -42,7 +42,6 @@ from qbt.backtest.constants import (
     ROUND_PERCENT,
     ROUND_PRICE,
     ROUND_RATIO,
-    SLIPPAGE_RATE,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
@@ -66,13 +65,11 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    META_JSON_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_signal_trade_pair
 from qbt.utils.formatting import Align, TableLogger
-from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -468,36 +465,7 @@ def main() -> int:
             DEFAULT_INITIAL_CAPITAL,
         )
 
-        # 3-7. 메타데이터 저장
-        total_elapsed = time.time() - total_start
-        metadata = {
-            "strategy": strategy_name,
-            "execution_params": {
-                "initial_is_months": DEFAULT_WFO_INITIAL_IS_MONTHS,
-                "oos_months": DEFAULT_WFO_OOS_MONTHS,
-                "ma_window_list": list(DEFAULT_WFO_MA_WINDOW_LIST),
-                "buy_buffer_zone_pct_list": [round(x, ROUND_RATIO) for x in DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST],
-                "sell_buffer_zone_pct_list": [round(x, ROUND_RATIO) for x in DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST],
-                "hold_days_list": list(DEFAULT_WFO_HOLD_DAYS_LIST),
-                "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-                "slippage_rate": round(SLIPPAGE_RATE, ROUND_RATIO),
-            },
-            "data_period": {
-                "start_date": str(signal_df[COL_DATE].min()),
-                "end_date": str(signal_df[COL_DATE].max()),
-                "total_days": len(signal_df),
-            },
-            "results_summary": {
-                "n_windows_dynamic": dynamic_summary["n_windows"],
-                "dynamic_oos_cagr_mean": round(dynamic_summary["oos_cagr_mean"], ROUND_PERCENT),
-                "fully_fixed_oos_cagr_mean": round(fully_fixed_summary["oos_cagr_mean"], ROUND_PERCENT),
-            },
-            "elapsed_seconds": round(total_elapsed, 1),
-        }
-
-        save_metadata("backtest_walkforward", metadata)
-        logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
-        logger.debug(f"[{strategy_name}] 전체 소요 시간: {total_elapsed:.1f}초")
+        logger.debug(f"[{strategy_name}] 전체 소요 시간: {time.time() - total_start:.1f}초")
 
     return 0
 

@@ -13,7 +13,7 @@ import sys
 
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, META_JSON_PATH, QQQ_DATA_PATH
+from qbt.common_constants import COL_CLOSE, QQQ_DATA_PATH
 from qbt.tqqq import (
     build_monthly_spread_map,
     calculate_validation_metrics,
@@ -21,7 +21,6 @@ from qbt.tqqq import (
 )
 from qbt.tqqq.constants import (
     COL_ACTUAL_CUMUL_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
     COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -47,7 +46,6 @@ from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
-from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -102,47 +100,7 @@ def main() -> int:
     daily_df = pd.read_csv(TQQQ_DAILY_COMPARISON_PATH)
     logger.debug(f"일별 비교 CSV 저장 완료: {len(daily_df):,}행")
 
-    # 6. 메타데이터 저장
-    metadata = {
-        "execution_params": {
-            "leverage": round(DEFAULT_LEVERAGE_MULTIPLIER, 1),
-            "funding_spread_mode": "softplus",
-            "softplus_a": DEFAULT_SOFTPLUS_A,
-            "softplus_b": DEFAULT_SOFTPLUS_B,
-        },
-        "overlap_period": {
-            "start_date": str(validation_results[KEY_OVERLAP_START]),
-            "end_date": str(validation_results[KEY_OVERLAP_END]),
-            "total_days": int(validation_results[KEY_OVERLAP_DAYS]),
-        },
-        "validation_metrics": {
-            "cumulative_return_actual_pct": round(validation_results[KEY_CUMULATIVE_RETURN_ACTUAL] * 100, 2),
-            "cumulative_return_simulated_pct": round(validation_results[KEY_CUMULATIVE_RETURN_SIMULATED] * 100, 2),
-            "cumul_multiple_log_diff_mean_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN], 4),
-            "cumul_multiple_log_diff_rmse_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE], 4),
-            "cumul_multiple_log_diff_max_pct": round(validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX], 4),
-        },
-        "daily_stats": {
-            "daily_return_abs_diff": {
-                "mean": round(daily_df[COL_DAILY_RETURN_ABS_DIFF].mean(), 4),
-                "max": round(daily_df[COL_DAILY_RETURN_ABS_DIFF].max(), 4),
-            },
-            "cumul_multiple_log_diff": {
-                "mean": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].mean(), 4),
-                "max": round(daily_df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].max(), 4),
-            },
-        },
-        "csv_info": {
-            "path": str(TQQQ_DAILY_COMPARISON_PATH),
-            "row_count": len(daily_df),
-            "file_size_bytes": TQQQ_DAILY_COMPARISON_PATH.stat().st_size,
-        },
-    }
-
-    save_metadata("tqqq_daily_comparison", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
-
-    # 7. 결과 출력 (터미널)
+    # 6. 결과 출력 (터미널)
     logger.debug("=" * 64)
     logger.debug("TQQQ 시뮬레이션 검증")
     logger.debug("=" * 64)

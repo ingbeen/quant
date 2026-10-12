@@ -111,9 +111,9 @@ CLI 계층 (`scripts/`): [scripts/CLAUDE.md](../../scripts/CLAUDE.md) 참고
 - 중앙 집중식: `utils/parallel_executor.py` 모듈 사용
 - ProcessPoolExecutor 기반 CPU 집약적 작업 병렬화
 - 입력 순서 보장된 결과 반환
-- 단일 인자 함수용, 키워드 인자 함수용 두 가지 제공
+- 입력마다 키워드 인자 딕셔너리를 받는 함수 하나(`execute_parallel_with_kwargs`)
 - spawn 방식(macOS 기본 · Windows) 대응 — pickle 가능한 모듈 레벨 함수 · 클래스 메서드만 쓰고(람다 불가), CLI 스크립트는 `if __name__ == "__main__"` 로 보호한다
-- 예외 처리: 병렬 워커에서 예외 발생 시 즉시 전파하여 스크립트 실패 종료
+- 예외 처리: 병렬 워커에서 예외가 나면 아직 워커에 넘어가지 않은 작업을 취소하고(이미 넘어간 작업은 끝까지 돈다) 전파하여 스크립트 실패 종료
   - 예외를 숨기고 None 반환하는 패턴 금지
 
 ---
@@ -167,10 +167,6 @@ ProcessPool 생성/소멸 + pickle 직렬화에는 고정 오버헤드가 존재
 
 - `federal_funds_rate_monthly.csv`: 연방기금금리 월별 데이터
 - `tqqq_net_expense_ratio_monthly.csv`: TQQQ 운용비율 월별 데이터
-
-분석 결과 - 공통 (`storage/results/`):
-
-- `meta.json`: 실행 이력 메타데이터 (각 CSV 생성 시점, 파라미터 등)
 
 분석 결과 - 백테스트 (`storage/results/backtest/{strategy_name}/`):
 

@@ -392,6 +392,38 @@ class TestRunGridSearch:
         # Then
         assert len(results_df) == 8, "2x2x1x2 = 8개 조합이 생성되어야 함"
 
+    def test_grid_search_runs_with_single_cpu(self, monkeypatch: pytest.MonkeyPatch):
+        """
+        목적: CPU 가 1개인 환경에서도 그리드 서치가 도는지 검증 — 워커 수가 「CPU 수 - 1」 그대로 0 이 되면 프로세스 풀이 죽는다
+
+        Given: CPU 수 1, 조합 1개
+        When: run_grid_search 실행
+        Then: 결과 1행 (워커 1개로 실행)
+        """
+        # Given
+        monkeypatch.setattr("os.cpu_count", lambda: 1)
+        df = pd.DataFrame(
+            {
+                "Date": [date(2023, 1, d) for d in range(1, 31)],
+                "Open": [100.0] * 30,
+                "Close": [100 + i * 0.1 for i in range(30)],
+            }
+        )
+
+        # When
+        results_df = run_grid_search(
+            signal_df=df,
+            trade_df=df,
+            initial_capital=10000.0,
+            ma_window_list=[5],
+            buy_buffer_zone_pct_list=[0.01],
+            sell_buffer_zone_pct_list=[0.03],
+            hold_days_list=[0],
+        )
+
+        # Then
+        assert len(results_df) == 1
+
     def test_grid_search_evaluates_all_combinations_over_same_period(self):
         """
         목적: 이동평균 기간이 다른 조합도 같은 기간(가장 긴 이동평균이 계산되는 첫날부터)으로 평가되는지 검증

@@ -14,7 +14,6 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Mapping
-from pathlib import Path
 from typing import Any
 
 from qbt.backtest import runners
@@ -44,12 +43,10 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    META_JSON_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger
-from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -90,7 +87,7 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
     logger.debug("=" * 60)
 
 
-def _save_signal_csv(result: SingleBacktestResult) -> Path:
+def _save_signal_csv(result: SingleBacktestResult) -> None:
     """
     시그널 데이터를 CSV로 저장한다 (OHLC + MA + 4종 전일대비%).
 
@@ -100,9 +97,6 @@ def _save_signal_csv(result: SingleBacktestResult) -> Path:
 
     Args:
         result: SingleBacktestResult 컨테이너
-
-    Returns:
-        저장된 CSV 파일 경로
     """
     signal_path = result.result_dir / "signal.csv"
 
@@ -119,10 +113,9 @@ def _save_signal_csv(result: SingleBacktestResult) -> Path:
     signal_export = signal_export.round(signal_round)
     signal_export.to_csv(signal_path, index=False)
     logger.debug(f"시그널 데이터 저장 완료: {signal_path}")
-    return signal_path
 
 
-def _save_equity_csv(result: SingleBacktestResult) -> Path:
+def _save_equity_csv(result: SingleBacktestResult) -> None:
     """
     에쿼티 데이터를 CSV로 저장한다 (equity + drawdown_pct + 전략별 컬럼).
 
@@ -130,9 +123,6 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
 
     Args:
         result: SingleBacktestResult 컨테이너
-
-    Returns:
-        저장된 CSV 파일 경로
     """
     equity_path = result.result_dir / "equity.csv"
 
@@ -153,10 +143,9 @@ def _save_equity_csv(result: SingleBacktestResult) -> Path:
     equity_export["equity"] = equity_export["equity"].astype(int)
     equity_export.to_csv(equity_path, index=False)
     logger.debug(f"에쿼티 데이터 저장 완료: {equity_path}")
-    return equity_path
 
 
-def _save_trades_csv(result: SingleBacktestResult) -> Path:
+def _save_trades_csv(result: SingleBacktestResult) -> None:
     """
     거래 내역을 CSV로 저장한다 (거래 내역 + holding_days).
 
@@ -164,21 +153,17 @@ def _save_trades_csv(result: SingleBacktestResult) -> Path:
 
     Args:
         result: SingleBacktestResult 컨테이너
-
-    Returns:
-        저장된 CSV 파일 경로
     """
     trades_path = result.result_dir / "trades.csv"
     prepare_trades_for_csv(result.trades_df).to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
-    return trades_path
 
 
 def _save_summary_json(
     result: SingleBacktestResult,
     monthly_returns: list[dict[str, Any]],
     yearly_returns: list[dict[str, Any]],
-) -> Path:
+) -> None:
     """
     요약 지표를 JSON으로 저장한다.
 
@@ -186,9 +171,6 @@ def _save_summary_json(
         result: SingleBacktestResult 컨테이너
         monthly_returns: 월별 수익률 리스트
         yearly_returns: 연간 수익률 리스트
-
-    Returns:
-        저장된 JSON 파일 경로
     """
     summary_path = result.result_dir / "summary.json"
 
@@ -232,49 +214,26 @@ def _save_summary_json(
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
     logger.debug(f"요약 JSON 저장 완료: {summary_path}")
-    return summary_path
 
 
 def _save_results(result: SingleBacktestResult) -> None:
     """
-    백테스트 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
+    백테스트 결과를 CSV/JSON 파일로 저장한다.
 
-    개별 저장 함수를 조합 호출하여 signal, equity, trades, summary를 저장한 뒤
-    메타데이터를 기록한다.
+    개별 저장 함수를 조합 호출하여 signal, equity, trades, summary를 저장한다.
 
     Args:
         result: SingleBacktestResult 컨테이너
     """
     result.result_dir.mkdir(parents=True, exist_ok=True)
 
-    signal_path = _save_signal_csv(result)
-    equity_path = _save_equity_csv(result)
-    trades_path = _save_trades_csv(result)
+    _save_signal_csv(result)
+    _save_equity_csv(result)
+    _save_trades_csv(result)
     monthly_returns = calculate_monthly_returns(result.equity_df)
     yearly_returns = calculate_yearly_returns(result.equity_df)
 
-    summary_path = _save_summary_json(result, monthly_returns, yearly_returns)
-
-    # 메타데이터 저장
-    metadata: dict[str, Any] = {
-        "params": result.params_json,
-        "results_summary": {
-            "total_return_pct": round(float(str(result.summary["total_return_pct"])), ROUND_PERCENT),
-            "cagr": round(float(str(result.summary["cagr"])), ROUND_PERCENT),
-            "mdd": round(float(str(result.summary["mdd"])), ROUND_PERCENT),
-            "calmar": round(float(str(result.summary["calmar"])), ROUND_RATIO),
-            "total_trades": int(str(result.summary["total_trades"])),
-            "win_rate": round(float(str(result.summary.get("win_rate", 0.0))), ROUND_PERCENT),
-        },
-        "output_files": {
-            "signal_csv": str(signal_path),
-            "equity_csv": str(equity_path),
-            "trades_csv": str(trades_path),
-            "summary_json": str(summary_path),
-        },
-    }
-    save_metadata("single_backtest", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
+    _save_summary_json(result, monthly_returns, yearly_returns)
 
 
 def _print_trades_table(result: SingleBacktestResult) -> None:

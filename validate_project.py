@@ -14,6 +14,7 @@ AI가 실행하고 로그를 읽어 문제를 수정할 수 있도록 명확한 
 """
 
 import argparse
+import re
 import subprocess
 import sys
 
@@ -25,109 +26,43 @@ def print_section(title: str) -> None:
     print("=" * 80 + "\n")
 
 
-def run_ruff() -> tuple[bool, int]:
+def _run_tool(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    """도구를 실행하고 그 출력을 그대로 보여 줍니다. 통과 여부는 종료 코드(0 = 통과)로 판정합니다."""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr)
+
+    return result
+
+
+def run_ruff() -> bool:
     """
     Ruff 린트 체크를 실행합니다.
 
     Returns:
-        tuple[bool, int]: (성공 여부, 오류 개수)
+        bool: 성공 여부
     """
-    result = subprocess.run(
-        ["poetry", "run", "ruff", "check", "."],
-        capture_output=True,
-        text=True,
-    )
-
-    # Ruff 출력 표시
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-
-    # Ruff는 문제가 있으면 exit code 1 반환
-    success = result.returncode == 0
-
-    if success:
-        print("[OK] Ruff 체크 통과")
-        return True, 0
-
-    # Ruff 출력에서 오류 개수 파싱: "Found X error." 또는 "Found X errors."
-    error_count = 0
-    if result.stdout:
-        for line in result.stdout.split("\n"):
-            # "Found 1 error." 또는 "Found X errors." 형식 파싱
-            if "Found" in line and "error" in line:
-                parts = line.split()
-                for i, part in enumerate(parts):
-                    if part == "Found" and i + 1 < len(parts):
-                        try:
-                            error_count = int(parts[i + 1])
-                            break
-                        except ValueError:
-                            pass
-                if error_count > 0:
-                    break
-
-    # 파싱 실패 시 기본값 1 (실패했지만 개수를 알 수 없음)
-    if error_count == 0:
-        error_count = 1
-
-    print(f"[FAIL] Ruff 체크 실패 (오류/경고: {error_count}개)")
-    return False, error_count
+    success = _run_tool(["poetry", "run", "ruff", "check", "."]).returncode == 0
+    print("[OK] Ruff 체크 통과" if success else "[FAIL] Ruff 체크 실패")
+    return success
 
 
-def run_pyright() -> tuple[bool, int]:
+def run_pyright() -> bool:
     """
     PyRight 타입 체크를 실행합니다.
 
     Returns:
-        tuple[bool, int]: (성공 여부, 오류 개수)
+        bool: 성공 여부
     """
-    result = subprocess.run(
-        ["poetry", "run", "pyright"],
-        capture_output=True,
-        text=True,
-    )
-
-    # PyRight 출력 표시
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
-
-    # PyRight는 오류가 있으면 exit code 1 반환
-    success = result.returncode == 0
-
-    if success:
-        print("[OK] PyRight 체크 통과")
-        return True, 0
-
-    # PyRight 출력에서 오류 개수 파싱: "X error, Y warnings, Z informations"
-    error_count = 0
-    if result.stdout:
-        for line in result.stdout.split("\n"):
-            # "1 error, 0 warnings, 0 informations" 형식 파싱
-            if "error" in line and ("warning" in line or "information" in line):
-                parts = line.split()
-                # 첫 번째 숫자가 error 개수
-                for part in parts:
-                    try:
-                        error_count = int(part)
-                        break
-                    except ValueError:
-                        pass
-                if error_count > 0:
-                    break
-
-    # 파싱 실패 시 기본값 1 (실패했지만 개수를 알 수 없음)
-    if error_count == 0:
-        error_count = 1
-
-    print(f"[FAIL] PyRight 체크 실패 (오류: {error_count}개)")
-    return False, error_count
+    success = _run_tool(["poetry", "run", "pyright"]).returncode == 0
+    print("[OK] PyRight 체크 통과" if success else "[FAIL] PyRight 체크 실패")
+    return success
 
 
-def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
+def run_pytest(with_coverage: bool = False) -> tuple[bool, str]:
     """
     Pytest 테스트를 실행합니다.
 
@@ -135,7 +70,7 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
         with_coverage: True일 경우 커버리지 포함 실행
 
     Returns:
-        tuple[bool, int, int, int]: (성공 여부, passed 수, failed 수, skipped 수)
+        tuple[bool, str]: (성공 여부, 통과했을 때의 개수 "passed=N, failed=0, skipped=M" — 실패하면 빈 문자열)
     """
     if with_coverage:
         cmd = [
@@ -150,57 +85,21 @@ def run_pytest(with_coverage: bool = False) -> tuple[bool, int, int, int]:
     else:
         cmd = ["poetry", "run", "pytest", "tests/", "-v"]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-    )
+    result = _run_tool(cmd)
 
-    # Pytest 출력 표시
-    if result.stdout:
-        print(result.stdout)
-    if result.stderr:
-        print(result.stderr, file=sys.stderr)
+    if result.returncode != 0:
+        # 실패한 실행의 개수는 찍지 않는다 — 수집 단계에서 죽으면 요약 줄에 failed 가 없어 "failed=0" 으로 읽힌다
+        print("[FAIL] Pytest 실패")
+        return False, ""
 
-    # Pytest는 실패가 있으면 exit code 1 반환
-    success = result.returncode == 0
+    # 통과한 실행의 마지막 요약 줄("= 946 passed, 1 skipped in 17.02s =")에서 개수를 읽는다 (0 인 항목은 줄에 없다).
+    # 종료 코드 0 은 실패 · 수집 오류가 없다는 뜻이라 failed 는 0 이다
+    summary_line = next(line for line in reversed(result.stdout.splitlines()) if re.search(r" in [\d.]+s", line))
+    counts = {name: int(number) for number, name in re.findall(r"(\d+) (\w+)", summary_line)}
+    detail = f"passed={counts['passed']}, failed=0, skipped={counts.get('skipped', 0)}"
 
-    # Pytest 출력에서 passed/failed/skipped 파싱
-    passed = 0
-    failed = 0
-    skipped = 0
-    if result.stdout:
-        for line in result.stdout.split("\n"):
-            # "= 10 passed, 2 failed, 1 skipped in 0.50s =" 형식 파싱
-            # 또는 "= 10 passed in 0.50s =" 형식
-            if "passed" in line or "failed" in line or "skipped" in line:
-                parts = line.split()
-                i = 0
-                while i < len(parts):
-                    try:
-                        # 숫자 다음에 passed/failed/skipped가 오는 패턴 찾기
-                        if i + 1 < len(parts):
-                            num = int(parts[i])
-                            next_part = parts[i + 1].rstrip(",")
-                            if next_part == "passed":
-                                passed = num
-                            elif next_part == "failed":
-                                failed = num
-                            elif next_part == "skipped":
-                                skipped = num
-                    except ValueError:
-                        pass
-                    i += 1
-                # 유효한 파싱이 되었으면 종료
-                if passed > 0 or failed > 0 or skipped > 0:
-                    break
-
-    if success:
-        print(f"[OK] Pytest 통과 (passed={passed}, failed={failed}, skipped={skipped})")
-    else:
-        print(f"[FAIL] Pytest 실패 (passed={passed}, failed={failed}, skipped={skipped})")
-
-    return success, passed, failed, skipped
+    print(f"[OK] Pytest 통과 ({detail})")
+    return True, detail
 
 
 def parse_args() -> argparse.Namespace:
@@ -290,60 +189,37 @@ def main() -> int:
     print(f"  {title}")
     print("=" * 80)
 
-    # 결과 수집
-    results = {}
+    # 결과 수집: (도구 이름, 성공 여부, 덧붙일 설명)
+    results: list[tuple[str, bool, str]] = []
     section_num = 1
 
     # 1. Ruff 실행
     if should_run_lint:
         print_section(f"{section_num}. Ruff 린트 체크")
         section_num += 1
-        ruff_success, ruff_errors = run_ruff()
-        results["ruff"] = (ruff_success, ruff_errors)
+        results.append(("Ruff", run_ruff(), ""))
 
     # 2. PyRight 실행
     if should_run_pyright:
         print_section(f"{section_num}. PyRight 타입 체크")
         section_num += 1
-        pyright_success, pyright_errors = run_pyright()
-        results["pyright"] = (pyright_success, pyright_errors)
+        results.append(("PyRight", run_pyright(), ""))
 
     # 3. Pytest 실행
     if should_run_tests:
         print_section(f"{section_num}. Pytest 테스트")
         section_num += 1
-        pytest_success, passed, failed, skipped = run_pytest(with_coverage=args.cov)
-        results["pytest"] = (pytest_success, passed, failed, skipped)
+        pytest_success, pytest_detail = run_pytest(with_coverage=args.cov)
+        results.append(("Pytest", pytest_success, pytest_detail))
 
     # 최종 결과 요약
     print_section("최종 결과")
 
-    total_errors = 0
-    all_success = True
+    for name, success, detail in results:
+        status = "[OK] 통과" if success else "[FAIL] 실패"
+        print(f"{name + ':':8} {status}{f' ({detail})' if detail else ''}")
 
-    if "ruff" in results:
-        ruff_success, ruff_errors = results["ruff"]
-        total_errors += ruff_errors
-        all_success &= ruff_success
-        print(f"Ruff:    {'[OK] 통과' if ruff_success else f'[FAIL] 실패 (오류/경고: {ruff_errors}개)'}")
-
-    if "pyright" in results:
-        pyright_success, pyright_errors = results["pyright"]
-        total_errors += pyright_errors
-        all_success &= pyright_success
-        print(f"PyRight: {'[OK] 통과' if pyright_success else f'[FAIL] 실패 (오류: {pyright_errors}개)'}")
-
-    if "pytest" in results:
-        pytest_success, passed, failed, skipped = results["pytest"]
-        total_errors += failed
-        all_success &= pytest_success
-        print(
-            f"Pytest:  {'[OK] 통과' if pytest_success else '[FAIL] 실패'} (passed={passed}, failed={failed}, skipped={skipped})"
-        )
-
-    print(f"\n총 오류/경고: {total_errors}개")
-
-    if all_success:
+    if all(success for _, success, _ in results):
         print("\n[SUCCESS] 모든 품질 검증 통과!")
         return 0
     else:

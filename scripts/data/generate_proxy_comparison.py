@@ -16,7 +16,7 @@
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
 import pandas as pd
 
@@ -59,7 +59,6 @@ from qbt.common_constants import (
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
-from qbt.utils.meta_manager import save_metadata
 from qbt.utils.proxy_comparison import (
     DISPLAY_BASE,
     DISPLAY_BASE_FILE,
@@ -71,7 +70,6 @@ from qbt.utils.proxy_comparison import (
     DISPLAY_PROXY_FIRST_DATE,
     PERCENT_DISPLAY_COLUMNS,
     RATIO_DISPLAY_COLUMNS,
-    ROLLING_WINDOW_DAYS,
     Period,
     align_closes,
     calendar_year_periods,
@@ -156,18 +154,17 @@ def main() -> int:
     summary_rows: list[dict[str, object]] = []
     period_rows: list[dict[str, object]] = []
 
-    # (묶음, 대체, 기준, 자를 실물 파일 이름, 비교 제한일) — 교차 확인 쌍은 실물의 첫 거래일을 여기서 반드시 읽는다
-    jobs: list[tuple[str, Path, Path, str | None, date | None]] = [
-        (group, proxy, base, None, None)
+    # (묶음, 대체, 기준, 비교 제한일) — 교차 확인 쌍은 실물의 첫 거래일을 여기서 반드시 읽는다
+    jobs: list[tuple[str, Path, Path, date | None]] = [
+        (group, proxy, base, None)
         for group, pairs in ((GROUP_LONG, LONG_PAIRS), (GROUP_SPLICED, SPLICED_PAIRS))
         for proxy, base in pairs
     ]
     jobs += [
-        (GROUP_CROSS, proxy, base, listing.name, load_stock_data(listing)[COL_DATE].iloc[0])
-        for proxy, base, listing in CROSS_PAIRS
+        (GROUP_CROSS, proxy, base, load_stock_data(listing)[COL_DATE].iloc[0]) for proxy, base, listing in CROSS_PAIRS
     ]
 
-    for group, proxy_path, base_path, _listing_name, before in jobs:
+    for group, proxy_path, base_path, before in jobs:
         proxy_df = load_stock_data(proxy_path)
         base_df = load_stock_data(base_path)
         aligned = align_closes(proxy_df, base_df, before=before)
@@ -201,17 +198,6 @@ def main() -> int:
     _round(pd.DataFrame(summary_rows)).to_csv(summary_path, index=False, encoding=_CSV_ENCODING)
     _round(pd.DataFrame(period_rows)).to_csv(periods_path, index=False, encoding=_CSV_ENCODING)
 
-    metadata: dict[str, Any] = {
-        "pair_count": len(jobs),
-        "period_row_count": len(period_rows),
-        "rolling_window_days": ROLLING_WINDOW_DAYS,
-        "outputs": [str(summary_path), str(periods_path)],
-        "pairs": [
-            {"group": g, "proxy": p.name, "base": b.name, "before_listing_of": listing_name}
-            for g, p, b, listing_name, _before in jobs
-        ],
-    }
-    save_metadata("proxy_comparison", metadata)
     logger.debug(f"대체-실물 비교 {len(jobs)}쌍 저장: {summary_path}, {periods_path}")
     return 0
 

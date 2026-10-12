@@ -12,13 +12,13 @@
 통합 테스트 원칙:
 - 값의 정확성보다 파이프라인 연결에 초점 (값 정확성은 단위 테스트에서 보장)
 - 데이터는 최소 크기 사용 (백테스트: ~25행, TQQQ: ~10행)
-- 파일 격리 필수 (tmp_path, mock_storage_paths)
+- 파일 격리 필수 (tmp_path)
 """
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
-from freezegun import freeze_time
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.engines.backtest_engine import run_buffer_strategy
@@ -32,19 +32,17 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_START,
 )
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
-from qbt.utils.meta_manager import save_metadata
 
 
 class TestBacktestWorkflow:
     """백테스트 파이프라인 통합 테스트
 
     호출 체인: CSV 저장 -> load_stock_data -> add_single_moving_average
-               -> run_buffer_strategy -> save_metadata
+               -> run_buffer_strategy
     값의 정확성보다 파이프라인 연결 검증에 초점
     """
 
-    @freeze_time("2024-01-15 10:00:00")
-    def test_full_backtest_pipeline(self, mock_storage_paths, integration_stock_df, create_csv_file):
+    def test_full_backtest_pipeline(self, integration_stock_df, create_csv_file):
         """
         목적: 백테스트 전체 파이프라인이 연결되어 실행되는지 검증
 
@@ -53,14 +51,12 @@ class TestBacktestWorkflow:
             1. CSV 저장 -> load_stock_data로 로드
             2. add_single_moving_average(window=5) 적용
             3. run_buffer_strategy 실행
-            4. save_metadata 호출
         Then:
             - load_stock_data 반환 DataFrame에 OHLCV + Date 컬럼 존재
             - add_single_moving_average 후 MA 컬럼 추가됨
             - run_buffer_strategy 반환 tuple 3개 (trades_df, equity_df, summary_dict)
             - equity_df 행 수 > 0
             - summary_dict에 필수 키 존재
-            - meta.json 파일이 생성됨
         """
         # Given: CSV 파일 저장
         csv_path = create_csv_file("QQQ_max.csv", integration_stock_df)
@@ -113,27 +109,15 @@ class TestBacktestWorkflow:
         # final_capital > 0 (양수 자본)
         assert summary["final_capital"] > 0, "최종 자본은 양수여야 합니다"
 
-        # When 4: 메타데이터 저장
-        metadata = {
-            "test": True,
-            "total_return_pct": summary["total_return_pct"],
-        }
-        save_metadata("grid_results", metadata)
-
-        # Then 4: meta.json 파일 생성 확인
-        meta_path = mock_storage_paths["META_JSON_PATH"]
-        assert meta_path.exists(), "meta.json 파일이 생성되어야 합니다"
-
 
 class TestTQQQSimulationWorkflow:
     """TQQQ 시뮬레이션 파이프라인 통합 테스트
 
     호출 체인: 데이터 준비 -> extract_overlap_period -> build_monthly_spread_map
-               -> simulate -> calculate_validation_metrics -> save_metadata
+               -> simulate -> calculate_validation_metrics
     """
 
-    @freeze_time("2024-01-15 10:00:00")
-    def test_full_tqqq_pipeline(self, mock_storage_paths):
+    def test_full_tqqq_pipeline(self, tmp_path: Path):
         """
         목적: TQQQ 시뮬레이션 전체 파이프라인이 연결되어 실행되는지 검증
 
@@ -146,14 +130,12 @@ class TestTQQQSimulationWorkflow:
             2. build_monthly_spread_map(ffr_df, a=-6.1, b=0.37)
             3. simulate(...)
             4. calculate_validation_metrics(...)
-            5. save_metadata(...)
         Then:
             - overlap 두 DataFrame 길이 동일
             - spread_map이 비어있지 않음
             - simulated_df에 Date, Close 컬럼 존재
             - ValidationMetricsDict 필수 키 존재
             - CSV 파일 생성됨
-            - meta.json 파일 생성됨
         """
         # Given: 테스트 데이터 구성
         test_dates = [
@@ -233,7 +215,7 @@ class TestTQQQSimulationWorkflow:
         assert (simulated_df[COL_CLOSE] > 0).all(), "모든 가격은 양수"
 
         # When 4: 검증 지표 계산 + CSV 저장
-        output_path = mock_storage_paths["TQQQ_RESULTS_DIR"] / "tqqq_daily_comparison.csv"
+        output_path = tmp_path / "tqqq_daily_comparison.csv"
         validation_results = calculate_validation_metrics(
             simulated_df=simulated_df,
             actual_df=tqqq_overlap,
@@ -256,14 +238,3 @@ class TestTQQQSimulationWorkflow:
         assert output_path.exists(), "일별 비교 CSV 파일이 생성되어야 합니다"
         saved_df = pd.read_csv(output_path)
         assert len(saved_df) > 0, "CSV에 데이터가 있어야 합니다"
-
-        # When 5: 메타데이터 저장
-        metadata = {
-            "test": True,
-            "overlap_days": validation_results[KEY_OVERLAP_DAYS],
-        }
-        save_metadata("tqqq_daily_comparison", metadata)
-
-        # Then 5: meta.json 파일 생성 확인
-        meta_path = mock_storage_paths["META_JSON_PATH"]
-        assert meta_path.exists(), "meta.json 파일이 생성되어야 합니다"

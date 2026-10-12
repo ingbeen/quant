@@ -54,12 +54,10 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
-    META_JSON_PATH,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger
-from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -90,7 +88,7 @@ def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str:
 
 
 def _save_portfolio_results(result: PortfolioResult) -> None:
-    """포트폴리오 백테스트 결과를 CSV/JSON 파일로 저장하고 메타데이터를 기록한다.
+    """포트폴리오 백테스트 결과를 CSV/JSON 파일로 저장한다.
 
     저장 파일:
     - equity.csv: 합산 에쿼티 + 자산 키별 비중/시그널 + 리밸런싱 여부 (+ 매매법이 여럿이면 netting_savings)
@@ -280,29 +278,6 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(summary_data, f, indent=2, ensure_ascii=False)
     logger.debug(f"요약 JSON 저장 완료: {summary_path}")
-
-    # 6. 메타데이터 저장
-    metadata: dict[str, Any] = {
-        "params": result.params_json,
-        "results_summary": {
-            "total_return_pct": portfolio_summary["total_return_pct"],
-            "cagr": portfolio_summary["cagr"],
-            "mdd": portfolio_summary["mdd"],
-            "calmar": portfolio_summary["calmar"],
-            "total_trades": portfolio_summary["total_trades"],
-        },
-        "output_files": {
-            "equity_csv": str(equity_path),
-            "trades_csv": str(trades_path),
-            "state_log_csv": str(state_log_path),
-            "summary_json": str(summary_path),
-        },
-    }
-    if multi_method:
-        metadata["output_files"]["ledger_csv"] = str(ledger_path)
-        metadata["output_files"]["netting_csv"] = str(netting_path)
-    save_metadata("portfolio_backtest", metadata)
-    logger.debug(f"메타데이터 저장 완료: {META_JSON_PATH}")
 
 
 def _save_ledger_and_netting(result: PortfolioResult, ledger_path: Path, netting_path: Path) -> None:

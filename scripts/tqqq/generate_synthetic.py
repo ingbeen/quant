@@ -9,7 +9,7 @@ QQQ 전체 기간을 SoftPlus 동적 스프레드 모델로 시뮬레이션하�
 1. QQQ 전체 기간 시뮬레이션 (softplus 동적 스프레드)
 2. 접합점(실제 TQQQ 첫 거래일)에서 가격 스케일링
 3. 합성 구간 + 실제 TQQQ 병합
-4. TQQQ_synthetic_max.csv 저장 + 메타데이터 기록
+4. TQQQ_synthetic_max.csv 저장
 
 실행 명령어:
     poetry run python scripts/tqqq/generate_synthetic.py
@@ -29,7 +29,6 @@ from qbt.common_constants import (
 from qbt.tqqq import build_monthly_spread_map, simulate
 from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
-    DEFAULT_PRE_LISTING_EXPENSE_RATIO,
     DEFAULT_SOFTPLUS_A,
     DEFAULT_SOFTPLUS_B,
     DEFAULT_SYNTHETIC_INITIAL_PRICE,
@@ -45,7 +44,6 @@ from qbt.tqqq.data_loader import (
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data, validate_price_series
-from qbt.utils.meta_manager import save_metadata
 
 logger = get_logger(__name__)
 
@@ -147,45 +145,6 @@ def main() -> int:
     logger.debug(f"초기 가격: {initial_close:.6f}")
     logger.debug(f"최종 가격: {final_close:.6f}")
     logger.debug(f"누적 수익률: {cumulative_return_pct:+.2f}%")
-
-    # 10. 메타데이터 저장
-    synthetic_end_date = synthetic_before[COL_DATE].max()
-    actual_end_date = actual_from_overlap[COL_DATE].max()
-    file_size_bytes = TQQQ_SYNTHETIC_DATA_PATH.stat().st_size
-
-    metadata = {
-        "execution_params": {
-            "leverage": DEFAULT_LEVERAGE_MULTIPLIER,
-            "funding_spread_mode": "softplus",
-            "softplus_a": DEFAULT_SOFTPLUS_A,
-            "softplus_b": DEFAULT_SOFTPLUS_B,
-            "pre_listing_expense_ratio": DEFAULT_PRE_LISTING_EXPENSE_RATIO,
-        },
-        "synthetic_period": {
-            "start_date": str(merged_df[COL_DATE].min()),
-            "end_date": str(synthetic_end_date),
-            "total_days": len(synthetic_before),
-            "scale_factor": round(scale_factor, 6),
-        },
-        "actual_period": {
-            "start_date": str(overlap_date),
-            "end_date": str(actual_end_date),
-            "total_days": len(actual_from_overlap),
-        },
-        "merged_summary": {
-            "total_days": len(merged_df),
-            "initial_price": round(initial_close, 6),
-            "final_price": round(final_close, 6),
-            "cumulative_return_pct": round(cumulative_return_pct, 2),
-        },
-        "csv_info": {
-            "path": str(TQQQ_SYNTHETIC_DATA_PATH),
-            "row_count": len(merged_df),
-            "file_size_bytes": file_size_bytes,
-        },
-    }
-    save_metadata("tqqq_synthetic", metadata)
-    logger.debug("메타데이터 저장 완료")
 
     return 0
 
