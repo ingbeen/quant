@@ -4,7 +4,7 @@
 레버리지 ETF 시뮬레이션에서 사용하는 기본값과 경로를 정의한다.
 - 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
 - 비용 모델 파라미터 (기본값)
-- 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
+- 데이터 컬럼 및 키 정의 (CSV 컬럼명, 딕셔너리 키)
 """
 
 from typing import Final
@@ -32,11 +32,6 @@ EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 # TQQQ 시뮬레이션 관련 결과 파일 경로
 TQQQ_DAILY_COMPARISON_PATH: Final = TQQQ_RESULTS_DIR / "tqqq_daily_comparison.csv"
 
-# --- 스프레드 검증 결과 파일 경로 (spread_lab 하위폴더) ---
-SPREAD_LAB_DIR: Final = TQQQ_RESULTS_DIR / "spread_lab"
-SOFTPLUS_TUNING_CSV_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_tuning.csv"
-SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_spread_series_static.csv"
-
 # --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
 
@@ -51,35 +46,16 @@ DEFAULT_PRE_LISTING_EXPENSE_RATIO: Final = 0.0095  # TQQQ 상장 이전 운용�
 # 분석 기본값 파라미터
 # ============================================================
 
-DEFAULT_MIN_MONTHS_FOR_ANALYSIS: Final = 13  # Rolling 12M 상관 계산 위해 최소 13개월
+# 금리 변화 vs 오차 변화의 Rolling 상관 창 (개월) — 차트와 월별 집계의 최소 개월 수가 함께 쓴다
+ROLLING_CORR_WINDOW_MONTHS: Final = 12
 
 # ============================================================
 # Softplus 동적 스프레드 모델 파라미터
 # ============================================================
 
-# --- 전체기간 최적 파라미터 (과최적화 검증 완료) ---
+# --- 전체기간 튜닝 최적값 (스프레드 랩 튜닝 결과의 RMSE 최소 행) ---
 DEFAULT_SOFTPLUS_A: Final = -6.1  # softplus 절편 파라미터
 DEFAULT_SOFTPLUS_B: Final = 0.37  # softplus 기울기 파라미터
-
-# ============================================================
-# 워크포워드 검증 파라미터 (앱에서 사용)
-# ============================================================
-
-# --- Local Refine 탐색 범위 ---
-WALKFORWARD_LOCAL_REFINE_A_DELTA: Final = 0.50  # a 파라미터 탐색 반경
-WALKFORWARD_LOCAL_REFINE_B_DELTA: Final = 0.15  # b 파라미터 탐색 반경
-
-# --- 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward.csv"
-TQQQ_WALKFORWARD_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
-
-# --- b 고정 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_FIXED_B_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
-TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
-
-# --- 완전 고정 (a,b) 워크포워드 결과 파일 경로 ---
-TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
-TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
 
 # ============================================================
 # 데이터 컬럼 정의 (일별 비교 CSV 의 열은 한글 헤더 그대로)
@@ -115,22 +91,6 @@ COL_DR_M: Final = "dr_m"  # 금리 변화 (%p)
 COL_E_M: Final = "e_m"  # 월말 누적 오차 (%)
 COL_DE_M: Final = "de_m"  # 월간 오차 변화 (%)
 COL_SUM_DAILY_M: Final = "sum_daily_m"  # 일일 오차 월합 (%)
-COL_DR_LAG1: Final = "dr_lag1"  # 금리 변화 Lag1 (%p)
-COL_DR_LAG2: Final = "dr_lag2"  # 금리 변화 Lag2 (%p)
-COL_DAILY_SIGNED: Final = "daily_signed"  # 일일 증분 signed 로그오차
-
-# --- 튜닝 결과 CSV 컬럼 ---
-COL_A: Final = "a"  # softplus 파라미터 a
-COL_B: Final = "b"  # softplus 파라미터 b
-COL_RMSE_PCT: Final = "rmse_pct"  # RMSE (%)
-
-
-# ============================================================
-# 출력용 한글 헤더 (DISPLAY_)
-# ============================================================
-
-# --- UI 표시 레이블 ---
-DISPLAY_ERROR_END_OF_MONTH_PCT: Final = "월말 누적 오차 (%)"  # Level 차트 y축
 
 # ============================================================
 # 딕셔너리 키 (KEY_)

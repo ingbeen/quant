@@ -6,6 +6,7 @@ visualization.py의 차트 생성 함수들을 검증한다.
 - 결측치 처리 검증
 """
 
+import math
 from datetime import date
 
 import pandas as pd
@@ -24,6 +25,7 @@ from qbt.tqqq.constants import (
     COL_RATE_PCT,
     COL_SIMUL_CLOSE,
     COL_SUM_DAILY_M,
+    ROLLING_CORR_WINDOW_MONTHS,
 )
 from qbt.tqqq.visualization import (
     create_cumulative_return_diff_chart,
@@ -553,3 +555,42 @@ class TestRollingCorrelationChart:
         assert isinstance(fig, go.Figure)
         # annotation이 추가되었는지 확인
         assert len(fig.layout.annotations) > 0
+
+    def test_rolling_window_boundary(self):
+        """
+        표본 수가 정확히 창(ROLLING_CORR_WINDOW_MONTHS)이면 상관 값이 하나 나오고, 하나 모자라면 안내만 표시한다
+
+        Given: 창과 같은 개월 수 / 하나 적은 개월 수의 전처리된 Delta 데이터 (값이 매달 달라 상관이 정의된다)
+        When: create_rolling_correlation_chart 호출
+        Then:
+            - 창 개월: Rolling 상관 trace 의 유한한 값이 정확히 1개 (마지막 달), 안내 annotation 없음
+            - 창 - 1 개월: 상관 trace 없이 안내 annotation 만
+        """
+
+        def _plot_df(n: int) -> pd.DataFrame:
+            return pd.DataFrame(
+                {
+                    COL_MONTH: pd.period_range("2023-01", periods=n, freq="M"),
+                    COL_DE_M: [0.01 * i + (0.03 if i % 3 == 0 else 0.0) for i in range(n)],
+                    "dr_shifted": [0.02 * i + (0.05 if i % 2 == 0 else 0.0) for i in range(n)],
+                }
+            )
+
+        # When: 창 개월
+        fig = create_rolling_correlation_chart(_plot_df(ROLLING_CORR_WINDOW_MONTHS), y_col=COL_DE_M)
+
+        # Then
+        corr_traces = [trace for trace in fig.data if isinstance(trace, go.Scatter)]
+        assert len(corr_traces) == 1
+        y_values = corr_traces[0].y
+        assert y_values is not None
+        finite = [v for v in y_values if v is not None and not math.isnan(v)]
+        assert len(finite) == 1
+        assert len(fig.layout.annotations) == 0
+
+        # When: 창 - 1 개월
+        fig_short = create_rolling_correlation_chart(_plot_df(ROLLING_CORR_WINDOW_MONTHS - 1), y_col=COL_DE_M)
+
+        # Then
+        assert not [trace for trace in fig_short.data if isinstance(trace, go.Scatter)]
+        assert len(fig_short.layout.annotations) == 1

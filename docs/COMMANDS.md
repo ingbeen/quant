@@ -134,7 +134,7 @@ poetry run streamlit run scripts/tqqq/app_daily_comparison.py
 ```bash
 # 금리-오차 관계 분석 앱 (시각화 전용)
 # 필수: storage/results/tqqq/tqqq_daily_comparison.csv
-# 선택: storage/results/tqqq/spread_lab/ 하위 결과 CSV
+# 필수: storage/results/tqqq/spread_lab/ 하위 결과 CSV (git 추적 — 만드는 스크립트는 저장소에 없다)
 poetry run streamlit run scripts/tqqq/spread_lab/app_rate_spread_lab.py
 ```
 

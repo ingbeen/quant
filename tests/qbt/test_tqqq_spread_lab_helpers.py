@@ -4,13 +4,11 @@ spread_lab_helpers 모듈 테스트
 이 파일은 무엇을 검증하나요?
 1. 일별 데이터를 월별로 정확히 집계하는가? (prepare_monthly_data)
 2. sum_daily_m이 일일 증분 signed 로그오차의 월별 합과 일치하는가?
-3. 필수 컬럼 누락 시 ValueError가 발생하는가?
-4. 금리 변화 lag 컬럼이 정확히 생성되는가? (add_rate_change_lags)
-5. lag 추가 시 원본 DataFrame의 불변성이 보장되는가?
+3. 필수 컬럼 누락 · 월 수 부족 시 ValueError가 발생하는가?
 
 왜 중요한가요?
-금리-오차 분석의 월별 데이터 준비와 lag 피처 생성이 이 함수들에 의존합니다.
-잘못된 집계나 lag 계산은 분석 결과를 오도할 수 있습니다.
+금리-오차 분석의 월별 데이터 준비가 이 함수에 의존합니다.
+잘못된 집계는 분석 결과를 오도할 수 있습니다.
 
 Note:
     모든 테스트는 synthetic(고정) 데이터를 사용하여 결정적(deterministic)으로 작성됩니다.
@@ -27,16 +25,15 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DE_M,
-    COL_DR_LAG1,
-    COL_DR_LAG2,
     COL_DR_M,
     COL_E_M,
     COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
+    ROLLING_CORR_WINDOW_MONTHS,
 )
-from qbt.tqqq.spread_lab_helpers import add_rate_change_lags, prepare_monthly_data
+from qbt.tqqq.spread_lab_helpers import prepare_monthly_data
 
 
 def _build_daily_df(n_months: int = 14) -> pd.DataFrame:
@@ -200,89 +197,23 @@ class TestPrepareMonthlyData:
         with pytest.raises((ValueError, KeyError)):
             prepare_monthly_data(daily_df, ffr_df)
 
-
-class TestAddRateChangeLags:
-    """add_rate_change_lags() 함수 테스트"""
-
-    def test_lag_columns_created_correctly(self):
+    def test_months_must_exceed_rolling_window(self):
         """
-        lag 컬럼이 정확히 생성되는지 테스트
+        월별 결과가 Rolling 상관 창 + 1 개월보다 짧으면 ValueError 로 멈추는지 검증
 
-        Given:
-            - dr_m 컬럼이 있는 월별 DataFrame
-            - lag_list = [1, 2]
-        When: add_rate_change_lags() 호출
-        Then:
-            - dr_lag1, dr_lag2 컬럼이 생성됨
-            - 값이 shift와 동일
+        월간 변화(de_m · dr_m)는 첫 달이 비어, 창과 같은 개월 수로는 Rolling 상관의 첫 값을 낼 수 없다.
+
+        Given: 창(ROLLING_CORR_WINDOW_MONTHS)과 같은 개월 수, 한 달 더 긴 개월 수의 일별 · FFR 데이터
+        When: prepare_monthly_data() 호출
+        Then: 창과 같은 개월 수는 ValueError, 한 달 더 길면 그 개월 수의 월별 결과
         """
         # Given
-        monthly_df = pd.DataFrame(
-            {
-                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
-                COL_DR_M: [0.1, 0.2, 0.3, 0.4, 0.5],
-            }
-        )
+        short = ROLLING_CORR_WINDOW_MONTHS
 
-        # When
-        result = add_rate_change_lags(monthly_df, lag_list=[1, 2])
+        # When & Then: 창과 같은 개월 수
+        with pytest.raises(ValueError, match="너무 짧음"):
+            prepare_monthly_data(_build_daily_df(n_months=short), _build_ffr_df(n_months=short))
 
-        # Then
-        assert COL_DR_LAG1 in result.columns
-        assert COL_DR_LAG2 in result.columns
-
-        # lag1 = shift(1)
-        assert pd.isna(result[COL_DR_LAG1].iloc[0])
-        assert result[COL_DR_LAG1].iloc[1] == pytest.approx(0.1)
-        assert result[COL_DR_LAG1].iloc[2] == pytest.approx(0.2)
-
-        # lag2 = shift(2)
-        assert pd.isna(result[COL_DR_LAG2].iloc[0])
-        assert pd.isna(result[COL_DR_LAG2].iloc[1])
-        assert result[COL_DR_LAG2].iloc[2] == pytest.approx(0.1)
-
-    def test_original_dataframe_not_modified(self):
-        """
-        원본 DataFrame이 변경되지 않는지 테스트 (불변성)
-
-        Given: 원본 DataFrame
-        When: add_rate_change_lags() 호출
-        Then: 원본에 lag 컬럼이 추가되지 않음
-        """
-        # Given
-        monthly_df = pd.DataFrame(
-            {
-                COL_MONTH: pd.period_range("2023-01", periods=3, freq="M"),
-                COL_DR_M: [0.1, 0.2, 0.3],
-            }
-        )
-        original_columns = set(monthly_df.columns)
-
-        # When
-        add_rate_change_lags(monthly_df, lag_list=[1, 2])
-
-        # Then: 원본 변경 없음
-        assert set(monthly_df.columns) == original_columns
-
-    def test_unmapped_lag_raises_value_error(self):
-        """
-        목적: lag_col_map에 없는 lag 값이 들어오면 silent skip 대신
-              ValueError로 즉시 중단한다 (컬럼 누락 silent skip 금지).
-
-        Given: dr_m 컬럼이 있는 월별 DataFrame, lag_list=[1, 3]
-               (3은 lag_col_map={1, 2}에 없는 값 — 외부 입력 검증 실패)
-        When: add_rate_change_lags() 호출
-        Then: ValueError 발생. 매핑 외 lag가 조용히 누락되면 결과 컬럼이
-              비결정적으로 비므로, 외부 입력 검증으로 즉시 실패해야 한다.
-        """
-        # Given
-        monthly_df = pd.DataFrame(
-            {
-                COL_MONTH: pd.period_range("2023-01", periods=5, freq="M"),
-                COL_DR_M: [0.1, 0.2, 0.3, 0.4, 0.5],
-            }
-        )
-
-        # When & Then
-        with pytest.raises(ValueError, match="lag"):
-            add_rate_change_lags(monthly_df, lag_list=[1, 3])
+        # When & Then: 한 달 더
+        result = prepare_monthly_data(_build_daily_df(n_months=short + 1), _build_ffr_df(n_months=short + 1))
+        assert len(result) == short + 1

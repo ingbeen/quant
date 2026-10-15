@@ -1,7 +1,7 @@
 """
 TQQQ 시뮬레이션 분석용 순수 계산 함수
 
-금리-오차 관계 분석을 위한 계산, 집계, 검증 함수를 제공한다.
+금리-오차 관계 분석을 위한 계산 · 집계 함수를 제공한다.
 모든 함수는 상태를 유지하지 않으며(stateless), fail-fast 정책을 따른다.
 
 Fail-fast 정책:
@@ -20,7 +20,6 @@ from qbt.tqqq.constants import (
     COL_E_M,
     COL_MONTH,
     COL_RATE_PCT,
-    COL_SUM_DAILY_M,
 )
 from qbt.tqqq.data_loader import create_ffr_dict, lookup_ffr
 
@@ -57,7 +56,7 @@ def calculate_signed_log_diff_from_cumulative_returns(
 
     Raises:
         ValueError: M_real <= 0 또는 M_sim <= 0인 경우 (로그 계산 불가)
-            - 에러 메시지에 문제 행 수, 날짜 범위 포함
+            - 에러 메시지에 문제 행 수와 앞 5개 인덱스 포함
 
     Examples:
         >>> # 시뮬레이션이 실제보다 약간 높은 경우
@@ -130,7 +129,7 @@ def calculate_daily_signed_log_diff(
 
     Raises:
         ValueError: 1 + r_real/100 <= 0 또는 1 + r_sim/100 <= 0인 경우 (로그 계산 불가)
-            - 에러 메시지에 문제 행 수, 날짜 범위 포함
+            - 에러 메시지에 문제 행 수와 앞 5개 인덱스 포함
 
     Note:
         흔한 실수: 일일수익률이 % 단위인지 확인 필요 (0~1 소수가 아님)
@@ -180,28 +179,26 @@ def aggregate_monthly(
     daily_df: pd.DataFrame,
     date_col: str,
     signed_col: str,
-    ffr_df: pd.DataFrame | None = None,
-    min_months_for_analysis: int = 13,
+    ffr_df: pd.DataFrame,
+    min_months_for_analysis: int,
 ) -> pd.DataFrame:
     """
     일별 데이터를 월별로 집계하고 금리 데이터와 매칭한다.
 
-    월말(last) 누적 signed 값, 일일 증분 signed의 월합, 금리 수준/변화를 계산한다.
-    금리 데이터 매칭은 딕셔너리 기반 조회 + 2개월 fallback으로 수행된다.
+    월말(last) 누적 signed 값과 그 월간 변화, 금리 수준/변화를 계산한다.
+    금리 데이터 매칭은 딕셔너리 기반 조회 + MAX_FFR_MONTHS_DIFF fallback으로 수행된다.
 
     처리 흐름:
         1. 날짜 기준 오름차순 정렬 (월말 값 정확성 보장)
         2. month = 날짜.to_period("M") 생성
-        3. 월별 집계:
-           - e_m: 월말 누적 signed (last)
-           - sum_daily_m: 일일 증분 signed의 월합 (sum)
+        3. e_m: 월말 누적 signed (last)
         4. de_m: e_m의 월간 변화 (diff)
-        5. FFR 딕셔너리 기반 조회 (2개월 fallback, 초과 시 ValueError)
+        5. FFR 딕셔너리 기반 조회 (MAX_FFR_MONTHS_DIFF fallback, 초과 시 ValueError)
         6. rate_pct, dr_m 계산
 
     FFR 매칭 정책:
         - 해당 월 FFR이 존재하면 직접 사용
-        - 없으면 최대 MAX_FFR_MONTHS_DIFF(2개월) 이전 값 fallback
+        - 없으면 최대 MAX_FFR_MONTHS_DIFF 이전 값 fallback
         - 갭 초과 시 ValueError (fail-fast)
         - data_loader.py의 lookup_ffr과 동일한 정책
 
@@ -209,24 +206,22 @@ def aggregate_monthly(
         daily_df: 일별 데이터 (날짜, signed 컬럼 필수)
         date_col: 날짜 컬럼명
         signed_col: signed 컬럼명
-        ffr_df: 금리 데이터 (DATE: yyyy-mm 문자열, VALUE: 0~1 소수), None이면 금리 생략
-        min_months_for_analysis: 최소 필요 월 수 (기본 13, 테스트 시 조정 가능)
+        ffr_df: 금리 데이터 (DATE: yyyy-mm 문자열, VALUE: 0~1 소수)
+        min_months_for_analysis: 최소 필요 월 수
 
     Returns:
-        월별 DataFrame (month, e_m, de_m, sum_daily_m, rate_pct, dr_m)
+        월별 DataFrame (month, e_m, de_m, rate_pct, dr_m)
         - month: Period[M] (yyyy-mm)
         - e_m: 월말 누적 signed (%)
         - de_m: 월간 변화 (%)
-        - sum_daily_m: placeholder (pd.NA). 호출자가 calculate_daily_signed_log_diff() +
-          월별 groupby.sum()으로 채워야 한다. prepare_monthly_data()가 이를 자동 처리.
-        - rate_pct: 금리 수준 (%, FFR 있을 때만)
-        - dr_m: 금리 월간 변화 (%p, FFR 있을 때만)
+        - rate_pct: 금리 수준 (%)
+        - dr_m: 금리 월간 변화 (%p)
 
     Raises:
         ValueError: 아래 조건 중 하나라도 해당하면 fail-fast
-            - 필수 컬럼 누락 또는 daily_df가 비어있음
-            - FFR 데이터 갭이 MAX_FFR_MONTHS_DIFF(2개월) 초과
-            - 월별 집계 결과가 너무 짧아 핵심 지표 계산 불가 (예: Rolling 12M 상관)
+            - 필수 컬럼 누락, daily_df 또는 ffr_df가 비어있음
+            - FFR 데이터 갭이 MAX_FFR_MONTHS_DIFF 초과
+            - 월별 집계 결과가 min_months_for_analysis 미만
 
     Note:
         월말 값 정의: "해당 월 마지막 거래일의 레코드"
@@ -253,10 +248,7 @@ def aggregate_monthly(
     date_col_data = pd.to_datetime(df_sorted[date_col])
     df_sorted[COL_MONTH] = date_col_data.dt.to_period("M")
 
-    # 4. 월별 집계
-    # - e_m: 월말 누적 signed (last, 해당 월 마지막 거래일 값)
-    # - sum_daily_m: 일일 증분 signed의 월합 (sum)
-    # 주의: 일일 증분이 없으면 sum_daily_m은 계산 불가 (이 함수는 e_m만 사용)
+    # 4. 월별 집계 — e_m: 월말 누적 signed (last, 해당 월 마지막 거래일 값)
     monthly = df_sorted.groupby(COL_MONTH, as_index=False).agg({signed_col: "last"})
     monthly = monthly.rename(columns={signed_col: COL_E_M})
 
@@ -264,52 +256,28 @@ def aggregate_monthly(
     # 예: e_m = [2.0, 3.0, 2.5] -> de_m = [NaN, 1.0, -0.5]
     monthly[COL_DE_M] = monthly[COL_E_M].diff()
 
-    # 6. sum_daily_m: placeholder로 NaN 설정
-    # 이 함수는 signed_col(누적 오차)만 사용하므로 일일 증분 합산은 수행하지 않는다.
-    # 호출자가 실제 값을 채우려면:
-    #   1) calculate_daily_signed_log_diff()로 일일 증분 signed 시리즈를 생성
-    #   2) 월별 groupby.sum()으로 합산하여 이 컬럼을 덮어쓴다
-    # prepare_monthly_data()가 이 절차를 자동으로 수행하므로, 직접 처리하지 않아도 된다.
-    monthly[COL_SUM_DAILY_M] = pd.NA
+    # 6. FFR 데이터 매칭
+    # 딕셔너리 기반 조회 + MAX_FFR_MONTHS_DIFF fallback + fail-fast (lookup_ffr와 동일한 정책)
+    ffr_dict = create_ffr_dict(ffr_df)
 
-    # 7. FFR 데이터 매칭 (있을 때만)
-    # 딕셔너리 기반 조회 + 2개월 fallback + fail-fast
-    # lookup_ffr와 동일한 정책 적용
-    if ffr_df is not None and not ffr_df.empty:
-        # FFR 딕셔너리 생성 (O(1) 조회용)
-        ffr_dict = create_ffr_dict(ffr_df)
+    # Period 객체를 date로 변환하여 lookup_ffr 호출
+    ffr_values: list[float] = []
+    for period in monthly[COL_MONTH]:
+        date_value = date(period.year, period.month, 1)
+        ffr_value = lookup_ffr(date_value, ffr_dict)
+        ffr_values.append(ffr_value)
 
-        # 각 월에 대해 FFR 조회 (2개월 fallback, 초과 시 ValueError)
-        # Period 객체를 date로 변환하여 lookup_ffr 호출
-        ffr_values: list[float] = []
-        for period in monthly[COL_MONTH]:
-            date_value = date(period.year, period.month, 1)
-            ffr_value = lookup_ffr(date_value, ffr_dict)
-            ffr_values.append(ffr_value)
+    # rate_pct 계산 (0~1 소수 -> %)
+    # 예: VALUE = 0.045 -> rate_pct = 4.5
+    monthly[COL_RATE_PCT] = [v * 100.0 for v in ffr_values]
 
-        # rate_pct 계산 (0~1 소수 -> %)
-        # 예: VALUE = 0.045 -> rate_pct = 4.5
-        monthly[COL_RATE_PCT] = [v * 100.0 for v in ffr_values]
+    # dr_m 계산 (금리 월간 변화, %p)
+    monthly[COL_DR_M] = monthly[COL_RATE_PCT].diff()
 
-        # dr_m 계산 (금리 월간 변화, %p)
-        monthly[COL_DR_M] = monthly[COL_RATE_PCT].diff()
-
-    else:
-        # FFR 없으면 rate_pct, dr_m 컬럼을 NaN으로
-        monthly[COL_RATE_PCT] = pd.NA
-        monthly[COL_DR_M] = pd.NA
-
-    # 8. diff() 후 첫 달 NaN 제거
-    # 이유: de_m, dr_m의 첫 값은 항상 NaN (diff 특성)
-    # 선택: 첫 달 제거할지는 사용자 요구에 따라 조정 가능
-    # 여기서는 제거하지 않고 그대로 반환 (Streamlit에서 dropna)
-    # monthly = monthly.dropna(subset=["de_m"])  # 선택사항
-
-    # 9. 월별 집계 결과 길이 검증 (fail-fast)
-    # Rolling 12M 상관을 계산하려면 최소 13개월 필요 (12M window + 1)
+    # 7. 월별 집계 결과 길이 검증 (fail-fast)
     if len(monthly) < min_months_for_analysis:
         raise ValueError(
-            f"월별 집계 결과가 너무 짧음: {len(monthly)}개월\n최소 필요: {min_months_for_analysis}개월 (Rolling 12M 상관 계산 위해)\n조치: 더 긴 기간의 일별 데이터 필요"
+            f"월별 집계 결과가 너무 짧음: {len(monthly)}개월\n최소 필요: {min_months_for_analysis}개월\n조치: 더 긴 기간의 일별 데이터 필요"
         )
 
     return monthly

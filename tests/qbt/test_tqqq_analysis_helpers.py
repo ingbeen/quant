@@ -4,9 +4,8 @@ tqqq/analysis_helpers 모듈 테스트
 이 파일은 무엇을 검증하나요?
 1. 누적수익률 → signed 로그차이 계산이 정확한가?
 2. 일일수익률 → 일일 signed 로그차이 계산이 정확한가?
-3. abs(signed)와 abs 컬럼의 무결성 체크가 정확한가?
-4. 월별 집계 (de_m, sum_daily_m) 로직이 정확한가?
-5. Fail-fast 정책이 제대로 작동하는가? (M <= 0, 1+r <= 0 등)
+3. 월별 집계 (e_m, de_m, 금리 매칭) 로직이 정확한가?
+4. Fail-fast 정책이 제대로 작동하는가? (M <= 0, 1+r <= 0, 빈 금리 데이터 등)
 
 왜 중요한가요?
 금리-오차 관계 분석의 모든 계산이 이 함수들에 의존합니다.
@@ -225,10 +224,11 @@ class TestAggregateMonthly:
                 "signed": [1.0, 2.0, 3.0],
             }
         )
+        ffr_df = pd.DataFrame({"DATE": ["2023-01", "2023-02"], "VALUE": [0.045, 0.045]})
 
         # When
         monthly = aggregate_monthly(
-            daily_df, date_col="Date", signed_col="signed", ffr_df=None, min_months_for_analysis=1
+            daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1
         )
 
         # Then: 예상 결과
@@ -259,10 +259,11 @@ class TestAggregateMonthly:
                 "signed": [2.0, 1.0],
             }
         )
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
 
         # When
         monthly = aggregate_monthly(
-            daily_df, date_col="Date", signed_col="signed", ffr_df=None, min_months_for_analysis=1
+            daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1
         )
 
         # Then
@@ -279,10 +280,11 @@ class TestAggregateMonthly:
         """
         # Given: signed 컬럼 없음
         daily_df = pd.DataFrame({"Date": pd.to_datetime([date(2023, 1, 15)])})
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
 
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼"):
-            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=None)
+            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1)
 
     def test_fail_fast_when_daily_df_is_empty(self):
         """
@@ -295,10 +297,29 @@ class TestAggregateMonthly:
         """
         # Given
         daily_df = pd.DataFrame({"Date": pd.to_datetime([]), "signed": []})
+        ffr_df = pd.DataFrame({"DATE": ["2023-01"], "VALUE": [0.045]})
 
         # When & Then
         with pytest.raises(ValueError, match="비어있음"):
-            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=None)
+            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1)
+
+    def test_fail_fast_when_ffr_df_is_empty(self):
+        """
+        빈 금리 데이터일 때 fail-fast — 금리 열을 비운 채 넘어가지 않는다
+
+        Given:
+            - 정상 일별 데이터
+            - ffr_df가 비어있음 (열만 있음)
+        When: aggregate_monthly
+        Then: ValueError raise (FFR 데이터가 비어있음)
+        """
+        # Given
+        daily_df = pd.DataFrame({"Date": pd.to_datetime([date(2023, 1, 15)]), "signed": [1.0]})
+        ffr_df = pd.DataFrame({"DATE": pd.Series([], dtype=str), "VALUE": pd.Series([], dtype=float)})
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터가 비어있습니다"):
+            aggregate_monthly(daily_df, date_col="Date", signed_col="signed", ffr_df=ffr_df, min_months_for_analysis=1)
 
     def test_ffr_integration_and_matching_by_month(self):
         """

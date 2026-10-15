@@ -1,8 +1,8 @@
 """Spread Lab 앱 전용 분석 함수
 
-app_rate_spread_lab.py에서만 사용되는 데이터 준비 및 피처 생성 함수를 제공한다.
+app_rate_spread_lab.py에서만 사용되는 데이터 준비 함수를 제공한다.
 analysis_helpers.py의 핵심 계산 함수(calculate_daily_signed_log_diff, aggregate_monthly)를
-활용하여 월별 데이터를 준비하고 lag 피처를 생성한다.
+활용하여 월별 데이터를 준비한다.
 """
 
 import pandas as pd
@@ -15,18 +15,16 @@ from qbt.tqqq.analysis_helpers import (
 from qbt.tqqq.constants import (
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-    COL_DAILY_SIGNED,
-    COL_DR_LAG1,
-    COL_DR_LAG2,
-    COL_DR_M,
     COL_MONTH,
     COL_SIMUL_DAILY_RETURN,
     COL_SUM_DAILY_M,
-    DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
+    ROLLING_CORR_WINDOW_MONTHS,
 )
 
-# 기본 lag 리스트
-DEFAULT_LAG_LIST = [1, 2]
+COL_DAILY_SIGNED = "daily_signed"  # 일일 증분 signed 로그오차
+
+# 월간 변화(de_m · dr_m)는 첫 달이 비어 Rolling 상관의 첫 값을 내려면 창보다 한 달이 더 있어야 한다
+MIN_MONTHS_FOR_ANALYSIS = ROLLING_CORR_WINDOW_MONTHS + 1
 
 
 def prepare_monthly_data(
@@ -50,7 +48,7 @@ def prepare_monthly_data(
         월별 DataFrame (month, e_m, de_m, sum_daily_m, rate_pct, dr_m)
 
     Raises:
-        ValueError: 필수 컬럼 누락, 금리 커버리지 부족, 월별 결과 부족 등
+        ValueError: 필수 컬럼 누락, 금리 커버리지 부족, 월별 결과가 MIN_MONTHS_FOR_ANALYSIS 미만 등
     """
     # 1. 일일 증분 signed 로그오차 계산
     daily_signed = calculate_daily_signed_log_diff(
@@ -68,7 +66,7 @@ def prepare_monthly_data(
         date_col=DISPLAY_DATE,
         signed_col=COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
         ffr_df=ffr_df,
-        min_months_for_analysis=DEFAULT_MIN_MONTHS_FOR_ANALYSIS,
+        min_months_for_analysis=MIN_MONTHS_FOR_ANALYSIS,
     )
 
     # 4. sum_daily_m 계산 (일일 증분의 월합)
@@ -78,55 +76,7 @@ def prepare_monthly_data(
     sum_daily_monthly[COL_SUM_DAILY_M] = sum_daily_monthly[COL_DAILY_SIGNED]
     sum_daily_monthly = sum_daily_monthly.drop(columns=[COL_DAILY_SIGNED])
 
-    # 5. monthly에 merge하여 sum_daily_m 업데이트
-    monthly = monthly.drop(columns=[COL_SUM_DAILY_M])
+    # 5. monthly에 sum_daily_m 합치기
     monthly = monthly.merge(sum_daily_monthly, on=COL_MONTH, how="left")
 
     return monthly
-
-
-def add_rate_change_lags(
-    df_monthly: pd.DataFrame,
-    lag_list: list[int] | None = None,
-) -> pd.DataFrame:
-    """
-    dr_m 기반 lag 컬럼을 생성한다.
-
-    delta 분석 및 모델 입력에 활용하기 위해 금리 변화의 시차 컬럼을 생성한다.
-    원본 DataFrame을 변경하지 않고 복사본에서 작업한다.
-
-    Args:
-        df_monthly: 월별 DataFrame (dr_m 컬럼 필수)
-        lag_list: 생성할 lag 값 리스트 (기본값: [1, 2]). 지원 값은 1, 2 뿐이며
-            그 외 값이 포함되면 ValueError.
-
-    Returns:
-        lag 컬럼이 추가된 DataFrame (원본 불변)
-        - dr_lag1: dr_m.shift(1)
-        - dr_lag2: dr_m.shift(2)
-
-    Raises:
-        ValueError: dr_m 컬럼이 없는 경우, 또는 lag_list에 지원하지 않는
-            lag 값(1, 2 외)이 포함된 경우
-    """
-    if lag_list is None:
-        lag_list = DEFAULT_LAG_LIST
-
-    # 필수 컬럼 검증
-    if COL_DR_M not in df_monthly.columns:
-        raise ValueError(f"필수 컬럼 누락: {COL_DR_M}")
-
-    # 원본 불변성 보장
-    result = df_monthly.copy()
-
-    # lag 컬럼 생성
-    lag_col_map = {1: COL_DR_LAG1, 2: COL_DR_LAG2}
-    unsupported = [lag for lag in lag_list if lag not in lag_col_map]
-    if unsupported:
-        raise ValueError(
-            f"지원하지 않는 lag 값: {unsupported} " f"(지원 값: {sorted(lag_col_map)}). " f"매핑 외 lag는 컬럼 생성이 조용히 누락되므로 즉시 중단한다."
-        )
-    for lag in lag_list:
-        result[lag_col_map[lag]] = result[COL_DR_M].shift(lag)
-
-    return result

@@ -9,8 +9,15 @@
 화면 구성 (단일 흐름):
 - 금리-오차 관계 분석: 금리 수준 vs 월말 누적 오차 (핵심), 델타 분석, 교차검증
 - Softplus 모델 튜닝 결과: 전체기간 최적 파라미터 (a, b)
-- 과최적화 진단: 완전 고정 (a,b) 워크포워드 검증
+- 워크포워드 RMSE 비교: 완전 고정 · b 고정 · 동적 워크포워드의 이어 붙인(stitched) RMSE
 - 상세 분석: 모델 도출 과정 (워크포워드, b고정, Spread 비교)
+
+RMSE 차이로 과최적화를 판정하지 않고 수치와 잰 기간만 보인다 — 튜닝의 최적 RMSE 는 전체기간,
+워크포워드의 이어 붙인 RMSE 는 테스트 구간에서 잰 값이라 기간이 다르고, 완전 고정의 a · b 와
+b 고정의 b 는 테스트 구간까지 본 전체기간 튜닝값이라 아웃오브샘플 검증이 아니다.
+
+튜닝 · 워크포워드 결과 CSV(`storage/results/tqqq/spread_lab/`)는 git 이 추적하고,
+그 CSV 를 만드는 스크립트는 이 저장소에 없다 — 커밋 `c81690b^` 에서 되살린다.
 
 Fail-fast 정책:
 - ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
@@ -22,107 +29,121 @@ Fail-fast 정책:
 """
 
 from pathlib import Path
-from typing import cast
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from qbt.common_constants import TQQQ_RESULTS_DIR
 from qbt.tqqq.constants import (
-    COL_A,
-    COL_B,
     COL_DE_M,
     COL_E_M,
     COL_MONTH,
     COL_RATE_PCT,
-    COL_RMSE_PCT,
     COL_SUM_DAILY_M,
-    DISPLAY_ERROR_END_OF_MONTH_PCT,
     FFR_DATA_PATH,
-    SOFTPLUS_SPREAD_SERIES_STATIC_PATH,
-    SOFTPLUS_TUNING_CSV_PATH,
+    ROLLING_CORR_WINDOW_MONTHS,
     TQQQ_DAILY_COMPARISON_PATH,
-    TQQQ_WALKFORWARD_FIXED_AB_PATH,
-    TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH,
-    TQQQ_WALKFORWARD_FIXED_B_PATH,
-    TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH,
-    TQQQ_WALKFORWARD_PATH,
-    TQQQ_WALKFORWARD_SUMMARY_PATH,
-    WALKFORWARD_LOCAL_REFINE_A_DELTA,
-    WALKFORWARD_LOCAL_REFINE_B_DELTA,
 )
 from qbt.tqqq.data_loader import (
     load_comparison_data,
     load_monthly_data,
 )
-from qbt.tqqq.spread_lab_helpers import (
-    add_rate_change_lags,
-    prepare_monthly_data,
-)
+from qbt.tqqq.spread_lab_helpers import prepare_monthly_data
 from qbt.tqqq.visualization import (
     create_delta_scatter_chart,
     create_level_scatter_chart,
     create_level_timeseries_chart,
     create_rolling_correlation_chart,
 )
-from qbt.utils import get_logger
 
 # ============================================================
 # Streamlit 앱 전용 상수 (이 파일에서만 사용)
 # ============================================================
 
+# --- 결과 파일 경로 (spread_lab 하위폴더) ---
+SPREAD_LAB_DIR = TQQQ_RESULTS_DIR / "spread_lab"
+SOFTPLUS_TUNING_CSV_PATH = SPREAD_LAB_DIR / "tqqq_softplus_tuning.csv"
+SOFTPLUS_SPREAD_SERIES_STATIC_PATH = SPREAD_LAB_DIR / "tqqq_softplus_spread_series_static.csv"
+TQQQ_WALKFORWARD_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward.csv"
+TQQQ_WALKFORWARD_SUMMARY_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_summary.csv"
+TQQQ_WALKFORWARD_FIXED_B_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b.csv"
+TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_b_summary.csv"
+TQQQ_WALKFORWARD_FIXED_AB_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab.csv"
+TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
+
+# --- 튜닝 결과 CSV 컬럼 ---
+COL_A = "a"  # softplus 파라미터 a
+COL_B = "b"  # softplus 파라미터 b
+COL_RMSE_PCT = "rmse_pct"  # RMSE (%)
+
 # --- 기본값 파라미터 ---
 DEFAULT_TOP_N_CROSS_VALIDATION = 5  # 교차검증 상위 표시 개수
 DEFAULT_HISTOGRAM_BINS = 30  # 히스토그램 기본 bins
 DEFAULT_LAG_OPTIONS = [0, 1, 2]  # Delta 분석 lag 선택지 (개월)
-DEFAULT_STREAMLIT_COLUMNS = 3  # 요약 통계 표시용 컬럼 개수
 
 # --- 출력용 한글 레이블 ---
+DISPLAY_ERROR_END_OF_MONTH_PCT = "월말 누적 오차 (%)"  # Level 차트 y축
 DISPLAY_CHART_DIFF_DISTRIBUTION = "차이 분포"  # 히스토그램 차트명
 DISPLAY_AXIS_DIFF_PCT = "차이 (%)"  # X축 레이블
 DISPLAY_AXIS_FREQUENCY = "빈도"  # Y축 레이블
 DISPLAY_DELTA_MONTHLY_PCT = "월간 변화 (%)"  # Delta 차트 y축
 
-# --- 과최적화 진단 임계값 ---
-DEFAULT_OVERFITTING_THRESHOLD_LOW = 0.5  # 약한 과최적화 경계 (%p)
-DEFAULT_OVERFITTING_THRESHOLD_HIGH = 1.5  # 강한 과최적화 경계 (%p)
-
 # ============================================================
-# Logger 설정
-# ============================================================
-logger = get_logger(__name__)
-
-# ============================================================
-# 데이터 빌드 (캐시)
+# 데이터 로드 (캐시)
 # ============================================================
 
 
 @st.cache_data
-def build_artifacts(daily_path_str: str, ffr_path_str: str) -> pd.DataFrame:
+def build_artifacts(daily_path: Path, daily_mtime: float, ffr_path: Path, ffr_mtime: float) -> pd.DataFrame:
     """
     일별 비교 데이터와 금리 데이터를 로드하고 월별로 집계한다.
 
-    서버 기동 시 1회만 실행되며 이후 캐시 사용.
-    파일 경로 문자열만 캐시 키로 사용하여 파일 변경을 무시한다.
-
-    Args:
-        daily_path_str: 일별 비교 CSV 파일 경로 (문자열)
-        ffr_path_str: 금리 CSV 파일 경로 (문자열)
+    수정 시각 둘은 본문에서 쓰지 않고 캐시 키로만 둔다 — 일별 비교 CSV 나 금리 파일을 다시 만들면 새로 집계한다.
+    이름이 밑줄로 시작하면 Streamlit 이 캐시 키에서 빼므로 밑줄을 붙이지 않는다.
 
     Returns:
-        월별 집계 DataFrame (month, e_m, de_m, sum_daily_m, rate_pct, dr_m 포함)
+        월별 집계 DataFrame (month, e_m, de_m, rate_pct, dr_m, sum_daily_m)
 
     Raises:
-        ValueError: 파일 부재, 필수 컬럼 누락, 금리 커버리지 부족 등
+        ValueError: 필수 컬럼 누락, 금리 커버리지 부족 등
     """
-    # 1. 데이터 로드
-    daily_df = load_comparison_data(Path(daily_path_str))
-    ffr_df = load_monthly_data(Path(ffr_path_str))
+    daily_df = load_comparison_data(daily_path)
+    ffr_df = load_monthly_data(ffr_path)
+    return prepare_monthly_data(daily_df, ffr_df)
 
-    # 2. 월별 집계
-    monthly_df = prepare_monthly_data(daily_df, ffr_df)
 
-    return monthly_df
+@st.cache_data
+def _read_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """결과 CSV 를 읽는다. 수정 시각은 캐시 키로만 둔다(build_artifacts 와 같은 이유)."""
+    return pd.read_csv(path)
+
+
+def _load_csv(path: Path) -> pd.DataFrame:
+    return _read_csv(path, path.stat().st_mtime)
+
+
+def _load_summary(path: Path) -> dict[str, float]:
+    """워크포워드 요약 CSV(metric, value 열)를 지표 이름 → 값 딕셔너리로 읽는다."""
+    summary_df = _load_csv(path)
+    return dict(zip(summary_df["metric"], summary_df["value"].astype(float), strict=True))
+
+
+def _common_test_period(*result_dfs: pd.DataFrame) -> tuple[str, str]:
+    """
+    워크포워드 결과들의 공통 테스트 구간 (첫 월, 끝 월)을 돌려준다.
+
+    화면이 이어 붙인 RMSE 들을 「같은 테스트 구간에서 잰 값」으로 나란히 보이므로, 테스트 월이 하나라도
+    다르면 그 설명이 거짓이 된다 — 그때는 멈춘다.
+
+    Raises:
+        ValueError: 결과들의 테스트 월 목록이 서로 다를 때
+    """
+    month_lists = {tuple(df["test_month"]) for df in result_dfs}
+    if len(month_lists) != 1:
+        raise ValueError("워크포워드 결과 CSV 들의 테스트 월이 서로 다릅니다 — " "같은 테스트 구간으로 다시 만들어야 이어 붙인 RMSE 를 나란히 볼 수 있습니다")
+    months = month_lists.pop()
+    return str(min(months)), str(max(months))
 
 
 # ============================================================
@@ -131,21 +152,9 @@ def build_artifacts(daily_path_str: str, ffr_path_str: str) -> pd.DataFrame:
 
 
 def _render_intro():
-    """타이틀, 스프레드 모델 변천사, 읽기 가이드를 렌더링한다."""
+    """타이틀과 읽기 가이드를 렌더링한다."""
     st.title("TQQQ 금리-오차 관계 분석")
     st.markdown("금리 환경과 시뮬레이션 오차의 관계를 시각화하여 " "**Softplus 동적 스프레드 모델**의 검증 결과를 확인합니다.")
-
-    # 스프레드 모델 변천사
-    st.info(
-        "**스프레드 모델 변천**\n\n"
-        "- **초기**: 고정 스프레드 (0.0034 = 0.34%) "
-        "— 금리 환경과 무관하게 일정한 비용\n"
-        "- **현재**: Softplus 동적 스프레드 "
-        "(spread = softplus(a + b × FFR%)) "
-        "— 금리에 따라 비용이 자동 조정\n"
-        "- **전환 이유**: 고정 스프레드는 고금리 구간에서 비용을 과소 반영하여 "
-        "과대평가 편향이 발생했으며, 이 앱의 금리-오차 분석이 전환 근거가 됨"
-    )
 
     # 읽기 가이드
     st.markdown(
@@ -155,7 +164,7 @@ def _render_intro():
 |------|------|--------|
 | **금리-오차 관계 분석** | 금리 수준/변화와 시뮬레이션 오차의 관계 파악 | 핵심 |
 | **Softplus 모델 튜닝 결과** | 전체기간 최적 파라미터 (a, b) 확인 | 핵심 |
-| **과최적화 진단** | 고정 파라미터가 미래에도 유효한지 검증 | 핵심 |
+| **워크포워드 RMSE 비교** | 완전 고정 · b 고정 · 동적 워크포워드가 같은 테스트 구간에서 낸 RMSE 확인 | 핵심 |
 | **상세 분석 (모델 도출 과정)** | Softplus 모델 선택까지의 중간 검증 과정 | 참고 |"""
     )
     st.divider()
@@ -163,7 +172,7 @@ def _render_intro():
 
 def _render_dataset_metrics(monthly_df: pd.DataFrame):
     """요약 통계를 표시한다."""
-    col1, col2, col3 = st.columns(DEFAULT_STREAMLIT_COLUMNS)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(
             label="분석 기간 (Period)",
@@ -178,7 +187,6 @@ def _render_dataset_metrics(monthly_df: pd.DataFrame):
         e_max = monthly_df[COL_E_M].max()
         st.metric(label="월말 오차 범위 (End-of-Month Error, %)", value=f"{e_min:.2f}% ~ {e_max:.2f}%")
 
-    # VERBATIM #0: 데이터 로딩 및 월별 집계 설명
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -194,13 +202,9 @@ def _render_level_section(monthly_df: pd.DataFrame):
     st.header("금리 수준 vs 월말 누적 오차 (핵심)")
 
     # 산점도
-    try:
-        scatter_fig = create_level_scatter_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
-        st.plotly_chart(scatter_fig, width="stretch")
-    except Exception as e:
-        st.error(f"산점도 차트 생성 실패:\n\n{str(e)}")
+    scatter_fig = create_level_scatter_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
+    st.plotly_chart(scatter_fig, width="stretch")
 
-    # VERBATIM #1: 산점도 설명
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -217,24 +221,15 @@ def _render_level_section(monthly_df: pd.DataFrame):
   - 고금리에서 시뮬레이션이 실제보다 **좋게** 나오는 편
   - 흔한 원인: 고금리에서 **비용(조달비용/스프레드)을 실제보다 낮게 잡았을 가능성**
 
-- 반대로 **-로 커지는 경향**이면 비용을 과하게 잡았을 가능성이 있습니다.
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준으로 추세선이 **우상향**에 가깝습니다. → **금리 레벨이 높아질수록 월말 오차가 +쪽으로 치우칠 가능성**이 보입니다.
-- 이 관찰이 **고정 스프레드(0.0034)에서 Softplus 동적 스프레드로 전환한 근거**가 되었습니다. 현재 데이터는 동적 스프레드 적용 후의 결과이며, 잔여 편향이 있는지 모니터링하는 용도로 활용합니다."""
+- 반대로 **-로 커지는 경향**이면 비용을 과하게 잡았을 가능성이 있습니다."""
     )
 
     st.divider()
 
     # 시계열
-    try:
-        ts_fig = create_level_timeseries_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
-        st.plotly_chart(ts_fig, width="stretch")
-    except Exception as e:
-        st.error(f"시계열 차트 생성 실패:\n\n{str(e)}")
+    ts_fig = create_level_timeseries_chart(monthly_df, COL_E_M, DISPLAY_ERROR_END_OF_MONTH_PCT)
+    st.plotly_chart(ts_fig, width="stretch")
 
-    # VERBATIM #2: 시계열 추이 설명
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -252,12 +247,7 @@ def _render_level_section(monthly_df: pd.DataFrame):
 
 1. 금리가 **높아진 시기**에 오차가 **+쪽으로 오래 머무는지**
 2. 금리가 **낮은 시기**에 오차가 **-쪽으로 오래 머무는지**
-3. 특정 시점(충격장/급변 구간)에서 오차가 "뚝" 튀는지
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준으로 **시기별로 오차의 중심이 달라지는(한쪽으로 치우쳤다가 돌아오는) 모습**이 보입니다.
-- 이 패턴이 **금리 레벨에 따라 비용을 조정하는 Softplus 동적 스프레드 도입의 동기**가 되었습니다. 현재 데이터는 동적 스프레드 적용 후의 결과입니다."""
+3. 특정 시점(충격장/급변 구간)에서 오차가 "뚝" 튀는지"""
     )
 
     st.divider()
@@ -271,14 +261,12 @@ def _render_delta_section(monthly_df: pd.DataFrame):
 
         lag = st.selectbox("시차 (Lag, 개월):", options=DEFAULT_LAG_OPTIONS, index=0)
 
-        try:
-            # 델타 산점도
-            delta_fig, valid_df = create_delta_scatter_chart(monthly_df, y_col_delta, y_label_delta, lag)
-            st.plotly_chart(delta_fig, width="stretch")
+        # 델타 산점도
+        delta_fig, valid_df = create_delta_scatter_chart(monthly_df, y_col_delta, y_label_delta, lag)
+        st.plotly_chart(delta_fig, width="stretch")
 
-            # VERBATIM #3: 델타 분석 설명
-            st.markdown(
-                """## 지표에 사용하는 용어에 대한 설명
+        st.markdown(
+            """## 지표에 사용하는 용어에 대한 설명
 
 - **금리 변화(dr_m)**: 전월 대비 금리 변화량
 - **오차 변화(de_m)**: 전월 대비 월말 오차 변화량
@@ -290,52 +278,33 @@ def _render_delta_section(monthly_df: pd.DataFrame):
 ## 지표를 해석하는 방법
 
 - 델타 분석은 "금리 **수준**"이 아니라 "금리의 **변화 방향/속도**"가 오차 변화와 연결되는지 봅니다.
-- 점들이 0 근처에 몰리고 추세가 약하면, 금리 변화량만으로 오차 변화를 설명하기 어렵습니다.
+- 점들이 0 근처에 몰리고 추세가 약하면, 금리 변화량만으로 오차 변화를 설명하기 어렵습니다."""
+        )
 
-## 현재 지표 해석 & 판단(결과)
+        st.divider()
 
-- 2026.02.08 기준으로 델타 산점도는 강한 직선 관계라기보단 **흩어진 형태**에 가깝습니다.
-- 오차를 설명하는 핵심은 "금리 변화(Δ)"보다는 **금리 수준(Level)** 쪽일 가능성이 더 크며, Lag 비교는 "보조 힌트"로 보는 게 안전합니다."""
-            )
+        # Rolling 상관
+        rolling_fig = create_rolling_correlation_chart(valid_df, y_col_delta)
+        st.plotly_chart(rolling_fig, width="stretch")
 
-            st.divider()
+        st.markdown(
+            f"""## 지표에 사용하는 용어에 대한 설명
 
-            # Rolling 12개월 상관
-            rolling_fig = create_rolling_correlation_chart(valid_df, y_col_delta)
-            st.plotly_chart(rolling_fig, width="stretch")
-
-            # VERBATIM #4: Rolling 12개월 상관 설명
-            st.markdown(
-                """## 지표에 사용하는 용어에 대한 설명
-
-- **Rolling 12개월 상관**: 최근 12개월만 잘라 상관계수를 계속 계산한 것
+- **Rolling {ROLLING_CORR_WINDOW_MONTHS}개월 상관**: 최근 {ROLLING_CORR_WINDOW_MONTHS}개월만 잘라 상관계수를 계속 계산한 것
 - **상관계수**: +면 같이, -면 반대로, 0이면 뚜렷하지 않음
 
 ## 지표를 해석하는 방법
 
 - 한 숫자(전체기간 상관)보다, 롤링은 **구간별로 관계가 바뀌는지** (국면 변화)를 보여줍니다.
 - 상관이 오래 한 방향이면 "그 구간에서는 관계가 비교적 안정적"
-- 상관이 자주 뒤집히면 "관계가 불안정 → 단일 규칙 적용 위험"
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준으로 상관이 구간별로 오르내리는 모습입니다.
-- "금리-오차 관계"는 시기별로 강도가 달라질 수 있어, **동적 모델 + 워크포워드 같은 운영형 검증이 의미**가 있습니다."""
-            )
-
-        except ValueError as e:
-            st.error(f"Delta 차트 생성 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 부족 가능성")
-        except Exception as e:
-            st.error(f"예상치 못한 오류:\n\n{str(e)}")
+- 상관이 자주 뒤집히면 "관계가 불안정 → 단일 규칙 적용 위험\""""
+        )
 
 
 def _render_cross_validation_section(monthly_df: pd.DataFrame):
     """교차검증 섹션을 렌더링한다."""
     with st.expander("고급 분석: 교차검증 (Cross Validation - de_m vs sum_daily_m)", expanded=False):
-        try:
-            _display_cross_validation(monthly_df)
-        except Exception as e:
-            st.error(f"교차검증 표시 실패:\n\n{str(e)}")
+        _display_cross_validation(monthly_df)
 
 
 def _display_cross_validation(monthly_df: pd.DataFrame):
@@ -394,7 +363,6 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
     )
     st.plotly_chart(fig, width="stretch")
 
-    # VERBATIM #5: 교차검증 설명
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -405,64 +373,20 @@ def _display_cross_validation(monthly_df: pd.DataFrame):
 ## 지표를 해석하는 방법
 
 - 이 섹션은 "금리와의 관계"를 보기 전에 **오차 집계 로직이 일관적인지** 검증하는 안전장치입니다.
-- max/mean abs diff가 매우 작으면 "집계 신뢰도 OK"
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준으로 diff가 매우 작은 수준으로 관리됩니다.
-- 오차 계산/집계는 충분히 안정적이라, 이후 분석(델타/튜닝/워크포워드) 해석의 바닥이 튼튼한 편입니다."""
+- max/mean abs diff가 매우 작으면 "집계 신뢰도 OK\""""
     )
 
 
 # ============================================================
-# Softplus 튜닝 결과 로드 및 표시 함수
+# Softplus 튜닝 결과 표시 함수
 # ============================================================
-
-
-@st.cache_data
-def _load_softplus_tuning_csv() -> pd.DataFrame | None:
-    """
-    Softplus 튜닝 결과 CSV를 로드한다.
-
-    Returns:
-        튜닝 결과 DataFrame 또는 None (파일 없음)
-    """
-    if not SOFTPLUS_TUNING_CSV_PATH.exists():
-        return None
-    return pd.read_csv(SOFTPLUS_TUNING_CSV_PATH)
-
-
-@st.cache_data
-def _load_static_spread_csv() -> pd.DataFrame | None:
-    """
-    정적 spread 시계열 CSV를 로드한다.
-
-    Returns:
-        정적 spread 시계열 DataFrame 또는 None (파일 없음)
-    """
-    if not SOFTPLUS_SPREAD_SERIES_STATIC_PATH.exists():
-        return None
-    return pd.read_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
 
 
 def _render_softplus_tuning_section() -> None:
     """Softplus 동적 Spread 파라미터 튜닝 결과 섹션을 렌더링한다."""
     st.header("Softplus 동적 Spread 파라미터 튜닝 결과")
 
-    # CSV 파일 로드
-    tuning_df = _load_softplus_tuning_csv()
-
-    if tuning_df is None:
-        st.warning(
-            f"튜닝 결과 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로: `{SOFTPLUS_TUNING_CSV_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/tune_softplus_params.py\n"
-            f"```"
-        )
-    else:
-        _display_tuning_result(tuning_df)
+    _display_tuning_result(_load_csv(SOFTPLUS_TUNING_CSV_PATH))
 
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
@@ -479,12 +403,7 @@ def _render_softplus_tuning_section() -> None:
 - 금리가 낮으면 **ffr_pct가 작아서 b \\* ffr_pct 항이 작고 → a의 영향이 상대적으로 더 큼**
 - 금리가 높으면 **b \\* ffr_pct가 커져서 → b(기울기)의 영향이 크게 나타남**
 
-- 중요한 오해 방지: "저금리면 a만 쓰고 b는 안 쓴다"가 아니라 **항상 a와 b 둘 다 사용**하고, 다만 금리 레벨에 따라 "영향 비중"이 달라집니다.
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준으로 최적값이 **a=-6.10, b=0.37, RMSE=1.0467%** 형태로 제시됩니다.
-- "고금리에서 비용을 더 얹는(b>0)" 구조가 전체기간 추적 오차를 줄이는 데 유리하게 작동한 결과로 해석할 수 있습니다."""
+- 중요한 오해 방지: "저금리면 a만 쓰고 b는 안 쓴다"가 아니라 **항상 a와 b 둘 다 사용**하고, 다만 금리 레벨에 따라 "영향 비중"이 달라집니다."""
     )
 
 
@@ -498,9 +417,8 @@ def _render_detailed_analysis_section() -> None:
             "아래 섹션들은 Softplus 동적 스프레드 모델을 도출하고 검증하는 과정에서 "
             "수행한 중간 분석입니다.\n\n"
             "- **워크포워드 검증**: 파라미터가 시간에 따라 안정적인지 확인\n"
-            "- **b 고정 워크포워드**: b를 고정하고 a만 최적화하여 과최적화 진단\n"
-            "- **Spread 비교**: 고정 파라미터 vs 워크포워드 파라미터의 차이 시각화\n\n"
-            "최종 결론은 위의 **과최적화 진단** 섹션을 참고하세요."
+            "- **b 고정 워크포워드**: b를 전체기간 최적값으로 고정하고 a만 매월 최적화\n"
+            "- **Spread 비교**: 고정 파라미터 vs 워크포워드 파라미터의 차이 시각화"
         )
         _render_walkforward_section()
         st.divider()
@@ -533,6 +451,13 @@ def _display_tuning_result(tuning_df: pd.DataFrame) -> None:
     with col3:
         st.metric(label="최적 RMSE (%)", value=f"{best_row[COL_RMSE_PCT]:.4f}")
 
+    # 튜닝과 정적 spread 시계열은 같은 기간(QQQ · TQQQ 겹침 구간)으로 만들었다
+    static_months = _load_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)["month"]
+    st.caption(
+        f"최적 RMSE 는 튜닝 전체기간({static_months.min()} ~ {static_months.max()})에서 잰 값입니다 — "
+        "아래 워크포워드의 이어 붙인 RMSE(테스트 구간)와 잰 기간이 달라 직접 비교하지 않습니다."
+    )
+
     # 상위 결과 테이블
     with st.expander("상위 10개 후보 결과", expanded=True):
         top_10 = tuning_df.head(10).copy()
@@ -542,139 +467,72 @@ def _display_tuning_result(tuning_df: pd.DataFrame) -> None:
 
 
 # ============================================================
-# 워크포워드 검증 결과 로드 및 표시 함수
+# 워크포워드 RMSE 비교 섹션
 # ============================================================
 
 
-# ============================================================
-# b 고정 워크포워드 검증 결과 로드 및 표시 함수
-# ============================================================
+def _render_walkforward_rmse_section() -> None:
+    """완전 고정 · b 고정 · 동적 워크포워드의 이어 붙인 RMSE 와 월별 테스트 RMSE 를 렌더링한다."""
+    st.header("워크포워드 RMSE 비교 (완전 고정 · b 고정 · 동적)")
 
+    fab_result_df = _load_csv(TQQQ_WALKFORWARD_FIXED_AB_PATH)
+    fb_result_df = _load_csv(TQQQ_WALKFORWARD_FIXED_B_PATH)
+    dyn_result_df = _load_csv(TQQQ_WALKFORWARD_PATH)
+    fab_summary = _load_summary(TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH)
+    fb_summary = _load_summary(TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH)
+    dyn_summary = _load_summary(TQQQ_WALKFORWARD_SUMMARY_PATH)
+    test_start, test_end = _common_test_period(fab_result_df, fb_result_df, dyn_result_df)
 
-@st.cache_data
-def _load_walkforward_fixed_b_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
-    """
-    b 고정 워크포워드 검증 결과 CSV를 로드한다.
-
-    Returns:
-        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
-    """
-    if not TQQQ_WALKFORWARD_FIXED_B_PATH.exists() or not TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH.exists():
-        return None, None
-
-    result_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_B_PATH)
-    summary_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH)
-
-    return result_df, summary_df
-
-
-def _render_walkforward_fixed_b_section() -> None:
-    """b 고정 워크포워드 검증 결과 섹션을 렌더링한다 (과최적화 진단)."""
-    st.header("b 고정 워크포워드 검증 (과최적화 진단)")
-
-    # b 고정 워크포워드 CSV 로드
-    fb_result_df, fb_summary_df = _load_walkforward_fixed_b_csv()
-
-    if fb_result_df is None or fb_summary_df is None:
-        st.warning(
-            f"b 고정 워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로:\n"
-            f"- `{TQQQ_WALKFORWARD_FIXED_B_PATH}`\n"
-            f"- `{TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
-            f"```"
-        )
-        return
-
-    # summary를 딕셔너리로 변환
-    fb_summary = dict(zip(fb_summary_df["metric"], fb_summary_df["value"], strict=False))
-
-    # 기존 동적 워크포워드 데이터도 로드
-    dyn_result_df, dyn_summary_df = _load_walkforward_csv()
-    dyn_summary: dict[str, float] | None = None
-    if dyn_summary_df is not None:
-        dyn_summary = dict(zip(dyn_summary_df["metric"], dyn_summary_df["value"], strict=False))
-
-    # 정적 RMSE
-    tuning_df = _load_softplus_tuning_csv()
-    static_rmse: float | None = None
-    if tuning_df is not None and len(tuning_df) > 0:
-        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
-
-    # 고정 b 값
-    fixed_b_value = fb_summary["b_mean"]
-
-    # --- 3-metric RMSE 비교 ---
-    st.subheader("RMSE 3자 비교 (정적 vs 동적 WF vs b고정 WF)")
+    # --- 이어 붙인 RMSE ---
+    st.subheader("이어 붙인 RMSE (Stitched RMSE)")
+    st.caption(f"세 값 모두 같은 테스트 구간({test_start} ~ {test_end})에서 잰 값입니다.")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if static_rmse is not None:
-            st.metric(label="정적 RMSE (%)\n(전체기간 최적 a,b)", value=f"{static_rmse:.4f}")
-        else:
-            st.metric(label="정적 RMSE (%)", value="N/A")
+        st.metric(
+            label="완전 고정 WF stitched RMSE (%)\n(a,b 전체기간 최적값 고정)",
+            value=f"{fab_summary['stitched_rmse']:.4f}",
+        )
 
     with col2:
-        dyn_stitched = dyn_summary.get("stitched_rmse") if dyn_summary else None
-        if dyn_stitched is not None:
-            st.metric(label="동적 WF stitched RMSE (%)\n(a,b 모두 최적화)", value=f"{dyn_stitched:.4f}")
-        else:
-            st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
+        st.metric(label="동적 WF stitched RMSE (%)\n(a,b 모두 최적화)", value=f"{dyn_summary['stitched_rmse']:.4f}")
 
     with col3:
-        fb_stitched = cast(float | None, fb_summary.get("stitched_rmse"))
-        if fb_stitched is not None:
-            st.metric(
-                label=f"b고정 WF stitched RMSE (%)\n(b={fixed_b_value:.4f} 고정, a만 최적화)",
-                value=f"{fb_stitched:.4f}",
-            )
-        else:
-            st.metric(label="b고정 WF stitched RMSE (%)", value="N/A")
+        st.metric(label="b고정 WF stitched RMSE (%)\n(b 고정, a만 최적화)", value=f"{fb_summary['stitched_rmse']:.4f}")
 
-    # --- 해석 결과 ---
-    _render_fixed_b_interpretation(static_rmse, dyn_stitched, fb_stitched, fixed_b_value)
+    # --- 금리 구간별 RMSE 비교 ---
+    st.subheader("금리 구간별 RMSE 분해 (완전 고정 WF)")
 
-    # --- a 파라미터 안정성 비교 ---
-    st.subheader("파라미터 안정성 비교")
+    boundary_label = f"{fab_summary['rate_boundary_pct']:.0f}"
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("**동적 워크포워드 (a, b 모두 최적화)**")
-        if dyn_summary:
-            st.write(f"- a 평균: {dyn_summary['a_mean']:.4f}")
-            st.write(f"- a 표준편차: {dyn_summary['a_std']:.4f}")
-            st.write(f"- b 평균: {dyn_summary['b_mean']:.4f}")
-            st.write(f"- b 표준편차: {dyn_summary['b_std']:.4f}")
-        else:
-            st.info("동적 워크포워드 데이터 없음")
+        st.markdown(f"**저금리 (0~{boundary_label}%)**")
+        st.metric(label="저금리 구간 RMSE (%)", value=f"{fab_summary['low_rate_rmse']:.4f}")
+        st.caption(f"거래일 수: {int(fab_summary['low_rate_days']):,}일")
 
     with col2:
-        st.markdown(f"**b 고정 워크포워드 (b={fixed_b_value:.4f} 고정)**")
-        st.write(f"- a 평균: {fb_summary['a_mean']:.4f}")
-        st.write(f"- a 표준편차: {fb_summary['a_std']:.4f}")
-        st.write(f"- b 고정값: {fixed_b_value:.4f}")
-        st.write(f"- b 표준편차: {fb_summary['b_std']:.4f} (0에 가까워야 정상)")
+        st.markdown(f"**고금리 ({boundary_label}%+)**")
+        st.metric(label="고금리 구간 RMSE (%)", value=f"{fab_summary['high_rate_rmse']:.4f}")
+        st.caption(f"거래일 수: {int(fab_summary['high_rate_days']):,}일")
 
-    # --- 테스트 RMSE 추이 비교 차트 ---
-    with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정)", expanded=True):
+    # --- 월별 테스트 RMSE 추이 차트 ---
+    with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정 vs 완전 고정)", expanded=True):
         fig_rmse = go.Figure()
 
         # 동적 워크포워드
-        if dyn_result_df is not None:
-            fig_rmse.add_trace(
-                go.Scatter(
-                    x=dyn_result_df["test_month"],
-                    y=dyn_result_df["test_rmse_pct"],
-                    mode="lines",
-                    name="동적 WF (a,b 최적화)",
-                    line={"color": "red", "width": 1.5},
-                    opacity=0.7,
-                )
+        fig_rmse.add_trace(
+            go.Scatter(
+                x=dyn_result_df["test_month"],
+                y=dyn_result_df["test_rmse_pct"],
+                mode="lines",
+                name="동적 WF (a,b 최적화)",
+                line={"color": "red", "width": 1.5},
+                opacity=0.7,
             )
+        )
 
         # b 고정 워크포워드
         fig_rmse.add_trace(
@@ -682,369 +540,11 @@ def _render_walkforward_fixed_b_section() -> None:
                 x=fb_result_df["test_month"],
                 y=fb_result_df["test_rmse_pct"],
                 mode="lines",
-                name=f"b고정 WF (b={fixed_b_value:.2f})",
+                name=f"b고정 WF (b={fb_summary['b_mean']:.2f})",
                 line={"color": "blue", "width": 1.5},
                 opacity=0.7,
             )
         )
-
-        fig_rmse.update_layout(
-            title="월별 테스트 RMSE 추이 비교",
-            xaxis_title="테스트 월",
-            yaxis_title="RMSE (%)",
-            height=400,
-            legend={"yanchor": "top", "y": 0.99, "xanchor": "left", "x": 0.01},
-        )
-        st.plotly_chart(fig_rmse, width="stretch")
-
-    # --- VERBATIM 설명 ---
-    st.markdown(
-        f"""## 지표에 사용하는 용어에 대한 설명
-
-- **정적 RMSE**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로, 전체 기간을 연속 시뮬레이션하여 산출한 RMSE
-- **동적 WF stitched RMSE**: 매월 (a, b) 모두 최적화한 워크포워드를 연속으로 붙인 RMSE
-- **b고정 WF stitched RMSE**: b를 전체기간 최적값({fixed_b_value:.4f})으로 고정하고, a만 매월 최적화한 워크포워드의 연속 RMSE
-
-## 지표를 해석하는 방법
-
-- **b고정 WF < 동적 WF**: b를 자유롭게 튜닝하는 것이 오히려 성능을 악화 → **b의 과최적화 확인**
-- **b고정 WF < 정적 RMSE**: b 고정 + a만 동적 조정으로도 정적 모델 대비 개선 효과 있음 → **a의 동적 조정은 유효**
-- **b고정 WF > 정적 RMSE**: a만 동적 조정해도 정적보다 나쁨 → 동적 모델 자체의 부가가치가 없을 수 있음"""
-    )
-
-
-def _render_fixed_b_interpretation(
-    static_rmse: float | None,
-    dyn_stitched: float | None,
-    fb_stitched: float | None,
-    fixed_b_value: float,
-) -> None:
-    """
-    b 고정 워크포워드 RMSE 해석 결과를 표시한다.
-
-    Args:
-        static_rmse: 정적 RMSE (%) 또는 None
-        dyn_stitched: 동적 워크포워드 stitched RMSE (%) 또는 None
-        fb_stitched: b고정 워크포워드 stitched RMSE (%) 또는 None
-        fixed_b_value: 고정된 b 값
-    """
-    st.markdown("## 현재 지표 해석 & 판단(결과)")
-
-    if fb_stitched is None:
-        st.info("b고정 워크포워드 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
-        return
-
-    findings = []
-
-    # 1. b 고정 vs 동적 비교 (과최적화 진단 핵심)
-    if dyn_stitched is not None:
-        if fb_stitched < dyn_stitched:
-            diff = dyn_stitched - fb_stitched
-            findings.append(
-                f"- **b고정 WF({fb_stitched:.4f}%) < 동적 WF({dyn_stitched:.4f}%)** "
-                f"→ b를 고정하는 것이 **{diff:.4f}%p 더 낮아** b의 과최적화가 확인됩니다.\n"
-                f"  - b를 자유롭게 튜닝하면 매월 노이즈에 반응하여 누적 오차가 커집니다."
-            )
-        elif fb_stitched > dyn_stitched:
-            diff = fb_stitched - dyn_stitched
-            findings.append(
-                f"- **b고정 WF({fb_stitched:.4f}%) > 동적 WF({dyn_stitched:.4f}%)** "
-                f"→ 동적 (a,b)가 **{diff:.4f}%p 더 낮아** b의 과최적화는 아닙니다.\n"
-                f"  - b의 시간 변동이 실제 성능 개선에 기여하고 있습니다."
-            )
-        else:
-            findings.append(f"- **b고정 WF({fb_stitched:.4f}%) ≈ 동적 WF({dyn_stitched:.4f}%)** " f"→ b 최적화의 영향이 미미합니다.")
-
-    # 2. b 고정 vs 정적 비교 (a 동적 조정의 부가가치)
-    if static_rmse is not None:
-        if fb_stitched < static_rmse:
-            diff = static_rmse - fb_stitched
-            findings.append(
-                f"- **b고정 WF({fb_stitched:.4f}%) < 정적({static_rmse:.4f}%)** "
-                f"→ a만 동적으로 조정해도 정적 대비 **{diff:.4f}%p 개선** → a의 동적 조정은 유효합니다."
-            )
-        else:
-            diff = fb_stitched - static_rmse
-            findings.append(
-                f"- **b고정 WF({fb_stitched:.4f}%) >= 정적({static_rmse:.4f}%)** "
-                f"→ a만 동적 조정해도 정적보다 나쁨({diff:.4f}%p) → "
-                f"현재로서는 전체기간 고정 (b={fixed_b_value:.4f} 포함) 정적 모델이 더 안정적입니다."
-            )
-
-    for finding in findings:
-        st.markdown(finding)
-
-
-# ============================================================
-# 완전 고정 (a,b) 과최적화 진단 섹션
-# ============================================================
-
-
-@st.cache_data
-def _load_walkforward_fixed_ab_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
-    """
-    완전 고정 (a,b) 워크포워드 검증 결과 CSV를 로드한다.
-
-    Returns:
-        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
-    """
-    if not TQQQ_WALKFORWARD_FIXED_AB_PATH.exists() or not TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH.exists():
-        return None, None
-
-    result_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_AB_PATH)
-    summary_df = pd.read_csv(TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH)
-
-    return result_df, summary_df
-
-
-def _render_overfitting_interpretation(
-    static_rmse: float | None,
-    fab_stitched: float | None,
-    dyn_stitched: float | None,
-    fb_stitched: float | None,
-    low_rate_rmse: float | None,
-    high_rate_rmse: float | None,
-    rate_boundary: float | None,
-) -> None:
-    """
-    과최적화 진단 섹션의 수치 기반 해석 결과를 표시한다.
-
-    Args:
-        static_rmse: 정적 RMSE (%) 또는 None
-        fab_stitched: 완전 고정 WF stitched RMSE (%) 또는 None
-        dyn_stitched: 동적 WF stitched RMSE (%) 또는 None
-        fb_stitched: b고정 WF stitched RMSE (%) 또는 None
-        low_rate_rmse: 저금리 구간 RMSE (%) 또는 None
-        high_rate_rmse: 고금리 구간 RMSE (%) 또는 None
-        rate_boundary: 금리 구간 경계값 (%) 또는 None
-    """
-    st.markdown("## 현재 지표 해석 & 판단(결과)")
-
-    if fab_stitched is None or static_rmse is None:
-        st.info("완전 고정 WF RMSE 또는 정적 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
-        return
-
-    findings: list[str] = []
-
-    # 1. 인샘플 vs 아웃오브샘플 격차
-    gap = fab_stitched - static_rmse
-    if gap < DEFAULT_OVERFITTING_THRESHOLD_LOW:
-        findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (< {DEFAULT_OVERFITTING_THRESHOLD_LOW}%p) "
-            f"→ 전체기간 최적 (a,b) 파라미터가 **잘 일반화**되고 있습니다. 과최적화 아님."
-        )
-    elif gap < DEFAULT_OVERFITTING_THRESHOLD_HIGH:
-        findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** ({DEFAULT_OVERFITTING_THRESHOLD_LOW}~{DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p) "
-            f"→ **약한 과최적화** 가능성. 실용적 범위이지만 모니터링이 필요합니다."
-        )
-    else:
-        findings.append(
-            f"- **인샘플-아웃오브샘플 격차: {gap:.4f}%p** (> {DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p) "
-            f"→ **과최적화 의심**. 다른 접근(동적 모델 등) 검토가 필요합니다."
-        )
-
-    # 2. 3종 비교 (완전 고정 vs 동적 vs b고정)
-    if dyn_stitched is not None and fb_stitched is not None:
-        if fab_stitched < fb_stitched < dyn_stitched:
-            findings.append(
-                f"- **RMSE 순서: 완전 고정({fab_stitched:.4f}%) < b고정({fb_stitched:.4f}%) < 동적({dyn_stitched:.4f}%)** "
-                f"→ 파라미터 자유도가 높을수록 과최적화되기 쉬움을 확인. "
-                f"전체기간 고정 모델이 연속 운용에 가장 안정적입니다."
-            )
-        elif fab_stitched < dyn_stitched:
-            findings.append(
-                f"- **완전 고정({fab_stitched:.4f}%) < 동적({dyn_stitched:.4f}%)** " f"→ 매월 재최적화보다 고정 파라미터가 연속 운용에서 더 안정적입니다."
-            )
-
-    # 3. 금리 구간별 RMSE 분석
-    if low_rate_rmse is not None and high_rate_rmse is not None:
-        boundary_str = f"{rate_boundary:.0f}" if rate_boundary is not None else "2"
-        diff = high_rate_rmse - low_rate_rmse
-        if diff > 0:
-            findings.append(
-                f"- **금리 구간별 RMSE: 저금리({low_rate_rmse:.4f}%) < 고금리({high_rate_rmse:.4f}%)** "
-                f"(차이: {diff:.4f}%p) "
-                f"→ 고금리({boundary_str}%+) 구간에서 추적 오차가 더 크며, "
-                f"고정 모델의 비용 반영이 고금리에서 상대적으로 부족할 수 있습니다."
-            )
-        else:
-            findings.append(
-                f"- **금리 구간별 RMSE: 저금리({low_rate_rmse:.4f}%) >= 고금리({high_rate_rmse:.4f}%)** "
-                f"→ 금리 구간에 따른 추적 오차 편차가 크지 않아, "
-                f"고정 모델이 금리 환경 전반에 걸쳐 균형 잡힌 성능을 보입니다."
-            )
-
-    for finding in findings:
-        st.markdown(finding)
-
-
-def _render_overfitting_diagnosis_section() -> None:
-    """완전 고정 (a,b) 과최적화 진단 섹션을 렌더링한다."""
-    st.header("과최적화 진단 (완전 고정 a,b)")
-
-    # CSV 로드
-    fab_result_df, fab_summary_df = _load_walkforward_fixed_ab_csv()
-
-    if fab_result_df is None or fab_summary_df is None:
-        st.warning(
-            f"완전 고정 (a,b) 워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로:\n"
-            f"- `{TQQQ_WALKFORWARD_FIXED_AB_PATH}`\n"
-            f"- `{TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
-            f"```"
-        )
-        return
-
-    # summary를 딕셔너리로 변환
-    fab_summary = dict(zip(fab_summary_df["metric"], fab_summary_df["value"], strict=False))
-
-    # 기존 데이터 로드
-    dyn_result_df, dyn_summary_df = _load_walkforward_csv()
-    dyn_summary: dict[str, float] | None = None
-    if dyn_summary_df is not None:
-        dyn_summary = dict(zip(dyn_summary_df["metric"], dyn_summary_df["value"], strict=False))
-
-    fb_result_df, fb_summary_df = _load_walkforward_fixed_b_csv()
-    fb_summary: dict[str, float] | None = None
-    if fb_summary_df is not None:
-        fb_summary = dict(zip(fb_summary_df["metric"], fb_summary_df["value"], strict=False))
-
-    # 정적 RMSE
-    tuning_df = _load_softplus_tuning_csv()
-    static_rmse: float | None = None
-    if tuning_df is not None and len(tuning_df) > 0:
-        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
-
-    # --- RMSE 4자 비교 ---
-    st.subheader("RMSE 4자 비교 (인샘플 vs 아웃오브샘플)")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        if static_rmse is not None:
-            st.metric(label="정적 RMSE (%)\n(인샘플)", value=f"{static_rmse:.4f}")
-        else:
-            st.metric(label="정적 RMSE (%)", value="N/A")
-
-    with col2:
-        fab_stitched = cast(float | None, fab_summary.get("stitched_rmse"))
-        if fab_stitched is not None:
-            st.metric(
-                label="완전 고정 WF stitched RMSE (%)\n(아웃오브샘플)",
-                value=f"{fab_stitched:.4f}",
-            )
-        else:
-            st.metric(label="완전 고정 WF stitched RMSE (%)", value="N/A")
-
-    with col3:
-        dyn_stitched = dyn_summary.get("stitched_rmse") if dyn_summary else None
-        if dyn_stitched is not None:
-            st.metric(label="동적 WF stitched RMSE (%)\n(a,b 모두 최적화)", value=f"{dyn_stitched:.4f}")
-        else:
-            st.metric(label="동적 WF stitched RMSE (%)", value="N/A")
-
-    with col4:
-        fb_stitched: float | None = fb_summary.get("stitched_rmse") if fb_summary else None
-        if fb_stitched is not None:
-            st.metric(label="b고정 WF stitched RMSE (%)\n(b 고정, a만 최적화)", value=f"{fb_stitched:.4f}")
-        else:
-            st.metric(label="b고정 WF stitched RMSE (%)", value="N/A")
-
-    # --- 과최적화 판단 로직 ---
-    if fab_stitched is not None and static_rmse is not None:
-        gap = fab_stitched - static_rmse
-        st.subheader("과최적화 판단")
-
-        if gap < DEFAULT_OVERFITTING_THRESHOLD_LOW:
-            st.success(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (< {DEFAULT_OVERFITTING_THRESHOLD_LOW}%p)\n\n"
-                f"**판단: 과최적화 아님** - 전체기간 최적 (a,b) 파라미터가 잘 일반화되고 있습니다."
-            )
-        elif gap < DEFAULT_OVERFITTING_THRESHOLD_HIGH:
-            st.warning(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** ({DEFAULT_OVERFITTING_THRESHOLD_LOW}~{DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
-                f"**판단: 약한 과최적화** - 실용적 범위이지만 모니터링이 필요합니다."
-            )
-        else:
-            st.error(
-                f"인샘플-아웃오브샘플 격차: **{gap:.4f}%p** (> {DEFAULT_OVERFITTING_THRESHOLD_HIGH}%p)\n\n"
-                f"**판단: 과최적화 의심** - 다른 접근(동적 모델 등) 검토가 필요합니다."
-            )
-
-    # --- 금리 구간별 RMSE 비교 ---
-    st.subheader("금리 구간별 RMSE 분해")
-
-    # summary CSV에서 금리 구간별 RMSE 로드
-    rate_boundary = cast(float | None, fab_summary.get("rate_boundary_pct"))
-    low_rate_rmse = cast(float | None, fab_summary.get("low_rate_rmse"))
-    high_rate_rmse = cast(float | None, fab_summary.get("high_rate_rmse"))
-    low_rate_days = cast(int | None, fab_summary.get("low_rate_days"))
-    high_rate_days = cast(int | None, fab_summary.get("high_rate_days"))
-
-    boundary_label = f"{rate_boundary:.0f}" if rate_boundary is not None else "2"
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(f"**저금리 (0~{boundary_label}%)**")
-        if low_rate_rmse is not None:
-            st.metric(label="저금리 구간 RMSE (%)", value=f"{low_rate_rmse:.4f}")
-            if low_rate_days is not None:
-                st.caption(f"거래일 수: {int(low_rate_days):,}일")
-        else:
-            st.info(
-                "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
-                "스크립트가 삭제되었습니다. git history에서 복원 후 재실행하세요:\n"
-                "`git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py`"
-            )
-
-    with col2:
-        st.markdown(f"**고금리 ({boundary_label}%+)**")
-        if high_rate_rmse is not None:
-            st.metric(label="고금리 구간 RMSE (%)", value=f"{high_rate_rmse:.4f}")
-            if high_rate_days is not None:
-                st.caption(f"거래일 수: {int(high_rate_days):,}일")
-        else:
-            st.info(
-                "금리 구간별 RMSE가 summary CSV에 없습니다.\n\n"
-                "스크립트가 삭제되었습니다. git history에서 복원 후 재실행하세요:\n"
-                "`git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py`"
-            )
-
-    # --- 월별 테스트 RMSE 추이 차트 ---
-    with st.expander("테스트 RMSE 추이 비교 (동적 vs b고정 vs 완전 고정)", expanded=True):
-        fig_rmse = go.Figure()
-
-        # 동적 워크포워드
-        if dyn_result_df is not None:
-            fig_rmse.add_trace(
-                go.Scatter(
-                    x=dyn_result_df["test_month"],
-                    y=dyn_result_df["test_rmse_pct"],
-                    mode="lines",
-                    name="동적 WF (a,b 최적화)",
-                    line={"color": "red", "width": 1.5},
-                    opacity=0.7,
-                )
-            )
-
-        # b 고정 워크포워드
-        if fb_result_df is not None:
-            fb_fixed_b_value = fb_summary.get("b_mean", 0) if fb_summary else 0
-            fig_rmse.add_trace(
-                go.Scatter(
-                    x=fb_result_df["test_month"],
-                    y=fb_result_df["test_rmse_pct"],
-                    mode="lines",
-                    name=f"b고정 WF (b={fb_fixed_b_value:.2f})",
-                    line={"color": "blue", "width": 1.5},
-                    opacity=0.7,
-                )
-            )
 
         # 완전 고정 워크포워드
         fig_rmse.add_trace(
@@ -1067,32 +567,60 @@ def _render_overfitting_diagnosis_section() -> None:
         )
         st.plotly_chart(fig_rmse, width="stretch")
 
-    # --- VERBATIM 설명 ---
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
-- **정적 RMSE (인샘플)**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로 전체 기간을 시뮬레이션한 RMSE. 미래 데이터를 포함하여 튜닝했으므로 인샘플 성격.
-- **완전 고정 WF stitched RMSE (아웃오브샘플)**: 위와 동일한 고정 (a, b)를 테스트 기간에만 적용하여 연속 시뮬레이션한 RMSE. 파라미터 재최적화 없이 적용하므로 아웃오브샘플 성격.
+- **완전 고정 WF stitched RMSE**: 전체기간 튜닝으로 고른 (a, b)를 매월 그대로 쓰고 테스트 구간을 연속 시뮬레이션한 RMSE
 - **동적 WF stitched RMSE**: 매월 (a, b) 모두 최적화한 워크포워드의 연속 RMSE
 - **b고정 WF stitched RMSE**: b를 전체기간 최적값으로 고정하고 a만 매월 최적화한 워크포워드의 연속 RMSE
+- **금리 구간별 RMSE**: 완전 고정 WF 의 테스트 거래일을 그날 금리로 저금리 · 고금리로 나눠 잰 RMSE
 
 ## 지표를 해석하는 방법
 
-- **인샘플-아웃오브샘플 격차** = 완전 고정 WF RMSE - 정적 RMSE
-  - 격차가 작으면 파라미터가 잘 일반화됨 (과최적화 아님)
-  - 격차가 크면 전체기간 데이터에 과적합된 파라미터 (과최적화 의심)
-- **3종 비교**: 동적 > b고정 > 완전 고정 순이면 파라미터 자유도가 높을수록 과최적화되기 쉬움을 시사"""
+- 세 값은 같은 테스트 구간에서 잰 RMSE 라 나란히 볼 수 있습니다. 다만 완전 고정의 a · b 와 b 고정의 b 는 테스트 구간까지 포함한 전체기간 튜닝값이라, 셋의 차이를 아웃오브샘플 성능 차이로 읽지 않습니다.
+- 튜닝 결과의 최적 RMSE 는 전체기간에서 잰 값이라 이 셋과 직접 비교하지 않습니다."""
     )
 
-    # 수치 기반 동적 분석 결과
-    _render_overfitting_interpretation(
-        static_rmse=static_rmse,
-        fab_stitched=fab_stitched,
-        dyn_stitched=dyn_stitched,
-        fb_stitched=fb_stitched,
-        low_rate_rmse=low_rate_rmse,
-        high_rate_rmse=high_rate_rmse,
-        rate_boundary=rate_boundary,
+
+# ============================================================
+# 상세 분석: 워크포워드 · b 고정 · Spread 비교
+# ============================================================
+
+
+def _render_walkforward_fixed_b_section() -> None:
+    """b 고정 워크포워드의 파라미터 안정성을 동적 워크포워드와 나란히 렌더링한다."""
+    st.header("b 고정 워크포워드 검증 (b = 전체기간 최적값)")
+
+    fb_summary = _load_summary(TQQQ_WALKFORWARD_FIXED_B_SUMMARY_PATH)
+    dyn_summary = _load_summary(TQQQ_WALKFORWARD_SUMMARY_PATH)
+
+    # 고정 b 값
+    fixed_b_value = fb_summary["b_mean"]
+
+    # --- a 파라미터 안정성 비교 ---
+    st.subheader("파라미터 안정성 비교")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**동적 워크포워드 (a, b 모두 최적화)**")
+        st.write(f"- a 평균: {dyn_summary['a_mean']:.4f}")
+        st.write(f"- a 표준편차: {dyn_summary['a_std']:.4f}")
+        st.write(f"- b 평균: {dyn_summary['b_mean']:.4f}")
+        st.write(f"- b 표준편차: {dyn_summary['b_std']:.4f}")
+
+    with col2:
+        st.markdown(f"**b 고정 워크포워드 (b={fixed_b_value:.4f} 고정)**")
+        st.write(f"- a 평균: {fb_summary['a_mean']:.4f}")
+        st.write(f"- a 표준편차: {fb_summary['a_std']:.4f}")
+        st.write(f"- b 고정값: {fixed_b_value:.4f}")
+        st.write(f"- b 표준편차: {fb_summary['b_std']:.4f} (0에 가까워야 정상)")
+
+    st.markdown(
+        f"""## 지표에 사용하는 용어에 대한 설명
+
+- **b 고정 워크포워드**: b를 전체기간 최적값({fixed_b_value:.4f})으로 고정하고, a만 매월 최적화한 워크포워드
+- 이어 붙인 RMSE 와 월별 테스트 RMSE 추이는 위 「워크포워드 RMSE 비교」 섹션에 있습니다."""
     )
 
 
@@ -1103,36 +631,13 @@ def _render_spread_comparison_section() -> None:
     정적 CSV와 워크포워드 CSV를 로드하여 두 가지 차트를 표시한다:
     1. 월별 spread 시계열 라인차트 (정적 spread_global + 워크포워드 spread_test)
     2. FFR vs spread 산점도 (정적 + 워크포워드)
-
-    파일이 없으면 st.warning 표시 후 리턴한다.
     """
     st.header("Spread 비교: 고정 vs 워크포워드")
 
     # 데이터 로드
-    static_df = _load_static_spread_csv()
-    wf_result_df, _ = _load_walkforward_csv()
-
-    if static_df is None:
-        st.warning(
-            f"정적 spread 시계열 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로: `{SOFTPLUS_SPREAD_SERIES_STATIC_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/tune_softplus_params.py\n"
-            f"```"
-        )
-        return
-
-    if wf_result_df is None:
-        st.warning(
-            f"워크포워드 결과 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로: `{TQQQ_WALKFORWARD_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
-            f"```"
-        )
-        return
+    static_df = _load_csv(SOFTPLUS_SPREAD_SERIES_STATIC_PATH)
+    wf_result_df = _load_csv(TQQQ_WALKFORWARD_PATH)
+    train_months = int(_load_summary(TQQQ_WALKFORWARD_SUMMARY_PATH)["train_window_months"])
 
     # 차트 1: 월별 spread 시계열 라인차트
     fig_ts = go.Figure()
@@ -1184,16 +689,15 @@ def _render_spread_comparison_section() -> None:
     )
 
     # 워크포워드
-    if "ffr_pct_test" in wf_result_df.columns and "spread_test" in wf_result_df.columns:
-        fig_scatter.add_trace(
-            go.Scatter(
-                x=wf_result_df["ffr_pct_test"],
-                y=wf_result_df["spread_test"],
-                mode="markers",
-                name="워크포워드 (월별 최적 a,b)",
-                marker={"color": "red", "size": 6, "symbol": "diamond", "opacity": 0.6},
-            )
+    fig_scatter.add_trace(
+        go.Scatter(
+            x=wf_result_df["ffr_pct_test"],
+            y=wf_result_df["spread_test"],
+            mode="markers",
+            name="워크포워드 (월별 최적 a,b)",
+            marker={"color": "red", "size": 6, "symbol": "diamond", "opacity": 0.6},
         )
+    )
 
     fig_scatter.update_layout(
         title="FFR(%) vs Spread 산점도 (고정 vs 워크포워드)",
@@ -1204,13 +708,12 @@ def _render_spread_comparison_section() -> None:
     )
     st.plotly_chart(fig_scatter, width="stretch")
 
-    # VERBATIM: Spread 비교 섹션 설명
     st.markdown(
-        """## 지표에 사용하는 용어에 대한 설명
+        f"""## 지표에 사용하는 용어에 대한 설명
 
 - **정적 spread**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로 계산한 spread
   - 매월 동일한 (a, b)를 적용하므로 spread 변동은 FFR 변화에만 의존
-- **워크포워드 spread**: 매월 직전 60개월 학습으로 구한 (a_best, b_best)로 계산한 spread
+- **워크포워드 spread**: 매월 직전 {train_months}개월 학습으로 구한 (a_best, b_best)로 계산한 spread
   - 매월 (a, b)가 달라지므로, FFR 변화 + 파라미터 변화 두 요인이 작용
 
 ## 지표를 해석하는 방법
@@ -1220,189 +723,28 @@ def _render_spread_comparison_section() -> None:
   - 두 라인이 벌어지는 구간: 해당 시기에 국면이 바뀌어 워크포워드가 다른 (a, b)를 선택
 - **산점도**:
   - 같은 FFR(%)에서 두 점이 가까우면 파라미터 차이가 작음
-  - 같은 FFR(%)에서 두 점이 벌어지면 워크포워드가 해당 금리 구간에서 다른 비용 모델을 학습
-
-## 현재 지표 해석 & 판단(결과)
-
-- 두 라인이 대체로 비슷하게 움직이면, 전체기간 최적 파라미터가 시기별로도 무난하게 통한다는 의미입니다.
-- 벌어지는 구간을 중심으로 국면 변화(금리 급변, 변동성 충격 등)를 점검하면 모델 개선 힌트를 얻을 수 있습니다."""
+  - 같은 FFR(%)에서 두 점이 벌어지면 워크포워드가 해당 금리 구간에서 다른 비용 모델을 학습"""
     )
-
-
-@st.cache_data
-def _load_walkforward_csv() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
-    """
-    워크포워드 검증 결과 CSV를 로드한다.
-
-    Returns:
-        (result_df, summary_df) 튜플 또는 (None, None) (파일 없음)
-    """
-    if not TQQQ_WALKFORWARD_PATH.exists() or not TQQQ_WALKFORWARD_SUMMARY_PATH.exists():
-        return None, None
-
-    result_df = pd.read_csv(TQQQ_WALKFORWARD_PATH)
-    summary_df = pd.read_csv(TQQQ_WALKFORWARD_SUMMARY_PATH)
-
-    # summary를 딕셔너리로 변환
-    return result_df, summary_df
 
 
 def _render_walkforward_section() -> None:
     """워크포워드 검증 결과 섹션을 렌더링한다."""
     st.header("워크포워드 검증 (파라미터 안정성)")
 
-    # CSV 파일 로드
-    result_df, summary_df = _load_walkforward_csv()
-
-    if result_df is None or summary_df is None:
-        st.warning(
-            f"워크포워드 검증 결과 CSV 파일이 존재하지 않습니다.\n\n"
-            f"파일 경로:\n"
-            f"- `{TQQQ_WALKFORWARD_PATH}`\n"
-            f"- `{TQQQ_WALKFORWARD_SUMMARY_PATH}`\n\n"
-            f"**스크립트 복원 방법** (이 저장소에 없으며 git history에서 복원 가능):\n"
-            f"```bash\n"
-            f"git log --all --oneline -- scripts/tqqq/spread_lab/validate_walkforward.py\n"
-            f"```\n\n"
-            f"**주의**: 워크포워드 검증은 시간이 오래 걸릴 수 있습니다 (약 30-60분)."
-        )
-    else:
-        _display_walkforward_result(result_df, summary_df)
+    _display_walkforward_result(_load_csv(TQQQ_WALKFORWARD_PATH), _load_summary(TQQQ_WALKFORWARD_SUMMARY_PATH))
 
 
-def _render_rmse_comparison(summary: dict[str, float]) -> None:
-    """
-    정적 RMSE vs 연속 워크포워드 RMSE를 비교 표시한다.
-
-    동일한 누적배수 로그차이 RMSE 수식을 사용하여 정합성 있는 비교를 제공한다.
-    - 정적 RMSE: 전체기간 최적 (a, b)로 전체 기간 연속 시뮬레이션한 결과
-    - 연속 워크포워드 RMSE: 워크포워드 결과를 연속으로 붙여 시뮬레이션한 결과
-    - 월별 리셋 평균 RMSE: 매월 실제 가격으로 리셋하여 계산한 평균 (참고용)
-
-    Args:
-        summary: 워크포워드 요약 딕셔너리 (test_rmse_mean 등)
-    """
-    st.subheader("RMSE 정합 비교 (동일 수식 기준)")
-
-    # 정적 RMSE 로드
-    tuning_df = _load_softplus_tuning_csv()
-    static_rmse: float | None = None
-    if tuning_df is not None and len(tuning_df) > 0:
-        static_rmse = float(tuning_df.iloc[0][COL_RMSE_PCT])
-
-    # 연속 워크포워드 RMSE (summary CSV에서 읽기)
-    stitched_rmse: float | None = summary.get("stitched_rmse")
-
-    # 3개 지표 표시
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if static_rmse is not None:
-            st.metric(label="정적 RMSE (%) (전체기간 최적 a,b)", value=f"{static_rmse:.4f}")
-        else:
-            st.metric(label="정적 RMSE (%)", value="N/A")
-
-    with col2:
-        if stitched_rmse is not None:
-            st.metric(label="연속 워크포워드 RMSE (%)", value=f"{stitched_rmse:.4f}")
-        else:
-            st.metric(label="연속 워크포워드 RMSE (%)", value="N/A")
-            st.caption("데이터 부족으로 계산 불가")
-
-    with col3:
-        st.metric(
-            label="월별 리셋 평균 RMSE (%) (참고)",
-            value=f"{summary['test_rmse_mean']:.4f}",
-        )
-
-    # 용어 설명 + 해석 방법
-    st.markdown(
-        """## 지표에 사용하는 용어에 대한 설명
-
-- **정적 RMSE**: 전체 기간 데이터로 1회 튜닝한 고정 (a, b)로, **전체 기간을 연속 시뮬레이션**하여 산출한 RMSE
-- **연속 워크포워드 RMSE**: 워크포워드로 매월 선택된 spread를 **리셋 없이 연속으로 붙여** 시뮬레이션한 RMSE
-  - 정적 RMSE와 **동일한 누적배수 로그차이 수식**을 사용하므로 1:1 비교 가능
-- **월별 리셋 평균 RMSE**: 매월 실제 가격으로 시작점을 리셋한 뒤 1개월씩 RMSE를 구해 평균낸 값
-  - 장기 누적 오차가 상쇄되므로 값이 작게 나옴 → 정적 RMSE와 직접 비교하면 오해 소지
-
-## 지표를 해석하는 방법
-
-- **정적 RMSE > 연속 워크포워드 RMSE**이면: 워크포워드가 연속 시뮬에서도 정적보다 우수 → 동적 spread의 실질적 개선 효과
-- **정적 RMSE ≈ 연속 워크포워드 RMSE**이면: 워크포워드가 정적과 비슷 → 추가 복잡성 대비 이득이 크지 않음
-- **정적 RMSE < 연속 워크포워드 RMSE**이면: 워크포워드가 과적합 가능성 → 파라미터 변동이 오히려 성능 저하"""
-    )
-
-    # 현재 지표 해석 (동적 생성)
-    _render_rmse_interpretation(static_rmse, stitched_rmse, summary["test_rmse_mean"])
-
-    st.divider()
-
-
-def _render_rmse_interpretation(
-    static_rmse: float | None,
-    stitched_rmse: float | None,
-    monthly_reset_rmse: float,
-) -> None:
-    """
-    현재 RMSE 수치를 기반으로 해석 결과를 표시한다.
-
-    정적 RMSE와 연속 워크포워드 RMSE의 대소 관계에 따라
-    동적 spread 전략의 유효성을 판단하는 텍스트를 생성한다.
-
-    Args:
-        static_rmse: 정적 RMSE (%) 또는 None
-        stitched_rmse: 연속 워크포워드 RMSE (%) 또는 None
-        monthly_reset_rmse: 월별 리셋 평균 RMSE (%)
-    """
-    st.markdown("## 현재 지표 해석 & 판단(결과)")
-
-    if static_rmse is None or stitched_rmse is None:
-        st.info("정적 RMSE 또는 연속 워크포워드 RMSE를 산출할 수 없어 비교 판단이 불가합니다.")
-        return
-
-    # 대소 관계 판단
-    if static_rmse > stitched_rmse:
-        # 워크포워드 우수
-        diff = static_rmse - stitched_rmse
-        st.markdown(
-            f"- **정적 RMSE({static_rmse:.4f}%) > 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
-            f"→ 워크포워드가 정적보다 **{diff:.4f}%p 낮아** 연속 시뮬에서도 우수합니다.\n"
-            f"- 동적 spread 전략이 실제 연속 운용에서도 정적 모델 대비 개선 효과가 있음을 의미합니다.\n"
-            f"- 월별 리셋 평균 RMSE({monthly_reset_rmse:.4f}%)가 낮은 것이 단순 리셋 효과가 아닌, "
-            f"실제 경로 추적 성능 개선임이 확인됩니다."
-        )
-    elif static_rmse < stitched_rmse:
-        # 워크포워드 열등 → 과적합 가능성
-        diff = stitched_rmse - static_rmse
-        st.markdown(
-            f"- **정적 RMSE({static_rmse:.4f}%) < 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
-            f"→ 워크포워드가 정적보다 **{diff:.4f}%p 높아** 과적합 가능성이 있습니다.\n"
-            f"- 월별로 (a, b)를 변경하는 것이 오히려 누적 오차를 키우고 있습니다.\n"
-            f"- 월별 리셋 평균 RMSE({monthly_reset_rmse:.4f}%)가 낮게 보이는 것은 "
-            f"매월 시작가격을 리셋하여 누적 오차가 상쇄되기 때문입니다.\n"
-            f"- 현재로서는 **전체기간 고정 (a, b)를 사용하는 정적 모델이 연속 운용에 더 안정적**입니다."
-        )
-    else:
-        # 동일
-        st.markdown(
-            f"- **정적 RMSE({static_rmse:.4f}%) ≈ 연속 워크포워드 RMSE({stitched_rmse:.4f}%)** "
-            f"→ 두 방식의 성능이 유사합니다.\n"
-            f"- 워크포워드의 추가 복잡성 대비 실질적 이득이 크지 않습니다."
-        )
-
-
-def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:
+def _display_walkforward_result(result_df: pd.DataFrame, summary: dict[str, float]) -> None:
     """
     워크포워드 검증 결과를 표시한다.
 
     Args:
         result_df: 워크포워드 결과 DataFrame
-        summary_df: 워크포워드 요약 DataFrame (metric, value 컬럼)
+        summary: 워크포워드 요약 (지표 이름 → 값)
     """
     st.subheader("워크포워드 검증 결과")
 
-    # summary_df를 딕셔너리로 변환
-    summary = dict(zip(summary_df["metric"], summary_df["value"], strict=False))
+    train_months = int(summary["train_window_months"])
 
     # 핵심 요약 지표
     col1, col2, col3, col4 = st.columns(4)
@@ -1418,9 +760,6 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
 
     with col4:
         st.metric(label="b 평균 (std)", value=f"{summary['b_mean']:.2f} ({summary['b_std']:.2f})")
-
-    # RMSE 비교: 정적 vs 연속 워크포워드
-    _render_rmse_comparison(summary)
 
     # 상세 요약
     with st.expander("상세 요약 통계", expanded=True):
@@ -1443,16 +782,12 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
             st.write(f"- 테스트 월 수: {int(summary['n_test_months'])}개월")
 
         st.markdown(
-            """## 지표에 사용하는 용어에 대한 설명
+            f"""## 지표에 사용하는 용어에 대한 설명
 
-- **워크포워드(rolling)**: 과거 60개월로 (a,b)를 고른 뒤 → "다음 1개월"에서 성능(RMSE)을 보는 걸 매달 반복
+- **워크포워드(rolling)**: 과거 {train_months}개월로 (a,b)를 고른 뒤 → "다음 1개월"에서 성능(RMSE)을 보는 걸 매달 반복
 - 워크포워드의 목적(한 줄): **"최적의 a,b를 찾는 방법(튜닝 절차)이 미래에서도 잘 통하나?" + "그 과정이 얼마나 안정적이냐?"**
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준 test RMSE의 평균/중앙값이 낮게 유지되는 편이며, 일부 구간에 스파이크가 보입니다.
-- "튜닝 절차는 대체로 미래에서도 통하지만, 특정 국면에서는 성능이 튈 수 있다"는 전형적인 결론을 낼 수 있습니다.
-- 실전 적용 시엔 스파이크 구간을 따로 분석하거나 리스크 관리 규칙(보수적 상한 등)을 고려하는 게 안전합니다."""
+- **테스트 RMSE 평균 · 중앙값**: 매월 실제 가격으로 시작점을 리셋한 뒤 1개월씩 잰 RMSE 의 평균 · 중앙값
+  - 장기 누적 오차가 상쇄되어 값이 작게 나오므로, 리셋 없이 연속으로 잰 이어 붙인 RMSE 와 직접 비교하지 않습니다"""
         )
 
     # (a, b) 추이 차트
@@ -1495,11 +830,10 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
         )
         st.plotly_chart(fig_b, width="stretch")
 
-        # VERBATIM #8: (a, b) 추이 차트 설명
         st.markdown(
-            """## 용어 설명
+            f"""## 용어 설명
 
-- **a, b 파라미터 추이**: 각 테스트 월 직전에, 과거 60개월 학습으로 선택된 "그 달의 최적값"의 시간 흐름
+- **a, b 파라미터 추이**: 각 테스트 월 직전에, 과거 {train_months}개월 학습으로 선택된 "그 달의 최적값"의 시간 흐름
 
 ## 해석 방법 (중복 최소화)
 
@@ -1507,12 +841,7 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
 - 체크리스트:
   1. 완만한가? (안정적)
   2. 계단처럼 튀는 구간이 있는가? (국면 변화/충격 가능성)
-  3. 특히 b가 출렁이면 "고금리 민감도"가 시기별로 달라졌다는 뜻일 수 있음
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준 a는 비교적 완만한 편이고, b는 상대적으로 변동이 있는 편으로 읽힙니다.
-- "기본 바닥값(a)보다, 금리 민감도(b)가 국면 따라 조정될 여지가 더 크다"는 방향의 해석이 가능합니다."""
+  3. 특히 b가 출렁이면 "고금리 민감도"가 시기별로 달라졌다는 뜻일 수 있음"""
         )
 
     # 테스트 RMSE 추이 차트
@@ -1535,7 +864,6 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
         )
         st.plotly_chart(fig_rmse, width="stretch")
 
-        # VERBATIM #9: 테스트 RMSE 추이 설명
         st.markdown(
             """## 용어 설명
 
@@ -1548,38 +876,29 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
   1. 대부분 낮게 유지 → "꾸준히 잘 맞는 편"
   2. 스파이크(튀는 달) 존재 → 그 달은 충격/급변/모델 한계 구간일 수 있음
 
-- 스파이크 달은 "버려야 할 달"이 아니라, **리스크 구간을 알려주는 힌트**입니다.
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준 전반적으로 낮은 구간이 많고, 일부 스파이크가 보입니다.
-- 절차 자체는 유효하지만, 스파이크 달을 따로 찾아 원인 분석(변동성 급등 등)을 하면 운영 안정성이 올라갑니다."""
+- 스파이크 달은 "버려야 할 달"이 아니라, **리스크 구간을 알려주는 힌트**입니다."""
         )
 
     # 전체 결과 테이블
     with st.expander("전체 결과 테이블", expanded=False):
         st.dataframe(result_df, width="stretch")
 
-        # VERBATIM #10: 전체 결과 테이블 설명
         st.markdown(
             f"""## 용어 설명
 
 - 테이블의 한 행 = "한 테스트 월"의 기록
 - 핵심 컬럼:
-  - **train_start/train_end**: 학습 60개월 범위
+  - **train_start/train_end**: 학습 {train_months}개월 범위
   - **test_month**: 테스트 1개월
-  - **a_best, b_best**: 그 달의 학습(60개월)에서 RMSE를 최소화한 값
+  - **a_best, b_best**: 그 달의 학습({train_months}개월)에서 RMSE를 최소화한 값
   - **train_rmse_pct (학습 RMSE)**:
-    - 과거 60개월(학습 구간) 데이터를 사용해 시뮬레이션했을 때의 추적 오차(RMSE)
-    - "이미 본 데이터"로 계산하므로 대체로 낮게 나옴
+    - 과거 {train_months}개월(학습 구간) 전체를 시뮬레이션해 잰 추적 오차(RMSE)
     - 이 값이 높으면 모델이 학습 데이터조차 잘 설명하지 못한다는 뜻
   - **test_rmse_pct (테스트 RMSE)**:
-    - 학습에 사용하지 않은 "다음 1개월" 데이터에서의 추적 오차(RMSE)
-    - "처음 보는 데이터"로 계산하므로 학습 RMSE보다 보통 높게 나옴
+    - 학습에 사용하지 않은 "다음 1개월"을 그달 첫 거래일의 실제 가격에서 다시 시작해 잰 추적 오차(RMSE)
     - 이 값이 낮을수록 모델이 미래에도 잘 통한다는 의미
-  - **train vs test 차이가 중요한 이유**:
-    - train RMSE는 낮은데 test RMSE만 높으면 → 과최적화 (학습 데이터에만 잘 맞춤)
-    - 둘 다 비슷하면 → 모델이 안정적으로 일반화됨
+  - **train 과 test 를 견주지 않는 이유**:
+    - 학습 RMSE 는 {train_months}개월, 테스트 RMSE 는 1개월을 잰 값이라 오차가 쌓이는 길이가 달라 테스트 쪽이 대개 더 작게 나옵니다 — 두 값의 차이로 과최적화를 판단하지 않습니다
   - **search_mode**: full grid인지 local refine인지
     - **full grid(전체 탐색)**
       - a와 b를 **넓은 범위**로 펼쳐 가능한 조합을 폭넓게 검사
@@ -1587,7 +906,7 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
       - 단점: 느림
 
     - **local refine(주변 미세조정)**
-      - **이미 직전 달에 찾은 최적값(a_prev, b_prev)** 이 있으니, 그 주변(예: a는 ±{WALKFORWARD_LOCAL_REFINE_A_DELTA}, b는 ±{WALKFORWARD_LOCAL_REFINE_B_DELTA} 같은 좁은 범위)만 다시 탐색해서 "조금 더 좋은 값"을 찾는 방식
+      - **이미 직전 달에 찾은 최적값(a_prev, b_prev)** 이 있으니, 그 주변의 좁은 범위만 다시 탐색해서 "조금 더 좋은 값"을 찾는 방식
       - 장점: 빠르고, 파라미터가 매달 멀리 점프하는 걸 줄여 **운영이 안정적**
       - 단점: 국면이 크게 바뀌어 정답이 멀리 이동한 달이면 더 좋은 해를 놓칠 수 있음
 
@@ -1596,14 +915,9 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary_df: pd.DataFram
 초보자용 3단계 워크플로우:
 
 1. **test_rmse_pct가 튄 달** (스파이크)을 먼저 찾기
-2. 그 달의 행에서 **a_best/b_best가 갑자기 점프했는지**, **train-test 괴리가 큰지** 보기
+2. 그 달의 행에서 **a_best/b_best가 갑자기 점프했는지** 보기
 3. 그 달이 **full grid였는지 / local refine였는지** 확인
-   - local refine였는데 크게 틀리면 "정답이 멀리 이동했는데 주변만 찾았을 가능성" 같은 가설을 세우기 쉬워요.
-
-## 현재 지표 해석 & 판단(결과)
-
-- 2026.02.08 기준 전체 결과 테이블이 제공되므로, 차트에서 발견한 "이상 구간"을 **테이블로 역추적**할 수 있습니다.
-- 운영 관점에서는 "스파이크 달"을 중심으로 테이블을 보는 게 가장 효율적입니다."""
+   - local refine였는데 크게 틀리면 "정답이 멀리 이동했는데 주변만 찾았을 가능성" 같은 가설을 세우기 쉬워요."""
         )
 
 
@@ -1627,7 +941,7 @@ def main():
             st.header("TQQQ 금리-오차 분석")
             st.caption("QBT (Quant BackTest)")
 
-        # 타이틀, 히스토리, 읽기 가이드
+        # 타이틀, 읽기 가이드
         _render_intro()
 
         # 데이터 로딩 및 월별 집계
@@ -1636,15 +950,14 @@ def main():
         try:
             # 1. 월별 데이터 빌드 (캐시됨)
             monthly_df = build_artifacts(
-                str(TQQQ_DAILY_COMPARISON_PATH),
-                str(FFR_DATA_PATH),
+                TQQQ_DAILY_COMPARISON_PATH,
+                TQQQ_DAILY_COMPARISON_PATH.stat().st_mtime,
+                FFR_DATA_PATH,
+                FFR_DATA_PATH.stat().st_mtime,
             )
             st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
 
-            # 2. 파생 컬럼 추가 (lag 1, 2) - analysis_helpers 함수 사용
-            monthly_df = add_rate_change_lags(monthly_df)
-
-            # 3. 요약 통계 표시
+            # 2. 요약 통계 표시
             _render_dataset_metrics(monthly_df)
 
         except ValueError as e:
@@ -1668,8 +981,8 @@ def main():
 
         st.divider()
 
-        # C. 과최적화 진단
-        _render_overfitting_diagnosis_section()
+        # C. 워크포워드 RMSE 비교
+        _render_walkforward_rmse_section()
 
         st.divider()
 

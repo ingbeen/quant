@@ -17,6 +17,7 @@ from qbt.tqqq.constants import (
     COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_CLOSE,
+    ROLLING_CORR_WINDOW_MONTHS,
 )
 
 
@@ -395,7 +396,7 @@ def create_rolling_correlation_chart(
     y_col: str,
 ) -> go.Figure:
     """
-    Rolling 12개월 상관 차트를 생성한다.
+    Rolling 상관(창: ROLLING_CORR_WINDOW_MONTHS) 차트를 생성한다.
 
     Args:
         plot_df: 전처리된 Delta 데이터 (dr_shifted 컬럼 포함)
@@ -406,11 +407,11 @@ def create_rolling_correlation_chart(
     """
     fig = go.Figure()
 
-    if len(plot_df) >= 12:
+    if len(plot_df) >= ROLLING_CORR_WINDOW_MONTHS:
         plot_df_sorted = plot_df.sort_values(by=COL_MONTH).reset_index(drop=True)
         rolling_corr = (
             plot_df_sorted[["dr_shifted", y_col]]
-            .rolling(window=12)
+            .rolling(window=ROLLING_CORR_WINDOW_MONTHS)
             .corr()
             .iloc[0::2, -1]  # dr_shifted와 y_col의 상관만 추출
             .reset_index(drop=True)
@@ -424,7 +425,7 @@ def create_rolling_correlation_chart(
                 x=plot_df_sorted["month_str"],
                 y=rolling_corr,
                 mode="lines+markers",
-                name="Rolling 12M 상관",
+                name=f"Rolling {ROLLING_CORR_WINDOW_MONTHS}M 상관",
                 line={"color": "#2ca02c", "width": 2},
                 hovertemplate="<b>월</b>: %{x}<br>" + "<b>상관</b>: %{y:.2f}<br>" + "<extra></extra>",
             ),
@@ -435,7 +436,7 @@ def create_rolling_correlation_chart(
     else:
         # 데이터 부족 안내
         fig.add_annotation(
-            text=f"Rolling 12M 상관 계산 불가 (샘플 수: {len(plot_df)}, 최소: 12)",
+            text=f"Rolling {ROLLING_CORR_WINDOW_MONTHS}M 상관 계산 불가 (샘플 수: {len(plot_df)}, 최소: {ROLLING_CORR_WINDOW_MONTHS})",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -445,7 +446,7 @@ def create_rolling_correlation_chart(
         )
 
     fig.update_layout(
-        title="Rolling 12개월 상관",
+        title=f"Rolling {ROLLING_CORR_WINDOW_MONTHS}개월 상관",
         xaxis_title="월",
         yaxis_title="상관 계수",
         height=400,

@@ -21,8 +21,8 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 
 - 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
 - 비용 모델 파라미터 (기본값)
-- 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
-- 튜닝 결과 CSV 컬럼 (`COL_A`, `COL_B`, `COL_RMSE_PCT`)
+- 데이터 컬럼 및 키 정의 (CSV 컬럼명, 딕셔너리 키)
+- 분석 파라미터 (Rolling 상관 창 `ROLLING_CORR_WINDOW_MONTHS`)
 
 ### 2. data_loader.py
 
@@ -70,7 +70,7 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 
 ### 4. analysis_helpers.py
 
-금리-오차 관계 분석을 위한 계산, 집계, 검증 함수를 제공합니다.
+금리-오차 관계 분석을 위한 계산 · 집계 함수를 제공합니다.
 
 주요 함수:
 
@@ -85,12 +85,11 @@ Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 Val
 ### 5. spread_lab_helpers.py
 
 Spread Lab 앱(`app_rate_spread_lab.py`) 전용 분석 함수를 제공합니다.
-`analysis_helpers.py`의 핵심 계산 함수를 활용하여 월별 데이터 준비 및 피처 생성을 수행합니다.
+`analysis_helpers.py`의 핵심 계산 함수를 활용하여 월별 데이터를 준비합니다.
 
 주요 함수:
 
-- `prepare_monthly_data`: 일별 비교 데이터를 월별로 집계 (일일 증분 계산 + aggregate_monthly + sum_daily_m 자동 채움)
-- `add_rate_change_lags`: 금리 변화 lag 컬럼 생성 (dr_lag1, dr_lag2)
+- `prepare_monthly_data`: 일별 비교 데이터를 월별로 집계 (일일 증분 계산 + aggregate_monthly + sum_daily_m 합치기). 월이 Rolling 상관 창 + 1 개월보다 적으면 멈춘다
 
 ### 6. visualization.py
 
@@ -132,8 +131,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 일일 자금 조달 비용 = (FFR + funding_spread) * (leverage - 1) / TRADING_DAYS_PER_YEAR
 ```
 
-- funding_spread는 softplus 모델로 금리에 따라 동적 결정 (과최적화 검증 완료)
-- 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B`
+- funding_spread는 softplus 모델로 금리에 따라 동적 결정 — 고정 스프레드(0.0034)는 고금리 구간에서 비용을 과소 반영해 시뮬레이션이 실제보다 높게 나온다. 근거는 고정 스프레드로 만든 일별 비교의 「금리 수준 vs 월말 누적 오차」 추세선 우상향이다 `[실측] 2026-02-08`(커밋 `8b43280`). 그 앱의 차트는 softplus 를 적용한 일별 비교로 그려 남은 편향을 본다
+- 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B` — 스프레드 랩 튜닝의 전체기간 RMSE 최소값이다. 그 앱의 워크포워드 RMSE 는 과최적화 여부를 가리지 못한다(이유는 앱 docstring)
 - 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 -> 2배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
 
@@ -218,25 +217,7 @@ M(t) = Close(t) / Close(0)   # 첫날 종가 기준 누적 자산배수
 
 주요 컬럼: 날짜, 종가(실제/시뮬), 일일수익률, 누적수익률, 누적배수 로그차이(abs/signed)
 
-용도: 대시보드 시각화, 금리-오차 관계 분석 (softplus 동적 스프레드 모델 사용)
-
----
-
-## Streamlit 앱
-
-### app_daily_comparison.py
-
-TQQQ 시뮬레이션 일별 비교 대시보드
-
-- 가격 비교 차트: 실제 TQQQ vs 시뮬레이션
-- 오차 분석 차트: 히스토그램, 시계열 오차 추이
-
-### app_rate_spread_lab.py
-
-금리-오차 관계 분석 연구용 앱 (시각화 전용)
-
-- 결과 CSV를 로드하여 시각화 (CSV 생성 스크립트는 이 저장소에 없으며, git history에서 복원할 수 있다)
-- 단일 흐름: 오차분석 -> 튜닝 -> 과최적화진단 -> 상세분석
+용도: 대시보드 시각화, 금리-오차 관계 분석 (softplus 동적 스프레드 모델 사용). 대시보드 설명은 `scripts/CLAUDE.md` · 각 앱 docstring
 
 ---
 
