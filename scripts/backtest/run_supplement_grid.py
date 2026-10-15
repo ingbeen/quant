@@ -16,7 +16,6 @@ from typing import Any
 
 import pandas as pd
 
-from qbt.backtest.constants import ROUND_PERCENT, ROUND_RATIO
 from qbt.backtest.portfolio_configs import get_portfolio_config
 from qbt.backtest.supplement_experiment import (
     BASIS_BOTH,
@@ -54,7 +53,7 @@ from qbt.backtest.supplement_experiment import (
     compute_advantages,
     run_grid_case,
 )
-from qbt.common_constants import PORTFOLIO_GRID_RESULTS_DIR
+from qbt.common_constants import PORTFOLIO_GRID_RESULTS_DIR, ROUND_PERCENT, ROUND_RATIO
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger

@@ -17,9 +17,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from qbt.backtest.constants import ROUND_PERCENT, ROUND_RATIO
 from qbt.backtest.supplement_experiment import PHASE_WINDOWS
-from qbt.common_constants import COL_DATE, PROXY_COMPARISON_RESULTS_DIR, STOCK_DIR
+from qbt.common_constants import COL_DATE, PROXY_COMPARISON_RESULTS_DIR, ROUND_PERCENT, ROUND_RATIO, STOCK_DIR
 from qbt.utils.data_loader import load_stock_data
 from qbt.utils.proxy_comparison import (
     COL_BASE,
@@ -30,8 +29,6 @@ from qbt.utils.proxy_comparison import (
     DISPLAY_GROUP,
     DISPLAY_PROXY,
     DISPLAY_PROXY_FILE,
-    PERCENT_DISPLAY_COLUMNS,
-    RATIO_DISPLAY_COLUMNS,
     ROLLING_WINDOW_DAYS,
     Period,
     align_closes,
@@ -39,6 +36,7 @@ from qbt.utils.proxy_comparison import (
     normalized_overlay,
     period_summary_records,
     rolling_correlation,
+    round_for_display,
     summarize_pair,
     summarize_periods,
 )
@@ -57,13 +55,6 @@ def _load_prices(path: Path, mtime: float) -> pd.DataFrame:
 @st.cache_data
 def _load_summary(path: Path, mtime: float) -> pd.DataFrame:
     return pd.read_csv(path, encoding="utf-8-sig")
-
-
-def _round_for_display(df: pd.DataFrame) -> pd.DataFrame:
-    digits = {col: ROUND_RATIO for col in RATIO_DISPLAY_COLUMNS} | {
-        col: ROUND_PERCENT for col in PERCENT_DISPLAY_COLUMNS
-    }
-    return df.round({col: digit for col, digit in digits.items() if col in df.columns})
 
 
 def _format_optional(value: float | None, digits: int) -> str:
@@ -135,7 +126,7 @@ def _rolling_chart(aligned: pd.DataFrame, rolling_min: float | None, rolling_min
 
 
 def _period_table(aligned: pd.DataFrame, periods: list[Period]) -> pd.DataFrame:
-    return _round_for_display(pd.DataFrame(period_summary_records(summarize_periods(aligned, periods))))
+    return round_for_display(pd.DataFrame(period_summary_records(summarize_periods(aligned, periods))))
 
 
 def _show_pair(proxy_path: Path, base_path: Path, before: date | None) -> None:

@@ -2,14 +2,13 @@
 TQQQ 도메인 전용 데이터 로더 테스트
 
 이 파일은 무엇을 검증하나요?
-1. FFR 데이터가 정확히 로드되는가?
-2. Expense Ratio 데이터가 정확히 로드되는가?
-3. 일별 비교 데이터가 정확히 로드되는가?
-4. 필수 컬럼이 없으면 즉시 실패하는가?
-5. 파일이 없을 때 명확한 에러를 내는가?
-6. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
-7. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
-8. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
+1. 월별 데이터(FFR · Expense Ratio) 파일이 정확히 로드되는가?
+2. 일별 비교 데이터가 정확히 로드되는가?
+3. 필수 컬럼이 없으면 즉시 실패하는가?
+4. 파일이 없을 때 명확한 에러를 내는가?
+5. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
+6. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
+7. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
 
 왜 중요한가요?
 TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 의존합니다.
@@ -18,7 +17,6 @@ TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 �
 
 import math
 from datetime import date
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -50,133 +48,51 @@ from qbt.tqqq.data_loader import (
     create_expense_dict,
     create_ffr_dict,
     load_comparison_data,
-    load_expense_ratio_data,
-    load_ffr_data,
+    load_monthly_data,
     lookup_ffr,
 )
 
 
-class TestLoadFfrData:
-    """연방기금금리(FFR) 데이터 로딩 테스트"""
+class TestLoadMonthlyData:
+    """월별 데이터(연방기금금리 · 운용비율) 파일 로딩 테스트"""
 
     def test_normal_load(self, tmp_path, sample_ffr_df):
         """
-        FFR 데이터 정상 로딩 테스트
+        월별 데이터 정상 로딩 테스트
 
         데이터 신뢰성: TQQQ 시뮬레이션의 비용 계산에 필수적인 데이터입니다.
 
         Given: DATE, VALUE 컬럼이 있는 CSV
-        When: load_ffr_data 호출
-        Then:
-          - VALUE 컬럼이 그대로 유지됨 (rename 없음)
-          - 날짜 파싱 및 정렬
+        When: load_monthly_data 호출
+        Then: DATE · VALUE 컬럼이 그대로 유지되고 행 수가 같다 (DATE 는 yyyy-mm 문자열 그대로)
         """
         # Given
         csv_path = tmp_path / "ffr.csv"
         sample_ffr_df.to_csv(csv_path, index=False)
 
         # When
-        df = load_ffr_data(csv_path)
+        df = load_monthly_data(csv_path)
 
         # Then: 원본 CSV 스키마 회귀 탐지를 위해 리터럴 유지
         assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
         assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
         assert len(df) == 3
-        # FFR 데이터는 날짜 파싱을 하지 않음 (문자열 그대로 유지)
-
-    def test_value_in_decimal_range(self, tmp_path, sample_ffr_df):
-        """
-        FFR VALUE 값이 0~1 비율 범위에 있는지 검증
-
-        Given: VALUE가 0~1 범위의 소수인 CSV
-        When: load_ffr_data 호출
-        Then: VALUE 값이 모두 0~1 사이
-        """
-        # Given
-        csv_path = tmp_path / "ffr.csv"
-        sample_ffr_df.to_csv(csv_path, index=False)
-
-        # When
-        df = load_ffr_data(csv_path)
-
-        # Then
-        assert (df["VALUE"] >= 0).all(), "VALUE 값이 0 이상이어야 합니다"
-        assert (df["VALUE"] <= 1).all(), "VALUE 값이 1 이하여야 합니다 (비율 형식)"
+        assert df["DATE"].tolist() == sample_ffr_df["DATE"].tolist()
 
     def test_file_not_found(self, tmp_path):
         """
-        FFR 파일 부재 테스트
+        월별 데이터 파일 부재 테스트
 
         Given: 존재하지 않는 파일
-        When: load_ffr_data 호출
+        When: load_monthly_data 호출
         Then: FileNotFoundError
         """
         # Given
-        non_existent = tmp_path / "no_ffr.csv"
+        non_existent = tmp_path / "no_monthly.csv"
 
         # When & Then
         with pytest.raises(FileNotFoundError):
-            load_ffr_data(non_existent)
-
-
-class TestLoadExpenseRatioData:
-    """운용비율(Expense Ratio) 데이터 로딩 테스트"""
-
-    def test_normal_load(self, tmp_path, sample_expense_df):
-        """
-        Expense Ratio 데이터 정상 로딩 테스트
-
-        Given: DATE, VALUE 컬럼이 있는 CSV
-        When: load_expense_ratio_data 호출
-        Then:
-          - VALUE 컬럼이 그대로 유지됨
-          - 날짜 파싱 및 정렬
-        """
-        # Given
-        csv_path = tmp_path / "expense.csv"
-        sample_expense_df.to_csv(csv_path, index=False)
-
-        # When
-        df = load_expense_ratio_data(csv_path)
-
-        # Then: 원본 CSV 스키마 회귀 탐지를 위해 리터럴 유지
-        assert "VALUE" in df.columns, "VALUE 컬럼이 유지되어야 합니다"
-        assert "DATE" in df.columns, "DATE 컬럼이 유지되어야 합니다"
-        assert len(df) == 3
-
-    def test_value_in_decimal_range(self, tmp_path, sample_expense_df):
-        """
-        Expense Ratio VALUE 값이 0~1 비율 범위에 있는지 검증
-
-        Given: VALUE가 0~1 범위의 소수인 CSV
-        When: load_expense_ratio_data 호출
-        Then: VALUE 값이 모두 0~1 사이
-        """
-        # Given
-        csv_path = tmp_path / "expense.csv"
-        sample_expense_df.to_csv(csv_path, index=False)
-
-        # When
-        df = load_expense_ratio_data(csv_path)
-
-        # Then
-        assert (df["VALUE"] >= 0).all(), "VALUE 값이 0 이상이어야 합니다"
-        assert (df["VALUE"] <= 1).all(), "VALUE 값이 1 이하여야 합니다 (비율 형식)"
-
-    def test_file_not_found(self, tmp_path):
-        """
-        Expense Ratio 파일 부재 테스트
-
-        Given: 존재하지 않는 파일
-        When: load_expense_ratio_data 호출
-        Then: FileNotFoundError
-        """
-        # Given
-        non_existent = tmp_path / "no_expense.csv"
-
-        # When & Then
-        with pytest.raises(FileNotFoundError):
-            load_expense_ratio_data(non_existent)
+            load_monthly_data(non_existent)
 
 
 class TestLoadComparisonData:
@@ -376,51 +292,6 @@ class TestLookupFfr:
         # When & Then
         with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-05.*최대 2개월 이내의 데이터만 사용 가능"):
             lookup_ffr(date_value, ffr_dict)
-
-
-class TestExpenseRatioLoading:
-    """Expense Ratio CSV 로딩 테스트"""
-
-    def test_load_expense_ratio_data_basic(self, create_csv_file):
-        """
-        정상적인 expense ratio 데이터 로딩 테스트
-
-        Given: 유효한 expense ratio CSV 파일
-        When: load_expense_ratio_data 호출
-        Then: DATE, VALUE 컬럼을 가진 DataFrame 반환
-        """
-        # Given: expense ratio CSV 생성
-        expense_df = pd.DataFrame(
-            {
-                COL_EXPENSE_DATE: ["2023-01", "2023-02"],
-                COL_EXPENSE_VALUE: [0.0095, 0.0088],
-            }
-        )
-        csv_path = create_csv_file("expense_ratio.csv", expense_df)
-
-        # When: expense ratio 데이터 로딩
-        result_df = load_expense_ratio_data(csv_path)
-
-        # Then
-        assert not result_df.empty, "결과 DataFrame이 비어있지 않아야 합니다"
-        assert "DATE" in result_df.columns, "DATE 컬럼이 존재해야 합니다"
-        assert "VALUE" in result_df.columns, "VALUE 컬럼이 존재해야 합니다"
-        assert len(result_df) == 2, "2개 행이 있어야 합니다"
-
-    def test_load_expense_ratio_data_missing_file(self):
-        """
-        파일이 존재하지 않을 때 예외 발생 테스트
-
-        Given: 존재하지 않는 파일 경로
-        When: load_expense_ratio_data 호출
-        Then: FileNotFoundError 발생
-        """
-        # Given
-        non_existent_path = Path("/non/existent/path.csv")
-
-        # When & Then
-        with pytest.raises(FileNotFoundError):
-            load_expense_ratio_data(non_existent_path)
 
 
 class TestGenericMonthlyDataDict:

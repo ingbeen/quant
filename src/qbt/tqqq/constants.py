@@ -1,9 +1,9 @@
 """
 레버리지 ETF 시뮬레이션 도메인 상수
 
-레버리지 ETF 시뮬레이션에서 사용하는 기본값과 검증 임계값을 정의한다.
+레버리지 ETF 시뮬레이션에서 사용하는 기본값과 경로를 정의한다.
 - 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
-- 비용 모델 파라미터 (기본값, 검증)
+- 비용 모델 파라미터 (기본값)
 - 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 """
 
@@ -39,7 +39,6 @@ SOFTPLUS_SPREAD_SERIES_STATIC_PATH: Final = SPREAD_LAB_DIR / "tqqq_softplus_spre
 
 # --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
-DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
 
 # ============================================================
 # 비용 모델 파라미터
@@ -47,14 +46,6 @@ DEFAULT_SYNTHETIC_INITIAL_PRICE: Final = 200.0  # 합성 데이터 초기 가격
 
 # --- 기본값 ---
 DEFAULT_PRE_LISTING_EXPENSE_RATIO: Final = 0.0095  # TQQQ 상장 이전 운용비율 가정값 (0.0095 = 0.95%)
-
-# --- 데이터 검증 ---
-MAX_EXPENSE_MONTHS_DIFF: Final = 12  # Expense Ratio 데이터 최대 월 차이 (개월)
-MAX_FFR_MONTHS_DIFF: Final = 2  # FFR 데이터 최대 월 차이 (개월)
-
-# 무결성 체크 허용 오차 (%)
-# abs(signed)와 abs 컬럼의 최대 차이 허용값
-INTEGRITY_TOLERANCE: Final = 1e-6  # 0.000001%
 
 # ============================================================
 # 분석 기본값 파라미터
@@ -91,7 +82,7 @@ TQQQ_WALKFORWARD_FIXED_AB_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_w
 TQQQ_WALKFORWARD_FIXED_AB_SUMMARY_PATH: Final = SPREAD_LAB_DIR / "tqqq_rate_spread_lab_walkforward_fixed_ab_summary.csv"
 
 # ============================================================
-# 데이터 컬럼 정의 (내부 계산용 영문 토큰)
+# 데이터 컬럼 정의 (일별 비교 CSV 의 열은 한글 헤더 그대로)
 # ============================================================
 
 # --- FFR 데이터 ---
@@ -116,11 +107,6 @@ COL_ACTUAL_CUMUL_RETURN: Final = "누적수익률_실제(%)"
 COL_SIMUL_CUMUL_RETURN: Final = "누적수익률_시뮬(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: Final = "누적배수_로그차이_abs(%)"
 COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: Final = "누적배수_로그차이_signed(%)"
-
-# --- 검증 결과 컬럼 ---
-COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE: Final = "누적배수로그차이_RMSE(%)"
-COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN: Final = "누적배수로그차이_평균(%)"
-COL_CUMUL_MULTIPLE_LOG_DIFF_MAX: Final = "누적배수로그차이_최대(%)"
 
 # --- Rate Spread Lab 내부 컬럼 (영문 토큰) ---
 COL_MONTH: Final = "month"  # 월별 집계용 Period 컬럼
@@ -155,15 +141,9 @@ KEY_OVERLAP_START: Final = "overlap_start"
 KEY_OVERLAP_END: Final = "overlap_end"
 KEY_OVERLAP_DAYS: Final = "overlap_days"
 
-# --- 종가 정보 ---
-KEY_FINAL_CLOSE_ACTUAL: Final = "final_close_actual"
-KEY_FINAL_CLOSE_SIMULATED: Final = "final_close_simulated"
-KEY_FINAL_CLOSE_REL_DIFF: Final = "final_close_rel_diff_pct"
-
 # --- 누적수익률 ---
 KEY_CUMULATIVE_RETURN_ACTUAL: Final = "cumulative_return_actual"
 KEY_CUMULATIVE_RETURN_SIMULATED: Final = "cumulative_return_simulated"
-KEY_CUMULATIVE_RETURN_REL_DIFF: Final = "cumulative_return_rel_diff_pct"
 
 # --- 검증 지표 ---
 KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: Final = "cumul_multiple_log_diff_mean_pct"

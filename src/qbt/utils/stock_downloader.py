@@ -1,10 +1,11 @@
-"""주식 데이터 다운로드 및 검증 유틸리티
+"""주식 데이터 다운로드 · 검증 · 저장 유틸리티
 
 Yahoo Finance에서 주식 데이터를 다운로드하고, 데이터 유효성을 검증하는 함수를 제공한다.
 
 주요 기능:
 1. 주식 데이터 유효성 검증 (중복 날짜, 결측치, 0값, 음수, 급등락)
-2. Yahoo Finance에서 주식 데이터 다운로드 및 CSV 저장
+2. 시세 CSV 저장 (가격 반올림 → 검증 → 저장 — 수집 시세와 합성 · 대용 시세가 같은 함수로 저장한다)
+3. Yahoo Finance에서 주식 데이터 다운로드 및 CSV 저장
 """
 
 from datetime import date, timedelta
@@ -21,6 +22,9 @@ logger = get_logger(__name__)
 
 # 데이터 검증 관련 상수
 DEFAULT_PRICE_CHANGE_THRESHOLD = 0.50
+
+# 수집 · 합성 시세 파일의 가격 자릿수 — 결과 파일(ROUND_PRICE)과 다른 이유는 루트 CLAUDE.md 「가격 반올림 자릿수」
+ROUND_INPUT_PRICE = 6
 
 
 def validate_stock_data(df: pd.DataFrame) -> None:
@@ -64,6 +68,29 @@ def validate_stock_data(df: pd.DataFrame) -> None:
     logger.debug("데이터 유효성 검증 완료: 이상 없음")
 
 
+def save_stock_csv(df: pd.DataFrame, path: Path, *, check_price_spikes: bool = True) -> None:
+    """
+    시세 표를 가격 반올림 → 검증 → 저장 순서로 저장한다. 검증에 걸리면 파일을 쓰지 않는다.
+
+    Args:
+        df: 저장할 시세 DataFrame (원본은 바꾸지 않는다)
+        path: 저장 경로 (상위 폴더가 없으면 만든다)
+        check_price_spikes: 전일 대비 급등락까지 검사한다. 급등락 기준을 넘는 날이 정상인 시세(레버리지 합성)만 False
+
+    Raises:
+        ValueError: 중복 날짜 · 가격의 결측 · 0 · 음수, check_price_spikes 이면 급등락
+    """
+    rounded = df.copy()
+    rounded[PRICE_COLUMNS] = rounded[PRICE_COLUMNS].round(ROUND_INPUT_PRICE)
+    if check_price_spikes:
+        validate_stock_data(rounded)
+    else:
+        validate_price_series(rounded)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rounded.to_csv(path, index=False)
+    logger.debug(f"저장: {path} ({len(rounded):,}행, {rounded[COL_DATE].min()} ~ {rounded[COL_DATE].max()})")
+
+
 def download_stock_data(ticker: str) -> Path:
     """
     주식 데이터를 전체 기간으로 다운로드하고 `{ticker}_max.csv` 로 저장한다.
@@ -74,48 +101,34 @@ def download_stock_data(ticker: str) -> Path:
     Returns:
         저장된 CSV 파일의 경로
     """
-    # 1. 출력 디렉토리 생성
-    output_path = STOCK_DIR
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    # 2. yfinance Ticker 객체 생성
+    # 1. yfinance Ticker 객체 생성
     yf_ticker = yf.Ticker(ticker)
 
-    # 3. 전체 기간 데이터 다운로드
+    # 2. 전체 기간 데이터 다운로드
     df = yf_ticker.history(period="max")
-    filename = f"{ticker}_max.csv"
 
-    # 4. 데이터 유효성 검증
+    # 3. 데이터 유효성 검증
     if df.empty:
         raise ValueError(f"데이터를 찾을 수 없습니다: {ticker}")
 
-    # 5. 인덱스를 Date 컬럼으로 변환
+    # 4. 인덱스를 Date 컬럼으로 변환
     df.reset_index(inplace=True)
     df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
 
-    # 6. 필요한 컬럼만 선택 (Date, Open, High, Low, Close, Volume)
+    # 5. 필요한 컬럼만 선택 (Date, Open, High, Low, Close, Volume)
     df = df[REQUIRED_COLUMNS]
 
-    # 7. 최근 데이터 필터링 (오늘 포함 최근 2일 제외)
+    # 6. 최근 데이터 필터링 (오늘 포함 최근 2일 제외)
     cutoff_date = date.today() - timedelta(days=2)
     original_count = len(df)
     df = df[df[COL_DATE] <= cutoff_date]
     filtered_count = original_count - len(df)
 
-    # 8. 가격 컬럼을 소수점 6자리로 라운딩
-    df[PRICE_COLUMNS] = df[PRICE_COLUMNS].round(6)
+    # 7. 가격 반올림 → 검증 → 저장 (검증 통과 시에만 저장)
+    csv_path = STOCK_DIR / f"{ticker}_max.csv"
+    save_stock_csv(df, csv_path)
 
-    # 9. 데이터 유효성 검증
-    validate_stock_data(df)
-
-    # 10. CSV 파일로 저장 (검증 통과 시에만 실행)
-    csv_path = output_path / filename
-    df.to_csv(csv_path, index=False)
-
-    # 11. 결과 출력
-    logger.debug(f"데이터 저장 완료: {csv_path}")
-    logger.debug(f"기간: {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
-    logger.debug(f"행 수: {len(df):,}")
+    # 8. 결과 출력
     if filtered_count > 0:
         logger.debug(f"최근 데이터 제외: {filtered_count}행 (오늘 포함 최근 2일)")
 

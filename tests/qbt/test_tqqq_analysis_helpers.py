@@ -28,7 +28,6 @@ from qbt.tqqq.analysis_helpers import (
     aggregate_monthly,
     calculate_daily_signed_log_diff,
     calculate_signed_log_diff_from_cumulative_returns,
-    validate_integrity,
 )
 from qbt.tqqq.constants import (
     COL_DE_M,
@@ -199,82 +198,6 @@ class TestCalculateDailySignedLogDiff:
         # When & Then
         with pytest.raises(ValueError, match="로그 계산 불가"):
             calculate_daily_signed_log_diff(daily_real, daily_sim)
-
-
-class TestValidateIntegrity:
-    """abs(signed) vs abs 무결성 체크 테스트"""
-
-    def test_integrity_check_passes_when_diff_is_small(self):
-        """
-        차이가 작을 때 무결성 체크 통과
-
-        Given:
-            - signed = [1.234, -2.345, 3.456]
-            - abs_col = [1.234, 2.345, 3.456] (완전히 일치)
-            - tolerance = 1e-6
-        When: validate_integrity
-        Then:
-            - max_abs_diff, mean_abs_diff 반환
-            - ValueError raise 안 함
-        """
-        # Given: 완전히 일치하는 경우
-        signed = pd.Series([1.234, -2.345, 3.456])
-        abs_col = pd.Series([1.234, 2.345, 3.456])  # abs(signed)와 동일
-        tolerance = 1e-6
-
-        # When
-        result = validate_integrity(signed, abs_col, tolerance)
-
-        # Then
-        assert result["max_abs_diff"] < tolerance
-        assert result["mean_abs_diff"] < tolerance
-
-    def test_integrity_check_observes_when_tolerance_is_none(self):
-        """
-        tolerance=None일 때 관측만 수행 (ValueError 안 냄)
-
-        Given:
-            - signed, abs_col (약간의 차이)
-            - tolerance = None
-        When: validate_integrity
-        Then:
-            - max_abs_diff, mean_abs_diff 반환
-            - ValueError raise 안 함 (관측 모드)
-        """
-        # Given
-        signed = pd.Series([1.234, -2.345, 3.456])
-        abs_col = pd.Series([1.235, 2.346, 3.457])  # 약간 다름
-        tolerance = None
-
-        # When
-        result = validate_integrity(signed, abs_col, tolerance)
-
-        # Then
-        assert "max_abs_diff" in result
-        assert "mean_abs_diff" in result
-        assert result["max_abs_diff"] > 0  # 차이 존재
-
-    def test_fail_fast_when_diff_exceeds_tolerance(self):
-        """
-        차이가 tolerance를 초과하면 fail-fast
-
-        Fail-fast: abs(signed)와 abs가 크게 다르면 계산 오류 의심
-
-        Given:
-            - signed = [1.0, -2.0]
-            - abs_col = [1.5, 2.5] (큰 차이)
-            - tolerance = 0.1
-        When: validate_integrity
-        Then: ValueError raise (max_abs_diff > tolerance)
-        """
-        # Given
-        signed = pd.Series([1.0, -2.0])
-        abs_col = pd.Series([1.5, 2.5])  # 0.5 차이 (tolerance 0.1 초과)
-        tolerance = 0.1
-
-        # When & Then
-        with pytest.raises(ValueError, match="tolerance"):
-            validate_integrity(signed, abs_col, tolerance)
 
 
 class TestAggregateMonthly:

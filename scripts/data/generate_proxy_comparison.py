@@ -20,7 +20,6 @@ from typing import Final
 
 import pandas as pd
 
-from qbt.backtest.constants import ROUND_PERCENT, ROUND_RATIO
 from qbt.backtest.supplement_experiment import PHASE_WINDOWS
 from qbt.common_constants import (
     BIL_DATA_PATH,
@@ -68,13 +67,12 @@ from qbt.utils.proxy_comparison import (
     DISPLAY_PROXY,
     DISPLAY_PROXY_FILE,
     DISPLAY_PROXY_FIRST_DATE,
-    PERCENT_DISPLAY_COLUMNS,
-    RATIO_DISPLAY_COLUMNS,
     Period,
     align_closes,
     calendar_year_periods,
     pair_summary_record,
     period_summary_records,
+    round_for_display,
     summarize_pair,
     summarize_periods,
 )
@@ -135,13 +133,6 @@ def _series_name(path: Path) -> str:
     return path.name.removesuffix("_max.csv")
 
 
-def _round(df: pd.DataFrame) -> pd.DataFrame:
-    digits = {col: ROUND_RATIO for col in RATIO_DISPLAY_COLUMNS} | {
-        col: ROUND_PERCENT for col in PERCENT_DISPLAY_COLUMNS
-    }
-    return df.round({col: digit for col, digit in digits.items() if col in df.columns})
-
-
 @cli_exception_handler
 def main() -> int:
     """
@@ -195,8 +186,8 @@ def main() -> int:
     PROXY_COMPARISON_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     summary_path = PROXY_COMPARISON_RESULTS_DIR / _SUMMARY_FILENAME
     periods_path = PROXY_COMPARISON_RESULTS_DIR / _PERIODS_FILENAME
-    _round(pd.DataFrame(summary_rows)).to_csv(summary_path, index=False, encoding=_CSV_ENCODING)
-    _round(pd.DataFrame(period_rows)).to_csv(periods_path, index=False, encoding=_CSV_ENCODING)
+    round_for_display(pd.DataFrame(summary_rows)).to_csv(summary_path, index=False, encoding=_CSV_ENCODING)
+    round_for_display(pd.DataFrame(period_rows)).to_csv(periods_path, index=False, encoding=_CSV_ENCODING)
 
     logger.debug(f"대체-실물 비교 {len(jobs)}쌍 저장: {summary_path}, {periods_path}")
     return 0

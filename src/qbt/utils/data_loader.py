@@ -65,8 +65,8 @@ def load_stock_data(path: Path) -> pd.DataFrame:
 def validate_price_series(df: pd.DataFrame) -> None:
     """시세 표에 중복 날짜나 가격 열(`PRICE_COLUMNS`)의 결측 · 0 · 음수가 있으면 ValueError — 지우거나 메우지 않는다.
 
-    시세를 읽을 때(`load_stock_data`)와 받거나 만든 시세를 저장하기 전(`validate_stock_data` · 생성 스크립트)에
-    같은 검사를 쓴다. 거래량은 보지 않는다(대용 · 합성 시세는 거래량이 0 이다).
+    시세를 읽을 때(`load_stock_data`)와 받거나 만든 시세를 저장하기 전(`stock_downloader.save_stock_csv` —
+    급등락까지 보는 `validate_stock_data` 를 거치든 아니든)에 같은 검사를 쓴다. 거래량은 보지 않는다(대용 · 합성 시세는 거래량이 0 이다).
 
     Raises:
         ValueError: 중복 날짜(날짜 포함) · 결측 · 0 · 음수(열 · 인덱스 · 날짜 포함)가 있을 때

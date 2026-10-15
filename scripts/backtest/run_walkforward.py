@@ -38,10 +38,6 @@ from qbt.backtest.constants import (
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
-    ROUND_CAPITAL,
-    ROUND_PERCENT,
-    ROUND_PRICE,
-    ROUND_RATIO,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
@@ -65,6 +61,10 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler

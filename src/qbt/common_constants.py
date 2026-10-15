@@ -125,3 +125,13 @@ TRADING_DAYS_PER_YEAR: Final = 252
 
 # 수치 안정성 상수 — 분모 0 방지 및 로그 계산 안정성 확보
 EPSILON: Final = 1e-12
+
+# ============================================================
+# 반올림 규칙 상수 — 이 저장소의 자릿수 SoT
+# CSV/JSON 저장 직전에만 적용하며, 계산 정밀도는 바꾸지 않는다
+# ============================================================
+
+ROUND_PRICE: Final = 4  # 가격 (종가, 시가, 밴드, 체결가 등)
+ROUND_CAPITAL: Final = 0  # 자본금 (equity, pnl) -> 정수
+ROUND_PERCENT: Final = 2  # 백분율 (수익률, MDD, 승률, 드로우다운)
+ROUND_RATIO: Final = 4  # 비율 (0~1, buy_buffer_zone_pct, pnl_pct)

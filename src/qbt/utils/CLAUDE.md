@@ -7,7 +7,7 @@
 
 유틸리티 패키지는 프로젝트 전반에서 공통으로 사용되는 횡단 관심사(cross-cutting concerns)를 제공합니다.
 
-핵심 원칙: 도메인 로직과 독립적인 기술적 기능만 담당
+핵심 원칙: 여러 도메인이 함께 쓰는 기능만 담당 — 로깅 · CSV 로딩 · 병렬 실행 · 표 출력 같은 기술 기능과, 백테스트 · 레버리지 시뮬레이션 어느 한쪽에 속하지 않는 시세 수집 · 대용 시세 가공 · 대체 비교
 
 ---
 
@@ -26,7 +26,7 @@
 
 - `load_stock_data`: 주식 데이터 로딩
 - 자동 전처리: 파일 존재 확인, 필수 컬럼 검증, 날짜 파싱, 시간순 정렬, 시세 표 검사
-- `validate_price_series`: 중복 날짜 · 가격 열의 결측 · 0 · 음수면 ValueError (지우거나 메우지 않는다, 거래량은 보지 않는다). 로더 · 다운로더(`validate_stock_data`) · 생성 스크립트가 저장 전에 같이 쓴다
+- `validate_price_series`: 중복 날짜 · 가격 열의 결측 · 0 · 음수면 ValueError (지우거나 메우지 않는다, 거래량은 보지 않는다). 로더와 시세 저장 함수(`save_stock_csv` — 급등락 검사를 끈 저장도 이 검사는 한다)가 같이 쓴다
 - `extract_overlap_period`: 두 DataFrame의 겹치는 기간 추출 (교집합 날짜 필터링, 정렬, 빈 결과 시 ValueError)
 
 ### 3. cli_helpers.py
@@ -58,7 +58,8 @@ CLI 예외 처리 데코레이터
 주식 데이터 다운로드 및 검증
 
 - `validate_stock_data`: 주식 데이터 유효성 검증 (`validate_price_series` 의 시세 표 검사 + 급등락)
-- `download_stock_data`: Yahoo Finance에서 주식 데이터 다운로드 + 전처리 + 검증 + CSV 저장
+- `save_stock_csv`: 시세 파일 저장 — 가격 반올림(`ROUND_INPUT_PRICE`) → 검사 → 저장. 다운로더와 합성 · 대용 · 장기 대체 생성 스크립트가 같이 쓴다. 급등락 검사는 레버리지 합성만 끈다(`check_price_spikes=False`)
+- `download_stock_data`: Yahoo Finance에서 주식 데이터 다운로드 + 전처리 + `save_stock_csv`
 - 검증 실패 시 즉시 ValueError (보간 금지)
 
 ### 7. proxy_series.py
@@ -80,7 +81,7 @@ CLI 예외 처리 데코레이터
 - `summarize_pair` → `PairSummary`: 일간 · 월간(월 마지막 거래일) 상관, CAGR · MDD(%), 12개월 이동 상관 최저값과 날짜. 정의되지 않는 값(수익률 2쌍 미만 · 분산 0)은 None
 - `summarize_periods` → `PeriodSummary`: 기간마다 겹치는 범위로 자른 상관 · 수익률 (기준은 기간 첫날의 전날 종가, 거래일 2개 미만 기간은 뺀다). `calendar_year_periods` 가 연도 기간을 만든다
 - `rolling_correlation` · `normalized_overlay`: 대시보드의 이동 상관 · 겹쳐 그리기 (대체의 상장 전 구간 포함)
-- 결과 표의 열 이름(`DISPLAY_*`)과 행 변환(`pair_summary_record` · `period_summary_records`), 자릿수를 고르는 열 종류(`RATIO_DISPLAY_COLUMNS` · `PERCENT_DISPLAY_COLUMNS`) — 계산 스크립트와 대시보드가 같은 열을 쓴다. 반올림 자릿수는 CLI 가 고른다
+- 결과 표의 열 이름(`DISPLAY_*`)과 행 변환(`pair_summary_record` · `period_summary_records`), 표 반올림(`round_for_display` — 상관 등 비율 열은 `ROUND_RATIO`, % 열은 `ROUND_PERCENT`) — 계산 스크립트와 대시보드가 같은 열 · 같은 자릿수를 쓴다
 
 ---
 

@@ -20,7 +20,7 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 주요 상수 카테고리:
 
 - 경로 및 스펙 설정 (데이터 파일, 결과 파일, 레버리지 상품 스펙)
-- 비용 모델 파라미터 (기본값, 검증 임계값)
+- 비용 모델 파라미터 (기본값)
 - 데이터 컬럼 및 키 정의 (CSV 컬럼명, 출력 레이블, 딕셔너리 키)
 - 튜닝 결과 CSV 컬럼 (`COL_A`, `COL_B`, `COL_RMSE_PCT`)
 
@@ -32,8 +32,7 @@ TQQQ 도메인 전용 데이터 로딩 및 월별 데이터 조회 함수를 제
 
 데이터 로딩:
 
-- `load_ffr_data`: 연방기금금리(FFR) 월별 데이터 로딩
-- `load_expense_ratio_data`: TQQQ 운용비율 월별 데이터 로딩
+- `load_monthly_data`: 월별 데이터(연방기금금리 · TQQQ 운용비율) 파일 로딩. 값 검사는 딕셔너리를 만들 때 한다
 - `load_comparison_data`: 일별 비교 CSV 파일 로딩 및 검증
 
 월별 데이터 딕셔너리 생성 및 조회 (simulation.py, analysis_helpers.py에서 공유):
@@ -64,7 +63,8 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `_calculate_daily_cost`: 일일 비용(자금 조달 + 운용) 계산 (private)
 - `_compute_softplus_spread`: softplus 모델로 funding spread 계산 (private)
 - `build_monthly_spread_map`: FFR 데이터로 월별 spread 딕셔너리 생성
-- `_validate_ffr_coverage`: FFR 데이터 커버리지 검증 (private)
+
+`simulate` 는 월별 값(FFR · 운용비율 · spread)을 `{"YYYY-MM": 값}` 딕셔너리로 받고, 둘째 거래일부터 날마다 조회한다 — 허용 개월 수를 넘게 비면 그 날짜에서 ValueError 다.
 
 참고: `extract_overlap_period`는 `utils/data_loader.py`에 위치.
 
@@ -79,7 +79,6 @@ DATE 컬럼 형식: `"yyyy-mm"` 문자열 (datetime.date 객체가 아님)
 - `calculate_signed_log_diff_from_cumulative_returns`: 누적수익률로부터 signed 로그차이 계산
 - `calculate_daily_signed_log_diff`: 일일수익률로부터 일일 증분 signed 로그오차 계산
 - `aggregate_monthly`: 일별 데이터를 월별로 집계하고 금리 데이터와 매칭
-- `validate_integrity`: abs(signed)와 abs 컬럼의 무결성 검증
 
 Fail-fast 정책: 결과를 신뢰할 수 없게 만드는 문제 발견 시 ValueError를 raise하여 즉시 중단
 
@@ -172,7 +171,6 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 ### 4. 검증 임계값
 
 - 금리 데이터 갭: `MAX_FFR_MONTHS_DIFF` (초과 시 ValueError)
-- 무결성 허용 오차: `INTEGRITY_TOLERANCE`
 
 ---
 
@@ -190,11 +188,10 @@ M(t) = Close(t) / Close(0)   # 첫날 종가 기준 누적 자산배수
 
 #### 1) 추적오차 크기 (abs)
 
-- 함수: `simulation._calculate_cumul_multiple_log_diff`
+- 계산: 아래 signed 의 절댓값 (`simulation.calculate_validation_metrics` 가 지표와 일별 비교 CSV 의 abs 열에 쓴다)
 - 수식: `abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100`
 - 용도: RMSE 최적화, 절대 오차 크기 측정 (부호 무관)
 - 비고: 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
-- fail-fast: `M_actual` 또는 `M_sim`이 0 이하인 행이 있으면 `ValueError`로 즉시 중단 (signed 버전과 동일한 정책)
 
 #### 2) 방향성 (signed)
 

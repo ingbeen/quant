@@ -21,9 +21,6 @@ from qbt.tqqq import (
 )
 from qbt.tqqq.constants import (
     COL_ACTUAL_CUMUL_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_MAX,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_SIMUL_CUMUL_RETURN,
     DEFAULT_LEVERAGE_MULTIPLIER,
@@ -42,7 +39,7 @@ from qbt.tqqq.constants import (
     TQQQ_DAILY_COMPARISON_PATH,
     TQQQ_DATA_PATH,
 )
-from qbt.tqqq.data_loader import load_expense_ratio_data, load_ffr_data
+from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict, load_monthly_data
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
@@ -62,8 +59,8 @@ def main() -> int:
     logger.debug("QQQ, TQQQ, FFR 및 Expense Ratio 데이터 로딩 시작")
     qqq_df = load_stock_data(QQQ_DATA_PATH)
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
-    ffr_df = load_ffr_data(FFR_DATA_PATH)
-    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
+    ffr_df = load_monthly_data(FFR_DATA_PATH)
+    expense_df = load_monthly_data(EXPENSE_RATIO_DATA_PATH)
 
     # 2. 겹치는 기간 추출
     qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
@@ -81,8 +78,8 @@ def main() -> int:
         underlying_df=qqq_overlap,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
         initial_price=initial_price,
-        ffr_df=ffr_df,
-        expense_df=expense_df,
+        ffr_dict=create_ffr_dict(ffr_df),
+        expense_dict=create_expense_dict(expense_df),
         funding_spread=spread_map,
     )
 
@@ -114,11 +111,11 @@ def main() -> int:
     logger.debug("-" * 64)
 
     # 누적수익률 관련
-    logger.debug(f"{COL_ACTUAL_CUMUL_RETURN}: +{validation_results[KEY_CUMULATIVE_RETURN_ACTUAL]*100:.1f}%")
-    logger.debug(f"{COL_SIMUL_CUMUL_RETURN}: +{validation_results[KEY_CUMULATIVE_RETURN_SIMULATED]*100:.1f}%")
-    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_RMSE}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%")
-    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MEAN}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN]:.2f}%")
-    logger.debug(f"{COL_CUMUL_MULTIPLE_LOG_DIFF_MAX}: {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX]:.4f}%")
+    logger.debug(f"{COL_ACTUAL_CUMUL_RETURN}: {validation_results[KEY_CUMULATIVE_RETURN_ACTUAL]*100:+.1f}%")
+    logger.debug(f"{COL_SIMUL_CUMUL_RETURN}: {validation_results[KEY_CUMULATIVE_RETURN_SIMULATED]*100:+.1f}%")
+    logger.debug(f"누적배수로그차이_RMSE(%): {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE]:.4f}%")
+    logger.debug(f"누적배수로그차이_평균(%): {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN]:.2f}%")
+    logger.debug(f"누적배수로그차이_최대(%): {validation_results[KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX]:.4f}%")
     logger.debug(f"일일수익률_절대차이 평균: {daily_df[COL_DAILY_RETURN_ABS_DIFF].mean():.4f}%")
     logger.debug(f"일일수익률_절대차이 최대: {daily_df[COL_DAILY_RETURN_ABS_DIFF].max():.4f}%")
 

@@ -230,7 +230,7 @@ def create_level_scatter_chart(
                 x=plot_df[COL_RATE_PCT],
                 y=trend_y.tolist(),
                 mode="lines",
-                name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
+                name=f"추세선 (y={coef[0]:.2f}x{coef[1]:+.2f})",
                 line={"color": "red", "dash": "dash"},
             ),
         )
@@ -374,7 +374,7 @@ def create_delta_scatter_chart(
                 x=plot_df["dr_shifted"],
                 y=trend_y.tolist(),
                 mode="lines",
-                name=f"추세선 (y={coef[0]:.2f}x+{coef[1]:.2f})",
+                name=f"추세선 (y={coef[0]:.2f}x{coef[1]:+.2f})",
                 line={"color": "red", "dash": "dash"},
             ),
         )

@@ -13,21 +13,16 @@
 """
 
 import sys
-from pathlib import Path
 from typing import Final
-
-import pandas as pd
 
 from qbt.common_constants import (
     BIL_DATA_PATH,
     BIL_SYNTHETIC_DATA_PATH,
-    COL_DATE,
     DBC_DATA_PATH,
     EEM_DATA_PATH,
     EFA_DATA_PATH,
     PDBC_DATA_PATH,
     PDBC_SYNTHETIC_DATA_PATH,
-    PRICE_COLUMNS,
     SHY_DATA_PATH,
     VEA_DATA_PATH,
     VEA_SYNTHETIC_DATA_PATH,
@@ -43,7 +38,7 @@ from qbt.utils.proxy_series import (
     rescale_to_actual,
     splice_proxy,
 )
-from qbt.utils.stock_downloader import validate_stock_data
+from qbt.utils.stock_downloader import save_stock_csv
 
 logger = get_logger(__name__)
 
@@ -59,16 +54,6 @@ ONE_TO_ONE_PROXIES: Final = (
 VXUS_COMPOSITE_WEIGHTS: Final = ((EFA_DATA_PATH, 0.75), (EEM_DATA_PATH, 0.25))
 
 
-def _save_price_csv(df: pd.DataFrame, path: Path) -> None:
-    """다운로더와 같은 순서로 저장한다: 가격 6자리 반올림 → 검증 → 저장."""
-    rounded = df.copy()
-    rounded[PRICE_COLUMNS] = rounded[PRICE_COLUMNS].round(6)
-    validate_stock_data(rounded)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    rounded.to_csv(path, index=False)
-    logger.debug(f"저장: {path} ({len(rounded):,}행, {rounded[COL_DATE].min()} ~ {rounded[COL_DATE].max()})")
-
-
 @cli_exception_handler
 def main() -> int:
     """
@@ -80,14 +65,14 @@ def main() -> int:
     for actual_path, proxy_path, output_path in ONE_TO_ONE_PROXIES:
         actual_df = load_stock_data(actual_path)
         proxy_df = load_stock_data(proxy_path)
-        _save_price_csv(splice_proxy(proxy_df, actual_df), output_path)
+        save_stock_csv(splice_proxy(proxy_df, actual_df), output_path)
 
     composite = build_daily_rebalanced_composite(
         [(load_stock_data(path), weight) for path, weight in VXUS_COMPOSITE_WEIGHTS]
     )
     vxus_df = load_stock_data(VXUS_DATA_PATH)
-    _save_price_csv(splice_proxy(composite, vxus_df), VXUS_SYNTHETIC_DATA_PATH)
-    _save_price_csv(rescale_to_actual(composite, vxus_df), VXUS_PROXY_DATA_PATH)
+    save_stock_csv(splice_proxy(composite, vxus_df), VXUS_SYNTHETIC_DATA_PATH)
+    save_stock_csv(rescale_to_actual(composite, vxus_df), VXUS_PROXY_DATA_PATH)
 
     logger.debug("대용 시계열 생성 완료")
     return 0

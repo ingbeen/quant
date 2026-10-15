@@ -24,12 +24,6 @@ from qbt.backtest.analysis import (
     calculate_sortino_ratio,
     calculate_yearly_returns,
 )
-from qbt.backtest.constants import (
-    ROUND_CAPITAL,
-    ROUND_PERCENT,
-    ROUND_PRICE,
-    ROUND_RATIO,
-)
 from qbt.backtest.csv_export import (
     BUFFER_BAND_COLUMNS,
     OHLC_CHANGE_PCT_COLUMNS,
@@ -54,6 +48,10 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler

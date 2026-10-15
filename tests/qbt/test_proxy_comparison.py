@@ -14,12 +14,23 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+from qbt.common_constants import (
+    ANNUAL_DAYS,
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    COL_VOLUME,
+    ROUND_PERCENT,
+    ROUND_RATIO,
+)
 from qbt.utils.proxy_comparison import (
     COL_BASE,
     COL_PROXY,
     DISPLAY_CAGR_DIFF,
     DISPLAY_DAILY_CORR,
+    DISPLAY_GROUP,
     DISPLAY_MDD_DIFF,
     DISPLAY_PERIOD,
     DISPLAY_RETURN_DIFF,
@@ -32,6 +43,7 @@ from qbt.utils.proxy_comparison import (
     pair_summary_record,
     period_summary_records,
     rolling_correlation,
+    round_for_display,
     summarize_pair,
     summarize_periods,
 )
@@ -688,6 +700,29 @@ class TestSummaryRecords:
         assert [record[DISPLAY_PERIOD] for record in records] == ["앞", "뒤"]
         for record, summary in zip(records, summaries, strict=True):
             assert record[DISPLAY_RETURN_DIFF] == pytest.approx(summary.proxy_return - summary.base_return, rel=REL_TOL)
+
+
+class TestRoundForDisplay:
+    """결과 표 반올림 — 계산 스크립트(CSV)와 대시보드가 같은 자릿수를 쓴다."""
+
+    def test_ratio_and_percent_columns_use_their_digits(self) -> None:
+        """
+        목적: 비율 열은 ROUND_RATIO, % 열은 ROUND_PERCENT 자리로 반올림하고 다른 열은 그대로 둔다
+
+        Given: 일간 상관(비율) · CAGR 차(%) · 묶음(글자) 열이 있는 표
+        When: round_for_display
+        Then: 각 자릿수로 반올림되고 글자 열은 그대로
+        """
+        # Given
+        df = pd.DataFrame({DISPLAY_GROUP: ["묶음"], DISPLAY_DAILY_CORR: [0.987654321], DISPLAY_CAGR_DIFF: [1.23456]})
+
+        # When
+        result = round_for_display(df)
+
+        # Then
+        assert result[DISPLAY_DAILY_CORR].iloc[0] == pytest.approx(round(0.987654321, ROUND_RATIO), abs=1e-12)
+        assert result[DISPLAY_CAGR_DIFF].iloc[0] == pytest.approx(round(1.23456, ROUND_PERCENT), abs=1e-12)
+        assert result[DISPLAY_GROUP].iloc[0] == "묶음"
 
 
 class TestAlignedInputValidation:

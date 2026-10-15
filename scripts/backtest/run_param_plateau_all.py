@@ -26,15 +26,13 @@ from qbt.backtest.constants import (
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
-    ROUND_PERCENT,
-    ROUND_RATIO,
 )
 from qbt.backtest.engines.backtest_engine import prepare_common_period, run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import (
     get_config,
     resolve_params_for_config,
 )
-from qbt.common_constants import BACKTEST_RESULTS_DIR
+from qbt.common_constants import BACKTEST_RESULTS_DIR, ROUND_PERCENT, ROUND_RATIO
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_signal_trade_pair

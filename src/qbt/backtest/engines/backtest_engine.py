@@ -29,7 +29,6 @@ from qbt.backtest.constants import (
     COL_WIN_RATE,
     DEFAULT_INITIAL_CAPITAL,
     MIN_VALID_ROWS,
-    ROUND_PRICE,
     ma_col_name,
 )
 from qbt.backtest.engines.engine_common import (
@@ -51,6 +50,7 @@ from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
     COL_OPEN,
+    ROUND_PRICE,
 )
 from qbt.utils import get_logger
 from qbt.utils.parallel_executor import WORKER_CACHE, execute_parallel_with_kwargs, init_worker_cache

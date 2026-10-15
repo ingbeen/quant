@@ -31,6 +31,7 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
 )
+from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
 
@@ -203,8 +204,8 @@ class TestTQQQSimulationWorkflow:
             underlying_df=qqq_overlap,
             leverage=3.0,
             initial_price=initial_price,
-            ffr_df=ffr_df,
-            expense_df=expense_df,
+            ffr_dict=create_ffr_dict(ffr_df),
+            expense_dict=create_expense_dict(expense_df),
             funding_spread=spread_map,
         )
 

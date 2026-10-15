@@ -49,13 +49,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def _download_single(ticker: str) -> None:
-    """단일 종목을 다운로드한다."""
-    logger.debug(f"데이터 다운로드 시작: {ticker}")
-    csv_path = download_stock_data(ticker)
-    logger.debug(f"다운로드 완료: {csv_path}")
-
-
 @cli_exception_handler
 def main() -> int:
     """
@@ -66,15 +59,11 @@ def main() -> int:
     """
     args = parse_args()
 
-    if args.ticker is not None:
-        # 단일 종목 다운로드
-        _download_single(args.ticker.upper())
-    else:
-        # 전체 종목 일괄 다운로드
-        logger.debug(f"전체 종목 다운로드 시작: {len(DEFAULT_TICKERS)}개")
-        for ticker in DEFAULT_TICKERS:
-            _download_single(ticker)
-        logger.debug(f"전체 종목 다운로드 완료: {len(DEFAULT_TICKERS)}개")
+    tickers = (args.ticker.upper(),) if args.ticker is not None else DEFAULT_TICKERS
+    for ticker in tickers:
+        logger.debug(f"데이터 다운로드 시작: {ticker}")
+        csv_path = download_stock_data(ticker)
+        logger.debug(f"다운로드 완료: {csv_path}")
 
     return 0
 

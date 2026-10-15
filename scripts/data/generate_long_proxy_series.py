@@ -18,10 +18,7 @@
 
 import sys
 from datetime import date
-from pathlib import Path
 from typing import Final
-
-import pandas as pd
 
 from qbt.common_constants import (
     BIL_DATA_PATH,
@@ -29,7 +26,6 @@ from qbt.common_constants import (
     COL_DATE,
     DBC_DATA_PATH,
     DBC_SYNTHETIC_DATA_PATH,
-    PRICE_COLUMNS,
     QLD_DATA_PATH,
     QLD_PROXY_DATA_PATH,
     QQQ_DATA_PATH,
@@ -48,8 +44,7 @@ from qbt.tqqq.constants import (
 from qbt.tqqq.data_loader import (
     build_extended_expense_dict,
     create_ffr_dict,
-    load_expense_ratio_data,
-    load_ffr_data,
+    load_monthly_data,
     lookup_ffr,
 )
 from qbt.tqqq.simulation import build_monthly_spread_map, simulate
@@ -61,7 +56,7 @@ from qbt.utils.proxy_series import (
     rescale_to_actual,
     splice_proxy,
 )
-from qbt.utils.stock_downloader import validate_stock_data
+from qbt.utils.stock_downloader import save_stock_csv
 
 logger = get_logger(__name__)
 
@@ -72,16 +67,6 @@ LEVERAGED_PROXIES: Final = (
     (SPY_DATA_PATH, SSO_DATA_PATH, SSO_PROXY_DATA_PATH),
     (QQQ_DATA_PATH, QLD_DATA_PATH, QLD_PROXY_DATA_PATH),
 )
-
-
-def _save_price_csv(df: pd.DataFrame, path: Path) -> None:
-    """다운로더와 같은 순서로 저장한다: 가격 6자리 반올림 → 검증 → 저장."""
-    rounded = df.copy()
-    rounded[PRICE_COLUMNS] = rounded[PRICE_COLUMNS].round(6)
-    validate_stock_data(rounded)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    rounded.to_csv(path, index=False)
-    logger.debug(f"저장: {path} ({len(rounded):,}행, {rounded[COL_DATE].min()} ~ {rounded[COL_DATE].max()})")
 
 
 def _month_first_day(month: str) -> date:
@@ -97,9 +82,9 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    ffr_df = load_ffr_data(FFR_DATA_PATH)
-    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
-    expense_dict = build_extended_expense_dict(expense_df)
+    ffr_df = load_monthly_data(FFR_DATA_PATH)
+    ffr_dict = create_ffr_dict(ffr_df)
+    expense_dict = build_extended_expense_dict(load_monthly_data(EXPENSE_RATIO_DATA_PATH))
     spread_map = build_monthly_spread_map(ffr_df, a=DEFAULT_SOFTPLUS_A, b=DEFAULT_SOFTPLUS_B)
 
     # 그 앞은 계산할 수 없다 — 2배 합성은 금리 · 운용보수가 둘 다 있는 첫 달부터, 금리 누적은 금리의 첫 달부터
@@ -112,22 +97,20 @@ def main() -> int:
         simulated = simulate(
             underlying_df=underlying_df,
             leverage=LEVERAGE_2X,
-            expense_df=expense_df,
             initial_price=1.0,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
             expense_dict=expense_dict,
             funding_spread=spread_map,
         )
-        _save_price_csv(rescale_to_actual(simulated, load_stock_data(actual_path)), output_path)
+        save_stock_csv(rescale_to_actual(simulated, load_stock_data(actual_path)), output_path)
 
     # 금리 누적은 SPY 거래일을 달력으로 쓴다
     calendar = load_stock_data(SPY_DATA_PATH)
     dates = calendar.loc[calendar[COL_DATE] >= ffr_first_day, COL_DATE].tolist()
-    ffr_dict = create_ffr_dict(ffr_df)
     accrued = build_rate_accrual_series(dates, [lookup_ffr(day, ffr_dict) for day in dates])
-    _save_price_csv(rescale_to_actual(accrued, load_stock_data(BIL_DATA_PATH)), BIL_PROXY_DATA_PATH)
+    save_stock_csv(rescale_to_actual(accrued, load_stock_data(BIL_DATA_PATH)), BIL_PROXY_DATA_PATH)
 
-    _save_price_csv(
+    save_stock_csv(
         splice_proxy(load_stock_data(SPGSCI_DATA_PATH), load_stock_data(DBC_DATA_PATH)), DBC_SYNTHETIC_DATA_PATH
     )
 

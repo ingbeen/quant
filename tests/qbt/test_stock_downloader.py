@@ -4,8 +4,9 @@ stock_downloader 모듈 테스트
 이 파일은 무엇을 검증하나요?
 1. 주식 데이터 유효성 검증이 정확히 작동하는가? (결측치, 0값, 음수, 급등락)
 2. 정상 데이터가 검증을 통과하는가?
-3. Yahoo Finance 다운로드 + 전처리 + 저장 파이프라인이 작동하는가?
-4. 빈 데이터 반환 시 명확한 에러를 내는가?
+3. 시세 저장 함수가 반올림 → 검증 → 저장 순서를 지키는가? (검증에 걸리면 파일을 쓰지 않는다)
+4. Yahoo Finance 다운로드 + 전처리 + 저장 파이프라인이 작동하는가?
+5. 빈 데이터 반환 시 명확한 에러를 내는가?
 
 왜 중요한가요?
 데이터 품질은 백테스트 결과의 신뢰성을 결정합니다.
@@ -20,7 +21,7 @@ import pandas as pd
 import pytest
 
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
-from qbt.utils.stock_downloader import download_stock_data, validate_stock_data
+from qbt.utils.stock_downloader import download_stock_data, save_stock_csv, validate_stock_data
 
 
 def _make_valid_df(rows: int = 5) -> pd.DataFrame:
@@ -172,6 +173,88 @@ class TestValidateStockData:
 
         # When & Then
         validate_stock_data(df)
+
+
+class TestSaveStockCsv:
+    """시세 저장 함수 테스트 — 다운로더 · 대용 · 장기 대체 · TQQQ 합성이 같은 함수로 저장한다"""
+
+    def test_rounds_prices_and_saves(self, tmp_path):
+        """
+        목적: 가격 열을 6자리로 반올림해 저장하고 원본은 바꾸지 않음을 검증
+
+        Given: 소수점이 긴 가격의 정상 데이터
+        When: save_stock_csv 호출 (상위 폴더가 없는 경로)
+        Then: 폴더를 만들어 저장하고, 저장된 가격은 6자리 · 원본 DataFrame 은 그대로
+        """
+        # Given
+        df = _make_valid_df(rows=2)
+        df.loc[0, COL_OPEN] = 100.1234567
+        path = tmp_path / "sub" / "TEST_max.csv"
+
+        # When
+        save_stock_csv(df, path)
+
+        # Then
+        saved = pd.read_csv(path)
+        assert saved[COL_OPEN].iloc[0] == pytest.approx(100.123457, abs=1e-9)
+        assert df.loc[0, COL_OPEN] == 100.1234567
+
+    @pytest.mark.parametrize("check_price_spikes", [True, False])
+    def test_missing_price_is_not_saved(self, tmp_path, check_price_spikes):
+        """
+        목적: 가격 결측이 있으면 급등락 검사 여부와 상관없이 저장하지 않고 멈춤을 검증 —
+              TQQQ 합성처럼 급등락 검사를 끈 저장도 시세 표 검사는 한다
+
+        Given: 종가 하나가 결측인 데이터
+        When: save_stock_csv 호출
+        Then: ValueError, 파일이 생기지 않음
+        """
+        # Given
+        df = _make_valid_df()
+        df.loc[2, COL_CLOSE] = np.nan
+        path = tmp_path / "TEST_max.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="결측치 발견"):
+            save_stock_csv(df, path, check_price_spikes=check_price_spikes)
+        assert not path.exists()
+
+    def test_price_spike_blocks_save_by_default(self, tmp_path):
+        """
+        목적: 기본값은 급등락 검사까지 해서 하루 급등락이 있으면 저장하지 않음을 검증
+
+        Given: 하루 약 94% 오르는 데이터
+        When: save_stock_csv 호출 (기본값)
+        Then: ValueError, 파일이 생기지 않음
+        """
+        # Given
+        df = _make_valid_df()
+        df.loc[1, COL_CLOSE] = 200.0
+        path = tmp_path / "TEST_max.csv"
+
+        # When & Then
+        with pytest.raises(ValueError, match="급등락 감지"):
+            save_stock_csv(df, path)
+        assert not path.exists()
+
+    def test_price_spike_saved_when_spike_check_off(self, tmp_path):
+        """
+        목적: 급등락 검사를 끄면 급등락이 있는 정상 합성 시세를 저장함을 검증 (3배 합성은 하루 50% 를 넘는 날이 있다)
+
+        Given: 하루 약 94% 오르는 데이터
+        When: save_stock_csv(check_price_spikes=False)
+        Then: 저장된다
+        """
+        # Given
+        df = _make_valid_df()
+        df.loc[1, COL_CLOSE] = 200.0
+        path = tmp_path / "TEST_max.csv"
+
+        # When
+        save_stock_csv(df, path, check_price_spikes=False)
+
+        # Then
+        assert pd.read_csv(path)[COL_CLOSE].iloc[1] == 200.0
 
 
 class TestDownloadStockData:

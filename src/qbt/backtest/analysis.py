@@ -18,11 +18,10 @@ from qbt.backtest.constants import (
     CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_EQUITY,
     COL_PNL,
-    ROUND_PERCENT,
     ma_col_name,
 )
 from qbt.backtest.types import SummaryDict
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON, TRADING_DAYS_PER_YEAR
+from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON, ROUND_PERCENT, TRADING_DAYS_PER_YEAR
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)

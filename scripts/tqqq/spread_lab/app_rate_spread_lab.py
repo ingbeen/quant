@@ -53,7 +53,7 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.data_loader import (
     load_comparison_data,
-    load_ffr_data,
+    load_monthly_data,
 )
 from qbt.tqqq.spread_lab_helpers import (
     add_rate_change_lags,
@@ -117,7 +117,7 @@ def build_artifacts(daily_path_str: str, ffr_path_str: str) -> pd.DataFrame:
     """
     # 1. 데이터 로드
     daily_df = load_comparison_data(Path(daily_path_str))
-    ffr_df = load_ffr_data(Path(ffr_path_str))
+    ffr_df = load_monthly_data(Path(ffr_path_str))
 
     # 2. 월별 집계
     monthly_df = prepare_monthly_data(daily_df, ffr_df)

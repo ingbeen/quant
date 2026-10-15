@@ -2,14 +2,13 @@
 합성+실제 TQQQ 병합 데이터 생성 스크립트
 
 QQQ 전체 기간을 SoftPlus 동적 스프레드 모델로 시뮬레이션하고,
-합성 구간(1999~2010)과 실제 TQQQ(2010~)를 가격 스케일링 후 병합하여
+실제 TQQQ 첫 거래일 앞은 합성 구간(가격을 그날 종가 비율로 맞춤), 그날부터는 실제 TQQQ 로 이어 붙여
 완전한 TQQQ 시계열을 생성한다.
 
 핵심 흐름:
 1. QQQ 전체 기간 시뮬레이션 (softplus 동적 스프레드)
-2. 접합점(실제 TQQQ 첫 거래일)에서 가격 스케일링
-3. 합성 구간 + 실제 TQQQ 병합
-4. TQQQ_synthetic_max.csv 저장
+2. 실제 TQQQ 첫 거래일에서 이어 붙이기 (qbt.utils.proxy_series.splice_proxy)
+3. TQQQ_synthetic_max.csv 저장
 
 실행 명령어:
     poetry run python scripts/tqqq/generate_synthetic.py
@@ -17,12 +16,9 @@ QQQ 전체 기간을 SoftPlus 동적 스프레드 모델로 시뮬레이션하�
 
 import sys
 
-import pandas as pd
-
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    PRICE_COLUMNS,
     QQQ_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
 )
@@ -31,19 +27,20 @@ from qbt.tqqq.constants import (
     DEFAULT_LEVERAGE_MULTIPLIER,
     DEFAULT_SOFTPLUS_A,
     DEFAULT_SOFTPLUS_B,
-    DEFAULT_SYNTHETIC_INITIAL_PRICE,
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
     TQQQ_DATA_PATH,
 )
 from qbt.tqqq.data_loader import (
     build_extended_expense_dict,
-    load_expense_ratio_data,
-    load_ffr_data,
+    create_ffr_dict,
+    load_monthly_data,
 )
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
-from qbt.utils.data_loader import load_stock_data, validate_price_series
+from qbt.utils.data_loader import load_stock_data
+from qbt.utils.proxy_series import splice_proxy
+from qbt.utils.stock_downloader import save_stock_csv
 
 logger = get_logger(__name__)
 
@@ -58,16 +55,14 @@ def main() -> int:
     """
     logger.debug("합성+실제 TQQQ 병합 데이터 생성 시작")
     logger.debug(
-        f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, "
-        f"softplus(a={DEFAULT_SOFTPLUS_A}, b={DEFAULT_SOFTPLUS_B}), "
-        f"initial_price={DEFAULT_SYNTHETIC_INITIAL_PRICE}"
+        f"파라미터: multiplier={DEFAULT_LEVERAGE_MULTIPLIER}, softplus(a={DEFAULT_SOFTPLUS_A}, b={DEFAULT_SOFTPLUS_B})"
     )
 
     # 1. 데이터 로드: QQQ, TQQQ(실제), FFR, Expense Ratio
     qqq_df = load_stock_data(QQQ_DATA_PATH)
     tqqq_df = load_stock_data(TQQQ_DATA_PATH)
-    ffr_df = load_ffr_data(FFR_DATA_PATH)
-    expense_df = load_expense_ratio_data(EXPENSE_RATIO_DATA_PATH)
+    ffr_df = load_monthly_data(FFR_DATA_PATH)
+    expense_df = load_monthly_data(EXPENSE_RATIO_DATA_PATH)
 
     logger.debug(f"QQQ: {len(qqq_df):,}행 ({qqq_df[COL_DATE].min()} ~ {qqq_df[COL_DATE].max()})")
     logger.debug(f"TQQQ(실제): {len(tqqq_df):,}행 ({tqqq_df[COL_DATE].min()} ~ {tqqq_df[COL_DATE].max()})")
@@ -83,61 +78,27 @@ def main() -> int:
         f"({min(extended_expense_dict.keys())} ~ {max(extended_expense_dict.keys())})"
     )
 
-    # 4. simulate() 실행 (QQQ 전체 기간, softplus spread + 확장된 expense_dict)
+    # 4. simulate() 실행 (QQQ 전체 기간). 가격 수준은 이어 붙일 때 실제 TQQQ 첫 거래일 종가로 다시 맞추므로
+    # 시작 가격은 결과에 남지 않는다
     logger.debug("TQQQ 시뮬레이션 실행 중...")
     synthetic_df = simulate(
         underlying_df=qqq_df,
         leverage=DEFAULT_LEVERAGE_MULTIPLIER,
-        initial_price=DEFAULT_SYNTHETIC_INITIAL_PRICE,
-        ffr_df=ffr_df,
-        expense_df=expense_df,
+        initial_price=1.0,
+        ffr_dict=create_ffr_dict(ffr_df),
         expense_dict=extended_expense_dict,
         funding_spread=spread_map,
     )
     logger.debug(f"시뮬레이션 완료: {len(synthetic_df):,}행")
 
-    # 5. 접합점 계산
-    overlap_date = tqqq_df[COL_DATE].min()
-    logger.debug(f"접합점(실제 TQQQ 첫 거래일): {overlap_date}")
+    # 5. 실제 TQQQ 첫 거래일 앞은 합성, 그날부터는 실제 행 그대로
+    merged_df = splice_proxy(synthetic_df, tqqq_df)
+    logger.debug(f"병합 완료: {len(merged_df):,}행 (이어 붙인 날: 실제 TQQQ 첫 거래일 {tqqq_df[COL_DATE].iloc[0]})")
 
-    synthetic_overlap_rows = synthetic_df[synthetic_df[COL_DATE] == overlap_date]
-    actual_overlap_rows = tqqq_df[tqqq_df[COL_DATE] == overlap_date]
-    synthetic_at_overlap = float(synthetic_overlap_rows.iloc[0][COL_CLOSE])
-    actual_at_overlap = float(actual_overlap_rows.iloc[0][COL_CLOSE])
-    scale_factor = actual_at_overlap / synthetic_at_overlap
+    # 6. CSV 저장 — 다운로더의 급등락 검사는 쓰지 않는다(3배 합성은 하루 50% 를 넘는 날이 있다, 2001-01-03)
+    save_stock_csv(merged_df, TQQQ_SYNTHETIC_DATA_PATH, check_price_spikes=False)
 
-    logger.debug(f"시뮬레이션 접합점 종가: {synthetic_at_overlap:.6f}")
-    logger.debug(f"실제 TQQQ 접합점 종가: {actual_at_overlap:.6f}")
-    logger.debug(f"스케일 팩터: {scale_factor:.6f}")
-
-    # 6. 합성 구간 스케일링 (접합일 이전 구간)
-    synthetic_before = synthetic_df[synthetic_df[COL_DATE] < overlap_date].copy()
-    for col in PRICE_COLUMNS:
-        if col in synthetic_before.columns:
-            synthetic_before[col] = synthetic_before[col] * scale_factor
-
-    # 7. 병합: 스케일링된 합성(< overlap_date) + 실제 TQQQ(>= overlap_date)
-    actual_from_overlap = tqqq_df[tqqq_df[COL_DATE] >= overlap_date].copy()
-    frames: list[pd.DataFrame] = [synthetic_before, actual_from_overlap]
-    merged_df = pd.concat(frames, ignore_index=True)
-    merged_df = merged_df.sort_values(COL_DATE).reset_index(drop=True)
-
-    logger.debug(f"병합 완료: {len(merged_df):,}행 ({merged_df[COL_DATE].min()} ~ {merged_df[COL_DATE].max()})")
-    logger.debug(f"  합성 구간: {len(synthetic_before):,}행 (~ {overlap_date} 이전)")
-    logger.debug(f"  실제 구간: {len(actual_from_overlap):,}행 ({overlap_date} ~)")
-
-    # 8. CSV 저장 (가격 컬럼 소수점 6자리 라운딩)
-    TQQQ_SYNTHETIC_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    for col in PRICE_COLUMNS:
-        if col in merged_df.columns:
-            merged_df[col] = merged_df[col].round(6)
-
-    # 다운로더의 급등락 검사(validate_stock_data)는 쓰지 않는다 — 3배 합성은 하루 50% 를 넘는 날이 있다(2001-01-03)
-    validate_price_series(merged_df)
-    merged_df.to_csv(TQQQ_SYNTHETIC_DATA_PATH, index=False)
-    logger.debug(f"병합 데이터 저장 완료: {TQQQ_SYNTHETIC_DATA_PATH}")
-
-    # 9. 결과 요약 출력
+    # 7. 결과 요약 출력
     initial_close = float(merged_df.iloc[0][COL_CLOSE])
     final_close = float(merged_df.iloc[-1][COL_CLOSE])
     cumulative_return_pct = (final_close / initial_close - 1) * 100

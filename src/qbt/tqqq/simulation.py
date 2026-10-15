@@ -8,7 +8,7 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 import math
 from datetime import date
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Final, TypedDict
 
 # 2. 서드파티 라이브러리 임포트
 import numpy as np
@@ -22,14 +22,11 @@ from qbt.common_constants import (
     COL_OPEN,
     COL_VOLUME,
     DISPLAY_DATE,
-    EPSILON,
     REQUIRED_COLUMNS,
+    ROUND_PRICE,
     TRADING_DAYS_PER_YEAR,
 )
-from qbt.tqqq.analysis_helpers import (
-    calculate_signed_log_diff_from_cumulative_returns,
-    validate_integrity,
-)
+from qbt.tqqq.analysis_helpers import calculate_signed_log_diff_from_cumulative_returns
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
@@ -42,24 +39,16 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
-    INTEGRITY_TOLERANCE,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
     KEY_CUMULATIVE_RETURN_ACTUAL,
-    KEY_CUMULATIVE_RETURN_REL_DIFF,
     KEY_CUMULATIVE_RETURN_SIMULATED,
-    KEY_FINAL_CLOSE_ACTUAL,
-    KEY_FINAL_CLOSE_REL_DIFF,
-    KEY_FINAL_CLOSE_SIMULATED,
     KEY_OVERLAP_DAYS,
     KEY_OVERLAP_END,
     KEY_OVERLAP_START,
-    MAX_FFR_MONTHS_DIFF,
 )
 from qbt.tqqq.data_loader import (
-    create_expense_dict,
-    create_ffr_dict,
     lookup_expense,
     lookup_ffr,
     lookup_funding_spread,
@@ -68,6 +57,11 @@ from qbt.utils import get_logger
 from qbt.utils.data_loader import extract_overlap_period
 
 logger = get_logger(__name__)
+
+# 일별 비교의 % 열(일일 · 누적 수익률, 누적배수 로그차이) 자릿수 — 백분율 기본(ROUND_PERCENT)보다 깊다.
+# 스프레드 랩이 이 파일의 일일수익률로 일일 증분 오차를 다시 계산하는데, 2자리면 반올림이 그 오차와 같은 크기라
+# 월합의 부호까지 바뀐다
+ROUND_DAILY_COMPARISON_PERCENT: Final = 4
 
 
 class ValidationMetricsDict(TypedDict):
@@ -80,21 +74,11 @@ class ValidationMetricsDict(TypedDict):
     overlap_start: date
     overlap_end: date
     overlap_days: int
-    final_close_actual: float
-    final_close_simulated: float
-    final_close_rel_diff_pct: float
     cumulative_return_simulated: float
     cumulative_return_actual: float
-    cumulative_return_rel_diff_pct: float
     cumul_multiple_log_diff_mean_pct: float
     cumul_multiple_log_diff_rmse_pct: float
     cumul_multiple_log_diff_max_pct: float
-
-
-# 동적 funding_spread 지원 타입 정의
-# - float: 고정 spread
-# - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
-FundingSpreadSpec = float | dict[str, float]
 
 
 # ============================================================
@@ -220,13 +204,11 @@ def build_monthly_spread_map(
     return spread_map
 
 
-def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
+def _resolve_spread(d: date, spread_dict: dict[str, float]) -> float:
     """
-    특정 날짜의 funding_spread 값을 해석한다.
+    특정 날짜의 funding_spread 값을 월별 딕셔너리에서 조회하고 검증한다.
 
-    FundingSpreadSpec 타입에 따라 다르게 처리:
-    - float: 그대로 반환
-    - dict[str, float]: 월별 키 "YYYY-MM"으로 조회, 키 없으면 MAX_FFR_MONTHS_DIFF 이내 이전 월 fallback
+    키가 없으면 MAX_FFR_MONTHS_DIFF 이내 이전 월 값을 쓴다(lookup_funding_spread).
 
     제약 조건:
     - 반환 spread는 항상 > 0 (음수 불허, 0도 불허)
@@ -235,7 +217,7 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
 
     Args:
         d: 대상 날짜
-        spread_spec: funding_spread 스펙 (float 또는 dict)
+        spread_dict: 월별 spread 딕셔너리 ({"YYYY-MM": spread})
 
     Returns:
         해당 날짜의 spread 값 (> 0)
@@ -243,128 +225,43 @@ def _resolve_spread(d: date, spread_spec: FundingSpreadSpec) -> float:
     Raises:
         ValueError: 이전 월 없음, 월 차이 초과, NaN/inf 반환, spread <= 0 등
     """
-    spread: float
+    spread = lookup_funding_spread(d, spread_dict)
 
-    # 1. float 타입: 그대로 사용
-    if isinstance(spread_spec, float | int):
-        spread = float(spread_spec)
-
-    # 2. dict 타입: 월별 키 조회 (키 없으면 MAX_FFR_MONTHS_DIFF 이내 이전 월 fallback)
-    else:
-        spread = lookup_funding_spread(d, spread_spec)
-
-    # 3. 반환값 검증: NaN/inf 체크
     if math.isnan(spread):
         raise ValueError(f"funding_spread 반환값이 유효하지 않음: NaN (날짜: {d})\n" f"조치: spread dict 값 확인 필요")
 
     if math.isinf(spread):
         raise ValueError(f"funding_spread 반환값이 유효하지 않음: inf (날짜: {d})\n" f"조치: spread dict 값 확인 필요")
 
-    # 4. 반환값 검증: spread > 0 (음수, 0 불허)
     if spread <= 0:
         raise ValueError(f"funding_spread는 양수여야 합니다 (> 0): {spread} (날짜: {d})\n" f"조치: spread 값을 양수로 수정")
 
     return spread
 
 
-def _validate_ffr_coverage(
-    overlap_start: date,
-    overlap_end: date,
-    ffr_df: pd.DataFrame,
-) -> None:
-    """
-    overlap 기간에 필요한 FFR 데이터 커버리지를 사전 검증한다.
-
-    Args:
-        overlap_start: 겹치는 기간 시작일
-        overlap_end: 겹치는 기간 종료일
-        ffr_df: FFR DataFrame (DATE: str (yyyy-mm), FFR: float)
-
-    Raises:
-        ValueError: FFR 데이터 부족 시 (필요 월 범위 미커버 또는 월 차 정책 위반)
-    """
-    # 1. 필요한 월 범위 계산
-    start_year_month = f"{overlap_start.year:04d}-{overlap_start.month:02d}"
-    end_year_month = f"{overlap_end.year:04d}-{overlap_end.month:02d}"
-
-    # 2. FFR 데이터 존재 여부 확인
-    ffr_dates = set(ffr_df[COL_FFR_DATE])
-    if not ffr_dates:
-        raise ValueError(f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에 대한 " f"FFR 데이터가 전혀 존재하지 않습니다.")
-
-    # 3. FFR 데이터 범위 확인
-    ffr_start = min(ffr_dates)
-    ffr_end = max(ffr_dates)
-
-    # 4. overlap 기간의 모든 월 생성
-    required_months = set()
-    current = overlap_start
-    while current <= overlap_end:
-        month_str = f"{current.year:04d}-{current.month:02d}"
-        required_months.add(month_str)
-        # 다음 달로 이동
-        if current.month == 12:
-            current = current.replace(year=current.year + 1, month=1)
-        else:
-            current = current.replace(month=current.month + 1)
-
-    # 5. 필요한 월 중 FFR 데이터가 없는 월 찾기
-    missing_months = required_months - ffr_dates
-
-    # 6. 누락된 월이 있으면 가장 가까운 이전 월 찾기 및 월 차 검증
-    if missing_months:
-        for missing_month in sorted(missing_months):
-            # 이전 월 찾기
-            previous_dates = [d for d in ffr_dates if d < missing_month]
-            if not previous_dates:
-                raise ValueError(
-                    f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에서 {missing_month}의 "
-                    f"FFR 데이터가 없으며, 이전 데이터도 존재하지 않습니다. "
-                    f"FFR 데이터 범위: {ffr_start}~{ffr_end}"
-                )
-
-            closest_date_str = max(previous_dates)
-            # 월 차이 계산
-            missing_year, missing_month_num = map(int, missing_month.split("-"))
-            closest_year, closest_month_num = map(int, closest_date_str.split("-"))
-            total_months = (missing_year - closest_year) * 12 + (missing_month_num - closest_month_num)
-
-            if total_months > MAX_FFR_MONTHS_DIFF:
-                raise ValueError(
-                    f"FFR 데이터 부족: 필요 기간 {start_year_month}~{end_year_month}에서 {missing_month}의 "
-                    f"FFR 데이터가 없으며, 가장 가까운 이전 데이터는 {closest_date_str} ({total_months}개월 전)입니다. "
-                    f"최대 {MAX_FFR_MONTHS_DIFF}개월 이내의 데이터만 사용 가능합니다. "
-                    f"FFR 데이터 범위: {ffr_start}~{ffr_end}"
-                )
-
-
 def _calculate_daily_cost(
     date_value: date,
     ffr_dict: dict[str, float],
     expense_dict: dict[str, float],
-    funding_spread: FundingSpreadSpec,
+    funding_spread: dict[str, float],
     leverage: float,
 ) -> float:
     """
     특정 날짜의 일일 비용률을 계산한다.
 
-    FFR 및 Expense 데이터 커버리지는 호출 측에서 사전 검증되어야 한다.
-
     Args:
         date_value: 계산 대상 날짜
         ffr_dict: 연방기금금리 딕셔너리 ({"YYYY-MM": ffr_value})
         expense_dict: 운용비용 딕셔너리 ({"YYYY-MM": expense_value}, 0~1 비율)
-        funding_spread: FFR에 더해지는 스프레드
-            - float: 고정 spread (예: 0.006 = 0.6%)
-            - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
+        funding_spread: FFR에 더해지는 월별 스프레드 ({"YYYY-MM": spread})
         leverage: 레버리지 배율 (예: 3.0 = 3배 레버리지)
 
     Returns:
         일일 비용률 (소수, 예: 0.0001905 = 0.01905%)
 
     Raises:
-        ValueError: FFR 또는 Expense 데이터가 존재하지 않을 때
-        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0, 키 누락 등)
+        ValueError: FFR · Expense · funding_spread 의 그 달 값이 없고 허용 개월 수 안의 이전 달 값도 없을 때
+        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0)
     """
     # 1. 해당 월의 FFR 조회 (딕셔너리 O(1) 조회)
     ffr = lookup_ffr(date_value, ffr_dict)
@@ -400,13 +297,11 @@ def _calculate_daily_cost(
 def simulate(
     underlying_df: pd.DataFrame,
     leverage: float,
-    expense_df: pd.DataFrame,
     initial_price: float,
     *,
-    ffr_df: pd.DataFrame | None = None,
-    funding_spread: FundingSpreadSpec,
-    ffr_dict: dict[str, float] | None = None,
-    expense_dict: dict[str, float] | None = None,
+    ffr_dict: dict[str, float],
+    expense_dict: dict[str, float],
+    funding_spread: dict[str, float],
 ) -> pd.DataFrame:
     """
     기초 자산 데이터로부터 레버리지 ETF를 시뮬레이션한다.
@@ -415,19 +310,16 @@ def simulate(
     레버리지 배수만큼 움직이도록 계산한다. 스왑비용은 연방기금금리와
     스프레드를 기반으로 동적으로 계산하며, 운용비용은 월별 데이터를 사용한다.
 
-    FFR 및 Expense 데이터 커버리지는 함수 내부에서 자동 검증된다.
+    월별 값은 둘째 거래일부터 날마다 조회한다 — 그 달 값이 없으면 허용 개월 수 안의 이전 달 값을 쓰고,
+    없으면 ValueError 다(data_loader 의 lookup_*). 첫 거래일은 비용을 계산하지 않는다.
 
     Args:
-        underlying_df: 기초 자산 DataFrame (Date, Close 컬럼 필수)
+        underlying_df: 기초 자산 DataFrame (Date, Open, Close 컬럼 필수)
         leverage: 레버리지 배수 (예: 3.0)
-        expense_df: 운용비용 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
-        initial_price: 시작 가격
-        ffr_df: 연방기금금리 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율)), ffr_dict와 배타적
-        funding_spread: FFR에 더해지는 스프레드
-            - float: 고정 spread (예: 0.006 = 0.6%)
-            - dict[str, float]: 월별 spread ({"YYYY-MM": spread})
-        ffr_dict: 이미 검증된 FFR 딕셔너리 (내부 사용), ffr_df와 배타적
-        expense_dict: 이미 검증된 Expense 딕셔너리 (내부 사용)
+        initial_price: 첫 거래일의 시가 · 종가
+        ffr_dict: 월별 연방기금금리 ({"YYYY-MM": 0~1 비율}, create_ffr_dict)
+        expense_dict: 월별 운용비율 ({"YYYY-MM": 0~1 비율}, create_expense_dict · build_extended_expense_dict)
+        funding_spread: FFR에 더해지는 월별 스프레드 ({"YYYY-MM": spread}, build_monthly_spread_map)
 
     Returns:
         시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
@@ -435,9 +327,8 @@ def simulate(
     Raises:
         ValueError: 파라미터가 유효하지 않을 때
         ValueError: 필수 컬럼이 누락되었을 때
-        ValueError: FFR 또는 Expense 데이터 커버리지가 부족할 때
-        ValueError: ffr_df와 ffr_dict 모두 제공되거나 모두 누락된 경우
-        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0, 키 누락 등)
+        ValueError: 월별 값(FFR · 운용비율 · funding_spread)이 그 날짜를 덮지 못할 때
+        ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0)
     """
     # 1. 파라미터 검증
     if leverage <= 0:
@@ -445,10 +336,6 @@ def simulate(
 
     if initial_price <= 0:
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
-
-    # ffr_df와 ffr_dict 중 정확히 하나만 제공되어야 함
-    if (ffr_df is None) == (ffr_dict is None):
-        raise ValueError("ffr_df 또는 ffr_dict 중 정확히 하나만 제공해야 합니다")
 
     # 2. 필수 컬럼 검증
     required_cols = {COL_DATE, COL_OPEN, COL_CLOSE}
@@ -459,35 +346,13 @@ def simulate(
     if underlying_df.empty:
         raise ValueError("underlying_df가 비어있습니다")
 
-    if expense_df.empty:
-        raise ValueError("expense_df가 비어있습니다")
-
-    # 3. FFR 처리
-    if ffr_df is not None:
-        # ffr_df 제공 시: 검증 + 변환
-        start_date = underlying_df[COL_DATE].min()
-        end_date = underlying_df[COL_DATE].max()
-        _validate_ffr_coverage(start_date, end_date, ffr_df)
-        ffr_dict_to_use: dict[str, float] = create_ffr_dict(ffr_df)
-    else:
-        # ffr_dict 직접 제공 시: 이미 검증된 것으로 간주
-        ffr_dict_to_use = cast(dict[str, float], ffr_dict)
-
-    # 4. Expense 처리
-    if expense_dict is None:
-        # expense_df 제공 시: 변환
-        expense_dict_to_use: dict[str, float] = create_expense_dict(expense_df)
-    else:
-        # expense_dict 직접 제공 시: 이미 검증된 것으로 간주
-        expense_dict_to_use = expense_dict
-
-    # 5. 데이터 복사 (원본 보존)
+    # 3. 데이터 복사 (원본 보존)
     df = underlying_df[[COL_DATE, COL_OPEN, COL_CLOSE]].copy()
 
-    # 6. 일일 수익률 계산
+    # 4. 일일 수익률 계산
     df["underlying_return"] = df[COL_CLOSE].pct_change()
 
-    # 7. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
+    # 5. 레버리지 ETF 가격 계산 (복리, 동적 비용 반영)
     leveraged_prices = [initial_price]
 
     for i in range(1, len(df)):
@@ -499,9 +364,7 @@ def simulate(
         else:
             # 동적 비용 계산
             current_date = df.iloc[i][COL_DATE]
-            daily_cost = _calculate_daily_cost(
-                current_date, ffr_dict_to_use, expense_dict_to_use, funding_spread, leverage
-            )
+            daily_cost = _calculate_daily_cost(current_date, ffr_dict, expense_dict, funding_spread, leverage)
 
             # 레버리지 수익률 = 기초 자산 수익률 × 배율 - 일일 비용
             # 예: 기초 자산 +1%, 3배 레버리지 -> +3% - 비용
@@ -511,19 +374,20 @@ def simulate(
             new_price = leveraged_prices[-1] * (1 + leveraged_return)
             leveraged_prices.append(new_price)
 
-    # 8. 기초 자산 Close 보존 (오버나이트 수익률 계산에 필요)
+    # 6. 기초 자산 Close 보존 (오버나이트 수익률 계산에 필요)
     underlying_close_series = df[COL_CLOSE].copy()
 
     # 계산된 가격 리스트를 DataFrame 컬럼에 할당
     df[COL_CLOSE] = leveraged_prices
 
-    # 9. OHLV 데이터 구성
+    # 7. OHLV 데이터 구성
     # Open: 기초 자산의 오버나이트 갭을 레버리지 배율로 반영
     # 수식: TQQQ_Open(t) = TQQQ_Close(t-1) × (1 + (QQQ_Open(t)/QQQ_Close(t-1) - 1) × leverage)
     underlying_overnight_return = df[COL_OPEN] / underlying_close_series.shift(1) - 1
     leveraged_open = df[COL_CLOSE].shift(1) * (1 + underlying_overnight_return * leverage)
-    # 첫날은 initial_price (shift(1)로 NaN 발생 → fillna)
-    df[COL_OPEN] = leveraged_open.fillna(initial_price)
+    # 첫날은 전날 종가가 없어 시작 가격으로 둔다 — 다른 날의 결측은 메우지 않는다
+    leveraged_open.iloc[0] = initial_price
+    df[COL_OPEN] = leveraged_open
 
     # High, Low: 합성 데이터이므로 Open/Close 기반 근사값 사용
     df[COL_HIGH] = df[[COL_OPEN, COL_CLOSE]].max(axis=1)
@@ -531,168 +395,56 @@ def simulate(
     # Volume: 합성 데이터이므로 0
     df[COL_VOLUME] = 0
 
-    # 10. 불필요한 컬럼 제거 및 순서 정렬
+    # 8. 불필요한 컬럼 제거 및 순서 정렬
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
 
 
-def _calculate_cumul_multiple_log_diff(
-    actual_prices: pd.Series,
-    simulated_prices: pd.Series,
-) -> pd.Series:
-    """
-    누적배수 기반 로그차이(abs)를 계산한다.
-
-    스케일 무관성을 가진 추적오차 크기 지표로, 첫날 기준 누적 자산배수의
-    로그 비율의 절댓값을 측정한다. signed 버전은
-    `analysis_helpers.calculate_signed_log_diff_from_cumulative_returns` 참고.
-
-    계산 방식:
-      - M_actual(t) = actual_close(t) / actual_close(0)  (누적 자산배수)
-      - M_sim(t) = simul_close(t) / simul_close(0)
-      - abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100
-
-    비고:
-      - 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
-      - 부호 의미가 필요한 경우 signed 버전을 사용해야 한다.
-
-    특징:
-      - 스케일 무관: 실제 10 vs 시뮬 9 = 실제 1000 vs 시뮬 900 (동일한 비율)
-      - 안정성: 특정 기준일 의존 없음 (롤링 윈도우 미사용)
-      - 금융 표준: 연속 복리 수익률 차이와 동일한 개념
-
-    Args:
-        actual_prices: 실제 TQQQ 종가 시계열
-        simulated_prices: 시뮬레이션 TQQQ 종가 시계열
-
-    Returns:
-        누적배수 로그차이 시계열 (단위: %)
-
-    Raises:
-        ValueError: 입력 시계열 길이가 다를 때, 또는 m_actual <= 0 / m_simul <= 0인 경우
-            (자산 가치가 0 이하로 떨어졌다는 뜻이며 로그 정의역 밖)
-    """
-    if len(actual_prices) != len(simulated_prices):
-        raise ValueError(f"가격 시계열 길이가 일치하지 않습니다: actual={len(actual_prices)}, simulated={len(simulated_prices)}")
-
-    # 첫날 기준 누적배수 계산
-    initial_actual = float(actual_prices.iloc[0])
-    initial_simul = float(simulated_prices.iloc[0])
-
-    if initial_actual <= 0 or initial_simul <= 0:
-        raise ValueError(
-            f"M_actual 또는 M_sim 초기값 <= 0 (로그 계산 불가): " f"initial_actual={initial_actual}, initial_simul={initial_simul}"
-        )
-
-    m_actual = actual_prices / initial_actual
-    m_simul = simulated_prices / initial_simul
-
-    # M <= 0 사전 검증 (analysis_helpers의 signed 버전과 일관된 fail-fast 정책)
-    invalid_actual = m_actual <= 0
-    invalid_simul = m_simul <= 0
-
-    if invalid_actual.any():
-        num_invalid = int(invalid_actual.sum())
-        invalid_indices = m_actual[invalid_actual].index.tolist()
-        raise ValueError(
-            f"M_actual <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: actual_prices에 0 이하 값 존재 (자산 가치 0 이하)\n"
-            f"조치: 입력 데이터 정합성 확인 필요"
-        )
-
-    if invalid_simul.any():
-        num_invalid = int(invalid_simul.sum())
-        invalid_indices = m_simul[invalid_simul].index.tolist()
-        raise ValueError(
-            f"M_sim <= 0 발견 (로그 계산 불가): {num_invalid}행\n"
-            f"문제 인덱스: {invalid_indices[:5]}{'...' if num_invalid > 5 else ''}\n"
-            f"원인: simulated_prices에 0 이하 값 존재 (시뮬레이션 자산 가치 0 이하)\n"
-            f"조치: 시뮬레이션 로직 또는 입력 데이터 확인 필요"
-        )
-
-    # 로그 비율의 절대값 (%) - 사전 검증 통과 후에는 EPSILON clip 불필요
-    ratio = m_actual / m_simul
-    log_diff_pct = pd.Series(np.abs(np.log(ratio)) * 100.0, index=actual_prices.index)
-
-    return log_diff_pct
-
-
 def _save_daily_comparison_csv(
     sim_overlap: pd.DataFrame,
     actual_overlap: pd.DataFrame,
-    cumul_multiple_log_diff_series: pd.Series,
-    signed_log_diff_series: pd.Series,
+    actual_cumulative_pct: pd.Series,
+    sim_cumulative_pct: pd.Series,
+    signed_log_diff: pd.Series,
     output_path: Path,
-    integrity_tolerance: float | None = None,
 ) -> None:
     """
     일별 비교 CSV를 저장한다.
 
-    calculate_validation_metrics()의 헬퍼 함수.
-    누적배수 로그차이(abs, signed)는 이미 계산된 값을 받아서 사용한다.
+    calculate_validation_metrics()의 헬퍼 함수. 누적수익률(%)과 누적배수 로그차이(signed)는
+    이미 계산된 값을 받는다. abs 로그차이는 signed 의 절댓값이다 — 같은 누적배수 정의다.
 
     Args:
         sim_overlap: 겹치는 기간의 시뮬레이션 DataFrame
         actual_overlap: 겹치는 기간의 실제 DataFrame
-        cumul_multiple_log_diff_series: 누적배수 로그차이 abs 시계열 (이미 계산됨)
-        signed_log_diff_series: 누적배수 로그차이 signed 시계열 (이미 계산됨)
+        actual_cumulative_pct: 실제 누적수익률 (%)
+        sim_cumulative_pct: 시뮬레이션 누적수익률 (%)
+        signed_log_diff: 누적배수 로그차이 signed (%)
         output_path: CSV 저장 경로
-        integrity_tolerance: 무결성 체크 허용 오차 (%, None이면 기본값 사용)
     """
-    # 1. 기본 데이터 준비
-    comparison_data = {
-        DISPLAY_DATE: actual_overlap[COL_DATE],
-        COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
-        COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
-    }
-
-    # 2. 일일 수익률 계산 (%)
     actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
     sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
 
-    comparison_data[COL_ACTUAL_DAILY_RETURN] = actual_returns
-    comparison_data[COL_SIMUL_DAILY_RETURN] = sim_returns
-    comparison_data[COL_DAILY_RETURN_ABS_DIFF] = (actual_returns - sim_returns).abs()
-
-    # 3. 누적수익률 (%)
-    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
-    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
-
-    actual_cumulative = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100
-    sim_cumulative = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100
-
-    comparison_data[COL_ACTUAL_CUMUL_RETURN] = actual_cumulative
-    comparison_data[COL_SIMUL_CUMUL_RETURN] = sim_cumulative
-
-    # 4. 누적배수 로그차이 abs (기존과 동일, 컬럼명만 변경)
-    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS] = cumul_multiple_log_diff_series
-
-    # 5. 누적배수 로그차이 signed (전달받은 값 사용)
-    comparison_data[COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED] = signed_log_diff_series
-
-    # 6. 무결성 체크: abs(signed) vs abs
-    # tolerance 확정값 사용 (실제 데이터 관측 기반)
-    # 테스트에서는 integrity_tolerance 파라미터로 조정 가능
-    if integrity_tolerance is None:
-        integrity_tolerance = INTEGRITY_TOLERANCE
-
-    validate_integrity(
-        signed_series=signed_log_diff_series,
-        abs_series=cumul_multiple_log_diff_series,
-        tolerance=integrity_tolerance,
+    comparison_df = pd.DataFrame(
+        {
+            DISPLAY_DATE: actual_overlap[COL_DATE],
+            COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
+            COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
+            COL_ACTUAL_DAILY_RETURN: actual_returns,
+            COL_SIMUL_DAILY_RETURN: sim_returns,
+            COL_DAILY_RETURN_ABS_DIFF: (actual_returns - sim_returns).abs(),
+            COL_ACTUAL_CUMUL_RETURN: actual_cumulative_pct,
+            COL_SIMUL_CUMUL_RETURN: sim_cumulative_pct,
+            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: signed_log_diff.abs(),
+            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: signed_log_diff,
+        }
     )
-    # 무결성 체크 통과 (ValueError 발생하지 않으면 정상)
 
-    # 7. DataFrame 생성 및 반올림
-    comparison_df = pd.DataFrame(comparison_data)
-
-    num_cols = [c for c in comparison_df.columns if c != DISPLAY_DATE]
-    comparison_df[num_cols] = comparison_df[num_cols].round(4)
-
-    # 8. CSV 저장
-    comparison_df.to_csv(output_path, index=False, encoding="utf-8")
+    digits = {col: ROUND_DAILY_COMPARISON_PERCENT for col in comparison_df.columns if col != DISPLAY_DATE}
+    digits[COL_ACTUAL_CLOSE] = ROUND_PRICE
+    digits[COL_SIMUL_CLOSE] = ROUND_PRICE
+    comparison_df.round(digits).to_csv(output_path, index=False, encoding="utf-8")
 
 
 def calculate_validation_metrics(
@@ -703,7 +455,7 @@ def calculate_validation_metrics(
     """
     시뮬레이션 검증 지표를 계산하고, 선택적으로 일별 비교 CSV를 생성한다.
 
-    누적배수 로그차이를 한 번만 계산하고 검증 지표와 CSV 생성에 활용한다.
+    누적수익률과 누적배수 로그차이를 한 번만 계산하고 검증 지표와 CSV 생성에 활용한다.
 
     Args:
         simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
@@ -711,102 +463,47 @@ def calculate_validation_metrics(
         output_path: CSV 저장 경로 (None이면 저장 안 함)
 
     Returns:
-        검증 결과 딕셔너리 (ValidationMetricsDict): {
-            'overlap_start': date,
-            'overlap_end': date,
-            'overlap_days': int,
-            'final_close_actual': float,
-            'final_close_simulated': float,
-            'final_close_rel_diff_pct': float,
-            'cumulative_return_simulated': float,
-            'cumulative_return_actual': float,
-            'cumulative_return_rel_diff_pct': float,
-            'cumul_multiple_log_diff_mean_pct': float,
-            'cumul_multiple_log_diff_rmse_pct': float,
-            'cumul_multiple_log_diff_max_pct': float,
-        }
+        검증 결과 딕셔너리 (ValidationMetricsDict). 누적수익률은 비율, 로그차이 지표는 % 다
 
     Raises:
-        ValueError: 겹치는 기간이 없을 때
+        ValueError: 겹치는 기간이 없을 때, 누적배수가 0 이하일 때 (로그 계산 불가)
     """
     # 1. 겹치는 기간 추출
     sim_overlap, actual_overlap = extract_overlap_period(simulated_df, actual_df)
 
-    # 2. 일일 수익률 계산 (검증 지표용)
-    sim_returns = sim_overlap[COL_CLOSE].pct_change().dropna()
-    actual_returns = actual_overlap[COL_CLOSE].pct_change().dropna()
+    # 2. 첫날 종가 기준 누적수익률 (%)
+    actual_cumulative_pct = (actual_overlap[COL_CLOSE] / float(actual_overlap.iloc[0][COL_CLOSE]) - 1) * 100
+    sim_cumulative_pct = (sim_overlap[COL_CLOSE] / float(sim_overlap.iloc[0][COL_CLOSE]) - 1) * 100
 
-    # 3. 누적 수익률 (전통적 방식)
-    sim_prod = (1 + sim_returns).prod()
-    actual_prod = (1 + actual_returns).prod()
-    # Scalar 타입을 Python float로 안전하게 변환 (타입 캐스팅)
-    sim_cumulative = cast(float, sim_prod) - 1.0
-    actual_cumulative = cast(float, actual_prod) - 1.0
-
-    # 4. 누적배수 로그차이 abs 계산
-    cumul_multiple_log_diff_series = _calculate_cumul_multiple_log_diff(
-        actual_overlap[COL_CLOSE],
-        sim_overlap[COL_CLOSE],
+    # 3. 누적배수 로그차이 — 지표는 크기(abs)로 잰다
+    signed_log_diff = calculate_signed_log_diff_from_cumulative_returns(
+        cumul_return_real_pct=actual_cumulative_pct,
+        cumul_return_sim_pct=sim_cumulative_pct,
     )
+    abs_log_diff = signed_log_diff.abs()
 
-    # 5. 누적배수 로그차이 signed 계산
-    # 초기 가격 기준 누적수익률 (시계열)
-    initial_actual = float(actual_overlap.iloc[0][COL_CLOSE])
-    initial_sim = float(sim_overlap.iloc[0][COL_CLOSE])
-    actual_cumulative_series = (actual_overlap[COL_CLOSE] / initial_actual - 1) * 100
-    sim_cumulative_series = (sim_overlap[COL_CLOSE] / initial_sim - 1) * 100
-
-    # signed 로그차이 계산
-    signed_log_diff_series = calculate_signed_log_diff_from_cumulative_returns(
-        cumul_return_real_pct=actual_cumulative_series,
-        cumul_return_sim_pct=sim_cumulative_series,
-    )
-
-    # 6. 검증 지표 계산
-    cumul_multiple_log_diff_mean = float(cumul_multiple_log_diff_series.mean())
-    cumul_multiple_log_diff_rmse = float(np.sqrt((cumul_multiple_log_diff_series**2).mean()))
-    cumul_multiple_log_diff_max = float(cumul_multiple_log_diff_series.max())
-
-    # 7. 일별 비교 CSV 생성 (요청 시에만)
+    # 4. 일별 비교 CSV 생성 (요청 시에만)
     if output_path is not None:
         _save_daily_comparison_csv(
             sim_overlap,
             actual_overlap,
-            cumul_multiple_log_diff_series,
-            signed_log_diff_series,
+            actual_cumulative_pct,
+            sim_cumulative_pct,
+            signed_log_diff,
             output_path,
         )
 
-    # 8. 누적수익률 상대차이 계산 (마지막 날 기준, 실제 기준 퍼센트)
-    if abs(actual_cumulative) < EPSILON:
-        raise ValueError(f"actual_cumulative가 0이므로 상대차이 계산 불가 (actual_cumulative={actual_cumulative})")
-    cumulative_return_rel_diff_pct = ((sim_cumulative - actual_cumulative) / actual_cumulative) * 100
-
-    # 9. 마지막 날 종가 추출
-    final_close_actual = float(actual_overlap.iloc[-1][COL_CLOSE])
-    final_close_simulated = float(sim_overlap.iloc[-1][COL_CLOSE])
-
-    # 10. 종가 상대차이 계산 (실제 기준 퍼센트)
-    if abs(final_close_actual) < EPSILON:
-        raise ValueError(f"final_close_actual이 0이므로 상대차이 계산 불가 (final_close_actual={final_close_actual})")
-    final_close_rel_diff_pct = ((final_close_simulated - final_close_actual) / final_close_actual) * 100
-
-    # 11. 검증 결과 반환
+    # 5. 검증 결과 반환
     return {
         # 기간 정보
         KEY_OVERLAP_START: sim_overlap[COL_DATE].iloc[0],
         KEY_OVERLAP_END: sim_overlap[COL_DATE].iloc[-1],
         KEY_OVERLAP_DAYS: len(sim_overlap),
-        # 종가 정보
-        KEY_FINAL_CLOSE_ACTUAL: final_close_actual,
-        KEY_FINAL_CLOSE_SIMULATED: final_close_simulated,
-        KEY_FINAL_CLOSE_REL_DIFF: final_close_rel_diff_pct,
-        # 누적 수익률
-        KEY_CUMULATIVE_RETURN_SIMULATED: sim_cumulative,
-        KEY_CUMULATIVE_RETURN_ACTUAL: actual_cumulative,
-        KEY_CUMULATIVE_RETURN_REL_DIFF: cumulative_return_rel_diff_pct,
+        # 누적 수익률 (비율)
+        KEY_CUMULATIVE_RETURN_SIMULATED: float(sim_cumulative_pct.iloc[-1]) / 100,
+        KEY_CUMULATIVE_RETURN_ACTUAL: float(actual_cumulative_pct.iloc[-1]) / 100,
         # 누적배수 로그차이 기반 정확도 지표
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: cumul_multiple_log_diff_mean,
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: cumul_multiple_log_diff_rmse,
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: cumul_multiple_log_diff_max,
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: float(abs_log_diff.mean()),
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: float(np.sqrt((abs_log_diff**2).mean())),
+        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: float(abs_log_diff.max()),
     }

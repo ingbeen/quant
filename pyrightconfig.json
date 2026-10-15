@@ -1,7 +1,7 @@
 {
   "pythonVersion": "3.12",
   "typeCheckingMode": "strict",
-  "include": ["src", "tests", "scripts"],
+  "include": ["src", "tests", "scripts", "docs/research"],
   "exclude": ["storage", "**/__pycache__", "**/.ruff_cache", "**/node_modules", "**/.*"],
   "extraPaths": ["src", "vendor/streamlit-lightweight-charts-v5"],
   "reportMissingTypeStubs": "none",

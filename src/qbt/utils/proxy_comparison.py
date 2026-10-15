@@ -13,7 +13,7 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
+from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, ROUND_PERCENT, ROUND_RATIO, TRADING_DAYS_PER_YEAR
 from qbt.utils.proxy_series import require_strictly_increasing_dates
 
 COL_PROXY: Final = "proxy"
@@ -311,6 +311,15 @@ def pair_summary_record(summary: PairSummary) -> dict[str, object]:
         DISPLAY_ROLLING_MIN: summary.rolling_corr_min,
         DISPLAY_ROLLING_MIN_DATE: summary.rolling_corr_min_date,
     }
+
+
+def round_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """결과 표의 비율 열은 ROUND_RATIO, % 열은 ROUND_PERCENT 자리로 반올림한다. 표에 없는 열은 건너뛴다
+    (전체 표와 기간별 표의 열이 다르다)."""
+    digits = {col: ROUND_RATIO for col in RATIO_DISPLAY_COLUMNS} | {
+        col: ROUND_PERCENT for col in PERCENT_DISPLAY_COLUMNS
+    }
+    return df.round({col: digit for col, digit in digits.items() if col in df.columns})
 
 
 def period_summary_records(summaries: Sequence[PeriodSummary]) -> list[dict[str, object]]:

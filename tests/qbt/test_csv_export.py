@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from qbt.backtest.constants import ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
 from qbt.backtest.csv_export import (
     BUFFER_BAND_COLUMNS,
     OHLC_CHANGE_PCT_COLUMNS,
@@ -26,6 +25,7 @@ from qbt.backtest.csv_export import (
     add_ohlc_change_pct,
     prepare_trades_for_csv,
 )
+from qbt.common_constants import ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
 
 
 class TestPrepareTradeCsv:

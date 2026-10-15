@@ -38,7 +38,6 @@ from qbt.backtest.combo_experiment import (
     collect_combo_judgments,
     run_combo_case,
 )
-from qbt.backtest.constants import ROUND_PERCENT, ROUND_RATIO
 from qbt.backtest.portfolio_configs import get_portfolio_config
 from qbt.backtest.supplement_experiment import (
     ALL_PHASE_WINDOWS,
@@ -48,7 +47,7 @@ from qbt.backtest.supplement_experiment import (
     CANDIDATE_ROTATION,
     COMBO_PCTS,
 )
-from qbt.common_constants import PORTFOLIO_COMBO_GRID_RESULTS_DIR
+from qbt.common_constants import PORTFOLIO_COMBO_GRID_RESULTS_DIR, ROUND_PERCENT, ROUND_RATIO
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.formatting import Align, TableLogger

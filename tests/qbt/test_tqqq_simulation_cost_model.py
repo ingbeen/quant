@@ -1,6 +1,6 @@
 """TQQQ 시뮬레이션 비용 모델 테스트
 
-일일 비용 계산, FFR 커버리지 검증, 동적 비용 계산, softplus 함수, 동적 펀딩 스프레드를 검증한다.
+일일 비용 계산, 동적 비용 계산, softplus 함수, 월별 펀딩 스프레드를 검증한다.
 """
 
 import math
@@ -16,7 +16,6 @@ from qbt.tqqq.simulation import (
     _calculate_daily_cost,
     _compute_softplus_spread,
     _softplus,
-    _validate_ffr_coverage,
     build_monthly_spread_map,
 )
 
@@ -51,7 +50,7 @@ class TestCalculateDailyCost:
         expense_dict = create_expense_dict(expense_df)
 
         target_date = date(2023, 1, 15)
-        funding_spread = 0.006  # 0.6%
+        funding_spread = {"2023-01": 0.006}  # 0.6%
 
         # When
         leverage = 3.0  # 기본 3배 레버리지
@@ -95,7 +94,7 @@ class TestCalculateDailyCost:
             date_value=target_date,
             ffr_dict=ffr_dict,
             expense_dict=expense_dict,
-            funding_spread=0.006,
+            funding_spread={"2023-01": 0.006},
             leverage=leverage,
         )
 
@@ -125,7 +124,7 @@ class TestCalculateDailyCost:
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
-                funding_spread=0.006,
+                funding_spread={"2023-01": 0.006},
                 leverage=leverage,
             )
 
@@ -169,7 +168,7 @@ class TestCalculateDailyCost:
         expense_dict = create_expense_dict(expense_df)
 
         target_date = date(2023, 1, 15)
-        funding_spread = 0.006
+        funding_spread = {"2023-01": 0.006}
 
         # When
         daily_cost = _calculate_daily_cost(
@@ -189,138 +188,6 @@ class TestCalculateDailyCost:
         assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-6), (
             f"leverage={leverage}일 때 비용 계산: " f"기대={expected_daily_cost:.6f}, 실제={daily_cost:.6f}"
         )
-
-
-class TestValidateFfrCoverage:
-    """FFR 커버리지 검증 테스트"""
-
-    def test_full_coverage_passes(self):
-        """
-        FFR 데이터가 모든 필요 월을 커버하면 통과
-
-        Given: 2023-01부터 2023-12까지 모든 월의 FFR 데이터
-        When: 2023-03-15 ~ 2023-09-20 기간 검증
-        Then: 예외 없이 통과
-        """
-        # Given
-        ffr_df = pd.DataFrame(
-            {
-                "DATE": [f"2023-{m:02d}" for m in range(1, 13)],
-                "FFR": [4.5 + m * 0.1 for m in range(1, 13)],
-            }
-        )
-        overlap_start = date(2023, 3, 15)
-        overlap_end = date(2023, 9, 20)
-
-        # When & Then: 예외 없이 통과
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-    def test_missing_month_within_2_months_passes(self):
-        """
-        필요 월이 누락되었지만 2개월 이내 이전 데이터가 있으면 통과
-
-        Given: 2023-01, 02, 03, 06, 07 FFR 데이터 (04, 05 누락)
-        When: 2023-04-10 ~ 2023-05-20 기간 검증
-        Then: 2개월 이내이므로 통과
-        """
-        # Given
-        ffr_df = pd.DataFrame(
-            {
-                "DATE": ["2023-01", "2023-02", "2023-03", "2023-06", "2023-07"],
-                "VALUE": [0.045, 0.046, 0.047, 0.05, 0.051],
-            }
-        )
-        overlap_start = date(2023, 4, 10)
-        overlap_end = date(2023, 5, 20)
-
-        # When & Then: 예외 없이 통과 (2023-03이 1~2개월 전)
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-    def test_missing_month_exceeds_2_months_raises(self):
-        """
-        필요 월이 누락되고 2개월 초과 이전 데이터만 있으면 실패
-
-        Given: 2023-01, 02, 06 FFR 데이터 (03, 04, 05 누락)
-        When: 2023-05-10 ~ 2023-05-20 기간 검증
-        Then: ValueError (2023-02와 2023-05는 3개월 차이)
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01", "2023-02", "2023-06"], COL_FFR_VALUE: [0.045, 0.046, 0.05]})
-        overlap_start = date(2023, 5, 10)
-        overlap_end = date(2023, 5, 20)
-
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-        error_msg = str(exc_info.value)
-        assert "2023-05" in error_msg
-        assert "2023-02" in error_msg
-        assert "3개월" in error_msg
-        assert "최대 2개월" in error_msg
-
-    def test_no_previous_data_raises(self):
-        """
-        필요 월에 이전 데이터가 전혀 없으면 실패
-
-        Given: 2023-06, 07 FFR 데이터만 존재
-        When: 2023-03-10 ~ 2023-04-20 기간 검증
-        Then: ValueError (이전 데이터 없음)
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-06", "2023-07"], COL_FFR_VALUE: [0.05, 0.051]})
-        overlap_start = date(2023, 3, 10)
-        overlap_end = date(2023, 4, 20)
-
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-        error_msg = str(exc_info.value)
-        assert "2023-03" in error_msg
-        assert "이전 데이터도 존재하지 않습니다" in error_msg
-
-    def test_single_day_period(self):
-        """
-        시작일과 종료일이 같은 경우 (단일 월)
-
-        Given: 2023-01부터 2023-12까지 FFR 데이터
-        When: 2023-05-15 ~ 2023-05-15 기간 검증
-        Then: 예외 없이 통과
-        """
-        # Given
-        ffr_df = pd.DataFrame(
-            {
-                "DATE": [f"2023-{m:02d}" for m in range(1, 13)],
-                "FFR": [4.5 + m * 0.1 for m in range(1, 13)],
-            }
-        )
-        overlap_start = date(2023, 5, 15)
-        overlap_end = date(2023, 5, 15)
-
-        # When & Then
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
-
-    def test_year_boundary_crossing(self):
-        """
-        연도 경계를 넘는 기간 검증
-
-        Given: 2023-11, 12, 2024-01, 02 FFR 데이터
-        When: 2023-11-20 ~ 2024-02-10 기간 검증
-        Then: 예외 없이 통과
-        """
-        # Given
-        ffr_df = pd.DataFrame(
-            {
-                "DATE": ["2023-11", "2023-12", "2024-01", "2024-02"],
-                "VALUE": [0.053, 0.054, 0.055, 0.056],
-            }
-        )
-        overlap_start = date(2023, 11, 20)
-        overlap_end = date(2024, 2, 10)
-
-        # When & Then
-        _validate_ffr_coverage(overlap_start, overlap_end, ffr_df)
 
 
 class TestCalculateDailyCostWithDynamicExpense:
@@ -343,7 +210,11 @@ class TestCalculateDailyCostWithDynamicExpense:
 
         # When: expense_dict 파라미터로 일일 비용 계산
         daily_cost = _calculate_daily_cost(
-            date_value=date_value, ffr_dict=ffr_dict, expense_dict=expense_dict, funding_spread=0.006, leverage=3.0
+            date_value=date_value,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
+            funding_spread={"2023-01": 0.006},
+            leverage=3.0,
         )
 
         # Then: 양수 비용
@@ -513,43 +384,10 @@ class TestSoftplusFunctions:
 
 class TestDynamicFundingSpread:
     """
-    동적 funding_spread 지원 테스트
+    월별 funding_spread 조회 · 검증 테스트
 
-    funding_spread가 float 또는 dict[str, float] 타입을 지원함을 검증
+    funding_spread 는 {"YYYY-MM": spread} 딕셔너리다
     """
-
-    def test_float_spread_unchanged_behavior(self):
-        """
-        float 타입 funding_spread 기존 동작 유지 테스트
-
-        Given: funding_spread = 0.006 (float)
-        When: _calculate_daily_cost 호출
-        Then: 기존과 동일하게 0.006이 적용됨
-        """
-        # Given
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        ffr_dict = create_ffr_dict(ffr_df)
-        expense_dict = {"2023-01": 0.0095}
-        date_value = date(2023, 1, 15)
-
-        # When: float spread 사용 (기존 동작)
-        daily_cost = _calculate_daily_cost(
-            date_value=date_value,
-            ffr_dict=ffr_dict,
-            expense_dict=expense_dict,
-            funding_spread=0.006,  # float
-            leverage=3.0,
-        )
-
-        # Then: 예상 비용 계산
-        # funding_rate = 0.045 + 0.006 = 0.051
-        # leverage_cost = 0.051 * 2 = 0.102
-        # annual_cost = 0.102 + 0.0095 = 0.1115
-        # daily_cost = 0.1115 / 252
-        expected_daily_cost = (0.045 + 0.006) * 2 + 0.0095
-        expected_daily_cost /= TRADING_DAYS_PER_YEAR
-
-        assert daily_cost == pytest.approx(expected_daily_cost, abs=1e-10), f"기대={expected_daily_cost}, 실제={daily_cost}"
 
     def test_dict_spread_monthly_lookup(self):
         """
@@ -702,7 +540,7 @@ class TestDynamicFundingSpread:
         """
         spread가 0일 때 ValueError 테스트
 
-        Given: funding_spread = 0.0
+        Given: funding_spread = {"2023-01": 0.0}
         When: _calculate_daily_cost 호출
         Then: ValueError 발생 (spread > 0 필수)
         """
@@ -717,7 +555,7 @@ class TestDynamicFundingSpread:
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
-                funding_spread=0.0,
+                funding_spread={"2023-01": 0.0},
                 leverage=3.0,
             )
 
@@ -725,7 +563,7 @@ class TestDynamicFundingSpread:
         """
         spread가 음수일 때 ValueError 테스트
 
-        Given: funding_spread = -0.005
+        Given: funding_spread = {"2023-01": -0.005}
         When: _calculate_daily_cost 호출
         Then: ValueError 발생 (음수 불허)
         """
@@ -740,6 +578,6 @@ class TestDynamicFundingSpread:
                 date_value=date(2023, 1, 15),
                 ffr_dict=ffr_dict,
                 expense_dict=expense_dict,
-                funding_spread=-0.005,
+                funding_spread={"2023-01": -0.005},
                 leverage=3.0,
             )

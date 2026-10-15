@@ -23,15 +23,11 @@ from qbt.tqqq.constants import (
     COL_SUM_DAILY_M,
 )
 from qbt.tqqq.data_loader import create_ffr_dict, lookup_ffr
-from qbt.utils import get_logger
-
-logger = get_logger(__name__)
 
 __all__ = [
     "calculate_signed_log_diff_from_cumulative_returns",
     "calculate_daily_signed_log_diff",
     "aggregate_monthly",
-    "validate_integrity",
 ]
 
 
@@ -317,80 +313,3 @@ def aggregate_monthly(
         )
 
     return monthly
-
-
-def validate_integrity(
-    signed_series: pd.Series,
-    abs_series: pd.Series,
-    tolerance: float | None = None,
-) -> dict[str, float]:
-    """
-    abs(signed)와 abs 컬럼의 무결성을 검증한다.
-
-    signed 로그차이의 절댓값과 기존 abs 컬럼이 거의 일치해야 한다.
-    반올림/누적 방식 차이로 완전히 0이 아닐 수 있으나, 큰 차이는 계산 로직 오류를 의미한다.
-
-    tolerance 결정 규칙:
-        - tolerance가 None이면 실제 데이터로 max_abs_diff, mean_abs_diff를 먼저 로그로 출력
-        - 관측값을 기반으로 tolerance = max(1e-6, observed_max_abs_diff * 1.1) 제안
-        - tolerance가 주어지면 max_abs_diff > tolerance일 때 ValueError raise
-
-    Args:
-        signed_series: signed 로그차이 (%, Series)
-        abs_series: 기존 abs 컬럼 (%, Series)
-        tolerance: 허용 오차 (%, None이면 관측만 수행)
-
-    Returns:
-        검증 결과 딕셔너리:
-            - max_abs_diff: 최대 절댓값 차이 (%)
-            - mean_abs_diff: 평균 절댓값 차이 (%)
-            - tolerance: 사용된 또는 제안된 tolerance (%)
-
-    Raises:
-        ValueError: tolerance가 주어졌고 max_abs_diff > tolerance인 경우
-            - 에러 메시지에 관측값, 허용값 포함
-            - 차이 원인 안내: 반올림/누적 방식 차이, 정의 불일치 등
-
-    Note:
-        이 함수는 실제 데이터로 먼저 관측(tolerance=None) 후,
-        tolerance를 코드 상수로 확정하고 CLAUDE.md에 기록하는 데 사용된다.
-    """
-    # 1. abs(signed) 계산
-    # 설명: signed는 부호를 포함하므로 절댓값을 취해서 abs 컬럼과 비교
-    abs_signed = signed_series.abs()
-
-    # 2. 차이 계산
-    # 이유: 둘이 거의 같아야 하지만, 반올림/누적 방식 차이로 완전히 0은 아닐 수 있음
-    abs_diff = (abs_signed - abs_series).abs()
-
-    # 3. 통계 계산
-    max_abs_diff = float(abs_diff.max())
-    mean_abs_diff = float(abs_diff.mean())
-
-    # 4. tolerance 결정
-    if tolerance is None:
-        # 관측 모드: 실제 데이터로 max/mean 로그 출력
-        proposed_tolerance = max(1e-6, max_abs_diff * 1.1)  # 관측값 + 10% 여유
-        logger.debug(
-            f"무결성 체크 관측 결과:\n  max_abs_diff: {max_abs_diff:.6e}%\n  mean_abs_diff: {mean_abs_diff:.6e}%\n  제안 tolerance: {proposed_tolerance:.6e}% (max * 1.1)\n참고: 반올림/누적 방식 차이로 완전히 0이 아닐 수 있음"
-        )
-        return {
-            "max_abs_diff": max_abs_diff,
-            "mean_abs_diff": mean_abs_diff,
-            "tolerance": proposed_tolerance,  # 제안값
-        }
-    else:
-        # 검증 모드: tolerance와 비교
-        if max_abs_diff > tolerance:
-            # Fail-fast: 무결성 실패
-            raise ValueError(
-                f"무결성 체크 실패: max_abs_diff > tolerance\n  관측 max_abs_diff: {max_abs_diff:.6e}%\n  허용 tolerance: {tolerance:.6e}%\n  초과량: {max_abs_diff - tolerance:.6e}%\n원인 (가능성 높은 순):\n  1. 반올림/누적 방식 차이 (정상 범위 초과)\n  2. signed 계산 로직 오류 (M 정의 불일치)\n  3. abs 컬럼 정의 불일치 (다른 수식 사용)\n조치: signed 및 abs 계산 로직 재검토 필요"
-            )
-        else:
-            # 무결성 통과
-            logger.debug(f"무결성 체크 통과:\n  max_abs_diff: {max_abs_diff:.6e}% <= tolerance: {tolerance:.6e}%")
-            return {
-                "max_abs_diff": max_abs_diff,
-                "mean_abs_diff": mean_abs_diff,
-                "tolerance": tolerance,
-            }

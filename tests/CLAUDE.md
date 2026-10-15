@@ -191,7 +191,7 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 
 ### 2. 테스트 데이터의 자릿수
 
-사람이 읽는 자릿수로 쓰는 일반 규칙은 `python-tests.md`. QBT 고유 — 소수점 자릿수의 SoT 는 [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py) 의 `ROUND_*` 상수이고 테스트 데이터도 같은 기준을 따른다. 허용오차는 위 「부동소수점/DF 비교 규칙」 표.
+사람이 읽는 자릿수로 쓰는 일반 규칙은 `python-tests.md`. QBT 고유 — 소수점 자릿수의 SoT 는 `ROUND_*` 이름의 상수다 — 여러 도메인이 쓰는 것은 [src/qbt/common_constants.py](../src/qbt/common_constants.py), 한 모듈만 쓰는 것(입력 시세 · 일별 비교의 % 열)은 그 모듈 상단에 있다. 테스트 데이터도 같은 기준을 따르고, 다른 값이면 안 되는 자릿수(정책 값)는 테스트가 그 상수로 기대값을 만들지 않고 숫자로 고정한다. 허용오차는 위 「부동소수점/DF 비교 규칙」 표.
 
 ---
 

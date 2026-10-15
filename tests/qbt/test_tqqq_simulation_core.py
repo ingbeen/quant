@@ -9,7 +9,6 @@ import pandas as pd
 import pytest
 
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN
-from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
 from qbt.tqqq.simulation import (
     simulate,
 )
@@ -27,7 +26,7 @@ class TestSimulate:
         Given:
           - QQQ 일일 수익률 데이터
           - FFR 데이터
-          - leverage=3, expense_ratio=0.95, funding_spread=0.5
+          - leverage=3, expense_ratio=0.0095, funding_spread=0.006
         When: simulate 호출
         Then:
           - 모든 날짜에 Simulated_Close 생성
@@ -44,20 +43,20 @@ class TestSimulate:
             }  # 1/2 ~ 1/6
         )
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})  # 0.95%
+        ffr_dict = {"2023-01": 0.045}
+        expense_dict = {"2023-01": 0.0095}  # 0.95%
 
         leverage = 3.0
         initial_price = 30.0  # TQQQ 초기 가격
-        funding_spread = 0.006  # 0.6%
+        funding_spread = {"2023-01": 0.006}  # 0.6%
 
         # When
         simulated_df = simulate(
             underlying_df=underlying_df,
             leverage=leverage,
-            expense_df=expense_df,
             initial_price=initial_price,
-            ffr_df=ffr_df,
+            ffr_dict=ffr_dict,
+            expense_dict=expense_dict,
             funding_spread=funding_spread,
         )
 
@@ -94,18 +93,15 @@ class TestSimulate:
             {COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)], COL_OPEN: [100.0, 100.5], COL_CLOSE: [100.0, 101.0]}
         )  # +1%
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})  # FFR 0
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})  # expense 0
-
-        # When: leverage=3, 최소 spread (1e-9, spread > 0 제약 충족)
+        # When: leverage=3, FFR · expense 0, 최소 spread (1e-9, spread > 0 제약 충족)
         # 비용 영향 최소화: 1e-9 * 2 / 252 ≈ 7.9e-12 (무시 가능)
         simulated_df = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=1e-9,  # 최소 양수 (spread > 0 제약)
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},  # 최소 양수 (spread > 0 제약)
         )
 
         # Then: QQQ +1% -> TQQQ +3% (비용 영향 무시 가능)
@@ -134,18 +130,15 @@ class TestSimulate:
         # Given
         underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Open": [100.0], "Close": [100.0]})
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
-
         # When & Then
         with pytest.raises(ValueError):
             simulate(
                 underlying_df=underlying_df,
                 leverage=invalid_leverage,
-                expense_df=expense_df,
                 initial_price=30.0,
-                ffr_df=ffr_df,
-                funding_spread=0.006,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.006},
             )
 
     def test_high_low_approximation_for_synthetic_data(self):
@@ -164,17 +157,15 @@ class TestSimulate:
                 COL_CLOSE: [100.0, 101.0, 99.0],
             }
         )
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
 
         # When
         result = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=1e-9,
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},
         )
 
         # Then: High == max(Open, Close), Low == min(Open, Close)
@@ -205,21 +196,51 @@ class TestSimulate:
                 COL_CLOSE: [100.0, 101.0, 99.0, 102.0],
             }
         )
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # When
         result = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=0.006,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
         )
 
         # Then: High >= Low
         assert (result[COL_HIGH] >= result[COL_LOW]).all(), "모든 행에서 High >= Low 이어야 합니다"
+
+    def test_start_on_month_end_day(self):
+        """
+        목적: 시작일이 그 달의 29 – 31일이어도 시뮬레이션이 돈다 — 기간의 달을 날짜 하나씩 늘려 세면
+              다음 달에 그 날짜가 없어 멈춘다(2020-01-31 → 2월 31일)
+
+        Given: 2020-01-31 에 시작하는 기초 자산과 그 기간의 월별 값
+        When: simulate 호출
+        Then: 입력과 같은 행 수가 나온다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2020, 1, 31), date(2020, 2, 3), date(2020, 3, 2)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_CLOSE: [100.0, 101.0, 102.0],
+            }
+        )
+        months = ["2020-01", "2020-02", "2020-03"]
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={month: 0.0155 for month in months},
+            expense_dict={month: 0.0095 for month in months},
+            funding_spread={month: 0.006 for month in months},
+        )
+
+        # Then
+        assert len(result) == 3
 
 
 class TestSimulateValidation:
@@ -252,8 +273,6 @@ class TestSimulateValidation:
         underlying_df = pd.DataFrame(
             {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_OPEN: [100.0, 104.0], COL_CLOSE: [100.0, 105.0]}
         )
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # 파라미터 구성 (param_name에 따라 다른 값 사용)
         if param_name == "leverage":
@@ -267,11 +286,11 @@ class TestSimulateValidation:
         with pytest.raises(ValueError, match=error_pattern):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
                 leverage=leverage,
-                funding_spread=0.005,
-                expense_df=expense_df,
                 initial_price=initial_price,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.005},
             )
 
     def test_missing_required_columns_raises(self):
@@ -285,18 +304,15 @@ class TestSimulateValidation:
         # Given: Close 컬럼 누락
         underlying_df_no_close = pd.DataFrame({COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)]})
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
-
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
             simulate(
                 underlying_df=underlying_df_no_close,
-                ffr_df=ffr_df,
                 leverage=3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
                 initial_price=100.0,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.005},
             )
 
     def test_empty_dataframe_raises(self):
@@ -309,18 +325,16 @@ class TestSimulateValidation:
         """
         # Given: 빈 DataFrame
         underlying_df = pd.DataFrame(columns=[COL_DATE, COL_OPEN, COL_CLOSE])
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # When & Then
         with pytest.raises(ValueError, match="underlying_df가 비어있습니다"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
                 leverage=3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
                 initial_price=100.0,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.005},
             )
 
     def test_nan_underlying_return_raises(self):
@@ -340,18 +354,46 @@ class TestSimulateValidation:
                 COL_CLOSE: [float("nan"), 101.0, 102.0],
             }
         )
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
 
         # When & Then
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             simulate(
                 underlying_df=underlying_df,
-                ffr_df=ffr_df,
                 leverage=3.0,
-                funding_spread=0.005,
-                expense_df=expense_df,
                 initial_price=100.0,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.005},
+            )
+
+    def test_ffr_gap_beyond_limit_raises(self):
+        """
+        목적: 시뮬레이션 기간에 금리가 허용 개월 수(MAX_FFR_MONTHS_DIFF)를 넘게 비면 멈춤을 검증 —
+              날마다 비용을 계산할 때 그 달 금리를 조회하므로, 미리 기간 전체를 검사하지 않아도 빈 달에서 멈춘다
+
+        Given: 2023-01 · 2023-02 금리만 있고 2023-05 거래일이 있는 기초 자산 (2023-02 와 3개월 차이)
+        When: simulate 호출
+        Then: ValueError (「FFR 데이터 부족」, 빈 달 2023-05)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 3), date(2023, 2, 1), date(2023, 5, 1)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_CLOSE: [100.0, 101.0, 102.0],
+            }
+        )
+        months = ["2023-01", "2023-02", "2023-03", "2023-04", "2023-05"]
+
+        # When & Then
+        with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-05"):
+            simulate(
+                underlying_df=underlying_df,
+                leverage=3.0,
+                initial_price=100.0,
+                ffr_dict={"2023-01": 0.045, "2023-02": 0.046},
+                expense_dict={month: 0.0095 for month in months},
+                funding_spread={month: 0.005 for month in months},
             )
 
 
@@ -385,17 +427,14 @@ class TestSimulateOvernightOpen:
             }
         )
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
-
         # When
         result = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=1e-9,
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},
         )
 
         # Then: day2 Open 검증
@@ -438,21 +477,50 @@ class TestSimulateOvernightOpen:
             }
         )
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
+        )
+
+        # Then
+        assert result.iloc[0][COL_OPEN] == pytest.approx(30.0, abs=0.01), "첫날 Open은 initial_price여야 합니다"
+
+    def test_missing_open_after_first_day_is_not_filled(self):
+        """
+        목적: 첫날이 아닌 날의 시가 결측을 시작 가격으로 메우지 않음을 검증 — 메우면 그날 시가가
+              에러 없이 첫 가격으로 바뀐다. 결측은 저장 전 시세 검사가 멈춘다
+
+        Given: 셋째 날 기초 자산 시가가 결측인 데이터
+        When: simulate() 호출
+        Then: 셋째 날 Open 이 결측으로 남는다 (첫날 Open 은 initial_price)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, float("nan")],
+                COL_CLOSE: [100.0, 101.0, 102.0],
+            }
+        )
 
         # When
         result = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=0.006,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
         )
 
         # Then
-        assert result.iloc[0][COL_OPEN] == pytest.approx(30.0, abs=0.01), "첫날 Open은 initial_price여야 합니다"
+        assert result.iloc[0][COL_OPEN] == 30.0
+        assert pd.isna(result.iloc[2][COL_OPEN])
 
     def test_close_unchanged_after_open_improvement(self):
         """
@@ -474,17 +542,14 @@ class TestSimulateOvernightOpen:
             }
         )
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.0]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0]})
-
         # When
         result = simulate(
             underlying_df=underlying_df,
             leverage=3.0,
-            expense_df=expense_df,
             initial_price=30.0,
-            ffr_df=ffr_df,
-            funding_spread=1e-9,
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},
         )
 
         # Then: QQQ +1% → TQQQ +3% (비용 무시)
@@ -511,16 +576,13 @@ class TestSimulateOvernightOpen:
             }
         )
 
-        ffr_df = pd.DataFrame({COL_FFR_DATE: ["2023-01"], COL_FFR_VALUE: [0.045]})
-        expense_df = pd.DataFrame({COL_EXPENSE_DATE: ["2023-01"], COL_EXPENSE_VALUE: [0.0095]})
-
         # When & Then
         with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
             simulate(
                 underlying_df=underlying_df,
                 leverage=3.0,
-                expense_df=expense_df,
                 initial_price=30.0,
-                ffr_df=ffr_df,
-                funding_spread=0.006,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.006},
             )

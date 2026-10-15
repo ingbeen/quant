@@ -3,12 +3,13 @@
 검증 지표 계산과 일별 비교 CSV 저장 기능을 검증한다.
 """
 
+import math
 from datetime import date
 
 import pandas as pd
 import pytest
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, DISPLAY_DATE
+from qbt.common_constants import COL_CLOSE, COL_DATE, DISPLAY_DATE, ROUND_PRICE
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
@@ -21,7 +22,6 @@ from qbt.tqqq.constants import (
     COL_SIMUL_DAILY_RETURN,
 )
 from qbt.tqqq.simulation import (
-    _calculate_cumul_multiple_log_diff,
     _save_daily_comparison_csv,
     calculate_validation_metrics,
 )
@@ -84,53 +84,35 @@ class TestCalculateValidationMetrics:
         # 차이가 있으므로 로그차이 RMSE > 0
         assert metrics["cumul_multiple_log_diff_rmse_pct"] > 0, "차이가 있으면 RMSE > 0"
 
-    def test_actual_cumulative_zero_raises_value_error(self):
+    def test_log_diff_metrics_use_magnitude_of_signed(self):
         """
-        목적: actual_cumulative가 0일 때 ValueError 발생 검증
+        목적: 로그차이 지표(평균 · RMSE · 최대)가 누적배수 로그차이의 크기(부호 뺀 값)로 계산됨을 검증 —
+              부호 있는 값을 그대로 평균하면 위아래 오차가 상쇄돼 작게 나온다
 
-        정책: 실제 누적수익률이 정확히 0이면 상대차이 계산(분모 0)이 불가.
-              입력 데이터 조건 문제이므로 ValueError로 즉시 중단.
-
-        Given: 실제 데이터의 누적수익률이 0 (시작가 = 종료가)
-        When: calculate_validation_metrics 호출
-        Then: ValueError 발생
+        Given: 시뮬이 실제보다 한 번 높고 한 번 낮은 3일 데이터
+        When: calculate_validation_metrics
+        Then: 손으로 계산한 |100 × ln(M_sim / M_real)| 의 평균 · RMSE · 최대와 같고, 누적수익률은 마지막 날 기준 비율이다
         """
-        # Given: 실제 데이터가 시작과 끝이 동일 -> 누적수익률 0
+        # Given: 실제 100 → 110 → 100, 시뮬 100 → 121 → 90
         simulated_df = pd.DataFrame(
-            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 102.0, 104.0, 106.0, 108.0]}
+            {COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)], COL_CLOSE: [100.0, 121.0, 90.0]}
         )
         actual_df = pd.DataFrame(
-            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 105.0, 95.0, 110.0, 100.0]}
+            {COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)], COL_CLOSE: [100.0, 110.0, 100.0]}
         )
+        diffs = [0.0, abs(100 * math.log(1.21 / 1.10)), abs(100 * math.log(0.90 / 1.00))]
 
-        # When / Then
-        with pytest.raises(ValueError, match="actual_cumulative"):
-            calculate_validation_metrics(simulated_df, actual_df)
+        # When
+        metrics = calculate_validation_metrics(simulated_df, actual_df)
 
-    def test_final_close_actual_zero_raises_value_error(self):
-        """
-        목적: final_close_actual이 0일 때 ValueError 발생 검증
-
-        정책: 실제 종가가 0이면 종가 상대차이 계산(분모 0)이 불가.
-              종가 0은 누적배수(M_real) 계산 단계에서 먼저 잡히거나,
-              해당 단계를 통과하면 final_close_actual 방어 코드에서 잡힌다.
-              어느 경로든 ValueError로 즉시 중단되어야 한다.
-
-        Given: 실제 데이터의 마지막 종가가 0
-        When: calculate_validation_metrics 호출
-        Then: ValueError 발생 (M_real <= 0 또는 final_close_actual 방어)
-        """
-        # Given: 마지막 종가가 0
-        simulated_df = pd.DataFrame(
-            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 102.0, 104.0, 106.0, 108.0]}
+        # Then
+        assert metrics["cumul_multiple_log_diff_mean_pct"] == pytest.approx(sum(diffs) / 3, abs=1e-12)
+        assert metrics["cumul_multiple_log_diff_rmse_pct"] == pytest.approx(
+            math.sqrt(sum(d**2 for d in diffs) / 3), abs=1e-12
         )
-        actual_df = pd.DataFrame(
-            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 90.0, 50.0, 10.0, 0.0]}
-        )
-
-        # When / Then: M_real 계산 또는 final_close_actual 방어에서 ValueError
-        with pytest.raises(ValueError):
-            calculate_validation_metrics(simulated_df, actual_df)
+        assert metrics["cumul_multiple_log_diff_max_pct"] == pytest.approx(max(diffs), abs=1e-12)
+        assert metrics["cumulative_return_actual"] == pytest.approx(0.0, abs=1e-12)
+        assert metrics["cumulative_return_simulated"] == pytest.approx(-0.10, abs=1e-12)
 
 
 class TestSaveDailyComparisonCsv:
@@ -147,7 +129,7 @@ class TestSaveDailyComparisonCsv:
         Then:
           - CSV 파일 생성
           - 한글 컬럼명 포함
-          - 누적배수 로그차이 포함
+          - 누적배수 로그차이 포함 (abs 는 signed 의 크기)
           - 올바른 행 수
         """
         # Given
@@ -162,15 +144,15 @@ class TestSaveDailyComparisonCsv:
             {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2), date(2023, 1, 3)], COL_CLOSE: [100.5, 104.8, 102.2]}
         )
 
-        cumul_log_diff = pd.Series([0.0, 0.1, 0.15])
-        signed_log_diff = pd.Series([0.0, -0.05, 0.1])  # signed 버전
+        actual_cumulative = pd.Series([0.0, 5.0, 2.0])
+        sim_cumulative = pd.Series([0.0, 4.28, 1.69])
+        signed_log_diff = pd.Series([0.0, -0.05, 0.1])
 
         output_path = tmp_path / "test_comparison.csv"
 
         # When
-        # 테스트 데이터는 synthetic이므로 tolerance를 크게 설정
         _save_daily_comparison_csv(
-            sim_overlap, actual_overlap, cumul_log_diff, signed_log_diff, output_path, integrity_tolerance=1.0
+            sim_overlap, actual_overlap, actual_cumulative, sim_cumulative, signed_log_diff, output_path
         )
 
         # Then: 파일 존재
@@ -199,13 +181,17 @@ class TestSaveDailyComparisonCsv:
         for col in required_cols:
             assert col in result_df.columns, f"{col} 컬럼이 있어야 함"
 
+        # abs 로그차이는 signed 의 크기다
+        assert result_df[COL_CUMUL_MULTIPLE_LOG_DIFF_ABS].tolist() == pytest.approx([0.0, 0.05, 0.1], abs=1e-9)
+
     def test_csv_numeric_precision(self, tmp_path):
         """
-        CSV 숫자 정밀도 검증 (소수점 4자리)
+        목적: 종가는 가격 자릿수(ROUND_PRICE), % 열은 4자리로 반올림됨을 검증 — % 열을 백분율 기본(2자리)으로
+              낮추면 스프레드 랩의 일일 증분 오차 재계산이 깨지므로 4자리는 정책 값으로 고정한다
 
-        Given: 시뮬레이션과 실제 데이터
+        Given: 소수점이 긴 종가와 누적수익률 · 로그차이
         When: _save_daily_comparison_csv 호출
-        Then: 숫자 컬럼이 소수점 4자리로 반올림됨
+        Then: 종가 · % 열이 각 자릿수로 정확히 반올림됨
         """
         # Given
         actual_overlap = pd.DataFrame(
@@ -216,57 +202,23 @@ class TestSaveDailyComparisonCsv:
             {COL_DATE: [date(2023, 1, 1), date(2023, 1, 2)], COL_CLOSE: [100.234567, 105.890123]}
         )
 
-        cumul_log_diff = pd.Series([0.0123456, 0.0234567])
-        signed_log_diff = pd.Series([0.0111111, -0.0222222])  # signed 버전
+        actual_cumulative = pd.Series([0.0, 5.6593456])
+        sim_cumulative = pd.Series([0.0, 5.6408123])
+        signed_log_diff = pd.Series([0.0111111, -0.0222222])
 
         output_path = tmp_path / "test_precision.csv"
 
         # When
-        # 테스트 데이터는 synthetic이므로 tolerance를 크게 설정
         _save_daily_comparison_csv(
-            sim_overlap, actual_overlap, cumul_log_diff, signed_log_diff, output_path, integrity_tolerance=1.0
+            sim_overlap, actual_overlap, actual_cumulative, sim_cumulative, signed_log_diff, output_path
         )
 
         # Then
         result_df = pd.read_csv(output_path, encoding="utf-8-sig")
 
-        # 숫자 컬럼이 소수점 4자리 이하로 저장되었는지 확인
-        # 실제 종가 확인 (소수점 4자리로 반올림)
-        assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(100.1235, abs=1e-9)
-        assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(100.2346, abs=1e-9)
-
-
-class TestCumulMultipleLogDiffInvariant:
-    """abs 누적배수 로그차이의 사전 검증 (M > 0) 회귀 테스트.
-
-    내부 함수이지만, signed 버전(analysis_helpers)과 일관된 fail-fast 정책을 보장하기 위해
-    음수/0 누적배수 입력 시 ValueError가 발생해야 한다.
-    """
-
-    def test_negative_actual_price_raises(self):
-        """
-        목적: actual_prices에 0 이하 값이 있으면 ValueError 발생.
-
-        Given: actual_prices의 두 번째 값이 음수 → m_actual <= 0 발생
-        When:  _calculate_cumul_multiple_log_diff 호출
-        Then:  ValueError (메시지에 "M_actual" 또는 누적배수 관련 키워드 포함)
-        """
-        actual_prices = pd.Series([100.0, -10.0, 90.0])
-        simulated_prices = pd.Series([100.0, 95.0, 92.0])
-
-        with pytest.raises(ValueError, match="M_actual"):
-            _calculate_cumul_multiple_log_diff(actual_prices, simulated_prices)
-
-    def test_negative_simulated_price_raises(self):
-        """
-        목적: simulated_prices에 0 이하 값이 있으면 ValueError 발생.
-
-        Given: simulated_prices의 두 번째 값이 0 → m_simul <= 0 발생
-        When:  _calculate_cumul_multiple_log_diff 호출
-        Then:  ValueError (메시지에 "M_sim" 키워드 포함)
-        """
-        actual_prices = pd.Series([100.0, 105.0, 110.0])
-        simulated_prices = pd.Series([100.0, 0.0, 95.0])
-
-        with pytest.raises(ValueError, match="M_sim"):
-            _calculate_cumul_multiple_log_diff(actual_prices, simulated_prices)
+        assert result_df[COL_ACTUAL_CLOSE].iloc[0] == pytest.approx(round(100.123456, ROUND_PRICE), abs=1e-9)
+        assert result_df[COL_SIMUL_CLOSE].iloc[0] == pytest.approx(round(100.234567, ROUND_PRICE), abs=1e-9)
+        assert result_df[COL_ACTUAL_CUMUL_RETURN].iloc[1] == pytest.approx(5.6593, abs=1e-9)
+        assert result_df[COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED].iloc[1] == pytest.approx(-0.0222, abs=1e-9)
+        # (105.789012 / 100.123456 - 1) * 100 = 5.65857…
+        assert result_df[COL_ACTUAL_DAILY_RETURN].iloc[1] == pytest.approx(5.6586, abs=1e-9)

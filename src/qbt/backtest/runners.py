@@ -23,7 +23,6 @@ from qbt.backtest.constants import (
     COL_SELL_BUFFER_PCT,
     COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
-    ROUND_RATIO,
     ma_col_name,
 )
 from qbt.backtest.engines.backtest_engine import run_backtest
@@ -41,6 +40,7 @@ from qbt.common_constants import (
     COL_HIGH,
     COL_LOW,
     COL_OPEN,
+    ROUND_RATIO,
 )
 from qbt.utils import get_logger
 from qbt.utils.data_loader import load_signal_trade_pair, load_stock_data

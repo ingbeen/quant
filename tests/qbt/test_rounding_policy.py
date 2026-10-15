@@ -10,7 +10,7 @@
 자릿수를 되돌리면 이 테스트가 실패합니다.
 """
 
-from qbt.backtest.constants import ROUND_PRICE
+from qbt.common_constants import ROUND_PRICE
 
 MAX_PRICE_DECIMALS = 4
 

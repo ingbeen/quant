@@ -3,7 +3,7 @@
 TQQQ 시뮬레이션 및 검증에 필요한 데이터 로딩, 월별 데이터 조회 함수를 제공한다.
 
 주요 기능:
-1. 연방기금금리(FFR) 월별 데이터 로딩
+1. 월별 데이터(연방기금금리 · 운용비율) 로딩
 2. TQQQ 일별 비교 데이터 로딩
 3. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
 4. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
@@ -34,8 +34,6 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
-    MAX_EXPENSE_MONTHS_DIFF,
-    MAX_FFR_MONTHS_DIFF,
 )
 from qbt.utils import get_logger
 
@@ -61,51 +59,30 @@ COMPARISON_COLUMNS = [
 MAX_FFR_VALUE = 0.25  # 비율 (0.25 = 25%)
 MAX_EXPENSE_VALUE = 0.05  # 비율 (0.05 = 5%)
 
+# 그 달 값이 없을 때 쓸 수 있는 이전 달 값의 최대 차이 (개월) — 넘으면 ValueError
+MAX_FFR_MONTHS_DIFF = 2
+MAX_EXPENSE_MONTHS_DIFF = 12
 
-def load_ffr_data(path: Path) -> pd.DataFrame:
+
+def load_monthly_data(path: Path) -> pd.DataFrame:
     """
-    연방기금금리 월별 데이터를 로드한다.
+    월별 데이터 CSV(연방기금금리 · 운용비율)를 로드한다. 값 검사는 딕셔너리를 만들 때 한다
+    (create_ffr_dict · create_expense_dict).
 
     Args:
         path: CSV 파일 경로
 
     Returns:
-        FFR DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        월별 DataFrame (DATE: str (yyyy-mm), VALUE: float)
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
     """
     if not path.exists():
-        raise FileNotFoundError(f"FFR 파일을 찾을 수 없습니다: {path}")
+        raise FileNotFoundError(f"월별 데이터 파일을 찾을 수 없습니다: {path} — git 이 추적하는 파일이니 지워졌다면 저장소에서 되살리세요")
 
-    logger.debug(f"FFR 데이터 로딩: {path}")
     df = pd.read_csv(path)
-
-    logger.debug(f"FFR 로드 완료: {len(df)}개월, 범위 {df[COL_FFR_DATE].min()} ~ {df[COL_FFR_DATE].max()}")
-
-    return df
-
-
-def load_expense_ratio_data(path: Path) -> pd.DataFrame:
-    """
-    운용비율(Expense Ratio) 월별 데이터를 로드한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"Expense Ratio 파일을 찾을 수 없습니다: {path}")
-
-    logger.debug(f"Expense Ratio 데이터 로딩: {path}")
-    df = pd.read_csv(path)
-
-    logger.debug(f"Expense Ratio 로드 완료: {len(df)}개월, 범위 {df[COL_EXPENSE_DATE].min()} ~ {df[COL_EXPENSE_DATE].max()}")
+    logger.debug(f"월별 데이터 로드 완료: {path} ({len(df)}개월)")
 
     return df
 
