@@ -17,7 +17,6 @@ from qbt.backtest.constants import (
     COL_MA_WINDOW,
     COL_MDD,
     COL_SELL_BUFFER_ZONE_PCT,
-    COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
 )
 from qbt.backtest.engines.backtest_engine import _run_backtest_for_grid, run_buffer_strategy, run_grid_search
@@ -346,9 +345,9 @@ class TestRunGridSearch:
             COL_BUY_BUFFER_ZONE_PCT,
             COL_SELL_BUFFER_ZONE_PCT,
             COL_HOLD_DAYS,
-            COL_TOTAL_RETURN_PCT,
             COL_CAGR,
             COL_CALMAR,
+            COL_TOTAL_TRADES,
         ]
         for col in required_cols:
             assert col in results_df.columns, f"결과에 {col} 컬럼이 있어야 함"

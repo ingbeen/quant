@@ -1,21 +1,16 @@
 """백테스트 분석 모듈
 
 이동평균 계산, 성과 지표 계산 기능을 제공한다.
-
-학습 포인트:
-1. 이동평균(Moving Average): 일정 기간의 가격 평균을 계산하여 추세 파악
-2. SMA (Simple MA): 최근 N일 종가의 단순 평균. 이 프로젝트가 쓰는 유일한 이동평균이다
-3. CAGR: 연평균 복리 성장률 - 투자 성과를 연 단위로 환산
-4. MDD: 최대 낙폭 - 최고점 대비 최대 하락 비율
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
 
 from qbt.backtest.constants import (
-    CALMAR_MDD_ZERO_SUBSTITUTE,
     COL_EQUITY,
     COL_PNL,
     ma_col_name,
@@ -25,6 +20,9 @@ from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, EPSILON, ROUN
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
+
+# MDD=0 이고 CAGR>0 인 Calmar 의 대용값 — 무한대 대신 큰 유한값을 두어 정렬 · 최댓값 선택이 그대로 돈다
+CALMAR_MDD_ZERO_SUBSTITUTE = 1e10
 
 
 def add_single_moving_average(
@@ -37,17 +35,12 @@ def add_single_moving_average(
     이 프로젝트의 이동평균은 SMA 하나로 통일한다. 채택 근거는
     `src/qbt/backtest/CLAUDE.md` 「1-1」 및 `docs/research/전략_검증_보고서.md` 부록 G 참고.
 
-    학습 포인트:
-    1. .rolling(window=N): N개 행의 이동 윈도우 생성
-    2. .mean(): 각 윈도우의 평균 계산
-    3. .notna(): NaN이 아닌 값 체크 (True/False)
-
     Args:
         df: 주식 데이터 DataFrame (Close 컬럼 필수)
         window: 이동평균 기간 (예: 20 = 20일 이동평균)
 
     Returns:
-        이동평균 컬럼이 추가된 DataFrame (원본 복사본)
+        이동평균 컬럼이 추가된 DataFrame (원본 복사본). 창이 차기 전(window-1 행)은 NaN 이라 호출자가 유효 행만 쓴다
 
     Raises:
         ValueError: window < 1인 경우
@@ -57,27 +50,25 @@ def add_single_moving_average(
 
     logger.debug(f"이동평균 계산: window={window}")
 
-    # DataFrame 복사 (원본 보존)
-    # .copy(): 원본 데이터를 변경하지 않도록 복사본 생성
     df = df.copy()
-
-    # 컬럼명 설정
-    # f-string으로 동적 컬럼명 생성 (예: "ma_20", "ma_50")
     col_name = ma_col_name(window)
-
-    # 이동평균 계산 (SMA)
-    # .rolling(window=20): 20개 행씩 묶어 이동 윈도우 생성
-    # .mean(): 각 윈도우의 평균 계산
-    # 예: [1,2,3,4,5]에서 window=3 → [NaN, NaN, 2, 3, 4]
-    # 창이 차기 전(window-1 행)은 NaN 으로 남으며, 호출자가 유효 행만 사용한다.
     df[col_name] = df[COL_CLOSE].rolling(window=window).mean()
 
-    # 유효 데이터 수 확인
-    # .notna(): NaN이 아닌 값 확인 (True/False Series 반환)
-    # .sum(): True를 1로 세어 합계 (유효 데이터 개수)
     valid_rows = df[col_name].notna().sum()
     logger.debug(f"이동평균 계산 완료: 유효 데이터 {valid_rows:,}행 (전체 {len(df):,}행)")
 
+    return df
+
+
+def add_moving_averages(df: pd.DataFrame, windows: Iterable[int]) -> pd.DataFrame:
+    """이동평균 여러 개를 더한다. 이미 있는 이동평균 열은 다시 계산하지 않는다.
+
+    구간을 잘라 넘기는 호출자(워크포워드 IS)가 전체 기간으로 계산해 둔 값을 조각에서 다시 계산하면
+    앞부분이 비어 시작일이 밀린다 — 그래서 있는 열은 그대로 둔다.
+    """
+    for window in windows:
+        if ma_col_name(window) not in df.columns:
+            df = add_single_moving_average(df, window)
     return df
 
 
@@ -138,21 +129,7 @@ def calculate_summary(
         raise ValueError(f"initial_capital은 양수여야 합니다: {initial_capital}")
 
     if equity_df.empty:
-        return {
-            "initial_capital": initial_capital,
-            "final_capital": initial_capital,
-            "total_return": 0.0,
-            "total_return_pct": 0.0,
-            "cagr": 0.0,
-            "mdd": 0.0,
-            "calmar": 0.0,
-            "total_trades": 0,
-            "winning_trades": 0,
-            "losing_trades": 0,
-            "win_rate": 0.0,
-            "start_date": None,
-            "end_date": None,
-        }
+        raise RuntimeError("내부 불변조건 위반: equity_df 가 비었다 (호출자는 백테스트를 돈 2행 이상의 에쿼티를 넘긴다)")
 
     final_capital: float = float(equity_df.iloc[-1][COL_EQUITY])
     total_return: float = final_capital - initial_capital
@@ -176,14 +153,7 @@ def calculate_summary(
             f"start_date={start_date.date()}, end_date={end_date.date()}, years={years})"
         )
 
-    # MDD 계산
-    equity_df = equity_df.copy()
-    equity_df["peak"] = equity_df[COL_EQUITY].cummax()
-
-    if (equity_df["peak"] == 0).any():
-        raise RuntimeError("내부 불변조건 위반: equity peak에 0이 존재 (initial_capital > 0이면 불가능)")
-    equity_df["drawdown"] = (equity_df[COL_EQUITY] - equity_df["peak"]) / equity_df["peak"]
-    mdd = equity_df["drawdown"].min() * 100
+    mdd = float(calculate_drawdown_pct_series(equity_df[COL_EQUITY].astype(float)).min())
 
     # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
     calmar: float = calculate_calmar(cagr, mdd)

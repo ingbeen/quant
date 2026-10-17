@@ -28,11 +28,13 @@ from qbt.backtest.constants import (
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
 )
 from qbt.backtest.engines.backtest_engine import prepare_common_period, run_buffer_strategy
+from qbt.backtest.parameter_stability import get_plateau_dir, plateau_csv_path
 from qbt.backtest.strategies.buffer_zone import (
     get_config,
     resolve_params_for_config,
 )
-from qbt.common_constants import BACKTEST_RESULTS_DIR, ROUND_PERCENT, ROUND_RATIO
+from qbt.backtest.types import SummaryDict
+from qbt.common_constants import ROUND_PERCENT, ROUND_RATIO
 from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_signal_trade_pair
@@ -43,9 +45,6 @@ logger = get_logger(__name__)
 # ============================================================================
 # 로컬 상수
 # ============================================================================
-
-# 결과 저장 경로 (hold_days 결과도 이 디렉토리로 통합)
-_RESULT_DIR = BACKTEST_RESULTS_DIR / "param_plateau"
 
 # 자산별 설정 (config_name, 표시 레이블)
 _ASSET_CONFIGS: list[tuple[str, str]] = [
@@ -64,11 +63,11 @@ _SELL_BUFFER_VALUES: list[float] = [0.01, 0.03, 0.05, 0.07, 0.10, 0.15]
 _BUY_BUFFER_VALUES: list[float] = [0.01, 0.02, 0.03, 0.05, 0.07, 0.10]
 _MA_WINDOW_VALUES: list[int] = [50, 100, 150, 200, 250, 300]
 
-# 실험 메타 정보 (experiment_name, param_name, col_prefix, values)
-_EXPERIMENT_META: list[tuple[str, str, str, list[float] | list[int]]] = [
+# 실험 (실험 이름 = 결과 파일의 파라미터 이름, 바꾸는 설정 칸, 피벗 헤더 접두사, 탐색 값)
+_EXPERIMENTS: list[tuple[str, str, str, list[float] | list[int]]] = [
     ("hold_days", "hold_days", "hold", _HOLD_DAYS_VALUES),
-    ("sell_buffer", "sell_buffer", "sell", _SELL_BUFFER_VALUES),
-    ("buy_buffer", "buy_buffer", "buy", _BUY_BUFFER_VALUES),
+    ("sell_buffer", "sell_buffer_zone_pct", "sell", _SELL_BUFFER_VALUES),
+    ("buy_buffer", "buy_buffer_zone_pct", "buy", _BUY_BUFFER_VALUES),
     ("ma_window", "ma_window", "ma", _MA_WINDOW_VALUES),
 ]
 
@@ -80,9 +79,6 @@ _METRICS: list[tuple[str, str]] = [
     ("trades", "거래수"),
 ]
 
-# --experiment 인자 유효값
-_VALID_EXPERIMENTS = {"all", "hold_days", "sell_buffer", "buy_buffer", "ma_window"}
-
 
 # ============================================================================
 # 헬퍼 함수
@@ -91,16 +87,14 @@ _VALID_EXPERIMENTS = {"all", "hold_days", "sell_buffer", "buy_buffer", "ma_windo
 
 def _build_row(
     experiment: str,
-    param_name: str,
     param_value: float | int,
     asset_label: str,
-    summary: Any,
+    summary: SummaryDict,
 ) -> dict[str, Any]:
     """결과 행을 생성한다.
 
     Args:
         experiment: 실험명 ("hold_days", "sell_buffer", "buy_buffer", "ma_window")
-        param_name: 파라미터명
         param_value: 파라미터 값
         asset_label: 자산 표시 레이블
         summary: 백테스트 성과 요약
@@ -110,15 +104,12 @@ def _build_row(
     """
     return {
         "experiment": experiment,
-        "param_name": param_name,
         "param_value": param_value,
         "asset": asset_label,
-        "cagr": round(float(str(summary["cagr"])), ROUND_PERCENT),
-        "mdd": round(float(str(summary["mdd"])), ROUND_PERCENT),
-        "calmar": round(float(str(summary["calmar"])), ROUND_RATIO),
-        "trades": int(str(summary["total_trades"])),
-        "period_start": str(summary.get("start_date", "")),
-        "period_end": str(summary.get("end_date", "")),
+        "cagr": round(summary["cagr"], ROUND_PERCENT),
+        "mdd": round(summary["mdd"], ROUND_PERCENT),
+        "calmar": round(summary["calmar"], ROUND_RATIO),
+        "trades": summary["total_trades"],
     }
 
 
@@ -142,28 +133,13 @@ def _format_col_header(prefix: str, value: float | int) -> str:
 # ============================================================================
 
 
-def _load_asset_data(
-    config_name: str,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """자산별 데이터를 로딩한다.
-
-    Args:
-        config_name: 버퍼존 config 이름
-
-    Returns:
-        (signal_df, trade_df) 튜플
-    """
-    base_config = get_config(config_name)
-    return load_signal_trade_pair(base_config.signal_data_path, base_config.trade_data_path)
-
-
-def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
+def _run_experiments(selected_experiments: list[tuple[str, str, str, list[float] | list[int]]]) -> pd.DataFrame:
     """선택된 실험들을 실행하고 결과를 DataFrame으로 반환한다.
 
     자산별로 데이터 로딩과 MA 계산을 최소화한다.
 
     Args:
-        selected_experiments: 실행할 실험 이름 리스트
+        selected_experiments: 실행할 실험 (`_EXPERIMENTS` 의 항목)
 
     Returns:
         결과 DataFrame
@@ -171,120 +147,51 @@ def _run_experiments(selected_experiments: list[str]) -> pd.DataFrame:
     results: list[dict[str, Any]] = []
 
     for config_name, asset_label in _ASSET_CONFIGS:
-        signal_df, trade_df = _load_asset_data(config_name)
         base_config = get_config(config_name)
+        signal_df, trade_df = load_signal_trade_pair(base_config.signal_data_path, base_config.trade_data_path)
+        fixed_4p_config = replace(
+            base_config,
+            ma_window=FIXED_4P_MA_WINDOW,
+            buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
+            sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
+            hold_days=FIXED_4P_HOLD_DAYS,
+        )
 
-        # MA=200 사전 계산 (hold_days, sell_buffer, buy_buffer 실험용)
-        signal_ma200 = add_single_moving_average(signal_df, FIXED_4P_MA_WINDOW)
+        # 4P 이동평균 사전 계산 (hold_days, sell_buffer, buy_buffer 실험용)
+        signal_ma_4p = add_single_moving_average(signal_df, FIXED_4P_MA_WINDOW)
 
         logger.debug(f"[{asset_label}] 데이터 로딩 완료: {len(signal_df)}행")
 
-        # 실험 1: hold_days
-        if "hold_days" in selected_experiments:
-            for hold_val in _HOLD_DAYS_VALUES:
-                config = replace(
-                    base_config,
-                    ma_window=FIXED_4P_MA_WINDOW,
-                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
-                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
-                    hold_days=hold_val,
-                )
-                params = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_ma200,
-                    trade_df,
-                    params,
-                    log_trades=False,
-                    strategy_name=config.strategy_name,
-                )
-                results.append(_build_row("hold_days", "hold_days", hold_val, asset_label, summary))
-                logger.debug(f"  hold={hold_val}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%")
+        for experiment, config_field, _, values in selected_experiments:
+            if config_field == "ma_window":
+                # 모든 이동평균 값을 같은 기간으로 평가한다
+                exp_signal, exp_trade = prepare_common_period(signal_df, trade_df, values)
+            else:
+                exp_signal, exp_trade = signal_ma_4p, trade_df
 
-        # 실험 2: sell_buffer
-        if "sell_buffer" in selected_experiments:
-            for sell_val in _SELL_BUFFER_VALUES:
-                config = replace(
-                    base_config,
-                    ma_window=FIXED_4P_MA_WINDOW,
-                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
-                    sell_buffer_zone_pct=sell_val,
-                    hold_days=FIXED_4P_HOLD_DAYS,
-                )
-                params = resolve_params_for_config(config)
+            for value in values:
+                params = resolve_params_for_config(replace(fixed_4p_config, **{config_field: value}))
                 _, _, summary = run_buffer_strategy(
-                    signal_ma200,
-                    trade_df,
+                    exp_signal,
+                    exp_trade,
                     params,
                     log_trades=False,
-                    strategy_name=config.strategy_name,
+                    strategy_name=config_name,
                 )
-                results.append(_build_row("sell_buffer", "sell_buffer", sell_val, asset_label, summary))
-                logger.debug(
-                    f"  sell={sell_val:.2f}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%"
-                )
-
-        # 실험 3: buy_buffer
-        if "buy_buffer" in selected_experiments:
-            for buy_val in _BUY_BUFFER_VALUES:
-                config = replace(
-                    base_config,
-                    ma_window=FIXED_4P_MA_WINDOW,
-                    buy_buffer_zone_pct=buy_val,
-                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
-                    hold_days=FIXED_4P_HOLD_DAYS,
-                )
-                params = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_ma200,
-                    trade_df,
-                    params,
-                    log_trades=False,
-                    strategy_name=config.strategy_name,
-                )
-                results.append(_build_row("buy_buffer", "buy_buffer", buy_val, asset_label, summary))
-                logger.debug(
-                    f"  buy={buy_val:.2f}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%"
-                )
-
-        # 실험 4: ma_window — 모든 값을 같은 기간으로 평가한다
-        if "ma_window" in selected_experiments:
-            signal_common, trade_common = prepare_common_period(signal_df, trade_df, _MA_WINDOW_VALUES)
-            for ma_val in _MA_WINDOW_VALUES:
-                config = replace(
-                    base_config,
-                    ma_window=ma_val,
-                    buy_buffer_zone_pct=FIXED_4P_BUY_BUFFER_ZONE_PCT,
-                    sell_buffer_zone_pct=FIXED_4P_SELL_BUFFER_ZONE_PCT,
-                    hold_days=FIXED_4P_HOLD_DAYS,
-                )
-                params = resolve_params_for_config(config)
-                _, _, summary = run_buffer_strategy(
-                    signal_common,
-                    trade_common,
-                    params,
-                    log_trades=False,
-                    strategy_name=config.strategy_name,
-                )
-                results.append(_build_row("ma_window", "ma_window", ma_val, asset_label, summary))
-                logger.debug(f"  ma={ma_val}: " f"Calmar={summary['calmar']:.2f}, " f"CAGR={summary['cagr']:.2f}%")
+                results.append(_build_row(experiment, value, asset_label, summary))
+                logger.debug(f"  {experiment}={value}: Calmar={summary['calmar']:.2f}, CAGR={summary['cagr']:.2f}%")
 
     return pd.DataFrame(results)
 
 
-# ============================================================================
-# 결과 저장
-# ============================================================================
-
-
-def _save_pivot_csv(
+def _pivot(
     detail_df: pd.DataFrame,
     experiment: str,
     col_prefix: str,
     param_values: list[float] | list[int],
     metric: str,
-    filename: str,
-) -> None:
-    """실험별 메트릭 피벗 테이블을 CSV로 저장한다.
+) -> pd.DataFrame:
+    """실험 하나 · 지표 하나의 피벗(행 = 자산, 열 = 파라미터 값)을 만든다.
 
     Args:
         detail_df: 상세 결과 DataFrame
@@ -292,47 +199,16 @@ def _save_pivot_csv(
         col_prefix: 컬럼 접두사
         param_values: 파라미터 탐색 값 목록
         metric: 피벗할 컬럼명
-        filename: 저장할 파일명
+
+    Returns:
+        자산 순서 · 값 순서를 고정하고 열 머리를 `접두사=값` 으로 바꾼 피벗
     """
     exp_df = detail_df[detail_df["experiment"] == experiment]
     pivot = exp_df.pivot(index="asset", columns="param_value", values=metric)
-
-    # 자산 순서 보장
-    asset_order = [label for _, label in _ASSET_CONFIGS]
-    pivot = pivot.reindex(asset_order)
-
-    # 컬럼 순서 보장 및 헤더 포맷
+    pivot = pivot.reindex([label for _, label in _ASSET_CONFIGS])
     pivot = pivot.reindex(columns=param_values)
     pivot.columns = [_format_col_header(col_prefix, v) for v in param_values]
-
-    path = _RESULT_DIR / filename
-    pivot.to_csv(path)
-    logger.debug(f"저장 완료: {path}")
-
-
-def _save_results(detail_df: pd.DataFrame, selected_experiments: list[str]) -> None:
-    """결과 CSV 파일을 저장한다.
-
-    Args:
-        detail_df: 상세 결과 DataFrame
-        selected_experiments: 실행한 실험 이름 리스트
-    """
-    _RESULT_DIR.mkdir(parents=True, exist_ok=True)
-
-    # 피벗 테이블 (실험 x 지표)
-    for exp_name, param_name, col_prefix, param_values in _EXPERIMENT_META:
-        if exp_name not in selected_experiments:
-            continue
-        for metric_key, _ in _METRICS:
-            filename = f"param_plateau_{param_name}_{metric_key}.csv"
-            _save_pivot_csv(
-                detail_df,
-                exp_name,
-                col_prefix,
-                param_values,
-                metric_key,
-                filename,
-            )
+    return pivot
 
 
 # ============================================================================
@@ -340,44 +216,23 @@ def _save_results(detail_df: pd.DataFrame, selected_experiments: list[str]) -> N
 # ============================================================================
 
 
-def _print_pivot_table(
-    detail_df: pd.DataFrame,
-    experiment: str,
-    col_prefix: str,
-    param_values: list[float] | list[int],
-    metric: str,
-    title: str,
-) -> None:
+def _print_pivot_table(pivot: pd.DataFrame, metric: str, title: str) -> None:
     """피벗 테이블을 터미널에 출력한다.
 
     Args:
-        detail_df: 상세 결과 DataFrame
-        experiment: 실험명
-        col_prefix: 컬럼 접두사
-        param_values: 파라미터 탐색 값 목록
-        metric: 출력할 컬럼명
+        pivot: `_pivot` 결과
+        metric: 지표명 (거래수만 정수로 출력)
         title: 테이블 제목
     """
-    exp_df = detail_df[detail_df["experiment"] == experiment]
-    pivot = exp_df.pivot(index="asset", columns="param_value", values=metric)
-    asset_order = [label for _, label in _ASSET_CONFIGS]
-    pivot = pivot.reindex(asset_order)
-    pivot = pivot.reindex(columns=param_values)
-
     columns: list[tuple[str, int, Align]] = [("자산", 6, Align.LEFT)]
-    for v in param_values:
-        header = _format_col_header(col_prefix, v)
-        columns.append((header, 10, Align.RIGHT))
+    columns.extend((str(header), 10, Align.RIGHT) for header in pivot.columns)
 
     rows: list[list[str]] = []
-    for i, asset in enumerate(asset_order):
-        row = [asset]
-        for j in range(len(param_values)):
-            val = float(str(pivot.iloc[i, j]))
-            if metric == "trades":
-                row.append(str(int(val)))
-            else:
-                row.append(f"{val:.2f}")
+    for asset, values in pivot.iterrows():
+        row = [str(asset)]
+        for value in values:
+            val = float(str(value))
+            row.append(str(int(val)) if metric == "trades" else f"{val:.2f}")
         rows.append(row)
 
     table = TableLogger(columns, logger)
@@ -400,7 +255,7 @@ def _parse_args() -> argparse.Namespace:
         "--experiment",
         type=str,
         default="all",
-        choices=sorted(_VALID_EXPERIMENTS),
+        choices=["all", *(name for name, _, _, _ in _EXPERIMENTS)],
         help="실행할 실험 (기본: all)",
     )
     return parser.parse_args()
@@ -416,43 +271,37 @@ def main() -> int:
     args = _parse_args()
 
     # 실행할 실험 결정
-    if args.experiment == "all":
-        selected_experiments = [name for name, _, _, _ in _EXPERIMENT_META]
-    else:
-        selected_experiments = [args.experiment]
+    selected_experiments = [exp for exp in _EXPERIMENTS if args.experiment in ("all", exp[0])]
 
-    # 총 실행 횟수 계산
-    total_runs = 0
-    for exp_name, _, _, param_values in _EXPERIMENT_META:
-        if exp_name in selected_experiments:
-            total_runs += len(_ASSET_CONFIGS) * len(param_values)
+    total_runs = len(_ASSET_CONFIGS) * sum(len(values) for _, _, _, values in selected_experiments)
 
     logger.debug("파라미터 고원 분석 시작")
-    logger.debug(f"자산: {len(_ASSET_CONFIGS)}개, 실험: {selected_experiments}")
+    logger.debug(f"자산: {len(_ASSET_CONFIGS)}개, 실험: {[name for name, _, _, _ in selected_experiments]}")
     logger.debug(f"총 실행 횟수: {total_runs}회")
 
     # 1. 백테스트 실행
     detail_df = _run_experiments(selected_experiments)
 
-    # 2. CSV 저장
-    _save_results(detail_df, selected_experiments)
+    # 2. 피벗 (실험 x 지표)
+    pivots = {
+        (experiment, metric): _pivot(detail_df, experiment, col_prefix, values, metric)
+        for experiment, _, col_prefix, values in selected_experiments
+        for metric, _ in _METRICS
+    }
 
-    # 3. 터미널 출력
-    for exp_name, param_name, col_prefix, param_values in _EXPERIMENT_META:
-        if exp_name not in selected_experiments:
-            continue
-        for metric_key, metric_title in _METRICS:
-            title = f"[{param_name} - {metric_title}]"
-            _print_pivot_table(
-                detail_df,
-                exp_name,
-                col_prefix,
-                param_values,
-                metric_key,
-                title,
-            )
+    # 3. CSV 저장
+    get_plateau_dir().mkdir(parents=True, exist_ok=True)
+    for (experiment, metric), pivot in pivots.items():
+        path = plateau_csv_path(experiment, metric)
+        pivot.to_csv(path)
+        logger.debug(f"저장 완료: {path}")
 
-    logger.debug(f"결과 저장 위치: {_RESULT_DIR}")
+    # 4. 터미널 출력
+    metric_titles = dict(_METRICS)
+    for (experiment, metric), pivot in pivots.items():
+        _print_pivot_table(pivot, metric, f"[{experiment} - {metric_titles[metric]}]")
+
+    logger.debug(f"결과 저장 위치: {get_plateau_dir()}")
 
     return 0
 

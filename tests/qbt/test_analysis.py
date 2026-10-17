@@ -20,6 +20,8 @@ import pytest
 
 import qbt.backtest.csv_export as csv_export
 from qbt.backtest.analysis import (
+    CALMAR_MDD_ZERO_SUBSTITUTE,
+    add_moving_averages,
     add_single_moving_average,
     calculate_calmar,
     calculate_drawdown_pct_series,
@@ -29,8 +31,30 @@ from qbt.backtest.analysis import (
     calculate_summary,
     calculate_yearly_returns,
 )
-from qbt.backtest.constants import CALMAR_MDD_ZERO_SUBSTITUTE
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
+
+
+class TestAddMovingAverages:
+    """add_moving_averages 함수 테스트"""
+
+    def test_existing_column_is_kept(self):
+        """
+        목적: 이미 있는 이동평균 열은 다시 계산하지 않는다 — 전체 기간으로 계산해 둔 값을 구간 조각에서 다시 계산하면 앞부분이 빈다
+
+        Given: ma_3 열에 다시 계산하면 나올 수 없는 값을 미리 넣은 5행
+        When: add_moving_averages(df, [3, 2]) 호출
+        Then: ma_3 은 그대로, ma_2 는 새로 계산된다
+        """
+        # Given
+        df = pd.DataFrame({COL_CLOSE: [1.0, 2.0, 3.0, 4.0, 5.0], "ma_3": [9.0] * 5})
+
+        # When
+        result = add_moving_averages(df, [3, 2])
+
+        # Then
+        assert result["ma_3"].tolist() == [9.0] * 5
+        assert math.isnan(result["ma_2"].iloc[0])
+        assert result["ma_2"].iloc[1:].tolist() == pytest.approx([1.5, 2.5, 3.5, 4.5], abs=EPSILON)
 
 
 class TestAddSingleMovingAverage:
@@ -421,47 +445,21 @@ class TestCalculateSummary:
         assert summary["mdd"] == 0.0, "하락이 없으면 MDD는 0"
         assert summary["calmar"] > 1e10, "MDD=0, CAGR>0이면 Calmar는 1e10보다 커야 합니다"
 
-    def test_calmar_empty_equity(self):
+    def test_empty_equity_raises(self):
         """
-        빈 equity_df일 때 Calmar = 0.0 테스트
+        목적: 빈 equity_df 는 0 지표로 넘기지 않고 멈춘다 — 호출자(백테스트 엔진)는 2행 이상을 넘긴다
 
         Given: 빈 equity_df
         When: calculate_summary 호출
-        Then: calmar = 0.0
+        Then: RuntimeError (내부 불변조건 위반)
         """
         # Given
         trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
         equity_df = pd.DataFrame(columns=[COL_DATE, "equity"])
 
-        # When
-        summary = calculate_summary(trades_df, equity_df, 10000.0)
-
-        # Then
-        assert summary["calmar"] == 0.0, "빈 equity_df이면 calmar는 0.0"
-
-    def test_empty_equity_contains_start_end_date_keys(self):
-        """
-        목적: 빈 equity_df일 때 start_date, end_date 키가 존재하는지 검증
-
-        정책: 다운스트림 코드에서 start_date/end_date 접근 시 KeyError 방지.
-              빈 equity_df이면 기간 정보가 없으므로 None을 반환한다.
-
-        Given: 빈 equity_df
-        When: calculate_summary 호출
-        Then: start_date, end_date 키가 존재하고 값은 None
-        """
-        # Given
-        trades_df = pd.DataFrame(columns=["entry_date", "exit_date", "pnl"])
-        equity_df = pd.DataFrame(columns=[COL_DATE, "equity"])
-
-        # When
-        summary = calculate_summary(trades_df, equity_df, 10000.0)
-
-        # Then
-        assert "start_date" in summary, "빈 equity_df 반환에도 start_date 키가 존재해야 함"
-        assert "end_date" in summary, "빈 equity_df 반환에도 end_date 키가 존재해야 함"
-        assert summary["start_date"] is None, "빈 equity_df이면 start_date는 None"
-        assert summary["end_date"] is None, "빈 equity_df이면 end_date는 None"
+        # When / Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            calculate_summary(trades_df, equity_df, 10000.0)
 
     def test_cagr_runtime_error_when_final_capital_zero(self) -> None:
         """

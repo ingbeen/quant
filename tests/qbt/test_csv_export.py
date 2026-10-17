@@ -4,6 +4,8 @@
 1. prepare_trades_for_csv(): holding_days 계산, 반올림, 정수 변환
 2. add_ohlc_change_pct(): OHLC 4종 전일대비 변동률(%) 계산
 3. add_buffer_zone_bands(): buffer_zone 전략의 upper/lower 밴드 컬럼 추가
+4. enrich_equity_with_bands(): 에쿼티에 그날의 밴드 · 버퍼 비율 붙이기
+5. round_signal_for_csv(): 시그널 CSV 저장 자릿수
 
 왜 중요한가요?
 trades CSV / signal CSV 저장 로직이 여러 스크립트에 중복되어 있었으며,
@@ -23,9 +25,21 @@ from qbt.backtest.csv_export import (
     OHLC_CHANGE_PCT_COLUMNS,
     add_buffer_zone_bands,
     add_ohlc_change_pct,
+    enrich_equity_with_bands,
     prepare_trades_for_csv,
+    round_signal_for_csv,
 )
-from qbt.common_constants import ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
+)
 
 
 class TestPrepareTradeCsv:
@@ -471,3 +485,57 @@ class TestAddBufferZoneBands:
         # Then
         for col in BUFFER_BAND_COLUMNS:
             assert col not in df.columns
+
+
+class TestEnrichEquityWithBands:
+    """enrich_equity_with_bands 함수 테스트"""
+
+    def test_bands_and_buffers_joined_by_date(self):
+        """
+        목적: 그날 이동평균으로 만든 밴드와 버퍼 비율이 에쿼티 행에 날짜로 붙는다
+
+        Given: 이동평균이 날마다 다른 시그널 2행과 같은 날짜의 에쿼티 2행
+        When: enrich_equity_with_bands 호출
+        Then: 날짜마다 upper/lower = 그날 ma × (1 ± buffer), 버퍼 비율 열은 입력값, 이동평균 열은 붙지 않는다
+        """
+        # Given
+        dates = [date(2023, 1, 2), date(2023, 1, 3)]
+        signal_df = pd.DataFrame({COL_DATE: dates, "ma_200": [100.0, 200.0]})
+        equity_df = pd.DataFrame({COL_DATE: dates, "equity": [1000.0, 1100.0]})
+
+        # When
+        result = enrich_equity_with_bands(equity_df, signal_df, "ma_200", 0.03, 0.05)
+
+        # Then
+        assert result["upper_band"].tolist() == pytest.approx([103.0, 206.0], abs=1e-9)
+        assert result["lower_band"].tolist() == pytest.approx([95.0, 190.0], abs=1e-9)
+        assert result["buy_buffer_pct"].tolist() == [0.03, 0.03]
+        assert result["sell_buffer_pct"].tolist() == [0.05, 0.05]
+        assert "ma_200" not in result.columns
+
+
+class TestRoundSignalForCsv:
+    """round_signal_for_csv 함수 테스트"""
+
+    def test_price_and_pct_columns_use_their_digits(self):
+        """
+        목적: 가격 · 이동평균 · 밴드는 ROUND_PRICE, 전일대비%는 ROUND_PERCENT 자릿수로 저장된다
+
+        Given: 자릿수가 넘치는 OHLC · 이동평균 · 밴드 · 전일대비% 열과 Volume
+        When: round_signal_for_csv 호출
+        Then: 열마다 정해진 자릿수로 반올림되고 Volume 은 그대로다
+        """
+        # Given
+        value = 1.234567891
+        price_cols = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, "ma_200", *BUFFER_BAND_COLUMNS]
+        df = pd.DataFrame({**{col: [value] for col in [*price_cols, *OHLC_CHANGE_PCT_COLUMNS]}, "Volume": [123]})
+
+        # When
+        result = round_signal_for_csv(df)
+
+        # Then
+        for col in price_cols:
+            assert result.iloc[0][col] == pytest.approx(round(value, ROUND_PRICE), abs=1e-12), col
+        for col in OHLC_CHANGE_PCT_COLUMNS:
+            assert result.iloc[0][col] == pytest.approx(round(value, ROUND_PERCENT), abs=1e-12), col
+        assert result.iloc[0]["Volume"] == 123

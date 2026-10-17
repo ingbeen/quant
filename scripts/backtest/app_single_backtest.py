@@ -21,6 +21,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component
 
+from qbt.backtest.constants import EQUITY_FILENAME, SIGNAL_FILENAME, SUMMARY_FILENAME, TRADES_FILENAME
+from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
 from qbt.common_constants import (
@@ -134,10 +136,10 @@ def _discover_strategies() -> list[StrategyData]:
     strategies: list[StrategyData] = []
 
     for strategy_name, result_dir in config_dirs:
-        summary_path = result_dir / "summary.json"
-        signal_path = result_dir / "signal.csv"
-        equity_path = result_dir / "equity.csv"
-        trades_path = result_dir / "trades.csv"
+        summary_path = result_dir / SUMMARY_FILENAME
+        signal_path = result_dir / SIGNAL_FILENAME
+        equity_path = result_dir / EQUITY_FILENAME
+        trades_path = result_dir / TRADES_FILENAME
 
         # summary.json, signal.csv, equity.csv 필수
         if not summary_path.exists() or not signal_path.exists() or not equity_path.exists():
@@ -227,7 +229,7 @@ def _build_candle_data(
     # 4종 전일대비% 컬럼은 numpy 배열로 미리 추출해 인덱스 접근.
     # itertuples namedtuple 속성은 정적 타입 체커가 인식하지 못하므로 배열 추출이 가장 클린하다.
     pct_arrays: dict[str, np.ndarray[Any, Any]] = {}
-    for pct_col in ("open_pct", "high_pct", "low_pct", "close_pct"):
+    for pct_col in OHLC_CHANGE_PCT_COLUMNS:
         if pct_col in signal_df.columns:
             pct_arrays[pct_col] = signal_df[pct_col].to_numpy()
 

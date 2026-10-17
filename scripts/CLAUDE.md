@@ -118,9 +118,9 @@ main 함수:
 - 데이터 로딩: `load_stock_data` + `extract_overlap_period` (공통 유틸 사용)
 - 워크포워드 검증:
   - `run_walkforward.py`: WFO 2-Mode 비교 실행 (Dynamic/Fully Fixed)
-    - `--strategy` 인자로 실행 전략 선택 (기본값: all). 대상 전략 목록은 변경될 수 있으므로 `run_walkforward.py`의 `STRATEGY_CONFIG`를 직접 확인할 것.
+    - `--strategy` 인자로 실행 전략 선택 (기본값: all). 대상 전략 목록은 변경될 수 있으므로 `run_walkforward.py`의 `STRATEGY_NAMES`를 직접 확인할 것.
     - 각 모드별 CSV + Stitched Equity CSV + walkforward_summary.json 저장
-    - 윈도우별 상세 CSV 저장: `wfo_windows_dynamic/` 및 `wfo_windows_fully_fixed/` 하위에 w{idx}_signal.csv, w{idx}_equity.csv, w{idx}_trades.csv (캔들차트 시각화용)
+    - 윈도우별 상세 CSV 저장: `wfo_windows_dynamic/` 및 `wfo_windows_fully_fixed/` 하위에 w{idx}_signal.csv(OHLC + 그 윈도우의 이동평균 + 4종 전일대비%), w{idx}_equity.csv, w{idx}_trades.csv (캔들차트 시각화용)
 - 포트폴리오 실험:
   - `run_portfolio_backtest.py`: 포트폴리오 실험 실행
     - `--experiment` 인자로 실행할 실험을 선택한다 (기본값: all). 실험 목록은 변경 빈도가 높아 본 문서에 직접 명시하지 않으며, 최신 값은 `src/qbt/backtest/portfolio_configs.py`의 `PORTFOLIO_CONFIGS`를 직접 확인할 것.

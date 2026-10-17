@@ -25,19 +25,12 @@ DEFAULT_INITIAL_CAPITAL: Final = 10_000_000.0  # 1천만원
 # 전략 파라미터
 # ============================================================
 
-# --- Calmar MDD=0 처리 대용값 (MDD=0인 구간에서 Calmar 정렬 유지) ---
-CALMAR_MDD_ZERO_SUBSTITUTE: Final = 1e10
-
-# --- 4P 확정 파라미터 (overfitting_analysis_report.md §2.1 기반) ---
+# --- 4P 확정 파라미터 (근거: docs/research/전략_검증_보고서.md §2.1) ---
 FIXED_4P_MA_WINDOW: Final = 200  # 확정 이동평균 기간
 FIXED_4P_BUY_BUFFER_ZONE_PCT: Final = 0.03  # 확정 매수 버퍼존 비율 (0.03 = 3%)
 FIXED_4P_SELL_BUFFER_ZONE_PCT: Final = 0.05  # 확정 매도 버퍼존 비율 (0.05 = 5%)
 FIXED_4P_HOLD_DAYS: Final = 3  # 확정 유지일수
 
-# --- 버퍼존 전략 제약 조건 ---
-MIN_BUY_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매수 버퍼존 비율 (0.01 = 1%)
-MIN_SELL_BUFFER_ZONE_PCT: Final = 0.01  # 최소 매도 버퍼존 비율 (0.01 = 1%)
-MIN_HOLD_DAYS: Final = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 MIN_VALID_ROWS: Final = 2  # 백테스트 최소 유효 데이터 행 수
 
 # --- WFO 파라미터 리스트 (그리드 서치 + 워크포워드 공용) ---
@@ -52,6 +45,16 @@ DEFAULT_WFO_MIN_TRADES: Final = 3  # IS 최적 파라미터 선택 시 최소 �
 # --- WFO 윈도우 설정 ---
 DEFAULT_WFO_INITIAL_IS_MONTHS: Final = 72  # 초기 IS 기간 (6년)
 DEFAULT_WFO_OOS_MONTHS: Final = 24  # OOS 기간 (2년)
+
+# --- WFO 모드 (walkforward_summary.json 의 키) ---
+KEY_WFO_DYNAMIC: Final = "dynamic"  # 윈도우마다 IS 그리드에서 다시 고른다
+KEY_WFO_FULLY_FIXED: Final = "fully_fixed"  # 4P 를 모든 윈도우에 고정한다
+
+# --- 결과 파일명 (러너가 쓰고 대시보드가 읽는다) ---
+SIGNAL_FILENAME: Final = "signal.csv"
+EQUITY_FILENAME: Final = "equity.csv"
+TRADES_FILENAME: Final = "trades.csv"
+SUMMARY_FILENAME: Final = "summary.json"
 
 # --- WFO 결과 파일명 ---
 WALKFORWARD_DYNAMIC_FILENAME: Final = "walkforward_dynamic.csv"
@@ -85,7 +88,6 @@ COL_HOLD_DAYS_USED: Final = "hold_days_used"
 COL_ORDER_AMOUNT: Final = "order_amount"
 COL_HOLDING_DAYS: Final = "holding_days"
 COL_DRAWDOWN_PCT: Final = "drawdown_pct"
-COL_CHANGE_PCT: Final = "change_pct"
 
 # --- 포트폴리오 거래 기록의 trade_type 값 ---
 TRADE_TYPE_SIGNAL: Final = "signal"  # 신호 · 배분 변화에 따른 청산
@@ -101,16 +103,14 @@ COL_MA_WINDOW: Final = "ma_window"
 COL_BUY_BUFFER_ZONE_PCT: Final = "buy_buffer_zone_pct"
 COL_SELL_BUFFER_ZONE_PCT: Final = "sell_buffer_zone_pct"
 COL_HOLD_DAYS: Final = "hold_days"
-COL_TOTAL_RETURN_PCT: Final = "total_return_pct"
 COL_CAGR: Final = "cagr"
 COL_MDD: Final = "mdd"
 COL_CALMAR: Final = "calmar"
 COL_TOTAL_TRADES: Final = "total_trades"
 COL_WIN_RATE: Final = "win_rate"
-COL_FINAL_CAPITAL: Final = "final_capital"
 
 # ============================================================
-# MA 컬럼명 생성 함수
+# 이름 생성 함수
 # ============================================================
 
 
@@ -124,3 +124,8 @@ def ma_col_name(window: int) -> str:
         MA 컬럼명 문자열. 예: ma_col_name(200) -> 'ma_200'
     """
     return f"ma_{window}"
+
+
+def wfo_window_filename(window_idx: int, filename: str) -> str:
+    """WFO 윈도우별 상세 파일명. 예: wfo_window_filename(3, SIGNAL_FILENAME) -> 'w03_signal.csv'"""
+    return f"w{window_idx:02d}_{filename}"

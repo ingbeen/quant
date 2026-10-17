@@ -13,7 +13,7 @@
 import argparse
 import json
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any
 
 from qbt.backtest import runners
@@ -22,21 +22,18 @@ from qbt.backtest.analysis import (
     calculate_monthly_returns,
     calculate_yearly_returns,
 )
+from qbt.backtest.constants import EQUITY_FILENAME, SIGNAL_FILENAME, SUMMARY_FILENAME, TRADES_FILENAME
 from qbt.backtest.csv_export import (
-    OHLC_CHANGE_PCT_COLUMNS,
     add_ohlc_change_pct,
     prepare_trades_for_csv,
+    round_signal_for_csv,
 )
 from qbt.backtest.strategies import (
     buffer_zone,
     buy_and_hold,
 )
-from qbt.backtest.types import SingleBacktestResult
+from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import (
-    COL_CLOSE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
     ROUND_CAPITAL,
     ROUND_PERCENT,
     ROUND_PRICE,
@@ -60,7 +57,7 @@ for _config in buy_and_hold.CONFIGS:
     STRATEGY_RUNNERS[_config.strategy_name] = runners.create_buy_and_hold_runner(_config)
 
 
-def print_summary(summary: Mapping[str, object], title: str) -> None:
+def print_summary(summary: SummaryDict, title: str) -> None:
     """
     요약 지표를 출력한다.
 
@@ -70,7 +67,7 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
     """
     logger.debug("=" * 60)
     logger.debug(f"[{title}]")
-    logger.debug(f"  기간: {summary.get('start_date')} ~ {summary.get('end_date')}")
+    logger.debug(f"  기간: {summary['start_date']} ~ {summary['end_date']}")
     logger.debug(f"  초기 자본: {summary['initial_capital']:,.0f}원")
     logger.debug(f"  최종 자본: {summary['final_capital']:,.0f}원")
     logger.debug(f"  총 수익률: {summary['total_return_pct']:.2f}%")
@@ -78,10 +75,8 @@ def print_summary(summary: Mapping[str, object], title: str) -> None:
     logger.debug(f"  MDD: {summary['mdd']:.2f}%")
     logger.debug(f"  Calmar: {summary['calmar']:.2f}")
     logger.debug(f"  총 거래 수: {summary['total_trades']}")
-    if "win_rate" in summary:
-        logger.debug(f"  승률: {summary['win_rate']:.1f}%")
-        if "winning_trades" in summary:
-            logger.debug(f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}")
+    logger.debug(f"  승률: {summary['win_rate']:.1f}%")
+    logger.debug(f"  승/패: {summary['winning_trades']}/{summary['losing_trades']}")
     logger.debug("=" * 60)
 
 
@@ -89,27 +84,15 @@ def _save_signal_csv(result: SingleBacktestResult) -> None:
     """
     시그널 데이터를 CSV로 저장한다 (OHLC + MA + 4종 전일대비%).
 
-    컬럼 감지 기반 반올림: 가격 6자리, MA 6자리, % 2자리.
     4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`)은
     `add_ohlc_change_pct` 헬퍼로 사전 계산되어 대시보드의 SSoT 역할을 한다.
+    자릿수는 `round_signal_for_csv`.
 
     Args:
         result: SingleBacktestResult 컨테이너
     """
-    signal_path = result.result_dir / "signal.csv"
-
-    signal_export = add_ohlc_change_pct(result.signal_df)
-
-    signal_round: dict[str, int] = {col: ROUND_PERCENT for col in OHLC_CHANGE_PCT_COLUMNS}
-    for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
-        if col in signal_export.columns:
-            signal_round[col] = ROUND_PRICE
-    for col in signal_export.columns:
-        if col.startswith("ma_"):
-            signal_round[col] = ROUND_PRICE
-
-    signal_export = signal_export.round(signal_round)
-    signal_export.to_csv(signal_path, index=False)
+    signal_path = result.result_dir / SIGNAL_FILENAME
+    round_signal_for_csv(add_ohlc_change_pct(result.signal_df)).to_csv(signal_path, index=False)
     logger.debug(f"시그널 데이터 저장 완료: {signal_path}")
 
 
@@ -117,12 +100,12 @@ def _save_equity_csv(result: SingleBacktestResult) -> None:
     """
     에쿼티 데이터를 CSV로 저장한다 (equity + drawdown_pct + 전략별 컬럼).
 
-    컬럼 감지 기반 반올림: equity 정수, 밴드 6자리, 비율 4자리.
+    컬럼 감지 기반 반올림: equity 정수, 밴드 ROUND_PRICE, 비율 ROUND_RATIO.
 
     Args:
         result: SingleBacktestResult 컨테이너
     """
-    equity_path = result.result_dir / "equity.csv"
+    equity_path = result.result_dir / EQUITY_FILENAME
 
     equity_export = result.equity_df.copy()
     equity_export["drawdown_pct"] = calculate_drawdown_pct_series(equity_export["equity"].astype(float))
@@ -145,14 +128,12 @@ def _save_equity_csv(result: SingleBacktestResult) -> None:
 
 def _save_trades_csv(result: SingleBacktestResult) -> None:
     """
-    거래 내역을 CSV로 저장한다 (거래 내역 + holding_days).
-
-    컬럼 감지 기반 반올림: 가격 6자리, pnl 정수, 비율 4자리.
+    거래 내역을 CSV로 저장한다 (거래 내역 + holding_days). 자릿수는 `prepare_trades_for_csv`.
 
     Args:
         result: SingleBacktestResult 컨테이너
     """
-    trades_path = result.result_dir / "trades.csv"
+    trades_path = result.result_dir / TRADES_FILENAME
     prepare_trades_for_csv(result.trades_df).to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
 
@@ -170,34 +151,31 @@ def _save_summary_json(
         monthly_returns: 월별 수익률 리스트
         yearly_returns: 연간 수익률 리스트
     """
-    summary_path = result.result_dir / "summary.json"
+    summary_path = result.result_dir / SUMMARY_FILENAME
 
     # 1. 성과 지표 반올림
-    # winning_trades / losing_trades / win_rate 는 SummaryDict 의 필수 필드이므로
-    # silent default 를 적용하지 않는다. start_date / end_date 만 NotRequired (equity_df 가
-    # 빈 경우) 라 Mapping.get default 를 유지한다.
     summary_dict: dict[str, Any] = {
-        "initial_capital": round(float(str(result.summary["initial_capital"]))),
-        "final_capital": round(float(str(result.summary["final_capital"]))),
-        "total_return_pct": round(float(str(result.summary["total_return_pct"])), ROUND_PERCENT),
-        "cagr": round(float(str(result.summary["cagr"])), ROUND_PERCENT),
-        "mdd": round(float(str(result.summary["mdd"])), ROUND_PERCENT),
-        "calmar": round(float(str(result.summary["calmar"])), ROUND_RATIO),
+        "initial_capital": round(result.summary["initial_capital"]),
+        "final_capital": round(result.summary["final_capital"]),
+        "total_return_pct": round(result.summary["total_return_pct"], ROUND_PERCENT),
+        "cagr": round(result.summary["cagr"], ROUND_PERCENT),
+        "mdd": round(result.summary["mdd"], ROUND_PERCENT),
+        "calmar": round(result.summary["calmar"], ROUND_RATIO),
         "total_trades": result.summary["total_trades"],
         "winning_trades": result.summary["winning_trades"],
         "losing_trades": result.summary["losing_trades"],
-        "win_rate": round(float(str(result.summary["win_rate"])), ROUND_PERCENT),
-        "start_date": result.summary.get("start_date", ""),
-        "end_date": result.summary.get("end_date", ""),
+        "win_rate": round(result.summary["win_rate"], ROUND_PERCENT),
+        "start_date": result.summary["start_date"],
+        "end_date": result.summary["end_date"],
     }
 
     # 2. 미청산 포지션 정보 (있는 경우에만 저장)
-    open_position_raw = result.summary.get("open_position")
-    if open_position_raw is not None and isinstance(open_position_raw, dict):
+    open_position = result.summary.get("open_position")
+    if open_position is not None:
         summary_dict["open_position"] = {
-            "entry_date": str(open_position_raw["entry_date"]),
-            "entry_price": round(float(str(open_position_raw["entry_price"])), ROUND_PRICE),
-            "shares": int(str(open_position_raw["shares"])),
+            "entry_date": open_position["entry_date"],
+            "entry_price": round(open_position["entry_price"], ROUND_PRICE),
+            "shares": open_position["shares"],
         }
 
     summary_data: dict[str, Any] = {

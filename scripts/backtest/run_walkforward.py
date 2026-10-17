@@ -14,13 +14,13 @@ import argparse
 import json
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
 
 from qbt.backtest.constants import (
     COL_BUY_BUFFER_PCT,
-    COL_CHANGE_PCT,
     COL_DRAWDOWN_PCT,
     COL_EQUITY,
     COL_LOWER_BAND,
@@ -34,10 +34,15 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+    EQUITY_FILENAME,
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
+    KEY_WFO_DYNAMIC,
+    KEY_WFO_FULLY_FIXED,
+    SIGNAL_FILENAME,
+    TRADES_FILENAME,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
@@ -45,8 +50,9 @@ from qbt.backtest.constants import (
     WALKFORWARD_SUMMARY_FILENAME,
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
+    wfo_window_filename,
 )
-from qbt.backtest.csv_export import prepare_trades_for_csv
+from qbt.backtest.csv_export import add_ohlc_change_pct, prepare_trades_for_csv, round_signal_for_csv
 from qbt.backtest.strategies import buffer_zone
 from qbt.backtest.types import WfoModeSummaryDict, WfoWindowResultDict
 from qbt.backtest.walkforward import (
@@ -73,27 +79,8 @@ from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
 
-# 전략별 설정 매핑 (WFO 대상: 기존 전략만)
-_tqqq = buffer_zone.get_config("buffer_zone_tqqq")
-_qqq = buffer_zone.get_config("buffer_zone_qqq")
-STRATEGY_CONFIG: dict[str, dict[str, Path]] = {
-    _tqqq.strategy_name: {
-        "signal_path": _tqqq.signal_data_path,
-        "trade_path": _tqqq.trade_data_path,
-        "result_dir": _tqqq.result_dir,
-    },
-    _qqq.strategy_name: {
-        "signal_path": _qqq.signal_data_path,
-        "trade_path": _qqq.trade_data_path,
-        "result_dir": _qqq.result_dir,
-    },
-}
-
-
-def _load_data(strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """전략에 맞는 데이터를 로딩한다."""
-    config = STRATEGY_CONFIG[strategy_name]
-    return load_signal_trade_pair(config["signal_path"], config["trade_path"])
+# WFO 대상 전략 (buffer_zone.CONFIGS 의 strategy_name)
+STRATEGY_NAMES: tuple[str, ...] = ("buffer_zone_tqqq", "buffer_zone_qqq")
 
 
 def _run_single_mode(
@@ -110,7 +97,7 @@ def _run_single_mode(
     """단일 WFO 모드를 실행한다.
 
     Args:
-        mode_name: 모드 이름 (dynamic / fully_fixed)
+        mode_name: 모드 이름 (로그용)
         signal_df: 시그널 DataFrame
         trade_df: 매매 DataFrame
         기타: 파라미터 리스트들
@@ -137,10 +124,12 @@ def _run_single_mode(
     )
 
     # Stitched Equity 생성
-    equity_df, stitched_summary = run_stitched_equity(signal_df, trade_df, window_results, initial_capital)
+    equity_df, stitched_summary, window_end_equities = run_stitched_equity(
+        signal_df, trade_df, window_results, initial_capital
+    )
 
     # 모드 요약 계산
-    mode_summary = calculate_wfo_mode_summary(window_results, stitched_summary)
+    mode_summary = calculate_wfo_mode_summary(window_results, stitched_summary, window_end_equities)
 
     elapsed = time.time() - start_time
     logger.debug(f"[{mode_name}] 완료: {elapsed:.1f}초, 윈도우 {len(window_results)}개")
@@ -154,15 +143,12 @@ _PCT_FIELDS = {
     "oos_cagr_std",
     "oos_mdd_mean",
     "oos_mdd_worst",
-    "oos_win_rate_mean",
     "stitched_cagr",
     "stitched_mdd",
-    "stitched_total_return_pct",
 }
 
 _RATIO_FIELDS = {
     "oos_calmar_mean",
-    "oos_calmar_std",
     "wfe_calmar_mean",
     "wfe_calmar_median",
     "wfe_cagr_mean",
@@ -190,11 +176,11 @@ _WINDOW_CSV_ROUND: dict[str, int] = {
 }
 
 
-def _round_summary_for_json(summary: dict[str, object]) -> dict[str, object]:
+def _round_summary_for_json(summary: Mapping[str, object]) -> dict[str, object]:
     """WfoModeSummaryDict를 JSON 저장용 반올림 규칙에 맞게 변환한다.
 
     Args:
-        summary: WfoModeSummaryDict 또는 동등한 딕셔너리
+        summary: WfoModeSummaryDict
 
     Returns:
         반올림 적용된 딕셔너리 (원본 변경 없음)
@@ -245,22 +231,12 @@ def _save_window_detail_csvs(
     # CSV 포맷팅 및 저장 (CLI 책임)
     for detail in details:
         idx = detail.window_idx
-        ma_col = detail.ma_col
 
-        # --- signal CSV 저장 ---
-        signal_cols = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, ma_col, COL_CHANGE_PCT]
-        signal_export = detail.signal_df[[c for c in signal_cols if c in detail.signal_df.columns]].copy()
-        signal_round: dict[str, int] = {
-            COL_OPEN: ROUND_PRICE,
-            COL_HIGH: ROUND_PRICE,
-            COL_LOW: ROUND_PRICE,
-            COL_CLOSE: ROUND_PRICE,
-            COL_CHANGE_PCT: ROUND_PERCENT,
-        }
-        if ma_col in signal_export.columns:
-            signal_round[ma_col] = ROUND_PRICE
-        signal_export = signal_export.round(signal_round)
-        signal_export.to_csv(window_dir / f"w{idx:02d}_signal.csv", index=False)
+        # --- signal CSV 저장 (OHLC + 그 윈도우의 이동평균 + 4종 전일대비%) ---
+        signal_export = add_ohlc_change_pct(
+            detail.signal_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, detail.ma_col]]
+        )
+        round_signal_for_csv(signal_export).to_csv(window_dir / wfo_window_filename(idx, SIGNAL_FILENAME), index=False)
 
         # --- equity CSV 저장 ---
         equity_export = detail.equity_df.copy()
@@ -274,10 +250,12 @@ def _save_window_detail_csvs(
         }
         equity_export = equity_export.round(equity_round)
         equity_export[COL_EQUITY] = equity_export[COL_EQUITY].astype(int)
-        equity_export.to_csv(window_dir / f"w{idx:02d}_equity.csv", index=False)
+        equity_export.to_csv(window_dir / wfo_window_filename(idx, EQUITY_FILENAME), index=False)
 
         # --- trades CSV 저장 ---
-        prepare_trades_for_csv(detail.trades_df).to_csv(window_dir / f"w{idx:02d}_trades.csv", index=False)
+        prepare_trades_for_csv(detail.trades_df).to_csv(
+            window_dir / wfo_window_filename(idx, TRADES_FILENAME), index=False
+        )
 
     logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(details)}개 윈도우)")
 
@@ -289,7 +267,8 @@ def _save_results(
     fully_fixed_results: list[WfoWindowResultDict],
     dynamic_equity: pd.DataFrame,
     fully_fixed_equity: pd.DataFrame,
-    all_summaries: dict[str, object],
+    dynamic_summary: WfoModeSummaryDict,
+    fully_fixed_summary: WfoModeSummaryDict,
 ) -> None:
     """WFO 결과를 CSV/JSON으로 저장한다."""
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -306,23 +285,18 @@ def _save_results(
         (WALKFORWARD_EQUITY_DYNAMIC_FILENAME, dynamic_equity),
         (WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME, fully_fixed_equity),
     ]:
-        if not eq_df.empty:
-            eq_export = eq_df.round({COL_EQUITY: ROUND_CAPITAL}).astype({COL_EQUITY: int})
-            eq_export.to_csv(result_dir / filename, index=False)
+        eq_export = eq_df.round({COL_EQUITY: ROUND_CAPITAL}).astype({COL_EQUITY: int})
+        eq_export.to_csv(result_dir / filename, index=False)
 
     # 요약 JSON 저장 (반올림 규칙 적용)
-    rounded_summaries: dict[str, object] = {"strategy": all_summaries.get("strategy", "")}
-    for mode_key in ["dynamic", "fully_fixed"]:
-        if mode_key in all_summaries:
-            mode_data = all_summaries[mode_key]
-            if isinstance(mode_data, dict):
-                rounded_summaries[mode_key] = _round_summary_for_json(mode_data)
-            else:
-                rounded_summaries[mode_key] = mode_data
-
+    summary_json = {
+        "strategy": strategy_name,
+        KEY_WFO_DYNAMIC: _round_summary_for_json(dynamic_summary),
+        KEY_WFO_FULLY_FIXED: _round_summary_for_json(fully_fixed_summary),
+    }
     summary_path = result_dir / WALKFORWARD_SUMMARY_FILENAME
     with summary_path.open("w", encoding="utf-8") as f:
-        json.dump(rounded_summaries, f, indent=2, ensure_ascii=False, default=str)
+        json.dump(summary_json, f, indent=2, ensure_ascii=False)
 
     logger.debug(f"결과 저장 완료: {result_dir}")
 
@@ -349,12 +323,9 @@ def _print_mode_summary(mode_name: str, summary: WfoModeSummaryDict) -> None:
         ["PC 최대", f"{summary['profit_concentration_max']:.4f}"],
         ["PC 최대 윈도우", str(summary["profit_concentration_window_idx"])],
         ["OOS 총 거래수", str(summary["oos_trades_total"])],
+        ["Stitched CAGR", f"{summary['stitched_cagr']:.2f}%"],
+        ["Stitched MDD", f"{summary['stitched_mdd']:.2f}%"],
     ]
-
-    if "stitched_cagr" in summary:
-        rows.append(["Stitched CAGR", f"{summary['stitched_cagr']:.2f}%"])
-    if "stitched_mdd" in summary:
-        rows.append(["Stitched MDD", f"{summary['stitched_mdd']:.2f}%"])
 
     table = TableLogger(columns, logger)
     table.print_table(rows, title=f"[{mode_name}] WFO 요약")
@@ -367,7 +338,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="백테스트 워크포워드 검증 (2-Mode)")
     parser.add_argument(
         "--strategy",
-        choices=["all", *STRATEGY_CONFIG.keys()],
+        choices=["all", *STRATEGY_NAMES],
         default="all",
         help="실행할 전략 (기본값: all)",
     )
@@ -375,7 +346,7 @@ def main() -> int:
 
     # 2. 전략 목록 결정
     if args.strategy == "all":
-        strategy_names = list(STRATEGY_CONFIG.keys())
+        strategy_names = list(STRATEGY_NAMES)
     else:
         strategy_names = [args.strategy]
 
@@ -383,21 +354,21 @@ def main() -> int:
 
     # 3. 전략별 WFO 실행
     for strategy_name in strategy_names:
-        result_dir = STRATEGY_CONFIG[strategy_name]["result_dir"]
+        config = buffer_zone.get_config(strategy_name)
         total_start = time.time()
 
         logger.debug("=" * 60)
         logger.debug(f"[{strategy_name}] 워크포워드 검증 시작")
 
         # 3-1. 데이터 로딩
-        signal_df, trade_df = _load_data(strategy_name)
+        signal_df, trade_df = load_signal_trade_pair(config.signal_data_path, config.trade_data_path)
         logger.debug(f"데이터 로딩 완료: {signal_df[COL_DATE].min()} ~ {signal_df[COL_DATE].max()}, " f"{len(signal_df)}행")
 
         # 3-2. Mode 1: Dynamic (모든 파라미터 IS 최적화)
         logger.debug("-" * 40)
         logger.debug("[Mode 1: Dynamic] 모든 파라미터 IS 최적화")
         dynamic_results, dynamic_summary, dynamic_equity = _run_single_mode(
-            "dynamic",
+            KEY_WFO_DYNAMIC,
             signal_df,
             trade_df,
             list(DEFAULT_WFO_MA_WINDOW_LIST),
@@ -414,7 +385,7 @@ def main() -> int:
         logger.debug("[Mode 2: Fully Fixed] 확정 파라미터(4P) 고정")
 
         fully_fixed_results, fully_fixed_summary, fully_fixed_equity = _run_single_mode(
-            "fully_fixed",
+            KEY_WFO_FULLY_FIXED,
             signal_df,
             trade_df,
             [FIXED_4P_MA_WINDOW],
@@ -431,20 +402,15 @@ def main() -> int:
         _print_mode_summary("Fully Fixed", fully_fixed_summary)
 
         # 3-5. 결과 저장
-        all_summaries: dict[str, object] = {
-            "strategy": strategy_name,
-            "dynamic": dynamic_summary,
-            "fully_fixed": fully_fixed_summary,
-        }
-
         _save_results(
             strategy_name,
-            result_dir,
+            config.result_dir,
             dynamic_results,
             fully_fixed_results,
             dynamic_equity,
             fully_fixed_equity,
-            all_summaries,
+            dynamic_summary,
+            fully_fixed_summary,
         )
 
         # 3-6. 윈도우별 상세 CSV 저장
@@ -452,7 +418,7 @@ def main() -> int:
             dynamic_results,
             signal_df,
             trade_df,
-            result_dir,
+            config.result_dir,
             WFO_WINDOWS_DYNAMIC_DIR,
             DEFAULT_INITIAL_CAPITAL,
         )
@@ -460,7 +426,7 @@ def main() -> int:
             fully_fixed_results,
             signal_df,
             trade_df,
-            result_dir,
+            config.result_dir,
             WFO_WINDOWS_FULLY_FIXED_DIR,
             DEFAULT_INITIAL_CAPITAL,
         )

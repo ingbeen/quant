@@ -7,9 +7,7 @@
     "oos_mdd_mean": -14.11,
     "oos_mdd_worst": -23.93,
     "oos_calmar_mean": 0.9765,
-    "oos_calmar_std": 1.0793,
     "oos_trades_total": 14,
-    "oos_win_rate_mean": 50.0,
     "wfe_calmar_mean": 5.8425,
     "wfe_calmar_median": 3.8158,
     "wfe_cagr_mean": 2.4923,
@@ -72,8 +70,7 @@
     ],
     "stitched_cagr": 10.68,
     "stitched_mdd": -23.93,
-    "stitched_calmar": 0.4465,
-    "stitched_total_return_pct": 792.6
+    "stitched_calmar": 0.4465
   },
   "fully_fixed": {
     "n_windows": 11,
@@ -82,9 +79,7 @@
     "oos_mdd_mean": -14.99,
     "oos_mdd_worst": -26.43,
     "oos_calmar_mean": 0.8163,
-    "oos_calmar_std": 1.0879,
     "oos_trades_total": 9,
-    "oos_win_rate_mean": 45.45,
     "wfe_calmar_mean": 5.6614,
     "wfe_calmar_median": 4.1032,
     "wfe_cagr_mean": 2.4643,
@@ -147,7 +142,6 @@
     ],
     "stitched_cagr": 11.65,
     "stitched_mdd": -26.43,
-    "stitched_calmar": 0.4409,
-    "stitched_total_return_pct": 977.43
+    "stitched_calmar": 0.4409
   }
 }

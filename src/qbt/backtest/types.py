@@ -14,11 +14,9 @@
 - engine_common.py: EquityRecord, TradeRecord
 - buffer_zone_helpers.py: HoldState
 - backtest_engine.py: GridSearchResult
-- buffer_zone.py: BufferStrategyResultDict
 - buy_and_hold.py: BuyAndHoldConfig
 """
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NotRequired, TypedDict
@@ -43,7 +41,6 @@ class SummaryDict(TypedDict):
     """calculate_summary() 반환 타입.
 
     성과 지표 요약 딕셔너리.
-    equity_df가 비어있는 경우 start_date/end_date가 포함되지 않으므로 NotRequired.
     open_position은 백테스트 종료 시 보유 중인 포지션이 있을 때만 포함된다.
     """
 
@@ -58,8 +55,8 @@ class SummaryDict(TypedDict):
     winning_trades: int
     losing_trades: int
     win_rate: float
-    start_date: NotRequired[str | None]
-    end_date: NotRequired[str | None]
+    start_date: str  # ISO format "YYYY-MM-DD" (에쿼티 첫 날)
+    end_date: str  # ISO format "YYYY-MM-DD" (에쿼티 마지막 날)
     open_position: NotRequired[OpenPositionDict]
 
 
@@ -104,7 +101,7 @@ class SingleBacktestResult:
     signal_df: pd.DataFrame  # 저장용 시그널 데이터 (raw)
     equity_df: pd.DataFrame  # 에쿼티 데이터 (raw)
     trades_df: pd.DataFrame  # 거래 내역 (빈 DataFrame 가능)
-    summary: Mapping[str, object]  # 요약 지표
+    summary: SummaryDict  # 요약 지표
     params_json: dict[str, Any]  # JSON 저장용 전략 파라미터
     result_dir: Path  # 결과 저장 디렉토리
     data_info: dict[str, str]  # 데이터 소스 경로 정보 (signal_path, trade_path)
@@ -156,9 +153,7 @@ class WfoModeSummaryDict(TypedDict):
     oos_mdd_mean: float
     oos_mdd_worst: float  # 가장 낮은 MDD (가장 큰 낙폭)
     oos_calmar_mean: float
-    oos_calmar_std: float
     oos_trades_total: int
-    oos_win_rate_mean: float
     # WFE 통계
     wfe_calmar_mean: float
     wfe_calmar_median: float
@@ -174,8 +169,7 @@ class WfoModeSummaryDict(TypedDict):
     param_buy_buffers: list[float]
     param_sell_buffers: list[float]
     param_hold_days: list[int]
-    # Stitched Equity 지표 (선택적)
-    stitched_cagr: NotRequired[float]
-    stitched_mdd: NotRequired[float]
-    stitched_calmar: NotRequired[float]
-    stitched_total_return_pct: NotRequired[float]
+    # Stitched Equity 지표
+    stitched_cagr: float
+    stitched_mdd: float
+    stitched_calmar: float

@@ -14,17 +14,15 @@ from typing import TypedDict
 
 import pandas as pd
 
-from qbt.backtest.analysis import add_single_moving_average, calculate_calmar, calculate_summary
+from qbt.backtest.analysis import add_moving_averages, add_single_moving_average, calculate_summary
 from qbt.backtest.constants import (
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
     COL_CALMAR,
-    COL_FINAL_CAPITAL,
     COL_HOLD_DAYS,
     COL_MA_WINDOW,
     COL_MDD,
     COL_SELL_BUFFER_ZONE_PCT,
-    COL_TOTAL_RETURN_PCT,
     COL_TOTAL_TRADES,
     COL_WIN_RATE,
     DEFAULT_INITIAL_CAPITAL,
@@ -41,10 +39,7 @@ from qbt.backtest.engines.engine_common import (
     record_equity,
 )
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-from qbt.backtest.strategies.strategy_common import (
-    PendingOrderConflictError,
-    SignalStrategy,
-)
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BufferStrategyParams, SummaryDict
 from qbt.common_constants import (
     COL_CLOSE,
@@ -73,13 +68,11 @@ class GridSearchResult(TypedDict):
     buy_buffer_zone_pct: float
     sell_buffer_zone_pct: float
     hold_days: int
-    total_return_pct: float
     cagr: float
     mdd: float
     calmar: float
     total_trades: int
     win_rate: float
-    final_capital: float
 
 
 # ============================================================================
@@ -119,29 +112,6 @@ def _validate_backtest_inputs(
         raise ValueError("signal_df와 trade_df의 날짜가 일치하지 않습니다")
 
 
-def _check_pending_conflict(
-    pending_order: PendingOrder | None,
-    signal_type: str,
-    current_date: date,
-) -> None:
-    """Pending order 충돌을 검사한다 (Critical Invariant).
-
-    Args:
-        pending_order: 현재 pending order
-        signal_type: 발생한 신호 타입
-        current_date: 현재 날짜
-
-    Raises:
-        PendingOrderConflictError: pending이 이미 존재하는 경우
-    """
-    if pending_order is not None:
-        raise PendingOrderConflictError(
-            f"Pending order 충돌 감지: 기존 pending(type={pending_order.order_type}, "
-            f"signal_date={pending_order.signal_date}) "
-            f"존재 중 신규 {signal_type} 신호 발생(current_date={current_date})"
-        )
-
-
 def filter_valid_rows(
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
@@ -177,8 +147,7 @@ def prepare_common_period(
     여러 이동평균을 비교할 때 모두 같은 기간으로 평가하려고 쓴다 — 이동평균마다 자기 유효 구간에서 재면
     짧은 이동평균일수록 일찍 시작해 기간이 다른 성과를 비교하게 된다.
     가장 긴 이동평균이 유효한 행은 그보다 짧은 이동평균도 유효하다(창 안의 종가가 모두 있다).
-    이미 있는 이동평균 열은 다시 계산하지 않는다 — 구간을 잘라 넘기는 호출자(워크포워드 IS)가 전체 기간으로
-    계산해 둔 값을 조각에서 다시 계산하면 앞부분이 비어 시작일이 한 번 더 밀린다.
+    이미 있는 이동평균 열은 다시 계산하지 않는다(`add_moving_averages`).
 
     Args:
         signal_df: 시그널 DataFrame (MA 계산 대상)
@@ -188,9 +157,7 @@ def prepare_common_period(
     Returns:
         (signal_df, trade_df) — 모든 이동평균 열이 있고 모든 행에서 유효하다
     """
-    for window in ma_windows:
-        if ma_col_name(window) not in signal_df.columns:
-            signal_df = add_single_moving_average(signal_df, window)
+    signal_df = add_moving_averages(signal_df, ma_windows)
     return filter_valid_rows(signal_df, trade_df, ma_col_name(max(ma_windows)))
 
 
@@ -240,21 +207,16 @@ def _run_backtest_for_grid(
 
     _, _, summary = run_backtest(strategy, signal_df, trade_df, params.initial_capital, log_trades=False)
 
-    # Calmar 계산 (CAGR / |MDD|, MDD=0 안전 처리)
-    calmar = calculate_calmar(summary["cagr"], summary["mdd"])
-
     result: GridSearchResult = {
         COL_MA_WINDOW: params.ma_window,
         COL_BUY_BUFFER_ZONE_PCT: params.buy_buffer_zone_pct,
         COL_SELL_BUFFER_ZONE_PCT: params.sell_buffer_zone_pct,
         COL_HOLD_DAYS: params.hold_days,
-        COL_TOTAL_RETURN_PCT: summary["total_return_pct"],
         COL_CAGR: summary["cagr"],
         COL_MDD: summary["mdd"],
-        COL_CALMAR: calmar,
+        COL_CALMAR: summary["calmar"],
         COL_TOTAL_TRADES: summary["total_trades"],
         COL_WIN_RATE: summary["win_rate"],
-        COL_FINAL_CAPITAL: summary["final_capital"],
     }
 
     return result
@@ -285,7 +247,7 @@ def run_backtest(
     - 체결: trade_df의 open (다음 날 시가)
     - equity = cash + position * trade_df.close (모든 시점)
     - final_capital = 마지막 equity (평가액 포함)
-    - pending_order: 단일 슬롯 (충돌 시 PendingOrderConflictError)
+    - pending_order: 단일 슬롯 — 체결일 아침에 비운 뒤 그날 신호를 보므로 신호 시점에 남은 pending 이 없다
 
     MA 필터링 책임:
     - 호출자가 유효 데이터 구간(MA 워밍업 이후)으로 signal_df/trade_df를 사전 필터링해야 한다.
@@ -310,7 +272,6 @@ def run_backtest(
 
     Raises:
         ValueError: 필수 컬럼 누락 또는 데이터 부족 시
-        PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
     if log_trades:
         logger.debug(f"백테스트 실행 시작: strategy_name={strategy_name!r}, initial_capital={initial_capital}")
@@ -341,7 +302,7 @@ def run_backtest(
     entry_buy_buffer_pct: float = 0.0
     entry_hold_days_used: int = 0
 
-    # 4. 백테스트 루프 (Day 0부터 시작 — B&H 첫 매수 타이밍 fix)
+    # 4. 백테스트 루프 (Day 0부터 — B&H 가 첫날 종가 신호로 둘째 날 시가에 사려면 첫날부터 신호를 봐야 한다)
     # 시그널: signal_df의 close, MA → 전략 내부에서 밴드/돌파 감지
     # 체결: trade_df의 open → 매수/매도 체결가
     # 에쿼티: trade_df의 close → 포지션 평가
@@ -423,7 +384,6 @@ def run_backtest(
                 entry_buy_buffer_pct = float(meta.get("buy_buffer_pct", 0.0))
                 entry_hold_days_used = int(meta.get("hold_days_used", 0))
 
-                _check_pending_conflict(pending_order, "buy", current_date)
                 pending_order = PendingOrder(
                     order_type="buy",
                     signal_date=current_date,
@@ -434,7 +394,6 @@ def run_backtest(
             sell = strategy.check_sell(signal_df, i)
 
             if sell:
-                _check_pending_conflict(pending_order, "sell", current_date)
                 pending_order = PendingOrder(
                     order_type="sell",
                     signal_date=current_date,
@@ -449,7 +408,9 @@ def run_backtest(
     summary = calculate_summary(trades_df, equity_df, initial_capital)
 
     # 7. 미청산 포지션 정보 기록
-    if position > 0 and entry_date is not None:
+    if position > 0:
+        if entry_date is None:
+            raise RuntimeError(f"내부 불변조건 위반: 포지션 {position}주인데 entry_date 가 None (종료 시점)")
         summary["open_position"] = {
             "entry_date": str(entry_date),
             "entry_price": round(entry_price, ROUND_PRICE),
@@ -532,8 +493,8 @@ def run_grid_search(
     # 4. 딕셔너리 리스트를 DataFrame으로 변환
     results_df = pd.DataFrame(results)
 
-    # 5. Calmar 기준 내림차순 정렬
-    results_df = results_df.sort_values(by=COL_CALMAR, ascending=False).reset_index(drop=True)
+    # 5. Calmar 기준 내림차순 정렬 — 안정 정렬이라 Calmar 가 같은 조합은 그리드 입력 순서를 지킨다
+    results_df = results_df.sort_values(by=COL_CALMAR, ascending=False, kind="stable").reset_index(drop=True)
 
     logger.debug(f"그리드 탐색 완료: {len(results_df)}개 조합 테스트됨")
 
@@ -546,32 +507,26 @@ def run_buffer_strategy(
     params: BufferStrategyParams,
     log_trades: bool = True,
     strategy_name: str = "buffer_zone",
-    params_schedule: dict[date, SignalStrategy] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, SummaryDict]:
     """버퍼존 전략으로 백테스트를 실행한다.
 
     `BufferStrategyParams`를 받아 내부에서 `BufferZoneStrategy`를 생성하고
     `run_backtest`를 호출하는 편의 래퍼.
 
-    초기 MA 계산 및 유효 구간 필터링을 내부에서 수행한다.
-    params_schedule에 포함된 전략들의 MA 컬럼은 호출자가 사전 계산해야 한다.
+    MA 계산 및 유효 구간 필터링을 내부에서 수행한다.
 
     Args:
-        signal_df: 시그널용 DataFrame (초기 MA 사전 계산 불필요, 내부에서 처리)
+        signal_df: 시그널용 DataFrame (MA 사전 계산 불필요, 내부에서 처리)
         trade_df: 매매용 DataFrame (체결가: Open, 에쿼티: Close)
-        params: 전략 파라미터 (초기 구간 파라미터)
+        params: 전략 파라미터
         log_trades: 거래 로그 출력 여부 (기본값: True)
         strategy_name: 전략 식별 이름 (기본값: "buffer_zone")
-        params_schedule: 구간별 전략 전환 스케줄 (기본값: None)
-            {date: SignalStrategy} 형태. 해당 날짜부터 해당 전략 객체로 교체.
-            포함된 전략이 사용하는 MA 컬럼은 signal_df에 사전 계산되어 있어야 한다.
 
     Returns:
         tuple: (trades_df, equity_df, summary)
 
     Raises:
         ValueError: 파라미터 검증 실패 또는 필수 컬럼 누락 시
-        PendingOrderConflictError: pending 존재 중 신규 신호 발생 시 (Critical Invariant 위반)
     """
     # 1. 초기 MA 계산
     ma_col = ma_col_name(params.ma_window)
@@ -599,5 +554,4 @@ def run_buffer_strategy(
         params.initial_capital,
         log_trades=log_trades,
         strategy_name=strategy_name,
-        params_schedule=params_schedule,
     )

@@ -29,6 +29,11 @@ from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import (
+    EQUITY_FILENAME,
+    KEY_WFO_DYNAMIC,
+    KEY_WFO_FULLY_FIXED,
+    SIGNAL_FILENAME,
+    TRADES_FILENAME,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
@@ -36,7 +41,9 @@ from qbt.backtest.constants import (
     WALKFORWARD_SUMMARY_FILENAME,
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
+    wfo_window_filename,
 )
+from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
 from qbt.backtest.walkforward_verdict import (
     build_is_vs_oos_verdict,
     build_mode_summary_verdict,
@@ -208,8 +215,8 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
         row: dict[str, object] = {"지표": display_name}
         for strat_name, summary in summaries.items():
             label = _get_display_name(strat_name)
-            dynamic = summary.get("dynamic")
-            fully_fixed = summary.get("fully_fixed")
+            dynamic = summary.get(KEY_WFO_DYNAMIC)
+            fully_fixed = summary.get(KEY_WFO_FULLY_FIXED)
 
             if isinstance(dynamic, dict):
                 val = dynamic.get(key, "N/A")
@@ -534,7 +541,7 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
     for i, (key, _label) in enumerate(param_keys, start=1):
         for strat_name in strategy_names:
             summary = summaries[strat_name]
-            dynamic = summary.get("dynamic")
+            dynamic = summary.get(KEY_WFO_DYNAMIC)
             if not isinstance(dynamic, dict):
                 continue
 
@@ -636,7 +643,11 @@ def _build_wfo_candle_data(
     equity_df: pd.DataFrame,
     ma_col: str | None,
 ) -> list[dict[str, object]]:
-    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다."""
+    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
+
+    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`)는 `run_walkforward.py`가
+    반올림 전 종가로 계산해 윈도우 signal CSV에 저장한 컬럼을 읽는다.
+    """
     has_upper = "upper_band" in equity_df.columns
     has_lower = "lower_band" in equity_df.columns
     has_equity = "equity" in equity_df.columns
@@ -657,7 +668,7 @@ def _build_wfo_candle_data(
         if entry:
             equity_map[d] = entry
 
-    prev_close = signal_df[COL_CLOSE].shift(1)
+    pct_arrays = {pct_col: signal_df[pct_col].to_numpy() for pct_col in OHLC_CHANGE_PCT_COLUMNS}
 
     candle_data: list[dict[str, object]] = []
     for i, row in enumerate(signal_df.itertuples(index=False)):
@@ -681,10 +692,11 @@ def _build_wfo_candle_data(
         cv["low"] = f"{low_val:.2f}"
         cv["close"] = f"{close_val:.2f}"
 
-        pc = prev_close.iloc[i]
-        if pd.notna(pc) and pc != 0:
-            pc_float = float(pc)
-            cv["close_pct"] = f"{(close_val / pc_float - 1) * 100:+.2f}"
+        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
+        for pct_col, pct_arr in pct_arrays.items():
+            v = pct_arr[i]
+            if pd.notna(v):
+                cv[pct_col] = f"{float(v):+.2f}"
 
         if ma_col and ma_col in signal_df.columns:
             ma_val = getattr(row, ma_col)
@@ -860,9 +872,9 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
 
     # 4. 윈도우별 CSV 로드
     idx = int(window_row["window_idx"])
-    signal_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_signal.csv"))
-    equity_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_equity.csv"))
-    trades_df = _load_window_csv_detail(*_cache_args(window_dir / f"w{idx:02d}_trades.csv"))
+    signal_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, SIGNAL_FILENAME)))
+    equity_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, EQUITY_FILENAME)))
+    trades_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, TRADES_FILENAME)))
 
     if signal_df is None or equity_df is None:
         st.warning(f"W{idx} 상세 데이터를 찾을 수 없습니다. `run_walkforward.py`를 재실행하세요.")

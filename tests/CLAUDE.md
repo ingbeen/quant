@@ -57,7 +57,7 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
   - 버퍼존 밴드 계산 (`strategies/buffer_zone_helpers.py`)
   - 거래 신호 생성 (매수/매도 조건)
   - 체결 타이밍 규칙 (신호일 vs 체결일 분리)
-  - Pending Order 정책 (단일 슬롯, 충돌 감지)
+  - Pending Order 정책 (단일 슬롯)
   - Equity 및 Final Capital 정의
   - 성과 지표 (CAGR, MDD, 승률 등)
 

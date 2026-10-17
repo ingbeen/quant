@@ -18,9 +18,6 @@ from qbt.backtest.constants import (
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
-    MIN_BUY_BUFFER_ZONE_PCT,
-    MIN_HOLD_DAYS,
-    MIN_SELL_BUFFER_ZONE_PCT,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import (
     HoldState,
@@ -41,6 +38,11 @@ from qbt.common_constants import (
     UBT_DATA_PATH,
     UGL_DATA_PATH,
 )
+
+# 전략 파라미터 하한 (BufferZoneStrategy 생성자가 검증한다)
+MIN_BUY_BUFFER_ZONE_PCT = 0.01  # 최소 매수 버퍼존 비율 (0.01 = 1%)
+MIN_SELL_BUFFER_ZONE_PCT = 0.01  # 최소 매도 버퍼존 비율 (0.01 = 1%)
+MIN_HOLD_DAYS = 0  # 최소 유지조건 (0일 = 버퍼존만 모드)
 
 # ============================================================================
 # 설정 데이터클래스

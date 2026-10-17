@@ -70,8 +70,11 @@ class TestCalculateWfoModeSummary:
             },
         ]
 
+        # calmar 를 cagr / |mdd| 와 다르게 두어, 요약의 값을 쓰는지 다시 계산하는지 구별한다
+        stitched_summary: dict[str, object] = {"initial_capital": 10000.0, "cagr": 3.2, "mdd": -40.0, "calmar": 0.5}
+
         # When
-        summary = calculate_wfo_mode_summary(results)
+        summary = calculate_wfo_mode_summary(results, stitched_summary, [10800.0, 10260.0])
 
         # Then
         assert summary["n_windows"] == 2
@@ -84,23 +87,26 @@ class TestCalculateWfoModeSummary:
         # param_ma_windows
         assert summary["param_ma_windows"] == [100, 150]
         assert summary["param_buy_buffers"] == [0.03, 0.05]
+        # 이어 붙인 자본곡선 지표는 그 요약의 값이다 (Calmar 를 다시 계산하지 않는다)
+        assert summary["stitched_cagr"] == stitched_summary["cagr"]
+        assert summary["stitched_mdd"] == stitched_summary["mdd"]
+        assert summary["stitched_calmar"] == stitched_summary["calmar"]
 
 
 class TestProfitConcentration:
     """Profit Concentration 계산 검증 테스트."""
 
-    def test_profit_concentration_v2(self):
+    def test_profit_concentration_from_window_end_equities(self):
         """
-        목적: V2 방식(end - prev_end)으로 PC 계산 검증
+        목적: 윈도우 기여분(end - prev_end)으로 PC 계산 검증
 
-        Given: stitched equity 기반 윈도우별 equity 정보
-               stitched_summary를 통해 전달
+        Given: stitched equity 기반 윈도우별 종료 equity
         When: calculate_wfo_mode_summary() 호출
         Then: 최대 PC와 해당 윈도우 인덱스가 올바름
         """
         # Given — 3개 윈도우, stitched equity 경계값:
         # initial=10000, w0_end=12000, w1_end=18000, w2_end=20000
-        # V2 기여분: w0=12000-10000=2000, w1=18000-12000=6000, w2=20000-18000=2000
+        # 기여분: w0=12000-10000=2000, w1=18000-12000=6000, w2=20000-18000=2000
         # total_profit = 20000-10000 = 10000
         # shares: w0=0.2, w1=0.6, w2=0.2 → max=0.6, idx=1
         results: list[dict[str, object]] = [
@@ -175,18 +181,10 @@ class TestProfitConcentration:
             },
         ]
 
-        # stitched_summary에 윈도우 경계 equity 정보 포함
-        stitched_summary: dict[str, object] = {
-            "initial_capital": 10000.0,
-            "final_capital": 20000.0,
-            "cagr": 12.0,
-            "mdd": -15.0,
-            "total_return_pct": 100.0,
-            "window_end_equities": [12000.0, 18000.0, 20000.0],
-        }
+        stitched_summary: dict[str, object] = {"initial_capital": 10000.0, "cagr": 12.0, "mdd": -15.0, "calmar": 0.8}
 
         # When
-        summary = calculate_wfo_mode_summary(results, stitched_summary)
+        summary = calculate_wfo_mode_summary(results, stitched_summary, [12000.0, 18000.0, 20000.0])
 
         # Then — max PC = 0.6 at window idx=1
         assert summary["profit_concentration_max"] == pytest.approx(0.6, abs=0.01)
@@ -230,15 +228,13 @@ class TestProfitConcentration:
         # initial=10000, final=8000 → 전체 손실
         stitched_summary: dict[str, object] = {
             "initial_capital": 10000.0,
-            "final_capital": 8000.0,
             "cagr": -5.0,
             "mdd": -30.0,
-            "total_return_pct": -20.0,
-            "window_end_equities": [8000.0],
+            "calmar": -0.1667,
         }
 
         # When
-        summary = calculate_wfo_mode_summary(results, stitched_summary)
+        summary = calculate_wfo_mode_summary(results, stitched_summary, [8000.0])
 
         # Then — 전체 손실이므로 PC = 0.0
         assert summary["profit_concentration_max"] == pytest.approx(0.0, abs=EPSILON)

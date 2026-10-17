@@ -12,13 +12,12 @@ Buy & Hold는 다른 전략의 벤치마크이므로 정확성이 특히 중요�
 
 from datetime import date
 from pathlib import Path
-from typing import cast
 
 import pandas as pd
 
 from qbt.backtest import runners
 from qbt.backtest.strategies.buy_and_hold import CONFIGS, BuyAndHoldConfig
-from qbt.backtest.types import OpenPositionDict, SingleBacktestResult
+from qbt.backtest.types import SingleBacktestResult
 
 
 class TestCreateRunner:
@@ -148,7 +147,7 @@ class TestCreateRunner:
         result = runners.create_buy_and_hold_runner(config)()
 
         assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
-        open_pos = cast(OpenPositionDict, result.summary["open_position"])
+        open_pos = result.summary["open_position"]
         assert open_pos["shares"] > 0, "보유 수량은 양수"
 
     def test_buy_and_hold_runner_trades_df_empty(self, tmp_path, monkeypatch):
@@ -261,7 +260,7 @@ class TestCreateRunner:
         result = runners.create_buy_and_hold_runner(config)()
 
         assert "open_position" in result.summary, "B&H는 항상 open_position이 있어야 함"
-        open_pos = cast(OpenPositionDict, result.summary["open_position"])
+        open_pos = result.summary["open_position"]
         # 2번째 날이 entry_date여야 함 (i=0에서 신호 → i=1에서 체결)
         assert open_pos["entry_date"] == str(
             date(2023, 1, 2)

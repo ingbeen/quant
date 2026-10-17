@@ -3,7 +3,7 @@
 운용자가 정의한 규칙으로 각 트레이드 안의 지연진입 기회를 찾는다.
 
 규칙:
-    1. 트레이드 시작 후 프리미엄(종가/EMA200 - 1)이 STRETCH(+10%) 이상 벌어지면 준비 상태.
+    1. 트레이드 시작 후 프리미엄(종가/이동평균(4P) - 1)이 STRETCH(+10%) 이상 벌어지면 준비 상태.
     2. 준비 상태에서 프리미엄이 DIP(+5%) 이하로 내려온 날 = 기회. 다음 거래일 시가 매수.
     3. 기회가 인정되면 준비 상태가 해제되며, 다시 STRETCH 이상 벌어져야 다음 기회를 인정한다.
     4. 직전 인정된 기회로부터 COOLDOWN_DAYS(60일, 약 2달) 안에 걸린 신호는 휩소로 보고 버린다.
@@ -32,10 +32,17 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from qbt.backtest.constants import SLIPPAGE_RATE
+from qbt.backtest.constants import (
+    FIXED_4P_MA_WINDOW,
+    SIGNAL_FILENAME,
+    SLIPPAGE_RATE,
+    SUMMARY_FILENAME,
+    TRADES_FILENAME,
+    ma_col_name,
+)
 from qbt.common_constants import BACKTEST_RESULTS_DIR, COL_CLOSE, COL_DATE, COL_OPEN
 
-MA_COL = "ma_200"
+MA_COL = ma_col_name(FIXED_4P_MA_WINDOW)
 
 # 랠리 재확대 기준 (프리미엄이 이 이상 벌어져야 "새 랠리"로 인정)
 STRETCH = 0.10
@@ -61,21 +68,21 @@ class TradeSeg:
     trade_id: str
     dates: np.ndarray  # datetime64[ns]
     opens: np.ndarray
-    prem: np.ndarray  # 종가/EMA200 - 1
+    prem: np.ndarray  # 종가/이동평균(4P) - 1
     elapsed: np.ndarray  # 진입 체결일 대비 경과 달력일
     exit_price: float  # 엔진 기록 매도 체결가 (슬리피지 포함)
 
 
 def load_signal(asset: str) -> pd.DataFrame:
     """자산의 시그널 CSV를 로드한다."""
-    return pd.read_csv(BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / "signal.csv", parse_dates=[COL_DATE])
+    return pd.read_csv(BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / SIGNAL_FILENAME, parse_dates=[COL_DATE])
 
 
 def load_trade_segs(asset: str) -> list[TradeSeg]:
     """완료된 트레이드들의 보유 구간 데이터를 만든다."""
     sig = load_signal(asset)
     trades = pd.read_csv(
-        BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / "trades.csv", parse_dates=["entry_date", "exit_date"]
+        BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / TRADES_FILENAME, parse_dates=["entry_date", "exit_date"]
     )
     segs: list[TradeSeg] = []
     for _, t in trades.iterrows():
@@ -83,14 +90,14 @@ def load_trade_segs(asset: str) -> list[TradeSeg]:
         if seg.empty:
             continue
         closes = seg[COL_CLOSE].to_numpy(dtype=float)
-        ema = seg[MA_COL].to_numpy(dtype=float)
+        ma = seg[MA_COL].to_numpy(dtype=float)
         dates = seg[COL_DATE].to_numpy()
         segs.append(
             TradeSeg(
                 trade_id=str(t["entry_date"].date()),
                 dates=dates,
                 opens=seg[COL_OPEN].to_numpy(dtype=float),
-                prem=closes / ema - 1,
+                prem=closes / ma - 1,
                 elapsed=((dates - np.datetime64(t["entry_date"])) / np.timedelta64(1, "D")).astype(float),
                 exit_price=float(t["exit_price"]),
             )
@@ -318,7 +325,7 @@ def print_policy_comparison(segs: list[TradeSeg]) -> None:
 
 def print_current_status(asset: str) -> None:
     """진행 중 포지션이 있으면 현재 트레이드의 기회 이력과 발동 조건을 출력한다."""
-    summary_path = BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / "summary.json"
+    summary_path = BACKTEST_RESULTS_DIR / f"buffer_zone_{asset}" / SUMMARY_FILENAME
     with open(summary_path, encoding="utf-8") as f:
         open_pos = json.load(f)["summary"].get("open_position")
     if not open_pos:
@@ -329,9 +336,9 @@ def print_current_status(asset: str) -> None:
     if seg.empty:
         return
     closes = seg[COL_CLOSE].to_numpy(dtype=float)
-    ema = seg[MA_COL].to_numpy(dtype=float)
+    ma = seg[MA_COL].to_numpy(dtype=float)
     dates = seg[COL_DATE].to_numpy()
-    prem = closes / ema - 1
+    prem = closes / ma - 1
     opps, armed = find_opportunities(dates, prem, COOLDOWN_DAYS)
     cur = seg.iloc[-1]
     elapsed = int((dates[-1] - np.datetime64(entry_date)) / np.timedelta64(1, "D"))
@@ -349,7 +356,7 @@ def print_current_status(asset: str) -> None:
     trigger_px = float(cur[MA_COL]) * (1 + DIP)
     gap = (trigger_px / float(cur[COL_CLOSE]) - 1) * 100
     print(f"  현재 프리미엄 {prem[-1]:+.2%} / 준비 상태({STRETCH:.0%} 재확대 후 대기): {'예' if armed else '아니오'}")
-    print(f"  다음 기회 발동 조건: 종가 <= SMA200×{1 + DIP:.2f} = {trigger_px:.2f} (현재가 대비 {gap:+.1f}%)")
+    print(f"  다음 기회 발동 조건: 종가 <= SMA{FIXED_4P_MA_WINDOW}×{1 + DIP:.2f} = {trigger_px:.2f} (현재가 대비 {gap:+.1f}%)")
     if opps:
         days_since = (dates[-1] - dates[opps[-1]]) / np.timedelta64(1, "D")
         print(f"  직전 기회로부터 {days_since:.0f}일 경과 (휩소 기준 {COOLDOWN_DAYS}일)")

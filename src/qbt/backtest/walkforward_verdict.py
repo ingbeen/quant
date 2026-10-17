@@ -5,6 +5,7 @@
 
 수치와 대소관계를 결과 파일에서 직접 읽어 서술하므로,
 워크포워드를 재실행해 결과가 바뀌면 문장도 함께 따라온다.
+결과 파일에 있어야 할 키가 없으면 KeyError 로 멈춘다 — 「데이터 없음」으로 넘기면 저장 형식이 바뀐 것이 화면에서 가려진다.
 
 용어 설명과 해석 방법처럼 데이터와 무관한 설명은 이 모듈의 책임이 아니며,
 대시보드가 정적 텍스트로 유지한다.
@@ -13,8 +14,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 import pandas as pd
+
+from qbt.backtest.constants import KEY_WFO_DYNAMIC, KEY_WFO_FULLY_FIXED
+from qbt.common_constants import ANNUAL_DAYS
 
 # --- 판단 임계값 ---
 # 근거: 대시보드 「지표를 해석하는 방법」 블록이 명시한 기준을 그대로 상수화한다.
@@ -31,48 +36,11 @@ WFE_REPRODUCIBLE_THRESHOLD = 1.0
 # "1 이상이면 위험 대비 수익이 양호"
 STITCHED_CALMAR_GOOD_THRESHOLD = 1.0
 
-# 두 모드의 CAGR 차이를 "사실상 비슷"으로 볼 상한 (%p)
-# 근거: 기존 해석이 0.64%p 차이를 "사실상 비슷"으로 판단해온 관행을 상수화한다.
+# 두 모드의 CAGR 차이를 "사실상 비슷"으로 볼 상한 (%p) — 이보다 작은 차이로는 우열을 말하지 않는다
 CAGR_SIMILAR_THRESHOLD_PP = 1.0
-
-# 판단 근거가 되는 요약 키
-_KEY_DYNAMIC = "dynamic"
-_KEY_FULLY_FIXED = "fully_fixed"
 
 _LABEL_DYNAMIC = "Dynamic"
 _LABEL_FIXED = "Fixed"
-
-_NO_DATA = "데이터 없음"
-
-
-def _get_mode(summary: Mapping[str, object], key: str) -> Mapping[str, object]:
-    """요약에서 모드 딕셔너리를 안전하게 꺼낸다. 없으면 빈 매핑."""
-    mode = summary.get(key)
-    return mode if isinstance(mode, Mapping) else {}
-
-
-def _get_number(mode: Mapping[str, object], key: str) -> float | None:
-    """모드 딕셔너리에서 수치를 안전하게 꺼낸다. 없거나 수치가 아니면 None."""
-    value = mode.get(key)
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int | float):
-        return float(value)
-    return None
-
-
-def _get_number_list(mode: Mapping[str, object], key: str) -> list[float]:
-    """모드 딕셔너리에서 수치 리스트를 안전하게 꺼낸다. 없으면 빈 리스트."""
-    values = mode.get(key)
-    if not isinstance(values, Sequence) or isinstance(values, str | bytes):
-        return []
-    result: list[float] = []
-    for item in values:
-        if isinstance(item, bool):
-            continue
-        if isinstance(item, int | float):
-            result.append(float(item))
-    return result
 
 
 def _format_number(value: float) -> str:
@@ -120,42 +88,46 @@ def _describe_cagr_gap(dynamic_cagr: float, fixed_cagr: float) -> tuple[str, str
     return summary, detail
 
 
-def _describe_wfe(dynamic_wfe: float | None, fixed_wfe: float | None) -> str:
-    """WFE Calmar Robust로 OOS 재현성을 서술한다."""
-    parts: list[str] = []
-    for label, value in ((_LABEL_DYNAMIC, dynamic_wfe), (_LABEL_FIXED, fixed_wfe)):
-        if value is None:
-            continue
-        parts.append(f"{label} {value:.2f}")
-    if not parts:
-        return ""
+def _cagr_gap_lines(dynamic: Mapping[str, Any], fixed: Mapping[str, Any]) -> list[str]:
+    """두 모드의 Stitched CAGR 관계를 (한 줄 요약, 상세 서술) 두 줄로 만든다."""
+    summary_line, detail_line = _describe_cagr_gap(dynamic["stitched_cagr"], fixed["stitched_cagr"])
+    return [f"- 한 줄 요약: {summary_line}", f"- {detail_line}"]
 
-    head = f"WFE Calmar Robust는 {', '.join(parts)}입니다."
-    if fixed_wfe is not None:
-        head += f" {_LABEL_FIXED}(4P)의 값은 과최적화를 재지 않습니다 — 4P 는 OOS 를 포함한 전 기간을 보고 정했습니다."
 
-    values = [v for v in (dynamic_wfe, fixed_wfe) if v is not None]
-    worst = min(values)
-    best = max(values)
+def _describe_wfe(dynamic_wfe: float, fixed_wfe: float) -> str:
+    """WFE Calmar Robust로 OOS 재현성을 서술한다.
 
-    if worst <= 0:
-        tail = "0 이하인 모드가 있어 IS 성과가 OOS에서 재현되지 않았습니다. 과최적화를 의심해야 합니다."
-    elif best >= WFE_REPRODUCIBLE_THRESHOLD:
-        tail = "1 이상이면 IS 성과가 OOS에서 그대로 또는 그 이상 재현됐다는 뜻입니다. 다만 이 지표 하나로 robustness를 단정하기보다 보조 근거로 봅니다."
+    재현성은 Dynamic 값으로만 판단한다 — 4P 는 OOS 를 포함한 전 기간을 보고 정한 값이라 그 값은 OOS 재현을 재지 않는다.
+    """
+    head = (
+        f"WFE Calmar Robust는 {_LABEL_DYNAMIC} {dynamic_wfe:.2f}, {_LABEL_FIXED} {fixed_wfe:.2f}입니다. "
+        f"{_LABEL_FIXED}(4P)의 값은 과최적화를 재지 않습니다 — 4P 는 OOS 를 포함한 전 기간을 보고 정했습니다."
+    )
+
+    if dynamic_wfe <= 0:
+        tail = f"{_LABEL_DYNAMIC}이 0 이하라 IS 성과가 OOS에서 재현되지 않았습니다. 과최적화를 의심해야 합니다."
+    elif dynamic_wfe >= WFE_REPRODUCIBLE_THRESHOLD:
+        tail = (
+            f"{_LABEL_DYNAMIC}이 1 이상이라 IS 성과가 OOS에서 그대로 또는 그 이상 재현됐다는 뜻입니다. "
+            "다만 이 지표 하나로 robustness를 단정하기보다 보조 근거로 봅니다."
+        )
     else:
-        tail = f"IS 성과의 약 {best * 100:.0f}%가 OOS에서 재현된다는 뜻으로, 보조 검증 근거로 해석합니다."
+        tail = f"{_LABEL_DYNAMIC} 기준으로 IS 성과의 약 {dynamic_wfe * 100:.0f}%가 OOS에서 재현된다는 뜻으로, 보조 검증 근거로 해석합니다."
 
     return f"{head} {tail}"
 
 
-def _describe_profit_concentration(mode: Mapping[str, object]) -> str:
-    """Profit Concentration 최대값으로 수익 집중도를 서술한다."""
-    pc = _get_number(mode, "profit_concentration_max")
-    if pc is None:
-        return ""
+def _describe_profit_concentration(mode: Mapping[str, Any]) -> str:
+    """Profit Concentration 최대값으로 수익 집중도를 서술한다.
 
-    idx = _get_number(mode, "profit_concentration_window_idx")
-    where = f" (최대 기여 윈도우 {_window_label(idx)})" if idx is not None else ""
+    이어 붙인 자본곡선이 손실이면 서술하지 않는다 — 기여 비중은 전체 순이익이 양수일 때만 정의되어,
+    요약의 PC 는 그때 측정값이 아니라 자리표시 0(최대 기여 윈도우 W0)이다(`walkforward._calculate_profit_concentration`).
+    """
+    if mode["stitched_cagr"] <= 0:
+        return "PC — 이어 붙인 자본곡선이 손실이라 수익 집중도를 재지 않습니다(기여 비중은 전체 순이익이 양수일 때만 정의됩니다)."
+
+    pc = mode["profit_concentration_max"]
+    where = f" (최대 기여 윈도우 {_window_label(mode['profit_concentration_window_idx'])})"
 
     if pc >= PC_CONCENTRATION_THRESHOLD:
         return (
@@ -170,7 +142,7 @@ def _render_blocks(blocks: list[str]) -> str:
     return "\n\n".join(blocks) if blocks else ""
 
 
-def build_mode_summary_verdict(summaries_by_label: Mapping[str, Mapping[str, object]]) -> str:
+def build_mode_summary_verdict(summaries_by_label: Mapping[str, Mapping[str, Any]]) -> str:
     """모드별 요약 비교 섹션의 판단 문구를 생성한다.
 
     Args:
@@ -182,38 +154,21 @@ def build_mode_summary_verdict(summaries_by_label: Mapping[str, Mapping[str, obj
     blocks: list[str] = []
 
     for label, summary in summaries_by_label.items():
-        dynamic = _get_mode(summary, _KEY_DYNAMIC)
-        fixed = _get_mode(summary, _KEY_FULLY_FIXED)
-
-        dynamic_cagr = _get_number(dynamic, "stitched_cagr")
-        fixed_cagr = _get_number(fixed, "stitched_cagr")
-
-        lines: list[str] = [f"**{label}**:", ""]
-
-        if dynamic_cagr is not None and fixed_cagr is not None:
-            summary_line, detail_line = _describe_cagr_gap(dynamic_cagr, fixed_cagr)
-            lines.append(f"- 한 줄 요약: {summary_line}")
-            lines.append(f"- {detail_line}")
-        else:
-            lines.append(f"- Stitched CAGR: {_NO_DATA}")
-
-        wfe_line = _describe_wfe(
-            _get_number(dynamic, "wfe_calmar_robust"),
-            _get_number(fixed, "wfe_calmar_robust"),
-        )
-        if wfe_line:
-            lines.append(f"- {wfe_line}")
-
-        pc_line = _describe_profit_concentration(dynamic)
-        if pc_line:
-            lines.append(f"- {pc_line}")
-
+        dynamic = summary[KEY_WFO_DYNAMIC]
+        fixed = summary[KEY_WFO_FULLY_FIXED]
+        lines: list[str] = [
+            f"**{label}**:",
+            "",
+            *_cagr_gap_lines(dynamic, fixed),
+            f"- {_describe_wfe(dynamic['wfe_calmar_robust'], fixed['wfe_calmar_robust'])}",
+            f"- {_describe_profit_concentration(dynamic)}",
+        ]
         blocks.append("\n".join(lines))
 
     return _render_blocks(blocks)
 
 
-def build_stitched_equity_verdict(summaries_by_label: Mapping[str, Mapping[str, object]]) -> str:
+def build_stitched_equity_verdict(summaries_by_label: Mapping[str, Mapping[str, Any]]) -> str:
     """Stitched Equity 곡선 섹션의 판단 문구를 생성한다.
 
     Args:
@@ -225,44 +180,30 @@ def build_stitched_equity_verdict(summaries_by_label: Mapping[str, Mapping[str, 
     blocks: list[str] = []
 
     for label, summary in summaries_by_label.items():
-        dynamic = _get_mode(summary, _KEY_DYNAMIC)
-        fixed = _get_mode(summary, _KEY_FULLY_FIXED)
+        dynamic = summary[KEY_WFO_DYNAMIC]
+        fixed = summary[KEY_WFO_FULLY_FIXED]
 
-        dynamic_cagr = _get_number(dynamic, "stitched_cagr")
-        fixed_cagr = _get_number(fixed, "stitched_cagr")
+        dynamic_mdd = dynamic["stitched_mdd"]
+        fixed_mdd = fixed["stitched_mdd"]
+        shallower = _LABEL_DYNAMIC if dynamic_mdd > fixed_mdd else _LABEL_FIXED
 
-        lines: list[str] = [f"**{label}**:", ""]
+        # 양호 판단은 Dynamic 값으로만 한다 — 4P 의 Calmar 는 전 기간을 보고 정한 값의 성과라 OOS 성과가 아니다
+        dynamic_calmar = dynamic["stitched_calmar"]
+        verdict = (
+            f"{_LABEL_DYNAMIC}의 위험 대비 수익이 양호한 수준입니다."
+            if dynamic_calmar >= STITCHED_CALMAR_GOOD_THRESHOLD
+            else f"{_LABEL_DYNAMIC}이 {STITCHED_CALMAR_GOOD_THRESHOLD}에 못 미쳐 수익 대비 낙폭 부담이 큽니다."
+        )
 
-        if dynamic_cagr is not None and fixed_cagr is not None:
-            summary_line, detail_line = _describe_cagr_gap(dynamic_cagr, fixed_cagr)
-            lines.append(f"- 한 줄 요약: {summary_line}")
-            lines.append(f"- {detail_line}")
-        else:
-            lines.append(f"- Stitched CAGR: {_NO_DATA}")
-
-        dynamic_mdd = _get_number(dynamic, "stitched_mdd")
-        fixed_mdd = _get_number(fixed, "stitched_mdd")
-        if dynamic_mdd is not None and fixed_mdd is not None:
-            shallower = _LABEL_DYNAMIC if dynamic_mdd > fixed_mdd else _LABEL_FIXED
-            lines.append(
-                f"- 최대 낙폭은 {_LABEL_DYNAMIC} {dynamic_mdd:.2f}%, {_LABEL_FIXED} {fixed_mdd:.2f}%로 "
-                f"{shallower} 쪽 낙폭이 더 얕습니다."
-            )
-
-        dynamic_calmar = _get_number(dynamic, "stitched_calmar")
-        fixed_calmar = _get_number(fixed, "stitched_calmar")
-        if dynamic_calmar is not None and fixed_calmar is not None:
-            best_calmar = max(dynamic_calmar, fixed_calmar)
-            verdict = (
-                "위험 대비 수익이 양호한 수준입니다."
-                if best_calmar >= STITCHED_CALMAR_GOOD_THRESHOLD
-                else f"{STITCHED_CALMAR_GOOD_THRESHOLD}에 못 미쳐 수익 대비 낙폭 부담이 큽니다."
-            )
-            lines.append(
-                f"- Stitched Calmar는 {_LABEL_DYNAMIC} {dynamic_calmar:.2f}, "
-                f"{_LABEL_FIXED} {fixed_calmar:.2f}로 {verdict}"
-            )
-
+        lines: list[str] = [
+            f"**{label}**:",
+            "",
+            *_cagr_gap_lines(dynamic, fixed),
+            f"- 최대 낙폭은 {_LABEL_DYNAMIC} {dynamic_mdd:.2f}%, {_LABEL_FIXED} {fixed_mdd:.2f}%로 "
+            f"{shallower} 쪽 낙폭이 더 얕습니다.",
+            f"- Stitched Calmar는 {_LABEL_DYNAMIC} {dynamic_calmar:.2f}, "
+            f"{_LABEL_FIXED} {fixed['stitched_calmar']:.2f}입니다. {verdict}",
+        ]
         blocks.append("\n".join(lines))
 
     return _render_blocks(blocks)
@@ -280,28 +221,18 @@ def build_is_vs_oos_verdict(windows_by_label: Mapping[str, pd.DataFrame]) -> str
     blocks: list[str] = []
 
     for label, window_df in windows_by_label.items():
-        lines: list[str] = [f"**{label}**:", ""]
+        is_calmar = window_df["is_calmar"]
+        oos_calmar = window_df["oos_calmar"]
 
-        required = {"is_calmar", "oos_calmar"}
-        if window_df.empty or not required.issubset(window_df.columns):
-            lines.append(f"- {_NO_DATA}")
-            blocks.append("\n".join(lines))
-            continue
+        total = len(window_df)
+        stronger = int((oos_calmar > is_calmar).sum())
+        negative = int((oos_calmar < 0).sum())
 
-        is_calmar = pd.to_numeric(window_df["is_calmar"], errors="coerce")
-        oos_calmar = pd.to_numeric(window_df["oos_calmar"], errors="coerce")
-        valid = is_calmar.notna() & oos_calmar.notna()
-
-        total = int(valid.sum())
-        if total == 0:
-            lines.append(f"- {_NO_DATA}")
-            blocks.append("\n".join(lines))
-            continue
-
-        stronger = int((oos_calmar[valid] > is_calmar[valid]).sum())
-        negative = int((oos_calmar[valid] < 0).sum())
-
-        lines.append(f"- 전체 {total}개 윈도우 중 {stronger}개에서 OOS Calmar가 IS를 웃돌았고, " f"{negative}개 윈도우는 OOS가 음수입니다.")
+        lines: list[str] = [
+            f"**{label}**:",
+            "",
+            f"- 전체 {total}개 윈도우 중 {stronger}개에서 OOS Calmar가 IS를 웃돌았고, {negative}개 윈도우는 OOS가 음수입니다.",
+        ]
 
         if negative == 0 and stronger * 2 >= total:
             lines.append("- IS에서만 좋고 OOS에서 무너지는 붕괴 패턴은 나타나지 않습니다.")
@@ -315,7 +246,7 @@ def build_is_vs_oos_verdict(windows_by_label: Mapping[str, pd.DataFrame]) -> str
     return _render_blocks(blocks)
 
 
-def build_param_drift_verdict(summaries_by_label: Mapping[str, Mapping[str, object]]) -> str:
+def build_param_drift_verdict(summaries_by_label: Mapping[str, Mapping[str, Any]]) -> str:
     """파라미터 추이 섹션의 판단 문구를 생성한다.
 
     Args:
@@ -335,33 +266,25 @@ def build_param_drift_verdict(summaries_by_label: Mapping[str, Mapping[str, obje
     ]
 
     for label, summary in summaries_by_label.items():
-        dynamic = _get_mode(summary, _KEY_DYNAMIC)
+        dynamic = summary[KEY_WFO_DYNAMIC]
         lines: list[str] = [f"**{label}** (Dynamic 모드):", ""]
 
         stable_count = 0
-        described_count = 0
-
         for param_label, key, is_ratio in param_specs:
-            values = _get_number_list(dynamic, key)
-            if is_ratio:
-                values = [v * 100 for v in values]
+            values: list[float] = [float(v) * 100 if is_ratio else float(v) for v in dynamic[key]]
             lines.append(f"- **{param_label}:** {describe_param_series(values)}")
+            if len(set(values)) == 1:
+                stable_count += 1
 
-            if values:
-                described_count += 1
-                if len(set(values)) == 1:
-                    stable_count += 1
-
-        if described_count > 0:
-            if stable_count == described_count:
-                lines.append("- 네 파라미터 모두 전 윈도우에서 동일하게 선택되어, 고정 파라미터 사용의 근거가 됩니다.")
-            elif stable_count == 0:
-                lines.append("- 모든 파라미터가 윈도우에 따라 달라집니다. 파라미터 안정성이 낮으므로 고정값 사용은 신중해야 합니다.")
-            else:
-                lines.append(
-                    f"- 네 파라미터 중 {stable_count}개는 전 구간 고정이고 나머지는 구간에 따라 달라집니다. "
-                    "파라미터 안정성과 전략 성과 robustness는 분리해서 해석해야 합니다."
-                )
+        if stable_count == len(param_specs):
+            lines.append("- 네 파라미터 모두 전 윈도우에서 동일하게 선택되어, 고정 파라미터 사용의 근거가 됩니다.")
+        elif stable_count == 0:
+            lines.append("- 모든 파라미터가 윈도우에 따라 달라집니다. 파라미터 안정성이 낮으므로 고정값 사용은 신중해야 합니다.")
+        else:
+            lines.append(
+                f"- 네 파라미터 중 {stable_count}개는 전 구간 고정이고 나머지는 구간에 따라 달라집니다. "
+                "파라미터 안정성과 전략 성과 robustness는 분리해서 해석해야 합니다."
+            )
 
         blocks.append("\n".join(lines))
 
@@ -380,14 +303,9 @@ def build_window_schedule_table(windows_by_label: Mapping[str, pd.DataFrame]) ->
     Returns:
         마크다운 문자열. 입력이 비어 있으면 빈 문자열
     """
-    required = {"window_idx", "is_start", "is_end", "oos_start", "oos_end"}
     blocks: list[str] = []
 
     for label, window_df in windows_by_label.items():
-        if window_df.empty or not required.issubset(window_df.columns):
-            blocks.append(f"**{label}**\n\n{_NO_DATA}")
-            continue
-
         rows: list[str] = [
             f"**{label}**",
             "",
@@ -414,17 +332,7 @@ def build_window_schedule_table(windows_by_label: Mapping[str, pd.DataFrame]) ->
 
 def _describe_span(start: str, end: str) -> str:
     """ISO 날짜 문자열 두 개의 간격을 "약 N년" 형태로 서술한다."""
-    try:
-        start_ts = pd.Timestamp(start)
-        end_ts = pd.Timestamp(end)
-    except ValueError:
-        return "-"
-
-    days = (end_ts - start_ts).days
-    if days < 0:
-        return "-"
-
-    years = days / 365.25
+    years = (pd.Timestamp(end) - pd.Timestamp(start)).days / ANNUAL_DAYS
     if years < 1:
         return f"약 {round(years * 12)}개월"
     return f"약 {round(years)}년"
@@ -436,14 +344,11 @@ def describe_param_series(values: Sequence[float | int]) -> str:
     전 윈도우가 같은 값이면 고정으로, 값이 바뀌면 전환 지점을 짚어 서술한다.
 
     Args:
-        values: 윈도우 순서대로 선택된 파라미터 값
+        values: 윈도우 순서대로 선택된 파라미터 값 (1개 이상)
 
     Returns:
-        서술 문자열. 빈 리스트면 "데이터 없음"
+        서술 문자열
     """
-    if not values:
-        return _NO_DATA
-
     numeric = [float(v) for v in values]
     if len(set(numeric)) == 1:
         return f"전 윈도우 {_format_number(numeric[0])} 고정"

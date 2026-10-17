@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
+import pytest
 
 from qbt.backtest.walkforward_verdict import (
     CAGR_SIMILAR_THRESHOLD_PP,
@@ -250,6 +251,30 @@ class TestProfitConcentrationThreshold:
         assert _PC_CONCENTRATED in result_above
         assert _PC_SPREAD not in result_above
 
+    def test_losing_stitched_equity_is_not_judged(self) -> None:
+        """
+        목적: 이어 붙인 자본곡선이 손실이면 자리표시 PC(0, W0)를 「고르게 분산 · 양호」로 읽지 않는다
+
+        Given: Dynamic 의 Stitched CAGR 이 음수이고 PC 가 자리표시 0 · W0 인 요약
+        When: build_mode_summary_verdict 호출
+        Then: 「재지 않습니다」로 서술되고 분산 · 집중 판단은 없다
+        """
+        # Given
+        summaries = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(stitched_cagr=-2.0, profit_concentration_max=0.0, profit_concentration_window_idx=0),
+                fully_fixed=_make_mode(),
+            )
+        }
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert "수익 집중도를 재지 않습니다" in result
+        assert _PC_SPREAD not in result
+        assert _PC_CONCENTRATED not in result
+
 
 class TestWfeReproducibility:
     """WFE Calmar Robust 기반 재현성 판정을 고정한다."""
@@ -285,6 +310,59 @@ class TestWfeReproducibility:
         assert _WFE_REPRODUCED not in result_negative
         assert _WFE_REPRODUCED in result_positive
         assert _WFE_NOT_REPRODUCED not in result_positive
+
+
+class TestJudgedByDynamicOnly:
+    """재현성 · 「양호」 판단이 Dynamic 값으로만 정해지는지 고정한다.
+
+    4P 는 OOS 를 포함한 전 기간을 보고 정한 값이라, 두 모드 중 큰 값으로 판단하면 4P 의 값이 결론을 정한다.
+    """
+
+    def test_wfe_reproduction_follows_dynamic_not_fixed(self) -> None:
+        """
+        목적: Fixed 의 WFE 가 기준 이상이어도 Dynamic 이 기준 미만이면 「재현됐다」가 아니다
+
+        Given: Dynamic WFE 0.5, Fixed WFE 1.5
+        When: build_mode_summary_verdict 호출
+        Then: 「약 50%가 OOS에서 재현」으로 서술되고 「재현됐다」는 없다
+        """
+        # Given
+        summaries = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(wfe_calmar_robust=0.5),
+                fully_fixed=_make_mode(wfe_calmar_robust=1.5),
+            )
+        }
+
+        # When
+        result = build_mode_summary_verdict(summaries)
+
+        # Then
+        assert "약 50%가 OOS에서 재현" in result
+        assert _WFE_REPRODUCED not in result
+
+    def test_calmar_good_follows_dynamic_not_fixed(self) -> None:
+        """
+        목적: Fixed 의 Stitched Calmar 가 기준 이상이어도 Dynamic 이 기준 미만이면 「양호」가 아니다
+
+        Given: Dynamic Stitched Calmar 0.5, Fixed 1.2
+        When: build_stitched_equity_verdict 호출
+        Then: 「못 미쳐」로 서술되고 「양호한 수준」은 없다
+        """
+        # Given
+        summaries = {
+            "QQQ": _make_summary(
+                dynamic=_make_mode(stitched_calmar=0.5),
+                fully_fixed=_make_mode(stitched_calmar=1.2),
+            )
+        }
+
+        # When
+        result = build_stitched_equity_verdict(summaries)
+
+        # Then
+        assert "못 미쳐" in result
+        assert "양호한 수준" not in result
 
 
 class TestDescribeParamSeries:
@@ -327,24 +405,6 @@ class TestDescribeParamSeries:
         assert result_changing != result_constant
         assert "100" in result_changing
         assert "200" in result_changing
-
-    def test_empty_series_is_safe(self) -> None:
-        """
-        목적: 빈 입력에서 예외 없이 안전한 문자열을 반환한다
-
-        Given: 빈 리스트
-        When: describe_param_series 호출
-        Then: 비어있지 않은 문자열이 반환된다 (예외 없음)
-        """
-        # Given
-        values: list[int] = []
-
-        # When
-        result = describe_param_series(values)
-
-        # Then
-        assert isinstance(result, str)
-        assert result != ""
 
 
 class TestParamDriftVerdict:
@@ -735,20 +795,19 @@ class TestWindowScheduleTable:
         assert result == ""
 
 
-class TestMissingDataSafety:
-    """결측 입력에서 예외 없이 동작하는지 고정한다.
+class TestResultSchema:
+    """결과 파일의 키가 빠지면 「데이터 없음」으로 넘기지 않고 멈추는지 고정한다.
 
-    대시보드는 결과 파일이 부분적으로만 존재할 수 있으므로,
-    키가 없어도 화면 전체가 깨지지 않아야 한다.
+    판단 문구는 결과 파일에서 읽으므로, 저장 형식이 바뀐 것을 화면이 가리면 틀린 문구가 남는다.
     """
 
     def test_empty_input_returns_empty_string(self) -> None:
         """
-        목적: 빈 입력에서 빈 문자열을 반환한다
+        목적: 전략이 하나도 없으면 빈 문자열을 반환한다
 
         Given: 빈 딕셔너리
         When: 각 build 함수 호출
-        Then: 모두 빈 문자열을 반환한다 (예외 없음)
+        Then: 모두 빈 문자열을 반환한다
         """
         # Given
         empty: dict[str, dict[str, object]] = {}
@@ -759,36 +818,17 @@ class TestMissingDataSafety:
         assert build_param_drift_verdict(empty) == ""
         assert build_is_vs_oos_verdict({}) == ""
 
-    def test_missing_keys_do_not_raise(self) -> None:
+    def test_missing_keys_raise(self) -> None:
         """
-        목적: 필수 키가 없어도 예외를 던지지 않는다
+        목적: 모드 요약에 키가 없으면 KeyError 로 멈춘다
 
         Given: dynamic/fully_fixed가 비어있는 요약
         When: build_mode_summary_verdict 호출
-        Then: 문자열이 반환된다 (예외 없음)
+        Then: KeyError
         """
         # Given
         summaries: dict[str, dict[str, object]] = {"QQQ": {"strategy": "x", "dynamic": {}, "fully_fixed": {}}}
 
-        # When
-        result = build_mode_summary_verdict(summaries)
-
-        # Then
-        assert isinstance(result, str)
-
-    def test_empty_dataframe_does_not_raise(self) -> None:
-        """
-        목적: 빈 DataFrame에서 예외를 던지지 않는다
-
-        Given: 컬럼만 있고 행이 없는 DataFrame
-        When: build_is_vs_oos_verdict 호출
-        Then: 문자열이 반환된다 (예외 없음)
-        """
-        # Given
-        empty_df = pd.DataFrame({"window_idx": [], "is_calmar": [], "oos_calmar": []})
-
-        # When
-        result = build_is_vs_oos_verdict({"QQQ": empty_df})
-
-        # Then
-        assert isinstance(result, str)
+        # When / Then
+        with pytest.raises(KeyError):
+            build_mode_summary_verdict(summaries)

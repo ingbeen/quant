@@ -35,11 +35,11 @@
 
 - 거래 비용: `SLIPPAGE_RATE` (매수 또는 매도 1회당 0.3%, 슬리피지 + 수수료 통합. 왕복 = 매수 + 매도 = 2 × `SLIPPAGE_RATE` ≈ 0.6%)
 - 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`
-- 수치 안정성: `CALMAR_MDD_ZERO_SUBSTITUTE` (Calmar MDD=0 처리 대용값, `1e10`)
-- 제약 조건: `MIN_BUY_BUFFER_ZONE_PCT`, `MIN_SELL_BUFFER_ZONE_PCT`, `MIN_HOLD_DAYS`, `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
+- 제약 조건: `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
-- WFO 결과 파일명: `WALKFORWARD_DYNAMIC_FILENAME` 등
+- WFO 모드 키: `KEY_WFO_DYNAMIC`, `KEY_WFO_FULLY_FIXED` (`walkforward_summary.json` 의 키)
+- 결과 파일명: `SIGNAL_FILENAME` · `EQUITY_FILENAME` · `TRADES_FILENAME` · `SUMMARY_FILENAME`(러너가 쓰고 대시보드가 읽는다), WFO 는 `WALKFORWARD_DYNAMIC_FILENAME` 등과 윈도우별 상세 파일명 `wfo_window_filename`
 
 ### 3. analysis.py
 
@@ -48,7 +48,8 @@
 주요 함수:
 
 - `add_single_moving_average`: 단순이동평균(SMA) 계산. 유형 선택 파라미터가 없다 (「도메인 규칙 1-1」 참고)
-- `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산
+- `add_moving_averages`: 이동평균 여러 개를 더한다. 이미 있는 열은 다시 계산하지 않는다 (구간 조각에서 다시 계산하면 앞부분이 빈다)
+- `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산. 빈 자본 곡선은 RuntimeError (호출자는 2행 이상을 넘긴다)
 - `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산. 첫 달은 첫 행 에쿼티 대비다 (시작일부터 첫 월말까지를 버리지 않는다)
 - `calculate_yearly_returns`: 에쿼티 데이터로부터 연간 수익률 계산. 첫 해는 첫 행 에쿼티 대비이고, 월별 수익률을 복리하지 않는다 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
 - `calculate_sharpe_ratio`: 일별 수익률 기반 연율화 샤프 비율 (rf=0 기준, std=0 또는 데이터 부족 시 0.0 반환)
@@ -65,24 +66,24 @@
 - `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (metric은 run_param_plateau_all.py에서 생성한 지표와 일치해야 함)
 - `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
 - `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
+- `plateau_csv_path(param_name, metric)`: 피벗 CSV 경로 — 고원 러너가 쓰고 `load_plateau_pivot` 이 읽는 단일 출처
 - `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값을 포함하면서 최대값 대비 threshold 이상이 끊기지 않는 범위)
 - `find_plateau_range_with_trade_filter(metric_series, trades_series, min_trades, threshold_ratio)`: 거래 수 필터를 적용한 고원 구간 탐지 (극단 파라미터에서 거래 수 극소로 Calmar가 왜곡되는 경우에 사용)
 
 ### 5. walkforward.py
 
 워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
-Expanding Anchored 및 Rolling Window 모드를 지원한다.
+Expanding Anchored 방식이다 (IS 시작은 고정, 윈도우마다 OOS 기간만큼 확장).
 
 주요 함수:
 
-- `generate_wfo_windows`: 월 기반 Expanding Anchored 또는 Rolling 윈도우 생성 (`rolling_is_months` 파라미터로 모드 전환)
-- `select_best_calmar_params`: Calmar(CAGR/|MDD|) 기준 최적 파라미터 선택 (MDD=0 + CAGR>0 최우선 처리, min_trades 필터링 적용)
+- `generate_wfo_windows`: 월 기반 Expanding Anchored 윈도우 생성
+- `select_best_calmar_params`: 거래수가 min_trades 이상인 조합 중 그리드 결과의 Calmar 가 가장 큰 행 (MDD=0 + CAGR>0 은 대용값으로 최우선). 같으면 그리드 결과에서 앞선 행 — `run_grid_search` 가 Calmar 내림차순 안정 정렬이라 그리드 입력 순서다
 - `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가, wfe_calmar + wfe_cagr 계산)
 - `build_params_schedule`: WFO 결과에서 params_schedule 구성
-- `load_wfo_results_from_csv`: WFO 결과 CSV를 읽어 WfoWindowResultDict 리스트로 반환 (필수 컬럼 검증, 정수 타입 보정)
-- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단
-- `_calculate_profit_concentration`: Profit Concentration V2 방식 (end - prev_end) 계산
-- `run_stitched_equity`: WFO params_schedule 기반 Stitched Equity 생성. 전체 signal_df에 먼저 MA를 계산하여 연속성 보장 후 OOS 구간 슬라이싱. window_end_equities 반환 (Profit Concentration 계산용)
+- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단. 이어 붙인 자본곡선 요약과 윈도우 끝 equity 는 필수 인자다
+- `_calculate_profit_concentration`: 윈도우 기여분(end - prev_end)으로 Profit Concentration 계산
+- `run_stitched_equity`: WFO params_schedule 기반 Stitched Equity 생성. 전체 signal_df에 먼저 MA를 계산하여 연속성 보장 후 OOS 구간 슬라이싱. (equity_df, 요약, 윈도우 끝 equity) 반환 (윈도우 끝 equity 는 Profit Concentration 계산용)
 - `run_window_detail_backtests`: 각 윈도우의 best params로 IS_start~OOS_end 백테스트 실행. equity_df에 밴드/드로우다운 포함. `WindowDetailData` 리스트 반환
 - `WindowDetailData`: 윈도우별 상세 백테스트 결과 dataclass (window_idx, signal_df, equity_df, trades_df, ma_col)
 
@@ -182,10 +183,9 @@ TypedDict:
 - `filter_valid_rows(signal_df, trade_df, ma_col) -> tuple[pd.DataFrame, pd.DataFrame]`: MA 컬럼 기준 유효 행(NaN 아닌 행) 필터링
 - `prepare_common_period(signal_df, trade_df, ma_windows)`: 이동평균을 모두 계산하고 가장 긴 이동평균의 유효 구간으로 자른다 — 여러 이동평균을 같은 기간으로 평가할 때 (그리드 · 고원 이동평균 실험)
 - `run_backtest(strategy, signal_df, trade_df, initial_capital, log_trades, strategy_name, params_schedule) -> tuple[trades_df, equity_df, summary]`: SignalStrategy 의존성 주입 방식 실행. `initial_capital: float`를 직접 전달한다.
-- `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴). 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`)
+- `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴). 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`). 결과는 Calmar 내림차순 안정 정렬
 - `run_buffer_strategy(signal_df, trade_df, params, ...) -> ...`: `BufferZoneStrategy` + `run_backtest` 편의 래퍼
 - `_run_backtest_for_grid(params)`: 그리드 서치용 module-level 병렬 헬퍼 (pickle 가능)
-- `_check_pending_conflict(pending_order, signal_type, signal_date)`: Pending Order 충돌 감지 (Critical Invariant 강제)
 
 #### engines/portfolio_engine.py
 
@@ -340,10 +340,6 @@ Protocol:
   - `check_sell(signal_df, i) -> bool`: i번째 날 매도 신호 여부. 내부 prev 상태 갱신 포함.
   - `get_buy_meta() -> dict[str, float | int]`: check_buy True 직후 호출. TradeRecord용 메타데이터 반환.
 
-예외 클래스:
-
-- `PendingOrderConflictError`: Pending Order 충돌 예외 (Critical Invariant 위반)
-
 신호 감지 함수(`compute_bands`, `detect_buy_signal`, `detect_sell_signal`)는 버퍼존 전용이므로 `buffer_zone_helpers.py`에 있다.
 
 #### strategies/buffer_zone_helpers.py
@@ -414,14 +410,7 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 
 #### strategies/**init**.py
 
-전략 패키지의 공개 API를 export합니다.
-`buffer_zone.py`의 `get_config()`, `create_runner()`는 패키지 레벨에서 re-export하지 않으며, 스크립트에서 `buffer_zone` 모듈을 직접 import하여 사용한다.
-
-엔진 함수(`run_buffer_strategy`, `run_grid_search`)는 `engines/backtest_engine.py`에 속하므로 이 패키지에서 re-export하지 않는다 (순환 import 방지).
-
-export 심볼: `BufferZoneConfig`, `resolve_params_for_config`, `BufferStrategyParams`, `PendingOrderConflictError`, `BuyAndHoldConfig`
-
-PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직접 import한다 (re-export 하지 않음).
+재노출하지 않는다 — 각 전략 모듈(`buffer_zone` · `buy_and_hold` 등)을 직접 import 한다. `qbt.backtest` 패키지도 같다.
 
 ### 11. runners.py
 
@@ -439,9 +428,8 @@ PendingOrder는 계층 분리 원칙에 따라 `engines.engine_common`에서 직
 
 주요 함수:
 
-- `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`: 버퍼존 전략 runner 팩토리. 데이터 로딩, overlap 처리, MA 계산, `run_backtest(BufferZoneStrategy(), ...)` 수행. equity_df에 band 컬럼 post-processing으로 보강 (`_enrich_equity_with_bands`).
+- `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`: 버퍼존 전략 runner 팩토리. 데이터 로딩, overlap 처리, MA 계산, `run_backtest(BufferZoneStrategy(), ...)` 수행. equity_df에 band 컬럼 post-processing으로 보강 (`csv_export.enrich_equity_with_bands`).
 - `create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]`: B&H 전략 runner 팩토리. `run_backtest(BuyAndHoldStrategy(), ...)` 기반으로 실행. dummy params 불필요. B&H 첫 매수는 시계열 2번째 날 시가.
-- `_enrich_equity_with_bands(equity_df, signal_df, ma_col, buy_pct, sell_pct) -> pd.DataFrame`: signal_df의 MA 값으로 upper_band, lower_band, buy_buffer_pct, sell_buffer_pct 컬럼을 equity_df에 추가.
 
 ### 12. csv_export.py
 
@@ -459,6 +447,8 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 금액 열 정수 변환). 행이 없어도 같은 변환을 거쳐 열이 같다
 - `add_ohlc_change_pct(df) -> pd.DataFrame`: signal DataFrame에 OHLC 4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 추가. 첫 행은 NaN. 대시보드 캔들 tooltip의 SSoT
 - `add_buffer_zone_bands(df, ma_col, buy_buffer_zone_pct, sell_buffer_zone_pct) -> pd.DataFrame`: signal DataFrame에 `upper_band`/`lower_band` 컬럼 추가. 산식: `ma * (1 ± buffer)`. buffer_zone 전략 자산의 시그널 CSV에만 적용
+- `enrich_equity_with_bands(equity_df, signal_df, ma_col, buy_buffer_pct, sell_buffer_pct) -> pd.DataFrame`: equity_df에 그날의 밴드(`add_buffer_zone_bands`)와 buy/sell 버퍼 비율 컬럼을 날짜로 붙인다 (단일 백테스트 · WFO 윈도우 에쿼티 CSV)
+- `round_signal_for_csv(df) -> pd.DataFrame`: 시그널 CSV 저장 자릿수 — 가격 · 이동평균 · 밴드는 `ROUND_PRICE`, 전일대비%는 `ROUND_PERCENT`
 
 상수:
 
@@ -525,10 +515,7 @@ EMA 계산 경로와 `ma_type` 파라미터·상수·필드는 코드베이스�
 
 - `pending_order`는 반드시 단일 변수로 관리 (리스트 누적 금지)
 - 신호일에 생성, 체결일에 실행 후 `None`으로 초기화
-
-Critical Invariant:
-
-- `pending_order`가 존재하는 동안 새로운 신호 발생 시 `PendingOrderConflictError` 예외
+- 체결일 아침에 pending 을 비운 뒤 그날 신호를 보므로, 신호 시점에 남은 pending 이 없다 (루프 순서로 보장 — 충돌 검사를 따로 두지 않는다)
 
 ### 6. hold_days 규칙 (Lookahead 방지, 절대 규칙)
 
@@ -638,7 +625,6 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 테스트 범위 (계약/불변조건 단위):
 
 - 신호 생성 로직 및 거래 체결 타이밍
-- Pending Order 충돌 감지
 - 파라미터 유효성 검증
 - 엣지 케이스 (빈 데이터, 극단값)
 - 그리드 서치 병렬 처리

@@ -44,8 +44,7 @@ def load_plateau_pivot(param_name: str, metric: str) -> pd.DataFrame:
     Raises:
         FileNotFoundError: CSV 파일이 존재하지 않을 때
     """
-    filename = f"param_plateau_{param_name}_{metric}.csv"
-    path = _PLATEAU_DIR / filename
+    path = plateau_csv_path(param_name, metric)
 
     if not path.exists():
         raise FileNotFoundError(f"고원 분석 결과 파일을 찾을 수 없습니다: {path}")
@@ -77,6 +76,19 @@ def get_plateau_dir() -> Path:
         고원 분석 결과 디렉토리 Path
     """
     return _PLATEAU_DIR
+
+
+def plateau_csv_path(param_name: str, metric: str) -> Path:
+    """고원 분석 피벗 CSV 경로 — run_param_plateau_all.py 가 쓰고 load_plateau_pivot 이 읽는다.
+
+    Args:
+        param_name: 파라미터명 ("hold_days", "sell_buffer", "buy_buffer", "ma_window")
+        metric: 지표명
+
+    Returns:
+        피벗 CSV 경로
+    """
+    return _PLATEAU_DIR / f"param_plateau_{param_name}_{metric}.csv"
 
 
 def find_plateau_range(

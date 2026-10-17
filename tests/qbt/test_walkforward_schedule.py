@@ -11,8 +11,8 @@ import pytest
 
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, DEFAULT_INITIAL_CAPITAL
-from qbt.backtest.engines.backtest_engine import run_backtest, run_buffer_strategy, run_grid_search
-from qbt.backtest.strategies.buffer_zone import BufferStrategyParams, BufferZoneStrategy
+from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
+from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.walkforward import build_params_schedule, run_stitched_equity, run_walkforward
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
@@ -236,7 +236,7 @@ class TestMaContinuity:
         ref_cagr = float(ref_summary["cagr"])
 
         # When — walkforward.run_stitched_equity 직접 호출 (raw_df: MA 미포함)
-        _, stitched_summary = run_stitched_equity(
+        _, stitched_summary, _ = run_stitched_equity(
             raw_df,
             raw_df,
             window_results,
@@ -246,142 +246,6 @@ class TestMaContinuity:
 
         # Then — stitched CAGR과 참조 CAGR이 동일해야 한다
         assert stitched_cagr == pytest.approx(ref_cagr, abs=1.0)
-
-
-class TestParamsSchedule:
-    """params_schedule 파라미터 테스트.
-
-    params_schedule=None이면 기존 동작과 동일하고,
-    params_schedule이 주어지면 구간별 파라미터 전환이 이루어지는지 검증한다.
-    """
-
-    def test_none_schedule_preserves_existing_behavior(self):
-        """
-        목적: params_schedule=None이면 기존 동작과 완전히 동일함을 검증
-
-        Given: 충분한 길이의 주식 데이터 (MA 계산 가능)
-        When: params_schedule=None으로 run_buffer_strategy 실행
-        Then: 기존과 동일한 결과 반환 (에러 없음)
-        """
-        # Given
-        df = _make_stock_df(date(2000, 1, 3), 300, base_price=100.0, daily_return=0.001)
-
-        signal_df = add_single_moving_average(df.copy(), 50)
-        trade_df = df.copy()
-
-        params = BufferStrategyParams(
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-            ma_window=50,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-        )
-
-        # When — params_schedule=None (기본값)
-        _trades_df, equity_df, summary = run_buffer_strategy(signal_df, trade_df, params, log_trades=False)
-
-        # Then — 정상 실행 확인
-        assert len(equity_df) > 0
-        assert summary["initial_capital"] == DEFAULT_INITIAL_CAPITAL
-
-    def test_schedule_switches_params_at_boundary(self):
-        """
-        목적: params_schedule로 파라미터 전환이 올바르게 이루어지는지 검증
-
-        Given: 2구간 params_schedule (구간1: ma=50, 구간2: ma=100)
-        When: run_buffer_strategy(params_schedule=...) 실행
-        Then: 에러 없이 실행 완료, equity_df 생성
-        """
-        # Given — 충분한 데이터 (MA 100 이상)
-        df = _make_stock_df(date(2000, 1, 3), 500, base_price=100.0, daily_return=0.001)
-
-        # 두 MA 모두 사전 계산
-        signal_df = add_single_moving_average(df.copy(), 50)
-        signal_df = add_single_moving_average(signal_df, 100)
-        trade_df = df.copy()
-
-        # 첫 구간 파라미터
-        params = BufferStrategyParams(
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-            ma_window=50,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-        )
-
-        # 전환점에서 MA 100 BufferZoneStrategy로 변경
-        switch_date = df.iloc[250][COL_DATE]
-        params_schedule = {
-            switch_date: BufferZoneStrategy(
-                ma_col="ma_100",
-                buy_buffer_pct=0.05,
-                sell_buffer_pct=0.01,
-                hold_days=2,
-            )
-        }
-
-        # When
-        _trades_df, equity_df, summary = run_buffer_strategy(
-            signal_df,
-            trade_df,
-            params,
-            log_trades=False,
-            params_schedule=params_schedule,
-        )
-
-        # Then
-        assert len(equity_df) > 0
-        assert summary["initial_capital"] == DEFAULT_INITIAL_CAPITAL
-
-    def test_schedule_ma_window_change_updates_bands(self):
-        """
-        목적: MA 윈도우 변경 시 새 BufferZoneStrategy로 전환됨을 검증
-
-        Given: MA 50 → MA 100으로 전환하는 schedule
-        When: run_buffer_strategy 실행
-        Then: 에러 없이 실행 완료, equity_df에 전환점 이후 행이 존재
-        """
-        # Given
-        df = _make_stock_df(date(2000, 1, 3), 500, base_price=100.0, daily_return=0.0005)
-
-        signal_df = add_single_moving_average(df.copy(), 50)
-        signal_df = add_single_moving_average(signal_df, 100)
-        trade_df = df.copy()
-
-        params = BufferStrategyParams(
-            initial_capital=DEFAULT_INITIAL_CAPITAL,
-            ma_window=50,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-        )
-
-        switch_date = df.iloc[300][COL_DATE]
-        # params_schedule: BufferZoneStrategy 객체로 직접 지정
-        params_schedule = {
-            switch_date: BufferZoneStrategy(
-                ma_col="ma_100",
-                buy_buffer_pct=0.05,
-                sell_buffer_pct=0.05,
-                hold_days=0,
-            )
-        }
-
-        # When
-        _trades_df, equity_df, _summary = run_buffer_strategy(
-            signal_df,
-            trade_df,
-            params,
-            log_trades=False,
-            params_schedule=params_schedule,
-        )
-
-        # Then — 전환점 이후 행이 존재하고 정상 실행됨을 검증
-        # (equity_df에 band 컬럼은 없음: band enrichment는 runners.py 레이어에서 수행)
-        after_switch = equity_df[equity_df[COL_DATE] >= switch_date]
-        assert len(after_switch) > 0
-        assert "equity" in equity_df.columns
-        assert "position" in equity_df.columns
 
 
 class TestRunWalkforward:

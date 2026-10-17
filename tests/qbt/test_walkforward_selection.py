@@ -8,8 +8,12 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
+from qbt.backtest.analysis import calculate_calmar
 from qbt.backtest.walkforward import calculate_wfo_mode_summary, run_walkforward, select_best_calmar_params
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
+
+# 모드 요약에 넘기는 이어 붙인 자본곡선 요약 — 이 파일의 요약 테스트는 윈도우 통계만 본다
+_STITCHED_SUMMARY: dict[str, object] = {"initial_capital": 10000.0, "cagr": 0.0, "mdd": -1.0, "calmar": 0.0}
 
 
 def _make_stock_df(
@@ -60,25 +64,26 @@ class TestCalmarSelection:
 
     def test_mdd_zero_with_positive_cagr_is_best(self):
         """
-        목적: MDD=0이고 CAGR>0이면 Calmar 최우선 처리
+        목적: MDD=0이고 CAGR>0인 조합이 1위다 (그리드가 calculate_calmar 로 채운 Calmar 를 그대로 쓴다)
 
-        Given: 그리드 서치 결과 DataFrame (MDD=0 + CAGR>0인 행 포함)
-        When: Calmar 기준 정렬
+        Given: 그리드 서치 결과 DataFrame (MDD=0 + CAGR>0인 행 포함, calmar 는 calculate_calmar)
+        When: select_best_calmar_params 호출
         Then: MDD=0 + CAGR>0인 행이 1위
         """
         # Given
+        cagr = [5.0, 10.0, 3.0]
+        mdd = [-20.0, 0.0, -10.0]
         grid_df = pd.DataFrame(
             {
                 "ma_window": [100, 150, 200],
                 "buy_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03, 0.03],
                 "hold_days": [0, 0, 0],
-                "cagr": [5.0, 10.0, 3.0],
-                "mdd": [-20.0, 0.0, -10.0],
-                "total_return_pct": [50.0, 100.0, 30.0],
+                "cagr": cagr,
+                "mdd": mdd,
+                "calmar": [calculate_calmar(c, m) for c, m in zip(cagr, mdd, strict=True)],
                 "total_trades": [5, 3, 3],
                 "win_rate": [60.0, 0.0, 66.7],
-                "final_capital": [15_000_000, 20_000_000, 13_000_000],
             }
         )
 
@@ -88,48 +93,44 @@ class TestCalmarSelection:
         # Then — MDD=0 + CAGR>0인 ma_window=150이 선택됨
         assert best["ma_window"] == 150
 
-    def test_mdd_zero_with_negative_cagr_gets_calmar_zero(self):
+    def test_tied_calmar_picks_earlier_row(self):
         """
-        목적: MDD=0이지만 CAGR<=0이면 calmar=0 처리
+        목적: Calmar 가 같으면 grid_df 에서 앞선 행을 고른다 (run_grid_search 가 안정 정렬이라 그리드 입력 순서)
 
-        Given: 모든 행이 MDD=0이고 CAGR<=0
-        When: Calmar 기준 정렬
-        Then: calmar=0으로 처리되어 모두 동등
+        Given: Calmar 가 같은 두 행 (ma=150 이 앞)
+        When: select_best_calmar_params 호출
+        Then: 앞선 ma=150 이 선택됨
         """
         # Given
         grid_df = pd.DataFrame(
             {
-                "ma_window": [100, 150],
+                "ma_window": [150, 100],
                 "buy_buffer_zone_pct": [0.03, 0.03],
                 "sell_buffer_zone_pct": [0.03, 0.03],
                 "hold_days": [0, 0],
-                "cagr": [-5.0, -2.0],
-                "mdd": [0.0, 0.0],
-                "total_return_pct": [-50.0, -20.0],
+                "cagr": [6.0, 6.0],
+                "mdd": [-12.0, -12.0],
+                "calmar": [0.5, 0.5],
                 "total_trades": [3, 4],
                 "win_rate": [0.0, 0.0],
-                "final_capital": [5_000_000, 8_000_000],
             }
         )
 
         # When
         best = select_best_calmar_params(grid_df)
 
-        # Then — 어느 쪽이든 선택 가능 (calmar=0으로 동등)
-        assert best["ma_window"] in [100, 150]
+        # Then
+        assert best["ma_window"] == 150
 
     def test_normal_calmar_selection(self):
         """
-        목적: 일반적인 CAGR/|MDD| 기준 Calmar 선택 검증
+        목적: Calmar 가 가장 큰 행의 파라미터를 고른다
 
-        Given: CAGR과 MDD가 모두 0이 아닌 행들
-        When: Calmar 기준 정렬
-        Then: CAGR/|MDD|가 가장 큰 행이 선택됨
+        Given: Calmar 가 0.5 · 0.6 · 0.267 인 행들
+        When: select_best_calmar_params 호출
+        Then: Calmar 0.6 행의 파라미터 넷이 반환됨
         """
         # Given
-        # ma=100: calmar = 10 / 20 = 0.5
-        # ma=150: calmar = 15 / 25 = 0.6  ← 최대
-        # ma=200: calmar = 8  / 30 = 0.267
         grid_df = pd.DataFrame(
             {
                 "ma_window": [100, 150, 200],
@@ -138,10 +139,9 @@ class TestCalmarSelection:
                 "hold_days": [0, 2, 5],
                 "cagr": [10.0, 15.0, 8.0],
                 "mdd": [-20.0, -25.0, -30.0],
-                "total_return_pct": [100.0, 150.0, 80.0],
+                "calmar": [0.5, 0.6, 8.0 / 30.0],
                 "total_trades": [5, 8, 3],
                 "win_rate": [60.0, 62.5, 66.7],
-                "final_capital": [20_000_000, 25_000_000, 18_000_000],
             }
         )
 
@@ -177,15 +177,11 @@ class TestCalmarSelectionMinTrades:
                 "hold_days": [0, 0, 0],
                 "cagr": [20.0, 15.0, 8.0],
                 "mdd": [-10.0, -25.0, -30.0],
-                "total_return_pct": [200.0, 150.0, 80.0],
+                "calmar": [2.0, 0.6, 8.0 / 30.0],
                 "total_trades": [2, 5, 3],
                 "win_rate": [100.0, 60.0, 66.7],
-                "final_capital": [30_000_000, 25_000_000, 18_000_000],
             }
         )
-        # ma=100: calmar = 20/10 = 2.0 (1위, trades=2 → 탈락)
-        # ma=150: calmar = 15/25 = 0.6 (2위, trades=5 → 통과)
-        # ma=200: calmar = 8/30 = 0.267 (3위, trades=3 → 통과)
 
         # When
         best = select_best_calmar_params(grid_df, min_trades=3)
@@ -193,13 +189,13 @@ class TestCalmarSelectionMinTrades:
         # Then — ma=100은 거래수 부족으로 탈락, ma=150이 선택
         assert best["ma_window"] == 150
 
-    def test_min_trades_zero_preserves_existing_behavior(self):
+    def test_min_trades_zero_keeps_all_rows(self):
         """
-        목적: min_trades=0이면 기존 동작과 동일한지 검증 (하위 호환)
+        목적: min_trades=0이면 거래수 0인 행도 후보다
 
-        Given: 그리드 서치 결과 DataFrame (total_trades=0인 행 포함)
+        Given: Calmar 1위가 total_trades=0인 그리드 결과
         When: select_best_calmar_params(grid_df, min_trades=0) 호출
-        Then: total_trades=0인 행도 필터링되지 않고 기존 Calmar 기준 선택
+        Then: total_trades=0인 1위 행이 선택된다
         """
         # Given — ma=100이 calmar 1위, trades=0
         grid_df = pd.DataFrame(
@@ -210,17 +206,16 @@ class TestCalmarSelectionMinTrades:
                 "hold_days": [0, 0],
                 "cagr": [10.0, 5.0],
                 "mdd": [0.0, -20.0],
-                "total_return_pct": [100.0, 50.0],
+                "calmar": [calculate_calmar(10.0, 0.0), 0.25],
                 "total_trades": [0, 3],
                 "win_rate": [0.0, 66.7],
-                "final_capital": [20_000_000, 15_000_000],
             }
         )
 
-        # When — min_trades=0이면 필터링 없음
+        # When
         best = select_best_calmar_params(grid_df, min_trades=0)
 
-        # Then — 기존 동작: MDD=0+CAGR>0인 ma=100이 선택
+        # Then
         assert best["ma_window"] == 100
 
     def test_min_trades_all_filtered_raises_value_error(self):
@@ -240,10 +235,9 @@ class TestCalmarSelectionMinTrades:
                 "hold_days": [0, 0, 0],
                 "cagr": [10.0, 15.0, 8.0],
                 "mdd": [-20.0, -25.0, -30.0],
-                "total_return_pct": [100.0, 150.0, 80.0],
+                "calmar": [0.5, 0.6, 8.0 / 30.0],
                 "total_trades": [2, 3, 4],
                 "win_rate": [50.0, 66.7, 75.0],
-                "final_capital": [20_000_000, 25_000_000, 18_000_000],
             }
         )
 
@@ -330,7 +324,7 @@ class TestWfeCagr:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)
+        summary = calculate_wfo_mode_summary(results, _STITCHED_SUMMARY, [10000.0] * len(results))
 
         # Then — wfe_cagr_mean = 0.0
         assert summary["wfe_cagr_mean"] == pytest.approx(0.0, abs=EPSILON)
@@ -422,7 +416,7 @@ class TestWfeCalmarRobust:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)
+        summary = calculate_wfo_mode_summary(results, _STITCHED_SUMMARY, [10000.0] * len(results))
 
         # Then — IS Calmar > 0인 윈도우: idx=0 (wfe=1.06), idx=2 (wfe=1.3333)
         # 중앙값 = (1.06 + 1.3333) / 2 = 1.1967
@@ -464,7 +458,7 @@ class TestWfeCalmarRobust:
         ]
 
         # When
-        summary = calculate_wfo_mode_summary(results)
+        summary = calculate_wfo_mode_summary(results, _STITCHED_SUMMARY, [10000.0] * len(results))
 
         # Then
         assert summary["wfe_calmar_robust"] == pytest.approx(0.0, abs=EPSILON)

@@ -1,7 +1,7 @@
 """백테스트 워크포워드 검증(WFO) 모듈
 
-Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
-- 윈도우 생성: 월 기반 Expanding Anchored 또는 Rolling 윈도우
+Expanding Anchored Walk-Forward Optimization을 제공한다.
+- 윈도우 생성: 월 기반 Expanding Anchored 윈도우
 - IS 최적화: 그리드 서치 + Calmar(CAGR/|MDD|) 목적함수
 - OOS 평가: 독립 구간 백테스트
 - Stitched Equity: params_schedule 기반 연속 자본곡선
@@ -10,20 +10,15 @@ Expanding Anchored 및 Rolling Window Walk-Forward Optimization을 제공한다.
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from pathlib import Path
-from statistics import median
-from typing import cast
+from statistics import median, stdev
 
 import pandas as pd
 
-from qbt.backtest.analysis import (
-    add_single_moving_average,
-    calculate_calmar,
-    calculate_drawdown_pct_series,
-)
+from qbt.backtest.analysis import add_moving_averages, calculate_drawdown_pct_series
 from qbt.backtest.constants import (
     COL_BUY_BUFFER_ZONE_PCT,
     COL_CAGR,
+    COL_CALMAR,
     COL_DRAWDOWN_PCT,
     COL_EQUITY,
     COL_HOLD_DAYS,
@@ -42,38 +37,15 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
     ma_col_name,
 )
-from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
-from qbt.backtest.runners import enrich_equity_with_bands
+from qbt.backtest.csv_export import enrich_equity_with_bands
+from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
-from qbt.backtest.types import BestGridParams, WfoModeSummaryDict, WfoWindowResultDict
+from qbt.backtest.types import BestGridParams, SummaryDict, WfoModeSummaryDict, WfoWindowResultDict
 from qbt.common_constants import COL_DATE, EPSILON
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)
-
-
-def _first_day_months_before(ref_end: date, months: int) -> date:
-    """ref_end의 월에서 months-1개월 전의 첫째 날을 반환한다.
-
-    Rolling Window WFO에서 IS 시작일을 계산하는 데 사용한다.
-    예: ref_end=2012-02-29, months=120 → 2002-03-01
-    (IS 종료월은 2012-02이므로, 120개월 전 시작월은 2002-03이 된다)
-
-    Args:
-        ref_end: IS 종료일 (기준일)
-        months: IS 최대 길이 (개월)
-
-    Returns:
-        IS 시작일 (해당 월의 첫째 날)
-    """
-    # IS 종료월 기준으로 months-1개월 전의 월 1일을 계산
-    # ref_end가 속한 월의 1일부터 months-1개월을 거슬러 올라감
-    total_months = ref_end.year * 12 + ref_end.month
-    target_month = total_months - (months - 1)
-    year = (target_month - 1) // 12
-    month = (target_month - 1) % 12 + 1
-    return date(year, month, 1)
 
 
 def generate_wfo_windows(
@@ -81,21 +53,16 @@ def generate_wfo_windows(
     data_end: date,
     initial_is_months: int = DEFAULT_WFO_INITIAL_IS_MONTHS,
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
-    rolling_is_months: int | None = None,
 ) -> list[tuple[date, date, date, date]]:
-    """월 기반 WFO 윈도우를 생성한다.
+    """월 기반 Expanding Anchored WFO 윈도우를 생성한다.
 
-    Expanding Anchored 또는 Rolling Window 모드를 지원한다.
-    - Expanding (기본): IS는 항상 data_start에서 시작, OOS 기간만큼 확장
-    - Rolling: IS 길이가 rolling_is_months를 초과하면 시작점이 전진
+    IS는 항상 data_start에서 시작하고, 윈도우마다 OOS 기간만큼 확장된다.
 
     Args:
         data_start: 데이터 시작일
         data_end: 데이터 종료일
         initial_is_months: 초기 IS 기간 (개월, 기본값: 72)
         oos_months: OOS 기간 (개월, 기본값: 24)
-        rolling_is_months: Rolling IS 최대 길이 (개월).
-            None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
 
     Returns:
         (is_start, is_end, oos_start, oos_end) 튜플 리스트. 마지막 OOS 는 데이터 끝에서 잘릴 수 있고,
@@ -151,14 +118,7 @@ def generate_wfo_windows(
                 break
             oos_end = data_end
 
-        # Rolling 모드: IS 시작점 조정
-        actual_is_start = is_start
-        if rolling_is_months is not None:
-            rolling_start = _first_day_months_before(is_end, rolling_is_months)
-            # data_start보다 이전이면 data_start로 클램핑
-            actual_is_start = max(data_start, rolling_start)
-
-        windows.append((actual_is_start, is_end, oos_start, oos_end))
+        windows.append((is_start, is_end, oos_start, oos_end))
 
         # 다음 윈도우: IS 확장 (OOS 기간만큼)
         next_is_end_year = is_end.year + (is_end.month - 1 + oos_months) // 12
@@ -186,13 +146,12 @@ def select_best_calmar_params(
 ) -> BestGridParams:
     """그리드 서치 결과에서 Calmar 기준 최적 파라미터를 선택한다.
 
-    Calmar = CAGR / |MDD|. MDD=0이고 CAGR>0이면 최우선 처리.
-    min_trades 이상의 거래수를 가진 파라미터만 후보로 사용한다.
+    min_trades 이상의 거래수를 가진 파라미터 중 Calmar 가 가장 큰 행이다. Calmar 가 같으면 grid_df 에서
+    앞선 행이다 — `run_grid_search` 결과는 Calmar 내림차순 안정 정렬이라 그리드 입력 순서다.
 
     Args:
-        grid_df: 그리드 서치 결과 DataFrame (cagr, mdd, total_trades 컬럼 필수)
-        min_trades: 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES).
-            0이면 필터링하지 않음.
+        grid_df: 그리드 서치 결과 DataFrame (calmar, total_trades 와 파라미터 컬럼 필수)
+        min_trades: 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES). 0이면 모든 행이 후보다.
 
     Returns:
         최적 파라미터 딕셔너리 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct,
@@ -201,43 +160,16 @@ def select_best_calmar_params(
     Raises:
         ValueError: min_trades 충족 파라미터가 없는 경우
     """
-    df = grid_df.copy()
+    candidates = grid_df[grid_df[COL_TOTAL_TRADES] >= min_trades]
+    if candidates.empty:
+        raise ValueError(f"min_trades={min_trades} 충족 파라미터 없음 " f"(전체 {len(grid_df)}개 중 0개 통과)")
 
-    # Calmar 계산: MDD=0 처리
-    df["calmar"] = df.apply(lambda row: calculate_calmar(float(row[COL_CAGR]), float(row[COL_MDD])), axis=1)
-    df = df.sort_values("calmar", ascending=False).reset_index(drop=True)
-
-    # min_trades 필터링
-    if min_trades > 0:
-        # 필터링 전 1위 기록 (탈락 로그용)
-        pre_filter_best = df.iloc[0]
-
-        filtered = df[df[COL_TOTAL_TRADES] >= min_trades].reset_index(drop=True)
-
-        if len(filtered) == 0:
-            raise ValueError(f"min_trades={min_trades} 충족 파라미터 없음 " f"(전체 {len(df)}개 중 0개 통과)")
-
-        # 필터링으로 1위가 변경된 경우 로그 출력
-        post_filter_best = filtered.iloc[0]
-        if int(pre_filter_best["ma_window"]) != int(post_filter_best["ma_window"]) or float(
-            pre_filter_best["buy_buffer_zone_pct"]
-        ) != float(post_filter_best["buy_buffer_zone_pct"]):
-            logger.debug(
-                f"min_trades={min_trades} 필터: "
-                f"기존 1위(ma={int(pre_filter_best['ma_window'])}, "
-                f"trades={int(pre_filter_best[COL_TOTAL_TRADES])}) 탈락 → "
-                f"새 1위(ma={int(post_filter_best['ma_window'])}, "
-                f"trades={int(post_filter_best[COL_TOTAL_TRADES])})"
-            )
-
-        df = filtered
-
-    best = df.iloc[0]
+    best = candidates.iloc[int(candidates[COL_CALMAR].to_numpy().argmax())]
     return {
-        "ma_window": int(best["ma_window"]),
-        "buy_buffer_zone_pct": float(best["buy_buffer_zone_pct"]),
-        "sell_buffer_zone_pct": float(best["sell_buffer_zone_pct"]),
-        "hold_days": int(best["hold_days"]),
+        "ma_window": int(best[COL_MA_WINDOW]),
+        "buy_buffer_zone_pct": float(best[COL_BUY_BUFFER_ZONE_PCT]),
+        "sell_buffer_zone_pct": float(best[COL_SELL_BUFFER_ZONE_PCT]),
+        "hold_days": int(best[COL_HOLD_DAYS]),
     }
 
 
@@ -252,7 +184,6 @@ def run_walkforward(
     oos_months: int = DEFAULT_WFO_OOS_MONTHS,
     initial_capital: float = DEFAULT_INITIAL_CAPITAL,
     min_trades: int = DEFAULT_WFO_MIN_TRADES,
-    rolling_is_months: int | None = None,
     eval_ma_window: int | None = None,
 ) -> list[WfoWindowResultDict]:
     """핵심 WFO 루프를 실행한다.
@@ -276,8 +207,6 @@ def run_walkforward(
         oos_months: OOS 기간 (개월)
         initial_capital: 초기 자본금
         min_trades: IS 최적 파라미터 선택 시 최소 거래수 제약 (기본값: DEFAULT_WFO_MIN_TRADES)
-        rolling_is_months: Rolling IS 최대 길이 (개월).
-            None이면 Expanding 모드 (기본 동작). int이면 Rolling 모드.
         eval_ma_window: IS 평가 시작일을 정하는 이동평균 기간 — 이 이동평균이 계산되는 첫날보다 앞서 IS 를 재지 않는다.
             None 이면 ma_window_list 의 최댓값. 모드끼리 같은 기간으로 재려면 호출자가 모든 모드의 이동평균 중
             최댓값을 넘긴다.
@@ -298,7 +227,7 @@ def run_walkforward(
     # 1. 윈도우 생성
     data_start = signal_df[COL_DATE].min()
     data_end = signal_df[COL_DATE].max()
-    windows = generate_wfo_windows(data_start, data_end, initial_is_months, oos_months, rolling_is_months)
+    windows = generate_wfo_windows(data_start, data_end, initial_is_months, oos_months)
 
     logger.debug(f"WFO 윈도우 {len(windows)}개 생성 완료")
 
@@ -308,17 +237,10 @@ def run_walkforward(
     # 이동평균은 전달된 시리즈 기준으로 계산되므로, OOS 슬라이스 후 계산하면
     # 앞 window-1 행이 NaN이 되어 전체 히스토리를 이어받지 못한다.
     # 슬라이스 전에 전체 데이터로 먼저 계산한다.
-    signal_df_with_ma = signal_df.copy()
-    for _ma_window in ma_window_list:
-        _ma_col = ma_col_name(_ma_window)
-        if _ma_col not in signal_df_with_ma.columns:
-            signal_df_with_ma = add_single_moving_average(signal_df_with_ma, _ma_window)
-
     # IS 평가 시작일 — 그리드는 넘겨받은 목록의 가장 긴 이동평균으로 자르므로, 목록이 다른 모드끼리 기간을 맞추려면 여기서 정한다
     eval_window = max(ma_window_list) if eval_ma_window is None else eval_ma_window
+    signal_df_with_ma = add_moving_averages(signal_df, [*ma_window_list, eval_window])
     eval_col = ma_col_name(eval_window)
-    if eval_col not in signal_df_with_ma.columns:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, eval_window)
     eval_start = signal_df_with_ma.loc[signal_df_with_ma[eval_col].notna(), COL_DATE].iloc[0]
 
     for idx, (window_is_start, is_end, oos_start, oos_end) in enumerate(windows):
@@ -350,7 +272,7 @@ def run_walkforward(
         best_sell_buf = best[COL_SELL_BUFFER_ZONE_PCT]
         best_hold = best[COL_HOLD_DAYS]
 
-        # IS Calmar 계산 (grid_df에서 best 행의 cagr/mdd)
+        # IS 성과 (grid_df에서 best 행)
         best_row_mask = (
             (grid_df[COL_MA_WINDOW] == best_ma)
             & (grid_df[COL_BUY_BUFFER_ZONE_PCT] == best_buy_buf)
@@ -363,7 +285,7 @@ def run_walkforward(
         is_mdd = float(best_row[COL_MDD])
         is_trades = int(best_row[COL_TOTAL_TRADES])
         is_win_rate = float(best_row[COL_WIN_RATE])
-        is_calmar = calculate_calmar(is_cagr, is_mdd)
+        is_calmar = float(best_row[COL_CALMAR])
 
         # 6. OOS 데이터 슬라이스 (전체 히스토리 MA 포함 — MA 연속성 보장)
         # 방어적 설계: trade_df에 독립 날짜 마스크 적용
@@ -374,12 +296,8 @@ def run_walkforward(
 
         # 7. OOS 독립 평가 (유효 구간 필터링)
         # MA는 루프 전 전체 데이터로 사전 계산되었으므로 OOS 슬라이스에 이미 포함되어 있다.
-        # trade_df도 독립 날짜 기반으로 필터링 (인덱스 정합성 가정 제거)
         oos_ma_col = ma_col_name(best_ma)
-        oos_valid_mask = oos_signal[oos_ma_col].notna()
-        oos_signal_valid = oos_signal[oos_valid_mask].reset_index(drop=True)
-        oos_valid_dates = oos_signal[oos_valid_mask][COL_DATE]
-        oos_trade_valid = oos_trade[oos_trade[COL_DATE].isin(oos_valid_dates)].reset_index(drop=True)
+        oos_signal_valid, oos_trade_valid = filter_valid_rows(oos_signal, oos_trade, oos_ma_col)
 
         oos_strategy = BufferZoneStrategy(
             ma_col=oos_ma_col,
@@ -396,7 +314,7 @@ def run_walkforward(
         oos_mdd = float(oos_summary["mdd"])
         oos_trades = int(oos_summary["total_trades"])
         oos_win_rate = float(oos_summary["win_rate"])
-        oos_calmar = calculate_calmar(oos_cagr, oos_mdd)
+        oos_calmar = float(oos_summary["calmar"])
 
         # 8. WFE (Walk-Forward Efficiency)
         # 8-1. WFE Calmar = OOS Calmar / IS Calmar
@@ -501,62 +419,11 @@ def _window_params(wr: WfoWindowResultDict) -> tuple[int, float, float, int]:
     return (wr["best_ma_window"], wr["best_buy_buffer_zone_pct"], wr["best_sell_buffer_zone_pct"], wr["best_hold_days"])
 
 
-# WFO 결과 CSV 로딩 시 필수 컬럼
-_WFO_CSV_REQUIRED_COLUMNS = [
-    "oos_start",
-    "best_ma_window",
-    "best_buy_buffer_zone_pct",
-    "best_sell_buffer_zone_pct",
-    "best_hold_days",
-]
-
-# 정수 변환 대상 컬럼 (pandas CSV 로딩 시 float64 가능성 대비)
-_WFO_CSV_INT_COLUMNS = ["best_ma_window", "best_hold_days"]
-
-
-def load_wfo_results_from_csv(csv_path: Path) -> list[WfoWindowResultDict]:
-    """WFO 결과 CSV를 읽어 WfoWindowResultDict 리스트로 반환한다.
-
-    walkforward_dynamic.csv (또는 다른 WFO 결과 CSV)를 파싱하여
-    build_params_schedule()에 전달 가능한 형식으로 변환한다.
-
-    Args:
-        csv_path: walkforward_*.csv 파일 경로
-
-    Returns:
-        WFO 윈도우 결과 딕셔너리 리스트
-
-    Raises:
-        FileNotFoundError: CSV 파일이 존재하지 않을 때
-        ValueError: 필수 컬럼이 누락되었을 때
-    """
-    # 1. 파일 존재 확인
-    if not csv_path.exists():
-        raise FileNotFoundError(f"WFO 결과 CSV를 찾을 수 없습니다: {csv_path}")
-
-    # 2. CSV 로딩
-    df = pd.read_csv(csv_path)
-
-    # 3. 필수 컬럼 검증
-    missing = set(_WFO_CSV_REQUIRED_COLUMNS) - set(df.columns)
-    if missing:
-        raise ValueError(f"WFO 결과 CSV 필수 컬럼 누락: {sorted(missing)}")
-
-    # 4. 정수 컬럼 타입 보정 (pandas CSV 로딩 시 float64 가능성 대비)
-    for col in _WFO_CSV_INT_COLUMNS:
-        if col in df.columns:
-            df[col] = df[col].astype(int)
-
-    # 5. dict 리스트 반환
-    records = cast(list[WfoWindowResultDict], df.to_dict("records"))
-    return records
-
-
 def _calculate_profit_concentration(
     initial_equity: float,
     window_end_equities: list[float],
 ) -> tuple[float, int]:
-    """Profit Concentration (V2)을 계산한다.
+    """Profit Concentration 을 계산한다.
 
     각 윈도우 기여분 = end_equity - prev_end_equity (stitched equity 윈도우 경계 기준).
     total_net_profit ≤ 0이면 (전체 손실) share 계산이 무의미하므로 (0.0, 0) 반환.
@@ -568,16 +435,13 @@ def _calculate_profit_concentration(
     Returns:
         (max_share, max_window_idx) 튜플
     """
-    if not window_end_equities:
-        return 0.0, 0
-
     final_equity = window_end_equities[-1]
     total_net_profit = final_equity - initial_equity
 
     if total_net_profit <= EPSILON:
         return 0.0, 0
 
-    # 각 윈도우 기여분 계산 (V2: end - prev_end)
+    # 각 윈도우 기여분 계산 (end - prev_end)
     prev = initial_equity
     max_share = 0.0
     max_idx = 0
@@ -594,14 +458,16 @@ def _calculate_profit_concentration(
 
 def calculate_wfo_mode_summary(
     window_results: list[WfoWindowResultDict],
-    stitched_summary: dict[str, object] | None = None,
+    stitched_summary: SummaryDict,
+    window_end_equities: list[float],
 ) -> WfoModeSummaryDict:
     """WFO 모드별 요약 통계를 계산한다.
 
     Args:
         window_results: run_walkforward() 반환 결과
-        stitched_summary: stitched equity의 calculate_summary() 결과 (선택적).
-            window_end_equities 키가 있으면 Profit Concentration 계산에 사용.
+        stitched_summary: stitched equity의 calculate_summary() 결과 (run_stitched_equity)
+        window_end_equities: 윈도우마다 OOS 종료 시점의 stitched equity (run_stitched_equity) —
+            Profit Concentration 계산용
 
     Returns:
         모드별 요약 통계 딕셔너리
@@ -612,7 +478,6 @@ def calculate_wfo_mode_summary(
     oos_mdds = [wr["oos_mdd"] for wr in window_results]
     oos_calmars = [wr["oos_calmar"] for wr in window_results]
     oos_trades_list = [wr["oos_trades"] for wr in window_results]
-    oos_win_rates = [wr["oos_win_rate"] for wr in window_results]
     wfe_calmars = [wr["wfe_calmar"] for wr in window_results]
     wfe_cagrs = [wr["wfe_cagr"] for wr in window_results]
     is_calmars = [wr["is_calmar"] for wr in window_results]
@@ -623,30 +488,22 @@ def calculate_wfo_mode_summary(
     # wfe_calmar_robust: IS Calmar > 0인 윈도우만 필터링하여 wfe_calmar 중앙값
     robust_wfe_calmars = [wr["wfe_calmar"] for wr, is_cal in zip(window_results, is_calmars, strict=True) if is_cal > 0]
 
-    # Profit Concentration 계산
-    pc_max = 0.0
-    pc_idx = 0
-    if stitched_summary is not None and "window_end_equities" in stitched_summary:
-        initial_eq = float(cast(float, stitched_summary.get("initial_capital", 0.0)))
-        end_equities = stitched_summary["window_end_equities"]
-        if isinstance(end_equities, list):
-            pc_max, pc_idx = _calculate_profit_concentration(initial_eq, [float(e) for e in end_equities])
+    pc_max, pc_idx = _calculate_profit_concentration(stitched_summary["initial_capital"], window_end_equities)
 
-    summary: WfoModeSummaryDict = {
+    return {
         "n_windows": n,
-        "oos_cagr_mean": sum(oos_cagrs) / n if n > 0 else 0.0,
-        "oos_cagr_std": _std(oos_cagrs),
-        "oos_mdd_mean": sum(oos_mdds) / n if n > 0 else 0.0,
-        "oos_mdd_worst": min(oos_mdds) if oos_mdds else 0.0,
-        "oos_calmar_mean": sum(oos_calmars) / n if n > 0 else 0.0,
-        "oos_calmar_std": _std(oos_calmars),
+        "oos_cagr_mean": sum(oos_cagrs) / n,
+        # 윈도우가 하나면 표본 표준편차를 정의할 수 없어 흩어짐 0 으로 적는다
+        "oos_cagr_std": stdev(oos_cagrs) if n > 1 else 0.0,
+        "oos_mdd_mean": sum(oos_mdds) / n,
+        "oos_mdd_worst": min(oos_mdds),
+        "oos_calmar_mean": sum(oos_calmars) / n,
         "oos_trades_total": sum(oos_trades_list),
-        "oos_win_rate_mean": sum(oos_win_rates) / n if n > 0 else 0.0,
-        "wfe_calmar_mean": sum(wfe_calmars) / n if n > 0 else 0.0,
-        "wfe_calmar_median": median(wfe_calmars) if wfe_calmars else 0.0,
-        "wfe_cagr_mean": sum(wfe_cagrs) / n if n > 0 else 0.0,
-        "wfe_cagr_median": median(wfe_cagrs) if wfe_cagrs else 0.0,
-        "gap_calmar_median": median(gap_calmars) if gap_calmars else 0.0,
+        "wfe_calmar_mean": sum(wfe_calmars) / n,
+        "wfe_calmar_median": median(wfe_calmars),
+        "wfe_cagr_mean": sum(wfe_cagrs) / n,
+        "wfe_cagr_median": median(wfe_cagrs),
+        "gap_calmar_median": median(gap_calmars),
         "wfe_calmar_robust": median(robust_wfe_calmars) if robust_wfe_calmars else 0.0,
         "profit_concentration_max": pc_max,
         "profit_concentration_window_idx": pc_idx,
@@ -654,28 +511,10 @@ def calculate_wfo_mode_summary(
         "param_buy_buffers": [wr["best_buy_buffer_zone_pct"] for wr in window_results],
         "param_sell_buffers": [wr["best_sell_buffer_zone_pct"] for wr in window_results],
         "param_hold_days": [wr["best_hold_days"] for wr in window_results],
+        "stitched_cagr": stitched_summary["cagr"],
+        "stitched_mdd": stitched_summary["mdd"],
+        "stitched_calmar": stitched_summary["calmar"],
     }
-
-    # Stitched Equity 지표 추가
-    if stitched_summary is not None:
-        stitched_cagr = float(cast(float, stitched_summary.get("cagr", 0.0)))
-        stitched_mdd = float(cast(float, stitched_summary.get("mdd", 0.0)))
-        summary["stitched_cagr"] = stitched_cagr
-        summary["stitched_mdd"] = stitched_mdd
-        summary["stitched_calmar"] = calculate_calmar(stitched_cagr, stitched_mdd)
-        summary["stitched_total_return_pct"] = float(cast(float, stitched_summary.get("total_return_pct", 0.0)))
-
-    return summary
-
-
-def _std(values: list[float]) -> float:
-    """표본 표준편차를 계산한다 (n<2이면 0.0)."""
-    n = len(values)
-    if n < 2:
-        return 0.0
-    mean = sum(values) / n
-    variance = sum((v - mean) ** 2 for v in values) / (n - 1)
-    return variance**0.5
 
 
 # ============================================================================
@@ -688,7 +527,7 @@ def run_stitched_equity(
     trade_df: pd.DataFrame,
     window_results: list[WfoWindowResultDict],
     initial_capital: float,
-) -> tuple[pd.DataFrame, dict[str, object]]:
+) -> tuple[pd.DataFrame, SummaryDict, list[float]]:
     """WFO 결과의 params_schedule로 Stitched Equity를 생성한다.
 
     첫 OOS 시작일부터 마지막 OOS 종료일까지 연속 자본곡선을 생성한다.
@@ -701,24 +540,17 @@ def run_stitched_equity(
         initial_capital: 초기 자본금
 
     Returns:
-        (equity_df, summary) 튜플.
-        summary에 "window_end_equities" 키 포함 (Profit Concentration 계산용).
+        (equity_df, summary, window_end_equities) 튜플.
+        window_end_equities 는 윈도우마다 OOS 종료 시점의 equity (Profit Concentration 계산용).
     """
     initial_params, schedule = build_params_schedule(window_results)
 
     # OOS 범위 결정
-    first_oos_start = window_results[0]["oos_start"]
-    last_oos_end = window_results[-1]["oos_end"]
-
-    oos_start_date = date.fromisoformat(str(first_oos_start))
-    oos_end_date = date.fromisoformat(str(last_oos_end))
+    oos_start_date = date.fromisoformat(window_results[0]["oos_start"])
+    oos_end_date = date.fromisoformat(window_results[-1]["oos_end"])
 
     # 모든 MA 윈도우 사전 계산 (MA 연속성 보장 — OOS 슬라이스 전에 전체 signal_df에 계산)
-    all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
-
-    signal_df_with_ma = signal_df.copy()
-    for window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, window)
+    signal_df_with_ma = add_moving_averages(signal_df, {wr["best_ma_window"] for wr in window_results})
 
     # OOS 구간 데이터 슬라이스 (독립 날짜 기반 마스크)
     oos_signal_mask = (signal_df_with_ma[COL_DATE] >= oos_start_date) & (signal_df_with_ma[COL_DATE] <= oos_end_date)
@@ -736,17 +568,14 @@ def run_stitched_equity(
         params_schedule=schedule,
     )
 
-    result_summary = dict(summary)
-
     # Profit Concentration 계산용 윈도우 경계 equity 추출
     window_end_equities: list[float] = []
     for wr in window_results:
-        oos_end_d = date.fromisoformat(str(wr["oos_end"]))
+        oos_end_d = date.fromisoformat(wr["oos_end"])
         mask = equity_df[COL_DATE] <= oos_end_d
         window_end_equities.append(float(equity_df[mask].iloc[-1][COL_EQUITY]))
-    result_summary["window_end_equities"] = window_end_equities
 
-    return equity_df, result_summary
+    return equity_df, summary, window_end_equities
 
 
 @dataclass
@@ -778,21 +607,17 @@ def run_window_detail_backtests(
         initial_capital: 초기 자본금
 
     Returns:
-        윈도우별 WindowDetailData 리스트 (빈 윈도우는 건너뜀)
+        윈도우별 WindowDetailData 리스트 (window_results 순서)
     """
-    # 1. 모든 윈도우에서 사용되는 MA window 수집 및 사전 계산 (MA 연속성 보장)
-    all_ma_windows: set[int] = {wr["best_ma_window"] for wr in window_results}
-
-    signal_df_with_ma = signal_df.copy()
-    for ma_window in all_ma_windows:
-        signal_df_with_ma = add_single_moving_average(signal_df_with_ma, ma_window)
+    # 1. 모든 윈도우에서 사용되는 MA window 사전 계산 (MA 연속성 보장)
+    signal_df_with_ma = add_moving_averages(signal_df, {wr["best_ma_window"] for wr in window_results})
 
     # 2. 각 윈도우별 백테스트 실행
     results: list[WindowDetailData] = []
     for wr in window_results:
         idx = wr["window_idx"]
-        is_start = date.fromisoformat(str(wr["is_start"]))
-        oos_end = date.fromisoformat(str(wr["oos_end"]))
+        is_start = date.fromisoformat(wr["is_start"])
+        oos_end = date.fromisoformat(wr["oos_end"])
 
         ma_window = wr["best_ma_window"]
         buy_pct = wr["best_buy_buffer_zone_pct"]
@@ -805,9 +630,6 @@ def run_window_detail_backtests(
         win_signal = signal_df_with_ma[signal_mask].reset_index(drop=True)
         trade_mask = (trade_df[COL_DATE] >= is_start) & (trade_df[COL_DATE] <= oos_end)
         win_trade = trade_df[trade_mask].reset_index(drop=True)
-
-        if win_signal.empty:
-            continue
 
         # 백테스트 실행
         strategy = BufferZoneStrategy(
@@ -824,10 +646,7 @@ def run_window_detail_backtests(
             log_trades=False,
         )
 
-        # 밴드 계산: runners.py의 공용 함수 재사용
         equity_enriched = enrich_equity_with_bands(equity_df_w, win_signal, ma_col, buy_pct, sell_pct)
-
-        # 드로우다운 계산
         equity_enriched[COL_DRAWDOWN_PCT] = calculate_drawdown_pct_series(equity_enriched[COL_EQUITY].astype(float))
 
         results.append(

@@ -9,10 +9,8 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.engines.backtest_engine import _check_pending_conflict, run_buffer_strategy
-from qbt.backtest.engines.engine_common import PendingOrder
+from qbt.backtest.engines.backtest_engine import run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
-from qbt.backtest.strategies.strategy_common import PendingOrderConflictError
 
 
 class TestExecutionTiming:
@@ -588,48 +586,6 @@ class TestCoreExecutionRules:
         # Then: 마지막날 포지션 없어야 함 (체결 불가)
         last_day = equity_df.iloc[-1]
         assert last_day["position"] == 0, f"마지막날 신호는 무시되어 position=0. 실제: {last_day['position']}"
-
-    def test_pending_conflict_raises_exception(self):
-        """
-        Pending 충돌 예외 발생 검증 (Critical Invariant)
-
-        절대 규칙: pending_order 존재 중 신규 신호 발생 시 PendingOrderConflictError 즉시 raise
-
-        Given: pending_order가 이미 존재하는 상태
-        When: _check_pending_conflict 호출
-        Then: PendingOrderConflictError 예외 발생
-
-        주의: 정상적인 백테스트 실행에서는 이런 상황이 발생하지 않습니다.
-        이 테스트는 _check_pending_conflict 함수의 동작을 직접 검증합니다.
-        통합 테스트로는 pending 충돌 상황을 재현하기 어려우므로 단위 테스트로 검증합니다.
-        """
-        # Given: 기존 pending이 존재
-        existing_pending = PendingOrder(
-            order_type="sell",
-            signal_date=date(2023, 1, 9),
-        )
-
-        # When & Then: 신규 매도 신호 발생 시 예외 발생
-        with pytest.raises(PendingOrderConflictError) as exc_info:
-            _check_pending_conflict(existing_pending, "sell", date(2023, 1, 9))
-
-        # 예외 메시지에 유용한 디버깅 정보 포함 확인
-        error_message = str(exc_info.value)
-        assert "pending" in error_message.lower(), "예외 메시지에 'pending' 키워드가 포함되어야 함"
-        assert "충돌" in error_message, "예외 메시지에 '충돌' 키워드가 포함되어야 함"
-        assert "sell" in error_message, "예외 메시지에 신호 타입이 포함되어야 함"
-        assert "2023-01-09" in error_message or "2023-01-10" in error_message, "예외 메시지에 날짜 정보가 포함되어야 함"
-
-        # When & Then: 신규 매수 신호 발생 시에도 예외 발생
-        with pytest.raises(PendingOrderConflictError):
-            _check_pending_conflict(existing_pending, "buy", date(2023, 1, 9))
-
-        # When: pending이 없으면 예외 발생하지 않음
-        try:
-            _check_pending_conflict(None, "buy", date(2023, 1, 9))
-            _check_pending_conflict(None, "sell", date(2023, 1, 9))
-        except PendingOrderConflictError:
-            pytest.fail("pending이 None일 때는 예외가 발생하면 안 됨")
 
 
 class TestBacktestAccuracy:

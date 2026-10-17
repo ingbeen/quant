@@ -14,24 +14,18 @@ import하여 팩토리 역할을 수행한다. 전략 모듈(buffer_zone.py 등)
 from collections.abc import Callable
 from typing import Any
 
-import pandas as pd
-
 from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import (
-    COL_BUY_BUFFER_PCT,
-    COL_LOWER_BAND,
-    COL_SELL_BUFFER_PCT,
-    COL_UPPER_BAND,
     DEFAULT_INITIAL_CAPITAL,
     ma_col_name,
 )
-from qbt.backtest.engines.backtest_engine import run_backtest
+from qbt.backtest.csv_export import enrich_equity_with_bands
+from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest
 from qbt.backtest.strategies.buffer_zone import (
     BufferZoneConfig,
     BufferZoneStrategy,
     resolve_params_for_config,
 )
-from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig, BuyAndHoldStrategy
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
@@ -42,53 +36,7 @@ from qbt.common_constants import (
     COL_OPEN,
     ROUND_RATIO,
 )
-from qbt.utils import get_logger
 from qbt.utils.data_loader import load_signal_trade_pair, load_stock_data
-
-logger = get_logger(__name__)
-
-
-# ============================================================================
-# 내부 헬퍼
-# ============================================================================
-
-
-def enrich_equity_with_bands(
-    equity_df: pd.DataFrame,
-    signal_df: pd.DataFrame,
-    ma_col: str,
-    buy_buffer_pct: float,
-    sell_buffer_pct: float,
-) -> pd.DataFrame:
-    """equity_df에 버퍼존 밴드 컬럼을 추가한다.
-
-    signal_df의 MA 값으로 upper_band, lower_band, buy_buffer_pct, sell_buffer_pct 컬럼을
-    equity_df에 Date 기준으로 join하여 추가한다.
-    대시보드에서 밴드 오버레이 표시에 사용된다.
-
-    Args:
-        equity_df: 기본 에쿼티 DataFrame (Date, equity, position 컬럼)
-        signal_df: 시그널 DataFrame (MA 컬럼 포함)
-        ma_col: 이동평균 컬럼명 (예: "ma_200")
-        buy_buffer_pct: 매수 버퍼존 비율 (0~1)
-        sell_buffer_pct: 매도 버퍼존 비율 (0~1)
-
-    Returns:
-        밴드 컬럼이 추가된 equity_df
-    """
-    # signal_df에서 Date, MA 컬럼만 추출 후 밴드 계산
-    band_df = signal_df[[COL_DATE, ma_col]].copy()
-    bands = band_df[ma_col].apply(lambda ma: compute_bands(ma, buy_buffer_pct, sell_buffer_pct))
-    band_df[COL_UPPER_BAND] = bands.apply(lambda b: b[0])
-    band_df[COL_LOWER_BAND] = bands.apply(lambda b: b[1])
-    band_df[COL_BUY_BUFFER_PCT] = buy_buffer_pct
-    band_df[COL_SELL_BUFFER_PCT] = sell_buffer_pct
-    band_df = band_df.drop(columns=[ma_col])
-
-    # equity_df에 Date 기준으로 join
-    enriched = equity_df.merge(band_df, on=COL_DATE, how="left")
-    return enriched
-
 
 # ============================================================================
 # 팩토리 함수
@@ -126,9 +74,7 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
         signal_df = add_single_moving_average(signal_df, params.ma_window)
 
         # 4. MA 유효 구간 필터링
-        valid_mask = signal_df[ma_col].notna()
-        filtered_signal = signal_df[valid_mask].reset_index(drop=True)
-        filtered_trade = trade_df[valid_mask].reset_index(drop=True)
+        filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
 
         # 5. 전략 생성 및 실행
         strategy = BufferZoneStrategy(

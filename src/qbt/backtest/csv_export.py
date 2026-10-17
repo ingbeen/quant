@@ -1,7 +1,7 @@
 """백테스트 CSV 저장용 DataFrame 변환 유틸리티
 
-CLI 스크립트에서 반복되는 trades CSV 준비, OHLC 전일대비% 및 버퍼존 밴드 계산
-패턴을 공용 함수로 제공한다. CSV 저장(to_csv) 자체는 호출부에서 수행한다.
+CLI 스크립트에서 반복되는 trades CSV 준비, OHLC 전일대비% 및 버퍼존 밴드 계산,
+시그널 CSV 반올림 패턴을 공용 함수로 제공한다. CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 """
 
 from __future__ import annotations
@@ -19,9 +19,20 @@ from qbt.backtest.constants import (
     COL_ORDER_AMOUNT,
     COL_PNL,
     COL_PNL_PCT,
+    COL_SELL_BUFFER_PCT,
     COL_UPPER_BAND,
 )
-from qbt.common_constants import COL_CLOSE, COL_HIGH, COL_LOW, COL_OPEN, ROUND_CAPITAL, ROUND_PRICE, ROUND_RATIO
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    ROUND_CAPITAL,
+    ROUND_PERCENT,
+    ROUND_PRICE,
+    ROUND_RATIO,
+)
 
 # OHLC 전일대비% 컬럼명 (signal CSV에 저장되어 대시보드가 tooltip에 사용)
 COL_OPEN_PCT: str = "open_pct"
@@ -66,25 +77,19 @@ def prepare_trades_for_csv(trades_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         CSV 저장용으로 변환된 DataFrame 복사본
     """
-    # holding_days 추가
     export = add_holding_days(trades_df.copy())
 
-    # 반올림 규칙 적용
-    round_dict: dict[str, int] = {}
-    if COL_ENTRY_PRICE in export.columns:
-        round_dict[COL_ENTRY_PRICE] = ROUND_PRICE
-    if COL_EXIT_PRICE in export.columns:
-        round_dict[COL_EXIT_PRICE] = ROUND_PRICE
-    if COL_PNL in export.columns:
-        round_dict[COL_PNL] = ROUND_CAPITAL
-    if COL_PNL_PCT in export.columns:
-        round_dict[COL_PNL_PCT] = ROUND_RATIO
-    if COL_BUY_BUFFER_PCT in export.columns:
-        round_dict[COL_BUY_BUFFER_PCT] = ROUND_RATIO
-    if COL_ORDER_AMOUNT in export.columns:
-        round_dict[COL_ORDER_AMOUNT] = ROUND_CAPITAL
-
-    export = export.round(round_dict)
+    # 없는 열(단일 엔진 거래 표의 order_amount)은 DataFrame.round 가 건너뛴다
+    export = export.round(
+        {
+            COL_ENTRY_PRICE: ROUND_PRICE,
+            COL_EXIT_PRICE: ROUND_PRICE,
+            COL_PNL: ROUND_CAPITAL,
+            COL_PNL_PCT: ROUND_RATIO,
+            COL_BUY_BUFFER_PCT: ROUND_RATIO,
+            COL_ORDER_AMOUNT: ROUND_CAPITAL,
+        }
+    )
 
     # 금액 컬럼 정수 변환
     for col in (COL_PNL, COL_ORDER_AMOUNT):
@@ -164,3 +169,41 @@ def add_buffer_zone_bands(
     result[COL_UPPER_BAND] = result[ma_col] * (1.0 + buy_buffer_zone_pct)
     result[COL_LOWER_BAND] = result[ma_col] * (1.0 - sell_buffer_zone_pct)
     return result
+
+
+def enrich_equity_with_bands(
+    equity_df: pd.DataFrame,
+    signal_df: pd.DataFrame,
+    ma_col: str,
+    buy_buffer_pct: float,
+    sell_buffer_pct: float,
+) -> pd.DataFrame:
+    """equity_df 에 그날의 버퍼존 밴드(`upper_band` · `lower_band`)와 버퍼 비율 열을 날짜로 붙인다.
+
+    대시보드가 에쿼티 CSV 에서 밴드 오버레이를 그린다.
+
+    Args:
+        equity_df: 에쿼티 DataFrame (Date 컬럼)
+        signal_df: 시그널 DataFrame (Date · 이동평균 컬럼)
+        ma_col: 이동평균 컬럼명 (예: "ma_200")
+        buy_buffer_pct: 매수 버퍼존 비율 (0.03 = 3%)
+        sell_buffer_pct: 매도 버퍼존 비율 (0.05 = 5%)
+
+    Returns:
+        밴드 · 버퍼 비율 컬럼이 추가된 equity_df 복사본
+    """
+    band_df = add_buffer_zone_bands(signal_df[[COL_DATE, ma_col]], ma_col, buy_buffer_pct, sell_buffer_pct)
+    band_df[COL_BUY_BUFFER_PCT] = buy_buffer_pct
+    band_df[COL_SELL_BUFFER_PCT] = sell_buffer_pct
+    return equity_df.merge(band_df.drop(columns=[ma_col]), on=COL_DATE, how="left")
+
+
+def round_signal_for_csv(df: pd.DataFrame) -> pd.DataFrame:
+    """시그널 DataFrame 을 저장 자릿수로 반올림한 복사본을 반환한다.
+
+    가격(OHLC) · 이동평균(`ma_*`) · 밴드는 ROUND_PRICE, 전일대비%는 ROUND_PERCENT. 없는 열은 건너뛴다.
+    """
+    decimals = {col: ROUND_PRICE for col in (COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, *BUFFER_BAND_COLUMNS)}
+    decimals.update({col: ROUND_PRICE for col in df.columns if col.startswith("ma_")})
+    decimals.update({col: ROUND_PERCENT for col in OHLC_CHANGE_PCT_COLUMNS})
+    return df.round(decimals)

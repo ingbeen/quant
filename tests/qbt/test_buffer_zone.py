@@ -196,7 +196,7 @@ class TestResolveParamsForConfig:
         # When
         params = resolve_params_for_config(config)
 
-        # Then: 4P 확정 hold_days=3 (overfitting_analysis_report.md §2.1 기반)
+        # Then: 4P 확정 hold_days=3 (근거: docs/research/전략_검증_보고서.md §2.1)
         assert params.hold_days == 3, "4P config는 hold_days=3이어야 합니다"
 
     def test_tqqq_config_uses_4p_defaults(self):
