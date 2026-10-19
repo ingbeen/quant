@@ -1,10 +1,13 @@
 """백테스트 CSV 저장용 DataFrame 변환 유틸리티
 
 CLI 스크립트에서 반복되는 trades CSV 준비, OHLC 전일대비% 및 버퍼존 밴드 계산,
-시그널 CSV 반올림 패턴을 공용 함수로 제공한다. CSV 저장(to_csv) 자체는 호출부에서 수행한다.
+시그널 CSV 반올림 패턴과 저장 전 정리(포트폴리오 결과 폴더의 구성 의존 파일 지우기)를 공용 함수로 제공한다.
+CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pandas as pd
 
@@ -21,6 +24,9 @@ from qbt.backtest.constants import (
     COL_PNL_PCT,
     COL_SELL_BUFFER_PCT,
     COL_UPPER_BAND,
+    LEDGER_FILENAME,
+    NETTING_FILENAME,
+    PORTFOLIO_SIGNAL_PREFIX,
 )
 from qbt.common_constants import (
     COL_CLOSE,
@@ -196,6 +202,22 @@ def enrich_equity_with_bands(
     band_df[COL_BUY_BUFFER_PCT] = buy_buffer_pct
     band_df[COL_SELL_BUFFER_PCT] = sell_buffer_pct
     return equity_df.merge(band_df.drop(columns=[ma_col]), on=COL_DATE, how="left")
+
+
+def remove_config_dependent_files(result_dir: Path) -> None:
+    """포트폴리오 실험 폴더에서 실험 구성에 따라 생기는 파일(자산 키별 시그널 · 장부 · 상계 내역)을 지운다.
+
+    결과를 저장하기 전에 부른다 — 구성이 바뀐 실험을 같은 폴더에 다시 저장하면 지금 실험에 없는 자산 · 매매법의
+    파일이 남고, 대시보드는 파일이 있으면 그대로 그린다. 폴더째 지우지 않는다(실험 이름이 비면 result_dir 이
+    결과 폴더 전체다).
+    """
+    stale = [
+        *result_dir.glob(f"{PORTFOLIO_SIGNAL_PREFIX}*.csv"),
+        result_dir / LEDGER_FILENAME,
+        result_dir / NETTING_FILENAME,
+    ]
+    for path in stale:
+        path.unlink(missing_ok=True)
 
 
 def round_signal_for_csv(df: pd.DataFrame) -> pd.DataFrame:

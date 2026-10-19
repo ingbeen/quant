@@ -519,12 +519,8 @@ class TestExecuteOrders:
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="EXIT_ALL",
-                current_amount=10_000.0,
-                target_amount=0.0,
                 delta_amount=-10_000.0,
-                target_weight=0.0,
                 reason="signal sell",
             )
         }
@@ -572,21 +568,13 @@ class TestExecuteOrders:
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="EXIT_ALL",
-                current_amount=10_000.0,
-                target_amount=0.0,
                 delta_amount=-10_000.0,
-                target_weight=0.0,
                 reason="signal sell",
             ),
             "spy": OrderIntent(
-                asset_id="spy",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=9_700.0,
                 delta_amount=9_700.0,
-                target_weight=0.50,
                 reason="signal buy",
                 hold_days_used=0,
             ),
@@ -636,12 +624,8 @@ class TestExecuteOrders:
 
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=delta_amount,
                 delta_amount=delta_amount,
-                target_weight=0.50,
                 reason="signal buy",
                 hold_days_used=0,
             )
@@ -700,22 +684,14 @@ class TestExecuteOrders:
 
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=delta_amount,
                 delta_amount=delta_amount,
-                target_weight=0.40,
                 reason="signal buy",
                 hold_days_used=0,
             ),
             "spy": OrderIntent(
-                asset_id="spy",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=delta_amount,
                 delta_amount=delta_amount,
-                target_weight=0.40,
                 reason="signal buy",
                 hold_days_used=0,
             ),
@@ -767,12 +743,8 @@ class TestExecuteOrders:
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="EXIT_ALL",
-                current_amount=5_000.0,
-                target_amount=0.0,
                 delta_amount=-5_000.0,
-                target_weight=0.0,
                 reason="signal sell",
             )
         }
@@ -821,12 +793,8 @@ class TestExecuteOrders:
 
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="REDUCE_TO_TARGET",
-                current_amount=10_000.0,
-                target_amount=7_000.0,
                 delta_amount=-reduce_amount,
-                target_weight=0.40,
                 reason="rebalance",
             )
         }
@@ -872,12 +840,8 @@ class TestExecuteOrders:
 
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=5_000.0,
                 delta_amount=5_000.0,
-                target_weight=0.50,
                 reason="signal buy",
                 hold_days_used=3,
             )
@@ -934,12 +898,8 @@ class TestExecuteOrders:
 
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="INCREASE_TO_TARGET",
-                current_amount=10_000.0,
-                target_amount=12_000.0,
                 delta_amount=delta_amount,
-                target_weight=0.60,
                 reason="rebalance",
             )
         }
@@ -990,12 +950,8 @@ class TestExecuteOrdersOpenPriceInvariant:
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
             "spy": OrderIntent(
-                asset_id="spy",
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=10_000.0,
                 delta_amount=10_000.0,
-                target_weight=1.0,
                 reason="signal buy",
                 hold_days_used=0,
             ),
@@ -1030,12 +986,8 @@ class TestExecuteOrdersOpenPriceInvariant:
         current_date = date(2024, 3, 1)
         order_intents: dict[str, OrderIntent] = {
             "qqq": OrderIntent(
-                asset_id="qqq",
                 intent_type="EXIT_ALL",
-                current_amount=10_000.0,
-                target_amount=0.0,
                 delta_amount=-10_000.0,
-                target_weight=0.0,
                 reason="signal sell",
             )
         }

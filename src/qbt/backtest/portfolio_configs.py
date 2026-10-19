@@ -16,16 +16,15 @@ from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.backtest.supplement_experiment import (
     MAIN_START_DATE,
+    Q2_2XS_SLOTS,
     VARIANT_SPLICED,
     build_combo_config,
 )
 from qbt.common_constants import (
     GLD_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
-    QLD_DATA_PATH,
     QQQ_DATA_PATH,
     SPY_DATA_PATH,
-    SSO_DATA_PATH,
     TLT_DATA_PATH,
 )
 
@@ -113,38 +112,11 @@ _CONFIG_Q2 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2"),
 )
 
-# Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H)
+# Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- 슬롯은 보완 실험과 같이 쓰는 supplement_experiment.Q2_2XS_SLOTS
 _CONFIG_Q2_2XS = PortfolioConfig(
     experiment_name="portfolio_q2_2xs",
     display_name="Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
-    asset_slots=(
-        AssetSlotConfig(
-            asset_id="sso",
-            signal_data_path=SPY_DATA_PATH,
-            trade_data_path=SSO_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="qld",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QLD_DATA_PATH,
-            target_weight=0.35,
-        ),
-        AssetSlotConfig(
-            asset_id="gld",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=GLD_DATA_PATH,
-            target_weight=0.15,
-            strategy_id="buy_and_hold",
-        ),
-        AssetSlotConfig(
-            asset_id="tlt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=TLT_DATA_PATH,
-            target_weight=0.15,
-            strategy_id="buy_and_hold",
-        ),
-    ),
+    asset_slots=Q2_2XS_SLOTS,
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
@@ -158,9 +130,7 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 _ADOPTED_HAA_PCT = 10
 _ADOPTED_ROTATION_PCT = 10
 _SUPPLEMENT_CONFIGS = [
-    build_combo_config(
-        _CONFIG_Q2_2XS.asset_slots, _ADOPTED_HAA_PCT, _ADOPTED_ROTATION_PCT, VARIANT_SPLICED, MAIN_START_DATE
-    ),
+    build_combo_config(_ADOPTED_HAA_PCT, _ADOPTED_ROTATION_PCT, VARIANT_SPLICED, MAIN_START_DATE),
 ]
 
 # ============================================================================

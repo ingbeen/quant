@@ -5,8 +5,7 @@
 
 실행 명령어:
     poetry run python scripts/backtest/run_portfolio_backtest.py
-    poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_a2
-    poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_c1
+    poetry run python scripts/backtest/run_portfolio_backtest.py --experiment portfolio_d1
 """
 
 import argparse
@@ -24,12 +23,21 @@ from qbt.backtest.analysis import (
     calculate_sortino_ratio,
     calculate_yearly_returns,
 )
+from qbt.backtest.constants import (
+    EQUITY_FILENAME,
+    LEDGER_FILENAME,
+    NETTING_FILENAME,
+    SUMMARY_FILENAME,
+    TRADES_FILENAME,
+    ma_col_name,
+    portfolio_signal_filename,
+)
 from qbt.backtest.csv_export import (
-    BUFFER_BAND_COLUMNS,
-    OHLC_CHANGE_PCT_COLUMNS,
     add_buffer_zone_bands,
     add_ohlc_change_pct,
     prepare_trades_for_csv,
+    remove_config_dependent_files,
+    round_signal_for_csv,
 )
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
@@ -43,11 +51,7 @@ from qbt.backtest.portfolio_types import (
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.backtest.supplement_experiment import run_with_start_check
 from qbt.common_constants import (
-    COL_CLOSE,
     COL_DATE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
     ROUND_CAPITAL,
     ROUND_PERCENT,
     ROUND_PRICE,
@@ -59,8 +63,7 @@ from qbt.utils.formatting import Align, TableLogger
 
 logger = get_logger(__name__)
 
-# 실험명 -> config 매핑
-_CONFIG_MAP = {c.experiment_name: c for c in PORTFOLIO_CONFIGS}
+_STATE_LOG_FILENAME = "state_log.csv"
 
 # 포트폴리오 백테스트 최소 시작일 하한
 # 각 실험의 effective_start_date가 이 날짜 이전이어도 이 날짜부터 실행한다
@@ -92,6 +95,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     - equity.csv: 합산 에쿼티 + 자산 키별 비중/시그널 + 리밸런싱 여부 (+ 매매법이 여럿이면 netting_savings)
     - trades.csv: 전 자산 거래 내역 + holding_days
     - signal_{자산 키}.csv: 자산 키별 시그널 (OHLCV + MA + 밴드 + 전일종가대비%)
+    - state_log.csv: 거래일마다 엔진 내부 상태 (신호 · 의도 · 체결 · 보유)
     - summary.json: 전체 + 자산 키별 요약 지표 + 설정 파라미터 (+ 매매법이 여럿이면 per_method · netting · account_holdings · pnl_check)
     - ledger.csv · netting.csv: 매매법이 여럿일 때만 — 매매법별 장부, 종목 단위 상계 내역
 
@@ -99,16 +103,10 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         result: PortfolioResult 컨테이너
     """
     result.config.result_dir.mkdir(parents=True, exist_ok=True)
-
-    # 실험 구성에 따라 생기는 파일은 먼저 지운다 — 구성이 바뀐 실험을 같은 폴더에 다시 저장하면 지금 실험에 없는
-    # 자산 · 매매법의 파일이 남고, 대시보드는 파일이 있으면 그대로 그린다
-    ledger_path = result.config.result_dir / "ledger.csv"
-    netting_path = result.config.result_dir / "netting.csv"
-    for stale_path in [*result.config.result_dir.glob("signal_*.csv"), ledger_path, netting_path]:
-        stale_path.unlink(missing_ok=True)
+    remove_config_dependent_files(result.config.result_dir)
 
     # 1. equity.csv 저장
-    equity_path = result.config.result_dir / "equity.csv"
+    equity_path = result.config.result_dir / EQUITY_FILENAME
     equity_export = result.equity_df.copy()
 
     equity_round: dict[str, int] = {
@@ -146,7 +144,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     logger.debug(f"에쿼티 데이터 저장 완료: {equity_path}")
 
     # 2. trades.csv 저장
-    trades_path = result.config.result_dir / "trades.csv"
+    trades_path = result.config.result_dir / TRADES_FILENAME
     prepare_trades_for_csv(result.trades_df).to_csv(trades_path, index=False)
     logger.debug(f"거래 내역 저장 완료: {trades_path}")
 
@@ -154,7 +152,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     # 자산 키 -> 슬롯 매핑 (밴드 계산 시 슬롯의 전략 파라미터 조회용, 비중이 바뀌는 매매법 자산은 None)
     key_infos = {info.key: info for info in list_position_keys(result.config)}
     for asset_result in result.per_asset:
-        signal_path = result.config.result_dir / f"signal_{asset_result.asset_id}.csv"
+        signal_path = result.config.result_dir / portfolio_signal_filename(asset_result.asset_id)
 
         # 4종 OHLC 전일대비% 사전 계산 (대시보드 SSoT)
         signal_export = add_ohlc_change_pct(asset_result.signal_df)
@@ -162,55 +160,43 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         # buffer_zone 자산은 upper_band / lower_band 컬럼 사전 계산 (대시보드 SSoT)
         slot = key_infos[asset_result.asset_id].slot
         if slot is not None and slot.strategy_id == "buffer_zone":
-            ma_col = f"ma_{slot.ma_window}"
             signal_export = add_buffer_zone_bands(
                 signal_export,
-                ma_col,
+                ma_col_name(slot.ma_window),
                 buy_buffer_zone_pct=slot.buy_buffer_zone_pct,
                 sell_buffer_zone_pct=slot.sell_buffer_zone_pct,
             )
 
-        signal_round: dict[str, int] = {col: ROUND_PERCENT for col in OHLC_CHANGE_PCT_COLUMNS}
-        for col in [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]:
-            if col in signal_export.columns:
-                signal_round[col] = ROUND_PRICE
-        for col in signal_export.columns:
-            if col.startswith("ma_") or col in BUFFER_BAND_COLUMNS:
-                signal_round[col] = ROUND_PRICE
-
-        signal_export = signal_export.round(signal_round)
-        signal_export.to_csv(signal_path, index=False)
+        round_signal_for_csv(signal_export).to_csv(signal_path, index=False)
         logger.debug(f"시그널 데이터 저장 완료: {signal_path} (asset_id={asset_result.asset_id})")
 
     # 4. state_log.csv 저장 (일별 엔진 내부 상태: 시그널/intent/체결/포지션)
-    state_log_path = result.config.result_dir / "state_log.csv"
-    if not result.state_log_df.empty:
-        state_log_export = result.state_log_df.copy()
-        # 반올림 규칙 적용
-        state_log_round: dict[str, int] = {
-            "equity": ROUND_CAPITAL,
-            "cash": ROUND_CAPITAL,
-        }
-        for col in state_log_export.columns:
-            if col.endswith("_close") or col.endswith("_exec_price"):
-                state_log_round[col] = ROUND_PRICE
-            elif col.endswith("_weight"):
-                state_log_round[col] = ROUND_RATIO
-            elif col.endswith("_pending_delta"):
-                state_log_round[col] = ROUND_CAPITAL
-        state_log_export = state_log_export.round(state_log_round)
-        # int 변환 (자본금, 보유 수량, 체결 수량)
-        for col in ["equity", "cash"]:
-            if col in state_log_export.columns:
-                state_log_export[col] = state_log_export[col].astype(int)
-        for col in state_log_export.columns:
-            if col.endswith("_shares") or col.endswith("_exec_shares"):
-                state_log_export[col] = state_log_export[col].astype(int)
-        state_log_export.to_csv(state_log_path, index=False)
-        logger.debug(f"State Log 저장 완료: {state_log_path}")
+    state_log_path = result.config.result_dir / _STATE_LOG_FILENAME
+    state_log_export = result.state_log_df.copy()
+    # 반올림 규칙 적용
+    state_log_round: dict[str, int] = {
+        "equity": ROUND_CAPITAL,
+        "cash": ROUND_CAPITAL,
+    }
+    for col in state_log_export.columns:
+        if col.endswith("_close") or col.endswith("_exec_price"):
+            state_log_round[col] = ROUND_PRICE
+        elif col.endswith("_weight"):
+            state_log_round[col] = ROUND_RATIO
+        elif col.endswith("_pending_delta"):
+            state_log_round[col] = ROUND_CAPITAL
+    state_log_export = state_log_export.round(state_log_round)
+    # int 변환 (자본금, 보유 수량, 체결 수량)
+    for col in ["equity", "cash"]:
+        state_log_export[col] = state_log_export[col].astype(int)
+    for col in state_log_export.columns:
+        if col.endswith("_shares") or col.endswith("_exec_shares"):
+            state_log_export[col] = state_log_export[col].astype(int)
+    state_log_export.to_csv(state_log_path, index=False)
+    logger.debug(f"State Log 저장 완료: {state_log_path}")
 
     # 5. summary.json 저장
-    summary_path = result.config.result_dir / "summary.json"
+    summary_path = result.config.result_dir / SUMMARY_FILENAME
     s = result.summary
 
     # Sharpe/Sortino: 일별 수익률 기반 연율화 리스크 조정 지표 (rf=0 기준)
@@ -270,7 +256,9 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
     # 매매법이 여럿이면 매매법 장부 · 상계 내역과 요약을 더한다 (하나면 장부 = 계좌라 내지 않는다)
     multi_method = len(resolve_methods(result.config)) > 1
     if multi_method:
-        _save_ledger_and_netting(result, ledger_path, netting_path)
+        _save_ledger_and_netting(
+            result, result.config.result_dir / LEDGER_FILENAME, result.config.result_dir / NETTING_FILENAME
+        )
         summary_data.update(_round_method_summary(summarize_methods(result)))
 
     with summary_path.open("w", encoding="utf-8") as f:
@@ -379,9 +367,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="포트폴리오 백테스트 실행")
     parser.add_argument(
         "--experiment",
-        choices=["all", *_CONFIG_MAP.keys()],
+        choices=["all", *(c.experiment_name for c in PORTFOLIO_CONFIGS)],
         default="all",
-        help="실행할 실험 (기본값: all, 활성 실험만 선택 가능)",
+        help="실행할 실험 (기본값: all)",
     )
     args = parser.parse_args()
 
@@ -432,7 +420,7 @@ def main() -> int:
             result = run_with_start_check(config, config.min_start_date)
         _print_summary(result)
 
-        # 정합성 자동 검증 (7개 규칙) -- 위반 시 결과 저장 후 스크립트 중지
+        # 정합성 자동 검증 -- 위반 시 결과 저장 후 스크립트 중지
         violations = validate_portfolio_result(result)
         _save_portfolio_results(result)
         logger.debug(f"{config.display_name} 결과 파일 저장 완료: {config.result_dir}")
@@ -441,7 +429,7 @@ def main() -> int:
             for v in violations:
                 logger.error(f"  {v}")
             raise ValueError(f"[{config.experiment_name}] 정합성 검증 위반 {len(violations)}건 발견. " f"상세 내역은 위 로그를 확인하세요.")
-        logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (7개 규칙 모두 정상)")
+        logger.debug(f"[{config.experiment_name}] 정합성 검증 통과 (모든 규칙 정상)")
 
     return 0
 

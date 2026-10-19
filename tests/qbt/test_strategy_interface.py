@@ -1,7 +1,7 @@
 """SignalStrategy Protocol 계약 테스트
 
 새 인터페이스 기준:
-- check_buy(signal_df, i, current_date) -> bool
+- check_buy(signal_df, i) -> bool
 - check_sell(signal_df, i) -> bool
 - get_buy_meta() -> dict[str, float | int]
 - BufferZoneStrategy: stateful, 생성자 (ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)
@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
+from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 
@@ -55,13 +56,13 @@ class TestBufferZoneStrategyInterface:
         목적: i=0 (최초 호출)에서 check_buy는 항상 False를 반환해야 함
 
         Given: BufferZoneStrategy("ma_200", 0.03, 0.05, 0), signal_df (5행)
-        When: check_buy(signal_df, 0, current_date) 호출
+        When: check_buy(signal_df, 0) 호출
         Then: False 반환 (초기화만 수행, 신호 없음)
         """
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        result = strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        result = strategy.check_buy(signal_df, 0)
 
         assert result is False
 
@@ -77,8 +78,8 @@ class TestBufferZoneStrategyInterface:
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))  # 초기화
-        result = strategy.check_buy(signal_df, 1, date(2020, 1, 2))
+        strategy.check_buy(signal_df, 0)  # 초기화
+        result = strategy.check_buy(signal_df, 1)
 
         assert result is True
 
@@ -100,8 +101,8 @@ class TestBufferZoneStrategyInterface:
         )
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        strategy.check_buy(df, 0, date(2020, 1, 1))
-        result = strategy.check_buy(df, 1, date(2020, 1, 2))
+        strategy.check_buy(df, 0)
+        result = strategy.check_buy(df, 1)
 
         assert result is False
 
@@ -170,8 +171,8 @@ class TestBufferZoneStrategyInterface:
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))
-        strategy.check_buy(signal_df, 1, date(2020, 1, 2))  # True
+        strategy.check_buy(signal_df, 0)
+        strategy.check_buy(signal_df, 1)  # True
         meta = strategy.get_buy_meta()
 
         assert isinstance(meta, dict)
@@ -189,24 +190,44 @@ class TestBufferZoneStrategyInterface:
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))
-        strategy.check_buy(signal_df, 1, date(2020, 1, 2))
+        strategy.check_buy(signal_df, 0)
+        strategy.check_buy(signal_df, 1)
         meta = strategy.get_buy_meta()
 
         assert meta["buy_buffer_pct"] == pytest.approx(0.03, abs=1e-12)
+
+    def test_get_buy_meta_hold_days_used_after_waiting(self) -> None:
+        """
+        목적: 유지일을 채워 산 매수의 get_buy_meta()["hold_days_used"] 가 생성자의 유지일이다 (거래 기록의 hold_days_used)
+
+        Given: BufferZoneStrategy("ma_200", 0.03, 0.05, hold_days=1), i=1 상향돌파, i=2 밴드 위 유지
+        When: check_buy 를 i=0 ~ 2 순서로 호출한 뒤 get_buy_meta()
+        Then: i=2 에서 True, meta["hold_days_used"] == 1
+        """
+        # Given
+        signal_df = _make_signal_df()
+        strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 1)
+
+        # When
+        results = [strategy.check_buy(signal_df, i) for i in range(3)]
+        meta = strategy.get_buy_meta()
+
+        # Then
+        assert results == [False, False, True]
+        assert meta["hold_days_used"] == 1
 
     def test_hold_days_i0_returns_false(self) -> None:
         """
         목적: hold_days > 0일 때도 i=0은 False 반환
 
         Given: BufferZoneStrategy("ma_200", 0.03, 0.05, hold_days=3), i=0
-        When: check_buy(signal_df, 0, date) 호출
+        When: check_buy(signal_df, 0) 호출
         Then: False 반환
         """
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
 
-        result = strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        result = strategy.check_buy(signal_df, 0)
 
         assert result is False
 
@@ -221,10 +242,35 @@ class TestBufferZoneStrategyInterface:
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))
-        result = strategy.check_buy(signal_df, 1, date(2020, 1, 2))
+        strategy.check_buy(signal_df, 0)
+        result = strategy.check_buy(signal_df, 1)
 
         assert result is False
+
+    def test_hold_close_equal_to_upper_band_cancels_waiting(self) -> None:
+        """
+        목적: 유지일 대기 중 종가가 상단 밴드와 같으면 유지로 세지 않고 대기를 푼다 — 「밴드 위에서 유지」는 엄격히 위다
+
+        Given: BufferZoneStrategy("ma_200", 0.03, 0.05, hold_days=1), i=1 상향돌파, i=2 종가 = 그날 상단 밴드(compute_bands)
+        When: check_buy 를 i=0 ~ 2 순서로 호출
+        Then: 모두 False (i=2 를 유지로 세면 유지일 1 을 채워 True 가 된다)
+        """
+        # Given
+        upper_band, _ = compute_bands(98.0, 0.03, 0.05)
+        signal_df = pd.DataFrame(
+            {
+                "Date": [date(2020, 1, d) for d in range(1, 4)],
+                "Close": [100.0, 101.5, upper_band],
+                "ma_200": [98.0, 98.0, 98.0],
+            }
+        )
+        strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 1)
+
+        # When
+        results = [strategy.check_buy(signal_df, i) for i in range(3)]
+
+        # Then
+        assert results == [False, False, False]
 
     def test_state_shared_between_check_buy_and_check_sell(self) -> None:
         """
@@ -239,7 +285,7 @@ class TestBufferZoneStrategyInterface:
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))  # _prev 초기화
+        strategy.check_buy(signal_df, 0)  # _prev 초기화
         result = strategy.check_sell(signal_df, 1)  # i=1: 하향돌파 없음
 
         assert result is False
@@ -308,13 +354,13 @@ class TestBuyAndHoldStrategyInterface:
         목적: i=0에서도 check_buy → True 반환 (B&H는 항상 즉시 매수)
 
         Given: BuyAndHoldStrategy(), 임의 signal_df
-        When: check_buy(signal_df, 0, current_date) 호출
+        When: check_buy(signal_df, 0) 호출
         Then: True 반환
         """
         signal_df = pd.DataFrame({"Date": [date(2020, 1, 1)], "Close": [100.0]})
         strategy = BuyAndHoldStrategy()
 
-        result = strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        result = strategy.check_buy(signal_df, 0)
 
         assert result is True
 
@@ -323,7 +369,7 @@ class TestBuyAndHoldStrategyInterface:
         목적: 임의 i에서 check_buy → True 반환
 
         Given: BuyAndHoldStrategy(), 5행 signal_df
-        When: check_buy(signal_df, 3, date) 호출
+        When: check_buy(signal_df, 3) 호출
         Then: True 반환
         """
         signal_df = pd.DataFrame(
@@ -334,7 +380,7 @@ class TestBuyAndHoldStrategyInterface:
         )
         strategy = BuyAndHoldStrategy()
 
-        result = strategy.check_buy(signal_df, 3, date(2020, 1, 4))
+        result = strategy.check_buy(signal_df, 3)
 
         assert result is True
 
@@ -369,7 +415,7 @@ class TestBuyAndHoldStrategyInterface:
         signal_df = pd.DataFrame({"Date": [date(2020, 1, 1)], "Close": [100.0]})
         strategy = BuyAndHoldStrategy()
 
-        strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        strategy.check_buy(signal_df, 0)
         meta = strategy.get_buy_meta()
 
         assert meta == {}
@@ -410,16 +456,15 @@ class TestSignalStrategyProtocol:
     def test_buffer_zone_check_buy_returns_bool(self) -> None:
         """
         목적: BufferZoneStrategy.check_buy()의 반환 타입이 bool인지 확인
-              (이전 인터페이스: tuple[bool, HoldState | None] 반환 → 새 인터페이스: bool)
 
         Given: BufferZoneStrategy("ma_200", 0.03, 0.05, 0), signal_df
-        When: check_buy(signal_df, 0, date) 호출
+        When: check_buy(signal_df, 0) 호출
         Then: 반환값이 bool 타입
         """
         signal_df = _make_signal_df()
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 0)
 
-        result = strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        result = strategy.check_buy(signal_df, 0)
 
         assert isinstance(result, bool)
 
@@ -428,13 +473,13 @@ class TestSignalStrategyProtocol:
         목적: BuyAndHoldStrategy.check_buy()의 반환 타입이 bool인지 확인
 
         Given: BuyAndHoldStrategy(), signal_df
-        When: check_buy(signal_df, 0, date) 호출
+        When: check_buy(signal_df, 0) 호출
         Then: 반환값이 bool 타입 (tuple 아님)
         """
         signal_df = pd.DataFrame({"Date": [date(2020, 1, 1)], "Close": [100.0]})
         strategy = BuyAndHoldStrategy()
 
-        result = strategy.check_buy(signal_df, 0, date(2020, 1, 1))
+        result = strategy.check_buy(signal_df, 0)
 
         assert isinstance(result, bool)
         assert result is True

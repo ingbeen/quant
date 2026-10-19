@@ -1,35 +1,13 @@
 """버퍼존 전략 전용 헬퍼 모듈
 
-BufferZoneStrategy 내부에서 사용하는 HoldState 타입과 밴드/신호 계산 함수를 제공한다.
+BufferZoneStrategy 내부에서 사용하는 밴드/신호 계산 함수를 제공한다.
 strategy_common.py의 SignalStrategy Protocol과 분리하여 버퍼존 전용 로직을 캡슐화한다.
 
 포함 내용:
-- HoldState: hold_days 상태머신 상태 TypedDict
 - compute_bands: 이동평균 기준 상하단 밴드 계산
 - detect_buy_signal: 상향돌파 신호 감지
 - detect_sell_signal: 하향돌파 신호 감지
 """
-
-from datetime import date
-from typing import TypedDict
-
-# ============================================================================
-# 버퍼존 전용 TypedDict
-# ============================================================================
-
-
-class HoldState(TypedDict):
-    """hold_days 상태머신의 상태 딕셔너리.
-
-    BufferZoneStrategy가 상향돌파 후 일정 기간(hold_days) 동안
-    상단 밴드 위에서 유지되는지 추적할 때 사용한다.
-    """
-
-    start_date: date
-    days_passed: int
-    buffer_pct: float  # 매수 버퍼 (buy buffer)
-    hold_days_required: int
-
 
 # ============================================================================
 # 밴드/신호 계산 함수

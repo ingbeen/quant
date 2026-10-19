@@ -2,11 +2,10 @@
 
 단일/포트폴리오 엔진이 공통으로 사용하는 전략 인터페이스(SignalStrategy Protocol)를 제공한다.
 
-버퍼존 전용 헬퍼(HoldState, compute_bands, detect_buy_signal, detect_sell_signal)는
+버퍼존 전용 헬퍼(compute_bands, detect_buy_signal, detect_sell_signal)는
 buffer_zone_helpers.py 에 있다.
 """
 
-from datetime import date
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
@@ -26,21 +25,19 @@ class SignalStrategy(Protocol):
     설계 원칙:
     - 전략은 Stateful: 내부 _prev 상태를 관리하며, i 인덱스로 signal_df에 직접 접근한다.
     - check_buy는 bool만 반환하고, 매수 메타데이터는 get_buy_meta()가 따로 반환한다.
-    - 엔진은 전략 내부 상태(밴드, hold_state 등)를 알 필요가 없다.
+    - 엔진은 전략 내부 상태(밴드, 유지일 대기 등)를 알 필요가 없다.
     """
 
     def check_buy(
         self,
         signal_df: pd.DataFrame,
         i: int,
-        current_date: date,
     ) -> bool:
         """i번째 날 매수 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
         Args:
             signal_df: 시그널용 DataFrame (MA, Close 컬럼 포함)
             i: 현재 인덱스 (0부터 시작)
-            current_date: 현재 날짜 (HoldState.start_date 기록용)
 
         Returns:
             True이면 이번 날짜에 buy pending을 생성해야 함

@@ -28,12 +28,11 @@ from qbt.backtest.strategies.strategy_common import SignalStrategy
 
 @dataclass(frozen=True)
 class StrategySpec:
-    """전략 명세 데이터클래스.
+    """전략 명세 데이터클래스 (STRATEGY_REGISTRY 의 값 — 키가 strategy_id 다).
 
     포트폴리오 엔진이 strategy_id로 조회하여 전략 동작을 결정한다.
 
     Attributes:
-        strategy_id: 전략 식별자 (STRATEGY_REGISTRY의 키)
         create_strategy: AssetSlotConfig를 받아 SignalStrategy 객체를 반환하는 팩토리.
             설정 검증도 파라미터 범위를 확인하려고 슬롯마다 한 번 부르고 결과를 버린다 — 부작용이 없어야 한다
         prepare_signal_df: signal DataFrame에 전략별 전처리를 적용하는 함수
@@ -44,7 +43,6 @@ class StrategySpec:
             - buy_and_hold: 0 반환
     """
 
-    strategy_id: str
     create_strategy: Callable[[AssetSlotConfig], SignalStrategy]
     prepare_signal_df: Callable[[pd.DataFrame, AssetSlotConfig], pd.DataFrame]
     get_warmup_periods: Callable[[AssetSlotConfig], int]
@@ -151,13 +149,11 @@ def _get_buy_and_hold_warmup_periods(slot: AssetSlotConfig) -> int:
 
 STRATEGY_REGISTRY: dict[str, StrategySpec] = {
     "buffer_zone": StrategySpec(
-        strategy_id="buffer_zone",
         create_strategy=_create_buffer_zone_strategy,
         prepare_signal_df=_prepare_buffer_zone_signal_df,
         get_warmup_periods=_get_buffer_zone_warmup_periods,
     ),
     "buy_and_hold": StrategySpec(
-        strategy_id="buy_and_hold",
         create_strategy=_create_buy_and_hold_strategy,
         prepare_signal_df=_prepare_buy_and_hold_signal_df,
         get_warmup_periods=_get_buy_and_hold_warmup_periods,

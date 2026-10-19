@@ -27,7 +27,16 @@ import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
-from qbt.backtest.constants import REBALANCE_REASON_METHODS, REBALANCE_REASON_MONTHLY, TRADE_TYPE_SIGNAL
+from qbt.backtest.constants import (
+    EQUITY_FILENAME,
+    LEDGER_FILENAME,
+    PORTFOLIO_SIGNAL_PREFIX,
+    REBALANCE_REASON_METHODS,
+    REBALANCE_REASON_MONTHLY,
+    SUMMARY_FILENAME,
+    TRADE_TYPE_SIGNAL,
+    TRADES_FILENAME,
+)
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 from qbt.common_constants import (
     COL_CLOSE,
@@ -119,7 +128,7 @@ def _discover_experiments() -> list[Path]:
     """
     result: list[Path] = []
     for cfg in PORTFOLIO_CONFIGS:
-        if cfg.result_dir.is_dir() and (cfg.result_dir / "summary.json").exists():
+        if cfg.result_dir.is_dir() and (cfg.result_dir / SUMMARY_FILENAME).exists():
             result.append(cfg.result_dir)
 
     return result
@@ -194,15 +203,15 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
     Returns:
         _ExperimentData 인스턴스
     """
-    summary = _load_summary_json(*_cache_args(experiment_dir / "summary.json"))
-    equity_df = _load_equity_csv(*_cache_args(experiment_dir / "equity.csv"))
-    trades_df = _load_trades_csv(*_cache_args(experiment_dir / "trades.csv"))
+    summary = _load_summary_json(*_cache_args(experiment_dir / SUMMARY_FILENAME))
+    equity_df = _load_equity_csv(*_cache_args(experiment_dir / EQUITY_FILENAME))
+    trades_df = _load_trades_csv(*_cache_args(experiment_dir / TRADES_FILENAME))
 
     # signal_{asset_id}.csv 탐색 및 로드
     signal_dfs: dict[str, pd.DataFrame] = {}
-    for signal_path in sorted(experiment_dir.glob("signal_*.csv")):
+    for signal_path in sorted(experiment_dir.glob(f"{PORTFOLIO_SIGNAL_PREFIX}*.csv")):
         # "signal_qqq.csv" → asset_id = "qqq"
-        asset_id = signal_path.stem.removeprefix("signal_")
+        asset_id = signal_path.stem.removeprefix(PORTFOLIO_SIGNAL_PREFIX)
         signal_dfs[asset_id] = _load_signal_csv(*_cache_args(signal_path))
 
     display_name: str = str(summary.get("display_name", experiment_dir.name))
@@ -215,7 +224,7 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
         trades_df=trades_df,
         summary=summary,
         signal_dfs=signal_dfs,
-        ledger_df=_load_ledger_csv(*_cache_args(experiment_dir / "ledger.csv")),
+        ledger_df=_load_ledger_csv(*_cache_args(experiment_dir / LEDGER_FILENAME)),
     )
 
 

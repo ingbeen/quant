@@ -100,7 +100,7 @@ def _last_row(data: dict[str, pd.DataFrame]) -> int:
 
 def _haa_weights(scores: dict[str, float]) -> dict[str, float]:
     data = _haa_data(scores)
-    result = HaaAllocator().target_weights(data, _last_row(data), date(2021, 2, 26), True)
+    result = HaaAllocator().target_weights(data, _last_row(data), True)
     assert result is not None
     return dict(result)
 
@@ -122,7 +122,7 @@ def _method(allocator_id: str, asset_ids: tuple[str, ...], series_ids: tuple[str
         "cand",
         "Candidate",
         1.0,
-        tuple(AllocationAssetConfig(asset_id, _DUMMY, _DUMMY) for asset_id in asset_ids),
+        tuple(AllocationAssetConfig(asset_id, _DUMMY) for asset_id in asset_ids),
         allocator_id=allocator_id,
         signal_series=tuple(SignalSeriesConfig(series_id, _DUMMY) for series_id in series_ids),
     )
@@ -171,7 +171,7 @@ class TestHaaScores:
 
         # When / Then
         assert allocator.momentum_scores(data, _last_row(data)) is None
-        assert allocator.target_weights(data, _last_row(data), date(2020, 12, 31), True) is None
+        assert allocator.target_weights(data, _last_row(data), True) is None
 
 
 class TestHaaRules:
@@ -294,7 +294,7 @@ class TestHaaTiming:
         data = _haa_data({**_OFFENSIVE_DESCENDING, "tip": 0.05})
 
         # When / Then
-        assert HaaAllocator().target_weights(data, _last_row(data), date(2021, 2, 26), False) is None
+        assert HaaAllocator().target_weights(data, _last_row(data), False) is None
 
     def test_future_rows_do_not_change_decision(self) -> None:
         """
@@ -317,8 +317,8 @@ class TestHaaTiming:
             df.loc[future, [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]] = 1.0 if key == "tip" else 500.0
 
         # When
-        expected = HaaAllocator().target_weights(base, i, date(2021, 2, 26), True)
-        actual = HaaAllocator().target_weights(changed, i, date(2021, 2, 26), True)
+        expected = HaaAllocator().target_weights(base, i, True)
+        actual = HaaAllocator().target_weights(changed, i, True)
 
         # Then
         assert expected is not None
@@ -344,7 +344,7 @@ class TestHaaInputAlignment:
 
         # When / Then
         with pytest.raises(ValueError, match="거래일"):
-            HaaAllocator().target_weights(data, i, date(2021, 2, 25), True)
+            HaaAllocator().target_weights(data, i, True)
 
     def test_same_length_but_different_days_raise(self) -> None:
         """
@@ -362,7 +362,7 @@ class TestHaaInputAlignment:
 
         # When / Then
         with pytest.raises(ValueError, match="거래일"):
-            HaaAllocator().target_weights(data, _last_row(data), date(2021, 2, 26), True)
+            HaaAllocator().target_weights(data, _last_row(data), True)
 
 
 # ============================================================================
@@ -399,7 +399,7 @@ class TestUsWeaknessRotation:
         data = _rotation_data([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.1])
 
         # When
-        weights = UsWeaknessRotationAllocator(ma_window=5).target_weights(data, 6, date(2020, 1, 9), False)
+        weights = UsWeaknessRotationAllocator(ma_window=5).target_weights(data, 6, False)
 
         # Then
         assert weights == _VXUS
@@ -415,11 +415,11 @@ class TestUsWeaknessRotation:
         # Given
         data = _rotation_data([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.1, 0.8])
         allocator = UsWeaknessRotationAllocator(ma_window=5)
-        allocator.target_weights(data, 6, date(2020, 1, 9), False)
+        allocator.target_weights(data, 6, False)
 
         # When / Then
-        assert allocator.target_weights(data, 7, date(2020, 1, 10), False) is None
-        assert allocator.target_weights(data, 7, date(2020, 1, 10), True) == _SHY
+        assert allocator.target_weights(data, 7, False) is None
+        assert allocator.target_weights(data, 7, True) == _SHY
 
     def test_ratio_equal_to_average_goes_to_shy(self) -> None:
         """
@@ -433,7 +433,7 @@ class TestUsWeaknessRotation:
         data = _rotation_data([1.0] * 7)
 
         # When / Then
-        assert UsWeaknessRotationAllocator(ma_window=5).target_weights(data, 6, date(2020, 1, 9), True) == _SHY
+        assert UsWeaknessRotationAllocator(ma_window=5).target_weights(data, 6, True) == _SHY
 
     def test_insufficient_history_returns_none_and_keeps_first_decision_pending(self) -> None:
         """
@@ -448,8 +448,8 @@ class TestUsWeaknessRotation:
         allocator = UsWeaknessRotationAllocator(ma_window=5)
 
         # When / Then
-        assert allocator.target_weights(data, 2, date(2020, 1, 3), False) is None
-        assert allocator.target_weights(data, 6, date(2020, 1, 9), False) == _VXUS
+        assert allocator.target_weights(data, 2, False) is None
+        assert allocator.target_weights(data, 6, False) == _VXUS
 
     def test_future_rows_do_not_change_decision(self) -> None:
         """
@@ -464,8 +464,8 @@ class TestUsWeaknessRotation:
         changed = _rotation_data([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.1, 5.0, 5.0, 5.0])
 
         # When
-        expected = UsWeaknessRotationAllocator(ma_window=5).target_weights(base, 6, date(2020, 1, 9), True)
-        actual = UsWeaknessRotationAllocator(ma_window=5).target_weights(changed, 6, date(2020, 1, 9), True)
+        expected = UsWeaknessRotationAllocator(ma_window=5).target_weights(base, 6, True)
+        actual = UsWeaknessRotationAllocator(ma_window=5).target_weights(changed, 6, True)
 
         # Then
         assert expected == actual == _VXUS
@@ -504,7 +504,7 @@ class TestEwyBufferZone:
         data = _ewy_data(120)
 
         # When
-        weights = EwyBufferZoneAllocator(**_EWY_PARAMS).target_weights(data, 9, date(2020, 1, 14), False)
+        weights = EwyBufferZoneAllocator(**_EWY_PARAMS).target_weights(data, 9, False)
 
         # Then
         assert weights == {"ewy": 0.0, "shy": 1.0}
@@ -530,11 +530,10 @@ class TestEwyBufferZone:
         expected: list[tuple[int, str]] = []
         held = False
         for i in range(start, len(signal_df)):
-            current_date = signal_df[COL_DATE].iloc[i]
-            weights = allocator.target_weights(data, i, current_date, False)
+            weights = allocator.target_weights(data, i, False)
             if weights is not None and i > start:
                 actual.append((i, "buy" if weights["ewy"] == 1.0 else "sell"))
-            if not held and strategy.check_buy(signal_df, i, current_date):
+            if not held and strategy.check_buy(signal_df, i):
                 held = True
                 expected.append((i, "buy"))
             elif held and strategy.check_sell(signal_df, i):
@@ -560,7 +559,7 @@ class TestEwyBufferZone:
         allocator = EwyBufferZoneAllocator(ma_window=10, buy_buffer_pct=0.03, sell_buffer_pct=0.05, hold_days=0)
 
         # When
-        weights = allocator.target_weights(data, 20, dates[20], False)
+        weights = allocator.target_weights(data, 20, False)
 
         # Then
         assert weights == {"ewy": 0.0, "shy": 1.0}
@@ -577,10 +576,10 @@ class TestEwyBufferZone:
         dates = _weekdays(date(2020, 1, 1), date(2020, 3, 31))[:30]
         data = {"ewy": _df(dates, [100.0] * 30), "shy": _df(dates, [50.0] * 30)}
         allocator = EwyBufferZoneAllocator(**_EWY_PARAMS)
-        allocator.target_weights(data, 9, dates[9], False)
+        allocator.target_weights(data, 9, False)
 
         # When / Then
-        assert allocator.target_weights(data, 10, dates[10], False) is None
+        assert allocator.target_weights(data, 10, False) is None
 
 
 # ============================================================================
@@ -678,7 +677,7 @@ def _engine_config(
                 "cand",
                 "Candidate",
                 0.3,
-                tuple(AllocationAssetConfig(key, paths[key], paths[key]) for key in asset_ids),
+                tuple(AllocationAssetConfig(key, paths[key]) for key in asset_ids),
                 allocator_id=allocator_id,
                 signal_series=tuple(SignalSeriesConfig(key, paths[key]) for key in series_ids),
             ),

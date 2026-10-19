@@ -1,7 +1,7 @@
-"""조합 실험 — Q-2-2XS + HAA + 로테이션 16칸 · 세 판 · 같은 합계의 셋 대비 판정
+"""조합 실험 — Q-2-2XS + HAA + 로테이션 비중 격자 · 세 판 · 같은 합계의 셋 대비 판정
 
 설계서(`docs/research/Q2_2XS_보완_전략_설계.md`) D55 – D57 · D63 – D69 의 실험을 담는다.
-「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」(h · r = 5 – 20%)를 대체 판 · 이어 붙인 판 · 완전 실물판으로
+「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」(h · r 는 COMBO_PCTS)를 대체 판 · 이어 붙인 판 · 완전 실물판으로
 돌려, 칸마다 같은 판 · 같은 합계의 기준선 · HAA 단독 · 로테이션 단독 셋과 Calmar 를 견준다.
 
 구성 만들기는 `supplement_experiment` 가 한다(단독과 같은 매매법 정의). 여기는 실행 목록 · 워커 · 우위 ·
@@ -16,7 +16,7 @@ from typing import Final
 
 import pandas as pd
 
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
+from qbt.backtest.portfolio_types import PortfolioConfig
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.backtest.supplement_experiment import (
     ADVANTAGE_BOUNDARY,
@@ -109,7 +109,7 @@ class ComboCase:
 
 
 def build_combo_cases() -> list[ComboCase]:
-    """실행 목록 — 묶음 넷 × (조합 16 + 기준선 · HAA 단독 · 로테이션 단독 각 7 + Q-2-2XS 단독 1) = 152."""
+    """실행 목록 — 묶음마다 조합 칸 전부 + 같은 합계(W_PCTS)의 기준선 · HAA 단독 · 로테이션 단독 + Q-2-2XS 단독."""
     cases: list[ComboCase] = []
     for group, variant, start in _GROUP_SPECS:
         cases += [ComboCase(group, CANDIDATE_COMBO, h + r, variant, start, (h, r)) for h, r in COMBO_CELLS]
@@ -125,12 +125,12 @@ def _cell(case: ComboCase) -> Cell:
     return case.cell
 
 
-def build_case_config(q2_2xs_slots: tuple[AssetSlotConfig, ...], case: ComboCase) -> PortfolioConfig:
+def build_case_config(case: ComboCase) -> PortfolioConfig:
     """실행 하나의 설정 — 조합은 build_combo_config, 단독 · 기준선 · Q-2-2XS 단독은 build_experiment_config."""
     if case.candidate == CANDIDATE_COMBO:
         h, r = _cell(case)
-        return build_combo_config(q2_2xs_slots, h, r, case.variant, case.start_date)
-    return build_experiment_config(q2_2xs_slots, case.candidate, case.w_pct, case.variant, case.start_date)
+        return build_combo_config(h, r, case.variant, case.start_date)
+    return build_experiment_config(case.candidate, case.w_pct, case.variant, case.start_date)
 
 
 @dataclass(frozen=True, eq=False)
@@ -143,13 +143,13 @@ class ComboCaseResult:
     decision_targets: Mapping[str, pd.DataFrame]
 
 
-def run_combo_case(case: ComboCase, q2_2xs_slots: tuple[AssetSlotConfig, ...]) -> ComboCaseResult:
+def run_combo_case(case: ComboCase) -> ComboCaseResult:
     """실행 → 시작일 확인 → 정합성 검사 → 요약 (병렬 워커, 모듈 최상위라 pickle 가능).
 
     Raises:
         ValueError: 실제 시작일이 묶음 시작일과 다를 때 (run_with_start_check)
     """
-    result = run_with_start_check(build_case_config(q2_2xs_slots, case), case.start_date)
+    result = run_with_start_check(build_case_config(case), case.start_date)
     targets = {m: extract_decision_targets(result.state_log_df, m) for m in _ALLOCATOR_METHODS.get(case.candidate, ())}
     return ComboCaseResult(case, summarize_run(result), validate_portfolio_result(result), targets)
 
@@ -242,7 +242,7 @@ def find_clusters(above: Mapping[Cell, bool]) -> tuple[tuple[Cell, ...], ...]:
     덩어리 안의 칸은 오름차순, 덩어리는 첫 칸 순서다.
 
     Raises:
-        ValueError: 16칸이 다 있지 않을 때 — 빠진 칸을 「낮음」으로 읽으면 덩어리가 조용히 끊긴다
+        ValueError: 칸(COMBO_CELLS)이 다 있지 않을 때 — 빠진 칸을 「낮음」으로 읽으면 덩어리가 조용히 끊긴다
     """
     if set(above) != set(COMBO_CELLS):
         raise ValueError(f"{len(COMBO_CELLS)}칸이 모두 있어야 합니다: {sorted(above)} (필요: {list(COMBO_CELLS)})")
@@ -312,7 +312,7 @@ class ComboJudgmentRow:
 
 
 def collect_combo_judgments(results: Sequence[ComboCaseResult]) -> list[ComboJudgmentRow]:
-    """판정 기준 넷(판 하나씩의 지도 셋 + 판정) × 16칸 행."""
+    """판정 기준(BASIS_GROUPS — 판 하나씩의 지도 + 판정) × 칸 행."""
     advantages = compute_combo_advantages(results)
     rows: list[ComboJudgmentRow] = []
     for basis, groups in BASIS_GROUPS.items():
@@ -343,7 +343,7 @@ def collect_combo_judgments(results: Sequence[ComboCaseResult]) -> list[ComboJud
 
 @dataclass(frozen=True)
 class AltCheckRow:
-    """대체 판 확인 한 행 (칸). 일치 수 · 덩어리 · 덩어리 유무 일치는 16칸 단위 값을 행마다 싣는다."""
+    """대체 판 확인 한 행 (칸). 일치 수 · 덩어리 · 덩어리 유무 일치는 칸 전체 단위 값을 행마다 싣는다."""
 
     cell: Cell
     alt: CellAdvantage

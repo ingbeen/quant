@@ -25,9 +25,15 @@ import pandas as pd
 from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY
 from qbt.backtest.analysis import calculate_summary
 from qbt.backtest.constants import (
+    BUY_INTENT_TYPES,
     COL_EQUITY,
+    COL_EXIT_PRICE,
+    COL_PNL,
+    COL_SHARES,
+    REBALANCE_INTENT_TYPES,
     REBALANCE_REASON_METHODS,
     REBALANCE_REASON_MONTHLY,
+    SELL_INTENT_TYPES,
     SLIPPAGE_RATE,
     ma_col_name,
 )
@@ -45,6 +51,7 @@ from qbt.backtest.engines.portfolio_methods import (
     compute_netting,
     generate_allocation_intents,
     plan_method_transfers,
+    resolve_allocation,
 )
 from qbt.backtest.engines.portfolio_planning import (
     OrderIntent,
@@ -78,14 +85,12 @@ from qbt.backtest.portfolio_types import (
     resolve_methods,
 )
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN, EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_OPEN
 from qbt.utils import get_logger
-from qbt.utils.data_loader import load_signal_trade_pair, load_stock_data
+from qbt.utils.data_loader import load_stock_data
 
 logger = get_logger(__name__)
 
-_SELL_INTENT_TYPES = ("EXIT_ALL", "REDUCE_TO_TARGET")
-_BUY_INTENT_TYPES = ("ENTER_TO_TARGET", "INCREASE_TO_TARGET")
 _NETTING_COLUMNS = [COL_DATE, "asset_id", "gross_shares", "net_shares", "open_price", "savings"]
 
 
@@ -132,7 +137,6 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
     asset_trade_dfs: dict[str, pd.DataFrame] = {}
     asset_signal_dfs: dict[str, pd.DataFrame] = {}
     series_dfs: dict[str, dict[str, pd.DataFrame]] = {}
-    allocator_keys: list[str] = []
 
     for method in methods:
         keys: list[str] = []
@@ -150,11 +154,11 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
         else:
             for asset in method.assets:
                 key = position_key(method.method_id, asset.asset_id, multi_method=multi_method)
-                signal_df_raw, trade_df = load_signal_trade_pair(asset.signal_data_path, asset.trade_data_path)
-                asset_signal_dfs[key] = signal_df_raw
+                trade_df = load_stock_data(asset.trade_data_path)
+                # 배분 규칙은 매매 시세로 판단한다 — 결과의 자산별 시그널도 같은 시세다
+                asset_signal_dfs[key] = trade_df.copy()
                 asset_trade_dfs[key] = trade_df
                 asset_of_key[key] = asset.asset_id
-                allocator_keys.append(key)
                 keys.append(key)
             series_dfs[method.method_id] = {
                 series.series_id: load_stock_data(series.data_path) for series in method.signal_series
@@ -162,10 +166,9 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
         keys_by_method[method.method_id] = keys
 
     # 2. 공통 기간 추출 (전 자산 trade_df 와 신호용 시세의 날짜 교집합)
-    # 배분 규칙이 받는 시세(비중변동 매매법 자산의 signal_df · 신호용 시세)는 행이 거래일과 정확히 맞아야
-    # 하므로 교집합에 넣는다. 슬롯 signal_df 는 기존 동작대로 넣지 않는다
+    # 자산의 signal_df 는 trade_df 와 날짜가 같다 — 슬롯은 load_signal_trade_pair 가 겹치는 날짜로 맞추고, 배분 규칙
+    # 자산은 매매 시세 그대로다. 배분 규칙이 받는 신호용 시세는 행이 거래일과 정확히 맞아야 하므로 교집합에 넣는다
     date_sets = [set(df[COL_DATE]) for df in asset_trade_dfs.values()]
-    date_sets += [set(asset_signal_dfs[key][COL_DATE]) for key in allocator_keys]
     date_sets += [set(df[COL_DATE]) for by_id in series_dfs.values() for df in by_id.values()]
     common_dates_set: set[date] = date_sets[0]
     for ds in date_sets[1:]:
@@ -250,28 +253,21 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     validate_portfolio_config(config)
     data = _load_portfolio_data_with_common_period(config)
 
-    first_trade_df = next(iter(data.trade_dfs.values()))
-    first_trade_df_filtered = first_trade_df.iloc[data.valid_start :].reset_index(drop=True)
-
-    if len(first_trade_df_filtered) < 1:
+    trade_dates = next(iter(data.trade_dfs.values()))[COL_DATE]
+    if data.valid_start >= len(trade_dates):
         raise ValueError("유효 데이터 부족: MA 워밍업 후 데이터가 없습니다.")
-
-    return date(
-        first_trade_df_filtered[COL_DATE].iloc[0].year,
-        first_trade_df_filtered[COL_DATE].iloc[0].month,
-        first_trade_df_filtered[COL_DATE].iloc[0].day,
-    )
+    return trade_dates.iloc[data.valid_start]
 
 
 def _create_books(
     config: PortfolioConfig,
     data: _PortfolioData,
     allocator_signal_dfs: dict[str, pd.DataFrame],
-    allocator_series_dfs: dict[str, dict[str, pd.DataFrame]],
 ) -> list[MethodBook]:
     """매매법마다 빈 장부를 만든다 (현금 = 총 자본 × 목표 몫, 보유 0, 신호 상태 sell).
 
     배분 규칙에는 워밍업 · 시작일로 잘리기 전 시세를 준다 — get_warmup_periods 가 약속한 과거 행이 있어야 한다.
+    신호용 시세(data.series_dfs)는 엔진이 자르지 않는다.
     """
     books: list[MethodBook] = []
     for method in data.methods:
@@ -279,7 +275,6 @@ def _create_books(
         book = MethodBook(
             method_id=method.method_id,
             target_share=method.target_weight,
-            initial_capital=config.total_capital * method.target_weight,
             asset_of_key={key: data.asset_of_key[key] for key in keys},
             cash=config.total_capital * method.target_weight,
             asset_states={key: AssetState(position=0, signal_state="sell") for key in keys},
@@ -299,7 +294,7 @@ def _create_books(
             book.allocator = ALLOCATOR_REGISTRY[method.allocator_id].create_allocator(method)
             book.targets = {key: 0.0 for key in keys}
             book.allocator_data = {data.asset_of_key[key]: allocator_signal_dfs[key] for key in keys}
-            book.allocator_data.update(allocator_series_dfs[method.method_id])
+            book.allocator_data.update(data.series_dfs[method.method_id])
         books.append(book)
     return books
 
@@ -328,7 +323,7 @@ def _execute_into_book(
     book.entry_dates = result.updated_entry_dates
     book.entry_hold_days = result.updated_entry_hold_days
     for trade in result.new_trades:
-        book.realized_pnl[trade["asset_id"]] += trade["pnl"]
+        book.realized_pnl[trade["asset_id"]] += trade[COL_PNL]
     return result
 
 
@@ -339,7 +334,6 @@ def _plan_book(
     method_equity: float,
     i: int,
     allocator_index: int,
-    current_date: date,
     is_month_end: bool,
 ) -> tuple[dict[str, OrderIntent], dict[str, OrderIntent], ProjectedPortfolio]:
     """매매법의 그날 신호(슬롯 전략 | 배분 규칙) 의도와 예상 상태를 만든다.
@@ -353,28 +347,27 @@ def _plan_book(
 
     if book.allocator is None:
         signal_intents = generate_signal_intents(
-            book.asset_states, book.strategies, signal_dfs, equity_vals, book.slots, method_equity, i, current_date
+            book.asset_states, book.strategies, signal_dfs, equity_vals, book.slots, method_equity, i
         )
         projected = compute_projected_portfolio(book.asset_states, signal_intents, equity_vals, book.cash)
         return signal_intents, {}, projected
 
-    new_weights = book.allocator.target_weights(book.allocator_data, allocator_index, current_date, is_month_end)
-    key_of_asset = {asset_id: key for key, asset_id in book.asset_of_key.items()}
-    new_targets = (
-        None
-        if new_weights is None
-        else {key_of_asset.get(asset_id, asset_id): weight for asset_id, weight in new_weights.items()}
-    )
-    allocation_intents = generate_allocation_intents(
-        book.targets, new_targets, book.positions(), equity_vals, method_equity
-    )
-    if new_targets is not None:
-        book.targets = {key: float(new_targets.get(key, 0.0)) for key in book.targets}
+    new_weights = book.allocator.target_weights(book.allocator_data, allocator_index, is_month_end)
+    allocation_intents: dict[str, OrderIntent] = {}
+    if new_weights is not None:
+        key_of_asset = {asset_id: key for key, asset_id in book.asset_of_key.items()}
+        # 모르는 자산 id 는 그대로 넘겨 resolve_allocation 이 그 id 와 함께 멈추게 한다
+        new_targets = resolve_allocation(
+            {key_of_asset.get(asset_id, asset_id): weight for asset_id, weight in new_weights.items()},
+            list(book.targets),
+        )
+        allocation_intents = generate_allocation_intents(
+            book.targets, new_targets, book.positions(), equity_vals, method_equity
+        )
+        book.targets = new_targets
     projected = compute_allocation_projection(book.targets, allocation_intents, equity_vals, book.cash)
-    signal_intents = {k: v for k, v in allocation_intents.items() if v.intent_type in ("EXIT_ALL", "ENTER_TO_TARGET")}
-    adjust_intents = {
-        k: v for k, v in allocation_intents.items() if v.intent_type in ("REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
-    }
+    signal_intents = {k: v for k, v in allocation_intents.items() if v.intent_type not in REBALANCE_INTENT_TYPES}
+    adjust_intents = {k: v for k, v in allocation_intents.items() if v.intent_type in REBALANCE_INTENT_TYPES}
     return signal_intents, adjust_intents, projected
 
 
@@ -388,6 +381,72 @@ def _book_pnl(book: MethodBook, closes: dict[str, float]) -> float:
     return sum(book.realized_pnl.values()) + unrealized
 
 
+def _equity_row(
+    current_date: date,
+    current_equity: float,
+    shared_cash: float,
+    rebalanced: bool,
+    rebalance_reason: str,
+    netting_savings: float | None,
+    books: list[MethodBook],
+    closes: dict[str, float],
+) -> dict[str, Any]:
+    """에쿼티 행 하나 — 계좌 값과 자산 키별 평가액 · 비중 · 신호 · 주수 · 평균 단가 · 손익.
+
+    netting_savings 는 매매법이 여럿일 때만 넘긴다 (None 이면 그 열이 없다).
+    """
+    row: dict[str, Any] = {
+        COL_DATE: current_date,
+        COL_EQUITY: current_equity,
+        "cash": shared_cash,
+        "rebalanced": rebalanced,
+        "rebalance_reason": rebalance_reason,
+    }
+    if netting_savings is not None:
+        row["netting_savings"] = netting_savings
+    for book in books:
+        for key, st in book.asset_states.items():
+            val = st.position * closes[key]
+            row[asset_value_col(key)] = val
+            row[asset_weight_col(key)] = val / current_equity
+            row[f"{key}_signal"] = st.signal_state
+            row[asset_shares_col(key)] = st.position
+            row[f"{key}_avg_price"] = book.entry_prices[key]
+            # 자산별 손익 추적 (매도 후에도 기여 이력 유지)
+            row[f"{key}_realized_pnl"] = book.realized_pnl[key]
+            unrealized = (closes[key] - book.entry_prices[key]) * st.position if st.position > 0 else 0.0
+            row[f"{key}_unrealized_pnl"] = unrealized
+    return row
+
+
+def _ledger_rows(
+    current_date: date,
+    books: list[MethodBook],
+    method_equity: dict[str, float],
+    closes: dict[str, float],
+    rebalanced_by_book: dict[str, bool],
+    reason_by_book: dict[str, str],
+) -> list[dict[str, Any]]:
+    """그날 매매법마다 장부 행 하나."""
+    total_method_equity = sum(method_equity.values())
+    return [
+        {
+            COL_DATE: current_date,
+            "method_id": book.method_id,
+            "equity": method_equity[book.method_id],
+            "cash": book.cash,
+            "share": method_equity[book.method_id] / total_method_equity,
+            "target_share": book.target_share,
+            "pnl": _book_pnl(book, closes),
+            "cost": book.cost,
+            "transfers": book.transfers,
+            "rebalanced": rebalanced_by_book[book.method_id],
+            "rebalance_reason": reason_by_book[book.method_id] if rebalanced_by_book[book.method_id] else "",
+        }
+        for book in books
+    ]
+
+
 def _json_safe_dict(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """asdict 의 dict_factory — json 이 쓰지 못하는 경로 · 날짜를 문자열로 바꾼다."""
     return {key: str(value) if isinstance(value, Path | date) else value for key, value in pairs}
@@ -399,11 +458,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     매매법마다 신호(슬롯 전략 | 배분 규칙) + 목표 비중 배분 + 월말 판단 리밸런싱을 수행하고,
     매매법이 여럿이면 매매법 사이 비중 되돌리기와 종목 단위 상계를 더한다.
 
-    메인 루프 흐름:
-        Step A: 체결 — 전 매매법 SELL → 매매법 사이 이전 → 전 매매법 BUY (전일 next_day_intents), 상계 계산
-        Step C: Equity 계산 (당일 종가 기준, 매매법별 · 계좌)
-        Step D: Signal → Projected → (매매법 사이 판정) → Rebalance → Merge → next_day_intents
-        Step E: Equity · State Log · 장부 행 기록
+    거래일마다 전일에 정한 의도를 시가에 체결하고, 그날 종가로 에쿼티와 다음 날 의도를 정한 뒤 행을 기록한다 —
+    i일 종가 신호는 i+1일 시가에 체결한다.
 
     Args:
         config: 포트폴리오 실험 설정
@@ -431,15 +487,11 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     # 배분 규칙용: 잘리기 전 시세와 거래일 (아래 슬라이싱은 dict 항목을 새 DataFrame 으로 바꿀 뿐 원본을 바꾸지 않는다)
     full_trade_dates = list(next(iter(asset_trade_dfs.values()))[COL_DATE])
     allocator_signal_dfs = dict(asset_signal_dfs)
-    allocator_series_dfs = {method_id: dict(by_id) for method_id, by_id in data.series_dfs.items()}
 
     # 워밍업 구간 슬라이싱
     for key in asset_signal_dfs:
         asset_signal_dfs[key] = asset_signal_dfs[key].iloc[valid_start:].reset_index(drop=True)
         asset_trade_dfs[key] = asset_trade_dfs[key].iloc[valid_start:].reset_index(drop=True)
-    for by_id in data.series_dfs.values():
-        for series_id in by_id:
-            by_id[series_id] = by_id[series_id].iloc[valid_start:].reset_index(drop=True)
 
     # start_date 필터: 워밍업 완료 이후 추가로 시작일 하한 적용
     if start_date is not None:
@@ -450,11 +502,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             mask_t = pd.Series(tdf[COL_DATE]) >= start_date
             asset_signal_dfs[key] = sdf[mask_s.values].reset_index(drop=True)
             asset_trade_dfs[key] = tdf[mask_t.values].reset_index(drop=True)
-        for by_id in data.series_dfs.values():
-            for series_id in by_id:
-                series_df = by_id[series_id]
-                mask = pd.Series(series_df[COL_DATE]) >= start_date
-                by_id[series_id] = series_df[mask.values].reset_index(drop=True)
 
     n = len(next(iter(asset_trade_dfs.values())))
     if n < 2:
@@ -464,7 +511,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     allocator_offset = full_trade_dates.index(trade_dates[0])
 
     # 3. 매매법 장부 (매매법이 하나면 장부 = 계좌)
-    books = _create_books(config, data, allocator_signal_dfs, allocator_series_dfs)
+    books = _create_books(config, data, allocator_signal_dfs)
     target_shares = {book.method_id: book.target_share for book in books}
     multi_method = data.multi_method
     keys_of_asset: dict[str, list[str]] = {}
@@ -503,7 +550,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             intents_executed_today[book.method_id] = dict(book.next_day_intents)
             pre_exec_positions[book.method_id] = book.positions()
             reason_by_book[book.method_id] = book.next_day_reason
-            sell_intents = {k: v for k, v in book.next_day_intents.items() if v.intent_type in _SELL_INTENT_TYPES}
+            sell_intents = {k: v for k, v in book.next_day_intents.items() if v.intent_type in SELL_INTENT_TYPES}
             sell_result = _execute_into_book(book, sell_intents, open_prices_map, current_date)
             new_trades_by_book[book.method_id] = list(sell_result.new_trades)
             rebalanced_by_book[book.method_id] = sell_result.rebalanced_today
@@ -517,13 +564,13 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 book.transfers += transferred[book.method_id]
 
         for book in books:
-            buy_intents = {k: v for k, v in book.next_day_intents.items() if v.intent_type in _BUY_INTENT_TYPES}
+            buy_intents = {k: v for k, v in book.next_day_intents.items() if v.intent_type in BUY_INTENT_TYPES}
             buy_result = _execute_into_book(book, buy_intents, open_prices_map, current_date)
             new_trades_by_book[book.method_id].extend(buy_result.new_trades)
             rebalanced_by_book[book.method_id] = (
                 rebalanced_by_book[book.method_id] or buy_result.rebalanced_today or transferred[book.method_id] != 0.0
             )
-            # 단독 매매로 매긴 비용(C안 장부 비용): 주수 변화 × 시가 × SLIPPAGE_RATE
+            # 단독 매매로 매긴 장부 비용: 주수 변화 × 시가 × SLIPPAGE_RATE (상계 절감은 계좌에 따로 둔다)
             pre = pre_exec_positions[book.method_id]
             book.cost += sum(
                 abs(state.position - pre[key]) * open_prices_map[key] * SLIPPAGE_RATE
@@ -562,7 +609,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
             (reason_by_book[book.method_id] for book in books if rebalanced_by_book[book.method_id]), ""
         )
 
-        # Step C: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
+        # Step B: 에쿼티 계산 (체결 완료 후, 당일 종가 기준)
         # 체결 후에 계산해야 리밸런싱 판정 시 목표 비중 편차가 정확히 반영된다
         asset_closes_map: dict[str, float] = {
             key: float(asset_trade_dfs[key].iloc[i][COL_CLOSE]) for key in asset_trade_dfs
@@ -573,7 +620,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         current_equity = sum(method_equity.values()) + netting_savings
         shared_cash = sum(book.cash for book in books) + netting_savings
 
-        # Step D: Signal → Projected → (매매법 사이 판정) → Rebalance → Merge (익일 체결용 intents 생성)
+        # Step C: Signal → Projected → (매매법 사이 판정) → Rebalance → Merge (익일 체결용 intents 생성)
         is_month_end = is_last_trading_day_of_month(trade_dates, i)
         plans = {
             book.method_id: _plan_book(
@@ -583,7 +630,6 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
                 method_equity[book.method_id],
                 i,
                 i + allocator_offset,
-                current_date,
                 is_month_end,
             )
             for book in books
@@ -634,31 +680,21 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
 
             book.next_day_intents = merged_intents
 
-        # Step E: 에쿼티 행 기록 (자산별 value/weight/signal/shares/avg_price 포함)
-        row: dict[str, Any] = {
-            COL_DATE: current_date,
-            COL_EQUITY: current_equity,
-            "cash": shared_cash,
-            "rebalanced": rebalanced_today,
-            "rebalance_reason": rebalance_reason_today,
-        }
-        if multi_method:
-            row["netting_savings"] = netting_savings
-        for book in books:
-            for key, st in book.asset_states.items():
-                val = st.position * asset_closes_map[key]
-                row[asset_value_col(key)] = val
-                row[asset_weight_col(key)] = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
-                row[f"{key}_signal"] = st.signal_state
-                row[asset_shares_col(key)] = st.position
-                row[f"{key}_avg_price"] = book.entry_prices[key]
-                # 자산별 손익 추적 (매도 후에도 기여 이력 유지)
-                row[f"{key}_realized_pnl"] = book.realized_pnl[key]
-                unrealized = (asset_closes_map[key] - book.entry_prices[key]) * st.position if st.position > 0 else 0.0
-                row[f"{key}_unrealized_pnl"] = unrealized
-        equity_rows.append(row)
+        # Step D: 에쿼티 행 기록
+        equity_rows.append(
+            _equity_row(
+                current_date,
+                current_equity,
+                shared_cash,
+                rebalanced_today,
+                rebalance_reason_today,
+                netting_savings if multi_method else None,
+                books,
+                asset_closes_map,
+            )
+        )
 
-        # Step F: state_log 행 수집 (디버깅/검증용, 비즈니스 로직 변경 없음)
+        # Step E: state_log 행 수집 (디버깅/검증용, 비즈니스 로직 변경 없음)
         state_row: dict[str, Any] = {
             COL_DATE: current_date,
             COL_EQUITY: current_equity,
@@ -683,27 +719,12 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         state_log_rows.append(state_row)
 
         # 장부 행 (매매법별)
-        total_method_equity = sum(method_equity.values())
-        for book in books:
-            book_rebalanced = rebalanced_by_book[book.method_id]
-            ledger_rows.append(
-                {
-                    COL_DATE: current_date,
-                    "method_id": book.method_id,
-                    "equity": method_equity[book.method_id],
-                    "cash": book.cash,
-                    "share": method_equity[book.method_id] / total_method_equity,
-                    "target_share": book.target_share,
-                    "pnl": _book_pnl(book, asset_closes_map),
-                    "cost": book.cost,
-                    "transfers": book.transfers,
-                    "rebalanced": book_rebalanced,
-                    "rebalance_reason": reason_by_book[book.method_id] if book_rebalanced else "",
-                }
-            )
+        ledger_rows.extend(
+            _ledger_rows(current_date, books, method_equity, asset_closes_map, rebalanced_by_book, reason_by_book)
+        )
 
     # 5. 결과 조합
-    equity_df = build_combined_equity(equity_rows)
+    equity_df = build_combined_equity(equity_rows, [key for book in books for key in book.asset_states])
 
     # 거래가 없어도 거래가 있는 실험과 같은 열을 둔다
     trades_df = pd.DataFrame(all_trades, columns=list(PortfolioTradeRecord.__annotations__))
@@ -734,11 +755,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         f"포트폴리오 백테스트 완료: {config.experiment_name}, " f"총 거래={len(trades_df)}, 총 수익률={summary['total_return_pct']:.2f}%"
     )
 
-    # state_log DataFrame 구성
-    state_log_df = pd.DataFrame(state_log_rows) if state_log_rows else pd.DataFrame()
-
     return PortfolioResult(
-        experiment_name=config.experiment_name,
         display_name=config.display_name,
         equity_df=equity_df,
         trades_df=trades_df,
@@ -746,7 +763,7 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         per_asset=per_asset,
         config=config,
         params_json=params_json,
-        state_log_df=state_log_df,
+        state_log_df=pd.DataFrame(state_log_rows),
         ledger_df=pd.DataFrame(ledger_rows),
         netting_df=pd.DataFrame(netting_rows, columns=_NETTING_COLUMNS),
     )
@@ -776,7 +793,7 @@ def _append_state_log_columns(
     for key, st in book.asset_states.items():
         close_val = asset_closes_map[key]
         val = st.position * close_val
-        weight = val / (current_equity + EPSILON) if current_equity > 0 else 0.0
+        weight = val / current_equity
 
         state_row[asset_close_col(key)] = close_val
         state_row[asset_shares_col(key)] = st.position
@@ -801,11 +818,11 @@ def _append_state_log_columns(
         intent_executed = intents_executed.get(key)
         trades_for_key = executed_trades_by_key.get(key, [])
         if intent_executed:
-            is_sell = intent_executed.intent_type in _SELL_INTENT_TYPES
+            is_sell = intent_executed.intent_type in SELL_INTENT_TYPES
             if is_sell:
                 # 매도: new_trades에서 체결 상세 추출
-                total_shares = sum(int(t["shares"]) for t in trades_for_key)
-                exec_price = float(trades_for_key[0]["exit_price"]) if trades_for_key else 0.0
+                total_shares = sum(int(t[COL_SHARES]) for t in trades_for_key)
+                exec_price = float(trades_for_key[0][COL_EXIT_PRICE]) if trades_for_key else 0.0
             else:
                 # 매수: 포지션 변화에서 추출
                 total_shares = abs(st.position - pre_exec_positions[key])

@@ -6,6 +6,7 @@
 3. add_buffer_zone_bands(): buffer_zone 전략의 upper/lower 밴드 컬럼 추가
 4. enrich_equity_with_bands(): 에쿼티에 그날의 밴드 · 버퍼 비율 붙이기
 5. round_signal_for_csv(): 시그널 CSV 저장 자릿수
+6. remove_config_dependent_files(): 포트폴리오 결과 폴더의 구성 의존 파일 지우기
 
 왜 중요한가요?
 trades CSV / signal CSV 저장 로직이 여러 스크립트에 중복되어 있었으며,
@@ -15,11 +16,20 @@ CSV 저장 단계에서 사전 계산하는 SSoT를 유지하는 것이 핵심�
 """
 
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from qbt.backtest.constants import (
+    EQUITY_FILENAME,
+    LEDGER_FILENAME,
+    NETTING_FILENAME,
+    SUMMARY_FILENAME,
+    TRADES_FILENAME,
+    portfolio_signal_filename,
+)
 from qbt.backtest.csv_export import (
     BUFFER_BAND_COLUMNS,
     OHLC_CHANGE_PCT_COLUMNS,
@@ -27,6 +37,7 @@ from qbt.backtest.csv_export import (
     add_ohlc_change_pct,
     enrich_equity_with_bands,
     prepare_trades_for_csv,
+    remove_config_dependent_files,
     round_signal_for_csv,
 )
 from qbt.common_constants import (
@@ -539,3 +550,47 @@ class TestRoundSignalForCsv:
         for col in OHLC_CHANGE_PCT_COLUMNS:
             assert result.iloc[0][col] == pytest.approx(round(value, ROUND_PERCENT), abs=1e-12), col
         assert result.iloc[0]["Volume"] == 123
+
+
+class TestRemoveConfigDependentFiles:
+    """remove_config_dependent_files 함수 테스트"""
+
+    def test_removes_only_config_dependent_files(self, tmp_path: Path):
+        """
+        목적: 구성에 따라 생기는 파일(자산 키별 시그널 · 장부 · 상계 내역)만 지우고 나머지 결과 파일은 둔다 —
+              구성이 바뀐 실험을 다시 저장할 때 지금 없는 자산 · 매매법의 파일이 남으면 대시보드가 그대로 그린다
+
+        Given: 자산 키 둘(매매법 하나 · 여럿인 실험의 모양)의 시그널 파일, 장부 · 상계 내역, 늘 다시 쓰는 결과 파일 넷
+        When: remove_config_dependent_files 호출
+        Then: 시그널 · 장부 · 상계 내역만 지워지고 나머지 넷은 남는다
+        """
+        # Given
+        stale = [
+            portfolio_signal_filename("qqq"),
+            portfolio_signal_filename("q2_2xs.sso"),
+            LEDGER_FILENAME,
+            NETTING_FILENAME,
+        ]
+        kept = [EQUITY_FILENAME, TRADES_FILENAME, SUMMARY_FILENAME, "state_log.csv"]
+        for name in [*stale, *kept]:
+            (tmp_path / name).write_text("x", encoding="utf-8")
+
+        # When
+        remove_config_dependent_files(tmp_path)
+
+        # Then
+        assert sorted(p.name for p in tmp_path.iterdir()) == sorted(kept)
+
+    def test_first_save_without_files_is_fine(self, tmp_path: Path):
+        """
+        목적: 처음 저장하는 폴더(지울 파일이 없음)에서도 멈추지 않는다
+
+        Given: 빈 폴더
+        When: remove_config_dependent_files 호출
+        Then: 예외 없이 폴더가 그대로 비어 있다
+        """
+        # When
+        remove_config_dependent_files(tmp_path)
+
+        # Then
+        assert list(tmp_path.iterdir()) == []

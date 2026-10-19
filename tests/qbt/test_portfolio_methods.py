@@ -25,6 +25,7 @@ from qbt.backtest.engines.portfolio_methods import (
     compute_netting,
     generate_allocation_intents,
     plan_method_transfers,
+    resolve_allocation,
     summarize_methods,
 )
 from qbt.backtest.engines.portfolio_planning import ProjectedPortfolio
@@ -92,7 +93,6 @@ class _SeriesSwitchAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if float(data["s"].iloc[i][COL_CLOSE]) > 100.0:
@@ -104,7 +104,6 @@ class _SeriesSwitchAllocator:
 def series_switch_allocator(monkeypatch: pytest.MonkeyPatch) -> str:
     """테스트용 배분 규칙을 레지스트리에 등록하고 그 id 를 돌려준다."""
     spec = AllocatorSpec(
-        allocator_id="test_series_switch",
         create_allocator=lambda method: _SeriesSwitchAllocator(),
         get_warmup_periods=lambda method: 0,
     )
@@ -161,8 +160,8 @@ class TestMethodConfigValidation:
                 "ROT",
                 0.3,
                 (
-                    AllocationAssetConfig("x", Path("X.csv"), Path("X.csv")),
-                    AllocationAssetConfig("z", Path("Z.csv"), Path("Z.csv")),
+                    AllocationAssetConfig("x", Path("X.csv")),
+                    AllocationAssetConfig("z", Path("Z.csv")),
                 ),
                 allocator_id=series_switch_allocator,
                 signal_series=(SignalSeriesConfig("s", _DUMMY),),
@@ -280,9 +279,7 @@ class TestMethodConfigValidation:
 
     def test_unknown_allocator_id_raises(self) -> None:
         """등록되지 않은 allocator_id 면 ValueError."""
-        methods = (
-            AllocatorMethodConfig("a", "A", 1.0, (AllocationAssetConfig("x", _DUMMY, _DUMMY),), allocator_id="nope"),
-        )
+        methods = (AllocatorMethodConfig("a", "A", 1.0, (AllocationAssetConfig("x", _DUMMY),), allocator_id="nope"),)
         with pytest.raises(ValueError, match="allocator_id"):
             validate_portfolio_config(self._config(methods=methods))
 
@@ -293,7 +290,7 @@ class TestMethodConfigValidation:
                 "a",
                 "A",
                 1.0,
-                (AllocationAssetConfig("x", _DUMMY, _DUMMY),),
+                (AllocationAssetConfig("x", _DUMMY),),
                 allocator_id=series_switch_allocator,
                 signal_series=(SignalSeriesConfig("x", _DUMMY),),
             ),
@@ -417,18 +414,30 @@ class TestMethodTransfers:
 class TestAllocationIntents:
     """비중이 바뀌는 매매법의 배분 변화 계약 (D19 · D30).
 
-    핵심 계약: 목표 0 이 된 보유 종목은 전량 청산, 보유 0 에서 목표 > 0 이면 진입(목표 = 매매법 자본 × 비중),
-    보유 중 목표가 바뀌면 그 금액으로 증감. 진입 · 조정 종목은 그날 리밸런싱 편차 판정에서 뺀다.
+    핵심 계약: 배분 규칙이 낸 비중은 매매법 전 종목으로 채워지고(없는 종목 0) 모르는 종목 · 숫자가 아닌 비중 ·
+    음수 · 합 1 초과는 ValueError. 목표 0 이 된 보유 종목은 전량 청산, 보유 0 에서 목표 > 0 이면 진입(목표 = 매매법
+    자본 × 비중), 보유 중 목표가 바뀌면 그 금액으로 증감. 진입 · 조정 종목은 그날 리밸런싱 편차 판정에서 뺀다.
     """
+
+    def test_resolve_fills_missing_assets_with_zero(self) -> None:
+        """
+        Given: 배분 규칙이 b 만 낸 비중 {b:1}, 매매법 종목 a · b
+        When:  resolve_allocation()
+        Then:  {a:0, b:1} — 매매법 종목 순서대로
+        """
+        resolved = resolve_allocation({"b": 1.0}, ["a", "b"])
+
+        assert resolved == {"a": 0.0, "b": 1.0}
+        assert list(resolved) == ["a", "b"]
 
     def test_switch_exits_old_and_enters_new(self) -> None:
         """
-        Given: 목표 {a:1} → {b:1}, a 100주(10,000), 매매법 자본 10,000
-        Then:  a EXIT_ALL, b ENTER_TO_TARGET 목표 10,000
+        Given: 목표 {a:1, b:0} → {a:0, b:1}, a 100주(10,000), 매매법 자본 10,000
+        Then:  a EXIT_ALL, b ENTER_TO_TARGET 증감 +10,000
         """
         intents = generate_allocation_intents(
             old_targets={"a": 1.0, "b": 0.0},
-            new_targets={"b": 1.0},
+            new_targets={"a": 0.0, "b": 1.0},
             positions={"a": 100, "b": 0},
             equity_vals={"a": 10_000.0, "b": 0.0},
             method_equity=10_000.0,
@@ -436,7 +445,7 @@ class TestAllocationIntents:
 
         assert intents["a"].intent_type == "EXIT_ALL"
         assert intents["b"].intent_type == "ENTER_TO_TARGET"
-        assert intents["b"].target_amount == pytest.approx(10_000.0, abs=0.01)
+        assert intents["b"].delta_amount == pytest.approx(10_000.0, abs=0.01)
 
     def test_weight_change_adjusts_held_assets(self) -> None:
         """
@@ -456,27 +465,11 @@ class TestAllocationIntents:
         assert intents["b"].intent_type == "INCREASE_TO_TARGET"
         assert intents["b"].delta_amount == pytest.approx(2_500.0, abs=0.01)
 
-    def test_none_means_no_change(self) -> None:
-        intents = generate_allocation_intents(
-            old_targets={"a": 1.0},
-            new_targets=None,
-            positions={"a": 100},
-            equity_vals={"a": 10_000.0},
-            method_equity=10_000.0,
-        )
-        assert intents == {}
-
     @pytest.mark.parametrize("bad_targets", [{"q": 1.0}, {"a": -0.1}, {"a": 0.7, "b": 0.5}])
     def test_invalid_targets_raise(self, bad_targets: dict[str, float]) -> None:
         """모르는 종목 · 음수 비중 · 합 1 초과는 ValueError."""
         with pytest.raises(ValueError):
-            generate_allocation_intents(
-                old_targets={"a": 0.5, "b": 0.5},
-                new_targets=bad_targets,
-                positions={"a": 0, "b": 0},
-                equity_vals={"a": 0.0, "b": 0.0},
-                method_equity=10_000.0,
-            )
+            resolve_allocation(bad_targets, ["a", "b"])
 
     def test_projection_excludes_entering_and_adjusted_assets(self) -> None:
         """
@@ -486,7 +479,7 @@ class TestAllocationIntents:
         """
         intents = generate_allocation_intents(
             old_targets={"a": 1.0, "b": 0.0},
-            new_targets={"b": 1.0},
+            new_targets={"a": 0.0, "b": 1.0},
             positions={"a": 100, "b": 0},
             equity_vals={"a": 10_000.0, "b": 0.0},
             method_equity=10_000.0,
@@ -559,7 +552,7 @@ class TestTwoMethodNetting:
                     "b",
                     "B",
                     0.5,
-                    (AllocationAssetConfig("z", z, z), AllocationAssetConfig("x", x, x)),
+                    (AllocationAssetConfig("z", z), AllocationAssetConfig("x", x)),
                     allocator_id=allocator_id,
                     signal_series=(SignalSeriesConfig("s", s),),
                 ),
@@ -665,7 +658,7 @@ class TestTwoMethodNetting:
         assert params["asset_slots"] == []
         slot_method, allocator_method = params["methods"]
         assert slot_method["asset_slots"][0]["trade_data_path"] == str(tmp_path / "X_max.csv")
-        assert allocator_method["assets"][0]["signal_data_path"] == str(tmp_path / "Z_max.csv")
+        assert allocator_method["assets"][0]["trade_data_path"] == str(tmp_path / "Z_max.csv")
         assert allocator_method["signal_series"][0]["data_path"] == str(tmp_path / "S_max.csv")
         assert allocator_method["allocator_id"] == series_switch_allocator
 
@@ -979,20 +972,19 @@ class TestMethodTransferCheck:
 
 
 class _RecordingAllocator:
-    """첫 판단의 행 번호 · 날짜와 받은 시세의 첫 날짜를 기록하는 테스트용 배분 규칙 (x 100%)."""
+    """판단마다 행 번호 · 그 행의 날짜와 받은 시세의 첫 날짜를 기록하는 테스트용 배분 규칙 (x 100%)."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[int, date, date, date]] = []
+        self.calls: list[tuple[int, date, date]] = []
 
     def target_weights(
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         x = data["x"]
-        self.calls.append((i, current_date, x[COL_DATE].iloc[i], x[COL_DATE].iloc[0]))
+        self.calls.append((i, x[COL_DATE].iloc[i], x[COL_DATE].iloc[0]))
         return {"x": 1.0}
 
 
@@ -1003,7 +995,6 @@ class _AlternatingAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if i % 2 == 0:
@@ -1011,9 +1002,23 @@ class _AlternatingAllocator:
         return {"x": 0.35, "y": 0.55, "z": 0.10}
 
 
+class _FixedWeightsAllocator:
+    """테스트용 배분 규칙: 날마다 같은 비중을 낸다."""
+
+    def __init__(self, weights: Mapping[str, float]) -> None:
+        self._weights = weights
+
+    def target_weights(
+        self,
+        data: Mapping[str, pd.DataFrame],
+        i: int,
+        is_check_day: bool,
+    ) -> Mapping[str, float] | None:
+        return self._weights
+
+
 def _register(monkeypatch: pytest.MonkeyPatch, allocator_id: str, allocator: object, warmup: int) -> None:
     spec = AllocatorSpec(
-        allocator_id=allocator_id,
         create_allocator=lambda method: allocator,
         get_warmup_periods=lambda method: warmup,
     )
@@ -1055,19 +1060,18 @@ class TestAllocatorSeesHistory:
         """
         Given: 워밍업 5 행인 배분 규칙, 시세 2024-01-02 부터
         When:  run_portfolio_backtest() (시작일 없음 / 2024-01-15)
-        Then:  첫 판단의 i 는 잘리기 전 시세의 행 번호이고, 그 행의 날짜가 오늘이며, 시세는 2024-01-02 부터 있다
+        Then:  첫 판단의 i 는 잘리기 전 시세의 행 번호이고, 그 행의 날짜가 엔진의 첫 거래일이며, 시세는 2024-01-02 부터 있다
         """
         x = create_csv_file("X_max.csv", _flat_df(100.0))
         allocator = _RecordingAllocator()
         _register(monkeypatch, "test_recording", allocator, warmup=5)
-        config = _single_allocator_config(tmp_path, (AllocationAssetConfig("x", x, x),), "test_recording")
+        config = _single_allocator_config(tmp_path, (AllocationAssetConfig("x", x),), "test_recording")
 
-        run_portfolio_backtest(config, start_date=start_date)
+        result = run_portfolio_backtest(config, start_date=start_date)
 
-        first_index, first_date, row_date, data_first_date = allocator.calls[0]
+        first_index, row_date, data_first_date = allocator.calls[0]
         assert first_index == expected_first_index
-        assert first_date == expected_first_date
-        assert row_date == first_date, "배분 규칙 시세의 i 행은 오늘이어야 한다 (행 정렬)"
+        assert row_date == expected_first_date == result.equity_df[COL_DATE].iloc[0], "배분 규칙 시세의 i 행은 오늘이어야 한다 (행 정렬)"
         assert data_first_date == date(2024, 1, 2), "과거 행이 잘리지 않아야 한다"
 
 
@@ -1090,7 +1094,7 @@ class TestAllocatorAdjustmentValidation:
         y = create_csv_file("Y_max.csv", _flat_df(100.0))
         z = create_csv_file("Z_max.csv", _price_df(date(2024, 1, 15), 100.0, 135.0))
         _register(monkeypatch, "test_alternating", _AlternatingAllocator(), warmup=0)
-        assets = (AllocationAssetConfig("x", x, x), AllocationAssetConfig("y", y, y), AllocationAssetConfig("z", z, z))
+        assets = (AllocationAssetConfig("x", x), AllocationAssetConfig("y", y), AllocationAssetConfig("z", z))
         config = _single_allocator_config(tmp_path, assets, "test_alternating")
 
         result = run_portfolio_backtest(config)
@@ -1108,13 +1112,38 @@ class TestReviewGuards:
     def test_nan_weight_raises(self) -> None:
         """배분 규칙이 NaN 비중을 내면 ValueError (뒤에서 엉뚱한 오류로 멈추지 않는다)."""
         with pytest.raises(ValueError, match="NaN"):
-            generate_allocation_intents(
-                old_targets={"a": 0.0},
-                new_targets={"a": float("nan")},
-                positions={"a": 0},
-                equity_vals={"a": 0.0},
-                method_equity=10_000.0,
-            )
+            resolve_allocation({"a": float("nan")}, ["a"])
+
+    @pytest.mark.parametrize(
+        ("weights", "match"),
+        [({"x": 0.7, "y": 0.5}, "합이 1"), ({"q": 1.0}, "없는 자산")],
+    )
+    def test_engine_rejects_invalid_allocator_weights(
+        self,
+        tmp_path: Path,
+        create_csv_file,
+        monkeypatch: pytest.MonkeyPatch,
+        weights: dict[str, float],
+        match: str,
+    ) -> None:
+        """
+        목적: 엔진이 배분 규칙의 비중을 검증한다 — 합 1 초과 · 매매법에 없는 자산을 그대로 돌리면 초과분은 체결의
+              현금 축소에 흡수되고 모르는 자산은 버려져, 틀린 결과가 에러 없이 나온다
+
+        Given: x · y 두 자산 매매법과 합 1.2 · 모르는 자산 q 를 내는 배분 규칙
+        When:  run_portfolio_backtest()
+        Then:  ValueError
+        """
+        # Given
+        x = create_csv_file("X_max.csv", _flat_df(100.0))
+        y = create_csv_file("Y_max.csv", _flat_df(100.0))
+        _register(monkeypatch, "test_fixed", _FixedWeightsAllocator(weights), warmup=0)
+        assets = (AllocationAssetConfig("x", x), AllocationAssetConfig("y", y))
+        config = _single_allocator_config(tmp_path, assets, "test_fixed")
+
+        # When / Then
+        with pytest.raises(ValueError, match=match):
+            run_portfolio_backtest(config)
 
     def test_empty_ledger_raises(self, tmp_path: Path, create_csv_file) -> None:
         """장부가 빈 결과는 검사를 건너뛰지 않고 RuntimeError."""
@@ -1125,7 +1154,7 @@ class TestReviewGuards:
 
     def test_unknown_allocator_in_start_date_raises_value_error(self) -> None:
         """유효 시작일 계산도 설정 검증을 먼저 거쳐, 모르는 allocator_id 는 안내 메시지가 있는 ValueError."""
-        config = _single_allocator_config(_DUMMY, (AllocationAssetConfig("x", _DUMMY, _DUMMY),), "not_registered")
+        config = _single_allocator_config(_DUMMY, (AllocationAssetConfig("x", _DUMMY),), "not_registered")
 
         with pytest.raises(ValueError, match="allocator_id"):
             compute_portfolio_effective_start_date(config)
@@ -1160,7 +1189,7 @@ class TestReviewGuards:
         x = create_csv_file("X_max.csv", _flat_df(100.0))
         _register(monkeypatch, "test_recording", _RecordingAllocator(), warmup=0)
         result = run_portfolio_backtest(
-            _single_allocator_config(tmp_path, (AllocationAssetConfig("x", x, x),), "test_recording")
+            _single_allocator_config(tmp_path, (AllocationAssetConfig("x", x),), "test_recording")
         )
 
         with pytest.raises(RuntimeError, match="state_log_df"):

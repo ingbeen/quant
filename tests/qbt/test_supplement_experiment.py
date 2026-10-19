@@ -168,11 +168,11 @@ class TestBuildExperimentConfig:
 
         Given: 후보 하나
         When:  w 7단계 각각으로 구성을 만든다
-        Then:  매매법 둘, 첫째는 q2_2xs(몫 1 − w, 넘긴 슬롯 그대로), 둘째는 후보(몫 w)
+        Then:  매매법 둘, 첫째는 q2_2xs(몫 1 − w, 공식 실험 portfolio_q2_2xs 와 같은 슬롯), 둘째는 후보(몫 w)
         """
         for w in se.W_PCTS:
             # When
-            config = se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_SPLICED, _START)
+            config = se.build_experiment_config(candidate, w, se.VARIANT_SPLICED, _START)
 
             # Then
             q2, cand = config.methods
@@ -199,7 +199,7 @@ class TestBuildExperimentConfig:
         }
         for candidate, (asset_ids, series_ids) in expected.items():
             # When
-            method = se.build_experiment_config(_Q2_SLOTS, candidate, 30, se.VARIANT_SPLICED, _START).methods[1]
+            method = se.build_experiment_config(candidate, 30, se.VARIANT_SPLICED, _START).methods[1]
 
             # Then
             assert isinstance(method, AllocatorMethodConfig)
@@ -224,17 +224,17 @@ class TestBuildExperimentConfig:
 
         Given: HAA 와 판 하나
         When:  구성을 만든다
-        Then:  vea · bil · pdbc 의 신호 · 매매 경로가 표와 같다
+        Then:  vea · bil · pdbc 의 매매 경로가 표와 같다
         """
         # When
-        method = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, variant, _START).methods[1]
+        method = se.build_experiment_config(se.CANDIDATE_HAA, 30, variant, _START).methods[1]
 
         # Then
         assert isinstance(method, AllocatorMethodConfig)
-        paths = {a.asset_id: (a.signal_data_path, a.trade_data_path) for a in method.assets}
-        assert paths["vea"] == (vea, vea)
-        assert paths["bil"] == (bil, bil)
-        assert paths["pdbc"] == (pdbc, pdbc)
+        paths = {a.asset_id: a.trade_data_path for a in method.assets}
+        assert paths["vea"] == vea
+        assert paths["bil"] == bil
+        assert paths["pdbc"] == pdbc
 
     @pytest.mark.parametrize(
         ("variant", "vxus"),
@@ -253,7 +253,7 @@ class TestBuildExperimentConfig:
         Then:  vxus 경로가 표와 같다
         """
         # When
-        method = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_ROTATION, 30, variant, _START).methods[1]
+        method = se.build_experiment_config(se.CANDIDATE_ROTATION, 30, variant, _START).methods[1]
 
         # Then
         assert isinstance(method, AllocatorMethodConfig)
@@ -270,7 +270,7 @@ class TestBuildExperimentConfig:
         Then:  후보 매매법 슬롯이 (자산, 1.0, buy_and_hold) 하나 — 전략이 빠지면 기본값(버퍼존)으로 기준선이 추세추종이 된다
         """
         # When
-        method = se.build_experiment_config(_Q2_SLOTS, candidate, 25, se.VARIANT_SPLICED, _START).methods[1]
+        method = se.build_experiment_config(candidate, 25, se.VARIANT_SPLICED, _START).methods[1]
 
         # Then
         assert isinstance(method, SlotMethodConfig)
@@ -290,8 +290,8 @@ class TestBuildExperimentConfig:
         q2_paths = {slot.asset_id: slot.trade_data_path for slot in _Q2_SLOTS}
 
         # When
-        gold = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_GOLD, 30, se.VARIANT_SPLICED, _START).methods[1]
-        haa = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, se.VARIANT_SPLICED, _START).methods[1]
+        gold = se.build_experiment_config(se.CANDIDATE_GOLD, 30, se.VARIANT_SPLICED, _START).methods[1]
+        haa = se.build_experiment_config(se.CANDIDATE_HAA, 30, se.VARIANT_SPLICED, _START).methods[1]
 
         # Then
         assert isinstance(gold, SlotMethodConfig)
@@ -311,7 +311,7 @@ class TestBuildExperimentConfig:
         for case in se.build_grid_cases():
             # When / Then
             validate_portfolio_config(
-                se.build_experiment_config(_Q2_SLOTS, case.candidate, case.w_pct, case.variant, case.start_date)
+                se.build_experiment_config(case.candidate, case.w_pct, case.variant, case.start_date)
             )
 
     def test_names_and_min_start_date(self) -> None:
@@ -323,9 +323,9 @@ class TestBuildExperimentConfig:
         Then:  이름 · 결과 폴더 · min_start_date
         """
         # When
-        spliced = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, se.VARIANT_SPLICED, _START)
-        pure = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, se.VARIANT_PURE, _START)
-        alone = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_Q2_2XS, 0, se.VARIANT_SPLICED, _START)
+        spliced = se.build_experiment_config(se.CANDIDATE_HAA, 30, se.VARIANT_SPLICED, _START)
+        pure = se.build_experiment_config(se.CANDIDATE_HAA, 30, se.VARIANT_PURE, _START)
+        alone = se.build_experiment_config(se.CANDIDATE_Q2_2XS, 0, se.VARIANT_SPLICED, _START)
 
         # Then
         assert spliced.experiment_name == "portfolio_q2_2xs_haa30"
@@ -356,7 +356,7 @@ class TestBuildExperimentConfig:
         Then:  ValueError
         """
         with pytest.raises(ValueError):
-            se.build_experiment_config(_Q2_SLOTS, candidate, w_pct, variant, _START)
+            se.build_experiment_config(candidate, w_pct, variant, _START)
 
 
 # 대체 판 후보 — 조합 실험(D55)에 쓰는 것만 대체 판을 받는다 (D69 ③)
@@ -411,7 +411,7 @@ class TestAltVariant:
 
         for candidate, w in _ALT_CANDIDATES:
             # When
-            config = se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START)
+            config = se.build_experiment_config(candidate, w, se.VARIANT_ALT, _START)
 
             # Then
             assert _config_paths(config) <= allowed, candidate
@@ -428,8 +428,8 @@ class TestAltVariant:
         real_paths: set[Path] = set()
         alt_paths: set[Path] = set()
         for candidate, w in _ALT_CANDIDATES:
-            real_paths |= _config_paths(se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_REAL, _START))
-            alt_paths |= _config_paths(se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START))
+            real_paths |= _config_paths(se.build_experiment_config(candidate, w, se.VARIANT_REAL, _START))
+            alt_paths |= _config_paths(se.build_experiment_config(candidate, w, se.VARIANT_ALT, _START))
 
         # Then
         assert real_paths == set(se.ALT_PATH_MAP) | _KEPT_REAL_PATHS
@@ -444,7 +444,7 @@ class TestAltVariant:
         Then:  (신호, 매매) — sso (SPY, SSO 합성) · qld (QQQ, QLD 합성) · gld (금 선물 둘) · tlt (VUSTX 둘)
         """
         # When
-        config = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
+        config = se.build_experiment_config(se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
 
         # Then
         assert {s.asset_id: (s.signal_data_path, s.trade_data_path) for s in config.asset_slots} == {
@@ -463,7 +463,7 @@ class TestAltVariant:
         Then:  Q-2-2XS 슬롯 tlt 와 HAA 자산 tlt 의 매매 경로가 둘 다 VUSTX, 설정 검증 통과
         """
         # When
-        config = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 30, se.VARIANT_ALT, _START)
+        config = se.build_experiment_config(se.CANDIDATE_HAA, 30, se.VARIANT_ALT, _START)
 
         # Then
         q2, haa = config.methods
@@ -483,13 +483,13 @@ class TestAltVariant:
         """
         for candidate, w in _ALT_CANDIDATES:
             # When
-            config = se.build_experiment_config(_Q2_SLOTS, candidate, w, se.VARIANT_ALT, _START)
+            config = se.build_experiment_config(candidate, w, se.VARIANT_ALT, _START)
 
             # Then
             assert config.experiment_name.endswith("_alt")
             validate_portfolio_config(config)
 
-    def test_unmapped_path_raises(self) -> None:
+    def test_unmapped_path_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """
         목적: 경로 표에 없고 그대로 써도 되는 실물(SPY · QQQ · IWM)도 아닌 파일이 남으면 ValueError — 조용히 실물로 돌지 않는다.
 
@@ -505,9 +505,11 @@ class TestAltVariant:
             for s in _Q2_SLOTS
         )
 
+        monkeypatch.setattr(se, "Q2_2XS_SLOTS", slots)
+
         # When / Then
         with pytest.raises(ValueError, match="대체 판 경로 표"):
-            se.build_experiment_config(slots, se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
+            se.build_experiment_config(se.CANDIDATE_Q2_2XS, 0, se.VARIANT_ALT, _START)
 
     @pytest.mark.parametrize("candidate", [se.CANDIDATE_GOLD, se.CANDIDATE_EWY])
     def test_alt_is_not_for_other_candidates(self, candidate: str) -> None:
@@ -519,7 +521,7 @@ class TestAltVariant:
         Then:  ValueError
         """
         with pytest.raises(ValueError):
-            se.build_experiment_config(_Q2_SLOTS, candidate, 30, se.VARIANT_ALT, _START)
+            se.build_experiment_config(candidate, 30, se.VARIANT_ALT, _START)
 
 
 _COMBO_VARIANTS = (se.VARIANT_SPLICED, se.VARIANT_REAL, se.VARIANT_ALT)
@@ -540,7 +542,7 @@ class TestBuildComboConfig:
         for h in se.COMBO_PCTS:
             for r in se.COMBO_PCTS:
                 # When
-                config = se.build_combo_config(_Q2_SLOTS, h, r, variant, _START)
+                config = se.build_combo_config(h, r, variant, _START)
 
                 # Then
                 assert [m.method_id for m in config.methods] == [
@@ -562,10 +564,10 @@ class TestBuildComboConfig:
         Then:  몫을 맞추면 같다, Q-2-2XS 슬롯은 같은 판의 Q-2-2XS 단독 슬롯과 같다
         """
         # Given
-        combo = se.build_combo_config(_Q2_SLOTS, 10, 15, variant, _START)
-        haa = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_HAA, 25, variant, _START).methods[1]
-        rotation = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_ROTATION, 25, variant, _START).methods[1]
-        alone = se.build_experiment_config(_Q2_SLOTS, se.CANDIDATE_Q2_2XS, 0, variant, _START)
+        combo = se.build_combo_config(10, 15, variant, _START)
+        haa = se.build_experiment_config(se.CANDIDATE_HAA, 25, variant, _START).methods[1]
+        rotation = se.build_experiment_config(se.CANDIDATE_ROTATION, 25, variant, _START).methods[1]
+        alone = se.build_experiment_config(se.CANDIDATE_Q2_2XS, 0, variant, _START)
 
         # When
         q2, combo_haa, combo_rotation = combo.methods
@@ -585,7 +587,7 @@ class TestBuildComboConfig:
         Then:  허용 집합 안
         """
         # When
-        config = se.build_combo_config(_Q2_SLOTS, 15, 15, se.VARIANT_ALT, _START)
+        config = se.build_combo_config(15, 15, se.VARIANT_ALT, _START)
 
         # Then
         assert _config_paths(config) <= set(se.ALT_PATH_MAP.values()) | _KEPT_REAL_PATHS
@@ -602,7 +604,7 @@ class TestBuildComboConfig:
             for h in se.COMBO_PCTS:
                 for r in se.COMBO_PCTS:
                     # When / Then
-                    validate_portfolio_config(se.build_combo_config(_Q2_SLOTS, h, r, variant, _START))
+                    validate_portfolio_config(se.build_combo_config(h, r, variant, _START))
 
     def test_names_and_min_start_date(self) -> None:
         """
@@ -613,9 +615,9 @@ class TestBuildComboConfig:
         Then:  이름 · 결과 폴더 · 표시 이름 · min_start_date
         """
         # When
-        spliced = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_SPLICED, _START)
-        real = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_REAL, _START)
-        alt = se.build_combo_config(_Q2_SLOTS, 15, 20, se.VARIANT_ALT, _START)
+        spliced = se.build_combo_config(15, 20, se.VARIANT_SPLICED, _START)
+        real = se.build_combo_config(15, 20, se.VARIANT_REAL, _START)
+        alt = se.build_combo_config(15, 20, se.VARIANT_ALT, _START)
 
         # Then
         assert spliced.experiment_name == "portfolio_q2_2xs_haa15_rotation20"
@@ -645,7 +647,7 @@ class TestBuildComboConfig:
         Then:  ValueError
         """
         with pytest.raises(ValueError):
-            se.build_combo_config(_Q2_SLOTS, haa_pct, rotation_pct, variant, _START)
+            se.build_combo_config(haa_pct, rotation_pct, variant, _START)
 
 
 # ============================================================================
@@ -935,7 +937,6 @@ class TestSummarizeRun:
         equity = pd.DataFrame({COL_DATE: days, "equity": [100.0 + i for i in range(len(days))]})
         state_log = pd.DataFrame({COL_DATE: days, "is_month_end": [False] * len(days)})
         result = PortfolioResult(
-            experiment_name="t",
             display_name="t",
             equity_df=equity,
             trades_df=pd.DataFrame({"pnl": [1.0, 2.0]}),
@@ -970,7 +971,6 @@ class TestSummarizeRun:
             [datetime(d.year, d.month, d.day) for d in _weekdays(date(2020, 1, 1), date(2020, 3, 31))], dtype=object
         )
         result = PortfolioResult(
-            experiment_name="t",
             display_name="t",
             equity_df=pd.DataFrame({COL_DATE: days, "equity": [100.0] * len(days)}),
             trades_df=pd.DataFrame(),
@@ -1368,7 +1368,13 @@ class TestCollect:
 
         # Then
         assert len(rows) == 35
-        assert {r.gate for r in rows} == set(se.GATE_IDS)
+        assert {r.gate for r in rows} == {
+            se.GATE_ROTATION,
+            se.GATE_HAA_BUNDLE,
+            se.GATE_HAA_PAIR_VEA,
+            se.GATE_HAA_PAIR_BIL,
+            se.GATE_HAA_PAIR_PDBC,
+        }
         rotation = [r for r in rows if r.gate == se.GATE_ROTATION]
         assert len(rotation) == 7
         assert all(r.start_date == date(2011, 11, 10) for r in rotation)
@@ -1464,10 +1470,10 @@ class TestRunGridCase:
         late = pd.DataFrame({COL_DATE: [date(2007, 6, 25), date(2007, 6, 26)], "equity": [1.0, 1.0]})
 
         def _fake_run(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
-            return PortfolioResult("t", "t", late, pd.DataFrame(), {}, config)
+            return PortfolioResult("t", late, pd.DataFrame(), {}, config)
 
         monkeypatch.setattr(se, "run_portfolio_backtest", _fake_run)
 
         # When / Then
         with pytest.raises(ValueError, match="시작일"):
-            se.run_grid_case(case, _Q2_SLOTS)
+            se.run_grid_case(case)

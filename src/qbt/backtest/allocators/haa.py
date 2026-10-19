@@ -6,7 +6,6 @@
 """
 
 from collections.abc import Mapping
-from datetime import date
 from typing import Final
 
 import pandas as pd
@@ -49,7 +48,6 @@ class HaaAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if not is_check_day:

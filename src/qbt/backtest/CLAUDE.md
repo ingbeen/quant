@@ -39,7 +39,7 @@
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
 - WFO 모드 키: `KEY_WFO_DYNAMIC`, `KEY_WFO_FULLY_FIXED` (`walkforward_summary.json` 의 키)
-- 결과 파일명: `SIGNAL_FILENAME` · `EQUITY_FILENAME` · `TRADES_FILENAME` · `SUMMARY_FILENAME`(러너가 쓰고 대시보드가 읽는다), WFO 는 `WALKFORWARD_DYNAMIC_FILENAME` 등과 윈도우별 상세 파일명 `wfo_window_filename`
+- 결과 파일명: `SIGNAL_FILENAME` · `EQUITY_FILENAME` · `TRADES_FILENAME` · `SUMMARY_FILENAME`(러너가 쓰고 대시보드가 읽는다), WFO 는 `WALKFORWARD_DYNAMIC_FILENAME` 등과 윈도우별 상세 파일명 `wfo_window_filename`, 포트폴리오는 `LEDGER_FILENAME` · `NETTING_FILENAME` 과 자산 키별 시그널 파일명 `portfolio_signal_filename`(접두사 `PORTFOLIO_SIGNAL_PREFIX`)
 
 ### 3. analysis.py
 
@@ -95,11 +95,11 @@ Expanding Anchored 방식이다 (IS 시작은 고정, 윈도우마다 OOS 기간
 
 - `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_id)
   - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
-  - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시 (G 시리즈 GLD·TLT 처리에 사용)
+  - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시
   - 등록되지 않은 strategy_id 는 설정 검증(`validate_portfolio_config`)이 시세를 읽기 전에 ValueError 로 막는다
   - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days` — 기본값은 `FIXED_4P_*`
 - `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
-- `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플, allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
+- `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플(자산 id · 매매 시세 경로 — 배분 규칙은 매매 시세로 판단한다), allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
 - `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods, min_start_date)
   - `min_start_date`: 이 날짜에 시작한다. 포트폴리오 러너와 그리드 워커가 실제 시작일을 대조해 다르면 멈추고(`run_with_start_check`), 엔진은 읽지 않는다 — 보완 전략 등록 실험의 기간을 그리드 비교 기간과 맞출 때 쓴다
   - `asset_slots` 와 `methods` 중 정확히 하나를 채운다. `asset_slots` 는 매매법 하나짜리 실험의 줄임 표기이며 `resolve_methods(config)` 가 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다. `methods` 의 몫 합은 1.0
@@ -194,7 +194,7 @@ TypedDict:
 
 데이터클래스 (각 하위 모듈에 정의, portfolio_engine.py가 import하여 사용):
 
-- `OrderIntent` (portfolio_planning.py): 자산별 주문 의도 모델 (asset_id, intent_type, current_amount, target_amount, delta_amount, target_weight, reason, hold_days_used)
+- `OrderIntent` (portfolio_planning.py): 자산별 주문 의도 모델 (intent_type, delta_amount, reason, hold_days_used). 자산은 의도 사전의 키다. 의도 종류 묶음 `SELL_INTENT_TYPES` · `BUY_INTENT_TYPES`(체결 순서) · `REBALANCE_INTENT_TYPES`(목표 금액으로 증감)는 `constants.py`
   - intent_type: `EXIT_ALL` (signal sell 전량 청산) / `ENTER_TO_TARGET` (signal buy 신규 진입) / `REDUCE_TO_TARGET` (rebalance 초과분 매도) / `INCREASE_TO_TARGET` (rebalance 미달분 매수)
 - `ProjectedPortfolio` (portfolio_planning.py): signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets, check_excluded_assets)
   - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
@@ -212,10 +212,10 @@ TypedDict:
 
 주문 흐름 함수 (portfolio_planning.py / portfolio_execution.py):
 
-- `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i, current_date) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
+- `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
 - `compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
 - `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과). 삽입 순서(신호 → 리밸런싱)로 돈다
-- `generate_allocation_intents(old_targets, new_targets, positions, equity_vals, method_equity)` · `compute_allocation_projection(targets, allocation_intents, equity_vals, cash)` (portfolio_methods.py): 배분 규칙의 목표 변화 → 청산(목표 0) · 진입(보유 0) · 조정(목표 변경) 의도와 예상 상태. 진입 · 조정 자산은 판정에서 뺀다
+- `resolve_allocation(new_targets, assets)` · `generate_allocation_intents(old_targets, new_targets, positions, equity_vals, method_equity)` · `compute_allocation_projection(targets, allocation_intents, equity_vals, cash)` (portfolio_methods.py): 배분 규칙이 낸 비중을 검증하고 매매법 전 자산으로 채운 뒤(없는 자산 0, 한 번만), 목표 변화 → 청산(목표 0) · 진입(보유 0) · 조정(목표 변경) 의도와 예상 상태. 진입 · 조정 자산은 판정에서 뺀다. 배분 규칙이 None(목표 변경 없음)을 내면 엔진이 의도를 만들지 않는다
 - `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다. order_intents에 있는 자산이 `open_prices`에 누락되면 `RuntimeError("내부 불변조건 위반")` 발생 — 호출부가 동일 자산 집합으로 채워야 한다는 호출 계약을 강제한다
 
 공개 함수 (portfolio_engine.py facade + 하위 모듈):
@@ -234,7 +234,7 @@ TypedDict:
 - 종목 단위 상계: 매매법 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × SLIPPAGE_RATE 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음)
 - 같은 날 체결 순서는 설정 순서로 고정된다 — 집합 순서(문자열 해시 무작위화)로 돌면 같은 코드에서도 결과 파일이 실행마다 달랐다
 - 신호 시세 읽기: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다. 슬롯끼리 신호 시세를 함께 쓰지 않는다 — 함께 쓰면 먼저 읽은 슬롯의 기간으로 잘린 이동평균을 뒤 슬롯이 받아 슬롯 순서가 시작일을 바꾼다
-- 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지 (B시리즈)
+- 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지
 - 월말 판단 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 마지막 거래일 종가에 판단해 다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 판단일에 진입 신호가 난 자산은 편차 판정에서 빠진다 — 남은 자산의 편차가 임계값을 넘을 때만 리밸런싱하고, 그때는 진입 자산까지 맞춘다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
 - 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
 - projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
@@ -249,7 +249,7 @@ TypedDict:
 
 - `PORTFOLIO_CONFIGS: list[PortfolioConfig]`
   - 실험 구성과 자산 비중은 변경 빈도가 매우 높으므로 본 문서에 직접 나열하지 않는다.
-  - 최신 실험 목록·자산 슬롯·target_weight·strategy_id는 `src/qbt/backtest/portfolio_configs.py`를 직접 확인할 것.
+  - 최신 실험 목록·자산 슬롯·target_weight·strategy_id는 `src/qbt/backtest/portfolio_configs.py`를 직접 확인할 것. Q-2-2XS 슬롯은 보완 실험과 같이 쓰는 `supplement_experiment.Q2_2XS_SLOTS` 에 있다.
 
 주요 함수:
 
@@ -263,8 +263,8 @@ TypedDict:
 
 비중이 바뀌는 매매법(AllocatorMethodConfig)의 배분 규칙 레지스트리. `strategy_registry.py` 와 같은 모양이며, 새 배분 규칙은 `allocators/` 에 구현하고 여기 등록한다. 엔진은 고치지 않는다.
 
-- `WeightAllocator` Protocol: `target_weights(data, i, current_date, is_check_day) -> Mapping[str, float] | None` — i 행 종가 기준 매매법 자본 대비 목표 비중(합 1 이하, 없는 자산 0). None 은 목표 변경 없음. data 는 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키), is_check_day 는 월 마지막 거래일 여부
-- `AllocatorSpec` (frozen=True): allocator_id, create_allocator(method) → WeightAllocator, get_warmup_periods(method) → int (ma_window 와 같은 뜻)
+- `WeightAllocator` Protocol: `target_weights(data, i, is_check_day) -> Mapping[str, float] | None` — i 행 종가 기준 매매법 자본 대비 목표 비중(합 1 이하, 없는 자산 0). None 은 목표 변경 없음. data 는 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키), is_check_day 는 월 마지막 거래일 여부
+- `AllocatorSpec` (frozen=True, 레지스트리의 값 — 키가 allocator_id): create_allocator(method) → WeightAllocator, get_warmup_periods(method) → int (ma_window 와 같은 뜻)
 - `ALLOCATOR_REGISTRY: dict[str, AllocatorSpec]` — 등록된 규칙 목록은 이 모듈을 직접 확인할 것
 - 생성 함수가 설정을 검사한다: 규칙은 역할을 자산 · 시세 id 로 알아보므로(설정에 파라미터 칸이 없다) 설정의 자산 id · series id 집합이 규칙이 요구하는 것과 정확히 같아야 한다. 다르면 ValueError. 파라미터(이동평균 기간 · 버퍼존)는 `FIXED_4P_*` 를 넘긴다
 
@@ -282,10 +282,11 @@ TypedDict:
 
 보완 전략 실험 — 「Q-2-2XS (100−w)% + 후보 w%」 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 러너(`scripts/backtest/run_supplement_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5).
 
-- `build_experiment_config(q2_2xs_slots, candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. Q-2-2XS 슬롯을 인자로 받는다 — `portfolio_configs` 가 이 모듈의 구성 함수로 등록 실험을 만들어, 여기서 `portfolio_configs` 를 import 하면 순환한다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
-  - **대체 판(`VARIANT_ALT`)**: 실물판 설정을 만든 뒤 `ALT_PATH_MAP`(실물 파일 → 대체 파일)으로 슬롯 · 배분 자산의 신호 · 매매 경로와 신호용 시세를 모두 바꾼다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 `tlt` 가 같은 대체 파일로 남는다(상계 조건). 바꾼 뒤 대체 파일이나 SPY · QQQ · IWM 이 아닌 경로가 남으면 ValueError. Q-2-2XS 단독 · 기준선 · HAA · 로테이션만 받는다
-- `build_combo_config(q2_2xs_slots, haa_pct, rotation_pct, variant, start_date)`: 조합 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 설정(매매법 셋, Q-2-2XS 가 앞). h · r 는 `COMBO_PCTS`, 판은 이어 붙인 판 · 실물판 · 대체 판. HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다
-- `build_grid_cases()` · `run_grid_case(case, q2_2xs_slots)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다
+- `Q2_2XS_SLOTS`: Q-2-2XS 슬롯 — 공식 실험 `portfolio_q2_2xs` 와 보완 실험 · 조합이 같이 쓴다. `portfolio_configs` 가 이 모듈의 구성 함수로 등록 실험을 만들므로 슬롯이 이쪽에 있다(반대로 두면 두 모듈이 서로 import 한다)
+- `build_experiment_config(candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
+  - **대체 판(`VARIANT_ALT`)**: 실물판 설정을 만든 뒤 `ALT_PATH_MAP`(실물 파일 → 대체 파일)으로 슬롯의 신호 · 매매 경로, 배분 자산의 매매 경로, 신호용 시세를 모두 바꾼다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 `tlt` 가 같은 대체 파일로 남는다(상계 조건). 바꾼 뒤 대체 파일이나 SPY · QQQ · IWM 이 아닌 경로가 남으면 ValueError. Q-2-2XS 단독 · 기준선 · HAA · 로테이션만 받는다
+- `build_combo_config(haa_pct, rotation_pct, variant, start_date)`: 조합 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 설정(매매법 셋, Q-2-2XS 가 앞). h · r 는 `COMBO_PCTS`, 판은 이어 붙인 판 · 실물판 · 대체 판. HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다
+- `build_grid_cases()` · `run_grid_case(case)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다
 - `run_with_start_check(config, start_date)`: 실행하고 실제 시작일이 start_date 와 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다. 단독 · 조합 워커와 포트폴리오 러너(설정에 `min_start_date` 가 있는 실험)가 같이 쓴다
 - `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율. 국면은 `ALL_PHASE_WINDOWS`(2007 이후 `PHASE_WINDOWS` + 대체 판에만 기간 안인 `EARLY_PHASE_WINDOWS`)를 다 계산하고, 단독 그리드 러너는 `PHASE_WINDOWS` 만 열로 쓴다
 - `extract_decision_targets` · `decision_agreement`: 신호 일치율 — 월 마지막 거래일 다음 거래일의 목표 비중만 비교한다(날마다 세면 월 1회 판단이 부풀려진다)
@@ -296,7 +297,7 @@ TypedDict:
 
 조합 실험 — 「Q-2-2XS + HAA + 로테이션」 비중 격자(HAA · 로테이션 각 `COMBO_PCTS`)를 묶음(대체 판 · 이어 붙인 판 · 완전 실물판 · 대체 판 겹침)마다 돌리는 실행 목록 · 워커 · 판정 · 대체 판 확인. 구성은 `supplement_experiment` 의 두 구성 함수가 만들고, 러너(`scripts/backtest/run_combo_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D55 – D57 · D62 – D70, 9.6).
 
-- `build_combo_cases()` · `build_case_config(q2_2xs_slots, case)` · `run_combo_case(case, q2_2xs_slots)`: 묶음마다 조합 칸 전부 + 같은 합계(`W_PCTS`)의 기준선 · HAA 단독 · 로테이션 단독 + Q-2-2XS 단독. 워커는 요약 · 위반 · 배분 규칙 매매법별 판단 비중표만 돌려준다
+- `build_combo_cases()` · `build_case_config(case)` · `run_combo_case(case)`: 묶음마다 조합 칸 전부 + 같은 합계(`W_PCTS`)의 기준선 · HAA 단독 · 로테이션 단독 + Q-2-2XS 단독. 워커는 요약 · 위반 · 배분 규칙 매매법별 판단 비중표만 돌려준다
 - `compute_combo_advantages`: 칸마다 같은 묶음 · 같은 합계의 셋(기준선 · HAA 단독 · 로테이션 단독) 대비 Calmar 우위. 비교 상대가 없거나 실제 기간이 다르면 ValueError. `CellAdvantage.above` = 셋 모두보다 엄격히 높다
 - `find_clusters` · `judge_combo`: 「높음」 칸이 상하좌우로 이어진 3칸 이상 덩어리(대각선은 이웃이 아니다). 판정 기준이 여러 묶음을 쓰면 모두에서 높은 칸만 센다
 - `collect_combo_judgments`: 판정 기준(`BASIS_GROUPS`) — 판 하나씩의 지도(보고용)와 판정(`BASIS_JUDGMENT` = 이어 붙인 판 · 완전 실물판 둘 다)
@@ -312,8 +313,7 @@ TypedDict:
 
 데이터클래스:
 
-- `StrategySpec` (frozen=True): 전략 명세
-  - `strategy_id`: 전략 식별자 (STRATEGY_REGISTRY의 키)
+- `StrategySpec` (frozen=True): 전략 명세 (STRATEGY_REGISTRY 의 값 — 키가 strategy_id)
   - `create_strategy(slot) -> SignalStrategy`: 전략 객체 생성 팩토리
   - `prepare_signal_df(df, slot) -> pd.DataFrame`: signal DataFrame 전처리 (buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환)
   - `get_warmup_periods(slot) -> int`: MA 워밍업 기간 (buffer_zone → `slot.ma_window`, buy_and_hold → `0`)
@@ -336,7 +336,7 @@ TypedDict:
 Protocol:
 
 - `SignalStrategy`: 전략 공통 인터페이스
-  - `check_buy(signal_df, i, current_date) -> bool`: i번째 날 매수 신호 여부. 내부 prev 상태 갱신 포함.
+  - `check_buy(signal_df, i) -> bool`: i번째 날 매수 신호 여부. 내부 prev 상태 갱신 포함.
   - `check_sell(signal_df, i) -> bool`: i번째 날 매도 신호 여부. 내부 prev 상태 갱신 포함.
   - `get_buy_meta() -> dict[str, float | int]`: check_buy True 직후 호출. TradeRecord용 메타데이터 반환.
 
@@ -344,11 +344,7 @@ Protocol:
 
 #### strategies/buffer_zone_helpers.py
 
-버퍼존 전략 전용 신호 감지 함수와 HoldState TypedDict를 제공합니다.
-
-TypedDict:
-
-- `HoldState`: hold_days 상태머신 상태 (start_date, days_passed, buffer_pct, hold_days_required)
+버퍼존 전략 전용 신호 감지 함수를 제공합니다.
 
 신호 감지 함수:
 
@@ -373,9 +369,9 @@ TypedDict:
 
 - `BufferZoneStrategy`: `SignalStrategy` Protocol 구현체 (stateful)
   - 생성자: `(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)`
-  - 내부 상태: `_prev_upper`, `_prev_lower`, `_hold_state`, `_last_buy_buffer_pct`, `_last_hold_days_used`
+  - 내부 상태: `_prev_upper`, `_prev_lower`, `_hold_days_passed`(상향돌파 뒤 상단 밴드 위에서 지난 날 수, 대기 중이 아니면 None)
   - `_update_bands(signal_df, i) -> tuple | None`: 밴드 계산 + prev 상태 갱신. check_buy/check_sell 공용. 초기화 시 None 반환
-  - `check_buy(signal_df, i, current_date) -> bool`: `_update_bands` 호출 후 hold_state 상태머신 처리
+  - `check_buy(signal_df, i) -> bool`: `_update_bands` 호출 후 상향돌파 · 유지일 처리 (「도메인 규칙 6」)
   - `check_sell(signal_df, i) -> bool`: `_update_bands` 호출 후 하향돌파 감지
   - `get_buy_meta() -> dict`: `{"buy_buffer_pct": ..., "hold_days_used": ...}`
 
@@ -404,7 +400,7 @@ Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 �
 
 - `BuyAndHoldStrategy`: `SignalStrategy` Protocol 구현체 (stateless)
   - 파라미터 없는 생성자
-  - `check_buy(signal_df, i, current_date) -> bool`: 항상 `True` 반환 (즉시 매수)
+  - `check_buy(signal_df, i) -> bool`: 항상 `True` 반환 (즉시 매수)
   - `check_sell(signal_df, i) -> bool`: 항상 `False` 반환 (매도 없음)
   - `get_buy_meta() -> dict`: `{}` 반환
 
@@ -448,7 +444,8 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - `add_ohlc_change_pct(df) -> pd.DataFrame`: signal DataFrame에 OHLC 4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 추가. 첫 행은 NaN. 대시보드 캔들 tooltip의 SSoT
 - `add_buffer_zone_bands(df, ma_col, buy_buffer_zone_pct, sell_buffer_zone_pct) -> pd.DataFrame`: signal DataFrame에 `upper_band`/`lower_band` 컬럼 추가. 산식: `ma * (1 ± buffer)`. buffer_zone 전략 자산의 시그널 CSV에만 적용
 - `enrich_equity_with_bands(equity_df, signal_df, ma_col, buy_buffer_pct, sell_buffer_pct) -> pd.DataFrame`: equity_df에 그날의 밴드(`add_buffer_zone_bands`)와 buy/sell 버퍼 비율 컬럼을 날짜로 붙인다 (단일 백테스트 · WFO 윈도우 에쿼티 CSV)
-- `round_signal_for_csv(df) -> pd.DataFrame`: 시그널 CSV 저장 자릿수 — 가격 · 이동평균 · 밴드는 `ROUND_PRICE`, 전일대비%는 `ROUND_PERCENT`
+- `round_signal_for_csv(df) -> pd.DataFrame`: 시그널 CSV 저장 자릿수 — 가격 · 이동평균 · 밴드는 `ROUND_PRICE`, 전일대비%는 `ROUND_PERCENT` (단일 · 워크포워드 윈도우 · 포트폴리오 시그널 CSV)
+- `remove_config_dependent_files(result_dir)`: 포트폴리오 실험 폴더에서 구성에 따라 생기는 파일(자산 키별 시그널 · 장부 · 상계 내역)을 지운다 — 러너가 저장 전에 부른다. 폴더째 지우지 않는다
 
 상수:
 

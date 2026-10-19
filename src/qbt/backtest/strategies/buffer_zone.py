@@ -7,7 +7,6 @@ config-driven 방식으로 멀티 자산의 버퍼존 전략을 통합 관리한
 """
 
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -20,7 +19,6 @@ from qbt.backtest.constants import (
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
 )
 from qbt.backtest.strategies.buffer_zone_helpers import (
-    HoldState,
     compute_bands,
     detect_buy_signal,
     detect_sell_signal,
@@ -195,7 +193,7 @@ class BufferZoneStrategy(SignalStrategy):
     """버퍼존 전략 클래스 (Stateful).
 
     SignalStrategy Protocol을 구현한다.
-    내부 상태(_prev_upper, _prev_lower, _hold_state)를 관리하여 엔진이
+    내부 상태(_prev_upper, _prev_lower, _hold_days_passed)를 관리하여 엔진이
     밴드 값을 직접 다룰 필요가 없도록 한다.
 
     생성자 파라미터:
@@ -209,7 +207,7 @@ class BufferZoneStrategy(SignalStrategy):
 
     사용 예:
         strategy = BufferZoneStrategy("ma_200", 0.03, 0.05, 3)
-        buy = strategy.check_buy(signal_df, i, current_date)
+        buy = strategy.check_buy(signal_df, i)
         sell = strategy.check_sell(signal_df, i)
         if buy:
             meta = strategy.get_buy_meta()
@@ -243,11 +241,8 @@ class BufferZoneStrategy(SignalStrategy):
         # 내부 상태 (None이면 미초기화)
         self._prev_upper: float | None = None
         self._prev_lower: float | None = None
-        self._hold_state: HoldState | None = None
-
-        # get_buy_meta() 반환 값 (check_buy → True 직후 갱신)
-        self._last_buy_buffer_pct: float = 0.0
-        self._last_hold_days_used: int = 0
+        # 상향돌파 뒤 상단 밴드 위에서 지난 날 수. None 이면 대기 중이 아니다
+        self._hold_days_passed: int | None = None
 
     def _init_prev_from_row(self, signal_df: pd.DataFrame, idx: int) -> None:
         """idx행 기준으로 _prev_upper/_prev_lower를 초기화한다."""
@@ -310,17 +305,16 @@ class BufferZoneStrategy(SignalStrategy):
         self,
         signal_df: pd.DataFrame,
         i: int,
-        current_date: date,
     ) -> bool:
         """i번째 날 매수 신호 여부를 반환한다. 내부 prev 상태 갱신 포함.
 
-        _update_bands()로 밴드 계산 및 prev 갱신을 수행한 후
-        hold_days 상태머신에 따라 매수 신호를 판단한다.
+        _update_bands()로 밴드 계산 및 prev 갱신을 수행한 후 상향돌파와 유지일을 본다.
+        유지일이 0 이면 돌파한 날이 신호다. 그 밖에는 돌파한 날부터 상단 밴드 위에서 유지일만큼 지난 날이 신호이고,
+        그 전에 밴드 아래로 내려오면 대기를 푼다.
 
         Args:
             signal_df: 시그널용 DataFrame (ma_col, Close 컬럼 포함)
             i: 현재 인덱스 (0부터 시작)
-            current_date: 현재 날짜 (HoldState.start_date 기록용)
 
         Returns:
             True이면 매수 신호
@@ -330,51 +324,21 @@ class BufferZoneStrategy(SignalStrategy):
             return False
         prev_close, cur_close, prev_upper, cur_upper, _, _ = ctx
 
-        # 신호 판단
-        if self._hold_days == 0:
-            # 즉시 신호: detect_buy_signal 결과 반환
-            buy = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
-            if buy:
-                self._last_buy_buffer_pct = self._buy_buffer_pct
-                self._last_hold_days_used = 0
-            return buy
-
-        # hold_days > 0: 상태머신 처리
-        # cur_upper 재계산: _update_bands에서 이미 계산된 값 사용
-        if self._hold_state is not None:
-            # 대기 중 — 상단밴드 위 유지 여부 확인
-            if cur_close > cur_upper:
-                new_days_passed = self._hold_state["days_passed"] + 1
-                if new_days_passed >= self._hold_state["hold_days_required"]:
-                    # 유지 조건 충족 → 매수 신호
-                    self._last_buy_buffer_pct = self._hold_state["buffer_pct"]
-                    self._last_hold_days_used = self._hold_state["hold_days_required"]
-                    self._hold_state = None
-                    return True
-                else:
-                    # 유지 중 — days_passed 증가
-                    self._hold_state = {
-                        "start_date": self._hold_state["start_date"],
-                        "days_passed": new_days_passed,
-                        "buffer_pct": self._hold_state["buffer_pct"],
-                        "hold_days_required": self._hold_state["hold_days_required"],
-                    }
-                    return False
-            else:
-                # 상단밴드 아래로 이탈 → 상태 해제
-                self._hold_state = None
+        if self._hold_days_passed is not None:
+            if cur_close <= cur_upper:
+                self._hold_days_passed = None
                 return False
+            self._hold_days_passed += 1
+            if self._hold_days_passed < self._hold_days:
+                return False
+            self._hold_days_passed = None
+            return True
 
-        # hold_state가 None인 경우 — 상향돌파 감지
-        breakout = detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper)
-        if breakout:
-            # 상향돌파 감지 → HoldState 생성 (아직 매수 아님)
-            self._hold_state = {
-                "start_date": current_date,
-                "days_passed": 0,
-                "buffer_pct": self._buy_buffer_pct,
-                "hold_days_required": self._hold_days,
-            }
+        if not detect_buy_signal(prev_close, cur_close, prev_upper, cur_upper):
+            return False
+        if self._hold_days == 0:
+            return True
+        self._hold_days_passed = 0
         return False
 
     def check_sell(
@@ -407,6 +371,6 @@ class BufferZoneStrategy(SignalStrategy):
             dict: {"buy_buffer_pct": float, "hold_days_used": int}
         """
         return {
-            "buy_buffer_pct": self._last_buy_buffer_pct,
-            "hold_days_used": self._last_hold_days_used,
+            "buy_buffer_pct": self._buy_buffer_pct,
+            "hold_days_used": self._hold_days,
         }

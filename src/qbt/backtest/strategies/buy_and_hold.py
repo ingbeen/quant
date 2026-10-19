@@ -10,7 +10,6 @@
 """
 
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -99,7 +98,7 @@ class BuyAndHoldStrategy(SignalStrategy):
 
     사용 예:
         strategy = BuyAndHoldStrategy()
-        buy = strategy.check_buy(signal_df, i, current_date)  # 항상 True
+        buy = strategy.check_buy(signal_df, i)  # 항상 True
         sell = strategy.check_sell(signal_df, i)               # 항상 False
     """
 
@@ -107,7 +106,6 @@ class BuyAndHoldStrategy(SignalStrategy):
         self,
         signal_df: pd.DataFrame,
         i: int,
-        current_date: date,
     ) -> bool:
         """항상 매수 신호를 반환한다 (파라미터 무시).
 
@@ -117,7 +115,6 @@ class BuyAndHoldStrategy(SignalStrategy):
         Args:
             signal_df: 시그널 DataFrame (무시)
             i: 현재 인덱스 (무시)
-            current_date: 현재 날짜 (무시)
 
         Returns:
             True — 항상 매수

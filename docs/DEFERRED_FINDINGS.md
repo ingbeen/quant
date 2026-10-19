@@ -16,3 +16,10 @@
 - **무엇**: 엔진 코드를 아래처럼 바꿔도 전체 테스트(928개)가 통과한다 — ① 에쿼티 표의 `{키}_weight` 를 절반 값으로 ② 에쿼티 표의 `rebalance_reason` 을 늘 빈 값으로 ③ 계좌 사유를 그날 리밸런싱한 매매법 중 «마지막» 매매법의 사유로 ④ 상태 로그의 `{키}_weight` 를 계좌 자본이 아니라 매매법 자본 대비로. ①은 대시보드의 비중 추이가, ② ③은 매매법 하나짜리 실험의 리밸런싱 마커 사유가 에러 없이 틀리게 보인다. 상태 로그의 비중 · 리밸런싱 표시 · 사유를 지키는 테스트(`TestStateLogWeightColumn` · `TestMonthEndRebalanceSchedule::test_rebalance_logged_on_execution_day`)는 매매법 하나짜리 시나리오만 쓰고, 에쿼티 표의 같은 열은 지키는 테스트가 없다. 정합성 검사기는 이 열들을 읽지 않는다(규칙 2 는 장부와 주수 × 종가로 다시 계산한다). 지금 값은 맞다 — 같은 변형이 9단계 전 코드에서도 모두 통과했다
 - **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
 - **출처**: PLAN_portfolio_validation (2026-10-11) 코드 리뷰 2회차의 수정분 검증
+
+## 포트폴리오 러너가 구성 의존 파일 지우기를 부르는 한 줄을 지키는 테스트가 없다
+
+- **자리**: `scripts/backtest/run_portfolio_backtest.py:106` `_save_portfolio_results` 의 `remove_config_dependent_files(result.config.result_dir)`. 함수는 `src/qbt/backtest/csv_export.py:207` `remove_config_dependent_files` 이고 테스트 `tests/qbt/test_csv_export.py` `TestRemoveConfigDependentFiles` 가 함수만 지킨다
+- **무엇**: 그 호출 한 줄을 지워도 전체 테스트가 통과한다 — 테스트는 scripts 를 불러오지 않는다. 지워진 채로 매매법이 여럿이던 실험을 매매법 하나로 바꿔 같은 결과 폴더에 다시 저장하면 낡은 `ledger.csv` · `signal_{매매법}.{자산}.csv` 가 남고, 대시보드는 `ledger.csv` 가 있으면 「매매법별 손익」 섹션을 그 옛 장부로 에러 없이 그린다. 지금 코드는 맞게 부른다. 막으려면 포트폴리오 결과 저장(`_save_portfolio_results`)을 src 로 옮겨 테스트가 부르게 해야 한다
+- **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
+- **출처**: PLAN_portfolio_engine_cleanup (2026-10-18) 코드 리뷰 1회차, 사용자 결정 「미룬 지적으로 옮긴다」(2026-10-19)

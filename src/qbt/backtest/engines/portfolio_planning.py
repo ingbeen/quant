@@ -4,7 +4,6 @@ Signal → Projected → Merge 흐름의 핵심 로직을 담당한다.
 """
 
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Literal
 
 import pandas as pd
@@ -22,18 +21,16 @@ class OrderIntent:
 
     intent_type 종류:
     - EXIT_ALL: 보유 전량 청산 (signal sell)
-    - ENTER_TO_TARGET: 신규 진입하여 target_amount 도달 (signal buy)
-    - REDUCE_TO_TARGET: 초과분 매도하여 target_amount 도달 (rebalance)
-    - INCREASE_TO_TARGET: 미달분 매수하여 target_amount 도달 (rebalance)
+    - ENTER_TO_TARGET: 신규 진입 — 목표 금액만큼 산다 (signal buy)
+    - REDUCE_TO_TARGET: 목표 금액을 넘는 만큼 판다 (rebalance)
+    - INCREASE_TO_TARGET: 목표 금액에 모자란 만큼 산다 (rebalance)
     """
 
-    asset_id: str
     intent_type: Literal["EXIT_ALL", "ENTER_TO_TARGET", "REDUCE_TO_TARGET", "INCREASE_TO_TARGET"]
-    current_amount: float  # 현재 평가액
-    target_amount: float  # 목표 금액
-    delta_amount: float  # target_amount - current_amount (음수 = 매도, 양수 = 매수)
-    target_weight: float  # 목표 비중 (0~1)
-    reason: str  # 생성 이유 (로깅/디버깅용)
+    # 증감 금액 (음수 = 매도, 양수 = 매수) — 목표 금액 − 현재 평가액이고, 리밸런싱 매수는 현금이 모자라면 비례로 줄인 금액이다.
+    # EXIT_ALL 은 전량을 팔아 체결이 이 값을 보지 않는다
+    delta_amount: float
+    reason: str  # 생성 이유 (상태 로그의 pending_reason)
     hold_days_used: int = 0  # 진입 시 hold_days 파라미터 (TradeRecord에 기록)
 
 
@@ -48,7 +45,7 @@ class ProjectedPortfolio:
 
     projected_amounts: dict[str, float]  # {asset_id: 예상 평가액}
     projected_cash: float  # EXIT_ALL 매도 예상 대금 포함 현금
-    active_assets: set[str]  # 리밸런싱 대상 자산 집합 (signal_state == "buy" 기준)
+    active_assets: set[str]  # 리밸런싱 대상 자산 집합 (슬롯: 신호 상태 buy, 배분 규칙: 목표 비중 > 0)
     # 그날 신호 · 배분 규칙으로 들어오거나 목표 비중이 바뀐 자산. 리밸런싱 편차 판정에서 뺀다 —
     # 진입 자산은 보유가 0 이라 편차가 100% 로 계산되고, 조정 자산은 그날 이미 목표로 매매한다
     # (결정 근거: docs/research/전략_검증_보고서.md 부록 L.5)
@@ -70,7 +67,7 @@ def compute_portfolio_equity(
     Returns:
         equity = shared_cash + Σ(position × close)
     """
-    total_value = sum(asset_positions[aid] * asset_closes[aid] for aid in asset_positions if aid in asset_closes)
+    total_value = sum(asset_positions[aid] * asset_closes[aid] for aid in asset_positions)
     return shared_cash + total_value
 
 
@@ -82,12 +79,11 @@ def generate_signal_intents(
     slot_dict: dict[str, AssetSlotConfig],
     current_equity: float,
     i: int,
-    current_date: date,
 ) -> dict[str, OrderIntent]:
     """전략 기반으로 시그널 intent를 생성한다.
 
-    1. position=0 + buy signal → ENTER_TO_TARGET (target_amount = current_equity × target_weight)
-    2. position>0 + sell signal → EXIT_ALL (current_amount = equity_vals[asset_id])
+    1. position=0 + buy signal → ENTER_TO_TARGET (증감액 = current_equity × target_weight)
+    2. position>0 + sell signal → EXIT_ALL (증감액 = −평가액)
     3. 그 외(HOLD) → intent 생성 안 함
 
     Args:
@@ -98,7 +94,6 @@ def generate_signal_intents(
         slot_dict: {asset_id: AssetSlotConfig}
         current_equity: 총 에쿼티
         i: 현재 행 인덱스
-        current_date: 현재 날짜
 
     Returns:
         {asset_id: OrderIntent} — HOLD 자산은 포함하지 않음
@@ -112,17 +107,12 @@ def generate_signal_intents(
 
         if state.position == 0:
             # 매수 시그널 판정 (내부 prev 상태 갱신 포함)
-            buy_now = strategy.check_buy(signal_df, i, current_date)
+            buy_now = strategy.check_buy(signal_df, i)
             if buy_now:
                 meta = strategy.get_buy_meta()
-                target_amount = current_equity * slot.target_weight
                 intents[asset_id] = OrderIntent(
-                    asset_id=asset_id,
                     intent_type="ENTER_TO_TARGET",
-                    current_amount=0.0,
-                    target_amount=target_amount,
-                    delta_amount=target_amount,
-                    target_weight=slot.target_weight,
+                    delta_amount=current_equity * slot.target_weight,
                     reason="signal buy",
                     hold_days_used=int(meta.get("hold_days_used", 0)),
                 )
@@ -130,21 +120,15 @@ def generate_signal_intents(
             # 매도 시그널 판정 (내부 prev 상태 갱신 포함)
             sell_now = strategy.check_sell(signal_df, i)
             if sell_now:
-                # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다.
-                # 누락 시 KeyError로 즉시 중단(fail-fast)하여 silent 0 대체를 방지한다.
+                # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다 — 누락은 호출부 버그다
                 if asset_id not in equity_vals:
                     raise RuntimeError(
                         f"내부 불변조건 위반: equity_vals에 asset_id 누락 "
                         f"(asset_id={asset_id}, available_keys={sorted(equity_vals.keys())})"
                     )
-                current_amount = equity_vals[asset_id]
                 intents[asset_id] = OrderIntent(
-                    asset_id=asset_id,
                     intent_type="EXIT_ALL",
-                    current_amount=current_amount,
-                    target_amount=0.0,
-                    delta_amount=-current_amount,
-                    target_weight=0.0,
+                    delta_amount=-equity_vals[asset_id],
                     reason="signal sell",
                 )
 
@@ -177,8 +161,7 @@ def compute_projected_portfolio(
     # 현재 active_assets: signal_state == "buy"인 자산
     active_assets: set[str] = {aid for aid, st in asset_states.items() if st.signal_state == "buy"}
 
-    # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다.
-    # 누락 시 KeyError로 즉시 중단(fail-fast)하여 silent 0 대체를 방지한다.
+    # equity_vals는 호출부 계약상 asset_states 전 자산에 대해 사전 채워진다 — 누락은 호출부 버그다
     missing_vals = [aid for aid in asset_states if aid not in equity_vals]
     if missing_vals:
         raise RuntimeError(
@@ -220,7 +203,7 @@ def merge_intents(
 
     우선순위 규칙:
     1. EXIT_ALL: 항상 우선 (rebalance intent 무시)
-    2. ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target_amount/delta_amount 사용)
+    2. ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance 의 delta_amount 사용)
     3. 단독 signal intent → 그대로 통과
     4. 단독 rebalance intent → 그대로 통과
 
@@ -236,7 +219,7 @@ def merge_intents(
     """
     merged: dict[str, OrderIntent] = {}
     # 집합 대신 삽입 순서(신호 → 리밸런싱)로 돈다. 이 순서가 같은 날 체결 순서가 되는데, 집합은
-    # 문자열 해시 무작위화로 실행마다 순서가 바뀌어 같은 코드에서도 결과 파일이 달라졌다
+    # 문자열 해시 무작위화로 실행마다 순서가 바뀌어 같은 코드에서도 결과 파일이 달라진다
     all_assets = list(dict.fromkeys([*signal_intents, *rebalance_intents]))
 
     for asset_id in all_assets:
@@ -252,14 +235,10 @@ def merge_intents(
             and reb is not None
             and reb.intent_type == "INCREASE_TO_TARGET"
         ):
-            # 신규 진입 + 리밸런싱 매수 → ENTER_TO_TARGET (rebalance target 사용, signal hold_days_used 보존)
+            # 신규 진입 + 리밸런싱 매수 → ENTER_TO_TARGET (rebalance 금액 사용, signal hold_days_used 보존)
             merged[asset_id] = OrderIntent(
-                asset_id=asset_id,
                 intent_type="ENTER_TO_TARGET",
-                current_amount=sig.current_amount,
-                target_amount=reb.target_amount,
                 delta_amount=reb.delta_amount,
-                target_weight=reb.target_weight,
                 reason="signal_buy+rebalance",
                 hold_days_used=sig.hold_days_used,
             )

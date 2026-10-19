@@ -209,15 +209,12 @@ class TestSupplementConfigs:
         Then:  build_combo_config(10, 10, 이어 붙인 판, 주 비교 시작일)과 같은 설정, 매매법 (q2_2xs 0.8 · haa 0.1 · rotation 0.1),
                설정 검증 통과
         """
-        # Given
-        q2_2xs = get_portfolio_config("portfolio_q2_2xs")
-
         # When
         config = get_portfolio_config("portfolio_q2_2xs_haa10_rotation10")
         methods = resolve_methods(config)
 
         # Then
-        assert config == build_combo_config(q2_2xs.asset_slots, 10, 10, VARIANT_SPLICED, MAIN_START_DATE)
+        assert config == build_combo_config(10, 10, VARIANT_SPLICED, MAIN_START_DATE)
         assert [m.method_id for m in methods] == ["q2_2xs", "haa", "rotation"]
         assert [m.target_weight for m in methods] == pytest.approx([0.8, 0.1, 0.1], abs=1e-12)
         validate_portfolio_config(config)

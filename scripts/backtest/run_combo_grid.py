@@ -38,7 +38,6 @@ from qbt.backtest.combo_experiment import (
     collect_combo_judgments,
     run_combo_case,
 )
-from qbt.backtest.portfolio_configs import get_portfolio_config
 from qbt.backtest.supplement_experiment import (
     ALL_PHASE_WINDOWS,
     CANDIDATE_BASELINE,
@@ -288,8 +287,7 @@ def main() -> int:
     Returns:
         종료 코드 (0: 성공, 1: 실패)
     """
-    # 1. 실행 목록 (Q-2-2XS 슬롯의 SoT 는 공식 실험 portfolio_q2_2xs)
-    q2_2xs_slots = get_portfolio_config("portfolio_q2_2xs").asset_slots
+    # 1. 실행 목록
     cases = build_combo_cases()
     logger.debug(f"조합 그리드 실행 {len(cases)}회")
 
@@ -297,7 +295,7 @@ def main() -> int:
     started = time.perf_counter()
     results: list[ComboCaseResult] = execute_parallel_with_kwargs(
         func=run_combo_case,
-        inputs=[{"case": case, "q2_2xs_slots": q2_2xs_slots} for case in cases],
+        inputs=[{"case": case} for case in cases],
     )
     logger.debug(f"실행 완료: {len(results)}회, {time.perf_counter() - started:.1f}초")
 
@@ -305,7 +303,7 @@ def main() -> int:
     violated = [r for r in results if r.violations]
     if violated:
         for r in violated:
-            name = build_case_config(q2_2xs_slots, r.case).experiment_name
+            name = build_case_config(r.case).experiment_name
             logger.error(f"[{name}] (시작 {r.case.start_date}) 정합성 위반 {len(r.violations)}건")
             for v in r.violations:
                 logger.error(f"  {v}")

@@ -1,15 +1,6 @@
 """포트폴리오 백테스트 타입 정의
 
-포트폴리오 백테스트 엔진에서 사용하는 데이터클래스 및 TypedDict를 정의한다.
-
-포함 내용:
-- AssetState: 자산별 런타임 상태
-- AssetSlotConfig: 자산 슬롯 설정 (frozen=True)
-- SlotMethodConfig / AllocatorMethodConfig: 매매법 설정 (frozen=True)
-- PortfolioConfig: 포트폴리오 실험 설정 (frozen=True)
-- resolve_methods / position_key: 매매법 목록 해석과 결과 파일의 자산 키
-- PortfolioAssetResult: 자산별 결과 (거래 내역 + 시그널 데이터)
-- PortfolioResult: 포트폴리오 전체 결과
+포트폴리오 실험의 설정 · 런타임 상태 · 결과 데이터클래스와, 결과 파일의 자산 키 · 자산별 열 이름 규칙을 정의한다.
 """
 
 from collections.abc import Mapping
@@ -110,7 +101,6 @@ class AssetSlotConfig:
         strategy_id: STRATEGY_REGISTRY 키. 등록되지 않은 값은 설정 검증(validate_portfolio_config)이 ValueError로 막는다.
             "buffer_zone" = 버퍼존 신호에 따라 매수/매도 (기본값).
             "buy_and_hold" = 즉시 매수 후 매도 신호 무시, 항상 투자 상태 유지.
-            G 시리즈에서 GLD·TLT B&H 처리에 사용.
         ma_window: 이동평균 기간 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
         buy_buffer_zone_pct: 매수 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
         sell_buffer_zone_pct: 매도 버퍼존 비율 (buffer_zone 슬롯에서 사용, 기본값은 4P 확정값)
@@ -155,10 +145,9 @@ class SlotMethodConfig:
 
 @dataclass(frozen=True)
 class AllocationAssetConfig:
-    """비중이 바뀌는 매매법이 매매하는 자산."""
+    """비중이 바뀌는 매매법이 매매하는 자산. 배분 규칙은 이 매매 시세로 판단한다 — 판단에만 쓰는 시세는 SignalSeriesConfig."""
 
     asset_id: str
-    signal_data_path: Path
     trade_data_path: Path
 
 
@@ -199,15 +188,15 @@ class PortfolioConfig:
     """포트폴리오 실험 설정.
 
     asset_slots 와 methods 중 정확히 하나를 채운다. asset_slots 는 매매법 하나짜리 실험의
-    줄임 표기다(resolve_methods 참고). 슬롯 target_weight 합이 1.0 미만이면 잔여분은 현금이다 (B시리즈).
+    줄임 표기다(resolve_methods 참고). 슬롯 target_weight 합이 1.0 미만이면 잔여분은 현금이다.
 
     리밸런싱 정책은 엔진 레벨 상수로 고정되며 실험 설정으로 바꿀 수 없다
     (월 마지막 거래일 판단, 임계값은 portfolio_rebalance.DEFAULT_REBALANCE_POLICY).
     매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
 
     Attributes:
-        experiment_name: 실험 식별자 ("portfolio_a2" 등)
-        display_name: 표시 이름 ("A-2 (QQQ 30% / SPY 30% / GLD 40%)")
+        experiment_name: 실험 식별자 ("portfolio_d1" 등)
+        display_name: 표시 이름 ("D-1 (QQQ 100%)")
         total_capital: 총 초기 자본금
         result_dir: 결과 저장 디렉토리
         asset_slots: 매매법 하나짜리 실험의 자산 슬롯
@@ -238,7 +227,8 @@ def resolve_methods(config: PortfolioConfig) -> tuple[MethodConfig, ...]:
 def position_key(method_id: str, asset_id: str, *, multi_method: bool) -> str:
     """결과 파일의 자산 키를 반환한다.
 
-    매매법이 하나면 자산 id 그대로라 기존 결과 파일의 열 이름이 바뀌지 않는다.
+    매매법이 하나면 자산 id 그대로다 — 매매법 하나짜리 실험은 결과 열 이름(에쿼티 · 상태 로그 · 시그널 파일)이 자산 id 라,
+    늘 접두사를 붙이면 그 실험들의 결과 파일과 대시보드가 읽는 열 이름이 모두 바뀐다.
     """
     if multi_method:
         return f"{method_id}{POSITION_KEY_SEPARATOR}{asset_id}"
@@ -308,48 +298,15 @@ class PortfolioAssetResult:
 class PortfolioResult:
     """포트폴리오 전체 결과.
 
-    합산 에쿼티, 전 자산 거래 내역, 성과 요약, 자산별 결과를 담는다.
+    합산 에쿼티, 전 자산 거래 내역, 성과 요약, 자산별 결과를 담는다. 표마다 열 구성은
+    `src/qbt/backtest/CLAUDE.md` 「6. portfolio_types.py」, 자산별 열 이름은 이 모듈의 `asset_*_col` 이 정한다.
 
-    equity_df 컬럼 명세:
-        - Date: 날짜 (date)
-        - equity: 합산 에쿼티 (shared_cash + 전 자산 평가액)
-        - cash: 미투자 현금
-        - drawdown_pct: 드로우다운 (%)
-        - {asset_id}_value: 자산별 주식 평가액 (position × close)
-        - {asset_id}_weight: 자산별 실제 비중 (value / equity)
-        - {asset_id}_signal: 자산별 시그널 ("buy" 또는 "sell")
-        - {asset_id}_shares, {asset_id}_avg_price: 자산별 보유 상태
-        - {asset_id}_realized_pnl, {asset_id}_unrealized_pnl: 자산별 손익 추적
-        - {asset_id}_contribution: realized_pnl + unrealized_pnl (자산별 누적 기여 손익, build_combined_equity SSoT)
-        - rebalanced: 해당일 리밸런싱 실행 여부 (bool)
-
-    trades_df 추가 컬럼:
-        - asset_id: 자산 식별자
-        - trade_type: 거래 원인 ("signal" 또는 "rebalance")
-
-    state_log_df 컬럼 명세 (매 거래일 1행):
-        기본: Date, equity, cash, is_month_end, rebalanced, rebalance_reason
-        자산별 ({asset_id}_ 접두사):
-        - {aid}_close, {aid}_shares, {aid}_weight: 당일 상태
-        - {aid}_signal_today: 당일 시그널 판정 ("buy"/"sell"/"hold")
-        - {aid}_pending_intent: 익일 체결 예정 intent_type
-        - {aid}_pending_reason, {aid}_pending_delta: pending intent 상세
-        - {aid}_executed_intent: 당일 처리된 intent_type (1주 미만이라 0주로 끝나도 기록)
-        - {aid}_exec_side, {aid}_exec_shares, {aid}_exec_price: 체결 상세 (0주면 가격 0.0)
-        - {aid}_target_weight: 비중이 바뀌는 매매법 자산만 — 그날 매매법 자본 대비 목표 비중
-
-    자산 키({aid}): 매매법이 하나면 자산 id, 둘 이상이면 「매매법.자산」(position_key).
-
-    ledger_df 컬럼 명세 (매 거래일 × 매매법 1행):
-        Date, method_id, equity(매매법 자본), cash, share(Σ 매매법 자본 대비 몫), target_share,
-        pnl(실현 + 미실현 누적), cost(단독 매매로 매긴 비용 누적), transfers(매매법 사이 이전 누적),
-        rebalanced, rebalance_reason("monthly" | "methods" | "")
-
-    netting_df 컬럼 명세 (상계가 있던 날 × 자산 1행, 매매법이 둘 이상일 때만 행이 생긴다):
-        Date, asset_id, gross_shares(Σ|Δ|), net_shares(ΣΔ), open_price, savings
+    - 자산 키: 매매법이 하나면 자산 id, 둘 이상이면 「매매법.자산」(position_key)
+    - equity_df · state_log_df 는 거래일마다 한 행이다
+    - ledger_df 는 매매법이 하나여도 만든다 (검사기가 한 경로로 검사한다)
+    - netting_df 는 매매법이 둘 이상일 때만 행이 생긴다
 
     Attributes:
-        experiment_name: 실험 식별자
         display_name: 표시 이름
         equity_df: 합산 에쿼티 DataFrame
         trades_df: 전 자산 거래 DataFrame (asset_id, trade_type 컬럼 포함)
@@ -362,7 +319,6 @@ class PortfolioResult:
         netting_df: 종목 단위 상계 내역 DataFrame
     """
 
-    experiment_name: str
     display_name: str
     equity_df: pd.DataFrame
     trades_df: pd.DataFrame

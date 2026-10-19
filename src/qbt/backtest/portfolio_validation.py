@@ -1,7 +1,7 @@
 """포트폴리오 백테스트 결과 정합성 검증
 
 PortfolioResult의 state_log_df, equity_df, ledger_df를 기반으로
-7개 정합성 규칙을 검증한다. 위반 사항을 문자열 리스트로 반환한다.
+아래 정합성 규칙을 검증한다. 위반 사항을 문자열 리스트로 반환한다.
 
 규칙 1: 시그널-체결 1일 lag
 규칙 2: 리밸런싱 후 비중 정합성 (매매법 자본 대비)
@@ -19,7 +19,7 @@ from datetime import date
 
 import pandas as pd
 
-from qbt.backtest.constants import REBALANCE_REASON_METHODS
+from qbt.backtest.constants import REBALANCE_INTENT_TYPES, REBALANCE_REASON_METHODS
 from qbt.backtest.engines.portfolio_rebalance import DEFAULT_REBALANCE_POLICY, is_last_trading_day_of_month
 from qbt.backtest.portfolio_types import (
     ASSET_COL_SUFFIX_VALUE,
@@ -41,9 +41,6 @@ _REBALANCE_WEIGHT_DEVIATION_THRESHOLD = 0.20
 
 # 에쿼티 등식 허용 오차 (원)
 _EQUITY_EQUATION_TOLERANCE = 1.0
-
-# 그날 목표 비중으로 맞춘 체결 (규칙 2 의 검사 대상)
-_REBALANCE_INTENT_TYPES = ("REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
 
 
 def _check_signal_execution_lag(
@@ -185,7 +182,7 @@ def _check_method_rebalance_weight_consistency(
             if key_method != method_id:
                 continue
             executed_intent = state_row[asset_executed_intent_col(key)]
-            adjusted_to_target = executed_intent in _REBALANCE_INTENT_TYPES
+            adjusted_to_target = executed_intent in REBALANCE_INTENT_TYPES
             left_without_order = whole_method_rebalanced and executed_intent == ""
             if not (adjusted_to_target or left_without_order):
                 continue
@@ -423,7 +420,7 @@ def _check_method_shares_after_transfer(
 
 
 def validate_portfolio_result(result: PortfolioResult) -> list[str]:
-    """PortfolioResult에 대해 7개 정합성 규칙을 검증한다.
+    """PortfolioResult에 대해 정합성 규칙(모듈 docstring)을 검증한다.
 
     Args:
         result: 포트폴리오 백테스트 결과

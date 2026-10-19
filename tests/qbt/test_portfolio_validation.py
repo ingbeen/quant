@@ -645,7 +645,7 @@ def _minimal_result(state_log: pd.DataFrame, rebalanced_last_day: bool = False) 
             "rebalance_reason": ["", REBALANCE_REASON_MONTHLY if rebalanced_last_day else ""],
         }
     )
-    return PortfolioResult("t", "T", equity, pd.DataFrame(), {}, config, state_log_df=state_log, ledger_df=ledger)
+    return PortfolioResult("T", equity, pd.DataFrame(), {}, config, state_log_df=state_log, ledger_df=ledger)
 
 
 class TestValidatePortfolioResult:

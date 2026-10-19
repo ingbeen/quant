@@ -20,11 +20,9 @@ import pytest
 from qbt.backtest import combo_experiment as cx
 from qbt.backtest import supplement_experiment as se
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
-from qbt.backtest.portfolio_configs import get_portfolio_config
 from qbt.backtest.portfolio_types import PortfolioConfig, PortfolioResult
 from qbt.common_constants import COL_DATE
 
-_Q2_SLOTS = get_portfolio_config("portfolio_q2_2xs").asset_slots
 _MONTHS = [date(2016, m, 1) for m in range(1, 5)]
 
 # ============================================================================
@@ -213,7 +211,7 @@ class TestComboCases:
         """
         for case in cx.build_combo_cases():
             # When / Then
-            validate_portfolio_config(cx.build_case_config(_Q2_SLOTS, case))
+            validate_portfolio_config(cx.build_case_config(case))
 
 
 # ============================================================================
@@ -633,13 +631,13 @@ class TestRunComboCase:
         late = pd.DataFrame({COL_DATE: [date(2001, 9, 4), date(2001, 9, 5)], "equity": [1.0, 1.0]})
 
         def _fake_run(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult:
-            return PortfolioResult("t", "t", late, pd.DataFrame(), {}, config)
+            return PortfolioResult("t", late, pd.DataFrame(), {}, config)
 
         monkeypatch.setattr(se, "run_portfolio_backtest", _fake_run)
 
         # When / Then
         with pytest.raises(ValueError, match="시작일"):
-            cx.run_combo_case(case, _Q2_SLOTS)
+            cx.run_combo_case(case)
 
     def test_decision_targets_by_candidate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """
@@ -670,7 +668,7 @@ class TestRunComboCase:
             )
             equity = pd.DataFrame({COL_DATE: days, "equity": [100.0, 101.0, 102.0]})
             summary = {"cagr": 1.0, "mdd": -1.0, "calmar": 1.0}
-            return PortfolioResult("t", "t", equity, pd.DataFrame(), summary, config, state_log_df=state_log)
+            return PortfolioResult("t", equity, pd.DataFrame(), summary, config, state_log_df=state_log)
 
         monkeypatch.setattr(se, "run_portfolio_backtest", _fake_run)
         monkeypatch.setattr(cx, "validate_portfolio_result", lambda result: [])
@@ -685,7 +683,7 @@ class TestRunComboCase:
 
         # When
         targets = {
-            name: {m: set(t.columns) for m, t in cx.run_combo_case(case, _Q2_SLOTS).decision_targets.items()}
+            name: {m: set(t.columns) for m, t in cx.run_combo_case(case).decision_targets.items()}
             for name, case in picks.items()
         }
 

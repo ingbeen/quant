@@ -170,47 +170,38 @@
         "assets": [
           {
             "asset_id": "spy",
-            "signal_data_path": "storage/stock/SPY_max.csv",
             "trade_data_path": "storage/stock/SPY_max.csv"
           },
           {
             "asset_id": "iwm",
-            "signal_data_path": "storage/stock/IWM_max.csv",
             "trade_data_path": "storage/stock/IWM_max.csv"
           },
           {
             "asset_id": "vea",
-            "signal_data_path": "storage/stock/VEA_synthetic_max.csv",
             "trade_data_path": "storage/stock/VEA_synthetic_max.csv"
           },
           {
             "asset_id": "vwo",
-            "signal_data_path": "storage/stock/VWO_max.csv",
             "trade_data_path": "storage/stock/VWO_max.csv"
           },
           {
             "asset_id": "vnq",
-            "signal_data_path": "storage/stock/VNQ_max.csv",
             "trade_data_path": "storage/stock/VNQ_max.csv"
           },
           {
             "asset_id": "pdbc",
-            "signal_data_path": "storage/stock/PDBC_synthetic_max.csv",
             "trade_data_path": "storage/stock/PDBC_synthetic_max.csv"
           },
           {
             "asset_id": "ief",
-            "signal_data_path": "storage/stock/IEF_max.csv",
             "trade_data_path": "storage/stock/IEF_max.csv"
           },
           {
             "asset_id": "tlt",
-            "signal_data_path": "storage/stock/TLT_max.csv",
             "trade_data_path": "storage/stock/TLT_max.csv"
           },
           {
             "asset_id": "bil",
-            "signal_data_path": "storage/stock/BIL_synthetic_max.csv",
             "trade_data_path": "storage/stock/BIL_synthetic_max.csv"
           }
         ],
@@ -229,12 +220,10 @@
         "assets": [
           {
             "asset_id": "vxus",
-            "signal_data_path": "storage/stock/VXUS_synthetic_max.csv",
             "trade_data_path": "storage/stock/VXUS_synthetic_max.csv"
           },
           {
             "asset_id": "shy",
-            "signal_data_path": "storage/stock/SHY_max.csv",
             "trade_data_path": "storage/stock/SHY_max.csv"
           }
         ],

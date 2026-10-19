@@ -5,7 +5,6 @@ EWY(한국 주식) 종가에 Q-2-2XS 와 같은 버퍼존 신호를 쓴다. 매�
 """
 
 from collections.abc import Mapping
-from datetime import date
 from typing import Final
 
 import pandas as pd
@@ -40,7 +39,6 @@ class EwyBufferZoneAllocator:
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         if self._signal_df is None:
@@ -53,7 +51,7 @@ class EwyBufferZoneAllocator:
         first_call = self._held is None
         held = bool(self._held)
 
-        if not held and self._strategy.check_buy(self._signal_df, row, current_date):
+        if not held and self._strategy.check_buy(self._signal_df, row):
             self._held = True
             return dict(_IN_MARKET)
         if held and self._strategy.check_sell(self._signal_df, row):

@@ -1,9 +1,10 @@
-"""포트폴리오 체결 -- 자산 상태 및 SELL->BUY 순 주문 체결 함수"""
+"""포트폴리오 체결 -- SELL->BUY 순 주문 체결 함수"""
 
 from dataclasses import dataclass
 from datetime import date
 
 from qbt.backtest.constants import (
+    BUY_INTENT_TYPES,
     COL_BUY_BUFFER_PCT,
     COL_ENTRY_DATE,
     COL_ENTRY_PRICE,
@@ -14,6 +15,7 @@ from qbt.backtest.constants import (
     COL_PNL,
     COL_PNL_PCT,
     COL_SHARES,
+    SELL_INTENT_TYPES,
     TRADE_TYPE_REBALANCE,
     TRADE_TYPE_SIGNAL,
 )
@@ -59,20 +61,7 @@ def execute_orders(
 
     SELL을 먼저 체결하여 확보된 현금을 포함한 available_cash를 계산한 뒤
     BUY 체결에 활용한다. BUY 총 비용이 available_cash를 초과하면 자산별
-    BUY amount를 동일 비율(scale_factor)로 축소하여 음수 현금이 발생하지 않도록 한다.
-
-    처리 흐름:
-        1. SELL 단계: EXIT_ALL(전량), REDUCE_TO_TARGET(delta_amount 기준) 체결
-        2. CASH 확정: available_cash = current_cash + sell_proceeds
-        3. BUY 단계:
-           a. raw_shares = floor(delta_amount / buy_price)
-           b. total_raw_cost = raw_shares x buy_price
-           c. total_raw_cost > available_cash 이면 scale_factor 적용
-              adjusted_amount = delta_amount x scale_factor
-              shares = floor(adjusted_amount / buy_price)
-           d. ENTER_TO_TARGET: 신규 진입, entry 정보 기록
-              INCREASE_TO_TARGET: 가중평균 entry_price 업데이트
-        4. ExecutionResult 반환
+    주수를 동일 비율(scale_factor = available_cash / 총 비용)로 줄여(내림) 음수 현금이 발생하지 않도록 한다.
 
     Args:
         order_intents: {asset_id: OrderIntent}
@@ -100,7 +89,7 @@ def execute_orders(
     # 호출 계약: positions/open_prices/e_prices/e_dates/e_hold_days 는 order_intents 전 자산을 포함해야 한다.
     # 누락 시 KeyError/RuntimeError로 즉시 중단(fail-fast)하여 silent 0/None 대체를 방지한다.
     for asset_id, intent in order_intents.items():
-        if intent.intent_type not in ("EXIT_ALL", "REDUCE_TO_TARGET"):
+        if intent.intent_type not in SELL_INTENT_TYPES:
             continue
         if asset_id not in positions:
             raise RuntimeError(
@@ -187,7 +176,7 @@ def execute_orders(
     buy_prices_map: dict[str, float] = {}
 
     for asset_id, intent in order_intents.items():
-        if intent.intent_type not in ("ENTER_TO_TARGET", "INCREASE_TO_TARGET"):
+        if intent.intent_type not in BUY_INTENT_TYPES:
             continue
         if intent.delta_amount <= 0:
             raise RuntimeError(

@@ -55,6 +55,10 @@ SIGNAL_FILENAME: Final = "signal.csv"
 EQUITY_FILENAME: Final = "equity.csv"
 TRADES_FILENAME: Final = "trades.csv"
 SUMMARY_FILENAME: Final = "summary.json"
+# 포트폴리오 실험 폴더에만 있는 파일 — 자산 키별 시그널은 portfolio_signal_filename
+LEDGER_FILENAME: Final = "ledger.csv"
+NETTING_FILENAME: Final = "netting.csv"
+PORTFOLIO_SIGNAL_PREFIX: Final = "signal_"
 
 # --- WFO 결과 파일명 ---
 WALKFORWARD_DYNAMIC_FILENAME: Final = "walkforward_dynamic.csv"
@@ -93,6 +97,13 @@ COL_DRAWDOWN_PCT: Final = "drawdown_pct"
 TRADE_TYPE_SIGNAL: Final = "signal"  # 신호 · 배분 변화에 따른 청산
 TRADE_TYPE_REBALANCE: Final = "rebalance"  # 목표 비중으로 줄이는 부분 매도
 
+# --- 포트폴리오 주문 의도(OrderIntent.intent_type) 묶음 ---
+# 체결은 매도 묶음을 먼저, 매수 묶음을 나중에 한다 (매도 대금을 매수에 쓴다)
+SELL_INTENT_TYPES: Final = ("EXIT_ALL", "REDUCE_TO_TARGET")
+BUY_INTENT_TYPES: Final = ("ENTER_TO_TARGET", "INCREASE_TO_TARGET")
+# 보유를 목표 금액으로 증감하는 의도 (리밸런싱 · 배분 규칙의 비중 조정) — 진입 · 청산이 아니다
+REBALANCE_INTENT_TYPES: Final = ("REDUCE_TO_TARGET", "INCREASE_TO_TARGET")
+
 # --- 포트폴리오 결과의 rebalance_reason 값 ---
 # 리밸런싱했는데 사유가 빈 문자열이면 배분 규칙 매매법이 목표 비중 변화에 맞춰 조정한 것이다
 REBALANCE_REASON_MONTHLY: Final = "monthly"  # 월말에 판단해 다음 거래일에 체결하는 정기 리밸런싱
@@ -129,3 +140,8 @@ def ma_col_name(window: int) -> str:
 def wfo_window_filename(window_idx: int, filename: str) -> str:
     """WFO 윈도우별 상세 파일명. 예: wfo_window_filename(3, SIGNAL_FILENAME) -> 'w03_signal.csv'"""
     return f"w{window_idx:02d}_{filename}"
+
+
+def portfolio_signal_filename(asset_key: str) -> str:
+    """포트폴리오 자산 키별 시그널 파일명. 예: portfolio_signal_filename("qqq") -> 'signal_qqq.csv'"""
+    return f"{PORTFOLIO_SIGNAL_PREFIX}{asset_key}.csv"

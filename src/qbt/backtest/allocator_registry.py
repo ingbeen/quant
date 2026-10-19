@@ -8,7 +8,6 @@ strategy_registry 와 같은 모양이며, 포트폴리오 엔진은 이 레지�
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import date
 from typing import Protocol
 
 import pandas as pd
@@ -36,7 +35,6 @@ class WeightAllocator(Protocol):
         self,
         data: Mapping[str, pd.DataFrame],
         i: int,
-        current_date: date,
         is_check_day: bool,
     ) -> Mapping[str, float] | None:
         """i 번째 거래일 종가 기준 목표 비중을 반환한다. 체결은 다음 거래일 시가다.
@@ -44,7 +42,6 @@ class WeightAllocator(Protocol):
         Args:
             data: 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키). 모두 같은 거래일 행으로 정렬돼 있다
             i: 현재 행 인덱스. i 행까지만 봐야 한다 (미래 참조 금지)
-            current_date: 현재 거래일
             is_check_day: 월 마지막 거래일(리밸런싱 판단일) 여부. 월 1회 규칙은 이 날만 판단한다
 
         Returns:
@@ -55,16 +52,14 @@ class WeightAllocator(Protocol):
 
 @dataclass(frozen=True)
 class AllocatorSpec:
-    """배분 규칙 명세.
+    """배분 규칙 명세 (ALLOCATOR_REGISTRY 의 값 — 키가 allocator_id 다).
 
     Attributes:
-        allocator_id: ALLOCATOR_REGISTRY 의 키
         create_allocator: 매매법 설정을 받아 배분 규칙 객체를 만든다
         get_warmup_periods: 판단에 필요한 행 수 — ma_window 와 같은 뜻으로, 이 값 − 1 번째 행부터 판단할 수 있다.
             0 이면 첫 행부터 판단한다
     """
 
-    allocator_id: str
     create_allocator: Callable[[AllocatorMethodConfig], WeightAllocator]
     get_warmup_periods: Callable[[AllocatorMethodConfig], int]
 
@@ -103,17 +98,14 @@ def _create_ewy_buffer_zone(method: AllocatorMethodConfig) -> WeightAllocator:
 
 ALLOCATOR_REGISTRY: dict[str, AllocatorSpec] = {
     "haa": AllocatorSpec(
-        allocator_id="haa",
         create_allocator=_create_haa,
         get_warmup_periods=lambda method: HAA_WARMUP_ROWS,
     ),
     "us_weakness_rotation": AllocatorSpec(
-        allocator_id="us_weakness_rotation",
         create_allocator=_create_us_weakness_rotation,
         get_warmup_periods=lambda method: FIXED_4P_MA_WINDOW,
     ),
     "ewy_buffer_zone": AllocatorSpec(
-        allocator_id="ewy_buffer_zone",
         create_allocator=_create_ewy_buffer_zone,
         get_warmup_periods=lambda method: FIXED_4P_MA_WINDOW,
     ),

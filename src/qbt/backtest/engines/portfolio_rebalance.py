@@ -53,8 +53,7 @@ class RebalancePolicy:
             target_weight = target_weights[asset_id]
             if target_weight == 0:
                 continue
-            current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            actual_weight = current_amount / total_equity_projected
+            actual_weight = projected.projected_amounts[asset_id] / total_equity_projected
             deviation = abs(actual_weight / target_weight - 1.0)
             if deviation > self.threshold_rate:
                 return True
@@ -69,8 +68,7 @@ class RebalancePolicy:
     ) -> dict[str, OrderIntent]:
         """projected 상태 기반으로 리밸런싱 intent를 생성한다.
 
-        threshold 체크 없이 항상 intent를 생성한다.
-        should_rebalance()가 True인 경우에만 호출해야 한다.
+        threshold 체크 없이 항상 intent를 생성한다 — 호출자가 판정(should_rebalance 또는 매매법 사이 판정) 뒤에 부른다.
 
         1. active_assets 전체에 대해 REDUCE_TO_TARGET / INCREASE_TO_TARGET 생성
         2. scale_factor: projected_cash + 예상 매도 수익 기준 매수 가능액 계산
@@ -108,9 +106,7 @@ class RebalancePolicy:
         for asset_id in target_weights:
             if asset_id not in projected.active_assets:
                 continue
-            target_amount = total_equity_projected * target_weights[asset_id]
-            current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            delta = target_amount - current_amount
+            delta = total_equity_projected * target_weights[asset_id] - projected.projected_amounts[asset_id]
             if delta < 0:
                 sell_intents[asset_id] = abs(delta)
             elif delta > 0:
@@ -129,30 +125,16 @@ class RebalancePolicy:
         result: dict[str, OrderIntent] = {}
 
         for asset_id, excess_value in sell_intents.items():
-            target_weight = target_weights[asset_id]
-            current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            target_amount = total_equity_projected * target_weight
             result[asset_id] = OrderIntent(
-                asset_id=asset_id,
                 intent_type="REDUCE_TO_TARGET",
-                current_amount=current_amount,
-                target_amount=target_amount,
                 delta_amount=-excess_value,
-                target_weight=target_weight,
                 reason=f"rebalance {current_date}",
             )
 
         for asset_id, buy_amount in buy_intents.items():
-            target_weight = target_weights[asset_id]
-            current_amount = projected.projected_amounts.get(asset_id, 0.0)
-            target_amount = total_equity_projected * target_weight
             result[asset_id] = OrderIntent(
-                asset_id=asset_id,
                 intent_type="INCREASE_TO_TARGET",
-                current_amount=current_amount,
-                target_amount=target_amount,
                 delta_amount=buy_amount,
-                target_weight=target_weight,
                 reason=f"rebalance {current_date}",
             )
 

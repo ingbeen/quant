@@ -376,7 +376,7 @@ def run_backtest(
         # 4-3. 신호 감지 및 주문 예약 (signal_df 기준, 전략 내부에서 처리)
         if position == 0:
             # 매수 로직 — strategy.check_buy()에 위임 (내부 prev 상태 갱신 포함)
-            buy = strategy.check_buy(signal_df, i, current_date)
+            buy = strategy.check_buy(signal_df, i)
 
             if buy:
                 # 매수 신호: get_buy_meta()로 메타데이터 수집 → 엔진 로컬 상태 갱신

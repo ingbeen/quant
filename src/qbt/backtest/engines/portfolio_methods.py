@@ -43,7 +43,6 @@ class MethodBook:
     Attributes:
         method_id: 매매법 식별자
         target_share: 계좌 대비 목표 몫
-        initial_capital: 처음 받은 자본 (총 자본 × 목표 몫)
         asset_of_key: {키: 자산 id} — 상계는 자산 id 단위로 묶는다
         cash: 현금
         asset_states: {키: 보유 주수 · 신호 상태}
@@ -54,7 +53,7 @@ class MethodBook:
         strategies: {키: 신호 전략} — 슬롯 매매법만
         allocator: 배분 규칙 — 비중변동 매매법만
         allocator_data: {자산 id · series_id: 시세} — 배분 규칙 입력
-        cost: 단독 매매로 매긴 비용 누적 (C안 장부 비용)
+        cost: 단독 매매로 매긴 비용 누적 (상계 절감은 계좌에 따로 둔다)
         transfers: 매매법 사이 이전 누적 (받으면 +, 내주면 −)
         next_day_intents: 다음 거래일 시가에 체결할 의도
         next_day_reason: 그 의도의 리밸런싱 사유 ("monthly" | "methods" | "")
@@ -63,7 +62,6 @@ class MethodBook:
 
     method_id: str
     target_share: float
-    initial_capital: float
     asset_of_key: dict[str, str]
     cash: float
     asset_states: dict[str, AssetState]
@@ -177,9 +175,7 @@ def cap_transfers(planned: Mapping[str, float], cash_after_sells: Mapping[str, f
         {method_id: 실제 이전액}
     """
     given = {
-        method_id: min(-amount, max(cash_after_sells[method_id], 0.0))
-        for method_id, amount in planned.items()
-        if amount < 0
+        method_id: min(-amount, cash_after_sells[method_id]) for method_id, amount in planned.items() if amount < 0
     }
     total_given = sum(given.values())
     total_requested = sum(amount for amount in planned.values() if amount > 0)
@@ -200,8 +196,12 @@ def cap_transfers(planned: Mapping[str, float], cash_after_sells: Mapping[str, f
 # ============================================================================
 
 
-def _validate_allocation(new_targets: Mapping[str, float], assets: Sequence[str]) -> dict[str, float]:
-    """배분 규칙이 낸 목표 비중을 검증하고 매매법 전 자산으로 채운다(없는 자산 0)."""
+def resolve_allocation(new_targets: Mapping[str, float], assets: Sequence[str]) -> dict[str, float]:
+    """배분 규칙이 낸 목표 비중을 검증하고 매매법 전 자산으로 채운다(없는 자산 0).
+
+    Raises:
+        ValueError: 모르는 자산 · 숫자가 아닌 비중 · 음수 비중 · 합 1 초과
+    """
     unknown = sorted(set(new_targets) - set(assets))
     if unknown:
         raise ValueError(f"배분 규칙이 매매법에 없는 자산의 비중을 냈습니다: {unknown} (매매법 자산: {list(assets)})")
@@ -219,7 +219,7 @@ def _validate_allocation(new_targets: Mapping[str, float], assets: Sequence[str]
 
 def generate_allocation_intents(
     old_targets: Mapping[str, float],
-    new_targets: Mapping[str, float] | None,
+    new_targets: Mapping[str, float],
     positions: Mapping[str, int],
     equity_vals: Mapping[str, float],
     method_equity: float,
@@ -233,58 +233,37 @@ def generate_allocation_intents(
 
     Args:
         old_targets: {자산: 직전 목표 비중} — 매매법 자산 전부를 키로 갖는다
-        new_targets: 배분 규칙이 낸 목표 비중. None 이면 목표 변경 없음
+        new_targets: {자산: 새 목표 비중} — resolve_allocation 결과 (매매법 자산 전부)
         positions: {자산: 보유 주수}
         equity_vals: {자산: 평가액}
         method_equity: 매매법 자본
 
     Returns:
         {자산: OrderIntent}
-
-    Raises:
-        ValueError: 모르는 자산 · 음수 비중 · 합 1 초과
     """
-    if new_targets is None:
-        return {}
-    targets = _validate_allocation(new_targets, list(old_targets))
-
     intents: dict[str, OrderIntent] = {}
-    for asset_id, new_weight in targets.items():
+    for asset_id, new_weight in new_targets.items():
         position = positions[asset_id]
         current_amount = equity_vals[asset_id]
         if new_weight == 0:
             if position > 0:
                 intents[asset_id] = OrderIntent(
-                    asset_id=asset_id,
                     intent_type="EXIT_ALL",
-                    current_amount=current_amount,
-                    target_amount=0.0,
                     delta_amount=-current_amount,
-                    target_weight=0.0,
                     reason="allocation exit",
                 )
         elif position == 0:
-            target_amount = method_equity * new_weight
             intents[asset_id] = OrderIntent(
-                asset_id=asset_id,
                 intent_type="ENTER_TO_TARGET",
-                current_amount=0.0,
-                target_amount=target_amount,
-                delta_amount=target_amount,
-                target_weight=new_weight,
+                delta_amount=method_equity * new_weight,
                 reason="allocation enter",
             )
         elif new_weight != old_targets[asset_id]:
-            target_amount = method_equity * new_weight
-            delta = target_amount - current_amount
+            delta = method_equity * new_weight - current_amount
             if delta != 0:
                 intents[asset_id] = OrderIntent(
-                    asset_id=asset_id,
                     intent_type="REDUCE_TO_TARGET" if delta < 0 else "INCREASE_TO_TARGET",
-                    current_amount=current_amount,
-                    target_amount=target_amount,
                     delta_amount=delta,
-                    target_weight=new_weight,
                     reason="allocation change",
                 )
     return intents
@@ -335,6 +314,8 @@ def compute_allocation_projection(
 
 def summarize_methods(result: PortfolioResult) -> dict[str, Any]:
     """매매법별 손익 · 상계 · 계좌 종목 합계 요약을 만든다 (반올림하지 않은 값, 저장은 러너가 한다).
+
+    매매법이 여럿인 실험에만 부른다 — 에쿼티의 netting_savings 열은 그때만 있다.
 
     Returns:
         {"per_method": [...], "netting": {...}, "account_holdings": [...], "pnl_check": {...}}
@@ -391,7 +372,7 @@ def summarize_methods(result: PortfolioResult) -> dict[str, Any]:
         for asset_id, v in holdings.items()
     ]
 
-    savings = float(last["netting_savings"]) if "netting_savings" in result.equity_df.columns else 0.0
+    savings = float(last["netting_savings"])
     account_pnl = float(last["equity"]) - result.config.total_capital
     methods_pnl = sum(item["pnl"] for item in per_method)
     pnl_check = {

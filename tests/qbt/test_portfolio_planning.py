@@ -33,7 +33,7 @@ from qbt.common_constants import COL_CLOSE, COL_DATE
 class _MockBuyStrategy:
     """항상 buy signal을 반환하는 mock 전략 (SignalStrategy Protocol 구현)."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
+    def check_buy(self, signal_df: pd.DataFrame, i: int) -> bool:
         return True
 
     def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
@@ -46,7 +46,7 @@ class _MockBuyStrategy:
 class _MockSellStrategy:
     """항상 sell signal을 반환하는 mock 전략."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
+    def check_buy(self, signal_df: pd.DataFrame, i: int) -> bool:
         return False
 
     def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
@@ -59,7 +59,7 @@ class _MockSellStrategy:
 class _MockHoldStrategy:
     """아무 signal도 발생하지 않는 mock 전략."""
 
-    def check_buy(self, signal_df: pd.DataFrame, i: int, current_date: date) -> bool:
+    def check_buy(self, signal_df: pd.DataFrame, i: int) -> bool:
         return False
 
     def check_sell(self, signal_df: pd.DataFrame, i: int) -> bool:
@@ -94,12 +94,8 @@ class TestOrderIntentModel:
         """
         # Given / When
         intent = OrderIntent(
-            asset_id="qqq",
             intent_type="EXIT_ALL",
-            current_amount=100_000.0,
-            target_amount=0.0,
             delta_amount=-100_000.0,
-            target_weight=0.0,
             reason="signal sell",
         )
 
@@ -116,12 +112,8 @@ class TestOrderIntentModel:
         Then:  intent.intent_type == "ENTER_TO_TARGET", intent.hold_days_used == 3
         """
         intent = OrderIntent(
-            asset_id="qqq",
             intent_type="ENTER_TO_TARGET",
-            current_amount=0.0,
-            target_amount=300_000.0,
             delta_amount=300_000.0,
-            target_weight=0.30,
             reason="signal buy",
             hold_days_used=3,
         )
@@ -138,12 +130,8 @@ class TestOrderIntentModel:
         Then:  intent.intent_type == "REDUCE_TO_TARGET"
         """
         intent = OrderIntent(
-            asset_id="qqq",
             intent_type="REDUCE_TO_TARGET",
-            current_amount=400_000.0,
-            target_amount=300_000.0,
             delta_amount=-100_000.0,
-            target_weight=0.30,
             reason="rebalance",
         )
 
@@ -159,12 +147,8 @@ class TestOrderIntentModel:
         Then:  intent.intent_type == "INCREASE_TO_TARGET"
         """
         intent = OrderIntent(
-            asset_id="gld",
             intent_type="INCREASE_TO_TARGET",
-            current_amount=200_000.0,
-            target_amount=300_000.0,
             delta_amount=100_000.0,
-            target_weight=0.30,
             reason="rebalance",
         )
 
@@ -176,8 +160,8 @@ class TestGenerateSignalIntents:
     """generate_signal_intents 계약 검증.
 
     핵심 계약:
-    - position=0 + buy signal → ENTER_TO_TARGET (target_amount = current_equity × target_weight)
-    - position>0 + sell signal → EXIT_ALL
+    - position=0 + buy signal → ENTER_TO_TARGET (증감액 = current_equity × target_weight)
+    - position>0 + sell signal → EXIT_ALL (증감액 = −평가액)
     - 신호 없음(HOLD) → dict에 포함 안 됨
     """
 
@@ -193,7 +177,7 @@ class TestGenerateSignalIntents:
                current_equity=1_000_000, target_weight=0.30
         When:  generate_signal_intents() 호출
         Then:  qqq에 ENTER_TO_TARGET intent 생성
-               target_amount ≈ current_equity × 0.30 = 300,000
+               delta_amount ≈ current_equity × 0.30 = 300,000
         """
         # Given
         asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
@@ -205,13 +189,13 @@ class TestGenerateSignalIntents:
 
         # When
         intents = generate_signal_intents(
-            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0
         )
 
         # Then
         assert "qqq" in intents, "buy signal 발생 시 qqq에 intent가 생성되어야 함"
         assert intents["qqq"].intent_type == "ENTER_TO_TARGET"
-        assert intents["qqq"].target_amount == pytest.approx(300_000.0, rel=1e-6)
+        assert intents["qqq"].delta_amount == pytest.approx(300_000.0, rel=1e-6)
 
     def test_sell_signal_generates_exit_all(self) -> None:
         """
@@ -221,7 +205,7 @@ class TestGenerateSignalIntents:
                equity_vals["qqq"]=100_000
         When:  generate_signal_intents() 호출
         Then:  qqq에 EXIT_ALL intent 생성
-               current_amount == equity_vals["qqq"], target_amount == 0
+               delta_amount == −equity_vals["qqq"]
         """
         # Given
         asset_states = {"qqq": AssetState(position=100, signal_state="buy")}
@@ -233,14 +217,13 @@ class TestGenerateSignalIntents:
 
         # When
         intents = generate_signal_intents(
-            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0
         )
 
         # Then
         assert "qqq" in intents, "sell signal 발생 시 qqq에 intent가 생성되어야 함"
         assert intents["qqq"].intent_type == "EXIT_ALL"
-        assert intents["qqq"].current_amount == pytest.approx(100_000.0, abs=0.01)
-        assert intents["qqq"].target_amount == pytest.approx(0.0, abs=0.01)
+        assert intents["qqq"].delta_amount == pytest.approx(-100_000.0, abs=0.01)
 
     def test_no_signal_generates_no_intent(self) -> None:
         """
@@ -260,7 +243,7 @@ class TestGenerateSignalIntents:
 
         # When
         intents = generate_signal_intents(
-            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0, date(2024, 1, 2)
+            asset_states, strategies, signal_dfs, equity_vals, slot_dict, current_equity, 0
         )
 
         # Then
@@ -278,20 +261,13 @@ class TestComputeProjectedPortfolio:
 
     def _make_intent(
         self,
-        asset_id: str,
         intent_type: str,
-        current_amount: float = 0.0,
-        target_amount: float = 0.0,
         delta_amount: float = 0.0,
     ) -> Any:
         """테스트용 OrderIntent 생성 헬퍼."""
         return OrderIntent(
-            asset_id=asset_id,
             intent_type=intent_type,
-            current_amount=current_amount,
-            target_amount=target_amount,
             delta_amount=delta_amount,
-            target_weight=0.30,
             reason="test",
         )
 
@@ -308,7 +284,7 @@ class TestComputeProjectedPortfolio:
         """
         # Given
         asset_states = {"qqq": AssetState(position=100, signal_state="buy")}
-        signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
+        signal_intents = {"qqq": self._make_intent("EXIT_ALL", delta_amount=-100_000.0)}
         equity_vals = {"qqq": 100_000.0}
         shared_cash = 50_000.0
 
@@ -333,9 +309,7 @@ class TestComputeProjectedPortfolio:
         """
         # Given
         asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
-        signal_intents = {
-            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
-        }
+        signal_intents = {"qqq": self._make_intent("ENTER_TO_TARGET", delta_amount=300_000.0)}
         equity_vals = {"qqq": 0.0}
         shared_cash = 500_000.0
 
@@ -358,9 +332,7 @@ class TestComputeProjectedPortfolio:
         """
         # Given
         asset_states = {"qqq": AssetState(position=0, signal_state="sell")}
-        signal_intents = {
-            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, delta_amount=300_000.0)
-        }
+        signal_intents = {"qqq": self._make_intent("ENTER_TO_TARGET", delta_amount=300_000.0)}
 
         # When
         projected = compute_projected_portfolio(asset_states, signal_intents, {"qqq": 0.0}, 500_000.0)
@@ -381,7 +353,7 @@ class TestComputeProjectedPortfolio:
             "qqq": AssetState(position=100, signal_state="buy"),
             "gld": AssetState(position=50, signal_state="buy"),
         }
-        signal_intents = {"qqq": self._make_intent("qqq", "EXIT_ALL", current_amount=100_000.0)}
+        signal_intents = {"qqq": self._make_intent("EXIT_ALL", delta_amount=-100_000.0)}
         equity_vals = {"qqq": 100_000.0, "gld": 50_000.0}
 
         # When
@@ -478,27 +450,21 @@ class TestMergeIntents:
 
     핵심 계약:
     - EXIT_ALL은 항상 우선 (rebalance intent 무시)
-    - ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target_amount 사용)
+    - ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance 의 delta_amount 사용)
     - 단독 signal/rebalance intent는 그대로 통과
     - 결과: 자산당 1개 intent 보장
     """
 
     def _make_intent(
         self,
-        asset_id: str,
         intent_type: str,
         delta_amount: float = 0.0,
-        target_amount: float = 0.0,
         hold_days_used: int = 0,
     ) -> Any:
         """테스트용 OrderIntent 생성 헬퍼."""
         return OrderIntent(
-            asset_id=asset_id,
             intent_type=intent_type,
-            current_amount=0.0,
-            target_amount=target_amount,
             delta_amount=delta_amount,
-            target_weight=0.30,
             reason="test",
             hold_days_used=hold_days_used,
         )
@@ -512,10 +478,8 @@ class TestMergeIntents:
         Then:  merged["qqq"].intent_type == "EXIT_ALL"
         """
         # Given
-        signal_intents: dict[str, Any] = {"qqq": self._make_intent("qqq", "EXIT_ALL")}
-        rebalance_intents: dict[str, Any] = {
-            "qqq": self._make_intent("qqq", "REDUCE_TO_TARGET", delta_amount=-100_000.0)
-        }
+        signal_intents: dict[str, Any] = {"qqq": self._make_intent("EXIT_ALL")}
+        rebalance_intents: dict[str, Any] = {"qqq": self._make_intent("REDUCE_TO_TARGET", delta_amount=-100_000.0)}
 
         # When
         merged = merge_intents(signal_intents, rebalance_intents)
@@ -526,29 +490,27 @@ class TestMergeIntents:
 
     def test_enter_plus_increase_becomes_enter_with_rebalance_target(self) -> None:
         """
-        목적: ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance target 사용) 검증.
+        목적: ENTER_TO_TARGET + INCREASE_TO_TARGET → ENTER_TO_TARGET (rebalance 금액 사용) 검증.
 
-        Given: signal → ENTER_TO_TARGET (target=300_000, hold_days_used=3)
-               rebalance → INCREASE_TO_TARGET (target=320_000, delta=320_000)
+        Given: signal → ENTER_TO_TARGET (delta=300_000, hold_days_used=3)
+               rebalance → INCREASE_TO_TARGET (delta=320_000)
         When:  merge_intents() 호출
         Then:  merged.intent_type == "ENTER_TO_TARGET"
-               merged.target_amount == 320_000 (rebalance의 target 사용)
+               merged.delta_amount == 320_000 (rebalance의 금액 사용)
                merged.hold_days_used == 3 (signal의 hold_days_used 보존)
         """
         # Given
         signal_intents: dict[str, Any] = {
-            "qqq": self._make_intent("qqq", "ENTER_TO_TARGET", target_amount=300_000.0, hold_days_used=3)
+            "qqq": self._make_intent("ENTER_TO_TARGET", delta_amount=300_000.0, hold_days_used=3)
         }
-        rebalance_intents: dict[str, Any] = {
-            "qqq": self._make_intent("qqq", "INCREASE_TO_TARGET", target_amount=320_000.0, delta_amount=320_000.0)
-        }
+        rebalance_intents: dict[str, Any] = {"qqq": self._make_intent("INCREASE_TO_TARGET", delta_amount=320_000.0)}
 
         # When
         merged = merge_intents(signal_intents, rebalance_intents)
 
         # Then
         assert merged["qqq"].intent_type == "ENTER_TO_TARGET"
-        assert merged["qqq"].target_amount == pytest.approx(320_000.0, abs=0.01)
+        assert merged["qqq"].delta_amount == pytest.approx(320_000.0, abs=0.01)
         assert merged["qqq"].hold_days_used == 3  # signal의 hold_days_used 보존
 
     def test_single_rebalance_passes_through(self) -> None:
@@ -561,9 +523,7 @@ class TestMergeIntents:
         """
         # Given
         signal_intents: dict[str, Any] = {}
-        rebalance_intents: dict[str, Any] = {
-            "qqq": self._make_intent("qqq", "REDUCE_TO_TARGET", delta_amount=-100_000.0)
-        }
+        rebalance_intents: dict[str, Any] = {"qqq": self._make_intent("REDUCE_TO_TARGET", delta_amount=-100_000.0)}
 
         # When
         merged = merge_intents(signal_intents, rebalance_intents)

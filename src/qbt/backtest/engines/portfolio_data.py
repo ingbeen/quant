@@ -9,7 +9,6 @@ from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY
 from qbt.backtest.analysis import calculate_drawdown_pct_series
 from qbt.backtest.constants import COL_EQUITY
 from qbt.backtest.portfolio_types import (
-    ASSET_COL_SUFFIX_SHARES,
     POSITION_KEY_SEPARATOR,
     AllocatorMethodConfig,
     AssetSlotConfig,
@@ -200,20 +199,18 @@ def validate_portfolio_config(config: PortfolioConfig) -> None:
             )
 
 
-def build_combined_equity(equity_rows: list[dict[str, Any]]) -> pd.DataFrame:
+def build_combined_equity(equity_rows: list[dict[str, Any]], asset_keys: list[str]) -> pd.DataFrame:
     """에쿼티 행 목록을 DataFrame으로 변환하고 드로우다운과 자산별 기여 손익 컬럼을 더한다.
 
     `{자산 키}_contribution` = 실현 + 미실현 누적 손익. 대시보드와 매매법 요약이 이 컬럼을 읽고
-    같은 계산을 다시 하지 않는다.
+    같은 계산을 다시 하지 않는다. asset_keys 는 엔진 장부의 자산 키다 — 열 이름에서 뽑으면 자산 키가 접미사로
+    끝나는 다른 열과 섞일 수 있다.
     """
     equity_df = pd.DataFrame(equity_rows)
 
     # drawdown 계산 (analysis.py의 공용 함수 사용 — 방어 로직 통일)
     equity_df["drawdown_pct"] = calculate_drawdown_pct_series(equity_df[COL_EQUITY])
 
-    asset_keys = [
-        col.removesuffix(ASSET_COL_SUFFIX_SHARES) for col in equity_df.columns if col.endswith(ASSET_COL_SUFFIX_SHARES)
-    ]
     for key in asset_keys:
         equity_df[f"{key}_contribution"] = equity_df[f"{key}_realized_pnl"] + equity_df[f"{key}_unrealized_pnl"]
 

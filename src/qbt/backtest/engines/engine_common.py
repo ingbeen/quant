@@ -17,11 +17,18 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Literal, TypedDict
 
-from qbt.backtest.constants import SLIPPAGE_RATE
-from qbt.utils import get_logger
-
-logger = get_logger(__name__)
-
+from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
+    COL_ENTRY_DATE,
+    COL_ENTRY_PRICE,
+    COL_EXIT_DATE,
+    COL_EXIT_PRICE,
+    COL_HOLD_DAYS_USED,
+    COL_PNL,
+    COL_PNL_PCT,
+    COL_SHARES,
+    SLIPPAGE_RATE,
+)
 
 # ============================================================================
 # TypedDict
@@ -178,15 +185,15 @@ def create_trade_record(
         TradeRecord TypedDict
     """
     return {
-        "entry_date": entry_date,
-        "exit_date": exit_date,
-        "entry_price": entry_price,
-        "exit_price": exit_price,
-        "shares": shares,
-        "pnl": pnl,
-        "pnl_pct": pnl_pct,
-        "buy_buffer_pct": buy_buffer_pct,
-        "hold_days_used": hold_days_used,
+        COL_ENTRY_DATE: entry_date,
+        COL_EXIT_DATE: exit_date,
+        COL_ENTRY_PRICE: entry_price,
+        COL_EXIT_PRICE: exit_price,
+        COL_SHARES: shares,
+        COL_PNL: pnl,
+        COL_PNL_PCT: pnl_pct,
+        COL_BUY_BUFFER_PCT: buy_buffer_pct,
+        COL_HOLD_DAYS_USED: hold_days_used,
     }
 
 

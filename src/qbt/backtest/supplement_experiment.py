@@ -86,6 +86,30 @@ from qbt.common_constants import (
 )
 
 # ============================================================================
+# Q-2-2XS 슬롯 — 공식 실험 portfolio_q2_2xs 와 보완 실험 · 조합의 Q-2-2XS 매매법이 같이 쓴다
+# ============================================================================
+
+# portfolio_configs 가 이 모듈의 구성 함수로 등록 실험을 만들므로 슬롯을 이쪽에 둔다 — 반대로 두면 두 모듈이 서로 import 한다
+Q2_2XS_SLOTS: Final[tuple[AssetSlotConfig, ...]] = (
+    AssetSlotConfig(asset_id="sso", signal_data_path=SPY_DATA_PATH, trade_data_path=SSO_DATA_PATH, target_weight=0.35),
+    AssetSlotConfig(asset_id="qld", signal_data_path=QQQ_DATA_PATH, trade_data_path=QLD_DATA_PATH, target_weight=0.35),
+    AssetSlotConfig(
+        asset_id="gld",
+        signal_data_path=GLD_DATA_PATH,
+        trade_data_path=GLD_DATA_PATH,
+        target_weight=0.15,
+        strategy_id="buy_and_hold",
+    ),
+    AssetSlotConfig(
+        asset_id="tlt",
+        signal_data_path=TLT_DATA_PATH,
+        trade_data_path=TLT_DATA_PATH,
+        target_weight=0.15,
+        strategy_id="buy_and_hold",
+    ),
+)
+
+# ============================================================================
 # 비중 · 판정 기준
 # ============================================================================
 
@@ -198,13 +222,6 @@ GATE_HAA_BUNDLE: Final = "haa_bundle"  # 대용 셋을 한꺼번에 — 관문 (
 GATE_HAA_PAIR_VEA: Final = "haa_pair_vea"  # 쌍별 — 원인 파악용
 GATE_HAA_PAIR_BIL: Final = "haa_pair_bil"
 GATE_HAA_PAIR_PDBC: Final = "haa_pair_pdbc"
-GATE_IDS: Final[tuple[str, ...]] = (
-    GATE_ROTATION,
-    GATE_HAA_BUNDLE,
-    GATE_HAA_PAIR_VEA,
-    GATE_HAA_PAIR_BIL,
-    GATE_HAA_PAIR_PDBC,
-)
 
 _COL_IS_MONTH_END: Final = "is_month_end"
 _TARGET_WEIGHT_SUFFIX: Final = "_target_weight"
@@ -240,8 +257,8 @@ PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
     PhaseWindow("inflation_2022", "물가 약세장 2022", date(2022, 1, 3), date(2022, 10, 12)),
     PhaseWindow("gold_weak", "금 약세기 2013-15", date(2013, 1, 1), date(2015, 12, 31)),
 )
-# 대체 판(2001-08-31 부터)에만 기간 안인 구간 (D68). PHASE_WINDOWS 와 따로 두는 이유: 기존 그리드 러너는
-# PHASE_WINDOWS 만 열로 쓰므로, 거기 넣으면 기존 결과 CSV 에 빈 열이 생긴다 (D69 ⑨).
+# 대체 판(2001-08-31 부터)에만 기간 안인 구간 (D68). PHASE_WINDOWS 와 따로 두는 이유: 단독 그리드 러너는
+# PHASE_WINDOWS 만 열로 쓰므로, 거기 넣으면 그 러너의 결과 CSV 에 빈 열이 생긴다 (D69 ⑨).
 # 닷컴 하락 후반이 2001-09-04 부터인 이유: 국면 수익률의 기준이 구간 첫 거래일의 전날 자본이라,
 # 대체 판 조합의 실행 첫날(2001-08-31)에 시작하면 늘 빈 값이 된다
 EARLY_PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
@@ -294,16 +311,13 @@ def _alt_method(method: MethodConfig) -> MethodConfig:
         return replace(method, asset_slots=tuple(_alt_slot(s) for s in method.asset_slots))
     return replace(
         method,
-        assets=tuple(
-            replace(a, signal_data_path=_alt_path(a.signal_data_path), trade_data_path=_alt_path(a.trade_data_path))
-            for a in method.assets
-        ),
+        assets=tuple(replace(a, trade_data_path=_alt_path(a.trade_data_path)) for a in method.assets),
         signal_series=tuple(replace(s, data_path=_alt_path(s.data_path)) for s in method.signal_series),
     )
 
 
 def _to_alt(config: PortfolioConfig) -> PortfolioConfig:
-    """실물판 설정 → 대체 판 설정. 슬롯 · 배분 자산의 신호 · 매매 경로와 신호용 시세를 모두 바꾼다.
+    """실물판 설정 → 대체 판 설정. 슬롯의 신호 · 매매 경로, 배분 자산의 매매 경로, 신호용 시세를 모두 바꾼다.
 
     Raises:
         ValueError: 경로 표에 없고 그대로 써도 되는 실물(SPY · QQQ · IWM)도 아닌 파일이 있을 때
@@ -313,10 +327,6 @@ def _to_alt(config: PortfolioConfig) -> PortfolioConfig:
         asset_slots=tuple(_alt_slot(s) for s in config.asset_slots),
         methods=tuple(_alt_method(m) for m in config.methods),
     )
-
-
-def _allocation_asset(asset_id: str, path: Path) -> AllocationAssetConfig:
-    return AllocationAssetConfig(asset_id, path, path)
 
 
 def _buy_and_hold_slot(asset_id: str, path: Path) -> AssetSlotConfig:
@@ -342,7 +352,7 @@ def _candidate_method(candidate: str, share: float, variant: str) -> MethodConfi
             CANDIDATE_HAA,
             "HAA",
             share,
-            tuple(_allocation_asset(asset_id, paths[asset_id]) for asset_id in HAA_ASSET_IDS),
+            tuple(AllocationAssetConfig(asset_id, paths[asset_id]) for asset_id in HAA_ASSET_IDS),
             allocator_id="haa",
             signal_series=(SignalSeriesConfig(HAA_CANARY_SERIES_ID, TIP_DATA_PATH),),
         )
@@ -352,8 +362,8 @@ def _candidate_method(candidate: str, share: float, variant: str) -> MethodConfi
             "미국 약세 감지 로테이션",
             share,
             (
-                _allocation_asset(ROTATION_RISK_ASSET_ID, _ROTATION_VXUS_PATHS[variant]),
-                _allocation_asset(ROTATION_SAFE_ASSET_ID, SHY_DATA_PATH),
+                AllocationAssetConfig(ROTATION_RISK_ASSET_ID, _ROTATION_VXUS_PATHS[variant]),
+                AllocationAssetConfig(ROTATION_SAFE_ASSET_ID, SHY_DATA_PATH),
             ),
             allocator_id="us_weakness_rotation",
             signal_series=(SignalSeriesConfig(ROTATION_BENCHMARK_SERIES_ID, SPY_DATA_PATH),),
@@ -363,14 +373,16 @@ def _candidate_method(candidate: str, share: float, variant: str) -> MethodConfi
             CANDIDATE_EWY,
             "EWY 200일선",
             share,
-            (_allocation_asset(EWY_RISK_ASSET_ID, EWY_DATA_PATH), _allocation_asset(EWY_SAFE_ASSET_ID, SHY_DATA_PATH)),
+            (
+                AllocationAssetConfig(EWY_RISK_ASSET_ID, EWY_DATA_PATH),
+                AllocationAssetConfig(EWY_SAFE_ASSET_ID, SHY_DATA_PATH),
+            ),
             allocator_id="ewy_buffer_zone",
         )
     raise RuntimeError(f"내부 불변조건 위반: _allowed_variants 를 지난 후보가 매매법 표에 없다 (candidate={candidate!r})")
 
 
 def build_experiment_config(
-    q2_2xs_slots: tuple[AssetSlotConfig, ...],
     candidate: str,
     w_pct: int,
     variant: str,
@@ -381,8 +393,6 @@ def build_experiment_config(
     Q-2-2XS 단독(candidate="q2_2xs")은 w_pct=0, 매매법 하나짜리 줄임 표기라 공식 portfolio_q2_2xs 와 같다.
 
     Args:
-        q2_2xs_slots: Q-2-2XS 슬롯 (SoT 는 portfolio_configs 의 portfolio_q2_2xs —
-            portfolio_configs 가 이 모듈의 구성 함수로 등록 실험을 만들므로 여기서 import 하면 순환한다)
         start_date: 설정의 min_start_date (그리드 워커와 포트폴리오 러너가 실제 시작일을 이 날짜와 대조한다)
 
     Raises:
@@ -401,7 +411,7 @@ def build_experiment_config(
             display_name=CANDIDATE_DISPLAY_NAMES[CANDIDATE_Q2_2XS],
             total_capital=DEFAULT_INITIAL_CAPITAL,
             result_dir=PORTFOLIO_RESULTS_DIR / name,
-            asset_slots=q2_2xs_slots,
+            asset_slots=Q2_2XS_SLOTS,
             min_start_date=start_date,
         )
     else:
@@ -414,7 +424,7 @@ def build_experiment_config(
             total_capital=DEFAULT_INITIAL_CAPITAL,
             result_dir=PORTFOLIO_RESULTS_DIR / name,
             methods=(
-                SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", (100 - w_pct) / 100, q2_2xs_slots),
+                SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", (100 - w_pct) / 100, Q2_2XS_SLOTS),
                 _candidate_method(candidate, w_pct / 100, _path_variant(variant)),
             ),
             min_start_date=start_date,
@@ -423,7 +433,6 @@ def build_experiment_config(
 
 
 def build_combo_config(
-    q2_2xs_slots: tuple[AssetSlotConfig, ...],
     haa_pct: int,
     rotation_pct: int,
     variant: str,
@@ -432,7 +441,7 @@ def build_combo_config(
     """「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 조합 설정 (D55 · D56 ①).
 
     HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다 — 조합과 단독이 같은 매매법 정의를 쓴다.
-    q2_2xs_slots · start_date 는 build_experiment_config 와 같다.
+    start_date 는 build_experiment_config 와 같다.
 
     Raises:
         ValueError: h · r 가 COMBO_PCTS 밖이거나, 판이 이어 붙인 판 · 완전 실물판 · 대체 판이 아닐 때
@@ -453,7 +462,7 @@ def build_combo_config(
         total_capital=DEFAULT_INITIAL_CAPITAL,
         result_dir=PORTFOLIO_RESULTS_DIR / name,
         methods=(
-            SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", q2_pct / 100, q2_2xs_slots),
+            SlotMethodConfig(CANDIDATE_Q2_2XS, "Q-2-2XS", q2_pct / 100, Q2_2XS_SLOTS),
             _candidate_method(CANDIDATE_HAA, haa_pct / 100, _path_variant(variant)),
             _candidate_method(CANDIDATE_ROTATION, rotation_pct / 100, _path_variant(variant)),
         ),
@@ -483,7 +492,7 @@ def _cases(group: str, candidate: str, variant: str, start_date: date) -> list[G
 
 
 def build_grid_cases() -> list[GridCase]:
-    """실행 목록 — 주 비교 · 보조 각 36, 로테이션 관문 7, HAA 관문 21, HAA 쌍별 49 (계 149).
+    """실행 목록 — 주 비교 · 보조 · 로테이션 관문 · HAA 관문 · HAA 쌍별 묶음.
 
     관문 · 쌍별 묶음의 실물판 · 기준선이 다른 묶음에 이미 있으면(같은 시작일) 다시 돌리지 않는다.
     """
@@ -673,13 +682,13 @@ def run_with_start_check(config: PortfolioConfig, start_date: date) -> Portfolio
     return result
 
 
-def run_grid_case(case: GridCase, q2_2xs_slots: tuple[AssetSlotConfig, ...]) -> GridCaseResult:
+def run_grid_case(case: GridCase) -> GridCaseResult:
     """실행 → 시작일 확인 → 정합성 검사 → 요약 (병렬 워커, 모듈 최상위라 pickle 가능).
 
     Raises:
         ValueError: 실제 시작일이 묶음 시작일과 다를 때 (run_with_start_check)
     """
-    config = build_experiment_config(q2_2xs_slots, case.candidate, case.w_pct, case.variant, case.start_date)
+    config = build_experiment_config(case.candidate, case.w_pct, case.variant, case.start_date)
     result = run_with_start_check(config, case.start_date)
     violations = validate_portfolio_result(result)
     targets = (
@@ -732,7 +741,7 @@ def compute_advantages(results: Sequence[GridCaseResult]) -> dict[GridCase, floa
 
 def _require_all_w(values: Mapping[int, object]) -> None:
     if set(values) != set(W_PCTS):
-        raise ValueError(f"w 7단계가 모두 있어야 합니다: {sorted(values)} (필요: {list(W_PCTS)})")
+        raise ValueError(f"w {len(W_PCTS)}단계가 모두 있어야 합니다: {sorted(values)} (필요: {list(W_PCTS)})")
 
 
 def find_plateaus(above: Mapping[int, bool]) -> tuple[tuple[int, int], ...]:
