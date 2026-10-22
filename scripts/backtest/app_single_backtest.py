@@ -21,7 +21,22 @@ import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component
 
-from qbt.backtest.constants import EQUITY_FILENAME, SIGNAL_FILENAME, SUMMARY_FILENAME, TRADES_FILENAME
+from qbt.backtest.constants import (
+    COL_BUY_BUFFER_PCT,
+    COL_ENTRY_DATE,
+    COL_ENTRY_PRICE,
+    COL_EXIT_DATE,
+    COL_EXIT_PRICE,
+    COL_HOLD_DAYS_USED,
+    COL_HOLDING_DAYS,
+    COL_PNL,
+    COL_PNL_PCT,
+    COL_SHARES,
+    EQUITY_FILENAME,
+    SIGNAL_FILENAME,
+    SUMMARY_FILENAME,
+    TRADES_FILENAME,
+)
 from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
@@ -59,16 +74,16 @@ COLOR_DRAWDOWN_BOTTOM = "rgba(244, 67, 54, 0.05)"
 
 # --- 거래 내역 한글 컬럼 매핑 ---
 TRADE_COLUMN_RENAME = {
-    "entry_date": "진입일",
-    "exit_date": "청산일",
-    "entry_price": "진입가",
-    "exit_price": "청산가",
-    "shares": "수량",
-    "pnl": "손익금액",
-    "pnl_pct": "손익률",
-    "buy_buffer_pct": "매수버퍼존",
-    "hold_days_used": "유지일",
-    "holding_days": "보유기간(일)",
+    COL_ENTRY_DATE: "진입일",
+    COL_EXIT_DATE: "청산일",
+    COL_ENTRY_PRICE: "진입가",
+    COL_EXIT_PRICE: "청산가",
+    COL_SHARES: "수량",
+    COL_PNL: "손익금액",
+    COL_PNL_PCT: "손익률",
+    COL_BUY_BUFFER_PCT: "매수버퍼존",
+    COL_HOLD_DAYS_USED: "유지일",
+    COL_HOLDING_DAYS: "보유기간(일)",
 }
 
 # --- 월별 히트맵 한글 월 레이블 ---
@@ -152,10 +167,10 @@ def _discover_strategies() -> list[StrategyData]:
         # trades는 선택 (Buy & Hold는 헤더만 있다)
         if trades_path.exists():
             trades_df = _load_csv(trades_path, trades_path.stat().st_mtime)
-            if not trades_df.empty and "entry_date" in trades_df.columns:
-                trades_df["entry_date"] = pd.to_datetime(trades_df["entry_date"]).dt.date
-            if not trades_df.empty and "exit_date" in trades_df.columns:
-                trades_df["exit_date"] = pd.to_datetime(trades_df["exit_date"]).dt.date
+            if not trades_df.empty and COL_ENTRY_DATE in trades_df.columns:
+                trades_df[COL_ENTRY_DATE] = pd.to_datetime(trades_df[COL_ENTRY_DATE]).dt.date
+            if not trades_df.empty and COL_EXIT_DATE in trades_df.columns:
+                trades_df[COL_EXIT_DATE] = pd.to_datetime(trades_df[COL_EXIT_DATE]).dt.date
         else:
             trades_df = pd.DataFrame()
 
@@ -408,7 +423,6 @@ def _render_main_chart(
     has_lower = "lower_band" in equity_df.columns
     upper_col = "upper_band"
     lower_col = "lower_band"
-    has_trades = not trades_df.empty and "entry_date" in trades_df.columns
 
     # 1. 데이터 준비
     candle_data = _build_candle_data(signal_df, equity_df, ma_col)
@@ -451,9 +465,7 @@ def _render_main_chart(
     }
 
     # 마커 (완료된 거래 + 미청산 포지션)
-    markers: list[dict[str, object]] = []
-    if has_trades:
-        markers = _build_markers(trades_df)
+    markers = _build_markers(trades_df)
     open_markers = _build_open_position_marker(strategy["summary_data"])
     markers.extend(open_markers)
     if markers:
@@ -662,12 +674,8 @@ def _render_monthly_heatmap(
 
 
 def _render_holding_period_histogram(trades_df: pd.DataFrame, *, chart_key: str) -> None:
-    """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다."""
-    if trades_df.empty or "holding_days" not in trades_df.columns:
-        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
-        return
-
-    holding_days = trades_df["holding_days"].tolist()
+    """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다 (거래가 있는 전략만 부른다)."""
+    holding_days = trades_df[COL_HOLDING_DAYS].tolist()
 
     fig = go.Figure(
         data=go.Histogram(
@@ -705,8 +713,7 @@ def _style_pnl_rows(row: pd.Series) -> list[str]:
 
     수익 거래는 옅은 초록, 손실 거래는 옅은 빨강 배경을 적용한다.
     """
-    pnl_col = TRADE_COLUMN_RENAME.get("pnl_pct", "손익률")
-    pnl = row.get(pnl_col, 0)
+    pnl = row[TRADE_COLUMN_RENAME[COL_PNL_PCT]]
     if pnl > 0:
         return ["background-color: rgba(38, 166, 154, 0.15)"] * len(row)
     elif pnl < 0:
@@ -718,11 +725,11 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     """하나의 전략 탭 내부를 렌더링한다."""
     summary_data = strategy["summary_data"]
     summary = summary_data["summary"]
-    params = summary_data.get("params", {})
-    monthly_returns: list[dict[str, Any]] = summary_data.get("monthly_returns", [])
-    yearly_returns: list[dict[str, Any]] = summary_data.get("yearly_returns", [])
+    params = summary_data["params"]
+    monthly_returns: list[dict[str, Any]] = summary_data["monthly_returns"]
+    yearly_returns: list[dict[str, Any]] = summary_data["yearly_returns"]
     trades_df = strategy["trades_df"]
-    has_trades = not trades_df.empty and "entry_date" in trades_df.columns
+    has_trades = not trades_df.empty
 
     # ---- 요약 지표 ----
     st.header("요약 지표")
@@ -735,8 +742,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     with col3:
         st.metric("MDD", f"{summary['mdd']:.2f}%")
     with col4:
-        calmar = float(summary.get("calmar", 0.0))
-        st.metric("Calmar", f"{calmar:.2f}")
+        st.metric("Calmar", f"{summary['calmar']:.2f}")
     with col5:
         total_trades = int(summary["total_trades"])
         win_rate = float(summary["win_rate"])
@@ -754,7 +760,7 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     st.header("2. 전체 거래 상세 내역")
     if has_trades:
         display_df = trades_df.copy()
-        display_df["pnl_pct"] = display_df["pnl_pct"] * 100
+        display_df[COL_PNL_PCT] = display_df[COL_PNL_PCT] * 100
         display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
         styled_df = display_df.style.apply(_style_pnl_rows, axis=1)
         st.dataframe(styled_df, width="stretch")
@@ -794,43 +800,35 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
 def main() -> None:
     """Streamlit 앱 메인 함수."""
-    try:
-        st.set_page_config(
-            page_title="백테스트 전략 대시보드",
-            page_icon=":chart_with_upwards_trend:",
-            layout="wide",
+    st.set_page_config(
+        page_title="백테스트 전략 대시보드",
+        page_icon=":chart_with_upwards_trend:",
+        layout="wide",
+    )
+
+    st.title("백테스트 전략 대시보드")
+    st.markdown("전략별 백테스트 결과를 시각화합니다. 전략이 추가되면 자동으로 탭이 생성됩니다.")
+
+    # ---- 전략 자동 탐색 ----
+    strategies = _discover_strategies()
+
+    if not strategies:
+        st.warning(
+            "결과 파일이 없습니다. 먼저 백테스트를 실행해주세요:\n\n" "```\npoetry run python scripts/backtest/run_single_backtest.py\n```"
         )
+        st.stop()
 
-        st.title("백테스트 전략 대시보드")
-        st.markdown("전략별 백테스트 결과를 시각화합니다. 전략이 추가되면 자동으로 탭이 생성됩니다.")
+    # ---- 동적 탭 생성 ----
+    tab_labels = [s["display_name"] for s in strategies]
+    tabs = st.tabs(tab_labels)
 
-        # ---- 전략 자동 탐색 ----
-        strategies = _discover_strategies()
+    for tab, strategy in zip(tabs, strategies, strict=True):
+        with tab:
+            _render_strategy_tab(strategy)
 
-        if not strategies:
-            st.warning(
-                "결과 파일이 없습니다. 먼저 백테스트를 실행해주세요:\n\n"
-                "```\npoetry run python scripts/backtest/run_single_backtest.py\n```"
-            )
-            st.stop()
-            return
-
-        # ---- 동적 탭 생성 ----
-        tab_labels = [s["display_name"] for s in strategies]
-        tabs = st.tabs(tab_labels)
-
-        for tab, strategy in zip(tabs, strategies, strict=True):
-            with tab:
-                _render_strategy_tab(strategy)
-
-        # ---- 푸터 ----
-        st.markdown("---")
-        st.caption("QBT (Quant BackTest) - 백테스트 전략 대시보드")
-
-    except Exception as e:
-        st.error("애플리케이션 실행 중 오류가 발생했습니다:")
-        st.exception(e)
-        return
+    # ---- 푸터 ----
+    st.markdown("---")
+    st.caption("QBT (Quant BackTest) - 백테스트 전략 대시보드")
 
 
 if __name__ == "__main__":

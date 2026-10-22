@@ -214,7 +214,7 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
         asset_id = signal_path.stem.removeprefix(PORTFOLIO_SIGNAL_PREFIX)
         signal_dfs[asset_id] = _load_signal_csv(*_cache_args(signal_path))
 
-    display_name: str = str(summary.get("display_name", experiment_dir.name))
+    display_name: str = summary["display_name"]
 
     return _ExperimentData(
         experiment_name=experiment_dir.name,
@@ -269,36 +269,12 @@ def _build_color_map(ids: tuple[str, ...]) -> dict[str, str]:
     return {id_: _COLOR_PALETTE[i % palette_len] for i, id_ in enumerate(sorted_ids)}
 
 
-def _get_asset_color(asset_id: str, asset_ids: tuple[str, ...]) -> str:
-    """자산 ID에 대한 색상을 반환한다.
+def _palette_color(id_: str, ids: tuple[str, ...]) -> str:
+    """ID(자산 · 실험 · 매매법)의 hex 색상을 반환한다.
 
-    asset_ids 컨텍스트(해당 차트에 등장하는 전체 자산 집합)를 기준으로
-    정렬 인덱스 팔레트에서 색상을 할당한다.
-
-    Args:
-        asset_id: 색상을 조회할 자산 ID
-        asset_ids: 색상 할당 컨텍스트 (해당 차트의 전체 자산 집합)
-
-    Returns:
-        hex 색상 문자열
+    ids(해당 차트에 등장하는 전체 ID 집합)를 정렬한 순서로 팔레트 색상을 할당한다.
     """
-    return _build_color_map(asset_ids)[asset_id]
-
-
-def _get_experiment_color(experiment_name: str, experiment_names: tuple[str, ...]) -> str:
-    """실험명에 대한 색상을 반환한다.
-
-    experiment_names 컨텍스트(해당 차트에 등장하는 전체 실험 집합)를 기준으로
-    정렬 인덱스 팔레트에서 색상을 할당한다.
-
-    Args:
-        experiment_name: 색상을 조회할 실험명
-        experiment_names: 색상 할당 컨텍스트 (해당 차트의 전체 실험 집합)
-
-    Returns:
-        hex 색상 문자열
-    """
-    return _build_color_map(experiment_names)[experiment_name]
+    return _build_color_map(ids)[id_]
 
 
 def _weight_columns(equity_df: pd.DataFrame) -> list[str]:
@@ -383,8 +359,8 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
     # 4. 색상 범위 (월별/연간 각자 대칭)
     monthly_vals = [v for row in z_monthly for v in row if v is not None]
     yearly_vals = [v for row in z_yearly for v in row if v is not None]
-    max_abs_monthly = max(abs(min(monthly_vals)), abs(max(monthly_vals))) if monthly_vals else 10.0
-    max_abs_yearly = max(abs(min(yearly_vals)), abs(max(yearly_vals))) if yearly_vals else 10.0
+    max_abs_monthly = max(abs(min(monthly_vals)), abs(max(monthly_vals)))
+    max_abs_yearly = max(abs(min(yearly_vals)), abs(max(yearly_vals)))
 
     _heatmap_colorscale = [
         [0.0, "rgb(239, 83, 80)"],
@@ -489,7 +465,6 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         return
 
     df = equity_df[["Date"]].copy()
-    df["Date"] = pd.to_datetime(df["Date"])
     contrib_cols: list[str] = []
     for aid in asset_ids:
         col = f"{aid}_contribution"
@@ -513,9 +488,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
 
     for aid in asset_ids:
         col = f"{aid}_contribution"
-        if col not in quarterly_diff.columns:
-            continue
-        color = _get_asset_color(aid, asset_ids_tuple)
+        color = _palette_color(aid, asset_ids_tuple)
         fig_contrib.add_trace(
             go.Bar(
                 x=quarter_labels,
@@ -541,12 +514,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
     fig_cum = go.Figure()
     for aid in asset_ids:
         col = f"{aid}_contribution"
-        if col not in df.columns:
-            continue
-        color = _get_asset_color(aid, asset_ids_tuple)
-        r = int(color[1:3], 16)
-        g = int(color[3:5], 16)
-        b = int(color[5:7], 16)
+        fill_color = _hex_to_rgba(_palette_color(aid, asset_ids_tuple), 0.6)
 
         # stackgroup/hovermode=x unified 조합에서 d3-format(:+,.0f)이 불안정하게 적용되는
         # 사례가 있어, Python 측에서 미리 포맷한 문자열을 text로 전달하고 %{text}를 참조한다.
@@ -560,7 +528,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
                 name=aid.upper(),
                 stackgroup="one",
                 line={"width": 0},
-                fillcolor=f"rgba({r}, {g}, {b}, 0.6)",
+                fillcolor=fill_color,
                 text=preformatted,
                 hovertemplate=f"{aid.upper()}: %{{text}}원<extra></extra>",
             )
@@ -579,8 +547,8 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
 
     # 실현/미실현 분해 차트 (자산별 마지막 값 기준 수평 바)
     final_row = equity_df.iloc[-1]
-    realized_vals = [float(final_row.get(f"{aid}_realized_pnl", 0)) for aid in asset_ids]
-    unrealized_vals = [float(final_row.get(f"{aid}_unrealized_pnl", 0)) for aid in asset_ids]
+    realized_vals = [float(final_row[f"{aid}_realized_pnl"]) for aid in asset_ids]
+    unrealized_vals = [float(final_row[f"{aid}_unrealized_pnl"]) for aid in asset_ids]
     labels = [aid.upper() for aid in asset_ids]
 
     # barmode="stack" stacked bar 에서도 d3-format이 불안정할 수 있어 text 방식으로 통일한다.
@@ -663,7 +631,7 @@ def _render_method_section(exp: _ExperimentData) -> None:
                 y=rows["pnl"],
                 mode="lines",
                 name=label,
-                line={"color": _get_asset_color(method_id, method_ids_tuple), "width": 2},
+                line={"color": _palette_color(method_id, method_ids_tuple), "width": 2},
                 hovertemplate=f"{label}: %{{y:+,.0f}}원<extra></extra>",
             )
         )
@@ -677,12 +645,13 @@ def _render_method_section(exp: _ExperimentData) -> None:
     )
     st.plotly_chart(fig_pnl, width="stretch", key=f"method_pnl_{exp.experiment_name}")
 
-    # 몫 추이와 목표 몫
+    # 몫 추이와 목표 몫 — 임계값은 이 결과를 만든 실행의 값이다(상수를 바꾸고 다시 돌리기 전에도 그린 장부와 맞는다)
+    threshold_rate = float(exp.summary["portfolio_config"]["rebalance_threshold_rate"])
     fig_share = go.Figure()
     for method_id in method_ids:
         rows = ledger_df[ledger_df["method_id"] == method_id]
         label = names[method_id]
-        color = _get_asset_color(method_id, method_ids_tuple)
+        color = _palette_color(method_id, method_ids_tuple)
         fig_share.add_trace(
             go.Scatter(
                 x=rows["Date"],
@@ -704,7 +673,7 @@ def _render_method_section(exp: _ExperimentData) -> None:
             )
         )
     fig_share.update_layout(
-        title="매매법 몫 추이 (점선 = 목표 몫, 월말에 상대 편차 10% 를 넘으면 되돌림)",
+        title=f"매매법 몫 추이 (점선 = 목표 몫, 월말에 상대 편차 {threshold_rate * 100:g}% 를 넘으면 되돌림)",
         height=_SUB_CHART_HEIGHT,
         xaxis_title="날짜",
         yaxis_title="계좌 대비 몫 (%)",
@@ -841,7 +810,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 
     fig_equity = go.Figure()
     for exp in selected_exps:
-        color = _get_experiment_color(exp.experiment_name, all_experiment_names_tuple)
+        color = _palette_color(exp.experiment_name, all_experiment_names_tuple)
         fig_equity.add_trace(
             go.Scatter(
                 x=exp.equity_df["Date"],
@@ -869,7 +838,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 
     fig_dd = go.Figure()
     for exp in selected_exps:
-        color = _get_experiment_color(exp.experiment_name, all_experiment_names_tuple)
+        color = _palette_color(exp.experiment_name, all_experiment_names_tuple)
         fig_dd.add_trace(
             go.Scatter(
                 x=exp.equity_df["Date"],
@@ -878,9 +847,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
                 name=exp.display_name,
                 line={"color": color, "width": 1.5},
                 fill="tozeroy",
-                fillcolor=color.replace(")", ", 0.1)").replace("rgb", "rgba")
-                if color.startswith("rgb")
-                else _hex_to_rgba(color, 0.1),
+                fillcolor=_hex_to_rgba(color, 0.1),
                 hovertemplate=("%{x|%Y-%m-%d}<br>" f"{exp.display_name}: %{{y:.2f}}%<extra></extra>"),
             )
         )
@@ -1055,12 +1022,7 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         # 자산별 비중 (스택)
         for col in weight_cols:
             asset_id = _asset_id_from_weight_col(col)
-            color = _get_asset_color(asset_id, weight_asset_ids_tuple)
-            # hex → rgba 변환
-            r = int(color[1:3], 16)
-            g = int(color[3:5], 16)
-            b = int(color[5:7], 16)
-            fill_color = f"rgba({r}, {g}, {b}, 0.6)"
+            fill_color = _hex_to_rgba(_palette_color(asset_id, weight_asset_ids_tuple), 0.6)
 
             fig_weight.add_trace(
                 go.Scatter(

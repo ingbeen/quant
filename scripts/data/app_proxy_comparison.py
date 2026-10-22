@@ -193,50 +193,44 @@ def _show_pair(proxy_path: Path, base_path: Path, before: date | None) -> None:
 
 def main() -> None:
     """Streamlit 앱 메인 함수"""
-    try:
-        st.set_page_config(page_title="대체-실물 비교 대시보드", page_icon=":bar_chart:", layout="wide")
-        st.title("대체-실물 비교 대시보드")
+    st.set_page_config(page_title="대체-실물 비교 대시보드", page_icon=":bar_chart:", layout="wide")
+    st.title("대체-실물 비교 대시보드")
+    st.markdown(
+        """
+        실물 ETF 가 상장하기 전 기간을 채우는 **대체 시세**가 실물을 얼마나 잘 따르는지 봅니다.
+        비교는 **기준(대개 실물) 첫 거래일부터, 두 시세가 모두 있는 날만** 씁니다.
+        - **상관**: 두 시세가 같은 방향으로 움직이는 정도. 1 이면 똑같이, 0 이면 무관
+        - **CAGR · MDD 차**: 연평균 수익률과 최대 낙폭이 대체와 기준에서 얼마나 다른가 (대체 − 기준)
+        """
+    )
+
+    summary_df: pd.DataFrame | None = None
+    st.header("1. 등록 쌍 전체")
+    if SUMMARY_PATH.exists():
+        summary_df = _load_summary(SUMMARY_PATH, SUMMARY_PATH.stat().st_mtime)
         st.markdown(
             """
-            실물 ETF 가 상장하기 전 기간을 채우는 **대체 시세**가 실물을 얼마나 잘 따르는지 봅니다.
-            비교는 **기준(대개 실물) 첫 거래일부터, 두 시세가 모두 있는 날만** 씁니다.
-            - **상관**: 두 시세가 같은 방향으로 움직이는 정도. 1 이면 똑같이, 0 이면 무관
-            - **CAGR · MDD 차**: 연평균 수익률과 최대 낙폭이 대체와 기준에서 얼마나 다른가 (대체 − 기준)
+            - **대체 판**: 대체 판 백테스트가 쓰는 대체와 실물
+            - **이어 붙인 판**: 지금 주 비교(2007-06 부터)가 상장 전 구간에 쓰는 기존 대용과 실물
+            - **상장 전 교차 확인**: 실물이 없는 구간을 대체와 기존 대용끼리 비교 (기준이 실물이 아니다)
             """
         )
+        st.dataframe(summary_df, width="stretch", hide_index=True)
+    else:
+        st.warning(
+            f"요약 파일이 없습니다: {SUMMARY_PATH}. 등록 쌍을 보려면 먼저 "
+            "`poetry run python scripts/data/generate_proxy_comparison.py` 를 실행하세요. "
+            "직접 고르기는 그대로 쓸 수 있습니다."
+        )
 
-        summary_df: pd.DataFrame | None = None
-        st.header("1. 등록 쌍 전체")
-        if SUMMARY_PATH.exists():
-            summary_df = _load_summary(SUMMARY_PATH, SUMMARY_PATH.stat().st_mtime)
-            st.markdown(
-                """
-                - **대체 판**: 대체 판 백테스트가 쓰는 대체와 실물
-                - **이어 붙인 판**: 지금 주 비교(2007-06 부터)가 상장 전 구간에 쓰는 기존 대용과 실물
-                - **상장 전 교차 확인**: 실물이 없는 구간을 대체와 기존 대용끼리 비교 (기준이 실물이 아니다)
-                """
-            )
-            st.dataframe(summary_df, width="stretch", hide_index=True)
-        else:
-            st.warning(
-                f"요약 파일이 없습니다: {SUMMARY_PATH}. 등록 쌍을 보려면 먼저 "
-                "`poetry run python scripts/data/generate_proxy_comparison.py` 를 실행하세요. "
-                "직접 고르기는 그대로 쓸 수 있습니다."
-            )
+    st.divider()
+    st.header("2. 한 쌍 자세히 보기")
+    chosen = _choose_pair(summary_df)
+    if chosen is not None:
+        _show_pair(*chosen)
 
-        st.divider()
-        st.header("2. 한 쌍 자세히 보기")
-        chosen = _choose_pair(summary_df)
-        if chosen is not None:
-            _show_pair(*chosen)
-
-        st.markdown("---")
-        st.caption("QBT (Quant BackTest) - 대체-실물 비교 대시보드")
-
-    except Exception as e:
-        st.error("애플리케이션 실행 중 오류가 발생했습니다:")
-        st.exception(e)
-        return
+    st.markdown("---")
+    st.caption("QBT (Quant BackTest) - 대체-실물 비교 대시보드")
 
 
 if __name__ == "__main__":

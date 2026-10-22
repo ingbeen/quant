@@ -12,6 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.backtest.constants import (
+    DEFAULT_PLATEAU_THRESHOLD_RATIO,
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
@@ -93,7 +94,7 @@ def plateau_csv_path(param_name: str, metric: str) -> Path:
 
 def find_plateau_range(
     series: pd.Series[float],
-    threshold_ratio: float = 0.8,
+    threshold_ratio: float = DEFAULT_PLATEAU_THRESHOLD_RATIO,
 ) -> tuple[float, float] | None:
     """고원 구간을 탐지한다.
 
@@ -133,7 +134,7 @@ def find_plateau_range_with_trade_filter(
     metric_series: pd.Series[float],
     trades_series: pd.Series[float],
     min_trades: int,
-    threshold_ratio: float = 0.8,
+    threshold_ratio: float = DEFAULT_PLATEAU_THRESHOLD_RATIO,
 ) -> tuple[tuple[float, float] | None, list[float]]:
     """거래 수 필터를 적용한 고원 구간 탐지.
 

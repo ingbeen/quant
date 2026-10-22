@@ -13,10 +13,12 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from qbt.backtest.walkforward_verdict import (
-    CAGR_SIMILAR_THRESHOLD_PP,
+from qbt.backtest.constants import (
     PC_CONCENTRATION_THRESHOLD,
     STITCHED_CALMAR_GOOD_THRESHOLD,
+)
+from qbt.backtest.walkforward_verdict import (
+    CAGR_SIMILAR_THRESHOLD_PP,
     WFE_REPRODUCIBLE_THRESHOLD,
     build_is_vs_oos_verdict,
     build_mode_summary_verdict,
@@ -433,6 +435,27 @@ class TestParamDriftVerdict:
         assert "100" in result
         assert "200" in result
         assert "네 파라미터 중 3개는 전 구간 고정" in result
+
+    def test_ratio_params_are_described_in_percent(self) -> None:
+        """
+        목적: 비율 파라미터(매수 · 매도 버퍼)는 % 로, 나머지는 값 그대로 서술한다 —
+              대시보드 파라미터 추이도 같은 목록(WFO_PARAM_SPECS)으로 % 환산 여부를 정한다
+
+        Given: 이동평균 200 · 매수 버퍼 0.03 · 매도 버퍼 0.05 · 유지일 3 이 전 윈도우 고정인 dynamic 요약
+        When: build_param_drift_verdict 호출
+        Then: 매수 버퍼 「3 고정」 · 매도 버퍼 「5 고정」(%), 이동평균 「200 고정」 · 유지일 「3 고정」(그대로)
+        """
+        # Given
+        summaries = {"QQQ": _make_summary(dynamic=_make_mode(), fully_fixed=_make_mode())}
+
+        # When
+        result = build_param_drift_verdict(summaries)
+
+        # Then
+        assert "- **Buy Buffer(%):** 전 윈도우 3 고정" in result
+        assert "- **Sell Buffer(%):** 전 윈도우 5 고정" in result
+        assert "- **MA Window:** 전 윈도우 200 고정" in result
+        assert "- **Hold Days:** 전 윈도우 3 고정" in result
 
     def test_all_fixed_and_all_changing_reach_opposite_conclusions(self) -> None:
         """

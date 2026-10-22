@@ -19,10 +19,6 @@ b 고정의 b 는 테스트 구간까지 본 전체기간 튜닝값이라 아웃
 튜닝 · 워크포워드 결과 CSV(`storage/results/tqqq/spread_lab/`)는 git 이 추적하고,
 그 CSV 를 만드는 스크립트는 이 저장소에 없다 — 커밋 `c81690b^` 에서 되살린다.
 
-Fail-fast 정책:
-- ValueError 발생 시 st.error() + st.stop()으로 즉시 중단
-- 잘못된 차트/수치 표시 방지
-
 사용자 경험:
 - 모든 화면 텍스트 한글화 ("한글 (영문)" 형식)
 - 명확한 레이블 및 설명 제공
@@ -928,75 +924,61 @@ def _display_walkforward_result(result_df: pd.DataFrame, summary: dict[str, floa
 
 def main():
     """Streamlit 앱 메인 함수"""
-    try:
-        # 페이지 설정
-        st.set_page_config(
-            page_title="TQQQ 금리-오차 관계 분석 (연구용)",
-            page_icon=":bar_chart:",
-            layout="wide",
-        )
+    # 페이지 설정
+    st.set_page_config(
+        page_title="TQQQ 금리-오차 관계 분석 (연구용)",
+        page_icon=":bar_chart:",
+        layout="wide",
+    )
 
-        # 사이드바
-        with st.sidebar:
-            st.header("TQQQ 금리-오차 분석")
-            st.caption("QBT (Quant BackTest)")
+    # 사이드바
+    with st.sidebar:
+        st.header("TQQQ 금리-오차 분석")
+        st.caption("QBT (Quant BackTest)")
 
-        # 타이틀, 읽기 가이드
-        _render_intro()
+    # 타이틀, 읽기 가이드
+    _render_intro()
 
-        # 데이터 로딩 및 월별 집계
-        st.header("데이터 로딩 및 월별 집계")
+    # 데이터 로딩 및 월별 집계
+    st.header("데이터 로딩 및 월별 집계")
 
-        try:
-            # 1. 월별 데이터 빌드 (캐시됨)
-            monthly_df = build_artifacts(
-                TQQQ_DAILY_COMPARISON_PATH,
-                TQQQ_DAILY_COMPARISON_PATH.stat().st_mtime,
-                FFR_DATA_PATH,
-                FFR_DATA_PATH.stat().st_mtime,
-            )
-            st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
+    # 1. 월별 데이터 빌드 (캐시됨)
+    monthly_df = build_artifacts(
+        TQQQ_DAILY_COMPARISON_PATH,
+        TQQQ_DAILY_COMPARISON_PATH.stat().st_mtime,
+        FFR_DATA_PATH,
+        FFR_DATA_PATH.stat().st_mtime,
+    )
+    st.success(f"월별 집계 완료: {len(monthly_df):,}개월")
 
-            # 2. 요약 통계 표시
-            _render_dataset_metrics(monthly_df)
+    # 2. 요약 통계 표시
+    _render_dataset_metrics(monthly_df)
 
-        except ValueError as e:
-            st.error(f"월별 집계 실패 (fail-fast):\n\n{str(e)}\n\n힌트: 데이터 기간/형식 확인")
-            st.stop()
-        except Exception as e:
-            st.error(f"예상치 못한 오류:\n\n{str(e)}")
-            st.stop()
+    st.divider()
 
-        st.divider()
+    # A. 금리-오차 관계 분석
+    _render_level_section(monthly_df)
+    _render_delta_section(monthly_df)
+    _render_cross_validation_section(monthly_df)
 
-        # A. 금리-오차 관계 분석
-        _render_level_section(monthly_df)
-        _render_delta_section(monthly_df)
-        _render_cross_validation_section(monthly_df)
+    st.divider()
 
-        st.divider()
+    # B. Softplus 모델 튜닝 결과
+    _render_softplus_tuning_section()
 
-        # B. Softplus 모델 튜닝 결과
-        _render_softplus_tuning_section()
+    st.divider()
 
-        st.divider()
+    # C. 워크포워드 RMSE 비교
+    _render_walkforward_rmse_section()
 
-        # C. 워크포워드 RMSE 비교
-        _render_walkforward_rmse_section()
+    st.divider()
 
-        st.divider()
+    # D. 상세 분석 (모델 도출 과정)
+    _render_detailed_analysis_section()
 
-        # D. 상세 분석 (모델 도출 과정)
-        _render_detailed_analysis_section()
-
-        # 푸터
-        st.markdown("---")
-        st.caption("QBT (Quant BackTest) - TQQQ 금리-오차 관계 분석 (연구용)")
-
-    except Exception as e:
-        st.error("애플리케이션 실행 중 예상치 못한 오류 발생:")
-        st.exception(e)
-        st.stop()
+    # 푸터
+    st.markdown("---")
+    st.caption("QBT (Quant BackTest) - TQQQ 금리-오차 관계 분석 (연구용)")
 
 
 if __name__ == "__main__":

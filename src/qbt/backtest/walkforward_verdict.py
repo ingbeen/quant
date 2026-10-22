@@ -18,23 +18,18 @@ from typing import Any
 
 import pandas as pd
 
-from qbt.backtest.constants import KEY_WFO_DYNAMIC, KEY_WFO_FULLY_FIXED
+from qbt.backtest.constants import (
+    KEY_WFO_DYNAMIC,
+    KEY_WFO_FULLY_FIXED,
+    PC_CONCENTRATION_THRESHOLD,
+    STITCHED_CALMAR_GOOD_THRESHOLD,
+    WFO_PARAM_SPECS,
+)
 from qbt.common_constants import ANNUAL_DAYS
 
-# --- 판단 임계값 ---
-# 근거: 대시보드 「지표를 해석하는 방법」 블록이 명시한 기준을 그대로 상수화한다.
-
-# Profit Concentration 집중 경고 기준 (0.5 = 전체 수익의 50%)
-# "0.5 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요"
-PC_CONCENTRATION_THRESHOLD = 0.5
-
-# WFE Calmar Robust 재현성 기준
-# "1에 가까우면 IS 성과가 OOS에서도 유지됨. 0 또는 음수면 재현되지 않음"
+# WFE Calmar Robust 가 이 이상이면 IS 성과가 OOS 에서 재현됐다고 쓴다. 1 은 「OOS 성과 = IS 성과」라는 뜻이고
+# 재현 문구(「그대로 또는 그 이상 재현됐다」)가 이 뜻으로 쓰여 있다 — 1 이 아닌 값으로 바꾸면 그 문구도 다시 쓴다
 WFE_REPRODUCIBLE_THRESHOLD = 1.0
-
-# Stitched Calmar 양호 기준
-# "1 이상이면 위험 대비 수익이 양호"
-STITCHED_CALMAR_GOOD_THRESHOLD = 1.0
 
 # 두 모드의 CAGR 차이를 "사실상 비슷"으로 볼 상한 (%p) — 이보다 작은 차이로는 우열을 말하지 않는다
 CAGR_SIMILAR_THRESHOLD_PP = 1.0
@@ -108,7 +103,7 @@ def _describe_wfe(dynamic_wfe: float, fixed_wfe: float) -> str:
         tail = f"{_LABEL_DYNAMIC}이 0 이하라 IS 성과가 OOS에서 재현되지 않았습니다. 과최적화를 의심해야 합니다."
     elif dynamic_wfe >= WFE_REPRODUCIBLE_THRESHOLD:
         tail = (
-            f"{_LABEL_DYNAMIC}이 1 이상이라 IS 성과가 OOS에서 그대로 또는 그 이상 재현됐다는 뜻입니다. "
+            f"{_LABEL_DYNAMIC}이 {WFE_REPRODUCIBLE_THRESHOLD:g} 이상이라 IS 성과가 OOS에서 그대로 또는 그 이상 재현됐다는 뜻입니다. "
             "다만 이 지표 하나로 robustness를 단정하기보다 보조 근거로 봅니다."
         )
     else:
@@ -257,26 +252,18 @@ def build_param_drift_verdict(summaries_by_label: Mapping[str, Mapping[str, Any]
     """
     blocks: list[str] = []
 
-    # (표시 라벨, summary 키, 비율 여부) — 비율은 % 로 환산해 보여준다
-    param_specs: list[tuple[str, str, bool]] = [
-        ("MA Window", "param_ma_windows", False),
-        ("Buy Buffer(%)", "param_buy_buffers", True),
-        ("Sell Buffer(%)", "param_sell_buffers", True),
-        ("Hold Days", "param_hold_days", False),
-    ]
-
     for label, summary in summaries_by_label.items():
         dynamic = summary[KEY_WFO_DYNAMIC]
         lines: list[str] = [f"**{label}** (Dynamic 모드):", ""]
 
         stable_count = 0
-        for param_label, key, is_ratio in param_specs:
+        for param_label, key, is_ratio in WFO_PARAM_SPECS:
             values: list[float] = [float(v) * 100 if is_ratio else float(v) for v in dynamic[key]]
             lines.append(f"- **{param_label}:** {describe_param_series(values)}")
             if len(set(values)) == 1:
                 stable_count += 1
 
-        if stable_count == len(param_specs):
+        if stable_count == len(WFO_PARAM_SPECS):
             lines.append("- 네 파라미터 모두 전 윈도우에서 동일하게 선택되어, 고정 파라미터 사용의 근거가 됩니다.")
         elif stable_count == 0:
             lines.append("- 모든 파라미터가 윈도우에 따라 달라집니다. 파라미터 안정성이 낮으므로 고정값 사용은 신중해야 합니다.")

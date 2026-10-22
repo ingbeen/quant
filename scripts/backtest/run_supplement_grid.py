@@ -126,8 +126,8 @@ DISPLAY_REAL_ADVANTAGE = "실물판 우위"
 DISPLAY_SIGN_MATCH = "판정 일치"
 DISPLAY_SIGNAL_RATE = "신호 일치율"
 DISPLAY_SIGNAL_MONTHS = "비교 달 수"
-DISPLAY_SIGNAL_PASS = "신호 관문(95%)"
-DISPLAY_MATCH_COUNT = "판정 일치 수(7 중)"
+DISPLAY_SIGNAL_PASS = f"신호 관문({SIGNAL_AGREEMENT_PASS_RATE * 100:g}%)"
+DISPLAY_MATCH_COUNT = f"판정 일치 수({len(W_PCTS)} 중)"
 DISPLAY_PROXY_PLATEAUS = "대용판 고원"
 DISPLAY_REAL_PLATEAUS = "실물판 고원"
 DISPLAY_PLATEAU_VERDICT_MATCH = "고원 판정 일치"
@@ -261,7 +261,7 @@ def _print_gates(rows: list[GateRow]) -> None:
         ("최소 신호 일치율", 18, Align.LEFT),
         ("고원 판정 일치", 14, Align.LEFT),
     ]
-    TableLogger(columns, logger).print_table(table_rows, title=f"[대용 검증 — 신호 관문 {SIGNAL_AGREEMENT_PASS_RATE:.0%}]")
+    TableLogger(columns, logger).print_table(table_rows, title=f"[대용 검증 — 신호 관문 {SIGNAL_AGREEMENT_PASS_RATE * 100:g}%]")
 
 
 @cli_exception_handler

@@ -39,6 +39,9 @@
 - WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
 - WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
 - WFO 모드 키: `KEY_WFO_DYNAMIC`, `KEY_WFO_FULLY_FIXED` (`walkforward_summary.json` 의 키)
+- WFO 선택 파라미터 목록: `WFO_PARAM_SPECS` (표시 라벨 · 모드 요약의 키 · 비율 여부) — 판단 문구(`walkforward_verdict.py`)와 워크포워드 대시보드의 파라미터 추이가 같은 목록 · 같은 라벨을 쓴다
+- WFO 판단 기준: `PC_CONCENTRATION_THRESHOLD` · `STITCHED_CALMAR_GOOD_THRESHOLD` — 판단 문구가 쓰고, 대시보드 「지표를 해석하는 방법」도 이 값으로 기준을 적는다
+- 고원 기준: `DEFAULT_PLATEAU_THRESHOLD_RATIO` — 고원 탐지 함수의 기본값이고 고원 대시보드의 주석이 읽는다
 - 결과 파일명: `SIGNAL_FILENAME` · `EQUITY_FILENAME` · `TRADES_FILENAME` · `SUMMARY_FILENAME`(러너가 쓰고 대시보드가 읽는다), WFO 는 `WALKFORWARD_DYNAMIC_FILENAME` 등과 윈도우별 상세 파일명 `wfo_window_filename`, 포트폴리오는 `LEDGER_FILENAME` · `NETTING_FILENAME` 과 자산 키별 시그널 파일명 `portfolio_signal_filename`(접두사 `PORTFOLIO_SIGNAL_PREFIX`)
 
 ### 3. analysis.py

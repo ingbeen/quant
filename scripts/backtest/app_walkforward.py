@@ -20,7 +20,7 @@ QQQ와 TQQQ를 나란히 비교하는 통합 뷰를 제공한다.
 import json
 from datetime import date
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -32,13 +32,16 @@ from qbt.backtest.constants import (
     EQUITY_FILENAME,
     KEY_WFO_DYNAMIC,
     KEY_WFO_FULLY_FIXED,
+    PC_CONCENTRATION_THRESHOLD,
     SIGNAL_FILENAME,
+    STITCHED_CALMAR_GOOD_THRESHOLD,
     TRADES_FILENAME,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME,
     WALKFORWARD_FULLY_FIXED_FILENAME,
     WALKFORWARD_SUMMARY_FILENAME,
+    WFO_PARAM_SPECS,
     WFO_WINDOWS_DYNAMIC_DIR,
     WFO_WINDOWS_FULLY_FIXED_DIR,
     wfo_window_filename,
@@ -68,7 +71,8 @@ from qbt.common_constants import (
 _CHART_HEIGHT = 500
 _SUB_CHART_HEIGHT = 350
 
-# 전략 표시명 매핑
+# 전략 표시명 — 워크포워드 결과가 있는 전략은 여기와 아래 색 사전에 모두 있어야 한다
+# (없으면 KeyError 로 멈춘다 — 원래 이름 · 회색으로 조용히 넘기지 않는다)
 _STRATEGY_DISPLAY_NAMES: dict[str, str] = {
     "buffer_zone_tqqq": "TQQQ",
     "buffer_zone_qqq": "QQQ",
@@ -101,13 +105,11 @@ _COLOR_DRAWDOWN_LINE = "rgba(244, 67, 54, 1)"
 _COLOR_DRAWDOWN_TOP = "rgba(244, 67, 54, 0.3)"
 _COLOR_DRAWDOWN_BOTTOM = "rgba(244, 67, 54, 0.05)"
 
-# 지표 선택 옵션 매핑 (표시명 → (전략명, 모드 디렉토리명, WFO CSV 파일명))
-_METRIC_OPTIONS: dict[str, tuple[str, str, str]] = {
-    "QQQ Dynamic": ("buffer_zone_qqq", WFO_WINDOWS_DYNAMIC_DIR, WALKFORWARD_DYNAMIC_FILENAME),
-    "QQQ Fixed": ("buffer_zone_qqq", WFO_WINDOWS_FULLY_FIXED_DIR, WALKFORWARD_FULLY_FIXED_FILENAME),
-    "TQQQ Dynamic": ("buffer_zone_tqqq", WFO_WINDOWS_DYNAMIC_DIR, WALKFORWARD_DYNAMIC_FILENAME),
-    "TQQQ Fixed": ("buffer_zone_tqqq", WFO_WINDOWS_FULLY_FIXED_DIR, WALKFORWARD_FULLY_FIXED_FILENAME),
-}
+# 윈도우 상세 차트의 모드 (표시명, 윈도우별 상세 CSV 디렉토리명, WFO CSV 파일명) — 지표 선택지는 탐색한 전략 × 이 모드
+_WINDOW_MODES: tuple[tuple[str, str, str], ...] = (
+    ("Dynamic", WFO_WINDOWS_DYNAMIC_DIR, WALKFORWARD_DYNAMIC_FILENAME),
+    ("Fixed", WFO_WINDOWS_FULLY_FIXED_DIR, WALKFORWARD_FULLY_FIXED_FILENAME),
+)
 
 # ============================================================
 # 데이터 로딩 (캐시)
@@ -141,27 +143,21 @@ def _cache_args(path: Path) -> tuple[Path, float]:
 
 
 @st.cache_data
-def _load_summary(path: Path, mtime: float) -> dict[str, object] | None:
-    """walkforward_summary.json을 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
-    if not path.exists():
-        return None
+def _load_summary(path: Path, mtime: float) -> dict[str, Any]:
+    """walkforward_summary.json을 로드한다. 인자는 `_cache_args` 참고."""
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 @st.cache_data
-def _load_window_csv(path: Path, mtime: float) -> pd.DataFrame | None:
-    """윈도우 결과 CSV를 로드한다. 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
-    if not path.exists():
-        return None
+def _load_window_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """윈도우 결과 CSV를 로드한다. 인자는 `_cache_args` 참고."""
     return pd.read_csv(path)
 
 
 @st.cache_data
-def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame | None:
-    """Stitched Equity CSV를 로드한다 (Date 열 datetime 변환). 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
-    if not path.exists():
-        return None
+def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """Stitched Equity CSV를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
@@ -170,10 +166,10 @@ def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame | None:
 
 def _get_display_name(strategy_name: str) -> str:
     """전략의 표시명을 반환한다."""
-    return _STRATEGY_DISPLAY_NAMES.get(strategy_name, strategy_name)
+    return _STRATEGY_DISPLAY_NAMES[strategy_name]
 
 
-def _label_by_display_name(summaries: dict[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+def _label_by_display_name(summaries: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """전략명 키를 표시명 키로 바꾼 딕셔너리를 반환한다 (판단 문구 생성용)."""
     return {_get_display_name(name): summary for name, summary in summaries.items()}
 
@@ -182,9 +178,9 @@ def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFr
     """전략별 Dynamic 윈도우 결과를 표시명 키로 로드한다 (판단 문구·기간 표 공용)."""
     windows: dict[str, pd.DataFrame] = {}
     for strat_name, result_dir in strategy_dirs.items():
-        window_df = _load_window_csv(*_cache_args(result_dir / WALKFORWARD_DYNAMIC_FILENAME))
-        if window_df is not None:
-            windows[_get_display_name(strat_name)] = window_df
+        windows[_get_display_name(strat_name)] = _load_window_csv(
+            *_cache_args(result_dir / WALKFORWARD_DYNAMIC_FILENAME)
+        )
     return windows
 
 
@@ -193,7 +189,7 @@ def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFr
 # ============================================================
 
 
-def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
+def _render_mode_summary(summaries: dict[str, dict[str, Any]]) -> None:
     """모든 전략의 Dynamic vs Fully Fixed 핵심 지표를 4열 테이블로 비교한다."""
     st.header("모드별 요약 비교 (Dynamic vs Fully Fixed)")
 
@@ -215,29 +211,17 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
         row: dict[str, object] = {"지표": display_name}
         for strat_name, summary in summaries.items():
             label = _get_display_name(strat_name)
-            dynamic = summary.get(KEY_WFO_DYNAMIC)
-            fully_fixed = summary.get(KEY_WFO_FULLY_FIXED)
-
-            if isinstance(dynamic, dict):
-                val = dynamic.get(key, "N/A")
-                row[f"{label} Dynamic"] = f"{val}{suffix}" if val != "N/A" else "N/A"
-            else:
-                row[f"{label} Dynamic"] = "N/A"
-
-            if isinstance(fully_fixed, dict):
-                val = fully_fixed.get(key, "N/A")
-                row[f"{label} Fixed"] = f"{val}{suffix}" if val != "N/A" else "N/A"
-            else:
-                row[f"{label} Fixed"] = "N/A"
+            row[f"{label} Dynamic"] = f"{summary[KEY_WFO_DYNAMIC][key]}{suffix}"
+            row[f"{label} Fixed"] = f"{summary[KEY_WFO_FULLY_FIXED][key]}{suffix}"
 
         rows.append(row)
 
     df = pd.DataFrame(rows)
     st.dataframe(df, hide_index=True, width="stretch")
 
-    # VERBATIM
+    # VERBATIM — WFE 의 「1」은 판단 기준이 아니라 뜻(OOS 성과 = IS 성과)이라 상수로 적지 않는다
     st.markdown(
-        r"""## 지표에 사용하는 용어에 대한 설명
+        rf"""## 지표에 사용하는 용어에 대한 설명
 
 - **Dynamic 모드**: 매 WFO 윈도우마다 IS(In-Sample) 구간에서 그리드 서치로 최적 파라미터를 새로 선택하는 방식
 - **Fully Fixed 모드**: 확정 파라미터(4P)를 모든 윈도우에 고정 적용하는 방식
@@ -254,9 +238,9 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
 ## 지표를 해석하는 방법
 
 - **Dynamic vs Fully Fixed 비교**: Dynamic이 Fully Fixed(4P)보다 현저히 좋다면 파라미터 적응이 유효한 것이고, 비슷하거나 나쁘다면 4P 로도 충분함을 시사합니다. 다만 4P 는 전 기간을 보고 정한 값이라 이 비교는 4P 에 유리합니다
-- **Stitched Calmar**: 1 이상이면 위험 대비 수익이 양호, 0에 가까우면 수익 대비 손실이 크다는 의미
+- **Stitched Calmar**: {STITCHED_CALMAR_GOOD_THRESHOLD:g} 이상이면 위험 대비 수익이 양호, 0에 가까우면 수익 대비 손실이 크다는 의미
 - **WFE Calmar Robust**: 1에 가까우면 IS 성과가 OOS에서도 유지됨을 의미 (과최적화 아님). 0 또는 음수면 IS 성과가 OOS에서 재현되지 않음 (과최적화 의심). Fully Fixed(4P)의 값은 과최적화를 재지 않음 — 4P 는 OOS 를 포함한 전 기간을 보고 정했다
-- **PC 최대**: 0.5 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요"""
+- **PC 최대**: {PC_CONCENTRATION_THRESHOLD:g} 이상이면 수익이 특정 윈도우에 집중되어 있어 전략 안정성에 주의 필요"""
     )
 
     # 판단은 결과 파일에서 생성한다 (재실행으로 수치가 바뀌면 문구도 함께 갱신된다)
@@ -270,7 +254,7 @@ def _render_mode_summary(summaries: dict[str, dict[str, object]]) -> None:
 # ============================================================
 
 
-def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str, dict[str, object]]) -> None:
+def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str, dict[str, Any]]) -> None:
     """QQQ/TQQQ Stitched Equity 곡선을 좌우 서브플롯으로 비교한다."""
     st.header("Stitched Equity 곡선 비교")
 
@@ -289,47 +273,32 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str,
         eq_dynamic = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_DYNAMIC_FILENAME))
         eq_fixed = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME))
 
-        if eq_dynamic is None and eq_fixed is None:
-            fig.add_annotation(
-                text="데이터 없음",
-                xref=f"x{col_idx}",
-                yref=f"y{col_idx}",
-                x=0.5,
-                y=0.5,
-                showarrow=False,
-                font={"size": 16, "color": "gray"},
-            )
-            continue
-
-        if eq_dynamic is not None:
-            fig.add_trace(
-                go.Scatter(
-                    x=eq_dynamic["Date"],
-                    y=eq_dynamic["equity"],
-                    mode="lines",
-                    name="Dynamic",
-                    line={"color": "#1f77b4", "width": 1.5},
-                    legendgroup="dynamic",
-                    showlegend=(col_idx == 1),
-                ),
-                row=1,
-                col=col_idx,
-            )
-
-        if eq_fixed is not None:
-            fig.add_trace(
-                go.Scatter(
-                    x=eq_fixed["Date"],
-                    y=eq_fixed["equity"],
-                    mode="lines",
-                    name="Fully Fixed",
-                    line={"color": "#ff7f0e", "width": 1.5},
-                    legendgroup="fixed",
-                    showlegend=(col_idx == 1),
-                ),
-                row=1,
-                col=col_idx,
-            )
+        fig.add_trace(
+            go.Scatter(
+                x=eq_dynamic["Date"],
+                y=eq_dynamic["equity"],
+                mode="lines",
+                name="Dynamic",
+                line={"color": "#1f77b4", "width": 1.5},
+                legendgroup="dynamic",
+                showlegend=(col_idx == 1),
+            ),
+            row=1,
+            col=col_idx,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=eq_fixed["Date"],
+                y=eq_fixed["equity"],
+                mode="lines",
+                name="Fully Fixed",
+                line={"color": "#ff7f0e", "width": 1.5},
+                legendgroup="fixed",
+                showlegend=(col_idx == 1),
+            ),
+            row=1,
+            col=col_idx,
+        )
 
         fig.update_yaxes(title_text="Equity (원)", row=1, col=col_idx)
 
@@ -388,9 +357,6 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     for col_idx, strat_name in enumerate(strategy_names, start=1):
         dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
 
-        if dynamic_df is None:
-            continue
-
         window_labels = [
             f"W{row['window_idx']} ({row['oos_start'][:7]}~{row['oos_end'][:7]})" for _, row in dynamic_df.iterrows()
         ]
@@ -441,9 +407,6 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
         dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
-
-        if dynamic_df is None:
-            continue
 
         window_labels = [
             f"W{row['window_idx']} ({row['oos_start'][:7]}~{row['oos_end'][:7]})" for _, row in dynamic_df.iterrows()
@@ -517,47 +480,26 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
 # ============================================================
 
 
-def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
+def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
     """전략별 Dynamic 모드의 파라미터 변화를 오버레이하여 시각화한다."""
     st.header("파라미터 추이 (Dynamic 모드)")
 
-    param_keys = [
-        ("param_ma_windows", "MA Window"),
-        ("param_buy_buffers", "Buy Buffer (%)"),
-        ("param_sell_buffers", "Sell Buffer (%)"),
-        ("param_hold_days", "Hold Days"),
-    ]
-
-    # 4개 서브플롯
     fig = make_subplots(
-        rows=4,
+        rows=len(WFO_PARAM_SPECS),
         cols=1,
-        subplot_titles=[label for _, label in param_keys],
+        subplot_titles=[label for label, _, _ in WFO_PARAM_SPECS],
         vertical_spacing=0.10,
     )
 
     strategy_names = list(summaries.keys())
 
-    for i, (key, _label) in enumerate(param_keys, start=1):
+    for i, (_label, key, is_ratio) in enumerate(WFO_PARAM_SPECS, start=1):
         for strat_name in strategy_names:
-            summary = summaries[strat_name]
-            dynamic = summary.get(KEY_WFO_DYNAMIC)
-            if not isinstance(dynamic, dict):
-                continue
-
-            values = dynamic.get(key, [])
-            if not isinstance(values, list) or len(values) == 0:
-                continue
-
+            values = summaries[strat_name][KEY_WFO_DYNAMIC][key]
             x_labels = list(range(len(values)))
+            y_values = [v * 100 for v in values] if is_ratio else values
 
-            # buy/sell buffer는 %로 표시
-            if "buffer" in key.lower():
-                y_values = [v * 100 for v in values]
-            else:
-                y_values = values
-
-            color = _STRATEGY_COLORS.get(strat_name, "#333333")
+            color = _STRATEGY_COLORS[strat_name]
             display = _get_display_name(strat_name)
 
             fig.add_trace(
@@ -576,12 +518,12 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
             )
 
     fig.update_layout(
-        height=250 * 5,
+        height=250 * len(WFO_PARAM_SPECS),
         title_text="윈도우별 선택 파라미터 추이 (Dynamic)",
     )
 
     # X축 레이블 설정
-    for i in range(1, 6):
+    for i in range(1, len(WFO_PARAM_SPECS) + 1):
         fig.update_xaxes(title_text="윈도우 인덱스", row=i, col=1)
 
     st.plotly_chart(fig, width="stretch")
@@ -590,7 +532,7 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
-- **MA Window**: 이동평균 기간 (예: 100, 150, 200일)
+- **MA Window**: 이동평균 기간
 - **Buy Buffer(%)**: 매수 진입 허용 범위 (MA 상단 밴드). 값이 클수록 보수적 진입
 - **Sell Buffer(%)**: 매도 청산 허용 범위 (MA 하단 밴드). 값이 클수록 보수적 청산
 - **Hold Days**: 신호 확정까지 대기하는 유지조건 일수
@@ -617,10 +559,8 @@ def _render_param_drift(summaries: dict[str, dict[str, object]]) -> None:
 
 
 @st.cache_data
-def _load_window_csv_detail(path: Path, mtime: float) -> pd.DataFrame | None:
-    """윈도우별 상세 CSV를 로드한다 (날짜 열 date 변환). 파일 미존재 시 None. 인자는 `_cache_args` 참고."""
-    if not path.exists():
-        return None
+def _load_window_csv_detail(path: Path, mtime: float) -> pd.DataFrame:
+    """윈도우별 상세 CSV를 로드한다 (날짜 열 date 변환). 인자는 `_cache_args` 참고."""
     df = pd.read_csv(path)
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
@@ -756,7 +696,7 @@ def _build_wfo_markers(
         }
     )
 
-    if trades_df.empty or "entry_date" not in trades_df.columns:
+    if trades_df.empty:
         return markers
 
     for trade in trades_df.itertuples(index=False):
@@ -799,8 +739,6 @@ def _build_wfo_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
 def _build_wfo_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
     """드로우다운 Area 시리즈 데이터를 생성한다."""
     data: list[dict[str, object]] = []
-    if "drawdown_pct" not in equity_df.columns:
-        return data
     for row in equity_df.itertuples(index=False):
         d: date = getattr(row, COL_DATE)
         data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.drawdown_pct))})
@@ -817,36 +755,24 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
 시각적으로 검증할 수 있습니다."""
     )
 
-    # 1. 지표 선택 (유효한 것만 필터)
-    available_metrics: list[str] = []
-    for metric_label, (strat_name, mode_dir, _wfo_csv) in _METRIC_OPTIONS.items():
-        if strat_name in strategy_dirs:
-            window_dir = strategy_dirs[strat_name] / mode_dir
-            if window_dir.exists():
-                available_metrics.append(metric_label)
-
-    if not available_metrics:
-        st.warning("윈도우별 상세 데이터가 존재하지 않습니다.\n\n" "`run_walkforward.py`를 재실행하여 윈도우별 CSV를 생성하세요.")
-        return
-
+    # 1. 지표 선택 (전략 × 모드)
+    metric_options = {
+        f"{_get_display_name(strat_name)} {mode_label}": (strat_name, mode_dir, wfo_csv)
+        for strat_name in strategy_dirs
+        for mode_label, mode_dir, wfo_csv in _WINDOW_MODES
+    }
     selected_metric = st.selectbox(
         "지표 선택",
-        available_metrics,
+        list(metric_options),
         key="wfo_metric_select",
     )
 
-    if selected_metric is None:
-        return
-
-    strat_name, mode_dir, wfo_csv_filename = _METRIC_OPTIONS[selected_metric]
+    strat_name, mode_dir, wfo_csv_filename = metric_options[selected_metric]
     result_dir = strategy_dirs[strat_name]
     window_dir = result_dir / mode_dir
 
     # 2. WFO 윈도우 정보 로드 (날짜 범위용)
     wfo_df = _load_window_csv(*_cache_args(result_dir / wfo_csv_filename))
-    if wfo_df is None or wfo_df.empty:
-        st.warning("WFO 결과 CSV를 로드할 수 없습니다.")
-        return
 
     # 3. 윈도우 선택
     window_labels: list[str] = []
@@ -864,9 +790,6 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
         key="wfo_window_select",
     )
 
-    if selected_window_label is None:
-        return
-
     selected_idx = window_labels.index(selected_window_label)
     window_row = wfo_df.iloc[selected_idx]
 
@@ -875,13 +798,6 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
     signal_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, SIGNAL_FILENAME)))
     equity_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, EQUITY_FILENAME)))
     trades_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, TRADES_FILENAME)))
-
-    if signal_df is None or equity_df is None:
-        st.warning(f"W{idx} 상세 데이터를 찾을 수 없습니다. `run_walkforward.py`를 재실행하세요.")
-        return
-
-    if trades_df is None:
-        trades_df = pd.DataFrame()
 
     # 5. 파라미터 + 성과 요약 (metric 카드)
     col1, col2, col3, col4 = st.columns(4)
@@ -1105,7 +1021,6 @@ def main() -> None:
             "```"
         )
         st.stop()
-        return
 
     with st.expander("WFO 기본 개념 (펼쳐서 보기)"):
         st.markdown(
@@ -1130,16 +1045,10 @@ IS 시작점은 Dynamic 그리드와 4P 중 가장 긴 이동평균이 계산되
     st.divider()
 
     # 전략별 요약 로드
-    summaries: dict[str, dict[str, object]] = {}
-    for strat_name, result_dir in strategy_dirs.items():
-        summary = _load_summary(*_cache_args(result_dir / WALKFORWARD_SUMMARY_FILENAME))
-        if summary is not None:
-            summaries[strat_name] = summary
-
-    if not summaries:
-        st.error("요약 데이터를 로드할 수 없습니다.")
-        st.stop()
-        return
+    summaries: dict[str, dict[str, Any]] = {
+        strat_name: _load_summary(*_cache_args(result_dir / WALKFORWARD_SUMMARY_FILENAME))
+        for strat_name, result_dir in strategy_dirs.items()
+    }
 
     # 5개 섹션 순서대로 렌더링 (통합 뷰)
     _render_mode_summary(summaries)

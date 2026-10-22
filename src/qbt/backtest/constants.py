@@ -50,6 +50,22 @@ DEFAULT_WFO_OOS_MONTHS: Final = 24  # OOS 기간 (2년)
 KEY_WFO_DYNAMIC: Final = "dynamic"  # 윈도우마다 IS 그리드에서 다시 고른다
 KEY_WFO_FULLY_FIXED: Final = "fully_fixed"  # 4P 를 모든 윈도우에 고정한다
 
+# --- WFO 선택 파라미터 (표시 라벨, 모드 요약의 키, 비율 여부 — 비율은 % 로 보인다) ---
+# 판단 문구와 대시보드 파라미터 추이가 같은 목록 · 같은 라벨을 쓴다
+WFO_PARAM_SPECS: Final[tuple[tuple[str, str, bool], ...]] = (
+    ("MA Window", "param_ma_windows", False),
+    ("Buy Buffer(%)", "param_buy_buffers", True),
+    ("Sell Buffer(%)", "param_sell_buffers", True),
+    ("Hold Days", "param_hold_days", False),
+)
+
+# --- WFO 판단 기준 — 판단 문구가 쓰고, 대시보드 「지표를 해석하는 방법」도 이 값으로 기준을 적는다 ---
+PC_CONCENTRATION_THRESHOLD: Final = 0.5  # 한 윈도우의 수익 기여 비중이 이 이상이면 집중 경고 (0.5 = 전체 수익의 50%)
+STITCHED_CALMAR_GOOD_THRESHOLD: Final = 1.0  # 이어 붙인 자본곡선의 Calmar 가 이 이상이면 위험 대비 수익이 양호하다
+
+# --- 파라미터 고원: 최대값을 포함하면서 최대값 대비 이 비율 이상이 끊기지 않는 범위 (0.8 = 80%) ---
+DEFAULT_PLATEAU_THRESHOLD_RATIO: Final = 0.8
+
 # --- 결과 파일명 (러너가 쓰고 대시보드가 읽는다) ---
 SIGNAL_FILENAME: Final = "signal.csv"
 EQUITY_FILENAME: Final = "equity.csv"

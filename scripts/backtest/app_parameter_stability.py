@@ -19,6 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from qbt.backtest.constants import DEFAULT_PLATEAU_THRESHOLD_RATIO
 from qbt.backtest.parameter_stability import (
     find_plateau_range,
     find_plateau_range_with_trade_filter,
@@ -127,10 +128,10 @@ def _render_line_chart(
                 trades_series,
                 min_trades=trade_filter_min_trades,
             )
-            annotation_label = "고원 구간 (80%, 저거래 제외)"
+            annotation_label = f"고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%, 저거래 제외)"
         else:
             plateau = find_plateau_range(qqq_series)
-            annotation_label = "고원 구간 (80%)"
+            annotation_label = f"고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%)"
 
         if plateau is not None:
             fig.add_vrect(
@@ -221,7 +222,7 @@ def main() -> None:
     )
 
     st.title("파라미터 고원 시각화 대시보드")
-    st.markdown("4P 확정 파라미터(MA=200, buy=3%, sell=5%, hold=3) 기준 고원 분석")
+    st.markdown("4P 확정 파라미터 기준 고원 분석")
 
     # 탭 생성
     tab_names = [display for _, display in _TABS]
