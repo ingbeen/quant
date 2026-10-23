@@ -69,37 +69,14 @@ from qbt.common_constants import (
     VXUS_SYNTHETIC_DATA_PATH,
 )
 
+from helpers import run_summary, weekdays
+
 _Q2_SLOTS = get_portfolio_config("portfolio_q2_2xs").asset_slots
 _START = date(2007, 6, 22)
 
 # ============================================================================
 # 공통 헬퍼
 # ============================================================================
-
-
-def _weekdays(start: date, end: date) -> list[date]:
-    days: list[date] = []
-    current = start
-    while current <= end:
-        if current.weekday() < 5:
-            days.append(current)
-        current += timedelta(days=1)
-    return days
-
-
-def _summary(calmar: float, start: date = _START, trading_days: int = 4800) -> se.RunSummary:
-    return se.RunSummary(
-        start_date=start,
-        end_date=date(2026, 9, 24),
-        trading_days=trading_days,
-        cagr=10.0,
-        mdd=-20.0,
-        calmar=calmar,
-        sell_trades=0,
-        annual_turnover=0.0,
-        phase_returns={},
-        phase_mdds={},
-    )
 
 
 def _advantages(values: list[float]) -> dict[int, float]:
@@ -149,7 +126,7 @@ def _fake_results(
         targets = None
         if case.candidate in se.PROXY_CANDIDATES:
             targets = (targets_of or {}).get(key, default_targets[case.candidate])
-        results.append(se.GridCaseResult(case, _summary(calmar, case.start_date), [], targets))
+        results.append(se.GridCaseResult(case, run_summary(calmar, case.start_date), [], targets))
     return results
 
 
@@ -861,7 +838,7 @@ class TestEarlyPhaseWindows:
         Then:  수익률 = 2002-10-09 자본 ÷ 2001-08-31 자본 − 1
         """
         # Given
-        dates = [date(2001, 8, 31), *_weekdays(date(2001, 9, 4), date(2002, 10, 31))]
+        dates = [date(2001, 8, 31), *weekdays(date(2001, 9, 4), date(2002, 10, 31))]
         equity = [100.0] + [100.0 + i for i in range(1, len(dates))]
         dotcom = se.EARLY_PHASE_WINDOWS[0]
         last = max(i for i, d in enumerate(dates) if d <= dotcom.end)
@@ -882,7 +859,7 @@ class TestEarlyPhaseWindows:
         Then:  (None, None)
         """
         # Given
-        dates = _weekdays(date(2001, 9, 4), date(2002, 10, 31))
+        dates = weekdays(date(2001, 9, 4), date(2002, 10, 31))
         equity = [100.0] * len(dates)
 
         # When / Then
@@ -933,7 +910,7 @@ class TestSummarizeRun:
         Then:  값 그대로
         """
         # Given
-        days = _weekdays(date(2020, 1, 1), date(2020, 3, 31))
+        days = weekdays(date(2020, 1, 1), date(2020, 3, 31))
         equity = pd.DataFrame({COL_DATE: days, "equity": [100.0 + i for i in range(len(days))]})
         state_log = pd.DataFrame({COL_DATE: days, "is_month_end": [False] * len(days)})
         result = PortfolioResult(
@@ -968,7 +945,7 @@ class TestSummarizeRun:
         """
         # Given
         days = pd.Series(
-            [datetime(d.year, d.month, d.day) for d in _weekdays(date(2020, 1, 1), date(2020, 3, 31))], dtype=object
+            [datetime(d.year, d.month, d.day) for d in weekdays(date(2020, 1, 1), date(2020, 3, 31))], dtype=object
         )
         result = PortfolioResult(
             display_name="t",
@@ -1147,7 +1124,7 @@ class TestAdvantages:
         results = _fake_results({})
         for i, r in enumerate(results):
             if (r.case.group, r.case.candidate, r.case.w_pct) == (se.GROUP_MAIN, se.CANDIDATE_GOLD, 30):
-                results[i] = se.GridCaseResult(r.case, _summary(0.5, r.case.start_date, 4799), [], None)
+                results[i] = se.GridCaseResult(r.case, run_summary(0.5, r.case.start_date, 4799), [], None)
 
         # When / Then
         with pytest.raises(ValueError, match="실제 기간"):

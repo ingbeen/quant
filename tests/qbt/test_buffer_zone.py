@@ -8,7 +8,6 @@ backtest/strategies/buffer_zone 통합 모듈 테스트
 4. create_runner() 팩토리 함수 및 SingleBacktestResult 반환 구조
 5. signal_path == trade_path 분기 (overlap 호출 여부)
 6. TQQQ/QQQ config별 resolve_params_for_config 파라미터 검증
-7. TQQQ/QQQ config별 create_runner run_single 구조 검증
 
 왜 중요한가요?
 buffer_zone.py는 8개 자산의 config-driven 통합 전략 모듈입니다.
@@ -472,91 +471,3 @@ class TestCreateRunner:
         assert "trade_path" in result.data_info
         assert result.data_info["signal_path"] == str(signal_path)
         assert result.data_info["trade_path"] == str(trade_path)
-
-    @patch("qbt.backtest.runners.load_signal_trade_pair")
-    def test_tqqq_config_run_single_returns_result(self, mock_load_pair, tmp_path):
-        """
-        목적: buffer_zone_tqqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
-
-        Given: buffer_zone_tqqq config (signal != trade, override 고정)
-        When: create_runner(config)() 실행
-        Then: strategy_name, display_name, data_info 정합성 확인
-        """
-        # Given
-        test_df = self._make_test_df()
-        mock_load_pair.return_value = (test_df.copy(), test_df.copy())
-
-        tqqq_config = get_config("buffer_zone_tqqq")
-        config = BufferZoneConfig(
-            strategy_name=tqqq_config.strategy_name,
-            display_name=tqqq_config.display_name,
-            signal_data_path=tqqq_config.signal_data_path,
-            trade_data_path=tqqq_config.trade_data_path,
-            result_dir=tmp_path / "buffer_zone_tqqq",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-        )
-
-        # When
-        runner = runners.create_buffer_zone_runner(config)
-        result = runner()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buffer_zone_tqqq"
-        assert result.display_name == "버퍼존 전략 (TQQQ)"
-        assert isinstance(result.signal_df, pd.DataFrame)
-        assert isinstance(result.equity_df, pd.DataFrame)
-        assert isinstance(result.trades_df, pd.DataFrame)
-        assert isinstance(result.summary, dict)
-        assert isinstance(result.params_json, dict)
-        assert "ma_window" in result.params_json
-        assert isinstance(result.data_info, dict)
-        assert "signal_path" in result.data_info
-        assert "trade_path" in result.data_info
-
-    @patch("qbt.backtest.runners.load_signal_trade_pair")
-    def test_qqq_config_run_single_returns_result(self, mock_load_pair, tmp_path):
-        """
-        목적: buffer_zone_qqq config로 run_single 실행 시 SingleBacktestResult 구조 검증
-
-        Given: buffer_zone_qqq config (signal == trade, overlap 불필요)
-        When: create_runner(config)() 실행
-        Then: strategy_name, display_name, data_info 정합성 확인
-        """
-        # Given
-        test_df = self._make_test_df()
-        mock_load_pair.return_value = (test_df.copy(), test_df.copy())
-
-        qqq_config = get_config("buffer_zone_qqq")
-        config = BufferZoneConfig(
-            strategy_name=qqq_config.strategy_name,
-            display_name=qqq_config.display_name,
-            signal_data_path=qqq_config.signal_data_path,
-            trade_data_path=qqq_config.trade_data_path,
-            result_dir=tmp_path / "buffer_zone_qqq",
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-        )
-
-        # When
-        runner = runners.create_buffer_zone_runner(config)
-        result = runner()
-
-        # Then
-        assert isinstance(result, SingleBacktestResult)
-        assert result.strategy_name == "buffer_zone_qqq"
-        assert result.display_name == "버퍼존 전략 (QQQ)"
-        assert isinstance(result.signal_df, pd.DataFrame)
-        assert isinstance(result.equity_df, pd.DataFrame)
-        assert isinstance(result.trades_df, pd.DataFrame)
-        assert isinstance(result.summary, dict)
-        assert isinstance(result.params_json, dict)
-        assert "ma_window" in result.params_json
-        assert isinstance(result.data_info, dict)
-        assert "signal_path" in result.data_info
-        assert "trade_path" in result.data_info

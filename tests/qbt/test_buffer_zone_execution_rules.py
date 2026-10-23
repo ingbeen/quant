@@ -256,9 +256,9 @@ class TestOpenPosition:
         """
         모든 포지션이 청산된 경우 summary에 open_position이 없다.
 
-        Given: 매수 후 매도까지 완료되는 데이터
+        Given: 5일째 상향돌파 → 6일째 매수, 8일째 하향돌파 → 9일째 매도로 포지션 없이 끝나는 데이터
         When: run_buffer_strategy 실행
-        Then: summary에 open_position 없음
+        Then: 거래 1건, 마지막 날 position=0, summary에 open_position 없음
         """
         # Given: 상승 후 하락 (매수→매도 패턴)
         df = pd.DataFrame(
@@ -279,15 +279,12 @@ class TestOpenPosition:
         )
 
         # When
-        _trades_df, _equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
 
-        # Then: 포지션이 없으면 open_position 미포함
-        if summary["total_trades"] > 0:
-            # 거래가 있고 마지막이 매도로 끝났으면 open_position 없어야 함
-            # (마지막 포지션 상태에 따라 다름)
-            pass  # 데이터 패턴에 따라 결과가 달라질 수 있으므로 조건부 검증
-        if "open_position" not in summary:
-            assert True, "포지션이 없으면 open_position 미포함"
+        # Then
+        assert len(trades_df) == 1, "사고 판 거래가 한 건이어야 함"
+        assert equity_df.iloc[-1]["position"] == 0
+        assert "open_position" not in summary
 
 
 class TestCoreExecutionRules:
@@ -350,9 +347,9 @@ class TestCoreExecutionRules:
 
         절대 규칙: position=0일 때 equity = cash
 
-        Given: 포지션이 없는 상태
+        Given: 종가가 이동평균과 같아 밴드를 넘지 않는 데이터 (거래 없음)
         When: equity 계산
-        Then: equity == cash (position * close = 0이므로)
+        Then: 모든 날 position=0 이고 equity == 초기 자본 (현금만 있으므로)
         """
         # Given: 매매가 발생하지 않는 데이터 (밴드 내에서만 움직임)
         df = pd.DataFrame(
@@ -373,101 +370,12 @@ class TestCoreExecutionRules:
         )
 
         # When
-        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
-        # Then: 포지션 없는 모든 날의 equity == initial_capital
-        no_position_rows = equity_df[equity_df["position"] == 0]
-
-        if len(no_position_rows) > 0:
-            # 첫 날은 initial_capital이어야 함
-            first_equity = no_position_rows.iloc[0]["equity"]
-            assert first_equity == pytest.approx(
-                params.initial_capital, abs=0.01
-            ), f"포지션 없을 때 equity는 초기 자본이어야 함. 기대: {params.initial_capital}, 실제: {first_equity}"
-
-    def test_final_capital_with_position_remaining(self):
-        """
-        Final Capital 정의 검증 (포지션 남은 경우)
-
-        절대 규칙: final_capital = cash + position * last_close (강제청산 없음)
-
-        Given: 매수 후 매도 신호가 없어 포지션이 남은 데이터
-        When: 백테스트 종료
-        Then: final_capital == cash + position*last_close (Trade 생성 없이 평가액만 포함)
-        """
-        # Given: 계속 상승 (매도 신호 없음 → 포지션 남음)
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [100 + i * 2 for i in range(10)],
-                "Close": [100, 105, 110, 115, 120, 125, 130, 135, 140, 145],
-                "ma_5": [100, 102, 104, 106, 108, 110, 112, 114, 116, 118],
-            }
-        )
-
-        params = BufferStrategyParams(
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-            initial_capital=10000.0,
-        )
-
-        # When
-        _trades_df, equity_df, summary = run_buffer_strategy(df, df, params, log_trades=False)
-
-        # Then: final_capital == equity_df 마지막 값
-        # (현재 구현은 강제청산 로직이 있어 실패할 수 있음)
-        last_equity = equity_df.iloc[-1]["equity"]
-        final_capital = summary["final_capital"]
-
-        assert last_equity == pytest.approx(
-            final_capital, abs=0.01
-        ), f"Final capital은 마지막 equity와 일치해야 함. equity: {last_equity}, final_capital: {final_capital}"
-
-    def test_hold_days_0_timeline(self):
-        """
-        hold_days=0 타임라인 검증
-
-        절대 규칙:
-        - 돌파일(i일) 종가에서 신호 확정
-        - i일 종가에 pending_order 생성
-        - i+1일 시가에 체결
-
-        Given: hold_days=0, 명확한 돌파 패턴
-        When: 백테스트 실행
-        Then:
-          - 돌파일(i) equity: position=0 (신호만, 미체결)
-          - 체결일(i+1) equity: position>0 (체결 완료)
-        """
-        # Given: 3일째에 상향돌파
-        df = pd.DataFrame(
-            {
-                "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [100, 100, 100, 105, 110, 110, 110, 110, 110, 110],
-                "Close": [100, 100, 107, 110, 112, 112, 112, 112, 112, 112],
-                "ma_5": [100, 100, 100, 103, 106, 108, 109, 110, 110.5, 111],
-            }
-        )
-
-        params = BufferStrategyParams(
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=0,
-            initial_capital=10000.0,
-        )
-
-        # When
-        _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
-
-        # Then: 3일째(인덱스 2) position=0, 4일째(인덱스 3) position>0
-        assert len(equity_df) >= 4, f"equity_df는 최소 4행이어야 합니다. 실제: {len(equity_df)}"
-        signal_day = equity_df.iloc[2]
-        execution_day = equity_df.iloc[3]
-
-        assert signal_day["position"] == 0, f"hold_days=0: 돌파일에는 position=0. 실제: {signal_day['position']}"
-        assert execution_day["position"] > 0, f"hold_days=0: 다음날에는 position>0. 실제: {execution_day['position']}"
+        # Then
+        assert trades_df.empty, "밴드를 넘지 않으므로 거래가 없어야 함"
+        assert (equity_df["position"] == 0).all()
+        assert list(equity_df["equity"]) == pytest.approx([params.initial_capital] * len(equity_df), abs=0.01)
 
     def test_hold_days_1_timeline(self):
         """

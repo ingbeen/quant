@@ -20,6 +20,7 @@ tests/
 ├── CLAUDE.md           # 공통 테스트 규칙 (이 문서)
 └── qbt/                # qbt 패키지 테스트
     ├── conftest.py     # qbt 공통 픽스처
+    ├── helpers.py      # 테스트 파일 여럿이 import 하는 합성 데이터 · 설정 헬퍼 (from helpers import …)
     └── test_*.py       # qbt 모듈별 테스트
 ```
 
@@ -33,7 +34,6 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 - 테스트 탐색 경로: `tests` (하위 디렉토리를 재귀적으로 탐색)
 - 파일 패턴: `test_*.py`
-- pytest.ini의 마커 설정은 참고용이며, 테스트 실행은 기본적으로 전체 실행을 기준으로 한다.
 
 근거 위치: [../pytest.ini](../pytest.ini)
 
@@ -152,20 +152,6 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 
 - `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
 - storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.utils.stock_downloader.STOCK_DIR`)
-
-- `enable_numpy_warnings`: NumPy 부동소수점 경고 활성화 픽스처 (디버깅용)
-
-  - 목적: 디버깅/테스트 시 부동소수점 오류 조기 발견
-  - 동작: `np.errstate(all='warn')`로 모든 부동소수점 오류를 경고로 출력
-  - 사용 시나리오: 수치 계산 테스트에서 숨은 오류 감지
-  - 사용 예시:
-    ```python
-    def test_calculation(self, enable_numpy_warnings):
-        # 이 테스트 안에서 NumPy 경고가 활성화됨
-        result = calculate_some_metric(df)
-    ```
-  - 프로덕션 영향: 없음 (테스트 환경에서만 활성화)
-  - 기존 안전 장치: EPSILON 기반 방식은 그대로 유지
 
 근거 위치: [conftest.py](qbt/conftest.py)
 

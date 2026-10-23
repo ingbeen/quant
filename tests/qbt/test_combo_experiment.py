@@ -23,26 +23,13 @@ from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_types import PortfolioConfig, PortfolioResult
 from qbt.common_constants import COL_DATE
 
+from helpers import run_summary
+
 _MONTHS = [date(2016, m, 1) for m in range(1, 5)]
 
 # ============================================================================
 # 공통 헬퍼
 # ============================================================================
-
-
-def _summary(calmar: float, start: date, trading_days: int = 4800) -> se.RunSummary:
-    return se.RunSummary(
-        start_date=start,
-        end_date=date(2026, 9, 24),
-        trading_days=trading_days,
-        cagr=10.0,
-        mdd=-20.0,
-        calmar=calmar,
-        sell_trades=0,
-        annual_turnover=0.0,
-        phase_returns={},
-        phase_mdds={},
-    )
 
 
 def _targets(rows: list[dict[str, float]]) -> pd.DataFrame:
@@ -69,7 +56,7 @@ def _fake_results(
 ) -> list[cx.ComboCaseResult]:
     """152개 실행 전부에 가짜 요약을 붙인다."""
     return [
-        cx.ComboCaseResult(case, _summary(calmar_of(case), case.start_date), [], targets_of(case))
+        cx.ComboCaseResult(case, run_summary(calmar_of(case), case.start_date), [], targets_of(case))
         for case in cx.build_combo_cases()
     ]
 
@@ -317,7 +304,7 @@ class TestComboAdvantages:
         # Given
         def shifted(r: cx.ComboCaseResult) -> cx.ComboCaseResult:
             if r.case.group == cx.GROUP_REAL and r.case.candidate == se.CANDIDATE_BASELINE and r.case.w_pct == 30:
-                return cx.ComboCaseResult(r.case, _summary(0.5, r.case.start_date, trading_days=4799), [], {})
+                return cx.ComboCaseResult(r.case, run_summary(0.5, r.case.start_date, trading_days=4799), [], {})
             return r
 
         results = [shifted(r) for r in _fake_results(lambda case: 0.5)]

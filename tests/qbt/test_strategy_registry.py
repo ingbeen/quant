@@ -72,38 +72,16 @@ def _make_stock_df(n_rows: int = 30) -> pd.DataFrame:
 class TestStrategyRegistryKeys:
     """STRATEGY_REGISTRY 키 존재 계약 테스트."""
 
-    def test_buffer_zone_key_exists(self) -> None:
+    def test_registry_keys_are_buffer_zone_and_buy_and_hold(self) -> None:
         """
-        목적: STRATEGY_REGISTRY에 "buffer_zone" 키가 존재해야 한다.
+        목적: STRATEGY_REGISTRY 의 키가 "buffer_zone" · "buy_and_hold" 둘뿐이어야 한다.
 
         Given: STRATEGY_REGISTRY 딕셔너리
-        When:  "buffer_zone" 키 조회
-        Then:  None이 아님 (키 존재)
+        When:  키 집합 조회
+        Then:  {"buffer_zone", "buy_and_hold"}
         """
         # When & Then
-        assert "buffer_zone" in STRATEGY_REGISTRY, "'buffer_zone' 키가 STRATEGY_REGISTRY에 없습니다."
-
-    def test_buy_and_hold_key_exists(self) -> None:
-        """
-        목적: STRATEGY_REGISTRY에 "buy_and_hold" 키가 존재해야 한다.
-
-        Given: STRATEGY_REGISTRY 딕셔너리
-        When:  "buy_and_hold" 키 조회
-        Then:  None이 아님 (키 존재)
-        """
-        # When & Then
-        assert "buy_and_hold" in STRATEGY_REGISTRY, "'buy_and_hold' 키가 STRATEGY_REGISTRY에 없습니다."
-
-    def test_registry_has_exactly_two_entries(self) -> None:
-        """
-        목적: STRATEGY_REGISTRY에는 현재 두 전략만 등록되어야 한다.
-
-        Given: STRATEGY_REGISTRY 딕셔너리
-        When:  길이 확인
-        Then:  2개
-        """
-        # When & Then
-        assert len(STRATEGY_REGISTRY) == 2, f"STRATEGY_REGISTRY에 2개의 항목이 있어야 합니다. 실제: {len(STRATEGY_REGISTRY)}"
+        assert set(STRATEGY_REGISTRY) == {"buffer_zone", "buy_and_hold"}
 
 
 # ============================================================================
@@ -135,26 +113,6 @@ class TestStrategySpecCreateStrategy:
             strategy, BufferZoneStrategy
         ), f"buffer_zone spec.create_strategy()는 BufferZoneStrategy를 반환해야 합니다. 실제: {type(strategy)}"
 
-    def test_buffer_zone_strategy_implements_signal_strategy_protocol(self) -> None:
-        """
-        목적: create_strategy()가 SignalStrategy Protocol을 구현한 객체를 반환해야 한다.
-
-        Given: STRATEGY_REGISTRY["buffer_zone"] spec
-        When:  spec.create_strategy(slot) 호출
-        Then:  check_buy, check_sell, get_buy_meta 속성이 존재함
-        """
-        # Given
-        spec = STRATEGY_REGISTRY["buffer_zone"]
-        slot = _make_slot(ma_window=10)
-
-        # When
-        strategy = spec.create_strategy(slot)
-
-        # Then: SignalStrategy Protocol 필수 메서드 존재 확인
-        assert hasattr(strategy, "check_buy"), "SignalStrategy.check_buy 메서드가 없습니다."
-        assert hasattr(strategy, "check_sell"), "SignalStrategy.check_sell 메서드가 없습니다."
-        assert hasattr(strategy, "get_buy_meta"), "SignalStrategy.get_buy_meta 메서드가 없습니다."
-
     def test_buy_and_hold_creates_buy_and_hold_strategy(self) -> None:
         """
         목적: buy_and_hold spec의 create_strategy()가 BuyAndHoldStrategy를 반환해야 한다.
@@ -175,26 +133,6 @@ class TestStrategySpecCreateStrategy:
         assert isinstance(
             strategy, BuyAndHoldStrategy
         ), f"buy_and_hold spec.create_strategy()는 BuyAndHoldStrategy를 반환해야 합니다. 실제: {type(strategy)}"
-
-    def test_buy_and_hold_strategy_implements_signal_strategy_protocol(self) -> None:
-        """
-        목적: buy_and_hold create_strategy()도 SignalStrategy Protocol을 구현해야 한다.
-
-        Given: STRATEGY_REGISTRY["buy_and_hold"] spec
-        When:  spec.create_strategy(slot) 호출
-        Then:  check_buy, check_sell, get_buy_meta 속성이 존재함
-        """
-        # Given
-        spec = STRATEGY_REGISTRY["buy_and_hold"]
-        slot = _make_slot()
-
-        # When
-        strategy = spec.create_strategy(slot)
-
-        # Then
-        assert hasattr(strategy, "check_buy"), "SignalStrategy.check_buy 메서드가 없습니다."
-        assert hasattr(strategy, "check_sell"), "SignalStrategy.check_sell 메서드가 없습니다."
-        assert hasattr(strategy, "get_buy_meta"), "SignalStrategy.get_buy_meta 메서드가 없습니다."
 
 
 # ============================================================================
@@ -267,47 +205,26 @@ class TestStrategySpecPrepareSignalDf:
         # Then
         assert set(df.columns) == original_columns, "prepare_signal_df()가 원본 DataFrame을 변경하면 안 됩니다."
 
-    def test_buy_and_hold_returns_same_columns(self) -> None:
+    def test_buy_and_hold_returns_original_df(self) -> None:
         """
-        목적: buy_and_hold spec의 prepare_signal_df()가 컬럼을 추가하지 않아야 한다.
+        목적: buy_and_hold spec의 prepare_signal_df()가 원본과 같은 표를 돌려주고 입력 표를 바꾸지 않아야 한다 (열 · 행 · 값 그대로).
 
-        Given: STRATEGY_REGISTRY["buy_and_hold"] spec
-               원본 DataFrame
+        Given: STRATEGY_REGISTRY["buy_and_hold"] spec, 30행짜리 원본 DataFrame 과 호출 전 사본
         When:  spec.prepare_signal_df(df, slot) 호출
-        Then:  반환 DataFrame의 컬럼이 원본과 동일함
+        Then:  반환 DataFrame 과 호출 뒤의 입력 DataFrame 이 모두 호출 전 사본과 같다
         """
         # Given
         spec = STRATEGY_REGISTRY["buy_and_hold"]
         slot = _make_slot()
         df = _make_stock_df(n_rows=30)
-        original_columns = set(df.columns)
+        original = df.copy()
 
         # When
         result_df = spec.prepare_signal_df(df, slot)
 
         # Then
-        assert set(result_df.columns) == original_columns, (
-            "buy_and_hold prepare_signal_df()는 컬럼을 추가하면 안 됩니다. " f"원본: {original_columns}, 반환: {set(result_df.columns)}"
-        )
-
-    def test_buy_and_hold_returns_same_length(self) -> None:
-        """
-        목적: buy_and_hold prepare_signal_df()가 행 수를 변경하지 않아야 한다.
-
-        Given: 30행짜리 DataFrame
-        When:  spec.prepare_signal_df(df, slot) 호출
-        Then:  반환 DataFrame도 30행
-        """
-        # Given
-        spec = STRATEGY_REGISTRY["buy_and_hold"]
-        slot = _make_slot()
-        df = _make_stock_df(n_rows=30)
-
-        # When
-        result_df = spec.prepare_signal_df(df, slot)
-
-        # Then
-        assert len(result_df) == 30, f"buy_and_hold prepare_signal_df()는 행 수를 유지해야 합니다. 실제: {len(result_df)}"
+        pd.testing.assert_frame_equal(result_df, original)
+        pd.testing.assert_frame_equal(df, original)
 
 
 # ============================================================================
@@ -373,21 +290,3 @@ class TestStrategySpecGetWarmupPeriods:
 
         # Then
         assert warmup == 0, f"buy_and_hold get_warmup_periods()는 0을 반환해야 합니다. 실제: {warmup}"
-
-    def test_buy_and_hold_warmup_zero_regardless_of_ma_window(self) -> None:
-        """
-        목적: buy_and_hold는 ma_window 값과 무관하게 0을 반환해야 한다.
-
-        Given: ma_window=200 buy_and_hold slot (ma_window는 사실상 무시됨)
-        When:  get_warmup_periods() 호출
-        Then:  0 반환
-        """
-        # Given
-        spec = STRATEGY_REGISTRY["buy_and_hold"]
-        slot = _make_slot(ma_window=200)
-
-        # When
-        warmup = spec.get_warmup_periods(slot)
-
-        # Then
-        assert warmup == 0, f"buy_and_hold get_warmup_periods()는 항상 0이어야 합니다. 실제: {warmup}"

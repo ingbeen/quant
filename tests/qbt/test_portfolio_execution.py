@@ -24,8 +24,9 @@ from qbt.backtest.engines.portfolio_planning import (
 from qbt.backtest.engines.portfolio_rebalance import (
     RebalancePolicy,
 )
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+
+from helpers import make_portfolio_config, make_rise_then_fall_stock_df, make_rising_stock_df
 
 # ============================================================================
 # 공통 헬퍼
@@ -68,89 +69,6 @@ def _make_df_from_closes(closes: list[float], dates: list["date"]) -> "pd.DataFr
             COL_CLOSE: closes,
             COL_VOLUME: [1_000_000] * len(closes),
         }
-    )
-
-
-def _make_stock_df_with_sell(n_rows: int = 60, base_price: float = 100.0) -> pd.DataFrame:
-    """buy → sell 신호가 모두 포함된 합성 데이터를 생성한다."""
-    start = date(2024, 1, 2)
-    dates: list[date] = []
-    current = start
-    for _ in range(n_rows):
-        while current.weekday() >= 5:
-            current += timedelta(days=1)
-        dates.append(current)
-        current += timedelta(days=1)
-
-    closes = [base_price] * 10 + [base_price * 1.10] * 30 + [base_price * 0.85] * (n_rows - 40)
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [c - 0.5 for c in closes],
-            COL_HIGH: [c + 1.0 for c in closes],
-            COL_LOW: [c - 1.0 for c in closes],
-            COL_CLOSE: closes,
-            COL_VOLUME: [1_000_000] * n_rows,
-        }
-    )
-
-
-def _make_stock_df(n_rows: int = 50, base_price: float = 100.0) -> pd.DataFrame:
-    """테스트용 합성 주식 데이터를 생성한다."""
-    start = date(2024, 1, 2)
-    dates: list[date] = []
-    current = start
-    for _ in range(n_rows):
-        while current.weekday() >= 5:
-            current += timedelta(days=1)
-        dates.append(current)
-        current += timedelta(days=1)
-
-    closes = [base_price] * 10 + [base_price * 1.10] * (n_rows - 10)
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [c - 0.5 for c in closes],
-            COL_HIGH: [c + 1.0 for c in closes],
-            COL_LOW: [c - 1.0 for c in closes],
-            COL_CLOSE: closes,
-            COL_VOLUME: [1_000_000] * n_rows,
-        }
-    )
-
-
-def _make_portfolio_config(
-    asset_paths: dict[str, tuple[Path, Path]],
-    result_dir: Path,
-    *,
-    target_weights: dict[str, float] | None = None,
-    ma_window: int = 5,
-    hold_days: int = 0,
-    total_capital: float = 10_000_000.0,
-) -> PortfolioConfig:
-    """테스트용 PortfolioConfig를 생성한다."""
-    if target_weights is None:
-        equal_weight = 1.0 / len(asset_paths)
-        target_weights = {aid: equal_weight for aid in asset_paths}
-
-    slots = tuple(
-        AssetSlotConfig(
-            asset_id=aid,
-            signal_data_path=signal_path,
-            trade_data_path=trade_path,
-            target_weight=target_weights.get(aid, 0.25),
-            ma_window=ma_window,
-            hold_days=hold_days,
-        )
-        for aid, (signal_path, trade_path) in asset_paths.items()
-    )
-
-    return PortfolioConfig(
-        experiment_name="test_portfolio",
-        display_name="Test Portfolio",
-        asset_slots=slots,
-        total_capital=total_capital,
-        result_dir=result_dir,
     )
 
 
@@ -234,7 +152,7 @@ class TestPartialSellInvariant:
         qqq_path = create_csv_file("QQQ_max.csv", _make_df(qqq_closes))
         gld_path = create_csv_file("GLD_max.csv", _make_df(gld_closes))
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 0.50, "gld": 0.50},
@@ -267,10 +185,10 @@ class TestPartialSellInvariant:
         Then:  마지막 날 qqq_value == 0 (전량 매도 유지)
         """
         # Given
-        stock_df = _make_stock_df_with_sell(n_rows=60)
+        stock_df = make_rise_then_fall_stock_df(n_rows=60)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 1.0},
@@ -310,7 +228,7 @@ class TestRebalancingTopUpBuy:
         qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
         gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 0.50, "gld": 0.50},
@@ -361,7 +279,7 @@ class TestWeightRecoveryAfterRebalancing:
         qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
         gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 0.50, "gld": 0.50},
@@ -413,7 +331,7 @@ class TestRebalancedColumnMeaning:
         qqq_path = create_csv_file("QQQ_max.csv", _make_df_from_closes(qqq_closes, dates_list))
         gld_path = create_csv_file("GLD_max.csv", _make_df_from_closes(gld_closes, dates_list))
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 0.50, "gld": 0.50},
@@ -460,10 +378,10 @@ class TestRebalancedColumnMeaning:
                (초기 진입은 리밸런싱이 아니므로 rebalanced 표시 금지)
         """
         # Given: buy → 유지 데이터 (sell 없음)
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 1.0},

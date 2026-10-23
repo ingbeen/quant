@@ -1,10 +1,10 @@
 """포트폴리오 State Log 정합성 규칙 테스트
 
 run_portfolio_backtest()가 반환하는 state_log_df, equity_df, trades_df 사이의
-정합성을 5개 규칙으로 검증한다.
+정합성을 검증한다. 규칙 번호는 정합성 검사기(portfolio_validation)의 번호이고,
+규칙 2(리밸런싱 후 비중)는 리밸런싱이 일어나는 시세가 필요해 test_portfolio_validation.py 가 맡는다.
 
 규칙 1: 시그널-체결 1일 lag
-규칙 2: 리밸런싱 후 비중 정합성
 규칙 3: EXIT_ALL 후 주수 0
 규칙 4: 현금 비음수
 규칙 5: 에쿼티 등식 (equity = cash + sum(shares * close))
@@ -17,8 +17,9 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.engines.portfolio_engine import run_portfolio_backtest
-from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+
+from helpers import make_portfolio_config
 
 # ============================================================================
 # 공통 헬퍼
@@ -36,8 +37,8 @@ def _make_stock_df_for_state_log(
     - 다음 40일: base_price * 1.12 (12% 상승, buy signal 트리거)
     - 마지막 30일: base_price * 0.82 (18% 하락, sell signal 트리거)
 
-    이 패턴으로 buy -> sell 전환이 발생하여 EXIT_ALL, 리밸런싱,
-    시그널-체결 lag을 모두 검증할 수 있다.
+    이 패턴으로 buy -> sell 전환이 발생하여 EXIT_ALL 과
+    시그널-체결 lag을 검증할 수 있다.
     """
     start = date(2024, 1, 2)
     dates: list[date] = []
@@ -58,41 +59,6 @@ def _make_stock_df_for_state_log(
             COL_CLOSE: closes,
             COL_VOLUME: [1_000_000] * n_rows,
         }
-    )
-
-
-def _make_portfolio_config_for_state_log(
-    asset_paths: dict[str, tuple[Path, Path]],
-    result_dir: Path,
-    *,
-    target_weights: dict[str, float] | None = None,
-    ma_window: int = 5,
-    hold_days: int = 0,
-    total_capital: float = 10_000_000.0,
-) -> PortfolioConfig:
-    """테스트용 PortfolioConfig를 생성한다."""
-    if target_weights is None:
-        equal_weight = 1.0 / len(asset_paths)
-        target_weights = {aid: equal_weight for aid in asset_paths}
-
-    slots = tuple(
-        AssetSlotConfig(
-            asset_id=aid,
-            signal_data_path=signal_path,
-            trade_data_path=trade_path,
-            target_weight=target_weights.get(aid, 0.25),
-            ma_window=ma_window,
-            hold_days=hold_days,
-        )
-        for aid, (signal_path, trade_path) in asset_paths.items()
-    )
-
-    return PortfolioConfig(
-        experiment_name="test_state_log",
-        display_name="Test State Log",
-        asset_slots=slots,
-        total_capital=total_capital,
-        result_dir=result_dir,
     )
 
 
@@ -125,7 +91,7 @@ def portfolio_result_with_sell(tmp_path: Path, create_csv_file):
     path_a = create_csv_file("ASSET_A_max.csv", stock_df)
     path_b = create_csv_file("ASSET_B_max.csv", stock_df)
 
-    config = _make_portfolio_config_for_state_log(
+    config = make_portfolio_config(
         asset_paths={
             "asset_a": (path_a, path_a),
             "asset_b": (path_b, path_b),
@@ -197,7 +163,7 @@ class TestEquityEquation:
 
 
 # ============================================================================
-# 규칙 1, 2, 3: state_log_df 기반 검증
+# 규칙 1, 3: state_log_df 기반 검증
 # ============================================================================
 
 
@@ -241,68 +207,6 @@ class TestSignalExecutionOneDayLag:
                         mismatches.append(f"{aid}: {d} pending={pending} -> " f"다음날 executed={next_executed}")
 
         assert len(mismatches) == 0, f"시그널-체결 1일 lag 불일치 {len(mismatches)}건:\n" + "\n".join(mismatches[:10])
-
-
-class TestRebalanceWeightConsistency:
-    """규칙 2: 리밸런싱 후 비중 정합성.
-
-    핵심 계약: 리밸런싱 실행 후 보유 자산의 비중이
-    목표 비중 대비 리밸런싱 임계값보다 작아야 한다.
-    (정수 주식 수량 제약 + 슬리피지로 정확 일치는 불가)
-    """
-
-    def test_weight_deviation_within_threshold_after_rebalance(self, portfolio_result_with_sell):
-        """
-        목적: 리밸런싱 체결 후 비중 편차가 합리적 범위 내인지 검증.
-
-        Given: buy -> sell 전환이 포함된 포트폴리오 결과의 state_log_df
-        When: rebalanced == True인 행에서 보유 자산(shares > 0)의 비중 편차 확인
-        Then: |actual_weight / target_weight - 1| < 리밸런싱 임계값 (0.10)
-              (단, 소액 자산은 정수 주수 제약으로 편차가 클 수 있으므로 0.15로 완화)
-        """
-        # Given
-        state_log_df = portfolio_result_with_sell.state_log_df
-        assert not state_log_df.empty, "state_log_df가 비어있으면 안 됨"
-
-        config = portfolio_result_with_sell.config
-        target_weights = {slot.asset_id: slot.target_weight for slot in config.asset_slots}
-        asset_ids = _get_asset_ids(state_log_df)
-
-        # When: 리밸런싱 발생일 필터
-        if "rebalanced" not in state_log_df.columns:
-            pytest.skip("rebalanced 컬럼이 없어 리밸런싱 검증 불가")
-            return
-
-        reb_rows = state_log_df[state_log_df["rebalanced"]]
-        if reb_rows.empty:
-            # 리밸런싱이 발생하지 않았으면 검증 대상 없음 (통과)
-            return
-
-        # Then
-        max_deviation_threshold = 0.15
-        violations: list[str] = []
-        for _, row in reb_rows.iterrows():
-            for aid in asset_ids:
-                shares_col = f"{aid}_shares"
-                weight_col = f"{aid}_weight"
-                target_w = target_weights.get(aid, 0)
-
-                if target_w <= 0:
-                    continue
-
-                shares = int(row.get(shares_col, 0))
-                if shares <= 0:
-                    continue
-
-                actual_w = float(row.get(weight_col, 0))
-                deviation = abs(actual_w / target_w - 1.0)
-                if deviation > max_deviation_threshold:
-                    violations.append(
-                        f"{row['Date']} {aid}: actual={actual_w:.4f}, "
-                        f"target={target_w:.4f}, deviation={deviation:.4f}"
-                    )
-
-        assert len(violations) == 0, f"리밸런싱 후 비중 편차 초과 {len(violations)}건:\n" + "\n".join(violations[:10])
 
 
 class TestExitAllSharesZero:

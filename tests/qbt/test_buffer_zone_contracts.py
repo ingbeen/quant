@@ -1,6 +1,6 @@
-"""버퍼존 필드 및 밴드 분리 계약 테스트
+"""버퍼존 파라미터 불변성 및 밴드 분리 계약 테스트
 
-buy_buffer_zone_pct 필드 계약과 upper/lower 밴드 분리 불변조건을 검증한다.
+BufferStrategyParams frozen 계약과 upper/lower 밴드 분리 불변조건을 검증한다.
 """
 
 from dataclasses import FrozenInstanceError
@@ -9,47 +9,6 @@ import pytest
 
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
 from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
-
-
-class TestBuyBufferZonePctField:
-    """BufferStrategyParams에 buy_buffer_zone_pct 및 sell_buffer_zone_pct 필드 존재 테스트."""
-
-    def test_params_has_buy_buffer_zone_pct(self):
-        """
-        BufferStrategyParams에 buy_buffer_zone_pct 필드가 존재해야 한다.
-
-        Given: buy_buffer_zone_pct 파라미터로 생성
-        When: 필드 접근
-        Then: AttributeError 없이 접근 가능
-        """
-        # When & Then: buy_buffer_zone_pct로 생성 가능해야 함
-        params = BufferStrategyParams(
-            ma_window=5,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.04,
-            hold_days=0,
-            initial_capital=10000.0,
-        )
-        assert params.buy_buffer_zone_pct == 0.03, "buy_buffer_zone_pct가 0.03이어야 함"
-        assert params.sell_buffer_zone_pct == 0.04, "sell_buffer_zone_pct가 0.04이어야 함"
-
-    def test_params_has_sell_buffer_zone_pct(self):
-        """
-        BufferStrategyParams에 sell_buffer_zone_pct 필드가 존재해야 한다.
-
-        Given: sell_buffer_zone_pct 파라미터로 생성
-        When: 필드 접근
-        Then: AttributeError 없이 접근 가능하고 값이 정확함
-        """
-        # When & Then
-        params = BufferStrategyParams(
-            ma_window=10,
-            buy_buffer_zone_pct=0.02,
-            sell_buffer_zone_pct=0.05,
-            hold_days=1,
-            initial_capital=50000.0,
-        )
-        assert params.sell_buffer_zone_pct == 0.05, "sell_buffer_zone_pct가 0.05이어야 함"
 
 
 class TestBufferStrategyParamsFrozen:

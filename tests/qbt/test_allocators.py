@@ -39,6 +39,8 @@ from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
+from helpers import weekdays
+
 _DUMMY = Path("dummy")
 
 # ============================================================================
@@ -46,20 +48,10 @@ _DUMMY = Path("dummy")
 # ============================================================================
 
 
-def _weekdays(start: date, end: date) -> list[date]:
-    days: list[date] = []
-    current = start
-    while current <= end:
-        if current.weekday() < 5:
-            days.append(current)
-        current += timedelta(days=1)
-    return days
-
-
 def _month_weekdays(year: int, month: int) -> list[date]:
     first = date(year, month, 1)
     next_first = date(year + month // 12, month % 12 + 1, 1)
-    return _weekdays(first, next_first - timedelta(days=1))
+    return weekdays(first, next_first - timedelta(days=1))
 
 
 def _df(dates: list[date], closes: list[float]) -> pd.DataFrame:
@@ -372,7 +364,7 @@ class TestHaaInputAlignment:
 
 def _rotation_data(ratios: list[float]) -> dict[str, pd.DataFrame]:
     """SPY 100 고정, VXUS = 100 × 비율. 날짜는 2020-01-01 부터 평일."""
-    dates = _weekdays(date(2020, 1, 1), date(2020, 12, 31))[: len(ratios)]
+    dates = weekdays(date(2020, 1, 1), date(2020, 12, 31))[: len(ratios)]
     return {
         "vxus": _df(dates, [100.0 * r for r in ratios]),
         "shy": _df(dates, [50.0] * len(dates)),
@@ -482,7 +474,7 @@ def _ewy_path(length: int) -> list[float]:
 
 
 def _ewy_data(length: int) -> dict[str, pd.DataFrame]:
-    dates = _weekdays(date(2020, 1, 1), date(2021, 12, 31))[:length]
+    dates = weekdays(date(2020, 1, 1), date(2021, 12, 31))[:length]
     return {"ewy": _df(dates, _ewy_path(length)), "shy": _df(dates, [50.0] * length)}
 
 
@@ -554,7 +546,7 @@ class TestEwyBufferZone:
         Then: SHY 100% (전날 행으로 밴드를 잡아 첫날 매수하지 않는다)
         """
         # Given
-        dates = _weekdays(date(2020, 1, 1), date(2020, 3, 31))[:40]
+        dates = weekdays(date(2020, 1, 1), date(2020, 3, 31))[:40]
         data = {"ewy": _df(dates, [100.0] * 20 + [120.0] * 20), "shy": _df(dates, [50.0] * 40)}
         allocator = EwyBufferZoneAllocator(ma_window=10, buy_buffer_pct=0.03, sell_buffer_pct=0.05, hold_days=0)
 
@@ -573,7 +565,7 @@ class TestEwyBufferZone:
         Then: None
         """
         # Given
-        dates = _weekdays(date(2020, 1, 1), date(2020, 3, 31))[:30]
+        dates = weekdays(date(2020, 1, 1), date(2020, 3, 31))[:30]
         data = {"ewy": _df(dates, [100.0] * 30), "shy": _df(dates, [50.0] * 30)}
         allocator = EwyBufferZoneAllocator(**_EWY_PARAMS)
         allocator.target_weights(data, 9, False)
@@ -662,7 +654,7 @@ def _engine_config(
     closes_by_id: dict[str, list[float]],
     series_ids: tuple[str, ...],
 ) -> PortfolioConfig:
-    dates = _weekdays(date(2020, 1, 1), date(2021, 12, 31))[: len(next(iter(closes_by_id.values())))]
+    dates = weekdays(date(2020, 1, 1), date(2021, 12, 31))[: len(next(iter(closes_by_id.values())))]
     paths = {key: create_csv_file(f"{key.upper()}_max.csv", _df(dates, closes)) for key, closes in closes_by_id.items()}
     gld = create_csv_file("GLD_max.csv", _df(dates, _wave(len(dates), 0.3, 90.0, 0.0002)))
     asset_ids = [key for key in closes_by_id if key not in series_ids]
@@ -774,7 +766,7 @@ class TestEngineIntegration:
                 SlotMethodConfig("cand", "Candidate", 0.3, (AssetSlotConfig("ewy", ewy_path, ewy_path, 1.0),)),
             ),
         )
-        start = _weekdays(date(2020, 1, 1), date(2021, 12, 31))[260]
+        start = weekdays(date(2020, 1, 1), date(2021, 12, 31))[260]
 
         # When
         allocator_equity = run_portfolio_backtest(allocator_config, start_date=start).equity_df

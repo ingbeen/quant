@@ -1,62 +1,91 @@
-"""WFO 파라미터 선택 및 WFE 테스트
+"""WFO 파라미터 선택 및 WFE 요약 테스트
 
-select_best_calmar_params()의 Calmar 기반 선택 계약과 WFE 지표 계산을 검증한다.
+select_best_calmar_params()의 Calmar 기반 선택 계약과 모드 요약의 WFE Calmar Robust 를 검증한다.
+윈도우마다 WFE 를 계산하는 run_walkforward 는 test_walkforward_schedule.py 가 지킨다.
 """
-
-from datetime import date, timedelta
 
 import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import calculate_calmar
-from qbt.backtest.walkforward import calculate_wfo_mode_summary, run_walkforward, select_best_calmar_params
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
+from qbt.backtest.walkforward import calculate_wfo_mode_summary, select_best_calmar_params
+from qbt.common_constants import EPSILON
 
 # 모드 요약에 넘기는 이어 붙인 자본곡선 요약 — 이 파일의 요약 테스트는 윈도우 통계만 본다
 _STITCHED_SUMMARY: dict[str, object] = {"initial_capital": 10000.0, "cagr": 0.0, "mdd": -1.0, "calmar": 0.0}
 
-
-def _make_stock_df(
-    start_date: date,
-    n_days: int,
-    base_price: float = 100.0,
-    daily_return: float = 0.001,
-) -> pd.DataFrame:
-    """테스트용 주식 데이터를 생성한다.
-
-    Args:
-        start_date: 시작 날짜
-        n_days: 거래일 수
-        base_price: 시작 가격
-        daily_return: 일일 수익률 (기본 0.1%)
-
-    Returns:
-        OHLCV DataFrame
-    """
-    dates = []
-    prices = []
-    current = base_price
-    d = start_date
-    for _ in range(n_days):
-        # 주말 건너뛰기
-        while d.weekday() >= 5:
-            d = d + timedelta(days=1)
-        dates.append(d)
-        prices.append(current)
-        current = current * (1 + daily_return)
-
-        d = d + timedelta(days=1)
-
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [p * 0.999 for p in prices],
-            COL_HIGH: [p * 1.01 for p in prices],
-            COL_LOW: [p * 0.99 for p in prices],
-            COL_CLOSE: prices,
-            COL_VOLUME: [1_000_000] * n_days,
-        }
-    )
+# 윈도우 셋 — IS Calmar 0.5 · -0.2 · 0.3, wfe_calmar 1.06 · -1.25 · 1.3333, wfe_cagr 0.8 · -0.6667 · 0.6667 (두 지표 값이 서로 다름)
+_THREE_WINDOWS: list[dict[str, object]] = [
+    {
+        "window_idx": 0,
+        "is_start": "2000-01-01",
+        "is_end": "2003-12-31",
+        "oos_start": "2004-01-01",
+        "oos_end": "2005-12-31",
+        "best_ma_window": 100,
+        "best_buy_buffer_zone_pct": 0.03,
+        "best_sell_buffer_zone_pct": 0.03,
+        "best_hold_days": 0,
+        "is_cagr": 10.0,
+        "is_mdd": -20.0,
+        "is_calmar": 0.5,
+        "is_trades": 5,
+        "is_win_rate": 60.0,
+        "oos_cagr": 8.0,
+        "oos_mdd": -15.0,
+        "oos_calmar": 0.53,
+        "oos_trades": 2,
+        "oos_win_rate": 50.0,
+        "wfe_calmar": 1.06,
+        "wfe_cagr": 0.8,
+    },
+    {
+        "window_idx": 1,
+        "is_start": "2000-01-01",
+        "is_end": "2005-12-31",
+        "oos_start": "2006-01-01",
+        "oos_end": "2007-12-31",
+        "best_ma_window": 150,
+        "best_buy_buffer_zone_pct": 0.05,
+        "best_sell_buffer_zone_pct": 0.01,
+        "best_hold_days": 2,
+        "is_cagr": -3.0,
+        "is_mdd": -15.0,
+        "is_calmar": -0.2,
+        "is_trades": 3,
+        "is_win_rate": 33.3,
+        "oos_cagr": 2.0,
+        "oos_mdd": -8.0,
+        "oos_calmar": 0.25,
+        "oos_trades": 1,
+        "oos_win_rate": 100.0,
+        "wfe_calmar": -1.25,
+        "wfe_cagr": -0.6667,
+    },
+    {
+        "window_idx": 2,
+        "is_start": "2000-01-01",
+        "is_end": "2007-12-31",
+        "oos_start": "2008-01-01",
+        "oos_end": "2009-12-31",
+        "best_ma_window": 200,
+        "best_buy_buffer_zone_pct": 0.01,
+        "best_sell_buffer_zone_pct": 0.05,
+        "best_hold_days": 5,
+        "is_cagr": 6.0,
+        "is_mdd": -20.0,
+        "is_calmar": 0.3,
+        "is_trades": 4,
+        "is_win_rate": 75.0,
+        "oos_cagr": 4.0,
+        "oos_mdd": -10.0,
+        "oos_calmar": 0.4,
+        "oos_trades": 2,
+        "oos_win_rate": 50.0,
+        "wfe_calmar": 1.3333,
+        "wfe_cagr": 0.6667,
+    },
+]
 
 
 class TestCalmarSelection:
@@ -246,91 +275,6 @@ class TestCalmarSelectionMinTrades:
             select_best_calmar_params(grid_df, min_trades=5)
 
 
-class TestWfeCagr:
-    """WFE CAGR 계산 검증 테스트."""
-
-    def test_wfe_cagr_positive_is_cagr(self):
-        """
-        목적: IS CAGR > 0일 때 wfe_cagr = oos_cagr / is_cagr
-
-        Given: IS CAGR=10.0, OOS CAGR=8.0
-        When: run_walkforward()에서 wfe_cagr 계산
-        Then: wfe_cagr = 8.0 / 10.0 = 0.8
-        """
-        # Given — 약 10년 분량, 작은 윈도우로 빠른 실행
-        df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
-
-        # When — min_trades=0: 소규모 테스트에서 거래수 제약 비활성화
-        results = run_walkforward(
-            signal_df=df,
-            trade_df=df,
-            ma_window_list=[50],
-            buy_buffer_zone_pct_list=[0.03],
-            sell_buffer_zone_pct_list=[0.03],
-            hold_days_list=[0],
-            initial_is_months=24,
-            oos_months=12,
-            min_trades=0,
-        )
-
-        # Then — wfe_cagr 필드가 존재하고 올바른 계산
-        assert len(results) >= 1
-        for r in results:
-            assert "wfe_cagr" in r
-            is_cagr = r["is_cagr"]
-            oos_cagr = r["oos_cagr"]
-            if abs(is_cagr) > EPSILON:
-                expected = oos_cagr / is_cagr
-                assert r["wfe_cagr"] == pytest.approx(expected, abs=1e-6)
-            else:
-                assert r["wfe_cagr"] == pytest.approx(0.0, abs=EPSILON)
-
-    def test_wfe_cagr_zero_is_cagr(self):
-        """
-        목적: IS CAGR ≤ EPSILON일 때 wfe_cagr = 0.0
-
-        Given: IS CAGR가 0에 가까운 윈도우 결과 (직접 계산 검증)
-        When: wfe_cagr 계산 로직 적용
-        Then: wfe_cagr = 0.0
-        """
-        # IS CAGR ≈ 0인 경우를 검증하기 위해 직접 계산 로직을 확인
-        # run_walkforward는 실제로 IS CAGR=0을 만들기 어려우므로
-        # calculate_wfo_mode_summary에 전달할 mock 데이터로 검증
-        # Given — wfe_cagr=0.0인 윈도우 (IS CAGR ≤ EPSILON)
-        results: list[dict[str, object]] = [
-            {
-                "window_idx": 0,
-                "is_start": "2000-01-01",
-                "is_end": "2005-12-31",
-                "oos_start": "2006-01-01",
-                "oos_end": "2007-12-31",
-                "best_ma_window": 100,
-                "best_buy_buffer_zone_pct": 0.03,
-                "best_sell_buffer_zone_pct": 0.03,
-                "best_hold_days": 0,
-                "is_cagr": 0.0,
-                "is_mdd": 0.0,
-                "is_calmar": 0.0,
-                "is_trades": 0,
-                "is_win_rate": 0.0,
-                "oos_cagr": 5.0,
-                "oos_mdd": -10.0,
-                "oos_calmar": 0.5,
-                "oos_trades": 1,
-                "oos_win_rate": 100.0,
-                "wfe_calmar": 0.0,
-                "wfe_cagr": 0.0,
-            },
-        ]
-
-        # When
-        summary = calculate_wfo_mode_summary(results, _STITCHED_SUMMARY, [10000.0] * len(results))
-
-        # Then — wfe_cagr_mean = 0.0
-        assert summary["wfe_cagr_mean"] == pytest.approx(0.0, abs=EPSILON)
-        assert summary["wfe_cagr_median"] == pytest.approx(0.0, abs=EPSILON)
-
-
 class TestWfeCalmarRobust:
     """WFE Calmar Robust 계산 검증 테스트."""
 
@@ -343,77 +287,7 @@ class TestWfeCalmarRobust:
         Then: wfe_calmar_robust = IS Calmar > 0인 윈도우(0.5, 0.3)만의 wfe_calmar 중앙값
         """
         # Given — IS Calmar > 0: 윈도우 0, 2만 해당
-        results: list[dict[str, object]] = [
-            {
-                "window_idx": 0,
-                "is_start": "2000-01-01",
-                "is_end": "2003-12-31",
-                "oos_start": "2004-01-01",
-                "oos_end": "2005-12-31",
-                "best_ma_window": 100,
-                "best_buy_buffer_zone_pct": 0.03,
-                "best_sell_buffer_zone_pct": 0.03,
-                "best_hold_days": 0,
-                "is_cagr": 10.0,
-                "is_mdd": -20.0,
-                "is_calmar": 0.5,
-                "is_trades": 5,
-                "is_win_rate": 60.0,
-                "oos_cagr": 8.0,
-                "oos_mdd": -15.0,
-                "oos_calmar": 0.53,
-                "oos_trades": 2,
-                "oos_win_rate": 50.0,
-                "wfe_calmar": 1.06,
-                "wfe_cagr": 0.8,
-            },
-            {
-                "window_idx": 1,
-                "is_start": "2000-01-01",
-                "is_end": "2005-12-31",
-                "oos_start": "2006-01-01",
-                "oos_end": "2007-12-31",
-                "best_ma_window": 150,
-                "best_buy_buffer_zone_pct": 0.05,
-                "best_sell_buffer_zone_pct": 0.01,
-                "best_hold_days": 2,
-                "is_cagr": -3.0,
-                "is_mdd": -15.0,
-                "is_calmar": -0.2,
-                "is_trades": 3,
-                "is_win_rate": 33.3,
-                "oos_cagr": 2.0,
-                "oos_mdd": -8.0,
-                "oos_calmar": 0.25,
-                "oos_trades": 1,
-                "oos_win_rate": 100.0,
-                "wfe_calmar": -1.25,
-                "wfe_cagr": -0.6667,
-            },
-            {
-                "window_idx": 2,
-                "is_start": "2000-01-01",
-                "is_end": "2007-12-31",
-                "oos_start": "2008-01-01",
-                "oos_end": "2009-12-31",
-                "best_ma_window": 200,
-                "best_buy_buffer_zone_pct": 0.01,
-                "best_sell_buffer_zone_pct": 0.05,
-                "best_hold_days": 5,
-                "is_cagr": 6.0,
-                "is_mdd": -20.0,
-                "is_calmar": 0.3,
-                "is_trades": 4,
-                "is_win_rate": 75.0,
-                "oos_cagr": 4.0,
-                "oos_mdd": -10.0,
-                "oos_calmar": 0.4,
-                "oos_trades": 2,
-                "oos_win_rate": 50.0,
-                "wfe_calmar": 1.3333,
-                "wfe_cagr": 0.6667,
-            },
-        ]
+        results = _THREE_WINDOWS
 
         # When
         summary = calculate_wfo_mode_summary(results, _STITCHED_SUMMARY, [10000.0] * len(results))
@@ -462,3 +336,25 @@ class TestWfeCalmarRobust:
 
         # Then
         assert summary["wfe_calmar_robust"] == pytest.approx(0.0, abs=EPSILON)
+
+
+class TestWfeMeanMedian:
+    """모드 요약의 WFE 평균 · 중앙값 검증 테스트."""
+
+    def test_mean_and_median_use_each_metric(self):
+        """
+        목적: wfe_calmar 평균 · 중앙값은 윈도우의 wfe_calmar 로, wfe_cagr 평균 · 중앙값은 wfe_cagr 로 계산하는지 검증
+              (두 지표의 윈도우 값이 서로 달라 지표를 뒤바꾸거나 평균 · 중앙값을 바꾸면 갈린다)
+
+        Given: _THREE_WINDOWS (wfe_calmar 1.06 · -1.25 · 1.3333, wfe_cagr 0.8 · -0.6667 · 0.6667)
+        When: calculate_wfo_mode_summary() 호출
+        Then: wfe_calmar 평균 (1.06 - 1.25 + 1.3333) / 3 · 중앙값 1.06, wfe_cagr 평균 (0.8 - 0.6667 + 0.6667) / 3 · 중앙값 0.6667
+        """
+        # When
+        summary = calculate_wfo_mode_summary(_THREE_WINDOWS, _STITCHED_SUMMARY, [10000.0] * len(_THREE_WINDOWS))
+
+        # Then
+        assert summary["wfe_calmar_mean"] == pytest.approx((1.06 - 1.25 + 1.3333) / 3, abs=EPSILON)
+        assert summary["wfe_calmar_median"] == pytest.approx(1.06, abs=EPSILON)
+        assert summary["wfe_cagr_mean"] == pytest.approx((0.8 - 0.6667 + 0.6667) / 3, abs=EPSILON)
+        assert summary["wfe_cagr_median"] == pytest.approx(0.6667, abs=EPSILON)

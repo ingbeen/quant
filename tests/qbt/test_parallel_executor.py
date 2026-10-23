@@ -27,22 +27,6 @@ def _use_cached_df(multiplier: int) -> int:
     return len(df) * multiplier
 
 
-def _init_worker_cache(cache_payload: dict) -> None:
-    """워커 초기화 함수 - WORKER_CACHE 세팅"""
-    parallel_executor.WORKER_CACHE.clear()
-    parallel_executor.WORKER_CACHE.update(cache_payload)
-
-
-def _try_modify_cache(dummy: int) -> int:
-    """캐시된 df를 수정하려고 시도하는 함수 (금지됨)"""
-    df = parallel_executor.WORKER_CACHE.get("df")
-    if df is None:
-        raise ValueError("WORKER_CACHE에 df가 없습니다")
-    # 원본 수정 시도 (실제로는 .copy()를 사용해야 함)
-    df.loc[0, "A"] = 999
-    return len(df)
-
-
 def _fail_first_or_leave_marker(index: int, marker_dir: Path) -> int:
     """index 0 은 바로 실패하고, 나머지는 잠깐 쉰 뒤 실행 흔적 파일을 남긴다"""
     if index == 0:
@@ -146,7 +130,7 @@ class TestWorkerCache:
 
     def test_cache_initialization(self):
         """
-        initializer가 WORKER_CACHE를 올바르게 세팅하는지 검증
+        initializer(init_worker_cache)가 워커의 WORKER_CACHE를 올바르게 세팅하는지 검증
         """
 
         # 캐시 페이로드 준비
@@ -156,55 +140,35 @@ class TestWorkerCache:
         # initializer를 사용한 병렬 실행
         inputs = [{"multiplier": 1}, {"multiplier": 2}]
         results = parallel_executor.execute_parallel_with_kwargs(
-            _use_cached_df, inputs, max_workers=2, initializer=_init_worker_cache, initargs=(cache_payload,)
+            _use_cached_df,
+            inputs,
+            max_workers=2,
+            initializer=parallel_executor.init_worker_cache,
+            initargs=(cache_payload,),
         )
 
         # 캐시된 df를 사용하여 계산된 결과 검증
         assert results == [3, 6]  # len(df)=3 * multiplier
 
-    def test_cache_clear_on_reinit(self):
+    def test_reinit_drops_previous_entries(self, monkeypatch: pytest.MonkeyPatch):
         """
-        프로세스 풀 재사용 시 initializer가 캐시를 clear하는지 검증
+        목적: init_worker_cache 가 이전 항목을 지우고 새 페이로드만 남기는지 검증 — 같은 프로세스에서 다시 부르면
+              (그리드 워커를 프로세스 안에서 직접 부르는 테스트) 앞 호출의 키가 남아 다른 데이터를 읽는다
+
+        Given: WORKER_CACHE 에 앞 호출이 남긴 키가 있다
+        When: 다른 페이로드로 init_worker_cache 를 프로세스 안에서 부른다
+        Then: WORKER_CACHE 의 키가 새 페이로드의 키뿐이다
         """
+        # Given — 이 테스트 전용 캐시로 바꿔 다른 테스트와 격리
+        monkeypatch.setattr(parallel_executor, "WORKER_CACHE", {"stale": pd.DataFrame({"A": [1]})})
+        new_df = pd.DataFrame({"A": [1, 2, 3, 4, 5]})
 
-        # 첫 번째 실행: df1 캐시
-        df1 = pd.DataFrame({"A": [1, 2, 3]})
-        cache_payload1 = {"df": df1}
-        inputs1 = [{"multiplier": 1}]
+        # When
+        parallel_executor.init_worker_cache({"df": new_df})
 
-        results1 = parallel_executor.execute_parallel_with_kwargs(
-            _use_cached_df, inputs1, max_workers=1, initializer=_init_worker_cache, initargs=(cache_payload1,)
-        )
-        assert results1 == [3]
-
-        # 두 번째 실행: df2 캐시 (프로세스 풀 재사용 가능)
-        df2 = pd.DataFrame({"A": [1, 2, 3, 4, 5]})
-        cache_payload2 = {"df": df2}
-        inputs2 = [{"multiplier": 1}]
-
-        results2 = parallel_executor.execute_parallel_with_kwargs(
-            _use_cached_df, inputs2, max_workers=1, initializer=_init_worker_cache, initargs=(cache_payload2,)
-        )
-
-        # clear가 동작하면 새 캐시(df2)를 사용하여 5가 나와야 함
-        assert results2 == [5]
-
-    def test_cache_read_only(self):
-        """
-        워커 함수가 캐시된 DataFrame을 수정하지 않는지 검증
-        """
-        test_df = pd.DataFrame({"A": [1, 2, 3]})
-        original_value = test_df.loc[0, "A"]
-        cache_payload = {"df": test_df}
-
-        inputs = [{"dummy": 1}]
-        parallel_executor.execute_parallel_with_kwargs(
-            _try_modify_cache, inputs, max_workers=1, initializer=_init_worker_cache, initargs=(cache_payload,)
-        )
-
-        # 원본 DataFrame이 수정되지 않았는지 확인
-        # (실제로는 프로세스가 별도이므로 수정되지 않음, 이는 원칙 확인용)
-        assert test_df.loc[0, "A"] == original_value
+        # Then
+        assert set(parallel_executor.WORKER_CACHE) == {"df"}
+        assert parallel_executor.WORKER_CACHE["df"] is new_df
 
 
 class TestLogProgress:

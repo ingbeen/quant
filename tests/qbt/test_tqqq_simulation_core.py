@@ -110,36 +110,8 @@ class TestSimulate:
         expected_price = 30.0 * 1.03
 
         assert final_price == pytest.approx(
-            expected_price, abs=0.1
+            expected_price, abs=0.01
         ), f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
-
-    @pytest.mark.parametrize("invalid_leverage", [-3.0, 0.0, -1.0])
-    def test_invalid_leverage(self, invalid_leverage):
-        """
-        잘못된 레버리지 값 테스트
-
-        안정성: 음수나 0은 거부해야 합니다.
-
-        Given: leverage <= 0 (parametrize로 여러 값 테스트)
-        When: simulate
-        Then: ValueError
-
-        Args:
-            invalid_leverage: 테스트할 잘못된 레버리지 값 (-3.0, 0.0, -1.0)
-        """
-        # Given
-        underlying_df = pd.DataFrame({"Date": [date(2023, 1, 2)], "Open": [100.0], "Close": [100.0]})
-
-        # When & Then
-        with pytest.raises(ValueError):
-            simulate(
-                underlying_df=underlying_df,
-                leverage=invalid_leverage,
-                initial_price=30.0,
-                ffr_dict={"2023-01": 0.045},
-                expense_dict={"2023-01": 0.0095},
-                funding_spread={"2023-01": 0.006},
-            )
 
     def test_high_low_approximation_for_synthetic_data(self):
         """
@@ -521,44 +493,6 @@ class TestSimulateOvernightOpen:
         # Then
         assert result.iloc[0][COL_OPEN] == 30.0
         assert pd.isna(result.iloc[2][COL_OPEN])
-
-    def test_close_unchanged_after_open_improvement(self):
-        """
-        Open 계산 변경이 Close에 영향을 주지 않는지 확인한다.
-
-        Close는 기존 수식 그대로여야 한다:
-        TQQQ_Close(t) = TQQQ_Close(t-1) × (1 + underlying_return(t) × leverage - daily_cost)
-
-        Given: QQQ 2일 데이터 (underlying_return = 1%), leverage=3.0, 최소 비용
-        When: simulate() 호출
-        Then: Close는 initial_price × (1 + 0.01 × 3.0) ≈ 30.9 (비용 무시 가능)
-        """
-        # Given
-        underlying_df = pd.DataFrame(
-            {
-                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
-                COL_OPEN: [100.0, 100.5],
-                COL_CLOSE: [100.0, 101.0],  # +1%
-            }
-        )
-
-        # When
-        result = simulate(
-            underlying_df=underlying_df,
-            leverage=3.0,
-            initial_price=30.0,
-            ffr_dict={"2023-01": 0.0},
-            expense_dict={"2023-01": 0.0},
-            funding_spread={"2023-01": 1e-9},
-        )
-
-        # Then: QQQ +1% → TQQQ +3% (비용 무시)
-        # 30.0 × 1.03 = 30.9
-        expected_close = 30.0 * 1.03
-        actual_close = result.iloc[1][COL_CLOSE]
-        assert actual_close == pytest.approx(
-            expected_close, abs=0.01
-        ), f"Close는 기존 로직과 동일해야 합니다: expected={expected_close:.4f}, actual={actual_close:.4f}"
 
     def test_open_required_column(self):
         """

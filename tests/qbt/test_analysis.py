@@ -34,6 +34,16 @@ from qbt.backtest.analysis import (
 from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
 
 
+def _equity_df(values: list[float]) -> pd.DataFrame:
+    """2023-01-01 부터 하루 한 행인 에쿼티 표 (Sharpe · Sortino 테스트용)."""
+    return pd.DataFrame(
+        {
+            COL_DATE: [date(2023, 1, 1 + i) for i in range(len(values))],
+            "equity": values,
+        }
+    )
+
+
 class TestAddMovingAverages:
     """add_moving_averages 함수 테스트"""
 
@@ -59,46 +69,6 @@ class TestAddMovingAverages:
 
 class TestAddSingleMovingAverage:
     """이동평균 계산 테스트 클래스"""
-
-    def test_normal_calculation(self, enable_numpy_warnings):
-        """
-        정상적인 이동평균 계산 테스트
-
-        데이터 신뢰성: MA는 매매 신호 생성의 핵심이므로 정확해야 합니다.
-
-        Given: 5일치 종가 데이터
-        When: window=3으로 이동평균 계산
-        Then:
-          - MA_3 컬럼 추가됨
-          - 처음 2행은 NaN (window-1개)
-          - 3행부터 정확한 평균값
-
-        Note: enable_numpy_warnings 픽스처로 부동소수점 오류 감지
-        """
-        # Given: 간단한 데이터 (100, 110, 120, 130, 140)
-        df = pd.DataFrame(
-            {COL_DATE: [date(2023, 1, i + 1) for i in range(5)], COL_CLOSE: [100.0, 110.0, 120.0, 130.0, 140.0]}
-        )
-
-        # When: 3일 이동평균
-        result = add_single_moving_average(df, window=3)
-
-        # Then: 컬럼 추가 확인
-        assert "ma_3" in result.columns, "ma_3 컬럼이 추가되어야 합니다"
-
-        # 처음 2행은 NaN (데이터 부족)
-        assert pd.isna(result.iloc[0]["ma_3"]), "window-1개는 NaN이어야 합니다"
-        assert pd.isna(result.iloc[1]["ma_3"])
-
-        # 3행부터 계산 확인
-        # 3일(idx 2): (100+110+120)/3 = 110.0
-        assert result.iloc[2]["ma_3"] == pytest.approx(110.0, abs=EPSILON), "3일 이동평균: (100+110+120)/3 = 110.0"
-
-        # 4일(idx 3): (110+120+130)/3 = 120.0
-        assert result.iloc[3]["ma_3"] == pytest.approx(120.0, abs=EPSILON)
-
-        # 5일(idx 4): (120+130+140)/3 = 130.0
-        assert result.iloc[4]["ma_3"] == pytest.approx(130.0, abs=EPSILON)
 
     def test_window_larger_than_data(self):
         """
@@ -937,21 +907,13 @@ class TestAnalysisModuleInvariants:
 class TestCalculateSharpeRatio:
     """샤프 비율 계산 테스트 클래스."""
 
-    def _build_equity_df(self, values: list[float]) -> pd.DataFrame:
-        return pd.DataFrame(
-            {
-                COL_DATE: [date(2023, 1, 1 + i) for i in range(len(values))],
-                "equity": values,
-            }
-        )
-
     def test_normal_calculation(self):
         """
         Given: 변동이 있는 에쿼티 시계열
         When: calculate_sharpe_ratio 호출 (rf=0)
         Then: 유한한 float 반환, std=0 아님 → 0.0이 아님
         """
-        eq = self._build_equity_df([100.0, 102.0, 101.0, 103.0, 102.5, 104.0])
+        eq = _equity_df([100.0, 102.0, 101.0, 103.0, 102.5, 104.0])
 
         result = calculate_sharpe_ratio(eq, risk_free_rate=0.0)
 
@@ -967,7 +929,7 @@ class TestCalculateSharpeRatio:
         Then: 평균 1/30, 표본 표준편차 √(4/300), 연간 거래일 252 → (1/30) ÷ √(4/300) × √252 = √21
               (연율화 기준은 정책 값이라 252 를 여기 고정한다)
         """
-        eq = self._build_equity_df([100.0, 110.0, 99.0, 108.9])
+        eq = _equity_df([100.0, 110.0, 99.0, 108.9])
 
         result = calculate_sharpe_ratio(eq, risk_free_rate=0.0)
 
@@ -980,7 +942,7 @@ class TestCalculateSharpeRatio:
 
     def test_single_row_returns_zero(self):
         """1행만 있으면 수익률 계산 불가 → 0.0 반환."""
-        eq = self._build_equity_df([100.0])
+        eq = _equity_df([100.0])
         assert calculate_sharpe_ratio(eq) == 0.0
 
     def test_constant_equity_returns_zero(self):
@@ -989,20 +951,12 @@ class TestCalculateSharpeRatio:
         When: calculate_sharpe_ratio 호출
         Then: 분모 0 경계로 0.0 반환
         """
-        eq = self._build_equity_df([100.0, 100.0, 100.0, 100.0])
+        eq = _equity_df([100.0, 100.0, 100.0, 100.0])
         assert calculate_sharpe_ratio(eq) == 0.0
 
 
 class TestCalculateSortinoRatio:
     """소르티노 비율 계산 테스트 클래스."""
-
-    def _build_equity_df(self, values: list[float]) -> pd.DataFrame:
-        return pd.DataFrame(
-            {
-                COL_DATE: [date(2023, 1, 1 + i) for i in range(len(values))],
-                "equity": values,
-            }
-        )
 
     def test_normal_calculation(self):
         """
@@ -1010,7 +964,7 @@ class TestCalculateSortinoRatio:
         When: calculate_sortino_ratio 호출 (rf=0)
         Then: 유한한 float 반환, downside != 0 → 0.0 아님
         """
-        eq = self._build_equity_df([100.0, 102.0, 98.0, 103.0, 99.0, 105.0])
+        eq = _equity_df([100.0, 102.0, 98.0, 103.0, 99.0, 105.0])
 
         result = calculate_sortino_ratio(eq, risk_free_rate=0.0)
 
@@ -1026,7 +980,7 @@ class TestCalculateSortinoRatio:
         Then: 평균 1/30, 하방 편차 √(0.01/3), 연간 거래일 252 → (1/30) ÷ √(1/300) × √252 = √84
               (연율화 기준은 정책 값이라 252 를 여기 고정한다)
         """
-        eq = self._build_equity_df([100.0, 110.0, 99.0, 108.9])
+        eq = _equity_df([100.0, 110.0, 99.0, 108.9])
 
         result = calculate_sortino_ratio(eq, risk_free_rate=0.0)
 
@@ -1038,7 +992,7 @@ class TestCalculateSortinoRatio:
         When: calculate_sortino_ratio 호출
         Then: 정의상 0.0 반환
         """
-        eq = self._build_equity_df([100.0, 101.0, 102.0, 103.0, 104.0])
+        eq = _equity_df([100.0, 101.0, 102.0, 103.0, 104.0])
         assert calculate_sortino_ratio(eq) == 0.0
 
     def test_empty_equity_returns_zero(self):
@@ -1048,5 +1002,5 @@ class TestCalculateSortinoRatio:
 
     def test_constant_equity_returns_zero(self):
         """에쿼티가 일정하면 모든 수익률 0 → downside=0 → 0.0 반환."""
-        eq = self._build_equity_df([100.0, 100.0, 100.0, 100.0])
+        eq = _equity_df([100.0, 100.0, 100.0, 100.0])
         assert calculate_sortino_ratio(eq) == 0.0

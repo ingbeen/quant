@@ -223,6 +223,59 @@ class TestStrategyTypeBehavior:
             f"strategy_id='buy_and_hold' 자산은 매도 기록이 없어야 함, " f"실제 거래 수: {len(result.trades_df)}"
         )
 
+    def test_no_trades_keeps_trade_record_columns(self, tmp_path: Path, create_csv_file):
+        """
+        목적: 거래가 하나도 없어도 거래 표가 거래가 있는 실험과 같은 열을 갖는지 검증 (계좌 전체 · 자산별 모두)
+              — 저장한 trades.csv 의 헤더가 거래 유무와 무관하게 같아야 한다
+
+        Given: 매도 신호를 무시하는 strategy_id="buy_and_hold" 자산 (완료된 거래 없음)
+        When:  run_portfolio_backtest() 실행
+        Then:  trades_df · per_asset[0].trades_df 가 비어 있고 열이 포트폴리오 거래 기록의 열 목록(이름 · 순서)과 같다
+        """
+        # Given
+        df = _make_sell_signal_df(n_rows=20, initial_price=100.0, drop_price=80.0)
+        csv_path = create_csv_file("asset_no_trades.csv", df)
+
+        config = PortfolioConfig(
+            experiment_name="test_no_trades",
+            display_name="Test No Trades",
+            asset_slots=(
+                AssetSlotConfig(
+                    asset_id="asset_e",
+                    signal_data_path=csv_path,
+                    trade_data_path=csv_path,
+                    target_weight=1.0,
+                    strategy_id="buy_and_hold",
+                ),
+            ),
+            total_capital=1_000_000.0,
+            result_dir=tmp_path / "no_trades",
+        )
+
+        # When
+        result = run_portfolio_backtest(config)
+
+        # Then
+        expected_columns = [
+            "entry_date",
+            "exit_date",
+            "entry_price",
+            "exit_price",
+            "shares",
+            "pnl",
+            "pnl_pct",
+            "buy_buffer_pct",
+            "hold_days_used",
+            "asset_id",
+            "trade_type",
+            "pre_shares",
+            "post_shares",
+            "order_amount",
+        ]
+        assert result.trades_df.empty
+        assert list(result.trades_df.columns) == expected_columns
+        assert list(result.per_asset[0].trades_df.columns) == expected_columns
+
     def test_strategy_type_default_is_buffer_zone(self, tmp_path: Path) -> None:
         """
         목적: AssetSlotConfig.strategy_id 기본값이 "buffer_zone"임을 검증.
@@ -282,163 +335,3 @@ class TestStrategyTypeBehavior:
         assert assets_json[0]["strategy_id"] == "buy_and_hold", (
             f"strategy_id='buy_and_hold'가 params_json에 반영되어야 함, " f"실제: {assets_json[0].get('strategy_id')}"
         )
-
-
-class TestStrategyType:
-    """strategy_id 기능 계약 테스트.
-
-    핵심 계약:
-    1. AssetSlotConfig.strategy_id 기본값 == "buffer_zone"
-    2. strategy_id="buy_and_hold": 버퍼존 신호 없이 즉시 매수
-    3. strategy_id="buy_and_hold": 매도 신호에도 포지션 유지
-    4. params_json에 strategy_id 키 포함
-    """
-
-    def test_strategy_type_default_is_buffer_zone(self) -> None:
-        """
-        목적: AssetSlotConfig.strategy_id 기본값이 "buffer_zone"임을 검증.
-
-        Given: strategy_id 명시 없이 AssetSlotConfig 생성
-        When:  .strategy_id 속성 조회
-        Then:  "buffer_zone"
-        """
-        # Given/When
-        slot = AssetSlotConfig(
-            asset_id="test",
-            signal_data_path=Path("dummy"),
-            trade_data_path=Path("dummy"),
-            target_weight=0.50,
-        )
-
-        # Then
-        assert slot.strategy_id == "buffer_zone"
-
-    def test_strategy_type_buy_and_hold_buys_immediately(self, tmp_path: Path, create_csv_file) -> None:
-        """
-        목적: strategy_id="buy_and_hold" 자산이 버퍼존 신호 없이 즉시 매수됨을 검증.
-
-        Given: 가격 100 고정 → upper_band(103) 돌파 없음 → 버퍼존 매수 신호 없음
-               strategy_id="buy_and_hold"
-        When:  run_portfolio_backtest() 실행
-        Then:  마지막 날 value > 0 (즉시 매수 후 포지션 유지)
-        """
-        # Given
-        df = _make_flat_price_df(n_rows=20, price=100.0)
-        csv_path = create_csv_file("asset_bnh.csv", df)
-
-        config = PortfolioConfig(
-            experiment_name="test_bnh",
-            display_name="Test B&H",
-            asset_slots=(
-                AssetSlotConfig(
-                    asset_id="asset_bnh",
-                    signal_data_path=csv_path,
-                    trade_data_path=csv_path,
-                    target_weight=1.0,
-                    strategy_id="buy_and_hold",
-                ),
-            ),
-            total_capital=1_000_000.0,
-            result_dir=tmp_path / "bnh",
-        )
-
-        # When
-        result = run_portfolio_backtest(config)
-
-        # Then
-        last_value = float(result.equity_df["asset_bnh_value"].iloc[-1])
-        assert last_value > 0, f"strategy_id='buy_and_hold' 자산은 즉시 매수되어야 함, 실제: {last_value}"
-
-    def test_strategy_type_buy_and_hold_ignores_sell_signal(self, tmp_path: Path, create_csv_file) -> None:
-        """
-        목적: strategy_id="buy_and_hold" 자산이 매도 신호에도 포지션 유지됨을 검증.
-
-        Given: 처음 5행 100 → 이후 80 (매도 신호 발생)
-               strategy_id="buy_and_hold"
-        When:  run_portfolio_backtest() 실행
-        Then:  마지막 날 value > 0 (매도 신호 무시)
-               trades_df 비어있음 (완료된 매도 거래 없음)
-        """
-        # Given
-        df = _make_sell_signal_df(n_rows=20, initial_price=100.0, drop_price=80.0)
-        csv_path = create_csv_file("asset_bnh_sell.csv", df)
-
-        config = PortfolioConfig(
-            experiment_name="test_bnh_sell",
-            display_name="Test B&H Sell",
-            asset_slots=(
-                AssetSlotConfig(
-                    asset_id="asset_bnh_s",
-                    signal_data_path=csv_path,
-                    trade_data_path=csv_path,
-                    target_weight=1.0,
-                    strategy_id="buy_and_hold",
-                ),
-            ),
-            total_capital=1_000_000.0,
-            result_dir=tmp_path / "bnh_sell",
-        )
-
-        # When
-        result = run_portfolio_backtest(config)
-
-        # Then
-        last_value = float(result.equity_df["asset_bnh_s_value"].iloc[-1])
-        assert last_value > 0, "strategy_id='buy_and_hold' 자산은 매도 신호에도 포지션을 유지해야 함"
-        assert result.trades_df.empty, "strategy_id='buy_and_hold' 자산은 완료된 매도 기록이 없어야 함"
-        # 거래가 없어도 거래가 있는 실험과 같은 열을 갖는다 (계좌 전체 · 자산별 모두)
-        expected_columns = [
-            "entry_date",
-            "exit_date",
-            "entry_price",
-            "exit_price",
-            "shares",
-            "pnl",
-            "pnl_pct",
-            "buy_buffer_pct",
-            "hold_days_used",
-            "asset_id",
-            "trade_type",
-            "pre_shares",
-            "post_shares",
-            "order_amount",
-        ]
-        assert list(result.trades_df.columns) == expected_columns
-        assert list(result.per_asset[0].trades_df.columns) == expected_columns
-
-    def test_params_json_includes_strategy_type(self, tmp_path: Path, create_csv_file) -> None:
-        """
-        목적: params_json에 strategy_id 필드가 포함됨을 검증.
-
-        Given: strategy_id="buy_and_hold" 자산 포함 config
-        When:  run_portfolio_backtest() 실행
-        Then:  result.params_json["asset_slots"][0]["strategy_id"] == "buy_and_hold"
-        """
-        # Given
-        df = _make_flat_price_df(n_rows=20, price=100.0)
-        csv_path = create_csv_file("asset_pj.csv", df)
-
-        config = PortfolioConfig(
-            experiment_name="test_params_json_st",
-            display_name="Test Params JSON ST",
-            asset_slots=(
-                AssetSlotConfig(
-                    asset_id="asset_pj",
-                    signal_data_path=csv_path,
-                    trade_data_path=csv_path,
-                    target_weight=1.0,
-                    strategy_id="buy_and_hold",
-                ),
-            ),
-            total_capital=1_000_000.0,
-            result_dir=tmp_path / "params_json_st",
-        )
-
-        # When
-        result = run_portfolio_backtest(config)
-
-        # Then
-        assets_json = result.params_json["asset_slots"]
-        assert len(assets_json) == 1
-        assert "strategy_id" in assets_json[0], "params_json[asset_slots][0]에 strategy_id 키가 있어야 함"
-        assert assets_json[0]["strategy_id"] == "buy_and_hold"

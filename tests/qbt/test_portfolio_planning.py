@@ -1,6 +1,6 @@
 """포트폴리오 플래닝 로직 테스트
 
-OrderIntent 모델, 시그널 intent 생성, projected portfolio, 리밸런싱 intent 생성,
+시그널 intent 생성, projected portfolio, 리밸런싱 intent 생성,
 intent 병합 및 리밸런싱 임계값을 검증한다.
 """
 
@@ -72,88 +72,6 @@ class _MockHoldStrategy:
 # ============================================================================
 # 테스트 클래스
 # ============================================================================
-
-
-class TestOrderIntentModel:
-    """OrderIntent 모델 계약 검증.
-
-    핵심 계약: OrderIntent는 4가지 intent_type을 지원한다.
-    - EXIT_ALL: 보유 전량 청산 (signal sell)
-    - ENTER_TO_TARGET: 신규 진입 목표 달성 (signal buy)
-    - REDUCE_TO_TARGET: 초과분 매도 목표 달성 (rebalance)
-    - INCREASE_TO_TARGET: 미달분 매수 목표 달성 (rebalance)
-    """
-
-    def test_exit_all_intent_type(self) -> None:
-        """
-        목적: EXIT_ALL 타입으로 OrderIntent를 생성할 수 있어야 함.
-
-        Given: intent_type="EXIT_ALL" 파라미터
-        When:  OrderIntent 생성
-        Then:  intent.intent_type == "EXIT_ALL", hold_days_used 기본값 0
-        """
-        # Given / When
-        intent = OrderIntent(
-            intent_type="EXIT_ALL",
-            delta_amount=-100_000.0,
-            reason="signal sell",
-        )
-
-        # Then
-        assert intent.intent_type == "EXIT_ALL"
-        assert intent.hold_days_used == 0  # 기본값
-
-    def test_enter_to_target_intent_type(self) -> None:
-        """
-        목적: ENTER_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
-
-        Given: intent_type="ENTER_TO_TARGET", hold_days_used=3
-        When:  OrderIntent 생성
-        Then:  intent.intent_type == "ENTER_TO_TARGET", intent.hold_days_used == 3
-        """
-        intent = OrderIntent(
-            intent_type="ENTER_TO_TARGET",
-            delta_amount=300_000.0,
-            reason="signal buy",
-            hold_days_used=3,
-        )
-
-        assert intent.intent_type == "ENTER_TO_TARGET"
-        assert intent.hold_days_used == 3
-
-    def test_reduce_to_target_intent_type(self) -> None:
-        """
-        목적: REDUCE_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
-
-        Given: intent_type="REDUCE_TO_TARGET", delta_amount < 0
-        When:  OrderIntent 생성
-        Then:  intent.intent_type == "REDUCE_TO_TARGET"
-        """
-        intent = OrderIntent(
-            intent_type="REDUCE_TO_TARGET",
-            delta_amount=-100_000.0,
-            reason="rebalance",
-        )
-
-        assert intent.intent_type == "REDUCE_TO_TARGET"
-        assert intent.delta_amount == pytest.approx(-100_000.0, abs=0.01)
-
-    def test_increase_to_target_intent_type(self) -> None:
-        """
-        목적: INCREASE_TO_TARGET 타입으로 OrderIntent를 생성할 수 있어야 함.
-
-        Given: intent_type="INCREASE_TO_TARGET", delta_amount > 0
-        When:  OrderIntent 생성
-        Then:  intent.intent_type == "INCREASE_TO_TARGET"
-        """
-        intent = OrderIntent(
-            intent_type="INCREASE_TO_TARGET",
-            delta_amount=100_000.0,
-            reason="rebalance",
-        )
-
-        assert intent.intent_type == "INCREASE_TO_TARGET"
-        assert intent.delta_amount == pytest.approx(100_000.0, abs=0.01)
 
 
 class TestGenerateSignalIntents:

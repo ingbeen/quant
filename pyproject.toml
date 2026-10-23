@@ -61,6 +61,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["qbt"]
+# 테스트 공용 헬퍼(tests/qbt/helpers.py) — 외부 패키지와 섞이지 않게 맨 뒤 묶음으로
+known-local-folder = ["helpers"]
 
 [tool.coverage.run]
 omit = [

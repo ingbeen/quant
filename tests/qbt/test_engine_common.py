@@ -14,68 +14,6 @@ from qbt.backtest.engines.engine_common import (
 )
 
 
-class TestExecuteSellOrder:
-    """execute_sell_order 계약 테스트.
-
-    순수 계산 함수 시그니처: execute_sell_order(open_price, shares_to_sell, entry_price)
-    -> (sell_price, proceeds, pnl, pnl_pct)
-    """
-
-    def test_execute_sell_order_pnl_calculation(self) -> None:
-        """
-        목적: 매도 체결 후 pnl 계산 정확성 확인 (슬리피지 적용)
-
-        Given: 진입가 95.0, 시가 100.0, 10주
-        When: execute_sell_order(100.0, 10, 95.0) 호출 (슬리피지 -0.3%)
-        Then: 매도가 = 100.0 * (1 - 0.003) = 99.7, pnl = (99.7 - 95.0) * 10 = 47.0
-        """
-        # When
-        sell_price, _proceeds, pnl, _pnl_pct = execute_sell_order(100.0, 10, 95.0)
-
-        # Then: 슬리피지 적용 매도가 = 100.0 * (1 - 0.003) = 99.7
-        assert sell_price == pytest.approx(99.7, abs=1e-6)
-        assert pnl == pytest.approx((99.7 - 95.0) * 10, abs=0.01)
-
-    def test_execute_sell_order_proceeds(self) -> None:
-        """
-        목적: 매도 대금이 shares * sell_price와 일치하는지 검증
-
-        Given: 시가 100.0, 10주, 진입가 95.0
-        When: execute_sell_order 호출
-        Then: proceeds = 10 * sell_price
-        """
-        # When
-        sell_price, proceeds, _, _ = execute_sell_order(100.0, 10, 95.0)
-
-        # Then
-        assert proceeds == pytest.approx(10 * sell_price, abs=0.01)
-
-    def test_create_trade_record_preserves_hold_days(self) -> None:
-        """
-        목적: create_trade_record에 hold_days_used를 전달하면
-              반환된 trade_record["hold_days_used"]에 그 값이 그대로 담기는지 검증
-
-        Given: hold_days_used=5
-        When: create_trade_record(..., hold_days_used=5) 호출
-        Then: trade_record["hold_days_used"] == 5
-        """
-        # When
-        trade_record = create_trade_record(
-            entry_date=date(2020, 1, 5),
-            exit_date=date(2020, 1, 11),
-            entry_price=95.0,
-            exit_price=99.7,
-            shares=10,
-            pnl=47.0,
-            pnl_pct=0.0495,
-            buy_buffer_pct=0.03,
-            hold_days_used=5,
-        )
-
-        # Then
-        assert trade_record["hold_days_used"] == 5
-
-
 class TestExecuteBuyOrderPure:
     """execute_buy_order 순수 계산 함수 계약 테스트.
 

@@ -128,17 +128,16 @@ class TestParamsScheduleWhile:
         )
 
         # 3개 전략 생성 (각각 check_buy=False, check_sell=False)
-        def make_mock_strategy(name: str) -> MagicMock:
+        def make_mock_strategy() -> MagicMock:
             s = MagicMock(spec=SignalStrategy)
             s.check_buy.return_value = False
             s.check_sell.return_value = False
-            s._name = name
             return s
 
-        strategy_initial = make_mock_strategy("initial")
-        strategy_jan5 = make_mock_strategy("jan5")
-        strategy_jan10 = make_mock_strategy("jan10")
-        strategy_jan15 = make_mock_strategy("jan15")
+        strategy_initial = make_mock_strategy()
+        strategy_jan5 = make_mock_strategy()
+        strategy_jan10 = make_mock_strategy()
+        strategy_jan15 = make_mock_strategy()
 
         params_schedule = {
             date(2020, 1, 5): strategy_jan5,

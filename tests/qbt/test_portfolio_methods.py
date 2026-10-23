@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY, AllocatorSpec
-from qbt.backtest.constants import SLIPPAGE_RATE
+from qbt.backtest.constants import REBALANCE_REASON_MONTHLY, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
 from qbt.backtest.engines.portfolio_methods import (
@@ -98,6 +98,20 @@ class _SeriesSwitchAllocator:
         if float(data["s"].iloc[i][COL_CLOSE]) > 100.0:
             return {"x": 1.0}
         return {"z": 1.0}
+
+
+class _SeriesTiltAllocator:
+    """테스트용 배분 규칙: 신호용 시세 s 의 종가가 100 을 넘으면 x 75% · z 25%, 아니면 반반 (매일 판단)."""
+
+    def target_weights(
+        self,
+        data: Mapping[str, pd.DataFrame],
+        i: int,
+        is_check_day: bool,
+    ) -> Mapping[str, float] | None:
+        if float(data["s"].iloc[i][COL_CLOSE]) > 100.0:
+            return {"x": 0.75, "z": 0.25}
+        return {"x": 0.5, "z": 0.5}
 
 
 @pytest.fixture
@@ -708,6 +722,114 @@ class TestInterMethodRebalance:
         result = self._run(tmp_path, create_csv_file)
 
         assert float(_ledger_value(result, "a", date(2024, 1, 31), "transfers")) == pytest.approx(0.0, abs=1e-9)
+
+
+class TestAccountDisplayColumns:
+    """매매법이 여럿인 실험에서 엔진이 에쿼티 표 · 상태 로그에 쓰는 표시용 열의 정의.
+
+    정합성 검사기는 이 열들을 읽지 않고(규칙 2 는 장부와 주수 × 종가로 다시 계산한다) 대시보드의 자산별 비중 추이와
+    리밸런싱 마커가 읽으므로, 저장되는 값의 정의는 이 테스트가 고정한다.
+
+    매매법 slot(설정의 첫째, 몫 0.5): x · y 보유 0.5 · 0.5. 매매법 alloc(둘째, 몫 0.5): 테스트용 배분 규칙(s 가 100 초과면
+    x 0.75 · z 0.25, 아니면 반반). 설정 순서를 이름순과 반대로 둔다 — 이름순으로 고르는 결함과 갈리게.
+    x 가 2024-01-15 부터 +30% → slot 은 2024-01-31 판단으로 정기 리밸런싱한다. s 가 2024-01-31 에 50 → 150 → alloc 은 같은 날
+    보유 비중을 조정한다(사유 없음 — 조정한 자산은 편차 판정에서 빠져 정기 리밸런싱이 아니다). 그래서 2024-02-01 은
+    두 매매법이 모두 리밸런싱하고 사유가 다르다. 두 매매법 자본이 같이 움직여 매매법 사이 되돌리기는 없다.
+    """
+
+    _FRAMES = {
+        "x": _price_df(date(2024, 1, 15), 100.0, 130.0),
+        "y": _flat_df(100.0),
+        "z": _flat_df(100.0),
+        "s": _price_df(date(2024, 1, 31), 50.0, 150.0),
+    }
+
+    def _run(self, tmp_path: Path, create_csv_file, allocator_id: str) -> PortfolioResult:
+        paths = {asset_id: create_csv_file(f"{asset_id.upper()}_max.csv", df) for asset_id, df in self._FRAMES.items()}
+        config = PortfolioConfig(
+            experiment_name="test_account_columns",
+            display_name="Test Account Columns",
+            total_capital=10_000_000.0,
+            result_dir=tmp_path,
+            methods=(
+                SlotMethodConfig(
+                    "slot", "Slot", 0.5, (_hold_slot("x", paths["x"], 0.5), _hold_slot("y", paths["y"], 0.5))
+                ),
+                AllocatorMethodConfig(
+                    "alloc",
+                    "Alloc",
+                    0.5,
+                    (AllocationAssetConfig("x", paths["x"]), AllocationAssetConfig("z", paths["z"])),
+                    allocator_id=allocator_id,
+                    signal_series=(SignalSeriesConfig("s", paths["s"]),),
+                ),
+            ),
+        )
+        return run_portfolio_backtest(config)
+
+    def _expected_weights(self, table: pd.DataFrame, key: str, asset_id: str) -> list[float]:
+        close_on = dict(zip(self._FRAMES[asset_id][COL_DATE], self._FRAMES[asset_id][COL_CLOSE], strict=True))
+        closes = [close_on[d] for d in table[COL_DATE]]
+        return list(table[f"{key}_shares"] * closes / table["equity"])
+
+    @pytest.fixture
+    def series_tilt_allocator(self, monkeypatch: pytest.MonkeyPatch) -> str:
+        spec = AllocatorSpec(
+            create_allocator=lambda method: _SeriesTiltAllocator(),
+            get_warmup_periods=lambda method: 0,
+        )
+        monkeypatch.setitem(ALLOCATOR_REGISTRY, "test_series_tilt", spec)
+        return "test_series_tilt"
+
+    @pytest.mark.parametrize("table_name", ["equity_df", "state_log_df"])
+    def test_weight_is_shares_times_close_over_account_equity(
+        self, tmp_path: Path, create_csv_file, series_tilt_allocator: str, table_name: str
+    ) -> None:
+        """
+        목적: 자산 키별 비중 열이 그날 주수 × 종가 ÷ «계좌» 자본인지 검증 (매매법 자본이 아니다)
+
+        Given: 두 매매법 시나리오 (매매법 자본이 계좌 자본의 절반쯤이라 분모를 바꾸면 값이 갈린다)
+        When: 실행
+        Then: 에쿼티 표 · 상태 로그 모두 네 자산 키의 {키}_weight 가 날마다 주수 × 입력 시세 종가 ÷ equity
+        """
+        # When
+        table = getattr(self._run(tmp_path, create_csv_file, series_tilt_allocator), table_name)
+
+        # Then
+        for key, asset_id in (("slot.x", "x"), ("slot.y", "y"), ("alloc.x", "x"), ("alloc.z", "z")):
+            assert (table[f"{key}_shares"] > 0).any(), f"{key} 를 보유한 날이 있어야 함"
+            assert list(table[f"{key}_weight"]) == pytest.approx(
+                self._expected_weights(table, key, asset_id), abs=1e-12
+            )
+
+    def test_account_reason_is_first_rebalanced_method_in_config_order(
+        self, tmp_path: Path, create_csv_file, series_tilt_allocator: str
+    ) -> None:
+        """
+        목적: 계좌 사유(에쿼티 표 · 상태 로그의 rebalance_reason)가 그날 리밸런싱한 매매법 중 설정 순서상 첫 매매법의
+              사유인지 검증 — 매매법 하나짜리 실험의 리밸런싱 마커가 이 열을 읽는다
+
+        Given: 2024-02-01 에 slot(정기 리밸런싱)과 alloc(사유 없는 비중 조정)이 함께 리밸런싱하는 시나리오, 설정 순서 slot → alloc
+        When: 실행
+        Then: 그날 장부는 slot 「monthly」 · alloc 빈 사유이고, 에쿼티 표 · 상태 로그는 rebalanced 참 · 사유 「monthly」.
+              리밸런싱이 없는 전날은 rebalanced 거짓 · 빈 사유
+        """
+        # When
+        result = self._run(tmp_path, create_csv_file, series_tilt_allocator)
+
+        # Then: 두 매매법이 다른 사유로 함께 리밸런싱한 날이어야 「첫 매매법」이 검사됨
+        d = date(2024, 2, 1)
+        assert bool(_ledger_value(result, "slot", d, "rebalanced")) is True
+        assert _ledger_value(result, "slot", d, "rebalance_reason") == REBALANCE_REASON_MONTHLY
+        assert bool(_ledger_value(result, "alloc", d, "rebalanced")) is True
+        assert _ledger_value(result, "alloc", d, "rebalance_reason") == ""
+        for table in (result.equity_df, result.state_log_df):
+            row = table[table[COL_DATE] == d].iloc[0]
+            assert bool(row["rebalanced"]) is True
+            assert row["rebalance_reason"] == REBALANCE_REASON_MONTHLY
+            before = table[table[COL_DATE] == date(2024, 1, 31)].iloc[0]
+            assert bool(before["rebalanced"]) is False
+            assert before["rebalance_reason"] == ""
 
 
 class TestZeroShareFill:

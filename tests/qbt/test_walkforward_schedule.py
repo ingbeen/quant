@@ -17,49 +17,6 @@ from qbt.backtest.walkforward import build_params_schedule, run_stitched_equity,
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
 
 
-def _make_stock_df(
-    start_date: date,
-    n_days: int,
-    base_price: float = 100.0,
-    daily_return: float = 0.001,
-) -> pd.DataFrame:
-    """테스트용 주식 데이터를 생성한다.
-
-    Args:
-        start_date: 시작 날짜
-        n_days: 거래일 수
-        base_price: 시작 가격
-        daily_return: 일일 수익률 (기본 0.1%)
-
-    Returns:
-        OHLCV DataFrame
-    """
-    dates = []
-    prices = []
-    current = base_price
-    d = start_date
-    for _ in range(n_days):
-        # 주말 건너뛰기
-        while d.weekday() >= 5:
-            d = d + timedelta(days=1)
-        dates.append(d)
-        prices.append(current)
-        current = current * (1 + daily_return)
-
-        d = d + timedelta(days=1)
-
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [p * 0.999 for p in prices],
-            COL_HIGH: [p * 1.01 for p in prices],
-            COL_LOW: [p * 0.99 for p in prices],
-            COL_CLOSE: prices,
-            COL_VOLUME: [1_000_000] * n_days,
-        }
-    )
-
-
 def _make_trend_and_oscillating_df(
     n_is: int,
     n_oos: int,
@@ -253,14 +210,28 @@ class TestRunWalkforward:
 
     def test_walkforward_returns_correct_structure(self):
         """
-        목적: 소규모 데이터로 WFO 루프가 올바른 구조를 반환하는지 검증
+        목적: 소규모 데이터로 WFO 루프가 올바른 구조와 WFE(= OOS ÷ IS, CAGR · Calmar 각각)를 반환하는지 검증
 
-        Given: 약 10년 분량의 주식 데이터 (IS=24개월, OOS=12개월로 축소)
+        Given: 추세 + 진동 데이터(약 6년, IS=24개월 · OOS=12개월로 축소) — 윈도우마다 IS 에 거래가 있어 IS CAGR 이 0 이 아니다
+               (꾸준히 오르기만 하는 시세는 밴드를 넘지 않아 거래 0 · IS CAGR 0 이라 나눗셈 쪽을 검사하지 못한다)
         When: run_walkforward() 실행
-        Then: 결과 리스트의 각 아이템이 WfoWindowResultDict 구조를 가짐
+        Then: 결과 리스트의 각 아이템이 WfoWindowResultDict 구조를 갖고, 모든 윈도우의 wfe_cagr 가 oos_cagr / is_cagr,
+              wfe_calmar 가 oos_calmar / is_calmar
         """
-        # Given — 약 10년 분량 (2500 거래일), 작은 윈도우로 빠른 실행
-        df = _make_stock_df(date(2000, 1, 3), 2500, base_price=100.0, daily_return=0.0003)
+        # Given
+        n = 1500
+        closes = [100.0 * 1.0005**i * (1 + 0.15 * math.sin(2 * math.pi * i / 120)) for i in range(n)]
+        dates = [date(2000, 1, 3) + timedelta(days=i * 7 // 5) for i in range(n)]
+        df = pd.DataFrame(
+            {
+                COL_DATE: dates,
+                COL_OPEN: closes,
+                COL_HIGH: closes,
+                COL_LOW: closes,
+                COL_CLOSE: closes,
+                COL_VOLUME: [1_000_000] * n,
+            }
+        )
 
         # When — 소규모 파라미터 리스트로 실행 (속도 최적화)
         # min_trades=0: 소규모 테스트에서 거래수 제약 비활성화
@@ -288,6 +259,63 @@ class TestRunWalkforward:
         assert "is_calmar" in first
         assert "oos_calmar" in first
         assert "wfe_calmar" in first
+
+        # WFE — 나눗셈 쪽을 타는지 먼저 확인
+        assert all(
+            r["is_trades"] > 0 and abs(r["is_cagr"]) > EPSILON and abs(r["is_calmar"]) > EPSILON for r in results
+        )
+        for r in results:
+            assert r["wfe_cagr"] == pytest.approx(r["oos_cagr"] / r["is_cagr"], abs=1e-6)
+            assert r["wfe_calmar"] == pytest.approx(r["oos_calmar"] / r["is_calmar"], abs=1e-6)
+
+    def test_zero_is_performance_gives_zero_wfe(self):
+        """
+        목적: IS CAGR · IS Calmar 가 0 이면 OOS 성과와 관계없이 WFE 가 0 인지 검증 (0 으로 나누지 않는다)
+
+        Given: IS 구간은 가격이 변하지 않고(밴드를 넘지 않아 거래 0 · 성과 0) OOS 구간은 추세 + 진동으로 움직이는 시세
+               — OOS 성과가 0 이 아니어야 「OOS ÷ (IS + ε)」 같은 틀린 대체와 갈린다
+        When: run_walkforward() 실행 (min_trades=0)
+        Then: 윈도우 하나, is_cagr · is_calmar 가 0 이고 oos_cagr · oos_calmar 는 0 이 아니며 wfe_cagr · wfe_calmar 가 0
+        """
+        # Given
+        n_flat, n_move = 560, 300
+        closes = [100.0] * n_flat + [
+            100.0 * 1.001**i * (1 + 0.1 * math.sin(2 * math.pi * i / 60)) for i in range(1, n_move + 1)
+        ]
+        dates = [date(2000, 1, 3) + timedelta(days=i * 7 // 5) for i in range(len(closes))]
+        df = pd.DataFrame(
+            {
+                COL_DATE: dates,
+                COL_OPEN: closes,
+                COL_HIGH: closes,
+                COL_LOW: closes,
+                COL_CLOSE: closes,
+                COL_VOLUME: [1_000_000] * len(closes),
+            }
+        )
+
+        # When
+        results = run_walkforward(
+            signal_df=df,
+            trade_df=df,
+            ma_window_list=[50],
+            buy_buffer_zone_pct_list=[0.03],
+            sell_buffer_zone_pct_list=[0.03],
+            hold_days_list=[0],
+            initial_is_months=24,
+            oos_months=12,
+            min_trades=0,
+        )
+
+        # Then
+        assert len(results) == 1
+        window = results[0]
+        assert window["is_cagr"] == 0.0
+        assert window["is_calmar"] == 0.0
+        assert window["oos_cagr"] != pytest.approx(0.0, abs=EPSILON)
+        assert window["oos_calmar"] != pytest.approx(0.0, abs=EPSILON)
+        assert window["wfe_cagr"] == 0.0
+        assert window["wfe_calmar"] == 0.0
 
     def test_single_combo_is_measured_from_eval_ma_window_start(self):
         """

@@ -26,114 +26,7 @@ from qbt.backtest.engines.portfolio_rebalance import (
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 
-# ============================================================================
-# 공통 헬퍼
-# ============================================================================
-
-
-def _make_stock_df(n_rows: int = 50, base_price: float = 100.0) -> pd.DataFrame:
-    """테스트용 합성 주식 데이터를 생성한다.
-
-    price 패턴:
-    - 처음 10일: base_price (안정 구간, EMA 수렴)
-    - 이후 n-10일: base_price * 1.10 (10% 상승, buy signal 트리거용)
-    """
-    start = date(2024, 1, 2)
-    dates: list[date] = []
-    current = start
-    for _ in range(n_rows):
-        while current.weekday() >= 5:  # 주말 건너뛰기
-            current += timedelta(days=1)
-        dates.append(current)
-        current += timedelta(days=1)
-
-    # 처음 10일 안정 → 이후 10% 상승 (buy signal 트리거)
-    closes = [base_price] * 10 + [base_price * 1.10] * (n_rows - 10)
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [c - 0.5 for c in closes],
-            COL_HIGH: [c + 1.0 for c in closes],
-            COL_LOW: [c - 1.0 for c in closes],
-            COL_CLOSE: closes,
-            COL_VOLUME: [1_000_000] * n_rows,
-        }
-    )
-
-
-def _make_stock_df_with_sell(n_rows: int = 60, base_price: float = 100.0) -> pd.DataFrame:
-    """buy → sell 신호가 모두 포함된 합성 데이터를 생성한다.
-
-    price 패턴:
-    - 처음 10일: base_price (안정)
-    - 다음 30일: base_price * 1.10 (buy signal 트리거)
-    - 마지막 20일: base_price * 0.85 (sell signal 트리거)
-    """
-    start = date(2024, 1, 2)
-    dates: list[date] = []
-    current = start
-    for _ in range(n_rows):
-        while current.weekday() >= 5:
-            current += timedelta(days=1)
-        dates.append(current)
-        current += timedelta(days=1)
-
-    closes = [base_price] * 10 + [base_price * 1.10] * 30 + [base_price * 0.85] * (n_rows - 40)
-    return pd.DataFrame(
-        {
-            COL_DATE: dates,
-            COL_OPEN: [c - 0.5 for c in closes],
-            COL_HIGH: [c + 1.0 for c in closes],
-            COL_LOW: [c - 1.0 for c in closes],
-            COL_CLOSE: closes,
-            COL_VOLUME: [1_000_000] * n_rows,
-        }
-    )
-
-
-def _make_portfolio_config(
-    asset_paths: dict[str, tuple[Path, Path]],
-    result_dir: Path,
-    *,
-    target_weights: dict[str, float] | None = None,
-    ma_window: int = 5,
-    hold_days: int = 0,
-    total_capital: float = 10_000_000.0,
-) -> PortfolioConfig:
-    """테스트용 PortfolioConfig를 생성한다.
-
-    Args:
-        asset_paths: {asset_id: (signal_path, trade_path)}
-        result_dir: 결과 저장 디렉토리 (tmp_path)
-        target_weights: {asset_id: weight} (기본값: 동일 비중 배분)
-        ma_window: 이동평균 기간 (슬롯 레벨 파라미터로 전달)
-        hold_days: 유지일수 (슬롯 레벨 파라미터로 전달)
-        total_capital: 총 초기 자본금
-    """
-    if target_weights is None:
-        equal_weight = 1.0 / len(asset_paths)
-        target_weights = {aid: equal_weight for aid in asset_paths}
-
-    slots = tuple(
-        AssetSlotConfig(
-            asset_id=aid,
-            signal_data_path=signal_path,
-            trade_data_path=trade_path,
-            target_weight=target_weights.get(aid, 0.25),
-            ma_window=ma_window,
-            hold_days=hold_days,
-        )
-        for aid, (signal_path, trade_path) in asset_paths.items()
-    )
-
-    return PortfolioConfig(
-        experiment_name="test_portfolio",
-        display_name="Test Portfolio",
-        asset_slots=slots,
-        total_capital=total_capital,
-        result_dir=result_dir,
-    )
-
+from helpers import make_portfolio_config, make_rise_then_fall_stock_df, make_rising_stock_df
 
 # ============================================================================
 # 테스트 클래스
@@ -159,13 +52,13 @@ class TestQQQTQQQSharedSignal:
                두 포지션 모두 청산되어 equity_df에서 QQQ/TQQQ 포지션 = 0
         """
         # Given: buy → sell 전환이 있는 신호 데이터. 매매 데이터에는 돌파가 없다 — TQQQ 가 사고판다면 신호가 QQQ 에서 온 것이다
-        stock_df = _make_stock_df_with_sell(n_rows=60)
+        stock_df = make_rise_then_fall_stock_df(n_rows=60)
         flat_df = stock_df.assign(**{COL_OPEN: 49.5, COL_HIGH: 51.0, COL_LOW: 49.0, COL_CLOSE: 50.0})
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", flat_df)
 
         # QQQ와 TQQQ 모두 QQQ 데이터를 시그널 소스로 사용
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={
                 "qqq": (qqq_path, qqq_path),
                 "tqqq": (qqq_path, tqqq_path),  # ← 시그널은 QQQ 경로 공유
@@ -214,7 +107,7 @@ class TestSignalAndTradeDataSeparation:
                평가를 신호 시세로 했다면 평가액이 두 배 넘게 나온다
         """
         # Given
-        signal_df = _make_stock_df(n_rows=30, base_price=100.0)
+        signal_df = make_rising_stock_df(n_rows=30, base_price=100.0)
         trade_close, trade_open = 50.0, 49.5
         trade_df = signal_df.assign(
             **{COL_OPEN: trade_open, COL_HIGH: trade_close + 1.0, COL_LOW: trade_close - 1.0, COL_CLOSE: trade_close}
@@ -222,7 +115,7 @@ class TestSignalAndTradeDataSeparation:
         signal_path = create_csv_file("SIGNAL_max.csv", signal_df)
         trade_path = create_csv_file("TRADE_max.csv", trade_df)
         capital = 10_000_000.0
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"a": (signal_path, trade_path)},
             result_dir=tmp_path,
             target_weights={"a": 1.0},
@@ -234,7 +127,7 @@ class TestSignalAndTradeDataSeparation:
         # When
         result = run_portfolio_backtest(config)
 
-        # Then: _make_stock_df 의 신호 시세는 11번째 거래일(인덱스 10) 종가에 돌파한다 → 다음 거래일 시가에 체결
+        # Then: make_rising_stock_df 의 신호 시세는 11번째 거래일(인덱스 10) 종가에 돌파한다 → 다음 거래일 시가에 체결
         buy_price = trade_open * (1 + SLIPPAGE_RATE)
         expected_shares = int(capital / buy_price)
         held = result.equity_df[result.equity_df["a_shares"] > 0]
@@ -577,14 +470,14 @@ class TestB1CashBuffer:
                투자된 총액 ≈ total_capital × 0.86
         """
         # Given: 모든 자산에 동일한 상승 데이터 사용 (buy signal 트리거)
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         spy_path = create_csv_file("SPY_max.csv", stock_df)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
         tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", stock_df)
 
         total_capital = 10_000_000.0
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={
                 "qqq": (qqq_path, qqq_path),
                 "tqqq": (qqq_path, tqqq_path),  # TQQQ는 QQQ 시그널 공유
@@ -678,7 +571,7 @@ class TestInvalidConfig:
         Then:  ValueError 발생 (검증이 없으면 예외 없이 다른 최종 자본이 나온다)
         """
         # Given
-        path = create_csv_file("QQQ_max.csv", _make_stock_df(n_rows=30))
+        path = create_csv_file("QQQ_max.csv", make_rising_stock_df(n_rows=30))
         config = PortfolioConfig(
             experiment_name="test",
             display_name="Test",
@@ -780,7 +673,7 @@ class TestNoOverlapPeriod:
         path_a = create_csv_file("asset_a.csv", df_a)
         path_b = create_csv_file("asset_b.csv", df_b)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"a": (path_a, path_a), "b": (path_b, path_b)},
             result_dir=tmp_path,
             target_weights={"a": 0.50, "b": 0.50},
@@ -803,10 +696,10 @@ class TestSingleAssetPortfolio:
         Then:  PortfolioResult 반환, equity_df 존재, 오류 없음
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"gld": 1.0},
@@ -838,12 +731,12 @@ class TestC1FullCashOnSell:
                shared_cash가 total_capital 근방으로 복귀 (슬리피지 제외)
         """
         # Given: buy → sell 전환 데이터
-        stock_df = _make_stock_df_with_sell(n_rows=60)
+        stock_df = make_rise_then_fall_stock_df(n_rows=60)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", stock_df)
 
         total_capital = 10_000_000.0
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={
                 "qqq": (qqq_path, qqq_path),
                 "tqqq": (qqq_path, tqqq_path),  # 시그널 공유
@@ -895,10 +788,10 @@ class TestStartDateConstraint:
         Then:  equity_df의 첫 날짜 >= start_date
         """
         # Given: 충분히 긴 데이터 (MA 워밍업 포함)
-        stock_df = _make_stock_df(n_rows=50)
+        stock_df = make_rising_stock_df(n_rows=50)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 1.0},
@@ -930,10 +823,10 @@ class TestStartDateConstraint:
         Then:  start_date 미전달 시와 equity_df 첫 날짜가 동일
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 1.0},
@@ -969,10 +862,10 @@ class TestComputeEffectiveStartDate:
         Then:  반환값이 datetime.date 인스턴스
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"qqq": (qqq_path, qqq_path)},
             result_dir=tmp_path,
             target_weights={"qqq": 1.0},
@@ -996,7 +889,7 @@ class TestComputeEffectiveStartDate:
                SMA 사용 시 반환 날짜가 데이터 시작일보다 이후 (ma_window-1 행은 NaN)
         """
         # Given: SMA 타입 사용 (처음 window-1 행이 NaN → 워밍업 발생)
-        stock_df = _make_stock_df(n_rows=20)
+        stock_df = make_rising_stock_df(n_rows=20)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         data_start = stock_df[COL_DATE].iloc[0]
 
@@ -1050,13 +943,13 @@ class TestSlotsSharingSignalData:
                시작일 = T 의 첫 거래일부터 이동평균 기간을 채운 날 — 신호 시세가 더 길어도 이동평균은 매매 시세와 겹치는 기간에서 계산한다
         """
         # Given
-        signal_df = _make_stock_df_with_sell(n_rows=60)
+        signal_df = make_rise_then_fall_stock_df(n_rows=60)
         s_path = create_csv_file("S_max.csv", signal_df)
         t_path = create_csv_file("T_max.csv", signal_df.iloc[4:].reset_index(drop=True))
         paths = {"a": (s_path, s_path), "b": (s_path, t_path)}
 
         def run(order: tuple[str, str]) -> tuple[date, pd.DataFrame]:
-            config = _make_portfolio_config(
+            config = make_portfolio_config(
                 asset_paths={asset_id: paths[asset_id] for asset_id in order},
                 result_dir=tmp_path,
                 target_weights={"a": 0.5, "b": 0.5},
@@ -1085,7 +978,7 @@ class TestSlotsSharingSignalData:
         Then:  예외 없이 완료, 각 슬롯이 자기 MA 컬럼(ma_5 / ma_10)을 사용
         """
         # Given: 두 슬롯 모두 같은 CSV를 signal 소스로 사용하되 ma_window가 다름
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
 
         config = PortfolioConfig(
@@ -1135,9 +1028,9 @@ class TestAssetPnlColumns:
         Then:  gld_realized_pnl, gld_unrealized_pnl 컬럼 존재
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"gld": 1.0},
@@ -1160,9 +1053,9 @@ class TestAssetPnlColumns:
         Then:  첫 행에서 realized_pnl = 0, unrealized_pnl = 0
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"gld": 1.0},
@@ -1186,11 +1079,11 @@ class TestAssetPnlColumns:
         Then:  매도 후 realized_pnl != 0 (거래 발생), unrealized_pnl = 0 (포지션 없음)
         """
         # Given
-        stock_df = _make_stock_df_with_sell(n_rows=60)
+        stock_df = make_rise_then_fall_stock_df(n_rows=60)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         tqqq_path = create_csv_file("TQQQ_synthetic_max.csv", stock_df)
 
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={
                 "qqq": (qqq_path, qqq_path),
                 "tqqq": (qqq_path, tqqq_path),
@@ -1221,9 +1114,9 @@ class TestAssetPnlColumns:
         Then:  보유 중일 때 unrealized_pnl = value - (avg_price * shares)
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"gld": 1.0},
@@ -1255,9 +1148,9 @@ class TestPortfolioContributionColumn:
         Then:  모든 행에서 gld_contribution == gld_realized_pnl + gld_unrealized_pnl
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
-        config = _make_portfolio_config(
+        config = make_portfolio_config(
             asset_paths={"gld": (gld_path, gld_path)},
             result_dir=tmp_path,
             target_weights={"gld": 1.0},
@@ -1289,10 +1182,10 @@ class TestParamsJson:
                리밸런싱 규칙 두 칸이 함께 있다
         """
         # Given
-        stock_df = _make_stock_df(n_rows=30)
+        stock_df = make_rising_stock_df(n_rows=30)
         gld_path = create_csv_file("GLD_max.csv", stock_df)
         config = replace(
-            _make_portfolio_config(
+            make_portfolio_config(
                 asset_paths={"gld": (gld_path, gld_path)},
                 result_dir=tmp_path,
                 target_weights={"gld": 1.0},
