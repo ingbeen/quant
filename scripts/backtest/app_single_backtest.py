@@ -11,11 +11,9 @@ buffer_zone.CONFIGS와 buy_and_hold.CONFIGS에 등록된 전략의
 """
 
 import json
-from datetime import date
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -37,40 +35,20 @@ from qbt.backtest.constants import (
     SUMMARY_FILENAME,
     TRADES_FILENAME,
 )
-from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
+from qbt.backtest.dashboard_charts import (
+    build_equity_panes,
+    build_monthly_heatmap,
+    build_price_pane,
+    build_trade_markers,
+    chart_component_args,
+)
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
-from qbt.common_constants import (
-    COL_CLOSE,
-    COL_DATE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
-)
+from qbt.common_constants import COL_DATE
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
 # ============================================================
-
-# --- 차트 높이 ---
-DEFAULT_CANDLE_PANE_HEIGHT = 500
-DEFAULT_EQUITY_PANE_HEIGHT = 200
-DEFAULT_DRAWDOWN_PANE_HEIGHT = 150
-
-# --- 차트 색상 ---
-COLOR_UP = "rgb(38, 166, 154)"
-COLOR_DOWN = "rgb(239, 83, 80)"
-COLOR_MA_LINE = "rgba(255, 152, 0, 0.9)"
-COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.6)"
-COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.6)"
-COLOR_BUY_MARKER = "#26a69a"
-COLOR_SELL_MARKER = "#ef5350"
-COLOR_EQUITY_LINE = "rgba(33, 150, 243, 1)"
-COLOR_EQUITY_TOP = "rgba(33, 150, 243, 0.3)"
-COLOR_EQUITY_BOTTOM = "rgba(33, 150, 243, 0.05)"
-COLOR_DRAWDOWN_LINE = "rgba(244, 67, 54, 1)"
-COLOR_DRAWDOWN_TOP = "rgba(244, 67, 54, 0.3)"
-COLOR_DRAWDOWN_BOTTOM = "rgba(244, 67, 54, 0.05)"
 
 # --- 거래 내역 한글 컬럼 매핑 ---
 TRADE_COLUMN_RENAME = {
@@ -85,13 +63,6 @@ TRADE_COLUMN_RENAME = {
     COL_HOLD_DAYS_USED: "유지일",
     COL_HOLDING_DAYS: "보유기간(일)",
 }
-
-# --- 월별 히트맵 한글 월 레이블 ---
-MONTH_LABELS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
-
-# --- 초기 줌: 전체 데이터 표시 ---
-# 데이터 길이보다 큰 값 → TSX에서 fitContent() 자동 호출
-DEFAULT_ZOOM_LEVEL = 99999
 
 
 # ============================================================
@@ -195,213 +166,7 @@ def _discover_strategies() -> list[StrategyData]:
 
 
 # ============================================================
-# 차트 데이터 변환 함수 (Feature Detection 기반)
-# ============================================================
-
-
-def _detect_ma_col(signal_df: pd.DataFrame) -> str | None:
-    """signal_df에서 ma_* 컬럼을 찾아 반환한다."""
-    for col in signal_df.columns:
-        if col.startswith("ma_"):
-            return col
-    return None
-
-
-def _build_candle_data(
-    signal_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    ma_col: str | None,
-) -> list[dict[str, object]]:
-    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
-
-    customValues를 포함하여 tooltip에서 표시할 수 있게 한다.
-    OHLC 가격, 전일종가대비%, MA, 밴드, 에쿼티, 드로우다운을 포함한다.
-
-    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`)는
-    `run_single_backtest.py`가 사전 계산하여 signal CSV에 저장한 컬럼을 직접 읽는다.
-    """
-    # 1. 밴드 + 에쿼티 + 드로우다운 데이터를 날짜 기준으로 매핑
-    has_upper_band = "upper_band" in equity_df.columns
-    has_lower_band = "lower_band" in equity_df.columns
-    has_equity = "equity" in equity_df.columns
-    has_drawdown = "drawdown_pct" in equity_df.columns
-
-    equity_map: dict[date, dict[str, float]] = {}
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        entry: dict[str, float] = {}
-        if has_upper_band and pd.notna(row.upper_band):
-            entry["upper"] = float(cast(float, row.upper_band))
-        if has_lower_band and pd.notna(row.lower_band):
-            entry["lower"] = float(cast(float, row.lower_band))
-        if has_equity and pd.notna(row.equity):
-            entry["equity"] = float(cast(float, row.equity))
-        if has_drawdown and pd.notna(row.drawdown_pct):
-            entry["dd"] = float(cast(float, row.drawdown_pct))
-        if entry:
-            equity_map[d] = entry
-
-    # 4종 전일대비% 컬럼은 numpy 배열로 미리 추출해 인덱스 접근.
-    # itertuples namedtuple 속성은 정적 타입 체커가 인식하지 못하므로 배열 추출이 가장 클린하다.
-    pct_arrays: dict[str, np.ndarray[Any, Any]] = {}
-    for pct_col in OHLC_CHANGE_PCT_COLUMNS:
-        if pct_col in signal_df.columns:
-            pct_arrays[pct_col] = signal_df[pct_col].to_numpy()
-
-    candle_data: list[dict[str, object]] = []
-    for i, row in enumerate(signal_df.itertuples(index=False)):
-        d = getattr(row, COL_DATE)
-        open_val = float(getattr(row, COL_OPEN))
-        high_val = float(getattr(row, COL_HIGH))
-        low_val = float(getattr(row, COL_LOW))
-        close_val = float(getattr(row, COL_CLOSE))
-
-        candle_entry: dict[str, object] = {
-            "time": d.strftime("%Y-%m-%d"),
-            "open": open_val,
-            "high": high_val,
-            "low": low_val,
-            "close": close_val,
-        }
-
-        # 2. customValues 구성 (Record<string, string>)
-        cv: dict[str, str] = {}
-
-        # OHLC 가격
-        cv["open"] = f"{open_val:.2f}"
-        cv["high"] = f"{high_val:.2f}"
-        cv["low"] = f"{low_val:.2f}"
-        cv["close"] = f"{close_val:.2f}"
-
-        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
-        for pct_col, pct_arr in pct_arrays.items():
-            v = pct_arr[i]
-            if pd.notna(v):
-                cv[pct_col] = f"{float(v):+.2f}"
-
-        # MA
-        if ma_col and ma_col in signal_df.columns:
-            ma_val = getattr(row, ma_col)
-            if pd.notna(ma_val):
-                cv["ma"] = f"{ma_val:.2f}"
-
-        # 밴드 + 에쿼티 + 드로우다운
-        if d in equity_map:
-            eq_data = equity_map[d]
-            if "upper" in eq_data:
-                cv["upper"] = f"{eq_data['upper']:.2f}"
-            if "lower" in eq_data:
-                cv["lower"] = f"{eq_data['lower']:.2f}"
-            if "equity" in eq_data:
-                cv["equity"] = f"{int(eq_data['equity']):,}"
-            if "dd" in eq_data:
-                cv["dd"] = f"{eq_data['dd']:.2f}"
-
-        if cv:
-            candle_entry["customValues"] = cv
-
-        candle_data.append(candle_entry)
-
-    return candle_data
-
-
-def _build_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
-    """DataFrame의 특정 컬럼에서 Line 시리즈 데이터를 생성한다.
-
-    signal_df의 MA 컬럼, equity_df의 밴드 컬럼 등 공통 변환에 사용한다.
-    """
-    data: list[dict[str, object]] = []
-    for row in df.itertuples(index=False):
-        val = getattr(row, col)
-        if pd.notna(val):
-            d: date = getattr(row, COL_DATE)
-            data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
-    return data
-
-
-def _build_markers(trades_df: pd.DataFrame) -> list[dict[str, object]]:
-    """trades_df에서 Buy/Sell 마커를 생성한다.
-
-    Buy 마커에는 가격을 적지 않는다 — 캔들은 신호 시세라, 신호와 매매 종목이 다른 전략은
-    체결가가 캔들 가격대와 맞지 않는다(진입가는 거래 내역 표에 있다).
-    """
-    markers: list[dict[str, object]] = []
-    if trades_df.empty:
-        return markers
-
-    for trade in trades_df.itertuples(index=False):
-        entry_d = cast(date, trade.entry_date)
-        markers.append(
-            {
-                "time": entry_d.strftime("%Y-%m-%d"),
-                "position": "belowBar",
-                "color": COLOR_BUY_MARKER,
-                "shape": "arrowUp",
-                "text": "Buy",
-                "size": 2,
-            }
-        )
-        exit_d = cast(date, trade.exit_date)
-        pnl_pct = cast(float, trade.pnl_pct) * 100
-        markers.append(
-            {
-                "time": exit_d.strftime("%Y-%m-%d"),
-                "position": "aboveBar",
-                "color": COLOR_SELL_MARKER,
-                "shape": "arrowDown",
-                "text": f"Sell {pnl_pct:+.1f}%",
-                "size": 2,
-            }
-        )
-
-    return markers
-
-
-def _build_open_position_marker(
-    summary_data: dict[str, Any],
-) -> list[dict[str, object]]:
-    """미청산 포지션(summary.json의 open_position)의 Buy 마커를 생성한다.
-
-    Feature Detection: summary에 open_position 키가 있으면 마커를 생성한다.
-    모든 전략에 대해 동일하게 동작한다.
-    """
-    summary = summary_data.get("summary", {})
-    open_pos = summary.get("open_position")
-    if open_pos is None:
-        return []
-
-    return [
-        {
-            "time": open_pos["entry_date"],
-            "position": "belowBar",
-            "color": COLOR_BUY_MARKER,
-            "shape": "arrowUp",
-            "text": "Buy (보유중)",
-            "size": 2,
-        }
-    ]
-
-
-def _build_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
-    """에쿼티 곡선 데이터를 Area 시리즈용으로 변환한다."""
-    equity_data: list[dict[str, object]] = []
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        equity_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.equity))})
-    return equity_data
-
-
-def _build_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
-    """CSV의 drawdown_pct 컬럼에서 Area 시리즈 데이터를 생성한다."""
-    dd_data: list[dict[str, object]] = []
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        dd_data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.drawdown_pct))})
-    return dd_data
-
-
-# ============================================================
-# 차트 렌더링 함수 (Feature Detection 기반)
+# 차트 렌더링 함수
 # ============================================================
 
 
@@ -409,268 +174,22 @@ def _render_main_chart(
     strategy: StrategyData,
     chart_key: str,
 ) -> None:
-    """메인 차트를 렌더링한다 (캔들 + 조건부 MA/밴드/마커 + 에쿼티 + 드로우다운).
+    """메인 차트 — 캔들(이동평균 · 밴드 · 거래 마커) + 에쿼티 + 드로우다운.
 
-    Feature Detection: 컬럼 존재 여부로 오버레이를 결정한다.
+    밴드와 툴팁의 에쿼티 · 드로우다운은 에쿼티 표에서 읽는다(매수 후 보유는 밴드가 없다).
     """
-    signal_df = strategy["signal_df"]
-    equity_df = strategy["equity_df"]
-    trades_df = strategy["trades_df"]
-
-    # Feature detection
-    ma_col = _detect_ma_col(signal_df)
-    has_upper = "upper_band" in equity_df.columns
-    has_lower = "lower_band" in equity_df.columns
-    upper_col = "upper_band"
-    lower_col = "lower_band"
-
-    # 1. 데이터 준비
-    candle_data = _build_candle_data(signal_df, equity_df, ma_col)
-    equity_data = _build_equity_data(equity_df)
-    dd_data = _build_drawdown_data(equity_df)
-
-    # 2. 차트 테마
-    chart_theme = {
-        "layout": {
-            "background": {"color": "#131722"},
-            "textColor": "#D1D4DC",
-            "fontFamily": "Arial",
-            "fontSize": 12,
-        },
-        "grid": {
-            "vertLines": {"color": "#1e222d", "visible": True},
-            "horzLines": {"color": "#1e222d", "visible": True},
-        },
-        "crosshair": {
-            "mode": 0,
-            "vertLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-            "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-        },
-        "timeScale": {"minBarSpacing": 0.2},
-        "localization": {"dateFormat": "yyyy-MM-dd"},
-    }
-
-    # 3. Pane 1: 캔들스틱 + 조건부 오버레이
-    candle_series: dict[str, object] = {
-        "type": "Candlestick",
-        "data": candle_data,
-        "options": {
-            "upColor": COLOR_UP,
-            "downColor": COLOR_DOWN,
-            "borderVisible": False,
-            "wickUpColor": COLOR_UP,
-            "wickDownColor": COLOR_DOWN,
-            "priceLineVisible": False,
-        },
-    }
-
-    # 마커 (완료된 거래 + 미청산 포지션)
-    markers = _build_markers(trades_df)
-    open_markers = _build_open_position_marker(strategy["summary_data"])
-    markers.extend(open_markers)
-    if markers:
-        candle_series["markers"] = markers
-
-    pane1_series: list[dict[str, object]] = [candle_series]
-
-    # MA 오버레이 (ma_* 컬럼 존재 시)
-    if ma_col:
-        ma_data = _build_series_data(signal_df, ma_col)
-        if ma_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": ma_data,
-                    "options": {
-                        "color": COLOR_MA_LINE,
-                        "lineWidth": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # Upper Band/Channel 오버레이
-    if has_upper:
-        upper_data = _build_series_data(equity_df, upper_col)
-        if upper_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": upper_data,
-                    "options": {
-                        "color": COLOR_UPPER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # Lower Band/Channel 오버레이
-    if has_lower:
-        lower_data = _build_series_data(equity_df, lower_col)
-        if lower_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": lower_data,
-                    "options": {
-                        "color": COLOR_LOWER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    chart_title = f"{strategy['display_name']}"
-
-    pane1 = {
-        "chart": chart_theme,
-        "series": pane1_series,
-        "height": DEFAULT_CANDLE_PANE_HEIGHT,
-        "title": chart_title,
-    }
-
-    # 4. Pane 2: 에쿼티 곡선
-    pane2 = {
-        "chart": chart_theme,
-        "series": [
-            {
-                "type": "Area",
-                "data": equity_data,
-                "options": {
-                    "lineColor": COLOR_EQUITY_LINE,
-                    "topColor": COLOR_EQUITY_TOP,
-                    "bottomColor": COLOR_EQUITY_BOTTOM,
-                    "lineWidth": 2,
-                    "priceLineVisible": False,
-                    "priceFormat": {"type": "price", "precision": 0, "minMove": 1},
-                },
-            }
-        ],
-        "height": DEFAULT_EQUITY_PANE_HEIGHT,
-        "title": "에쿼티 (원)",
-    }
-
-    # 5. Pane 3: 드로우다운
-    pane3 = {
-        "chart": chart_theme,
-        "series": [
-            {
-                "type": "Area",
-                "data": dd_data,
-                "options": {
-                    "lineColor": COLOR_DRAWDOWN_LINE,
-                    "topColor": COLOR_DRAWDOWN_TOP,
-                    "bottomColor": COLOR_DRAWDOWN_BOTTOM,
-                    "lineWidth": 2,
-                    "priceLineVisible": False,
-                    "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
-                    "invertFilledArea": True,
-                    "fixedMaxValue": 0,
-                },
-            }
-        ],
-        "height": DEFAULT_DRAWDOWN_PANE_HEIGHT,
-        "title": "드로우다운 (%)",
-    }
-
-    # 6. 렌더링
-    total_height = DEFAULT_CANDLE_PANE_HEIGHT + DEFAULT_EQUITY_PANE_HEIGHT + DEFAULT_DRAWDOWN_PANE_HEIGHT
+    open_position = strategy["summary_data"]["summary"].get("open_position")
+    markers = build_trade_markers(
+        strategy["trades_df"],
+        open_entry_date=None if open_position is None else str(open_position["entry_date"]),
+    )
+    panes = [
+        build_price_pane(strategy["signal_df"], strategy["equity_df"], markers, title=strategy["display_name"]),
+        *build_equity_panes(strategy["equity_df"]),
+    ]
     lightweight_charts_v5_component(
-        name=f"chart_{chart_key}",
-        charts=[pane1, pane2, pane3],
-        height=total_height,
-        zoom_level=DEFAULT_ZOOM_LEVEL,
-        scroll_padding=60,
-        key=f"main_chart_{chart_key}",
+        **chart_component_args(panes, name=f"chart_{chart_key}", key=f"main_chart_{chart_key}")
     )
-
-
-def _render_monthly_heatmap(
-    monthly_returns: list[dict[str, Any]],
-    yearly_returns: list[dict[str, Any]],
-    *,
-    chart_key: str,
-) -> None:
-    """월별/연도별 수익률 히트맵을 Plotly로 렌더링한다.
-
-    12월 오른쪽에 "연간" 컬럼을 추가하여 연간 수익률을 함께 표시한다.
-    연간 수익률은 `run_*.py` 스크립트가 미리 계산하여 summary.json에 저장한 값을 사용한다.
-    """
-    if not monthly_returns:
-        st.info("월별 수익률 히트맵을 표시하기에 데이터가 부족합니다.")
-        return
-
-    returns_df = pd.DataFrame(monthly_returns)
-    pivot = returns_df.pivot_table(values="return_pct", index="year", columns="month")
-
-    years = sorted(pivot.index.tolist())
-    months = list(range(1, 13))
-
-    # 연간 수익률 매핑 (year -> return_pct)
-    yearly_map: dict[int, float] = {}
-    for entry in yearly_returns:
-        yearly_map[int(str(entry["year"]))] = float(str(entry["return_pct"]))
-
-    z_values: list[list[float | None]] = []
-    for year in years:
-        row: list[float | None] = []
-        for month in months:
-            if month in pivot.columns and year in pivot.index:
-                raw_val = pivot.loc[year, month]
-                row.append(float(str(raw_val)) if pd.notna(raw_val) else None)
-            else:
-                row.append(None)
-        # 12월 오른쪽: 연간 수익률
-        row.append(yearly_map.get(int(year)))
-        z_values.append(row)
-
-    flat_values = [v for row in z_values for v in row if v is not None]
-    if not flat_values:
-        st.info("월별 수익률 데이터가 없습니다.")
-        return
-
-    max_abs = max(abs(v) for v in flat_values)
-
-    x_labels = MONTH_LABELS + ["연간"]
-
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=z_values,
-            x=x_labels,
-            y=[str(y) for y in years],
-            colorscale="RdYlGn",
-            zmid=0,
-            zmin=-max_abs,
-            zmax=max_abs,
-            text=[[f"{v:.1f}%" if v is not None else "" for v in row] for row in z_values],
-            texttemplate="%{text}",
-            textfont={"size": 11},
-            hovertemplate="연도: %{y}<br>구간: %{x}<br>수익률: %{z:.2f}%<extra></extra>",
-            colorbar={"title": "수익률 (%)"},
-        )
-    )
-
-    fig.update_layout(
-        xaxis_title="월",
-        yaxis_title="연도",
-        yaxis={"autorange": "reversed"},
-        height=max(300, len(years) * 40 + 100),
-        margin={"l": 60, "r": 40, "t": 30, "b": 60},
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#0e1117",
-        font={"color": "#D1D4DC"},
-    )
-
-    st.plotly_chart(fig, width="stretch", key=chart_key)
 
 
 def _render_holding_period_histogram(trades_df: pd.DataFrame, *, chart_key: str) -> None:
@@ -780,7 +299,9 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
     st.header("4. 월별/연도별 수익률 히트맵")
     st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
     strategy_name = strategy["strategy_name"]
-    _render_monthly_heatmap(monthly_returns, yearly_returns, chart_key=f"heatmap_{strategy_name}")
+    st.plotly_chart(
+        build_monthly_heatmap(monthly_returns, yearly_returns), width="stretch", key=f"heatmap_{strategy_name}"
+    )
 
     st.divider()
 

@@ -2,7 +2,7 @@
 
 run_walkforward.py의 2-Mode(Dynamic/Fully Fixed) WFO 결과를
 시각화하여 과최적화 검증 결과를 확인한다.
-QQQ와 TQQQ를 나란히 비교하는 통합 뷰를 제공한다.
+워크포워드 결과가 있는 전략을 나란히 비교하는 통합 뷰를 제공한다.
 
 선행 스크립트:
     poetry run python scripts/backtest/run_walkforward.py
@@ -11,16 +11,16 @@ QQQ와 TQQQ를 나란히 비교하는 통합 뷰를 제공한다.
     poetry run streamlit run scripts/backtest/app_walkforward.py
 
 화면 구성 (전략 통합 뷰):
-- 모드별 요약 비교: 4열 테이블 (QQQ/TQQQ × Dynamic/Fixed)
-- Stitched Equity 곡선: 좌우 배치 (좌=QQQ, 우=TQQQ)
-- IS vs OOS 성과 비교: 좌우 배치 바차트
-- 파라미터 추이: 서브플롯에 QQQ/TQQQ 오버레이
+- 모드별 요약 비교: 전략 × 모드(Dynamic/Fixed) 열의 표
+- Stitched Equity 곡선: 전략마다 한 칸
+- IS vs OOS 성과 비교: 전략마다 한 칸의 바차트
+- 파라미터 추이: 서브플롯에 전략별 선 오버레이
+- 윈도우별 상세 차트: 고른 전략 · 모드 · 윈도우의 IS + OOS 캔들차트
 """
 
 import json
-from datetime import date
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -46,7 +46,12 @@ from qbt.backtest.constants import (
     WFO_WINDOWS_FULLY_FIXED_DIR,
     wfo_window_filename,
 )
-from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
+from qbt.backtest.dashboard_charts import (
+    build_equity_panes,
+    build_price_pane,
+    build_trade_markers,
+    chart_component_args,
+)
 from qbt.backtest.walkforward_verdict import (
     build_is_vs_oos_verdict,
     build_mode_summary_verdict,
@@ -54,14 +59,7 @@ from qbt.backtest.walkforward_verdict import (
     build_stitched_equity_verdict,
     build_window_schedule_table,
 )
-from qbt.common_constants import (
-    BACKTEST_RESULTS_DIR,
-    COL_CLOSE,
-    COL_DATE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
-)
+from qbt.common_constants import BACKTEST_RESULTS_DIR, COL_DATE
 
 # ============================================================
 # 로컬 상수
@@ -83,27 +81,6 @@ _STRATEGY_COLORS: dict[str, str] = {
     "buffer_zone_qqq": "#1f77b4",
     "buffer_zone_tqqq": "#d62728",
 }
-
-# --- 윈도우 상세 차트 상수 ---
-_WINDOW_CANDLE_HEIGHT = 500
-_WINDOW_EQUITY_HEIGHT = 200
-_WINDOW_DRAWDOWN_HEIGHT = 150
-_WINDOW_ZOOM_LEVEL = 99999
-
-# 차트 색상 (app_single_backtest.py 패턴)
-_COLOR_UP = "rgb(38, 166, 154)"
-_COLOR_DOWN = "rgb(239, 83, 80)"
-_COLOR_MA_LINE = "rgba(255, 152, 0, 0.9)"
-_COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.6)"
-_COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.6)"
-_COLOR_BUY_MARKER = "#26a69a"
-_COLOR_SELL_MARKER = "#ef5350"
-_COLOR_EQUITY_LINE = "rgba(33, 150, 243, 1)"
-_COLOR_EQUITY_TOP = "rgba(33, 150, 243, 0.3)"
-_COLOR_EQUITY_BOTTOM = "rgba(33, 150, 243, 0.05)"
-_COLOR_DRAWDOWN_LINE = "rgba(244, 67, 54, 1)"
-_COLOR_DRAWDOWN_TOP = "rgba(244, 67, 54, 0.3)"
-_COLOR_DRAWDOWN_BOTTOM = "rgba(244, 67, 54, 0.05)"
 
 # 윈도우 상세 차트의 모드 (표시명, 윈도우별 상세 CSV 디렉토리명, WFO CSV 파일명) — 지표 선택지는 탐색한 전략 × 이 모드
 _WINDOW_MODES: tuple[tuple[str, str, str], ...] = (
@@ -133,31 +110,25 @@ def _discover_wfo_strategies() -> dict[str, Path]:
     return results
 
 
-def _cache_args(path: Path) -> tuple[Path, float]:
-    """캐시 로더에 넘길 (경로, 수정 시각)을 만든다.
-
-    수정 시각은 캐시 키로만 쓰인다 — 러너가 파일을 다시 만들면 키가 바뀌어 새로 읽는다.
-    없는 파일은 0.0 이라, 나중에 생기면 역시 키가 바뀐다.
-    """
-    return path, (path.stat().st_mtime if path.exists() else 0.0)
+# 캐시 로더의 mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다
 
 
 @st.cache_data
 def _load_summary(path: Path, mtime: float) -> dict[str, Any]:
-    """walkforward_summary.json을 로드한다. 인자는 `_cache_args` 참고."""
+    """walkforward_summary.json을 로드한다."""
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 @st.cache_data
 def _load_window_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """윈도우 결과 CSV를 로드한다. 인자는 `_cache_args` 참고."""
+    """윈도우 결과 CSV를 로드한다."""
     return pd.read_csv(path)
 
 
 @st.cache_data
 def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """Stitched Equity CSV를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
+    """Stitched Equity CSV를 로드한다 (Date 열 datetime 변환)."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
@@ -178,9 +149,8 @@ def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFr
     """전략별 Dynamic 윈도우 결과를 표시명 키로 로드한다 (판단 문구·기간 표 공용)."""
     windows: dict[str, pd.DataFrame] = {}
     for strat_name, result_dir in strategy_dirs.items():
-        windows[_get_display_name(strat_name)] = _load_window_csv(
-            *_cache_args(result_dir / WALKFORWARD_DYNAMIC_FILENAME)
-        )
+        path = result_dir / WALKFORWARD_DYNAMIC_FILENAME
+        windows[_get_display_name(strat_name)] = _load_window_csv(path, path.stat().st_mtime)
     return windows
 
 
@@ -190,7 +160,7 @@ def _load_dynamic_windows(strategy_dirs: dict[str, Path]) -> dict[str, pd.DataFr
 
 
 def _render_mode_summary(summaries: dict[str, dict[str, Any]]) -> None:
-    """모든 전략의 Dynamic vs Fully Fixed 핵심 지표를 4열 테이블로 비교한다."""
+    """모든 전략의 Dynamic vs Fully Fixed 핵심 지표를 전략 × 모드 열의 표로 비교한다."""
     st.header("모드별 요약 비교 (Dynamic vs Fully Fixed)")
 
     # 지표 목록 (표시명, JSON 키, 접미사)
@@ -219,7 +189,7 @@ def _render_mode_summary(summaries: dict[str, dict[str, Any]]) -> None:
     df = pd.DataFrame(rows)
     st.dataframe(df, hide_index=True, width="stretch")
 
-    # VERBATIM — WFE 의 「1」은 판단 기준이 아니라 뜻(OOS 성과 = IS 성과)이라 상수로 적지 않는다
+    # WFE 의 「1」은 판단 기준이 아니라 뜻(OOS 성과 = IS 성과)이라 상수로 적지 않는다
     st.markdown(
         rf"""## 지표에 사용하는 용어에 대한 설명
 
@@ -255,7 +225,7 @@ def _render_mode_summary(summaries: dict[str, dict[str, Any]]) -> None:
 
 
 def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str, dict[str, Any]]) -> None:
-    """QQQ/TQQQ Stitched Equity 곡선을 좌우 서브플롯으로 비교한다."""
+    """전략별 Stitched Equity 곡선(두 모드)을 전략마다 한 칸씩 나란히 비교한다."""
     st.header("Stitched Equity 곡선 비교")
 
     strategy_names = list(strategy_dirs.keys())
@@ -269,9 +239,10 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str,
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        result_dir = strategy_dirs[strat_name]
-        eq_dynamic = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_DYNAMIC_FILENAME))
-        eq_fixed = _load_equity_csv(*_cache_args(result_dir / WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME))
+        dynamic_path = strategy_dirs[strat_name] / WALKFORWARD_EQUITY_DYNAMIC_FILENAME
+        fixed_path = strategy_dirs[strat_name] / WALKFORWARD_EQUITY_FULLY_FIXED_FILENAME
+        eq_dynamic = _load_equity_csv(dynamic_path, dynamic_path.stat().st_mtime)
+        eq_fixed = _load_equity_csv(fixed_path, fixed_path.stat().st_mtime)
 
         fig.add_trace(
             go.Scatter(
@@ -312,7 +283,6 @@ def _render_stitched_equity(strategy_dirs: dict[str, Path], summaries: dict[str,
 
     st.plotly_chart(fig, width="stretch")
 
-    # VERBATIM
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -355,7 +325,8 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
+        dynamic_path = strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME
+        dynamic_df = _load_window_csv(dynamic_path, dynamic_path.stat().st_mtime)
 
         window_labels = [
             f"W{row['window_idx']} ({row['oos_start'][:7]}~{row['oos_end'][:7]})" for _, row in dynamic_df.iterrows()
@@ -406,7 +377,8 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     )
 
     for col_idx, strat_name in enumerate(strategy_names, start=1):
-        dynamic_df = _load_window_csv(*_cache_args(strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME))
+        dynamic_path = strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME
+        dynamic_df = _load_window_csv(dynamic_path, dynamic_path.stat().st_mtime)
 
         window_labels = [
             f"W{row['window_idx']} ({row['oos_start'][:7]}~{row['oos_end'][:7]})" for _, row in dynamic_df.iterrows()
@@ -448,7 +420,6 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
     )
     st.plotly_chart(fig_calmar, width="stretch")
 
-    # VERBATIM
     st.markdown(
         r"""## 지표에 사용하는 용어에 대한 설명
 
@@ -528,7 +499,6 @@ def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
 
     st.plotly_chart(fig, width="stretch")
 
-    # VERBATIM
     st.markdown(
         """## 지표에 사용하는 용어에 대한 설명
 
@@ -560,7 +530,7 @@ def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
 
 @st.cache_data
 def _load_window_csv_detail(path: Path, mtime: float) -> pd.DataFrame:
-    """윈도우별 상세 CSV를 로드한다 (날짜 열 date 변환). 인자는 `_cache_args` 참고."""
+    """윈도우별 상세 CSV를 로드한다 (날짜 열 date 변환)."""
     df = pd.read_csv(path)
     if COL_DATE in df.columns:
         df[COL_DATE] = pd.to_datetime(df[COL_DATE]).dt.date
@@ -568,181 +538,6 @@ def _load_window_csv_detail(path: Path, mtime: float) -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col]).dt.date
     return df
-
-
-def _detect_window_ma_col(signal_df: pd.DataFrame) -> str | None:
-    """signal_df에서 ma_* 컬럼을 찾아 반환한다."""
-    for col in signal_df.columns:
-        if col.startswith("ma_"):
-            return col
-    return None
-
-
-def _build_wfo_candle_data(
-    signal_df: pd.DataFrame,
-    equity_df: pd.DataFrame,
-    ma_col: str | None,
-) -> list[dict[str, object]]:
-    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
-
-    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`)는 `run_walkforward.py`가
-    반올림 전 종가로 계산해 윈도우 signal CSV에 저장한 컬럼을 읽는다.
-    """
-    has_upper = "upper_band" in equity_df.columns
-    has_lower = "lower_band" in equity_df.columns
-    has_equity = "equity" in equity_df.columns
-    has_dd = "drawdown_pct" in equity_df.columns
-
-    equity_map: dict[date, dict[str, float]] = {}
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        entry: dict[str, float] = {}
-        if has_upper and pd.notna(row.upper_band):
-            entry["upper"] = float(cast(float, row.upper_band))
-        if has_lower and pd.notna(row.lower_band):
-            entry["lower"] = float(cast(float, row.lower_band))
-        if has_equity and pd.notna(row.equity):
-            entry["equity"] = float(cast(float, row.equity))
-        if has_dd and pd.notna(row.drawdown_pct):
-            entry["dd"] = float(cast(float, row.drawdown_pct))
-        if entry:
-            equity_map[d] = entry
-
-    pct_arrays = {pct_col: signal_df[pct_col].to_numpy() for pct_col in OHLC_CHANGE_PCT_COLUMNS}
-
-    candle_data: list[dict[str, object]] = []
-    for i, row in enumerate(signal_df.itertuples(index=False)):
-        d = getattr(row, COL_DATE)
-        open_val = float(getattr(row, COL_OPEN))
-        high_val = float(getattr(row, COL_HIGH))
-        low_val = float(getattr(row, COL_LOW))
-        close_val = float(getattr(row, COL_CLOSE))
-
-        candle_entry: dict[str, object] = {
-            "time": d.strftime("%Y-%m-%d"),
-            "open": open_val,
-            "high": high_val,
-            "low": low_val,
-            "close": close_val,
-        }
-
-        cv: dict[str, str] = {}
-        cv["open"] = f"{open_val:.2f}"
-        cv["high"] = f"{high_val:.2f}"
-        cv["low"] = f"{low_val:.2f}"
-        cv["close"] = f"{close_val:.2f}"
-
-        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
-        for pct_col, pct_arr in pct_arrays.items():
-            v = pct_arr[i]
-            if pd.notna(v):
-                cv[pct_col] = f"{float(v):+.2f}"
-
-        if ma_col and ma_col in signal_df.columns:
-            ma_val = getattr(row, ma_col)
-            if pd.notna(ma_val):
-                cv["ma"] = f"{ma_val:.2f}"
-
-        if d in equity_map:
-            eq_data = equity_map[d]
-            if "upper" in eq_data:
-                cv["upper"] = f"{eq_data['upper']:.2f}"
-            if "lower" in eq_data:
-                cv["lower"] = f"{eq_data['lower']:.2f}"
-            if "equity" in eq_data:
-                cv["equity"] = f"{int(eq_data['equity']):,}"
-            if "dd" in eq_data:
-                cv["dd"] = f"{eq_data['dd']:.2f}"
-
-        if cv:
-            candle_entry["customValues"] = cv
-
-        candle_data.append(candle_entry)
-
-    return candle_data
-
-
-def _build_wfo_line_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
-    """DataFrame의 특정 컬럼에서 Line 시리즈 데이터를 생성한다."""
-    data: list[dict[str, object]] = []
-    for row in df.itertuples(index=False):
-        val = getattr(row, col)
-        if pd.notna(val):
-            d: date = getattr(row, COL_DATE)
-            data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
-    return data
-
-
-def _build_wfo_markers(
-    trades_df: pd.DataFrame,
-    oos_start_str: str,
-) -> list[dict[str, object]]:
-    """trades_df에서 Buy/Sell 마커를 생성하고, OOS 시작일 경계 마커를 추가한다.
-
-    Buy 마커에는 가격을 적지 않는다 — 캔들은 신호 시세라, 신호와 매매 종목이 다른 전략은
-    체결가가 캔들 가격대와 맞지 않는다.
-    """
-    markers: list[dict[str, object]] = []
-
-    # OOS 시작일 경계 마커
-    markers.append(
-        {
-            "time": oos_start_str,
-            "position": "aboveBar",
-            "color": "#ffeb3b",
-            "shape": "square",
-            "text": "OOS Start",
-            "size": 2,
-        }
-    )
-
-    if trades_df.empty:
-        return markers
-
-    for trade in trades_df.itertuples(index=False):
-        entry_d = cast(date, trade.entry_date)
-        markers.append(
-            {
-                "time": entry_d.strftime("%Y-%m-%d"),
-                "position": "belowBar",
-                "color": _COLOR_BUY_MARKER,
-                "shape": "arrowUp",
-                "text": "Buy",
-                "size": 2,
-            }
-        )
-        exit_d = cast(date, trade.exit_date)
-        pnl_pct = cast(float, trade.pnl_pct) * 100
-        markers.append(
-            {
-                "time": exit_d.strftime("%Y-%m-%d"),
-                "position": "aboveBar",
-                "color": _COLOR_SELL_MARKER,
-                "shape": "arrowDown",
-                "text": f"Sell {pnl_pct:+.1f}%",
-                "size": 2,
-            }
-        )
-
-    return markers
-
-
-def _build_wfo_equity_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
-    """에쿼티 곡선 데이터를 Area 시리즈용으로 변환한다."""
-    data: list[dict[str, object]] = []
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.equity))})
-    return data
-
-
-def _build_wfo_drawdown_data(equity_df: pd.DataFrame) -> list[dict[str, object]]:
-    """드로우다운 Area 시리즈 데이터를 생성한다."""
-    data: list[dict[str, object]] = []
-    for row in equity_df.itertuples(index=False):
-        d: date = getattr(row, COL_DATE)
-        data.append({"time": d.strftime("%Y-%m-%d"), "value": float(cast(float, row.drawdown_pct))})
-    return data
 
 
 def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
@@ -772,7 +567,8 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
     window_dir = result_dir / mode_dir
 
     # 2. WFO 윈도우 정보 로드 (날짜 범위용)
-    wfo_df = _load_window_csv(*_cache_args(result_dir / wfo_csv_filename))
+    wfo_path = result_dir / wfo_csv_filename
+    wfo_df = _load_window_csv(wfo_path, wfo_path.stat().st_mtime)
 
     # 3. 윈도우 선택
     window_labels: list[str] = []
@@ -795,9 +591,10 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
 
     # 4. 윈도우별 CSV 로드
     idx = int(window_row["window_idx"])
-    signal_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, SIGNAL_FILENAME)))
-    equity_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, EQUITY_FILENAME)))
-    trades_df = _load_window_csv_detail(*_cache_args(window_dir / wfo_window_filename(idx, TRADES_FILENAME)))
+    window_paths = [
+        window_dir / wfo_window_filename(idx, name) for name in (SIGNAL_FILENAME, EQUITY_FILENAME, TRADES_FILENAME)
+    ]
+    signal_df, equity_df, trades_df = (_load_window_csv_detail(path, path.stat().st_mtime) for path in window_paths)
 
     # 5. 파라미터 + 성과 요약 (metric 카드)
     col1, col2, col3, col4 = st.columns(4)
@@ -812,170 +609,24 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
     col7.metric("OOS CAGR", f"{window_row['oos_cagr']:.2f}%")
     col8.metric("OOS MDD", f"{window_row['oos_mdd']:.2f}%")
 
-    # 6. 차트 렌더링
-    ma_col = _detect_window_ma_col(signal_df)
-    oos_start_str = str(window_row["oos_start"])[:10]
-
-    candle_data = _build_wfo_candle_data(signal_df, equity_df, ma_col)
-    equity_data = _build_wfo_equity_data(equity_df)
-    dd_data = _build_wfo_drawdown_data(equity_df)
-
-    chart_theme = {
-        "layout": {
-            "background": {"color": "#131722"},
-            "textColor": "#D1D4DC",
-            "fontFamily": "Arial",
-            "fontSize": 12,
-        },
-        "grid": {
-            "vertLines": {"color": "#1e222d", "visible": True},
-            "horzLines": {"color": "#1e222d", "visible": True},
-        },
-        "crosshair": {
-            "mode": 0,
-            "vertLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-            "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-        },
-        "timeScale": {"minBarSpacing": 0.2},
-        "localization": {"dateFormat": "yyyy-MM-dd"},
+    # 6. 차트 — 밴드와 툴팁의 에쿼티 · 드로우다운은 윈도우 에쿼티 표에서 읽는다
+    oos_start_marker: dict[str, object] = {
+        "time": str(window_row["oos_start"])[:10],
+        "position": "aboveBar",
+        "color": "#ffeb3b",
+        "shape": "square",
+        "text": "OOS Start",
+        "size": 2,
     }
-
-    # Pane 1: 캔들 + MA + 밴드 + 마커
-    candle_series: dict[str, object] = {
-        "type": "Candlestick",
-        "data": candle_data,
-        "options": {
-            "upColor": _COLOR_UP,
-            "downColor": _COLOR_DOWN,
-            "borderVisible": False,
-            "wickUpColor": _COLOR_UP,
-            "wickDownColor": _COLOR_DOWN,
-            "priceLineVisible": False,
-        },
-    }
-
-    markers = _build_wfo_markers(trades_df, oos_start_str)
-    if markers:
-        candle_series["markers"] = markers
-
-    pane1_series: list[dict[str, object]] = [candle_series]
-
-    # MA 오버레이
-    if ma_col:
-        ma_data = _build_wfo_line_data(signal_df, ma_col)
-        if ma_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": ma_data,
-                    "options": {
-                        "color": _COLOR_MA_LINE,
-                        "lineWidth": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # 밴드 오버레이
-    if "upper_band" in equity_df.columns:
-        upper_data = _build_wfo_line_data(equity_df, "upper_band")
-        if upper_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": upper_data,
-                    "options": {
-                        "color": _COLOR_UPPER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    if "lower_band" in equity_df.columns:
-        lower_data = _build_wfo_line_data(equity_df, "lower_band")
-        if lower_data:
-            pane1_series.append(
-                {
-                    "type": "Line",
-                    "data": lower_data,
-                    "options": {
-                        "color": _COLOR_LOWER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    chart_title = f"{selected_metric} — W{idx}"
-
-    pane1 = {
-        "chart": chart_theme,
-        "series": pane1_series,
-        "height": _WINDOW_CANDLE_HEIGHT,
-        "title": chart_title,
-    }
-
-    # Pane 2: 에쿼티
-    pane2 = {
-        "chart": chart_theme,
-        "series": [
-            {
-                "type": "Area",
-                "data": equity_data,
-                "options": {
-                    "lineColor": _COLOR_EQUITY_LINE,
-                    "topColor": _COLOR_EQUITY_TOP,
-                    "bottomColor": _COLOR_EQUITY_BOTTOM,
-                    "lineWidth": 2,
-                    "priceLineVisible": False,
-                    "priceFormat": {"type": "price", "precision": 0, "minMove": 1},
-                },
-            }
-        ],
-        "height": _WINDOW_EQUITY_HEIGHT,
-        "title": "에쿼티 (원)",
-    }
-
-    # Pane 3: 드로우다운
-    pane3 = {
-        "chart": chart_theme,
-        "series": [
-            {
-                "type": "Area",
-                "data": dd_data,
-                "options": {
-                    "lineColor": _COLOR_DRAWDOWN_LINE,
-                    "topColor": _COLOR_DRAWDOWN_TOP,
-                    "bottomColor": _COLOR_DRAWDOWN_BOTTOM,
-                    "lineWidth": 2,
-                    "priceLineVisible": False,
-                    "priceFormat": {"type": "price", "precision": 2, "minMove": 0.01},
-                    "invertFilledArea": True,
-                    "fixedMaxValue": 0,
-                },
-            }
-        ],
-        "height": _WINDOW_DRAWDOWN_HEIGHT,
-        "title": "드로우다운 (%)",
-    }
-
-    total_height = _WINDOW_CANDLE_HEIGHT + _WINDOW_EQUITY_HEIGHT + _WINDOW_DRAWDOWN_HEIGHT
+    markers = [oos_start_marker, *build_trade_markers(trades_df)]
+    panes = [
+        build_price_pane(signal_df, equity_df, markers, title=f"{selected_metric} — W{idx}"),
+        *build_equity_panes(equity_df),
+    ]
     lightweight_charts_v5_component(
-        name=f"wfo_window_{selected_metric}_{idx}",
-        charts=[pane1, pane2, pane3],
-        height=total_height,
-        zoom_level=_WINDOW_ZOOM_LEVEL,
-        scroll_padding=60,
-        key=f"wfo_detail_{selected_metric}_{idx}",
+        **chart_component_args(
+            panes, name=f"wfo_window_{selected_metric}_{idx}", key=f"wfo_detail_{selected_metric}_{idx}"
+        )
     )
 
     st.divider()
@@ -994,7 +645,7 @@ def main() -> None:
     )
 
     st.title("WFO 결과 시각화 대시보드")
-    st.markdown("워크포워드 검증(Walk-Forward Optimization) 2-Mode(Dynamic / Fully Fixed) 결과를 " "QQQ와 TQQQ를 나란히 비교합니다.")
+    st.markdown("워크포워드 검증(Walk-Forward Optimization) 2-Mode(Dynamic / Fully Fixed) 결과를 전략별로 나란히 비교합니다.")
 
     # 읽기 가이드
     st.markdown(
@@ -1045,10 +696,10 @@ IS 시작점은 Dynamic 그리드와 4P 중 가장 긴 이동평균이 계산되
     st.divider()
 
     # 전략별 요약 로드
-    summaries: dict[str, dict[str, Any]] = {
-        strat_name: _load_summary(*_cache_args(result_dir / WALKFORWARD_SUMMARY_FILENAME))
-        for strat_name, result_dir in strategy_dirs.items()
-    }
+    summaries: dict[str, dict[str, Any]] = {}
+    for strat_name, result_dir in strategy_dirs.items():
+        summary_path = result_dir / WALKFORWARD_SUMMARY_FILENAME
+        summaries[strat_name] = _load_summary(summary_path, summary_path.stat().st_mtime)
 
     # 5개 섹션 순서대로 렌더링 (통합 뷰)
     _render_mode_summary(summaries)

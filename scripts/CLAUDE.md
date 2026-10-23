@@ -159,7 +159,6 @@ main 함수:
     - 전략 자동 탐색: walkforward_summary.json 존재 여부로 유효 전략 판별, 전략별 좌우 비교 통합 뷰
     - 주요 섹션: 모드 요약 비교, Stitched Equity 곡선, IS/OOS 성과 바차트, 파라미터 추이, 윈도우별 상세 차트
     - 윈도우별 상세 차트: Selectbox 네비게이션 (지표 × 윈도우 조합), IS+OOS 결합 캔들차트 + Buy/Sell 마커 + MA + 밴드 + 에쿼티 + 드로우다운, OOS 시작일 경계 마커, lightweight-charts 사용
-    - VERBATIM 패턴: 각 섹션에 용어 설명 / 해석 방법 / 현재 판단 3부분 구조 적용
   - `app_portfolio_backtest.py`: 포트폴리오 실험 비교 대시보드 (Streamlit + Plotly)
     - 선행: `run_portfolio_backtest.py` 실행 필요 (결과 CSV/JSON 로드)
     - 실험 자동 탐색: `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별, 알파벳 순 탭 자동 생성

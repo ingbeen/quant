@@ -455,6 +455,12 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 - `OHLC_CHANGE_PCT_COLUMNS`: 4종 % 컬럼명 튜플 (`open_pct`, `high_pct`, `low_pct`, `close_pct`)
 - `BUFFER_BAND_COLUMNS`: 밴드 컬럼명 튜플 (`upper_band`, `lower_band`)
 
+### 13. dashboard_charts.py
+
+단일 · 포트폴리오 · 워크포워드 대시보드가 같은 모양으로 그리는 차트를 만든다 — lightweight-charts 캔들 차트의 패널 설정과 월별 수익률 히트맵(Plotly). Streamlit 과 차트 컴포넌트는 import 하지 않고, 컴포넌트 호출과 화면 배치는 앱이 한다. src 에 둔 것은 세 앱이 같은 코드를 쓰고 테스트가 부를 수 있게 하려는 것이다.
+
+캔들 패널의 밴드 선과 툴팁의 밴드 · 에쿼티 · 드로우다운은 넘겨받은 겹침 표에 그 열이 있을 때만 넣는다 — 단일 · 워크포워드는 에쿼티 표, 포트폴리오는 시그널 표를 넘긴다(포트폴리오 에쿼티는 계좌 단위라 자산 차트에 넣지 않는다).
+
 ---
 
 ## 도메인 규칙

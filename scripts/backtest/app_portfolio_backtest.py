@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import plotly.colors as pc
 import plotly.graph_objects as go
@@ -37,14 +35,13 @@ from qbt.backtest.constants import (
     TRADE_TYPE_SIGNAL,
     TRADES_FILENAME,
 )
-from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
-from qbt.common_constants import (
-    COL_CLOSE,
-    COL_DATE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
+from qbt.backtest.dashboard_charts import (
+    build_monthly_heatmap,
+    build_price_pane,
+    build_trade_markers,
+    chart_component_args,
 )
+from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
@@ -53,20 +50,6 @@ from qbt.common_constants import (
 # --- 차트 높이 ---
 _CHART_HEIGHT = 500
 _SUB_CHART_HEIGHT = 300
-_SMALL_CHART_HEIGHT = 250
-_SIGNAL_CHART_HEIGHT = 500
-
-# --- 시그널 차트 색상 ---
-_COLOR_UP = "rgb(38, 166, 154)"
-_COLOR_DOWN = "rgb(239, 83, 80)"
-_COLOR_MA_LINE = "rgba(255, 152, 0, 0.9)"
-_COLOR_UPPER_BAND = "rgba(33, 150, 243, 0.6)"
-_COLOR_LOWER_BAND = "rgba(244, 67, 54, 0.6)"
-_COLOR_BUY_MARKER = "#26a69a"
-_COLOR_SELL_MARKER = "#ef5350"
-
-# --- 시그널 차트 줌 ---
-_DEFAULT_ZOOM_LEVEL = 99999
 
 # --- 성과 지표 테이블 컬럼 레이블 ---
 _COL_DISPLAY_NAME = "실험"
@@ -134,18 +117,12 @@ def _discover_experiments() -> list[Path]:
     return result
 
 
-def _cache_args(path: Path) -> tuple[Path, float]:
-    """캐시 로더에 넘길 (경로, 수정 시각)을 만든다.
-
-    수정 시각은 캐시 키로만 쓰인다 — 러너가 파일을 다시 만들면 키가 바뀌어 새로 읽는다.
-    없는 파일은 0.0 이라, 나중에 생기면 역시 키가 바뀐다.
-    """
-    return path, (path.stat().st_mtime if path.exists() else 0.0)
+# 캐시 로더의 mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다
 
 
 @st.cache_data
 def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """equity.csv를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열). 인자는 `_cache_args` 참고."""
+    """equity.csv를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열)."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
@@ -155,7 +132,7 @@ def _load_equity_csv(path: Path, mtime: float) -> pd.DataFrame:
 
 @st.cache_data
 def _load_trades_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """trades.csv를 로드한다 (entry_date / exit_date datetime 변환). 인자는 `_cache_args` 참고."""
+    """trades.csv를 로드한다 (entry_date / exit_date datetime 변환)."""
     df = pd.read_csv(path)
     for col in ("entry_date", "exit_date"):
         if col in df.columns:
@@ -165,7 +142,7 @@ def _load_trades_csv(path: Path, mtime: float) -> pd.DataFrame:
 
 @st.cache_data
 def _load_summary_json(path: Path, mtime: float) -> dict[str, Any]:
-    """summary.json을 로드한다. 인자는 `_cache_args` 참고."""
+    """summary.json을 로드한다."""
     with path.open(encoding="utf-8") as f:
         result: dict[str, Any] = json.load(f)
     return result
@@ -173,7 +150,7 @@ def _load_summary_json(path: Path, mtime: float) -> dict[str, Any]:
 
 @st.cache_data
 def _load_signal_csv(path: Path, mtime: float) -> pd.DataFrame:
-    """signal_{asset_id}.csv를 로드한다 (Date 열 datetime 변환). 인자는 `_cache_args` 참고."""
+    """signal_{asset_id}.csv를 로드한다 (Date 열 datetime 변환)."""
     df = pd.read_csv(path)
     if "Date" in df.columns:
         df["Date"] = pd.to_datetime(df["Date"])
@@ -181,13 +158,8 @@ def _load_signal_csv(path: Path, mtime: float) -> pd.DataFrame:
 
 
 @st.cache_data
-def _load_ledger_csv(path: Path, mtime: float) -> pd.DataFrame | None:
-    """ledger.csv(매매법별 장부)를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열).
-
-    매매법이 하나인 실험에는 없어 None. 인자는 `_cache_args` 참고.
-    """
-    if not path.exists():
-        return None
+def _load_ledger_csv(path: Path, mtime: float) -> pd.DataFrame:
+    """ledger.csv(매매법별 장부)를 로드한다 (Date 열 datetime 변환, 빈 리밸런싱 사유는 빈 문자열)."""
     df = pd.read_csv(path)
     df["Date"] = pd.to_datetime(df["Date"])
     df["rebalance_reason"] = df["rebalance_reason"].fillna("")
@@ -203,18 +175,24 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
     Returns:
         _ExperimentData 인스턴스
     """
-    summary = _load_summary_json(*_cache_args(experiment_dir / SUMMARY_FILENAME))
-    equity_df = _load_equity_csv(*_cache_args(experiment_dir / EQUITY_FILENAME))
-    trades_df = _load_trades_csv(*_cache_args(experiment_dir / TRADES_FILENAME))
+    summary_path = experiment_dir / SUMMARY_FILENAME
+    equity_path = experiment_dir / EQUITY_FILENAME
+    trades_path = experiment_dir / TRADES_FILENAME
+    summary = _load_summary_json(summary_path, summary_path.stat().st_mtime)
+    equity_df = _load_equity_csv(equity_path, equity_path.stat().st_mtime)
+    trades_df = _load_trades_csv(trades_path, trades_path.stat().st_mtime)
 
     # signal_{asset_id}.csv 탐색 및 로드
     signal_dfs: dict[str, pd.DataFrame] = {}
     for signal_path in sorted(experiment_dir.glob(f"{PORTFOLIO_SIGNAL_PREFIX}*.csv")):
         # "signal_qqq.csv" → asset_id = "qqq"
         asset_id = signal_path.stem.removeprefix(PORTFOLIO_SIGNAL_PREFIX)
-        signal_dfs[asset_id] = _load_signal_csv(*_cache_args(signal_path))
+        signal_dfs[asset_id] = _load_signal_csv(signal_path, signal_path.stat().st_mtime)
 
     display_name: str = summary["display_name"]
+    # 장부는 매매법이 여럿인 실험에만 있다
+    ledger_path = experiment_dir / LEDGER_FILENAME
+    ledger_df = _load_ledger_csv(ledger_path, ledger_path.stat().st_mtime) if ledger_path.exists() else None
 
     return _ExperimentData(
         experiment_name=experiment_dir.name,
@@ -224,7 +202,7 @@ def _load_experiment_data(experiment_dir: Path) -> _ExperimentData:
         trades_df=trades_df,
         summary=summary,
         signal_dfs=signal_dfs,
-        ledger_df=_load_ledger_csv(*_cache_args(experiment_dir / LEDGER_FILENAME)),
+        ledger_df=ledger_df,
     )
 
 
@@ -298,155 +276,27 @@ def _method_display_names(summary: dict[str, Any]) -> dict[str, str]:
 
 
 # ============================================================
-# 신규 섹션: 월별 수익률 히트맵 (Monthly Returns)
+# 월별 수익률 히트맵 (Monthly Returns)
 # ============================================================
 
 
 def _render_monthly_returns_section(exp: _ExperimentData) -> None:
-    """월별 수익률을 히트맵으로 표시한다.
-
-    월별/연간 수익률은 `run_portfolio_backtest.py`가 계산하여 summary.json에
-    저장한 값을 사용한다. 이 함수는 데이터를 읽어 시각화만 담당한다.
-    """
+    """월별 수익률 히트맵 — 수익률은 러너가 summary.json 에 저장한 값이다."""
     st.subheader("월별 수익률")
-
-    monthly_returns: list[dict[str, Any]] = exp.summary.get("monthly_returns", [])
-    yearly_returns: list[dict[str, Any]] = exp.summary.get("yearly_returns", [])
-
-    if not monthly_returns:
-        st.info("월별 수익률 데이터가 없습니다. run_portfolio_backtest.py를 재실행하세요.")
-        return
-
-    # 1. 연도 x 월 피벗 구성
-    returns_df = pd.DataFrame(monthly_returns)
-    pivot = returns_df.pivot_table(values="return_pct", index="year", columns="month")
-    years = sorted(pivot.index.tolist())
-
-    # 2. 연간 수익률 매핑 (year -> return_pct)
-    yearly_map: dict[int, float] = {}
-    for entry in yearly_returns:
-        yearly_map[int(str(entry["year"]))] = float(str(entry["return_pct"]))
-
-    # 3. 월별(12열)과 연간(1열) 데이터 분리 구성
-    # 색상 스케일을 각각 자기 데이터 기준으로 독립 적용하여
-    # 연간 변동폭이 월별 셀의 대비를 압도하지 않도록 한다.
-    month_labels = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
-    year_labels = [str(y) for y in years]
-
-    z_monthly: list[list[float | None]] = []
-    text_monthly: list[list[str]] = []
-    z_yearly: list[list[float | None]] = []
-    text_yearly: list[list[str]] = []
-
-    for year in years:
-        row_z: list[float | None] = []
-        row_text: list[str] = []
-        for m in range(1, 13):
-            val: float | None = None
-            if m in pivot.columns:
-                cell = pivot.loc[year, m]
-                if pd.notna(cell):
-                    val = float(str(cell))
-            row_z.append(val)
-            row_text.append(f"{val:.2f}%" if val is not None else "")
-        z_monthly.append(row_z)
-        text_monthly.append(row_text)
-
-        yearly_val = yearly_map.get(int(year))
-        z_yearly.append([yearly_val])
-        text_yearly.append([f"{yearly_val:.2f}%" if yearly_val is not None else ""])
-
-    # 4. 색상 범위 (월별/연간 각자 대칭)
-    monthly_vals = [v for row in z_monthly for v in row if v is not None]
-    yearly_vals = [v for row in z_yearly for v in row if v is not None]
-    max_abs_monthly = max(abs(min(monthly_vals)), abs(max(monthly_vals)))
-    max_abs_yearly = max(abs(min(yearly_vals)), abs(max(yearly_vals)))
-
-    _heatmap_colorscale = [
-        [0.0, "rgb(239, 83, 80)"],
-        [0.5, "rgb(255, 255, 255)"],
-        [1.0, "rgb(38, 166, 154)"],
-    ]
-
-    # 5. make_subplots로 월별(12열) + 연간(1열) 분리, y축(연도) 공유
-    # horizontal_spacing을 넉넉히 잡아 두 subplot 사이에 월별 컬러바가 들어갈 공간을 확보.
-    # 레이아웃: [월별 히트맵] [월별 컬러바] [연간 히트맵] [연간 컬러바]
-    fig_heatmap = make_subplots(
-        rows=1,
-        cols=2,
-        column_widths=[12, 1],
-        shared_yaxes=True,
-        horizontal_spacing=0.12,
-    )
-
-    fig_heatmap.add_trace(
-        go.Heatmap(
-            z=z_monthly,
-            x=month_labels,
-            y=year_labels,
-            text=text_monthly,
-            texttemplate="%{text}",
-            textfont={"size": 11},
-            coloraxis="coloraxis",
-            hovertemplate="%{y}년 %{x}: %{text}<extra></extra>",
-        ),
-        row=1,
-        col=1,
-    )
-    fig_heatmap.add_trace(
-        go.Heatmap(
-            z=z_yearly,
-            x=["연간"],
-            y=year_labels,
-            text=text_yearly,
-            texttemplate="%{text}",
-            textfont={"size": 11},
-            coloraxis="coloraxis2",
-            hovertemplate="%{y}년 %{x}: %{text}<extra></extra>",
-        ),
-        row=1,
-        col=2,
-    )
-
-    fig_heatmap.update_xaxes(side="top", row=1, col=1)
-    fig_heatmap.update_xaxes(side="top", row=1, col=2)
-    fig_heatmap.update_yaxes(autorange="reversed", row=1, col=1)
-    fig_heatmap.update_yaxes(autorange="reversed", row=1, col=2)
-
-    # 컬러바 위치 계산 근거 (paper 좌표, xanchor="left" 기본값):
-    # column_widths=[12,1], horizontal_spacing=0.12 →
-    #   월별 subplot 영역: [0, 0.812], 연간 subplot 영역: [0.932, 1.000]
-    # 월별 컬러바는 월별 subplot 바로 우측(~0.83)에 두어 월별 히트맵 옆에 정렬.
-    # 연간 컬러바는 figure 오른쪽(연간 subplot 우측 여백)에 둔다.
-    fig_heatmap.update_layout(
-        height=max(_SMALL_CHART_HEIGHT, len(year_labels) * 40 + 100),
-        coloraxis={
-            "colorscale": _heatmap_colorscale,
-            "cmin": -max_abs_monthly,
-            "cmax": max_abs_monthly,
-            "colorbar": {"title": "월별 (%)", "x": 0.83, "xanchor": "left", "len": 0.9, "thickness": 14},
-        },
-        coloraxis2={
-            "colorscale": _heatmap_colorscale,
-            "cmin": -max_abs_yearly,
-            "cmax": max_abs_yearly,
-            "colorbar": {"title": "연간 (%)", "x": 1.02, "xanchor": "left", "len": 0.9, "thickness": 14},
-        },
-        margin={"r": 120},
-    )
-    st.plotly_chart(fig_heatmap, width="stretch", key=f"monthly_heatmap_{exp.experiment_name}")
+    fig = build_monthly_heatmap(exp.summary["monthly_returns"], exp.summary["yearly_returns"])
+    st.plotly_chart(fig, width="stretch", key=f"monthly_heatmap_{exp.experiment_name}")
 
 
 # ============================================================
-# 신규 섹션: 자산별 수익 기여도 (Asset Contribution)
+# 자산별 수익 기여도 (Asset Contribution)
 # ============================================================
 
 
 def _render_contribution_section(exp: _ExperimentData) -> None:
     """자산별 수익 기여도를 실현+미실현 손익 기반으로 표시한다.
 
-    총 기여도 = 누적 실현손익 + 미실현손익이며, `run_portfolio_backtest.py`가
-    `{asset_id}_contribution` 컬럼을 equity CSV에 사전 계산해 둔다.
+    총 기여도 = 누적 실현손익 + 미실현손익이며, 엔진(`build_combined_equity`)이
+    `{asset_id}_contribution` 컬럼으로 계산해 equity CSV에 저장한다.
     매도 후에도 실현손익이 유지되어 자산별 기여 이력이 끊기지 않는다.
     """
     st.subheader("자산별 수익 기여도")
@@ -1083,11 +933,11 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         portfolio_config = exp.summary.get("portfolio_config", {})
         st.json(portfolio_config)
 
-    # ---- 신규 섹션: 월별 수익률 히트맵 ----
+    # ---- 월별 수익률 히트맵 ----
     st.divider()
     _render_monthly_returns_section(exp)
 
-    # ---- 신규 섹션: 자산별 수익 기여도 ----
+    # ---- 자산별 수익 기여도 ----
     st.divider()
     _render_contribution_section(exp)
 
@@ -1102,160 +952,6 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
 # ============================================================
 
 
-def _detect_ma_col(signal_df: pd.DataFrame) -> str | None:
-    """signal_df에서 ma_* 컬럼을 탐지한다."""
-    ma_cols = [c for c in signal_df.columns if c.startswith("ma_")]
-    return ma_cols[0] if ma_cols else None
-
-
-def _build_portfolio_candle_data(
-    signal_df: pd.DataFrame,
-    ma_col: str | None,
-) -> list[dict[str, object]]:
-    """signal_df를 lightweight-charts 캔들스틱 데이터로 변환한다.
-
-    customValues를 포함하여 tooltip에서 OHLC, 전일대비%, MA, 밴드를 표시한다.
-    전일종가대비%(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 및 buffer_zone 자산의
-    `upper_band`/`lower_band`는 `run_portfolio_backtest.py`가 사전 계산해 signal CSV에
-    저장한 컬럼을 직접 읽는다.
-    """
-    has_upper_band = "upper_band" in signal_df.columns
-    has_lower_band = "lower_band" in signal_df.columns
-
-    # 4종 전일대비% 컬럼은 numpy 배열로 미리 추출해 인덱스 접근.
-    # itertuples namedtuple 속성은 정적 타입 체커가 인식하지 못하므로 배열 추출이 가장 클린하다.
-    pct_arrays: dict[str, np.ndarray[Any, Any]] = {}
-    for pct_col in ("open_pct", "high_pct", "low_pct", "close_pct"):
-        if pct_col in signal_df.columns:
-            pct_arrays[pct_col] = signal_df[pct_col].to_numpy()
-
-    candle_data: list[dict[str, object]] = []
-    for i, row in enumerate(signal_df.itertuples(index=False)):
-        d: date = getattr(row, COL_DATE)
-        open_val = float(getattr(row, COL_OPEN))
-        high_val = float(getattr(row, COL_HIGH))
-        low_val = float(getattr(row, COL_LOW))
-        close_val = float(getattr(row, COL_CLOSE))
-
-        candle_entry: dict[str, object] = {
-            "time": d.strftime("%Y-%m-%d"),
-            "open": open_val,
-            "high": high_val,
-            "low": low_val,
-            "close": close_val,
-        }
-
-        # customValues 구성 (Record<string, string>)
-        cv: dict[str, str] = {}
-
-        # OHLC 가격
-        cv["open"] = f"{open_val:.2f}"
-        cv["high"] = f"{high_val:.2f}"
-        cv["low"] = f"{low_val:.2f}"
-        cv["close"] = f"{close_val:.2f}"
-
-        # 전일종가대비% (CSV 사전 계산 컬럼 — 첫날은 NaN이므로 제외)
-        for pct_col, pct_arr in pct_arrays.items():
-            v = pct_arr[i]
-            if pd.notna(v):
-                cv[pct_col] = f"{float(v):+.2f}"
-
-        # MA
-        if ma_col and ma_col in signal_df.columns:
-            ma_val = getattr(row, ma_col)
-            if pd.notna(ma_val):
-                cv["ma"] = f"{ma_val:.2f}"
-
-        # 밴드
-        if has_upper_band:
-            upper_val = row.upper_band
-            if pd.notna(upper_val):
-                cv["upper"] = f"{float(upper_val):.2f}"
-        if has_lower_band:
-            lower_val = row.lower_band
-            if pd.notna(lower_val):
-                cv["lower"] = f"{float(lower_val):.2f}"
-
-        if cv:
-            candle_entry["customValues"] = cv
-
-        candle_data.append(candle_entry)
-
-    return candle_data
-
-
-def _build_lwc_series_data(df: pd.DataFrame, col: str) -> list[dict[str, object]]:
-    """DataFrame의 특정 컬럼에서 lightweight-charts Line 시리즈 데이터를 생성한다."""
-    data: list[dict[str, object]] = []
-    for row in df.itertuples(index=False):
-        val = getattr(row, col)
-        if pd.notna(val):
-            d: date = getattr(row, COL_DATE)
-            data.append({"time": d.strftime("%Y-%m-%d"), "value": float(val)})
-    return data
-
-
-def _build_portfolio_markers(
-    trades_df: pd.DataFrame,
-    asset_id: str,
-    open_position: dict[str, Any] | None = None,
-) -> list[dict[str, object]]:
-    """해당 자산의 신호 거래에서 Buy/Sell 마커를 생성한다.
-
-    리밸런싱 거래(`trade_type == "rebalance"`)는 그리지 않는다 — 비중을 맞추는 부분 매매라
-    화살표로 그리면 매수 후 보유 자산에도 Sell 이 줄지어 나온다(리밸런싱일은 에쿼티 차트 마커가 보인다).
-    Buy 마커에는 가격을 적지 않는다 — trades 의 entry_price 는 체결가가 아니라 매도 시점 평균 단가다.
-
-    Args:
-        trades_df: 포트폴리오 전체 거래 내역 (asset_id · trade_type 컬럼 포함)
-        asset_id: 마커를 생성할 자산 ID
-        open_position: summary.per_asset[asset_id].open_position. `None`이면 미청산 없음.
-            있으면 그 진입일의 Buy 마커를 "Buy (보유중)" 으로 표시한다
-
-    Returns:
-        시간 순 정렬된 마커 리스트.
-    """
-    # 분할 매도 시 같은 진입일이 여러 행에 반복되므로 Buy 마커는 진입일당 하나만 둔다
-    buy_markers: dict[str, dict[str, object]] = {}
-    sell_markers: list[dict[str, object]] = []
-
-    def buy_marker(entry_key: str) -> dict[str, object]:
-        return buy_markers.setdefault(
-            entry_key,
-            {
-                "time": entry_key,
-                "position": "belowBar",
-                "color": _COLOR_BUY_MARKER,
-                "shape": "arrowUp",
-                "text": "Buy",
-                "size": 2,
-            },
-        )
-
-    signal_trades = trades_df[(trades_df["asset_id"] == asset_id) & (trades_df["trade_type"] == TRADE_TYPE_SIGNAL)]
-    for trade in signal_trades.itertuples(index=False):
-        buy_marker(pd.Timestamp(trade.entry_date).strftime("%Y-%m-%d"))
-        sell_markers.append(
-            {
-                "time": pd.Timestamp(trade.exit_date).strftime("%Y-%m-%d"),
-                "position": "aboveBar",
-                "color": _COLOR_SELL_MARKER,
-                "shape": "arrowDown",
-                "text": f"Sell {float(trade.pnl_pct) * 100:+.1f}%",
-                "size": 2,
-            }
-        )
-
-    if open_position is not None:
-        entry_key = pd.Timestamp(str(open_position["entry_date"])).strftime("%Y-%m-%d")
-        buy_marker(entry_key)["text"] = "Buy (보유중)"
-
-    # lightweight-charts는 마커가 시간순 정렬되어야 정상 표시된다
-    markers = [*buy_markers.values(), *sell_markers]
-    markers.sort(key=lambda m: str(m["time"]))
-    return markers
-
-
 def _render_signal_chart(
     signal_df: pd.DataFrame,
     trades_df: pd.DataFrame,
@@ -1263,137 +959,31 @@ def _render_signal_chart(
     experiment_name: str,
     open_position: dict[str, Any] | None = None,
 ) -> None:
-    """lightweight-charts 캔들스틱 + MA + 밴드 + Buy/Sell 마커를 표시한다.
+    """한 자산의 캔들 + 이동평균 · 밴드 + 신호 거래 마커.
 
-    `signal_df`의 `upper_band`/`lower_band` 컬럼은 `run_portfolio_backtest.py`가
-    buffer_zone 자산에 한해 사전 계산해 둔 값이며, buy_and_hold 자산은 컬럼이
-    존재하지 않으므로 Feature Detection으로 자동 분기된다.
+    밴드는 시그널 CSV 에서 읽는다(버퍼존 자산만 있다 — 에쿼티는 계좌 단위라 자산 차트에 넣지 않는다).
+    리밸런싱 거래는 그리지 않는다 — 비중을 맞추는 부분 매매라 화살표로 그리면 매수 후 보유 자산에도
+    Sell 이 줄지어 나온다(리밸런싱일은 에쿼티 차트 마커가 보인다).
 
     Args:
-        signal_df: 시그널 데이터 (OHLCV + ma_{N} + 4종 % + buffer_zone일 경우 밴드)
-        trades_df: 거래 내역 (asset_id 컬럼 포함)
+        signal_df: 시그널 데이터 (OHLC + ma_{N} + 4종 % + 버퍼존 자산이면 밴드)
+        trades_df: 포트폴리오 전체 거래 내역 (asset_id · trade_type 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
-        open_position: 미청산 포지션 정보. 존재 시 "Buy (보유중)" 마커 추가.
+        open_position: summary.per_asset 의 그 자산 open_position. 있으면 그 진입일에 "Buy (보유중)" 마커
     """
-    # 1. MA 컬럼 탐지
-    ma_col = _detect_ma_col(signal_df)
-
-    # 2. 데이터 준비 (밴드 컬럼은 CSV에서 직접 읽음)
-    candle_data = _build_portfolio_candle_data(signal_df, ma_col)
-    markers = _build_portfolio_markers(trades_df, asset_id, open_position=open_position)
-
-    # 4. 차트 테마
-    chart_theme: dict[str, object] = {
-        "layout": {
-            "background": {"color": "#131722"},
-            "textColor": "#D1D4DC",
-            "fontFamily": "Arial",
-            "fontSize": 12,
-        },
-        "grid": {
-            "vertLines": {"color": "#1e222d", "visible": True},
-            "horzLines": {"color": "#1e222d", "visible": True},
-        },
-        "crosshair": {
-            "mode": 0,
-            "vertLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-            "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
-        },
-        "timeScale": {"minBarSpacing": 0.2},
-        "localization": {"dateFormat": "yyyy-MM-dd"},
-    }
-
-    # 5. 캔들스틱 시리즈 + 마커
-    candle_series: dict[str, object] = {
-        "type": "Candlestick",
-        "data": candle_data,
-        "options": {
-            "upColor": _COLOR_UP,
-            "downColor": _COLOR_DOWN,
-            "borderVisible": False,
-            "wickUpColor": _COLOR_UP,
-            "wickDownColor": _COLOR_DOWN,
-            "priceLineVisible": False,
-        },
-    }
-    if markers:
-        candle_series["markers"] = markers
-
-    pane_series: list[dict[str, object]] = [candle_series]
-
-    # 6. MA 오버레이
-    if ma_col:
-        ma_data = _build_lwc_series_data(signal_df, ma_col)
-        if ma_data:
-            pane_series.append(
-                {
-                    "type": "Line",
-                    "data": ma_data,
-                    "options": {
-                        "color": _COLOR_MA_LINE,
-                        "lineWidth": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # 7. 상단 밴드
-    if "upper_band" in signal_df.columns:
-        upper_data = _build_lwc_series_data(signal_df, "upper_band")
-        if upper_data:
-            pane_series.append(
-                {
-                    "type": "Line",
-                    "data": upper_data,
-                    "options": {
-                        "color": _COLOR_UPPER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # 8. 하단 밴드
-    if "lower_band" in signal_df.columns:
-        lower_data = _build_lwc_series_data(signal_df, "lower_band")
-        if lower_data:
-            pane_series.append(
-                {
-                    "type": "Line",
-                    "data": lower_data,
-                    "options": {
-                        "color": _COLOR_LOWER_BAND,
-                        "lineWidth": 2,
-                        "lineStyle": 2,
-                        "priceLineVisible": False,
-                        "lastValueVisible": False,
-                        "crosshairMarkerVisible": False,
-                    },
-                }
-            )
-
-    # 9. 렌더링
-    chart_title = f"{asset_id.upper()} 시그널 차트"
-    pane = {
-        "chart": chart_theme,
-        "series": pane_series,
-        "height": _SIGNAL_CHART_HEIGHT,
-        "title": chart_title,
-    }
-
+    signal_trades = trades_df[(trades_df["asset_id"] == asset_id) & (trades_df["trade_type"] == TRADE_TYPE_SIGNAL)]
+    markers = build_trade_markers(
+        signal_trades,
+        open_entry_date=None if open_position is None else str(open_position["entry_date"]),
+    )
+    pane = build_price_pane(signal_df, signal_df, markers, title=f"{asset_id.upper()} 시그널 차트")
     lightweight_charts_v5_component(
-        name=f"portfolio_signal_{experiment_name}_{asset_id}",
-        charts=[pane],
-        height=_SIGNAL_CHART_HEIGHT,
-        zoom_level=_DEFAULT_ZOOM_LEVEL,
-        scroll_padding=60,
-        key=f"signal_chart_{experiment_name}_{asset_id}",
+        **chart_component_args(
+            [pane],
+            name=f"portfolio_signal_{experiment_name}_{asset_id}",
+            key=f"signal_chart_{experiment_name}_{asset_id}",
+        )
     )
 
 
