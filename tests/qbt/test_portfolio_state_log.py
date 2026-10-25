@@ -33,7 +33,7 @@ def _make_stock_df_for_state_log(
     """buy -> hold -> sell 시그널이 모두 포함된 합성 데이터를 생성한다.
 
     price 패턴:
-    - 처음 10일: base_price (안정, EMA 수렴)
+    - 처음 10일: base_price (안정, 이동평균 수렴)
     - 다음 40일: base_price * 1.12 (12% 상승, buy signal 트리거)
     - 마지막 30일: base_price * 0.82 (18% 하락, sell signal 트리거)
 

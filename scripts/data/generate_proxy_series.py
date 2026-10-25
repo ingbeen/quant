@@ -6,7 +6,6 @@
 - VXUS 순수 합성판 (VXUS_proxy_max.csv): 전 구간 EFA · EEM 매일 비율 유지 합성
 
 선행: 대상과 대용 시세를 download_data.py 로 받아 둔다.
-원본을 다시 받으면 대용 파일이 낡으므로 이 스크립트도 다시 실행한다.
 
 실행 명령어:
     poetry run python scripts/data/generate_proxy_series.py

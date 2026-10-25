@@ -775,7 +775,7 @@ class TestStartDateConstraint:
 
     핵심 계약:
     - start_date가 주어지면 equity_df의 첫 날짜가 start_date 이상이어야 한다.
-    - start_date=None이면 기존 동작과 동일하다 (자연 시작일 사용).
+    - start_date=None이면 자연 시작일을 쓴다.
     """
 
     def test_start_date_filters_early_data(self, tmp_path: Path, create_csv_file):
@@ -816,7 +816,7 @@ class TestStartDateConstraint:
 
     def test_start_date_none_uses_natural_start(self, tmp_path: Path, create_csv_file):
         """
-        목적: start_date=None이면 기존 동작(자연 시작일)과 동일함을 검증.
+        목적: start_date=None이면 자연 시작일을 쓰는지 검증.
 
         Given: 단일 자산 포트폴리오 config
         When:  run_portfolio_backtest(config, start_date=None) 실행
@@ -883,12 +883,12 @@ class TestComputeEffectiveStartDate:
         목적: compute_portfolio_effective_start_date()가 run_portfolio_backtest()의
               equity_df 첫 날짜와 동일함을 검증.
 
-        Given: ma_window=5 (SMA, NaN 워밍업이 발생하는 유형) n_rows=20 데이터
+        Given: ma_window=5 (앞 ma_window-1 행이 NaN 이라 워밍업이 생긴다) n_rows=20 데이터
         When:  compute_portfolio_effective_start_date(config) 호출
         Then:  반환 날짜 == run_portfolio_backtest()의 equity_df 첫 날짜
-               SMA 사용 시 반환 날짜가 데이터 시작일보다 이후 (ma_window-1 행은 NaN)
+               반환 날짜가 데이터 시작일보다 이후 (ma_window-1 행은 NaN)
         """
-        # Given: SMA 타입 사용 (처음 window-1 행이 NaN → 워밍업 발생)
+        # Given: 처음 window-1 행이 NaN → 워밍업 발생
         stock_df = make_rising_stock_df(n_rows=20)
         qqq_path = create_csv_file("QQQ_max.csv", stock_df)
         data_start = stock_df[COL_DATE].iloc[0]

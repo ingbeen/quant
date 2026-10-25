@@ -349,7 +349,7 @@ class TestFindPlateauRangeWithTradeFilter:
 
     def test_no_filtering_when_all_sufficient(self) -> None:
         """
-        목적: 모든 거래 수가 충분하면 기존 find_plateau_range와 동일 결과 검증
+        목적: 모든 거래 수가 충분하면 필터 없는 find_plateau_range와 같은 결과인지 검증
 
         Given: 모든 파라미터의 거래 수가 min_trades 이상
         When: find_plateau_range_with_trade_filter() 호출

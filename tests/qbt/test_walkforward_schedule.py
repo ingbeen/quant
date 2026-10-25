@@ -25,10 +25,10 @@ def _make_trend_and_oscillating_df(
     oos_center: float = 60.0,
     oos_amplitude: float = 10.0,
 ) -> pd.DataFrame:
-    """EMA 연속성 테스트용 데이터를 생성한다.
+    """이동평균 연속성 테스트용 데이터를 생성한다.
 
     IS 구간은 단조 상승 추세, OOS 구간은 낮은 가격대에서 정현파로 진동한다.
-    전체 히스토리 EMA와 OOS-리셋 EMA가 크게 달라지도록 설계되어 있다.
+    전체 히스토리 이동평균과 OOS 에서 다시 계산한 이동평균이 크게 달라지도록 설계되어 있다.
 
     Args:
         n_is: IS 구간 거래일 수
@@ -97,7 +97,7 @@ class TestMaContinuity:
         ma_window = 100
 
         # 전체 히스토리 MA 사전 계산 (두 번째 실행에서 OOS 슬라이스에 포함됨)
-        # 프로덕션 기본 MA 유형을 그대로 써야 run_walkforward 내부 계산과 비교가 성립한다.
+        # 프로덕션 이동평균 함수를 그대로 써야 run_walkforward 내부 계산과 비교 성립
         full_df_with_ma = add_single_moving_average(raw_df.copy(), ma_window)
 
         wfo_kwargs: dict[str, object] = {
@@ -112,10 +112,10 @@ class TestMaContinuity:
         }
 
         # When — 두 가지 실행
-        # 실행 1: raw_df (MA 미포함) — 현재 구현은 OOS에서 EMA 리셋 발생
+        # 실행 1: raw_df (MA 미포함) — run_walkforward 가 이동평균 계산
         results_raw = run_walkforward(signal_df=raw_df, **wfo_kwargs)
 
-        # 실행 2: full_df_with_ma (MA 포함) — OOS 슬라이스에 전체 히스토리 EMA가 담긴다
+        # 실행 2: full_df_with_ma (MA 포함) — OOS 슬라이스에 전체 히스토리 이동평균이 담김
         results_with_ma = run_walkforward(signal_df=full_df_with_ma, **wfo_kwargs)
 
         # Then — 두 실행의 첫 번째 OOS 윈도우 oos_calmar가 동일해야 한다

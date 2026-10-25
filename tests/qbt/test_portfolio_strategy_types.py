@@ -20,10 +20,10 @@ from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPE
 def _make_flat_price_df(n_rows: int = 20, price: float = 100.0) -> pd.DataFrame:
     """가격이 고정된 합성 주식 데이터를 생성한다.
 
-    always_invested 테스트 목적:
+    전략 종류를 가르는 시세:
     - buy_buffer=0.03 → upper_band = MA * 1.03 ≈ 103
     - price=100 → upper_band(103)을 절대 돌파하지 않음 → 버퍼존 매수 신호 없음
-    - always_invested=True라면 신호 없이도 즉시 매수 가능
+    - strategy_id="buy_and_hold" 는 신호 없이도 즉시 매수
     """
     start = date(2024, 1, 2)
     dates: list[date] = []

@@ -88,23 +88,22 @@ class TestFilterValidRows:
         assert len(filtered_trade) == 4
 
 
-class TestParamsScheduleWhile:
+class TestParamsScheduleDataGap:
     """params_schedule 전환 로직 계약 테스트."""
 
     def test_params_schedule_skips_multiple_dates(self) -> None:
         """
-        목적: 데이터 갭으로 2개 이상의 전환 날짜를 건너뛸 때
-              최종 전략만 적용되는지 검증
+        목적: 데이터 갭 안에 전환 날짜가 2개 이상 있을 때
+              그중 마지막 전략만 적용되는지 검증
 
         Given: 3개의 전환 날짜(1/5, 1/10, 1/15)와
-               1/5~1/9 사이 데이터가 없는 signal/trade DataFrame.
-               첫 데이터가 1/1, 그 다음 1/12에 재개.
+               1/5~1/11 사이 데이터가 없는 signal/trade DataFrame.
+               첫 데이터가 1/1, 1/4 뒤 1/12에 재개.
         When: run_backtest()를 params_schedule과 함께 호출
-        Then: 1/12 시점에서 1/5, 1/10 전환을 모두 건너뛰고
-              1/10의 전략이 적용됨 (1/15 전략은 아직 미적용)
+        Then: 1/12 시점에 지난 1/5, 1/10 전환을 모두 처리해
+              1/10의 전략이 적용됨 (1/15 전략은 아직 미적용, 1/5 전략은 호출 0)
 
-        이 테스트는 현재 `if` 로직에서는 1/5 전략만 적용되어 실패하고,
-        `while` 루프로 변경 후에야 통과한다.
+        갭 동안 지난 전환 날짜를 모두 처리해 마지막 것(1/10)의 전략이 남는다 — 하나만 처리하면 1/5 전략이 남는다.
         """
         # Given: 간단한 mock 전략으로 검증
         # 데이터 갭이 있는 시나리오: 1/1~1/4 정상, 1/5~1/11 갭, 1/12~1/20 재개
@@ -164,7 +163,7 @@ class TestParamsScheduleWhile:
         assert strategy_jan5.check_buy.call_count == 0, "데이터 갭으로 건너뛴 jan5 전략은 호출되지 않아야 함"
 
         # strategy_jan10은 1/12~1/14 (3일) 동안 호출되어야 함
-        assert strategy_jan10.check_buy.call_count > 0, "while 루프로 1/10 전환을 건너뛴 후 jan10 전략이 적용되어야 함"
+        assert strategy_jan10.check_buy.call_count > 0, "갭 동안 지난 1/5 · 1/10 전환을 모두 처리한 뒤 jan10 전략이 적용되어야 함"
 
         # strategy_jan15는 1/15~1/20 (6일) 동안 호출되어야 함
         assert strategy_jan15.check_buy.call_count > 0, "1/15 이후 jan15 전략이 적용되어야 함"

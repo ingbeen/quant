@@ -76,7 +76,7 @@ def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
 
 def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
     """
-    일일수익률 차이 분포 히스토그램을 생성한다.
+    일일수익률 절대차이 분포 히스토그램을 생성한다.
 
     Args:
         df: 일별 비교 데이터
@@ -100,9 +100,9 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
         go.Histogram(
             x=daily_diff,
             nbinsx=50,
-            name="일일수익률 차이",
+            name="일일수익률 절대차이",
             marker={"color": "#2ca02c", "line": {"color": "white", "width": 1}},
-            hovertemplate="<b>차이 범위</b>: %{x:.2f}%<br>" + "<b>빈도</b>: %{y}<br>" + "<extra></extra>",
+            hovertemplate="<b>절대차이 범위</b>: %{x:.2f}%<br>" + "<b>빈도</b>: %{y}<br>" + "<extra></extra>",
         )
     )
 
@@ -119,7 +119,7 @@ def create_daily_return_diff_histogram(df: pd.DataFrame) -> go.Figure:
                 "symbol": "line-ns-open",
                 "line": {"width": 2},
             },
-            hovertemplate="<b>차이</b>: %{x:.2f}%<br>" + "<extra></extra>",
+            hovertemplate="<b>절대차이</b>: %{x:.2f}%<br>" + "<extra></extra>",
             yaxis="y2",
         )
     )

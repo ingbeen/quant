@@ -1,6 +1,6 @@
 """엔진 공통 모듈(engine_common.py) 계약 테스트
 
-execute_buy_order, execute_sell_order, create_trade_record, record_equity 함수의 계약을 고정한다.
+execute_buy_order, execute_sell_order, create_trade_record 함수의 계약을 고정한다.
 """
 
 from datetime import date
@@ -101,7 +101,7 @@ class TestExecuteSellOrderPure:
 
     def test_pnl_pct_no_epsilon_in_denominator(self) -> None:
         """
-        목적: pnl_pct 분모에 EPSILON이 없음을 확인 (리포트 2-1 통일)
+        목적: pnl_pct 분모에 EPSILON이 없음을 확인
 
         정책: pnl_pct = (sell_price - entry_price) / entry_price
               entry_price가 0인 것은 비정상 상태이므로 EPSILON 방어 불필요

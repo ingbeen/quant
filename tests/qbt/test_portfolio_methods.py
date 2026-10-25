@@ -316,7 +316,7 @@ class TestMethodConfigValidation:
 class TestPositionKeyAndResolveMethods:
     """자산 키와 줄임 표기 해석 계약.
 
-    핵심 계약: 매매법이 하나면 자산 키 = 자산 id (기존 결과 파일과 같다),
+    핵심 계약: 매매법이 하나면 자산 키 = 자산 id,
     둘 이상이면 「매매법.자산」. asset_slots 줄임 표기는 method_id = experiment_name, 몫 1.0 인 매매법 하나다.
     """
 

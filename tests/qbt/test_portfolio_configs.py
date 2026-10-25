@@ -12,7 +12,7 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 7. get_portfolio_config 정상 조회 / 에러 처리
 8. 보완 전략 등록 실험: 채택 조합(매매법 3개 0.8 / 0.1 / 0.1)이
    그리드와 같은 구성 함수 · 같은 시작일 하한(주 비교 시작일)으로 등록, 채택 전 25% 등록 넷은 없음
-9. QQQ B&H: QQQ 100% 매수 후 보유, 시작일 하한 없음(기존 실험과 같은 시작일 정책)
+9. QQQ B&H: QQQ 100% 매수 후 보유, 실험 시작일 하한(min_start_date) 없음 — 러너의 시작일 정책을 따른다
 """
 
 import pytest
@@ -117,7 +117,7 @@ class TestQqqBuyAndHoldConfig:
 
     def test_qqq_bh_holds_qqq_without_trading_rule(self) -> None:
         """
-        목적: QQQ B&H 는 QQQ 100% 를 사서 보유만 하고, 기존 실험과 같은 시작일 정책(실험 하한 없음)을 따른다.
+        목적: QQQ B&H 는 QQQ 100% 를 사서 보유만 하고, 실험 시작일 하한(min_start_date) 없이 러너의 시작일 정책을 따른다.
 
         Given: portfolio_qqq_bh 설정
         When:  슬롯 · 전략 · 시작일 하한을 확인한다
@@ -221,7 +221,7 @@ class TestSupplementConfigs:
 
     def test_only_supplement_configs_have_start_date_floor(self) -> None:
         """
-        목적: 시작일 하한 칸은 보완 전략 등록 실험만 쓴다 — 기존 실험의 시작일이 바뀌지 않는다.
+        목적: 시작일 하한 칸은 보완 전략 등록 실험만 쓴다 — 나머지 실험은 러너의 시작일 정책을 따른다.
 
         Given: PORTFOLIO_CONFIGS
         When:  min_start_date 가 있는 실험을 고른다

@@ -120,7 +120,7 @@ class TestExecutionTiming:
         """
         첫 날 에쿼티 기록 검증
 
-        버그 재현: range(1, len(df)) 루프로 첫 날 누락
+        첫 날도 기록한다 — 루프가 둘째 날부터 돌면 첫 날이 빠진다
 
         Given: 10일 데이터
         When: run_buffer_strategy
@@ -159,7 +159,7 @@ class TestExecutionTiming:
 
 
 class TestForcedLiquidation:
-    """백테스트 종료 시 에쿼티 정합성 검증 테스트 (정책 변경)
+    """백테스트 종료 시 에쿼티 정합성 검증 테스트
 
     목적: 강제청산 없이도 equity_df와 summary가 일치하는지 검증
     정책: 마지막 날 포지션이 남아있어도 강제청산하지 않음
@@ -167,9 +167,9 @@ class TestForcedLiquidation:
 
     def test_forced_liquidation_equity_consistency(self):
         """
-        백테스트 종료 시 에쿼티 정합성 검증 (정책 변경)
+        백테스트 종료 시 에쿼티 정합성 검증
 
-        정책 변경: 강제청산 없음, equity_df 마지막 값 == summary.final_capital
+        정책: 강제청산 없음, equity_df 마지막 값 == summary.final_capital
 
         Given: 매수 후 매도 신호 없는 데이터 (포지션 남음)
         When: run_buffer_strategy
@@ -512,7 +512,6 @@ class TestBacktestAccuracy:
         백테스트 종료 시 equity_df, trades_df, summary 간 일관성 검증
 
         핵심 인바리언트:
-        - final_capital = cash + position x last_close (항상)
         - 마지막 날 포지션이 남아있어도 강제청산하지 않음
         - equity_df의 마지막 equity == summary.final_capital
 
@@ -521,7 +520,6 @@ class TestBacktestAccuracy:
         Then:
           - 마지막 날 포지션이 남아있음 (position > 0)
           - equity_df 마지막 equity == summary.final_capital
-          - final_capital == cash + position x last_close
         """
         # Given: 상향돌파 후 계속 상승 (매도 신호 없음)
         # 앞 3행을 평탄하게 두어 MA 워밍업(window-1=2행 NaN) 이후에도
@@ -556,54 +554,50 @@ class TestBacktestAccuracy:
             summary["final_capital"], abs=0.01
         ), f"equity_df 마지막 equity({last_equity:.2f})와 summary.final_capital({summary['final_capital']:.2f})이 일치해야 함"
 
-        # Then: final_capital == cash + position x last_close (역산 검증)
-        # 주의: 현재 equity_df에 cash가 기록되지 않으므로 이 검증은 구현 후 활성화
-        # last_close = df.iloc[-1]["Close"]
-        # expected_final = last_equity_record["cash"] + last_equity_record["position"] * last_close
-        # assert abs(summary["final_capital"] - expected_final) < 0.01
-
     def test_hold_days_no_lookahead(self):
         """
         hold_days 룩어헤드 방지 검증
 
         핵심 인바리언트:
-        - i일에 i+1 ~ i+H를 미리 검사하여 pending을 선적재하면 안 됨
-        - 매일 순차적으로 유지조건 체크
+        - i일에 i+1 ~ i+H를 미리 검사하여 pending을 선적재하면 안 됨 (체결 시점은 test_hold_days_1_timeline)
+        - 매일 순차적으로 유지조건 체크 — 유지 중 하루라도 상단 밴드 아래면 대기를 푼다
 
-        Given: hold_days=2, 돌파 후 유지조건 실패 케이스
-        When: run_buffer_strategy 실행
+        Given: 돌파 후 하루 유지, 이틀째 상단 밴드 아래
+        When: run_buffer_strategy 실행 (hold_days=2)
         Then:
-          - 유지조건 실패 시점에 pending 생성 안 됨
-          - 매수 신호가 발생하지 않음 (또는 정확한 시점에만 발생)
-
-        - 상태머신 방식으로 구현됨
-        - 이 테스트는 이제 통과해야 함
+          - 전제: 같은 데이터에서 hold_days=1 이면 매수한다 (돌파와 하루 유지가 실제로 있다)
+          - hold_days=2 는 매수하지 않는다 (거래 0, 전 구간 position 0)
         """
 
-        # Given: hold_days=2, 돌파 후 1일 후 조건 실패
+        # Given: i=3 돌파(110 > 상단 106.43), i=4 유지(115 > 111.58), i=5 실패(100 <= 111.58)
         df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, d) for d in range(1, 8)],
                 "Open": [100.0] * 7,
-                # i=3에서 돌파, i=4에서 조건 유지, i=5에서 조건 실패
-                "Close": [90, 95, 105, 108, 102, 100, 98],
+                "Close": [100, 100, 100, 110, 115, 100, 95],
             }
         )
         df = add_single_moving_average(df, window=3)
 
-        params = BufferStrategyParams(
-            initial_capital=100000.0,
-            ma_window=3,
-            buy_buffer_zone_pct=0.03,
-            sell_buffer_zone_pct=0.03,
-            hold_days=2,
-        )
+        def _params(hold_days: int) -> BufferStrategyParams:
+            return BufferStrategyParams(
+                initial_capital=100000.0,
+                ma_window=3,
+                buy_buffer_zone_pct=0.03,
+                sell_buffer_zone_pct=0.03,
+                hold_days=hold_days,
+            )
+
+        # 전제: 돌파 · 유지가 없는 데이터면 아래 단언이 늘 참이 됨
+        _trades_h1, equity_h1, _summary_h1 = run_buffer_strategy(df, df, _params(1), log_trades=False)
+        assert (equity_h1["position"] > 0).any(), "전제: hold_days=1 이면 매수해야 함"
 
         # When
-        trades_df, _equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
+        trades_df, equity_df, _summary = run_buffer_strategy(df, df, _params(2), log_trades=False)
 
-        # Then: 매수 거래가 없어야 함 (유지조건 실패)
-        assert trades_df.empty or len(trades_df) == 0, "유지조건 실패로 매수 신호가 없어야 함"
+        # Then: 유지조건 실패로 매수 없음
+        assert trades_df.empty, "유지조건 실패로 거래가 없어야 함"
+        assert (equity_df["position"] == 0).all(), "유지조건 실패로 포지션이 없어야 함"
 
     def test_first_valid_signal_detection(self):
         """

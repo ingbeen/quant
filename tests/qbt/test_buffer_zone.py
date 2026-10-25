@@ -5,13 +5,13 @@ backtest/strategies/buffer_zone 통합 모듈 테스트
 1. BufferZoneConfig frozen dataclass 구조 및 CONFIGS 정합성
 2. get_config() 이름 조회 및 에러 처리
 3. resolve_params_for_config() 파라미터 결정 (직접 설정 + 기본값)
-4. create_runner() 팩토리 함수 및 SingleBacktestResult 반환 구조
+4. runners.create_buffer_zone_runner() 팩토리 함수 및 SingleBacktestResult 반환 구조
 5. signal_path == trade_path 분기 (overlap 호출 여부)
 6. TQQQ/QQQ config별 resolve_params_for_config 파라미터 검증
 
 왜 중요한가요?
-buffer_zone.py는 8개 자산의 config-driven 통합 전략 모듈입니다.
-전 자산 4P 고정 파라미터(MA=200, buy=0.03, sell=0.05, hold=3)로 통일된
+buffer_zone.py는 자산별 설정(CONFIGS)으로 도는 통합 전략 모듈입니다.
+전 자산 4P 고정 파라미터(FIXED_4P_*)로 통일된
 설정 정합성과 팩토리 패턴의 정확성이 핵심입니다.
 """
 
@@ -66,9 +66,9 @@ class TestBufferZoneConfig:
         with pytest.raises(FrozenInstanceError):
             config.strategy_name = "changed"  # pyright: ignore[reportAttributeAccessIssue]
 
-    def test_configs_list_has_expected_count(self):
+    def test_configs_list_not_empty(self):
         """
-        목적: CONFIGS 리스트가 8개 설정을 포함하는지 검증
+        목적: CONFIGS 리스트가 비어 있지 않은지 검증
 
         Given: buffer_zone.CONFIGS
         When: 길이 확인
@@ -252,8 +252,7 @@ class TestResolveParamsForConfig:
 class TestResolveParamsForConfigReturnType:
     """resolve_params_for_config 반환타입 검증
 
-    핵심 계약: sources 딕셔너리 제거 후 BufferStrategyParams만 반환.
-    (리포트 3-12, 확정 방침 5-5)
+    핵심 계약: BufferStrategyParams만 반환한다.
     """
 
     def test_resolve_params_for_config_returns_params_only(self):

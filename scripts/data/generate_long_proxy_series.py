@@ -9,8 +9,7 @@
 2배 합성과 금리 누적은 가격 수준만 실물 첫 거래일 종가에 맞추고(이음매 스케일), 수익률은 합성 그대로다.
 같은 펀드의 뮤추얼 클래스 · 금 선물처럼 받은 시세를 그대로 쓰는 대체는 이 스크립트가 만들지 않는다.
 
-선행: 기초 · 실물 · 대체 시세를 download_data.py 로 받아 둔다.
-원본이나 금리 파일을 다시 받으면 생성 파일이 낡으므로 이 스크립트도 다시 실행한다.
+선행: 기초 · 실물 · 대체 시세(download_data.py)와 storage/etc 의 금리 · 운용비율 파일.
 
 실행 명령어:
     poetry run python scripts/data/generate_long_proxy_series.py

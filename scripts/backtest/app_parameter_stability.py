@@ -128,10 +128,10 @@ def _render_line_chart(
                 trades_series,
                 min_trades=trade_filter_min_trades,
             )
-            annotation_label = f"고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%, 저거래 제외)"
+            annotation_label = f"QQQ 고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%, 저거래 제외)"
         else:
             plateau = find_plateau_range(qqq_series)
-            annotation_label = f"고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%)"
+            annotation_label = f"QQQ 고원 구간 ({DEFAULT_PLATEAU_THRESHOLD_RATIO * 100:g}%)"
 
         if plateau is not None:
             fig.add_vrect(

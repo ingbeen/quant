@@ -176,9 +176,9 @@ class TestPartialSellInvariant:
             f"리밸런싱 매도 후 QQQ position이 유지되어야 함 (부분 매도). " f"실제 qqq_value={rebalanced_qqq_value}"
         )
 
-    def test_signal_sell_still_full_sell(self, tmp_path: Path, create_csv_file) -> None:
+    def test_signal_sell_is_full_sell(self, tmp_path: Path, create_csv_file) -> None:
         """
-        목적: 신호 기반 매도는 여전히 전량 매도임을 검증 (변경 없음).
+        목적: 신호 기반 매도는 전량 매도임을 검증.
 
         Given: buy → sell 신호가 있는 데이터 (단일 자산 100%)
         When:  run_portfolio_backtest() 실행

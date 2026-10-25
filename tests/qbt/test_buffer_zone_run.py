@@ -86,7 +86,7 @@ class TestRunBufferStrategy:
         When: run_buffer_strategy (ma_window=5)
         Then: 에러 없이 실행되며 결과가 반환된다
         """
-        # Given: MA 컬럼 없음, 충분한 행 수 (EMA 자동 계산 가능)
+        # Given: MA 컬럼 없음, 충분한 행 수 (이동평균 자동 계산 가능)
         n = 20
         df = pd.DataFrame(
             {

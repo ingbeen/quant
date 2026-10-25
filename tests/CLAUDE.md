@@ -159,7 +159,7 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 
 ## 커버리지
 
-실행 명령은 [docs/COMMANDS.md](../docs/COMMANDS.md) 「커버리지」. 핵심 모듈(`src/qbt/backtest` · `tqqq` · `utils`)은 최대한 높게 유지하고, 회귀 방지가 최우선이다.
+실행 명령은 [docs/COMMANDS.md](../docs/COMMANDS.md) 「품질 검증」의 `--cov`(HTML 리포트는 같은 문서 「커버리지」). 핵심 모듈(`src/qbt/backtest` · `tqqq` · `utils`)은 최대한 높게 유지하고, 회귀 방지가 최우선이다.
 
 ---
 

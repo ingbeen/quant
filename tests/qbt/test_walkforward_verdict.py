@@ -79,8 +79,7 @@ class TestModeSummaryVerdictDirection:
     """모드 요약 판단이 실제 대소관계를 따라가는지 고정한다.
 
     핵심 계약: Dynamic이 우세한 입력과 Fixed가 우세한 입력은
-    서로 다른 결론을 내야 한다. 이 계약이 깨지면 문구가 데이터와
-    무관하게 고정된 것이므로 과거 사고가 재현된 것이다.
+    서로 다른 결론을 내야 한다. 깨지면 문구가 데이터와 무관하게 고정된 것이다(머리말의 사고).
     """
 
     def test_dynamic_superior_is_described_as_dynamic(self) -> None:
@@ -745,8 +744,7 @@ class TestVerdictThresholdBoundaries:
 class TestWindowScheduleTable:
     """윈도우 기간 표가 결과 파일의 실제 날짜를 따라가는지 고정한다.
 
-    과거에는 이 표가 정적 텍스트여서 마지막 윈도우의 OOS 종료일이
-    데이터 갱신 후에도 갱신되지 않은 채 남아 있었다.
+    정적 텍스트면 데이터를 갱신해도 마지막 윈도우의 OOS 종료일이 그대로 남는다.
     """
 
     def test_table_uses_actual_dates(self) -> None:

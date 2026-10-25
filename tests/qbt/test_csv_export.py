@@ -9,8 +9,8 @@
 6. remove_config_dependent_files(): 포트폴리오 결과 폴더의 구성 의존 파일 지우기
 
 왜 중요한가요?
-trades CSV / signal CSV 저장 로직이 여러 스크립트에 중복되어 있었으며,
-공용 함수로 추출한 뒤 동일한 동작을 보장해야 합니다.
+여러 러너가 trades CSV / signal CSV 저장 변환을 이 공용 함수로 하므로
+동작이 같아야 합니다.
 또한 대시보드(`scripts/backtest/app_*.py`)가 직접 도메인 연산을 수행하지 않도록,
 CSV 저장 단계에서 사전 계산하는 SSoT를 유지하는 것이 핵심입니다.
 """

@@ -1,6 +1,6 @@
 """SignalStrategy Protocol 계약 테스트
 
-새 인터페이스 기준:
+계약:
 - check_buy(signal_df, i) -> bool
 - check_sell(signal_df, i) -> bool
 - get_buy_meta() -> dict[str, float | int]
@@ -44,12 +44,12 @@ def _make_signal_df() -> pd.DataFrame:
 
 
 # ============================================================================
-# BufferZoneStrategy 테스트 (새 인터페이스)
+# BufferZoneStrategy 테스트
 # ============================================================================
 
 
 class TestBufferZoneStrategyInterface:
-    """BufferZoneStrategy 새 인터페이스 계약 테스트 (stateful, 생성자 파라미터)."""
+    """BufferZoneStrategy 계약 테스트 (stateful, 생성자 파라미터)."""
 
     def test_check_buy_i0_always_false(self) -> None:
         """
@@ -342,12 +342,12 @@ class TestBufferZoneStrategyParamValidation:
 
 
 # ============================================================================
-# BuyAndHoldStrategy 테스트 (새 인터페이스)
+# BuyAndHoldStrategy 테스트
 # ============================================================================
 
 
 class TestBuyAndHoldStrategyInterface:
-    """BuyAndHoldStrategy 새 인터페이스 계약 테스트 (stateless, 파라미터 없는 생성자)."""
+    """BuyAndHoldStrategy 계약 테스트 (stateless, 파라미터 없는 생성자)."""
 
     def test_check_buy_always_true_i0(self) -> None:
         """

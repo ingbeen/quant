@@ -864,10 +864,9 @@ class TestAnalysisModuleInvariants:
         """
         csv_export 모듈은 analysis를 import해서는 안 된다 (단방향 의존).
 
-        정책: 저장 계층(csv_export) → 계산 계층(analysis) 방향이 자연스럽다.
-              역방향 의존이 생기면 순환 가능성이 발생한다.
+        정책: 저장 계층(csv_export)은 계산 계층(analysis)을 import 하지 않는다.
 
-        Given: qbt.backtest.csv_export 모듈을 fresh import
+        Given: import 한 qbt.backtest.csv_export 모듈
         When:  csv_export 모듈의 import 그래프를 점검
         Then:  analysis 모듈을 직접 import하지 않음
         """
@@ -882,7 +881,6 @@ class TestAnalysisModuleInvariants:
         equity_df의 시작일과 종료일이 동일한 경우 RuntimeError 발생
 
         정책: years == 0은 정상 백테스트에서 발생할 수 없는 조건(MIN_VALID_ROWS=2 보장).
-              과거에는 cagr=0.0으로 무음 반환되었으나 fail-fast로 강화한다.
 
         Given:
           - equity_df의 모든 행이 같은 날짜

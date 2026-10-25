@@ -96,7 +96,7 @@ class TestPriceComparisonChart:
 
 
 class TestDailyReturnDiffHistogram:
-    """일일수익률 차이 히스토그램 생성 함수 테스트"""
+    """일일수익률 절대차이 히스토그램 생성 함수 테스트"""
 
     def test_basic_histogram_creation(self):
         """
@@ -119,14 +119,14 @@ class TestDailyReturnDiffHistogram:
         assert isinstance(fig.data[0], go.Histogram)
         assert isinstance(fig.data[1], go.Scatter)
         # go.Histogram은 plotly-stubs에 _histogram.pyi 미제공 -> dict 접근 사용
-        assert fig.data[0]["name"] == "일일수익률 차이"
+        assert fig.data[0]["name"] == "일일수익률 절대차이"
         assert fig.data[1].name == "개별 관측값"
 
     def test_histogram_with_nan_values(self):
         """
         결측치가 있는 데이터에서 히스토그램을 생성한다.
 
-        Given: NaN을 포함한 일일수익률 차이 데이터
+        Given: NaN을 포함한 일일수익률 절대차이 데이터
         When: create_daily_return_diff_histogram 호출
         Then: NaN을 제외하고 차트 생성
         """
