@@ -1,4 +1,4 @@
 """백테스트 엔진 패키지 — 단일 백테스트 엔진 · 포트폴리오 엔진과 두 엔진의 공통 로직.
 
-모듈별 역할은 `src/qbt/backtest/CLAUDE.md` 「7. engines/ 패키지」.
+모듈별 역할은 `src/qbt/backtest/CLAUDE.md` 「모듈 지도」.
 """

@@ -1,47 +1,13 @@
 # tests 폴더 가이드
 
-> CRITICAL: 테스트 작성/수정 전에 이 문서를 반드시 읽어야 합니다.
-> 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../CLAUDE.md)를 참고하세요.
-
 ## 폴더 목적
 
 tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리하며, 핵심 비즈니스 로직의 정확성을 보장합니다.
 
-- `tests/qbt/`: qbt 패키지(`src/qbt/`) 테스트 (백테스트, TQQQ 시뮬레이션, 공통 유틸리티)
+- `tests/qbt/`: qbt 패키지(`src/qbt/`) 테스트. 공용 픽스처는 `conftest.py`, 테스트 파일 여럿이 쓰는 합성 데이터 · 설정 헬퍼는 `helpers.py`(`from helpers import …`)
+- `__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지)
 
-`__init__.py`를 포함하지 않습니다 (src 패키지와의 이름 충돌 방지).
-
-저장소를 가리지 않는 테스트 규칙은 전역 `~/.claude/rules/python-tests.md` 가 정합니다. 이 문서에는 QBT 고유의 것만 둡니다.
-
-폴더 구조:
-
-```
-tests/
-├── CLAUDE.md           # 공통 테스트 규칙 (이 문서)
-└── qbt/                # qbt 패키지 테스트
-    ├── conftest.py     # qbt 공통 픽스처
-    ├── helpers.py      # 테스트 파일 여럿이 import 하는 합성 데이터 · 설정 헬퍼 (from helpers import …)
-    └── test_*.py       # qbt 모듈별 테스트
-```
-
-구체적인 테스트 파일 목록은 해당 디렉토리를 직접 참조하세요.
-
----
-
-# pytest 설정 (루트 디렉토리)
-
-pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
-
-- 테스트 탐색 경로: `tests` (하위 디렉토리를 재귀적으로 탐색)
-- 파일 패턴: `test_*.py`
-
-근거 위치: [../pytest.ini](../pytest.ini)
-
----
-
-## 테스트 실행 방법
-
-실행 명령어는 [docs/COMMANDS.md](../docs/COMMANDS.md)의 "품질 검증" 및 "테스트 (특정 모듈/파일)" 섹션을 참고한다.
+저장소를 가리지 않는 테스트 규칙은 전역 `~/.claude/rules/python-tests.md` 가 정합니다. 이 문서에는 QBT 고유의 것만 둡니다. pytest 설정은 루트 `pytest.ini`, 실행 명령은 [docs/COMMANDS.md](../docs/COMMANDS.md)의 「품질 검증」 · 「테스트 (특정 모듈/파일)」 · 「커버리지」.
 
 ---
 
@@ -72,8 +38,6 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
   - 데이터 로더 (CSV 로딩 및 전처리)
   - 겹치는 기간 추출 (`extract_overlap_period`)
   - 병렬 처리/결과 정렬(입력 순서 보장)
-
-근거 위치: `tests/qbt/` 디렉토리의 각 `test_*.py` 파일 참조
 
 ---
 
@@ -108,64 +72,15 @@ pytest 설정은 루트의 `pytest.ini`가 Single Source of Truth입니다.
 
 ### 4. 병렬처리 테스트 파라미터 최소화
 
-병렬처리(`parallel_executor`) 테스트 시 실행 시간 단축을 위해 최소 파라미터를 사용합니다.
-
-원칙:
-
-- 테스트 목적 달성에 필요한 최소한의 입력 사용
-- 순서 보장 검증: 5개 입력이면 충분 (20개 불필요)
-- 캐시 동작 검증: 1~2개 입력이면 충분
-- `max_workers`: 2를 기본으로 권장 (병렬 동작 검증에 충분)
-
-파라미터 가이드라인:
-
-| 테스트 유형 | 권장 입력 수 | 권장 workers |
-|------------|------------|-------------|
-| 기본 실행 검증 | 3~5개 | 2 |
-| 순서 보장 검증 | 5개 | 2 |
-| 캐시 초기화/재초기화 | 1~2개 | 1~2 |
-| 예외 처리 검증 | 0~1개 | 2 |
-
-근거:
-
-- 병렬처리 핵심 계약(순서 보장, 캐시 동작)은 소량 데이터로 검증 가능
-- 프로세스 풀 생성/해제 오버헤드가 테스트 시간의 주요 요인
-- 불필요하게 큰 입력은 테스트 시간만 증가시킴
-
----
-
-## 주요 픽스처 (qbt/conftest.py)
-
-qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스트 데이터
-
-- `sample_stock_df`: 기본 주식 데이터(OHLCV, 3행), `Date`는 `datetime.date`
-- `integration_stock_df`: 통합 테스트용 주식 데이터(OHLCV, 25행), MA 계산에 충분한 크기
-- `sample_ffr_df`: FFR 금리 데이터
-
-  - 중요: `DATE` 컬럼은 `date` 객체가 아닌 `"yyyy-mm"` 문자열
-  - 이유: 프로덕션 코드에서 월별 금리를 문자열 키로 처리
-
-- `sample_expense_df`: Expense Ratio 운용비율 데이터
-
-  - `DATE` 컬럼: `"yyyy-mm"` 문자열 (FFR과 동일 형식)
-  - `VALUE` 컬럼: 0~1 비율
-
-- `create_csv_file`: CSV 파일 생성 헬퍼(팩토리)
-- storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.utils.stock_downloader.STOCK_DIR`)
-
-근거 위치: [conftest.py](qbt/conftest.py)
-
----
-
-## 커버리지
-
-실행 명령은 [docs/COMMANDS.md](../docs/COMMANDS.md) 「품질 검증」의 `--cov`(HTML 리포트는 같은 문서 「커버리지」). 핵심 모듈(`src/qbt/backtest` · `tqqq` · `utils`)은 최대한 높게 유지하고, 회귀 방지가 최우선이다.
+병렬 실행기(`parallel_executor`) 테스트는 입력 3 – 5개 · `max_workers=2` 면 계약(순서 보장 · 캐시 · 예외 전파)을 검증하기에 충분하다 — 프로세스 풀 생성 · 해제가 테스트 시간을 정하므로 입력을 늘리지 않는다.
 
 ---
 
 ## 자주 발생하는 문제
 
-### 1. FFR 데이터 형식
+### 1. FFR · 운용비율 데이터의 날짜 형식
+
+`DATE` 는 `date` 객체가 아니라 `"yyyy-mm"` 문자열이다 — 프로덕션 코드가 월별 값을 문자열 키로 조회한다.
 
 ```python
 # 잘못된 예
@@ -179,8 +94,6 @@ qbt 공통 픽스처: qbt 테스트에서 재사용 가능한 설정과 테스�
 
 사람이 읽는 자릿수로 쓰는 일반 규칙은 `python-tests.md`. QBT 고유 — 소수점 자릿수의 SoT 는 `ROUND_*` 이름의 상수다 — 여러 도메인이 쓰는 것은 [src/qbt/common_constants.py](../src/qbt/common_constants.py), 한 모듈만 쓰는 것(입력 시세 · 일별 비교의 % 열)은 그 모듈 상단에 있다. 테스트 데이터도 같은 기준을 따르고, 다른 값이면 안 되는 자릿수(정책 값)는 테스트가 그 상수로 기대값을 만들지 않고 숫자로 고정한다. 허용오차는 위 「부동소수점/DF 비교 규칙」 표.
 
----
+### 3. storage 경로 상수 패치가 닿지 않는다
 
-사용 중인 플러그인:
-
-- pytest-cov: 코드 커버리지 측정
+storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.utils.stock_downloader.STOCK_DIR`).

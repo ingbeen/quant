@@ -35,43 +35,32 @@ poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_name>
 
 # 3. 포트폴리오 백테스트 (선행: 원본 시세 전부 · 대용 시계열 생성 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ① · ④)
-# 실험 구성은 src/qbt/backtest/portfolio_configs.py의 PORTFOLIO_CONFIGS 참고 (목록은 자주 변경됨)
-# 자산 슬롯별 전략 파라미터 독립 설정 (ma_window, buy/sell_buffer_zone_pct, hold_days)
-# 리밸런싱: 엔진 레벨 고정 — 월 마지막 거래일 종가 판단 → 다음 거래일 시가 체결, 월중 리밸런싱 없음 (실험 설정으로 변경 불가, 임계값은 DEFAULT_REBALANCE_POLICY 참조)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, 매매법이 여럿이면 ledger · netting)
-# 실행 직후 정합성 규칙 자동 검증 (시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식, 매매법 장부 항등식, 매매법 몫)
-# 위반 발견 시 결과 저장 후 스크립트 중지 (ValueError)
+# 실행 직후 정합성 검증 — 위반이 있으면 결과를 저장한 뒤 멈춘다 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 특정 실험 선택 가능 (기본값: all, 선택지는 --help)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
-# 3-1. 보완 전략 비중 그리드 (선행: 원본 시세 전부 · 대용 시계열 생성 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ① · ④)
-# 「Q-2-2XS (100−w)% + 후보 w%」를 주 비교 · 보조 기간과 대용 검증 관문으로 돌려 요약 CSV 만 저장 (실험별 결과 폴더는 만들지 않음)
-# 실행 목록 · 판정 · 대용 검증은 src/qbt/backtest/supplement_experiment.py 참고. 실행마다 정합성 검증, 위반 시 중지
-# 출력: storage/results/portfolio_grid/ (grid_runs.csv 실행별 지표, judgment.csv 통과 판정, proxy_gate.csv 대용 검증)
-# 소요: 병렬로 1 – 2분 (2026-10-04 실측 76초, 워커 = CPU 수 − 1)
+# 3-1. 보완 전략 비중 그리드 — 「Q-2-2XS (100−w)% + 후보 w%」 (선행: 원본 시세 전부 · 대용 시계열 생성 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ① · ④)
+# 출력: storage/results/portfolio_grid/ (grid_runs.csv 실행별 지표, judgment.csv 통과 판정, proxy_gate.csv 대용 검증 — 실험별 결과 폴더는 만들지 않음)
+# 실행마다 정합성 검증 — 위반이 있으면 멈춘다. 소요: 병렬로 1 – 2분
 poetry run python scripts/backtest/run_supplement_grid.py
 
 # 3-2. 조합 그리드 — Q-2-2XS + HAA + 로테이션, 세 판 (선행: 원본 시세 전부 · 대용 · 장기 대체 시계열 생성 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ① · ④)
-# 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 비중 격자를 대체 판 · 이어 붙인 판 · 완전 실물판(과 대체 판 확인용 겹침)으로 돌리고
-# 같은 합계의 기준선 · HAA 단독 · 로테이션 단독과 비교해 요약 CSV 만 저장 (실험별 결과 폴더는 만들지 않음)
-# 실행 목록 · 판정 · 대체 판 확인은 src/qbt/backtest/combo_experiment.py 참고. 실행마다 정합성 검증, 위반 시 중지
-# 출력: storage/results/portfolio_combo_grid/ (combo_runs.csv 실행별 지표, combo_judgment.csv 판정 기준별 지도, combo_alt_check.csv 대체 판 확인)
-# 소요: 병렬로 2 – 3분 (2026-10-05 실측 123초, 워커 = CPU 수 − 1)
+# 출력: storage/results/portfolio_combo_grid/ (combo_runs.csv 실행별 지표, combo_judgment.csv 판정 기준별 지도, combo_alt_check.csv 대체 판 확인 — 실험별 결과 폴더는 만들지 않음)
+# 실행마다 정합성 검증 — 위반이 있으면 멈춘다. 소요: 병렬로 2 – 3분
 poetry run python scripts/backtest/run_combo_grid.py
 
-# 4. 워크포워드 검증 (과최적화 검증, 선행: 1, TQQQ 합성 — 워크플로우 2 의 3)
+# 4. 워크포워드 검증 (선행: 1, TQQQ 합성 — 워크플로우 2 의 3)
+# 출력: storage/results/backtest/{전략명}/ (walkforward_*.csv, walkforward_summary.json, 윈도우별 상세 wfo_windows_*/)
+# 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 6분)
 poetry run python scripts/backtest/run_walkforward.py
-# 출력: 2-Mode 비교 (Dynamic/Fully Fixed) + stitched equity
-# 진단 지표: WFE (CAGR/Calmar), Profit Concentration, min_trades 필터링
-# 결과: storage/results/backtest/{전략명}/walkforward_*.csv, walkforward_summary.json
 
 # --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
 poetry run python scripts/backtest/run_walkforward.py --strategy <strategy_name>
 
 # 5. 파라미터 고원 분석 (선행: 1)
 poetry run python scripts/backtest/run_param_plateau_all.py
-# 파라미터(hold_days/sell_buffer/buy_buffer/ma_window) 통합 고원 분석
 # --experiment 인자로 특정 실험만 실행 가능 (기본값: all, 선택지는 --help)
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
 
@@ -238,7 +227,7 @@ done
 # 전체 종목 일괄 다운로드 (대상 티커는 scripts/data/download_data.py 의 DEFAULT_TICKERS 참조)
 poetry run python scripts/data/download_data.py
 
-# 특정 종목 전체 기간
+# 특정 종목 전체 기간 (특수 문자가 든 티커는 따옴표로 감싼다 — "^SPGSCI" · "GC=F". 파일 이름도 티커 그대로)
 poetry run python scripts/data/download_data.py TICKER
 ```
 
@@ -256,10 +245,8 @@ poetry run python scripts/data/generate_proxy_series.py
 ### 장기 대체 시계열 생성 (대체 판 — 2000-08 이전부터 전 기간 대체)
 
 ```bash
-# 선행 1: 대체 시세를 위 「특정 종목 전체 기간」으로 하나씩 받는다
-#         VGTSX VTMGX VEIEX VGSIX VUSTX VFITX VFISX VIPSX "^SPGSCI" "GC=F"
-#         (특수 문자가 든 티커는 따옴표로 감싼다. 파일 이름도 티커 그대로 — ^SPGSCI_max.csv · GC=F_max.csv)
-# 선행 2: 기초 · 실물 시세(SPY · QQQ · SSO · QLD · BIL · DBC)와 storage/etc 의 금리 · 운용보수 파일
+# 선행: 이 스크립트가 읽는 시세(src/qbt/common_constants.py 의 경로 상수 — 파일 이름이 곧 티커)와 storage/etc 의 금리 · 운용보수 파일
+#       저장소에 있는 시세는 「시세를 다시 받은 뒤 다시 돌리는 순서」 ① 이 모두 받는다
 # 출력: storage/stock/SSO_proxy_max.csv · QLD_proxy_max.csv (SPY · QQQ 2배 합성, TQQQ 비용 모델을 배율 2 로)
 #       storage/stock/BIL_proxy_max.csv (연방기금금리로 이자를 누적한 초단기채 대체)
 #       storage/stock/DBC_synthetic_max.csv (DBC 상장 전은 S&P GSCI 지수, 상장 후는 DBC 실물)

@@ -24,7 +24,7 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 
 - **언어 / 런타임**: Python 3.12 (`str | None` 문법)
 - **데이터 / 분석**: pandas, yfinance
-- **시각화**: Plotly, Streamlit
+- **시각화**: Plotly, Streamlit, lightweight-charts (`streamlit-lightweight-charts-v5` 포크 — `vendor/`)
 - **코드 품질**: PyRight (strict for `src/`), Ruff, Black
 - **테스트**: pytest, pytest-cov
 - **의존성 관리**: Poetry
@@ -39,15 +39,14 @@ Claude Code에 매번 컨텍스트를 설명하면 같은 실수를 반복하고
 - **보완 전략 비중 그리드** — 기존 포트폴리오에 보완 전략을 비중별로 섞어 같은 비중의 현금(SHY)과 비교하고, 상장 전 구간을 채운 대용 데이터가 통과 판정을 바꾸지 않는지 함께 검증
 - **보완 전략 조합 그리드** — 보완 전략 둘을 함께 섞은 비중 격자를 같은 합계 비중의 현금 · 각 단독과 비교하고, 대체 데이터 · 이어 붙인 데이터 · 실물 데이터 세 판에서 결과가 같은지 확인
 - **대체 데이터 비교** — 실물 ETF 가 없던 기간을 채우는 대체 시세(같은 펀드의 뮤추얼 클래스 · 지수 · 선물 · 레버리지 합성)가 실물을 얼마나 따르는지 전체 · 연도별 · 국면별로 비교
-- **워크포워드 검증** (Dynamic / Fully Fixed 2-Mode 비교, WFE · Profit Concentration)
-- **파라미터 고원 분석** (멀티자산 x 4개 파라미터 통합)
+- **워크포워드 검증 · 파라미터 고원 분석** — 아래 「과최적화 방어」
 - **TQQQ 레버리지 ETF 시뮬레이션** — softplus 동적 스프레드 비용 모델
-- **Streamlit + Plotly 대시보드** — 단일 전략, 포트폴리오, 워크포워드, 파라미터 고원, 대체-실물 비교
+- **Streamlit 대시보드** — 위 결과를 화면으로 확인 (앱 목록과 실행법은 [docs/COMMANDS.md](docs/COMMANDS.md))
 
 ### 과최적화 방어 / 정합성 검증
 
 - **과최적화 방어 장치**: Walk-Forward Optimization (Dynamic / Fully Fixed 2-Mode 비교) · WFE · Profit Concentration · 멀티자산 파라미터 고원 분석을 결합해, IS에서 좋아 보이는 값을 그대로 믿지 않도록 설계. Fully Fixed 는 확정 파라미터(4P) 고정이고, 4P 는 전 기간을 보고 정한 값이라 그 비교는 4P 에 유리하다
-- **정합성 자동 검증**: 포트폴리오 백테스트 실행 직후 시그널-체결 lag, 리밸런싱 비중, EXIT_ALL 주수, 현금 비음수, 에쿼티 등식, 매매법 장부 항등식(Σ 매매법 손익 + 상계 절감 = 계좌 손익) 같은 핵심 불변조건을 자동으로 검증하고, 하나라도 위반하면 스크립트를 즉시 중지
+- **정합성 자동 검증**: 포트폴리오 백테스트 실행 직후 체결 시점 · 리밸런싱 비중 · 현금 · 에쿼티 등식 · 매매법 장부 항등식(Σ 매매법 손익 + 상계 절감 = 계좌 손익) 같은 핵심 불변조건을 자동으로 검증하고(규칙 목록은 `src/qbt/backtest/portfolio_validation.py`), 하나라도 위반하면 스크립트를 즉시 중지
 
 ## 관련 문서
 

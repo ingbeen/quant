@@ -1,7 +1,6 @@
 # 백테스트 도메인 가이드
 
 > 이 문서는 `src/qbt/backtest/` 패키지의 백테스트 도메인에 대한 가이드입니다.
-> 프로젝트 전반의 공통 규칙은 [루트 CLAUDE.md](../../../CLAUDE.md)를 참고하세요.
 
 ## 도메인 목적
 
@@ -10,456 +9,43 @@
 
 ---
 
-## 모듈 구성
-
-### 1. types.py
-
-백테스트 도메인의 공통 TypedDict 및 dataclass 정의를 제공합니다.
-전략 전용 타입은 각 전략 모듈에 정의합니다.
-
-공통 타입:
-
-- `OpenPositionDict`: 미청산 포지션 정보 (entry_date, entry_price, shares). 백테스트 종료 시 보유 중인 포지션의 진입 정보를 담으며, summary에 포함되어 summary.json에 저장된다
-- `SummaryDict`: `calculate_summary()` 반환 타입 (성과 지표 요약). `open_position: NotRequired[OpenPositionDict]` 필드를 포함하여 미청산 포지션 정보를 전달한다
-- `BestGridParams`: grid_results.csv 최적 파라미터 (ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days)
-- `BufferStrategyParams`: 버퍼존 전략 파라미터 (dataclass, frozen=True). initial_capital, ma_window, buy/sell_buffer_zone_pct, hold_days. `run_backtest()` 및 `run_grid_search()` 호출 시 사용. 순환 의존성을 피하기 위해 전략 모듈이 아닌 이곳에 둔다
-- `SingleBacktestResult`: 각 전략의 `run_single()` 공통 반환 타입 (dataclass). strategy_name, display_name, signal_df, equity_df, trades_df, summary, params_json, result_dir, data_info 포함
-- `WfoWindowResultDict`: WFO 윈도우별 IS/OOS 결과 (window_idx, is/oos 날짜, best params, is/oos 성과 지표, wfe_calmar, wfe_cagr)
-- `WfoModeSummaryDict`: WFO 모드별 요약 (n_windows, oos 통계, wfe 통계, gap_calmar_median, profit_concentration, 파라미터별 리스트(param_ma_windows 등), stitched 지표)
-
-### 2. constants.py
-
-백테스트 도메인 전용 상수를 정의합니다.
-
-주요 상수 카테고리:
-
-- 거래 비용: `SLIPPAGE_RATE` (매수 또는 매도 1회당 0.3%, 슬리피지 + 수수료 통합. 왕복 = 매수 + 매도 = 2 × `SLIPPAGE_RATE` ≈ 0.6%)
-- 기본 파라미터: `DEFAULT_INITIAL_CAPITAL`
-- 제약 조건: `MIN_VALID_ROWS`, `DEFAULT_WFO_MIN_TRADES`
-- WFO 파라미터 리스트: `DEFAULT_WFO_MA_WINDOW_LIST`, `DEFAULT_WFO_BUY_BUFFER_ZONE_PCT_LIST` 등 (그리드 서치 + 워크포워드 공용)
-- WFO 윈도우 설정: `DEFAULT_WFO_INITIAL_IS_MONTHS`, `DEFAULT_WFO_OOS_MONTHS`
-- WFO 모드 키: `KEY_WFO_DYNAMIC`, `KEY_WFO_FULLY_FIXED` (`walkforward_summary.json` 의 키)
-- WFO 선택 파라미터 목록: `WFO_PARAM_SPECS` (표시 라벨 · 모드 요약의 키 · 비율 여부) — 판단 문구(`walkforward_verdict.py`)와 워크포워드 대시보드의 파라미터 추이가 같은 목록 · 같은 라벨을 쓴다
-- WFO 판단 기준: `PC_CONCENTRATION_THRESHOLD` · `STITCHED_CALMAR_GOOD_THRESHOLD` — 판단 문구가 쓰고, 대시보드 「지표를 해석하는 방법」도 이 값으로 기준을 적는다
-- 고원 기준: `DEFAULT_PLATEAU_THRESHOLD_RATIO` — 고원 탐지 함수의 기본값이고 고원 대시보드의 주석이 읽는다
-- 결과 파일명: `SIGNAL_FILENAME` · `EQUITY_FILENAME` · `TRADES_FILENAME` · `SUMMARY_FILENAME`(러너가 쓰고 대시보드가 읽는다), WFO 는 `WALKFORWARD_DYNAMIC_FILENAME` 등과 윈도우별 상세 파일명 `wfo_window_filename`, 포트폴리오는 `LEDGER_FILENAME` · `NETTING_FILENAME` 과 자산 키별 시그널 파일명 `portfolio_signal_filename`(접두사 `PORTFOLIO_SIGNAL_PREFIX`)
-
-### 3. analysis.py
-
-이동평균 계산 및 성과 지표 분석 함수를 제공합니다.
-
-주요 함수:
-
-- `add_single_moving_average`: 단순이동평균(SMA) 계산. 유형 선택 파라미터가 없다 (「도메인 규칙 1-1」 참고)
-- `add_moving_averages`: 이동평균 여러 개를 더한다. 이미 있는 열은 다시 계산하지 않는다 (구간 조각에서 다시 계산하면 앞부분이 빈다)
-- `calculate_summary`: 거래 내역과 자본 곡선으로부터 성과 지표 계산. 빈 자본 곡선은 RuntimeError (호출자는 2행 이상을 넘긴다)
-- `calculate_monthly_returns`: 에쿼티 데이터로부터 월별 수익률 계산. 첫 달은 첫 행 에쿼티 대비다 (시작일부터 첫 월말까지를 버리지 않는다)
-- `calculate_yearly_returns`: 에쿼티 데이터로부터 연간 수익률 계산. 첫 해는 첫 행 에쿼티 대비이고, 월별 수익률을 복리하지 않는다 (대시보드 히트맵에 12월 오른쪽 "연간" 컬럼으로 표시)
-- `calculate_sharpe_ratio`: 일별 수익률 기반 연율화 샤프 비율 (rf=0 기준, std=0 또는 데이터 부족 시 0.0 반환)
-- `calculate_sortino_ratio`: 일별 수익률 기반 연율화 소르티노 비율 (하방 편차 기준, 하방 편차=0 시 0.0 반환)
-
-### 4. parameter_stability.py
-
-파라미터 고원 분석 모듈을 제공합니다.
-고원 분석 CSV(param*plateau/)를 로딩하고 시각화용 데이터를 가공한다.
-4P 확정값은 `constants.py`의 `FIXED_4P*\*` 상수를 참조한다.
-
-주요 함수:
-
-- `load_plateau_pivot(param_name, metric)`: 피벗 CSV 로드 (metric은 run_param_plateau_all.py에서 생성한 지표와 일치해야 함)
-- `get_current_value(param_name)`: 4P 확정 파라미터값 반환 (`constants.py`의 `FIXED_4P_*` 참조)
-- `get_plateau_dir()`: 고원 분석 결과 디렉토리 경로 반환
-- `plateau_csv_path(param_name, metric)`: 피벗 CSV 경로 — 고원 러너가 쓰고 `load_plateau_pivot` 이 읽는 단일 출처
-- `find_plateau_range(series, threshold_ratio)`: 고원 구간 탐지 (최대값을 포함하면서 최대값 대비 threshold 이상이 끊기지 않는 범위)
-- `find_plateau_range_with_trade_filter(metric_series, trades_series, min_trades, threshold_ratio)`: 거래 수 필터를 적용한 고원 구간 탐지 (극단 파라미터에서 거래 수 극소로 Calmar가 왜곡되는 경우에 사용)
-
-### 5. walkforward.py
-
-워크포워드 검증(WFO) 비즈니스 로직을 제공합니다.
-Expanding Anchored 방식이다 (IS 시작은 고정, 윈도우마다 OOS 기간만큼 확장).
-
-주요 함수:
-
-- `generate_wfo_windows`: 월 기반 Expanding Anchored 윈도우 생성
-- `select_best_calmar_params`: 거래수가 min_trades 이상인 조합 중 그리드 결과의 Calmar 가 가장 큰 행 (MDD=0 + CAGR>0 은 대용값으로 최우선). 같으면 그리드 결과에서 앞선 행 — `run_grid_search` 가 Calmar 내림차순 안정 정렬이라 그리드 입력 순서다
-- `run_walkforward`: 핵심 WFO 루프 (IS 그리드 서치 → Calmar 최적 → OOS 독립 평가, wfe_calmar + wfe_cagr 계산)
-- `build_params_schedule`: WFO 결과에서 params_schedule 구성
-- `calculate_wfo_mode_summary`: OOS 성과 통계 + WFE(calmar/cagr/robust) + gap_calmar + Profit Concentration + 파라미터 안정성 진단. 이어 붙인 자본곡선 요약과 윈도우 끝 equity 는 필수 인자다
-- `_calculate_profit_concentration`: 윈도우 기여분(end - prev_end)으로 Profit Concentration 계산
-- `run_stitched_equity`: WFO params_schedule 기반 Stitched Equity 생성. 전체 signal_df에 먼저 MA를 계산하여 연속성 보장 후 OOS 구간 슬라이싱. (equity_df, 요약, 윈도우 끝 equity) 반환 (윈도우 끝 equity 는 Profit Concentration 계산용)
-- `run_window_detail_backtests`: 각 윈도우의 best params로 IS_start~OOS_end 백테스트 실행. equity_df에 밴드/드로우다운 포함. `WindowDetailData` 리스트 반환
-- `WindowDetailData`: 윈도우별 상세 백테스트 결과 dataclass (window_idx, signal_df, equity_df, trades_df, ma_col)
-
-### 6. portfolio_types.py
-
-포트폴리오 백테스트에서 사용하는 데이터클래스를 정의한다.
-
-설정 데이터클래스 (frozen=True):
-
-- `AssetSlotConfig`: 자산 슬롯 설정 (asset_id, signal_data_path, trade_data_path, target_weight, strategy_id)
-  - `strategy_id="buffer_zone"` (기본값): 버퍼존 신호에 따라 매수/매도. `STRATEGY_REGISTRY` 키와 일치해야 함.
-  - `strategy_id="buy_and_hold"`: 즉시 매수 후 매도 신호 무시
-  - 등록되지 않은 strategy_id 는 설정 검증(`validate_portfolio_config`)이 시세를 읽기 전에 ValueError 로 막는다
-  - 슬롯별 전략 파라미터 (buffer_zone에서 사용, buy_and_hold는 무시): `ma_window`, `buy_buffer_zone_pct`, `sell_buffer_zone_pct`, `hold_days` — 기본값은 `FIXED_4P_*`
-- `SlotMethodConfig`: 고정 비중 슬롯 묶음으로 매매하는 매매법 (method_id, display_name, target_weight=계좌 대비 몫, asset_slots). 슬롯 target_weight 는 매매법 자본 대비
-- `AllocatorMethodConfig`: 배분 규칙이 날마다 종목별 목표 비중을 정하는 매매법 (method_id, display_name, target_weight, assets: `AllocationAssetConfig` 튜플(자산 id · 매매 시세 경로 — 배분 규칙은 매매 시세로 판단한다), allocator_id, signal_series: `SignalSeriesConfig` 튜플 — 보유하지 않고 판단에만 쓰는 시세)
-- `PortfolioConfig`: 포트폴리오 실험 설정 (experiment_name, display_name, total_capital, result_dir, asset_slots, methods, min_start_date)
-  - `min_start_date`: 이 날짜에 시작한다. 포트폴리오 러너와 그리드 워커가 실제 시작일을 대조해 다르면 멈추고(`run_with_start_check`), 엔진은 읽지 않는다 — 보완 전략 등록 실험의 기간을 그리드 비교 기간과 맞출 때 쓴다
-  - `asset_slots` 와 `methods` 중 정확히 하나를 채운다. `asset_slots` 는 매매법 하나짜리 실험의 줄임 표기이며 `resolve_methods(config)` 가 method_id = experiment_name, 몫 1.0 인 슬롯 매매법 하나로 읽는다. `methods` 의 몫 합은 1.0
-  - 전략 파라미터(ma_window, buy/sell_buffer_zone_pct, hold_days)는 슬롯 레벨(AssetSlotConfig)에서 지정한다.
-  - 리밸런싱 정책은 엔진 레벨의 `DEFAULT_REBALANCE_POLICY`(RebalancePolicy 인스턴스)로 고정되며, PortfolioConfig에서는 지정하지 않는다. 매매법 사이 비중 되돌리기도 같은 판단일 · 임계값을 쓴다.
-
-자산 키 (결과 파일의 `{asset_id}` 자리):
-
-- `position_key(method_id, asset_id, multi_method)`: 매매법이 하나면 자산 id 그대로(기존 결과 열 이름 유지), 둘 이상이면 `{method_id}.{asset_id}` — 그래서 매매법이 여럿이면 id 에 `.` 를 쓸 수 없다
-- `list_position_keys(config) -> list[PositionKeyInfo]`: 자산 키별 출처(매매법 · 몫 · 자산 id · 슬롯 | None). 검사기 · 러너가 키와 매매법을 잇는 단일 경로
-
-결과 데이터클래스:
-
-- `PortfolioAssetResult`: 자산 키별 결과 (asset_id=자산 키, trades_df, signal_df)
-- `PortfolioResult`: 포트폴리오 전체 결과 (equity_df, trades_df, summary, config(필수), per_asset, params_json, state_log_df, ledger_df, netting_df)
-  - `ledger_df`: 날짜 × 매매법 장부 (equity, cash, share, target_share, pnl, cost, transfers, rebalanced, rebalance_reason). 매매법이 하나여도 만든다 — 검사기가 한 경로로 검사한다
-  - `netting_df`: 종목 단위 상계 내역 (날짜 × 자산: gross_shares, net_shares, open_price, savings). 매매법이 여럿일 때만 행이 생긴다
-
-equity_df 컬럼: Date, equity, cash, drawdown_pct, rebalanced, rebalance_reason, (매매법이 여럿이면 netting_savings), {asset_id}\_value, {asset_id}\_weight, {asset_id}\_signal, {asset_id}\_shares, {asset_id}\_avg_price, {asset_id}\_realized_pnl, {asset_id}\_unrealized_pnl, {asset_id}\_contribution — 계좌 자본 = Σ 매매법 자본 + 상계 절감 누적
-
-`{asset_id}_contribution`(자산별 누적 기여 손익 = `realized_pnl + unrealized_pnl`)은 `build_combined_equity` 가 한 번만 계산한다. 대시보드와 매매법 요약은 이 컬럼을 읽고 같은 계산을 다시 하지 않는다.
-
-trades_df 는 거래가 없어도 `PortfolioTradeRecord` 의 키를 열로 갖는다(단일 엔진은 `TradeRecord`) — 저장한 CSV 의 헤더가 거래 유무와 무관하게 같다.
-
-params_json 은 설정 전체(`dataclasses.asdict`, 경로 · 날짜는 문자열)에 엔진 상수인 리밸런싱 규칙 두 칸을 더한 것이다 — 설정에 칸이 늘면 결과 파일에도 함께 실린다.
-
-state_log_df 컬럼 (매 거래일 1행, 디버깅/검증용): Date, equity, cash, is_month_end, rebalanced, rebalance_reason, {aid}\_close, {aid}\_shares, {aid}\_weight, {aid}\_signal_today, {aid}\_pending_intent, {aid}\_pending_reason, {aid}\_pending_delta, {aid}\_executed_intent, {aid}\_exec_side, {aid}\_exec_shares, {aid}\_exec_price, (비중변동 매매법 자산만) {aid}\_target_weight. 처리한 의도는 1주 미만이라 0주로 끝나도 executed_intent 에 기록한다(exec_shares 0)
-
-### 6-1. portfolio_validation.py
-
-PortfolioResult에 대한 정합성 규칙 검증을 제공한다. `run_portfolio_backtest.py`에서 각 실험 실행 직후 호출되며, 위반이 발견되면 CLI가 결과를 저장한 뒤 ERROR 로그를 남기고 `ValueError`로 실행을 중단한다.
-
-주요 함수:
-
-- `validate_portfolio_result(result) -> list[str]`: 아래 규칙을 검증하고 위반 메시지 리스트 반환
-
-검증 규칙: 시그널-체결 1일 lag, 리밸런싱 비중 정합성(매매법 자본 대비), EXIT_ALL 주수 0, 현금 비음수(계좌 · 매매법), 에쿼티 등식, 장부 항등식(Σ 매매법 자본 + 상계 절감 = 계좌 자본, Σ 매매법 손익 + 상계 절감 = 계좌 손익, 매매법 자본 = 초기 몫 + 이전 + 손익), 매매법 사이 되돌리기 정합성(장부 몫 = 매매법 자본 ÷ 매매법 자본 합, 판단일 장부로 다시 계산한 계획 이전과 다음 거래일 실제 이전이 상한 규칙대로 맞음 · 판정이 없던 날은 이전 없음, 되돌리기 뒤 몫)
-
-### 7. engines/ 패키지
-
-백테스트 엔진을 엔진 공통 로직 / 단일 백테스트 엔진 / 포트폴리오 엔진으로 분리한 패키지입니다.
-`SignalStrategy` Protocol을 통해 전략을 의존성 주입 방식으로 사용하므로, 새 전략 추가 시 엔진 파일 수정이 불필요합니다.
-
-포트폴리오 엔진은 책임 단위의 하위 모듈 5개와 이를 묶는 facade로 분리되어 있다:
-
-- `portfolio_planning.py`: 주문 의도(OrderIntent), 시그널/투영/병합 함수
-- `portfolio_methods.py`: 매매법 장부(MethodBook), 배분 변화 의도 · 예상 상태, 매매법 사이 비중 되돌리기(`plan_method_transfers` · `cap_transfers`), 종목 단위 상계(`compute_netting`), 결과 요약(`summarize_methods` · `account_target_weights`)
-- `portfolio_rebalance.py`: 리밸런싱 정책(RebalancePolicy), 판단일(월 마지막 거래일) 판정 함수
-- `portfolio_execution.py`: 체결 결과(ExecutionResult), SELL→BUY 순 체결 함수
-- `portfolio_data.py`: 데이터 로딩/검증, 에쿼티 DataFrame 빌드 함수
-- `portfolio_engine.py`: facade — 공개 API는 `compute_portfolio_effective_start_date`·`run_portfolio_backtest` 2개이며, 내부 헬퍼로 `_load_portfolio_data_with_common_period`를 둔다
-
-#### engines/engine_common.py
-
-체결 계산 및 에쿼티 기록 등 두 엔진이 공유하는 공통 로직을 제공합니다.
-
-데이터 구조:
-
-- `PendingOrder`: 예약 주문 (order_type, signal_date). 신호일과 체결일 분리
-- `TradeRecord`: 거래 기록 TypedDict. buy_buffer_pct, hold_days_used 포함 (CSV 호환)
-- `PortfolioTradeRecord(TradeRecord)`: 포트폴리오 전용 거래 기록. TradeRecord를 확장하여 asset_id, trade_type, pre_shares, post_shares, order_amount 필드 추가
-- `EquityRecord`: equity 기록 TypedDict. Date, equity, position만 포함
-
-공통 함수 (순수 계산 함수 — 상태 변경 없음):
-
-- `execute_buy_order(open_price, amount) -> (shares, buy_price, cost)`: 매수 체결 계산. 단일 엔진은 전체 자본을, 포트폴리오 엔진은 delta_amount를 amount로 전달
-- `execute_sell_order(open_price, shares_to_sell, entry_price) -> (sell_price, proceeds, pnl, pnl_pct)`: 매도 체결 계산. 단일 엔진은 전량 매도, 포트폴리오 엔진은 부분 매도도 지원
-- `create_trade_record(entry_date, exit_date, entry_price, exit_price, shares, pnl, pnl_pct, buy_buffer_pct=0.0, hold_days_used=0) -> TradeRecord`: TradeRecord 생성 헬퍼
-- `record_equity(current_date, capital, position, close_price) -> EquityRecord`
-
-#### engines/backtest_engine.py
-
-단일 자산 버퍼존 전략 백테스트 및 그리드 서치를 제공합니다.
-
-TypedDict:
-
-- `GridSearchResult`: 그리드 서치 결과 딕셔너리
-
-주요 함수:
-
-- `filter_valid_rows(signal_df, trade_df, ma_col) -> tuple[pd.DataFrame, pd.DataFrame]`: MA 컬럼 기준 유효 행(NaN 아닌 행) 필터링
-- `prepare_common_period(signal_df, trade_df, ma_windows)`: 이동평균을 모두 계산하고 가장 긴 이동평균의 유효 구간으로 자른다 — 여러 이동평균을 같은 기간으로 평가할 때 (그리드 · 고원 이동평균 실험)
-- `run_backtest(strategy, signal_df, trade_df, initial_capital, log_trades, strategy_name, params_schedule) -> tuple[trades_df, equity_df, summary]`: SignalStrategy 의존성 주입 방식 실행. `initial_capital: float`를 직접 전달한다.
-- `run_grid_search(signal_df, trade_df, ...) -> pd.DataFrame`: 파라미터 그리드 탐색 (병렬 처리, WORKER_CACHE 패턴). 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`). 결과는 Calmar 내림차순 안정 정렬
-- `run_buffer_strategy(signal_df, trade_df, params, ...) -> ...`: `BufferZoneStrategy` + `run_backtest` 편의 래퍼
-- `_run_backtest_for_grid(params)`: 그리드 서치용 module-level 병렬 헬퍼 (pickle 가능)
-
-#### engines/portfolio_engine.py
-
-포트폴리오 백테스트 엔진을 제공한다.
-매매법마다 장부(몫 · 현금 · 보유 주수 · 손익)를 두고, 매매법별 신호(슬롯 전략 | 배분 규칙) + 목표 비중 배분 + 월말 판단 리밸런싱을 처리한다. 매매법이 여럿이면 매매법 사이 비중 되돌리기와 종목 단위 상계를 더한다. 매매법이 하나인 실험은 장부 하나가 곧 계좌다.
-
-데이터클래스 (각 하위 모듈에 정의, portfolio_engine.py가 import하여 사용):
-
-- `OrderIntent` (portfolio_planning.py): 자산별 주문 의도 모델 (intent_type, delta_amount, reason, hold_days_used). 자산은 의도 사전의 키다. 의도 종류 묶음 `SELL_INTENT_TYPES` · `BUY_INTENT_TYPES`(체결 순서) · `REBALANCE_INTENT_TYPES`(목표 금액으로 증감)는 `constants.py`
-  - intent_type: `EXIT_ALL` (signal sell 전량 청산) / `ENTER_TO_TARGET` (signal buy 신규 진입) / `REDUCE_TO_TARGET` (rebalance 초과분 매도) / `INCREASE_TO_TARGET` (rebalance 미달분 매수)
-- `ProjectedPortfolio` (portfolio_planning.py): signal intents 반영 후 예상 포트폴리오 상태 (projected_amounts, projected_cash, active_assets, check_excluded_assets)
-  - EXIT_ALL 자산은 projected_amounts=0, active_assets에서 제거, projected_cash 증가
-  - ENTER_TO_TARGET 자산은 active_assets와 check_excluded_assets에 추가 (position=0이므로 amount=0 유지)
-  - check_excluded_assets: 그날 신호 · 배분 규칙으로 들어오거나 목표 비중이 바뀐 자산 — 리밸런싱 편차 판정에서 뺀다
-- `MethodBook` (portfolio_methods.py): 매매법 하나의 장부 (현금 · 자산 키별 상태 · 진입 정보 · 실현손익 · 목표 비중 · 장부 비용 · 이전 누적 · 다음 날 의도)
-- `AssetState` (portfolio_types.py): 자산별 런타임 상태 (position, signal_state)
-- `ExecutionResult` (portfolio_execution.py): `execute_orders()` 반환값 (updated_cash, updated_positions, updated_entry_prices, updated_entry_dates, updated_entry_hold_days, new_trades, rebalanced_today)
-- `RebalancePolicy` (portfolio_rebalance.py): 월말 판단 리밸런싱 정책 (frozen=True)
-  - `threshold_rate`: 목표 비중 대비 상대 편차 임계값
-  - `should_rebalance(projected, target_weights, total_equity_projected) -> bool`: 임계값 초과 여부 판정 (판단일 여부는 엔진이 정한다). check_excluded_assets 는 판정에서 뺀다
-  - `build_rebalance_intents(projected, target_weights, total_equity_projected, current_date) -> dict[str, OrderIntent]`: 리밸런싱 intent 생성 (threshold 체크 없이 항상 생성). target_weights 순서로 돈다
-  - target_weights 는 매매법 자본 대비 {자산 키: 목표 비중} (슬롯 매매법은 슬롯 비중, 비중변동 매매법은 그날 배분)
-- `DEFAULT_REBALANCE_POLICY` (portfolio_rebalance.py): 기본 RebalancePolicy 인스턴스. `run_portfolio_backtest`에서 사용하며, 임계값은 이 상수 정의를 참조
-
-주문 흐름 함수 (portfolio_planning.py / portfolio_execution.py):
-
-- `generate_signal_intents(asset_states, strategies, asset_signal_dfs, equity_vals, slot_dict, current_equity, i) -> dict[str, OrderIntent]`: 전략 시그널 기반 intent 생성 (buy→ENTER_TO_TARGET, sell→EXIT_ALL, hold→없음)
-- `compute_projected_portfolio(asset_states, signal_intents, equity_vals, shared_cash) -> ProjectedPortfolio`: signal intents 반영 후 예상 포트폴리오 상태 계산
-- `merge_intents(signal_intents, rebalance_intents) -> dict[str, OrderIntent]`: signal/rebalance intent 통합, 자산당 1개 보장 (우선순위: EXIT_ALL > ENTER+INCREASE → ENTER > 단독 통과). 삽입 순서(신호 → 리밸런싱)로 돈다
-- `resolve_allocation(new_targets, assets)` · `generate_allocation_intents(old_targets, new_targets, positions, equity_vals, method_equity)` · `compute_allocation_projection(targets, allocation_intents, equity_vals, cash)` (portfolio_methods.py): 배분 규칙이 낸 비중을 검증하고 매매법 전 자산으로 채운 뒤(없는 자산 0, 한 번만), 목표 변화 → 청산(목표 0) · 진입(보유 0) · 조정(목표 변경) 의도와 예상 상태. 진입 · 조정 자산은 판정에서 뺀다. 배분 규칙이 None(목표 변경 없음)을 내면 엔진이 의도를 만들지 않는다
-- `execute_orders(order_intents, open_prices, current_positions, current_cash, entry_prices, entry_dates, entry_hold_days, current_date) -> ExecutionResult`: SELL → BUY 순 체결. SELL 확보 현금을 BUY에 활용하며, BUY 총 비용이 available_cash를 초과하면 `raw_shares × scale_factor`로 비례 축소하여 음수 현금을 방지한다. order_intents에 있는 자산이 `open_prices`에 누락되면 `RuntimeError("내부 불변조건 위반")` 발생 — 호출부가 동일 자산 집합으로 채워야 한다는 호출 계약을 강제한다
-
-공개 함수 (portfolio_engine.py facade + 하위 모듈):
-
-- `compute_portfolio_effective_start_date(config: PortfolioConfig) -> date`: 포트폴리오 실험의 유효 시작일 계산 (전 자산 교집합 + MA 워밍업 후 첫 날짜). 각 실험이 자기 자산 조합 기준으로 독립 시작일을 산출하므로 CLI 러너에서 실험마다 호출하여 `run_portfolio_backtest`에 전달한다 (설정에 `min_start_date` 가 있는 실험은 그 날짜를 전달한다).
-- `run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = None) -> PortfolioResult`: 포트폴리오 백테스트 실행. `start_date` 파라미터로 MA 워밍업 이후 추가 시작일 하한을 지정할 수 있다 (CLI 러너에서 실험별 `compute_portfolio_effective_start_date` 결과를, `min_start_date` 가 있는 실험은 그 날짜를 전달).
-- `is_last_trading_day_of_month(trade_dates, i) -> bool` (portfolio_rebalance.py): 리밸런싱 판단일(월 마지막 거래일) 판정. 다음 거래일과 (연, 월)을 비교하며, 마지막 행은 체결할 날이 없어 False, 범위 밖 인덱스는 ValueError
-- `compute_portfolio_equity(shared_cash, asset_positions, asset_closes) -> float` (portfolio_planning.py): 에쿼티 산식 계산
-
-설계 특징:
-
-- 주문 모델: OrderIntent 기반 (EXIT_ALL / ENTER_TO_TARGET / REDUCE_TO_TARGET / INCREASE_TO_TARGET)
-- 흐름: Signal(슬롯 전략 | 배분 규칙) → ProjectedPortfolio → (월말: 매매법 사이 판정) → Rebalance → MergeIntents → Execution (next_day_intents)
-- 체결 순서: 전 매매법 SELL → 매매법 사이 이전 → 전 매매법 BUY (매매법별 execute_orders). 이전은 내주는 쪽의 매도 뒤 현금 안에서만 하고 모자라면 받는 쪽을 계획 비율대로 줄인다 — 어느 장부도 현금 음수 없음
-- 매매법 사이 비중: 월 마지막 거래일에 어느 매매법이든 몫(매매법 자본 합 대비)의 상대 편차가 임계값을 넘으면 전 매매법을 목표 몫으로 되돌리고 각자 보유 종목 전부를 새 몫으로 맞춘다(사유 "methods")
-- 종목 단위 상계: 매매법 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × SLIPPAGE_RATE 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음)
-- 같은 날 체결 순서는 설정 순서로 고정된다 — 집합 순서(문자열 해시 무작위화)로 돌면 같은 코드에서도 결과 파일이 실행마다 달랐다
-- 신호 시세 읽기: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다. 슬롯끼리 신호 시세를 함께 쓰지 않는다 — 함께 쓰면 먼저 읽은 슬롯의 기간으로 잘린 이동평균을 뒤 슬롯이 받아 슬롯 순서가 시작일을 바꾼다
-- 현금 버퍼: target_weight 합 < 1.0이면 잔여분 자동으로 현금 유지
-- 월말 판단 리밸런싱: `DEFAULT_REBALANCE_POLICY` (RebalancePolicy) — 월 마지막 거래일 종가에 판단해 다음 거래일 시가에 체결한다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 판단일에 진입 신호가 난 자산은 편차 판정에서 빠진다 — 남은 자산의 편차가 임계값을 넘을 때만 리밸런싱하고, 그때는 진입 자산까지 맞춘다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
-- 주문 충돌 해소: merge_intents 우선순위 규칙으로 자산당 1개 보장 (충돌 예외 없음)
-- projected state: signal intent 반영 후 리밸런싱 계획 수립 → planning 왜곡 방지
-- 부분 매도: REDUCE_TO_TARGET은 delta_amount 기준 수량, EXIT_ALL은 전량
-- SignalStrategy 팩토리: STRATEGY_REGISTRY 경유, strategy_id 문자열 분기 없음
-
-### 8. portfolio_configs.py
-
-포트폴리오 백테스트 실험 설정을 제공한다.
-
-설정 목록:
-
-- `PORTFOLIO_CONFIGS: list[PortfolioConfig]`
-  - 실험 구성과 자산 비중은 변경 빈도가 매우 높으므로 본 문서에 직접 나열하지 않는다.
-  - 최신 실험 목록·자산 슬롯·target_weight·strategy_id는 `src/qbt/backtest/portfolio_configs.py`를 직접 확인할 것. Q-2-2XS 슬롯은 보완 실험과 같이 쓰는 `supplement_experiment.Q2_2XS_SLOTS` 에 있다.
-
-주요 함수:
-
-- `get_portfolio_config(experiment_name)`: 이름으로 PortfolioConfig 조회. 없으면 ValueError
-
-보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다 — 조합은 `build_combo_config`, 단독 후보 · 기준선은 `build_experiment_config`. 그리드와 같은 구성 함수 · 같은 시작일로 만들고 포트폴리오 러너가 실제 시작일이 그날인지 대조하므로(`run_with_start_check`), 대시보드 숫자가 그리드 결과와 같다.
-
----
-
-### 8-1. allocator_registry.py
-
-비중이 바뀌는 매매법(AllocatorMethodConfig)의 배분 규칙 레지스트리. `strategy_registry.py` 와 같은 모양이며, 새 배분 규칙은 `allocators/` 에 구현하고 여기 등록한다. 엔진은 고치지 않는다.
-
-- `WeightAllocator` Protocol: `target_weights(data, i, is_check_day) -> Mapping[str, float] | None` — i 행 종가 기준 매매법 자본 대비 목표 비중(합 1 이하, 없는 자산 0). None 은 목표 변경 없음. data 는 매매 자산 시세(자산 id 키)와 신호용 시세(series_id 키), is_check_day 는 월 마지막 거래일 여부
-- `AllocatorSpec` (frozen=True, 레지스트리의 값 — 키가 allocator_id): create_allocator(method) → WeightAllocator, get_warmup_periods(method) → int (ma_window 와 같은 뜻)
-- `ALLOCATOR_REGISTRY: dict[str, AllocatorSpec]` — 등록된 규칙 목록은 이 모듈을 직접 확인할 것
-- 생성 함수가 설정을 검사한다: 규칙은 역할을 자산 · 시세 id 로 알아보므로(설정에 파라미터 칸이 없다) 설정의 자산 id · series id 집합이 규칙이 요구하는 것과 정확히 같아야 한다. 다르면 ValueError. 파라미터(이동평균 기간 · 버퍼존)는 `FIXED_4P_*` 를 넘긴다
-
-### 8-2. allocators/ 패키지
-
-배분 규칙 구현. 규칙마다 모듈 하나이고 설정을 모른다(시세만 받는다).
-
-- 요구 id 는 각 모듈의 `*_ASSET_IDS` · `*_SERIES_IDS` 상수가 정한다. Q-2-2XS 와 같은 종목(TLT 등)은 같은 자산 id 를 써야 종목 단위 상계가 된다 — 여러 매매법이 같은 매매 데이터를 다른 id 로 들면 설정 검증이 막는다
-- 이동평균 · 월말 행 목록 같은 파생 계산은 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 j 의 값은 j 이하 행만 쓰므로 미래를 읽지 않는다
-- `haa.py` `HaaAllocator`: 판단일에만 판단. 점수는 달력 월말 종가 기준 1 · 3 · 6 · 12개월 수익률 평균(`momentum_scores`). 이전 월말이 12개 안 되면 판단 보류(None) — 워밍업 행 수로는 월말 개수를 보장할 수 없어서다. 동점은 목록 순서. 모든 시세를 같은 행 번호로 읽으므로 점수를 처음 낼 때(첫 판단일) 자산 시세의 거래일이 카나리아와 같은지 확인하고 다르면 ValueError
-- `us_weakness_rotation.py` `UsWeaknessRotationAllocator`: 「위험 자산 ÷ 기준 시세」 비율이 그 이동평균(`add_single_moving_average`)보다 위면 위험 자산, 아니면 안전 자산. 첫 호출에서 판단하고 그 뒤는 판단일에만
-- `ewy_buffer_zone.py` `EwyBufferZoneAllocator`: `BufferZoneStrategy` 신호로 위험 자산 ↔ 안전 자산. 미보유면 check_buy, 보유면 check_sell 을 하루 한 번 — 버퍼존 슬롯과 같은 호출 순서라 신호 날짜가 같다. 첫 호출은 안전 자산
-
-### 8-3. supplement_experiment.py
-
-보완 전략 실험 — 「Q-2-2XS (100−w)% + 후보 w%」 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 러너(`scripts/backtest/run_supplement_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5).
-
-- `Q2_2XS_SLOTS`: Q-2-2XS 슬롯 — 공식 실험 `portfolio_q2_2xs` 와 보완 실험 · 조합이 같이 쓴다. `portfolio_configs` 가 이 모듈의 구성 함수로 등록 실험을 만들므로 슬롯이 이쪽에 있다(반대로 두면 두 모듈이 서로 import 한다)
-- `build_experiment_config(candidate, w_pct, variant, start_date)`: 매매법 둘(Q-2-2XS 가 앞 · 후보)과 데이터 판(이어 붙인 판 · 실물판 · 순수 대용판 · 쌍별)으로 설정을 만든다. 대용이 없는 후보에 대용 판 등 정하지 않은 조합은 ValueError
-  - **대체 판(`VARIANT_ALT`)**: 실물판 설정을 만든 뒤 `ALT_PATH_MAP`(실물 파일 → 대체 파일)으로 슬롯의 신호 · 매매 경로, 배분 자산의 매매 경로, 신호용 시세를 모두 바꾼다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 `tlt` 가 같은 대체 파일로 남는다(상계 조건). 바꾼 뒤 대체 파일이나 SPY · QQQ · IWM 이 아닌 경로가 남으면 ValueError. Q-2-2XS 단독 · 기준선 · HAA · 로테이션만 받는다
-- `build_combo_config(haa_pct, rotation_pct, variant, start_date)`: 조합 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 설정(매매법 셋, Q-2-2XS 가 앞). h · r 는 `COMBO_PCTS`, 판은 이어 붙인 판 · 실물판 · 대체 판. HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다
-- `build_grid_cases()` · `run_grid_case(case)`: 실행 목록과 병렬 워커. 워커는 결과 전체 대신 요약 · 위반 · 판단 비중표만 돌려준다
-- `run_with_start_check(config, start_date)`: 실행하고 실제 시작일이 start_date 와 다르면 ValueError — 엔진의 `start_date` 는 하한이라 데이터가 늦게 시작하는 구성은 조용히 늦게 시작한다. 단독 · 조합 워커와 포트폴리오 러너(설정에 `min_start_date` 가 있는 실험)가 같이 쓴다
-- `summarize_run` · `phase_metrics` · `annual_turnover`: 반올림 전 CAGR · MDD · Calmar, 국면 수익률 · 구간 MDD(실행 기간 안에 다 들지 않는 구간은 None), 연 회전율. 국면은 `ALL_PHASE_WINDOWS`(2007 이후 `PHASE_WINDOWS` + 대체 판에만 기간 안인 `EARLY_PHASE_WINDOWS`)를 다 계산하고, 단독 그리드 러너는 `PHASE_WINDOWS` 만 열로 쓴다
-- `extract_decision_targets` · `decision_agreement`: 신호 일치율 — 월 마지막 거래일 다음 거래일의 목표 비중만 비교한다(날마다 세면 월 1회 판단이 부풀려진다)
-- `compute_advantages` · `judge` · `gate_agreement`: 같은 시작일 · 같은 w 의 기준선 대비 Calmar 우위, 통과 판정(두 기간 모두 높은 w 가 연속 3단계 이상, 엄격한 `>`), 대용판 · 실물판 판정 일치
-- `collect_judgments` · `collect_gates`: 어느 실행을 어느 실행과 비교하는지 모은다. 대용을 쓰는 후보는 판정 기준 둘(주 비교 + 보조 / 보조만)을 모두 낸다 — 그리드가 대용 탈락 여부(사용자 판단)보다 먼저 돈다
-
-### 8-4. combo_experiment.py
-
-조합 실험 — 「Q-2-2XS + HAA + 로테이션」 비중 격자(HAA · 로테이션 각 `COMBO_PCTS`)를 묶음(대체 판 · 이어 붙인 판 · 완전 실물판 · 대체 판 겹침)마다 돌리는 실행 목록 · 워커 · 판정 · 대체 판 확인. 구성은 `supplement_experiment` 의 두 구성 함수가 만들고, 러너(`scripts/backtest/run_combo_grid.py`)는 병렬 실행 · 반올림 · 저장만 한다. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D55 – D57 · D62 – D70, 9.6).
-
-- `build_combo_cases()` · `build_case_config(case)` · `run_combo_case(case)`: 묶음마다 조합 칸 전부 + 같은 합계(`W_PCTS`)의 기준선 · HAA 단독 · 로테이션 단독 + Q-2-2XS 단독. 워커는 요약 · 위반 · 배분 규칙 매매법별 판단 비중표만 돌려준다
-- `compute_combo_advantages`: 칸마다 같은 묶음 · 같은 합계의 셋(기준선 · HAA 단독 · 로테이션 단독) 대비 Calmar 우위. 비교 상대가 없거나 실제 기간이 다르면 ValueError. `CellAdvantage.above` = 셋 모두보다 엄격히 높다
-- `find_clusters` · `judge_combo`: 「높음」 칸이 상하좌우로 이어진 3칸 이상 덩어리(대각선은 이웃이 아니다). 판정 기준이 여러 묶음을 쓰면 모두에서 높은 칸만 센다
-- `collect_combo_judgments`: 판정 기준(`BASIS_GROUPS`) — 판 하나씩의 지도(보고용)와 판정(`BASIS_JUDGMENT` = 이어 붙인 판 · 완전 실물판 둘 다)
-- `collect_alt_check`: 대체 판 겹침과 이어 붙인 판의 칸별 「높음」 일치 · 조합 실행의 HAA · 로테이션 월말 판단 일치율. 보고용이고 관문이 아니다
-
----
-
-### 9. strategy_registry.py
-
-전략 확장 가능 구조를 제공한다.
-`StrategySpec` 데이터클래스와 `STRATEGY_REGISTRY` 딕셔너리를 통해
-포트폴리오 엔진이 `strategy_id` 문자열로 전략 동작을 조회한다.
-
-데이터클래스:
-
-- `StrategySpec` (frozen=True): 전략 명세 (STRATEGY_REGISTRY 의 값 — 키가 strategy_id)
-  - `create_strategy(slot) -> SignalStrategy`: 전략 객체 생성 팩토리
-  - `prepare_signal_df(df, slot) -> pd.DataFrame`: signal DataFrame 전처리 (buffer_zone → MA 컬럼 추가, buy_and_hold → 원본 반환)
-  - `get_warmup_periods(slot) -> int`: MA 워밍업 기간 (buffer_zone → `slot.ma_window`, buy_and_hold → `0`)
-
-등록된 전략:
-
-- `STRATEGY_REGISTRY: dict[str, StrategySpec]`
-  - `"buffer_zone"`: BufferZoneStrategy 생성 + MA 컬럼 추가 + ma_window 워밍업
-  - `"buy_and_hold"`: BuyAndHoldStrategy 생성 + 원본 반환 + 워밍업 0
-
-### 10. strategies/ 패키지
-
-전략 관련 모듈을 담은 패키지입니다.
-전략 클래스(`SignalStrategy` Protocol 구현체)와 config-driven 팩토리 패턴을 제공합니다.
-
-#### strategies/strategy_common.py
-
-두 엔진이 공유하는 전략 공통 인터페이스와 신호 감지 함수를 제공합니다.
-
-Protocol:
-
-- `SignalStrategy`: 전략 공통 인터페이스
-  - `check_buy(signal_df, i) -> bool`: i번째 날 매수 신호 여부. 내부 prev 상태 갱신 포함.
-  - `check_sell(signal_df, i) -> bool`: i번째 날 매도 신호 여부. 내부 prev 상태 갱신 포함.
-  - `get_buy_meta() -> dict[str, float | int]`: check_buy True 직후 호출. TradeRecord용 메타데이터 반환.
-
-신호 감지 함수(`compute_bands`, `detect_buy_signal`, `detect_sell_signal`)는 버퍼존 전용이므로 `buffer_zone_helpers.py`에 있다.
-
-#### strategies/buffer_zone_helpers.py
-
-버퍼존 전략 전용 신호 감지 함수를 제공합니다.
-
-신호 감지 함수:
-
-- `compute_bands(ma_value, buy_buffer_pct, sell_buffer_pct) -> tuple[float, float]`: upper_band, lower_band 계산
-- `detect_buy_signal(prev_close, close, prev_upper, upper) -> bool`: 상향돌파 감지
-- `detect_sell_signal(prev_close, close, prev_lower, lower) -> bool`: 하향돌파 감지
-
-#### strategies/buffer_zone.py
-
-버퍼존 통합 config-driven 전략 모듈 (4P 고정). 단일 전략 클래스로 전 자산의 버퍼존 전략을 처리한다.
-
-설정 데이터클래스:
-
-- `BufferZoneConfig`: 자산별 전략 설정 (strategy*name, display_name, signal_data_path, trade_data_path, result_dir + 기본값 있는 필드: ma_window, buy_buffer_zone_pct, sell_buffer_zone_pct, hold_days). frozen=True. 기본값은 `constants.py`의 `FIXED_4P*\*` 참조
-
-설정 목록:
-
-- `CONFIGS`: `list[BufferZoneConfig]` (전 자산 4P 고정). 새 자산 추가 시 여기에 한 줄 추가. config당 필수 필드(strategy_name, display_name, 경로)만 명시, 나머지는 기본값 활용
-  - 자산 라인업은 변경 빈도가 높으므로 본 문서에 직접 나열하지 않는다. 최신 자산 목록·시그널/매매 데이터 경로·표시명은 [src/qbt/backtest/strategies/buffer_zone.py](strategies/buffer_zone.py)의 `CONFIGS`를 직접 확인할 것.
-
-전략 클래스:
-
-- `BufferZoneStrategy`: `SignalStrategy` Protocol 구현체 (stateful)
-  - 생성자: `(ma_col, buy_buffer_pct, sell_buffer_pct, hold_days)`
-  - 내부 상태: `_prev_upper`, `_prev_lower`, `_hold_days_passed`(상향돌파 뒤 상단 밴드 위에서 지난 날 수, 대기 중이 아니면 None)
-  - `_update_bands(signal_df, i) -> tuple | None`: 밴드 계산 + prev 상태 갱신. check_buy/check_sell 공용. 초기화 시 None 반환
-  - `check_buy(signal_df, i) -> bool`: `_update_bands` 호출 후 상향돌파 · 유지일 처리 (「도메인 규칙 6」)
-  - `check_sell(signal_df, i) -> bool`: `_update_bands` 호출 후 하향돌파 감지
-  - `get_buy_meta() -> dict`: `{"buy_buffer_pct": ..., "hold_days_used": ...}`
-
-파라미터 결정 함수:
-
-- `resolve_params_for_config(config) -> BufferStrategyParams`: config 의 파라미터로 BufferStrategyParams 를 만든다 (범위 검증은 하지 않는다 — 「도메인 규칙 1」)
-
-주요 함수:
-
-- `get_config(strategy_name)`: 이름으로 BufferZoneConfig 조회. 존재하지 않으면 ValueError
-
-#### strategies/buy_and_hold.py
-
-Buy & Hold 벤치마크 전략 구현입니다. 팩토리 패턴으로 멀티 티커를 지원한다.
-
-설정 데이터클래스:
-
-- `BuyAndHoldConfig`: 티커별 전략 설정 (strategy_name, display_name, trade_data_path, result_dir)
-
-티커별 설정 목록:
-
-- `CONFIGS`: `list[BuyAndHoldConfig]`. 새 티커 추가 시 여기에 한 줄 추가
-  - 자산 라인업은 변경 빈도가 높으므로 본 문서에 직접 나열하지 않는다. 최신 티커 목록은 [src/qbt/backtest/strategies/buy_and_hold.py](strategies/buy_and_hold.py)의 `CONFIGS`를 직접 확인할 것.
-
-전략 클래스:
-
-- `BuyAndHoldStrategy`: `SignalStrategy` Protocol 구현체 (stateless)
-  - 파라미터 없는 생성자
-  - `check_buy(signal_df, i) -> bool`: 항상 `True` 반환 (즉시 매수)
-  - `check_sell(signal_df, i) -> bool`: 항상 `False` 반환 (매도 없음)
-  - `get_buy_meta() -> dict`: `{}` 반환
-
-#### strategies/**init**.py
-
-재노출하지 않는다 — 각 전략 모듈(`buffer_zone` · `buy_and_hold` 등)을 직접 import 한다. `qbt.backtest` 패키지도 같다.
-
-### 11. runners.py
-
-전략 설정(Config)을 받아 실행 가능한 Callable을 반환하는 팩토리 함수를 제공합니다.
-`buffer_zone.py`와 `backtest_engine.py` 사이의 순환 의존성을 해소하기 위해 분리된 모듈입니다.
-
-역할 분리:
-
-- `buffer_zone.py` / `buy_and_hold.py`: 전략 클래스 + 설정 데이터클래스 + CONFIGS 목록
-- `runners.py`: 데이터 로딩 + MA 계산 + 전략 실행 로직 (팩토리)
-
-순환 의존성 해결:
-
-- `runners.py`가 `buffer_zone.py`와 `backtest_engine.py`를 모두 top-level로 import하여 순환 없이 팩토리 역할을 수행한다.
-
-주요 함수:
-
-- `create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBacktestResult]`: 버퍼존 전략 runner 팩토리. 데이터 로딩, overlap 처리, MA 계산, `run_backtest(BufferZoneStrategy(), ...)` 수행. equity_df에 band 컬럼 post-processing으로 보강 (`csv_export.enrich_equity_with_bands`).
-- `create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleBacktestResult]`: B&H 전략 runner 팩토리. `run_backtest(BuyAndHoldStrategy(), ...)` 기반으로 실행. dummy params 불필요. B&H 첫 매수는 시계열 2번째 날 시가.
-
-### 12. csv_export.py
-
-백테스트 CSV 저장용 DataFrame 변환 유틸리티를 제공한다.
-CLI 스크립트에서 반복되는 trades CSV 준비, OHLC 전일대비% 계산, buffer_zone 밴드
-컬럼 추가 패턴을 공용 함수로 제공한다. 대시보드(`scripts/backtest/app_*.py`)가
-도메인 연산을 직접 수행하지 않도록, signal CSV 저장 단계의 SSoT 역할을 한다.
-CSV 저장(to_csv) 자체는 호출부에서 수행한다.
-
-의존 방향 (고정): `analysis.py` → `csv_export.py` 단방향. `csv_export.py`는 `analysis.py`를 import하지 않는다. 회귀 방지 테스트로 고정되어 있으며, 역방향 의존이 발생하면 순환 import 위험이 있으므로 절대 금지한다.
-
-주요 함수:
-
-- `add_holding_days(df) -> pd.DataFrame`: trades DataFrame에 `holding_days` 컬럼 추가 (entry_date/exit_date 기반 일수 계산). `prepare_trades_for_csv`가 사용
-- `prepare_trades_for_csv(trades_df) -> pd.DataFrame`: trades DataFrame 변환 (holding_days 추가, 반올림, 금액 열 정수 변환). 행이 없어도 같은 변환을 거쳐 열이 같다
-- `add_ohlc_change_pct(df) -> pd.DataFrame`: signal DataFrame에 OHLC 4종 전일대비% 컬럼(`open_pct`/`high_pct`/`low_pct`/`close_pct`) 추가. 첫 행은 NaN. 대시보드 캔들 tooltip의 SSoT
-- `add_buffer_zone_bands(df, ma_col, buy_buffer_zone_pct, sell_buffer_zone_pct) -> pd.DataFrame`: signal DataFrame에 `upper_band`/`lower_band` 컬럼 추가. 산식: `ma * (1 ± buffer)`. buffer_zone 전략 자산의 시그널 CSV에만 적용
-- `enrich_equity_with_bands(equity_df, signal_df, ma_col, buy_buffer_pct, sell_buffer_pct) -> pd.DataFrame`: equity_df에 그날의 밴드(`add_buffer_zone_bands`)와 buy/sell 버퍼 비율 컬럼을 날짜로 붙인다 (단일 백테스트 · WFO 윈도우 에쿼티 CSV)
-- `round_signal_for_csv(df) -> pd.DataFrame`: 시그널 CSV 저장 자릿수 — 가격 · 이동평균 · 밴드는 `ROUND_PRICE`, 전일대비%는 `ROUND_PERCENT` (단일 · 워크포워드 윈도우 · 포트폴리오 시그널 CSV)
-- `remove_config_dependent_files(result_dir)`: 포트폴리오 실험 폴더에서 구성에 따라 생기는 파일(자산 키별 시그널 · 장부 · 상계 내역)을 지운다 — 러너가 저장 전에 부른다. 폴더째 지우지 않는다
-
-상수:
-
-- `OHLC_CHANGE_PCT_COLUMNS`: 4종 % 컬럼명 튜플 (`open_pct`, `high_pct`, `low_pct`, `close_pct`)
-- `BUFFER_BAND_COLUMNS`: 밴드 컬럼명 튜플 (`upper_band`, `lower_band`)
-
-### 13. dashboard_charts.py
-
-단일 · 포트폴리오 · 워크포워드 대시보드가 같은 모양으로 그리는 차트를 만든다 — lightweight-charts 캔들 차트의 패널 설정과 월별 수익률 히트맵(Plotly). Streamlit 과 차트 컴포넌트는 import 하지 않고, 컴포넌트 호출과 화면 배치는 앱이 한다. src 에 둔 것은 세 앱이 같은 코드를 쓰고 테스트가 부를 수 있게 하려는 것이다.
-
-캔들 패널의 밴드 선과 툴팁의 밴드 · 에쿼티 · 드로우다운은 넘겨받은 겹침 표에 그 열이 있을 때만 넣는다 — 단일 · 워크포워드는 에쿼티 표, 포트폴리오는 시그널 표를 넘긴다(포트폴리오 에쿼티는 계좌 단위라 자산 차트에 넣지 않는다).
+## 모듈 지도
+
+함수 · 필드 · 시그니처 · 열 이름은 각 모듈 docstring 이 정본입니다. 여기에는 모듈의 책임과 docstring 에 없는 「왜」만 둡니다.
+
+공통 · 분석:
+
+- `types.py` — 도메인 공통 TypedDict · dataclass (성과 요약 · 미청산 포지션 · 버퍼존 파라미터 · 단일 실행 결과 · 워크포워드 결과). 전략 전용 타입은 각 전략 모듈에 둔다
+- `constants.py` — 도메인 상수 (비용 `SLIPPAGE_RATE` · 초기 자본 · 4P 확정값 `FIXED_4P_*` · 워크포워드 그리드와 판단 기준 · 결과 파일명 · 리밸런싱 사유 값)
+- `analysis.py` — 이동평균(SMA — 도메인 규칙 1-1)과 성과 지표(요약 · 월별 · 연간 수익률 · Sharpe · Sortino)
+- `csv_export.py` — 결과 CSV 저장 직전 변환(거래 표 · 전일대비% · 밴드 · 시그널 반올림)과 포트폴리오 폴더의 구성 의존 파일 지우기. 대시보드가 도메인 계산을 다시 하지 않도록 러너가 시그널 CSV 에 미리 넣는다
+- `dashboard_charts.py` — 단일 · 포트폴리오 · 워크포워드 대시보드가 같은 모양으로 그리는 차트(lightweight-charts 캔들 패널 · 월별 히트맵). src 에 둔 것은 세 앱이 같은 코드를 쓰고 테스트가 부를 수 있게 하려는 것이다
+
+전략:
+
+- `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol
+- `strategies/buffer_zone.py` · `buffer_zone_helpers.py` — 버퍼존 전략 `BufferZoneStrategy`(stateful)와 자산별 설정 `CONFIGS`(전 자산 4P), 밴드 · 돌파 감지 함수
+- `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`
+- `strategy_registry.py` — `STRATEGY_REGISTRY`: 포트폴리오 엔진이 `strategy_id` 문자열로 전략을 만든다. 새 전략은 등록만 하고 엔진은 고치지 않는다
+- `runners.py` — 단일 백테스트 설정을 실행 함수로 만드는 팩토리 (전략 모듈 ↔ 엔진 순환 의존을 끊는 자리)
+- `strategies/` · `qbt.backtest` 패키지는 재노출하지 않는다 — 각 모듈을 직접 import 한다
+
+단일 · 워크포워드 · 고원:
+
+- `engines/backtest_engine.py` — 단일 자산 백테스트(`run_backtest`, 전략 주입)와 병렬 그리드 서치. 그리드 · 고원 이동평균 실험은 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`)
+- `walkforward.py` — Expanding Anchored 워크포워드 (윈도우 생성 · IS 그리드 최적 선택 · OOS 평가 · 이어 붙인 자본곡선 · 모드 요약)
+- `walkforward_verdict.py` — 워크포워드 결과로 대시보드의 판단 문구를 만든다
+- `parameter_stability.py` — 고원 분석 CSV 로딩과 고원 구간 탐지
+
+포트폴리오:
+
+- `portfolio_types.py` — 실험 설정(`PortfolioConfig` · 슬롯 · 매매법) · 런타임 상태 · 결과 데이터클래스와 결과 파일의 자산 키 규칙
+- `portfolio_configs.py` — 등록 실험 `PORTFOLIO_CONFIGS`. 보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다
+- `engines/` — 포트폴리오 엔진: `portfolio_engine.py`(facade · 일별 루프) · `portfolio_planning.py`(주문 의도 · 예상 상태 · 병합) · `portfolio_methods.py`(매매법 장부 · 배분 변화 · 매매법 사이 비중 · 상계 · 요약) · `portfolio_rebalance.py`(리밸런싱 정책 · 판단일) · `portfolio_execution.py`(매도 → 매수 체결) · `portfolio_data.py`(로딩 · 설정 검증 · 에쿼티 표), 두 엔진 공통은 `engine_common.py`(예약 주문 · 체결 계산 · 거래 기록)
+- `portfolio_validation.py` — 실행 직후 결과 정합성 검사 (규칙 목록은 그 docstring). 위반이 있으면 러너가 결과를 저장한 뒤 멈춘다
+- `allocator_registry.py` · `allocators/` — 비중이 바뀌는 매매법의 배분 규칙. 새 규칙은 `allocators/` 에 구현해 등록하고 엔진은 고치지 않는다. 규칙은 이동평균 · 월말 행 같은 파생 계산을 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 i 의 판단은 i 이하 행만 쓴다
+- `supplement_experiment.py` — 보완 전략 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5)
+- `combo_experiment.py` — 조합 그리드(Q-2-2XS + HAA + 로테이션)의 실행 목록 · 판정 · 대체 판 확인. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D55 – D57 · D62 – D70, 9.6)
 
 ---
 
@@ -479,20 +65,9 @@ CSV 저장(to_csv) 자체는 호출부에서 수행한다.
 ### 1-1. 이동평균은 SMA 하나뿐이다 (절대 규칙)
 
 `add_single_moving_average` 는 **유형을 고르는 파라미터를 갖지 않으며**, 항상 단순이동평균을 계산한다.
-EMA 계산 경로와 `ma_type` 파라미터·상수·필드는 코드베이스에서 제거되었다.
+EMA 계산 경로와 `ma_type` 파라미터·상수·필드는 없다.
 `tests/qbt/test_ma_type_policy.py` 가 시그니처에 `ma_type` 이 없음을 검증하여 재도입을 막는다.
-
-채택 근거 (상세는 `docs/research/전략_검증_보고서.md` 부록 G):
-
-1. **대중성** — "200일 이동평균" 의 경제적 논거는 자기실현적 예언(많은 참여자가 같은 선을 본다)에 기반한다.
-   더 널리 쓰이는 SMA 가 그 논거에 더 부합한다.
-2. **과최적화 자유도 축소** — 검증 보고서가 "EMA vs SMA 선택" 을 실질 시행 횟수 `+2` 로 카운트한다.
-   대중적 기본값으로 고정하면 자유도가 줄어든다.
-3. **연속성 함정 제거** — EMA 는 재귀식이라 구간을 슬라이스하면 워밍업이 리셋된다.
-   SMA 는 `ma_window` 개 행만 확보되면 그 이전 데이터가 결과에 영향을 주지 않으므로 이 계열의 버그가 성립하지 않는다.
-4. **워밍업 미완료 구간의 가짜 신호 제거** — EMA 는 1행째부터 값이 나오지만 그 값은 이동평균이 아니라
-   사실상 그날 종가다. 밴드가 가격에 밀착해 "추세 돌파" 가 아닌 신호가 발생한다.
-   SMA 는 `ma_window` 미만 구간을 NaN 으로 두어 `filter_valid_rows` 가 자동 제외한다.
+채택 근거는 `docs/research/전략_검증_보고서.md` 부록 G.1.
 
 **부작용**: SMA 는 앞 `ma_window - 1` 행이 NaN 이므로 그만큼 백테스트 유효 시작일이 뒤로 밀린다.
 짧은 합성 데이터로 테스트를 만들 때는 `ma_window` 를 데이터 길이에 맞춰 지정해야 워밍업 구간에 갇히지 않는다.
@@ -544,6 +119,16 @@ Lookahead 금지:
 - 강제청산 없음: 마지막 날에 포지션이 남아있어도 강제 매도하지 않음
 - 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy (보유중)"` 마커로 표시된다
 
+### 8. 포트폴리오 규칙
+
+- **리밸런싱**: 엔진 고정 정책 `DEFAULT_REBALANCE_POLICY`(실험 설정으로 바꾸지 않는다). 월 마지막 거래일 종가에 목표 비중 대비 상대 편차가 임계값을 넘으면 다음 거래일 시가에 목표로 맞춘다. 월중에는 리밸런싱하지 않으며, 월중 버퍼존 재진입은 가용 현금으로 목표액만큼만 산다. 판단일에 진입 신호가 났거나 목표 비중이 바뀐 자산은 편차 판정에서 빠진다 — 남은 자산의 편차가 임계값을 넘을 때만 리밸런싱하고, 그때는 진입 자산까지 맞춘다 (결정 근거: `docs/research/전략_검증_보고서.md` 부록 L)
+- **매매법**: 매매법마다 장부(몫 · 현금 · 보유 주수 · 손익)를 둔다. 매매법이 하나인 실험은 장부 하나가 곧 계좌다. 같은 판단일에 어느 매매법이든 몫(매매법 자본 합 대비)의 상대 편차가 임계값을 넘으면 전 매매법을 목표 몫으로 되돌리고, 각자 보유 종목 전부를 새 몫으로 맞춘다
+- **체결 순서**: 전 매매법 매도 → 매매법 사이 이전 → 전 매매법 매수. 이전은 내주는 쪽의 매도 뒤 현금 안에서만 하고 모자라면 받는 쪽을 계획 비율대로 줄이며, 매수 총액이 현금을 넘으면 주수를 비례 축소한다 — 어느 장부도 현금이 음수가 되지 않는다. 같은 날 체결 순서는 설정 순서로 고정한다 — 집합 순서(문자열 해시 무작위화)로 돌면 같은 코드에서도 결과 파일이 실행마다 달라진다
+- **종목 단위 상계**: 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × `SLIPPAGE_RATE` 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음) — Σ 매매법 손익 + 상계 절감 = 계좌 손익
+- **신호 시세**: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다
+- **현금 버퍼**: 목표 비중 합이 1 미만이면 나머지는 현금으로 둔다
+- **시작일**: 실험마다 자산 교집합 + 이동평균 워밍업 뒤 첫날이다(`compute_portfolio_effective_start_date`). 설정에 `min_start_date` 가 있는 실험은 그날 시작하고, 러너 · 그리드 워커가 실제 시작일을 대조한다(`run_with_start_check`)
+
 ---
 
 ## 핵심 계산 로직
@@ -560,82 +145,5 @@ lower_band = ma * (1 - sell_buffer_zone_pct)   # 매도 청산 기준
 - 총 수익률: `(final_capital - initial_capital) / initial_capital * 100`
 - CAGR: `((final_capital / initial_capital) ^ (ANNUAL_DAYS / 총일수)) - 1`
 - MDD: 자본 곡선에서 최대 낙폭 계산
-- Calmar: `CAGR / |MDD|` (|MDD| < EPSILON이면 CAGR > 0일 때 1e10 + CAGR, 아니면 0.0)
+- Calmar: `CAGR / |MDD|` (|MDD| < EPSILON이면 CAGR > 0일 때 `CALMAR_MDD_ZERO_SUBSTITUTE` + CAGR, 아니면 0.0)
 - 승률: `profitable_trades / total_trades * 100`
-
----
-
-## 대시보드 앱 아키텍처
-
-### 동적 전략 탭 (`scripts/backtest/app_single_backtest.py`)
-
-대시보드는 `BACKTEST_RESULTS_DIR` 하위 디렉토리를 자동 탐색하여 전략별 탭을 생성한다.
-새로운 전략이 추가되면 결과 폴더만 있으면 앱 코드 수정 없이 자동으로 탭이 추가된다.
-
-핵심 설계:
-
-- **전략 자동 탐색**: `_discover_strategies()`가 하위 디렉토리의 `summary.json` 존재 여부로 유효한 전략 결과를 판별
-- **Feature Detection**: 전략명 분기(`if strategy == "buffer_zone"`) 없이 데이터 존재 여부로 차트 오버레이 결정
-  - `ma_*` 컬럼 존재 → MA 오버레이 추가
-  - `upper_band`/`lower_band` 존재 → 밴드 오버레이 추가 (단일 백테스트는 equity_df, 포트폴리오는 signal_df의 컬럼을 본다 — buffer_zone 자산만 컬럼 존재)
-  - `trades_df`가 비어있지 않음 → 완료된 거래 Buy/Sell 마커 추가
-  - `summary.open_position` 존재 → 미청산 포지션 Buy 마커 추가 (`"Buy (보유중)"`)
-- **날짜 표기**: `localization.dateFormat: "yyyy-MM-dd"` 설정으로 한국식 날짜 형식 적용
-- **customValues**: lightweight-charts v5 내장 기능. Python에서 `customValues` dict를 전달하여 JS `subscribeCrosshairMove` 콜백에서 tooltip으로 표시
-  - OHLC 가격: `open`, `high`, `low`, `close`
-  - 전일종가대비%: `open_pct`, `high_pct`, `low_pct`, `close_pct` — 모두 `run_*.py`가 사전 계산해 signal CSV에 저장한 컬럼을 직접 읽는다 (대시보드는 산식을 자체 수행하지 않는다)
-  - 지표: `ma`, `upper`, `lower`
-  - 포트폴리오: `equity`, `dd`
-- **display_name 필수**: `summary.json`에 `display_name`이 없으면 `ValueError` 발생
-
-### 포트폴리오 비교 대시보드 (`scripts/backtest/app_portfolio_backtest.py`)
-
-설정에 정의된 포트폴리오 실험 결과를 비교하는 대시보드.
-
-핵심 설계:
-
-- **실험 자동 탐색**: `_discover_experiments()`가 `PORTFOLIO_RESULTS_DIR` 하위 summary.json 존재 여부로 유효 실험 판별
-- **탭 구조**: "전체 비교" 탭 + 실험별 탭 (알파벳 순 자동 생성)
-- **Plotly 전용**: lightweight-charts 없이 Plotly만 사용 (멀티 시리즈 라인 차트가 주목적)
-- **에쿼티 비교**: 초기 자본이 동일(10,000,000원)이므로 정규화 없이 절대값 비교
-- **전체 비교 탭 주요 기능**: 성과 지표 비교 테이블, 에쿼티 곡선 비교 (멀티 셀렉트), 드로우다운 비교
-- **실험별 탭 주요 기능**: 요약 지표, 에쿼티+드로우다운 서브플롯, 자산별 비중 추이, 시그널 차트(자산 선택), 월별 수익률 히트맵, 자산별 수익 기여도
-- **체결일별 전후 표는 두지 않는다**: 체결일의 자산별 주수 · 비중 · 평가액은 `equity.csv`(날마다) · `state_log.csv`(체결 의도 · 주수 · 가격)에 이미 있다. 따로 만든 표는 매도 거래의 청산일로만 체결일을 뽑아 매수만 있는 날을 빠뜨렸고 사유를 그날 계좌 사유 하나로 붙였다
-- **매매법이 여럿인 실험**: 기존 섹션은 자산 키(「매매법.종목」) 단위로 그대로 보이고, `ledger.csv` 가 있으면 「매매법별 손익」 섹션(매매법별 누적 손익 · 몫과 목표 몫 추이 · 최종일 매매법 요약 · 매매법 × 종목 손익 · 손익 대조 · 계좌 종목 합계)을 더한다. 숫자는 러너가 summary.json 에 미리 계산한다. 러너가 저장 전에 낡은 `ledger.csv` 를 지우므로 그 파일이 있으면 매매법이 여럿인 실험이다
-- **리밸런싱 마커의 사유**: 에쿼티 차트 마커의 hover 는 매매법이 여럿이면 장부의 매매법별 사유를 한 줄씩 보인다(빈 사유 = 배분 규칙의 비중 조정). equity 의 계좌 사유는 그날 리밸런싱한 매매법 중 설정 순서상 첫 매매법의 사유 하나라, 같은 날 다른 매매법이 한 일을 가린다. 사유 값은 `constants.py` 의 `REBALANCE_REASON_*`
-- **미청산 포지션 Buy 마커**: summary.json의 `per_asset[*].open_position`(= `{entry_date, entry_price, shares}`) 존재 시 시그널 차트의 그 진입일 Buy 마커를 `"Buy (보유중)"` 으로 표시. 시그널 차트는 신호 거래(`trade_type == "signal"`)만 마커로 그리고 리밸런싱 거래는 그리지 않는다. 포트폴리오에서는 미청산 정보가 자산별 키(`per_asset`)에 담긴다. `run_portfolio_backtest.py`가 equity.csv의 `{asset_id}_shares` 변화(0→양수 마지막 전환)에서 `entry_date`를 파생하여 저장한다.
-
-선행 조건: `run_portfolio_backtest.py`를 먼저 실행하여 `storage/results/portfolio/` 데이터 생성 필요
-
-### Vendor Fork (`vendor/streamlit-lightweight-charts-v5/`)
-
-- `streamlit-lightweight-charts-v5` 포크를 `vendor/` 디렉토리에 포함
-- TSX 소스에 `subscribeCrosshairMove` 기반 커스텀 tooltip 추가
-- cleanup 함수에 `unsubscribeCrosshairMove` + tooltip DOM 제거 포함
-- `pyproject.toml`에서 editable 모드로 참조: `{path = "vendor/streamlit-lightweight-charts-v5", develop = true}`
-- `develop = true`로 Poetry가 editable 설치 → `__file__`이 vendor 디렉토리를 직접 가리킴
-- 팀원은 `poetry install`만 실행하면 됨 (Node.js 불필요, 빌드 결과물 포함)
-- TSX 수정 후 반영 절차 (2단계):
-  ```bash
-  # 1. 프론트엔드 빌드
-  cd vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend && npm run build
-  # 2. Streamlit 앱 재시작 + 브라우저 하드 리프레시 (Ctrl+Shift+R)
-  ```
-
----
-
-## 테스트 커버리지
-
-테스트 파일은 [tests/qbt/](../../../tests/qbt/) 디렉토리에 위치한다. 구체적인 파일 목록은 변경 빈도가 높으므로 본 문서에 나열하지 않으며, 디렉토리를 직접 참조할 것.
-
-테스트 범위 (계약/불변조건 단위):
-
-- 신호 생성 로직 및 거래 체결 타이밍
-- 파라미터 유효성 검증
-- 엣지 케이스 (빈 데이터, 극단값)
-- 그리드 서치 병렬 처리
-- resolve_params 파라미터 결정 (FIXED 고정값)
-- run_single → SingleBacktestResult 구조 검증
-- 워크포워드 윈도우 생성 / 파라미터 선택 / 요약 집계 / 일정 스케줄링
-- 포트폴리오 엔진 (계획 / 체결 / 검증 / 전략 타입 / 상태 로그)
-- 미청산 포지션 (open_position): 포지션 보유 시 포함 / 미보유 시 미포함 검증
