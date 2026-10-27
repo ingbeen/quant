@@ -6,7 +6,7 @@
 > 이동평균 기준: **SMA200** (전략_검증_보고서 부록 G)
 > 데이터 기준일: 2026-08-21 (equity.csv 종료일)
 > 분석 기간: 2007-04-09 ~ 2026-08-21 (4,874일)
-> 재현 방법: 12장에 계산 코드 전문 포함 (별도 스크립트 파일 없음)
+> 재현 방법: 12장 (계산 코드와 입력 파일은 커밋 `18b75fb` 에 있다)
 
 ---
 
@@ -106,10 +106,7 @@ Q-2-2XS는 QQQ 대비 수익률은 비슷하면서 최대낙폭이 절반 수준
 
 ### 시그널 규칙 (buffer_zone, 주식 슬롯에만 적용)
 
-```
-upper_band = MA200 × (1 + 0.03)   # 매수 진입 기준
-lower_band = MA200 × (1 - 0.05)   # 매도 청산 기준
-```
+밴드 산식은 [src/qbt/backtest/CLAUDE.md](../../src/qbt/backtest/CLAUDE.md) 「핵심 계산 로직」, 파라미터는 4P(이동평균 200 · 매수 버퍼 3% · 매도 버퍼 5% · 유지 3일)다.
 
 > **이 연구의 모든 실측 수치는 `MA200 = SMA200` 기준이다** (근거: `전략_검증_보고서.md` 부록 G).
 > EMA200 기준으로 작성된 최초 버전의 수치는 2026-08-30 에 전량 재산출되었으며,
@@ -121,27 +118,13 @@ lower_band = MA200 × (1 - 0.05)   # 매도 청산 기준
 
 ### 리밸런싱 및 비용
 
-| 항목 | 값 |
-| --- | --- |
-| 월 첫 거래일 리밸런싱 임계값 | 0.10 (10%) |
-| 일간 긴급 리밸런싱 임계값 | 0.20 (20%) |
-| 거래 비용 | 편도 `SLIPPAGE_RATE` 0.003 (왕복 0.6%) |
-| 초기 자본 | 10,000,000 |
+리밸런싱은 이 연구를 계산할 때의 규칙(월 첫 거래일 편차 10% · 평일 긴급 20%), 거래 비용은 편도 `SLIPPAGE_RATE` 0.3%, 초기 자본은 10,000,000 이다.
 
-> **[구 규칙]** 위 리밸런싱 임계값은 이 연구를 계산할 때의 규칙이다. 2026-10-03 부터 엔진은 「월 마지막 거래일 종가 판단 → 다음 거래일 시가, 편차 10% 초과 시에만, 긴급 없음」으로 바뀌었다 — `전략_검증_보고서.md` 부록 L
+> **[구 규칙]** 지금 리밸런싱 규칙과 바뀐 경위는 `전략_검증_보고서.md` 부록 L
 
 ### 전체 성과 (참고용)
 
-| 지표 | Q-2-2XS | QQQ Buy & Hold |
-| --- | --- | --- |
-| 기간 | 2007-04-09 ~ 2026-08-21 (19.4년) | 동일 |
-| 총 수익률 | 1,510.39% | 1,772.58% |
-| CAGR | 15.43% | 16.33% |
-| MDD | **-27.56%** | -53.40% |
-| Calmar | **0.56** | 0.31 |
-| Sharpe | 0.85 | 0.79 |
-| Sortino | 1.04 | 1.03 |
-| 총 거래 | 179건 | 1건 |
+같은 기간(2007-04-09 ~ 2026-08-21, 19.4년)에 Q-2-2XS 는 CAGR 15.43% / MDD **-27.56%** / Calmar **0.56**, QQQ Buy & Hold 는 16.33% / -53.40% / 0.31 이다. Q-2-2XS 의 기준별 값은 `전략_검증_보고서.md` 부록 L.8 의 표에 있다.
 
 > 기간 시작이 2006-06-21 → 2007-04-09 로 밀린 것은 SMA200 의 워밍업 199행이 NaN 이기 때문이다
 > (부록 G.5). QQQ B&H 는 동일 기간으로 잘라 재계산한 값이다.
@@ -384,86 +367,14 @@ GLD 15% + TLT 15%를 상시 보유함에도 주식 보유 구간 상관이 0.972
 
 ## 12. 재현 방법
 
-### 선행 조건
-
-`storage/results/portfolio/portfolio_q2_2xs/equity.csv`가 존재해야 한다.
-생성 방법은 [docs/COMMANDS.md](../COMMANDS.md)의 포트폴리오 백테스트 실행 명령 참조.
-
-### 계산 코드
-
-본 연구는 일회성 분석이므로 스크립트 파일을 저장소에 두지 않는다. 아래 코드를 임시 파일로 저장해 실행하면 문서의 모든 수치를 재현할 수 있다.
-
-```python
-"""Q-2-2XS 에쿼티와 QQQ 종가 간 상관 구조 분석"""
-
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
-
-EQUITY_PATH = Path("storage/results/portfolio/portfolio_q2_2xs/equity.csv")
-QQQ_PATH = Path("storage/stock/QQQ_max.csv")
-
-eq = pd.read_csv(
-    EQUITY_PATH, parse_dates=["Date"], usecols=["Date", "equity", "sso_weight", "qld_weight"]
-)
-qqq = pd.read_csv(QQQ_PATH, parse_dates=["Date"], usecols=["Date", "Close"])
-
-df = pd.merge(eq, qqq, on="Date", how="inner").sort_values("Date").reset_index(drop=True)
-df["r_pf"] = df["equity"].pct_change()
-df["r_qqq"] = df["Close"].pct_change()
-df["stock_w"] = df["sso_weight"] + df["qld_weight"]
-d = df.dropna(subset=["r_pf", "r_qqq"]).copy()
-
-print(f"공통 기간: {df['Date'].iloc[0].date()} ~ {df['Date'].iloc[-1].date()} ({len(d)}일)")
-
-# 6장: 기간별 상관계수
-print(f"일별: {d['r_pf'].corr(d['r_qqq']):.4f}")
-idx = df.set_index("Date")[["equity", "Close"]]
-for label, rule in (("주별", "W-FRI"), ("월별", "ME"), ("분기별", "QE")):
-    rr = idx.resample(rule).last().dropna().pct_change().dropna()
-    print(f"{label}: {rr['equity'].corr(rr['Close']):.4f} (n={len(rr)})")
-print(f"레벨 상관: {df['equity'].corr(df['Close']):.4f}")
-
-# 7장: 상태별 분해
-no_stock = d["stock_w"] <= 0.01
-full = d["stock_w"] > 0.5
-for label, sub in (
-    ("전체", d),
-    ("주식 보유(>50%)", d[full]),
-    ("주식 없음(<=1%)", d[no_stock]),
-    ("주식 없음 제외", d[~no_stock]),
-):
-    corr = sub["r_pf"].corr(sub["r_qqq"])
-    beta = sub["r_pf"].cov(sub["r_qqq"]) / sub["r_qqq"].var()
-    print(
-        f"{label:<18} 상관 {corr:>7.4f} | 베타 {beta:>6.3f} | "
-        f"변동폭 {sub['r_pf'].std()*100:.2f}% vs {sub['r_qqq'].std()*100:.2f}% | n={len(sub)}"
-    )
-
-# 8장: 변동폭 무관성 검증
-r = d["r_qqq"].reset_index(drop=True)
-rng = np.random.default_rng(0)
-for k in (0.1, 0.5, 1.0, 2.0, 3.0):
-    print(f"[실험1] {k}배 고정 -> {r.corr(r * k):.4f}")
-for spread in (0.0, 0.3, 0.8, 1.5):
-    y = pd.Series(r.to_numpy() * (1.0 + rng.normal(0, spread, len(r))))
-    print(f"[실험2] 흔들림 {spread} -> {r.corr(y):.4f}")
-for p in (0.0, 0.05, 0.15, 0.30):
-    y = r.to_numpy() * 2.0
-    y[rng.random(len(r)) < p] = 0.0
-    print(f"[실험3] 현금 {p:.0%} -> {r.corr(pd.Series(y)):.4f}")
-
-# 9장: 연도별
-for year, g in d.groupby(d["Date"].dt.year):
-    cash_days = int((g["stock_w"] <= 0.01).sum())
-    print(f"{year}: 현금 {cash_days:>3}/{len(g):>3}일, 상관 {g['r_pf'].corr(g['r_qqq']):.4f}")
-```
+계산 코드는 이 문서에 두지 않는다. 커밋 `18b75fb` 의 이 문서 12장에 있다(`git show 18b75fb:docs/research/Q2_2XS_QQQ_상관계수_연구.md`).
+같은 커밋의 `storage/results/portfolio/portfolio_q2_2xs/equity.csv` · `storage/stock/QQQ_max.csv` 를 같은 상대 경로로 둔 폴더에서 돌리면 —
+작업 트리의 파일을 덮어쓰지 않도록 — 6 ~ 9장의 모든 수치가 나온다(2026-10-25 다시 확인).
 
 ### 주의
 
 - 실험 2·3은 난수를 사용하므로 시드 `0`을 유지해야 문서의 값과 일치한다.
   **표본 수가 바뀌면 값도 바뀐다** — EMA 시절 5,053일에서 SMA 4,874일로 줄면서 실험 2·3의 결과가 함께 이동했다.
-- QQQ Buy & Hold 성과(3장)는 `storage/stock/QQQ_max.csv`를 2007-04-09 ~ 2026-08-21로 잘라 별도 계산한 값이며, 위 코드에는 포함되어 있지 않다.
-- **EMA 시절 수치와 대조하려면** `3d1b23d` 커밋의 `equity.csv`를 꺼내 위 코드에 넣되, 반드시
+- QQQ Buy & Hold 성과(3장)는 `storage/stock/QQQ_max.csv`를 2007-04-09 ~ 2026-08-21로 잘라 별도 계산한 값이며, 그 코드에는 포함되어 있지 않다.
+- **EMA 시절 수치와 대조하려면** `3d1b23d` 커밋의 `equity.csv`를 꺼내 그 코드에 넣되, 반드시
   `2007-04-09` 이후로 잘라 표본을 맞춘다. 자르지 않으면 EMA 쪽이 2006-06-21부터 시작해 비교가 성립하지 않는다.
