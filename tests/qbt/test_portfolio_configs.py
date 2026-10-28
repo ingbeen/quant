@@ -198,7 +198,7 @@ class TestQSeriesConfigs:
 
 
 class TestSupplementConfigs:
-    """보완 전략 등록 실험 (채택 조합 Q-2-2XS 80% + HAA 10% + 로테이션 10%, 설계서 D75) 계약 테스트."""
+    """보완 전략 등록 실험 (채택 조합 Q-2-2XS 80% + HAA 10% + 로테이션 10%, 부록 M) 계약 테스트."""
 
     def test_adopted_combo_is_registered_as_grid_built(self) -> None:
         """
@@ -233,7 +233,7 @@ class TestSupplementConfigs:
     @pytest.mark.parametrize("name", [f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation")])
     def test_pre_adoption_25pct_experiments_are_not_registered(self, name: str) -> None:
         """
-        목적: 채택 전 25% 등록 넷은 공식 목록에 없다 — 채택하지 않은 보완 전략 등록은 지운다(D52).
+        목적: 채택 전 25% 등록 넷은 공식 목록에 없다 — 채택하지 않은 보완 전략 등록은 지운다.
 
         Given: 채택 전 등록 실험 이름
         When:  get_portfolio_config 로 조회한다

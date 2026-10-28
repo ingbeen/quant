@@ -1,8 +1,8 @@
 """보완 전략 실험 모듈 테스트
 
 Q-2-2XS (100−w)% + 후보 w% 비중 그리드의 구성 만들기 · 실행 목록 · 지표 · 신호 일치율 ·
-기준선 대비 우위 · 통과 판정(D24 · D47) · 대용 검증(D23 · D41 · D48)의 계약과,
-조합 실험(D55 – D69)이 쓰는 대체 판 · 조합 구성 · 2001 – 2007 국면 구간의 계약을 검증한다.
+기준선 대비 우위 · 통과 판정 · 대용 검증의 계약과,
+조합 실험이 쓰는 대체 판 · 조합 구성 · 2001 – 2007 국면 구간의 계약을 검증한다.
 
 왜 중요한가요?
 통과 · 탈락은 사용자가 이 숫자를 보고 정한다. 비교 상대(같은 시작일 · 같은 w 의 기준선),
@@ -141,7 +141,7 @@ class TestBuildExperimentConfig:
     @pytest.mark.parametrize("candidate", se.SUPPLEMENT_CANDIDATES + (se.CANDIDATE_BASELINE,))
     def test_shares_sum_to_one_and_q2_2xs_first(self, candidate: str) -> None:
         """
-        목적: 모든 w 에서 Q-2-2XS 매매법이 앞이고 몫이 (100 − w)% · w% 로 합이 1 이다 (D5 · D40).
+        목적: 모든 w 에서 Q-2-2XS 매매법이 앞이고 몫이 (100 − w)% · w% 로 합이 1 이다.
 
         Given: 후보 하나
         When:  w 7단계 각각으로 구성을 만든다
@@ -163,7 +163,7 @@ class TestBuildExperimentConfig:
 
     def test_allocator_candidates_use_rule_ids(self) -> None:
         """
-        목적: 배분 규칙 후보의 자산 · 시세 id 가 규칙이 요구하는 id 와 같다 (D44 ③).
+        목적: 배분 규칙 후보의 자산 · 시세 id 가 규칙이 요구하는 id 와 같다.
 
         Given: HAA · 로테이션 · EWY
         When:  구성을 만든다
@@ -197,7 +197,7 @@ class TestBuildExperimentConfig:
     )
     def test_haa_variant_data_paths(self, variant: str, vea: Path, bil: Path, pdbc: Path) -> None:
         """
-        목적: HAA 의 대용 3쌍(VEA · BIL · PDBC)이 판마다 정한 파일을 가리킨다 (D46 · D48 ② ③).
+        목적: HAA 의 대용 3쌍(VEA · BIL · PDBC)이 판마다 정한 파일을 가리킨다.
 
         Given: HAA 와 판 하나
         When:  구성을 만든다
@@ -223,7 +223,7 @@ class TestBuildExperimentConfig:
     )
     def test_rotation_variant_data_paths(self, variant: str, vxus: Path) -> None:
         """
-        목적: 로테이션의 VXUS 가 판마다 정한 파일을 가리킨다 (D39 · D48 ②).
+        목적: 로테이션의 VXUS 가 판마다 정한 파일을 가리킨다.
 
         Given: 로테이션과 판 하나
         When:  구성을 만든다
@@ -240,7 +240,7 @@ class TestBuildExperimentConfig:
     @pytest.mark.parametrize(("candidate", "asset_id"), [(se.CANDIDATE_BASELINE, "shy"), (se.CANDIDATE_GOLD, "gld")])
     def test_hold_candidates_are_single_buy_and_hold_slot(self, candidate: str, asset_id: str) -> None:
         """
-        목적: 기준선(SHY) · 금 확대는 그 자산 하나를 매매법 자본의 100% 로 보유만 한다 (D4 · 7.1 · 7.2).
+        목적: 기준선(SHY) · 금 확대는 그 자산 하나를 매매법 자본의 100% 로 보유만 한다.
 
         Given: 기준선 · 금 확대
         When:  구성을 만든다
@@ -257,7 +257,7 @@ class TestBuildExperimentConfig:
 
     def test_shared_assets_use_q2_2xs_paths(self) -> None:
         """
-        목적: Q-2-2XS 와 같은 종목(GLD · TLT)은 같은 자산 id · 같은 파일이라 상계된다 (D17).
+        목적: Q-2-2XS 와 같은 종목(GLD · TLT)은 같은 자산 id · 같은 파일이라 상계된다.
 
         Given: 금 확대와 HAA
         When:  구성을 만든다
@@ -293,7 +293,7 @@ class TestBuildExperimentConfig:
 
     def test_names_and_min_start_date(self) -> None:
         """
-        목적: 실험 이름과 시작일 하한 칸 — 등록 이름은 portfolio_q2_2xs_{후보}{w} 이고 대용 판은 접미사가 붙는다 (D48 ⑨).
+        목적: 실험 이름과 시작일 하한 칸 — 등록 이름은 portfolio_q2_2xs_{후보}{w} 이고 대용 판은 접미사가 붙는다.
 
         Given: HAA w=30 의 이어 붙인 판 · 순수 대용판, Q-2-2XS 단독
         When:  구성을 만든다
@@ -336,7 +336,7 @@ class TestBuildExperimentConfig:
             se.build_experiment_config(candidate, w_pct, variant, _START)
 
 
-# 대체 판 후보 — 조합 실험(D55)에 쓰는 것만 대체 판을 받는다 (D69 ③)
+# 대체 판 후보 — 조합 실험에 쓰는 것만 대체 판을 받는다
 _ALT_CANDIDATES: list[tuple[str, int]] = [
     (se.CANDIDATE_Q2_2XS, 0),
     (se.CANDIDATE_BASELINE, 30),
@@ -348,11 +348,11 @@ _KEPT_REAL_PATHS = {SPY_DATA_PATH, QQQ_DATA_PATH, IWM_DATA_PATH}
 
 
 class TestAltVariant:
-    """대체 판 — 실물판 설정의 경로를 「실물 파일 → 대체 파일」 표 하나로 바꾼다 (D57 · D59 · D69 ②)."""
+    """대체 판 — 실물판 설정의 경로를 「실물 파일 → 대체 파일」 표 하나로 바꾼다."""
 
     def test_path_map_is_the_planned_table(self) -> None:
         """
-        목적: 대체 판 경로 표가 설계서 8.4 의 13종이다 — 원자재는 실물판의 DBC → PDBC 이어 붙인 판을 GSCI → DBC 로 바꾼다.
+        목적: 대체 판 경로 표가 부록 M.3.3 의 13종이다 — 원자재는 실물판의 DBC → PDBC 이어 붙인 판을 GSCI → DBC 로 바꾼다.
 
         Given: 경로 표
         When:  그대로 읽는다
@@ -414,7 +414,7 @@ class TestAltVariant:
 
     def test_q2_2xs_slots_keep_index_signals(self) -> None:
         """
-        목적: Q-2-2XS 의 SSO · QLD 는 매매만 2배 합성으로 바뀌고 신호는 SPY · QQQ 실물 그대로다 (D57 ①).
+        목적: Q-2-2XS 의 SSO · QLD 는 매매만 2배 합성으로 바뀌고 신호는 SPY · QQQ 실물 그대로다.
 
         Given: Q-2-2XS 단독 대체 판
         When:  구성을 만든다
@@ -433,7 +433,7 @@ class TestAltVariant:
 
     def test_shared_tlt_is_same_alt_file(self) -> None:
         """
-        목적: Q-2-2XS 와 HAA 의 tlt 가 대체 판에서도 같은 파일(VUSTX)이다 — 같은 자산 id 는 같은 매매 데이터여야 상계된다 (D17).
+        목적: Q-2-2XS 와 HAA 의 tlt 가 대체 판에서도 같은 파일(VUSTX)이다 — 같은 자산 id 는 같은 매매 데이터여야 상계된다.
 
         Given: HAA 대체 판
         When:  구성을 만든다
@@ -491,7 +491,7 @@ class TestAltVariant:
     @pytest.mark.parametrize("candidate", [se.CANDIDATE_GOLD, se.CANDIDATE_EWY])
     def test_alt_is_not_for_other_candidates(self, candidate: str) -> None:
         """
-        목적: 금 확대 · EWY 는 대체 판을 받지 않는다 (D69 ③).
+        목적: 금 확대 · EWY 는 대체 판을 받지 않는다.
 
         Given: 금 확대 · EWY
         When:  대체 판 구성을 만든다
@@ -505,7 +505,7 @@ _COMBO_VARIANTS = (se.VARIANT_SPLICED, se.VARIANT_REAL, se.VARIANT_ALT)
 
 
 class TestBuildComboConfig:
-    """build_combo_config — Q-2-2XS + HAA + 로테이션 세 매매법 구성 (D55 · D56 · D69 ④)."""
+    """build_combo_config — Q-2-2XS + HAA + 로테이션 세 매매법 구성."""
 
     @pytest.mark.parametrize("variant", _COMBO_VARIANTS)
     def test_shares_and_method_order(self, variant: str) -> None:
@@ -617,7 +617,7 @@ class TestBuildComboConfig:
     )
     def test_invalid_combination_raises(self, haa_pct: int, rotation_pct: int, variant: str) -> None:
         """
-        목적: 격자 밖 비중 · 정하지 않은 판은 즉시 ValueError (D56 ① · D69 ④).
+        목적: 격자 밖 비중 · 정하지 않은 판은 즉시 ValueError.
 
         Given: 잘못된 비중 또는 판
         When:  조합 구성을 만든다
@@ -680,7 +680,7 @@ class TestGridCases:
 
     def test_group_start_dates(self) -> None:
         """
-        목적: 묶음마다 모든 구성이 같은 시작일이다 (D45 · D48 ② ③).
+        목적: 묶음마다 모든 구성이 같은 시작일이다.
 
         Given: 실행 목록
         When:  묶음별 시작일 집합을 모은다
@@ -704,7 +704,7 @@ class TestGridCases:
 
     def test_every_candidate_run_has_same_start_baseline(self) -> None:
         """
-        목적: 후보 실행마다 같은 시작일 · 같은 w 의 기준선 실행이 있다 (D4 · D24 의 비교 상대).
+        목적: 후보 실행마다 같은 시작일 · 같은 w 의 기준선 실행이 있다 (판정의 비교 상대).
 
         Given: 실행 목록
         When:  기준선 (시작일, w) 집합을 만든다
@@ -726,7 +726,7 @@ class TestGridCases:
 
 
 class TestPhaseMetrics:
-    """phase_metrics 의 국면 수익률 · 구간 MDD · 기간 밖 처리 계약 (D48 ⑦)."""
+    """phase_metrics 의 국면 수익률 · 구간 MDD · 기간 밖 처리 계약."""
 
     _DATES = [date(2020, 1, d) for d in (2, 3, 6, 7, 8, 9)]
     _EQUITY = [100.0, 110.0, 99.0, 121.0, 108.9, 130.0]
@@ -790,7 +790,7 @@ class TestPhaseMetrics:
 
     def test_phase_windows_do_not_overlap_within_same_phase(self) -> None:
         """
-        목적: 금융위기와 미국 약세 ① 은 하루도 겹치지 않는다 (D48 ⑦).
+        목적: 금융위기와 미국 약세 ① 은 하루도 겹치지 않는다.
 
         Given: 국면 구간 상수
         When:  두 구간을 찾는다
@@ -804,11 +804,11 @@ class TestPhaseMetrics:
 
 
 class TestEarlyPhaseWindows:
-    """대체 판에만 있는 2001 – 2007 국면 두 구간 (D68)."""
+    """대체 판에만 있는 2001 – 2007 국면 두 구간."""
 
     def test_dates(self) -> None:
         """
-        목적: 닷컴 하락 후반 2001-09-04 – 2002-10-09, 미국 약세 2002 – 07 2002-10-10 – 2007-10-08 (D68).
+        목적: 닷컴 하락 후반 2001-09-04 – 2002-10-09, 미국 약세 2002 – 07 2002-10-10 – 2007-10-08.
 
         Given: 국면 구간 상수
         When:  날짜를 읽는다
@@ -852,7 +852,7 @@ class TestEarlyPhaseWindows:
 
     def test_dotcom_late_is_empty_when_run_starts_inside(self) -> None:
         """
-        목적: 실행이 구간 첫날(2001-09-04)에 시작하면 전날 자본이 없어 빈 값 — D68 이 시작을 실행 첫날 다음 날로 둔 이유.
+        목적: 실행이 구간 첫날(2001-09-04)에 시작하면 전날 자본이 없어 빈 값 — 닷컴 하락 후반이 실행 첫날 다음 날 시작하는 이유.
 
         Given: 2001-09-04 부터의 거래일
         When:  닷컴 하락 후반 국면 지표를 잰다
@@ -867,7 +867,7 @@ class TestEarlyPhaseWindows:
 
 
 class TestAnnualTurnover:
-    """annual_turnover 계약 — 매수 · 매도 금액을 모두 센다 (D48 ⑪)."""
+    """annual_turnover 계약 — 매수 · 매도 금액을 모두 센다."""
 
     def test_counts_buys_and_sells(self) -> None:
         """
@@ -971,7 +971,7 @@ class TestSummarizeRun:
 
 
 class TestDecisionAgreement:
-    """신호 일치율 — 월말 판단 직후 목표 비중만 비교한다 (D48 ①)."""
+    """신호 일치율 — 월말 판단 직후 목표 비중만 비교한다."""
 
     @staticmethod
     def _state_log(weights: list[float]) -> pd.DataFrame:
@@ -1132,7 +1132,7 @@ class TestAdvantages:
 
 
 class TestJudge:
-    """D24 판정 (D47 해석) — 두 기간 모두 기준선보다 높은 w 가 3단계 이상 연달아."""
+    """통과 판정 — 두 기간 모두 기준선보다 높은 w 가 3단계 이상 연달아."""
 
     def test_three_consecutive_pass(self) -> None:
         """
@@ -1172,7 +1172,7 @@ class TestJudge:
 
     def test_sub_period_must_support_each_w(self) -> None:
         """
-        목적: 주 비교 7단계가 모두 높아도 보조 기간이 받쳐 주는 연속 구간만 고원이다 (D47 예).
+        목적: 주 비교 7단계가 모두 높아도 보조 기간이 받쳐 주는 연속 구간만 고원이다.
 
         Given: 주 비교 10 – 40% 전부 양, 보조 20 · 25 · 30% 만 양
         When:  판정한다
@@ -1234,7 +1234,7 @@ class TestJudge:
 
     def test_sub_only_basis_ignores_main_period(self) -> None:
         """
-        목적: 대용이 탈락한 후보는 보조 기간만으로 판정한다 (D23 · D48 ⑤).
+        목적: 대용이 탈락한 후보는 보조 기간만으로 판정한다.
 
         Given: 주 비교는 전부 음, 보조 20 · 25 · 30% 양
         When:  주 비교 없이(None) 판정한다
@@ -1252,7 +1252,7 @@ class TestJudge:
 
 
 class TestGateAgreement:
-    """판정 일치 (D41) — w 별 「기준선보다 높은가」가 대용판 · 실물판에서 같은가."""
+    """판정 일치 — w 별 「기준선보다 높은가」가 대용판 · 실물판에서 같은가."""
 
     def test_sign_match_and_plateau_verdict(self) -> None:
         """
@@ -1308,7 +1308,7 @@ class TestCollect:
 
     def test_judgment_marks_boundary_advantage(self) -> None:
         """
-        목적: 우위 절댓값이 0.00005 미만(4자리로 0)인 w 는 「경계」로 표시한다 (D48 ⑥).
+        목적: 우위 절댓값이 0.00005 미만(4자리로 0)인 w 는 「경계」로 표시한다.
 
         Given: 보조 기간 금의 우위가 0.00004 (기준선 0.5, 금 0.50004)
         When:  판정 행을 모은다
@@ -1391,7 +1391,7 @@ class TestCollect:
 
     def test_haa_gates_pair_the_planned_variants(self) -> None:
         """
-        목적: HAA 관문 넷이 정한 대용판 · 실물판을 짝짓는다 (D48 ② ③) — 맞바뀌면 우위 열과 Calmar 차이 부호가 뒤집힌다.
+        목적: HAA 관문 넷이 정한 대용판 · 실물판을 짝짓는다 — 맞바뀌면 우위 열과 Calmar 차이 부호가 뒤집힌다.
 
         Given: HAA 실행마다 다른 Calmar (묶음 · 판별)
         When:  관문 행을 모은다

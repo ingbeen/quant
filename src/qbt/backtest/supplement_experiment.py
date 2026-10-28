@@ -1,11 +1,11 @@
 """보완 전략 실험 — Q-2-2XS (100−w)% + 후보 w% 비중 그리드 · 대용 검증 · 통과 판정
 
-설계서(`docs/research/Q2_2XS_보완_전략_설계.md`) 7 – 9장의 실험을 담는다.
-구성 만들기 · 실행 목록 · 실행 지표 · 신호 일치율 · 기준선 대비 우위 · 통과 판정(D24 · D47) ·
-대용 검증(D23 · D41 · D48)이 여기 있고, 러너(`scripts/backtest/run_supplement_grid.py`)는
+실험의 설계 · 판정 기준 · 결과는 `docs/research/전략_검증_보고서.md` 부록 M 에 있다.
+구성 만들기 · 실행 목록 · 실행 지표 · 신호 일치율 · 기준선 대비 우위 · 통과 판정 ·
+대용 검증이 여기 있고, 러너(`scripts/backtest/run_supplement_grid.py`)는
 병렬 실행 · 반올림 · 저장만 한다.
 
-조합 실험(Q-2-2XS + HAA + 로테이션, D55 – D69)의 구성 만들기 — 대체 판 · `build_combo_config` — 도
+조합 실험(Q-2-2XS + HAA + 로테이션)의 구성 만들기 — 대체 판 · `build_combo_config` — 도
 여기 있다. 단독 구성과 조합 구성이 같은 매매법 정의를 쓰도록 구성 만들기를 한 모듈에 둔다.
 조합의 실행 목록 · 판정은 `combo_experiment` 가 한다.
 
@@ -113,11 +113,11 @@ Q2_2XS_SLOTS: Final[tuple[AssetSlotConfig, ...]] = (
 # 비중 · 판정 기준
 # ============================================================================
 
-W_PCTS: Final[tuple[int, ...]] = (10, 15, 20, 25, 30, 35, 40)  # 후보 비중 w (%, D6)
-COMBO_PCTS: Final[tuple[int, ...]] = (5, 10, 15, 20)  # 조합의 HAA · 로테이션 비중 (%, D56 ①) — 합계가 W_PCTS 를 지난다
-MIN_PLATEAU_STEPS: Final = 3  # 고원 = 기준선보다 높은 w 가 연속 3단계 이상 (D24)
-SIGNAL_AGREEMENT_PASS_RATE: Final = 0.95  # 대용 관문 ② 신호 일치율 비율 (0.95 = 95%, D23)
-# 우위 절댓값이 이보다 작으면 소수 4자리 저장에서 0 이 된다 — 「경계」로 표시해 사용자가 판단한다 (D41 · D48 ⑥)
+W_PCTS: Final[tuple[int, ...]] = (10, 15, 20, 25, 30, 35, 40)  # 후보 비중 w (%)
+COMBO_PCTS: Final[tuple[int, ...]] = (5, 10, 15, 20)  # 조합의 HAA · 로테이션 비중 (%) — 합계가 W_PCTS 를 지난다
+MIN_PLATEAU_STEPS: Final = 3  # 고원 = 기준선보다 높은 w 가 연속 3단계 이상
+SIGNAL_AGREEMENT_PASS_RATE: Final = 0.95  # 대용 관문 ② 신호 일치율 비율 (0.95 = 95%)
+# 우위 절댓값이 이보다 작으면 소수 4자리 저장에서 0 이 된다 — 「경계」로 표시해 사용자가 판단한다
 ADVANTAGE_BOUNDARY: Final = 0.00005
 # 배분 규칙 비중은 0.25 단위 · 0 / 1 이라 같은 판단이면 정확히 같다. 합산 순서 차이만 허용한다
 _WEIGHT_TOLERANCE: Final = 1e-9
@@ -150,12 +150,12 @@ VARIANT_PURE: Final = "pure"  # 순수 대용판 (관문 비교)
 VARIANT_PAIR_VEA: Final = "pair_vea"  # HAA 쌍별 — 한 쌍만 실물
 VARIANT_PAIR_BIL: Final = "pair_bil"
 VARIANT_PAIR_PDBC: Final = "pair_pdbc"
-VARIANT_ALT: Final = "alt"  # 대체 판 — 실물판 파일을 대체 시세로 바꾼 판 (D57 · D59)
+VARIANT_ALT: Final = "alt"  # 대체 판 — 실물판 파일을 대체 시세로 바꾼 판
 
 # HAA 대용 3쌍의 판별 파일 (vea, bil, pdbc). 나머지 HAA 자산은 판과 무관하다
 _HAA_PROXY_PATHS: Final[dict[str, tuple[Path, Path, Path]]] = {
     VARIANT_SPLICED: (VEA_SYNTHETIC_DATA_PATH, BIL_SYNTHETIC_DATA_PATH, PDBC_SYNTHETIC_DATA_PATH),
-    VARIANT_REAL: (VEA_DATA_PATH, BIL_DATA_PATH, PDBC_SYNTHETIC_DATA_PATH),  # 원자재는 이어 붙인 판 (D46)
+    VARIANT_REAL: (VEA_DATA_PATH, BIL_DATA_PATH, PDBC_SYNTHETIC_DATA_PATH),  # 원자재는 이어 붙인 판
     VARIANT_GATE_REAL: (VEA_DATA_PATH, BIL_DATA_PATH, PDBC_DATA_PATH),
     VARIANT_PURE: (EFA_DATA_PATH, SHY_DATA_PATH, DBC_DATA_PATH),
     VARIANT_PAIR_VEA: (VEA_DATA_PATH, SHY_DATA_PATH, DBC_DATA_PATH),
@@ -168,7 +168,7 @@ _HAA_FIXED_PATHS: Final[dict[str, Path]] = {
     "vwo": VWO_DATA_PATH,
     "vnq": VNQ_DATA_PATH,
     "ief": IEF_DATA_PATH,
-    "tlt": TLT_DATA_PATH,  # Q-2-2XS 와 같은 파일이라 상계된다 (D17)
+    "tlt": TLT_DATA_PATH,  # Q-2-2XS 와 같은 파일이라 상계된다
 }
 _ROTATION_VXUS_PATHS: Final[dict[str, Path]] = {
     VARIANT_SPLICED: VXUS_SYNTHETIC_DATA_PATH,
@@ -177,8 +177,8 @@ _ROTATION_VXUS_PATHS: Final[dict[str, Path]] = {
 }
 _PLAIN_VARIANTS: Final[tuple[str, ...]] = (VARIANT_SPLICED, VARIANT_REAL)  # 대용이 없는 후보는 두 판의 데이터가 같다
 
-# 대체 판 = 실물판 설정의 모든 경로를 이 표로 바꾼 것 (D69 ②). 2000-08-30 전에 실물이 없던 13종을
-# 실물이 생긴 뒤에도 대체 시세로 쓴다(D59). 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 tlt 가 같은 파일로 남는다
+# 대체 판 = 실물판 설정의 모든 경로를 이 표로 바꾼 것. 2000-08-30 전에 실물이 없던 13종을
+# 실물이 생긴 뒤에도 대체 시세로 쓴다. 표 하나로 바꾸므로 Q-2-2XS 와 HAA 의 tlt 가 같은 파일로 남는다
 ALT_PATH_MAP: Final[dict[Path, Path]] = {
     SSO_DATA_PATH: SSO_PROXY_DATA_PATH,  # 매매만 — SSO 슬롯의 신호 SPY 는 표 밖이라 그대로
     QLD_DATA_PATH: QLD_PROXY_DATA_PATH,
@@ -187,7 +187,7 @@ ALT_PATH_MAP: Final[dict[Path, Path]] = {
     VEA_DATA_PATH: VTMGX_DATA_PATH,
     VWO_DATA_PATH: VEIEX_DATA_PATH,
     VNQ_DATA_PATH: VGSIX_DATA_PATH,
-    PDBC_SYNTHETIC_DATA_PATH: DBC_SYNTHETIC_DATA_PATH,  # 실물판 원자재는 DBC → PDBC (D46 · D64), 대체는 GSCI → DBC (D58)
+    PDBC_SYNTHETIC_DATA_PATH: DBC_SYNTHETIC_DATA_PATH,  # 실물판 원자재는 DBC → PDBC, 대체는 GSCI → DBC
     IEF_DATA_PATH: VFITX_DATA_PATH,
     BIL_DATA_PATH: BIL_PROXY_DATA_PATH,
     TIP_DATA_PATH: VIPSX_DATA_PATH,
@@ -207,18 +207,18 @@ GROUP_PAIR_VEA: Final = "pair_vea"
 GROUP_PAIR_BIL: Final = "pair_bil"
 GROUP_PAIR_PDBC: Final = "pair_pdbc"
 
-# 묶음 시작일 — Q-2-2XS 70% + 후보 30% 를 엔진에 올려 잰 가장 늦은 시작일 (설계서 8.3, D45)
+# 묶음 시작일 — Q-2-2XS 70% + 후보 30% 를 엔진에 올려 잰 가장 늦은 시작일 (부록 M.3.3)
 MAIN_START_DATE: Final = date(2007, 6, 22)  # Q-2-2XS 와 섞은 HAA
 SUB_START_DATE: Final = date(2011, 11, 10)  # 실물 VXUS 로테이션
 HAA_GATE_START_DATE: Final = date(2015, 11, 9)  # 실물 PDBC + 12개월 점수
 PAIR_VEA_START_DATE: Final = date(2008, 7, 25)
 PAIR_BIL_START_DATE: Final = date(2008, 5, 29)
 
-BASIS_BOTH: Final = "main_and_sub"  # 주 비교 + 보조 (D47)
-BASIS_SUB_ONLY: Final = "sub_only"  # 대용이 탈락한 후보 — 보조 기간만 (D23)
+BASIS_BOTH: Final = "main_and_sub"  # 주 비교 + 보조
+BASIS_SUB_ONLY: Final = "sub_only"  # 대용이 탈락한 후보 — 보조 기간만
 
 GATE_ROTATION: Final = "rotation_vxus"
-GATE_HAA_BUNDLE: Final = "haa_bundle"  # 대용 셋을 한꺼번에 — 관문 (D41)
+GATE_HAA_BUNDLE: Final = "haa_bundle"  # 대용 셋을 한꺼번에 — 관문
 GATE_HAA_PAIR_VEA: Final = "haa_pair_vea"  # 쌍별 — 원인 파악용
 GATE_HAA_PAIR_BIL: Final = "haa_pair_bil"
 GATE_HAA_PAIR_PDBC: Final = "haa_pair_pdbc"
@@ -230,7 +230,7 @@ _EXEC_PRICE_SUFFIX: Final = "_exec_price"
 
 
 # ============================================================================
-# 국면 구간 (설계서 9.2, D48 ⑦)
+# 국면 구간 (부록 M.3.5)
 # ============================================================================
 
 
@@ -257,8 +257,8 @@ PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
     PhaseWindow("inflation_2022", "물가 약세장 2022", date(2022, 1, 3), date(2022, 10, 12)),
     PhaseWindow("gold_weak", "금 약세기 2013-15", date(2013, 1, 1), date(2015, 12, 31)),
 )
-# 대체 판(2001-08-31 부터)에만 기간 안인 구간 (D68). PHASE_WINDOWS 와 따로 두는 이유: 단독 그리드 러너는
-# PHASE_WINDOWS 만 열로 쓰므로, 거기 넣으면 그 러너의 결과 CSV 에 빈 열이 생긴다 (D69 ⑨).
+# 대체 판(2001-08-31 부터)에만 기간 안인 구간. PHASE_WINDOWS 와 따로 두는 이유: 단독 그리드 러너는
+# PHASE_WINDOWS 만 열로 쓰므로, 거기 넣으면 그 러너의 결과 CSV 에 빈 열이 생긴다.
 # 닷컴 하락 후반이 2001-09-04 부터인 이유: 국면 수익률의 기준이 구간 첫 거래일의 전날 자본이라,
 # 대체 판 조합의 실행 첫날(2001-08-31)에 시작하면 늘 빈 값이 된다
 EARLY_PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (
@@ -274,7 +274,7 @@ ALL_PHASE_WINDOWS: Final[tuple[PhaseWindow, ...]] = (*EARLY_PHASE_WINDOWS, *PHAS
 
 
 def _allowed_variants(candidate: str) -> tuple[str, ...]:
-    # 대체 판은 조합 실험(D55)에 쓰는 후보만 받는다 — 금 확대 · EWY 는 받지 않는다 (D69 ③)
+    # 대체 판은 조합 실험에 쓰는 후보만 받는다 — 금 확대 · EWY 는 받지 않는다
     if candidate == CANDIDATE_HAA:
         return (*_HAA_PROXY_PATHS, VARIANT_ALT)
     if candidate == CANDIDATE_ROTATION:
@@ -343,7 +343,7 @@ def _candidate_method(candidate: str, share: float, variant: str) -> MethodConfi
     if candidate == CANDIDATE_BASELINE:
         return SlotMethodConfig(CANDIDATE_BASELINE, "SHY 보유 (기준선)", share, (_buy_and_hold_slot("shy", SHY_DATA_PATH),))
     if candidate == CANDIDATE_GOLD:
-        # Q-2-2XS 의 gld 와 같은 자산 id · 같은 파일이라 종목 단위로 상계된다 (D17)
+        # Q-2-2XS 의 gld 와 같은 자산 id · 같은 파일이라 종목 단위로 상계된다
         return SlotMethodConfig(CANDIDATE_GOLD, "금 보유", share, (_buy_and_hold_slot("gld", GLD_DATA_PATH),))
     if candidate == CANDIDATE_HAA:
         vea, bil, pdbc = _HAA_PROXY_PATHS[variant]
@@ -438,7 +438,7 @@ def build_combo_config(
     variant: str,
     start_date: date,
 ) -> PortfolioConfig:
-    """「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 조합 설정 (D55 · D56 ①).
+    """「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 조합 설정.
 
     HAA · 로테이션 매매법은 단독 설정과 같은 함수로 만든다 — 조합과 단독이 같은 매매법 정의를 쓴다.
     start_date 는 build_experiment_config 와 같다.
@@ -573,7 +573,7 @@ def phase_metrics(
 def annual_turnover(state_log_df: pd.DataFrame, equity_df: pd.DataFrame) -> float:
     """연 회전율 = Σ(체결 주수 × 체결가, 매수 · 매도 모두) ÷ 평균 자본 ÷ 연수.
 
-    상태 로그 그대로라 매매법 장부 단위(종목 상계 전)이고, 체결가는 매도가 비용을 뺀 값 · 매수가 시가다 (D48 ⑪).
+    상태 로그 그대로라 매매법 장부 단위(종목 상계 전)이고, 체결가는 매도가 비용을 뺀 값 · 매수가 시가다.
     """
     traded = 0.0
     for shares_col in [c for c in state_log_df.columns if c.endswith(_EXEC_SHARES_SUFFIX)]:
@@ -607,7 +607,7 @@ def summarize_run(result: PortfolioResult) -> RunSummary:
 
 
 # ============================================================================
-# 신호 일치율 (D23 관문 ②, D48 ①)
+# 신호 일치율 (대용 관문 ②)
 # ============================================================================
 
 
@@ -698,7 +698,7 @@ def run_grid_case(case: GridCase) -> GridCaseResult:
 
 
 # ============================================================================
-# 기준선 대비 우위 · 판정 (D24 · D47)
+# 기준선 대비 우위 · 판정
 # ============================================================================
 
 
@@ -769,10 +769,10 @@ class Judgment:
 
 
 def judge(main_adv: Mapping[int, float] | None, sub_adv: Mapping[int, float]) -> Judgment:
-    """D24 판정 (D47 해석) — 같은 w 에서 두 기간 모두 기준선보다 Calmar 가 높은 w 가 3단계 이상 연달아 있으면 통과.
+    """통과 판정 — 같은 w 에서 두 기간 모두 기준선보다 Calmar 가 높은 w 가 3단계 이상 연달아 있으면 통과.
 
     「높다」는 엄격한 `>` 다 (기준선과 같으면 높지 않다). main_adv 가 None 이면 보조 기간만으로 판정한다
-    (대용이 탈락한 후보, D23).
+    (대용이 탈락한 후보).
     """
     _require_all_w(sub_adv)
     if main_adv is not None:
@@ -784,7 +784,7 @@ def judge(main_adv: Mapping[int, float] | None, sub_adv: Mapping[int, float]) ->
 
 @dataclass(frozen=True)
 class GateAgreement:
-    """판정 일치 (D41) — w 별 「기준선보다 높은가」가 대용판 · 실물판에서 같은가."""
+    """판정 일치 — w 별 「기준선보다 높은가」가 대용판 · 실물판에서 같은가."""
 
     sign_match: Mapping[int, bool]
     match_count: int
@@ -887,7 +887,7 @@ def _lookup(
 
 def collect_judgments(results: Sequence[GridCaseResult]) -> list[JudgmentRow]:
     """후보별 판정 행. 대용을 쓰는 후보는 두 판정 기준(주 비교 + 보조 / 보조만)을 모두 낸다 —
-    그리드는 대용 탈락 여부(사용자 판단)보다 먼저 돌기 때문이다 (D48 ⑤)."""
+    그리드는 대용 탈락 여부(사용자 판단)보다 먼저 돌기 때문이다."""
     advantages = compute_advantages(results)
     index = _index_results(results)
     rows: list[JudgmentRow] = []

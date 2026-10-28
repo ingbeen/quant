@@ -126,7 +126,7 @@ _CONFIG_Q2_2XS = PortfolioConfig(
 # ============================================================================
 
 # 그리드와 같은 함수 · 같은 시작일 하한(주 비교 시작일)으로 만들어 대시보드 숫자가 그리드 결과와 같다.
-# 채택 비중은 docs/research/Q2_2XS_보완_전략_설계.md 의 결정 D75.
+# 채택 비중의 근거는 docs/research/전략_검증_보고서.md 부록 M.6.3.
 _ADOPTED_HAA_PCT = 10
 _ADOPTED_ROTATION_PCT = 10
 _SUPPLEMENT_CONFIGS = [

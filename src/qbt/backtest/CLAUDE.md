@@ -44,8 +44,8 @@
 - `engines/` — 포트폴리오 엔진: `portfolio_engine.py`(facade · 일별 루프) · `portfolio_planning.py`(주문 의도 · 예상 상태 · 병합) · `portfolio_methods.py`(매매법 장부 · 배분 변화 · 매매법 사이 비중 · 상계 · 요약) · `portfolio_rebalance.py`(리밸런싱 정책 · 판단일) · `portfolio_execution.py`(매도 → 매수 체결) · `portfolio_data.py`(로딩 · 설정 검증 · 에쿼티 표), 두 엔진 공통은 `engine_common.py`(예약 주문 · 체결 계산 · 거래 기록)
 - `portfolio_validation.py` — 실행 직후 결과 정합성 검사 (규칙 목록은 그 docstring). 위반이 있으면 러너가 결과를 저장한 뒤 멈춘다
 - `allocator_registry.py` · `allocators/` — 비중이 바뀌는 매매법의 배분 규칙. 새 규칙은 `allocators/` 에 구현해 등록하고 엔진은 고치지 않는다. 규칙은 이동평균 · 월말 행 같은 파생 계산을 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 i 의 판단은 i 이하 행만 쓴다
-- `supplement_experiment.py` — 보완 전략 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D45 – D50, 9.5)
-- `combo_experiment.py` — 조합 그리드(Q-2-2XS + HAA + 로테이션)의 실행 목록 · 판정 · 대체 판 확인. 결정 근거는 `docs/research/Q2_2XS_보완_전략_설계.md`(D55 – D57 · D62 – D70, 9.6)
+- `supplement_experiment.py` — 보완 전략 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 결정 근거는 `docs/research/전략_검증_보고서.md` 부록 M
+- `combo_experiment.py` — 조합 그리드(Q-2-2XS + HAA + 로테이션)의 실행 목록 · 판정 · 대체 판 확인. 결정 근거는 `docs/research/전략_검증_보고서.md` 부록 M
 
 ---
 

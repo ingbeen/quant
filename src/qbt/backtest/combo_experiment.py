@@ -1,6 +1,6 @@
 """조합 실험 — Q-2-2XS + HAA + 로테이션 비중 격자 · 세 판 · 같은 합계의 셋 대비 판정
 
-설계서(`docs/research/Q2_2XS_보완_전략_설계.md`) D55 – D57 · D63 – D69 의 실험을 담는다.
+`docs/research/전략_검증_보고서.md` 부록 M 의 조합 실험을 담는다.
 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」(h · r 는 COMBO_PCTS)를 대체 판 · 이어 붙인 판 · 완전 실물판으로
 돌려, 칸마다 같은 판 · 같은 합계의 기준선 · HAA 단독 · 로테이션 단독 셋과 Calmar 를 견준다.
 
@@ -47,14 +47,14 @@ type Cell = tuple[int, int]  # (HAA %, 로테이션 %)
 
 CANDIDATE_COMBO: Final = "combo"
 COMBO_CELLS: Final[tuple[Cell, ...]] = tuple((h, r) for h in COMBO_PCTS for r in COMBO_PCTS)
-# 같은 합계의 비교 상대 — 조합은 셋 모두보다 높아야 한다 (D56 ②)
+# 같은 합계의 비교 상대 — 조합은 셋 모두보다 높아야 한다
 COMPARATORS: Final[tuple[str, ...]] = (CANDIDATE_BASELINE, CANDIDATE_HAA, CANDIDATE_ROTATION)
-MIN_COMBO_CLUSTER_CELLS: Final = 3  # 고원 = 상하좌우로 이어진 「높음」 칸 3칸 이상 (D56 ② · D65)
+MIN_COMBO_CLUSTER_CELLS: Final = 3  # 고원 = 상하좌우로 이어진 「높음」 칸 3칸 이상
 
 GROUP_ALT: Final = "alt"  # 대체 판
 GROUP_SPLICED: Final = "spliced"  # 이어 붙인 판
-GROUP_REAL: Final = "real"  # 완전 실물판 (원자재는 DBC → PDBC, D64)
-GROUP_ALT_OVERLAP: Final = "alt_overlap"  # 대체 판을 이어 붙인 판 시작일부터 — 확인용 (D66)
+GROUP_REAL: Final = "real"  # 완전 실물판 (원자재는 DBC → PDBC)
+GROUP_ALT_OVERLAP: Final = "alt_overlap"  # 대체 판을 이어 붙인 판 시작일부터 — 확인용
 
 # 묶음 시작일 — 묶음 안 모든 구성이 시작할 수 있는 가장 늦은 날 (엔진 compute_portfolio_effective_start_date 로 잰 값.
 # 데이터가 바뀌어 어긋나면 워커가 실제 시작일 대조에서 멈춘다)
@@ -72,7 +72,7 @@ BASIS_ALT: Final = "alt"
 BASIS_SPLICED: Final = "spliced"
 BASIS_REAL: Final = "real"
 BASIS_JUDGMENT: Final = "spliced_and_real"
-# 판정 기준 → 그 기준이 「높음」을 요구하는 묶음. 판정은 이어 붙인 판 · 완전 실물판 둘 다이고(D63),
+# 판정 기준 → 그 기준이 「높음」을 요구하는 묶음. 판정은 이어 붙인 판 · 완전 실물판 둘 다이고,
 # 판 하나씩의 지도는 보고용이다
 BASIS_GROUPS: Final[dict[str, tuple[str, ...]]] = {
     BASIS_ALT: (GROUP_ALT,),
@@ -155,7 +155,7 @@ def run_combo_case(case: ComboCase) -> ComboCaseResult:
 
 
 # ============================================================================
-# 같은 합계의 셋 대비 우위 (D56 ② · D69 ⑥)
+# 같은 합계의 셋 대비 우위
 # ============================================================================
 
 
@@ -168,12 +168,12 @@ class CellAdvantage:
 
     @property
     def above(self) -> bool:
-        """셋 모두보다 높은가 — 엄격한 `>` (같으면 높지 않다, D47)."""
+        """셋 모두보다 높은가 — 엄격한 `>` (같으면 높지 않다)."""
         return all(value > 0 for value in self.advantages.values())
 
     @property
     def boundary(self) -> bool:
-        """우위 중 하나라도 저장 자릿수(4)로 0 이 되는가 (D48 ⑥)."""
+        """우위 중 하나라도 저장 자릿수(4)로 0 이 되는가."""
         return any(abs(value) < ADVANTAGE_BOUNDARY for value in self.advantages.values())
 
 
@@ -231,14 +231,14 @@ def _group_cells(advantages: Mapping[tuple[str, Cell], CellAdvantage], group: st
 
 
 # ============================================================================
-# 덩어리 · 판정 (D63 · D65)
+# 덩어리 · 판정
 # ============================================================================
 
 
 def find_clusters(above: Mapping[Cell, bool]) -> tuple[tuple[Cell, ...], ...]:
     """「높음」 칸이 상하좌우로 이어진 덩어리 가운데 MIN_COMBO_CLUSTER_CELLS 칸 이상인 것들.
 
-    이웃은 HAA 비중만 또는 로테이션 비중만 한 단계 다른 칸이다 — 대각선은 이웃이 아니다 (D65).
+    이웃은 HAA 비중만 또는 로테이션 비중만 한 단계 다른 칸이다 — 대각선은 이웃이 아니다.
     덩어리 안의 칸은 오름차순, 덩어리는 첫 칸 순서다.
 
     Raises:
@@ -281,7 +281,7 @@ class ComboJudgment:
 
 
 def judge_combo(above_maps: Sequence[Mapping[Cell, bool]]) -> ComboJudgment:
-    """묶음 모두에서 높은 칸으로 덩어리를 찾는다 — 3칸 이상 덩어리가 하나라도 있으면 통과 (D56 ② · D63 · D65).
+    """묶음 모두에서 높은 칸으로 덩어리를 찾는다 — 3칸 이상 덩어리가 하나라도 있으면 통과.
 
     Raises:
         ValueError: 지도가 없을 때
@@ -337,7 +337,7 @@ def collect_combo_judgments(results: Sequence[ComboCaseResult]) -> list[ComboJud
 
 
 # ============================================================================
-# 대체 판 확인 (D66 · D69 ⑧) — 보고용, 관문이 아니다
+# 대체 판 확인 — 보고용, 관문이 아니다
 # ============================================================================
 
 
@@ -368,7 +368,7 @@ def _decision_targets(result: ComboCaseResult, method_id: str) -> pd.DataFrame:
 def collect_alt_check(results: Sequence[ComboCaseResult]) -> list[AltCheckRow]:
     """대체 판 겹침 묶음(이어 붙인 판 시작일부터)과 이어 붙인 판을 칸마다 견준다.
 
-    「셋보다 높음」 일치와 조합 실행의 HAA · 로테이션 월말 판단 일치율(D48 ①)을 낸다. 판단은 시세만 보므로
+    「셋보다 높음」 일치와 조합 실행의 HAA · 로테이션 월말 판단 일치율을 낸다. 판단은 시세만 보므로
     일치율은 칸마다 같아야 한다.
     """
     advantages = compute_combo_advantages(results)

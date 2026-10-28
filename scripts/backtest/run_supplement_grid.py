@@ -2,7 +2,7 @@
 
 후보 4개(금 확대 · HAA · 로테이션 · EWY)와 기준선(SHY)을 「Q-2-2XS (100−w)% + 후보 w%」로
 주 비교 · 보조 기간에 돌리고, 대용 검증 관문 · 쌍별 비교를 함께 돌려 요약 CSV 셋만 저장한다.
-실행별 결과 폴더는 만들지 않는다 (공식 등록은 통과 후보만, 설계서 D21).
+실행별 결과 폴더는 만들지 않는다 (공식 등록은 채택 후보만).
 실행 목록 · 판정 · 관문 계산은 qbt.backtest.supplement_experiment 가 하고, 이 스크립트는 병렬 실행 ·
 반올림 · 저장만 한다.
 
@@ -237,7 +237,7 @@ def _print_judgments(rows: list[JudgmentRow]) -> None:
             ]
         )
     columns = [("후보", 20, Align.LEFT), ("판정 기준", 40, Align.LEFT), ("판정", 6, Align.LEFT), ("고원", 20, Align.LEFT)]
-    TableLogger(columns, logger).print_table(table_rows, title="[통과 판정 (D24 · D47)]")
+    TableLogger(columns, logger).print_table(table_rows, title="[통과 판정]")
 
 
 def _print_gates(rows: list[GateRow]) -> None:

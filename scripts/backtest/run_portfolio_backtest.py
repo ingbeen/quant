@@ -171,6 +171,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         logger.debug(f"시그널 데이터 저장 완료: {signal_path} (asset_id={asset_result.asset_id})")
 
     # 4. state_log.csv 저장 (일별 엔진 내부 상태: 시그널/intent/체결/포지션)
+    # 읽는 코드는 없지만 남긴다 — 리밸런싱 연구(docs/research/전략_검증_보고서.md 부록 L.5)가 이 파일을 근거물로 쓴다
     state_log_path = result.config.result_dir / _STATE_LOG_FILENAME
     state_log_export = result.state_log_df.copy()
     # 반올림 규칙 적용

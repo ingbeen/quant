@@ -2,10 +2,10 @@
 
 「Q-2-2XS (100 − h − r)% + HAA h% + 로테이션 r%」 16칸을 세 판으로 돌리는 실험의
 실행 목록 · 같은 합계의 셋(기준선 · HAA 단독 · 로테이션 단독) 대비 우위 · 4방향 덩어리 판정 ·
-대체 판 확인의 계약을 검증한다 (설계서 D55 – D57 · D63 – D66 · D69).
+대체 판 확인의 계약을 검증한다 (`docs/research/전략_검증_보고서.md` 부록 M).
 
 왜 중요한가요?
-조합을 쓸 이유는 「단독보다 낫다」이고(D56 ②), 그 기준은 결과를 보기 전에 정했다.
+조합을 쓸 이유는 「단독보다 낫다」이고, 그 기준은 결과를 보기 전에 정했다.
 비교 상대(같은 묶음 · 같은 합계), 「셋 모두보다 높다」, 판정에 쓰는 두 판, 상하좌우 이웃이
 한 군데만 어긋나도 판정이 에러 없이 바뀐다.
 """
@@ -89,7 +89,7 @@ def _combo_wins_in(groups: set[str], cells: set[cx.Cell]) -> Callable[[cx.ComboC
 
 
 class TestComboCases:
-    """build_combo_cases 의 실행 수 · 묶음 · 비교 상대 계약 (D69 ⑤)."""
+    """build_combo_cases 의 실행 수 · 묶음 · 비교 상대 계약."""
 
     def test_case_counts(self) -> None:
         """
@@ -131,7 +131,7 @@ class TestComboCases:
     def test_group_variant_and_start(self) -> None:
         """
         목적: 묶음마다 판과 시작일이 하나다 — 대체 판 2001-08-31 · 이어 붙인 판 2007-06-22 · 완전 실물판 2012-01-30 ·
-        대체 판 겹침 2007-06-22 (D66 · D69 ⑤).
+        대체 판 겹침 2007-06-22.
 
         Given: 실행 목록
         When:  묶음별 (판, 시작일) 집합을 모은다
@@ -172,7 +172,7 @@ class TestComboCases:
 
     def test_every_combo_has_same_sum_comparators(self) -> None:
         """
-        목적: 조합 칸마다 같은 묶음에 합계가 같은 기준선 · HAA 단독 · 로테이션 단독이 있다 (D56 ②).
+        목적: 조합 칸마다 같은 묶음에 합계가 같은 기준선 · HAA 단독 · 로테이션 단독이 있다.
 
         Given: 실행 목록
         When:  비교 상대 (묶음, 구성, 합계) 집합을 만든다
@@ -207,7 +207,7 @@ class TestComboCases:
 
 
 class TestComboAdvantages:
-    """compute_combo_advantages — 같은 묶음 · 같은 합계의 셋과 비교한다 (D56 ② · D69 ⑥)."""
+    """compute_combo_advantages — 같은 묶음 · 같은 합계의 셋과 비교한다."""
 
     def test_advantage_against_each_same_sum_comparator(self) -> None:
         """
@@ -252,7 +252,7 @@ class TestComboAdvantages:
     )
     def test_above_needs_strictly_higher_than_all_three(self, haa_calmar: float, expected_above: bool) -> None:
         """
-        목적: 「셋보다 높음」은 셋 모두에 대해 엄격한 `>` 다 (D47 · D56 ②).
+        목적: 「셋보다 높음」은 셋 모두에 대해 엄격한 `>` 다.
 
         Given: 조합 0.7, 기준선 0.5 · 로테이션 0.6, HAA 단독이 0.69 / 0.7 / 0.71
         When:  우위를 계산한다
@@ -320,7 +320,7 @@ class TestComboAdvantages:
 
 
 class TestFindClusters:
-    """find_clusters — 상하좌우로 이어진 「높음」 칸 덩어리 중 3칸 이상 (D65)."""
+    """find_clusters — 상하좌우로 이어진 「높음」 칸 덩어리 중 3칸 이상."""
 
     def test_l_shape_of_three_is_a_cluster(self) -> None:
         """
@@ -338,7 +338,7 @@ class TestFindClusters:
 
     def test_two_cells_are_not_enough(self) -> None:
         """
-        목적: 2칸 덩어리는 고원이 아니다 (D56 ② 「3칸 이상」).
+        목적: 2칸 덩어리는 고원이 아니다.
 
         Given: (5, 5) · (5, 10)
         When:  덩어리를 찾는다
@@ -348,7 +348,7 @@ class TestFindClusters:
 
     def test_diagonal_cells_are_not_neighbors(self) -> None:
         """
-        목적: 대각선으로만 붙은 칸은 이웃이 아니다 — 4방향 (D65).
+        목적: 대각선으로만 붙은 칸은 이웃이 아니다 — 4방향.
 
         Given: (5, 5) · (10, 10) · (15, 15) — 대각선으로만 이어진 3칸
         When:  덩어리를 찾는다
@@ -358,7 +358,7 @@ class TestFindClusters:
 
     def test_multiple_clusters_are_all_reported(self) -> None:
         """
-        목적: 3칸 이상 덩어리가 여럿이면 모두 보고한다 (D47 · D65).
+        목적: 3칸 이상 덩어리가 여럿이면 모두 보고한다.
 
         Given: 왼쪽 위 3칸과 오른쪽 아래 3칸, 서로 떨어져 있음
         When:  덩어리를 찾는다
@@ -401,7 +401,7 @@ class TestFindClusters:
 
 
 class TestComboJudgment:
-    """collect_combo_judgments — 판정 기준 넷과 「판정」은 이어 붙인 판 · 완전 실물판 둘 다 (D63 · D69 ⑦)."""
+    """collect_combo_judgments — 판정 기준 넷과 「판정」은 이어 붙인 판 · 완전 실물판 둘 다."""
 
     def test_rows_cover_four_bases(self) -> None:
         """
@@ -453,7 +453,7 @@ class TestComboJudgment:
 
     def test_alt_is_not_used_for_judgment(self) -> None:
         """
-        목적: 대체 판은 판정에 쓰지 않는다 — 대체 판만 높아도 판정은 탈락, 대체 판 지도에는 통과로 보인다 (D63).
+        목적: 대체 판은 판정에 쓰지 않는다 — 대체 판만 높아도 판정은 탈락, 대체 판 지도에는 통과로 보인다.
 
         Given: 대체 판(2001 · 2007 묶음)만 16칸 모두 높다
         When:  판정 행을 모은다
@@ -491,7 +491,7 @@ class TestComboJudgment:
 
     def test_boundary_marks_near_zero_advantage(self) -> None:
         """
-        목적: 판정에 쓴 우위 중 절댓값이 0.00005 미만인 것이 있으면 「경계」 (D48 ⑥).
+        목적: 판정에 쓴 우위 중 절댓값이 0.00005 미만인 것이 있으면 「경계」.
 
         Given: 완전 실물판 (20, 20) 조합이 기준선보다 0.00003 만 높다
         When:  판정 행을 모은다
@@ -518,7 +518,7 @@ class TestComboJudgment:
 
 
 class TestAltCheck:
-    """collect_alt_check — 대체 판 겹침(2007-06-22 부터)과 이어 붙인 판의 일치 (D66 · D69 ⑧)."""
+    """collect_alt_check — 대체 판 겹침(2007-06-22 부터)과 이어 붙인 판의 일치."""
 
     def test_cell_match_and_count(self) -> None:
         """
@@ -572,7 +572,7 @@ class TestAltCheck:
 
     def test_decision_agreement_uses_combo_runs_of_both_groups(self) -> None:
         """
-        목적: HAA · 로테이션 판단 일치율은 같은 칸의 두 묶음 조합 실행에서 잰다 (D48 ① 정의).
+        목적: HAA · 로테이션 판단 일치율은 같은 칸의 두 묶음 조합 실행에서 잰다.
 
         Given: 대체 판 겹침 조합의 HAA 판단이 4달 중 1달 다르고 로테이션은 모두 같다
         When:  확인 행을 모은다

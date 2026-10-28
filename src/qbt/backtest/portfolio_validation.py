@@ -37,6 +37,8 @@ from qbt.backtest.portfolio_types import (
 # 체결은 시가, 검증은 그날 종가 기준이라 하루치 가격 변동만큼의 편차는 정상이다.
 # 리밸런싱 정책의 임계값(RebalancePolicy.threshold_rate)과는 별개의 검사 기준이며,
 # tests/qbt/test_portfolio_validation.py 의 경계 테스트가 이 값을 고정한다.
+# 체결일 하루 급락이나 소액 계좌의 정수 주로도 정상 결과가 이 범위를 넘어 러너가 멈출 수 있다 — 막는 쪽이라 받아들인다
+# (규모는 docs/research/전략_검증_보고서.md 부록 M.7).
 _REBALANCE_WEIGHT_DEVIATION_THRESHOLD = 0.20
 
 # 에쿼티 등식 허용 오차 (원)
