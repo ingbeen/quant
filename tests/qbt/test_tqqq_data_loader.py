@@ -26,6 +26,9 @@ from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
+    COL_ACTUAL_HIGH,
+    COL_ACTUAL_LOW,
+    COL_ACTUAL_OPEN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
@@ -36,6 +39,9 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
+    COL_SIMUL_HIGH,
+    COL_SIMUL_LOW,
+    COL_SIMUL_OPEN,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
 )
 from qbt.tqqq.data_loader import (
@@ -114,6 +120,12 @@ class TestLoadComparisonData:
         comparison_df = pd.DataFrame(
             {
                 DISPLAY_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_ACTUAL_OPEN: [99.5, 101.0],
+                COL_SIMUL_OPEN: [99.8, 101.2],
+                COL_ACTUAL_HIGH: [100.5, 102.5],
+                COL_SIMUL_HIGH: [100.8, 102.2],
+                COL_ACTUAL_LOW: [99.0, 100.5],
+                COL_SIMUL_LOW: [99.5, 100.8],
                 COL_ACTUAL_CLOSE: [100.0, 102.0],
                 COL_SIMUL_CLOSE: [100.5, 101.8],
                 COL_ACTUAL_DAILY_RETURN: [0.01, 0.02],

@@ -6,7 +6,7 @@
 
 레버리지 ETF 시뮬레이션 도메인은 기초 자산 데이터로부터 레버리지 상품의 가격을 모델링하고,
 실제 데이터와 비교하여 비용 모델의 정확도를 검증합니다.
-QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 주요 사용 사례입니다.
+QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현하는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `DAILY_COMPARISON_TARGETS` 입니다.
 
 ---
 
@@ -38,6 +38,13 @@ QQQ(기초 자산)로부터 TQQQ(3배 레버리지 ETF)를 재현하는 것이 �
 - 목표 레버리지 배율: `DEFAULT_LEVERAGE_MULTIPLIER`
 - 일일 수익률에 배율 적용: `leveraged_return = underlying_return * leverage - daily_cost`
 
+시가 · 고가 · 저가:
+
+- 전날 시뮬 종가에서 기초 자산의 그 값을 배율로 키운다: `X(t) = Close_sim(t-1) * (1 + (X_underlying(t) / Close_underlying(t-1) - 1) * leverage)`. 장중 노출은 전날 종가에 고정되므로 펀드 값은 기초 자산에 선형이다
+- 일일 비용은 종가에서만 빠지므로 기초 자산이 저가에 마감한 날은 식의 저가가 종가 위로 나간다 — 고가 · 저가를 시가 · 종가로 맞춘다
+- 첫날은 전날 종가가 없어 네 값 모두 시작 가격이다. 그 밖의 결측은 메우지 않는다
+- 매매 계산은 시가 · 종가만 읽는다. 고가 · 저가는 signal CSV · 캔들 · 내보내기에만 쓰여 성과 지표를 바꾸지 않는다
+
 ### 2. 비용 구조 (동적 비용 모델)
 
 자금 조달 비용:
@@ -60,6 +67,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 - 데이터 소스: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
 - 월별로 실제 운용비율을 동적으로 적용
+- 파일 시작보다 먼저 상장한 QLD 는 `build_extended_expense_dict` 로 그 앞 구간을 고정값으로 채운다 — `create_expense_dict` 그대로면 상장일에서 ValueError 다
+- QLD 도 스프레드 파라미터와 이 파일을 그대로 쓴다. 재튜닝 · QLD 전용 보수를 택하지 않은 근거는 `docs/research/전략_검증_보고서.md` §49.4
 
 총 비용:
 

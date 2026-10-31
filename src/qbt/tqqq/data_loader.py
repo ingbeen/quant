@@ -4,7 +4,7 @@ TQQQ 시뮬레이션 및 검증에 필요한 데이터 로딩, 월별 데이터 
 
 주요 기능:
 1. 월별 데이터(연방기금금리 · 운용비율) 로딩
-2. TQQQ 일별 비교 데이터 로딩
+2. TQQQ · QLD 일별 비교 데이터 로딩
 3. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
 4. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
 
@@ -20,7 +20,6 @@ import pandas as pd
 
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
@@ -30,9 +29,9 @@ from qbt.tqqq.constants import (
     COL_EXPENSE_VALUE,
     COL_FFR_DATE,
     COL_FFR_VALUE,
-    COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
+    DAILY_COMPARISON_PRICES,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
 )
 from qbt.utils import get_logger
@@ -43,8 +42,7 @@ logger = get_logger(__name__)
 # 일별 비교 데이터 필수 컬럼 목록
 COMPARISON_COLUMNS = [
     DISPLAY_DATE,
-    COL_ACTUAL_CLOSE,
-    COL_SIMUL_CLOSE,
+    *(col for _, actual_col, simul_col in DAILY_COMPARISON_PRICES.values() for col in (actual_col, simul_col)),
     COL_ACTUAL_DAILY_RETURN,
     COL_SIMUL_DAILY_RETURN,
     COL_DAILY_RETURN_ABS_DIFF,

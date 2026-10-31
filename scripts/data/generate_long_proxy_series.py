@@ -39,6 +39,7 @@ from qbt.tqqq.constants import (
     DEFAULT_SOFTPLUS_B,
     EXPENSE_RATIO_DATA_PATH,
     FFR_DATA_PATH,
+    LEVERAGE_2X,
 )
 from qbt.tqqq.data_loader import (
     build_extended_expense_dict,
@@ -58,8 +59,6 @@ from qbt.utils.proxy_series import (
 from qbt.utils.stock_downloader import save_stock_csv
 
 logger = get_logger(__name__)
-
-LEVERAGE_2X: Final = 2.0
 
 # 2배 합성 — (기초 자산, 실물 2배 ETF, 생성 파일)
 LEVERAGED_PROXIES: Final = (

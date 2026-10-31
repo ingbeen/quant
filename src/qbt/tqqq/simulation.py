@@ -28,7 +28,6 @@ from qbt.common_constants import (
 )
 from qbt.tqqq.analysis_helpers import calculate_signed_log_diff_from_cumulative_returns
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CLOSE,
     COL_ACTUAL_CUMUL_RETURN,
     COL_ACTUAL_DAILY_RETURN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
@@ -36,9 +35,9 @@ from qbt.tqqq.constants import (
     COL_DAILY_RETURN_ABS_DIFF,
     COL_FFR_DATE,
     COL_FFR_VALUE,
-    COL_SIMUL_CLOSE,
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
+    DAILY_COMPARISON_PRICES,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -314,7 +313,7 @@ def simulate(
     없으면 ValueError 다(data_loader 의 lookup_*). 첫 거래일은 비용을 계산하지 않는다.
 
     Args:
-        underlying_df: 기초 자산 DataFrame (Date, Open, Close 컬럼 필수)
+        underlying_df: 기초 자산 DataFrame (Date, Open, High, Low, Close 컬럼 필수)
         leverage: 레버리지 배수 (예: 3.0)
         initial_price: 첫 거래일의 시가 · 종가
         ffr_dict: 월별 연방기금금리 ({"YYYY-MM": 0~1 비율}, create_ffr_dict)
@@ -329,6 +328,7 @@ def simulate(
         ValueError: 필수 컬럼이 누락되었을 때
         ValueError: 월별 값(FFR · 운용비율 · funding_spread)이 그 날짜를 덮지 못할 때
         ValueError: funding_spread가 유효하지 않을 때 (NaN, inf, <= 0)
+        ValueError: 시뮬레이션 가격이 0 이하가 될 때
     """
     # 1. 파라미터 검증
     if leverage <= 0:
@@ -338,7 +338,7 @@ def simulate(
         raise ValueError(f"initial_price는 양수여야 합니다: {initial_price}")
 
     # 2. 필수 컬럼 검증
-    required_cols = {COL_DATE, COL_OPEN, COL_CLOSE}
+    required_cols = {COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE}
     missing_cols = required_cols - set(underlying_df.columns)
     if missing_cols:
         raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_cols}")
@@ -347,7 +347,7 @@ def simulate(
         raise ValueError("underlying_df가 비어있습니다")
 
     # 3. 데이터 복사 (원본 보존)
-    df = underlying_df[[COL_DATE, COL_OPEN, COL_CLOSE]].copy()
+    df = underlying_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
 
     # 4. 일일 수익률 계산
     df["underlying_return"] = df[COL_CLOSE].pct_change()
@@ -381,17 +381,24 @@ def simulate(
     df[COL_CLOSE] = leveraged_prices
 
     # 7. OHLV 데이터 구성
-    # Open: 기초 자산의 오버나이트 갭을 레버리지 배율로 반영
-    # 수식: TQQQ_Open(t) = TQQQ_Close(t-1) × (1 + (QQQ_Open(t)/QQQ_Close(t-1) - 1) × leverage)
-    underlying_overnight_return = df[COL_OPEN] / underlying_close_series.shift(1) - 1
-    leveraged_open = df[COL_CLOSE].shift(1) * (1 + underlying_overnight_return * leverage)
-    # 첫날은 전날 종가가 없어 시작 가격으로 둔다 — 다른 날의 결측은 메우지 않는다
-    leveraged_open.iloc[0] = initial_price
-    df[COL_OPEN] = leveraged_open
+    # Open · High · Low: 장중 노출은 전날 종가에 고정 → 펀드 값은 기초 자산에 선형
+    # 수식: TQQQ_X(t) = TQQQ_Close(t-1) × (1 + (QQQ_X(t)/QQQ_Close(t-1) - 1) × leverage)
+    underlying_prev_close = underlying_close_series.shift(1)
+    for col in (COL_OPEN, COL_HIGH, COL_LOW):
+        leveraged_price = df[COL_CLOSE].shift(1) * (1 + (df[col] / underlying_prev_close - 1) * leverage)
+        # 첫날은 전날 종가가 없어 시작 가격으로 둔다 — 다른 날의 결측은 메우지 않는다
+        leveraged_price.iloc[0] = initial_price
+        df[col] = leveraged_price
 
-    # High, Low: 합성 데이터이므로 Open/Close 기반 근사값 사용
-    df[COL_HIGH] = df[[COL_OPEN, COL_CLOSE]].max(axis=1)
-    df[COL_LOW] = df[[COL_OPEN, COL_CLOSE]].min(axis=1)
+    # 일일 비용은 종가에서만 빠짐 → 기초 자산이 저가에 마감한 날 식의 저가가 종가 위로 나가 몸통으로 맞춤
+    df[COL_HIGH] = df[[COL_HIGH, COL_OPEN, COL_CLOSE]].max(axis=1, skipna=False)
+    df[COL_LOW] = df[[COL_LOW, COL_OPEN, COL_CLOSE]].min(axis=1, skipna=False)
+
+    # 일별 비교 CSV 는 저장 전 시세 검사를 거치지 않음 → 음수 가격이 에러 없이 저장되어 여기서 멈춤
+    non_positive_dates = df.loc[df[COL_LOW] <= 0, COL_DATE].tolist()
+    if non_positive_dates:
+        raise ValueError(f"시뮬레이션 가격이 0 이하입니다 — 날짜: {non_positive_dates[:5]}. 기초 자산 시세의 저가를 확인하세요")
+
     # Volume: 합성 데이터이므로 0
     df[COL_VOLUME] = 0
 
@@ -426,11 +433,15 @@ def _save_daily_comparison_csv(
     actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
     sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
 
+    price_columns: dict[str, pd.Series] = {}
+    for source_col, actual_col, simul_col in DAILY_COMPARISON_PRICES.values():
+        price_columns[actual_col] = actual_overlap[source_col]
+        price_columns[simul_col] = sim_overlap[source_col]
+
     comparison_df = pd.DataFrame(
         {
             DISPLAY_DATE: actual_overlap[COL_DATE],
-            COL_ACTUAL_CLOSE: actual_overlap[COL_CLOSE],
-            COL_SIMUL_CLOSE: sim_overlap[COL_CLOSE],
+            **price_columns,
             COL_ACTUAL_DAILY_RETURN: actual_returns,
             COL_SIMUL_DAILY_RETURN: sim_returns,
             COL_DAILY_RETURN_ABS_DIFF: (actual_returns - sim_returns).abs(),
@@ -442,8 +453,7 @@ def _save_daily_comparison_csv(
     )
 
     digits = {col: ROUND_DAILY_COMPARISON_PERCENT for col in comparison_df.columns if col != DISPLAY_DATE}
-    digits[COL_ACTUAL_CLOSE] = ROUND_PRICE
-    digits[COL_SIMUL_CLOSE] = ROUND_PRICE
+    digits.update({col: ROUND_PRICE for col in price_columns})
     comparison_df.round(digits).to_csv(output_path, index=False, encoding="utf-8")
 
 

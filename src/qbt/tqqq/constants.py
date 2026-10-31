@@ -10,9 +10,16 @@
 from typing import Final
 
 from qbt.common_constants import (
+    COL_CLOSE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
     ETC_DIR,
+    QLD_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
     STOCK_DIR,
     TQQQ_RESULTS_DIR,
+    TQQQ_SYNTHETIC_DATA_PATH,
 )
 
 # ============================================================
@@ -31,9 +38,23 @@ EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
 # TQQQ 시뮬레이션 관련 결과 파일 경로
 TQQQ_DAILY_COMPARISON_PATH: Final = TQQQ_RESULTS_DIR / "tqqq_daily_comparison.csv"
+QLD_DAILY_COMPARISON_PATH: Final = TQQQ_RESULTS_DIR / "qld_daily_comparison.csv"
 
 # --- 레버리지 상품 스펙 ---
 DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
+LEVERAGE_2X: Final = 2.0  # QLD · SSO 2배 레버리지
+
+# 일별 비교 상품 — (상품 이름, 실물 시세, 배율, 일별 비교 CSV)
+DAILY_COMPARISON_TARGETS: Final = (
+    ("TQQQ", TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, TQQQ_DAILY_COMPARISON_PATH),
+    ("QLD", QLD_DATA_PATH, LEVERAGE_2X, QLD_DAILY_COMPARISON_PATH),
+)
+
+# 합성 시세 파일 — 상품 이름: 생성 파일. 일별 비교로 검증한 상품만 합성
+SYNTHETIC_DATA_PATHS: Final = {
+    "TQQQ": TQQQ_SYNTHETIC_DATA_PATH,
+    "QLD": QLD_SYNTHETIC_DATA_PATH,
+}
 
 # ============================================================
 # 비용 모델 파라미터
@@ -69,9 +90,23 @@ COL_FFR_VALUE: Final = "VALUE"  # FFR CSV의 금리 값 컬럼
 COL_EXPENSE_DATE: Final = "DATE"  # Expense Ratio CSV의 날짜 컬럼
 COL_EXPENSE_VALUE: Final = "VALUE"  # Expense Ratio CSV의 값 컬럼
 
-# --- 일별 비교 데이터 - 종가 ---
+# --- 일별 비교 데이터 - 시가 · 고가 · 저가 · 종가 ---
+COL_ACTUAL_OPEN: Final = "시가_실제"
+COL_SIMUL_OPEN: Final = "시가_시뮬"
+COL_ACTUAL_HIGH: Final = "고가_실제"
+COL_SIMUL_HIGH: Final = "고가_시뮬"
+COL_ACTUAL_LOW: Final = "저가_실제"
+COL_SIMUL_LOW: Final = "저가_시뮬"
 COL_ACTUAL_CLOSE: Final = "종가_실제"
 COL_SIMUL_CLOSE: Final = "종가_시뮬"
+
+# 일별 비교의 가격 종류 — 이름: (시세 열, 실제 열, 시뮬 열). 이 순서가 CSV 열과 화면 선택지의 순서다
+DAILY_COMPARISON_PRICES: Final = {
+    "시가": (COL_OPEN, COL_ACTUAL_OPEN, COL_SIMUL_OPEN),
+    "고가": (COL_HIGH, COL_ACTUAL_HIGH, COL_SIMUL_HIGH),
+    "저가": (COL_LOW, COL_ACTUAL_LOW, COL_SIMUL_LOW),
+    "종가": (COL_CLOSE, COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE),
+}
 
 # --- 일별 비교 데이터 - 일일수익률 ---
 COL_ACTUAL_DAILY_RETURN: Final = "일일수익률_실제"

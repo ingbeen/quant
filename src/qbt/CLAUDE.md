@@ -44,7 +44,7 @@ qbt는 주식 백테스팅 CLI 도구의 코어 패키지이며 비즈니스 로
 #### CSV 데이터 로딩
 
 - 시세 CSV 는 `utils/data_loader.py` 의 `load_stock_data` 로 읽는다 — 날짜 파싱 · 정렬을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수는 지우거나 메우지 않고 멈춘다(`validate_price_series`)
-- 월별 금리 · 운용비율과 TQQQ 일별 비교 CSV 는 `tqqq/data_loader.py`
+- 월별 금리 · 운용비율과 TQQQ · QLD 일별 비교 CSV 는 `tqqq/data_loader.py`
 
 #### 병렬 처리
 

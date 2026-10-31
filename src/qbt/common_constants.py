@@ -34,8 +34,9 @@ PROXY_COMPARISON_RESULTS_DIR: Final = RESULTS_DIR / "proxy_comparison"  # 대체
 # 나스닥 100 추종 ETF 데이터 파일 경로
 QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
 
-# 합성 TQQQ 데이터 파일 경로 (시뮬레이션 생성)
+# 합성 TQQQ · QLD 데이터 파일 경로 (시뮬레이션 생성)
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
+QLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QLD_synthetic_max.csv"
 
 # 교차 자산 검증용 데이터 파일 경로
 SPY_DATA_PATH: Final = STOCK_DIR / "SPY_max.csv"
