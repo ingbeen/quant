@@ -16,8 +16,10 @@ from qbt.common_constants import (
     COL_OPEN,
     ETC_DIR,
     QLD_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
     STOCK_DIR,
     TQQQ_RESULTS_DIR,
+    TQQQ_SYNTHETIC_DATA_PATH,
 )
 
 # ============================================================
@@ -47,6 +49,12 @@ DAILY_COMPARISON_TARGETS: Final = (
     ("TQQQ", TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, TQQQ_DAILY_COMPARISON_PATH),
     ("QLD", QLD_DATA_PATH, LEVERAGE_2X, QLD_DAILY_COMPARISON_PATH),
 )
+
+# 합성 시세 파일 — 상품 이름: 생성 파일. 일별 비교로 검증한 상품만 합성
+SYNTHETIC_DATA_PATHS: Final = {
+    "TQQQ": TQQQ_SYNTHETIC_DATA_PATH,
+    "QLD": QLD_SYNTHETIC_DATA_PATH,
+}
 
 # ============================================================
 # 비용 모델 파라미터

@@ -97,9 +97,9 @@ poetry run python scripts/data/download_data.py QLD
 poetry run python scripts/tqqq/generate_daily_comparison.py
 # 출력: storage/results/tqqq/tqqq_daily_comparison.csv · qld_daily_comparison.csv
 
-# 3. 합성 TQQQ 데이터 생성 (워크플로우 1 의 단일 백테스트 · 워크포워드의 TQQQ 전략이 읽는다)
+# 3. 합성 TQQQ · QLD 데이터 생성 (TQQQ 판은 워크플로우 1 의 단일 백테스트 · 워크포워드의 TQQQ 전략이 읽는다)
 poetry run python scripts/tqqq/generate_synthetic.py
-# 출력: storage/stock/TQQQ_synthetic_max.csv
+# 출력: storage/stock/TQQQ_synthetic_max.csv · QLD_synthetic_max.csv
 ```
 
 ### 대시보드 앱 실행
@@ -198,7 +198,7 @@ done
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
 - 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 생성 스크립트(③ · ④ 의 장기 대체 · ⑤)가 멈춘다
 
-**③ – ⑥ 생성 · 결과** — 블록의 줄 순서대로 ③ TQQQ 합성(단일 백테스트 · 워크포워드의 TQQQ 전략이 읽는다), ④ 대용 · 장기 대체 시계열(포트폴리오 · 두 그리드가 읽는다)과 대체-실물 비교, ⑤ TQQQ · QLD 일별 비교, ⑥ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
+**③ – ⑥ 생성 · 결과** — 블록의 줄 순서대로 ③ TQQQ · QLD 합성(TQQQ 판은 단일 백테스트 · 워크포워드의 TQQQ 전략이 읽는다), ④ 대용 · 장기 대체 시계열(포트폴리오 · 두 그리드가 읽는다)과 대체-실물 비교, ⑤ TQQQ · QLD 일별 비교, ⑥ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
 ```bash
 (

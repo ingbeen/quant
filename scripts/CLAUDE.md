@@ -51,7 +51,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 
 레버리지 시뮬레이션 (`tqqq/`):
 
-- `generate_synthetic.py` — TQQQ 합성 시세 (상장 전은 시뮬레이션, 상장 후는 실물)
+- `generate_synthetic.py` — TQQQ · QLD 합성 시세 (상장 전은 시뮬레이션, 상장 후는 실물, 상품 표는 `tqqq/constants.py`)
 - `generate_daily_comparison.py` · `app_daily_comparison.py` — TQQQ · QLD 일별 비교 CSV(softplus 동적 스프레드, 상품 표는 `tqqq/constants.py`)와 그 대시보드
 - `spread_lab/app_rate_spread_lab.py` — 스프레드 모델 검증 결과 열람 전용. RMSE 로 과최적화를 판정하지 않고 수치와 잰 기간만 보인다 — 이유와 결과 CSV 를 만든 스크립트의 자리는 앱 docstring
 

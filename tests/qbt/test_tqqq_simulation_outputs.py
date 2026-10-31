@@ -27,6 +27,7 @@ from qbt.tqqq.constants import (
     COL_SIMUL_LOW,
     COL_SIMUL_OPEN,
     DAILY_COMPARISON_TARGETS,
+    SYNTHETIC_DATA_PATHS,
 )
 from qbt.tqqq.simulation import (
     _save_daily_comparison_csv,
@@ -68,6 +69,21 @@ class TestDailyComparisonTargets:
             "TQQQ": ("TQQQ_max.csv", "tqqq_daily_comparison.csv"),
             "QLD": ("QLD_max.csv", "qld_daily_comparison.csv"),
         }
+
+    def test_synthetic_file_by_product(self):
+        """
+        목적: 상품마다 자기 합성 파일에 저장됨을 고정한다 — 경로가 겹치면 전략이 읽는 TQQQ 합성이
+              2배 시세로 에러 없이 덮인다. 합성 스크립트는 이 표와 상품 표로 돌고 테스트가 스크립트에 닿지 않는다
+
+        Given: 합성 파일 표와 일별 비교 상품 표
+        When: 상품 표의 이름으로 합성 파일을 찾는다
+        Then: 상품마다 자기 파일이고, 상품 표의 모든 이름이 있다
+        """
+        # When
+        files_by_name = {name: SYNTHETIC_DATA_PATHS[name].name for name, _, _, _ in DAILY_COMPARISON_TARGETS}
+
+        # Then
+        assert files_by_name == {"TQQQ": "TQQQ_synthetic_max.csv", "QLD": "QLD_synthetic_max.csv"}
 
 
 class TestCalculateValidationMetrics:
