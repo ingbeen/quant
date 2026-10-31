@@ -9,14 +9,15 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.common_constants import TRADING_DAYS_PER_YEAR
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, TRADING_DAYS_PER_YEAR
 from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
-from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
+from qbt.tqqq.data_loader import build_extended_expense_dict, create_expense_dict, create_ffr_dict
 from qbt.tqqq.simulation import (
     _calculate_daily_cost,
     _compute_softplus_spread,
     _softplus,
     build_monthly_spread_map,
+    simulate,
 )
 
 
@@ -217,6 +218,65 @@ class TestCalculateDailyCostWithDynamicExpense:
 
         # Then: 양수 비용
         assert daily_cost > 0, "일일 비용은 양수여야 합니다"
+
+
+class TestProductListedBeforeExpenseFile:
+    """운용비율 파일(2010-02 ~)보다 먼저 상장한 상품(QLD 2006-06) 의 시뮬레이션 테스트"""
+
+    def _underlying_df(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                COL_DATE: [date(2006, 6, 21), date(2006, 6, 22)],
+                COL_OPEN: [100.0, 100.5],
+                COL_HIGH: [100.0, 101.5],
+                COL_LOW: [100.0, 100.0],
+                COL_CLOSE: [100.0, 101.0],
+            }
+        )
+
+    def _expense_df(self) -> pd.DataFrame:
+        return pd.DataFrame({COL_EXPENSE_DATE: ["2010-02"], COL_EXPENSE_VALUE: [0.0095]})
+
+    def test_expense_file_alone_cannot_cover_listing(self):
+        """
+        목적: 파일 그대로의 운용비율로는 상장일을 덮지 못해 멈춤을 고정한다 — 일별 비교가 확장 딕셔너리를
+              써야 하는 이유다
+
+        Given: 2006-06 기초 자산과 2010-02 부터인 운용비율
+        When: create_expense_dict 결과로 simulate 호출
+        Then: ValueError (「Expense 데이터 부족」)
+        """
+        # When & Then
+        with pytest.raises(ValueError, match="Expense 데이터 부족"):
+            simulate(
+                underlying_df=self._underlying_df(),
+                leverage=2.0,
+                initial_price=100.0,
+                ffr_dict={"2006-06": 0.05},
+                expense_dict=create_expense_dict(self._expense_df()),
+                funding_spread={"2006-06": 0.01},
+            )
+
+    def test_extended_expense_uses_pre_listing_ratio(self):
+        """
+        목적: 확장 딕셔너리 + 배율 2 의 종가를 손계산으로 고정한다
+
+        Given: 기초 자산 +1%, 금리 5%, 스프레드 1%, 파일 앞 구간 운용비율 0.95%
+        When: build_extended_expense_dict 결과로 simulate 호출
+        Then: 100 × (1 + 1% × 2 - ((5% + 1%) × 1 + 0.95%) / 252) = 101.972421
+        """
+        # When
+        result = simulate(
+            underlying_df=self._underlying_df(),
+            leverage=2.0,
+            initial_price=100.0,
+            ffr_dict={"2006-06": 0.05},
+            expense_dict=build_extended_expense_dict(self._expense_df()),
+            funding_spread={"2006-06": 0.01},
+        )
+
+        # Then
+        assert result.iloc[1][COL_CLOSE] == pytest.approx(101.972421, abs=1e-6)
 
 
 class TestSoftplusFunctions:

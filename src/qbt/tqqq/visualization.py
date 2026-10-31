@@ -10,56 +10,63 @@ import plotly.graph_objects as go
 
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CLOSE,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DR_M,
     COL_MONTH,
     COL_RATE_PCT,
-    COL_SIMUL_CLOSE,
+    DAILY_COMPARISON_PRICES,
     ROLLING_CORR_WINDOW_MONTHS,
 )
 
 
-def create_price_comparison_chart(df: pd.DataFrame) -> go.Figure:
+def create_price_comparison_chart(df: pd.DataFrame, product_name: str, price_kind: str) -> go.Figure:
     """
-    실제 종가 vs 시뮬레이션 종가 비교 라인 차트를 생성한다.
+    실제 가격 vs 시뮬레이션 가격 비교 라인 차트를 생성한다.
 
     Args:
         df: 일별 비교 데이터
-            필수 컬럼: DISPLAY_DATE, COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE
+            필수 컬럼: DISPLAY_DATE 와 price_kind 의 실제 · 시뮬 열
+        product_name: 범례 · 제목에 쓸 상품 이름 (예: "QLD")
+        price_kind: DAILY_COMPARISON_PRICES 의 가격 종류 (예: "고가")
 
     Returns:
         Plotly Figure 객체 (인터랙티브 라인 차트)
     """
+    _, actual_col, simul_col = DAILY_COMPARISON_PRICES[price_kind]
+
     fig = go.Figure()
 
-    # 실제 종가
+    # 실제 가격
     fig.add_trace(
         go.Scatter(
             x=df[DISPLAY_DATE],
-            y=df[COL_ACTUAL_CLOSE],
+            y=df[actual_col],
             mode="lines",
-            name="실제 TQQQ",
+            name=f"실제 {product_name} {price_kind}",
             line={"color": "#1f77b4", "width": 2},
-            hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>" + "<b>실제 종가</b>: $%{y:.2f}<br>" + "<extra></extra>",
+            hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>"
+            + f"<b>실제 {price_kind}</b>: $%{{y:.2f}}<br>"
+            + "<extra></extra>",
         )
     )
 
-    # 시뮬레이션 종가
+    # 시뮬레이션 가격
     fig.add_trace(
         go.Scatter(
             x=df[DISPLAY_DATE],
-            y=df[COL_SIMUL_CLOSE],
+            y=df[simul_col],
             mode="lines",
-            name="시뮬레이션 TQQQ",
+            name=f"시뮬레이션 {product_name} {price_kind}",
             line={"color": "#ff7f0e", "width": 2, "dash": "dash"},
-            hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>" + "<b>시뮬 종가</b>: $%{y:.2f}<br>" + "<extra></extra>",
+            hovertemplate="<b>날짜</b>: %{x|%Y-%m-%d}<br>"
+            + f"<b>시뮬 {price_kind}</b>: $%{{y:.2f}}<br>"
+            + "<extra></extra>",
         )
     )
 
     fig.update_layout(
-        title="TQQQ 가격 비교: 실제 vs 시뮬레이션",
+        title=f"{product_name} {price_kind} 비교: 실제 vs 시뮬레이션",
         xaxis_title="날짜",
         yaxis_title="가격 (USD)",
         hovermode="x unified",

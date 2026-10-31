@@ -16,6 +16,9 @@ import pytest
 from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
     COL_ACTUAL_CLOSE,
+    COL_ACTUAL_HIGH,
+    COL_ACTUAL_LOW,
+    COL_ACTUAL_OPEN,
     COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
     COL_DAILY_RETURN_ABS_DIFF,
     COL_DE_M,
@@ -24,6 +27,9 @@ from qbt.tqqq.constants import (
     COL_MONTH,
     COL_RATE_PCT,
     COL_SIMUL_CLOSE,
+    COL_SIMUL_HIGH,
+    COL_SIMUL_LOW,
+    COL_SIMUL_OPEN,
     COL_SUM_DAILY_M,
     ROLLING_CORR_WINDOW_MONTHS,
 )
@@ -59,7 +65,7 @@ class TestPriceComparisonChart:
         )
 
         # When
-        fig = create_price_comparison_chart(df)
+        fig = create_price_comparison_chart(df, "TQQQ", "종가")
 
         # Then
         assert isinstance(fig, go.Figure)
@@ -67,8 +73,55 @@ class TestPriceComparisonChart:
         # Trace 타입 검증
         assert isinstance(fig.data[0], go.Scatter)
         assert isinstance(fig.data[1], go.Scatter)
-        assert fig.data[0].name == "실제 TQQQ"
-        assert fig.data[1].name == "시뮬레이션 TQQQ"
+        assert fig.data[0].name == "실제 TQQQ 종가"
+        assert fig.data[1].name == "시뮬레이션 TQQQ 종가"
+
+    @pytest.mark.parametrize(
+        "price_kind,actual_col,simul_col",
+        [
+            ("시가", COL_ACTUAL_OPEN, COL_SIMUL_OPEN),
+            ("고가", COL_ACTUAL_HIGH, COL_SIMUL_HIGH),
+            ("저가", COL_ACTUAL_LOW, COL_SIMUL_LOW),
+            ("종가", COL_ACTUAL_CLOSE, COL_SIMUL_CLOSE),
+        ],
+    )
+    def test_chart_follows_product_and_price_kind(self, price_kind, actual_col, simul_col):
+        """
+        목적: 상품 이름과 가격 종류가 범례 · 제목에 들어가고 그 가격 열을 그림을 검증 — 한 차트 함수로
+              TQQQ · QLD 의 시가 · 고가 · 저가 · 종가를 모두 그린다
+
+        Given: 네 가격의 실제 · 시뮬 열이 서로 다른 값인 일별 데이터
+        When: 상품 QLD 와 각 가격 종류로 호출
+        Then: 범례 · 제목이 선택을 따르고, 두 선의 y 값이 그 가격 열이다
+        """
+        # Given
+        columns = [
+            COL_ACTUAL_OPEN,
+            COL_SIMUL_OPEN,
+            COL_ACTUAL_HIGH,
+            COL_SIMUL_HIGH,
+            COL_ACTUAL_LOW,
+            COL_SIMUL_LOW,
+            COL_ACTUAL_CLOSE,
+            COL_SIMUL_CLOSE,
+        ]
+        df = pd.DataFrame({col: [100.0 + i, 200.0 + i] for i, col in enumerate(columns)})
+        df[DISPLAY_DATE] = [date(2023, 1, 2), date(2023, 1, 3)]
+
+        # When
+        fig = create_price_comparison_chart(df, "QLD", price_kind)
+
+        # Then
+        actual_trace, simul_trace = fig.data[0], fig.data[1]
+        assert isinstance(actual_trace, go.Scatter)
+        assert isinstance(simul_trace, go.Scatter)
+        assert actual_trace.name == f"실제 QLD {price_kind}"
+        assert simul_trace.name == f"시뮬레이션 QLD {price_kind}"
+        assert list(actual_trace.y) == df[actual_col].tolist()
+        assert list(simul_trace.y) == df[simul_col].tolist()
+        title = fig.layout.title.text
+        assert title is not None
+        assert "QLD" in title and price_kind in title
 
     def test_chart_with_single_row(self):
         """
@@ -88,7 +141,7 @@ class TestPriceComparisonChart:
         )
 
         # When
-        fig = create_price_comparison_chart(df)
+        fig = create_price_comparison_chart(df, "TQQQ", "종가")
 
         # Then
         assert isinstance(fig, go.Figure)

@@ -14,6 +14,12 @@ from qbt.tqqq.simulation import (
 )
 
 
+def _with_high_low(df: pd.DataFrame) -> pd.DataFrame:
+    """고가 · 저가를 보지 않는 테스트의 기초 자산 — 고가 · 저가를 시가 · 종가 안에 둔다."""
+    body = df[[COL_OPEN, COL_CLOSE]]
+    return df.assign(**{COL_HIGH: body.max(axis=1), COL_LOW: body.min(axis=1)})
+
+
 class TestSimulate:
     """TQQQ 시뮬레이션 테스트"""
 
@@ -52,7 +58,7 @@ class TestSimulate:
 
         # When
         simulated_df = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=leverage,
             initial_price=initial_price,
             ffr_dict=ffr_dict,
@@ -96,7 +102,7 @@ class TestSimulate:
         # When: leverage=3, FFR · expense 0, 최소 spread (1e-9, spread > 0 제약 충족)
         # 비용 영향 최소화: 1e-9 * 2 / 252 ≈ 7.9e-12 (무시 가능)
         simulated_df = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={"2023-01": 0.0},
@@ -113,52 +119,13 @@ class TestSimulate:
             expected_price, abs=0.01
         ), f"레버리지 3배: 30.0 * 1.03 = {expected_price:.2f}, 실제: {final_price:.2f}"
 
-    def test_high_low_approximation_for_synthetic_data(self):
-        """
-        합성 데이터의 High/Low가 Open/Close 기반 근사값으로 생성되는지 검증한다.
-
-        Given: QQQ 데이터 (Open과 Close가 다른 값)
-        When: simulate 호출
-        Then: High == max(Open, Close), Low == min(Open, Close)
-        """
-        # Given
-        underlying_df = pd.DataFrame(
-            {
-                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-                COL_OPEN: [100.0, 100.5, 99.5],
-                COL_CLOSE: [100.0, 101.0, 99.0],
-            }
-        )
-
-        # When
-        result = simulate(
-            underlying_df=underlying_df,
-            leverage=3.0,
-            initial_price=30.0,
-            ffr_dict={"2023-01": 0.0},
-            expense_dict={"2023-01": 0.0},
-            funding_spread={"2023-01": 1e-9},
-        )
-
-        # Then: High == max(Open, Close), Low == min(Open, Close)
-        for i in range(len(result)):
-            row = result.iloc[i]
-            expected_high = max(row[COL_OPEN], row[COL_CLOSE])
-            expected_low = min(row[COL_OPEN], row[COL_CLOSE])
-            assert row[COL_HIGH] == pytest.approx(
-                expected_high, abs=1e-6
-            ), f"행 {i}: High={row[COL_HIGH]}, expected max(O,C)={expected_high}"
-            assert row[COL_LOW] == pytest.approx(
-                expected_low, abs=1e-6
-            ), f"행 {i}: Low={row[COL_LOW]}, expected min(O,C)={expected_low}"
-
     def test_high_low_relationship(self):
         """
-        High >= Low 불변조건을 검증한다.
+        목적: 고가는 시가 · 종가 이상, 저가는 시가 · 종가 이하라는 시세 불변조건을 검증한다
 
-        Given: QQQ 데이터
+        Given: 비용이 있는 QQQ 데이터
         When: simulate 호출
-        Then: 모든 행에서 High >= Low
+        Then: 모든 행에서 High >= max(Open, Close), Low <= min(Open, Close)
         """
         # Given
         underlying_df = pd.DataFrame(
@@ -171,7 +138,7 @@ class TestSimulate:
 
         # When
         result = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={"2023-01": 0.045},
@@ -179,8 +146,10 @@ class TestSimulate:
             funding_spread={"2023-01": 0.006},
         )
 
-        # Then: High >= Low
-        assert (result[COL_HIGH] >= result[COL_LOW]).all(), "모든 행에서 High >= Low 이어야 합니다"
+        # Then
+        body = result[[COL_OPEN, COL_CLOSE]]
+        assert (result[COL_HIGH] >= body.max(axis=1)).all()
+        assert (result[COL_LOW] <= body.min(axis=1)).all()
 
     def test_start_on_month_end_day(self):
         """
@@ -203,7 +172,7 @@ class TestSimulate:
 
         # When
         result = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={month: 0.0155 for month in months},
@@ -257,7 +226,7 @@ class TestSimulateValidation:
         # When & Then
         with pytest.raises(ValueError, match=error_pattern):
             simulate(
-                underlying_df=underlying_df,
+                underlying_df=_with_high_low(underlying_df),
                 leverage=leverage,
                 initial_price=initial_price,
                 ffr_dict={"2023-01": 0.045},
@@ -301,7 +270,7 @@ class TestSimulateValidation:
         # When & Then
         with pytest.raises(ValueError, match="underlying_df가 비어있습니다"):
             simulate(
-                underlying_df=underlying_df,
+                underlying_df=_with_high_low(underlying_df),
                 leverage=3.0,
                 initial_price=100.0,
                 ffr_dict={"2023-01": 0.045},
@@ -330,7 +299,7 @@ class TestSimulateValidation:
         # When & Then
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             simulate(
-                underlying_df=underlying_df,
+                underlying_df=_with_high_low(underlying_df),
                 leverage=3.0,
                 initial_price=100.0,
                 ffr_dict={"2023-01": 0.045},
@@ -360,13 +329,302 @@ class TestSimulateValidation:
         # When & Then
         with pytest.raises(ValueError, match="FFR 데이터 부족.*2023-05"):
             simulate(
-                underlying_df=underlying_df,
+                underlying_df=_with_high_low(underlying_df),
                 leverage=3.0,
                 initial_price=100.0,
                 ffr_dict={"2023-01": 0.045, "2023-02": 0.046},
                 expense_dict={month: 0.0095 for month in months},
                 funding_spread={month: 0.005 for month in months},
             )
+
+
+class TestSimulateHighLow:
+    """simulate() 의 고가 · 저가 계산 테스트
+
+    펀드의 장중 노출은 전날 종가에 고정되므로 장중 가치는 기초 자산에 선형이다.
+
+    수식: X(t) = 레버리지_Close(t-1) × (1 + (기초_X(t)/기초_Close(t-1) - 1) × leverage), X 는 High · Low
+    """
+
+    def test_high_low_scale_underlying_intraday_range(self):
+        """
+        목적: 고가 · 저가가 기초 자산의 장중 고가 · 저가를 배율로 키운 값임을 손계산으로 고정한다 —
+              시가 · 종가에서 만든 근사값이면 장중 꼬리가 사라진다
+
+        Given: 시가 · 종가 밖으로 장중 범위가 나간 기초 자산, 배율 2, 비용 거의 0
+        When: simulate 호출
+        Then: 둘째 · 셋째 날 고가 · 저가가 전날 시뮬 종가 기준 식과 일치한다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_HIGH: [100.0, 103.0, 104.0],
+                COL_LOW: [100.0, 99.0, 100.0],
+                COL_CLOSE: [100.0, 102.0, 101.0],
+            }
+        )
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=2.0,
+            initial_price=50.0,
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},
+        )
+
+        # Then: 둘째 날 — 50 × (1 + 3% × 2), 50 × (1 - 1% × 2)
+        assert result.iloc[1][COL_HIGH] == pytest.approx(53.0, abs=1e-6)
+        assert result.iloc[1][COL_LOW] == pytest.approx(49.0, abs=1e-6)
+        # 셋째 날 — 전날 시뮬 종가 52 × (1 ± 2/102 × 2)
+        assert result.iloc[2][COL_HIGH] == pytest.approx(54.039216, abs=1e-6)
+        assert result.iloc[2][COL_LOW] == pytest.approx(49.960784, abs=1e-6)
+
+    def test_low_moved_to_close_when_underlying_closes_at_its_low(self):
+        """
+        목적: 일일 비용은 종가에서만 빠지므로 기초 자산이 저가에 마감한 날 식의 저가가 종가보다 높다 —
+              저가를 종가로 맞춰 시세 불변조건을 지킴을 검증한다
+
+        Given: 둘째 날 저가 = 종가인 기초 자산, 비용 있음
+        When: simulate 호출
+        Then: 둘째 날 저가는 식의 값(29.1)이 아니라 그보다 낮은 종가다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 101.0],
+                COL_HIGH: [100.0, 103.0],
+                COL_LOW: [100.0, 99.0],
+                COL_CLOSE: [100.0, 99.0],
+            }
+        )
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
+        )
+
+        # Then
+        assert result.iloc[1][COL_CLOSE] < 29.1
+        assert result.iloc[1][COL_LOW] == result.iloc[1][COL_CLOSE]
+
+    def test_formula_inside_body_is_moved_to_open_close(self):
+        """
+        목적: 식의 고가 · 저가가 시가 · 종가 안쪽이어도 시세 불변조건을 지킴을 검증 — 비용이 음수인 달
+              (음수 금리를 그대로 쓴다)이나 기초 자산의 고가 · 저가 오입력에서 생긴다
+
+        Given: 기초 고가가 시가 · 종가보다 낮고 저가가 시가 · 종가보다 높은 날 두 개 (종가가 위인 날과 시가가 위인 날)
+        When: simulate 호출
+        Then: 고가는 시가 · 종가 중 큰 값, 저가는 작은 값이다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, 104.0],
+                COL_HIGH: [100.0, 100.5, 102.0],
+                COL_LOW: [100.0, 102.0, 103.0],
+                COL_CLOSE: [100.0, 103.0, 100.0],
+            }
+        )
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={"2023-01": 0.0},
+            expense_dict={"2023-01": 0.0},
+            funding_spread={"2023-01": 1e-9},
+        )
+
+        # Then: 둘째 날은 종가가 위, 셋째 날은 시가가 위
+        day2, day3 = result.iloc[1], result.iloc[2]
+        assert day2[COL_CLOSE] > day2[COL_OPEN]
+        assert day2[COL_HIGH] == pytest.approx(day2[COL_CLOSE], abs=1e-9)
+        assert day2[COL_LOW] == pytest.approx(day2[COL_OPEN], abs=1e-9)
+        assert day3[COL_OPEN] > day3[COL_CLOSE]
+        assert day3[COL_HIGH] == pytest.approx(day3[COL_OPEN], abs=1e-9)
+        assert day3[COL_LOW] == pytest.approx(day3[COL_CLOSE], abs=1e-9)
+
+    @pytest.mark.parametrize(
+        "underlying_low,leverage",
+        [(1.0, 3.0), (50.0, 2.0)],
+        ids=["negative", "exactly_zero"],
+    )
+    def test_non_positive_low_raises(self, underlying_low, leverage):
+        """
+        목적: 시뮬 저가가 0 이하이면 멈춤을 검증 — 기초 자산 저가의 오입력은 양수라 시세 검사를 지나고,
+              일별 비교 CSV 는 저장 전 검사가 없어 음수 가격이 에러 없이 나간다
+
+        Given: 둘째 날 저가가 크게 낮은 기초 자산 (식의 저가가 음수인 경우, 정확히 0 인 경우)
+        When: simulate 호출
+        Then: ValueError (「시뮬레이션 가격이 0 이하」)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 100.0],
+                COL_HIGH: [100.0, 101.0],
+                COL_LOW: [100.0, underlying_low],
+                COL_CLOSE: [100.0, 100.0],
+            }
+        )
+
+        # When & Then
+        with pytest.raises(ValueError, match="시뮬레이션 가격이 0 이하"):
+            simulate(
+                underlying_df=underlying_df,
+                leverage=leverage,
+                initial_price=30.0,
+                ffr_dict={"2023-01": 0.0},
+                expense_dict={"2023-01": 0.0},
+                funding_spread={"2023-01": 1e-9},
+            )
+
+    def test_first_day_high_low_equal_initial_price(self):
+        """
+        목적: 첫날은 전날 종가가 없어 고가 · 저가가 시작 가격임을 검증한다 (시가 · 종가와 같은 규칙)
+
+        Given: 첫날 장중 범위가 넓은 기초 자산, initial_price=30.0
+        When: simulate 호출
+        Then: 첫날 시가 · 고가 · 저가 · 종가가 모두 30.0 이다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 101.0],
+                COL_HIGH: [110.0, 103.0],
+                COL_LOW: [90.0, 99.0],
+                COL_CLOSE: [100.0, 102.0],
+            }
+        )
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
+        )
+
+        # Then
+        first = result.iloc[0]
+        assert [first[COL_OPEN], first[COL_HIGH], first[COL_LOW], first[COL_CLOSE]] == [30.0, 30.0, 30.0, 30.0]
+
+    @pytest.mark.parametrize("col", [COL_HIGH, COL_LOW])
+    def test_missing_high_low_after_first_day_is_not_filled(self, col):
+        """
+        목적: 첫날이 아닌 날의 고가 · 저가 결측을 시가 · 종가로 메우지 않음을 검증 — 메우면 에러 없이
+              가짜 값이 저장된다. 결측은 저장 전 시세 검사가 멈춘다
+
+        Given: 셋째 날 기초 자산의 고가 또는 저가가 결측
+        When: simulate 호출
+        Then: 셋째 날 그 열이 결측으로 남는다
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_HIGH: [100.0, 103.0, 104.0],
+                COL_LOW: [100.0, 99.0, 100.0],
+                COL_CLOSE: [100.0, 102.0, 101.0],
+            }
+        )
+        underlying_df.loc[2, col] = float("nan")
+
+        # When
+        result = simulate(
+            underlying_df=underlying_df,
+            leverage=3.0,
+            initial_price=30.0,
+            ffr_dict={"2023-01": 0.045},
+            expense_dict={"2023-01": 0.0095},
+            funding_spread={"2023-01": 0.006},
+        )
+
+        # Then
+        assert pd.isna(result.iloc[2][col])
+
+    @pytest.mark.parametrize("col", [COL_HIGH, COL_LOW])
+    def test_high_low_required_columns(self, col):
+        """
+        목적: 고가 · 저가 열이 없으면 시가 · 종가로 대신하지 않고 멈춤을 검증한다
+
+        Given: 고가 또는 저가 열이 없는 기초 자산
+        When: simulate 호출
+        Then: ValueError (필수 컬럼 누락)
+        """
+        # Given
+        underlying_df = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
+                COL_OPEN: [100.0, 101.0],
+                COL_HIGH: [100.0, 103.0],
+                COL_LOW: [100.0, 99.0],
+                COL_CLOSE: [100.0, 102.0],
+            }
+        ).drop(columns=[col])
+
+        # When & Then
+        with pytest.raises(ValueError, match="필수 컬럼이 누락되었습니다"):
+            simulate(
+                underlying_df=underlying_df,
+                leverage=3.0,
+                initial_price=30.0,
+                ffr_dict={"2023-01": 0.045},
+                expense_dict={"2023-01": 0.0095},
+                funding_spread={"2023-01": 0.006},
+            )
+
+    def test_high_low_do_not_change_open_close(self):
+        """
+        목적: 기초 자산의 고가 · 저가는 시가 · 종가 계산에 쓰이지 않음을 고정한다 — 매매 계산은 시가 · 종가만
+              읽으므로, 이 계약이 깨지면 백테스트 성과까지 바뀐다
+
+        Given: 시가 · 종가는 같고 장중 범위만 다른 두 기초 자산
+        When: 각각 simulate 호출
+        Then: 시뮬 시가 · 종가가 값까지 같다
+        """
+        # Given
+        narrow = pd.DataFrame(
+            {
+                COL_DATE: [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
+                COL_OPEN: [100.0, 101.0, 102.0],
+                COL_HIGH: [100.0, 102.0, 102.0],
+                COL_LOW: [100.0, 101.0, 101.0],
+                COL_CLOSE: [100.0, 102.0, 101.0],
+            }
+        )
+        wide = narrow.assign(**{COL_HIGH: [110.0, 120.0, 130.0], COL_LOW: [90.0, 80.0, 70.0]})
+        monthly = {
+            "ffr_dict": {"2023-01": 0.045},
+            "expense_dict": {"2023-01": 0.0095},
+            "funding_spread": {"2023-01": 0.006},
+        }
+
+        # When
+        narrow_result = simulate(underlying_df=narrow, leverage=3.0, initial_price=30.0, **monthly)
+        wide_result = simulate(underlying_df=wide, leverage=3.0, initial_price=30.0, **monthly)
+
+        # Then
+        pd.testing.assert_frame_equal(
+            narrow_result[[COL_OPEN, COL_CLOSE]], wide_result[[COL_OPEN, COL_CLOSE]], check_exact=True
+        )
 
 
 class TestSimulateOvernightOpen:
@@ -401,7 +659,7 @@ class TestSimulateOvernightOpen:
 
         # When
         result = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={"2023-01": 0.0},
@@ -451,7 +709,7 @@ class TestSimulateOvernightOpen:
 
         # When
         result = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={"2023-01": 0.045},
@@ -482,7 +740,7 @@ class TestSimulateOvernightOpen:
 
         # When
         result = simulate(
-            underlying_df=underlying_df,
+            underlying_df=_with_high_low(underlying_df),
             leverage=3.0,
             initial_price=30.0,
             ffr_dict={"2023-01": 0.045},
