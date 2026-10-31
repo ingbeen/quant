@@ -2,16 +2,16 @@
   "display_name": "Q-2-2XS 80% + HAA 10% + 미국 약세 로테이션 10%",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 125413466,
-    "total_return_pct": 1154.13,
+    "final_capital": 125642299,
+    "total_return_pct": 1156.42,
     "cagr": 14.03,
     "mdd": -22.77,
-    "calmar": 0.6165,
-    "sharpe_ratio": 0.8877,
-    "sortino_ratio": 1.23,
+    "calmar": 0.6162,
+    "sharpe_ratio": 0.8875,
+    "sortino_ratio": 1.2296,
     "total_trades": 460,
     "start_date": "2007-06-22",
-    "end_date": "2026-09-24"
+    "end_date": "2026-10-02"
   },
   "per_asset": [
     {
@@ -19,8 +19,8 @@
       "target_weight": 0.28,
       "open_position": {
         "entry_date": "2025-05-21",
-        "entry_price": 44.6205,
-        "shares": 522268
+        "entry_price": 44.6204,
+        "shares": 522266
       }
     },
     {
@@ -29,7 +29,7 @@
       "open_position": {
         "entry_date": "2026-04-17",
         "entry_price": 76.304,
-        "shares": 367144
+        "shares": 367143
       }
     },
     {
@@ -37,7 +37,7 @@
       "target_weight": 0.12,
       "open_position": {
         "entry_date": "2007-06-25",
-        "entry_price": 229.7466,
+        "entry_price": 229.7467,
         "shares": 37188
       }
     },
@@ -46,8 +46,8 @@
       "target_weight": 0.12,
       "open_position": {
         "entry_date": "2007-06-25",
-        "entry_price": 90.8,
-        "shares": 183442
+        "entry_price": 90.4356,
+        "shares": 184181
       }
     },
     {
@@ -409,7 +409,7 @@
     {
       "year": 2010,
       "month": 3,
-      "return_pct": 8.66
+      "return_pct": 8.67
     },
     {
       "year": 2010,
@@ -1029,7 +1029,7 @@
     {
       "year": 2020,
       "month": 7,
-      "return_pct": 9.95
+      "return_pct": 9.96
     },
     {
       "year": 2020,
@@ -1399,7 +1399,12 @@
     {
       "year": 2026,
       "month": 9,
-      "return_pct": 0.75
+      "return_pct": -0.32
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "return_pct": 1.26
     }
   ],
   "yearly_returns": [
@@ -1473,7 +1478,7 @@
     },
     {
       "year": 2024,
-      "return_pct": 26.18
+      "return_pct": 26.17
     },
     {
       "year": 2025,
@@ -1481,7 +1486,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 10.0
+      "return_pct": 10.2
     }
   ],
   "per_method": [
@@ -1490,30 +1495,30 @@
       "display_name": "Q-2-2XS",
       "target_share": 0.8,
       "final_share": 0.8064,
-      "final_equity": 101112635,
-      "pnl": 103416522,
-      "realized_pnl": 78823063,
-      "unrealized_pnl": 24593459,
-      "cost": 1720305,
-      "transfers": -10303887,
+      "final_equity": 101296662,
+      "pnl": 103600559,
+      "realized_pnl": 78822862,
+      "unrealized_pnl": 24777697,
+      "cost": 1720301,
+      "transfers": -10303897,
       "rebalanced_days": 85,
       "method_rebalance_days": 36,
       "assets": [
         {
           "asset_id": "q2_2xs.sso",
-          "pnl": 40533230
+          "pnl": 40700309
         },
         {
           "asset_id": "q2_2xs.qld",
-          "pnl": 50335318
+          "pnl": 51080539
         },
         {
           "asset_id": "q2_2xs.gld",
-          "pnl": 13066502
+          "pnl": 12636884
         },
         {
           "asset_id": "q2_2xs.tlt",
-          "pnl": -518528
+          "pnl": -817173
         }
       ]
     },
@@ -1521,27 +1526,27 @@
       "method_id": "haa",
       "display_name": "HAA",
       "target_share": 0.1,
-      "final_share": 0.0988,
-      "final_equity": 12389630,
-      "pnl": 6852855,
-      "realized_pnl": 6865598,
-      "unrealized_pnl": -12743,
-      "cost": 1646525,
-      "transfers": 4536775,
+      "final_share": 0.0987,
+      "final_equity": 12404923,
+      "pnl": 6868143,
+      "realized_pnl": 6865579,
+      "unrealized_pnl": 2564,
+      "cost": 1646526,
+      "transfers": 4536779,
       "rebalanced_days": 64,
       "method_rebalance_days": 36,
       "assets": [
         {
           "asset_id": "haa.spy",
-          "pnl": 1663807
+          "pnl": 1663792
         },
         {
           "asset_id": "haa.iwm",
-          "pnl": 1134378
+          "pnl": 1134367
         },
         {
           "asset_id": "haa.vea",
-          "pnl": 1369595
+          "pnl": 1369585
         },
         {
           "asset_id": "haa.vwo",
@@ -1549,23 +1554,23 @@
         },
         {
           "asset_id": "haa.vnq",
-          "pnl": 123922
+          "pnl": 123921
         },
         {
           "asset_id": "haa.pdbc",
-          "pnl": 891566
+          "pnl": 891556
         },
         {
           "asset_id": "haa.ief",
-          "pnl": 217021
+          "pnl": 217020
         },
         {
           "asset_id": "haa.tlt",
-          "pnl": 258604
+          "pnl": 258633
         },
         {
           "asset_id": "haa.bil",
-          "pnl": 66012
+          "pnl": 81319
         }
       ]
     },
@@ -1573,57 +1578,57 @@
       "method_id": "rotation",
       "display_name": "미국 약세 감지 로테이션",
       "target_share": 0.1,
-      "final_share": 0.0948,
-      "final_equity": 11891165,
-      "pnl": 5124053,
-      "realized_pnl": 5225372,
-      "unrealized_pnl": -101320,
-      "cost": 754673,
-      "transfers": 5767112,
+      "final_share": 0.0949,
+      "final_equity": 11920680,
+      "pnl": 5153562,
+      "realized_pnl": 5225367,
+      "unrealized_pnl": -71805,
+      "cost": 754672,
+      "transfers": 5767118,
       "rebalanced_days": 36,
       "method_rebalance_days": 36,
       "assets": [
         {
           "asset_id": "rotation.vxus",
-          "pnl": 4640787
+          "pnl": 4640779
         },
         {
           "asset_id": "rotation.shy",
-          "pnl": 483266
+          "pnl": 512783
         }
       ]
     }
   ],
   "netting": {
-    "savings_total": 20036,
+    "savings_total": 20034,
     "netting_rows": 13,
     "netting_days": 13,
-    "netted_shares": 36384
+    "netted_shares": 36528
   },
   "account_holdings": [
     {
       "asset_id": "sso",
-      "shares": 522268,
-      "value": 36694551,
-      "weight": 0.2926
+      "shares": 522266,
+      "value": 36861535,
+      "weight": 0.2934
     },
     {
       "asset_id": "qld",
-      "shares": 367144,
-      "value": 35282538,
-      "weight": 0.2813
+      "shares": 367143,
+      "value": 36027741,
+      "weight": 0.2867
     },
     {
       "asset_id": "gld",
       "shares": 37188,
-      "value": 14566168,
-      "weight": 0.1161
+      "value": 14136647,
+      "weight": 0.1125
     },
     {
       "asset_id": "tlt",
-      "shares": 183442,
-      "value": 14568963,
-      "weight": 0.1162
+      "shares": 184181,
+      "value": 14270344,
+      "weight": 0.1136
     },
     {
       "asset_id": "spy",
@@ -1670,8 +1675,8 @@
     {
       "asset_id": "bil",
       "shares": 135676,
-      "value": 12389549,
-      "weight": 0.0988
+      "value": 12404857,
+      "weight": 0.0987
     },
     {
       "asset_id": "vxus",
@@ -1682,14 +1687,14 @@
     {
       "asset_id": "shy",
       "shares": 147078,
-      "value": 11891157,
-      "weight": 0.0948
+      "value": 11920672,
+      "weight": 0.0949
     }
   ],
   "pnl_check": {
-    "account_pnl": 115413466,
-    "methods_pnl_sum": 115393429,
-    "netting_savings": 20036,
+    "account_pnl": 115642299,
+    "methods_pnl_sum": 115622264,
+    "netting_savings": 20034,
     "difference": 0
   }
 }

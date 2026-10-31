@@ -2,16 +2,16 @@
   "display_name": "Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 163205615,
-    "total_return_pct": 1532.06,
-    "cagr": 15.43,
+    "final_capital": 158140707,
+    "total_return_pct": 1481.41,
+    "cagr": 15.16,
     "mdd": -27.93,
-    "calmar": 0.5524,
-    "sharpe_ratio": 0.8553,
-    "sortino_ratio": 1.1815,
+    "calmar": 0.5429,
+    "sharpe_ratio": 0.8427,
+    "sortino_ratio": 1.1629,
     "total_trades": 147,
     "start_date": "2007-04-09",
-    "end_date": "2026-09-24"
+    "end_date": "2026-10-29"
   },
   "per_asset": [
     {
@@ -20,7 +20,7 @@
       "open_position": {
         "entry_date": "2025-05-21",
         "entry_price": 44.6205,
-        "shares": 842991
+        "shares": 842989
       }
     },
     {
@@ -29,7 +29,7 @@
       "open_position": {
         "entry_date": "2026-04-17",
         "entry_price": 76.304,
-        "shares": 592606
+        "shares": 592605
       }
     },
     {
@@ -37,7 +37,7 @@
       "target_weight": 0.15,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 232.5463,
+        "entry_price": 232.5456,
         "shares": 60026
       }
     },
@@ -46,8 +46,8 @@
       "target_weight": 0.15,
       "open_position": {
         "entry_date": "2007-04-10",
-        "entry_price": 90.8517,
-        "shares": 296094
+        "entry_price": 90.4873,
+        "shares": 297286
       }
     }
   ],
@@ -916,7 +916,7 @@
     {
       "year": 2020,
       "month": 9,
-      "return_pct": -7.49
+      "return_pct": -7.48
     },
     {
       "year": 2020,
@@ -1276,7 +1276,12 @@
     {
       "year": 2026,
       "month": 9,
-      "return_pct": 1.07
+      "return_pct": -0.28
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "return_pct": -1.79
     }
   ],
   "yearly_returns": [
@@ -1358,7 +1363,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 9.27
+      "return_pct": 5.88
     }
   ]
 }
