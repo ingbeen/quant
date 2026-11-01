@@ -41,6 +41,7 @@ class SummaryDict(TypedDict):
 
     성과 지표 요약 딕셔너리.
     open_position은 백테스트 종료 시 보유 중인 포지션이 있을 때만 포함된다.
+    open_lots는 스플릿 매매의 끝날 보유 칸이다 (칸 순서, 보유 칸이 있을 때만 포함).
     """
 
     initial_capital: float
@@ -57,6 +58,7 @@ class SummaryDict(TypedDict):
     start_date: str  # ISO format "YYYY-MM-DD" (에쿼티 첫 날)
     end_date: str  # ISO format "YYYY-MM-DD" (에쿼티 마지막 날)
     open_position: NotRequired[OpenPositionDict]
+    open_lots: NotRequired[list[OpenPositionDict]]
 
 
 class BestGridParams(TypedDict):

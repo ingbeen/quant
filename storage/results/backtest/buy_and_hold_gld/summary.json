@@ -2,17 +2,17 @@
   "display_name": "Buy & Hold (GLD)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 87776568,
-    "total_return_pct": 777.77,
-    "cagr": 10.45,
+    "final_capital": 82595447,
+    "total_return_pct": 725.95,
+    "cagr": 10.1,
     "mdd": -45.55,
-    "calmar": 0.2295,
+    "calmar": 0.2217,
     "total_trades": 0,
     "winning_trades": 0,
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "2004-11-18",
-    "end_date": "2026-09-24",
+    "end_date": "2026-10-29",
     "open_position": {
       "entry_date": "2004-11-19",
       "entry_price": 44.6235,
@@ -1337,7 +1337,12 @@
     {
       "year": 2026,
       "month": 9,
-      "return_pct": -4.1
+      "return_pct": -6.75
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "return_pct": -3.22
     }
   ],
   "yearly_returns": [
@@ -1431,7 +1436,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -1.17
+      "return_pct": -7.0
     }
   ],
   "data_info": {

@@ -74,3 +74,12 @@ class SignalStrategy(Protocol):
                 - BuyAndHoldStrategy: {}
         """
         ...
+
+
+@runtime_checkable
+class IntradayStopStrategy(SignalStrategy, Protocol):
+    """장중 손절선을 가진 전략. 단일 백테스트 엔진만 이 Protocol 을 본다 (포트폴리오 엔진은 쓰지 않는다)."""
+
+    def stop_price(self) -> float | None:
+        """오늘 장중에 적용할 손절선을 반환한다. 없으면 None. 전날 종가까지의 판단으로 정해진 값이다."""
+        ...

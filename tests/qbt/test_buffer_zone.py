@@ -37,6 +37,7 @@ from qbt.backtest.strategies.buffer_zone import (
     resolve_params_for_config,
 )
 from qbt.backtest.types import BufferStrategyParams, SingleBacktestResult
+from qbt.common_constants import QLD_SYNTHETIC_DATA_PATH, QQQ_DATA_PATH
 
 
 class TestBufferZoneConfig:
@@ -117,6 +118,38 @@ class TestBufferZoneConfig:
         # When & Then
         with pytest.raises(ValueError):
             get_config("nonexistent_strategy")
+
+    def test_qld_config_trades_synthetic_on_qqq_signal(self):
+        """
+        목적: QLD 버퍼존은 TQQQ 와 같은 짜임이다 — QQQ 신호로 합성 시세를 매매하고 값은 4P 그대로
+
+        Given: buffer_zone.CONFIGS
+        When: get_config("buffer_zone_qld")
+        Then: 신호 QQQ, 매매 QLD 합성, 4P 기본값
+        """
+        # When
+        config = get_config("buffer_zone_qld")
+
+        # Then
+        assert config.signal_data_path == QQQ_DATA_PATH
+        assert config.trade_data_path == QLD_SYNTHETIC_DATA_PATH
+        assert config.ma_window == FIXED_4P_MA_WINDOW
+        assert config.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
+        assert config.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
+        assert config.hold_days == FIXED_4P_HOLD_DAYS
+
+    @pytest.mark.parametrize("removed", ["buffer_zone_ugl", "buffer_zone_ubt"])
+    def test_ugl_and_ubt_are_removed(self, removed: str):
+        """
+        목적: UGL · UBT 버퍼존은 빠졌다 (사용자 결정 2026-11-01)
+
+        Given: 제거한 전략 이름
+        When: get_config 호출
+        Then: ValueError
+        """
+        # When & Then
+        with pytest.raises(ValueError, match=removed):
+            get_config(removed)
 
 
 class TestResolveParamsForConfig:

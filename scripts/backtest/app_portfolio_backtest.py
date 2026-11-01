@@ -975,7 +975,7 @@ def _render_signal_chart(
     signal_trades = trades_df[(trades_df["asset_id"] == asset_id) & (trades_df["trade_type"] == TRADE_TYPE_SIGNAL)]
     markers = build_trade_markers(
         signal_trades,
-        open_entry_date=None if open_position is None else str(open_position["entry_date"]),
+        open_entry_dates=[] if open_position is None else [str(open_position["entry_date"])],
     )
     pane = build_price_pane(signal_df, signal_df, markers, title=f"{asset_id.upper()} 시그널 차트")
     lightweight_charts_v5_component(

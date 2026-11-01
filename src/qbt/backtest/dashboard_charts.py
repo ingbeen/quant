@@ -258,8 +258,8 @@ def _buy_marker(time: str, text: str) -> dict[str, object]:
     }
 
 
-def build_trade_markers(trades_df: pd.DataFrame, *, open_entry_date: str | None = None) -> list[dict[str, object]]:
-    """거래마다 진입일 「Buy」 · 청산일 「Sell ±손익%」, 미청산 진입일이면 「Buy (보유중)」 마커 (거래 순서).
+def build_trade_markers(trades_df: pd.DataFrame, *, open_entry_dates: Sequence[str] = ()) -> list[dict[str, object]]:
+    """거래마다 진입일 「Buy」 · 청산일 「Sell ±손익%」, 미청산 진입일마다 「Buy (보유중)」 마커 (거래 순서).
 
     Buy 에 가격을 적지 않는다 — 캔들은 신호 시세라 신호와 매매 종목이 다른 전략은 체결가가 캔들 가격대와 맞지 않고,
     포트폴리오 거래 기록의 진입가는 체결가가 아니라 매도 시점 평균 단가다.
@@ -279,7 +279,7 @@ def build_trade_markers(trades_df: pd.DataFrame, *, open_entry_date: str | None 
                 "size": 2,
             }
         )
-    if open_entry_date is not None:
+    for open_entry_date in open_entry_dates:
         markers.append(_buy_marker(pd.Timestamp(open_entry_date).strftime("%Y-%m-%d"), "Buy (보유중)"))
     return markers
 

@@ -1,6 +1,6 @@
 """엔진 공통 모듈
 
-단일 백테스트 엔진과 포트폴리오 엔진이 공유하는 데이터 타입과 체결 계산 함수를 제공한다.
+단일 백테스트 · 스플릿 매매 · 포트폴리오 엔진이 공유하는 데이터 타입과 체결 계산 함수를 제공한다.
 
 포함 내용:
 - PendingOrder: 예약된 주문 정보 (신호일과 체결일 분리)
@@ -47,7 +47,7 @@ class EquityRecord(TypedDict):
 
 
 class TradeRecord(TypedDict):
-    """거래 기록 딕셔너리. 단일 백테스트 엔진에서 사용."""
+    """거래 기록 딕셔너리. 단일 백테스트 · 스플릿 매매 엔진에서 사용."""
 
     entry_date: date
     exit_date: date
@@ -101,23 +101,23 @@ class PendingOrder:
 
 
 def execute_buy_order(
-    open_price: float,
+    price_raw: float,
     amount: float,
 ) -> tuple[int, float, float]:
     """매수 체결 계산. 상태 업데이트는 호출부에서 수행한다.
 
     슬리피지를 적용한 매수가로 체결 수량과 비용을 계산한다.
-    단일 엔진은 전체 자본을, 포트폴리오 엔진은 delta_amount를 amount로 전달한다.
+    단일 엔진은 전체 자본을, 포트폴리오 엔진은 delta_amount를, 스플릿 엔진은 칸 금액을 amount로 전달한다.
 
     Args:
-        open_price: 시가 (슬리피지 적용 전)
+        price_raw: 체결 기준가 — 시가 또는 지정가 (슬리피지 적용 전)
         amount: 매수에 사용할 금액
 
     Returns:
         (shares, buy_price, total_cost) 튜플.
         shares=0이면 금액 부족으로 미체결, total_cost=0.0.
     """
-    buy_price = open_price * (1 + SLIPPAGE_RATE)
+    buy_price = price_raw * (1 + SLIPPAGE_RATE)
     shares = int(amount / buy_price)
 
     if shares <= 0:
@@ -128,17 +128,17 @@ def execute_buy_order(
 
 
 def execute_sell_order(
-    open_price: float,
+    price_raw: float,
     shares_to_sell: int,
     entry_price: float,
 ) -> tuple[float, float, float, float]:
     """매도 체결 계산. 상태 업데이트는 호출부에서 수행한다.
 
     슬리피지를 적용한 매도가로 매도 대금, 손익, 손익률을 계산한다.
-    단일 엔진은 전량 매도를, 포트폴리오 엔진은 부분 매도도 지원한다.
+    단일 엔진은 전량 매도를, 포트폴리오 엔진은 부분 매도도, 스플릿 엔진은 칸 단위 매도를 한다.
 
     Args:
-        open_price: 시가 (슬리피지 적용 전)
+        price_raw: 체결 기준가 — 시가 · 손절가 또는 지정가 (슬리피지 적용 전)
         shares_to_sell: 매도할 수량
         entry_price: 진입가
 
@@ -150,7 +150,7 @@ def execute_sell_order(
             f"내부 불변조건 위반: entry_price <= 0 (execute_buy_order를 통해서만 설정되므로 불가능, entry_price={entry_price})"
         )
 
-    sell_price = open_price * (1 - SLIPPAGE_RATE)
+    sell_price = price_raw * (1 - SLIPPAGE_RATE)
     proceeds = shares_to_sell * sell_price
     pnl = (sell_price - entry_price) * shares_to_sell
     pnl_pct = (sell_price - entry_price) / entry_price

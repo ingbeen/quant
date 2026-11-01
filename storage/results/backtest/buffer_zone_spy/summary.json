@@ -2,20 +2,20 @@
   "display_name": "버퍼존 전략 (SPY)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 268552361,
-    "total_return_pct": 2585.52,
-    "cagr": 10.53,
+    "final_capital": 269315434,
+    "total_return_pct": 2593.15,
+    "cagr": 10.51,
     "mdd": -21.5,
-    "calmar": 0.4898,
+    "calmar": 0.4888,
     "total_trades": 10,
     "winning_trades": 10,
     "losing_trades": 0,
     "win_rate": 100.0,
     "start_date": "1993-11-11",
-    "end_date": "2026-09-24",
+    "end_date": "2026-10-29",
     "open_position": {
       "entry_date": "2025-05-21",
-      "entry_price": 580.5751,
+      "entry_price": 580.575,
       "shares": 350051
     }
   },
@@ -2001,7 +2001,12 @@
     {
       "year": 2026,
       "month": 9,
-      "return_pct": 0.27
+      "return_pct": -0.33
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "return_pct": 0.88
     }
   ],
   "yearly_returns": [
@@ -2139,7 +2144,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 13.38
+      "return_pct": 13.7
     }
   ],
   "data_info": {

@@ -16,7 +16,7 @@ import pytest
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.buffer_zone_helpers import compute_bands
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldStrategy
-from qbt.backtest.strategies.strategy_common import SignalStrategy
+from qbt.backtest.strategies.strategy_common import IntradayStopStrategy, SignalStrategy
 
 # ============================================================================
 # 테스트용 샘플 DataFrame 생성 헬퍼
@@ -452,6 +452,17 @@ class TestSignalStrategyProtocol:
         strategy = BuyAndHoldStrategy()
 
         assert isinstance(strategy, SignalStrategy)
+
+    def test_existing_strategies_have_no_intraday_stop(self) -> None:
+        """
+        목적: 기존 두 전략은 손절 전략이 아니다 — 엔진의 장중 손절 칸은 이들에게 닿지 않는다
+
+        Given: BufferZoneStrategy · BuyAndHoldStrategy 인스턴스
+        When: isinstance(strategy, IntradayStopStrategy) 확인
+        Then: 둘 다 False
+        """
+        assert not isinstance(BufferZoneStrategy("ma_200", 0.03, 0.05, 0), IntradayStopStrategy)
+        assert not isinstance(BuyAndHoldStrategy(), IntradayStopStrategy)
 
     def test_buffer_zone_check_buy_returns_bool(self) -> None:
         """

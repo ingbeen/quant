@@ -252,12 +252,33 @@ class TestBuildTradeMarkers:
         empty_trades = pd.DataFrame({"entry_date": [], "exit_date": [], "pnl_pct": []})
 
         # When
-        with_open = build_trade_markers(empty_trades, open_entry_date="2024-05-02")
+        with_open = build_trade_markers(empty_trades, open_entry_dates=["2024-05-02"])
         without_open = build_trade_markers(empty_trades)
 
         # Then
         assert [(m["time"], m["text"], m["position"]) for m in with_open] == [("2024-05-02", "Buy (보유중)", "belowBar")]
         assert without_open == []
+
+    def test_every_open_lot_gets_a_marker(self) -> None:
+        """
+        목적: 스플릿처럼 미청산 진입이 여럿이면 그 수만큼 「Buy (보유중)」 마커를 둔다 — 같은 날이어도 빼지 않는다
+
+        Given: 행이 없는 거래 표와 미청산 진입일 3개 (둘은 같은 날)
+        When: 마커를 만든다
+        Then: 마커 3개가 입력 순서대로 있다
+        """
+        # Given
+        empty_trades = pd.DataFrame({"entry_date": [], "exit_date": [], "pnl_pct": []})
+
+        # When
+        markers = build_trade_markers(empty_trades, open_entry_dates=["2024-05-02", "2024-05-02", "2024-06-03"])
+
+        # Then
+        assert [(m["time"], m["text"]) for m in markers] == [
+            ("2024-05-02", "Buy (보유중)"),
+            ("2024-05-02", "Buy (보유중)"),
+            ("2024-06-03", "Buy (보유중)"),
+        ]
 
 
 class TestChartComponentArgs:

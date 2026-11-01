@@ -29,12 +29,11 @@ from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
     GLD_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
     QQQ_DATA_PATH,
     SPY_DATA_PATH,
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
-    UBT_DATA_PATH,
-    UGL_DATA_PATH,
 )
 
 # 전략 파라미터 하한 (BufferZoneStrategy 생성자가 검증한다)
@@ -81,6 +80,14 @@ CONFIGS: list[BufferZoneConfig] = [
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tqqq",
     ),
+    # --- QLD (QQQ 시그널 + QLD 합성 매매) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_qld",
+        display_name="버퍼존 전략 (QLD)",
+        signal_data_path=QQQ_DATA_PATH,
+        trade_data_path=QLD_SYNTHETIC_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qld",
+    ),
     # --- QQQ ---
     BufferZoneConfig(
         strategy_name="buffer_zone_qqq",
@@ -112,22 +119,6 @@ CONFIGS: list[BufferZoneConfig] = [
         signal_data_path=TLT_DATA_PATH,
         trade_data_path=TLT_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tlt",
-    ),
-    # --- UGL (GLD 시그널 + UGL 2x 레버리지 매매) ---
-    BufferZoneConfig(
-        strategy_name="buffer_zone_ugl",
-        display_name="버퍼존 전략 (UGL)",
-        signal_data_path=GLD_DATA_PATH,
-        trade_data_path=UGL_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_ugl",
-    ),
-    # --- UBT (TLT 시그널 + UBT 2x 레버리지 매매) ---
-    BufferZoneConfig(
-        strategy_name="buffer_zone_ubt",
-        display_name="버퍼존 전략 (UBT)",
-        signal_data_path=TLT_DATA_PATH,
-        trade_data_path=UBT_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_ubt",
     ),
 ]
 

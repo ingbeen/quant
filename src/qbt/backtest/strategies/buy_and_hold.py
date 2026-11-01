@@ -18,11 +18,10 @@ from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     GLD_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
     QQQ_DATA_PATH,
     TLT_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
-    UBT_DATA_PATH,
-    UGL_DATA_PATH,
 )
 
 # ============================================================================
@@ -59,6 +58,12 @@ CONFIGS: list[BuyAndHoldConfig] = [
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq",
     ),
     BuyAndHoldConfig(
+        strategy_name="buy_and_hold_qld",
+        display_name="Buy & Hold (QLD)",
+        trade_data_path=QLD_SYNTHETIC_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_qld",
+    ),
+    BuyAndHoldConfig(
         strategy_name="buy_and_hold_gld",
         display_name="Buy & Hold (GLD)",
         trade_data_path=GLD_DATA_PATH,
@@ -69,18 +74,6 @@ CONFIGS: list[BuyAndHoldConfig] = [
         display_name="Buy & Hold (TLT)",
         trade_data_path=TLT_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tlt",
-    ),
-    BuyAndHoldConfig(
-        strategy_name="buy_and_hold_ugl",
-        display_name="Buy & Hold (UGL)",
-        trade_data_path=UGL_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_ugl",
-    ),
-    BuyAndHoldConfig(
-        strategy_name="buy_and_hold_ubt",
-        display_name="Buy & Hold (UBT)",
-        trade_data_path=UBT_DATA_PATH,
-        result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_ubt",
     ),
 ]
 

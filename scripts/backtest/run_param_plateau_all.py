@@ -52,8 +52,6 @@ _ASSET_CONFIGS: list[tuple[str, str]] = [
     ("buffer_zone_spy", "SPY"),
     ("buffer_zone_gld", "GLD"),
     ("buffer_zone_tlt", "TLT"),
-    ("buffer_zone_ugl", "UGL"),
-    ("buffer_zone_ubt", "UBT"),
 ]
 
 

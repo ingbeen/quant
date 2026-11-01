@@ -46,8 +46,6 @@ TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 # 2배 레버리지 ETF 데이터 파일 경로
 SSO_DATA_PATH: Final = STOCK_DIR / "SSO_max.csv"
 QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
-UGL_DATA_PATH: Final = STOCK_DIR / "UGL_max.csv"
-UBT_DATA_PATH: Final = STOCK_DIR / "UBT_max.csv"
 
 # 미국 외 주식 · 단기채 · 원자재 ETF 데이터 파일 경로 (대용 시계열의 대상과 대용)
 EFA_DATA_PATH: Final = STOCK_DIR / "EFA_max.csv"

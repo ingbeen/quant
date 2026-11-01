@@ -18,6 +18,7 @@ import pandas as pd
 from qbt.backtest import runners
 from qbt.backtest.strategies.buy_and_hold import CONFIGS, BuyAndHoldConfig
 from qbt.backtest.types import SingleBacktestResult
+from qbt.common_constants import QLD_SYNTHETIC_DATA_PATH
 
 
 class TestCreateRunner:
@@ -316,18 +317,31 @@ class TestBuyAndHoldConfigs:
 
     def test_configs_contains_additional_tickers(self):
         """
-        목적: CONFIGS에 GLD, TLT, UGL, UBT B&H 설정이 모두 존재하는지 검증
+        목적: CONFIGS에 GLD, TLT, QLD B&H 설정이 존재하고 UGL, UBT 는 없는지 검증
 
         Given: buy_and_hold.CONFIGS
         When: strategy_name 확인
-        Then: GLD, TLT, UGL, UBT 모두 포함
+        Then: GLD, TLT, QLD 포함, UGL, UBT 없음
         """
         names = {c.strategy_name for c in CONFIGS}
         expected = [
             "buy_and_hold_gld",
             "buy_and_hold_tlt",
-            "buy_and_hold_ugl",
-            "buy_and_hold_ubt",
+            "buy_and_hold_qld",
         ]
         for name in expected:
             assert name in names, f"{name} 설정이 CONFIGS에 포함되어야 합니다"
+        assert "buy_and_hold_ugl" not in names
+        assert "buy_and_hold_ubt" not in names
+
+    def test_qld_uses_synthetic_prices(self):
+        """
+        목적: QLD B&H 는 상장 전 구간까지 있는 합성 시세로 돈다 (사용자 지정)
+
+        Given: buy_and_hold.CONFIGS
+        When: buy_and_hold_qld 설정을 찾는다
+        Then: 시세 경로가 QLD_SYNTHETIC_DATA_PATH
+        """
+        config = next(c for c in CONFIGS if c.strategy_name == "buy_and_hold_qld")
+
+        assert config.trade_data_path == QLD_SYNTHETIC_DATA_PATH

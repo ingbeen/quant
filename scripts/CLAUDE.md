@@ -44,7 +44,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 
 백테스트 (`backtest/`):
 
-- `run_single_backtest.py` · `run_walkforward.py` · `run_param_plateau_all.py` — 단일 전략 · 워크포워드 · 파라미터 고원
+- `run_single_backtest.py` · `run_walkforward.py` · `run_param_plateau_all.py` — 단일 전략 · 워크포워드 · 파라미터 고원. 단일 전략은 버퍼존 · 버퍼존 V2 · 스플릿 · Buy & Hold 의 설정 목록을 모두 돌고, 대시보드가 같은 목록을 읽는다
 - `run_portfolio_backtest.py` — 포트폴리오 실험. 데이터 기준 시작일이 `DEFAULT_PORTFOLIO_START_DATE` 보다 이르면 그 하한으로 끌어올리고, 설정에 `min_start_date` 가 있는 실험은 그 날짜에 시작한다
 - `run_supplement_grid.py` · `run_combo_grid.py` — 보완 전략 비중 그리드 · 조합 그리드. 요약 CSV 만 저장한다(한글 헤더, UTF-8 BOM — 사람이 읽는 산출물이고 대시보드는 읽지 않는다)
 - 대시보드 `app_single_backtest.py` · `app_portfolio_backtest.py` · `app_walkforward.py` · `app_parameter_stability.py` — 화면 구성은 각 앱 docstring, 세 앱이 같이 쓰는 차트는 `src/qbt/backtest/dashboard_charts.py`. 포트폴리오 대시보드에 체결일별 전후 표는 두지 않는다 — 체결일의 자산별 주수 · 비중 · 평가액은 `equity.csv` · `state_log.csv` 에 이미 있다

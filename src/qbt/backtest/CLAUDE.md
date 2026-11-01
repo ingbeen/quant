@@ -5,7 +5,7 @@
 ## 도메인 목적
 
 백테스트 도메인은 과거 데이터를 기반으로 거래 전략을 시뮬레이션하고 성과를 측정합니다.
-이동평균 기반 버퍼존 전략 및 매수 후 보유(Buy & Hold) 벤치마크 전략을 제공합니다.
+이동평균 기반 버퍼존 전략 및 매수 후 보유(Buy & Hold) 벤치마크 전략을 제공합니다. 버퍼존 V2 와 스플릿 매매는 단일 백테스트에서만 돕니다(워크포워드 · 고원 · 포트폴리오에 없음).
 
 ---
 
@@ -23,8 +23,10 @@
 
 전략:
 
-- `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol
+- `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol, 장중 손절 전략의 `IntradayStopStrategy`(단일 엔진만 본다)
 - `strategies/buffer_zone.py` · `buffer_zone_helpers.py` — 버퍼존 전략 `BufferZoneStrategy`(stateful)와 자산별 설정 `CONFIGS`(전 자산 4P), 밴드 · 돌파 감지 함수
+- `strategies/buffer_zone_v2.py` — 돌파 뒤 한달을 지켜보고 장중 손절로 파는 `BufferZoneV2Strategy`(stateful)와 자산별 설정 `CONFIGS`. 규칙과 결정 근거는 `docs/research/전략_검증_보고서.md` 부록 N
+- `strategies/split_ladder.py` — 스플릿 매매의 값과 설정 `CONFIGS`. 계산은 `engines/split_engine.py`, 규칙과 결정 근거는 부록 N
 - `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`
 - `strategy_registry.py` — `STRATEGY_REGISTRY`: 포트폴리오 엔진이 `strategy_id` 문자열로 전략을 만든다. 새 전략은 등록만 하고 엔진은 고치지 않는다
 - `runners.py` — 단일 백테스트 설정을 실행 함수로 만드는 팩토리 (전략 모듈 ↔ 엔진 순환 의존을 끊는 자리)
@@ -33,6 +35,7 @@
 단일 · 워크포워드 · 고원:
 
 - `engines/backtest_engine.py` — 단일 자산 백테스트(`run_backtest`, 전략 주입)와 병렬 그리드 서치. 그리드 · 고원 이동평균 실험은 모든 조합을 같은 기간으로 평가한다(`prepare_common_period`)
+- `engines/split_engine.py` — 스플릿 매매 백테스트(`run_split_backtest`). `run_backtest` 는 1 포지션 + 다음 날 시가 전제라 칸마다 진입가가 다른 장중 지정가를 담지 못해 따로 둔다
 - `walkforward.py` — Expanding Anchored 워크포워드 (윈도우 생성 · IS 그리드 최적 선택 · OOS 평가 · 이어 붙인 자본곡선 · 모드 요약)
 - `walkforward_verdict.py` — 워크포워드 결과로 대시보드의 판단 문구를 만든다
 - `parameter_stability.py` — 고원 분석 CSV 로딩과 고원 구간 탐지
@@ -41,7 +44,7 @@
 
 - `portfolio_types.py` — 실험 설정(`PortfolioConfig` · 슬롯 · 매매법) · 런타임 상태 · 결과 데이터클래스와 결과 파일의 자산 키 규칙
 - `portfolio_configs.py` — 등록 실험 `PORTFOLIO_CONFIGS`. 보완 전략 등록 실험은 `supplement_experiment` 의 구성 함수로 만든다
-- `engines/` — 포트폴리오 엔진: `portfolio_engine.py`(facade · 일별 루프) · `portfolio_planning.py`(주문 의도 · 예상 상태 · 병합) · `portfolio_methods.py`(매매법 장부 · 배분 변화 · 매매법 사이 비중 · 상계 · 요약) · `portfolio_rebalance.py`(리밸런싱 정책 · 판단일) · `portfolio_execution.py`(매도 → 매수 체결) · `portfolio_data.py`(로딩 · 설정 검증 · 에쿼티 표), 두 엔진 공통은 `engine_common.py`(예약 주문 · 체결 계산 · 거래 기록)
+- `engines/` — 포트폴리오 엔진: `portfolio_engine.py`(facade · 일별 루프) · `portfolio_planning.py`(주문 의도 · 예상 상태 · 병합) · `portfolio_methods.py`(매매법 장부 · 배분 변화 · 매매법 사이 비중 · 상계 · 요약) · `portfolio_rebalance.py`(리밸런싱 정책 · 판단일) · `portfolio_execution.py`(매도 → 매수 체결) · `portfolio_data.py`(로딩 · 설정 검증 · 에쿼티 표), 엔진 공통은 `engine_common.py`(예약 주문 · 체결 계산 · 거래 기록)
 - `portfolio_validation.py` — 실행 직후 결과 정합성 검사 (규칙 목록은 그 docstring). 위반이 있으면 러너가 결과를 저장한 뒤 멈춘다
 - `allocator_registry.py` · `allocators/` — 비중이 바뀌는 매매법의 배분 규칙. 새 규칙은 `allocators/` 에 구현해 등록하고 엔진은 고치지 않는다. 규칙은 이동평균 · 월말 행 같은 파생 계산을 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 i 의 판단은 i 이하 행만 쓴다
 - `supplement_experiment.py` — 보완 전략 비중 그리드의 구성 · 실행 목록 · 지표 · 판정 · 대용 검증. 결정 근거는 `docs/research/전략_검증_보고서.md` 부록 M
@@ -85,6 +88,13 @@ EMA 계산 경로와 `ma_type` 파라미터·상수·필드는 없다.
 - 신호 발생: i일 종가 기준으로 상단/하단 밴드 돌파 감지
 - 체결 실행: i+1일 시가에 실제 매수/매도 (hold_days=0 기준)
 
+예외는 사용자가 가격을 지정한 둘뿐이다 (부록 N):
+
+- 버퍼존 V2 의 장중 손절: 전날 종가까지 세운 손절선을 저가가 밑돌면 그날 손절선 가격에 판다. 매수는 위 규칙 그대로다
+- 스플릿 매매: 칸 가격에 닿으면 그날 지정가로 체결하고 예약 주문(규칙 5)을 쓰지 않는다
+
+두 경우 모두 시가가 그 가격을 건너뛰면 시가에 체결한다 — 그 가격에 체결될 수 없기 때문이다.
+
 ### 4. Equity 및 Final Capital 정의 (절대 규칙)
 
 - Equity: `equity = cash + position_shares * close`
@@ -117,7 +127,7 @@ Lookahead 금지:
 - N-1일 종가에서 생성된 `pending`은 N일 시가에서 정상 체결
 - N일 종가에서 발생한 신호는 N+1일 시가가 없으므로 무시
 - 강제청산 없음: 마지막 날에 포지션이 남아있어도 강제 매도하지 않음
-- 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy (보유중)"` 마커로 표시된다
+- 미청산 포지션 기록: 종료 시 포지션이 남아있으면 summary에 `open_position` (entry_date, entry_price, shares) 포함. 대시보드에서 `"Buy (보유중)"` 마커로 표시된다. 스플릿 매매는 칸마다 진입가가 달라 같은 모양의 목록 `open_lots` 에 담는다
 
 ### 8. 포트폴리오 규칙
 
