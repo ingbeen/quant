@@ -86,6 +86,9 @@ VIPSX_DATA_PATH: Final = STOCK_DIR / "VIPSX_max.csv"  # TIP 대체 (물가연동
 # 다운로더가 티커를 그대로 파일 이름에 쓴다
 SPGSCI_DATA_PATH: Final = STOCK_DIR / "^SPGSCI_max.csv"  # S&P GSCI 원자재 지수
 GOLD_FUTURES_DATA_PATH: Final = STOCK_DIR / "GC=F_max.csv"  # 금 선물 연속물 (GLD 대체)
+GSPC_DATA_PATH: Final = STOCK_DIR / "^GSPC_max.csv"  # S&P 500 가격 지수 (배당 없음)
+NDX_DATA_PATH: Final = STOCK_DIR / "^NDX_max.csv"  # 나스닥 100 가격 지수 (QQQ 의 기초 지수)
+IXIC_DATA_PATH: Final = STOCK_DIR / "^IXIC_max.csv"  # 나스닥 종합 가격 지수
 
 # 대체 판 생성 파일 (scripts/data/generate_long_proxy_series.py 생성)
 SSO_PROXY_DATA_PATH: Final = STOCK_DIR / "SSO_proxy_max.csv"  # SPY 2배 합성, 전 구간

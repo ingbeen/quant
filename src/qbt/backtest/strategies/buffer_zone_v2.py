@@ -97,19 +97,38 @@ class BufferZoneV2Strategy(IntradayStopStrategy):
     엔진은 포지션이 없는 날 check_buy, 있는 날 check_sell 을 하루 한 번 순서대로 부른다.
     종가가 이평선에 닿았는지(`≤` · `≥`)만 대기를 푼다 — 장중 고가 · 저가는 대기에 쓰지 않는다.
 
+    Args:
+        ma_col: 이평선 열 이름
+        band_pct: 상단 밴드 비율 (0.05 = 5%)
+        month_days: 한달 길이 (거래일, 돌파일이 1일째)
+        sell_band_pct: 하단 밴드 비율. None 이면 상단과 같다
+        wait_for_pullback: True 면 한달 뒤 종가가 상단 아래로 온 날, False 면 한달째 날에 신호를 낸다
+
     Raises:
         ValueError: 밴드 비율이 0 초과 1 미만이 아니거나 한달 길이가 1 미만일 때
     """
 
-    def __init__(self, ma_col: str, band_pct: float, month_days: int) -> None:
+    def __init__(
+        self,
+        ma_col: str,
+        band_pct: float,
+        month_days: int,
+        *,
+        sell_band_pct: float | None = None,
+        wait_for_pullback: bool = True,
+    ) -> None:
         if not 0 < band_pct < 1:
             raise ValueError(f"밴드 비율(band_pct)은 0 초과 1 미만이어야 합니다(0.05 = 5%): {band_pct}")
+        if sell_band_pct is not None and not 0 < sell_band_pct < 1:
+            raise ValueError(f"매도 밴드 비율(sell_band_pct)은 0 초과 1 미만이어야 합니다(0.05 = 5%): {sell_band_pct}")
         if month_days < 1:
             raise ValueError(f"한달 길이(month_days)는 1 이상이어야 합니다: {month_days}")
 
         self._ma_col = ma_col
         self._band_pct = band_pct
+        self._sell_band_pct = band_pct if sell_band_pct is None else sell_band_pct
         self._month_days = month_days
+        self._wait_for_pullback = wait_for_pullback
 
         # 상향돌파 뒤 센 날 수 (돌파일이 1). None 이면 대기 중이 아니다
         self._buy_days: int | None = None
@@ -118,7 +137,7 @@ class BufferZoneV2Strategy(IntradayStopStrategy):
         self._stop: float | None = None
 
     def _band_at(self, signal_df: pd.DataFrame, i: int) -> tuple[float, float]:
-        return compute_bands(float(signal_df.iloc[i][self._ma_col]), self._band_pct, self._band_pct)
+        return compute_bands(float(signal_df.iloc[i][self._ma_col]), self._band_pct, self._sell_band_pct)
 
     def check_buy(self, signal_df: pd.DataFrame, i: int) -> bool:
         """i번째 날 매수 신호 여부를 반환한다.
@@ -154,7 +173,7 @@ class BufferZoneV2Strategy(IntradayStopStrategy):
                 return False
             self._buy_days += 1
 
-        if self._buy_days >= self._month_days and close < upper:
+        if self._buy_days >= self._month_days and (not self._wait_for_pullback or close < upper):
             self._buy_days = None
             return True
         return False

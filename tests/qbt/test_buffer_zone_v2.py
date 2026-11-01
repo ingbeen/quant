@@ -6,6 +6,7 @@ backtest/strategies/buffer_zone_v2 모듈과 엔진 장중 손절 테스트
 2. 손절선: 하향돌파 후 한달 동안 닿지 않으면 그 기간 장중 저가의 최저가 손절선이 되고, 종가가 닿으면 풀린다
 3. run_backtest 의 장중 손절: 손절선 가격 체결 · 시가 갭 · 세운 날 미작동
 4. 자산별 설정 표: 시세 · 배수 · 밴드
+5. 매도 폭 · 눌림 옵션: 기본값이 V2 규칙이고, 민감도 테스트(buffer_zone_sensitivity)가 이 옵션으로 값을 바꾼다
 
 왜 중요한가요?
 V2 는 체결 타이밍 규칙의 유일한 예외(장중 손절)를 가진 전략이고, 대기 상태가 길어 어느 날 무엇을 보느냐가
@@ -459,6 +460,125 @@ class TestConstructor:
         assert isinstance(strategy, SignalStrategy)
         assert isinstance(strategy, IntradayStopStrategy)
         assert meta == {"buy_buffer_pct": 0.15, "hold_days_used": 21}
+
+
+class TestRuleOptions:
+    """매도 폭 · 눌림 옵션 (month_days=3, 이평선 100, 상단 105). 기본값은 V2 규칙이다."""
+
+    def test_no_pullback_signals_on_month_day_above_upper(self) -> None:
+        """
+        목적: 눌림을 기다리지 않으면 한달째 종가가 상단 위여도 그날이 신호다
+
+        Given: i=1 돌파(1일째), i=3 이 3일째이고 종가가 상단 위
+        When: wait_for_pullback=False 로 날마다 check_buy
+        Then: i=3 하나만 True
+        """
+        # Given
+        df = _make_df([104.0, 106.0, 106.0, 107.0, 107.0])
+        strategy = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, wait_for_pullback=False)
+
+        # When
+        signals = [i for i in range(len(df)) if strategy.check_buy(df, i)]
+
+        # Then
+        assert signals == [3]
+
+    def test_no_pullback_still_cancels_on_touch(self) -> None:
+        """
+        목적: 눌림을 빼도 한달 안에 이평선에 닿으면 취소하고 다시 돌파해야 센다
+
+        Given: i=1 돌파, i=2 종가가 이평선 아래, i=3 다시 돌파
+        When: wait_for_pullback=False 로 날마다 check_buy
+        Then: 다시 돌파한 i=3 을 1일째로 센 i=5 만 True
+        """
+        # Given
+        df = _make_df([104.0, 106.0, 100.0, 107.0, 107.0, 107.0])
+        strategy = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, wait_for_pullback=False)
+
+        # When
+        signals = [i for i in range(len(df)) if strategy.check_buy(df, i)]
+
+        # Then
+        assert signals == [5]
+
+    def test_defaults_are_v2_rules(self) -> None:
+        """
+        목적: 인자를 주지 않으면 V2 규칙 그대로다 — 눌림을 기다리고 매도 밴드는 매수 밴드와 같다
+
+        Given: 한달 뒤에도 상단 위에 있다가 내려오는 표
+        When: 기본 인자와 V2 값을 명시한 전략의 신호를 비교
+        Then: 신호가 같고 i=5 다
+        """
+        # Given
+        df = _make_df([104.0, 106.0, 106.0, 106.0, 107.0, 104.5, 104.0])
+        default = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3)
+        explicit = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, sell_band_pct=BAND_PCT, wait_for_pullback=True)
+
+        # When
+        default_signals = [i for i in range(len(df)) if default.check_buy(df, i)]
+        explicit_signals = [i for i in range(len(df)) if explicit.check_buy(df, i)]
+
+        # Then
+        assert default_signals == explicit_signals == [5]
+
+    def test_sell_band_is_separate_from_buy_band(self) -> None:
+        """
+        목적: 매도 밴드를 넓히면 하단만 내려가고 상단은 그대로다
+
+        Given: 매수 5% · 매도 10% (상단 105, 하단 90). 94 는 5% 하단만 뚫고, i=5 의 89 가 10% 하단을 뚫는다
+        When: 날마다 check_sell, 따로 상단 돌파를 본다
+        Then: 손절선은 i=5 를 1일째로 센 i=7 에 89 로 서고, 매수 신호는 상단 105 기준 i=3 이다
+        """
+        # Given
+        sell_df = _make_df([100.0, 94.0, 94.0, 94.0, 94.0, 89.0, 89.0, 89.0, 89.0])
+        buy_df = _make_df([104.0, 106.0, 106.0, 104.0])
+        sell_strategy = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, sell_band_pct=0.10)
+        buy_strategy = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, sell_band_pct=0.10)
+
+        # When
+        stops: list[float | None] = []
+        for i in range(len(sell_df)):
+            sell_strategy.check_sell(sell_df, i)
+            stops.append(sell_strategy.stop_price())
+        signals = [i for i in range(len(buy_df)) if buy_strategy.check_buy(buy_df, i)]
+
+        # Then
+        assert stops == [None] * 7 + [89.0, 89.0]
+        assert signals == [3]
+
+    @pytest.mark.parametrize("sell_band_pct", [0.0, 1.0, -0.1, float("nan")])
+    def test_out_of_range_sell_band_raises(self, sell_band_pct: float) -> None:
+        """
+        목적: 범위 밖 매도 밴드로는 전략을 만들 수 없다
+
+        Given: 0 · 1 · 음수 · NaN
+        When: 전략 생성
+        Then: 그 파라미터 이름이 든 ValueError
+        """
+        with pytest.raises(ValueError, match="sell_band_pct"):
+            BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, sell_band_pct=sell_band_pct)
+
+    def test_no_pullback_closes_the_v2_stop_gap(self) -> None:
+        """
+        목적: V2 규칙 빈틈(부록 N.6)이 눌림 제거 판에는 없다 — 신호일 종가가 이평선 위라 다음 하향돌파에 손절선이 선다
+
+        Given: 한달을 채운 뒤 상단 위에서 하루 만에 하단 아래로 떨어지고 계속 내리는 표
+        When: 같은 표로 V2 와 눌림 제거 판을 돌린다
+        Then: V2 는 떨어진 뒤에 사서 손절선이 서지 않아 끝난 거래 0건, 눌림 제거 판은 i=7 에 손절한다
+        """
+        # Given
+        df = _make_df([104.0, 106.0, 106.0, 106.0, 88.0, 87.0, 86.0, 80.0, 80.0])
+        v2 = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3)
+        no_pullback = BufferZoneV2Strategy(MA_COL, BAND_PCT, 3, wait_for_pullback=False)
+
+        # When
+        v2_trades, _, _ = run_backtest(v2, df, df, 10_000.0, log_trades=False)
+        no_pullback_trades, _, _ = run_backtest(no_pullback, df, df, 10_000.0, log_trades=False)
+
+        # Then
+        assert len(v2_trades) == 0
+        assert len(no_pullback_trades) == 1
+        assert no_pullback_trades.iloc[0]["exit_date"] == df.iloc[7]["Date"]
 
 
 def _stop_out_df(day6: tuple[float, float, float]) -> pd.DataFrame:

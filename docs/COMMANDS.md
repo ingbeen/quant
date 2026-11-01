@@ -64,6 +64,13 @@ poetry run python scripts/backtest/run_param_plateau_all.py
 # --experiment 인자로 특정 실험만 실행 가능 (기본값: all, 선택지는 --help)
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
 
+# 5-1. 버퍼존 규칙 민감도 — 값을 하나씩 바꾼 결과 (선행: 1, TQQQ · QLD 합성 — 워크플로우 2 의 3, 아래 지수 셋)
+poetry run python scripts/data/download_data.py '^GSPC'
+poetry run python scripts/data/download_data.py '^NDX'
+poetry run python scripts/data/download_data.py '^IXIC'
+# 출력: storage/results/backtest/buffer_zone_sensitivity/ (cells.csv 값별 결과, rules.csv 규칙 조합, trades.csv 값별 거래 목록). 소요: 병렬로 약 3분
+poetry run python scripts/backtest/run_buffer_zone_sensitivity.py
+
 # 6. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
@@ -75,6 +82,9 @@ poetry run streamlit run scripts/backtest/app_walkforward.py
 
 # 9. 파라미터 고원 시각화 대시보드 (선행: 5)
 poetry run streamlit run scripts/backtest/app_parameter_stability.py
+
+# 10. 버퍼존 규칙 민감도 대시보드 (선행: 5-1)
+poetry run streamlit run scripts/backtest/app_buffer_zone_sensitivity.py
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py)
@@ -214,6 +224,7 @@ done
   poetry run python scripts/backtest/run_single_backtest.py
   poetry run python scripts/backtest/run_walkforward.py
   poetry run python scripts/backtest/run_param_plateau_all.py
+  poetry run python scripts/backtest/run_buffer_zone_sensitivity.py
   poetry run python scripts/backtest/run_portfolio_backtest.py
   poetry run python scripts/backtest/run_supplement_grid.py
   poetry run python scripts/backtest/run_combo_grid.py
