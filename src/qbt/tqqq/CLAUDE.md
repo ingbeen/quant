@@ -16,7 +16,7 @@ QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현�
 
 - `constants.py` — 도메인 상수 (데이터 · 결과 경로, 레버리지 스펙, 비용 모델 기본값, 일별 비교 CSV 열 이름)
 - `data_loader.py` — 월별 데이터(연방기금금리 · 운용비율)와 일별 비교 CSV 로딩, 월별 값 딕셔너리 생성 · 조회
-- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 실제 대비 검증 지표, softplus 스프레드
+- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 실제 대비 검증 지표, softplus 스프레드, 긴 역사 합성(`simulate_long_history` — 1999년 이전까지 같은 모델로 잇고 대조용 가산금리 상한을 받는다)
 - `analysis_helpers.py` — 금리-오차 관계 분석의 계산 · 월별 집계 (signed 로그차이)
 - `spread_lab_helpers.py` — 스프레드 랩 앱 전용 월별 데이터 준비
 - `visualization.py` — 일별 비교 · 스프레드 랩 앱의 Plotly 차트
@@ -43,7 +43,7 @@ QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현�
 - 전날 시뮬 종가에서 기초 자산의 그 값을 배율로 키운다: `X(t) = Close_sim(t-1) * (1 + (X_underlying(t) / Close_underlying(t-1) - 1) * leverage)`. 장중 노출은 전날 종가에 고정되므로 펀드 값은 기초 자산에 선형이다
 - 일일 비용은 종가에서만 빠지므로 기초 자산이 저가에 마감한 날은 식의 저가가 종가 위로 나간다 — 고가 · 저가를 시가 · 종가로 맞춘다
 - 첫날은 전날 종가가 없어 네 값 모두 시작 가격이다. 그 밖의 결측은 메우지 않는다
-- 매매 계산은 시가 · 종가만 읽는다. 고가 · 저가는 signal CSV · 캔들 · 내보내기에만 쓰여 성과 지표를 바꾸지 않는다
+- 버퍼존 V2 · 세 줄은 저가로 손절선과 체결가를 정한다 — 합성의 저가 계산을 바꾸면 그 전략의 성과 지표가 바뀐다. 시가 · 종가만 읽는 전략에서는 고가 · 저가가 signal CSV · 캔들 · 내보내기에만 쓰인다
 
 ### 2. 비용 구조 (동적 비용 모델)
 
@@ -82,6 +82,7 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 금리 데이터 (FFR) · 운용비율 데이터 (Expense Ratio):
 
+- 금리는 두 파일이다. `federal_funds_rate_monthly.csv`(1999-01 ~) 를 앞으로 늘리지 않고 `federal_funds_rate_pre1999_monthly.csv` 를 따로 둔다 — 늘리면 금리 첫 달을 시작일로 삼는 `BIL_proxy_max.csv` 가 앞당겨진다. 뒤 파일은 긴 역사 합성만 읽는다
 - 형식: `DATE` (`"yyyy-mm"` 문자열 — `datetime.date` 객체가 아니다), `VALUE` (0~1 비율)
 - 날짜마다 그 달 값을 조회하고, 없으면 허용 개월 수(`MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`) 안의 이전 달 값을 쓴다 — 그보다 비면 ValueError
 

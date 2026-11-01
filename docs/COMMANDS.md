@@ -71,6 +71,10 @@ poetry run python scripts/data/download_data.py '^IXIC'
 # 출력: storage/results/backtest/buffer_zone_sensitivity/ (cells.csv 값별 결과, rules.csv 규칙 조합, trades.csv 값별 거래 목록). 소요: 병렬로 약 3분
 poetry run python scripts/backtest/run_buffer_zone_sensitivity.py
 
+# 5-2. 버퍼존 세 줄 — 고원과 투자자별 결과 (선행: 1, TQQQ · QLD 합성 — 워크플로우 2 의 3, 위 '^NDX', storage/etc 의 금리 · 운용비율 파일)
+# 출력: storage/results/backtest/buffer_zone_three_lines/ (investors.csv 투자자별 요약, trades.csv 매도 내역, plateau.csv 가운데 매도 폭별 세 줄 · 한 줄, equity.csv 일별 자산 배수). 소요: 병렬로 약 30초
+poetry run python scripts/backtest/run_buffer_zone_three_lines.py
+
 # 6. 대시보드 시각화 (선행: 2)
 poetry run streamlit run scripts/backtest/app_single_backtest.py
 
@@ -85,6 +89,9 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 
 # 10. 버퍼존 규칙 민감도 대시보드 (선행: 5-1)
 poetry run streamlit run scripts/backtest/app_buffer_zone_sensitivity.py
+
+# 11. 버퍼존 세 줄 대시보드 (선행: 5-2)
+poetry run streamlit run scripts/backtest/app_buffer_zone_three_lines.py
 ```
 
 **파라미터 변경**: [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py)
@@ -205,8 +212,9 @@ done
 **② `storage/etc` 월별 파일** — 손으로 갱신한다. 열은 `DATE`(yyyy-mm) · `VALUE`(비율), 달마다 한 행, 줄 끝은 기존 행과 같은 CRLF. 편집기로 붙인다 — 파일 끝에 줄바꿈이 없으면 셸 `>>` 는 마지막 행에 이어 붙인다.
 
 - `federal_funds_rate_monthly.csv`: FRED 의 `FEDFUNDS`(월별, %) ÷ 100
+- `federal_funds_rate_pre1999_monthly.csv`: 같은 값의 1985-10 ~ 1998-12. 끝난 구간이라 갱신하지 않는다 — 위 파일과 겹치는 달을 넣으면 세 줄 러너가 멈춘다
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
-- 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 생성 스크립트(③ · ④ 의 장기 대체 · ⑤)가 멈춘다
+- 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 스크립트(③ · ④ 의 장기 대체 · ⑤ · ⑥ 의 세 줄 러너)가 멈춘다
 
 **③ – ⑥ 생성 · 결과** — 블록의 줄 순서대로 ③ TQQQ · QLD 합성(둘 다 단일 백테스트가 읽고, TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다), ④ 대용 · 장기 대체 시계열(포트폴리오 · 두 그리드가 읽는다)과 대체-실물 비교, ⑤ TQQQ · QLD 일별 비교, ⑥ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
@@ -225,6 +233,7 @@ done
   poetry run python scripts/backtest/run_walkforward.py
   poetry run python scripts/backtest/run_param_plateau_all.py
   poetry run python scripts/backtest/run_buffer_zone_sensitivity.py
+  poetry run python scripts/backtest/run_buffer_zone_three_lines.py
   poetry run python scripts/backtest/run_portfolio_backtest.py
   poetry run python scripts/backtest/run_supplement_grid.py
   poetry run python scripts/backtest/run_combo_grid.py

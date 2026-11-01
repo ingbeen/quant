@@ -28,7 +28,9 @@ from qbt.backtest.buffer_zone_sensitivity import (
     DISPLAY_CLOSED,
     DISPLAY_DATASET,
     DISPLAY_ENTRY_DATE,
+    DISPLAY_EXIT_DATE,
     DISPLAY_EXPERIMENT,
+    DISPLAY_LOWEST,
     DISPLAY_MDD,
     DISPLAY_MDD_DIFF,
     DISPLAY_PNL,
@@ -54,6 +56,7 @@ from qbt.backtest.buffer_zone_sensitivity import (
     run_buy_and_hold,
     run_rule,
     slice_period,
+    trade_rows,
 )
 from qbt.backtest.constants import SLIPPAGE_RATE
 from qbt.backtest.types import SummaryDict
@@ -366,6 +369,50 @@ class TestEntryStats:
 
         # Then
         assert (stats.wins, stats.losses) == (0, 1)
+
+
+class TestTradeRows:
+    # 시가 ≠ 종가 — 평가에 어느 값을 쓰는지 구분한다
+    TRADE_DF = _prices(
+        [100.0, 102.0, 90.0, 110.0, 100.0, 80.0, 120.0, 130.0],
+        opens=[100.0, 101.0, 99.0, 105.0, 100.0, 90.0, 118.0, 125.0],
+    )
+
+    def test_closed_trade_row(self) -> None:
+        """
+        목적: 끝난 거래의 손익은 % 이고 보유 중 최저에 청산일 뒤 종가를 넣지 않는다
+
+        Given: i=1 진입(101 × 1.003 = 101.303), i=3 청산, 손익 비율 0.10. 보유 중 종가 102 · 90, 청산 뒤 종가 80
+        When: trade_rows
+        Then: 손익 +10%, 최저 90 / 101.303 - 1 = -11.16%, 상태 끝남
+        """
+        # When
+        rows = trade_rows({"이름": "합성"}, _trades([(1, 3, 0.10)]), _summary(), self.TRADE_DF)
+
+        # Then
+        assert len(rows) == 1
+        assert rows[0]["이름"] == "합성"
+        assert rows[0][DISPLAY_STATUS] == "끝남"
+        assert rows[0][DISPLAY_PNL] == pytest.approx(10.0, abs=1e-9)
+        assert rows[0][DISPLAY_LOWEST] == pytest.approx(-11.1576, abs=0.001)
+
+    def test_open_trade_row_uses_last_close(self) -> None:
+        """
+        목적: 보유 중 거래는 마지막 시가가 아니라 마지막 종가로 평가한다
+
+        Given: i=6 진입(118 × 1.003 = 118.354), 마지막 종가 130 · 마지막 시가 125
+        When: trade_rows
+        Then: 손익 130 / 118.354 - 1 = +9.84%, 최저 120 / 118.354 - 1 = +1.39%, 청산일 없음
+        """
+        # When
+        rows = trade_rows({}, _trades([]), _summary(open_entry=6), self.TRADE_DF)
+
+        # Then
+        assert len(rows) == 1
+        assert rows[0][DISPLAY_STATUS] == STATUS_OPEN
+        assert rows[0][DISPLAY_EXIT_DATE] is None
+        assert rows[0][DISPLAY_PNL] == pytest.approx(9.8400, abs=0.001)
+        assert rows[0][DISPLAY_LOWEST] == pytest.approx(1.3907, abs=0.001)
 
 
 class TestScope:

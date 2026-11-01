@@ -38,6 +38,9 @@ from qbt.tqqq.constants import (
     COL_SIMUL_CUMUL_RETURN,
     COL_SIMUL_DAILY_RETURN,
     DAILY_COMPARISON_PRICES,
+    DEFAULT_PRE_LISTING_EXPENSE_RATIO,
+    DEFAULT_SOFTPLUS_A,
+    DEFAULT_SOFTPLUS_B,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
     KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
@@ -48,6 +51,8 @@ from qbt.tqqq.constants import (
     KEY_OVERLAP_START,
 )
 from qbt.tqqq.data_loader import (
+    build_extended_expense_dict,
+    create_ffr_dict,
     lookup_expense,
     lookup_ffr,
     lookup_funding_spread,
@@ -61,6 +66,9 @@ logger = get_logger(__name__)
 # 스프레드 랩이 이 파일의 일일수익률로 일일 증분 오차를 다시 계산하는데, 2자리면 반올림이 그 오차와 같은 크기라
 # 월합의 부호까지 바뀐다
 ROUND_DAILY_COMPARISON_PERCENT: Final = 4
+
+# 긴 역사 합성의 시작 가격 — 수익률과 무관, 1,000만원으로 정수 주수를 넉넉히 사는 수준
+_LONG_HISTORY_INITIAL_PRICE: Final = 100.0
 
 
 class ValidationMetricsDict(TypedDict):
@@ -406,6 +414,54 @@ def simulate(
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
+
+
+def simulate_long_history(
+    underlying_df: pd.DataFrame,
+    leverage: float,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    *,
+    spread_cap: float | None = None,
+) -> pd.DataFrame:
+    """
+    운용보수 파일과 금리 파일 앞까지 이어지는 지수를 지금 비용 모델로 합성한다.
+
+    운용보수가 없는 앞 구간은 금리가 있는 달까지 상장 전 고정값으로 채운다. 그때는 없던 상품이고 비용은 가정이다.
+
+    Args:
+        underlying_df: 기초 자산 DataFrame (Date, Open, High, Low, Close 컬럼 필수)
+        leverage: 레버리지 배수 (예: 3.0)
+        ffr_df: 시세를 덮는 월별 금리 (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        expense_df: 월별 운용비율 (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
+        spread_cap: 가산금리 상한 (0.016 = 1.6%). None 이면 모델 값 그대로다
+
+    Returns:
+        시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
+
+    Raises:
+        ValueError: spread_cap 이 0 이하일 때, 그 밖의 경우는 simulate 와 같다
+    """
+    if spread_cap is not None and spread_cap <= 0:
+        raise ValueError(f"가산금리 상한(spread_cap)은 0 보다 커야 합니다(0.016 = 1.6%): {spread_cap}")
+
+    ffr_dict = create_ffr_dict(ffr_df)
+    spread_map = build_monthly_spread_map(ffr_df, DEFAULT_SOFTPLUS_A, DEFAULT_SOFTPLUS_B)
+    if spread_cap is not None:
+        spread_map = {month: min(spread, spread_cap) for month, spread in spread_map.items()}
+
+    expense_dict = build_extended_expense_dict(expense_df)
+    first_expense_month = min(expense_dict)
+    earlier_months = {month: DEFAULT_PRE_LISTING_EXPENSE_RATIO for month in ffr_dict if month < first_expense_month}
+
+    return simulate(
+        underlying_df,
+        leverage,
+        _LONG_HISTORY_INITIAL_PRICE,
+        ffr_dict=ffr_dict,
+        expense_dict=earlier_months | expense_dict,
+        funding_spread=spread_map,
+    )
 
 
 def _save_daily_comparison_csv(

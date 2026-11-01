@@ -33,6 +33,9 @@ TQQQ_DATA_PATH: Final = STOCK_DIR / "TQQQ_max.csv"
 # 연방기금금리 월별 데이터 파일 경로
 FFR_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_monthly.csv"
 
+# 1985-10 ~ 1998-12 금리 — 위 파일에 합치면 금리 첫 달을 시작일로 삼는 BIL 대체 시세가 앞당겨짐
+FFR_PRE1999_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_pre1999_monthly.csv"
+
 # 운용비율(Expense Ratio) 월별 데이터 파일 경로
 EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
@@ -77,6 +80,9 @@ ROLLING_CORR_WINDOW_MONTHS: Final = 12
 # --- 전체기간 튜닝 최적값 (스프레드 랩 튜닝 결과의 RMSE 최소 행) ---
 DEFAULT_SOFTPLUS_A: Final = -6.1  # softplus 절편 파라미터
 DEFAULT_SOFTPLUS_B: Final = 0.37  # softplus 기울기 파라미터
+
+# 긴 역사 합성의 대조 판 가산금리 상한 (0.016 = 1.6%) — 모델을 맞춘 금리 최고 5.33% 의 스프레드, 그 위는 외삽이라 부풂
+LONG_HISTORY_SPREAD_CAP: Final = 0.016
 
 # ============================================================
 # 데이터 컬럼 정의 (일별 비교 CSV 의 열은 한글 헤더 그대로)

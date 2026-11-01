@@ -325,7 +325,7 @@ def held_days_pct(equity_df: pd.DataFrame) -> float:
     return float((equity_df["position"] > 0).mean()) * 100.0
 
 
-def _entry_price(trade_df: pd.DataFrame, entry_date: date) -> float:
+def entry_price(trade_df: pd.DataFrame, entry_date: date) -> float:
     """그날 시가 + 슬리피지. 저장 진입가는 반올림돼 저가 시세에서 어긋남."""
     return float(trade_df.loc[trade_df[COL_DATE] == entry_date, COL_OPEN].iloc[0]) * (1 + SLIPPAGE_RATE)
 
@@ -338,7 +338,7 @@ def _lowest_vs_entry_pct(trade_df: pd.DataFrame, entry_date: date, exit_date: da
         held = held[held[COL_DATE] < exit_date]
     if held.empty:
         raise RuntimeError(f"내부 불변조건 위반: 보유 중 종가가 없음 (진입일 {entry_date}, 청산일 {exit_date})")
-    return (float(held[COL_CLOSE].min()) / _entry_price(trade_df, entry_date) - 1) * 100.0
+    return (float(held[COL_CLOSE].min()) / entry_price(trade_df, entry_date) - 1) * 100.0
 
 
 def _holding_periods(trades_df: pd.DataFrame, summary: SummaryDict) -> list[tuple[date, date | None, float | None]]:
@@ -401,7 +401,7 @@ def _metrics_row(
     }
 
 
-def _trade_rows(
+def trade_rows(
     key: dict[str, object],
     trades_df: pd.DataFrame,
     summary: SummaryDict,
@@ -411,7 +411,7 @@ def _trade_rows(
     rows: list[dict[str, object]] = []
     for entry, exit_, pnl_ratio in _holding_periods(trades_df, summary):
         if pnl_ratio is None:
-            pnl_pct = (float(trade_df[COL_CLOSE].iloc[-1]) / _entry_price(trade_df, entry) - 1) * 100.0
+            pnl_pct = (float(trade_df[COL_CLOSE].iloc[-1]) / entry_price(trade_df, entry) - 1) * 100.0
         else:
             pnl_pct = pnl_ratio * 100.0
         rows.append(
@@ -461,7 +461,7 @@ def evaluate_dataset(dataset: SensitivityDataset, price_df: pd.DataFrame) -> Sen
         }
         buy_and_hold = ma_buy_and_hold if is_ma else base_buy_and_hold
         cells.append({**key, **_metrics_row(trades_df, equity_df, summary, buy_and_hold, trade_df)})
-        trades += _trade_rows(key, trades_df, summary, trade_df)
+        trades += trade_rows(key, trades_df, summary, trade_df)
 
     signal_df, trade_df = base_period
     for rule_name, params in RULE_COMBOS:
@@ -469,7 +469,7 @@ def evaluate_dataset(dataset: SensitivityDataset, price_df: pd.DataFrame) -> Sen
         metrics = _metrics_row(trades_df, equity_df, summary, base_buy_and_hold, trade_df)
         rules.append({**names, DISPLAY_RULE: rule_name, **metrics})
         key = {**names, DISPLAY_EXPERIMENT: EXPERIMENT_RULE, DISPLAY_BASE_SELL: None, DISPLAY_VALUE: rule_name}
-        trades += _trade_rows(key, trades_df, summary, trade_df)
+        trades += trade_rows(key, trades_df, summary, trade_df)
 
     return SensitivityTables(cells=cells, rules=rules, trades=trades)
 
