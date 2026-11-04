@@ -4,9 +4,9 @@
 
 ## 도메인 목적
 
-레버리지 ETF 시뮬레이션 도메인은 기초 자산 데이터로부터 레버리지 상품의 가격을 모델링하고,
-실제 데이터와 비교하여 비용 모델의 정확도를 검증합니다.
-QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현하는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `DAILY_COMPARISON_TARGETS` 입니다.
+레버리지 ETF 시뮬레이션 도메인은 기초 자산 데이터로부터 레버리지 상품의 가격을 모델링합니다.
+QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배)의 상장 전 구간을 재현해 실물에 이어 붙인 합성 시세를 만드는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `DAILY_COMPARISON_TARGETS` 입니다.
+비용 모델을 실물과 일별로 대조한 검증(일별 비교 · 스프레드 랩)은 커밋 `ee6d23d` 까지 저장소에 있었고, 결과와 근거는 `docs/research/전략_검증_보고서.md` §47 · §49.4 에 있습니다.
 
 ---
 
@@ -14,12 +14,9 @@ QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현�
 
 함수 · 시그니처 · 열 이름은 각 모듈 docstring 이 정본입니다.
 
-- `constants.py` — 도메인 상수 (데이터 · 결과 경로, 레버리지 스펙, 비용 모델 기본값, 일별 비교 CSV 열 이름)
-- `data_loader.py` — 월별 데이터(연방기금금리 · 운용비율)와 일별 비교 CSV 로딩, 월별 값 딕셔너리 생성 · 조회
-- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 실제 대비 검증 지표, softplus 스프레드, 긴 역사 합성(`simulate_long_history` — 1999년 이전까지 같은 모델로 잇고 대조용 가산금리 상한을 받는다)
-- `analysis_helpers.py` — 금리-오차 관계 분석의 계산 · 월별 집계 (signed 로그차이)
-- `spread_lab_helpers.py` — 스프레드 랩 앱 전용 월별 데이터 준비
-- `visualization.py` — 일별 비교 · 스프레드 랩 앱의 Plotly 차트
+- `constants.py` — 도메인 상수 (데이터 경로, 레버리지 스펙, 비용 모델 기본값, 월별 CSV 열 이름)
+- `data_loader.py` — 월별 데이터(연방기금금리 · 운용비율) 로딩, 월별 값 딕셔너리 생성 · 조회
+- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 softplus 스프레드
 
 ---
 
@@ -43,7 +40,7 @@ QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배) 레버리지 ETF 를 재현�
 - 전날 시뮬 종가에서 기초 자산의 그 값을 배율로 키운다: `X(t) = Close_sim(t-1) * (1 + (X_underlying(t) / Close_underlying(t-1) - 1) * leverage)`. 장중 노출은 전날 종가에 고정되므로 펀드 값은 기초 자산에 선형이다
 - 일일 비용은 종가에서만 빠지므로 기초 자산이 저가에 마감한 날은 식의 저가가 종가 위로 나간다 — 고가 · 저가를 시가 · 종가로 맞춘다
 - 첫날은 전날 종가가 없어 네 값 모두 시작 가격이다. 그 밖의 결측은 메우지 않는다
-- 버퍼존 V2 · 세 줄은 저가로 손절선과 체결가를 정한다 — 합성의 저가 계산을 바꾸면 그 전략의 성과 지표가 바뀐다. 시가 · 종가만 읽는 전략에서는 고가 · 저가가 signal CSV · 캔들 · 내보내기에만 쓰인다
+- 남은 전략은 시가 · 종가만 읽는다 — 고가 · 저가는 signal CSV · 캔들 · 내보내기에만 쓰인다
 
 ### 2. 비용 구조 (동적 비용 모델)
 
@@ -54,8 +51,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 일일 자금 조달 비용 = (FFR + funding_spread) * (leverage - 1) / TRADING_DAYS_PER_YEAR
 ```
 
-- funding_spread는 softplus 모델로 금리에 따라 동적 결정 — 고정 스프레드(0.0034)는 고금리 구간에서 비용을 과소 반영해 시뮬레이션이 실제보다 높게 나온다. 근거는 고정 스프레드로 만든 일별 비교의 「금리 수준 vs 월말 누적 오차」 추세선 우상향이다 `[실측] 2026-02-08`(커밋 `8b43280`). 그 앱의 차트는 softplus 를 적용한 일별 비교로 그려 남은 편향을 본다
-- 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B` — 스프레드 랩 튜닝의 전체기간 RMSE 최소값이다. 그 앱의 워크포워드 RMSE 는 과최적화 여부를 가리지 못한다(이유는 앱 docstring)
+- funding_spread는 softplus 모델로 금리에 따라 동적 결정 — 고정 스프레드(0.0034)는 고금리 구간에서 비용을 과소 반영해 시뮬레이션이 실제보다 높게 나온다. 근거는 고정 스프레드로 만든 일별 비교의 「금리 수준 vs 월말 누적 오차」 추세선 우상향이다 `[실측] 2026-02-08`(커밋 `8b43280`)
+- 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B` — 스프레드 랩 튜닝의 전체기간 RMSE 최소값이다. 스프레드 랩의 워크포워드 RMSE 는 과최적화 여부를 가리지 못한다(이유는 커밋 `ee6d23d` 의 `scripts/tqqq/spread_lab/app_rate_spread_lab.py` docstring)
 - 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 -> 2배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
 
@@ -82,44 +79,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 금리 데이터 (FFR) · 운용비율 데이터 (Expense Ratio):
 
-- 금리는 두 파일이다. `federal_funds_rate_monthly.csv`(1999-01 ~) 를 앞으로 늘리지 않고 `federal_funds_rate_pre1999_monthly.csv` 를 따로 둔다 — 늘리면 금리 첫 달을 시작일로 삼는 `BIL_proxy_max.csv` 가 앞당겨진다. 뒤 파일은 긴 역사 합성만 읽는다
+- 금리 `federal_funds_rate_monthly.csv` 는 1999-01 부터다 — 합성 생성은 QQQ 첫날(1999-03-10)부터 돌아 그 앞 금리가 필요 없다
 - 형식: `DATE` (`"yyyy-mm"` 문자열 — `datetime.date` 객체가 아니다), `VALUE` (0~1 비율)
 - 날짜마다 그 달 값을 조회하고, 없으면 허용 개월 수(`MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`) 안의 이전 달 값을 쓴다 — 그보다 비면 ValueError
 
 두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 손으로 고치는 파일이라 % 로 적은 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다).
-
----
-
-## 핵심 계산 로직
-
-### 누적배수 로그차이 지표 (2종)
-
-두 지표는 동일한 누적배수 정의를 공유하지만, 용도가 다르다.
-
-공통 정의:
-
-```
-M(t) = Close(t) / Close(0)   # 첫날 종가 기준 누적 자산배수
-```
-
-#### 1) 추적오차 크기 (abs)
-
-- 계산: 아래 signed 의 절댓값 (`simulation.calculate_validation_metrics` 가 지표와 일별 비교 CSV 의 abs 열에 쓴다)
-- 수식: `abs_log_diff(%) = |ln(M_actual(t) / M_sim(t))| × 100`
-- 용도: RMSE 최적화, 절대 오차 크기 측정 (부호 무관)
-- 비고: 절댓값이므로 분자/분모 순서를 바꿔도 결과가 동일하다.
-
-#### 2) 방향성 (signed)
-
-- 함수: `analysis_helpers.calculate_signed_log_diff_from_cumulative_returns`
-- 수식: `signed_log_diff(%) = 100 × ln(M_sim / M_real)`
-- 용도: 금리-오차 회귀 분석 등 부호가 의미를 갖는 분석
-- 부호 해석:
-  - 양수: 시뮬레이션이 실제보다 높음(오버슈트)
-  - 음수: 시뮬레이션이 실제보다 낮음(언더슈트)
-- 비고: 부호 의미를 고정하기 위해 `M_sim / M_real` 순서를 반드시 준수한다.
-
-오차 지표:
-
-- RMSE: 경로 전체 추적 품질 평가 (최적화 기준, 낮을수록 우수)
-- 평균/최대: 보조 지표

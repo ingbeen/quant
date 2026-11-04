@@ -3,8 +3,7 @@
 전략 설정(Config)을 받아 실행 가능한 Callable을 반환하는 팩토리 함수를 제공한다.
 
 역할 분리:
-- buffer_zone.py / buffer_zone_v2.py / split_ladder.py / buy_and_hold.py: 전략 설정 데이터클래스 + CONFIGS 목록
-  (split_ladder 외에는 전략 클래스 포함)
+- buffer_zone.py / buy_and_hold.py: 전략 설정 데이터클래스 + CONFIGS 목록 + 전략 클래스
 - runners.py: 데이터 로딩 + MA 계산 + 전략 실행 로직 (팩토리)
 
 runners.py가 엔진과 전략 모듈을 모두 top-level로 import하여 팩토리 역할을 수행한다.
@@ -21,20 +20,12 @@ from qbt.backtest.constants import (
 )
 from qbt.backtest.csv_export import enrich_equity_with_bands
 from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest
-from qbt.backtest.engines.split_engine import run_split_backtest
 from qbt.backtest.strategies.buffer_zone import (
     BufferZoneConfig,
     BufferZoneStrategy,
     resolve_params_for_config,
 )
-from qbt.backtest.strategies.buffer_zone_v2 import (
-    BUFFER_ZONE_V2_MA_WINDOW,
-    BUFFER_ZONE_V2_MONTH_DAYS,
-    BufferZoneV2Config,
-    BufferZoneV2Strategy,
-)
 from qbt.backtest.strategies.buy_and_hold import BuyAndHoldConfig, BuyAndHoldStrategy
-from qbt.backtest.strategies.split_ladder import SPLIT_DROP_PCT, SPLIT_MAX_LOTS, SplitLadderConfig
 from qbt.backtest.types import SingleBacktestResult
 from qbt.common_constants import (
     COL_CLOSE,
@@ -130,121 +121,6 @@ def create_buffer_zone_runner(config: BufferZoneConfig) -> Callable[[], SingleBa
             data_info={
                 "signal_path": str(config.signal_data_path),
                 "trade_path": str(config.trade_data_path),
-            },
-        )
-
-    return run_single
-
-
-def create_buffer_zone_v2_runner(config: BufferZoneV2Config) -> Callable[[], SingleBacktestResult]:
-    """BufferZoneV2Config에 대한 run_single 실행 함수를 생성한다.
-
-    Args:
-        config: 버퍼존 V2 전략 설정
-
-    Returns:
-        Callable: 인자 없이 호출 가능한 run_single 함수
-    """
-
-    def run_single() -> SingleBacktestResult:
-        """버퍼존 V2 단일 백테스트를 실행한다. 신호와 매매는 같은 시세다.
-
-        Returns:
-            SingleBacktestResult: 백테스트 결과 컨테이너
-        """
-        # 1. 데이터 로딩, 이동평균 계산, 유효 구간 필터링
-        trade_df = load_stock_data(config.data_path)
-        ma_col = ma_col_name(BUFFER_ZONE_V2_MA_WINDOW)
-        signal_df = add_single_moving_average(trade_df, BUFFER_ZONE_V2_MA_WINDOW)
-        filtered_signal, filtered_trade = filter_valid_rows(signal_df, trade_df, ma_col)
-
-        # 2. 전략 생성 및 실행
-        strategy = BufferZoneV2Strategy(ma_col, config.band_pct, BUFFER_ZONE_V2_MONTH_DAYS)
-        trades_df, equity_df, summary = run_backtest(
-            strategy,
-            filtered_signal,
-            filtered_trade,
-            DEFAULT_INITIAL_CAPITAL,
-            strategy_name=config.strategy_name,
-        )
-
-        # 3. equity_df에 밴드 컬럼 post-processing으로 보강
-        equity_df = enrich_equity_with_bands(equity_df, filtered_signal, ma_col, config.band_pct, config.band_pct)
-
-        # 4. JSON 저장용 파라미터
-        params_json: dict[str, Any] = {
-            "ma_window": BUFFER_ZONE_V2_MA_WINDOW,
-            "band_pct": round(config.band_pct, ROUND_RATIO),
-            "leverage": config.leverage,
-            "month_days": BUFFER_ZONE_V2_MONTH_DAYS,
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-        }
-
-        return SingleBacktestResult(
-            strategy_name=config.strategy_name,
-            display_name=config.display_name,
-            signal_df=filtered_signal,
-            equity_df=equity_df,
-            trades_df=trades_df,
-            summary=summary,
-            params_json=params_json,
-            result_dir=config.result_dir,
-            data_info={
-                "trade_path": str(config.data_path),
-            },
-        )
-
-    return run_single
-
-
-def create_split_runner(config: SplitLadderConfig) -> Callable[[], SingleBacktestResult]:
-    """SplitLadderConfig에 대한 run_single 실행 함수를 생성한다.
-
-    Args:
-        config: 스플릿 매매 설정
-
-    Returns:
-        Callable: 인자 없이 호출 가능한 run_single 함수
-    """
-
-    def run_single() -> SingleBacktestResult:
-        """스플릿 매매 단일 백테스트를 실행한다.
-
-        Returns:
-            SingleBacktestResult: 백테스트 결과 컨테이너
-        """
-        # 1. 데이터 로딩 (시작일 전 시세를 자르면 고점도 그 뒤 첫 종가부터 센다)
-        trade_df = load_stock_data(config.data_path)
-        if config.start_date is not None:
-            trade_df = trade_df[trade_df[COL_DATE] >= config.start_date].reset_index(drop=True)
-
-        # 2. 백테스트 실행
-        trades_df, equity_df, summary = run_split_backtest(
-            trade_df, DEFAULT_INITIAL_CAPITAL, SPLIT_DROP_PCT, SPLIT_MAX_LOTS
-        )
-
-        # 3. 시그널 DataFrame: OHLC만 추출 (이동평균 · 밴드 없음)
-        signal_df = trade_df[[COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]].copy()
-
-        # 4. JSON 저장용 파라미터
-        params_json: dict[str, Any] = {
-            "drop_pct": round(SPLIT_DROP_PCT, ROUND_RATIO),
-            "max_lots": SPLIT_MAX_LOTS,
-            "start_date": None if config.start_date is None else config.start_date.isoformat(),
-            "initial_capital": round(DEFAULT_INITIAL_CAPITAL),
-        }
-
-        return SingleBacktestResult(
-            strategy_name=config.strategy_name,
-            display_name=config.display_name,
-            signal_df=signal_df,
-            equity_df=equity_df,
-            trades_df=trades_df,
-            summary=summary,
-            params_json=params_json,
-            result_dir=config.result_dir,
-            data_info={
-                "trade_path": str(config.data_path),
             },
         )
 

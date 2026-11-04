@@ -33,21 +33,7 @@
 
 ## 합성 스크립트가 상품 표를 저장 경로로 잇는 한 줄을 지키는 테스트가 없다
 
-- **자리**: `scripts/tqqq/generate_synthetic.py:102` `main` 의 `save_stock_csv(merged_df, SYNTHETIC_DATA_PATHS[product_name], check_price_spikes=False)`. 표는 `src/qbt/tqqq/constants.py` 의 `DAILY_COMPARISON_TARGETS` · `SYNTHETIC_DATA_PATHS` 이고, 테스트 `tests/qbt/test_tqqq_simulation_outputs.py` `TestDailyComparisonTargets` 가 표의 값만 지킨다. 같은 모양이 `scripts/tqqq/generate_daily_comparison.py` `main` 의 반복문에도 있다
+- **자리**: `scripts/tqqq/generate_synthetic.py:102` `main` 의 `save_stock_csv(merged_df, SYNTHETIC_DATA_PATHS[product_name], check_price_spikes=False)`. 표는 `src/qbt/tqqq/constants.py` 의 `DAILY_COMPARISON_TARGETS` · `SYNTHETIC_DATA_PATHS` 이고, 테스트 `tests/qbt/test_tqqq_simulation_outputs.py` `TestDailyComparisonTargets` 가 표의 값만 지킨다
 - **무엇**: 그 줄을 `SYNTHETIC_DATA_PATHS["TQQQ"]` 로 잘못 고치면 QLD 2배 시세가 전략이 읽는 `TQQQ_synthetic_max.csv` 를 에러 없이 덮어쓰는데, 전체 테스트가 통과한다 — 테스트는 scripts 를 불러오지 않는다. 배율 · 실물 시세를 넘기는 자리도 같다. 지금 코드는 맞게 잇고, 생성 파일은 실물 행 · QQQ 대비 기울기 대조로 확인했다. 막으려면 상품 하나의 합성 표를 돌려주는 함수를 `src/qbt/tqqq` 로 옮겨 테스트가 부르게 해야 한다
 - **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
 - **출처**: PLAN_qld_synthetic (2026-11-01) 코드 리뷰 2회차 — 사용자가 고른 범위(파일 생성만)를 넘어 고치지 않고 옮김
-
-## 민감도 대시보드가 기준값을 계산 모듈에서 읽지 않고 숫자로 적어 둔다
-
-- **자리**: `scripts/backtest/app_buffer_zone_sensitivity.py:77` 상수 `_MARKED_VALUES`(차트 세로선 · 거래 목록 기본 선택), 같은 파일 `:361` `main` 의 안내 문구 「네 실험의 고정값은 눌림 제거 · 이동평균 200일 · 한달 21거래일 · 매수 5% 입니다」. 실제 기준값은 `src/qbt/backtest/buffer_zone_sensitivity.py` 의 `_BASE_PARAMS` · `BASE_SELL_PCTS` · `_CANDIDATE_SELL_PCT` 와 `strategies/buffer_zone_v2.py` 의 `BUFFER_ZONE_V2_*` 다
-- **무엇**: 계산 모듈의 기준값(예: 고정 한달 길이 21 → 20)을 바꾸고 러너를 다시 돌리면, 대시보드는 옛 값에 세로선을 긋고 안내 문구도 옛 값을 고정값이라고 에러 없이 말한다. 값 표에서 그 값을 빼면 데이터 점이 없는 자리에 세로선만 남는다(앱은 멈추지 않는다 — 기본 선택은 선택지에 있는 것만 남기게 고쳤다). 지금 값은 서로 맞다. 막으려면 `_BASE_PARAMS` 를 공개 이름으로 내보내 대시보드가 세로선 · 기본 선택 · 문구를 그 값으로 만들게 한다
-- **종류**: 가벼운 버그 (기준값 표시가 에러 없이 틀린다 — 결과 수치는 맞다)
-- **출처**: PLAN_buffer_zone_sensitivity (2026-11-01) 코드 리뷰 2회차와 수정분 검증 — 그 문구는 1회차 수정이 넣은 자리라 2회차에 다시 고치지 않음. PLAN_buffer_zone_three_lines (2026-11-01) 코드 리뷰 2회차 — `scripts/backtest/app_buffer_zone_three_lines.py` 의 `main` 문구 「7.5 · 10 · 12.5%」, `_render_plateau` 문구 「지금 값 10%」, `_INVESTOR_NOTES` · `_CHECK_NOTES` 의 시작일이 같은 모양이다. 세로선만 `SELL_LINES` 를 따르고 문구는 숫자로 적혀 있다
-
-## 세 줄 러너가 판 표를 시세로 잇는 함수를 지키는 테스트가 없다
-
-- **자리**: `scripts/backtest/run_buffer_zone_three_lines.py:73` `_load_price` — `case.synthetic` 분기와 `LONG_HISTORY_SPREAD_CAP` 전달. 표는 `src/qbt/backtest/buffer_zone_three_lines.py` 의 `CASES` 이고 테스트 `tests/qbt/test_buffer_zone_three_lines.py` `TestScope.test_cases` 가 표의 값만, `tests/qbt/test_tqqq_simulation_long_history.py` 가 상한을 직접 넘긴 합성만 지킨다
-- **무엇**: 분기 조건이 뒤집히거나 상한 전달이 끊겨도(예: `spread_cap=None` 고정) 전체 테스트가 통과한다 — 테스트는 scripts 를 불러오지 않는다. 그러면 「대조 — 비용 상한」 행이 본 답과 같은 값으로 에러 없이 나와, 비용 가정의 크기를 보이는 비교가 사라진다. 지금 코드는 맞게 잇고 결과 표로 확인했다(3배 연복리 19.96% 대 20.56%). `src/qbt/backtest` 는 `qbt.tqqq` 를 import 하지 않는 경계라 이 함수를 그 모듈로 옮길 수 없다. 막으려면 시세 준비를 `src/qbt/tqqq` 에서 함수로 받게 하거나 러너를 불러오는 테스트를 정해야 한다 — 「합성 스크립트가 상품 표를 저장 경로로 잇는 한 줄」 항목과 함께 정한다
-- **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
-- **출처**: PLAN_buffer_zone_three_lines (2026-11-01) 코드 리뷰 2회차 — 상한 회차라 설계를 바꾸지 않고 옮김

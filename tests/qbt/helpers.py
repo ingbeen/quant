@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.backtest import supplement_experiment as se
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 
@@ -22,22 +21,6 @@ def weekdays(start: date, end: date) -> list[date]:
             days.append(current)
         current += timedelta(days=1)
     return days
-
-
-def run_summary(calmar: float, start: date, trading_days: int = 4800) -> se.RunSummary:
-    """보완 · 조합 그리드 판정 테스트용 실행 요약 — 판정이 읽는 Calmar · 시작일 · 거래일 수만 바꾼다."""
-    return se.RunSummary(
-        start_date=start,
-        end_date=date(2026, 9, 24),
-        trading_days=trading_days,
-        cagr=10.0,
-        mdd=-20.0,
-        calmar=calmar,
-        sell_trades=0,
-        annual_turnover=0.0,
-        phase_returns={},
-        phase_mdds={},
-    )
 
 
 def _stock_df_from_closes(closes: list[float]) -> pd.DataFrame:

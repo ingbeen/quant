@@ -16,7 +16,6 @@
 """
 
 from datetime import date
-from pathlib import Path
 
 import pandas as pd
 
@@ -24,13 +23,7 @@ from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.engines.backtest_engine import run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
-from qbt.tqqq import build_monthly_spread_map, calculate_validation_metrics, simulate
-from qbt.tqqq.constants import (
-    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
-    KEY_OVERLAP_DAYS,
-    KEY_OVERLAP_END,
-    KEY_OVERLAP_START,
-)
+from qbt.tqqq import build_monthly_spread_map, simulate
 from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
 from qbt.utils.data_loader import extract_overlap_period, load_stock_data
 
@@ -114,11 +107,10 @@ class TestBacktestWorkflow:
 class TestTQQQSimulationWorkflow:
     """TQQQ 시뮬레이션 파이프라인 통합 테스트
 
-    호출 체인: 데이터 준비 -> extract_overlap_period -> build_monthly_spread_map
-               -> simulate -> calculate_validation_metrics
+    호출 체인: 데이터 준비 -> extract_overlap_period -> build_monthly_spread_map -> simulate
     """
 
-    def test_full_tqqq_pipeline(self, tmp_path: Path):
+    def test_full_tqqq_pipeline(self):
         """
         목적: TQQQ 시뮬레이션 전체 파이프라인이 연결되어 실행되는지 검증
 
@@ -130,13 +122,10 @@ class TestTQQQSimulationWorkflow:
             1. extract_overlap_period(qqq_df, tqqq_df)
             2. build_monthly_spread_map(ffr_df, a=-6.1, b=0.37)
             3. simulate(...)
-            4. calculate_validation_metrics(...)
         Then:
             - overlap 두 DataFrame 길이 동일
             - spread_map이 비어있지 않음
             - simulated_df에 Date, Close 컬럼 존재
-            - ValidationMetricsDict 필수 키 존재
-            - CSV 파일 생성됨
         """
         # Given: 테스트 데이터 구성
         test_dates = [
@@ -214,28 +203,3 @@ class TestTQQQSimulationWorkflow:
         assert COL_CLOSE in simulated_df.columns, "Close 컬럼 존재"
         assert len(simulated_df) == len(qqq_overlap), "행 수가 원본과 동일"
         assert (simulated_df[COL_CLOSE] > 0).all(), "모든 가격은 양수"
-
-        # When 4: 검증 지표 계산 + CSV 저장
-        output_path = tmp_path / "tqqq_daily_comparison.csv"
-        validation_results = calculate_validation_metrics(
-            simulated_df=simulated_df,
-            actual_df=tqqq_overlap,
-            output_path=output_path,
-        )
-
-        # Then 4: ValidationMetricsDict 필수 키 존재
-        required_keys = [
-            KEY_OVERLAP_START,
-            KEY_OVERLAP_END,
-            KEY_OVERLAP_DAYS,
-            KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
-        ]
-        for key in required_keys:
-            assert key in validation_results, f"검증 지표 필수 키 누락: {key}"
-
-        assert validation_results[KEY_OVERLAP_DAYS] > 0, "겹치는 일수 > 0"
-
-        # CSV 파일 생성 확인
-        assert output_path.exists(), "일별 비교 CSV 파일이 생성되어야 합니다"
-        saved_df = pd.read_csv(output_path)
-        assert len(saved_df) > 0, "CSV에 데이터가 있어야 합니다"

@@ -39,7 +39,11 @@ from qbt.backtest.csv_export import (
     remove_config_dependent_files,
     round_signal_for_csv,
 )
-from qbt.backtest.engines.portfolio_engine import compute_portfolio_effective_start_date, run_portfolio_backtest
+from qbt.backtest.engines.portfolio_engine import (
+    compute_portfolio_effective_start_date,
+    run_portfolio_backtest,
+    run_with_start_check,
+)
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import (
@@ -49,7 +53,6 @@ from qbt.backtest.portfolio_types import (
     resolve_methods,
 )
 from qbt.backtest.portfolio_validation import validate_portfolio_result
-from qbt.backtest.supplement_experiment import run_with_start_check
 from qbt.common_constants import (
     COL_DATE,
     ROUND_CAPITAL,
@@ -394,9 +397,8 @@ def main() -> int:
     ]
     if late_starts:
         raise ValueError(
-            "설정의 시작일(min_start_date)보다 데이터가 늦게 시작하는 실험이 있습니다 — 그대로 돌리면 그리드 결과와 "
-            f"기간이 달라집니다: {', '.join(late_starts)}. 시세를 다시 받았다면 supplement_experiment.py 의 묶음 시작일 "
-            "상수(MAIN_START_DATE 등)를 다시 재고 run_supplement_grid.py · run_combo_grid.py 를 다시 돌린 뒤 실행하세요"
+            "설정의 시작일(min_start_date)보다 데이터가 늦게 시작하는 실험이 있습니다 — 그대로 돌리면 설정과 "
+            f"기간이 달라집니다: {', '.join(late_starts)}. 그 실험의 min_start_date 를 데이터가 있는 날로 고친 뒤 실행하세요"
         )
 
     # 4. 실험별 실행
@@ -412,7 +414,7 @@ def main() -> int:
             )
             result = run_portfolio_backtest(config, start_date=exp_start_date)
         else:
-            # 설정이 시작일을 정한 실험(보완 전략 등록 실험)은 그리드와 같은 날 시작해야 숫자가 그리드 결과와 같다.
+            # 설정이 시작일을 정한 실험은 그날 시작해야 다른 결과와 같은 기간을 잰다.
             # 데이터가 늦게 시작하는 경우는 위에서 실행 전에 멈추고, 여기서는 실제 첫 거래일이 그날인지 한 번 더 대조한다
             logger.debug(
                 f"실험 시작: {config.experiment_name} ({config.display_name}) — "

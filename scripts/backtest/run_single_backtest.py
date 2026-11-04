@@ -8,8 +8,6 @@
     poetry run python scripts/backtest/run_single_backtest.py
     poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_tqqq
     poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_gld
-    poetry run python scripts/backtest/run_single_backtest.py --strategy buffer_zone_v2_qqq
-    poetry run python scripts/backtest/run_single_backtest.py --strategy split_tqqq
 """
 
 import argparse
@@ -32,9 +30,7 @@ from qbt.backtest.csv_export import (
 )
 from qbt.backtest.strategies import (
     buffer_zone,
-    buffer_zone_v2,
     buy_and_hold,
-    split_ladder,
 )
 from qbt.backtest.types import SingleBacktestResult, SummaryDict
 from qbt.common_constants import (
@@ -55,14 +51,6 @@ STRATEGY_RUNNERS: dict[str, Callable[[], SingleBacktestResult]] = {}
 # Buffer zone: CONFIGS 기반 자동 등록
 for _config in buffer_zone.CONFIGS:
     STRATEGY_RUNNERS[_config.strategy_name] = runners.create_buffer_zone_runner(_config)
-
-# Buffer zone V2: CONFIGS 기반 자동 등록
-for _config in buffer_zone_v2.CONFIGS:
-    STRATEGY_RUNNERS[_config.strategy_name] = runners.create_buffer_zone_v2_runner(_config)
-
-# 스플릿 매매: CONFIGS 기반 자동 등록
-for _config in split_ladder.CONFIGS:
-    STRATEGY_RUNNERS[_config.strategy_name] = runners.create_split_runner(_config)
 
 # Buy & Hold 팩토리: CONFIGS 기반 자동 등록
 for _config in buy_and_hold.CONFIGS:
@@ -189,18 +177,6 @@ def _save_summary_json(
             "entry_price": round(open_position["entry_price"], ROUND_PRICE),
             "shares": open_position["shares"],
         }
-
-    # 3. 스플릿 매매의 끝날 보유 칸 (있는 경우에만 저장)
-    open_lots = result.summary.get("open_lots")
-    if open_lots is not None:
-        summary_dict["open_lots"] = [
-            {
-                "entry_date": lot["entry_date"],
-                "entry_price": round(lot["entry_price"], ROUND_PRICE),
-                "shares": lot["shares"],
-            }
-            for lot in open_lots
-        ]
 
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,

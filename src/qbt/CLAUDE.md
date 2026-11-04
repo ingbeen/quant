@@ -37,14 +37,13 @@ qbt는 주식 백테스팅 CLI 도구의 코어 패키지이며 비즈니스 로
 - 내부 계산: `COL_*` (영문 토큰)
 - CSV 출력 헤더: `DISPLAY_*` (한글)
 - 저장 직전에 `rename(COL -> DISPLAY)` 적용
-- 예외: `tqqq/constants.py` 의 일별 비교 CSV 열 `COL_*` 는 한글 값이 곧 CSV 헤더다 (rename 없이 그대로 저장하고 읽는다)
 
 ### 3. 핵심 패턴
 
 #### CSV 데이터 로딩
 
 - 시세 CSV 는 `utils/data_loader.py` 의 `load_stock_data` 로 읽는다 — 날짜 파싱 · 정렬을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수는 지우거나 메우지 않고 멈춘다(`validate_price_series`)
-- 월별 금리 · 운용비율과 TQQQ · QLD 일별 비교 CSV 는 `tqqq/data_loader.py`
+- 월별 금리 · 운용비율은 `tqqq/data_loader.py`
 
 #### 병렬 처리
 
@@ -73,15 +72,14 @@ qbt 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
 - 계산 함수는 상태를 유지하지 않음
 - 모든 입력을 파라미터로 전달
 - 순수 함수 스타일 지향
-- 상태를 갖는 예외: `BufferZoneStrategy`(돌파 · 유지일 대기), `BufferZoneV2Strategy`(한달 대기 · 손절선), 배분 규칙(첫 호출에 만든 파생 계산), `MethodBook`(매매법 장부)
+- 상태를 갖는 예외: `BufferZoneStrategy`(돌파 · 유지일 대기), 배분 규칙(첫 호출에 만든 파생 계산), `MethodBook`(매매법 장부)
 
 ---
 
 ## 시세 파일 이름 (`storage/stock/`)
 
 - `{TICKER}_max.csv`: 전체 기간 (다운로더는 늘 전체 기간을 받는다 — 시세를 읽는 코드가 모두 `*_max.csv` 경로 상수를 쓰고, 분석 기간은 다운로드가 아니라 분석 단계에서 자른다)
-- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션 또는 대용, 상장 후는 실물)
-- `{TICKER}_proxy_max.csv`: 전 구간이 대용인 합성 데이터 (실물 구간 없음)
+- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션, 상장 후는 실물)
 - 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `^SPGSCI_max.csv` · `GC=F_max.csv`)
 
 데이터 · 결과 경로는 `common_constants.py` 의 경로 상수가 정본이다.

@@ -15,6 +15,7 @@ from qbt.backtest.constants import REBALANCE_REASON_MONTHLY, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
     run_portfolio_backtest,
+    run_with_start_check,
 )
 from qbt.backtest.engines.portfolio_planning import (
     compute_portfolio_equity,
@@ -1206,3 +1207,55 @@ class TestParamsJson:
         assert params["asset_slots"][0]["ma_window"] == 5
         assert params["rebalance_check_day"] == "last_trading_day_of_month"
         assert params["rebalance_threshold_rate"] == DEFAULT_REBALANCE_POLICY.threshold_rate
+
+
+class TestRunWithStartCheck:
+    """설정이 시작일을 정한 실험은 그날 시작하거나 멈춘다 — 엔진의 start_date 는 하한이라 조용히 늦게 시작할 수 있다."""
+
+    def test_starts_on_requested_date(self, tmp_path: Path, create_csv_file):
+        """
+        목적: 데이터가 있는 날을 주면 그날 시작한 결과를 돌려준다.
+
+        Given: GLD 단일 자산 설정, 시작일 = 이동평균 워밍업이 끝난 첫날
+        When:  run_with_start_check 실행
+        Then:  자본 곡선의 첫 날짜가 그날이다
+        """
+        # Given
+        stock_df = make_rising_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+        start = compute_portfolio_effective_start_date(config)
+
+        # When
+        result = run_with_start_check(config, start)
+
+        # Then
+        assert result.equity_df[COL_DATE].iloc[0] == start
+
+    def test_rejects_start_inside_warmup(self, tmp_path: Path, create_csv_file):
+        """
+        목적: 이동평균 워밍업 안의 날을 주면 실제 시작이 늦어지므로 멈춘다.
+
+        Given: GLD 단일 자산 설정(이동평균 5일), 시작일 = 시세 첫날
+        When:  run_with_start_check 실행
+        Then:  ValueError (실제 시작일이 다르다)
+        """
+        # Given
+        stock_df = make_rising_stock_df(n_rows=30)
+        gld_path = create_csv_file("GLD_max.csv", stock_df)
+        config = make_portfolio_config(
+            asset_paths={"gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"gld": 1.0},
+            ma_window=5,
+        )
+        first_day = stock_df[COL_DATE].iloc[0]
+
+        # When / Then
+        with pytest.raises(ValueError, match="실제 시작일"):
+            run_with_start_check(config, first_day)

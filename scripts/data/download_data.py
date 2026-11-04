@@ -22,7 +22,7 @@ from qbt.utils.stock_downloader import download_stock_data
 logger = get_logger(__name__)
 
 # 전체 다운로드 대상 티커 목록 (인자 없이 실행 시 사용)
-DEFAULT_TICKERS: Final = ("SPY", "QQQ", "GLD", "TLT", "TQQQ", "SSO", "QLD", "UGL", "UBT")
+DEFAULT_TICKERS: Final = ("SPY", "QQQ", "GLD", "TLT", "TQQQ", "SSO", "QLD")
 
 
 def parse_args():

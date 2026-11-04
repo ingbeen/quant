@@ -16,7 +16,7 @@
 """
 
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -767,6 +767,31 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
         ledger_df=pd.DataFrame(ledger_rows),
         netting_df=pd.DataFrame(netting_rows, columns=_NETTING_COLUMNS),
     )
+
+
+def _to_date(value: object) -> date:
+    if isinstance(value, datetime):  # pd.Timestamp 도 datetime 이고, datetime 은 date 의 하위 클래스라 먼저 본다
+        return value.date()
+    if isinstance(value, date):
+        return value
+    raise ValueError(f"날짜가 아닌 값입니다: {value!r}")
+
+
+def run_with_start_check(config: PortfolioConfig, start_date: date) -> PortfolioResult:
+    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (설정에 min_start_date 가 있는 실험을 포트폴리오 러너가 부른다).
+
+    Raises:
+        ValueError: 실제 시작일이 start_date 와 다를 때 — 엔진의 start_date 는 하한이라 데이터가 늦게 시작하는
+            구성은 조용히 늦게 시작해 같은 기간 비교가 깨진다
+    """
+    result = run_portfolio_backtest(config, start_date=start_date)
+    actual_start = _to_date(result.equity_df[COL_DATE].iloc[0])
+    if actual_start != start_date:
+        raise ValueError(
+            f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 설정의 시작일 {start_date} 와 다릅니다 — "
+            f"이 구성의 데이터가 늦게 시작해 같은 기간 비교가 깨집니다. 설정의 min_start_date 를 데이터가 있는 날로 고치세요"
+        )
+    return result
 
 
 def _append_state_log_columns(

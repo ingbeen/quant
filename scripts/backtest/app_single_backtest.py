@@ -1,6 +1,6 @@
 """백테스트 전략별 시각화 대시보드 (동적 탭)
 
-buffer_zone · buffer_zone_v2 · split_ladder · buy_and_hold 의 CONFIGS에 등록된 전략의
+buffer_zone · buy_and_hold 의 CONFIGS에 등록된 전략의
 결과 폴더를 탐색하여 각 전략마다 독립된 탭에서 시각화를 제공한다.
 
 선행 스크립트:
@@ -43,9 +43,7 @@ from qbt.backtest.dashboard_charts import (
     chart_component_args,
 )
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
-from qbt.backtest.strategies.buffer_zone_v2 import CONFIGS as BZ_V2_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
-from qbt.backtest.strategies.split_ladder import CONFIGS as SPLIT_CONFIGS
 from qbt.common_constants import COL_DATE
 
 # ============================================================
@@ -108,7 +106,7 @@ def _load_json(path: Path, mtime: float) -> dict[str, Any]:
 def _discover_strategies() -> list[StrategyData]:
     """CONFIGS에 등록된 전략의 결과 폴더를 탐색하여 전략 데이터를 로드한다.
 
-    네 CONFIGS의 result_dir을 순회하며, summary.json이 존재하는 전략만 로드한다.
+    두 CONFIGS의 result_dir을 순회하며, summary.json이 존재하는 전략만 로드한다.
 
     Returns:
         전략 데이터 리스트 (CONFIGS 등록 순서)
@@ -116,10 +114,6 @@ def _discover_strategies() -> list[StrategyData]:
     # CONFIGS에서 (strategy_name, result_dir) 수집
     config_dirs: list[tuple[str, Path]] = []
     for cfg in BZ_CONFIGS:
-        config_dirs.append((cfg.strategy_name, cfg.result_dir))
-    for cfg in BZ_V2_CONFIGS:
-        config_dirs.append((cfg.strategy_name, cfg.result_dir))
-    for cfg in SPLIT_CONFIGS:
         config_dirs.append((cfg.strategy_name, cfg.result_dir))
     for cfg in BH_CONFIGS:
         config_dirs.append((cfg.strategy_name, cfg.result_dir))
@@ -183,12 +177,10 @@ def _render_main_chart(
 
     밴드와 툴팁의 에쿼티 · 드로우다운은 에쿼티 표에서 읽는다(매수 후 보유는 밴드가 없다).
     """
-    summary = strategy["summary_data"]["summary"]
-    open_position = summary.get("open_position")
-    open_entries = [open_position] if open_position is not None else summary.get("open_lots", [])
+    open_position = strategy["summary_data"]["summary"].get("open_position")
     markers = build_trade_markers(
         strategy["trades_df"],
-        open_entry_dates=[str(entry["entry_date"]) for entry in open_entries],
+        open_entry_dates=[] if open_position is None else [str(open_position["entry_date"])],
     )
     panes = [
         build_price_pane(strategy["signal_df"], strategy["equity_df"], markers, title=strategy["display_name"]),
@@ -293,11 +285,6 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
         st.caption(f"총 {len(trades_df)}건의 거래")
     else:
         st.info("이 전략에서는 거래 내역이 없습니다.")
-
-    open_lots = summary.get("open_lots")
-    if open_lots:
-        st.subheader(f"보유 중인 칸 ({len(open_lots)}칸)")
-        st.dataframe(pd.DataFrame(open_lots).rename(columns=TRADE_COLUMN_RENAME), width="stretch")
 
     st.divider()
 

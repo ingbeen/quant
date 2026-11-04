@@ -10,8 +10,7 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
 6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
-8. 보완 전략 등록 실험: 채택 조합(매매법 3개 0.8 / 0.1 / 0.1)이
-   그리드와 같은 구성 함수 · 같은 시작일 하한(주 비교 시작일)으로 등록, 채택 전 25% 등록 넷은 없음
+8. 운용안은 Q-2-2XS 단독이다 — 철회한 보완 전략 조합(부록 M)은 등록되지 않고, 시작일 하한(min_start_date)을 쓰는 등록 실험이 없다
 9. QQQ B&H: QQQ 100% 매수 후 보유, 실험 시작일 하한(min_start_date) 없음 — 러너의 시작일 정책을 따른다
 """
 
@@ -20,11 +19,6 @@ import pytest
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
-from qbt.backtest.supplement_experiment import (
-    MAIN_START_DATE,
-    VARIANT_SPLICED,
-    build_combo_config,
-)
 from qbt.common_constants import GLD_DATA_PATH, QQQ_DATA_PATH, TLT_DATA_PATH
 
 
@@ -197,50 +191,34 @@ class TestQSeriesConfigs:
         assert tlt_slot.trade_data_path == TLT_DATA_PATH
 
 
-class TestSupplementConfigs:
-    """보완 전략 등록 실험 (채택 조합 Q-2-2XS 80% + HAA 10% + 로테이션 10%, 부록 M) 계약 테스트."""
+class TestWithdrawnSupplementConfigs:
+    """보완 전략 조합 철회 (사용자 결정 2026-11-04, 부록 O) 계약 테스트."""
 
-    def test_adopted_combo_is_registered_as_grid_built(self) -> None:
+    @pytest.mark.parametrize(
+        "name",
+        ["portfolio_q2_2xs_haa10_rotation10", *(f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation"))],
+    )
+    def test_supplement_experiments_are_not_registered(self, name: str) -> None:
         """
-        목적: 채택 조합이 조합 그리드와 같은 구성 함수 · 같은 시작일 하한으로 등록돼 대시보드 숫자가 그리드와 같다.
+        목적: 철회한 채택 조합과 채택 전 25% 등록 넷은 공식 목록에 없다.
 
-        Given: 등록 실험 portfolio_q2_2xs_haa10_rotation10
-        When:  get_portfolio_config 로 조회한다
-        Then:  build_combo_config(10, 10, 이어 붙인 판, 주 비교 시작일)과 같은 설정, 매매법 (q2_2xs 0.8 · haa 0.1 · rotation 0.1),
-               설정 검증 통과
-        """
-        # When
-        config = get_portfolio_config("portfolio_q2_2xs_haa10_rotation10")
-        methods = resolve_methods(config)
-
-        # Then
-        assert config == build_combo_config(10, 10, VARIANT_SPLICED, MAIN_START_DATE)
-        assert [m.method_id for m in methods] == ["q2_2xs", "haa", "rotation"]
-        assert [m.target_weight for m in methods] == pytest.approx([0.8, 0.1, 0.1], abs=1e-12)
-        validate_portfolio_config(config)
-
-    def test_only_supplement_configs_have_start_date_floor(self) -> None:
-        """
-        목적: 시작일 하한 칸은 보완 전략 등록 실험만 쓴다 — 나머지 실험은 러너의 시작일 정책을 따른다.
-
-        Given: PORTFOLIO_CONFIGS
-        When:  min_start_date 가 있는 실험을 고른다
-        Then:  채택 조합뿐
-        """
-        names = {c.experiment_name for c in PORTFOLIO_CONFIGS if c.min_start_date is not None}
-        assert names == {"portfolio_q2_2xs_haa10_rotation10"}
-
-    @pytest.mark.parametrize("name", [f"portfolio_q2_2xs_{c}25" for c in ("shy", "gold", "haa", "rotation")])
-    def test_pre_adoption_25pct_experiments_are_not_registered(self, name: str) -> None:
-        """
-        목적: 채택 전 25% 등록 넷은 공식 목록에 없다 — 채택하지 않은 보완 전략 등록은 지운다.
-
-        Given: 채택 전 등록 실험 이름
+        Given: 보완 전략 등록 실험 이름
         When:  get_portfolio_config 로 조회한다
         Then:  ValueError
         """
         with pytest.raises(ValueError, match=name):
             get_portfolio_config(name)
+
+    def test_no_config_has_start_date_floor(self) -> None:
+        """
+        목적: 시작일 하한 칸을 쓰는 등록 실험이 없다 — 모든 실험이 러너의 시작일 정책을 따른다.
+
+        Given: PORTFOLIO_CONFIGS
+        When:  min_start_date 가 있는 실험을 고른다
+        Then:  없음
+        """
+        names = {c.experiment_name for c in PORTFOLIO_CONFIGS if c.min_start_date is not None}
+        assert names == set()
 
 
 class TestGetPortfolioConfig:

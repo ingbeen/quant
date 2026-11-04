@@ -1,12 +1,11 @@
 """TQQQ 도메인 전용 데이터 로딩 및 월별 조회 유틸리티
 
-TQQQ 시뮬레이션 및 검증에 필요한 데이터 로딩, 월별 데이터 조회 함수를 제공한다.
+TQQQ 시뮬레이션에 필요한 데이터 로딩, 월별 데이터 조회 함수를 제공한다.
 
 주요 기능:
 1. 월별 데이터(연방기금금리 · 운용비율) 로딩
-2. TQQQ · QLD 일별 비교 데이터 로딩
-3. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
-4. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
+2. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
+3. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
 
 이 모듈의 함수들은 TQQQ 도메인에서만 사용되며,
 프로젝트 전반의 공통 데이터 로딩은 utils/data_loader.py를 참고한다.
@@ -18,39 +17,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CUMUL_RETURN,
-    COL_ACTUAL_DAILY_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-    COL_DAILY_RETURN_ABS_DIFF,
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
     COL_FFR_DATE,
     COL_FFR_VALUE,
-    COL_SIMUL_CUMUL_RETURN,
-    COL_SIMUL_DAILY_RETURN,
-    DAILY_COMPARISON_PRICES,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
 )
 from qbt.utils import get_logger
 
 # 모듈 레벨 로거 생성
 logger = get_logger(__name__)
-
-# 일별 비교 데이터 필수 컬럼 목록
-COMPARISON_COLUMNS = [
-    DISPLAY_DATE,
-    *(col for _, actual_col, simul_col in DAILY_COMPARISON_PRICES.values() for col in (actual_col, simul_col)),
-    COL_ACTUAL_DAILY_RETURN,
-    COL_SIMUL_DAILY_RETURN,
-    COL_DAILY_RETURN_ABS_DIFF,
-    COL_ACTUAL_CUMUL_RETURN,
-    COL_SIMUL_CUMUL_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-]
 
 # 월별 값의 상한 — 손으로 고치는 파일이라 % 로 적은 값(금리 3.63 · 설명서 표기 그대로의 운용비율 0.82)을 잡는다.
 # 금리는 1980년대 초 최고치(비율 약 0.19 = 19%), 운용비율은 레버리지 ETF 의 비율 0.01(= 1%) 안팎보다 넉넉히 높게 둔다
@@ -81,34 +58,6 @@ def load_monthly_data(path: Path) -> pd.DataFrame:
 
     df = pd.read_csv(path)
     logger.debug(f"월별 데이터 로드 완료: {path} ({len(df)}개월)")
-
-    return df
-
-
-def load_comparison_data(path: Path) -> pd.DataFrame:
-    """
-    일별 비교 CSV 파일을 로드하고 검증한다.
-
-    Args:
-        path: CSV 파일 경로
-
-    Returns:
-        로드된 DataFrame
-
-    Raises:
-        FileNotFoundError: 파일이 존재하지 않을 때
-        ValueError: 필수 컬럼이 누락되었을 때
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {path}")
-
-    # parse_dates로 읽기 시점에 날짜 컬럼 자동 파싱 (성능 향상)
-    df = pd.read_csv(path, parse_dates=[DISPLAY_DATE])
-
-    # 필수 컬럼 검증
-    missing_columns = sorted(set(COMPARISON_COLUMNS) - set(df.columns))
-    if missing_columns:
-        raise ValueError(f"필수 컬럼이 누락되었습니다: {missing_columns}")
 
     return df
 

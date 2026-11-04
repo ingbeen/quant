@@ -3,16 +3,14 @@ TQQQ 도메인 전용 데이터 로더 테스트
 
 이 파일은 무엇을 검증하나요?
 1. 월별 데이터(FFR · Expense Ratio) 파일이 정확히 로드되는가?
-2. 일별 비교 데이터가 정확히 로드되는가?
-3. 필수 컬럼이 없으면 즉시 실패하는가?
-4. 파일이 없을 때 명확한 에러를 내는가?
-5. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
-6. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
-7. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
+2. 파일이 없을 때 명확한 에러를 내는가?
+3. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
+4. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
+5. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
 
 왜 중요한가요?
-TQQQ 시뮬레이션의 모든 결과는 FFR 데이터와 비교 데이터에 의존합니다.
-잘못된 데이터는 잘못된 비용 계산과 검증 결과를 초래합니다.
+TQQQ 시뮬레이션의 비용 계산은 FFR · 운용비율 데이터에 의존합니다.
+잘못된 데이터는 잘못된 비용 계산과 합성 시세를 초래합니다.
 """
 
 import math
@@ -21,31 +19,14 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from qbt.common_constants import DISPLAY_DATE
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CLOSE,
-    COL_ACTUAL_CUMUL_RETURN,
-    COL_ACTUAL_DAILY_RETURN,
-    COL_ACTUAL_HIGH,
-    COL_ACTUAL_LOW,
-    COL_ACTUAL_OPEN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-    COL_DAILY_RETURN_ABS_DIFF,
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
     COL_FFR_DATE,
     COL_FFR_VALUE,
-    COL_SIMUL_CLOSE,
-    COL_SIMUL_CUMUL_RETURN,
-    COL_SIMUL_DAILY_RETURN,
-    COL_SIMUL_HIGH,
-    COL_SIMUL_LOW,
-    COL_SIMUL_OPEN,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
 )
 from qbt.tqqq.data_loader import (
-    COMPARISON_COLUMNS,
     MAX_EXPENSE_VALUE,
     MAX_FFR_VALUE,
     _create_monthly_data_dict,
@@ -53,7 +34,6 @@ from qbt.tqqq.data_loader import (
     build_extended_expense_dict,
     create_expense_dict,
     create_ffr_dict,
-    load_comparison_data,
     load_monthly_data,
     lookup_ffr,
 )
@@ -99,82 +79,6 @@ class TestLoadMonthlyData:
         # When & Then
         with pytest.raises(FileNotFoundError):
             load_monthly_data(non_existent)
-
-
-class TestLoadComparisonData:
-    """비교 데이터 (TQQQ 검증용) 로딩 테스트"""
-
-    def test_normal_load(self, tmp_path):
-        """
-        비교 데이터 정상 로딩 테스트
-
-        데이터 신뢰성: 시뮬레이션 결과를 실제 데이터와 비교 검증하는 데 사용됩니다.
-
-        Given: Date, Simulated_Close, Actual_Close 컬럼
-        When: load_comparison_data 호출
-        Then:
-          - COMPARISON_COLUMNS 컬럼 존재
-          - Date 파싱 및 정렬
-        """
-        # Given: 비교 데이터 생성 (실제 컬럼명 사용)
-        comparison_df = pd.DataFrame(
-            {
-                DISPLAY_DATE: [date(2023, 1, 2), date(2023, 1, 3)],
-                COL_ACTUAL_OPEN: [99.5, 101.0],
-                COL_SIMUL_OPEN: [99.8, 101.2],
-                COL_ACTUAL_HIGH: [100.5, 102.5],
-                COL_SIMUL_HIGH: [100.8, 102.2],
-                COL_ACTUAL_LOW: [99.0, 100.5],
-                COL_SIMUL_LOW: [99.5, 100.8],
-                COL_ACTUAL_CLOSE: [100.0, 102.0],
-                COL_SIMUL_CLOSE: [100.5, 101.8],
-                COL_ACTUAL_DAILY_RETURN: [0.01, 0.02],
-                COL_SIMUL_DAILY_RETURN: [0.01, 0.02],
-                COL_DAILY_RETURN_ABS_DIFF: [0.0, 0.0],
-                COL_ACTUAL_CUMUL_RETURN: [0.01, 0.03],
-                COL_SIMUL_CUMUL_RETURN: [0.01, 0.03],
-                COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: [0.0, 0.0],
-                COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: [0.0, 0.0],
-            }
-        )
-        csv_path = tmp_path / "comparison.csv"
-        comparison_df.to_csv(csv_path, index=False)
-
-        # When
-        df = load_comparison_data(csv_path)
-
-        # Then
-        for col in COMPARISON_COLUMNS:
-            assert col in df.columns, f"필수 컬럼 '{col}'이 없습니다"
-
-        assert len(df) == 2
-        # 날짜는 pandas Timestamp로 변환됨 (datetime.date가 아님)
-        assert df[DISPLAY_DATE].dtype == "datetime64[ns]", "날짜가 datetime으로 변환되어야 합니다"
-
-    def test_missing_columns(self, tmp_path):
-        """
-        비교 데이터 필수 컬럼 누락 테스트
-
-        Given: Actual_Close 컬럼 누락
-        When: load_comparison_data 호출
-        Then: ValueError
-        """
-        # Given: 일부 컬럼 누락
-        incomplete_df = pd.DataFrame(
-            {
-                DISPLAY_DATE: [date(2023, 1, 2)],
-                COL_SIMUL_CLOSE: [100.0],
-                # 다른 필수 컬럼들 누락
-            }
-        )
-        csv_path = tmp_path / "incomplete_comparison.csv"
-        incomplete_df.to_csv(csv_path, index=False)
-
-        # When & Then
-        with pytest.raises(ValueError) as exc_info:
-            load_comparison_data(csv_path)
-
-        assert "필수 컬럼" in str(exc_info.value)
 
 
 class TestCreateFfrDict:

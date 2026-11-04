@@ -75,7 +75,7 @@ def main() -> int:
         f"({min(extended_expense_dict.keys())} ~ {max(extended_expense_dict.keys())})"
     )
 
-    for product_name, actual_path, leverage, _ in DAILY_COMPARISON_TARGETS:
+    for product_name, actual_path, leverage in DAILY_COMPARISON_TARGETS:
         actual_df = load_stock_data(actual_path)
         logger.debug(
             f"{product_name}(실제): {len(actual_df):,}행 ({actual_df[COL_DATE].min()} ~ {actual_df[COL_DATE].max()})"

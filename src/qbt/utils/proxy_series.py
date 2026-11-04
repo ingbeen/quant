@@ -4,23 +4,14 @@
 이음매는 실물 첫 거래일이고, 대용은 그날 종가 비율로 스케일해 잇는다.
 """
 
-import math
-from collections.abc import Sequence
-from datetime import date
-
 import pandas as pd
 
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    COL_HIGH,
-    COL_LOW,
-    COL_OPEN,
     COL_VOLUME,
-    EPSILON,
     PRICE_COLUMNS,
     REQUIRED_COLUMNS,
-    TRADING_DAYS_PER_YEAR,
 )
 
 
@@ -75,93 +66,3 @@ def splice_proxy(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFram
     # 대용의 거래량은 실물 거래량이 아니다
     before_seam[COL_VOLUME] = 0
     return pd.concat([before_seam, actual_df[REQUIRED_COLUMNS]], ignore_index=True)
-
-
-def build_daily_rebalanced_composite(components: Sequence[tuple[pd.DataFrame, float]]) -> pd.DataFrame:
-    """매일 비율을 다시 맞추는 바스켓. 첫날 종가 1.0, 거래량 0.
-
-    기간은 가장 늦은 시작일부터 가장 이른 끝날까지다. 고가 · 저가는 구성 종목 값의 가중합이라
-    실제 바스켓의 장중 값이 아닌 근사다.
-
-    Args:
-        components: (시세, 비중) 목록. 비중은 0 보다 크고 합이 1
-
-    Raises:
-        ValueError: 구성 2개 미만, 비중이 0 이하 · 합이 1 이 아님, 날짜가 중복 없는 오름차순이 아님,
-            겹치는 기간이 없음, 겹치는 기간 안에서 구성 종목의 날짜가 다름
-    """
-    if len(components) < 2:
-        raise ValueError(f"합성에는 구성 종목이 2개 이상 필요합니다: {len(components)}개")
-    weights = [weight for _, weight in components]
-    if any(weight <= 0 for weight in weights):
-        raise ValueError(f"구성 비중은 0 보다 커야 합니다: {weights}")
-    if not math.isclose(sum(weights), 1.0, rel_tol=0.0, abs_tol=EPSILON):
-        raise ValueError(f"구성 비중의 합이 1 이 아닙니다: {sum(weights)}")
-    for number, (df, _) in enumerate(components, start=1):
-        require_strictly_increasing_dates(df, f"구성 종목 {number}")
-
-    start = max(df[COL_DATE].iloc[0] for df, _ in components)
-    end = min(df[COL_DATE].iloc[-1] for df, _ in components)
-    if start > end:
-        raise ValueError(f"구성 종목의 겹치는 기간이 없습니다 (가장 늦은 시작 {start}, 가장 이른 끝 {end})")
-    windows = [df[(df[COL_DATE] >= start) & (df[COL_DATE] <= end)].reset_index(drop=True) for df, _ in components]
-
-    # 보간하지 않는다 — 한 종목에만 있는 날짜를 버리거나 메우면 이틀 수익률이 하루로 합쳐진다
-    reference_dates = windows[0][COL_DATE].tolist()
-    for number, window in enumerate(windows[1:], start=2):
-        dates = window[COL_DATE].tolist()
-        if dates != reference_dates:
-            only_first = sorted(set(reference_dates) - set(dates))
-            only_this = sorted(set(dates) - set(reference_dates))
-            raise ValueError(
-                f"겹치는 기간 안에서 구성 종목의 날짜가 다릅니다 — 구성 종목 1 에만: {only_first[:5]}, "
-                f"구성 종목 {number} 에만: {only_this[:5]}. 원본 시세를 확인하세요"
-            )
-
-    # 그날 각 가격 ÷ 구성 종목 전날 종가의 가중합 (첫날은 그날 종가로 나눈다)
-    weighted = {col: pd.Series(0.0, index=range(len(reference_dates))) for col in PRICE_COLUMNS}
-    for window, weight in zip(windows, weights, strict=True):
-        prev_close = window[COL_CLOSE].shift(1).fillna(window[COL_CLOSE].iloc[0])
-        for col in PRICE_COLUMNS:
-            weighted[col] = weighted[col] + weight * window[col] / prev_close
-
-    close = weighted[COL_CLOSE].cumprod()
-    prev_composite_close = close.shift(1).fillna(1.0)
-    result = pd.DataFrame({COL_DATE: reference_dates})
-    for col in (COL_OPEN, COL_HIGH, COL_LOW):
-        result[col] = prev_composite_close * weighted[col]
-    result[COL_CLOSE] = close
-    result[COL_VOLUME] = 0
-    return result[REQUIRED_COLUMNS]
-
-
-def build_rate_accrual_series(dates: Sequence[date], annual_rates: Sequence[float]) -> pd.DataFrame:
-    """전날 연 금리로 하루치 이자를 붙여 가는 시세. 첫날 종가 1.0, 시가 · 고가 · 저가 = 종가, 거래량 0.
-
-    값이 이자만큼만 오르는 초단기 국채(BIL 등)의 대체다. 마지막 날의 금리는 쓰이지 않는다.
-
-    Args:
-        annual_rates: 날짜마다 그날 적용되는 연 금리 (비율, 0.05 = 5%). 음수도 그대로 쓴다
-
-    Raises:
-        ValueError: 날짜와 금리의 개수가 다를 때, 2개 미만일 때, 금리에 결측이 있을 때,
-            날짜가 중복 없는 오름차순이 아닐 때
-    """
-    if len(dates) != len(annual_rates):
-        raise ValueError(f"날짜와 금리의 개수가 다릅니다: 날짜 {len(dates)}개, 금리 {len(annual_rates)}개")
-    if len(dates) < 2:
-        raise ValueError(f"이자를 붙이려면 날짜가 2개 이상 필요합니다: {len(dates)}개")
-    rates = pd.Series(list(annual_rates), dtype=float)
-    if rates.isna().any():
-        missing = [dates[i] for i in rates.index[rates.isna()][:5]]
-        raise ValueError(f"금리에 결측이 있습니다 — 날짜: {missing}. 금리 원본을 확인하세요")
-    result = pd.DataFrame({COL_DATE: list(dates)})
-    require_strictly_increasing_dates(result, "금리 누적")
-
-    growth = 1.0 + rates.shift(1) / TRADING_DAYS_PER_YEAR
-    growth.iloc[0] = 1.0
-    close = growth.cumprod()
-    for col in PRICE_COLUMNS:
-        result[col] = close
-    result[COL_VOLUME] = 0
-    return result[REQUIRED_COLUMNS]

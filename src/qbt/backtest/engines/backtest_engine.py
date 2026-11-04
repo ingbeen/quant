@@ -39,12 +39,11 @@ from qbt.backtest.engines.engine_common import (
     record_equity,
 )
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-from qbt.backtest.strategies.strategy_common import IntradayStopStrategy, SignalStrategy
+from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BufferStrategyParams, SummaryDict
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
-    COL_LOW,
     COL_OPEN,
     ROUND_PRICE,
 )
@@ -245,8 +244,7 @@ def run_backtest(
 
     핵심 실행 규칙:
     - 시그널: signal_df의 close vs 전략 내부 MA/밴드 계산
-    - 체결: trade_df의 open (다음 날 시가). 예외는 손절 전략(IntradayStopStrategy) — 저가가 손절선 아래로 가면
-      그날 손절선 가격에 판다 (시가가 이미 아래면 시가)
+    - 체결: trade_df의 open (다음 날 시가)
     - equity = cash + position * trade_df.close (모든 시점)
     - final_capital = 마지막 equity (평가액 포함)
     - pending_order: 단일 슬롯 — 체결일 아침에 비운 뒤 그날 신호를 보므로 신호 시점에 남은 pending 이 없다
@@ -280,11 +278,6 @@ def run_backtest(
 
     # 1. 데이터 검증
     _validate_backtest_inputs(signal_df, trade_df)
-
-    # 판정은 전략이 바뀔 때만 한다 — 그리드 서치의 일별 루프에 Protocol 검사 비용을 더하지 않으려는 것
-    stop_strategy = strategy if isinstance(strategy, IntradayStopStrategy) else None
-    if stop_strategy is not None and COL_LOW not in trade_df.columns:
-        raise ValueError(f"장중 손절 전략은 trade_df 에 {COL_LOW} 컬럼이 필요합니다")
 
     if len(signal_df) < MIN_VALID_ROWS:
         raise ValueError(f"유효 데이터 부족: {len(signal_df)}행 (최소 {MIN_VALID_ROWS}행 필요)")
@@ -323,7 +316,6 @@ def run_backtest(
         if params_schedule is not None:
             while next_switch_idx < len(sorted_switch_dates) and current_date >= sorted_switch_dates[next_switch_idx]:
                 strategy = params_schedule[sorted_switch_dates[next_switch_idx]]
-                stop_strategy = strategy if isinstance(strategy, IntradayStopStrategy) else None
                 next_switch_idx += 1
                 if log_trades:
                     logger.debug(f"전략 교체: {current_date}")
@@ -352,13 +344,6 @@ def run_backtest(
                 sell_price_raw = float(trade_row[COL_OPEN])
 
             pending_order = None
-
-        # 4-1-1. 장중 손절 (손절선은 전날 종가까지 세운 값)
-        if stop_strategy is not None and position > 0:
-            stop = stop_strategy.stop_price()
-            if stop is not None and float(trade_row[COL_LOW]) < stop:
-                # 시가가 이미 손절선 아래면 그 가격에 팔 수 없다
-                sell_price_raw = min(float(trade_row[COL_OPEN]), stop)
 
         if sell_price_raw is not None:
             if entry_date is None:

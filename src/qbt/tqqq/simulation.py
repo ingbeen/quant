@@ -7,11 +7,8 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 # 1. 표준 라이브러리 임포트
 import math
 from datetime import date
-from pathlib import Path
-from typing import Final, TypedDict
 
 # 2. 서드파티 라이브러리 임포트
-import numpy as np
 import pandas as pd
 
 from qbt.common_constants import (
@@ -21,72 +18,21 @@ from qbt.common_constants import (
     COL_LOW,
     COL_OPEN,
     COL_VOLUME,
-    DISPLAY_DATE,
     REQUIRED_COLUMNS,
-    ROUND_PRICE,
     TRADING_DAYS_PER_YEAR,
 )
-from qbt.tqqq.analysis_helpers import calculate_signed_log_diff_from_cumulative_returns
 from qbt.tqqq.constants import (
-    COL_ACTUAL_CUMUL_RETURN,
-    COL_ACTUAL_DAILY_RETURN,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_ABS,
-    COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED,
-    COL_DAILY_RETURN_ABS_DIFF,
     COL_FFR_DATE,
     COL_FFR_VALUE,
-    COL_SIMUL_CUMUL_RETURN,
-    COL_SIMUL_DAILY_RETURN,
-    DAILY_COMPARISON_PRICES,
-    DEFAULT_PRE_LISTING_EXPENSE_RATIO,
-    DEFAULT_SOFTPLUS_A,
-    DEFAULT_SOFTPLUS_B,
-    KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX,
-    KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN,
-    KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE,
-    KEY_CUMULATIVE_RETURN_ACTUAL,
-    KEY_CUMULATIVE_RETURN_SIMULATED,
-    KEY_OVERLAP_DAYS,
-    KEY_OVERLAP_END,
-    KEY_OVERLAP_START,
 )
 from qbt.tqqq.data_loader import (
-    build_extended_expense_dict,
-    create_ffr_dict,
     lookup_expense,
     lookup_ffr,
     lookup_funding_spread,
 )
 from qbt.utils import get_logger
-from qbt.utils.data_loader import extract_overlap_period
 
 logger = get_logger(__name__)
-
-# 일별 비교의 % 열(일일 · 누적 수익률, 누적배수 로그차이) 자릿수 — 백분율 기본(ROUND_PERCENT)보다 깊다.
-# 스프레드 랩이 이 파일의 일일수익률로 일일 증분 오차를 다시 계산하는데, 2자리면 반올림이 그 오차와 같은 크기라
-# 월합의 부호까지 바뀐다
-ROUND_DAILY_COMPARISON_PERCENT: Final = 4
-
-# 긴 역사 합성의 시작 가격 — 수익률과 무관, 1,000만원으로 정수 주수를 넉넉히 사는 수준
-_LONG_HISTORY_INITIAL_PRICE: Final = 100.0
-
-
-class ValidationMetricsDict(TypedDict):
-    """calculate_validation_metrics() 반환 타입.
-
-    시뮬레이션과 실제 데이터의 비교 검증 지표를 담는 딕셔너리.
-    키 이름은 tqqq/constants.py의 KEY_* 상수 값과 동일하다.
-    """
-
-    overlap_start: date
-    overlap_end: date
-    overlap_days: int
-    cumulative_return_simulated: float
-    cumulative_return_actual: float
-    cumul_multiple_log_diff_mean_pct: float
-    cumul_multiple_log_diff_rmse_pct: float
-    cumul_multiple_log_diff_max_pct: float
-
 
 # ============================================================
 # Softplus 동적 스프레드 모델 함수
@@ -402,7 +348,7 @@ def simulate(
     df[COL_HIGH] = df[[COL_HIGH, COL_OPEN, COL_CLOSE]].max(axis=1, skipna=False)
     df[COL_LOW] = df[[COL_LOW, COL_OPEN, COL_CLOSE]].min(axis=1, skipna=False)
 
-    # 일별 비교 CSV 는 저장 전 시세 검사를 거치지 않음 → 음수 가격이 에러 없이 저장되어 여기서 멈춤
+    # 부르는 쪽마다 저장 전 시세 검사가 있다고 기대지 않음 → 계산한 자리에서 멈춤
     non_positive_dates = df.loc[df[COL_LOW] <= 0, COL_DATE].tolist()
     if non_positive_dates:
         raise ValueError(f"시뮬레이션 가격이 0 이하입니다 — 날짜: {non_positive_dates[:5]}. 기초 자산 시세의 저가를 확인하세요")
@@ -414,162 +360,3 @@ def simulate(
     result_df = df[REQUIRED_COLUMNS].copy()
 
     return result_df
-
-
-def simulate_long_history(
-    underlying_df: pd.DataFrame,
-    leverage: float,
-    ffr_df: pd.DataFrame,
-    expense_df: pd.DataFrame,
-    *,
-    spread_cap: float | None = None,
-) -> pd.DataFrame:
-    """
-    운용보수 파일과 금리 파일 앞까지 이어지는 지수를 지금 비용 모델로 합성한다.
-
-    운용보수가 없는 앞 구간은 금리가 있는 달까지 상장 전 고정값으로 채운다. 그때는 없던 상품이고 비용은 가정이다.
-
-    Args:
-        underlying_df: 기초 자산 DataFrame (Date, Open, High, Low, Close 컬럼 필수)
-        leverage: 레버리지 배수 (예: 3.0)
-        ffr_df: 시세를 덮는 월별 금리 (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
-        expense_df: 월별 운용비율 (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
-        spread_cap: 가산금리 상한 (0.016 = 1.6%). None 이면 모델 값 그대로다
-
-    Returns:
-        시뮬레이션된 레버리지 ETF DataFrame (Date, Open, High, Low, Close, Volume 컬럼)
-
-    Raises:
-        ValueError: spread_cap 이 0 이하일 때, 그 밖의 경우는 simulate 와 같다
-    """
-    if spread_cap is not None and spread_cap <= 0:
-        raise ValueError(f"가산금리 상한(spread_cap)은 0 보다 커야 합니다(0.016 = 1.6%): {spread_cap}")
-
-    ffr_dict = create_ffr_dict(ffr_df)
-    spread_map = build_monthly_spread_map(ffr_df, DEFAULT_SOFTPLUS_A, DEFAULT_SOFTPLUS_B)
-    if spread_cap is not None:
-        spread_map = {month: min(spread, spread_cap) for month, spread in spread_map.items()}
-
-    expense_dict = build_extended_expense_dict(expense_df)
-    first_expense_month = min(expense_dict)
-    earlier_months = {month: DEFAULT_PRE_LISTING_EXPENSE_RATIO for month in ffr_dict if month < first_expense_month}
-
-    return simulate(
-        underlying_df,
-        leverage,
-        _LONG_HISTORY_INITIAL_PRICE,
-        ffr_dict=ffr_dict,
-        expense_dict=earlier_months | expense_dict,
-        funding_spread=spread_map,
-    )
-
-
-def _save_daily_comparison_csv(
-    sim_overlap: pd.DataFrame,
-    actual_overlap: pd.DataFrame,
-    actual_cumulative_pct: pd.Series,
-    sim_cumulative_pct: pd.Series,
-    signed_log_diff: pd.Series,
-    output_path: Path,
-) -> None:
-    """
-    일별 비교 CSV를 저장한다.
-
-    calculate_validation_metrics()의 헬퍼 함수. 누적수익률(%)과 누적배수 로그차이(signed)는
-    이미 계산된 값을 받는다. abs 로그차이는 signed 의 절댓값이다 — 같은 누적배수 정의다.
-
-    Args:
-        sim_overlap: 겹치는 기간의 시뮬레이션 DataFrame
-        actual_overlap: 겹치는 기간의 실제 DataFrame
-        actual_cumulative_pct: 실제 누적수익률 (%)
-        sim_cumulative_pct: 시뮬레이션 누적수익률 (%)
-        signed_log_diff: 누적배수 로그차이 signed (%)
-        output_path: CSV 저장 경로
-    """
-    actual_returns = actual_overlap[COL_CLOSE].pct_change() * 100  # %
-    sim_returns = sim_overlap[COL_CLOSE].pct_change() * 100  # %
-
-    price_columns: dict[str, pd.Series] = {}
-    for source_col, actual_col, simul_col in DAILY_COMPARISON_PRICES.values():
-        price_columns[actual_col] = actual_overlap[source_col]
-        price_columns[simul_col] = sim_overlap[source_col]
-
-    comparison_df = pd.DataFrame(
-        {
-            DISPLAY_DATE: actual_overlap[COL_DATE],
-            **price_columns,
-            COL_ACTUAL_DAILY_RETURN: actual_returns,
-            COL_SIMUL_DAILY_RETURN: sim_returns,
-            COL_DAILY_RETURN_ABS_DIFF: (actual_returns - sim_returns).abs(),
-            COL_ACTUAL_CUMUL_RETURN: actual_cumulative_pct,
-            COL_SIMUL_CUMUL_RETURN: sim_cumulative_pct,
-            COL_CUMUL_MULTIPLE_LOG_DIFF_ABS: signed_log_diff.abs(),
-            COL_CUMUL_MULTIPLE_LOG_DIFF_SIGNED: signed_log_diff,
-        }
-    )
-
-    digits = {col: ROUND_DAILY_COMPARISON_PERCENT for col in comparison_df.columns if col != DISPLAY_DATE}
-    digits.update({col: ROUND_PRICE for col in price_columns})
-    comparison_df.round(digits).to_csv(output_path, index=False, encoding="utf-8")
-
-
-def calculate_validation_metrics(
-    simulated_df: pd.DataFrame,
-    actual_df: pd.DataFrame,
-    output_path: Path | None = None,
-) -> ValidationMetricsDict:
-    """
-    시뮬레이션 검증 지표를 계산하고, 선택적으로 일별 비교 CSV를 생성한다.
-
-    누적수익률과 누적배수 로그차이를 한 번만 계산하고 검증 지표와 CSV 생성에 활용한다.
-
-    Args:
-        simulated_df: 시뮬레이션 DataFrame (Date, Close 컬럼 필수)
-        actual_df: 실제 DataFrame (Date, Close 컬럼 필수)
-        output_path: CSV 저장 경로 (None이면 저장 안 함)
-
-    Returns:
-        검증 결과 딕셔너리 (ValidationMetricsDict). 누적수익률은 비율, 로그차이 지표는 % 다
-
-    Raises:
-        ValueError: 겹치는 기간이 없을 때, 누적배수가 0 이하일 때 (로그 계산 불가)
-    """
-    # 1. 겹치는 기간 추출
-    sim_overlap, actual_overlap = extract_overlap_period(simulated_df, actual_df)
-
-    # 2. 첫날 종가 기준 누적수익률 (%)
-    actual_cumulative_pct = (actual_overlap[COL_CLOSE] / float(actual_overlap.iloc[0][COL_CLOSE]) - 1) * 100
-    sim_cumulative_pct = (sim_overlap[COL_CLOSE] / float(sim_overlap.iloc[0][COL_CLOSE]) - 1) * 100
-
-    # 3. 누적배수 로그차이 — 지표는 크기(abs)로 잰다
-    signed_log_diff = calculate_signed_log_diff_from_cumulative_returns(
-        cumul_return_real_pct=actual_cumulative_pct,
-        cumul_return_sim_pct=sim_cumulative_pct,
-    )
-    abs_log_diff = signed_log_diff.abs()
-
-    # 4. 일별 비교 CSV 생성 (요청 시에만)
-    if output_path is not None:
-        _save_daily_comparison_csv(
-            sim_overlap,
-            actual_overlap,
-            actual_cumulative_pct,
-            sim_cumulative_pct,
-            signed_log_diff,
-            output_path,
-        )
-
-    # 5. 검증 결과 반환
-    return {
-        # 기간 정보
-        KEY_OVERLAP_START: sim_overlap[COL_DATE].iloc[0],
-        KEY_OVERLAP_END: sim_overlap[COL_DATE].iloc[-1],
-        KEY_OVERLAP_DAYS: len(sim_overlap),
-        # 누적 수익률 (비율)
-        KEY_CUMULATIVE_RETURN_SIMULATED: float(sim_cumulative_pct.iloc[-1]) / 100,
-        KEY_CUMULATIVE_RETURN_ACTUAL: float(actual_cumulative_pct.iloc[-1]) / 100,
-        # 누적배수 로그차이 기반 정확도 지표
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_MEAN: float(abs_log_diff.mean()),
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_RMSE: float(np.sqrt((abs_log_diff**2).mean())),
-        KEY_CUMUL_MULTIPLE_LOG_DIFF_MAX: float(abs_log_diff.max()),
-    }

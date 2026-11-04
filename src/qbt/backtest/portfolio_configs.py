@@ -7,24 +7,19 @@
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
 - Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
   수익·위험 프로필을 비교한다.
-- 매매법이 여럿인 실험: Q-2-2XS 를 매매법 하나로 두고 보완 매매법과 몫을 나눈다.
 """
 
 from pathlib import Path
 
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
-from qbt.backtest.supplement_experiment import (
-    MAIN_START_DATE,
-    Q2_2XS_SLOTS,
-    VARIANT_SPLICED,
-    build_combo_config,
-)
 from qbt.common_constants import (
     GLD_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
+    QLD_DATA_PATH,
     QQQ_DATA_PATH,
     SPY_DATA_PATH,
+    SSO_DATA_PATH,
     TLT_DATA_PATH,
 )
 
@@ -112,26 +107,35 @@ _CONFIG_Q2 = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2"),
 )
 
-# Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- 슬롯은 보완 실험과 같이 쓰는 supplement_experiment.Q2_2XS_SLOTS
+# Q-2-2XS: 주식만 2x, 방어자산 1x B&H -- 운용 포트폴리오 (docs/research/전략_검증_보고서.md 부록 O)
 _CONFIG_Q2_2XS = PortfolioConfig(
     experiment_name="portfolio_q2_2xs",
     display_name="Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
-    asset_slots=Q2_2XS_SLOTS,
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="sso", signal_data_path=SPY_DATA_PATH, trade_data_path=SSO_DATA_PATH, target_weight=0.35
+        ),
+        AssetSlotConfig(
+            asset_id="qld", signal_data_path=QQQ_DATA_PATH, trade_data_path=QLD_DATA_PATH, target_weight=0.35
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_DATA_PATH,
+            trade_data_path=GLD_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_DATA_PATH,
+            trade_data_path=TLT_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
     total_capital=DEFAULT_INITIAL_CAPITAL,
     result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
-
-# ============================================================================
-# 매매법이 여럿인 실험: 보완 전략의 채택 조합 (Q-2-2XS 80% + HAA 10% + 로테이션 10%)
-# ============================================================================
-
-# 그리드와 같은 함수 · 같은 시작일 하한(주 비교 시작일)으로 만들어 대시보드 숫자가 그리드 결과와 같다.
-# 채택 비중의 근거는 docs/research/전략_검증_보고서.md 부록 M.6.3.
-_ADOPTED_HAA_PCT = 10
-_ADOPTED_ROTATION_PCT = 10
-_SUPPLEMENT_CONFIGS = [
-    build_combo_config(_ADOPTED_HAA_PCT, _ADOPTED_ROTATION_PCT, VARIANT_SPLICED, MAIN_START_DATE),
-]
 
 # ============================================================================
 # 공개 컬렉션 및 함수
@@ -142,7 +146,6 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
-    *_SUPPLEMENT_CONFIGS,
 ]
 
 
