@@ -249,13 +249,13 @@ def assumption_variants(
     products: Sequence[tuple[str, float]],
     *,
     end: date,
-    dividend_gap_rate: float,
+    dividend_gap_rate: float | None,
 ) -> list[AssumptionResult]:
     """
     기초 첫날 ~ end 에서 가정만 바꾼 판의 Buy & Hold 를 상품마다 잰다 (검증 ④). 행은 판 순서 · 상품 순서다.
 
     판: 채택(합성 파일과 같은 비용 입력), 상한 없음, 가산금리 0, 배당 보정(채택 비용에 연 수익을
-    dividend_gap_rate 만큼 복리로 높인 기초).
+    dividend_gap_rate 만큼 복리로 높인 기초 — dividend_gap_rate 가 None 이면 이 판은 없다).
 
     Args:
         underlying_df: 1배 기초 시세 (합성 파일의 기초)
@@ -263,7 +263,8 @@ def assumption_variants(
         expense_df: 월별 운용비율
         products: (상품 이름, 배율)
         end: 구간 끝날 (그날 포함)
-        dividend_gap_rate: 배당 보정 폭 (연 비율, annual_gap_rate — 0.0052 = 연 0.52%)
+        dividend_gap_rate: 배당 보정 폭 (연 비율, annual_gap_rate — 0.0052 = 연 0.52%).
+            None 은 기초가 배당을 담아 보정할 것이 없을 때다
 
     Raises:
         ValueError: 구간의 날이 2일 미만일 때, build_cost_inputs · simulate 와 같다
@@ -276,12 +277,13 @@ def assumption_variants(
 
     first_month = month_of(start)
     adopted = build_cost_inputs(ffr_df, expense_df, first_month)
-    variants = (
+    variants = [
         (VARIANT_ADOPTED, window, adopted),
         (VARIANT_UNCAPPED, window, build_cost_inputs(ffr_df, expense_df, first_month, spread_cap=None)),
         (VARIANT_ZERO_SPREAD, window, replace(adopted, spread={month: _ZERO_SPREAD for month in adopted.spread})),
-        (VARIANT_DIVIDEND, _with_annual_drift(window, dividend_gap_rate), adopted),
-    )
+    ]
+    if dividend_gap_rate is not None:
+        variants.append((VARIANT_DIVIDEND, _with_annual_drift(window, dividend_gap_rate), adopted))
 
     results: list[AssumptionResult] = []
     for variant, underlying, costs in variants:

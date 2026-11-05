@@ -7,11 +7,11 @@
 | 항목 | 값 |
 |---|---|
 | 작성 | 2026-11-04 15:53 (KST) · 세션 `7e021a09-5a9c-421d-a60b-ab09300a8408` |
-| 마지막 갱신 | 2026-11-05 12:00 (KST) · 세션 `590dc21b-5a61-4410-8eb2-15d04e9ddfbb` — 계획 2 Done (커밋 대기) |
-| **다음 할 일** | ① 1절 2행(계획 2)의 커밋이 `git log` 에 보이면 `커밋됨` 으로 고친다 — 안 보이면 커밋을 부탁하고 멈춘다(3절 1단계) ② 계획 3 은 시작 조건에 걸린 2절 질문이 없다 — 4절 「모든 계획」 · 「계획 3」 항목을 읽고 `/impl-plan` 으로 `PLAN_proxy_spy` 를 쓴다(설계 결정은 계획서의 S 항목으로 승인받는다 — 예: 기초가 다른 SSO · UPRO 를 저장 함수가 받는 모양, S&P 500 쪽 배당 보정 판의 필요) |
+| 마지막 갱신 | 2026-11-05 14:31 (KST) · 세션 `cd096e93-f4ec-4341-8ba2-b49ac679064c` — 계획 3 Done (커밋 대기) |
+| **다음 할 일** | ① 1절 3행(계획 3)의 커밋이 `git log` 에 보이면 `커밋됨` 으로 고친다 — 안 보이면 커밋을 부탁하고 멈춘다(3절 1단계) ② 계획 4 (`PLAN_proxy_tlt_gld`) 는 계획서보다 금 자료 조사가 먼저다 — 4절 「모든 계획」 · 「계획 4」를 읽고, `/web-research` 로 1991년 전 금 자료(첫 후보: 분데스방크 마르크 금값 × 마르크/달러 환율, 연구 문서 6.4)를 조사한 뒤 그 결과로 2절의 결정 6(금의 실제 연결)을 사용자에게 묻는다. 답을 받으면 `/impl-plan` 으로 계획서를 쓴다 |
 | 저장소 · 브랜치 | `/Users/yubeen/Workspace/quant` · `main` |
-| 마지막 갱신 때 HEAD | `229f162` — 그 위에 커밋 안 된 것: 계획 2 의 변경 전부(`docs/plans/PLAN_leveraged_extension.md` Scope — src · scripts · tests · 문서 · `storage/etc` 금리 · `storage/stock` 새 시세 셋과 합성 둘 · `storage/results/proxy_validation` 새 표 넷), 러너를 다시 돌린 결과(Buy & Hold 두 `signal.csv` 와 워크포워드 · 고원 158 파일 — 그 158 은 커밋돼 있던 낡은 결과의 갱신, 사용자가 이 커밋에 함께 두기로 함), `HANDOFF.md` · 연구 문서 · `docs/DEFERRED_FINDINGS.md` · 루트 `CLAUDE.md` |
-| 측정 코드 (임시) | 세션 `7e021a09…` · `b3c545e6…` · `590dc21b…` 의 `/private/tmp/claude-501/-Users-yubeen-Workspace-quant/<세션>/scratchpad/probe/` — 사라질 수 있다. 재는 법은 연구 문서 9장 |
+| 마지막 갱신 때 HEAD | `0e5ab7d` — 그 위에 커밋 안 된 것: 계획 3 의 변경 전부(`docs/plans/PLAN_proxy_spy.md` Scope — src · scripts · tests · 문서 · `storage/stock` 새 시세 둘과 합성 셋 · `storage/results/proxy_validation` 표 여섯), 계획서 자신 · 연구 문서 · `HANDOFF.md` |
+| 측정 코드 (임시) | 세션 `7e021a09…` · `b3c545e6…` · `590dc21b…` · `cd096e93…` 의 `/private/tmp/claude-501/-Users-yubeen-Workspace-quant/<세션>/scratchpad/probe/` — 사라질 수 있다. 재는 법은 연구 문서 9장(계획 3 의 것은 계획서 Context 가 가리키는 `measure.py` · `probe2.py`, 승격 전) |
 
 ---
 
@@ -22,13 +22,13 @@
 | # | 계획서 | 상태 | 시작 조건 | 비고 |
 |---|---|---|---|---|
 | 1 | `docs/plans/PLAN_proxy_qqq.md` | 커밋됨 (`229f162`) | 없음 — 바로 쓴다 | `QQQ_synthetic_max.csv` 1985-10-01 부터 10,350행, 검증 ① = 5.1 그대로, 결정 3 = 시가 그날 종가, 합성은 `scripts/data/generate_synthetic.py` 하나(결정 11), 품질 검증 744 passed |
-| 2 | `docs/plans/PLAN_leveraged_extension.md` | Done | 1 커밋됨 | QLD · TQQQ 합성 1985-10-01 부터 10,350행 · 1999-03-10 이후 종가 불변, 금리 FRED 868개월, ② RMSE TQQQ 1.0243% · QLD 0.8083%, ③ UOPIX 상장 전 +1.21%p (기준선 +0.90), Buy & Hold TQQQ · QLD 는 계획 5 까지 QQQ 기간에 묶음, 품질 검증 800 passed |
-| 3 | `docs/plans/PLAN_proxy_spy.md` | 대기 | 2 커밋됨 | |
+| 2 | `docs/plans/PLAN_leveraged_extension.md` | 커밋됨 (`0e5ab7d`) | 1 커밋됨 | QLD · TQQQ 합성 1985-10-01 부터 10,350행 · 1999-03-10 이후 종가 불변, 금리 FRED 868개월, ② RMSE TQQQ 1.0243% · QLD 0.8083%, ③ UOPIX 상장 전 +1.21%p (기준선 +0.90), Buy & Hold TQQQ · QLD 는 계획 5 까지 QQQ 기간에 묶음, 품질 검증 800 passed |
+| 3 | `docs/plans/PLAN_proxy_spy.md` | Done | 2 커밋됨 | SPY 합성 11,803행 1980-01-02 부터 · ① VFINX ↔ SPY 10.81% / 10.81%, SSO 11,803 · UPRO 11,806행 1980-01-02 부터 · ⑥ `diff` 0, ② SSO 0.7024% · UPRO 2.4063% (UPRO 는 2020-03-16 하루가 대부분), ③ ULPIX 상장 전 +0.45%p (기준선 +1.12), ④ 1980-01 ~ 1993-07 채택 UPRO 6.09% · 상한 없음 −16.93%. 기존 합성 셋 · 검증 행 그대로(러너 다시 돌리지 않음 — 새 파일을 읽는 설정 0), 품질 검증 803 passed |
 | 4 | `docs/plans/PLAN_proxy_tlt_gld.md` | 대기 | 3 커밋됨 | |
 | 5 | `docs/plans/PLAN_backtest_long_history.md` | 대기 | 4 커밋됨 · 결정 10 답 | |
 | 6 | 이 인계서 지우기 | 대기 | 5 커밋됨 | 7절 |
 
-**전체 진행**: 6단계 중 Done 2 · 커밋됨 1 — 세션을 닫을 때 이 줄을 고친다(3절 5단계).
+**전체 진행**: 6단계 중 Done 1 · 커밋됨 2 — 세션을 닫을 때 이 줄을 고친다(3절 5단계).
 
 계획마다 하는 일은 연구 문서 7장, 결정은 3장이다.
 
@@ -82,6 +82,8 @@
 - 검증 표는 `storage/results/proxy_validation/` 에 더한다(② `tracking.csv` · ③ `funds.csv` · `fund_years.csv` · ④ `assumptions.csv`). 스크립트의 `_save_and_show` 가 저장과 직전 값 표시를 한다 — 표의 키 열이 바뀌면 직전 값 없이 표시하고 경고를 낸다
 - 합성 파일을 바꾸면 COMMANDS 「시세를 다시 받은 뒤」 ④ 의 러너 넷을 다시 돌려 `git status --short storage/results` 로 바뀐 결과 파일을 본다 — 넷 합쳐 약 3분(워크포워드 147초). 결과 파일을 읽는 전략이 무엇인지 먼저 `grep` 한다 — 계획 2 에서 Buy & Hold 가 매매 시세 첫 행부터 돌아 시작일이 옮겨갈 뻔했다(연구 문서 결정 10)
 - 야후 펀드 시세는 받을 때마다 수정 주가가 상대 1e-6 수준으로 달라진다(연구 문서 8장) — 측정 때 받은 사본과 바이트로 견주지 말고 행 · 날짜와 값 차이로 견준다
+- 새 시세 · 행을 더하는 계획은 검증 CSV 여섯의 `git diff` 에서 지워진 줄이 0 이고 콘솔 「바뀜」이 0 이어야 기존 행이 그대로다 — 계획 3 이 그렇게 확인했다(더한 줄 108 · 지운 줄 0). 새 행은 콘솔에 직전 값 「-」로 나온다
+- 티커 인자로 따로 받은 시세는 다른 시세보다 끝날이 늦다 — 그 실물로 이은 합성(계획 3 의 UPRO 합성 2026-11-03)도 끝날이 늦어진다. 다음 인자 없는 다운로드가 맞춘다
 
 **계획 1 — `PLAN_proxy_qqq`**
 
@@ -108,6 +110,8 @@
 - 금은 결정 6 순서다. 먼저 1991년 전 자료를 `/web-research` 스킬로 조사한다(첫 후보: 분데스방크 마르크 금값 × 마르크/달러 환율, 연구 문서 6.4). 없으면 Perth Mint → 2000-08-30 GC=F → 2004-11-18 GLD 로 잇는다. 1991년 전 자료는 1985-10 무렵까지만 의미가 있다(연구 문서 1장). 조사 결과로 결정 6 의 실제 연결을 사용자에게 확정받는다
 - Perth Mint 는 호주 날짜 d + 1영업일 값을 미국 날짜 d 에 붙인다(연구 문서 6.4)
 - 금 시세에 없는 미국 거래일은 메우지 않고 그대로 둔다(`src/qbt/utils/CLAUDE.md`)
+- TLT · GLD 는 1배뿐이라 `scripts/data/generate_synthetic.py` 의 `PROXY_TARGETS` 에 줄을 더하는 것으로 합성 · 검증 ① 이 된다(계획 3 이 SPY 를 그렇게 더했다). 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 줄마다 기초 시세)와 검증 ④ 대상 표(`ASSUMPTION_TARGETS` — 레버리지가 있는 기초만)는 건드리지 않는다
+- `PROXY_TARGETS` 를 도는 `build_proxy_synthetic` 은 대용의 시가를 그날 종가로 바꾼다(결정 3) — GC=F 처럼 진짜 시가가 있는 대용에도 그대로 걸린다. 금 대용에도 그 규칙이 맞는지 계획서에서 정한다
 - 검증 ① 의 `proxy_comparison.align_closes` 는 한쪽에만 있는 날을 빼고 그 수를 내지 않는다 — `^NDX ↔ QQQ` 는 0일이라 문제가 없었다. 달력이 다른 금 대용은 빠진 날 수를 검증 표에 함께 낼지 계획서에서 정한다 (계획 1 코드 리뷰 지적)
 
 **계획 5 — `PLAN_backtest_long_history`**
@@ -117,6 +121,8 @@
 - `portfolio_configs.py` 는 quant-notify 저장소가 정본으로 삼아 옮겨 적는다(import 하지 않음 — `/Users/yubeen/Workspace/quant-notify/docs/DESIGN.md` §4.1). 신호 티커 · 비중 · B&H 여부가 그대로면 알림에 영향이 없다. 바뀌면 사용자에게 알린다
 - 회귀 ⑦: 새 파일로 지금 결과와 같은 시작일부터 돌려 자본 차가 0 이어야 한다. 견주기 전에 기준 결과가 지금 코드 · 데이터의 결과인지 먼저 본다 — 계획 2 에서 커밋된 워크포워드 · 고원 결과가 그 전 시세로 만들어진 채였다(연구 문서 6.8 「기존 결과 회귀」). 확인법: `git archive HEAD` 를 scratchpad 에 풀고 저장소 `.venv/bin/python` 에 `PYTHONPATH=<사본>/src` 로 러너를 돌려 결과를 `cmp`
 - 결과 수치가 바뀌면 `docs/research/` 의 기존 수치는 그 시점 기록으로 두고, 새 수치는 연구 문서에 쓴다
+- Q-2-2XS 의 SSO 는 SPY 신호 · SSO 매매다 — SSO 를 `SSO_synthetic_max.csv` 로 바꾸면 신호도 `SPY_synthetic_max.csv` 여야 1980년부터 돈다. 버퍼존 TQQQ · QLD 처럼 신호 시세와 겹치는 날만 쓰는지(`load_signal_trade_pair`) 포트폴리오 엔진에서 먼저 확인한다
+- SSO · UPRO 합성의 1993 ~ 2006 · 2009 는 기초(저장소 SPY)의 하루 흔들림 때문에 VFINX 로 만든 판보다 연 0.4 · 0.7%p 낮게 잡힌다(결정 5 · 연구 문서 6.9) — 긴 판 결과를 해석할 때 함께 적는다
 
 ---
 
@@ -218,6 +224,28 @@ QLD_synthetic_max, TQQQ_synthetic_max를 QQQ_synthetic_max 기준으로 기간�
 추천대로 진행
 ```
 
+2026-11-05 — 계획 3 세션 시작 (지시 문장 없이 이 파일 경로만 첨부, 스킬 호출이 끊긴 뒤 한 줄):
+
+```text
+~/Workspace/quant/HANDOFF.md
+```
+
+```text
+이어서 진행
+```
+
+2026-11-05 — 계획 3 승인 (Q1 = 결정 5 다시 묻기 · S1 ~ S9):
+
+```text
+추천대로
+```
+
+2026-11-05 — 계획 3 리뷰 2회차의 「같은 자리 두 번」 지적 셋 (받아들이기 · 다시 설계 · 미룬 지적):
+
+```text
+추천대로
+```
+
 원문을 읽은 뜻:
 
 | 원문 | 읽은 뜻 | 확신도 |
@@ -238,6 +266,9 @@ QLD_synthetic_max, TQQQ_synthetic_max를 QQQ_synthetic_max 기준으로 기간�
 | 「추천대로 진행」 (2026-11-05, 계획 2 승인) | 계획서 Q1 = A — Buy & Hold (TQQQ) · (QLD) 는 계획 5 까지 `QQQ_max.csv` 와 겹치는 날만 쓴다. S1 ~ S11 승인 | 높음 |
 | 「추천대로 진행」 (2026-11-05, 계획 2 Done 전) | DoD 「기존 결과」 문구를 「158 파일은 `229f162` 의 코드 · 데이터 결과와 같다」로 조정, 그 158 파일은 계획 2 커밋에 함께, 코드 리뷰 3회차는 돌지 않는다 | 높음 |
 | 「전체 단계에서 어느정도 진행했는지도 같이 리스트업」 | 마무리 보고에 1절 표 전체를 한 줄씩과 「6단계 중 Done N · 커밋됨 M」을 낸다 — 커밋을 부탁하고 멈추는 세션도 같다 | 높음 |
+| 「이어서 진행」 (2026-11-05, 계획 3 세션) | `/impl-plan` 호출이 끊긴 뒤의 말 — 끊긴 자리(계획 3 계획서 쓰기)부터 잇는다 | 높음 |
+| 「추천대로」 (2026-11-05, 계획 3 승인) | 계획서 Q1 = A — SSO · UPRO 합성은 SPY 합성을 기초로(결정 5 그대로). S1 ~ S9 승인 | 높음 |
+| 「추천대로」 (2026-11-05, 계획 3 리뷰 2회차) | 지적 셋을 받아들인다 — 고치지 않고 `docs/DEFERRED_FINDINGS.md` 에도 남기지 않는다 | 높음 |
 
 ---
 

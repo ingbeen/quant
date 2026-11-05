@@ -71,23 +71,23 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 
 ---
 
-## 워크플로우 2: 합성 시세 (QQQ · TQQQ · QLD)
+## 워크플로우 2: 합성 시세 (QQQ · SPY 와 그 2 · 3배)
 
-실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, TQQQ · QLD 는 그 QQQ 합성으로부터 시뮬레이션해 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
+실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, SPY 는 S&P 500 인덱스 펀드(VFINX)로 채우고, TQQQ · QLD 는 그 QQQ 합성, SSO · UPRO 는 그 SPY 합성으로부터 시뮬레이션해 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
 
 ```bash
 # 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
 poetry run python scripts/data/download_data.py
 
 # 2. 합성 시세 생성 (TQQQ · QLD 판은 워크플로우 1 의 단일 백테스트가 읽고 — Buy & Hold 는 QQQ 실물 기간만 — TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다)
-# 출력: storage/stock/QQQ_synthetic_max.csv · TQQQ_synthetic_max.csv · QLD_synthetic_max.csv
+# 출력: storage/stock/ 의 QQQ · SPY · TQQQ · QLD · SSO · UPRO 합성 ({TICKER}_synthetic_max.csv)
 #       storage/results/proxy_validation/ — summary.csv · years.csv (대용 ↔ 실물), tracking.csv (레버리지 합성 ↔ 실물 추적),
 #       funds.csv · fund_years.csv (ETF 상장 전 펀드 대조), assumptions.csv (가정만 바꾼 판)
 #       연도별 · 해마다 표 밖의 표는 콘솔에 직전 저장값과 나란히 나온다
 poetry run python scripts/data/generate_synthetic.py
 ```
 
-**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS`)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 펀드 대조는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
+**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 상품마다 기초 시세)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 펀드 대조 · 가정만 바꾼 판의 대상 표(`ASSUMPTION_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
 
 ## 품질 검증 (통합)
 
@@ -159,7 +159,7 @@ poetry run python scripts/data/download_data.py
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
 - 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 ③ 의 합성 생성이 멈춘다
 
-**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · TQQQ · QLD(TQQQ · QLD 판은 단일 백테스트가 읽고, TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
+**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배(TQQQ · QLD 판은 단일 백테스트가 읽고, TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
 ```bash
 (

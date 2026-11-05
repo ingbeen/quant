@@ -1,11 +1,12 @@
 """레버리지 합성 테스트
 
 비용 입력(금리 · 운용비율 · 상한 건 가산금리)과 상품 하나의 합성(시뮬레이션 → 이어 붙이기 → 이음매 뒤 실물 검사),
-상품 표 전체의 저장을 검증한다.
+상품 표 전체의 저장(상품마다 자기 기초)을 검증한다.
 
 왜 중요한가요?
 합성 TQQQ · QLD 는 전략이 매매 시세로 읽는다. 상한이 1999년 뒤 달에 걸리면 기존 합성의 1999년 이후 값이 바뀌고,
-상품 표 → 저장 경로 연결이 어긋나면 2배 시세가 3배 파일을 에러 없이 덮는다.
+상품 표 → 저장 경로 연결이 어긋나면 2배 시세가 3배 파일을 에러 없이 덮는다. 기초가 섞이면 S&P 500 상품이
+나스닥 100 으로 에러 없이 만들어진다.
 """
 
 from datetime import date
@@ -35,9 +36,9 @@ from qbt.tqqq.constants import (
 )
 from qbt.tqqq.simulation import build_monthly_spread_map
 from qbt.tqqq.synthetic import (
-    CostInputs,
     build_cost_inputs,
     build_leveraged_synthetic,
+    month_of,
     save_leveraged_synthetics,
     simulate_leveraged,
 )
@@ -57,6 +58,9 @@ DAYS = [
 ]
 SEAM_INDEX = 5
 HIGH_RATE = 0.08  # 비율 (0.08 = 8%) — softplus 가산금리가 상한을 넘는 금리
+
+# 첫 달(1998-11)이 DAYS(1998-12)보다 이른 두 번째 기초 — 이음매는 같은 1999-01-05
+EARLY_DAYS = [date(1998, 11, 27), date(1998, 11, 30), *DAYS]
 
 
 def _price_df(dates: list[date], closes: list[float]) -> pd.DataFrame:
@@ -87,16 +91,6 @@ def _ffr_df() -> pd.DataFrame:
 
 def _expense_df() -> pd.DataFrame:
     return pd.DataFrame({COL_EXPENSE_DATE: ["2010-02"], COL_EXPENSE_VALUE: [0.0095]})
-
-
-def _near_zero_costs() -> CostInputs:
-    # 시뮬레이션은 가산금리 0 을 거부한다 — 비용이 사실상 0 이라 하루 수익률이 배율 × 기초 수익률이 된다
-    months = ["1998-12", "1999-01"]
-    return CostInputs(
-        ffr={m: 0.0 for m in months},
-        expense={m: 0.0 for m in months},
-        spread={m: 1e-12 for m in months},
-    )
 
 
 def _returns(closes: pd.Series) -> pd.Series:
@@ -234,60 +228,104 @@ class TestBuildLeveragedSynthetic:
 
 
 class TestSaveLeveragedSynthetics:
-    """상품 표 전체 저장 — 상품마다 자기 실물에 자기 배율로 이어 자기 경로에 저장"""
+    """상품 표 전체 저장 — 상품마다 자기 기초를 자기 배율로 굴려 자기 실물에 이어 자기 경로에 저장"""
 
     @staticmethod
-    def _targets(tmp_path: Path) -> tuple[tuple[str, Path, float, Path], ...]:
+    def _ffr_df() -> pd.DataFrame:
+        # 두 기초의 첫 달(1998-11 · 1998-12)부터 덮음
+        return pd.DataFrame({COL_FFR_DATE: ["1998-11", "1998-12", "1999-01"], COL_FFR_VALUE: [HIGH_RATE] * 3})
+
+    @staticmethod
+    def _targets(tmp_path: Path) -> tuple[tuple[str, Path, Path, float, Path], ...]:
+        # 기초 둘의 하루 수익률 · 첫 달이 다름 → 다른 줄의 기초를 쓰면 수익률 · 첫날이 어긋남
+        base_a = tmp_path / "A_synthetic_max.csv"
+        base_b = tmp_path / "B_synthetic_max.csv"
+        _underlying().to_csv(base_a, index=False)
+        _price_df(EARLY_DAYS, [80.0, 82.0, 79.0, 85.0, 84.0, 86.0, 87.0, 85.0, 88.0, 90.0]).to_csv(base_b, index=False)
         actual_a = tmp_path / "AAA_max.csv"
         actual_b = tmp_path / "BBB_max.csv"
         _actual([50.0, 52.0, 51.0]).to_csv(actual_a, index=False)
         _actual([20.0, 21.0, 20.5]).to_csv(actual_b, index=False)
         return (
-            ("AAA", actual_a, 3.0, tmp_path / "out" / "AAA_synthetic_max.csv"),
-            ("BBB", actual_b, 2.0, tmp_path / "out" / "BBB_synthetic_max.csv"),
+            ("AAA", base_a, actual_a, 3.0, tmp_path / "out" / "AAA_synthetic_max.csv"),
+            ("BBB", base_b, actual_b, 2.0, tmp_path / "out" / "BBB_synthetic_max.csv"),
         )
 
-    def test_each_product_saved_with_own_leverage_and_actual(self, tmp_path: Path):
+    def test_each_product_saved_from_own_underlying_with_own_leverage(self, tmp_path: Path):
         """
-        목적: 상품 표 → 저장 경로 연결을 고정한다 — 저장 대상을 다른 상품 경로로 바꾸거나 배율 · 실물을 섞으면 실패한다.
+        목적: 상품 표 → 기초 · 저장 경로 연결을 고정한다 — 다른 줄의 기초를 쓰거나 저장 대상 · 배율 · 실물을 섞으면 실패한다.
               하루 +60% 인 날(3배)이 있어도 저장한다(급등락 검사를 끈다)
 
-        Given: 상품 둘 (3배 · 2배, 실물이 다름), 비용이 사실상 0 인 입력
+        Given: 상품 둘 (3배 · 2배, 기초와 실물이 다름), 금리 8% · 운용비율은 상장 전 고정값
         When: save_leveraged_synthetics
-        Then: 각 파일의 이음매 앞 하루 수익률 = 자기 배율 × 기초 수익률, 이음매 뒤 종가 = 자기 실물 종가
+        Then: 각 파일의 이음매 앞 하루 수익률 = 자기 배율 × 자기 기초 수익률 − 그날 비용, 이음매 뒤 종가 = 자기 실물 종가
         """
         # Given
         targets = self._targets(tmp_path)
-        underlying = _underlying()
+        model_spread = build_monthly_spread_map(self._ffr_df(), DEFAULT_SOFTPLUS_A, DEFAULT_SOFTPLUS_B)
 
         # When
-        save_leveraged_synthetics(underlying, _near_zero_costs(), targets)
+        save_leveraged_synthetics(self._ffr_df(), _expense_df(), targets)
 
         # Then
-        underlying_returns = _returns(underlying[COL_CLOSE])
-        for _, actual_path, leverage, output_path in targets:
+        for _, underlying_path, actual_path, leverage, output_path in targets:
+            underlying = load_stock_data(underlying_path)
             saved = load_stock_data(output_path)
+            underlying_returns = _returns(underlying[COL_CLOSE])
             saved_returns = _returns(saved[COL_CLOSE])
-            for i in range(1, SEAM_INDEX):
-                assert saved_returns.iloc[i] == pytest.approx(leverage * underlying_returns.iloc[i], abs=1e-6)
+            seam = underlying[COL_DATE].tolist().index(DAYS[SEAM_INDEX])
+            for i in range(1, seam):
+                month = month_of(underlying[COL_DATE].iloc[i])
+                # 상한은 1998-12 까지의 달에만
+                spread = SPREAD_CAP if month <= "1998-12" else model_spread[month]
+                daily_cost = (
+                    (HIGH_RATE + spread) * (leverage - 1) + DEFAULT_PRE_LISTING_EXPENSE_RATIO
+                ) / TRADING_DAYS_PER_YEAR
+                assert saved_returns.iloc[i] == pytest.approx(
+                    leverage * underlying_returns.iloc[i] - daily_cost, abs=1e-6
+                )
             from_seam = saved[saved[COL_DATE] >= DAYS[SEAM_INDEX]][COL_CLOSE].tolist()
             assert from_seam == load_stock_data(actual_path)[COL_CLOSE].tolist()
 
-    def test_returns_runs_in_target_order(self, tmp_path: Path):
+    def test_costs_cover_each_underlying_from_its_first_month(self, tmp_path: Path):
         """
-        목적: 검증 ② 에 넘길 상품별 시뮬레이션 · 실물을 표 순서대로 돌려준다
+        목적: 비용 입력은 기초마다 그 기초의 첫 달부터 덮는다 (경계) — 한 기초의 첫 달(1998-12)로만 만들면
+              더 이른 기초(1998-11)가 운용비율이 없어 첫날에서 멈춘다
 
-        Given: 상품 둘
+        Given: 첫 달이 다르고 둘 다 운용비율 파일(2010-02 부터)보다 앞인 기초 둘
         When: save_leveraged_synthetics
-        Then: 이름 · 배율이 표 순서, 시뮬레이션은 기초 전 기간, 실물은 그 상품의 실물
+        Then: 두 파일 모두 저장되고, 각 파일의 첫날이 자기 기초의 첫날이다
         """
         # Given
         targets = self._targets(tmp_path)
 
         # When
-        runs = save_leveraged_synthetics(_underlying(), _near_zero_costs(), targets)
+        save_leveraged_synthetics(self._ffr_df(), _expense_df(), targets)
+
+        # Then
+        first_days = [load_stock_data(output)[COL_DATE].iloc[0] for _, _, _, _, output in targets]
+        assert first_days == [DAYS[0], EARLY_DAYS[0]]
+
+    def test_returns_runs_in_target_order(self, tmp_path: Path):
+        """
+        목적: 검증 ② ③ ④ 에 넘길 상품별 기초 · 시뮬레이션 · 실물을 표 순서대로 돌려준다 — 검증은 상품을 이 기초로
+              재고 묶으므로 다른 줄의 기초가 실리면 다른 기초로 잰 비용이 에러 없이 나간다
+
+        Given: 상품 둘
+        When: save_leveraged_synthetics
+        Then: 이름 · 배율이 표 순서, 기초는 그 줄의 경로와 그 파일의 시세, 시뮬레이션은 자기 기초의 전 기간,
+              실물은 그 상품의 실물
+        """
+        # Given
+        targets = self._targets(tmp_path)
+
+        # When
+        runs = save_leveraged_synthetics(self._ffr_df(), _expense_df(), targets)
 
         # Then
         assert [(run.name, run.leverage) for run in runs] == [("AAA", 3.0), ("BBB", 2.0)]
+        assert [run.underlying_path for run in runs] == [targets[0][1], targets[1][1]]
+        assert runs[1].underlying[COL_DATE].tolist() == EARLY_DAYS
         assert runs[0].simulated[COL_DATE].tolist() == DAYS
+        assert runs[1].simulated[COL_DATE].tolist() == EARLY_DAYS
         assert runs[1].actual[COL_CLOSE].tolist() == [20.0, 21.0, 20.5]

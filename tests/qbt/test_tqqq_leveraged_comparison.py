@@ -392,6 +392,33 @@ class TestAssumptionVariants:
             (v, p, lev) for v in variants for p, lev in (("TQQQ", 3.0), ("QLD", 2.0))
         ]
 
+    def test_no_dividend_variant_without_gap(self):
+        """
+        목적: 보정 폭을 주지 않으면(None) 배당 보정 판을 내지 않고 나머지 판은 그대로다 — 기초가 배당을 담으면(VFINX)
+              보정할 것이 없다
+
+        Given: 같은 기초 · 상품, 보정 폭 None 과 0.0057
+        When: assumption_variants
+        Then: None 은 (채택 · 상한 없음 · 가산금리 0) × 상품 6행이고, 0.0057 판의 앞 6행과 같다
+        """
+        # Given
+        underlying = self._underlying(date(1998, 12, 20), 10)
+
+        # When
+        rows = assumption_variants(
+            underlying,
+            self._ffr_df(),
+            self._expense_df(),
+            [("TQQQ", 3.0), ("QLD", 2.0)],
+            end=underlying[COL_DATE].iloc[-1],
+            dividend_gap_rate=None,
+        )
+
+        # Then
+        variants = [VARIANT_ADOPTED, VARIANT_UNCAPPED, VARIANT_ZERO_SPREAD]
+        assert [(r.variant, r.product) for r in rows] == [(v, p) for v in variants for p in ("TQQQ", "QLD")]
+        assert rows == self._run(date(1998, 12, 20))[: len(rows)]
+
     def test_adopted_equals_buy_and_hold_of_synthetic(self):
         """
         목적: 채택 판은 합성 파일과 같은 비용 입력으로 만든 시세의 종가 Buy & Hold 다 — 연 수익은 달력일 기준

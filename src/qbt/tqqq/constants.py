@@ -13,8 +13,14 @@ from qbt.common_constants import (
     ETC_DIR,
     QLD_DATA_PATH,
     QLD_SYNTHETIC_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
     STOCK_DIR,
     TQQQ_SYNTHETIC_DATA_PATH,
+    UPRO_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
 )
 
 # ============================================================
@@ -32,13 +38,16 @@ FFR_DATA_PATH: Final = ETC_DIR / "federal_funds_rate_monthly.csv"
 EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 
 # --- 레버리지 상품 스펙 ---
-DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
-LEVERAGE_2X: Final = 2.0  # QLD 2배 레버리지
+DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # 3배 레버리지
+LEVERAGE_2X: Final = 2.0  # 2배 레버리지
 
-# 레버리지 합성 상품 — (상품 이름, 실물 시세, 배율, 합성 파일). 한 줄에 상품 하나의 연결을 모두 둠 → 저장 경로가 다른 상품과 섞이지 않음
+# 레버리지 합성 상품 — (상품 이름, 기초 시세, 실물 시세, 배율, 합성 파일). 한 줄에 상품 하나의 연결을 모두 둠
+# → 기초 · 저장 경로가 다른 상품과 섞이지 않음
 LEVERAGED_SYNTHETIC_TARGETS: Final = (
-    ("TQQQ", TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, TQQQ_SYNTHETIC_DATA_PATH),
-    ("QLD", QLD_DATA_PATH, LEVERAGE_2X, QLD_SYNTHETIC_DATA_PATH),
+    ("TQQQ", QQQ_SYNTHETIC_DATA_PATH, TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, TQQQ_SYNTHETIC_DATA_PATH),
+    ("QLD", QQQ_SYNTHETIC_DATA_PATH, QLD_DATA_PATH, LEVERAGE_2X, QLD_SYNTHETIC_DATA_PATH),
+    ("SSO", SPY_SYNTHETIC_DATA_PATH, SSO_DATA_PATH, LEVERAGE_2X, SSO_SYNTHETIC_DATA_PATH),
+    ("UPRO", SPY_SYNTHETIC_DATA_PATH, UPRO_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, UPRO_SYNTHETIC_DATA_PATH),
 )
 
 # ============================================================

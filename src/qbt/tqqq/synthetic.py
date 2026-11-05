@@ -45,10 +45,13 @@ class CostInputs:
 
 @dataclass(frozen=True)
 class LeveragedRun:
-    """상품 하나의 합성 결과 — 이어 붙이기 전 시뮬레이션(기초 전 기간)과 그 상품의 실물."""
+    """상품 하나의 합성 결과 — 그 상품의 기초(상품 표의 경로와 읽은 시세), 이어 붙이기 전 시뮬레이션(기초 전 기간),
+    그 상품의 실물."""
 
     name: str
     leverage: float
+    underlying_path: Path
+    underlying: pd.DataFrame
     simulated: pd.DataFrame
     actual: pd.DataFrame
 
@@ -121,36 +124,54 @@ def build_leveraged_synthetic(simulated_df: pd.DataFrame, actual_df: pd.DataFram
 
 
 def save_leveraged_synthetics(
-    underlying_df: pd.DataFrame,
-    costs: CostInputs,
-    targets: Sequence[tuple[str, Path, float, Path]] = LEVERAGED_SYNTHETIC_TARGETS,
+    ffr_df: pd.DataFrame,
+    expense_df: pd.DataFrame,
+    targets: Sequence[tuple[str, Path, Path, float, Path]] = LEVERAGED_SYNTHETIC_TARGETS,
 ) -> list[LeveragedRun]:
     """
-    상품 표의 상품마다 합성을 만들어 그 상품의 합성 파일로 저장한다.
+    상품 표의 상품마다 자기 기초 시세로 합성을 만들어 그 상품의 합성 파일로 저장한다.
 
-    급등락 검사는 끈다 — 3배 합성은 하루 50% 를 넘는 날이 정상이다(2001-01-03).
+    기초는 저장된 파일을 읽고(같은 기초는 한 번), 비용 입력은 그 기초의 첫 달부터 덮는다.
+    급등락 검사는 끈다 — 3배 합성은 하루 50% 를 넘는 날이 정상이다(1987-10-19 · 2001-01-03).
 
     Args:
-        underlying_df: 기초 시세 (상품 모두 같은 기초)
-        costs: 비용 입력 (build_cost_inputs)
-        targets: (상품 이름, 실물 시세, 배율, 합성 파일) 의 표
+        ffr_df: 월별 금리 (build_cost_inputs)
+        expense_df: 월별 운용비율 (build_cost_inputs)
+        targets: (상품 이름, 기초 시세, 실물 시세, 배율, 합성 파일) 의 표
 
     Returns:
-        상품마다 이어 붙이기 전 시뮬레이션과 실물 (표 순서) — 검증 ② 의 입력
+        상품마다 기초 · 이어 붙이기 전 시뮬레이션(기초 전 기간) · 실물 (표 순서) — 검증 ② ③ ④ 의 입력
 
     Raises:
-        ValueError: load_stock_data · simulate · splice_proxy · save_stock_csv 와 같다
+        ValueError: load_stock_data · build_cost_inputs · simulate · splice_proxy · save_stock_csv 와 같다
         RuntimeError: build_leveraged_synthetic 와 같다
     """
+    bases: dict[Path, tuple[pd.DataFrame, CostInputs]] = {}
     runs: list[LeveragedRun] = []
-    for name, actual_path, leverage, output_path in targets:
+    for name, underlying_path, actual_path, leverage, output_path in targets:
+        if underlying_path not in bases:
+            # 저장된 파일을 읽음 — 메모리의 반올림 전 1배 합성으로 만들면 파일만으로 다시 만든 결과와 마지막 자리가 달라짐
+            underlying_df = load_stock_data(underlying_path)
+            costs = build_cost_inputs(ffr_df, expense_df, month_of(underlying_df[COL_DATE].iloc[0]))
+            bases[underlying_path] = (underlying_df, costs)
+        underlying_df, costs = bases[underlying_path]
+
         actual_df = load_stock_data(actual_path)
         simulated_df = simulate_leveraged(underlying_df, leverage, costs)
         synthetic_df = build_leveraged_synthetic(simulated_df, actual_df)
         save_stock_csv(synthetic_df, output_path, check_price_spikes=False)
         logger.debug(
-            f"{name}({leverage}배): 이음매 {actual_df[COL_DATE].iloc[0]} 앞 {len(synthetic_df) - len(actual_df):,}행을 "
-            f"시뮬레이션으로 채움 → {output_path}"
+            f"{name}({leverage}배, 기초 {underlying_path.name}): 이음매 {actual_df[COL_DATE].iloc[0]} 앞 "
+            f"{len(synthetic_df) - len(actual_df):,}행을 시뮬레이션으로 채움 → {output_path}"
         )
-        runs.append(LeveragedRun(name=name, leverage=leverage, simulated=simulated_df, actual=actual_df))
+        runs.append(
+            LeveragedRun(
+                name=name,
+                leverage=leverage,
+                underlying_path=underlying_path,
+                underlying=underlying_df,
+                simulated=simulated_df,
+                actual=actual_df,
+            )
+        )
     return runs

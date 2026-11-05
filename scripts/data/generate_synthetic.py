@@ -4,17 +4,17 @@
 실물 ETF 상장 전 구간을 채운 합성 시세({TICKER}_synthetic_max.csv)를 모두 만들고 검증 표를 남긴다.
 새 시세를 받으면 download_data.py 다음에 이 스크립트 하나만 돌린다.
 
-1. 1배 대용 합성 (QQQ ← 나스닥 100 지수): 실물 첫 거래일 앞은 그날 종가 비율로 맞춘 대용(시가 = 그날 종가),
+1. 1배 대용 합성 (대상 표 PROXY_TARGETS): 실물 첫 거래일 앞은 그날 종가 비율로 맞춘 대용(시가 = 그날 종가),
    그날부터는 실물 행 그대로 (qbt.utils.proxy_series.build_proxy_synthetic). 검증 ① 대용 ↔ 실물
-2. 레버리지 합성 (TQQQ · QLD): 저장한 QQQ 합성 전체를 SoftPlus 동적 스프레드 모델로 시뮬레이션하고(가산금리 상한은
-   1998-12 까지의 달에만), 실제 ETF 첫 거래일 앞은 합성, 그날부터는 실제 ETF 로 잇는다 (qbt.tqqq.synthetic)
-3. 레버리지 검증: ② 합성 ↔ 실물 추적, ③ 상장 전 펀드(UOPIX · RYNVX) 대조, ④ 가정만 바꾼 판
-   (qbt.tqqq.leveraged_comparison)
+2. 레버리지 합성 (상품 표 qbt.tqqq.constants.LEVERAGED_SYNTHETIC_TARGETS — 상품마다 기초인 1배 합성): 저장한 기초 전체를
+   SoftPlus 동적 스프레드 모델로 시뮬레이션하고(가산금리 상한은 1998-12 까지의 달에만), 실제 ETF 첫 거래일 앞은 합성,
+   그날부터는 실제 ETF 로 잇는다 (qbt.tqqq.synthetic)
+3. 레버리지 검증: ② 합성 ↔ 실물 추적, ③ 상장 전 펀드 대조, ④ 가정만 바꾼 판 (qbt.tqqq.leveraged_comparison)
 
-검증 숫자로는 멈추지 않는다 — 멈추는 것은 이어 붙인 결과의 이음매 뒤 행이 실물과 다를 때뿐이다.
-검증 표는 저장한 뒤 콘솔에 직전 저장값과 나란히 낸다 — 연도별 · 해마다 표는 CSV 만.
+검증 숫자로는 멈추지 않는다 — 멈추는 것은 이어 붙인 결과의 이음매 뒤 행이 실물과 다를 때와, 상품 표와 ④ 대상 표의
+기초가 어긋날 때다. 검증 표는 저장한 뒤 콘솔에 직전 저장값과 나란히 낸다 — 연도별 · 해마다 표는 CSV 만.
 
-출력: storage/stock/QQQ_synthetic_max.csv · TQQQ_synthetic_max.csv · QLD_synthetic_max.csv,
+출력: storage/stock/ 의 두 표가 정한 합성 파일({TICKER}_synthetic_max.csv),
       storage/results/proxy_validation/ 의 summary.csv · years.csv (①), tracking.csv (②),
       funds.csv · fund_years.csv (③), assumptions.csv (④)
 
@@ -40,18 +40,18 @@ from qbt.common_constants import (
     ROUND_PERCENT,
     ROUND_RATIO,
     RYNVX_DATA_PATH,
-    SSO_DATA_PATH,
+    SPY_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    ULPIX_DATA_PATH,
     UOPIX_DATA_PATH,
     VFINX_DATA_PATH,
 )
-from qbt.tqqq.constants import (
-    EXPENSE_RATIO_DATA_PATH,
-    FFR_DATA_PATH,
-    LEVERAGED_SYNTHETIC_TARGETS,
-)
+from qbt.tqqq.constants import EXPENSE_RATIO_DATA_PATH, FFR_DATA_PATH
 from qbt.tqqq.data_loader import create_ffr_dict, load_monthly_data
 from qbt.tqqq.leveraged_comparison import (
     VARIANT_ADOPTED,
+    AssumptionResult,
     annual_gap_rate,
     assumption_variants,
     compare_around,
@@ -100,11 +100,20 @@ logger = get_logger(__name__)
 # 1배 대용 합성 대상 — (이름, 대용 시세, 실물 시세, 저장 경로)
 PROXY_TARGETS: Final[tuple[tuple[str, Path, Path, Path], ...]] = (
     ("QQQ", NDX_DATA_PATH, QQQ_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH),
+    ("SPY", VFINX_DATA_PATH, SPY_DATA_PATH, SPY_SYNTHETIC_DATA_PATH),
 )
 
 # 레버리지 ETF 상장 전 펀드의 배율 — 검증 ③
 UOPIX_LEVERAGE: Final = 2.0  # ProFunds 나스닥 100 2배
+ULPIX_LEVERAGE: Final = 2.0  # ProFunds S&P 500 2배
 RYNVX_LEVERAGE: Final = 1.5  # Rydex S&P 500 1.5배
+
+# 검증 ④ 대상 — (1배 기초, 구간 끝을 정하는 첫 레버리지 상품, 배당 보정 폭을 잴 1배 대상 — None 이면 보정 판 없음)
+ASSUMPTION_TARGETS: Final[tuple[tuple[Path, Path, str | None], ...]] = (
+    (QQQ_SYNTHETIC_DATA_PATH, UOPIX_DATA_PATH, "QQQ"),
+    # VFINX 는 배당을 담음 → 보정할 것이 없음
+    (SPY_SYNTHETIC_DATA_PATH, RYNVX_DATA_PATH, None),
+)
 
 DISPLAY_TARGET: Final = "대상"
 DISPLAY_PROXY_FILE: Final = "대용 파일"
@@ -340,25 +349,29 @@ def _fund_return_record(fund: str, compared: str, segment: str, summary: PairSum
 
 def _save_fund_comparisons(
     runs_by_name: dict[str, LeveragedRun],
-    qqq_synthetic_df: pd.DataFrame,
     ffr_df: pd.DataFrame,
     expense_df: pd.DataFrame,
-    uopix_df: pd.DataFrame,
 ) -> None:
     """검증 ③ — 레버리지 ETF 상장 전 펀드와 연 수익 · 해마다 비용을 견준다.
 
-    연 수익: UOPIX ↔ 이 저장소의 QLD 합성 파일, RYNVX ↔ VFINX 로 만든 S&P 500 1.5배 합성 — 실물 ETF(QLD · SSO) 첫날 앞 · 뒤.
+    연 수익: UOPIX ↔ 이 저장소의 QLD 합성 파일, RYNVX ↔ VFINX 로 만든 S&P 500 1.5배 합성, ULPIX ↔ SSO 합성 파일
+    — 실물 ETF(QLD · SSO) 첫날 앞 · 뒤.
     해마다 비용의 기초는 2008년 전 펀드면 VFINX · ^NDX 다 — 저장소 SPY · QQQ 는 그 시기 하루 단위로 흔들린다.
+    레버리지 ETF 는 그 합성을 만든 기초다.
     """
+    uopix_df = load_stock_data(UOPIX_DATA_PATH)
+    ulpix_df = load_stock_data(ULPIX_DATA_PATH)
     rynvx_df = load_stock_data(RYNVX_DATA_PATH)
     vfinx_df = load_stock_data(VFINX_DATA_PATH)
     ndx_df = load_stock_data(NDX_DATA_PATH)
     qld_synthetic_df = load_stock_data(QLD_SYNTHETIC_DATA_PATH)
+    sso_synthetic_df = load_stock_data(SSO_SYNTHETIC_DATA_PATH)
     qld_first = runs_by_name["QLD"].actual[COL_DATE].iloc[0]
-    sso_first = load_stock_data(SSO_DATA_PATH)[COL_DATE].iloc[0]
+    sso_first = runs_by_name["SSO"].actual[COL_DATE].iloc[0]
 
     sp500_costs = build_cost_inputs(ffr_df, expense_df, month_of(vfinx_df[COL_DATE].iloc[0]))
     sp500_x15 = simulate_leveraged(vfinx_df, RYNVX_LEVERAGE, sp500_costs)
+    sp500_x2 = simulate_leveraged(vfinx_df, ULPIX_LEVERAGE, sp500_costs)
     ndx_costs = build_cost_inputs(ffr_df, expense_df, month_of(ndx_df[COL_DATE].iloc[0]))
     ndx_x2 = simulate_leveraged(ndx_df, UOPIX_LEVERAGE, ndx_costs)
 
@@ -375,6 +388,7 @@ def _save_fund_comparisons(
             "SSO",
             sso_first,
         ),
+        ("ULPIX", ulpix_df, "SSO 합성", "SSO 실물 (합성 파일의 이음매 뒤)", sso_synthetic_df, "SSO", sso_first),
     ):
         before, after = compare_around(compared_df, fund_df, split)
         return_rows.append(_fund_return_record(fund, compared_before, f"{etf} 상장 전", before))
@@ -387,16 +401,27 @@ def _save_fund_comparisons(
     }
     _save_and_show(return_rows, _FUNDS_FILENAME, return_digits, (DISPLAY_FUND, DISPLAY_SEGMENT), "상장 전 펀드 대조")
 
-    qld_run = runs_by_name["QLD"]
-    tqqq_run = runs_by_name["TQQQ"]
     ffr_dict = create_ffr_dict(ffr_df)
-    year_rows: list[dict[str, object]] = []
-    for product, base, leverage, base_df, product_df, model_df in (
+    cost_targets: list[tuple[str, str, float, pd.DataFrame, pd.DataFrame, pd.DataFrame]] = [
         ("RYNVX", "VFINX", RYNVX_LEVERAGE, vfinx_df, rynvx_df, sp500_x15),
         ("UOPIX", "^NDX", UOPIX_LEVERAGE, ndx_df, uopix_df, ndx_x2),
-        ("QLD", "QQQ", qld_run.leverage, qqq_synthetic_df, qld_run.actual, qld_run.simulated),
-        ("TQQQ", "QQQ", tqqq_run.leverage, qqq_synthetic_df, tqqq_run.actual, tqqq_run.simulated),
-    ):
+        ("ULPIX", "VFINX", ULPIX_LEVERAGE, vfinx_df, ulpix_df, sp500_x2),
+    ]
+    # 레버리지 ETF 는 합성을 만든 기초로 잼 → 상품 표의 기초를 바꿔도 따라감
+    base_names = {output_path: name for name, _, _, output_path in PROXY_TARGETS}
+    cost_targets += [
+        (
+            run.name,
+            base_names.get(run.underlying_path, run.underlying_path.name),
+            run.leverage,
+            run.underlying,
+            run.actual,
+            run.simulated,
+        )
+        for run in sorted(runs_by_name.values(), key=lambda run: run.name)
+    ]
+    year_rows: list[dict[str, object]] = []
+    for product, base, leverage, base_df, product_df, model_df in cost_targets:
         for cost in yearly_costs(base_df, product_df, model_df, leverage, ffr_dict):
             year_rows.append(
                 {
@@ -420,27 +445,49 @@ def _save_fund_comparisons(
 
 
 def _save_assumptions(
-    qqq_synthetic_df: pd.DataFrame,
+    runs: Sequence[LeveragedRun],
     ffr_df: pd.DataFrame,
     expense_df: pd.DataFrame,
-    uopix_df: pd.DataFrame,
-    qqq_summary: PairSummary,
+    proxy_summaries: dict[str, PairSummary],
 ) -> None:
-    """검증 ④ — 대조할 실물이 없는 구간(합성 첫날 ~ UOPIX 첫날 전날)에서 가정만 바꾼 판.
+    """검증 ④ — 기초마다 대조할 실물이 없는 구간(1배 합성 첫날 ~ 첫 레버리지 상품 첫날 전날)에서 가정만 바꾼 판.
 
-    배당 보정 폭은 ① 에서 나스닥 100 지수의 연 수익을 실물 QQQ 의 연 수익으로 맞추는 비율이다 (배당 − QQQ 보수).
+    상품은 합성을 만든 기초로 묶는다. 배당 보정 폭은 ① 에서 지수의 연 수익을 실물 ETF 의 연 수익으로 맞추는 비율이다
+    (배당 − ETF 보수).
+
+    Raises:
+        ValueError: 대상 표에 기초가 없는 상품이 있거나, 대상 표의 기초를 쓰는 상품이 없을 때 — 빠진 채 저장하지 않는다
     """
-    end = uopix_df[COL_DATE].iloc[0] - timedelta(days=1)
-    products = [(name, leverage) for name, _, leverage, _ in LEVERAGED_SYNTHETIC_TARGETS]
-    dividend_gap_rate = annual_gap_rate(qqq_summary.proxy_cagr, qqq_summary.actual_cagr)
-    results = assumption_variants(
-        qqq_synthetic_df,
-        ffr_df,
-        expense_df,
-        products,
-        end=end,
-        dividend_gap_rate=dividend_gap_rate,
-    )
+    target_bases = [underlying_path for underlying_path, _, _ in ASSUMPTION_TARGETS]
+    uncovered = [run.name for run in runs if run.underlying_path not in target_bases]
+    if uncovered:
+        raise ValueError(f"검증 ④ 대상 표(ASSUMPTION_TARGETS)에 기초가 없는 레버리지 상품: {uncovered} — 그 기초를 대상 표에 더하세요")
+
+    results: list[AssumptionResult] = []
+    for underlying_path, first_product_path, dividend_target in ASSUMPTION_TARGETS:
+        group = [run for run in runs if run.underlying_path == underlying_path]
+        if not group:
+            raise ValueError(
+                f"검증 ④ 대상 표의 기초 {underlying_path} 를 쓰는 레버리지 상품이 없습니다 — " "상품 표(LEVERAGED_SYNTHETIC_TARGETS)의 기초와 맞추세요"
+            )
+        underlying_df = group[0].underlying
+        end = load_stock_data(first_product_path)[COL_DATE].iloc[0] - timedelta(days=1)
+        products = [(run.name, run.leverage) for run in group]
+        dividend_gap_rate: float | None = None
+        if dividend_target is not None:
+            summary = proxy_summaries[dividend_target]
+            dividend_gap_rate = annual_gap_rate(summary.proxy_cagr, summary.actual_cagr)
+            logger.debug(f"{dividend_target} 배당 보정 폭: 연 {dividend_gap_rate * 100:.4f}% (① 지수 연 수익을 실물로 맞추는 비율)")
+        results.extend(
+            assumption_variants(
+                underlying_df,
+                ffr_df,
+                expense_df,
+                products,
+                end=end,
+                dividend_gap_rate=dividend_gap_rate,
+            )
+        )
     adopted = {r.product: r for r in results if r.variant == VARIANT_ADOPTED}
     rows: list[dict[str, object]] = [
         {
@@ -459,27 +506,20 @@ def _save_assumptions(
     digits = {
         col: ROUND_PERCENT for col in (DISPLAY_CAGR, DISPLAY_MDD, DISPLAY_VARIANT_CAGR_DIFF, DISPLAY_VARIANT_MDD_DIFF)
     }
-    logger.debug(f"배당 보정 폭: 연 {dividend_gap_rate * 100:.4f}% (① 지수 연 수익을 실물 QQQ 로 맞추는 비율)")
     _save_and_show(rows, _ASSUMPTIONS_FILENAME, digits, (DISPLAY_VARIANT, DISPLAY_PRODUCT), "가정만 바꾼 판")
 
 
-def _generate_leveraged_synthetics(qqq_summary: PairSummary) -> None:
-    """레버리지 합성(TQQQ · QLD)을 저장된 QQQ 합성으로 만들어 저장하고, 검증 ② ③ ④ 를 저장 · 표시한다."""
-    # 방금 저장한 파일을 다시 읽음 — 파일만으로 다시 만들 때와 같은 입력
-    qqq_synthetic_df = load_stock_data(QQQ_SYNTHETIC_DATA_PATH)
+def _generate_leveraged_synthetics(proxy_summaries: dict[str, PairSummary]) -> None:
+    """레버리지 합성(상품 표)을 저장된 1배 합성으로 만들어 저장하고, 검증 ② ③ ④ 를 저장 · 표시한다."""
     ffr_df = load_monthly_data(FFR_DATA_PATH)
     expense_df = load_monthly_data(EXPENSE_RATIO_DATA_PATH)
-    first_month = month_of(qqq_synthetic_df[COL_DATE].iloc[0])
-    logger.debug(f"QQQ 합성: {len(qqq_synthetic_df):,}행, 비용 입력은 {first_month} 부터")
 
-    costs = build_cost_inputs(ffr_df, expense_df, first_month)
-    runs = save_leveraged_synthetics(qqq_synthetic_df, costs)
+    runs = save_leveraged_synthetics(ffr_df, expense_df)
     runs_by_name = {run.name: run for run in runs}
 
-    uopix_df = load_stock_data(UOPIX_DATA_PATH)
     _save_tracking(runs)
-    _save_fund_comparisons(runs_by_name, qqq_synthetic_df, ffr_df, expense_df, uopix_df)
-    _save_assumptions(qqq_synthetic_df, ffr_df, expense_df, uopix_df, qqq_summary)
+    _save_fund_comparisons(runs_by_name, ffr_df, expense_df)
+    _save_assumptions(runs, ffr_df, expense_df, proxy_summaries)
 
 
 @cli_exception_handler
@@ -491,7 +531,7 @@ def main() -> int:
         종료 코드 (0: 성공, 1: 실패)
     """
     proxy_summaries = _generate_proxy_synthetics()
-    _generate_leveraged_synthetics(proxy_summaries["QQQ"])
+    _generate_leveraged_synthetics(proxy_summaries)
     return 0
 
 

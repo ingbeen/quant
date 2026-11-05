@@ -36,9 +36,14 @@ NDX_DATA_PATH: Final = STOCK_DIR / "^NDX_max.csv"
 # 합성 QQQ 데이터 파일 경로 (상장 전은 나스닥 100 지수, 상장 후는 실물)
 QQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QQQ_synthetic_max.csv"
 
-# 합성 TQQQ · QLD 데이터 파일 경로 (시뮬레이션 생성)
+# 합성 SPY 데이터 파일 경로 (상장 전은 VFINX, 상장 후는 실물)
+SPY_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SPY_synthetic_max.csv"
+
+# 합성 TQQQ · QLD · SSO · UPRO 데이터 파일 경로 (시뮬레이션 생성)
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
 QLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QLD_synthetic_max.csv"
+SSO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SSO_synthetic_max.csv"
+UPRO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "UPRO_synthetic_max.csv"
 
 # 교차 자산 검증용 데이터 파일 경로
 SPY_DATA_PATH: Final = STOCK_DIR / "SPY_max.csv"
@@ -49,11 +54,15 @@ TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 SSO_DATA_PATH: Final = STOCK_DIR / "SSO_max.csv"
 QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
 
+# 3배 레버리지 ETF 데이터 파일 경로 (S&P 500)
+UPRO_DATA_PATH: Final = STOCK_DIR / "UPRO_max.csv"
+
 # 레버리지 ETF 상장 전의 펀드 — 합성의 상장 전 구간 대조
 UOPIX_DATA_PATH: Final = STOCK_DIR / "UOPIX_max.csv"  # ProFunds 나스닥 100 2배
+ULPIX_DATA_PATH: Final = STOCK_DIR / "ULPIX_max.csv"  # ProFunds S&P 500 2배
 RYNVX_DATA_PATH: Final = STOCK_DIR / "RYNVX_max.csv"  # Rydex S&P 500 1.5배
 
-# S&P 500 인덱스 펀드 (배당 포함) — RYNVX 대조의 기초
+# S&P 500 인덱스 펀드 (배당 포함) — SPY 상장 전 구간의 대용, 2008년 전 S&P 500 펀드 대조의 기초
 VFINX_DATA_PATH: Final = STOCK_DIR / "VFINX_max.csv"
 
 # ============================================================

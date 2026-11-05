@@ -26,7 +26,21 @@ logger = get_logger(__name__)
 
 # 전체 다운로드 대상 티커 목록 (인자 없이 실행 시 사용)
 # 야후 원본 시세 전부 — 인자 없는 다운로드 뒤 합성 생성만 돌리는 흐름의 입력 (scripts/CLAUDE.md)
-DEFAULT_TICKERS: Final = ("SPY", "QQQ", "GLD", "TLT", "TQQQ", "SSO", "QLD", "^NDX", "UOPIX", "RYNVX", "VFINX")
+DEFAULT_TICKERS: Final = (
+    "SPY",
+    "QQQ",
+    "GLD",
+    "TLT",
+    "TQQQ",
+    "SSO",
+    "QLD",
+    "^NDX",
+    "UOPIX",
+    "RYNVX",
+    "VFINX",
+    "UPRO",
+    "ULPIX",
+)
 
 
 def parse_args():

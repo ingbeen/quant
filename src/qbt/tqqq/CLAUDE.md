@@ -5,7 +5,7 @@
 ## 도메인 목적
 
 레버리지 ETF 시뮬레이션 도메인은 기초 자산 데이터로부터 레버리지 상품의 가격을 모델링합니다.
-QQQ 합성(상장 전은 나스닥 100 지수)으로부터 TQQQ(3배) · QLD(2배)의 상장 전 구간을 재현해 실물에 이어 붙인 합성 시세를 만드는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `LEVERAGED_SYNTHETIC_TARGETS` 입니다.
+1배 합성(상장 전 구간을 지수 · 인덱스 펀드로 채운 시세 — `scripts/data/generate_synthetic.py` 의 `PROXY_TARGETS`)으로부터 레버리지 ETF 의 상장 전 구간을 재현해 실물에 이어 붙인 합성 시세를 만드는 것이 주요 사용 사례입니다. 대상 상품과 상품마다의 기초는 `constants.py` 의 `LEVERAGED_SYNTHETIC_TARGETS` 입니다.
 합성 생성은 실물 추적 · ETF 상장 전 펀드 대조 · 가정만 바꾼 판을 검증 표로 남깁니다 — 정의와 결과는 `docs/research/합성_시세_연장.md` 5장. 스프레드 파라미터를 맞춘 스프레드 랩은 커밋 `ee6d23d` 까지 저장소에 있었고, 근거는 `docs/research/전략_검증_보고서.md` §47 · §49.4 에 있습니다.
 
 ---
@@ -68,7 +68,7 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 - 데이터 소스: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
 - 월별로 실제 운용비율을 동적으로 적용
 - 파일 시작(TQQQ 상장)보다 앞을 시뮬레이션하는 합성은 `build_extended_expense_dict` 로 기초 시세의 첫 달부터 그 앞 구간을 상장 전 고정값으로 채운다 — `create_expense_dict` 그대로면 첫날에서 ValueError 다
-- QLD 도 스프레드 파라미터와 이 파일을 그대로 쓴다. 재튜닝 · QLD 전용 보수를 택하지 않은 근거는 `docs/research/전략_검증_보고서.md` §49.4
+- 상품 표의 모든 상품이 스프레드 파라미터와 이 파일을 그대로 쓴다. 재튜닝 · 상품별 보수를 택하지 않은 근거는 `docs/research/전략_검증_보고서.md` §49.4(QLD), 상품마다의 실물 추적은 `docs/research/합성_시세_연장.md` 5.2
 
 총 비용:
 
