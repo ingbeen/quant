@@ -14,13 +14,13 @@ from pathlib import Path
 from qbt.backtest.constants import DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import (
-    GLD_DATA_PATH,
+    GLD_SYNTHETIC_DATA_PATH,
     PORTFOLIO_RESULTS_DIR,
-    QLD_DATA_PATH,
-    QQQ_DATA_PATH,
-    SPY_DATA_PATH,
-    SSO_DATA_PATH,
-    TLT_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
 )
 
 
@@ -31,6 +31,7 @@ def _make_result_dir(experiment_name: str) -> Path:
 
 # ============================================================================
 # 포트폴리오 실험 설정 정의
+# 실물 파일이 하나라도 섞이면 시작일이 그 상장일로 줄어듦 → 슬롯은 모두 합성 시세 (docs/research/합성_시세_연장.md 결정 10)
 # ============================================================================
 
 # QQQ B&H: QQQ 100% 매수 후 보유 (매매 규칙 없는 기준점) -- 같은 자산을 버퍼존으로 매매하는 D-1 과 같은 시작일 정책
@@ -40,8 +41,8 @@ _CONFIG_QQQ_BH = PortfolioConfig(
     asset_slots=(
         AssetSlotConfig(
             asset_id="qqq",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QQQ_DATA_PATH,
+            signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+            trade_data_path=QQQ_SYNTHETIC_DATA_PATH,
             target_weight=1.00,
             strategy_id="buy_and_hold",
         ),
@@ -57,8 +58,8 @@ _CONFIG_D1 = PortfolioConfig(
     asset_slots=(
         AssetSlotConfig(
             asset_id="qqq",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QQQ_DATA_PATH,
+            signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+            trade_data_path=QQQ_SYNTHETIC_DATA_PATH,
             target_weight=1.00,
         ),
     ),
@@ -78,27 +79,27 @@ _CONFIG_Q2 = PortfolioConfig(
     asset_slots=(
         AssetSlotConfig(
             asset_id="spy",
-            signal_data_path=SPY_DATA_PATH,
-            trade_data_path=SPY_DATA_PATH,
+            signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+            trade_data_path=SPY_SYNTHETIC_DATA_PATH,
             target_weight=0.35,
         ),
         AssetSlotConfig(
             asset_id="qqq",
-            signal_data_path=QQQ_DATA_PATH,
-            trade_data_path=QQQ_DATA_PATH,
+            signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+            trade_data_path=QQQ_SYNTHETIC_DATA_PATH,
             target_weight=0.35,
         ),
         AssetSlotConfig(
             asset_id="gld",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=GLD_DATA_PATH,
+            signal_data_path=GLD_SYNTHETIC_DATA_PATH,
+            trade_data_path=GLD_SYNTHETIC_DATA_PATH,
             target_weight=0.15,
             strategy_id="buy_and_hold",
         ),
         AssetSlotConfig(
             asset_id="tlt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=TLT_DATA_PATH,
+            signal_data_path=TLT_SYNTHETIC_DATA_PATH,
+            trade_data_path=TLT_SYNTHETIC_DATA_PATH,
             target_weight=0.15,
             strategy_id="buy_and_hold",
         ),
@@ -113,22 +114,28 @@ _CONFIG_Q2_2XS = PortfolioConfig(
     display_name="Q-2-2XS (SSO 35% / QLD 35% / GLD 15%(B&H) / TLT 15%(B&H))",
     asset_slots=(
         AssetSlotConfig(
-            asset_id="sso", signal_data_path=SPY_DATA_PATH, trade_data_path=SSO_DATA_PATH, target_weight=0.35
+            asset_id="sso",
+            signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+            trade_data_path=SSO_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
         ),
         AssetSlotConfig(
-            asset_id="qld", signal_data_path=QQQ_DATA_PATH, trade_data_path=QLD_DATA_PATH, target_weight=0.35
+            asset_id="qld",
+            signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+            trade_data_path=QLD_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
         ),
         AssetSlotConfig(
             asset_id="gld",
-            signal_data_path=GLD_DATA_PATH,
-            trade_data_path=GLD_DATA_PATH,
+            signal_data_path=GLD_SYNTHETIC_DATA_PATH,
+            trade_data_path=GLD_SYNTHETIC_DATA_PATH,
             target_weight=0.15,
             strategy_id="buy_and_hold",
         ),
         AssetSlotConfig(
             asset_id="tlt",
-            signal_data_path=TLT_DATA_PATH,
-            trade_data_path=TLT_DATA_PATH,
+            signal_data_path=TLT_SYNTHETIC_DATA_PATH,
+            trade_data_path=TLT_SYNTHETIC_DATA_PATH,
             target_weight=0.15,
             strategy_id="buy_and_hold",
         ),

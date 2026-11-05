@@ -8,10 +8,11 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 3. 모든 config의 매매법 안에서 asset_id 중복 없음
 4. D-1: QQQ 100% 전액 투자
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
-6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 경로 사용)
+6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 합성 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
 8. 운용안은 Q-2-2XS 단독이다 — 철회한 보완 전략 조합(부록 M)은 등록되지 않고, 시작일 하한(min_start_date)을 쓰는 등록 실험이 없다
 9. QQQ B&H: QQQ 100% 매수 후 보유, 실험 시작일 하한(min_start_date) 없음 — 러너의 시작일 정책을 따른다
+10. 모든 슬롯은 상장 전까지 늘린 합성 시세를 읽는다
 """
 
 import pytest
@@ -19,7 +20,9 @@ import pytest
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
-from qbt.common_constants import GLD_DATA_PATH, QQQ_DATA_PATH, TLT_DATA_PATH
+from qbt.common_constants import GLD_SYNTHETIC_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH, TLT_SYNTHETIC_DATA_PATH
+
+from helpers import ONE_TIMES_SIGNAL_OF
 
 
 class TestPortfolioConfigsList:
@@ -115,7 +118,7 @@ class TestQqqBuyAndHoldConfig:
 
         Given: portfolio_qqq_bh 설정
         When:  슬롯 · 전략 · 시작일 하한을 확인한다
-        Then:  슬롯은 qqq 하나(목표 1.0, buy_and_hold), 신호 · 매매 경로 모두 QQQ, min_start_date 없음, 설정 검증 통과
+        Then:  슬롯은 qqq 하나(목표 1.0, buy_and_hold), 신호 · 매매 경로 모두 QQQ 합성, min_start_date 없음, 설정 검증 통과
         """
         # Given
         config = get_portfolio_config("portfolio_qqq_bh")
@@ -126,8 +129,8 @@ class TestQqqBuyAndHoldConfig:
         # Then
         assert [(slot.asset_id, slot.strategy_id) for slot in slots] == [("qqq", "buy_and_hold")]
         assert slots[0].target_weight == pytest.approx(1.0, abs=1e-12)
-        assert slots[0].signal_data_path == QQQ_DATA_PATH
-        assert slots[0].trade_data_path == QQQ_DATA_PATH
+        assert slots[0].signal_data_path == QQQ_SYNTHETIC_DATA_PATH
+        assert slots[0].trade_data_path == QQQ_SYNTHETIC_DATA_PATH
         assert config.min_start_date is None
         validate_portfolio_config(config)
 
@@ -178,17 +181,71 @@ class TestQSeriesConfigs:
 
         Given: portfolio_q2_2xs 설정
         When:  GLD/TLT slot 확인
-        Then:  strategy_id == "buy_and_hold", trade_data_path가 1x 경로
+        Then:  strategy_id == "buy_and_hold", trade_data_path가 1x 합성 경로
         """
         config = get_portfolio_config("portfolio_q2_2xs")
         for slot in config.asset_slots:
             if slot.asset_id in ("gld", "tlt"):
                 assert slot.strategy_id == "buy_and_hold", f"{slot.asset_id}: strategy_id가 buy_and_hold가 아닙니다"
-        # GLD/TLT는 1x 경로 사용
+        # GLD/TLT는 1x 합성 경로 사용
         gld_slot = next(s for s in config.asset_slots if s.asset_id == "gld")
         tlt_slot = next(s for s in config.asset_slots if s.asset_id == "tlt")
-        assert gld_slot.trade_data_path == GLD_DATA_PATH
-        assert tlt_slot.trade_data_path == TLT_DATA_PATH
+        assert gld_slot.trade_data_path == GLD_SYNTHETIC_DATA_PATH
+        assert tlt_slot.trade_data_path == TLT_SYNTHETIC_DATA_PATH
+
+    def test_all_slots_read_synthetic_prices(self) -> None:
+        """
+        목적: 모든 실험의 슬롯은 상장 전까지 늘린 합성 시세를 읽는다 — 실물 파일이 하나라도 섞이면 포트폴리오 시작일이
+              그 상장일로 줄어든다 (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+
+        Given: PORTFOLIO_CONFIGS
+        When:  실험 · 매매법 · 자산마다 신호 · 매매 경로를 모은다 (배분 규칙 매매법이면 매매 시세와 신호용 시세)
+        Then:  모두 `_synthetic_max.csv`
+        """
+        # When — 목록으로 모음: 자산과 신호용 시세의 id 가 같아도 서로 덮어쓰지 않음
+        paths: list[tuple[str, str, str, str]] = []
+        for config in PORTFOLIO_CONFIGS:
+            for method in resolve_methods(config):
+                if isinstance(method, SlotMethodConfig):
+                    for slot in method.asset_slots:
+                        for path in (slot.signal_data_path, slot.trade_data_path):
+                            paths.append((config.experiment_name, method.method_id, slot.asset_id, path.name))
+                else:
+                    for asset in method.assets:
+                        paths.append(
+                            (config.experiment_name, method.method_id, asset.asset_id, asset.trade_data_path.name)
+                        )
+                    for series in method.signal_series:
+                        paths.append(
+                            (config.experiment_name, method.method_id, series.series_id, series.data_path.name)
+                        )
+
+        # Then
+        not_synthetic = [entry for entry in paths if not entry[-1].endswith("_synthetic_max.csv")]
+        assert not_synthetic == []
+
+    def test_each_slot_trades_its_asset_on_one_times_signal(self) -> None:
+        """
+        목적: 슬롯마다 자산 id 의 티커를 매매하고, 신호는 그 지수의 1배 합성이다 — 운용 포트폴리오 Q-2-2XS 의 SSO · QLD
+              짝을 잘못 바꾸면 다른 상품 · 다른 지수로 사고판 결과가 에러 없이 나온다 (quant-notify 가 이 설정을 옮겨 적는다)
+
+        Given: PORTFOLIO_CONFIGS, 매매 합성 → 그 지수의 1배 합성 표
+        When:  슬롯마다 매매 파일을 자산 id 와, 신호를 그 표와 견준다
+        Then:  어긋난 슬롯 없음
+        """
+        # When
+        mismatched = [
+            (config.experiment_name, slot.asset_id, slot.signal_data_path.name, slot.trade_data_path.name)
+            for config in PORTFOLIO_CONFIGS
+            for method in resolve_methods(config)
+            if isinstance(method, SlotMethodConfig)
+            for slot in method.asset_slots
+            if slot.trade_data_path.name != f"{slot.asset_id.upper()}_synthetic_max.csv"
+            or ONE_TIMES_SIGNAL_OF.get(slot.trade_data_path) != slot.signal_data_path
+        ]
+
+        # Then
+        assert mismatched == []
 
 
 class TestWithdrawnSupplementConfigs:

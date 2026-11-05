@@ -10,6 +10,34 @@
 
 ---
 
+## 포트폴리오가 함께 시작할 날이 어느 실험의 거래일이 아니면 실행 도중에 멈추고, 오류 문구가 권하는 해결은 같은 기간 비교를 깨뜨린다
+
+- **자리**: `src/qbt/backtest/engines/portfolio_engine.py:262` `planned_start_dates` — 설정에 `min_start_date` 가 없는 등록 실험들의 데이터 시작일 중 최댓값을 고를 뿐, 그날이 각 실험의 공통 거래일에 있는지 보지 않는다. 대조는 실행 뒤의 `run_with_start_check`(같은 파일 808행, 오류 문구 821행)가 실험마다 하고, 러너 `scripts/backtest/run_portfolio_backtest.py:402` 의 루프가 실험마다 실행 → 대조 → 저장(417행)을 차례로 한다
+- **무엇**: 금 합성에는 1986-07-16 ~ 2026-10-29 의 미국 거래일 110일이 없다(그중 1986-12-31 · 1987-04-20 등). 새로 등록한 실험의 데이터 시작일이 그런 날이 되어 함께 시작할 날로 정해지면, 전체 실행에서 금이 없는 앞 실험(QQQ 보유 · D-1)은 새 날짜로 저장되고 금이 든 Q-2 에서 ValueError 로 멈춘다 — Q-2 · Q-2-2XS 는 옛 기간 결과로 남아 시작일이 다른 결과가 한 폴더에 섞인다. 오류 문구는 「이 구성의 시세가 모두 있는 날을 설정의 min_start_date 로 정하세요」인데, 그 실험에 시작일을 정하면 그 실험이 함께 시작하는 무리에서 빠져 다시 기간이 갈린다. 지금 등록 실험 넷은 모두 1986-07-16 에 시작하고 그날은 넷 모두의 거래일이다(2026-11-05). 고치는 길은 함께 시작할 날을 「최댓값 이후 시작일 없는 모든 실험에 공통인 첫 거래일」로 정하고, 실행 전에 실험마다 그날이 거래일인지 대조하는 것이다
+- **종류**: 가벼운 버그 (멈추는 쪽으로 틀린다 — 다만 멈추기 전에 앞 실험의 결과를 덮어쓴다)
+- **출처**: PLAN_backtest_long_history (2026-11-05) 코드 리뷰 2회차 — 1회차 수정(같은 날 시작을 `run_with_start_check` 로 대조)이 바꾼 자리라 「같은 자리 두 번」으로 고치지 않고 옮김
+
+## 포트폴리오를 하나만 돌리면(`--experiment`) 다른 실험의 저장 결과와 시작일이 갈릴 수 있고, 등록 실험 전부로 날을 정하는 계약을 지키는 테스트가 없다
+
+- **자리**: `scripts/backtest/run_portfolio_backtest.py:388` `planned_start_dates(PORTFOLIO_CONFIGS, effective_start_dates)` — 대상만이 아니라 등록 실험 전부로 날을 정하고, 저장은 대상 실험만 한다
+- **무엇**: ① 데이터가 늦게 시작하는 실험을 새로 등록하고 그 실험만 돌리면, 그 실험은 새 날짜로 저장되고 나머지의 `summary.json` 은 옛 시작일 그대로다 — 러너는 다른 실험의 저장된 시작일을 대조하지 않아 경고가 없고, 대시보드는 기간이 다른 결과를 나란히 그린다. ② 이 줄을 `planned_start_dates(target_configs, …)` 로 바꾸면 `--experiment portfolio_qqq_bh` 단독 실행이 데이터 시작일 1985-10-01 에 시작해 전체 실행과 기간이 달라지는데, 테스트는 모두 통과한다(테스트는 scripts 러너를 부르지 않고, `TestPlannedStartDates` 는 순수 함수만 본다). 지금은 등록 실험 넷의 단독 실행 · 전체 실행이 모두 1986-07-16 에 시작한다(2026-11-05)
+- **종류**: 가벼운 버그 (검사 공백 · 부분 실행의 낡은 결과)
+- **출처**: PLAN_backtest_long_history (2026-11-05) 코드 리뷰 2회차 — 1회차 수정이 바꾼 자리라 「같은 자리 두 번」으로 고치지 않고 옮김
+
+## 합성 생성을 건너뛰면 모든 백테스트가 옛 끝날의 합성 시세로 조용히 돈다
+
+- **자리**: 백테스트 설정 셋 — `src/qbt/backtest/strategies/buffer_zone.py` · `buy_and_hold.py` 의 `CONFIGS`, `src/qbt/backtest/portfolio_configs.py` 의 슬롯 — 이 모두 `*_synthetic_max.csv` 를 읽고, 시세를 읽는 `src/qbt/utils/data_loader.py` `load_stock_data` · `load_signal_trade_pair` 는 합성 파일이 원본(`*_max.csv`)보다 낡았는지 보지 않는다
+- **무엇**: `download_data.py` 만 돌리고 `generate_synthetic.py` 를 건너뛴 채 러너를 돌리면, 예전에는 실물 `SSO_max` · `QLD_max` · `GLD_max` · `TLT_max` 를 읽어 최신 날까지 갔던 설정이 합성 파일의 옛 끝날(예: 2026-10-29)에서 멈춘다. 에러는 없고 결과의 끝날만 이르다(`summary.json` 의 `end_date` 에는 보인다). 계획 5 전에는 TQQQ · QLD 설정만 이랬고, 지금은 모든 설정이다. 정한 순서(COMMANDS 「시세를 다시 받은 뒤 다시 돌리는 순서」, 결정 11)를 지키면 생기지 않는다 — 한 단계를 건너뛰는 실수가 계기라 닿는지 판정하지 못해 옮김. 막으려면 러너가 합성 파일의 끝날을 그 실물 파일의 끝날과 견준다
+- **종류**: 가벼운 버그 (결과의 끝날이 낡음 — 수치 자체는 그 끝날까지 맞다)
+- **출처**: PLAN_backtest_long_history (2026-11-05) 코드 리뷰 2회차
+
+## 포트폴리오 설정의 짝 테스트가 배분 규칙 매매법의 자산은 보지 않는다
+
+- **자리**: `tests/qbt/test_portfolio_configs.py` `TestQSeriesConfigs.test_each_slot_trades_its_asset_on_one_times_signal` — `isinstance(method, SlotMethodConfig)` 인 매매법의 슬롯만 견주고, 배분 규칙 매매법(`AllocatorMethodConfig`)은 건너뛴다. 같은 파일의 `test_all_slots_read_synthetic_prices` 는 배분 규칙 매매법의 `assets` · `signal_series` 경로까지 모은다
+- **무엇**: 배분 규칙 매매법을 쓰는 실험을 등록하면서 자산 `qld` 의 매매 파일을 `TQQQ_SYNTHETIC_DATA_PATH` 로, `gld` 를 `TLT_SYNTHETIC_DATA_PATH` 로 잘못 짝지어도 테스트가 통과한다 — 다른 상품으로 사고판 결과가 그 자산 이름으로 에러 없이 나온다(2026-11-05 변형으로 확인). 지금 배분 규칙 매매법을 쓰는 등록 실험은 0개다(`portfolio_configs.py` 에 `methods=` 없음 — 보완 전략 조합은 2026-11-04 철회). 막으려면 같은 테스트에서 배분 규칙 매매법의 `assets` 도 `asset_id` 와 매매 파일 이름을 견준다
+- **종류**: 가벼운 버그 (검사 공백 — 배분 규칙 실험을 다시 등록하는 날 닿는다)
+- **출처**: PLAN_backtest_long_history (2026-11-05) 코드 리뷰 2회차 수정분 검증
+
 ## 포트폴리오 러너가 구성 의존 파일 지우기를 부르는 한 줄을 지키는 테스트가 없다
 
 - **자리**: `scripts/backtest/run_portfolio_backtest.py:106` `_save_portfolio_results` 의 `remove_config_dependent_files(result.config.result_dir)`. 함수는 `src/qbt/backtest/csv_export.py:207` `remove_config_dependent_files` 이고 테스트 `tests/qbt/test_csv_export.py` `TestRemoveConfigDependentFiles` 가 함수만 지킨다

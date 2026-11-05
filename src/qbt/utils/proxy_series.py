@@ -7,6 +7,7 @@
 import pandas as pd
 
 from qbt.common_constants import (
+    ANNUAL_DAYS,
     COL_CLOSE,
     COL_DATE,
     COL_OPEN,
@@ -67,6 +68,29 @@ def splice_proxy(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFram
     # 대용의 거래량은 실물 거래량이 아니다
     before_seam[COL_VOLUME] = 0
     return pd.concat([before_seam, actual_df[REQUIRED_COLUMNS]], ignore_index=True)
+
+
+def deduct_annual_fee(proxy_df: pd.DataFrame, annual_fee_rate: float) -> pd.DataFrame:
+    """대용에서 상품의 연 보수를 뺀다 — 첫 행부터 달력일로 잰 경과 연수 t 마다 가격 넷 × (1 − 보수)^t.
+
+    보수가 빠진 대용(금값처럼 상품이 아닌 시세)을 그 상품처럼 만든다. 거래량 · 날짜는 그대로다.
+
+    Args:
+        proxy_df: 날짜가 중복 없는 오름차순인 대용 시세
+        annual_fee_rate: 연 보수 비율 (0.004 = 0.4%)
+
+    Raises:
+        ValueError: 보수가 0 이상 1 미만이 아니거나, 날짜가 중복 없는 오름차순이 아닐 때
+    """
+    if not 0 <= annual_fee_rate < 1:
+        raise ValueError(f"연 보수(annual_fee_rate)는 0 이상 1 미만의 비율이어야 합니다(0.004 = 0.4%): {annual_fee_rate}")
+    require_strictly_increasing_dates(proxy_df, "대용")
+    dates = pd.to_datetime(proxy_df[COL_DATE])
+    # 보수는 해마다 매김 → 거래일 수가 아니라 달력일로 셈 (빈 거래일이 있어도 해마다 같은 보수)
+    elapsed_years = (dates - dates.iloc[0]).dt.days / ANNUAL_DAYS
+    result = proxy_df.copy()
+    result[PRICE_COLUMNS] = result[PRICE_COLUMNS].mul((1 - annual_fee_rate) ** elapsed_years, axis=0)
+    return result
 
 
 def build_proxy_synthetic(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:

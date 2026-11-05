@@ -18,7 +18,7 @@
 - `parallel_executor.py` — 병렬 실행 `execute_parallel_with_kwargs` (규칙은 `src/qbt/CLAUDE.md` 「병렬 처리」). 예외가 나면 `executor.shutdown(cancel_futures=True)` 로 끊는다 — `wait=False` 로 끊으면 `with` 블록의 종료가 취소 요청을 되돌려 남은 작업이 뒤에서 전부 돈다
 - `formatting.py` — 한글 폭을 계산하는 터미널 표 `TableLogger`. 출력은 `print_table` 하나다 — 로그 포맷이 함수 이름을 넣어, 헤더와 행을 다른 메서드가 찍으면 열이 어긋난다
 - `stock_downloader.py` — Yahoo Finance 다운로드와 시세 저장 `save_stock_csv`(가격 반올림 → 검사 → 저장). 다운로더와 합성 생성 스크립트가 같이 쓴다
-- `proxy_series.py` — 실물 ETF 상장 전 구간을 대용 시세로 채우는 가공 (이음매 스케일 · 이어 붙이기 · 1배 대용 합성 `build_proxy_synthetic` · 저장 전 이음매 뒤 실물 검사). 레버리지 합성이 상장 전 시뮬레이션을 실물에 이을 때도 쓴다
+- `proxy_series.py` — 실물 ETF 상장 전 구간을 대용 시세로 채우는 가공 (이음매 스케일 · 이어 붙이기 · 1배 대용 합성 `build_proxy_synthetic` · 저장 전 이음매 뒤 실물 검사 · 보수가 빠진 대용에서 상품의 연 보수 빼기 — GLD 앞 금 사슬). 레버리지 합성이 상장 전 시뮬레이션을 실물에 이을 때도 쓴다
 - `proxy_comparison.py` — 대용 ↔ 실물 비교 (겹치는 기간의 일간 · 월간 상관, CAGR · MDD, 12개월 이동 상관 최저, 연도별 상관 · 수익, 비교에서 빠진 날 수)와 결과 표의 행 · 반올림. 합성 생성이 검증 표로 저장한다
 - `gold_proxy.py` — GLD 상장 전 금 사슬: Perth Mint 금값 · FRED 호주달러 환율 받기 · 저장(다운로더가 부른다), 미국 거래일에 붙이기(호주 다음 영업일 값 · 그 미국 날짜의 환율), 「호주달러 × 환율 → Perth 달러 → 금 선물」 잇기. 날짜 규칙의 근거는 `docs/research/합성_시세_연장.md` 결정 6 · 6.4
 

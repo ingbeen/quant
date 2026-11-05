@@ -28,20 +28,20 @@ poetry run python scripts/data/download_data.py
 # 또는 특정 종목만
 poetry run python scripts/data/download_data.py QQQ
 
-# 2. 단일 전략 검증 + 결과 저장 (선행: 1, TQQQ · QLD 합성 — 워크플로우 2 의 2)
+# 2. 단일 전략 검증 + 결과 저장 (선행: 1, 합성 시세 — 워크플로우 2 의 2. 버퍼존 · Buy & Hold 는 모두 상장 전까지 늘린 합성 시세를 읽는다)
 # 출력: 콘솔 (버퍼존 · Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
 # --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
 poetry run python scripts/backtest/run_single_backtest.py
 poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_name>
 
-# 3. 포트폴리오 백테스트 (선행: 1)
+# 3. 포트폴리오 백테스트 (선행: 1, 합성 시세 — 워크플로우 2 의 2. 등록 실험은 모두 같은 날 시작한다 — 하나만 돌려도 같다)
 # 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, 매매법이 여럿이면 ledger · netting)
 # 실행 직후 정합성 검증 — 위반이 있으면 결과를 저장한 뒤 멈춘다 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 특정 실험 선택 가능 (기본값: all, 선택지는 --help)
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
-# 4. 워크포워드 검증 (선행: 1, TQQQ 합성 — 워크플로우 2 의 2)
+# 4. 워크포워드 검증 (선행: 1, QQQ · TQQQ 합성 — 워크플로우 2 의 2)
 # 출력: storage/results/backtest/{전략명}/ (walkforward_*.csv, walkforward_summary.json, 윈도우별 상세 wfo_windows_*/)
 # 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 6분)
 poetry run python scripts/backtest/run_walkforward.py
@@ -49,7 +49,7 @@ poetry run python scripts/backtest/run_walkforward.py
 # --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
 poetry run python scripts/backtest/run_walkforward.py --strategy <strategy_name>
 
-# 5. 파라미터 고원 분석 (선행: 1)
+# 5. 파라미터 고원 분석 (선행: 1, QQQ · SPY · GLD · TLT 합성 — 워크플로우 2 의 2)
 poetry run python scripts/backtest/run_param_plateau_all.py
 # --experiment 인자로 특정 실험만 실행 가능 (기본값: all, 선택지는 --help)
 # 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
@@ -73,13 +73,13 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 
 ## 워크플로우 2: 합성 시세 (QQQ · SPY 와 그 2 · 3배, TLT · GLD)
 
-실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, SPY 는 S&P 500 인덱스 펀드(VFINX)로 채우고, TQQQ · QLD 는 그 QQQ 합성, SSO · UPRO 는 그 SPY 합성으로부터 시뮬레이션해 채우고, TLT 는 뱅가드 장기국채 펀드(VUSTX)로, GLD 는 Perth Mint 금값과 금 선물(GC=F)을 이은 금 사슬로 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)와 금 사슬의 원본(Perth Mint 금값 · FRED 호주달러 환율)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
+실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, SPY 는 S&P 500 인덱스 펀드(VFINX)로 채우고, TQQQ · QLD 는 그 QQQ 합성, SSO · UPRO 는 그 SPY 합성으로부터 시뮬레이션해 채우고, TLT 는 뱅가드 장기국채 펀드(VUSTX)로, GLD 는 Perth Mint 금값과 금 선물(GC=F)을 이은 금 사슬에서 GLD 운용보수를 뺀 것으로 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)와 금 사슬의 원본(Perth Mint 금값 · FRED 호주달러 환율)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
 
 ```bash
 # 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 · 금 사슬 원본 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
 poetry run python scripts/data/download_data.py
 
-# 2. 합성 시세 생성 (TQQQ · QLD 판은 워크플로우 1 의 단일 백테스트가 읽고 — Buy & Hold 는 QQQ 실물 기간만 — TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다)
+# 2. 합성 시세 생성 (워크플로우 1 의 백테스트 — 단일 · 포트폴리오 · 워크포워드 · 고원 — 가 모두 이 합성 시세를 읽는다)
 # 출력: storage/stock/ 의 QQQ · SPY · TQQQ · QLD · SSO · UPRO · TLT · GLD 합성 ({TICKER}_synthetic_max.csv)
 #       storage/results/proxy_validation/ — summary.csv · years.csv (대용 ↔ 실물 — 금 사슬은 이음매마다), tracking.csv (레버리지 합성 ↔ 실물 추적),
 #       funds.csv · fund_years.csv (ETF 상장 전 펀드 대조), assumptions.csv (가정만 바꾼 판)
@@ -87,7 +87,7 @@ poetry run python scripts/data/download_data.py
 poetry run python scripts/data/generate_synthetic.py
 ```
 
-**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 상품마다 기초 시세)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 금 사슬의 미국 달력(`US_CALENDAR_DATA_PATH`) · 펀드 대조 · 가정만 바꾼 판의 대상 표(`ASSUMPTION_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
+**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 상품마다 기초 시세)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 금 사슬의 미국 달력(`US_CALENDAR_DATA_PATH`) · GLD 운용보수(`GLD_EXPENSE_RATIO`) · 펀드 대조 · 가정만 바꾼 판의 대상 표(`ASSUMPTION_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
 
 ## 품질 검증 (통합)
 
@@ -159,7 +159,7 @@ poetry run python scripts/data/download_data.py
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
 - 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 ③ 의 합성 생성이 멈춘다
 
-**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배 · TLT · GLD(TQQQ · QLD 판은 단일 백테스트가 읽고, TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
+**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배 · TLT · GLD(④ 의 러너가 모두 이 합성 시세를 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
 ```bash
 (

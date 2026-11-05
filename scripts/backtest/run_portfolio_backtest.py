@@ -11,7 +11,6 @@
 import argparse
 import json
 import sys
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +40,7 @@ from qbt.backtest.csv_export import (
 )
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
-    run_portfolio_backtest,
+    planned_start_dates,
     run_with_start_check,
 )
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
@@ -67,11 +66,6 @@ from qbt.utils.formatting import Align, TableLogger
 logger = get_logger(__name__)
 
 _STATE_LOG_FILENAME = "state_log.csv"
-
-# 포트폴리오 백테스트 최소 시작일 하한
-# 각 실험의 effective_start_date가 이 날짜 이전이어도 이 날짜부터 실행한다
-# (2005년 이전 데이터는 포트폴리오 비교 범위에서 제외). 설정에 min_start_date 가 있는 실험은 이 하한 대신 그 날짜에 시작한다.
-DEFAULT_PORTFOLIO_START_DATE: date = date(2005, 1, 1)
 
 
 def _find_last_entry_date(equity_df: pd.DataFrame, asset_id: str) -> str:
@@ -389,7 +383,10 @@ def main() -> int:
 
     # 3. 실험별 유효 시작일 계산
     # 실행 전에 한꺼번에 계산한다 — 시세 누락 같은 데이터 문제가 앞 실험의 결과 파일을 덮어쓴 뒤가 아니라 그 전에 드러난다.
-    effective_start_dates = {c.experiment_name: compute_portfolio_effective_start_date(c) for c in target_configs}
+    # 대상만이 아니라 등록 실험 전부를 잼 → 하나만 돌려도 전체를 돌릴 때와 같은 날 시작
+    effective_start_dates = {c.experiment_name: compute_portfolio_effective_start_date(c) for c in PORTFOLIO_CONFIGS}
+    start_dates = planned_start_dates(PORTFOLIO_CONFIGS, effective_start_dates)
+    logger.debug(f"등록 실험의 데이터 시작일: {effective_start_dates} → 시작할 날: {start_dates}")
     late_starts = [
         f"{c.experiment_name}(설정 {c.min_start_date}, 데이터 기준 {effective_start_dates[c.experiment_name]})"
         for c in target_configs
@@ -404,23 +401,15 @@ def main() -> int:
     # 4. 실험별 실행
     for config in target_configs:
         raw_start_date = effective_start_dates[config.experiment_name]
+        exp_start_date = start_dates[config.experiment_name]
+        start_source = "설정의 min_start_date" if config.min_start_date is not None else "등록 실험이 함께 시작하는 날"
         logger.debug("=" * 70)
-        if config.min_start_date is None:
-            # 자기 자산 조합의 공통 기간 + MA 워밍업 이후를 쓰되, 정책 하한으로 끌어올린다 (2005년 이전 데이터는 스킵)
-            exp_start_date = max(raw_start_date, DEFAULT_PORTFOLIO_START_DATE)
-            logger.debug(
-                f"실험 시작: {config.experiment_name} ({config.display_name}) — "
-                f"start_date={exp_start_date} (데이터 기준 {raw_start_date}, 하한 {DEFAULT_PORTFOLIO_START_DATE})"
-            )
-            result = run_portfolio_backtest(config, start_date=exp_start_date)
-        else:
-            # 설정이 시작일을 정한 실험은 그날 시작해야 다른 결과와 같은 기간을 잰다.
-            # 데이터가 늦게 시작하는 경우는 위에서 실행 전에 멈추고, 여기서는 실제 첫 거래일이 그날인지 한 번 더 대조한다
-            logger.debug(
-                f"실험 시작: {config.experiment_name} ({config.display_name}) — "
-                f"start_date={config.min_start_date} (설정의 min_start_date, 데이터 기준 {raw_start_date})"
-            )
-            result = run_with_start_check(config, config.min_start_date)
+        logger.debug(
+            f"실험 시작: {config.experiment_name} ({config.display_name}) — "
+            f"start_date={exp_start_date} ({start_source}, 데이터 기준 {raw_start_date})"
+        )
+        # 엔진의 start_date 는 하한 → 그날 시세가 빈 자산이 있으면 조용히 늦게 시작해 같은 기간 비교가 깨짐
+        result = run_with_start_check(config, exp_start_date)
         _print_summary(result)
 
         # 정합성 자동 검증 -- 위반 시 결과 저장 후 스크립트 중지

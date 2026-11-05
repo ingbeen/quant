@@ -25,7 +25,8 @@
 
 - `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol
 - `strategies/buffer_zone.py` · `buffer_zone_helpers.py` — 버퍼존 전략 `BufferZoneStrategy`(stateful)와 자산별 설정 `CONFIGS`(전 자산 4P), 밴드 · 돌파 감지 함수
-- `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`. 합성 TQQQ · QLD 는 QQQ 상장 전까지 늘린 시세라 기간 시세(`period_data_path`)로 QQQ 실물 기간에 묶는다 — 매매 시세만 첫 행부터 읽어, 묶지 않으면 합성을 늘리는 순간 시작일이 따라 옮겨간다
+- `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`. 매매 시세의 첫 행부터 돈다
+- 버퍼존 · Buy & Hold · 포트폴리오 설정은 모두 상장 전까지 늘린 합성 시세(`*_synthetic_max.csv`)를 읽는다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다(`docs/research/합성_시세_연장.md` 결정 10, 설정 테스트가 지킨다)
 - `strategy_registry.py` — `STRATEGY_REGISTRY`: 포트폴리오 엔진이 `strategy_id` 문자열로 전략을 만든다. 새 전략은 등록만 하고 엔진은 고치지 않는다
 - `runners.py` — 단일 백테스트 설정을 실행 함수로 만드는 팩토리 (전략 모듈 ↔ 엔진 순환 의존을 끊는 자리)
 - `strategies/` · `qbt.backtest` 패키지는 재노출하지 않는다 — 각 모듈을 직접 import 한다
@@ -125,7 +126,7 @@ Lookahead 금지:
 - **종목 단위 상계**: 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × `SLIPPAGE_RATE` 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음) — Σ 매매법 손익 + 상계 절감 = 계좌 손익
 - **신호 시세**: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다
 - **현금 버퍼**: 목표 비중 합이 1 미만이면 나머지는 현금으로 둔다
-- **시작일**: 실험마다 자산 교집합 + 이동평균 워밍업 뒤 첫날이다(`compute_portfolio_effective_start_date`). 설정에 `min_start_date` 가 있는 실험은 그날 시작하고, 러너가 실제 시작일을 대조한다(`engines/portfolio_engine.py` 의 `run_with_start_check`)
+- **시작일**: 실험마다 자산 교집합 + 이동평균 워밍업 뒤 첫날이다(`compute_portfolio_effective_start_date`). 포트폴리오 러너는 실험마다 시작할 날을 정한다(`engines/portfolio_engine.py` 의 `planned_start_dates`) — 설정의 `min_start_date`, 없으면 그런 등록 실험이 모두 그 첫날 중 가장 늦은 날이다. 엔진의 시작일은 하한이라 그날 시세가 빈 자산이 있으면 조용히 늦게 시작한다 — 러너가 모든 실험의 실제 시작일을 대조한다(`run_with_start_check`)
 
 ---
 

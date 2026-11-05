@@ -25,6 +25,7 @@ from qbt.common_constants import (
 from qbt.utils.proxy_series import (
     build_proxy_synthetic,
     compute_seam_scale,
+    deduct_annual_fee,
     rescale_to_actual,
     splice_proxy,
 )
@@ -442,6 +443,142 @@ class TestBuildProxySynthetic:
         # When / Then
         with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
             build_proxy_synthetic(proxy, actual)
+
+
+class TestDeductAnnualFee:
+    """대용에서 상품의 연 보수를 뺀다 — 첫 행부터 달력일로 잰 경과 연수 t 마다 가격 × (1 − 보수)^t."""
+
+    FEE = 0.004
+    # 1,461일 = 4 × 365.25 — 경과 연수가 정확히 4. 사이 행은 달력일과 행 수가 어긋나게 둔다
+    FEE_DAYS = [date(2020, 1, 1), date(2020, 1, 2), date(2020, 1, 1) + timedelta(days=1461)]
+
+    def _proxy(self) -> pd.DataFrame:
+        return _make_df(self.FEE_DAYS, [10.0, 11.0, 12.0], volumes=[5, 6, 7])
+
+    def test_first_row_unchanged(self) -> None:
+        """
+        목적: 첫 행은 경과 연수 0 이라 그대로다
+
+        Given: 보수 0.4%
+        When: deduct_annual_fee
+        Then: 첫 행 가격 넷이 원래 값
+        """
+        # Given
+        proxy = self._proxy()
+
+        # When
+        result = deduct_annual_fee(proxy, self.FEE)
+
+        # Then
+        for col in (COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE):
+            assert float(result[col].iloc[0]) == pytest.approx(float(proxy[col].iloc[0]), rel=REL_TOL)
+
+    def test_prices_scaled_by_calendar_years(self) -> None:
+        """
+        목적: 경과 연수는 달력일 ÷ 365.25 다 — 4년 뒤 행의 가격 넷이 (1 − 보수)^4 배
+
+        Given: 첫날과 1,461일 뒤 행 (사이에 하루 뒤 행 — 행 수로 세면 연수가 달라진다)
+        When: deduct_annual_fee
+        Then: 마지막 행 가격 넷 = 원래 × 0.996^4, 하루 뒤 행 = 원래 × 0.996^(1 ÷ 365.25)
+        """
+        # Given
+        proxy = self._proxy()
+
+        # When
+        result = deduct_annual_fee(proxy, self.FEE)
+
+        # Then
+        for col in (COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE):
+            assert float(result[col].iloc[2]) == pytest.approx(float(proxy[col].iloc[2]) * 0.996**4, rel=REL_TOL)
+            assert float(result[col].iloc[1]) == pytest.approx(
+                float(proxy[col].iloc[1]) * 0.996 ** (1 / 365.25), rel=REL_TOL
+            )
+
+    def test_zero_fee_keeps_prices(self) -> None:
+        """
+        목적: 보수 0 이면 가격이 그대로다 (경계)
+
+        Given: 보수 0
+        When: deduct_annual_fee
+        Then: 결과 = 입력
+        """
+        # Given
+        proxy = self._proxy()
+
+        # When
+        result = deduct_annual_fee(proxy, 0.0)
+
+        # Then
+        pd.testing.assert_frame_equal(result, proxy)
+
+    def test_volume_and_dates_unchanged(self) -> None:
+        """
+        목적: 보수는 가격에만 걸린다
+
+        Given: 거래량이 0 이 아닌 대용
+        When: deduct_annual_fee
+        Then: 날짜 · 거래량 그대로
+        """
+        # Given
+        proxy = self._proxy()
+
+        # When
+        result = deduct_annual_fee(proxy, self.FEE)
+
+        # Then
+        assert result[COL_DATE].tolist() == proxy[COL_DATE].tolist()
+        assert result[COL_VOLUME].tolist() == proxy[COL_VOLUME].tolist()
+
+    def test_input_not_mutated(self) -> None:
+        """
+        목적: 입력 DataFrame 을 바꾸지 않는다
+
+        Given: 대용의 사본
+        When: deduct_annual_fee
+        Then: 입력이 사본과 같다
+        """
+        # Given
+        proxy = self._proxy()
+        proxy_copy = proxy.copy()
+
+        # When
+        deduct_annual_fee(proxy, self.FEE)
+
+        # Then
+        pd.testing.assert_frame_equal(proxy, proxy_copy)
+
+    @pytest.mark.parametrize("bad_fee", [-0.001, 1.0, 1.5])
+    def test_fee_out_of_range_raises(self, bad_fee: float) -> None:
+        """
+        목적: 보수는 0 이상 1 미만의 비율이다 — % 그대로(0.4)나 음수는 거부한다
+
+        Given: 범위 밖 보수
+        When: deduct_annual_fee
+        Then: ValueError
+        """
+        # Given
+        proxy = self._proxy()
+
+        # When / Then
+        with pytest.raises(ValueError, match="보수"):
+            deduct_annual_fee(proxy, bad_fee)
+
+    @pytest.mark.parametrize("bad_kind", ["unsorted", "duplicated"])
+    def test_rejects_bad_order(self, bad_kind: str) -> None:
+        """
+        목적: 날짜가 중복 없는 오름차순이어야 경과 연수가 뜻을 가진다
+
+        Given: 정렬되지 않았거나 중복 날짜가 있는 대용
+        When: deduct_annual_fee
+        Then: ValueError
+        """
+        # Given
+        dates = [DAYS[0], DAYS[2], DAYS[1]] if bad_kind == "unsorted" else [DAYS[0], DAYS[1], DAYS[1]]
+        proxy = _make_df(dates, [10.0, 12.0, 11.0])
+
+        # When / Then
+        with pytest.raises(ValueError, match="오름차순"):
+            deduct_annual_fee(proxy, self.FEE)
 
 
 class TestInputDateOrder:

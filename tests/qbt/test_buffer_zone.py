@@ -37,7 +37,15 @@ from qbt.backtest.strategies.buffer_zone import (
     resolve_params_for_config,
 )
 from qbt.backtest.types import BufferStrategyParams, SingleBacktestResult
-from qbt.common_constants import QLD_SYNTHETIC_DATA_PATH, QQQ_DATA_PATH
+from qbt.common_constants import (
+    QLD_SYNTHETIC_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
+)
+
+from helpers import ONE_TIMES_SIGNAL_OF
 
 
 class TestBufferZoneConfig:
@@ -121,22 +129,84 @@ class TestBufferZoneConfig:
 
     def test_qld_config_trades_synthetic_on_qqq_signal(self):
         """
-        목적: QLD 버퍼존은 TQQQ 와 같은 짜임이다 — QQQ 신호로 합성 시세를 매매하고 값은 4P 그대로
+        목적: QLD 버퍼존은 TQQQ 와 같은 짜임이다 — QQQ 합성 신호로 합성 시세를 매매하고 값은 4P 그대로
 
         Given: buffer_zone.CONFIGS
         When: get_config("buffer_zone_qld")
-        Then: 신호 QQQ, 매매 QLD 합성, 4P 기본값
+        Then: 신호 QQQ 합성, 매매 QLD 합성, 4P 기본값
         """
         # When
         config = get_config("buffer_zone_qld")
 
         # Then
-        assert config.signal_data_path == QQQ_DATA_PATH
+        assert config.signal_data_path == QQQ_SYNTHETIC_DATA_PATH
         assert config.trade_data_path == QLD_SYNTHETIC_DATA_PATH
         assert config.ma_window == FIXED_4P_MA_WINDOW
         assert config.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
         assert config.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
         assert config.hold_days == FIXED_4P_HOLD_DAYS
+
+    @pytest.mark.parametrize(
+        ("name", "trade_path"),
+        [("buffer_zone_sso", SSO_SYNTHETIC_DATA_PATH), ("buffer_zone_upro", UPRO_SYNTHETIC_DATA_PATH)],
+    )
+    def test_sp500_leveraged_configs_trade_on_spy_signal(self, name: str, trade_path: Path):
+        """
+        목적: S&P 500 2 · 3배 버퍼존은 나스닥 100 쪽(QLD · TQQQ)과 같은 짜임이다 — 1배 SPY 합성 신호로 그 배수의 합성을
+              매매하고 값은 4P 그대로 (사용자 요청 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+
+        Given: buffer_zone.CONFIGS
+        When: get_config(SSO · UPRO)
+        Then: 신호 SPY 합성, 매매 그 배수의 합성, 4P 기본값
+        """
+        # When
+        config = get_config(name)
+
+        # Then
+        assert config.signal_data_path == SPY_SYNTHETIC_DATA_PATH
+        assert config.trade_data_path == trade_path
+        assert config.ma_window == FIXED_4P_MA_WINDOW
+        assert config.buy_buffer_zone_pct == FIXED_4P_BUY_BUFFER_ZONE_PCT
+        assert config.sell_buffer_zone_pct == FIXED_4P_SELL_BUFFER_ZONE_PCT
+        assert config.hold_days == FIXED_4P_HOLD_DAYS
+
+    def test_all_configs_read_synthetic_prices(self):
+        """
+        목적: 버퍼존은 모두 상장 전까지 늘린 합성 시세로 돈다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다
+              (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+
+        Given: buffer_zone.CONFIGS
+        When: 신호 · 매매 경로를 모은다
+        Then: 모두 `_synthetic_max.csv`
+        """
+        # When
+        paths = {c.strategy_name: (c.signal_data_path.name, c.trade_data_path.name) for c in CONFIGS}
+
+        # Then
+        not_synthetic = {
+            name: pair for name, pair in paths.items() if not all(p.endswith("_synthetic_max.csv") for p in pair)
+        }
+        assert not_synthetic == {}
+
+    def test_each_config_trades_its_ticker_on_one_times_signal(self):
+        """
+        목적: 설정마다 이름의 티커를 매매하고, 신호는 그 지수의 1배 합성이다 — 짝을 잘못 바꾸면 다른 상품 · 다른 지수로
+              사고판 결과가 에러 없이 나온다
+
+        Given: buffer_zone.CONFIGS, 매매 합성 → 그 지수의 1배 합성 표
+        When:  설정마다 매매 파일을 이름의 티커와, 신호를 그 표와 견준다
+        Then:  어긋난 설정 없음
+        """
+        # When
+        mismatched = {
+            c.strategy_name: (c.signal_data_path.name, c.trade_data_path.name)
+            for c in CONFIGS
+            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buffer_zone_').upper()}_synthetic_max.csv"
+            or ONE_TIMES_SIGNAL_OF.get(c.trade_data_path) != c.signal_data_path
+        }
+
+        # Then
+        assert mismatched == {}
 
     @pytest.mark.parametrize("removed", ["buffer_zone_ugl", "buffer_zone_ubt"])
     def test_ugl_and_ubt_are_removed(self, removed: str):

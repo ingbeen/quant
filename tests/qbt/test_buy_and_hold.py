@@ -18,7 +18,7 @@ import pandas as pd
 from qbt.backtest import runners
 from qbt.backtest.strategies.buy_and_hold import CONFIGS, BuyAndHoldConfig
 from qbt.backtest.types import SingleBacktestResult
-from qbt.common_constants import QLD_SYNTHETIC_DATA_PATH, QQQ_DATA_PATH
+from qbt.common_constants import QLD_SYNTHETIC_DATA_PATH
 
 
 class TestCreateRunner:
@@ -267,47 +267,6 @@ class TestCreateRunner:
             date(2023, 1, 2)
         ), f"B&H 첫 매수는 시계열 2번째 날(2023-01-02)이어야 합니다. 실제: {open_pos['entry_date']}"
 
-    def test_period_data_limits_dates(self, tmp_path):
-        """
-        목적: 기간 시세가 있으면 그 시세와 겹치는 날만 쓴다 — 상장 전까지 늘린 합성 시세를 실물 기간에 묶는다
-
-        Given: 매매 시세 10일, 기간 시세는 넷째 날부터 7일 (실제 CSV 파일)
-        When: period_data_path 를 준 runner 실행
-        Then: 시그널 · 자본 곡선이 넷째 날부터, 첫 매수는 다섯째 날
-        """
-        # Given
-        dates = [date(2023, 1, i + 1) for i in range(10)]
-        trade_df = pd.DataFrame(
-            {
-                "Date": dates,
-                "Open": [100.0 + i for i in range(10)],
-                "High": [102.0 + i for i in range(10)],
-                "Low": [98.0 + i for i in range(10)],
-                "Close": [101.0 + i for i in range(10)],
-                "Volume": [1000000] * 10,
-            }
-        )
-        trade_path = tmp_path / "trade.csv"
-        period_path = tmp_path / "period.csv"
-        trade_df.to_csv(trade_path, index=False)
-        trade_df.iloc[3:].to_csv(period_path, index=False)
-        config = BuyAndHoldConfig(
-            strategy_name="buy_and_hold_tqqq",
-            display_name="Buy & Hold (TQQQ)",
-            trade_data_path=trade_path,
-            result_dir=tmp_path / "bh",
-            period_data_path=period_path,
-        )
-
-        # When
-        result = runners.create_buy_and_hold_runner(config)()
-
-        # Then
-        assert result.signal_df["Date"].iloc[0] == date(2023, 1, 4)
-        assert result.equity_df["Date"].iloc[0] == date(2023, 1, 4)
-        assert "open_position" in result.summary
-        assert result.summary["open_position"]["entry_date"] == str(date(2023, 1, 5))
-
 
 class TestBuyAndHoldConfigs:
     """Buy & Hold CONFIGS 정합성 테스트"""
@@ -387,18 +346,36 @@ class TestBuyAndHoldConfigs:
 
         assert config.trade_data_path == QLD_SYNTHETIC_DATA_PATH
 
-    def test_synthetic_configs_bound_to_qqq_period(self):
+    def test_all_configs_read_synthetic_prices(self):
         """
-        목적: 합성 시세로 도는 TQQQ · QLD 만 QQQ 실물 기간에 묶인다 — 합성을 1985년부터로 늘려도 결과 기간이 그대로다
+        목적: Buy & Hold 는 모두 상장 전까지 늘린 합성 시세의 첫 행부터 돈다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다
               (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
 
         Given: buy_and_hold.CONFIGS
-        When: 이름별 기간 시세를 모은다
-        Then: TQQQ · QLD 는 QQQ_DATA_PATH, 나머지는 None
+        When: 매매 경로를 모은다
+        Then: 모두 `_synthetic_max.csv`
         """
         # When
-        period_by_name = {c.strategy_name: c.period_data_path for c in CONFIGS}
+        names = {c.strategy_name: c.trade_data_path.name for c in CONFIGS}
 
         # Then
-        bound = {name: path for name, path in period_by_name.items() if path is not None}
-        assert bound == {"buy_and_hold_tqqq": QQQ_DATA_PATH, "buy_and_hold_qld": QQQ_DATA_PATH}
+        not_synthetic = {name: path for name, path in names.items() if not path.endswith("_synthetic_max.csv")}
+        assert not_synthetic == {}
+
+    def test_each_config_trades_its_ticker(self):
+        """
+        목적: 설정마다 이름의 티커를 들고 있는다 — 매매 파일을 잘못 짝지으면 다른 상품의 결과가 그 이름으로 나온다
+
+        Given: buy_and_hold.CONFIGS
+        When:  설정마다 매매 파일을 이름의 티커와 견준다
+        Then:  어긋난 설정 없음
+        """
+        # When
+        mismatched = {
+            c.strategy_name: c.trade_data_path.name
+            for c in CONFIGS
+            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buy_and_hold_').upper()}_synthetic_max.csv"
+        }
+
+        # Then
+        assert mismatched == {}

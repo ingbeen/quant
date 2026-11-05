@@ -28,12 +28,14 @@ from qbt.backtest.types import BufferStrategyParams
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
     COL_CLOSE,
-    GLD_DATA_PATH,
+    GLD_SYNTHETIC_DATA_PATH,
     QLD_SYNTHETIC_DATA_PATH,
-    QQQ_DATA_PATH,
-    SPY_DATA_PATH,
-    TLT_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
 )
 
 # 전략 파라미터 하한 (BufferZoneStrategy 생성자가 검증한다)
@@ -71,12 +73,13 @@ class BufferZoneConfig:
 # CONFIGS 리스트
 # ============================================================================
 
+# 실물 파일로 되돌리면 기간이 상장일로 줄어듦 → 상장 전까지 늘린 합성 시세만 (docs/research/합성_시세_연장.md 결정 10)
 CONFIGS: list[BufferZoneConfig] = [
     # --- TQQQ (QQQ 시그널 + TQQQ 합성 매매) ---
     BufferZoneConfig(
         strategy_name="buffer_zone_tqqq",
         display_name="버퍼존 전략 (TQQQ)",
-        signal_data_path=QQQ_DATA_PATH,
+        signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tqqq",
     ),
@@ -84,7 +87,7 @@ CONFIGS: list[BufferZoneConfig] = [
     BufferZoneConfig(
         strategy_name="buffer_zone_qld",
         display_name="버퍼존 전략 (QLD)",
-        signal_data_path=QQQ_DATA_PATH,
+        signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
         trade_data_path=QLD_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qld",
     ),
@@ -92,32 +95,48 @@ CONFIGS: list[BufferZoneConfig] = [
     BufferZoneConfig(
         strategy_name="buffer_zone_qqq",
         display_name="버퍼존 전략 (QQQ)",
-        signal_data_path=QQQ_DATA_PATH,
-        trade_data_path=QQQ_DATA_PATH,
+        signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+        trade_data_path=QQQ_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_qqq",
+    ),
+    # --- UPRO (SPY 시그널 + UPRO 합성 매매) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_upro",
+        display_name="버퍼존 전략 (UPRO)",
+        signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+        trade_data_path=UPRO_SYNTHETIC_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_upro",
+    ),
+    # --- SSO (SPY 시그널 + SSO 합성 매매) ---
+    BufferZoneConfig(
+        strategy_name="buffer_zone_sso",
+        display_name="버퍼존 전략 (SSO)",
+        signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+        trade_data_path=SSO_SYNTHETIC_DATA_PATH,
+        result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_sso",
     ),
     # --- SPY ---
     BufferZoneConfig(
         strategy_name="buffer_zone_spy",
         display_name="버퍼존 전략 (SPY)",
-        signal_data_path=SPY_DATA_PATH,
-        trade_data_path=SPY_DATA_PATH,
+        signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+        trade_data_path=SPY_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_spy",
     ),
     # --- GLD ---
     BufferZoneConfig(
         strategy_name="buffer_zone_gld",
         display_name="버퍼존 전략 (GLD)",
-        signal_data_path=GLD_DATA_PATH,
-        trade_data_path=GLD_DATA_PATH,
+        signal_data_path=GLD_SYNTHETIC_DATA_PATH,
+        trade_data_path=GLD_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_gld",
     ),
     # --- TLT ---
     BufferZoneConfig(
         strategy_name="buffer_zone_tlt",
         display_name="버퍼존 전략 (TLT)",
-        signal_data_path=TLT_DATA_PATH,
-        trade_data_path=TLT_DATA_PATH,
+        signal_data_path=TLT_SYNTHETIC_DATA_PATH,
+        trade_data_path=TLT_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buffer_zone_tlt",
     ),
 ]

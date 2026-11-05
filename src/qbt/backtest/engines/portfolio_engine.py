@@ -15,6 +15,7 @@
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary, state_log_df, ledger_df, netting_df)
 """
 
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -238,8 +239,7 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
 
     전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 · 배분 규칙의 워밍업 완료 이후
     첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
-    각 실험은 자기 자산 조합의 고유 시작일을 사용하므로, 실험마다 결과 기간이
-    달라질 수 있다 (CLI 러너는 설정에 min_start_date 가 없는 실험에 이 값을 `run_portfolio_backtest`의 `start_date`로 전달).
+    실험마다 다를 수 있는 이 날로 CLI 러너가 실험마다 시작할 날을 정한다(`planned_start_dates`).
 
     Args:
         config: 포트폴리오 실험 설정
@@ -257,6 +257,34 @@ def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
     if data.valid_start >= len(trade_dates):
         raise ValueError("유효 데이터 부족: MA 워밍업 후 데이터가 없습니다.")
     return trade_dates.iloc[data.valid_start]
+
+
+def planned_start_dates(configs: Sequence[PortfolioConfig], data_start_dates: Mapping[str, date]) -> dict[str, date]:
+    """실험마다 시작할 날 — 설정의 min_start_date, 없으면 그런 실험들이 함께 시작하는 날.
+
+    함께 시작하는 날은 min_start_date 가 없는 실험들의 데이터 시작일(`compute_portfolio_effective_start_date`) 중
+    가장 늦은 날이다 — 실험마다 따로 시작하면 서로 다른 기간을 견주게 된다(docs/research/합성_시세_연장.md 결정 10).
+    그날이 어느 실험의 거래일이 아닐 수도 있어, 러너는 `run_with_start_check` 로 실제 시작일을 대조한다.
+
+    Args:
+        configs: 함께 견줄 실험 전부 (일부만 돌려도 등록 실험 전부를 넘긴다)
+        data_start_dates: 실험 이름 → 데이터 시작일. min_start_date 가 없는 실험은 모두 있어야 한다
+
+    Raises:
+        ValueError: min_start_date 가 없는 실험의 데이터 시작일이 빠졌을 때
+    """
+    unpinned = [c.experiment_name for c in configs if c.min_start_date is None]
+    missing = [name for name in unpinned if name not in data_start_dates]
+    if missing:
+        raise ValueError(f"데이터 시작일이 없는 실험이 있어 함께 시작할 날을 정할 수 없습니다: {missing}")
+    shared = max((data_start_dates[name] for name in unpinned), default=None)
+    planned: dict[str, date] = {}
+    for config in configs:
+        start = config.min_start_date if config.min_start_date is not None else shared
+        if start is None:
+            raise RuntimeError(f"내부 불변조건 위반: 시작일 없는 실험 {config.experiment_name} 이 있는데 함께 시작할 날이 없습니다")
+        planned[config.experiment_name] = start
+    return planned
 
 
 def _create_books(
@@ -464,8 +492,8 @@ def run_portfolio_backtest(config: PortfolioConfig, start_date: date | None = No
     Args:
         config: 포트폴리오 실험 설정
         start_date: 백테스트 시작일 하한 (None이면 워밍업 완료 시점부터 자동 결정).
-            CLI 러너는 각 실험의 `compute_portfolio_effective_start_date(config)` 결과를 전달하여
-            실험별 독립 기간으로 실행하고, 설정에 min_start_date 가 있는 실험은 그 날짜를 전달한다.
+            CLI 러너는 `planned_start_dates` 가 정한 날을 `run_with_start_check` 로 넘긴다 — 하한이라 그날이
+            거래일이 아니면 다음 거래일에 시작한다.
 
     Returns:
         PortfolioResult
@@ -778,18 +806,19 @@ def _to_date(value: object) -> date:
 
 
 def run_with_start_check(config: PortfolioConfig, start_date: date) -> PortfolioResult:
-    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (설정에 min_start_date 가 있는 실험을 포트폴리오 러너가 부른다).
+    """start_date 부터 실행하고 실제 시작일이 그날인지 대조한다 (포트폴리오 러너가 `planned_start_dates` 의 날로 부른다).
 
     Raises:
-        ValueError: 실제 시작일이 start_date 와 다를 때 — 엔진의 start_date 는 하한이라 데이터가 늦게 시작하는
-            구성은 조용히 늦게 시작해 같은 기간 비교가 깨진다
+        ValueError: 실제 시작일이 start_date 와 다를 때 — 엔진의 start_date 는 하한이라, 데이터가 늦게 시작하거나
+            그날 시세가 빈 자산이 있는 구성은 조용히 늦게 시작해 같은 기간 비교가 깨진다
     """
     result = run_portfolio_backtest(config, start_date=start_date)
     actual_start = _to_date(result.equity_df[COL_DATE].iloc[0])
     if actual_start != start_date:
         raise ValueError(
-            f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 설정의 시작일 {start_date} 와 다릅니다 — "
-            f"이 구성의 데이터가 늦게 시작해 같은 기간 비교가 깨집니다. 설정의 min_start_date 를 데이터가 있는 날로 고치세요"
+            f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 정한 시작일 {start_date} 와 다릅니다 — "
+            f"이 구성의 데이터가 늦게 시작하거나 그날 시세가 빈 자산이 있어 다른 실험과 같은 기간 비교가 깨집니다. "
+            f"이 구성의 시세가 모두 있는 날을 설정의 min_start_date 로 정하세요"
         )
     return result
 

@@ -9,7 +9,34 @@ from pathlib import Path
 import pandas as pd
 
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
+from qbt.common_constants import (
+    COL_CLOSE,
+    COL_DATE,
+    COL_HIGH,
+    COL_LOW,
+    COL_OPEN,
+    COL_VOLUME,
+    GLD_SYNTHETIC_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
+)
+
+# 매매하는 합성 시세 → 같은 지수의 1배 합성 — 버퍼존 신호는 2 · 3배도 1배 시세 (docs/MEMORY.md 「버퍼존 레버리지는 1배 신호」)
+ONE_TIMES_SIGNAL_OF: dict[Path, Path] = {
+    QQQ_SYNTHETIC_DATA_PATH: QQQ_SYNTHETIC_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH: QQQ_SYNTHETIC_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH: QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH: SPY_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH: SPY_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH: SPY_SYNTHETIC_DATA_PATH,
+    GLD_SYNTHETIC_DATA_PATH: GLD_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH: TLT_SYNTHETIC_DATA_PATH,
+}
 
 
 def weekdays(start: date, end: date) -> list[date]:

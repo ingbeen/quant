@@ -14,6 +14,7 @@ import pytest
 from qbt.backtest.constants import REBALANCE_REASON_MONTHLY, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
+    planned_start_dates,
     run_portfolio_backtest,
     run_with_start_check,
 )
@@ -1259,3 +1260,82 @@ class TestRunWithStartCheck:
         # When / Then
         with pytest.raises(ValueError, match="실제 시작일"):
             run_with_start_check(config, first_day)
+
+
+class TestPlannedStartDates:
+    """러너가 실험마다 시작할 날 — 설정의 min_start_date, 없으면 그런 실험들이 함께 시작하는 날
+    (그 실험들의 데이터 시작일 중 가장 늦은 날, docs/research/합성_시세_연장.md 결정 10)."""
+
+    @staticmethod
+    def _configs(tmp_path: Path, pinned: dict[str, date | None]) -> list[PortfolioConfig]:
+        base = make_portfolio_config(asset_paths={"spy": (tmp_path / "s.csv", tmp_path / "s.csv")}, result_dir=tmp_path)
+        return [replace(base, experiment_name=name, min_start_date=pin) for name, pin in pinned.items()]
+
+    def test_unpinned_experiments_share_latest_data_start(self, tmp_path: Path):
+        """
+        목적: 시작일을 정하지 않은 실험은 모두 그 실험들의 데이터 시작일 중 가장 늦은 날에 시작한다
+
+        Given: 시작일 없는 실험 셋 (데이터 시작 1985-10-01 · 1986-07-16 · 1986-03-03)
+        When:  planned_start_dates
+        Then:  셋 모두 1986-07-16
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "b": None, "c": None})
+        data_starts = {"a": date(1985, 10, 1), "b": date(1986, 7, 16), "c": date(1986, 3, 3)}
+
+        # When
+        planned = planned_start_dates(configs, data_starts)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 16), "b": date(1986, 7, 16), "c": date(1986, 7, 16)}
+
+    def test_pinned_experiment_keeps_its_date_and_is_left_out(self, tmp_path: Path):
+        """
+        목적: 시작일을 정한 실험은 그날 시작하고, 데이터가 더 늦게 시작해도 다른 실험의 날을 끌어올리지 않는다
+
+        Given: 시작일 없는 실험 둘 (데이터 1985-10-01 · 1986-07-16), 시작일 2007-04-09 를 정한 실험 (데이터 2007-01-02)
+        When:  planned_start_dates
+        Then:  둘은 1986-07-16, 정한 실험은 2007-04-09
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "b": None, "pinned": date(2007, 4, 9)})
+        data_starts = {"a": date(1985, 10, 1), "b": date(1986, 7, 16), "pinned": date(2007, 1, 2)}
+
+        # When
+        planned = planned_start_dates(configs, data_starts)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 16), "b": date(1986, 7, 16), "pinned": date(2007, 4, 9)}
+
+    def test_all_pinned(self, tmp_path: Path):
+        """
+        목적: 모든 실험이 시작일을 정했으면 함께 시작할 날 없이 각자 그날이다 (경계)
+
+        Given: 시작일을 정한 실험 둘
+        When:  planned_start_dates
+        Then:  각자 정한 날
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": date(2000, 1, 3), "b": date(2001, 1, 2)})
+        data_starts = {"a": date(1990, 1, 2), "b": date(1990, 1, 2)}
+
+        # When
+        planned = planned_start_dates(configs, data_starts)
+
+        # Then
+        assert planned == {"a": date(2000, 1, 3), "b": date(2001, 1, 2)}
+
+    def test_missing_data_start_raises(self, tmp_path: Path):
+        """
+        목적: 시작일 없는 실험의 데이터 시작일을 빠뜨리면 그 실험을 빼고 날을 정하지 않고 멈춘다
+
+        Given: 시작일 없는 실험 둘 중 하나만 데이터 시작일이 있음
+        When:  planned_start_dates
+        Then:  ValueError (빠진 실험 이름)
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "b": None})
+
+        # When / Then
+        with pytest.raises(ValueError, match="b"):
+            planned_start_dates(configs, {"a": date(1990, 1, 2)})

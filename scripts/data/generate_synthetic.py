@@ -6,8 +6,8 @@
 
 1. 1배 대용 합성 (대상 표 PROXY_TARGETS 와 GLD): 실물 첫 거래일 앞은 그날 종가 비율로 맞춘 대용(시가 = 그날 종가),
    그날부터는 실물 행 그대로 (qbt.utils.proxy_series.build_proxy_synthetic). GLD 의 대용은 미국 거래일에 붙인 금 사슬
-   「Perth 호주달러 × 환율 → Perth 달러 → 금 선물」이다 (qbt.utils.gold_proxy). 검증 ① 대용 ↔ 실물 — 금 사슬은 이음매마다,
-   비교에서 빠진 날 수와 함께
+   「Perth 호주달러 × 환율 → Perth 달러 → 금 선물」(qbt.utils.gold_proxy)에서 GLD 운용보수를 뺀 것이다. 검증 ① 대용 ↔ 실물
+   — 금 사슬은 이음매마다, 비교에서 빠진 날 수와 함께
 2. 레버리지 합성 (상품 표 qbt.tqqq.constants.LEVERAGED_SYNTHETIC_TARGETS — 상품마다 기초인 1배 합성): 저장한 기초 전체를
    SoftPlus 동적 스프레드 모델로 시뮬레이션하고(가산금리 상한은 1998-12 까지의 달에만), 실제 ETF 첫 거래일 앞은 합성,
    그날부터는 실제 ETF 로 잇는다 (qbt.tqqq.synthetic)
@@ -107,7 +107,7 @@ from qbt.utils.proxy_comparison import (
     summarize_periods,
     unmatched_days_record,
 )
-from qbt.utils.proxy_series import build_proxy_synthetic
+from qbt.utils.proxy_series import build_proxy_synthetic, deduct_annual_fee
 from qbt.utils.stock_downloader import save_stock_csv
 
 logger = get_logger(__name__)
@@ -121,6 +121,8 @@ PROXY_TARGETS: Final[tuple[tuple[str, Path, Path, Path], ...]] = (
 
 # 금 사슬을 붙일 미국 거래일 — 1980-01-02 부터 있는 저장소 시세는 VFINX 뿐이고, 첫날이 금 합성의 첫날 (결정 6)
 US_CALENDAR_DATA_PATH: Final = VFINX_DATA_PATH
+# 금 사슬은 금값이라 상품 보수가 없음 → GLD 처럼 덜 좋게 잡으려고 뺌 (결정 13)
+GLD_EXPENSE_RATIO: Final = 0.004  # GLD 운용보수 비율 (0.004 = 0.4%)
 
 # 레버리지 ETF 상장 전 펀드의 배율 — 검증 ③
 UOPIX_LEVERAGE: Final = 2.0  # ProFunds 나스닥 100 2배
@@ -315,13 +317,15 @@ def _gold_pairs() -> list[tuple[str, str, str, pd.DataFrame, pd.DataFrame]]:
     futures_df = load_stock_data(GCF_DATA_PATH)
     us_dates = load_stock_data(US_CALENDAR_DATA_PATH)[COL_DATE].tolist()
     gold = build_gold_proxy(perth_df, aud_usd_df, futures_df, us_dates)
+    # 합성과 ① 이 같은 사슬을 씀 → ① 이 보수를 뺀 대용이 실물에 얼마나 다가가는지 보임
+    gld_proxy = deduct_annual_fee(gold.chain, GLD_EXPENSE_RATIO)
     gld_df = load_stock_data(GLD_DATA_PATH)
 
     perth_name, fx_name = PERTH_MINT_GOLD_DATA_PATH.name, AUD_USD_DATA_PATH.name
-    chain_label = f"{perth_name} · {fx_name} · {GCF_DATA_PATH.name}"
-    _save_proxy_synthetic("GLD", gold.chain, gld_df, GLD_SYNTHETIC_DATA_PATH, f"금 사슬 ({chain_label})")
+    chain_label = f"{perth_name} · {fx_name} · {GCF_DATA_PATH.name} (연 보수 {GLD_EXPENSE_RATIO:.1%} 뺌)"
+    _save_proxy_synthetic("GLD", gld_proxy, gld_df, GLD_SYNTHETIC_DATA_PATH, f"금 사슬 ({chain_label})")
     return [
-        ("GLD", chain_label, GLD_DATA_PATH.name, gold.chain, gld_df),
+        ("GLD", chain_label, GLD_DATA_PATH.name, gld_proxy, gld_df),
         ("GC=F", f"{perth_name} (달러)", GCF_DATA_PATH.name, gold.perth_usd, futures_df),
         ("Perth 달러", f"{perth_name} (호주달러) × {fx_name}", f"{perth_name} (달러)", gold.aud_in_usd, gold.perth_usd),
     ]

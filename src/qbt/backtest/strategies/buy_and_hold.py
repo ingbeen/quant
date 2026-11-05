@@ -17,10 +17,10 @@ import pandas as pd
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.common_constants import (
     BACKTEST_RESULTS_DIR,
-    GLD_DATA_PATH,
+    GLD_SYNTHETIC_DATA_PATH,
     QLD_SYNTHETIC_DATA_PATH,
-    QQQ_DATA_PATH,
-    TLT_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
 )
 
@@ -41,43 +41,39 @@ class BuyAndHoldConfig:
     display_name: str  # 전략 표시명 (예: "Buy & Hold (QQQ)")
     trade_data_path: Path  # 매매용 데이터 경로
     result_dir: Path  # 결과 저장 디렉토리
-    # 이 시세와 겹치는 날만 씀 — None 이면 매매 시세 전체. 상장 전까지 늘린 합성 시세를 실물 기간에 묶을 때 둔다
-    period_data_path: Path | None = None
 
 
 # 티커별 설정 목록 (새 티커 추가 시 여기에 한 줄 추가)
+# 매매 시세의 첫 행부터 돎 → 실물 파일로 되돌리면 기간이 상장일로 줄어듦 (docs/research/합성_시세_연장.md 결정 10)
 CONFIGS: list[BuyAndHoldConfig] = [
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_qqq",
         display_name="Buy & Hold (QQQ)",
-        trade_data_path=QQQ_DATA_PATH,
+        trade_data_path=QQQ_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_qqq",
     ),
-    # 합성 TQQQ · QLD 는 1985년부터라 QQQ 실물 기간에 묶음 — 기간을 늘릴지는 docs/research/합성_시세_연장.md 결정 10
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_tqqq",
         display_name="Buy & Hold (TQQQ)",
         trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tqqq",
-        period_data_path=QQQ_DATA_PATH,
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_qld",
         display_name="Buy & Hold (QLD)",
         trade_data_path=QLD_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_qld",
-        period_data_path=QQQ_DATA_PATH,
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_gld",
         display_name="Buy & Hold (GLD)",
-        trade_data_path=GLD_DATA_PATH,
+        trade_data_path=GLD_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_gld",
     ),
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_tlt",
         display_name="Buy & Hold (TLT)",
-        trade_data_path=TLT_DATA_PATH,
+        trade_data_path=TLT_SYNTHETIC_DATA_PATH,
         result_dir=BACKTEST_RESULTS_DIR / "buy_and_hold_tlt",
     ),
 ]

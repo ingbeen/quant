@@ -2,21 +2,21 @@
   "display_name": "버퍼존 전략 (QQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 112552506,
-    "total_return_pct": 1025.53,
-    "cagr": 9.43,
-    "mdd": -30.26,
-    "calmar": 0.3118,
-    "total_trades": 14,
-    "winning_trades": 11,
-    "losing_trades": 3,
-    "win_rate": 78.57,
-    "start_date": "1999-12-21",
+    "final_capital": 685786268,
+    "total_return_pct": 6757.86,
+    "cagr": 11.06,
+    "mdd": -43.36,
+    "calmar": 0.2552,
+    "total_trades": 23,
+    "winning_trades": 17,
+    "losing_trades": 6,
+    "win_rate": 73.91,
+    "start_date": "1986-07-16",
     "end_date": "2026-10-29",
     "open_position": {
       "entry_date": "2026-04-17",
       "entry_price": 646.1427,
-      "shares": 157341
+      "shares": 958685
     }
   },
   "params": {
@@ -29,29 +29,834 @@
   },
   "monthly_returns": [
     {
-      "year": 1999,
+      "year": 1986,
+      "month": 7,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1986,
+      "month": 8,
+      "return_pct": 1.78
+    },
+    {
+      "year": 1986,
+      "month": 9,
+      "return_pct": -11.25
+    },
+    {
+      "year": 1986,
+      "month": 10,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1986,
+      "month": 11,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1986,
       "month": 12,
       "return_pct": 0.0
     },
     {
-      "year": 2000,
+      "year": 1987,
+      "month": 1,
+      "return_pct": 2.16
+    },
+    {
+      "year": 1987,
+      "month": 2,
+      "return_pct": 9.64
+    },
+    {
+      "year": 1987,
+      "month": 3,
+      "return_pct": 1.8
+    },
+    {
+      "year": 1987,
+      "month": 4,
+      "return_pct": -0.65
+    },
+    {
+      "year": 1987,
+      "month": 5,
+      "return_pct": 2.13
+    },
+    {
+      "year": 1987,
+      "month": 6,
+      "return_pct": 0.25
+    },
+    {
+      "year": 1987,
+      "month": 7,
+      "return_pct": 3.76
+    },
+    {
+      "year": 1987,
+      "month": 8,
+      "return_pct": 6.74
+    },
+    {
+      "year": 1987,
+      "month": 9,
+      "return_pct": -1.94
+    },
+    {
+      "year": 1987,
+      "month": 10,
+      "return_pct": -30.16
+    },
+    {
+      "year": 1987,
+      "month": 11,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1987,
+      "month": 12,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1988,
       "month": 1,
       "return_pct": 0.0
     },
     {
-      "year": 2000,
+      "year": 1988,
       "month": 2,
       "return_pct": 0.0
     },
     {
-      "year": 2000,
+      "year": 1988,
       "month": 3,
       "return_pct": 0.0
     },
     {
+      "year": 1988,
+      "month": 4,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1988,
+      "month": 5,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1988,
+      "month": 6,
+      "return_pct": 4.84
+    },
+    {
+      "year": 1988,
+      "month": 7,
+      "return_pct": -4.16
+    },
+    {
+      "year": 1988,
+      "month": 8,
+      "return_pct": -5.61
+    },
+    {
+      "year": 1988,
+      "month": 9,
+      "return_pct": 4.89
+    },
+    {
+      "year": 1988,
+      "month": 10,
+      "return_pct": -2.56
+    },
+    {
+      "year": 1988,
+      "month": 11,
+      "return_pct": -5.19
+    },
+    {
+      "year": 1988,
+      "month": 12,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1989,
+      "month": 1,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1989,
+      "month": 2,
+      "return_pct": -2.72
+    },
+    {
+      "year": 1989,
+      "month": 3,
+      "return_pct": 1.13
+    },
+    {
+      "year": 1989,
+      "month": 4,
+      "return_pct": 7.85
+    },
+    {
+      "year": 1989,
+      "month": 5,
+      "return_pct": 7.02
+    },
+    {
+      "year": 1989,
+      "month": 6,
+      "return_pct": -4.64
+    },
+    {
+      "year": 1989,
+      "month": 7,
+      "return_pct": 4.74
+    },
+    {
+      "year": 1989,
+      "month": 8,
+      "return_pct": 3.61
+    },
+    {
+      "year": 1989,
+      "month": 9,
+      "return_pct": 1.98
+    },
+    {
+      "year": 1989,
+      "month": 10,
+      "return_pct": -1.67
+    },
+    {
+      "year": 1989,
+      "month": 11,
+      "return_pct": 0.82
+    },
+    {
+      "year": 1989,
+      "month": 12,
+      "return_pct": -0.27
+    },
+    {
+      "year": 1990,
+      "month": 1,
+      "return_pct": -10.0
+    },
+    {
+      "year": 1990,
+      "month": 2,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 3,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 4,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 5,
+      "return_pct": 3.03
+    },
+    {
+      "year": 1990,
+      "month": 6,
+      "return_pct": 0.98
+    },
+    {
+      "year": 1990,
+      "month": 7,
+      "return_pct": -6.32
+    },
+    {
+      "year": 1990,
+      "month": 8,
+      "return_pct": -9.55
+    },
+    {
+      "year": 1990,
+      "month": 9,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 10,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 11,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "month": 12,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1991,
+      "month": 1,
+      "return_pct": 5.43
+    },
+    {
+      "year": 1991,
+      "month": 2,
+      "return_pct": 7.61
+    },
+    {
+      "year": 1991,
+      "month": 3,
+      "return_pct": 5.91
+    },
+    {
+      "year": 1991,
+      "month": 4,
+      "return_pct": -0.47
+    },
+    {
+      "year": 1991,
+      "month": 5,
+      "return_pct": 5.82
+    },
+    {
+      "year": 1991,
+      "month": 6,
+      "return_pct": -8.89
+    },
+    {
+      "year": 1991,
+      "month": 7,
+      "return_pct": 7.07
+    },
+    {
+      "year": 1991,
+      "month": 8,
+      "return_pct": 5.6
+    },
+    {
+      "year": 1991,
+      "month": 9,
+      "return_pct": 0.05
+    },
+    {
+      "year": 1991,
+      "month": 10,
+      "return_pct": 1.73
+    },
+    {
+      "year": 1991,
+      "month": 11,
+      "return_pct": -2.64
+    },
+    {
+      "year": 1991,
+      "month": 12,
+      "return_pct": 16.18
+    },
+    {
+      "year": 1992,
+      "month": 1,
+      "return_pct": 2.25
+    },
+    {
+      "year": 1992,
+      "month": 2,
+      "return_pct": 2.24
+    },
+    {
+      "year": 1992,
+      "month": 3,
+      "return_pct": -6.6
+    },
+    {
+      "year": 1992,
+      "month": 4,
+      "return_pct": -4.7
+    },
+    {
+      "year": 1992,
+      "month": 5,
+      "return_pct": 2.42
+    },
+    {
+      "year": 1992,
+      "month": 6,
+      "return_pct": -7.69
+    },
+    {
+      "year": 1992,
+      "month": 7,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1992,
+      "month": 8,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1992,
+      "month": 9,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1992,
+      "month": 10,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1992,
+      "month": 11,
+      "return_pct": 7.35
+    },
+    {
+      "year": 1992,
+      "month": 12,
+      "return_pct": 2.63
+    },
+    {
+      "year": 1993,
+      "month": 1,
+      "return_pct": 2.88
+    },
+    {
+      "year": 1993,
+      "month": 2,
+      "return_pct": -5.24
+    },
+    {
+      "year": 1993,
+      "month": 3,
+      "return_pct": 2.36
+    },
+    {
+      "year": 1993,
+      "month": 4,
+      "return_pct": -5.42
+    },
+    {
+      "year": 1993,
+      "month": 5,
+      "return_pct": 8.29
+    },
+    {
+      "year": 1993,
+      "month": 6,
+      "return_pct": -0.54
+    },
+    {
+      "year": 1993,
+      "month": 7,
+      "return_pct": -3.62
+    },
+    {
+      "year": 1993,
+      "month": 8,
+      "return_pct": 5.61
+    },
+    {
+      "year": 1993,
+      "month": 9,
+      "return_pct": 2.7
+    },
+    {
+      "year": 1993,
+      "month": 10,
+      "return_pct": 2.16
+    },
+    {
+      "year": 1993,
+      "month": 11,
+      "return_pct": -1.08
+    },
+    {
+      "year": 1993,
+      "month": 12,
+      "return_pct": 2.98
+    },
+    {
+      "year": 1994,
+      "month": 1,
+      "return_pct": 3.94
+    },
+    {
+      "year": 1994,
+      "month": 2,
+      "return_pct": -0.44
+    },
+    {
+      "year": 1994,
+      "month": 3,
+      "return_pct": -7.09
+    },
+    {
+      "year": 1994,
+      "month": 4,
+      "return_pct": -4.64
+    },
+    {
+      "year": 1994,
+      "month": 5,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1994,
+      "month": 6,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1994,
+      "month": 7,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1994,
+      "month": 8,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1994,
+      "month": 9,
+      "return_pct": 0.27
+    },
+    {
+      "year": 1994,
+      "month": 10,
+      "return_pct": 4.87
+    },
+    {
+      "year": 1994,
+      "month": 11,
+      "return_pct": -1.99
+    },
+    {
+      "year": 1994,
+      "month": 12,
+      "return_pct": -0.14
+    },
+    {
+      "year": 1995,
+      "month": 1,
+      "return_pct": 0.26
+    },
+    {
+      "year": 1995,
+      "month": 2,
+      "return_pct": 6.7
+    },
+    {
+      "year": 1995,
+      "month": 3,
+      "return_pct": 3.39
+    },
+    {
+      "year": 1995,
+      "month": 4,
+      "return_pct": 5.01
+    },
+    {
+      "year": 1995,
+      "month": 5,
+      "return_pct": 3.95
+    },
+    {
+      "year": 1995,
+      "month": 6,
+      "return_pct": 10.23
+    },
+    {
+      "year": 1995,
+      "month": 7,
+      "return_pct": 5.73
+    },
+    {
+      "year": 1995,
+      "month": 8,
+      "return_pct": 1.39
+    },
+    {
+      "year": 1995,
+      "month": 9,
+      "return_pct": 1.44
+    },
+    {
+      "year": 1995,
+      "month": 10,
+      "return_pct": 2.34
+    },
+    {
+      "year": 1995,
+      "month": 11,
+      "return_pct": -0.85
+    },
+    {
+      "year": 1995,
+      "month": 12,
+      "return_pct": -2.95
+    },
+    {
+      "year": 1996,
+      "month": 1,
+      "return_pct": 2.71
+    },
+    {
+      "year": 1996,
+      "month": 2,
+      "return_pct": 5.24
+    },
+    {
+      "year": 1996,
+      "month": 3,
+      "return_pct": -2.11
+    },
+    {
+      "year": 1996,
+      "month": 4,
+      "return_pct": 9.36
+    },
+    {
+      "year": 1996,
+      "month": 5,
+      "return_pct": 3.85
+    },
+    {
+      "year": 1996,
+      "month": 6,
+      "return_pct": -2.18
+    },
+    {
+      "year": 1996,
+      "month": 7,
+      "return_pct": -6.1
+    },
+    {
+      "year": 1996,
+      "month": 8,
+      "return_pct": 4.33
+    },
+    {
+      "year": 1996,
+      "month": 9,
+      "return_pct": 11.15
+    },
+    {
+      "year": 1996,
+      "month": 10,
+      "return_pct": 1.96
+    },
+    {
+      "year": 1996,
+      "month": 11,
+      "return_pct": 10.91
+    },
+    {
+      "year": 1996,
+      "month": 12,
+      "return_pct": -1.52
+    },
+    {
+      "year": 1997,
+      "month": 1,
+      "return_pct": 12.2
+    },
+    {
+      "year": 1997,
+      "month": 2,
+      "return_pct": -7.71
+    },
+    {
+      "year": 1997,
+      "month": 3,
+      "return_pct": -6.28
+    },
+    {
+      "year": 1997,
+      "month": 4,
+      "return_pct": 9.75
+    },
+    {
+      "year": 1997,
+      "month": 5,
+      "return_pct": 9.62
+    },
+    {
+      "year": 1997,
+      "month": 6,
+      "return_pct": -0.16
+    },
+    {
+      "year": 1997,
+      "month": 7,
+      "return_pct": 15.64
+    },
+    {
+      "year": 1997,
+      "month": 8,
+      "return_pct": -2.98
+    },
+    {
+      "year": 1997,
+      "month": 9,
+      "return_pct": 2.15
+    },
+    {
+      "year": 1997,
+      "month": 10,
+      "return_pct": -7.07
+    },
+    {
+      "year": 1997,
+      "month": 11,
+      "return_pct": 3.03
+    },
+    {
+      "year": 1997,
+      "month": 12,
+      "return_pct": -10.88
+    },
+    {
+      "year": 1998,
+      "month": 1,
+      "return_pct": 0.0
+    },
+    {
+      "year": 1998,
+      "month": 2,
+      "return_pct": 7.14
+    },
+    {
+      "year": 1998,
+      "month": 3,
+      "return_pct": 2.22
+    },
+    {
+      "year": 1998,
+      "month": 4,
+      "return_pct": 2.25
+    },
+    {
+      "year": 1998,
+      "month": 5,
+      "return_pct": -4.49
+    },
+    {
+      "year": 1998,
+      "month": 6,
+      "return_pct": 12.19
+    },
+    {
+      "year": 1998,
+      "month": 7,
+      "return_pct": 2.99
+    },
+    {
+      "year": 1998,
+      "month": 8,
+      "return_pct": -17.2
+    },
+    {
+      "year": 1998,
+      "month": 9,
+      "return_pct": 17.99
+    },
+    {
+      "year": 1998,
+      "month": 10,
+      "return_pct": -12.31
+    },
+    {
+      "year": 1998,
+      "month": 11,
+      "return_pct": 11.24
+    },
+    {
+      "year": 1998,
+      "month": 12,
+      "return_pct": 17.85
+    },
+    {
+      "year": 1999,
+      "month": 1,
+      "return_pct": 15.86
+    },
+    {
+      "year": 1999,
+      "month": 2,
+      "return_pct": -9.49
+    },
+    {
+      "year": 1999,
+      "month": 3,
+      "return_pct": 8.8
+    },
+    {
+      "year": 1999,
+      "month": 4,
+      "return_pct": 2.38
+    },
+    {
+      "year": 1999,
+      "month": 5,
+      "return_pct": -3.14
+    },
+    {
+      "year": 1999,
+      "month": 6,
+      "return_pct": 10.75
+    },
+    {
+      "year": 1999,
+      "month": 7,
+      "return_pct": -1.79
+    },
+    {
+      "year": 1999,
+      "month": 8,
+      "return_pct": 5.47
+    },
+    {
+      "year": 1999,
+      "month": 9,
+      "return_pct": 0.84
+    },
+    {
+      "year": 1999,
+      "month": 10,
+      "return_pct": 9.24
+    },
+    {
+      "year": 1999,
+      "month": 11,
+      "return_pct": 11.79
+    },
+    {
+      "year": 1999,
+      "month": 12,
+      "return_pct": 24.32
+    },
+    {
+      "year": 2000,
+      "month": 1,
+      "return_pct": -1.85
+    },
+    {
+      "year": 2000,
+      "month": 2,
+      "return_pct": 19.02
+    },
+    {
+      "year": 2000,
+      "month": 3,
+      "return_pct": 2.58
+    },
+    {
       "year": 2000,
       "month": 4,
-      "return_pct": 13.22
+      "return_pct": -13.47
     },
     {
       "year": 2000,
@@ -1646,12 +2451,64 @@
   ],
   "yearly_returns": [
     {
+      "year": 1986,
+      "return_pct": -9.67
+    },
+    {
+      "year": 1987,
+      "return_pct": -12.03
+    },
+    {
+      "year": 1988,
+      "return_pct": -8.1
+    },
+    {
+      "year": 1989,
+      "return_pct": 18.47
+    },
+    {
+      "year": 1990,
+      "return_pct": -20.66
+    },
+    {
+      "year": 1991,
+      "return_pct": 50.09
+    },
+    {
+      "year": 1992,
+      "return_pct": -3.08
+    },
+    {
+      "year": 1993,
+      "return_pct": 10.58
+    },
+    {
+      "year": 1994,
+      "return_pct": -5.63
+    },
+    {
+      "year": 1995,
+      "return_pct": 42.54
+    },
+    {
+      "year": 1996,
+      "return_pct": 42.54
+    },
+    {
+      "year": 1997,
+      "return_pct": 13.98
+    },
+    {
+      "year": 1998,
+      "return_pct": 38.76
+    },
+    {
       "year": 1999,
-      "return_pct": 0.0
+      "return_pct": 98.68
     },
     {
       "year": 2000,
-      "return_pct": -15.0
+      "return_pct": -22.15
     },
     {
       "year": 2001,
@@ -1759,7 +2616,7 @@
     }
   ],
   "data_info": {
-    "signal_path": "storage/stock/QQQ_max.csv",
-    "trade_path": "storage/stock/QQQ_max.csv"
+    "signal_path": "storage/stock/QQQ_synthetic_max.csv",
+    "trade_path": "storage/stock/QQQ_synthetic_max.csv"
   }
 }

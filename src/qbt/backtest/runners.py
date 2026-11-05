@@ -150,10 +150,7 @@ def create_buy_and_hold_runner(config: BuyAndHoldConfig) -> Callable[[], SingleB
             SingleBacktestResult: 백테스트 결과 컨테이너
         """
         # 1. 데이터 로딩
-        if config.period_data_path is None:
-            trade_df = load_stock_data(config.trade_data_path)
-        else:
-            _, trade_df = load_signal_trade_pair(config.period_data_path, config.trade_data_path)
+        trade_df = load_stock_data(config.trade_data_path)
         signal_df = trade_df.copy()
 
         # 2. 전략 생성 및 실행 (MA 계산/필터링 불필요)
