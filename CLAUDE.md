@@ -25,7 +25,7 @@ QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다 (`src/qbt/`). 기
 quant/
 ├── src/qbt/    # 패키지 소스 코드 — backtest · tqqq · utils (상세: src/qbt/CLAUDE.md)
 ├── tests/      # 테스트 코드 (상세: tests/CLAUDE.md)
-├── scripts/    # CLI 스크립트 — data · backtest · tqqq (상세: scripts/CLAUDE.md)
+├── scripts/    # CLI 스크립트 — data · backtest (상세: scripts/CLAUDE.md)
 ├── docs/       # 문서 — plans/ 계획서 · research/ 연구 보고서 (상세: docs/CLAUDE.md)
 ├── storage/    # 데이터 저장소 (stock, etc, results)
 └── vendor/     # 서드파티 포크 (streamlit-lightweight-charts-v5)

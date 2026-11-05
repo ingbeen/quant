@@ -24,10 +24,17 @@ ETC_DIR: Final = STORAGE_DIR / "etc"  # 금리 등 기타 데이터 저장 디�
 RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토리
 BACKTEST_RESULTS_DIR: Final = RESULTS_DIR / "backtest"  # 백테스트 결과 저장 디렉토리
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
+PROXY_VALIDATION_RESULTS_DIR: Final = RESULTS_DIR / "proxy_validation"  # 1배 대용 ↔ 실물 검증 표
 
 # --- 데이터 파일 경로 ---
 # 나스닥 100 추종 ETF 데이터 파일 경로
 QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
+
+# 나스닥 100 지수 — QQQ 상장 전 구간의 대용
+NDX_DATA_PATH: Final = STOCK_DIR / "^NDX_max.csv"
+
+# 합성 QQQ 데이터 파일 경로 (상장 전은 나스닥 100 지수, 상장 후는 실물)
+QQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QQQ_synthetic_max.csv"
 
 # 합성 TQQQ · QLD 데이터 파일 경로 (시뮬레이션 생성)
 TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"

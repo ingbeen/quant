@@ -9,6 +9,7 @@ import pandas as pd
 from qbt.common_constants import (
     COL_CLOSE,
     COL_DATE,
+    COL_OPEN,
     COL_VOLUME,
     PRICE_COLUMNS,
     REQUIRED_COLUMNS,
@@ -66,3 +67,28 @@ def splice_proxy(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFram
     # 대용의 거래량은 실물 거래량이 아니다
     before_seam[COL_VOLUME] = 0
     return pd.concat([before_seam, actual_df[REQUIRED_COLUMNS]], ignore_index=True)
+
+
+def build_proxy_synthetic(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
+    """1배 대용 합성 시세 — 이음매 앞은 시가를 그날 종가로 바꾼 대용, 이음매부터는 실물 행 그대로.
+
+    지수 · 펀드 대용에는 진짜 시가가 없어 그날 종가로 둔다 — 신호 다음 날 시가 체결이 그날 종가 체결이 된다
+    (근거: `docs/research/합성_시세_연장.md` 결정 3).
+
+    Raises:
+        ValueError: splice_proxy 와 같다
+        RuntimeError: 이어 붙인 결과의 이음매 뒤 행이 실물과 다를 때 (내부 불변조건 위반 — 저장 전에 멈춘다)
+    """
+    proxy = proxy_df.copy()
+    proxy[COL_OPEN] = proxy[COL_CLOSE]
+    spliced = splice_proxy(proxy, actual_df)
+    _require_rows_from_seam_equal_actual(spliced, actual_df)
+    return spliced
+
+
+def _require_rows_from_seam_equal_actual(spliced: pd.DataFrame, actual_df: pd.DataFrame) -> None:
+    seam_date = actual_df[COL_DATE].iloc[0]
+    from_seam = spliced[spliced[COL_DATE] >= seam_date].reset_index(drop=True)
+    expected = actual_df[REQUIRED_COLUMNS].reset_index(drop=True)
+    if not from_seam.equals(expected):
+        raise RuntimeError(f"내부 불변조건 위반: 이음매({seam_date}) 뒤 행이 실물과 다릅니다 — 실물 {len(expected)}행, 결과 {len(from_seam)}행")

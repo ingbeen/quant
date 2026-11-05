@@ -23,6 +23,7 @@ from qbt.common_constants import (
     REQUIRED_COLUMNS,
 )
 from qbt.utils.proxy_series import (
+    build_proxy_synthetic,
     compute_seam_scale,
     rescale_to_actual,
     splice_proxy,
@@ -325,6 +326,122 @@ class TestSpliceProxy:
         pure_pre = pure[pure[COL_DATE] < DAYS[2]][price_cols].reset_index(drop=True)
         spliced_pre = spliced[spliced[COL_DATE] < DAYS[2]][price_cols].reset_index(drop=True)
         pd.testing.assert_frame_equal(pure_pre, spliced_pre)
+
+
+class TestBuildProxySynthetic:
+    """1배 대용 합성 — 이음매 앞은 시가를 그날 종가로 바꾼 대용, 이음매부터는 실물 행 그대로."""
+
+    PROXY_CLOSES = [10.0, 11.0, 12.0, 13.0, 14.0, 15.0]
+    # 대용 시가 ≠ 종가 — 받은 시가가 남으면 잡힘
+    PROXY_OPENS = [9.5, 10.4, 11.6, 12.9, 13.3, 14.8]
+    ACTUAL_CLOSES = [60.0, 66.0, 61.0, 70.0]
+    # 실물 시가 ≠ 종가 — 이음매 날까지 바꾸면 잡힘
+    ACTUAL_OPENS = [59.0, 64.0, 63.0, 68.0]
+
+    def _inputs(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+        proxy = _make_df(DAYS, self.PROXY_CLOSES, opens=self.PROXY_OPENS)
+        actual = _make_df(DAYS[2:], self.ACTUAL_CLOSES, opens=self.ACTUAL_OPENS, volumes=[7, 8, 9, 10])
+        return proxy, actual
+
+    def test_pre_seam_open_is_close(self) -> None:
+        """
+        목적: 이음매 앞 시가는 그날 종가다 — 진짜 시가가 없는 지수 · 펀드의 시가 칸을 쓰지 않는다
+
+        Given: 대용 시가가 종가와 다름, 이음매 DAYS[2]
+        When: build_proxy_synthetic
+        Then: DAYS[0] · DAYS[1] 의 시가 = 그날 종가
+        """
+        # Given
+        proxy, actual = self._inputs()
+
+        # When
+        result = build_proxy_synthetic(proxy, actual)
+
+        # Then
+        pre_seam = result[result[COL_DATE] < DAYS[2]]
+        assert len(pre_seam) == 2
+        assert pre_seam[COL_OPEN].tolist() == pre_seam[COL_CLOSE].tolist()
+
+    def test_pre_seam_only_open_differs_from_splice(self) -> None:
+        """
+        목적: 이음매 앞은 시가만 바뀌고 날짜 · 고가 · 저가 · 종가 · 거래량은 이어 붙인 대용 그대로다
+
+        Given: 같은 대용 · 실물
+        When: build_proxy_synthetic 과 splice_proxy
+        Then: 이음매 앞 행의 시가 밖 열이 같다
+        """
+        # Given
+        proxy, actual = self._inputs()
+
+        # When
+        result = build_proxy_synthetic(proxy, actual)
+        spliced = splice_proxy(proxy, actual)
+
+        # Then
+        other_cols = [COL_DATE, COL_HIGH, COL_LOW, COL_CLOSE, COL_VOLUME]
+        result_pre = result[result[COL_DATE] < DAYS[2]][other_cols].reset_index(drop=True)
+        spliced_pre = spliced[spliced[COL_DATE] < DAYS[2]][other_cols].reset_index(drop=True)
+        pd.testing.assert_frame_equal(result_pre, spliced_pre)
+
+    def test_rows_from_seam_equal_actual(self) -> None:
+        """
+        목적: 이음매 날부터는 실물 행 그대로다 — 이음매 날의 진짜 시가도 바꾸지 않는다
+
+        Given: 실물 시가가 종가와 다름
+        When: build_proxy_synthetic
+        Then: DAYS[2] 이후 행 = 실물 행
+        """
+        # Given
+        proxy, actual = self._inputs()
+
+        # When
+        result = build_proxy_synthetic(proxy, actual)
+
+        # Then
+        from_seam = result[result[COL_DATE] >= DAYS[2]].reset_index(drop=True)
+        pd.testing.assert_frame_equal(from_seam, actual.reset_index(drop=True))
+
+    def test_inputs_not_mutated(self) -> None:
+        """
+        목적: 입력 DataFrame 을 바꾸지 않는다
+
+        Given: 대용과 실물의 사본
+        When: build_proxy_synthetic
+        Then: 입력이 사본과 같다
+        """
+        # Given
+        proxy, actual = self._inputs()
+        proxy_copy, actual_copy = proxy.copy(), actual.copy()
+
+        # When
+        build_proxy_synthetic(proxy, actual)
+
+        # Then
+        pd.testing.assert_frame_equal(proxy, proxy_copy)
+        pd.testing.assert_frame_equal(actual, actual_copy)
+
+    def test_stops_when_rows_from_seam_differ(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        목적: 이어 붙인 결과의 이음매 뒤 행이 실물과 다르면 저장하기 전에 멈춘다 (불변 조건 ⑥)
+
+        Given: 이음매 날 시가를 종가로 덮어쓴 결과를 돌려주는 splice_proxy
+        When: build_proxy_synthetic
+        Then: RuntimeError (내부 불변조건 위반)
+        """
+
+        # Given
+        def splice_overwriting_seam_open(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFrame:
+            spliced = splice_proxy(proxy_df, actual_df)
+            seam_mask = spliced[COL_DATE] == actual_df[COL_DATE].iloc[0]
+            spliced.loc[seam_mask, COL_OPEN] = spliced.loc[seam_mask, COL_CLOSE]
+            return spliced
+
+        monkeypatch.setattr("qbt.utils.proxy_series.splice_proxy", splice_overwriting_seam_open)
+        proxy, actual = self._inputs()
+
+        # When / Then
+        with pytest.raises(RuntimeError, match="내부 불변조건 위반"):
+            build_proxy_synthetic(proxy, actual)
 
 
 class TestInputDateOrder:

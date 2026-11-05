@@ -79,7 +79,7 @@ qbt 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
 ## 시세 파일 이름 (`storage/stock/`)
 
 - `{TICKER}_max.csv`: 전체 기간 (다운로더는 늘 전체 기간을 받는다 — 시세를 읽는 코드가 모두 `*_max.csv` 경로 상수를 쓰고, 분석 기간은 다운로드가 아니라 분석 단계에서 자른다)
-- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 시뮬레이션, 상장 후는 실물)
+- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 대용 지수 · 시뮬레이션, 상장 후는 실물)
 - 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `^SPGSCI_max.csv` · `GC=F_max.csv`)
 
 데이터 · 결과 경로는 `common_constants.py` 의 경로 상수가 정본이다.

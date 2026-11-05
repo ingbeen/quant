@@ -18,7 +18,8 @@
 - `parallel_executor.py` — 병렬 실행 `execute_parallel_with_kwargs` (규칙은 `src/qbt/CLAUDE.md` 「병렬 처리」). 예외가 나면 `executor.shutdown(cancel_futures=True)` 로 끊는다 — `wait=False` 로 끊으면 `with` 블록의 종료가 취소 요청을 되돌려 남은 작업이 뒤에서 전부 돈다
 - `formatting.py` — 한글 폭을 계산하는 터미널 표 `TableLogger`. 출력은 `print_table` 하나다 — 로그 포맷이 함수 이름을 넣어, 헤더와 행을 다른 메서드가 찍으면 열이 어긋난다
 - `stock_downloader.py` — Yahoo Finance 다운로드와 시세 저장 `save_stock_csv`(가격 반올림 → 검사 → 저장). 다운로더와 합성 생성 스크립트가 같이 쓴다
-- `proxy_series.py` — 실물 ETF 상장 전 구간을 대용 시세로 채우는 가공 (이음매 스케일 · 이어 붙이기). 합성 TQQQ · QLD 가 상장 전 시뮬레이션을 실물에 이을 때 쓴다
+- `proxy_series.py` — 실물 ETF 상장 전 구간을 대용 시세로 채우는 가공 (이음매 스케일 · 이어 붙이기 · 1배 대용 합성 `build_proxy_synthetic`). 합성 TQQQ · QLD 가 상장 전 시뮬레이션을 실물에 이을 때도 쓴다
+- `proxy_comparison.py` — 대용 ↔ 실물 비교 (겹치는 기간의 일간 · 월간 상관, CAGR · MDD, 12개월 이동 상관 최저, 연도별 상관 · 수익)와 결과 표의 행 · 반올림. 합성 생성이 검증 표로 저장한다
 
 ---
 
@@ -26,3 +27,4 @@
 
 - **시세는 지우거나 메우지 않는다(보간 금지)**: 중복 날짜 · 가격 결측 · 0 · 음수는 ValueError 로 멈춘다
 - **대용 이음매는 실물 첫 거래일이다**: 대용은 그날 종가 비율로 가격만 스케일해 잇는다 (수익률 · 거래량 불변, 대용 구간 거래량 0)
+- **1배 대용 구간의 시가는 그날 종가다**: 지수 · 펀드에는 진짜 시가가 없다 — 실물 행과 레버리지 시뮬레이션(실물 QQQ 의 진짜 시가로 만든다)에는 걸지 않는다. 근거는 `docs/research/합성_시세_연장.md` 결정 3

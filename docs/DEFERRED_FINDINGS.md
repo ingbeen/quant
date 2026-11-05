@@ -33,7 +33,7 @@
 
 ## 합성 스크립트가 상품 표를 저장 경로로 잇는 한 줄을 지키는 테스트가 없다
 
-- **자리**: `scripts/tqqq/generate_synthetic.py:102` `main` 의 `save_stock_csv(merged_df, SYNTHETIC_DATA_PATHS[product_name], check_price_spikes=False)`. 표는 `src/qbt/tqqq/constants.py` 의 `DAILY_COMPARISON_TARGETS` · `SYNTHETIC_DATA_PATHS` 이고, 테스트 `tests/qbt/test_tqqq_simulation_outputs.py` `TestDailyComparisonTargets` 가 표의 값만 지킨다
+- **자리**: `scripts/data/generate_synthetic.py:234` `_generate_leveraged_synthetics` 의 `save_stock_csv(merged_df, SYNTHETIC_DATA_PATHS[product_name], check_price_spikes=False)`. 표는 `src/qbt/tqqq/constants.py` 의 `DAILY_COMPARISON_TARGETS` · `SYNTHETIC_DATA_PATHS` 이고, 테스트 `tests/qbt/test_tqqq_simulation_outputs.py` `TestDailyComparisonTargets` 가 표의 값만 지킨다
 - **무엇**: 그 줄을 `SYNTHETIC_DATA_PATHS["TQQQ"]` 로 잘못 고치면 QLD 2배 시세가 전략이 읽는 `TQQQ_synthetic_max.csv` 를 에러 없이 덮어쓰는데, 전체 테스트가 통과한다 — 테스트는 scripts 를 불러오지 않는다. 배율 · 실물 시세를 넘기는 자리도 같다. 지금 코드는 맞게 잇고, 생성 파일은 실물 행 · QQQ 대비 기울기 대조로 확인했다. 막으려면 상품 하나의 합성 표를 돌려주는 함수를 `src/qbt/tqqq` 로 옮겨 테스트가 부르게 해야 한다
 - **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
 - **출처**: PLAN_qld_synthetic (2026-11-01) 코드 리뷰 2회차 — 사용자가 고른 범위(파일 생성만)를 넘어 고치지 않고 옮김

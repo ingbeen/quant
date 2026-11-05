@@ -38,16 +38,14 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 데이터 (`data/`):
 
 - `download_data.py` — 시세 다운로드. 늘 전체 기간을 받아 `{TICKER}_max.csv` 로 저장하고, 티커를 주지 않으면 `DEFAULT_TICKERS` 를 받는다
+- `generate_synthetic.py` — 합성 시세 전부: 1배 대용 합성(대상 표 `PROXY_TARGETS`, QQQ ← 나스닥 100 지수)과 TQQQ · QLD 레버리지 합성(상품 표는 `src/qbt/tqqq/constants.py`). 1배 대용은 대용 ↔ 실물 검증 표를 저장하고 콘솔에 직전 저장값과 나란히 낸다
+- **새 시세를 받을 때 사용자는 이 둘만 돌린다** (사용자 요청 2026-11-05) — 그래서 야후에서 받는 원본 시세는 모두 `DEFAULT_TICKERS` 에 두고, 합성 시세(`*_synthetic_max.csv`)는 모두 `generate_synthetic.py` 가 만든다. 어긋나도 에러가 없다 — 빠진 시세만 낡은 채 남는다. 월별 금리 · 운용비율(`storage/etc`)은 손으로 갱신하고, 낡으면 레버리지 합성이 멈춘다(COMMANDS 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②)
 
 백테스트 (`backtest/`):
 
 - `run_single_backtest.py` · `run_walkforward.py` · `run_param_plateau_all.py` — 단일 전략 · 워크포워드 · 파라미터 고원. 단일 전략은 버퍼존 · Buy & Hold 의 설정 목록을 모두 돌고, 대시보드가 같은 목록을 읽는다
 - `run_portfolio_backtest.py` — 포트폴리오 실험. 데이터 기준 시작일이 `DEFAULT_PORTFOLIO_START_DATE` 보다 이르면 그 하한으로 끌어올리고, 설정에 `min_start_date` 가 있는 실험은 그 날짜에 시작한다
 - 대시보드 `app_single_backtest.py` · `app_portfolio_backtest.py` · `app_walkforward.py` · `app_parameter_stability.py` — 화면 구성은 각 앱 docstring, 세 앱이 같이 쓰는 차트는 `src/qbt/backtest/dashboard_charts.py`. 포트폴리오 대시보드에 체결일별 전후 표는 두지 않는다 — 체결일의 자산별 주수 · 비중 · 평가액은 `equity.csv` · `state_log.csv` 에 이미 있다
-
-레버리지 시뮬레이션 (`tqqq/`):
-
-- `generate_synthetic.py` — TQQQ · QLD 합성 시세 (상장 전은 시뮬레이션, 상장 후는 실물, 상품 표는 `tqqq/constants.py`)
 
 ---
 
