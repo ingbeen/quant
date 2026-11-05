@@ -22,6 +22,7 @@ from urllib.request import urlopen
 
 import pandas as pd
 
+from qbt.common_constants import FRED_DATE_COLUMN
 from qbt.tqqq.constants import (
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
@@ -46,8 +47,7 @@ MAX_EXPENSE_MONTHS_DIFF = 12
 
 # FRED 월별 연방기금금리 (월평균, %)
 FRED_FFR_CSV_URL: Final = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS"
-# 머리까지 고정 — FRED 는 날짜 열 이름을 바꾼 적이 있음(DATE → observation_date)
-_FRED_COLUMNS: Final = ("observation_date", "FEDFUNDS")
+_FRED_COLUMNS: Final = (FRED_DATE_COLUMN, "FEDFUNDS")
 _FRED_MONTH_START_PATTERN: Final = rf"{MONTH_KEY_PATTERN}-01"
 _FRED_TIMEOUT_SECONDS: Final = 60
 # FRED 는 % 2자리 → 비율 4자리라 손실 없음. 더 깊은 값이 와도 잃지 않게 넉넉히 둠

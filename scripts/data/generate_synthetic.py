@@ -4,8 +4,10 @@
 실물 ETF 상장 전 구간을 채운 합성 시세({TICKER}_synthetic_max.csv)를 모두 만들고 검증 표를 남긴다.
 새 시세를 받으면 download_data.py 다음에 이 스크립트 하나만 돌린다.
 
-1. 1배 대용 합성 (대상 표 PROXY_TARGETS): 실물 첫 거래일 앞은 그날 종가 비율로 맞춘 대용(시가 = 그날 종가),
-   그날부터는 실물 행 그대로 (qbt.utils.proxy_series.build_proxy_synthetic). 검증 ① 대용 ↔ 실물
+1. 1배 대용 합성 (대상 표 PROXY_TARGETS 와 GLD): 실물 첫 거래일 앞은 그날 종가 비율로 맞춘 대용(시가 = 그날 종가),
+   그날부터는 실물 행 그대로 (qbt.utils.proxy_series.build_proxy_synthetic). GLD 의 대용은 미국 거래일에 붙인 금 사슬
+   「Perth 호주달러 × 환율 → Perth 달러 → 금 선물」이다 (qbt.utils.gold_proxy). 검증 ① 대용 ↔ 실물 — 금 사슬은 이음매마다,
+   비교에서 빠진 날 수와 함께
 2. 레버리지 합성 (상품 표 qbt.tqqq.constants.LEVERAGED_SYNTHETIC_TARGETS — 상품마다 기초인 1배 합성): 저장한 기초 전체를
    SoftPlus 동적 스프레드 모델로 시뮬레이션하고(가산금리 상한은 1998-12 까지의 달에만), 실제 ETF 첫 거래일 앞은 합성,
    그날부터는 실제 ETF 로 잇는다 (qbt.tqqq.synthetic)
@@ -14,7 +16,7 @@
 검증 숫자로는 멈추지 않는다 — 멈추는 것은 이어 붙인 결과의 이음매 뒤 행이 실물과 다를 때와, 상품 표와 ④ 대상 표의
 기초가 어긋날 때다. 검증 표는 저장한 뒤 콘솔에 직전 저장값과 나란히 낸다 — 연도별 · 해마다 표는 CSV 만.
 
-출력: storage/stock/ 의 두 표가 정한 합성 파일({TICKER}_synthetic_max.csv),
+출력: storage/stock/ 의 두 표가 정한 합성 파일과 GLD 합성({TICKER}_synthetic_max.csv),
       storage/results/proxy_validation/ 의 summary.csv · years.csv (①), tracking.csv (②),
       funds.csv · fund_years.csv (③), assumptions.csv (④)
 
@@ -31,8 +33,13 @@ from typing import Final
 import pandas as pd
 
 from qbt.common_constants import (
+    AUD_USD_DATA_PATH,
     COL_DATE,
+    GCF_DATA_PATH,
+    GLD_DATA_PATH,
+    GLD_SYNTHETIC_DATA_PATH,
     NDX_DATA_PATH,
+    PERTH_MINT_GOLD_DATA_PATH,
     PROXY_VALIDATION_RESULTS_DIR,
     QLD_SYNTHETIC_DATA_PATH,
     QQQ_DATA_PATH,
@@ -43,9 +50,12 @@ from qbt.common_constants import (
     SPY_DATA_PATH,
     SPY_SYNTHETIC_DATA_PATH,
     SSO_SYNTHETIC_DATA_PATH,
+    TLT_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
     ULPIX_DATA_PATH,
     UOPIX_DATA_PATH,
     VFINX_DATA_PATH,
+    VUSTX_DATA_PATH,
 )
 from qbt.tqqq.constants import EXPENSE_RATIO_DATA_PATH, FFR_DATA_PATH
 from qbt.tqqq.data_loader import create_ffr_dict, load_monthly_data
@@ -69,9 +79,11 @@ from qbt.utils import get_logger
 from qbt.utils.cli_helpers import cli_exception_handler
 from qbt.utils.data_loader import load_stock_data
 from qbt.utils.formatting import Align, TableLogger
+from qbt.utils.gold_proxy import build_gold_proxy, load_gold_proxy_sources
 from qbt.utils.proxy_comparison import (
     DISPLAY_ACTUAL_CAGR,
     DISPLAY_ACTUAL_MDD,
+    DISPLAY_ACTUAL_ONLY_DAYS,
     DISPLAY_CAGR_DIFF,
     DISPLAY_DAILY_CORR,
     DISPLAY_END,
@@ -79,6 +91,7 @@ from qbt.utils.proxy_comparison import (
     DISPLAY_MONTHLY_CORR,
     DISPLAY_PROXY_CAGR,
     DISPLAY_PROXY_MDD,
+    DISPLAY_PROXY_ONLY_DAYS,
     DISPLAY_ROLLING_MIN,
     DISPLAY_ROLLING_MIN_DATE,
     DISPLAY_START,
@@ -86,11 +99,13 @@ from qbt.utils.proxy_comparison import (
     PairSummary,
     align_closes,
     calendar_year_periods,
+    count_unmatched_days,
     pair_summary_record,
     period_summary_records,
     round_for_display,
     summarize_pair,
     summarize_periods,
+    unmatched_days_record,
 )
 from qbt.utils.proxy_series import build_proxy_synthetic
 from qbt.utils.stock_downloader import save_stock_csv
@@ -101,7 +116,11 @@ logger = get_logger(__name__)
 PROXY_TARGETS: Final[tuple[tuple[str, Path, Path, Path], ...]] = (
     ("QQQ", NDX_DATA_PATH, QQQ_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH),
     ("SPY", VFINX_DATA_PATH, SPY_DATA_PATH, SPY_SYNTHETIC_DATA_PATH),
+    ("TLT", VUSTX_DATA_PATH, TLT_DATA_PATH, TLT_SYNTHETIC_DATA_PATH),
 )
+
+# 금 사슬을 붙일 미국 거래일 — 1980-01-02 부터 있는 저장소 시세는 VFINX 뿐이고, 첫날이 금 합성의 첫날 (결정 6)
+US_CALENDAR_DATA_PATH: Final = VFINX_DATA_PATH
 
 # 레버리지 ETF 상장 전 펀드의 배율 — 검증 ③
 UOPIX_LEVERAGE: Final = 2.0  # ProFunds 나스닥 100 2배
@@ -184,6 +203,8 @@ CONSOLE_SUMMARY_COLUMNS: Final = (
     DISPLAY_MDD_DIFF,
     DISPLAY_ROLLING_MIN,
     DISPLAY_ROLLING_MIN_DATE,
+    DISPLAY_PROXY_ONLY_DAYS,
+    DISPLAY_ACTUAL_ONLY_DAYS,
 )
 
 _CSV_ENCODING = "utf-8-sig"
@@ -255,37 +276,75 @@ def _save_and_show(
     _print_against_previous(previous, _read_table_as_text(path, key_columns), columns, title)
 
 
+def _save_proxy_synthetic(
+    name: str, proxy_df: pd.DataFrame, actual_df: pd.DataFrame, output_path: Path, proxy_label: str
+) -> None:
+    synthetic_df = build_proxy_synthetic(proxy_df, actual_df)
+    save_stock_csv(synthetic_df, output_path)
+    logger.debug(
+        f"{name}: 이음매 {actual_df[COL_DATE].iloc[0]} 앞 {len(synthetic_df) - len(actual_df):,}행을 "
+        f"{proxy_label} 로 채움, 이음매 뒤 {len(actual_df):,}행은 실물과 같음"
+    )
+
+
+def _proxy_pair_rows(
+    name: str, proxy_label: str, actual_label: str, proxy_df: pd.DataFrame, actual_df: pd.DataFrame
+) -> tuple[PairSummary, dict[str, object], list[dict[str, object]]]:
+    """검증 ① 한 대상 — (비교 요약, 요약 표의 행, 연도별 표의 행)."""
+    aligned = align_closes(proxy_df, actual_df)
+    summary = summarize_pair(aligned)
+    identity = {DISPLAY_TARGET: name}
+    summary_row: dict[str, object] = {
+        **identity,
+        DISPLAY_PROXY_FILE: proxy_label,
+        DISPLAY_ACTUAL_FILE: actual_label,
+        DISPLAY_PROXY_FIRST_DATE: proxy_df[COL_DATE].iloc[0],
+        **pair_summary_record(summary),
+        **unmatched_days_record(count_unmatched_days(proxy_df, actual_df)),
+    }
+    years = summarize_periods(aligned, calendar_year_periods(summary.start, summary.end))
+    return summary, summary_row, [{**identity, **record} for record in period_summary_records(years)]
+
+
+def _gold_pairs() -> list[tuple[str, str, str, pd.DataFrame, pd.DataFrame]]:
+    """GLD 합성을 금 사슬로 만들어 저장하고, 검증 ① 에 낼 (이름, 대용 이름, 실물 이름, 대용, 실물) 을 돌려준다.
+
+    사슬 안 이음매 둘(GC=F 앞 · 1991년 앞)은 합성 파일이 없어, 다음 고리와 견주는 이 자리가 유일한 검증이다.
+    """
+    perth_df, aud_usd_df = load_gold_proxy_sources(PERTH_MINT_GOLD_DATA_PATH, AUD_USD_DATA_PATH)
+    futures_df = load_stock_data(GCF_DATA_PATH)
+    us_dates = load_stock_data(US_CALENDAR_DATA_PATH)[COL_DATE].tolist()
+    gold = build_gold_proxy(perth_df, aud_usd_df, futures_df, us_dates)
+    gld_df = load_stock_data(GLD_DATA_PATH)
+
+    perth_name, fx_name = PERTH_MINT_GOLD_DATA_PATH.name, AUD_USD_DATA_PATH.name
+    chain_label = f"{perth_name} · {fx_name} · {GCF_DATA_PATH.name}"
+    _save_proxy_synthetic("GLD", gold.chain, gld_df, GLD_SYNTHETIC_DATA_PATH, f"금 사슬 ({chain_label})")
+    return [
+        ("GLD", chain_label, GLD_DATA_PATH.name, gold.chain, gld_df),
+        ("GC=F", f"{perth_name} (달러)", GCF_DATA_PATH.name, gold.perth_usd, futures_df),
+        ("Perth 달러", f"{perth_name} (호주달러) × {fx_name}", f"{perth_name} (달러)", gold.aud_in_usd, gold.perth_usd),
+    ]
+
+
 def _generate_proxy_synthetics() -> dict[str, PairSummary]:
     """1배 대용 합성 시세를 만들고, 대용 ↔ 실물 검증 표를 저장 · 표시한다. 대상별 비교 요약을 돌려준다."""
-    summaries: dict[str, PairSummary] = {}
-    summary_rows: list[dict[str, object]] = []
-    year_rows: list[dict[str, object]] = []
+    pairs: list[tuple[str, str, str, pd.DataFrame, pd.DataFrame]] = []
     for name, proxy_path, actual_path, output_path in PROXY_TARGETS:
         proxy_df = load_stock_data(proxy_path)
         actual_df = load_stock_data(actual_path)
+        _save_proxy_synthetic(name, proxy_df, actual_df, output_path, proxy_path.name)
+        pairs.append((name, proxy_path.name, actual_path.name, proxy_df, actual_df))
+    pairs.extend(_gold_pairs())
 
-        synthetic_df = build_proxy_synthetic(proxy_df, actual_df)
-        save_stock_csv(synthetic_df, output_path)
-        logger.debug(
-            f"{name}: 이음매 {actual_df[COL_DATE].iloc[0]} 앞 {len(synthetic_df) - len(actual_df):,}행을 "
-            f"{proxy_path.name} 로 채움, 이음매 뒤 {len(actual_df):,}행은 실물과 같음"
-        )
-
-        aligned = align_closes(proxy_df, actual_df)
-        summary = summarize_pair(aligned)
+    summaries: dict[str, PairSummary] = {}
+    summary_rows: list[dict[str, object]] = []
+    year_rows: list[dict[str, object]] = []
+    for name, proxy_label, actual_label, proxy_df, actual_df in pairs:
+        summary, summary_row, years = _proxy_pair_rows(name, proxy_label, actual_label, proxy_df, actual_df)
         summaries[name] = summary
-        identity = {DISPLAY_TARGET: name}
-        summary_rows.append(
-            {
-                **identity,
-                DISPLAY_PROXY_FILE: proxy_path.name,
-                DISPLAY_ACTUAL_FILE: actual_path.name,
-                DISPLAY_PROXY_FIRST_DATE: proxy_df[COL_DATE].iloc[0],
-                **pair_summary_record(summary),
-            }
-        )
-        years = summarize_periods(aligned, calendar_year_periods(summary.start, summary.end))
-        year_rows.extend({**identity, **record} for record in period_summary_records(years))
+        summary_rows.append(summary_row)
+        year_rows.extend(years)
 
     summary_path = PROXY_VALIDATION_RESULTS_DIR / _SUMMARY_FILENAME
     years_path = PROXY_VALIDATION_RESULTS_DIR / _YEARS_FILENAME

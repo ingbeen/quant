@@ -38,6 +38,7 @@ from qbt.utils.proxy_comparison import (
     Period,
     align_closes,
     calendar_year_periods,
+    count_unmatched_days,
     pair_summary_record,
     period_summary_records,
     rolling_correlation,
@@ -672,3 +673,65 @@ class TestAlignedInputValidation:
         # When / Then
         with pytest.raises(ValueError, match="align_closes"):
             self._call(name, renamed)
+
+
+class TestCountUnmatchedDays:
+    """비교에서 빠진 날 — align_closes 가 견주는 기간(실물 첫날 ~ 두 시세 끝 중 이른 날) 안에서 한쪽에만 있는 날"""
+
+    def test_counts_days_on_one_side_within_window(self) -> None:
+        """
+        목적: 겹치는 기간 안에서 대용에만 · 실물에만 있는 날을 센다 — 실물 첫날 앞 · 이른 끝날 뒤의 날은 세지 않는다
+
+        Given: 대용 DAYS[0] ~ DAYS[7] 에서 DAYS[2] 빠짐, 실물 DAYS[1] ~ DAYS[6] 에서 DAYS[4] 빠짐
+        When: count_unmatched_days
+        Then: 대용에만 1 (DAYS[4]), 실물에만 1 (DAYS[2]) — DAYS[0] (실물 첫날 앞) · DAYS[7] (실물 끝 뒤) 는 세지 않음
+        """
+        # Given
+        proxy_days = [d for i, d in enumerate(DAYS) if i != 2]
+        actual_days = [d for i, d in enumerate(DAYS[1:7], start=1) if i != 4]
+        proxy = _make_df(proxy_days, [100.0 + i for i in range(len(proxy_days))])
+        actual = _make_df(actual_days, [50.0 + i for i in range(len(actual_days))])
+
+        # When
+        unmatched = count_unmatched_days(proxy, actual)
+
+        # Then
+        assert (unmatched.proxy_only, unmatched.actual_only) == (1, 1)
+
+    def test_same_calendar_counts_zero(self) -> None:
+        """
+        목적: 달력이 같으면 0 · 0 이다 (QQQ · SPY 대용의 경계 — 대용이 실물보다 먼저 시작해도 앞의 날은 세지 않는다)
+
+        Given: 대용 DAYS 전부, 실물 DAYS[3:]
+        When: count_unmatched_days
+        Then: 0 · 0
+        """
+        # Given
+        proxy = _make_df(DAYS, [100.0 + i for i in range(len(DAYS))])
+        actual = _make_df(DAYS[3:], [50.0 + i for i in range(len(DAYS) - 3)])
+
+        # When
+        unmatched = count_unmatched_days(proxy, actual)
+
+        # Then
+        assert (unmatched.proxy_only, unmatched.actual_only) == (0, 0)
+
+    def test_window_ends_at_earlier_end(self) -> None:
+        """
+        목적: 비교 기간의 끝은 두 시세의 끝 중 이른 날이다 — 대용이 먼저 끝나면 그 뒤 실물 날은 「실물에만」으로 세지 않는다
+              (금 사슬의 Perth 달러 ↔ GC=F 처럼 대용이 2015 에 끝나고 실물은 그 뒤로 이어지는 경우)
+
+        Given: 대용 DAYS[0] ~ DAYS[4], 실물 DAYS[1] ~ DAYS[7] 에서 DAYS[3] 빠짐
+        When: count_unmatched_days
+        Then: 대용에만 1 (DAYS[3]), 실물에만 0 — DAYS[5] ~ DAYS[7] 은 대용 끝 뒤라 세지 않음
+        """
+        # Given
+        proxy = _make_df(DAYS[:5], [100.0 + i for i in range(5)])
+        actual_days = [d for i, d in enumerate(DAYS[1:], start=1) if i != 3]
+        actual = _make_df(actual_days, [50.0 + i for i in range(len(actual_days))])
+
+        # When
+        unmatched = count_unmatched_days(proxy, actual)
+
+        # Then
+        assert (unmatched.proxy_only, unmatched.actual_only) == (1, 0)

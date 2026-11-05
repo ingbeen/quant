@@ -37,3 +37,10 @@
 - **무엇**: 손으로 고치는 운용비율 파일(`storage/etc/tqqq_net_expense_ratio_monthly.csv`)에 `2026-3` 처럼 0 을 빠뜨린 줄이 들어와도 에러가 없다. 조회(`_lookup_monthly_data`)는 그 달을 `"2026-03"` 으로 찾고, 없으면 이전 달을 문자열 비교로 고르는데 `"2026-3"` 은 `"2026-03"` ~ `"2026-09"` 보다 크게 비교되어 쓰이지 않는다 — 그 달들은 허용 개월 수(12) 안의 직전 값을 써서 새 운용비율이 조용히 무시된다. `min(...)` 로 파일 첫 달을 고르는 운용비율 확장도 같은 비교에 기댄다. 지금 두 파일의 키는 모두 모양이 맞다(금리 868 / 868 · 운용비율 193 / 193, 2026-11-05). 막으려면 `_create_monthly_data_dict` 에서 키를 `MONTH_KEY_PATTERN` 으로 한 번 검사한다
 - **종류**: 무거운 버그 (위험한 쪽으로 틀린다 — 틀린 비용 입력이 에러 없이 합성에 들어간다)
 - **출처**: PLAN_leveraged_extension (2026-11-05) 코드 리뷰 1회차 — 이 계획이 바꾸지 않은 기존 함수라 고치지 않고 옮김
+
+## 비교에서 빠진 날 세기의 경계 포함을 테스트가 고정하지 않는다
+
+- **자리**: `src/qbt/utils/proxy_comparison.py:180` `count_unmatched_days` 의 안쪽 함수 `within` — `(dates >= start) & (dates <= end)`. 테스트는 `tests/qbt/test_proxy_comparison.py` `TestCountUnmatchedDays` 세 건
+- **무엇**: `dates <= end` 를 `dates < end` 로, `dates >= start` 를 `dates > start` 로 바꾼 변형이 세 테스트를 모두 통과한다. 그 변형이면 비교 기간의 첫날 · 끝날이 한쪽 시세에만 있을 때 「대용에만 · 실물에만 있는 날」이 하루 적게 나와 `storage/results/proxy_validation/summary.csv` 에 에러 없이 저장된다. 지금 여섯 쌍(QQQ · SPY · TLT · GLD · GC=F · Perth 달러)은 첫날 · 끝날이 양쪽에 다 있어 값 차이가 0 이다(2026-11-05). 첫날은 이음매 날이라 `splice_proxy` 가 대용에 있기를 요구하지만, 끝날은 다시 받은 시세의 끝이 달라지면 한쪽에만 있을 수 있다. 막으려면 첫날 · 끝날이 한쪽에만 있는 입력의 테스트를 더한다
+- **종류**: 가벼운 버그 (검사 공백 — 막는 결함은 진단 열의 하루 차이)
+- **출처**: PLAN_proxy_tlt_gld (2026-11-05) 코드 리뷰 2회차 수정분 검증 — 판정할 수 없어 옮김

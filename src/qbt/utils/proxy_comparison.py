@@ -39,6 +39,8 @@ DISPLAY_PERIOD: Final = "기간"
 DISPLAY_PROXY_RETURN: Final = "대용 수익률(%)"
 DISPLAY_ACTUAL_RETURN: Final = "실물 수익률(%)"
 DISPLAY_RETURN_DIFF: Final = "수익률 차(%p)"
+DISPLAY_PROXY_ONLY_DAYS: Final = "대용에만 있는 날"
+DISPLAY_ACTUAL_ONLY_DAYS: Final = "실물에만 있는 날"
 # 저장 · 표시할 때 자릿수를 고르는 열 종류 (상관 = 비율, 나머지 = %)
 RATIO_DISPLAY_COLUMNS: Final = (DISPLAY_DAILY_CORR, DISPLAY_MONTHLY_CORR, DISPLAY_ROLLING_MIN)
 PERCENT_DISPLAY_COLUMNS: Final = (
@@ -150,6 +152,40 @@ def align_closes(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd.DataFram
         start = actual_df[COL_DATE].iloc[0]
         raise ValueError(f"두 시세의 겹치는 날이 2개 미만입니다({len(merged)}개) — 실물 첫 거래일 {start} 이후에 대용 시세가 있는지 확인하세요")
     return merged[[COL_DATE, COL_PROXY, COL_ACTUAL]]
+
+
+@dataclass(frozen=True)
+class UnmatchedDays:
+    """align_closes 가 견주는 기간 안에서 한쪽 시세에만 있는 날 수 — 비교에서 빠진 날."""
+
+    proxy_only: int
+    actual_only: int
+
+
+def count_unmatched_days(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> UnmatchedDays:
+    """실물 첫 거래일 ~ 두 시세의 끝 중 이른 날 안에서 대용에만 · 실물에만 있는 날을 센다.
+
+    시장 달력이 다른 대용(금 · 선물)은 상관이 몇 날로 계산됐는지가 이 수로 드러난다.
+
+    Raises:
+        ValueError: 날짜가 중복 없는 오름차순이 아닐 때
+    """
+    require_strictly_increasing_dates(proxy_df, "대용")
+    require_strictly_increasing_dates(actual_df, "실물")
+    start = actual_df[COL_DATE].iloc[0]
+    end = min(proxy_df[COL_DATE].iloc[-1], actual_df[COL_DATE].iloc[-1])
+
+    def within(df: pd.DataFrame) -> set[date]:
+        dates = df[COL_DATE]
+        return set(dates[(dates >= start) & (dates <= end)].tolist())
+
+    proxy_dates, actual_dates = within(proxy_df), within(actual_df)
+    return UnmatchedDays(proxy_only=len(proxy_dates - actual_dates), actual_only=len(actual_dates - proxy_dates))
+
+
+def unmatched_days_record(unmatched: UnmatchedDays) -> dict[str, object]:
+    """비교에서 빠진 날의 결과 표 열."""
+    return {DISPLAY_PROXY_ONLY_DAYS: unmatched.proxy_only, DISPLAY_ACTUAL_ONLY_DAYS: unmatched.actual_only}
 
 
 def rolling_correlation(aligned: pd.DataFrame, window: int) -> pd.Series:
