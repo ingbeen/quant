@@ -24,7 +24,7 @@ ETC_DIR: Final = STORAGE_DIR / "etc"  # 금리 등 기타 데이터 저장 디�
 RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토리
 BACKTEST_RESULTS_DIR: Final = RESULTS_DIR / "backtest"  # 백테스트 결과 저장 디렉토리
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
-PROXY_VALIDATION_RESULTS_DIR: Final = RESULTS_DIR / "proxy_validation"  # 1배 대용 ↔ 실물 검증 표
+PROXY_VALIDATION_RESULTS_DIR: Final = RESULTS_DIR / "proxy_validation"  # 상장 전 구간을 채운 합성 시세의 검증 표
 
 # --- 데이터 파일 경로 ---
 # 나스닥 100 추종 ETF 데이터 파일 경로
@@ -48,6 +48,13 @@ TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
 # 2배 레버리지 ETF 데이터 파일 경로
 SSO_DATA_PATH: Final = STOCK_DIR / "SSO_max.csv"
 QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
+
+# 레버리지 ETF 상장 전의 펀드 — 합성의 상장 전 구간 대조
+UOPIX_DATA_PATH: Final = STOCK_DIR / "UOPIX_max.csv"  # ProFunds 나스닥 100 2배
+RYNVX_DATA_PATH: Final = STOCK_DIR / "RYNVX_max.csv"  # Rydex S&P 500 1.5배
+
+# S&P 500 인덱스 펀드 (배당 포함) — RYNVX 대조의 기초
+VFINX_DATA_PATH: Final = STOCK_DIR / "VFINX_max.csv"
 
 # ============================================================
 # 데이터 상수

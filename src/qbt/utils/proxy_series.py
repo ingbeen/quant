@@ -82,11 +82,16 @@ def build_proxy_synthetic(proxy_df: pd.DataFrame, actual_df: pd.DataFrame) -> pd
     proxy = proxy_df.copy()
     proxy[COL_OPEN] = proxy[COL_CLOSE]
     spliced = splice_proxy(proxy, actual_df)
-    _require_rows_from_seam_equal_actual(spliced, actual_df)
+    require_rows_from_seam_equal_actual(spliced, actual_df)
     return spliced
 
 
-def _require_rows_from_seam_equal_actual(spliced: pd.DataFrame, actual_df: pd.DataFrame) -> None:
+def require_rows_from_seam_equal_actual(spliced: pd.DataFrame, actual_df: pd.DataFrame) -> None:
+    """이어 붙인 시세의 이음매(실물 첫 거래일)부터 행이 실물 행과 같은지 본다 — 저장 전 검사 (불변 조건 ⑥).
+
+    Raises:
+        RuntimeError: 다를 때 (내부 불변조건 위반)
+    """
     seam_date = actual_df[COL_DATE].iloc[0]
     from_seam = spliced[spliced[COL_DATE] >= seam_date].reset_index(drop=True)
     expected = actual_df[REQUIRED_COLUMNS].reset_index(drop=True)

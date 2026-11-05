@@ -6,7 +6,8 @@ TQQQ 도메인 전용 데이터 로더 테스트
 2. 파일이 없을 때 명확한 에러를 내는가?
 3. FFR/Expense 딕셔너리 생성 및 조회가 정확한가?
 4. 월별 데이터 중복/갭 · 상한을 넘는 값(% 로 적은 값) 검증이 작동하는가?
-5. 운용비율 딕셔너리 확장이 정확한가? (1999-01부터 고정값 채우기)
+5. 운용비율 딕셔너리 확장이 정확한가? (기초 시세의 첫 달부터 고정값 채우기)
+6. FRED 월별 금리를 읽어 비율로 바꾸고, 검사를 통과한 뒤에만 저장하는가?
 
 왜 중요한가요?
 TQQQ 시뮬레이션의 비용 계산은 FFR · 운용비율 데이터에 의존합니다.
@@ -19,6 +20,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from qbt.tqqq import data_loader
 from qbt.tqqq.constants import (
     COL_EXPENSE_DATE,
     COL_EXPENSE_VALUE,
@@ -34,8 +36,10 @@ from qbt.tqqq.data_loader import (
     build_extended_expense_dict,
     create_expense_dict,
     create_ffr_dict,
+    download_ffr_monthly,
     load_monthly_data,
     lookup_ffr,
+    parse_fred_ffr_csv,
 )
 
 
@@ -346,109 +350,305 @@ class TestGenericMonthlyDataDict:
 
 
 class TestBuildExtendedExpenseDict:
-    """운용비율 딕셔너리 확장 테스트"""
+    """운용비율 딕셔너리 확장 테스트 — 기초 시세의 첫 달부터 파일 첫 달 전까지 상장 전 고정값"""
 
-    def test_extends_from_1999(self):
-        """
-        2010-02 시작 데이터를 1999-01부터 확장하는 테스트
-
-        Given: 2010-02부터 시작하는 expense DataFrame
-        When: build_extended_expense_dict 호출
-        Then:
-          - 1999-01 키가 존재
-          - 1999-01 ~ 2010-01 구간에 DEFAULT_PRE_LISTING_EXPENSE_RATIO 적용
-          - 2010-02 원본 값 보존
-        """
-        # Given
-        expense_df = pd.DataFrame(
+    @staticmethod
+    def _expense_df() -> pd.DataFrame:
+        return pd.DataFrame(
             {
                 COL_EXPENSE_DATE: ["2010-02", "2010-03", "2010-04"],
                 COL_EXPENSE_VALUE: [0.0095, 0.0093, 0.0091],
             }
         )
 
+    def test_extends_from_first_month(self):
+        """
+        목적: 시작 달부터 파일 첫 달 직전까지 상장 전 고정값을 채운다 — 1985년부터 도는 합성이 첫날에 멈추지 않는다
+
+        Given: 2010-02 부터인 운용비율, 시작 달 1985-10
+        When: build_extended_expense_dict 호출
+        Then: 1985-10 · 2005-06 · 2010-01 은 고정값, 그 앞 달(1985-09)은 없다
+        """
         # When
-        result = build_extended_expense_dict(expense_df)
+        result = build_extended_expense_dict(self._expense_df(), "1985-10")
 
-        # Then: 1999-01 키가 존재
-        assert "1999-01" in result, "1999-01 키가 존재해야 합니다"
-
-        # 확장 구간 값 검증 (DEFAULT_PRE_LISTING_EXPENSE_RATIO = 0.0095)
-        assert result["1999-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
+        # Then
+        assert result["1985-10"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
         assert result["2005-06"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
         assert result["2010-01"] == pytest.approx(DEFAULT_PRE_LISTING_EXPENSE_RATIO)
+        assert "1985-09" not in result
 
-        # 원본 값 보존 검증
+    def test_original_values_preserved(self):
+        """
+        목적: 확장해도 파일의 값은 그대로다
+
+        Given: 2010-02 부터인 운용비율
+        When: 시작 달 1999-01 로 build_extended_expense_dict 호출
+        Then: 파일 석 달의 값이 그대로
+        """
+        # When
+        result = build_extended_expense_dict(self._expense_df(), "1999-01")
+
+        # Then
         assert result["2010-02"] == pytest.approx(0.0095)
         assert result["2010-03"] == pytest.approx(0.0093)
         assert result["2010-04"] == pytest.approx(0.0091)
 
-    def test_original_values_preserved(self):
-        """
-        확장 시 기존 딕셔너리 값이 변경되지 않는 테스트
-
-        Given: 3개월분 expense DataFrame
-        When: build_extended_expense_dict 호출
-        Then: 원본 3개월 값이 정확히 보존됨
-        """
-        # Given
-        expense_df = pd.DataFrame(
-            {
-                COL_EXPENSE_DATE: ["2015-01", "2015-02", "2015-03"],
-                COL_EXPENSE_VALUE: [0.0088, 0.0085, 0.0082],
-            }
-        )
-
-        # When
-        result = build_extended_expense_dict(expense_df)
-
-        # Then: 원본 값 정확히 보존
-        assert result["2015-01"] == pytest.approx(0.0088)
-        assert result["2015-02"] == pytest.approx(0.0085)
-        assert result["2015-03"] == pytest.approx(0.0082)
-
     def test_extension_count(self):
         """
-        확장된 월 수가 정확한지 테스트
+        목적: 채우는 달 수를 고정한다
 
-        Given: 2010-02부터 시작하는 expense DataFrame
-        When: build_extended_expense_dict 호출
-        Then: 1999-01 ~ 2010-01 = 133개월 확장 + 원본 3개월 = 총 136개
+        Given: 2010-02 부터인 운용비율 3개월
+        When: 시작 달 1999-01 로 build_extended_expense_dict 호출
+        Then: 1999-01 ~ 2010-01 = 133개월 + 원본 3개월 = 136개
         """
-        # Given
-        expense_df = pd.DataFrame(
-            {
-                COL_EXPENSE_DATE: ["2010-02", "2010-03", "2010-04"],
-                COL_EXPENSE_VALUE: [0.0095, 0.0093, 0.0091],
-            }
-        )
-
         # When
-        result = build_extended_expense_dict(expense_df)
+        result = build_extended_expense_dict(self._expense_df(), "1999-01")
 
-        # Then: 1999-01 ~ 2010-01 = 11년 * 12 + 1 = 133개월 + 원본 3개월 = 136개
+        # Then
         assert len(result) == 136
 
-    def test_no_extension_if_starts_at_1999(self):
+    @pytest.mark.parametrize("first_month", ["2010-02", "2010-03"])
+    def test_no_extension_when_first_month_not_before_file(self, first_month: str):
         """
-        1999-01부터 시작하면 확장 없이 그대로 반환
+        목적: 시작 달이 파일 첫 달과 같거나 뒤면 늘리지 않는다 (경계)
 
-        Given: 1999-01부터 시작하는 expense DataFrame
+        Given: 2010-02 부터인 운용비율, 시작 달 2010-02 · 2010-03
         When: build_extended_expense_dict 호출
-        Then: 원본 딕셔너리만 반환 (추가 키 없음)
+        Then: 원본 3개월 그대로
+        """
+        # When
+        result = build_extended_expense_dict(self._expense_df(), first_month)
+
+        # Then
+        assert sorted(result) == ["2010-02", "2010-03", "2010-04"]
+
+    @pytest.mark.parametrize("first_month", ["1985-13", "198510", "1985-1", ""])
+    def test_rejects_bad_first_month(self, first_month: str):
+        """
+        목적: 시작 달이 YYYY-MM 이 아니면 멈춘다 — 문자열 비교로 달을 세므로 모양이 다르면 조용히 틀린다
+
+        Given: 잘못된 모양의 시작 달
+        When: build_extended_expense_dict 호출
+        Then: ValueError
+        """
+        # When & Then
+        with pytest.raises(ValueError, match="YYYY-MM"):
+            build_extended_expense_dict(self._expense_df(), first_month)
+
+
+FRED_HEADER = "observation_date,FEDFUNDS"
+
+
+class TestParseFredFfrCsv:
+    """FRED 월별 연방기금금리 CSV 읽기 — % 를 비율로, 날짜를 yyyy-mm 으로"""
+
+    def test_percent_to_ratio_and_month_key(self):
+        """
+        목적: % 값을 비율로 바꾸고 날짜를 yyyy-mm 으로 바꾼다 — 기존 금리 파일과 같은 형식
+
+        Given: FRED 이어진 두 달 (0.80% · 4.63%)
+        When: parse_fred_ffr_csv
+        Then: DATE ["1954-07", "1954-08"], VALUE [0.008, 0.0463]
         """
         # Given
-        expense_df = pd.DataFrame(
-            {
-                COL_EXPENSE_DATE: ["1999-01", "1999-02"],
-                COL_EXPENSE_VALUE: [0.0095, 0.0093],
-            }
-        )
+        text = f"{FRED_HEADER}\n1954-07-01,0.80\n1954-08-01,4.63\n"
 
         # When
-        result = build_extended_expense_dict(expense_df)
+        result = parse_fred_ffr_csv(text)
 
-        # Then: 원본 그대로 (확장 없음)
-        assert len(result) == 2
-        assert result["1999-01"] == pytest.approx(0.0095)
-        assert result["1999-02"] == pytest.approx(0.0093)
+        # Then
+        assert list(result.columns) == [COL_FFR_DATE, COL_FFR_VALUE]
+        assert result[COL_FFR_DATE].tolist() == ["1954-07", "1954-08"]
+        assert result[COL_FFR_VALUE].tolist() == [0.008, 0.0463]
+
+    def test_rejects_unexpected_header(self):
+        """
+        목적: 머리가 다르면 멈춘다 — FRED 는 날짜 열 이름을 바꾼 적이 있다(DATE → observation_date)
+
+        Given: 날짜 열 이름이 DATE 인 CSV
+        When: parse_fred_ffr_csv
+        Then: ValueError
+        """
+        # Given
+        text = "DATE,FEDFUNDS\n1999-01-01,4.63\n"
+
+        # When & Then
+        with pytest.raises(ValueError, match="머리"):
+            parse_fred_ffr_csv(text)
+
+    @pytest.mark.parametrize("value", [".", ""])
+    def test_rejects_missing_value(self, value: str):
+        """
+        목적: 값이 빈 칸 · 「.」(FRED 의 결측 표기)이면 멈춘다 — 메우지 않는다
+
+        Given: 값이 비어 있는 달
+        When: parse_fred_ffr_csv
+        Then: ValueError
+        """
+        # Given
+        text = f"{FRED_HEADER}\n1999-01-01,4.63\n1999-02-01,{value}\n"
+
+        # When & Then
+        with pytest.raises(ValueError, match="1999-02"):
+            parse_fred_ffr_csv(text)
+
+    def test_rejects_non_month_start_date(self):
+        """
+        목적: 월별 값의 날짜는 그달 1일이다 — 다른 날이면 일별 · 주별 시리즈를 잘못 받은 것이라 멈춘다
+
+        Given: 1999-01-15
+        When: parse_fred_ffr_csv
+        Then: ValueError
+        """
+        # Given
+        text = f"{FRED_HEADER}\n1999-01-15,4.63\n"
+
+        # When & Then
+        with pytest.raises(ValueError, match="1999-01-15"):
+            parse_fred_ffr_csv(text)
+
+    def test_rejects_missing_month(self):
+        """
+        목적: 달이 빠지면 멈춘다 — 빠진 달은 조회가 이전 달 값으로 조용히 메워 틀린 비용이 합성에 들어간다
+
+        Given: 1999-01 다음이 1999-03
+        When: parse_fred_ffr_csv
+        Then: ValueError (빠진 자리를 알린다)
+        """
+        # Given
+        text = f"{FRED_HEADER}\n1999-01-01,4.63\n1999-03-01,4.81\n"
+
+        # When & Then
+        with pytest.raises(ValueError, match="이어지지"):
+            parse_fred_ffr_csv(text)
+
+    def test_rejects_no_rows(self):
+        """
+        목적: 값이 하나도 없으면 멈춘다 (경계)
+
+        Given: 머리뿐인 CSV
+        When: parse_fred_ffr_csv
+        Then: ValueError
+        """
+        # When & Then
+        with pytest.raises(ValueError, match="비어"):
+            parse_fred_ffr_csv(f"{FRED_HEADER}\n")
+
+
+class _FakeResponse:
+    """urlopen 이 돌려주는 응답 대역 — with 문과 read 만 쓴다."""
+
+    def __init__(self, body: str) -> None:
+        self._body = body.encode("utf-8")
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+class TestDownloadFfrMonthly:
+    """FRED 금리를 받아 금리 파일로 저장 — 검사를 통과한 뒤에만 쓴다"""
+
+    def test_writes_crlf_in_existing_format(self, tmp_path, monkeypatch):
+        """
+        목적: 기존 금리 파일과 같은 글자로 쓴다 — 줄 끝 CRLF, 값은 0.0463 · 0.052 모양. 같은 값이면 git diff 에 새 달만 보인다
+
+        Given: FRED 두 달 (4.63% · 5.20%)
+        When: download_ffr_monthly
+        Then: 파일 바이트가 b"DATE,VALUE\\r\\n1999-01,0.0463\\r\\n1999-02,0.052\\r\\n"
+        """
+        # Given
+        body = f"{FRED_HEADER}\n1999-01-01,4.63\n1999-02-01,5.20\n"
+        monkeypatch.setattr(data_loader, "urlopen", lambda url, timeout: _FakeResponse(body))
+        path = tmp_path / "ffr.csv"
+
+        # When
+        download_ffr_monthly(path)
+
+        # Then
+        assert path.read_bytes() == b"DATE,VALUE\r\n1999-01,0.0463\r\n1999-02,0.052\r\n"
+
+    def test_written_file_round_trips(self, tmp_path, monkeypatch):
+        """
+        목적: 쓴 파일을 load_monthly_data · create_ffr_dict 로 다시 읽으면 같은 값이다
+
+        Given: FRED 두 달
+        When: download_ffr_monthly 뒤 다시 읽는다
+        Then: {"1999-01": 0.0463, "1999-02": 0.052}
+        """
+        # Given
+        body = f"{FRED_HEADER}\n1999-01-01,4.63\n1999-02-01,5.20\n"
+        monkeypatch.setattr(data_loader, "urlopen", lambda url, timeout: _FakeResponse(body))
+        path = tmp_path / "ffr.csv"
+
+        # When
+        download_ffr_monthly(path)
+
+        # Then
+        assert create_ffr_dict(load_monthly_data(path)) == {"1999-01": 0.0463, "1999-02": 0.052}
+
+    def test_invalid_value_keeps_existing_file(self, tmp_path, monkeypatch):
+        """
+        목적: 검사(상한 · 중복)에 걸리면 기존 파일을 건드리지 않는다 — 받은 값이 틀리면 지금 금리로 계속 돈다
+
+        Given: 기존 파일, 상한(MAX_FFR_VALUE) 이상인 값을 주는 FRED
+        When: download_ffr_monthly
+        Then: ValueError, 기존 파일 바이트 그대로
+        """
+        # Given
+        body = f"{FRED_HEADER}\n1999-01-01,{MAX_FFR_VALUE * 100 + 1}\n"
+        monkeypatch.setattr(data_loader, "urlopen", lambda url, timeout: _FakeResponse(body))
+        path = tmp_path / "ffr.csv"
+        original = b"DATE,VALUE\r\n1999-01,0.0463"
+        path.write_bytes(original)
+
+        # When & Then
+        with pytest.raises(ValueError):
+            download_ffr_monthly(path)
+        assert path.read_bytes() == original
+
+    def test_truncated_response_keeps_existing_file(self, tmp_path, monkeypatch):
+        """
+        목적: 받은 금리가 기존 파일의 달을 다 덮지 못하면(잘린 응답) 쓰지 않는다 — 앞 기간이 지워지면 1985년부터 도는 합성이 멈춘다
+
+        Given: 1999-01 ~ 1999-03 인 기존 파일, 1999-02 부터만 주는 FRED
+        When: download_ffr_monthly
+        Then: ValueError, 기존 파일 바이트 그대로
+        """
+        # Given
+        body = f"{FRED_HEADER}\n1999-02-01,4.76\n1999-03-01,4.81\n1999-04-01,4.74\n"
+        monkeypatch.setattr(data_loader, "urlopen", lambda url, timeout: _FakeResponse(body))
+        path = tmp_path / "ffr.csv"
+        original = b"DATE,VALUE\r\n1999-01,0.0463\r\n1999-02,0.0476\r\n1999-03,0.0481"
+        path.write_bytes(original)
+
+        # When & Then
+        with pytest.raises(ValueError, match="덮지 못"):
+            download_ffr_monthly(path)
+        assert path.read_bytes() == original
+
+    def test_covering_response_replaces_existing_file(self, tmp_path, monkeypatch):
+        """
+        목적: 기존 달을 모두 덮으면 새 달까지 붙여 다시 쓴다 (경계 — 덮는 판정이 정상 갱신을 막지 않는다)
+
+        Given: 1999-01 ~ 1999-02 인 기존 파일, 1998-12 ~ 1999-03 을 주는 FRED
+        When: download_ffr_monthly
+        Then: 네 달이 쓰인다
+        """
+        # Given
+        body = f"{FRED_HEADER}\n1998-12-01,4.68\n1999-01-01,4.63\n1999-02-01,4.76\n1999-03-01,4.81\n"
+        monkeypatch.setattr(data_loader, "urlopen", lambda url, timeout: _FakeResponse(body))
+        path = tmp_path / "ffr.csv"
+        path.write_bytes(b"DATE,VALUE\r\n1999-01,0.0463\r\n1999-02,0.0476")
+
+        # When
+        download_ffr_monthly(path)
+
+        # Then
+        assert sorted(create_ffr_dict(load_monthly_data(path))) == ["1998-12", "1999-01", "1999-02", "1999-03"]

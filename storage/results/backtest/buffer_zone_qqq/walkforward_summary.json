@@ -2,19 +2,19 @@
   "strategy": "buffer_zone_qqq",
   "dynamic": {
     "n_windows": 11,
-    "oos_cagr_mean": 11.26,
-    "oos_cagr_std": 13.04,
+    "oos_cagr_mean": 10.94,
+    "oos_cagr_std": 12.94,
     "oos_mdd_mean": -14.11,
     "oos_mdd_worst": -23.93,
-    "oos_calmar_mean": 0.9765,
+    "oos_calmar_mean": 0.9486,
     "oos_trades_total": 14,
-    "wfe_calmar_mean": 5.8425,
-    "wfe_calmar_median": 3.8158,
-    "wfe_cagr_mean": 2.4923,
-    "wfe_cagr_median": 1.6832,
+    "wfe_calmar_mean": 5.769,
+    "wfe_calmar_median": 3.6174,
+    "wfe_cagr_mean": 2.4599,
+    "wfe_cagr_median": 1.6075,
     "gap_calmar_median": 0.6023,
-    "wfe_calmar_robust": 3.8158,
-    "profit_concentration_max": 0.4128,
+    "wfe_calmar_robust": 3.6174,
+    "profit_concentration_max": 0.4296,
     "profit_concentration_window_idx": 9,
     "param_ma_windows": [
       100,
@@ -68,25 +68,25 @@
       3,
       3
     ],
-    "stitched_cagr": 10.68,
+    "stitched_cagr": 10.45,
     "stitched_mdd": -23.93,
-    "stitched_calmar": 0.4465
+    "stitched_calmar": 0.4369
   },
   "fully_fixed": {
     "n_windows": 11,
-    "oos_cagr_mean": 10.74,
-    "oos_cagr_std": 12.23,
+    "oos_cagr_mean": 10.44,
+    "oos_cagr_std": 12.15,
     "oos_mdd_mean": -14.99,
     "oos_mdd_worst": -26.43,
-    "oos_calmar_mean": 0.8163,
+    "oos_calmar_mean": 0.7892,
     "oos_trades_total": 9,
-    "wfe_calmar_mean": 5.6614,
-    "wfe_calmar_median": 4.1032,
-    "wfe_cagr_mean": 2.4643,
+    "wfe_calmar_mean": 5.5789,
+    "wfe_calmar_median": 3.6884,
+    "wfe_cagr_mean": 2.4335,
     "wfe_cagr_median": 1.9787,
     "gap_calmar_median": 0.1877,
-    "wfe_calmar_robust": 4.1032,
-    "profit_concentration_max": 0.4407,
+    "wfe_calmar_robust": 3.6884,
+    "profit_concentration_max": 0.4582,
     "profit_concentration_window_idx": 9,
     "param_ma_windows": [
       200,
@@ -140,8 +140,8 @@
       3,
       3
     ],
-    "stitched_cagr": 11.65,
+    "stitched_cagr": 11.42,
     "stitched_mdd": -26.43,
-    "stitched_calmar": 0.4409
+    "stitched_calmar": 0.432
   }
 }

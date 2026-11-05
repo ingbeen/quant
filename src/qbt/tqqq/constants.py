@@ -35,17 +35,11 @@ EXPENSE_RATIO_DATA_PATH: Final = ETC_DIR / "tqqq_net_expense_ratio_monthly.csv"
 DEFAULT_LEVERAGE_MULTIPLIER: Final = 3.0  # TQQQ 3배 레버리지
 LEVERAGE_2X: Final = 2.0  # QLD 2배 레버리지
 
-# 일별 비교 상품 — (상품 이름, 실물 시세, 배율)
-DAILY_COMPARISON_TARGETS: Final = (
-    ("TQQQ", TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER),
-    ("QLD", QLD_DATA_PATH, LEVERAGE_2X),
+# 레버리지 합성 상품 — (상품 이름, 실물 시세, 배율, 합성 파일). 한 줄에 상품 하나의 연결을 모두 둠 → 저장 경로가 다른 상품과 섞이지 않음
+LEVERAGED_SYNTHETIC_TARGETS: Final = (
+    ("TQQQ", TQQQ_DATA_PATH, DEFAULT_LEVERAGE_MULTIPLIER, TQQQ_SYNTHETIC_DATA_PATH),
+    ("QLD", QLD_DATA_PATH, LEVERAGE_2X, QLD_SYNTHETIC_DATA_PATH),
 )
-
-# 합성 시세 파일 — 상품 이름: 생성 파일. 일별 비교로 검증한 상품만 합성
-SYNTHETIC_DATA_PATHS: Final = {
-    "TQQQ": TQQQ_SYNTHETIC_DATA_PATH,
-    "QLD": QLD_SYNTHETIC_DATA_PATH,
-}
 
 # ============================================================
 # 비용 모델 파라미터
@@ -62,6 +56,12 @@ DEFAULT_PRE_LISTING_EXPENSE_RATIO: Final = 0.0095  # TQQQ 상장 이전 운용�
 DEFAULT_SOFTPLUS_A: Final = -6.1  # softplus 절편 파라미터
 DEFAULT_SOFTPLUS_B: Final = 0.37  # softplus 기울기 파라미터
 
+# --- 가산금리 상한 (docs/research/합성_시세_연장.md 결정 4) ---
+# 맞춘 범위(금리 5.33%) 밖 고금리에서 softplus 가 지수처럼 부풂 → 1999년 전 달에만 막음.
+# 마지막 달을 1999 이후로 밀면 기존 합성의 1999년 이후 값이 바뀜 (사용자 결정 2026-11-05)
+SPREAD_CAP: Final = 0.016  # 비율 (0.016 = 1.6%)
+SPREAD_CAP_LAST_MONTH: Final = "1998-12"
+
 # ============================================================
 # 데이터 컬럼 정의
 # ============================================================
@@ -73,3 +73,7 @@ COL_FFR_VALUE: Final = "VALUE"  # FFR CSV의 금리 값 컬럼
 # --- Expense Ratio 데이터 ---
 COL_EXPENSE_DATE: Final = "DATE"  # Expense Ratio CSV의 날짜 컬럼
 COL_EXPENSE_VALUE: Final = "VALUE"  # Expense Ratio CSV의 값 컬럼
+
+# --- 월 키 (yyyy-mm) ---
+# 월별 딕셔너리를 문자열 비교로 가름 → 모양이 다르면 조용히 틀림
+MONTH_KEY_PATTERN: Final = r"\d{4}-(0[1-9]|1[0-2])"

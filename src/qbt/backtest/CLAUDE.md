@@ -25,7 +25,7 @@
 
 - `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol
 - `strategies/buffer_zone.py` · `buffer_zone_helpers.py` — 버퍼존 전략 `BufferZoneStrategy`(stateful)와 자산별 설정 `CONFIGS`(전 자산 4P), 밴드 · 돌파 감지 함수
-- `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`
+- `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`. 합성 TQQQ · QLD 는 QQQ 상장 전까지 늘린 시세라 기간 시세(`period_data_path`)로 QQQ 실물 기간에 묶는다 — 매매 시세만 첫 행부터 읽어, 묶지 않으면 합성을 늘리는 순간 시작일이 따라 옮겨간다
 - `strategy_registry.py` — `STRATEGY_REGISTRY`: 포트폴리오 엔진이 `strategy_id` 문자열로 전략을 만든다. 새 전략은 등록만 하고 엔진은 고치지 않는다
 - `runners.py` — 단일 백테스트 설정을 실행 함수로 만드는 팩토리 (전략 모듈 ↔ 엔진 순환 의존을 끊는 자리)
 - `strategies/` · `qbt.backtest` 패키지는 재노출하지 않는다 — 각 모듈을 직접 import 한다

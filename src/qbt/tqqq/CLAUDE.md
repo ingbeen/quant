@@ -5,8 +5,8 @@
 ## 도메인 목적
 
 레버리지 ETF 시뮬레이션 도메인은 기초 자산 데이터로부터 레버리지 상품의 가격을 모델링합니다.
-QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배)의 상장 전 구간을 재현해 실물에 이어 붙인 합성 시세를 만드는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `DAILY_COMPARISON_TARGETS` 입니다.
-비용 모델을 실물과 일별로 대조한 검증(일별 비교 · 스프레드 랩)은 커밋 `ee6d23d` 까지 저장소에 있었고, 결과와 근거는 `docs/research/전략_검증_보고서.md` §47 · §49.4 에 있습니다.
+QQQ 합성(상장 전은 나스닥 100 지수)으로부터 TQQQ(3배) · QLD(2배)의 상장 전 구간을 재현해 실물에 이어 붙인 합성 시세를 만드는 것이 주요 사용 사례입니다. 대상 상품은 `constants.py` 의 `LEVERAGED_SYNTHETIC_TARGETS` 입니다.
+합성 생성은 실물 추적 · ETF 상장 전 펀드 대조 · 가정만 바꾼 판을 검증 표로 남깁니다 — 정의와 결과는 `docs/research/합성_시세_연장.md` 5장. 스프레드 파라미터를 맞춘 스프레드 랩은 커밋 `ee6d23d` 까지 저장소에 있었고, 근거는 `docs/research/전략_검증_보고서.md` §47 · §49.4 에 있습니다.
 
 ---
 
@@ -14,9 +14,11 @@ QQQ(기초 자산)로부터 TQQQ(3배) · QLD(2배)의 상장 전 구간을 재�
 
 함수 · 시그니처 · 열 이름은 각 모듈 docstring 이 정본입니다.
 
-- `constants.py` — 도메인 상수 (데이터 경로, 레버리지 스펙, 비용 모델 기본값, 월별 CSV 열 이름)
-- `data_loader.py` — 월별 데이터(연방기금금리 · 운용비율) 로딩, 월별 값 딕셔너리 생성 · 조회
-- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 softplus 스프레드
+- `constants.py` — 도메인 상수 (데이터 경로, 레버리지 상품 표, 비용 모델 기본값 · 가산금리 상한, 월별 CSV 열 이름)
+- `data_loader.py` — 월별 데이터(연방기금금리 · 운용비율) 로딩, 월별 값 딕셔너리 생성 · 조회, FRED 월별 금리 받기
+- `simulation.py` — 시뮬레이션 엔진(`simulate`)과 softplus 스프레드 · 상한
+- `synthetic.py` — 합성 비용 입력(금리 · 운용비율 · 상한 건 가산금리)을 한 곳에서 만들고, 상품 하나의 합성(시뮬레이션 → 이어 붙이기 → 이음매 뒤 실물 검사)과 상품 표 전체의 저장. 저장까지 여기 둔 것은 상품 표 → 저장 경로 연결을 테스트가 부르게 하려는 것이다 — 스크립트에 두면 2배 시세가 3배 파일을 덮어도 테스트가 통과한다
+- `leveraged_comparison.py` — 검증 계산: 합성 ↔ 실물 추적, ETF 상장 전 펀드 대조(연 수익 · 해마다 비용), 가정만 바꾼 판
 
 ---
 
@@ -53,6 +55,7 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 - funding_spread는 softplus 모델로 금리에 따라 동적 결정 — 고정 스프레드(0.0034)는 고금리 구간에서 비용을 과소 반영해 시뮬레이션이 실제보다 높게 나온다. 근거는 고정 스프레드로 만든 일별 비교의 「금리 수준 vs 월말 누적 오차」 추세선 우상향이다 `[실측] 2026-02-08`(커밋 `8b43280`)
 - 기본 파라미터: `DEFAULT_SOFTPLUS_A`, `DEFAULT_SOFTPLUS_B` — 스프레드 랩 튜닝의 전체기간 RMSE 최소값이다. 스프레드 랩의 워크포워드 RMSE 는 과최적화 여부를 가리지 못한다(이유는 커밋 `ee6d23d` 의 `scripts/tqqq/spread_lab/app_rate_spread_lab.py` docstring)
+- **가산금리 상한 `SPREAD_CAP` 은 `SPREAD_CAP_LAST_MONTH` 까지의 달에만 건다** — 파라미터를 맞춘 금리 범위 밖 고금리에서 softplus 가 지수처럼 부풀기 때문이다. 그 뒤 달은 모형 값 그대로라 기존 합성의 1999년 이후 값이 바뀌지 않는다. 「같은 금리면 같은 비용」으로 고치지 않는다 — 사용자 결정이고 근거는 `docs/research/합성_시세_연장.md` 결정 4 · 6.3
 - 레버리지 차입 비율: `leverage - 1` (예: 3배 레버리지 -> 2배 차입)
 - 금리는 월별 FFR 데이터 사용 (년-월 기준 조회)
 
@@ -64,7 +67,7 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 - 데이터 소스: `storage/etc/tqqq_net_expense_ratio_monthly.csv`
 - 월별로 실제 운용비율을 동적으로 적용
-- 파일 시작보다 먼저 상장한 QLD 는 `build_extended_expense_dict` 로 그 앞 구간을 고정값으로 채운다 — `create_expense_dict` 그대로면 상장일에서 ValueError 다
+- 파일 시작(TQQQ 상장)보다 앞을 시뮬레이션하는 합성은 `build_extended_expense_dict` 로 기초 시세의 첫 달부터 그 앞 구간을 상장 전 고정값으로 채운다 — `create_expense_dict` 그대로면 첫날에서 ValueError 다
 - QLD 도 스프레드 파라미터와 이 파일을 그대로 쓴다. 재튜닝 · QLD 전용 보수를 택하지 않은 근거는 `docs/research/전략_검증_보고서.md` §49.4
 
 총 비용:
@@ -79,8 +82,8 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 
 금리 데이터 (FFR) · 운용비율 데이터 (Expense Ratio):
 
-- 금리 `federal_funds_rate_monthly.csv` 는 1999-01 부터다 — 합성 생성은 QQQ 첫날(1999-03-10)부터 돌아 그 앞 금리가 필요 없다
+- 금리 `federal_funds_rate_monthly.csv` 는 FRED `FEDFUNDS` 전체 기간이다 — 인자 없는 `download_data.py` 가 받아 다시 쓰고(`download_ffr_monthly` — 달이 빠짐없이 이어지고 기존 파일의 달을 모두 덮어야 쓴다. 빠진 달은 조회가 이전 달 값으로 조용히 메우기 때문이다), 손으로 고치지 않는다. 줄 끝은 git 에 든 그대로 CRLF 다
 - 형식: `DATE` (`"yyyy-mm"` 문자열 — `datetime.date` 객체가 아니다), `VALUE` (0~1 비율)
 - 날짜마다 그 달 값을 조회하고, 없으면 허용 개월 수(`MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`) 안의 이전 달 값을 쓴다 — 그보다 비면 ValueError
 
-두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 손으로 고치는 파일이라 % 로 적은 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다).
+두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 운용비율은 손으로 고치고 금리는 FRED 의 % 를 바꿔 쓰므로, % 그대로인 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다).

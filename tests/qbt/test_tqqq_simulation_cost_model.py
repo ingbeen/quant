@@ -10,13 +10,21 @@ import pandas as pd
 import pytest
 
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, TRADING_DAYS_PER_YEAR
-from qbt.tqqq.constants import COL_EXPENSE_DATE, COL_EXPENSE_VALUE, COL_FFR_DATE, COL_FFR_VALUE
+from qbt.tqqq.constants import (
+    COL_EXPENSE_DATE,
+    COL_EXPENSE_VALUE,
+    COL_FFR_DATE,
+    COL_FFR_VALUE,
+    SPREAD_CAP,
+    SPREAD_CAP_LAST_MONTH,
+)
 from qbt.tqqq.data_loader import build_extended_expense_dict, create_expense_dict, create_ffr_dict
 from qbt.tqqq.simulation import (
     _calculate_daily_cost,
     _compute_softplus_spread,
     _softplus,
     build_monthly_spread_map,
+    cap_spread_through,
     simulate,
 )
 
@@ -271,12 +279,103 @@ class TestProductListedBeforeExpenseFile:
             leverage=2.0,
             initial_price=100.0,
             ffr_dict={"2006-06": 0.05},
-            expense_dict=build_extended_expense_dict(self._expense_df()),
+            expense_dict=build_extended_expense_dict(self._expense_df(), "2006-06"),
             funding_spread={"2006-06": 0.01},
         )
 
         # Then
         assert result.iloc[1][COL_CLOSE] == pytest.approx(101.972421, abs=1e-6)
+
+
+class TestCapSpreadThrough:
+    """가산금리 상한 — 정해진 달까지만 걸고 그 뒤 달은 모형 값 그대로"""
+
+    def test_policy_values(self):
+        """
+        목적: 상한 1.6% 와 마지막 달 1998-12 를 숫자로 고정한다 — 사용자 결정 (docs/research/합성_시세_연장.md 결정 4).
+              마지막 달이 1999 로 밀리면 기존 합성 파일의 1999년 이후 값이 에러 없이 바뀐다
+
+        Given: 상수
+        When: 값을 읽는다
+        Then: 0.016 · "1998-12"
+        """
+        # Then
+        assert SPREAD_CAP == 0.016
+        assert SPREAD_CAP_LAST_MONTH == "1998-12"
+
+    def test_caps_only_through_last_month(self):
+        """
+        목적: 마지막 달까지는 상한을 넘는 값을 상한으로, 다음 달부터는 그대로 둔다 (경계 두 달)
+
+        Given: 1998-11 · 1998-12 · 1999-01 모두 0.03
+        When: cap_spread_through(cap=0.016, last_month="1998-12")
+        Then: 0.016 · 0.016 · 0.03
+        """
+        # Given
+        spread = {"1998-11": 0.03, "1998-12": 0.03, "1999-01": 0.03}
+
+        # When
+        result = cap_spread_through(spread, cap=0.016, last_month="1998-12")
+
+        # Then
+        assert result == {"1998-11": 0.016, "1998-12": 0.016, "1999-01": 0.03}
+
+    def test_values_below_cap_unchanged(self):
+        """
+        목적: 상한 이하 값은 바꾸지 않는다 — 금리가 낮은 달의 모형 값은 그대로다
+
+        Given: 1990-01 0.005 (상한 아래)
+        When: cap_spread_through
+        Then: 0.005 그대로
+        """
+        # When
+        result = cap_spread_through({"1990-01": 0.005}, cap=0.016, last_month="1998-12")
+
+        # Then
+        assert result == {"1990-01": 0.005}
+
+    def test_input_not_mutated(self):
+        """
+        목적: 입력 딕셔너리를 바꾸지 않는다 — 같은 모형 값을 다른 판(상한 없는 판)이 같이 쓴다
+
+        Given: 상한을 넘는 값이 든 딕셔너리
+        When: cap_spread_through
+        Then: 입력이 그대로
+        """
+        # Given
+        spread = {"1998-12": 0.03}
+
+        # When
+        cap_spread_through(spread, cap=0.016, last_month="1998-12")
+
+        # Then
+        assert spread == {"1998-12": 0.03}
+
+    @pytest.mark.parametrize("cap", [0.0, -0.01])
+    def test_rejects_non_positive_cap(self, cap: float):
+        """
+        목적: 상한이 0 이하면 멈춘다 — 시뮬레이션이 0 이하 가산금리를 거부하므로 그 전에 알린다
+
+        Given: 상한 0 · 음수
+        When: cap_spread_through
+        Then: ValueError
+        """
+        # When & Then
+        with pytest.raises(ValueError, match="상한"):
+            cap_spread_through({"1998-12": 0.03}, cap=cap, last_month="1998-12")
+
+    @pytest.mark.parametrize("last_month", ["1998-13", "199812", "1998-1"])
+    def test_rejects_bad_last_month(self, last_month: str):
+        """
+        목적: 마지막 달이 YYYY-MM 이 아니면 멈춘다 — 문자열 비교로 달을 가르므로 모양이 다르면 조용히 틀린다
+
+        Given: 잘못된 모양의 마지막 달
+        When: cap_spread_through
+        Then: ValueError
+        """
+        # When & Then
+        with pytest.raises(ValueError, match="YYYY-MM"):
+            cap_spread_through({"1998-12": 0.03}, cap=0.016, last_month=last_month)
 
 
 class TestSoftplusFunctions:

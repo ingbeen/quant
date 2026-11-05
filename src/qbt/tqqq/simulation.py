@@ -6,6 +6,7 @@ QQQ와 같은 기초 자산 데이터로부터 TQQQ와 같은 레버리지 ETF�
 
 # 1. 표준 라이브러리 임포트
 import math
+import re
 from datetime import date
 
 # 2. 서드파티 라이브러리 임포트
@@ -24,6 +25,7 @@ from qbt.common_constants import (
 from qbt.tqqq.constants import (
     COL_FFR_DATE,
     COL_FFR_VALUE,
+    MONTH_KEY_PATTERN,
 )
 from qbt.tqqq.data_loader import (
     lookup_expense,
@@ -155,6 +157,29 @@ def build_monthly_spread_map(
     )
 
     return spread_map
+
+
+def cap_spread_through(spread_map: dict[str, float], cap: float, last_month: str) -> dict[str, float]:
+    """
+    last_month 까지의 달은 cap 을 넘는 가산금리를 cap 으로 낮추고, 그 뒤 달은 그대로 둔 새 딕셔너리를 만든다.
+
+    Args:
+        spread_map: 월별 가산금리 ({"YYYY-MM": spread}, build_monthly_spread_map)
+        cap: 가산금리 상한 (비율, 0.016 = 1.6%)
+        last_month: 상한을 거는 마지막 달 (yyyy-mm, 그달 포함)
+
+    Returns:
+        상한을 건 월별 가산금리 (입력은 바꾸지 않는다)
+
+    Raises:
+        ValueError: cap 이 0 이하일 때, last_month 가 YYYY-MM 이 아닐 때
+    """
+    if cap <= 0:
+        raise ValueError(f"가산금리 상한은 0 보다 커야 합니다(0.016 = 1.6%): {cap}")
+    if not re.fullmatch(MONTH_KEY_PATTERN, last_month):
+        raise ValueError(f"상한을 거는 마지막 달은 YYYY-MM 이어야 합니다: {last_month!r}")
+
+    return {month: min(spread, cap) if month <= last_month else spread for month, spread in spread_map.items()}
 
 
 def _resolve_spread(d: date, spread_dict: dict[str, float]) -> float:

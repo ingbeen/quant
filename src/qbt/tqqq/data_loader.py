@@ -6,14 +6,19 @@ TQQQ 시뮬레이션에 필요한 데이터 로딩, 월별 데이터 조회 함�
 1. 월별 데이터(연방기금금리 · 운용비율) 로딩
 2. 월별 데이터 딕셔너리 생성 및 조회 (FFR, Expense Ratio)
 3. 운용비율 딕셔너리 확장 (합성 데이터 생성용)
+4. FRED 월별 연방기금금리 받기 (금리 파일 저장)
 
 이 모듈의 함수들은 TQQQ 도메인에서만 사용되며,
 프로젝트 전반의 공통 데이터 로딩은 utils/data_loader.py를 참고한다.
 """
 
+import io
 import math
+import re
 from datetime import date
 from pathlib import Path
+from typing import Final
+from urllib.request import urlopen
 
 import pandas as pd
 
@@ -23,13 +28,14 @@ from qbt.tqqq.constants import (
     COL_FFR_DATE,
     COL_FFR_VALUE,
     DEFAULT_PRE_LISTING_EXPENSE_RATIO,
+    MONTH_KEY_PATTERN,
 )
 from qbt.utils import get_logger
 
 # 모듈 레벨 로거 생성
 logger = get_logger(__name__)
 
-# 월별 값의 상한 — 손으로 고치는 파일이라 % 로 적은 값(금리 3.63 · 설명서 표기 그대로의 운용비율 0.82)을 잡는다.
+# 월별 값의 상한 — 손으로 고치는 운용비율 · % 를 바꿔 쓰는 금리에서 % 그대로인 값(금리 3.63 · 설명서 표기 그대로의 운용비율 0.82)을 잡는다.
 # 금리는 1980년대 초 최고치(비율 약 0.19 = 19%), 운용비율은 레버리지 ETF 의 비율 0.01(= 1%) 안팎보다 넉넉히 높게 둔다
 MAX_FFR_VALUE = 0.25  # 비율 (0.25 = 25%)
 MAX_EXPENSE_VALUE = 0.05  # 비율 (0.05 = 5%)
@@ -37,6 +43,17 @@ MAX_EXPENSE_VALUE = 0.05  # 비율 (0.05 = 5%)
 # 그 달 값이 없을 때 쓸 수 있는 이전 달 값의 최대 차이 (개월) — 넘으면 ValueError
 MAX_FFR_MONTHS_DIFF = 2
 MAX_EXPENSE_MONTHS_DIFF = 12
+
+# FRED 월별 연방기금금리 (월평균, %)
+FRED_FFR_CSV_URL: Final = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS"
+# 머리까지 고정 — FRED 는 날짜 열 이름을 바꾼 적이 있음(DATE → observation_date)
+_FRED_COLUMNS: Final = ("observation_date", "FEDFUNDS")
+_FRED_MONTH_START_PATTERN: Final = rf"{MONTH_KEY_PATTERN}-01"
+_FRED_TIMEOUT_SECONDS: Final = 60
+# FRED 는 % 2자리 → 비율 4자리라 손실 없음. 더 깊은 값이 와도 잃지 않게 넉넉히 둠
+ROUND_MONTHLY_RATE: Final = 6
+# 금리 파일이 git 에 CRLF 로 들어 있음 → 같은 줄 끝이어야 diff 에 새 달만 보임
+_MONTHLY_CSV_LINE_END: Final = "\r\n"
 
 
 def load_monthly_data(path: Path) -> pd.DataFrame:
@@ -261,43 +278,114 @@ def lookup_funding_spread(date_value: date, spread_dict: dict[str, float]) -> fl
     return _lookup_monthly_data(date_value, spread_dict, MAX_FFR_MONTHS_DIFF, "funding_spread")
 
 
-def build_extended_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
+def build_extended_expense_dict(expense_df: pd.DataFrame, first_month: str) -> dict[str, float]:
     """
-    운용비율 딕셔너리를 생성하고, 1999-01부터 실제 데이터 시작 전까지 고정값으로 확장한다.
+    운용비율 딕셔너리를 생성하고, first_month 부터 파일 첫 달 직전까지 상장 전 고정값으로 채운다.
 
-    TQQQ 실제 운용비율 데이터는 2010-02부터 존재하므로,
-    1999-01 ~ 2010-01 구간에 DEFAULT_PRE_LISTING_EXPENSE_RATIO를 적용한다.
+    운용비율 파일은 TQQQ 상장(2010-02)부터라, 그 앞을 시뮬레이션하는 합성은
+    DEFAULT_PRE_LISTING_EXPENSE_RATIO 를 쓴다. first_month 가 파일 첫 달과 같거나 뒤면 채우지 않는다.
 
     Args:
         expense_df: Expense Ratio DataFrame (DATE: str (yyyy-mm), VALUE: float)
+        first_month: 시뮬레이션할 기초 시세의 첫 달 (yyyy-mm)
 
     Returns:
-        1999-01부터 커버하는 확장된 expense 딕셔너리
+        first_month 부터 덮는 expense 딕셔너리
+
+    Raises:
+        ValueError: first_month 가 YYYY-MM 이 아닐 때, create_expense_dict 와 같은 경우
     """
-    # 1. 기존 expense_df를 딕셔너리로 변환
+    if not re.fullmatch(MONTH_KEY_PATTERN, first_month):
+        raise ValueError(f"운용비율을 채울 시작 달은 YYYY-MM 이어야 합니다: {first_month!r}")
+
     expense_dict = create_expense_dict(expense_df)
+    fill_months = pd.period_range(first_month, min(expense_dict), freq="M").strftime("%Y-%m")[:-1]
+    return {month: DEFAULT_PRE_LISTING_EXPENSE_RATIO for month in fill_months} | expense_dict
 
-    # 2. 최초 월 확인
-    earliest_month = min(expense_dict.keys())
-    earliest_year, earliest_month_num = map(int, earliest_month.split("-"))
 
-    # 3. 1999-01 ~ 최초 월 직전까지 고정값 채우기
-    fill_year = 1999
-    fill_month = 1
+# ============================================================
+# FRED 월별 연방기금금리 받기
+# ============================================================
 
-    while True:
-        fill_key = f"{fill_year:04d}-{fill_month:02d}"
 
-        # 최초 월에 도달하면 종료
-        if fill_year > earliest_year or (fill_year == earliest_year and fill_month >= earliest_month_num):
-            break
+def parse_fred_ffr_csv(csv_text: str) -> pd.DataFrame:
+    """
+    FRED 월별 연방기금금리 CSV(%)를 금리 파일 형식으로 바꾼다.
 
-        expense_dict[fill_key] = DEFAULT_PRE_LISTING_EXPENSE_RATIO
+    Args:
+        csv_text: FRED fredgraph.csv 본문 (열 observation_date · FEDFUNDS)
 
-        # 다음 월로 이동
-        fill_month += 1
-        if fill_month > 12:
-            fill_month = 1
-            fill_year += 1
+    Returns:
+        월별 DataFrame (DATE: str (yyyy-mm), VALUE: float (0~1 비율))
 
-    return expense_dict
+    Raises:
+        ValueError: 머리가 다를 때, 값이 하나도 없을 때, 날짜가 그달 1일이 아닐 때, 달이 빠짐없이 이어지지 않을 때,
+            값이 비었거나 숫자가 아닐 때(FRED 의 결측 표기 「.」 포함) — 메우지 않는다
+    """
+    raw = pd.read_csv(io.StringIO(csv_text), dtype=str, keep_default_na=False)
+    if tuple(raw.columns) != _FRED_COLUMNS:
+        raise ValueError(f"FRED 금리 CSV 의 머리가 {list(_FRED_COLUMNS)} 가 아닙니다: {list(raw.columns)} — FRED 형식이 바뀌었는지 확인하세요")
+    if raw.empty:
+        raise ValueError("FRED 금리 CSV 에 값이 비어 있습니다")
+
+    date_col, value_col = _FRED_COLUMNS
+    bad_dates = raw.loc[~raw[date_col].str.fullmatch(_FRED_MONTH_START_PATTERN), date_col].tolist()
+    if bad_dates:
+        raise ValueError(f"FRED 금리의 날짜가 그달 1일(YYYY-MM-01)이 아닙니다: {bad_dates[:5]} — 월별 시리즈인지 확인하세요")
+
+    # 빠진 달은 조회가 이전 달 값으로 조용히 메움 → 받을 때 막음
+    months = raw[date_col].str[:7].tolist()
+    gaps = [
+        (prev, cur)
+        for prev, cur in zip(months, months[1:], strict=False)
+        if int(cur[:4]) * 12 + int(cur[5:7]) - (int(prev[:4]) * 12 + int(prev[5:7])) != 1
+    ]
+    if gaps:
+        raise ValueError(f"FRED 금리의 달이 빠짐없이 이어지지 않습니다 (앞 달, 다음 달): {gaps[:5]} — 메우지 않습니다")
+
+    percents = pd.to_numeric(raw[value_col], errors="coerce")
+    missing = raw.loc[percents.isna(), date_col].str[:7].tolist()
+    if missing:
+        raise ValueError(f"FRED 금리 값이 비었거나 숫자가 아닌 달: {missing[:5]} — 메우지 않습니다")
+
+    return pd.DataFrame(
+        {
+            COL_FFR_DATE: months,
+            COL_FFR_VALUE: (percents / 100.0).round(ROUND_MONTHLY_RATE),
+        }
+    )
+
+
+def download_ffr_monthly(path: Path) -> None:
+    """
+    FRED 월별 연방기금금리 전체 기간을 받아 금리 파일로 저장한다.
+
+    검사(parse_fred_ffr_csv · create_ffr_dict, 기존 파일의 달을 모두 덮는지)를 통과한 뒤에만 쓴다 — 검사에 걸리면
+    기존 파일은 그대로다.
+
+    Args:
+        path: 저장할 금리 파일 경로
+
+    Raises:
+        ValueError: parse_fred_ffr_csv · create_ffr_dict 와 같은 경우, 받은 금리가 기존 파일의 달을 다 덮지 못할 때
+        urllib.error.URLError: 받지 못했을 때
+    """
+    with urlopen(FRED_FFR_CSV_URL, timeout=_FRED_TIMEOUT_SECONDS) as response:
+        csv_text = response.read().decode("utf-8")
+
+    ffr_df = parse_fred_ffr_csv(csv_text)
+    create_ffr_dict(ffr_df)
+
+    # 잘린 응답이 앞 기간을 지우면 1980년대부터 도는 합성이 다음 생성에서 멈춤 → 쓰기 전에 막음
+    if path.exists():
+        lost = sorted(set(create_ffr_dict(load_monthly_data(path))) - set(ffr_df[COL_FFR_DATE]))
+        if lost:
+            raise ValueError(
+                f"받은 FRED 금리가 기존 금리 파일의 {len(lost)}개월을 덮지 못합니다(예: {lost[:5]}) — " f"응답이 잘렸는지 확인하세요. 기존 파일은 그대로 둡니다"
+            )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ffr_df.to_csv(path, index=False, lineterminator=_MONTHLY_CSV_LINE_END)
+    logger.debug(
+        f"FRED 연방기금금리 저장: {path} ({len(ffr_df)}개월, {ffr_df[COL_FFR_DATE].iloc[0]} ~ {ffr_df[COL_FFR_DATE].iloc[-1]})"
+    )

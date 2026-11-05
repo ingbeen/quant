@@ -31,9 +31,9 @@
 - **종류**: 무거운 버그 (검사 공백 — 막는 결함은 「마지막 날 매매가 조용히 빠져 틀린 수치가 에러 없이 나간다」)
 - **출처**: PLAN_docs_comment_errors (2026-10-24) 사용자 결정 뒤 수정분 검증이 찾음, 2026-10-25 재현해 옮김
 
-## 합성 스크립트가 상품 표를 저장 경로로 잇는 한 줄을 지키는 테스트가 없다
+## 월별 금리 · 운용비율 파일의 월 키 모양을 검사하지 않는다
 
-- **자리**: `scripts/data/generate_synthetic.py:234` `_generate_leveraged_synthetics` 의 `save_stock_csv(merged_df, SYNTHETIC_DATA_PATHS[product_name], check_price_spikes=False)`. 표는 `src/qbt/tqqq/constants.py` 의 `DAILY_COMPARISON_TARGETS` · `SYNTHETIC_DATA_PATHS` 이고, 테스트 `tests/qbt/test_tqqq_simulation_outputs.py` `TestDailyComparisonTargets` 가 표의 값만 지킨다
-- **무엇**: 그 줄을 `SYNTHETIC_DATA_PATHS["TQQQ"]` 로 잘못 고치면 QLD 2배 시세가 전략이 읽는 `TQQQ_synthetic_max.csv` 를 에러 없이 덮어쓰는데, 전체 테스트가 통과한다 — 테스트는 scripts 를 불러오지 않는다. 배율 · 실물 시세를 넘기는 자리도 같다. 지금 코드는 맞게 잇고, 생성 파일은 실물 행 · QQQ 대비 기울기 대조로 확인했다. 막으려면 상품 하나의 합성 표를 돌려주는 함수를 `src/qbt/tqqq` 로 옮겨 테스트가 부르게 해야 한다
-- **종류**: 무거운 버그 (검사 공백 — 막는 결함이 「틀린 수치가 에러 없이 나간다」)
-- **출처**: PLAN_qld_synthetic (2026-11-01) 코드 리뷰 2회차 — 사용자가 고른 범위(파일 생성만)를 넘어 고치지 않고 옮김
+- **자리**: `src/qbt/tqqq/data_loader.py:87` `_create_monthly_data_dict` — 값(유한 · 상한 · 중복 월)만 검사하고 키(`DATE`)가 `yyyy-mm` 인지는 보지 않는다. 키 모양은 `src/qbt/tqqq/constants.py` 의 `MONTH_KEY_PATTERN` 이 정하는데, 그 검사는 `build_extended_expense_dict` 의 시작 달과 `simulation.cap_spread_through` 의 마지막 달 인자에만 걸린다
+- **무엇**: 손으로 고치는 운용비율 파일(`storage/etc/tqqq_net_expense_ratio_monthly.csv`)에 `2026-3` 처럼 0 을 빠뜨린 줄이 들어와도 에러가 없다. 조회(`_lookup_monthly_data`)는 그 달을 `"2026-03"` 으로 찾고, 없으면 이전 달을 문자열 비교로 고르는데 `"2026-3"` 은 `"2026-03"` ~ `"2026-09"` 보다 크게 비교되어 쓰이지 않는다 — 그 달들은 허용 개월 수(12) 안의 직전 값을 써서 새 운용비율이 조용히 무시된다. `min(...)` 로 파일 첫 달을 고르는 운용비율 확장도 같은 비교에 기댄다. 지금 두 파일의 키는 모두 모양이 맞다(금리 868 / 868 · 운용비율 193 / 193, 2026-11-05). 막으려면 `_create_monthly_data_dict` 에서 키를 `MONTH_KEY_PATTERN` 으로 한 번 검사한다
+- **종류**: 무거운 버그 (위험한 쪽으로 틀린다 — 틀린 비용 입력이 에러 없이 합성에 들어간다)
+- **출처**: PLAN_leveraged_extension (2026-11-05) 코드 리뷰 1회차 — 이 계획이 바꾸지 않은 기존 함수라 고치지 않고 옮김

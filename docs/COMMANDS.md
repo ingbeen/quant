@@ -73,19 +73,21 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 
 ## 워크플로우 2: 합성 시세 (QQQ · TQQQ · QLD)
 
-실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, TQQQ · QLD 는 QQQ 로부터 시뮬레이션해 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다. 월별 금리 · 운용비율 파일은 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
+실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, TQQQ · QLD 는 그 QQQ 합성으로부터 시뮬레이션해 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
 
 ```bash
-# 1. 데이터 다운로드 (전체 종목 일괄 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
+# 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
 poetry run python scripts/data/download_data.py
 
-# 2. 합성 시세 생성 (TQQQ · QLD 판은 워크플로우 1 의 단일 백테스트가 읽고, TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다)
+# 2. 합성 시세 생성 (TQQQ · QLD 판은 워크플로우 1 의 단일 백테스트가 읽고 — Buy & Hold 는 QQQ 실물 기간만 — TQQQ 판은 워크포워드의 TQQQ 전략도 읽는다)
 # 출력: storage/stock/QQQ_synthetic_max.csv · TQQQ_synthetic_max.csv · QLD_synthetic_max.csv
-#       storage/results/proxy_validation/summary.csv · years.csv (대용 ↔ 실물 검증 — 콘솔에 직전 저장값과 나란히 나온다)
+#       storage/results/proxy_validation/ — summary.csv · years.csv (대용 ↔ 실물), tracking.csv (레버리지 합성 ↔ 실물 추적),
+#       funds.csv · fund_years.csv (ETF 상장 전 펀드 대조), assumptions.csv (가정만 바꾼 판)
+#       연도별 · 해마다 표 밖의 표는 콘솔에 직전 저장값과 나란히 나온다
 poetry run python scripts/data/generate_synthetic.py
 ```
 
-**파라미터 변경**: 레버리지 비용 모델은 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
+**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS`)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 펀드 대조는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
 
 ## 품질 검증 (통합)
 
@@ -152,9 +154,8 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 poetry run python scripts/data/download_data.py
 ```
 
-**② `storage/etc` 월별 파일** — 손으로 갱신한다. 열은 `DATE`(yyyy-mm) · `VALUE`(비율), 달마다 한 행, 줄 끝은 기존 행과 같은 CRLF. 편집기로 붙인다 — 파일 끝에 줄바꿈이 없으면 셸 `>>` 는 마지막 행에 이어 붙인다.
+**② `storage/etc` 월별 파일** — 금리 `federal_funds_rate_monthly.csv` 는 ① 의 인자 없는 다운로드가 FRED `FEDFUNDS`(월별, %) 전체 기간을 받아 ÷ 100 해 다시 쓴다(티커를 주고 돌리면 받지 않는다). 운용비율만 손으로 갱신한다. 열은 `DATE`(yyyy-mm) · `VALUE`(비율), 달마다 한 행, 줄 끝은 기존 행과 같은 CRLF. 편집기로 붙인다 — 파일 끝에 줄바꿈이 없으면 셸 `>>` 는 마지막 행에 이어 붙인다.
 
-- `federal_funds_rate_monthly.csv`: FRED 의 `FEDFUNDS`(월별, %) ÷ 100
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
 - 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 ③ 의 합성 생성이 멈춘다
 
@@ -177,9 +178,9 @@ poetry run python scripts/data/download_data.py
 ## 데이터 다운로드 옵션
 
 ```bash
-# 전체 종목 일괄 다운로드 (대상 티커는 scripts/data/download_data.py 의 DEFAULT_TICKERS 참조)
+# 전체 종목 일괄 다운로드 + 월별 연방기금금리(FRED) (대상 티커는 scripts/data/download_data.py 의 DEFAULT_TICKERS 참조)
 poetry run python scripts/data/download_data.py
 
-# 특정 종목 전체 기간 (특수 문자가 든 티커는 따옴표로 감싼다 — "^SPGSCI" · "GC=F". 파일 이름도 티커 그대로)
+# 특정 종목 전체 기간 — 금리는 받지 않는다 (특수 문자가 든 티커는 따옴표로 감싼다 — "^SPGSCI" · "GC=F". 파일 이름도 티커 그대로)
 poetry run python scripts/data/download_data.py TICKER
 ```
