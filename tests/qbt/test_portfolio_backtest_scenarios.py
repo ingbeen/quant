@@ -11,9 +11,18 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from qbt.backtest.constants import REBALANCE_REASON_MONTHLY, SLIPPAGE_RATE
+from qbt.backtest.constants import (
+    KEY_END_DATE,
+    KEY_PORTFOLIO_SUMMARY,
+    KEY_START_DATE,
+    REBALANCE_REASON_MONTHLY,
+    SLIPPAGE_RATE,
+    SUMMARY_FILENAME,
+)
 from qbt.backtest.engines.portfolio_engine import (
     compute_portfolio_effective_start_date,
+    compute_portfolio_trading_dates,
+    plan_run_start_dates,
     planned_start_dates,
     run_portfolio_backtest,
     run_with_start_check,
@@ -28,7 +37,7 @@ from qbt.backtest.engines.portfolio_rebalance import (
 from qbt.backtest.portfolio_types import AssetSlotConfig, PortfolioConfig
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 
-from helpers import make_portfolio_config, make_rise_then_fall_stock_df, make_rising_stock_df
+from helpers import make_portfolio_config, make_rise_then_fall_stock_df, make_rising_stock_df, weekdays
 
 # ============================================================================
 # 테스트 클래스
@@ -925,6 +934,35 @@ class TestComputeEffectiveStartDate:
             f"run_portfolio_backtest 첫 날짜({backtest_start})가 동일해야 함"
         )
 
+    def test_trading_dates_are_backtest_dates(self, tmp_path: Path, create_csv_file):
+        """
+        목적: compute_portfolio_trading_dates() 는 엔진이 도는 날 그대로다 — 러너가 이 목록으로 함께 시작할 날을 고르므로,
+              어긋나면 고른 날에 그 실험이 시작하지 않는다
+
+        Given: 두 자산 중 하나에 하루가 빠진(공통 기간에서 빠짐) 이동평균 5일 설정
+        When:  compute_portfolio_trading_dates(config)
+        Then:  run_portfolio_backtest() 의 equity_df 날짜 목록과 같고, 첫날 = compute_portfolio_effective_start_date
+        """
+        # Given
+        stock_df = make_rising_stock_df(n_rows=30)
+        gap_df = stock_df.drop(index=12).reset_index(drop=True)
+        qqq_path = create_csv_file("QQQ_max.csv", stock_df)
+        gld_path = create_csv_file("GLD_max.csv", gap_df)
+        config = make_portfolio_config(
+            asset_paths={"qqq": (qqq_path, qqq_path), "gld": (gld_path, gld_path)},
+            result_dir=tmp_path,
+            target_weights={"qqq": 0.5, "gld": 0.5},
+            ma_window=5,
+        )
+
+        # When
+        trading_dates = compute_portfolio_trading_dates(config)
+
+        # Then
+        assert trading_dates == list(run_portfolio_backtest(config).equity_df[COL_DATE])
+        assert stock_df[COL_DATE].iloc[12] not in trading_dates
+        assert trading_dates[0] == compute_portfolio_effective_start_date(config)
+
 
 class TestSlotsSharingSignalData:
     """같은 신호 시세를 드는 슬롯들의 계약 테스트.
@@ -1264,7 +1302,7 @@ class TestRunWithStartCheck:
 
 class TestPlannedStartDates:
     """러너가 실험마다 시작할 날 — 설정의 min_start_date, 없으면 그런 실험들이 함께 시작하는 날
-    (그 실험들의 데이터 시작일 중 가장 늦은 날, docs/research/합성_시세_연장.md 결정 10)."""
+    (그 실험들의 데이터 시작일 중 가장 늦은 날 이후, 그 실험들 모두의 거래일인 첫날 — docs/research/합성_시세_연장.md 결정 10)."""
 
     @staticmethod
     def _configs(tmp_path: Path, pinned: dict[str, date | None]) -> list[PortfolioConfig]:
@@ -1275,19 +1313,67 @@ class TestPlannedStartDates:
         """
         목적: 시작일을 정하지 않은 실험은 모두 그 실험들의 데이터 시작일 중 가장 늦은 날에 시작한다
 
-        Given: 시작일 없는 실험 셋 (데이터 시작 1985-10-01 · 1986-07-16 · 1986-03-03)
+        Given: 시작일 없는 실험 셋 (평일 거래일, 데이터 시작 1985-10-01 · 1986-07-16 · 1986-03-03)
         When:  planned_start_dates
         Then:  셋 모두 1986-07-16
         """
         # Given
         configs = self._configs(tmp_path, {"a": None, "b": None, "c": None})
-        data_starts = {"a": date(1985, 10, 1), "b": date(1986, 7, 16), "c": date(1986, 3, 3)}
+        end = date(1986, 12, 31)
+        trading = {
+            "a": weekdays(date(1985, 10, 1), end),
+            "b": weekdays(date(1986, 7, 16), end),
+            "c": weekdays(date(1986, 3, 3), end),
+        }
 
         # When
-        planned = planned_start_dates(configs, data_starts)
+        planned = planned_start_dates(configs, trading)
 
         # Then
         assert planned == {"a": date(1986, 7, 16), "b": date(1986, 7, 16), "c": date(1986, 7, 16)}
+
+    def test_shared_start_moves_to_first_day_common_to_all(self, tmp_path: Path):
+        """
+        목적: 가장 늦은 데이터 시작일이 어느 실험의 거래일이 아니면 그 뒤 모두의 거래일인 첫날에 함께 시작한다 —
+              그날로 돌리면 그 실험만 다음 날 시작해 같은 기간 비교가 깨진다 (금 합성에는 미국 거래일 110일이 없다)
+
+        Given: 7월 평일 거래일 실험 a, 7/16 · 7/17 이 빠진 b, 7/16 에 데이터가 시작하는 c
+        When:  planned_start_dates
+        Then:  셋 모두 1986-07-18 (7/16 은 b 에 없고 7/17 도 b 에 없음)
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "b": None, "c": None})
+        july = weekdays(date(1986, 7, 1), date(1986, 7, 31))
+        trading = {
+            "a": july,
+            "b": [d for d in july if d not in (date(1986, 7, 16), date(1986, 7, 17))],
+            "c": [d for d in july if d >= date(1986, 7, 16)],
+        }
+
+        # When
+        planned = planned_start_dates(configs, trading)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 18), "b": date(1986, 7, 18), "c": date(1986, 7, 18)}
+
+    def test_no_common_day_after_latest_start_raises(self, tmp_path: Path):
+        """
+        목적: 가장 늦은 데이터 시작일 이후 모두의 거래일인 날이 없으면 날을 정하지 않고 멈춘다 (경계)
+
+        Given: 1월에 끝나는 실험 a, 2월에 시작하는 실험 b
+        When:  planned_start_dates
+        Then:  ValueError (함께 시작할 날 없음)
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "b": None})
+        trading = {
+            "a": weekdays(date(1990, 1, 1), date(1990, 1, 31)),
+            "b": weekdays(date(1990, 2, 1), date(1990, 2, 28)),
+        }
+
+        # When / Then
+        with pytest.raises(ValueError, match="함께 시작할 날"):
+            planned_start_dates(configs, trading)
 
     def test_pinned_experiment_keeps_its_date_and_is_left_out(self, tmp_path: Path):
         """
@@ -1299,13 +1385,43 @@ class TestPlannedStartDates:
         """
         # Given
         configs = self._configs(tmp_path, {"a": None, "b": None, "pinned": date(2007, 4, 9)})
-        data_starts = {"a": date(1985, 10, 1), "b": date(1986, 7, 16), "pinned": date(2007, 1, 2)}
+        end = date(2007, 12, 31)
+        trading = {
+            "a": weekdays(date(1985, 10, 1), end),
+            "b": weekdays(date(1986, 7, 16), end),
+            "pinned": weekdays(date(2007, 1, 2), end),
+        }
 
         # When
-        planned = planned_start_dates(configs, data_starts)
+        planned = planned_start_dates(configs, trading)
 
         # Then
         assert planned == {"a": date(1986, 7, 16), "b": date(1986, 7, 16), "pinned": date(2007, 4, 9)}
+
+    @pytest.mark.parametrize(
+        "pin",
+        [date(2007, 4, 7), date(2006, 12, 1)],
+        ids=["not_trading_day", "before_data_start"],
+    )
+    def test_pinned_date_not_trading_day_raises(self, tmp_path: Path, pin: date):
+        """
+        목적: 시작일을 정한 실험의 그날이 그 실험의 거래일이 아니면 어느 실험도 돌리기 전에 멈춘다 —
+              엔진의 시작일은 하한이라 그대로 돌리면 조용히 늦게 시작한다
+
+        Given: 평일 거래일(데이터 2007-01-02 ~)에 시작일을 토요일 2007-04-07 · 데이터 전 2006-12-01 로 정한 실험
+        When:  planned_start_dates
+        Then:  ValueError (실험 이름)
+        """
+        # Given
+        configs = self._configs(tmp_path, {"a": None, "pinned": pin})
+        trading = {
+            "a": weekdays(date(2006, 1, 2), date(2007, 12, 31)),
+            "pinned": weekdays(date(2007, 1, 2), date(2007, 12, 31)),
+        }
+
+        # When / Then
+        with pytest.raises(ValueError, match="pinned"):
+            planned_start_dates(configs, trading)
 
     def test_all_pinned(self, tmp_path: Path):
         """
@@ -1317,19 +1433,19 @@ class TestPlannedStartDates:
         """
         # Given
         configs = self._configs(tmp_path, {"a": date(2000, 1, 3), "b": date(2001, 1, 2)})
-        data_starts = {"a": date(1990, 1, 2), "b": date(1990, 1, 2)}
+        trading = {name: weekdays(date(1990, 1, 2), date(2001, 12, 31)) for name in ("a", "b")}
 
         # When
-        planned = planned_start_dates(configs, data_starts)
+        planned = planned_start_dates(configs, trading)
 
         # Then
         assert planned == {"a": date(2000, 1, 3), "b": date(2001, 1, 2)}
 
-    def test_missing_data_start_raises(self, tmp_path: Path):
+    def test_missing_trading_dates_raises(self, tmp_path: Path):
         """
-        목적: 시작일 없는 실험의 데이터 시작일을 빠뜨리면 그 실험을 빼고 날을 정하지 않고 멈춘다
+        목적: 어느 실험의 거래일을 빠뜨리면 그 실험을 빼고 날을 정하지 않고 멈춘다
 
-        Given: 시작일 없는 실험 둘 중 하나만 데이터 시작일이 있음
+        Given: 시작일 없는 실험 둘 중 하나만 거래일이 있음
         When:  planned_start_dates
         Then:  ValueError (빠진 실험 이름)
         """
@@ -1338,4 +1454,151 @@ class TestPlannedStartDates:
 
         # When / Then
         with pytest.raises(ValueError, match="b"):
-            planned_start_dates(configs, {"a": date(1990, 1, 2)})
+            planned_start_dates(configs, {"a": weekdays(date(1990, 1, 2), date(1990, 1, 31))})
+
+
+class TestPlanRunStartDates:
+    """이번에 돌릴 실험의 시작할 날 — 등록 실험 전부로 날을 정하고, 돌리지 않는 실험의 저장 결과가 지금 정한 기간인지 대조한다
+    (다르면 결과 폴더에 기간이 다른 결과가 섞인다)."""
+
+    END = date(1986, 12, 31)
+
+    @staticmethod
+    def _config(tmp_path: Path, name: str, saved: tuple[str, str] | str | None = None) -> PortfolioConfig:
+        result_dir = tmp_path / name
+        if saved is not None:
+            result_dir.mkdir()
+            if isinstance(saved, str):
+                text = saved
+            else:
+                text = json.dumps({KEY_PORTFOLIO_SUMMARY: {KEY_START_DATE: saved[0], KEY_END_DATE: saved[1]}})
+            (result_dir / SUMMARY_FILENAME).write_text(text, encoding="utf-8")
+        base = make_portfolio_config(
+            asset_paths={"spy": (tmp_path / "s.csv", tmp_path / "s.csv")}, result_dir=result_dir
+        )
+        return replace(base, experiment_name=name)
+
+    def _trading(self, starts: dict[str, date]) -> dict[str, list[date]]:
+        return {name: weekdays(start, self.END) for name, start in starts.items()}
+
+    def test_single_target_starts_on_date_of_all_registered(self, tmp_path: Path):
+        """
+        목적: 하나만 돌려도 등록 실험 전부로 정한 날에 시작한다 — 그 실험의 데이터 시작일로 시작하면 전체 실행과 기간이 갈린다
+
+        Given: 데이터 1985-10-01 에 시작하는 실험 a, 1986-07-16 에 시작하는 실험 b (저장 결과 없음)
+        When:  a 만 돌릴 실험으로 plan_run_start_dates
+        Then:  {"a": 1986-07-16}
+        """
+        # Given
+        registered = [self._config(tmp_path, "a"), self._config(tmp_path, "b")]
+        trading = self._trading({"a": date(1985, 10, 1), "b": date(1986, 7, 16)})
+
+        # When
+        planned = plan_run_start_dates(registered, registered[:1], trading)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 16)}
+
+    def test_matching_or_missing_saved_results_pass(self, tmp_path: Path):
+        """
+        목적: 돌리지 않는 실험의 저장 결과가 지금 정한 기간이거나 저장 결과가 없으면 통과한다 (없는 실험은 대시보드에도 없다)
+
+        Given: 돌릴 실험 a, 1986-07-16 ~ 1986-12-31 로 저장된 b, 저장 결과가 없는 c (거래일은 셋 다 그 기간)
+        When:  a 만 돌릴 실험으로 plan_run_start_dates
+        Then:  {"a": 1986-07-16}
+        """
+        # Given
+        registered = [
+            self._config(tmp_path, "a"),
+            self._config(tmp_path, "b", ("1986-07-16", "1986-12-31")),
+            self._config(tmp_path, "c"),
+        ]
+        trading = self._trading({"a": date(1986, 7, 16), "b": date(1986, 7, 16), "c": date(1986, 7, 16)})
+
+        # When
+        planned = plan_run_start_dates(registered, registered[:1], trading)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 16)}
+
+    @pytest.mark.parametrize(
+        "saved",
+        [("1986-07-16", "1986-12-31"), ("1986-07-21", "1986-11-28")],
+        ids=["start_moved", "end_extended"],
+    )
+    def test_mismatching_saved_period_raises(self, tmp_path: Path, saved: tuple[str, str]):
+        """
+        목적: 돌리지 않는 실험의 저장 기간이 지금 정한 기간과 다르면 아무것도 쓰기 전에 멈춘다 — 늦게 시작하는 실험을 등록해
+              함께 시작할 날이 옮겨가거나(시작일), 새 시세로 끝날이 늘었는데(끝날) 일부만 돌리면 나머지가 옛 기간으로 남는다
+
+        Given: 돌릴 실험 a 와 데이터가 1986-07-21 에 시작하는 실험 c(함께 시작할 날 1986-07-21, 끝날 1986-12-31),
+               저장된 기간이 그와 다른 b — 시작일만 다름 · 끝날만 다름
+        When:  a 만 돌릴 실험으로 plan_run_start_dates
+        Then:  ValueError (b · 저장 기간 · 전체 실행 안내)
+        """
+        # Given
+        registered = [
+            self._config(tmp_path, "a"),
+            self._config(tmp_path, "b", saved),
+            self._config(tmp_path, "c"),
+        ]
+        trading = self._trading({"a": date(1986, 7, 16), "b": date(1986, 7, 16), "c": date(1986, 7, 21)})
+
+        # When / Then
+        with pytest.raises(
+            ValueError, match=rf"b\(저장 {saved[0]} ~ {saved[1]}, 지금 1986-07-21 ~ 1986-12-31\).*--experiment 없이"
+        ):
+            plan_run_start_dates(registered, registered[:1], trading)
+
+    def test_unreadable_saved_result_raises(self, tmp_path: Path):
+        """
+        목적: 돌리지 않는 실험의 저장 결과를 읽을 수 없으면(쓰다 끊김 · 옛 형식) 그 파일과 할 일을 알리며 멈춘다
+
+        Given: 돌릴 실험 a, summary.json 이 「{」 로 끊긴 b
+        When:  a 만 돌릴 실험으로 plan_run_start_dates
+        Then:  ValueError (읽을 수 없음 · 전체 실행 안내)
+        """
+        # Given
+        registered = [self._config(tmp_path, "a"), self._config(tmp_path, "b", "{")]
+        trading = self._trading({"a": date(1986, 7, 16), "b": date(1986, 7, 16)})
+
+        # When / Then
+        with pytest.raises(ValueError, match="읽을 수 없습니다.*--experiment 없이"):
+            plan_run_start_dates(registered, registered[:1], trading)
+
+    def test_running_all_skips_saved_check(self, tmp_path: Path):
+        """
+        목적: 전체를 돌리면 대조할 실험이 없다 — 저장 결과가 옛 기간이어도 이번 실행이 모두 덮어쓴다 (경계)
+
+        Given: 옛 기간으로 저장된 a · b, 둘 다 돌릴 실험
+        When:  plan_run_start_dates
+        Then:  둘 다 1986-07-16
+        """
+        # Given
+        registered = [
+            self._config(tmp_path, "a", ("1985-10-01", "1986-10-31")),
+            self._config(tmp_path, "b", ("1985-10-01", "1986-10-31")),
+        ]
+        trading = self._trading({"a": date(1986, 7, 16), "b": date(1986, 7, 16)})
+
+        # When
+        planned = plan_run_start_dates(registered, registered, trading)
+
+        # Then
+        assert planned == {"a": date(1986, 7, 16), "b": date(1986, 7, 16)}
+
+    def test_unregistered_target_raises(self, tmp_path: Path):
+        """
+        목적: 등록되지 않은 실험은 돌릴 날을 정하지 않고 멈춘다 — 등록 실험으로 정한 날과 견줄 수 없다
+
+        Given: 등록 실험 a, 등록되지 않은 실험 x
+        When:  x 를 돌릴 실험으로 plan_run_start_dates
+        Then:  ValueError (x)
+        """
+        # Given
+        registered = [self._config(tmp_path, "a")]
+        trading = self._trading({"a": date(1986, 7, 16)})
+
+        # When / Then
+        with pytest.raises(ValueError, match="x"):
+            plan_run_start_dates(registered, [self._config(tmp_path, "x")], trading)

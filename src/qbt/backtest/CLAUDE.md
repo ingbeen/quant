@@ -126,7 +126,7 @@ Lookahead 금지:
 - **종목 단위 상계**: 장부는 단독 매매처럼 비용을 내고, 같은 날 같은 자산의 반대 매매로 계좌에서 아낀 비용 (Σ|Δ| − |ΣΔ|) × 시가 × `SLIPPAGE_RATE` 는 상계 절감으로 계좌 현금에 둔다(매매법에 나누지 않음) — Σ 매매법 손익 + 상계 절감 = 계좌 손익
 - **신호 시세**: 슬롯마다 따로 읽고, 매매 시세와 겹치는 기간으로 자른 뒤 이동평균을 계산한다 — 신호 시세가 더 길어도 워밍업은 매매 시세 첫날부터다
 - **현금 버퍼**: 목표 비중 합이 1 미만이면 나머지는 현금으로 둔다
-- **시작일**: 실험마다 자산 교집합 + 이동평균 워밍업 뒤 첫날이다(`compute_portfolio_effective_start_date`). 포트폴리오 러너는 실험마다 시작할 날을 정한다(`engines/portfolio_engine.py` 의 `planned_start_dates`) — 설정의 `min_start_date`, 없으면 그런 등록 실험이 모두 그 첫날 중 가장 늦은 날이다. 엔진의 시작일은 하한이라 그날 시세가 빈 자산이 있으면 조용히 늦게 시작한다 — 러너가 모든 실험의 실제 시작일을 대조한다(`run_with_start_check`)
+- **시작일**: 실험마다 자산 교집합 + 이동평균 워밍업 뒤 첫날이다(`compute_portfolio_effective_start_date`, 도는 거래일은 `compute_portfolio_trading_dates`). 포트폴리오 러너는 실험마다 시작할 날을 정한다(`engines/portfolio_engine.py` 의 `planned_start_dates`) — 설정의 `min_start_date`, 없으면 그런 등록 실험이 모두 그 첫날 중 가장 늦은 날 이후, 그 실험들 모두의 거래일인 첫날이다(금 합성에는 미국 거래일이 빠진 날이 있다). 엔진의 시작일은 하한이라 그날 시세가 빈 자산이 있으면 조용히 늦게 시작한다 — 러너는 돌리기 전에 `min_start_date` 가 그 실험의 거래일인지, 이번에 돌리지 않는 실험의 저장 결과가 지금 정한 기간(시작일 · 끝날)인지 보고(`plan_run_start_dates`), 돌린 뒤 실제 시작일을 대조한다(`run_with_start_check`)
 
 ---
 

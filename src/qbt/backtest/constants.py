@@ -75,6 +75,10 @@ SUMMARY_FILENAME: Final = "summary.json"
 LEDGER_FILENAME: Final = "ledger.csv"
 NETTING_FILENAME: Final = "netting.csv"
 PORTFOLIO_SIGNAL_PREFIX: Final = "signal_"
+# 포트폴리오 summary.json 의 기간 키 — 러너가 쓰고, 일부만 돌릴 때 다른 실험의 저장 기간 대조가 읽는다
+KEY_PORTFOLIO_SUMMARY: Final = "portfolio_summary"
+KEY_START_DATE: Final = "start_date"
+KEY_END_DATE: Final = "end_date"
 
 # --- WFO 결과 파일명 ---
 WALKFORWARD_DYNAMIC_FILENAME: Final = "walkforward_dynamic.csv"

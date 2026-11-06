@@ -39,6 +39,7 @@ poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_n
 # 실행 직후 정합성 검증 — 위반이 있으면 결과를 저장한 뒤 멈춘다 (ValueError)
 poetry run python scripts/backtest/run_portfolio_backtest.py
 # --experiment 인자로 특정 실험 선택 가능 (기본값: all, 선택지는 --help)
+# 다른 실험의 저장 결과가 지금 기간과 다르면(늦게 시작하는 실험을 새로 등록했거나 새 시세로 끝날이 늘었을 때) 쓰기 전에 멈춘다 — 그때는 인자 없이 전체를 돌린다
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
 # 4. 워크포워드 검증 (선행: 1, QQQ · TQQQ 합성 — 워크플로우 2 의 2)
@@ -158,8 +159,9 @@ poetry run python scripts/data/download_data.py
 
 - `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
 - 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 ③ 의 합성 생성이 멈춘다
+- 월 키가 `yyyy-mm` 이 아닌 줄(`2026-3` 등)이 있어도 ③ 이 멈춘다
 
-**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배 · TLT · GLD(④ 의 러너가 모두 이 합성 시세를 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
+**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배 · TLT · GLD(④ 의 러너가 모두 이 합성 시세를 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). ① 뒤에 ③ 을 건너뛰고 ④ 를 돌리면 러너가 시세를 읽을 때 멈춘다(합성 끝날이 짝 실물보다 이르다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
 ```bash
 (

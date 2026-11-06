@@ -735,3 +735,22 @@ class TestCountUnmatchedDays:
 
         # Then
         assert (unmatched.proxy_only, unmatched.actual_only) == (1, 0)
+
+    def test_window_includes_first_and_last_day(self) -> None:
+        """
+        목적: 비교 기간의 첫날(실물 첫날) · 끝날(이른 끝날)도 센다 — 다시 받은 시세의 끝날이 한쪽에만 있으면 그날이 빠진 날이다
+
+        Given: 대용 DAYS[1] ~ DAYS[5] (실물 첫날 DAYS[0] 없음), 실물 DAYS[0] ~ DAYS[7] 에서 DAYS[5] (대용 끝날) 빠짐
+        When: count_unmatched_days
+        Then: 대용에만 1 (끝날 DAYS[5]), 실물에만 1 (첫날 DAYS[0])
+        """
+        # Given
+        proxy = _make_df(DAYS[1:6], [100.0 + i for i in range(5)])
+        actual_days = [d for i, d in enumerate(DAYS) if i != 5]
+        actual = _make_df(actual_days, [50.0 + i for i in range(len(actual_days))])
+
+        # When
+        unmatched = count_unmatched_days(proxy, actual)
+
+        # Then
+        assert (unmatched.proxy_only, unmatched.actual_only) == (1, 1)

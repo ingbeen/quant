@@ -1,6 +1,6 @@
 """WFO 파라미터 스케줄 및 실행 테스트
 
-build_params_schedule()과 run_walkforward()의 핵심 계약을 검증한다.
+build_params_schedule() · run_walkforward() · run_window_detail_backtests()의 핵심 계약을 검증한다.
 """
 
 import math
@@ -13,8 +13,15 @@ from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, DEFAULT_INITIAL_CAPITAL
 from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-from qbt.backtest.walkforward import build_params_schedule, run_stitched_equity, run_walkforward
+from qbt.backtest.walkforward import (
+    build_params_schedule,
+    run_stitched_equity,
+    run_walkforward,
+    run_window_detail_backtests,
+)
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
+
+from helpers import make_rise_then_fall_stock_df, make_rising_stock_df
 
 
 def _make_trend_and_oscillating_df(
@@ -529,3 +536,56 @@ class TestBuildParamsSchedule:
 
         # Then
         assert schedule == {}
+
+
+class TestRunWindowDetailBacktests:
+    """윈도우 상세 실행의 미청산 포지션 — 대시보드가 윈도우 차트에 「Buy (보유중)」을 그리는 근거다."""
+
+    @staticmethod
+    def _window(df: pd.DataFrame) -> dict[str, object]:
+        return {
+            "window_idx": 0,
+            "is_start": df[COL_DATE].iloc[0].isoformat(),
+            "oos_end": df[COL_DATE].iloc[-1].isoformat(),
+            "best_ma_window": 5,
+            "best_buy_buffer_zone_pct": 0.01,
+            "best_sell_buffer_zone_pct": 0.01,
+            "best_hold_days": 0,
+        }
+
+    def test_open_position_when_holding_at_window_end(self):
+        """
+        목적: 윈도우 끝에 보유 중이면 open_position 의 진입일이 그 매수 체결일이다 — 닫힌 거래가 없어 trades 로는 진입이 보이지 않는다
+
+        Given: 10일 100 → 110 으로 뛰어 그대로 머무는 시세 50행 (인덱스 10 종가 돌파 → 인덱스 11 시가 매수, 매도 없음)
+        When:  run_window_detail_backtests
+        Then:  닫힌 거래 0, open_position 진입일 = 인덱스 11 날짜
+        """
+        # Given
+        df = make_rising_stock_df(n_rows=50)
+
+        # When
+        [detail] = run_window_detail_backtests([self._window(df)], df, df, DEFAULT_INITIAL_CAPITAL)
+
+        # Then
+        assert detail.trades_df.empty
+        assert detail.open_position is not None
+        assert detail.open_position["entry_date"] == df[COL_DATE].iloc[11].isoformat()
+
+    def test_no_open_position_when_flat_at_window_end(self):
+        """
+        목적: 윈도우 끝에 보유하지 않으면 open_position 이 없다 (경계 — 마커를 그리지 않는다)
+
+        Given: 100 → 110 에서 사고 85 로 떨어져 판 뒤 다시 사지 않는 시세 50행
+        When:  run_window_detail_backtests
+        Then:  닫힌 거래 1, open_position None
+        """
+        # Given
+        df = make_rise_then_fall_stock_df(n_rows=50)
+
+        # When
+        [detail] = run_window_detail_backtests([self._window(df)], df, df, DEFAULT_INITIAL_CAPITAL)
+
+        # Then
+        assert len(detail.trades_df) == 1
+        assert detail.open_position is None

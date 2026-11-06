@@ -15,6 +15,7 @@
 - 결과: PortfolioResult (equity_df, trades_df, per_asset, summary, state_log_df, ledger_df, netting_df)
 """
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
@@ -31,11 +32,15 @@ from qbt.backtest.constants import (
     COL_EXIT_PRICE,
     COL_PNL,
     COL_SHARES,
+    KEY_END_DATE,
+    KEY_PORTFOLIO_SUMMARY,
+    KEY_START_DATE,
     REBALANCE_INTENT_TYPES,
     REBALANCE_REASON_METHODS,
     REBALANCE_REASON_MONTHLY,
     SELL_INTENT_TYPES,
     SLIPPAGE_RATE,
+    SUMMARY_FILENAME,
     ma_col_name,
 )
 from qbt.backtest.engines.engine_common import PortfolioTradeRecord
@@ -234,50 +239,77 @@ def _load_portfolio_data_with_common_period(config: PortfolioConfig) -> _Portfol
     )
 
 
-def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
-    """포트폴리오 실험의 유효 시작일을 계산한다.
+def compute_portfolio_trading_dates(config: PortfolioConfig) -> list[date]:
+    """포트폴리오 실험이 도는 거래일 — 전 자산 데이터의 날짜 교집합에서 워밍업이 끝난 날부터.
 
-    전 자산 데이터의 날짜 교집합을 구하고 buffer_zone 슬롯의 MA 워밍업 · 배분 규칙의 워밍업 완료 이후
-    첫 날짜를 반환한다. buy_and_hold 슬롯은 MA 워밍업이 없으므로 valid_start 계산에서 제외.
-    실험마다 다를 수 있는 이 날로 CLI 러너가 실험마다 시작할 날을 정한다(`planned_start_dates`).
-
-    Args:
-        config: 포트폴리오 실험 설정
-
-    Returns:
-        워밍업 완료 이후 첫 유효 거래일 (date 객체)
+    buffer_zone 슬롯의 MA 워밍업 · 배분 규칙의 워밍업이 끝난 뒤의 날이다(buy_and_hold 슬롯은 워밍업이 없다).
+    엔진은 start_date 가 없으면 이 날들을 그대로 돌고, 있으면 그 이상인 날만 돈다.
 
     Raises:
-        ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시
+        ValueError: 공통 기간 없음 또는 MA 컬럼 누락 시, 워밍업 뒤 데이터가 없을 때
     """
     validate_portfolio_config(config)
     data = _load_portfolio_data_with_common_period(config)
 
-    trade_dates = next(iter(data.trade_dfs.values()))[COL_DATE]
+    trade_dates = list(next(iter(data.trade_dfs.values()))[COL_DATE])
     if data.valid_start >= len(trade_dates):
         raise ValueError("유효 데이터 부족: MA 워밍업 후 데이터가 없습니다.")
-    return trade_dates.iloc[data.valid_start]
+    return trade_dates[data.valid_start :]
 
 
-def planned_start_dates(configs: Sequence[PortfolioConfig], data_start_dates: Mapping[str, date]) -> dict[str, date]:
+def compute_portfolio_effective_start_date(config: PortfolioConfig) -> date:
+    """포트폴리오 실험의 유효 시작일 — 도는 거래일(`compute_portfolio_trading_dates`)의 첫날.
+
+    Raises:
+        ValueError: compute_portfolio_trading_dates 와 같다
+    """
+    return compute_portfolio_trading_dates(config)[0]
+
+
+def planned_start_dates(
+    configs: Sequence[PortfolioConfig], trading_dates: Mapping[str, Sequence[date]]
+) -> dict[str, date]:
     """실험마다 시작할 날 — 설정의 min_start_date, 없으면 그런 실험들이 함께 시작하는 날.
 
-    함께 시작하는 날은 min_start_date 가 없는 실험들의 데이터 시작일(`compute_portfolio_effective_start_date`) 중
-    가장 늦은 날이다 — 실험마다 따로 시작하면 서로 다른 기간을 견주게 된다(docs/research/합성_시세_연장.md 결정 10).
-    그날이 어느 실험의 거래일이 아닐 수도 있어, 러너는 `run_with_start_check` 로 실제 시작일을 대조한다.
+    함께 시작하는 날은 min_start_date 가 없는 실험들의 첫 거래일 중 가장 늦은 날 이후, 그 실험들 모두의 거래일인
+    첫날이다 — 실험마다 따로 시작하면 서로 다른 기간을 견주게 된다(docs/research/합성_시세_연장.md 결정 10).
+    min_start_date 가 그 실험의 거래일이 아니면 멈춘다 — 엔진의 start_date 는 하한이라 그대로 돌리면 조용히 늦게 시작한다.
 
     Args:
         configs: 함께 견줄 실험 전부 (일부만 돌려도 등록 실험 전부를 넘긴다)
-        data_start_dates: 실험 이름 → 데이터 시작일. min_start_date 가 없는 실험은 모두 있어야 한다
+        trading_dates: 실험 이름 → 도는 거래일(`compute_portfolio_trading_dates`). 모든 실험이 있어야 한다
 
     Raises:
-        ValueError: min_start_date 가 없는 실험의 데이터 시작일이 빠졌을 때
+        ValueError: 거래일이 빠진 실험이 있을 때, 함께 시작할 날이 없을 때, min_start_date 가 그 실험의 거래일이 아닐 때
     """
-    unpinned = [c.experiment_name for c in configs if c.min_start_date is None]
-    missing = [name for name in unpinned if name not in data_start_dates]
+    missing = [c.experiment_name for c in configs if c.experiment_name not in trading_dates]
     if missing:
-        raise ValueError(f"데이터 시작일이 없는 실험이 있어 함께 시작할 날을 정할 수 없습니다: {missing}")
-    shared = max((data_start_dates[name] for name in unpinned), default=None)
+        raise ValueError(f"거래일이 없는 실험이 있어 시작할 날을 정할 수 없습니다: {missing}")
+
+    unpinned = [c.experiment_name for c in configs if c.min_start_date is None]
+    shared: date | None = None
+    if unpinned:
+        floor = max(trading_dates[name][0] for name in unpinned)
+        common = set.intersection(*(set(trading_dates[name]) for name in unpinned))
+        candidates = [d for d in common if d >= floor]
+        if not candidates:
+            raise ValueError(
+                f"함께 시작할 날이 없습니다 — 시작일 없는 실험 {unpinned} 모두의 거래일인 날이 가장 늦은 데이터 시작일 {floor} 이후에 없습니다. "
+                f"그 실험들의 시세 파일이 잘렸거나 끝났는지 확인하고, 기간이 겹치지 않는 실험은 설정에서 빼세요"
+            )
+        shared = min(candidates)
+
+    not_trading = [
+        f"{c.experiment_name}(설정 {c.min_start_date}, 워밍업 뒤 첫 거래일 {trading_dates[c.experiment_name][0]})"
+        for c in configs
+        if c.min_start_date is not None and c.min_start_date not in trading_dates[c.experiment_name]
+    ]
+    if not_trading:
+        raise ValueError(
+            "설정의 시작일(min_start_date)이 그 실험의 거래일이 아닌 실험이 있습니다 — 그대로 돌리면 설정과 기간이 달라집니다: "
+            f"{', '.join(not_trading)}. 그 실험의 min_start_date 를 거래일로 고친 뒤 실행하세요"
+        )
+
     planned: dict[str, date] = {}
     for config in configs:
         start = config.min_start_date if config.min_start_date is not None else shared
@@ -285,6 +317,66 @@ def planned_start_dates(configs: Sequence[PortfolioConfig], data_start_dates: Ma
             raise RuntimeError(f"내부 불변조건 위반: 시작일 없는 실험 {config.experiment_name} 이 있는데 함께 시작할 날이 없습니다")
         planned[config.experiment_name] = start
     return planned
+
+
+def plan_run_start_dates(
+    registered: Sequence[PortfolioConfig],
+    targets: Sequence[PortfolioConfig],
+    trading_dates: Mapping[str, Sequence[date]],
+) -> dict[str, date]:
+    """이번에 돌릴 실험마다 시작할 날 — 등록 실험 전부로 날을 정하고(`planned_start_dates`), 돌리지 않는 등록 실험의
+    저장 결과(summary.json)가 지금 정한 기간과 같은지 대조한 뒤 돌려준다 (포트폴리오 러너가 실행 전에 부른다).
+
+    일부만 돌려 함께 시작할 날이 옮겨가거나 새 시세로 끝날이 늘면, 나머지 실험의 결과는 옛 기간 그대로라 결과 폴더에
+    기간이 다른 결과가 섞인다. 저장된 결과가 없는 실험은 건너뛴다.
+
+    Args:
+        registered: 등록 실험 전부
+        targets: 이번에 돌릴 실험 (registered 의 일부 또는 전부)
+        trading_dates: 실험 이름 → 도는 거래일(`compute_portfolio_trading_dates`). registered 가 모두 있어야 한다
+
+    Raises:
+        ValueError: planned_start_dates 와 같은 경우, targets 에 등록되지 않은 실험이 있을 때,
+            돌리지 않는 실험의 저장 기간이 지금 정한 기간과 다르거나 그 저장 결과를 읽을 수 없을 때
+    """
+    registered_names = {c.experiment_name for c in registered}
+    target_names = {c.experiment_name for c in targets}
+    unknown = sorted(target_names - registered_names)
+    if unknown:
+        raise ValueError(f"등록되지 않은 실험은 돌릴 수 없습니다: {unknown}")
+
+    start_dates = planned_start_dates(registered, trading_dates)
+    mismatched: list[str] = []
+    for config in registered:
+        name = config.experiment_name
+        if name in target_names:
+            continue
+        saved = _read_saved_period(config.result_dir / SUMMARY_FILENAME)
+        if saved is None:
+            continue
+        planned = (start_dates[name], trading_dates[name][-1])
+        if saved != planned:
+            mismatched.append(f"{name}(저장 {saved[0]} ~ {saved[1]}, 지금 {planned[0]} ~ {planned[1]})")
+    if mismatched:
+        raise ValueError(
+            f"이번에 돌리지 않는 실험의 저장 결과가 지금 정한 기간과 다릅니다: {', '.join(mismatched)}. "
+            "일부만 돌리면 결과 폴더에 기간이 다른 결과가 섞입니다 — --experiment 없이 전체를 돌리세요"
+        )
+    return {name: start_dates[name] for name in target_names}
+
+
+def _read_saved_period(summary_path: Path) -> tuple[date, date] | None:
+    if not summary_path.exists():
+        return None
+    try:
+        with summary_path.open(encoding="utf-8") as f:
+            period = json.load(f)[KEY_PORTFOLIO_SUMMARY]
+        return date.fromisoformat(period[KEY_START_DATE]), date.fromisoformat(period[KEY_END_DATE])
+    except (KeyError, TypeError, ValueError) as e:
+        # JSONDecodeError · UnicodeDecodeError 도 ValueError — 쓰다 끊긴 파일 · 옛 형식
+        raise ValueError(
+            f"저장 결과 {summary_path} 의 기간을 읽을 수 없습니다({e!r}) — 쓰다 끊겼거나 옛 형식입니다. " "--experiment 없이 전체를 돌려 다시 만드세요"
+        ) from e
 
 
 def _create_books(
@@ -817,8 +909,9 @@ def run_with_start_check(config: PortfolioConfig, start_date: date) -> Portfolio
     if actual_start != start_date:
         raise ValueError(
             f"[{config.experiment_name}] 실제 시작일 {actual_start} 가 정한 시작일 {start_date} 와 다릅니다 — "
-            f"이 구성의 데이터가 늦게 시작하거나 그날 시세가 빈 자산이 있어 다른 실험과 같은 기간 비교가 깨집니다. "
-            f"이 구성의 시세가 모두 있는 날을 설정의 min_start_date 로 정하세요"
+            f"그날은 이 구성의 거래일이 아닙니다(이동평균 워밍업 안이거나 그날 시세가 빈 자산이 있음). "
+            f"이대로 저장하면 다른 실험과 같은 기간 비교가 깨집니다. compute_portfolio_trading_dates 의 날로 부르세요 — "
+            f"포트폴리오 러너에서 났다면 planned_start_dates 가 고른 날을 엔진이 돌지 않은 것이라 코드 확인이 필요합니다"
         )
     return result
 

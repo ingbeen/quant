@@ -293,6 +293,31 @@ class TestGenericMonthlyDataDict:
         with pytest.raises(ValueError, match="Expense 데이터 오류: 월 2023-02"):
             create_expense_dict(df)
 
+    @pytest.mark.parametrize("bad_key", ["2026-3", "2026-13"], ids=["missing_zero", "no_such_month"])
+    @pytest.mark.parametrize(
+        ("create_dict", "date_col", "value_col", "value"),
+        [
+            (create_ffr_dict, COL_FFR_DATE, COL_FFR_VALUE, 0.045),
+            (create_expense_dict, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, 0.0088),
+        ],
+        ids=["ffr", "expense"],
+    )
+    def test_create_dict_rejects_malformed_month_key(self, create_dict, date_col, value_col, value, bad_key):
+        """
+        목적: 월 키가 yyyy-mm 이 아니면 멈춤을 검증 — 조회는 「2026-03」 으로 찾고 없으면 문자열로 이전 달을 고르는데,
+              「2026-3」 은 「2026-03」 ~ 「2026-09」 보다 크게 비교되어 그 값이 쓰이지 않고 직전 값이 조용히 쓰인다
+
+        Given: 마지막 줄의 월 키만 모양이 틀린 금리 · 운용비율 DataFrame
+        When: create_ffr_dict · create_expense_dict 호출
+        Then: ValueError (그 키 포함)
+        """
+        # Given
+        df = pd.DataFrame({date_col: ["2026-02", bad_key], value_col: [value, value]})
+
+        # When & Then
+        with pytest.raises(ValueError, match=f"월 키 '{bad_key}'"):
+            create_dict(df)
+
     def test_realistic_values_accepted(self):
         """
         목적: 실제로 나올 수 있는 값은 받음을 검증 — 음수 금리(하한을 두지 않는 계약, 대체 시세의 금리 누적도 그대로 쓴다) ·

@@ -41,7 +41,7 @@ from qbt.backtest.csv_export import enrich_equity_with_bands
 from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
-from qbt.backtest.types import BestGridParams, SummaryDict, WfoModeSummaryDict, WfoWindowResultDict
+from qbt.backtest.types import BestGridParams, OpenPositionDict, SummaryDict, WfoModeSummaryDict, WfoWindowResultDict
 from qbt.common_constants import COL_DATE, EPSILON
 from qbt.utils import get_logger
 
@@ -580,13 +580,14 @@ def run_stitched_equity(
 
 @dataclass
 class WindowDetailData:
-    """윈도우별 상세 백테스트 결과 데이터."""
+    """윈도우별 상세 백테스트 결과 데이터. open_position 은 윈도우 끝에 보유 중일 때만 있다."""
 
     window_idx: int
     signal_df: pd.DataFrame
     equity_df: pd.DataFrame
     trades_df: pd.DataFrame
     ma_col: str
+    open_position: OpenPositionDict | None
 
 
 def run_window_detail_backtests(
@@ -638,7 +639,7 @@ def run_window_detail_backtests(
             sell_buffer_pct=sell_pct,
             hold_days=hold_days,
         )
-        trades_df_w, equity_df_w, _summary = run_backtest(
+        trades_df_w, equity_df_w, summary_w = run_backtest(
             strategy,
             win_signal,
             win_trade,
@@ -656,6 +657,7 @@ def run_window_detail_backtests(
                 equity_df=equity_enriched,
                 trades_df=trades_df_w,
                 ma_col=ma_col,
+                open_position=summary_w.get("open_position"),
             )
         )
 

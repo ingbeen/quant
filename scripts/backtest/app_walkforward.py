@@ -35,6 +35,7 @@ from qbt.backtest.constants import (
     PC_CONCENTRATION_THRESHOLD,
     SIGNAL_FILENAME,
     STITCHED_CALMAR_GOOD_THRESHOLD,
+    SUMMARY_FILENAME,
     TRADES_FILENAME,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
@@ -115,7 +116,7 @@ def _discover_wfo_strategies() -> dict[str, Path]:
 
 @st.cache_data
 def _load_summary(path: Path, mtime: float) -> dict[str, Any]:
-    """walkforward_summary.json을 로드한다."""
+    """요약 JSON(walkforward_summary.json · 윈도우별 wNN_summary.json)을 로드한다."""
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -595,6 +596,15 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
         window_dir / wfo_window_filename(idx, name) for name in (SIGNAL_FILENAME, EQUITY_FILENAME, TRADES_FILENAME)
     ]
     signal_df, equity_df, trades_df = (_load_window_csv_detail(path, path.stat().st_mtime) for path in window_paths)
+    window_summary_path = window_dir / wfo_window_filename(idx, SUMMARY_FILENAME)
+    open_position: dict[str, Any] | None = None
+    if window_summary_path.exists():
+        open_position = _load_summary(window_summary_path, window_summary_path.stat().st_mtime).get("open_position")
+    else:
+        st.warning(
+            f"윈도우 요약 파일({window_summary_path.name})이 없어 윈도우 끝에 보유 중인 포지션의 Buy 마커를 그리지 않습니다 — "
+            "run_walkforward.py 를 다시 돌리세요"
+        )
 
     # 5. 파라미터 + 성과 요약 (metric 카드)
     col1, col2, col3, col4 = st.columns(4)
@@ -618,7 +628,8 @@ def _render_window_detail(strategy_dirs: dict[str, Path]) -> None:
         "text": "OOS Start",
         "size": 2,
     }
-    markers = [oos_start_marker, *build_trade_markers(trades_df)]
+    open_entry_dates = [] if open_position is None else [str(open_position["entry_date"])]
+    markers = [oos_start_marker, *build_trade_markers(trades_df, open_entry_dates=open_entry_dates)]
     panes = [
         build_price_pane(signal_df, equity_df, markers, title=f"{selected_metric} — W{idx}"),
         *build_equity_panes(equity_df),

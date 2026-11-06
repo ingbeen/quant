@@ -430,16 +430,16 @@ class TestCoreExecutionRules:
 
         절대 규칙: 전날 종가에서 생성된 pending은 마지막날 시가에서 정상 체결됨
 
-        Given: N-1일 종가에서 신호 발생 → pending 생성
-        When: N일(마지막 날) 시가 존재
-        Then: N일에 정상 체결됨
+        Given: N-1일(인덱스 8) 종가 107 이 상단 밴드 103 × 1.03 을 돌파 → pending 생성
+        When: N일(인덱스 9, 마지막 날) 시가 110 존재
+        Then: N-1일 position=0, N일에 정상 체결되어 position>0
         """
-        # Given: 마지막에서 두 번째 날에 신호 발생하도록 구성
+        # Given: 마지막에서 두 번째 날에 처음 돌파 (그 전에는 밴드 아래)
         df = pd.DataFrame(
             {
                 "Date": [date(2023, 1, i + 1) for i in range(10)],
-                "Open": [100, 100, 100, 100, 100, 100, 100, 100, 105, 110],  # 9일째 시가 존재
-                "Close": [100, 100, 100, 100, 100, 100, 100, 107, 110, 112],  # 8일째 돌파
+                "Open": [100, 100, 100, 100, 100, 100, 100, 100, 105, 110],  # 10일째(마지막 날) 시가 110
+                "Close": [100, 100, 100, 100, 100, 100, 100, 100, 107, 112],  # 9일째 돌파
                 "ma_5": [100, 100, 100, 100, 100, 100, 100, 100, 103, 106],
             }
         )
@@ -455,9 +455,11 @@ class TestCoreExecutionRules:
         # When
         _trades_df, equity_df, _summary = run_buffer_strategy(df, df, params, log_trades=False)
 
-        # Then: 마지막 날(인덱스 9)에 포지션 있어야 함
+        # Then: 신호일(인덱스 8)에는 없고 마지막 날(인덱스 9)에 포지션 있어야 함
         assert len(equity_df) >= 10, f"equity_df는 최소 10행이어야 합니다. 실제: {len(equity_df)}"
+        signal_day = equity_df.iloc[-2]
         last_day = equity_df.iloc[-1]
+        assert signal_day["position"] == 0, f"신호일 position=0. 실제: {signal_day['position']}"
         assert last_day["position"] > 0, f"마지막날 pending 체결되어 position>0. 실제: {last_day['position']}"
 
     def test_last_day_signal_ignored(self):

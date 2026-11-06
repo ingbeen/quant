@@ -42,6 +42,7 @@ from qbt.backtest.constants import (
     KEY_WFO_DYNAMIC,
     KEY_WFO_FULLY_FIXED,
     SIGNAL_FILENAME,
+    SUMMARY_FILENAME,
     TRADES_FILENAME,
     WALKFORWARD_DYNAMIC_FILENAME,
     WALKFORWARD_EQUITY_DYNAMIC_FILENAME,
@@ -196,7 +197,7 @@ def _round_summary_for_json(summary: Mapping[str, object]) -> dict[str, object]:
     return result
 
 
-def _save_window_detail_csvs(
+def _save_window_details(
     window_results: list[WfoWindowResultDict],
     signal_df: pd.DataFrame,
     trade_df: pd.DataFrame,
@@ -204,10 +205,10 @@ def _save_window_detail_csvs(
     mode_dir_name: str,
     initial_capital: float,
 ) -> None:
-    """윈도우별 상세 CSV(signal, equity, trades)를 저장한다.
+    """윈도우별 상세 CSV(signal, equity, trades)와 요약(summary — 윈도우 끝에 보유 중이면 open_position)을 저장한다.
 
-    비즈니스 로직(백테스트 실행, 밴드/드로우다운 계산)은 walkforward 모듈에 위임하고,
-    이 함수는 CSV 포맷팅과 저장만 수행한다.
+    비즈니스 로직(백테스트 실행, 밴드/드로우다운 계산, 미청산 포지션)은 walkforward 모듈에 위임하고,
+    이 함수는 포맷팅과 저장만 수행한다.
 
     Args:
         window_results: WFO 윈도우 결과 리스트
@@ -228,7 +229,7 @@ def _save_window_detail_csvs(
         initial_capital,
     )
 
-    # CSV 포맷팅 및 저장 (CLI 책임)
+    # 포맷팅 및 저장 (CLI 책임)
     for detail in details:
         idx = detail.window_idx
 
@@ -257,7 +258,15 @@ def _save_window_detail_csvs(
             window_dir / wfo_window_filename(idx, TRADES_FILENAME), index=False
         )
 
-    logger.debug(f"윈도우별 상세 CSV 저장 완료: {window_dir} ({len(details)}개 윈도우)")
+        # --- summary JSON 저장 (미청산 포지션 — 대시보드가 「Buy (보유중)」 마커로 그린다) ---
+        # 엔진이 진입가를 ROUND_PRICE 로 이미 반올림해 그대로 씀
+        window_summary: dict[str, object] = {}
+        if detail.open_position is not None:
+            window_summary["open_position"] = dict(detail.open_position)
+        with (window_dir / wfo_window_filename(idx, SUMMARY_FILENAME)).open("w", encoding="utf-8") as f:
+            json.dump(window_summary, f, indent=2, ensure_ascii=False)
+
+    logger.debug(f"윈도우별 상세 저장 완료: {window_dir} ({len(details)}개 윈도우)")
 
 
 def _save_results(
@@ -413,8 +422,8 @@ def main() -> int:
             fully_fixed_summary,
         )
 
-        # 3-6. 윈도우별 상세 CSV 저장
-        _save_window_detail_csvs(
+        # 3-6. 윈도우별 상세 저장
+        _save_window_details(
             dynamic_results,
             signal_df,
             trade_df,
@@ -422,7 +431,7 @@ def main() -> int:
             WFO_WINDOWS_DYNAMIC_DIR,
             DEFAULT_INITIAL_CAPITAL,
         )
-        _save_window_detail_csvs(
+        _save_window_details(
             fully_fixed_results,
             signal_df,
             trade_df,

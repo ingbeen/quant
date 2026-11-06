@@ -103,7 +103,7 @@ def _create_monthly_data_dict(
         {"YYYY-MM": value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · max_value 이상인 값 발견 시
+        ValueError: 빈 DataFrame, yyyy-mm 이 아닌 월 키, 중복 월, 또는 NaN · inf · max_value 이상인 값 발견 시
     """
     # 1. 빈 DataFrame 검증
     if df.empty:
@@ -114,6 +114,12 @@ def _create_monthly_data_dict(
     for _, row in df.iterrows():
         month_key = str(row[date_col])
         value = float(row[value_col])
+
+        # 조회는 이전 달을 문자열 비교로 고름 → 「2026-3」 같은 키는 에러 없이 안 쓰이고 직전 값이 쓰임
+        if not re.fullmatch(MONTH_KEY_PATTERN, month_key):
+            raise ValueError(
+                f"{data_type} 데이터 오류: 월 키 {month_key!r} 가 yyyy-mm 이 아닙니다 — 파일의 그 줄을 yyyy-mm 으로 고치세요 (예: 2026-3 → 2026-03)"
+            )
 
         # % 로 적은 값이나 빈 칸을 그대로 쓰면 시뮬 종가가 0 이하 · NaN 이 되거나 비용이 수십 배가 된다.
         # 하한은 두지 않는다(음수 금리를 그대로 쓰는 계약)
@@ -198,7 +204,7 @@ def create_ffr_dict(ffr_df: pd.DataFrame) -> dict[str, float]:
         {"YYYY-MM": ffr_value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · MAX_FFR_VALUE 이상인 값 발견 시
+        ValueError: 빈 DataFrame, yyyy-mm 이 아닌 월 키, 중복 월, 또는 NaN · inf · MAX_FFR_VALUE 이상인 값 발견 시
     """
     return _create_monthly_data_dict(ffr_df, COL_FFR_DATE, COL_FFR_VALUE, "FFR", MAX_FFR_VALUE)
 
@@ -235,7 +241,7 @@ def create_expense_dict(expense_df: pd.DataFrame) -> dict[str, float]:
         {"YYYY-MM": expense_value} 형태의 딕셔너리
 
     Raises:
-        ValueError: 빈 DataFrame, 중복 월, 또는 NaN · inf · MAX_EXPENSE_VALUE 이상인 값 발견 시
+        ValueError: 빈 DataFrame, yyyy-mm 이 아닌 월 키, 중복 월, 또는 NaN · inf · MAX_EXPENSE_VALUE 이상인 값 발견 시
     """
     return _create_monthly_data_dict(expense_df, COL_EXPENSE_DATE, COL_EXPENSE_VALUE, "Expense", MAX_EXPENSE_VALUE)
 

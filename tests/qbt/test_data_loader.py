@@ -8,6 +8,7 @@ data_loader 모듈 테스트
 4. 중복 날짜 · 가격의 결측 · 0 · 음수가 있으면 멈추는가?
 5. 파일이 없을 때 명확한 에러를 내는가?
 6. 두 DataFrame의 겹치는 기간이 정확히 추출되는가?
+7. 합성 파일이 옆의 실물 파일보다 먼저 끝나면(합성 생성을 건너뜀) 멈추는가?
 
 왜 중요한가요?
 백테스트의 모든 결과는 입력 데이터에 의존합니다.
@@ -219,6 +220,44 @@ class TestLoadStockData:
         expected_dates = [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)]
         actual_dates = df["Date"].tolist()
         assert actual_dates == expected_dates, f"날짜가 정렬되어야 합니다. 기대: {expected_dates}, 실제: {actual_dates}"
+
+    def test_synthetic_ending_before_actual_raises(self, tmp_path, sample_stock_df):
+        """
+        목적: 합성 파일이 옆의 실물 파일보다 먼저 끝나면 멈춤을 검증 — 시세를 다시 받고 합성 생성을 건너뛴 상태라,
+              그대로 읽으면 백테스트가 옛 끝날에서 에러 없이 멈춘다
+
+        Given: 2023-01-04 에 끝나는 `X_synthetic_max.csv`, 하루 더 있는(2023-01-05) `X_max.csv`
+        When: 합성 파일을 load_stock_data 로 읽음
+        Then: ValueError (두 끝날 · 합성 생성 안내)
+        """
+        # Given
+        sample_stock_df.to_csv(tmp_path / "X_synthetic_max.csv", index=False)
+        newer_row = sample_stock_df.iloc[[-1]].assign(**{COL_DATE: date(2023, 1, 5)})
+        pd.concat([sample_stock_df, newer_row]).to_csv(tmp_path / "X_max.csv", index=False)
+
+        # When & Then
+        with pytest.raises(ValueError, match=r"2023-01-04.*2023-01-05.*generate_synthetic"):
+            load_stock_data(tmp_path / "X_synthetic_max.csv")
+
+    @pytest.mark.parametrize("write_actual", [True, False], ids=["same_end", "no_actual_file"])
+    def test_synthetic_not_behind_actual_loads(self, tmp_path, sample_stock_df, write_actual):
+        """
+        목적: 합성이 실물과 같은 날 끝나거나 옆에 실물 파일이 없으면 그대로 읽힘을 검증 (경계 — 끝날이 같은 것이 합성 생성 직후다)
+
+        Given: `X_synthetic_max.csv` 와, 같은 행의 `X_max.csv` 또는 실물 파일 없음
+        When: 합성 파일을 load_stock_data 로 읽음
+        Then: 예외 없이 세 행
+        """
+        # Given
+        sample_stock_df.to_csv(tmp_path / "X_synthetic_max.csv", index=False)
+        if write_actual:
+            sample_stock_df.to_csv(tmp_path / "X_max.csv", index=False)
+
+        # When
+        df = load_stock_data(tmp_path / "X_synthetic_max.csv")
+
+        # Then
+        assert len(df) == 3
 
 
 class TestExtractOverlapPeriod:

@@ -86,4 +86,4 @@ funding_spread = softplus(a + b * FFR_pct)  # a, b 기본값은 아래 상수 �
 - 형식: `DATE` (`"yyyy-mm"` 문자열 — `datetime.date` 객체가 아니다), `VALUE` (0~1 비율)
 - 날짜마다 그 달 값을 조회하고, 없으면 허용 개월 수(`MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`) 안의 이전 달 값을 쓴다 — 그보다 비면 ValueError
 
-두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 운용비율은 손으로 고치고 금리는 FRED 의 % 를 바꿔 쓰므로, % 그대로인 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다).
+두 파일 모두 값이 빈 칸 · inf 이거나 상한(`data_loader.py` 의 `MAX_FFR_VALUE` · `MAX_EXPENSE_VALUE`) 이상이면 ValueError 다 — 운용비율은 손으로 고치고 금리는 FRED 의 % 를 바꿔 쓰므로, % 그대로인 값(설명서 표기 그대로의 운용비율 0.82 등)이 들어올 수 있다. 하한은 없다(음수 금리를 그대로 쓴다). 월 키가 `yyyy-mm`(`constants.py` 의 `MONTH_KEY_PATTERN`)이 아니어도 ValueError 다 — 조회가 이전 달을 문자열로 비교해 고르므로 `2026-3` 같은 키는 에러 없이 쓰이지 않는다.

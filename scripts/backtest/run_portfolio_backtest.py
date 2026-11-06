@@ -24,6 +24,9 @@ from qbt.backtest.analysis import (
 )
 from qbt.backtest.constants import (
     EQUITY_FILENAME,
+    KEY_END_DATE,
+    KEY_PORTFOLIO_SUMMARY,
+    KEY_START_DATE,
     LEDGER_FILENAME,
     NETTING_FILENAME,
     SUMMARY_FILENAME,
@@ -39,8 +42,8 @@ from qbt.backtest.csv_export import (
     round_signal_for_csv,
 )
 from qbt.backtest.engines.portfolio_engine import (
-    compute_portfolio_effective_start_date,
-    planned_start_dates,
+    compute_portfolio_trading_dates,
+    plan_run_start_dates,
     run_with_start_check,
 )
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
@@ -211,8 +214,8 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "sharpe_ratio": round(sharpe, ROUND_RATIO),
         "sortino_ratio": round(sortino, ROUND_RATIO),
         "total_trades": s["total_trades"],
-        "start_date": str(s["start_date"]),
-        "end_date": str(s["end_date"]),
+        KEY_START_DATE: str(s["start_date"]),
+        KEY_END_DATE: str(s["end_date"]),
     }
 
     # 자산별 요약
@@ -244,7 +247,7 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
 
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
-        "portfolio_summary": portfolio_summary,
+        KEY_PORTFOLIO_SUMMARY: portfolio_summary,
         "per_asset": per_asset_data,
         "portfolio_config": result.params_json,
         "monthly_returns": monthly_returns,
@@ -381,26 +384,18 @@ def main() -> int:
 
     logger.debug(f"실험 목록: {[c.experiment_name for c in target_configs]}")
 
-    # 3. 실험별 유효 시작일 계산
+    # 3. 실험별 시작할 날 계산 + 실행 전 대조
     # 실행 전에 한꺼번에 계산한다 — 시세 누락 같은 데이터 문제가 앞 실험의 결과 파일을 덮어쓴 뒤가 아니라 그 전에 드러난다.
     # 대상만이 아니라 등록 실험 전부를 잼 → 하나만 돌려도 전체를 돌릴 때와 같은 날 시작
-    effective_start_dates = {c.experiment_name: compute_portfolio_effective_start_date(c) for c in PORTFOLIO_CONFIGS}
-    start_dates = planned_start_dates(PORTFOLIO_CONFIGS, effective_start_dates)
-    logger.debug(f"등록 실험의 데이터 시작일: {effective_start_dates} → 시작할 날: {start_dates}")
-    late_starts = [
-        f"{c.experiment_name}(설정 {c.min_start_date}, 데이터 기준 {effective_start_dates[c.experiment_name]})"
-        for c in target_configs
-        if c.min_start_date is not None and effective_start_dates[c.experiment_name] > c.min_start_date
-    ]
-    if late_starts:
-        raise ValueError(
-            "설정의 시작일(min_start_date)보다 데이터가 늦게 시작하는 실험이 있습니다 — 그대로 돌리면 설정과 "
-            f"기간이 달라집니다: {', '.join(late_starts)}. 그 실험의 min_start_date 를 데이터가 있는 날로 고친 뒤 실행하세요"
-        )
+    # 돌리지 않는 실험의 저장 결과 대조도 함께 함 → 일부만 돌려도 결과 폴더에 기간이 다른 결과가 섞이지 않음
+    trading_dates = {c.experiment_name: compute_portfolio_trading_dates(c) for c in PORTFOLIO_CONFIGS}
+    start_dates = plan_run_start_dates(PORTFOLIO_CONFIGS, target_configs, trading_dates)
+    data_start_dates = {name: dates[0] for name, dates in trading_dates.items()}
+    logger.debug(f"등록 실험의 데이터 시작일: {data_start_dates} → 이번에 돌릴 실험의 시작할 날: {start_dates}")
 
     # 4. 실험별 실행
     for config in target_configs:
-        raw_start_date = effective_start_dates[config.experiment_name]
+        raw_start_date = data_start_dates[config.experiment_name]
         exp_start_date = start_dates[config.experiment_name]
         start_source = "설정의 min_start_date" if config.min_start_date is not None else "등록 실험이 함께 시작하는 날"
         logger.debug("=" * 70)

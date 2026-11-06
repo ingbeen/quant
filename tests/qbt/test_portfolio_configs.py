@@ -19,7 +19,7 @@ import pytest
 
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_types import SlotMethodConfig, resolve_methods
+from qbt.backtest.portfolio_types import AllocatorMethodConfig, SlotMethodConfig, resolve_methods
 from qbt.common_constants import GLD_SYNTHETIC_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH, TLT_SYNTHETIC_DATA_PATH
 
 from helpers import ONE_TIMES_SIGNAL_OF
@@ -242,6 +242,28 @@ class TestQSeriesConfigs:
             for slot in method.asset_slots
             if slot.trade_data_path.name != f"{slot.asset_id.upper()}_synthetic_max.csv"
             or ONE_TIMES_SIGNAL_OF.get(slot.trade_data_path) != slot.signal_data_path
+        ]
+
+        # Then
+        assert mismatched == []
+
+    def test_each_allocator_asset_trades_its_asset(self) -> None:
+        """
+        목적: 배분 규칙 매매법의 자산마다 자산 id 의 티커를 매매한다 — 짝을 잘못 지으면 다른 상품으로 사고판 결과가
+              그 자산 이름으로 에러 없이 나온다 (배분 규칙은 매매 시세로 판단해 신호 짝은 없다)
+
+        Given: PORTFOLIO_CONFIGS
+        When:  배분 규칙 매매법의 자산마다 매매 파일을 자산 id 와 견준다
+        Then:  어긋난 자산 없음
+        """
+        # When
+        mismatched = [
+            (config.experiment_name, method.method_id, asset.asset_id, asset.trade_data_path.name)
+            for config in PORTFOLIO_CONFIGS
+            for method in resolve_methods(config)
+            if isinstance(method, AllocatorMethodConfig)
+            for asset in method.assets
+            if asset.trade_data_path.name != f"{asset.asset_id.upper()}_synthetic_max.csv"
         ]
 
         # Then

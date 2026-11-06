@@ -15,12 +15,17 @@ from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 합성 시세와 그 짝 실물 시세의 파일 이름 끝 (src/qbt/CLAUDE.md 「시세 파일 이름」)
+_SYNTHETIC_SUFFIX = "_synthetic_max.csv"
+_ACTUAL_SUFFIX = "_max.csv"
+
 
 def load_stock_data(path: Path) -> pd.DataFrame:
     """
     CSV 파일에서 주식 데이터를 로드하고 전처리한다.
 
     날짜 파싱, 정렬, 필수 컬럼 검증을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수가 있으면 멈춘다(지우거나 메우지 않는다).
+    합성 파일(`{T}_synthetic_max.csv`)은 같은 폴더의 실물(`{T}_max.csv`)보다 먼저 끝나면 멈춘다.
 
     Args:
         path: CSV 파일 경로
@@ -30,7 +35,8 @@ def load_stock_data(path: Path) -> pd.DataFrame:
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
-        ValueError: 필수 컬럼이 누락되었거나, 중복 날짜 · 가격의 결측 · 0 · 음수가 있을 때
+        ValueError: 필수 컬럼이 누락되었거나, 중복 날짜 · 가격의 결측 · 0 · 음수가 있을 때,
+            합성 파일의 끝날이 짝 실물 파일의 끝날보다 이를 때
     """
     # 1. 파일 존재 여부 확인
     if not path.exists():
@@ -57,9 +63,29 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     # 6. 중복 날짜 · 가격 값 검증
     validate_price_series(df)
 
+    # 7. 합성이 짝 실물보다 낡았는지 검증
+    _require_synthetic_not_behind_actual(path, df)
+
     logger.debug(f"전처리 완료: {len(df):,}행, 기간 {df[COL_DATE].min()} ~ {df[COL_DATE].max()}")
 
     return df
+
+
+def _require_synthetic_not_behind_actual(path: Path, df: pd.DataFrame) -> None:
+    # 합성은 이음매 뒤가 실물 행 그대로라 생성 직후 끝날이 같음 → 더 이르면 시세를 다시 받고 생성을 건너뛴 것
+    if not path.name.endswith(_SYNTHETIC_SUFFIX):
+        return
+    actual_path = path.with_name(path.name.removesuffix(_SYNTHETIC_SUFFIX) + _ACTUAL_SUFFIX)
+    if not actual_path.exists():
+        return
+    synthetic_end = df[COL_DATE].iloc[-1]
+    actual_end = pd.to_datetime(pd.read_csv(actual_path, usecols=[COL_DATE])[COL_DATE]).max().date()
+    if synthetic_end < actual_end:
+        raise ValueError(
+            f"합성 시세 {path.name} 의 끝날 {synthetic_end} 가 실물 {actual_path.name} 의 끝날 {actual_end} 보다 이릅니다 — "
+            f"시세를 다시 받은 뒤 합성 생성을 돌리지 않았습니다. "
+            f"poetry run python scripts/data/generate_synthetic.py 를 돌린 뒤 다시 실행하세요"
+        )
 
 
 def validate_price_series(df: pd.DataFrame) -> None:
