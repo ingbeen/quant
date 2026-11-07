@@ -2,16 +2,16 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 391076963,
-    "total_return_pct": 3810.77,
-    "cagr": 9.53,
+    "final_capital": 374418431,
+    "total_return_pct": 3644.18,
+    "cagr": 9.4,
     "mdd": -25.82,
-    "calmar": 0.369,
-    "sharpe_ratio": 0.9049,
-    "sortino_ratio": 1.2621,
+    "calmar": 0.3642,
+    "sharpe_ratio": 0.8927,
+    "sortino_ratio": 1.2432,
     "total_trades": 222,
     "start_date": "1986-07-16",
-    "end_date": "2026-10-29"
+    "end_date": "2026-11-06"
   },
   "per_asset": [
     {
@@ -20,7 +20,7 @@
       "open_position": {
         "entry_date": "2025-05-21",
         "entry_price": 584.2932,
-        "shares": 184662
+        "shares": 184661
       }
     },
     {
@@ -28,7 +28,7 @@
       "target_weight": 0.35,
       "open_position": {
         "entry_date": "2026-04-17",
-        "entry_price": 646.534,
+        "entry_price": 646.5341,
         "shares": 186837
       }
     },
@@ -37,8 +37,8 @@
       "target_weight": 0.15,
       "open_position": {
         "entry_date": "1986-07-17",
-        "entry_price": 201.3242,
-        "shares": 159768
+        "entry_price": 201.3254,
+        "shares": 159769
       }
     },
     {
@@ -46,8 +46,8 @@
       "target_weight": 0.15,
       "open_position": {
         "entry_date": "1986-07-17",
-        "entry_price": 87.6986,
-        "shares": 692938
+        "entry_price": 88.0518,
+        "shares": 690159
       }
     }
   ],
@@ -2526,7 +2526,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": -0.63
+      "return_pct": -2.97
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": -1.96
     }
   ],
   "yearly_returns": [
@@ -2692,7 +2697,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 4.53
+      "return_pct": 0.08
     }
   ]
 }

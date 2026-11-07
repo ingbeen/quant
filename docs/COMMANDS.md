@@ -25,6 +25,7 @@ poetry run python validate_project.py
 ```bash
 # 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 · 금 사슬 원본 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
 poetry run python scripts/data/download_data.py
+poetry run python scripts/data/download_data.py --end 2026-11-06
 
 # 2. 합성 시세 생성 (워크플로우 2 의 백테스트 — 단일 · 포트폴리오 · 워크포워드 · 고원 — 가 모두 이 합성 시세를 읽는다)
 # 출력: storage/stock/ 의 QQQ · SPY · TQQQ · QLD · SSO · UPRO · TLT · GLD 합성 ({TICKER}_synthetic_max.csv)

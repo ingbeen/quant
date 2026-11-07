@@ -2,16 +2,16 @@
   "display_name": "QQQ B&H (QQQ 100% 보유)",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 2278299328,
-    "total_return_pct": 22682.99,
-    "cagr": 14.42,
+    "final_capital": 2089624623,
+    "total_return_pct": 20796.25,
+    "cagr": 14.17,
     "mdd": -82.96,
-    "calmar": 0.1739,
-    "sharpe_ratio": 0.6536,
-    "sortino_ratio": 0.937,
+    "calmar": 0.1708,
+    "sharpe_ratio": 0.6446,
+    "sortino_ratio": 0.9232,
     "total_trades": 0,
     "start_date": "1986-07-16",
-    "end_date": "2026-10-29"
+    "end_date": "2026-11-06"
   },
   "per_asset": [
     {
@@ -2466,7 +2466,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": -3.3
+      "return_pct": -6.66
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": -4.98
     }
   ],
   "yearly_returns": [
@@ -2632,7 +2637,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 16.84
+      "return_pct": 7.17
     }
   ]
 }
