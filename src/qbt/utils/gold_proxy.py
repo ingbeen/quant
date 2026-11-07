@@ -40,7 +40,7 @@ PERTH_MINT_GOLD_CSV_URL: Final = (
 )
 FRED_AUD_USD_SERIES: Final = "DEXUSAL"  # 호주달러 1 = 달러, 뉴욕 정오
 FRED_AUD_USD_CSV_URL: Final = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={FRED_AUD_USD_SERIES}"
-# Perth Mint 는 파이썬 기본 UA(Python-urllib)를 403 으로 막음 → 이름을 밝힌 UA
+# Perth Mint 는 파이썬 기본 UA(Python-urllib)를 403 으로 막고, FRED 는 이 UA 를 응답 없이 붙잡음 → Perth 요청에만 실음
 USER_AGENT: Final = "qbt-data-downloader/1.0"
 _TIMEOUT_SECONDS: Final = 60
 
@@ -329,8 +329,10 @@ def _observed_cells(df: pd.DataFrame) -> set[tuple[date, str]]:
     return set(zip(cells[COL_SOURCE_DATE], cells["variable"], strict=True))
 
 
-def _fetch_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": USER_AGENT})
+def _fetch_text(url: str, user_agent: str | None) -> str:
+    """user_agent 가 None 이면 파이썬 기본 UA 로 받는다."""
+    headers = {"User-Agent": user_agent} if user_agent is not None else {}
+    request = Request(url, headers=headers)
     with urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
         return response.read().decode("utf-8-sig")
 
@@ -344,7 +346,10 @@ def download_gold_proxy_sources(perth_path: Path, aud_usd_path: Path) -> None:
         urllib.error.URLError: 받지 못했을 때
     """
     save_gold_proxy_sources(
-        _fetch_text(PERTH_MINT_GOLD_CSV_URL), _fetch_text(FRED_AUD_USD_CSV_URL), perth_path, aud_usd_path
+        _fetch_text(PERTH_MINT_GOLD_CSV_URL, USER_AGENT),
+        _fetch_text(FRED_AUD_USD_CSV_URL, None),
+        perth_path,
+        aud_usd_path,
     )
 
 

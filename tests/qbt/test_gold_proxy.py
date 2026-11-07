@@ -564,15 +564,16 @@ class _FakeResponse:
 
 
 class TestDownloadGoldProxySources:
-    """두 원본을 받아 저장 — Perth Mint 는 파이썬 기본 UA 를 막아(403) 이름을 밝힌 UA 를 보낸다"""
+    """두 원본을 받아 저장 — Perth Mint 는 파이썬 기본 UA 를 막고(403), FRED 는 이름을 밝힌 UA 를 응답 없이 붙잡는다"""
 
-    def test_sends_user_agent_and_saves(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_sends_user_agent_only_to_perth_and_saves(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """
-        목적: 두 주소를 UA 를 실어 받고, 받은 본문을 저장한다
+        목적: 이름을 밝힌 UA 는 Perth Mint 요청에만 싣고 FRED 는 기본 UA 로 받는다 — FRED 가 그 UA 를 타임아웃까지 붙잡는다
+              (2026-11-07 재현). 받은 본문을 저장한다
 
-        Given: 주소별 본문을 돌려주고 요청을 기록하는 urlopen 대역
+        Given: 주소별 본문을 돌려주고 요청의 User-Agent 를 기록하는 urlopen 대역
         When: download_gold_proxy_sources
-        Then: 두 요청의 User-Agent 가 USER_AGENT, 저장된 파일이 본문의 파싱 결과와 같다
+        Then: Perth 요청의 User-Agent 가 USER_AGENT, FRED 요청에는 User-Agent 헤더가 없다. 저장된 파일이 본문의 파싱 결과와 같다
         """
         # Given
         bodies = {PERTH_MINT_GOLD_CSV_URL: PERTH_TEXT, FRED_AUD_USD_CSV_URL: FX_TEXT}
@@ -589,6 +590,6 @@ class TestDownloadGoldProxySources:
         download_gold_proxy_sources(perth_path, fx_path)
 
         # Then
-        assert seen == {PERTH_MINT_GOLD_CSV_URL: USER_AGENT, FRED_AUD_USD_CSV_URL: USER_AGENT}
+        assert seen == {PERTH_MINT_GOLD_CSV_URL: USER_AGENT, FRED_AUD_USD_CSV_URL: None}
         perth_df, _ = load_gold_proxy_sources(perth_path, fx_path)
         pd.testing.assert_frame_equal(perth_df, parse_perth_mint_gold_csv(PERTH_TEXT))

@@ -37,7 +37,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 
 데이터 (`data/`):
 
-- `download_data.py` — 시세 다운로드. 늘 전체 기간을 받아 `{TICKER}_max.csv` 로 저장하고, 티커를 주지 않으면 `DEFAULT_TICKERS` 와 월별 연방기금금리(FRED, `storage/etc` 금리 파일), GLD 합성의 금 사슬 원본(Perth Mint 금값 · FRED 호주달러 환율, `storage/etc`)을 받는다
+- `download_data.py` — 시세 다운로드. 늘 전체 기간을 받아 `{TICKER}_max.csv` 로 저장하고, 티커를 주지 않으면 `DEFAULT_TICKERS` 와 월별 연방기금금리(FRED, `storage/etc` 금리 파일), GLD 합성의 금 사슬 원본(Perth Mint 금값 · FRED 호주달러 환율, `storage/etc`)을 받는다. 기존 파일이 있으면 판정(`src/qbt/utils/price_revision.py`)대로 저장하고, 비정상 종목은 덮어쓰지 않은 채 시세 받기 뒤(금리 · 금 대용 받기 앞) 원인 블록을 내어 터미널일 때만 덮어쓸지 묻는다 — 터미널이 아니면 종료 코드 1. 받을 마지막 날은 `--end`(기본 그저께)
 - `generate_synthetic.py` — 합성 시세 전부: 1배 대용 합성(대상 표 `PROXY_TARGETS`, GLD 는 금 사슬 — `src/qbt/utils/gold_proxy.py` — 에서 GLD 운용보수를 뺀 것)과 그 1배 합성으로 만든 레버리지 합성(상품마다 기초를 정한 상품 표는 `src/qbt/tqqq/constants.py`). 검증 표(대용 ↔ 실물, 레버리지 합성 ↔ 실물, ETF 상장 전 펀드 대조, 가정만 바꾼 판)를 저장하고 콘솔에 직전 저장값과 나란히 낸다
 - **새 시세를 받을 때 사용자는 이 둘만 돌린다** (사용자 요청 2026-11-05) — 그래서 야후에서 받는 원본 시세(검증에만 쓰는 펀드 포함)는 모두 `DEFAULT_TICKERS` 에 두고, 합성 시세(`*_synthetic_max.csv`)는 모두 `generate_synthetic.py` 가 만든다. 원본 시세가 `DEFAULT_TICKERS` 에서 빠지면 에러 없이 그 시세만 낡은 채 남는다. 실물을 다시 받았는데 그 합성을 다시 만들지 않으면(생성을 건너뜀 · 생성 스크립트에서 빠짐) 러너가 시세를 읽을 때 멈춘다(합성 끝날이 짝 실물보다 이르다 — `load_stock_data`). 운용비율(`storage/etc`)만 손으로 갱신하고, 낡으면 레버리지 합성이 멈춘다(COMMANDS 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②)
 

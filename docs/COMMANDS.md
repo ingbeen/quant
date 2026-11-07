@@ -18,61 +18,7 @@ poetry run python validate_project.py
 
 ---
 
-## 워크플로우 1: 백테스트 전략 분석
-
-이동평균 기반 버퍼존 전략의 성과를 평가합니다.
-
-```bash
-# 1. 데이터 다운로드 (전체 종목 일괄)
-poetry run python scripts/data/download_data.py
-# 또는 특정 종목만
-poetry run python scripts/data/download_data.py QQQ
-
-# 2. 단일 전략 검증 + 결과 저장 (선행: 1, 합성 시세 — 워크플로우 2 의 2. 버퍼존 · Buy & Hold 는 모두 상장 전까지 늘린 합성 시세를 읽는다)
-# 출력: 콘솔 (버퍼존 · Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
-# --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
-poetry run python scripts/backtest/run_single_backtest.py
-poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_name>
-
-# 3. 포트폴리오 백테스트 (선행: 1, 합성 시세 — 워크플로우 2 의 2. 등록 실험은 모두 같은 날 시작한다 — 하나만 돌려도 같다)
-# 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, 매매법이 여럿이면 ledger · netting)
-# 실행 직후 정합성 검증 — 위반이 있으면 결과를 저장한 뒤 멈춘다 (ValueError)
-poetry run python scripts/backtest/run_portfolio_backtest.py
-# --experiment 인자로 특정 실험 선택 가능 (기본값: all, 선택지는 --help)
-# 다른 실험의 저장 결과가 지금 기간과 다르면(늦게 시작하는 실험을 새로 등록했거나 새 시세로 끝날이 늘었을 때) 쓰기 전에 멈춘다 — 그때는 인자 없이 전체를 돌린다
-poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
-
-# 4. 워크포워드 검증 (선행: 1, QQQ · TQQQ 합성 — 워크플로우 2 의 2)
-# 출력: storage/results/backtest/{전략명}/ (walkforward_*.csv, walkforward_summary.json, 윈도우별 상세 wfo_windows_*/)
-# 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 6분)
-poetry run python scripts/backtest/run_walkforward.py
-
-# --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
-poetry run python scripts/backtest/run_walkforward.py --strategy <strategy_name>
-
-# 5. 파라미터 고원 분석 (선행: 1, QQQ · SPY · GLD · TLT 합성 — 워크플로우 2 의 2)
-poetry run python scripts/backtest/run_param_plateau_all.py
-# --experiment 인자로 특정 실험만 실행 가능 (기본값: all, 선택지는 --help)
-# 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
-
-# 6. 대시보드 시각화 (선행: 2)
-poetry run streamlit run scripts/backtest/app_single_backtest.py
-
-# 7. 포트폴리오 비교 대시보드 (선행: 3)
-poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
-
-# 8. WFO 결과 시각화 대시보드 (선행: 4)
-poetry run streamlit run scripts/backtest/app_walkforward.py
-
-# 9. 파라미터 고원 시각화 대시보드 (선행: 5)
-poetry run streamlit run scripts/backtest/app_parameter_stability.py
-```
-
-**파라미터 변경**: [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py)
-
----
-
-## 워크플로우 2: 합성 시세 (QQQ · SPY 와 그 2 · 3배, TLT · GLD)
+## 워크플로우 1: 합성 시세 (QQQ · SPY 와 그 2 · 3배, TLT · GLD)
 
 실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, SPY 는 S&P 500 인덱스 펀드(VFINX)로 채우고, TQQQ · QLD 는 그 QQQ 합성, SSO · UPRO 는 그 SPY 합성으로부터 시뮬레이션해 채우고, TLT 는 뱅가드 장기국채 펀드(VUSTX)로, GLD 는 Perth Mint 금값과 금 선물(GC=F)을 이은 금 사슬에서 GLD 운용보수를 뺀 것으로 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)와 금 사슬의 원본(Perth Mint 금값 · FRED 호주달러 환율)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
 
@@ -80,7 +26,7 @@ poetry run streamlit run scripts/backtest/app_parameter_stability.py
 # 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 · 금 사슬 원본 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
 poetry run python scripts/data/download_data.py
 
-# 2. 합성 시세 생성 (워크플로우 1 의 백테스트 — 단일 · 포트폴리오 · 워크포워드 · 고원 — 가 모두 이 합성 시세를 읽는다)
+# 2. 합성 시세 생성 (워크플로우 2 의 백테스트 — 단일 · 포트폴리오 · 워크포워드 · 고원 — 가 모두 이 합성 시세를 읽는다)
 # 출력: storage/stock/ 의 QQQ · SPY · TQQQ · QLD · SSO · UPRO · TLT · GLD 합성 ({TICKER}_synthetic_max.csv)
 #       storage/results/proxy_validation/ — summary.csv · years.csv (대용 ↔ 실물 — 금 사슬은 이음매마다), tracking.csv (레버리지 합성 ↔ 실물 추적),
 #       funds.csv · fund_years.csv (ETF 상장 전 펀드 대조), assumptions.csv (가정만 바꾼 판)
@@ -89,6 +35,55 @@ poetry run python scripts/data/generate_synthetic.py
 ```
 
 **파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 상품마다 기초 시세)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 금 사슬의 미국 달력(`US_CALENDAR_DATA_PATH`) · GLD 운용보수(`GLD_EXPENSE_RATIO`) · 펀드 대조 · 가정만 바꾼 판의 대상 표(`ASSUMPTION_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
+
+---
+
+## 워크플로우 2: 백테스트 전략 분석
+
+이동평균 기반 버퍼존 전략의 성과를 평가합니다.
+
+```bash
+# 1. 단일 전략 검증 + 결과 저장 (선행: 워크플로우 1. 버퍼존 · Buy & Hold 는 모두 상장 전까지 늘린 합성 시세를 읽는다)
+# 출력: 콘솔 (버퍼존 · Buy&Hold 비교) + 전략별 결과 폴더 (signal, equity, trades, summary)
+# --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
+poetry run python scripts/backtest/run_single_backtest.py
+poetry run python scripts/backtest/run_single_backtest.py --strategy <strategy_name>
+
+# 2. 포트폴리오 백테스트 (선행: 워크플로우 1. 등록 실험은 모두 같은 날 시작한다 — 하나만 돌려도 같다)
+# 출력: storage/results/portfolio/{experiment_name}/ (equity, trades, summary, signal_{asset_id}, state_log, 매매법이 여럿이면 ledger · netting)
+# 실행 직후 정합성 검증 — 위반이 있으면 결과를 저장한 뒤 멈춘다 (ValueError)
+poetry run python scripts/backtest/run_portfolio_backtest.py
+# --experiment 인자로 특정 실험 선택 가능 (기본값: all, 선택지는 --help)
+# 다른 실험의 저장 결과가 지금 기간과 다르면(늦게 시작하는 실험을 새로 등록했거나 새 시세로 끝날이 늘었을 때) 쓰기 전에 멈춘다 — 그때는 인자 없이 전체를 돌린다
+poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
+
+# 3. 워크포워드 검증 (선행: 워크플로우 1 — QQQ · TQQQ 합성)
+# 출력: storage/results/backtest/{전략명}/ (walkforward_*.csv, walkforward_summary.json, 윈도우별 상세 wfo_windows_*/)
+# 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 6분)
+poetry run python scripts/backtest/run_walkforward.py
+
+# --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
+poetry run python scripts/backtest/run_walkforward.py --strategy <strategy_name>
+
+# 4. 파라미터 고원 분석 (선행: 워크플로우 1 — QQQ · SPY · GLD · TLT 합성)
+poetry run python scripts/backtest/run_param_plateau_all.py
+# --experiment 인자로 특정 실험만 실행 가능 (기본값: all, 선택지는 --help)
+# 출력: storage/results/backtest/param_plateau/ (피벗 CSV)
+
+# 5. 대시보드 시각화 (선행: 1)
+poetry run streamlit run scripts/backtest/app_single_backtest.py
+
+# 6. 포트폴리오 비교 대시보드 (선행: 2)
+poetry run streamlit run scripts/backtest/app_portfolio_backtest.py
+
+# 7. WFO 결과 시각화 대시보드 (선행: 3)
+poetry run streamlit run scripts/backtest/app_walkforward.py
+
+# 8. 파라미터 고원 시각화 대시보드 (선행: 4)
+poetry run streamlit run scripts/backtest/app_parameter_stability.py
+```
+
+**파라미터 변경**: [src/qbt/backtest/constants.py](../src/qbt/backtest/constants.py)
 
 ## 품질 검증 (통합)
 
@@ -151,6 +146,8 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 
 **① 원본 시세** — `storage/stock` 의 `*_max.csv` 중 생성 파일(`*_synthetic_max`)이 아닌 것 전부. 모두 `DEFAULT_TICKERS` 에 두므로 인자 없는 다운로드가 받는다(규칙은 [scripts/CLAUDE.md](../scripts/CLAUDE.md) 「스크립트 지도」). 같은 다운로드가 GLD 합성의 금 사슬 원본 `storage/etc/perth_mint_gold_daily.csv`(Perth Mint 하루 평균 금값 — 2015-12-31 에 끝난 보관 파일) · `aud_usd_daily.csv`(FRED `DEXUSAL`)도 받는다 — 손으로 고치지 않는다.
 
+기존 시세 파일과 견줘 저장한다 — 흔들림뿐이면 기존 행을 그대로 두고 새 날짜 행만 붙이고, 배당 · 분할 기록으로 설명되는 변화면 덮어쓴다. 그 밖(배당 기록이 빠짐 · 봉이 바뀜 등)은 덮어쓰지 않고, 시세 받기가 끝나면 원인 블록을 낸 뒤 터미널이면 종목마다 덮어쓸지 묻는다 — 블록을 그대로 AI 에 붙여 판단을 받고 y / N 을 고른다. 터미널이 아니면 묻지 않고 종료 코드 1 로 끝난다. 덮어쓰지 않은 종목은 옛 끝날에 머물러, 그 시세가 든 결과의 끝날도 거기 묶인다.
+
 ```bash
 poetry run python scripts/data/download_data.py
 ```
@@ -185,4 +182,8 @@ poetry run python scripts/data/download_data.py
 
 # 특정 종목 전체 기간 — 금리 · 금 사슬 원본은 받지 않는다 (특수 문자가 든 티커는 따옴표로 감싼다 — "^SPGSCI" · "GC=F". 파일 이름도 티커 그대로)
 poetry run python scripts/data/download_data.py TICKER
+
+# 받을 마지막 날 지정 — 그날 포함, 오늘까지. 뉴욕에서 그날 봉이 다 끝나기 전인 날은 빠지고, 지정하지 않으면 그저께까지다
+# 티커와 함께 쓸 수 있다. 기존 파일이 그날보다 뒤까지 있으면 자르지 않는다
+poetry run python scripts/data/download_data.py --end YYYY-MM-DD
 ```
