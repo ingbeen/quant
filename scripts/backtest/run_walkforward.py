@@ -81,7 +81,13 @@ from qbt.utils.formatting import Align, TableLogger
 logger = get_logger(__name__)
 
 # WFO 대상 전략 (buffer_zone.CONFIGS 의 strategy_name)
-STRATEGY_NAMES: tuple[str, ...] = ("buffer_zone_tqqq", "buffer_zone_qqq")
+STRATEGY_NAMES: tuple[str, ...] = (
+    "buffer_zone_qqq",
+    "buffer_zone_qld",
+    "buffer_zone_tqqq",
+    "buffer_zone_spy",
+    "buffer_zone_sso",
+)
 
 
 def _run_single_mode(

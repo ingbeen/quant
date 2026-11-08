@@ -14,7 +14,7 @@ run_walkforward.py의 2-Mode(Dynamic/Fully Fixed) WFO 결과를
 - 모드별 요약 비교: 전략 × 모드(Dynamic/Fixed) 열의 표
 - Stitched Equity 곡선: 전략마다 한 칸
 - IS vs OOS 성과 비교: 전략마다 한 칸의 바차트
-- 파라미터 추이: 서브플롯에 전략별 선 오버레이
+- 파라미터 추이: 서브플롯에 전략별 선 오버레이 (x축은 OOS 시작일)
 - 윈도우별 상세 차트: 고른 전략 · 모드 · 윈도우의 IS + OOS 캔들차트
 """
 
@@ -73,14 +73,20 @@ _SUB_CHART_HEIGHT = 350
 # 전략 표시명 — 워크포워드 결과가 있는 전략은 여기와 아래 색 사전에 모두 있어야 한다
 # (없으면 KeyError 로 멈춘다 — 원래 이름 · 회색으로 조용히 넘기지 않는다)
 _STRATEGY_DISPLAY_NAMES: dict[str, str] = {
-    "buffer_zone_tqqq": "TQQQ",
     "buffer_zone_qqq": "QQQ",
+    "buffer_zone_qld": "QLD",
+    "buffer_zone_tqqq": "TQQQ",
+    "buffer_zone_spy": "SPY",
+    "buffer_zone_sso": "SSO",
 }
 
 # 전략별 차트 색상
 _STRATEGY_COLORS: dict[str, str] = {
     "buffer_zone_qqq": "#1f77b4",
+    "buffer_zone_qld": "#9467bd",
     "buffer_zone_tqqq": "#d62728",
+    "buffer_zone_spy": "#2ca02c",
+    "buffer_zone_sso": "#8c564b",
 }
 
 # 윈도우 상세 차트의 모드 (표시명, 윈도우별 상세 CSV 디렉토리명, WFO CSV 파일명) — 지표 선택지는 탐색한 전략 × 이 모드
@@ -98,17 +104,19 @@ def _discover_wfo_strategies() -> dict[str, Path]:
     """WFO 결과가 존재하는 전략 디렉토리를 탐색한다.
 
     Returns:
-        전략명 → 디렉토리 경로 딕셔너리
+        전략명 → 디렉토리 경로 딕셔너리 (표시명 사전의 순서)
     """
     results: dict[str, Path] = {}
     if not BACKTEST_RESULTS_DIR.exists():
         return results
 
-    for sub_dir in sorted(BACKTEST_RESULTS_DIR.iterdir()):
+    for sub_dir in BACKTEST_RESULTS_DIR.iterdir():
         if sub_dir.is_dir() and (sub_dir / WALKFORWARD_SUMMARY_FILENAME).exists():
             results[sub_dir.name] = sub_dir
 
-    return results
+    # 사전에 없는 전략은 정렬 키에서 KeyError
+    display_order = {name: i for i, name in enumerate(_STRATEGY_DISPLAY_NAMES)}
+    return {name: results[name] for name in sorted(results, key=lambda name: display_order[name])}
 
 
 # 캐시 로더의 mtime 은 쓰지 않고 캐시 키로만 둔다 — 러너가 파일을 다시 만들면 새로 읽는다
@@ -452,8 +460,8 @@ def _render_is_vs_oos(strategy_dirs: dict[str, Path]) -> None:
 # ============================================================
 
 
-def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
-    """전략별 Dynamic 모드의 파라미터 변화를 오버레이하여 시각화한다."""
+def _render_param_drift(strategy_dirs: dict[str, Path], summaries: dict[str, dict[str, Any]]) -> None:
+    """전략별 Dynamic 모드의 파라미터 변화를 OOS 시작일 축에 오버레이하여 시각화한다."""
     st.header("파라미터 추이 (Dynamic 모드)")
 
     fig = make_subplots(
@@ -465,10 +473,23 @@ def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
 
     strategy_names = list(summaries.keys())
 
+    # 전략마다 윈도우 기간이 달라 윈도우 번호로 겹치면 다른 해가 같은 x 에 놓임 → OOS 시작일로 그림
+    oos_starts: dict[str, pd.Series] = {}
+    for strat_name in strategy_names:
+        path = strategy_dirs[strat_name] / WALKFORWARD_DYNAMIC_FILENAME
+        oos_starts[strat_name] = pd.to_datetime(_load_window_csv(path, path.stat().st_mtime)["oos_start"])
+
     for i, (_label, key, is_ratio) in enumerate(WFO_PARAM_SPECS, start=1):
         for strat_name in strategy_names:
             values = summaries[strat_name][KEY_WFO_DYNAMIC][key]
-            x_labels = list(range(len(values)))
+            x_labels = oos_starts[strat_name]
+            # plotly 는 길이가 다른 x · y 를 에러 없이 그림 → 다른 실행의 파일이 섞이면 조용히 어긋남
+            if len(values) != len(x_labels):
+                raise ValueError(
+                    f"{_get_display_name(strat_name)} 의 워크포워드 결과 파일이 서로 맞지 않습니다 — "
+                    f"{WALKFORWARD_SUMMARY_FILENAME} 의 {key} 는 {len(values)}개, "
+                    f"{WALKFORWARD_DYNAMIC_FILENAME} 은 {len(x_labels)}행입니다. run_walkforward.py 를 다시 돌리세요"
+                )
             y_values = [v * 100 for v in values] if is_ratio else values
 
             color = _STRATEGY_COLORS[strat_name]
@@ -496,7 +517,7 @@ def _render_param_drift(summaries: dict[str, dict[str, Any]]) -> None:
 
     # X축 레이블 설정
     for i in range(1, len(WFO_PARAM_SPECS) + 1):
-        fig.update_xaxes(title_text="윈도우 인덱스", row=i, col=1)
+        fig.update_xaxes(title_text="OOS 시작일", row=i, col=1)
 
     st.plotly_chart(fig, width="stretch")
 
@@ -716,7 +737,7 @@ IS 시작점은 Dynamic 그리드와 4P 중 가장 긴 이동평균이 계산되
     _render_mode_summary(summaries)
     _render_stitched_equity(strategy_dirs, summaries)
     _render_is_vs_oos(strategy_dirs)
-    _render_param_drift(summaries)
+    _render_param_drift(strategy_dirs, summaries)
     _render_window_detail(strategy_dirs)
 
 

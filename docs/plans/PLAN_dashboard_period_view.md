@@ -1,0 +1,322 @@
+# Implementation Plan: 대시보드 정리 · 날짜 한글화 · 구간별 성과
+
+> 작성/운영 규칙(SoT): `/impl-plan` 스킬(`~/.claude/skills/impl-plan/SKILL.md`)을 반드시 참고하세요.  
+> (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 해당 스킬을 포인터로 두고 준수합니다.)
+
+**상태**: 🟡 Draft
+
+---
+
+> 상태는 🟡 Draft / 🔄 In Progress / ✅ Done. Done 조건과 기록 규칙은 `/impl-plan` 「3) 스킵 및 완료 규칙」이며 `~/.claude/hooks/plan_lint.py` 가 저장 때 검사한다.
+
+---
+
+**작성일**: 2026-11-08 18:00
+**마지막 업데이트**: 2026-11-08 18:00
+**관련 범위**: scripts/backtest (단일 · 포트폴리오 대시보드와 러너), src/qbt/backtest (구간별 성과 계산 · 공유 차트), src/qbt/utils (시세 파일 이름 → 티커), vendor (캔들 툴팁), tests, storage/results
+**관련 문서**: CLAUDE.md, docs/MEMORY.md, scripts/CLAUDE.md, src/qbt/CLAUDE.md, src/qbt/backtest/CLAUDE.md, src/qbt/utils/CLAUDE.md, tests/CLAUDE.md, docs/CLAUDE.md, vendor/streamlit-lightweight-charts-v5/CLAUDE.md, docs/research/전략_검증_보고서.md 부록 O.8
+
+---
+
+## 1) 목표(Goal)
+
+- [ ] 목표 1: 단일 · 포트폴리오 대시보드의 화면 구성을 사용자 요청대로 정리한다 (아래 「요청과 결정」 A · B)
+- [ ] 목표 2: 두 대시보드의 차트 · 정보창에서 영문 월 이름을 없앤다 — 눈금은 「2020년」 · 「2020년 1월」, 하루 단위 날짜는 「2020-01-15」
+- [ ] 목표 3: 전략 · 실험마다 「구간별 성과」(기간 나눠 보기 · 시작 달 바꿔 보기 · 수익 쏠림 · 하락장 / 횡보장)를 러너가 `summary.json` 에 계산해 두고, 두 대시보드가 보인다
+- [ ] 목표 4: 메인 차트와 시그널 차트의 이름을 「시그널 차트」로 통일하고, 캔들 툴팁 맨 위에 날짜를 넣는다
+
+## 2) 비목표(Non-Goals)
+
+- 세후(양도세) 성과 — 해마다 판 이익의 22% 를 계좌에서 빼야 그 뒤 복리가 맞아 엔진 단 계산이 필요하다. 따로 작업한다 (사용자 결정 2026-11-08 「Q5 추천대로」)
+- 단일 앱에 전략 × 구간 비교 탭 신설 — 이번에는 탭 안에만 둔다 (같은 결정)
+- 워크포워드 · 파라미터 고원 대시보드의 Plotly 날짜 형식 — 요청 범위가 두 앱이다. 공유 모듈을 고치는 캔들 차트 한글화만 워크포워드 앱에도 함께 미친다 (Q4 결정)
+- 전체 비교 탭의 기존 에쿼티 · 드로우다운 비교 그림의 가로축 정렬 — 요청 밖
+- 장기 횡보(2000-01 ~ 2013-03)를 국면 표에 넣기 — 13년이라 국면보다 기간이고 닷컴 · 금융위기를 다시 담는다. 「닷컴 정점부터」 구간과도 겹친다 (제안 때 「선택」으로 낸 것이고 추천에 넣지 않았다)
+- 다른 세션이 고치는 파일 — `scripts/backtest/app_walkforward.py` · `scripts/backtest/run_walkforward.py` · `docs/COMMANDS.md` · `docs/research/전략_검증_보고서.md`(근거 승격은 그 세션이 끝난 뒤 — Risks)
+
+## 3) 배경/맥락(Context)
+
+### 요청과 결정 (2026-11-08)
+
+**A. 단일 대시보드 (`app_single_backtest.py`)**
+
+1. 「전체 거래 상세 내역」 · 「사용 파라미터」를 차트 밑 접기(expander)로 — 순서는 지금처럼 거래 내역 → 파라미터
+2. 「포지션 보유 기간 분포」 삭제
+
+**B. 포트폴리오 대시보드 (`app_portfolio_backtest.py`)**
+
+1. 시그널 차트를 요약 지표 바로 밑으로. 「파라미터 상세 정보」 접기는 차트 묶음 끝에 둔다
+2. 그림 제목 「자산별 비중 추이 (리밸런싱 효과 포함)」 삭제
+3. 에쿼티 · 드로우다운 · 자산별 비중을 **한 그림 3단**으로 합쳐 가로축을 공유한다 (Q3 「추천대로」)
+4. 「자산별 수익 기여도」 섹션에서 분기별 기여도 막대 · 누적 기여도 면적을 지우고 「자산별 손익 분해」(최종일 실현 · 미실현 금액)만 큰 항목으로 남긴다 (Q1). 사용자 근거: 금액 시계열이라 과거 값이 너무 작아 최근만 읽힌다 — 퍼센트로 봐야 한다
+5. 시그널 차트 선택 순서 — 신호가 QQQ 인 자산 → SPY 인 자산 → 나머지 알파벳순 (Q2 「추천대로」, 신호 계열 기준)
+
+**C. 공통**
+
+1. 날짜 — 영문 월 금지. 눈금만 한글(「2020년」 · 「2020년 1월」), 하루 단위 날짜는 「2020-01-15」 유지. 캔들 한글화는 공유 모듈에서 해 워크포워드 앱에도 미친다 (Q4 「추천대로」)
+2. 구간별 성과 — 각 탭의 차트 밑 · 월별 히트맵 위에 새 섹션, 포트폴리오 「전체 비교」 탭에 실험 × 구간 표. 러너가 `summary.json` 에 계산(기존 관용). 세전만 (Q5 「추천대로」)
+3. 메인 차트 · 시그널 차트 이름 통일, 캔들 툴팁에 날짜 — 위치는 맨 위 (사용자 「판단은 너의 추천대로」)
+
+**Q1 에 대한 이 계획의 제안 (사용자 「더 좋은 의견 있으면」)** — 지운 두 그림의 목적(「언제 어느 자산이 벌었나」)은 금액 대신 **퍼센트**로 구간별 성과 ③(수익 쏠림)에 넣는다: 해마다 막대 하나, 높이는 그해 수익률, 색 칸은 자산별 기여(%p, 그해 초 계좌 대비). 과거 해도 같은 눈금으로 읽힌다. 「자산별 손익 분해」는 ③에 합치지 않고 따로 둔다 — 그 그림이 답하는 것은 「언제」가 아니라 「끝에 어느 자산에서 얼마가 남았고 그중 얼마가 아직 안 판(세금이 미뤄진) 이익인가」다.
+
+### 이름 통일안
+
+- 섹션 제목: 두 앱 모두 「시그널 차트」 (단일 앱 「1. 메인 차트」 → 「1. 시그널 차트」)
+- 캔들 패널 제목: 두 앱 모두 `{매매 종목} 시그널 차트`, 신호 종목이 다르면 `{매매 종목} 시그널 차트 (신호: {신호 종목})` — 예: 「TQQQ 시그널 차트 (신호: QQQ)」. 캔들은 신호 시세라 신호가 다른 전략은 패널 제목만으로는 왜 QQQ 가격대인지 알 수 없다
+- 종목은 결과 파일에 적힌 시세 경로에서 읽는다 — 단일 `summary.json` 의 `data_info.signal_path` · `trade_path`(매수 후 보유는 `trade_path` 만), 포트폴리오 `portfolio_config.asset_slots[].signal_data_path` · `trade_data_path`
+
+### 확인된 사실 `[실측] 2026-11-08`
+
+- **가로축이 어긋나는 원인**: 리밸런싱 점(점만 찍는 트레이스)이 있으면 Plotly 가 x축 자동 범위에 여백을 더한다(채움 · 선만 있는 트레이스는 여백 없음). 그래서 에쿼티 그림만 1985 ~ 2027 로 넓다. 왼쪽 시작 위치는 눈금 글자 폭 · 축 제목 유무 차이
+- **영문 날짜의 출처**: Plotly 기본 날짜 형식(확대 눈금 "Jan 2020", 정보창 머리글 "Jan 15, 2020"). 캔들 차트는 라이브러리가 `localization.locale`(기본 브라우저 언어)로 눈금 월 이름을 그린다 — 빌드 산출물에서 `toLocaleString(locale, {month: "short"})` 확인. `_CHART_THEME` 은 `createChart` 에 그대로 펼쳐 넘겨진다(vendor `LightweightChartsComponent.tsx`)
+- **세 단 정보창**: Streamlit 이 싣는 plotly.js 에 `hoversubplots` 가 있다 (`streamlit/static/.../PlotlyChart.*.js`)
+- **캔들 툴팁**: vendor `LightweightChartsComponent.tsx` 의 `crosshairHandler` 가 `customValues` 의 정해진 키(open · high · … · equity · dd)만 그린다 → 날짜는 TSX 수정과 재빌드가 필요하다. `frontend/node_modules` 가 비어 있다(0개) — 빌드 전에 사용자가 의존성을 설치한다(전역 「환경 설치는 사용자가 직접 한다」). node v18.17.1 은 있다. 빌드 산출물(`frontend/build/`)은 git 이 추적한다
+- **자산별 기여 항등식**: Q-2-2XS · Q-2 의 `equity.csv` 에서 `equity − 초기 자본 − Σ {자산}_contribution` 의 최대 절대값 2원(반올림) — 해마다 자산 기여 %p 의 합이 그해 수익률과 맞는다. 매매법이 여럿인 실험은 상계 절감이 자산에 나뉘지 않아 차이가 남는다 → 「기타」로 둔다(지금 등록 실험에는 없다)
+- **기간**: 단일 전략 시작일 1980-10-14(SPY 계열) ~ 1987-03-03(TLT), 매수 후 보유 1980-01-02(GLD) ~ 1986-05-19(TLT), 포트폴리오는 모두 1986-07-16. 끝날 모두 2026-11-06
+- **국면 날짜**: 저장소 SPY 합성 종가의 고점 → 바닥으로 정했다. 전략 결과를 보고 고르지 않았다 (아래 표 — QQQ 낙폭은 QQQ 자체 고점 · 바닥 기준, 비교용)
+
+### 구간 정의
+
+**① 기간 나눠 보기** — 각 전략 자기 기간 기준
+
+| 구간 | 정의 |
+| --- | --- |
+| 전체 | 첫날 ~ 끝날 |
+| 앞 절반 · 뒤 절반 | 가운데 날(첫날 + 기간의 절반) 이하 마지막 거래일에서 나눈다. 그날은 앞의 끝이자 뒤의 시작이다 (부록 O.8 과 같은 방식) |
+| 최근 20 · 10 · 5 · 3년 | 끝날에서 그 햇수를 뺀 날 이상 첫 거래일 ~ 끝날 |
+| 닷컴 정점부터 | 2000-03-24 ~ 끝날 |
+| 닷컴 바닥 뒤부터 | 2002-10-09 ~ 끝날 |
+| 금융위기 직전 고점부터 | 2007-10-09 ~ 끝날 |
+| 금융위기 바닥 뒤부터 | 2009-03-09 ~ 끝날 |
+
+값: 연 수익(CAGR) · 최악 낙폭(MDD, 그 구간 첫날을 고점으로 다시 잰다) · 총 수익률. 구간 시작이 전략 첫날보다 이르면 값을 내지 않는다(「데이터 없음」) — 일부만 잰 값이 온전한 값처럼 읽히지 않게.
+
+**④ 하락장 · 횡보장** — 날짜는 SPY 합성 종가 기준
+
+| 종류 | 국면 | 기간 | SPY | QQQ (자체 고점 · 바닥) |
+| --- | --- | --- | --- | --- |
+| 하락장 | 1987 블랙먼데이 | 1987-08-25 ~ 1987-10-19 | -33.1% | -39.9% |
+| 하락장 | 1990 걸프전 | 1990-07-16 ~ 1990-10-11 | -19.2% | -32.9% |
+| 하락장 | 1998 LTCM 사태 | 1998-07-17 ~ 1998-08-31 | -19.0% | -23.0% |
+| 하락장 | 닷컴 붕괴 | 2000-03-24 ~ 2002-10-09 | -47.5% | -83.0% |
+| 하락장 | 금융위기 | 2007-10-09 ~ 2009-03-09 | -55.2% | -53.4% |
+| 하락장 | 2011 유럽재정위기 | 2011-04-29 ~ 2011-10-03 | -18.6% | -16.1% |
+| 하락장 | 2018 4분기 | 2018-09-20 ~ 2018-12-24 | -19.3% | -22.8% |
+| 하락장 | 코로나 | 2020-02-19 ~ 2020-03-23 | -33.7% | -28.6% |
+| 하락장 | 2022 긴축 | 2022-01-03 ~ 2022-10-12 | -24.5% | -35.1% |
+| 하락장 | 2025 관세 | 2025-02-19 ~ 2025-04-08 | -18.8% | -22.8% |
+| 횡보장 | 1994 금리 인상 | 1994-01-01 ~ 1994-12-31 | +0.7% (구간 낙폭 -8.5%) | +2.2% (-15.9%) |
+| 횡보장 | 2015 ~ 16 박스권 | 2015-01-01 ~ 2016-06-30 | +5.2% (-13.0%) | +6.1% (-16.1%) |
+
+값: 그 구간 수익률 · 최악 낙폭, 단일 전략은 같은 구간 신호 시세(1배) 등락을 비교로 붙인다(포트폴리오는 신호가 자산마다 달라 붙이지 않는다 — 전체 비교 탭의 QQQ B&H · D-1 행이 그 역할). 연 수익은 내지 않는다 — 한 달짜리 국면을 연율로 늘리면 뜻이 없다. 날짜는 시작일 이상 첫 거래일 ~ 끝날 이하 마지막 거래일로 맞춘다. 횡보장 후보 2004 ~ 06 · 2011 ~ 12 · 2018 ~ 19 는 지수가 12 ~ 35% 올라 뺐다.
+
+**② 시작 달 바꿔 보기** (부록 O.8 과 같은 꼴) — 각 달의 첫 거래일(첫 달은 데이터 첫날)에 시작해 5년 · 10년 들고 있었을 때의 연 수익. 끝은 시작일 + 햇수 이하 마지막 거래일이고, 시작일 + 햇수가 데이터 끝날을 넘으면 넣지 않는다. 연 수익은 `calculate_summary` 와 같은 식(`ANNUAL_DAYS`). 요약: 최저(와 그 시작 달) · 하위 10%(pandas `quantile(0.1)`) · 중앙 · 마이너스 횟수 / 전체 횟수.
+
+**③ 수익 쏠림** (부록 O.8 정의) — 연간 수익률(`calculate_yearly_returns` 와 같은 해 나눔, 첫 해 · 마지막 해는 일부 기간 그대로)로: 플러스 · 마이너스 해 수(0% 는 어느 쪽도 아님) · 중앙값 · 산술 평균 · 최고 3개 해와 그 몫(최고 3개 해 합 ÷ 전체 합, 전체 합이 0 이하면 내지 않음) · 최고 3개 · 5개 해를 0% 로 바꾼 산술 평균. 포트폴리오는 여기에 해마다 자산별 기여(%p)와 기타(그해 수익률 − Σ 자산 기여)를 더한다.
+
+### 영향받는 규칙(반드시 읽고 전체 숙지)
+
+> 아래 문서에 기재된 규칙을 **모두 숙지**하고 준수합니다.
+
+- `.claude/plan-config.json` — 이 저장소의 검증 명령·자동 포맷·근거 승격 목적지 (**값의 SoT**)
+- 루트 `CLAUDE.md` — 특히 「계획서 규약 — 이 프로젝트의 설정」 절 · 「스크립트 실행 규칙」(대시보드는 사용자가 띄운다 · AppTest 는 AI 가 돌린다 · 결과 파일 덮어쓰기)
+- `docs/MEMORY.md` — 용어를 풀어 쓴다 · 합격 점수를 두지 않는다 · 세전과 세후
+- `scripts/CLAUDE.md` — 계층 원칙(계산은 src) · Streamlit `width` 규칙
+- `src/qbt/CLAUDE.md` · `src/qbt/backtest/CLAUDE.md` · `src/qbt/utils/CLAUDE.md` — 상수 배치 · 모듈 지도
+- `tests/CLAUDE.md` · 전역 `~/.claude/rules/python-tests.md` (새 테스트 파일을 만들기 전에 직접 연다)
+- `vendor/streamlit-lightweight-charts-v5/CLAUDE.md` — 프런트 소스를 고치면 빌드 산출물 갱신
+- 전역 `~/.claude/rules/python.md` — 반올림 · 불가능 조건 · 타입
+
+## 4) 완료 조건(Definition of Done)
+
+> Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 `/impl-plan` 스킬)
+
+- [ ] 요청 A · B · C 와 이름 통일 · 툴팁 날짜가 화면에 반영됨 (AppTest 예외 0건 + 사용자 화면 확인)
+- [ ] 구간별 성과 계산의 테스트 추가 (구간 나눔 · 데이터 없음 · 최악 낙폭 재기준 · 시작 달 · 쏠림 · 자산 기여 합)
+- [ ] 러너 재실행 후 기존 결과가 한 글자도 바뀌지 않고 `summary.json` 에 새 키만 붙음 (대조 결과를 진행 로그에)
+- [ ] 코드 리뷰 실행 및 결과 기록 (마지막 Phase 의 Validation 에 적는다)
+- [ ] 품질 검증 통과 (마지막 Phase 의 Validation 에 passed/failed/skipped 수를 적는다)
+- [ ] 자동 포맷 적용 완료 (마지막 Phase에서 실행)
+- [ ] 필요한 문서 업데이트 — 두 앱 docstring · `src/qbt/backtest/CLAUDE.md` 모듈 지도 · `src/qbt/utils/CLAUDE.md`(티커 함수가 지도에 들 자리면) · README 「Streamlit 대시보드」 줄. `docs/COMMANDS.md` 변경 없음
+- [ ] 근거 승격 완료 — 국면 날짜를 정한 방법 · 뺀 후보와 이유 · 부록 O.8 정의를 따른 것을 보고서에 옮긴다 (제안함 — 승인 · 반영 / 보류)
+- [ ] 미룬 지적 옮김 — 고치지 않은 리뷰 지적을 거르는 기준으로 걸러 `deferred_findings` 파일로 옮겼다. 계획서 없이 읽히게 썼다.
+      거른 지적은 진행 로그에 기준 번호와 함께 남기고 Done 보고에 표로 냈다
+      이 계획서가 그 파일의 항목을 고쳤다면 그 항목을 지웠다
+      (둘 다 없으면 「해당 없음」. `/impl-plan` 의 `review.md` 「미룬 지적 옮기기」 참고)
+- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+
+## 5) 변경 범위(Scope)
+
+### 변경 대상 파일(예상)
+
+- `src/qbt/backtest/period_performance.py` (새 파일) — 구간 정의 상수, 저장 형태 TypedDict, `calculate_period_performance(equity_df, *, signal_df)` · `calculate_yearly_asset_contributions(equity_df, asset_ids)`. 저장 형태로 반올림해 돌려준다(`calculate_monthly_returns` 와 같은 관용)
+- `src/qbt/backtest/constants.py` — `summary.json` 새 키 상수(`KEY_PERIOD_PERFORMANCE` · `KEY_YEARLY_ASSET_CONTRIBUTIONS`). 러너가 쓰고 앱이 읽어 도메인 안 두 파일 이상이 쓴다(`src/qbt/CLAUDE.md` 상수 3계층, 기존 `KEY_PORTFOLIO_SUMMARY` 와 같은 자리)
+- `src/qbt/utils/data_loader.py` — 시세 파일 경로 → 티커 함수(기존 `_SYNTHETIC_SUFFIX` · `_ACTUAL_SUFFIX` 를 쓴다)
+- `src/qbt/backtest/dashboard_charts.py` — `_CHART_THEME` 에 `locale: "ko-KR"`, 캔들 툴팁 값에 날짜 키, Plotly 날짜 축 설정(눈금 · 정보창 형식), 시그널 패널 제목, 구간별 성과의 표 · 그림 생성 함수
+- `vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend/src/LightweightChartsComponent.tsx` + `frontend/build/` 재빌드 산출물
+- `scripts/backtest/run_single_backtest.py` · `scripts/backtest/run_portfolio_backtest.py` — `summary.json` 에 `period_performance`(포트폴리오는 `yearly_asset_contributions` 도) 추가
+- `scripts/backtest/app_single_backtest.py` · `scripts/backtest/app_portfolio_backtest.py` — 화면 구성
+- `tests/qbt/test_period_performance.py` (새 파일) · `tests/qbt/test_dashboard_charts.py` · 티커 함수 테스트(데이터 로더 테스트 파일)
+- `src/qbt/backtest/CLAUDE.md` · README.md · (필요 시) `src/qbt/utils/CLAUDE.md`
+- `docs/COMMANDS.md`: 변경 없음 — 실행 명령 · 옵션이 그대로다(다른 세션이 고치는 중이기도 하다)
+
+### 데이터/결과 영향
+
+- `storage/results/backtest/{buffer_zone_*, buy_and_hold_*}/summary.json`(13개) · `storage/results/portfolio/*/summary.json`(5개)에 새 키가 붙는다. 같은 러너가 다시 쓰는 signal · equity · trades · state_log CSV 와 기존 키는 바뀌지 않아야 한다 — 바뀌면 멈추고 원인(시세 갱신 등)을 보고한다
+- 워크포워드 결과 파일(`walkforward_*` · `wfo_windows_*`)은 이 러너들이 쓰지 않는다
+
+## 6) 단계별 계획(Phases)
+
+### Phase 0 — 구간별 성과의 정의를 테스트로 먼저 고정(레드)
+
+> 새 지표(정의 · 산식)를 만든다 — 최종 수치가 정의에 달렸다.
+
+**작업 내용**:
+
+- [ ] `period_performance.py` 에 구간 정의 상수 · TypedDict · 두 함수 시그니처를 두고 본문은 `NotImplementedError` (수집 단계 ERROR 가 아니라 FAILED 로 레드가 나게). `constants.py` 에 새 `KEY_*` 두 개
+- [ ] `tests/qbt/test_period_performance.py` — 손으로 값을 셀 수 있는 짧은 합성 에쿼티로:
+  - 전체 구간 값이 `calculate_summary` 의 CAGR · MDD 와 같다
+  - 앞 · 뒤 절반이 가운데 거래일을 함께 쓰고, 두 구간 총 수익의 곱이 전체와 같다
+  - 구간 시작이 데이터 첫날보다 이르면 값이 비고(None), 늦으면 그날 이상 첫 거래일로 맞춘다
+  - 구간 최악 낙폭은 그 구간 첫날을 고점으로 다시 잰다 (구간 전의 고점을 끌고 오지 않는다)
+  - 시작 달: 끝이 데이터 밖이면 넣지 않고, 마이너스 횟수 · 최저 · 하위 10% · 중앙이 맞다
+  - 쏠림: 최고 3개 해 · 몫 · 0% 로 바꾼 평균이 손 계산과 같고, 전체 합이 0 이하면 몫이 None
+  - 자산 기여: 해마다 Σ 자산 %p + 기타 = 그해 수익률, 기여 열 합이 에쿼티 변화와 같으면 기타 ≈ 0
+  - 신호 시세가 주어지면 국면마다 신호 등락이 붙고, 없으면 그 값이 None
+- [ ] 시세 경로 → 티커 테스트 (`QQQ_synthetic_max.csv` → QQQ, `^SPGSCI_max.csv` → ^SPGSCI, 규칙 밖 이름은 `ValueError`)
+
+**Validation**:
+
+- [ ] `poetry run pytest tests/qbt/test_period_performance.py` — 새 테스트가 FAILED 로 레드(ERROR 0건)
+
+---
+
+### Phase 1 — 구간별 성과 계산 구현(그린)
+
+**작업 내용**:
+
+- [ ] `calculate_period_performance` · `calculate_yearly_asset_contributions` 구현 — 해 나눔은 `analysis.py` 의 연말 기준과 같게, 연 수익 식은 `calculate_summary` 와 같게, 반올림은 `ROUND_PERCENT`
+- [ ] 티커 함수 구현
+
+**Validation**:
+
+- [ ] `poetry run pytest tests/qbt/test_period_performance.py` 및 티커 테스트 통과
+
+---
+
+### Phase 2 — 러너 연결과 결과 재생성
+
+**작업 내용**:
+
+- [ ] 단일 러너: `summary.json` 에 `period_performance`(신호 시세 = `result.signal_df`)
+- [ ] 포트폴리오 러너: `period_performance`(신호 없음) · `yearly_asset_contributions`
+- [ ] 실행 전 작업 트리 확인 후 두 러너 전체 실행 (워크포워드 세션 종료 후 — Risks)
+- [ ] 대조: 18개 `summary.json` 의 기존 키가 HEAD 와 같고 새 키만 붙었는지(스크립트로 키별 비교), 다른 결과 파일 diff 0줄
+- [ ] 독립 대조: Q-2-2XS · 버퍼존 TQQQ 의 국면 2개 · 최근 10년을 `equity.csv` 에서 따로 계산해 저장값과 맞춘다, 「전체」 행이 기존 `cagr` · `mdd` 와 같다
+
+**Validation**:
+
+- [ ] 위 대조 결과(파일 수 · 차이 건수)를 진행 로그에 붙인다
+
+---
+
+### Phase 3 — 공유 차트 모듈
+
+**작업 내용**:
+
+- [ ] `_CHART_THEME` 에 `locale: "ko-KR"` (크로스헤어 날짜 형식 `yyyy-MM-dd` 는 그대로)
+- [ ] 캔들 툴팁 값에 날짜 키 추가
+- [ ] Plotly 날짜 축 설정: 눈금 `tickformatstops` — 하루 단위 `%Y-%m-%d` · 월 단위 `%Y년 %-m월` · 해 단위 `%Y년`, 정보창 `hoverformat` `%Y-%m-%d`
+- [ ] 시그널 패널 제목 함수
+- [ ] 구간별 성과 표 · 그림 함수 — ① · ④ 표, ② 선 그래프 + 요약 표, ③ 요약 표 + (포트폴리오) 해마다 자산 기여 누적 막대(%p) + 그해 수익률 점. 전체 비교 탭의 실험 × 구간 표 넷 — ① 연 수익 · ① 최악 낙폭 · ④ 국면 수익률 · 꾸준함(② 5년 · 10년 최저 · 중앙 · 마이너스 횟수, ③ 최고 3개 해 몫). 「데이터 없음」 표기, 합격 · 불합격 표시는 두지 않는다
+- [ ] `tests/qbt/test_dashboard_charts.py` 에 위 함수 테스트 추가, 툴팁 값 전체를 대조하는 기존 테스트(`test_tooltip_reads_overlay_row_of_same_date`)의 기대값에 날짜 키 반영
+
+**Validation**:
+
+- [ ] `poetry run pytest tests/qbt/test_dashboard_charts.py` 통과
+
+---
+
+### Phase 4 — 캔들 툴팁 날짜 (vendor)
+
+> **사용자 선행**: `vendor/streamlit-lightweight-charts-v5/lightweight_charts_v5/frontend` 에서 `npm ci` (한 번만, `package-lock.json` 대로 설치). 설치는 AI 가 하지 않는다 — 끝나면 알려 주시면 이어 간다.
+
+**작업 내용**:
+
+- [ ] `crosshairHandler` 가 날짜 키를 툴팁 맨 위 줄에 그린다
+- [ ] `npm run build` 로 `frontend/build/` 갱신
+
+**Validation**:
+
+- [ ] 빌드 성공, 새 번들에 날짜 줄 코드가 있는지 확인, 옛 번들 파일이 빠지고 새 파일이 들어간 것을 `git status` 로 확인
+
+---
+
+### Phase 5 — 두 대시보드 화면
+
+**작업 내용**:
+
+- [ ] 단일 앱: 「1. 시그널 차트」 + 접기 둘(거래 내역 → 파라미터), 「2. 구간별 성과」, 「3. 월별/연도별 수익률 히트맵」, 보유 기간 분포와 그 함수 · import 삭제
+- [ ] 포트폴리오 실험 탭: 요약 지표 → 시그널 차트(신호 계열 순서) → 에쿼티 · 드로우다운 · 자산별 비중 3단 그림(가로축 공유 · 범위를 첫날 ~ 끝날로 고정 · `hoversubplots`) → 파라미터 접기 → 구간별 성과 → 월별 수익률 → 자산별 손익 분해 → (매매법이 여럿이면) 매매법별 손익
+- [ ] 포트폴리오 전체 비교 탭: 성과 지표 비교 표 밑에 실험 × 구간 표
+- [ ] 포트폴리오 앱의 날짜 축 그림 전부에 Phase 3 날짜 축 설정
+- [ ] 각 블록 위에 용어를 풀어 쓴 한 줄 설명 (연 수익 · 최악 낙폭 · 시작 달 그래프 읽는 법 · 몫)
+- [ ] 두 앱 docstring 의 화면 구성 갱신
+
+**Validation**:
+
+- [ ] `streamlit.testing.v1.AppTest` 로 두 앱 실행 — 예외 0건, 섹션 제목이 위 순서로 나오는지 확인
+- [ ] 사용자 화면 확인 지점 안내 (가로축 끝점 · 확대 시 날짜 · 툴팁 날짜 · 선택 순서)
+
+---
+
+### 마지막 Phase — 문서 정리 및 최종 검증
+
+**작업 내용**
+
+> 🔴 **체크박스와 상태를 먼저 확정하고, `/commit` 은 맨 마지막에** — 이유는 `/impl-plan` 「5) Commit Messages」.
+
+- [ ] 문서: `src/qbt/backtest/CLAUDE.md` 모듈 지도(새 모듈 · `dashboard_charts.py` 설명), README 대시보드 줄, `src/qbt/utils/CLAUDE.md` 해당 시. `docs/COMMANDS.md` 변경 없음
+- [ ] 근거 승격 반영안 제안 (보고서 — 워크포워드 세션 종료 후)
+- [ ] 자동 포맷 적용 (`poetry run black .`)
+- [ ] 변경 기능 및 전체 플로우 최종 검증
+- [ ] Validation 절에 `/code-review` 와 품질 검증 **실행 결과**를 적는다
+- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [ ] 🔴 **마지막에 `/commit` 을 실행하고 그 후보를 «이 계획서» 의 `#### Commit Messages` 절에 옮긴다** —
+      대화에만 내면 그 절이 빈 채로 남는다. **커밋은 사용자가 한다 — 후보만 낸다**
+
+**Validation**:
+
+> 순서는 `/code-review` → 품질 검증이다. 고칠 것 · 회차 상한 · 수정분 검증은 `/impl-plan` 의 `review.md` 가 정한다.
+
+- [ ] `/code-review xhigh` **1회차** (발견 \_\_건 — 버그 \_\_ [무거움 \_\_ · 가벼움 \_\_] · 그 외 \_\_ · 조치: \_\_)
+- [ ] 수정분 검증 (수정 \_\_건 · 발견 \_\_건 — 무거움 \_\_ · 조치: \_\_ — 마지막 회차에 고친 것이 없으면 「해당 없음」)
+- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
+
+#### Commit Messages (Final candidates) — 5개 중 1개 선택
+
+> **Done 직전에 `/commit` 을 실행해 이 절을 채운다. 그전에는 비워 둔다** — 추측으로 적은 줄은 그대로 나간다.
+
+- [ ] (미작성 — `/commit` 을 실행하고 후보 5개를 **이 자리에** 번호 붙은 줄로 옮긴 뒤 이 줄을 지운다)
+
+## 7) 리스크(Risks)
+
+- **다른 세션과 겹침** — 워크포워드 세션이 코드 리뷰 · 품질 검증 중이다. Phase 0 의 레드 테스트가 있는 동안 그 세션이 `validate_project.py` 를 돌리면 실패한다. `dashboard_charts.py` 는 워크포워드 앱도 import 한다 → **구현(Phase 0 ~)은 그 세션이 끝난 뒤 시작한다.** 보고서(`전략_검증_보고서.md`)는 그 세션이 고치는 중이라 근거 승격도 그 뒤에 한다
+- **결과 재생성이 기존 값을 바꿀 수 있음** — 결과를 만든 뒤 시세가 갱신됐으면 기존 숫자도 바뀐다. Phase 2 대조에서 기존 키 · CSV 차이가 1건이라도 나오면 멈추고 보고한다
+- **vendor 빌드 환경** — `npm ci` 가 node v18.17.1 에서 실패하면 Phase 4 만 멈추고(다른 Phase 는 영향 없음) 원인을 보고한다. 날짜 키는 Python 쪽에 먼저 들어가도 TSX 가 모르는 키라 화면에 영향이 없다
+- **AppTest 는 그림 모양을 보지 않는다** — 가로축 끝점 · 정보창 · 툴팁은 사용자 화면 확인으로 닫는다
+- **국면 날짜는 SPY 기준** — QQQ 계열 전략은 자기 고점 · 바닥과 며칠 ~ 몇 주 어긋난다(닷컴 · 금융위기 · 2022). 표 설명에 기준을 적는다
+- **`summary.json` 크기** — 시작 달 점(5년 · 10년 합쳐 전략당 최대 약 1,000개)이 붙는다. 대시보드 로더는 `st.cache_data` 라 읽기 비용은 한 번이다
+
+## 8) 메모(Notes)
+
+- 부록 O.8 의 측정은 저장소 밖 임시 코드였다 — 이번 계산은 그 정의를 저장소 안에 들인다. 기간(1998 판 · 2026-10-02 절단)이 달라 숫자는 맞추지 않는다
+- 국면 날짜 측정 스크립트는 세션 임시 폴더에 두었다(저장소에 남기지 않음) — 날짜의 근거는 위 표와 근거 승격으로 남긴다
+
+### 진행 로그 (KST)
+
+- 2026-11-08 18:00: 계획서 작성 (Draft). 사용자 결정 Q1 ~ Q5 · 이름 통일 · 툴팁 날짜 반영. 구현은 승인 + 워크포워드 세션 종료 후
+- 2026-11-08 18:00: 자체 검증 — 1회차: 툴팁 값 전체를 대조하는 기존 테스트가 날짜 키로 깨짐 → Phase 3 에 갱신 추가 / 새 `summary.json` 키를 러너 · 앱 두 곳이 써 상수 3계층상 `constants.py` 로 → Scope · Phase 0 추가 / 전체 비교 탭 표 구성이 모호 → 넷으로 명시. 2 · 3 · 4회차(다른 저장소 · 모듈 영향 — `summary.json` 을 읽는 곳은 러너의 기간 대조 하나이고 키 추가에 영향 없음 · Phase 순서와 의존 · 단순화 여지) 개선 없음 → 종료
+- 2026-11-08 18:37: 사용자 승인. 구현 시점은 사용자가 따로 정한다 — 상태는 그때까지 Draft. 같은 날 전역 설치 규칙이 바뀌어 Phase 4 의 `npm ci` 는 사용자 승인 후 AI 가 실행할 수 있다(이 저장소 폴더에 격리됨) — 본문의 「사용자 선행 · AI 가 하지 않는다」 문구와 Context 의 규칙 이름보다 이 로그가 우선한다
+- 2026-11-08 18:42: Phase 4 선행 `npm ci` 를 사용자 승인으로 실행 — 1,368개 설치 · 종료 코드 0. `frontend/node_modules` 340M(git 무시), `vendor` 추적 파일 변경 0건, `~/.npm` 305M → 385M, 전역 패키지 변화 없음. npm audit 경고 68건(낮음 18 · 보통 16 · 높음 31 · 치명 3) — 빌드 도구 의존성이고 `npm audit fix` 는 잠금 파일을 바꿔 돌리지 않았다

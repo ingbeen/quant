@@ -58,9 +58,9 @@ poetry run python scripts/backtest/run_portfolio_backtest.py
 # 다른 실험의 저장 결과가 지금 기간과 다르면(늦게 시작하는 실험을 새로 등록했거나 새 시세로 끝날이 늘었을 때) 쓰기 전에 멈춘다 — 그때는 인자 없이 전체를 돌린다
 poetry run python scripts/backtest/run_portfolio_backtest.py --experiment <experiment_name>
 
-# 3. 워크포워드 검증 (선행: 워크플로우 1 — QQQ · TQQQ 합성)
+# 3. 워크포워드 검증 (선행: 워크플로우 1 — QQQ · QLD · TQQQ · SPY · SSO 합성)
 # 출력: storage/results/backtest/{전략명}/ (walkforward_*.csv, walkforward_summary.json, 윈도우별 상세 wfo_windows_*/)
-# 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 6분)
+# 소요: 수 분 — 그리드 서치라 그리드 범위 · 윈도우 수에 따라 달라진다 (약 13분)
 poetry run python scripts/backtest/run_walkforward.py
 
 # --strategy 인자로 특정 전략만 실행 가능 (기본값: all, 선택지는 --help)
