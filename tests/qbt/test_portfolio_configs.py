@@ -13,14 +13,26 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 8. 운용안은 Q-2-2XS 단독이다 — 철회한 보완 전략 조합(부록 M)은 등록되지 않고, 시작일 하한(min_start_date)을 쓰는 등록 실험이 없다
 9. QQQ B&H: QQQ 100% 매수 후 보유, 실험 시작일 하한(min_start_date) 없음 — 러너의 시작일 정책을 따른다
 10. 모든 슬롯은 상장 전까지 늘린 합성 시세를 읽는다
+11. Q-2-3XS: Q-2-2XS 에서 주식 칸의 매매 시세만 3배(UPRO · TQQQ)로 바꾼 짝 — 신호 · 비중 · 전략 · 파라미터는 같다
 """
+
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import AllocatorMethodConfig, SlotMethodConfig, resolve_methods
-from qbt.common_constants import GLD_SYNTHETIC_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH, TLT_SYNTHETIC_DATA_PATH
+from qbt.common_constants import (
+    GLD_SYNTHETIC_DATA_PATH,
+    QLD_SYNTHETIC_DATA_PATH,
+    QQQ_SYNTHETIC_DATA_PATH,
+    SSO_SYNTHETIC_DATA_PATH,
+    TLT_SYNTHETIC_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
+)
 
 from helpers import ONE_TIMES_SIGNAL_OF
 
@@ -192,6 +204,52 @@ class TestQSeriesConfigs:
         tlt_slot = next(s for s in config.asset_slots if s.asset_id == "tlt")
         assert gld_slot.trade_data_path == GLD_SYNTHETIC_DATA_PATH
         assert tlt_slot.trade_data_path == TLT_SYNTHETIC_DATA_PATH
+
+    def test_q2_3xs_differs_from_q2_2xs_only_in_stock_multiple(self) -> None:
+        """
+        목적: Q-2-3XS 는 Q-2-2XS 에서 주식 칸의 매매 시세만 2배 → 3배로 바꾼 짝이다 — 신호(1배) · 비중 · 전략 · 파라미터 ·
+              슬롯 순서가 어긋나면 배수 말고 다른 것까지 달라진 비교가 에러 없이 나온다 (사용자 요청 2026-11-08)
+
+        Given: portfolio_q2_2xs · portfolio_q2_3xs 설정, 2배 매매 시세 → (3배 자산 id, 3배 매매 시세) 표
+        When:  Q-2-2XS 의 주식 칸을 그 표대로 바꾼 슬롯을 만든다
+        Then:  Q-2-2XS 에 바꿀 2배 칸(SSO · QLD)이 모두 있고, 바꾼 슬롯이 Q-2-3XS 의 슬롯과 같으며,
+               이름 · 결과 폴더 · 슬롯 말고는 설정이 Q-2-2XS 와 같다
+        """
+        # Given
+        base = get_portfolio_config("portfolio_q2_2xs")
+        tripled = get_portfolio_config("portfolio_q2_3xs")
+        three_times_of: dict[Path, tuple[str, Path]] = {
+            SSO_SYNTHETIC_DATA_PATH: ("upro", UPRO_SYNTHETIC_DATA_PATH),
+            QLD_SYNTHETIC_DATA_PATH: ("tqqq", TQQQ_SYNTHETIC_DATA_PATH),
+        }
+
+        # When
+        expected_slots = tuple(
+            (
+                replace(
+                    slot,
+                    asset_id=three_times_of[slot.trade_data_path][0],
+                    trade_data_path=three_times_of[slot.trade_data_path][1],
+                )
+                if slot.trade_data_path in three_times_of
+                else slot
+            )
+            for slot in base.asset_slots
+        )
+
+        # Then — 바꿀 칸이 없으면 두 설정이 같아도 통과 → Q-2-2XS 가 3배로 바뀐 실수를 놓침
+        assert three_times_of.keys() <= {slot.trade_data_path for slot in base.asset_slots}
+        assert tripled.asset_slots == expected_slots
+        assert (
+            replace(
+                tripled,
+                experiment_name=base.experiment_name,
+                display_name=base.display_name,
+                result_dir=base.result_dir,
+                asset_slots=base.asset_slots,
+            )
+            == base
+        )
 
     def test_all_slots_read_synthetic_prices(self) -> None:
         """

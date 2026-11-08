@@ -6,13 +6,13 @@
     "total_return_pct": 525.98,
     "cagr": 4.07,
     "mdd": -45.15,
-    "calmar": 0.0901,
+    "calmar": 0.09,
     "total_trades": 18,
     "winning_trades": 8,
     "losing_trades": 10,
     "win_rate": 44.44,
     "start_date": "1980-10-28",
-    "end_date": "2026-10-29"
+    "end_date": "2026-11-06"
   },
   "params": {
     "ma_window": 200,
@@ -2786,6 +2786,11 @@
     {
       "year": 2026,
       "month": 10,
+      "return_pct": 0.0
+    },
+    {
+      "year": 2026,
+      "month": 11,
       "return_pct": 0.0
     }
   ],

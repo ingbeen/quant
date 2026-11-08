@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (TQQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 3863776920,
-    "total_return_pct": 38537.77,
-    "cagr": 15.93,
+    "final_capital": 2914847508,
+    "total_return_pct": 29048.48,
+    "cagr": 15.12,
     "mdd": -89.36,
-    "calmar": 0.1783,
+    "calmar": 0.1692,
     "total_trades": 23,
     "winning_trades": 13,
     "losing_trades": 10,
     "win_rate": 56.52,
     "start_date": "1986-07-16",
-    "end_date": "2026-10-29",
+    "end_date": "2026-11-06",
     "open_position": {
       "entry_date": "2026-04-17",
       "entry_price": 57.7086,
@@ -2446,7 +2446,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": -11.24
+      "return_pct": -20.53
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": -15.74
     }
   ],
   "yearly_returns": [
@@ -2612,7 +2617,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -9.63
+      "return_pct": -31.83
     }
   ],
   "data_info": {

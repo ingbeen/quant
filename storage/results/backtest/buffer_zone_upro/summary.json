@@ -2,21 +2,21 @@
   "display_name": "버퍼존 전략 (UPRO)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 7370002869,
-    "total_return_pct": 73600.03,
-    "cagr": 15.42,
+    "final_capital": 6362815341,
+    "total_return_pct": 63528.15,
+    "cagr": 15.04,
     "mdd": -80.05,
-    "calmar": 0.1926,
+    "calmar": 0.1879,
     "total_trades": 15,
     "winning_trades": 12,
     "losing_trades": 3,
     "win_rate": 80.0,
     "start_date": "1980-10-14",
-    "end_date": "2026-10-29",
+    "end_date": "2026-11-06",
     "open_position": {
       "entry_date": "2025-05-21",
       "entry_price": 78.9744,
-      "shares": 49347188
+      "shares": 49347101
     }
   },
   "params": {
@@ -176,7 +176,7 @@
     {
       "year": 1983,
       "month": 3,
-      "return_pct": 8.21
+      "return_pct": 8.22
     },
     {
       "year": 1983,
@@ -351,7 +351,7 @@
     {
       "year": 1986,
       "month": 2,
-      "return_pct": 22.23
+      "return_pct": 22.24
     },
     {
       "year": 1986,
@@ -691,7 +691,7 @@
     {
       "year": 1991,
       "month": 10,
-      "return_pct": 2.34
+      "return_pct": 2.35
     },
     {
       "year": 1991,
@@ -2791,7 +2791,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": 1.62
+      "return_pct": -3.92
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": -8.69
     }
   ],
   "yearly_returns": [
@@ -2981,7 +2986,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 29.82
+      "return_pct": 12.08
     }
   ],
   "data_info": {

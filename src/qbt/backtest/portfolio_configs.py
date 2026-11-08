@@ -5,7 +5,7 @@
 실험 목적:
 - QQQ B&H: 매매 규칙 없이 QQQ 100% 를 사서 보유하는 기준점
 - D 시리즈: 단일 자산 비교군 (QQQ 100%)
-- Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x 또는 2x 레버리지로 교체하여
+- Q 시리즈: SPY/QQQ + 방어자산(GLD·TLT) 혼합. 주식 구간을 1x · 2x · 3x 레버리지로 교체하여
   수익·위험 프로필을 비교한다.
 """
 
@@ -21,6 +21,8 @@ from qbt.common_constants import (
     SPY_SYNTHETIC_DATA_PATH,
     SSO_SYNTHETIC_DATA_PATH,
     TLT_SYNTHETIC_DATA_PATH,
+    TQQQ_SYNTHETIC_DATA_PATH,
+    UPRO_SYNTHETIC_DATA_PATH,
 )
 
 
@@ -69,7 +71,7 @@ _CONFIG_D1 = PortfolioConfig(
 
 # ============================================================================
 # Q 시리즈: SPY/QQQ 주식 + 방어자산(GLD·TLT, B&H) 혼합
-# 주식 구간을 1x(Q-2) 또는 2x(Q-2-2XS)로 교체하여 비교한다.
+# 주식 구간을 1x(Q-2) · 2x(Q-2-2XS) · 3x(Q-2-3XS)로 교체하여 비교한다.
 # ============================================================================
 
 # Q-2: SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H) -- 1x 주식 + 방어자산 B&H
@@ -144,6 +146,42 @@ _CONFIG_Q2_2XS = PortfolioConfig(
     result_dir=_make_result_dir("portfolio_q2_2xs"),
 )
 
+# Q-2-3XS: Q-2-2XS 에서 주식 칸의 매매 상품만 3x -- 신호는 그대로 1x (비교 실험, 운용은 Q-2-2XS)
+_CONFIG_Q2_3XS = PortfolioConfig(
+    experiment_name="portfolio_q2_3xs",
+    display_name="Q-2-3XS (UPRO 35% / TQQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
+    asset_slots=(
+        AssetSlotConfig(
+            asset_id="upro",
+            signal_data_path=SPY_SYNTHETIC_DATA_PATH,
+            trade_data_path=UPRO_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="tqqq",
+            signal_data_path=QQQ_SYNTHETIC_DATA_PATH,
+            trade_data_path=TQQQ_SYNTHETIC_DATA_PATH,
+            target_weight=0.35,
+        ),
+        AssetSlotConfig(
+            asset_id="gld",
+            signal_data_path=GLD_SYNTHETIC_DATA_PATH,
+            trade_data_path=GLD_SYNTHETIC_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+        AssetSlotConfig(
+            asset_id="tlt",
+            signal_data_path=TLT_SYNTHETIC_DATA_PATH,
+            trade_data_path=TLT_SYNTHETIC_DATA_PATH,
+            target_weight=0.15,
+            strategy_id="buy_and_hold",
+        ),
+    ),
+    total_capital=DEFAULT_INITIAL_CAPITAL,
+    result_dir=_make_result_dir("portfolio_q2_3xs"),
+)
+
 # ============================================================================
 # 공개 컬렉션 및 함수
 # ============================================================================
@@ -153,6 +191,7 @@ PORTFOLIO_CONFIGS: list[PortfolioConfig] = [
     _CONFIG_D1,
     _CONFIG_Q2,
     _CONFIG_Q2_2XS,
+    _CONFIG_Q2_3XS,
 ]
 
 

@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (QLD)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 2991761357,
-    "total_return_pct": 29817.61,
-    "cagr": 15.2,
+    "final_capital": 2498528769,
+    "total_return_pct": 24885.29,
+    "cagr": 14.68,
     "mdd": -74.13,
-    "calmar": 0.2051,
+    "calmar": 0.198,
     "total_trades": 23,
     "winning_trades": 14,
     "losing_trades": 9,
     "win_rate": 60.87,
     "start_date": "1986-07-16",
-    "end_date": "2026-10-29",
+    "end_date": "2026-11-06",
     "open_position": {
       "entry_date": "2026-04-17",
       "entry_price": 76.156,
@@ -2446,7 +2446,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": -7.22
+      "return_pct": -13.65
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": -10.27
     }
   ],
   "yearly_returns": [
@@ -2612,7 +2617,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -2.6
+      "return_pct": -18.66
     }
   ],
   "data_info": {

@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (TLT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 42745900,
+    "final_capital": 42745924,
     "total_return_pct": 327.46,
     "cagr": 3.73,
     "mdd": -31.81,
-    "calmar": 0.1173,
+    "calmar": 0.1172,
     "total_trades": 16,
     "winning_trades": 10,
     "losing_trades": 6,
     "win_rate": 62.5,
     "start_date": "1987-03-03",
-    "end_date": "2026-10-29"
+    "end_date": "2026-11-06"
   },
   "params": {
     "ma_window": 200,
@@ -2101,7 +2101,7 @@
     {
       "year": 2021,
       "month": 10,
-      "return_pct": 2.47
+      "return_pct": 2.46
     },
     {
       "year": 2021,
@@ -2401,6 +2401,11 @@
     {
       "year": 2026,
       "month": 10,
+      "return_pct": 0.0
+    },
+    {
+      "year": 2026,
+      "month": 11,
       "return_pct": 0.0
     }
   ],

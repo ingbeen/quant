@@ -2,8 +2,8 @@
   "display_name": "Buy & Hold (TLT)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 90035693,
-    "total_return_pct": 800.36,
+    "final_capital": 90147719,
+    "total_return_pct": 801.48,
     "cagr": 5.58,
     "mdd": -48.35,
     "calmar": 0.1155,
@@ -12,11 +12,11 @@
     "losing_trades": 0,
     "win_rate": 0.0,
     "start_date": "1986-05-19",
-    "end_date": "2026-10-29",
+    "end_date": "2026-11-06",
     "open_position": {
       "entry_date": "1986-05-20",
-      "entry_price": 9.0509,
-      "shares": 1104868
+      "entry_price": 9.0873,
+      "shares": 1100436
     }
   },
   "params": {
@@ -1247,7 +1247,7 @@
     {
       "year": 2006,
       "month": 9,
-      "return_pct": 1.92
+      "return_pct": 1.91
     },
     {
       "year": 2006,
@@ -2152,7 +2152,7 @@
     {
       "year": 2021,
       "month": 10,
-      "return_pct": 2.47
+      "return_pct": 2.46
     },
     {
       "year": 2021,
@@ -2452,7 +2452,12 @@
     {
       "year": 2026,
       "month": 10,
-      "return_pct": 5.19
+      "return_pct": 5.22
+    },
+    {
+      "year": 2026,
+      "month": 11,
+      "return_pct": 0.1
     }
   ],
   "yearly_returns": [
@@ -2618,7 +2623,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -3.24
+      "return_pct": -3.12
     }
   ],
   "data_info": {
