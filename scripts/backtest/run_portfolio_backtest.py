@@ -25,8 +25,10 @@ from qbt.backtest.analysis import (
 from qbt.backtest.constants import (
     EQUITY_FILENAME,
     KEY_END_DATE,
+    KEY_PERIOD_PERFORMANCE,
     KEY_PORTFOLIO_SUMMARY,
     KEY_START_DATE,
+    KEY_YEARLY_ASSET_CONTRIBUTIONS,
     LEDGER_FILENAME,
     NETTING_FILENAME,
     SUMMARY_FILENAME,
@@ -47,6 +49,7 @@ from qbt.backtest.engines.portfolio_engine import (
     run_with_start_check,
 )
 from qbt.backtest.engines.portfolio_methods import account_target_weights, summarize_methods
+from qbt.backtest.period_performance import calculate_period_performance, calculate_yearly_asset_contributions
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
 from qbt.backtest.portfolio_types import (
     PortfolioResult,
@@ -252,6 +255,10 @@ def _save_portfolio_results(result: PortfolioResult) -> None:
         "portfolio_config": result.params_json,
         "monthly_returns": monthly_returns,
         "yearly_returns": yearly_returns,
+        KEY_PERIOD_PERFORMANCE: calculate_period_performance(result.equity_df, signal_df=None),
+        KEY_YEARLY_ASSET_CONTRIBUTIONS: calculate_yearly_asset_contributions(
+            result.equity_df, [asset_result.asset_id for asset_result in result.per_asset]
+        ),
     }
 
     # 매매법이 여럿이면 매매법 장부 · 상계 내역과 요약을 더한다 (하나면 장부 = 계좌라 내지 않는다)

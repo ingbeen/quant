@@ -22,12 +22,19 @@ from qbt.backtest.analysis import (
     calculate_monthly_returns,
     calculate_yearly_returns,
 )
-from qbt.backtest.constants import EQUITY_FILENAME, SIGNAL_FILENAME, SUMMARY_FILENAME, TRADES_FILENAME
+from qbt.backtest.constants import (
+    EQUITY_FILENAME,
+    KEY_PERIOD_PERFORMANCE,
+    SIGNAL_FILENAME,
+    SUMMARY_FILENAME,
+    TRADES_FILENAME,
+)
 from qbt.backtest.csv_export import (
     add_ohlc_change_pct,
     prepare_trades_for_csv,
     round_signal_for_csv,
 )
+from qbt.backtest.period_performance import calculate_period_performance
 from qbt.backtest.strategies import (
     buffer_zone,
     buy_and_hold,
@@ -178,12 +185,15 @@ def _save_summary_json(
             "shares": open_position["shares"],
         }
 
+    # 매수 후 보유는 신호가 없고 signal_df 가 자기 매매 시세임 → 비교 열을 두지 않음
+    signal_df = result.signal_df if "signal_path" in result.data_info else None
     summary_data: dict[str, Any] = {
         "display_name": result.display_name,
         "summary": summary_dict,
         "params": result.params_json,
         "monthly_returns": monthly_returns,
         "yearly_returns": yearly_returns,
+        KEY_PERIOD_PERFORMANCE: calculate_period_performance(result.equity_df, signal_df=signal_df),
         "data_info": result.data_info,
     }
 

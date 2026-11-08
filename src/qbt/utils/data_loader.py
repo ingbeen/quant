@@ -71,6 +71,19 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     return df
 
 
+def ticker_from_stock_path(path: Path) -> str:
+    """시세 파일 경로(`{T}_max.csv` · `{T}_synthetic_max.csv`)의 티커를 돌려준다.
+
+    Raises:
+        ValueError: 시세 파일 이름 규칙에 맞지 않을 때
+    """
+    suffix = next((s for s in (_SYNTHETIC_SUFFIX, _ACTUAL_SUFFIX) if path.name.endswith(s)), None)
+    ticker = path.name.removesuffix(suffix) if suffix is not None else ""
+    if not ticker:
+        raise ValueError(f"시세 파일 이름 규칙(티커{_ACTUAL_SUFFIX} · 티커{_SYNTHETIC_SUFFIX})에 맞지 않습니다: {path}")
+    return ticker
+
+
 def _require_synthetic_not_behind_actual(path: Path, df: pd.DataFrame) -> None:
     # 합성은 이음매 뒤가 실물 행 그대로라 생성 직후 끝날이 같음 → 더 이르면 시세를 다시 받고 생성을 건너뛴 것
     if not path.name.endswith(_SYNTHETIC_SUFFIX):

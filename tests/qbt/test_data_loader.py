@@ -17,13 +17,19 @@ data_loader 모듈 테스트
 """
 
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from qbt.common_constants import COL_CLOSE, COL_DATE
-from qbt.utils.data_loader import extract_overlap_period, load_signal_trade_pair, load_stock_data
+from qbt.utils.data_loader import (
+    extract_overlap_period,
+    load_signal_trade_pair,
+    load_stock_data,
+    ticker_from_stock_path,
+)
 
 
 class TestLoadStockData:
@@ -416,3 +422,49 @@ class TestLoadSignalTradePair:
         # When & Then
         with pytest.raises(ValueError, match="겹치는 기간"):
             load_signal_trade_pair(path1, path2)
+
+
+class TestTickerFromStockPath:
+    """시세 파일 경로 → 티커"""
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("QQQ_synthetic_max.csv", "QQQ"),
+            ("SPY_max.csv", "SPY"),
+            ("^SPGSCI_max.csv", "^SPGSCI"),
+            ("GC=F_max.csv", "GC=F"),
+        ],
+    )
+    def test_ticker_is_the_part_before_the_suffix(self, name: str, expected: str) -> None:
+        """
+        목적: 합성 · 실물 파일 이름에서 티커를 읽는다 (특수 문자는 그대로)
+
+        Given: 시세 파일 이름 규칙을 따르는 경로
+        When: 티커를 읽는다
+        Then: 끝 표기를 뺀 앞부분이다
+        """
+        # Given
+        path = Path("storage/stock") / name
+
+        # When
+        ticker = ticker_from_stock_path(path)
+
+        # Then
+        assert ticker == expected
+
+    @pytest.mark.parametrize("name", ["QQQ.csv", "_max.csv", "_synthetic_max.csv"])
+    def test_name_outside_the_convention_stops(self, name: str) -> None:
+        """
+        목적: 규칙 밖의 이름에서 티커를 지어내지 않는다
+
+        Given: 끝 표기가 없거나 티커 부분이 빈 이름
+        When: 티커를 읽는다
+        Then: ValueError
+        """
+        # Given
+        path = Path("storage/stock") / name
+
+        # When / Then
+        with pytest.raises(ValueError, match="시세 파일 이름"):
+            ticker_from_stock_path(path)

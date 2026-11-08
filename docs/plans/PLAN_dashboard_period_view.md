@@ -3,7 +3,7 @@
 > 작성/운영 규칙(SoT): `/impl-plan` 스킬(`~/.claude/skills/impl-plan/SKILL.md`)을 반드시 참고하세요.  
 > (이 템플릿을 수정하거나 새로운 양식의 계획서를 만들 때도 해당 스킬을 포인터로 두고 준수합니다.)
 
-**상태**: 🟡 Draft
+**상태**: ✅ Done
 
 ---
 
@@ -12,7 +12,7 @@
 ---
 
 **작성일**: 2026-11-08 18:00
-**마지막 업데이트**: 2026-11-08 18:00
+**마지막 업데이트**: 2026-11-08 21:44
 **관련 범위**: scripts/backtest (단일 · 포트폴리오 대시보드와 러너), src/qbt/backtest (구간별 성과 계산 · 공유 차트), src/qbt/utils (시세 파일 이름 → 티커), vendor (캔들 툴팁), tests, storage/results
 **관련 문서**: CLAUDE.md, docs/MEMORY.md, scripts/CLAUDE.md, src/qbt/CLAUDE.md, src/qbt/backtest/CLAUDE.md, src/qbt/utils/CLAUDE.md, tests/CLAUDE.md, docs/CLAUDE.md, vendor/streamlit-lightweight-charts-v5/CLAUDE.md, docs/research/전략_검증_보고서.md 부록 O.8
 
@@ -20,10 +20,10 @@
 
 ## 1) 목표(Goal)
 
-- [ ] 목표 1: 단일 · 포트폴리오 대시보드의 화면 구성을 사용자 요청대로 정리한다 (아래 「요청과 결정」 A · B)
-- [ ] 목표 2: 두 대시보드의 차트 · 정보창에서 영문 월 이름을 없앤다 — 눈금은 「2020년」 · 「2020년 1월」, 하루 단위 날짜는 「2020-01-15」
-- [ ] 목표 3: 전략 · 실험마다 「구간별 성과」(기간 나눠 보기 · 시작 달 바꿔 보기 · 수익 쏠림 · 하락장 / 횡보장)를 러너가 `summary.json` 에 계산해 두고, 두 대시보드가 보인다
-- [ ] 목표 4: 메인 차트와 시그널 차트의 이름을 「시그널 차트」로 통일하고, 캔들 툴팁 맨 위에 날짜를 넣는다
+- [x] 목표 1: 단일 · 포트폴리오 대시보드의 화면 구성을 사용자 요청대로 정리한다 (아래 「요청과 결정」 A · B)
+- [x] 목표 2: 두 대시보드의 차트 · 정보창에서 영문 월 이름을 없앤다 — 눈금은 「2020년」 · 「2020년 1월」, 하루 단위 날짜는 「2020-01-15」
+- [x] 목표 3: 전략 · 실험마다 「구간별 성과」(기간 나눠 보기 · 시작 달 바꿔 보기 · 수익 쏠림 · 하락장 / 횡보장)를 러너가 `summary.json` 에 계산해 두고, 두 대시보드가 보인다
+- [x] 목표 4: 메인 차트와 시그널 차트의 이름을 「시그널 차트」로 통일하고, 캔들 툴팁 맨 위에 날짜를 넣는다
 
 ## 2) 비목표(Non-Goals)
 
@@ -131,19 +131,19 @@
 
 > Done은 "서술"이 아니라 "체크리스트 상태"로만 판단합니다. (정의/예외는 `/impl-plan` 스킬)
 
-- [ ] 요청 A · B · C 와 이름 통일 · 툴팁 날짜가 화면에 반영됨 (AppTest 예외 0건 + 사용자 화면 확인)
-- [ ] 구간별 성과 계산의 테스트 추가 (구간 나눔 · 데이터 없음 · 최악 낙폭 재기준 · 시작 달 · 쏠림 · 자산 기여 합)
-- [ ] 러너 재실행 후 기존 결과가 한 글자도 바뀌지 않고 `summary.json` 에 새 키만 붙음 (대조 결과를 진행 로그에)
-- [ ] 코드 리뷰 실행 및 결과 기록 (마지막 Phase 의 Validation 에 적는다)
-- [ ] 품질 검증 통과 (마지막 Phase 의 Validation 에 passed/failed/skipped 수를 적는다)
-- [ ] 자동 포맷 적용 완료 (마지막 Phase에서 실행)
-- [ ] 필요한 문서 업데이트 — 두 앱 docstring · `src/qbt/backtest/CLAUDE.md` 모듈 지도 · `src/qbt/utils/CLAUDE.md`(티커 함수가 지도에 들 자리면) · README 「Streamlit 대시보드」 줄. `docs/COMMANDS.md` 변경 없음
-- [ ] 근거 승격 완료 — 국면 날짜를 정한 방법 · 뺀 후보와 이유 · 부록 O.8 정의를 따른 것을 보고서에 옮긴다 (제안함 — 승인 · 반영 / 보류)
-- [ ] 미룬 지적 옮김 — 고치지 않은 리뷰 지적을 거르는 기준으로 걸러 `deferred_findings` 파일로 옮겼다. 계획서 없이 읽히게 썼다.
+- [x] 요청 A · B · C 와 이름 통일 · 툴팁 날짜가 화면에 반영됨 (AppTest 예외 0건 + 사용자 화면 확인)
+- [x] 구간별 성과 계산의 테스트 추가 (구간 나눔 · 데이터 없음 · 최악 낙폭 재기준 · 시작 달 · 쏠림 · 자산 기여 합)
+- [x] 러너 재실행 후 기존 결과가 한 글자도 바뀌지 않고 `summary.json` 에 새 키만 붙음 (대조 결과를 진행 로그에)
+- [x] 코드 리뷰 실행 및 결과 기록 (마지막 Phase 의 Validation 에 적는다)
+- [x] 품질 검증 통과 (마지막 Phase 의 Validation 에 passed/failed/skipped 수를 적는다)
+- [x] 자동 포맷 적용 완료 (마지막 Phase에서 실행)
+- [x] 필요한 문서 업데이트 — 두 앱 docstring · `src/qbt/backtest/CLAUDE.md` 모듈 지도 · `src/qbt/utils/CLAUDE.md`(티커 함수가 지도에 들 자리면) · README 「Streamlit 대시보드」 줄. `docs/COMMANDS.md` 변경 없음
+- [x] 근거 승격 완료 — 국면 날짜를 정한 방법 · 뺀 후보와 이유 · 부록 O.8 정의를 따른 것을 보고서에 옮긴다 (제안함 — 승인 · 반영 / 보류)
+- [x] 미룬 지적 옮김 — 고치지 않은 리뷰 지적을 거르는 기준으로 걸러 `deferred_findings` 파일로 옮겼다. 계획서 없이 읽히게 썼다.
       거른 지적은 진행 로그에 기준 번호와 함께 남기고 Done 보고에 표로 냈다
       이 계획서가 그 파일의 항목을 고쳤다면 그 항목을 지웠다
-      (둘 다 없으면 「해당 없음」. `/impl-plan` 의 `review.md` 「미룬 지적 옮기기」 참고)
-- [ ] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
+      (둘 다 없으면 「해당 없음」. `/impl-plan` 의 `review.md` 「미룬 지적 옮기기」 참고) — **해당 없음**: 고치지 않은 지적은 모두 거르는 기준에 해당한다(진행 로그)
+- [x] plan 체크박스 최신화(Phase/DoD/Validation 모두 반영)
 
 ## 5) 변경 범위(Scope)
 
@@ -173,8 +173,8 @@
 
 **작업 내용**:
 
-- [ ] `period_performance.py` 에 구간 정의 상수 · TypedDict · 두 함수 시그니처를 두고 본문은 `NotImplementedError` (수집 단계 ERROR 가 아니라 FAILED 로 레드가 나게). `constants.py` 에 새 `KEY_*` 두 개
-- [ ] `tests/qbt/test_period_performance.py` — 손으로 값을 셀 수 있는 짧은 합성 에쿼티로:
+- [x] `period_performance.py` 에 구간 정의 상수 · TypedDict · 두 함수 시그니처를 두고 본문은 `NotImplementedError` (수집 단계 ERROR 가 아니라 FAILED 로 레드가 나게). `constants.py` 에 새 `KEY_*` 두 개
+- [x] `tests/qbt/test_period_performance.py` — 손으로 값을 셀 수 있는 짧은 합성 에쿼티로:
   - 전체 구간 값이 `calculate_summary` 의 CAGR · MDD 와 같다
   - 앞 · 뒤 절반이 가운데 거래일을 함께 쓰고, 두 구간 총 수익의 곱이 전체와 같다
   - 구간 시작이 데이터 첫날보다 이르면 값이 비고(None), 늦으면 그날 이상 첫 거래일로 맞춘다
@@ -183,11 +183,11 @@
   - 쏠림: 최고 3개 해 · 몫 · 0% 로 바꾼 평균이 손 계산과 같고, 전체 합이 0 이하면 몫이 None
   - 자산 기여: 해마다 Σ 자산 %p + 기타 = 그해 수익률, 기여 열 합이 에쿼티 변화와 같으면 기타 ≈ 0
   - 신호 시세가 주어지면 국면마다 신호 등락이 붙고, 없으면 그 값이 None
-- [ ] 시세 경로 → 티커 테스트 (`QQQ_synthetic_max.csv` → QQQ, `^SPGSCI_max.csv` → ^SPGSCI, 규칙 밖 이름은 `ValueError`)
+- [x] 시세 경로 → 티커 테스트 (`QQQ_synthetic_max.csv` → QQQ, `^SPGSCI_max.csv` → ^SPGSCI, 규칙 밖 이름은 `ValueError`)
 
 **Validation**:
 
-- [ ] `poetry run pytest tests/qbt/test_period_performance.py` — 새 테스트가 FAILED 로 레드(ERROR 0건)
+- [x] `poetry run pytest tests/qbt/test_period_performance.py` — 새 테스트가 FAILED 로 레드(ERROR 0건)
 
 ---
 
@@ -195,12 +195,12 @@
 
 **작업 내용**:
 
-- [ ] `calculate_period_performance` · `calculate_yearly_asset_contributions` 구현 — 해 나눔은 `analysis.py` 의 연말 기준과 같게, 연 수익 식은 `calculate_summary` 와 같게, 반올림은 `ROUND_PERCENT`
-- [ ] 티커 함수 구현
+- [x] `calculate_period_performance` · `calculate_yearly_asset_contributions` 구현 — 해 나눔은 `analysis.py` 의 연말 기준과 같게, 연 수익 식은 `calculate_summary` 와 같게, 반올림은 `ROUND_PERCENT`
+- [x] 티커 함수 구현
 
 **Validation**:
 
-- [ ] `poetry run pytest tests/qbt/test_period_performance.py` 및 티커 테스트 통과
+- [x] `poetry run pytest tests/qbt/test_period_performance.py` 및 티커 테스트 통과
 
 ---
 
@@ -208,15 +208,15 @@
 
 **작업 내용**:
 
-- [ ] 단일 러너: `summary.json` 에 `period_performance`(신호 시세 = `result.signal_df`)
-- [ ] 포트폴리오 러너: `period_performance`(신호 없음) · `yearly_asset_contributions`
-- [ ] 실행 전 작업 트리 확인 후 두 러너 전체 실행 (워크포워드 세션 종료 후 — Risks)
-- [ ] 대조: 18개 `summary.json` 의 기존 키가 HEAD 와 같고 새 키만 붙었는지(스크립트로 키별 비교), 다른 결과 파일 diff 0줄
-- [ ] 독립 대조: Q-2-2XS · 버퍼존 TQQQ 의 국면 2개 · 최근 10년을 `equity.csv` 에서 따로 계산해 저장값과 맞춘다, 「전체」 행이 기존 `cagr` · `mdd` 와 같다
+- [x] 단일 러너: `summary.json` 에 `period_performance`(신호 시세 = `result.signal_df`)
+- [x] 포트폴리오 러너: `period_performance`(신호 없음) · `yearly_asset_contributions`
+- [x] 실행 전 작업 트리 확인 후 두 러너 전체 실행 (워크포워드 세션 종료 후 — Risks)
+- [x] 대조: 18개 `summary.json` 의 기존 키가 HEAD 와 같고 새 키만 붙었는지(스크립트로 키별 비교), 다른 결과 파일 diff 0줄
+- [x] 독립 대조: Q-2-2XS · 버퍼존 TQQQ 의 국면 2개 · 최근 10년을 `equity.csv` 에서 따로 계산해 저장값과 맞춘다, 「전체」 행이 기존 `cagr` · `mdd` 와 같다
 
 **Validation**:
 
-- [ ] 위 대조 결과(파일 수 · 차이 건수)를 진행 로그에 붙인다
+- [x] 위 대조 결과(파일 수 · 차이 건수)를 진행 로그에 붙인다
 
 ---
 
@@ -224,16 +224,16 @@
 
 **작업 내용**:
 
-- [ ] `_CHART_THEME` 에 `locale: "ko-KR"` (크로스헤어 날짜 형식 `yyyy-MM-dd` 는 그대로)
-- [ ] 캔들 툴팁 값에 날짜 키 추가
-- [ ] Plotly 날짜 축 설정: 눈금 `tickformatstops` — 하루 단위 `%Y-%m-%d` · 월 단위 `%Y년 %-m월` · 해 단위 `%Y년`, 정보창 `hoverformat` `%Y-%m-%d`
-- [ ] 시그널 패널 제목 함수
-- [ ] 구간별 성과 표 · 그림 함수 — ① · ④ 표, ② 선 그래프 + 요약 표, ③ 요약 표 + (포트폴리오) 해마다 자산 기여 누적 막대(%p) + 그해 수익률 점. 전체 비교 탭의 실험 × 구간 표 넷 — ① 연 수익 · ① 최악 낙폭 · ④ 국면 수익률 · 꾸준함(② 5년 · 10년 최저 · 중앙 · 마이너스 횟수, ③ 최고 3개 해 몫). 「데이터 없음」 표기, 합격 · 불합격 표시는 두지 않는다
-- [ ] `tests/qbt/test_dashboard_charts.py` 에 위 함수 테스트 추가, 툴팁 값 전체를 대조하는 기존 테스트(`test_tooltip_reads_overlay_row_of_same_date`)의 기대값에 날짜 키 반영
+- [x] `_CHART_THEME` 에 `locale: "ko-KR"` (크로스헤어 날짜 형식 `yyyy-MM-dd` 는 그대로)
+- [x] 캔들 툴팁 값에 날짜 키 추가
+- [x] Plotly 날짜 축 설정: 눈금 `tickformatstops` — 하루 단위 `%Y-%m-%d` · 월 단위 `%Y년 %-m월` · 해 단위 `%Y년`, 정보창 `hoverformat` `%Y-%m-%d`
+- [x] 시그널 패널 제목 함수
+- [x] 구간별 성과 표 · 그림 함수 — ① · ④ 표, ② 선 그래프 + 요약 표, ③ 요약 표 + (포트폴리오) 해마다 자산 기여 누적 막대(%p) + 그해 수익률 점. 전체 비교 탭의 실험 × 구간 표 넷 — ① 연 수익 · ① 최악 낙폭 · ④ 국면 수익률 · 꾸준함(② 5년 · 10년 최저 · 중앙 · 마이너스 횟수, ③ 최고 3개 해 몫). 「데이터 없음」 표기, 합격 · 불합격 표시는 두지 않는다
+- [x] `tests/qbt/test_dashboard_charts.py` 에 위 함수 테스트 추가, 툴팁 값 전체를 대조하는 기존 테스트(`test_tooltip_reads_overlay_row_of_same_date`)의 기대값에 날짜 키 반영
 
 **Validation**:
 
-- [ ] `poetry run pytest tests/qbt/test_dashboard_charts.py` 통과
+- [x] `poetry run pytest tests/qbt/test_dashboard_charts.py` 통과
 
 ---
 
@@ -243,12 +243,12 @@
 
 **작업 내용**:
 
-- [ ] `crosshairHandler` 가 날짜 키를 툴팁 맨 위 줄에 그린다
-- [ ] `npm run build` 로 `frontend/build/` 갱신
+- [x] `crosshairHandler` 가 날짜 키를 툴팁 맨 위 줄에 그린다
+- [x] `npm run build` 로 `frontend/build/` 갱신
 
 **Validation**:
 
-- [ ] 빌드 성공, 새 번들에 날짜 줄 코드가 있는지 확인, 옛 번들 파일이 빠지고 새 파일이 들어간 것을 `git status` 로 확인
+- [x] 빌드 성공, 새 번들에 날짜 줄 코드가 있는지 확인, 옛 번들 파일이 빠지고 새 파일이 들어간 것을 `git status` 로 확인
 
 ---
 
@@ -256,17 +256,17 @@
 
 **작업 내용**:
 
-- [ ] 단일 앱: 「1. 시그널 차트」 + 접기 둘(거래 내역 → 파라미터), 「2. 구간별 성과」, 「3. 월별/연도별 수익률 히트맵」, 보유 기간 분포와 그 함수 · import 삭제
-- [ ] 포트폴리오 실험 탭: 요약 지표 → 시그널 차트(신호 계열 순서) → 에쿼티 · 드로우다운 · 자산별 비중 3단 그림(가로축 공유 · 범위를 첫날 ~ 끝날로 고정 · `hoversubplots`) → 파라미터 접기 → 구간별 성과 → 월별 수익률 → 자산별 손익 분해 → (매매법이 여럿이면) 매매법별 손익
-- [ ] 포트폴리오 전체 비교 탭: 성과 지표 비교 표 밑에 실험 × 구간 표
-- [ ] 포트폴리오 앱의 날짜 축 그림 전부에 Phase 3 날짜 축 설정
-- [ ] 각 블록 위에 용어를 풀어 쓴 한 줄 설명 (연 수익 · 최악 낙폭 · 시작 달 그래프 읽는 법 · 몫)
-- [ ] 두 앱 docstring 의 화면 구성 갱신
+- [x] 단일 앱: 「1. 시그널 차트」 + 접기 둘(거래 내역 → 파라미터), 「2. 구간별 성과」, 「3. 월별/연도별 수익률 히트맵」, 보유 기간 분포와 그 함수 · import 삭제
+- [x] 포트폴리오 실험 탭: 요약 지표 → 시그널 차트(신호 계열 순서) → 에쿼티 · 드로우다운 · 자산별 비중 3단 그림(가로축 공유 · 범위를 첫날 ~ 끝날로 고정 · `hoversubplots`) → 파라미터 접기 → 구간별 성과 → 월별 수익률 → 자산별 손익 분해 → (매매법이 여럿이면) 매매법별 손익
+- [x] 포트폴리오 전체 비교 탭: 성과 지표 비교 표 밑에 실험 × 구간 표
+- [x] 포트폴리오 앱의 날짜 축 그림 전부에 Phase 3 날짜 축 설정
+- [x] 각 블록 위에 용어를 풀어 쓴 한 줄 설명 (연 수익 · 최악 낙폭 · 시작 달 그래프 읽는 법 · 몫)
+- [x] 두 앱 docstring 의 화면 구성 갱신
 
 **Validation**:
 
-- [ ] `streamlit.testing.v1.AppTest` 로 두 앱 실행 — 예외 0건, 섹션 제목이 위 순서로 나오는지 확인
-- [ ] 사용자 화면 확인 지점 안내 (가로축 끝점 · 확대 시 날짜 · 툴팁 날짜 · 선택 순서)
+- [x] `streamlit.testing.v1.AppTest` 로 두 앱 실행 — 예외 0건, 섹션 제목이 위 순서로 나오는지 확인
+- [x] 사용자 화면 확인 지점 안내 (가로축 끝점 · 확대 시 날짜 · 툴팁 날짜 · 선택 순서)
 
 ---
 
@@ -276,29 +276,34 @@
 
 > 🔴 **체크박스와 상태를 먼저 확정하고, `/commit` 은 맨 마지막에** — 이유는 `/impl-plan` 「5) Commit Messages」.
 
-- [ ] 문서: `src/qbt/backtest/CLAUDE.md` 모듈 지도(새 모듈 · `dashboard_charts.py` 설명), README 대시보드 줄, `src/qbt/utils/CLAUDE.md` 해당 시. `docs/COMMANDS.md` 변경 없음
-- [ ] 근거 승격 반영안 제안 (보고서 — 워크포워드 세션 종료 후)
-- [ ] 자동 포맷 적용 (`poetry run black .`)
-- [ ] 변경 기능 및 전체 플로우 최종 검증
-- [ ] Validation 절에 `/code-review` 와 품질 검증 **실행 결과**를 적는다
-- [ ] DoD 체크리스트 최종 업데이트 및 체크 완료
-- [ ] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
-- [ ] 🔴 **마지막에 `/commit` 을 실행하고 그 후보를 «이 계획서» 의 `#### Commit Messages` 절에 옮긴다** —
+- [x] 문서: `src/qbt/backtest/CLAUDE.md` 모듈 지도(새 모듈 · `dashboard_charts.py` 설명), README 대시보드 줄, `src/qbt/utils/CLAUDE.md` 해당 시. `docs/COMMANDS.md` 변경 없음
+- [x] 근거 승격 반영안 제안 (보고서 — 워크포워드 세션 종료 후)
+- [x] 자동 포맷 적용 (`poetry run black .`)
+- [x] 변경 기능 및 전체 플로우 최종 검증
+- [x] Validation 절에 `/code-review` 와 품질 검증 **실행 결과**를 적는다
+- [x] DoD 체크리스트 최종 업데이트 및 체크 완료
+- [x] 전체 Phase 체크리스트 최종 업데이트 및 상태 확정
+- [x] 🔴 **마지막에 `/commit` 을 실행하고 그 후보를 «이 계획서» 의 `#### Commit Messages` 절에 옮긴다** —
       대화에만 내면 그 절이 빈 채로 남는다. **커밋은 사용자가 한다 — 후보만 낸다**
 
 **Validation**:
 
 > 순서는 `/code-review` → 품질 검증이다. 고칠 것 · 회차 상한 · 수정분 검증은 `/impl-plan` 의 `review.md` 가 정한다.
 
-- [ ] `/code-review xhigh` **1회차** (발견 \_\_건 — 버그 \_\_ [무거움 \_\_ · 가벼움 \_\_] · 그 외 \_\_ · 조치: \_\_)
-- [ ] 수정분 검증 (수정 \_\_건 · 발견 \_\_건 — 무거움 \_\_ · 조치: \_\_ — 마지막 회차에 고친 것이 없으면 「해당 없음」)
-- [ ] `poetry run python validate_project.py` (passed=\_\_, failed=\_\_, skipped=\_\_)
+- [x] `/code-review xhigh` **1회차** (발견 15건 — 버그 8 [무거움 4 · 가벼움 4] · 그 외 7 · 조치: 무거움 1 · 가벼움 1 수정, 저장소 규칙 위반 2 와 품질 검증 실패 수정, 나머지는 거름 — 진행 로그)
+- [x] `/code-review xhigh` **2회차** (발견 13건 — 버그 7 [무거움 3 · 가벼움 4] · 그 외 6 · 조치: 무거움 1 · 가벼움 2 수정, 저장소 규칙 2 수정, 나머지는 거름 — 진행 로그. 3회차는 돌리지 않음 — 사용자 결정 2026-11-08)
+- [x] 수정분 검증 (수정 5건 · 발견 4건 — 무거움 0 · 조치: 규칙대로 고치지 않고 거름 — 진행 로그)
+- [x] `poetry run python validate_project.py` (passed=985, failed=0, skipped=0)
 
 #### Commit Messages (Final candidates) — 5개 중 1개 선택
 
 > **Done 직전에 `/commit` 을 실행해 이 절을 채운다. 그전에는 비워 둔다** — 추측으로 적은 줄은 그대로 나간다.
 
-- [ ] (미작성 — `/commit` 을 실행하고 후보 5개를 **이 자리에** 번호 붙은 줄로 옮긴 뒤 이 줄을 지운다)
+1. 대시보드 / 구간별 성과 섹션 추가와 화면 구성 정리
+2. 대시보드 / 기간 나눠 보기 · 시작 달별 보유 수익 · 수익 쏠림 · 하락장과 횡보장의 구간별 성과 추가
+3. 대시보드 / 에쿼티 · 드로우다운 · 비중 3단 통합과 영문 월 표기 제거, 시그널 차트 이름 통일
+4. 대시보드 / 언제 시작해도 수익이 고른지 보는 구간별 성과의 러너 저장과 두 앱 표시
+5. 백테스트 / 구간별 성과 계산 모듈과 summary.json 저장 추가, 단일 · 포트폴리오 대시보드 개편
 
 ## 7) 리스크(Risks)
 
@@ -320,3 +325,13 @@
 - 2026-11-08 18:00: 자체 검증 — 1회차: 툴팁 값 전체를 대조하는 기존 테스트가 날짜 키로 깨짐 → Phase 3 에 갱신 추가 / 새 `summary.json` 키를 러너 · 앱 두 곳이 써 상수 3계층상 `constants.py` 로 → Scope · Phase 0 추가 / 전체 비교 탭 표 구성이 모호 → 넷으로 명시. 2 · 3 · 4회차(다른 저장소 · 모듈 영향 — `summary.json` 을 읽는 곳은 러너의 기간 대조 하나이고 키 추가에 영향 없음 · Phase 순서와 의존 · 단순화 여지) 개선 없음 → 종료
 - 2026-11-08 18:37: 사용자 승인. 구현 시점은 사용자가 따로 정한다 — 상태는 그때까지 Draft. 같은 날 전역 설치 규칙이 바뀌어 Phase 4 의 `npm ci` 는 사용자 승인 후 AI 가 실행할 수 있다(이 저장소 폴더에 격리됨) — 본문의 「사용자 선행 · AI 가 하지 않는다」 문구와 Context 의 규칙 이름보다 이 로그가 우선한다
 - 2026-11-08 18:42: Phase 4 선행 `npm ci` 를 사용자 승인으로 실행 — 1,368개 설치 · 종료 코드 0. `frontend/node_modules` 340M(git 무시), `vendor` 추적 파일 변경 0건, `~/.npm` 305M → 385M, 전역 패키지 변화 없음. npm audit 경고 68건(낮음 18 · 보통 16 · 높음 31 · 치명 3) — 빌드 도구 의존성이고 `npm audit fix` 는 잠금 파일을 바꿔 돌리지 않았다
+- 2026-11-08 20:02: 구현 완료, 사용자 화면 확인 대기 — 확인 전이라 상태는 In Progress 이고 Validation 절 · DoD 최종 체크 · `/commit` 은 확인 뒤에 한다
+- 2026-11-08 20:02: Phase 0 레드 27건 FAILED · ERROR 0 → Phase 1 통과. 재생성 대조 — `summary.json` 18개만 변경, 기존 키 차이 0개, 그 외 결과 파일 변경 0개, 「전체」 행이 기존 cagr · mdd · 총 수익률과 18개 모두 일치. Q-2-2XS · 버퍼존 TQQQ 의 닷컴 붕괴 · 코로나 · 최근 10년을 `equity.csv` 에서 따로 계산해 일치. 시작 달 경우의 수 5년 425 · 10년 365 (달력 계산과 일치). 자산 기여 41해 수익률 불일치 0, 기타 최대 0.0
+- 2026-11-08 20:02: `/code-review xhigh` 1회차 (발견 15건 — 버그 8 [무거움 4 · 가벼움 4] · 그 외 7 · 조치: 무거움 1 [보유 햇수를 늘리면 색 zip 이 멈춤] · 가벼움 1 [「데이터 없음」이 화면에 안 나옴] 수정, 저장소 규칙 위반 2 [상수 중복 · 상수 위치] 와 품질 검증 실패 수정)
+- 2026-11-08 20:02: `/code-review xhigh` 2회차 (발견 13건 — 버그 7 [무거움 3 · 가벼움 4] · 그 외 6 · 조치: 무거움 1 [매수 후 보유 탭의 신호 시세 열이 자기 시세 반복] · 가벼움 2 [세 단 정보창 미동작 · 꾸준함 표 설명] 수정, 저장소 규칙 2 [상수 위치 · 주석 문체] 수정). 상한 회차에 닿는 무거운 버그를 고쳤으므로 3회차 여부는 사용자가 정한다
+- 2026-11-08 20:02: 수정분 검증 (수정 5건 · 발견 4건 — 무거움 0 · 조치: 규칙대로 고치지 않음). 8 hunk 모두 ① ② ③ 답변. 세 단 그림은 검토자가 헤드리스 Chromium 과 Streamlit 번들에서 떼어 낸 plotly.js 로 확인 — 첫 화면 동일, 정보창 줄 수 윗단 / 가운데 / 아랫단 2 / 1 / 5 → 8 / 8 / 8, 확대 · 초기화 동일. 실제 Streamlit 화면은 띄우지 않았다
+- 2026-11-08 20:02: 변형 확인 — `test_more_horizons_than_colors_still_draws` 가 고치기 전 코드에서 `ValueError: zip() argument 2 is shorter than argument 1` 로 실패, 고친 뒤 통과
+- 2026-11-08 20:02: 품질 검증 — Ruff 통과 · PyRight 통과 · passed=985, failed=0, skipped=0. AppTest 세 앱 예외 0건. 재생성 전후 포트폴리오 결과 동일, 매수 후 보유 5개만 신호 열이 비었다
+- 2026-11-08 20:02: 거른 지적 (기준 번호 · 근거) — 기준 1 닿지 않음: 파일 이름 파싱 실패로 탭이 멈춤(규칙 밖 시세 파일 이름 0건, 저장소 규칙이 `*_max.csv` 고정) · 저장 도중 계산 예외로 결과가 섞임(18개 최소 에쿼티 1,184,951 로 양수) · 빈 에쿼티에서 IndexError(18개 최소 9,998행, 러너가 빈 결과를 저장하지 않음). 기준 2 막는 쪽으로만 틀림: 시작 · 끝이 휴장일이면 값 없음으로 표시(값 없는 구간 0건) · 매매법 여럿인 실험의 정렬 · 제목(그런 실험 0개) · 전체 비교 탭 국면 표 설명의 「날짜」 언급. 기준 3 그 외: 해 나눔 복제 · CAGR 식 복제 · 표시 함수 복제 · 연간 수익률 재계산 · `_OTHER_VISIBLE_PCT` 표현(저장값 전부 0.0) · `_pct` 접미사(저장소의 기존 `return_pct` 관용과 같음) · 리밸런싱 정보창 날짜 중복 · `_CAPTION_*` 이름 · 정보창 줄 순서 · `constants.py` 절 제목 문체
+- 2026-11-08 21:39: 사용자 결정 — 코드 리뷰 3회차는 돌리지 않음(2회차 수정분 검증 무거움 0). 근거 승격 승인 · 반영 — 보고서 부록 Q(목차 등재). 사용자 화면 확인 결과는 아직 받지 못해 완료 처리하지 않음
+- 2026-11-08 21:44: 사용자 화면 확인 — 「이상없음」. 최종 품질 검증 passed=985, failed=0, skipped=0

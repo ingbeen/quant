@@ -3,6 +3,8 @@
 buffer_zone · buy_and_hold 의 CONFIGS에 등록된 전략의
 결과 폴더를 탐색하여 각 전략마다 독립된 탭에서 시각화를 제공한다.
 
+탭 구성: 요약 지표 · 시그널 차트(접기: 거래 내역 · 파라미터) · 구간별 성과 · 월별/연도별 수익률 히트맵.
+
 선행 스크립트:
     poetry run python scripts/backtest/run_single_backtest.py
 
@@ -12,10 +14,9 @@ buffer_zone · buy_and_hold 의 CONFIGS에 등록된 전략의
 
 import json
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, Literal, TypedDict, cast
 
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 from lightweight_charts_v5 import lightweight_charts_v5_component
 
@@ -30,21 +31,35 @@ from qbt.backtest.constants import (
     COL_PNL,
     COL_PNL_PCT,
     COL_SHARES,
+    DISPLAY_NO_DATA,
+    DISPLAY_PERIOD_CAPTION_CONCENTRATION,
+    DISPLAY_PERIOD_CAPTION_REGIMES,
+    DISPLAY_PERIOD_CAPTION_ROLLING,
+    DISPLAY_PERIOD_CAPTION_SPLITS,
     EQUITY_FILENAME,
+    KEY_PERIOD_PERFORMANCE,
     SIGNAL_FILENAME,
     SUMMARY_FILENAME,
     TRADES_FILENAME,
 )
 from qbt.backtest.dashboard_charts import (
+    build_concentration_table,
     build_equity_panes,
     build_monthly_heatmap,
     build_price_pane,
+    build_regime_table,
+    build_rolling_chart,
+    build_rolling_table,
+    build_split_table,
     build_trade_markers,
     chart_component_args,
+    signal_chart_title,
+    style_period_table,
 )
 from qbt.backtest.strategies.buffer_zone import CONFIGS as BZ_CONFIGS
 from qbt.backtest.strategies.buy_and_hold import CONFIGS as BH_CONFIGS
 from qbt.common_constants import COL_DATE
+from qbt.utils.data_loader import ticker_from_stock_path
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
@@ -169,11 +184,21 @@ def _discover_strategies() -> list[StrategyData]:
 # ============================================================
 
 
-def _render_main_chart(
+def _signal_chart_title(summary_data: dict[str, Any]) -> str:
+    """결과 파일의 시세 경로로 패널 제목을 만든다 (매수 후 보유는 신호 경로가 없다)."""
+    data_info: dict[str, str] = summary_data["data_info"]
+    signal_path = data_info.get("signal_path")
+    return signal_chart_title(
+        ticker_from_stock_path(Path(data_info["trade_path"])),
+        None if signal_path is None else ticker_from_stock_path(Path(signal_path)),
+    )
+
+
+def _render_signal_chart(
     strategy: StrategyData,
     chart_key: str,
 ) -> None:
-    """메인 차트 — 캔들(이동평균 · 밴드 · 거래 마커) + 에쿼티 + 드로우다운.
+    """시그널 차트 — 캔들(이동평균 · 밴드 · 거래 마커) + 에쿼티 + 드로우다운.
 
     밴드와 툴팁의 에쿼티 · 드로우다운은 에쿼티 표에서 읽는다(매수 후 보유는 밴드가 없다).
     """
@@ -183,42 +208,48 @@ def _render_main_chart(
         open_entry_dates=[] if open_position is None else [str(open_position["entry_date"])],
     )
     panes = [
-        build_price_pane(strategy["signal_df"], strategy["equity_df"], markers, title=strategy["display_name"]),
+        build_price_pane(
+            strategy["signal_df"], strategy["equity_df"], markers, title=_signal_chart_title(strategy["summary_data"])
+        ),
         *build_equity_panes(strategy["equity_df"]),
     ]
     lightweight_charts_v5_component(
-        **chart_component_args(panes, name=f"chart_{chart_key}", key=f"main_chart_{chart_key}")
+        **chart_component_args(panes, name=f"chart_{chart_key}", key=f"signal_chart_{chart_key}")
     )
 
 
-def _render_holding_period_histogram(trades_df: pd.DataFrame, *, chart_key: str) -> None:
-    """포지션 보유 기간 분포 히스토그램을 Plotly로 렌더링한다 (거래가 있는 전략만 부른다)."""
-    holding_days = trades_df[COL_HOLDING_DAYS].tolist()
-
-    fig = go.Figure(
-        data=go.Histogram(
-            x=holding_days,
-            nbinsx=min(30, max(5, len(holding_days))),
-            marker_color="rgba(33, 150, 243, 0.7)",
-            marker_line={"color": "rgba(33, 150, 243, 1)", "width": 1},
-            hovertemplate="보유기간: %{x}일<br>빈도: %{y}<extra></extra>",
-        )
+def _show_period_table(table: pd.DataFrame, *, height: Literal["auto", "content"] = "auto") -> None:
+    # 값이 없는 칸은 Styler 표기를 무시하고 placeholder 로 그려짐
+    st.dataframe(
+        style_period_table(table), hide_index=True, width="stretch", height=height, placeholder=DISPLAY_NO_DATA
     )
 
-    fig.update_layout(
-        xaxis_title="보유 기간 (일)",
-        yaxis_title="빈도",
-        height=300,
-        bargap=0.05,
-        margin={"l": 60, "r": 40, "t": 30, "b": 60},
-        paper_bgcolor="#0e1117",
-        plot_bgcolor="#0e1117",
-        font={"color": "#D1D4DC"},
-        xaxis={"gridcolor": "#1e222d"},
-        yaxis={"gridcolor": "#1e222d"},
-    )
 
-    st.plotly_chart(fig, width="stretch", key=chart_key)
+def _render_period_section(strategy: StrategyData) -> None:
+    """구간별 성과 — 값은 러너가 summary.json 에 저장한 것이다."""
+    performance: dict[str, Any] | None = strategy["summary_data"].get(KEY_PERIOD_PERFORMANCE)
+    if performance is None:
+        st.warning("구간별 성과가 결과 파일에 없습니다. run_single_backtest.py 를 다시 실행하세요.")
+        return
+
+    st.subheader("기간 나눠 보기")
+    st.caption(DISPLAY_PERIOD_CAPTION_SPLITS)
+    _show_period_table(build_split_table(performance["splits"]), height="content")
+
+    st.subheader("시작 달 바꿔 보기")
+    st.caption(DISPLAY_PERIOD_CAPTION_ROLLING)
+    st.plotly_chart(
+        build_rolling_chart(performance["rolling"]), width="stretch", key=f"rolling_{strategy['strategy_name']}"
+    )
+    _show_period_table(build_rolling_table(performance["rolling"]))
+
+    st.subheader("수익 쏠림")
+    st.caption(DISPLAY_PERIOD_CAPTION_CONCENTRATION)
+    _show_period_table(build_concentration_table(performance["concentration"]))
+
+    st.subheader("하락장 · 횡보장")
+    st.caption(DISPLAY_PERIOD_CAPTION_REGIMES)
+    _show_period_table(build_regime_table(performance["regimes"]), height="content")
 
 
 # ============================================================
@@ -268,49 +299,39 @@ def _render_strategy_tab(strategy: StrategyData) -> None:
 
     st.divider()
 
-    # ---- Section 1: 메인 차트 ----
-    st.header("1. 메인 차트")
-    _render_main_chart(strategy, strategy["strategy_name"])
-
-    st.divider()
-
-    # ---- Section 2: 전체 거래 상세 내역 ----
-    st.header("2. 전체 거래 상세 내역")
-    if has_trades:
-        display_df = trades_df.copy()
-        display_df[COL_PNL_PCT] = display_df[COL_PNL_PCT] * 100
-        display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
-        styled_df = display_df.style.apply(_style_pnl_rows, axis=1)
-        st.dataframe(styled_df, width="stretch")
-        st.caption(f"총 {len(trades_df)}건의 거래")
-    else:
-        st.info("이 전략에서는 거래 내역이 없습니다.")
-
-    st.divider()
-
-    # ---- Section 3: 사용 파라미터 ----
-    st.header("3. 사용 파라미터")
-    st.json(params)
-
-    st.divider()
-
-    # ---- Section 4: 월별 수익률 히트맵 ----
-    st.header("4. 월별/연도별 수익률 히트맵")
-    st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
+    # ---- Section 1: 시그널 차트 ----
     strategy_name = strategy["strategy_name"]
+    st.header("1. 시그널 차트")
+    _render_signal_chart(strategy, strategy_name)
+
+    with st.expander("전체 거래 상세 내역"):
+        if has_trades:
+            display_df = trades_df.copy()
+            display_df[COL_PNL_PCT] = display_df[COL_PNL_PCT] * 100
+            display_df = display_df.rename(columns=TRADE_COLUMN_RENAME)
+            styled_df = display_df.style.apply(_style_pnl_rows, axis=1)
+            st.dataframe(styled_df, width="stretch")
+            st.caption(f"총 {len(trades_df)}건의 거래")
+        else:
+            st.info("이 전략에서는 거래 내역이 없습니다.")
+
+    with st.expander("사용 파라미터"):
+        st.json(params)
+
+    st.divider()
+
+    # ---- Section 2: 구간별 성과 ----
+    st.header("2. 구간별 성과")
+    _render_period_section(strategy)
+
+    st.divider()
+
+    # ---- Section 3: 월별 수익률 히트맵 ----
+    st.header("3. 월별/연도별 수익률 히트맵")
+    st.markdown("에쿼티 기준 월간 수익률을 연도별로 비교합니다.")
     st.plotly_chart(
         build_monthly_heatmap(monthly_returns, yearly_returns), width="stretch", key=f"heatmap_{strategy_name}"
     )
-
-    st.divider()
-
-    # ---- Section 5: 포지션 보유 기간 분포 ----
-    st.header("5. 포지션 보유 기간 분포")
-    if has_trades:
-        st.markdown("각 거래의 진입~청산 기간(일) 분포를 보여줍니다.")
-        _render_holding_period_histogram(trades_df, chart_key=f"histogram_{strategy_name}")
-    else:
-        st.info("이 전략에서는 보유 기간 분포를 표시할 수 없습니다.")
 
 
 # ============================================================

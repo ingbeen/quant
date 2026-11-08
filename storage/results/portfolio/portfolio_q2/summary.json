@@ -2699,5 +2699,3859 @@
       "year": 2026,
       "return_pct": 0.08
     }
+  ],
+  "period_performance": {
+    "splits": [
+      {
+        "label": "전체",
+        "start_date": "1986-07-16",
+        "end_date": "2026-11-06",
+        "cagr": 9.4,
+        "mdd": -25.82,
+        "total_return_pct": 3644.18
+      },
+      {
+        "label": "앞 절반",
+        "start_date": "1986-07-16",
+        "end_date": "2006-09-08",
+        "cagr": 8.89,
+        "mdd": -25.82,
+        "total_return_pct": 456.29
+      },
+      {
+        "label": "뒤 절반",
+        "start_date": "2006-09-08",
+        "end_date": "2026-11-06",
+        "cagr": 9.92,
+        "mdd": -15.72,
+        "total_return_pct": 573.07
+      },
+      {
+        "label": "최근 20년",
+        "start_date": "2006-11-06",
+        "end_date": "2026-11-06",
+        "cagr": 9.8,
+        "mdd": -15.72,
+        "total_return_pct": 549.16
+      },
+      {
+        "label": "최근 10년",
+        "start_date": "2016-11-07",
+        "end_date": "2026-11-06",
+        "cagr": 10.99,
+        "mdd": -15.72,
+        "total_return_pct": 183.63
+      },
+      {
+        "label": "최근 5년",
+        "start_date": "2021-11-08",
+        "end_date": "2026-11-06",
+        "cagr": 7.22,
+        "mdd": -15.72,
+        "total_return_pct": 41.63
+      },
+      {
+        "label": "최근 3년",
+        "start_date": "2023-11-06",
+        "end_date": "2026-11-06",
+        "cagr": 13.72,
+        "mdd": -11.59,
+        "total_return_pct": 47.09
+      },
+      {
+        "label": "닷컴 정점부터",
+        "start_date": "2000-03-24",
+        "end_date": "2026-11-06",
+        "cagr": 8.38,
+        "mdd": -18.21,
+        "total_return_pct": 750.84
+      },
+      {
+        "label": "닷컴 바닥 뒤부터",
+        "start_date": "2002-10-09",
+        "end_date": "2026-11-06",
+        "cagr": 9.88,
+        "mdd": -15.72,
+        "total_return_pct": 867.37
+      },
+      {
+        "label": "금융위기 직전 고점부터",
+        "start_date": "2007-10-09",
+        "end_date": "2026-11-06",
+        "cagr": 9.36,
+        "mdd": -15.72,
+        "total_return_pct": 451.59
+      },
+      {
+        "label": "금융위기 바닥 뒤부터",
+        "start_date": "2009-03-09",
+        "end_date": "2026-11-06",
+        "cagr": 10.21,
+        "mdd": -15.72,
+        "total_return_pct": 456.78
+      }
+    ],
+    "regimes": [
+      {
+        "kind": "하락장",
+        "label": "1987 블랙먼데이",
+        "start_date": "1987-08-25",
+        "end_date": "1987-10-19",
+        "return_pct": -21.49,
+        "mdd": -21.49,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "1990 걸프전",
+        "start_date": "1990-07-16",
+        "end_date": "1990-10-11",
+        "return_pct": -10.7,
+        "mdd": -11.04,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "1998 LTCM 사태",
+        "start_date": "1998-07-17",
+        "end_date": "1998-08-31",
+        "return_pct": -14.79,
+        "mdd": -14.92,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "닷컴 붕괴",
+        "start_date": "2000-03-24",
+        "end_date": "2002-10-09",
+        "return_pct": -12.05,
+        "mdd": -18.21,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "금융위기",
+        "start_date": "2007-10-09",
+        "end_date": "2009-03-09",
+        "return_pct": -0.93,
+        "mdd": -8.89,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "2011 유럽재정위기",
+        "start_date": "2011-04-29",
+        "end_date": "2011-10-03",
+        "return_pct": -2.81,
+        "mdd": -6.27,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "2018 4분기",
+        "start_date": "2018-09-20",
+        "end_date": "2018-12-24",
+        "return_pct": -7.84,
+        "mdd": -8.76,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "코로나",
+        "start_date": "2020-02-19",
+        "end_date": "2020-03-23",
+        "return_pct": -11.94,
+        "mdd": -14.38,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "2022 긴축",
+        "start_date": "2022-01-03",
+        "end_date": "2022-10-12",
+        "return_pct": -14.07,
+        "mdd": -14.37,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "하락장",
+        "label": "2025 관세",
+        "start_date": "2025-02-19",
+        "end_date": "2025-04-08",
+        "return_pct": -11.4,
+        "mdd": -11.4,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "횡보장",
+        "label": "1994 금리 인상",
+        "start_date": "1994-01-03",
+        "end_date": "1994-12-29",
+        "return_pct": -2.39,
+        "mdd": -8.7,
+        "signal_return_pct": null
+      },
+      {
+        "kind": "횡보장",
+        "label": "2015 ~ 16 박스권",
+        "start_date": "2015-01-02",
+        "end_date": "2016-06-30",
+        "return_pct": -2.11,
+        "mdd": -10.25,
+        "signal_return_pct": null
+      }
+    ],
+    "rolling": [
+      {
+        "years": 5,
+        "points": [
+          {
+            "start_date": "1986-07-16",
+            "cagr": 0.72
+          },
+          {
+            "start_date": "1986-08-01",
+            "cagr": 1.0
+          },
+          {
+            "start_date": "1986-09-02",
+            "cagr": 1.02
+          },
+          {
+            "start_date": "1986-10-01",
+            "cagr": 1.69
+          },
+          {
+            "start_date": "1986-11-03",
+            "cagr": 1.88
+          },
+          {
+            "start_date": "1986-12-01",
+            "cagr": 1.56
+          },
+          {
+            "start_date": "1987-01-02",
+            "cagr": 4.05
+          },
+          {
+            "start_date": "1987-02-02",
+            "cagr": 3.64
+          },
+          {
+            "start_date": "1987-03-02",
+            "cagr": 3.1
+          },
+          {
+            "start_date": "1987-04-01",
+            "cagr": 1.93
+          },
+          {
+            "start_date": "1987-05-01",
+            "cagr": 1.65
+          },
+          {
+            "start_date": "1987-06-01",
+            "cagr": 2.08
+          },
+          {
+            "start_date": "1987-07-01",
+            "cagr": 1.0
+          },
+          {
+            "start_date": "1987-08-03",
+            "cagr": 0.7
+          },
+          {
+            "start_date": "1987-09-01",
+            "cagr": 0.12
+          },
+          {
+            "start_date": "1987-10-01",
+            "cagr": 0.18
+          },
+          {
+            "start_date": "1987-11-02",
+            "cagr": 4.71
+          },
+          {
+            "start_date": "1987-12-01",
+            "cagr": 5.27
+          },
+          {
+            "start_date": "1988-01-04",
+            "cagr": 5.49
+          },
+          {
+            "start_date": "1988-02-01",
+            "cagr": 6.11
+          },
+          {
+            "start_date": "1988-03-01",
+            "cagr": 5.82
+          },
+          {
+            "start_date": "1988-04-05",
+            "cagr": 5.76
+          },
+          {
+            "start_date": "1988-05-02",
+            "cagr": 5.93
+          },
+          {
+            "start_date": "1988-06-01",
+            "cagr": 6.96
+          },
+          {
+            "start_date": "1988-07-01",
+            "cagr": 6.73
+          },
+          {
+            "start_date": "1988-08-01",
+            "cagr": 7.23
+          },
+          {
+            "start_date": "1988-09-01",
+            "cagr": 8.7
+          },
+          {
+            "start_date": "1988-10-03",
+            "cagr": 8.07
+          },
+          {
+            "start_date": "1988-11-01",
+            "cagr": 8.19
+          },
+          {
+            "start_date": "1988-12-01",
+            "cagr": 8.6
+          },
+          {
+            "start_date": "1989-01-03",
+            "cagr": 8.9
+          },
+          {
+            "start_date": "1989-02-01",
+            "cagr": 8.85
+          },
+          {
+            "start_date": "1989-03-01",
+            "cagr": 8.97
+          },
+          {
+            "start_date": "1989-04-03",
+            "cagr": 7.63
+          },
+          {
+            "start_date": "1989-05-01",
+            "cagr": 6.44
+          },
+          {
+            "start_date": "1989-06-01",
+            "cagr": 5.79
+          },
+          {
+            "start_date": "1989-07-03",
+            "cagr": 5.69
+          },
+          {
+            "start_date": "1989-08-01",
+            "cagr": 5.14
+          },
+          {
+            "start_date": "1989-09-01",
+            "cagr": 4.91
+          },
+          {
+            "start_date": "1989-10-02",
+            "cagr": 4.55
+          },
+          {
+            "start_date": "1989-11-01",
+            "cagr": 5.05
+          },
+          {
+            "start_date": "1989-12-01",
+            "cagr": 3.93
+          },
+          {
+            "start_date": "1990-01-02",
+            "cagr": 4.19
+          },
+          {
+            "start_date": "1990-02-01",
+            "cagr": 6.02
+          },
+          {
+            "start_date": "1990-03-01",
+            "cagr": 6.78
+          },
+          {
+            "start_date": "1990-04-02",
+            "cagr": 7.66
+          },
+          {
+            "start_date": "1990-05-01",
+            "cagr": 8.41
+          },
+          {
+            "start_date": "1990-06-04",
+            "cagr": 8.13
+          },
+          {
+            "start_date": "1990-07-02",
+            "cagr": 9.17
+          },
+          {
+            "start_date": "1990-08-01",
+            "cagr": 10.01
+          },
+          {
+            "start_date": "1990-09-04",
+            "cagr": 12.1
+          },
+          {
+            "start_date": "1990-10-01",
+            "cagr": 12.6
+          },
+          {
+            "start_date": "1990-11-01",
+            "cagr": 12.8
+          },
+          {
+            "start_date": "1990-12-03",
+            "cagr": 12.96
+          },
+          {
+            "start_date": "1991-01-02",
+            "cagr": 13.03
+          },
+          {
+            "start_date": "1991-02-01",
+            "cagr": 13.39
+          },
+          {
+            "start_date": "1991-03-04",
+            "cagr": 12.31
+          },
+          {
+            "start_date": "1991-04-01",
+            "cagr": 12.03
+          },
+          {
+            "start_date": "1991-05-01",
+            "cagr": 12.49
+          },
+          {
+            "start_date": "1991-06-03",
+            "cagr": 12.1
+          },
+          {
+            "start_date": "1991-07-01",
+            "cagr": 13.01
+          },
+          {
+            "start_date": "1991-08-01",
+            "cagr": 11.73
+          },
+          {
+            "start_date": "1991-09-03",
+            "cagr": 11.51
+          },
+          {
+            "start_date": "1991-10-01",
+            "cagr": 12.48
+          },
+          {
+            "start_date": "1991-11-01",
+            "cagr": 12.87
+          },
+          {
+            "start_date": "1991-12-02",
+            "cagr": 14.38
+          },
+          {
+            "start_date": "1992-01-02",
+            "cagr": 12.0
+          },
+          {
+            "start_date": "1992-02-03",
+            "cagr": 13.29
+          },
+          {
+            "start_date": "1992-03-02",
+            "cagr": 12.76
+          },
+          {
+            "start_date": "1992-04-01",
+            "cagr": 12.54
+          },
+          {
+            "start_date": "1992-05-01",
+            "cagr": 14.01
+          },
+          {
+            "start_date": "1992-06-01",
+            "cagr": 14.78
+          },
+          {
+            "start_date": "1992-07-01",
+            "cagr": 15.82
+          },
+          {
+            "start_date": "1992-08-03",
+            "cagr": 17.15
+          },
+          {
+            "start_date": "1992-09-01",
+            "cagr": 16.69
+          },
+          {
+            "start_date": "1992-10-01",
+            "cagr": 17.41
+          },
+          {
+            "start_date": "1992-11-02",
+            "cagr": 16.39
+          },
+          {
+            "start_date": "1992-12-01",
+            "cagr": 16.42
+          },
+          {
+            "start_date": "1993-01-04",
+            "cagr": 15.25
+          },
+          {
+            "start_date": "1993-02-01",
+            "cagr": 14.88
+          },
+          {
+            "start_date": "1993-03-01",
+            "cagr": 16.39
+          },
+          {
+            "start_date": "1993-04-01",
+            "cagr": 16.71
+          },
+          {
+            "start_date": "1993-05-03",
+            "cagr": 17.18
+          },
+          {
+            "start_date": "1993-06-01",
+            "cagr": 15.2
+          },
+          {
+            "start_date": "1993-07-01",
+            "cagr": 17.01
+          },
+          {
+            "start_date": "1993-08-02",
+            "cagr": 16.77
+          },
+          {
+            "start_date": "1993-09-01",
+            "cagr": 14.06
+          },
+          {
+            "start_date": "1993-10-04",
+            "cagr": 14.82
+          },
+          {
+            "start_date": "1993-11-01",
+            "cagr": 13.58
+          },
+          {
+            "start_date": "1993-12-01",
+            "cagr": 15.24
+          },
+          {
+            "start_date": "1994-01-03",
+            "cagr": 16.25
+          },
+          {
+            "start_date": "1994-02-01",
+            "cagr": 17.34
+          },
+          {
+            "start_date": "1994-03-01",
+            "cagr": 16.57
+          },
+          {
+            "start_date": "1994-04-04",
+            "cagr": 18.85
+          },
+          {
+            "start_date": "1994-05-02",
+            "cagr": 19.46
+          },
+          {
+            "start_date": "1994-06-01",
+            "cagr": 18.21
+          },
+          {
+            "start_date": "1994-07-01",
+            "cagr": 20.04
+          },
+          {
+            "start_date": "1994-08-01",
+            "cagr": 19.06
+          },
+          {
+            "start_date": "1994-09-01",
+            "cagr": 19.33
+          },
+          {
+            "start_date": "1994-10-03",
+            "cagr": 20.04
+          },
+          {
+            "start_date": "1994-11-01",
+            "cagr": 20.59
+          },
+          {
+            "start_date": "1994-12-01",
+            "cagr": 22.7
+          },
+          {
+            "start_date": "1995-01-03",
+            "cagr": 24.84
+          },
+          {
+            "start_date": "1995-02-01",
+            "cagr": 23.88
+          },
+          {
+            "start_date": "1995-03-01",
+            "cagr": 24.46
+          },
+          {
+            "start_date": "1995-04-03",
+            "cagr": 23.99
+          },
+          {
+            "start_date": "1995-05-01",
+            "cagr": 22.51
+          },
+          {
+            "start_date": "1995-06-01",
+            "cagr": 19.58
+          },
+          {
+            "start_date": "1995-07-03",
+            "cagr": 19.23
+          },
+          {
+            "start_date": "1995-08-01",
+            "cagr": 17.87
+          },
+          {
+            "start_date": "1995-09-01",
+            "cagr": 19.3
+          },
+          {
+            "start_date": "1995-10-02",
+            "cagr": 17.06
+          },
+          {
+            "start_date": "1995-11-01",
+            "cagr": 16.06
+          },
+          {
+            "start_date": "1995-12-01",
+            "cagr": 15.97
+          },
+          {
+            "start_date": "1996-01-02",
+            "cagr": 15.81
+          },
+          {
+            "start_date": "1996-02-01",
+            "cagr": 15.17
+          },
+          {
+            "start_date": "1996-03-01",
+            "cagr": 15.28
+          },
+          {
+            "start_date": "1996-04-01",
+            "cagr": 15.08
+          },
+          {
+            "start_date": "1996-05-01",
+            "cagr": 14.38
+          },
+          {
+            "start_date": "1996-06-03",
+            "cagr": 14.09
+          },
+          {
+            "start_date": "1996-07-01",
+            "cagr": 14.07
+          },
+          {
+            "start_date": "1996-08-01",
+            "cagr": 14.77
+          },
+          {
+            "start_date": "1996-09-03",
+            "cagr": 14.75
+          },
+          {
+            "start_date": "1996-10-01",
+            "cagr": 13.78
+          },
+          {
+            "start_date": "1996-11-01",
+            "cagr": 13.31
+          },
+          {
+            "start_date": "1996-12-02",
+            "cagr": 11.51
+          },
+          {
+            "start_date": "1997-01-02",
+            "cagr": 12.05
+          },
+          {
+            "start_date": "1997-02-03",
+            "cagr": 10.95
+          },
+          {
+            "start_date": "1997-03-03",
+            "cagr": 11.4
+          },
+          {
+            "start_date": "1997-04-01",
+            "cagr": 12.4
+          },
+          {
+            "start_date": "1997-05-01",
+            "cagr": 11.46
+          },
+          {
+            "start_date": "1997-06-02",
+            "cagr": 10.51
+          },
+          {
+            "start_date": "1997-07-01",
+            "cagr": 10.03
+          },
+          {
+            "start_date": "1997-08-01",
+            "cagr": 8.36
+          },
+          {
+            "start_date": "1997-09-02",
+            "cagr": 8.84
+          },
+          {
+            "start_date": "1997-10-01",
+            "cagr": 8.6
+          },
+          {
+            "start_date": "1997-11-03",
+            "cagr": 9.14
+          },
+          {
+            "start_date": "1997-12-01",
+            "cagr": 8.69
+          },
+          {
+            "start_date": "1998-01-02",
+            "cagr": 9.94
+          },
+          {
+            "start_date": "1998-02-02",
+            "cagr": 9.87
+          },
+          {
+            "start_date": "1998-03-02",
+            "cagr": 9.1
+          },
+          {
+            "start_date": "1998-04-01",
+            "cagr": 7.64
+          },
+          {
+            "start_date": "1998-05-01",
+            "cagr": 8.08
+          },
+          {
+            "start_date": "1998-06-01",
+            "cagr": 10.32
+          },
+          {
+            "start_date": "1998-07-01",
+            "cagr": 8.71
+          },
+          {
+            "start_date": "1998-08-03",
+            "cagr": 8.92
+          },
+          {
+            "start_date": "1998-09-01",
+            "cagr": 11.92
+          },
+          {
+            "start_date": "1998-10-01",
+            "cagr": 11.39
+          },
+          {
+            "start_date": "1998-11-02",
+            "cagr": 12.77
+          },
+          {
+            "start_date": "1998-12-01",
+            "cagr": 11.69
+          },
+          {
+            "start_date": "1999-01-04",
+            "cagr": 10.91
+          },
+          {
+            "start_date": "1999-02-01",
+            "cagr": 9.74
+          },
+          {
+            "start_date": "1999-03-01",
+            "cagr": 11.09
+          },
+          {
+            "start_date": "1999-04-05",
+            "cagr": 9.61
+          },
+          {
+            "start_date": "1999-05-03",
+            "cagr": 8.64
+          },
+          {
+            "start_date": "1999-06-01",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "1999-07-01",
+            "cagr": 8.8
+          },
+          {
+            "start_date": "1999-08-02",
+            "cagr": 8.66
+          },
+          {
+            "start_date": "1999-09-01",
+            "cagr": 8.45
+          },
+          {
+            "start_date": "1999-10-01",
+            "cagr": 8.33
+          },
+          {
+            "start_date": "1999-11-01",
+            "cagr": 7.56
+          },
+          {
+            "start_date": "1999-12-01",
+            "cagr": 7.13
+          },
+          {
+            "start_date": "2000-01-03",
+            "cagr": 5.1
+          },
+          {
+            "start_date": "2000-02-01",
+            "cagr": 5.07
+          },
+          {
+            "start_date": "2000-03-01",
+            "cagr": 4.05
+          },
+          {
+            "start_date": "2000-04-03",
+            "cagr": 3.17
+          },
+          {
+            "start_date": "2000-05-01",
+            "cagr": 3.79
+          },
+          {
+            "start_date": "2000-06-01",
+            "cagr": 6.42
+          },
+          {
+            "start_date": "2000-07-03",
+            "cagr": 5.52
+          },
+          {
+            "start_date": "2000-08-01",
+            "cagr": 7.12
+          },
+          {
+            "start_date": "2000-09-01",
+            "cagr": 5.45
+          },
+          {
+            "start_date": "2000-10-02",
+            "cagr": 7.42
+          },
+          {
+            "start_date": "2000-11-01",
+            "cagr": 7.4
+          },
+          {
+            "start_date": "2000-12-01",
+            "cagr": 8.57
+          },
+          {
+            "start_date": "2001-01-02",
+            "cagr": 8.28
+          },
+          {
+            "start_date": "2001-02-01",
+            "cagr": 9.09
+          },
+          {
+            "start_date": "2001-03-01",
+            "cagr": 9.05
+          },
+          {
+            "start_date": "2001-04-02",
+            "cagr": 9.32
+          },
+          {
+            "start_date": "2001-05-01",
+            "cagr": 9.51
+          },
+          {
+            "start_date": "2001-06-01",
+            "cagr": 8.96
+          },
+          {
+            "start_date": "2001-07-02",
+            "cagr": 8.51
+          },
+          {
+            "start_date": "2001-08-01",
+            "cagr": 8.66
+          },
+          {
+            "start_date": "2001-09-04",
+            "cagr": 8.85
+          },
+          {
+            "start_date": "2001-10-01",
+            "cagr": 8.6
+          },
+          {
+            "start_date": "2001-11-01",
+            "cagr": 8.93
+          },
+          {
+            "start_date": "2001-12-03",
+            "cagr": 9.84
+          },
+          {
+            "start_date": "2002-01-02",
+            "cagr": 9.84
+          },
+          {
+            "start_date": "2002-02-01",
+            "cagr": 10.03
+          },
+          {
+            "start_date": "2002-03-01",
+            "cagr": 9.65
+          },
+          {
+            "start_date": "2002-04-01",
+            "cagr": 9.82
+          },
+          {
+            "start_date": "2002-05-01",
+            "cagr": 10.47
+          },
+          {
+            "start_date": "2002-06-03",
+            "cagr": 10.71
+          },
+          {
+            "start_date": "2002-07-01",
+            "cagr": 10.54
+          },
+          {
+            "start_date": "2002-08-01",
+            "cagr": 10.55
+          },
+          {
+            "start_date": "2002-09-03",
+            "cagr": 10.56
+          },
+          {
+            "start_date": "2002-10-01",
+            "cagr": 11.67
+          },
+          {
+            "start_date": "2002-11-01",
+            "cagr": 12.22
+          },
+          {
+            "start_date": "2002-12-02",
+            "cagr": 11.84
+          },
+          {
+            "start_date": "2003-01-02",
+            "cagr": 11.54
+          },
+          {
+            "start_date": "2003-02-03",
+            "cagr": 10.5
+          },
+          {
+            "start_date": "2003-03-03",
+            "cagr": 10.81
+          },
+          {
+            "start_date": "2003-04-01",
+            "cagr": 11.09
+          },
+          {
+            "start_date": "2003-05-01",
+            "cagr": 10.19
+          },
+          {
+            "start_date": "2003-06-02",
+            "cagr": 8.91
+          },
+          {
+            "start_date": "2003-07-01",
+            "cagr": 9.01
+          },
+          {
+            "start_date": "2003-08-01",
+            "cagr": 8.98
+          },
+          {
+            "start_date": "2003-09-02",
+            "cagr": 7.59
+          },
+          {
+            "start_date": "2003-10-01",
+            "cagr": 7.77
+          },
+          {
+            "start_date": "2003-11-03",
+            "cagr": 6.44
+          },
+          {
+            "start_date": "2003-12-01",
+            "cagr": 6.86
+          },
+          {
+            "start_date": "2004-01-05",
+            "cagr": 6.62
+          },
+          {
+            "start_date": "2004-02-02",
+            "cagr": 6.62
+          },
+          {
+            "start_date": "2004-03-01",
+            "cagr": 6.42
+          },
+          {
+            "start_date": "2004-04-01",
+            "cagr": 6.57
+          },
+          {
+            "start_date": "2004-05-03",
+            "cagr": 6.99
+          },
+          {
+            "start_date": "2004-06-01",
+            "cagr": 6.87
+          },
+          {
+            "start_date": "2004-07-01",
+            "cagr": 6.41
+          },
+          {
+            "start_date": "2004-08-02",
+            "cagr": 8.35
+          },
+          {
+            "start_date": "2004-09-01",
+            "cagr": 8.21
+          },
+          {
+            "start_date": "2004-10-01",
+            "cagr": 8.76
+          },
+          {
+            "start_date": "2004-11-01",
+            "cagr": 8.73
+          },
+          {
+            "start_date": "2004-12-01",
+            "cagr": 9.36
+          },
+          {
+            "start_date": "2005-01-03",
+            "cagr": 9.28
+          },
+          {
+            "start_date": "2005-02-01",
+            "cagr": 9.17
+          },
+          {
+            "start_date": "2005-03-01",
+            "cagr": 9.57
+          },
+          {
+            "start_date": "2005-04-01",
+            "cagr": 11.0
+          },
+          {
+            "start_date": "2005-05-02",
+            "cagr": 11.67
+          },
+          {
+            "start_date": "2005-06-01",
+            "cagr": 9.58
+          },
+          {
+            "start_date": "2005-07-01",
+            "cagr": 9.33
+          },
+          {
+            "start_date": "2005-08-01",
+            "cagr": 8.45
+          },
+          {
+            "start_date": "2005-09-01",
+            "cagr": 8.88
+          },
+          {
+            "start_date": "2005-10-03",
+            "cagr": 8.91
+          },
+          {
+            "start_date": "2005-11-01",
+            "cagr": 9.96
+          },
+          {
+            "start_date": "2005-12-01",
+            "cagr": 8.91
+          },
+          {
+            "start_date": "2006-01-03",
+            "cagr": 9.42
+          },
+          {
+            "start_date": "2006-02-01",
+            "cagr": 9.2
+          },
+          {
+            "start_date": "2006-03-01",
+            "cagr": 9.52
+          },
+          {
+            "start_date": "2006-04-03",
+            "cagr": 9.65
+          },
+          {
+            "start_date": "2006-05-01",
+            "cagr": 10.21
+          },
+          {
+            "start_date": "2006-06-01",
+            "cagr": 10.3
+          },
+          {
+            "start_date": "2006-07-03",
+            "cagr": 10.67
+          },
+          {
+            "start_date": "2006-08-01",
+            "cagr": 10.66
+          },
+          {
+            "start_date": "2006-09-01",
+            "cagr": 9.87
+          },
+          {
+            "start_date": "2006-10-02",
+            "cagr": 9.83
+          },
+          {
+            "start_date": "2006-11-01",
+            "cagr": 9.56
+          },
+          {
+            "start_date": "2006-12-01",
+            "cagr": 8.86
+          },
+          {
+            "start_date": "2007-01-03",
+            "cagr": 8.78
+          },
+          {
+            "start_date": "2007-02-01",
+            "cagr": 9.13
+          },
+          {
+            "start_date": "2007-03-01",
+            "cagr": 10.01
+          },
+          {
+            "start_date": "2007-04-02",
+            "cagr": 10.37
+          },
+          {
+            "start_date": "2007-05-01",
+            "cagr": 9.43
+          },
+          {
+            "start_date": "2007-06-01",
+            "cagr": 7.89
+          },
+          {
+            "start_date": "2007-07-02",
+            "cagr": 8.8
+          },
+          {
+            "start_date": "2007-08-01",
+            "cagr": 9.13
+          },
+          {
+            "start_date": "2007-09-04",
+            "cagr": 9.32
+          },
+          {
+            "start_date": "2007-10-01",
+            "cagr": 8.72
+          },
+          {
+            "start_date": "2007-11-01",
+            "cagr": 7.76
+          },
+          {
+            "start_date": "2007-12-03",
+            "cagr": 8.19
+          },
+          {
+            "start_date": "2008-01-02",
+            "cagr": 8.41
+          },
+          {
+            "start_date": "2008-02-01",
+            "cagr": 9.33
+          },
+          {
+            "start_date": "2008-03-03",
+            "cagr": 9.04
+          },
+          {
+            "start_date": "2008-04-01",
+            "cagr": 9.79
+          },
+          {
+            "start_date": "2008-05-01",
+            "cagr": 10.12
+          },
+          {
+            "start_date": "2008-06-02",
+            "cagr": 10.23
+          },
+          {
+            "start_date": "2008-07-01",
+            "cagr": 9.36
+          },
+          {
+            "start_date": "2008-08-01",
+            "cagr": 10.42
+          },
+          {
+            "start_date": "2008-09-02",
+            "cagr": 10.47
+          },
+          {
+            "start_date": "2008-10-01",
+            "cagr": 10.68
+          },
+          {
+            "start_date": "2008-11-03",
+            "cagr": 12.06
+          },
+          {
+            "start_date": "2008-12-01",
+            "cagr": 11.51
+          },
+          {
+            "start_date": "2009-01-02",
+            "cagr": 10.94
+          },
+          {
+            "start_date": "2009-02-02",
+            "cagr": 11.12
+          },
+          {
+            "start_date": "2009-03-02",
+            "cagr": 12.06
+          },
+          {
+            "start_date": "2009-04-01",
+            "cagr": 11.84
+          },
+          {
+            "start_date": "2009-05-01",
+            "cagr": 12.31
+          },
+          {
+            "start_date": "2009-06-01",
+            "cagr": 12.53
+          },
+          {
+            "start_date": "2009-07-01",
+            "cagr": 13.46
+          },
+          {
+            "start_date": "2009-08-03",
+            "cagr": 11.8
+          },
+          {
+            "start_date": "2009-09-01",
+            "cagr": 12.72
+          },
+          {
+            "start_date": "2009-10-01",
+            "cagr": 11.24
+          },
+          {
+            "start_date": "2009-11-02",
+            "cagr": 11.61
+          },
+          {
+            "start_date": "2009-12-01",
+            "cagr": 10.73
+          },
+          {
+            "start_date": "2010-01-04",
+            "cagr": 10.52
+          },
+          {
+            "start_date": "2010-02-01",
+            "cagr": 11.58
+          },
+          {
+            "start_date": "2010-03-01",
+            "cagr": 11.52
+          },
+          {
+            "start_date": "2010-04-01",
+            "cagr": 10.3
+          },
+          {
+            "start_date": "2010-05-03",
+            "cagr": 9.83
+          },
+          {
+            "start_date": "2010-06-01",
+            "cagr": 11.19
+          },
+          {
+            "start_date": "2010-07-01",
+            "cagr": 11.26
+          },
+          {
+            "start_date": "2010-08-02",
+            "cagr": 11.79
+          },
+          {
+            "start_date": "2010-09-01",
+            "cagr": 10.12
+          },
+          {
+            "start_date": "2010-10-01",
+            "cagr": 9.87
+          },
+          {
+            "start_date": "2010-11-01",
+            "cagr": 9.21
+          },
+          {
+            "start_date": "2010-12-01",
+            "cagr": 8.85
+          },
+          {
+            "start_date": "2011-01-03",
+            "cagr": 7.86
+          },
+          {
+            "start_date": "2011-02-01",
+            "cagr": 7.35
+          },
+          {
+            "start_date": "2011-03-01",
+            "cagr": 7.4
+          },
+          {
+            "start_date": "2011-04-01",
+            "cagr": 7.2
+          },
+          {
+            "start_date": "2011-05-02",
+            "cagr": 6.3
+          },
+          {
+            "start_date": "2011-06-01",
+            "cagr": 6.86
+          },
+          {
+            "start_date": "2011-07-01",
+            "cagr": 7.29
+          },
+          {
+            "start_date": "2011-08-01",
+            "cagr": 7.91
+          },
+          {
+            "start_date": "2011-09-01",
+            "cagr": 8.43
+          },
+          {
+            "start_date": "2011-10-03",
+            "cagr": 8.34
+          },
+          {
+            "start_date": "2011-11-01",
+            "cagr": 7.79
+          },
+          {
+            "start_date": "2011-12-01",
+            "cagr": 7.5
+          },
+          {
+            "start_date": "2012-01-03",
+            "cagr": 8.23
+          },
+          {
+            "start_date": "2012-02-01",
+            "cagr": 8.05
+          },
+          {
+            "start_date": "2012-03-01",
+            "cagr": 8.3
+          },
+          {
+            "start_date": "2012-04-02",
+            "cagr": 7.8
+          },
+          {
+            "start_date": "2012-05-01",
+            "cagr": 8.33
+          },
+          {
+            "start_date": "2012-06-01",
+            "cagr": 9.98
+          },
+          {
+            "start_date": "2012-07-02",
+            "cagr": 8.84
+          },
+          {
+            "start_date": "2012-08-01",
+            "cagr": 9.24
+          },
+          {
+            "start_date": "2012-09-04",
+            "cagr": 8.85
+          },
+          {
+            "start_date": "2012-10-01",
+            "cagr": 8.43
+          },
+          {
+            "start_date": "2012-11-01",
+            "cagr": 9.53
+          },
+          {
+            "start_date": "2012-12-03",
+            "cagr": 9.96
+          },
+          {
+            "start_date": "2013-01-02",
+            "cagr": 10.07
+          },
+          {
+            "start_date": "2013-02-01",
+            "cagr": 10.65
+          },
+          {
+            "start_date": "2013-03-01",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "2013-04-01",
+            "cagr": 9.43
+          },
+          {
+            "start_date": "2013-05-01",
+            "cagr": 9.27
+          },
+          {
+            "start_date": "2013-06-03",
+            "cagr": 9.74
+          },
+          {
+            "start_date": "2013-07-01",
+            "cagr": 10.37
+          },
+          {
+            "start_date": "2013-08-01",
+            "cagr": 9.77
+          },
+          {
+            "start_date": "2013-09-03",
+            "cagr": 10.62
+          },
+          {
+            "start_date": "2013-10-01",
+            "cagr": 10.07
+          },
+          {
+            "start_date": "2013-11-01",
+            "cagr": 8.32
+          },
+          {
+            "start_date": "2013-12-02",
+            "cagr": 7.67
+          },
+          {
+            "start_date": "2014-01-02",
+            "cagr": 7.24
+          },
+          {
+            "start_date": "2014-02-03",
+            "cagr": 7.6
+          },
+          {
+            "start_date": "2014-03-03",
+            "cagr": 6.31
+          },
+          {
+            "start_date": "2014-04-01",
+            "cagr": 6.73
+          },
+          {
+            "start_date": "2014-05-01",
+            "cagr": 7.11
+          },
+          {
+            "start_date": "2014-06-02",
+            "cagr": 5.96
+          },
+          {
+            "start_date": "2014-07-01",
+            "cagr": 6.65
+          },
+          {
+            "start_date": "2014-08-01",
+            "cagr": 7.09
+          },
+          {
+            "start_date": "2014-09-02",
+            "cagr": 6.69
+          },
+          {
+            "start_date": "2014-10-01",
+            "cagr": 7.05
+          },
+          {
+            "start_date": "2014-11-03",
+            "cagr": 7.32
+          },
+          {
+            "start_date": "2014-12-01",
+            "cagr": 7.08
+          },
+          {
+            "start_date": "2015-01-02",
+            "cagr": 7.85
+          },
+          {
+            "start_date": "2015-02-02",
+            "cagr": 7.91
+          },
+          {
+            "start_date": "2015-03-02",
+            "cagr": 7.23
+          },
+          {
+            "start_date": "2015-04-01",
+            "cagr": 6.15
+          },
+          {
+            "start_date": "2015-05-01",
+            "cagr": 6.12
+          },
+          {
+            "start_date": "2015-06-01",
+            "cagr": 6.74
+          },
+          {
+            "start_date": "2015-07-01",
+            "cagr": 7.64
+          },
+          {
+            "start_date": "2015-08-03",
+            "cagr": 8.78
+          },
+          {
+            "start_date": "2015-09-01",
+            "cagr": 11.21
+          },
+          {
+            "start_date": "2015-10-01",
+            "cagr": 10.32
+          },
+          {
+            "start_date": "2015-11-02",
+            "cagr": 9.65
+          },
+          {
+            "start_date": "2015-12-01",
+            "cagr": 11.32
+          },
+          {
+            "start_date": "2016-01-04",
+            "cagr": 12.21
+          },
+          {
+            "start_date": "2016-02-01",
+            "cagr": 12.64
+          },
+          {
+            "start_date": "2016-03-01",
+            "cagr": 12.12
+          },
+          {
+            "start_date": "2016-04-01",
+            "cagr": 12.3
+          },
+          {
+            "start_date": "2016-05-02",
+            "cagr": 13.3
+          },
+          {
+            "start_date": "2016-06-01",
+            "cagr": 13.21
+          },
+          {
+            "start_date": "2016-07-01",
+            "cagr": 13.39
+          },
+          {
+            "start_date": "2016-08-01",
+            "cagr": 13.15
+          },
+          {
+            "start_date": "2016-09-01",
+            "cagr": 13.74
+          },
+          {
+            "start_date": "2016-10-03",
+            "cagr": 12.78
+          },
+          {
+            "start_date": "2016-11-01",
+            "cagr": 14.48
+          },
+          {
+            "start_date": "2016-12-01",
+            "cagr": 14.75
+          },
+          {
+            "start_date": "2017-01-03",
+            "cagr": 14.86
+          },
+          {
+            "start_date": "2017-02-01",
+            "cagr": 12.73
+          },
+          {
+            "start_date": "2017-03-01",
+            "cagr": 11.67
+          },
+          {
+            "start_date": "2017-04-03",
+            "cagr": 11.2
+          },
+          {
+            "start_date": "2017-05-01",
+            "cagr": 10.42
+          },
+          {
+            "start_date": "2017-06-01",
+            "cagr": 9.72
+          },
+          {
+            "start_date": "2017-07-03",
+            "cagr": 10.07
+          },
+          {
+            "start_date": "2017-08-01",
+            "cagr": 9.4
+          },
+          {
+            "start_date": "2017-09-01",
+            "cagr": 8.63
+          },
+          {
+            "start_date": "2017-10-02",
+            "cagr": 8.39
+          },
+          {
+            "start_date": "2017-11-01",
+            "cagr": 7.67
+          },
+          {
+            "start_date": "2017-12-01",
+            "cagr": 7.89
+          },
+          {
+            "start_date": "2018-01-02",
+            "cagr": 7.3
+          },
+          {
+            "start_date": "2018-02-01",
+            "cagr": 7.06
+          },
+          {
+            "start_date": "2018-03-01",
+            "cagr": 6.65
+          },
+          {
+            "start_date": "2018-04-02",
+            "cagr": 8.67
+          },
+          {
+            "start_date": "2018-05-01",
+            "cagr": 8.34
+          },
+          {
+            "start_date": "2018-06-01",
+            "cagr": 8.42
+          },
+          {
+            "start_date": "2018-07-02",
+            "cagr": 9.23
+          },
+          {
+            "start_date": "2018-08-01",
+            "cagr": 9.29
+          },
+          {
+            "start_date": "2018-09-04",
+            "cagr": 8.41
+          },
+          {
+            "start_date": "2018-10-01",
+            "cagr": 7.26
+          },
+          {
+            "start_date": "2018-11-01",
+            "cagr": 8.31
+          },
+          {
+            "start_date": "2018-12-03",
+            "cagr": 10.49
+          },
+          {
+            "start_date": "2019-01-02",
+            "cagr": 11.45
+          },
+          {
+            "start_date": "2019-02-01",
+            "cagr": 12.04
+          },
+          {
+            "start_date": "2019-03-01",
+            "cagr": 12.89
+          },
+          {
+            "start_date": "2019-04-01",
+            "cagr": 12.88
+          },
+          {
+            "start_date": "2019-05-01",
+            "cagr": 11.67
+          },
+          {
+            "start_date": "2019-06-03",
+            "cagr": 13.76
+          },
+          {
+            "start_date": "2019-07-01",
+            "cagr": 12.88
+          },
+          {
+            "start_date": "2019-08-01",
+            "cagr": 12.57
+          },
+          {
+            "start_date": "2019-09-03",
+            "cagr": 12.64
+          },
+          {
+            "start_date": "2019-10-01",
+            "cagr": 13.53
+          },
+          {
+            "start_date": "2019-11-01",
+            "cagr": 12.67
+          },
+          {
+            "start_date": "2019-12-02",
+            "cagr": 13.39
+          },
+          {
+            "start_date": "2020-01-02",
+            "cagr": 11.9
+          },
+          {
+            "start_date": "2020-02-03",
+            "cagr": 11.9
+          },
+          {
+            "start_date": "2020-03-02",
+            "cagr": 12.25
+          },
+          {
+            "start_date": "2020-04-01",
+            "cagr": 13.14
+          },
+          {
+            "start_date": "2020-05-01",
+            "cagr": 11.78
+          },
+          {
+            "start_date": "2020-06-01",
+            "cagr": 10.98
+          },
+          {
+            "start_date": "2020-07-01",
+            "cagr": 11.46
+          },
+          {
+            "start_date": "2020-08-03",
+            "cagr": 10.13
+          },
+          {
+            "start_date": "2020-09-01",
+            "cagr": 9.43
+          },
+          {
+            "start_date": "2020-10-01",
+            "cagr": 11.56
+          },
+          {
+            "start_date": "2020-11-02",
+            "cagr": 12.84
+          },
+          {
+            "start_date": "2020-12-01",
+            "cagr": 11.26
+          },
+          {
+            "start_date": "2021-01-04",
+            "cagr": 10.82
+          },
+          {
+            "start_date": "2021-02-01",
+            "cagr": 11.2
+          },
+          {
+            "start_date": "2021-03-01",
+            "cagr": 11.59
+          },
+          {
+            "start_date": "2021-04-01",
+            "cagr": 10.02
+          },
+          {
+            "start_date": "2021-05-03",
+            "cagr": 10.23
+          },
+          {
+            "start_date": "2021-06-01",
+            "cagr": 11.17
+          },
+          {
+            "start_date": "2021-07-01",
+            "cagr": 9.93
+          },
+          {
+            "start_date": "2021-08-02",
+            "cagr": 8.89
+          },
+          {
+            "start_date": "2021-09-01",
+            "cagr": 8.92
+          },
+          {
+            "start_date": "2021-10-01",
+            "cagr": 9.92
+          },
+          {
+            "start_date": "2021-11-01",
+            "cagr": 8.11
+          }
+        ],
+        "count": 425,
+        "min_cagr": 0.12,
+        "min_start_date": "1987-09-01",
+        "p10_cagr": 6.3,
+        "median_cagr": 9.79,
+        "negative_count": 0
+      },
+      {
+        "years": 10,
+        "points": [
+          {
+            "start_date": "1986-07-16",
+            "cagr": 5.87
+          },
+          {
+            "start_date": "1986-08-01",
+            "cagr": 6.24
+          },
+          {
+            "start_date": "1986-09-02",
+            "cagr": 6.01
+          },
+          {
+            "start_date": "1986-10-01",
+            "cagr": 6.95
+          },
+          {
+            "start_date": "1986-11-03",
+            "cagr": 7.24
+          },
+          {
+            "start_date": "1986-12-01",
+            "cagr": 7.92
+          },
+          {
+            "start_date": "1987-01-02",
+            "cagr": 7.95
+          },
+          {
+            "start_date": "1987-02-02",
+            "cagr": 8.38
+          },
+          {
+            "start_date": "1987-03-02",
+            "cagr": 7.82
+          },
+          {
+            "start_date": "1987-04-01",
+            "cagr": 7.1
+          },
+          {
+            "start_date": "1987-05-01",
+            "cagr": 7.65
+          },
+          {
+            "start_date": "1987-06-01",
+            "cagr": 8.24
+          },
+          {
+            "start_date": "1987-07-01",
+            "cagr": 8.15
+          },
+          {
+            "start_date": "1987-08-03",
+            "cagr": 8.6
+          },
+          {
+            "start_date": "1987-09-01",
+            "cagr": 8.08
+          },
+          {
+            "start_date": "1987-10-01",
+            "cagr": 8.45
+          },
+          {
+            "start_date": "1987-11-02",
+            "cagr": 10.39
+          },
+          {
+            "start_date": "1987-12-01",
+            "cagr": 10.7
+          },
+          {
+            "start_date": "1988-01-04",
+            "cagr": 10.26
+          },
+          {
+            "start_date": "1988-02-01",
+            "cagr": 10.4
+          },
+          {
+            "start_date": "1988-03-01",
+            "cagr": 10.97
+          },
+          {
+            "start_date": "1988-04-05",
+            "cagr": 11.44
+          },
+          {
+            "start_date": "1988-05-02",
+            "cagr": 11.48
+          },
+          {
+            "start_date": "1988-06-01",
+            "cagr": 11.0
+          },
+          {
+            "start_date": "1988-07-01",
+            "cagr": 11.75
+          },
+          {
+            "start_date": "1988-08-01",
+            "cagr": 11.91
+          },
+          {
+            "start_date": "1988-09-01",
+            "cagr": 11.35
+          },
+          {
+            "start_date": "1988-10-03",
+            "cagr": 11.43
+          },
+          {
+            "start_date": "1988-11-01",
+            "cagr": 10.85
+          },
+          {
+            "start_date": "1988-12-01",
+            "cagr": 11.87
+          },
+          {
+            "start_date": "1989-01-03",
+            "cagr": 12.51
+          },
+          {
+            "start_date": "1989-02-01",
+            "cagr": 13.02
+          },
+          {
+            "start_date": "1989-03-01",
+            "cagr": 12.71
+          },
+          {
+            "start_date": "1989-04-03",
+            "cagr": 12.95
+          },
+          {
+            "start_date": "1989-05-01",
+            "cagr": 12.77
+          },
+          {
+            "start_date": "1989-06-01",
+            "cagr": 11.83
+          },
+          {
+            "start_date": "1989-07-03",
+            "cagr": 12.73
+          },
+          {
+            "start_date": "1989-08-01",
+            "cagr": 11.88
+          },
+          {
+            "start_date": "1989-09-01",
+            "cagr": 11.89
+          },
+          {
+            "start_date": "1989-10-02",
+            "cagr": 12.02
+          },
+          {
+            "start_date": "1989-11-01",
+            "cagr": 12.55
+          },
+          {
+            "start_date": "1989-12-01",
+            "cagr": 12.92
+          },
+          {
+            "start_date": "1990-01-02",
+            "cagr": 13.83
+          },
+          {
+            "start_date": "1990-02-01",
+            "cagr": 14.61
+          },
+          {
+            "start_date": "1990-03-01",
+            "cagr": 15.29
+          },
+          {
+            "start_date": "1990-04-02",
+            "cagr": 15.8
+          },
+          {
+            "start_date": "1990-05-01",
+            "cagr": 15.25
+          },
+          {
+            "start_date": "1990-06-04",
+            "cagr": 13.81
+          },
+          {
+            "start_date": "1990-07-02",
+            "cagr": 13.98
+          },
+          {
+            "start_date": "1990-08-01",
+            "cagr": 13.88
+          },
+          {
+            "start_date": "1990-09-04",
+            "cagr": 15.65
+          },
+          {
+            "start_date": "1990-10-01",
+            "cagr": 14.65
+          },
+          {
+            "start_date": "1990-11-01",
+            "cagr": 14.42
+          },
+          {
+            "start_date": "1990-12-03",
+            "cagr": 14.45
+          },
+          {
+            "start_date": "1991-01-02",
+            "cagr": 14.41
+          },
+          {
+            "start_date": "1991-02-01",
+            "cagr": 14.28
+          },
+          {
+            "start_date": "1991-03-04",
+            "cagr": 13.76
+          },
+          {
+            "start_date": "1991-04-01",
+            "cagr": 13.55
+          },
+          {
+            "start_date": "1991-05-01",
+            "cagr": 13.43
+          },
+          {
+            "start_date": "1991-06-03",
+            "cagr": 13.09
+          },
+          {
+            "start_date": "1991-07-01",
+            "cagr": 13.54
+          },
+          {
+            "start_date": "1991-08-01",
+            "cagr": 13.24
+          },
+          {
+            "start_date": "1991-09-03",
+            "cagr": 13.11
+          },
+          {
+            "start_date": "1991-10-01",
+            "cagr": 13.13
+          },
+          {
+            "start_date": "1991-11-01",
+            "cagr": 13.09
+          },
+          {
+            "start_date": "1991-12-02",
+            "cagr": 12.94
+          },
+          {
+            "start_date": "1992-01-02",
+            "cagr": 12.03
+          },
+          {
+            "start_date": "1992-02-03",
+            "cagr": 12.12
+          },
+          {
+            "start_date": "1992-03-02",
+            "cagr": 12.11
+          },
+          {
+            "start_date": "1992-04-01",
+            "cagr": 12.47
+          },
+          {
+            "start_date": "1992-05-01",
+            "cagr": 12.72
+          },
+          {
+            "start_date": "1992-06-01",
+            "cagr": 12.59
+          },
+          {
+            "start_date": "1992-07-01",
+            "cagr": 12.89
+          },
+          {
+            "start_date": "1992-08-03",
+            "cagr": 12.7
+          },
+          {
+            "start_date": "1992-09-01",
+            "cagr": 12.91
+          },
+          {
+            "start_date": "1992-10-01",
+            "cagr": 12.92
+          },
+          {
+            "start_date": "1992-11-02",
+            "cagr": 12.89
+          },
+          {
+            "start_date": "1992-12-01",
+            "cagr": 12.49
+          },
+          {
+            "start_date": "1993-01-04",
+            "cagr": 12.59
+          },
+          {
+            "start_date": "1993-02-01",
+            "cagr": 12.39
+          },
+          {
+            "start_date": "1993-03-01",
+            "cagr": 12.58
+          },
+          {
+            "start_date": "1993-04-01",
+            "cagr": 12.08
+          },
+          {
+            "start_date": "1993-05-03",
+            "cagr": 12.66
+          },
+          {
+            "start_date": "1993-06-01",
+            "cagr": 12.73
+          },
+          {
+            "start_date": "1993-07-01",
+            "cagr": 12.78
+          },
+          {
+            "start_date": "1993-08-02",
+            "cagr": 12.72
+          },
+          {
+            "start_date": "1993-09-01",
+            "cagr": 12.99
+          },
+          {
+            "start_date": "1993-10-04",
+            "cagr": 13.13
+          },
+          {
+            "start_date": "1993-11-01",
+            "cagr": 13.18
+          },
+          {
+            "start_date": "1993-12-01",
+            "cagr": 13.45
+          },
+          {
+            "start_date": "1994-01-03",
+            "cagr": 13.63
+          },
+          {
+            "start_date": "1994-02-01",
+            "cagr": 13.48
+          },
+          {
+            "start_date": "1994-03-01",
+            "cagr": 13.8
+          },
+          {
+            "start_date": "1994-04-04",
+            "cagr": 14.47
+          },
+          {
+            "start_date": "1994-05-02",
+            "cagr": 13.88
+          },
+          {
+            "start_date": "1994-06-01",
+            "cagr": 14.05
+          },
+          {
+            "start_date": "1994-07-01",
+            "cagr": 14.28
+          },
+          {
+            "start_date": "1994-08-01",
+            "cagr": 13.71
+          },
+          {
+            "start_date": "1994-09-01",
+            "cagr": 13.76
+          },
+          {
+            "start_date": "1994-10-03",
+            "cagr": 14.03
+          },
+          {
+            "start_date": "1994-11-01",
+            "cagr": 13.89
+          },
+          {
+            "start_date": "1994-12-01",
+            "cagr": 14.65
+          },
+          {
+            "start_date": "1995-01-03",
+            "cagr": 14.54
+          },
+          {
+            "start_date": "1995-02-01",
+            "cagr": 14.09
+          },
+          {
+            "start_date": "1995-03-01",
+            "cagr": 13.8
+          },
+          {
+            "start_date": "1995-04-03",
+            "cagr": 13.11
+          },
+          {
+            "start_date": "1995-05-01",
+            "cagr": 12.77
+          },
+          {
+            "start_date": "1995-06-01",
+            "cagr": 12.81
+          },
+          {
+            "start_date": "1995-07-03",
+            "cagr": 12.17
+          },
+          {
+            "start_date": "1995-08-01",
+            "cagr": 12.37
+          },
+          {
+            "start_date": "1995-09-01",
+            "cagr": 12.16
+          },
+          {
+            "start_date": "1995-10-02",
+            "cagr": 12.14
+          },
+          {
+            "start_date": "1995-11-01",
+            "cagr": 11.65
+          },
+          {
+            "start_date": "1995-12-01",
+            "cagr": 12.21
+          },
+          {
+            "start_date": "1996-01-02",
+            "cagr": 11.98
+          },
+          {
+            "start_date": "1996-02-01",
+            "cagr": 12.09
+          },
+          {
+            "start_date": "1996-03-01",
+            "cagr": 12.12
+          },
+          {
+            "start_date": "1996-04-01",
+            "cagr": 12.13
+          },
+          {
+            "start_date": "1996-05-01",
+            "cagr": 11.92
+          },
+          {
+            "start_date": "1996-06-03",
+            "cagr": 11.54
+          },
+          {
+            "start_date": "1996-07-01",
+            "cagr": 11.25
+          },
+          {
+            "start_date": "1996-08-01",
+            "cagr": 11.67
+          },
+          {
+            "start_date": "1996-09-03",
+            "cagr": 11.7
+          },
+          {
+            "start_date": "1996-10-01",
+            "cagr": 11.16
+          },
+          {
+            "start_date": "1996-11-01",
+            "cagr": 11.1
+          },
+          {
+            "start_date": "1996-12-02",
+            "cagr": 10.69
+          },
+          {
+            "start_date": "1997-01-02",
+            "cagr": 10.94
+          },
+          {
+            "start_date": "1997-02-03",
+            "cagr": 10.48
+          },
+          {
+            "start_date": "1997-03-03",
+            "cagr": 10.36
+          },
+          {
+            "start_date": "1997-04-01",
+            "cagr": 11.11
+          },
+          {
+            "start_date": "1997-05-01",
+            "cagr": 10.96
+          },
+          {
+            "start_date": "1997-06-02",
+            "cagr": 10.6
+          },
+          {
+            "start_date": "1997-07-01",
+            "cagr": 10.28
+          },
+          {
+            "start_date": "1997-08-01",
+            "cagr": 9.45
+          },
+          {
+            "start_date": "1997-09-02",
+            "cagr": 9.72
+          },
+          {
+            "start_date": "1997-10-01",
+            "cagr": 10.13
+          },
+          {
+            "start_date": "1997-11-03",
+            "cagr": 10.75
+          },
+          {
+            "start_date": "1997-12-01",
+            "cagr": 10.26
+          },
+          {
+            "start_date": "1998-01-02",
+            "cagr": 10.74
+          },
+          {
+            "start_date": "1998-02-02",
+            "cagr": 10.19
+          },
+          {
+            "start_date": "1998-03-02",
+            "cagr": 9.94
+          },
+          {
+            "start_date": "1998-04-01",
+            "cagr": 9.35
+          },
+          {
+            "start_date": "1998-05-01",
+            "cagr": 9.13
+          },
+          {
+            "start_date": "1998-06-01",
+            "cagr": 9.58
+          },
+          {
+            "start_date": "1998-07-01",
+            "cagr": 8.86
+          },
+          {
+            "start_date": "1998-08-03",
+            "cagr": 8.95
+          },
+          {
+            "start_date": "1998-09-01",
+            "cagr": 9.83
+          },
+          {
+            "start_date": "1998-10-01",
+            "cagr": 9.56
+          },
+          {
+            "start_date": "1998-11-02",
+            "cagr": 9.61
+          },
+          {
+            "start_date": "1998-12-01",
+            "cagr": 9.25
+          },
+          {
+            "start_date": "1999-01-04",
+            "cagr": 8.93
+          },
+          {
+            "start_date": "1999-02-01",
+            "cagr": 8.17
+          },
+          {
+            "start_date": "1999-03-01",
+            "cagr": 8.73
+          },
+          {
+            "start_date": "1999-04-05",
+            "cagr": 7.88
+          },
+          {
+            "start_date": "1999-05-03",
+            "cagr": 7.81
+          },
+          {
+            "start_date": "1999-06-01",
+            "cagr": 8.44
+          },
+          {
+            "start_date": "1999-07-01",
+            "cagr": 7.6
+          },
+          {
+            "start_date": "1999-08-02",
+            "cagr": 8.5
+          },
+          {
+            "start_date": "1999-09-01",
+            "cagr": 8.33
+          },
+          {
+            "start_date": "1999-10-01",
+            "cagr": 8.55
+          },
+          {
+            "start_date": "1999-11-01",
+            "cagr": 8.14
+          },
+          {
+            "start_date": "1999-12-01",
+            "cagr": 8.24
+          },
+          {
+            "start_date": "2000-01-03",
+            "cagr": 7.17
+          },
+          {
+            "start_date": "2000-02-01",
+            "cagr": 7.1
+          },
+          {
+            "start_date": "2000-03-01",
+            "cagr": 6.78
+          },
+          {
+            "start_date": "2000-04-03",
+            "cagr": 7.02
+          },
+          {
+            "start_date": "2000-05-01",
+            "cagr": 7.67
+          },
+          {
+            "start_date": "2000-06-01",
+            "cagr": 7.99
+          },
+          {
+            "start_date": "2000-07-03",
+            "cagr": 7.42
+          },
+          {
+            "start_date": "2000-08-01",
+            "cagr": 7.78
+          },
+          {
+            "start_date": "2000-09-01",
+            "cagr": 7.15
+          },
+          {
+            "start_date": "2000-10-02",
+            "cagr": 8.13
+          },
+          {
+            "start_date": "2000-11-01",
+            "cagr": 8.67
+          },
+          {
+            "start_date": "2000-12-01",
+            "cagr": 8.74
+          },
+          {
+            "start_date": "2001-01-02",
+            "cagr": 8.96
+          },
+          {
+            "start_date": "2001-02-01",
+            "cagr": 9.14
+          },
+          {
+            "start_date": "2001-03-01",
+            "cagr": 9.29
+          },
+          {
+            "start_date": "2001-04-02",
+            "cagr": 9.49
+          },
+          {
+            "start_date": "2001-05-01",
+            "cagr": 9.86
+          },
+          {
+            "start_date": "2001-06-01",
+            "cagr": 9.63
+          },
+          {
+            "start_date": "2001-07-02",
+            "cagr": 9.62
+          },
+          {
+            "start_date": "2001-08-01",
+            "cagr": 9.66
+          },
+          {
+            "start_date": "2001-09-04",
+            "cagr": 9.46
+          },
+          {
+            "start_date": "2001-10-01",
+            "cagr": 9.18
+          },
+          {
+            "start_date": "2001-11-01",
+            "cagr": 9.24
+          },
+          {
+            "start_date": "2001-12-03",
+            "cagr": 9.37
+          },
+          {
+            "start_date": "2002-01-02",
+            "cagr": 9.28
+          },
+          {
+            "start_date": "2002-02-01",
+            "cagr": 9.58
+          },
+          {
+            "start_date": "2002-03-01",
+            "cagr": 9.83
+          },
+          {
+            "start_date": "2002-04-01",
+            "cagr": 10.03
+          },
+          {
+            "start_date": "2002-05-01",
+            "cagr": 9.95
+          },
+          {
+            "start_date": "2002-06-03",
+            "cagr": 9.29
+          },
+          {
+            "start_date": "2002-07-01",
+            "cagr": 9.72
+          },
+          {
+            "start_date": "2002-08-01",
+            "cagr": 9.84
+          },
+          {
+            "start_date": "2002-09-03",
+            "cagr": 10.07
+          },
+          {
+            "start_date": "2002-10-01",
+            "cagr": 10.19
+          },
+          {
+            "start_date": "2002-11-01",
+            "cagr": 9.97
+          },
+          {
+            "start_date": "2002-12-02",
+            "cagr": 10.0
+          },
+          {
+            "start_date": "2003-01-02",
+            "cagr": 9.96
+          },
+          {
+            "start_date": "2003-02-03",
+            "cagr": 9.91
+          },
+          {
+            "start_date": "2003-03-03",
+            "cagr": 9.92
+          },
+          {
+            "start_date": "2003-04-01",
+            "cagr": 10.44
+          },
+          {
+            "start_date": "2003-05-01",
+            "cagr": 10.16
+          },
+          {
+            "start_date": "2003-06-02",
+            "cagr": 9.57
+          },
+          {
+            "start_date": "2003-07-01",
+            "cagr": 9.18
+          },
+          {
+            "start_date": "2003-08-01",
+            "cagr": 9.7
+          },
+          {
+            "start_date": "2003-09-02",
+            "cagr": 9.02
+          },
+          {
+            "start_date": "2003-10-01",
+            "cagr": 9.21
+          },
+          {
+            "start_date": "2003-11-03",
+            "cagr": 9.21
+          },
+          {
+            "start_date": "2003-12-01",
+            "cagr": 9.16
+          },
+          {
+            "start_date": "2004-01-05",
+            "cagr": 8.83
+          },
+          {
+            "start_date": "2004-02-02",
+            "cagr": 8.84
+          },
+          {
+            "start_date": "2004-03-01",
+            "cagr": 9.19
+          },
+          {
+            "start_date": "2004-04-01",
+            "cagr": 9.17
+          },
+          {
+            "start_date": "2004-05-03",
+            "cagr": 9.63
+          },
+          {
+            "start_date": "2004-06-01",
+            "cagr": 9.66
+          },
+          {
+            "start_date": "2004-07-01",
+            "cagr": 9.88
+          },
+          {
+            "start_date": "2004-08-02",
+            "cagr": 10.16
+          },
+          {
+            "start_date": "2004-09-01",
+            "cagr": 10.44
+          },
+          {
+            "start_date": "2004-10-01",
+            "cagr": 9.99
+          },
+          {
+            "start_date": "2004-11-01",
+            "cagr": 10.21
+          },
+          {
+            "start_date": "2004-12-01",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "2005-01-03",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "2005-02-01",
+            "cagr": 10.37
+          },
+          {
+            "start_date": "2005-03-01",
+            "cagr": 10.54
+          },
+          {
+            "start_date": "2005-04-01",
+            "cagr": 10.65
+          },
+          {
+            "start_date": "2005-05-02",
+            "cagr": 10.85
+          },
+          {
+            "start_date": "2005-06-01",
+            "cagr": 10.38
+          },
+          {
+            "start_date": "2005-07-01",
+            "cagr": 10.29
+          },
+          {
+            "start_date": "2005-08-01",
+            "cagr": 10.08
+          },
+          {
+            "start_date": "2005-09-01",
+            "cagr": 9.49
+          },
+          {
+            "start_date": "2005-10-03",
+            "cagr": 9.43
+          },
+          {
+            "start_date": "2005-11-01",
+            "cagr": 9.59
+          },
+          {
+            "start_date": "2005-12-01",
+            "cagr": 8.88
+          },
+          {
+            "start_date": "2006-01-03",
+            "cagr": 8.64
+          },
+          {
+            "start_date": "2006-02-01",
+            "cagr": 8.27
+          },
+          {
+            "start_date": "2006-03-01",
+            "cagr": 8.46
+          },
+          {
+            "start_date": "2006-04-03",
+            "cagr": 8.42
+          },
+          {
+            "start_date": "2006-05-01",
+            "cagr": 8.16
+          },
+          {
+            "start_date": "2006-06-01",
+            "cagr": 8.57
+          },
+          {
+            "start_date": "2006-07-03",
+            "cagr": 8.96
+          },
+          {
+            "start_date": "2006-08-01",
+            "cagr": 9.28
+          },
+          {
+            "start_date": "2006-09-01",
+            "cagr": 9.14
+          },
+          {
+            "start_date": "2006-10-02",
+            "cagr": 9.18
+          },
+          {
+            "start_date": "2006-11-01",
+            "cagr": 8.67
+          },
+          {
+            "start_date": "2006-12-01",
+            "cagr": 8.18
+          },
+          {
+            "start_date": "2007-01-03",
+            "cagr": 8.5
+          },
+          {
+            "start_date": "2007-02-01",
+            "cagr": 8.59
+          },
+          {
+            "start_date": "2007-03-01",
+            "cagr": 9.15
+          },
+          {
+            "start_date": "2007-04-02",
+            "cagr": 9.08
+          },
+          {
+            "start_date": "2007-05-01",
+            "cagr": 8.88
+          },
+          {
+            "start_date": "2007-06-01",
+            "cagr": 8.93
+          },
+          {
+            "start_date": "2007-07-02",
+            "cagr": 8.82
+          },
+          {
+            "start_date": "2007-08-01",
+            "cagr": 9.18
+          },
+          {
+            "start_date": "2007-09-04",
+            "cagr": 9.09
+          },
+          {
+            "start_date": "2007-10-01",
+            "cagr": 8.58
+          },
+          {
+            "start_date": "2007-11-01",
+            "cagr": 8.64
+          },
+          {
+            "start_date": "2007-12-03",
+            "cagr": 9.07
+          },
+          {
+            "start_date": "2008-01-02",
+            "cagr": 9.23
+          },
+          {
+            "start_date": "2008-02-01",
+            "cagr": 9.99
+          },
+          {
+            "start_date": "2008-03-03",
+            "cagr": 9.59
+          },
+          {
+            "start_date": "2008-04-01",
+            "cagr": 9.61
+          },
+          {
+            "start_date": "2008-05-01",
+            "cagr": 9.7
+          },
+          {
+            "start_date": "2008-06-02",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "2008-07-01",
+            "cagr": 9.86
+          },
+          {
+            "start_date": "2008-08-01",
+            "cagr": 10.09
+          },
+          {
+            "start_date": "2008-09-02",
+            "cagr": 10.58
+          },
+          {
+            "start_date": "2008-10-01",
+            "cagr": 10.38
+          },
+          {
+            "start_date": "2008-11-03",
+            "cagr": 10.07
+          },
+          {
+            "start_date": "2008-12-01",
+            "cagr": 9.49
+          },
+          {
+            "start_date": "2009-01-02",
+            "cagr": 9.07
+          },
+          {
+            "start_date": "2009-02-02",
+            "cagr": 9.2
+          },
+          {
+            "start_date": "2009-03-02",
+            "cagr": 9.13
+          },
+          {
+            "start_date": "2009-04-01",
+            "cagr": 9.25
+          },
+          {
+            "start_date": "2009-05-01",
+            "cagr": 9.68
+          },
+          {
+            "start_date": "2009-06-01",
+            "cagr": 9.17
+          },
+          {
+            "start_date": "2009-07-01",
+            "cagr": 10.0
+          },
+          {
+            "start_date": "2009-08-03",
+            "cagr": 9.34
+          },
+          {
+            "start_date": "2009-09-01",
+            "cagr": 9.61
+          },
+          {
+            "start_date": "2009-10-01",
+            "cagr": 9.12
+          },
+          {
+            "start_date": "2009-11-02",
+            "cagr": 9.44
+          },
+          {
+            "start_date": "2009-12-01",
+            "cagr": 8.89
+          },
+          {
+            "start_date": "2010-01-04",
+            "cagr": 9.16
+          },
+          {
+            "start_date": "2010-02-01",
+            "cagr": 9.77
+          },
+          {
+            "start_date": "2010-03-01",
+            "cagr": 9.03
+          },
+          {
+            "start_date": "2010-04-01",
+            "cagr": 8.21
+          },
+          {
+            "start_date": "2010-05-03",
+            "cagr": 7.96
+          },
+          {
+            "start_date": "2010-06-01",
+            "cagr": 8.94
+          },
+          {
+            "start_date": "2010-07-01",
+            "cagr": 9.44
+          },
+          {
+            "start_date": "2010-08-02",
+            "cagr": 10.18
+          },
+          {
+            "start_date": "2010-09-01",
+            "cagr": 10.66
+          },
+          {
+            "start_date": "2010-10-01",
+            "cagr": 10.1
+          },
+          {
+            "start_date": "2010-11-01",
+            "cagr": 9.37
+          },
+          {
+            "start_date": "2010-12-01",
+            "cagr": 10.08
+          },
+          {
+            "start_date": "2011-01-03",
+            "cagr": 10.04
+          },
+          {
+            "start_date": "2011-02-01",
+            "cagr": 9.96
+          },
+          {
+            "start_date": "2011-03-01",
+            "cagr": 9.73
+          },
+          {
+            "start_date": "2011-04-01",
+            "cagr": 9.72
+          },
+          {
+            "start_date": "2011-05-02",
+            "cagr": 9.74
+          },
+          {
+            "start_date": "2011-06-01",
+            "cagr": 9.99
+          },
+          {
+            "start_date": "2011-07-01",
+            "cagr": 10.29
+          },
+          {
+            "start_date": "2011-08-01",
+            "cagr": 10.49
+          },
+          {
+            "start_date": "2011-09-01",
+            "cagr": 11.05
+          },
+          {
+            "start_date": "2011-10-03",
+            "cagr": 10.54
+          },
+          {
+            "start_date": "2011-11-01",
+            "cagr": 11.09
+          },
+          {
+            "start_date": "2011-12-01",
+            "cagr": 11.07
+          },
+          {
+            "start_date": "2012-01-03",
+            "cagr": 11.49
+          },
+          {
+            "start_date": "2012-02-01",
+            "cagr": 10.37
+          },
+          {
+            "start_date": "2012-03-01",
+            "cagr": 9.97
+          },
+          {
+            "start_date": "2012-04-02",
+            "cagr": 9.49
+          },
+          {
+            "start_date": "2012-05-01",
+            "cagr": 9.37
+          },
+          {
+            "start_date": "2012-06-01",
+            "cagr": 9.85
+          },
+          {
+            "start_date": "2012-07-02",
+            "cagr": 9.37
+          },
+          {
+            "start_date": "2012-08-01",
+            "cagr": 9.32
+          },
+          {
+            "start_date": "2012-09-04",
+            "cagr": 8.76
+          },
+          {
+            "start_date": "2012-10-01",
+            "cagr": 8.41
+          },
+          {
+            "start_date": "2012-11-01",
+            "cagr": 8.59
+          },
+          {
+            "start_date": "2012-12-03",
+            "cagr": 8.93
+          },
+          {
+            "start_date": "2013-01-02",
+            "cagr": 8.68
+          },
+          {
+            "start_date": "2013-02-01",
+            "cagr": 8.84
+          },
+          {
+            "start_date": "2013-03-01",
+            "cagr": 8.33
+          },
+          {
+            "start_date": "2013-04-01",
+            "cagr": 8.87
+          },
+          {
+            "start_date": "2013-05-01",
+            "cagr": 8.8
+          },
+          {
+            "start_date": "2013-06-03",
+            "cagr": 9.12
+          },
+          {
+            "start_date": "2013-07-01",
+            "cagr": 9.81
+          },
+          {
+            "start_date": "2013-08-01",
+            "cagr": 9.53
+          },
+          {
+            "start_date": "2013-09-03",
+            "cagr": 9.46
+          },
+          {
+            "start_date": "2013-10-01",
+            "cagr": 8.66
+          },
+          {
+            "start_date": "2013-11-01",
+            "cagr": 8.32
+          },
+          {
+            "start_date": "2013-12-02",
+            "cagr": 9.14
+          },
+          {
+            "start_date": "2014-01-02",
+            "cagr": 9.33
+          },
+          {
+            "start_date": "2014-02-03",
+            "cagr": 9.84
+          },
+          {
+            "start_date": "2014-03-03",
+            "cagr": 9.55
+          },
+          {
+            "start_date": "2014-04-01",
+            "cagr": 9.76
+          },
+          {
+            "start_date": "2014-05-01",
+            "cagr": 9.37
+          },
+          {
+            "start_date": "2014-06-02",
+            "cagr": 9.67
+          },
+          {
+            "start_date": "2014-07-01",
+            "cagr": 9.72
+          },
+          {
+            "start_date": "2014-08-01",
+            "cagr": 9.8
+          },
+          {
+            "start_date": "2014-09-02",
+            "cagr": 9.77
+          },
+          {
+            "start_date": "2014-10-01",
+            "cagr": 10.24
+          },
+          {
+            "start_date": "2014-11-03",
+            "cagr": 9.96
+          },
+          {
+            "start_date": "2014-12-01",
+            "cagr": 10.06
+          },
+          {
+            "start_date": "2015-01-02",
+            "cagr": 9.85
+          },
+          {
+            "start_date": "2015-02-02",
+            "cagr": 10.0
+          },
+          {
+            "start_date": "2015-03-02",
+            "cagr": 9.71
+          },
+          {
+            "start_date": "2015-04-01",
+            "cagr": 9.59
+          },
+          {
+            "start_date": "2015-05-01",
+            "cagr": 8.91
+          },
+          {
+            "start_date": "2015-06-01",
+            "cagr": 8.84
+          },
+          {
+            "start_date": "2015-07-01",
+            "cagr": 9.53
+          },
+          {
+            "start_date": "2015-08-03",
+            "cagr": 9.45
+          },
+          {
+            "start_date": "2015-09-01",
+            "cagr": 10.32
+          },
+          {
+            "start_date": "2015-10-01",
+            "cagr": 10.94
+          },
+          {
+            "start_date": "2015-11-02",
+            "cagr": 11.23
+          },
+          {
+            "start_date": "2015-12-01",
+            "cagr": 11.29
+          },
+          {
+            "start_date": "2016-01-04",
+            "cagr": 11.51
+          },
+          {
+            "start_date": "2016-02-01",
+            "cagr": 11.92
+          },
+          {
+            "start_date": "2016-03-01",
+            "cagr": 11.85
+          },
+          {
+            "start_date": "2016-04-01",
+            "cagr": 11.15
+          },
+          {
+            "start_date": "2016-05-02",
+            "cagr": 11.75
+          },
+          {
+            "start_date": "2016-06-01",
+            "cagr": 12.19
+          },
+          {
+            "start_date": "2016-07-01",
+            "cagr": 11.65
+          },
+          {
+            "start_date": "2016-08-01",
+            "cagr": 10.99
+          },
+          {
+            "start_date": "2016-09-01",
+            "cagr": 11.3
+          },
+          {
+            "start_date": "2016-10-03",
+            "cagr": 11.39
+          },
+          {
+            "start_date": "2016-11-01",
+            "cagr": 11.25
+          }
+        ],
+        "count": 365,
+        "min_cagr": 5.87,
+        "min_start_date": "1986-07-16",
+        "p10_cagr": 8.35,
+        "median_cagr": 9.96,
+        "negative_count": 0
+      }
+    ],
+    "concentration": {
+      "year_count": 41,
+      "positive_years": 32,
+      "negative_years": 9,
+      "median_pct": 10.71,
+      "mean_pct": 9.82,
+      "top_years": [
+        1999,
+        1995,
+        1991
+      ],
+      "top3_share_pct": 22.8,
+      "mean_without_top3_pct": 7.58,
+      "mean_without_top5_pct": 6.46
+    }
+  },
+  "yearly_asset_contributions": [
+    {
+      "year": 1986,
+      "return_pct": -3.77,
+      "assets": {
+        "spy": -2.87,
+        "qqq": -3.43,
+        "gld": 2.1,
+        "tlt": 0.43
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1987,
+      "return_pct": -4.91,
+      "assets": {
+        "spy": -3.94,
+        "qqq": -3.66,
+        "gld": 3.21,
+        "tlt": -0.53
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1988,
+      "return_pct": -3.26,
+      "assets": {
+        "spy": 1.18,
+        "qqq": -3.39,
+        "gld": -2.32,
+        "tlt": 1.27
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1989,
+      "return_pct": 18.8,
+      "assets": {
+        "spy": 10.19,
+        "qqq": 5.87,
+        "gld": -0.04,
+        "tlt": 2.78
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1990,
+      "return_pct": -9.91,
+      "assets": {
+        "spy": -2.51,
+        "qqq": -7.79,
+        "gld": -0.31,
+        "tlt": 0.7
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1991,
+      "return_pct": 23.73,
+      "assets": {
+        "spy": 7.36,
+        "qqq": 15.2,
+        "gld": -1.58,
+        "tlt": 2.75
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1992,
+      "return_pct": 1.76,
+      "assets": {
+        "spy": 2.96,
+        "qqq": -0.71,
+        "gld": -0.84,
+        "tlt": 0.35
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1993,
+      "return_pct": 13.37,
+      "assets": {
+        "spy": 3.35,
+        "qqq": 3.95,
+        "gld": 2.64,
+        "tlt": 3.42
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1994,
+      "return_pct": -2.72,
+      "assets": {
+        "spy": 0.38,
+        "qqq": -1.81,
+        "gld": -0.36,
+        "tlt": -0.94
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1995,
+      "return_pct": 31.22,
+      "assets": {
+        "spy": 12.56,
+        "qqq": 13.96,
+        "gld": 0.13,
+        "tlt": 4.58
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1996,
+      "return_pct": 22.61,
+      "assets": {
+        "spy": 8.77,
+        "qqq": 14.51,
+        "gld": -0.79,
+        "tlt": 0.12
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1997,
+      "return_pct": 14.33,
+      "assets": {
+        "spy": 10.83,
+        "qqq": 5.43,
+        "gld": -3.94,
+        "tlt": 2.01
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1998,
+      "return_pct": 18.05,
+      "assets": {
+        "spy": 2.92,
+        "qqq": 13.32,
+        "gld": -0.25,
+        "tlt": 2.08
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 1999,
+      "return_pct": 36.88,
+      "assets": {
+        "spy": 7.57,
+        "qqq": 30.41,
+        "gld": 0.28,
+        "tlt": -1.38
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2000,
+      "return_pct": -6.63,
+      "assets": {
+        "spy": -1.96,
+        "qqq": -6.45,
+        "gld": -0.93,
+        "tlt": 2.71
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2001,
+      "return_pct": 1.1,
+      "assets": {
+        "spy": 0.0,
+        "qqq": 0.0,
+        "gld": 0.31,
+        "tlt": 0.79
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2002,
+      "return_pct": 6.15,
+      "assets": {
+        "spy": 0.0,
+        "qqq": 0.0,
+        "gld": 3.55,
+        "tlt": 2.6
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2003,
+      "return_pct": 23.31,
+      "assets": {
+        "spy": 7.98,
+        "qqq": 11.81,
+        "gld": 3.16,
+        "tlt": 0.36
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2004,
+      "return_pct": 5.51,
+      "assets": {
+        "spy": 3.74,
+        "qqq": -0.18,
+        "gld": 0.73,
+        "tlt": 1.22
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2005,
+      "return_pct": 6.53,
+      "assets": {
+        "spy": 1.58,
+        "qqq": 1.17,
+        "gld": 2.53,
+        "tlt": 1.25
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2006,
+      "return_pct": 8.36,
+      "assets": {
+        "spy": 5.43,
+        "qqq": -0.75,
+        "gld": 3.46,
+        "tlt": 0.22
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2007,
+      "return_pct": 14.64,
+      "assets": {
+        "spy": 1.84,
+        "qqq": 6.53,
+        "gld": 4.58,
+        "tlt": 1.69
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2008,
+      "return_pct": 0.92,
+      "assets": {
+        "spy": -1.78,
+        "qqq": -3.48,
+        "gld": 1.51,
+        "tlt": 4.66
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2009,
+      "return_pct": 15.69,
+      "assets": {
+        "spy": 6.31,
+        "qqq": 9.39,
+        "gld": 3.58,
+        "tlt": -3.59
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2010,
+      "return_pct": 9.3,
+      "assets": {
+        "spy": 1.25,
+        "qqq": 2.42,
+        "gld": 4.07,
+        "tlt": 1.55
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2011,
+      "return_pct": 3.82,
+      "assets": {
+        "spy": -0.97,
+        "qqq": -2.02,
+        "gld": 1.9,
+        "tlt": 4.92
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2012,
+      "return_pct": 10.71,
+      "assets": {
+        "spy": 4.18,
+        "qqq": 4.88,
+        "gld": 1.0,
+        "tlt": 0.64
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2013,
+      "return_pct": 15.54,
+      "assets": {
+        "spy": 10.71,
+        "qqq": 12.11,
+        "gld": -5.02,
+        "tlt": -2.26
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2014,
+      "return_pct": 15.05,
+      "assets": {
+        "spy": 4.71,
+        "qqq": 6.66,
+        "gld": -0.34,
+        "tlt": 4.02
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2015,
+      "return_pct": -3.82,
+      "assets": {
+        "spy": -1.44,
+        "qqq": -0.66,
+        "gld": -1.62,
+        "tlt": -0.1
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2016,
+      "return_pct": 4.29,
+      "assets": {
+        "spy": 3.12,
+        "qqq": -0.49,
+        "gld": 1.36,
+        "tlt": 0.29
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2017,
+      "return_pct": 22.38,
+      "assets": {
+        "spy": 7.7,
+        "qqq": 11.38,
+        "gld": 1.9,
+        "tlt": 1.4
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2018,
+      "return_pct": -0.03,
+      "assets": {
+        "spy": -0.59,
+        "qqq": 0.95,
+        "gld": -0.21,
+        "tlt": -0.18
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2019,
+      "return_pct": 17.65,
+      "assets": {
+        "spy": 5.8,
+        "qqq": 6.9,
+        "gld": 2.69,
+        "tlt": 2.26
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2020,
+      "return_pct": 18.79,
+      "assets": {
+        "spy": 2.35,
+        "qqq": 10.36,
+        "gld": 3.45,
+        "tlt": 2.62
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2021,
+      "return_pct": 17.9,
+      "assets": {
+        "spy": 9.65,
+        "qqq": 9.33,
+        "gld": -0.57,
+        "tlt": -0.52
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2022,
+      "return_pct": -12.94,
+      "assets": {
+        "spy": -4.21,
+        "qqq": -4.06,
+        "gld": 0.1,
+        "tlt": -4.77
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2023,
+      "return_pct": 21.09,
+      "assets": {
+        "spy": 6.22,
+        "qqq": 12.09,
+        "gld": 1.99,
+        "tlt": 0.8
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2024,
+      "return_pct": 20.14,
+      "assets": {
+        "spy": 8.54,
+        "qqq": 8.94,
+        "gld": 3.89,
+        "tlt": -1.23
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2025,
+      "return_pct": 11.08,
+      "assets": {
+        "spy": 1.67,
+        "qqq": 0.78,
+        "gld": 8.0,
+        "tlt": 0.63
+      },
+      "other_pct": 0.0
+    },
+    {
+      "year": 2026,
+      "return_pct": 0.08,
+      "assets": {
+        "spy": 3.06,
+        "qqq": -2.08,
+        "gld": -0.41,
+        "tlt": -0.49
+      },
+      "other_pct": 0.0
+    }
   ]
 }

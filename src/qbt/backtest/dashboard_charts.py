@@ -1,7 +1,7 @@
 """대시보드 차트 생성 모듈
 
 단일 · 포트폴리오 · 워크포워드 대시보드가 같은 모양으로 그리는 차트를 만든다 —
-lightweight-charts 캔들 차트의 패널 설정과 월별 수익률 히트맵(Plotly 그림).
+lightweight-charts 캔들 차트의 패널 설정, 월별 수익률 히트맵(Plotly 그림), 구간별 성과의 표와 그림.
 Streamlit 과 차트 컴포넌트는 import 하지 않는다. 컴포넌트 호출과 화면 배치는 각 앱이 한다.
 """
 
@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 
 import pandas as pd
 import plotly.graph_objects as go
+from pandas.io.formats.style import Styler
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import (
@@ -22,6 +23,7 @@ from qbt.backtest.constants import (
     COL_LOWER_BAND,
     COL_PNL_PCT,
     COL_UPPER_BAND,
+    KOREAN_DATE_AXIS,
 )
 from qbt.backtest.csv_export import OHLC_CHANGE_PCT_COLUMNS
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN
@@ -66,7 +68,8 @@ _CHART_THEME: dict[str, object] = {
         "horzLine": {"color": "rgba(255, 255, 255, 0.3)", "style": 2},
     },
     "timeScale": {"minBarSpacing": 0.2},
-    "localization": {"dateFormat": "yyyy-MM-dd"},
+    # 라이브러리가 locale 로 눈금 월 이름을 그림 — 기본값은 브라우저 언어라 영문 브라우저에서 "Jan"
+    "localization": {"dateFormat": "yyyy-MM-dd", "locale": "ko-KR"},
 }
 
 # 캔들 툴팁에 넣는 겹침 표의 열 — (열, 툴팁 키, 표기). 표에 있는 열만 넣는다
@@ -79,6 +82,16 @@ _OVERLAY_TOOLTIPS: tuple[tuple[str, str, Callable[[float], str]], ...] = (
 
 _MONTH_LABELS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
 _HEATMAP_COLORSCALE = [[0.0, _COLOR_DOWN], [0.5, "rgb(255, 255, 255)"], [1.0, _COLOR_UP]]
+
+_TOP_LEGEND: dict[str, object] = {"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1}
+_ROLLING_CHART_HEIGHT = 320
+_CONTRIBUTION_CHART_HEIGHT = 360
+_COLOR_ROLLING_LINES = ("#2196F3", "#E65100")
+_COLOR_BASELINE = "rgba(128, 128, 128, 0.6)"
+_COLOR_OTHER = "rgb(158, 158, 158)"
+_COLOR_YEAR_RETURN_MARKER = "#37474F"
+# 저장 자릿수보다 작은 차이는 반올림 잔여 → 「기타」를 그리지 않음
+_OTHER_VISIBLE_PCT = 0.01
 
 
 class ChartPane(TypedDict):
@@ -140,7 +153,13 @@ def _candle_data(signal_df: pd.DataFrame, overlay_df: pd.DataFrame, ma_col: str 
     candles: list[dict[str, object]] = []
     for i, time in enumerate(_time_strings(signal_df[COL_DATE])):
         open_, high, low, close = (float(values[i]) for values in ohlc)
-        tooltip = {"open": f"{open_:.2f}", "high": f"{high:.2f}", "low": f"{low:.2f}", "close": f"{close:.2f}"}
+        tooltip = {
+            "date": time,
+            "open": f"{open_:.2f}",
+            "high": f"{high:.2f}",
+            "low": f"{low:.2f}",
+            "close": f"{close:.2f}",
+        }
         for col, values in pcts.items():
             if pd.notna(values[i]):
                 tooltip[col] = f"{float(values[i]):+.2f}"
@@ -165,6 +184,12 @@ def _overlay_line(df: pd.DataFrame, col: str, color: str, *, dashed: bool) -> di
     if dashed:
         options["lineStyle"] = 2
     return {"type": "Line", "data": data, "options": options}
+
+
+def signal_chart_title(trade_ticker: str, signal_ticker: str | None = None) -> str:
+    """시그널 패널 제목 — 캔들은 신호 시세라 매매 종목과 다르면 신호 종목을 함께 적는다."""
+    title = f"{trade_ticker} 시그널 차트"
+    return title if signal_ticker in (None, trade_ticker) else f"{title} (신호: {signal_ticker})"
 
 
 def build_price_pane(
@@ -371,3 +396,199 @@ def build_monthly_heatmap(
         margin={"r": 120},
     )
     return fig
+
+
+def _period_text(row: Mapping[str, Any]) -> str:
+    return f"{row['start_date']} ~ {row['end_date']}"
+
+
+def style_period_table(table: pd.DataFrame) -> Styler:
+    """구간별 성과 표의 숫자를 소수 둘째 자리로 표시한다."""
+    return table.style.format(precision=2)
+
+
+def build_split_table(splits: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    """기간 나눠 보기 표. 인자는 `period_performance` 의 `splits`."""
+    return pd.DataFrame(
+        [
+            {
+                "구간": row["label"],
+                "기간": _period_text(row),
+                "연 수익 (%)": row["cagr"],
+                "최악 낙폭 (%)": row["mdd"],
+                "총 수익률 (%)": row["total_return_pct"],
+            }
+            for row in splits
+        ]
+    )
+
+
+def build_regime_table(regimes: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    """하락장 · 횡보장 표. 인자는 `period_performance` 의 `regimes`. 신호 시세가 있는 결과에만 그 열을 둔다."""
+    has_signal = any(row["signal_return_pct"] is not None for row in regimes)
+    rows: list[dict[str, Any]] = []
+    for regime in regimes:
+        row: dict[str, Any] = {
+            "종류": regime["kind"],
+            "국면": regime["label"],
+            "기간": _period_text(regime),
+            "수익률 (%)": regime["return_pct"],
+            "최악 낙폭 (%)": regime["mdd"],
+        }
+        if has_signal:
+            row["신호 시세 등락 (%)"] = regime["signal_return_pct"]
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def build_rolling_table(rolling: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
+    """시작 달 바꿔 보기 요약 표. 인자는 `period_performance` 의 `rolling`."""
+    return pd.DataFrame(
+        [
+            {
+                "보유 기간": f"{horizon['years']}년",
+                "경우의 수": horizon["count"],
+                "최저 (%)": horizon["min_cagr"],
+                "최저일 때 시작일": horizon["min_start_date"],
+                "하위 10% (%)": horizon["p10_cagr"],
+                "중앙 (%)": horizon["median_cagr"],
+                "마이너스 횟수": horizon["negative_count"],
+            }
+            for horizon in rolling
+        ]
+    )
+
+
+def build_rolling_chart(rolling: Sequence[Mapping[str, Any]]) -> go.Figure:
+    """시작 달별 보유 연 수익 선 그래프. 인자는 `period_performance` 의 `rolling` (경우가 없는 보유 기간은 그리지 않는다)."""
+    fig = go.Figure()
+    for i, horizon in enumerate(rolling):
+        points = horizon["points"]
+        if not points:
+            continue
+        label = f"{horizon['years']}년 보유"
+        fig.add_trace(
+            go.Scatter(
+                x=[point["start_date"] for point in points],
+                y=[point["cagr"] for point in points],
+                mode="lines",
+                name=label,
+                line={"color": _COLOR_ROLLING_LINES[i % len(_COLOR_ROLLING_LINES)], "width": 2},
+                hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>",
+            )
+        )
+    fig.add_hline(y=0, line_color=_COLOR_BASELINE, line_width=1)
+    fig.update_layout(
+        xaxis_title="시작한 달",
+        yaxis_title="연 수익 (%)",
+        height=_ROLLING_CHART_HEIGHT,
+        hovermode="x unified",
+        legend=_TOP_LEGEND,
+    )
+    fig.update_xaxes(type="date", **KOREAN_DATE_AXIS)
+    return fig
+
+
+def build_concentration_table(concentration: Mapping[str, Any]) -> pd.DataFrame:
+    """수익 쏠림 표 (한 줄). 인자는 `period_performance` 의 `concentration`."""
+    return pd.DataFrame(
+        [
+            {
+                "플러스인 해": concentration["positive_years"],
+                "마이너스인 해": concentration["negative_years"],
+                "중앙값 (%)": concentration["median_pct"],
+                "평균 (%)": concentration["mean_pct"],
+                "최고 3개 해": " · ".join(str(year) for year in concentration["top_years"]),
+                "최고 3개 해의 몫 (%)": concentration["top3_share_pct"],
+                "최고 3개 해를 0% 로 바꾼 평균 (%)": concentration["mean_without_top3_pct"],
+                "최고 5개 해를 0% 로 바꾼 평균 (%)": concentration["mean_without_top5_pct"],
+            }
+        ]
+    )
+
+
+def build_yearly_contribution_chart(yearly: Sequence[Mapping[str, Any]], colors: Mapping[str, str]) -> go.Figure:
+    """해마다 자산별 기여(%p) 누적 막대와 그해 수익률 점.
+
+    Args:
+        yearly: `summary.json` 의 `yearly_asset_contributions`
+        colors: 자산 키 → 색. 같은 탭의 비중 그림과 같은 색을 넘긴다
+    """
+    years = [str(row["year"]) for row in yearly]
+    fig = go.Figure()
+    for asset_id, color in colors.items():
+        label = asset_id.upper()
+        fig.add_trace(
+            go.Bar(
+                x=years,
+                y=[row["assets"][asset_id] for row in yearly],
+                name=label,
+                marker_color=color,
+                hovertemplate=f"{label}: %{{y:+.2f}}%p<extra></extra>",
+            )
+        )
+    others = [row["other_pct"] for row in yearly]
+    if any(abs(value) >= _OTHER_VISIBLE_PCT for value in others):
+        fig.add_trace(
+            go.Bar(
+                x=years,
+                y=others,
+                name="기타",
+                marker_color=_COLOR_OTHER,
+                hovertemplate="기타: %{y:+.2f}%p<extra></extra>",
+            )
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=[row["return_pct"] for row in yearly],
+            mode="markers",
+            name="그해 수익률",
+            marker={"color": _COLOR_YEAR_RETURN_MARKER, "size": 8, "line": {"color": "white", "width": 1.5}},
+            hovertemplate="그해 수익률: %{y:+.2f}%<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        barmode="relative",
+        bargap=0.25,
+        height=_CONTRIBUTION_CHART_HEIGHT,
+        xaxis={"type": "category", "title": "해"},
+        yaxis_title="그해 수익 기여 (%p)",
+        hovermode="x unified",
+        legend=_TOP_LEGEND,
+    )
+    return fig
+
+
+def build_split_comparison_table(named: Sequence[tuple[str, Mapping[str, Any]]], value_key: str) -> pd.DataFrame:
+    """실험 × 기간 표.
+
+    Args:
+        named: (실험 표시 이름, `period_performance`)
+        value_key: 칸에 넣을 값 — `cagr` 또는 `mdd`
+    """
+    return pd.DataFrame(
+        [{"실험": name, **{row["label"]: row[value_key] for row in perf["splits"]}} for name, perf in named]
+    )
+
+
+def build_regime_comparison_table(named: Sequence[tuple[str, Mapping[str, Any]]]) -> pd.DataFrame:
+    """실험 × 국면 수익률 표. 인자는 (실험 표시 이름, `period_performance`)."""
+    return pd.DataFrame(
+        [{"실험": name, **{row["label"]: row["return_pct"] for row in perf["regimes"]}} for name, perf in named]
+    )
+
+
+def build_consistency_table(named: Sequence[tuple[str, Mapping[str, Any]]]) -> pd.DataFrame:
+    """실험별 꾸준함 표 — 시작 달을 바꿔 본 보유 연 수익과 최고 3개 해의 몫. 인자는 (실험 표시 이름, `period_performance`)."""
+    rows: list[dict[str, Any]] = []
+    for name, perf in named:
+        row: dict[str, Any] = {"실험": name}
+        for horizon in perf["rolling"]:
+            years = horizon["years"]
+            row[f"{years}년 보유 최저 (%)"] = horizon["min_cagr"]
+            row[f"{years}년 보유 중앙 (%)"] = horizon["median_cagr"]
+            row[f"{years}년 보유 마이너스 횟수"] = f"{horizon['negative_count']} / {horizon['count']}"
+        row["최고 3개 해의 몫 (%)"] = perf["concentration"]["top3_share_pct"]
+        rows.append(row)
+    return pd.DataFrame(rows)

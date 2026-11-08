@@ -1,8 +1,8 @@
 """포트폴리오 비교 대시보드
 
 포트폴리오 실험 결과를 비교한다.
-전체 비교 탭에서 에쿼티 곡선·드로우다운·성과 지표를 나란히 보고,
-실험별 탭에서 자산 비중 추이·시그널 차트·수익 기여도를 상세 확인한다.
+전체 비교 탭에서 성과 지표 · 구간별 비교 · 에쿼티 곡선 · 드로우다운을 나란히 보고,
+실험별 탭에서 요약 지표 · 시그널 차트 · 에쿼티 / 드로우다운 / 자산별 비중 · 구간별 성과 · 월별 수익률 · 자산별 손익 분해를 본다.
 
 선행 스크립트:
     poetry run python scripts/backtest/run_portfolio_backtest.py
@@ -14,9 +14,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import plotly.colors as pc
@@ -26,7 +27,15 @@ from lightweight_charts_v5 import lightweight_charts_v5_component
 from plotly.subplots import make_subplots
 
 from qbt.backtest.constants import (
+    DISPLAY_NO_DATA,
+    DISPLAY_PERIOD_CAPTION_CONCENTRATION,
+    DISPLAY_PERIOD_CAPTION_REGIMES,
+    DISPLAY_PERIOD_CAPTION_ROLLING,
+    DISPLAY_PERIOD_CAPTION_SPLITS,
     EQUITY_FILENAME,
+    KEY_PERIOD_PERFORMANCE,
+    KEY_YEARLY_ASSET_CONTRIBUTIONS,
+    KOREAN_DATE_AXIS,
     LEDGER_FILENAME,
     PORTFOLIO_SIGNAL_PREFIX,
     REBALANCE_REASON_METHODS,
@@ -36,12 +45,24 @@ from qbt.backtest.constants import (
     TRADES_FILENAME,
 )
 from qbt.backtest.dashboard_charts import (
+    build_concentration_table,
+    build_consistency_table,
     build_monthly_heatmap,
     build_price_pane,
+    build_regime_comparison_table,
+    build_regime_table,
+    build_rolling_chart,
+    build_rolling_table,
+    build_split_comparison_table,
+    build_split_table,
     build_trade_markers,
+    build_yearly_contribution_chart,
     chart_component_args,
+    signal_chart_title,
+    style_period_table,
 )
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS
+from qbt.utils.data_loader import ticker_from_stock_path
 
 # ============================================================
 # 로컬 상수 (이 파일에서만 사용)
@@ -76,6 +97,17 @@ _REBALANCE_REASON_LABELS: dict[str, str] = {
 # 신규 자산이나 실험이 추가되어도 코드 수정 없이 자동으로 구분되는 색을 받는다.
 # 팔레트 길이를 초과하면 wrap-around(% len)로 순환한다.
 _COLOR_PALETTE: tuple[str, ...] = tuple(pc.qualitative.Light24)
+
+# --- 시그널 차트 선택 순서: 신호 시세가 이 종목인 자산 먼저 (나머지는 자산 키 순) ---
+_SIGNAL_TICKER_ORDER: dict[str, int] = {"QQQ": 0, "SPY": 1}
+
+# --- 구간별 성과 설명 ---
+_CAPTION_CONSISTENCY = (
+    "최저 · 중앙은 시작 달을 한 달씩 옮겨 가며 잰 보유 연 수익입니다. 마이너스 횟수는 전체 경우 중 손실로 끝난 경우의 수이고, " "몫은 가장 좋았던 세 해의 수익률 합 ÷ 모든 해의 수익률 합입니다."
+)
+_CAPTION_YEARLY_CONTRIBUTION = (
+    "해마다 막대 하나입니다. 색 칸은 자산별로 그해 번 비율(%p, 직전 연말 계좌 대비)이고 점은 그해 수익률입니다. " "금액이 아니라 비율이라 과거 해도 같은 눈금으로 읽힙니다."
+)
 
 
 # ============================================================
@@ -270,6 +302,27 @@ def _get_asset_ids_from_equity(equity_df: pd.DataFrame) -> list[str]:
     return [_asset_id_from_weight_col(c) for c in _weight_columns(equity_df)]
 
 
+def _slot_tickers(summary: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    """{자산 키: (매매 종목, 신호 종목)}. 매매법이 여럿인 실험은 자산 키가 「매매법.종목」이라 여기 없다."""
+    return {
+        str(slot["asset_id"]): (
+            ticker_from_stock_path(Path(slot["trade_data_path"])),
+            ticker_from_stock_path(Path(slot["signal_data_path"])),
+        )
+        for slot in summary["portfolio_config"]["asset_slots"]
+    }
+
+
+def _ordered_signal_assets(asset_ids: Iterable[str], tickers: dict[str, tuple[str, str]]) -> list[str]:
+    """시그널 차트 선택 순서 — 신호 시세가 QQQ 인 자산 → SPY 인 자산 → 나머지, 같은 순위 안에서는 자산 키 순."""
+
+    def rank(asset_id: str) -> tuple[int, str]:
+        signal_ticker = tickers[asset_id][1] if asset_id in tickers else ""
+        return (_SIGNAL_TICKER_ORDER.get(signal_ticker, len(_SIGNAL_TICKER_ORDER)), asset_id)
+
+    return sorted(asset_ids, key=rank)
+
+
 def _method_display_names(summary: dict[str, Any]) -> dict[str, str]:
     """summary.json 의 per_method 에서 {method_id: 표시 이름} 을 만든다 (매매법이 여럿인 실험만)."""
     return {str(m["method_id"]): str(m["display_name"]) for m in summary["per_method"]}
@@ -288,18 +341,13 @@ def _render_monthly_returns_section(exp: _ExperimentData) -> None:
 
 
 # ============================================================
-# 자산별 수익 기여도 (Asset Contribution)
+# 자산별 손익 분해
 # ============================================================
 
 
-def _render_contribution_section(exp: _ExperimentData) -> None:
-    """자산별 수익 기여도를 실현+미실현 손익 기반으로 표시한다.
-
-    총 기여도 = 누적 실현손익 + 미실현손익이며, 엔진(`build_combined_equity`)이
-    `{asset_id}_contribution` 컬럼으로 계산해 equity CSV에 저장한다.
-    매도 후에도 실현손익이 유지되어 자산별 기여 이력이 끊기지 않는다.
-    """
-    st.subheader("자산별 수익 기여도")
+def _render_pnl_breakdown_section(exp: _ExperimentData) -> None:
+    """최종일의 자산별 손익을 실현 · 미실현으로 나눠 표시한다."""
+    st.subheader("자산별 손익 분해")
 
     equity_df = exp.equity_df
     if equity_df.empty:
@@ -307,93 +355,6 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         return
 
     asset_ids = _get_asset_ids_from_equity(equity_df)
-
-    # contribution 컬럼은 엔진이 사전 계산. 컬럼 부재 시 사용자가 재실행해야 한다.
-    missing = [f"{aid}_contribution" for aid in asset_ids if f"{aid}_contribution" not in equity_df.columns]
-    if missing:
-        st.error("기여도 컬럼이 누락되었습니다: " + ", ".join(missing) + ". run_portfolio_backtest.py를 재실행하세요.")
-        return
-
-    df = equity_df[["Date"]].copy()
-    contrib_cols: list[str] = []
-    for aid in asset_ids:
-        col = f"{aid}_contribution"
-        df[col] = equity_df[col].to_numpy()
-        contrib_cols.append(col)
-
-    df = df.set_index("Date")
-
-    # 분기별 기여도 변동분 (스택 바차트)
-    # 첫 분기는 직전 분기가 없으므로 그 분기 말 누적값이 곧 변동분이다 (기여도는 0 에서 출발)
-    quarterly = df[contrib_cols].resample("QE").last()
-    quarterly_diff = quarterly.diff().fillna(quarterly)
-
-    if quarterly_diff.empty:
-        st.info("분기별 기여도를 계산할 수 없습니다.")
-        return
-
-    fig_contrib = go.Figure()
-    quarter_labels = [f"{d.year}Q{(d.month - 1) // 3 + 1}" for d in quarterly_diff.index]
-    asset_ids_tuple = tuple(asset_ids)
-
-    for aid in asset_ids:
-        col = f"{aid}_contribution"
-        color = _palette_color(aid, asset_ids_tuple)
-        fig_contrib.add_trace(
-            go.Bar(
-                x=quarter_labels,
-                y=quarterly_diff[col].values,
-                name=aid.upper(),
-                marker_color=color,
-                hovertemplate=f"{aid.upper()}: %{{y:+,.0f}}원<extra></extra>",
-            )
-        )
-
-    fig_contrib.update_layout(
-        title="분기별 자산 기여도 (실현+미실현 손익 변동분)",
-        barmode="relative",
-        height=_SUB_CHART_HEIGHT,
-        xaxis_title="분기",
-        yaxis_title="기여 금액 (원)",
-        yaxis_hoverformat="+,.0f",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-    )
-    st.plotly_chart(fig_contrib, width="stretch", key=f"contrib_bar_{exp.experiment_name}")
-
-    # 누적 기여도 면적 차트 (실현+미실현 손익)
-    fig_cum = go.Figure()
-    for aid in asset_ids:
-        col = f"{aid}_contribution"
-        fill_color = _hex_to_rgba(_palette_color(aid, asset_ids_tuple), 0.6)
-
-        # stackgroup/hovermode=x unified 조합에서 d3-format(:+,.0f)이 불안정하게 적용되는
-        # 사례가 있어, Python 측에서 미리 포맷한 문자열을 text로 전달하고 %{text}를 참조한다.
-        # mode="lines"라 text가 라인 위에 표시되지 않고 hover 라벨 용도로만 쓰인다.
-        preformatted = [f"{v:+,.0f}" for v in df[col]]
-        fig_cum.add_trace(
-            go.Scatter(
-                x=df.index,
-                y=df[col],
-                mode="lines",
-                name=aid.upper(),
-                stackgroup="one",
-                line={"width": 0},
-                fillcolor=fill_color,
-                text=preformatted,
-                hovertemplate=f"{aid.upper()}: %{{text}}원<extra></extra>",
-            )
-        )
-
-    fig_cum.update_layout(
-        title="누적 자산별 기여도 (실현+미실현 손익)",
-        height=_SUB_CHART_HEIGHT,
-        xaxis_title="날짜",
-        yaxis_title="누적 기여 금액 (원)",
-        yaxis_hoverformat="+,.0f",
-        hovermode="x unified",
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-    )
-    st.plotly_chart(fig_cum, width="stretch", key=f"contrib_cum_{exp.experiment_name}")
 
     # 실현/미실현 분해 차트 (자산별 마지막 값 기준 수평 바)
     final_row = equity_df.iloc[-1]
@@ -432,7 +393,7 @@ def _render_contribution_section(exp: _ExperimentData) -> None:
         )
     )
     fig_decomp.update_layout(
-        title="자산별 손익 분해 (최종일 기준)",
+        title="최종일 기준 (실현 + 미실현)",
         barmode="stack",
         height=max(250, len(asset_ids) * 60 + 100),
         xaxis_title="손익 (원)",
@@ -493,6 +454,7 @@ def _render_method_section(exp: _ExperimentData) -> None:
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
+    fig_pnl.update_xaxes(**KOREAN_DATE_AXIS)
     st.plotly_chart(fig_pnl, width="stretch", key=f"method_pnl_{exp.experiment_name}")
 
     # 몫 추이와 목표 몫 — 임계값은 이 결과를 만든 실행의 값이다(상수를 바꾸고 다시 돌리기 전에도 그린 장부와 맞는다)
@@ -530,6 +492,7 @@ def _render_method_section(exp: _ExperimentData) -> None:
         hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
     )
+    fig_share.update_xaxes(**KOREAN_DATE_AXIS)
     st.plotly_chart(fig_share, width="stretch", key=f"method_share_{exp.experiment_name}")
 
     # 최종일 매매법 요약
@@ -609,8 +572,44 @@ def _render_method_section(exp: _ExperimentData) -> None:
 # ============================================================
 
 
+def _show_period_table(table: pd.DataFrame, *, height: Literal["auto", "content"] = "auto") -> None:
+    # 값이 없는 칸은 Styler 표기를 무시하고 placeholder 로 그려짐
+    st.dataframe(
+        style_period_table(table), hide_index=True, width="stretch", height=height, placeholder=DISPLAY_NO_DATA
+    )
+
+
+def _render_period_comparison_section(experiments: list[_ExperimentData]) -> None:
+    """실험 × 구간 표 — 같은 구간끼리 견준다. 값은 러너가 summary.json 에 저장한 것이다."""
+    st.subheader("구간별 비교")
+
+    named = [
+        (exp.display_name, exp.summary[KEY_PERIOD_PERFORMANCE])
+        for exp in experiments
+        if KEY_PERIOD_PERFORMANCE in exp.summary
+    ]
+    if len(named) < len(experiments):
+        st.warning("구간별 성과가 없는 실험이 있습니다. run_portfolio_backtest.py 를 다시 실행하세요.")
+    if not named:
+        return
+
+    st.caption(DISPLAY_PERIOD_CAPTION_SPLITS)
+    st.markdown("**기간별 연 수익 (%)**")
+    _show_period_table(build_split_comparison_table(named, "cagr"))
+    st.markdown("**기간별 최악 낙폭 (%)**")
+    _show_period_table(build_split_comparison_table(named, "mdd"))
+
+    st.markdown("**하락장 · 횡보장 수익률 (%)**")
+    st.caption(DISPLAY_PERIOD_CAPTION_REGIMES)
+    _show_period_table(build_regime_comparison_table(named))
+
+    st.markdown("**꾸준함 — 시작 달을 바꿔 본 보유 연 수익과 수익 쏠림**")
+    st.caption(_CAPTION_CONSISTENCY)
+    _show_period_table(build_consistency_table(named))
+
+
 def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
-    """전체 비교 탭 — 포트폴리오 실험의 성과 지표·에쿼티 곡선·드로우다운을 비교한다."""
+    """전체 비교 탭 — 포트폴리오 실험의 성과 지표 · 구간별 비교 · 에쿼티 곡선 · 드로우다운을 비교한다."""
 
     # ---- 성과 지표 비교 테이블 ----
     st.subheader("성과 지표 비교")
@@ -635,6 +634,8 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
 
     compare_df = pd.DataFrame(rows)
     st.dataframe(compare_df, hide_index=True, width="stretch")
+
+    _render_period_comparison_section(experiments)
 
     # ---- 실험 선택 ----
     st.subheader("에쿼티 곡선 비교")
@@ -680,6 +681,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         hovermode="x unified",
     )
+    fig_equity.update_xaxes(**KOREAN_DATE_AXIS)
     st.plotly_chart(fig_equity, width="stretch")
     st.caption("실험마다 시작일이 다릅니다(위 표의 시작일). 늦게 시작한 실험의 곡선은 그 시작일의 초기 자본에서 출발합니다.")
 
@@ -710,6 +712,7 @@ def _render_comparison_tab(experiments: list[_ExperimentData]) -> None:
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         hovermode="x unified",
     )
+    fig_dd.update_xaxes(**KOREAN_DATE_AXIS)
     st.plotly_chart(fig_dd, width="stretch")
 
 
@@ -749,8 +752,187 @@ def _build_rebalance_hover_texts(exp: _ExperimentData, reb_df: pd.DataFrame) -> 
     ]
 
 
+def _render_signal_section(exp: _ExperimentData) -> None:
+    """자산을 골라 시그널 차트를 표시한다."""
+    st.subheader("시그널 차트")
+
+    if not exp.signal_dfs:
+        st.info("시그널 데이터가 없습니다.")
+        return
+
+    tickers = _slot_tickers(exp.summary)
+    selected_signal_asset = st.selectbox(
+        "시그널 차트 자산 선택",
+        options=_ordered_signal_assets(exp.signal_dfs, tickers),
+        format_func=lambda x: x.upper(),
+        key=f"signal_asset_{exp.experiment_name}",
+    )
+
+    per_asset: list[dict[str, Any]] = exp.summary["per_asset"]
+    asset_meta = next((a for a in per_asset if a["asset_id"] == selected_signal_asset), None)
+    open_position_meta: dict[str, Any] | None = asset_meta.get("open_position") if asset_meta else None
+    trade_ticker, signal_ticker = tickers.get(selected_signal_asset, (selected_signal_asset.upper(), None))
+    _render_signal_chart(
+        signal_df=exp.signal_dfs[selected_signal_asset],
+        trades_df=exp.trades_df,
+        asset_id=selected_signal_asset,
+        experiment_name=exp.experiment_name,
+        title=signal_chart_title(trade_ticker, signal_ticker),
+        open_position=open_position_meta,
+    )
+
+
+def _render_equity_weight_section(exp: _ExperimentData) -> None:
+    """에쿼티 · 드로우다운 · 자산별 비중을 가로축을 공유한 한 그림으로 표시한다."""
+    st.subheader("에쿼티 · 드로우다운 · 자산별 비중")
+
+    dates = exp.equity_df["Date"]
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[0.5, 0.2, 0.3],
+        vertical_spacing=0.05,
+        subplot_titles=["에쿼티 (원)", "드로우다운 (%)", "자산별 비중 (%)"],
+    )
+
+    # 정보창 머리글이 날짜를 보여 줌 → 줄마다 값만 둠
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=exp.equity_df["equity"],
+            mode="lines",
+            name="에쿼티",
+            line={"color": "rgba(33, 150, 243, 1)", "width": 2},
+            fill="tozeroy",
+            fillcolor="rgba(33, 150, 243, 0.08)",
+            hovertemplate="에쿼티: %{y:,.0f}원<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=exp.equity_df["drawdown_pct"],
+            mode="lines",
+            name="드로우다운",
+            line={"color": "rgba(244, 67, 54, 1)", "width": 1.5},
+            fill="tozeroy",
+            fillcolor="rgba(244, 67, 54, 0.15)",
+            hovertemplate="드로우다운: %{y:.2f}%<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 리밸런싱 발생일 마커 (rebalanced=True인 행, 사유 hover 포함)
+    reb_df = exp.equity_df[exp.equity_df["rebalanced"]]
+    if not reb_df.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=reb_df["Date"],
+                y=reb_df["equity"],
+                mode="markers",
+                name="리밸런싱",
+                marker={"symbol": "circle", "color": "orange", "size": 4, "opacity": 0.6},
+                text=_build_rebalance_hover_texts(exp, reb_df),
+                hovertemplate="%{text}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+    # 현금 (최하단)
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=exp.equity_df["cash"] / exp.equity_df["equity"] * 100,
+            mode="lines",
+            name="현금",
+            stackgroup="one",
+            line={"width": 0},
+            fillcolor="rgba(180, 180, 180, 0.6)",
+            hovertemplate="현금: %{y:.1f}%<extra></extra>",
+        ),
+        row=3,
+        col=1,
+    )
+
+    # 자산별 비중 (스택)
+    weight_cols = _weight_columns(exp.equity_df)
+    weight_asset_ids_tuple = tuple(_asset_id_from_weight_col(c) for c in weight_cols)
+    for col in weight_cols:
+        asset_id = _asset_id_from_weight_col(col)
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=exp.equity_df[col] * 100,
+                mode="lines",
+                name=asset_id.upper(),
+                stackgroup="one",
+                line={"width": 0},
+                fillcolor=_hex_to_rgba(_palette_color(asset_id, weight_asset_ids_tuple), 0.6),
+                hovertemplate=f"{asset_id.upper()}: %{{y:.1f}}%<extra></extra>",
+            ),
+            row=3,
+            col=1,
+        )
+
+    fig.update_layout(
+        height=_CHART_HEIGHT + _SUB_CHART_HEIGHT,
+        showlegend=True,
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
+        hovermode="x unified",
+        hoversubplots="axis",
+    )
+    # 리밸런싱 점 때문에 자동 범위에 여백이 붙음 → 첫날 ~ 끝날로 고정
+    fig.update_xaxes(range=[dates.iloc[0], dates.iloc[-1]], **KOREAN_DATE_AXIS)
+    fig.update_xaxes(title_text="날짜", row=3, col=1)
+    fig.update_yaxes(range=[0, 100], row=3, col=1)
+    # 정보창을 세 단에 함께 띄우려면 트레이스가 같은 x 축을 써야 함 (make_subplots 는 단마다 x 축이 따로)
+    fig.update_traces(xaxis="x3")
+    st.plotly_chart(fig, width="stretch", key=f"equity_chart_{exp.experiment_name}")
+
+
+def _render_period_section(exp: _ExperimentData) -> None:
+    """구간별 성과 — 값은 러너가 summary.json 에 저장한 것이다."""
+    st.subheader("구간별 성과")
+
+    performance: dict[str, Any] | None = exp.summary.get(KEY_PERIOD_PERFORMANCE)
+    if performance is None:
+        st.warning("구간별 성과가 결과 파일에 없습니다. run_portfolio_backtest.py 를 다시 실행하세요.")
+        return
+
+    st.markdown("**기간 나눠 보기**")
+    st.caption(DISPLAY_PERIOD_CAPTION_SPLITS)
+    _show_period_table(build_split_table(performance["splits"]), height="content")
+
+    st.markdown("**시작 달 바꿔 보기**")
+    st.caption(DISPLAY_PERIOD_CAPTION_ROLLING)
+    st.plotly_chart(build_rolling_chart(performance["rolling"]), width="stretch", key=f"rolling_{exp.experiment_name}")
+    _show_period_table(build_rolling_table(performance["rolling"]))
+
+    st.markdown("**수익 쏠림**")
+    st.caption(DISPLAY_PERIOD_CAPTION_CONCENTRATION)
+    _show_period_table(build_concentration_table(performance["concentration"]))
+    st.caption(_CAPTION_YEARLY_CONTRIBUTION)
+    asset_ids = tuple(_get_asset_ids_from_equity(exp.equity_df))
+    colors = {asset_id: _hex_to_rgba(_palette_color(asset_id, asset_ids), 0.6) for asset_id in asset_ids}
+    st.plotly_chart(
+        build_yearly_contribution_chart(exp.summary[KEY_YEARLY_ASSET_CONTRIBUTIONS], colors),
+        width="stretch",
+        key=f"yearly_contribution_{exp.experiment_name}",
+    )
+
+    st.markdown("**하락장 · 횡보장**")
+    st.caption(DISPLAY_PERIOD_CAPTION_REGIMES)
+    _show_period_table(build_regime_table(performance["regimes"]), height="content")
+
+
 def _render_experiment_tab(exp: _ExperimentData) -> None:
-    """개별 실험 탭 — 요약·에쿼티·비중 추이·거래·시그널을 상세 표시한다."""
+    """개별 실험 탭 — 요약 · 시그널 · 에쿼티 / 비중 · 구간별 성과 · 월별 수익률 · 손익 분해를 상세 표시한다."""
 
     ps: dict[str, Any] = exp.summary["portfolio_summary"]
     per_asset: list[dict[str, Any]] = exp.summary["per_asset"]
@@ -778,168 +960,28 @@ def _render_experiment_tab(exp: _ExperimentData) -> None:
         f"| 최종 자본: {int(ps['final_capital']):,}원"
     )
 
-    # ---- 에쿼티 + 드로우다운 ----
-    st.subheader("에쿼티 및 드로우다운")
-
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.7, 0.3],
-        vertical_spacing=0.05,
-        subplot_titles=["에쿼티 (원)", "드로우다운 (%)"],
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=exp.equity_df["Date"],
-            y=exp.equity_df["equity"],
-            mode="lines",
-            name="에쿼티",
-            line={"color": "rgba(33, 150, 243, 1)", "width": 2},
-            fill="tozeroy",
-            fillcolor="rgba(33, 150, 243, 0.08)",
-            hovertemplate="%{x|%Y-%m-%d}<br>에쿼티: %{y:,.0f}원<extra></extra>",
-        ),
-        row=1,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=exp.equity_df["Date"],
-            y=exp.equity_df["drawdown_pct"],
-            mode="lines",
-            name="드로우다운",
-            line={"color": "rgba(244, 67, 54, 1)", "width": 1.5},
-            fill="tozeroy",
-            fillcolor="rgba(244, 67, 54, 0.15)",
-            hovertemplate="%{x|%Y-%m-%d}<br>드로우다운: %{y:.2f}%<extra></extra>",
-        ),
-        row=2,
-        col=1,
-    )
-
-    # 리밸런싱 발생일 마커 (rebalanced=True인 행, 사유 hover 포함)
-    reb_df = exp.equity_df[exp.equity_df["rebalanced"]]
-    if not reb_df.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=reb_df["Date"],
-                y=reb_df["equity"],
-                mode="markers",
-                name="리밸런싱",
-                marker={"symbol": "circle", "color": "orange", "size": 4, "opacity": 0.6},
-                text=_build_rebalance_hover_texts(exp, reb_df),
-                hovertemplate="%{text}<extra></extra>",
-            ),
-            row=1,
-            col=1,
-        )
-
-    fig.update_layout(
-        height=_CHART_HEIGHT,
-        showlegend=True,
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig, width="stretch", key=f"equity_chart_{exp.experiment_name}")
-
-    # ---- 자산별 비중 추이 ----
-    st.subheader("자산별 비중 추이")
-
-    weight_cols = _weight_columns(exp.equity_df)
-    if weight_cols:
-        fig_weight = go.Figure()
-        weight_asset_ids_tuple = tuple(_asset_id_from_weight_col(c) for c in weight_cols)
-
-        cash_weight = exp.equity_df["cash"] / exp.equity_df["equity"]
-
-        # 현금 (최하단)
-        fig_weight.add_trace(
-            go.Scatter(
-                x=exp.equity_df["Date"],
-                y=cash_weight * 100,
-                mode="lines",
-                name="현금",
-                stackgroup="one",
-                line={"width": 0},
-                fillcolor="rgba(180, 180, 180, 0.6)",
-                hovertemplate="%{x|%Y-%m-%d}<br>현금: %{y:.1f}%<extra></extra>",
-            )
-        )
-
-        # 자산별 비중 (스택)
-        for col in weight_cols:
-            asset_id = _asset_id_from_weight_col(col)
-            fill_color = _hex_to_rgba(_palette_color(asset_id, weight_asset_ids_tuple), 0.6)
-
-            fig_weight.add_trace(
-                go.Scatter(
-                    x=exp.equity_df["Date"],
-                    y=exp.equity_df[col] * 100,
-                    mode="lines",
-                    name=asset_id.upper(),
-                    stackgroup="one",
-                    line={"width": 0},
-                    fillcolor=fill_color,
-                    hovertemplate=(f"%{{x|%Y-%m-%d}}<br>{asset_id.upper()}: %{{y:.1f}}%<extra></extra>"),
-                )
-            )
-
-        fig_weight.update_layout(
-            title="자산별 비중 추이 (리밸런싱 효과 포함)",
-            xaxis_title="날짜",
-            yaxis_title="비중 (%)",
-            yaxis={"range": [0, 100]},
-            height=_SUB_CHART_HEIGHT,
-            hovermode="x unified",
-            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
-        )
-        st.plotly_chart(fig_weight, width="stretch", key=f"weight_chart_{exp.experiment_name}")
-    else:
-        st.info("비중 데이터가 없습니다.")
-
     # ---- 시그널 차트 ----
-    st.subheader("시그널 차트")
+    _render_signal_section(exp)
 
-    if exp.signal_dfs:
-        asset_options = sorted(exp.signal_dfs.keys())
-        selected_signal_asset = st.selectbox(
-            "시그널 차트 자산 선택",
-            options=asset_options,
-            format_func=lambda x: x.upper(),
-            key=f"signal_asset_{exp.experiment_name}",
-        )
-
-        signal_df = exp.signal_dfs[selected_signal_asset]
-        asset_meta = next(
-            (a for a in per_asset if a["asset_id"] == selected_signal_asset),
-            None,
-        )
-        open_position_meta: dict[str, Any] | None = asset_meta.get("open_position") if asset_meta else None
-        _render_signal_chart(
-            signal_df=signal_df,
-            trades_df=exp.trades_df,
-            asset_id=selected_signal_asset,
-            experiment_name=exp.experiment_name,
-            open_position=open_position_meta,
-        )
-    else:
-        st.info("시그널 데이터가 없습니다.")
+    # ---- 에쿼티 · 드로우다운 · 자산별 비중 ----
+    _render_equity_weight_section(exp)
 
     # ---- 파라미터 정보 ----
     with st.expander("파라미터 상세 정보"):
         portfolio_config = exp.summary.get("portfolio_config", {})
         st.json(portfolio_config)
 
+    # ---- 구간별 성과 ----
+    st.divider()
+    _render_period_section(exp)
+
     # ---- 월별 수익률 히트맵 ----
     st.divider()
     _render_monthly_returns_section(exp)
 
-    # ---- 자산별 수익 기여도 ----
+    # ---- 자산별 손익 분해 ----
     st.divider()
-    _render_contribution_section(exp)
+    _render_pnl_breakdown_section(exp)
 
     # ---- 매매법이 여럿인 실험: 매매법별 손익 ----
     if exp.ledger_df is not None:
@@ -957,6 +999,7 @@ def _render_signal_chart(
     trades_df: pd.DataFrame,
     asset_id: str,
     experiment_name: str,
+    title: str,
     open_position: dict[str, Any] | None = None,
 ) -> None:
     """한 자산의 캔들 + 이동평균 · 밴드 + 신호 거래 마커.
@@ -970,6 +1013,7 @@ def _render_signal_chart(
         trades_df: 포트폴리오 전체 거래 내역 (asset_id · trade_type 컬럼 포함)
         asset_id: 표시할 자산 ID
         experiment_name: 실험명 (Streamlit 위젯 key 중복 방지용)
+        title: 패널 제목
         open_position: summary.per_asset 의 그 자산 open_position. 있으면 그 진입일에 "Buy (보유중)" 마커
     """
     signal_trades = trades_df[(trades_df["asset_id"] == asset_id) & (trades_df["trade_type"] == TRADE_TYPE_SIGNAL)]
@@ -977,7 +1021,7 @@ def _render_signal_chart(
         signal_trades,
         open_entry_dates=[] if open_position is None else [str(open_position["entry_date"])],
     )
-    pane = build_price_pane(signal_df, signal_df, markers, title=f"{asset_id.upper()} 시그널 차트")
+    pane = build_price_pane(signal_df, signal_df, markers, title=title)
     lightweight_charts_v5_component(
         **chart_component_args(
             [pane],

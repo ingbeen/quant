@@ -523,6 +523,9 @@ function LightweightChartsComponent({
             return `<span style="color:${color}">${pct}%</span>`
           }
 
+          // 날짜 — 아래 값들이 어느 날의 값인지 먼저 읽히도록 맨 위
+          if (cv.date) lines.push(`<b>${cv.date}</b>`)
+
           if (cv.open) {
             let line = `시가: ${cv.open}`
             if (cv.open_pct) line += ` (${pctStyle(cv.open_pct)})`

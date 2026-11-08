@@ -10,15 +10,28 @@ from datetime import date
 from typing import Any, cast
 
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 
+from qbt.backtest.constants import KOREAN_DATE_AXIS
 from qbt.backtest.dashboard_charts import (
     ChartPane,
+    build_concentration_table,
+    build_consistency_table,
     build_equity_panes,
     build_monthly_heatmap,
     build_price_pane,
+    build_regime_comparison_table,
+    build_regime_table,
+    build_rolling_chart,
+    build_rolling_table,
+    build_split_comparison_table,
+    build_split_table,
     build_trade_markers,
+    build_yearly_contribution_chart,
     chart_component_args,
+    signal_chart_title,
+    style_period_table,
 )
 
 
@@ -42,6 +55,10 @@ def _signal_df(dates: list[Any]) -> pd.DataFrame:
 
 def _series_data(series: dict[str, object]) -> list[dict[str, object]]:
     return cast(list[dict[str, object]], series["data"])
+
+
+def _traces(fig: go.Figure) -> list[Any]:
+    return list(cast(Any, fig.data))
 
 
 def _tooltip(pane: ChartPane, i: int) -> dict[str, str]:
@@ -74,6 +91,7 @@ class TestBuildPricePane:
 
         # Then
         assert _tooltip(pane, 1) == {
+            "date": "2024-01-03",
             "open": "101.00",
             "high": "102.50",
             "low": "100.50",
@@ -88,7 +106,13 @@ class TestBuildPricePane:
             "equity": "10,123,456",
             "dd": "-0.25",
         }
-        assert _tooltip(pane, 0) == {"open": "100.00", "high": "101.00", "low": "99.00", "close": "100.50"}
+        assert _tooltip(pane, 0) == {
+            "date": "2024-01-02",
+            "open": "100.00",
+            "high": "101.00",
+            "low": "99.00",
+            "close": "100.50",
+        }
         assert ("upper" in _tooltip(pane, 2), "equity" in _tooltip(pane, 2)) == (False, True)
 
     def test_band_lines_come_from_overlay_table(self) -> None:
@@ -174,6 +198,68 @@ class TestBuildPricePane:
             ("2024-01-03", "OOS Start"),
             ("2024-01-04", "Sell +1.0%"),
         ]
+
+
+class TestKoreanDates:
+    def test_candle_chart_uses_korean_locale(self) -> None:
+        """
+        목적: 캔들 차트의 눈금 월 이름은 브라우저 언어가 아니라 한글이다
+
+        Given: 시그널 3일
+        When: 캔들 패널을 만든다
+        Then: 차트 설정의 locale 이 ko-KR 이다
+        """
+        # Given
+        days = [date(2024, 1, 2), date(2024, 1, 3), date(2024, 1, 4)]
+
+        # When
+        pane = build_price_pane(_signal_df(days), _signal_df(days), [], title="T")
+
+        # Then
+        assert cast(dict[str, Any], pane["chart"]["localization"])["locale"] == "ko-KR"
+
+    def test_plotly_axis_formats_have_no_month_names(self) -> None:
+        """
+        목적: Plotly 날짜 축은 긴 간격부터 숫자 · 한글 형식을 고른다 — 먼저 맞는 항목을 쓰고 경계가 양쪽에 걸린다
+
+        Given: 날짜 축 설정
+        When: 눈금 형식과 정보창 형식을 본다
+        Then: 해 → 달 → 일 순서이고 영문 월 이름(%b · %B)이 없다
+        """
+        # Given
+        stops = KOREAN_DATE_AXIS["tickformatstops"]
+
+        # When
+        starts = [stop["dtickrange"][0] for stop in stops]
+        formats = [stop["value"] for stop in stops] + [KOREAN_DATE_AXIS["hoverformat"]]
+
+        # Then
+        assert starts == ["M12", "M1", None]
+        assert formats == ["%Y년", "%Y년 %-m월", "%Y-%m-%d", "%Y-%m-%d"]
+
+
+class TestSignalChartTitle:
+    @pytest.mark.parametrize(
+        ("trade", "signal", "expected"),
+        [
+            ("TQQQ", "QQQ", "TQQQ 시그널 차트 (신호: QQQ)"),
+            ("QQQ", "QQQ", "QQQ 시그널 차트"),
+            ("GLD", None, "GLD 시그널 차트"),
+        ],
+    )
+    def test_signal_ticker_appears_only_when_different(self, trade: str, signal: str | None, expected: str) -> None:
+        """
+        목적: 캔들이 매매 종목과 다른 시세일 때만 신호 종목을 적는다
+
+        Given: 매매 · 신호 종목
+        When: 패널 제목을 만든다
+        Then: 다를 때만 「(신호: …)」가 붙는다
+        """
+        # Given / When
+        title = signal_chart_title(trade, signal)
+
+        # Then
+        assert title == expected
 
 
 class TestBuildEquityPanes:
@@ -372,3 +458,257 @@ class TestBuildMonthlyHeatmap:
         # When / Then
         with pytest.raises(KeyError):
             build_monthly_heatmap(monthly, yearly)
+
+
+def _split(label: str, cagr: float | None) -> dict[str, Any]:
+    return {
+        "label": label,
+        "start_date": "2000-01-03",
+        "end_date": "2010-01-04",
+        "cagr": cagr,
+        "mdd": None if cagr is None else -10.5,
+        "total_return_pct": None if cagr is None else 100.0,
+    }
+
+
+def _regime(label: str, return_pct: float | None, signal: float | None) -> dict[str, Any]:
+    return {
+        "kind": "하락장",
+        "label": label,
+        "start_date": "2020-02-19",
+        "end_date": "2020-03-23",
+        "return_pct": return_pct,
+        "mdd": return_pct,
+        "signal_return_pct": signal,
+    }
+
+
+def _horizon(years: int, cagrs: list[float]) -> dict[str, Any]:
+    return {
+        "years": years,
+        "points": [{"start_date": f"2000-0{i + 1}-03", "cagr": cagr} for i, cagr in enumerate(cagrs)],
+        "count": len(cagrs),
+        "min_cagr": min(cagrs) if cagrs else None,
+        "min_start_date": "2000-01-03" if cagrs else None,
+        "p10_cagr": min(cagrs) if cagrs else None,
+        "median_cagr": max(cagrs) if cagrs else None,
+        "negative_count": sum(1 for cagr in cagrs if cagr < 0),
+    }
+
+
+_CONCENTRATION: dict[str, Any] = {
+    "year_count": 5,
+    "positive_years": 3,
+    "negative_years": 1,
+    "median_pct": 10.0,
+    "mean_pct": 14.0,
+    "top_years": [2023, 2021, 2020],
+    "top3_share_pct": 114.29,
+    "mean_without_top3_pct": -2.0,
+    "mean_without_top5_pct": 0.0,
+}
+
+
+class TestPeriodTables:
+    def test_split_table_shows_period_text_and_missing_values(self) -> None:
+        """
+        목적: 기간은 「시작 ~ 끝」 한 칸이고, 값이 없는 구간은 빈 값으로 남는다
+
+        Given: 값이 있는 구간과 없는 구간
+        When: 표를 만든다
+        Then: 기간 표기가 맞고 없는 구간의 연 수익은 결측이다
+        """
+        # Given
+        splits = [_split("전체", 12.5), _split("닷컴 정점부터", None)]
+
+        # When
+        table = build_split_table(splits)
+
+        # Then
+        assert list(table.columns) == ["구간", "기간", "연 수익 (%)", "최악 낙폭 (%)", "총 수익률 (%)"]
+        assert table.loc[0, "기간"] == "2000-01-03 ~ 2010-01-04"
+        assert table.loc[0, "연 수익 (%)"] == pytest.approx(12.5, abs=1e-9)
+        assert pd.isna(table.loc[1, "연 수익 (%)"])
+
+    def test_numbers_show_two_decimals(self) -> None:
+        """
+        목적: 표의 숫자는 소수 둘째 자리로 보인다
+
+        Given: 연 수익 12.5 인 표
+        When: 표기를 입힌다
+        Then: 그려진 HTML 에 12.50 이 있다
+        """
+        # Given
+        table = build_split_table([_split("전체", 12.5)])
+
+        # When
+        html = style_period_table(table).to_html()
+
+        # Then
+        assert "12.50" in html
+
+    def test_regime_table_has_signal_column_only_with_signal(self) -> None:
+        """
+        목적: 신호 시세 등락 열은 그 값이 있는 결과(단일 전략)에만 둔다
+
+        Given: 신호가 있는 국면 목록과 없는 국면 목록
+        When: 표를 만든다
+        Then: 앞의 표에만 신호 열이 있다
+        """
+        # Given
+        with_signal = [_regime("코로나", -25.0, -50.0)]
+        without_signal = [_regime("코로나", -25.0, None)]
+
+        # When
+        first, second = build_regime_table(with_signal), build_regime_table(without_signal)
+
+        # Then
+        assert ("신호 시세 등락 (%)" in first.columns, "신호 시세 등락 (%)" in second.columns) == (True, False)
+        assert first.loc[0, "종류"] == "하락장"
+
+    def test_rolling_table_values(self) -> None:
+        """
+        목적: 보유 기간마다 요약 한 줄이다
+
+        Given: 5년 · 10년 요약
+        When: 표를 만든다
+        Then: 두 줄이고 마이너스 횟수가 그대로다
+        """
+        # Given
+        rolling = [_horizon(5, [-1.0, 3.0]), _horizon(10, [2.0])]
+
+        # When
+        table = build_rolling_table(rolling)
+
+        # Then
+        assert table["보유 기간"].tolist() == ["5년", "10년"]
+        assert table["마이너스 횟수"].tolist() == [1, 0]
+
+    def test_concentration_table_joins_top_years(self) -> None:
+        """
+        목적: 최고 3개 해는 한 칸에 이어 적는다
+
+        Given: 쏠림 값
+        When: 표를 만든다
+        Then: 한 줄이고 해가 순위대로 이어진다
+        """
+        # Given / When
+        table = build_concentration_table(_CONCENTRATION)
+
+        # Then
+        assert len(table) == 1
+        assert table.loc[0, "최고 3개 해"] == "2023 · 2021 · 2020"
+
+    def test_comparison_tables_have_one_row_per_experiment(self) -> None:
+        """
+        목적: 비교 표는 실험마다 한 줄이고 칸은 구간 · 국면 이름이다
+
+        Given: 두 실험의 구간별 성과
+        When: 세 비교 표를 만든다
+        Then: 값이 실험 · 구간에 맞게 들어간다
+        """
+        # Given
+        perf_a = {
+            "splits": [_split("전체", 12.5)],
+            "regimes": [_regime("코로나", -25.0, None)],
+            "rolling": [_horizon(5, [-1.0, 3.0])],
+            "concentration": _CONCENTRATION,
+        }
+        perf_b = {
+            "splits": [_split("전체", 8.0)],
+            "regimes": [_regime("코로나", -5.0, None)],
+            "rolling": [_horizon(5, [2.0])],
+            "concentration": {**_CONCENTRATION, "top3_share_pct": None},
+        }
+        named = [("A", perf_a), ("B", perf_b)]
+
+        # When
+        cagr = build_split_comparison_table(named, "cagr")
+        regimes = build_regime_comparison_table(named)
+        consistency = build_consistency_table(named)
+
+        # Then
+        assert cagr["전체"].tolist() == pytest.approx([12.5, 8.0], abs=1e-9)
+        assert regimes["코로나"].tolist() == pytest.approx([-25.0, -5.0], abs=1e-9)
+        assert consistency["5년 보유 마이너스 횟수"].tolist() == ["1 / 2", "0 / 1"]
+        assert pd.isna(consistency.loc[1, "최고 3개 해의 몫 (%)"])
+
+
+class TestPeriodCharts:
+    def test_more_horizons_than_colors_still_draws(self) -> None:
+        """
+        목적: 보유 햇수를 늘려도 대시보드가 멈추지 않는다 — 색 수에 보유 햇수 수가 묶이지 않는다
+
+        Given: 세 가지 보유 햇수 (준비한 색은 둘)
+        When: 그림을 만든다
+        Then: 선이 셋이다
+        """
+        # Given
+        rolling = [_horizon(3, [1.0]), _horizon(5, [2.0]), _horizon(10, [3.0])]
+
+        # When
+        fig = build_rolling_chart(rolling)
+
+        # Then
+        assert [trace.name for trace in _traces(fig)] == ["3년 보유", "5년 보유", "10년 보유"]
+
+    def test_rolling_chart_skips_empty_horizon(self) -> None:
+        """
+        목적: 경우가 없는 보유 기간은 빈 선을 그리지 않고, 가로축은 한글 날짜 형식이다
+
+        Given: 5년만 경우가 있는 결과
+        When: 그림을 만든다
+        Then: 선은 하나고 눈금 형식이 날짜 축 설정과 같다
+        """
+        # Given
+        rolling = [_horizon(5, [-1.0, 3.0]), _horizon(10, [])]
+
+        # When
+        fig = build_rolling_chart(rolling)
+
+        # Then
+        assert [trace.name for trace in _traces(fig)] == ["5년 보유"]
+        assert list(_traces(fig)[0].y) == pytest.approx([-1.0, 3.0], abs=1e-9)
+        assert fig.layout.xaxis.hoverformat == "%Y-%m-%d"
+        assert fig.layout.xaxis.tickformatstops[0].value == "%Y년"
+
+    @staticmethod
+    def _yearly(other: float) -> list[dict[str, Any]]:
+        return [
+            {"year": 2020, "return_pct": 20.0, "assets": {"a": 15.0, "b": 5.0}, "other_pct": 0.0},
+            {"year": 2021, "return_pct": -10.0, "assets": {"a": -7.5, "b": -2.5}, "other_pct": other},
+        ]
+
+    def test_contribution_bars_follow_asset_colors(self) -> None:
+        """
+        목적: 자산별 막대는 넘겨받은 색을 쓰고(비중 그림과 같은 색), 위아래로 나뉘어 쌓인다. 반올림 잔여뿐이면 기타를 그리지 않는다
+
+        Given: 자산 둘의 기여, 기타 0
+        When: 그림을 만든다
+        Then: 막대 둘 + 그해 수익률 점이고 색이 지정한 값이다
+        """
+        # Given
+        colors = {"a": "#111111", "b": "#222222"}
+
+        # When
+        fig = build_yearly_contribution_chart(self._yearly(0.0), colors)
+
+        # Then
+        assert [trace.name for trace in _traces(fig)] == ["A", "B", "그해 수익률"]
+        assert [_traces(fig)[0].marker.color, _traces(fig)[1].marker.color] == ["#111111", "#222222"]
+        assert list(_traces(fig)[0].y) == pytest.approx([15.0, -7.5], abs=1e-9)
+        assert fig.layout.barmode == "relative"
+
+    def test_other_bar_appears_when_some_profit_is_unattributed(self) -> None:
+        """
+        목적: 자산에 나뉘지 않은 몫이 있으면 기타 막대로 보인다 — 막대 합이 그해 수익률과 맞게
+
+        Given: 기타 +3 인 해가 있는 결과
+        When: 그림을 만든다
+        Then: 기타 막대가 있다
+        """
+        # Given / When
+        fig = build_yearly_contribution_chart(self._yearly(3.0), {"a": "#111111", "b": "#222222"})
+
+        # Then
+        assert "기타" in [trace.name for trace in _traces(fig)]

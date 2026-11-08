@@ -7,7 +7,7 @@
 - 결과 데이터 컬럼 및 표시
 """
 
-from typing import Final
+from typing import Any, Final
 
 # ============================================================
 # 백테스트 기본 설정
@@ -79,6 +79,9 @@ PORTFOLIO_SIGNAL_PREFIX: Final = "signal_"
 KEY_PORTFOLIO_SUMMARY: Final = "portfolio_summary"
 KEY_START_DATE: Final = "start_date"
 KEY_END_DATE: Final = "end_date"
+# summary.json 의 구간별 성과 키 — 러너 저장 · 대시보드 표시
+KEY_PERIOD_PERFORMANCE: Final = "period_performance"
+KEY_YEARLY_ASSET_CONTRIBUTIONS: Final = "yearly_asset_contributions"
 
 # --- WFO 결과 파일명 ---
 WALKFORWARD_DYNAMIC_FILENAME: Final = "walkforward_dynamic.csv"
@@ -90,6 +93,34 @@ WALKFORWARD_SUMMARY_FILENAME: Final = "walkforward_summary.json"
 # --- WFO 윈도우별 상세 CSV 디렉토리명 ---
 WFO_WINDOWS_DYNAMIC_DIR: Final = "wfo_windows_dynamic"
 WFO_WINDOWS_FULLY_FIXED_DIR: Final = "wfo_windows_fully_fixed"
+
+# ============================================================
+# 대시보드 표시 (단일 · 포트폴리오 앱과 차트 모듈이 함께 쓴다)
+# ============================================================
+
+# Plotly 날짜 축의 눈금 · 정보창 형식 — `fig.update_xaxes(**KOREAN_DATE_AXIS)`.
+# 먼저 맞는 항목을 쓰고 경계("M12" · "M1")는 양쪽에 걸림 → 긴 간격부터 둠
+KOREAN_DATE_AXIS: Final[dict[str, Any]] = {
+    "tickformatstops": [
+        {"dtickrange": ["M12", None], "value": "%Y년"},
+        {"dtickrange": ["M1", "M12"], "value": "%Y년 %-m월"},
+        {"dtickrange": [None, "M1"], "value": "%Y-%m-%d"},
+    ],
+    "hoverformat": "%Y-%m-%d",
+}
+
+DISPLAY_NO_DATA: Final = "데이터 없음"
+DISPLAY_PERIOD_CAPTION_SPLITS: Final = (
+    "연 수익은 해마다 평균 몇 % 불었는지, 최악 낙폭은 고점에서 가장 많이 빠진 비율입니다(그 구간 첫날을 고점으로 다시 잽니다). " "구간 시작이 전략 시작보다 이르면 「데이터 없음」입니다."
+)
+DISPLAY_PERIOD_CAPTION_ROLLING: Final = "그달 첫 거래일에 넣고 범례의 햇수만큼 들고 있었다면 해마다 평균 몇 % 불었는지입니다. 선이 평평할수록 언제 시작해도 비슷했다는 뜻입니다."
+DISPLAY_PERIOD_CAPTION_CONCENTRATION: Final = (
+    "연간 수익률로 본 쏠림입니다. 몫은 가장 좋았던 세 해의 수익률 합 ÷ 모든 해의 수익률 합이고, "
+    "「0% 로 바꾼 평균」은 그 해들에 수익이 없었다고 칠 때의 해마다 평균입니다. 첫 해 · 마지막 해는 일부 기간 그대로입니다."
+)
+DISPLAY_PERIOD_CAPTION_REGIMES: Final = (
+    "날짜는 SPY 종가의 고점 → 바닥이고, 횡보장은 지수가 제자리였던 구간입니다. 전략 결과를 보고 고른 날짜가 아닙니다. " "QQQ 계열은 자기 고점 · 바닥과 며칠 ~ 몇 주 어긋납니다."
+)
 
 # ============================================================
 # 결과 데이터 컬럼 및 표시
