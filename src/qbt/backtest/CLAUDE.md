@@ -42,7 +42,7 @@
 포트폴리오:
 
 - `portfolio_types.py` — 실험 설정(`PortfolioConfig` · 슬롯 · 매매법) · 런타임 상태 · 결과 데이터클래스와 결과 파일의 자산 키 규칙
-- `portfolio_configs.py` — 등록 실험 `PORTFOLIO_CONFIGS`. 운용 포트폴리오 Q-2-2XS(`portfolio_q2_2xs`)의 구성 정본이다 — 실매매 알림 저장소(quant-notify)가 이 파일을 가리킨다
+- `portfolio_configs.py` — 등록 실험 `PORTFOLIO_CONFIGS`. 운용 포트폴리오 Q-2-2XS-H20(`portfolio_q2_2xs_h20`)의 구성 정본이다 — 실매매 알림 저장소(quant-notify)가 이 파일을 가리킨다
 - `engines/` — 포트폴리오 엔진: `portfolio_engine.py`(facade · 일별 루프) · `portfolio_planning.py`(주문 의도 · 예상 상태 · 병합) · `portfolio_methods.py`(매매법 장부 · 배분 변화 · 매매법 사이 비중 · 상계 · 요약) · `portfolio_rebalance.py`(리밸런싱 정책 · 판단일) · `portfolio_execution.py`(매도 → 매수 체결) · `portfolio_data.py`(로딩 · 설정 검증 · 에쿼티 표), 엔진 공통은 `engine_common.py`(예약 주문 · 체결 계산 · 거래 기록)
 - `portfolio_validation.py` — 실행 직후 결과 정합성 검사 (규칙 목록은 그 docstring). 위반이 있으면 러너가 결과를 저장한 뒤 멈춘다
 - `allocator_registry.py` · `allocators/` — 비중이 바뀌는 매매법의 배분 규칙. 지금 이 규칙을 쓰는 등록 실험은 없다 — 보완 전략(보고서 부록 M)을 철회하면서 엔진 기능으로 남겼다(사용자 결정 2026-11-04). 새 규칙은 `allocators/` 에 구현해 등록하고 엔진은 고치지 않는다. 규칙은 이동평균 · 월말 행 같은 파생 계산을 첫 호출의 data 로 한 번 만든다 — 엔진은 실행마다 규칙을 새로 만들고 같은 data 를 매일 넘긴다. 행 i 의 판단은 i 이하 행만 쓴다

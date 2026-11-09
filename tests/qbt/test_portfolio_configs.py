@@ -10,10 +10,11 @@ portfolio_configs.py의 핵심 불변조건/정책을 테스트로 고정한다.
 5. Q-2: SPY/QQQ/GLD/TLT 전액 투자, GLD/TLT B&H
 6. Q-2-2XS: SSO/QLD/GLD/TLT 전액 투자, GLD/TLT B&H (1x 합성 경로 사용)
 7. get_portfolio_config 정상 조회 / 에러 처리
-8. 운용안은 Q-2-2XS 단독이다 — 철회한 보완 전략 조합(부록 M)은 등록되지 않고, 시작일 하한(min_start_date)을 쓰는 등록 실험이 없다
+8. 운용안은 Q-2-2XS-H20 이다(12번) — 철회한 보완 전략 조합(부록 M)은 등록되지 않고, 시작일 하한(min_start_date)을 쓰는 등록 실험이 없다
 9. QQQ B&H: QQQ 100% 매수 후 보유, 실험 시작일 하한(min_start_date) 없음 — 러너의 시작일 정책을 따른다
 10. 모든 슬롯은 상장 전까지 늘린 합성 시세를 읽는다
 11. Q-2-3XS: Q-2-2XS 에서 주식 칸의 매매 시세만 3배(UPRO · TQQQ)로 바꾼 짝 — 신호 · 비중 · 전략 · 파라미터는 같다
+12. Q-2-2XS-H20: Q-2-2XS 의 2배 칸을 25% 로 줄이고 SPY · QQQ 1배 보유를 10% 씩 넣은 운용 구성 — 나머지는 같다
 """
 
 from dataclasses import replace
@@ -23,11 +24,12 @@ import pytest
 
 from qbt.backtest.engines.portfolio_data import validate_portfolio_config
 from qbt.backtest.portfolio_configs import PORTFOLIO_CONFIGS, get_portfolio_config
-from qbt.backtest.portfolio_types import AllocatorMethodConfig, SlotMethodConfig, resolve_methods
+from qbt.backtest.portfolio_types import AllocatorMethodConfig, AssetSlotConfig, SlotMethodConfig, resolve_methods
 from qbt.common_constants import (
     GLD_SYNTHETIC_DATA_PATH,
     QLD_SYNTHETIC_DATA_PATH,
     QQQ_SYNTHETIC_DATA_PATH,
+    SPY_SYNTHETIC_DATA_PATH,
     SSO_SYNTHETIC_DATA_PATH,
     TLT_SYNTHETIC_DATA_PATH,
     TQQQ_SYNTHETIC_DATA_PATH,
@@ -251,6 +253,47 @@ class TestQSeriesConfigs:
             == base
         )
 
+    def test_q2_2xs_h20_is_q2_2xs_with_one_times_hold(self) -> None:
+        """
+        목적: Q-2-2XS-H20 은 Q-2-2XS 의 2배 칸(SSO · QLD)을 35 → 25% 로 줄이고 그 뒤에 SPY · QQQ 1배 보유를 10% 씩 넣은
+              운용 구성이다 — 비중 · 보유 여부 · 슬롯 순서가 어긋나면 고른 비율과 다른 구성이 에러 없이 운용 결과로 나온다
+              (사용자 결정 2026-11-09, docs/research/전략_검증_보고서.md 부록 R)
+
+        Given: portfolio_q2_2xs · portfolio_q2_2xs_h20 설정, SPY · QQQ 1배 보유 10% 칸
+        When:  Q-2-2XS 의 2배 칸을 25% 로 줄이고, 그 뒤에 보유 칸을, 그 뒤에 Q-2-2XS 의 나머지 칸을 둔 슬롯을 만든다
+        Then:  Q-2-2XS 에 줄일 2배 칸이 모두 있고, 만든 슬롯이 Q-2-2XS-H20 의 슬롯과 같으며,
+               이름 · 결과 폴더 · 슬롯 말고는 설정이 Q-2-2XS 와 같다
+        """
+        # Given
+        base = get_portfolio_config("portfolio_q2_2xs")
+        mixed = get_portfolio_config("portfolio_q2_2xs_h20")
+        reduced_paths = {SSO_SYNTHETIC_DATA_PATH, QLD_SYNTHETIC_DATA_PATH}
+        hold_slots = (
+            AssetSlotConfig("spy", SPY_SYNTHETIC_DATA_PATH, SPY_SYNTHETIC_DATA_PATH, 0.10, strategy_id="buy_and_hold"),
+            AssetSlotConfig("qqq", QQQ_SYNTHETIC_DATA_PATH, QQQ_SYNTHETIC_DATA_PATH, 0.10, strategy_id="buy_and_hold"),
+        )
+
+        # When
+        reduced = tuple(
+            replace(slot, target_weight=0.25) for slot in base.asset_slots if slot.trade_data_path in reduced_paths
+        )
+        rest = tuple(slot for slot in base.asset_slots if slot.trade_data_path not in reduced_paths)
+        expected_slots = reduced + hold_slots + rest
+
+        # Then — 줄일 칸이 없으면 보유 칸만 붙은 설정도 통과 → 2배 칸이 빠진 실수를 놓침
+        assert reduced_paths <= {slot.trade_data_path for slot in base.asset_slots}
+        assert mixed.asset_slots == expected_slots
+        assert (
+            replace(
+                mixed,
+                experiment_name=base.experiment_name,
+                display_name=base.display_name,
+                result_dir=base.result_dir,
+                asset_slots=base.asset_slots,
+            )
+            == base
+        )
+
     def test_all_slots_read_synthetic_prices(self) -> None:
         """
         목적: 모든 실험의 슬롯은 상장 전까지 늘린 합성 시세를 읽는다 — 실물 파일이 하나라도 섞이면 포트폴리오 시작일이
@@ -284,7 +327,7 @@ class TestQSeriesConfigs:
 
     def test_each_slot_trades_its_asset_on_one_times_signal(self) -> None:
         """
-        목적: 슬롯마다 자산 id 의 티커를 매매하고, 신호는 그 지수의 1배 합성이다 — 운용 포트폴리오 Q-2-2XS 의 SSO · QLD
+        목적: 슬롯마다 자산 id 의 티커를 매매하고, 신호는 그 지수의 1배 합성이다 — 운용 포트폴리오 Q-2-2XS-H20 의 SSO · QLD
               짝을 잘못 바꾸면 다른 상품 · 다른 지수로 사고판 결과가 에러 없이 나온다 (quant-notify 가 이 설정을 옮겨 적는다)
 
         Given: PORTFOLIO_CONFIGS, 매매 합성 → 그 지수의 1배 합성 표
