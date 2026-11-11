@@ -59,8 +59,8 @@
     "asset_slots": [
       {
         "asset_id": "sso",
-        "signal_data_path": "storage/stock/SPY_synthetic_max.csv",
-        "trade_data_path": "storage/stock/SSO_synthetic_max.csv",
+        "signal_data_path": "storage/stock/SPY_synthetic.csv",
+        "trade_data_path": "storage/stock/SSO_synthetic.csv",
         "target_weight": 0.35,
         "strategy_id": "buffer_zone",
         "ma_window": 200,
@@ -70,8 +70,8 @@
       },
       {
         "asset_id": "qld",
-        "signal_data_path": "storage/stock/QQQ_synthetic_max.csv",
-        "trade_data_path": "storage/stock/QLD_synthetic_max.csv",
+        "signal_data_path": "storage/stock/QQQ_synthetic.csv",
+        "trade_data_path": "storage/stock/QLD_synthetic.csv",
         "target_weight": 0.35,
         "strategy_id": "buffer_zone",
         "ma_window": 200,
@@ -81,8 +81,8 @@
       },
       {
         "asset_id": "gld",
-        "signal_data_path": "storage/stock/GLD_synthetic_max.csv",
-        "trade_data_path": "storage/stock/GLD_synthetic_max.csv",
+        "signal_data_path": "storage/stock/GLD_synthetic.csv",
+        "trade_data_path": "storage/stock/GLD_synthetic.csv",
         "target_weight": 0.15,
         "strategy_id": "buy_and_hold",
         "ma_window": 200,
@@ -92,8 +92,8 @@
       },
       {
         "asset_id": "tlt",
-        "signal_data_path": "storage/stock/TLT_synthetic_max.csv",
-        "trade_data_path": "storage/stock/TLT_synthetic_max.csv",
+        "signal_data_path": "storage/stock/TLT_synthetic.csv",
+        "trade_data_path": "storage/stock/TLT_synthetic.csv",
         "target_weight": 0.15,
         "strategy_id": "buy_and_hold",
         "ma_window": 200,

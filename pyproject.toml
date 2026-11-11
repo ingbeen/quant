@@ -10,7 +10,6 @@ packages = [
 [tool.poetry.dependencies]
 python = "~3.12"
 pandas = "^2.0.0"
-yfinance = "^0.2.0"
 streamlit = "^1.30.0"
 plotly = "^5.18.0"
 streamlit-lightweight-charts-v5 = {path = "vendor/streamlit-lightweight-charts-v5", develop = true}

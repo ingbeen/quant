@@ -177,14 +177,14 @@ class TestBufferZoneConfig:
 
         Given: buffer_zone.CONFIGS
         When: 신호 · 매매 경로를 모은다
-        Then: 모두 `_synthetic_max.csv`
+        Then: 모두 `_synthetic.csv`
         """
         # When
         paths = {c.strategy_name: (c.signal_data_path.name, c.trade_data_path.name) for c in CONFIGS}
 
         # Then
         not_synthetic = {
-            name: pair for name, pair in paths.items() if not all(p.endswith("_synthetic_max.csv") for p in pair)
+            name: pair for name, pair in paths.items() if not all(p.endswith("_synthetic.csv") for p in pair)
         }
         assert not_synthetic == {}
 
@@ -201,7 +201,7 @@ class TestBufferZoneConfig:
         mismatched = {
             c.strategy_name: (c.signal_data_path.name, c.trade_data_path.name)
             for c in CONFIGS
-            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buffer_zone_').upper()}_synthetic_max.csv"
+            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buffer_zone_').upper()}_synthetic.csv"
             or ONE_TIMES_SIGNAL_OF.get(c.trade_data_path) != c.signal_data_path
         }
 

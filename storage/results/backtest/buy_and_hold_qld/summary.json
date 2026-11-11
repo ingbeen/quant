@@ -6139,6 +6139,6 @@
     }
   },
   "data_info": {
-    "trade_path": "storage/stock/QLD_synthetic_max.csv"
+    "trade_path": "storage/stock/QLD_synthetic.csv"
   }
 }

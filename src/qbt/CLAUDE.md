@@ -1,6 +1,6 @@
 # qbt 패키지 가이드
 
-qbt는 주식 백테스팅 CLI 도구의 코어 패키지이며 비즈니스 로직만 담당합니다. CLI 인터페이스는 `scripts/`에서 제공합니다 ([scripts/CLAUDE.md](../../scripts/CLAUDE.md)). 도메인별 안내는 `backtest/` · `tqqq/` · `utils/` 의 `CLAUDE.md` 에 있습니다.
+qbt는 주식 백테스팅 CLI 도구의 코어 패키지이며 비즈니스 로직만 담당합니다. CLI 인터페이스는 `scripts/`에서 제공합니다 ([scripts/CLAUDE.md](../../scripts/CLAUDE.md)). 도메인별 안내는 `backtest/` · `utils/` 의 `CLAUDE.md` 에 있습니다.
 
 ---
 
@@ -42,8 +42,7 @@ qbt는 주식 백테스팅 CLI 도구의 코어 패키지이며 비즈니스 로
 
 #### CSV 데이터 로딩
 
-- 시세 CSV 는 `utils/data_loader.py` 의 `load_stock_data` 로 읽는다 — 날짜 파싱 · 정렬을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수는 지우거나 메우지 않고 멈춘다(`validate_price_series`). 합성 파일이 같은 폴더의 짝 실물(아래 「시세 파일 이름」)보다 먼저 끝나도 멈춘다 — 시세를 다시 받고 합성 생성을 건너뛴 상태다
-- 월별 금리 · 운용비율은 `tqqq/data_loader.py`
+- 시세 CSV 는 `utils/data_loader.py` 의 `load_stock_data` 로 읽는다 — 날짜 파싱 · 정렬을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수는 지우거나 메우지 않고 멈춘다(`validate_price_series`). 합성 파일이 같은 폴더의 짝 실물(아래 「시세 파일 이름」)보다 먼저 끝나도 멈춘다 — 두 파일이 quant-data 의 다른 판에서 온 상태다
 
 #### 병렬 처리
 
@@ -78,8 +77,10 @@ qbt 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
 
 ## 시세 파일 이름 (`storage/stock/`)
 
-- `{TICKER}_max.csv`: 전체 기간 (다운로더는 늘 전체 기간을 받는다 — 시세를 읽는 코드가 모두 `*_max.csv` 경로 상수를 쓰고, 분석 기간은 다운로드가 아니라 분석 단계에서 자른다)
-- `{TICKER}_synthetic_max.csv`: 합성 데이터 (상장 전은 대용 지수 · 시뮬레이션, 상장 후는 실물)
-- 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `^SPGSCI_max.csv` · `GC=F_max.csv`)
+이 폴더의 시세는 데이터 저장소 quant-data 가 내보낸 사본이다 — 받을 목록은 `quant_data_files.txt`, 받은 판은 `quant_data_edition.json`. 파일은 늘 전체 기간이다(분석 기간은 분석 단계에서 자른다). 이름은 아래 둘만 읽는다 — 그 밖의 이름은 `ticker_from_stock_path` 가 ValueError 로 멈춘다.
+
+- `{TICKER}_synthetic.csv`: 합성 (상장 전은 대용 지수 · 펀드 · 시뮬레이션, 상장 후는 실물 수정주가). 상장 전 구간의 시가는 진짜 시가가 아니다 — 1배는 그날 종가, 레버리지는 그날 합성 종가에 그날 비용을 더한 값이다(`docs/research/합성_시세_연장.md` 결정 3)
+- `{TICKER}_adjusted.csv`: 실물 수정주가 — 지금은 받지 않는다. 같은 폴더에 있으면 `load_stock_data` 가 합성과 끝날을 맞춰 본다
+- 티커에 특수 문자가 있으면 파일 이름에도 그대로 쓴다 (예: `GC=F_adjusted.csv`)
 
 데이터 · 결과 경로는 `common_constants.py` 의 경로 상수가 정본이다.

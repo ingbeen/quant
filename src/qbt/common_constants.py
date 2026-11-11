@@ -19,67 +19,32 @@ from typing import Final
 # 저장소 루트에서 실행됐는지 확인한다
 STORAGE_DIR: Final = Path("storage")
 
-STOCK_DIR: Final = STORAGE_DIR / "stock"  # 주식 데이터 저장 디렉토리
-ETC_DIR: Final = STORAGE_DIR / "etc"  # 금리 등 기타 데이터 저장 디렉토리
+# 데이터 저장소(quant-data)가 받고 · 가공해 내보낸 시세 사본 — 받을 파일 목록은 이 폴더의 quant_data_files.txt
+STOCK_DIR: Final = STORAGE_DIR / "stock"
 RESULTS_DIR: Final = STORAGE_DIR / "results"  # 분석 결과 저장 디렉토리
 BACKTEST_RESULTS_DIR: Final = RESULTS_DIR / "backtest"  # 백테스트 결과 저장 디렉토리
 PORTFOLIO_RESULTS_DIR: Final = RESULTS_DIR / "portfolio"  # 포트폴리오 실험 결과
-PROXY_VALIDATION_RESULTS_DIR: Final = RESULTS_DIR / "proxy_validation"  # 상장 전 구간을 채운 합성 시세의 검증 표
 
 # --- 데이터 파일 경로 ---
-# 나스닥 100 추종 ETF 데이터 파일 경로
-QQQ_DATA_PATH: Final = STOCK_DIR / "QQQ_max.csv"
+# 이름은 `{티커}_{가격 기준}.csv` — 합성(synthetic)은 상장 전 구간을 대용 · 시뮬레이션으로 채우고 상장 후는 실물 수정주가다
 
-# 나스닥 100 지수 — QQQ 상장 전 구간의 대용
-NDX_DATA_PATH: Final = STOCK_DIR / "^NDX_max.csv"
+# 합성 QQQ (상장 전은 나스닥 100 지수)
+QQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QQQ_synthetic.csv"
 
-# 합성 QQQ 데이터 파일 경로 (상장 전은 나스닥 100 지수, 상장 후는 실물)
-QQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QQQ_synthetic_max.csv"
+# 합성 SPY (상장 전은 VFINX)
+SPY_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SPY_synthetic.csv"
 
-# 합성 SPY 데이터 파일 경로 (상장 전은 VFINX, 상장 후는 실물)
-SPY_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SPY_synthetic_max.csv"
+# 합성 TLT (상장 전은 VUSTX)
+TLT_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TLT_synthetic.csv"
 
-# 합성 TLT 데이터 파일 경로 (상장 전은 VUSTX, 상장 후는 실물)
-TLT_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TLT_synthetic_max.csv"
+# 합성 GLD (상장 전은 Perth Mint 금값 · 금 선물을 이은 사슬)
+GLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "GLD_synthetic.csv"
 
-# 합성 GLD 데이터 파일 경로 (상장 전은 Perth Mint 금값 · 금 선물을 이은 사슬, 상장 후는 실물)
-GLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "GLD_synthetic_max.csv"
-
-# 합성 TQQQ · QLD · SSO · UPRO 데이터 파일 경로 (시뮬레이션 생성)
-TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic_max.csv"
-QLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QLD_synthetic_max.csv"
-SSO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SSO_synthetic_max.csv"
-UPRO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "UPRO_synthetic_max.csv"
-
-# 교차 자산 검증용 데이터 파일 경로
-SPY_DATA_PATH: Final = STOCK_DIR / "SPY_max.csv"
-GLD_DATA_PATH: Final = STOCK_DIR / "GLD_max.csv"
-TLT_DATA_PATH: Final = STOCK_DIR / "TLT_max.csv"
-
-# 2배 레버리지 ETF 데이터 파일 경로
-SSO_DATA_PATH: Final = STOCK_DIR / "SSO_max.csv"
-QLD_DATA_PATH: Final = STOCK_DIR / "QLD_max.csv"
-
-# 3배 레버리지 ETF 데이터 파일 경로 (S&P 500)
-UPRO_DATA_PATH: Final = STOCK_DIR / "UPRO_max.csv"
-
-# 레버리지 ETF 상장 전의 펀드 — 합성의 상장 전 구간 대조
-UOPIX_DATA_PATH: Final = STOCK_DIR / "UOPIX_max.csv"  # ProFunds 나스닥 100 2배
-ULPIX_DATA_PATH: Final = STOCK_DIR / "ULPIX_max.csv"  # ProFunds S&P 500 2배
-RYNVX_DATA_PATH: Final = STOCK_DIR / "RYNVX_max.csv"  # Rydex S&P 500 1.5배
-
-# S&P 500 인덱스 펀드 (배당 포함) — SPY 상장 전 구간의 대용, 2008년 전 S&P 500 펀드 대조의 기초, 금 대용의 미국 거래일 달력
-VFINX_DATA_PATH: Final = STOCK_DIR / "VFINX_max.csv"
-
-# 뱅가드 장기국채 펀드 — TLT 상장 전 구간의 대용
-VUSTX_DATA_PATH: Final = STOCK_DIR / "VUSTX_max.csv"
-
-# 금 선물 근월물 — GLD 상장 전 금 사슬의 마지막 고리 (2000-08-30 부터)
-GCF_DATA_PATH: Final = STOCK_DIR / "GC=F_max.csv"
-
-# 금 사슬의 앞 고리 원본 — Perth Mint 하루 평균 금값(호주달러 · 달러), FRED 호주달러 환율(DEXUSAL)
-PERTH_MINT_GOLD_DATA_PATH: Final = ETC_DIR / "perth_mint_gold_daily.csv"
-AUD_USD_DATA_PATH: Final = ETC_DIR / "aud_usd_daily.csv"
+# 합성 TQQQ · QLD · SSO · UPRO (상장 전은 1배 합성을 배율만큼 굴린 시뮬레이션)
+TQQQ_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "TQQQ_synthetic.csv"
+QLD_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "QLD_synthetic.csv"
+SSO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "SSO_synthetic.csv"
+UPRO_SYNTHETIC_DATA_PATH: Final = STOCK_DIR / "UPRO_synthetic.csv"
 
 # ============================================================
 # 데이터 상수
@@ -98,9 +63,6 @@ REQUIRED_COLUMNS: Final = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, COL
 
 # 가격 관련 컬럼만 따로 묶음 (검증 시 양수 체크 등에 사용)
 PRICE_COLUMNS: Final = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]
-
-# FRED fredgraph.csv 의 날짜 열 — 이름을 바꾼 적이 있음(DATE → observation_date) → 받을 때 머리까지 고정
-FRED_DATE_COLUMN: Final = "observation_date"
 
 # --- 기타 데이터 상수 ---
 

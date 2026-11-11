@@ -6044,6 +6044,6 @@
     }
   },
   "data_info": {
-    "trade_path": "storage/stock/TLT_synthetic_max.csv"
+    "trade_path": "storage/stock/TLT_synthetic.csv"
   }
 }

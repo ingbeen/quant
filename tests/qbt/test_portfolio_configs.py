@@ -301,7 +301,7 @@ class TestQSeriesConfigs:
 
         Given: PORTFOLIO_CONFIGS
         When:  실험 · 매매법 · 자산마다 신호 · 매매 경로를 모은다 (배분 규칙 매매법이면 매매 시세와 신호용 시세)
-        Then:  모두 `_synthetic_max.csv`
+        Then:  모두 `_synthetic.csv`
         """
         # When — 목록으로 모음: 자산과 신호용 시세의 id 가 같아도 서로 덮어쓰지 않음
         paths: list[tuple[str, str, str, str]] = []
@@ -322,7 +322,7 @@ class TestQSeriesConfigs:
                         )
 
         # Then
-        not_synthetic = [entry for entry in paths if not entry[-1].endswith("_synthetic_max.csv")]
+        not_synthetic = [entry for entry in paths if not entry[-1].endswith("_synthetic.csv")]
         assert not_synthetic == []
 
     def test_each_slot_trades_its_asset_on_one_times_signal(self) -> None:
@@ -341,7 +341,7 @@ class TestQSeriesConfigs:
             for method in resolve_methods(config)
             if isinstance(method, SlotMethodConfig)
             for slot in method.asset_slots
-            if slot.trade_data_path.name != f"{slot.asset_id.upper()}_synthetic_max.csv"
+            if slot.trade_data_path.name != f"{slot.asset_id.upper()}_synthetic.csv"
             or ONE_TIMES_SIGNAL_OF.get(slot.trade_data_path) != slot.signal_data_path
         ]
 
@@ -364,7 +364,7 @@ class TestQSeriesConfigs:
             for method in resolve_methods(config)
             if isinstance(method, AllocatorMethodConfig)
             for asset in method.assets
-            if asset.trade_data_path.name != f"{asset.asset_id.upper()}_synthetic_max.csv"
+            if asset.trade_data_path.name != f"{asset.asset_id.upper()}_synthetic.csv"
         ]
 
         # Then

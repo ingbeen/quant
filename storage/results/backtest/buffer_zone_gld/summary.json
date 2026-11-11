@@ -6938,7 +6938,7 @@
     }
   },
   "data_info": {
-    "signal_path": "storage/stock/GLD_synthetic_max.csv",
-    "trade_path": "storage/stock/GLD_synthetic_max.csv"
+    "signal_path": "storage/stock/GLD_synthetic.csv",
+    "trade_path": "storage/stock/GLD_synthetic.csv"
   }
 }

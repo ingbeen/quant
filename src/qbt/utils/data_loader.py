@@ -1,9 +1,6 @@
 """데이터 로딩 및 검증 유틸리티
 
 프로젝트 전반에서 사용되는 공통 CSV 파일 로딩 함수를 제공한다.
-
-참고:
-- TQQQ 도메인 전용 데이터 로더: tqqq/data_loader.py 참고
 """
 
 from pathlib import Path
@@ -15,9 +12,9 @@ from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 합성 시세와 그 짝 실물 시세의 파일 이름 끝 (src/qbt/CLAUDE.md 「시세 파일 이름」)
-_SYNTHETIC_SUFFIX = "_synthetic_max.csv"
-_ACTUAL_SUFFIX = "_max.csv"
+# 합성 시세와 그 짝 실물 수정주가의 파일 이름 끝 (src/qbt/CLAUDE.md 「시세 파일 이름」)
+_SYNTHETIC_SUFFIX = "_synthetic.csv"
+_ACTUAL_SUFFIX = "_adjusted.csv"
 
 
 def load_stock_data(path: Path) -> pd.DataFrame:
@@ -25,7 +22,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
     CSV 파일에서 주식 데이터를 로드하고 전처리한다.
 
     날짜 파싱, 정렬, 필수 컬럼 검증을 하고, 중복 날짜 · 가격의 결측 · 0 · 음수가 있으면 멈춘다(지우거나 메우지 않는다).
-    합성 파일(`{T}_synthetic_max.csv`)은 같은 폴더의 실물(`{T}_max.csv`)보다 먼저 끝나면 멈춘다.
+    합성 파일(`{T}_synthetic.csv`)은 같은 폴더의 실물 수정주가(`{T}_adjusted.csv`)보다 먼저 끝나면 멈춘다.
 
     Args:
         path: CSV 파일 경로
@@ -72,7 +69,7 @@ def load_stock_data(path: Path) -> pd.DataFrame:
 
 
 def ticker_from_stock_path(path: Path) -> str:
-    """시세 파일 경로(`{T}_max.csv` · `{T}_synthetic_max.csv`)의 티커를 돌려준다.
+    """시세 파일 경로(`{T}_adjusted.csv` · `{T}_synthetic.csv`)의 티커를 돌려준다.
 
     Raises:
         ValueError: 시세 파일 이름 규칙에 맞지 않을 때
@@ -85,7 +82,7 @@ def ticker_from_stock_path(path: Path) -> str:
 
 
 def _require_synthetic_not_behind_actual(path: Path, df: pd.DataFrame) -> None:
-    # 합성은 이음매 뒤가 실물 행 그대로라 생성 직후 끝날이 같음 → 더 이르면 시세를 다시 받고 생성을 건너뛴 것
+    # 합성은 이음매 뒤가 실물 행 그대로라 같은 판이면 끝날이 같음 → 더 이르면 두 파일이 다른 판에서 왔음
     if not path.name.endswith(_SYNTHETIC_SUFFIX):
         return
     actual_path = path.with_name(path.name.removesuffix(_SYNTHETIC_SUFFIX) + _ACTUAL_SUFFIX)
@@ -96,16 +93,17 @@ def _require_synthetic_not_behind_actual(path: Path, df: pd.DataFrame) -> None:
     if synthetic_end < actual_end:
         raise ValueError(
             f"합성 시세 {path.name} 의 끝날 {synthetic_end} 가 실물 {actual_path.name} 의 끝날 {actual_end} 보다 이릅니다 — "
-            f"시세를 다시 받은 뒤 합성 생성을 돌리지 않았습니다. "
-            f"poetry run python scripts/data/generate_synthetic.py 를 돌린 뒤 다시 실행하세요"
+            f"두 파일이 데이터 저장소(quant-data)의 다른 판에서 왔습니다. "
+            f"quant-data 에서 내보내기를 다시 한 뒤 실행하세요 — 갱신까지 하면 새 데이터가 함께 들어옵니다 "
+            f"(명령은 quant-data docs/COMMANDS.md)"
         )
 
 
 def validate_price_series(df: pd.DataFrame) -> None:
     """시세 표에 중복 날짜나 가격 열(`PRICE_COLUMNS`)의 결측 · 0 · 음수가 있으면 ValueError — 지우거나 메우지 않는다.
 
-    시세를 읽을 때(`load_stock_data`)와 받거나 만든 시세를 저장하기 전(`stock_downloader.save_stock_csv` —
-    급등락까지 보는 `validate_stock_data` 를 거치든 아니든)에 같은 검사를 쓴다. 거래량은 보지 않는다(대용 · 합성 시세는 거래량이 0 이다).
+    시세를 읽을 때(`load_stock_data`) 쓴다 — 데이터 저장소(quant-data)도 저장하기 전에 같은 검사를 한다.
+    거래량은 보지 않는다(대용 · 합성 시세는 거래량이 0 이다).
 
     Raises:
         ValueError: 중복 날짜(날짜 포함) · 결측 · 0 · 음수(열 · 인덱스 · 날짜 포함)가 있을 때

@@ -6022,7 +6022,7 @@
     }
   },
   "data_info": {
-    "signal_path": "storage/stock/QQQ_synthetic_max.csv",
-    "trade_path": "storage/stock/TQQQ_synthetic_max.csv"
+    "signal_path": "storage/stock/QQQ_synthetic.csv",
+    "trade_path": "storage/stock/TQQQ_synthetic.csv"
   }
 }

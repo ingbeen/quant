@@ -20,22 +20,10 @@ poetry run python validate_project.py
 
 ## 워크플로우 1: 합성 시세 (QQQ · SPY 와 그 2 · 3배, TLT · GLD)
 
-실물 ETF 상장 전 구간을 채운 합성 시세를 스크립트 하나로 모두 만듭니다 — QQQ 는 나스닥 100 지수로, SPY 는 S&P 500 인덱스 펀드(VFINX)로 채우고, TQQQ · QLD 는 그 QQQ 합성, SSO · UPRO 는 그 SPY 합성으로부터 시뮬레이션해 채우고, TLT 는 뱅가드 장기국채 펀드(VUSTX)로, GLD 는 Perth Mint 금값과 금 선물(GC=F)을 이은 금 사슬에서 GLD 운용보수를 뺀 것으로 채우고, 실물 첫 거래일부터는 실물로 이어 붙입니다. 새 시세를 받으면 아래 두 명령을 돌립니다 — 다운로드가 월별 금리(FRED)와 금 사슬의 원본(Perth Mint 금값 · FRED 호주달러 환율)도 함께 받습니다. 운용비율 파일만 손으로 갱신하며, 시세 끝보다 너무 낡으면 레버리지 합성이 멈춥니다 — 아래 「시세를 다시 받은 뒤 다시 돌리는 순서」 ②.
+워크플로우 2 의 백테스트(단일 · 포트폴리오 · 워크포워드 · 고원)는 모두 실물 ETF 상장 전 구간을 채운 합성 시세 8종(`storage/stock/{TICKER}_synthetic.csv`)을 읽습니다. 이 시세는 데이터 저장소 quant-data 가 받고 · 판정하고 · 합성해 이 저장소로 내보낸 사본이고, 이 저장소에는 받기 · 합성 명령이 없습니다 — quant-data 에서 그 저장소 `docs/COMMANDS.md` 의 「갱신」 → 「내보내기」를 돌립니다.
 
-```bash
-# 1. 데이터 다운로드 (전체 종목 일괄 + 월별 금리 · 금 사슬 원본 — 합성이 읽는 시세가 모두 DEFAULT_TICKERS 에 있다)
-poetry run python scripts/data/download_data.py
-poetry run python scripts/data/download_data.py --end 2026-11-06
-
-# 2. 합성 시세 생성 (워크플로우 2 의 백테스트 — 단일 · 포트폴리오 · 워크포워드 · 고원 — 가 모두 이 합성 시세를 읽는다)
-# 출력: storage/stock/ 의 QQQ · SPY · TQQQ · QLD · SSO · UPRO · TLT · GLD 합성 ({TICKER}_synthetic_max.csv)
-#       storage/results/proxy_validation/ — summary.csv · years.csv (대용 ↔ 실물 — 금 사슬은 이음매마다), tracking.csv (레버리지 합성 ↔ 실물 추적),
-#       funds.csv · fund_years.csv (ETF 상장 전 펀드 대조), assumptions.csv (가정만 바꾼 판)
-#       연도별 · 해마다 표 밖의 표는 콘솔에 직전 저장값과 나란히 나온다
-poetry run python scripts/data/generate_synthetic.py
-```
-
-**파라미터 변경**: 레버리지 비용 모델 · 가산금리 상한 · 레버리지 상품 표(`LEVERAGED_SYNTHETIC_TARGETS` — 상품마다 기초 시세)는 [src/qbt/tqqq/constants.py](../src/qbt/tqqq/constants.py), 1배 대용 대상 표(`PROXY_TARGETS`) · 금 사슬의 미국 달력(`US_CALENDAR_DATA_PATH`) · GLD 운용보수(`GLD_EXPENSE_RATIO`) · 펀드 대조 · 가정만 바꾼 판의 대상 표(`ASSUMPTION_TARGETS`)는 [scripts/data/generate_synthetic.py](../scripts/data/generate_synthetic.py)
+- 받을 파일: `storage/stock/quant_data_files.txt` (한 줄에 quant-data storage 기준 경로 하나)
+- 받은 판: `storage/stock/quant_data_edition.json` — quant-data 커밋 번호 · 커밋 안 된 변경 · 기준일 · 파일별 기간
 
 ---
 
@@ -143,48 +131,18 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 
 ## 시세를 다시 받은 뒤 다시 돌리는 순서
 
-생성 파일과 결과 파일은 만들 때의 시세로 굳은 사본이다. 원본 시세를 다시 받으면 ① 부터, `storage/etc` 의 월별 파일만 고쳤으면 ③ 부터 끝까지 차례로 다시 돌린다 — 일부만 돌리면 같은 결과 폴더에 기준일이 다른 산출물이 섞인다. **단계마다 끝까지 성공한 것을 보고 다음 단계로 간다** — 아래 블록은 실패하면 그 자리에서 멈춘다.
+결과 파일은 만들 때의 시세로 굳은 사본이다. quant-data 에서 갱신 · 내보내기를 다시 해 `storage/stock` 의 합성 시세가 바뀌면 아래 결과 러너를 끝까지 차례로 다시 돌린다 — 일부만 돌리면 같은 결과 폴더에 기준일이 다른 산출물이 섞인다. **단계마다 끝까지 성공한 것을 보고 다음 단계로 간다** — 아래 블록은 실패하면 그 자리에서 멈춘다.
 
-**① 원본 시세** — `storage/stock` 의 `*_max.csv` 중 생성 파일(`*_synthetic_max`)이 아닌 것 전부. 모두 `DEFAULT_TICKERS` 에 두므로 인자 없는 다운로드가 받는다(규칙은 [scripts/CLAUDE.md](../scripts/CLAUDE.md) 「스크립트 지도」). 같은 다운로드가 GLD 합성의 금 사슬 원본 `storage/etc/perth_mint_gold_daily.csv`(Perth Mint 하루 평균 금값 — 2015-12-31 에 끝난 보관 파일) · `aud_usd_daily.csv`(FRED `DEXUSAL`)도 받는다 — 손으로 고치지 않는다.
+**① 시세 받기** — 워크플로우 1. quant-data 의 갱신이 비정상으로 멈추면 아무 파일도 쓰이지 않는다 — 처리는 quant-data `CLAUDE.md`. 갱신에서 `--exclude` 로 뺀 종목은 옛 끝날에 머물러, 그 종목의 합성이 든 결과의 끝날도 거기 묶인다 — 함께 쓰는 합성끼리 겹치는 기간으로 에러 없이 짧아진다(예: QQQ 를 빼면 QQQ 합성은 옛 끝날 · TQQQ 합성은 새 끝날이라, QQQ 신호로 TQQQ 를 사고파는 결과가 QQQ 의 옛 끝날에서 끝난다). 파일별 끝날은 `storage/stock/quant_data_edition.json`.
 
-기존 시세 파일과 견줘 저장한다 — 흔들림뿐이면 기존 행을 그대로 두고 새 날짜 행만 붙이고, 배당 · 분할 기록으로 설명되는 변화면 덮어쓴다. 그 밖(배당 기록이 빠짐 · 봉이 바뀜 등)은 덮어쓰지 않고, 시세 받기가 끝나면 원인 블록을 낸 뒤 터미널이면 종목마다 덮어쓸지 묻는다 — 블록을 그대로 AI 에 붙여 판단을 받고 y / N 을 고른다. 터미널이 아니면 묻지 않고 종료 코드 1 로 끝난다. 덮어쓰지 않은 종목은 옛 끝날에 머물러, 그 시세가 든 결과의 끝날도 거기 묶인다.
-
-```bash
-poetry run python scripts/data/download_data.py
-```
-
-**② `storage/etc` 월별 파일** — 금리 `federal_funds_rate_monthly.csv` 는 ① 의 인자 없는 다운로드가 FRED `FEDFUNDS`(월별, %) 전체 기간을 받아 ÷ 100 해 다시 쓴다(티커를 주고 돌리면 받지 않는다). 운용비율만 손으로 갱신한다. 열은 `DATE`(yyyy-mm) · `VALUE`(비율), 달마다 한 행, 줄 끝은 기존 행과 같은 CRLF. 편집기로 붙인다 — 파일 끝에 줄바꿈이 없으면 셸 `>>` 는 마지막 행에 이어 붙인다.
-
-- `tqqq_net_expense_ratio_monthly.csv`: ProShares TQQQ Summary Prospectus 의 Net expense ratio(%) ÷ 100 — 설명서 날짜 다음 달부터 그 값
-- 시세 끝이 파일 끝보다 `MAX_FFR_MONTHS_DIFF` · `MAX_EXPENSE_MONTHS_DIFF`([src/qbt/tqqq/data_loader.py](../src/qbt/tqqq/data_loader.py))를 넘게 뒤면 두 파일을 읽는 ③ 의 합성 생성이 멈춘다
-- 월 키가 `yyyy-mm` 이 아닌 줄(`2026-3` 등)이 있어도 ③ 이 멈춘다
-
-**③ – ④ 생성 · 결과** — 블록의 줄 순서대로 ③ 합성 시세 QQQ · SPY 와 그 2 · 3배 · TLT · GLD(④ 의 러너가 모두 이 합성 시세를 읽는다), ④ 결과 러너. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). ① 뒤에 ③ 을 건너뛰고 ④ 를 돌리면 러너가 시세를 읽을 때 멈춘다(합성 끝날이 짝 실물보다 이르다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
+**② 결과 러너** — 블록의 줄 순서대로 돈다. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
 ```bash
 (
   set -e
-  poetry run python scripts/data/generate_synthetic.py
-
   poetry run python scripts/backtest/run_single_backtest.py
   poetry run python scripts/backtest/run_walkforward.py
   poetry run python scripts/backtest/run_param_plateau_all.py
   poetry run python scripts/backtest/run_portfolio_backtest.py
 )
-```
-
----
-
-## 데이터 다운로드 옵션
-
-```bash
-# 전체 종목 일괄 다운로드 + 월별 연방기금금리(FRED) · 금 사슬 원본(Perth Mint 금값 · FRED 호주달러 환율) (대상 티커는 scripts/data/download_data.py 의 DEFAULT_TICKERS 참조)
-poetry run python scripts/data/download_data.py
-
-# 특정 종목 전체 기간 — 금리 · 금 사슬 원본은 받지 않는다 (특수 문자가 든 티커는 따옴표로 감싼다 — "^SPGSCI" · "GC=F". 파일 이름도 티커 그대로)
-poetry run python scripts/data/download_data.py TICKER
-
-# 받을 마지막 날 지정 — 그날 포함, 오늘까지. 뉴욕에서 그날 봉이 다 끝나기 전인 날은 빠지고, 지정하지 않으면 그저께까지다
-# 티커와 함께 쓸 수 있다. 기존 파일이 그날보다 뒤까지 있으면 자르지 않는다
-poetry run python scripts/data/download_data.py --end YYYY-MM-DD
 ```

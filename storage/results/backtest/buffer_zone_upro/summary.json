@@ -6943,7 +6943,7 @@
     }
   },
   "data_info": {
-    "signal_path": "storage/stock/SPY_synthetic_max.csv",
-    "trade_path": "storage/stock/UPRO_synthetic_max.csv"
+    "signal_path": "storage/stock/SPY_synthetic.csv",
+    "trade_path": "storage/stock/UPRO_synthetic.csv"
   }
 }

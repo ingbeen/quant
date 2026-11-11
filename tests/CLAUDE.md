@@ -27,11 +27,6 @@ tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리�
   - Equity 및 Final Capital 정의
   - 성과 지표 (CAGR, MDD, 승률 등)
 
-- TQQQ 시뮬레이션 도메인:
-
-  - 일일 비용 계산 (`_calculate_daily_cost`)
-  - 레버리지 수익률 적용 (`simulate`)
-  - 복리 효과 검증
 - 공통 유틸리티:
 
   - 데이터 로더 (CSV 로딩 및 전처리)
@@ -58,8 +53,6 @@ tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리�
 | 검증 대상 | 허용오차 | 예시 |
 |-----------|----------|------|
 | 수학적 정확 계산 (MA, 로그차이 등) | `EPSILON` (1e-12) | 이동평균, 승률 |
-| 초정밀 함수 (softplus) | `1e-10` | softplus 계산값 |
-| 일일 비용 계산 | `1e-6` | 연간 비용/252 |
 | 가격/금액 비교 | `0.01` ~ `0.1` | equity, 종가 |
 | 비율(%) 지표 | `0.1` | total_return_pct, MDD |
 | CAGR (근사 계산) | `1.0` | 복리 연환산 |
@@ -77,22 +70,10 @@ tests 폴더(`tests/`)는 QBT 프로젝트 전체의 테스트 코드를 관리�
 
 ## 자주 발생하는 문제
 
-### 1. FFR · 운용비율 데이터의 날짜 형식
+### 1. 테스트 데이터의 자릿수
 
-`DATE` 는 `date` 객체가 아니라 `"yyyy-mm"` 문자열이다 — 프로덕션 코드가 월별 값을 문자열 키로 조회한다.
+사람이 읽는 자릿수로 쓰는 일반 규칙은 `python-tests.md`. QBT 고유 — 소수점 자릿수의 SoT 는 `ROUND_*` 이름의 상수다 — 여러 도메인이 쓰는 것은 [src/qbt/common_constants.py](../src/qbt/common_constants.py), 한 모듈만 쓰는 것은 그 모듈 상단에 있다. 테스트 데이터도 같은 기준을 따르고, 다른 값이면 안 되는 자릿수(정책 값)는 테스트가 그 상수로 기대값을 만들지 않고 숫자로 고정한다. 허용오차는 위 「부동소수점/DF 비교 규칙」 표.
 
-```python
-# 잘못된 예
-"DATE": [date(2023, 1, 1)]  # date 객체
+### 2. storage 경로 상수 패치가 닿지 않는다
 
-# 올바른 예
-"DATE": ["2023-01"]  # yyyy-mm 문자열
-```
-
-### 2. 테스트 데이터의 자릿수
-
-사람이 읽는 자릿수로 쓰는 일반 규칙은 `python-tests.md`. QBT 고유 — 소수점 자릿수의 SoT 는 `ROUND_*` 이름의 상수다 — 여러 도메인이 쓰는 것은 [src/qbt/common_constants.py](../src/qbt/common_constants.py), 한 모듈만 쓰는 것(입력 시세)은 그 모듈 상단에 있다. 테스트 데이터도 같은 기준을 따르고, 다른 값이면 안 되는 자릿수(정책 값)는 테스트가 그 상수로 기대값을 만들지 않고 숫자로 고정한다. 허용오차는 위 「부동소수점/DF 비교 규칙」 표.
-
-### 3. storage 경로 상수 패치가 닿지 않는다
-
-storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.utils.stock_downloader.STOCK_DIR`).
+storage 경로 전체를 임시 경로로 바꾸는 공용 픽스처는 두지 않는다 — src 는 경로 상수를 `from qbt.common_constants import …` 로 가져와 쓰므로 `common_constants` 모듈의 값을 패치해도 닿지 않는다(패치가 조용히 효과 없이 지나간다). 파일을 쓰는 테스트는 경로를 인자로 넘기거나, 인자가 없으면 그 상수를 가져다 쓰는 모듈의 이름을 패치한다(예: `qbt.backtest.parameter_stability._PLATEAU_DIR`).

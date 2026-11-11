@@ -353,13 +353,13 @@ class TestBuyAndHoldConfigs:
 
         Given: buy_and_hold.CONFIGS
         When: 매매 경로를 모은다
-        Then: 모두 `_synthetic_max.csv`
+        Then: 모두 `_synthetic.csv`
         """
         # When
         names = {c.strategy_name: c.trade_data_path.name for c in CONFIGS}
 
         # Then
-        not_synthetic = {name: path for name, path in names.items() if not path.endswith("_synthetic_max.csv")}
+        not_synthetic = {name: path for name, path in names.items() if not path.endswith("_synthetic.csv")}
         assert not_synthetic == {}
 
     def test_each_config_trades_its_ticker(self):
@@ -374,7 +374,7 @@ class TestBuyAndHoldConfigs:
         mismatched = {
             c.strategy_name: c.trade_data_path.name
             for c in CONFIGS
-            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buy_and_hold_').upper()}_synthetic_max.csv"
+            if c.trade_data_path.name != f"{c.strategy_name.removeprefix('buy_and_hold_').upper()}_synthetic.csv"
         }
 
         # Then

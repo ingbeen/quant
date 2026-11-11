@@ -15,7 +15,7 @@
 
 QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다 (`src/qbt/`). 기능 소개는 [README.md](README.md)에 있습니다.
 
-- 주요 라이브러리: pandas, yfinance, Plotly, Streamlit, streamlit-lightweight-charts-v5 (`vendor/` 포크)
+- 주요 라이브러리: pandas, Plotly, Streamlit, streamlit-lightweight-charts-v5 (`vendor/` 포크)
 
 ---
 
@@ -23,11 +23,11 @@ QBT(Quant BackTest)는 주식 백테스팅 CLI 도구입니다 (`src/qbt/`). 기
 
 ```
 quant/
-├── src/qbt/    # 패키지 소스 코드 — backtest · tqqq · utils (상세: src/qbt/CLAUDE.md)
+├── src/qbt/    # 패키지 소스 코드 — backtest · utils (상세: src/qbt/CLAUDE.md)
 ├── tests/      # 테스트 코드 (상세: tests/CLAUDE.md)
-├── scripts/    # CLI 스크립트 — data · backtest (상세: scripts/CLAUDE.md)
+├── scripts/    # CLI 스크립트 — backtest (상세: scripts/CLAUDE.md)
 ├── docs/       # 문서 — plans/ 계획서 · research/ 연구 보고서 (상세: docs/CLAUDE.md)
-├── storage/    # 데이터 저장소 (stock, etc, results)
+├── storage/    # 시세 사본(stock — quant-data 가 내보냄) · 결과(results)
 └── vendor/     # 서드파티 포크 (streamlit-lightweight-charts-v5)
 ```
 
@@ -50,19 +50,18 @@ quant/
 - **수 분 걸리는 러너가 있습니다** — 소요는 COMMANDS 의 각 명령에 적혀 있고, 적혀 있지 않은 백테스트 러너는 1분 이내입니다. Bash 기본 제한 시간을 넘는 것은 제한 시간을 늘리거나 백그라운드로 돌립니다.
 - **결과 파일은 덮어써집니다.** `storage/results/` 는 git 추적 대상이므로 되돌릴 수 있으나,
   실행 전 작업 트리 상태를 확인합니다.
-- **`download_data.py` 는 결과 비교 중일 때 함부로 실행하지 않습니다.** 데이터가 갱신되면
+- **시세는 데이터 저장소 quant-data 가 받고 · 판정하고 · 합성해 `storage/stock/` 으로 내보냅니다.** 이 저장소에는 받기 · 합성
+  스크립트가 없습니다. 받을 파일은 `storage/stock/quant_data_files.txt`, 받은 판(quant-data 커밋 번호 · 기준일 · 파일별 기간)은
+  같은 폴더의 `quant_data_edition.json` 에 있습니다. quant-data 를 다룰 때는 그 저장소의 `CLAUDE.md` 를 먼저 `Read` 로 엽니다 —
+  비정상 시세를 받아들일지 · 뺄지는 거기서 사람만 정합니다.
+- **결과 비교 중일 때 quant-data 갱신 · 내보내기를 함부로 다시 돌리지 않습니다.** 데이터가 갱신되면
   결과 변화의 원인이 코드 변경인지 데이터 추가인지 분리할 수 없게 됩니다.
-- **`download_data.py` 가 덮어쓸지 묻는 비정상 종목은 사용자가 터미널에서 답합니다.** AI 모델이 돌리면 터미널이 아니라 묻지 않고
-  그대로 둔 채 종료 코드 1 로 끝납니다 — 원인 블록을 판단해 y / N 추천을 전하고, 의사 터미널(`script` 등)로 y 를 넣지 않습니다.
-  판단은 그날 배당이 실제로 있었는지(응답의 배당 목록 · 배당 정보 사이트)와 봉이 확정 전 값이었는지로 합니다.
-  - **왜**: 비정상에는 야후가 배당 기록을 빠뜨린 경우(`[실측] 2026-11-07` TLT 10-01)와 진짜 정정(`[실측]` 2025-12-12 QQQ · TQQQ 확정 전 봉)이
-    섞여 있고, y 는 그 종목의 과거 전체를 바꿉니다. 근거는 `docs/research/합성_시세_연장.md` 결정 14.
 
 ---
 
 ## 이 프로젝트의 개발 원칙
 
-- **확장성**: 도메인별 모듈 독립성 유지 (`backtest`·`tqqq`·`utils` 경계)
+- **확장성**: 도메인별 모듈 독립성 유지 (`backtest`·`utils` 경계)
 
 ### 가격 반올림 자릿수 — 출력은 집행 완료, 입력은 미이행 `2026-09-09`
 
@@ -71,14 +70,9 @@ quant/
 | 구분 | 지점 | 값 |
 |---|---|---|
 | **출력 — 집행 완료** | `src/qbt/common_constants.py` `ROUND_PRICE` (모든 결과 저장 경로가 경유) | `4` |
-| **입력 — 미이행** | `src/qbt/utils/stock_downloader.py` `ROUND_INPUT_PRICE` — 다운로더와 합성 생성 스크립트가 모두 그 모듈의 `save_stock_csv` 로 저장한다 | `6` |
+| **입력 — 미이행** | 데이터 저장소 quant-data 가 받고 · 합성해 내보낼 때의 자릿수 — quant-data `src/quant_data/constants.py` `ROUND_INPUT_PRICE`. 이 저장소는 받은 사본을 그대로 읽는다 | `6` |
 
 **왜 입력만 남겼는가.** 출력 자릿수는 저장 직전 복사본에만 걸려 **성과 지표를 바꾸지 않는다**(재실행 전후 결과 필드 대조에서 차이 0건). 반면 입력 자릿수는 백테스트의 계산 입력 자체를 바꾸므로 **CAGR·MDD·Calmar 가 전부 미세하게 달라지고 `docs/research/` 의 기록이 재현되지 않는다.** 게다가 재다운로드하면 최신 데이터가 함께 유입되어 「자릿수 효과」와 「데이터 추가 효과」를 분리할 수 없다. 4자리를 정한 근거(사용자가 **결과**를 차트와 대조할 때 방해된다)는 출력만으로 달성된다.
 
 - **입력 쪽 6자리는 버그가 아니라 «의도된 미이행»이다.** 발견해도 조용히 고치지 않는다.
 - **자릿수는 위 표의 상수로만 적는다.** 저장 지점에 숫자를 직접 적은 코드는 `round(…, 6)` 검색에 걸리지 않아 자릿수를 바꿀 때 조용히 누락된다(실제로 겪었다). `tests/qbt/test_rounding_policy.py` 가 상한을 고정한다.
-
-**전역 자릿수 표의 다른 예외** `2026-11-05`
-
-- 합성 생성의 추적 오차 표(`tracking.csv`, %)는 **4자리**다 — `scripts/data/generate_synthetic.py` 의 `ROUND_TRACKING_PERCENT`. 오차가 1% 안팎이라 백분율 2자리면 직전 저장값과의 비교가 무뎌진다 (사용자 결정 2026-11-05)
-- 받아 쓰는 월별 금리(비율)는 **6자리**다 — `src/qbt/tqqq/data_loader.py` 의 `ROUND_MONTHLY_RATE`. 입력 데이터라 위 표의 입력 시세와 같은 자리이고, FRED 가 % 2자리라 실제 값은 4자리 이하다

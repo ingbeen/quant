@@ -3,7 +3,6 @@
 
 이 파일은 무엇을 검증하나요?
 1. 백테스트 파이프라인이 모듈 간 올바르게 연결되는가?
-2. TQQQ 시뮬레이션 파이프라인이 끊기지 않고 실행되는가?
 
 왜 중요한가요?
 단위 테스트는 각 부품의 정확성을 보장하지만,
@@ -11,11 +10,9 @@
 
 통합 테스트 원칙:
 - 값의 정확성보다 파이프라인 연결에 초점 (값 정확성은 단위 테스트에서 보장)
-- 데이터는 최소 크기 사용 (백테스트: ~25행, TQQQ: ~10행)
+- 데이터는 최소 크기 사용 (백테스트: ~25행)
 - 파일 격리 필수 (tmp_path)
 """
-
-from datetime import date
 
 import pandas as pd
 
@@ -23,9 +20,7 @@ from qbt.backtest.analysis import add_single_moving_average
 from qbt.backtest.engines.backtest_engine import run_buffer_strategy
 from qbt.backtest.strategies.buffer_zone import BufferStrategyParams
 from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
-from qbt.tqqq import build_monthly_spread_map, simulate
-from qbt.tqqq.data_loader import create_expense_dict, create_ffr_dict
-from qbt.utils.data_loader import extract_overlap_period, load_stock_data
+from qbt.utils.data_loader import load_stock_data
 
 
 class TestBacktestWorkflow:
@@ -102,104 +97,3 @@ class TestBacktestWorkflow:
 
         # final_capital > 0 (양수 자본)
         assert summary["final_capital"] > 0, "최종 자본은 양수여야 합니다"
-
-
-class TestTQQQSimulationWorkflow:
-    """TQQQ 시뮬레이션 파이프라인 통합 테스트
-
-    호출 체인: 데이터 준비 -> extract_overlap_period -> build_monthly_spread_map -> simulate
-    """
-
-    def test_full_tqqq_pipeline(self):
-        """
-        목적: TQQQ 시뮬레이션 전체 파이프라인이 연결되어 실행되는지 검증
-
-        Given:
-            - QQQ 데이터 (~10행), TQQQ 데이터 (~10행, 동일 날짜)
-            - FFR 데이터 (해당 월 커버, 2행)
-            - Expense Ratio 데이터 (2행)
-        When:
-            1. extract_overlap_period(qqq_df, tqqq_df)
-            2. build_monthly_spread_map(ffr_df, a=-6.1, b=0.37)
-            3. simulate(...)
-        Then:
-            - overlap 두 DataFrame 길이 동일
-            - spread_map이 비어있지 않음
-            - simulated_df에 Date, Close 컬럼 존재
-        """
-        # Given: 테스트 데이터 구성
-        test_dates = [
-            date(2023, 1, 3),
-            date(2023, 1, 4),
-            date(2023, 1, 5),
-            date(2023, 1, 6),
-            date(2023, 1, 9),
-            date(2023, 1, 10),
-            date(2023, 1, 11),
-            date(2023, 1, 12),
-            date(2023, 1, 13),
-            date(2023, 1, 16),
-        ]
-
-        # QQQ 가격 (미세 등락)
-        qqq_closes = [300.0, 301.5, 299.8, 302.0, 303.1, 301.0, 304.2, 302.5, 305.0, 303.8]
-        qqq_df = pd.DataFrame(
-            {
-                COL_DATE: test_dates,
-                COL_OPEN: [p - 0.3 for p in qqq_closes],
-                COL_HIGH: [p + 1.0 for p in qqq_closes],
-                COL_LOW: [p - 1.0 for p in qqq_closes],
-                COL_CLOSE: qqq_closes,
-                COL_VOLUME: [5000000] * 10,
-            }
-        )
-
-        # TQQQ 가격 (3배 레버리지 근사)
-        tqqq_closes = [30.0, 30.45, 29.83, 30.61, 30.94, 30.31, 31.28, 30.77, 31.52, 31.16]
-        tqqq_df = pd.DataFrame(
-            {
-                COL_DATE: test_dates,
-                COL_OPEN: [p - 0.1 for p in tqqq_closes],
-                COL_HIGH: [p + 0.3 for p in tqqq_closes],
-                COL_LOW: [p - 0.3 for p in tqqq_closes],
-                COL_CLOSE: tqqq_closes,
-                COL_VOLUME: [8000000] * 10,
-            }
-        )
-
-        # FFR 데이터 (2023-01 커버)
-        ffr_df = pd.DataFrame({"DATE": ["2022-12", "2023-01"], "VALUE": [0.043, 0.045]})
-
-        # Expense Ratio 데이터
-        expense_df = pd.DataFrame({"DATE": ["2022-12", "2023-01"], "VALUE": [0.0095, 0.0095]})
-
-        # When 1: 겹치는 기간 추출
-        qqq_overlap, tqqq_overlap = extract_overlap_period(qqq_df, tqqq_df)
-
-        # Then 1: 두 DataFrame 길이 동일
-        assert len(qqq_overlap) == len(tqqq_overlap), "overlap 길이가 동일해야 합니다"
-        assert len(qqq_overlap) == 10, "10행 데이터"
-
-        # When 2: softplus 스프레드 맵 생성
-        spread_map = build_monthly_spread_map(ffr_df, a=-6.1, b=0.37)
-
-        # Then 2: 비어있지 않음
-        assert isinstance(spread_map, dict), "spread_map은 dict"
-        assert len(spread_map) > 0, "spread_map이 비어있지 않아야 합니다"
-
-        # When 3: 시뮬레이션 실행
-        initial_price = float(tqqq_overlap.iloc[0][COL_CLOSE])
-        simulated_df = simulate(
-            underlying_df=qqq_overlap,
-            leverage=3.0,
-            initial_price=initial_price,
-            ffr_dict=create_ffr_dict(ffr_df),
-            expense_dict=create_expense_dict(expense_df),
-            funding_spread=spread_map,
-        )
-
-        # Then 3: simulated_df 구조 검증
-        assert COL_DATE in simulated_df.columns, "Date 컬럼 존재"
-        assert COL_CLOSE in simulated_df.columns, "Close 컬럼 존재"
-        assert len(simulated_df) == len(qqq_overlap), "행 수가 원본과 동일"
-        assert (simulated_df[COL_CLOSE] > 0).all(), "모든 가격은 양수"

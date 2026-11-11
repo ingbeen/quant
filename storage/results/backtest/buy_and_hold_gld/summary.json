@@ -7056,6 +7056,6 @@
     }
   },
   "data_info": {
-    "trade_path": "storage/stock/GLD_synthetic_max.csv"
+    "trade_path": "storage/stock/GLD_synthetic.csv"
   }
 }
