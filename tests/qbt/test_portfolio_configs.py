@@ -297,7 +297,7 @@ class TestQSeriesConfigs:
     def test_all_slots_read_synthetic_prices(self) -> None:
         """
         목적: 모든 실험의 슬롯은 상장 전까지 늘린 합성 시세를 읽는다 — 실물 파일이 하나라도 섞이면 포트폴리오 시작일이
-              그 상장일로 줄어든다 (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+              그 상장일로 줄어든다 (사용자 결정 2026-11-05, docs/research/백테스트_기간_연장.md 결정 10)
 
         Given: PORTFOLIO_CONFIGS
         When:  실험 · 매매법 · 자산마다 신호 · 매매 경로를 모은다 (배분 규칙 매매법이면 매매 시세와 신호용 시세)

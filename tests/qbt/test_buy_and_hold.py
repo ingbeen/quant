@@ -349,7 +349,7 @@ class TestBuyAndHoldConfigs:
     def test_all_configs_read_synthetic_prices(self):
         """
         목적: Buy & Hold 는 모두 상장 전까지 늘린 합성 시세의 첫 행부터 돈다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다
-              (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+              (사용자 결정 2026-11-05, docs/research/백테스트_기간_연장.md 결정 10)
 
         Given: buy_and_hold.CONFIGS
         When: 매매 경로를 모은다

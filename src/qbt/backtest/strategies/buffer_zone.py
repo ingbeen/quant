@@ -73,7 +73,7 @@ class BufferZoneConfig:
 # CONFIGS 리스트
 # ============================================================================
 
-# 실물 파일로 되돌리면 기간이 상장일로 줄어듦 → 상장 전까지 늘린 합성 시세만 (docs/research/합성_시세_연장.md 결정 10)
+# 실물 파일로 되돌리면 기간이 상장일로 줄어듦 → 상장 전까지 늘린 합성 시세만 (docs/research/백테스트_기간_연장.md 결정 10)
 CONFIGS: list[BufferZoneConfig] = [
     # --- TQQQ (QQQ 시그널 + TQQQ 합성 매매) ---
     BufferZoneConfig(

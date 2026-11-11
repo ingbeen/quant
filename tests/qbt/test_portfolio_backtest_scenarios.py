@@ -1302,7 +1302,7 @@ class TestRunWithStartCheck:
 
 class TestPlannedStartDates:
     """러너가 실험마다 시작할 날 — 설정의 min_start_date, 없으면 그런 실험들이 함께 시작하는 날
-    (그 실험들의 데이터 시작일 중 가장 늦은 날 이후, 그 실험들 모두의 거래일인 첫날 — docs/research/합성_시세_연장.md 결정 10)."""
+    (그 실험들의 데이터 시작일 중 가장 늦은 날 이후, 그 실험들 모두의 거래일인 첫날 — docs/research/백테스트_기간_연장.md 결정 10)."""
 
     @staticmethod
     def _configs(tmp_path: Path, pinned: dict[str, date | None]) -> list[PortfolioConfig]:

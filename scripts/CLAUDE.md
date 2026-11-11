@@ -40,7 +40,7 @@ CLI 스크립트 계층(`scripts/`)은 사용자 인터페이스를 제공하며
 백테스트 (`backtest/`):
 
 - `run_single_backtest.py` · `run_walkforward.py` · `run_param_plateau_all.py` — 단일 전략 · 워크포워드 · 파라미터 고원. 단일 전략은 버퍼존 · Buy & Hold 의 설정 목록을 모두 돌고, 대시보드가 같은 목록을 읽는다. 세 러너 모두 설정이 가리키는 합성 시세로 돈다
-- `run_portfolio_backtest.py` — 포트폴리오 실험. 설정에 `min_start_date` 가 없는 등록 실험은 모두 같은 날 — 그 실험들의 데이터 시작일 중 가장 늦은 날 이후 모두의 거래일인 첫날 — 에 시작하고(하나만 돌려도 등록 실험 전부를 재서 같은 날), `min_start_date` 가 있는 실험은 그 날짜에 시작한다 (`docs/research/합성_시세_연장.md` 결정 10). 일부만 돌릴 때 다른 실험의 저장 결과가 지금 정한 기간(시작일 · 끝날)과 다르면 아무것도 쓰기 전에 멈춘다 — 그때는 전체를 돌린다. 실제 시작일이 그날과 다르면 멈춘다
+- `run_portfolio_backtest.py` — 포트폴리오 실험. 설정에 `min_start_date` 가 없는 등록 실험은 모두 같은 날 — 그 실험들의 데이터 시작일 중 가장 늦은 날 이후 모두의 거래일인 첫날 — 에 시작하고(하나만 돌려도 등록 실험 전부를 재서 같은 날), `min_start_date` 가 있는 실험은 그 날짜에 시작한다 (`docs/research/백테스트_기간_연장.md` 결정 10). 일부만 돌릴 때 다른 실험의 저장 결과가 지금 정한 기간(시작일 · 끝날)과 다르면 아무것도 쓰기 전에 멈춘다 — 그때는 전체를 돌린다. 실제 시작일이 그날과 다르면 멈춘다
 - 대시보드 `app_single_backtest.py` · `app_portfolio_backtest.py` · `app_walkforward.py` · `app_parameter_stability.py` — 화면 구성은 각 앱 docstring, 세 앱이 같이 쓰는 차트는 `src/qbt/backtest/dashboard_charts.py`. 포트폴리오 대시보드에 체결일별 전후 표는 두지 않는다 — 체결일의 자산별 주수 · 비중 · 평가액은 `equity.csv` · `state_log.csv` 에 이미 있다
 
 ---

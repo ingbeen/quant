@@ -153,7 +153,7 @@ class TestBufferZoneConfig:
     def test_sp500_leveraged_configs_trade_on_spy_signal(self, name: str, trade_path: Path):
         """
         목적: S&P 500 2 · 3배 버퍼존은 나스닥 100 쪽(QLD · TQQQ)과 같은 짜임이다 — 1배 SPY 합성 신호로 그 배수의 합성을
-              매매하고 값은 4P 그대로 (사용자 요청 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+              매매하고 값은 4P 그대로 (사용자 요청 2026-11-05, docs/research/백테스트_기간_연장.md 결정 10)
 
         Given: buffer_zone.CONFIGS
         When: get_config(SSO · UPRO)
@@ -173,7 +173,7 @@ class TestBufferZoneConfig:
     def test_all_configs_read_synthetic_prices(self):
         """
         목적: 버퍼존은 모두 상장 전까지 늘린 합성 시세로 돈다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다
-              (사용자 결정 2026-11-05, docs/research/합성_시세_연장.md 결정 10)
+              (사용자 결정 2026-11-05, docs/research/백테스트_기간_연장.md 결정 10)
 
         Given: buffer_zone.CONFIGS
         When: 신호 · 매매 경로를 모은다

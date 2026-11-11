@@ -27,7 +27,7 @@
 - `strategies/strategy_common.py` — 두 엔진이 같이 쓰는 전략 인터페이스 `SignalStrategy` Protocol
 - `strategies/buffer_zone.py` · `buffer_zone_helpers.py` — 버퍼존 전략 `BufferZoneStrategy`(stateful)와 자산별 설정 `CONFIGS`(전 자산 4P), 밴드 · 돌파 감지 함수
 - `strategies/buy_and_hold.py` — Buy & Hold 벤치마크 전략과 티커별 `CONFIGS`. 매매 시세의 첫 행부터 돈다
-- 버퍼존 · Buy & Hold · 포트폴리오 설정은 모두 상장 전까지 늘린 합성 시세(`*_synthetic.csv`)를 읽는다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다(`docs/research/합성_시세_연장.md` 결정 10, 설정 테스트가 지킨다)
+- 버퍼존 · Buy & Hold · 포트폴리오 설정은 모두 상장 전까지 늘린 합성 시세(`*_synthetic.csv`)를 읽는다 — 실물 파일로 되돌리면 기간이 상장일로 줄어든다(`docs/research/백테스트_기간_연장.md` 결정 10, 설정 테스트가 지킨다)
 - `strategy_registry.py` — `STRATEGY_REGISTRY`: 포트폴리오 엔진이 `strategy_id` 문자열로 전략을 만든다. 새 전략은 등록만 하고 엔진은 고치지 않는다
 - `runners.py` — 단일 백테스트 설정을 실행 함수로 만드는 팩토리 (전략 모듈 ↔ 엔진 순환 의존을 끊는 자리)
 - `strategies/` · `qbt.backtest` 패키지는 재노출하지 않는다 — 각 모듈을 직접 import 한다

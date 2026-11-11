@@ -2,19 +2,19 @@
   "strategy": "buffer_zone_qqq",
   "dynamic": {
     "n_windows": 18,
-    "oos_cagr_mean": 7.93,
-    "oos_cagr_std": 10.12,
+    "oos_cagr_mean": 8.11,
+    "oos_cagr_std": 9.98,
     "oos_mdd_mean": -17.87,
     "oos_mdd_worst": -30.35,
-    "oos_calmar_mean": 0.5314,
+    "oos_calmar_mean": 0.5433,
     "oos_trades_total": 35,
-    "wfe_calmar_mean": 1.8267,
+    "wfe_calmar_mean": 1.8712,
     "wfe_calmar_median": 1.3937,
-    "wfe_cagr_mean": 0.7789,
+    "wfe_cagr_mean": 0.7939,
     "wfe_cagr_median": 0.7904,
     "gap_calmar_median": 0.16,
     "wfe_calmar_robust": 1.3937,
-    "profit_concentration_max": 0.3238,
+    "profit_concentration_max": 0.3123,
     "profit_concentration_window_idx": 16,
     "param_ma_windows": [
       100,
@@ -96,25 +96,25 @@
       0,
       0
     ],
-    "stitched_cagr": 9.73,
+    "stitched_cagr": 9.83,
     "stitched_mdd": -58.47,
-    "stitched_calmar": 0.1663
+    "stitched_calmar": 0.1682
   },
   "fully_fixed": {
     "n_windows": 18,
-    "oos_cagr_mean": 10.6,
-    "oos_cagr_std": 12.07,
+    "oos_cagr_mean": 10.78,
+    "oos_cagr_std": 11.94,
     "oos_mdd_mean": -16.26,
     "oos_mdd_worst": -26.19,
-    "oos_calmar_mean": 0.7082,
+    "oos_calmar_mean": 0.7203,
     "oos_trades_total": 16,
-    "wfe_calmar_mean": 6.6749,
+    "wfe_calmar_mean": 6.7215,
     "wfe_calmar_median": 2.9156,
-    "wfe_cagr_mean": 2.3742,
+    "wfe_cagr_mean": 2.3901,
     "wfe_cagr_median": 0.8301,
     "gap_calmar_median": 0.4532,
     "wfe_calmar_robust": 2.9196,
-    "profit_concentration_max": 0.3129,
+    "profit_concentration_max": 0.302,
     "profit_concentration_window_idx": 16,
     "param_ma_windows": [
       200,
@@ -196,8 +196,8 @@
       3,
       3
     ],
-    "stitched_cagr": 12.47,
+    "stitched_cagr": 12.57,
     "stitched_mdd": -43.36,
-    "stitched_calmar": 0.2875
+    "stitched_calmar": 0.29
   }
 }

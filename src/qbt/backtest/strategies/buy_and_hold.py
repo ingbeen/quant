@@ -44,7 +44,7 @@ class BuyAndHoldConfig:
 
 
 # 티커별 설정 목록 (새 티커 추가 시 여기에 한 줄 추가)
-# 매매 시세의 첫 행부터 돎 → 실물 파일로 되돌리면 기간이 상장일로 줄어듦 (docs/research/합성_시세_연장.md 결정 10)
+# 매매 시세의 첫 행부터 돎 → 실물 파일로 되돌리면 기간이 상장일로 줄어듦 (docs/research/백테스트_기간_연장.md 결정 10)
 CONFIGS: list[BuyAndHoldConfig] = [
     BuyAndHoldConfig(
         strategy_name="buy_and_hold_qqq",

@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (TQQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 2914847508,
-    "total_return_pct": 29048.48,
-    "cagr": 15.12,
+    "final_capital": 3212189958,
+    "total_return_pct": 32021.9,
+    "cagr": 15.39,
     "mdd": -89.36,
-    "calmar": 0.1692,
+    "calmar": 0.1722,
     "total_trades": 23,
     "winning_trades": 13,
     "losing_trades": 10,
     "win_rate": 56.52,
     "start_date": "1986-07-16",
-    "end_date": "2026-11-06",
+    "end_date": "2026-11-09",
     "open_position": {
       "entry_date": "2026-04-17",
       "entry_price": 57.7086,
@@ -2451,7 +2451,7 @@
     {
       "year": 2026,
       "month": 11,
-      "return_pct": -15.74
+      "return_pct": -7.14
     }
   ],
   "yearly_returns": [
@@ -2617,7 +2617,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -31.83
+      "return_pct": -24.87
     }
   ],
   "period_performance": {
@@ -2625,90 +2625,90 @@
       {
         "label": "전체",
         "start_date": "1986-07-16",
-        "end_date": "2026-11-06",
-        "cagr": 15.12,
+        "end_date": "2026-11-09",
+        "cagr": 15.39,
         "mdd": -89.36,
-        "total_return_pct": 29048.48
+        "total_return_pct": 32021.9
       },
       {
         "label": "앞 절반",
         "start_date": "1986-07-16",
-        "end_date": "2006-09-08",
+        "end_date": "2006-09-12",
         "cagr": 6.55,
         "mdd": -89.36,
         "total_return_pct": 259.24
       },
       {
         "label": "뒤 절반",
-        "start_date": "2006-09-08",
-        "end_date": "2026-11-06",
-        "cagr": 24.36,
+        "start_date": "2006-09-12",
+        "end_date": "2026-11-09",
+        "cagr": 24.97,
         "mdd": -62.09,
-        "total_return_pct": 8013.99
+        "total_return_pct": 8841.7
       },
       {
         "label": "최근 20년",
-        "start_date": "2006-11-06",
-        "end_date": "2026-11-06",
-        "cagr": 24.28,
+        "start_date": "2006-11-09",
+        "end_date": "2026-11-09",
+        "cagr": 24.77,
         "mdd": -62.09,
-        "total_return_pct": 7630.74
+        "total_return_pct": 8264.09
       },
       {
         "label": "최근 10년",
-        "start_date": "2016-11-07",
-        "end_date": "2026-11-06",
-        "cagr": 29.04,
+        "start_date": "2016-11-09",
+        "end_date": "2026-11-09",
+        "cagr": 29.86,
         "mdd": -62.09,
-        "total_return_pct": 1178.62
+        "total_return_pct": 1262.87
       },
       {
         "label": "최근 5년",
-        "start_date": "2021-11-08",
-        "end_date": "2026-11-06",
-        "cagr": 5.25,
+        "start_date": "2021-11-09",
+        "end_date": "2026-11-09",
+        "cagr": 7.75,
         "mdd": -54.01,
-        "total_return_pct": 29.09
+        "total_return_pct": 45.25
       },
       {
         "label": "최근 3년",
-        "start_date": "2023-11-06",
-        "end_date": "2026-11-06",
-        "cagr": 7.68,
+        "start_date": "2023-11-09",
+        "end_date": "2026-11-09",
+        "cagr": 11.02,
         "mdd": -54.01,
-        "total_return_pct": 24.85
+        "total_return_pct": 36.83
       },
       {
         "label": "닷컴 정점부터",
         "start_date": "2000-03-24",
-        "end_date": "2026-11-06",
-        "cagr": 10.87,
+        "end_date": "2026-11-09",
+        "cagr": 11.27,
         "mdd": -88.61,
-        "total_return_pct": 1458.21
+        "total_return_pct": 1617.16
       },
       {
         "label": "닷컴 바닥 뒤부터",
         "start_date": "2002-10-09",
-        "end_date": "2026-11-06",
-        "cagr": 21.63,
+        "end_date": "2026-11-09",
+        "cagr": 22.11,
         "mdd": -62.09,
-        "total_return_pct": 11057.86
+        "total_return_pct": 12196.07
       },
       {
         "label": "금융위기 직전 고점부터",
         "start_date": "2007-10-09",
-        "end_date": "2026-11-06",
-        "cagr": 22.38,
+        "end_date": "2026-11-09",
+        "cagr": 22.99,
         "mdd": -62.09,
-        "total_return_pct": 4610.64
+        "total_return_pct": 5091.17
       },
       {
         "label": "금융위기 바닥 뒤부터",
         "start_date": "2009-03-09",
-        "end_date": "2026-11-06",
-        "cagr": 28.1,
+        "end_date": "2026-11-09",
+        "cagr": 28.79,
         "mdd": -62.09,
-        "total_return_pct": 7830.5
+        "total_return_pct": 8639.48
       }
     ],
     "regimes": [
@@ -6010,15 +6010,15 @@
       "positive_years": 21,
       "negative_years": 18,
       "median_pct": 3.32,
-      "mean_pct": 34.25,
+      "mean_pct": 34.42,
       "top_years": [
         1999,
         1991,
         2013
       ],
-      "top3_share_pct": 49.72,
-      "mean_without_top3_pct": 17.22,
-      "mean_without_top5_pct": 11.56
+      "top3_share_pct": 49.47,
+      "mean_without_top3_pct": 17.39,
+      "mean_without_top5_pct": 11.73
     }
   },
   "data_info": {
