@@ -1,6 +1,8 @@
 {
   "커밋": "72d5172135a03c95bf871fe35428d72c2e2dffa4",
-  "커밋 안 된 변경": [],
+  "커밋 안 된 변경": [
+    "storage/manifest.json"
+  ],
   "기준일": "2026-11-09",
   "파일": {
     "QQQ_synthetic.csv": {
