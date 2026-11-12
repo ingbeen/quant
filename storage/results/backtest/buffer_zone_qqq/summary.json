@@ -2,17 +2,17 @@
   "display_name": "버퍼존 전략 (QQQ)",
   "summary": {
     "initial_capital": 10000000,
-    "final_capital": 651283146,
-    "total_return_pct": 6412.83,
-    "cagr": 10.91,
+    "final_capital": 646882815,
+    "total_return_pct": 6368.83,
+    "cagr": 10.89,
     "mdd": -43.36,
-    "calmar": 0.2517,
+    "calmar": 0.2513,
     "total_trades": 23,
     "winning_trades": 17,
     "losing_trades": 6,
     "win_rate": 73.91,
     "start_date": "1986-07-16",
-    "end_date": "2026-11-09",
+    "end_date": "2026-11-10",
     "open_position": {
       "entry_date": "2026-04-17",
       "entry_price": 646.1427,
@@ -2451,7 +2451,7 @@
     {
       "year": 2026,
       "month": 11,
-      "return_pct": -1.61
+      "return_pct": -2.28
     }
   ],
   "yearly_returns": [
@@ -2617,7 +2617,7 @@
     },
     {
       "year": 2026,
-      "return_pct": -3.06
+      "return_pct": -3.72
     }
   ],
   "period_performance": {
@@ -2625,10 +2625,10 @@
       {
         "label": "전체",
         "start_date": "1986-07-16",
-        "end_date": "2026-11-09",
-        "cagr": 10.91,
+        "end_date": "2026-11-10",
+        "cagr": 10.89,
         "mdd": -43.36,
-        "total_return_pct": 6412.83
+        "total_return_pct": 6368.83
       },
       {
         "label": "앞 절반",
@@ -2641,74 +2641,74 @@
       {
         "label": "뒤 절반",
         "start_date": "2006-09-12",
-        "end_date": "2026-11-09",
-        "cagr": 11.95,
+        "end_date": "2026-11-10",
+        "cagr": 11.91,
         "mdd": -26.43,
-        "total_return_pct": 872.54
+        "total_return_pct": 865.97
       },
       {
         "label": "최근 20년",
-        "start_date": "2006-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 11.9,
+        "start_date": "2006-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 11.84,
         "mdd": -26.43,
-        "total_return_pct": 847.44
+        "total_return_pct": 836.67
       },
       {
         "label": "최근 10년",
-        "start_date": "2016-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 14.7,
+        "start_date": "2016-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 14.81,
         "mdd": -25.18,
-        "total_return_pct": 293.97
+        "total_return_pct": 297.73
       },
       {
         "label": "최근 5년",
-        "start_date": "2021-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 8.23,
+        "start_date": "2021-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 8.4,
         "mdd": -20.93,
-        "total_return_pct": 48.48
+        "total_return_pct": 49.67
       },
       {
         "label": "최근 3년",
-        "start_date": "2023-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 10.91,
+        "start_date": "2023-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 9.84,
         "mdd": -20.93,
-        "total_return_pct": 36.43
+        "total_return_pct": 32.53
       },
       {
         "label": "닷컴 정점부터",
         "start_date": "2000-03-24",
-        "end_date": "2026-11-09",
-        "cagr": 7.92,
+        "end_date": "2026-11-10",
+        "cagr": 7.89,
         "mdd": -43.36,
-        "total_return_pct": 660.91
+        "total_return_pct": 655.76
       },
       {
         "label": "닷컴 바닥 뒤부터",
         "start_date": "2002-10-09",
-        "end_date": "2026-11-09",
-        "cagr": 11.08,
+        "end_date": "2026-11-10",
+        "cagr": 11.05,
         "mdd": -26.43,
-        "total_return_pct": 1157.59
+        "total_return_pct": 1149.09
       },
       {
         "label": "금융위기 직전 고점부터",
         "start_date": "2007-10-09",
-        "end_date": "2026-11-09",
-        "cagr": 11.19,
+        "end_date": "2026-11-10",
+        "cagr": 11.15,
         "mdd": -26.43,
-        "total_return_pct": 657.8
+        "total_return_pct": 652.68
       },
       {
         "label": "금융위기 바닥 뒤부터",
         "start_date": "2009-03-09",
-        "end_date": "2026-11-09",
-        "cagr": 13.07,
+        "end_date": "2026-11-10",
+        "cagr": 13.03,
         "mdd": -26.43,
-        "total_return_pct": 776.53
+        "total_return_pct": 770.61
       }
     ],
     "regimes": [
@@ -6010,15 +6010,15 @@
       "positive_years": 24,
       "negative_years": 15,
       "median_pct": 6.03,
-      "mean_pct": 12.87,
+      "mean_pct": 12.86,
       "top_years": [
         1999,
         1991,
         1995
       ],
-      "top3_share_pct": 36.24,
-      "mean_without_top3_pct": 8.21,
-      "mean_without_top5_pct": 6.23
+      "top3_share_pct": 36.29,
+      "mean_without_top3_pct": 8.19,
+      "mean_without_top5_pct": 6.21
     }
   },
   "data_info": {

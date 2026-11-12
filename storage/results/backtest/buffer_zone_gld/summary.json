@@ -12,7 +12,7 @@
     "losing_trades": 10,
     "win_rate": 44.44,
     "start_date": "1980-10-28",
-    "end_date": "2026-11-09"
+    "end_date": "2026-11-10"
   },
   "params": {
     "ma_window": 200,
@@ -2989,7 +2989,7 @@
       {
         "label": "전체",
         "start_date": "1980-10-28",
-        "end_date": "2026-11-09",
+        "end_date": "2026-11-10",
         "cagr": 4.06,
         "mdd": -45.15,
         "total_return_pct": 525.98
@@ -2997,47 +2997,47 @@
       {
         "label": "앞 절반",
         "start_date": "1980-10-28",
-        "end_date": "2003-11-03",
-        "cagr": 0.5,
+        "end_date": "2003-11-04",
+        "cagr": 0.54,
         "mdd": -45.15,
-        "total_return_pct": 12.23
+        "total_return_pct": 13.1
       },
       {
         "label": "뒤 절반",
-        "start_date": "2003-11-03",
-        "end_date": "2026-11-09",
-        "cagr": 7.75,
+        "start_date": "2003-11-04",
+        "end_date": "2026-11-10",
+        "cagr": 7.72,
         "mdd": -41.12,
-        "total_return_pct": 457.74
+        "total_return_pct": 453.49
       },
       {
         "label": "최근 20년",
-        "start_date": "2006-11-09",
-        "end_date": "2026-11-09",
+        "start_date": "2006-11-10",
+        "end_date": "2026-11-10",
         "cagr": 6.8,
         "mdd": -41.12,
         "total_return_pct": 272.95
       },
       {
         "label": "최근 10년",
-        "start_date": "2016-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 7.66,
+        "start_date": "2016-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 7.82,
         "mdd": -28.02,
-        "total_return_pct": 109.21
+        "total_return_pct": 112.37
       },
       {
         "label": "최근 5년",
-        "start_date": "2021-11-09",
-        "end_date": "2026-11-09",
+        "start_date": "2021-11-10",
+        "end_date": "2026-11-10",
         "cagr": 11.78,
         "mdd": -24.82,
         "total_return_pct": 74.46
       },
       {
         "label": "최근 3년",
-        "start_date": "2023-11-09",
-        "end_date": "2026-11-09",
+        "start_date": "2023-11-10",
+        "end_date": "2026-11-10",
         "cagr": 25.31,
         "mdd": -24.82,
         "total_return_pct": 96.79
@@ -3045,7 +3045,7 @@
       {
         "label": "닷컴 정점부터",
         "start_date": "2000-03-24",
-        "end_date": "2026-11-09",
+        "end_date": "2026-11-10",
         "cagr": 7.64,
         "mdd": -41.12,
         "total_return_pct": 610.56
@@ -3053,7 +3053,7 @@
       {
         "label": "닷컴 바닥 뒤부터",
         "start_date": "2002-10-09",
-        "end_date": "2026-11-09",
+        "end_date": "2026-11-10",
         "cagr": 8.12,
         "mdd": -41.12,
         "total_return_pct": 555.1
@@ -3061,7 +3061,7 @@
       {
         "label": "금융위기 직전 고점부터",
         "start_date": "2007-10-09",
-        "end_date": "2026-11-09",
+        "end_date": "2026-11-10",
         "cagr": 6.38,
         "mdd": -41.12,
         "total_return_pct": 225.5
@@ -3069,7 +3069,7 @@
       {
         "label": "금융위기 바닥 뒤부터",
         "start_date": "2009-03-09",
-        "end_date": "2026-11-09",
+        "end_date": "2026-11-10",
         "cagr": 6.08,
         "mdd": -41.12,
         "total_return_pct": 183.7

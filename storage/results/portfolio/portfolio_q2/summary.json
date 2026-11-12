@@ -2,16 +2,16 @@
   "display_name": "Q-2 (SPY 35% / QQQ 35% / GLD 15%(B&H) / TLT 15%(B&H))",
   "portfolio_summary": {
     "initial_capital": 10000000,
-    "final_capital": 383350912,
-    "total_return_pct": 3733.51,
-    "cagr": 9.47,
+    "final_capital": 379608593,
+    "total_return_pct": 3696.09,
+    "cagr": 9.44,
     "mdd": -25.82,
-    "calmar": 0.3666,
-    "sharpe_ratio": 0.8977,
-    "sortino_ratio": 1.2508,
+    "calmar": 0.3655,
+    "sharpe_ratio": 0.8953,
+    "sortino_ratio": 1.2474,
     "total_trades": 222,
     "start_date": "1986-07-16",
-    "end_date": "2026-11-09"
+    "end_date": "2026-11-10"
   },
   "per_asset": [
     {
@@ -2531,7 +2531,7 @@
     {
       "year": 2026,
       "month": 11,
-      "return_pct": 0.32
+      "return_pct": -0.66
     }
   ],
   "yearly_returns": [
@@ -2697,7 +2697,7 @@
     },
     {
       "year": 2026,
-      "return_pct": 2.46
+      "return_pct": 1.46
     }
   ],
   "period_performance": {
@@ -2705,10 +2705,10 @@
       {
         "label": "전체",
         "start_date": "1986-07-16",
-        "end_date": "2026-11-09",
-        "cagr": 9.47,
+        "end_date": "2026-11-10",
+        "cagr": 9.44,
         "mdd": -25.82,
-        "total_return_pct": 3733.51
+        "total_return_pct": 3696.09
       },
       {
         "label": "앞 절반",
@@ -2721,74 +2721,74 @@
       {
         "label": "뒤 절반",
         "start_date": "2006-09-12",
-        "end_date": "2026-11-09",
-        "cagr": 10.05,
+        "end_date": "2026-11-10",
+        "cagr": 10.0,
         "mdd": -15.72,
-        "total_return_pct": 589.79
+        "total_return_pct": 583.05
       },
       {
         "label": "최근 20년",
-        "start_date": "2006-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 9.9,
+        "start_date": "2006-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 9.84,
         "mdd": -15.72,
-        "total_return_pct": 560.45
+        "total_return_pct": 553.16
       },
       {
         "label": "최근 10년",
-        "start_date": "2016-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 11.23,
+        "start_date": "2016-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 11.22,
         "mdd": -15.72,
-        "total_return_pct": 189.84
+        "total_return_pct": 189.68
       },
       {
         "label": "최근 5년",
-        "start_date": "2021-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 7.74,
+        "start_date": "2021-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 7.72,
         "mdd": -15.72,
-        "total_return_pct": 45.14
+        "total_return_pct": 45.04
       },
       {
         "label": "최근 3년",
-        "start_date": "2023-11-09",
-        "end_date": "2026-11-09",
-        "cagr": 14.65,
+        "start_date": "2023-11-10",
+        "end_date": "2026-11-10",
+        "cagr": 13.8,
         "mdd": -11.59,
-        "total_return_pct": 50.73
+        "total_return_pct": 47.38
       },
       {
         "label": "닷컴 정점부터",
         "start_date": "2000-03-24",
-        "end_date": "2026-11-09",
-        "cagr": 8.47,
+        "end_date": "2026-11-10",
+        "cagr": 8.43,
         "mdd": -18.21,
-        "total_return_pct": 771.14
+        "total_return_pct": 762.63
       },
       {
         "label": "닷컴 바닥 뒤부터",
         "start_date": "2002-10-09",
-        "end_date": "2026-11-09",
-        "cagr": 9.99,
+        "end_date": "2026-11-10",
+        "cagr": 9.94,
         "mdd": -15.72,
-        "total_return_pct": 890.45
+        "total_return_pct": 880.78
       },
       {
         "label": "금융위기 직전 고점부터",
         "start_date": "2007-10-09",
-        "end_date": "2026-11-09",
-        "cagr": 9.49,
+        "end_date": "2026-11-10",
+        "cagr": 9.44,
         "mdd": -15.72,
-        "total_return_pct": 464.75
+        "total_return_pct": 459.24
       },
       {
         "label": "금융위기 바닥 뒤부터",
         "start_date": "2009-03-09",
-        "end_date": "2026-11-09",
-        "cagr": 10.35,
+        "end_date": "2026-11-10",
+        "cagr": 10.29,
         "mdd": -15.72,
-        "total_return_pct": 470.07
+        "total_return_pct": 464.5
       }
     ],
     "regimes": [
@@ -6090,15 +6090,15 @@
       "positive_years": 32,
       "negative_years": 9,
       "median_pct": 10.71,
-      "mean_pct": 9.88,
+      "mean_pct": 9.86,
       "top_years": [
         1999,
         1995,
         1991
       ],
-      "top3_share_pct": 22.66,
-      "mean_without_top3_pct": 7.64,
-      "mean_without_top5_pct": 6.52
+      "top3_share_pct": 22.72,
+      "mean_without_top3_pct": 7.62,
+      "mean_without_top5_pct": 6.5
     }
   },
   "yearly_asset_contributions": [
@@ -6544,12 +6544,12 @@
     },
     {
       "year": 2026,
-      "return_pct": 2.46,
+      "return_pct": 1.46,
       "assets": {
-        "spy": 3.92,
-        "qqq": -0.92,
-        "gld": -0.12,
-        "tlt": -0.43
+        "spy": 3.78,
+        "qqq": -1.14,
+        "gld": -0.55,
+        "tlt": -0.63
       },
       "other_pct": 0.0
     }
