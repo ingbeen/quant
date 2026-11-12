@@ -168,5 +168,6 @@
   5. `common_constants.py` 모듈 docstring 이 「반올림 규칙 상수」(`ROUND_*`) 절을 나열하지 않음 — 이 계획 전부터의 누락, docstring, 기준 3
   6. `src/qbt/backtest/CLAUDE.md` 모듈 지도의 `constants.py` 나열에 수치 안정성이 없음 — 문서, 기준 3. 직전 계획의 비목표(나열을 늘리지 않음)대로 둠
 - 2026-11-12 09:22: `/commit` 전에 작업 트리에서 이 계획 밖 변경을 발견 — 루트 `CLAUDE.md` · `docs/COMMANDS.md` · `src/qbt/CLAUDE.md` 가 「판 요약 `quant_data_edition.json`」을 「매니페스트 `quant_data_manifest.json`」으로 바꿈(이 세션이 쓴 것 아님 — quant-data 에도 커밋 안 된 변경이 있어 다른 곳에서 진행 중으로 봄). 손대지 않고, 후보 5개는 이 계획의 변경(src 9 · tests 6 · 이 계획서)만 대상으로 냄 → Done
+- 2026-11-12 09:24: Done 뒤 사용자 「추천대로」 — 리뷰 1번 · 5번을 주석 수정(계획서 예외)으로 반영. `EPSILON` 주석을 「부동소수 비교 허용오차 — 0 에 가까운 값 판정 · 합계와 경계 비교에 씀」, `backtest/constants.py` docstring 의 「수치 안정성」을 「비교 허용오차」로, `common_constants.py` docstring 에 「반올림 규칙 상수 (저장 직전 자릿수)」. `black .` 변화 없음, `validate_project.py` passed=668 · failed=0 · skipped=0. 커밋 후보는 이 반영을 포함해 대화에서 다시 냄
 
 ---
