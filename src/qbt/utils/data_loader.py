@@ -4,13 +4,19 @@
 """
 
 from pathlib import Path
+from typing import Final
 
 import pandas as pd
 
-from qbt.common_constants import COL_DATE, PRICE_COLUMNS, REQUIRED_COLUMNS
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 from qbt.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+REQUIRED_COLUMNS: Final = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, COL_VOLUME]
+
+# 가격 관련 컬럼만 따로 묶음 (검증 시 양수 체크 등에 사용)
+PRICE_COLUMNS: Final = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]
 
 # 합성 시세와 그 짝 실물 수정주가의 파일 이름 끝 (src/qbt/CLAUDE.md 「시세 파일 이름」)
 _SYNTHETIC_SUFFIX = "_synthetic.csv"

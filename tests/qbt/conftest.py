@@ -72,7 +72,7 @@ def create_csv_file(tmp_path: Path):
         실제 CSV 파일 생성 함수
 
         Args:
-            filename: 파일명 (예: "AAPL_max.csv")
+            filename: 파일명 (예: "QQQ_synthetic.csv")
             df: 저장할 DataFrame
 
         Returns:

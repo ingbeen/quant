@@ -10,7 +10,8 @@ from typing import Final
 
 import pandas as pd
 
-from qbt.common_constants import COL_CLOSE, COL_DATE, TRADING_DAYS_PER_YEAR
+from qbt.backtest.constants import TRADING_DAYS_PER_YEAR
+from qbt.common_constants import COL_CLOSE, COL_DATE
 
 # 동점이면 이 순서가 앞선다
 HAA_OFFENSIVE_ASSET_IDS: Final = ("spy", "iwm", "vea", "vwo", "vnq", "pdbc", "ief", "tlt")

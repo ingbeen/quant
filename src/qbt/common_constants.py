@@ -3,7 +3,7 @@ QBT 프로젝트 공통 상수
 
 모든 도메인에서 공통으로 사용하는 상수를 정의한다.
 - 경로 상수 (디렉토리, 데이터 파일, 결과 파일)
-- 데이터 상수 (컬럼명, 연간 영업일, 수치 안정성 등)
+- 데이터 상수 (컬럼명, 수치 안정성 등)
 """
 
 from pathlib import Path
@@ -58,19 +58,7 @@ COL_LOW: Final = "Low"  # 저가 (Low Price)
 COL_CLOSE: Final = "Close"  # 종가 (Close Price)
 COL_VOLUME: Final = "Volume"  # 거래량
 
-# 컬럼 그룹
-REQUIRED_COLUMNS: Final = [COL_DATE, COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE, COL_VOLUME]
-
-# 가격 관련 컬럼만 따로 묶음 (검증 시 양수 체크 등에 사용)
-PRICE_COLUMNS: Final = [COL_OPEN, COL_HIGH, COL_LOW, COL_CLOSE]
-
 # --- 기타 데이터 상수 ---
-
-# 1년의 평균 달력 일수 (윤년 포함) — CAGR 의 연수 환산에 쓴다
-ANNUAL_DAYS: Final = 365.25
-
-# 주식 시장의 연간 거래일 수 (주말, 공휴일 제외) — 일일 비용과 연간 비용을 서로 환산할 때 쓴다
-TRADING_DAYS_PER_YEAR: Final = 252
 
 # 수치 안정성 상수 — 분모 0 방지 및 로그 계산 안정성 확보
 EPSILON: Final = 1e-12

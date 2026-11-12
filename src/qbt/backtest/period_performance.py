@@ -12,8 +12,8 @@ from typing import Final, TypedDict
 import pandas as pd
 
 from qbt.backtest.analysis import calculate_drawdown_pct_series, calculate_yearly_returns
-from qbt.backtest.constants import COL_EQUITY, MIN_VALID_ROWS
-from qbt.common_constants import ANNUAL_DAYS, COL_CLOSE, COL_DATE, ROUND_PERCENT
+from qbt.backtest.constants import ANNUAL_DAYS, COL_EQUITY, MIN_VALID_ROWS
+from qbt.common_constants import COL_CLOSE, COL_DATE, ROUND_PERCENT
 
 KIND_BEAR: Final = "하락장"
 KIND_SIDEWAYS: Final = "횡보장"

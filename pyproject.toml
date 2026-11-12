@@ -2,7 +2,7 @@
 name = "quant-backtest"
 authors = ["Yubeen"]
 version = "0.1.0"
-description = "Stock backtesting framework with CSV data management"
+description = "Stock backtesting framework"
 packages = [
     {include = "qbt", from = "src"},
 ]

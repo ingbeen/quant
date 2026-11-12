@@ -19,13 +19,13 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.constants import (
+    ANNUAL_DAYS,
     KEY_WFO_DYNAMIC,
     KEY_WFO_FULLY_FIXED,
     PC_CONCENTRATION_THRESHOLD,
     STITCHED_CALMAR_GOOD_THRESHOLD,
     WFO_PARAM_SPECS,
 )
-from qbt.common_constants import ANNUAL_DAYS
 
 # WFE Calmar Robust 가 이 이상이면 IS 성과가 OOS 에서 재현됐다고 쓴다. 1 은 「OOS 성과 = IS 성과」라는 뜻이고
 # 재현 문구(「그대로 또는 그 이상 재현됐다」)가 이 뜻으로 쓰여 있다 — 1 이 아닌 값으로 바꾸면 그 문구도 다시 쓴다
