@@ -8,8 +8,8 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import calculate_calmar
+from qbt.backtest.constants import EPSILON
 from qbt.backtest.walkforward import calculate_wfo_mode_summary, select_best_calmar_params
-from qbt.common_constants import EPSILON
 
 # 모드 요약에 넘기는 이어 붙인 자본곡선 요약 — 이 파일의 요약 테스트는 윈도우 통계만 본다
 _STITCHED_SUMMARY: dict[str, object] = {"initial_capital": 10000.0, "cagr": 0.0, "mdd": -1.0, "calmar": 0.0}

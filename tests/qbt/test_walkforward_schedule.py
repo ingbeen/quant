@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, DEFAULT_INITIAL_CAPITAL
+from qbt.backtest.constants import COL_CAGR, COL_MA_WINDOW, DEFAULT_INITIAL_CAPITAL, EPSILON
 from qbt.backtest.engines.backtest_engine import run_backtest, run_grid_search
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.walkforward import (
@@ -19,7 +19,7 @@ from qbt.backtest.walkforward import (
     run_walkforward,
     run_window_detail_backtests,
 )
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 
 from helpers import make_rise_then_fall_stock_df, make_rising_stock_df
 

@@ -25,7 +25,7 @@ from qbt.backtest.allocators.us_weakness_rotation import (
     UsWeaknessRotationAllocator,
 )
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.backtest.constants import ma_col_name
+from qbt.backtest.constants import EPSILON, ma_col_name
 from qbt.backtest.engines.portfolio_engine import run_portfolio_backtest
 from qbt.backtest.portfolio_types import (
     AllocationAssetConfig,
@@ -37,7 +37,7 @@ from qbt.backtest.portfolio_types import (
 )
 from qbt.backtest.portfolio_validation import validate_portfolio_result
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
-from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME, EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE, COL_HIGH, COL_LOW, COL_OPEN, COL_VOLUME
 
 from helpers import weekdays
 

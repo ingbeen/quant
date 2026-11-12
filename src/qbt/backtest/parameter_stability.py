@@ -13,12 +13,13 @@ import pandas as pd
 
 from qbt.backtest.constants import (
     DEFAULT_PLATEAU_THRESHOLD_RATIO,
+    EPSILON,
     FIXED_4P_BUY_BUFFER_ZONE_PCT,
     FIXED_4P_HOLD_DAYS,
     FIXED_4P_MA_WINDOW,
     FIXED_4P_SELL_BUFFER_ZONE_PCT,
 )
-from qbt.common_constants import BACKTEST_RESULTS_DIR, EPSILON
+from qbt.common_constants import BACKTEST_RESULTS_DIR
 
 # 고원 분석 결과 디렉토리
 _PLATEAU_DIR = BACKTEST_RESULTS_DIR / "param_plateau"

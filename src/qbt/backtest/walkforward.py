@@ -35,6 +35,7 @@ from qbt.backtest.constants import (
     DEFAULT_WFO_MIN_TRADES,
     DEFAULT_WFO_OOS_MONTHS,
     DEFAULT_WFO_SELL_BUFFER_ZONE_PCT_LIST,
+    EPSILON,
     ma_col_name,
 )
 from qbt.backtest.csv_export import enrich_equity_with_bands
@@ -42,7 +43,7 @@ from qbt.backtest.engines.backtest_engine import filter_valid_rows, run_backtest
 from qbt.backtest.strategies.buffer_zone import BufferZoneStrategy
 from qbt.backtest.strategies.strategy_common import SignalStrategy
 from qbt.backtest.types import BestGridParams, OpenPositionDict, SummaryDict, WfoModeSummaryDict, WfoWindowResultDict
-from qbt.common_constants import COL_DATE, EPSILON
+from qbt.common_constants import COL_DATE
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)

@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 
 from qbt.backtest.allocator_registry import WeightAllocator
-from qbt.backtest.constants import REBALANCE_REASON_METHODS, SLIPPAGE_RATE
+from qbt.backtest.constants import EPSILON, REBALANCE_REASON_METHODS, SLIPPAGE_RATE
 from qbt.backtest.engines.portfolio_planning import OrderIntent, ProjectedPortfolio
 from qbt.backtest.portfolio_types import (
     AssetSlotConfig,
@@ -27,7 +27,7 @@ from qbt.backtest.portfolio_types import (
     resolve_methods,
 )
 from qbt.backtest.strategies.strategy_common import SignalStrategy
-from qbt.common_constants import COL_DATE, EPSILON
+from qbt.common_constants import COL_DATE
 
 # ============================================================================
 # 매매법 장부

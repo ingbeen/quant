@@ -7,7 +7,7 @@ import pandas as pd
 
 from qbt.backtest.allocator_registry import ALLOCATOR_REGISTRY
 from qbt.backtest.analysis import calculate_drawdown_pct_series
-from qbt.backtest.constants import COL_EQUITY
+from qbt.backtest.constants import COL_EQUITY, EPSILON
 from qbt.backtest.portfolio_types import (
     POSITION_KEY_SEPARATOR,
     AllocatorMethodConfig,
@@ -18,7 +18,6 @@ from qbt.backtest.portfolio_types import (
     resolve_methods,
 )
 from qbt.backtest.strategy_registry import STRATEGY_REGISTRY
-from qbt.common_constants import EPSILON
 from qbt.utils.data_loader import load_signal_trade_pair
 
 

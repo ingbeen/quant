@@ -3,7 +3,7 @@ QBT 프로젝트 공통 상수
 
 모든 도메인에서 공통으로 사용하는 상수를 정의한다.
 - 경로 상수 (디렉토리, 데이터 파일, 결과 파일)
-- 데이터 상수 (컬럼명, 수치 안정성 등)
+- 데이터 상수 (컬럼명)
 """
 
 from pathlib import Path
@@ -57,11 +57,6 @@ COL_HIGH: Final = "High"  # 고가 (High Price)
 COL_LOW: Final = "Low"  # 저가 (Low Price)
 COL_CLOSE: Final = "Close"  # 종가 (Close Price)
 COL_VOLUME: Final = "Volume"  # 거래량
-
-# --- 기타 데이터 상수 ---
-
-# 수치 안정성 상수 — 분모 0 방지 및 로그 계산 안정성 확보
-EPSILON: Final = 1e-12
 
 # ============================================================
 # 반올림 규칙 상수 — 이 저장소의 자릿수 SoT

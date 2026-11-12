@@ -31,7 +31,8 @@ from qbt.backtest.analysis import (
     calculate_summary,
     calculate_yearly_returns,
 )
-from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
+from qbt.backtest.constants import EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE
 
 
 def _equity_df(values: list[float]) -> pd.DataFrame:

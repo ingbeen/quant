@@ -15,6 +15,7 @@ from qbt.backtest.constants import (
     COL_PNL,
     COL_PNL_PCT,
     COL_SHARES,
+    EPSILON,
     SELL_INTENT_TYPES,
     TRADE_TYPE_REBALANCE,
     TRADE_TYPE_SIGNAL,
@@ -25,7 +26,6 @@ from qbt.backtest.engines.engine_common import (
     execute_sell_order,
 )
 from qbt.backtest.engines.portfolio_planning import OrderIntent
-from qbt.common_constants import EPSILON
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)

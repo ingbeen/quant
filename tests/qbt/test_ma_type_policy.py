@@ -17,7 +17,8 @@ import pandas as pd
 import pytest
 
 from qbt.backtest.analysis import add_single_moving_average
-from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON
+from qbt.backtest.constants import EPSILON
+from qbt.common_constants import COL_CLOSE, COL_DATE
 
 
 def _make_close_df() -> pd.DataFrame:

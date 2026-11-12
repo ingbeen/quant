@@ -14,11 +14,12 @@ from qbt.backtest.constants import (
     ANNUAL_DAYS,
     COL_EQUITY,
     COL_PNL,
+    EPSILON,
     TRADING_DAYS_PER_YEAR,
     ma_col_name,
 )
 from qbt.backtest.types import SummaryDict
-from qbt.common_constants import COL_CLOSE, COL_DATE, EPSILON, ROUND_PERCENT
+from qbt.common_constants import COL_CLOSE, COL_DATE, ROUND_PERCENT
 from qbt.utils import get_logger
 
 logger = get_logger(__name__)

@@ -4,8 +4,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 
+from qbt.backtest.constants import EPSILON
 from qbt.backtest.engines.portfolio_planning import OrderIntent, ProjectedPortfolio
-from qbt.common_constants import EPSILON
 
 
 @dataclass(frozen=True)

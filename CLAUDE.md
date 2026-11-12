@@ -51,8 +51,8 @@ quant/
 - **결과 파일은 덮어써집니다.** `storage/results/` 는 git 추적 대상이므로 되돌릴 수 있으나,
   실행 전 작업 트리 상태를 확인합니다.
 - **시세는 데이터 저장소 quant-data 가 받고 · 판정하고 · 합성해 `storage/stock/` 으로 내보냅니다.** 이 저장소에는 받기 · 합성
-  스크립트가 없습니다. 받을 파일은 `storage/stock/quant_data_files.txt`, 받은 판(quant-data 커밋 번호 · 기준일 · 파일별 기간)은
-  같은 폴더의 `quant_data_edition.json` 에 있습니다. quant-data 를 다룰 때는 그 저장소의 `CLAUDE.md` 를 먼저 `Read` 로 엽니다 —
+  스크립트가 없습니다. 받을 파일은 `storage/stock/quant_data_files.txt`, 받은 버전의 매니페스트(quant-data 커밋 번호 · 기준일 · 파일별 기간)는
+  같은 폴더의 `quant_data_manifest.json` 에 있습니다. quant-data 를 다룰 때는 그 저장소의 `CLAUDE.md` 를 먼저 `Read` 로 엽니다 —
   비정상 시세를 받아들일지 · 뺄지는 거기서 사람만 정합니다.
 - **결과 비교 중일 때 quant-data 갱신 · 내보내기를 함부로 다시 돌리지 않습니다.** 데이터가 갱신되면
   결과 변화의 원인이 코드 변경인지 데이터 추가인지 분리할 수 없게 됩니다.

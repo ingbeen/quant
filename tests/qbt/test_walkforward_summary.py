@@ -5,8 +5,8 @@ calculate_wfo_mode_summary()의 OOS 통계, WFE, Profit Concentration을 검증�
 
 import pytest
 
+from qbt.backtest.constants import EPSILON
 from qbt.backtest.walkforward import calculate_wfo_mode_summary
-from qbt.common_constants import EPSILON
 
 
 class TestCalculateWfoModeSummary:

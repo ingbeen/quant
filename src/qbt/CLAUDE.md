@@ -79,7 +79,7 @@ qbt 비즈니스 로직 구현 시 준수해야 하는 원칙입니다.
 
 ## 시세 파일 이름 (`storage/stock/`)
 
-이 폴더의 시세는 데이터 저장소 quant-data 가 내보낸 사본이다 — 받을 목록은 `quant_data_files.txt`, 받은 판은 `quant_data_edition.json`. 파일은 늘 전체 기간이다(분석 기간은 분석 단계에서 자른다). 이름은 아래 둘만 읽는다 — 그 밖의 이름은 `ticker_from_stock_path` 가 ValueError 로 멈춘다.
+이 폴더의 시세는 데이터 저장소 quant-data 가 내보낸 사본이다 — 받을 목록은 `quant_data_files.txt`, 받은 버전의 매니페스트는 `quant_data_manifest.json`. 파일은 늘 전체 기간이다(분석 기간은 분석 단계에서 자른다). 이름은 아래 둘만 읽는다 — 그 밖의 이름은 `ticker_from_stock_path` 가 ValueError 로 멈춘다.
 
 - `{TICKER}_synthetic.csv`: 합성 (상장 전은 대용 지수 · 펀드 · 시뮬레이션, 상장 후는 실물 수정주가). 상장 전 구간의 시가는 진짜 시가가 아니다 — 1배는 그날 종가, 레버리지는 그날 합성 종가에 그날 비용을 더한 값이다(quant-data `docs/research/합성_시세_연장.md` 결정 3)
 - `{TICKER}_adjusted.csv`: 실물 수정주가 — 지금은 받지 않는다. 같은 폴더에 있으면 `load_stock_data` 가 합성과 끝날을 맞춰 본다

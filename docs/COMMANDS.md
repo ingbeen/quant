@@ -23,7 +23,7 @@ poetry run python validate_project.py
 워크플로우 2 의 백테스트(단일 · 포트폴리오 · 워크포워드 · 고원)는 모두 실물 ETF 상장 전 구간을 채운 합성 시세 8종(`storage/stock/{TICKER}_synthetic.csv`)을 읽습니다. 이 시세는 데이터 저장소 quant-data 가 받고 · 판정하고 · 합성해 이 저장소로 내보낸 사본이고, 이 저장소에는 받기 · 합성 명령이 없습니다 — quant-data 에서 그 저장소 `docs/COMMANDS.md` 의 「갱신」 → 「내보내기」를 돌립니다.
 
 - 받을 파일: `storage/stock/quant_data_files.txt` (한 줄에 quant-data storage 기준 경로 하나)
-- 받은 판: `storage/stock/quant_data_edition.json` — quant-data 커밋 번호 · 커밋 안 된 변경 · 기준일 · 파일별 기간
+- 받은 버전의 매니페스트: `storage/stock/quant_data_manifest.json` — quant-data 커밋 번호 · 커밋 안 된 변경 · 기준일 · 파일별 기간
 
 ---
 
@@ -133,7 +133,7 @@ poetry run pytest --cov=src/qbt --cov-report=html tests/
 
 결과 파일은 만들 때의 시세로 굳은 사본이다. quant-data 에서 갱신 · 내보내기를 다시 해 `storage/stock` 의 합성 시세가 바뀌면 아래 결과 러너를 끝까지 차례로 다시 돌린다 — 일부만 돌리면 같은 결과 폴더에 기준일이 다른 산출물이 섞인다. **단계마다 끝까지 성공한 것을 보고 다음 단계로 간다** — 아래 블록은 실패하면 그 자리에서 멈춘다.
 
-**① 시세 받기** — 워크플로우 1. quant-data 의 갱신이 비정상으로 멈추면 아무 파일도 쓰이지 않는다 — 처리는 quant-data `CLAUDE.md`. 갱신에서 `--exclude` 로 뺀 종목은 옛 끝날에 머물러, 그 종목의 합성이 든 결과의 끝날도 거기 묶인다 — 함께 쓰는 합성끼리 겹치는 기간으로 에러 없이 짧아진다(예: QQQ 를 빼면 QQQ 합성은 옛 끝날 · TQQQ 합성은 새 끝날이라, QQQ 신호로 TQQQ 를 사고파는 결과가 QQQ 의 옛 끝날에서 끝난다). 파일별 끝날은 `storage/stock/quant_data_edition.json`.
+**① 시세 받기** — 워크플로우 1. quant-data 의 갱신이 비정상으로 멈추면 아무 파일도 쓰이지 않는다 — 처리는 quant-data `CLAUDE.md`. 갱신에서 `--exclude` 로 뺀 종목은 옛 끝날에 머물러, 그 종목의 합성이 든 결과의 끝날도 거기 묶인다 — 함께 쓰는 합성끼리 겹치는 기간으로 에러 없이 짧아진다(예: QQQ 를 빼면 QQQ 합성은 옛 끝날 · TQQQ 합성은 새 끝날이라, QQQ 신호로 TQQQ 를 사고파는 결과가 QQQ 의 옛 끝날에서 끝난다). 파일별 끝날은 `storage/stock/quant_data_manifest.json`.
 
 **② 결과 러너** — 블록의 줄 순서대로 돈다. 하나가 실패하면 뒤는 돌지 않는다(`set -e` 는 괄호 안 하위 셸에만 걸린다). 블록 안에는 주석을 두지 않는다 — 주석 옵션(`interactivecomments`)이 꺼진 대화형 zsh 는 `#` 줄을 명령으로 읽어 첫 줄에서 멈춘다.
 
